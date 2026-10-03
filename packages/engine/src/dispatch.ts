@@ -96,6 +96,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     return { month: m.month };
   }
   if (cmd.type === 'market.data') return applyMarketData(world, cmd);
+  if (cmd.type === 'player.anonymize') return anonymize(world, cmd.playerId);
 
   const actorId = ctx.actorId!;
   if (cmd.type === 'player.create') return createFromOnboarding(world, cmd, actorId, ctx.now);
@@ -523,6 +524,24 @@ function createFromOnboarding(
   }
   welcomeNewPlayer(world, p, companyId);
   return { playerId: p.id, companyId };
+}
+
+/**
+ * Account deletion (§18): personal data leaves the game, but the world's
+ * history (cap tables, deals) must stay consistent, so the player becomes an
+ * anonymous, inactive record and their handle is released.
+ */
+function anonymize(world: World, playerId: Id) {
+  const p = getPlayer(world, playerId);
+  const names = world.names[p.market]!;
+  for (const [k, v] of Object.entries(names)) if (v === p.id && k.startsWith('@')) delete names[k];
+  p.name = 'Former player';
+  p.handle = `former_${p.id.slice(-6)}`;
+  p.trust = {};
+  delete world.inbox[p.id];
+  for (const inv of Object.values(world.media))
+    if (inv.playerId === p.id && inv.status !== 'published') inv.status = 'pulled';
+  return { anonymized: true };
 }
 
 function applyMarketData(world: World, cmd: Extract<Command, { type: 'market.data' }>) {

@@ -43,6 +43,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     baseRateBps: z.number().int().min(0).max(10_000).optional(),
     multiples: z.partialRecord(industry, z.number().positive().max(100)).optional(),
   }),
+  z.object({ type: z.literal('player.anonymize'), playerId: id }),
   // ---- onboarding
   z.object({
     type: z.literal('player.create'),
@@ -186,7 +187,11 @@ export type Command = z.infer<typeof commandSchema>;
 export type CommandType = Command['type'];
 
 /** Commands only the server itself may issue (never accepted from a client). */
-export const SYSTEM_COMMANDS: ReadonlySet<CommandType> = new Set(['market.settle', 'market.data']);
+export const SYSTEM_COMMANDS: ReadonlySet<CommandType> = new Set([
+  'market.settle',
+  'market.data',
+  'player.anonymize',
+]);
 
 export const isMarketId = (v: string): v is MarketId =>
   (MARKET_IDS as readonly string[]).includes(v);
