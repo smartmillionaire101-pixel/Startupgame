@@ -15,7 +15,7 @@ const fxSchema = z.object({
 /** Fetch USD→local rates and return per-market updates for meaningful moves (> 0.25%). */
 export async function fetchFxUpdates(
   url: string,
-  current: Record<MarketId, number>,
+  current: Partial<Record<MarketId, number>>,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ market: MarketId; unitsPerUsd: number }[]> {
   const res = await fetchImpl(url, { signal: AbortSignal.timeout(10_000) });
@@ -30,8 +30,10 @@ export async function fetchFxUpdates(
     if (!rate || !Number.isFinite(rate) || rate <= 0) continue;
     // Sanity bound: ignore feeds that move more than 50% at once (bad data, not a crisis).
     const prev = current[market];
-    if (prev && Math.abs(rate / prev - 1) > 0.5) continue;
-    if (prev && Math.abs(rate / prev - 1) < 0.0025) continue;
+    // Only markets that are open; and only meaningful moves.
+    if (!prev) continue;
+    if (Math.abs(rate / prev - 1) > 0.5) continue;
+    if (Math.abs(rate / prev - 1) < 0.0025) continue;
     out.push({ market, unitsPerUsd: Math.round(rate * 10_000) / 10_000 });
   }
   return out;

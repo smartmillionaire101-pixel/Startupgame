@@ -14,7 +14,8 @@ import {
 } from './data/fiction.js';
 import { INDUSTRIES, SEGMENT_TEMPLATES, segmentsForIndustry } from './data/industries.js';
 import type { Industry } from './data/industries.js';
-import { MARKET_DATA, MARKET_IDS, PUBLIC_MULTIPLES } from './data/markets.js';
+import { LAUNCH_MARKETS, MARKET_DATA, PUBLIC_MULTIPLES } from './data/markets.js';
+import { CURRENT_SCHEMA } from './upgrade.js';
 import type { MarketId } from './data/markets.js';
 import {
   BACKGROUNDS,
@@ -97,7 +98,7 @@ export function buildSegments(marketId: MarketId): Record<string, SegmentState> 
   return out;
 }
 
-function createMarket(world: World, id: MarketId): MarketState {
+function createMarket(world: World, id: MarketId, now: number): MarketState {
   const data = structuredClone(MARKET_DATA[id]);
   const ext = {} as Record<ExternalPurpose, Id>;
   for (const purpose of EXTERNAL) {
@@ -121,7 +122,7 @@ function createMarket(world: World, id: MarketId): MarketState {
     news: [],
     bankName: AI_BANKS[id],
     economicNote: `${data.name}: policy rate ${(data.baseRateBps / 100).toFixed(2)}%. Markets open for business.`,
-    lastSettledDate: localDate(world.createdAt, data.timeZone),
+    lastSettledDate: localDate(now, data.timeZone),
     ext,
   };
   world.names[id] = {};
@@ -421,14 +422,33 @@ export interface CreateWorldOptions {
   aiStartupsPerMarket?: number;
 }
 
+/**
+ * Open a market (§2: "New markets open in waves, giving newcomers ground
+ * where nobody has an advantage yet"). Fills it with its AI population.
+ */
+export function openMarket(
+  world: World,
+  id: MarketId,
+  now: number,
+  aiStartups = AI_STARTUPS_PER_MARKET,
+) {
+  ensure(!world.markets[id], 'market.open', 'That market is already open.');
+  world.markets[id] = createMarket(world, id, now);
+  seedFunds(world, id);
+  const rng = deriveRng(world.seed, 'genesis', id);
+  refreshTalent(world, id, rng);
+  for (let i = 0; i < aiStartups; i++) spawnAiStartup(world, id, rng, now);
+  return world.markets[id]!;
+}
+
 export function createWorld(opts: CreateWorldOptions): World {
   const world: World = {
-    schemaVersion: 1,
+    schemaVersion: CURRENT_SCHEMA,
     seed: opts.seed >>> 0,
     version: 0,
     nextId: 1,
     createdAt: opts.now,
-    markets: {} as World['markets'],
+    markets: {},
     players: {},
     companies: {},
     funds: {},
@@ -438,7 +458,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     pitches: {},
     media: {},
     inbox: {},
-    names: {} as World['names'],
+    names: {},
     usdExt: { fx: 'ext:usd:fx', suppliers: 'ext:usd:suppliers', genesis: 'ext:usd:genesis' },
   };
   openAccount(world, {
@@ -462,16 +482,8 @@ export function createWorld(opts: CreateWorldOptions): World {
     label: 'USD genesis',
     external: true,
   });
-  const ids = opts.markets ?? MARKET_IDS;
-  for (const id of ids) world.markets[id] = createMarket(world, id);
-  for (const id of ids) {
-    seedFunds(world, id);
-    const rng = deriveRng(world.seed, 'genesis', id);
-    refreshTalent(world, id, rng);
-    for (let i = 0; i < (opts.aiStartupsPerMarket ?? AI_STARTUPS_PER_MARKET); i++) {
-      spawnAiStartup(world, id, rng, opts.now);
-    }
-  }
+  for (const id of opts.markets ?? LAUNCH_MARKETS)
+    openMarket(world, id, opts.now, opts.aiStartupsPerMarket);
   return world;
 }
 

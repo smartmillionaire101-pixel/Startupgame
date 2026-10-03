@@ -561,13 +561,15 @@ export type ExternalPurpose =
 // ---------------------------------------------------------------- World
 
 export interface World {
-  schemaVersion: 1;
+  /** Bumped when the shape changes; `upgradeWorld` migrates older saves. */
+  schemaVersion: number;
   seed: number;
   /** Increments with every applied command. */
   version: number;
   nextId: number;
   createdAt: number;
-  markets: Record<MarketId, MarketState>;
+  /** Open markets only; more open in waves via `market.open`. */
+  markets: Partial<Record<MarketId, MarketState>>;
   players: Record<Id, Player>;
   companies: Record<Id, Company>;
   funds: Record<Id, Fund>;
@@ -578,7 +580,7 @@ export interface World {
   media: Record<Id, MediaInvite>;
   inbox: Record<Id, InboxItem[]>;
   /** Names/handles reserved per market (normalised), with the owner id. */
-  names: Record<MarketId, Record<string, Id>>;
+  names: Partial<Record<MarketId, Record<string, Id>>>;
   /** USD external accounts (dollar costs, dollar accounts). */
   usdExt: { fx: Id; suppliers: Id; genesis: Id };
 }

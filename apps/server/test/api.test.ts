@@ -276,13 +276,38 @@ describe('persistence and replay', () => {
     store.close();
   });
 
+  it('opens configured markets in waves at boot, once, and keeps them after restart', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'runway-'));
+    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+    const path = join(dir, 'game.db');
+    const first = await makeApp({ path });
+    first.game.openMarkets(['accra', 'cairo']);
+    first.game.openMarkets(['accra']);
+    expect(Object.keys(first.game.current.markets)).toEqual([
+      'lagos',
+      'nairobi',
+      'london',
+      'accra',
+      'cairo',
+    ]);
+    const meta = (await first.app.inject({ method: 'GET', url: '/api/meta' })).json();
+    expect(meta.markets.map((m: { id: string }) => m.id)).toContain('cairo');
+    const before = JSON.stringify(first.game.current);
+    await first.app.close();
+    first.store.close();
+    const store = new Store(path);
+    const again = new GameService(store, { seed: 99, snapshotEvery: 5, now: () => T0 });
+    expect(JSON.stringify(again.current)).toBe(before);
+    store.close();
+  });
+
   it('settles markets when local midnight passes', async () => {
     let t = T0;
     const { game } = await makeApp({ now: () => t });
     expect(game.tick()).toBe(0);
     t += 86_400_000;
     expect(game.tick()).toBe(3);
-    expect(game.current.markets.lagos.month).toBe(1);
+    expect(game.current.markets.lagos!.month).toBe(1);
   });
 });
 

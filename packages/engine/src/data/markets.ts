@@ -11,9 +11,32 @@
  * the engine converts to minor units on use.
  */
 import type { Currency } from '../money.js';
+import { PHASE2_DATA } from './markets-phase2.js';
 
-export const MARKET_IDS = ['lagos', 'nairobi', 'london'] as const;
+export const MARKET_IDS = [
+  'lagos',
+  'nairobi',
+  'london',
+  'accra',
+  'freetown',
+  'kigali',
+  'johannesburg',
+  'cairo',
+  'dubai',
+] as const;
 export type MarketId = (typeof MARKET_IDS)[number];
+
+/** Phase 1 launch markets; the rest open in waves (§2) via the `market.open` command. */
+export const LAUNCH_MARKETS: readonly MarketId[] = ['lagos', 'nairobi', 'london'];
+/** Phase 2 opening order from the design document's roadmap (§20). */
+export const PHASE2_WAVE: readonly MarketId[] = [
+  'accra',
+  'freetown',
+  'kigali',
+  'johannesburg',
+  'cairo',
+  'dubai',
+];
 
 export const STAFF_ROLES = [
   'engineer',
@@ -72,7 +95,7 @@ export interface MarketData {
   sources: DataSource[];
 }
 
-export const MARKET_DATA: Record<MarketId, MarketData> = {
+const PHASE1_DATA: Record<'lagos' | 'nairobi' | 'london', MarketData> = {
   lagos: {
     id: 'lagos',
     name: 'Lagos',
@@ -236,6 +259,8 @@ export const MARKET_DATA: Record<MarketId, MarketData> = {
 };
 
 /** Approximate EV/revenue multiples of US-listed public peers, by sector. Refreshed daily at runtime. */
+export const MARKET_DATA: Record<MarketId, MarketData> = { ...PHASE1_DATA, ...PHASE2_DATA };
+
 export const PUBLIC_MULTIPLES = {
   fintech: 4.5,
   ecommerce: 1.8,

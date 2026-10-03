@@ -58,7 +58,7 @@ for (let month = 1; month <= MONTHS; month++) {
     if (p.ai) continue;
     const c = world.companies[p.companyIds[0]!];
     if (!c || c.status !== 'active') continue;
-    const m = world.markets[c.market];
+    const m = world.markets[c.market]!;
     const col = m.data.costOfLiving * 100;
     const style = p.id.split('_')[2];
     if (month === 1)
@@ -126,7 +126,7 @@ for (let month = 1; month <= MONTHS; month++) {
     }
   }
   for (const market of MARKET_IDS) {
-    const last = world.markets[market].lastSettledDate!;
+    const last = world.markets[market]!.lastSettledDate!;
     const d = new Date(`${last}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() + 1);
     exec(null, { type: 'market.settle', market, date: d.toISOString().slice(0, 10) }, now);
@@ -149,7 +149,7 @@ const rows = Object.values(world.players)
   .map((p) => {
     const c = world.companies[p.companyIds[0]!]!;
     const last = c.finance.history.at(-1);
-    const cur = world.markets[c.market].data.currency;
+    const cur = world.markets[c.market]!.data.currency;
     return {
       company: c.name,
       status: c.status,

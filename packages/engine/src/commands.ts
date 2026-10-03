@@ -31,6 +31,7 @@ export const investorSetup = z.object({
 
 export const commandSchema = z.discriminatedUnion('type', [
   // ---- system (server only)
+  z.object({ type: z.literal('market.open'), market }),
   z.object({
     type: z.literal('market.settle'),
     market,
@@ -188,6 +189,7 @@ export type CommandType = Command['type'];
 
 /** Commands only the server itself may issue (never accepted from a client). */
 export const SYSTEM_COMMANDS: ReadonlySet<CommandType> = new Set([
+  'market.open',
   'market.settle',
   'market.data',
   'player.anonymize',

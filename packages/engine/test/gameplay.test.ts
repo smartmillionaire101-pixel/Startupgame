@@ -33,7 +33,7 @@ describe('onboarding (§3)', () => {
     w = addInvestor(w, 'u_b', 'london');
     const months = (id: string) => {
       const p = w.players[id]!;
-      return w.accounts[p.accounts.local]!.balance / (w.markets[p.market].data.costOfLiving * 100);
+      return w.accounts[p.accounts.local]!.balance / (w.markets[p.market]!.data.costOfLiving * 100);
     };
     expect(months('u_a')).toBeCloseTo(months('u_b'), 5);
   });
@@ -115,7 +115,7 @@ describe('dispatcher', () => {
     const again = tryRun(w, null, {
       type: 'market.settle',
       market: 'lagos',
-      date: w.markets.lagos.lastSettledDate!,
+      date: w.markets.lagos!.lastSettledDate!,
     });
     expect(again.ok).toBe(false);
   });
@@ -149,7 +149,7 @@ describe('a founder’s first year', () => {
     const { w, cid } = playYear();
     const c = w.companies[cid]!;
     for (const [key, pos] of Object.entries(c.segments)) {
-      const seg = w.markets.lagos.segments[key]!;
+      const seg = w.markets.lagos!.segments[key]!;
       const allPaying = Object.values(w.companies).reduce(
         (a, x) => a + (x.segments[key]?.paying ?? 0),
         0,
@@ -179,7 +179,7 @@ describe('hiring (§5)', () => {
   it('a strong offer is accepted; a lowball is declined with a one-line reason', () => {
     let w = addFounder(makeWorld(3));
     const c = companyOf(w, 'u_founder');
-    const cand = w.markets.lagos.talent.find((t) => t.seniority === 'junior')!;
+    const cand = w.markets.lagos!.talent.find((t) => t.seniority === 'junior')!;
     const low = run(w, 'u_founder', {
       type: 'company.offer',
       companyId: c.id,
@@ -190,7 +190,9 @@ describe('hiring (§5)', () => {
     expect(low.result.outcome).toBe('decline');
     expect(low.result.reason.length).toBeGreaterThan(5);
     w = low.world;
-    const other = w.markets.lagos.talent.find((t) => t.seniority === 'junior' && t.id !== cand.id)!;
+    const other = w.markets.lagos!.talent.find(
+      (t) => t.seniority === 'junior' && t.id !== cand.id,
+    )!;
     const good = run(w, 'u_founder', {
       type: 'company.offer',
       companyId: c.id,
@@ -326,10 +328,10 @@ describe('media and fact-checking (§10)', () => {
     let w = addFounder(makeWorld(9));
     const c = companyOf(w, 'u_founder');
     w = settle(w, 'lagos', 2);
-    const outlet = w.markets.lagos.outlets.find((o) => o.type === 'regional')!;
+    const outlet = w.markets.lagos!.outlets.find((o) => o.type === 'regional')!;
     // Force acceptance by retrying outlets until a reporter bites.
     let inviteId: string | undefined;
-    for (const o of [outlet, ...w.markets.lagos.outlets]) {
+    for (const o of [outlet, ...w.markets.lagos!.outlets]) {
       const r = tryRun(
         w,
         'u_founder',
@@ -370,7 +372,7 @@ describe('media and fact-checking (§10)', () => {
     const pub = run(w, 'u_founder', { type: 'media.publish', inviteId: inv.id, insist: true });
     expect(pub.result.starDelta).toBeLessThan(0);
     expect(pub.world.companies[c.id]!.stars.value).toBeLessThan(starsBefore);
-    const item = pub.world.markets.lagos.news.find((n) => n.id === pub.result.newsId)!;
+    const item = pub.world.markets.lagos!.news.find((n) => n.id === pub.result.newsId)!;
     expect(item.body.split(/\s+/).length).toBeLessThanOrEqual(61);
     expect(item.alert.split(/\s+/).length).toBeLessThanOrEqual(13);
   });
@@ -384,7 +386,7 @@ describe('failure and the floor (§13)', () => {
     expect(w.companies[c.id]!.status).toBe('shutdown');
     expect(w.accounts[c.account]!.balance).toBe(0);
     expect(w.players.u_founder!.failures).toBe(1);
-    expect(w.markets.lagos.news[0]!.kind).toBe('public-record');
+    expect(w.markets.lagos!.news[0]!.kind).toBe('public-record');
     // Comeback: found again.
     const again = run(w, 'u_founder', {
       type: 'company.found',
@@ -425,6 +427,6 @@ describe('market data feeds (§17)', () => {
     const r = run(w, null, { type: 'market.data', market: 'lagos', unitsPerUsd: 1700 });
     expect(r.result.alerts[0]).toMatch(/NGN weakens 11%/);
     w = r.world;
-    expect(w.markets.lagos.news[0]!.kind).toBe('market');
+    expect(w.markets.lagos!.news[0]!.kind).toBe('market');
   });
 });

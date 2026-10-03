@@ -65,7 +65,7 @@ describe('world invariants under random play', () => {
             case 'settle': {
               actor = null;
               day++;
-              const d = new Date(`${w.markets.lagos.lastSettledDate}T00:00:00Z`);
+              const d = new Date(`${w.markets.lagos!.lastSettledDate}T00:00:00Z`);
               d.setUTCDate(d.getUTCDate() + 1);
               cmd = { type: 'market.settle', market: 'lagos', date: d.toISOString().slice(0, 10) };
               break;
@@ -83,7 +83,7 @@ describe('world invariants under random play', () => {
               cmd = { type: 'company.strategy', companyId: cid, founderSalary: a.salary };
               break;
             case 'hire': {
-              const cand = w.markets.lagos.talent[a.pick % w.markets.lagos.talent.length]!;
+              const cand = w.markets.lagos!.talent[a.pick % w.markets.lagos!.talent.length]!;
               cmd = {
                 type: 'company.offer',
                 companyId: cid,

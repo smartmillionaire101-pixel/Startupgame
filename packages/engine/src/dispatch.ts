@@ -52,7 +52,7 @@ import { deriveRng } from './rng.js';
 import { settleMarket } from './settlement.js';
 import { bandSalary, evaluateOffer, hire, layoff } from './staff.js';
 import { companyRunway } from './company.js';
-import { createCompany, createPlayer, setCogs, welcomeNewPlayer } from './world.js';
+import { createCompany, createPlayer, openMarket, setCogs, welcomeNewPlayer } from './world.js';
 import type { DealTerms, Id, PartyRef, World } from './types.js';
 
 export interface CommandContext {
@@ -85,6 +85,13 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
 }
 
 function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
+  if (cmd.type === 'market.open') {
+    const m = openMarket(world, cmd.market, ctx.now);
+    return {
+      market: m.id,
+      funds: Object.values(world.funds).filter((f) => f.market === m.id).length,
+    };
+  }
   if (cmd.type === 'market.settle') {
     const m = getMarket(world, cmd.market);
     ensure(
