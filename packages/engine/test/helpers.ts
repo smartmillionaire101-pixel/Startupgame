@@ -12,11 +12,13 @@ export function makeWorld(seed = 42, markets: MarketId[] = ['lagos', 'nairobi', 
 }
 
 /** Apply a command and fail the test loudly on a rule error. */
+
 export function run(
   world: World,
   actorId: string | null,
   cmd: Command,
   now = T0,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tests read loosely-typed command results
 ): { world: World; result: any } {
   const r = dispatch(world, cmd, { actorId, now });
   if (!r.ok) throw new Error(`${cmd.type} failed: ${r.error.code} ${r.error.message}`);

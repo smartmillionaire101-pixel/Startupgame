@@ -117,22 +117,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.setErrorHandler((err: Error & { statusCode?: number; validation?: unknown }, req, reply) => {
     if (err instanceof z.ZodError) {
-      return reply
-        .code(400)
-        .send({
-          error: { code: 'invalid', message: err.issues[0]?.message ?? 'Invalid request.' },
-        });
+      return reply.code(400).send({
+        error: { code: 'invalid', message: err.issues[0]?.message ?? 'Invalid request.' },
+      });
     }
     const status = err.statusCode ?? 500;
     if (status >= 500) req.log.error({ err }, 'unhandled error');
-    return reply
-      .code(status)
-      .send({
-        error: {
-          code: status === 429 ? 'rate' : 'error',
-          message: status >= 500 ? 'Something went wrong.' : err.message,
-        },
-      });
+    return reply.code(status).send({
+      error: {
+        code: status === 429 ? 'rate' : 'error',
+        message: status >= 500 ? 'Something went wrong.' : err.message,
+      },
+    });
   });
 
   // ---------------------------------------------------------------- public
@@ -159,6 +155,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     incorporation: INCORPORATION,
     lifestyleTiers: LIFESTYLE_TIERS,
     chatMaxLength: CHAT_MAX_LENGTH,
+    devTools: config.DEV_TOOLS,
   }));
 
   /** Public daily digest (§10): top five headlines per market. Cached by the service worker for offline reading. */
@@ -214,11 +211,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       .parse(req.body);
     const phone = normalisePhone(body.phone);
     if (!phone)
-      return reply
-        .code(400)
-        .send({
-          error: { code: 'phone', message: 'Enter a valid mobile number with country code.' },
-        });
+      return reply.code(400).send({
+        error: { code: 'phone', message: 'Enter a valid mobile number with country code.' },
+      });
     if (!isAdult(body.dob, new Date(now())))
       return reply
         .code(403)
@@ -277,14 +272,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     async (req, reply) => {
       const parsed = z.object({ command: commandSchema }).safeParse(req.body);
       if (!parsed.success)
-        return reply
-          .code(400)
-          .send({
-            error: {
-              code: 'invalid',
-              message: parsed.error.issues[0]?.message ?? 'Invalid command.',
-            },
-          });
+        return reply.code(400).send({
+          error: {
+            code: 'invalid',
+            message: parsed.error.issues[0]?.message ?? 'Invalid command.',
+          },
+        });
       const { command } = parsed.data;
       if (SYSTEM_COMMANDS.has(command.type))
         return reply.code(403).send({ error: { code: 'forbidden', message: 'Not allowed.' } });

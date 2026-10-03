@@ -205,7 +205,7 @@ describe('hiring (§5)', () => {
 
 describe('fundraising (§9)', () => {
   function pitchReady(seed: number) {
-    let w = addFounder(makeWorld(seed));
+    const w = addFounder(makeWorld(seed));
     const c = companyOf(w, 'u_founder');
     const fund = Object.values(w.funds).find(
       (f) =>

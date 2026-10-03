@@ -8,14 +8,18 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       '@typescript-eslint/consistent-type-imports': 'error',
       eqeqeq: ['error', 'always'],
       'no-restricted-syntax': [
         'error',
         {
           selector: "MemberExpression[object.name='Math'][property.name='random']",
-          message: 'Use the seeded RNG (packages/engine/src/rng.ts) so the simulation stays deterministic.',
+          message:
+            'Use the seeded RNG (packages/engine/src/rng.ts) so the simulation stays deterministic.',
         },
       ],
     },
