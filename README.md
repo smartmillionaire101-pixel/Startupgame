@@ -4,7 +4,9 @@
 
 A persistent multiplayer simulation where players found startups, invest in them, and (from phase 2) run banks, inside real cities whose conditions — exchange rates, interest rates, salaries, cost of living, taxes, public-market multiples — come from real data. The simulation decides outcomes; real data only sets the stage.
 
-This repository implements **Phases 1 and 2** of the design document: nine markets (Lagos, Nairobi, London, Accra, Freetown, Kigali, Johannesburg, Cairo, Dubai); founder, investor and banker roles; AI customers, staff, investors, reporters and incumbents; player banks, a B2B marketplace, acquisitions and votes, travel, personal credit; English and French.
+**Play it: [runwaystartup.netlify.app](https://runwaystartup.netlify.app)** (tick that you're 18 or older and press Play now).
+
+This repository implements **Phases 1 and 2** of the design document plus three waves of city play: ten markets (Lagos, Nairobi, London, Accra, Freetown, Kigali, Johannesburg, Cairo, Dubai, San Francisco), each an illustrated city with its own plan, local businesses that trade with startups, gigs, AI founders and angel investors, hosted events and networking; founder, investor and banker roles; AI customers, staff, investors, reporters and incumbents; player banks, a B2B marketplace, acquisitions and votes, travel, personal credit; guest play with email sign-in links; English and French.
 
 > This is a game. Nothing here is financial, legal, or tax advice.
 
