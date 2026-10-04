@@ -340,7 +340,11 @@ export function requestCompanyProductLoan(
     counterparty: { kind: 'company', id: c.id },
     terms,
     by: lender.id,
-    aiLimit: { maxAmount: quote.maxMinor, needsGuarantee: product.guarantee === 'required' },
+    aiLimit: {
+      maxAmount: quote.maxMinor,
+      needsGuarantee: product.guarantee === 'required',
+      minRateBps: terms.rateBps,
+    },
   });
   const said = changes.join('; ');
   return {
@@ -413,7 +417,7 @@ export function requestFounderProductLoan(
     counterparty: { kind: 'player', id: p.id },
     terms: { ...asked, amount, months: term },
     by: lender.id,
-    aiLimit: { maxAmount: quote.maxMinor },
+    aiLimit: { maxAmount: quote.maxMinor, minRateBps: asked.rateBps },
   });
   const changes: string[] = [];
   if (amount < req.amount)

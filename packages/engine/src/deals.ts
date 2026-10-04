@@ -417,11 +417,13 @@ export function aiRespond(world: World, d: DealCard) {
     }
   } else if (t.kind === 'loan' || t.kind === 'personal-loan') {
     const guaranteed = t.kind === 'personal-loan' || !lim.needsGuarantee || t.personalGuarantee;
-    within = t.amount <= (lim.maxAmount ?? t.amount) && guaranteed;
+    const priced = t.rateBps >= (lim.minRateBps ?? t.rateBps);
+    within = t.amount <= (lim.maxAmount ?? t.amount) && guaranteed && priced;
     if (!within)
       meet = {
         amount: Math.min(t.amount, lim.maxAmount ?? t.amount),
         ...(guaranteed ? {} : { personalGuarantee: true }),
+        ...(priced ? {} : { rateBps: lim.minRateBps }),
       };
   } else if (t.kind === 'supply') {
     // AI seller: accepts at or near its list price.

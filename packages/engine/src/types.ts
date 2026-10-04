@@ -608,6 +608,8 @@ export interface DealCard {
     maxAmount?: number;
     /** AI lenders: a personal guarantee is a condition. */
     needsGuarantee?: boolean;
+    /** AI lenders: the lowest rate they will take. */
+    minRateBps?: number;
   };
 }
 

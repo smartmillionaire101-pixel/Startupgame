@@ -196,6 +196,35 @@ describe('capital that mirrors each market (Wave 1 §A)', () => {
     expect(moneyByCurrency(acc.world)).toEqual(before);
   });
 
+  it('meets a counter for more at its limit, keeping its rate and guarantee', () => {
+    let w = addFounder(makeWorld(5, ['london']), 'u_founder', 'london');
+    w = establish(w, 'u_founder', 18, 5_000_000, 2.5);
+    const c = companyOf(w, 'u_founder');
+    const r = run(w, 'u_founder', {
+      type: 'company.loan',
+      companyId: c.id,
+      lenderId: 'thamesgate',
+      productId: 'working-capital',
+      amount: 5_000_000,
+      months: 24,
+      personalGuarantee: true,
+    });
+    const offered = r.world.deals[r.result.dealId]!.terms;
+    const ctr = run(r.world, 'u_founder', {
+      type: 'deal.act',
+      dealId: r.result.dealId,
+      action: 'counter',
+      terms: { amount: 1_000_000_000 },
+    });
+    const d = ctr.world.deals[r.result.dealId]!;
+    expect(d.status).toBe('open');
+    expect(d.terms).toMatchObject({
+      amount: r.result.maxMinor,
+      rateBps: offered.kind === 'loan' ? offered.rateBps : -1,
+      personalGuarantee: true,
+    });
+  });
+
   it('a Start Up Loan funds a pre-revenue founder in London', () => {
     let w = addFounder(makeWorld(8, ['london']), 'u_founder', 'london');
     const view = playerView(w, 'u_founder')!;
