@@ -93,6 +93,26 @@ describe('world invariants under random play', () => {
         pick: fc.nat(10),
         ask: fc.integer({ min: 1_000_000_00, max: 50_000_000_00 }),
       }),
+      // The city economy (Wave 3): pitching businesses, gigs, venue buys and meetings.
+      fc.record({ k: fc.constant('bizPitch' as const), pick: fc.nat(40) }),
+      fc.record({
+        k: fc.constant('bizGig' as const),
+        pick: fc.nat(40),
+        gig: fc.nat(3),
+        investor: fc.boolean(),
+      }),
+      fc.record({
+        k: fc.constant('venue' as const),
+        pick: fc.nat(40),
+        item: fc.nat(3),
+        with: fc.constantFrom('none', 'player', 'fund', 'angel'),
+        investor: fc.boolean(),
+      }),
+      fc.record({
+        k: fc.constant('venueHost' as const),
+        pick: fc.nat(40),
+        budget: fc.integer({ min: 0, max: 50_000_000 }),
+      }),
     );
 
     fc.assert(
@@ -248,6 +268,57 @@ describe('world invariants under random play', () => {
                 fundId: f.id,
                 slides: ['product', 'traction'],
                 ask: a.ask,
+              };
+              break;
+            }
+            case 'bizPitch': {
+              const list = Object.values(w.markets.lagos!.businesses ?? {});
+              const biz = list[a.pick % list.length]!;
+              cmd = { type: 'business.pitch', companyId: cid, businessId: biz.id };
+              break;
+            }
+            case 'bizGig': {
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              const list = Object.values(w.markets.lagos!.businesses ?? {});
+              const biz = list[a.pick % list.length]!;
+              const gigs = ['shift', 'kitchen', 'socials', 'online', 'front', 'tech', 'repair'];
+              cmd = { type: 'gig.take', businessId: biz.id, gigId: gigs[a.gig % gigs.length]! };
+              break;
+            }
+            case 'venue': {
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              const list = Object.values(w.markets.lagos!.businesses ?? {});
+              const biz = list[a.pick % list.length]!;
+              const items = ['lunch', 'dinner', 'coffee', 'plate', 'cut', 'drink'];
+              const other = actor === 'u_inv' ? 'u_founder' : 'u_inv';
+              const fund = Object.values(w.funds).find((f) => f.market === 'lagos' && f.ai);
+              const angel = Object.values(w.players).find((p) => p.ai && p.angel);
+              const withId =
+                a.with === 'player'
+                  ? other
+                  : a.with === 'fund'
+                    ? fund?.id
+                    : a.with === 'angel'
+                      ? angel?.id
+                      : undefined;
+              cmd = {
+                type: 'venue.buy',
+                businessId: biz.id,
+                itemId: items[a.item % items.length]!,
+                ...(withId ? { withId } : {}),
+              };
+              break;
+            }
+            case 'venueHost': {
+              const list = Object.values(w.markets.lagos!.businesses ?? {});
+              const biz = list[a.pick % list.length]!;
+              cmd = {
+                type: 'event.host',
+                kind: 'founder-meetup',
+                title: 'Lagos Founders Supper',
+                venue: 'hall',
+                budget: a.budget,
+                businessId: biz.id,
               };
               break;
             }

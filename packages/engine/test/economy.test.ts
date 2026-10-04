@@ -347,7 +347,7 @@ describe('gigs at businesses', () => {
   });
 
   it('pays more for a skill match, and only what a struggling business has', () => {
-    let w = thaw(addFounder(makeWorld(42, ['lagos'])));
+    const w = thaw(addFounder(makeWorld(42, ['lagos'])));
     const m = w.markets.lagos!;
     const b = businesses(w).find((x) =>
       businessKind(x.kind)!.gigs.some((g) => g.skill === 'tech'),
