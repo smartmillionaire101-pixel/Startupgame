@@ -1,0 +1,57 @@
+import type { CityPlan } from './types';
+
+/** San Francisco: FiDi, SoMa, the Mission, Chinatown, the Wharf, hills, fog and the Bay. */
+export const sanFrancisco: CityPlan = {
+  districts: [
+    { id: 'presidio', name: 'Presidio', kind: 'park', at: [0, 0], size: [2, 2] },
+    { id: 'wharf', name: 'Fisherman’s Wharf', kind: 'waterfront', at: [2, 0], size: [2, 1] },
+    { id: 'north-beach', name: 'North Beach', kind: 'nightlife', at: [4, 0], size: [2, 1] },
+    { id: 'chinatown', name: 'Chinatown', kind: 'market', at: [4, 1], size: [1, 2], hosts: ['market'] },
+    { id: 'fidi', name: 'Financial District', kind: 'finance', at: [5, 1], size: [2, 2], hosts: ['finance'] },
+    { id: 'castro', name: 'The Castro', kind: 'residential', at: [0, 3], size: [2, 2], hosts: ['home'] },
+    {
+      id: 'soma',
+      name: 'SoMa',
+      kind: 'tech',
+      at: [4, 3],
+      size: [3, 2],
+      hosts: ['hub', 'investors', 'eventhall'],
+    },
+    { id: 'mission', name: 'The Mission', kind: 'nightlife', at: [2, 4], size: [2, 2] },
+    { id: 'dogpatch', name: 'Dogpatch', kind: 'industrial', at: [4, 5], size: [3, 2], hosts: ['airport'] },
+  ],
+  water: { side: 'north', name: 'San Francisco Bay', also: ['east'] },
+  hills: [
+    { at: [2, 1], height: 3 },
+    { at: [3, 2], height: 2 },
+    { at: [0, 2], height: 3 },
+    { at: [0, 5], height: 2 },
+  ],
+  streets: 'grid',
+  bridges: [
+    { name: 'Golden Gate Bridge', from: [0, 0], to: [0, -4], style: 'suspension', color: '#c0362c' },
+    { name: 'Bay Bridge', from: [7, 3], to: [11, 3], style: 'suspension', color: '#94a3b8' },
+  ],
+  landmarks: [
+    { kind: 'transamerica', name: 'The Pyramid', at: [6, 0] },
+    { kind: 'painted-ladies', name: 'Painted Ladies', at: [1, 2] },
+    { kind: 'cable-car', name: 'Cable car turnaround', at: [3, 1] },
+  ],
+  transit: ['cable-car', 'bus', 'tram', 'ferry'],
+  streetNames: [
+    'Market Street',
+    'Valencia Street',
+    'Mission Street',
+    'Folsom Street',
+    'Howard Street',
+    'The Embarcadero',
+    'Castro Street',
+    'Haight Street',
+    'Columbus Avenue',
+    'Grant Avenue',
+    'Powell Street',
+    'California Street',
+    'Montgomery Street',
+    'Lombard Street',
+  ],
+};

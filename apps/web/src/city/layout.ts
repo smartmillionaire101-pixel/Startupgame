@@ -1,22 +1,41 @@
 /**
- * Deterministic city layout (docs/WAVE1-CITY-AND-DEPTH.md §C).
+ * Deterministic city layout (docs/WAVE1-CITY-AND-DEPTH.md §C, Wave 3 §C).
  *
- * The city is a square grid of blocks separated by streets. Districts are
- * laid along a spiral out from downtown (your office), so each district is
- * contiguous and the airport ends up on the outskirts. Everything is seeded
- * by the market id: the same market always looks the same.
+ * The city is a square grid of blocks separated by streets. A market with a
+ * city plan (./plans) is laid out from it: named districts where the plan
+ * puts them, water along a coast or a river across the city with bridges,
+ * hills, its own street pattern and landmarks. The important places (banks,
+ * funds, the Hub and your office, the Market, home, the Event Hall, the
+ * airport) go into the districts that host them, and local businesses into
+ * the district their seed names. A market without a plan gets the original
+ * generator: districts along a spiral out from downtown.
  *
- * Coordinates: "grid" units (tiles) on the ground plane; streets run along
- * x = k·B and y = k·B. `project` maps grid → screen pixels (2:1 isometric).
+ * Everything is seeded by the market id: the same market always looks the
+ * same. Coordinates: "grid" units (tiles) on the ground plane; streets run
+ * along x = k·B and y = k·B. `project` maps grid → screen pixels (2:1
+ * isometric). Some street segments can be closed (crossing a river without a
+ * bridge, or an organic city's merged blocks): `cuts` lists them, and
+ * walking (findPath) never uses them.
  */
-import { hash, seeded, type FundOffice, type LenderLook } from './contract';
-import { flavourOf, type Flavour, type VehicleSpec } from './flavour';
+import {
+  hash,
+  isCafe,
+  seeded,
+  type BusinessCategory,
+  type BusinessShape,
+  type FundOffice,
+  type LenderLook,
+} from './contract';
+import { flavourOf, type Flavour, type LandmarkKind, type VehicleSpec } from './flavour';
+import { planOf, type CityPlan, type DistrictKind, type Host, type Side } from './plans';
 
 /** Tiles from one street to the next. */
 export const B = 4;
 /** Half the width of a tile and half its height, in screen px. */
 export const TW = 32;
 export const TH = 16;
+/** Land drawn around the street grid, in tiles. */
+export const MARGIN = 6;
 
 export interface Pt {
   x: number;
@@ -29,6 +48,7 @@ export const unproject = (sx: number, sy: number): Pt => ({
   y: (sy / TH - sx / TW) / 2,
 });
 
+/** What a block is used for (drives its ground tint). */
 export type DistrictId =
   | 'downtown'
   | 'residential'
@@ -39,7 +59,8 @@ export type DistrictId =
   | 'events'
   | 'airport'
   | 'park'
-  | 'houses';
+  | 'houses'
+  | 'shops';
 
 export type PlaceKind =
   | 'lender'
@@ -51,7 +72,8 @@ export type PlaceKind =
   | 'home'
   | 'airport'
   | 'newsstand'
-  | 'eventhall';
+  | 'eventhall'
+  | 'business';
 
 export type Motif =
   | 'columns'
@@ -68,14 +90,28 @@ export type Motif =
   | 'home'
   | 'terminal'
   | 'newsstand'
-  | 'hall';
+  | 'hall'
+  | 'b-shop'
+  | 'b-stall'
+  | 'b-kiosk'
+  | 'b-restaurant'
+  | 'b-cafe'
+  | 'b-pub'
+  | 'b-warehouse'
+  | 'b-clinic'
+  | 'b-school'
+  | 'b-hotel';
 
 export interface Place {
   id: string;
   kind: PlaceKind;
-  /** Proper name for lenders, funds, stalls; empty for generic places (labelled at render). */
+  /** Proper name for lenders, funds, stalls, businesses; empty for generic places. */
   name: string;
   district: DistrictId;
+  /** The plan district it stands in (planned cities only). */
+  area?: string;
+  /** A business's category (colour-coded). */
+  category?: BusinessCategory;
   /** Footprint on the ground (grid units). */
   x: number;
   y: number;
@@ -99,7 +135,17 @@ export interface Place {
 }
 
 export interface Decor {
-  kind: 'tree' | 'house' | 'fountain' | 'bench' | 'landmark' | 'runway' | 'lamp';
+  kind:
+    | 'tree'
+    | 'house'
+    | 'fountain'
+    | 'bench'
+    | 'landmark'
+    | 'runway'
+    | 'lamp'
+    | 'hill'
+    | 'bridge'
+    | 'station';
   x: number;
   y: number;
   w?: number;
@@ -108,6 +154,14 @@ export interface Decor {
   color?: string;
   roof?: string;
   size?: number;
+  /** Landmark art (planned cities); else the flavour's landmark. */
+  landmark?: LandmarkKind;
+  /** Landmark, bridge or station name. */
+  name?: string;
+  /** Bridge: its two ends, and its style. */
+  from?: Pt;
+  to?: Pt;
+  style?: Bridge['style'];
 }
 
 export interface Vehicle {
@@ -124,6 +178,8 @@ export interface Block {
   i: number;
   j: number;
   district: DistrictId;
+  /** The plan district (planned cities only). */
+  area?: string;
 }
 
 export interface StreetName {
@@ -131,6 +187,45 @@ export interface StreetName {
   axis: 'x' | 'y';
   /** The street line: x = k·B for axis 'y', y = k·B for axis 'x'. */
   k: number;
+  /** Which segment along the street carries the name (default: the middle). */
+  seg?: number;
+}
+
+/** A named district of a planned city. */
+export interface Area {
+  id: string;
+  name: string;
+  kind: DistrictKind;
+  at: Pt;
+}
+
+/** A body of water, as a rectangle in grid units. */
+export interface Water {
+  name: string;
+  kind: 'edge' | 'river';
+  side: Side;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+export interface Bridge {
+  name: string;
+  from: Pt;
+  to: Pt;
+  style: 'suspension' | 'bascule' | 'beam' | 'arch';
+  color: string;
+  /** A street you can walk (over a river), or scenery (off over the coast). */
+  walk: boolean;
+}
+
+export interface Boat {
+  kind: 'ferry' | 'abra';
+  from: Pt;
+  to: Pt;
+  dur: number;
+  delay: number;
 }
 
 export interface CityLayout {
@@ -146,10 +241,31 @@ export interface CityLayout {
   vehicles: Vehicle[];
   streets: StreetName[];
   districts: { id: DistrictId; at: Pt }[];
+  /** Named districts, in plan order (empty without a plan). */
+  areas: Area[];
+  waters: Water[];
+  bridges: Bridge[];
+  /** Closed street segments, as segKey()s. */
+  cuts: string[];
+  boats: Boat[];
+  /** Intersections with a roundabout. */
+  roundabouts: Pt[];
+  transit: string[];
   /** Screen-space bounds (px) of everything drawn. */
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
   /** Where the avatar starts: your office's door (or downtown). */
   start: Pt;
+}
+
+export interface BizInput {
+  id: string;
+  name: string;
+  kind: string;
+  category: BusinessCategory;
+  district: string;
+  shape: BusinessShape;
+  color: string;
+  awning: string | null;
 }
 
 export interface CityInput {
@@ -164,6 +280,8 @@ export interface CityInput {
   homeTier: number;
   /** Wave 2: hosted events are available (otherwise the hall is "opening soon"). */
   eventsOpen?: boolean;
+  /** Wave 3: open local businesses. */
+  businesses?: BizInput[];
 }
 
 const LENDER_H: Record<string, number> = {
@@ -180,6 +298,23 @@ const OFFICE_H: Record<string, number> = {
   shophouse: 40,
   glass: 62,
 };
+
+/** Footprints per business shape (tiles; height in px). */
+const BIZ_SIZE: Record<BusinessShape, { w: number; d: number; h: number }> = {
+  shopfront: { w: 1.1, d: 1.0, h: 26 },
+  stall: { w: 0.8, d: 0.8, h: 15 },
+  kiosk: { w: 0.7, d: 0.7, h: 17 },
+  restaurant: { w: 1.2, d: 0.9, h: 24 },
+  pub: { w: 1.1, d: 1.05, h: 30 },
+  warehouse: { w: 1.35, d: 1.2, h: 24 },
+  clinic: { w: 1.2, d: 1.1, h: 30 },
+  school: { w: 1.35, d: 1.15, h: 32 },
+  hotel: { w: 1.3, d: 1.25, h: 66 },
+};
+
+/** Canonical key of the street segment between two adjacent intersections. */
+export const segKey = (i: number, j: number, i2: number, j2: number) =>
+  i < i2 || (i === i2 && j < j2) ? `${i},${j}|${i2},${j2}` : `${i2},${j2}|${i},${j}`;
 
 /** Cells of an n×n grid in spiral order from the centre. */
 export function spiral(n: number, turn: 1 | -1, heading: number): [number, number][] {
@@ -214,8 +349,16 @@ export function spiral(n: number, turn: 1 | -1, heading: number): [number, numbe
 /** The four corner lots of a block: x0/y0 in tiles and which streets they touch. */
 const LOT = [0.55, 2.1];
 const LOT_SIZE = 1.35;
+/** Front lots first, so the most important buildings face the viewer. */
+const LOT_ORDER: [0 | 1, 0 | 1][] = [
+  [1, 1],
+  [0, 1],
+  [1, 0],
+  [0, 0],
+];
 
-function lot(i: number, j: number, a: 0 | 1, b: 0 | 1) {
+type Lot = { x: number; y: number; a: 0 | 1; b: 0 | 1 };
+function lot(i: number, j: number, a: 0 | 1, b: 0 | 1): Lot {
   return { x: i * B + LOT[a]!, y: j * B + LOT[b]!, a, b };
 }
 
@@ -235,189 +378,240 @@ function doorFor(
   return { door: { x: x + w / 2, y: j * B }, doorFace: null };
 }
 
-export function buildLayout(input: CityInput): CityLayout {
-  const flavour = flavourOf(input.marketId);
-  const seed = hash(`city:${input.marketId}`);
-  const rnd = seeded(seed);
+// ---------------------------------------------------------------------------
+// Building helpers, shared by both generators
 
-  const nF = Math.max(1, Math.ceil((input.lenders.length + input.playerBanks.length) / 4));
-  const nI = Math.max(1, Math.ceil(input.funds.length / 4));
-  const nM = Math.max(1, Math.ceil(input.segments.length / 9));
-  const core = 3 + nF + nI + nM + 2;
-  const size = Math.max(4, Math.ceil(Math.sqrt(core + 3)));
-  const extent = size * B;
+interface Ctx {
+  input: CityInput;
+  flavour: Flavour;
+  rnd: () => number;
+  places: Place[];
+  decor: Decor[];
+}
 
-  // District order along the spiral. The three capital districts swap order per market.
-  const trio: DistrictId[][] = [
-    ['finance', 'investors', 'market'],
-    ['market', 'finance', 'investors'],
-    ['investors', 'market', 'finance'],
-    ['finance', 'market', 'investors'],
-  ];
-  const counts: Record<string, number> = { finance: nF, investors: nI, market: nM };
-  const order: DistrictId[] = ['downtown', 'residential', 'landmark'];
-  for (const dist of trio[seed % trio.length]!)
-    for (let k = 0; k < counts[dist]!; k++) order.push(dist);
-  order.push('events', 'airport');
+const pickColor = (ctx: Ctx, xs: string[]) => xs[Math.floor(ctx.rnd() * xs.length)]!;
+type Cell = { i: number; j: number };
 
-  const cells = spiral(size, (seed >>> 3) % 2 ? 1 : -1, (seed >>> 5) % 4);
-  const blocks: Block[] = cells.map(([i, j], n) => ({
-    i,
-    j,
-    district: order[n] ?? (rnd() < 0.45 ? 'park' : 'houses'),
-  }));
+/** Your office, the Hub, the newsstand and a fountain, on one block. */
+function putDowntown(ctx: Ctx, { i, j }: Cell, area?: string) {
+  const { input, places, decor } = ctx;
+  const head = input.office?.headcount ?? 0;
+  const w = head < 3 ? 1.05 : head < 8 ? 1.2 : LOT_SIZE;
+  const l = lot(i, j, 1, 1);
+  const x = l.x + (LOT_SIZE - w);
+  const y = l.y + (LOT_SIZE - w);
+  places.push({
+    id: 'office',
+    kind: 'office',
+    name: '',
+    district: 'downtown',
+    area,
+    x,
+    y,
+    w,
+    d: w,
+    h: input.office ? 30 + Math.min(70, head * 7) : 34,
+    motif: 'office',
+    color: '#0f766e',
+    accent: '#5eead4',
+    ...doorFor(i, j, 1, 1, x, y, w, w),
+    level: head,
+    siren: input.office?.siren ?? false,
+  });
+  const lh = lot(i, j, 0, 1);
+  places.push({
+    id: 'hub',
+    kind: 'hub',
+    name: '',
+    district: 'downtown',
+    area,
+    x: lh.x,
+    y: lh.y + 0.1,
+    w: LOT_SIZE,
+    d: 1.2,
+    h: 30,
+    motif: 'hub',
+    color: '#f59e0b',
+    accent: '#fde68a',
+    ...doorFor(i, j, 0, 1, lh.x, lh.y + 0.1, LOT_SIZE, 1.2),
+  });
+  const ln = lot(i, j, 1, 0);
+  places.push({
+    id: 'newsstand',
+    kind: 'newsstand',
+    name: '',
+    district: 'downtown',
+    area,
+    x: ln.x + 0.65,
+    y: ln.y + 0.45,
+    w: 0.6,
+    d: 0.5,
+    h: 16,
+    motif: 'newsstand',
+    color: '#1d4ed8',
+    accent: '#fef08a',
+    ...doorFor(i, j, 1, 0, ln.x + 0.65, ln.y + 0.45, 0.6, 0.5),
+  });
+  const lt = lot(i, j, 0, 0);
+  decor.push({ kind: 'fountain', x: lt.x + 0.7, y: lt.y + 0.7, size: 0.6 });
+  decor.push({ kind: 'bench', x: lt.x + 0.2, y: lt.y + 1.15 });
+}
 
-  const places: Place[] = [];
-  const decor: Decor[] = [];
-  const pickColor = (xs: string[]) => xs[Math.floor(rnd() * xs.length)]!;
+/** Your home, plus the neighbours' houses. */
+function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
+  const { input, flavour, places, decor } = ctx;
+  const tier = Math.max(1, Math.min(5, input.homeTier));
+  const l = lot(i, j, 1, 1);
+  const w = tier >= 4 ? LOT_SIZE : 1.05;
+  const x = l.x + (LOT_SIZE - w);
+  const y = l.y + (LOT_SIZE - w);
+  places.push({
+    id: 'home',
+    kind: 'home',
+    name: '',
+    district: 'residential',
+    area,
+    x,
+    y,
+    w,
+    d: w,
+    h: tier === 1 ? 50 : tier === 2 ? 24 : tier === 3 ? 30 : tier === 4 ? 34 : 28,
+    motif: 'home',
+    color: pickColor(ctx, flavour.walls),
+    accent: pickColor(ctx, flavour.roofs),
+    ...doorFor(i, j, 1, 1, x, y, w, w),
+    level: tier,
+  });
+  for (const [a, b] of [
+    [0, 1],
+    [1, 0],
+    [0, 0],
+  ] as [0 | 1, 0 | 1][]) {
+    const lh = lot(i, j, a, b);
+    decor.push({
+      kind: 'house',
+      x: lh.x + 0.15,
+      y: lh.y + 0.15,
+      w: 1,
+      d: 1,
+      h: 18 + Math.floor(ctx.rnd() * 14),
+      color: pickColor(ctx, flavour.walls),
+      roof: pickColor(ctx, flavour.roofs),
+    });
+  }
+}
 
-  const of = (dist: DistrictId) => blocks.filter((b) => b.district === dist);
+function putEventHall(ctx: Ctx, { i, j }: Cell, area?: string) {
+  const x = i * B + 0.6;
+  const y = j * B + 0.9;
+  ctx.places.push({
+    id: 'eventhall',
+    kind: 'eventhall',
+    name: '',
+    district: 'events',
+    area,
+    x,
+    y,
+    w: 2.8,
+    d: 2.2,
+    h: 40,
+    motif: 'hall',
+    color: '#e2e8f0',
+    accent: '#8b5cf6',
+    door: { x: x + 1.4, y: (j + 1) * B },
+    doorFace: 'left',
+    soon: !ctx.input.eventsOpen,
+  });
+}
 
-  /** Fill the corner lots of a district's blocks with items, in order. */
-  function fillLots<T>(
-    dist: DistrictId,
-    items: T[],
-    make: (item: T, l: ReturnType<typeof lot>, blk: Block) => void,
-  ) {
-    let n = 0;
-    for (const blk of of(dist)) {
-      // Front lots first so the most important buildings face the viewer.
-      for (const [a, b] of [
-        [1, 1],
-        [0, 1],
-        [1, 0],
-        [0, 0],
-      ] as [0 | 1, 0 | 1][]) {
-        if (n >= items.length) {
-          // Spare lot: a tree or a small building, for a fuller street.
-          const l = lot(blk.i, blk.j, a, b);
-          decor.push({ kind: 'tree', x: l.x + 0.7, y: l.y + 0.7, size: 1 });
-          continue;
-        }
-        make(items[n++]!, lot(blk.i, blk.j, a, b), blk);
+function putAirport(ctx: Ctx, { i, j }: Cell, area?: string) {
+  const x = i * B + 0.55;
+  const y = j * B + 2.1;
+  ctx.places.push({
+    id: 'airport',
+    kind: 'airport',
+    name: '',
+    district: 'airport',
+    area,
+    x,
+    y,
+    w: 2.9,
+    d: 1.35,
+    h: 28,
+    motif: 'terminal',
+    color: '#f1f5f9',
+    accent: '#0ea5e9',
+    door: { x: x + 1.45, y: (j + 1) * B },
+    doorFace: 'left',
+  });
+  ctx.decor.push({ kind: 'runway', x: i * B + 0.5, y: j * B + 0.45, w: 3, d: 1.3 });
+}
+
+const AWNINGS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
+
+/** A plaza of stalls, nine per block, one per customer segment. */
+function putStalls(ctx: Ctx, blocks: Cell[], area?: string) {
+  const { input, places, decor } = ctx;
+  let n = 0;
+  for (const blk of blocks) {
+    for (let k = 0; k < 9; k++) {
+      const seg = input.segments[n];
+      const ci = k % 3;
+      const cj = Math.floor(k / 3);
+      const x = blk.i * B + 0.62 + ci * 1.0;
+      const y = blk.j * B + 0.62 + cj * 1.0;
+      if (!seg) {
+        if (k % 2 === 0) decor.push({ kind: 'tree', x: x + 0.35, y: y + 0.35, size: 0.7 });
+        continue;
       }
-    }
-  }
-
-  // ---- Downtown: your office, the hub, the newsstand and a café-side tree.
-  const dt = of('downtown')[0]!;
-  {
-    const head = input.office?.headcount ?? 0;
-    const w = head < 3 ? 1.05 : head < 8 ? 1.2 : LOT_SIZE;
-    const l = lot(dt.i, dt.j, 1, 1);
-    const x = l.x + (LOT_SIZE - w);
-    const y = l.y + (LOT_SIZE - w);
-    places.push({
-      id: 'office',
-      kind: 'office',
-      name: '',
-      district: 'downtown',
-      x,
-      y,
-      w,
-      d: w,
-      h: input.office ? 30 + Math.min(70, head * 7) : 34,
-      motif: 'office',
-      color: '#0f766e',
-      accent: '#5eead4',
-      ...doorFor(dt.i, dt.j, 1, 1, x, y, w, w),
-      level: head,
-      siren: input.office?.siren ?? false,
-    });
-    const lh = lot(dt.i, dt.j, 0, 1);
-    places.push({
-      id: 'hub',
-      kind: 'hub',
-      name: '',
-      district: 'downtown',
-      x: lh.x,
-      y: lh.y + 0.1,
-      w: LOT_SIZE,
-      d: 1.2,
-      h: 30,
-      motif: 'hub',
-      color: '#f59e0b',
-      accent: '#fde68a',
-      ...doorFor(dt.i, dt.j, 0, 1, lh.x, lh.y + 0.1, LOT_SIZE, 1.2),
-    });
-    const ln = lot(dt.i, dt.j, 1, 0);
-    places.push({
-      id: 'newsstand',
-      kind: 'newsstand',
-      name: '',
-      district: 'downtown',
-      x: ln.x + 0.65,
-      y: ln.y + 0.45,
-      w: 0.6,
-      d: 0.5,
-      h: 16,
-      motif: 'newsstand',
-      color: '#1d4ed8',
-      accent: '#fef08a',
-      ...doorFor(dt.i, dt.j, 1, 0, ln.x + 0.65, ln.y + 0.45, 0.6, 0.5),
-    });
-    const lt = lot(dt.i, dt.j, 0, 0);
-    decor.push({ kind: 'fountain', x: lt.x + 0.7, y: lt.y + 0.7, size: 0.6 });
-    decor.push({ kind: 'bench', x: lt.x + 0.2, y: lt.y + 1.15 });
-  }
-
-  // ---- Residential: home, plus neighbours' houses.
-  const rs = of('residential')[0]!;
-  {
-    const tier = Math.max(1, Math.min(5, input.homeTier));
-    const l = lot(rs.i, rs.j, 1, 1);
-    const w = tier >= 4 ? LOT_SIZE : 1.05;
-    const x = l.x + (LOT_SIZE - w);
-    const y = l.y + (LOT_SIZE - w);
-    places.push({
-      id: 'home',
-      kind: 'home',
-      name: '',
-      district: 'residential',
-      x,
-      y,
-      w,
-      d: w,
-      h: tier === 1 ? 50 : tier === 2 ? 24 : tier === 3 ? 30 : tier === 4 ? 34 : 28,
-      motif: 'home',
-      color: pickColor(flavour.walls),
-      accent: pickColor(flavour.roofs),
-      ...doorFor(rs.i, rs.j, 1, 1, x, y, w, w),
-      level: tier,
-    });
-    for (const [a, b] of [
-      [0, 1],
-      [1, 0],
-      [0, 0],
-    ] as [0 | 1, 0 | 1][]) {
-      const lh = lot(rs.i, rs.j, a, b);
-      decor.push({
-        kind: 'house',
-        x: lh.x + 0.15,
-        y: lh.y + 0.15,
-        w: 1,
-        d: 1,
-        h: 18 + Math.floor(rnd() * 14),
-        color: pickColor(flavour.walls),
-        roof: pickColor(flavour.roofs),
+      n++;
+      // Nearest street: whichever edge of the block is closest.
+      const cx = x + 0.38;
+      const cy = y + 0.38;
+      const opts = [
+        {
+          door: { x: cx, y: (blk.j + 1) * B },
+          dist: (blk.j + 1) * B - cy,
+          face: 'left' as const,
+        },
+        {
+          door: { x: (blk.i + 1) * B, y: cy },
+          dist: (blk.i + 1) * B - cx,
+          face: 'right' as const,
+        },
+        { door: { x: cx, y: blk.j * B }, dist: cy - blk.j * B, face: null },
+        { door: { x: blk.i * B, y: cy }, dist: cx - blk.i * B, face: null },
+      ].sort((p, q) => p.dist - q.dist)[0]!;
+      places.push({
+        id: `stall:${seg.key}`,
+        kind: 'stall',
+        ref: seg.key,
+        name: seg.name,
+        district: 'market',
+        area,
+        x,
+        y,
+        w: 0.76,
+        d: 0.76,
+        h: 16,
+        motif: 'stall',
+        color: '#fff7ed',
+        accent: AWNINGS[hash(seg.key) % AWNINGS.length]!,
+        door: opts.door,
+        doorFace: opts.face,
+        dim: input.industry !== null && seg.industry !== input.industry,
       });
     }
   }
+}
 
-  // ---- Landmark (no interior; local flavour).
-  for (const blk of of('landmark')) {
-    decor.push({ kind: 'landmark', x: blk.i * B + B / 2, y: blk.j * B + B / 2 });
-    for (let k = 0; k < 4; k++)
-      decor.push({
-        kind: 'tree',
-        x: blk.i * B + 0.8 + (k % 2) * 2.4,
-        y: blk.j * B + 0.8 + Math.floor(k / 2) * 2.4,
-        size: 0.9,
-      });
-  }
+type LotItem =
+  | { kind: 'lender' | 'playerbank'; id: string; name: string; look: LenderLook }
+  | { kind: 'fund'; id: string; name: string; office: FundOffice }
+  | { kind: 'business'; biz: BizInput };
 
-  // ---- Finance Row: one building per lender, then player banks.
-  const financeItems = [
+function financeItems(input: CityInput): LotItem[] {
+  return [
     ...input.lenders.map((l) => ({
       kind: 'lender' as const,
       id: l.id,
@@ -431,17 +625,22 @@ export function buildLayout(input: CityInput): CityLayout {
       look: { color: '#334155', accent: '#a5f3fc', motif: 'shopfront' as const },
     })),
   ];
-  fillLots('finance', financeItems, (it, l, blk) => {
+}
+
+/** One building on a corner lot: a bank, a fund's office or a local business. */
+function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: string) {
+  if (it.kind === 'lender' || it.kind === 'playerbank') {
     const motif = it.look.motif;
     const w = motif === 'kiosk' ? 0.8 : motif === 'shopfront' ? 1.15 : LOT_SIZE;
     const x = l.x + (LOT_SIZE - w) * (l.a ? 1 : 0);
     const y = l.y + (LOT_SIZE - w) * (l.b ? 1 : 0);
-    places.push({
+    ctx.places.push({
       id: `${it.kind}:${it.id}`,
       kind: it.kind,
       ref: it.id,
       name: it.name,
       district: 'finance',
+      area,
       x,
       y,
       w,
@@ -452,206 +651,211 @@ export function buildLayout(input: CityInput): CityLayout {
       accent: it.look.accent,
       ...doorFor(blk.i, blk.j, l.a, l.b, x, y, w, w),
     });
-  });
-
-  // ---- Investor Quarter: one office per fund.
-  fillLots('investors', input.funds, (f, l, blk) => {
-    const style = f.office.style;
+    return;
+  }
+  if (it.kind === 'fund') {
+    const style = it.office.style;
     const w = style === 'shophouse' ? 0.95 : style === 'tower' ? 1.15 : LOT_SIZE;
     const x = l.x + (LOT_SIZE - w) * (l.a ? 1 : 0);
     const y = l.y + (LOT_SIZE - w) * (l.b ? 1 : 0);
-    places.push({
-      id: `fund:${f.id}`,
+    ctx.places.push({
+      id: `fund:${it.id}`,
       kind: 'fund',
-      ref: f.id,
-      name: f.name,
+      ref: it.id,
+      name: it.name,
       district: 'investors',
+      area,
       x,
       y,
       w,
       d: w,
-      h: (OFFICE_H[style] ?? 48) + Math.min(5, f.office.floor) * 3,
+      h: (OFFICE_H[style] ?? 48) + Math.min(5, it.office.floor) * 3,
       motif: style,
-      color: f.office.color,
+      color: it.office.color,
       accent: '#fef3c7',
       ...doorFor(blk.i, blk.j, l.a, l.b, x, y, w, w),
-      level: f.office.floor,
+      level: it.office.floor,
     });
+    return;
+  }
+  const b = (it as Extract<LotItem, { kind: 'business' }>).biz;
+  const sz = BIZ_SIZE[b.shape] ?? BIZ_SIZE.shopfront;
+  const cafe = b.shape === 'restaurant' && isCafe(b.kind);
+  // Restaurants and cafés step back from the street to make room for tables.
+  const terrace = b.shape === 'restaurant' ? 0.36 : 0;
+  const w = sz.w;
+  const d = sz.d;
+  let x = l.x + (LOT_SIZE - w) * (l.a ? 1 : 0);
+  let y = l.y + (LOT_SIZE - d) * (l.b ? 1 : 0);
+  if (l.b) y -= terrace;
+  else if (l.a) x -= terrace;
+  const motif = (
+    cafe ? 'b-cafe' : b.shape === 'shopfront' ? 'b-shop' : `b-${b.shape}`
+  ) as Motif;
+  ctx.places.push({
+    id: `biz:${b.id}`,
+    kind: 'business',
+    ref: b.id,
+    name: b.name,
+    district: 'shops',
+    area,
+    category: b.category,
+    x,
+    y,
+    w,
+    d,
+    h: cafe ? 20 : sz.h,
+    motif,
+    color: b.color,
+    accent: b.awning ?? AWNINGS[hash(b.id) % AWNINGS.length]!,
+    ...doorFor(blk.i, blk.j, l.a, l.b, x, y, w, d),
   });
+}
 
-  // ---- The Market: a plaza of stalls, one per customer segment.
-  {
-    const awnings = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
-    let n = 0;
-    for (const blk of of('market')) {
-      for (let k = 0; k < 9; k++) {
-        const seg = input.segments[n];
-        const ci = k % 3;
-        const cj = Math.floor(k / 3);
-        const x = blk.i * B + 0.62 + ci * 1.0;
-        const y = blk.j * B + 0.62 + cj * 1.0;
-        if (!seg) {
-          if (k % 2 === 0) decor.push({ kind: 'tree', x: x + 0.35, y: y + 0.35, size: 0.7 });
-          continue;
-        }
-        n++;
-        // Nearest street: whichever edge of the block is closest.
-        const cx = x + 0.38;
-        const cy = y + 0.38;
-        const opts = [
-          {
-            door: { x: cx, y: (blk.j + 1) * B },
-            dist: (blk.j + 1) * B - cy,
-            face: 'left' as const,
-          },
-          {
-            door: { x: (blk.i + 1) * B, y: cy },
-            dist: (blk.i + 1) * B - cx,
-            face: 'right' as const,
-          },
-          { door: { x: cx, y: blk.j * B }, dist: cy - blk.j * B, face: null },
-          { door: { x: blk.i * B, y: cy }, dist: cx - blk.i * B, face: null },
-        ].sort((p, q) => p.dist - q.dist)[0]!;
-        places.push({
-          id: `stall:${seg.key}`,
-          kind: 'stall',
-          ref: seg.key,
-          name: seg.name,
-          district: 'market',
-          x,
-          y,
-          w: 0.76,
-          d: 0.76,
-          h: 16,
-          motif: 'stall',
-          color: '#fff7ed',
-          accent: awnings[hash(seg.key) % awnings.length]!,
-          door: opts.door,
-          doorFace: opts.face,
-          dim: input.industry !== null && seg.industry !== input.industry,
-        });
-      }
-    }
+type FillStyle = 'park' | 'houses' | 'towers' | 'warehouses' | 'low' | 'plaza';
+
+/** A block with nothing important on it, styled for its district. */
+function putFiller(ctx: Ctx, { i, j }: Cell, style: FillStyle) {
+  const { flavour, rnd, decor } = ctx;
+  if (style === 'park' || style === 'plaza') {
+    const trees = style === 'plaza' ? 3 : 5 + Math.floor(rnd() * 4);
+    for (let k = 0; k < trees; k++)
+      decor.push({
+        kind: 'tree',
+        x: i * B + 0.6 + rnd() * 2.8,
+        y: j * B + 0.6 + rnd() * 2.8,
+        size: 0.7 + rnd() * 0.5,
+      });
+    if (style === 'plaza' || rnd() < 0.5)
+      decor.push({ kind: 'fountain', x: i * B + B / 2, y: j * B + B / 2, size: 0.5 });
+    return;
   }
-
-  // ---- Event Hall (Wave 2) and the Airport.
-  for (const blk of of('events').slice(0, 1)) {
-    const x = blk.i * B + 0.6;
-    const y = blk.j * B + 0.9;
-    places.push({
-      id: 'eventhall',
-      kind: 'eventhall',
-      name: '',
-      district: 'events',
-      x,
-      y,
-      w: 2.8,
-      d: 2.2,
-      h: 40,
-      motif: 'hall',
-      color: '#e2e8f0',
-      accent: '#8b5cf6',
-      door: { x: x + 1.4, y: (blk.j + 1) * B },
-      doorFace: 'left',
-      soon: !input.eventsOpen,
+  for (const [a, b] of [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [1, 1],
+  ] as [0 | 1, 0 | 1][]) {
+    const l = lot(i, j, a, b);
+    if (rnd() < (style === 'warehouses' ? 0.1 : 0.2)) {
+      decor.push({ kind: 'tree', x: l.x + 0.7, y: l.y + 0.7, size: 1 });
+      continue;
+    }
+    const h =
+      style === 'towers'
+        ? 50 + Math.floor(rnd() * 60)
+        : style === 'low'
+          ? 14 + Math.floor(rnd() * 14)
+          : style === 'warehouses'
+            ? 14 + Math.floor(rnd() * 8)
+            : 16 + Math.floor(rnd() * 40);
+    decor.push({
+      kind: 'house',
+      x: l.x + 0.1,
+      y: l.y + 0.1,
+      w: 1.1,
+      d: 1.1,
+      h,
+      color: style === 'warehouses' ? pickColor(ctx, ['#a8a29e', '#94a3b8', '#d6d3d1']) : pickColor(ctx, flavour.walls),
+      roof: style === 'warehouses' ? '#57534e' : pickColor(ctx, flavour.roofs),
     });
   }
-  for (const blk of of('airport').slice(0, 1)) {
-    const x = blk.i * B + 0.55;
-    const y = blk.j * B + 2.1;
-    places.push({
-      id: 'airport',
-      kind: 'airport',
-      name: '',
-      district: 'airport',
-      x,
-      y,
-      w: 2.9,
-      d: 1.35,
-      h: 28,
-      motif: 'terminal',
-      color: '#f1f5f9',
-      accent: '#0ea5e9',
-      door: { x: x + 1.45, y: (blk.j + 1) * B },
-      doorFace: 'left',
-    });
-    decor.push({ kind: 'runway', x: blk.i * B + 0.5, y: blk.j * B + 0.45, w: 3, d: 1.3 });
-  }
+}
 
-  // ---- Fillers: parks and neighbourhood houses.
-  for (const blk of [...of('park'), ...of('houses')]) {
-    if (blk.district === 'park') {
-      const trees = 5 + Math.floor(rnd() * 4);
-      for (let k = 0; k < trees; k++)
-        decor.push({
-          kind: 'tree',
-          x: blk.i * B + 0.6 + rnd() * 2.8,
-          y: blk.j * B + 0.6 + rnd() * 2.8,
-          size: 0.7 + rnd() * 0.5,
-        });
-      if (rnd() < 0.5)
-        decor.push({ kind: 'fountain', x: blk.i * B + B / 2, y: blk.j * B + B / 2, size: 0.5 });
-    } else {
-      for (const [a, b] of [
-        [0, 0],
-        [1, 0],
-        [0, 1],
-        [1, 1],
-      ] as [0 | 1, 0 | 1][]) {
-        const l = lot(blk.i, blk.j, a, b);
-        if (rnd() < 0.2) {
-          decor.push({ kind: 'tree', x: l.x + 0.7, y: l.y + 0.7, size: 1 });
-          continue;
-        }
-        decor.push({
-          kind: 'house',
-          x: l.x + 0.1,
-          y: l.y + 0.1,
-          w: 1.1,
-          d: 1.1,
-          h: 16 + Math.floor(rnd() * 40),
-          color: pickColor(flavour.walls),
-          roof: pickColor(flavour.roofs),
-        });
-      }
+/** Fill the corner lots of some blocks with items, in order; spare lots get trees. */
+function fillLots(
+  ctx: Ctx,
+  blocks: Cell[],
+  items: LotItem[],
+  area: string | undefined,
+  spare: (l: Lot) => void,
+) {
+  let n = 0;
+  for (const blk of blocks)
+    for (const [a, b] of LOT_ORDER) {
+      const l = lot(blk.i, blk.j, a, b);
+      if (n >= items.length) spare(l);
+      else putLotItem(ctx, items[n++]!, l, blk, area);
     }
-  }
+}
 
-  // ---- Street lamps along the main avenues, for night-time glow and rhythm.
-  for (let k = 1; k < size; k++)
-    for (let s = 0; s < size; s++)
-      if ((k + s) % 2 === 0) decor.push({ kind: 'lamp', x: k * B + 0.38, y: s * B + B / 2 });
+const roleOf = (it: LotItem): DistrictId =>
+  it.kind === 'fund' ? 'investors' : it.kind === 'business' ? 'shops' : 'finance';
 
-  // ---- Street names (seeded shuffle of the market's list).
-  const names = [...flavour.streets];
-  for (let k = names.length - 1; k > 0; k--) {
-    const r = Math.floor(rnd() * (k + 1));
-    [names[k], names[r]] = [names[r]!, names[k]!];
-  }
-  const streets: StreetName[] = [];
-  for (let k = 1; k < size; k++) {
-    streets.push({ name: names[(2 * k) % names.length]!, axis: 'y', k });
-    streets.push({ name: names[(2 * k + 1) % names.length]!, axis: 'x', k });
-  }
+// ---------------------------------------------------------------------------
+// The original generator (markets without a plan)
 
-  // ---- Traffic: each vehicle drives one street end to end, in its lane.
-  const vehicles: Vehicle[] = [];
-  const nVeh = 4 + size;
-  for (let n = 0; n < nVeh; n++) {
-    const spec = flavour.vehicles[n % flavour.vehicles.length]!;
-    const axis: 'x' | 'y' = n % 2 ? 'x' : 'y';
-    const k = 1 + Math.floor(rnd() * (size - 1));
-    const forward = rnd() < 0.5;
-    const lane = forward ? 0.16 : -0.16;
-    const a = -0.6;
-    const b = extent + 0.6;
-    const line = k * B + lane;
-    const from = axis === 'x' ? { x: forward ? a : b, y: line } : { x: line, y: forward ? a : b };
-    const to = axis === 'x' ? { x: forward ? b : a, y: line } : { x: line, y: forward ? b : a };
-    vehicles.push({ spec, from, to, axis, dur: 16 + rnd() * 14, delay: -rnd() * 30 });
-  }
+function buildGeneric(input: CityInput): CityLayout {
+  const flavour = flavourOf(input.marketId);
+  const seed = hash(`city:${input.marketId}`);
+  const rnd = seeded(seed);
+  const ctx: Ctx = { input, flavour, rnd, places: [], decor: [] };
 
-  // ---- District labels, at the centre of each district's blocks.
+  const fin = financeItems(input);
+  const biz = [...(input.businesses ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
+  const nF = Math.max(1, Math.ceil(fin.length / 4));
+  const nI = Math.max(1, Math.ceil(input.funds.length / 4));
+  const nM = Math.max(1, Math.ceil(input.segments.length / 9));
+  const nS = Math.ceil(biz.length / 4);
+  const core = 3 + nF + nI + nM + nS + 2;
+  const size = Math.max(4, Math.ceil(Math.sqrt(core + 3)));
+
+  // District order along the spiral. The three capital districts swap order per market.
+  const trio: DistrictId[][] = [
+    ['finance', 'investors', 'market'],
+    ['market', 'finance', 'investors'],
+    ['investors', 'market', 'finance'],
+    ['finance', 'market', 'investors'],
+  ];
+  const counts: Record<string, number> = { finance: nF, investors: nI, market: nM };
+  const order: DistrictId[] = ['downtown', 'residential', 'landmark'];
+  for (const dist of trio[seed % trio.length]!)
+    for (let k = 0; k < counts[dist]!; k++) order.push(dist);
+  order.push('events', 'airport');
+  for (let k = 0; k < nS; k++) order.push('shops');
+
+  const cells = spiral(size, (seed >>> 3) % 2 ? 1 : -1, (seed >>> 5) % 4);
+  const blocks: Block[] = cells.map(([i, j], n) => ({
+    i,
+    j,
+    district: order[n] ?? (rnd() < 0.45 ? 'park' : 'houses'),
+  }));
+  const of = (dist: DistrictId) => blocks.filter((b) => b.district === dist);
+  const tree = (l: Lot) => ctx.decor.push({ kind: 'tree', x: l.x + 0.7, y: l.y + 0.7, size: 1 });
+
+  putDowntown(ctx, of('downtown')[0]!);
+  putHome(ctx, of('residential')[0]!);
+  for (const blk of of('landmark')) {
+    ctx.decor.push({ kind: 'landmark', x: blk.i * B + B / 2, y: blk.j * B + B / 2 });
+    for (let k = 0; k < 4; k++)
+      ctx.decor.push({
+        kind: 'tree',
+        x: blk.i * B + 0.8 + (k % 2) * 2.4,
+        y: blk.j * B + 0.8 + Math.floor(k / 2) * 2.4,
+        size: 0.9,
+      });
+  }
+  fillLots(ctx, of('finance'), fin, undefined, tree);
+  fillLots(
+    ctx,
+    of('investors'),
+    input.funds.map((f) => ({ kind: 'fund', ...f })),
+    undefined,
+    tree,
+  );
+  putStalls(ctx, of('market'));
+  for (const blk of of('events').slice(0, 1)) putEventHall(ctx, blk);
+  for (const blk of of('airport').slice(0, 1)) putAirport(ctx, blk);
+  fillLots(
+    ctx,
+    of('shops'),
+    biz.map((b) => ({ kind: 'business', biz: b })),
+    undefined,
+    tree,
+  );
+  for (const blk of [...of('park'), ...of('houses')])
+    putFiller(ctx, blk, blk.district === 'park' ? 'park' : 'houses');
+
   const districts: CityLayout['districts'] = [];
   for (const id of [
     'downtown',
@@ -669,11 +873,107 @@ export function buildLayout(input: CityInput): CityLayout {
     districts.push({ id, at: { x: cx, y: cy } });
   }
 
-  const margin = 6;
-  const left = project(-margin, extent + margin);
-  const right = project(extent + margin, -margin);
-  const top = project(-margin, -margin);
-  const bottom = project(extent + margin, extent + margin);
+  return finish(ctx, {
+    size,
+    blocks,
+    districts,
+    areas: [],
+    waters: [],
+    bridges: [],
+    cuts: new Set(),
+    roundabouts: [],
+    transit: [],
+    boats: [],
+  });
+}
+
+/** Lamps, street names, traffic, bounds: the same for both generators. */
+function finish(
+  ctx: Ctx,
+  parts: Pick<
+    CityLayout,
+    'size' | 'blocks' | 'districts' | 'areas' | 'waters' | 'bridges' | 'roundabouts' | 'transit' | 'boats'
+  > & { cuts: Set<string> },
+): CityLayout {
+  const { input, flavour, rnd, places, decor } = ctx;
+  const { size, cuts } = parts;
+  const extent = size * B;
+  const isBlock = new Set(parts.blocks.map((b) => `${b.i},${b.j}`));
+
+  // Street lamps along the main avenues, for night-time glow and rhythm.
+  for (let k = 1; k < size; k++)
+    for (let s = 0; s < size; s++)
+      if ((k + s) % 2 === 0 && isBlock.has(`${k},${s}`))
+        decor.push({ kind: 'lamp', x: k * B + 0.38, y: s * B + B / 2 });
+
+  // A segment along street k (axis 'x': y = k·B; axis 'y': x = k·B).
+  const segOpen = (axis: 'x' | 'y', k: number, s: number) =>
+    axis === 'x' ? !cuts.has(segKey(s, k, s + 1, k)) : !cuts.has(segKey(k, s, k, s + 1));
+  const streetOpen = (axis: 'x' | 'y', k: number) => {
+    for (let s = 0; s < size; s++) if (!segOpen(axis, k, s)) return false;
+    return true;
+  };
+
+  // ---- Street names (seeded shuffle of the market's list), on an open segment.
+  const names = [...flavour.streets];
+  for (let k = names.length - 1; k > 0; k--) {
+    const r = Math.floor(rnd() * (k + 1));
+    [names[k], names[r]] = [names[r]!, names[k]!];
+  }
+  const mid = Math.floor(size / 2);
+  const segFor = (axis: 'x' | 'y', k: number) => {
+    for (let o = 0; o < size; o++)
+      for (const s of [mid - o, mid + o])
+        if (s >= 0 && s < size && segOpen(axis, k, s)) return s;
+    return mid;
+  };
+  const streets: StreetName[] = [];
+  for (let k = 1; k < size; k++) {
+    streets.push({ name: names[(2 * k) % names.length]!, axis: 'y', k, seg: segFor('y', k) });
+    streets.push({ name: names[(2 * k + 1) % names.length]!, axis: 'x', k, seg: segFor('x', k) });
+  }
+
+  // ---- Traffic: each vehicle drives one open stretch of street end to end, in its lane.
+  const lines: { axis: 'x' | 'y'; k: number; s0: number; s1: number }[] = [];
+  for (let k = 1; k < size; k++)
+    for (const axis of ['y', 'x'] as const) {
+      if (streetOpen(axis, k)) {
+        lines.push({ axis, k, s0: 0, s1: size });
+        continue;
+      }
+      // The longest open run along a street with closed segments.
+      let best = { s0: 0, s1: 0 };
+      let s0 = 0;
+      for (let s = 0; s <= size; s++)
+        if (s === size || !segOpen(axis, k, s)) {
+          if (s - s0 > best.s1 - best.s0) best = { s0, s1: s };
+          s0 = s + 1;
+        }
+      if (best.s1 - best.s0 >= 2) lines.push({ axis, k, ...best });
+    }
+  const vehicles: Vehicle[] = [];
+  const nVeh = 4 + size;
+  for (let n = 0; n < nVeh && lines.length; n++) {
+    const spec = flavour.vehicles[n % flavour.vehicles.length]!;
+    const want: 'x' | 'y' = n % 2 ? 'x' : 'y';
+    const pool = lines.filter((l) => l.axis === want);
+    const pick = (pool.length ? pool : lines)[Math.floor(rnd() * (pool.length || lines.length))]!;
+    const axis = pick.axis;
+    const forward = rnd() < 0.5;
+    const lane = forward ? 0.16 : -0.16;
+    const a = pick.s0 === 0 ? -0.6 : pick.s0 * B + 0.6;
+    const b = pick.s1 === size ? extent + 0.6 : pick.s1 * B - 0.6;
+    const line = pick.k * B + lane;
+    const from = axis === 'x' ? { x: forward ? a : b, y: line } : { x: line, y: forward ? a : b };
+    const to = axis === 'x' ? { x: forward ? b : a, y: line } : { x: line, y: forward ? b : a };
+    vehicles.push({ spec, from, to, axis, dur: 16 + rnd() * 14, delay: -rnd() * 30 });
+  }
+
+  const m = MARGIN;
+  const left = project(-m, extent + m);
+  const right = project(extent + m, -m);
+  const top = project(-m, -m);
+  const bottom = project(extent + m, extent + m);
   const bounds = { minX: left.x, maxX: right.x, minY: top.y - 140, maxY: bottom.y };
 
   const office = places.find((p) => p.kind === 'office')!;
@@ -682,15 +982,553 @@ export function buildLayout(input: CityInput): CityLayout {
     flavour,
     size,
     extent,
-    blocks,
+    blocks: parts.blocks,
     places,
     decor,
     vehicles,
     streets,
-    districts,
+    districts: parts.districts,
+    areas: parts.areas,
+    waters: parts.waters,
+    bridges: parts.bridges,
+    cuts: [...cuts].sort(),
+    boats: parts.boats,
+    roundabouts: parts.roundabouts,
+    transit: parts.transit,
     bounds,
     start: office.door,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Planned cities
+
+/** Kinds of district a host falls back to when the plan names none. */
+const HOST_FALLBACK: Record<Host, DistrictKind[]> = {
+  finance: ['finance', 'downtown'],
+  investors: ['finance', 'tech', 'downtown'],
+  market: ['market', 'downtown', 'nightlife'],
+  hub: ['tech', 'campus', 'downtown'],
+  home: ['residential'],
+  eventhall: ['downtown', 'waterfront', 'nightlife'],
+  airport: ['airport', 'industrial'],
+};
+const CATEGORY_FALLBACK: Record<BusinessCategory, DistrictKind[]> = {
+  food: ['nightlife', 'market', 'downtown'],
+  retail: ['market', 'downtown'],
+  services: ['residential', 'market'],
+  trades: ['industrial', 'market'],
+  health: ['residential', 'downtown'],
+  education: ['campus', 'residential'],
+  logistics: ['industrial', 'airport'],
+  hospitality: ['waterfront', 'downtown', 'nightlife'],
+};
+const FILL_FOR: Record<DistrictKind, FillStyle> = {
+  downtown: 'towers',
+  finance: 'towers',
+  tech: 'houses',
+  market: 'low',
+  residential: 'houses',
+  nightlife: 'low',
+  industrial: 'warehouses',
+  waterfront: 'plaza',
+  park: 'park',
+  airport: 'park',
+  campus: 'park',
+};
+
+/** The grid a plan was drawn on (it grows when a world needs more blocks). */
+export function planSize(plan: CityPlan): number {
+  let n = 5;
+  for (const d of plan.districts) n = Math.max(n, d.at[0] + d.size[0], d.at[1] + d.size[1]);
+  for (const l of plan.landmarks) n = Math.max(n, l.at[0] + 1, l.at[1] + 1);
+  for (const h of plan.hills ?? []) n = Math.max(n, h.at[0] + 1, h.at[1] + 1);
+  if (plan.water?.river !== undefined) n = Math.max(n, plan.water.river + 2);
+  return n;
+}
+
+function buildPlanned(input: CityInput, plan: CityPlan): CityLayout {
+  const base = planSize(plan);
+  for (let size = base; size < base + 8; size++) {
+    const out = tryPlanned(input, plan, size);
+    if (out) return out;
+  }
+  return buildGeneric(input);
+}
+
+function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout | null {
+  const base = flavourOf(input.marketId);
+  const flavour: Flavour = {
+    ...base,
+    streets: plan.streetNames.length ? plan.streetNames : base.streets,
+  };
+  const rnd = seeded(hash(`city:${input.marketId}`));
+  const ctx: Ctx = { input, flavour, rnd, places: [], decor: [] };
+  const E = size * B;
+  const ck = (i: number, j: number) => `${i},${j}`;
+  const inGrid = (i: number, j: number) => i >= 0 && j >= 0 && i < size && j < size;
+
+  // ---- Water: a river across the city replaces a row (or column) of blocks.
+  const water = plan.water;
+  const river = water?.river;
+  const riverAlongX = water ? water.side === 'north' || water.side === 'south' : true;
+  const isRiver = (i: number, j: number) =>
+    river !== undefined && (riverAlongX ? j === river : i === river);
+
+  // ---- Claims: landmarks first, then each district's rectangle.
+  const owner = new Map<string, string>();
+  const landmarks: { i: number; j: number; kind: LandmarkKind; name: string }[] = [];
+  for (const lm of plan.landmarks) {
+    const [i, j] = lm.at;
+    if (!inGrid(i, j) || isRiver(i, j) || owner.has(ck(i, j))) continue;
+    owner.set(ck(i, j), `landmark:${landmarks.length}`);
+    landmarks.push({ i, j, kind: lm.kind, name: lm.name });
+  }
+  const D = plan.districts.map((d) => ({
+    d,
+    cells: [] as Cell[],
+    cx: d.at[0] + d.size[0] / 2 - 0.5,
+    cy: d.at[1] + d.size[1] / 2 - 0.5,
+  }));
+  for (const x of D) {
+    for (let j = x.d.at[1]; j < x.d.at[1] + x.d.size[1]; j++)
+      for (let i = x.d.at[0]; i < x.d.at[0] + x.d.size[0]; i++) {
+        if (!inGrid(i, j) || isRiver(i, j) || owner.has(ck(i, j))) continue;
+        owner.set(ck(i, j), x.d.id);
+        x.cells.push({ i, j });
+      }
+    // Front blocks first, so the important buildings face the viewer.
+    x.cells.sort((a, b) => b.i + b.j - (a.i + a.j) || b.i - a.i);
+  }
+
+  // ---- Who hosts what (with fallbacks, so every important place exists).
+  const byKind = (kinds: DistrictKind[]) => {
+    for (const k of kinds) {
+      const n = D.findIndex((x) => x.d.kind === k);
+      if (n >= 0) return n;
+    }
+    return -1;
+  };
+  const hostOf = new Map<Host, number>();
+  D.forEach((x, n) => {
+    for (const h of x.d.hosts ?? []) if (!hostOf.has(h)) hostOf.set(h, n);
+  });
+  for (const h of Object.keys(HOST_FALLBACK) as Host[])
+    if (!hostOf.has(h)) {
+      const n = byKind(HOST_FALLBACK[h]);
+      hostOf.set(h, n >= 0 ? n : 0);
+    }
+  const idx = new Map(D.map((x, n) => [x.d.id, n]));
+  const bizIn = D.map(() => [] as BizInput[]);
+  for (const b of [...(input.businesses ?? [])].sort((a, c) => (a.id < c.id ? -1 : 1))) {
+    let n = idx.get(b.district);
+    if (n === undefined) {
+      n = byKind(CATEGORY_FALLBACK[b.category] ?? []);
+      if (n < 0) n = hostOf.get('market') ?? 0;
+    }
+    bizIn[n]!.push(b);
+  }
+  const hosts = (n: number) =>
+    (Object.keys(HOST_FALLBACK) as Host[]).filter((h) => hostOf.get(h) === n);
+  const fin = financeItems(input);
+  const marketBlocks = Math.ceil(input.segments.length / 9);
+  const lotItemsOf = (n: number): LotItem[] => [
+    ...(hosts(n).includes('finance') ? fin : []),
+    ...(hosts(n).includes('investors')
+      ? input.funds.map((f) => ({ kind: 'fund' as const, ...f }))
+      : []),
+    ...bizIn[n]!.map((b) => ({ kind: 'business' as const, biz: b })),
+  ];
+  const blockHosts = (n: number) =>
+    hosts(n).filter((h) => h === 'hub' || h === 'home' || h === 'eventhall' || h === 'airport');
+  const need = (n: number) =>
+    blockHosts(n).length +
+    (hosts(n).includes('market') ? marketBlocks : 0) +
+    Math.ceil(lotItemsOf(n).length / 4);
+
+  // ---- Grow districts that need more blocks into free neighbours.
+  for (let n = 0; n < D.length; n++) {
+    const x = D[n]!;
+    while (x.cells.length < need(n)) {
+      const free: (Cell & { dist: number; adj: boolean })[] = [];
+      const mine = new Set(x.cells.map((c) => ck(c.i, c.j)));
+      for (let j = 0; j < size; j++)
+        for (let i = 0; i < size; i++) {
+          if (owner.has(ck(i, j)) || isRiver(i, j)) continue;
+          const adj = [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ].some(([di, dj]) => mine.has(ck(i + di!, j + dj!)));
+          free.push({ i, j, adj, dist: Math.abs(i - x.cx) + Math.abs(j - x.cy) });
+        }
+      if (!free.length) return null;
+      free.sort((a, b) => Number(b.adj) - Number(a.adj) || a.dist - b.dist || a.j - b.j || a.i - b.i);
+      const c = free[0]!;
+      owner.set(ck(c.i, c.j), x.d.id);
+      x.cells.push({ i: c.i, j: c.j });
+    }
+  }
+
+  // ---- Place everything.
+  const blocks: Block[] = [];
+  const hills = new Map((plan.hills ?? []).map((h) => [ck(h.at[0], h.at[1]), h.height]));
+  const filler = (c: Cell, style: FillStyle, area?: string) => {
+    const hill = hills.get(ck(c.i, c.j));
+    if (hill) {
+      blocks.push({ ...c, district: 'park', area });
+      ctx.decor.push({
+        kind: 'hill',
+        x: c.i * B + B / 2,
+        y: c.j * B + B / 2,
+        h: hill,
+        color: pickColor(ctx, flavour.walls),
+        roof: pickColor(ctx, flavour.roofs),
+      });
+      return;
+    }
+    blocks.push({ ...c, district: style === 'park' || style === 'plaza' ? 'park' : 'houses', area });
+    putFiller(ctx, c, style);
+  };
+  const tree = (l: Lot) => ctx.decor.push({ kind: 'tree', x: l.x + 0.7, y: l.y + 0.7, size: 1 });
+
+  D.forEach((x, n) => {
+    const area = x.d.id;
+    const cells = [...x.cells];
+    let c = 0;
+    const take = () => cells[c++]!;
+    for (const h of blockHosts(n)) {
+      const cell = take();
+      if (h === 'hub') {
+        blocks.push({ ...cell, district: 'downtown', area });
+        putDowntown(ctx, cell, area);
+      } else if (h === 'home') {
+        blocks.push({ ...cell, district: 'residential', area });
+        putHome(ctx, cell, area);
+      } else if (h === 'eventhall') {
+        blocks.push({ ...cell, district: 'events', area });
+        putEventHall(ctx, cell, area);
+      } else {
+        blocks.push({ ...cell, district: 'airport', area });
+        putAirport(ctx, cell, area);
+      }
+    }
+    if (hosts(n).includes('market')) {
+      const mb = Array.from({ length: marketBlocks }, take);
+      for (const cell of mb) blocks.push({ ...cell, district: 'market', area });
+      putStalls(ctx, mb, area);
+    }
+    const items = lotItemsOf(n);
+    const lotBlocks = Array.from({ length: Math.ceil(items.length / 4) }, take);
+    lotBlocks.forEach((cell, k) =>
+      blocks.push({ ...cell, district: roleOf(items[k * 4]!), area }),
+    );
+    fillLots(ctx, lotBlocks, items, area, tree);
+    while (c < cells.length) filler(take(), FILL_FOR[x.d.kind], area);
+  });
+  for (const lm of landmarks) {
+    blocks.push({ i: lm.i, j: lm.j, district: 'landmark' });
+    ctx.decor.push({
+      kind: 'landmark',
+      x: lm.i * B + B / 2,
+      y: lm.j * B + B / 2,
+      landmark: lm.kind,
+      name: lm.name,
+    });
+    for (let k = 0; k < 4; k++)
+      ctx.decor.push({
+        kind: 'tree',
+        x: lm.i * B + 0.6 + (k % 2) * 2.8,
+        y: lm.j * B + 0.6 + Math.floor(k / 2) * 2.8,
+        size: 0.8,
+      });
+  }
+  for (let j = 0; j < size; j++)
+    for (let i = 0; i < size; i++)
+      if (!owner.has(ck(i, j)) && !isRiver(i, j))
+        filler({ i, j }, rnd() < 0.4 ? 'park' : 'houses');
+  blocks.sort((a, b) => a.j - b.j || a.i - b.i);
+
+  // ---- Water and bridges.
+  const m = MARGIN;
+  const waters: Water[] = [];
+  const edge = (side: Side, name: string): Water =>
+    side === 'south'
+      ? { name, kind: 'edge', side, x0: -m, y0: E + 1.8, x1: E + m, y1: E + m }
+      : side === 'north'
+        ? { name, kind: 'edge', side, x0: -m, y0: -m, x1: E + m, y1: -1.8 }
+        : side === 'east'
+          ? { name, kind: 'edge', side, x0: E + 1.8, y0: -m, x1: E + m, y1: E + m }
+          : { name, kind: 'edge', side, x0: -m, y0: -m, x1: -1.8, y1: E + m };
+  if (water) {
+    if (river !== undefined)
+      waters.push(
+        riverAlongX
+          ? {
+              name: water.name,
+              kind: 'river',
+              side: water.side,
+              x0: -m,
+              y0: river * B + 0.55,
+              x1: E + m,
+              y1: (river + 1) * B - 0.55,
+            }
+          : {
+              name: water.name,
+              kind: 'river',
+              side: water.side,
+              x0: river * B + 0.55,
+              y0: -m,
+              x1: (river + 1) * B - 0.55,
+              y1: E + m,
+            },
+      );
+    else waters.push(edge(water.side, water.name));
+    for (const s of water.also ?? [])
+      if (!waters.some((w) => w.kind === 'edge' && w.side === s)) waters.push(edge(s, water.name));
+  }
+
+  const clampOut = (v: number) => Math.max(-m + 0.6, Math.min(E + m - 0.6, v));
+  const bridges: Bridge[] = [];
+  for (const br of plan.bridges ?? []) {
+    const [i1, j1] = br.from;
+    const [i2, j2] = br.to;
+    const walk =
+      river !== undefined &&
+      (riverAlongX
+        ? i1 === i2 && Math.min(j1, j2) === river && Math.max(j1, j2) === river + 1
+        : j1 === j2 && Math.min(i1, i2) === river && Math.max(i1, i2) === river + 1) &&
+      i1 >= 0 &&
+      i1 <= size &&
+      j1 >= 0 &&
+      j1 <= size;
+    bridges.push({
+      name: br.name,
+      from: { x: i1 * B, y: j1 * B },
+      to: walk ? { x: i2 * B, y: j2 * B } : { x: clampOut(i2 * B), y: clampOut(j2 * B) },
+      style: br.style ?? 'beam',
+      color: br.color ?? '#a8a29e',
+      walk,
+    });
+  }
+  // A river always has at least one way across.
+  if (river !== undefined && !bridges.some((b) => b.walk)) {
+    const k = Math.floor(size / 2);
+    bridges.push({
+      name: '',
+      from: riverAlongX ? { x: k * B, y: river * B } : { x: river * B, y: k * B },
+      to: riverAlongX ? { x: k * B, y: (river + 1) * B } : { x: (river + 1) * B, y: k * B },
+      style: 'beam',
+      color: '#a8a29e',
+      walk: true,
+    });
+  }
+
+  // ---- Closed street segments: across the river except on bridges.
+  const cuts = new Set<string>();
+  if (river !== undefined)
+    for (let k = 0; k <= size; k++) {
+      const bridged = bridges.some(
+        (b) => b.walk && (riverAlongX ? b.from.x === k * B : b.from.y === k * B),
+      );
+      if (bridged) continue;
+      cuts.add(riverAlongX ? segKey(k, river, k, river + 1) : segKey(river, k, river + 1, k));
+    }
+
+  // ---- Organic and mixed cities merge some blocks: close a few inner segments.
+  const share = plan.streets === 'organic' ? 0.16 : plan.streets === 'mixed' ? 0.07 : 0;
+  if (share > 0) {
+    const doorSegs = new Set<string>();
+    for (const p of ctx.places) {
+      const e = ends(p.door);
+      if (e.length === 2) doorSegs.add(segKey(e[0]![0], e[0]![1], e[1]![0], e[1]![1]));
+    }
+    const bridgeNodes = new Set(
+      bridges.filter((b) => b.walk).flatMap((b) => [ck(b.from.x / B, b.from.y / B), ck(b.to.x / B, b.to.y / B)]),
+    );
+    const embank = (i: number, j: number, i2: number, j2: number) =>
+      river !== undefined &&
+      (riverAlongX
+        ? j === j2 && (j === river || j === river + 1)
+        : i === i2 && (i === river || i === river + 1));
+    const cand: [number, number, number, number][] = [];
+    for (let j = 1; j < size; j++)
+      for (let i = 0; i < size; i++) cand.push([i, j, i + 1, j]);
+    for (let i = 1; i < size; i++)
+      for (let j = 0; j < size; j++) cand.push([i, j, i, j + 1]);
+    const pool = cand.filter(
+      ([i, j, i2, j2]) =>
+        !cuts.has(segKey(i, j, i2, j2)) &&
+        !doorSegs.has(segKey(i, j, i2, j2)) &&
+        !embank(i, j, i2, j2) &&
+        !bridgeNodes.has(ck(i, j)) &&
+        !bridgeNodes.has(ck(i2, j2)),
+    );
+    for (let k = pool.length - 1; k > 0; k--) {
+      const r = Math.floor(rnd() * (k + 1));
+      [pool[k], pool[r]] = [pool[r]!, pool[k]!];
+    }
+    const target = Math.round(cand.length * share);
+    let made = 0;
+    for (const [i, j, i2, j2] of pool) {
+      if (made >= target) break;
+      const key = segKey(i, j, i2, j2);
+      cuts.add(key);
+      if (degree(size, cuts, i, j) < 2 || degree(size, cuts, i2, j2) < 2 || !connected(size, cuts)) {
+        cuts.delete(key);
+        continue;
+      }
+      made++;
+      // A tree where the street used to be.
+      ctx.decor.push({
+        kind: 'tree',
+        x: ((i + i2) / 2) * B,
+        y: ((j + j2) / 2) * B,
+        size: 0.9,
+      });
+    }
+  }
+
+  // ---- Roundabouts (radial cities), stations and boats.
+  const roundabouts: Pt[] = [];
+  if (plan.streets === 'radial') {
+    const c = Math.floor(size / 2);
+    for (const [i, j] of [
+      [c, c],
+      [c - 2, c - 1],
+      [c + 2, c + 1],
+      [c - 1, c + 2],
+    ] as [number, number][])
+      if (i > 0 && j > 0 && i < size && j < size) roundabouts.push({ x: i * B, y: j * B });
+  }
+  const station = plan.transit.includes('tube')
+    ? 'tube'
+    : plan.transit.includes('metro')
+      ? 'metro'
+      : plan.transit.includes('cable-car')
+        ? 'cable-car'
+        : null;
+  if (station) {
+    const homes = blocks.filter((b) => b.district !== 'park' && b.district !== 'airport');
+    for (let k = 0; k < 3 && homes.length; k++) {
+      const b = homes[Math.floor(rnd() * homes.length)]!;
+      ctx.decor.push({ kind: 'station', x: b.i * B + 2.0, y: b.j * B + 3.5, name: station });
+    }
+  }
+  const boats: Boat[] = [];
+  const boatKind = plan.transit.includes('abra')
+    ? 'abra'
+    : plan.transit.includes('ferry')
+      ? 'ferry'
+      : null;
+  if (boatKind)
+    for (const w of waters) {
+      const n = w.kind === 'river' ? 3 : 2;
+      for (let k = 0; k < n; k++) {
+        const along = w.kind === 'river' ? riverAlongX : w.side === 'north' || w.side === 'south';
+        const forward = k % 2 === 0;
+        const across = along
+          ? w.y0 + (w.y1 - w.y0) * (0.35 + 0.3 * (k % 2))
+          : w.x0 + (w.x1 - w.x0) * (0.35 + 0.3 * (k % 2));
+        const a = along ? w.x0 + 0.5 : w.y0 + 0.5;
+        const b = along ? w.x1 - 0.5 : w.y1 - 0.5;
+        const from = along ? { x: forward ? a : b, y: across } : { x: across, y: forward ? a : b };
+        const to = along ? { x: forward ? b : a, y: across } : { x: across, y: forward ? b : a };
+        boats.push({ kind: boatKind, from, to, dur: 40 + rnd() * 25, delay: -rnd() * 60 });
+      }
+    }
+
+  // ---- Bridge superstructures are drawn among the buildings.
+  for (const br of bridges)
+    if (br.style !== 'beam')
+      ctx.decor.push({
+        kind: 'bridge',
+        x: (br.from.x + br.to.x) / 2,
+        y: (br.from.y + br.to.y) / 2,
+        from: br.from,
+        to: br.to,
+        style: br.style,
+        color: br.color,
+        name: br.name,
+      });
+
+  const areas: Area[] = D.map((x) => {
+    const cs = x.cells.length ? x.cells : [{ i: x.d.at[0], j: x.d.at[1] }];
+    return {
+      id: x.d.id,
+      name: x.d.name,
+      kind: x.d.kind,
+      at: {
+        x: cs.reduce((s, c) => s + c.i * B + B / 2, 0) / cs.length,
+        y: cs.reduce((s, c) => s + c.j * B + B / 2, 0) / cs.length,
+      },
+    };
+  });
+
+  return finish(ctx, {
+    size,
+    blocks,
+    districts: [],
+    areas,
+    waters,
+    bridges,
+    cuts,
+    roundabouts,
+    transit: [...plan.transit],
+    boats,
+  });
+}
+
+/** How many open streets meet at an intersection. */
+function degree(size: number, cuts: Set<string>, i: number, j: number) {
+  let n = 0;
+  for (const [di, dj] of [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ] as [number, number][]) {
+    const a = i + di;
+    const b = j + dj;
+    if (a < 0 || b < 0 || a > size || b > size) continue;
+    if (!cuts.has(segKey(i, j, a, b))) n++;
+  }
+  return n;
+}
+
+/** Whether every intersection can still reach every other. */
+function connected(size: number, cuts: Set<string>) {
+  const n = size + 1;
+  const seen = new Uint8Array(n * n);
+  const stack = [0];
+  seen[0] = 1;
+  let count = 1;
+  while (stack.length) {
+    const v = stack.pop()!;
+    const i = v % n;
+    const j = (v - i) / n;
+    for (const [di, dj] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as [number, number][]) {
+      const a = i + di;
+      const b = j + dj;
+      if (a < 0 || b < 0 || a >= n || b >= n || seen[b * n + a]) continue;
+      if (cuts.has(segKey(i, j, a, b))) continue;
+      seen[b * n + a] = 1;
+      count++;
+      stack.push(b * n + a);
+    }
+  }
+  return count === n * n;
+}
+
+export function buildLayout(input: CityInput): CityLayout {
+  const plan = planOf(input.marketId);
+  return plan ? buildPlanned(input, plan) : buildGeneric(input);
 }
 
 // ---------------------------------------------------------------------------
@@ -698,27 +1536,7 @@ export function buildLayout(input: CityInput): CityLayout {
 
 const EPS = 1e-6;
 const dist = (a: Pt, b: Pt) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-
-/** The closest point on any street to a ground point. */
-export function nearestStreetPoint(layout: Pick<CityLayout, 'extent' | 'size'>, p: Pt): Pt {
-  const clamp = (v: number) => Math.max(0, Math.min(layout.extent, v));
-  let best: Pt = { x: 0, y: 0 };
-  let bestD = Infinity;
-  for (let k = 0; k <= layout.size; k++) {
-    const line = k * B;
-    for (const c of [
-      { x: line, y: clamp(p.y) },
-      { x: clamp(p.x), y: line },
-    ]) {
-      const d = Math.hypot(c.x - p.x, c.y - p.y);
-      if (d < bestD) {
-        bestD = d;
-        best = c;
-      }
-    }
-  }
-  return best;
-}
+const cutSet = (layout: { cuts?: string[] }) => new Set(layout.cuts ?? []);
 
 const onLine = (v: number) => Math.abs(v / B - Math.round(v / B)) < EPS;
 
@@ -741,15 +1559,76 @@ function ends(p: Pt): [number, number][] {
   ];
 }
 
+/** Whether a street point lies on a closed segment. */
+function onCut(p: Pt, cuts: Set<string>) {
+  const e = ends(p);
+  return e.length === 2 && cuts.has(segKey(e[0]![0], e[0]![1], e[1]![0], e[1]![1]));
+}
+
+/** The closest point on any open street to a ground point. */
+export function nearestStreetPoint(
+  layout: Pick<CityLayout, 'extent' | 'size'> & { cuts?: string[] },
+  p: Pt,
+): Pt {
+  const cuts = cutSet(layout);
+  const clamp = (v: number) => Math.max(0, Math.min(layout.extent, v));
+  let best: Pt = { x: 0, y: 0 };
+  let bestD = Infinity;
+  for (let k = 0; k <= layout.size; k++) {
+    const line = k * B;
+    for (const c0 of [
+      { x: line, y: clamp(p.y) },
+      { x: clamp(p.x), y: line },
+    ]) {
+      let c = c0;
+      if (cuts.size && onCut(c, cuts)) {
+        // Step to the nearer end of the closed segment.
+        const [a, b] = ends(c).map(([i, j]) => ({ x: i * B, y: j * B }));
+        c = Math.hypot(a!.x - p.x, a!.y - p.y) <= Math.hypot(b!.x - p.x, b!.y - p.y) ? a! : b!;
+      }
+      const d = Math.hypot(c.x - p.x, c.y - p.y);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+  }
+  return best;
+}
+
+/** Whether a straight walk along one street line between two points is open. */
+function straightOpen(from: Pt, to: Pt, cuts: Set<string>) {
+  if (!cuts.size) return true;
+  if (Math.abs(from.x - to.x) < EPS && onLine(from.x)) {
+    const i = Math.round(from.x / B);
+    const lo = Math.min(from.y, to.y);
+    const hi = Math.max(from.y, to.y);
+    for (let j = Math.floor(lo / B); j < Math.ceil(hi / B); j++)
+      if (cuts.has(segKey(i, j, i, j + 1))) return false;
+    return true;
+  }
+  const j = Math.round(from.y / B);
+  const lo = Math.min(from.x, to.x);
+  const hi = Math.max(from.x, to.x);
+  for (let i = Math.floor(lo / B); i < Math.ceil(hi / B); i++)
+    if (cuts.has(segKey(i, j, i + 1, j))) return false;
+  return true;
+}
+
 /**
- * Shortest walk along the streets from one street point to another, as a
- * polyline in grid coordinates. Turns cost a little, so routes are tidy.
+ * Shortest walk along the open streets from one street point to another, as
+ * a polyline in grid coordinates. Turns cost a little, so routes are tidy.
  */
-export function findPath(layout: Pick<CityLayout, 'size'>, from: Pt, to: Pt): Pt[] {
+export function findPath(
+  layout: Pick<CityLayout, 'size'> & { cuts?: string[] },
+  from: Pt,
+  to: Pt,
+): Pt[] {
+  const cuts = cutSet(layout);
   const n = layout.size + 1;
   const sameX = onLine(from.x) && onLine(to.x) && Math.abs(from.x - to.x) < EPS;
   const sameY = onLine(from.y) && onLine(to.y) && Math.abs(from.y - to.y) < EPS;
-  if (sameX || sameY) return [from, to];
+  if ((sameX || sameY) && straightOpen(from, to, cuts)) return [from, to];
 
   const TURN = 0.35;
   // State: node index × heading (0..3, or 4 = start).
@@ -795,6 +1674,7 @@ export function findPath(layout: Pick<CityLayout, 'size'>, from: Pt, to: Pt): Pt
       const ni = i + dx;
       const nj = j + dy;
       if (ni < 0 || nj < 0 || ni >= n || nj >= n) return;
+      if (cuts.size && cuts.has(segKey(i, j, ni, nj))) return;
       push(key(ni, nj, nh), c + B + (h !== 4 && h !== nh ? TURN : 0), k);
     });
   }

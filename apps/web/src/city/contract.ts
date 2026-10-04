@@ -306,5 +306,228 @@ export function cityInput(view: PlayerView): CityInput {
     homeTier: view.me.lifestyle.tier,
     // Wave 2: the Event Hall opens once the engine sends events.
     eventsOpen: Array.isArray((view.market as Market & { events?: unknown }).events),
+    // Wave 3: local businesses, each in the district its seed names.
+    businesses: businessesOf(view)
+      .filter((b) => b.open)
+      .map((b) => ({
+        id: b.id,
+        name: b.name,
+        kind: b.kind,
+        category: b.category,
+        district: b.district,
+        shape: b.look.shape,
+        color: b.look.color,
+        awning: b.look.awning,
+      })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Local businesses (Wave 3 §B views). Read when the engine sends them; a
+// world without `market.businesses` simply has no businesses on the map.
+
+export type BusinessCategory =
+  | 'food'
+  | 'retail'
+  | 'services'
+  | 'trades'
+  | 'health'
+  | 'education'
+  | 'logistics'
+  | 'hospitality';
+
+export const BUSINESS_CATEGORIES: readonly BusinessCategory[] = [
+  'food',
+  'retail',
+  'services',
+  'trades',
+  'health',
+  'education',
+  'logistics',
+  'hospitality',
+];
+
+export type BusinessShape =
+  | 'shopfront'
+  | 'stall'
+  | 'kiosk'
+  | 'restaurant'
+  | 'pub'
+  | 'warehouse'
+  | 'clinic'
+  | 'school'
+  | 'hotel';
+
+const SHAPES: readonly BusinessShape[] = [
+  'shopfront',
+  'stall',
+  'kiosk',
+  'restaurant',
+  'pub',
+  'warehouse',
+  'clinic',
+  'school',
+  'hotel',
+];
+
+/** Colour per category: map labels, Places list dots and the filter chips. */
+export const CATEGORY_COLOR: Record<BusinessCategory, string> = {
+  food: '#ea580c',
+  retail: '#db2777',
+  services: '#7c3aed',
+  trades: '#78716c',
+  health: '#dc2626',
+  education: '#2563eb',
+  logistics: '#0f766e',
+  hospitality: '#ca8a04',
+};
+
+export interface BusinessItemView {
+  id: string;
+  label: string;
+  /** Minor units. */
+  price: number;
+  energy?: number;
+  meeting?: boolean;
+}
+
+export interface BusinessGigView {
+  id: string;
+  label: string;
+  hours: number;
+  /** Minor units. */
+  pay: number;
+  skillMatch: boolean;
+}
+
+export interface BusinessBuyView {
+  sector: string;
+  label: string;
+  /** Minor units a month, approximate. */
+  monthlyBudget: number;
+  supplier: { companyId: string; name: string; you: boolean } | null;
+}
+
+export interface BusinessView {
+  id: string;
+  name: string;
+  kind: string;
+  kindLabel: string;
+  category: BusinessCategory;
+  district: string;
+  owner: { name: string };
+  look: { shape: BusinessShape; awning: string | null; color: string };
+  open: boolean;
+  venue: { items: BusinessItemView[] } | null;
+  gigs: BusinessGigView[];
+  buys: BusinessBuyView[];
+  you: { customer: boolean; canPitch: boolean; reason: string | null };
+}
+
+const strOf = (v: unknown, d = ''): string => (typeof v === 'string' ? v : d);
+const numOf = (v: unknown, d = 0): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : d;
+
+/** A café is drawn as a café even though its look is a restaurant's. */
+export const isCafe = (kind: string) => /caf|coffee|bakery|tea|juice|roaster/i.test(kind);
+
+function normBusiness(raw: unknown): BusinessView | null {
+  if (!isObj(raw) || typeof raw.id !== 'string' || typeof raw.name !== 'string') return null;
+  const look = isObj(raw.look) ? raw.look : {};
+  const category = (
+    BUSINESS_CATEGORIES.includes(raw.category as BusinessCategory) ? raw.category : 'retail'
+  ) as BusinessCategory;
+  const shape = (
+    SHAPES.includes(look.shape as BusinessShape) ? look.shape : 'shopfront'
+  ) as BusinessShape;
+  const items = isObj(raw.venue) && Array.isArray(raw.venue.items) ? raw.venue.items : null;
+  const you = isObj(raw.you) ? raw.you : {};
+  return {
+    id: raw.id,
+    name: raw.name,
+    kind: strOf(raw.kind, 'shop'),
+    kindLabel: strOf(raw.kindLabel, strOf(raw.kind, 'Shop')),
+    category,
+    district: strOf(raw.district),
+    owner: { name: strOf(isObj(raw.owner) ? raw.owner.name : undefined, '—') },
+    look: {
+      shape,
+      awning: typeof look.awning === 'string' ? look.awning : null,
+      color: strOf(look.color, CATEGORY_COLOR[category]),
+    },
+    open: raw.open !== false,
+    venue: items
+      ? {
+          items: items
+            .filter((i): i is Record<string, unknown> => isObj(i) && typeof i.id === 'string')
+            .map((i) => ({
+              id: i.id as string,
+              label: strOf(i.label, i.id as string),
+              price: numOf(i.price),
+              ...(typeof i.energy === 'number' ? { energy: i.energy } : {}),
+              ...(i.meeting === true ? { meeting: true } : {}),
+            })),
+        }
+      : null,
+    gigs: (Array.isArray(raw.gigs) ? raw.gigs : [])
+      .filter((g): g is Record<string, unknown> => isObj(g) && typeof g.id === 'string')
+      .map((g) => ({
+        id: g.id as string,
+        label: strOf(g.label, g.id as string),
+        hours: numOf(g.hours),
+        pay: numOf(g.pay),
+        skillMatch: g.skillMatch === true,
+      })),
+    buys: (Array.isArray(raw.buys) ? raw.buys : [])
+      .filter((b): b is Record<string, unknown> => isObj(b) && typeof b.sector === 'string')
+      .map((b) => {
+        const s = isObj(b.supplier) ? b.supplier : null;
+        return {
+          sector: b.sector as string,
+          label: strOf(b.label, b.sector as string),
+          monthlyBudget: numOf(b.monthlyBudget),
+          supplier:
+            s && typeof s.companyId === 'string'
+              ? { companyId: s.companyId, name: strOf(s.name, '—'), you: s.you === true }
+              : null,
+        };
+      }),
+    you: {
+      customer: you.customer === true,
+      canPitch: you.canPitch !== false,
+      reason: typeof you.reason === 'string' ? you.reason : null,
+    },
+  };
+}
+
+/** The market's local businesses; empty when the engine doesn't send them yet. */
+export function businessesOf(view: Pick<PlayerView, 'market'>): BusinessView[] {
+  const raw = (view.market as Market & { businesses?: unknown }).businesses;
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normBusiness).filter((b): b is BusinessView => b !== null);
+}
+
+/** Whether this build's engine sends businesses at all. */
+export const hasBusinesses = (view: Pick<PlayerView, 'market'>) =>
+  Array.isArray((view.market as Market & { businesses?: unknown }).businesses);
+
+export interface AngelRef {
+  id: string;
+  name: string;
+  fundId: string | null;
+}
+
+/** AI angel investors: from angel funds (`fund.angel`), else AI investor players. */
+export function angelsOf(view: Pick<PlayerView, 'market' | 'players'>): AngelRef[] {
+  const out = new Map<string, AngelRef>();
+  for (const f of view.market.funds) {
+    const a = (f as Fund & { angel?: unknown }).angel;
+    if (f.market !== view.market.id || !isObj(a) || typeof a.playerId !== 'string') continue;
+    out.set(a.playerId, { id: a.playerId, name: strOf(a.name, f.partner), fundId: f.id });
+  }
+  for (const p of (view.players ?? []) as (PlayerView['players'][number] & { ai?: unknown })[]) {
+    if (p.role !== 'investor' || p.ai !== true || out.has(p.id)) continue;
+    out.set(p.id, { id: p.id, name: p.name, fundId: null });
+  }
+  return [...out.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
 }

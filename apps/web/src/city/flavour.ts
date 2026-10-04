@@ -15,7 +15,18 @@ export type LandmarkKind =
   | 'cotton-tree'
   | 'convention-dome'
   | 'hillbrow-tower'
-  | 'fountain';
+  | 'fountain'
+  // Wave 3: per-city landmarks from the city plans.
+  | 'transamerica'
+  | 'painted-ladies'
+  | 'cable-car'
+  | 'gherkin'
+  | 'london-eye'
+  | 'lighthouse'
+  | 'cairo-tower'
+  | 'minaret'
+  | 'sail-hotel'
+  | 'wind-tower';
 
 export interface VehicleSpec {
   id: string;
@@ -28,7 +39,7 @@ export interface VehicleSpec {
   /** Height in px. */
   h: number;
   /** Two-storey bus, rider on a bike, roof sign, etc. */
-  extra?: 'double' | 'rider' | 'sign' | 'stripes' | 'rack';
+  extra?: 'double' | 'rider' | 'sign' | 'stripes' | 'rack' | 'cable' | 'sensor';
 }
 
 export interface Flavour {
@@ -50,6 +61,8 @@ export interface Flavour {
   landmarkColor: string;
   vehicles: VehicleSpec[];
   streets: string[];
+  /** Drifting fog over the city (San Francisco). */
+  fog?: boolean;
 }
 
 const car = (id: string, body: string): VehicleSpec => ({
@@ -565,6 +578,67 @@ export const FLAVOURS: Record<string, Flavour> = {
       'Oxford Road',
       'Bree Street',
       'Juta Street',
+    ],
+  },
+  'san-francisco': {
+    ...BASE,
+    sky: ['#cbd5e1', '#f1f5f9'],
+    land: '#c9d6b8',
+    asphalt: '#4b5563',
+    sidewalk: '#e5e7eb',
+    curb: '#c7cbd1',
+    park: '#93c47d',
+    parkEdge: '#6fa35a',
+    // Victorian pastels.
+    walls: ['#f9c6d0', '#bfe3d0', '#fde9a9', '#c7d7f5', '#e9d5ff', '#fbd5b5', '#f1f5f9'],
+    roofs: ['#64748b', '#475569', '#9a3412', '#334155'],
+    tree: 'cypress',
+    leaf: ['#4d7c0f', '#365314'],
+    edge: 'water',
+    edgeColor: '#5b8fa8',
+    landmark: 'transamerica',
+    landmarkColor: '#e7e5e4',
+    fog: true,
+    vehicles: [
+      {
+        id: 'cablecar',
+        body: '#b91c1c',
+        accent: '#fde68a',
+        len: 0.75,
+        wid: 0.32,
+        h: 15,
+        extra: 'cable',
+      },
+      {
+        id: 'muni',
+        body: '#e5e7eb',
+        accent: '#b91c1c',
+        len: 0.95,
+        wid: 0.34,
+        h: 15,
+        extra: 'stripes',
+      },
+      { id: 'robotaxi', body: '#f8fafc', accent: '#0f172a', len: 0.52, wid: 0.28, h: 11, extra: 'sensor' },
+      {
+        id: 'scooter',
+        body: '#16a34a',
+        accent: '#111827',
+        len: 0.26,
+        wid: 0.1,
+        h: 10,
+        extra: 'rider',
+      },
+      car('car', '#1e3a8a'),
+    ],
+    streets: [
+      'Market Street',
+      'Valencia Street',
+      'Mission Street',
+      'Folsom Street',
+      'Howard Street',
+      'The Embarcadero',
+      'Castro Street',
+      'Haight Street',
     ],
   },
 };
