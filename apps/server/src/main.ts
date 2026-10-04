@@ -1,7 +1,7 @@
 /** Process entry: wire real adapters, start the clock and data feeds, serve. */
 import type { MarketId } from '@runway/engine';
 import { buildApp } from './app.js';
-import { loadConfig } from './config.js';
+import { loadConfig, monthMsOf } from './config.js';
 import { GameService } from './game.js';
 import { DevSmsProvider } from './adapters/sms.js';
 import { fetchFxUpdates } from './adapters/feeds.js';
@@ -14,6 +14,7 @@ const game = new GameService(store, {
   seed: config.WORLD_SEED,
   snapshotEvery: config.SNAPSHOT_EVERY,
   now,
+  monthMs: monthMsOf(config),
   log: (msg, extra) => app.log.info(extra ?? {}, msg),
 });
 const app = await buildApp({
@@ -26,14 +27,14 @@ const app = await buildApp({
 
 game.openMarkets(config.OPEN_MARKETS);
 
-// The clock: check every 30s whether any market has passed local midnight.
+// The clock: every 15 s, settle any market whose game month has ended.
 const clock = setInterval(() => {
   try {
     game.tick();
   } catch (err) {
     app.log.error({ err }, 'clock tick failed');
   }
-}, 30_000);
+}, 15_000);
 game.tick();
 
 // Data feeds: FX every 6 hours. Failures keep the last known values.

@@ -195,6 +195,36 @@ describe('presence routes', () => {
     ]);
   });
 
+  it('lists players by the city they are in, visitors included (Wave 4)', async () => {
+    const { app, game } = await makeApp();
+    game.openMarkets(['nairobi']);
+    const a = api(app, await signIn(app, '+2348030000011'));
+    const d = api(app, await signIn(app, '+2348030000044'));
+    await a.command(founderSetup('alpha_one'));
+    await d.command({ ...investorSetup('delta_four'), market: 'nairobi' });
+    const id = async (s: typeof a) => (await s.get('/api/state')).json().view.me.id as string;
+    const [aId, dId] = [await id(a), await id(d)];
+    const ids = async (s: typeof a) =>
+      (await s.get('/api/presence')).json().players.map((p: { id: string }) => p.id);
+
+    await a.post('/api/presence', { x: 1, y: 1, place: null });
+    await d.post('/api/presence', { x: 2, y: 2, place: null });
+    expect(await ids(a)).toEqual([]);
+    expect(await ids(d)).toEqual([]);
+
+    // The Nairobi investor flies to Lagos: now they're on the Lagos map, and see it.
+    expect((await d.command({ type: 'travel.fly', to: 'lagos' })).statusCode).toBe(200);
+    await d.post('/api/presence', { x: 3, y: 3, place: 'airport' });
+    expect(await ids(a)).toEqual([dId]);
+    expect(await ids(d)).toEqual([aId]);
+
+    // Home again: gone from Lagos.
+    await d.command({ type: 'travel.fly', to: 'nairobi' });
+    await d.post('/api/presence', { x: 4, y: 4, place: null });
+    expect(await ids(a)).toEqual([]);
+    expect(await ids(d)).toEqual([]);
+  });
+
   it('needs a session, the CSRF header and valid coordinates', async () => {
     const { app } = await makeApp();
     const cookie = await signIn(app);

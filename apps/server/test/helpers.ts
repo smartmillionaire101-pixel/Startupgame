@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import type { EmailProvider } from '../src/adapters/email.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig, monthMsOf } from '../src/config.js';
 import { GameService } from '../src/game.js';
 import { Store } from '../src/store/sqlite.js';
 
@@ -24,7 +24,12 @@ export async function makeApp(
     ADMIN_TOKEN: 'admin-token-123',
     ...opts.env,
   });
-  const game = new GameService(store, { seed: 99, snapshotEvery: 5, now });
+  const game = new GameService(store, {
+    seed: 99,
+    snapshotEvery: 5,
+    now,
+    monthMs: monthMsOf(config),
+  });
   const sent: string[] = [];
   const app = await buildApp({
     config,
@@ -34,7 +39,7 @@ export async function makeApp(
     ...(opts.email ? { email: opts.email } : {}),
     now,
   });
-  return { app, store, game, sent };
+  return { app, store, game, sent, config };
 }
 
 const H = { 'x-runway': '1' };

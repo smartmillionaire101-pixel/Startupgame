@@ -20,6 +20,7 @@
  */
 import { gunzipSync, gzipSync } from 'node:zlib';
 import {
+  DEFAULT_MONTH_MS,
   commandSchema,
   createWorld,
   dispatch,
@@ -58,6 +59,8 @@ export class KvGame implements Game {
     private readonly opts: {
       seed: number;
       now: () => number;
+      /** Real length of a game month (MONTH_MINUTES). */
+      monthMs?: number;
       log?: (msg: string, extra?: object) => void;
     },
   ) {}
@@ -165,14 +168,16 @@ export class KvGame implements Game {
     }
   }
 
-  /** Run any settlements that are due (local midnight passed in a market). */
+  /** Run any settlements that are due (a game month's period boundary has passed). */
   async tick() {
     await this.refresh();
-    const due = dueSettlements(this.current, this.opts.now());
-    for (const { market, date } of due) {
-      const r = await this.execute(null, { type: 'market.settle', market, date });
-      if (!r.ok) this.opts.log?.('settlement failed', { market, date, error: r.error });
-      else this.opts.log?.('market settled', { market, date });
+    const monthMs = this.opts.monthMs ?? DEFAULT_MONTH_MS;
+    const due = dueSettlements(this.current, this.opts.now(), monthMs);
+    for (const { market, at } of due) {
+      // Another clock run may have settled it meanwhile: the engine refuses a repeat.
+      const r = await this.execute(null, { type: 'market.settle', market, at, monthMs });
+      if (!r.ok) this.opts.log?.('settlement skipped', { market, at, error: r.error });
+      else this.opts.log?.('market settled', { market, at });
     }
     return due.length;
   }

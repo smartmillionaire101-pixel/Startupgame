@@ -19,7 +19,7 @@ import type { Context } from '@netlify/functions';
 import type { FastifyInstance } from 'fastify';
 import type { MarketId } from '@runway/engine';
 import { buildApp } from '../app.js';
-import { loadConfig, type Config } from '../config.js';
+import { loadConfig, monthMsOf, type Config } from '../config.js';
 import { DevSmsProvider } from '../adapters/sms.js';
 import { fetchFxUpdates } from '../adapters/feeds.js';
 import { KvAccountStore } from './kv-accounts.js';
@@ -124,6 +124,7 @@ export async function createRuntime(kv: Kv, config: Config): Promise<Runtime> {
   const game = new KvGame(kv, {
     seed: config.WORLD_SEED,
     now,
+    monthMs: monthMsOf(config),
     log: (msg, extra) => console.log(JSON.stringify({ msg, ...extra })),
   });
   await game.refresh();

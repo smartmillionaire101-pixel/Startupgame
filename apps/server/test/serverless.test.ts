@@ -298,21 +298,26 @@ describe('Netlify runtime', () => {
     );
   });
 
-  it('the clock settles markets after local midnight', async () => {
+  it('the clock settles markets once a game month has passed', async () => {
     const kv = new MemoryKv();
     const rt = await createRuntime(kv, await configFor(kv, PREVIEW));
+    expect(rt.config.MONTH_MINUTES).toBe(5);
     const month = rt.game.current.markets.lagos!.month;
     const realNow = Date.now;
     try {
-      Date.now = () => realNow() + 2 * 86_400_000;
+      const later = realNow() + 5 * 60_000;
+      Date.now = () => later;
       const r = await runClock({ ...rt, config: { ...rt.config, FX_FEED_URL: '' } });
-      expect(r.settled).toBeGreaterThan(0);
+      expect(r.settled).toBe(Object.keys(rt.game.current.markets).length);
+      // Nothing more until the next month ends.
+      const again = await runClock({ ...rt, config: { ...rt.config, FX_FEED_URL: '' } });
+      expect(again.settled).toBe(0);
     } finally {
       Date.now = realNow;
     }
     const fresh = new KvGame(kv, { seed: 1, now: () => T0 });
     await fresh.refresh();
-    expect(fresh.current.markets.lagos!.month).toBeGreaterThan(month);
+    expect(fresh.current.markets.lagos!.month).toBe(month + 1);
   });
 });
 

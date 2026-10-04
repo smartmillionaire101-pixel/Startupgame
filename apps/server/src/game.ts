@@ -11,6 +11,7 @@
  */
 import { EventEmitter } from 'node:events';
 import {
+  DEFAULT_MONTH_MS,
   commandSchema,
   createWorld,
   dispatch,
@@ -51,6 +52,8 @@ export class GameService implements Game {
       seed: number;
       snapshotEvery: number;
       now: () => number;
+      /** Real length of a game month (MONTH_MINUTES). */
+      monthMs?: number;
       log?: (msg: string, extra?: object) => void;
     },
   ) {
@@ -97,7 +100,9 @@ export class GameService implements Game {
     this.sinceSnapshot += 1;
     if (this.sinceSnapshot >= this.opts.snapshotEvery || command.type === 'market.settle')
       this.snapshot();
-    this.events.emit('changed', { version: r.world.version, actors: actorId ? [actorId] : [] });
+    // "I'm here" touches change nothing anyone sees: no need to make every client refetch.
+    if (command.type !== 'player.seen')
+      this.events.emit('changed', { version: r.world.version, actors: actorId ? [actorId] : [] });
     return r;
   }
 
@@ -115,16 +120,17 @@ export class GameService implements Game {
     }
   }
 
-  /** Run any settlements that are due (local midnight passed in a market). */
+  /** Run any settlements that are due (a game month's period boundary has passed). */
   tick() {
-    const due = dueSettlements(this.world, this.opts.now());
-    for (const { market, date } of due) {
-      const r = this.execute(null, { type: 'market.settle', market, date });
-      if (!r.ok) this.opts.log?.('settlement failed', { market, date, error: r.error });
+    const monthMs = this.opts.monthMs ?? DEFAULT_MONTH_MS;
+    const due = dueSettlements(this.world, this.opts.now(), monthMs);
+    for (const { market, at } of due) {
+      const r = this.execute(null, { type: 'market.settle', market, at, monthMs });
+      if (!r.ok) this.opts.log?.('settlement failed', { market, at, error: r.error });
       else
         this.opts.log?.('market settled', {
           market,
-          date,
+          at,
           month: this.world.markets[market]!.month,
         });
     }
