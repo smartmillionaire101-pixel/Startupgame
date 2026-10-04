@@ -62,9 +62,9 @@ export function usePresence({ enabled, selfId }: { enabled: boolean; selfId: str
   const send = useCallback((s: Spot) => {
     if (missing) return;
     lastSent.current = Date.now();
-    api.reportPresence(s).catch((e: unknown) => {
-      if (isMissing(e)) missing = true;
-    });
+    // A failed report is harmless (the server also answers 404 before you have a
+    // player); only the GET decides whether presence exists at all.
+    api.reportPresence(s).catch(() => {});
   }, []);
 
   /** Report where you are now (after a walk). */
