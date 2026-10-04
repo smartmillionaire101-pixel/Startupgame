@@ -97,6 +97,10 @@ export function summarise(
       return `${head}${pref}${extras.length ? ` Plus ${extras.join(', ')}.` : ''}${pool}`;
     }
     case 'loan': {
+      if (terms.revenueShareBps && terms.repayCapBps) {
+        const total = Math.round((terms.amount * terms.repayCapBps) / 10_000);
+        return `${money(world, c, terms.amount)} now. You repay ${terms.revenueShareBps / 100}% of each month’s revenue until you have repaid ${money(world, c, total)}.${terms.personalGuarantee ? ' Your personal savings are on the line if the company defaults.' : ''}`;
+      }
       const pay = monthlyPayment(terms.amount, terms.rateBps, terms.months);
       return `${money(world, c, terms.amount)} now. You repay ${money(world, c, pay)} a month for ${terms.months} months at ${terms.rateBps / 100}% a year.${terms.personalGuarantee ? ' Your personal savings are on the line if the company defaults.' : ''}`;
     }
@@ -124,8 +128,10 @@ export function partyName(world: World, p: PartyRef): string {
       return world.funds[p.id]?.name ?? 'A fund';
     case 'company':
       return world.companies[p.id]?.name ?? 'The company';
-    case 'bank':
-      return getMarket(world, p.id as never)?.bankName ?? 'The bank';
+    case 'bank': {
+      const m = getMarket(world, p.id as never);
+      return (p.lenderId ? m.lenders?.[p.lenderId]?.name : undefined) ?? m.bankName ?? 'The bank';
+    }
     case 'playerbank':
       return world.banks[p.id]?.name ?? 'The bank';
     case 'corporate':
@@ -410,8 +416,13 @@ export function aiRespond(world: World, d: DealCard) {
       }
     }
   } else if (t.kind === 'loan' || t.kind === 'personal-loan') {
-    within = t.amount <= (lim.maxAmount ?? t.amount);
-    if (!within) meet = { amount: lim.maxAmount ?? t.amount };
+    const guaranteed = t.kind === 'personal-loan' || !lim.needsGuarantee || t.personalGuarantee;
+    within = t.amount <= (lim.maxAmount ?? t.amount) && guaranteed;
+    if (!within)
+      meet = {
+        amount: Math.min(t.amount, lim.maxAmount ?? t.amount),
+        ...(guaranteed ? {} : { personalGuarantee: true }),
+      };
   } else if (t.kind === 'supply') {
     // AI seller: accepts at or near its list price.
     within = t.price >= (lim.minValuation ?? 0);
@@ -664,6 +675,17 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
         monthlyPayment: monthlyPayment(t.amount, t.rateBps, t.months),
         monthsLeft: t.months,
         personalGuarantee: t.personalGuarantee ? founder : null,
+        ...(lender.lenderId ? { lenderId: lender.lenderId } : {}),
+        ...(t.productId ? { productId: t.productId } : {}),
+        // Revenue-based finance: the amount owed is the advance times the cap; no interest accrues.
+        ...(t.revenueShareBps && t.repayCapBps
+          ? {
+              revenueShareBps: t.revenueShareBps,
+              repayCapBps: t.repayCapBps,
+              outstanding: Math.round((t.amount * t.repayCapBps) / 10_000),
+              monthlyPayment: 0,
+            }
+          : {}),
       });
       for (const fid of c.founderIds)
         notify(world, fid, {

@@ -236,7 +236,9 @@ function dealView(world: World, d: DealCard, viewerId: Id) {
         : p.kind === 'company'
           ? world.companies[p.id]?.name
           : p.kind === 'bank'
-            ? getMarket(world, p.id as MarketId).bankName
+            ? ((p.lenderId
+                ? getMarket(world, p.id as MarketId).lenders?.[p.lenderId]?.name
+                : undefined) ?? getMarket(world, p.id as MarketId).bankName)
             : p.id;
   const mine = (p: DealCard['proposer']) =>
     (p.kind === 'player' && p.id === viewerId) ||

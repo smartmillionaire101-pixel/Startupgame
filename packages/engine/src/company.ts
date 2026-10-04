@@ -203,8 +203,12 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
       // Each loan repays its own lender (the AI bank or a player bank).
       let total = 0;
       for (const l of c.finance.loans) {
-        const r = Math.round((l.outstanding * l.rateBps) / 10_000 / 12);
-        const due = Math.min(l.monthlyPayment, l.outstanding + r);
+        // Revenue-based finance repays a share of this month's revenue; the fee is built into what's owed.
+        const rbf = !!(l.revenueShareBps && l.repayCapBps);
+        const r = rbf ? 0 : Math.round((l.outstanding * l.rateBps) / 10_000 / 12);
+        const due = rbf
+          ? Math.min(l.outstanding, Math.round((totalRevenue * l.revenueShareBps!) / 10_000))
+          : Math.min(l.monthlyPayment, l.outstanding + r);
         const got = transferUpTo(
           world,
           c.account,
@@ -213,11 +217,13 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
           `Loan repayment (${l.lender})`,
           month,
         );
-        const interestPart = Math.min(got, r);
+        const interestPart = rbf
+          ? Math.round((got * (l.repayCapBps! - 10_000)) / l.repayCapBps!)
+          : Math.min(got, r);
         recordInterest(world, l.lenderBankId, interestPart);
         paidInterest += interestPart;
         paidPrincipal += got - interestPart;
-        l.outstanding -= got - interestPart;
+        l.outstanding -= rbf ? got : got - interestPart;
         l.monthsLeft -= 1;
         if (got < due) loanShort = true;
         total += got;

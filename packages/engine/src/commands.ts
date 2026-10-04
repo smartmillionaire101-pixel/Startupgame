@@ -106,8 +106,11 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('company.loan'),
     companyId: id,
     bankId: id.optional(),
+    /** A named AI lender and one of its products (Wave 1); both or neither. */
+    lenderId: id.optional(),
+    productId: id.optional(),
     amount: money,
-    months: z.number().int().min(3).max(36),
+    months: z.number().int().min(3).max(60),
     personalGuarantee: z.boolean(),
   }),
   z.object({ type: z.literal('company.found'), company: companySetup }),
@@ -187,6 +190,9 @@ export const commandSchema = z.discriminatedUnion('type', [
     months: z.number().int().min(3).max(60),
     collateralCompanyId: id.optional(),
     bankId: id.optional(),
+    /** A named AI lender's founder product, e.g. a Start Up Loan (Wave 1). */
+    lenderId: id.optional(),
+    productId: id.optional(),
   }),
   z.object({ type: z.literal('player.travel'), market }),
   // ---- acquisitions, governance, arbitration (§9, §12)
