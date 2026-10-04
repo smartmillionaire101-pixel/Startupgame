@@ -40,6 +40,7 @@ import type { Rng } from './rng.js';
 import { newStars } from './stars.js';
 import { newCapTable } from './captable.js';
 import { refreshTalent } from './staff.js';
+import { ensureBusinesses } from './economy.js';
 import type {
   Company,
   ExternalPurpose,
@@ -422,6 +423,8 @@ export function openMarket(
   const rng = deriveRng(world.seed, 'genesis', id);
   refreshTalent(world, id, rng);
   for (let i = 0; i < aiStartups; i++) spawnAiStartup(world, id, rng, now);
+  // Local businesses (Wave 3), with deterministic ids so other ids don't shift.
+  ensureBusinesses(world, id);
   // AI angels (Wave 3): stable ids and their own RNG stream, so nothing above shifts.
   ensureAngels(world, id, now);
   return world.markets[id]!;
