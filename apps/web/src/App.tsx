@@ -87,7 +87,9 @@ function Game() {
             <span className="small muted">{view.market.date.label}</span>
           </div>
           <div className="topbar-meta">
-            <Pill tone={view.me.hours.left < 20 ? 'warn' : undefined}>{t('{n}h', { n: view.me.hours.left })}</Pill>
+            <Pill tone={view.me.hours.left < 20 ? 'warn' : undefined}>
+              {t('{n}h', { n: view.me.hours.left })}
+            </Pill>
             <Pill tone={view.me.burnout ? 'bad' : view.me.energy < 40 ? 'warn' : undefined}>
               ⚡{view.me.energy}
             </Pill>

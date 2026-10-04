@@ -1,7 +1,57 @@
 import { useState } from 'react';
+import { t, tx } from '../i18n';
 import { amountInput, money, parseAmount, titleCase } from '../format';
 import { useView, type Deal } from '../store';
 import { Button, Card, Empty, Field, Pill } from '../ui';
+
+/** Funding stages, in the player's language. */
+export const stageLabel = (s: string) =>
+  (
+    ({
+      'pre-seed': t('Pre-seed'),
+      seed: t('Seed'),
+      'series-a': t('Series A'),
+      'series-b': t('Series B'),
+      'series-c': t('Series C'),
+    }) as Record<string, string>
+  )[s] ?? titleCase(s);
+
+const kindLabel = (k: string) =>
+  (
+    ({
+      investment: t('Investment'),
+      cofounder: t('Co-founder'),
+      loan: t('Loan'),
+      acquisition: t('Acquisition'),
+      'personal-loan': t('Personal loan'),
+      supply: t('Supply'),
+    }) as Record<string, string>
+  )[k] ?? titleCase(k);
+
+const statusLabel = (st: string) =>
+  (
+    ({
+      open: t('Pending'),
+      accepted: t('Accepted'),
+      declined: t('Declined'),
+      expired: t('Expired'),
+      withdrawn: t('Withdrawn'),
+    }) as Record<string, string>
+  )[st] ?? titleCase(st);
+
+const actionLabel = (a: string) =>
+  (
+    ({
+      propose: t('proposed'),
+      counter: t('countered'),
+      accept: t('accepted'),
+      decline: t('declined'),
+      expire: t('expired'),
+      withdraw: t('withdrawn'),
+    }) as Record<string, string>
+  )[a] ?? a;
+
+const yesNo = (b: boolean) => (b ? t('yes') : t('no'));
 
 const STATUS_TONE = {
   open: 'info',
@@ -17,60 +67,64 @@ export function DealCard({ deal }: { deal: Deal }) {
   // Deals are priced in the currency of the market they happen in.
   const cur = deal.currency;
   const [countering, setCountering] = useState(false);
-  const t = deal.terms;
-  const [amount, setAmount] = useState(amountInput('amount' in t ? t.amount : 0));
+  const terms = deal.terms;
+  const [amount, setAmount] = useState(amountInput('amount' in terms ? terms.amount : 0));
   const [valuation, setValuation] = useState(
     amountInput(
-      t.kind === 'investment'
-        ? t.valuation
-        : t.kind === 'acquisition' || t.kind === 'supply'
-          ? t.price
+      terms.kind === 'investment'
+        ? terms.valuation
+        : terms.kind === 'acquisition' || terms.kind === 'supply'
+          ? terms.price
           : 0,
     ),
   );
-  const [equity, setEquity] = useState(t.kind === 'cofounder' ? t.equityBps / 100 : 10);
+  const [equity, setEquity] = useState(terms.kind === 'cofounder' ? terms.equityBps / 100 : 10);
 
   const act = (action: 'accept' | 'decline' | 'withdraw') =>
     send(
       { type: 'deal.act', dealId: deal.id, action },
-      action === 'accept' ? 'Deal accepted.' : action === 'decline' ? 'Declined.' : 'Withdrawn.',
+      action === 'accept'
+        ? t('Deal accepted.')
+        : action === 'decline'
+          ? t('Declined.')
+          : t('Withdrawn.'),
     );
   const counter = async () => {
-    const terms =
-      t.kind === 'investment'
+    const next =
+      terms.kind === 'investment'
         ? {
             amount: parseAmount(amount) ?? undefined,
             valuation: parseAmount(valuation) ?? undefined,
           }
-        : t.kind === 'acquisition' || t.kind === 'supply'
+        : terms.kind === 'acquisition' || terms.kind === 'supply'
           ? { price: parseAmount(valuation) ?? undefined }
-          : t.kind === 'loan' || t.kind === 'personal-loan'
+          : terms.kind === 'loan' || terms.kind === 'personal-loan'
             ? { amount: parseAmount(amount) ?? undefined }
             : { equityBps: Math.round(equity * 100) };
     const r = await send(
-      { type: 'deal.act', dealId: deal.id, action: 'counter', terms },
-      'Counter sent.',
+      { type: 'deal.act', dealId: deal.id, action: 'counter', terms: next },
+      t('Counter sent.'),
     );
     if (r) setCountering(false);
   };
 
   return (
     <Card
-      title={`${titleCase(t.kind)} · ${deal.companyName}`}
+      title={t('{kind} · {company}', { kind: kindLabel(terms.kind), company: deal.companyName })}
       action={
         <Pill tone={STATUS_TONE[deal.status]}>
-          {deal.yourTurn ? 'Your move' : titleCase(deal.status)}
+          {deal.yourTurn ? t('Your move') : statusLabel(deal.status)}
         </Pill>
       }
     >
-      <p style={{ fontSize: '1.02rem' }}>{deal.summary}</p>
+      <p style={{ fontSize: '1.02rem' }}>{tx(deal.summary)}</p>
       <p className="small muted">
         {deal.proposerName} → {deal.counterpartyName}
-        {deal.status === 'open' && ` · expires month ${deal.expiresMonth}`}
+        {deal.status === 'open' && t(' · expires month {n}', { n: deal.expiresMonth })}
       </p>
       {deal.waterfall && (
         <details>
-          <summary className="small">Who gets what</summary>
+          <summary className="small">{t('Who gets what')}</summary>
           <table className="table">
             <tbody>
               {deal.waterfall.map((l) => (
@@ -84,62 +138,91 @@ export function DealCard({ deal }: { deal: Deal }) {
         </details>
       )}
       <details>
-        <summary className="small">Full terms and history</summary>
+        <summary className="small">{t('Full terms and history')}</summary>
         <ul className="small muted">
-          {t.kind === 'investment' && (
+          {terms.kind === 'investment' && (
             <>
               <li>
-                {t.instrument === 'safe' ? 'SAFE (post-money cap)' : 'Priced round'} ·{' '}
-                {titleCase(t.stage)}
+                {terms.instrument === 'safe' ? t('SAFE (post-money cap)') : t('Priced round')} ·{' '}
+                {stageLabel(terms.stage)}
               </li>
               <li>
-                Amount {money(t.amount, cur)} · {t.instrument === 'safe' ? 'cap' : 'pre-money'}{' '}
-                {money(t.valuation, cur)}
+                {terms.instrument === 'safe'
+                  ? t('Amount {amount} · cap {valuation}', {
+                      amount: money(terms.amount, cur),
+                      valuation: money(terms.valuation, cur),
+                    })
+                  : t('Amount {amount} · pre-money {valuation}', {
+                      amount: money(terms.amount, cur),
+                      valuation: money(terms.valuation, cur),
+                    })}
               </li>
               <li>
-                Liquidation preference {t.liquidationMultiple}x{' '}
-                {t.participating ? 'participating' : 'non-participating'}
+                {terms.participating
+                  ? t('Liquidation preference {n}x participating', {
+                      n: terms.liquidationMultiple,
+                    })
+                  : t('Liquidation preference {n}x non-participating', {
+                      n: terms.liquidationMultiple,
+                    })}
               </li>
               <li>
-                Pro-rata {t.proRata ? 'yes' : 'no'} · board seat {t.boardSeat ? 'yes' : 'no'} · veto
-                on sale {t.vetoOnSale ? 'yes' : 'no'}
+                {t('Pro-rata {proRata} · board seat {board} · veto on sale {veto}', {
+                  proRata: yesNo(terms.proRata),
+                  board: yesNo(terms.boardSeat),
+                  veto: yesNo(terms.vetoOnSale),
+                })}
               </li>
-              {t.poolTopUpBps > 0 && (
-                <li>Option pool top-up to {t.poolTopUpBps / 100}% (pre-money)</li>
+              {terms.poolTopUpBps > 0 && (
+                <li>
+                  {t('Option pool top-up to {pct}% (pre-money)', { pct: terms.poolTopUpBps / 100 })}
+                </li>
               )}
             </>
           )}
           {deal.history.map((h, i) => (
             <li key={i}>
-              Month {h.month}: {h.action} — {h.summary}
+              {t('Month {n}: {action} — {summary}', {
+                n: h.month,
+                action: actionLabel(h.action),
+                summary: tx(h.summary),
+              })}
             </li>
           ))}
         </ul>
       </details>
       {deal.status === 'open' && deal.yourTurn && !countering && (
         <div className="row" style={{ marginTop: '0.5rem' }}>
-          <Button onClick={() => void act('accept')}>Accept</Button>
+          <Button onClick={() => void act('accept')}>{t('Accept')}</Button>
           <Button variant="subtle" onClick={() => setCountering(true)}>
-            Counter
+            {t('Counter')}
           </Button>
           <Button variant="ghost" onClick={() => void act('decline')}>
-            Decline
+            {t('Decline')}
           </Button>
         </div>
       )}
       {countering && (
         <div className="stack" style={{ marginTop: '0.5rem' }}>
-          {(t.kind === 'investment' || t.kind === 'loan' || t.kind === 'personal-loan') && (
-            <Field label={`Amount (${cur})`}>
+          {(terms.kind === 'investment' ||
+            terms.kind === 'loan' ||
+            terms.kind === 'personal-loan') && (
+            <Field label={t('Amount ({cur})', { cur })}>
               {(id) => <input id={id} value={amount} onChange={(e) => setAmount(e.target.value)} />}
             </Field>
           )}
-          {(t.kind === 'investment' || t.kind === 'acquisition' || t.kind === 'supply') && (
+          {(terms.kind === 'investment' ||
+            terms.kind === 'acquisition' ||
+            terms.kind === 'supply') && (
             <Field
               label={
-                t.kind === 'acquisition' || t.kind === 'supply'
-                  ? `Price${t.kind === 'supply' ? ' per month' : ''} (${cur})`
-                  : `${t.instrument === 'safe' ? 'Valuation cap' : 'Pre-money valuation'} (${cur})`
+                terms.kind === 'supply'
+                  ? t('Price per month ({cur})', { cur })
+                  : terms.kind === 'acquisition'
+                    ? t('Price ({cur})', { cur })
+                    : terms.instrument === 'safe'
+                      ? t('Valuation cap ({cur})', { cur })
+                      : t('Pre-money valuation ({cur})', { cur })
               }
             >
               {(id) => (
@@ -147,8 +230,8 @@ export function DealCard({ deal }: { deal: Deal }) {
               )}
             </Field>
           )}
-          {t.kind === 'cofounder' && (
-            <Field label={`Equity: ${equity}%`}>
+          {terms.kind === 'cofounder' && (
+            <Field label={t('Equity: {pct}%', { pct: equity })}>
               {(id) => (
                 <input
                   id={id}
@@ -162,9 +245,9 @@ export function DealCard({ deal }: { deal: Deal }) {
             </Field>
           )}
           <div className="row">
-            <Button onClick={() => void counter()}>Send counter</Button>
+            <Button onClick={() => void counter()}>{t('Send counter')}</Button>
             <Button variant="ghost" onClick={() => setCountering(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
           </div>
         </div>
@@ -175,7 +258,7 @@ export function DealCard({ deal }: { deal: Deal }) {
           onClick={() => void act('withdraw')}
           style={{ marginTop: '0.5rem' }}
         >
-          Withdraw
+          {t('Withdraw')}
         </Button>
       )}
     </Card>
@@ -189,13 +272,15 @@ export function DealList({ filter }: { filter?: (d: Deal) => boolean }) {
   const closed = deals.filter((d) => d.status !== 'open').slice(0, 8);
   return (
     <>
-      {open.length === 0 && <Empty>No open deal cards. Everything binding happens here.</Empty>}
+      {open.length === 0 && (
+        <Empty>{t('No open deal cards. Everything binding happens here.')}</Empty>
+      )}
       {open.map((d) => (
         <DealCard key={d.id} deal={d} />
       ))}
       {closed.length > 0 && (
         <details>
-          <summary className="muted small">Past deals ({closed.length})</summary>
+          <summary className="muted small">{t('Past deals ({n})', { n: closed.length })}</summary>
           {closed.map((d) => (
             <DealCard key={d.id} deal={d} />
           ))}
@@ -223,23 +308,23 @@ export function Inbox({ limit = 8 }: { limit?: number }) {
   const items = view.inbox.slice(0, limit);
   return (
     <Card
-      title={`Inbox${unread.length ? ` · ${unread.length} new` : ''}`}
+      title={unread.length ? t('Inbox · {n} new', { n: unread.length }) : t('Inbox')}
       action={
         unread.length > 0 && (
           <Button variant="ghost" onClick={() => void send({ type: 'inbox.read' })}>
-            Mark read
+            {t('Mark read')}
           </Button>
         )
       }
     >
       {items.length === 0 ? (
-        <Empty>Nothing yet.</Empty>
+        <Empty>{t('Nothing yet.')}</Empty>
       ) : (
         <ul className="list">
           {items.map((i) => (
             <li key={i.id} style={{ opacity: i.read ? 0.65 : 1 }}>
-              <span aria-hidden>{KIND_ICON[i.kind] ?? '•'}</span> {i.text}
-              <div className="small muted">Month {i.month}</div>
+              <span aria-hidden>{KIND_ICON[i.kind] ?? '•'}</span> {tx(i.text)}
+              <div className="small muted">{t('Month {n}', { n: i.month })}</div>
             </li>
           ))}
         </ul>
@@ -256,7 +341,7 @@ export function BankPicker({
   value,
   onChange,
   product,
-  label = 'Lender',
+  label,
   none,
 }: {
   value: string;
@@ -269,14 +354,14 @@ export function BankPicker({
   const banks = view.market.banks.filter((b) => b.lends[product]);
   if (banks.length === 0) return null;
   return (
-    <Field label={label}>
+    <Field label={label ?? t('Lender')}>
       {(id) => (
         <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
           <option value="">{none ?? view.market.bankName}</option>
           {banks.map((b) => (
             <option key={b.id} value={b.id}>
               {b.name} · {b.typeLabel} · {b.stars.toFixed(1)}★
-              {product === 'advisory' ? '' : ` · base +${b.loanSpreadPp}pp`}
+              {product === 'advisory' ? '' : t(' · base +{pp}pp', { pp: b.loanSpreadPp })}
             </option>
           ))}
         </select>
