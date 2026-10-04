@@ -175,10 +175,10 @@ export function eventKindsOf(view: { market: Market }): EventKindView[] | null {
 
 /** Your contacts, newest first; empty when the engine doesn't send them yet. */
 export function contactsOf(view: { me: Me }): ContactView[] {
-  const raw = (view.me as Me & { contacts?: unknown }).contacts;
+  const raw: unknown = (view.me as Me & { contacts?: unknown }).contacts;
   if (!Array.isArray(raw)) return [];
   const kinds = ['fund', 'founder', 'talent', 'customer', 'player'];
-  return raw
+  return (raw as unknown[])
     .filter((c): c is Record<string, unknown> => isObj(c) && typeof c.id === 'string')
     .map((c) => ({
       id: c.id as string,

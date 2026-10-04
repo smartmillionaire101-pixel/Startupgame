@@ -25,27 +25,27 @@ const fallbackKinds = (): EventKindView[] => [
   {
     kind: 'founder-meetup',
     label: t('Founder meetup'),
-    description: t('Founders and talent swap notes over drinks.'),
+    description: t('Drinks for founders to swap notes; good for peers and referred hires.'),
     cost: 0,
     hoursHost: 10,
     hoursAttend: 4,
     capacity: [10, 40],
-    who: t('Founders, talent'),
+    who: t('Founders and talent'),
   },
   {
     kind: 'investor-breakfast',
     label: t('Investor breakfast'),
-    description: t('An early table where founders meet funds: warm intros.'),
+    description: t('A small breakfast where fund partners meet founders: warm intros.'),
     cost: 0,
     hoursHost: 10,
     hoursAttend: 4,
     capacity: [8, 24],
-    who: t('Investors, founders'),
+    who: t('Investors and founders'),
   },
   {
     kind: 'demo-day',
     label: t('Demo day'),
-    description: t('Founders pitch on stage while investors watch.'),
+    description: t('Founders pitch on stage while investors watch. Strong turnout lifts the host.'),
     cost: 0,
     hoursHost: 12,
     hoursAttend: 4,
@@ -55,29 +55,34 @@ const fallbackKinds = (): EventKindView[] => [
   {
     kind: 'customer-mixer',
     label: t('Customer mixer'),
-    description: t('Meet buyers from one customer segment.'),
+    description: t('Meet buyers from one customer segment: awareness and a few trials.'),
     cost: 0,
     hoursHost: 10,
     hoursAttend: 4,
     capacity: [15, 60],
-    who: t('Customers of a segment'),
+    who: t('Customers from one segment'),
   },
   {
     kind: 'talent-night',
     label: t('Talent night'),
-    description: t('Candidates looking for their next role.'),
+    description: t('Candidates meet hiring companies; attendees get referred candidates.'),
     cost: 0,
     hoursHost: 10,
     hoursAttend: 4,
     capacity: [15, 60],
-    who: t('Candidates'),
+    who: t('Candidates looking for work'),
   },
 ];
+
+/** Mirrors the engine's venue pricing (data/events.ts) for the estimate shown. */
+const VENUE_MULT: Record<Venue, number> = { hall: 1, hub: 0.6, office: 0.25 };
+const MAX_BUDGET_COL = 20;
+const MAX_TICKET_COL = 2;
 
 const venueLabel = (v: Venue) =>
   ({ hall: t('Event Hall'), hub: t('The Hub'), office: t('Your office') })[v];
 
-const cmd = (c: Record<string, unknown>) => c as unknown as Command;
+const cmd = (c: Command) => c;
 
 function EventRow({ e, hours }: { e: CityEventView; hours: number | null }) {
   const { send, cur } = useView();
@@ -165,17 +170,25 @@ function HostForm({
   const [budget, setBudget] = useState(amountInput(view.market.costOfLiving));
   const [ticket, setTicket] = useState(amountInput(0));
   const [segment, setSegment] = useState(view.market.segments[0]?.key ?? '');
+  const [lead, setLead] = useState(1);
   const k = kinds.find((x) => x.kind === kind) ?? kinds[0];
   const budgetN = parseAmount(budget) ?? 0;
   const ticketN = parseAmount(ticket) ?? 0;
+  const col = view.market.costOfLiving;
+  const maxBudget = col * MAX_BUDGET_COL;
+  const maxTicket = col * MAX_TICKET_COL;
+  const tooMuch = budgetN > maxBudget || ticketN > maxTicket || budgetN < 0 || ticketN < 0;
+  const canOffice = !!company || !!view.fund;
+  const venueCost = k ? Math.round(k.cost * VENUE_MULT[venue]) : 0;
   const disabled = !open || hosting;
   const host = () =>
     void send(
       cmd({
         type: 'event.host',
-        kind,
+        kind: kind as Extract<Command, { type: 'event.host' }>['kind'],
         title: title.trim(),
         venue,
+        month: view.market.month + lead,
         budget: budgetN,
         ...(ticketN > 0 ? { ticket: ticketN } : {}),
         ...(kind === 'customer-mixer' ? { segmentKey: segment } : {}),
@@ -229,7 +242,7 @@ function HostForm({
             <input
               id={id}
               value={title}
-              maxLength={60}
+              maxLength={48}
               placeholder={t('e.g. Fintech founders’ breakfast')}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -242,13 +255,26 @@ function HostForm({
           options={[
             { value: 'hall', label: t('Event Hall') },
             { value: 'hub', label: t('The Hub') },
-            { value: 'office', label: t('Your office'), disabled: !company },
+            { value: 'office', label: t('Your office'), disabled: !canOffice },
+          ]}
+        />
+        <Segmented
+          label={t('When')}
+          value={String(lead)}
+          onChange={(v) => setLead(Number(v))}
+          options={[
+            { value: '0', label: t('This month') },
+            { value: '1', label: t('Next month') },
+            { value: '2', label: t('In {n} months', { n: 2 }) },
+            { value: '3', label: t('In {n} months', { n: 3 }) },
           ]}
         />
         <div className="grid2">
           <Field
             label={t('Budget ({cur})', { cur })}
-            hint={t('Food, drinks, a speaker: more draws a bigger crowd.')}
+            hint={t('Food, drinks, a speaker: more draws a bigger crowd. Up to {max}.', {
+              max: money(maxBudget, cur),
+            })}
           >
             {(id) => (
               <input
@@ -261,7 +287,9 @@ function HostForm({
           </Field>
           <Field
             label={t('Ticket ({cur})', { cur })}
-            hint={t('Paid to you. Zero means free entry.')}
+            hint={t('Paid to you. Zero means free entry. Up to {max}.', {
+              max: money(maxTicket, cur),
+            })}
           >
             {(id) => (
               <input
@@ -288,13 +316,17 @@ function HostForm({
         )}
         {k && k.cost > 0 && (
           <p className="small">
-            {t('You pay {amount} today (venue and budget), and spend {n}h.', {
-              amount: money(k.cost + budgetN, cur),
-              n: k.hoursHost,
-            })}
+            {t(
+              'You pay about {amount} today from your own account (venue and budget), and spend {n}h.',
+              {
+                amount: money(venueCost + budgetN, cur),
+                n: k.hoursHost,
+              },
+            )}
           </p>
         )}
-        <Button disabled={disabled || title.trim().length < 3} onClick={host}>
+        {tooMuch && <p className="small bad">{t('That’s over the limit for this market.')}</p>}
+        <Button disabled={disabled || tooMuch || title.trim().length < 3} onClick={host}>
           {t('Host it')}
         </Button>
       </fieldset>

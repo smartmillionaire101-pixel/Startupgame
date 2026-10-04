@@ -48,33 +48,34 @@ export const people: Record<string, string> = {
   '{role} · {company}': '{role} · {company}',
 
   // Event Hall
-  'An early table where founders meet funds: warm intros.':
-    'Une table matinale où les fondateurs rencontrent les fonds : des introductions chaleureuses.',
+  'A small breakfast where fund partners meet founders: warm intros.':
+    'Un petit-déjeuner où les associés de fonds rencontrent des fondateurs : des introductions chaleureuses.',
   'Budget ({cur})': 'Budget ({cur})',
   'Cancel it (costs are not refunded)': 'Annuler (les frais ne sont pas remboursés)',
   'Cancel the event': 'Annuler l’événement',
   Cancelled: 'Annulé',
-  'Candidates looking for their next role.': 'Des candidats à la recherche de leur prochain poste.',
-  Candidates: 'Candidats',
+  'Candidates meet hiring companies; attendees get referred candidates.':
+    'Les candidats rencontrent des entreprises qui recrutent ; les participants obtiennent des candidats recommandés.',
+  'Candidates looking for work': 'Des candidats en recherche d’emploi',
   'Can’t make it': 'Je ne peux pas venir',
   'Coming up': 'À venir',
   'Customer mixer': 'Rencontre clients',
   'Customer segment': 'Segment de clients',
-  'Customers of a segment': 'Les clients d’un segment',
+  'Customers from one segment': 'Les clients d’un segment',
   'Demo day': 'Demo day',
   'Event announced. Invite people you meet in the city.':
     'Événement annoncé. Invitez les gens que vous croisez en ville.',
   'Event cancelled.': 'Événement annulé.',
   'Events open soon': 'Les événements ouvrent bientôt',
-  'Food, drinks, a speaker: more draws a bigger crowd.':
-    'Repas, boissons, un intervenant : plus de budget attire plus de monde.',
+  'Food, drinks, a speaker: more draws a bigger crowd. Up to {max}.':
+    'Repas, boissons, un intervenant : plus de budget attire plus de monde. Jusqu’à {max}.',
   'Founder meetup': 'Rencontre de fondateurs',
-  'Founders and talent swap notes over drinks.':
-    'Fondateurs et talents échangent autour d’un verre.',
-  'Founders pitch on stage while investors watch.':
-    'Les fondateurs pitchent sur scène sous les yeux des investisseurs.',
+  'Drinks for founders to swap notes; good for peers and referred hires.':
+    'Un verre entre fondateurs pour échanger ; idéal pour les pairs et les recrutements recommandés.',
+  'Founders pitch on stage while investors watch. Strong turnout lifts the host.':
+    'Les fondateurs pitchent sur scène sous les yeux des investisseurs. Une belle affluence profite à l’hôte.',
   'Founders pitch, investors watch': 'Les fondateurs pitchent, les investisseurs regardent',
-  'Founders, talent': 'Fondateurs, talents',
+  'Founders and talent': 'Fondateurs et talents',
   Free: 'Gratuit',
   'From {amount} · {n}h to host': 'À partir de {amount} · {n} h d’organisation',
   Full: 'Complet',
@@ -86,13 +87,19 @@ export const people: Record<string, string> = {
   'Hosting opens soon. Here’s what you’ll be able to put on.':
     'L’organisation ouvre bientôt. Voici ce que vous pourrez proposer.',
   'Investor breakfast': 'Petit-déjeuner investisseurs',
-  'Investors, founders': 'Investisseurs, fondateurs',
+  'Investors and founders': 'Investisseurs et fondateurs',
   'Kind of event': 'Type d’événement',
-  'Meet buyers from one customer segment.': 'Rencontrez les acheteurs d’un segment de clients.',
+  'Meet buyers from one customer segment: awareness and a few trials.':
+    'Rencontrez les acheteurs d’un segment de clients : de la notoriété et quelques essais.',
   'Meetups, investor breakfasts, demo days, customer mixers and talent nights: host one to build your network, or RSVP to meet people.':
     'Rencontres, petits-déjeuners investisseurs, demo days, rencontres clients et soirées talents : organisez-en un pour développer votre réseau, ou inscrivez-vous pour rencontrer du monde.',
   'Nothing on yet. Host the first one.': 'Rien de prévu pour l’instant. Organisez le premier.',
-  'Paid to you. Zero means free entry.': 'Versé à vous. Zéro signifie entrée libre.',
+  'Paid to you. Zero means free entry. Up to {max}.':
+    'Versé à vous. Zéro signifie entrée libre. Jusqu’à {max}.',
+  When: 'Quand',
+  'Next month': 'Le mois prochain',
+  'In {n} months': 'Dans {n} mois',
+  'That’s over the limit for this market.': 'C’est au-delà de la limite pour ce marché.',
   'Past events': 'Événements passés',
   'RSVP to {title}': 'S’inscrire à {title}',
   'RSVP withdrawn. Ticket refunded.': 'Inscription annulée. Billet remboursé.',
@@ -104,8 +111,8 @@ export const people: Record<string, string> = {
   Venue: 'Lieu',
   'Who comes: {who}': 'Qui vient : {who}',
   'You host': 'Vous organisez',
-  'You pay {amount} today (venue and budget), and spend {n}h.':
-    'Vous payez {amount} aujourd’hui (lieu et budget) et y consacrez {n} h.',
+  'You pay about {amount} today from your own account (venue and budget), and spend {n}h.':
+    'Vous payez environ {amount} aujourd’hui depuis votre compte personnel (lieu et budget) et y consacrez {n} h.',
   'Your recap': 'Votre bilan',
   'You’re already hosting an event. One at a time.':
     'Vous organisez déjà un événement. Un à la fois.',
