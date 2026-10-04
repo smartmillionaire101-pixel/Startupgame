@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { money, runway, stars } from '../format';
+import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Pill, Sparkline, Stat } from '../ui';
 import { Inbox } from './common';
@@ -27,34 +28,38 @@ export function Home() {
             </div>
           )}
           <div className="kpis">
-            <Stat label="Cash" value={money(c.cash, cur)} hint={`Burn ${money(c.burn, cur)}/mo`} />
             <Stat
-              label="Runway"
-              value={runway(c.runwayMonths)}
-              tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
-              hint={c.defaultAlive ? 'Default alive' : 'Default dead'}
+              label={t('Cash')}
+              value={money(c.cash, cur)}
+              hint={t('Burn {amount}/mo', { amount: money(c.burn, cur) })}
             />
             <Stat
-              label="Monthly revenue"
+              label={t('Runway')}
+              value={runway(c.runwayMonths)}
+              tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
+              hint={c.defaultAlive ? t('Default alive') : t('Default dead')}
+            />
+            <Stat
+              label={t('Monthly revenue')}
               value={money(c.monthlyRevenue, cur)}
               hint={
                 <Sparkline
                   values={c.finance.history.slice(-12).map((h) => h.revenue)}
-                  label="Revenue, last 12 months"
+                  label={t('Revenue, last 12 months')}
                 />
               }
             />
             <Stat
-              label="Stars"
+              label={t('Stars')}
               value={stars(c.stars)}
-              hint={c.publicWarning ? <span className="bad">Public warning</span> : `${c.name}`}
+              hint={c.publicWarning ? <span className="bad">{t('Public warning')}</span> : c.name}
             />
           </div>
           {c.warnings.length > 0 && (
-            <Card title="Warning signs" tone="warn">
+            <Card title={t('Warning signs')} tone="warn">
               <ul className="list">
                 {c.warnings.map((w) => (
-                  <li key={w}>{w}</li>
+                  <li key={w}>{tx(w)}</li>
                 ))}
               </ul>
             </Card>
@@ -63,18 +68,18 @@ export function Home() {
       ) : isInvestor ? (
         <InvestorKpis />
       ) : (
-        <Card title="Start again" tone="good">
-          <p>Failure is part of a career. Your skills, network and lessons carry over.</p>
+        <Card title={t('Start again')} tone="good">
+          <p>{t('Failure is part of a career. Your skills, network and lessons carry over.')}</p>
           <FoundCompany />
         </Card>
       )}
       {isInvestor && c && <InvestorKpis />}
       <Votes />
       <Inbox />
-      <Card title={`${view.market.name} today`}>
-        <p>{view.market.economicNote}</p>
+      <Card title={t('{market} today', { market: view.market.name })}>
+        <p>{tx(view.market.economicNote)}</p>
         <div className="row small">
-          <Pill>Rate {(view.market.baseRateBps / 100).toFixed(2)}%</Pill>
+          <Pill>{t('Rate {rate}%', { rate: (view.market.baseRateBps / 100).toFixed(2) })}</Pill>
           {cur !== 'USD' && (
             <Pill>
               {cur}/USD {view.market.unitsPerUsd.toLocaleString('en-GB')}
@@ -85,7 +90,7 @@ export function Home() {
               view.market.climate > 1.05 ? 'good' : view.market.climate < 0.95 ? 'warn' : undefined
             }
           >
-            Climate {view.market.climate.toFixed(2)}
+            {t('Climate {value}', { value: view.market.climate.toFixed(2) })}
           </Pill>
         </div>
       </Card>
@@ -102,24 +107,27 @@ function InvestorKpis() {
   return (
     <div className="kpis">
       <Stat
-        label="Savings"
+        label={t('Savings')}
         value={money(view.accounts.local?.balance ?? 0, cur)}
-        hint={`Living ${money(view.me.lifestyle.monthlyCost, cur)}/mo`}
+        hint={t('Living {amount}/mo', { amount: money(view.me.lifestyle.monthlyCost, cur) })}
       />
       <Stat
-        label="Deployed"
+        label={t('Deployed')}
         value={money(deployed, cur)}
-        hint={`${view.portfolio.length} companies`}
+        hint={t('{n} companies', { n: view.portfolio.length })}
       />
       <Stat
-        label="Cash returned"
+        label={t('Cash returned')}
         value={money(returned, cur)}
-        hint={`DPI ${deployed ? (returned / deployed).toFixed(2) : '0.00'}x · paper ${money(mark, cur)}`}
+        hint={t('DPI {dpi}x · paper {amount}', {
+          dpi: deployed ? (returned / deployed).toFixed(2) : '0.00',
+          amount: money(mark, cur),
+        })}
       />
       <Stat
-        label="Stars"
+        label={t('Stars')}
         value={stars(view.me.stars)}
-        hint={view.fund ? view.fund.name : 'Angel'}
+        hint={view.fund ? view.fund.name : t('Angel')}
       />
     </div>
   );
@@ -129,20 +137,20 @@ function InvestorKpis() {
 function DevTools() {
   const { view, refresh, toast } = useView();
   return (
-    <Card title="Dev tools">
+    <Card title={t('Dev tools')}>
       <Button
         variant="subtle"
         onClick={() =>
           void api
             .devSettle(view.market.id)
             .then((r) => {
-              toast(`Advanced to month ${r.month}.`, 'ok');
+              toast(t('Advanced to month {month}.', { month: r.month }), 'ok');
               return refresh();
             })
-            .catch((e: Error) => toast(e.message, 'error'))
+            .catch((e: Error) => toast(tx(e.message), 'error'))
         }
       >
-        Advance {view.market.name} one month
+        {t('Advance {market} one month', { market: view.market.name })}
       </Button>
     </Card>
   );
@@ -156,40 +164,42 @@ function Votes() {
   );
   if (open.length === 0 && view.disputes.length === 0) return null;
   return (
-    <Card title="Votes and disputes">
+    <Card title={t('Votes and disputes')}>
       <ul className="list">
         {open.map((v) => (
           <li key={v.id}>
             <div className="spread">
               <span className="item-title">{v.companyName}</span>
               <Pill tone={v.status === 'open' ? 'info' : 'bad'}>
-                {v.status === 'open' ? `Closes month ${v.deadlineMonth}` : 'Passed'}
+                {v.status === 'open'
+                  ? t('Closes month {month}', { month: v.deadlineMonth })
+                  : t('Passed')}
               </Pill>
             </div>
-            <div className="small">{v.reason}</div>
+            <div className="small">{tx(v.reason)}</div>
             <div className="small muted">
-              Yes {v.yesPct}
-              {v.weighting === 'shares' ? '%' : ''} · No {v.noPct}
-              {v.weighting === 'shares' ? '%' : ''} ({v.weighting})
-              {v.myBallot ? ` · you voted ${v.myBallot}` : ''}
+              {v.weighting === 'shares'
+                ? t('Yes {yes}% · No {no}% (shares)', { yes: v.yesPct, no: v.noPct })
+                : t('Yes {yes} · No {no} (seats)', { yes: v.yesPct, no: v.noPct })}
+              {v.myBallot && ` · ${v.myBallot === 'yes' ? t('you voted yes') : t('you voted no')}`}
             </div>
             {v.canVote && !v.myBallot && (
               <div className="row">
                 <Button
                   variant="subtle"
                   onClick={() =>
-                    void send({ type: 'vote.cast', voteId: v.id, ballot: 'yes' }, 'Vote cast.')
+                    void send({ type: 'vote.cast', voteId: v.id, ballot: 'yes' }, t('Vote cast.'))
                   }
                 >
-                  Vote yes
+                  {t('Vote yes')}
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={() =>
-                    void send({ type: 'vote.cast', voteId: v.id, ballot: 'no' }, 'Vote cast.')
+                    void send({ type: 'vote.cast', voteId: v.id, ballot: 'no' }, t('Vote cast.'))
                   }
                 >
-                  Vote no
+                  {t('Vote no')}
                 </Button>
               </div>
             )}
@@ -202,11 +212,11 @@ function Votes() {
                   onClick={() =>
                     void send(
                       { type: 'dispute.file', kind: 'wrongful-removal', refId: v.companyId },
-                      (r: { message: string }) => r.message,
+                      (r: { message: string }) => tx(r.message),
                     )
                   }
                 >
-                  Take it to the arbitrator
+                  {t('Take it to the arbitrator')}
                 </Button>
               )}
           </li>
@@ -215,18 +225,18 @@ function Votes() {
           <li key={d.id}>
             <div className="spread">
               <span className="item-title">
-                {d.kind === 'supply-breach' ? 'Broken supply contract' : 'Wrongful removal'}
+                {d.kind === 'supply-breach' ? t('Broken supply contract') : t('Wrongful removal')}
               </span>
               <Pill tone={d.status === 'open' ? 'info' : d.award > 0 ? 'good' : undefined}>
-                {d.status === 'open' ? 'Awaiting ruling' : 'Ruled'}
+                {d.status === 'open' ? t('Awaiting ruling') : t('Ruled')}
               </Pill>
             </div>
-            {d.ruling && <div className="small">{d.ruling}</div>}
+            {d.ruling && <div className="small">{tx(d.ruling)}</div>}
           </li>
         ))}
       </ul>
       <p className="small muted">
-        The arbitrator reads only deal cards and game data, never chats.
+        {t('The arbitrator reads only deal cards and game data, never chats.')}
       </p>
     </Card>
   );

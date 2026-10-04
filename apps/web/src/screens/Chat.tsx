@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type ChatSummary } from '../api';
+import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Sheet } from '../ui';
+
+const roleLabel = (r: string) =>
+  ({ founder: t('founder'), investor: t('investor'), banker: t('banker') })[r] ?? r;
 
 /** Private, text-only chat (§15). Nothing in a chat is binding; deal cards are. */
 export function Chats() {
@@ -14,25 +18,25 @@ export function Chats() {
       void api
         .chats()
         .then((r) => setChats(r.chats))
-        .catch((e: Error) => toast(e.message, 'error')),
+        .catch((e: Error) => toast(tx(e.message), 'error')),
     [toast],
   );
   useEffect(load, [load]);
   const others = view.players.filter((p) => !chats.some((c) => c.with.id === p.id));
   return (
-    <Card title="Chats">
+    <Card title={t('Chats')}>
       {chats.length === 0 ? (
-        <Empty>No conversations yet.</Empty>
+        <Empty>{t('No conversations yet.')}</Empty>
       ) : (
         <ul className="list">
           {chats.map((c) => (
             <li key={c.id} className="spread">
               <div>
                 <div className="item-title">{c.with.name}</div>
-                <div className="small muted">{c.blocked ? 'Blocked' : c.lastText}</div>
+                <div className="small muted">{c.blocked ? t('Blocked') : c.lastText}</div>
               </div>
               <Button variant="subtle" onClick={() => setOpenId(c.id)}>
-                Open
+                {t('Open')}
               </Button>
             </li>
           ))}
@@ -40,15 +44,15 @@ export function Chats() {
       )}
       {others.length > 0 && (
         <details style={{ marginTop: '0.5rem' }}>
-          <summary className="small">Start a conversation</summary>
+          <summary className="small">{t('Start a conversation')}</summary>
           <ul className="list">
             {others.map((p) => (
               <li key={p.id} className="spread">
                 <span>
-                  {p.name} <span className="small muted">({p.role})</span>
+                  {p.name} <span className="small muted">({roleLabel(p.role)})</span>
                 </span>
                 <Button variant="ghost" onClick={() => setStartWith(p.id)}>
-                  Say hi
+                  {t('Say hi')}
                 </Button>
               </li>
             ))}
@@ -96,7 +100,7 @@ function StarterSheet({
     [playerId],
   );
   return (
-    <Sheet title="Start with one tap" onClose={() => onDone()}>
+    <Sheet title={t('Start with one tap')} onClose={() => onDone()}>
       <div className="choice-grid">
         {starters.map((s) => (
           <button
@@ -106,10 +110,10 @@ function StarterSheet({
               void api
                 .startChat(playerId, s)
                 .then((r) => onDone(r.chat.id))
-                .catch((e: Error) => toast(e.message, 'error'))
+                .catch((e: Error) => toast(tx(e.message), 'error'))
             }
           >
-            “{s}”
+            “{tx(s)}”
           </button>
         ))}
       </div>
@@ -126,26 +130,26 @@ function ChatSheet({ chatId, onClose }: { chatId: string; onClose: () => void })
       void api
         .messages(chatId)
         .then(setData)
-        .catch((e: Error) => toast(e.message, 'error')),
+        .catch((e: Error) => toast(tx(e.message), 'error')),
     [chatId, toast],
   );
   useEffect(() => {
     load();
-    const t = setInterval(load, 8000);
-    return () => clearInterval(t);
+    const timer = setInterval(load, 8000);
+    return () => clearInterval(timer);
   }, [load]);
   const sendMsg = async () => {
     try {
       const r = await api.send(chatId, text);
-      if (r.flagged) toast('Careful: that looks like a common scam pattern.', 'info');
+      if (r.flagged) toast(t('Careful: that looks like a common scam pattern.'), 'info');
       setText('');
       load();
     } catch (e) {
-      toast((e as Error).message, 'error');
+      toast(tx((e as Error).message), 'error');
     }
   };
   return (
-    <Sheet title={data?.chat.with.name ?? 'Chat'} onClose={onClose}>
+    <Sheet title={data?.chat.with.name ?? t('Chat')} onClose={onClose}>
       <div className="chat-log">
         {data?.messages.map((m) => (
           <div key={m.id} className={`bubble${m.mine ? ' mine' : ''}`}>
@@ -154,12 +158,12 @@ function ChatSheet({ chatId, onClose }: { chatId: string; onClose: () => void })
         ))}
       </div>
       {data?.chat.blocked ? (
-        <p className="small muted">This chat is blocked.</p>
+        <p className="small muted">{t('This chat is blocked.')}</p>
       ) : (
         <>
           <div className="row" style={{ marginTop: '0.5rem' }}>
             <input
-              aria-label="Message"
+              aria-label={t('Message')}
               value={text}
               maxLength={meta?.chatMaxLength ?? 280}
               onChange={(e) => setText(e.target.value)}
@@ -167,26 +171,26 @@ function ChatSheet({ chatId, onClose }: { chatId: string; onClose: () => void })
               style={{ flex: 1 }}
             />
             <Button disabled={!text.trim()} onClick={() => void sendMsg()}>
-              Send
+              {t('Send')}
             </Button>
           </div>
           <p className="small muted">
-            No links, numbers, emails or handles. Commitments happen on deal cards.
+            {t('No links, numbers, emails or handles. Commitments happen on deal cards.')}
           </p>
           <div className="row">
             <Button variant="ghost" onClick={() => void api.block(chatId).then(load)}>
-              Block
+              {t('Block')}
             </Button>
             <Button
               variant="ghost"
               onClick={() =>
                 void api.report(chatId, 'scam').then(() => {
-                  toast('Reported. A moderator will review.', 'ok');
+                  toast(t('Reported. A moderator will review.'), 'ok');
                   load();
                 })
               }
             >
-              Report
+              {t('Report')}
             </Button>
           </div>
         </>

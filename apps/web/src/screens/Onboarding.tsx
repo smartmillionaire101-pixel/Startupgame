@@ -2,27 +2,47 @@ import { useEffect, useState } from 'react';
 import type { Command, Industry, MarketId, RevenueModel, Stage } from '@runway/engine';
 import { api } from '../api';
 import { money, parseAmount, titleCase } from '../format';
+import { t, tx } from '../i18n';
 import { useGame } from '../store';
 import { Button, Field, Pill } from '../ui';
 
 type Role = 'founder' | 'investor' | 'banker';
 
-const ROLE_CARDS: { role: Role; title: string; text: string; disabled?: boolean }[] = [
-  { role: 'founder', title: 'Founder', text: 'Build a company from an idea to an exit.' },
+const roleCards = (): { role: Role; title: string; text: string; disabled?: boolean }[] => [
+  { role: 'founder', title: t('Founder'), text: t('Build a company from an idea to an exit.') },
   {
     role: 'investor',
-    title: 'Investor',
-    text: 'Back founders with your savings, then raise a fund.',
+    title: t('Investor'),
+    text: t('Back founders with your savings, then raise a fund.'),
   },
   {
     role: 'banker',
-    title: 'Banker',
-    text: 'Start a bank: take deposits, lend, and answer to the central bank.',
+    title: t('Banker'),
+    text: t('Start a bank: take deposits, lend, and answer to the central bank.'),
   },
 ];
 
+const stageLabel = (s: string) =>
+  ({
+    'pre-seed': t('Pre-seed'),
+    seed: t('Seed'),
+    'series-a': t('Series A'),
+    'series-b': t('Series B'),
+    'series-c': t('Series C'),
+  })[s] ?? titleCase(s);
+
+const modelLabel = (r: string) =>
+  ({
+    subscription: t('Subscription'),
+    transaction: t('Transaction'),
+    usage: t('Usage'),
+    marketplace: t('Marketplace'),
+    'one-off': t('One-off'),
+    services: t('Services'),
+  })[r] ?? titleCase(r);
+
 const Dots = ({ n }: { n: number }) => (
-  <div className="steps" aria-label={`Step ${n + 1} of 5`}>
+  <div className="steps" aria-label={t('Step {n} of {total}', { n: n + 1, total: 5 })}>
     {[0, 1, 2, 3, 4].map((i) => (
       <span key={i} className={i <= n ? 'on' : ''} />
     ))}
@@ -53,7 +73,7 @@ export function Onboarding() {
   // Live name checks against the market (§18), debounced.
   useEffect(() => {
     if (company.trim().length < 3) return;
-    const t = setTimeout(
+    const timer = setTimeout(
       () =>
         void api
           .checkName(company, market, 'company')
@@ -61,11 +81,11 @@ export function Onboarding() {
           .catch(() => setNameCheck(null)),
       350,
     );
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [company, market]);
   useEffect(() => {
     if (handle.trim().length < 3) return;
-    const t = setTimeout(
+    const timer = setTimeout(
       () =>
         void api
           .checkName(handle, market, 'handle')
@@ -73,13 +93,13 @@ export function Onboarding() {
           .catch(() => setHandleCheck(null)),
       350,
     );
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [handle, market]);
 
   if (!meta)
     return (
       <div className="app">
-        <p className="muted">Loading…</p>
+        <p className="muted">{t('Loading…')}</p>
       </div>
     );
   const backgrounds = meta.backgrounds.filter((b) => b.role === role);
@@ -99,7 +119,7 @@ export function Onboarding() {
               bank: { name: company, bankType: bankType as 'commercial' | 'microfinance' },
             }
           : { ...base, investor: { sectors, stages, checkSize: parseAmount(check) ?? 0 } };
-    const r = await send(cmd, 'Welcome to Runway.');
+    const r = await send(cmd, t('Welcome to Runway.'));
     if (r) await refresh();
   };
 
@@ -115,13 +135,13 @@ export function Onboarding() {
   return (
     <div className="app">
       <div className="hero" style={{ paddingTop: '1.4rem' }}>
-        <h1>Set up your player</h1>
+        <h1>{t('Set up your player')}</h1>
         <Dots n={step} />
       </div>
 
       {step === 0 && (
         <div className="choice-grid">
-          {ROLE_CARDS.map((r) => (
+          {roleCards().map((r) => (
             <button
               key={r.role}
               className="choice"
@@ -134,7 +154,7 @@ export function Onboarding() {
               }}
             >
               <div className="item-title">
-                {r.title} {r.disabled && <Pill>Phase 2</Pill>}
+                {r.title} {r.disabled && <Pill>{t('Phase 2')}</Pill>}
               </div>
               <div className="muted small">{r.text}</div>
             </button>
@@ -144,7 +164,7 @@ export function Onboarding() {
 
       {step === 1 && (
         <>
-          <p className="muted">Your background shapes your skills, network and savings.</p>
+          <p className="muted">{t('Your background shapes your skills, network and savings.')}</p>
           <div className="choice-grid">
             {backgrounds.map((b) => (
               <button
@@ -156,25 +176,25 @@ export function Onboarding() {
                   setStep(2);
                 }}
               >
-                <div className="item-title">{b.name}</div>
+                <div className="item-title">{tx(b.name)}</div>
                 <div className="small">
-                  <span className="good">+</span> {b.strengths}
+                  <span className="good">+</span> {tx(b.strengths)}
                 </div>
                 <div className="small">
-                  <span className="bad">−</span> {b.gaps}
+                  <span className="bad">−</span> {tx(b.gaps)}
                 </div>
               </button>
             ))}
           </div>
           <Button variant="ghost" onClick={() => setStep(0)} style={{ marginTop: '0.8rem' }}>
-            Back
+            {t('Back')}
           </Button>
         </>
       )}
 
       {step === 2 && (
         <>
-          <p className="muted">Pick your city. Your clock follows its time zone.</p>
+          <p className="muted">{t('Pick your city. Your clock follows its time zone.')}</p>
           <div className="choice-grid">
             {meta.markets.map((mk) => (
               <button
@@ -193,26 +213,36 @@ export function Onboarding() {
                   <Pill>{mk.currency}</Pill>
                 </div>
                 <div className="small muted">
-                  Living costs {money(mk.costOfLiving, mk.currency)}/month
+                  {t('Living costs {amount}/month', {
+                    amount: money(mk.costOfLiving, mk.currency),
+                  })}
                 </div>
                 <div className="row small" style={{ marginTop: '0.3rem' }}>
-                  <Pill>Cost {'●'.repeat(mk.card.costOfLiving)}</Pill>
-                  <Pill>Talent {'●'.repeat(mk.card.talent)}</Pill>
-                  <Pill>Capital {'●'.repeat(mk.card.capitalAccess)}</Pill>
-                  <Pill>Regulation {'●'.repeat(mk.card.regulation)}</Pill>
+                  <Pill>
+                    {t('Cost')} {'●'.repeat(mk.card.costOfLiving)}
+                  </Pill>
+                  <Pill>
+                    {t('Talent')} {'●'.repeat(mk.card.talent)}
+                  </Pill>
+                  <Pill>
+                    {t('Capital')} {'●'.repeat(mk.card.capitalAccess)}
+                  </Pill>
+                  <Pill>
+                    {t('Regulation')} {'●'.repeat(mk.card.regulation)}
+                  </Pill>
                 </div>
               </button>
             ))}
           </div>
           <Button variant="ghost" onClick={() => setStep(1)} style={{ marginTop: '0.8rem' }}>
-            Back
+            {t('Back')}
           </Button>
         </>
       )}
 
       {step === 3 && (
         <section className="card">
-          <Field label="Your name">
+          <Field label={t('Your name')}>
             {(id) => (
               <input
                 id={id}
@@ -223,14 +253,14 @@ export function Onboarding() {
             )}
           </Field>
           <Field
-            label="Handle"
+            label={t('Handle')}
             hint={
               handleCheck && !handleCheck.ok ? (
-                <span className="bad">{handleCheck.reason}</span>
+                <span className="bad">{tx(handleCheck.reason ?? '')}</span>
               ) : handleCheck?.ok ? (
-                <span className="good">Available</span>
+                <span className="good">{t('Available')}</span>
               ) : (
-                'Letters, numbers, underscores.'
+                t('Letters, numbers, underscores.')
               )
             }
           >
@@ -245,7 +275,7 @@ export function Onboarding() {
           </Field>
           {role === 'founder' ? (
             <>
-              <Field label="Industry">
+              <Field label={t('Industry')}>
                 {(id) => (
                   <select
                     id={id}
@@ -254,13 +284,13 @@ export function Onboarding() {
                   >
                     {meta.industries.map((i) => (
                       <option key={i.id} value={i.id}>
-                        {i.label}
+                        {tx(i.label)}
                       </option>
                     ))}
                   </select>
                 )}
               </Field>
-              <Field label="Business model">
+              <Field label={t('Business model')}>
                 {(id) => (
                   <select
                     id={id}
@@ -269,32 +299,32 @@ export function Onboarding() {
                   >
                     {meta.revenueModels.map((r) => (
                       <option key={r} value={r}>
-                        {titleCase(r)}
+                        {modelLabel(r)}
                       </option>
                     ))}
                   </select>
                 )}
               </Field>
-              <Field label="Your idea in one line">
+              <Field label={t('Your idea in one line')}>
                 {(id) => (
                   <input
                     id={id}
                     value={idea}
                     maxLength={120}
-                    placeholder="Payments for market traders that work offline"
+                    placeholder={t('Payments for market traders that work offline')}
                     onChange={(e) => setIdea(e.target.value)}
                   />
                 )}
               </Field>
               <Field
-                label="Company name"
+                label={t('Company name')}
                 hint={
                   nameCheck && !nameCheck.ok ? (
-                    <span className="bad">{nameCheck.reason}</span>
+                    <span className="bad">{tx(nameCheck.reason ?? '')}</span>
                   ) : nameCheck?.ok ? (
-                    <span className="good">Available in {m.name}</span>
+                    <span className="good">{t('Available in {market}', { market: m.name })}</span>
                   ) : (
-                    'Checked against brands and names taken in your market.'
+                    t('Checked against brands and names taken in your market.')
                   )
                 }
               >
@@ -308,8 +338,8 @@ export function Onboarding() {
                 )}
               </Field>
               <Field
-                label="Incorporation"
-                hint="Foreign holding companies cost more but some investors prefer them."
+                label={t('Incorporation')}
+                hint={t('Foreign holding companies cost more but some investors prefer them.')}
               >
                 {(id) => (
                   <select
@@ -319,7 +349,7 @@ export function Onboarding() {
                   >
                     {Object.entries(meta.incorporation).map(([k, v]) => (
                       <option key={k} value={k}>
-                        {v.label} ({money(Math.round(m.costOfLiving * v.costCol), m.currency)})
+                        {tx(v.label)} ({money(Math.round(m.costOfLiving * v.costCol), m.currency)})
                       </option>
                     ))}
                   </select>
@@ -329,14 +359,14 @@ export function Onboarding() {
           ) : role === 'banker' ? (
             <>
               <Field
-                label="Bank name"
+                label={t('Bank name')}
                 hint={
                   nameCheck && !nameCheck.ok ? (
-                    <span className="bad">{nameCheck.reason}</span>
+                    <span className="bad">{tx(nameCheck.reason ?? '')}</span>
                   ) : nameCheck?.ok ? (
-                    <span className="good">Available in {m.name}</span>
+                    <span className="good">{t('Available in {market}', { market: m.name })}</span>
                   ) : (
-                    'Checked against brands and names taken in your market.'
+                    t('Checked against brands and names taken in your market.')
                   )
                 }
               >
@@ -349,38 +379,46 @@ export function Onboarding() {
                   />
                 )}
               </Field>
-              <Field label="Licence">
+              <Field label={t('Licence')}>
                 {() => (
                   <div className="choice-grid">
-                    {meta.bankTypes.map((t) => (
+                    {meta.bankTypes.map((bt) => (
                       <button
-                        key={t.id}
+                        key={bt.id}
                         type="button"
                         className="choice"
-                        aria-pressed={bankType === t.id}
-                        onClick={() => setBankType(t.id)}
+                        aria-pressed={bankType === bt.id}
+                        onClick={() => setBankType(bt.id)}
                       >
-                        <div className="item-title">{t.label}</div>
+                        <div className="item-title">{tx(bt.label)}</div>
                         <div className="muted small">
-                          Minimum capital{' '}
-                          {money(Math.round(m.costOfLiving * t.minCapitalCol), m.currency)}
+                          {t('Minimum capital {amount}', {
+                            amount: money(
+                              Math.round(m.costOfLiving * bt.minCapitalCol),
+                              m.currency,
+                            ),
+                          })}
                         </div>
-                        <div className="muted small">Earns: {t.earns}</div>
-                        <div className="muted small">Risk: {t.risk}</div>
+                        <div className="muted small">
+                          {t('Earns: {text}', { text: tx(bt.earns) })}
+                        </div>
+                        <div className="muted small">
+                          {t('Risk: {text}', { text: tx(bt.risk) })}
+                        </div>
                       </button>
                     ))}
                   </div>
                 )}
               </Field>
               <p className="small muted">
-                You put in 80% of your savings. AI shareholders add two to five times that,
-                depending on your credibility. Short of the minimum, the licence is refused and the
-                capital comes back.
+                {t(
+                  'You put in 80% of your savings. AI shareholders add two to five times that, depending on your credibility. Short of the minimum, the licence is refused and the capital comes back.',
+                )}
               </p>
             </>
           ) : (
             <>
-              <Field label="Sectors">
+              <Field label={t('Sectors')}>
                 {() => (
                   <div className="chips">
                     {meta.industries.map((i) => (
@@ -397,13 +435,13 @@ export function Onboarding() {
                           )
                         }
                       >
-                        {i.label}
+                        {tx(i.label)}
                       </button>
                     ))}
                   </div>
                 )}
               </Field>
-              <Field label="Stages">
+              <Field label={t('Stages')}>
                 {() => (
                   <div className="chips">
                     {meta.stages.slice(0, 3).map((s) => (
@@ -418,13 +456,16 @@ export function Onboarding() {
                           )
                         }
                       >
-                        {titleCase(s)}
+                        {stageLabel(s)}
                       </button>
                     ))}
                   </div>
                 )}
               </Field>
-              <Field label={`Typical cheque (${m.currency})`} hint="e.g. 5m or 250k">
+              <Field
+                label={t('Typical cheque ({currency})', { currency: m.currency })}
+                hint={t('e.g. 5m or 250k')}
+              >
                 {(id) => (
                   <input
                     id={id}
@@ -438,10 +479,10 @@ export function Onboarding() {
           )}
           <div className="row" style={{ marginTop: '0.6rem' }}>
             <Button disabled={!canSetup} onClick={() => setStep(4)}>
-              Continue
+              {t('Continue')}
             </Button>
             <Button variant="ghost" onClick={() => setStep(2)}>
-              Back
+              {t('Back')}
             </Button>
           </div>
         </section>
@@ -449,20 +490,25 @@ export function Onboarding() {
 
       {step === 4 && (
         <section className="card stack">
-          <h2>Ready</h2>
+          <h2>{t('Ready')}</h2>
           <p>
             {role === 'founder'
-              ? `${company} opens in ${m.name}.`
+              ? t('{company} opens in {market}.', { company, market: m.name })
               : role === 'banker'
-                ? `${company} applies for a licence in ${m.name}. The central bank decides in two months.`
-                : `You start investing in ${m.name}.`}{' '}
-            One real day is one game month. Settlement runs at midnight in {m.name}.
+                ? t(
+                    '{company} applies for a licence in {market}. The central bank decides in two months.',
+                    { company, market: m.name },
+                  )
+                : t('You start investing in {market}.', { market: m.name })}{' '}
+            {t('One real day is one game month. Settlement runs at midnight in {market}.', {
+              market: m.name,
+            })}
           </p>
-          <p className="disclaimer">{meta.disclaimer}</p>
+          <p className="disclaimer">{tx(meta.disclaimer)}</p>
           <div className="row">
-            <Button onClick={() => void finish()}>Start</Button>
+            <Button onClick={() => void finish()}>{t('Start')}</Button>
             <Button variant="ghost" onClick={() => setStep(3)}>
-              Back
+              {t('Back')}
             </Button>
           </div>
         </section>
