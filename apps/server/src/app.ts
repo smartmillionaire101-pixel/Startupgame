@@ -208,7 +208,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   // ---------------------------------------------------------------- auth
 
-  const authLimit = { config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } };
+  const authLimit = {
+    config: { rateLimit: { max: config.AUTH_RATE_LIMIT, timeWindow: '10 minutes' } },
+  };
 
   app.post('/api/auth/start', authLimit, async (req, reply) => {
     const body = z

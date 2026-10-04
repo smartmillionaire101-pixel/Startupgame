@@ -65,6 +65,8 @@ export async function configFor(kv: Kv, mode: Mode): Promise<Config> {
     ...process.env,
     NODE_ENV: prod ? 'production' : 'development',
     DEV_TOOLS: prod ? '0' : '1',
+    // Previews are test environments: automated runs sign in many times from one address.
+    AUTH_RATE_LIMIT: prod ? (process.env.AUTH_RATE_LIMIT ?? '5') : '100',
     // No SMS gateway is connected yet: show the code on screen.
     SHOW_SIGNIN_CODE: process.env.SHOW_SIGNIN_CODE ?? '1',
     SESSION_SECRET: await sessionSecret(kv),

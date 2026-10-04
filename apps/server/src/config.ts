@@ -20,6 +20,8 @@ const schema = z.object({
    * off once a real SMS provider is plugged in.
    */
   SHOW_SIGNIN_CODE: bool,
+  /** Sign-in attempts allowed per IP address per 10 minutes, for each step. */
+  AUTH_RATE_LIMIT: z.coerce.number().int().min(1).default(5),
   FX_FEED_URL: z.string().url().optional().or(z.literal('')),
   ADMIN_TOKEN: z.string().optional(),
   WEB_DIST: z.string().optional(),

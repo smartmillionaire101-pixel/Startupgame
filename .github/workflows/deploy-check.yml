@@ -81,6 +81,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Probe sign-in on ${{ steps.target.outputs.url }}
+        run: node scripts/probe-deploy.mjs "${{ steps.target.outputs.url }}"
       - run: npx -y npm@11 ci
       - run: npx playwright install --with-deps chromium
         working-directory: apps/web
