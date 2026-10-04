@@ -16,6 +16,7 @@ import { INDUSTRIES, SEGMENT_TEMPLATES, segmentsForIndustry } from './data/indus
 import type { Industry } from './data/industries.js';
 import { LAUNCH_MARKETS, MARKET_DATA, PUBLIC_MULTIPLES } from './data/markets.js';
 import { CURRENT_SCHEMA } from './upgrade.js';
+import { NO_EFFECTS } from './marketplace.js';
 import type { MarketId } from './data/markets.js';
 import {
   BACKGROUNDS,
@@ -313,6 +314,12 @@ export function createCompany(world: World, input: NewCompanyInput): Company {
     lastDecisionMonth: m.month,
     forSale: false,
     aiCeo: false,
+    supply: { ...NO_EFFECTS },
+    supplyDisruptionMonth: null,
+    ledgerThisMonth: { playerRevenue: 0, supplierCost: 0, flaggedRevenue: 0 },
+    lastFlaggedRevenue: 0,
+    fraudStreak: 0,
+    bannedFromRaising: false,
   };
   setCogs(world, company);
   world.companies[id] = company;
@@ -462,6 +469,8 @@ export function createWorld(opts: CreateWorldOptions): World {
     media: {},
     inbox: {},
     names: {},
+    listings: {},
+    contracts: {},
     usdExt: { fx: 'ext:usd:fx', suppliers: 'ext:usd:suppliers', genesis: 'ext:usd:genesis' },
   };
   openAccount(world, {

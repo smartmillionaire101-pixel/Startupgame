@@ -26,6 +26,7 @@ import {
 import { raiseFund } from './funds.js';
 import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
 import { hasVisited, relocate, travel } from './travel.js';
+import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
 import {
   achieve,
   col,
@@ -491,6 +492,53 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         collateralCompanyId: cmd.collateralCompanyId,
       });
       return { dealId: deal.id, summary: deal.summary };
+    }
+    case 'listing.create': {
+      const c = touch(cmd.companyId);
+      return { listingId: createListing(world, c, cmd.title, cmd.price).id };
+    }
+    case 'listing.update': {
+      const l = world.listings[cmd.listingId];
+      ensure(l, 'listing.missing', 'Listing not found.');
+      touch(l.companyId);
+      if (cmd.price !== undefined) {
+        ensure(cmd.price > 0, 'listing.price', 'Set a price.');
+        l.price = cmd.price;
+      }
+      if (cmd.active !== undefined) l.active = cmd.active;
+      return { message: 'Listing updated.' };
+    }
+    case 'supply.propose': {
+      touch(cmd.buyerCompanyId);
+      const deal = proposeSupply(world, {
+        buyerId: cmd.buyerCompanyId,
+        listingId: cmd.listingId,
+        price: cmd.price,
+        months: cmd.months,
+        by: me.id,
+      });
+      return { dealId: deal.id, status: deal.status, summary: deal.summary };
+    }
+    case 'supply.cancel': {
+      const k = world.contracts[cmd.contractId];
+      ensure(k && k.status === 'active', 'supply.missing', 'Contract not found.');
+      const mine = [k.buyerId, k.sellerId].find((cid) =>
+        world.companies[cid]?.founderIds.includes(me.id),
+      );
+      ensure(mine, 'supply.forbidden', 'Not your contract.');
+      endContract(world, k, 'cancelled', mine, month);
+      return { message: 'Contract cancelled.' };
+    }
+    case 'supply.review': {
+      const k = world.contracts[cmd.contractId];
+      ensure(k, 'supply.missing', 'Contract not found.');
+      ensure(
+        world.companies[k.buyerId]?.founderIds.includes(me.id),
+        'supply.forbidden',
+        'Only the buyer reviews.',
+      );
+      reviewSupplier(world, k, cmd.rating);
+      return { message: 'Review posted.' };
     }
     case 'player.travel':
       return travel(world, me, cmd.market);

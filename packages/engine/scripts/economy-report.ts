@@ -11,7 +11,7 @@ import { economyDashboard } from '../src/views.js';
 import { formatMoney } from '../src/money.js';
 import type { Command } from '../src/commands.js';
 import type { World } from '../src/types.js';
-import { MARKET_IDS } from '../src/data/markets.js';
+import { LAUNCH_MARKETS } from '../src/data/markets.js';
 
 const arg = (name: string, fallback: number) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -31,7 +31,7 @@ const exec = (actor: string | null, cmd: Command, now = T0) => {
 
 // Three scripted human founders per market with different styles.
 const styles = ['frugal', 'balanced', 'aggressive'] as const;
-for (const market of MARKET_IDS) {
+for (const market of LAUNCH_MARKETS) {
   styles.forEach((style, i) => {
     const id = `sim_${market}_${style}`;
     exec(id, {
@@ -125,7 +125,7 @@ for (let month = 1; month <= MONTHS; month++) {
       }
     }
   }
-  for (const market of MARKET_IDS) {
+  for (const market of LAUNCH_MARKETS) {
     const last = world.markets[market]!.lastSettledDate!;
     const d = new Date(`${last}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() + 1);

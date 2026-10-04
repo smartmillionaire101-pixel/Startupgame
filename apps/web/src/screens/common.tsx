@@ -13,12 +13,20 @@ const STATUS_TONE = {
 
 /** A deal card (§9): same terms for both sides on one screen; accept, counter or walk. */
 export function DealCard({ deal }: { deal: Deal }) {
-  const { send, cur } = useView();
+  const { send } = useView();
+  // Deals are priced in the currency of the market they happen in.
+  const cur = deal.currency;
   const [countering, setCountering] = useState(false);
   const t = deal.terms;
   const [amount, setAmount] = useState(amountInput('amount' in t ? t.amount : 0));
   const [valuation, setValuation] = useState(
-    amountInput(t.kind === 'investment' ? t.valuation : t.kind === 'acquisition' ? t.price : 0),
+    amountInput(
+      t.kind === 'investment'
+        ? t.valuation
+        : t.kind === 'acquisition' || t.kind === 'supply'
+          ? t.price
+          : 0,
+    ),
   );
   const [equity, setEquity] = useState(t.kind === 'cofounder' ? t.equityBps / 100 : 10);
 
@@ -34,7 +42,7 @@ export function DealCard({ deal }: { deal: Deal }) {
             amount: parseAmount(amount) ?? undefined,
             valuation: parseAmount(valuation) ?? undefined,
           }
-        : t.kind === 'acquisition'
+        : t.kind === 'acquisition' || t.kind === 'supply'
           ? { price: parseAmount(valuation) ?? undefined }
           : t.kind === 'loan' || t.kind === 'personal-loan'
             ? { amount: parseAmount(amount) ?? undefined }
@@ -126,11 +134,11 @@ export function DealCard({ deal }: { deal: Deal }) {
               {(id) => <input id={id} value={amount} onChange={(e) => setAmount(e.target.value)} />}
             </Field>
           )}
-          {(t.kind === 'investment' || t.kind === 'acquisition') && (
+          {(t.kind === 'investment' || t.kind === 'acquisition' || t.kind === 'supply') && (
             <Field
               label={
-                t.kind === 'acquisition'
-                  ? `Price (${cur})`
+                t.kind === 'acquisition' || t.kind === 'supply'
+                  ? `Price${t.kind === 'supply' ? ' per month' : ''} (${cur})`
                   : `${t.instrument === 'safe' ? 'Valuation cap' : 'Pre-money valuation'} (${cur})`
               }
             >

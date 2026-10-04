@@ -148,6 +148,7 @@ describe('relocation (§14)', () => {
       month: 1,
       revenue: 10_000_000_00,
       playerRevenue: 0,
+      suppliers: 0,
       payroll: 0,
       founderSalary: 0,
       office: 0,

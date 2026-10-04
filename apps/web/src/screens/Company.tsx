@@ -4,7 +4,7 @@ import { amountInput, money, parseAmount, pct, titleCase } from '../format';
 import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Segmented, Sheet } from '../ui';
 
-type Tab = 'product' | 'customers' | 'team' | 'rules';
+type Tab = 'product' | 'customers' | 'team' | 'suppliers' | 'rules';
 
 export function CompanyScreen() {
   const { view } = useView();
@@ -19,7 +19,7 @@ export function CompanyScreen() {
       </div>
       <p className="muted small">{c.idea}</p>
       <div className="tabs" role="tablist">
-        {(['product', 'customers', 'team', 'rules'] as Tab[]).map((t) => (
+        {(['product', 'customers', 'team', 'suppliers', 'rules'] as Tab[]).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
             {titleCase(t)}
           </button>
@@ -28,6 +28,7 @@ export function CompanyScreen() {
       {tab === 'product' && <Product c={c} />}
       {tab === 'customers' && <Customers c={c} />}
       {tab === 'team' && <Team c={c} />}
+      {tab === 'suppliers' && <Suppliers c={c} />}
       {tab === 'rules' && <Rules c={c} />}
     </>
   );
@@ -634,5 +635,251 @@ function Rules({ c }: { c: CompanyT }) {
         )}
       </p>
     </>
+  );
+}
+
+/** B2B marketplace (§6): sell your product to other companies, and buy from them. */
+function Suppliers({ c }: { c: CompanyT }) {
+  const { view, send, cur } = useView();
+  const [title, setTitle] = useState(`${c.name} ${c.industryLabel.toLowerCase()}`);
+  const [price, setPrice] = useState(amountInput(c.marketRate));
+  const [buying, setBuying] = useState<(typeof view.market.listings)[number] | null>(null);
+  const others = view.market.listings.filter((l) => l.companyId !== c.id);
+  return (
+    <>
+      <Card
+        title="Your listing"
+        action={
+          c.listing ? (
+            <Pill tone={c.listing.active ? 'good' : undefined}>
+              {c.listing.active ? 'Live' : 'Paused'}
+            </Pill>
+          ) : null
+        }
+      >
+        <p className="small muted">
+          Market rate for {c.industryLabel.toLowerCase()} here: {money(c.marketRate, cur)}/month.
+          Prices far above it, or deals with companies you share owners with, are flagged.
+        </p>
+        {c.listing ? (
+          <>
+            <p>
+              <b>{c.listing.title}</b> · {money(c.listing.price, cur)}/month
+              {c.listing.reviews.count > 0 &&
+                ` · ${(c.listing.reviews.sum / c.listing.reviews.count).toFixed(1)}★ (${c.listing.reviews.count})`}
+            </p>
+            <div className="row">
+              <input
+                aria-label="New price"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                variant="subtle"
+                onClick={() =>
+                  void send(
+                    {
+                      type: 'listing.update',
+                      listingId: c.listing!.id,
+                      price: parseAmount(price) ?? c.listing!.price,
+                    },
+                    'Price updated.',
+                  )
+                }
+              >
+                Set price
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  void send(
+                    {
+                      type: 'listing.update',
+                      listingId: c.listing!.id,
+                      active: !c.listing!.active,
+                    },
+                    c.listing!.active ? 'Listing paused.' : 'Listing live.',
+                  )
+                }
+              >
+                {c.listing.active ? 'Pause' : 'Resume'}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Field label="Title">
+              {(id) => (
+                <input
+                  id={id}
+                  value={title}
+                  maxLength={60}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              )}
+            </Field>
+            <Field label={`Price per month (${cur})`}>
+              {(id) => <input id={id} value={price} onChange={(e) => setPrice(e.target.value)} />}
+            </Field>
+            <Button
+              onClick={() =>
+                void send(
+                  {
+                    type: 'listing.create',
+                    companyId: c.id,
+                    title,
+                    price: parseAmount(price) ?? c.marketRate,
+                  },
+                  'Listed on the marketplace.',
+                )
+              }
+            >
+              List it
+            </Button>
+          </>
+        )}
+      </Card>
+      <Card title="Contracts">
+        {c.contracts.length === 0 ? (
+          <Empty>No supply contracts yet.</Empty>
+        ) : (
+          <ul className="list">
+            {c.contracts.map((k) => (
+              <li key={k.id}>
+                <div className="spread">
+                  <span>
+                    <b>{k.role === 'seller' ? 'You supply' : 'Supplies you'}</b>: {k.counterparty} ·{' '}
+                    {k.category} · {money(k.price, cur)}/mo
+                  </span>
+                  <Pill tone={k.status === 'active' ? 'good' : undefined}>{k.status}</Pill>
+                </div>
+                {k.flags.length > 0 && (
+                  <div className="small warn">Flagged: {k.flags.join(', ')}</div>
+                )}
+                <div className="row small">
+                  {k.status === 'active' && (
+                    <Button
+                      variant="ghost"
+                      onClick={() =>
+                        void send(
+                          { type: 'supply.cancel', contractId: k.id },
+                          'Contract cancelled.',
+                        )
+                      }
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  {k.role === 'buyer' &&
+                    !k.reviewed &&
+                    [1, 2, 3, 4, 5].map((r) => (
+                      <button
+                        key={r}
+                        className="chip"
+                        onClick={() =>
+                          void send(
+                            { type: 'supply.review', contractId: k.id, rating: r },
+                            'Review posted.',
+                          )
+                        }
+                      >
+                        {r}★
+                      </button>
+                    ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      <Card title="Buy from other companies">
+        <p className="small muted">
+          A good supplier beats the default AI one; a failing supplier hurts you.
+        </p>
+        {others.length === 0 ? (
+          <Empty>No one is selling yet.</Empty>
+        ) : (
+          <ul className="list">
+            {others.map((l) => (
+              <li key={l.id} className="spread">
+                <div>
+                  <div className="item-title">{l.title}</div>
+                  <div className="small muted">
+                    {l.category} · {l.seller}
+                    {l.sellerAi ? '' : ' (player)'} · {money(l.price, cur)}/mo · uptime {l.uptime}%
+                    {l.rating !== null ? ` · ${l.rating}★` : ''}
+                  </div>
+                </div>
+                <Button variant="subtle" onClick={() => setBuying(l)}>
+                  Buy
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      {buying && <BuySheet c={c} listing={buying} onClose={() => setBuying(null)} />}
+    </>
+  );
+}
+
+function BuySheet({
+  c,
+  listing,
+  onClose,
+}: {
+  c: CompanyT;
+  listing: ReturnType<typeof useView>['view']['market']['listings'][number];
+  onClose: () => void;
+}) {
+  const { send, cur } = useView();
+  const [price, setPrice] = useState(amountInput(listing.price));
+  const [months, setMonths] = useState(6);
+  return (
+    <Sheet title={`Buy from ${listing.seller}`} onClose={onClose}>
+      <p className="small muted">
+        {listing.category}. Listed at {money(listing.price, cur)}/month; market rate{' '}
+        {money(listing.marketRate, cur)}.
+      </p>
+      <div className="grid2">
+        <Field label={`Price per month (${cur})`}>
+          {(id) => <input id={id} value={price} onChange={(e) => setPrice(e.target.value)} />}
+        </Field>
+        <Field label="Months">
+          {(id) => (
+            <input
+              id={id}
+              type="number"
+              min={1}
+              max={36}
+              value={months}
+              onChange={(e) => setMonths(Number(e.target.value))}
+            />
+          )}
+        </Field>
+      </div>
+      <Button
+        onClick={() =>
+          void send(
+            {
+              type: 'supply.propose',
+              buyerCompanyId: c.id,
+              listingId: listing.id,
+              price: parseAmount(price) ?? listing.price,
+              months,
+            },
+            (r: { status: string }) =>
+              r.status === 'accepted'
+                ? 'Contract signed.'
+                : r.status === 'declined'
+                  ? 'They declined.'
+                  : 'Offer sent. See Money → Deals.',
+          ).then((r) => r && onClose())
+        }
+      >
+        Send offer
+      </Button>
+    </Sheet>
   );
 }

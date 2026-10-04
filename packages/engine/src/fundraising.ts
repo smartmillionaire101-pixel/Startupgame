@@ -192,6 +192,11 @@ export function startPitch(
   const c = getCompany(world, args.companyId);
   const m = getMarket(world, c.market);
   ensure(
+    !c.bannedFromRaising,
+    'pitch.banned',
+    'Confirmed fraud: this company is barred from raising.',
+  );
+  ensure(
     args.slides.length >= 1 && args.slides.length <= MAX_SLIDES,
     'pitch.slides',
     `Pick 1–${MAX_SLIDES} slides.`,
@@ -478,6 +483,11 @@ export function proposeInvestment(
     'You can back a startup in another market only after travelling there at least once.',
   );
   ensure(c.status === 'active', 'company.closed', 'Company is not operating.');
+  ensure(
+    !c.bannedFromRaising,
+    'invest.banned',
+    'Confirmed fraud: this company is barred from raising.',
+  );
   const stage = nextStage(c.lastRound);
   const priced = args.terms.instrument === 'priced';
   const terms: InvestmentTerms = {

@@ -181,6 +181,32 @@ export const commandSchema = z.discriminatedUnion('type', [
     collateralCompanyId: id.optional(),
   }),
   z.object({ type: z.literal('player.travel'), market }),
+  // ---- B2B marketplace (§6)
+  z.object({
+    type: z.literal('listing.create'),
+    companyId: id,
+    title: z.string().min(3).max(60),
+    price: money,
+  }),
+  z.object({
+    type: z.literal('listing.update'),
+    listingId: id,
+    price: money.optional(),
+    active: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('supply.propose'),
+    buyerCompanyId: id,
+    listingId: id,
+    price: money,
+    months: z.number().int().min(1).max(36),
+  }),
+  z.object({ type: z.literal('supply.cancel'), contractId: id }),
+  z.object({
+    type: z.literal('supply.review'),
+    contractId: id,
+    rating: z.number().int().min(1).max(5),
+  }),
   z.object({
     type: z.literal('player.relocate'),
     market,

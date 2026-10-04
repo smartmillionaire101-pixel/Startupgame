@@ -121,12 +121,17 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
   c.finance.receivables = c.finance.receivables.filter((r) => r.due > month);
   const collected = due.reduce((a, r) => a + r.amount, 0);
   transfer(world, m.ext.customers, c.account, revenue + collected, 'Customer revenue', month);
-  const totalRevenue = revenue + collected;
+  // Revenue from other player companies (already paid by settleContracts), reported separately (§6).
+  const b2b = c.ledgerThisMonth;
+  const totalRevenue = revenue + collected + b2b.playerRevenue;
 
   // Costs. Cloud/processing is priced in dollars, so devaluation hurts local earners (§8).
   const customers = totalCustomers(c);
-  const cloudLocal =
-    Math.round(c.cogsUsdPerCustomer * customers * m.data.unitsPerUsd) + scale(col(m), 0.05);
+  // A good payments supplier cuts processing costs; a procurement supplier trims overheads.
+  const cloudLocal = Math.round(
+    (Math.round(c.cogsUsdPerCustomer * customers * m.data.unitsPerUsd) + scale(col(m), 0.05)) *
+      c.supply.cogsMult,
+  );
   const seats = c.staff.length + c.founderIds.length;
   const interest = c.finance.loans.reduce(
     (a, l) => a + Math.round((l.outstanding * l.rateBps) / 10_000 / 12),
@@ -157,11 +162,16 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
     },
     {
       key: 'office',
-      amount: scale(m.data.officeSeat * 100, seats),
+      amount: Math.round(scale(m.data.officeSeat * 100, seats) * c.supply.overheadMult),
       to: m.ext.suppliers,
       memo: 'Office rent',
     },
-    { key: 'marketing', amount: c.marketingBudget, to: m.ext.suppliers, memo: 'Marketing' },
+    {
+      key: 'marketing',
+      amount: Math.round(c.marketingBudget * c.supply.overheadMult),
+      to: m.ext.suppliers,
+      memo: 'Marketing',
+    },
     {
       key: 'cloud',
       amount: cloudLocal,
@@ -226,7 +236,8 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
     (paid.founderSalary ?? 0) +
     (paid.office ?? 0) +
     (paid.marketing ?? 0) +
-    (paid.cloud ?? 0);
+    (paid.cloud ?? 0) +
+    b2b.supplierCost;
   const profit = totalRevenue - expenses;
   let tax = 0;
   if (profit > 0) {
@@ -247,7 +258,8 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
   const pnl: MonthlyPnl = {
     month,
     revenue: totalRevenue,
-    playerRevenue: 0,
+    playerRevenue: b2b.playerRevenue,
+    suppliers: b2b.supplierCost,
     payroll: paid.payroll ?? 0,
     founderSalary: paid.founderSalary ?? 0,
     office: paid.office ?? 0,
@@ -260,6 +272,8 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
     cashEnd: account(world, c.account).balance,
     customers,
   };
+  c.lastFlaggedRevenue = b2b.flaggedRevenue;
+  c.ledgerThisMonth = { playerRevenue: 0, supplierCost: 0, flaggedRevenue: 0 };
   c.finance.history.push(pnl);
   if (c.finance.history.length > PNL_HISTORY) c.finance.history.shift();
   return pnl;

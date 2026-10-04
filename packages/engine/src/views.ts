@@ -15,6 +15,7 @@ import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
 import { creditProfile } from './credit.js';
 import { tripCostUsd } from './travel.js';
+import { marketRate, playerRevenueShare } from './marketplace.js';
 import {
   burn,
   getMarket,
@@ -86,7 +87,16 @@ export function diligenceView(world: World, c: Company, depth: number) {
     ...base,
     monthlyChurnPct: Math.round((churned / Math.max(1, paying + churned)) * 1000) / 10,
     largestSegmentShare: paying ? Math.round((top / paying) * 100) : 0,
-    playerRevenueShare: 0,
+    playerRevenueShare: Math.round(playerRevenueShare(c) * 100),
+    // Connected parties and guardrail flags (§6): what diligence surfaces.
+    flaggedContracts: Object.values(world.contracts)
+      .filter((k) => k.flags.length && (k.sellerId === c.id || k.buyerId === c.id))
+      .map((k) => ({
+        with: world.companies[k.sellerId === c.id ? k.buyerId : k.sellerId]?.name ?? '',
+        flags: k.flags,
+        status: k.status,
+      })),
+    bannedFromRaising: c.bannedFromRaising,
     complianceGaps: rulesFor(c.market, c.industry)
       .filter((r) => !c.compliance[r.id])
       .map((r) => r.title),
@@ -175,6 +185,20 @@ export function companyDetail(world: World, c: Company) {
       unpaidPayroll: c.finance.unpaidPayroll,
     },
     rules: rulesFor(c.market, c.industry).map((r) => ({ ...r, done: !!c.compliance[r.id] })),
+    listing: Object.values(world.listings).find((l) => l.companyId === c.id) ?? null,
+    marketRate: marketRate(world, c),
+    contracts: Object.values(world.contracts)
+      .filter((k) => k.buyerId === c.id || k.sellerId === c.id)
+      .sort((a, b) => b.startMonth - a.startMonth)
+      .slice(0, 20)
+      .map((k) => ({
+        ...k,
+        role: k.sellerId === c.id ? ('seller' as const) : ('buyer' as const),
+        counterparty: world.companies[k.sellerId === c.id ? k.buyerId : k.sellerId]?.name ?? '',
+        category: world.listings[k.listingId]?.category ?? '',
+      })),
+    supply: c.supply,
+    bannedFromRaising: c.bannedFromRaising,
     warnings: c.warnings,
     pivots: c.pivots,
     /** Illustrative exit at the model valuation: who would get what (§12). */
@@ -209,6 +233,7 @@ function dealView(world: World, d: DealCard, viewerId: Id) {
   return {
     ...rest,
     companyName: c?.name ?? 'Personal',
+    currency: getMarket(world, d.market).data.currency,
     proposerName: name(d.proposer) ?? '',
     counterpartyName: name(d.counterparty) ?? '',
     yourTurn: d.status === 'open' && mine(d.awaiting),
@@ -402,6 +427,25 @@ export function playerView(world: World, playerId: Id) {
           mood: f.mood > 1.1 ? 'hungry' : f.mood < 0.9 ? 'cautious' : 'steady',
         })),
       talent: p.role === 'founder' || myCompanies.length ? m.talent : [],
+      /** B2B marketplace listings in your market (§6). */
+      listings: Object.values(world.listings)
+        .filter(
+          (l) => l.market === m.id && l.active && world.companies[l.companyId]?.status === 'active',
+        )
+        .map((l) => {
+          const seller = world.companies[l.companyId]!;
+          return {
+            ...l,
+            seller: seller.name,
+            sellerAi: seller.ai,
+            sellerStars: round1(seller.stars.value),
+            uptime: Math.round(reliability(seller) * 100),
+            rating: l.reviews.count
+              ? Math.round((l.reviews.sum / l.reviews.count) * 10) / 10
+              : null,
+            marketRate: marketRate(world, seller),
+          };
+        }),
     },
     lifestyleTiers: LIFESTYLE_TIERS.map((t) => ({
       ...t,

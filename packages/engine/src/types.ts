@@ -185,6 +185,8 @@ export interface MonthlyPnl {
   revenue: number;
   /** Revenue from other player companies, reported separately (§6 guardrails). */
   playerRevenue: number;
+  /** Paid to player suppliers on the B2B marketplace. */
+  suppliers: number;
   payroll: number;
   founderSalary: number;
   office: number;
@@ -302,6 +304,51 @@ export interface Company {
   forSale: boolean;
   /** No founders left (they relocated): an AI CEO runs it, competently but slower (§14). */
   aiCeo: boolean;
+  /** Effects of this month's supply contracts (recomputed at settlement). */
+  supply: SupplyEffectsState;
+  supplyDisruptionMonth: number | null;
+  /** B2B money this month, folded into the P&L at settlement. */
+  ledgerThisMonth: { playerRevenue: number; supplierCost: number; flaggedRevenue: number };
+  lastFlaggedRevenue: number;
+  /** Consecutive months of mostly flagged revenue (anti-cheat, §18). */
+  fraudStreak: number;
+  bannedFromRaising: boolean;
+}
+
+export interface SupplyEffectsState {
+  cogsMult: number;
+  overheadMult: number;
+  outputMult: number;
+  reliabilityAdd: number;
+  moraleAdd: number;
+  skillAdd: number;
+}
+
+export interface Listing {
+  id: Id;
+  companyId: Id;
+  market: MarketId;
+  category: string;
+  title: string;
+  price: number;
+  active: boolean;
+  createdMonth: number;
+  reviews: { sum: number; count: number };
+}
+
+export interface SupplyContract {
+  id: Id;
+  listingId: Id;
+  buyerId: Id;
+  sellerId: Id;
+  market: MarketId;
+  price: number;
+  startMonth: number;
+  endMonth: number;
+  /** Guardrail flags: 'related-party', 'above-market'. */
+  flags: string[];
+  status: 'active' | 'ended' | 'cancelled';
+  reviewed: boolean;
 }
 
 // ---------------------------------------------------------------- Investors & funds
@@ -392,8 +439,18 @@ export interface PersonalLoanTerms {
   collateral: { companyId: Id; shares: number; label: string } | null;
 }
 
+/** A supply contract on the B2B marketplace (§6). */
+export interface SupplyTerms {
+  kind: 'supply';
+  listingId: Id;
+  buyerId: Id;
+  /** Price per month, local minor units. */
+  price: number;
+  months: number;
+}
+
 export type DealTerms =
-  InvestmentTerms | CofounderTerms | LoanTerms | AcquisitionTerms | PersonalLoanTerms;
+  InvestmentTerms | CofounderTerms | LoanTerms | AcquisitionTerms | PersonalLoanTerms | SupplyTerms;
 
 export interface PartyRef {
   kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company';
@@ -614,6 +671,9 @@ export interface World {
   inbox: Record<Id, InboxItem[]>;
   /** Names/handles reserved per market (normalised), with the owner id. */
   names: Partial<Record<MarketId, Record<string, Id>>>;
+  /** B2B marketplace (§6). */
+  listings: Record<Id, Listing>;
+  contracts: Record<Id, SupplyContract>;
   /** USD external accounts (dollar costs, dollar accounts). */
   usdExt: { fx: Id; suppliers: Id; genesis: Id };
 }

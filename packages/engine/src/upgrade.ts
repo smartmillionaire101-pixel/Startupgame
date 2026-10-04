@@ -5,7 +5,7 @@
  */
 import type { World } from './types.js';
 
-export const CURRENT_SCHEMA = 4;
+export const CURRENT_SCHEMA = 5;
 
 type Step = (world: World) => void;
 
@@ -23,6 +23,26 @@ const STEPS: Record<number, Step> = {
   3: (world) => {
     for (const p of Object.values(world.players)) p.visited ??= {};
     for (const c of Object.values(world.companies)) c.aiCeo ??= false;
+  },
+  // v4 → v5: B2B marketplace.
+  4: (world) => {
+    world.listings ??= {};
+    world.contracts ??= {};
+    for (const c of Object.values(world.companies)) {
+      c.supply ??= {
+        cogsMult: 1,
+        overheadMult: 1,
+        outputMult: 1,
+        reliabilityAdd: 0,
+        moraleAdd: 0,
+        skillAdd: 0,
+      };
+      c.supplyDisruptionMonth ??= null;
+      c.ledgerThisMonth ??= { playerRevenue: 0, supplierCost: 0, flaggedRevenue: 0 };
+      c.lastFlaggedRevenue ??= 0;
+      c.fraudStreak ??= 0;
+      c.bannedFromRaising ??= false;
+    }
   },
 };
 

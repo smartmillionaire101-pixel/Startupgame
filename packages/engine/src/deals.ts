@@ -32,10 +32,12 @@ import type {
   LoanTerms,
   PartyRef,
   PersonalLoanTerms,
+  SupplyTerms,
   World,
 } from './types.js';
 import type { MarketId } from './data/markets.js';
 import { executePersonalLoan } from './credit.js';
+import { contractFlags, startContract } from './marketplace.js';
 
 export const DEAL_LIFETIME_MONTHS = 2;
 
@@ -58,6 +60,13 @@ export function monthlyPayment(principal: number, rateBps: number, months: numbe
   const r = rateBps / 10_000 / 12;
   if (r === 0) return Math.ceil(principal / months);
   return Math.ceil((principal * r) / (1 - Math.pow(1 + r, -months)));
+}
+
+/** Guardrail flags a proposed supply deal would carry (shown before signing). */
+function contractFlagsFor(world: World, t: SupplyTerms, sellerId: Id): string[] {
+  const seller = world.companies[sellerId];
+  const buyer = world.companies[t.buyerId];
+  return seller && buyer ? contractFlags(world, buyer, seller, t.price) : [];
 }
 
 /** Plain-language one-liner shown on the deal card (§9 "Term sheets"). */
@@ -99,6 +108,11 @@ export function summarise(
       return `${partyName} joins as ${terms.title} for ${terms.equityBps / 100}%, vesting over ${terms.vestingMonths / 12} years with a ${terms.cliffMonths}-month cliff.`;
     case 'acquisition':
       return `${terms.buyer} buys ${c.company?.name ?? 'the company'} for ${money(world, c, terms.price)}. The waterfall shows who gets what.`;
+    case 'supply': {
+      const listing = world.listings[terms.listingId];
+      const flags = listing && c.company ? contractFlagsFor(world, terms, c.company.id) : [];
+      return `${c.company?.name ?? 'The supplier'} supplies ${listing?.category.toLowerCase() ?? 'services'} for ${money(world, c, terms.price)} a month, for ${terms.months} months.${flags.length ? ` Flagged: ${flags.join(', ')}.` : ''}`;
+    }
     case 'personal-loan': {
       const pay = monthlyPayment(terms.amount, terms.rateBps, terms.months);
       return `${partyName} lends you ${money(world, c, terms.amount)}. You repay ${money(world, c, pay)} a month for ${terms.months} months at ${terms.rateBps / 100}% a year.${terms.collateral ? ` ${terms.collateral.label} is pledged; the bank takes it if you default.` : ' Unsecured: a default damages your credit profile.'}`;
@@ -224,6 +238,10 @@ function mergeCounter(terms: DealTerms, counter: Partial<DealTerms>): DealTerms 
       const c = counter as Partial<AcquisitionTerms>;
       return { ...terms, price: c.price ?? terms.price };
     }
+    case 'supply': {
+      const c = counter as Partial<SupplyTerms>;
+      return { ...terms, price: c.price ?? terms.price, months: c.months ?? terms.months };
+    }
     case 'personal-loan': {
       const c = counter as Partial<PersonalLoanTerms>;
       return { ...terms, amount: c.amount ?? terms.amount, months: c.months ?? terms.months };
@@ -257,6 +275,13 @@ function validateTerms(terms: DealTerms) {
       break;
     case 'acquisition':
       ensure(terms.price > 0, 'deal.terms', 'Price must be positive.');
+      break;
+    case 'supply':
+      ensure(
+        terms.price > 0 && terms.months >= 1 && terms.months <= 36,
+        'deal.terms',
+        'Contracts run 1–36 months at a positive price.',
+      );
       break;
   }
 }
@@ -381,6 +406,11 @@ export function aiRespond(world: World, d: DealCard) {
   } else if (t.kind === 'loan' || t.kind === 'personal-loan') {
     within = t.amount <= (lim.maxAmount ?? t.amount);
     if (!within) meet = { amount: lim.maxAmount ?? t.amount };
+  } else if (t.kind === 'supply') {
+    // AI seller: accepts at or near its list price.
+    within = t.price >= (lim.minValuation ?? 0);
+    if (!within && t.price >= (lim.minValuation ?? 0) * 0.75)
+      meet = { price: lim.minValuation ?? t.price };
   } else if (t.kind === 'acquisition') {
     within = t.price <= (lim.maxValuation ?? t.price);
     if (!within && t.price <= (lim.maxValuation ?? 0) * 1.3)
@@ -475,6 +505,12 @@ export function executeDeal(world: World, d: DealCard, by: Id) {
     executePersonalLoan(world, d, t);
     d.status = 'accepted';
     d.history.push({ month: m.month, by, action: 'accept', summary: 'Accepted. Deal executed.' });
+    return;
+  }
+  if (t.kind === 'supply') {
+    startContract(world, t.listingId, t.buyerId, t.price, t.months);
+    d.status = 'accepted';
+    d.history.push({ month: m.month, by, action: 'accept', summary: 'Accepted. Contract signed.' });
     return;
   }
   ensure(d.companyId, 'deal.company', 'This deal has no company.');
