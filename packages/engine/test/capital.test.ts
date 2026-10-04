@@ -100,10 +100,18 @@ describe('capital that mirrors each market (Wave 1 §A)', () => {
     expect(depthUsd(w, 'london')).toBeGreaterThan(depthUsd(w, 'lagos') * 2);
     expect(depthUsd(w, 'lagos')).toBeGreaterThan(depthUsd(w, 'freetown'));
     expect(depthUsd(w, 'nairobi')).toBeGreaterThan(depthUsd(w, 'freetown'));
-    // London has angel networks beyond the base six funds.
+    // London has angel networks beyond the base six funds, plus four AI angels' funds (Wave 3).
     expect(
-      Object.values(w.funds).filter((f) => f.market === 'london' && /Angel/.test(f.name)),
+      Object.values(w.funds).filter(
+        (f) => f.market === 'london' && /Angel/.test(f.name) && !f.angelId,
+      ),
     ).toHaveLength(3);
+    expect(Object.values(w.funds).filter((f) => f.market === 'london' && f.angelId)).toHaveLength(
+      4,
+    );
+    // San Francisco is the deepest market of all.
+    expect(fundCount(w, 'san-francisco')).toBeGreaterThan(fundCount(w, 'london'));
+    expect(depthUsd(w, 'san-francisco')).toBeGreaterThan(depthUsd(w, 'london'));
     for (const total of Object.values(moneyByCurrency(w))) expect(total).toBe(0);
   });
 

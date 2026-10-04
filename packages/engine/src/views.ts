@@ -511,6 +511,10 @@ export function playerView(world: World, playerId: Id) {
           mood: f.mood > 1.1 ? 'hungry' : f.mood < 0.9 ? 'cautious' : 'steady',
           /** City art: deterministic from the fund id. */
           office: fundOffice(f.id),
+          /** AI angel funds (Wave 3): the person behind the cheque; null for other funds. */
+          angel: f.angelId
+            ? { playerId: f.angelId, name: world.players[f.angelId]?.name ?? f.partner }
+            : null,
         })),
       lenders: lendersView(world, p),
       capital: {
@@ -608,17 +612,37 @@ export function playerView(world: World, playerId: Id) {
       ...publicCompany(world, c),
       diligence: diligenceView(world, c, p.diligence[c.id] ?? 0),
     })),
+    /**
+     * People in your market: human players, plus the AI angels still investing
+     * (Wave 3; `ai: true`, role 'investor', `angel` names their fund). AI angels
+     * can't chat or take pitches in person: pitch their fund instead.
+     */
     players: Object.values(world.players)
-      .filter((x) => !x.ai && x.id !== p.id && x.market === p.market)
+      .filter(
+        (x) =>
+          x.id !== p.id &&
+          x.market === p.market &&
+          (!x.ai || (x.angel !== undefined && x.angel.retiredMonth === undefined)),
+      )
       .map((x) => ({
         id: x.id,
         handle: x.handle,
         name: x.name,
         role: x.role,
+        ai: x.ai,
+        backgroundId: x.backgroundId,
         stars: round1(x.stars.value),
         companies: x.companyIds.map((id) => world.companies[id]?.name).filter(Boolean),
         /** Your trust with them, built only through real interactions (§13). */
         trust: Math.round((p.trust[x.id] ?? 0) * 100) / 100,
+        angel: x.angel
+          ? {
+              fundId: x.angel.fundId,
+              fundName: world.funds[x.angel.fundId]?.name ?? '',
+              sectors: world.funds[x.angel.fundId]?.sectors ?? 'any',
+              check: world.funds[x.angel.fundId]?.check ?? [0, 0],
+            }
+          : null,
       })),
     deals: Object.values(world.deals)
       .filter((d) => d.market === p.market)
