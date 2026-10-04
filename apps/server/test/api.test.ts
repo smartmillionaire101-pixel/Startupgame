@@ -7,6 +7,7 @@ import { Store } from '../src/store/sqlite.js';
 import { fetchFxUpdates } from '../src/adapters/feeds.js';
 import { isAdult, normalisePhone } from '../src/auth.js';
 import { api, founderSetup, makeApp, signIn, T0 } from './helpers.js';
+import { nextSettlementAt } from '@runway/engine';
 
 const H = { 'x-runway': '1' };
 const cleanups: (() => void)[] = [];
@@ -181,6 +182,49 @@ describe('API boundary', () => {
     expect(r.json().companies.active).toBeGreaterThan(0);
   });
 
+  it('sends the clock, where you are and flight fares with the state (Wave 4)', async () => {
+    const { app } = await makeApp({ now: () => T0, env: { MONTH_MINUTES: '5' } });
+    const s = api(app, await signIn(app));
+    await s.command(founderSetup());
+    let view = (await s.get('/api/state')).json().view;
+    expect(view.clock).toEqual({
+      monthMs: 300_000,
+      nextSettlementAt: nextSettlementAt(T0, 300_000),
+      serverNow: T0,
+    });
+    expect(view.me.location).toBeNull();
+    expect(view.here.id).toBe('lagos');
+    expect(view.flights.hours).toBe(4);
+    const fare = view.flights.fareTo.london;
+    expect(fare).toBeGreaterThan(0);
+
+    const r = await s.command({ type: 'travel.fly', to: 'london' });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().result.cost).toBe(fare);
+    view = (await s.get('/api/state')).json().view;
+    expect(view.me.location).toEqual({ market: 'london', name: 'London', sinceAt: T0 });
+    expect(view.here.id).toBe('london');
+    expect(view.market.id).toBe('lagos');
+    const ride = await s.command({ type: 'city.ride', mode: 'bus', distance: 'short' });
+    expect(ride.json().result.currency).toBe('GBP');
+  });
+
+  it('records players as seen on requests, at most every fifth of a month', async () => {
+    let t = T0;
+    const { app, game } = await makeApp({ now: () => t, env: { MONTH_MINUTES: '5' } });
+    const s = api(app, await signIn(app));
+    await s.command(founderSetup());
+    const id = (await s.get('/api/state')).json().view.me.id as string;
+    const v = game.current.version;
+    t += 30_000;
+    await s.get('/api/state');
+    expect(game.current.version).toBe(v);
+    t += 60_000;
+    await s.get('/api/state');
+    expect(game.current.version).toBe(v + 1);
+    expect(game.current.players[id]!.lastActiveAt).toBe(t);
+  });
+
   it('advances a market with the dev settle route', async () => {
     const { app } = await makeApp();
     const s = api(app, await signIn(app));
@@ -304,13 +348,21 @@ describe('persistence and replay', () => {
     store.close();
   });
 
-  it('settles markets when local midnight passes', async () => {
+  it('settles every market once per game month (MONTH_MINUTES)', async () => {
     let t = T0;
-    const { game } = await makeApp({ now: () => t });
+    const { game } = await makeApp({ now: () => t, env: { MONTH_MINUTES: '5' } });
     expect(game.tick()).toBe(0);
-    t += 86_400_000;
+    t = nextSettlementAt(T0, 5 * 60_000) + 1;
     expect(game.tick()).toBe(3);
+    expect(game.tick()).toBe(0);
     expect(game.current.markets.lagos!.month).toBe(1);
+    t += 5 * 60_000;
+    expect(game.tick()).toBe(3);
+    expect(game.current.markets.lagos!.month).toBe(2);
+    // A long outage catches up at most seven months per market.
+    t += 86_400_000;
+    expect(game.tick()).toBe(21);
+    expect(game.current.markets.lagos!.month).toBe(9);
   });
 });
 

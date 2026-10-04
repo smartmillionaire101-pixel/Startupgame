@@ -126,6 +126,7 @@ function createMarket(world: World, id: MarketId, now: number): MarketState {
     lenders: seedLenders(id),
     economicNote: `${data.name}: policy rate ${(data.baseRateBps / 100).toFixed(2)}%. Markets open for business.`,
     lastSettledDate: localDate(now, data.timeZone),
+    settledAt: now,
     ext,
   };
   world.names[id] = {};

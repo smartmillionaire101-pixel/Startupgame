@@ -20,13 +20,26 @@ import {
  */
 describe('world invariants under random play', () => {
   it('holds for random command sequences', () => {
-    let base = addFounder(makeWorld(5, ['lagos']));
+    // London too (Wave 4): flights, rides and city spending abroad cross currencies.
+    let base = addFounder(makeWorld(5, ['lagos', 'london']));
     base = addInvestor(base, 'u_inv', 'lagos');
     const cid = companyOf(base, 'u_founder').id;
     const total = moneyByCurrency(base);
 
     const action = fc.oneof(
-      fc.record({ k: fc.constant('settle' as const) }),
+      fc.record({ k: fc.constant('settle' as const), london: fc.boolean(), away: fc.boolean() }),
+      // Wave 4: one-way flights and bus or taxi rides in the city you're in.
+      fc.record({
+        k: fc.constant('fly' as const),
+        investor: fc.boolean(),
+        to: fc.constantFrom('lagos' as const, 'london' as const),
+      }),
+      fc.record({
+        k: fc.constant('ride' as const),
+        investor: fc.boolean(),
+        mode: fc.constantFrom('bus' as const, 'taxi' as const),
+        distance: fc.constantFrom('short' as const, 'medium' as const, 'long' as const),
+      }),
       fc.record({ k: fc.constant('build' as const), hours: fc.integer({ min: 10, max: 80 }) }),
       fc.record({
         k: fc.constant('market' as const),
@@ -119,6 +132,9 @@ describe('world invariants under random play', () => {
       fc.property(fc.array(action, { minLength: 1, maxLength: 25 }), (actions) => {
         let w = base;
         let day = 0;
+        // Local businesses where a player is right now (home, or abroad after a flight).
+        const bizHere = (id: string) =>
+          Object.values(w.markets[w.players[id]!.location?.market ?? 'lagos']!.businesses ?? {});
         for (const a of actions) {
           let actor: string | null = 'u_founder';
           let cmd: Command;
@@ -126,11 +142,24 @@ describe('world invariants under random play', () => {
             case 'settle': {
               actor = null;
               day++;
-              const d = new Date(`${w.markets.lagos!.lastSettledDate}T00:00:00Z`);
-              d.setUTCDate(d.getUTCDate() + 1);
-              cmd = { type: 'market.settle', market: 'lagos', date: d.toISOString().slice(0, 10) };
+              const market = a.london ? 'london' : 'lagos';
+              cmd = {
+                type: 'market.settle',
+                market,
+                at: w.markets[market]!.settledAt! + DAY,
+                // A one-day month: away mode (auto-hibernation) kicks in after two idle days.
+                ...(a.away ? { monthMs: DAY } : {}),
+              };
               break;
             }
+            case 'fly':
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              cmd = { type: 'travel.fly', to: a.to };
+              break;
+            case 'ride':
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              cmd = { type: 'city.ride', mode: a.mode, distance: a.distance };
+              break;
             case 'build':
               cmd = { type: 'company.build', companyId: cid, hours: a.hours };
               break;
@@ -272,14 +301,14 @@ describe('world invariants under random play', () => {
               break;
             }
             case 'bizPitch': {
-              const list = Object.values(w.markets.lagos!.businesses ?? {});
+              const list = bizHere('u_founder');
               const biz = list[a.pick % list.length]!;
               cmd = { type: 'business.pitch', companyId: cid, businessId: biz.id };
               break;
             }
             case 'bizGig': {
               actor = a.investor ? 'u_inv' : 'u_founder';
-              const list = Object.values(w.markets.lagos!.businesses ?? {});
+              const list = bizHere(actor);
               const biz = list[a.pick % list.length]!;
               const gigs = ['shift', 'kitchen', 'socials', 'online', 'front', 'tech', 'repair'];
               cmd = { type: 'gig.take', businessId: biz.id, gigId: gigs[a.gig % gigs.length]! };
@@ -287,7 +316,7 @@ describe('world invariants under random play', () => {
             }
             case 'venue': {
               actor = a.investor ? 'u_inv' : 'u_founder';
-              const list = Object.values(w.markets.lagos!.businesses ?? {});
+              const list = bizHere(actor);
               const biz = list[a.pick % list.length]!;
               const items = ['lunch', 'dinner', 'coffee', 'plate', 'cut', 'drink'];
               const other = actor === 'u_inv' ? 'u_founder' : 'u_inv';

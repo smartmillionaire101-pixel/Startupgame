@@ -25,9 +25,9 @@ import { CAPITAL } from './data/capital.js';
 import type { MarketId } from './data/markets.js';
 import { emptyPosition } from './customers.js';
 import { ensure } from './errors.js';
-import { adjustTrust, col, getMarket, notify, spendHours } from './helpers.js';
+import { adjustTrust, col, getMarket, locationOf, notify, spendHours } from './helpers.js';
 import { newId } from './ids.js';
-import { transfer } from './ledger.js';
+import { pay, payExact, transfer } from './ledger.js';
 import { eventVenueBusiness } from './economy.js';
 import { clamp, clamp01 } from './math.js';
 import { scale } from './money.js';
@@ -266,7 +266,7 @@ export function rsvpEvent(world: World, me: Player, eventId: Id, going: boolean)
   const m = getMarket(world, e.market);
   ensure(e.status === 'upcoming', 'event.closed', 'This event is no longer taking RSVPs.');
   ensure(e.hostId !== me.id, 'event.host', 'You are hosting this one.');
-  ensure(me.market === e.market, 'event.market', 'Events are for people based in this city.');
+  ensure(locationOf(me) === e.market, 'event.market', 'Events are for people in this city.');
   const k = EVENT_KIND_DATA[e.kind];
   const isGoing = e.attendees.includes(me.id);
   const host = world.players[e.hostId];
@@ -275,7 +275,7 @@ export function rsvpEvent(world: World, me: Player, eventId: Id, going: boolean)
     ensure(e.attendees.length + 1 < e.capacity, 'event.full', 'The event is full.');
     spendHours(me, k.hoursAttend, `Going to ${e.title}`);
     if (e.ticket > 0 && host)
-      transfer(
+      payExact(
         world,
         me.accounts.local,
         host.accounts.local,
@@ -293,7 +293,7 @@ export function rsvpEvent(world: World, me: Player, eventId: Id, going: boolean)
   }
   ensure(isGoing, 'event.notGoing', 'You weren’t going.');
   if (e.ticket > 0 && host)
-    transfer(
+    pay(
       world,
       host.accounts.local,
       me.accounts.local,

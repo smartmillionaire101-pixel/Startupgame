@@ -36,6 +36,9 @@ export default defineConfig({
           HOST: '127.0.0.1',
           DATABASE_PATH: `${process.env.TMPDIR ?? '/tmp'}/runway-e2e-${Date.now()}.db`,
           DEV_TOOLS: '1',
+          // Long game months so the real clock never settles in the middle of a spec
+          // (specs advance months with the dev button instead).
+          MONTH_MINUTES: '1440',
           // Every spec starts a new guest (and some ask for sign-in links) from one address.
           AUTH_RATE_LIMIT: '50',
           GUEST_RATE_LIMIT: '200',

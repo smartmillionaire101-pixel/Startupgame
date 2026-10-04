@@ -71,15 +71,10 @@ export function addInvestor(world: World, id = 'u_investor', market: MarketId = 
 export function settle(world: World, market: MarketId, months: number, start = T0): World {
   let w = world;
   for (let i = 0; i < months; i++) {
-    const last = w.markets[market]!.lastSettledDate!;
-    const d = new Date(`${last}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + 1);
-    w = run(
-      w,
-      null,
-      { type: 'market.settle', market, date: d.toISOString().slice(0, 10) },
-      start + (i + 1) * DAY,
-    ).world;
+    // One clock period per month. No `monthMs`: absence is counted in real
+    // days as before, so tests that skip ahead without acting don't trip away mode.
+    const at = (w.markets[market]!.settledAt ?? start) + DAY;
+    w = run(w, null, { type: 'market.settle', market, at }, start + (i + 1) * DAY).world;
   }
   return w;
 }

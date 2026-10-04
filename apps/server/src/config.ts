@@ -47,6 +47,11 @@ const schema = z.object({
   ADMIN_TOKEN: z.string().optional(),
   WEB_DIST: z.string().optional(),
   SNAPSHOT_EVERY: z.coerce.number().int().min(1).default(200),
+  /**
+   * Real minutes in one game month (Wave 4). Every market settles once per
+   * month, at the same instant. Production and previews: 5. Tests may use any value.
+   */
+  MONTH_MINUTES: z.coerce.number().positive().max(525_600).default(5),
   /** Markets to have open, in opening order. Unopened ones open on the next boot. */
   OPEN_MARKETS: z
     .string()
@@ -61,6 +66,10 @@ const schema = z.object({
 });
 
 export type Config = z.infer<typeof schema> & { SESSION_SECRET: string };
+
+/** One game month in real milliseconds. */
+export const monthMsOf = (config: Pick<Config, 'MONTH_MINUTES'>): number =>
+  Math.max(1_000, Math.round(config.MONTH_MINUTES * 60_000));
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const parsed = schema.safeParse(env);

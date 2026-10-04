@@ -26,7 +26,7 @@ import {
 import { raiseFund } from './funds.js';
 import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
-import { hasVisited, relocate, travel } from './travel.js';
+import { fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { pitchBusiness, takeBusinessGig, venueBuy } from './economy.js';
 import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
@@ -121,12 +121,20 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
   }
   if (cmd.type === 'market.settle') {
     const m = getMarket(world, cmd.market);
-    ensure(
-      m.lastSettledDate === null || cmd.date > m.lastSettledDate,
-      'settle.date',
-      'Already settled for that date.',
-    );
-    settleMarket(world, cmd.market, ctx.now, cmd.date);
+    ensure(cmd.at === undefined || cmd.date === undefined, 'settle.clock', 'One clock at a time.');
+    if (cmd.date !== undefined)
+      ensure(
+        m.lastSettledDate === null || cmd.date > m.lastSettledDate,
+        'settle.date',
+        'Already settled for that date.',
+      );
+    if (cmd.at !== undefined)
+      ensure(
+        m.settledAt === undefined || cmd.at > m.settledAt,
+        'settle.date',
+        'Already settled for that period.',
+      );
+    settleMarket(world, cmd.market, ctx.now, { at: cmd.at, date: cmd.date, monthMs: cmd.monthMs });
     return { month: m.month };
   }
   if (cmd.type === 'market.data') return applyMarketData(world, cmd);
@@ -814,6 +822,13 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     }
     case 'player.travel':
       return travel(world, me, cmd.market);
+    case 'travel.fly':
+      return fly(world, me, cmd.to, ctx.now);
+    case 'city.ride':
+      return ride(world, me, cmd.mode, cmd.distance);
+    case 'player.seen':
+      // lastActiveAt was set above: that's all this does.
+      return null;
     case 'player.relocate':
       return relocate(world, me, cmd.market, cmd.handle);
     case 'player.repay':
