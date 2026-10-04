@@ -31,7 +31,7 @@ test('a banker applies for a licence in Accra, gets it, and sets pricing', async
     await page.getByRole('button', { name: /Advance Accra one month/ }).click();
     const res = await settled;
     expect(res.status(), await res.text()).toBe(200);
-    await expect(page.getByText(/Advanced to month \d+\./)).toBeVisible();
+    await expect(page.getByText(`Advanced to month ${i + 1}.`)).toBeVisible();
   }
   await page.getByRole('button', { name: 'Bank' }).click();
   await expect(page.getByText(/Licensed ·/)).toBeVisible();
