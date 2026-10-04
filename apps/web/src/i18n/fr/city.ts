@@ -111,4 +111,7 @@ export const city: Record<string, string> = {
   '{tier}: {housing}': '{tier} : {housing}',
   'Hosted events, demo days and networking with other players open here in the next wave.':
     'Événements, demo days et réseautage avec les autres joueurs ouvriront ici lors de la prochaine vague.',
+  '{n} mo left': '{n} mois restants',
+  'Cash for about {n} months: build revenue or plan a raise.':
+    'Trésorerie pour environ {n} mois : développez le chiffre d’affaires ou préparez une levée.',
 };

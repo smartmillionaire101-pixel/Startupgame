@@ -170,8 +170,7 @@ function ProductCard({ lender, p }: { lender: LenderView; p: LenderProductView }
   const canApply = p.you?.eligible !== false && (founderProduct || !!companyId);
   const apply = () => {
     const n = parseAmount(amount) ?? 0;
-    // lenderId/productId are part of the Wave 1 contract (§A).
-    const cmd = founderProduct
+    const cmd: Command = founderProduct
       ? { type: 'player.loan', amount: n, months, lenderId: lender.id, productId: p.id }
       : {
           type: 'company.loan',
@@ -183,7 +182,7 @@ function ProductCard({ lender, p }: { lender: LenderView; p: LenderProductView }
           productId: p.id,
         };
     void send(
-      cmd as unknown as Command,
+      cmd,
       (r: { message?: string; text?: string; declined?: boolean; reason?: string } | null) =>
         r?.declined && r.reason
           ? t('Declined: {reason}', { reason: tx(r.reason) })

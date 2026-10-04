@@ -121,6 +121,8 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
   const layout = useMemo(() => buildLayout(JSON.parse(key) as CityInput), [key]);
   const story = storyOf(company);
   const rescue = rescueOf(company);
+  // Under six months of cash is normal for a young startup: a gentle note, not an alarm.
+  const alarm = rescue && rescue.level !== 'watch' ? rescue : null;
 
   const next = story?.next[0];
   const markerPlace = next ? placeFor(layout, next.place) : undefined;
@@ -177,7 +179,10 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
               >
                 <span className="hud-name">{company.name}</span>
                 <span>
-                  {money(company.cash, cur)} · {runway(company.runwayMonths)}
+                  {money(company.cash, cur)} ·{' '}
+                  {rescue
+                    ? t('{n} mo left', { n: rescue.monthsLeft ?? '?' })
+                    : runway(company.runwayMonths)}
                 </span>
               </button>
             ) : (
@@ -214,11 +219,11 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
             </button>
           </div>
           <div className="city-hud city-hud-bottom">
-            {rescue ? (
-              <div className={`hud-banner hud-${rescue.level}`} role="status">
+            {alarm ? (
+              <div className={`hud-banner hud-${alarm.level}`} role="status">
                 <span>
                   <b>{t('Rescue plan')}</b>
-                  {rescue.deadline ? ` · ${tx(rescue.deadline)}` : ''}
+                  {alarm.deadline ? ` · ${tx(alarm.deadline)}` : ''}
                 </span>
                 <Button variant="danger" onClick={() => goTo(office)}>
                   {t('See the plan')}
@@ -233,6 +238,12 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
                   {t('Go')}
                 </Button>
               </div>
+            ) : rescue ? (
+              <p className="hud-hint">
+                {t('Cash for about {n} months: build revenue or plan a raise.', {
+                  n: rescue.monthsLeft ?? '?',
+                })}
+              </p>
             ) : (
               <p className="hud-hint">{t('Tap a street to walk, a building to go in.')}</p>
             )}
