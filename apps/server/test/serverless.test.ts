@@ -127,7 +127,9 @@ describe('the world on a key-value store', () => {
       expect(r.ok).toBe(true);
     }
     const snaps = await kv.list('snap/');
-    expect(snaps.length).toBe(3);
+    // The genesis snapshot plus the newest three.
+    expect(snaps.length).toBe(4);
+    expect(snaps[0]).toBe(`snap/${String(0).padStart(12, '0')}`);
     expect(snaps[snaps.length - 1]).toBe(`snap/${String(g.current.version).padStart(12, '0')}`);
     const fresh = make(kv);
     await fresh.refresh();
@@ -150,6 +152,33 @@ describe('the world on a key-value store', () => {
     const fresh = make(kv);
     await fresh.refresh();
     expect(fresh.current.banks).toEqual({});
+  });
+});
+
+describe('cold starts racing on a new store', () => {
+  it('many functions starting at once agree on one world', async () => {
+    const kv = new MemoryKv();
+    const games = Array.from({ length: 6 }, () => new KvGame(kv, { seed: 7, now: () => T0 }));
+    await Promise.all(
+      games.map((g) => g.openMarkets(['lagos', 'nairobi', 'london', 'accra', 'kigali', 'dubai'])),
+    );
+    await Promise.all(games.map((g) => g.refresh()));
+    const versions = new Set(games.map((g) => g.current.version));
+    expect(versions.size).toBe(1);
+    expect(Object.keys(games[0]!.current.markets).length).toBe(6);
+    expect(
+      games.every((g) => JSON.stringify(g.current) === JSON.stringify(games[0]!.current)),
+    ).toBe(true);
+  });
+
+  it('never starts a second world when the snapshot listing is momentarily empty', async () => {
+    const kv = new MemoryKv();
+    const g = new KvGame(kv, { seed: 7, now: () => T0 });
+    await g.openMarkets(['lagos', 'accra']);
+    // Lose every snapshot: the log alone must not be mistaken for an empty store.
+    for (const k of await kv.list('snap/')) await kv.delete(k);
+    const fresh = new KvGame(kv, { seed: 7, now: () => T0 + 999_999 });
+    await expect(fresh.refresh()).rejects.toThrow('Could not load the world.');
   });
 });
 

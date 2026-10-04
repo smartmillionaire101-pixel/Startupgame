@@ -42,7 +42,10 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.getByRole('button', { name: 'Build yourself (40h)' }).click();
   await expect(page.getByText(/40h of building logged/)).toBeVisible();
   await page.getByRole('button', { name: 'Home' }).click();
+  const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
   await page.getByRole('button', { name: /Advance Lagos one month/ }).click();
+  const res = await settled;
+  expect(res.status(), await res.text()).toBe(200);
   await expect(page.getByText('Year 1, Month 2')).toBeVisible();
 
   // The news digest is reachable.

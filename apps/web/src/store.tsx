@@ -92,7 +92,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => api.state().then(apply, applyError), [apply, applyError]);
 
   useEffect(() => {
-    api.meta().then(setMeta, () => undefined);
+    // Game settings; retried so one failed request at startup doesn't hide them.
+    const loadMeta = (attempt: number) =>
+      api.meta().then(setMeta, () => {
+        if (attempt < 5) setTimeout(() => void loadMeta(attempt + 1), 1000 * 2 ** attempt);
+      });
+    void loadMeta(0);
     api.state().then(apply, applyError);
   }, [apply, applyError]);
 

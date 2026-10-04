@@ -36,9 +36,13 @@ import type { Kv } from './kv.js';
 const pad = (v: number) => String(v).padStart(12, '0');
 const logKey = (version: number) => `log/${pad(version)}`;
 const snapKey = (version: number) => `snap/${pad(version)}`;
-const RETRIES = 6;
+const RETRIES = 20;
 export const SNAPSHOT_EVERY = 10;
 const SNAPSHOTS_KEPT = 3;
+const GENESIS = snapKey(0);
+/** Short random pause between commit attempts, so racing functions spread out. */
+const backoff = (attempt: number) =>
+  new Promise((r) => setTimeout(r, Math.min(400, 15 * 2 ** attempt) * (0.5 + Math.random())));
 
 interface LogEntry {
   actor: string | null;
@@ -70,22 +74,36 @@ export class KvGame implements Game {
     return this.world!;
   }
 
+  /**
+   * Newest snapshot that can still be read (a listing can name one another
+   * function just pruned). The genesis snapshot is never pruned, so a world
+   * that exists always has one; only a store with no snapshot at all gets a
+   * new world.
+   */
   private async loadLatest(): Promise<void> {
-    const keys = await this.kv.list('snap/');
-    const newest = keys[keys.length - 1];
-    const snap = newest ? await this.kv.get(newest) : null;
-    if (!snap) return this.init();
-    this.world = upgradeWorld(JSON.parse(gunzipSync(snap.data).toString('utf8')) as World);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const keys = await this.kv.list('snap/');
+      for (const key of [...keys].reverse()) {
+        const snap = await this.kv.get(key);
+        if (!snap) continue;
+        this.world = upgradeWorld(JSON.parse(gunzipSync(snap.data).toString('utf8')) as World);
+        return;
+      }
+      if (keys.length === 0 && (await this.init())) return;
+      await backoff(attempt);
+    }
+    throw new Error('Could not load the world.');
   }
 
-  private async init(): Promise<void> {
+  /** Create the world unless someone already has. True if this function created it. */
+  private async init(): Promise<boolean> {
+    if (await this.kv.get(logKey(1))) return false; // a world exists; its snapshot is not visible yet
     const world = createWorld({ seed: this.opts.seed, now: this.opts.now() });
-    const r = await this.kv.set(snapKey(world.version), gzipSync(JSON.stringify(world)), {
-      ifNew: true,
-    });
-    if (!r.ok) return this.loadLatest(); // another function created it first
+    const r = await this.kv.set(GENESIS, gzipSync(JSON.stringify(world)), { ifNew: true });
+    if (!r.ok) return false;
     this.world = world;
     this.opts.log?.('world created', { seed: this.opts.seed });
+    return true;
   }
 
   /** Apply log entries newer than the cached world. */
@@ -111,7 +129,8 @@ export class KvGame implements Game {
     // Write-once per version: losing the race means someone saved the same world.
     await this.kv.set(snapKey(v), gzipSync(JSON.stringify(this.world)), { ifNew: true });
     const keys = await this.kv.list('snap/');
-    for (const old of keys.slice(0, -SNAPSHOTS_KEPT)) await this.kv.delete(old);
+    for (const old of keys.slice(0, -SNAPSHOTS_KEPT))
+      if (old !== GENESIS) await this.kv.delete(old);
   }
 
   async execute(actorId: string | null, command: Command): Promise<DispatchResult> {
@@ -131,6 +150,7 @@ export class KvGame implements Game {
         return r;
       }
       // Someone else committed this version first: catch up and try again.
+      await backoff(attempt);
       await this.refresh();
     }
     throw new Error('The world is busy. Try again.');
