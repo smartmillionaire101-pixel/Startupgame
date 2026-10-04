@@ -1,5 +1,5 @@
 import { devices, type Page } from '@playwright/test';
-import { expect, test, withoutNetlifyDrawer } from './fixtures';
+import { digits, expect, letters, test, withoutNetlifyDrawer } from './fixtures';
 
 /**
  * Wave 2: people in the city. AI characters and the person card always run;
@@ -7,11 +7,9 @@ import { expect, test, withoutNetlifyDrawer } from './fixtures';
  * the engine's events, so they skip themselves where those aren't deployed.
  */
 
-let n = 0;
 async function signUpFounder(page: Page, name: string) {
-  const stamp = `${Date.now()}${n++}`.slice(-8);
   await page.goto('/');
-  await page.getByLabel('Mobile number').fill(`+23482${stamp}`);
+  await page.getByLabel('Mobile number').fill(`+23482${digits(8)}`);
   await page.getByLabel('Date of birth').fill('1992-04-18');
   await page.getByRole('button', { name: 'Send code' }).click();
   const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
@@ -21,10 +19,10 @@ async function signUpFounder(page: Page, name: string) {
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
   await page.getByLabel('Your name').fill(name);
-  await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${stamp.slice(-6)}`);
+  await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();
   await page.getByLabel('Your idea in one line').fill('Bookkeeping for market stalls');
-  await page.getByLabel('Company name').fill(`${name.split(' ')[0]} Books ${stamp.slice(-4)}`);
+  await page.getByLabel('Company name').fill(`${name.split(' ')[0]} Books ${letters(5)}`);
   await expect(page.getByText(/Available in Lagos/)).toBeVisible();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
@@ -119,9 +117,7 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   ).newPage();
   await withoutNetlifyDrawer(b);
   // Unique surnames per run: a deploy preview keeps earlier runs' players.
-  const tag = String(Date.now())
-    .slice(-5)
-    .replace(/\d/g, (d) => 'abcdefghij'[Number(d)]!);
+  const tag = letters(5);
   // Name tags show first names, so the run's tag goes there.
   const hostFirst = `Amaka${tag}`;
   const hostName = `${hostFirst} Host`;
@@ -153,7 +149,7 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   });
   await hall.getByRole('radio', { name: /Founder meetup/ }).click();
   // Unique per run: a deploy preview keeps one world, with earlier runs' events in it.
-  const title = `Stall founders ${String(Date.now()).slice(-5)}`;
+  const title = `Stall founders ${letters(5)}`;
   await hall.getByLabel('Title').fill(title);
   await hall.getByRole('radio', { name: 'This month' }).click();
   await hall.getByLabel(/Budget/).fill('0');

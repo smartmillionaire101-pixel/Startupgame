@@ -37,3 +37,15 @@ export const test = base.extend({
 });
 
 export { expect } from '@playwright/test';
+
+/**
+ * Random letters / digits for names and phone numbers. A deploy preview keeps
+ * one world across runs, and the name checker refuses a name one edit away
+ * from a taken one, so suffixes must be random rather than clock-based.
+ */
+const pick = (alphabet: string, n: number) =>
+  Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => alphabet[b % alphabet.length]).join(
+    '',
+  );
+export const letters = (n = 6) => pick('abcdefghijklmnopqrstuvwxyz', n);
+export const digits = (n = 7) => pick('0123456789', n);
