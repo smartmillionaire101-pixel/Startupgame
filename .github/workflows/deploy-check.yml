@@ -57,17 +57,26 @@ jobs:
           URL: ${{ steps.target.outputs.url }}
           COMMIT: ${{ steps.target.outputs.commit }}
         run: |
+          # A brand-new deploy reaches Netlify's edge servers one by one, so some
+          # still answer 404 for a few seconds: wait for three healthy answers in a row.
+          ok=0
           for i in $(seq 1 90); do
             served=$(curl -fsS "$URL/version.json" 2>/dev/null | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p')
             health=$(curl -fsS -o /dev/null -w '%{http_code}' "$URL/api/health" 2>/dev/null || true)
             echo "try $i: serving ${served:-none}, api ${health:-none}"
             if { [ -z "$COMMIT" ] || [ "$served" = "$COMMIT" ]; } && [ "$health" = "200" ]; then
-              curl -fsS "$URL/api/health"; echo
+              ok=$((ok + 1))
+            else
+              ok=0
+            fi
+            if [ "$ok" -ge 3 ]; then
+              curl -sS "$URL/api/health" || true; echo
               # Which world and settings the site serves (mode header, dev tools flag).
               curl -sSI "$URL/api/health" | grep -i '^x-runway' || true
-              curl -fsS "$URL/api/meta" | grep -o '"devTools":[a-z]*' || true
+              curl -sS "$URL/api/meta" | grep -o '"devTools":[a-z]*' || true
               exit 0
             fi
+            if [ "$ok" -gt 0 ]; then sleep 3; continue; fi
             # Show why the API is unhealthy (Netlify's function error page names the error).
             if [ "$health" != "200" ] && [ "$health" != "404" ] && [ $((i % 6)) -eq 1 ]; then
               curl -sS "$URL/api/health" | head -c 1500; echo
