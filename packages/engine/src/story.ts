@@ -8,7 +8,13 @@
  * Pure and deterministic: no randomness, only the settled world.
  */
 import { STAFF_ROLES } from './data/markets.js';
-import { marketingSpend, projectedBurn } from './company.js';
+import {
+  cloudCost,
+  marketingSpend,
+  officeRent,
+  payrollThisMonth,
+  projectedBurn,
+} from './company.js';
 import { reliability } from './customers.js';
 import { getMarket, lastPnl, totalCustomers } from './helpers.js';
 import { account } from './ledger.js';
@@ -29,6 +35,8 @@ import type {
 export const STORY_MIN_ITEMS = 3;
 export const STORY_MAX_ITEMS = 6;
 export const STORY_MAX_NEXT = 3;
+/** A new (or lost) customer is weighed as this many months of revenue when ranking. */
+export const CUSTOMER_MONTHS = 6;
 
 /** End-of-month snapshot the next story compares against. */
 export function storySnapshot(world: World, c: Company): StoryBase {
@@ -113,7 +121,7 @@ export function buildStory(
         metric: 'customers',
         delta: ch.marketing,
       },
-      impact: ch.marketing * price,
+      impact: ch.marketing * price * CUSTOMER_MONTHS,
       short:
         changed && c.marketingBudget > prev.marketingBudget
           ? 'the marketing push worked'
@@ -129,7 +137,7 @@ export function buildStory(
         metric: 'customers',
         delta: ch.wordOfMouth,
       },
-      impact: ch.wordOfMouth * price,
+      impact: ch.wordOfMouth * price * CUSTOMER_MONTHS,
       short: 'word of mouth is spreading',
     });
   if (ch.outreach > 0) {
@@ -145,7 +153,7 @@ export function buildStory(
         metric: 'customers',
         delta: ch.outreach,
       },
-      impact: ch.outreach * price,
+      impact: ch.outreach * price * CUSTOMER_MONTHS,
       short: 'your own selling paid off',
     });
   }
@@ -158,7 +166,7 @@ export function buildStory(
         metric: 'customers',
         delta: ch.pipeline,
       },
-      impact: ch.pipeline * price * 4,
+      impact: ch.pipeline * price * CUSTOMER_MONTHS,
       short: 'business deals closed',
     });
 
@@ -185,7 +193,7 @@ export function buildStory(
         metric: 'customers',
         delta: -churned,
       },
-      impact: churned * price * (main === 'normal' ? 0.8 : 1.3),
+      impact: churned * price * CUSTOMER_MONTHS * (main === 'normal' ? 0.8 : 1.3),
       short:
         main === 'reliability'
           ? 'outages drove customers away'
@@ -298,8 +306,18 @@ export function buildStory(
     const top = moves[0];
     if (top) {
       const up = top.d > 0;
-      const cause =
-        top.k === 'payroll'
+      const intended: Record<typeof top.k, number> = {
+        payroll: payrollThisMonth(c),
+        founderSalary: c.founderSalary * c.founderIds.length,
+        office: officeRent(m, c),
+        marketing: marketingSpend(c),
+        cloud: cloudCost(m, c),
+      };
+      const short =
+        top.k === 'payroll' ? c.finance.unpaidPayroll > 0 : pnl[top.k] < intended[top.k] * 0.98;
+      const cause = short
+        ? 'Cash ran short, so only part of it was paid.'
+        : top.k === 'payroll'
           ? c.hibernation
             ? 'Hibernation: staff on furlough pay.'
             : up
@@ -308,11 +326,17 @@ export function buildStory(
           : top.k === 'marketing'
             ? c.hibernation
               ? 'Hibernation paused marketing.'
-              : 'Your marketing budget.'
+              : c.marketingBudget !== prev.marketingBudget
+                ? `You set marketing to ${fmt(c.marketingBudget)} a month.`
+                : up
+                  ? 'Cash came in, so the full budget was spent.'
+                  : 'Your marketing budget.'
             : top.k === 'office'
               ? c.officeDownsized && !up
                 ? 'You moved to a smaller office.'
-                : 'Desks for a bigger team.'
+                : up
+                  ? 'Desks for a bigger team.'
+                  : 'Fewer desks.'
               : top.k === 'cloud'
                 ? up
                   ? 'More customers to serve, priced in dollars.'
@@ -320,14 +344,18 @@ export function buildStory(
                 : 'Your founder pay decision.';
       out.push({
         item: {
-          tone: up ? 'bad' : 'good',
+          tone: short || up ? 'bad' : 'good',
           text: `${COST_LABEL[top.k]} ${up ? 'rose' : 'fell'} by ${fmt(Math.abs(top.d))}.`,
           cause,
           metric: 'burn',
           delta: top.d,
         },
         impact: Math.abs(top.d),
-        short: up ? `${COST_LABEL[top.k]!.toLowerCase()} rose` : 'costs came down',
+        short: short
+          ? 'cash ran short'
+          : up
+            ? `${COST_LABEL[top.k]!.toLowerCase()} rose`
+            : 'costs came down',
       });
     }
   }
@@ -369,7 +397,7 @@ export function buildStory(
         metric: 'stars',
         delta: starDelta,
       },
-      impact: Math.abs(starDelta) * Math.max(price * 20, (pnl?.revenue ?? 0) * 2),
+      impact: Math.abs(starDelta) * Math.max(price * 10, pnl?.revenue ?? 0),
       short: starDelta > 0 ? 'your rating rose' : 'your rating fell',
     });
   }
@@ -466,9 +494,18 @@ function headline(
   if (c.distress?.level === 'critical') return `${c.name} is one missed payroll from closing`;
   const rev = pnl?.revenue ?? 0;
   const prevRev = prevPnl?.revenue ?? 0;
-  const good = ranked.find((x) => x.item.tone === 'good' && x.short)?.short;
-  const bad = ranked.find((x) => x.item.tone === 'bad' && x.short)?.short;
-  const any = ranked.find((x) => x.short)?.short;
+  // Revenue moves are explained by customers and price first, then anything else.
+  const revenueFirst = [
+    ...ranked.filter((x) => x.item.metric === 'customers' || x.item.metric === 'revenue'),
+    ...ranked,
+  ];
+  const good = revenueFirst.find(
+    (x) => (x.item.tone === 'good' || x.item.metric === 'revenue') && x.short,
+  )?.short;
+  const bad = revenueFirst.find(
+    (x) => (x.item.tone === 'bad' || x.item.metric === 'revenue') && x.short,
+  )?.short;
+  const any = revenueFirst.find((x) => x.short)?.short;
   if (rev === 0)
     return c.hibernation
       ? 'Hibernating: burn is down, the product is on hold'

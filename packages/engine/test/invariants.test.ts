@@ -47,6 +47,14 @@ describe('world invariants under random play', () => {
       }),
       fc.record({ k: fc.constant('gig' as const) }),
       fc.record({ k: fc.constant('lifestyle' as const), tier: fc.integer({ min: 1, max: 5 }) }),
+      fc.record({ k: fc.constant('cut' as const) }),
+      fc.record({ k: fc.constant('hibernate' as const), on: fc.boolean() }),
+      fc.record({
+        k: fc.constant('bridge' as const),
+        amount: fc.integer({ min: 1_000_00, max: 5_000_000_00 }),
+      }),
+      fc.record({ k: fc.constant('fireSale' as const) }),
+      fc.record({ k: fc.constant('acceptDeal' as const) }),
       fc.record({
         k: fc.constant('invest' as const),
         pick: fc.nat(10),
@@ -100,6 +108,26 @@ describe('world invariants under random play', () => {
             case 'lifestyle':
               cmd = { type: 'player.lifestyle', tier: a.tier };
               break;
+            case 'cut':
+              cmd = { type: 'company.cutCosts', companyId: cid };
+              break;
+            case 'hibernate':
+              cmd = { type: 'company.hibernate', companyId: cid, on: a.on };
+              break;
+            case 'bridge':
+              cmd = { type: 'company.bridge', companyId: cid, amount: a.amount };
+              break;
+            case 'fireSale':
+              cmd = { type: 'company.fireSale', companyId: cid };
+              break;
+            case 'acceptDeal': {
+              const d = Object.values(w.deals).find(
+                (x) =>
+                  x.status === 'open' && x.awaiting.kind === 'company' && x.awaiting.id === cid,
+              );
+              cmd = { type: 'deal.act', dealId: d?.id ?? 'none', action: 'accept' };
+              break;
+            }
             case 'invest': {
               actor = 'u_inv';
               const targets = Object.values(w.companies).filter(
