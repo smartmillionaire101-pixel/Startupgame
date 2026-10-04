@@ -1017,6 +1017,8 @@ export interface World {
   pitches: Record<Id, Pitch>;
   media: Record<Id, MediaInvite>;
   inbox: Record<Id, InboxItem[]>;
+  /** Ids of announcements already sent (system.announce), so each goes out once. */
+  announcements?: string[];
   /** Names/handles reserved per market (normalised), with the owner id. */
   names: Partial<Record<MarketId, Record<string, Id>>>;
   /** B2B marketplace (§6). */

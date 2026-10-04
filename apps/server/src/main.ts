@@ -6,6 +6,7 @@ import { GameService } from './game.js';
 import { DevSmsProvider } from './adapters/sms.js';
 import { fetchFxUpdates } from './adapters/feeds.js';
 import { Store } from './store/sqlite.js';
+import { RELEASE_NOTE } from './release.js';
 
 const config = loadConfig();
 const store = new Store(config.DATABASE_PATH);
@@ -26,6 +27,9 @@ const app = await buildApp({
 });
 
 game.openMarkets(config.OPEN_MARKETS);
+// Tell every player about a new release once (a no-op after the first time).
+if (!game.current.announcements?.includes(RELEASE_NOTE.id))
+  game.execute(null, { type: 'system.announce', ...RELEASE_NOTE });
 
 // The clock: every 15 s, settle any market whose game month has ended.
 const clock = setInterval(() => {

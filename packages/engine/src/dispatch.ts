@@ -139,6 +139,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
   }
   if (cmd.type === 'market.data') return applyMarketData(world, cmd);
   if (cmd.type === 'player.anonymize') return anonymize(world, cmd.playerId);
+  if (cmd.type === 'system.announce') return announce(world, cmd);
 
   const actorId = ctx.actorId!;
   if (cmd.type === 'player.create') return createFromOnboarding(world, cmd, actorId, ctx.now);
@@ -1009,4 +1010,22 @@ function applyMarketData(world: World, cmd: Extract<Command, { type: 'market.dat
         notify(world, p.id, { month: m.month, kind: 'system', text: alert });
   }
   return { alerts };
+}
+
+/** Send a one-off message to every human player's inbox, once per announcement id. */
+function announce(world: World, cmd: Extract<Command, { type: 'system.announce' }>) {
+  const sent = (world.announcements ??= []);
+  if (sent.includes(cmd.id)) return { sent: 0 };
+  sent.push(cmd.id);
+  let n = 0;
+  for (const p of Object.values(world.players)) {
+    if (p.ai) continue;
+    notify(world, p.id, {
+      month: world.markets[p.market]?.month ?? 0,
+      kind: 'system',
+      text: cmd.text,
+    });
+    n++;
+  }
+  return { sent: n };
 }

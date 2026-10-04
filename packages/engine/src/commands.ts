@@ -58,6 +58,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     multiples: z.partialRecord(industry, z.number().positive().max(100)).optional(),
   }),
   z.object({ type: z.literal('player.anonymize'), playerId: id }),
+  /** A one-off message to every human player's inbox (e.g. "a new version is out"); repeats are ignored. */
+  z.object({
+    type: z.literal('system.announce'),
+    id: z.string().min(1).max(60),
+    text: z.string().min(1).max(500),
+  }),
   // ---- onboarding
   z.object({
     type: z.literal('player.create'),
@@ -344,6 +350,7 @@ export const SYSTEM_COMMANDS: ReadonlySet<CommandType> = new Set([
   'market.settle',
   'market.data',
   'player.anonymize',
+  'system.announce',
 ]);
 
 export const isMarketId = (v: string): v is MarketId =>

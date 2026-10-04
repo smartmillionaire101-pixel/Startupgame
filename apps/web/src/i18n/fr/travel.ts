@@ -38,4 +38,7 @@ export const travel: Record<string, string> = {
     'Les vols partent de l’aéroport : aller simple, {hours} heures, à tout moment. Sur place, vous pouvez rencontrer ses investisseurs et investir.',
   'To the airport': 'Vers l’aéroport',
   'from {city}': 'depuis {city}',
+  'A new version of Runway is ready. Your game is saved.':
+    'Une nouvelle version de Runway est prête. Votre partie est sauvegardée.',
+  Refresh: 'Actualiser',
 };
