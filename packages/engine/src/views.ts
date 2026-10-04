@@ -25,6 +25,8 @@ import {
   productRateBps,
 } from './capital.js';
 import { tripCostUsd } from './travel.js';
+import { EVENT_KINDS, EVENT_KIND_DATA, EVENT_RECENT_MONTHS } from './data/events.js';
+import { contactWarmth, eventCost } from './events.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { boardOf } from './governance.js';
 import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
@@ -450,6 +452,11 @@ export function playerView(world: World, playerId: Id) {
         })),
       lastMonth: p.lastMonth,
       gigsThisMonth: p.gigsThisMonth,
+      /** People met at events (Wave 2), newest first; warmth fades with time. */
+      contacts: (p.contacts ?? []).slice(0, CONTACTS_VIEW_LIMIT).map((c) => ({
+        ...c,
+        warmth: Math.round(contactWarmth(c, m.month) * 100) / 100,
+      })),
     },
     accounts: { local: acc(p.accounts.local), usd: acc(p.accounts.usd) },
     bank: ownBankView(world, p.id),
@@ -557,6 +564,22 @@ export function playerView(world: World, playerId: Id) {
             marketRate: marketRate(world, seller),
           };
         }),
+      /** City events (Wave 2): upcoming, and held or cancelled recently. */
+      events: eventsView(world, p, m.id, m.month),
+      eventKinds: EVENT_KINDS.map((kind) => {
+        const k = EVENT_KIND_DATA[kind];
+        return {
+          kind,
+          label: k.label,
+          description: k.description,
+          /** Hosting at the Event Hall, before any budget (minor units). */
+          cost: eventCost(m, kind, 'hall'),
+          hoursHost: k.hoursHost,
+          hoursAttend: k.hoursAttend,
+          capacity: k.capacity,
+          who: k.who,
+        };
+      }),
     },
     lifestyleTiers: LIFESTYLE_TIERS.map((t) => ({
       ...t,
@@ -688,6 +711,55 @@ export function playerView(world: World, playerId: Id) {
       .sort((a, b) => b.filedMonth - a.filedMonth)
       .slice(0, 20),
   };
+}
+
+const CONTACTS_VIEW_LIMIT = 50;
+
+function eventsView(world: World, viewer: Player, market: MarketId, month: number) {
+  return Object.values(world.events ?? {})
+    .filter(
+      (e) =>
+        e.market === market && (e.status === 'upcoming' || month - e.month <= EVENT_RECENT_MONTHS),
+    )
+    .sort((a, b) =>
+      a.status === 'upcoming' && b.status === 'upcoming'
+        ? a.month - b.month
+        : a.status === 'upcoming'
+          ? -1
+          : b.status === 'upcoming'
+            ? 1
+            : b.month - a.month,
+    )
+    .map((e) => {
+      const host = world.players[e.hostId];
+      return {
+        id: e.id,
+        kind: e.kind,
+        kindLabel: EVENT_KIND_DATA[e.kind].label,
+        title: e.title,
+        host: { id: e.hostId, name: host?.name ?? '' },
+        venue: e.venue,
+        month: e.month,
+        dateLabel: gameDate(e.month).label,
+        capacity: e.capacity,
+        /** Humans going, host included. */
+        going: e.attendees.length + 1,
+        ticket: e.ticket,
+        segmentKey: e.segmentKey ?? null,
+        status: e.status,
+        youHost: e.hostId === viewer.id,
+        youGoing: e.attendees.includes(viewer.id),
+        outcome: e.outcome
+          ? {
+              summary: e.outcome.summary,
+              /** Contacts you made there (or everyone's, if you weren't there). */
+              contacts:
+                e.outcome.contacts[viewer.id] ??
+                Object.values(e.outcome.contacts).reduce((a, b) => a + b, 0),
+            }
+          : null,
+      };
+    });
 }
 
 export type PlayerView = NonNullable<ReturnType<typeof playerView>>;

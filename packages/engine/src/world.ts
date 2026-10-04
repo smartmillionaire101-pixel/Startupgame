@@ -444,6 +444,7 @@ export function createWorld(opts: CreateWorldOptions): World {
     votes: {},
     disputes: {},
     banks: {},
+    events: {},
     usdExt: { fx: 'ext:usd:fx', suppliers: 'ext:usd:suppliers', genesis: 'ext:usd:genesis' },
   };
   openAccount(world, {

@@ -35,7 +35,7 @@ export function bandSalary(
   return major(seniority === 'head' ? s.head : s[role][seniority]);
 }
 
-function makeCandidate(world: World, market: MarketId, rng: Rng, month: number): Candidate {
+export function makeCandidate(world: World, market: MarketId, rng: Rng, month: number): Candidate {
   const r = rng.next();
   const seniority: Seniority = r < 0.45 ? 'junior' : r < 0.8 ? 'mid' : r < 0.96 ? 'senior' : 'head';
   const role = rng.pick(STAFF_ROLES);
@@ -96,7 +96,9 @@ export function evaluateOffer(
     0.06 * (starMultiplier(founder.stars.value) - 1) +
     (runwayMonths >= 12 ? 0.05 : runwayMonths < 4 ? -0.1 : 0) +
     (company.stars.good > 0.1 ? 0.03 : 0) +
-    founder.skills.negotiation / 1000;
+    founder.skills.negotiation / 1000 +
+    // Referred at an event (Wave 2): they already want to work with you.
+    (cand.referredFor === company.id ? 0.1 : 0);
   const early = company.lastRound === null || company.lastRound === 'pre-seed';
   const riskPenalty = early ? (1 - cand.riskAppetite) * 0.15 : 0;
   const repeat = cand.rejectedBy.filter((id) => id === company.id).length * 0.04;

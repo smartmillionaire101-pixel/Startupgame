@@ -26,6 +26,7 @@ import { valueIn } from './ledger.js';
 import { hasVisited, isVisiting } from './travel.js';
 import { deriveRng } from './rng.js';
 import { starMultiplier } from './stars.js';
+import { warmIntro } from './events.js';
 import { aiRespond, openDeal } from './deals.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
 import { rulesFor } from './data/rules.js';
@@ -256,7 +257,10 @@ export function startPitch(
       pitch.status = 'passed';
       pitch.reason = `${fund.partner}: “You’re raising ${stage}; we do ${fund.stages.join(', ')}.”`;
     } else if (
-      Math.max(c.stars.value, getPlayer(world, args.founderId).stars.value) < fund.minStars
+      // A warm intro (Wave 2) relaxes the bar by up to one star.
+      Math.max(c.stars.value, getPlayer(world, args.founderId).stars.value) +
+        warmIntro(world, getPlayer(world, args.founderId), fund.id, m.month).starRelief <
+      fund.minStars
     ) {
       pitch.status = 'passed';
       pitch.reason = `${fund.partner}: “Come back when you have more of a track record.”`;
@@ -315,6 +319,23 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
   );
 }
 
+/**
+ * The partner's view at the first meeting: the fund's score, plus a warm
+ * intro from a contact and the founder's network (Wave 2).
+ */
+export function firstMeetingScore(world: World, fund: Fund, c: Company, p: Pitch): number {
+  const founder = getPlayer(world, p.founderId);
+  return (
+    fundScore(world, fund, c, p.slides) +
+    warmIntro(world, founder, fund.id, getMarket(world, c.market).month).scoreBonus
+  );
+}
+
+/** Probability the first meeting goes forward, for an honest answer set. */
+export function firstMeetingOdds(score: number): number {
+  return logistic((score - 0.55) / 0.06);
+}
+
 const PASS_REASONS = [
   'Too early for us. Come back with more traction.',
   'We don’t see how this gets big enough.',
@@ -367,14 +388,14 @@ export function answerPitch(
     return p;
   }
 
-  const score = fundScore(world, fund, c, p.slides) + honesty;
+  const score = firstMeetingScore(world, fund, c, p) + honesty;
   const stage = nextStage(c.lastRound);
   const big =
     localToUsdMajor(world, m, p.ask) >= PARTNER_MEETING_USD ||
     stage === 'series-a' ||
     stage === 'series-b' ||
     stage === 'series-c';
-  const passP = 1 - logistic((score - 0.55) / 0.06);
+  const passP = 1 - firstMeetingOdds(score);
   if (rng.chance(passP)) {
     p.status = 'passed';
     p.reason = `${fund.partner}: “${rng.pick(PASS_REASONS)}”`;
