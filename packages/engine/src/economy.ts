@@ -338,8 +338,10 @@ export function settleEconomy(world: World, marketId: MarketId, month: number) {
     const [lo, hi] = spec.revenueCol;
 
     // 1. Households spend: demand drifts, the seasons turn, and the odd bad month hits.
-    b.base *= Math.exp(rng.normal(0.001, 0.03));
-    if (rng.chance(0.012)) b.base *= 0.8;
+    // Demand wanders around what this kind of business does in this city.
+    const typical = (cityCol * (lo + hi)) / 2;
+    b.base = b.base * Math.exp(rng.normal(0, 0.03)) + (typical - b.base) * 0.015;
+    if (rng.chance(0.03)) b.base *= rng.range(0.5, 0.85);
     b.base = Math.round(clamp(b.base, cityCol * lo * 0.3, cityCol * hi * 2));
     const season = 1 + 0.05 * Math.sin((2 * Math.PI * (month + b.seed)) / 12);
     const takings = Math.max(0, Math.round(b.base * season * climate * (1 + rng.normal(0, 0.04))));
@@ -434,9 +436,9 @@ export function settleEconomy(world: World, marketId: MarketId, month: number) {
     const costs = wages + rent + goods + incumbent;
     const profit = takings - costs - trade;
     b.costBase = Math.round(b.costBase + (b.base - b.costBase) * 0.1);
-    const target = clamp01(0.5 + (4 * profit) / Math.max(1, b.base));
+    const target = clamp01(0.5 + (8 * profit) / Math.max(1, b.base));
     b.health = clamp01(0.75 * b.health + 0.25 * target - (short ? 0.2 : 0));
-    b.base = Math.round(b.base * (1 + 0.01 * (b.health - 0.5)));
+    b.base = Math.round(b.base * (1 + 0.006 * (b.health - 0.5)));
     // The owner draws what the business doesn't need.
     const spare = account(world, b.account).balance - b.base * ECONOMY.keepCashMonths;
     if (spare > 0)
