@@ -3,7 +3,6 @@
  * founders, investors, a bank, incumbents and a newsroom so it never feels empty.
  */
 import {
-  AI_BANKS,
   AI_FIRST_NAMES,
   AI_FUNDS,
   AI_INCUMBENTS,
@@ -16,6 +15,7 @@ import { INDUSTRIES, SEGMENT_TEMPLATES, segmentsForIndustry } from './data/indus
 import type { Industry } from './data/industries.js';
 import { LAUNCH_MARKETS, MARKET_DATA, PUBLIC_MULTIPLES } from './data/markets.js';
 import { CURRENT_SCHEMA } from './upgrade.js';
+import { createAiFund, firstHighStreetName, seedExtraFunds, seedLenders } from './capital.js';
 import { NO_EFFECTS } from './marketplace.js';
 import type { MarketId } from './data/markets.js';
 import {
@@ -42,7 +42,6 @@ import { refreshTalent } from './staff.js';
 import type {
   Company,
   ExternalPurpose,
-  Fund,
   Id,
   Incorporation,
   MarketState,
@@ -121,7 +120,8 @@ function createMarket(world: World, id: MarketId, now: number): MarketState {
     talent: [],
     outlets: OUTLETS[id].map((o) => ({ ...o })),
     news: [],
-    bankName: AI_BANKS[id],
+    bankName: firstHighStreetName(id),
+    lenders: seedLenders(id),
     economicNote: `${data.name}: policy rate ${(data.baseRateBps / 100).toFixed(2)}%. Markets open for business.`,
     lastSettledDate: localDate(now, data.timeZone),
     ext,
@@ -132,43 +132,9 @@ function createMarket(world: World, id: MarketId, now: number): MarketState {
 }
 
 function seedFunds(world: World, marketId: MarketId) {
-  const m = getMarket(world, marketId);
-  for (const seed of AI_FUNDS[marketId]) {
-    const id = newId(world, 'fund');
-    const account = openAccount(world, {
-      currency: m.data.currency,
-      market: marketId,
-      label: seed.name,
-    });
-    const check: [number, number] = [
-      usdToLocal(world, m, seed.check[0]),
-      usdToLocal(world, m, seed.check[1]),
-    ];
-    const size = check[1] * 25;
-    transfer(world, m.ext.lps, account, size, 'LP commitments', 0);
-    const fund: Fund = {
-      id,
-      name: seed.name,
-      market: marketId,
-      ai: true,
-      managerId: null,
-      partner: seed.partner,
-      sectors: seed.sectors,
-      stages: seed.stages,
-      check,
-      minStars: seed.minStars,
-      mood: 1,
-      account,
-      size,
-      vintageMonth: 0,
-      feeRate: 0.02,
-      carry: 0.2,
-      distributed: 0,
-      thesis: `${seed.sectors === 'any' ? 'Generalist' : seed.sectors.join(', ')} · ${seed.stages.join(', ')}`,
-      stars: newStars(seed.minStars + 1.5),
-    };
-    world.funds[id] = fund;
-  }
+  for (const seed of AI_FUNDS[marketId]) createAiFund(world, marketId, seed);
+  // Deeper capital markets get more and bigger funds and angel networks (Wave 1).
+  seedExtraFunds(world, marketId);
 }
 
 const baseSkills = (): Skills => Object.fromEntries(SKILLS.map((s) => [s, 20])) as Skills;

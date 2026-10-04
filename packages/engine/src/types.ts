@@ -11,6 +11,7 @@ import type { Industry, SegmentKind, NeedWeights } from './data/industries.js';
 import type { Role, Skills } from './data/characters.js';
 import type { OutletType } from './data/fiction.js';
 import type { Command } from './commands.js';
+import type { LenderKind, LenderLook, LenderProductSeed } from './data/capital.js';
 
 export type Id = string;
 
@@ -84,6 +85,9 @@ export interface PersonalLoan {
   collateral: { companyId: Id; shares: number; label: string } | null;
   /** Consecutive missed payments; two in a row is a default. */
   missed: number;
+  /** AI lender and product, when borrowed from a named lender (Wave 1). */
+  lenderId?: Id;
+  productId?: string;
 }
 
 export interface InvestorProfile {
@@ -225,6 +229,13 @@ export interface Loan {
   monthlyPayment: number;
   monthsLeft: number;
   personalGuarantee: Id | null;
+  /** AI lender and product, when borrowed from a named lender (Wave 1). */
+  lenderId?: Id;
+  productId?: string;
+  /** Revenue-based finance: share of each month's revenue repaid until `outstanding` is cleared. */
+  revenueShareBps?: number;
+  /** Revenue-based finance: total repayable as a multiple of the advance (bps). */
+  repayCapBps?: number;
 }
 
 export interface Holding {
@@ -575,6 +586,11 @@ export interface LoanTerms {
   rateBps: number;
   months: number;
   personalGuarantee: boolean;
+  /** Product borrowed from a named AI lender. */
+  productId?: string;
+  /** Revenue-based products: share of monthly revenue repaid, and the total cap (bps of the advance). */
+  revenueShareBps?: number;
+  repayCapBps?: number;
 }
 
 export interface AcquisitionTerms {
@@ -599,6 +615,8 @@ export interface PersonalLoanTerms {
   months: number;
   /** Shares pledged as collateral; seized on default. */
   collateral: { companyId: Id; shares: number; label: string } | null;
+  /** Product borrowed from a named AI lender. */
+  productId?: string;
 }
 
 /** A supply contract on the B2B marketplace (§6). */
@@ -618,6 +636,8 @@ export interface PartyRef {
   /** 'bank' is the market's AI bank (id = market); 'playerbank' is a player-owned bank (id = bank id). */
   kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company' | 'playerbank';
   id: Id;
+  /** For 'bank': the named AI lender in that market (absent: the market's default bank). */
+  lenderId?: Id;
 }
 
 export type DealStatus = 'open' | 'accepted' | 'declined' | 'expired' | 'withdrawn';
@@ -646,7 +666,15 @@ export interface DealCard {
   /** A board or shareholder vote this deal is waiting on (§9). */
   pendingVoteId?: Id | null;
   /** For AI counterparties: the most they will concede (hidden from players in views). */
-  aiLimit?: { minValuation?: number; maxValuation?: number; maxAmount?: number };
+  aiLimit?: {
+    minValuation?: number;
+    maxValuation?: number;
+    maxAmount?: number;
+    /** AI lenders: a personal guarantee is a condition. */
+    needsGuarantee?: boolean;
+    /** AI lenders: the lowest rate they will take. */
+    minRateBps?: number;
+  };
 }
 
 // ---------------------------------------------------------------- Pitches
@@ -795,10 +823,26 @@ export interface MarketState {
   talent: Candidate[];
   outlets: Outlet[];
   news: NewsItem[];
+  /** The first high-street lender's name (kept for anything still reading it). */
   bankName: string;
+  /** AI lenders and their products, seeded from data/capital.ts (Wave 1). */
+  lenders: Record<Id, LenderState>;
   economicNote: string;
   /** Accounts that model the outside world in this market, keyed by purpose. */
   ext: Record<ExternalPurpose, Id>;
+}
+
+/** An AI lender in a market. All AI lenders lend from the market's external bank account. */
+export interface LenderState {
+  id: Id;
+  name: string;
+  kind: LenderKind;
+  /** 0.5 tight … 1.5 loose; moves monthly with the funding climate. */
+  appetite: number;
+  /** Appetite in a normal climate. */
+  baseAppetite: number;
+  products: LenderProductSeed[];
+  look: LenderLook;
 }
 
 export type ExternalPurpose =

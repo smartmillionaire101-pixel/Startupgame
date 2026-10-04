@@ -25,6 +25,7 @@ import {
 } from './fundraising.js';
 import { raiseFund } from './funds.js';
 import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
+import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
 import { hasVisited, relocate, travel } from './travel.js';
 import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
 import { proposeAcquisition } from './acquisitions.js';
@@ -315,6 +316,21 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         });
         return { dealId: deal.id, message: `Request sent to ${bank.name}.` };
       }
+      if (cmd.lenderId || cmd.productId) {
+        ensure(
+          !!cmd.lenderId && !!cmd.productId && !cmd.bankId,
+          'loan.product',
+          'Pick a lender and one of its loans.',
+        );
+        return requestCompanyProductLoan(world, c, me, {
+          lenderId: cmd.lenderId!,
+          productId: cmd.productId!,
+          amount: cmd.amount,
+          months: cmd.months,
+          personalGuarantee: cmd.personalGuarantee,
+        });
+      }
+      ensure(cmd.months <= 36, 'loan.term', 'Bank loans run 3–36 months.');
       const pnl = lastPnl(c);
       ensure(
         month - c.foundedMonth >= 3 && pnl && pnl.revenue > 0,
@@ -577,6 +593,20 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'player.gig':
       return takeGig(world, me, month);
     case 'player.loan': {
+      if (cmd.lenderId || cmd.productId) {
+        ensure(
+          !!cmd.lenderId && !!cmd.productId && !cmd.bankId && !cmd.collateralCompanyId,
+          'loan.product',
+          'Pick a lender and one of its loans.',
+        );
+        const r = requestFounderProductLoan(world, me, {
+          lenderId: cmd.lenderId!,
+          productId: cmd.productId!,
+          amount: cmd.amount,
+          months: cmd.months,
+        });
+        return { ...r, summary: world.deals[r.dealId]!.summary };
+      }
       const deal = requestPersonalLoan(world, me, {
         amount: cmd.amount,
         months: cmd.months,

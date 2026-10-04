@@ -8,7 +8,7 @@
  * shares can be pledged as collateral and are taken on default.
  */
 import { markValue, sharesOf } from './captable.js';
-import { lenderOf, openDeal } from './deals.js';
+import { lenderOf, openDeal, partyName } from './deals.js';
 import { assertCanLend, playerBankHolderId, recordInterest, recordLoanLoss } from './banks.js';
 import { ensure, fail } from './errors.js';
 import { achieve, col, getCompany, getMarket, notify, publish } from './helpers.js';
@@ -192,7 +192,7 @@ export function executePersonalLoan(world: World, d: DealCard, t: PersonalLoanTe
   const bank = lender.kind === 'playerbank' ? world.banks[lender.id] : undefined;
   if (bank) assertCanLend(world, bank, t.amount, 'person');
   const lenderAccount = bank ? bank.account : m.ext.bank;
-  const lenderName = bank ? bank.name : m.bankName;
+  const lenderName = bank ? bank.name : partyName(world, lender);
   if (t.collateral) {
     ensure(
       !pledged(p, t.collateral.companyId),
@@ -235,6 +235,8 @@ export function executePersonalLoan(world: World, d: DealCard, t: PersonalLoanTe
     monthsLeft: t.months,
     collateral: t.collateral,
     missed: 0,
+    ...(lender.lenderId ? { lenderId: lender.lenderId } : {}),
+    ...(t.productId ? { productId: t.productId } : {}),
   });
   notify(world, p.id, {
     month: m.month,
