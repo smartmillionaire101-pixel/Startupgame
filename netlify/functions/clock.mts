@@ -7,11 +7,9 @@
 import type { Config } from '@netlify/functions';
 import { configFor, createRuntime, kvFor, runClock } from '../runtime/runtime.mjs';
 
-const PRODUCTION = { context: 'production', published: true };
-
 export default async () => {
-  const kv = kvFor(PRODUCTION);
-  const rt = await createRuntime(kv, await configFor(kv, PRODUCTION));
+  const kv = kvFor('production');
+  const rt = await createRuntime(kv, await configFor(kv, 'production'));
   const result = await runClock(rt);
   console.log(JSON.stringify({ msg: 'clock', ...result }));
   await rt.app.close();

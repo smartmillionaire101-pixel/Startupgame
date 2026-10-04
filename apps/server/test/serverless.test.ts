@@ -3,17 +3,11 @@ import { gzipSync } from 'node:zlib';
 import { KvAccountStore } from '../src/serverless/kv-accounts.js';
 import { KvGame, SNAPSHOT_EVERY } from '../src/serverless/kv-game.js';
 import { MemoryKv, kvJson } from '../src/serverless/kv.js';
-import {
-  configFor,
-  createRuntime,
-  handle,
-  isProduction,
-  runClock,
-} from '../src/serverless/netlify.js';
+import { configFor, createRuntime, handle, modeFor, runClock } from '../src/serverless/netlify.js';
 import { founderSetup, T0 } from './helpers.js';
 
-const PREVIEW = { context: 'deploy-preview', published: false };
-const PROD = { context: 'production', published: true };
+const PREVIEW = 'preview' as const;
+const PROD = 'production' as const;
 
 function client(rt: Awaited<ReturnType<typeof createRuntime>>) {
   let cookie = '';
@@ -213,9 +207,17 @@ describe('accounts on a key-value store', () => {
 });
 
 describe('Netlify runtime', () => {
-  it('tells production from previews', () => {
-    expect(isProduction(PROD)).toBe(true);
-    expect(isProduction(PREVIEW)).toBe(false);
+  it('tells production from previews, and never lets a preview URL reach the live world', () => {
+    const prod = { context: 'production', published: true };
+    expect(modeFor(prod, 'https://runwaystartup.netlify.app/api/state')).toBe('production');
+    expect(modeFor(prod, 'https://play.example.com/api/state')).toBe('production');
+    expect(modeFor({ context: 'deploy-preview', published: false })).toBe('preview');
+    // Even if the context were misreported, a permalink host is a preview.
+    expect(modeFor(prod, 'https://deploy-preview-3--runwaystartup.netlify.app/api/meta')).toBe(
+      'preview',
+    );
+    expect(modeFor(prod, 'https://6ac2--runwaystartup.netlify.app/')).toBe('preview');
+    expect(modeFor(undefined, 'https://runwaystartup.netlify.app/')).toBe('preview');
   });
 
   it('keeps one generated session secret per store and turns dev tools on only in previews', async () => {

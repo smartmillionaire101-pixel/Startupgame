@@ -27,12 +27,24 @@ import { NetlifyKv, kvJson, type Kv } from './kv.js';
 
 type DeployInfo = Pick<Context['deploy'], 'context' | 'published'>;
 
-export const isProduction = (d: DeployInfo | undefined) =>
-  d?.context === 'production' || d?.published === true;
+/** Production, or any other deploy (previews, branch deploys), which gets its own store and dev tools. */
+export type Mode = 'production' | 'preview';
 
-export function kvFor(deploy: DeployInfo | undefined): Kv {
+/**
+ * Which world a request belongs to. Production only when Netlify says so and
+ * the request isn't on a deploy permalink: preview and branch URLs always
+ * contain "--" (deploy-preview-3--site.netlify.app), so a preview can never
+ * write to the live world even if the deploy context were reported wrongly.
+ */
+export function modeFor(deploy: DeployInfo | undefined, url?: string): Mode {
+  const host = url ? new URL(url).hostname : '';
+  if (host.includes('--')) return 'preview';
+  return deploy?.context === 'production' ? 'production' : 'preview';
+}
+
+export function kvFor(mode: Mode): Kv {
   const opts = { name: 'runway', consistency: 'strong' as const };
-  return new NetlifyKv(isProduction(deploy) ? getStore(opts) : getDeployStore(opts));
+  return new NetlifyKv(mode === 'production' ? getStore(opts) : getDeployStore(opts));
 }
 
 /**
@@ -47,8 +59,8 @@ async function sessionSecret(kv: Kv): Promise<string> {
   return new TextDecoder().decode(e!.data);
 }
 
-export async function configFor(kv: Kv, deploy: DeployInfo | undefined): Promise<Config> {
-  const prod = isProduction(deploy);
+export async function configFor(kv: Kv, mode: Mode): Promise<Config> {
+  const prod = mode === 'production';
   return loadConfig({
     ...process.env,
     NODE_ENV: prod ? 'production' : 'development',

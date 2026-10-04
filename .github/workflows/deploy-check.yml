@@ -63,6 +63,9 @@ jobs:
             echo "try $i: serving ${served:-none}, api ${health:-none}"
             if { [ -z "$COMMIT" ] || [ "$served" = "$COMMIT" ]; } && [ "$health" = "200" ]; then
               curl -fsS "$URL/api/health"; echo
+              # Which world and settings the site serves (mode header, dev tools flag).
+              curl -sSI "$URL/api/health" | grep -i '^x-runway' || true
+              curl -fsS "$URL/api/meta" | grep -o '"devTools":[a-z]*' || true
               exit 0
             fi
             # Show why the API is unhealthy (Netlify's function error page names the error).
