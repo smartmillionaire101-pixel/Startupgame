@@ -313,6 +313,14 @@ export interface Company {
   /** Consecutive months of mostly flagged revenue (anti-cheat, §18). */
   fraudStreak: number;
   bannedFromRaising: boolean;
+  /** Non-founder board members (investors who negotiated a seat). */
+  board: Id[];
+  /** Holders with a veto on any sale. */
+  vetoes: Id[];
+  /** Parent company, when bought by another player company across markets. */
+  parentId: Id | null;
+  /** Founders removed by the board, with the month (evidence for the arbitrator). */
+  removedFounders: Record<Id, number>;
 }
 
 export interface SupplyEffectsState {
@@ -349,6 +357,42 @@ export interface SupplyContract {
   flags: string[];
   status: 'active' | 'ended' | 'cancelled';
   reviewed: boolean;
+  /** The originally agreed end month (endMonth moves when a contract ends early). */
+  plannedEndMonth: number;
+  /** Company that cancelled early, if any (evidence for the arbitrator). */
+  cancelledBy?: Id | null;
+}
+
+export interface Vote {
+  id: Id;
+  companyId: Id;
+  market: MarketId;
+  kind: 'sale' | 'raise' | 'remove-ceo';
+  dealId: Id | null;
+  /** For remove-ceo: the founder being removed. */
+  targetId: Id | null;
+  reason: string;
+  /** Voting weight per holder: share fraction for sales, one per seat for the board. */
+  weights: Record<Id, number>;
+  /** Holders whose consent is required (vetoes on sale). */
+  vetoHolders: Id[];
+  ballots: Record<Id, 'yes' | 'no'>;
+  status: 'open' | 'passed' | 'failed';
+  createdMonth: number;
+  deadlineMonth: number;
+}
+
+export interface Dispute {
+  id: Id;
+  market: MarketId;
+  kind: 'supply-breach' | 'wrongful-removal';
+  claimantId: Id;
+  /** Contract id or company id the dispute is about. */
+  refId: Id;
+  filedMonth: number;
+  status: 'open' | 'ruled';
+  ruling: string | null;
+  award: number;
 }
 
 // ---------------------------------------------------------------- Investors & funds
@@ -427,6 +471,12 @@ export interface AcquisitionTerms {
   kind: 'acquisition';
   price: number;
   buyer: string;
+  /** Set when the buyer is a player company (§12); absent for AI corporates. */
+  buyerCompanyId?: Id;
+  /** Retention packages for the target's founders, paid by the buyer. */
+  retention?: number;
+  /** Fair-value and related-party flags (§12). */
+  flags?: string[];
 }
 
 /** A bank lends to a person (§8 "Personal loans and credit profiles"). */
@@ -480,6 +530,8 @@ export interface DealCard {
   }[];
   createdMonth: number;
   expiresMonth: number;
+  /** A board or shareholder vote this deal is waiting on (§9). */
+  pendingVoteId?: Id | null;
   /** For AI counterparties: the most they will concede (hidden from players in views). */
   aiLimit?: { minValuation?: number; maxValuation?: number; maxAmount?: number };
 }
@@ -674,6 +726,8 @@ export interface World {
   /** B2B marketplace (§6). */
   listings: Record<Id, Listing>;
   contracts: Record<Id, SupplyContract>;
+  votes: Record<Id, Vote>;
+  disputes: Record<Id, Dispute>;
   /** USD external accounts (dollar costs, dollar accounts). */
   usdExt: { fx: Id; suppliers: Id; genesis: Id };
 }

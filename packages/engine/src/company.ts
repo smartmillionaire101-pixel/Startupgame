@@ -11,7 +11,7 @@ import { RECURRING, emptyPosition, reliability } from './customers.js';
 import { ensure } from './errors.js';
 import {
   achieve,
-  externalHolderAccount,
+  holderAccount,
   adjustTrust,
   burn,
   col,
@@ -567,13 +567,7 @@ export function shutdownCompany(
   if (remaining > 0) {
     for (const line of waterfall(c.capTable, remaining)) {
       if (line.total <= 0) continue;
-      const pl = world.players[line.holderId];
-      const fund = world.funds[line.holderId];
-      const to = pl
-        ? pl.accounts.local
-        : fund
-          ? fund.account
-          : externalHolderAccount(m, line.holderId);
+      const to = holderAccount(world, m, line.holderId);
       pay(
         world,
         c.account,

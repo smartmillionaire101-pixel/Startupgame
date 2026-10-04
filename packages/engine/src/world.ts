@@ -320,6 +320,10 @@ export function createCompany(world: World, input: NewCompanyInput): Company {
     lastFlaggedRevenue: 0,
     fraudStreak: 0,
     bannedFromRaising: false,
+    board: [],
+    vetoes: [],
+    parentId: null,
+    removedFounders: {},
   };
   setCogs(world, company);
   world.companies[id] = company;
@@ -471,6 +475,8 @@ export function createWorld(opts: CreateWorldOptions): World {
     names: {},
     listings: {},
     contracts: {},
+    votes: {},
+    disputes: {},
     usdExt: { fx: 'ext:usd:fx', suppliers: 'ext:usd:suppliers', genesis: 'ext:usd:genesis' },
   };
   openAccount(world, {

@@ -4,7 +4,7 @@ import { amountInput, money, parseAmount, pct, titleCase } from '../format';
 import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Segmented, Sheet } from '../ui';
 
-type Tab = 'product' | 'customers' | 'team' | 'suppliers' | 'rules';
+type Tab = 'product' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
 export function CompanyScreen() {
   const { view } = useView();
@@ -19,7 +19,7 @@ export function CompanyScreen() {
       </div>
       <p className="muted small">{c.idea}</p>
       <div className="tabs" role="tablist">
-        {(['product', 'customers', 'team', 'suppliers', 'rules'] as Tab[]).map((t) => (
+        {(['product', 'customers', 'team', 'suppliers', 'board', 'rules'] as Tab[]).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
             {titleCase(t)}
           </button>
@@ -29,6 +29,7 @@ export function CompanyScreen() {
       {tab === 'customers' && <Customers c={c} />}
       {tab === 'team' && <Team c={c} />}
       {tab === 'suppliers' && <Suppliers c={c} />}
+      {tab === 'board' && <Board c={c} />}
       {tab === 'rules' && <Rules c={c} />}
     </>
   );
@@ -771,6 +772,22 @@ function Suppliers({ c }: { c: CompanyT }) {
                       Cancel
                     </Button>
                   )}
+                  {k.role === 'seller' &&
+                    k.status === 'cancelled' &&
+                    k.cancelledBy === k.buyerId &&
+                    !view.disputes.some((d) => d.refId === k.id) && (
+                      <Button
+                        variant="ghost"
+                        onClick={() =>
+                          void send(
+                            { type: 'dispute.file', kind: 'supply-breach', refId: k.id },
+                            (r: { message: string }) => r.message,
+                          )
+                        }
+                      >
+                        Take to arbitrator
+                      </Button>
+                    )}
                   {k.role === 'buyer' &&
                     !k.reviewed &&
                     [1, 2, 3, 4, 5].map((r) => (
@@ -881,5 +898,35 @@ function BuySheet({
         Send offer
       </Button>
     </Sheet>
+  );
+}
+
+/** Board (§9): who decides major things, and what needs a vote. */
+function Board({ c }: { c: CompanyT }) {
+  return (
+    <>
+      <Card title="Board">
+        <ul className="list">
+          {c.board.map((b) => (
+            <li key={b.id} className="spread">
+              <span>{b.name}</span>
+              <Pill>{b.founder ? 'Founder' : 'Investor'}</Pill>
+            </li>
+          ))}
+        </ul>
+        {c.vetoes.length > 0 && (
+          <p className="small warn">Veto on any sale: {c.vetoes.join(', ')}</p>
+        )}
+        {c.parentName && <p className="small muted">Owned by {c.parentName}.</p>}
+      </Card>
+      <Card title="What needs a vote">
+        <ul className="list small">
+          <li>Selling the company: shareholders vote by share count; veto holders must agree.</li>
+          <li>New priced rounds, once investors sit on the board.</li>
+          <li>Removing a founder CEO: the board can, for poor performance or conduct.</li>
+        </ul>
+        <p className="small muted">Votes close at the next month-end. Abstentions don’t count.</p>
+      </Card>
+    </>
   );
 }

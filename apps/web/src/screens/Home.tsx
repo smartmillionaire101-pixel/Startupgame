@@ -69,6 +69,7 @@ export function Home() {
         </Card>
       )}
       {isInvestor && c && <InvestorKpis />}
+      <Votes />
       <Inbox />
       <Card title={`${view.market.name} today`}>
         <p>{view.market.economicNote}</p>
@@ -143,6 +144,90 @@ function DevTools() {
       >
         Advance {view.market.name} one month
       </Button>
+    </Card>
+  );
+}
+
+/** Board and shareholder votes, and arbitration cases (§9). */
+function Votes() {
+  const { view, send } = useView();
+  const open = view.votes.filter(
+    (v) => v.status === 'open' || (v.targetIsMe && v.status === 'passed'),
+  );
+  if (open.length === 0 && view.disputes.length === 0) return null;
+  return (
+    <Card title="Votes and disputes">
+      <ul className="list">
+        {open.map((v) => (
+          <li key={v.id}>
+            <div className="spread">
+              <span className="item-title">{v.companyName}</span>
+              <Pill tone={v.status === 'open' ? 'info' : 'bad'}>
+                {v.status === 'open' ? `Closes month ${v.deadlineMonth}` : 'Passed'}
+              </Pill>
+            </div>
+            <div className="small">{v.reason}</div>
+            <div className="small muted">
+              Yes {v.yesPct}
+              {v.weighting === 'shares' ? '%' : ''} · No {v.noPct}
+              {v.weighting === 'shares' ? '%' : ''} ({v.weighting})
+              {v.myBallot ? ` · you voted ${v.myBallot}` : ''}
+            </div>
+            {v.canVote && !v.myBallot && (
+              <div className="row">
+                <Button
+                  variant="subtle"
+                  onClick={() =>
+                    void send({ type: 'vote.cast', voteId: v.id, ballot: 'yes' }, 'Vote cast.')
+                  }
+                >
+                  Vote yes
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    void send({ type: 'vote.cast', voteId: v.id, ballot: 'no' }, 'Vote cast.')
+                  }
+                >
+                  Vote no
+                </Button>
+              </div>
+            )}
+            {v.targetIsMe &&
+              v.status === 'passed' &&
+              v.kind === 'remove-ceo' &&
+              !view.disputes.some((d) => d.refId === v.companyId) && (
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    void send(
+                      { type: 'dispute.file', kind: 'wrongful-removal', refId: v.companyId },
+                      (r: { message: string }) => r.message,
+                    )
+                  }
+                >
+                  Take it to the arbitrator
+                </Button>
+              )}
+          </li>
+        ))}
+        {view.disputes.map((d) => (
+          <li key={d.id}>
+            <div className="spread">
+              <span className="item-title">
+                {d.kind === 'supply-breach' ? 'Broken supply contract' : 'Wrongful removal'}
+              </span>
+              <Pill tone={d.status === 'open' ? 'info' : d.award > 0 ? 'good' : undefined}>
+                {d.status === 'open' ? 'Awaiting ruling' : 'Ruled'}
+              </Pill>
+            </div>
+            {d.ruling && <div className="small">{d.ruling}</div>}
+          </li>
+        ))}
+      </ul>
+      <p className="small muted">
+        The arbitrator reads only deal cards and game data, never chats.
+      </p>
     </Card>
   );
 }

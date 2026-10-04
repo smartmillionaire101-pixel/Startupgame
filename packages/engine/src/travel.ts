@@ -12,7 +12,7 @@
  */
 import type { MarketId } from './data/markets.js';
 import { ensure } from './errors.js';
-import { externalHolderAccount, getMarket, notify, spendHours, usdToLocal } from './helpers.js';
+import { holderAccount, getMarket, notify, spendHours, usdToLocal } from './helpers.js';
 import { account, convert, openAccount, pay, transfer } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney } from './money.js';
@@ -232,12 +232,7 @@ export function payDividends(world: World, c: Company, month: number) {
   for (const line of lines) {
     if (line.total <= 0) continue;
     const pl = world.players[line.holderId];
-    const fund = world.funds[line.holderId];
-    const to = pl
-      ? pl.accounts.local
-      : fund
-        ? fund.account
-        : externalHolderAccount(m, line.holderId);
+    const to = holderAccount(world, m, line.holderId);
     const paid = pay(world, c.account, to, line.total, `Dividend: ${c.name}`, month);
     if (pl && !pl.ai)
       notify(world, pl.id, {

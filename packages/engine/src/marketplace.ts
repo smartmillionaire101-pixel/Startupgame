@@ -200,6 +200,7 @@ export function startContract(
     price,
     startMonth: m.month,
     endMonth: m.month + months,
+    plannedEndMonth: m.month + months,
     flags: contractFlags(world, buyer, seller, price),
     status: 'active',
     reviewed: false,
@@ -227,6 +228,7 @@ export function endContract(
   if (k.status !== 'active') return;
   k.status = reason;
   k.endMonth = month;
+  k.cancelledBy = reason === 'cancelled' ? byCompanyId : null;
   if (reason === 'cancelled' && byCompanyId) {
     const other = byCompanyId === k.buyerId ? k.sellerId : k.buyerId;
     const by = world.companies[byCompanyId];

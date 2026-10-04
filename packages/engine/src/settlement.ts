@@ -18,6 +18,8 @@ import { settleSegment } from './customers.js';
 import { expireDeals } from './deals.js';
 import { settleFundFees } from './funds.js';
 import { payDividends } from './travel.js';
+import { settleVotes } from './governance.js';
+import { settleDisputes } from './arbitration.js';
 import {
   aiProcurement,
   detectFakeRevenue,
@@ -114,6 +116,8 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
     p.lastMonth = { income: 0, spend: p.lastMonth.spend, tax: 0 };
   }
 
+  settleVotes(world, marketId, month);
+  settleDisputes(world, marketId, month);
   refreshTalent(world, marketId, rng);
   expireDeals(world, marketId);
   reporterOutreach(world, marketId, rng, month);

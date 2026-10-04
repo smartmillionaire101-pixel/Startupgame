@@ -27,6 +27,9 @@ import { raiseFund } from './funds.js';
 import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
 import { hasVisited, relocate, travel } from './travel.js';
 import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
+import { proposeAcquisition } from './acquisitions.js';
+import { boardOf, castVote, openVote } from './governance.js';
+import { fileDispute } from './arbitration.js';
 import {
   achieve,
   col,
@@ -492,6 +495,55 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         collateralCompanyId: cmd.collateralCompanyId,
       });
       return { dealId: deal.id, summary: deal.summary };
+    }
+    case 'acquire.propose': {
+      touch(cmd.buyerCompanyId);
+      const deal = proposeAcquisition(world, {
+        buyerId: cmd.buyerCompanyId,
+        targetId: cmd.targetCompanyId,
+        price: cmd.price,
+        retention: cmd.retention,
+        by: me.id,
+      });
+      return { dealId: deal.id, status: deal.status, summary: deal.summary };
+    }
+    case 'vote.cast': {
+      const v = castVote(world, cmd.voteId, me.id, cmd.ballot);
+      return { status: v.status };
+    }
+    case 'governance.removeCeo': {
+      const c = getCompany(world, cmd.companyId);
+      ensure(c.status === 'active', 'company.closed', 'The company is no longer operating.');
+      ensure(
+        boardOf(c).includes(me.id) || c.board.some((h) => world.funds[h]?.managerId === me.id),
+        'governance.board',
+        'Only board members can call this vote.',
+      );
+      ensure(
+        c.founderIds.includes(cmd.founderId) && cmd.founderId !== me.id,
+        'governance.target',
+        'Pick a founder other than yourself.',
+      );
+      ensure(
+        !Object.values(world.votes).some(
+          (v) => v.companyId === c.id && v.status === 'open' && v.kind === 'remove-ceo',
+        ),
+        'governance.open',
+        'A vote is already open.',
+      );
+      const target = getPlayer(world, cmd.founderId);
+      const v = openVote(world, {
+        companyId: c.id,
+        kind: 'remove-ceo',
+        targetId: target.id,
+        proposerId: me.id,
+        reason: `Remove ${target.name} as CEO`,
+      });
+      return { voteId: v.id, status: v.status };
+    }
+    case 'dispute.file': {
+      const d = fileDispute(world, me, cmd.kind, cmd.refId);
+      return { disputeId: d.id, message: 'Filed. The arbitrator rules within a month.' };
     }
     case 'listing.create': {
       const c = touch(cmd.companyId);

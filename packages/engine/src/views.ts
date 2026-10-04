@@ -16,6 +16,7 @@ import { trackRecord } from './funds.js';
 import { creditProfile } from './credit.js';
 import { tripCostUsd } from './travel.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
+import { boardOf } from './governance.js';
 import {
   burn,
   getMarket,
@@ -198,6 +199,15 @@ export function companyDetail(world: World, c: Company) {
         category: world.listings[k.listingId]?.category ?? '',
       })),
     supply: c.supply,
+    /** Board (§9): founders plus investors who negotiated a seat; vetoes on sale. */
+    board: boardOf(c).map((h) => ({
+      id: h,
+      name: world.players[h]?.name ?? world.funds[h]?.name ?? h,
+      founder: c.founderIds.includes(h),
+    })),
+    vetoes: c.vetoes.map((h) => world.players[h]?.name ?? world.funds[h]?.name ?? h),
+    parentName: c.parentId ? (world.companies[c.parentId]?.name ?? null) : null,
+    removedFounders: Object.keys(c.removedFounders),
     bannedFromRaising: c.bannedFromRaising,
     warnings: c.warnings,
     pivots: c.pivots,
@@ -314,6 +324,8 @@ export function portfolio(world: World, p: Player) {
         mark,
         ownershipPct: Math.round(ownership(c.capTable, x.investorId) * 1000) / 10,
         writtenOff: x.writtenOff,
+        onBoard: c.board.includes(x.investorId),
+        founders: c.founderIds.map((id) => ({ id, name: world.players[id]?.name ?? '—' })),
       };
     });
 }
@@ -515,6 +527,54 @@ export function playerView(world: World, playerId: Id) {
     leaderboards: leaderboards(world, m.id),
     portfolio: portfolio(world, p),
     record: trackRecord(world, [p.id]),
+    votes: Object.values(world.votes)
+      .filter((v) => {
+        const mine = (h: string) => h === p.id || world.funds[h]?.managerId === p.id;
+        return Object.keys(v.weights).some(mine) || p.companyIds.includes(v.companyId);
+      })
+      .sort((a, b) => b.createdMonth - a.createdMonth)
+      .slice(0, 20)
+      .map((v) => {
+        const myHolders = Object.keys(v.weights).filter(
+          (h) => h === p.id || world.funds[h]?.managerId === p.id,
+        );
+        const tally = (b: 'yes' | 'no') =>
+          Math.round(
+            Object.entries(v.ballots)
+              .filter(([, x]) => x === b)
+              .reduce((a, [h]) => a + (v.weights[h] ?? 0), 0) * 1000,
+          ) / 10;
+        return {
+          id: v.id,
+          companyId: v.companyId,
+          targetIsMe: v.targetId === p.id,
+          kind: v.kind,
+          reason: v.reason,
+          status: v.status,
+          companyName: world.companies[v.companyId]?.name ?? '',
+          deadlineMonth: v.deadlineMonth,
+          canVote: v.status === 'open' && myHolders.length > 0,
+          myBallot: myHolders.map((h) => v.ballots[h]).find(Boolean) ?? null,
+          yesPct:
+            v.kind === 'sale'
+              ? tally('yes')
+              : Object.values(v.ballots).filter((b) => b === 'yes').length,
+          noPct:
+            v.kind === 'sale'
+              ? tally('no')
+              : Object.values(v.ballots).filter((b) => b === 'no').length,
+          weighting: v.kind === 'sale' ? 'shares' : 'seats',
+        };
+      }),
+    disputes: Object.values(world.disputes)
+      .filter(
+        (d) =>
+          d.claimantId === p.id ||
+          (world.contracts[d.refId] && p.companyIds.includes(world.contracts[d.refId]!.buyerId)) ||
+          p.companyIds.includes(d.refId),
+      )
+      .sort((a, b) => b.filedMonth - a.filedMonth)
+      .slice(0, 20),
   };
 }
 

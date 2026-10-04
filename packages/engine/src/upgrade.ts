@@ -5,7 +5,7 @@
  */
 import type { World } from './types.js';
 
-export const CURRENT_SCHEMA = 5;
+export const CURRENT_SCHEMA = 6;
 
 type Step = (world: World) => void;
 
@@ -42,6 +42,18 @@ const STEPS: Record<number, Step> = {
       c.lastFlaggedRevenue ??= 0;
       c.fraudStreak ??= 0;
       c.bannedFromRaising ??= false;
+    }
+  },
+  // v5 → v6: governance, player acquisitions, arbitration.
+  5: (world) => {
+    world.votes ??= {};
+    world.disputes ??= {};
+    for (const k of Object.values(world.contracts)) k.plannedEndMonth ??= k.endMonth;
+    for (const c of Object.values(world.companies)) {
+      c.board ??= [];
+      c.vetoes ??= [];
+      c.parentId ??= null;
+      c.removedFounders ??= {};
     }
   },
 };

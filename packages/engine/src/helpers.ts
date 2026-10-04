@@ -24,6 +24,17 @@ export const INBOX_LIMIT = 60;
  * shares, the central bank (shares lost on relocation), or the outside
  * world (AI staff and others).
  */
+/** The account a cap-table holder is paid into: players, funds, parent companies, or the outside world. */
+export function holderAccount(world: World, m: MarketState, holderId: string): Id {
+  const p = world.players[holderId];
+  if (p) return p.accounts.local;
+  const f = world.funds[holderId];
+  if (f) return f.account;
+  const c = world.companies[holderId];
+  if (c) return c.account;
+  return externalHolderAccount(m, holderId);
+}
+
 export function externalHolderAccount(m: MarketState, holderId: string): Id {
   if (holderId.startsWith('bank:')) return m.ext.bank;
   if (holderId.startsWith('cb:')) return m.ext.tax;

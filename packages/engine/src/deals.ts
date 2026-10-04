@@ -7,14 +7,7 @@
 import { addSafe, closePricedRound, fullyDiluted, waterfall } from './captable.js';
 import type { WaterfallLine } from './captable.js';
 import { ensure, fail } from './errors.js';
-import {
-  achieve,
-  adjustTrust,
-  externalHolderAccount,
-  getCompany,
-  getMarket,
-  notify,
-} from './helpers.js';
+import { achieve, adjustTrust, holderAccount, getCompany, getMarket, notify } from './helpers.js';
 import { newId } from './ids.js';
 import { account, pay, payExact, costIn, transfer } from './ledger.js';
 import { clamp } from './math.js';
@@ -38,6 +31,8 @@ import type {
 import type { MarketId } from './data/markets.js';
 import { executePersonalLoan } from './credit.js';
 import { contractFlags, startContract } from './marketplace.js';
+import { openVote, requiresVote } from './governance.js';
+import { executePlayerAcquisition } from './acquisitions.js';
 
 export const DEAL_LIFETIME_MONTHS = 2;
 
@@ -411,6 +406,10 @@ export function aiRespond(world: World, d: DealCard) {
     within = t.price >= (lim.minValuation ?? 0);
     if (!within && t.price >= (lim.minValuation ?? 0) * 0.75)
       meet = { price: lim.minValuation ?? t.price };
+  } else if (t.kind === 'acquisition' && lim.minValuation !== undefined) {
+    // AI founders selling to a player company: want at least their price.
+    within = t.price >= lim.minValuation;
+    if (!within && t.price >= lim.minValuation * 0.75) meet = { price: lim.minValuation };
   } else if (t.kind === 'acquisition') {
     within = t.price <= (lim.maxValuation ?? t.price);
     if (!within && t.price <= (lim.maxValuation ?? 0) * 1.3)
@@ -498,9 +497,38 @@ function recordPosition(
 }
 
 /** Execute an accepted deal. Throws (rolling back the whole command) if money is short. */
-export function executeDeal(world: World, d: DealCard, by: Id) {
+export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?: boolean } = {}) {
   const m = getMarket(world, d.market);
   const t = d.terms;
+  // Major decisions go to a board or shareholder vote first (§9).
+  if (!opts.approved && !d.pendingVoteId) {
+    const kind = requiresVote(world, d);
+    if (kind) {
+      const reason =
+        kind === 'sale' ? `Approve the sale: ${d.summary}` : `Approve the round: ${d.summary}`;
+      d.history.push({
+        month: m.month,
+        by,
+        action: 'accept',
+        summary:
+          kind === 'sale'
+            ? 'Accepted, subject to a shareholder vote.'
+            : 'Accepted, subject to a board vote.',
+      });
+      const proposer =
+        humanFor(world, d.companyId ? { kind: 'company', id: d.companyId } : d.counterparty) ?? by;
+      const v = openVote(world, {
+        companyId: d.companyId!,
+        kind,
+        dealId: d.id,
+        proposerId: proposer,
+        reason,
+      });
+      if (v.status === 'open') d.pendingVoteId = v.id;
+      return;
+    }
+  }
+  if (d.status !== 'open') return;
   if (t.kind === 'personal-loan') {
     executePersonalLoan(world, d, t);
     d.status = 'accepted';
@@ -542,6 +570,9 @@ export function executeDeal(world: World, d: DealCard, by: Id) {
       c.lastRound = t.stage;
       c.lastRaiseMonth = m.month;
       c.raising = false;
+      // Board composition changes with each round (§9).
+      if (t.boardSeat && !c.board.includes(holderId)) c.board.push(holderId);
+      if (t.vetoOnSale && !c.vetoes.includes(holderId)) c.vetoes.push(holderId);
       const followOn = recordPosition(world, holderId, c.id, t.amount, m.month);
       for (const fid of c.founderIds) {
         const f = world.players[fid];
@@ -627,7 +658,8 @@ export function executeDeal(world: World, d: DealCard, by: Id) {
       break;
     }
     case 'acquisition': {
-      settleExit(world, c, t.price, t.buyer, 'acquired');
+      if (t.buyerCompanyId) executePlayerAcquisition(world, d, t);
+      else settleExit(world, c, t.price, t.buyer, 'acquired');
       break;
     }
   }
@@ -688,9 +720,9 @@ export function settleExit(
       fund.mood = clamp(fund.mood + 0.1, 0.5, 1.5);
       distributeFund(world, fund, line.total, m.month);
     } else {
-      // Banks holding seized shares, staff and other AI holders: paid to the outside world.
-      const to = externalHolderAccount(m, line.holderId);
-      transfer(world, m.ext.lps, to, line.total, `Exit payout: ${c.name}`, m.month);
+      // Parent companies, banks holding seized shares, staff and other AI holders.
+      const to = holderAccount(world, m, line.holderId);
+      pay(world, m.ext.lps, to, line.total, `Exit payout: ${c.name}`, m.month);
     }
   }
   c.status = status;

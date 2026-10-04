@@ -4,7 +4,7 @@ import { useView, type Company } from '../store';
 import { Button, Card, Empty, Field, Pill, Sheet, Sparkline, Stat } from '../ui';
 import { DealList } from './common';
 
-type Tab = 'raise' | 'deals' | 'cap table' | 'finance';
+type Tab = 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire';
 
 export function MoneyScreen() {
   const { view } = useView();
@@ -16,7 +16,7 @@ export function MoneyScreen() {
     <>
       <h1>Money</h1>
       <div className="tabs" role="tablist">
-        {(['raise', 'deals', 'cap table', 'finance'] as Tab[]).map((t) => (
+        {(['raise', 'deals', 'cap table', 'finance', 'acquire'] as Tab[]).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
             {titleCase(t)}
             {t === 'deals' && myTurn ? ` (${myTurn})` : ''}
@@ -27,6 +27,7 @@ export function MoneyScreen() {
       {tab === 'deals' && <DealList />}
       {tab === 'cap table' && <CapTable c={c} />}
       {tab === 'finance' && <Finance c={c} />}
+      {tab === 'acquire' && <Acquire c={c} />}
     </>
   );
 }
@@ -486,5 +487,113 @@ function Finance({ c }: { c: Company }) {
         )}
       </Card>
     </>
+  );
+}
+
+/** Buy another company (§12): cash through a deal card, with board and shareholder approval. */
+function Acquire({ c }: { c: Company }) {
+  const { view } = useView();
+  const [target, setTarget] = useState<(typeof view.directory)[number] | null>(null);
+  const targets = view.directory.filter((x) => x.status === 'active' && x.id !== c.id);
+  return (
+    <>
+      <Card title={`${c.name} is worth about ${money(c.valuation.value, view.market.currency)}`}>
+        <p className="small muted">
+          Buying gets you customers, staff and cash, not guaranteed revenue: some staff quit, some
+          customers churn, morale dips. Prices far from market value are flagged; related-party
+          deals far from value are refused. Companies in other markets need a trip first and stay
+          there as subsidiaries.
+        </p>
+      </Card>
+      {targets.length === 0 && <Empty>No companies to look at yet.</Empty>}
+      {targets.map((x) => (
+        <Card
+          key={x.id}
+          title={x.name}
+          action={
+            <Button variant="subtle" onClick={() => setTarget(x)}>
+              Make an offer
+            </Button>
+          }
+        >
+          <div className="row small">
+            <Pill>{x.industryLabel}</Pill>
+            <Pill>{x.stars.toFixed(1)}★</Pill>
+            <Pill>{x.teamSize} people</Pill>
+            {x.market !== view.me.market && <Pill tone="info">{x.marketName}</Pill>}
+            {x.forSale && <Pill tone="warn">For sale</Pill>}
+          </div>
+          {x.diligence && (
+            <p className="small muted">
+              Model value {money(x.diligence.modelValuation, x.currency)} · revenue{' '}
+              {money(x.diligence.revenue, x.currency)}/mo
+            </p>
+          )}
+        </Card>
+      ))}
+      {target && <AcquireSheet buyer={c} target={target} onClose={() => setTarget(null)} />}
+    </>
+  );
+}
+
+function AcquireSheet({
+  buyer,
+  target,
+  onClose,
+}: {
+  buyer: Company;
+  target: ReturnType<typeof useView>['view']['directory'][number];
+  onClose: () => void;
+}) {
+  const { send } = useView();
+  const [price, setPrice] = useState(
+    target.diligence ? amountInput(target.diligence.modelValuation) : '',
+  );
+  const [retention, setRetention] = useState('');
+  return (
+    <Sheet title={`Offer for ${target.name}`} onClose={onClose}>
+      <p className="small muted">
+        Paid in {target.currency} from {buyer.name}’s account. Their shareholders vote; investors
+        with a veto must agree.
+      </p>
+      <Field label={`Price (${target.currency})`}>
+        {(id) => <input id={id} value={price} onChange={(e) => setPrice(e.target.value)} />}
+      </Field>
+      <Field
+        label={`Retention for their founders (${target.currency})`}
+        hint="Optional. Taxed as income."
+      >
+        {(id) => (
+          <input
+            id={id}
+            value={retention}
+            placeholder="0"
+            onChange={(e) => setRetention(e.target.value)}
+          />
+        )}
+      </Field>
+      <Button
+        disabled={!parseAmount(price)}
+        onClick={() =>
+          void send(
+            {
+              type: 'acquire.propose',
+              buyerCompanyId: buyer.id,
+              targetCompanyId: target.id,
+              price: parseAmount(price) ?? 0,
+              retention: parseAmount(retention) ?? 0,
+            },
+            (r: { status: string; summary: string }) =>
+              r.status === 'accepted'
+                ? `Done: ${r.summary}`
+                : r.status === 'declined'
+                  ? 'They turned it down.'
+                  : 'Offer sent. See Deals.',
+          ).then((r) => r && onClose())
+        }
+      >
+        Send offer
+      </Button>
+    </Sheet>
   );
 }

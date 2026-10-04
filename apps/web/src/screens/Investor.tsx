@@ -311,7 +311,30 @@ export function Portfolio() {
                       money(p.mark, p.currency)
                     )}
                   </td>
-                  <td className="num">{money(p.returned, p.currency)}</td>
+                  <td className="num">
+                    {money(p.returned, p.currency)}
+                    {p.onBoard &&
+                      p.status === 'active' &&
+                      p.founders.map((f) => (
+                        <div key={f.id}>
+                          <Button
+                            variant="ghost"
+                            onClick={() =>
+                              void send(
+                                {
+                                  type: 'governance.removeCeo',
+                                  companyId: p.companyId,
+                                  founderId: f.id,
+                                },
+                                'Vote called. The board decides by month-end.',
+                              )
+                            }
+                          >
+                            Remove {f.name}
+                          </Button>
+                        </div>
+                      ))}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -181,6 +181,21 @@ export const commandSchema = z.discriminatedUnion('type', [
     collateralCompanyId: id.optional(),
   }),
   z.object({ type: z.literal('player.travel'), market }),
+  // ---- acquisitions, governance, arbitration (§9, §12)
+  z.object({
+    type: z.literal('acquire.propose'),
+    buyerCompanyId: id,
+    targetCompanyId: id,
+    price: money,
+    retention: money,
+  }),
+  z.object({ type: z.literal('vote.cast'), voteId: id, ballot: z.enum(['yes', 'no']) }),
+  z.object({ type: z.literal('governance.removeCeo'), companyId: id, founderId: id }),
+  z.object({
+    type: z.literal('dispute.file'),
+    kind: z.enum(['supply-breach', 'wrongful-removal']),
+    refId: id,
+  }),
   // ---- B2B marketplace (§6)
   z.object({
     type: z.literal('listing.create'),
