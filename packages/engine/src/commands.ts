@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { INDUSTRIES } from './data/industries.js';
 import { MARKET_IDS, type MarketId } from './data/markets.js';
 import { ROLES } from './data/characters.js';
+import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { REVENUE_MODELS, STAGES } from './types.js';
 
 const id = z.string().min(1).max(64);
@@ -284,6 +285,19 @@ export const commandSchema = z.discriminatedUnion('type', [
     amount: money,
   }),
   z.object({ type: z.literal('player.becomeInvestor'), investor: investorSetup }),
+  // ---- city events (Wave 2)
+  z.object({
+    type: z.literal('event.host'),
+    kind: z.enum(EVENT_KINDS),
+    title: z.string().min(3).max(48),
+    venue: z.enum(EVENT_VENUES),
+    month: z.number().int().min(0).max(100_000).optional(),
+    budget: money,
+    ticket: money.optional(),
+    segmentKey: z.string().max(48).optional(),
+  }),
+  z.object({ type: z.literal('event.rsvp'), eventId: id, going: z.boolean() }),
+  z.object({ type: z.literal('event.cancel'), eventId: id }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
 ]);
 

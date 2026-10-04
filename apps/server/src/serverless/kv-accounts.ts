@@ -15,13 +15,18 @@
  *   chats-of/<user>    → string[]               (chat ids)
  *   rate/<user>        → number[]               (message times, last hour)
  *   report/<time>-<n>  → { chat_id, reporter, reason, created_at, status }
+ *   presence/<market>/<user> → PresenceRow    (listed by prefix; stale ones pruned)
+ *   presence-of/<user> → { market }             (where the user's presence doc lives)
+ *   presence-settings/<user> → { visible }
  */
 import { randomUUID } from 'node:crypto';
-import type { AccountStore, ChatRow, MessageRow, OtpRow } from '../store/types.js';
+import type { AccountStore, ChatRow, MessageRow, OtpRow, PresenceRow } from '../store/types.js';
 import { kvJson, type Kv } from './kv.js';
 
 const MAX_MESSAGES = 500;
 const RATE_WINDOW_MS = 3_600_000;
+/** Presence docs this much older than a reader's window are deleted. */
+const PRESENCE_PRUNE_GRACE_MS = 10 * 60_000;
 
 interface UserDoc {
   id: string;
@@ -86,6 +91,8 @@ export class KvAccountStore implements AccountStore {
     }
     await this.kv.delete(`chats-of/${id}`);
     await this.kv.delete(`rate/${id}`);
+    await this.dropPresence(id);
+    await this.kv.delete(`presence-settings/${id}`);
   }
 
   async createSession(tokenHash: string, userId: string, now: number, ttlMs: number) {
@@ -212,5 +219,50 @@ export class KvAccountStore implements AccountStore {
     const keys = await this.kv.list('report/');
     const rows = await Promise.all(keys.map((k) => this.val<{ status: string }>(k)));
     return rows.filter((r) => r?.status === 'open');
+  }
+
+  // ---------------------------------------------------------------- presence
+
+  async putPresence(
+    userId: string,
+    market: string,
+    p: { x: number; y: number; place: string | null; at: number },
+  ) {
+    const row: PresenceRow = { userId, market, x: p.x, y: p.y, place: p.place, at: p.at };
+    const where = await this.val<{ market: string }>(`presence-of/${userId}`);
+    if (where?.market !== market) {
+      if (where) await this.kv.delete(`presence/${where.market}/${userId}`);
+      await kvJson.set(this.kv, `presence-of/${userId}`, { market });
+    }
+    await kvJson.set(this.kv, `presence/${market}/${userId}`, row);
+    // Hidden a moment ago, while this write was in flight: take it back down.
+    if (!(await this.getPresenceVisible(userId))) await this.dropPresence(userId);
+  }
+
+  async listPresence(market: string, sinceMs: number) {
+    const keys = await this.kv.list(`presence/${market}/`);
+    const rows = await Promise.all(keys.map((k) => this.val<PresenceRow>(k)));
+    const out: PresenceRow[] = [];
+    for (const [i, r] of rows.entries()) {
+      if (!r) continue;
+      if (r.at >= sinceMs) out.push(r);
+      else if (r.at < sinceMs - PRESENCE_PRUNE_GRACE_MS) await this.kv.delete(keys[i]!);
+    }
+    return out.sort((a, b) => b.at - a.at).slice(0, 500);
+  }
+
+  async getPresenceVisible(userId: string) {
+    return (await this.val<{ visible: boolean }>(`presence-settings/${userId}`))?.visible ?? true;
+  }
+
+  async setPresenceVisible(userId: string, visible: boolean) {
+    await kvJson.set(this.kv, `presence-settings/${userId}`, { visible });
+    if (!visible) await this.dropPresence(userId);
+  }
+
+  private async dropPresence(userId: string) {
+    const where = await this.val<{ market: string }>(`presence-of/${userId}`);
+    if (where) await this.kv.delete(`presence/${where.market}/${userId}`);
+    await this.kv.delete(`presence-of/${userId}`);
   }
 }

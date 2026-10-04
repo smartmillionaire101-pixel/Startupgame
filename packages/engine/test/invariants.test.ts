@@ -69,6 +69,24 @@ describe('world invariants under random play', () => {
         guarantee: fc.boolean(),
       }),
       fc.record({ k: fc.constant('accept' as const) }),
+      // City events (Wave 2): hosting, RSVPs (and un-RSVPs) and cancelling.
+      fc.record({
+        k: fc.constant('host' as const),
+        investor: fc.boolean(),
+        kind: fc.constantFrom(
+          'founder-meetup',
+          'investor-breakfast',
+          'demo-day',
+          'customer-mixer',
+          'talent-night',
+        ),
+        venue: fc.constantFrom('hall', 'hub', 'office'),
+        budget: fc.integer({ min: 0, max: 200_000_000 }),
+        ticket: fc.integer({ min: 0, max: 20_000_000 }),
+        ahead: fc.integer({ min: 0, max: 2 }),
+      }),
+      fc.record({ k: fc.constant('rsvp' as const), investor: fc.boolean(), going: fc.boolean() }),
+      fc.record({ k: fc.constant('cancel' as const), investor: fc.boolean() }),
     );
 
     fc.assert(
@@ -190,6 +208,37 @@ describe('world invariants under random play', () => {
               cmd = open
                 ? { type: 'deal.act', dealId: open.id, action: 'accept' }
                 : { type: 'inbox.read' };
+              break;
+            }
+            case 'host': {
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              const seg = companyOf(w, 'u_founder').targetSegments[0];
+              cmd = {
+                type: 'event.host',
+                kind: a.kind,
+                title: 'Lagos Networking Night',
+                venue: a.venue,
+                month: w.markets.lagos!.month + a.ahead,
+                budget: a.budget,
+                ticket: a.ticket,
+                ...(a.kind === 'customer-mixer' ? { segmentKey: seg } : {}),
+              };
+              break;
+            }
+            case 'rsvp': {
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              const e = Object.values(w.events ?? {}).find(
+                (x) => x.status === 'upcoming' && x.hostId !== actor,
+              );
+              cmd = { type: 'event.rsvp', eventId: e?.id ?? 'none', going: a.going };
+              break;
+            }
+            case 'cancel': {
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              const e = Object.values(w.events ?? {}).find(
+                (x) => x.status === 'upcoming' && x.hostId === actor,
+              );
+              cmd = { type: 'event.cancel', eventId: e?.id ?? 'none' };
               break;
             }
           }
