@@ -9,21 +9,38 @@ const base = process.argv[2];
 if (!base) throw new Error('Usage: probe-deploy.mjs <site url>');
 const H = { 'x-runway': '1' };
 
+/**
+ * Netlify's edge can answer "site not found" for a few seconds after a new
+ * deploy goes live, before every edge node knows about it. Such a 404 never
+ * reached the app (no x-runway-mode header), so wait and ask again, for up to
+ * a minute; anything the app itself answered is reported as is.
+ */
+const EDGE_RETRIES = 12;
+
 async function step(name, method, path, body, cookie) {
   const t = Date.now();
-  const res = await fetch(base + path, {
-    method,
-    headers: {
-      ...H,
-      ...(body ? { 'content-type': 'application/json' } : {}),
-      ...(cookie ? { cookie } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  const text = await res.text();
-  const mode = res.headers.get('x-runway-mode') ?? '-';
-  const line = `${name} ${res.status} ${Date.now() - t}ms mode=${mode}`;
-  return { res, text, line };
+  let edgeMisses = 0;
+  for (;;) {
+    const res = await fetch(base + path, {
+      method,
+      headers: {
+        ...H,
+        ...(body ? { 'content-type': 'application/json' } : {}),
+        ...(cookie ? { cookie } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const text = await res.text();
+    const mode = res.headers.get('x-runway-mode');
+    if (res.status === 404 && !mode && edgeMisses < EDGE_RETRIES) {
+      edgeMisses++;
+      await new Promise((r) => setTimeout(r, 5000));
+      continue;
+    }
+    const waited = edgeMisses ? ` (after ${edgeMisses} edge 404s)` : '';
+    const line = `${name} ${res.status} ${Date.now() - t}ms mode=${mode ?? '-'}${waited}`;
+    return { res, text, line };
+  }
 }
 
 async function flow(n) {
