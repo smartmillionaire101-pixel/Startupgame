@@ -28,6 +28,7 @@ import { ensure } from './errors.js';
 import { adjustTrust, col, getMarket, notify, spendHours } from './helpers.js';
 import { newId } from './ids.js';
 import { transfer } from './ledger.js';
+import { eventVenueBusiness } from './economy.js';
 import { clamp, clamp01 } from './math.js';
 import { scale } from './money.js';
 import { checkName } from './names.js';
@@ -144,6 +145,8 @@ export function hostEvent(
     budget: number;
     ticket?: number;
     segmentKey?: string;
+    /** A local hotel or event venue (Wave 3): its fee goes to that business. */
+    businessId?: Id;
   },
 ) {
   const m = getMarket(world, me.market);
@@ -198,16 +201,41 @@ export function hostEvent(
   } else {
     ensure(!args.segmentKey, 'event.segment', 'Only customer mixers invite a segment.');
   }
+  const business = args.businessId ? eventVenueBusiness(world, me, args.businessId) : null;
+  ensure(
+    !business || args.venue === 'hall',
+    'event.venue',
+    'A hotel or event venue stands in for the Event Hall: pick the hall.',
+  );
   spendHours(me, k.hoursHost, `Hosting a ${k.label.toLowerCase()}`);
   const cost = eventCost(m, args.kind, args.venue);
-  transfer(
-    world,
-    me.accounts.local,
-    m.ext.suppliers,
-    cost + args.budget,
-    `Event: ${args.title.trim()}`,
-    m.month,
-  );
+  if (business) {
+    // The venue fee goes to the local business; the budget still goes to suppliers.
+    transfer(
+      world,
+      me.accounts.local,
+      business.account,
+      cost,
+      `Event venue: ${business.name}`,
+      m.month,
+    );
+    transfer(
+      world,
+      me.accounts.local,
+      m.ext.suppliers,
+      args.budget,
+      `Event: ${args.title.trim()}`,
+      m.month,
+    );
+  } else
+    transfer(
+      world,
+      me.accounts.local,
+      m.ext.suppliers,
+      cost + args.budget,
+      `Event: ${args.title.trim()}`,
+      m.month,
+    );
   const e: CityEvent = {
     id: newId(world, 'ev'),
     market: m.id,
@@ -220,6 +248,7 @@ export function hostEvent(
     budget: args.budget,
     ticket,
     ...(segmentKey ? { segmentKey } : {}),
+    ...(business ? { businessId: business.id } : {}),
     attendees: [],
     status: 'upcoming',
     createdMonth: m.month,
@@ -327,7 +356,12 @@ function guestPool(world: World, e: CityEvent, m: MarketState): Guest[] {
   const funds = (): Guest[] =>
     Object.values(world.funds)
       .filter((f) => f.ai && f.market === m.id)
-      .map((f) => ({ kind: 'fund', refId: f.id, name: `${f.partner}, ${f.name}` }));
+      .map((f) => ({
+        kind: 'fund',
+        refId: f.id,
+        // AI angels (Wave 3) come as themselves; their fund carries their name already.
+        name: f.angelId ? `${f.partner}, angel investor` : `${f.partner}, ${f.name}`,
+      }));
   const founders = (): Guest[] =>
     Object.values(world.companies)
       .filter((c) => c.ai && c.market === m.id && c.status === 'active')

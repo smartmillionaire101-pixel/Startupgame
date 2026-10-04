@@ -295,9 +295,21 @@ export const commandSchema = z.discriminatedUnion('type', [
     budget: money,
     ticket: money.optional(),
     segmentKey: z.string().max(48).optional(),
+    /** Hold it at a local hotel or event venue (Wave 3): the venue fee goes to that business. */
+    businessId: id.optional(),
   }),
   z.object({ type: z.literal('event.rsvp'), eventId: id, going: z.boolean() }),
   z.object({ type: z.literal('event.cancel'), eventId: id }),
+  // ---- city economy (Wave 3)
+  z.object({ type: z.literal('business.pitch'), companyId: id, businessId: id }),
+  z.object({ type: z.literal('gig.take'), businessId: id, gigId: z.string().min(1).max(32) }),
+  z.object({
+    type: z.literal('venue.buy'),
+    businessId: id,
+    itemId: z.string().min(1).max(32),
+    /** Invite someone: a player, a fund, an AI founder or angel, or a contact id. */
+    withId: id.optional(),
+  }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
 ]);
 

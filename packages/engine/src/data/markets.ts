@@ -12,6 +12,7 @@
  */
 import type { Currency } from '../money.js';
 import { PHASE2_DATA } from './markets-phase2.js';
+import { WAVE3_DATA } from './markets-wave3.js';
 
 export const MARKET_IDS = [
   'lagos',
@@ -23,6 +24,7 @@ export const MARKET_IDS = [
   'johannesburg',
   'cairo',
   'dubai',
+  'san-francisco',
 ] as const;
 export type MarketId = (typeof MARKET_IDS)[number];
 
@@ -37,6 +39,8 @@ export const PHASE2_WAVE: readonly MarketId[] = [
   'cairo',
   'dubai',
 ];
+/** Wave 3: the first dollar market. Opens by `market.open` like Phase 2. */
+export const WAVE3: readonly MarketId[] = ['san-francisco'];
 
 export const STAFF_ROLES = [
   'engineer',
@@ -259,7 +263,11 @@ const PHASE1_DATA: Record<'lagos' | 'nairobi' | 'london', MarketData> = {
 };
 
 /** Approximate EV/revenue multiples of US-listed public peers, by sector. Refreshed daily at runtime. */
-export const MARKET_DATA: Record<MarketId, MarketData> = { ...PHASE1_DATA, ...PHASE2_DATA };
+export const MARKET_DATA: Record<MarketId, MarketData> = {
+  ...PHASE1_DATA,
+  ...PHASE2_DATA,
+  ...WAVE3_DATA,
+};
 
 export const PUBLIC_MULTIPLES = {
   fintech: 4.5,

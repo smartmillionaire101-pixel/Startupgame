@@ -1,0 +1,72 @@
+import type { CityPlan } from './types';
+
+/** London: the City's banks, Mayfair's investors, Shoreditch tech, the Thames. */
+export const london: CityPlan = {
+  districts: [
+    {
+      id: 'mayfair',
+      name: 'Mayfair',
+      kind: 'finance',
+      at: [0, 0],
+      size: [2, 2],
+      hosts: ['investors'],
+    },
+    { id: 'soho', name: 'Soho', kind: 'nightlife', at: [2, 0], size: [2, 2] },
+    {
+      id: 'shoreditch',
+      name: 'Shoreditch',
+      kind: 'tech',
+      at: [4, 0],
+      size: [3, 2],
+      hosts: ['hub'],
+    },
+    { id: 'camden', name: 'Camden', kind: 'market', at: [0, 2], size: [2, 2], hosts: ['market'] },
+    { id: 'city', name: 'The City', kind: 'finance', at: [2, 2], size: [3, 2], hosts: ['finance'] },
+    {
+      id: 'canary-wharf',
+      name: 'Canary Wharf',
+      kind: 'finance',
+      at: [5, 2],
+      size: [2, 2],
+      hosts: ['eventhall', 'airport'],
+    },
+    {
+      id: 'southbank',
+      name: 'South Bank',
+      kind: 'waterfront',
+      at: [0, 5],
+      size: [3, 2],
+      hosts: ['home'],
+    },
+    { id: 'borough', name: 'Borough', kind: 'market', at: [3, 5], size: [2, 2] },
+  ],
+  water: { side: 'south', name: 'River Thames', river: 4 },
+  streets: 'mixed',
+  bridges: [
+    { name: 'Westminster Bridge', from: [1, 4], to: [1, 5], style: 'arch', color: '#4d7c0f' },
+    { name: 'London Bridge', from: [3, 4], to: [3, 5], style: 'beam', color: '#94a3b8' },
+    { name: 'Tower Bridge', from: [5, 4], to: [5, 5], style: 'bascule', color: '#1e3a8a' },
+  ],
+  landmarks: [
+    { kind: 'clocktower', name: 'Big Ben', at: [0, 3] },
+    { kind: 'gherkin', name: 'The Gherkin', at: [4, 3] },
+    { kind: 'london-eye', name: 'The Eye', at: [0, 5] },
+  ],
+  transit: ['bus', 'tube', 'ferry'],
+  streetNames: [
+    'Threadneedle Street',
+    'Lombard Street',
+    'Old Street',
+    'Brick Lane',
+    'Kingsway',
+    'Shoreditch High Street',
+    'Cheapside',
+    'Fleet Street',
+    'Moorgate',
+    'Strand',
+    'Piccadilly',
+    'Borough High Street',
+    'Camden High Street',
+    'Wardour Street',
+  ],
+};

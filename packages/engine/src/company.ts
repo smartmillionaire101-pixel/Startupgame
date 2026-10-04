@@ -196,7 +196,9 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
   transfer(world, m.ext.customers, c.account, revenue + collected, 'Customer revenue', month);
   // Revenue from other player companies (already paid by settleContracts), reported separately (§6).
   const b2b = c.ledgerThisMonth;
-  const totalRevenue = revenue + collected + b2b.playerRevenue;
+  // Local businesses (Wave 3), already paid by settleEconomy this month.
+  const businessRevenue = b2b.businessRevenue ?? 0;
+  const totalRevenue = revenue + collected + b2b.playerRevenue + businessRevenue;
 
   // Costs. Cloud/processing is priced in dollars, so devaluation hurts local earners (§8).
   const customers = totalCustomers(c);
@@ -340,6 +342,7 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
     revenue: totalRevenue,
     playerRevenue: b2b.playerRevenue,
     suppliers: b2b.supplierCost,
+    businessRevenue,
     payroll: paid.payroll ?? 0,
     founderSalary: paid.founderSalary ?? 0,
     office: paid.office ?? 0,
@@ -527,6 +530,7 @@ export function settleCompany(world: World, c: Company, rng: Rng, month: number)
     c.story = buildStory(world, c, month, c.storyBase ?? before, departures);
     c.storyBase = storySnapshot(world, c);
   }
+  c.businessNews = null;
 }
 
 /** Compliance (§11): costs money and hours; skipping it is a gamble. */

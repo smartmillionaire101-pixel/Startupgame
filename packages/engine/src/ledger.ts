@@ -102,6 +102,11 @@ export function fxFeeBps(world: World, a: Currency, b: Currency): number {
   return Math.max(fee(a), fee(b));
 }
 
+/**
+ * The external FX desk for a currency. Dollars always go through the world's
+ * USD desk, including in a dollar market (San Francisco): its local account
+ * *is* a USD account, so there is one dollar pool and one dollar desk.
+ */
 const fxDesk = (world: World, currency: Currency): Id => {
   if (currency === 'USD') return world.usdExt.fx;
   const m = Object.values(world.markets).find((mk) => mk.data.currency === currency);
@@ -123,6 +128,11 @@ export function convert(
 ): number {
   const from = account(world, fromId);
   const to = account(world, toId);
+  // Same currency (e.g. a dollar account in a dollar market): no desk, no fee.
+  if (from.currency === to.currency) {
+    transfer(world, fromId, toId, amount, memo, month);
+    return amount;
+  }
   const rate = fxRate(world, from.currency, to.currency);
   const fee = fxFeeBps(world, from.currency, to.currency) / 10_000;
   const received = Math.floor(amount * rate * (1 - fee));

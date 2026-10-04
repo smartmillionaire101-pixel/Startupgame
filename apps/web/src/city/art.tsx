@@ -7,17 +7,18 @@ import { memo, type ReactNode } from 'react';
 import { hash } from './contract';
 import type { Flavour, LandmarkKind, TreeKind, VehicleSpec } from './flavour';
 import { project, TH, TW, type Decor, type Place, type Pt } from './layout';
+import { BridgeTop, BusinessBody, Hill, PlanLandmark, Station } from './art-places';
 
 // ---------------------------------------------------------------------------
 // Geometry and colour helpers
 
-const r1 = (n: number) => Math.round(n * 10) / 10;
+export const r1 = (n: number) => Math.round(n * 10) / 10;
 /** "x,y" of a grid point raised z px. */
 export const P = (x: number, y: number, z = 0) => {
   const p = project(x, y);
   return `${r1(p.x)},${r1(p.y - z)}`;
 };
-const poly = (...pts: string[]) => pts.join(' ');
+export const poly = (...pts: string[]) => pts.join(' ');
 
 function rgb(hex: string): [number, number, number] {
   const m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(hex);
@@ -43,11 +44,11 @@ export function mix(a: string, b: string, p: number): string {
 }
 
 /** Transform mapping (u tiles along the face, v px down) onto a visible face. */
-const leftM = (x: number, y: number, d: number, zt: number) => {
+export const leftM = (x: number, y: number, d: number, zt: number) => {
   const o = project(x, y + d);
   return `matrix(${TW},${TH},0,1,${r1(o.x)},${r1(o.y - zt)})`;
 };
-const rightM = (x: number, y: number, w: number, d: number, zt: number) => {
+export const rightM = (x: number, y: number, w: number, d: number, zt: number) => {
   const o = project(x + w, y + d);
   return `matrix(${TW},${-TH},0,1,${r1(o.x)},${r1(o.y - zt)})`;
 };
@@ -145,7 +146,7 @@ export function Box({
 }
 
 /** Rows of windows on both visible faces. */
-function Windows({
+export function Windows({
   x,
   y,
   w,
@@ -206,7 +207,7 @@ function Windows({
 }
 
 /** Two-sided gable roof, ridge along x. */
-function Gable({
+export function Gable({
   x,
   y,
   w,
@@ -243,7 +244,7 @@ function Gable({
 }
 
 /** Upright cylinder centred on a grid point. */
-function Cylinder({
+export function Cylinder({
   cx,
   cy,
   r,
@@ -276,7 +277,19 @@ function Cylinder({
 }
 
 /** Soft cast shadow toward the east (light from the north-west). */
-function Shadow({ x, y, w, d, h }: { x: number; y: number; w: number; d: number; h: number }) {
+export function Shadow({
+  x,
+  y,
+  w,
+  d,
+  h,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  h: number;
+}) {
   const s = Math.min(1.6, h / 55);
   return (
     <polygon
@@ -380,7 +393,7 @@ function House({ d: dc }: { d: Decor }) {
   );
 }
 
-function Fountain({ x, y, size = 0.6 }: { x: number; y: number; size?: number }) {
+export function Fountain({ x, y, size = 0.6 }: { x: number; y: number; size?: number }) {
   return (
     <g>
       <Cylinder cx={x} cy={y} r={size * 0.7} h={3} color="#cbd5e1" top="#7dd3fc" />
@@ -754,14 +767,14 @@ function Landmark({
         </g>
       );
     default:
-      return <Fountain x={x} y={y} size={1} />;
+      return PlanLandmark({ x, y, kind, color }) ?? <Fountain x={x} y={y} size={1} />;
   }
 }
 
 // ---------------------------------------------------------------------------
 // Buildings by motif
 
-function Awning({
+export function Awning({
   x,
   y,
   w,
@@ -963,8 +976,9 @@ function BuildingBody({ p, f }: { p: Place; f: Flavour }) {
       );
     }
     case 'shopfront':
-    case 'kiosk': {
-      const kiosk = p.motif === 'kiosk';
+    case 'kiosk':
+    case 'b-kiosk': {
+      const kiosk = p.motif === 'kiosk' || p.motif === 'b-kiosk';
       const wall = kiosk ? c : mix(c, '#ffffff', 0.55);
       return (
         <g>
@@ -1145,7 +1159,8 @@ function BuildingBody({ p, f }: { p: Place; f: Flavour }) {
         </g>
       );
     }
-    case 'stall': {
+    case 'stall':
+    case 'b-stall': {
       const top = 15;
       const poles = [
         [x, y + d],
@@ -1481,16 +1496,24 @@ function BuildingBody({ p, f }: { p: Place; f: Flavour }) {
       );
     }
     default:
-      return <Box x={x} y={y} w={w} d={d} h={h} color={c} />;
+      return BusinessBody({ p }) ?? <Box x={x} y={y} w={w} d={d} h={h} color={c} />;
   }
 }
 
 export const Building = memo(function Building({ p, f }: { p: Place; f: Flavour }) {
   return (
-    <g data-place={p.id} className={`city-building${p.dim ? ' is-dim' : ''}`}>
-      {p.motif !== 'stall' && <Shadow x={p.x} y={p.y} w={p.w} d={p.d} h={p.h} />}
+    <g
+      data-place={p.id}
+      data-category={p.category}
+      className={`city-building${p.dim ? ' is-dim' : ''}`}
+    >
+      {p.motif !== 'stall' && p.motif !== 'b-stall' && (
+        <Shadow x={p.x} y={p.y} w={p.w} d={p.d} h={p.h} />
+      )}
       <BuildingBody p={p} f={f} />
-      {p.motif !== 'stall' && p.motif !== 'hall' && <DoorMark p={p} color={shade(p.color, -0.6)} />}
+      {p.motif !== 'stall' && p.motif !== 'b-stall' && p.motif !== 'hall' && (
+        <DoorMark p={p} color={shade(p.color, -0.6)} />
+      )}
       {/* Generous invisible hit area: the footprint plus the building's height. */}
       <polygon
         className="city-hit"
@@ -1522,7 +1545,13 @@ export function DecorItem({ d, f }: { d: Decor; f: Flavour }) {
     case 'runway':
       return <RunwayStrip d={d} />;
     case 'landmark':
-      return <Landmark x={d.x} y={d.y} kind={f.landmark} color={f.landmarkColor} />;
+      return <Landmark x={d.x} y={d.y} kind={d.landmark ?? f.landmark} color={f.landmarkColor} />;
+    case 'hill':
+      return <Hill d={d} leaf={f.leaf[1]} park={f.park} />;
+    case 'bridge':
+      return <BridgeTop d={d} />;
+    case 'station':
+      return <Station d={d} />;
   }
 }
 
@@ -1592,6 +1621,26 @@ export function VehicleShape({ spec, axis }: { spec: VehicleSpec; axis: 'x' | 'y
       )}
       {spec.extra === 'sign' && (
         <Box x={-0.06} y={-0.04} w={0.12} d={0.08} h={3} z={h} color={spec.accent} edge={false} />
+      )}
+      {spec.extra === 'cable' && (
+        <>
+          <g transform={leftM(x, y, d, h - 1)}>
+            <rect x={0} y={3} width={w} height={2} fill={spec.accent} />
+          </g>
+          <Box
+            x={x - 0.04}
+            y={y - 0.04}
+            w={w + 0.08}
+            d={d + 0.08}
+            h={2}
+            z={h}
+            color="#7f1d1d"
+            edge={false}
+          />
+        </>
+      )}
+      {spec.extra === 'sensor' && (
+        <Cylinder cx={0} cy={0} r={0.07} h={3} z={h} color={spec.accent} />
       )}
       {spec.extra === 'rack' && (
         <Box

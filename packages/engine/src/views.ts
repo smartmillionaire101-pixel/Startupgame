@@ -27,6 +27,7 @@ import {
 import { tripCostUsd } from './travel.js';
 import { EVENT_KINDS, EVENT_KIND_DATA, EVENT_RECENT_MONTHS } from './data/events.js';
 import { contactWarmth, eventCost } from './events.js';
+import { businessCustomersOf, businessesView, economyView } from './economy.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { boardOf } from './governance.js';
 import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
@@ -511,6 +512,10 @@ export function playerView(world: World, playerId: Id) {
           mood: f.mood > 1.1 ? 'hungry' : f.mood < 0.9 ? 'cautious' : 'steady',
           /** City art: deterministic from the fund id. */
           office: fundOffice(f.id),
+          /** AI angel funds (Wave 3): the person behind the cheque; null for other funds. */
+          angel: f.angelId
+            ? { playerId: f.angelId, name: world.players[f.angelId]?.name ?? f.partner }
+            : null,
         })),
       lenders: lendersView(world, p),
       capital: {
@@ -566,6 +571,10 @@ export function playerView(world: World, playerId: Id) {
         }),
       /** City events (Wave 2): upcoming, and held or cancelled recently. */
       events: eventsView(world, p, m.id, m.month),
+      /** Local businesses (Wave 3): open ones, and those closed in the last few months. */
+      businesses: businessesView(world, p, m),
+      /** The city economy at a glance (Wave 3). */
+      economy: economyView(m),
       eventKinds: EVENT_KINDS.map((kind) => {
         const k = EVENT_KIND_DATA[kind];
         return {
@@ -595,6 +604,8 @@ export function playerView(world: World, playerId: Id) {
         rescue: plan && plan.level ? plan : null,
         hibernating: !!c.hibernation,
         officeDownsized: !!c.officeDownsized,
+        /** Local businesses buying from this company (Wave 3), with last month's amount. */
+        businessCustomers: businessCustomersOf(world, c),
       };
     }),
     fund: fund
@@ -608,17 +619,37 @@ export function playerView(world: World, playerId: Id) {
       ...publicCompany(world, c),
       diligence: diligenceView(world, c, p.diligence[c.id] ?? 0),
     })),
+    /**
+     * People in your market: human players, plus the AI angels still investing
+     * (Wave 3; `ai: true`, role 'investor', `angel` names their fund). AI angels
+     * can't chat or take pitches in person: pitch their fund instead.
+     */
     players: Object.values(world.players)
-      .filter((x) => !x.ai && x.id !== p.id && x.market === p.market)
+      .filter(
+        (x) =>
+          x.id !== p.id &&
+          x.market === p.market &&
+          (!x.ai || (x.angel !== undefined && x.angel.retiredMonth === undefined)),
+      )
       .map((x) => ({
         id: x.id,
         handle: x.handle,
         name: x.name,
         role: x.role,
+        ai: x.ai,
+        backgroundId: x.backgroundId,
         stars: round1(x.stars.value),
         companies: x.companyIds.map((id) => world.companies[id]?.name).filter(Boolean),
         /** Your trust with them, built only through real interactions (§13). */
         trust: Math.round((p.trust[x.id] ?? 0) * 100) / 100,
+        angel: x.angel
+          ? {
+              fundId: x.angel.fundId,
+              fundName: world.funds[x.angel.fundId]?.name ?? '',
+              sectors: world.funds[x.angel.fundId]?.sectors ?? 'any',
+              check: world.funds[x.angel.fundId]?.check ?? [0, 0],
+            }
+          : null,
       })),
     deals: Object.values(world.deals)
       .filter((d) => d.market === p.market)
@@ -739,6 +770,13 @@ function eventsView(world: World, viewer: Player, market: MarketId, month: numbe
         title: e.title,
         host: { id: e.hostId, name: host?.name ?? '' },
         venue: e.venue,
+        /** A local hotel or event venue hosting it (Wave 3). */
+        business: e.businessId
+          ? {
+              id: e.businessId,
+              name: world.markets[e.market]?.businesses?.[e.businessId]?.name ?? '',
+            }
+          : null,
         month: e.month,
         dateLabel: gameDate(e.month).label,
         capacity: e.capacity,

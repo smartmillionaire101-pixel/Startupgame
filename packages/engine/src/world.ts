@@ -16,6 +16,7 @@ import type { Industry } from './data/industries.js';
 import { LAUNCH_MARKETS, MARKET_DATA, PUBLIC_MULTIPLES } from './data/markets.js';
 import { CURRENT_SCHEMA } from './upgrade.js';
 import { createAiFund, firstHighStreetName, seedExtraFunds, seedLenders } from './capital.js';
+import { ensureAngels } from './angels.js';
 import { NO_EFFECTS } from './marketplace.js';
 import type { MarketId } from './data/markets.js';
 import {
@@ -39,6 +40,7 @@ import type { Rng } from './rng.js';
 import { newStars } from './stars.js';
 import { newCapTable } from './captable.js';
 import { refreshTalent } from './staff.js';
+import { ensureBusinesses } from './economy.js';
 import type {
   Company,
   ExternalPurpose,
@@ -148,6 +150,8 @@ export interface NewPlayerInput {
   market: MarketId;
   now: number;
   ai?: boolean;
+  /** Fixed personal account id (AI angels), so creating them never shifts other ids. */
+  accountId?: Id;
 }
 
 export function createPlayer(world: World, input: NewPlayerInput): Player {
@@ -166,6 +170,7 @@ export function createPlayer(world: World, input: NewPlayerInput): Player {
     currency: m.data.currency,
     market: input.market,
     label: `${input.name} personal`,
+    ...(input.accountId ? { id: input.accountId } : {}),
   });
   // Starting savings: same months of personal runway in every market (§3), adjusted by background.
   const savings = Math.round(col(m) * STARTING_RUNWAY_MONTHS * bg.savingsMultiplier);
@@ -418,6 +423,10 @@ export function openMarket(
   const rng = deriveRng(world.seed, 'genesis', id);
   refreshTalent(world, id, rng);
   for (let i = 0; i < aiStartups; i++) spawnAiStartup(world, id, rng, now);
+  // Local businesses (Wave 3), with deterministic ids so other ids don't shift.
+  ensureBusinesses(world, id);
+  // AI angels (Wave 3): stable ids and their own RNG stream, so nothing above shifts.
+  ensureAngels(world, id, now);
   return world.markets[id]!;
 }
 

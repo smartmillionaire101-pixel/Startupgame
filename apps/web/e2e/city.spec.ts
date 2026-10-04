@@ -43,11 +43,9 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   // Then walk to the market from the Places list.
   await page.getByRole('button', { name: /Places/ }).click();
   const places = page.getByRole('dialog', { name: 'Places' });
-  await places
-    .locator('section', { has: page.getByRole('heading', { name: 'The Market' }) })
-    .getByRole('button')
-    .first()
-    .click();
+  // Lagos's stalls are in Balogun: the list groups places by the city's districts.
+  await expect(places.getByRole('heading', { name: 'Balogun' })).toBeVisible();
+  await places.locator('[data-kind="stall"]').first().click();
   const market = page.getByRole('dialog');
   await expect(market).toBeVisible({ timeout: 8000 });
   await expect(market.getByText(/Every stall is a customer segment/)).toBeVisible();

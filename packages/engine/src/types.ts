@@ -142,6 +142,10 @@ export interface Player {
   failures: number;
   /** People met at events (Wave 2), newest first. Missing on old saves = none. */
   contacts?: Contact[];
+  /** Businesses pitched this month (Wave 3). Missing = none. */
+  businessPitches?: { month: number; count: number };
+  /** AI angels only (Wave 3): the angel fund this person runs; set when they stop investing. */
+  angel?: { fundId: Id; retiredMonth?: number };
 }
 
 // ---------------------------------------------------------------- Events & contacts (Wave 2)
@@ -190,6 +194,8 @@ export interface CityEvent {
   /** Ticket per attendee, paid to the host, local minor. */
   ticket: number;
   segmentKey?: string;
+  /** A local hotel or event venue hosting it (Wave 3): the venue fee goes to that business. */
+  businessId?: Id;
   /** Human attendees (the host is not listed). */
   attendees: Id[];
   status: 'upcoming' | 'held' | 'cancelled';
@@ -262,6 +268,8 @@ export interface MonthlyPnl {
   playerRevenue: number;
   /** Paid to player suppliers on the B2B marketplace. */
   suppliers: number;
+  /** Of revenue, what local businesses paid (Wave 3). Missing on old saves = 0. */
+  businessRevenue?: number;
   payroll: number;
   founderSalary: number;
   office: number;
@@ -393,7 +401,13 @@ export interface Company {
   supply: SupplyEffectsState;
   supplyDisruptionMonth: number | null;
   /** B2B money this month, folded into the P&L at settlement. */
-  ledgerThisMonth: { playerRevenue: number; supplierCost: number; flaggedRevenue: number };
+  ledgerThisMonth: {
+    playerRevenue: number;
+    supplierCost: number;
+    flaggedRevenue: number;
+    /** Paid by local businesses this month (Wave 3). */
+    businessRevenue?: number;
+  };
   lastFlaggedRevenue: number;
   /** Consecutive months of mostly flagged revenue (anti-cheat, §18). */
   fraudStreak: number;
@@ -416,6 +430,13 @@ export interface Company {
   officeDownsized?: boolean;
   /** Snapshot at the end of last settlement, to explain what changed. Internal. */
   storyBase?: StoryBase | null;
+  /** Local business customers won and lost since the last story (Wave 3). Internal. */
+  businessNews?: BusinessNews | null;
+}
+
+export interface BusinessNews {
+  won: { businessId: Id; name: string; monthly: number; how: 'pitch' | 'found' }[];
+  lost: { businessId: Id; name: string; reason: string; monthly: number }[];
 }
 
 export type StoryPlace = 'bank' | 'investors' | 'market' | 'hub' | 'office' | 'home' | 'airport';
@@ -598,6 +619,8 @@ export interface Fund {
   distributed: number;
   thesis: string;
   stars: StarState;
+  /** AI angel funds (Wave 3): the AI angel player who runs it. `managerId` stays null (no human). */
+  angelId?: Id;
 }
 
 /** Cost basis of an investor in a company, for marks, DPI and write-offs. */
@@ -888,6 +911,53 @@ export interface MarketState {
   economicNote: string;
   /** Accounts that model the outside world in this market, keyed by purpose. */
   ext: Record<ExternalPurpose, Id>;
+  /** Local businesses (Wave 3). Missing on old saves: seeded at the next settlement. */
+  businesses?: Record<Id, LocalBusiness>;
+  /** City economy totals (Wave 3). */
+  economy?: EconomyStats;
+}
+
+/** A local business run by an AI owner (Wave 3, data/businesses.ts). */
+export interface LocalBusiness {
+  id: Id;
+  market: MarketId;
+  name: string;
+  kind: string;
+  district: string;
+  owner: { name: string };
+  /** A real ledger account. */
+  account: Id;
+  /** Takings last month, local minor. */
+  monthlyTakings: number;
+  /** 0..1: drives growth and closure. */
+  health: number;
+  suppliers: { companyId: Id; sector: Industry; monthlyMinor: number; since: number }[];
+  openedMonth: number;
+  closedMonth?: number;
+  /** Index of its seed in the city roster. */
+  seed: number;
+  /** Underlying monthly demand, local minor (takings before season and noise). */
+  base: number;
+  /** What the cost structure (staff, rent) is sized for, local minor; follows demand slowly. */
+  costBase: number;
+  /** The owner's rapport with each player (0..1), built by pitching, gigs and custom. */
+  rapport: Record<Id, number>;
+  /** Last month's figures. */
+  lastMonth: { takings: number; costs: number; trade: number; profit: number };
+}
+
+export interface EconomyStats {
+  /** Month the totals are for. */
+  month: number;
+  takings: number;
+  /** Paid by businesses to startups. */
+  trade: number;
+  /** Gigs worked at businesses last month. */
+  gigs: number;
+  /** Gigs worked so far this month. */
+  gigsNow: number;
+  openings: number;
+  closures: number;
 }
 
 /** An AI lender in a market. All AI lenders lend from the market's external bank account. */

@@ -1,0 +1,74 @@
+import type { CityPlan } from './types';
+
+/** Dubai: Deira's souks across the Creek, DIFC and Business Bay, Jumeirah and the Marina. */
+export const dubai: CityPlan = {
+  districts: [
+    {
+      id: 'deira',
+      name: 'Deira',
+      kind: 'market',
+      at: [0, 0],
+      size: [7, 1],
+      hosts: ['market', 'airport'],
+    },
+    {
+      id: 'creek',
+      name: 'Al Fahidi',
+      kind: 'waterfront',
+      at: [0, 2],
+      size: [2, 2],
+      hosts: ['eventhall'],
+    },
+    {
+      id: 'difc',
+      name: 'DIFC',
+      kind: 'finance',
+      at: [2, 2],
+      size: [2, 2],
+      hosts: ['finance', 'investors'],
+    },
+    {
+      id: 'business-bay',
+      name: 'Business Bay',
+      kind: 'tech',
+      at: [4, 2],
+      size: [2, 2],
+      hosts: ['hub'],
+    },
+    {
+      id: 'jumeirah',
+      name: 'Jumeirah',
+      kind: 'residential',
+      at: [0, 4],
+      size: [2, 2],
+      hosts: ['home'],
+    },
+    { id: 'al-quoz', name: 'Al Quoz', kind: 'industrial', at: [4, 4], size: [3, 2] },
+    { id: 'marina', name: 'Dubai Marina', kind: 'waterfront', at: [2, 5], size: [2, 2] },
+  ],
+  water: { side: 'north', name: 'Dubai Creek', river: 1, also: ['west'] },
+  streets: 'grid',
+  bridges: [
+    { name: 'Al Maktoum Bridge', from: [1, 1], to: [1, 2], style: 'beam', color: '#e2e8f0' },
+    { name: 'Al Garhoud Bridge', from: [4, 1], to: [4, 2], style: 'arch', color: '#e2e8f0' },
+    { name: 'Infinity Bridge', from: [6, 1], to: [6, 2], style: 'arch', color: '#f8fafc' },
+  ],
+  landmarks: [
+    { kind: 'wind-tower', name: 'Wind towers', at: [0, 2] },
+    { kind: 'needle-tower', name: 'The Tower', at: [6, 3] },
+    { kind: 'sail-hotel', name: 'Sail Hotel', at: [0, 6] },
+  ],
+  transit: ['metro', 'bus', 'abra'],
+  streetNames: [
+    'Sheikh Zayed Road',
+    'Al Wasl Road',
+    'Jumeirah Road',
+    'Al Khail Road',
+    'Financial Centre Road',
+    'Al Satwa Road',
+    'Happiness Street',
+    'Al Safa Street',
+    'Baniyas Road',
+    'Al Rigga Road',
+  ],
+};

@@ -242,6 +242,47 @@ export const RULE_CARDS: Record<MarketId, RuleCard[]> = {
     'Central Bank of the UAE',
     'Dubai Health Authority',
   ),
+  'san-francisco': [
+    ...common(
+      'san-francisco',
+      'California Privacy Protection Agency (CCPA/CPRA)',
+      'IRS and California Franchise Tax Board',
+      'California Labor Commissioner',
+    ),
+    {
+      id: 'san-francisco.money-transmitter',
+      title: 'Money transmitter licence',
+      appliesTo: ['fintech'],
+      requires: 'Register with FinCEN and hold a California money transmission licence.',
+      costCol: 30,
+      hours: 50,
+      penalty: 'Forced shutdown of the payments product line.',
+      fineCol: 25,
+      regulator: 'California DFPI and FinCEN',
+    },
+    {
+      id: 'san-francisco.hipaa',
+      title: 'Patient privacy (HIPAA)',
+      appliesTo: ['healthtech'],
+      requires: 'Sign business associate agreements and secure patient records.',
+      costCol: 4,
+      hours: 15,
+      penalty: 'Civil penalties and suspension of the service.',
+      fineCol: 6,
+      regulator: 'HHS Office for Civil Rights',
+    },
+    {
+      id: 'san-francisco.business-registration',
+      title: 'City business registration',
+      appliesTo: 'all',
+      requires: 'Register with the city treasurer and renew the certificate each year.',
+      costCol: 0.1,
+      hours: 2,
+      penalty: 'Penalties and a hold on city permits.',
+      fineCol: 0.5,
+      regulator: 'SF Treasurer & Tax Collector',
+    },
+  ],
 };
 
 export const rulesFor = (market: MarketId, industry: Industry): RuleCard[] =>

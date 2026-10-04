@@ -823,16 +823,17 @@ export function Contacts() {
 
 export function People() {
   const { view } = useView();
+  const humans = view.players.filter((p) => !p.ai);
   return (
     <>
       <Contacts />
       <Chats />
       <Card title={t('Players in {market}', { market: view.market.name })}>
-        {view.players.length === 0 ? (
+        {humans.length === 0 ? (
           <Empty>{t('You’re early. More players arrive as markets open.')}</Empty>
         ) : (
           <ul className="list">
-            {view.players.map((p) => (
+            {humans.map((p) => (
               <li key={p.id}>
                 <span className="item-title">{p.name}</span>{' '}
                 <span className="small muted">

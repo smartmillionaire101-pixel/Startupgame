@@ -88,6 +88,7 @@ describe('city layout', () => {
   it('grows with the market and never overlaps blocks', () => {
     const big = buildLayout(
       input({
+        marketId: 'atlantis',
         lenders: Array.from({ length: 9 }, (_, i) => ({
           id: `l${i}`,
           name: `L${i}`,
@@ -144,7 +145,8 @@ describe('city layout', () => {
 });
 
 describe('walking', () => {
-  const l = buildLayout(input());
+  // The generic grid (no plan): every street open, so exact snapping is predictable.
+  const l = buildLayout(input({ marketId: 'atlantis' }));
 
   it('projects and unprojects', () => {
     const p = project(3.5, 7.25);

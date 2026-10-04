@@ -13,11 +13,13 @@ import {
   maintainPopulation,
   updateFundMood,
 } from './ai.js';
+import { angelsInvest } from './angels.js';
 import { settleCompany } from './company.js';
 import { updateLenderAppetite } from './capital.js';
 import { settleSegment } from './customers.js';
 import { expireDeals } from './deals.js';
 import { holdDueEvents } from './events.js';
+import { settleEconomy } from './economy.js';
 import { settleFundFees } from './funds.js';
 import { payDividends } from './travel.js';
 import { settleVotes } from './governance.js';
@@ -106,6 +108,9 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
   // City events due this month are held now (own RNG stream per event), so their
   // customer leads count in this month's revenue.
   holdDueEvents(world, marketId, month);
+  // The city economy (Wave 3): households, local businesses and their trade with
+  // startups. Own RNG stream; before companies so purchases count in this month's revenue.
+  settleEconomy(world, marketId, month);
   for (const c of active()) {
     settleCompany(world, c, rng, month);
     payDividends(world, c, month);
@@ -113,6 +118,8 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
   }
 
   aiFundsInvest(world, marketId, rng, month);
+  // AI angels back raising companies, AI and human (own RNG stream: 'angels').
+  angelsInvest(world, marketId, month);
   for (const f of Object.values(world.funds)) {
     if (f.market !== marketId) continue;
     updateFundMood(world, f);

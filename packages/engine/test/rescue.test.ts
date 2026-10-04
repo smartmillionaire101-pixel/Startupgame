@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addSafe } from '../src/captable.js';
 import { monthlyCosts } from '../src/company.js';
 import { transfer } from '../src/ledger.js';
-import { assessDistress, rescuePlan } from '../src/rescue.js';
+import { NEW_COMPANY_GRACE_MONTHS, assessDistress, rescuePlan } from '../src/rescue.js';
 import { playerView } from '../src/views.js';
 import type { Staff, World } from '../src/types.js';
 import {
@@ -138,6 +138,9 @@ describe('distress', () => {
     setCash(w, costs * 5);
     expect(assessDistress(w, c)).toEqual({ level: 'watch', monthsLeft: 5 });
     setCash(w, costs * 2);
+    // A brand-new company with thin runway is normal: a watch, not an alarm.
+    expect(assessDistress(w, c)).toEqual({ level: 'watch', monthsLeft: 2 });
+    c.foundedMonth -= NEW_COMPANY_GRACE_MONTHS;
     expect(assessDistress(w, c)).toEqual({ level: 'danger', monthsLeft: 2 });
     const plan = rescuePlan(w, c, F);
     expect(plan.level).toBe('danger');

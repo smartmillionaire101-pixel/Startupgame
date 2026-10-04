@@ -13,7 +13,16 @@ import { useView } from '../store';
 import { Button, Pill, Sheet } from '../ui';
 import { avatarLook } from './art';
 import { CityMap, districtLabel, type CityMapHandle } from './CityMap';
-import { activeCompany, cityInput, rescueOf, storyOf, type StoryPlace } from './contract';
+import { categoryLabel } from './Business';
+import {
+  activeCompany,
+  BUSINESS_CATEGORIES,
+  CATEGORY_COLOR,
+  cityInput,
+  rescueOf,
+  storyOf,
+  type StoryPlace,
+} from './contract';
 import { onVisit, takeVisit } from './goto';
 import { Interior, placeLabel, type Nav } from './Interiors';
 import {
@@ -74,7 +83,18 @@ const DISTRICT_ORDER: DistrictId[] = [
   'events',
 ];
 
-/** Every building, grouped by district: for keyboards, screen readers and lite mode. */
+type Filter = 'all' | 'capital' | 'customers' | (typeof BUSINESS_CATEGORIES)[number];
+
+const matches = (p: Place, f: Filter) =>
+  f === 'all' ||
+  (f === 'capital' && (p.kind === 'lender' || p.kind === 'playerbank' || p.kind === 'fund')) ||
+  (f === 'customers' && p.kind === 'stall') ||
+  p.category === f;
+
+/**
+ * Every building, grouped by district (a planned city's named districts),
+ * with a category filter: for keyboards, screen readers and lite mode.
+ */
 export function PlacesList({
   layout,
   labelOf,
@@ -84,24 +104,78 @@ export function PlacesList({
   labelOf: (p: Place) => string;
   onPick: (p: Place) => void;
 }) {
+  const [filter, setFilter] = useState<Filter>('all');
+  const cats = BUSINESS_CATEGORIES.filter((c) => layout.places.some((p) => p.category === c));
+  const groups: { id: string; title: string; places: Place[] }[] = layout.areas.length
+    ? [
+        ...layout.areas.map((a) => ({
+          id: a.id,
+          title: a.name,
+          places: layout.places.filter((p) => p.area === a.id),
+        })),
+        {
+          id: 'elsewhere',
+          title: t('Around town'),
+          places: layout.places.filter((p) => !p.area),
+        },
+      ]
+    : DISTRICT_ORDER.map((d) => ({
+        id: d,
+        title: districtLabel(d),
+        places: layout.places.filter((p) => p.district === d),
+      })).concat([
+        {
+          id: 'shops',
+          title: t('Local businesses'),
+          places: layout.places.filter((p) => p.district === 'shops'),
+        },
+      ]);
+  const filters: { id: Filter; label: string; color?: string }[] = [
+    { id: 'all', label: t('All') },
+    { id: 'capital', label: t('Money') },
+    { id: 'customers', label: t('Customers') },
+    ...cats.map((c) => ({ id: c, label: categoryLabel(c), color: CATEGORY_COLOR[c] })),
+  ];
   return (
     <div className="places">
-      {DISTRICT_ORDER.map((d) => {
-        const ps = layout.places.filter((p) => p.district === d);
+      {(cats.length > 0 || layout.areas.length > 0) && (
+        <div className="places-filter" role="group" aria-label={t('Show')}>
+          {filters.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className="chip"
+              aria-pressed={filter === f.id}
+              onClick={() => setFilter(f.id)}
+            >
+              {f.color && <span className="chip-dot" style={{ background: f.color }} aria-hidden />}
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {groups.map((g) => {
+        const ps = g.places.filter((p) => matches(p, filter));
         if (!ps.length) return null;
         return (
-          <section key={d} className="places-group">
-            <h3>{districtLabel(d)}</h3>
+          <section key={g.id} className="places-group" data-area={g.id}>
+            <h3>{g.title}</h3>
             <ul className="places-list">
               {ps.map((p) => (
                 <li key={p.id}>
                   <button
                     type="button"
                     className={`place-btn${p.dim ? ' is-dim' : ''}`}
+                    data-kind={p.kind}
                     onClick={() => onPick(p)}
                   >
-                    <span className="place-dot" style={{ background: p.accent }} aria-hidden />
+                    <span
+                      className="place-dot"
+                      style={{ background: p.category ? CATEGORY_COLOR[p.category] : p.accent }}
+                      aria-hidden
+                    />
                     <span>{labelOf(p)}</span>
+                    {p.category && <span className="small muted">{categoryLabel(p.category)}</span>}
                     {p.soon && <Pill>{t('Opening soon')}</Pill>}
                     {p.siren && <Pill tone="bad">{t('Rescue')}</Pill>}
                   </button>
@@ -115,7 +189,7 @@ export function PlacesList({
   );
 }
 
-const KIND_ORDER = ['player', 'partner', 'founder', 'candidate', 'shopper'];
+const KIND_ORDER = ['player', 'angel', 'partner', 'founder', 'owner', 'candidate', 'shopper'];
 
 /** Everyone around, as a list: for keyboards, screen readers and lite mode. */
 export function PeopleList({
@@ -412,6 +486,8 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
           title={labelOf(inside)}
           onClose={() => setInside(null)}
           onGo={goToStory}
+          onVisit={visit}
+          players={players}
           nav={(tab) => {
             setInside(null);
             onNavigate(tab);

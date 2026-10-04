@@ -29,9 +29,10 @@ import {
   type RescuePlan,
   type StoryPlace,
 } from './contract';
+import { BusinessInterior, JobsBoard, WhoBuysWhat } from './Business';
 import { EventHall } from './Events';
 import { project, type CityLayout, type Place } from './layout';
-import { npcName } from './people';
+import { npcName, type PresenceView } from './people';
 
 /** Where a story or rescue action points, as a navigable request. */
 export type GoTo = (place: StoryPlace) => void;
@@ -442,7 +443,15 @@ function InvestorInterior({ place, layout }: { place: Place; layout: CityLayout 
 // ---------------------------------------------------------------------------
 // Market, hub, office, home, airport, newsstand, event hall
 
-function MarketInterior({ place, layout }: { place: Place; layout: CityLayout }) {
+function MarketInterior({
+  place,
+  layout,
+  onVisit,
+}: {
+  place: Place;
+  layout: CityLayout;
+  onVisit?: (placeId: string) => void;
+}) {
   const { view, cur } = useView();
   const company = activeCompany(view);
   const segs = view.market.segments;
@@ -483,11 +492,20 @@ function MarketInterior({ place, layout }: { place: Place; layout: CityLayout })
           ))}
         </ul>
       </details>
+      <WhoBuysWhat onVisit={onVisit} />
     </>
   );
 }
 
-function HubInterior({ place, layout }: { place: Place; layout: CityLayout }) {
+function HubInterior({
+  place,
+  layout,
+  onVisit,
+}: {
+  place: Place;
+  layout: CityLayout;
+  onVisit?: (placeId: string) => void;
+}) {
   const { view } = useView();
   const company = activeCompany(view);
   return (
@@ -503,6 +521,7 @@ function HubInterior({ place, layout }: { place: Place; layout: CityLayout }) {
           'Co-working café: founders, talent and freelancers. Tap anyone on the street outside to say hello.',
         )}
       </p>
+      <JobsBoard onVisit={onVisit} />
       {company && <Team c={company} />}
       <People />
     </>
@@ -741,6 +760,8 @@ export function Interior({
   onClose,
   onGo,
   nav,
+  onVisit,
+  players = [],
 }: {
   place: Place;
   layout: CityLayout;
@@ -748,6 +769,10 @@ export function Interior({
   onClose: () => void;
   onGo: GoTo;
   nav: Nav;
+  /** Walk to another place (Jobs board, Who buys what). */
+  onVisit?: (placeId: string) => void;
+  /** Other players around (to invite to a meal). */
+  players?: PresenceView[];
 }) {
   const body = (() => {
     switch (place.kind) {
@@ -758,9 +783,20 @@ export function Interior({
       case 'fund':
         return <InvestorInterior place={place} layout={layout} />;
       case 'stall':
-        return <MarketInterior place={place} layout={layout} />;
+        return <MarketInterior place={place} layout={layout} onVisit={onVisit} />;
       case 'hub':
-        return <HubInterior place={place} layout={layout} />;
+        return <HubInterior place={place} layout={layout} onVisit={onVisit} />;
+      case 'business':
+        return (
+          <BusinessInterior
+            place={place}
+            layout={layout}
+            players={players}
+            header={(who, role, tint) => (
+              <Scene place={place} layout={layout} who={who} role={role} tint={tint} />
+            )}
+          />
+        );
       case 'office':
         return <OfficeInterior place={place} layout={layout} onGo={onGo} nav={nav} />;
       case 'home':

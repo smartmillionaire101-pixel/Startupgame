@@ -30,11 +30,16 @@ import {
   TH,
   TW,
   unproject,
+  MARGIN,
+  type Boat,
+  type Bridge,
+  type Water,
   type CityLayout,
   type DistrictId,
   type Place,
   type Pt,
 } from './layout';
+import { CATEGORY_COLOR } from './contract';
 import { Crowd } from './Crowd';
 import type { AiPerson, PresenceView } from './people';
 
@@ -84,9 +89,133 @@ export const districtLabel = (id: DistrictId) =>
 // ---------------------------------------------------------------------------
 // Static scene
 
+/** The legacy coast: water along the front-left edge. */
+const legacyWater = (E: number): Water => ({
+  name: '',
+  kind: 'edge',
+  side: 'south',
+  x0: -MARGIN,
+  y0: E + 1.8,
+  x1: E + MARGIN,
+  y1: E + MARGIN,
+});
+
+const rect = (x0: number, y0: number, x1: number, y1: number, z = 0) =>
+  [P(x0, y0, z), P(x1, y0, z), P(x1, y1, z), P(x0, y1, z)].join(' ');
+
+/** Sand along a coast, between the land and the water. */
+function shoreOf(w: Water, E: number): [number, number, number, number] {
+  const m = MARGIN;
+  switch (w.side) {
+    case 'south':
+      return [-m, E + 1.1, E + m, E + 1.9];
+    case 'north':
+      return [-m, -1.9, E + m, -1.1];
+    case 'east':
+      return [E + 1.1, -m, E + 1.9, E + m];
+    default:
+      return [-1.9, -m, -1.1, E + m];
+  }
+}
+
+function WaterBody({ w, E }: { w: Water; E: number }) {
+  const out: ReactNode[] = [];
+  if (w.kind === 'edge') {
+    const [a, b, c, d] = shoreOf(w, E);
+    out.push(<polygon key="shore" points={rect(a, b, c, d)} fill="#f5e6c4" />);
+  } else {
+    // Stone embankments either side of the river.
+    const along = w.x1 - w.x0 > w.y1 - w.y0;
+    out.push(
+      <polygon
+        key="bank"
+        points={
+          along
+            ? rect(w.x0, w.y0 - 0.12, w.x1, w.y1 + 0.12)
+            : rect(w.x0 - 0.12, w.y0, w.x1 + 0.12, w.y1)
+        }
+        fill="#a8a29e"
+      />,
+    );
+  }
+  out.push(<polygon key="water" points={rect(w.x0, w.y0, w.x1, w.y1)} fill="url(#water)" />);
+  const W = w.x1 - w.x0;
+  const H = w.y1 - w.y0;
+  for (let k = 0; k < 14; k++) {
+    const a = project(
+      w.x0 + 0.5 + ((k * 7.3) % Math.max(1, W - 1)),
+      w.y0 + 0.3 + ((k * 1.7) % Math.max(0.4, H - 0.6)),
+    );
+    out.push(
+      <path
+        key={`wave${k}`}
+        className="city-wave"
+        style={{ animationDelay: `${-k * 0.7}s` }}
+        d={`M ${a.x} ${a.y} q 5 -3 10 0 q 5 3 10 0`}
+        stroke="#fff"
+        strokeOpacity="0.55"
+        strokeWidth="1.2"
+        fill="none"
+      />,
+    );
+  }
+  return (
+    <g data-water={w.name || 'water'} data-water-kind={w.kind}>
+      {out}
+    </g>
+  );
+}
+
+/** A bridge deck over the water, with railings in the bridge's colour. */
+function Deck({ br, asphalt }: { br: Bridge; asphalt: string }) {
+  const dx = br.to.x - br.from.x;
+  const dy = br.to.y - br.from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ox = (-dy / len) * 0.42;
+  const oy = (dx / len) * 0.42;
+  const z = 3;
+  const pts = [
+    P(br.from.x + ox, br.from.y + oy, z),
+    P(br.to.x + ox, br.to.y + oy, z),
+    P(br.to.x - ox, br.to.y - oy, z),
+    P(br.from.x - ox, br.from.y - oy, z),
+  ].join(' ');
+  const piers: ReactNode[] = [];
+  const nP = Math.max(2, Math.round(len / 1.6));
+  for (let k = 1; k < nP; k++) {
+    const q = project(br.from.x + (dx * k) / nP, br.from.y + (dy * k) / nP);
+    piers.push(<rect key={k} x={q.x - 3} y={q.y - z} width="6" height="9" fill="#78716c" />);
+  }
+  const rail = (s: number) => {
+    const a = project(br.from.x + ox * s, br.from.y + oy * s);
+    const b = project(br.to.x + ox * s, br.to.y + oy * s);
+    return (
+      <line
+        key={s}
+        x1={a.x}
+        y1={a.y - z - 2}
+        x2={b.x}
+        y2={b.y - z - 2}
+        stroke={br.color}
+        strokeWidth="1.6"
+      />
+    );
+  };
+  return (
+    <g data-bridge-deck={br.name || 'bridge'}>
+      {piers}
+      <polygon points={pts} fill={shade(asphalt, -0.1)} />
+      <polygon points={pts} fill="none" stroke={br.color} strokeWidth="1" />
+      {rail(1)}
+      {rail(-1)}
+    </g>
+  );
+}
+
 const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
   const { flavour: f, extent: E, size } = layout;
-  const m = 6;
+  const m = MARGIN;
+  const planned = layout.areas.length > 0;
   const out: ReactNode[] = [];
   // Land around the city.
   out.push(
@@ -96,36 +225,13 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
       fill={f.land}
     />,
   );
-  // Edge flavour: water along the front-left edge, hills or dumps behind.
-  if (f.edge === 'water') {
-    out.push(
-      <polygon
-        key="shore"
-        points={[P(-m, E + 1.1), P(E + m, E + 1.1), P(E + m, E + 1.9), P(-m, E + 1.9)].join(' ')}
-        fill="#f5e6c4"
-      />,
-      <polygon
-        key="water"
-        points={[P(-m, E + 1.8), P(E + m, E + 1.8), P(E + m, E + m), P(-m, E + m)].join(' ')}
-        fill="url(#water)"
-      />,
-    );
-    for (let k = 0; k < 14; k++) {
-      const a = project(-2 + ((k * 7) % (E + 6)), E + 2.6 + (k % 3) * 0.9);
-      out.push(
-        <path
-          key={`wave${k}`}
-          className="city-wave"
-          style={{ animationDelay: `${-k * 0.7}s` }}
-          d={`M ${a.x} ${a.y} q 5 -3 10 0 q 5 3 10 0`}
-          stroke="#fff"
-          strokeOpacity="0.55"
-          strokeWidth="1.2"
-          fill="none"
-        />,
-      );
-    }
-  } else {
+  const waters = planned ? layout.waters : f.edge === 'water' ? [legacyWater(E)] : [];
+  const edges = waters.filter((w) => w.kind === 'edge');
+  const rivers = waters.filter((w) => w.kind === 'river');
+  // Coasts behind everything; hills (or mine dumps) on the horizon when the back is dry.
+  edges.forEach((w, n) => out.push(<WaterBody key={`edge${n}`} w={w} E={E} />));
+  if (!edges.some((w) => w.side === 'north') && (planned || f.edge !== 'water')) {
+    const edgeColor = f.edge === 'water' ? f.parkEdge : f.edgeColor;
     for (let k = 0; k < 6; k++) {
       const c = project(-3 + k * ((E + 6) / 5), -4.2 + (k % 2) * 0.8);
       const rw = 70 + (k % 3) * 25;
@@ -134,7 +240,7 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
           <polygon
             key={`hill${k}`}
             points={`${c.x - rw},${c.y} ${c.x - rw * 0.55},${c.y - 34} ${c.x + rw * 0.55},${c.y - 34} ${c.x + rw},${c.y}`}
-            fill={k % 2 ? f.edgeColor : shade(f.edgeColor, -0.1)}
+            fill={k % 2 ? edgeColor : shade(edgeColor, -0.1)}
           />,
         );
       else
@@ -145,7 +251,7 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
             cy={c.y}
             rx={rw}
             ry={30 + (k % 3) * 10}
-            fill={k % 2 ? f.edgeColor : shade(f.edgeColor, -0.08)}
+            fill={k % 2 ? edgeColor : shade(edgeColor, -0.08)}
           />,
         );
     }
@@ -205,6 +311,37 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
           />,
         );
     }
+  // Closed segments (an organic city's merged blocks): paved over.
+  for (const key of layout.cuts) {
+    const [a, b] = key.split('|').map((t) => t.split(',').map(Number)) as [number[], number[]];
+    const [i, j] = a as [number, number];
+    const [i2, j2] = b as [number, number];
+    const pts =
+      j === j2
+        ? rect(i * B + 0.45, j * B - 0.6, i2 * B - 0.45, j * B + 0.6, 2)
+        : rect(i * B - 0.6, j * B + 0.45, i * B + 0.6, j2 * B - 0.45, 2);
+    out.push(<polygon key={`cut${key}`} points={pts} fill={f.sidewalk} />);
+  }
+  rivers.forEach((w, n) => out.push(<WaterBody key={`river${n}`} w={w} E={E} />));
+  for (const br of layout.bridges)
+    out.push(<Deck key={`deck${br.name}${br.from.x},${br.from.y}`} br={br} asphalt={f.asphalt} />);
+  for (const r of layout.roundabouts) {
+    const c = project(r.x, r.y);
+    out.push(
+      <g key={`rb${r.x},${r.y}`} data-roundabout="">
+        <ellipse
+          cx={c.x}
+          cy={c.y}
+          rx={TW * 0.75}
+          ry={TH * 0.75}
+          fill={f.park}
+          stroke="#fff"
+          strokeWidth="1.5"
+        />
+        <ellipse cx={c.x} cy={c.y - 2} rx={TW * 0.3} ry={TH * 0.3} fill={f.sidewalk} />
+      </g>,
+    );
+  }
   // Blocks: raised pavements, with parks, plazas and airfield tinted.
   for (const blk of layout.blocks) {
     const x = blk.i * B + 0.45;
@@ -260,7 +397,7 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
   // Street names, painted flat on the road.
   const s = 0.065;
   for (const st of layout.streets) {
-    const mid = Math.floor(size / 2) * B;
+    const mid = (st.seg ?? Math.floor(size / 2)) * B;
     if (st.axis === 'x') {
       const o = project(mid + 0.6, st.k * B - 0.06);
       out.push(
@@ -309,13 +446,13 @@ const Traffic = memo(function Traffic({
             v.from.y + (v.to.y - v.from.y) * (0.2 + (n % 5) * 0.15),
           );
           return (
-            <g key={n} transform={`translate(${p.x},${p.y})`}>
+            <g key={n} data-vehicle={v.spec.id} transform={`translate(${p.x},${p.y})`}>
               <VehicleShape spec={v.spec} axis={v.axis} />
             </g>
           );
         }
         return (
-          <g key={n}>
+          <g key={n} data-vehicle={v.spec.id}>
             <VehicleShape spec={v.spec} axis={v.axis} />
             <animateMotion
               dur={`${v.dur.toFixed(1)}s`}
@@ -323,6 +460,81 @@ const Traffic = memo(function Traffic({
               repeatCount="indefinite"
               path={`M ${a.x} ${a.y} L ${b.x} ${b.y}`}
             />
+          </g>
+        );
+      })}
+      {layout.boats.map((bt, n) => {
+        const a = project(bt.from.x, bt.from.y);
+        const b = project(bt.to.x, bt.to.y);
+        const flip = b.x < a.x;
+        if (reduced) {
+          const p = project(
+            bt.from.x + (bt.to.x - bt.from.x) * (0.25 + (n % 3) * 0.2),
+            bt.from.y + (bt.to.y - bt.from.y) * (0.25 + (n % 3) * 0.2),
+          );
+          return (
+            <g key={`boat${n}`} data-boat={bt.kind} transform={`translate(${p.x},${p.y})`}>
+              <BoatShape boat={bt} flip={flip} />
+            </g>
+          );
+        }
+        return (
+          <g key={`boat${n}`} data-boat={bt.kind}>
+            <BoatShape boat={bt} flip={flip} />
+            <animateMotion
+              dur={`${bt.dur.toFixed(1)}s`}
+              begin={`${bt.delay.toFixed(1)}s`}
+              repeatCount="indefinite"
+              path={`M ${a.x} ${a.y} L ${b.x} ${b.y}`}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+});
+
+/** A ferry or an abra (a Dubai Creek water taxi), in screen space. */
+function BoatShape({ boat, flip }: { boat: Boat; flip: boolean }) {
+  return (
+    <g transform={flip ? 'scale(-1,1)' : undefined}>
+      <ellipse cx="0" cy="3" rx="16" ry="4" fill="#0f172a" opacity="0.15" />
+      {boat.kind === 'abra' ? (
+        <>
+          <path d="M -13 0 L 13 0 L 10 4 L -10 4 Z" fill="#92400e" />
+          <rect x="-9" y="-8" width="18" height="2" fill="#fde68a" />
+          <line x1="-8" y1="-6" x2="-8" y2="0" stroke="#78350f" />
+          <line x1="8" y1="-6" x2="8" y2="0" stroke="#78350f" />
+        </>
+      ) : (
+        <>
+          <path d="M -16 0 L 16 0 L 12 5 L -13 5 Z" fill="#f8fafc" />
+          <rect x="-10" y="-7" width="18" height="7" fill="#1e40af" />
+          <rect x="-8" y="-5" width="14" height="2" fill="#bae6fd" />
+          <rect x="2" y="-12" width="3" height="5" fill="#dc2626" />
+        </>
+      )}
+    </g>
+  );
+}
+
+/** San Francisco's fog: soft banks drifting across (still with reduced motion). */
+const Fog = memo(function Fog({ layout }: { layout: CityLayout }) {
+  const E = layout.extent;
+  const banks = [
+    [-2, -3, 0],
+    [E * 0.5, -4, 1],
+    [-4, E * 0.4, 2],
+    [E * 0.3, E * 0.2, 3],
+  ];
+  return (
+    <g className="city-fog" pointerEvents="none" data-fog="">
+      {banks.map(([x, y, k]) => {
+        const c = project(x!, y!);
+        return (
+          <g key={k} className="city-fog-bank" style={{ animationDelay: `${-k! * 9}s` }}>
+            <ellipse cx={c.x} cy={c.y - 60} rx="220" ry="46" fill="#f8fafc" opacity="0.32" />
+            <ellipse cx={c.x + 90} cy={c.y - 80} rx="140" ry="34" fill="#f8fafc" opacity="0.26" />
           </g>
         );
       })}
@@ -355,7 +567,7 @@ const Skyline = memo(function Skyline({ layout }: { layout: CityLayout }) {
  */
 export function placeLabels(layout: CityLayout, labelOf: (p: Place) => string) {
   const rank = (p: Place) =>
-    p.kind === 'stall'
+    p.kind === 'stall' || p.kind === 'business'
       ? 2
       : p.kind === 'lender' || p.kind === 'fund' || p.kind === 'playerbank'
         ? 1
@@ -368,6 +580,7 @@ export function placeLabels(layout: CityLayout, labelOf: (p: Place) => string) {
     text: string;
     tier: string;
     soon: boolean;
+    color?: string;
   }[] = [];
   const hits = (x: number, y: number, w: number) =>
     placed.some((o) => Math.abs(o.x - x) < (o.w + w) / 2 + 2 && Math.abs(o.y - y) < 18);
@@ -388,8 +601,18 @@ export function placeLabels(layout: CityLayout, labelOf: (p: Place) => string) {
       tries++;
     }
     if (hits(x, y, w) && rank(p) > 0) continue;
-    const tier = ['lbl-main', 'lbl-detail', 'lbl-stall'][rank(p)]!;
-    placed.push({ id: p.id, x, y, w, text, tier, soon: !!p.soon });
+    const tier =
+      p.kind === 'business' ? 'lbl-biz' : ['lbl-main', 'lbl-detail', 'lbl-stall'][rank(p)]!;
+    placed.push({
+      id: p.id,
+      x,
+      y,
+      w,
+      text,
+      tier,
+      soon: !!p.soon,
+      color: p.category ? CATEGORY_COLOR[p.category] : undefined,
+    });
   }
   return placed;
 }
@@ -403,6 +626,42 @@ const Labels = memo(function Labels({
 }) {
   return (
     <g className="city-labels" pointerEvents="none">
+      {layout.areas.map((a) => {
+        const c = project(a.at.x, a.at.y);
+        return (
+          <text
+            key={a.id}
+            x={c.x}
+            y={c.y - 4}
+            className="city-district"
+            textAnchor="middle"
+            data-area={a.id}
+          >
+            {a.name.toUpperCase()}
+          </text>
+        );
+      })}
+      {layout.waters
+        .filter((w) => w.name)
+        .slice(0, 1)
+        .map((w) => {
+          const c =
+            w.kind === 'river'
+              ? project((w.x0 + w.x1) / 2, (w.y0 + w.y1) / 2)
+              : project(
+                  w.side === 'east' ? w.x0 + 1.4 : (w.x0 + w.x1) / 2,
+                  w.side === 'south'
+                    ? w.y0 + 1.2
+                    : w.side === 'north'
+                      ? w.y1 - 1.2
+                      : layout.extent / 2,
+                );
+          return (
+            <text key="water" x={c.x} y={c.y + 4} className="city-water-name" textAnchor="middle">
+              {w.name}
+            </text>
+          );
+        })}
       {layout.districts
         .filter((d) => d.id === 'finance' || d.id === 'investors' || d.id === 'market')
         .map((d) => {
@@ -420,7 +679,8 @@ const Labels = memo(function Labels({
           transform={`translate(${Math.round(l.x)},${Math.round(l.y)})`}
         >
           <rect x={-l.w / 2} y={-9} width={l.w} height={17} rx={8.5} />
-          <text x={0} y={3.5} textAnchor="middle">
+          {l.color && <circle cx={-l.w / 2 + 7} cy={-0.5} r={3} fill={l.color} />}
+          <text x={l.color ? 3 : 0} y={3.5} textAnchor="middle">
             {l.text}
           </text>
         </g>
@@ -836,6 +1096,7 @@ export function CityMap({
           return p ? <Bunting key={id} p={p} /> : null;
         })}
         <Crowd layout={layout} ai={ai} players={players} reduced={reduced} />
+        {layout.flavour.fog && <Fog layout={layout} />}
         <Labels layout={layout} labelOf={labelOf} />
         {mp && markerPlace && (
           <g transform={`translate(${mp.x},${mp.y - markerPlace.h - 40})`} className="city-marker">

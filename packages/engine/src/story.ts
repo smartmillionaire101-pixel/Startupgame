@@ -170,6 +170,34 @@ export function buildStory(
       short: 'business deals closed',
     });
 
+  // --- Local business customers won and lost (Wave 3).
+  for (const w of c.businessNews?.won ?? [])
+    out.push({
+      item: {
+        tone: 'good',
+        text: `Won ${w.name} as a customer: +${fmt(w.monthly)}/month.`,
+        cause:
+          w.how === 'pitch' ? 'Your pitch paid off.' : 'They found you and liked what they saw.',
+        metric: 'revenue',
+        delta: w.monthly,
+      },
+      impact: w.monthly * CUSTOMER_MONTHS,
+      short: `${w.name} became a customer`,
+    });
+  for (const l of c.businessNews?.lost ?? []) {
+    out.push({
+      item: {
+        tone: 'bad',
+        text: `Lost ${l.name}: ${l.reason}.`,
+        cause: `A local business stopped buying from you (${fmt(l.monthly)} a month).`,
+        metric: 'revenue',
+        delta: -l.monthly,
+      },
+      impact: Math.max(price, l.monthly) * CUSTOMER_MONTHS,
+      short: `${l.name} left`,
+    });
+  }
+
   // --- Churn and its main cause.
   if (churned > 0) {
     const main = (Object.entries(churnBy) as [ChurnCause, number][]).sort(
