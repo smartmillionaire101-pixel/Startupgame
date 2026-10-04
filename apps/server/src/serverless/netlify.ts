@@ -51,10 +51,14 @@ export function kvFor(mode: Mode): Kv {
  * The session secret: from the environment when set, otherwise generated once
  * and kept in the site's private store (never in the repository).
  */
-async function sessionSecret(kv: Kv): Promise<string> {
+async function sessionSecret(kv: Kv, settleMs = 300): Promise<string> {
   if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
   const key = 'secrets/session';
-  await kv.set(key, randomBytes(48).toString('base64url'), { ifNew: true });
+  const created = await kv.set(key, randomBytes(48).toString('base64url'), { ifNew: true });
+  // On a brand-new store several cold functions race to create it. Whoever
+  // created it waits a moment and reads back what is stored, so every
+  // instance ends up with the same secret even if two creates collided.
+  if (created.ok && settleMs > 0) await new Promise((r) => setTimeout(r, settleMs));
   const e = await kv.get(key);
   return new TextDecoder().decode(e!.data);
 }
