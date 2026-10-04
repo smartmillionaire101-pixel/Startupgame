@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { amountInput, money, parseAmount, titleCase } from '../format';
 import { useView, type Company } from '../store';
 import { Button, Card, Empty, Field, Pill, Sheet, Sparkline, Stat } from '../ui';
-import { DealList } from './common';
+import { BankPicker, DealList } from './common';
 
 type Tab = 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire';
 
@@ -262,12 +262,14 @@ function PitchFlow({ pitchId }: { pitchId: string }) {
 }
 
 function LoanCard({ c }: { c: Company }) {
-  const { send, cur, view } = useView();
+  const { send, cur } = useView();
   const [amount, setAmount] = useState(amountInput(Math.max(c.monthlyRevenue * 3, 0)));
   const [months, setMonths] = useState(12);
   const [pg, setPg] = useState(false);
+  const [bankId, setBankId] = useState('');
   return (
-    <Card title={`Working capital from ${view.market.bankName}`}>
+    <Card title="Working capital">
+      <BankPicker value={bankId} onChange={setBankId} product="companies" />
       <div className="grid2">
         <Field label={`Amount (${cur})`}>
           {(id) => <input id={id} value={amount} onChange={(e) => setAmount(e.target.value)} />}
@@ -299,6 +301,7 @@ function LoanCard({ c }: { c: Company }) {
               amount: parseAmount(amount) ?? 0,
               months,
               personalGuarantee: pg,
+              ...(bankId ? { bankId } : {}),
             },
             (r: { message: string }) => `${r.message} See Deals.`,
           )
@@ -550,6 +553,7 @@ function AcquireSheet({
     target.diligence ? amountInput(target.diligence.modelValuation) : '',
   );
   const [retention, setRetention] = useState('');
+  const [advisor, setAdvisor] = useState('');
   return (
     <Sheet title={`Offer for ${target.name}`} onClose={onClose}>
       <p className="small muted">
@@ -572,6 +576,13 @@ function AcquireSheet({
           />
         )}
       </Field>
+      <BankPicker
+        value={advisor}
+        onChange={setAdvisor}
+        product="advisory"
+        label="Adviser"
+        none="No adviser"
+      />
       <Button
         disabled={!parseAmount(price)}
         onClick={() =>
@@ -582,6 +593,7 @@ function AcquireSheet({
               targetCompanyId: target.id,
               price: parseAmount(price) ?? 0,
               retention: parseAmount(retention) ?? 0,
+              ...(advisor ? { advisorBankId: advisor } : {}),
             },
             (r: { status: string; summary: string }) =>
               r.status === 'accepted'

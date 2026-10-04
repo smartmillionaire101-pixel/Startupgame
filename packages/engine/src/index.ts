@@ -30,6 +30,7 @@ export {
   addSafe,
 } from './captable.js';
 export { SLIDES, MAX_SLIDES } from './fundraising.js';
+export { BANK_TYPES, MIN_CAPITAL_RATIO, RESERVE_RATIO } from './banks.js';
 export { INCORPORATION } from './world.js';
 export * from './data/markets.js';
 export * from './data/industries.js';

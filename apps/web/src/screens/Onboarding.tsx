@@ -14,7 +14,11 @@ const ROLE_CARDS: { role: Role; title: string; text: string; disabled?: boolean 
     title: 'Investor',
     text: 'Back founders with your savings, then raise a fund.',
   },
-  { role: 'banker', title: 'Banker', text: 'Run a bank. Opens in phase 2.', disabled: true },
+  {
+    role: 'banker',
+    title: 'Banker',
+    text: 'Start a bank: take deposits, lend, and answer to the central bank.',
+  },
 ];
 
 const Dots = ({ n }: { n: number }) => (
@@ -42,6 +46,7 @@ export function Onboarding() {
   const [sectors, setSectors] = useState<Industry[]>(['fintech']);
   const [stages, setStages] = useState<Stage[]>(['pre-seed', 'seed']);
   const [check, setCheck] = useState('');
+  const [bankType, setBankType] = useState('microfinance');
   const [nameCheck, setNameCheck] = useState<{ ok: boolean; reason?: string } | null>(null);
   const [handleCheck, setHandleCheck] = useState<{ ok: boolean; reason?: string } | null>(null);
 
@@ -88,7 +93,12 @@ export function Onboarding() {
             ...base,
             company: { name: company, industry, revenueModel: model, idea, incorporation },
           }
-        : { ...base, investor: { sectors, stages, checkSize: parseAmount(check) ?? 0 } };
+        : role === 'banker'
+          ? {
+              ...base,
+              bank: { name: company, bankType: bankType as 'commercial' | 'microfinance' },
+            }
+          : { ...base, investor: { sectors, stages, checkSize: parseAmount(check) ?? 0 } };
     const r = await send(cmd, 'Welcome to Runway.');
     if (r) await refresh();
   };
@@ -98,7 +108,9 @@ export function Onboarding() {
     handleCheck?.ok === true &&
     (role === 'founder'
       ? nameCheck?.ok === true && idea.trim().length >= 5
-      : sectors.length > 0 && stages.length > 0 && (parseAmount(check) ?? 0) > 0);
+      : role === 'banker'
+        ? nameCheck?.ok === true
+        : sectors.length > 0 && stages.length > 0 && (parseAmount(check) ?? 0) > 0);
 
   return (
     <div className="app">
@@ -314,6 +326,58 @@ export function Onboarding() {
                 )}
               </Field>
             </>
+          ) : role === 'banker' ? (
+            <>
+              <Field
+                label="Bank name"
+                hint={
+                  nameCheck && !nameCheck.ok ? (
+                    <span className="bad">{nameCheck.reason}</span>
+                  ) : nameCheck?.ok ? (
+                    <span className="good">Available in {m.name}</span>
+                  ) : (
+                    'Checked against brands and names taken in your market.'
+                  )
+                }
+              >
+                {(id) => (
+                  <input
+                    id={id}
+                    value={company}
+                    maxLength={32}
+                    onChange={(e) => setCompany(e.target.value)}
+                  />
+                )}
+              </Field>
+              <Field label="Licence">
+                {() => (
+                  <div className="choice-grid">
+                    {meta.bankTypes.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className="choice"
+                        aria-pressed={bankType === t.id}
+                        onClick={() => setBankType(t.id)}
+                      >
+                        <div className="item-title">{t.label}</div>
+                        <div className="muted small">
+                          Minimum capital{' '}
+                          {money(Math.round(m.costOfLiving * t.minCapitalCol), m.currency)}
+                        </div>
+                        <div className="muted small">Earns: {t.earns}</div>
+                        <div className="muted small">Risk: {t.risk}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </Field>
+              <p className="small muted">
+                You put in 80% of your savings. AI shareholders add two to five times that,
+                depending on your credibility. Short of the minimum, the licence is refused and the
+                capital comes back.
+              </p>
+            </>
           ) : (
             <>
               <Field label="Sectors">
@@ -389,7 +453,9 @@ export function Onboarding() {
           <p>
             {role === 'founder'
               ? `${company} opens in ${m.name}.`
-              : `You start investing in ${m.name}.`}{' '}
+              : role === 'banker'
+                ? `${company} applies for a licence in ${m.name}. The central bank decides in two months.`
+                : `You start investing in ${m.name}.`}{' '}
             One real day is one game month. Settlement runs at midnight in {m.name}.
           </p>
           <p className="disclaimer">{meta.disclaimer}</p>

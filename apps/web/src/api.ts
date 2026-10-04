@@ -52,6 +52,8 @@ export interface Meta {
   maxSlides: number;
   incorporation: Record<string, { label: string; costCol: number }>;
   chatMaxLength: number;
+  /** Bank licences (§8). Minimum capital is minCapitalCol × the market's monthly cost of living. */
+  bankTypes: { id: string; label: string; minCapitalCol: number; earns: string; risk: string }[];
   /** Server has development tools enabled (never in production). */
   devTools: boolean;
 }

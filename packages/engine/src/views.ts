@@ -129,6 +129,7 @@ export function companyDetail(world: World, c: Company) {
     revenueModel: c.revenueModel,
     incorporation: c.incorporation,
     cash,
+    bankId: world.accounts[c.account]!.bankId ?? null,
     runwayMonths: finite(companyRunway(world, c)),
     defaultAlive: defaultAlive(world, c),
     monthlyRevenue: lastPnl(c)?.revenue ?? 0,
@@ -527,7 +528,9 @@ export function playerView(world: World, playerId: Id) {
           d.yourTurn ||
           d.youProposed ||
           myCompanies.some((c) => c.id === d.companyId) ||
-          (d.counterparty.kind === 'player' && d.counterparty.id === p.id),
+          (d.counterparty.kind === 'player' && d.counterparty.id === p.id) ||
+          (d.counterparty.kind === 'playerbank' &&
+            world.banks[d.counterparty.id]?.ownerId === p.id),
       )
       .sort((a, b) => b.createdMonth - a.createdMonth)
       .slice(0, 40),

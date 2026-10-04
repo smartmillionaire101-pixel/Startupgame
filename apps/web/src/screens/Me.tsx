@@ -5,6 +5,7 @@ import { amountInput, money, parseAmount, stars, titleCase } from '../format';
 import { useView } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Sparkline, Stat } from '../ui';
 import { Chats } from './Chat';
+import { BankPicker } from './common';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
 
@@ -46,6 +47,10 @@ const MILESTONE_LABELS: Record<string, string> = {
   'investor.fund-10x': 'Fund 10x',
   'any.comeback': 'First comeback',
   'any.role-switch': 'First role switch',
+  'banker.licence': 'Banking licence',
+  'banker.first-loan': 'First loan made',
+  'banker.1000-customers': '1,000 customers',
+  'banker.five-star': 'Five-star bank',
 };
 
 function Profile() {
@@ -251,6 +256,7 @@ function PersonalMoney() {
         </ul>
       </Card>
       <Credit />
+      <WhereYouBank />
       <Travel />
       <CareerMoves />
     </>
@@ -348,6 +354,7 @@ function Credit() {
   const [amount, setAmount] = useState('');
   const [months, setMonths] = useState(12);
   const [collateral, setCollateral] = useState('');
+  const [bankId, setBankId] = useState('');
   const pledgeable = view.companies.filter(
     (c) =>
       c.status === 'active' &&
@@ -396,6 +403,7 @@ function Credit() {
         Unsecured limit today: {money(credit.unsecuredLimit, cur)}. Pledging shares raises it and
         lowers the rate.
       </p>
+      <BankPicker value={bankId} onChange={setBankId} product="people" />
       <div className="grid2">
         <Field label={`Amount (${cur})`}>
           {(id) => (
@@ -444,13 +452,102 @@ function Credit() {
               amount: parseAmount(amount) ?? 0,
               months,
               ...(collateral ? { collateralCompanyId: collateral } : {}),
+              ...(bankId ? { bankId } : {}),
             },
             (r: { summary: string }) => `Offer ready on your deal cards: ${r.summary}`,
           )
         }
       >
-        Ask {view.market.bankName}
+        Ask {view.market.banks.find((b) => b.id === bankId)?.name ?? view.market.bankName}
       </Button>
+    </Card>
+  );
+}
+
+/** Move accounts to a player bank, or back to the market's AI bank (§8). */
+function WhereYouBank() {
+  const { view, send } = useView();
+  const [rating, setRating] = useState(4);
+  const banks = view.market.banks;
+  if (banks.length === 0) return null;
+  const rows: {
+    key: string;
+    label: string;
+    account: 'personal' | 'usd' | string;
+    bankId: string | null;
+  }[] = [
+    {
+      key: 'personal',
+      label: 'Savings',
+      account: 'personal',
+      bankId: view.accounts.local?.bankId ?? null,
+    },
+    ...(view.accounts.usd
+      ? [{ key: 'usd', label: 'Dollar account', account: 'usd', bankId: view.accounts.usd.bankId }]
+      : []),
+    ...view.companies
+      .filter((c) => c.status === 'active' && c.market === view.market.id)
+      .map((c) => ({ key: c.id, label: c.name, account: c.id, bankId: c.bankId ?? null })),
+  ];
+  const used = [...new Set(rows.map((r) => r.bankId).filter((x): x is string => !!x))];
+  return (
+    <Card title="Where you bank">
+      <p className="small muted">
+        Player banks pay interest and charge fees. Deposits are insured only up to{' '}
+        {money(view.market.depositInsurance, view.market.currency)} if a bank fails.
+      </p>
+      <ul className="list small">
+        {rows.map((r) => (
+          <li key={r.key} className="spread">
+            <span>{r.label}</span>
+            <select
+              aria-label={`Bank for ${r.label}`}
+              value={r.bankId ?? ''}
+              onChange={(e) =>
+                void send(
+                  { type: 'account.move', account: r.account, bankId: e.target.value || null },
+                  (x: { message: string }) => x.message,
+                )
+              }
+            >
+              <option value="">{view.market.bankName}</option>
+              {banks.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} · {(b.depositRateBps / 100).toFixed(1)}% · {b.stars.toFixed(1)}★
+                </option>
+              ))}
+            </select>
+          </li>
+        ))}
+      </ul>
+      {used.map((id) => {
+        const b = banks.find((x) => x.id === id);
+        if (!b) return null;
+        return (
+          <div key={id} className="row small">
+            Rate {b.name}:
+            <select
+              aria-label={`Rate ${b.name}`}
+              value={rating}
+              onChange={(e) => setRating(Number(e.target.value))}
+            >
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>
+                  {n}★
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="ghost"
+              onClick={() =>
+                void send({ type: 'bank.review', bankId: id, rating }, 'Thanks for the review.')
+              }
+            >
+              Review
+            </Button>
+          </div>
+        );
+      })}
     </Card>
   );
 }

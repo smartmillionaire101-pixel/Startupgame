@@ -32,6 +32,7 @@ import {
   playerView,
   startersFor,
   type MarketId,
+  BANK_TYPES,
 } from '@runway/engine';
 import { AuthService, SESSION_COOKIE, SESSION_TTL_MS, isAdult, normalisePhone } from './auth.js';
 import type { Config } from './config.js';
@@ -155,6 +156,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     incorporation: INCORPORATION,
     lifestyleTiers: LIFESTYLE_TIERS,
     chatMaxLength: CHAT_MAX_LENGTH,
+    bankTypes: Object.entries(BANK_TYPES).map(([id, t]) => ({
+      id,
+      label: t.label,
+      minCapitalCol: t.minCapitalCol,
+      earns: t.earns,
+      risk: t.risk,
+    })),
     devTools: config.DEV_TOOLS,
   }));
 

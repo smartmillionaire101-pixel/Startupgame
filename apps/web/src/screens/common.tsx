@@ -247,3 +247,40 @@ export function Inbox({ limit = 8 }: { limit?: number }) {
     </Card>
   );
 }
+
+/**
+ * Pick who to deal with: the market's AI bank (empty value) or a licensed
+ * player bank that offers this product (§8).
+ */
+export function BankPicker({
+  value,
+  onChange,
+  product,
+  label = 'Lender',
+  none,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  product: 'people' | 'companies' | 'advisory';
+  label?: string;
+  none?: string;
+}) {
+  const { view } = useView();
+  const banks = view.market.banks.filter((b) => b.lends[product]);
+  if (banks.length === 0) return null;
+  return (
+    <Field label={label}>
+      {(id) => (
+        <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+          <option value="">{none ?? view.market.bankName}</option>
+          {banks.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name} · {b.typeLabel} · {b.stars.toFixed(1)}★
+              {product === 'advisory' ? '' : ` · base +${b.loanSpreadPp}pp`}
+            </option>
+          ))}
+        </select>
+      )}
+    </Field>
+  );
+}
