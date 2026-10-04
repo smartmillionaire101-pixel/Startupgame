@@ -1,16 +1,12 @@
-import { digits, letters, expect, test } from './fixtures';
+import { letters, expect, test } from './fixtures';
 
 test('a player switches to French before signing in and plays in French', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Français' }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
 
-  await page.getByLabel('Numéro de mobile').fill(`+22177${digits(7)}`);
-  await page.getByLabel('Date de naissance').fill('1990-05-20');
-  await page.getByRole('button', { name: 'Envoyer le code' }).click();
-  const code = (await page.getByText(/votre code est \d{6}/i).textContent())!.match(/\d{6}/)![0];
-  await page.getByLabel('Code à 6 chiffres').fill(code);
-  await page.getByRole('button', { name: 'Vérifier' }).click();
+  await page.getByLabel('Je confirme avoir 18 ans ou plus').check();
+  await page.getByRole('button', { name: 'Jouer maintenant' }).click();
 
   await page.getByRole('button', { name: /Fondateur/ }).click();
   await page.getByRole('button', { name: /Ex-ingénieur/ }).click();

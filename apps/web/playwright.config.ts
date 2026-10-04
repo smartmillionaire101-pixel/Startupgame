@@ -36,8 +36,10 @@ export default defineConfig({
           HOST: '127.0.0.1',
           DATABASE_PATH: `${process.env.TMPDIR ?? '/tmp'}/runway-e2e-${Date.now()}.db`,
           DEV_TOOLS: '1',
-          // Every spec signs up a new player; allow more than production's 5 per 10 minutes.
+          // Every spec starts a new guest (and some ask for sign-in links) from one address.
           AUTH_RATE_LIMIT: '50',
+          GUEST_RATE_LIMIT: '200',
+          EMAIL_RATE_LIMIT: '200',
           FX_FEED_URL: '',
           WEB_DIST: './dist',
           SESSION_SECRET: 'e2e-secret-e2e-secret-e2e-secret-0001',

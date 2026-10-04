@@ -1,13 +1,7 @@
-import { digits, letters, expect, test } from './fixtures';
+import { letters, expect, test, playAsGuest } from './fixtures';
 
 test('a banker applies for a licence in Accra, gets it, and sets pricing', async ({ page }) => {
-  await page.goto('/');
-  await page.getByLabel('Mobile number').fill(`+23324${digits(7)}`);
-  await page.getByLabel('Date of birth').fill('1979-03-14');
-  await page.getByRole('button', { name: 'Send code' }).click();
-  const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
-  await page.getByLabel('6-digit code').fill(code);
-  await page.getByRole('button', { name: 'Verify' }).click();
+  await playAsGuest(page);
 
   await page.getByRole('button', { name: /Banker/ }).click();
   await page.getByRole('button', { name: /Wealthy exited founder/ }).click();

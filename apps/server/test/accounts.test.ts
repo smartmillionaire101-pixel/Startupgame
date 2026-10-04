@@ -150,6 +150,8 @@ describe.each(stores)('account store: %s', (_name, make) => {
   });
 });
 
+// Loosely typed on purpose: tests read whatever the server answered.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Res = { status: number; json: { [k: string]: any } | null };
 type Call = ((
   method: string,

@@ -35,7 +35,10 @@ const schema = z.object({
   RESEND_API_KEY: z.string().optional(),
   /** Email sign-in, option 2: SMTP, e.g. Gmail with an App Password (smtp.gmail.com, 465). */
   SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  SMTP_PORT: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.coerce.number().int().min(1).max(65535).optional(),
+  ),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   /** Sender, e.g. "Runway <you@gmail.com>". Defaults to the SMTP user. */

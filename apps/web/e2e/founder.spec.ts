@@ -1,18 +1,13 @@
-import { digits, letters, expect, test } from './fixtures';
+import { letters, expect, test } from './fixtures';
 
 test('a founder signs up, onboards in under two minutes, and plays a month', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Build, invest and grow.' })).toBeVisible();
 
-  // 1. Sign up with phone verification and an 18+ check.
-  await page.getByLabel('Mobile number').fill(`+23480${digits(8)}`);
-  await page.getByLabel('Date of birth').fill('1994-03-12');
-  await page.getByRole('button', { name: 'Send code' }).click();
-  const hint = page.getByText(/your code is \d{6}/i);
-  await expect(hint).toBeVisible();
-  const code = (await hint.textContent())!.match(/\d{6}/)![0];
-  await page.getByLabel('6-digit code').fill(code);
-  await page.getByRole('button', { name: 'Verify' }).click();
+  // 1. Play straight away as a guest after confirming 18+ (no date of birth).
+  await expect(page.getByRole('button', { name: 'Play now' })).toBeDisabled();
+  await page.getByLabel('I confirm I’m 18 or older').check();
+  await page.getByRole('button', { name: 'Play now' }).click();
 
   // 2–5. Role, background, market, setup.
   await page.getByRole('button', { name: /Founder/ }).click();

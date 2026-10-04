@@ -1,6 +1,6 @@
 /**
- * Probes a deployed Runway API with a few sign-in flows at once (start →
- * verify → state) and prints each step, so a deploy check shows exactly
+ * Probes a deployed Runway API with a few sign-in flows at once (guest →
+ * state → delete) and prints each step, so a deploy check shows exactly
  * which server step misbehaves. Exits non-zero on any failure.
  *
  *   node scripts/probe-deploy.mjs https://deploy-preview-3--site.netlify.app
@@ -43,21 +43,13 @@ async function step(name, method, path, body, cookie) {
   }
 }
 
-async function flow(n) {
+async function flow() {
   const out = [];
-  const phone = `+1555${String(Date.now() + n).slice(-7)}`;
-  const start = await step('start', 'POST', '/api/auth/start', {
-    phone,
-    dob: { year: 1990, month: 1, day: 1 },
-  });
-  out.push(start.line);
-  if (!start.res.ok) return { ok: false, out: [...out, start.text] };
-  const code = JSON.parse(start.text).devCode;
-  if (!code) return { ok: false, out: [...out, 'no code shown on screen'] };
-  const verify = await step('verify', 'POST', '/api/auth/verify', { phone, code });
-  out.push(verify.line);
-  if (!verify.res.ok) return { ok: false, out: [...out, verify.text] };
-  const cookie = verify.res.headers.get('set-cookie')?.split(';')[0];
+  const guest = await step('guest', 'POST', '/api/auth/guest', { adult: true });
+  out.push(guest.line);
+  if (!guest.res.ok) return { ok: false, out: [...out, guest.text] };
+  const cookie = guest.res.headers.get('set-cookie')?.split(';')[0];
+  if (!cookie) return { ok: false, out: [...out, 'no session cookie'] };
   const state = await step('state', 'GET', '/api/state', undefined, cookie);
   out.push(state.line);
   if (!state.res.ok) return { ok: false, out: [...out, state.text] };
@@ -82,7 +74,7 @@ if (selftests.some((t) => t.instance)) {
   if (secrets.size > 1) console.log('  !! instances disagree on the session secret');
 }
 
-const results = await Promise.all([1, 2, 3].map(flow));
+const results = await Promise.all([1, 2, 3].map(() => flow()));
 results.forEach((r, i) =>
   console.log(`flow ${i + 1}: ${r.ok ? 'ok' : 'FAILED'}\n  ${r.out.join('\n  ')}`),
 );
