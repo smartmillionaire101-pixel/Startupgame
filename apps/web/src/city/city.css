@@ -802,3 +802,17 @@
 .jobs-board .item-title {
   overflow-wrap: anywhere;
 }
+
+/* Phones: a banner gets the full width, with the buttons in a row below it. */
+@media (max-width: 560px) {
+  .city-hud-bottom:has(.hud-banner) {
+    flex-wrap: wrap;
+  }
+  .city-hud-bottom .hud-banner {
+    flex-basis: 100%;
+  }
+  .city-hud-bottom:has(.hud-banner) .hud-stack {
+    margin-left: auto;
+    grid-auto-flow: column;
+  }
+}

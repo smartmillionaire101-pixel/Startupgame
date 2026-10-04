@@ -67,7 +67,8 @@ export interface DistressAssessment {
 }
 
 /**
- * watch: runway under 6 months; danger: under 3, or a payroll was missed;
+ * watch: runway under 6 months; danger: under 3 (after a new company's first
+ * three months), or a payroll was missed;
  * critical: a payroll was missed and cash won't cover the next one, so one
  * more missed payroll ends the company.
  */
@@ -81,10 +82,18 @@ export function assessDistress(world: World, c: Company): DistressAssessment | n
   const revenue = lastPnl(c)?.revenue ?? 0;
   if (unpaid > 0 && cash + revenue < payrollThisMonth(c) + unpaid)
     return { level: 'critical', monthsLeft: 0 };
-  if (unpaid > 0 || months < 3) return { level: 'danger', monthsLeft };
+  if (unpaid > 0) return { level: 'danger', monthsLeft };
+  // Most companies start with only a few months of cash: in the first three
+  // months that is the normal state of a startup, not an emergency, so it is
+  // a gentle "watch" until payroll is actually at risk.
+  const young = (world.markets[c.market]?.month ?? 0) - c.foundedMonth < NEW_COMPANY_GRACE_MONTHS;
+  if (months < 3) return { level: young ? 'watch' : 'danger', monthsLeft };
   if (months < 6) return { level: 'watch', monthsLeft };
   return null;
 }
+
+/** How long a new company's thin runway reads as normal rather than an alarm. */
+export const NEW_COMPANY_GRACE_MONTHS = 3;
 
 /** Plain-language deadline for the rescue plan. Critical always says what ends the company. */
 export function distressDeadline(c: Company, level: DistressLevel, monthsLeft: number): string {
