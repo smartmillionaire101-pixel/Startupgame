@@ -180,6 +180,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     months: z.number().int().min(3).max(60),
     collateralCompanyId: id.optional(),
   }),
+  z.object({ type: z.literal('player.travel'), market }),
+  z.object({
+    type: z.literal('player.relocate'),
+    market,
+    handle: z.string().min(3).max(20).optional(),
+  }),
   z.object({ type: z.literal('player.repay'), loanId: id, amount: money }),
   z.object({ type: z.literal('company.inject'), companyId: id, amount: money }),
   z.object({ type: z.literal('player.usdOpen') }),

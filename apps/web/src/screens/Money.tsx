@@ -73,8 +73,9 @@ function Raise({ c }: { c: Company }) {
                   {f.name} {fits(f) ? <Pill tone="good">Fits</Pill> : <Pill>Off-thesis</Pill>}
                 </div>
                 <div className="small muted">
-                  {f.partner} · {f.thesis} · {money(f.check[0], cur)}–{money(f.check[1], cur)} ·{' '}
-                  {f.mood}
+                  {f.market !== view.me.market ? `${f.marketName} · ` : ''}
+                  {f.partner} · {f.thesis} · {money(f.check[0], f.currency)}–
+                  {money(f.check[1], f.currency)} · {f.mood}
                 </div>
               </div>
               <Button

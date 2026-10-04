@@ -233,6 +233,7 @@ export function createPlayer(world: World, input: NewPlayerInput): Player {
     pitchedOutlets: {},
     gigsThisMonth: 0,
     failures: 0,
+    visited: {},
   };
   world.players[player.id] = player;
   if (!input.ai) world.names[input.market]![handleKey] = player.id;
@@ -311,6 +312,7 @@ export function createCompany(world: World, input: NewCompanyInput): Company {
     warnings: [],
     lastDecisionMonth: m.month,
     forSale: false,
+    aiCeo: false,
   };
   setCogs(world, company);
   world.companies[id] = company;

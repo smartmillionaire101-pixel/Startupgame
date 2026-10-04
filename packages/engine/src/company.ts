@@ -11,6 +11,7 @@ import { RECURRING, emptyPosition, reliability } from './customers.js';
 import { ensure } from './errors.js';
 import {
   achieve,
+  externalHolderAccount,
   adjustTrust,
   burn,
   col,
@@ -20,7 +21,7 @@ import {
   publish,
   totalCustomers,
 } from './helpers.js';
-import { account, transfer, transferUpTo } from './ledger.js';
+import { account, pay, transfer, transferUpTo } from './ledger.js';
 import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
 import type { Rng } from './rng.js';
@@ -554,8 +555,12 @@ export function shutdownCompany(
       if (line.total <= 0) continue;
       const pl = world.players[line.holderId];
       const fund = world.funds[line.holderId];
-      const to = pl ? pl.accounts.local : fund ? fund.account : m.ext.payroll;
-      transfer(
+      const to = pl
+        ? pl.accounts.local
+        : fund
+          ? fund.account
+          : externalHolderAccount(m, line.holderId);
+      pay(
         world,
         c.account,
         to,

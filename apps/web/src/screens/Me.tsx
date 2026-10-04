@@ -251,8 +251,93 @@ function PersonalMoney() {
         </ul>
       </Card>
       <Credit />
+      <Travel />
       <CareerMoves />
     </>
+  );
+}
+
+/** Travel and relocation (§14). */
+function Travel() {
+  const { view, send, cur } = useView();
+  const [moveTo, setMoveTo] = useState('');
+  const [handle, setHandle] = useState('');
+  const dests = view.me.destinations;
+  return (
+    <Card title="Travel">
+      <p className="small muted">
+        A trip costs money and {40} hours. You must visit a market before investing or acquiring
+        there, and you can pitch its investors during the trip month.
+      </p>
+      <ul className="list">
+        {dests.map((d) => (
+          <li key={d.id} className="spread">
+            <span>
+              {d.name} <span className="small muted">· {money(d.tripCost, cur)}</span>
+              {d.visitingNow ? (
+                <Pill tone="good">This month</Pill>
+              ) : view.me.visited[d.id as keyof typeof view.me.visited] !== undefined ? (
+                <Pill>Visited</Pill>
+              ) : null}
+            </span>
+            <Button
+              variant="ghost"
+              disabled={d.visitingNow}
+              onClick={() =>
+                void send(
+                  { type: 'player.travel', market: d.id as never },
+                  (r: { text: string }) => r.text,
+                )
+              }
+            >
+              Go
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <details style={{ marginTop: '0.6rem' }}>
+        <summary className="small">Relocate permanently</summary>
+        <p className="small bad">
+          You lose half of everything: cash, shares and stakes. The lost half goes to the central
+          bank here. Co-founders or an AI CEO run what you leave; your shares pay dividends only
+          while profitable.
+        </p>
+        <div className="grid2">
+          <Field label="Move to">
+            {(id) => (
+              <select id={id} value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
+                <option value="">Choose…</option>
+                {dests.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <Field label="Handle there (optional)">
+            {(id) => (
+              <input
+                id={id}
+                value={handle}
+                placeholder={view.me.handle}
+                onChange={(e) => setHandle(e.target.value)}
+              />
+            )}
+          </Field>
+        </div>
+        <Confirm
+          label="Relocate"
+          confirmLabel="Yes, give up half and move"
+          onConfirm={() =>
+            void send(
+              { type: 'player.relocate', market: moveTo as never, ...(handle ? { handle } : {}) },
+              'You’ve relocated. A fresh start.',
+            )
+          }
+        />
+      </details>
+    </Card>
   );
 }
 

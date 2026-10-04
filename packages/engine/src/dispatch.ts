@@ -25,6 +25,7 @@ import {
 } from './fundraising.js';
 import { raiseFund } from './funds.js';
 import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
+import { hasVisited, relocate, travel } from './travel.js';
 import {
   achieve,
   col,
@@ -420,14 +421,19 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'invest.diligence': {
       const c = getCompany(world, cmd.companyId);
       ensure(
-        c.market === me.market,
+        hasVisited(me, c.market),
         'diligence.market',
-        'Diligence across markets needs travel first.',
+        'Diligence across markets needs a trip there first.',
       );
       const current = me.diligence[c.id] ?? 0;
       ensure(cmd.depth > current, 'diligence.done', 'Already done.');
       ensure(cmd.depth <= current + 1, 'diligence.order', 'Do the first pass first.');
-      spendHours(me, DILIGENCE_HOURS[cmd.depth], 'Due diligence');
+      // Due diligence costs more across borders (§7).
+      spendHours(
+        me,
+        Math.round(DILIGENCE_HOURS[cmd.depth] * (c.market === me.market ? 1 : 1.5)),
+        'Due diligence',
+      );
       me.diligence[c.id] = cmd.depth;
       me.skills.investing = Math.min(100, me.skills.investing + 1);
       me.skills.risk = Math.min(100, me.skills.risk + 0.5);
@@ -486,6 +492,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       });
       return { dealId: deal.id, summary: deal.summary };
     }
+    case 'player.travel':
+      return travel(world, me, cmd.market);
+    case 'player.relocate':
+      return relocate(world, me, cmd.market, cmd.handle);
     case 'player.repay':
       return repayPersonalLoan(world, me, cmd.loanId, cmd.amount, month);
     case 'company.inject': {

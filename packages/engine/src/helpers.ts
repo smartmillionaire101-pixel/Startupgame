@@ -18,6 +18,17 @@ import type {
 import { STAGES } from './types.js';
 
 export const INBOX_LIMIT = 60;
+
+/**
+ * Where payouts to non-player cap-table holders go: banks that seized
+ * shares, the central bank (shares lost on relocation), or the outside
+ * world (AI staff and others).
+ */
+export function externalHolderAccount(m: MarketState, holderId: string): Id {
+  if (holderId.startsWith('bank:')) return m.ext.bank;
+  if (holderId.startsWith('cb:')) return m.ext.tax;
+  return m.ext.payroll;
+}
 export const NEWS_LIMIT = 120;
 
 export function getPlayer(world: World, id: Id): Player {

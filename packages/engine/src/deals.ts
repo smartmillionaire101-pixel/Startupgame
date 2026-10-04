@@ -7,9 +7,16 @@
 import { addSafe, closePricedRound, fullyDiluted, waterfall } from './captable.js';
 import type { WaterfallLine } from './captable.js';
 import { ensure, fail } from './errors.js';
-import { achieve, adjustTrust, getCompany, getMarket, notify } from './helpers.js';
+import {
+  achieve,
+  adjustTrust,
+  externalHolderAccount,
+  getCompany,
+  getMarket,
+  notify,
+} from './helpers.js';
 import { newId } from './ids.js';
-import { account, transfer } from './ledger.js';
+import { account, pay, payExact, costIn, transfer } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney } from './money.js';
 import { applyStarEvent } from './stars.js';
@@ -478,9 +485,11 @@ export function executeDeal(world: World, d: DealCard, by: Id) {
       const investor = d.proposer.kind === 'company' ? d.counterparty : d.proposer;
       const holderId = investor.id;
       const from = partyAccount(world, investor);
-      if (account(world, from).balance < t.amount)
+      // Cross-market investors pay in their own currency: conversion fee and currency risk apply (§7).
+      const cost = costIn(world, t.amount, m.data.currency, account(world, from).currency);
+      if (account(world, from).balance < cost)
         fail('deal.funds', `${partyName(world, investor)} doesn’t have the money for this deal.`);
-      transfer(world, from, c.account, t.amount, `Investment in ${c.name} (${t.stage})`, m.month);
+      payExact(world, from, c.account, t.amount, `Investment in ${c.name} (${t.stage})`, m.month);
       if (t.instrument === 'safe') {
         addSafe(c.capTable, { holderId, amount: t.amount, cap: t.valuation, month: m.month });
         c.capTable.lastPostMoney = Math.max(c.capTable.lastPostMoney, t.valuation);
@@ -610,17 +619,19 @@ export function settleExit(
     const pos = world.positions[`${line.holderId}:${c.id}`];
     if (pos) pos.returned += line.total;
     if (player) {
-      transfer(
+      // Capital gains tax is withheld where the company is; the rest is paid
+      // out, converted if the holder lives in another market.
+      const basis = pos?.invested ?? 0;
+      const tax = Math.max(0, Math.round((line.total - basis) * m.data.tax.capitalGains));
+      transfer(world, m.ext.lps, m.ext.tax, tax, `Capital gains tax: ${c.name}`, m.month);
+      pay(
         world,
         m.ext.lps,
         player.accounts.local,
-        line.total,
+        line.total - tax,
         `Exit: ${c.name} sold to ${buyer}`,
         m.month,
       );
-      const basis = pos?.invested ?? 0;
-      const tax = Math.max(0, Math.round((line.total - basis) * m.data.tax.capitalGains));
-      transfer(world, player.accounts.local, m.ext.tax, tax, 'Capital gains tax', m.month);
       if (!player.ai) {
         notify(world, player.id, {
           month: m.month,
@@ -642,7 +653,7 @@ export function settleExit(
       distributeFund(world, fund, line.total, m.month);
     } else {
       // Banks holding seized shares, staff and other AI holders: paid to the outside world.
-      const to = line.holderId.startsWith('bank:') ? m.ext.bank : m.ext.payroll;
+      const to = externalHolderAccount(m, line.holderId);
       transfer(world, m.ext.lps, to, line.total, `Exit payout: ${c.name}`, m.month);
     }
   }

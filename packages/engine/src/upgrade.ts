@@ -5,7 +5,7 @@
  */
 import type { World } from './types.js';
 
-export const CURRENT_SCHEMA = 3;
+export const CURRENT_SCHEMA = 4;
 
 type Step = (world: World) => void;
 
@@ -18,6 +18,11 @@ const STEPS: Record<number, Step> = {
       p.loans ??= [];
       p.credit.onTimePayments ??= 0;
     }
+  },
+  // v3 → v4: travel and relocation.
+  3: (world) => {
+    for (const p of Object.values(world.players)) p.visited ??= {};
+    for (const c of Object.values(world.companies)) c.aiCeo ??= false;
   },
 };
 

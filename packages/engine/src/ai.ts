@@ -60,7 +60,7 @@ export function aiFounderPolicy(world: World, c: Company, rng: Rng, month: numbe
 export function aiFundsInvest(world: World, market: MarketId, rng: Rng, month: number) {
   const funds = Object.values(world.funds).filter((f) => f.market === market && f.ai);
   for (const c of Object.values(world.companies)) {
-    if (!c.ai || c.market !== market || c.status !== 'active' || !c.raising) continue;
+    if (!(c.ai || c.aiCeo) || c.market !== market || c.status !== 'active' || !c.raising) continue;
     const stage = nextStage(c.lastRound);
     const fund = rng.pick(
       funds

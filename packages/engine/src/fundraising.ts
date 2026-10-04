@@ -22,6 +22,8 @@ import {
 import { newId } from './ids.js';
 import { clamp, clamp01, logistic } from './math.js';
 import { formatMoney } from './money.js';
+import { valueIn } from './ledger.js';
+import { hasVisited, isVisiting } from './travel.js';
 import { deriveRng } from './rng.js';
 import { starMultiplier } from './stars.js';
 import { aiRespond, openDeal } from './deals.js';
@@ -228,9 +230,9 @@ export function startPitch(
   if (args.fundId) {
     const fund = getFund(world, args.fundId);
     ensure(
-      fund.market === c.market,
+      fund.market === c.market || isVisiting(world, getPlayer(world, args.founderId), fund.market),
       'pitch.market',
-      'Pitch funds in your own market (cross-market comes with travel).',
+      'To pitch investors in another market, travel there first (this month).',
     );
     const stage = nextStage(c.lastRound);
     const recentPass = Object.values(world.pitches).find(
@@ -408,7 +410,11 @@ function offerTermSheet(world: World, p: Pitch, fund: Fund, c: Company, score: n
   const stage: Stage = nextStage(c.lastRound);
   const val = valueCompany(world, c, stage).value;
   const valuation = Math.round(val * fund.mood * rng.range(0.85, 1.05) * (0.9 + score * 0.2));
-  const amount = clamp(askAmount, fund.check[0], fund.check[1]);
+  // The fund's cheque range, in the company's currency (cross-market pitches).
+  const fundCur = getMarket(world, fund.market).data.currency;
+  const companyCur = getMarket(world, c.market).data.currency;
+  const check = fund.check.map((v) => valueIn(world, v, fundCur, companyCur)) as [number, number];
+  const amount = clamp(askAmount, check[0], check[1]);
   const priced =
     stage === 'series-a' ||
     stage === 'series-b' ||
@@ -435,7 +441,7 @@ function offerTermSheet(world: World, p: Pitch, fund: Fund, c: Company, score: n
     by: fund.id,
     aiLimit: {
       maxValuation: Math.round(terms.valuation * (1.1 + score * 0.15)),
-      maxAmount: fund.check[1],
+      maxAmount: check[1],
     },
   });
   p.status = 'term-sheet';
@@ -467,9 +473,9 @@ export function proposeInvestment(
   );
   ensure(!c.founderIds.includes(inv.id), 'invest.self', 'You can’t invest in your own company.');
   ensure(
-    inv.market === c.market,
+    hasVisited(inv, c.market),
     'invest.market',
-    'Cross-market investing needs travel first (phase 2).',
+    'You can back a startup in another market only after travelling there at least once.',
   );
   ensure(c.status === 'active', 'company.closed', 'Company is not operating.');
   const stage = nextStage(c.lastRound);

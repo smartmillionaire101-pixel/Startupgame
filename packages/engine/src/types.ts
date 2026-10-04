@@ -108,6 +108,8 @@ export interface Player {
   lifestyleTier: number;
   accounts: { local: Id; usd?: Id };
   credit: { missedPayments: number; defaults: number; onTimePayments: number };
+  /** Markets visited, with the home-market month of the last trip (§14). */
+  visited: Partial<Record<MarketId, number>>;
   /** Personal loans from banks (§8). */
   loans: PersonalLoan[];
   companyIds: Id[];
@@ -298,6 +300,8 @@ export interface Company {
   /** Month when the company was last updated by a human decision. */
   lastDecisionMonth: number;
   forSale: boolean;
+  /** No founders left (they relocated): an AI CEO runs it, competently but slower (§14). */
+  aiCeo: boolean;
 }
 
 // ---------------------------------------------------------------- Investors & funds

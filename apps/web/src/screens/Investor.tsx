@@ -75,6 +75,7 @@ export function DealFlow() {
                 <Pill>{c.stars.toFixed(1)}★</Pill>
                 <Pill>{c.lastRound ? titleCase(c.lastRound) : 'Unfunded'}</Pill>
                 <Pill>{c.teamSize} people</Pill>
+                {c.market !== view.me.market && <Pill tone="info">{c.marketName}</Pill>}
                 {c.ai && <Pill>AI founder</Pill>}
               </div>
             </Card>
@@ -87,9 +88,11 @@ export function DealFlow() {
 }
 
 function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => void }) {
-  const { view, send, cur } = useView();
+  const { view, send } = useView();
   const c = view.directory.find((x) => x.id === listing.id) ?? listing;
   const d = c.diligence;
+  // Amounts are in the company's own currency (it may be in another market).
+  const cur = c.currency;
   const [instrument, setInstrument] = useState<'safe' | 'priced'>(c.lastRound ? 'priced' : 'safe');
   // Empty means "use the suggestion": defaults follow diligence as it loads.
   const [amount, setAmount] = useState('');
@@ -300,11 +303,15 @@ export function Portfolio() {
                       {p.ownershipPct}%{p.status !== 'active' ? ` · ${p.status}` : ''}
                     </span>
                   </td>
-                  <td className="num">{money(p.invested, cur)}</td>
+                  <td className="num">{money(p.invested, p.currency)}</td>
                   <td className="num">
-                    {p.writtenOff ? <span className="bad">written off</span> : money(p.mark, cur)}
+                    {p.writtenOff ? (
+                      <span className="bad">written off</span>
+                    ) : (
+                      money(p.mark, p.currency)
+                    )}
                   </td>
-                  <td className="num">{money(p.returned, cur)}</td>
+                  <td className="num">{money(p.returned, p.currency)}</td>
                 </tr>
               ))}
             </tbody>

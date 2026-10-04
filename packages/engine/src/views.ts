@@ -14,7 +14,16 @@ import { companyRunway, defaultAlive } from './company.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
 import { creditProfile } from './credit.js';
-import { burn, getMarket, hoursLeft, lastPnl, nextStage, totalCustomers } from './helpers.js';
+import { tripCostUsd } from './travel.js';
+import {
+  burn,
+  getMarket,
+  usdToLocal,
+  hoursLeft,
+  lastPnl,
+  nextStage,
+  totalCustomers,
+} from './helpers.js';
 import { lifestyleCost, tierOf } from './personal.js';
 import { hasPublicWarning } from './stars.js';
 import { isOverloaded, managementCapacity } from './staff.js';
@@ -30,6 +39,9 @@ export function publicCompany(world: World, c: Company) {
     id: c.id,
     name: c.name,
     market: c.market,
+    marketName: getMarket(world, c.market).data.name,
+    currency: getMarket(world, c.market).data.currency,
+    aiCeo: c.aiCeo,
     industry: c.industry,
     industryLabel: INDUSTRY_LABEL[c.industry],
     idea: c.idea,
@@ -268,6 +280,7 @@ export function portfolio(world: World, p: Player) {
       return {
         companyId: c.id,
         name: c.name,
+        currency: getMarket(world, c.market).data.currency,
         status: c.status,
         stars: round1(c.stars.value),
         via: x.investorId === p.id ? 'personal' : 'fund',
@@ -297,7 +310,9 @@ export function playerView(world: World, playerId: Id) {
   const myCompanies = p.companyIds.map((id) => world.companies[id]!).filter(Boolean);
   const fund = p.investor?.fundId ? world.funds[p.investor.fundId] : undefined;
   const others = Object.values(world.companies).filter(
-    (c) => c.market === p.market && !c.founderIds.includes(p.id),
+    // Your market, plus any market you've travelled to (§14).
+    (c) =>
+      (c.market === p.market || p.visited[c.market] !== undefined) && !c.founderIds.includes(p.id),
   );
   return {
     worldVersion: world.version,
@@ -322,6 +337,16 @@ export function playerView(world: World, playerId: Id) {
       milestones: p.milestones,
       investor: p.investor ?? null,
       failures: p.failures,
+      visited: p.visited,
+      /** Where you can go, and what a trip costs from here (§14). */
+      destinations: (Object.keys(world.markets) as MarketId[])
+        .filter((id) => id !== p.market)
+        .map((id) => ({
+          id,
+          name: getMarket(world, id).data.name,
+          tripCost: usdToLocal(world, m, tripCostUsd(p.market, id)),
+          visitingNow: p.visited[id] === m.month,
+        })),
       lastMonth: p.lastMonth,
       gigsThisMonth: p.gigsThisMonth,
     },
@@ -359,10 +384,14 @@ export function playerView(world: World, playerId: Id) {
       })),
       outlets: m.outlets,
       funds: Object.values(world.funds)
-        .filter((f) => f.market === m.id)
+        // Home funds, plus funds in a market you're visiting this month (§14).
+        .filter((f) => f.market === m.id || p.visited[f.market] === m.month)
         .map((f) => ({
           id: f.id,
           name: f.name,
+          market: f.market,
+          marketName: getMarket(world, f.market).data.name,
+          currency: getMarket(world, f.market).data.currency,
           partner: f.partner,
           ai: f.ai,
           sectors: f.sectors,

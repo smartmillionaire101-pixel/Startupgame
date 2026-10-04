@@ -155,7 +155,7 @@ export function hire(
 
 /** People a company can manage without morale and mistakes suffering. */
 export const managementCapacity = (c: Company): number =>
-  5 * c.founderIds.length +
+  5 * Math.max(c.founderIds.length, c.aiCeo ? 1 : 0) +
   c.staff.reduce((a, s) => a + (s.seniority === 'head' ? 7 : s.seniority === 'senior' ? 2 : 0), 0);
 
 export const isOverloaded = (c: Company): boolean => c.staff.length > managementCapacity(c);

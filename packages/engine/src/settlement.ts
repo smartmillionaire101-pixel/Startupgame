@@ -17,6 +17,7 @@ import { settleCompany } from './company.js';
 import { settleSegment } from './customers.js';
 import { expireDeals } from './deals.js';
 import { settleFundFees } from './funds.js';
+import { payDividends } from './travel.js';
 import type { MarketId } from './data/markets.js';
 import { getMarket } from './helpers.js';
 import { clamp } from './math.js';
@@ -63,7 +64,7 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
   const active = () =>
     Object.values(world.companies).filter((c) => c.market === marketId && c.status === 'active');
 
-  for (const c of active()) if (c.ai) aiFounderPolicy(world, c, rng, month);
+  for (const c of active()) if (c.ai || c.aiCeo) aiFounderPolicy(world, c, rng, month);
 
   // Customers, segment by segment, across every company present in it.
   const isMaintenance = (c: { ai: boolean; lastDecisionMonth: number }) =>
@@ -74,7 +75,10 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
     );
     settleSegment(seg, present, rng, month, isMaintenance);
   }
-  for (const c of active()) settleCompany(world, c, rng, month);
+  for (const c of active()) {
+    settleCompany(world, c, rng, month);
+    payDividends(world, c, month);
+  }
 
   aiFundsInvest(world, marketId, rng, month);
   for (const f of Object.values(world.funds)) {
