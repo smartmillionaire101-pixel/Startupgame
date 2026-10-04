@@ -123,6 +123,11 @@ export function takeGig(world: World, p: Player, month: number) {
 
 export function openUsdAccount(world: World, p: Player) {
   ensure(!p.accounts.usd, 'usd.exists', 'You already have a dollar account.');
+  ensure(
+    account(world, p.accounts.local).currency !== 'USD',
+    'usd.local',
+    'Your account is already in dollars.',
+  );
   p.accounts.usd = openAccount(world, {
     currency: 'USD',
     market: p.market,

@@ -942,10 +942,11 @@ function anonymize(world: World, playerId: Id) {
 function applyMarketData(world: World, cmd: Extract<Command, { type: 'market.data' }>) {
   const m = getMarket(world, cmd.market);
   const alerts: string[] = [];
-  if (cmd.unitsPerUsd !== undefined) {
+  // A dollar market's currency is the reference: it is always 1 per USD.
+  if (cmd.unitsPerUsd !== undefined && m.data.currency !== 'USD') {
     const change = cmd.unitsPerUsd / m.data.unitsPerUsd - 1;
     m.data.unitsPerUsd = cmd.unitsPerUsd;
-    if (Math.abs(change) >= 0.02 && m.data.currency !== 'USD') {
+    if (Math.abs(change) >= 0.02) {
       alerts.push(
         `${m.data.currency} ${change > 0 ? 'weakens' : 'strengthens'} ${Math.abs(Math.round(change * 100))}% against the dollar.`,
       );

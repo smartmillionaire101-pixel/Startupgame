@@ -47,7 +47,8 @@ const thaw = (w: World): World => structuredClone(w);
 
 describe('city rosters', () => {
   it('every city has 24–36 businesses with known kinds, real districts and unique names', () => {
-    const cities = [...MARKET_IDS, 'san-francisco'];
+    const cities = [...MARKET_IDS];
+    expect(cities).toContain('san-francisco');
     for (const city of cities) {
       const roster = CITY_BUSINESSES[city];
       expect(roster, city).toBeDefined();
@@ -414,6 +415,21 @@ describe('venues and meetings', () => {
       withId: fund.id,
     }).world;
     expect(warmIntro(w, w.players.u_founder!, fund.id).warmth).toBeGreaterThan(r.result.warmth);
+  });
+
+  it('a meal with an AI angel warms their fund, so it counts toward a warm intro', () => {
+    let w = addFounder(makeWorld(42, ['lagos']));
+    const angel = Object.values(w.players).find((p) => p.ai && p.angel && p.market === 'lagos')!;
+    const fundId = angel.angel!.fundId;
+    const b = businesses(w).find((x) => x.kind === 'restaurant')!;
+    w = run(w, 'u_founder', {
+      type: 'venue.buy',
+      businessId: b.id,
+      itemId: 'lunch',
+      withId: angel.id,
+    }).world;
+    expect(w.players.u_founder!.contacts!.some((c) => c.id === `fund:${fundId}`)).toBe(true);
+    expect(warmIntro(w, w.players.u_founder!, fundId).warmth).toBeGreaterThan(0.25);
   });
 
   it('a meal with another player: both spend hours, contacts and trust both ways', () => {

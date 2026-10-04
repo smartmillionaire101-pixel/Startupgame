@@ -696,7 +696,9 @@ function resolveGuest(world: World, me: Player, withId: Id, b: LocalBusiness): G
     ensure(p.market === b.market, 'venue.guest', `${p.name} isn’t in this city.`);
     if (!p.ai)
       return { name: p.name, contact: { kind: 'player', refId: p.id, name: p.name }, player: p };
-    const fund = p.investor?.fundId ? world.funds[p.investor.fundId] : undefined;
+    // AI angels (and AI fund managers): warmth goes to their fund, so warm intros work.
+    const fundId = p.angel?.fundId ?? p.investor?.fundId;
+    const fund = fundId ? world.funds[fundId] : undefined;
     if (fund)
       return {
         name: p.name,

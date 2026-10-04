@@ -10,6 +10,7 @@
  * is about the same size relative to its city everywhere.
  */
 import type { Industry } from './industries.js';
+import type { MarketId } from './markets.js';
 
 export type BusinessCategory =
   | 'food' // restaurant, café, street food, bakery, pub/bar
@@ -484,9 +485,8 @@ const seeds = (rows: Row[]): BusinessSeed[] =>
 /**
  * The businesses of each city, by market id. The last few in each list are
  * not open on day one; they open over the months as the city changes.
- * Keyed by string so a market can have a roster before it joins `MarketId`.
  */
-export const CITY_BUSINESSES: Partial<Record<string, BusinessSeed[]>> = {
+export const CITY_BUSINESSES: Record<MarketId, BusinessSeed[]> = {
   london: seeds([
     ['The Lamb & Lantern', 'pub', 'borough', 'Declan Murphy'],
     ['Banglatown Spice House', 'curry-house', 'shoreditch', 'Rahim Uddin'],
@@ -793,7 +793,7 @@ export const CITY_BUSINESSES: Partial<Record<string, BusinessSeed[]>> = {
 export const LATE_OPENINGS = 4;
 
 /** District ids per city (shared with the web's city plans). */
-export const CITY_DISTRICTS: Partial<Record<string, readonly string[]>> = {
+export const CITY_DISTRICTS: Record<MarketId, readonly string[]> = {
   london: [
     'city',
     'shoreditch',

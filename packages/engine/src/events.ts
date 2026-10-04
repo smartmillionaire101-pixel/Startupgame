@@ -356,7 +356,12 @@ function guestPool(world: World, e: CityEvent, m: MarketState): Guest[] {
   const funds = (): Guest[] =>
     Object.values(world.funds)
       .filter((f) => f.ai && f.market === m.id)
-      .map((f) => ({ kind: 'fund', refId: f.id, name: `${f.partner}, ${f.name}` }));
+      .map((f) => ({
+        kind: 'fund',
+        refId: f.id,
+        // AI angels (Wave 3) come as themselves; their fund carries their name already.
+        name: f.angelId ? `${f.partner}, angel investor` : `${f.partner}, ${f.name}`,
+      }));
   const founders = (): Guest[] =>
     Object.values(world.companies)
       .filter((c) => c.ai && c.market === m.id && c.status === 'active')

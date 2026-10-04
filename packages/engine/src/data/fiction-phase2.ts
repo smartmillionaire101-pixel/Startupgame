@@ -6,7 +6,8 @@
 import type { AiFundSeed, OutletSeed } from './fiction.js';
 import type { Industry } from './industries.js';
 
-type P2 = 'accra' | 'freetown' | 'kigali' | 'johannesburg' | 'cairo' | 'dubai';
+/** Phase 2 markets, plus Wave 3's San Francisco (same shape). */
+type P2 = 'accra' | 'freetown' | 'kigali' | 'johannesburg' | 'cairo' | 'dubai' | 'san-francisco';
 
 interface MarketFiction {
   /** Cheque scale relative to Lagos. */
@@ -312,6 +313,68 @@ const FICTION: Record<P2, MarketFiction> = {
       'Priya',
     ],
     last: ['Al Falasi', 'Haddad', 'Menon', 'Al Suwaidi', 'Whitfield', 'Khoury', 'Rao', 'Nasser'],
+  },
+  // Wave 3. Funds follow the six archetypes in order: seed (fintech/SaaS),
+  // generalist seed/A, angels, sector (logistics/commerce/agri), growth, and
+  // a health/education studio run like an accelerator.
+  'san-francisco': {
+    scale: 4,
+    funds: [
+      ['Cable Car Ventures', 'Maya Lindqvist'],
+      ['Twin Peaks Capital', 'Daniel Reyes'],
+      ['Dolores Park Angels', 'Priya Raman'],
+      ['Embarcadero Partners', 'Kevin Tran'],
+      ['Presidio Growth', 'Elena Vasquez'],
+      ['Mission Bay Health Studio', 'Marcus Bell'],
+    ],
+    outlets: [
+      'The Bay Dispatch',
+      'SoMa Signal',
+      'Fog City Gossip',
+      'Sector Signal West',
+      'Mission & Market Weekly',
+    ],
+    reporters: ['Grace Nakamura', 'Luis Ortega', 'Tasha Greene', 'Ravi Iyer', 'Sofia Chen'],
+    bank: 'Golden Bay Bank',
+    incumbents: {
+      fintech: 'Bayline Payments',
+      ecommerce: 'Pacific Cart',
+      logistics: 'Golden Freightways',
+      healthtech: 'Sutro Health Network',
+      edtech: 'Lighthouse Learning',
+      saas: 'Ironwood Cloud',
+      agritech: 'Central Valley Harvest',
+    },
+    first: [
+      'Maya',
+      'Daniel',
+      'Priya',
+      'Kevin',
+      'Elena',
+      'Marcus',
+      'Wei',
+      'Sofia',
+      'Jamal',
+      'Hannah',
+      'Arjun',
+      'Mei',
+      'Diego',
+      'Olivia',
+    ],
+    last: [
+      'Chen',
+      'Nguyen',
+      'Garcia',
+      'Patel',
+      'Kim',
+      'Johnson',
+      'Lopez',
+      'Wong',
+      'Rivera',
+      'Shah',
+      'Murphy',
+      'Tanaka',
+    ],
   },
 };
 
