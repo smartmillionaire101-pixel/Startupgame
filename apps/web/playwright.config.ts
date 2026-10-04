@@ -15,6 +15,8 @@ export default defineConfig({
   testDir: './e2e',
   ...(process.env.E2E_SUITE === 'live' ? { testMatch: 'live.spec.ts' } : {}),
   timeout: 60_000,
+  // A deployed site answers over the network from functions that may be starting cold.
+  expect: { timeout: REMOTE ? 15_000 : 5_000 },
   retries: process.env.CI && !REMOTE ? 1 : 0,
   use: {
     baseURL: REMOTE ?? `http://127.0.0.1:${PORT}`,
