@@ -3,7 +3,14 @@ import { gzipSync } from 'node:zlib';
 import { KvAccountStore } from '../src/serverless/kv-accounts.js';
 import { KvGame, SNAPSHOT_EVERY } from '../src/serverless/kv-game.js';
 import { MemoryKv, kvJson } from '../src/serverless/kv.js';
-import { configFor, createRuntime, handle, modeFor, runClock } from '../src/serverless/netlify.js';
+import {
+  configFor,
+  createRuntime,
+  handle,
+  modeFor,
+  runClock,
+  storeFor,
+} from '../src/serverless/netlify.js';
 import { founderSetup, T0 } from './helpers.js';
 
 const PREVIEW = 'preview' as const;
@@ -218,6 +225,27 @@ describe('Netlify runtime', () => {
     );
     expect(modeFor(prod, 'https://6ac2--runwaystartup.netlify.app/')).toBe('preview');
     expect(modeFor(undefined, 'https://runwaystartup.netlify.app/')).toBe('preview');
+  });
+
+  it('gives each preview address one store shared by all its deploys', () => {
+    expect(storeFor('production', 'https://runwaystartup.netlify.app/api/state')).toEqual({
+      name: 'runway',
+      perDeploy: false,
+    });
+    const pr = 'https://deploy-preview-5--runwaystartup.netlify.app/api/state';
+    expect(storeFor('preview', pr)).toEqual({
+      name: 'runway-preview-deploy-preview-5',
+      perDeploy: false,
+    });
+    expect(storeFor('preview', 'https://Feature_X--runwaystartup.netlify.app/').name).toBe(
+      'runway-preview-feature-x',
+    );
+    // Not a preview address: that deploy's own store.
+    expect(storeFor('preview', 'https://runwaystartup.netlify.app/')).toEqual({
+      name: 'runway',
+      perDeploy: true,
+    });
+    expect(storeFor('preview')).toEqual({ name: 'runway', perDeploy: true });
   });
 
   it('keeps one generated session secret per store and turns dev tools on only in previews', async () => {
