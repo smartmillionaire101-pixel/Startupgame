@@ -432,7 +432,7 @@ describe('venues and meetings', () => {
     expect(warmIntro(w, w.players.u_founder!, fundId).warmth).toBeGreaterThan(0.25);
   });
 
-  it('a meal with another player: both spend hours, contacts and trust both ways', () => {
+  it('a meal with another player: only the inviter spends hours; contacts and trust both ways', () => {
     let w = addInvestor(addFounder(makeWorld(42, ['lagos'])), 'u_inv');
     const b = businesses(w).find((x) => x.kind === 'cafe' || x.kind === 'restaurant')!;
     const item = businessKind(b.kind)!.venue!.items.find((x) => x.meeting)!;
@@ -444,7 +444,7 @@ describe('venues and meetings', () => {
       itemId: item.id,
       withId: 'u_inv',
     }).world;
-    expect(w.players.u_inv!.hours.used - theirs).toBe(ECONOMY.meetingHours);
+    expect(w.players.u_inv!.hours.used - theirs).toBe(0);
     expect(personal(w, 'u_inv')).toBe(theirMoney);
     expect(w.players.u_founder!.trust.u_inv).toBeGreaterThan(0);
     expect(w.players.u_inv!.trust.u_founder).toBeGreaterThan(0);

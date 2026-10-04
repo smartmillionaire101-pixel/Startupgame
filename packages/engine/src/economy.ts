@@ -749,14 +749,9 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
   if (withId) {
     ensure(it.meeting, 'venue.meeting', `${it.label} isn’t something to invite someone to.`);
     guest = resolveGuest(world, me, withId, b);
-    if (guest.player)
-      ensure(
-        hoursLeft(guest.player) >= ECONOMY.meetingHours,
-        'venue.busy',
-        `${guest.name} has no time left this month.`,
-      );
+    // Only the inviter spends time: a human guest never loses hours to an
+    // invitation they didn't accept (they get an inbox note instead).
     spendHours(me, ECONOMY.meetingHours, `Meeting ${guest.name}`);
-    if (guest.player) spendHours(guest.player, ECONOMY.meetingHours, 'A meeting');
   }
   const total = guest ? price * 2 : price;
   ensure(
