@@ -1,6 +1,7 @@
 /** Small, accessible UI primitives. No UI framework: keeps the app tiny. */
 import { useId, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { useGame } from './store';
+import { t } from './i18n';
 
 export function Card({
   title,
@@ -201,7 +202,7 @@ export function Sheet({
       >
         <header className="sheet-head">
           <h2>{title}</h2>
-          <button className="icon-btn" aria-label="Close" onClick={onClose}>
+          <button className="icon-btn" aria-label={t('Close')} onClick={onClose}>
             ✕
           </button>
         </header>
@@ -229,7 +230,7 @@ export function Confirm({
         {confirmLabel}
       </Button>
       <Button variant="ghost" onClick={() => setArmed(false)}>
-        Cancel
+        {t('Cancel')}
       </Button>
     </div>
   ) : (
@@ -243,9 +244,9 @@ export function Toasts() {
   const { toasts } = useGame();
   return (
     <div className="toasts" aria-live="polite">
-      {toasts.map((t) => (
-        <div key={t.id} className={`toast toast-${t.tone}`}>
-          {t.text}
+      {toasts.map((x) => (
+        <div key={x.id} className={`toast toast-${x.tone}`}>
+          {x.text}
         </div>
       ))}
     </div>
