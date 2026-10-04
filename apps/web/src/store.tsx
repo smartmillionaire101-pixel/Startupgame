@@ -92,23 +92,42 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => api.state().then(apply, applyError), [apply, applyError]);
 
   useEffect(() => {
-    api.meta().then(setMeta, () => undefined);
+    // Game settings; retried so one failed request at startup doesn't hide them.
+    const loadMeta = (attempt: number) =>
+      api.meta().then(setMeta, () => {
+        if (attempt < 5) setTimeout(() => void loadMeta(attempt + 1), 1000 * 2 ** attempt);
+      });
+    void loadMeta(0);
     api.state().then(apply, applyError);
   }, [apply, applyError]);
 
-  // Live updates: SSE normally; a slow poll in lite mode to save data.
+  // Live updates: SSE normally; polling where the host can't hold a connection
+  // open (the server answers 204), and a slow poll in lite mode to save data.
   useEffect(() => {
     if (status !== 'ready') return;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const poll = (ms: number) => {
+      timer ??= setInterval(() => {
+        if (document.visibilityState !== 'hidden') void refresh();
+      }, ms);
+    };
     if (lite) {
-      const t = setInterval(() => void refresh(), 60_000);
-      return () => clearInterval(t);
+      poll(60_000);
+      return () => clearInterval(timer);
     }
     const es = new EventSource('/api/events');
     es.onmessage = (e) => {
       const { version } = JSON.parse(e.data as string) as { version: number };
       if (version > versionRef.current) void refresh();
     };
-    return () => es.close();
+    es.onerror = () => {
+      // CLOSED means the server won't stream (no retry coming): fall back to polling.
+      if (es.readyState === EventSource.CLOSED) poll(20_000);
+    };
+    return () => {
+      es.close();
+      clearInterval(timer);
+    };
   }, [status, lite, refresh]);
 
   const send = useCallback(

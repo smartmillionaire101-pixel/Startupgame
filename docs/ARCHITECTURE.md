@@ -33,6 +33,10 @@ Balancing constants live in one place per system (`CUSTOMER_TUNING`, `STAR_TUNIN
 - **Security.** Phone numbers stored only as HMAC; OTPs and session tokens stored as SHA-256; OTP attempts limited; DOB checked and discarded; `httpOnly` + `SameSite=Strict` cookies plus a required `x-runway` header against CSRF; rate limits; strict CSP; Zod validation at every boundary; logs redact phone, code and cookies; system commands cannot be sent by clients.
 - **Chat** lives outside the simulation (it must never affect outcomes or be visible to reporters/arbitrators): starters only to begin, filters for links/phones/emails/handles, scam flagging, block and report.
 
+### Serverless hosting (Netlify)
+
+The same Fastify app runs inside a Netlify Function: each request is passed through `app.inject`, so routes, validation, security headers and rate limits are identical. Because no process lives long enough to hold the world, `KvGame` keeps it in Netlify Blobs as an event log plus a snapshot. Writing `log/<version>` with "only if new" is the commit point: exactly one writer can produce each version, and a writer that loses the race reloads and re-runs the command on the newer world. Snapshots are written once per version every ten commands and after each settlement (the newest three are kept); a cold function loads the newest and replays the log after it (the engine is deterministic). A warm function only checks whether the next log entry exists. The function code is bundled into one plain JavaScript file at build time (`scripts/build-functions.mjs`), because Netlify copies dependencies as they are and the engine is a TypeScript workspace package. Accounts and chats use per-record compare-and-swap (`KvAccountStore`). The clock is a scheduled function; clients poll instead of holding a server-sent-events connection.
+
 ### Scaling path
 
 Markets are independent except for FX and cross-market rules, so the natural next step is one writer per market (shard the command log by market) behind the same API. The read model can be cached per `(player, worldVersion)`. Postgres can replace SQLite behind the `Store` class.

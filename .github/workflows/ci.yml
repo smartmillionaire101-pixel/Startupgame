@@ -29,6 +29,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: node scripts/build-functions.mjs
       - run: npm audit --omit=dev --audit-level=high
 
   e2e:

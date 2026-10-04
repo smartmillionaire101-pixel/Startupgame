@@ -17,16 +17,29 @@ import {
   dueSettlements,
   upgradeWorld,
   type Command,
+  type DispatchResult,
   type MarketId,
   type World,
 } from '@runway/engine';
 import type { Store } from './store/sqlite.js';
+import type { Awaitable } from './store/types.js';
 
 export interface GameEvents {
   changed: [{ version: number; actors: string[] }];
 }
 
-export class GameService {
+/**
+ * What the HTTP API needs from the game: the current world and a way to
+ * apply commands. `events` exists only where a process lives long enough to
+ * push live updates (server-sent events); serverless hosts poll instead.
+ */
+export interface Game {
+  readonly current: World;
+  execute(actorId: string | null, command: Command): Awaitable<DispatchResult>;
+  readonly events?: EventEmitter<GameEvents>;
+}
+
+export class GameService implements Game {
   private world: World;
   private lastSeq = 0;
   private sinceSnapshot = 0;

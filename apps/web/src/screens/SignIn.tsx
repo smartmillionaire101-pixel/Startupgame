@@ -13,6 +13,7 @@ export function SignIn() {
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [devCode, setDevCode] = useState<string | undefined>();
+  const [codeShown, setCodeShown] = useState<'dev' | 'no-sms' | undefined>();
   const [loading, setLoading] = useState(false);
 
   const start = async (e: FormEvent) => {
@@ -23,6 +24,7 @@ export function SignIn() {
     try {
       const r = await api.startAuth(phone, { year, month, day });
       setDevCode(r.devCode);
+      setCodeShown(r.codeShown);
       setStep('code');
     } catch (err) {
       toast(tx((err as Error).message), 'error');
@@ -116,7 +118,11 @@ export function SignIn() {
               label={t('6-digit code')}
               hint={
                 devCode
-                  ? t('Dev mode: your code is {code}', { code: devCode })
+                  ? codeShown === 'no-sms'
+                    ? t('Test version: no text messages yet. Your code is {code}', {
+                        code: devCode,
+                      })
+                    : t('Dev mode: your code is {code}', { code: devCode })
                   : t('Sent by SMS. It expires in 10 minutes.')
               }
             >

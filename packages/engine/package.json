@@ -16,5 +16,5 @@
     "immer": "^11.1.0",
     "zod": "^4.1.0"
   },
-  "sideEffects": "false"
+  "sideEffects": false
 }

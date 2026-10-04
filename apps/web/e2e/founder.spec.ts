@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('a founder signs up, onboards in under two minutes, and plays a month', async ({ page }) => {
   await page.goto('/');
@@ -8,7 +8,7 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.getByLabel('Mobile number').fill(`+23480${Date.now().toString().slice(-8)}`);
   await page.getByLabel('Date of birth').fill('1994-03-12');
   await page.getByRole('button', { name: 'Send code' }).click();
-  const hint = page.getByText(/Dev mode: your code is \d{6}/);
+  const hint = page.getByText(/your code is \d{6}/i);
   await expect(hint).toBeVisible();
   const code = (await hint.textContent())!.match(/\d{6}/)![0];
   await page.getByLabel('6-digit code').fill(code);
@@ -42,7 +42,10 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.getByRole('button', { name: 'Build yourself (40h)' }).click();
   await expect(page.getByText(/40h of building logged/)).toBeVisible();
   await page.getByRole('button', { name: 'Home' }).click();
+  const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
   await page.getByRole('button', { name: /Advance Lagos one month/ }).click();
+  const res = await settled;
+  expect(res.status(), await res.text()).toBe(200);
   await expect(page.getByText('Year 1, Month 2')).toBeVisible();
 
   // The news digest is reachable.

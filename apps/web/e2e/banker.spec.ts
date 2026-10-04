@@ -1,13 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('a banker applies for a licence in Accra, gets it, and sets pricing', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Mobile number').fill(`+23324${Date.now().toString().slice(-7)}`);
   await page.getByLabel('Date of birth').fill('1979-03-14');
   await page.getByRole('button', { name: 'Send code' }).click();
-  const code = (await page.getByText(/Dev mode: your code is \d{6}/).textContent())!.match(
-    /\d{6}/,
-  )![0];
+  const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
   await page.getByLabel('6-digit code').fill(code);
   await page.getByRole('button', { name: 'Verify' }).click();
 
@@ -29,8 +27,11 @@ test('a banker applies for a licence in Accra, gets it, and sets pricing', async
   // Two game months later the central bank decides.
   await page.getByRole('button', { name: 'Home' }).click();
   for (let i = 0; i < 2; i++) {
+    const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
     await page.getByRole('button', { name: /Advance Accra one month/ }).click();
-    await expect(page.getByText(`Advanced to month ${i + 1}.`)).toBeVisible();
+    const res = await settled;
+    expect(res.status(), await res.text()).toBe(200);
+    await expect(page.getByText(/Advanced to month \d+\./).last()).toBeVisible();
   }
   await page.getByRole('button', { name: 'Bank' }).click();
   await expect(page.getByText(/Licensed ·/)).toBeVisible();

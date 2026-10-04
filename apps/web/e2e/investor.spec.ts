@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('an investor screens an AI startup, does diligence and writes a first cheque', async ({
   page,
@@ -7,9 +7,7 @@ test('an investor screens an AI startup, does diligence and writes a first chequ
   await page.getByLabel('Mobile number').fill(`+25471${Date.now().toString().slice(-7)}`);
   await page.getByLabel('Date of birth').fill('1988-11-02');
   await page.getByRole('button', { name: 'Send code' }).click();
-  const code = (await page.getByText(/Dev mode: your code is \d{6}/).textContent())!.match(
-    /\d{6}/,
-  )![0];
+  const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
   await page.getByLabel('6-digit code').fill(code);
   await page.getByRole('button', { name: 'Verify' }).click();
 

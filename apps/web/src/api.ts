@@ -75,7 +75,11 @@ export const api = {
   command: <R = unknown>(command: Command) =>
     request<{ ok: true; result: R; version: number }>('POST', '/api/commands', { command }),
   startAuth: (phone: string, dob: { year: number; month: number; day: number }) =>
-    request<{ sent: true; devCode?: string }>('POST', '/api/auth/start', { phone, dob }),
+    request<{ sent: true; devCode?: string; codeShown?: 'dev' | 'no-sms' }>(
+      'POST',
+      '/api/auth/start',
+      { phone, dob },
+    ),
   verify: (phone: string, code: string) =>
     request<{ ok: true; isNew: boolean }>('POST', '/api/auth/verify', { phone, code }),
   logout: () => request('POST', '/api/auth/logout', {}),

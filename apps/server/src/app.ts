@@ -36,9 +36,9 @@ import {
 } from '@runway/engine';
 import { AuthService, SESSION_COOKIE, SESSION_TTL_MS, isAdult, normalisePhone } from './auth.js';
 import type { Config } from './config.js';
-import type { GameService } from './game.js';
+import type { Game } from './game.js';
 import type { SmsProvider } from './adapters/sms.js';
-import type { Store } from './store/sqlite.js';
+import type { AccountStore } from './store/types.js';
 
 export const DISCLAIMER = 'This is a game. Nothing here is financial, legal, or tax advice.';
 
@@ -50,8 +50,8 @@ declare module 'fastify' {
 
 export interface AppDeps {
   config: Config;
-  store: Store;
-  game: GameService;
+  store: AccountStore;
+  game: Game;
   sms: SmsProvider;
   now: () => number;
 }
@@ -99,7 +99,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // ---------------------------------------------------------------- hooks
 
   app.addHook('onRequest', async (req, reply) => {
-    req.userId = auth.userForToken(req.cookies[SESSION_COOKIE]);
+    req.userId = await auth.userForToken(req.cookies[SESSION_COOKIE]);
     // CSRF defence in depth: SameSite=Strict cookies plus a custom header that
     // cross-site forms cannot send.
     if (
@@ -208,7 +208,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   // ---------------------------------------------------------------- auth
 
-  const authLimit = { config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } };
+  const authLimit = {
+    config: { rateLimit: { max: config.AUTH_RATE_LIMIT, timeWindow: '10 minutes' } },
+  };
 
   app.post('/api/auth/start', authLimit, async (req, reply) => {
     const body = z
@@ -230,9 +232,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       return reply
         .code(403)
         .send({ error: { code: 'age', message: 'Runway is for players aged 18 and over.' } });
-    const code = auth.issueOtp(phone);
+    const code = await auth.issueOtp(phone);
     await sms.send(phone, `Your Runway code is ${code}. It expires in 10 minutes.`);
-    return { sent: true, ...(config.DEV_TOOLS ? { devCode: code } : {}) };
+    if (config.DEV_TOOLS) return { sent: true, devCode: code, codeShown: 'dev' as const };
+    if (config.SHOW_SIGNIN_CODE) return { sent: true, devCode: code, codeShown: 'no-sms' as const };
+    return { sent: true };
   });
 
   app.post('/api/auth/verify', authLimit, async (req, reply) => {
@@ -244,7 +248,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       return reply
         .code(400)
         .send({ error: { code: 'phone', message: 'Enter a valid mobile number.' } });
-    const r = auth.verifyOtp(phone, body.code);
+    const r = await auth.verifyOtp(phone, body.code);
     if (!r.ok) return reply.code(401).send({ error: { code: 'otp', message: r.reason } });
     reply.setCookie(SESSION_COOKIE, r.token, {
       httpOnly: true,
@@ -258,15 +262,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.post('/api/auth/logout', async (req, reply) => {
     const token = req.cookies[SESSION_COOKIE];
-    if (token) auth.logout(token);
+    if (token) await auth.logout(token);
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { ok: true };
   });
 
   app.delete('/api/account', { preHandler: requireUser }, async (req, reply) => {
     const id = req.userId!;
-    if (game.current.players[id]) game.execute(null, { type: 'player.anonymize', playerId: id });
-    store.deleteUser(id, now());
+    if (game.current.players[id])
+      await game.execute(null, { type: 'player.anonymize', playerId: id });
+    await store.deleteUser(id, now());
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { deleted: true };
   });
@@ -293,7 +298,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const { command } = parsed.data;
       if (SYSTEM_COMMANDS.has(command.type))
         return reply.code(403).send({ error: { code: 'forbidden', message: 'Not allowed.' } });
-      const r = game.execute(req.userId!, command);
+      const r = await game.execute(req.userId!, command);
       if (!r.ok) return reply.code(422).send({ error: r.error });
       return { ok: true, result: r.result, version: r.world.version };
     },
@@ -301,6 +306,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   /** Server-sent events: tells clients to refetch when the world changes. Tiny payloads for low data use. */
   app.get('/api/events', { preHandler: requireUser }, (req, reply) => {
+    // Serverless hosts can't hold a connection open: 204 tells the client to poll.
+    const events = game.events;
+    if (!events) return reply.code(204).send();
     reply.raw.writeHead(200, {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache, no-transform',
@@ -318,9 +326,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       }, 1000);
     };
     const keepAlive = setInterval(() => reply.raw.write(': ping\n\n'), 25_000);
-    game.events.on('changed', onChange);
+    events.on('changed', onChange);
     req.raw.on('close', () => {
-      game.events.off('changed', onChange);
+      events.off('changed', onChange);
       clearInterval(keepAlive);
       if (pending) clearTimeout(pending);
     });
@@ -355,13 +363,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       lastAt: c.last_at ?? null,
     };
   };
-  const ownChat = (userId: string, chatId: string) => {
-    const c = store.getChat(chatId);
+  const ownChat = async (userId: string, chatId: string) => {
+    const c = await store.getChat(chatId);
     return c && (c.a === userId || c.b === userId) ? c : undefined;
   };
 
   app.get('/api/chats', { preHandler: requireUser }, async (req) => ({
-    chats: store.chatsFor(req.userId!).map((c) => chatView(req.userId!, c)),
+    chats: (await store.chatsFor(req.userId!)).map((c) => chatView(req.userId!, c)),
   }));
 
   app.get('/api/chats/starters/:playerId', { preHandler: requireUser }, async (req, reply) => {
@@ -386,24 +394,28 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       return reply
         .code(400)
         .send({ error: { code: 'starter', message: 'Pick a conversation starter.' } });
-    const existing = store.findChat(me.id, other.id);
+    const existing = await store.findChat(me.id, other.id);
     if (existing?.blocked_by)
       return reply.code(403).send({ error: { code: 'blocked', message: 'This chat is blocked.' } });
     const chat =
-      existing ?? store.createChat(`chat_${randomUUID().slice(0, 12)}`, me.id, other.id, now());
-    store.addMessage(chat.id, me.id, body.starter, false, now());
+      existing ??
+      (await store.createChat(`chat_${randomUUID().slice(0, 12)}`, me.id, other.id, now()));
+    await store.addMessage(chat.id, me.id, body.starter, false, now());
     return { chat: chatView(me.id, chat) };
   });
 
   app.get('/api/chats/:id/messages', { preHandler: requireUser }, async (req, reply) => {
     const { id } = z.object({ id: z.string().max(64) }).parse(req.params);
-    const chat = ownChat(req.userId!, id);
+    const chat = await ownChat(req.userId!, id);
     if (!chat) return reply.code(404).send({ error: { code: 'chat', message: 'Chat not found.' } });
     return {
       chat: chatView(req.userId!, chat),
-      messages: store
-        .messages(id)
-        .map((m) => ({ id: m.id, mine: m.sender === req.userId, text: m.text, at: m.created_at })),
+      messages: (await store.messages(id)).map((m) => ({
+        id: m.id,
+        mine: m.sender === req.userId,
+        text: m.text,
+        at: m.created_at,
+      })),
     };
   });
 
@@ -413,7 +425,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     async (req, reply) => {
       const { id } = z.object({ id: z.string().max(64) }).parse(req.params);
       const { text } = z.object({ text: z.string().max(CHAT_MAX_LENGTH * 2) }).parse(req.body);
-      const chat = ownChat(req.userId!, id);
+      const chat = await ownChat(req.userId!, id);
       if (!chat)
         return reply.code(404).send({ error: { code: 'chat', message: 'Chat not found.' } });
       if (chat.blocked_by)
@@ -423,16 +435,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const check = checkChatMessage(text);
       if (!check.ok)
         return reply.code(400).send({ error: { code: 'filtered', message: check.reason } });
-      store.addMessage(id, req.userId!, check.text, check.flagged, now());
+      await store.addMessage(id, req.userId!, check.text, check.flagged, now());
       return { ok: true, flagged: check.flagged };
     },
   );
 
   app.post('/api/chats/:id/block', { preHandler: requireUser }, async (req, reply) => {
     const { id } = z.object({ id: z.string().max(64) }).parse(req.params);
-    if (!ownChat(req.userId!, id))
+    if (!(await ownChat(req.userId!, id)))
       return reply.code(404).send({ error: { code: 'chat', message: 'Chat not found.' } });
-    store.blockChat(id, req.userId!);
+    await store.blockChat(id, req.userId!);
     return { ok: true };
   });
 
@@ -441,10 +453,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const { reason } = z
       .object({ reason: z.enum(['harassment', 'scam', 'spam', 'other']) })
       .parse(req.body);
-    if (!ownChat(req.userId!, id))
+    if (!(await ownChat(req.userId!, id)))
       return reply.code(404).send({ error: { code: 'chat', message: 'Chat not found.' } });
-    store.report(id, req.userId!, reason, now());
-    store.blockChat(id, req.userId!);
+    await store.report(id, req.userId!, reason, now());
+    await store.blockChat(id, req.userId!);
     return { ok: true };
   });
 
@@ -454,7 +466,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const token = req.headers.authorization?.replace(/^Bearer /, '');
     if (!config.ADMIN_TOKEN || token !== config.ADMIN_TOKEN)
       return reply.code(404).send({ error: { code: 'not-found', message: 'Not found.' } });
-    return { ...economyDashboard(game.current), openReports: store.openReports().length };
+    return { ...economyDashboard(game.current), openReports: (await store.openReports()).length };
   });
 
   if (config.DEV_TOOLS) {
@@ -471,7 +483,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const last = open.lastSettledDate!;
       const d = new Date(`${last}T00:00:00Z`);
       d.setUTCDate(d.getUTCDate() + 1);
-      const r = game.execute(null, {
+      const r = await game.execute(null, {
         type: 'market.settle',
         market,
         date: d.toISOString().slice(0, 10),
