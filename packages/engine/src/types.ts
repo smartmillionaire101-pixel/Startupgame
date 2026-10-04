@@ -142,6 +142,8 @@ export interface Player {
   failures: number;
   /** People met at events (Wave 2), newest first. Missing on old saves = none. */
   contacts?: Contact[];
+  /** AI angels only (Wave 3): the angel fund this person runs; set when they stop investing. */
+  angel?: { fundId: Id; retiredMonth?: number };
 }
 
 // ---------------------------------------------------------------- Events & contacts (Wave 2)
@@ -598,6 +600,8 @@ export interface Fund {
   distributed: number;
   thesis: string;
   stars: StarState;
+  /** AI angel funds (Wave 3): the AI angel player who runs it. `managerId` stays null (no human). */
+  angelId?: Id;
 }
 
 /** Cost basis of an investor in a company, for marks, DPI and write-offs. */

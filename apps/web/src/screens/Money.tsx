@@ -99,7 +99,8 @@ function Raise({ c }: { c: Company }) {
   const funds = view.market.funds.filter((f) => f.ai);
   const fits = (f: (typeof funds)[number]) =>
     (f.sectors === 'any' || f.sectors.includes(c.industry)) && f.stages.includes(c.nextStage);
-  const investors = view.players.filter((p) => p.role === 'investor');
+  // Human investors take pitches in person; AI angels are pitched through their fund above.
+  const investors = view.players.filter((p) => p.role === 'investor' && !p.ai);
   return (
     <>
       <div className="kpis">

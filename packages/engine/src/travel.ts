@@ -32,6 +32,7 @@ const REGION: Record<MarketId, string> = {
   cairo: 'north-africa',
   dubai: 'gulf',
   london: 'europe',
+  'san-francisco': 'north-america',
 };
 
 /** Round-trip cost in USD: flights, a hotel and a week of meetings. */
