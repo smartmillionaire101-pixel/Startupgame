@@ -104,11 +104,19 @@
 .city-label.is-soon text {
   fill: #5b21b6;
 }
-.city-map[data-zoom='0'] .lbl-detail,
-.city-map[data-zoom='0'] .lbl-stall,
-.city-map[data-zoom='1'] .lbl-stall,
-.city-map[data-zoom='2'] .city-district {
+/* Wave 4: few labels until you zoom in. Key places always; district names
+   when zoomed out (only banks' and investors' districts at the default
+   zoom); banks, funds, businesses and stalls up close, or the one you tapped. */
+.city-map[data-zoom='0'] :is(.lbl-detail, .lbl-stall, .lbl-biz),
+.city-map[data-zoom='1'] :is(.lbl-detail, .lbl-stall, .lbl-biz),
+.city-map[data-zoom='1'] .city-district:not(.is-key),
+.city-map[data-zoom='2'] .city-district,
+.city-map[data-zoom='0'] .city-street-name,
+.city-map:is([data-zoom='0'], [data-zoom='1']) .city-you {
   display: none;
+}
+.city-map .city-label.is-focus {
+  display: inline !important;
 }
 
 .city-district {
@@ -533,9 +541,9 @@
 .city-person-player .city-tag text {
   fill: #fff;
 }
-/* AI name tags only up close; players' tags always. */
-.city-map[data-zoom='0'] .city-person:not(.city-person-player) .city-tag,
-.city-map[data-zoom='1'] .city-person:not(.city-person-player) .city-tag {
+/* Name tags only up close, except players you know; tap anyone for their card. */
+.city-map[data-zoom='0'] .city-person:not(.is-known) .city-tag,
+.city-map[data-zoom='1'] .city-person:not(.is-known) .city-tag {
   display: none;
 }
 
@@ -727,9 +735,6 @@
 }
 .city-label.lbl-biz text {
   font-size: 9px;
-}
-.city-map[data-zoom='0'] .lbl-biz {
-  display: none;
 }
 .city-fog-bank {
   animation: city-fog 48s ease-in-out infinite alternate;

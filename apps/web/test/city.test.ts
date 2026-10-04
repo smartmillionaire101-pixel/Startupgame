@@ -155,8 +155,8 @@ describe('walking', () => {
   });
 
   it('snaps taps to the nearest street', () => {
-    expect(nearestStreetPoint(l, { x: 0.8, y: 5.5 })).toEqual({ x: 0, y: 5.5 });
-    expect(nearestStreetPoint(l, { x: 5.5, y: 7.6 })).toEqual({ x: 5.5, y: 8 });
+    expect(nearestStreetPoint(l, { x: 0.8, y: B + 1.5 })).toEqual({ x: 0, y: B + 1.5 });
+    expect(nearestStreetPoint(l, { x: B + 1.5, y: 2 * B - 0.4 })).toEqual({ x: B + 1.5, y: 2 * B });
   });
 
   it('finds paths that stay on streets and are as short as the grid allows', () => {

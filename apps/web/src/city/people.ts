@@ -364,7 +364,7 @@ export function aiCharacters(layout: CityLayout, input: CrowdInput, max: number)
   ): AiPerson => {
     const h = hash(`${input.marketId}:${kind}:${ref}`);
     const { i, j } = blockOf(home);
-    const inset = 0.3 + ((h >>> 3) % 5) * 0.02;
+    const inset = 0.44 + ((h >>> 3) % 5) * 0.02;
     const door = home.door;
     let route: Pt[];
     if (style === 'loop') route = blockLoop(i, j, inset, ((h >>> 7) & 1) === 1, door);

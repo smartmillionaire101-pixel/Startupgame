@@ -60,6 +60,7 @@ export const johannesburg: CityPlan = {
       hosts: ['airport'],
     },
   ],
+  open: { rows: [2], cols: [2] },
   streets: 'grid',
   landmarks: [{ kind: 'hillbrow-tower', name: 'Hillbrow Tower', at: [2, 0] }],
   transit: ['bus'],

@@ -41,6 +41,7 @@ export const london: CityPlan = {
     { id: 'borough', name: 'Borough', kind: 'market', at: [3, 5], size: [2, 2] },
   ],
   water: { side: 'south', name: 'River Thames', river: 4 },
+  open: { rows: [2], cols: [5] },
   streets: 'mixed',
   bridges: [
     { name: 'Westminster Bridge', from: [1, 4], to: [1, 5], style: 'arch', color: '#4d7c0f' },

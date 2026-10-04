@@ -8,6 +8,7 @@ import { Bar, Button, Card, Confirm, Empty, Field, Pill, Sparkline, Stat } from 
 import { Chats } from './Chat';
 import { visitPlace } from '../city/goto';
 import { contactsOf, type ContactView } from '../city/people';
+import { flightsOf } from '../city/travel';
 import { BankPicker } from './common';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 
@@ -328,45 +329,65 @@ export function PersonalMoney({ travel = true }: { travel?: boolean } = {}) {
   );
 }
 
-/** Travel and relocation (§14). */
-export function Travel() {
+/**
+ * Travel and relocation (§14). Trips leave from the airport (Wave 4: you fly
+ * there and walk its streets); `trips={false}` keeps just relocation, for
+ * the airport, which lists its own departures.
+ */
+export function Travel({ trips = true }: { trips?: boolean } = {}) {
   const { view, send, cur } = useView();
   const [moveTo, setMoveTo] = useState('');
   const [handle, setHandle] = useState('');
   const dests = view.me.destinations;
+  const flights = flightsOf(view);
   return (
-    <Card title={t('Travel')}>
-      <p className="small muted">
-        {t(
-          'A trip costs money and {hours} hours. You must visit a market before investing or acquiring there, and you can pitch its investors during the trip month.',
-          { hours: 40 },
-        )}
-      </p>
-      <ul className="list">
-        {dests.map((d) => (
-          <li key={d.id} className="spread">
-            <span>
-              {d.name} <span className="small muted">· {money(d.tripCost, cur)}</span>
-              {d.visitingNow ? (
-                <Pill tone="good">{t('This month')}</Pill>
-              ) : view.me.visited[d.id as keyof typeof view.me.visited] !== undefined ? (
-                <Pill>{t('Visited')}</Pill>
-              ) : null}
-            </span>
-            <Button
-              variant="ghost"
-              disabled={d.visitingNow}
-              onClick={() =>
-                void send({ type: 'player.travel', market: d.id as never }, (r: { text: string }) =>
-                  tx(r.text),
+    <Card title={trips ? t('Travel') : t('Moving for good')}>
+      {trips && (
+        <>
+          <p className="small muted">
+            {flights
+              ? t(
+                  'Flights leave from the airport: one way, {hours} hours, and you can go any time. While you’re there you can meet its investors and invest.',
+                  { hours: flights.hours },
                 )
-              }
-            >
-              {t('Go')}
-            </Button>
-          </li>
-        ))}
-      </ul>
+              : t(
+                  'A trip costs money and {hours} hours. You must visit a market before investing or acquiring there, and you can pitch its investors during the trip month.',
+                  { hours: 40 },
+                )}
+          </p>
+          <ul className="list">
+            {dests.map((d) => (
+              <li key={d.id} className="spread">
+                <span>
+                  {d.name}{' '}
+                  <span className="small muted">
+                    · {money(flights?.fareTo[d.id] ?? d.tripCost, cur)}
+                  </span>
+                  {d.visitingNow ? (
+                    <Pill tone="good">{t('This month')}</Pill>
+                  ) : view.me.visited[d.id as keyof typeof view.me.visited] !== undefined ? (
+                    <Pill>{t('Visited')}</Pill>
+                  ) : null}
+                </span>
+                <Button
+                  variant="ghost"
+                  disabled={!flights && d.visitingNow}
+                  onClick={() =>
+                    flights
+                      ? visitPlace('airport')
+                      : void send(
+                          { type: 'player.travel', market: d.id as never },
+                          (r: { text: string }) => tx(r.text),
+                        )
+                  }
+                >
+                  {flights ? t('To the airport') : t('Go')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <details style={{ marginTop: '0.6rem' }}>
         <summary className="small">{t('Relocate permanently')}</summary>
         <p className="small bad">

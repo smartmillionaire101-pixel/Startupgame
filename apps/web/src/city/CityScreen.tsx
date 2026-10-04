@@ -5,14 +5,36 @@
 /* The build doesn't use the React Compiler; these memos are deliberate (they keep the
    static SVG scene from re-rendering), so its preservation check doesn't apply. */
 /* eslint-disable react-hooks/preserve-manual-memoization */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { Command, PlayerView } from '@runway/engine';
 import './city.css';
+import { api, ApiError } from '../api';
 import { money, runway } from '../format';
 import { t, tx, useLang } from '../i18n';
-import { useView } from '../store';
+import { useView, WithView } from '../store';
 import { Button, Pill, Sheet } from '../ui';
 import { avatarLook } from './art';
-import { CityMap, districtLabel, type CityMapHandle } from './CityMap';
+import {
+  CityMap,
+  districtLabel,
+  placeAvatarAt,
+  type CityMapHandle,
+  type FarTrip,
+} from './CityMap';
+import { FlightScene } from './Flight';
+import { MonthCountdown, RideChooser, RideIcon } from './Transport';
+import {
+  cityViewOf,
+  clockOf,
+  destinationsOf,
+  flightsOf,
+  hasHere,
+  hereOf,
+  lastRide,
+  rememberRide,
+  rideDistance,
+  type RideMode,
+} from './travel';
 import { categoryLabel } from './Business';
 import {
   activeCompany,
@@ -27,6 +49,7 @@ import { onVisit, takeVisit } from './goto';
 import { Interior, placeLabel, type Nav } from './Interiors';
 import {
   aiCharacters,
+  contactsOf,
   crowdInput,
   crowdSize,
   eventsOf,
@@ -46,11 +69,12 @@ import {
   type Pt,
 } from './layout';
 
-const kindLabel = (p: Place, companyName: string | null, _lang?: string) =>
+const kindLabel = (p: Place, companyName: string | null, abroad: boolean, _lang?: string) =>
   (
     ({
-      office: companyName ?? t('Your office'),
-      home: t('Your home'),
+      // Away from home, your office and home stand in for a coworking desk and a hotel.
+      office: abroad ? t('Coworking space') : (companyName ?? t('Your office')),
+      home: abroad ? t('Your hotel') : t('Your home'),
       hub: t('The Hub'),
       airport: t('Airport'),
       newsstand: t('Newsstand'),
@@ -232,26 +256,159 @@ export function PeopleList({
   );
 }
 
+interface FlightState {
+  from: string;
+  to: string;
+  fromName: string;
+  toName: string;
+  hours: number;
+  status: 'pending' | 'ok';
+  /** The fallback trip (no `travel.fly` yet): what the trip gives you. */
+  note?: string;
+}
+
+/**
+ * The City tab. While you're away (Wave 4 `view.here`), the city you're in
+ * stands in for your home market, so its places, people and prices are
+ * that city's; flights between cities play full screen over it.
+ */
 export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
-  const { view, lite, cur } = useView();
+  const { view, lite, refresh, toast } = useView();
+  const cityView = useMemo(() => cityViewOf(view), [view]);
+  const abroad = cityView.market.id !== view.market.id;
+  const [flight, setFlight] = useState<FlightState | null>(null);
+  const [landing, setLanding] = useState<string | null>(null);
+
+  const fly = useCallback(
+    async (to: string) => {
+      const dest = destinationsOf(view).find((d) => d.id === to);
+      const flights = flightsOf(view);
+      const here = hereOf(view);
+      const toName = dest?.name ?? (to === view.market.id ? view.market.name : to);
+      // You leave at once: the plane rolls while the booking goes through.
+      setLanding(to);
+      setFlight({
+        from: here.id,
+        to,
+        fromName: here.name,
+        toName,
+        hours: dest?.hours ?? flights?.hours ?? 4,
+        status: 'pending',
+        note:
+          flights && hasHere(view)
+            ? undefined
+            : t(
+                'Your trip to {city} counts this month: pitch its investors and invest there. Walking its streets opens soon; for now you’re back in {home}.',
+                { city: toName, home: view.market.name },
+              ),
+      });
+      try {
+        await api.command(
+          (flights
+            ? { type: 'travel.fly', to }
+            : { type: 'player.travel', market: to }) as unknown as Command,
+        );
+        await refresh();
+        setFlight((f) => (f && f.to === to ? { ...f, status: 'ok' } : f));
+        if (lite) {
+          setFlight(null);
+          toast(t('Landed in {city}.', { city: toName }), 'ok');
+        }
+      } catch (e) {
+        setFlight(null);
+        setLanding(null);
+        toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error');
+      }
+    },
+    [view, refresh, toast, lite],
+  );
+  const flyHome = useCallback(() => void fly(view.market.id), [fly, view.market.id]);
+  const landed = useCallback(() => setLanding(null), []);
+  const done = useCallback(() => {
+    setFlight(null);
+    // Without `view.here` the city never changes: nothing to land in.
+    if (!hasHere(view)) setLanding(null);
+  }, [view]);
+
+  const body = (
+    <CityBody
+      onNavigate={onNavigate}
+      home={view.market}
+      onFly={(to) => void fly(to)}
+      onFlyHome={flyHome}
+      landing={landing}
+      onLanded={landed}
+    />
+  );
+  return (
+    <>
+      {abroad ? <WithView view={cityView}>{body}</WithView> : body}
+      {flight && !lite && (
+        <FlightScene
+          from={flight.from}
+          to={flight.to}
+          fromName={flight.fromName}
+          toName={flight.toName}
+          hours={flight.hours}
+          status={flight.status}
+          note={flight.note}
+          onDone={done}
+        />
+      )}
+    </>
+  );
+}
+
+function CityBody({
+  onNavigate,
+  home,
+  onFly,
+  onFlyHome,
+  landing,
+  onLanded,
+}: {
+  onNavigate: Nav;
+  /** Your home market (the view's market is the one you're in). */
+  home: PlayerView['market'];
+  onFly: (to: string) => void;
+  onFlyHome: () => void;
+  /** A city you're flying to: arrive at its airport. */
+  landing: string | null;
+  onLanded: () => void;
+}) {
+  const { view, lite, refresh, toast } = useView();
   const lang = useLang();
+  const abroad = view.market.id !== home.id;
   const company = activeCompany(view);
   const companyName = company?.name ?? null;
   const bg = view.me.background?.id;
   const meId = view.me.id;
 
   // Labels are translated: they are rebuilt when the language changes.
-  const labelOf = useCallback((p: Place) => kindLabel(p, companyName, lang), [companyName, lang]);
+  const labelOf = useCallback(
+    (p: Place) => kindLabel(p, companyName, abroad, lang),
+    [companyName, abroad, lang],
+  );
   const look = useMemo(() => avatarLook(bg, meId), [bg, meId]);
   const [inside, setInside] = useState<Place | null>(null);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [person, setPerson] = useState<PersonRef | null>(null);
+  const [trip, setTrip] = useState<FarTrip | null>(null);
+  const [rideBusy, setRideBusy] = useState(false);
+  const [preferred, setPreferred] = useState<RideMode>(lastRide);
   const mapRef = useRef<CityMapHandle | null>(null);
 
   // Rebuild the layout only when what it depends on changes.
   const key = JSON.stringify(cityInput(view));
   const layout = useMemo(() => buildLayout(JSON.parse(key) as CityInput), [key]);
+  // Landed: you step out of the airport.
+  useLayoutEffect(() => {
+    if (!landing || layout.marketId !== landing) return;
+    const airport = layout.places.find((p) => p.kind === 'airport');
+    if (airport) placeAvatarAt(layout.marketId, airport.door);
+    onLanded();
+  }, [layout, landing, onLanded]);
   // Ambient people: deterministic for the market, sized for the screen.
   const crowdKey = JSON.stringify(crowdInput(view));
   const [crowdMax] = useState(() =>
@@ -263,6 +420,11 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
   );
   // Other players (never in lite mode: no polling to save data).
   const { players, report } = usePresence({ enabled: !lite, selfId: meId });
+  const knownKey = contactsOf(view)
+    .filter((c) => c.kind === 'player')
+    .map((c) => c.refId)
+    .join(',');
+  const known = useMemo(() => (knownKey ? knownKey.split(',') : []), [knownKey]);
   const flagKey = flaggedPlaces(eventsOf(view)).join(',');
   const flags = useMemo(() => (flagKey ? flagKey.split(',') : []), [flagKey]);
   const onArrive = useCallback(
@@ -279,7 +441,7 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
     [players, ai],
   );
 
-  const story = storyOf(company);
+  const story = abroad ? null : storyOf(company);
   const rescue = rescueOf(company);
   // Under six months of cash is normal for a young startup: a gentle note, not an alarm.
   const alarm = rescue && rescue.level !== 'watch' ? rescue : null;
@@ -290,10 +452,12 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
   const goTo = useCallback(
     (place: Place) => {
       setPlacesOpen(false);
+      setTrip(null);
       if (lite || !mapRef.current) setInside(place);
-      else mapRef.current.goTo(place.id);
+      // From a list or a button: your usual free way of getting about.
+      else mapRef.current.goTo(place.id, preferred === 'cycle' ? 'cycle' : 'walk');
     },
-    [lite],
+    [lite, preferred],
   );
   const goToStory = useCallback(
     (where: StoryPlace) => {
@@ -324,11 +488,63 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
     return onVisit(go);
   }, [visit]);
 
+  // ---- Far trips: choose how to get there.
+  const cancelTrip = useCallback(() => {
+    setTrip(null);
+    mapRef.current?.cancelTrip();
+  }, []);
+  const pickRide = useCallback(
+    async (mode: RideMode) => {
+      if (!trip) return;
+      rememberRide(mode);
+      setPreferred(mode);
+      if (mode === 'bus' || mode === 'taxi') {
+        setRideBusy(true);
+        try {
+          await api.command({
+            type: 'city.ride',
+            mode,
+            distance: rideDistance(trip.tiles),
+          } as unknown as Command);
+          void refresh();
+        } catch (e) {
+          // A server without rides yet: the ride is free (and just animates).
+          if (!(e instanceof ApiError && e.code === 'command.unknown')) {
+            setRideBusy(false);
+            toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error');
+            return;
+          }
+        }
+        setRideBusy(false);
+      }
+      setTrip(null);
+      mapRef.current?.ride(mode);
+    },
+    [trip, refresh, toast],
+  );
+  const tripPlace = trip?.placeId ? layout.places.find((p) => p.id === trip.placeId) : undefined;
+
+  const clock = clockOf(view);
+  const awayChip = abroad && (
+    <span className="hud-away" role="status">
+      <span>{t('You’re in {city}', { city: view.market.name })}</span>
+      <button type="button" className="hud-away-btn" onClick={onFlyHome}>
+        <RideIcon mode="plane" /> {t('Fly home')}
+      </button>
+    </span>
+  );
+
   return (
     <div className={`city${lite ? ' city-lite' : ''}`}>
       <h1 className="sr-only">{t('{market} city', { market: view.market.name })}</h1>
       {lite ? (
         <>
+          {(clock || abroad) && (
+            <div className="city-lite-hud">
+              {awayChip}
+              {clock && <MonthCountdown clock={clock} />}
+            </div>
+          )}
           <p className="small muted">
             {t('Lite mode: the city map is off to save data. Pick a place to go in.')}
           </p>
@@ -351,8 +567,10 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
             ai={ai}
             players={players}
             flags={flags}
+            known={known}
             onPerson={onPerson}
             onArrive={onArrive}
+            onFarTrip={setTrip}
             ariaLabel={t(
               'Map of {market}. Arrow keys pan, plus and minus zoom. Use the places list to go into a building.',
               { market: view.market.name },
@@ -363,11 +581,11 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
               <button
                 type="button"
                 className={`hud-chip${rescue ? ` hud-${rescue.level}` : ''}`}
-                onClick={() => goTo(office)}
+                onClick={() => (abroad ? onNavigate('company') : goTo(office))}
               >
                 <span className="hud-name">{company.name}</span>
                 <span>
-                  {money(company.cash, cur)} ·{' '}
+                  {money(company.cash, home.currency)} ·{' '}
                   {rescue
                     ? t('{n} mo left', { n: rescue.monthsLeft ?? '?' })
                     : runway(company.runwayMonths)}
@@ -378,6 +596,12 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
                 <span className="hud-name">{view.market.name}</span>
                 <span>{view.market.date.label}</span>
               </span>
+            )}
+            {(clock || abroad) && (
+              <div className="hud-row">
+                {awayChip}
+                {clock && <MonthCountdown clock={clock} />}
+              </div>
             )}
           </div>
           <div className="city-hud city-hud-zoom">
@@ -407,50 +631,66 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
             </button>
           </div>
           <div className="city-hud city-hud-bottom">
-            {alarm ? (
-              <div className={`hud-banner hud-${alarm.level}`} role="status">
-                <span>
-                  <b>{t('Rescue plan')}</b>
-                  {alarm.deadline ? ` · ${tx(alarm.deadline)}` : ''}
-                </span>
-                <Button variant="danger" onClick={() => goTo(office)}>
-                  {t('See the plan')}
-                </Button>
-              </div>
-            ) : next && markerPlace ? (
-              <div className="hud-banner" role="status">
-                <span>
-                  <b>{tx(next.label)}</b> · {placeLabel(next.place)}
-                </span>
-                <Button variant="subtle" onClick={() => goTo(markerPlace)}>
-                  {t('Go')}
-                </Button>
-              </div>
-            ) : rescue ? (
-              <p className="hud-hint">
-                {t('Cash for about {n} months: build revenue or plan a raise.', {
-                  n: rescue.monthsLeft ?? '?',
-                })}
-              </p>
+            {trip ? (
+              <RideChooser
+                tiles={trip.tiles}
+                where={tripPlace ? labelOf(tripPlace) : ''}
+                marketId={view.market.id}
+                currency={view.market.currency}
+                costOfLiving={view.market.costOfLiving}
+                preferred={preferred}
+                busy={rideBusy}
+                onPick={(m) => void pickRide(m)}
+                onCancel={cancelTrip}
+              />
             ) : (
-              <p className="hud-hint">{t('Tap a street to walk, a building to go in.')}</p>
-            )}
-            <div className="hud-stack">
-              <button type="button" className="hud-places" onClick={() => setPeopleOpen(true)}>
-                <span aria-hidden>☺</span> {t('Who’s here')}
-                {players.length > 0 && (
-                  <span className="hud-count">
-                    <span className="sr-only">
-                      {t('{n} players nearby', { n: players.length })}
+              <>
+                {alarm && !abroad ? (
+                  <div className={`hud-banner hud-${alarm.level}`} role="status">
+                    <span>
+                      <b>{t('Rescue plan')}</b>
+                      {alarm.deadline ? ` · ${tx(alarm.deadline)}` : ''}
                     </span>
-                    <span aria-hidden>{players.length}</span>
-                  </span>
+                    <Button variant="danger" onClick={() => goTo(office)}>
+                      {t('See the plan')}
+                    </Button>
+                  </div>
+                ) : next && markerPlace ? (
+                  <div className="hud-banner" role="status">
+                    <span>
+                      <b>{tx(next.label)}</b> · {placeLabel(next.place)}
+                    </span>
+                    <Button variant="subtle" onClick={() => goTo(markerPlace)}>
+                      {t('Go')}
+                    </Button>
+                  </div>
+                ) : rescue && !abroad ? (
+                  <p className="hud-hint">
+                    {t('Cash for about {n} months: build revenue or plan a raise.', {
+                      n: rescue.monthsLeft ?? '?',
+                    })}
+                  </p>
+                ) : (
+                  <p className="hud-hint">{t('Tap a street to walk, a building to go in.')}</p>
                 )}
-              </button>
-              <button type="button" className="hud-places" onClick={() => setPlacesOpen(true)}>
-                ☰ {t('Places')}
-              </button>
-            </div>
+                <div className="hud-stack">
+                  <button type="button" className="hud-places" onClick={() => setPeopleOpen(true)}>
+                    <span aria-hidden>☺</span> {t('Who’s here')}
+                    {players.length > 0 && (
+                      <span className="hud-count">
+                        <span className="sr-only">
+                          {t('{n} players nearby', { n: players.length })}
+                        </span>
+                        <span aria-hidden>{players.length}</span>
+                      </span>
+                    )}
+                  </button>
+                  <button type="button" className="hud-places" onClick={() => setPlacesOpen(true)}>
+                    ☰ {t('Places')}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -488,6 +728,11 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
           onGo={goToStory}
           onVisit={visit}
           players={players}
+          onFly={(to) => {
+            setInside(null);
+            onFly(to);
+          }}
+          away={abroad ? { homeName: home.name, onFlyHome: () => (setInside(null), onFlyHome()) } : null}
           nav={(tab) => {
             setInside(null);
             onNavigate(tab);

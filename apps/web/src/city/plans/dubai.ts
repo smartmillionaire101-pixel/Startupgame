@@ -47,6 +47,7 @@ export const dubai: CityPlan = {
     { id: 'marina', name: 'Dubai Marina', kind: 'waterfront', at: [2, 5], size: [2, 2] },
   ],
   water: { side: 'north', name: 'Dubai Creek', river: 1, also: ['west'] },
+  open: { rows: [4], cols: [4] },
   streets: 'grid',
   bridges: [
     { name: 'Al Maktoum Bridge', from: [1, 1], to: [1, 2], style: 'beam', color: '#e2e8f0' },

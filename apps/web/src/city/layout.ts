@@ -29,8 +29,13 @@ import {
 import { flavourOf, type Flavour, type LandmarkKind, type VehicleSpec } from './flavour';
 import { planOf, type CityPlan, type DistrictKind, type Host, type Side } from './plans';
 
-/** Tiles from one street to the next. */
-export const B = 4;
+/**
+ * Tiles from one street to the next. Wave 4 made blocks bigger (4 → 5) and
+ * streets wider, so buildings stand apart with room to breathe.
+ */
+export const B = 5;
+/** Half a street's width (street line to kerb), in tiles. */
+export const SW = 0.62;
 /** Half the width of a tile and half its height, in screen px. */
 export const TW = 32;
 export const TH = 16;
@@ -347,8 +352,8 @@ export function spiral(n: number, turn: 1 | -1, heading: number): [number, numbe
 }
 
 /** The four corner lots of a block: x0/y0 in tiles and which streets they touch. */
-const LOT = [0.55, 2.1];
 const LOT_SIZE = 1.35;
+const LOT = [SW + 0.2, B - SW - 0.2 - LOT_SIZE];
 /** Front lots first, so the most important buildings face the viewer. */
 const LOT_ORDER: [0 | 1, 0 | 1][] = [
   [1, 1],
@@ -502,8 +507,8 @@ function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
 }
 
 function putEventHall(ctx: Ctx, { i, j }: Cell, area?: string) {
-  const x = i * B + 0.6;
-  const y = j * B + 0.9;
+  const x = i * B + (B - 2.8) / 2;
+  const y = (j + 1) * B - SW - 0.25 - 2.2;
   ctx.places.push({
     id: 'eventhall',
     kind: 'eventhall',
@@ -525,8 +530,8 @@ function putEventHall(ctx: Ctx, { i, j }: Cell, area?: string) {
 }
 
 function putAirport(ctx: Ctx, { i, j }: Cell, area?: string) {
-  const x = i * B + 0.55;
-  const y = j * B + 2.1;
+  const x = i * B + SW + 0.2;
+  const y = (j + 1) * B - SW - 0.2 - 1.35;
   ctx.places.push({
     id: 'airport',
     kind: 'airport',
@@ -544,10 +549,13 @@ function putAirport(ctx: Ctx, { i, j }: Cell, area?: string) {
     door: { x: x + 1.45, y: (j + 1) * B },
     doorFace: 'left',
   });
-  ctx.decor.push({ kind: 'runway', x: i * B + 0.5, y: j * B + 0.45, w: 3, d: 1.3 });
+  ctx.decor.push({ kind: 'runway', x: i * B + SW + 0.1, y: j * B + SW + 0.15, w: B - 2 * SW - 0.2, d: 1.3 });
 }
 
 const AWNINGS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
+
+const STALL_GAP = 1.2;
+const STALL0 = (B - 2 * STALL_GAP - 0.76) / 2;
 
 /** A plaza of stalls, nine per block, one per customer segment. */
 function putStalls(ctx: Ctx, blocks: Cell[], area?: string) {
@@ -558,8 +566,8 @@ function putStalls(ctx: Ctx, blocks: Cell[], area?: string) {
       const seg = input.segments[n];
       const ci = k % 3;
       const cj = Math.floor(k / 3);
-      const x = blk.i * B + 0.62 + ci * 1.0;
-      const y = blk.j * B + 0.62 + cj * 1.0;
+      const x = blk.i * B + STALL0 + ci * STALL_GAP;
+      const y = blk.j * B + STALL0 + cj * STALL_GAP;
       if (!seg) {
         if (k % 2 === 0) decor.push({ kind: 'tree', x: x + 0.35, y: y + 0.35, size: 0.7 });
         continue;
@@ -720,8 +728,8 @@ function putFiller(ctx: Ctx, { i, j }: Cell, style: FillStyle) {
     for (let k = 0; k < trees; k++)
       decor.push({
         kind: 'tree',
-        x: i * B + 0.6 + rnd() * 2.8,
-        y: j * B + 0.6 + rnd() * 2.8,
+        x: i * B + SW + 0.25 + rnd() * (B - 2 * SW - 0.5),
+        y: j * B + SW + 0.25 + rnd() * (B - 2 * SW - 0.5),
         size: 0.7 + rnd() * 0.5,
       });
     if (style === 'plaza' || rnd() < 0.5)
@@ -735,8 +743,9 @@ function putFiller(ctx: Ctx, { i, j }: Cell, style: FillStyle) {
     [1, 1],
   ] as [0 | 1, 0 | 1][]) {
     const l = lot(i, j, a, b);
-    if (rnd() < (style === 'warehouses' ? 0.1 : 0.2)) {
-      decor.push({ kind: 'tree', x: l.x + 0.7, y: l.y + 0.7, size: 1 });
+    // Wave 4: a good share of lots stay open (a tree, or just grass).
+    if (rnd() < (style === 'warehouses' ? 0.2 : style === 'towers' ? 0.3 : 0.4)) {
+      if (rnd() < 0.65) decor.push({ kind: 'tree', x: l.x + 0.7, y: l.y + 0.7, size: 1 });
       continue;
     }
     const h =
@@ -831,8 +840,8 @@ function buildGeneric(input: CityInput): CityLayout {
     for (let k = 0; k < 4; k++)
       ctx.decor.push({
         kind: 'tree',
-        x: blk.i * B + 0.8 + (k % 2) * 2.4,
-        y: blk.j * B + 0.8 + Math.floor(k / 2) * 2.4,
+        x: blk.i * B + 0.8 + (k % 2) * (B - 1.6),
+        y: blk.j * B + 0.8 + Math.floor(k / 2) * (B - 1.6),
         size: 0.9,
       });
   }
@@ -913,7 +922,7 @@ function finish(
   for (let k = 1; k < size; k++)
     for (let s = 0; s < size; s++)
       if ((k + s) % 2 === 0 && isBlock.has(`${k},${s}`))
-        decor.push({ kind: 'lamp', x: k * B + 0.38, y: s * B + B / 2 });
+        decor.push({ kind: 'lamp', x: k * B + SW + 0.08, y: s * B + B / 2 });
 
   // A segment along street k (axis 'x': y = k·B; axis 'y': x = k·B).
   const segOpen = (axis: 'x' | 'y', k: number, s: number) =>
@@ -968,7 +977,7 @@ function finish(
     const pick = (pool.length ? pool : lines)[Math.floor(rnd() * (pool.length || lines.length))]!;
     const axis = pick.axis;
     const forward = rnd() < 0.5;
-    const lane = forward ? 0.16 : -0.16;
+    const lane = forward ? 0.24 : -0.24;
     const a = pick.s0 === 0 ? -0.6 : pick.s0 * B + 0.6;
     const b = pick.s1 === size ? extent + 0.6 : pick.s1 * B - 0.6;
     const line = pick.k * B + lane;
@@ -1055,16 +1064,72 @@ export function planSize(plan: CityPlan): number {
   return n;
 }
 
-function buildPlanned(input: CityInput, plan: CityPlan): CityLayout {
+/**
+ * Wave 4: open a plan up. Inserts the plan's open lanes (`plan.open`) and
+ * shifts every block coordinate (districts, landmarks, hills, the river) and
+ * every street line (bridges) to match. `belt` says whether a block lies on
+ * an open lane, which stays a park or plaza where it can.
+ */
+export function spreadPlan(plan: CityPlan): { plan: CityPlan; belt: (i: number, j: number) => boolean } {
+  const cols = [...(plan.open?.cols ?? [])].sort((a, b) => a - b);
+  const rows = [...(plan.open?.rows ?? [])].sort((a, b) => a - b);
+  if (!cols.length && !rows.length) return { plan, belt: () => false };
+  const sx = (i: number) => i + cols.filter((c) => c <= i).length;
+  const sy = (j: number) => j + rows.filter((r) => r <= j).length;
+  const laneX = new Set(cols.map((c) => sx(c) - 1));
+  const laneY = new Set(rows.map((r) => sy(r) - 1));
+  const w = plan.water;
+  const riverAlongX = w ? w.side === 'north' || w.side === 'south' : true;
+  const river = w?.river;
+  // A street line k is the near edge of block k, except just past the river,
+  // where it is the far bank: the bridges must still land on both banks.
+  const lineX = (k: number) =>
+    river !== undefined && !riverAlongX && k - 1 === river ? sx(k - 1) + 1 : sx(k);
+  const lineY = (k: number) =>
+    river !== undefined && riverAlongX && k - 1 === river ? sy(k - 1) + 1 : sy(k);
+  const at = (p: [number, number]): [number, number] => [sx(p[0]), sy(p[1])];
+  return {
+    plan: {
+      ...plan,
+      open: undefined,
+      districts: plan.districts.map((d) => {
+        const [x0, y0] = at(d.at);
+        const x1 = sx(d.at[0] + d.size[0] - 1) + 1;
+        const y1 = sy(d.at[1] + d.size[1] - 1) + 1;
+        return { ...d, at: [x0, y0], size: [x1 - x0, y1 - y0] };
+      }),
+      water: w && {
+        ...w,
+        ...(river !== undefined ? { river: riverAlongX ? sy(river) : sx(river) } : {}),
+      },
+      hills: plan.hills?.map((h) => ({ ...h, at: at(h.at) })),
+      landmarks: plan.landmarks.map((l) => ({ ...l, at: at(l.at) })),
+      bridges: plan.bridges?.map((b) => ({
+        ...b,
+        from: [lineX(b.from[0]), lineY(b.from[1])],
+        to: [lineX(b.to[0]), lineY(b.to[1])],
+      })),
+    },
+    belt: (i, j) => laneX.has(i) || laneY.has(j),
+  };
+}
+
+function buildPlanned(input: CityInput, raw: CityPlan): CityLayout {
+  const { plan, belt } = spreadPlan(raw);
   const base = planSize(plan);
   for (let size = base; size < base + 8; size++) {
-    const out = tryPlanned(input, plan, size);
+    const out = tryPlanned(input, plan, size, belt);
     if (out) return out;
   }
   return buildGeneric(input);
 }
 
-function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout | null {
+function tryPlanned(
+  input: CityInput,
+  plan: CityPlan,
+  size: number,
+  belt: (i: number, j: number) => boolean,
+): CityLayout | null {
   const base = flavourOf(input.marketId);
   const flavour: Flavour = {
     ...base,
@@ -1105,8 +1170,14 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
         owner.set(ck(i, j), x.d.id);
         x.cells.push({ i, j });
       }
-    // Front blocks first, so the important buildings face the viewer.
-    x.cells.sort((a, b) => b.i + b.j - (a.i + a.j) || b.i - a.i);
+    // Front blocks first, so the important buildings face the viewer; open
+    // lanes last, so they stay open unless the district needs them.
+    x.cells.sort(
+      (a, b) =>
+        Number(belt(a.i, a.j)) - Number(belt(b.i, b.j)) ||
+        b.i + b.j - (a.i + a.j) ||
+        b.i - a.i,
+    );
   }
 
   // ---- Who hosts what (with fallbacks, so every important place exists).
@@ -1158,7 +1229,7 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
   for (let n = 0; n < D.length; n++) {
     const x = D[n]!;
     while (x.cells.length < need(n)) {
-      const free: (Cell & { dist: number; adj: boolean })[] = [];
+      const free: (Cell & { dist: number; adj: boolean; rank: number })[] = [];
       const mine = new Set(x.cells.map((c) => ck(c.i, c.j)));
       for (let j = 0; j < size; j++)
         for (let i = 0; i < size; i++) {
@@ -1169,12 +1240,17 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
             [0, 1],
             [0, -1],
           ].some(([di, dj]) => mine.has(ck(i + di!, j + dj!)));
-          free.push({ i, j, adj, dist: Math.abs(i - x.cx) + Math.abs(j - x.cy) });
+          free.push({
+            i,
+            j,
+            adj,
+            dist: Math.abs(i - x.cx) + Math.abs(j - x.cy),
+            // Neighbours first, then open lanes last: the green belts stay green.
+            rank: (adj ? 0 : 2) + (belt(i, j) ? 1 : 0),
+          });
         }
       if (!free.length) return null;
-      free.sort(
-        (a, b) => Number(b.adj) - Number(a.adj) || a.dist - b.dist || a.j - b.j || a.i - b.i,
-      );
+      free.sort((a, b) => a.rank - b.rank || a.dist - b.dist || a.j - b.j || a.i - b.i);
       const c = free[0]!;
       owner.set(ck(c.i, c.j), x.d.id);
       x.cells.push({ i: c.i, j: c.j });
@@ -1237,7 +1313,10 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
     const lotBlocks = Array.from({ length: Math.ceil(items.length / 4) }, take);
     lotBlocks.forEach((cell, k) => blocks.push({ ...cell, district: roleOf(items[k * 4]!), area }));
     fillLots(ctx, lotBlocks, items, area, tree);
-    while (c < cells.length) filler(take(), FILL_FOR[x.d.kind], area);
+    while (c < cells.length) {
+      const cell = take();
+      filler(cell, belt(cell.i, cell.j) ? 'park' : FILL_FOR[x.d.kind], area);
+    }
   });
   for (const lm of landmarks) {
     blocks.push({ i: lm.i, j: lm.j, district: 'landmark' });
@@ -1251,14 +1330,18 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
     for (let k = 0; k < 4; k++)
       ctx.decor.push({
         kind: 'tree',
-        x: lm.i * B + 0.6 + (k % 2) * 2.8,
-        y: lm.j * B + 0.6 + Math.floor(k / 2) * 2.8,
+        x: lm.i * B + 0.8 + (k % 2) * (B - 1.6),
+        y: lm.j * B + 0.8 + Math.floor(k / 2) * (B - 1.6),
         size: 0.8,
       });
   }
   for (let j = 0; j < size; j++)
     for (let i = 0; i < size; i++)
-      if (!owner.has(ck(i, j)) && !isRiver(i, j)) filler({ i, j }, rnd() < 0.4 ? 'park' : 'houses');
+      if (!owner.has(ck(i, j)) && !isRiver(i, j))
+        filler(
+          { i, j },
+          belt(i, j) ? ((i + j) % 3 === 0 ? 'plaza' : 'park') : rnd() < 0.55 ? 'park' : 'houses',
+        );
   blocks.sort((a, b) => a.j - b.j || a.i - b.i);
 
   // ---- Water and bridges.
@@ -1281,17 +1364,17 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
               kind: 'river',
               side: water.side,
               x0: -m,
-              y0: river * B + 0.55,
+              y0: river * B + SW + 0.1,
               x1: E + m,
-              y1: (river + 1) * B - 0.55,
+              y1: (river + 1) * B - SW - 0.1,
             }
           : {
               name: water.name,
               kind: 'river',
               side: water.side,
-              x0: river * B + 0.55,
+              x0: river * B + SW + 0.1,
               y0: -m,
-              x1: (river + 1) * B - 0.55,
+              x1: (river + 1) * B - SW - 0.1,
               y1: E + m,
             },
       );
@@ -1428,7 +1511,12 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
     const homes = blocks.filter((b) => b.district !== 'park' && b.district !== 'airport');
     for (let k = 0; k < 3 && homes.length; k++) {
       const b = homes[Math.floor(rnd() * homes.length)]!;
-      ctx.decor.push({ kind: 'station', x: b.i * B + 2.0, y: b.j * B + 3.5, name: station });
+      ctx.decor.push({
+        kind: 'station',
+        x: b.i * B + B / 2,
+        y: (b.j + 1) * B - SW - 0.4,
+        name: station,
+      });
     }
   }
   const boats: Boat[] = [];

@@ -44,6 +44,7 @@ export const kigali: CityPlan = {
     { at: [5, 4], height: 3 },
     { at: [5, 0], height: 2 },
   ],
+  open: { rows: [2], cols: [2] },
   streets: 'radial',
   landmarks: [{ kind: 'convention-dome', name: 'Convention Centre', at: [5, 1] }],
   transit: ['boda', 'bus'],

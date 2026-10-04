@@ -38,6 +38,7 @@ export const nairobi: CityPlan = {
     { at: [6, 0], height: 2 },
     { at: [6, 2], height: 3 },
   ],
+  open: { rows: [2], cols: [4] },
   streets: 'mixed',
   landmarks: [{ kind: 'conference-tower', name: 'Conference Centre', at: [2, 1] }],
   transit: ['matatu', 'boda', 'bus'],

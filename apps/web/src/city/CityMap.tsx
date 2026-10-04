@@ -7,7 +7,15 @@
  * write straight to the DOM through refs, so panning and walking never
  * re-render React.
  */
-import { memo, useCallback, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 import { t } from '../i18n';
 import {
   ArtDefs,
@@ -22,6 +30,7 @@ import {
 } from './art';
 import {
   B,
+  SW,
   findPath,
   nearestStreetPoint,
   pathLength,
@@ -41,6 +50,8 @@ import {
 } from './layout';
 import { CATEGORY_COLOR } from './contract';
 import { Crowd } from './Crowd';
+import { rideMs, rideVehicle, SHORT_HOP, type RideMode } from './travel';
+import type { VehicleSpec } from './flavour';
 import type { AiPerson, PresenceView } from './people';
 
 // ---------------------------------------------------------------------------
@@ -64,11 +75,27 @@ const NONE_FLAGS: string[] = [];
 /** Last avatar position per market, so switching tabs doesn't send you home. */
 const lastPos = new Map<string, Pt>();
 
+/** Put the avatar somewhere in a city before it shows (landing at its airport). */
+export function placeAvatarAt(marketId: string, at: Pt) {
+  lastPos.set(marketId, at);
+}
+
+/** A far trip waiting for the player to choose how to get there. */
+export interface FarTrip {
+  /** Length along the streets, in tiles. */
+  tiles: number;
+  placeId: string | null;
+}
+
 export interface CityMapHandle {
-  /** Walk to a place's door, then call onEnter. */
-  goTo: (placeId: string) => void;
+  /** Go to a place's door (walking, or by `mode`), then call onEnter. */
+  goTo: (placeId: string, mode?: RideMode) => void;
   /** Walk to a place's door without going in. */
   walkToPlace: (placeId: string) => void;
+  /** Set off on the trip waiting in the chooser, by this mode. */
+  ride: (mode: RideMode) => void;
+  /** Drop the trip waiting in the chooser. */
+  cancelTrip: () => void;
   recentre: () => void;
   zoom: (factor: number) => void;
 }
@@ -301,10 +328,10 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
           <polygon
             key={`zx${i}-${j}-${s}`}
             points={[
-              P(x + 0.52, y + s * 0.13 - 0.04),
-              P(x + 0.78, y + s * 0.13 - 0.04),
-              P(x + 0.78, y + s * 0.13 + 0.04),
-              P(x + 0.52, y + s * 0.13 + 0.04),
+              P(x + SW + 0.07, y + s * 0.17 - 0.05),
+              P(x + SW + 0.37, y + s * 0.17 - 0.05),
+              P(x + SW + 0.37, y + s * 0.17 + 0.05),
+              P(x + SW + 0.07, y + s * 0.17 + 0.05),
             ].join(' ')}
             fill="#fff"
             opacity="0.55"
@@ -318,8 +345,8 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
     const [i2, j2] = b as [number, number];
     const pts =
       j === j2
-        ? rect(i * B + 0.45, j * B - 0.6, i2 * B - 0.45, j * B + 0.6, 2)
-        : rect(i * B - 0.6, j * B + 0.45, i * B + 0.6, j2 * B - 0.45, 2);
+        ? rect(i * B + SW, j * B - SW - 0.15, i2 * B - SW, j * B + SW + 0.15, 2)
+        : rect(i * B - SW - 0.15, j * B + SW, i * B + SW + 0.15, j2 * B - SW, 2);
     out.push(<polygon key={`cut${key}`} points={pts} fill={f.sidewalk} />);
   }
   rivers.forEach((w, n) => out.push(<WaterBody key={`river${n}`} w={w} E={E} />));
@@ -344,9 +371,9 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
   }
   // Blocks: raised pavements, with parks, plazas and airfield tinted.
   for (const blk of layout.blocks) {
-    const x = blk.i * B + 0.45;
-    const y = blk.j * B + 0.45;
-    const s = B - 0.9;
+    const x = blk.i * B + SW;
+    const y = blk.j * B + SW;
+    const s = B - 2 * SW;
     const top = [P(x, y, 2), P(x + s, y, 2), P(x + s, y + s, 2), P(x, y + s, 2)].join(' ');
     out.push(
       <g key={`b${blk.i}-${blk.j}`}>
@@ -560,61 +587,139 @@ const Skyline = memo(function Skyline({ layout }: { layout: CityLayout }) {
 });
 
 /**
- * Building labels with simple collision avoidance: important places first;
- * a label that would overlap one already placed moves up a little, and minor
- * labels that still overlap are dropped. Labels scale with the map, so this
- * holds at every zoom.
+ * Map labels, decluttered (Wave 4). Two sets, each collision-checked on its
+ * own because they show at different zooms:
+ *
+ * - far (zoomed out and the default zoom): the key places (your office, the
+ *   Hub, the Market, the Event Hall, the airport) and district names; at the
+ *   default zoom only the districts with banks or investors keep their name.
+ * - near (zoomed in): the key places again, then banks, funds, your home and
+ *   the newsstand, then businesses and stalls.
+ *
+ * A key place's label moves up a little to clear another; any other label
+ * that would overlap one already placed is skipped. Labels scale with the
+ * map, so placement holds at every zoom. A place you tap shows its label
+ * whatever the zoom (`is-focus`).
  */
-export function placeLabels(layout: CityLayout, labelOf: (p: Place) => string) {
+export interface MapLabel {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  text: string;
+  /** lbl-main (always), lbl-detail / lbl-biz / lbl-stall (zoomed in only). */
+  tier: string;
+  soon: boolean;
+  color?: string;
+}
+
+export interface MapAreaLabel {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+  /** Districts with banks or investors: named at the default zoom too. */
+  key: boolean;
+}
+
+const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall'];
+
+export function placeLabels(
+  layout: CityLayout,
+  labelOf: (p: Place) => string,
+  marketName = '',
+): { labels: MapLabel[]; areas: MapAreaLabel[] } {
   const rank = (p: Place) =>
-    p.kind === 'stall' || p.kind === 'business'
-      ? 2
-      : p.kind === 'lender' || p.kind === 'fund' || p.kind === 'playerbank'
-        ? 1
-        : 0;
-  const placed: {
-    id: string;
-    x: number;
-    y: number;
-    w: number;
-    text: string;
-    tier: string;
-    soon: boolean;
-    color?: string;
-  }[] = [];
-  const hits = (x: number, y: number, w: number) =>
-    placed.some((o) => Math.abs(o.x - x) < (o.w + w) / 2 + 2 && Math.abs(o.y - y) < 18);
-  const sorted = [...layout.places]
-    .filter((p) => !(p.kind === 'stall' && p.dim))
+    KEY_KINDS.includes(p.kind)
+      ? 0
+      : p.kind === 'stall' || p.kind === 'business'
+        ? 2
+        : 1;
+  type Box = { x: number; y: number; w: number };
+  const hits = (boxes: Box[], x: number, y: number, w: number) =>
+    boxes.some((o) => Math.abs(o.x - x) < (o.w + w) / 2 + 3 && Math.abs(o.y - y) < 19);
+  const widthOf = (text: string) => Math.min(150, text.length * 5.6 + 14);
+  const clip = (raw: string) => (raw.length > 26 ? `${raw.slice(0, 25)}…` : raw);
+
+  // ---- Key places (both sets).
+  const labels: MapLabel[] = [];
+  const main: Box[] = [];
+  const put = (id: string, raw: string, c: Pt, h: number, extra: Partial<MapLabel> = {}) => {
+    const text = clip(raw);
+    const w = widthOf(text);
+    let y = c.y - h - 18;
+    for (let tries = 0; tries < 3 && hits(main, c.x, y, w); tries++) y -= 19;
+    main.push({ x: c.x, y, w });
+    labels.push({ id, x: c.x, y, w, text, tier: 'lbl-main', soon: false, ...extra });
+  };
+  for (const p of layout.places.filter((x) => rank(x) === 0)) {
+    const raw = labelOf(p);
+    if (raw) put(p.id, raw, project(p.x + p.w / 2, p.y + p.d / 2), p.h, { soon: !!p.soon });
+  }
+  // The Market: one label over its stalls instead of a label per stall.
+  const stalls = layout.places.filter((p) => p.kind === 'stall');
+  if (stalls.length && marketName) {
+    const first = stalls[0]!;
+    const i = Math.floor(first.x / B);
+    const j = Math.floor(first.y / B);
+    put('market', marketName, project(i * B + B / 2, j * B + B / 2), 16);
+  }
+
+  // ---- Far set: district names, skipping any that would cover a key place.
+  const keyAreas = new Set(
+    layout.places
+      .filter((p) => p.kind === 'lender' || p.kind === 'fund' || p.kind === 'playerbank')
+      .map((p) => p.area)
+      .filter((a): a is string => !!a),
+  );
+  const far: Box[] = [...main];
+  const areas: MapAreaLabel[] = [];
+  const named = layout.areas.length
+    ? layout.areas.map((a) => ({ id: a.id, at: a.at, text: a.name.toUpperCase(), key: keyAreas.has(a.id) }))
+    : layout.districts
+        .filter((d) => d.id === 'finance' || d.id === 'investors' || d.id === 'market')
+        .map((d) => ({
+          id: d.id,
+          at: d.at,
+          text: districtLabel(d.id).toUpperCase(),
+          key: d.id !== 'market',
+        }));
+  for (const a of [...named.filter((x) => x.key), ...named.filter((x) => !x.key)]) {
+    const c = project(a.at.x, a.at.y);
+    // District names are spaced capitals: wider than a label's text.
+    const w = a.text.length * 9.5;
+    if (hits(far, c.x, c.y - 4, w)) continue;
+    far.push({ x: c.x, y: c.y - 4, w });
+    areas.push({ id: a.id, x: c.x, y: c.y - 4, text: a.text, key: a.key });
+  }
+
+  // ---- Near set: banks, funds and the rest, then businesses and stalls.
+  const near: Box[] = [...main];
+  const rest = layout.places
+    .filter((p) => rank(p) > 0 && !(p.kind === 'stall' && p.dim))
     .sort((a, b) => rank(a) - rank(b));
-  for (const p of sorted) {
+  for (const p of rest) {
     const raw = labelOf(p);
     if (!raw) continue;
-    const text = raw.length > 26 ? `${raw.slice(0, 25)}…` : raw;
-    const w = Math.min(150, text.length * 5.6 + 14);
+    const text = clip(raw);
+    const w = widthOf(text);
     const c = project(p.x + p.w / 2, p.y + p.d / 2);
-    const x = c.x;
     let y = c.y - p.h - (p.kind === 'stall' ? 12 : 18);
-    let tries = 0;
-    while (hits(x, y, w) && tries < 3) {
-      y -= 19;
-      tries++;
-    }
-    if (hits(x, y, w) && rank(p) > 0) continue;
-    const tier =
-      p.kind === 'business' ? 'lbl-biz' : ['lbl-main', 'lbl-detail', 'lbl-stall'][rank(p)]!;
-    placed.push({
+    if (hits(near, c.x, y, w)) y -= 19;
+    if (hits(near, c.x, y, w)) continue;
+    near.push({ x: c.x, y, w });
+    labels.push({
       id: p.id,
-      x,
+      x: c.x,
       y,
       w,
       text,
-      tier,
+      tier: p.kind === 'business' ? 'lbl-biz' : p.kind === 'stall' ? 'lbl-stall' : 'lbl-detail',
       soon: !!p.soon,
       color: p.category ? CATEGORY_COLOR[p.category] : undefined,
     });
   }
-  return placed;
+  return { labels, areas };
 }
 
 const Labels = memo(function Labels({
@@ -624,23 +729,21 @@ const Labels = memo(function Labels({
   layout: CityLayout;
   labelOf: (p: Place) => string;
 }) {
+  const { labels, areas } = placeLabels(layout, labelOf, districtLabel('market'));
   return (
     <g className="city-labels" pointerEvents="none">
-      {layout.areas.map((a) => {
-        const c = project(a.at.x, a.at.y);
-        return (
-          <text
-            key={a.id}
-            x={c.x}
-            y={c.y - 4}
-            className="city-district"
-            textAnchor="middle"
-            data-area={a.id}
-          >
-            {a.name.toUpperCase()}
-          </text>
-        );
-      })}
+      {areas.map((a) => (
+        <text
+          key={a.id}
+          x={a.x}
+          y={a.y}
+          className={`city-district${a.key ? ' is-key' : ''}`}
+          textAnchor="middle"
+          data-area={a.id}
+        >
+          {a.text}
+        </text>
+      ))}
       {layout.waters
         .filter((w) => w.name)
         .slice(0, 1)
@@ -662,19 +765,10 @@ const Labels = memo(function Labels({
             </text>
           );
         })}
-      {layout.districts
-        .filter((d) => d.id === 'finance' || d.id === 'investors' || d.id === 'market')
-        .map((d) => {
-          const c = project(d.at.x, d.at.y);
-          return (
-            <text key={d.id} x={c.x} y={c.y - 4} className="city-district" textAnchor="middle">
-              {districtLabel(d.id).toUpperCase()}
-            </text>
-          );
-        })}
-      {placeLabels(layout, labelOf).map((l) => (
+      {labels.map((l) => (
         <g
           key={l.id}
+          data-label={l.id}
           className={`city-label ${l.tier}${l.soon ? ' is-soon' : ''}`}
           transform={`translate(${Math.round(l.x)},${Math.round(l.y)})`}
         >
@@ -706,6 +800,8 @@ export function CityMap({
   flags = NONE_FLAGS,
   onPerson,
   onArrive,
+  onFarTrip,
+  known = NONE_FLAGS,
 }: {
   layout: CityLayout;
   look: AvatarLook;
@@ -726,6 +822,10 @@ export function CityMap({
   onPerson?: (id: string) => void;
   /** The avatar stopped somewhere (after a walk, or on arrival in the city). */
   onArrive?: (at: Pt, placeId: string | null) => void;
+  /** A tap on somewhere far: choose how to get there, then call handle.ride. */
+  onFarTrip?: (trip: FarTrip) => void;
+  /** Ids of players you know: their name tags show at every zoom. */
+  known?: string[];
 }) {
   const reduced = useReducedMotion();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -736,13 +836,20 @@ export function CityMap({
   const cam = useRef({ x: 0, y: 0, z: 1, w: 360, h: 480 });
   const pos = useRef<Pt>(lastPos.get(layout.marketId) ?? layout.start);
   const walk = useRef<{ raf: number; cancel: () => void } | null>(null);
+  const rideRef = useRef<SVGGElement>(null);
+  const pending = useRef<{ target: Pt; then?: () => void; placeId: string | null } | null>(
+    null,
+  );
+  const [vehicle, setVehicle] = useState<VehicleSpec | null>(null);
   const following = useRef(true);
   const onEnterRef = useRef(onEnter);
   const onArriveRef = useRef(onArrive);
+  const onFarTripRef = useRef(onFarTrip);
   useEffect(() => {
     onEnterRef.current = onEnter;
     onArriveRef.current = onArrive;
-  }, [onEnter, onArrive]);
+    onFarTripRef.current = onFarTrip;
+  }, [onEnter, onArrive, onFarTrip]);
 
   const zoomLimits = useCallback(() => {
     const { w, h } = cam.current;
@@ -767,7 +874,7 @@ export function CityMap({
       'viewBox',
       `${(c.x - hw).toFixed(1)} ${(c.y - hh).toFixed(1)} ${(hw * 2).toFixed(1)} ${(hh * 2).toFixed(1)}`,
     );
-    const zl = c.z < 0.75 ? '0' : c.z < 1.35 ? '1' : '2';
+    const zl = c.z < 0.75 ? '0' : c.z < 1.25 ? '1' : '2';
     if (wrapRef.current && wrapRef.current.dataset.zoom !== zl) wrapRef.current.dataset.zoom = zl;
   }, [layout, zoomLimits]);
 
@@ -817,21 +924,51 @@ export function CityMap({
   const stopWalk = useCallback(() => {
     walk.current?.cancel();
     walk.current = null;
-    avatarRef.current?.classList.remove('is-walking');
+    avatarRef.current?.classList.remove('is-walking', 'is-riding');
     targetRef.current?.setAttribute('visibility', 'hidden');
   }, []);
   useEffect(() => stopWalk, [stopWalk]);
 
+  /** Show a place's label whatever the zoom (the one you tapped). */
+  const focusLabel = useCallback((placeId: string | null) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    svg.querySelectorAll('.city-label.is-focus').forEach((el) => el.classList.remove('is-focus'));
+    if (placeId)
+      svg
+        .querySelector(`[data-label="${placeId.replace(/["\\]/g, '')}"]`)
+        ?.classList.add('is-focus');
+  }, []);
+
   const walkTo = useCallback(
-    (target: Pt, then?: () => void, placeId: string | null = null) => {
+    (
+      target: Pt,
+      then?: () => void,
+      placeId: string | null = null,
+      opts: { mode?: RideMode; ask?: boolean } = {},
+    ) => {
       stopWalk();
+      pending.current = null;
+      focusLabel(placeId);
       const path = findPath(layout, pos.current, target);
       const len = pathLength(path);
+      const ts = project(target.x, target.y);
+      // Somewhere far that you tapped: ask how to get there first.
+      if (opts.ask && !reduced && len > SHORT_HOP && onFarTripRef.current) {
+        pending.current = { target, then, placeId };
+        targetRef.current?.setAttribute('transform', `translate(${ts.x},${ts.y})`);
+        targetRef.current?.setAttribute('visibility', 'visible');
+        onFarTripRef.current({ tiles: len, placeId });
+        return;
+      }
+      // Short hops always walk.
+      const mode: RideMode = len > SHORT_HOP ? (opts.mode ?? 'walk') : 'walk';
       const done = () => {
         pos.current = target;
         lastPos.set(layout.marketId, target);
         placeAvatar(target);
         stopWalk();
+        setVehicle(null);
         onArriveRef.current?.(target, placeId);
         then?.();
       };
@@ -840,15 +977,17 @@ export function CityMap({
         if (reduced) centreOn(target);
         return;
       }
-      const ts = project(target.x, target.y);
       targetRef.current?.setAttribute('transform', `translate(${ts.x},${ts.y})`);
       targetRef.current?.setAttribute('visibility', 'visible');
-      avatarRef.current?.classList.add('is-walking');
+      const spec = rideVehicle(mode, layout.marketId, layout.flavour.vehicles);
+      setVehicle(spec);
+      avatarRef.current?.classList.add(spec ? 'is-riding' : 'is-walking');
       following.current = true;
-      // About 5 tiles a second, never longer than 2.8s.
-      const ms = Math.min(2800, Math.max(350, (len / 5) * 1000));
+      // Each way of getting around has its own pace (walking: about 5 tiles a second).
+      const ms = rideMs(mode, len);
       const t0 = performance.now();
       let cancelled = false;
+      let axis = '';
       const step = (now: number) => {
         if (cancelled) return;
         const k = Math.min(1, (now - t0) / ms);
@@ -856,11 +995,19 @@ export function CityMap({
         const { p, dx, dy } = pointAlong(path, eased);
         pos.current = p;
         placeAvatar(p, dx, dy);
+        // A vehicle turns with the street.
+        const ax = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+        if (ax !== axis && (dx || dy)) {
+          axis = ax;
+          rideRef.current?.setAttribute('data-axis', ax);
+        }
         if (following.current) {
           const s = project(p.x, p.y);
           const c = cam.current;
-          c.x += (s.x - c.x) * 0.08;
-          c.y += (s.y - 30 - c.y) * 0.08;
+          // Faster rides pull the camera along harder, so you never lose yourself.
+          const pull = spec ? 0.14 : 0.08;
+          c.x += (s.x - c.x) * pull;
+          c.y += (s.y - 30 - c.y) * pull;
           apply();
         }
         if (k < 1) walk.current!.raf = requestAnimationFrame(step);
@@ -875,14 +1022,14 @@ export function CityMap({
         },
       };
     },
-    [layout, reduced, placeAvatar, stopWalk, apply, centreOn],
+    [layout, reduced, placeAvatar, stopWalk, apply, centreOn, focusLabel],
   );
 
   const goTo = useCallback(
-    (id: string) => {
+    (id: string, mode?: RideMode, ask = false) => {
       const p = layout.places.find((x) => x.id === id);
       if (!p) return;
-      walkTo(p.door, () => onEnterRef.current(p), p.id);
+      walkTo(p.door, () => onEnterRef.current(p), p.id, { mode, ask });
     },
     [layout, walkTo],
   );
@@ -893,6 +1040,17 @@ export function CityMap({
     },
     [layout, walkTo],
   );
+  const ride = useCallback(
+    (mode: RideMode) => {
+      const trip = pending.current;
+      if (trip) walkTo(trip.target, trip.then, trip.placeId, { mode });
+    },
+    [walkTo],
+  );
+  const cancelTrip = useCallback(() => {
+    pending.current = null;
+    targetRef.current?.setAttribute('visibility', 'hidden');
+  }, []);
 
   const zoomAt = useCallback(
     (factor: number, sx?: number, sy?: number) => {
@@ -917,15 +1075,17 @@ export function CityMap({
   useEffect(() => {
     if (!handleRef) return;
     handleRef.current = {
-      goTo,
+      goTo: (id, mode) => goTo(id, mode),
       walkToPlace,
+      ride,
+      cancelTrip,
       recentre: () => centreOn(pos.current),
       zoom: (f) => zoomAt(f),
     };
     return () => {
       handleRef.current = null;
     };
-  }, [handleRef, goTo, walkToPlace, centreOn, zoomAt]);
+  }, [handleRef, goTo, walkToPlace, ride, cancelTrip, centreOn, zoomAt]);
 
   // ---- Pointer input: drag to pan, pinch to zoom, tap to walk or enter.
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -988,13 +1148,13 @@ export function CityMap({
     const el = (e.target as Element).closest?.('[data-place]');
     const id = el?.getAttribute('data-place');
     if (id) {
-      goTo(id);
+      goTo(id, undefined, true);
       return;
     }
     const w = toWorld(e.clientX, e.clientY);
     const g = unproject(w.x, w.y);
     const s = nearestStreetPoint(layout, g);
-    walkTo(s);
+    walkTo(s, undefined, null, { ask: true });
   };
 
   const onPointerCancel = (e: React.PointerEvent) => {
@@ -1095,7 +1255,7 @@ export function CityMap({
           const p = layout.places.find((x) => x.id === id);
           return p ? <Bunting key={id} p={p} /> : null;
         })}
-        <Crowd layout={layout} ai={ai} players={players} reduced={reduced} />
+        <Crowd layout={layout} ai={ai} players={players} reduced={reduced} known={known} />
         {layout.flavour.fog && <Fog layout={layout} />}
         <Labels layout={layout} labelOf={labelOf} />
         {mp && markerPlace && (
@@ -1110,9 +1270,20 @@ export function CityMap({
           </g>
         )}
         <g ref={avatarRef} className="city-avatar" transform={`translate(${start.x},${start.y})`}>
-          <g ref={flipRef} transform="scale(1.25,1.25)">
+          <ellipse className="city-you-ring" rx="12" ry="6" />
+          <g ref={flipRef} className="city-avatar-fig" transform="scale(1.25,1.25)">
             <AvatarFigure look={look} />
           </g>
+          {vehicle && (
+            <g ref={rideRef} className="city-ride" data-axis="x" data-ride={vehicle.id}>
+              <g className="city-ride-x" transform="scale(1.8)">
+                <VehicleShape spec={vehicle} axis="x" />
+              </g>
+              <g className="city-ride-y" transform="scale(1.8)">
+                <VehicleShape spec={vehicle} axis="y" />
+              </g>
+            </g>
+          )}
           <g transform="translate(0 -62)" className="city-you">
             <rect
               x={-name.length * 3.1 - 7}

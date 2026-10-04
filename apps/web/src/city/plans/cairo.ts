@@ -47,6 +47,7 @@ export const cairo: CityPlan = {
     { id: 'new-cairo', name: 'New Cairo', kind: 'tech', at: [5, 4], size: [2, 3] },
   ],
   water: { side: 'west', name: 'The Nile', river: 2 },
+  open: { rows: [4], cols: [5] },
   streets: 'organic',
   bridges: [
     { name: 'Qasr El Nil Bridge', from: [2, 1], to: [3, 1], style: 'arch', color: '#b45309' },
