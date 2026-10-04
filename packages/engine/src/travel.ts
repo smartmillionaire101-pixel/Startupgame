@@ -12,10 +12,18 @@
  */
 import type { MarketId } from './data/markets.js';
 import { ensure } from './errors.js';
-import { holderAccount, getMarket, notify, spendHours, usdToLocal } from './helpers.js';
-import { account, convert, openAccount, pay, transfer } from './ledger.js';
+import {
+  col,
+  holderAccount,
+  getMarket,
+  locationOf,
+  notify,
+  spendHours,
+  usdToLocal,
+} from './helpers.js';
+import { account, convert, costIn, openAccount, pay, payExact, transfer } from './ledger.js';
 import { clamp } from './math.js';
-import { formatMoney } from './money.js';
+import { formatMoney, scale } from './money.js';
 import { checkName, normaliseName } from './names.js';
 import { waterfall } from './captable.js';
 import type { Company, Player, World } from './types.js';
@@ -47,9 +55,145 @@ export function tripCostUsd(from: MarketId, to: MarketId): number {
 export const hasVisited = (p: Player, market: MarketId) =>
   p.market === market || p.visited[market] !== undefined;
 
-/** Is the player on a trip to this market this month? */
+export { locationOf };
+
+/**
+ * Is the player in this market: home, there now (Wave 4 flights), or on a
+ * trip there this month (§14 trips)?
+ */
 export const isVisiting = (world: World, p: Player, market: MarketId) =>
-  p.market === market || p.visited[market] === getMarket(world, p.market).month;
+  p.market === market ||
+  p.location?.market === market ||
+  p.visited[market] === getMarket(world, p.market).month;
+
+// ---------------------------------------------------------------- Flights (Wave 4)
+
+export const FLIGHT_HOURS = 4;
+export const MAX_FLIGHTS_PER_MONTH = 6;
+
+/** One-way fare in USD: half a round trip (§14). */
+export const flightFareUsd = (from: MarketId, to: MarketId) => tripCostUsd(from, to) / 2;
+
+/** One-way fare from where the player is now, in their home currency (minor units). */
+export function flightFare(world: World, p: Player, to: MarketId): number {
+  return usdToLocal(world, getMarket(world, p.market), flightFareUsd(locationOf(p), to));
+}
+
+/** Fares from where the player is to every other open market. */
+export function flightsView(world: World, p: Player) {
+  const here = locationOf(p);
+  const fareTo: Partial<Record<MarketId, number>> = {};
+  for (const id of Object.keys(world.markets) as MarketId[])
+    if (id !== here) fareTo[id] = flightFare(world, p, id);
+  return { fareTo, hours: FLIGHT_HOURS };
+}
+
+/**
+ * Fly one way to another city and be there. Paid from the personal account
+ * to the home market's suppliers; flying home clears the location.
+ */
+export function fly(world: World, p: Player, to: MarketId, now: number) {
+  const home = getMarket(world, p.market);
+  const from = locationOf(p);
+  const dest = world.markets[to];
+  ensure(dest, 'travel.closed', 'That market isn’t open yet.');
+  ensure(to !== from, 'travel.here', `You’re already in ${dest.data.name}.`);
+  const used = p.flights?.month === home.month ? p.flights.count : 0;
+  ensure(
+    used < MAX_FLIGHTS_PER_MONTH,
+    'travel.flights',
+    `That’s ${MAX_FLIGHTS_PER_MONTH} flights this month. Stay a while.`,
+  );
+  const cost = flightFare(world, p, to);
+  ensure(
+    account(world, p.accounts.local).balance >= cost,
+    'travel.funds',
+    `The flight costs ${formatMoney(cost, home.data.currency)}; you don’t have it.`,
+  );
+  spendHours(p, FLIGHT_HOURS, 'A flight');
+  transfer(
+    world,
+    p.accounts.local,
+    home.ext.suppliers,
+    cost,
+    `Flight ${getMarket(world, from).data.name} → ${dest.data.name}`,
+    home.month,
+  );
+  p.flights = { month: home.month, count: used + 1 };
+  if (to === p.market) delete p.location;
+  else {
+    p.location = { market: to, since: now };
+    p.visited[to] = home.month;
+  }
+  return {
+    cost,
+    currency: home.data.currency,
+    hours: FLIGHT_HOURS,
+    from,
+    to,
+    location: p.location ? { market: to, name: dest.data.name, sinceAt: now } : null,
+    text:
+      to === p.market
+        ? `Welcome home to ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}, ${FLIGHT_HOURS}h.`
+        : `You’ve landed in ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}, ${FLIGHT_HOURS}h.`,
+  };
+}
+
+// ---------------------------------------------------------------- Getting around town (Wave 4)
+
+export type RideMode = 'bus' | 'taxi';
+export type RideDistance = 'short' | 'medium' | 'long';
+export const MAX_RIDES_PER_MONTH = 30;
+
+/** Fares as a share of the city's monthly cost of living. */
+export const RIDE_FARE_COL: Record<RideMode, Record<RideDistance, number>> = {
+  bus: { short: 0.002, medium: 0.0035, long: 0.005 },
+  taxi: { short: 0.01, medium: 0.02, long: 0.035 },
+};
+
+/** A fare in the local currency of the city the player is in (minor units). */
+export const rideFare = (world: World, market: MarketId, mode: RideMode, distance: RideDistance) =>
+  Math.max(1, scale(col(getMarket(world, market)), RIDE_FARE_COL[mode][distance]));
+
+/** Take a bus or a taxi across the city you're in, paid to its suppliers (converted if abroad). */
+export function ride(world: World, p: Player, mode: RideMode, distance: RideDistance) {
+  const home = getMarket(world, p.market);
+  const m = getMarket(world, locationOf(p));
+  const used = p.rides?.month === home.month ? p.rides.count : 0;
+  ensure(
+    used < MAX_RIDES_PER_MONTH,
+    'ride.limit',
+    `That’s ${MAX_RIDES_PER_MONTH} rides this month. Walk or cycle for now.`,
+  );
+  const fare = rideFare(world, m.id, mode, distance);
+  const local = account(world, p.accounts.local);
+  const cost = costIn(world, fare, m.data.currency, local.currency);
+  ensure(
+    local.balance >= cost,
+    'ride.funds',
+    `The fare is ${formatMoney(fare, m.data.currency)}; you don’t have it.`,
+  );
+  const label = mode === 'bus' ? 'Bus' : 'Taxi';
+  const paid = payExact(
+    world,
+    p.accounts.local,
+    m.ext.suppliers,
+    fare,
+    `${label} in ${m.data.name}`,
+    home.month,
+  );
+  p.rides = { month: home.month, count: used + 1 };
+  return {
+    mode,
+    distance,
+    market: m.id,
+    fare,
+    currency: m.data.currency,
+    paid,
+    ridesLeft: MAX_RIDES_PER_MONTH - used - 1,
+    text: `${label}: ${formatMoney(fare, m.data.currency)}.`,
+  };
+}
 
 export function travel(world: World, p: Player, to: MarketId) {
   const home = getMarket(world, p.market);
@@ -204,6 +348,7 @@ export function relocate(world: World, p: Player, to: MarketId, newHandle: strin
   destNames[key] = p.id;
   p.handle = handle;
   p.market = to;
+  delete p.location;
   p.visited[from.id] = month;
   p.diligence = {};
   p.hours.used = p.hours.available;

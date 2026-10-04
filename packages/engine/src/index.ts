@@ -16,7 +16,21 @@ export type { CommandContext, DispatchResult } from './dispatch.js';
 export { createWorld, openMarket } from './world.js';
 export { upgradeWorld, CURRENT_SCHEMA } from './upgrade.js';
 export type { CreateWorldOptions } from './world.js';
-export { localDate, dueSettlements, gameDate, datesBetween } from './clock.js';
+export {
+  localDate,
+  dueSettlements,
+  gameDate,
+  datesBetween,
+  CLOCK_EPOCH,
+  DEFAULT_MONTH_MS,
+  LEGACY_MONTH_MS,
+  MAX_CATCH_UP,
+  periodOf,
+  periodStart,
+  nextSettlementAt,
+  clockView,
+} from './clock.js';
+export { FLIGHT_HOURS, MAX_FLIGHTS_PER_MONTH, MAX_RIDES_PER_MONTH, locationOf } from './travel.js';
 export { playerView, economyDashboard, digest, leaderboards } from './views.js';
 export type { PlayerView } from './views.js';
 export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';

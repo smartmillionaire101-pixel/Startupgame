@@ -9,7 +9,7 @@ import { BACKGROUNDS, LIFESTYLE_TIERS } from './data/characters.js';
 import { INDUSTRY_LABEL } from './data/industries.js';
 import { rulesFor } from './data/rules.js';
 import { markValue, ownership, waterfall } from './captable.js';
-import { gameDate } from './clock.js';
+import { clockView, gameDate } from './clock.js';
 import { companyRunway, defaultAlive } from './company.js';
 import { rescuePlan } from './rescue.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
@@ -24,7 +24,7 @@ import {
   productAmount,
   productRateBps,
 } from './capital.js';
-import { tripCostUsd } from './travel.js';
+import { flightsView, isVisiting, tripCostUsd } from './travel.js';
 import { EVENT_KINDS, EVENT_KIND_DATA, EVENT_RECENT_MONTHS } from './data/events.js';
 import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView } from './economy.js';
@@ -37,6 +37,7 @@ import {
   usdToLocal,
   hoursLeft,
   lastPnl,
+  locationOf,
   nextStage,
   totalCustomers,
 } from './helpers.js';
@@ -45,7 +46,7 @@ import { hasPublicWarning } from './stars.js';
 import { isOverloaded, managementCapacity } from './staff.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
 import type { MarketId } from './data/markets.js';
-import type { Company, DealCard, Id, NewsItem, Player, World } from './types.js';
+import type { Company, DealCard, Id, MarketState, NewsItem, Player, World } from './types.js';
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const finite = (x: number) => (Number.isFinite(x) ? Math.round(x * 10) / 10 : null);
@@ -353,8 +354,7 @@ export function portfolio(world: World, p: Player) {
  * for the viewer: eligible, how much, or exactly why not. Company products
  * are quoted for the viewer's first active company in this market.
  */
-function lendersView(world: World, p: Player) {
-  const m = getMarket(world, p.market);
+function lendersView(world: World, p: Player, m: MarketState) {
   const company =
     p.companyIds
       .map((id) => world.companies[id])
@@ -393,11 +393,153 @@ function lendersView(world: World, p: Player) {
   }));
 }
 
+/**
+ * A city as the player sees it: the home market (`view.market`) or the one
+ * they're physically in (`view.here`, Wave 4), same shape.
+ */
+function marketView(world: World, p: Player, m: MarketState, founderish: boolean) {
+  return {
+    id: m.id,
+    name: m.data.name,
+    country: m.data.country,
+    currency: m.data.currency,
+    timeZone: m.data.timeZone,
+    month: m.month,
+    date: gameDate(m.month),
+    unitsPerUsd: m.data.unitsPerUsd,
+    fxFeeBps: m.data.fxFeeBps,
+    baseRateBps: m.data.baseRateBps,
+    tax: m.data.tax,
+    costOfLiving: m.data.costOfLiving * 100,
+    climate: Math.round(m.climate * 100) / 100,
+    economicNote: m.economicNote,
+    bankName: m.bankName,
+    depositInsurance: m.data.depositInsurance * 100,
+    floorGig: { pay: m.data.floorGig.pay * 100, hours: m.data.floorGig.hours },
+    sources: m.data.sources,
+    segments: Object.values(m.segments).map((s) => ({
+      key: s.key,
+      industry: s.industry,
+      name: s.name,
+      kind: s.kind,
+      buyers: s.buyers,
+      budget: s.budget,
+      needsLabel: s.needsLabel,
+      incumbentName: s.incumbentName,
+      incumbentShare: Math.round((s.incumbentCustomers / Math.max(1, s.buyers)) * 100),
+      salesCycle: s.salesCycle,
+    })),
+    outlets: m.outlets,
+    funds: Object.values(world.funds)
+      // Home funds, plus funds in a market you're visiting this month (§14).
+      .filter((f) => f.market === m.id || isVisiting(world, p, f.market))
+      .map((f) => ({
+        id: f.id,
+        name: f.name,
+        market: f.market,
+        marketName: getMarket(world, f.market).data.name,
+        currency: getMarket(world, f.market).data.currency,
+        partner: f.partner,
+        ai: f.ai,
+        sectors: f.sectors,
+        stages: f.stages,
+        check: f.check,
+        minStars: f.minStars,
+        thesis: f.thesis,
+        mood: f.mood > 1.1 ? 'hungry' : f.mood < 0.9 ? 'cautious' : 'steady',
+        /** City art: deterministic from the fund id. */
+        office: fundOffice(f.id),
+        /** AI angel funds (Wave 3): the person behind the cheque; null for other funds. */
+        angel: f.angelId
+          ? { playerId: f.angelId, name: world.players[f.angelId]?.name ?? f.partner }
+          : null,
+      })),
+    lenders: lendersView(world, p, m),
+    capital: {
+      vcDepth: CAPITAL[m.id].vcDepth,
+      angelDepth: CAPITAL[m.id].angelDepth,
+      schemes: CAPITAL[m.id].schemes,
+      sources: CAPITAL[m.id].sources,
+    },
+    talent: founderish ? m.talent : [],
+    /** B2B marketplace listings in your market (§6). */
+    /** Player banks in this market (§8), for depositors and borrowers. */
+    banks: Object.values(world.banks)
+      .filter((b) => b.market === m.id && b.status === 'licensed')
+      .map((b) => ({
+        id: b.id,
+        name: b.name,
+        type: b.type,
+        typeLabel: BANK_TYPES[b.type].label,
+        owner: world.players[b.ownerId]?.name ?? '',
+        stars: round1(b.stars.value),
+        depositRateBps: b.policy.depositRateBps,
+        loanSpreadPp: b.policy.loanSpreadPp,
+        accountFee: b.policy.accountFee,
+        rating: b.reviews.count ? Math.round((b.reviews.sum / b.reviews.count) * 10) / 10 : null,
+        lends: {
+          people: BANK_TYPES[b.type].personal,
+          companies: BANK_TYPES[b.type].companies,
+          advisory: BANK_TYPES[b.type].advisory,
+        },
+      })),
+    bankTypes: Object.entries(BANK_TYPES).map(([id, t]) => ({
+      id,
+      ...t,
+      minCapital: Math.round(m.data.costOfLiving * 100 * t.minCapitalCol),
+    })),
+    listings: Object.values(world.listings)
+      .filter(
+        (l) => l.market === m.id && l.active && world.companies[l.companyId]?.status === 'active',
+      )
+      .map((l) => {
+        const seller = world.companies[l.companyId]!;
+        return {
+          ...l,
+          seller: seller.name,
+          sellerAi: seller.ai,
+          sellerStars: round1(seller.stars.value),
+          uptime: Math.round(reliability(seller) * 100),
+          rating: l.reviews.count
+            ? Math.round((l.reviews.sum / l.reviews.count) * 10) / 10
+            : null,
+          marketRate: marketRate(world, seller),
+        };
+      }),
+    /** City events (Wave 2): upcoming, and held or cancelled recently. */
+    events: eventsView(world, p, m.id, m.month),
+    /** Local businesses (Wave 3): open ones, and those closed in the last few months. */
+    businesses: businessesView(world, p, m),
+    /** The city economy at a glance (Wave 3). */
+    economy: economyView(m),
+    eventKinds: EVENT_KINDS.map((kind) => {
+      const k = EVENT_KIND_DATA[kind];
+      return {
+        kind,
+        label: k.label,
+        description: k.description,
+        /** Hosting at the Event Hall, before any budget (minor units). */
+        cost: eventCost(m, kind, 'hall'),
+        hoursHost: k.hoursHost,
+        hoursAttend: k.hoursAttend,
+        capacity: k.capacity,
+        who: k.who,
+      };
+    }),
+  };
+}
+
 /** Everything the client needs to render a player's game, in one payload. */
-export function playerView(world: World, playerId: Id) {
+export function playerView(
+  world: World,
+  playerId: Id,
+  /** The server's clock, for the month countdown (`view.clock`; null without it). */
+  clock?: { now: number; monthMs: number },
+) {
   const p = world.players[playerId];
   if (!p) return null;
   const m = getMarket(world, p.market);
+  const hereId = locationOf(p);
   const acc = (id: Id | undefined) =>
     id
       ? {
@@ -412,6 +554,8 @@ export function playerView(world: World, playerId: Id) {
         }
       : null;
   const myCompanies = p.companyIds.map((id) => world.companies[id]!).filter(Boolean);
+  const founderish = p.role === 'founder' || myCompanies.length > 0;
+  const homeView = marketView(world, p, m, founderish);
   const fund = p.investor?.fundId ? world.funds[p.investor.fundId] : undefined;
   const others = Object.values(world.companies).filter(
     // Your market, plus any market you've travelled to (§14).
@@ -420,6 +564,10 @@ export function playerView(world: World, playerId: Id) {
   );
   return {
     worldVersion: world.version,
+    /** The month clock (Wave 4): when the next settlement is due, for a countdown. */
+    clock: clock ? clockView(clock.now, clock.monthMs) : null,
+    /** One-way flights from where you are (Wave 4): fares in your home currency, minor units. */
+    flights: flightsView(world, p),
     me: {
       id: p.id,
       handle: p.handle,
@@ -442,6 +590,14 @@ export function playerView(world: World, playerId: Id) {
       investor: p.investor ?? null,
       failures: p.failures,
       visited: p.visited,
+      /** Where you are (Wave 4): null at home. */
+      location: p.location
+        ? {
+            market: p.location.market,
+            name: getMarket(world, p.location.market).data.name,
+            sinceAt: p.location.since,
+          }
+        : null,
       /** Where you can go, and what a trip costs from here (§14). */
       destinations: (Object.keys(world.markets) as MarketId[])
         .filter((id) => id !== p.market)
@@ -461,135 +617,9 @@ export function playerView(world: World, playerId: Id) {
     },
     accounts: { local: acc(p.accounts.local), usd: acc(p.accounts.usd) },
     bank: ownBankView(world, p.id),
-    market: {
-      id: m.id,
-      name: m.data.name,
-      country: m.data.country,
-      currency: m.data.currency,
-      timeZone: m.data.timeZone,
-      month: m.month,
-      date: gameDate(m.month),
-      unitsPerUsd: m.data.unitsPerUsd,
-      fxFeeBps: m.data.fxFeeBps,
-      baseRateBps: m.data.baseRateBps,
-      tax: m.data.tax,
-      costOfLiving: m.data.costOfLiving * 100,
-      climate: Math.round(m.climate * 100) / 100,
-      economicNote: m.economicNote,
-      bankName: m.bankName,
-      depositInsurance: m.data.depositInsurance * 100,
-      floorGig: { pay: m.data.floorGig.pay * 100, hours: m.data.floorGig.hours },
-      sources: m.data.sources,
-      segments: Object.values(m.segments).map((s) => ({
-        key: s.key,
-        industry: s.industry,
-        name: s.name,
-        kind: s.kind,
-        buyers: s.buyers,
-        budget: s.budget,
-        needsLabel: s.needsLabel,
-        incumbentName: s.incumbentName,
-        incumbentShare: Math.round((s.incumbentCustomers / Math.max(1, s.buyers)) * 100),
-        salesCycle: s.salesCycle,
-      })),
-      outlets: m.outlets,
-      funds: Object.values(world.funds)
-        // Home funds, plus funds in a market you're visiting this month (§14).
-        .filter((f) => f.market === m.id || p.visited[f.market] === m.month)
-        .map((f) => ({
-          id: f.id,
-          name: f.name,
-          market: f.market,
-          marketName: getMarket(world, f.market).data.name,
-          currency: getMarket(world, f.market).data.currency,
-          partner: f.partner,
-          ai: f.ai,
-          sectors: f.sectors,
-          stages: f.stages,
-          check: f.check,
-          minStars: f.minStars,
-          thesis: f.thesis,
-          mood: f.mood > 1.1 ? 'hungry' : f.mood < 0.9 ? 'cautious' : 'steady',
-          /** City art: deterministic from the fund id. */
-          office: fundOffice(f.id),
-          /** AI angel funds (Wave 3): the person behind the cheque; null for other funds. */
-          angel: f.angelId
-            ? { playerId: f.angelId, name: world.players[f.angelId]?.name ?? f.partner }
-            : null,
-        })),
-      lenders: lendersView(world, p),
-      capital: {
-        vcDepth: CAPITAL[m.id].vcDepth,
-        angelDepth: CAPITAL[m.id].angelDepth,
-        schemes: CAPITAL[m.id].schemes,
-        sources: CAPITAL[m.id].sources,
-      },
-      talent: p.role === 'founder' || myCompanies.length ? m.talent : [],
-      /** B2B marketplace listings in your market (§6). */
-      /** Player banks in this market (§8), for depositors and borrowers. */
-      banks: Object.values(world.banks)
-        .filter((b) => b.market === m.id && b.status === 'licensed')
-        .map((b) => ({
-          id: b.id,
-          name: b.name,
-          type: b.type,
-          typeLabel: BANK_TYPES[b.type].label,
-          owner: world.players[b.ownerId]?.name ?? '',
-          stars: round1(b.stars.value),
-          depositRateBps: b.policy.depositRateBps,
-          loanSpreadPp: b.policy.loanSpreadPp,
-          accountFee: b.policy.accountFee,
-          rating: b.reviews.count ? Math.round((b.reviews.sum / b.reviews.count) * 10) / 10 : null,
-          lends: {
-            people: BANK_TYPES[b.type].personal,
-            companies: BANK_TYPES[b.type].companies,
-            advisory: BANK_TYPES[b.type].advisory,
-          },
-        })),
-      bankTypes: Object.entries(BANK_TYPES).map(([id, t]) => ({
-        id,
-        ...t,
-        minCapital: Math.round(m.data.costOfLiving * 100 * t.minCapitalCol),
-      })),
-      listings: Object.values(world.listings)
-        .filter(
-          (l) => l.market === m.id && l.active && world.companies[l.companyId]?.status === 'active',
-        )
-        .map((l) => {
-          const seller = world.companies[l.companyId]!;
-          return {
-            ...l,
-            seller: seller.name,
-            sellerAi: seller.ai,
-            sellerStars: round1(seller.stars.value),
-            uptime: Math.round(reliability(seller) * 100),
-            rating: l.reviews.count
-              ? Math.round((l.reviews.sum / l.reviews.count) * 10) / 10
-              : null,
-            marketRate: marketRate(world, seller),
-          };
-        }),
-      /** City events (Wave 2): upcoming, and held or cancelled recently. */
-      events: eventsView(world, p, m.id, m.month),
-      /** Local businesses (Wave 3): open ones, and those closed in the last few months. */
-      businesses: businessesView(world, p, m),
-      /** The city economy at a glance (Wave 3). */
-      economy: economyView(m),
-      eventKinds: EVENT_KINDS.map((kind) => {
-        const k = EVENT_KIND_DATA[kind];
-        return {
-          kind,
-          label: k.label,
-          description: k.description,
-          /** Hosting at the Event Hall, before any budget (minor units). */
-          cost: eventCost(m, kind, 'hall'),
-          hoursHost: k.hoursHost,
-          hoursAttend: k.hoursAttend,
-          capacity: k.capacity,
-          who: k.who,
-        };
-      }),
-    },
+    market: homeView,
+    /** The city you're physically in (Wave 4): same shape as `market`; your home city unless you've flown. */
+    here: hereId === m.id ? homeView : marketView(world, p, getMarket(world, hereId), founderish),
     lifestyleTiers: LIFESTYLE_TIERS.map((t) => ({
       ...t,
       monthlyCost: Math.round(m.data.costOfLiving * 100 * t.costCol),
