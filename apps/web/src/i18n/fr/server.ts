@@ -1,2 +1,700 @@
-/** French catalog fragment: server. */
-export const server: Record<string, string> = {};
+/** French for text the game server sends (refusals, notifications, data labels). Keys are exact English. */
+export const server: Record<string, string> = {
+  // ---- Refusals (ensure / fail) ----
+  'A bank can’t bank with itself.': 'Une banque ne peut pas être sa propre cliente.',
+  'A company can’t buy from itself.': 'Une entreprise ne peut pas acheter à elle-même.',
+  'A company can’t buy itself.': 'Une entreprise ne peut pas se racheter elle-même.',
+  'A deal needs a company or a market.': 'Un accord nécessite une entreprise ou un marché.',
+  'A raise must be higher than the current salary.':
+    'Une augmentation doit être supérieure au salaire actuel.',
+  'A salary that large at a bank draws regulators and tabloids.':
+    'Un salaire aussi élevé dans une banque attire les régulateurs et la presse à scandale.',
+  'A vote is already open.': 'Un vote est déjà ouvert.',
+  'AI players are run by the simulation.': 'Les joueurs IA sont gérés par la simulation.',
+  'Acquiring in another market needs a trip there first.':
+    'Pour acquérir sur un autre marché, faites d’abord un déplacement sur place.',
+  'Already a co-founder.': 'Déjà cofondateur.',
+  'Already compliant.': 'Déjà en conformité.',
+  'Already done.': 'Déjà fait.',
+  'Already reviewed.': 'Avis déjà publié.',
+  'Already settled for that date.': 'Déjà réglé pour cette date.',
+  'Amount and valuation must be positive.': 'Le montant et la valorisation doivent être positifs.',
+  'Answer every question.': 'Répondez à toutes les questions.',
+  'Ask for an amount.': 'Demandez un montant.',
+  'Bank not found.': 'Banque introuvable.',
+  'Bank with a bank in your market.': 'Choisissez une banque de votre marché.',
+  'Bankers pick a bank type and name.': 'Les banquiers choisissent un type et un nom de banque.',
+  'Borrower not found.': 'Emprunteur introuvable.',
+  'Both companies must be operating.': 'Les deux entreprises doivent être en activité.',
+  'Co-founder equity must be 1–50%.': 'La part du cofondateur doit être comprise entre 1 et 50 %.',
+  'Co-founder not found.': 'Cofondateur introuvable.',
+  'Co-founders must be in the same market.': 'Les cofondateurs doivent être sur le même marché.',
+  'Company is not operating.': 'L’entreprise n’est pas en activité.',
+  'Confirmed fraud: this company is barred from raising.':
+    'Fraude avérée : cette entreprise ne peut plus lever de fonds.',
+  'Contract not found.': 'Contrat introuvable.',
+  'Contracts run 1–36 months at a positive price.':
+    'Les contrats durent de 1 à 36 mois, à un prix positif.',
+  'Deal not found.': 'Accord introuvable.',
+  'Diligence across markets needs a trip there first.':
+    'Une due diligence sur un autre marché nécessite d’abord un déplacement sur place.',
+  'Do the first pass first.': 'Faites d’abord le premier examen.',
+  'Enter an amount.': 'Saisissez un montant.',
+  'Founder not found.': 'Fondateur introuvable.',
+  'Founder split must add up to 100%.': 'La répartition entre fondateurs doit totaliser 100 %.',
+  'Founders set up a company.': 'Les fondateurs créent une entreprise.',
+  'Investors set a focus.': 'Les investisseurs définissent leurs priorités.',
+  'Invite another human player.': 'Invitez un autre joueur humain.',
+  'Listing not found.': 'Offre introuvable.',
+  'Loan not found.': 'Prêt introuvable.',
+  'Loans run 3–60 months.': 'Les prêts durent de 3 à 60 mois.',
+  'Microfinance loans are small.': 'Les prêts de microfinance sont de petits montants.',
+  'No partner meeting pending.': 'Aucune réunion des associés en attente.',
+  'Not enough money.': 'Pas assez d’argent.',
+  'Not enough surplus capital to pay that.': 'Pas assez de capital excédentaire pour payer cela.',
+  'Not your company.': 'Ce n’est pas votre entreprise.',
+  'Not your contract.': 'Ce n’est pas votre contrat.',
+  'Nothing to publish yet.': 'Rien à publier pour l’instant.',
+  'Nothing to pull.': 'Rien à retirer.',
+  'Offer a price.': 'Proposez un prix.',
+  'Only AI funds ask questions.': 'Seuls les fonds IA posent des questions.',
+  'Only board members can call this vote.':
+    'Seuls les membres du conseil d’administration peuvent lancer ce vote.',
+  'Only customers can review a bank.': 'Seuls les clients peuvent donner un avis sur une banque.',
+  'Only investors and founders can invest.':
+    'Seuls les investisseurs et les fondateurs peuvent investir.',
+  'Only investors raise funds.': 'Seuls les investisseurs lèvent des fonds.',
+  'Only licensed banks pay dividends.': 'Seules les banques agréées versent des dividendes.',
+  'Only the buyer reviews.': 'Seul l’acheteur donne un avis.',
+  'Only the supplier can claim a breach.': 'Seul le fournisseur peut invoquer une violation.',
+  'Open a dollar account first.': 'Ouvrez d’abord un compte en dollars.',
+  'Open that account first.': 'Ouvrez d’abord ce compte.',
+  'Pick a background for your role.': 'Choisissez un parcours pour votre rôle.',
+  'Pick a different revenue model.': 'Choisissez un autre modèle de revenus.',
+  'Pick a different sector.': 'Choisissez un autre secteur.',
+  'Pick a founder other than yourself.': 'Choisissez un autre fondateur que vous-même.',
+  'Pick a licensed bank in your market.': 'Choisissez une banque agréée de votre marché.',
+  'Pick a licensed investment bank as adviser.':
+    'Choisissez une banque d’investissement agréée comme conseil.',
+  'Pick a segment in your sector.': 'Choisissez un segment de votre secteur.',
+  'Pick a tier from 1 to 5.': 'Choisissez un niveau de 1 à 5.',
+  'Pick an adviser in your market.': 'Choisissez un conseil sur votre marché.',
+  'Pick at least one sector and stage.': 'Choisissez au moins un secteur et un stade.',
+  'Pick founder, investor or banker.': 'Choisissez fondateur, investisseur ou banquier.',
+  'Pick one of the offered angles.': 'Choisissez l’un des angles proposés.',
+  'Pick the new customer segment.': 'Choisissez le nouveau segment de clients.',
+  'Pitch investors in your own market.': 'Pitchez auprès des investisseurs de votre marché.',
+  'Pitch not found.': 'Pitch introuvable.',
+  'Player already exists.': 'Ce joueur existe déjà.',
+  'Player not found.': 'Joueur introuvable.',
+  'Price must be above zero.': 'Le prix doit être supérieur à zéro.',
+  'Price must be positive.': 'Le prix doit être positif.',
+  'Put in some of your own capital.': 'Apportez une partie de vos fonds propres.',
+  'Rate 1 to 5.': 'Notez de 1 à 5.',
+  'Regulators won’t license someone with a recent default.':
+    'Les régulateurs n’accordent pas de licence à quelqu’un ayant fait défaut récemment.',
+  'Repay your personal loans before relocating.':
+    'Remboursez vos prêts personnels avant de vous expatrier.',
+  'SAFE cap must exceed the amount.': 'Le plafond du SAFE doit dépasser le montant.',
+  'SAFEs would own almost everything; round cannot close.':
+    'Les SAFE détiendraient presque tout ; le tour de table ne peut pas être clôturé.',
+  'Say how much you are raising.': 'Indiquez combien vous levez.',
+  'Say why now and why you’ll win, in a line.':
+    'Dites en une ligne pourquoi maintenant et pourquoi vous allez gagner.',
+  'Set a price.': 'Fixez un prix.',
+  'Staff member not found.': 'Membre de l’équipe introuvable.',
+  'Story not found.': 'Article introuvable.',
+  'Suppliers must be in your market.': 'Les fournisseurs doivent être sur votre marché.',
+  'Target one or two segments.': 'Ciblez un ou deux segments.',
+  'That bank isn’t licensed.': 'Cette banque n’est pas agréée.',
+  'That candidate has left the market.': 'Ce candidat a quitté le marché.',
+  'That case has already been filed.': 'Cette affaire a déjà été déposée.',
+  'That company is already owned by another.': 'Cette entreprise appartient déjà à une autre.',
+  'That company is no longer operating.': 'Cette entreprise n’est plus en activité.',
+  'That handle is taken there. Pick another.':
+    'Ce pseudo est déjà pris là-bas. Choisissez-en un autre.',
+  'That handle is taken.': 'Ce pseudo est déjà pris.',
+  'That listing is no longer available.': 'Cette offre n’est plus disponible.',
+  'That market is already open.': 'Ce marché est déjà ouvert.',
+  'That market isn’t open yet.': 'Ce marché n’est pas encore ouvert.',
+  'That player isn’t an investor.': 'Ce joueur n’est pas investisseur.',
+  'That rule doesn’t apply to you.': 'Cette règle ne s’applique pas à vous.',
+  'That salary would alarm any investor.': 'Ce salaire alarmerait n’importe quel investisseur.',
+  'That segment isn’t in your sector.': 'Ce segment ne fait pas partie de votre secteur.',
+  'The buyer didn’t cancel this contract early.':
+    'L’acheteur n’a pas résilié ce contrat de manière anticipée.',
+  'The buyer is no longer operating.': 'L’acheteur n’est plus en activité.',
+  'The company is no longer operating.': 'L’entreprise n’est plus en activité.',
+  'There is already an offer on the table for that company.':
+    'Une offre est déjà sur la table pour cette entreprise.',
+  'This bank is closed.': 'Cette banque est fermée.',
+  'This company is no longer operating.': 'Cette entreprise n’est plus en activité.',
+  'This deal has no company.': 'Cet accord ne concerne aucune entreprise.',
+  'This deal is no longer open.': 'Cet accord n’est plus ouvert.',
+  'This pitch is not waiting for answers.': 'Ce pitch n’attend pas de réponses.',
+  'This story has moved on.': 'Cet article est déjà passé à autre chose.',
+  'This story isn’t taking answers.': 'Cet article n’accepte pas de réponses.',
+  'This vote has closed.': 'Ce vote est clos.',
+  'Those shares are already pledged.': 'Ces actions sont déjà nanties.',
+  'To pitch investors in another market, travel there first (this month).':
+    'Pour pitcher auprès d’investisseurs d’un autre marché, rendez-vous d’abord sur place (ce mois-ci).',
+  'Too late to decline; pull out from the preview instead.':
+    'Trop tard pour refuser ; retirez-vous plutôt depuis l’aperçu.',
+  'Too late to file; claims must be made within three months.':
+    'Trop tard pour déposer : les réclamations doivent être faites dans les trois mois.',
+  'Two ventures at once is the limit; your hours are already split.':
+    'Deux projets à la fois au maximum ; vos heures sont déjà partagées.',
+  'Unknown or repeated slide.': 'Diapositive inconnue ou en double.',
+  'Unknown outlet.': 'Média inconnu.',
+  'Valuation must be well above the amount.':
+    'La valorisation doit être nettement supérieure au montant.',
+  'Venture debt is for startups that have raised equity.':
+    'La dette venture est réservée aux startups qui ont levé du capital.',
+  'Waiting on the other side.': 'En attente de l’autre partie.',
+  'You already buy from them.': 'Vous achetez déjà chez eux.',
+  'You already have a dollar account.': 'Vous avez déjà un compte en dollars.',
+  'You already have a listing. Update it instead.':
+    'Vous avez déjà une offre. Mettez-la plutôt à jour.',
+  'You already have a loan offer open.': 'Vous avez déjà une offre de prêt ouverte.',
+  'You already have a loan offer waiting.': 'Vous avez déjà une offre de prêt en attente.',
+  'You already have an open pitch with them.': 'Vous avez déjà un pitch en cours avec eux.',
+  'You already have an open story with this outlet.':
+    'Vous avez déjà un article en cours avec ce média.',
+  'You already live here.': 'Vous vivez déjà ici.',
+  'You already manage a fund. Fund II comes in phase 3.':
+    'Vous gérez déjà un fonds. Le Fonds II arrive en phase 3.',
+  'You already run a bank.': 'Vous dirigez déjà une banque.',
+  'You are already an investor.': 'Vous êtes déjà investisseur.',
+  'You are not a founder of this company.': 'Vous n’êtes pas fondateur de cette entreprise.',
+  'You are not a party to this deal.': 'Vous n’êtes pas partie à cet accord.',
+  'You can back a startup in another market only after travelling there at least once.':
+    'Vous ne pouvez soutenir une startup d’un autre marché qu’après vous y être rendu au moins une fois.',
+  'You can’t invest in your own company.':
+    'Vous ne pouvez pas investir dans votre propre entreprise.',
+  'You can’t review your own bank.': 'Vous ne pouvez pas donner un avis sur votre propre banque.',
+  'You don’t have a vote here.': 'Vous n’avez pas de droit de vote ici.',
+  'You don’t hold shares in that company.': 'Vous ne détenez pas d’actions de cette entreprise.',
+  'You don’t run this bank.': 'Vous ne dirigez pas cette banque.',
+  'You need at least a year of living costs in savings to start investing.':
+    'Il vous faut au moins un an de frais de subsistance en épargne pour commencer à investir.',
+  'You no longer hold those shares.': 'Vous ne détenez plus ces actions.',
+  'You still guarantee a company loan. Settle it first.':
+    'Vous garantissez encore un prêt d’entreprise. Réglez-le d’abord.',
+  'You weren’t removed from this company.': 'Vous n’avez pas été évincé de cette entreprise.',
+  'You’re already here.': 'Vous êtes déjà ici.',
+  'You’re already on that trip this month.': 'Vous faites déjà ce déplacement ce mois-ci.',
+  'A related-party sale far from market value looks like a disguised transfer. Refused.':
+    'Une vente entre parties liées très éloignée de la valeur de marché ressemble à un transfert déguisé. Refusé.',
+  'AI corporates pay through the exit waterfall.':
+    'Les entreprises IA paient via la cascade de sortie.',
+  'Unknown command.': 'Commande inconnue.',
+  'Choose a fund or an investor.': 'Choisissez un fonds ou un investisseur.',
+  'Company not found.': 'Entreprise introuvable.',
+  'Fund not found.': 'Fonds introuvable.',
+  'Market not found.': 'Marché introuvable.',
+  'Currencies differ; convert first': 'Les devises diffèrent ; convertissez d’abord',
+  'Not enough money in the account': 'Pas assez d’argent sur le compte',
+  'The fact-check found a false claim. Correct your answer, pull out, or insist.':
+    'La vérification a relevé une affirmation fausse. Corrigez votre réponse, retirez-vous ou maintenez.',
+
+  // ---- Name and chat checks ----
+  'Handles use letters, numbers and underscores only.':
+    'Les pseudos ne peuvent contenir que des lettres, des chiffres et des tirets bas.',
+  "Use letters, numbers, spaces and & . ' - only.":
+    "Utilisez uniquement des lettres, des chiffres, des espaces et & . ' -.",
+  'Too short once symbols are removed.': 'Trop court une fois les symboles retirés.',
+  'That name isn’t allowed.': 'Ce nom n’est pas autorisé.',
+  'Too close to a well-known brand.': 'Trop proche d’une marque connue.',
+  'Already taken in this market.': 'Déjà pris sur ce marché.',
+  'Too close to a name already taken in this market.':
+    'Trop proche d’un nom déjà pris sur ce marché.',
+  'Message is empty.': 'Le message est vide.',
+  links: 'liens',
+  'email addresses': 'adresses e-mail',
+  'phone numbers': 'numéros de téléphone',
+  'social handles': 'pseudos de réseaux sociaux',
+  'off-app contact': 'contacts hors de l’application',
+
+  // ---- Chat conversation starters ----
+  'I’m raising a seed round. Can I pitch you?':
+    'Je lève un tour d’amorçage. Puis-je vous présenter mon pitch ?',
+  'Would value your view on our numbers.': 'Votre avis sur nos chiffres serait précieux.',
+  'Saw your numbers. Open to a call?': 'J’ai vu vos chiffres. Partant pour un appel ?',
+  'Are you raising this year?': 'Levez-vous des fonds cette année ?',
+  'Looking for a co-founder. Interested?': 'Je cherche un cofondateur. Intéressé ?',
+  'We could use your product. Can we talk pricing?':
+    'Votre produit nous intéresse. Peut-on parler tarifs ?',
+  'Want to compare notes on hiring?': 'On échange nos expériences sur le recrutement ?',
+  'Want to co-invest in a round I’m leading?':
+    'Voulez-vous co-investir dans un tour de table que je mène ?',
+  'We need a working capital loan. Can we talk terms?':
+    'Nous avons besoin d’un prêt de fonds de roulement. Peut-on parler des conditions ?',
+  'Congrats on the raise. Want to talk about banking with us?':
+    'Bravo pour la levée. Voulez-vous parler de devenir client chez nous ?',
+  'Hi! Got a minute to talk?': 'Bonjour ! Vous avez une minute pour discuter ?',
+
+  // ---- Command results ----
+  'Not allowed.': 'Non autorisé.',
+  'Strategy updated.': 'Stratégie mise à jour.',
+  'Pivoted. Investors are starting to worry about focus.':
+    'Pivot effectué. Les investisseurs commencent à s’inquiéter de votre manque de cap.',
+  'Pivoted. Some customers and staff didn’t come along.':
+    'Pivot effectué. Certains clients et membres de l’équipe n’ont pas suivi.',
+  'Loan offer ready.': 'Offre de prêt prête.',
+  'First call done: revenue, customers and burn unlocked.':
+    'Premier appel effectué : chiffre d’affaires, clients et consommation de trésorerie débloqués.',
+  'Deep diligence done: retention, concentration, legal and conflicts unlocked.':
+    'Due diligence approfondie effectuée : rétention, concentration, juridique et conflits débloqués.',
+  'Policy updated.': 'Politique mise à jour.',
+  'Review posted.': 'Avis publié.',
+  'Filed. The arbitrator rules within a month.': 'Déposé. L’arbitre statue sous un mois.',
+  'Listing updated.': 'Offre mise à jour.',
+  'Contract cancelled.': 'Contrat annulé.',
+  'Money moved into the company.': 'Fonds transférés dans l’entreprise.',
+  'You’re an angel investor now. Founders will start pitching you.':
+    'Vous êtes désormais business angel. Les fondateurs vont commencer à vous pitcher.',
+  'Former player': 'Ancien joueur',
+
+  // ---- Notifications ----
+  'You’ve been away 30 days. Your company is in maintenance mode.':
+    'Vous êtes absent depuis 30 jours. Votre entreprise est en mode maintenance.',
+  'You’re out of money. Take a freelance gig or a salary to get by.':
+    'Vous n’avez plus d’argent. Prenez une mission freelance ou un salaire pour tenir.',
+  'You’re burning out. Fewer hours and worse decisions until you rest.':
+    'Vous êtes en burn-out. Moins d’heures et de moins bonnes décisions tant que vous ne vous reposez pas.',
+  'AI LP panel: “Not yet. Show us cash returned, not paper gains.”':
+    'Comité de LP IA : « Pas encore. Montrez-nous des liquidités rendues, pas des gains sur le papier. »',
+
+  // ---- Company warnings ----
+  'Retention is falling. Fix reliability or support.':
+    'La rétention baisse. Améliorez la fiabilité ou le support.',
+  'Staff were not paid in full. Morale is collapsing.':
+    'L’équipe n’a pas été payée intégralement. Le moral s’effondre.',
+  'Tech debt is causing outages. Switch to quality mode.':
+    'La dette technique provoque des pannes. Passez en mode qualité.',
+
+  // ---- Deal history and replies ----
+  'We’re too far apart.': 'Nous sommes trop éloignés.',
+  'Accepted, subject to a shareholder vote.': 'Accepté, sous réserve d’un vote des actionnaires.',
+  'Accepted, subject to a board vote.':
+    'Accepté, sous réserve d’un vote du conseil d’administration.',
+  'Accepted. Deal executed.': 'Accepté. Accord exécuté.',
+  'Accepted. Contract signed.': 'Accepté. Contrat signé.',
+  'Shareholders voted it down.': 'Les actionnaires l’ont rejeté.',
+  'The board voted it down.': 'Le conseil d’administration l’a rejeté.',
+
+  // ---- Hiring replies ----
+  'That’s far below what I earn now.': 'C’est bien en dessous de ce que je gagne actuellement.',
+  'Excited to join. See you Monday.': 'Ravi de vous rejoindre. À lundi.',
+  'I have another offer. Match this and I’m in.': 'J’ai une autre offre. Alignez-vous et je signe.',
+  'Early-stage is a risk for me. I need more cash.':
+    'Une jeune entreprise, c’est un risque pour moi. J’ai besoin de plus de cash.',
+  'Close. A bit more salary and we have a deal.':
+    'On y est presque. Un peu plus de salaire et c’est d’accord.',
+  'I want more security than an early-stage company can offer.':
+    'Je veux plus de sécurité qu’une jeune entreprise ne peut en offrir.',
+  'We’re too far apart. Good luck.': 'Nous sommes trop éloignés. Bonne chance.',
+
+  // ---- Investor pitch questions ----
+  'How many paying customers do you have today?':
+    'Combien de clients payants avez-vous aujourd’hui ?',
+  'We’re focused on product right now': 'Nous nous concentrons sur le produit pour l’instant',
+  'What was revenue last month?': 'Quel était le chiffre d’affaires le mois dernier ?',
+  'It’s early, but the pipeline is strong': 'C’est tôt, mais le pipeline est solide',
+  'How many months of runway do you have?': 'Combien de mois de trésorerie vous reste-t-il ?',
+  'Enough to hit our next milestones': 'Assez pour atteindre nos prochaines étapes',
+  'We heard a senior person left. What happened?':
+    'Nous avons appris qu’un cadre est parti. Que s’est-il passé ?',
+  'Wrong fit. We’re hiring a stronger replacement.':
+    'Pas le bon profil. Nous recrutons un remplaçant plus solide.',
+  'Normal turnover': 'Rotation normale',
+  'Too early for us. Come back with more traction.':
+    'Trop tôt pour nous. Revenez avec plus de traction.',
+  'We don’t see how this gets big enough.':
+    'Nous ne voyons pas comment cela peut devenir assez gros.',
+  'Retention worries us. Show us customers stay.':
+    'La rétention nous inquiète. Montrez-nous que les clients restent.',
+  'We just lost money in this sector; we’re cautious.':
+    'Nous venons de perdre de l’argent dans ce secteur ; nous sommes prudents.',
+  'Great team, but the market is crowded.': 'Très bonne équipe, mais le marché est encombré.',
+
+  // ---- Media interviews ----
+  'Fast growth': 'Croissance rapide',
+  'The customers': 'Les clients',
+  'What’s next': 'La suite',
+  'Founder profile': 'Portrait du fondateur',
+  'Why this market': 'Pourquoi ce marché',
+  'Lessons so far': 'Leçons tirées',
+  'The raise': 'La levée',
+  'Who backed them': 'Qui les a soutenus',
+  'Plans for the money': 'Ce qu’ils feront de l’argent',
+  'First cheques': 'Premiers tickets',
+  'What I look for': 'Ce que je recherche',
+  'The market': 'Le marché',
+  'The comeback': 'Le retour',
+  'What failure taught': 'Ce que l’échec a appris',
+  'Grow steadily and stay default alive': 'Croître régulièrement et rester rentable par défaut',
+  'Expand to a new segment this year': 'Nous étendre à un nouveau segment cette année',
+  'Become the biggest in the market within a year': 'Devenir le n° 1 du marché d’ici un an',
+  'Prefer not to say': 'Je préfère ne pas répondre',
+  'How many companies have you backed?': 'Combien d’entreprises avez-vous soutenues ?',
+  'How much have you deployed?': 'Combien avez-vous investi ?',
+  'What are you looking for next?': 'Que recherchez-vous désormais ?',
+  'How much have you raised in total?': 'Combien avez-vous levé au total ?',
+  'How many paying customers?': 'Combien de clients payants ?',
+  'What will the money do?': 'À quoi servira l’argent ?',
+  'How many paying customers do you have?': 'Combien de clients payants avez-vous ?',
+  'How fast are you growing?': 'À quel rythme grandissez-vous ?',
+  'What’s the plan for the next year?': 'Quel est le plan pour l’année à venir ?',
+  'Paying customers': 'Clients payants',
+  'Public record': 'Registre public',
+  'Markets desk': 'Rubrique Marchés',
+  'Tech desk': 'Rubrique Tech',
+  'National desk': 'Rubrique Nationale',
+  'Public tech stocks rally; funding warms up.':
+    'Les valeurs tech cotées grimpent ; le financement se réchauffe.',
+  'Public tech stocks slide; expect tougher rounds.':
+    'Les valeurs tech cotées reculent ; attendez-vous à des tours de table plus durs.',
+  'Funding is hot.': 'Le financement est abondant.',
+  'Funding is tight.': 'Le financement est rare.',
+  'Funding is steady.': 'Le financement est stable.',
+
+  // ---- Server (HTTP) errors ----
+  'This is a game. Nothing here is financial, legal, or tax advice.':
+    'Ceci est un jeu. Rien ici ne constitue un conseil financier, juridique ou fiscal.',
+  'Missing request header.': 'En-tête de requête manquant.',
+  'Sign in first.': 'Connectez-vous d’abord.',
+  'Invalid request.': 'Requête invalide.',
+  'Something went wrong.': 'Un problème est survenu.',
+  'Enter a valid mobile number with country code.':
+    'Saisissez un numéro de mobile valide avec l’indicatif du pays.',
+  'Runway is for players aged 18 and over.': 'Runway est réservé aux joueurs de 18 ans et plus.',
+  'Enter a valid mobile number.': 'Saisissez un numéro de mobile valide.',
+  'Invalid command.': 'Commande invalide.',
+  'Pick a conversation starter.': 'Choisissez une phrase d’accroche.',
+  'This chat is blocked.': 'Cette conversation est bloquée.',
+  'Chat not found.': 'Conversation introuvable.',
+  'Not found.': 'Introuvable.',
+  'Code expired. Request a new one.': 'Code expiré. Demandez-en un nouveau.',
+  'Too many attempts. Request a new code.': 'Trop de tentatives. Demandez un nouveau code.',
+  'Wrong code.': 'Code incorrect.',
+
+  // ---- Backgrounds ----
+  'Ex-engineer': 'Ex-ingénieur',
+  'Builds fast, cheap product': 'Construit vite un produit bon marché',
+  'Weak at sales and pitching': 'Faible en vente et en pitch',
+  'Ex-banker': 'Ex-banquier',
+  'Finance and investor network': 'Finance et réseau d’investisseurs',
+  'Product instincts': 'Instinct produit',
+  Dropout: 'Décrocheur',
+  'Most hours, fearless': 'Le plus d’heures, sans peur',
+  'Lowest savings and credibility': 'Épargne et crédibilité au plus bas',
+  Consultant: 'Consultant',
+  'Strategy, decks, corporate buyers': 'Stratégie, présentations, acheteurs en entreprise',
+  'Has never shipped': 'N’a jamais livré de produit',
+  'Second-time founder': 'Fondateur récidiviste',
+  'Trusted by investors, knows the playbook':
+    'A la confiance des investisseurs, connaît les règles du jeu',
+  'Expensive habits, fewer hours': 'Habitudes coûteuses, moins d’heures',
+  'Corporate manager': 'Cadre en entreprise',
+  'Hiring, leadership, B2B buyers': 'Recrutement, leadership, acheteurs B2B',
+  'Slow and risk-averse at the start': 'Lent et réticent au risque au départ',
+  'Ex-operator': 'Ex-opérationnel',
+  'Founder trust, portfolio support': 'Confiance des fondateurs, soutien au portefeuille',
+  'Weaker LP credibility': 'Crédibilité moindre auprès des LP',
+  'LP credibility, financial skill': 'Crédibilité auprès des LP, compétences financières',
+  'Weak product judgement, founder trust': 'Jugement produit et confiance des fondateurs limités',
+  'Ex-consultant': 'Ex-consultant',
+  'Analysis, strategy network': 'Analyse, réseau stratégique',
+  "Founders doubt they've built anything":
+    'Les fondateurs doutent qu’il ait construit quoi que ce soit',
+  'Corporate executive': 'Dirigeant d’entreprise',
+  'Industry and acquirer connections': 'Relations dans l’industrie et chez les acquéreurs',
+  'Exited founder': 'Fondateur ayant revendu',
+  'High trust, strong deal flow': 'Grande confiance, flux d’accords solide',
+  'Small savings from a modest exit': 'Petite épargne issue d’une sortie modeste',
+  'First-timer': 'Débutant',
+  'Most hours, no bad habits': 'Le plus d’heures, pas de mauvaises habitudes',
+  'Lowest credibility and savings': 'Crédibilité et épargne au plus bas',
+  'Ex-commercial banker': 'Ex-banquier commercial',
+  'Lending, deposits': 'Crédit, dépôts',
+  Tech: 'Tech',
+  'Ex-regulator': 'Ex-régulateur',
+  'Licences, compliance': 'Licences, conformité',
+  'Fintech founder': 'Fondateur de fintech',
+  'Product, digital channels': 'Produit, canaux numériques',
+  'Risk discipline': 'Discipline du risque',
+  'Ex-investment banker': 'Ex-banquier d’affaires',
+  'Deals and advisory': 'Accords et conseil',
+  'Retail banking': 'Banque de détail',
+  'Microfinance operator': 'Opérateur de microfinance',
+  'Small loans at volume': 'Petits prêts en volume',
+  'Corporate clients': 'Clients entreprises',
+  'Wealthy exited founder': 'Fondateur fortuné ayant revendu',
+  'Capital to start a bank': 'Capital pour créer une banque',
+  'Banking know-how': 'Savoir-faire bancaire',
+
+  // ---- Lifestyle tiers ----
+  Lean: 'Frugal',
+  Modest: 'Modeste',
+  Comfortable: 'Confortable',
+  Affluent: 'Aisé',
+  Lavish: 'Fastueux',
+  'Shared flat': 'Colocation',
+  'Public transport': 'Transports en commun',
+  'Small flat': 'Petit appartement',
+  'Ride-hailing': 'VTC',
+  'Good flat': 'Bel appartement',
+  'Own car': 'Voiture personnelle',
+  House: 'Maison',
+  'Car and driver': 'Voiture avec chauffeur',
+  Penthouse: 'Penthouse',
+  'Driver, travel': 'Chauffeur, voyages',
+
+  // ---- Bank types ----
+  'Commercial bank': 'Banque commerciale',
+  'Interest margin, account fees': 'Marge d’intérêts, frais de tenue de compte',
+  'Deposits, safe lending, payroll accounts': 'Dépôts, prêts sûrs, comptes de salaires',
+  'Bad loans, bank runs': 'Créances douteuses, paniques bancaires',
+  'Investment bank': 'Banque d’investissement',
+  'Fees on M&A and fundraising': 'Commissions sur les fusions-acquisitions et les levées de fonds',
+  'Big deals, league tables': 'Gros accords, classements',
+  'Pushing deals against clients’ interests': 'Pousser des accords contre l’intérêt des clients',
+  'Venture debt lender': 'Prêteur en dette venture',
+  'Interest plus warrants': 'Intérêts plus bons de souscription',
+  'Funded startups that survive': 'Des startups financées qui survivent',
+  'Startup failures': 'Faillites de startups',
+  'Microfinance bank': 'Banque de microfinance',
+  'Volume of small accounts and loans': 'Volume de petits comptes et de petits prêts',
+  'Many customers, strong service': 'Beaucoup de clients, un service solide',
+  'Higher default rates': 'Taux de défaut plus élevés',
+  'It ran out of cash and had too little collateral to borrow.':
+    'Elle a manqué de liquidités et n’avait pas assez de garanties pour emprunter.',
+  'Loan losses wiped out its capital.': 'Les pertes sur prêts ont anéanti son capital.',
+
+  // ---- Industries, categories, incorporation ----
+  Fintech: 'Fintech',
+  'E-commerce': 'E-commerce',
+  Logistics: 'Logistique',
+  Health: 'Santé',
+  Education: 'Éducation',
+  'Business software': 'Logiciels d’entreprise',
+  Agriculture: 'Agriculture',
+  Payments: 'Paiements',
+  Procurement: 'Approvisionnement',
+  Delivery: 'Livraison',
+  'Staff health': 'Santé des salariés',
+  'Staff training': 'Formation des salariés',
+  'Food supply': 'Approvisionnement alimentaire',
+  'Local entity': 'Entité locale',
+  'UK Ltd': 'Ltd britannique',
+  'US-style holding company': 'Holding de type américain',
+  'USD FX desk': 'Bureau de change USD',
+  'USD suppliers': 'Fournisseurs en USD',
+
+  // ---- Customer segments ----
+  'Market traders': 'Commerçants de marché',
+  'Low fees, works offline, local language': 'Frais bas, fonctionne hors ligne, langue locale',
+  'Online sellers': 'Vendeurs en ligne',
+  'Fast payouts, reliability, easy checkout': 'Paiements rapides, fiabilité, paiement facile',
+  'Mid-size distributors': 'Distributeurs de taille moyenne',
+  'Reliability, reconciliation, a known brand': 'Fiabilité, rapprochement, une marque connue',
+  'Urban shoppers': 'Acheteurs urbains',
+  'Price, delivery speed, trust': 'Prix, rapidité de livraison, confiance',
+  'Small retailers (restock)': 'Petits commerçants (réassort)',
+  'Credit terms, price, reliable restock': 'Délais de paiement, prix, réassort fiable',
+  'Consumer brands': 'Marques grand public',
+  'Reach, data, brand safety': 'Audience, données, sécurité de la marque',
+  'Online sellers (delivery)': 'Vendeurs en ligne (livraison)',
+  'On-time delivery, price, tracking': 'Livraison à l’heure, prix, suivi',
+  'Small retailers': 'Petits commerçants',
+  'Cheap, predictable pickups': 'Enlèvements bon marché et prévisibles',
+  'Enterprise shippers': 'Grands expéditeurs',
+  'Reliability, coverage, contracts': 'Fiabilité, couverture, contrats',
+  'Families (telehealth)': 'Familles (télésanté)',
+  'Trust, price, doctors available': 'Confiance, prix, médecins disponibles',
+  'Private clinics': 'Cliniques privées',
+  'Records, billing, data protection': 'Dossiers, facturation, protection des données',
+  'Employers (staff health)': 'Employeurs (santé des salariés)',
+  'Cost per employee, trusted brand': 'Coût par salarié, marque de confiance',
+  'Parents and students': 'Parents et élèves',
+  'Exam results, price, works on cheap phones':
+    'Résultats aux examens, prix, fonctionne sur téléphones bon marché',
+  'Private schools': 'Écoles privées',
+  'Teacher time saved, fee collection': 'Temps gagné pour les enseignants, encaissement des frais',
+  'Corporate training': 'Formation en entreprise',
+  'Certified content, reporting': 'Contenus certifiés, reporting',
+  'Solo professionals': 'Indépendants',
+  'Simple, cheap, mobile': 'Simple, bon marché, mobile',
+  'Small businesses': 'Petites entreprises',
+  'Saves time, integrates, support': 'Gain de temps, intégrations, support',
+  'Mid-market companies': 'Entreprises de taille intermédiaire',
+  'Security, uptime, integrations': 'Sécurité, disponibilité, intégrations',
+  'Smallholder farmers': 'Petits exploitants agricoles',
+  'Price, inputs on credit, local language': 'Prix, intrants à crédit, langue locale',
+  'Food retailers': 'Distributeurs alimentaires',
+  'Fresh supply, price, reliability': 'Produits frais, prix, fiabilité',
+  'Agri-processors': 'Transformateurs agricoles',
+  'Consistent volume, quality grading': 'Volumes réguliers, classement qualité',
+
+  // ---- Rules ----
+  'Tax registration and filing': 'Immatriculation et déclarations fiscales',
+  'Register for tax and file returns each year.':
+    'Immatriculez-vous aux impôts et déposez vos déclarations chaque année.',
+  'Fines and back taxes in due diligence.':
+    'Amendes et arriérés d’impôt révélés lors de la due diligence.',
+  'Data protection': 'Protection des données',
+  'Register as a data controller and protect customer data.':
+    'Déclarez-vous responsable de traitement et protégez les données clients.',
+  'Fines; public-record event if breached.':
+    'Amendes ; inscription au registre public en cas de violation.',
+  'Employment contracts': 'Contrats de travail',
+  'Written contracts, minimum wage, fair termination.':
+    'Contrats écrits, salaire minimum, licenciement équitable.',
+  'Claims from former staff; layoffs cost more.':
+    'Réclamations d’anciens salariés ; les licenciements coûtent plus cher.',
+  'Founder agreements and IP': 'Pactes de fondateurs et propriété intellectuelle',
+  'Sign founder agreements and assign IP to the company.':
+    'Signez des pactes de fondateurs et cédez la propriété intellectuelle à l’entreprise.',
+  'Flagged in due diligence; can delay a round.':
+    'Signalé lors de la due diligence ; peut retarder un tour de table.',
+  'Company registry': 'Registre du commerce',
+  'Payments licence': 'Licence de paiement',
+  'Hold a payment service licence with minimum capital.':
+    'Détenez une licence de services de paiement avec un capital minimum.',
+  'Forced shutdown of the payments product line.':
+    'Fermeture forcée de la gamme de produits de paiement.',
+  'Health services registration': 'Enregistrement des services de santé',
+  'Register clinical services and protect records.':
+    'Enregistrez les services cliniques et protégez les dossiers.',
+  'Suspension of the service.': 'Suspension du service.',
+  'Hold a CBN payment service licence with minimum capital.':
+    'Détenez une licence de services de paiement de la CBN avec un capital minimum.',
+  'Health records': 'Dossiers médicaux',
+  'Use licensed practitioners; store records securely.':
+    'Faites appel à des praticiens agréés ; conservez les dossiers en sécurité.',
+  'Suspension of telehealth service.': 'Suspension du service de télésanté.',
+  'Payment service provider': 'Prestataire de services de paiement',
+  'Hold a CBK PSP authorisation with minimum capital.':
+    'Détenez un agrément PSP de la CBK avec un capital minimum.',
+  'Register digital health service; protect records.':
+    'Enregistrez le service de santé numérique ; protégez les dossiers.',
+  'E-money / payments authorisation': 'Agrément monnaie électronique / paiements',
+  'FCA authorisation and safeguarding of customer funds.':
+    'Agrément de la FCA et protection des fonds des clients.',
+  'Care Quality registration': 'Enregistrement Care Quality',
+  'Register clinical services with the regulator.':
+    'Enregistrez les services cliniques auprès du régulateur.',
+  'Suspension of clinical services.': 'Suspension des services cliniques.',
+  'Ministry of Labour': 'Ministère du Travail',
+  'Ministry of Health': 'Ministère de la Santé',
+  'Employment tribunals': 'Conseils de prud’hommes',
+
+  // ---- Market data ----
+  'Exchange rate': 'Taux de change',
+  'Policy rate': 'Taux directeur',
+  Population: 'Population',
+  'Population and businesses': 'Population et entreprises',
+  MSMEs: 'MPME',
+  'Tax rates': 'Taux d’imposition',
+  Salaries: 'Salaires',
+  'Deposit insurance': 'Garantie des dépôts',
+  daily: 'quotidien',
+  weekly: 'hebdomadaire',
+  quarterly: 'trimestriel',
+  yearly: 'annuel',
+  'on change': 'à chaque changement',
+  'Public salary surveys and job boards (est.)':
+    'Enquêtes salariales publiques et sites d’emploi (est.)',
+  'No explicit deposit insurance scheme': 'Pas de système explicite de garantie des dépôts',
+  Nigeria: 'Nigeria',
+  Kenya: 'Kenya',
+  'United Kingdom': 'Royaume-Uni',
+  Ghana: 'Ghana',
+  'Sierra Leone': 'Sierra Leone',
+  Rwanda: 'Rwanda',
+  'South Africa': 'Afrique du Sud',
+  Egypt: 'Égypte',
+  'United Arab Emirates': 'Émirats arabes unis',
+
+  // ---- Achievements ----
+  'First acquisition of another company': 'Première acquisition d’une autre entreprise',
+  'Licence granted': 'Licence accordée',
+  'First 1,000 customers': '1 000 premiers clients',
+  'Five-star rating': 'Note de cinq étoiles',
+  'First customer': 'Premier client',
+  'First hire': 'Première embauche',
+  'First ₦100m (or local equivalent) annual revenue':
+    'Premiers 100 M₦ (ou équivalent local) de chiffre d’affaires annuel',
+  'First loan': 'Premier prêt',
+  'First raise': 'Première levée',
+  'Series A': 'Série A',
+  'First cheque': 'Premier ticket',
+  'First follow-on': 'Premier réinvestissement',
+  'First board seat': 'Premier siège au conseil d’administration',
+  'First exit': 'Première sortie',
+  'First comeback after failure': 'Premier rebond après un échec',
+  'First role switch': 'Premier changement de rôle',
+  'Fund I': 'Fonds I',
+  'Fund returned 1x': 'Fonds remboursé 1x',
+  'Fund returned 3x': 'Fonds remboursé 3x',
+  'Fund returned 10x': 'Fonds remboursé 10x',
+
+  // ---- Activities (hours) ----
+  'Customer discovery': 'Découverte client',
+  'Making an offer': 'Faire une offre',
+  'A pivot': 'Un pivot',
+  'A pitch': 'Un pitch',
+  'A partner meeting': 'Une réunion des associés',
+  'Writing a term sheet': 'Rédiger une term sheet',
+  'Due diligence': 'Due diligence',
+  'An LP panel': 'Un comité de LP',
+  'An interview': 'Une interview',
+  'Pitching a story': 'Proposer un sujet',
+  'A freelance gig': 'Une mission freelance',
+  'A trip': 'Un déplacement',
+
+  // ---- Ledger memos ----
+  'Retention package tax (withheld)': 'Impôt sur la prime de fidélisation (retenu à la source)',
+  'Retail withdrawals (bank run)': 'Retraits des particuliers (panique bancaire)',
+  'Retail deposits': 'Dépôts des particuliers',
+  'Retail loan repayments': 'Remboursements de prêts aux particuliers',
+  'Retail loans': 'Prêts aux particuliers',
+  'Interest to retail depositors': 'Intérêts versés aux déposants particuliers',
+  'Staff and systems': 'Personnel et systèmes',
+  'Personal income tax': 'Impôt sur le revenu',
+  'Central bank loan': 'Prêt de la banque centrale',
+  'Central bank lending': 'Prêts de la banque centrale',
+  'Customer revenue': 'Chiffre d’affaires clients',
+  'Loan repayment': 'Remboursement de prêt',
+  'Founder salary': 'Salaire du fondateur',
+  'Office rent': 'Loyer des bureaux',
+  'Cloud and processing (USD-priced)': 'Cloud et paiements (facturés en USD)',
+  'Corporate tax': 'Impôt sur les sociétés',
+  'Final pay and severance': 'Solde de tout compte et indemnités',
+  'Account closed': 'Compte clôturé',
+  'Founder capital': 'Apport du fondateur',
+  'Dividend tax': 'Impôt sur les dividendes',
+  'LP commitments (Fund I)': 'Engagements des LP (Fonds I)',
+  'Personal income tax (withheld)': 'Impôt sur le revenu (retenu à la source)',
+  'Management fee': 'Frais de gestion',
+  'Capital gains tax on carry (withheld)':
+    'Impôt sur les plus-values du carried interest (retenu à la source)',
+  'Carried interest': 'Carried interest',
+  'Distribution to LPs': 'Distribution aux LP',
+  'Freelance consulting gig': 'Mission de conseil freelance',
+  'Currency conversion': 'Conversion de devises',
+  'Relocation: half to the central bank': 'Expatriation : moitié à la banque centrale',
+  'Relocation: savings moved': 'Expatriation : épargne transférée',
+  'LP commitments': 'Engagements des LP',
+  'Starting savings': 'Épargne de départ',
+  'Prior funding': 'Financement antérieur',
+  'Option pool': 'Réserve d’options',
+
+  // ---- Credit bands ----
+  excellent: 'excellent',
+  good: 'bon',
+  fair: 'correct',
+  poor: 'faible',
+  'very poor': 'très faible',
+};
