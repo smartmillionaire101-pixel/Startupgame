@@ -1,5 +1,5 @@
 import { devices, type Page } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, test, withoutNetlifyDrawer } from './fixtures';
 
 /**
  * Wave 2: people in the city. AI characters and the person card always run;
@@ -112,9 +112,12 @@ test('AI characters stroll the city and open a person card when tapped', async (
 
 test('two players see each other, chat, and meet at an event', async ({ page: a, browser }) => {
   const { defaultBrowserType: _, ...phone } = devices['Pixel 7'];
+  // Two sign-ups, presence polling and a month's settlement over the network.
+  if (process.env.E2E_BASE_URL) test.slow();
   const b = await (
     await browser.newContext({ ...phone, baseURL: test.info().project.use.baseURL })
   ).newPage();
+  await withoutNetlifyDrawer(b);
   await signUpFounder(a, 'Amaka Host');
   test.skip(!(await presenceAvailable(a)), 'Presence API not deployed here.');
   await signUpFounder(b, 'Bode Guest');
