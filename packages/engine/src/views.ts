@@ -617,7 +617,8 @@ export function playerView(
     bank: ownBankView(world, p.id),
     market: homeView,
     /** The city you're physically in (Wave 4): same shape as `market`; your home city unless you've flown. */
-    here: hereId === m.id ? homeView : marketView(world, p, getMarket(world, hereId), founderish),
+    // Only when away: at home the client uses `market`, so the city isn't sent twice.
+    here: hereId === m.id ? null : marketView(world, p, getMarket(world, hereId), founderish),
     lifestyleTiers: LIFESTYLE_TIERS.map((t) => ({
       ...t,
       monthlyCost: Math.round(m.data.costOfLiving * 100 * t.costCol),

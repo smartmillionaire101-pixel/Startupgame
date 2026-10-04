@@ -193,7 +193,7 @@ describe('API boundary', () => {
       serverNow: T0,
     });
     expect(view.me.location).toBeNull();
-    expect(view.here.id).toBe('lagos');
+    expect(view.here).toBeNull();
     expect(view.flights.hours).toBe(4);
     const fare = view.flights.fareTo.london;
     expect(fare).toBeGreaterThan(0);

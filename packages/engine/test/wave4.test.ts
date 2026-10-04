@@ -141,7 +141,7 @@ describe('flights: being somewhere (Wave 4)', () => {
     const total = moneyByCurrency(w);
     const v0 = playerView(w, 'u_founder')!;
     expect(v0.me.location).toBeNull();
-    expect(v0.here.id).toBe('lagos');
+    expect(v0.here).toBeNull(); // at home the client uses `market`
     expect(v0.flights.hours).toBe(4);
     expect(v0.flights.fareTo.lagos).toBeUndefined();
     const fare = v0.flights.fareTo.london!;
@@ -158,16 +158,16 @@ describe('flights: being somewhere (Wave 4)', () => {
     const v = playerView(w, 'u_founder')!;
     expect(v.me.location).toEqual({ market: 'london', name: 'London', sinceAt: T0 + 1000 });
     expect(v.market.id).toBe('lagos');
-    expect(v.here.id).toBe('london');
-    expect(v.here.currency).toBe('GBP');
-    expect(v.here.businesses.length).toBeGreaterThan(0);
-    expect(v.here.funds.some((f) => f.market === 'london')).toBe(true);
+    expect(v.here!.id).toBe('london');
+    expect(v.here!.currency).toBe('GBP');
+    expect(v.here!.businesses.length).toBeGreaterThan(0);
+    expect(v.here!.funds.some((f) => f.market === 'london')).toBe(true);
     expect(Object.keys(v.flights.fareTo)).toEqual(['lagos']);
 
     expect(tryRun(w, 'u_founder', { type: 'travel.fly', to: 'london' }).ok).toBe(false);
     w = run(w, 'u_founder', { type: 'travel.fly', to: 'lagos' }).world;
     expect(w.players.u_founder!.location).toBeUndefined();
-    expect(playerView(w, 'u_founder')!.here.id).toBe('lagos');
+    expect(playerView(w, 'u_founder')!.here).toBeNull();
     expect(moneyByCurrency(w)).toEqual(total);
   });
 
@@ -190,8 +190,10 @@ describe('flights: being somewhere (Wave 4)', () => {
       ['cafe', 'restaurant', 'bar'].includes(b.kind),
     )!;
     const item = (b: typeof londonCafe) =>
-      playerView(w, 'u_inv')!.here.businesses.find((x) => x.id === b.id)?.venue?.items[0]?.id ??
-      'coffee';
+      (() => {
+        const v = playerView(w, 'u_inv')!;
+        return (v.here ?? v.market).businesses;
+      })().find((x) => x.id === b.id)?.venue?.items[0]?.id ?? 'coffee';
     const buyLondon = { type: 'venue.buy' as const, businessId: londonCafe.id, itemId: 'x' };
     expect(tryRun(w, 'u_inv', buyLondon).ok).toBe(false);
     const lagosItem = item(lagosCafe);

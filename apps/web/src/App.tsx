@@ -14,6 +14,7 @@ import { MeScreen } from './screens/Me';
 import { BankScreen } from './screens/Bank';
 import { CityScreen } from './city/CityScreen';
 import { onVisit } from './city/goto';
+import { hereOf, isAbroad } from './city/travel';
 
 export function App() {
   const { status } = useGame();
@@ -119,7 +120,10 @@ function Game() {
       <div className={`app${current === 'city' ? ' app-city' : ''}`}>
         <header className="topbar">
           <div className="brand">
-            <img src="/icon.svg" alt="" width={22} height={22} /> {view.market.name}
+            <img src="/icon.svg" alt="" width={22} height={22} /> {hereOf(view).name}
+            {isAbroad(view) && (
+              <span className="small muted">{t('from {city}', { city: view.market.name })}</span>
+            )}
             <span className="small muted">{view.market.date.label}</span>
           </div>
           <div className="topbar-meta">
