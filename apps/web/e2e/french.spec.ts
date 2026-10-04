@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('a player switches to French before signing in and plays in French', async ({ page }) => {
   await page.goto('/');
@@ -8,7 +8,7 @@ test('a player switches to French before signing in and plays in French', async 
   await page.getByLabel('Numéro de mobile').fill(`+22177${Date.now().toString().slice(-7)}`);
   await page.getByLabel('Date de naissance').fill('1990-05-20');
   await page.getByRole('button', { name: 'Envoyer le code' }).click();
-  const code = (await page.getByText(/\d{6}/).first().textContent())!.match(/\d{6}/)![0];
+  const code = (await page.getByText(/votre code est \d{6}/i).textContent())!.match(/\d{6}/)![0];
   await page.getByLabel('Code à 6 chiffres').fill(code);
   await page.getByRole('button', { name: 'Vérifier' }).click();
 

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('a founder signs up, onboards in under two minutes, and plays a month', async ({ page }) => {
   await page.goto('/');
