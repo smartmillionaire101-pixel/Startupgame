@@ -23,6 +23,7 @@ import { loadConfig, monthMsOf, type Config } from '../config.js';
 import { DevSmsProvider } from '../adapters/sms.js';
 import { fetchFxUpdates } from '../adapters/feeds.js';
 import { KvAccountStore } from './kv-accounts.js';
+import { RELEASE_NOTE } from '../release.js';
 import { KvGame } from './kv-game.js';
 import { NetlifyKv, kvJson, type Kv } from './kv.js';
 
@@ -212,6 +213,9 @@ export const FX_EVERY_MS = 6 * 3_600_000;
 /** The scheduled clock: open configured markets, run due settlements, refresh FX. */
 export async function runClock(rt: Runtime, now = Date.now()) {
   await rt.game.openMarkets(rt.config.OPEN_MARKETS);
+  // Tell every player about a new release once (a no-op after the first time).
+  if (!rt.game.current.announcements?.includes(RELEASE_NOTE.id))
+    await rt.game.execute(null, { type: 'system.announce', ...RELEASE_NOTE });
   const settled = await rt.game.tick();
   let fx = 0;
   const last = await kvJson.get<{ at: number }>(rt.kv, 'feeds/fx');

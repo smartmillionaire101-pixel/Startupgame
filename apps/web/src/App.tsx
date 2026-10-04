@@ -14,6 +14,7 @@ import { MeScreen } from './screens/Me';
 import { BankScreen } from './screens/Bank';
 import { CityScreen } from './city/CityScreen';
 import { onVisit } from './city/goto';
+import { UpdateBanner } from './update';
 import { hereOf, isAbroad } from './city/travel';
 
 export function App() {
@@ -40,6 +41,7 @@ export function App() {
       {status === 'onboarding' && <Onboarding />}
       {status === 'ready' && <Game />}
       <Toasts />
+      <UpdateBanner />
     </>
   );
 }

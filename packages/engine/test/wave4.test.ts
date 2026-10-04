@@ -255,3 +255,24 @@ describe('getting around town (Wave 4)', () => {
     );
   });
 });
+
+describe('release announcements', () => {
+  it('reach every human player once, and repeats are ignored', () => {
+    let w = addInvestor(addFounder(makeWorld()));
+    const note = {
+      type: 'system.announce' as const,
+      id: 'release-x',
+      text: 'A new version is out.',
+    };
+    const r = run(w, null, note);
+    w = r.world;
+    expect(r.result).toEqual({ sent: 2 });
+    for (const id of ['u_founder', 'u_investor'])
+      expect(w.inbox[id]!.filter((i) => i.text === 'A new version is out.')).toHaveLength(1);
+    const again = run(w, null, note);
+    expect(again.result).toEqual({ sent: 0 });
+    expect(again.world.inbox.u_founder!.filter((i) => i.text === note.text)).toHaveLength(1);
+    // Players can't send one.
+    expect(tryRun(w, 'u_founder', { ...note, id: 'other' }).ok).toBe(false);
+  });
+});
