@@ -267,7 +267,7 @@ describe('Netlify runtime', () => {
     const c = client(rt);
     expect((await c.call('GET', '/api/health')).json.ok).toBe(true);
     const meta = await c.call('GET', '/api/meta');
-    expect(meta.json.markets.length).toBe(9);
+    expect(meta.json.markets.length).toBe(10);
     expect(meta.headers.get('content-security-policy')).toContain("default-src 'self'");
     expect((await c.call('GET', '/api/state')).status).toBe(401);
 

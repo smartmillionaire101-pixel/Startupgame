@@ -22,7 +22,8 @@ export function Chats() {
     [toast],
   );
   useEffect(load, [load]);
-  const others = view.players.filter((p) => !chats.some((c) => c.with.id === p.id));
+  // AI angels are in view.players too (Wave 3) but don't chat.
+  const others = view.players.filter((p) => !p.ai && !chats.some((c) => c.with.id === p.id));
   return (
     <Card title={t('Chats')}>
       {chats.length === 0 ? (

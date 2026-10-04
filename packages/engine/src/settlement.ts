@@ -13,6 +13,7 @@ import {
   maintainPopulation,
   updateFundMood,
 } from './ai.js';
+import { angelsInvest } from './angels.js';
 import { settleCompany } from './company.js';
 import { updateLenderAppetite } from './capital.js';
 import { settleSegment } from './customers.js';
@@ -113,6 +114,8 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
   }
 
   aiFundsInvest(world, marketId, rng, month);
+  // AI angels back raising companies, AI and human (own RNG stream: 'angels').
+  angelsInvest(world, marketId, month);
   for (const f of Object.values(world.funds)) {
     if (f.market !== marketId) continue;
     updateFundMood(world, f);

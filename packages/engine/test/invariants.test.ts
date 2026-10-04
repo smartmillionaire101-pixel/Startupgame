@@ -87,6 +87,12 @@ describe('world invariants under random play', () => {
       }),
       fc.record({ k: fc.constant('rsvp' as const), investor: fc.boolean(), going: fc.boolean() }),
       fc.record({ k: fc.constant('cancel' as const), investor: fc.boolean() }),
+      // AI angels (Wave 3): pitching one marks the company as raising, so angels send SAFE offers.
+      fc.record({
+        k: fc.constant('pitchAngel' as const),
+        pick: fc.nat(10),
+        ask: fc.integer({ min: 1_000_000_00, max: 50_000_000_00 }),
+      }),
     );
 
     fc.assert(
@@ -231,6 +237,18 @@ describe('world invariants under random play', () => {
                 (x) => x.status === 'upcoming' && x.hostId !== actor,
               );
               cmd = { type: 'event.rsvp', eventId: e?.id ?? 'none', going: a.going };
+              break;
+            }
+            case 'pitchAngel': {
+              const angels = Object.values(w.funds).filter((f) => f.angelId);
+              const f = angels[a.pick % angels.length]!;
+              cmd = {
+                type: 'pitch.start',
+                companyId: cid,
+                fundId: f.id,
+                slides: ['product', 'traction'],
+                ask: a.ask,
+              };
               break;
             }
             case 'cancel': {

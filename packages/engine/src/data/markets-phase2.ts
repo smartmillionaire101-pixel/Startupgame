@@ -11,16 +11,26 @@ import type { DataSource, MarketData, MarketId } from './markets.js';
 
 type Bands = [junior: number, mid: number, senior: number];
 
-interface Spec extends Omit<MarketData, 'salaries' | 'sources' | 'id'> {
+export interface Spec extends Omit<MarketData, 'salaries' | 'sources' | 'id'> {
   bands: Record<
     'engineer' | 'product' | 'sales' | 'marketing' | 'support' | 'operations' | 'finance',
     Bands
   >;
   head: number;
-  sources: { fx: string; rate: string; stats: string; tax: string; deposit: string };
+  sources: {
+    fx: string;
+    rate: string;
+    stats: string;
+    tax: string;
+    deposit: string;
+    /** Defaults to public salary surveys and job boards. */
+    salaries?: string;
+    /** Cost of living and office rents, when a specific source is cited. */
+    costs?: string;
+  };
 }
 
-function market(id: MarketId, s: Spec): MarketData {
+export function market(id: MarketId, s: Spec): MarketData {
   const { bands, head, sources, ...rest } = s;
   const salaries = Object.fromEntries(
     Object.entries(bands).map(([role, [junior, mid, senior]]) => [role, { junior, mid, senior }]),
@@ -33,10 +43,13 @@ function market(id: MarketId, s: Spec): MarketData {
     { input: 'Tax rates', source: sources.tax, refresh: 'on change' },
     {
       input: 'Salaries',
-      source: 'Public salary surveys and job boards (est.)',
+      source: sources.salaries ?? 'Public salary surveys and job boards (est.)',
       refresh: 'quarterly',
     },
     { input: 'Deposit insurance', source: sources.deposit, refresh: 'on change' },
+    ...(sources.costs
+      ? [{ input: 'Cost of living and office', source: sources.costs, refresh: 'yearly' as const }]
+      : []),
   ];
   return { id, ...rest, salaries, sources: src };
 }

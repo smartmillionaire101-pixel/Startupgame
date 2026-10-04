@@ -41,7 +41,8 @@ describe('Phase 2 markets (§20)', () => {
     const before = moneyByCurrency(w);
     for (const id of PHASE2_WAVE) w = run(w, null, { type: 'market.open', market: id }).world;
     expect(Object.keys(w.markets)).toHaveLength(9);
-    expect(Object.values(w.funds).filter((f) => f.market === 'dubai')).toHaveLength(9);
+    // Six seed funds, three depth funds, two AI angels' funds (round(4 × 0.5)).
+    expect(Object.values(w.funds).filter((f) => f.market === 'dubai')).toHaveLength(11);
     expect(
       Object.values(w.companies).filter((c) => c.market === 'freetown' && c.ai).length,
     ).toBeGreaterThan(0);
