@@ -21,6 +21,16 @@ function Localised() {
 
 document.documentElement.lang = getLang();
 
+// Netlify adds a feedback toolbar to deploy previews (addresses with "--").
+// On a phone it sits over the game's bottom tabs and swallows taps, so the
+// game removes it; the live site never has it.
+if (location.hostname.includes('--')) {
+  const strip = () =>
+    document.querySelectorAll('[data-netlify-deploy-id]').forEach((el) => el.remove());
+  new MutationObserver(strip).observe(document.documentElement, { childList: true, subtree: true });
+  strip();
+}
+
 // Offline digest and fast reloads on slow networks (production only; dev uses Vite HMR).
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => void navigator.serviceWorker.register('/sw.js'));

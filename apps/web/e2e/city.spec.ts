@@ -55,8 +55,17 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
     market.getByRole('button', { name: 'Customer discovery (20h)' }).first(),
   ).toBeVisible();
 
-  // The classic dashboard is still one tap away.
-  await market.getByRole('button', { name: 'Close' }).click();
-  await page.getByRole('button', { name: 'Home' }).click();
+  // The bottom tabs work even with a panel open: tapping one leaves the city.
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await nav.getByRole('button', { name: 'Company' }).click();
+  await expect(market).toBeHidden();
+  await nav.getByRole('button', { name: 'Home' }).click();
   await expect(page.getByText('Monthly revenue')).toBeVisible();
+  for (const tab of ['Money', 'News', 'Me', 'City']) {
+    await nav.getByRole('button', { name: tab, exact: true }).click();
+    await expect(nav.getByRole('button', { name: tab, exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  }
 });

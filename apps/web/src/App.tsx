@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGame, useView } from './store';
 import { Pill, Toasts } from './ui';
 import { stars } from './format';
@@ -97,6 +97,23 @@ function Game() {
     [],
   );
 
+  // Panels (sheets) open above the bottom bar, never over it, so the tabs keep
+  // working while one is open: tapping a tab leaves the screen and closes it.
+  const navRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const root = document.documentElement;
+    const set = () => root.style.setProperty('--nav-h', `${nav.offsetHeight}px`);
+    set();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(set);
+    ro?.observe(nav);
+    return () => {
+      ro?.disconnect();
+      root.style.removeProperty('--nav-h');
+    };
+  }, []);
+
   return (
     <>
       <div className={`app${current === 'city' ? ' app-city' : ''}`}>
@@ -127,7 +144,7 @@ function Game() {
           {current === 'me' && <MeScreen />}
         </main>
       </div>
-      <nav className="nav" aria-label={t('Main')}>
+      <nav className="nav" ref={navRef} aria-label={t('Main')}>
         <div className="nav-inner" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
           {tabs.map((t) => (
             <button
