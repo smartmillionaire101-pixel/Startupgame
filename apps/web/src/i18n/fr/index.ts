@@ -1,5 +1,6 @@
 /** The French catalog, merged from one file per screen. */
 import { app } from './app';
+import { city } from './city';
 import { company } from './company';
 import { entry } from './entry';
 import { me } from './me';
@@ -8,6 +9,7 @@ import { server } from './server';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   app,
+  city,
   entry,
   company,
   money,

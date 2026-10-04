@@ -36,6 +36,8 @@ export default defineConfig({
           HOST: '127.0.0.1',
           DATABASE_PATH: `${process.env.TMPDIR ?? '/tmp'}/runway-e2e-${Date.now()}.db`,
           DEV_TOOLS: '1',
+          // Every spec signs up a new player; allow more than production's 5 per 10 minutes.
+          AUTH_RATE_LIMIT: '50',
           FX_FEED_URL: '',
           WEB_DIST: './dist',
           SESSION_SECRET: 'e2e-secret-e2e-secret-e2e-secret-0001',

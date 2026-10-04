@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { money, runway, stars } from '../format';
 import { t, tx } from '../i18n';
-import { useView } from '../store';
+import { useView, type Company } from '../store';
 import { Button, Card, Pill, Sparkline, Stat } from '../ui';
 import { Inbox } from './common';
 import { FoundCompany } from './Me';
@@ -27,34 +27,7 @@ export function Home() {
               ))}
             </div>
           )}
-          <div className="kpis">
-            <Stat
-              label={t('Cash')}
-              value={money(c.cash, cur)}
-              hint={t('Burn {amount}/mo', { amount: money(c.burn, cur) })}
-            />
-            <Stat
-              label={t('Runway')}
-              value={runway(c.runwayMonths)}
-              tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
-              hint={c.defaultAlive ? t('Default alive') : t('Default dead')}
-            />
-            <Stat
-              label={t('Monthly revenue')}
-              value={money(c.monthlyRevenue, cur)}
-              hint={
-                <Sparkline
-                  values={c.finance.history.slice(-12).map((h) => h.revenue)}
-                  label={t('Revenue, last 12 months')}
-                />
-              }
-            />
-            <Stat
-              label={t('Stars')}
-              value={stars(c.stars)}
-              hint={c.publicWarning ? <span className="bad">{t('Public warning')}</span> : c.name}
-            />
-          </div>
+          <CompanyKpis c={c} />
           {c.warnings.length > 0 && (
             <Card title={t('Warning signs')} tone="warn">
               <ul className="list">
@@ -96,6 +69,41 @@ export function Home() {
       </Card>
       {meta?.devTools && <DevTools />}
     </>
+  );
+}
+
+/** Cash, runway, revenue and stars: the four numbers a founder checks first. */
+export function CompanyKpis({ c }: { c: Company }) {
+  const { cur } = useView();
+  return (
+    <div className="kpis">
+      <Stat
+        label={t('Cash')}
+        value={money(c.cash, cur)}
+        hint={t('Burn {amount}/mo', { amount: money(c.burn, cur) })}
+      />
+      <Stat
+        label={t('Runway')}
+        value={runway(c.runwayMonths)}
+        tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
+        hint={c.defaultAlive ? t('Default alive') : t('Default dead')}
+      />
+      <Stat
+        label={t('Monthly revenue')}
+        value={money(c.monthlyRevenue, cur)}
+        hint={
+          <Sparkline
+            values={c.finance.history.slice(-12).map((h) => h.revenue)}
+            label={t('Revenue, last 12 months')}
+          />
+        }
+      />
+      <Stat
+        label={t('Stars')}
+        value={stars(c.stars)}
+        hint={c.publicWarning ? <span className="bad">{t('Public warning')}</span> : c.name}
+      />
+    </div>
   );
 }
 
