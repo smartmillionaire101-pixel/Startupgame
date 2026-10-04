@@ -1,6 +1,6 @@
 /**
- * Monthly settlement for one market (§2 "The clock"). Runs at local midnight
- * in that market: salaries, revenue, interest, loan repayments, taxes, rent,
+ * Monthly settlement for one market (§2 "The clock"). Runs once per game
+ * month (see clock.ts): salaries, revenue, interest, loan repayments, taxes, rent,
  * lifestyle — then the AI world moves.
  *
  * Deterministic: the RNG stream is derived from (world seed, market, month).
@@ -33,6 +33,7 @@ import {
   supplyEffects,
 } from './marketplace.js';
 import type { MarketId } from './data/markets.js';
+import { localDate } from './clock.js';
 import { getMarket } from './helpers.js';
 import { clamp } from './math.js';
 import { economicNote, reporterOutreach } from './media.js';
@@ -75,7 +76,12 @@ function playerPerformance(world: World, p: Player): number {
   return companies.reduce((a, c) => a + c!.stars.value, 0) / companies.length;
 }
 
-export function settleMarket(world: World, marketId: MarketId, now: number, localDate: string) {
+export function settleMarket(
+  world: World,
+  marketId: MarketId,
+  now: number,
+  clock: { at?: number; date?: string; monthMs?: number } = {},
+) {
   const m = getMarket(world, marketId);
   m.month += 1;
   const month = m.month;
@@ -147,7 +153,7 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
   expireDeals(world, marketId);
   reporterOutreach(world, marketId, rng, month);
   maintainPopulation(world, marketId, rng, now);
-  inactivity(world, marketId, now, month);
+  inactivity(world, marketId, now, month, clock.monthMs);
 
   // Release reserved names of long-closed companies.
   for (const c of Object.values(world.companies)) {
@@ -162,5 +168,8 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
   }
 
   m.economicNote = economicNote(world, marketId);
-  m.lastSettledDate = localDate;
+  if (clock.at !== undefined) {
+    m.settledAt = clock.at;
+    m.lastSettledDate = localDate(clock.at, m.data.timeZone);
+  } else if (clock.date !== undefined) m.lastSettledDate = clock.date;
 }

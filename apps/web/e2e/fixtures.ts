@@ -63,5 +63,21 @@ export async function playAsGuest(page: Page, lang: 'en' | 'fr' = 'en') {
   }
 }
 
+/**
+ * Tap a building on the map the way the map listens for taps. Somewhere far
+ * opens the ride chooser (Wave 4): go by `mode` (walking, unless told).
+ */
+export async function tapPlace(page: Page, selector: string, mode = 'walk') {
+  const el = page.locator(selector).first();
+  await el.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+  await el.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
+  const far = await chooser.waitFor({ timeout: 1500 }).then(
+    () => true,
+    () => false,
+  );
+  if (far) await chooser.locator(`[data-mode="${mode}"]`).click();
+}
+
 /** A random address on a reserved domain: never receives real mail. */
 export const randomEmail = () => `e2e-${letters(10)}@example.com`;

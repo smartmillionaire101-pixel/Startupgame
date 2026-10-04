@@ -224,6 +224,17 @@ export function useGame() {
   return ctx;
 }
 
+/**
+ * Shows a subtree a different view of the same game: the City, while you're
+ * away, sees the market you're in as `view.market` (Wave 4 `view.here`), so
+ * its places, prices and people are that city's.
+ */
+export function WithView({ view, children }: { view: PlayerView; children: ReactNode }) {
+  const g = useGame();
+  const value = useMemo(() => ({ ...g, view }), [g, view]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
 /** Narrowed hook for screens that only render once the player is in the game. */
 export function useView() {
   const g = useGame();

@@ -51,6 +51,7 @@ function Figure({
   bg,
   scale,
   setRef,
+  known = false,
 }: {
   id: string;
   name: string;
@@ -58,6 +59,8 @@ function Figure({
   bg: string;
   scale: number;
   setRef: (id: string, el: SVGGElement | null) => void;
+  /** A player you know: their name shows at every zoom. */
+  known?: boolean;
 }) {
   const look = useMemo(() => avatarLook(bg, id), [bg, id]);
   const w = name.length * 5.4 + 16;
@@ -66,7 +69,7 @@ function Figure({
       ref={(el) => setRef(id, el)}
       data-person={id}
       data-scale={scale}
-      className={`city-person city-person-${kind}`}
+      className={`city-person city-person-${kind}${known ? ' is-known' : ''}`}
       transform="translate(-9999,-9999)"
     >
       <rect className="city-hit" x={-11} y={-48} width={22} height={52} fill="transparent" />
@@ -89,11 +92,14 @@ export const Crowd = memo(function Crowd({
   ai,
   players,
   reduced,
+  known = [],
 }: {
   layout: CityLayout;
   ai: AiPerson[];
   players: PresenceView[];
   reduced: boolean;
+  /** Ids of players you know (contacts). */
+  known?: string[];
 }) {
   const els = useRef(new Map<string, SVGGElement>());
   const glides = useRef(new Map<string, Glide>());
@@ -209,6 +215,7 @@ export const Crowd = memo(function Crowd({
           bg={p.backgroundId}
           scale={1.15}
           setRef={setRef}
+          known={known.includes(p.id)}
         />
       ))}
     </g>

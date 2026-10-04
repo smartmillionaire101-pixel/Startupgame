@@ -6,11 +6,13 @@ import {
   findPath,
   nearestStreetPoint,
   segKey,
+  spreadPlan,
   type CityInput,
   type Pt,
 } from '../src/city/layout';
 import { PLANS } from '../src/city/plans';
 import { aiCharacters, crowdSize } from '../src/city/people';
+import { placeLabels } from '../src/city/CityMap';
 import {
   CITY_BUSINESSES,
   CITY_DISTRICTS,
@@ -337,5 +339,49 @@ describe('city plans', () => {
       true,
     );
     expect(usesOnlyOpenStreets(angel.route, new Set(l.cuts))).toBe(true);
+  });
+});
+
+describe('a roomier city (Wave 4)', () => {
+  const quiet = (m: string) =>
+    input(m, {
+      businesses: [],
+      funds: input(m).funds.slice(0, 3),
+      lenders: input(m).lenders.slice(0, 2),
+    });
+
+  for (const market of Object.keys(PLANS))
+    it(`${market}: opens green lanes between districts`, () => {
+      const { plan, belt } = spreadPlan(PLANS[market]!);
+      expect(PLANS[market]!.open, market).toBeDefined();
+      const l = buildLayout(quiet(market));
+      const lane = l.blocks.filter((b) => belt(b.i, b.j));
+      expect(lane.length, market).toBeGreaterThan(0);
+      // Most of a lane stays open: parks, plazas, landmarks.
+      const open = lane.filter((b) => b.district === 'park' || b.district === 'landmark');
+      expect(open.length / lane.length, market).toBeGreaterThan(0.6);
+      // Districts keep their names and order; the grid only grows.
+      expect(plan.districts.map((d) => d.id)).toEqual(PLANS[market]!.districts.map((d) => d.id));
+      expect(l.size).toBeGreaterThanOrEqual(7);
+    });
+
+  it('labels only the key places at the default zoom, and never overlaps a set', () => {
+    for (const market of Object.keys(PLANS)) {
+      const l = buildLayout(input(market));
+      const { labels, areas } = placeLabels(l, (p) => p.name || p.kind, 'The Market');
+      const main = labels.filter((x) => x.tier === 'lbl-main').map((x) => x.id);
+      expect(main.sort(), market).toEqual(['airport', 'eventhall', 'hub', 'market', 'office']);
+      const overlaps = (xs: { x: number; y: number; w: number }[]) =>
+        xs.some((a, n) =>
+          xs.some(
+            (b, k) => k > n && Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < 17,
+          ),
+        );
+      expect(overlaps(labels), market).toBe(false);
+      // Districts with banks or investors keep their name at the default zoom.
+      const keyAreas = areas.filter((a) => a.key).map((a) => a.id);
+      const finance = l.places.find((p) => p.kind === 'lender')!.area!;
+      expect(keyAreas, market).toContain(finance);
+    }
   });
 });

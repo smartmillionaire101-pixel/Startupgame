@@ -141,8 +141,9 @@ export const money: Record<string, string> = {
   'Amount to put in': 'Montant à injecter',
   'Put in': 'Injecter',
   'Last month': 'Le mois dernier',
-  'Your first month settles at midnight in your market.':
-    'Votre premier mois se clôture à minuit sur votre marché.',
+  'Your first month settles in about {n} min.':
+    'Votre premier mois se clôture dans environ {n} min.',
+  'Your first month settles soon.': 'Votre premier mois se clôture bientôt.',
   Revenue: 'Chiffre d’affaires',
   Payroll: 'Salaires',
   'Founder salary': 'Salaire du fondateur',

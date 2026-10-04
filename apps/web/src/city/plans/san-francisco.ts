@@ -55,6 +55,7 @@ export const sanFrancisco: CityPlan = {
     { at: [0, 2], height: 3 },
     { at: [0, 5], height: 2 },
   ],
+  open: { rows: [3], cols: [4] },
   streets: 'grid',
   bridges: [
     {

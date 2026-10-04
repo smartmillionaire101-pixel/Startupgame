@@ -40,6 +40,7 @@ export const accra: CityPlan = {
     { id: 'jamestown', name: 'Jamestown', kind: 'waterfront', at: [0, 5], size: [3, 2] },
   ],
   water: { side: 'south', name: 'Gulf of Guinea' },
+  open: { rows: [5], cols: [4] },
   streets: 'organic',
   landmarks: [
     { kind: 'star-gate', name: 'Black Star Gate', at: [3, 5] },

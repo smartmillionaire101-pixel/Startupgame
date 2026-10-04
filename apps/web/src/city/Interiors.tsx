@@ -33,6 +33,7 @@ import { BusinessInterior, JobsBoard, WhoBuysWhat } from './Business';
 import { EventHall } from './Events';
 import { project, type CityLayout, type Place } from './layout';
 import { npcName, type PresenceView } from './people';
+import type { Destination } from './travel';
 
 /** Where a story or rescue action points, as a navigable request. */
 export type GoTo = (place: StoryPlace) => void;
@@ -718,13 +719,115 @@ function HomeInterior({ place, layout }: { place: Place; layout: CityLayout }) {
   );
 }
 
-function AirportInterior({ place, layout }: { place: Place; layout: CityLayout }) {
+/** What the airport needs from the City: departures and how to board. */
+export interface FlightDesk {
+  destinations: Destination[];
+  /** Fares are in your home currency. */
+  currency: string;
+  onFly: (to: string) => void;
+}
+
+/** The departures board: every city you can fly to, its fare and flight time. */
+function Departures({ desk, homeId }: { desk: FlightDesk; homeId: string | null }) {
+  const { busy } = useView();
+  return (
+    <Card title={t('Departures')}>
+      <ul className="list departures" aria-label={t('Departures')}>
+        {desk.destinations.map((d) => (
+          <li key={d.id} className="spread">
+            <span>
+              <b>{d.name}</b>
+              {d.id === homeId && <Pill tone="good">{t('Home city')}</Pill>}
+              <br />
+              <span className="small muted">
+                {money(d.fare, desk.currency)} · {t('{n}h flight', { n: d.hours })}
+              </span>
+            </span>
+            {d.done ? (
+              <Pill tone="good">{t('This month')}</Pill>
+            ) : (
+              <Button
+                variant={d.id === homeId ? 'primary' : 'ghost'}
+                disabled={busy}
+                aria-label={t('Fly to {city}', { city: d.name })}
+                onClick={() => desk.onFly(d.id)}
+              >
+                {t('Fly now')}
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function AirportInterior({
+  place,
+  layout,
+  desk,
+  homeId,
+}: {
+  place: Place;
+  layout: CityLayout;
+  desk?: FlightDesk;
+  homeId: string | null;
+}) {
+  return (
+    <>
+      <Scene
+        place={place}
+        layout={layout}
+        who={npcName(layout.marketId, 'airport')}
+        role={t('Check-in')}
+      />
+      {desk ? <Departures desk={desk} homeId={homeId} /> : null}
+      <Travel trips={!desk} />
+    </>
+  );
+}
+
+/** Your office or home while you're away: they're back in your home city. */
+function AwayInterior({
+  place,
+  layout,
+  away,
+  nav,
+}: {
+  place: Place;
+  layout: CityLayout;
+  away: Away;
+  nav: Nav;
+}) {
   return (
     <>
       <Scene place={place} layout={layout} />
-      <Travel />
+      <p>
+        {place.kind === 'office'
+          ? t(
+              'A desk for the day. Your office is back in {home}: you can still run your company from here.',
+              { home: away.homeName },
+            )
+          : t('A room for the night. Your home is back in {home}.', { home: away.homeName })}
+      </p>
+      <div className="row">
+        {place.kind === 'office' && (
+          <Button variant="subtle" onClick={() => nav('company')}>
+            {t('Open the company screen')}
+          </Button>
+        )}
+        <Button variant="ghost" onClick={away.onFlyHome}>
+          {t('Fly home')}
+        </Button>
+      </div>
     </>
   );
+}
+
+/** You're away from home (Wave 4). */
+export interface Away {
+  homeName: string;
+  onFlyHome: () => void;
 }
 
 function NewsstandInterior({ place, layout, nav }: { place: Place; layout: CityLayout; nav: Nav }) {
@@ -762,6 +865,9 @@ export function Interior({
   nav,
   onVisit,
   players = [],
+  desk,
+  away = null,
+  homeId = null,
 }: {
   place: Place;
   layout: CityLayout;
@@ -773,6 +879,12 @@ export function Interior({
   onVisit?: (placeId: string) => void;
   /** Other players around (to invite to a meal). */
   players?: PresenceView[];
+  /** The airport's departures (Wave 4). */
+  desk?: FlightDesk;
+  /** Set while you're away from home. */
+  away?: Away | null;
+  /** Your home market, marked on the departures board. */
+  homeId?: string | null;
 }) {
   const body = (() => {
     switch (place.kind) {
@@ -798,11 +910,13 @@ export function Interior({
           />
         );
       case 'office':
+        if (away) return <AwayInterior place={place} layout={layout} away={away} nav={nav} />;
         return <OfficeInterior place={place} layout={layout} onGo={onGo} nav={nav} />;
       case 'home':
+        if (away) return <AwayInterior place={place} layout={layout} away={away} nav={nav} />;
         return <HomeInterior place={place} layout={layout} />;
       case 'airport':
-        return <AirportInterior place={place} layout={layout} />;
+        return <AirportInterior place={place} layout={layout} desk={desk} homeId={homeId} />;
       case 'newsstand':
         return <NewsstandInterior place={place} layout={layout} nav={nav} />;
       case 'eventhall':

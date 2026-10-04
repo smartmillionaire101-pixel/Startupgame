@@ -35,11 +35,20 @@ import {
   col,
   getMarket,
   hoursLeft,
+  locationOf,
   notify,
   ownCompany,
   spendHours,
 } from './helpers.js';
-import { account, openAccount, transfer, transferUpTo } from './ledger.js';
+import {
+  account,
+  costIn,
+  openAccount,
+  pay as payLedger,
+  payExact,
+  transfer,
+  transferUpTo,
+} from './ledger.js';
 import { CATEGORY } from './marketplace.js';
 import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
@@ -134,7 +143,7 @@ export function getBusiness(world: World, id: Id): LocalBusiness {
 function openBusinessOf(world: World, me: Player, id: Id): LocalBusiness {
   const b = getBusiness(world, id);
   ensure(isOpen(b), 'business.closed', `${b.name} has closed.`);
-  ensure(b.market === me.market, 'business.market', `${b.name} is in another city.`);
+  ensure(b.market === locationOf(me), 'business.market', `${b.name} is in another city.`);
   return b;
 }
 
@@ -495,7 +504,7 @@ export function pitchBlocker(
   companyId?: Id,
 ): string | null {
   if (!isOpen(b)) return `${b.name} has closed.`;
-  if (me.market !== b.market) return 'This business is in another city.';
+  if (locationOf(me) !== b.market) return 'This business is in another city.';
   const m = getMarket(world, b.market);
   const spec = specOf(b);
   const mine = me.companyIds
@@ -547,8 +556,9 @@ export function pitchBusiness(
   const cheapest = spec.venue?.items.slice().sort((a, z) => a.priceCol - z.priceCol)[0];
   if (cheapest) {
     const price = scale(col(m), cheapest.priceCol);
-    if (account(world, me.accounts.local).balance >= price) {
-      transfer(world, me.accounts.local, b.account, price, `${cheapest.label} at ${b.name}`, month);
+    const mine = account(world, me.accounts.local);
+    if (mine.balance >= costIn(world, price, m.data.currency, mine.currency)) {
+      payExact(world, me.accounts.local, b.account, price, `${cheapest.label} at ${b.name}`, month);
       coffee = price;
       raiseRapport(b, me.id, 0.03);
     }
@@ -649,33 +659,39 @@ export function takeBusinessGig(world: World, me: Player, businessId: Id, gigId:
   spendHours(me, g.hours, g.label);
   const promised = gigPay(m, me, g);
   const skillMatch = gigSkillMatch(me, g.skill);
-  const pay = transferUpTo(
-    world,
-    b.account,
-    me.accounts.local,
-    promised,
-    `${g.label} at ${b.name}`,
-    month,
-  );
-  const tax = Math.round(pay * m.data.tax.personalIncome);
-  transfer(world, me.accounts.local, m.ext.tax, tax, 'Personal income tax', month);
+  const home = getMarket(world, me.market);
+  const abroad = home.id !== m.id;
+  const pay = abroad
+    ? Math.max(0, Math.min(promised, account(world, b.account).balance))
+    : transferUpTo(world, b.account, me.accounts.local, promised, `${g.label} at ${b.name}`, month);
+  // Abroad, the pay is converted into your home currency and taxed at home.
+  const received = abroad
+    ? pay > 0
+      ? payLedger(world, b.account, me.accounts.local, pay, `${g.label} at ${b.name}`, month)
+      : 0
+    : pay;
+  const tax = Math.round(received * home.data.tax.personalIncome);
+  transfer(world, me.accounts.local, home.ext.tax, tax, 'Personal income tax', home.month);
   me.energy = clamp(me.energy - energy, 0, 100);
   me.gigsThisMonth += 1;
   m.economy ??= emptyStats(month);
   m.economy.gigsNow += 1;
   raiseRapport(b, me.id, 0.04);
   const fmt = (v: number) => formatMoney(v, m.data.currency);
+  const fmtHome = (v: number) => formatMoney(v, home.data.currency);
   const short = pay < promised;
   return {
     pay,
     promised,
+    /** What reached your personal account (your home currency; differs from `pay` abroad). */
+    received,
     tax,
     short,
     skillMatch,
     energy,
     message: short
-      ? `${b.owner.name} could only pay ${fmt(pay)} of ${fmt(promised)}: business is slow. Tax: ${fmt(tax)}.`
-      : `${g.label} done: ${fmt(pay)}${skillMatch ? ' (your background paid off)' : ''}. Tax: ${fmt(tax)}.`,
+      ? `${b.owner.name} could only pay ${fmt(pay)} of ${fmt(promised)}: business is slow. Tax: ${fmtHome(tax)}.`
+      : `${g.label} done: ${fmt(pay)}${skillMatch ? ' (your background paid off)' : ''}. Tax: ${fmtHome(tax)}.`,
   };
 }
 
@@ -693,7 +709,7 @@ function resolveGuest(world: World, me: Player, withId: Id, b: LocalBusiness): G
   ensure(withId !== me.id, 'venue.self', 'Invite someone else.');
   const p = world.players[withId];
   if (p) {
-    ensure(p.market === b.market, 'venue.guest', `${p.name} isn’t in this city.`);
+    ensure(locationOf(p) === b.market, 'venue.guest', `${p.name} isn’t in this city.`);
     if (!p.ai)
       return { name: p.name, contact: { kind: 'player', refId: p.id, name: p.name }, player: p };
     // AI angels (and AI fund managers): warmth goes to their fund, so warm intros work.
@@ -754,12 +770,13 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
     spendHours(me, ECONOMY.meetingHours, `Meeting ${guest.name}`);
   }
   const total = guest ? price * 2 : price;
+  const mine = account(world, me.accounts.local);
   ensure(
-    account(world, me.accounts.local).balance >= total,
+    mine.balance >= costIn(world, total, m.data.currency, mine.currency),
     'venue.funds',
     `That costs ${fmt(total)}; you don’t have it.`,
   );
-  transfer(world, me.accounts.local, b.account, total, `${it.label} at ${b.name}`, month);
+  payExact(world, me.accounts.local, b.account, total, `${it.label} at ${b.name}`, month);
   const energy = it.energy ?? 0;
   if (energy) me.energy = clamp(me.energy + energy, 0, 100);
   raiseRapport(b, me.id, 0.02);

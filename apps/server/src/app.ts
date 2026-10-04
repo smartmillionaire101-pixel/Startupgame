@@ -29,6 +29,7 @@ import {
   commandSchema,
   digest,
   economyDashboard,
+  locationOf,
   playerView,
   startersFor,
   type MarketId,
@@ -42,7 +43,7 @@ import {
   normaliseEmail,
   normalisePhone,
 } from './auth.js';
-import type { Config } from './config.js';
+import { monthMsOf, type Config } from './config.js';
 import type { Game } from './game.js';
 import type { SmsProvider } from './adapters/sms.js';
 import {
@@ -76,6 +77,10 @@ export interface AppDeps {
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const { config, store, game, sms, now } = deps;
+  const monthMs = monthMsOf(config);
+  // How often an authenticated request records "seen" (away mode, inactivity):
+  // a fifth of a game month, between 30 seconds and 10 minutes.
+  const seenEvery = Math.min(600_000, Math.max(30_000, Math.round(monthMs / 5)));
   const auth = new AuthService(store, config.SESSION_SECRET, now);
   const prod = config.NODE_ENV === 'production';
   const emailer = deps.email ?? emailProviderFrom(config, (m) => console.log(m));
@@ -135,6 +140,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const requireUser = async (req: FastifyRequest, reply: FastifyReply) => {
     if (!req.userId)
       return reply.code(401).send({ error: { code: 'auth', message: 'Sign in first.' } });
+    // Away mode counts game months since a player was last seen; keep that fresh, cheaply.
+    const me = game.current.players[req.userId];
+    if (me && !me.ai && now() - me.lastActiveAt >= seenEvery) {
+      try {
+        await game.execute(req.userId, { type: 'player.seen' });
+      } catch (err) {
+        req.log.warn({ err }, 'could not record player as seen');
+      }
+    }
   };
 
   app.setErrorHandler((err: Error & { statusCode?: number; validation?: unknown }, req, reply) => {
@@ -435,7 +449,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
    * kept only by this browser's session cookie until they save it with an email.
    */
   app.get('/api/state', { preHandler: requireUser }, async (req) => {
-    const view = playerView(game.current, req.userId!);
+    const view = playerView(game.current, req.userId!, { now: now(), monthMs });
     const a = await store.getAccount(req.userId!);
     const account = { guest: a?.guest ?? false, email: a?.email ?? null };
     return view ? { onboarded: true, view, account } : { onboarded: false, account };
@@ -646,8 +660,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         return reply
           .code(404)
           .send({ error: { code: 'player', message: 'Create a player first.' } });
+      // Stored under the city you're physically in (Wave 4: flights).
       if (await store.getPresenceVisible(me.id))
-        await store.putPresence(me.id, me.market, { ...body, at: now() });
+        await store.putPresence(me.id, locationOf(me), { ...body, at: now() });
       return reply.code(204).send();
     },
   );
@@ -669,9 +684,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const world = game.current;
       const me = world.players[req.userId!];
       if (!me) return { players: [] };
-      const rows = (await store.listPresence(me.market, now() - PRESENCE_WINDOW_MS)).filter(
-        (r) => r.userId !== me.id && world.players[r.userId]?.market === me.market,
-      );
+      // Everyone in the same city as you right now, residents and visitors alike.
+      const here = locationOf(me);
+      const rows = (await store.listPresence(here, now() - PRESENCE_WINDOW_MS)).filter((r) => {
+        const p = world.players[r.userId];
+        return r.userId !== me.id && !!p && locationOf(p) === here;
+      });
       const blocked = await Promise.all(
         rows.map(async (r) => !!(await store.findChat(me.id, r.userId))?.blocked_by),
       );
@@ -722,7 +740,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   if (config.DEV_TOOLS) {
-    /** Dev only: advance a market by one game month without waiting for midnight. */
+    /** Dev only: advance a market by one game month without waiting for the clock. */
     app.post('/api/dev/settle', { preHandler: requireUser }, async (req, reply) => {
       const { market } = z
         .object({ market: z.enum(Object.keys(MARKET_DATA) as [MarketId, ...MarketId[]]) })
@@ -732,14 +750,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         return reply
           .code(404)
           .send({ error: { code: 'market', message: 'That market isn’t open yet.' } });
-      const last = open.lastSettledDate!;
-      const d = new Date(`${last}T00:00:00Z`);
-      d.setUTCDate(d.getUTCDate() + 1);
-      const r = await game.execute(null, {
-        type: 'market.settle',
-        market,
-        date: d.toISOString().slice(0, 10),
-      });
+      // An extra month: the clock's own schedule is left as it is.
+      const r = await game.execute(null, { type: 'market.settle', market, monthMs });
       if (!r.ok) return reply.code(422).send({ error: r.error });
       return { ok: true, month: game.current.markets[market]!.month };
     });

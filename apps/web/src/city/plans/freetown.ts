@@ -44,6 +44,7 @@ export const freetown: CityPlan = {
     { at: [5, 4], height: 2 },
     { at: [4, 5], height: 2 },
   ],
+  open: { cols: [2, 4] },
   streets: 'organic',
   bridges: [{ name: 'Ferry to Lungi', from: [6, 0], to: [6, -3], style: 'beam', color: '#a8a29e' }],
   landmarks: [

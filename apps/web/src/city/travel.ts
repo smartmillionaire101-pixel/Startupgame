@@ -1,0 +1,353 @@
+/**
+ * Wave 4: getting around (docs/WAVE4-PACE-TRAVEL-SPACE.md §B).
+ *
+ * Adapters for the Wave 4 contracts, read when the server sends them and
+ * falling back when it doesn't yet:
+ *
+ * - `view.clock` drives the "Next month in 3:42" chip (no clock: no chip).
+ * - `view.here` is the market you're physically in (no `here`: your home
+ *   market, as before). `view.me.location` says you're away from home.
+ * - `view.flights` gives one-way fares (no flights: the airport falls back
+ *   to the old trip command and its round-trip cost).
+ *
+ * And the pure helpers behind rides across town (walk, cycle, the city's
+ * own transit, taxi) and flights between cities.
+ */
+import type { PlayerView } from '@runway/engine';
+import { B } from './layout';
+import type { VehicleSpec } from './flavour';
+
+type Market = PlayerView['market'];
+
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+// ---------------------------------------------------------------------------
+// Contracts
+
+export interface ClockView {
+  monthMs: number;
+  /** Epoch ms of the next settlement. */
+  nextSettlementAt: number;
+  /** The server's clock when it built the view. */
+  serverNow: number;
+}
+
+export function clockOf(view: PlayerView): ClockView | null {
+  const c = (view as PlayerView & { clock?: unknown }).clock;
+  if (!isObj(c) || !fin(c.monthMs) || !fin(c.nextSettlementAt) || !fin(c.serverNow)) return null;
+  if (c.monthMs <= 0) return null;
+  return { monthMs: c.monthMs, nextSettlementAt: c.nextSettlementAt, serverNow: c.serverNow };
+}
+
+/** Milliseconds left in the month, given when the view arrived (local clock) and now. */
+export function msLeft(clock: ClockView, receivedAt: number, now: number): number {
+  const serverNow = clock.serverNow + (now - receivedAt);
+  return Math.max(0, clock.nextSettlementAt - serverNow);
+}
+
+/** "3:42" (or "12:05", or "1:02:03" for an hour or more). */
+export function fmtCountdown(ms: number): string {
+  const s = Math.ceil(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+}
+
+/** Whether the server sends where you are (`view.here`). */
+export function hasHere(view: PlayerView): boolean {
+  const h = (view as PlayerView & { here?: unknown }).here;
+  return isObj(h) && typeof h.id === 'string' && Array.isArray(h.segments);
+}
+
+/** The market you're physically in: `view.here`, else your home market. */
+export function hereOf(view: PlayerView): Market {
+  const h = (view as PlayerView & { here?: unknown }).here;
+  return hasHere(view) ? (h as Market) : view.market;
+}
+
+export const isAbroad = (view: PlayerView) => hereOf(view).id !== view.market.id;
+
+/** The view the City shows: the market you're in stands in for `view.market`. */
+export function cityViewOf(view: PlayerView): PlayerView {
+  const here = hereOf(view);
+  return here === view.market ? view : { ...view, market: here };
+}
+
+export interface LocationView {
+  market: string;
+  name: string;
+  sinceAt: number;
+}
+
+export function locationOf(view: PlayerView): LocationView | null {
+  const l = (view.me as PlayerView['me'] & { location?: unknown }).location;
+  if (!isObj(l) || typeof l.market !== 'string') return null;
+  return {
+    market: l.market,
+    name: typeof l.name === 'string' ? l.name : l.market,
+    sinceAt: fin(l.sinceAt) ? l.sinceAt : 0,
+  };
+}
+
+export interface FlightsView {
+  /** One-way fare per destination, minor units of your home currency. */
+  fareTo: Record<string, number>;
+  hours: number;
+}
+
+/** `view.flights` when the server has one-way flights (`travel.fly`). */
+export function flightsOf(view: PlayerView): FlightsView | null {
+  const f = (view as PlayerView & { flights?: unknown }).flights;
+  if (!isObj(f) || !isObj(f.fareTo)) return null;
+  const fareTo: Record<string, number> = {};
+  for (const [k, v] of Object.entries(f.fareTo)) if (fin(v)) fareTo[k] = v;
+  return { fareTo, hours: fin(f.hours) ? f.hours : 4 };
+}
+
+export interface Destination {
+  id: string;
+  name: string;
+  /** Minor units of your home currency. */
+  fare: number;
+  hours: number;
+  /** Fallback (old trip command) only: you already made this month's trip. */
+  done: boolean;
+}
+
+/**
+ * Where you can fly from where you are. With flights: every other market,
+ * home included when you're away. Without: the old destinations list.
+ */
+export function destinationsOf(view: PlayerView): Destination[] {
+  const flights = flightsOf(view);
+  const here = hereOf(view).id;
+  const names = new Map<string, string>([[view.market.id, view.market.name]]);
+  for (const d of view.me.destinations) names.set(d.id, d.name);
+  if (!flights)
+    return view.me.destinations.map((d) => ({
+      id: d.id,
+      name: d.name,
+      fare: d.tripCost,
+      hours: 40,
+      done: d.visitingNow,
+    }));
+  const ids = [...names.keys()].filter((id) => id !== here);
+  // Home first when you're away, then the rest as the server lists them.
+  ids.sort((a, b) => Number(b === view.market.id) - Number(a === view.market.id));
+  return ids.map((id) => ({
+    id,
+    name: names.get(id) ?? id,
+    fare: flights.fareTo[id] ?? view.me.destinations.find((d) => d.id === id)?.tripCost ?? 0,
+    hours: flights.hours,
+    done: false,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Rides across town
+
+export type RideMode = 'walk' | 'cycle' | 'bus' | 'taxi';
+export const RIDE_MODES: RideMode[] = ['walk', 'cycle', 'bus', 'taxi'];
+export type RideDistance = 'short' | 'medium' | 'long';
+
+/** A trip this long (tiles along the streets) or shorter just walks. */
+export const SHORT_HOP = 2 * B + 2;
+
+export const rideDistance = (tiles: number): RideDistance =>
+  tiles < 3 * B ? 'short' : tiles < 7 * B ? 'medium' : 'long';
+
+/** Fare shares of the city's monthly cost of living (server: `city.ride`). */
+const FARE_SHARE: Record<'bus' | 'taxi', Record<RideDistance, number>> = {
+  bus: { short: 0.002, medium: 0.0035, long: 0.005 },
+  taxi: { short: 0.01, medium: 0.02, long: 0.035 },
+};
+
+/** Estimated fare (minor units of the city's currency); walking and cycling are free. */
+export function rideFare(mode: RideMode, tiles: number, costOfLiving: number): number {
+  if (mode === 'walk' || mode === 'cycle') return 0;
+  return Math.round(costOfLiving * FARE_SHARE[mode][rideDistance(tiles)]);
+}
+
+/** Speed on screen (tiles a second), a floor and a cap on the trip's duration (ms). */
+const RIDE_PACE: Record<RideMode, { speed: number; min: number; max: number }> = {
+  walk: { speed: 5, min: 350, max: 6000 },
+  cycle: { speed: 9, min: 350, max: 4000 },
+  bus: { speed: 12, min: 900, max: 4500 },
+  taxi: { speed: 16, min: 700, max: 3200 },
+};
+
+export const rideMs = (mode: RideMode, tiles: number) => {
+  const p = RIDE_PACE[mode];
+  return Math.round(Math.min(p.max, Math.max(p.min, (tiles / p.speed) * 1000)));
+};
+
+/** In-town minutes, for the chooser's ETA (a tile is about 50 m). */
+export function rideMinutes(mode: RideMode, tiles: number): number {
+  const m =
+    mode === 'walk'
+      ? tiles * 0.6
+      : mode === 'cycle'
+        ? tiles * 0.22
+        : mode === 'bus'
+          ? 5 + tiles * 0.15
+          : 2 + tiles * 0.1;
+  return Math.max(1, Math.round(m));
+}
+
+/** Each city's own shared transport: its name and the vehicle you ride. */
+const TRANSIT: Record<string, { name: string; vehicle: string }> = {
+  lagos: { name: 'Danfo', vehicle: 'danfo' },
+  nairobi: { name: 'Matatu', vehicle: 'matatu' },
+  accra: { name: 'Trotro', vehicle: 'trotro' },
+  freetown: { name: 'Poda-poda', vehicle: 'podapoda' },
+  kigali: { name: 'Bus', vehicle: 'bus' },
+  johannesburg: { name: 'Minibus taxi', vehicle: 'minibus' },
+  cairo: { name: 'Microbus', vehicle: 'microbus' },
+  dubai: { name: 'Bus', vehicle: 'bus' },
+  london: { name: 'Bus', vehicle: 'routemaster' },
+  'san-francisco': { name: 'Muni', vehicle: 'muni' },
+};
+
+/** The transit's proper name (untranslated: 'Bus' is translated by the caller). */
+export const transitName = (marketId: string) => TRANSIT[marketId]?.name ?? 'Bus';
+
+const BUS: VehicleSpec = {
+  id: 'my-bus',
+  body: '#f59e0b',
+  accent: '#1e293b',
+  len: 0.95,
+  wid: 0.34,
+  h: 15,
+};
+const TAXI: VehicleSpec = {
+  id: 'my-taxi',
+  body: '#facc15',
+  accent: '#111827',
+  len: 0.5,
+  wid: 0.28,
+  h: 11,
+  extra: 'sign',
+};
+const BIKE: VehicleSpec = {
+  id: 'my-bike',
+  body: '#0f766e',
+  accent: '#0f172a',
+  len: 0.36,
+  wid: 0.12,
+  h: 8,
+  extra: 'rider',
+};
+
+/** The vehicle you ride for a mode in a city (null for walking). */
+export function rideVehicle(
+  mode: RideMode,
+  marketId: string,
+  vehicles: VehicleSpec[],
+): VehicleSpec | null {
+  if (mode === 'walk') return null;
+  if (mode === 'cycle') return BIKE;
+  if (mode === 'bus') {
+    const want = TRANSIT[marketId]?.vehicle ?? 'bus';
+    return vehicles.find((v) => v.id === want) ?? vehicles.find((v) => v.len >= 0.8) ?? BUS;
+  }
+  return vehicles.find((v) => v.id === 'taxi' || v.id === 'cab' || v.id === 'robotaxi') ?? TAXI;
+}
+
+const RIDE_KEY = 'rw_ride';
+
+export function lastRide(): RideMode {
+  try {
+    const v = localStorage.getItem(RIDE_KEY);
+    return RIDE_MODES.includes(v as RideMode) ? (v as RideMode) : 'walk';
+  } catch {
+    return 'walk';
+  }
+}
+
+export function rememberRide(mode: RideMode) {
+  try {
+    localStorage.setItem(RIDE_KEY, mode);
+  } catch {
+    /* storage unavailable: the choice lasts for this visit */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Flights
+
+/** Where each city is, for the route map, and its time zone (day or night). */
+export const CITY_GEO: Record<string, { lat: number; lon: number; tz: string }> = {
+  lagos: { lat: 6.52, lon: 3.38, tz: 'Africa/Lagos' },
+  nairobi: { lat: -1.29, lon: 36.82, tz: 'Africa/Nairobi' },
+  london: { lat: 51.51, lon: -0.13, tz: 'Europe/London' },
+  accra: { lat: 5.6, lon: -0.19, tz: 'Africa/Accra' },
+  freetown: { lat: 8.48, lon: -13.23, tz: 'Africa/Freetown' },
+  kigali: { lat: -1.95, lon: 30.06, tz: 'Africa/Kigali' },
+  johannesburg: { lat: -26.2, lon: 28.05, tz: 'Africa/Johannesburg' },
+  cairo: { lat: 30.04, lon: 31.24, tz: 'Africa/Cairo' },
+  dubai: { lat: 25.2, lon: 55.27, tz: 'Asia/Dubai' },
+  'san-francisco': { lat: 37.77, lon: -122.42, tz: 'America/Los_Angeles' },
+};
+
+/** Local hour (0–23) in a city right now; noon when unknown. */
+export function localHour(marketId: string, now = Date.now()): number {
+  const tz = CITY_GEO[marketId]?.tz;
+  if (!tz) return 12;
+  try {
+    const h = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: tz })
+      .formatToParts(new Date(now))
+      .find((p) => p.type === 'hour')?.value;
+    const n = Number(h);
+    return Number.isFinite(n) ? n % 24 : 12;
+  } catch {
+    return 12;
+  }
+}
+
+export const isNight = (hour: number) => hour < 6 || hour >= 19;
+
+/** Plain equirectangular map coordinates (x: 0–360, y: 0–180, north up). */
+export const geoXY = (marketId: string) => {
+  const g = CITY_GEO[marketId] ?? { lat: 0, lon: 0 };
+  return { x: g.lon + 180, y: 90 - g.lat };
+};
+
+/**
+ * The route between two cities as a quadratic curve bowed away from the
+ * equator (flights look like arcs), plus the map window that frames it.
+ */
+export function routeOf(from: string, to: string) {
+  const a = geoXY(from);
+  const b = geoXY(to);
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2;
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  // Perpendicular, pointing up (north) on the map.
+  let nx = -(b.y - a.y) / len;
+  let ny = (b.x - a.x) / len;
+  if (ny > 0) {
+    nx = -nx;
+    ny = -ny;
+  }
+  const bow = Math.min(28, len * 0.28);
+  const c = { x: mx + nx * bow, y: my + ny * bow };
+  const pad = Math.max(14, len * 0.25);
+  const minX = Math.min(a.x, b.x, c.x) - pad;
+  const maxX = Math.max(a.x, b.x, c.x) + pad;
+  const minY = Math.min(a.y, b.y, c.y) - pad;
+  const maxY = Math.max(a.y, b.y, c.y) + pad;
+  return { a, b, c, box: { minX, minY, w: maxX - minX, h: maxY - minY } };
+}
+
+/** A point and heading (degrees, screen space) a fraction t along a route. */
+export function alongRoute(r: ReturnType<typeof routeOf>, t: number) {
+  const u = 1 - t;
+  const x = u * u * r.a.x + 2 * u * t * r.c.x + t * t * r.b.x;
+  const y = u * u * r.a.y + 2 * u * t * r.c.y + t * t * r.b.y;
+  const dx = 2 * u * (r.c.x - r.a.x) + 2 * t * (r.b.x - r.c.x);
+  const dy = 2 * u * (r.c.y - r.a.y) + 2 * t * (r.b.y - r.c.y);
+  return { x, y, deg: (Math.atan2(dy, dx) * 180) / Math.PI };
+}

@@ -27,6 +27,7 @@ export const lagos: CityPlan = {
     { id: 'lekki', name: 'Lekki', kind: 'residential', at: [6, 4], size: [1, 3], hosts: ['home'] },
   ],
   water: { side: 'south', name: 'Lagos Lagoon', river: 3, also: ['south'] },
+  open: { cols: [2, 5] },
   streets: 'organic',
   bridges: [
     { name: 'Third Mainland Bridge', from: [1, 3], to: [1, 4], style: 'beam', color: '#cbd5e1' },

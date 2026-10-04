@@ -71,6 +71,9 @@ export function getMarket(world: World, id: MarketId): MarketState {
   return m;
 }
 
+/** Where a player physically is (Wave 4): their flight destination, or home. */
+export const locationOf = (p: Player): MarketId => p.location?.market ?? p.market;
+
 /** A founder's active company that the actor is allowed to run. */
 export function ownCompany(world: World, actorId: Id, companyId: Id): Company {
   const c = getCompany(world, companyId);

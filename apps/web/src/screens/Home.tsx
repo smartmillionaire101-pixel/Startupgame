@@ -143,7 +143,7 @@ function InvestorKpis() {
   );
 }
 
-/** Development only: advance the market one game month instead of waiting for midnight. */
+/** Development only: advance the market one game month instead of waiting for the clock. */
 function DevTools() {
   const { view, refresh, toast } = useView();
   return (

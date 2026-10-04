@@ -81,6 +81,14 @@ export interface CityPlan {
    */
   water?: { side: Side; name: string; river?: number; also?: Side[] };
   hills?: { at: [number, number]; height: number }[];
+  /**
+   * Wave 4: open lanes (parks, plazas) between districts, so the city
+   * breathes. Each number is a plan column (or row) that an open lane is
+   * inserted before; everything from there on shifts along by one block.
+   * A district straddling the lane stretches across it, and keeps the lane
+   * open too unless it runs out of other blocks.
+   */
+  open?: { cols?: number[]; rows?: number[] };
   streets: 'grid' | 'organic' | 'radial' | 'mixed';
   /**
    * Street intersections joined by a bridge. Across a river (one bank to the

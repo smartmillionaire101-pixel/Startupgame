@@ -144,6 +144,12 @@ export interface Player {
   contacts?: Contact[];
   /** Businesses pitched this month (Wave 3). Missing = none. */
   businessPitches?: { month: number; count: number };
+  /** Where the player physically is (Wave 4). Missing = at home (`market`). */
+  location?: { market: MarketId; since: number };
+  /** Flights taken this (home) month (Wave 4). Missing = none. */
+  flights?: { month: number; count: number };
+  /** Bus and taxi rides taken this (home) month (Wave 4). Missing = none. */
+  rides?: { month: number; count: number };
   /** AI angels only (Wave 3): the angel fund this person runs; set when they stop investing. */
   angel?: { fundId: Id; retiredMonth?: number };
 }
@@ -896,6 +902,11 @@ export interface MarketState {
   month: number;
   /** Local calendar date (YYYY-MM-DD) of the last settlement. */
   lastSettledDate: string | null;
+  /**
+   * Start (epoch ms) of the last clock period settled, or when the market
+   * opened. Missing on saves from the day-based clock (see clock.ts).
+   */
+  settledAt?: number;
   /** Current sector multiples (live, before country discount). */
   multiples: Record<Industry, number>;
   /** Funding climate index; 1 = normal. */

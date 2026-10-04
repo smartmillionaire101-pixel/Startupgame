@@ -33,10 +33,22 @@ export const investorSetup = z.object({
 export const commandSchema = z.discriminatedUnion('type', [
   // ---- system (server only)
   z.object({ type: z.literal('market.open'), market }),
+  /**
+   * Settle a market for one game month. `at`: the clock period being settled
+   * (its start, epoch ms). `date`: the old day clock's local date (saved logs).
+   * Neither: an extra month (dev tools), which leaves the clock where it is.
+   * `monthMs`: the real length of a game month, for rules counted in months
+   * of absence; without it the old day-based rules apply.
+   */
   z.object({
     type: z.literal('market.settle'),
     market,
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    at: z.number().int().optional(),
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    monthMs: z.number().int().positive().optional(),
   }),
   z.object({
     type: z.literal('market.data'),
@@ -207,6 +219,16 @@ export const commandSchema = z.discriminatedUnion('type', [
     productId: id.optional(),
   }),
   z.object({ type: z.literal('player.travel'), market }),
+  /** Wave 4: fly one way to another city and be there (or fly home). */
+  z.object({ type: z.literal('travel.fly'), to: market }),
+  /** Wave 4: a bus or taxi across the city you're in. Walking and cycling are free. */
+  z.object({
+    type: z.literal('city.ride'),
+    mode: z.enum(['bus', 'taxi']),
+    distance: z.enum(['short', 'medium', 'long']),
+  }),
+  /** Wave 4: "I'm here" (the server sends it, throttled, on authenticated requests). */
+  z.object({ type: z.literal('player.seen') }),
   // ---- acquisitions, governance, arbitration (§9, §12)
   z.object({
     type: z.literal('acquire.propose'),

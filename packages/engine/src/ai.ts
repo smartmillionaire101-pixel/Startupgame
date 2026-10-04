@@ -17,6 +17,7 @@ import { bandSalary, hire } from './staff.js';
 import { valueCompany } from './valuation.js';
 import { AI_STARTUPS_PER_MARKET, spawnAiStartup } from './world.js';
 import { ensureAngels } from './angels.js';
+import { setHibernation } from './rescue.js';
 import type { MarketId } from './data/markets.js';
 import type { Company, Fund, World } from './types.js';
 
@@ -210,21 +211,67 @@ export function maintainPopulation(world: World, market: MarketId, rng: Rng, now
   }
 }
 
-/** Inactive players (§2): warnings at 30 real days, offered for sale at 60. */
-export function inactivity(world: World, market: MarketId, now: number, month: number) {
+/** Months of absence (game months) before each inactivity rule (§2, Wave 4). */
+export const AWAY_MONTHS = 2;
+export const WARN_MONTHS = 6;
+export const FOR_SALE_MONTHS = 12;
+
+/**
+ * Inactive players (§2), counted in game months of absence when the clock
+ * says how long a month is (`monthMs`):
+ *  - away 2 months: each company you run hibernates (nothing wakes it up
+ *    again automatically; you choose when you're back), with an inbox note;
+ *  - 6 months: a warning (maintenance mode);
+ *  - 12 months: your companies are offered for sale.
+ * Without `monthMs` (saved settlements from the day clock) the old rules
+ * apply: a warning at 30 real days, for sale at 60, no away mode.
+ */
+export function inactivity(
+  world: World,
+  market: MarketId,
+  now: number,
+  month: number,
+  monthMs?: number,
+) {
   const DAY = 86_400_000;
+  const unit = monthMs ?? DAY;
+  const warnAt = monthMs ? WARN_MONTHS : 30;
+  const saleAt = monthMs ? FOR_SALE_MONTHS : 60;
   for (const p of Object.values(world.players)) {
     if (p.ai || p.market !== market) continue;
-    const idle = now - p.lastActiveAt;
-    if (idle >= 30 * DAY && !p.inactivity.warned) {
+    const idle = (now - p.lastActiveAt) / unit;
+    if (monthMs && idle >= AWAY_MONTHS) {
+      const slept: string[] = [];
+      for (const id of p.companyIds) {
+        const c = world.companies[id];
+        if (!c || c.status !== 'active' || c.hibernation || !c.founderIds.includes(p.id)) continue;
+        // A co-founder who's still around keeps it running.
+        const someoneHere = c.founderIds.some((fid) => {
+          const f = world.players[fid];
+          return fid !== p.id && f && !f.ai && (now - f.lastActiveAt) / unit < AWAY_MONTHS;
+        });
+        if (someoneHere) continue;
+        setHibernation(world, c, true, month);
+        slept.push(c.name);
+      }
+      if (slept.length)
+        notify(world, p.id, {
+          month,
+          kind: 'warning',
+          text: `While you were away, ${slept.join(' and ')} went into hibernation to save cash: staff on furlough pay, product work paused. Wake ${slept.length > 1 ? 'them' : 'it'} up from the dashboard when you’re ready.`,
+        });
+    }
+    if (idle >= warnAt && !p.inactivity.warned) {
       p.inactivity.warned = true;
       notify(world, p.id, {
         month,
         kind: 'warning',
-        text: 'You’ve been away 30 days. Your company is in maintenance mode.',
+        text: monthMs
+          ? `You’ve been away ${WARN_MONTHS} months. Your company is in maintenance mode.`
+          : 'You’ve been away 30 days. Your company is in maintenance mode.',
       });
     }
-    if (idle >= 60 * DAY && !p.inactivity.forSale) {
+    if (idle >= saleAt && !p.inactivity.forSale) {
       p.inactivity.forSale = true;
       for (const id of p.companyIds) {
         const c = world.companies[id];
@@ -237,6 +284,6 @@ export function inactivity(world: World, market: MarketId, now: number, month: n
         });
       }
     }
-    if (idle < DAY) p.inactivity = { warned: false, forSale: false };
+    if (idle < 1) p.inactivity = { warned: false, forSale: false };
   }
 }

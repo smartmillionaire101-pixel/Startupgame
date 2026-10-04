@@ -1,7 +1,7 @@
 /**
- * The game clock as a scheduled Netlify Function: every five minutes, settle
- * any market whose local midnight has passed (one real day is one game
- * month), open newly configured markets, and refresh FX every six hours.
+ * The game clock as a scheduled Netlify Function: every minute, settle any
+ * market whose game month has ended (MONTH_MINUTES real minutes, 5 by
+ * default), open newly configured markets, and refresh FX every six hours.
  * Scheduled functions only run on the published (production) deploy.
  */
 import type { Config } from '@netlify/functions';
@@ -15,4 +15,4 @@ export default async () => {
   await rt.app.close();
 };
 
-export const config: Config = { schedule: '*/5 * * * *' };
+export const config: Config = { schedule: '* * * * *' };

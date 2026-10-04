@@ -9,6 +9,7 @@ import { me } from './me';
 import { money } from './money';
 import { people } from './people';
 import { server } from './server';
+import { travel } from './travel';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -21,6 +22,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   me,
   people,
   server,
+  travel,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

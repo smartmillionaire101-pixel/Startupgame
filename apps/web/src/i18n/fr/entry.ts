@@ -77,8 +77,8 @@ export const entry: Record<string, string> = {
   '{company} applies for a licence in {market}. The central bank decides in two months.':
     '{company} demande une licence à {market}. La banque centrale décide dans deux mois.',
   'You start investing in {market}.': 'Vous commencez à investir à {market}.',
-  'One real day is one game month. Settlement runs at midnight in {market}.':
-    'Un jour réel équivaut à un mois de jeu. La clôture du mois a lieu à minuit, heure de {market}.',
+  'Time runs fast: a game month passes every few real minutes, at the same moment in every city.':
+    'Le temps file : un mois de jeu passe toutes les quelques minutes réelles, au même moment dans toutes les villes.',
   Start: 'Commencer',
 
   // Home

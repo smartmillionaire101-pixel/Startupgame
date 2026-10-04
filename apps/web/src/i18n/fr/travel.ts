@@ -1,0 +1,41 @@
+/** Wave 4: getting around town, the month countdown, flights (src/city). */
+export const travel: Record<string, string> = {
+  'Coworking space': 'Espace de coworking',
+  'Your hotel': 'Votre hôtel',
+  'Your trip to {city} counts this month: pitch its investors and invest there. Walking its streets opens soon; for now you’re back in {home}.':
+    'Votre voyage à {city} compte ce mois-ci : présentez-vous à ses investisseurs et investissez-y. Arpenter ses rues arrive bientôt ; pour l’instant, vous êtes de retour à {home}.',
+  'Landed in {city}.': 'Atterri à {city}.',
+  'You’re in {city}': 'Vous êtes à {city}',
+  'Fly home': 'Rentrer en avion',
+  'Taking off from {city}': 'Décollage de {city}',
+  'Flying to {city}': 'En vol vers {city}',
+  'Landing in {city}': 'Atterrissage à {city}',
+  'Taxiing to the gate…': 'Roulage vers la porte…',
+  'Welcome to {city}': 'Bienvenue à {city}',
+  'Flight to {city}': 'Vol pour {city}',
+  '{n}h flight': '{n} h de vol',
+  Skip: 'Passer',
+  Departures: 'Départs',
+  'Fly to {city}': 'Prendre l’avion pour {city}',
+  'Fly now': 'Partir maintenant',
+  'Check-in': 'Enregistrement',
+  'Home city': 'Ville d’origine',
+  'A desk for the day. Your office is back in {home}: you can still run your company from here.':
+    'Un bureau pour la journée. Vos locaux sont restés à {home} : vous pouvez diriger votre entreprise d’ici.',
+  'A room for the night. Your home is back in {home}.':
+    'Une chambre pour la nuit. Votre logement est resté à {home}.',
+  Bus: 'Bus',
+  'Minibus taxi': 'Taxi-minibus',
+  Walk: 'À pied',
+  Cycle: 'À vélo',
+  Taxi: 'Taxi',
+  'How do you want to get there?': 'Comment voulez-vous y aller ?',
+  '{n} min': '{n} min',
+  'Next month in {time}': 'Mois suivant dans {time}',
+  'Month closing…': 'Clôture du mois…',
+  'Moving for good': 'Déménager pour de bon',
+  'Flights leave from the airport: one way, {hours} hours, and you can go any time. While you’re there you can meet its investors and invest.':
+    'Les vols partent de l’aéroport : aller simple, {hours} heures, à tout moment. Sur place, vous pouvez rencontrer ses investisseurs et investir.',
+  'To the airport': 'Vers l’aéroport',
+  'from {city}': 'depuis {city}',
+};
