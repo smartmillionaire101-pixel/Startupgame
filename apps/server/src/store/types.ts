@@ -39,9 +39,39 @@ export interface PresenceRow {
   at: number;
 }
 
+/** What the signed-in player can know about their own account. */
+export interface AccountRow {
+  /** True until the player saves their progress with an email. */
+  guest: boolean;
+  email: string | null;
+}
+
+/** A pending email sign-in link (stored under the SHA-256 of its token). */
+export interface EmailTokenRow {
+  email: string;
+  intent: 'login' | 'save';
+  /** The account that asked: required for 'save'; a guest's id (or null) for 'login'. */
+  userId: string | null;
+  expiresAt: number;
+}
+
 export interface AccountStore {
   findUserByPhone(phoneHash: string): Awaitable<{ id: string } | undefined>;
   createUser(id: string, phoneHash: string, now: number): Awaitable<void>;
+  /** A guest: no phone, no email, until they save their progress. */
+  createGuestUser(id: string, now: number): Awaitable<void>;
+  /**
+   * Attach (or change) an account's confirmed email; it stops being a guest.
+   * Returns false, changing nothing, when the email belongs to another
+   * account or the account is gone. `emailNorm` is already normalised.
+   */
+  setEmail(userId: string, emailNorm: string): Awaitable<boolean>;
+  findUserByEmail(emailNorm: string): Awaitable<{ id: string } | undefined>;
+  /** Undefined for unknown or deleted accounts. */
+  getAccount(userId: string): Awaitable<AccountRow | undefined>;
+  putEmailToken(tokenHash: string, row: EmailTokenRow): Awaitable<void>;
+  /** Single use: returns the row and removes it; undefined if unknown, used or expired. */
+  takeEmailToken(tokenHash: string, now: number): Awaitable<EmailTokenRow | undefined>;
   deleteUser(id: string, now: number): Awaitable<void>;
   createSession(tokenHash: string, userId: string, now: number, ttlMs: number): Awaitable<void>;
   sessionUser(tokenHash: string, now: number): Awaitable<string | undefined>;

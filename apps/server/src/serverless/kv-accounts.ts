@@ -7,7 +7,9 @@
  *
  * Keys:
  *   phone/<hash>       → { id }
- *   user/<id>          → { id, phoneHash, createdAt, deletedAt, sessions[] }
+ *   email/<sha256>     → { id }                (claimed create-only: one account per email)
+ *   user/<id>          → { id, phoneHash, createdAt, deletedAt, sessions[], guest, email }
+ *   email-token/<hash> → { email, intent, userId, expiresAt }   (single use)
  *   session/<hash>     → { userId, expiresAt }
  *   otp/<hash>         → { code_hash, expires_at, attempts }
  *   chat/<id>          → { row, messages[] }   (last MAX_MESSAGES kept)
@@ -19,8 +21,16 @@
  *   presence-of/<user> → { market }             (where the user's presence doc lives)
  *   presence-settings/<user> → { visible }
  */
-import { randomUUID } from 'node:crypto';
-import type { AccountStore, ChatRow, MessageRow, OtpRow, PresenceRow } from '../store/types.js';
+import { createHash, randomUUID } from 'node:crypto';
+import type {
+  AccountRow,
+  AccountStore,
+  ChatRow,
+  EmailTokenRow,
+  MessageRow,
+  OtpRow,
+  PresenceRow,
+} from '../store/types.js';
 import { kvJson, type Kv } from './kv.js';
 
 const MAX_MESSAGES = 500;
@@ -34,11 +44,17 @@ interface UserDoc {
   createdAt: number;
   deletedAt: number | null;
   sessions: string[];
+  /** Absent on accounts made before guest play (phone sign-up): not a guest. */
+  guest?: boolean;
+  email?: string | null;
 }
 interface ChatDoc {
   row: ChatRow;
   messages: MessageRow[];
 }
+
+const emailKey = (emailNorm: string) =>
+  `email/${createHash('sha256').update(emailNorm).digest('hex')}`;
 
 const pairKey = (a: string, b: string) => {
   const [x, y] = a < b ? [a, b] : [b, a];
@@ -68,15 +84,101 @@ export class KvAccountStore implements AccountStore {
     await kvJson.set(this.kv, `phone/${phoneHash}`, { id });
   }
 
+  async createGuestUser(id: string, now: number) {
+    const doc: UserDoc = {
+      id,
+      phoneHash: `guest:${id}`,
+      createdAt: now,
+      deletedAt: null,
+      sessions: [],
+      guest: true,
+      email: null,
+    };
+    const created = await kvJson.set(this.kv, `user/${id}`, doc, { ifNew: true });
+    if (!created.ok) throw new Error('User exists.');
+  }
+
+  /** The live account that owns this email key, if the key isn't a leftover. */
+  private async emailOwner(emailNorm: string) {
+    const ref = await kvJson.get<{ id: string }>(this.kv, emailKey(emailNorm));
+    if (!ref) return { ref: null, user: undefined };
+    const u = await this.val<UserDoc>(`user/${ref.value.id}`);
+    const live = u && !u.deletedAt && u.email === emailNorm ? u : undefined;
+    return { ref, user: live };
+  }
+
+  async setEmail(userId: string, emailNorm: string) {
+    const key = emailKey(emailNorm);
+    // Claim the email key first (create-only), so two accounts can never both get it.
+    const claimed = await kvJson.set(this.kv, key, { id: userId }, { ifNew: true });
+    if (!claimed.ok) {
+      const { ref, user } = await this.emailOwner(emailNorm);
+      if (ref && ref.value.id !== userId) {
+        if (user) return false;
+        // A leftover from an interrupted save: take it over, unless someone else just did.
+        const taken = await kvJson.set(this.kv, key, { id: userId }, { ifMatch: ref.etag });
+        if (!taken.ok) return false;
+      } else if (!ref) {
+        const again = await kvJson.set(this.kv, key, { id: userId }, { ifNew: true });
+        if (!again.ok) return false;
+      }
+    }
+    let previous: string | null | undefined;
+    const updated = await kvJson.update<UserDoc>(this.kv, `user/${userId}`, (u) => {
+      if (!u || u.deletedAt) return undefined;
+      previous = u.email;
+      return { ...u, guest: false, email: emailNorm };
+    });
+    if (!updated || updated.email !== emailNorm || updated.deletedAt) {
+      await this.kv.delete(key);
+      return false;
+    }
+    if (previous && previous !== emailNorm) await this.kv.delete(emailKey(previous));
+    return true;
+  }
+
+  async findUserByEmail(emailNorm: string) {
+    const { user } = await this.emailOwner(emailNorm);
+    return user ? { id: user.id } : undefined;
+  }
+
+  async getAccount(userId: string): Promise<AccountRow | undefined> {
+    const u = await this.val<UserDoc>(`user/${userId}`);
+    if (!u || u.deletedAt) return undefined;
+    return { guest: u.guest ?? false, email: u.email ?? null };
+  }
+
+  async putEmailToken(tokenHash: string, row: EmailTokenRow) {
+    await kvJson.set(this.kv, `email-token/${tokenHash}`, row, { ifNew: true });
+  }
+
+  async takeEmailToken(tokenHash: string, now: number) {
+    const key = `email-token/${tokenHash}`;
+    const cur = await kvJson.get<EmailTokenRow | { used: true }>(this.kv, key);
+    if (!cur || 'used' in cur.value) return undefined;
+    // Mark it used with compare-and-swap, so two clicks at once can't both win.
+    const won = await kvJson.set(this.kv, key, { used: true }, { ifMatch: cur.etag });
+    if (!won.ok) return undefined;
+    await this.kv.delete(key);
+    return cur.value.expiresAt > now ? cur.value : undefined;
+  }
+
   async deleteUser(id: string, now: number) {
     let doc: UserDoc | undefined;
     await kvJson.update<UserDoc>(this.kv, `user/${id}`, (u) => {
       if (!u) return undefined;
       doc = u;
-      return { ...u, phoneHash: `deleted:${id}`, deletedAt: now, sessions: [] };
+      return {
+        ...u,
+        phoneHash: `deleted:${id}`,
+        deletedAt: now,
+        sessions: [],
+        email: null,
+      };
     });
     if (!doc) return;
-    await this.kv.delete(`phone/${doc.phoneHash}`);
+    if (!doc.phoneHash.startsWith('guest:')) await this.kv.delete(`phone/${doc.phoneHash}`);
+    if (doc.email) await this.kv.delete(emailKey(doc.email));
     for (const s of doc.sessions) await this.kv.delete(`session/${s}`);
     const chats = (await this.val<string[]>(`chats-of/${id}`)) ?? [];
     for (const chatId of chats) {

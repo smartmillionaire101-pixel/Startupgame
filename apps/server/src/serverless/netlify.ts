@@ -98,7 +98,12 @@ export async function configFor(kv: Kv, mode: Mode): Promise<Config> {
     DEV_TOOLS: prod ? '0' : '1',
     // Previews are test environments: automated runs sign in many times from one address.
     AUTH_RATE_LIMIT: prod ? (process.env.AUTH_RATE_LIMIT ?? '5') : '100',
-    // No SMS gateway is connected yet: show the code on screen.
+    GUEST_RATE_LIMIT: prod ? (process.env.GUEST_RATE_LIMIT ?? '30') : '500',
+    EMAIL_RATE_LIMIT: prod ? (process.env.EMAIL_RATE_LIMIT ?? '20') : '500',
+    // Sign-in links point at the site's main address in production (Netlify sets URL).
+    PUBLIC_URL: prod ? (process.env.PUBLIC_URL ?? process.env.URL ?? '') : '',
+    // Legacy phone sign-in only (the web app uses guest play and email):
+    // no SMS gateway is connected yet, so that flow shows its code on screen.
     SHOW_SIGNIN_CODE: process.env.SHOW_SIGNIN_CODE ?? '1',
     SESSION_SECRET: await sessionSecret(kv),
     // Free public FX source (USD base), refreshed every six hours by the clock.
@@ -180,7 +185,12 @@ export async function handle(rt: Runtime, req: Request, ip?: string): Promise<Re
   const res = await rt.app.inject({
     method: req.method as 'GET',
     url: url.pathname + url.search,
-    headers: Object.fromEntries(req.headers),
+    // The address the request really came to (previews build sign-in links from it).
+    headers: {
+      ...Object.fromEntries(req.headers),
+      host: url.host,
+      'x-forwarded-proto': url.protocol.replace(':', ''),
+    },
     ...(body?.length ? { payload: body } : {}),
     ...(ip ? { remoteAddress: ip } : {}),
   });

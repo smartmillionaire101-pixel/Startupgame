@@ -112,7 +112,10 @@ describe('API boundary', () => {
   it('onboards, plays, and maps rule errors to 422 and bad input to 400', async () => {
     const { app } = await makeApp();
     const s = api(app, await signIn(app));
-    expect((await s.get('/api/state')).json()).toEqual({ onboarded: false });
+    expect((await s.get('/api/state')).json()).toEqual({
+      onboarded: false,
+      account: { guest: false, email: null },
+    });
     const created = await s.command(founderSetup());
     expect(created.statusCode).toBe(200);
     const view = (await s.get('/api/state')).json().view;
