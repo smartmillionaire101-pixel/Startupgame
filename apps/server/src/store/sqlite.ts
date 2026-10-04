@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
-import type { AccountStore, ChatRow, MessageRow } from './types.js';
+import type { AccountStore, ChatRow, MessageRow, PresenceRow } from './types.js';
 
 export type { ChatRow, MessageRow } from './types.js';
 
@@ -73,7 +73,24 @@ const MIGRATIONS: string[] = [
      created_at INTEGER NOT NULL,
      status TEXT NOT NULL DEFAULT 'open'
    );`,
+  // Wave 2: where avatars are on the city map, and who has hidden themselves.
+  `CREATE TABLE presence (
+     user_id TEXT PRIMARY KEY,
+     market TEXT NOT NULL,
+     x REAL NOT NULL,
+     y REAL NOT NULL,
+     place TEXT,
+     at INTEGER NOT NULL
+   );
+   CREATE INDEX presence_market_at ON presence(market, at);
+   CREATE TABLE presence_settings (
+     user_id TEXT PRIMARY KEY,
+     visible INTEGER NOT NULL DEFAULT 1
+   );`,
 ];
+
+/** Presence rows this much older than the caller's window are deleted. */
+const PRESENCE_PRUNE_GRACE_MS = 10 * 60_000;
 
 export interface CommandRow {
   seq: number;
@@ -143,6 +160,8 @@ export class Store implements AccountStore {
         .run(now, id);
       this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM chats WHERE a = ? OR b = ?').run(id, id);
+      this.db.prepare('DELETE FROM presence WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM presence_settings WHERE user_id = ?').run(id);
     });
   }
 
@@ -295,5 +314,52 @@ export class Store implements AccountStore {
 
   openReports() {
     return this.db.prepare("SELECT * FROM reports WHERE status = 'open' ORDER BY id").all();
+  }
+
+  // ---------------------------------------------------------------- presence
+
+  putPresence(
+    userId: string,
+    market: string,
+    p: { x: number; y: number; place: string | null; at: number },
+  ) {
+    this.db
+      .prepare(
+        `INSERT INTO presence (user_id, market, x, y, place, at) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET market = excluded.market, x = excluded.x,
+           y = excluded.y, place = excluded.place, at = excluded.at`,
+      )
+      .run(userId, market, p.x, p.y, p.place, p.at);
+  }
+
+  listPresence(market: string, sinceMs: number): PresenceRow[] {
+    // Stale rows are useless; drop them while we're here.
+    this.db.prepare('DELETE FROM presence WHERE at < ?').run(sinceMs - PRESENCE_PRUNE_GRACE_MS);
+    return this.db
+      .prepare(
+        `SELECT p.user_id AS userId, p.market, p.x, p.y, p.place, p.at FROM presence p
+         LEFT JOIN presence_settings s ON s.user_id = p.user_id
+         WHERE p.market = ? AND p.at >= ? AND COALESCE(s.visible, 1) = 1
+         ORDER BY p.at DESC LIMIT 500`,
+      )
+      .all(market, sinceMs) as unknown as PresenceRow[];
+  }
+
+  getPresenceVisible(userId: string): boolean {
+    const row = this.db
+      .prepare('SELECT visible FROM presence_settings WHERE user_id = ?')
+      .get(userId) as { visible: number } | undefined;
+    return row ? row.visible === 1 : true;
+  }
+
+  setPresenceVisible(userId: string, visible: boolean) {
+    this.tx(() => {
+      this.db
+        .prepare(
+          'INSERT INTO presence_settings (user_id, visible) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET visible = excluded.visible',
+        )
+        .run(userId, visible ? 1 : 0);
+      if (!visible) this.db.prepare('DELETE FROM presence WHERE user_id = ?').run(userId);
+    });
   }
 }

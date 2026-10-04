@@ -29,6 +29,16 @@ export interface OtpRow {
   attempts: number;
 }
 
+/** Where a player's avatar was last seen on their market's city map (ephemeral, social only). */
+export interface PresenceRow {
+  userId: string;
+  market: string;
+  x: number;
+  y: number;
+  place: string | null;
+  at: number;
+}
+
 export interface AccountStore {
   findUserByPhone(phoneHash: string): Awaitable<{ id: string } | undefined>;
   createUser(id: string, phoneHash: string, now: number): Awaitable<void>;
@@ -58,4 +68,16 @@ export interface AccountStore {
   blockChat(chatId: string, by: string): Awaitable<void>;
   report(chatId: string, reporter: string, reason: string, now: number): Awaitable<void>;
   openReports(): Awaitable<unknown[]>;
+  /** Upsert one player's position (one row per player; a new market replaces the old row). */
+  putPresence(
+    userId: string,
+    market: string,
+    p: { x: number; y: number; place: string | null; at: number },
+  ): Awaitable<void>;
+  /** Positions in a market seen at or after `sinceMs`, excluding players who are hidden. */
+  listPresence(market: string, sinceMs: number): Awaitable<PresenceRow[]>;
+  /** Whether the player shows on the map (default true). */
+  getPresenceVisible(userId: string): Awaitable<boolean>;
+  /** Turning visibility off also removes the player's current position. */
+  setPresenceVisible(userId: string, visible: boolean): Awaitable<void>;
 }

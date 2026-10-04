@@ -32,6 +32,7 @@ Balancing constants live in one place per system (`CUSTOMER_TUNING`, `STAR_TUNIN
 - **Feeds.** FX from a free public endpoint every 6 h, with sanity bounds; failures keep the last values.
 - **Security.** Phone numbers stored only as HMAC; OTPs and session tokens stored as SHA-256; OTP attempts limited; DOB checked and discarded; `httpOnly` + `SameSite=Strict` cookies plus a required `x-runway` header against CSRF; rate limits; strict CSP; Zod validation at every boundary; logs redact phone, code and cookies; system commands cannot be sent by clients.
 - **Chat** lives outside the simulation (it must never affect outcomes or be visible to reporters/arbitrators): starters only to begin, filters for links/phones/emails/handles, scam flagging, block and report.
+- **Presence** (where avatars stand on the city map) also lives outside the simulation, in the account store (`presence` and `presence_settings` tables in SQLite; `presence/<market>/<user>` documents in the key-value store, stale ones pruned on read). Clients report `{ x, y, place }` (rate-limited per player) and poll `GET /api/presence`, which returns players in the viewer's market seen in the last 120 s, minus anyone blocked either way and anyone who has turned "Show me on the map" off (`PUT /api/me/presence`). Positions never reach the engine, reporters or arbitrators, and deleting an account removes them.
 
 ### Serverless hosting (Netlify)
 
