@@ -171,6 +171,11 @@ function HostForm({
   const [ticket, setTicket] = useState(amountInput(0));
   const [segment, setSegment] = useState(view.market.segments[0]?.key ?? '');
   const [lead, setLead] = useState(1);
+  // A hotel or event venue in town can host an Event Hall-sized event (and is paid for it).
+  const venues = (view.market.businesses ?? []).filter(
+    (b) => b.open && b.category === 'hospitality',
+  );
+  const [place, setPlace] = useState('');
   const k = kinds.find((x) => x.kind === kind) ?? kinds[0];
   const budgetN = parseAmount(budget) ?? 0;
   const ticketN = parseAmount(ticket) ?? 0;
@@ -188,6 +193,7 @@ function HostForm({
         kind: kind as Extract<Command, { type: 'event.host' }>['kind'],
         title: title.trim(),
         venue,
+        ...(venue === 'hall' && place ? { businessId: place } : {}),
         month: view.market.month + lead,
         budget: budgetN,
         ...(ticketN > 0 ? { ticket: ticketN } : {}),
@@ -258,6 +264,23 @@ function HostForm({
             { value: 'office', label: t('Your office'), disabled: !canOffice },
           ]}
         />
+        {venue === 'hall' && venues.length > 0 && (
+          <Field
+            label={t('Where in town')}
+            hint={t('A hotel or event venue gets the venue fee; the Event Hall is the default.')}
+          >
+            {(id) => (
+              <select id={id} value={place} onChange={(e) => setPlace(e.target.value)}>
+                <option value="">{t('Event Hall')}</option>
+                {venues.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} · {tx(b.kindLabel)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        )}
         <Segmented
           label={t('When')}
           value={String(lead)}

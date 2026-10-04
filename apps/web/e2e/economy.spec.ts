@@ -94,6 +94,22 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
     await shop.getByRole('button', { name: 'Close' }).click();
   }
   expect(pitched).toBe(true);
+
+  // Your business customers are listed with the company's customers.
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await nav.getByRole('button', { name: 'Company', exact: true }).click();
+  await page.getByRole('tab', { name: 'Customers' }).click();
+  await expect(page.getByText('Business customers')).toBeVisible();
+
+  // Events can be held at a hotel or event venue in town.
+  await nav.getByRole('button', { name: 'City', exact: true }).click();
+  await page.getByRole('button', { name: /Places/ }).click();
+  await page.getByRole('dialog', { name: 'Places' }).locator('[data-kind="eventhall"]').click();
+  const hall = page.getByRole('dialog');
+  await expect(hall.getByRole('heading', { name: 'Host an event' })).toBeVisible({
+    timeout: 8000,
+  });
+  await expect(hall.getByLabel('Where in town')).toBeVisible();
 });
 
 test('London has the Thames, Tower Bridge and red buses', async ({ page }) => {
