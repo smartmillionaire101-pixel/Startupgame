@@ -1,4 +1,4 @@
-import { expect, letters, test, playAsGuest } from './fixtures';
+import { expect, letters, test, playAsGuest, tapPlace } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /** Sign up a founder in a market (by its button label), straight into the City. */
@@ -18,13 +18,11 @@ async function founder(page: Page, market: RegExp, name: string) {
   await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible();
 }
 
-/** Tap a building on the map: the avatar walks there and goes in. */
+/** Tap a building on the map: the avatar goes there (cycling, if it's far) and goes in. */
 async function enter(page: Page, selector: string) {
-  const el = page.locator(selector).first();
-  await el.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
-  await el.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  await tapPlace(page, selector, 'cycle');
   const sheet = page.getByRole('dialog');
-  await expect(sheet).toBeVisible({ timeout: 8000 });
+  await expect(sheet).toBeVisible({ timeout: 10_000 });
   return sheet;
 }
 

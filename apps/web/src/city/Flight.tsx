@@ -240,28 +240,31 @@ function Airfield({
   children: React.ReactNode;
 }) {
   return (
-    <svg className="fl-svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice" aria-hidden>
+    // The scene is drawn wide and tall: a phone sees the whole runway, the sky fills above.
+    <svg className="fl-svg" viewBox="0 0 400 360" preserveAspectRatio="xMidYMax meet" aria-hidden>
       <defs>
         <linearGradient id="fl-sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor={night ? '#0b1026' : '#38bdf8'} />
           <stop offset="1" stopColor={night ? '#3730a3' : '#e0f2fe'} />
         </linearGradient>
       </defs>
-      <rect width="400" height="300" fill="url(#fl-sky)" />
+      <rect x="-800" y="-900" width="2000" height="1200" fill="url(#fl-sky)" />
       {night ? (
         <>
-          <circle cx="320" cy="60" r="16" fill="#fef9c3" />
-          <circle cx="314" cy="55" r="14" fill="#1e1b4b" opacity="0.9" />
+          <circle cx="320" cy="-40" r="16" fill="#fef9c3" />
+          <circle cx="314" cy="-45" r="14" fill="#1e1b4b" opacity="0.9" />
           {[40, 90, 150, 210, 260, 360, 120, 300].map((x, k) => (
-            <circle key={k} cx={x} cy={30 + ((k * 37) % 90)} r="1.1" fill="#fff" opacity="0.8" />
+            <circle key={k} cx={x} cy={-260 + ((k * 97) % 360)} r="1.2" fill="#fff" opacity="0.8" />
           ))}
         </>
       ) : (
-        <circle cx="320" cy="60" r="20" fill="#fde68a" opacity="0.95" />
+        <circle cx="320" cy="-40" r="22" fill="#fde68a" opacity="0.95" />
       )}
       <Cloud x={70} y={70} s={1} k={0} />
       <Cloud x={250} y={110} s={0.8} k={1} />
       <Cloud x={160} y={40} s={0.6} k={2} />
+      <Cloud x={90} y={-150} s={0.9} k={3} />
+      <Cloud x={300} y={-230} s={0.7} k={4} />
       {/* Distant skyline */}
       <g fill={night ? '#312e81' : '#94a3b8'} opacity="0.7">
         {[0, 24, 40, 70, 96, 300, 322, 350, 372].map((x, k) => (
@@ -269,8 +272,8 @@ function Airfield({
         ))}
       </g>
       {/* Ground, runway and its lights */}
-      <rect y="225" width="400" height="75" fill={night ? '#14532d' : '#86efac'} />
-      <rect y="238" width="400" height="26" fill="#475569" />
+      <rect x="-800" y="225" width="2000" height="400" fill={night ? '#14532d' : '#86efac'} />
+      <rect x="-800" y="238" width="2000" height="26" fill="#475569" />
       <g fill="#f8fafc">
         {Array.from({ length: 10 }, (_, k) => (
           <rect key={k} x={8 + k * 42} y="250" width="22" height="2" />

@@ -1,4 +1,4 @@
-import { letters, expect, test, playAsGuest } from './fixtures';
+import { letters, expect, test, playAsGuest, tapPlace } from './fixtures';
 
 test('a founder walks the city to a bank, goes in, then visits the market', async ({ page }) => {
   await playAsGuest(page);
@@ -22,13 +22,15 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await expect(page.locator('[data-place="office"]')).toBeAttached();
   await expect(page.locator('[data-place^="stall:"]').first()).toBeAttached();
 
-  // Tap a bank on Finance Row: the avatar walks to its door and goes in.
-  const bank = page.locator('[data-place^="lender:"]').first();
-  await bank.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
-  await bank.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  // The city is spread out: at the default zoom only the key places are labelled.
+  await expect(page.locator('[data-label="hub"]')).toBeVisible();
+  await expect(page.locator('.city-label.lbl-biz').first()).toBeHidden();
+
+  // Tap a bank across the Lagoon: it's far, so you choose how to get there, then walk in.
+  await tapPlace(page, '[data-place^="lender:"]', 'walk');
   await expect(page.locator('.city-avatar')).toHaveClass(/is-walking/);
   const lobby = page.getByRole('dialog');
-  await expect(lobby).toBeVisible({ timeout: 8000 });
+  await expect(lobby).toBeVisible({ timeout: 10_000 });
   await expect(lobby.getByText('Loan officer')).toBeVisible();
   await expect(lobby.getByText(/Working capital|For companies|For founders/).first()).toBeVisible();
   await lobby.getByRole('button', { name: 'Close' }).click();

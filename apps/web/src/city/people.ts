@@ -500,7 +500,7 @@ export function aiCharacters(layout: CityLayout, input: CrowdInput, max: number)
 }
 
 /** How many ambient people to draw for a screen width. */
-export const crowdSize = (width: number) => (width < 500 ? 11 : width < 900 ? 17 : 24);
+export const crowdSize = (width: number) => (width < 500 ? 6 : width < 900 ? 14 : 22);
 
 /** Where a character is at a moment in time (ms), and whether they're walking. */
 export function personAt(
