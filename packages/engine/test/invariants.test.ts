@@ -52,6 +52,15 @@ describe('world invariants under random play', () => {
         pick: fc.nat(10),
         amount: fc.integer({ min: 1_000_00, max: 10_000_000_00 }),
       }),
+      // Named lenders (Wave 1): company and founder products, then accept what comes back.
+      fc.record({
+        k: fc.constant('borrow' as const),
+        pick: fc.nat(20),
+        amount: fc.integer({ min: 10_000_00, max: 50_000_000_00 }),
+        months: fc.integer({ min: 3, max: 60 }),
+        guarantee: fc.boolean(),
+      }),
+      fc.record({ k: fc.constant('accept' as const) }),
     );
 
     fc.assert(
@@ -116,6 +125,43 @@ describe('world invariants under random play', () => {
                 boardSeat: false,
                 vetoOnSale: false,
               };
+              break;
+            }
+            case 'borrow': {
+              const products = Object.values(w.markets.lagos!.lenders).flatMap((l) =>
+                l.products.map((p) => ({ lenderId: l.id, p })),
+              );
+              const { lenderId, p } = products[a.pick % products.length]!;
+              cmd =
+                p.borrower === 'founder'
+                  ? {
+                      type: 'player.loan',
+                      lenderId,
+                      productId: p.id,
+                      amount: a.amount,
+                      months: a.months,
+                    }
+                  : {
+                      type: 'company.loan',
+                      companyId: cid,
+                      lenderId,
+                      productId: p.id,
+                      amount: a.amount,
+                      months: a.months,
+                      personalGuarantee: a.guarantee,
+                    };
+              break;
+            }
+            case 'accept': {
+              const open = Object.values(w.deals).find(
+                (d) =>
+                  d.status === 'open' &&
+                  ((d.awaiting.kind === 'company' && d.awaiting.id === cid) ||
+                    (d.awaiting.kind === 'player' && d.awaiting.id === 'u_founder')),
+              );
+              cmd = open
+                ? { type: 'deal.act', dealId: open.id, action: 'accept' }
+                : { type: 'inbox.read' };
               break;
             }
           }
