@@ -5,6 +5,7 @@
  */
 import { useState } from 'react';
 import { amountInput, money, parseAmount, pct, stars } from '../format';
+import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Field, Pill, Stat } from '../ui';
 import { DealList } from './common';
@@ -19,9 +20,9 @@ export function BankScreen() {
           <Card tone="warn" title={b.name}>
             <p className="small">
               {b.status === 'failed'
-                ? 'The central bank wound this bank down.'
-                : 'The licence was refused and the capital returned.'}{' '}
-              You can apply again.
+                ? t('The central bank wound this bank down.')
+                : t('The licence was refused and the capital returned.')}{' '}
+              {t('You can apply again.')}
             </p>
           </Card>
         )}
@@ -34,7 +35,7 @@ export function BankScreen() {
       {b.status === 'licensed' && (
         <>
           <section className="stack">
-            <h2>Loan requests</h2>
+            <h2>{t('Loan requests')}</h2>
             <DealList
               filter={(d) => d.counterparty.kind === 'playerbank' && d.counterparty.id === b.id}
             />
@@ -59,70 +60,87 @@ function Overview() {
         title={b.name}
         action={
           <Pill tone={b.status === 'licensed' ? 'good' : 'info'}>
-            {b.status === 'licensed' ? `Licensed · ${stars(b.stars)}` : 'Applying'}
+            {b.status === 'licensed'
+              ? t('Licensed · {stars}', { stars: stars(b.stars) })
+              : t('Applying')}
           </Pill>
         }
       >
         <p className="small muted">
-          {b.typeLabel} · you own {pct(b.ownerShareBps / 10_000)}; AI shareholders hold the rest.
+          {tx(b.typeLabel)} ·{' '}
+          {t('you own {pct}; AI shareholders hold the rest.', {
+            pct: pct(b.ownerShareBps / 10_000),
+          })}
         </p>
         {b.status === 'applying' && (
           <p className="small">
-            The central bank decides in month {b.licenceDueMonth}. It needs at least{' '}
-            {money(b.minCapital, cur)} of capital; you have {money(f.equity, cur)}.
+            {t(
+              'The central bank decides in month {month}. It needs at least {min} of capital; you have {have}.',
+              {
+                month: b.licenceDueMonth,
+                min: money(b.minCapital, cur),
+                have: money(f.equity, cur),
+              },
+            )}
           </p>
         )}
       </Card>
       <div className="kpis">
         <Stat
-          label="Capital"
+          label={t('Capital')}
           value={money(f.equity, cur)}
           tone={f.equity < 0 ? 'bad' : undefined}
         />
         <Stat
-          label="Capital ratio"
+          label={t('Capital ratio')}
           value={pct(f.capitalRatio)}
-          hint={`Rule: at least ${pct(b.minCapitalRatio)}`}
+          hint={t('Rule: at least {pct}', { pct: pct(b.minCapitalRatio) })}
           tone={capitalOk ? 'good' : 'bad'}
         />
-        <Stat label="Cash" value={money(f.cash, cur)} tone={f.cash < 0 ? 'bad' : undefined} />
-        <Stat label="Deposits" value={money(f.deposits, cur)} hint={`${f.customers} customers`} />
-        <Stat label="Loans" value={money(f.loans, cur)} />
-        <Stat label="Can lend now" value={money(f.lendingRoom, cur)} />
+        <Stat label={t('Cash')} value={money(f.cash, cur)} tone={f.cash < 0 ? 'bad' : undefined} />
+        <Stat
+          label={t('Deposits')}
+          value={money(f.deposits, cur)}
+          hint={t('{n} customers', { n: f.customers })}
+        />
+        <Stat label={t('Loans')} value={money(f.loans, cur)} />
+        <Stat label={t('Can lend now')} value={money(f.lendingRoom, cur)} />
       </div>
       {f.cbBorrowing > 0 && (
-        <Card tone="warn" title="Central bank borrowing">
+        <Card tone="warn" title={t('Central bank borrowing')}>
           <p className="small">
-            You owe the central bank {money(f.cbBorrowing, cur)} above base rate. Borrowing three
-            times in a year brings an inspection.
+            {t(
+              'You owe the central bank {amount} above base rate. Borrowing three times in a year brings an inspection.',
+              { amount: money(f.cbBorrowing, cur) },
+            )}
           </p>
         </Card>
       )}
       {b.status === 'licensed' && (
-        <Card title="Last month">
+        <Card title={t('Last month')}>
           <ul className="list small">
             <li className="spread">
-              <span>Interest earned</span>
+              <span>{t('Interest earned')}</span>
               <span>{money(b.lastMonth.interestIncome, cur)}</span>
             </li>
             <li className="spread">
-              <span>Fees</span>
+              <span>{t('Fees')}</span>
               <span>{money(b.lastMonth.fees, cur)}</span>
             </li>
             <li className="spread">
-              <span>Interest paid to depositors</span>
+              <span>{t('Interest paid to depositors')}</span>
               <span>−{money(b.lastMonth.depositInterest, cur)}</span>
             </li>
             <li className="spread">
-              <span>Staff and systems</span>
+              <span>{t('Staff and systems')}</span>
               <span>−{money(b.lastMonth.opex, cur)}</span>
             </li>
             <li className="spread">
-              <span>Loan losses</span>
+              <span>{t('Loan losses')}</span>
               <span>−{money(b.lastMonth.loanLosses, cur)}</span>
             </li>
             <li className="spread">
-              <strong>Profit</strong>
+              <strong>{t('Profit')}</strong>
               <strong className={b.lastMonth.net < 0 ? 'bad' : 'good'}>
                 {money(b.lastMonth.net, cur)}
               </strong>
@@ -143,13 +161,15 @@ function Policy() {
   const [salary, setSalary] = useState(amountInput(b.policy.salary));
   const base = view.market.baseRateBps / 100;
   return (
-    <Card title="Pricing">
+    <Card title={t('Pricing')}>
       <p className="small muted">
-        Base rate {base.toFixed(1)}%. Loans cost base plus your spread. A better deposit rate wins
-        customers; a thin spread wins borrowers but leaves less for losses.
+        {t(
+          'Base rate {rate}%. Loans cost base plus your spread. A better deposit rate wins customers; a thin spread wins borrowers but leaves less for losses.',
+          { rate: base.toFixed(1) },
+        )}
       </p>
       <div className="grid2">
-        <Field label="Loan spread (pp over base)">
+        <Field label={t('Loan spread (pp over base)')}>
           {(id) => (
             <input
               id={id}
@@ -159,7 +179,7 @@ function Policy() {
             />
           )}
         </Field>
-        <Field label="Deposit rate (%)">
+        <Field label={t('Deposit rate (%)')}>
           {(id) => (
             <input
               id={id}
@@ -169,10 +189,10 @@ function Policy() {
             />
           )}
         </Field>
-        <Field label={`Monthly account fee (${cur})`}>
+        <Field label={t('Monthly account fee ({cur})', { cur })}>
           {(id) => <input id={id} value={fee} onChange={(e) => setFee(e.target.value)} />}
         </Field>
-        <Field label={`Your salary (${cur})`}>
+        <Field label={t('Your salary ({cur})', { cur })}>
           {(id) => <input id={id} value={salary} onChange={(e) => setSalary(e.target.value)} />}
         </Field>
       </div>
@@ -188,11 +208,11 @@ function Policy() {
               accountFee: parseAmount(fee) ?? 0,
               salary: parseAmount(salary) ?? 0,
             },
-            'Pricing updated.',
+            t('Pricing updated.'),
           )
         }
       >
-        Save pricing
+        {t('Save pricing')}
       </Button>
     </Card>
   );
@@ -202,24 +222,28 @@ function LoanBook() {
   const { view, cur } = useView();
   const b = view.bank!;
   return (
-    <Card title={`Loan book · ${b.depositors} player depositors`}>
+    <Card title={t('Loan book · {n} player depositors', { n: b.depositors })}>
       {b.loanBook.length === 0 ? (
-        <Empty>No player loans yet. Requests arrive above.</Empty>
+        <Empty>{t('No player loans yet. Requests arrive above.')}</Empty>
       ) : (
         <ul className="list small">
           {b.loanBook.map((l, i) => (
             <li key={i} className="spread">
               <span>{l.borrower}</span>
               <span>
-                {money(l.outstanding, cur)} · {(l.rateBps / 100).toFixed(1)}% · {l.monthsLeft} mo
+                {money(l.outstanding, cur)} · {(l.rateBps / 100).toFixed(1)}% ·{' '}
+                {t('{n} mo', { n: l.monthsLeft })}
               </span>
             </li>
           ))}
         </ul>
       )}
       <p className="small muted">
-        Retail: {b.retail.customers} households, {money(b.retail.deposits, cur)} deposited,{' '}
-        {money(b.retail.loans, cur)} lent.
+        {t('Retail: {n} households, {deposits} deposited, {loans} lent.', {
+          n: b.retail.customers,
+          deposits: money(b.retail.deposits, cur),
+          loans: money(b.retail.loans, cur),
+        })}
       </p>
     </Card>
   );
@@ -230,12 +254,14 @@ function Dividend() {
   const b = view.bank!;
   const [amount, setAmount] = useState('');
   return (
-    <Card title="Dividend">
+    <Card title={t('Dividend')}>
       <p className="small muted">
-        Paid to all shareholders; you get {pct(b.ownerShareBps / 10_000)}. Regulators refuse a
-        dividend that takes capital below the rule.
+        {t(
+          'Paid to all shareholders; you get {pct}. Regulators refuse a dividend that takes capital below the rule.',
+          { pct: pct(b.ownerShareBps / 10_000) },
+        )}
       </p>
-      <Field label={`Total dividend (${cur})`}>
+      <Field label={t('Total dividend ({cur})', { cur })}>
         {(id) => <input id={id} value={amount} onChange={(e) => setAmount(e.target.value)} />}
       </Field>
       <Button
@@ -244,11 +270,11 @@ function Dividend() {
         onClick={() =>
           void send(
             { type: 'bank.dividend', bankId: b.id, amount: parseAmount(amount) ?? 0 },
-            (r: { message: string }) => r.message,
+            (r: { message: string }) => tx(r.message),
           )
         }
       >
-        Pay dividend
+        {t('Pay dividend')}
       </Button>
     </Card>
   );
@@ -263,28 +289,32 @@ export function FoundBank() {
     amountInput(Math.round((view.accounts.local?.balance ?? 0) * 0.8)),
   );
   return (
-    <Card title="Start a bank">
+    <Card title={t('Start a bank')}>
       <p className="small muted">
-        AI shareholders add two to five times your capital, depending on your credibility. The
-        central bank decides on the licence in two months.
+        {t(
+          'AI shareholders add two to five times your capital, depending on your credibility. The central bank decides on the licence in two months.',
+        )}
       </p>
-      <Field label="Bank name">
+      <Field label={t('Bank name')}>
         {(id) => (
           <input id={id} value={name} maxLength={32} onChange={(e) => setName(e.target.value)} />
         )}
       </Field>
-      <Field label="Licence">
+      <Field label={t('Licence')}>
         {(id) => (
           <select id={id} value={type} onChange={(e) => setType(e.target.value)}>
-            {meta?.bankTypes.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label} · min {money(Math.round(view.market.costOfLiving * t.minCapitalCol), cur)}
+            {meta?.bankTypes.map((bt) => (
+              <option key={bt.id} value={bt.id}>
+                {tx(bt.label)} ·{' '}
+                {t('min {amount}', {
+                  amount: money(Math.round(view.market.costOfLiving * bt.minCapitalCol), cur),
+                })}
               </option>
             ))}
           </select>
         )}
       </Field>
-      <Field label={`Your capital (${cur})`}>
+      <Field label={t('Your capital ({cur})', { cur })}>
         {(id) => (
           <input id={id} value={contribution} onChange={(e) => setContribution(e.target.value)} />
         )}
@@ -299,11 +329,11 @@ export function FoundBank() {
               bankType: type as 'microfinance',
               contribution: parseAmount(contribution) ?? 0,
             },
-            'Application filed.',
+            t('Application filed.'),
           )
         }
       >
-        Apply for a licence
+        {t('Apply for a licence')}
       </Button>
     </Card>
   );
