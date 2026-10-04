@@ -17,6 +17,7 @@ import { creditProfile } from './credit.js';
 import { tripCostUsd } from './travel.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { boardOf } from './governance.js';
+import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
 import {
   burn,
   getMarket,
@@ -239,7 +240,8 @@ function dealView(world: World, d: DealCard, viewerId: Id) {
   const mine = (p: DealCard['proposer']) =>
     (p.kind === 'player' && p.id === viewerId) ||
     (p.kind === 'fund' && world.funds[p.id]?.managerId === viewerId) ||
-    (p.kind === 'company' && !!world.companies[p.id]?.founderIds.includes(viewerId));
+    (p.kind === 'company' && !!world.companies[p.id]?.founderIds.includes(viewerId)) ||
+    (p.kind === 'playerbank' && world.banks[p.id]?.ownerId === viewerId);
   return {
     ...rest,
     companyName: c?.name ?? 'Personal',
@@ -342,6 +344,10 @@ export function playerView(world: World, playerId: Id) {
           currency: world.accounts[id]!.currency,
           balance: world.accounts[id]!.balance,
           recent: world.accounts[id]!.recent,
+          bankId: world.accounts[id]!.bankId ?? null,
+          bankName: world.accounts[id]!.bankId
+            ? (world.banks[world.accounts[id]!.bankId!]?.name ?? null)
+            : null,
         }
       : null;
   const myCompanies = p.companyIds.map((id) => world.companies[id]!).filter(Boolean);
@@ -388,6 +394,7 @@ export function playerView(world: World, playerId: Id) {
       gigsThisMonth: p.gigsThisMonth,
     },
     accounts: { local: acc(p.accounts.local), usd: acc(p.accounts.usd) },
+    bank: ownBankView(world, p.id),
     market: {
       id: m.id,
       name: m.data.name,
@@ -440,6 +447,31 @@ export function playerView(world: World, playerId: Id) {
         })),
       talent: p.role === 'founder' || myCompanies.length ? m.talent : [],
       /** B2B marketplace listings in your market (§6). */
+      /** Player banks in this market (§8), for depositors and borrowers. */
+      banks: Object.values(world.banks)
+        .filter((b) => b.market === m.id && b.status === 'licensed')
+        .map((b) => ({
+          id: b.id,
+          name: b.name,
+          type: b.type,
+          typeLabel: BANK_TYPES[b.type].label,
+          owner: world.players[b.ownerId]?.name ?? '',
+          stars: round1(b.stars.value),
+          depositRateBps: b.policy.depositRateBps,
+          loanSpreadPp: b.policy.loanSpreadPp,
+          accountFee: b.policy.accountFee,
+          rating: b.reviews.count ? Math.round((b.reviews.sum / b.reviews.count) * 10) / 10 : null,
+          lends: {
+            people: BANK_TYPES[b.type].personal,
+            companies: BANK_TYPES[b.type].companies,
+            advisory: BANK_TYPES[b.type].advisory,
+          },
+        })),
+      bankTypes: Object.entries(BANK_TYPES).map(([id, t]) => ({
+        id,
+        ...t,
+        minCapital: Math.round(m.data.costOfLiving * 100 * t.minCapitalCol),
+      })),
       listings: Object.values(world.listings)
         .filter(
           (l) => l.market === m.id && l.active && world.companies[l.companyId]?.status === 'active',
@@ -579,6 +611,49 @@ export function playerView(world: World, playerId: Id) {
 }
 
 export type PlayerView = NonNullable<ReturnType<typeof playerView>>;
+
+/** The bank a player runs, with its regulatory figures (§8). */
+export function ownBankView(world: World, playerId: Id) {
+  const b = Object.values(world.banks)
+    .filter((x) => x.ownerId === playerId)
+    .sort((a, c) => c.appliedMonth - a.appliedMonth)[0];
+  if (!b) return null;
+  const m = getMarket(world, b.market);
+  const f = bankFigures(world, b);
+  const loans = [
+    ...Object.values(world.companies).flatMap((c) =>
+      c.finance.loans
+        .filter((l) => l.lenderBankId === b.id)
+        .map((l) => ({
+          borrower: c.name,
+          outstanding: l.outstanding,
+          rateBps: l.rateBps,
+          monthsLeft: l.monthsLeft,
+        })),
+    ),
+    ...Object.values(world.players).flatMap((p) =>
+      p.loans
+        .filter((l) => l.lenderBankId === b.id)
+        .map((l) => ({
+          borrower: p.name,
+          outstanding: l.outstanding,
+          rateBps: l.rateBps,
+          monthsLeft: l.monthsLeft,
+        })),
+    ),
+  ];
+  return {
+    ...b,
+    typeLabel: BANK_TYPES[b.type].label,
+    figures: f,
+    minCapitalRatio: MIN_CAPITAL_RATIO,
+    minCapital: Math.round(m.data.costOfLiving * 100 * BANK_TYPES[b.type].minCapitalCol),
+    licenceDueMonth: b.appliedMonth + 2,
+    stars: round1(b.stars.value),
+    depositors: Object.values(world.accounts).filter((a) => a.bankId === b.id).length,
+    loanBook: loans,
+  };
+}
 
 /** Internal game-economy dashboard (§20 "Running the live game"). Not for players. */
 export function economyDashboard(world: World) {

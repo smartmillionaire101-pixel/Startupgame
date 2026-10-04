@@ -24,6 +24,7 @@ import { removeStaff } from './staff.js';
 import { hasVisited } from './travel.js';
 import { valueCompany } from './valuation.js';
 import { newCapTable } from './captable.js';
+import { chargeAdvisory } from './banks.js';
 import type { AcquisitionTerms, Company, DealCard, Id, World } from './types.js';
 
 /** Fair-value band around the model valuation (§12 "Fair-value checks"). */
@@ -44,7 +45,7 @@ export function acquisitionFlags(
 
 export function proposeAcquisition(
   world: World,
-  args: { buyerId: Id; targetId: Id; price: number; retention: number; by: Id },
+  args: { buyerId: Id; targetId: Id; price: number; retention: number; by: Id; advisorBankId?: Id },
 ): DealCard {
   const buyer = getCompany(world, args.buyerId);
   const target = getCompany(world, args.targetId);
@@ -91,6 +92,7 @@ export function proposeAcquisition(
     buyerCompanyId: buyer.id,
     retention: args.retention,
     flags,
+    ...(args.advisorBankId ? { advisorBankId: args.advisorBankId } : {}),
   };
   const value = valueCompany(world, target, nextStage(target.lastRound)).value;
   const deal = openDeal(world, {
@@ -133,6 +135,8 @@ export function executePlayerAcquisition(world: World, d: DealCard, t: Acquisiti
       );
     }
   }
+  // The adviser's fee (investment banks earn on M&A, §8).
+  if (t.advisorBankId) chargeAdvisory(world, t.advisorBankId, buyer.account, t.price, tm.month);
   const sellers = [...target.founderIds];
   settleExit(world, target, t.price, buyer.name, 'acquired');
 

@@ -204,7 +204,7 @@ export const BACKGROUNDS: readonly Background[] = [
     lpCredibility: 0.15,
     founderTrust: 0.3,
   },
-  // Bankers (Phase 2 role; cards present so the picker can show them as "coming soon")
+  // Bankers (§8). More starting capital: a bank needs it.
   {
     id: 'b-commercial',
     role: 'banker',
@@ -213,7 +213,7 @@ export const BACKGROUNDS: readonly Background[] = [
     gaps: 'Tech',
     skills: { finance: 60, risk: 50 },
     network: 40,
-    savingsMultiplier: 2,
+    savingsMultiplier: 3,
     hoursBonus: 0,
     stars: 1.2,
   },
@@ -225,7 +225,7 @@ export const BACKGROUNDS: readonly Background[] = [
     gaps: 'Sales',
     skills: { risk: 60, finance: 40 },
     network: 35,
-    savingsMultiplier: 1.5,
+    savingsMultiplier: 2.5,
     hoursBonus: 0,
     stars: 1.3,
   },
@@ -237,7 +237,7 @@ export const BACKGROUNDS: readonly Background[] = [
     gaps: 'Risk discipline',
     skills: { product: 55, risk: 20 },
     network: 30,
-    savingsMultiplier: 1.8,
+    savingsMultiplier: 2.5,
     hoursBonus: 10,
     stars: 1.2,
   },
@@ -249,7 +249,7 @@ export const BACKGROUNDS: readonly Background[] = [
     gaps: 'Retail banking',
     skills: { negotiation: 55, finance: 50 },
     network: 45,
-    savingsMultiplier: 2.5,
+    savingsMultiplier: 4,
     hoursBonus: -10,
     stars: 1.3,
   },
@@ -261,7 +261,7 @@ export const BACKGROUNDS: readonly Background[] = [
     gaps: 'Corporate clients',
     skills: { risk: 45, sales: 40 },
     network: 30,
-    savingsMultiplier: 1.2,
+    savingsMultiplier: 2.5,
     hoursBonus: 10,
     stars: 1.1,
   },
@@ -273,7 +273,7 @@ export const BACKGROUNDS: readonly Background[] = [
     gaps: 'Banking know-how',
     skills: { leadership: 45, product: 40 },
     network: 50,
-    savingsMultiplier: 4,
+    savingsMultiplier: 6,
     hoursBonus: 0,
     stars: 1.6,
   },
@@ -282,7 +282,7 @@ export const BACKGROUNDS: readonly Background[] = [
 export const backgroundById = (id: string): Background | undefined =>
   BACKGROUNDS.find((b) => b.id === id);
 
-export const PLAYABLE_ROLES: readonly Role[] = ['founder', 'investor'];
+export const PLAYABLE_ROLES: readonly Role[] = ['founder', 'investor', 'banker'];
 
 /** Months of personal runway every player starts with, before background adjustment (§3). */
 export const STARTING_RUNWAY_MONTHS = 6;

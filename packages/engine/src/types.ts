@@ -44,6 +44,10 @@ export interface Account {
   balance: number;
   /** External accounts represent the outside world (AI customers, tax, LPs…) and may go negative. */
   external: boolean;
+  /** Player bank holding this account (null/absent: the market's default AI bank). */
+  bankId?: Id | null;
+  /** Bank operating accounts may go negative down to this (lending out of deposits). */
+  overdraftLimit?: number;
   label: string;
   recent: TxRecord[];
 }
@@ -67,6 +71,8 @@ export interface StarState {
 export interface PersonalLoan {
   id: Id;
   lender: string;
+  lenderAccount: Id;
+  lenderBankId: Id | null;
   /** Market whose bank lent the money (repayments go there). */
   market: MarketId;
   principal: number;
@@ -203,6 +209,9 @@ export interface MonthlyPnl {
 export interface Loan {
   id: Id;
   lender: string;
+  /** Where repayments go: the AI bank's account or a player bank's account. */
+  lenderAccount: Id;
+  lenderBankId: Id | null;
   principal: number;
   outstanding: number;
   rateBps: number;
@@ -395,6 +404,43 @@ export interface Dispute {
   award: number;
 }
 
+export type BankType = 'commercial' | 'investment' | 'venture-debt' | 'microfinance';
+
+/** A player-owned bank (§8). */
+export interface Bank {
+  id: Id;
+  name: string;
+  market: MarketId;
+  type: BankType;
+  ownerId: Id;
+  status: 'applying' | 'licensed' | 'rejected' | 'failed';
+  /** Operating account; may run negative down to the liquidity limit. */
+  account: Id;
+  appliedMonth: number;
+  licensedMonth: number | null;
+  /** The banker's share; AI shareholders hold the rest. */
+  ownerShareBps: number;
+  policy: { loanSpreadPp: number; depositRateBps: number; accountFee: number; salary: number };
+  /** AI households, in aggregate (liability: deposits; asset: loans). */
+  retail: { customers: number; deposits: number; loans: number };
+  cbLoans: { outstanding: number; rateBps: number; dueMonth: number }[];
+  /** Months the bank borrowed from the central bank (repeated borrowing triggers inspection). */
+  cbBorrowMonths: number[];
+  stars: StarState;
+  reviews: { sum: number; count: number };
+  lastMonth: {
+    interestIncome: number;
+    fees: number;
+    depositInterest: number;
+    opex: number;
+    loanLosses: number;
+    net: number;
+  };
+  thisMonth: { interest: number; fees: number; losses: number };
+  /** Deals advised (investment banks' league table). */
+  advised: number;
+}
+
 // ---------------------------------------------------------------- Investors & funds
 
 export interface Fund {
@@ -477,6 +523,8 @@ export interface AcquisitionTerms {
   retention?: number;
   /** Fair-value and related-party flags (§12). */
   flags?: string[];
+  /** Investment bank advising the buyer; paid a fee on completion. */
+  advisorBankId?: Id;
 }
 
 /** A bank lends to a person (§8 "Personal loans and credit profiles"). */
@@ -503,7 +551,8 @@ export type DealTerms =
   InvestmentTerms | CofounderTerms | LoanTerms | AcquisitionTerms | PersonalLoanTerms | SupplyTerms;
 
 export interface PartyRef {
-  kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company';
+  /** 'bank' is the market's AI bank (id = market); 'playerbank' is a player-owned bank (id = bank id). */
+  kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company' | 'playerbank';
   id: Id;
 }
 
@@ -727,6 +776,7 @@ export interface World {
   listings: Record<Id, Listing>;
   contracts: Record<Id, SupplyContract>;
   votes: Record<Id, Vote>;
+  banks: Record<Id, Bank>;
   disputes: Record<Id, Dispute>;
   /** USD external accounts (dollar costs, dollar accounts). */
   usdExt: { fx: Id; suppliers: Id; genesis: Id };

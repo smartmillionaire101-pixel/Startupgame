@@ -32,6 +32,7 @@ import type { MarketId } from './data/markets.js';
 import { executePersonalLoan } from './credit.js';
 import { contractFlags, startContract } from './marketplace.js';
 import { openVote, requiresVote } from './governance.js';
+import { assertCanLend, playerBankHolderId } from './banks.js';
 import { executePlayerAcquisition } from './acquisitions.js';
 
 export const DEAL_LIFETIME_MONTHS = 2;
@@ -125,6 +126,8 @@ export function partyName(world: World, p: PartyRef): string {
       return world.companies[p.id]?.name ?? 'The company';
     case 'bank':
       return getMarket(world, p.id as never)?.bankName ?? 'The bank';
+    case 'playerbank':
+      return world.banks[p.id]?.name ?? 'The bank';
     case 'corporate':
       return p.id;
   }
@@ -139,6 +142,7 @@ export function humanFor(world: World, p: PartyRef): Id | null {
     if (!c || c.ai) return null;
     return c.founderIds.find((f) => !world.players[f]?.ai) ?? null;
   }
+  if (p.kind === 'playerbank') return world.banks[p.id]?.ownerId ?? null;
   return null;
 }
 
@@ -146,6 +150,7 @@ export function canAct(world: World, actorId: Id, p: PartyRef): boolean {
   if (p.kind === 'player') return p.id === actorId;
   if (p.kind === 'fund') return world.funds[p.id]?.managerId === actorId;
   if (p.kind === 'company') return !!world.companies[p.id]?.founderIds.includes(actorId);
+  if (p.kind === 'playerbank') return world.banks[p.id]?.ownerId === actorId;
   return false;
 }
 
@@ -222,6 +227,7 @@ function mergeCounter(terms: DealTerms, counter: Partial<DealTerms>): DealTerms 
         ...terms,
         amount: c.amount ?? terms.amount,
         months: c.months ?? terms.months,
+        rateBps: c.rateBps ?? terms.rateBps,
         personalGuarantee: c.personalGuarantee ?? terms.personalGuarantee,
       };
     }
@@ -239,7 +245,12 @@ function mergeCounter(terms: DealTerms, counter: Partial<DealTerms>): DealTerms 
     }
     case 'personal-loan': {
       const c = counter as Partial<PersonalLoanTerms>;
-      return { ...terms, amount: c.amount ?? terms.amount, months: c.months ?? terms.months };
+      return {
+        ...terms,
+        amount: c.amount ?? terms.amount,
+        months: c.months ?? terms.months,
+        rateBps: c.rateBps ?? terms.rateBps,
+      };
     }
   }
 }
@@ -470,6 +481,8 @@ export function partyAccount(world: World, p: PartyRef): Id {
       return world.companies[p.id]!.account;
     case 'bank':
       return getMarket(world, p.id as never).ext.bank;
+    case 'playerbank':
+      return world.banks[p.id]!.account;
     case 'corporate':
       return fail('deal.party', 'AI corporates pay through the exit waterfall.');
   }
@@ -495,6 +508,10 @@ function recordPosition(
   pos.invested += amount;
   return followOn;
 }
+
+/** The bank side of a loan deal card. */
+export const lenderOf = (d: DealCard): PartyRef =>
+  d.proposer.kind === 'bank' || d.proposer.kind === 'playerbank' ? d.proposer : d.counterparty;
 
 /** Execute an accepted deal. Throws (rolling back the whole command) if money is short. */
 export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?: boolean } = {}) {
@@ -610,19 +627,37 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
       break;
     }
     case 'loan': {
-      const lenderAcc = partyAccount(world, d.proposer);
+      // The lender is whichever side is a bank: the AI bank, or a player bank.
+      const lender = lenderOf(d);
+      const playerBank = lender.kind === 'playerbank' ? world.banks[lender.id]! : null;
+      if (playerBank) assertCanLend(world, playerBank, t.amount, 'company');
+      const lenderAcc = partyAccount(world, lender);
       transfer(
         world,
         lenderAcc,
         c.account,
         t.amount,
-        `Loan from ${partyName(world, d.proposer)}`,
+        `Loan from ${partyName(world, lender)}`,
         m.month,
       );
+      // Venture debt comes with warrants: a small slice of equity for the lender (§8).
+      if (playerBank?.type === 'venture-debt') {
+        const fd = fullyDiluted(c.capTable);
+        const shares = Math.round((fd * 100) / (10_000 - 100));
+        const holder = playerBankHolderId(playerBank.id);
+        const h = (c.capTable.holdings[holder] ??= { shares: 0, kind: 'investor' });
+        h.shares += shares;
+      }
+      if (playerBank) {
+        const owner = world.players[playerBank.ownerId];
+        if (owner) achieve(world, owner, 'banker.first-loan', 'First loan', m.month);
+      }
       const founder = c.founderIds[0] ?? null;
       c.finance.loans.push({
         id: newId(world, 'loan'),
-        lender: partyName(world, d.proposer),
+        lender: partyName(world, lender),
+        lenderAccount: lenderAcc,
+        lenderBankId: playerBank?.id ?? null,
         principal: t.amount,
         outstanding: t.amount,
         rateBps: (d.terms as LoanTerms).rateBps,

@@ -61,7 +61,7 @@ export function transfer(
   const from = account(world, fromId);
   const to = account(world, toId);
   if (from.currency !== to.currency) fail('ledger.currency', 'Currencies differ; convert first');
-  if (!from.external && from.balance < amount)
+  if (!from.external && from.balance - amount < -(from.overdraftLimit ?? 0))
     fail('ledger.funds', 'Not enough money in the account');
   from.balance -= amount;
   to.balance += amount;

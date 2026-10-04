@@ -29,6 +29,7 @@ import { applyStarEvent, settleStars } from './stars.js';
 import { outputOf, settleStaff } from './staff.js';
 import { monthlyGrowth } from './valuation.js';
 import { setCogs } from './world.js';
+import { recordInterest, recordLoanLoss } from './banks.js';
 import type { BuildMode, Company, MonthlyPnl, Player, RevenueModel, World } from './types.js';
 
 export const PNL_HISTORY = 36;
@@ -133,27 +134,12 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
       c.supply.cogsMult,
   );
   const seats = c.staff.length + c.founderIds.length;
-  const interest = c.finance.loans.reduce(
-    (a, l) => a + Math.round((l.outstanding * l.rateBps) / 10_000 / 12),
-    0,
-  );
-  const principal = c.finance.loans.reduce(
-    (a, l) =>
-      a +
-      Math.max(
-        0,
-        Math.min(
-          l.outstanding,
-          l.monthlyPayment - Math.round((l.outstanding * l.rateBps) / 10_000 / 12),
-        ),
-      ),
-    0,
-  );
   const payroll = c.staff.reduce((a, s) => a + s.salary, 0) + c.finance.unpaidPayroll;
 
   const lines: CostLine[] = [
     { key: 'payroll', amount: payroll, to: m.ext.payroll, memo: 'Payroll' },
-    { key: 'interest', amount: interest + principal, to: m.ext.bank, memo: 'Loan repayment' },
+    // Loans are paid one by one to each lender, right after payroll (see below).
+    { key: 'interest', amount: 0, to: m.ext.bank, memo: 'Loan repayment' },
     {
       key: 'founderSalary',
       amount: c.founderSalary * c.founderIds.length,
@@ -180,6 +166,9 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
     },
   ];
   const paid: Record<string, number> = {};
+  let paidInterest = 0;
+  let paidPrincipal = 0;
+  let loanShort = false;
   for (const line of lines) {
     if (line.key === 'founderSalary') {
       let total = 0;
@@ -210,29 +199,46 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
       paid[line.key] = total;
       continue;
     }
+    if (line.key === 'interest') {
+      // Each loan repays its own lender (the AI bank or a player bank).
+      let total = 0;
+      for (const l of c.finance.loans) {
+        const r = Math.round((l.outstanding * l.rateBps) / 10_000 / 12);
+        const due = Math.min(l.monthlyPayment, l.outstanding + r);
+        const got = transferUpTo(
+          world,
+          c.account,
+          l.lenderAccount ?? m.ext.bank,
+          due,
+          `Loan repayment (${l.lender})`,
+          month,
+        );
+        const interestPart = Math.min(got, r);
+        recordInterest(world, l.lenderBankId, interestPart);
+        paidInterest += interestPart;
+        paidPrincipal += got - interestPart;
+        l.outstanding -= got - interestPart;
+        l.monthsLeft -= 1;
+        if (got < due) loanShort = true;
+        total += got;
+      }
+      paid[line.key] = total;
+      continue;
+    }
     paid[line.key] = transferUpTo(world, c.account, line.to, line.amount, line.memo, month);
   }
 
   // Unpaid payroll carries over and is a crisis (staff are paid first in a shutdown, too).
   const payrollShort = payroll - (paid.payroll ?? 0);
   c.finance.unpaidPayroll = payrollShort;
-  // Loans: apply what was paid; a short payment is a default.
-  const loanPaid = paid.interest ?? 0;
-  let loanCash = Math.max(0, loanPaid - interest);
-  for (const l of c.finance.loans) {
-    const r = Math.round((l.outstanding * l.rateBps) / 10_000 / 12);
-    const p = Math.min(l.outstanding, Math.max(0, l.monthlyPayment - r), loanCash);
-    l.outstanding -= p;
-    loanCash -= p;
-    l.monthsLeft -= 1;
-  }
-  if (loanPaid < interest + principal) defaultOnLoans(world, c, month);
+  // A short loan payment is a default.
+  if (loanShort) defaultOnLoans(world, c, month);
   c.finance.loans = c.finance.loans.filter((l) => l.outstanding > 0);
 
   // Corporate tax on profit, with losses carried forward.
   const expenses =
     (paid.payroll ?? 0) +
-    interest +
+    paidInterest +
     (paid.founderSalary ?? 0) +
     (paid.office ?? 0) +
     (paid.marketing ?? 0) +
@@ -268,7 +274,7 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
     compliance: 0,
     interest: paid.interest ?? 0,
     tax,
-    net: totalRevenue - expenses - tax - principal,
+    net: totalRevenue - expenses - tax - paidPrincipal,
     cashEnd: account(world, c.account).balance,
     customers,
   };
@@ -288,7 +294,7 @@ function defaultOnLoans(world: World, c: Company, month: number) {
         const taken = transferUpTo(
           world,
           g.accounts.local,
-          m.ext.bank,
+          l.lenderAccount ?? m.ext.bank,
           l.outstanding,
           `Personal guarantee called (${c.name})`,
           month,
@@ -554,13 +560,18 @@ export function shutdownCompany(
     const paid = transferUpTo(
       world,
       c.account,
-      m.ext.bank,
+      l.lenderAccount ?? m.ext.bank,
       l.outstanding,
       `Loan payoff (${l.lender})`,
       month,
     );
     l.outstanding -= paid;
-    if (l.outstanding > 0) defaultOnLoans(world, c, month);
+    if (l.outstanding > 0) {
+      defaultOnLoans(world, c, month);
+      // What a shut company can't repay is the lender's loss.
+      recordLoanLoss(world, l.lenderBankId, l.outstanding);
+      l.outstanding = 0;
+    }
   }
   // Then shareholders by preference.
   const remaining = account(world, c.account).balance;

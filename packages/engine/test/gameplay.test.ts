@@ -38,7 +38,7 @@ describe('onboarding (§3)', () => {
     expect(months('u_a')).toBeCloseTo(months('u_b'), 5);
   });
 
-  it('rejects duplicate handles, brand names and banker role for now', () => {
+  it('rejects duplicate handles, brand names, and bankers without a bank', () => {
     let w = addFounder(makeWorld());
     const dup = tryRun(w, 'u_2', {
       type: 'player.create',

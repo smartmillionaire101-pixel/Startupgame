@@ -32,6 +32,11 @@ export function holderAccount(world: World, m: MarketState, holderId: string): I
   if (f) return f.account;
   const c = world.companies[holderId];
   if (c) return c.account;
+  // A player bank holding warrants or seized collateral.
+  if (holderId.startsWith('pbank:')) {
+    const b = world.banks[holderId.slice(6)];
+    if (b && b.status !== 'failed') return b.account;
+  }
   return externalHolderAccount(m, holderId);
 }
 

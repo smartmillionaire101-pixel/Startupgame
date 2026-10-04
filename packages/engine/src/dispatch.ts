@@ -31,6 +31,15 @@ import { proposeAcquisition } from './acquisitions.js';
 import { boardOf, castVote, openVote } from './governance.js';
 import { fileDispute } from './arbitration.js';
 import {
+  BANK_TYPES,
+  MIN_CAPITAL_RATIO,
+  bankFigures,
+  foundBank,
+  getBank,
+  moveAccount,
+  ownBank,
+} from './banks.js';
+import {
   achieve,
   col,
   getCompany,
@@ -267,6 +276,34 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     }
     case 'company.loan': {
       const c = touch(cmd.companyId);
+      if (cmd.bankId) {
+        // A player bank: the banker reads the request and decides (accept, counter or decline).
+        const bank = getBank(world, cmd.bankId);
+        ensure(
+          bank.status === 'licensed' && bank.market === c.market,
+          'loan.bank',
+          'Pick a licensed bank in your market.',
+        );
+        ensure(
+          bank.type !== 'venture-debt' || c.lastRound !== null,
+          'loan.bank',
+          'Venture debt is for startups that have raised equity.',
+        );
+        const deal = openDeal(world, {
+          companyId: c.id,
+          proposer: { kind: 'company', id: c.id },
+          counterparty: { kind: 'playerbank', id: bank.id },
+          terms: {
+            kind: 'loan',
+            amount: cmd.amount,
+            rateBps: m.data.baseRateBps + Math.round(bank.policy.loanSpreadPp * 100),
+            months: cmd.months,
+            personalGuarantee: cmd.personalGuarantee,
+          },
+          by: me.id,
+        });
+        return { dealId: deal.id, message: `Request sent to ${bank.name}.` };
+      }
       const pnl = lastPnl(c);
       ensure(
         month - c.foundedMonth >= 3 && pnl && pnl.revenue > 0,
@@ -493,17 +530,117 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         amount: cmd.amount,
         months: cmd.months,
         collateralCompanyId: cmd.collateralCompanyId,
+        bankId: cmd.bankId,
       });
       return { dealId: deal.id, summary: deal.summary };
     }
+    case 'bank.found': {
+      const bank = foundBank(world, me, {
+        name: cmd.name,
+        type: cmd.bankType,
+        contribution: cmd.contribution,
+      });
+      if (me.role !== 'banker') achieve(world, me, 'any.role-switch', 'First role switch', month);
+      return { bankId: bank.id };
+    }
+    case 'bank.policy': {
+      const b = ownBank(world, me, cmd.bankId);
+      if (cmd.loanSpreadPp !== undefined) b.policy.loanSpreadPp = cmd.loanSpreadPp;
+      if (cmd.depositRateBps !== undefined) b.policy.depositRateBps = cmd.depositRateBps;
+      if (cmd.accountFee !== undefined) b.policy.accountFee = cmd.accountFee;
+      if (cmd.salary !== undefined) {
+        ensure(
+          cmd.salary <= scale(col(m), 10),
+          'bank.salary',
+          'A salary that large at a bank draws regulators and tabloids.',
+        );
+        b.policy.salary = cmd.salary;
+      }
+      return { message: 'Policy updated.' };
+    }
+    case 'bank.dividend': {
+      const b = ownBank(world, me, cmd.bankId);
+      ensure(b.status === 'licensed', 'bank.unlicensed', 'Only licensed banks pay dividends.');
+      const f = bankFigures(world, b);
+      // Dividends only from capital above the regulatory minimum.
+      const room = Math.floor(
+        f.equity -
+          Math.max(
+            f.loans * MIN_CAPITAL_RATIO * 1.5,
+            scale(col(m), BANK_TYPES[b.type].minCapitalCol),
+          ),
+      );
+      ensure(
+        cmd.amount > 0 && cmd.amount <= room && cmd.amount <= f.cash,
+        'bank.dividend',
+        'Not enough surplus capital to pay that.',
+      );
+      const mine = Math.round((cmd.amount * b.ownerShareBps) / 10_000);
+      transfer(world, b.account, me.accounts.local, mine, `${b.name} dividend`, month);
+      transfer(
+        world,
+        b.account,
+        m.ext.lps,
+        cmd.amount - mine,
+        `${b.name} dividend to AI shareholders`,
+        month,
+      );
+      const tax = Math.round(mine * m.data.tax.capitalGains);
+      transfer(world, me.accounts.local, m.ext.tax, tax, 'Dividend tax', month);
+      return {
+        message: `Dividend paid. Your share: ${formatMoney(mine - tax, m.data.currency)} after tax.`,
+      };
+    }
+    case 'bank.review': {
+      const b = getBank(world, cmd.bankId);
+      ensure(b.ownerId !== me.id, 'bank.review', 'You can’t review your own bank.');
+      const banked = [
+        me.accounts.local,
+        me.accounts.usd,
+        ...me.companyIds.map((id) => world.companies[id]?.account),
+      ].some((a) => a && world.accounts[a]?.bankId === b.id);
+      ensure(banked, 'bank.review', 'Only customers can review a bank.');
+      b.reviews.sum += cmd.rating;
+      b.reviews.count += 1;
+      return { message: 'Review posted.' };
+    }
+    case 'account.move': {
+      const accId =
+        cmd.account === 'personal'
+          ? me.accounts.local
+          : cmd.account === 'usd'
+            ? me.accounts.usd
+            : ownCompany(world, me.id, cmd.account).account;
+      ensure(accId, 'account.missing', 'Open that account first.');
+      moveAccount(world, accId, cmd.bankId);
+      return {
+        message: cmd.bankId
+          ? `Now banking with ${getBank(world, cmd.bankId).name}.`
+          : `Back with ${m.bankName}.`,
+      };
+    }
     case 'acquire.propose': {
       touch(cmd.buyerCompanyId);
+      if (cmd.advisorBankId) {
+        const adviser = getBank(world, cmd.advisorBankId);
+        ensure(
+          adviser.status === 'licensed' && BANK_TYPES[adviser.type].advisory,
+          'bank.advisory',
+          'Pick a licensed investment bank as adviser.',
+        );
+        ensure(
+          adviser.market === getCompany(world, cmd.buyerCompanyId).market,
+          'bank.advisory',
+          'Pick an adviser in your market.',
+        );
+      }
       const deal = proposeAcquisition(world, {
         buyerId: cmd.buyerCompanyId,
         targetId: cmd.targetCompanyId,
         price: cmd.price,
         retention: cmd.retention,
         by: me.id,
+        advisorBankId: cmd.advisorBankId,
       });
       return { dealId: deal.id, status: deal.status, summary: deal.summary };
     }
@@ -636,16 +773,14 @@ function createFromOnboarding(
   actorId: Id,
   now: number,
 ) {
-  ensure(
-    PLAYABLE_ROLES.includes(cmd.role),
-    'onboarding.role',
-    'Player banks open in phase 2. Choose founder or investor for now.',
-  );
+  ensure(PLAYABLE_ROLES.includes(cmd.role), 'onboarding.role', 'Pick founder, investor or banker.');
   ensure(world.markets[cmd.market], 'onboarding.market', 'That market isn’t open yet.');
   if (cmd.role === 'founder')
     ensure(cmd.company, 'onboarding.company', 'Founders set up a company.');
   if (cmd.role === 'investor')
     ensure(cmd.investor, 'onboarding.investor', 'Investors set a focus.');
+  if (cmd.role === 'banker')
+    ensure(cmd.bank, 'onboarding.bank', 'Bankers pick a bank type and name.');
   const p = createPlayer(world, {
     playerId: actorId,
     handle: cmd.handle,
@@ -666,6 +801,11 @@ function createFromOnboarding(
       lpCredibility: bg?.lpCredibility ?? 0.3,
       founderTrust: bg?.founderTrust ?? 0.5,
     };
+  }
+  if (cmd.role === 'banker' && cmd.bank) {
+    // First day (§3): an AI shareholder meeting raises starting capital and the licence application is filed.
+    const contribution = Math.floor(account(world, p.accounts.local).balance * 0.8);
+    foundBank(world, p, { name: cmd.bank.name, type: cmd.bank.bankType, contribution });
   }
   welcomeNewPlayer(world, p, companyId);
   return { playerId: p.id, companyId };

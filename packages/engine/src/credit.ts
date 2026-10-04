@@ -8,9 +8,10 @@
  * shares can be pledged as collateral and are taken on default.
  */
 import { markValue, sharesOf } from './captable.js';
-import { openDeal } from './deals.js';
+import { lenderOf, openDeal } from './deals.js';
+import { assertCanLend, playerBankHolderId, recordInterest, recordLoanLoss } from './banks.js';
 import { ensure, fail } from './errors.js';
-import { col, getCompany, getMarket, notify, publish } from './helpers.js';
+import { achieve, col, getCompany, getMarket, notify, publish } from './helpers.js';
 import { newId } from './ids.js';
 import { account, transfer, transferUpTo, valueIn } from './ledger.js';
 import { clamp } from './math.js';
@@ -111,13 +112,16 @@ export function creditProfile(world: World, p: Player): CreditProfile {
 export function requestPersonalLoan(
   world: World,
   p: Player,
-  req: { amount: number; months: number; collateralCompanyId?: Id },
+  req: { amount: number; months: number; collateralCompanyId?: Id; bankId?: Id },
 ): DealCard {
   const m = getMarket(world, p.market);
   ensure(req.amount > 0, 'loan.amount', 'Ask for an amount.');
   ensure(
     !Object.values(world.deals).some(
-      (d) => d.status === 'open' && d.terms.kind === 'personal-loan' && d.counterparty.id === p.id,
+      (d) =>
+        d.status === 'open' &&
+        d.terms.kind === 'personal-loan' &&
+        (d.counterparty.id === p.id || d.proposer.id === p.id),
     ),
     'loan.open',
     'You already have a loan offer waiting.',
@@ -147,6 +151,27 @@ export function requestPersonalLoan(
     months: req.months,
     collateral,
   };
+  if (req.bankId) {
+    // A player bank: the banker decides, and may approve what a credit profile alone wouldn't justify (§13).
+    const bank = world.banks[req.bankId];
+    ensure(
+      bank && bank.status === 'licensed' && bank.market === m.id,
+      'loan.bank',
+      'Pick a licensed bank in your market.',
+    );
+    return openDeal(world, {
+      companyId: null,
+      market: m.id,
+      proposer: { kind: 'player', id: p.id },
+      counterparty: { kind: 'playerbank', id: bank.id },
+      terms: {
+        ...terms,
+        amount: req.amount,
+        rateBps: m.data.baseRateBps + Math.round(bank.policy.loanSpreadPp * 100),
+      },
+      by: p.id,
+    });
+  }
   return openDeal(world, {
     companyId: null,
     market: m.id,
@@ -160,8 +185,14 @@ export function requestPersonalLoan(
 
 export function executePersonalLoan(world: World, d: DealCard, t: PersonalLoanTerms) {
   const m = getMarket(world, d.market);
-  const p = world.players[d.counterparty.id];
+  const borrower = d.proposer.kind === 'player' ? d.proposer : d.counterparty;
+  const p = world.players[borrower.id];
   ensure(p, 'player.missing', 'Borrower not found.');
+  const lender = lenderOf(d);
+  const bank = lender.kind === 'playerbank' ? world.banks[lender.id] : undefined;
+  if (bank) assertCanLend(world, bank, t.amount, 'person');
+  const lenderAccount = bank ? bank.account : m.ext.bank;
+  const lenderName = bank ? bank.name : m.bankName;
   if (t.collateral) {
     ensure(
       !pledged(p, t.collateral.companyId),
@@ -177,16 +208,22 @@ export function executePersonalLoan(world: World, d: DealCard, t: PersonalLoanTe
   }
   transfer(
     world,
-    m.ext.bank,
+    lenderAccount,
     p.accounts.local,
     t.amount,
-    `Personal loan from ${m.bankName}`,
+    `Personal loan from ${lenderName}`,
     m.month,
   );
+  if (bank) {
+    const owner = world.players[bank.ownerId];
+    if (owner) achieve(world, owner, 'banker.first-loan', 'First loan', m.month);
+  }
   const r = t.rateBps / 10_000 / 12;
   p.loans.push({
     id: newId(world, 'ploan'),
-    lender: m.bankName,
+    lender: lenderName,
+    lenderAccount,
+    lenderBankId: bank?.id ?? null,
     market: m.id,
     principal: t.amount,
     outstanding: t.amount,
@@ -219,7 +256,14 @@ export function repayPersonalLoan(
   const m = getMarket(world, loan.market);
   const pay = Math.min(amount, loan.outstanding);
   ensure(pay > 0, 'loan.amount', 'Enter an amount.');
-  transfer(world, p.accounts.local, m.ext.bank, pay, `Repayment to ${loan.lender}`, month);
+  transfer(
+    world,
+    p.accounts.local,
+    loan.lenderAccount ?? m.ext.bank,
+    pay,
+    `Repayment to ${loan.lender}`,
+    month,
+  );
   loan.outstanding -= pay;
   if (loan.outstanding === 0) {
     p.loans = p.loans.filter((l) => l.id !== loanId);
@@ -246,11 +290,12 @@ export function settlePersonalLoans(world: World, p: Player, month: number) {
     const paid = transferUpTo(
       world,
       p.accounts.local,
-      m.ext.bank,
+      loan.lenderAccount ?? m.ext.bank,
       due,
       `Loan repayment (${loan.lender})`,
       month,
     );
+    recordInterest(world, loan.lenderBankId, Math.min(paid, interest));
     loan.outstanding = Math.max(0, loan.outstanding + interest - paid);
     loan.monthsLeft -= 1;
     if (paid >= due) {
@@ -272,9 +317,10 @@ export function settlePersonalLoans(world: World, p: Player, month: number) {
 
 function defaultPersonalLoan(world: World, p: Player, loanId: Id, month: number) {
   const loan = p.loans.find((l) => l.id === loanId)!;
-  const m = getMarket(world, loan.market);
   p.loans = p.loans.filter((l) => l.id !== loanId);
   p.credit.defaults += 1;
+  // The lender writes the loan off (pledged shares soften the blow).
+  recordLoanLoss(world, loan.lenderBankId, loan.outstanding);
   let seized = '';
   if (loan.collateral) {
     const c = world.companies[loan.collateral.companyId];
@@ -283,10 +329,12 @@ function defaultPersonalLoan(world: World, p: Player, loanId: Id, month: number)
       const take = Math.min(h.shares, loan.collateral.shares);
       h.shares -= take;
       if (h.shares === 0) delete c.capTable.holdings[p.id];
-      const bank = bankHolderId(loan.market);
+      const bank = loan.lenderBankId
+        ? playerBankHolderId(loan.lenderBankId)
+        : bankHolderId(loan.market);
       const bh = (c.capTable.holdings[bank] ??= { shares: 0, kind: 'investor' });
       bh.shares += take;
-      seized = ` ${m.bankName} took the pledged ${c.name} shares.`;
+      seized = ` ${loan.lender} took the pledged ${c.name} shares.`;
     }
   }
   applyStarEvent(p.stars, -0.25);

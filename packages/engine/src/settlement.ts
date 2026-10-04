@@ -19,6 +19,7 @@ import { expireDeals } from './deals.js';
 import { settleFundFees } from './funds.js';
 import { payDividends } from './travel.js';
 import { settleVotes } from './governance.js';
+import { aiBanking, settleBanks } from './banks.js';
 import { settleDisputes } from './arbitration.js';
 import {
   aiProcurement,
@@ -41,6 +42,11 @@ import type { Player, World } from './types.js';
 export const NAME_RESERVATION_MONTHS = 12;
 
 function playerPerformance(world: World, p: Player): number {
+  // Bankers are judged by their bank.
+  const bank = Object.values(world.banks).find(
+    (b) => b.ownerId === p.id && b.status === 'licensed',
+  );
+  if (p.role === 'banker' && bank) return bank.stars.value;
   if (p.role === 'investor') {
     const pos = Object.values(world.positions).filter(
       (x) => x.investorId === p.id || x.investorId === p.investor?.fundId,
@@ -115,6 +121,11 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
     settleStars(p.stars, playerPerformance(world, p));
     p.lastMonth = { income: 0, spend: p.lastMonth.spend, tax: 0 };
   }
+
+  // Banks settle after everyone has repaid what they owe this month (§8). Own RNG stream.
+  const bankRng = deriveRng(world.seed, 'banks', marketId, month);
+  aiBanking(world, marketId, bankRng);
+  settleBanks(world, marketId, bankRng, month);
 
   settleVotes(world, marketId, month);
   settleDisputes(world, marketId, month);

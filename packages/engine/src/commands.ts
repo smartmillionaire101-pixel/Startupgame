@@ -54,6 +54,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     backgroundId: z.string().max(32),
     market,
     company: companySetup.optional(),
+    bank: z
+      .object({
+        name: z.string().min(3).max(32),
+        bankType: z.enum(['commercial', 'investment', 'venture-debt', 'microfinance']),
+      })
+      .optional(),
     investor: investorSetup.optional(),
   }),
   // ---- founder
@@ -99,6 +105,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('company.loan'),
     companyId: id,
+    bankId: id.optional(),
     amount: money,
     months: z.number().int().min(3).max(36),
     personalGuarantee: z.boolean(),
@@ -179,6 +186,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     amount: money,
     months: z.number().int().min(3).max(60),
     collateralCompanyId: id.optional(),
+    bankId: id.optional(),
   }),
   z.object({ type: z.literal('player.travel'), market }),
   // ---- acquisitions, governance, arbitration (§9, §12)
@@ -188,6 +196,29 @@ export const commandSchema = z.discriminatedUnion('type', [
     targetCompanyId: id,
     price: money,
     retention: money,
+    advisorBankId: id.optional(),
+  }),
+  // ---- banks (§8)
+  z.object({
+    type: z.literal('bank.found'),
+    name: z.string().min(3).max(32),
+    bankType: z.enum(['commercial', 'investment', 'venture-debt', 'microfinance']),
+    contribution: money,
+  }),
+  z.object({
+    type: z.literal('bank.policy'),
+    bankId: id,
+    loanSpreadPp: z.number().min(0.5).max(30).optional(),
+    depositRateBps: z.number().int().min(0).max(5000).optional(),
+    accountFee: money.optional(),
+    salary: money.optional(),
+  }),
+  z.object({ type: z.literal('bank.dividend'), bankId: id, amount: money }),
+  z.object({ type: z.literal('bank.review'), bankId: id, rating: z.number().int().min(1).max(5) }),
+  z.object({
+    type: z.literal('account.move'),
+    account: z.union([z.literal('personal'), z.literal('usd'), id]),
+    bankId: id.nullable(),
   }),
   z.object({ type: z.literal('vote.cast'), voteId: id, ballot: z.enum(['yes', 'no']) }),
   z.object({ type: z.literal('governance.removeCeo'), companyId: id, founderId: id }),

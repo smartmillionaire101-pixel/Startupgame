@@ -5,7 +5,7 @@
  */
 import type { World } from './types.js';
 
-export const CURRENT_SCHEMA = 6;
+export const CURRENT_SCHEMA = 7;
 
 type Step = (world: World) => void;
 
@@ -54,6 +54,22 @@ const STEPS: Record<number, Step> = {
       c.vetoes ??= [];
       c.parentId ??= null;
       c.removedFounders ??= {};
+    }
+  },
+  // v6 → v7: player-owned banks; loans remember their lender.
+  6: (world) => {
+    world.banks ??= {};
+    for (const c of Object.values(world.companies)) {
+      for (const l of c.finance.loans) {
+        l.lenderAccount ??= world.markets[c.market]!.ext.bank;
+        l.lenderBankId ??= null;
+      }
+    }
+    for (const p of Object.values(world.players)) {
+      for (const l of p.loans) {
+        l.lenderAccount ??= world.markets[l.market]!.ext.bank;
+        l.lenderBankId ??= null;
+      }
     }
   },
 };
