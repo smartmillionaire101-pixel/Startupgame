@@ -25,6 +25,8 @@ const KIND_COLOR: Record<string, string> = {
   candidate: '#7c3aed',
   shopper: '#e11d48',
   player: '#2563eb',
+  owner: '#ea580c',
+  angel: '#ca8a04',
 };
 
 interface Glide {

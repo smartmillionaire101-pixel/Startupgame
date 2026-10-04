@@ -13,7 +13,8 @@ import { ChatSheet, StarterSheet } from '../screens/Chat';
 import { jobTitle } from '../screens/Company';
 import { PitchSheet, moodLabel } from '../screens/Money';
 import { AvatarFigure, avatarLook } from './art';
-import { activeCompany, hash } from './contract';
+import { MealSheet } from './Business';
+import { activeCompany, businessesOf, hash } from './contract';
 import {
   contactsOf,
   eventsOf,
@@ -33,6 +34,8 @@ export const roleName = (r: string) =>
       partner: t('Fund partner'),
       candidate: t('Looking for work'),
       shopper: t('Customer'),
+      owner: t('Business owner'),
+      angel: t('Angel investor'),
     }) as Record<string, string>
   )[r] ?? r;
 
@@ -92,6 +95,27 @@ export function tipFor(a: AiPerson, view: View, cur: string): string {
       ].filter((x): x is string => !!x);
       return tips[pickN(tips.length)]!;
     }
+    case 'owner': {
+      const b = businessesOf(view).find((x) => x.id === a.ref);
+      if (!b) return t('Come in, we’re open.');
+      const free = b.buys.find((x) => !x.supplier);
+      return free
+        ? t('We still need someone for {sector}. Pitch me if that’s you.', {
+            sector: tx(free.label).toLowerCase(),
+          })
+        : b.gigs.length
+          ? t('We’re short-handed: there’s a shift going if you want it.')
+          : t('Come in, we’re open.');
+    }
+    case 'angel': {
+      const f = m.funds.find((x) => x.id === a.fund);
+      return f
+        ? t('I write cheques of {min}–{max}. Buy me lunch and tell me what you’re building.', {
+            min: money(f.check[0], f.currency),
+            max: money(f.check[1], f.currency),
+          })
+        : t('I back founders I’ve shared a meal with.');
+    }
   }
 }
 
@@ -117,6 +141,7 @@ export function PersonCard({
   const contacts = contactsOf(view);
   const [chat, setChat] = useState<{ open?: string; start?: boolean } | null>(null);
   const [pitch, setPitch] = useState(false);
+  const [meal, setMeal] = useState(false);
 
   const id = person.kind === 'player' ? person.p.id : person.a.id;
   const name = person.kind === 'player' ? person.p.name : person.a.name;
@@ -146,6 +171,12 @@ export function PersonCard({
       subtitle = t('{role} · {company}', { role: subtitle, company: co.name });
       starsN = co.stars;
     }
+  } else if (person.a.kind === 'owner') {
+    const b = businessesOf(view).find((x) => x.id === person.a.ref);
+    if (b) subtitle = t('{role} · {company}', { role: subtitle, company: b.name });
+  } else if (person.a.kind === 'angel') {
+    const f = view.market.funds.find((x) => x.id === person.a.fund);
+    if (f) subtitle = t('{role} · {company}', { role: subtitle, company: f.name });
   } else if (person.a.kind === 'shopper') {
     const s = view.market.segments.find((x) => x.key === person.a.ref);
     if (s) subtitle = t('{role} · {company}', { role: subtitle, company: s.name });
@@ -188,7 +219,10 @@ export function PersonCard({
   const fund =
     person.kind === 'ai' && person.a.kind === 'partner'
       ? view.market.funds.find((f) => f.id === person.a.ref)
-      : undefined;
+      : person.kind === 'ai' && person.a.kind === 'angel'
+        ? view.market.funds.find((f) => f.id === person.a.fund)
+        : undefined;
+  const angel = person.kind === 'ai' && person.a.kind === 'angel';
 
   return (
     <>
@@ -257,9 +291,17 @@ export function PersonCard({
                   {t('Visit their office')}
                 </Button>
                 <Button variant="subtle" disabled={!company} onClick={() => setPitch(true)}>
-                  {t('Pitch')}
+                  {angel ? t('Pitch their fund') : t('Pitch')}
                 </Button>
               </>
+            )}
+            {angel && (
+              <Button variant="ghost" onClick={() => setMeal(true)}>
+                {t('Invite to a meal')}
+              </Button>
+            )}
+            {person.kind === 'ai' && person.a.kind === 'owner' && (
+              <Button onClick={() => onVisit(`biz:${person.a.ref}`)}>{t('Go in')}</Button>
             )}
             {person.kind === 'ai' && person.a.kind === 'candidate' && (
               <Button variant="subtle" onClick={onHub}>
@@ -275,6 +317,9 @@ export function PersonCard({
           )}
         </div>
       </Sheet>
+      {meal && person.kind === 'ai' && (
+        <MealSheet withId={person.a.ref} withName={name} onClose={() => setMeal(false)} />
+      )}
       {chat?.open && <ChatSheet chatId={chat.open} onClose={() => setChat(null)} />}
       {chat?.start && person.kind === 'player' && (
         <StarterSheet

@@ -14,8 +14,16 @@
  *   function of wall-clock time, so every player sees the same city.
  */
 import type { PlayerView } from '@runway/engine';
-import { hash, seeded } from './contract';
-import { B, pathLength, pointAlong, type CityLayout, type Place, type Pt } from './layout';
+import { angelsOf, businessesOf, hash, seeded } from './contract';
+import {
+  B,
+  findPath,
+  pathLength,
+  pointAlong,
+  type CityLayout,
+  type Place,
+  type Pt,
+} from './layout';
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -208,17 +216,26 @@ export function flaggedPlaces(events: CityEventView[] | null): string[] {
 // ---------------------------------------------------------------------------
 // Ambient AI characters
 
-export type PersonKind = 'player' | 'partner' | 'founder' | 'candidate' | 'shopper';
+export type PersonKind =
+  | 'player'
+  | 'partner'
+  | 'founder'
+  | 'candidate'
+  | 'shopper'
+  | 'owner'
+  | 'angel';
 
 export interface AiPerson {
   /** Stable id: `ai:<kind>:<ref>`. */
   id: string;
   kind: Exclude<PersonKind, 'player'>;
   name: string;
-  /** Fund id, founder (player) id, candidate id or segment key. */
+  /** Fund id, founder (player) id, candidate id, segment key, business id or angel (player) id. */
   ref: string;
   /** A founder's company id. */
   company?: string;
+  /** An AI angel's fund id. */
+  fund?: string;
   /** Background id for the outfit, and the seed for skin and hair. */
   bg: string;
   /** The place they hang around. */
@@ -239,6 +256,10 @@ export interface CrowdInput {
   founders: { id: string; name: string; companyId: string }[];
   candidates: { id: string; name: string }[];
   segments: { key: string }[];
+  /** Wave 3: AI business owners, by business id. */
+  owners?: { id: string; name: string }[];
+  /** Wave 3: AI angel investors. */
+  angels?: { id: string; name: string; fundId: string | null }[];
 }
 
 const NPC_NAMES: Record<string, string[]> = {
@@ -251,6 +272,7 @@ const NPC_NAMES: Record<string, string[]> = {
   johannesburg: ['Thandi', 'Sipho', 'Lerato', 'Pieter', 'Naledi', 'Thabo'],
   cairo: ['Nour', 'Omar', 'Mariam', 'Youssef', 'Salma', 'Karim'],
   dubai: ['Layla', 'Rashid', 'Aisha', 'Faisal', 'Meera', 'Hamdan'],
+  'san-francisco': ['Maya', 'Diego', 'Mei', 'Jordan', 'Priya', 'Kai', 'Rosa', 'Wes'],
 };
 
 /** A local first name for a background character, stable for the seed. */
@@ -274,6 +296,10 @@ export function crowdInput(view: PlayerView): CrowdInput {
     founders,
     candidates: m.talent.map((c) => ({ id: c.id, name: c.name })),
     segments: m.segments.map((s) => ({ key: s.key })),
+    owners: businessesOf(view)
+      .filter((b) => b.open)
+      .map((b) => ({ id: b.id, name: b.owner.name })),
+    angels: angelsOf(view),
   };
 }
 
@@ -281,6 +307,8 @@ const PARTNER_BG = ['i-banker', 'i-operator', 'i-exited', 'i-corporate', 'i-cons
 const FOUNDER_BG = ['f-engineer', 'f-dropout', 'f-second-time', 'f-consultant'];
 const SHOPPER_BG = ['b-microfinance', 'b-commercial', 'f-corporate', 'b-wealthy'];
 const CANDIDATE_BG = ['f-dropout', 'f-engineer', 'b-fintech'];
+const OWNER_BG = ['b-commercial', 'b-microfinance', 'f-corporate', 'f-second-time'];
+const ANGEL_BG = ['i-exited', 'i-operator', 'b-wealthy', 'i-banker'];
 
 /** Lanes just inside the kerb, so people walk beside the traffic, not in it. */
 const blockLoop = (i: number, j: number, inset: number, cw: boolean, startAt: Pt): Pt[] => {
@@ -414,8 +442,41 @@ export function aiCharacters(layout: CityLayout, input: CrowdInput, max: number)
       )
     : [];
 
+  // Business owners stand at their shop doors.
+  const owners = byId(input.owners ?? [])
+    .map((o) => {
+      const home = places.get(`biz:${o.id}`);
+      return home ? make('owner', o.id, o.name, OWNER_BG, home, 'pace') : null;
+    })
+    .filter((x): x is AiPerson => x !== null);
+
+  // AI angels walk between their offices and the city's restaurants and back.
+  const venues = layout.places
+    .filter((p) => p.motif === 'b-restaurant' || p.motif === 'b-cafe' || p.motif === 'b-pub')
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  const funds = layout.places.filter((p) => p.kind === 'fund');
+  const angels = byId(input.angels ?? [])
+    .map((a): AiPerson | null => {
+      const office = (a.fundId && places.get(`fund:${a.fundId}`)) || funds[hash(a.id) % Math.max(1, funds.length)];
+      if (!office) return null;
+      const venue = venues[hash(`${a.id}:lunch`) % Math.max(1, venues.length)];
+      const base = make('angel', a.id, a.name, ANGEL_BG, office, 'loop');
+      if (!venue) return { ...base, fund: a.fundId ?? undefined };
+      const there = findPath(layout, office.door, venue.door);
+      const route = [...there, ...[...there].reverse().slice(1)];
+      const len = Math.max(0.5, pathLength(route));
+      return {
+        ...base,
+        fund: a.fundId ?? undefined,
+        route,
+        period: Math.round((len / 0.6) * 1000),
+        dwell: 0.18,
+      };
+    })
+    .filter((x): x is AiPerson => x !== null);
+
   // Share the budget round-robin, so a small phone still sees every kind.
-  const queues = [partners, founders, shoppers, candidates].map((q) => {
+  const queues = [partners, founders, shoppers, candidates, owners, angels].map((q) => {
     // A seeded shuffle, so which partners show up varies by market, not by id order.
     const xs = [...q];
     for (let k = xs.length - 1; k > 0; k--) {
@@ -425,8 +486,8 @@ export function aiCharacters(layout: CityLayout, input: CrowdInput, max: number)
     return xs;
   });
   const out: AiPerson[] = [];
-  const caps = [5, 4, 4, 3];
-  const taken = [0, 0, 0, 0];
+  const caps = [5, 4, 4, 3, 6, 5];
+  const taken = [0, 0, 0, 0, 0, 0];
   let progress = true;
   while (out.length < max && progress) {
     progress = false;
@@ -443,7 +504,7 @@ export function aiCharacters(layout: CityLayout, input: CrowdInput, max: number)
 }
 
 /** How many ambient people to draw for a screen width. */
-export const crowdSize = (width: number) => (width < 500 ? 9 : width < 900 ? 13 : 16);
+export const crowdSize = (width: number) => (width < 500 ? 11 : width < 900 ? 17 : 24);
 
 /** Where a character is at a moment in time (ms), and whether they're walking. */
 export function personAt(

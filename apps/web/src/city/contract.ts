@@ -525,9 +525,13 @@ export function angelsOf(view: Pick<PlayerView, 'market' | 'players'>): AngelRef
     if (f.market !== view.market.id || !isObj(a) || typeof a.playerId !== 'string') continue;
     out.set(a.playerId, { id: a.playerId, name: strOf(a.name, f.partner), fundId: f.id });
   }
-  for (const p of (view.players ?? []) as (PlayerView['players'][number] & { ai?: unknown })[]) {
+  for (const p of (view.players ?? []) as (PlayerView['players'][number] & {
+    ai?: unknown;
+    angel?: unknown;
+  })[]) {
     if (p.role !== 'investor' || p.ai !== true || out.has(p.id)) continue;
-    out.set(p.id, { id: p.id, name: p.name, fundId: null });
+    const fundId = isObj(p.angel) && typeof p.angel.fundId === 'string' ? p.angel.fundId : null;
+    out.set(p.id, { id: p.id, name: p.name, fundId });
   }
   return [...out.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
 }

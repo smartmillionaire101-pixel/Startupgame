@@ -581,6 +581,18 @@
 .person-dot-shopper {
   background: #e11d48;
 }
+.person-dot-owner {
+  background: #ea580c;
+}
+.person-dot-angel {
+  background: #ca8a04;
+}
+.person-portrait.person-owner {
+  background: linear-gradient(160deg, #ffedd5, #fed7aa);
+}
+.person-portrait.person-angel {
+  background: linear-gradient(160deg, #fef9c3, #fde047);
+}
 .people-group {
   margin-top: 0.8rem;
 }
@@ -697,4 +709,96 @@
   .city-person * {
     animation: none !important;
   }
+}
+
+/* Wave 3: planned cities, businesses */
+.city-water-name {
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  fill: rgb(255 255 255 / 0.85);
+  paint-order: stroke;
+  stroke: rgb(15 23 42 / 0.25);
+  stroke-width: 2px;
+}
+.city-label.lbl-biz rect {
+  fill: rgb(255 251 235 / 0.95);
+}
+.city-label.lbl-biz text {
+  font-size: 9px;
+}
+.city-map[data-zoom='0'] .lbl-biz {
+  display: none;
+}
+.city-fog-bank {
+  animation: city-fog 48s ease-in-out infinite alternate;
+}
+@keyframes city-fog {
+  from {
+    transform: translateX(-60px);
+  }
+  to {
+    transform: translateX(80px);
+  }
+}
+
+.places-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.chip[aria-pressed='true'] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
+}
+.chip-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+}
+.biz-items,
+.biz-gigs,
+.biz-buys {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.biz-items > li,
+.biz-gigs > li,
+.biz-buys > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.biz-items > li > :first-child,
+.biz-gigs > li > :first-child,
+.biz-buys > li > :first-child {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+.biz-invite select {
+  max-width: 100%;
+}
+.jobs-board .item-title {
+  overflow-wrap: anywhere;
 }

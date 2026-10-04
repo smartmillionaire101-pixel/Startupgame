@@ -30,11 +30,16 @@ import {
   TH,
   TW,
   unproject,
+  MARGIN,
+  type Boat,
+  type Bridge,
+  type Water,
   type CityLayout,
   type DistrictId,
   type Place,
   type Pt,
 } from './layout';
+import { CATEGORY_COLOR } from './contract';
 import { Crowd } from './Crowd';
 import type { AiPerson, PresenceView } from './people';
 
@@ -443,13 +448,13 @@ const Traffic = memo(function Traffic({
             v.from.y + (v.to.y - v.from.y) * (0.2 + (n % 5) * 0.15),
           );
           return (
-            <g key={n} transform={`translate(${p.x},${p.y})`}>
+            <g key={n} data-vehicle={v.spec.id} transform={`translate(${p.x},${p.y})`}>
               <VehicleShape spec={v.spec} axis={v.axis} />
             </g>
           );
         }
         return (
-          <g key={n}>
+          <g key={n} data-vehicle={v.spec.id}>
             <VehicleShape spec={v.spec} axis={v.axis} />
             <animateMotion
               dur={`${v.dur.toFixed(1)}s`}
@@ -457,6 +462,81 @@ const Traffic = memo(function Traffic({
               repeatCount="indefinite"
               path={`M ${a.x} ${a.y} L ${b.x} ${b.y}`}
             />
+          </g>
+        );
+      })}
+      {layout.boats.map((bt, n) => {
+        const a = project(bt.from.x, bt.from.y);
+        const b = project(bt.to.x, bt.to.y);
+        const flip = b.x < a.x;
+        if (reduced) {
+          const p = project(
+            bt.from.x + (bt.to.x - bt.from.x) * (0.25 + (n % 3) * 0.2),
+            bt.from.y + (bt.to.y - bt.from.y) * (0.25 + (n % 3) * 0.2),
+          );
+          return (
+            <g key={`boat${n}`} data-boat={bt.kind} transform={`translate(${p.x},${p.y})`}>
+              <BoatShape boat={bt} flip={flip} />
+            </g>
+          );
+        }
+        return (
+          <g key={`boat${n}`} data-boat={bt.kind}>
+            <BoatShape boat={bt} flip={flip} />
+            <animateMotion
+              dur={`${bt.dur.toFixed(1)}s`}
+              begin={`${bt.delay.toFixed(1)}s`}
+              repeatCount="indefinite"
+              path={`M ${a.x} ${a.y} L ${b.x} ${b.y}`}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+});
+
+/** A ferry or an abra (a Dubai Creek water taxi), in screen space. */
+function BoatShape({ boat, flip }: { boat: Boat; flip: boolean }) {
+  return (
+    <g transform={flip ? 'scale(-1,1)' : undefined}>
+      <ellipse cx="0" cy="3" rx="16" ry="4" fill="#0f172a" opacity="0.15" />
+      {boat.kind === 'abra' ? (
+        <>
+          <path d="M -13 0 L 13 0 L 10 4 L -10 4 Z" fill="#92400e" />
+          <rect x="-9" y="-8" width="18" height="2" fill="#fde68a" />
+          <line x1="-8" y1="-6" x2="-8" y2="0" stroke="#78350f" />
+          <line x1="8" y1="-6" x2="8" y2="0" stroke="#78350f" />
+        </>
+      ) : (
+        <>
+          <path d="M -16 0 L 16 0 L 12 5 L -13 5 Z" fill="#f8fafc" />
+          <rect x="-10" y="-7" width="18" height="7" fill="#1e40af" />
+          <rect x="-8" y="-5" width="14" height="2" fill="#bae6fd" />
+          <rect x="2" y="-12" width="3" height="5" fill="#dc2626" />
+        </>
+      )}
+    </g>
+  );
+}
+
+/** San Francisco's fog: soft banks drifting across (still with reduced motion). */
+const Fog = memo(function Fog({ layout }: { layout: CityLayout }) {
+  const E = layout.extent;
+  const banks = [
+    [-2, -3, 0],
+    [E * 0.5, -4, 1],
+    [-4, E * 0.4, 2],
+    [E * 0.3, E * 0.2, 3],
+  ];
+  return (
+    <g className="city-fog" pointerEvents="none" data-fog="">
+      {banks.map(([x, y, k]) => {
+        const c = project(x!, y!);
+        return (
+          <g key={k} className="city-fog-bank" style={{ animationDelay: `${-k! * 9}s` }}>
+            <ellipse cx={c.x} cy={c.y - 60} rx="220" ry="46" fill="#f8fafc" opacity="0.32" />
+            <ellipse cx={c.x + 90} cy={c.y - 80} rx="140" ry="34" fill="#f8fafc" opacity="0.26" />
           </g>
         );
       })}
@@ -489,7 +569,7 @@ const Skyline = memo(function Skyline({ layout }: { layout: CityLayout }) {
  */
 export function placeLabels(layout: CityLayout, labelOf: (p: Place) => string) {
   const rank = (p: Place) =>
-    p.kind === 'stall'
+    p.kind === 'stall' || p.kind === 'business'
       ? 2
       : p.kind === 'lender' || p.kind === 'fund' || p.kind === 'playerbank'
         ? 1
@@ -502,6 +582,7 @@ export function placeLabels(layout: CityLayout, labelOf: (p: Place) => string) {
     text: string;
     tier: string;
     soon: boolean;
+    color?: string;
   }[] = [];
   const hits = (x: number, y: number, w: number) =>
     placed.some((o) => Math.abs(o.x - x) < (o.w + w) / 2 + 2 && Math.abs(o.y - y) < 18);
@@ -522,8 +603,18 @@ export function placeLabels(layout: CityLayout, labelOf: (p: Place) => string) {
       tries++;
     }
     if (hits(x, y, w) && rank(p) > 0) continue;
-    const tier = ['lbl-main', 'lbl-detail', 'lbl-stall'][rank(p)]!;
-    placed.push({ id: p.id, x, y, w, text, tier, soon: !!p.soon });
+    const tier =
+      p.kind === 'business' ? 'lbl-biz' : ['lbl-main', 'lbl-detail', 'lbl-stall'][rank(p)]!;
+    placed.push({
+      id: p.id,
+      x,
+      y,
+      w,
+      text,
+      tier,
+      soon: !!p.soon,
+      color: p.category ? CATEGORY_COLOR[p.category] : undefined,
+    });
   }
   return placed;
 }
@@ -537,6 +628,38 @@ const Labels = memo(function Labels({
 }) {
   return (
     <g className="city-labels" pointerEvents="none">
+      {layout.areas.map((a) => {
+        const c = project(a.at.x, a.at.y);
+        return (
+          <text
+            key={a.id}
+            x={c.x}
+            y={c.y - 4}
+            className="city-district"
+            textAnchor="middle"
+            data-area={a.id}
+          >
+            {a.name.toUpperCase()}
+          </text>
+        );
+      })}
+      {layout.waters
+        .filter((w) => w.name)
+        .slice(0, 1)
+        .map((w) => {
+          const c =
+            w.kind === 'river'
+              ? project((w.x0 + w.x1) / 2, (w.y0 + w.y1) / 2)
+              : project(
+                  w.side === 'east' ? w.x0 + 1.4 : (w.x0 + w.x1) / 2,
+                  w.side === 'south' ? w.y0 + 1.2 : w.side === 'north' ? w.y1 - 1.2 : layout.extent / 2,
+                );
+          return (
+            <text key="water" x={c.x} y={c.y + 4} className="city-water-name" textAnchor="middle">
+              {w.name}
+            </text>
+          );
+        })}
       {layout.districts
         .filter((d) => d.id === 'finance' || d.id === 'investors' || d.id === 'market')
         .map((d) => {
@@ -554,7 +677,8 @@ const Labels = memo(function Labels({
           transform={`translate(${Math.round(l.x)},${Math.round(l.y)})`}
         >
           <rect x={-l.w / 2} y={-9} width={l.w} height={17} rx={8.5} />
-          <text x={0} y={3.5} textAnchor="middle">
+          {l.color && <circle cx={-l.w / 2 + 7} cy={-0.5} r={3} fill={l.color} />}
+          <text x={l.color ? 3 : 0} y={3.5} textAnchor="middle">
             {l.text}
           </text>
         </g>
@@ -970,6 +1094,7 @@ export function CityMap({
           return p ? <Bunting key={id} p={p} /> : null;
         })}
         <Crowd layout={layout} ai={ai} players={players} reduced={reduced} />
+        {layout.flavour.fog && <Fog layout={layout} />}
         <Labels layout={layout} labelOf={labelOf} />
         {mp && markerPlace && (
           <g transform={`translate(${mp.x},${mp.y - markerPlace.h - 40})`} className="city-marker">
