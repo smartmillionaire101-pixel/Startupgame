@@ -17,6 +17,17 @@ import { settleCompany } from './company.js';
 import { settleSegment } from './customers.js';
 import { expireDeals } from './deals.js';
 import { settleFundFees } from './funds.js';
+import { payDividends } from './travel.js';
+import { settleVotes } from './governance.js';
+import { aiBanking, settleBanks } from './banks.js';
+import { settleDisputes } from './arbitration.js';
+import {
+  aiProcurement,
+  detectFakeRevenue,
+  ensureAiListings,
+  settleContracts,
+  supplyEffects,
+} from './marketplace.js';
 import type { MarketId } from './data/markets.js';
 import { getMarket } from './helpers.js';
 import { clamp } from './math.js';
@@ -31,6 +42,11 @@ import type { Player, World } from './types.js';
 export const NAME_RESERVATION_MONTHS = 12;
 
 function playerPerformance(world: World, p: Player): number {
+  // Bankers are judged by their bank.
+  const bank = Object.values(world.banks).find(
+    (b) => b.ownerId === p.id && b.status === 'licensed',
+  );
+  if (p.role === 'banker' && bank) return bank.stars.value;
   if (p.role === 'investor') {
     const pos = Object.values(world.positions).filter(
       (x) => x.investorId === p.id || x.investorId === p.investor?.fundId,
@@ -63,7 +79,18 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
   const active = () =>
     Object.values(world.companies).filter((c) => c.market === marketId && c.status === 'active');
 
-  for (const c of active()) if (c.ai) aiFounderPolicy(world, c, rng, month);
+  for (const c of active()) if (c.ai || c.aiCeo) aiFounderPolicy(world, c, rng, month);
+
+  // B2B marketplace (§6): its own RNG stream so it never shifts other systems' draws.
+  const b2bRng = deriveRng(world.seed, 'b2b', marketId, month);
+  ensureAiListings(world, marketId, b2bRng);
+  aiProcurement(world, marketId, b2bRng);
+  for (const c of active()) {
+    c.supply = supplyEffects(world, c);
+    // A supplier that failed last month leaves a month of disruption.
+    if (c.supplyDisruptionMonth === month - 1) c.supply.reliabilityAdd -= 0.1;
+  }
+  settleContracts(world, marketId, month);
 
   // Customers, segment by segment, across every company present in it.
   const isMaintenance = (c: { ai: boolean; lastDecisionMonth: number }) =>
@@ -74,7 +101,11 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
     );
     settleSegment(seg, present, rng, month, isMaintenance);
   }
-  for (const c of active()) settleCompany(world, c, rng, month);
+  for (const c of active()) {
+    settleCompany(world, c, rng, month);
+    payDividends(world, c, month);
+    if (c.status === 'active') detectFakeRevenue(world, c, month);
+  }
 
   aiFundsInvest(world, marketId, rng, month);
   for (const f of Object.values(world.funds)) {
@@ -91,6 +122,13 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
     p.lastMonth = { income: 0, spend: p.lastMonth.spend, tax: 0 };
   }
 
+  // Banks settle after everyone has repaid what they owe this month (§8). Own RNG stream.
+  const bankRng = deriveRng(world.seed, 'banks', marketId, month);
+  aiBanking(world, marketId, bankRng);
+  settleBanks(world, marketId, bankRng, month);
+
+  settleVotes(world, marketId, month);
+  settleDisputes(world, marketId, month);
   refreshTalent(world, marketId, rng);
   expireDeals(world, marketId);
   reporterOutreach(world, marketId, rng, month);

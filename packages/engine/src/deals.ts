@@ -7,9 +7,9 @@
 import { addSafe, closePricedRound, fullyDiluted, waterfall } from './captable.js';
 import type { WaterfallLine } from './captable.js';
 import { ensure, fail } from './errors.js';
-import { achieve, adjustTrust, getCompany, getMarket, notify } from './helpers.js';
+import { achieve, adjustTrust, holderAccount, getCompany, getMarket, notify } from './helpers.js';
 import { newId } from './ids.js';
-import { account, transfer } from './ledger.js';
+import { account, pay, payExact, costIn, transfer } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney } from './money.js';
 import { applyStarEvent } from './stars.js';
@@ -24,13 +24,32 @@ import type {
   InvestmentTerms,
   LoanTerms,
   PartyRef,
+  PersonalLoanTerms,
+  SupplyTerms,
   World,
 } from './types.js';
+import type { MarketId } from './data/markets.js';
+import { executePersonalLoan } from './credit.js';
+import { contractFlags, startContract } from './marketplace.js';
+import { openVote, requiresVote } from './governance.js';
+import { assertCanLend, playerBankHolderId } from './banks.js';
+import { executePlayerAcquisition } from './acquisitions.js';
 
 export const DEAL_LIFETIME_MONTHS = 2;
 
-const money = (world: World, c: Company, v: number) =>
-  formatMoney(v, getMarket(world, c.market).data.currency);
+/** What a deal is about: a company, or (for personal loans) just a market. */
+interface DealContext {
+  market: MarketId;
+  company: Company | null;
+}
+
+const money = (world: World, ctx: DealContext, v: number) =>
+  formatMoney(v, getMarket(world, ctx.market).data.currency);
+
+const contextOf = (world: World, d: Pick<DealCard, 'market' | 'companyId'>): DealContext => ({
+  market: d.market,
+  company: d.companyId ? getCompany(world, d.companyId) : null,
+});
 const pct = (x: number) => `${Math.round(x * 1000) / 10}%`;
 
 export function monthlyPayment(principal: number, rateBps: number, months: number): number {
@@ -39,8 +58,20 @@ export function monthlyPayment(principal: number, rateBps: number, months: numbe
   return Math.ceil((principal * r) / (1 - Math.pow(1 + r, -months)));
 }
 
+/** Guardrail flags a proposed supply deal would carry (shown before signing). */
+function contractFlagsFor(world: World, t: SupplyTerms, sellerId: Id): string[] {
+  const seller = world.companies[sellerId];
+  const buyer = world.companies[t.buyerId];
+  return seller && buyer ? contractFlags(world, buyer, seller, t.price) : [];
+}
+
 /** Plain-language one-liner shown on the deal card (§9 "Term sheets"). */
-export function summarise(world: World, c: Company, terms: DealTerms, partyName: string): string {
+export function summarise(
+  world: World,
+  c: DealContext,
+  terms: DealTerms,
+  partyName: string,
+): string {
   switch (terms.kind) {
     case 'investment': {
       const owns =
@@ -72,7 +103,16 @@ export function summarise(world: World, c: Company, terms: DealTerms, partyName:
     case 'cofounder':
       return `${partyName} joins as ${terms.title} for ${terms.equityBps / 100}%, vesting over ${terms.vestingMonths / 12} years with a ${terms.cliffMonths}-month cliff.`;
     case 'acquisition':
-      return `${terms.buyer} buys ${c.name} for ${money(world, c, terms.price)}. The waterfall shows who gets what.`;
+      return `${terms.buyer} buys ${c.company?.name ?? 'the company'} for ${money(world, c, terms.price)}. The waterfall shows who gets what.`;
+    case 'supply': {
+      const listing = world.listings[terms.listingId];
+      const flags = listing && c.company ? contractFlagsFor(world, terms, c.company.id) : [];
+      return `${c.company?.name ?? 'The supplier'} supplies ${listing?.category.toLowerCase() ?? 'services'} for ${money(world, c, terms.price)} a month, for ${terms.months} months.${flags.length ? ` Flagged: ${flags.join(', ')}.` : ''}`;
+    }
+    case 'personal-loan': {
+      const pay = monthlyPayment(terms.amount, terms.rateBps, terms.months);
+      return `${partyName} lends you ${money(world, c, terms.amount)}. You repay ${money(world, c, pay)} a month for ${terms.months} months at ${terms.rateBps / 100}% a year.${terms.collateral ? ` ${terms.collateral.label} is pledged; the bank takes it if you default.` : ' Unsecured: a default damages your credit profile.'}`;
+    }
   }
 }
 
@@ -86,6 +126,8 @@ export function partyName(world: World, p: PartyRef): string {
       return world.companies[p.id]?.name ?? 'The company';
     case 'bank':
       return getMarket(world, p.id as never)?.bankName ?? 'The bank';
+    case 'playerbank':
+      return world.banks[p.id]?.name ?? 'The bank';
     case 'corporate':
       return p.id;
   }
@@ -100,6 +142,7 @@ export function humanFor(world: World, p: PartyRef): Id | null {
     if (!c || c.ai) return null;
     return c.founderIds.find((f) => !world.players[f]?.ai) ?? null;
   }
+  if (p.kind === 'playerbank') return world.banks[p.id]?.ownerId ?? null;
   return null;
 }
 
@@ -107,13 +150,16 @@ export function canAct(world: World, actorId: Id, p: PartyRef): boolean {
   if (p.kind === 'player') return p.id === actorId;
   if (p.kind === 'fund') return world.funds[p.id]?.managerId === actorId;
   if (p.kind === 'company') return !!world.companies[p.id]?.founderIds.includes(actorId);
+  if (p.kind === 'playerbank') return world.banks[p.id]?.ownerId === actorId;
   return false;
 }
 
 export function openDeal(
   world: World,
   args: {
-    companyId: Id;
+    companyId: Id | null;
+    /** Required when there is no company. */
+    market?: MarketId;
     proposer: PartyRef;
     counterparty: PartyRef;
     terms: DealTerms;
@@ -121,22 +167,25 @@ export function openDeal(
     by: Id;
   },
 ): DealCard {
-  const c = getCompany(world, args.companyId);
-  const m = getMarket(world, c.market);
+  const company = args.companyId ? getCompany(world, args.companyId) : null;
+  const market = company?.market ?? args.market;
+  ensure(market, 'deal.market', 'A deal needs a company or a market.');
+  const m = getMarket(world, market);
+  const ctx: DealContext = { market, company };
   const name = partyName(
     world,
     args.terms.kind === 'cofounder' ? args.counterparty : args.proposer,
   );
   const deal: DealCard = {
     id: newId(world, 'deal'),
-    market: c.market,
-    companyId: c.id,
+    market,
+    companyId: company?.id ?? null,
     proposer: args.proposer,
     counterparty: args.counterparty,
     awaiting: args.counterparty,
     status: 'open',
     terms: args.terms,
-    summary: summarise(world, c, args.terms, name),
+    summary: summarise(world, ctx, args.terms, name),
     history: [],
     createdMonth: m.month,
     expiresMonth: m.month + DEAL_LIFETIME_MONTHS,
@@ -178,6 +227,7 @@ function mergeCounter(terms: DealTerms, counter: Partial<DealTerms>): DealTerms 
         ...terms,
         amount: c.amount ?? terms.amount,
         months: c.months ?? terms.months,
+        rateBps: c.rateBps ?? terms.rateBps,
         personalGuarantee: c.personalGuarantee ?? terms.personalGuarantee,
       };
     }
@@ -188,6 +238,19 @@ function mergeCounter(terms: DealTerms, counter: Partial<DealTerms>): DealTerms 
     case 'acquisition': {
       const c = counter as Partial<AcquisitionTerms>;
       return { ...terms, price: c.price ?? terms.price };
+    }
+    case 'supply': {
+      const c = counter as Partial<SupplyTerms>;
+      return { ...terms, price: c.price ?? terms.price, months: c.months ?? terms.months };
+    }
+    case 'personal-loan': {
+      const c = counter as Partial<PersonalLoanTerms>;
+      return {
+        ...terms,
+        amount: c.amount ?? terms.amount,
+        months: c.months ?? terms.months,
+        rateBps: c.rateBps ?? terms.rateBps,
+      };
     }
   }
 }
@@ -202,6 +265,7 @@ function validateTerms(terms: DealTerms) {
       );
       break;
     case 'loan':
+    case 'personal-loan':
       ensure(
         terms.amount > 0 && terms.months >= 3 && terms.months <= 60,
         'deal.terms',
@@ -217,6 +281,13 @@ function validateTerms(terms: DealTerms) {
       break;
     case 'acquisition':
       ensure(terms.price > 0, 'deal.terms', 'Price must be positive.');
+      break;
+    case 'supply':
+      ensure(
+        terms.price > 0 && terms.months >= 1 && terms.months <= 36,
+        'deal.terms',
+        'Contracts run 1–36 months at a positive price.',
+      );
       break;
   }
 }
@@ -242,7 +313,7 @@ export function actOnDeal(
   ensure(d, 'deal.missing', 'Deal not found.');
   ensure(d.status === 'open', 'deal.closed', 'This deal is no longer open.');
   const m = getMarket(world, d.market);
-  const c = getCompany(world, d.companyId);
+  const c = contextOf(world, d);
   const isProposer = d.proposer.kind === actor.kind && d.proposer.id === actor.id;
   const isCounterparty = d.counterparty.kind === actor.kind && d.counterparty.id === actor.id;
   ensure(isProposer || isCounterparty, 'deal.forbidden', 'You are not a party to this deal.');
@@ -338,9 +409,18 @@ export function aiRespond(world: World, d: DealCard) {
         };
       }
     }
-  } else if (t.kind === 'loan') {
+  } else if (t.kind === 'loan' || t.kind === 'personal-loan') {
     within = t.amount <= (lim.maxAmount ?? t.amount);
     if (!within) meet = { amount: lim.maxAmount ?? t.amount };
+  } else if (t.kind === 'supply') {
+    // AI seller: accepts at or near its list price.
+    within = t.price >= (lim.minValuation ?? 0);
+    if (!within && t.price >= (lim.minValuation ?? 0) * 0.75)
+      meet = { price: lim.minValuation ?? t.price };
+  } else if (t.kind === 'acquisition' && lim.minValuation !== undefined) {
+    // AI founders selling to a player company: want at least their price.
+    within = t.price >= lim.minValuation;
+    if (!within && t.price >= lim.minValuation * 0.75) meet = { price: lim.minValuation };
   } else if (t.kind === 'acquisition') {
     within = t.price <= (lim.maxValuation ?? t.price);
     if (!within && t.price <= (lim.maxValuation ?? 0) * 1.3)
@@ -357,10 +437,9 @@ export function aiRespond(world: World, d: DealCard) {
   if (meet && counters <= 1) {
     const responder = d.awaiting;
     d.terms = mergeCounter(d.terms, meet);
-    const c = getCompany(world, d.companyId);
     d.summary = summarise(
       world,
-      c,
+      contextOf(world, d),
       d.terms,
       partyName(world, d.terms.kind === 'cofounder' ? d.counterparty : d.proposer),
     );
@@ -402,6 +481,8 @@ export function partyAccount(world: World, p: PartyRef): Id {
       return world.companies[p.id]!.account;
     case 'bank':
       return getMarket(world, p.id as never).ext.bank;
+    case 'playerbank':
+      return world.banks[p.id]!.account;
     case 'corporate':
       return fail('deal.party', 'AI corporates pay through the exit waterfall.');
   }
@@ -428,20 +509,68 @@ function recordPosition(
   return followOn;
 }
 
+/** The bank side of a loan deal card. */
+export const lenderOf = (d: DealCard): PartyRef =>
+  d.proposer.kind === 'bank' || d.proposer.kind === 'playerbank' ? d.proposer : d.counterparty;
+
 /** Execute an accepted deal. Throws (rolling back the whole command) if money is short. */
-export function executeDeal(world: World, d: DealCard, by: Id) {
+export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?: boolean } = {}) {
   const m = getMarket(world, d.market);
+  const t = d.terms;
+  // Major decisions go to a board or shareholder vote first (§9).
+  if (!opts.approved && !d.pendingVoteId) {
+    const kind = requiresVote(world, d);
+    if (kind) {
+      const reason =
+        kind === 'sale' ? `Approve the sale: ${d.summary}` : `Approve the round: ${d.summary}`;
+      d.history.push({
+        month: m.month,
+        by,
+        action: 'accept',
+        summary:
+          kind === 'sale'
+            ? 'Accepted, subject to a shareholder vote.'
+            : 'Accepted, subject to a board vote.',
+      });
+      const proposer =
+        humanFor(world, d.companyId ? { kind: 'company', id: d.companyId } : d.counterparty) ?? by;
+      const v = openVote(world, {
+        companyId: d.companyId!,
+        kind,
+        dealId: d.id,
+        proposerId: proposer,
+        reason,
+      });
+      if (v.status === 'open') d.pendingVoteId = v.id;
+      return;
+    }
+  }
+  if (d.status !== 'open') return;
+  if (t.kind === 'personal-loan') {
+    executePersonalLoan(world, d, t);
+    d.status = 'accepted';
+    d.history.push({ month: m.month, by, action: 'accept', summary: 'Accepted. Deal executed.' });
+    return;
+  }
+  if (t.kind === 'supply') {
+    startContract(world, t.listingId, t.buyerId, t.price, t.months);
+    d.status = 'accepted';
+    d.history.push({ month: m.month, by, action: 'accept', summary: 'Accepted. Contract signed.' });
+    return;
+  }
+  ensure(d.companyId, 'deal.company', 'This deal has no company.');
   const c = getCompany(world, d.companyId);
   ensure(c.status === 'active', 'company.closed', 'The company is no longer operating.');
-  const t = d.terms;
   switch (t.kind) {
     case 'investment': {
       const investor = d.proposer.kind === 'company' ? d.counterparty : d.proposer;
       const holderId = investor.id;
       const from = partyAccount(world, investor);
-      if (account(world, from).balance < t.amount)
+      // Cross-market investors pay in their own currency: conversion fee and currency risk apply (§7).
+      const cost = costIn(world, t.amount, m.data.currency, account(world, from).currency);
+      if (account(world, from).balance < cost)
         fail('deal.funds', `${partyName(world, investor)} doesn’t have the money for this deal.`);
-      transfer(world, from, c.account, t.amount, `Investment in ${c.name} (${t.stage})`, m.month);
+      payExact(world, from, c.account, t.amount, `Investment in ${c.name} (${t.stage})`, m.month);
       if (t.instrument === 'safe') {
         addSafe(c.capTable, { holderId, amount: t.amount, cap: t.valuation, month: m.month });
         c.capTable.lastPostMoney = Math.max(c.capTable.lastPostMoney, t.valuation);
@@ -458,6 +587,9 @@ export function executeDeal(world: World, d: DealCard, by: Id) {
       c.lastRound = t.stage;
       c.lastRaiseMonth = m.month;
       c.raising = false;
+      // Board composition changes with each round (§9).
+      if (t.boardSeat && !c.board.includes(holderId)) c.board.push(holderId);
+      if (t.vetoOnSale && !c.vetoes.includes(holderId)) c.vetoes.push(holderId);
       const followOn = recordPosition(world, holderId, c.id, t.amount, m.month);
       for (const fid of c.founderIds) {
         const f = world.players[fid];
@@ -495,19 +627,37 @@ export function executeDeal(world: World, d: DealCard, by: Id) {
       break;
     }
     case 'loan': {
-      const lenderAcc = partyAccount(world, d.proposer);
+      // The lender is whichever side is a bank: the AI bank, or a player bank.
+      const lender = lenderOf(d);
+      const playerBank = lender.kind === 'playerbank' ? world.banks[lender.id]! : null;
+      if (playerBank) assertCanLend(world, playerBank, t.amount, 'company');
+      const lenderAcc = partyAccount(world, lender);
       transfer(
         world,
         lenderAcc,
         c.account,
         t.amount,
-        `Loan from ${partyName(world, d.proposer)}`,
+        `Loan from ${partyName(world, lender)}`,
         m.month,
       );
+      // Venture debt comes with warrants: a small slice of equity for the lender (§8).
+      if (playerBank?.type === 'venture-debt') {
+        const fd = fullyDiluted(c.capTable);
+        const shares = Math.round((fd * 100) / (10_000 - 100));
+        const holder = playerBankHolderId(playerBank.id);
+        const h = (c.capTable.holdings[holder] ??= { shares: 0, kind: 'investor' });
+        h.shares += shares;
+      }
+      if (playerBank) {
+        const owner = world.players[playerBank.ownerId];
+        if (owner) achieve(world, owner, 'banker.first-loan', 'First loan', m.month);
+      }
       const founder = c.founderIds[0] ?? null;
       c.finance.loans.push({
         id: newId(world, 'loan'),
-        lender: partyName(world, d.proposer),
+        lender: partyName(world, lender),
+        lenderAccount: lenderAcc,
+        lenderBankId: playerBank?.id ?? null,
         principal: t.amount,
         outstanding: t.amount,
         rateBps: (d.terms as LoanTerms).rateBps,
@@ -543,7 +693,8 @@ export function executeDeal(world: World, d: DealCard, by: Id) {
       break;
     }
     case 'acquisition': {
-      settleExit(world, c, t.price, t.buyer, 'acquired');
+      if (t.buyerCompanyId) executePlayerAcquisition(world, d, t);
+      else settleExit(world, c, t.price, t.buyer, 'acquired');
       break;
     }
   }
@@ -571,17 +722,19 @@ export function settleExit(
     const pos = world.positions[`${line.holderId}:${c.id}`];
     if (pos) pos.returned += line.total;
     if (player) {
-      transfer(
+      // Capital gains tax is withheld where the company is; the rest is paid
+      // out, converted if the holder lives in another market.
+      const basis = pos?.invested ?? 0;
+      const tax = Math.max(0, Math.round((line.total - basis) * m.data.tax.capitalGains));
+      transfer(world, m.ext.lps, m.ext.tax, tax, `Capital gains tax: ${c.name}`, m.month);
+      pay(
         world,
         m.ext.lps,
         player.accounts.local,
-        line.total,
+        line.total - tax,
         `Exit: ${c.name} sold to ${buyer}`,
         m.month,
       );
-      const basis = pos?.invested ?? 0;
-      const tax = Math.max(0, Math.round((line.total - basis) * m.data.tax.capitalGains));
-      transfer(world, player.accounts.local, m.ext.tax, tax, 'Capital gains tax', m.month);
       if (!player.ai) {
         notify(world, player.id, {
           month: m.month,
@@ -602,8 +755,9 @@ export function settleExit(
       fund.mood = clamp(fund.mood + 0.1, 0.5, 1.5);
       distributeFund(world, fund, line.total, m.month);
     } else {
-      // Staff and other AI holders: paid out to the outside world.
-      transfer(world, m.ext.lps, m.ext.payroll, line.total, `Exit payout: ${c.name}`, m.month);
+      // Parent companies, banks holding seized shares, staff and other AI holders.
+      const to = holderAccount(world, m, line.holderId);
+      pay(world, m.ext.lps, to, line.total, `Exit payout: ${c.name}`, m.month);
     }
   }
   c.status = status;

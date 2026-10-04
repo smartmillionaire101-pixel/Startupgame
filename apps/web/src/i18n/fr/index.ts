@@ -1,0 +1,18 @@
+/** The French catalog, merged from one file per screen. */
+import { app } from './app';
+import { company } from './company';
+import { entry } from './entry';
+import { me } from './me';
+import { money } from './money';
+import { server } from './server';
+
+export const FR_PARTS: Record<string, Record<string, string>> = {
+  app,
+  entry,
+  company,
+  money,
+  me,
+  server,
+};
+
+export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

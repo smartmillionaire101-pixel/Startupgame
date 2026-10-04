@@ -8,7 +8,7 @@ import { backgroundById } from './data/characters.js';
 import { ensure } from './errors.js';
 import { achieve, getMarket, notify, usdToLocal } from './helpers.js';
 import { newId } from './ids.js';
-import { openAccount, transfer, transferUpTo } from './ledger.js';
+import { account, openAccount, pay, transfer } from './ledger.js';
 import { clamp, roundTo } from './math.js';
 import { formatMoney } from './money.js';
 import { newStars } from './stars.js';
@@ -125,9 +125,11 @@ export function settleFundFees(world: World, f: Fund, month: number) {
   if (!manager) return;
   const m = getMarket(world, f.market);
   const fee = Math.round((f.size * f.feeRate) / 12);
-  const paid = transferUpTo(world, f.account, manager.accounts.local, fee, 'Management fee', month);
+  // Tax is withheld where the fund is; the rest reaches the manager (converted if they relocated).
+  const paid = Math.min(fee, account(world, f.account).balance);
   const tax = Math.round(paid * m.data.tax.personalIncome);
-  transfer(world, manager.accounts.local, m.ext.tax, tax, 'Personal income tax', month);
+  transfer(world, f.account, m.ext.tax, tax, 'Personal income tax (withheld)', month);
+  pay(world, f.account, manager.accounts.local, paid - tax, 'Management fee', month);
   manager.lastMonth.income += paid;
 }
 
@@ -145,9 +147,9 @@ export function distributeFund(world: World, f: Fund, proceeds: number, month: n
   const carry = Math.round((profitAfter - profitBefore) * f.carry);
   const manager = world.players[f.managerId];
   if (manager && carry > 0) {
-    transfer(world, f.account, manager.accounts.local, carry, 'Carried interest', month);
     const tax = Math.round(carry * m.data.tax.capitalGains);
-    transfer(world, manager.accounts.local, m.ext.tax, tax, 'Capital gains tax on carry', month);
+    transfer(world, f.account, m.ext.tax, tax, 'Capital gains tax on carry (withheld)', month);
+    pay(world, f.account, manager.accounts.local, carry - tax, 'Carried interest', month);
     notify(world, manager.id, {
       month,
       kind: 'deal',

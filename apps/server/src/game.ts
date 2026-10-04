@@ -15,7 +15,9 @@ import {
   createWorld,
   dispatch,
   dueSettlements,
+  upgradeWorld,
   type Command,
+  type MarketId,
   type World,
 } from '@runway/engine';
 import type { Store } from './store/sqlite.js';
@@ -47,7 +49,7 @@ export class GameService {
     const snap = this.store.latestSnapshot<World>();
     let world: World;
     if (snap) {
-      world = snap.world;
+      world = upgradeWorld(snap.world);
       this.lastSeq = snap.seq;
     } else {
       world = createWorld({ seed: this.opts.seed, now: this.opts.now() });
@@ -91,6 +93,15 @@ export class GameService {
     this.sinceSnapshot = 0;
   }
 
+  /** Open any configured markets not yet open (§2: markets open in waves). Logged like any command. */
+  openMarkets(ids: readonly MarketId[]) {
+    for (const market of ids) {
+      if (this.world.markets[market]) continue;
+      const r = this.execute(null, { type: 'market.open', market });
+      if (r.ok) this.opts.log?.('market opened', { market });
+    }
+  }
+
   /** Run any settlements that are due (local midnight passed in a market). */
   tick() {
     const due = dueSettlements(this.world, this.opts.now());
@@ -101,7 +112,7 @@ export class GameService {
         this.opts.log?.('market settled', {
           market,
           date,
-          month: this.world.markets[market].month,
+          month: this.world.markets[market]!.month,
         });
     }
     return due.length;

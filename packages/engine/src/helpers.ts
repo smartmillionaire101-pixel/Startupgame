@@ -18,6 +18,33 @@ import type {
 import { STAGES } from './types.js';
 
 export const INBOX_LIMIT = 60;
+
+/**
+ * Where payouts to non-player cap-table holders go: banks that seized
+ * shares, the central bank (shares lost on relocation), or the outside
+ * world (AI staff and others).
+ */
+/** The account a cap-table holder is paid into: players, funds, parent companies, or the outside world. */
+export function holderAccount(world: World, m: MarketState, holderId: string): Id {
+  const p = world.players[holderId];
+  if (p) return p.accounts.local;
+  const f = world.funds[holderId];
+  if (f) return f.account;
+  const c = world.companies[holderId];
+  if (c) return c.account;
+  // A player bank holding warrants or seized collateral.
+  if (holderId.startsWith('pbank:')) {
+    const b = world.banks[holderId.slice(6)];
+    if (b && b.status !== 'failed') return b.account;
+  }
+  return externalHolderAccount(m, holderId);
+}
+
+export function externalHolderAccount(m: MarketState, holderId: string): Id {
+  if (holderId.startsWith('bank:')) return m.ext.bank;
+  if (holderId.startsWith('cb:')) return m.ext.tax;
+  return m.ext.payroll;
+}
 export const NEWS_LIMIT = 120;
 
 export function getPlayer(world: World, id: Id): Player {

@@ -44,6 +44,10 @@ export interface Account {
   balance: number;
   /** External accounts represent the outside world (AI customers, tax, LPs…) and may go negative. */
   external: boolean;
+  /** Player bank holding this account (null/absent: the market's default AI bank). */
+  bankId?: Id | null;
+  /** Bank operating accounts may go negative down to this (lending out of deposits). */
+  overdraftLimit?: number;
   label: string;
   recent: TxRecord[];
 }
@@ -63,6 +67,23 @@ export interface StarState {
 }
 
 // ---------------------------------------------------------------- Players
+
+export interface PersonalLoan {
+  id: Id;
+  lender: string;
+  lenderAccount: Id;
+  lenderBankId: Id | null;
+  /** Market whose bank lent the money (repayments go there). */
+  market: MarketId;
+  principal: number;
+  outstanding: number;
+  rateBps: number;
+  monthlyPayment: number;
+  monthsLeft: number;
+  collateral: { companyId: Id; shares: number; label: string } | null;
+  /** Consecutive missed payments; two in a row is a default. */
+  missed: number;
+}
 
 export interface InvestorProfile {
   sectors: Industry[];
@@ -92,7 +113,11 @@ export interface Player {
   burnout: boolean;
   lifestyleTier: number;
   accounts: { local: Id; usd?: Id };
-  credit: { missedPayments: number; defaults: number };
+  credit: { missedPayments: number; defaults: number; onTimePayments: number };
+  /** Markets visited, with the home-market month of the last trip (§14). */
+  visited: Partial<Record<MarketId, number>>;
+  /** Personal loans from banks (§8). */
+  loans: PersonalLoan[];
   companyIds: Id[];
   investor?: InvestorProfile;
   milestones: Record<string, number>;
@@ -166,6 +191,8 @@ export interface MonthlyPnl {
   revenue: number;
   /** Revenue from other player companies, reported separately (§6 guardrails). */
   playerRevenue: number;
+  /** Paid to player suppliers on the B2B marketplace. */
+  suppliers: number;
   payroll: number;
   founderSalary: number;
   office: number;
@@ -182,6 +209,9 @@ export interface MonthlyPnl {
 export interface Loan {
   id: Id;
   lender: string;
+  /** Where repayments go: the AI bank's account or a player bank's account. */
+  lenderAccount: Id;
+  lenderBankId: Id | null;
   principal: number;
   outstanding: number;
   rateBps: number;
@@ -281,6 +311,134 @@ export interface Company {
   /** Month when the company was last updated by a human decision. */
   lastDecisionMonth: number;
   forSale: boolean;
+  /** No founders left (they relocated): an AI CEO runs it, competently but slower (§14). */
+  aiCeo: boolean;
+  /** Effects of this month's supply contracts (recomputed at settlement). */
+  supply: SupplyEffectsState;
+  supplyDisruptionMonth: number | null;
+  /** B2B money this month, folded into the P&L at settlement. */
+  ledgerThisMonth: { playerRevenue: number; supplierCost: number; flaggedRevenue: number };
+  lastFlaggedRevenue: number;
+  /** Consecutive months of mostly flagged revenue (anti-cheat, §18). */
+  fraudStreak: number;
+  bannedFromRaising: boolean;
+  /** Non-founder board members (investors who negotiated a seat). */
+  board: Id[];
+  /** Holders with a veto on any sale. */
+  vetoes: Id[];
+  /** Parent company, when bought by another player company across markets. */
+  parentId: Id | null;
+  /** Founders removed by the board, with the month (evidence for the arbitrator). */
+  removedFounders: Record<Id, number>;
+}
+
+export interface SupplyEffectsState {
+  cogsMult: number;
+  overheadMult: number;
+  outputMult: number;
+  reliabilityAdd: number;
+  moraleAdd: number;
+  skillAdd: number;
+}
+
+export interface Listing {
+  id: Id;
+  companyId: Id;
+  market: MarketId;
+  category: string;
+  title: string;
+  price: number;
+  active: boolean;
+  createdMonth: number;
+  reviews: { sum: number; count: number };
+}
+
+export interface SupplyContract {
+  id: Id;
+  listingId: Id;
+  buyerId: Id;
+  sellerId: Id;
+  market: MarketId;
+  price: number;
+  startMonth: number;
+  endMonth: number;
+  /** Guardrail flags: 'related-party', 'above-market'. */
+  flags: string[];
+  status: 'active' | 'ended' | 'cancelled';
+  reviewed: boolean;
+  /** The originally agreed end month (endMonth moves when a contract ends early). */
+  plannedEndMonth: number;
+  /** Company that cancelled early, if any (evidence for the arbitrator). */
+  cancelledBy?: Id | null;
+}
+
+export interface Vote {
+  id: Id;
+  companyId: Id;
+  market: MarketId;
+  kind: 'sale' | 'raise' | 'remove-ceo';
+  dealId: Id | null;
+  /** For remove-ceo: the founder being removed. */
+  targetId: Id | null;
+  reason: string;
+  /** Voting weight per holder: share fraction for sales, one per seat for the board. */
+  weights: Record<Id, number>;
+  /** Holders whose consent is required (vetoes on sale). */
+  vetoHolders: Id[];
+  ballots: Record<Id, 'yes' | 'no'>;
+  status: 'open' | 'passed' | 'failed';
+  createdMonth: number;
+  deadlineMonth: number;
+}
+
+export interface Dispute {
+  id: Id;
+  market: MarketId;
+  kind: 'supply-breach' | 'wrongful-removal';
+  claimantId: Id;
+  /** Contract id or company id the dispute is about. */
+  refId: Id;
+  filedMonth: number;
+  status: 'open' | 'ruled';
+  ruling: string | null;
+  award: number;
+}
+
+export type BankType = 'commercial' | 'investment' | 'venture-debt' | 'microfinance';
+
+/** A player-owned bank (§8). */
+export interface Bank {
+  id: Id;
+  name: string;
+  market: MarketId;
+  type: BankType;
+  ownerId: Id;
+  status: 'applying' | 'licensed' | 'rejected' | 'failed';
+  /** Operating account; may run negative down to the liquidity limit. */
+  account: Id;
+  appliedMonth: number;
+  licensedMonth: number | null;
+  /** The banker's share; AI shareholders hold the rest. */
+  ownerShareBps: number;
+  policy: { loanSpreadPp: number; depositRateBps: number; accountFee: number; salary: number };
+  /** AI households, in aggregate (liability: deposits; asset: loans). */
+  retail: { customers: number; deposits: number; loans: number };
+  cbLoans: { outstanding: number; rateBps: number; dueMonth: number }[];
+  /** Months the bank borrowed from the central bank (repeated borrowing triggers inspection). */
+  cbBorrowMonths: number[];
+  stars: StarState;
+  reviews: { sum: number; count: number };
+  lastMonth: {
+    interestIncome: number;
+    fees: number;
+    depositInterest: number;
+    opex: number;
+    loanLosses: number;
+    net: number;
+  };
+  thisMonth: { interest: number; fees: number; losses: number };
+  /** Deals advised (investment banks' league table). */
+  advised: number;
 }
 
 // ---------------------------------------------------------------- Investors & funds
@@ -359,12 +517,42 @@ export interface AcquisitionTerms {
   kind: 'acquisition';
   price: number;
   buyer: string;
+  /** Set when the buyer is a player company (§12); absent for AI corporates. */
+  buyerCompanyId?: Id;
+  /** Retention packages for the target's founders, paid by the buyer. */
+  retention?: number;
+  /** Fair-value and related-party flags (§12). */
+  flags?: string[];
+  /** Investment bank advising the buyer; paid a fee on completion. */
+  advisorBankId?: Id;
 }
 
-export type DealTerms = InvestmentTerms | CofounderTerms | LoanTerms | AcquisitionTerms;
+/** A bank lends to a person (§8 "Personal loans and credit profiles"). */
+export interface PersonalLoanTerms {
+  kind: 'personal-loan';
+  amount: number;
+  rateBps: number;
+  months: number;
+  /** Shares pledged as collateral; seized on default. */
+  collateral: { companyId: Id; shares: number; label: string } | null;
+}
+
+/** A supply contract on the B2B marketplace (§6). */
+export interface SupplyTerms {
+  kind: 'supply';
+  listingId: Id;
+  buyerId: Id;
+  /** Price per month, local minor units. */
+  price: number;
+  months: number;
+}
+
+export type DealTerms =
+  InvestmentTerms | CofounderTerms | LoanTerms | AcquisitionTerms | PersonalLoanTerms | SupplyTerms;
 
 export interface PartyRef {
-  kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company';
+  /** 'bank' is the market's AI bank (id = market); 'playerbank' is a player-owned bank (id = bank id). */
+  kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company' | 'playerbank';
   id: Id;
 }
 
@@ -373,7 +561,8 @@ export type DealStatus = 'open' | 'accepted' | 'declined' | 'expired' | 'withdra
 export interface DealCard {
   id: Id;
   market: MarketId;
-  companyId: Id;
+  /** The company the deal is about; null for deals with a person (personal loans). */
+  companyId: Id | null;
   proposer: PartyRef;
   counterparty: PartyRef;
   /** The party whose move it is. */
@@ -390,6 +579,8 @@ export interface DealCard {
   }[];
   createdMonth: number;
   expiresMonth: number;
+  /** A board or shareholder vote this deal is waiting on (§9). */
+  pendingVoteId?: Id | null;
   /** For AI counterparties: the most they will concede (hidden from players in views). */
   aiLimit?: { minValuation?: number; maxValuation?: number; maxAmount?: number };
 }
@@ -561,13 +752,15 @@ export type ExternalPurpose =
 // ---------------------------------------------------------------- World
 
 export interface World {
-  schemaVersion: 1;
+  /** Bumped when the shape changes; `upgradeWorld` migrates older saves. */
+  schemaVersion: number;
   seed: number;
   /** Increments with every applied command. */
   version: number;
   nextId: number;
   createdAt: number;
-  markets: Record<MarketId, MarketState>;
+  /** Open markets only; more open in waves via `market.open`. */
+  markets: Partial<Record<MarketId, MarketState>>;
   players: Record<Id, Player>;
   companies: Record<Id, Company>;
   funds: Record<Id, Fund>;
@@ -578,7 +771,13 @@ export interface World {
   media: Record<Id, MediaInvite>;
   inbox: Record<Id, InboxItem[]>;
   /** Names/handles reserved per market (normalised), with the owner id. */
-  names: Record<MarketId, Record<string, Id>>;
+  names: Partial<Record<MarketId, Record<string, Id>>>;
+  /** B2B marketplace (§6). */
+  listings: Record<Id, Listing>;
+  contracts: Record<Id, SupplyContract>;
+  votes: Record<Id, Vote>;
+  banks: Record<Id, Bank>;
+  disputes: Record<Id, Dispute>;
   /** USD external accounts (dollar costs, dollar accounts). */
   usdExt: { fx: Id; suppliers: Id; genesis: Id };
 }

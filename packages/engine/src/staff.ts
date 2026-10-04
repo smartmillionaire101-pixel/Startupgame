@@ -155,7 +155,7 @@ export function hire(
 
 /** People a company can manage without morale and mistakes suffering. */
 export const managementCapacity = (c: Company): number =>
-  5 * c.founderIds.length +
+  5 * Math.max(c.founderIds.length, c.aiCeo ? 1 : 0) +
   c.staff.reduce((a, s) => a + (s.seniority === 'head' ? 7 : s.seniority === 'senior' ? 2 : 0), 0);
 
 export const isOverloaded = (c: Company): boolean => c.staff.length > managementCapacity(c);
@@ -164,7 +164,11 @@ export const staffOutput = (s: Staff): number =>
   s.skill * SENIORITY_OUTPUT[s.seniority] * (0.5 + s.morale / 200);
 
 export function outputOf(c: Company, roles: StaffRole[]): number {
-  return c.staff.filter((s) => roles.includes(s.role)).reduce((a, s) => a + staffOutput(s), 0);
+  const base = c.staff
+    .filter((s) => roles.includes(s.role))
+    .reduce((a, s) => a + staffOutput(s), 0);
+  // A good business-software supplier makes the team more productive (§6).
+  return base * c.supply.outputMult;
 }
 
 /** Monthly morale drift, raise requests and departures. Returns departures. */
@@ -190,7 +194,8 @@ export function settleStaff(
     if (s.personality === 'anxious' && runwayMonths < 6) target -= 10;
     if (s.personality === 'ambitious' && c.stars.value > 3) target += 8;
     if (s.personality === 'steady') target += 5;
-    s.morale = clamp(s.morale + (target - s.morale) * 0.3, 0, 100);
+    s.morale = clamp(s.morale + (target - s.morale) * 0.3 + c.supply.moraleAdd, 0, 100);
+    s.skill = clamp(s.skill + c.supply.skillAdd, 0, 1);
 
     const leaveP = s.morale < 20 ? 0.35 : s.morale < 35 ? 0.15 : s.morale < 50 ? 0.03 : 0.005;
     if (rng.chance(leaveP)) {

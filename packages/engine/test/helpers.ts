@@ -71,7 +71,7 @@ export function addInvestor(world: World, id = 'u_investor', market: MarketId = 
 export function settle(world: World, market: MarketId, months: number, start = T0): World {
   let w = world;
   for (let i = 0; i < months; i++) {
-    const last = w.markets[market].lastSettledDate!;
+    const last = w.markets[market]!.lastSettledDate!;
     const d = new Date(`${last}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() + 1);
     w = run(

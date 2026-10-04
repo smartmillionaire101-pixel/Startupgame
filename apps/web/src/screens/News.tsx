@@ -1,10 +1,40 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { t, tx } from '../i18n';
 import { useGame, useView } from '../store';
 import { Button, Card, Empty, Pill, Sparkline } from '../ui';
 
 type Tab = 'digest' | 'feed' | 'stories';
 type Article = ReturnType<typeof useView>['view']['news'][number];
+
+const checkLabel = (r: string) =>
+  ({
+    accurate: t('accurate'),
+    'slightly-off': t('slightly-off'),
+    false: t('false'),
+    future: t('future'),
+  })[r] ?? r;
+
+const outletLabel = (o: string) =>
+  ({
+    national: t('national'),
+    tech: t('tech'),
+    tabloid: t('tabloid'),
+    trade: t('trade'),
+    regional: t('regional'),
+    global: t('global'),
+  })[o] ?? o;
+
+const statusLabel = (st: string) =>
+  ({
+    invited: t('invited'),
+    angle: t('angle'),
+    questions: t('questions'),
+    preview: t('preview'),
+    published: t('published'),
+    declined: t('declined'),
+    pulled: t('pulled'),
+  })[st] ?? st;
 
 export function NewsScreen() {
   const { view } = useView();
@@ -14,16 +44,17 @@ export function NewsScreen() {
   const [tab, setTab] = useState<Tab>(open ? 'stories' : 'digest');
   return (
     <>
-      <h1>News</h1>
+      <h1>{t('News')}</h1>
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'digest'} onClick={() => setTab('digest')}>
-          Top 5
+          {t('Top 5')}
         </button>
         <button role="tab" aria-selected={tab === 'feed'} onClick={() => setTab('feed')}>
-          Feed
+          {t('Feed')}
         </button>
         <button role="tab" aria-selected={tab === 'stories'} onClick={() => setTab('stories')}>
-          My stories{open ? ` (${open})` : ''}
+          {t('My stories')}
+          {open ? ` (${open})` : ''}
         </button>
       </div>
       {tab === 'digest' && <Digest />}
@@ -31,7 +62,7 @@ export function NewsScreen() {
         (view.news.length ? (
           view.news.map((n) => <ArticleCard key={n.id} a={n} />)
         ) : (
-          <Empty>Quiet month.</Empty>
+          <Empty>{t('Quiet month.')}</Empty>
         ))}
       {tab === 'stories' && <Stories />}
     </>
@@ -52,14 +83,14 @@ function Digest() {
   const items = digest?.headlines ?? view.digest;
   return (
     <>
-      <Card title={`${view.market.name} daily digest`}>
-        <p className="small muted">{digest?.note ?? view.market.economicNote}</p>
-        {status === 'offline' && <Pill tone="warn">Offline copy</Pill>}
+      <Card title={t('{market} daily digest', { market: view.market.name })}>
+        <p className="small muted">{tx(digest?.note ?? view.market.economicNote)}</p>
+        {status === 'offline' && <Pill tone="warn">{t('Offline copy')}</Pill>}
       </Card>
       {items.length ? (
         items.map((n) => <ArticleCard key={n.id} a={n} />)
       ) : (
-        <Empty>No headlines yet this month.</Empty>
+        <Empty>{t('No headlines yet this month.')}</Empty>
       )}
     </>
   );
@@ -71,22 +102,21 @@ function ArticleCard({ a }: { a: Article }) {
       <div className="article">
         <div className="spread small muted">
           <span>
-            {a.outletName} · month {a.month}
+            {a.outletName} · {t('month {n}', { n: a.month })}
           </span>
-          {a.verified && <span className="verified">✓ Verified</span>}
+          {a.verified && <span className="verified">✓ {t('Verified')}</span>}
         </div>
-        <div className="headline">{a.headline}</div>
-        <p>{a.body}</p>
+        <div className="headline">{tx(a.headline)}</div>
+        <p>{tx(a.body)}</p>
         <div className="spread">
           {a.starDelta !== 0 ? (
             <Pill tone={a.starDelta > 0 ? 'good' : 'bad'}>
-              Stars {a.starDelta > 0 ? '+' : ''}
-              {a.starDelta}
+              {t('Stars {delta}', { delta: (a.starDelta > 0 ? '+' : '') + a.starDelta })}
             </Pill>
           ) : (
             <span />
           )}
-          {a.chart && <Sparkline values={a.chart.values} label={a.chart.label} />}
+          {a.chart && <Sparkline values={a.chart.values} label={tx(a.chart.label)} />}
         </div>
       </div>
     </Card>
@@ -103,7 +133,7 @@ function Stories() {
   return (
     <>
       {active.length === 0 && (
-        <Empty>No reporters waiting. Grow, raise, or pitch a story below.</Empty>
+        <Empty>{t('No reporters waiting. Grow, raise, or pitch a story below.')}</Empty>
       )}
       {active.map((m) => (
         <Card
@@ -112,17 +142,17 @@ function Stories() {
           action={
             <Pill tone="info">
               {m.status === 'invited'
-                ? 'Invite'
+                ? t('Invite')
                 : m.status === 'questions'
-                  ? 'Interview'
-                  : 'Preview'}
+                  ? t('Interview')
+                  : t('Preview')}
             </Pill>
           }
         >
           {m.status === 'invited' && (
             <>
-              <p>“{m.invite}”</p>
-              <p className="small muted">Pick an angle. Declining costs nothing.</p>
+              <p>“{tx(m.invite)}”</p>
+              <p className="small muted">{t('Pick an angle. Declining costs nothing.')}</p>
               <div className="row">
                 {m.angles.map((angle) => (
                   <Button
@@ -130,14 +160,16 @@ function Stories() {
                     variant="subtle"
                     onClick={() => void send({ type: 'media.accept', inviteId: m.id, angle })}
                   >
-                    {angle}
+                    {tx(angle)}
                   </Button>
                 ))}
                 <Button
                   variant="ghost"
-                  onClick={() => void send({ type: 'media.decline', inviteId: m.id }, 'Declined.')}
+                  onClick={() =>
+                    void send({ type: 'media.decline', inviteId: m.id }, t('Declined.'))
+                  }
                 >
-                  Decline
+                  {t('Decline')}
                 </Button>
               </div>
             </>
@@ -146,7 +178,7 @@ function Stories() {
             <>
               {m.questions.map((q) => (
                 <div key={q.id} className="field">
-                  <div className="item-title">{q.text}</div>
+                  <div className="item-title">{tx(q.text)}</div>
                   <div className="chips" style={{ marginTop: '0.3rem' }}>
                     {q.options.map((o) => {
                       const chosen = (answers[m.id]?.[q.id] ?? m.answers[q.id]) === o.id;
@@ -162,7 +194,7 @@ function Stories() {
                             }))
                           }
                         >
-                          {o.label}
+                          {tx(o.label)}
                         </button>
                       );
                     })}
@@ -180,24 +212,27 @@ function Stories() {
                   })
                 }
               >
-                {m.status === 'preview' ? 'Change answers' : 'Send answers (1h)'}
+                {m.status === 'preview' ? t('Change answers') : t('Send answers (1h)')}
               </Button>
             </>
           )}
           {m.status === 'preview' && m.draft && (
             <Card tone={m.checks.some((c) => c.result === 'false') ? 'warn' : 'good'}>
               <div className="small muted">
-                Fact check: {m.checks.map((c) => `${c.questionId} ${c.result}`).join(' · ')}
+                {t('Fact check: {list}', {
+                  list: m.checks.map((c) => `${c.questionId} ${checkLabel(c.result)}`).join(' · '),
+                })}
               </div>
               <div className="headline" style={{ marginTop: '0.4rem' }}>
-                {m.draft.headline}
+                {tx(m.draft.headline)}
               </div>
-              <p>{m.draft.body}</p>
+              <p>{tx(m.draft.body)}</p>
               {m.checks.some((c) => c.result === 'false') ? (
                 <>
                   <p className="small warn">
-                    A claim is clearly false. Correct it, pull out, or insist: the true figure runs
-                    with a note and your stars drop.
+                    {t(
+                      'A claim is clearly false. Correct it, pull out, or insist: the true figure runs with a note and your stars drop.',
+                    )}
                   </p>
                   <div className="row">
                     <Button
@@ -205,19 +240,19 @@ function Stories() {
                       onClick={() =>
                         void send(
                           { type: 'media.publish', inviteId: m.id, insist: true },
-                          (r: { alert: string }) => r.alert,
+                          (r: { alert: string }) => tx(r.alert),
                         )
                       }
                     >
-                      Insist
+                      {t('Insist')}
                     </Button>
                     <Button
                       variant="ghost"
                       onClick={() =>
-                        void send({ type: 'media.pull', inviteId: m.id }, 'Pulled out.')
+                        void send({ type: 'media.pull', inviteId: m.id }, t('Pulled out.'))
                       }
                     >
-                      Pull out
+                      {t('Pull out')}
                     </Button>
                   </div>
                 </>
@@ -227,34 +262,38 @@ function Stories() {
                     onClick={() =>
                       void send(
                         { type: 'media.publish', inviteId: m.id, insist: false },
-                        (r: { alert: string }) => r.alert,
+                        (r: { alert: string }) => tx(r.alert),
                       )
                     }
                   >
-                    Approve
+                    {t('Approve')}
                   </Button>
                   <Button
                     variant="ghost"
-                    onClick={() => void send({ type: 'media.pull', inviteId: m.id }, 'Pulled out.')}
+                    onClick={() =>
+                      void send({ type: 'media.pull', inviteId: m.id }, t('Pulled out.'))
+                    }
                   >
-                    Pull out
+                    {t('Pull out')}
                   </Button>
                 </div>
               )}
-              <p className="small muted">You can approve or pull out, not rewrite.</p>
+              <p className="small muted">{t('You can approve or pull out, not rewrite.')}</p>
             </Card>
           )}
         </Card>
       ))}
-      <Card title="Pitch a story">
-        <p className="small muted">The reporter decides. One pitch per outlet every few months.</p>
+      <Card title={t('Pitch a story')}>
+        <p className="small muted">
+          {t('The reporter decides. One pitch per outlet every few months.')}
+        </p>
         <ul className="list">
           {view.market.outlets.map((o) => (
             <li key={o.id} className="spread">
               <div>
                 <div className="item-title">{o.name}</div>
                 <div className="small muted">
-                  {o.type} · {o.reporter}
+                  {outletLabel(o.type)} · {o.reporter}
                 </div>
               </div>
               <Button
@@ -268,12 +307,14 @@ function Stories() {
                     },
                     (r: { accepted: boolean; reason?: string }) =>
                       r.accepted
-                        ? 'They’re interested. Check My stories.'
-                        : (r.reason ?? 'Not for now.'),
+                        ? t('They’re interested. Check My stories.')
+                        : r.reason
+                          ? tx(r.reason)
+                          : t('Not for now.'),
                   )
                 }
               >
-                Pitch (2h)
+                {t('Pitch (2h)')}
               </Button>
             </li>
           ))}
@@ -281,11 +322,11 @@ function Stories() {
       </Card>
       {past.length > 0 && (
         <details>
-          <summary className="small muted">Past stories ({past.length})</summary>
+          <summary className="small muted">{t('Past stories ({n})', { n: past.length })}</summary>
           <ul className="list small">
             {past.map((m) => (
               <li key={m.id}>
-                {m.outletName}: {m.status}
+                {m.outletName}: {statusLabel(m.status)}
               </li>
             ))}
           </ul>

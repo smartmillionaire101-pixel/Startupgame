@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useGame, useView } from './store';
 import { Pill, Toasts } from './ui';
 import { stars } from './format';
+import { t } from './i18n';
 import { SignIn } from './screens/SignIn';
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
@@ -10,6 +11,7 @@ import { MoneyScreen } from './screens/Money';
 import { DealFlow, Portfolio } from './screens/Investor';
 import { NewsScreen } from './screens/News';
 import { MeScreen } from './screens/Me';
+import { BankScreen } from './screens/Bank';
 
 export function App() {
   const { status } = useGame();
@@ -18,14 +20,16 @@ export function App() {
       {status === 'loading' && (
         <div className="app">
           <p className="muted" style={{ paddingTop: '3rem' }}>
-            Loading Runway…
+            {t('Loading Runway…')}
           </p>
         </div>
       )}
       {status === 'offline' && (
         <div className="app">
           <p style={{ paddingTop: '3rem' }}>
-            Can’t reach the server. Your daily digest is available offline once you’ve opened it.
+            {t(
+              'Can’t reach the server. Your daily digest is available offline once you’ve opened it.',
+            )}
           </p>
         </div>
       )}
@@ -37,7 +41,7 @@ export function App() {
   );
 }
 
-type TabId = 'home' | 'company' | 'money' | 'deals' | 'portfolio' | 'news' | 'me';
+type TabId = 'home' | 'company' | 'money' | 'deals' | 'portfolio' | 'bank' | 'news' | 'me';
 
 function Game() {
   const { view } = useView();
@@ -46,21 +50,32 @@ function Game() {
   const unread = view.inbox.filter((i) => !i.read).length;
   const myTurn = view.deals.filter((d) => d.yourTurn).length;
   const stories = view.media.filter((m) => m.status === 'invited' || m.status === 'preview').length;
-  const tabs: { id: TabId; label: string; icon: string; badge?: number }[] = founder
+  const bankRequests = view.deals.filter(
+    (d) => d.yourTurn && d.counterparty.kind === 'playerbank',
+  ).length;
+  const banker = view.me.role === 'banker';
+  const tabs: { id: TabId; label: string; icon: string; badge?: number }[] = banker
     ? [
-        { id: 'home', label: 'Home', icon: '⌂', badge: unread },
-        { id: 'company', label: 'Company', icon: '◧' },
-        { id: 'money', label: 'Money', icon: '◎', badge: myTurn },
-        { id: 'news', label: 'News', icon: '▤', badge: stories },
-        { id: 'me', label: 'Me', icon: '◉' },
+        { id: 'home', label: t('Home'), icon: '⌂', badge: unread },
+        { id: 'bank', label: t('Bank'), icon: '🏦', badge: bankRequests },
+        { id: 'news', label: t('News'), icon: '▤', badge: stories },
+        { id: 'me', label: t('Me'), icon: '◉' },
       ]
-    : [
-        { id: 'home', label: 'Home', icon: '⌂', badge: unread },
-        { id: 'deals', label: 'Deal flow', icon: '◎', badge: myTurn },
-        { id: 'portfolio', label: 'Portfolio', icon: '◧' },
-        { id: 'news', label: 'News', icon: '▤', badge: stories },
-        { id: 'me', label: 'Me', icon: '◉' },
-      ];
+    : founder
+      ? [
+          { id: 'home', label: t('Home'), icon: '⌂', badge: unread },
+          { id: 'company', label: t('Company'), icon: '◧' },
+          { id: 'money', label: t('Money'), icon: '◎', badge: myTurn },
+          { id: 'news', label: t('News'), icon: '▤', badge: stories },
+          { id: 'me', label: t('Me'), icon: '◉' },
+        ]
+      : [
+          { id: 'home', label: t('Home'), icon: '⌂', badge: unread },
+          { id: 'deals', label: t('Deal flow'), icon: '◎', badge: myTurn },
+          { id: 'portfolio', label: t('Portfolio'), icon: '◧' },
+          { id: 'news', label: t('News'), icon: '▤', badge: stories },
+          { id: 'me', label: t('Me'), icon: '◉' },
+        ];
   const current = tabs.some((t) => t.id === tab) ? tab : 'home';
 
   return (
@@ -72,7 +87,9 @@ function Game() {
             <span className="small muted">{view.market.date.label}</span>
           </div>
           <div className="topbar-meta">
-            <Pill tone={view.me.hours.left < 20 ? 'warn' : undefined}>{view.me.hours.left}h</Pill>
+            <Pill tone={view.me.hours.left < 20 ? 'warn' : undefined}>
+              {t('{n}h', { n: view.me.hours.left })}
+            </Pill>
             <Pill tone={view.me.burnout ? 'bad' : view.me.energy < 40 ? 'warn' : undefined}>
               ⚡{view.me.energy}
             </Pill>
@@ -85,11 +102,12 @@ function Game() {
           {current === 'money' && <MoneyScreen />}
           {current === 'deals' && <DealFlow />}
           {current === 'portfolio' && <Portfolio />}
+          {current === 'bank' && <BankScreen />}
           {current === 'news' && <NewsScreen />}
           {current === 'me' && <MeScreen />}
         </main>
       </div>
-      <nav className="nav" aria-label="Main">
+      <nav className="nav" aria-label={t('Main')}>
         <div className="nav-inner">
           {tabs.map((t) => (
             <button

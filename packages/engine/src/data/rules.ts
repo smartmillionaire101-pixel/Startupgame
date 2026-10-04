@@ -74,6 +74,40 @@ const common = (
   },
 ];
 
+/** Phase 2 markets share the same rule shapes with their own regulators. */
+const phase2 = (
+  market: MarketId,
+  data: string,
+  tax: string,
+  labour: string,
+  payments: string,
+  health: string,
+): RuleCard[] => [
+  ...common(market, data, tax, labour),
+  {
+    id: `${market}.payments-licence`,
+    title: 'Payments licence',
+    appliesTo: ['fintech'],
+    requires: 'Hold a payment service licence with minimum capital.',
+    costCol: 25,
+    hours: 40,
+    penalty: 'Forced shutdown of the payments product line.',
+    fineCol: 20,
+    regulator: payments,
+  },
+  {
+    id: `${market}.health-records`,
+    title: 'Health services registration',
+    appliesTo: ['healthtech'],
+    requires: 'Register clinical services and protect records.',
+    costCol: 3,
+    hours: 15,
+    penalty: 'Suspension of the service.',
+    fineCol: 6,
+    regulator: health,
+  },
+];
+
 export const RULE_CARDS: Record<MarketId, RuleCard[]> = {
   lagos: [
     ...common(
@@ -160,6 +194,54 @@ export const RULE_CARDS: Record<MarketId, RuleCard[]> = {
       regulator: 'Care Quality Commission',
     },
   ],
+  accra: phase2(
+    'accra',
+    'Data Protection Commission',
+    'Ghana Revenue Authority',
+    'National Labour Commission',
+    'Bank of Ghana',
+    'Health Facilities Regulatory Agency',
+  ),
+  freetown: phase2(
+    'freetown',
+    'Ministry of Information and Communications',
+    'National Revenue Authority',
+    'Ministry of Labour',
+    'Bank of Sierra Leone',
+    'Pharmacy Board of Sierra Leone',
+  ),
+  kigali: phase2(
+    'kigali',
+    'National Cyber Security Authority',
+    'Rwanda Revenue Authority',
+    'Ministry of Public Service and Labour',
+    'National Bank of Rwanda',
+    'Rwanda FDA',
+  ),
+  johannesburg: phase2(
+    'johannesburg',
+    'Information Regulator (POPIA)',
+    'SARS',
+    'Department of Employment and Labour',
+    'SARB Prudential Authority',
+    'Health Professions Council',
+  ),
+  cairo: phase2(
+    'cairo',
+    'Personal Data Protection Centre',
+    'Egyptian Tax Authority',
+    'Ministry of Labour',
+    'Central Bank of Egypt',
+    'Egyptian Drug Authority',
+  ),
+  dubai: phase2(
+    'dubai',
+    'UAE Data Office',
+    'Federal Tax Authority',
+    'Ministry of Human Resources',
+    'Central Bank of the UAE',
+    'Dubai Health Authority',
+  ),
 };
 
 export const rulesFor = (market: MarketId, industry: Industry): RuleCard[] =>

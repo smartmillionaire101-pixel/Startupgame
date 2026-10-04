@@ -3,13 +3,30 @@
  * named currency. Floats never touch balances. Integers stay exact up to
  * 2^53 minor units (~9e13 major units), far above any plausible game value.
  */
-export const CURRENCIES = ['NGN', 'KES', 'GBP', 'USD'] as const;
+export const CURRENCIES = [
+  'NGN',
+  'KES',
+  'GBP',
+  'GHS',
+  'SLE',
+  'RWF',
+  'ZAR',
+  'EGP',
+  'AED',
+  'USD',
+] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
 export const CURRENCY_SYMBOL: Record<Currency, string> = {
   NGN: '₦',
   KES: 'KSh',
   GBP: '£',
+  GHS: 'GH₵',
+  SLE: 'Le',
+  RWF: 'FRw',
+  ZAR: 'R',
+  EGP: 'E£',
+  AED: 'AED ',
   USD: '$',
 };
 

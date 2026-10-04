@@ -5,6 +5,14 @@
  */
 import type { Industry } from './industries.js';
 import type { MarketId } from './markets.js';
+import {
+  P2_BANKS,
+  P2_FIRST_NAMES,
+  P2_FUNDS,
+  P2_INCUMBENTS,
+  P2_LAST_NAMES,
+  P2_OUTLETS,
+} from './fiction-phase2.js';
 
 export interface AiFundSeed {
   name: string;
@@ -168,6 +176,7 @@ export const AI_FUNDS: Record<MarketId, AiFundSeed[]> = {
       minStars: 1,
     },
   ],
+  ...P2_FUNDS,
 };
 
 export type OutletType = 'national' | 'tech' | 'tabloid' | 'trade' | 'regional' | 'global';
@@ -234,12 +243,14 @@ export const OUTLETS: Record<MarketId, OutletSeed[]> = {
     { id: 'borough-bulletin', name: 'Borough Bulletin', type: 'regional', reporter: 'Grace Okoro' },
     { id: 'global-ticker', name: 'The Global Ticker', type: 'global', reporter: 'Marta Lind' },
   ],
+  ...P2_OUTLETS,
 };
 
 export const AI_BANKS: Record<MarketId, string> = {
   lagos: 'Eko Union Bank',
   nairobi: 'Mlima Commercial Bank',
   london: 'Albion & Weir Bank',
+  ...P2_BANKS,
 };
 
 export const AI_INCUMBENTS: Record<MarketId, Partial<Record<Industry, string>>> = {
@@ -270,6 +281,7 @@ export const AI_INCUMBENTS: Record<MarketId, Partial<Record<Industry, string>>> 
     saas: 'Ironbridge Software',
     agritech: 'Hedgerow Foods',
   },
+  ...P2_INCUMBENTS,
 };
 
 /** Name parts for AI founders' startups. Combined deterministically by seed. */
@@ -334,9 +346,11 @@ export const AI_FIRST_NAMES: Record<MarketId, string[]> = {
     'Maina',
   ],
   london: ['Olivia', 'James', 'Aisha', 'Tom', 'Mei', 'Rhys', 'Hannah', 'Kofi', 'Sara', 'Luca'],
+  ...P2_FIRST_NAMES,
 };
 export const AI_LAST_NAMES: Record<MarketId, string[]> = {
   lagos: ['Adebayo', 'Okeke', 'Balogun', 'Ibrahim', 'Nnamdi', 'Ogun', 'Danjuma', 'Afolabi'],
   nairobi: ['Kariuki', 'Wekesa', 'Otieno', 'Chege', 'Mwangi', 'Langat', 'Nduta', 'Kimani'],
   london: ['Hughes', 'Patel', 'Clarke', 'Bennett', 'Ahmed', 'Walsh', 'Turner', 'Okafor'],
+  ...P2_LAST_NAMES,
 };

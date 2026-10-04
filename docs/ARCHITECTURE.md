@@ -20,7 +20,7 @@
 - **Integer money.** Minor units only (kobo, cents, pence). Floats never touch balances.
 - **Privacy by projection.** The world holds everything; `playerView` returns only what that player may see. AI negotiation limits and the truth behind pitch options are stripped (tested).
 
-Key modules: `customers.ts` (segments capped by real buyers, funnel, competition), `staff.ts` (talent pool, negotiation, morale), `captable.ts` (SAFEs, priced rounds, pool shuffle, waterfall), `fundraising.ts`, `deals.ts` (deal cards), `media.ts` (outreach, fact-check), `company.ts` (monthly operations), `personal.ts` (lifestyle, hours, gigs, FX), `funds.ts` (Fund I, fees, carry), `ai.ts` (AI population), `settlement.ts` (the month).
+Key modules: `customers.ts` (segments capped by real buyers, funnel, competition), `staff.ts` (talent pool, negotiation, morale), `captable.ts` (SAFEs, priced rounds, pool shuffle, waterfall), `fundraising.ts`, `deals.ts` (deal cards), `media.ts` (outreach, fact-check), `company.ts` (monthly operations), `personal.ts` (lifestyle, hours, gigs, FX), `funds.ts` (Fund I, fees, carry), `ai.ts` (AI population), `settlement.ts` (the month). Phase 2: `credit.ts`, `travel.ts`, `marketplace.ts`, `governance.ts`, `acquisitions.ts`, `arbitration.ts`, `banks.ts`, and `upgrade.ts` (schema upgrades for saved worlds).
 
 Balancing constants live in one place per system (`CUSTOMER_TUNING`, `STAR_TUNING`, salary bands, `OUTLET_EFFECT`), and `npm run sim` prints an economy report to tune them — the design doc lists star values and hours as beta-tuning questions.
 
@@ -41,11 +41,13 @@ Markets are independent except for FX and cross-market rules, so the natural nex
 
 React with hand-written CSS (about 90 KB gzipped, mostly React). Server-sent events tell clients to refetch when the world changes; **lite mode** drops charts and the live connection and polls every minute. A service worker caches the app shell and the public daily digest for offline reading; private state is never cached. Light/dark themes, safe-area insets, reduced-motion support, labelled controls.
 
+**Languages.** English and French (`src/i18n`). Strings are written in English and wrapped in `t('…')`, gettext style, so a missing translation falls back to readable English; placeholders (`{name}`) keep word order free. A test extracts every `t()` call from the source and fails on any string without French or with mismatched placeholders. Server text goes through `tx()`, which translates exact matches. The language is detected from the browser and can be switched on the sign-in screen or in Settings.
+
 ## Testing
 
 | Layer | Tool | Highlights |
 | --- | --- | --- |
 | Engine | Vitest + fast-check | money conservation under random play, cap-table and waterfall properties, determinism, fact-checking, privacy of views |
 | Server | Vitest + Fastify inject | auth, CSRF, rule errors → 422, chat privacy and filters, account deletion, exact replay after restart |
-| Web | Vitest + Testing Library | sign-in flow and request headers, amount parsing |
-| End to end | Playwright | founder and investor journeys against the real server and production build |
+| Web | Vitest + Testing Library | sign-in flow and request headers, amount parsing, French catalog completeness and formats |
+| End to end | Playwright | founder, investor and banker journeys against the real server and production build |

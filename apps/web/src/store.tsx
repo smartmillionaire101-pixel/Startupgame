@@ -14,6 +14,7 @@ import {
 } from 'react';
 import type { Command, PlayerView } from '@runway/engine';
 import { api, ApiError, type Meta } from './api';
+import { t, tx } from './i18n';
 
 type Status = 'loading' | 'signedOut' | 'onboarding' | 'ready' | 'offline';
 
@@ -123,7 +124,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         await refresh();
         return r.result;
       } catch (e) {
-        toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
+        toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error');
         return null;
       } finally {
         setBusy(false);

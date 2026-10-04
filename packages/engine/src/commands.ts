@@ -31,6 +31,7 @@ export const investorSetup = z.object({
 
 export const commandSchema = z.discriminatedUnion('type', [
   // ---- system (server only)
+  z.object({ type: z.literal('market.open'), market }),
   z.object({
     type: z.literal('market.settle'),
     market,
@@ -53,6 +54,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     backgroundId: z.string().max(32),
     market,
     company: companySetup.optional(),
+    bank: z
+      .object({
+        name: z.string().min(3).max(32),
+        bankType: z.enum(['commercial', 'investment', 'venture-debt', 'microfinance']),
+      })
+      .optional(),
     investor: investorSetup.optional(),
   }),
   // ---- founder
@@ -98,6 +105,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('company.loan'),
     companyId: id,
+    bankId: id.optional(),
     amount: money,
     months: z.number().int().min(3).max(36),
     personalGuarantee: z.boolean(),
@@ -173,6 +181,85 @@ export const commandSchema = z.discriminatedUnion('type', [
   // ---- personal
   z.object({ type: z.literal('player.lifestyle'), tier: z.number().int().min(1).max(5) }),
   z.object({ type: z.literal('player.gig') }),
+  z.object({
+    type: z.literal('player.loan'),
+    amount: money,
+    months: z.number().int().min(3).max(60),
+    collateralCompanyId: id.optional(),
+    bankId: id.optional(),
+  }),
+  z.object({ type: z.literal('player.travel'), market }),
+  // ---- acquisitions, governance, arbitration (§9, §12)
+  z.object({
+    type: z.literal('acquire.propose'),
+    buyerCompanyId: id,
+    targetCompanyId: id,
+    price: money,
+    retention: money,
+    advisorBankId: id.optional(),
+  }),
+  // ---- banks (§8)
+  z.object({
+    type: z.literal('bank.found'),
+    name: z.string().min(3).max(32),
+    bankType: z.enum(['commercial', 'investment', 'venture-debt', 'microfinance']),
+    contribution: money,
+  }),
+  z.object({
+    type: z.literal('bank.policy'),
+    bankId: id,
+    loanSpreadPp: z.number().min(0.5).max(30).optional(),
+    depositRateBps: z.number().int().min(0).max(5000).optional(),
+    accountFee: money.optional(),
+    salary: money.optional(),
+  }),
+  z.object({ type: z.literal('bank.dividend'), bankId: id, amount: money }),
+  z.object({ type: z.literal('bank.review'), bankId: id, rating: z.number().int().min(1).max(5) }),
+  z.object({
+    type: z.literal('account.move'),
+    account: z.union([z.literal('personal'), z.literal('usd'), id]),
+    bankId: id.nullable(),
+  }),
+  z.object({ type: z.literal('vote.cast'), voteId: id, ballot: z.enum(['yes', 'no']) }),
+  z.object({ type: z.literal('governance.removeCeo'), companyId: id, founderId: id }),
+  z.object({
+    type: z.literal('dispute.file'),
+    kind: z.enum(['supply-breach', 'wrongful-removal']),
+    refId: id,
+  }),
+  // ---- B2B marketplace (§6)
+  z.object({
+    type: z.literal('listing.create'),
+    companyId: id,
+    title: z.string().min(3).max(60),
+    price: money,
+  }),
+  z.object({
+    type: z.literal('listing.update'),
+    listingId: id,
+    price: money.optional(),
+    active: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('supply.propose'),
+    buyerCompanyId: id,
+    listingId: id,
+    price: money,
+    months: z.number().int().min(1).max(36),
+  }),
+  z.object({ type: z.literal('supply.cancel'), contractId: id }),
+  z.object({
+    type: z.literal('supply.review'),
+    contractId: id,
+    rating: z.number().int().min(1).max(5),
+  }),
+  z.object({
+    type: z.literal('player.relocate'),
+    market,
+    handle: z.string().min(3).max(20).optional(),
+  }),
+  z.object({ type: z.literal('player.repay'), loanId: id, amount: money }),
+  z.object({ type: z.literal('company.inject'), companyId: id, amount: money }),
   z.object({ type: z.literal('player.usdOpen') }),
   z.object({
     type: z.literal('player.convert'),
@@ -188,6 +275,7 @@ export type CommandType = Command['type'];
 
 /** Commands only the server itself may issue (never accepted from a client). */
 export const SYSTEM_COMMANDS: ReadonlySet<CommandType> = new Set([
+  'market.open',
   'market.settle',
   'market.data',
   'player.anonymize',

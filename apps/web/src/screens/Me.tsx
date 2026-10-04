@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import type { Industry, RevenueModel, Stage } from '@runway/engine';
 import { api } from '../api';
-import { amountInput, money, parseAmount, stars, titleCase } from '../format';
+import { LANGS, setLang, t, tx, useLang } from '../i18n';
+import { amountInput, money, parseAmount, stars } from '../format';
 import { useView } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Sparkline, Stat } from '../ui';
 import { Chats } from './Chat';
+import { BankPicker } from './common';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
 
@@ -13,9 +15,9 @@ export function MeScreen() {
   return (
     <>
       <div className="tabs" role="tablist">
-        {(['profile', 'money', 'people', 'settings'] as Tab[]).map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-            {titleCase(t)}
+        {(['profile', 'money', 'people', 'settings'] as Tab[]).map((k) => (
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>
+            {tabLabel(k)}
           </button>
         ))}
       </div>
@@ -27,26 +29,69 @@ export function MeScreen() {
   );
 }
 
-const MILESTONE_LABELS: Record<string, string> = {
-  'founder.first-customer': 'First customer',
-  'founder.first-hire': 'First hire',
-  'founder.first-raise': 'First raise',
-  'founder.revenue-100m': '₦100m revenue',
-  'founder.profitable': 'Profitable',
-  'founder.series-a': 'Series A',
-  'founder.unicorn': 'Unicorn',
-  'founder.exit': 'Exit',
-  'investor.first-check': 'First cheque',
-  'investor.first-follow-on': 'First follow-on',
-  'investor.first-board-seat': 'First board seat',
-  'investor.fund-1': 'Fund I',
-  'investor.first-exit': 'First exit',
-  'investor.fund-1x': 'Fund 1x',
-  'investor.fund-3x': 'Fund 3x',
-  'investor.fund-10x': 'Fund 10x',
-  'any.comeback': 'First comeback',
-  'any.role-switch': 'First role switch',
-};
+const tabLabel = (k: Tab) =>
+  ({ profile: t('Profile'), money: t('Money'), people: t('People'), settings: t('Settings') })[k];
+
+const roleLabel = (r: string) =>
+  ({ founder: t('Founder'), investor: t('Investor'), banker: t('Banker') })[r] ?? r;
+
+const skillLabel = (k: string) =>
+  ({
+    product: t('Product'),
+    sales: t('Sales'),
+    fundraising: t('Fundraising'),
+    finance: t('Finance'),
+    hiring: t('Hiring'),
+    leadership: t('Leadership'),
+    negotiation: t('Negotiation'),
+    publicSpeaking: t('Public speaking'),
+    investing: t('Investing'),
+    risk: t('Risk'),
+  })[k] ?? k;
+
+const modelLabel = (m: string) =>
+  ({
+    subscription: t('Subscription'),
+    transaction: t('Transaction'),
+    usage: t('Usage'),
+    marketplace: t('Marketplace'),
+    'one-off': t('One Off'),
+    services: t('Services'),
+  })[m] ?? m;
+
+const bandLabel = (b: string) =>
+  ({
+    excellent: t('excellent'),
+    good: t('good'),
+    fair: t('fair'),
+    poor: t('poor'),
+    'very poor': t('very poor'),
+  })[b] ?? b;
+
+const milestoneLabels = (): Record<string, string> => ({
+  'founder.first-customer': t('First customer'),
+  'founder.first-hire': t('First hire'),
+  'founder.first-raise': t('First raise'),
+  'founder.revenue-100m': t('₦100m revenue'),
+  'founder.profitable': t('Profitable'),
+  'founder.series-a': t('Series A'),
+  'founder.unicorn': t('Unicorn'),
+  'founder.exit': t('Exit'),
+  'investor.first-check': t('First cheque'),
+  'investor.first-follow-on': t('First follow-on'),
+  'investor.first-board-seat': t('First board seat'),
+  'investor.fund-1': t('Fund I'),
+  'investor.first-exit': t('First exit'),
+  'investor.fund-1x': t('Fund 1x'),
+  'investor.fund-3x': t('Fund 3x'),
+  'investor.fund-10x': t('Fund 10x'),
+  'any.comeback': t('First comeback'),
+  'any.role-switch': t('First role switch'),
+  'banker.licence': t('Banking licence'),
+  'banker.first-loan': t('First loan made'),
+  'banker.1000-customers': t('1,000 customers'),
+  'banker.five-star': t('Five-star bank'),
+});
 
 function Profile() {
   const { view } = useView();
@@ -54,70 +99,70 @@ function Profile() {
   const skills = Object.entries(me.skills).sort((a, b) => b[1] - a[1]);
   return (
     <>
-      <Card title={`${me.name} · @${me.handle}`} action={<Pill>{titleCase(me.role)}</Pill>}>
+      <Card title={`${me.name} · @${me.handle}`} action={<Pill>{roleLabel(me.role)}</Pill>}>
         <div className="spread">
           <div>
             <div className="stat-value">{stars(me.stars)}</div>
-            {me.publicWarning && <Pill tone="bad">Public warning</Pill>}
+            {me.publicWarning && <Pill tone="bad">{t('Public warning')}</Pill>}
           </div>
-          <Sparkline values={me.starHistory} label="Stars over time" />
+          <Sparkline values={me.starHistory} label={t('Stars over time')} />
         </div>
         <p className="small muted">
-          {me.background?.name} · {view.market.name} · network {me.network}
+          {tx(me.background?.name ?? '')} · {view.market.name} ·{' '}
+          {t('network {n}', { n: me.network })}
         </p>
         <Bar
-          label="Energy"
+          label={t('Energy')}
           value={me.energy / 100}
           tone={me.burnout ? 'bad' : me.energy < 40 ? 'warn' : 'good'}
         />
         <p className="small muted">
-          {me.hours.left} of {me.hours.available} hours left this month
-          {me.burnout ? ' · burnout cuts your hours' : ''}
+          {t('{left} of {total} hours left this month', {
+            left: me.hours.left,
+            total: me.hours.available,
+          })}
+          {me.burnout ? ` · ${t('burnout cuts your hours')}` : ''}
         </p>
       </Card>
-      <Card title="Skills">
+      <Card title={t('Skills')}>
         {skills.map(([k, v]) => (
-          <Bar
-            key={k}
-            label={titleCase(k.replace(/([A-Z])/g, ' $1').toLowerCase())}
-            value={v / 100}
-          />
+          <Bar key={k} label={skillLabel(k)} value={v / 100} />
         ))}
       </Card>
-      <Card title="Milestones">
+      <Card title={t('Milestones')}>
         {Object.keys(me.milestones).length === 0 ? (
-          <Empty>None yet. Your first customer is close.</Empty>
+          <Empty>{t('None yet. Your first customer is close.')}</Empty>
         ) : (
           <div className="chips">
             {Object.entries(me.milestones).map(([k, m]) => (
               <Pill key={k} tone="good">
-                {MILESTONE_LABELS[k] ?? k} · m{m}
+                {milestoneLabels()[k] ?? k} · {t('m{n}', { n: m })}
               </Pill>
             ))}
           </div>
         )}
       </Card>
-      <Card title={`${view.market.name} leaderboards`}>
-        <h3>Highest stars</h3>
+      <Card title={t('{market} leaderboards', { market: view.market.name })}>
+        <h3>{t('Highest stars')}</h3>
         <ol className="small">
           {view.leaderboards.highestStars.slice(0, 5).map((r) => (
             <li key={r.id}>
               {r.name}
-              {r.ai ? '' : ' (player)'} · {r.value.toFixed(1)}★
+              {r.ai ? '' : ` ${t('(player)')}`} · {r.value.toFixed(1)}★
             </li>
           ))}
         </ol>
-        <h3>Fastest growing</h3>
+        <h3>{t('Fastest growing')}</h3>
         {view.leaderboards.fastestGrowing.length ? (
           <ol className="small">
             {view.leaderboards.fastestGrowing.slice(0, 5).map((r) => (
               <li key={r.id}>
-                {r.name} · {r.value}%/mo
+                {r.name} · {t('{n}%/mo', { n: r.value })}
               </li>
             ))}
           </ol>
         ) : (
-          <Empty>Needs three months of revenue.</Empty>
+          <Empty>{t('Needs three months of revenue.')}</Empty>
         )}
       </Card>
     </>
@@ -133,62 +178,68 @@ function PersonalMoney() {
     <>
       <div className="kpis">
         <Stat
-          label="Savings"
+          label={t('Savings')}
           value={money(local.balance, cur)}
-          hint={`${Math.floor(local.balance / Math.max(1, view.me.lifestyle.monthlyCost))} months of living`}
+          hint={t('{n} months of living', {
+            n: Math.floor(local.balance / Math.max(1, view.me.lifestyle.monthlyCost)),
+          })}
         />
         <Stat
-          label="Dollar account"
+          label={t('Dollar account')}
           value={usd ? money(usd.balance, 'USD') : '—'}
-          hint={usd ? `${cur}/USD ${view.market.unitsPerUsd}` : 'Not opened'}
+          hint={usd ? `${cur}/USD ${view.market.unitsPerUsd}` : t('Not opened')}
         />
       </div>
-      <Card title="Lifestyle">
+      <Card title={t('Lifestyle')}>
         <p className="small muted">
-          Costs money every month; changes your energy, hours and how investors and tabloids see
-          you. Fixed costs are hard to cut later.
+          {t(
+            'Costs money every month; changes your energy, hours and how investors and tabloids see you. Fixed costs are hard to cut later.',
+          )}
         </p>
         <div className="choice-grid">
-          {view.lifestyleTiers.map((t) => (
+          {view.lifestyleTiers.map((tier) => (
             <button
-              key={t.tier}
+              key={tier.tier}
               className="choice"
-              aria-pressed={view.me.lifestyle.tier === t.tier}
+              aria-pressed={view.me.lifestyle.tier === tier.tier}
               onClick={() =>
-                void send({ type: 'player.lifestyle', tier: t.tier }, `Lifestyle: ${t.name}.`)
+                void send(
+                  { type: 'player.lifestyle', tier: tier.tier },
+                  t('Lifestyle: {name}.', { name: tx(tier.name) }),
+                )
               }
             >
               <div className="spread">
-                <span className="item-title">{t.name}</span>
-                <span>{money(t.monthlyCost, cur)}/mo</span>
+                <span className="item-title">{tx(tier.name)}</span>
+                <span>{t('{amount}/mo', { amount: money(tier.monthlyCost, cur) })}</span>
               </div>
               <div className="small muted">
-                {t.housing} · {t.transport} · {t.hours >= 0 ? '+' : ''}
-                {t.hours}h
+                {tx(tier.housing)} · {tx(tier.transport)} ·{' '}
+                {t('{n}h', { n: `${tier.hours >= 0 ? '+' : ''}${tier.hours}` })}
               </div>
             </button>
           ))}
         </div>
       </Card>
-      <Card title="Dollar account">
+      <Card title={t('Dollar account')}>
         {!usd ? (
           <Button
             variant="subtle"
-            onClick={() => void send({ type: 'player.usdOpen' }, 'Dollar account open.')}
+            onClick={() => void send({ type: 'player.usdOpen' }, t('Dollar account open.'))}
           >
-            Open a dollar account
+            {t('Open a dollar account')}
           </Button>
         ) : (
           <>
             <Field
-              label="Amount"
-              hint={`Official rate plus a ${view.market.fxFeeBps / 100}% bank fee.`}
+              label={t('Amount')}
+              hint={t('Official rate plus a {pct}% bank fee.', { pct: view.market.fxFeeBps / 100 })}
             >
               {(id) => (
                 <input
                   id={id}
                   value={amount}
-                  placeholder="e.g. 500k"
+                  placeholder={t('e.g. 500k')}
                   onChange={(e) => setAmount(e.target.value)}
                 />
               )}
@@ -203,7 +254,8 @@ function PersonalMoney() {
                       direction: 'toUsd',
                       amount: parseAmount(amount) ?? 0,
                     },
-                    (r: { received: number }) => `Received ${money(r.received, 'USD')}.`,
+                    (r: { received: number }) =>
+                      t('Received {amount}.', { amount: money(r.received, 'USD') }),
                   )
                 }
               >
@@ -218,7 +270,8 @@ function PersonalMoney() {
                       direction: 'toLocal',
                       amount: parseAmount(amount) ?? 0,
                     },
-                    (r: { received: number }) => `Received ${money(r.received, cur)}.`,
+                    (r: { received: number }) =>
+                      t('Received {amount}.', { amount: money(r.received, cur) }),
                   )
                 }
               >
@@ -228,30 +281,349 @@ function PersonalMoney() {
           </>
         )}
       </Card>
-      <Card title="Freelance gig">
+      <Card title={t('Freelance gig')}>
         <p className="small muted">
-          Slow, but nobody is ever locked out. {money(view.market.floorGig.pay, cur)} for{' '}
-          {view.market.floorGig.hours}h. {view.me.gigsThisMonth}/2 this month.
+          {t('Slow, but nobody is ever locked out. {pay} for {hours}h. {n}/2 this month.', {
+            pay: money(view.market.floorGig.pay, cur),
+            hours: view.market.floorGig.hours,
+            n: view.me.gigsThisMonth,
+          })}
         </p>
         <Button
           variant="subtle"
-          onClick={() => void send({ type: 'player.gig' }, (r: { text: string }) => r.text)}
+          onClick={() => void send({ type: 'player.gig' }, (r: { text: string }) => tx(r.text))}
         >
-          Take a gig
+          {t('Take a gig')}
         </Button>
       </Card>
-      <Card title="Recent transactions">
+      <Card title={t('Recent transactions')}>
         <ul className="list small">
-          {local.recent.slice(0, 12).map((t, i) => (
+          {local.recent.slice(0, 12).map((tr, i) => (
             <li key={i} className="spread">
-              <span>{t.memo}</span>
-              <span className={t.amount >= 0 ? 'good' : ''}>{money(t.amount, cur)}</span>
+              <span>{tx(tr.memo)}</span>
+              <span className={tr.amount >= 0 ? 'good' : ''}>{money(tr.amount, cur)}</span>
             </li>
           ))}
         </ul>
       </Card>
+      <Credit />
+      <WhereYouBank />
+      <Travel />
       <CareerMoves />
     </>
+  );
+}
+
+/** Travel and relocation (§14). */
+function Travel() {
+  const { view, send, cur } = useView();
+  const [moveTo, setMoveTo] = useState('');
+  const [handle, setHandle] = useState('');
+  const dests = view.me.destinations;
+  return (
+    <Card title={t('Travel')}>
+      <p className="small muted">
+        {t(
+          'A trip costs money and {hours} hours. You must visit a market before investing or acquiring there, and you can pitch its investors during the trip month.',
+          { hours: 40 },
+        )}
+      </p>
+      <ul className="list">
+        {dests.map((d) => (
+          <li key={d.id} className="spread">
+            <span>
+              {d.name} <span className="small muted">· {money(d.tripCost, cur)}</span>
+              {d.visitingNow ? (
+                <Pill tone="good">{t('This month')}</Pill>
+              ) : view.me.visited[d.id as keyof typeof view.me.visited] !== undefined ? (
+                <Pill>{t('Visited')}</Pill>
+              ) : null}
+            </span>
+            <Button
+              variant="ghost"
+              disabled={d.visitingNow}
+              onClick={() =>
+                void send({ type: 'player.travel', market: d.id as never }, (r: { text: string }) =>
+                  tx(r.text),
+                )
+              }
+            >
+              {t('Go')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <details style={{ marginTop: '0.6rem' }}>
+        <summary className="small">{t('Relocate permanently')}</summary>
+        <p className="small bad">
+          {t(
+            'You lose half of everything: cash, shares and stakes. The lost half goes to the central bank here. Co-founders or an AI CEO run what you leave; your shares pay dividends only while profitable.',
+          )}
+        </p>
+        <div className="grid2">
+          <Field label={t('Move to')}>
+            {(id) => (
+              <select id={id} value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
+                <option value="">{t('Choose…')}</option>
+                {dests.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <Field label={t('Handle there (optional)')}>
+            {(id) => (
+              <input
+                id={id}
+                value={handle}
+                placeholder={view.me.handle}
+                onChange={(e) => setHandle(e.target.value)}
+              />
+            )}
+          </Field>
+        </div>
+        <Confirm
+          label={t('Relocate')}
+          confirmLabel={t('Yes, give up half and move')}
+          onConfirm={() =>
+            void send(
+              { type: 'player.relocate', market: moveTo as never, ...(handle ? { handle } : {}) },
+              t('You’ve relocated. A fresh start.'),
+            )
+          }
+        />
+      </details>
+    </Card>
+  );
+}
+
+/** Credit profile and personal loans (§8). */
+function Credit() {
+  const { view, send, cur } = useView();
+  const credit = view.me.credit;
+  const [amount, setAmount] = useState('');
+  const [months, setMonths] = useState(12);
+  const [collateral, setCollateral] = useState('');
+  const [bankId, setBankId] = useState('');
+  const pledgeable = view.companies.filter(
+    (c) =>
+      c.status === 'active' &&
+      c.capTable.lastPostMoney > 0 &&
+      c.capTable.rows.some((r) => r.holderId === view.me.id),
+  );
+  return (
+    <Card
+      title={t('Credit and loans')}
+      action={
+        <Pill tone={credit.score >= 65 ? 'good' : credit.score < 35 ? 'bad' : 'warn'}>
+          {credit.score} · {bandLabel(credit.band)}
+        </Pill>
+      }
+    >
+      <p className="small muted">
+        {t('{onTime} on-time payments · {missed} missed · {defaults} defaults · debt {debt}', {
+          onTime: credit.onTimePayments,
+          missed: credit.missedPayments,
+          defaults: credit.defaults,
+          debt: money(credit.debt, cur),
+        })}
+      </p>
+      {view.me.loans.length > 0 && (
+        <ul className="list small">
+          {view.me.loans.map((l) => (
+            <li key={l.id} className="spread">
+              <span>
+                {t('{lender}: {amount} left · {payment}/mo · {n} months', {
+                  lender: l.lender,
+                  amount: money(l.outstanding, cur),
+                  payment: money(l.monthlyPayment, cur),
+                  n: l.monthsLeft,
+                })}
+                {l.collateral
+                  ? ` · ${t('{label} pledged', { label: tx(l.collateral.label) })}`
+                  : ''}
+                {l.missed > 0 && <span className="bad"> · {t('payment missed')}</span>}
+              </span>
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  void send(
+                    { type: 'player.repay', loanId: l.id, amount: l.outstanding },
+                    t('Loan repaid.'),
+                  )
+                }
+              >
+                {t('Repay')}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="small muted">
+        {t('Unsecured limit today: {limit}. Pledging shares raises it and lowers the rate.', {
+          limit: money(credit.unsecuredLimit, cur),
+        })}
+      </p>
+      <BankPicker value={bankId} onChange={setBankId} product="people" />
+      <div className="grid2">
+        <Field label={t('Amount ({cur})', { cur })}>
+          {(id) => (
+            <input
+              id={id}
+              value={amount}
+              placeholder={t('e.g. 2m')}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          )}
+        </Field>
+        <Field label={t('Months')}>
+          {(id) => (
+            <input
+              id={id}
+              type="number"
+              min={3}
+              max={60}
+              value={months}
+              onChange={(e) => setMonths(Number(e.target.value))}
+            />
+          )}
+        </Field>
+      </div>
+      {pledgeable.length > 0 && (
+        <Field label={t('Collateral')}>
+          {(id) => (
+            <select id={id} value={collateral} onChange={(e) => setCollateral(e.target.value)}>
+              <option value="">{t('None (unsecured)')}</option>
+              {pledgeable.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {t('My {name} shares', { name: c.name })}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+      )}
+      <Button
+        variant="subtle"
+        disabled={!parseAmount(amount)}
+        onClick={() =>
+          void send(
+            {
+              type: 'player.loan',
+              amount: parseAmount(amount) ?? 0,
+              months,
+              ...(collateral ? { collateralCompanyId: collateral } : {}),
+              ...(bankId ? { bankId } : {}),
+            },
+            (r: { summary: string }) =>
+              t('Offer ready on your deal cards: {summary}', { summary: tx(r.summary) }),
+          )
+        }
+      >
+        {t('Ask {bank}', {
+          bank: view.market.banks.find((b) => b.id === bankId)?.name ?? view.market.bankName,
+        })}
+      </Button>
+    </Card>
+  );
+}
+
+/** Move accounts to a player bank, or back to the market's AI bank (§8). */
+function WhereYouBank() {
+  const { view, send } = useView();
+  const [rating, setRating] = useState(4);
+  const banks = view.market.banks;
+  if (banks.length === 0) return null;
+  const rows: {
+    key: string;
+    label: string;
+    account: 'personal' | 'usd' | string;
+    bankId: string | null;
+  }[] = [
+    {
+      key: 'personal',
+      label: t('Savings'),
+      account: 'personal',
+      bankId: view.accounts.local?.bankId ?? null,
+    },
+    ...(view.accounts.usd
+      ? [
+          {
+            key: 'usd',
+            label: t('Dollar account'),
+            account: 'usd',
+            bankId: view.accounts.usd.bankId,
+          },
+        ]
+      : []),
+    ...view.companies
+      .filter((c) => c.status === 'active' && c.market === view.market.id)
+      .map((c) => ({ key: c.id, label: c.name, account: c.id, bankId: c.bankId ?? null })),
+  ];
+  const used = [...new Set(rows.map((r) => r.bankId).filter((x): x is string => !!x))];
+  return (
+    <Card title={t('Where you bank')}>
+      <p className="small muted">
+        {t(
+          'Player banks pay interest and charge fees. Deposits are insured only up to {amount} if a bank fails.',
+          { amount: money(view.market.depositInsurance, view.market.currency) },
+        )}
+      </p>
+      <ul className="list small">
+        {rows.map((r) => (
+          <li key={r.key} className="spread">
+            <span>{r.label}</span>
+            <select
+              aria-label={t('Bank for {name}', { name: r.label })}
+              value={r.bankId ?? ''}
+              onChange={(e) =>
+                void send(
+                  { type: 'account.move', account: r.account, bankId: e.target.value || null },
+                  (x: { message: string }) => tx(x.message),
+                )
+              }
+            >
+              <option value="">{view.market.bankName}</option>
+              {banks.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} · {(b.depositRateBps / 100).toFixed(1)}% · {b.stars.toFixed(1)}★
+                </option>
+              ))}
+            </select>
+          </li>
+        ))}
+      </ul>
+      {used.map((id) => {
+        const b = banks.find((x) => x.id === id);
+        if (!b) return null;
+        return (
+          <div key={id} className="row small">
+            {t('Rate {name}:', { name: b.name })}
+            <select
+              aria-label={t('Rate {name}', { name: b.name })}
+              value={rating}
+              onChange={(e) => setRating(Number(e.target.value))}
+            >
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>
+                  {n}★
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="ghost"
+              onClick={() =>
+                void send({ type: 'bank.review', bankId: id, rating }, t('Thanks for the review.'))
+              }
+            >
+              {t('Review')}
+            </Button>
+          </div>
+        );
+      })}
+    </Card>
   );
 }
 
@@ -261,11 +633,11 @@ function CareerMoves() {
   const [check, setCheck] = useState(amountInput(Math.round(view.market.costOfLiving * 2)));
   if (view.me.role !== 'founder' && view.companies.some((c) => c.status === 'active')) return null;
   return (
-    <Card title="Career moves">
+    <Card title={t('Career moves')}>
       {view.me.role === 'founder' ? (
         <>
           <p className="small muted">
-            Founder → investor: needs a year of living costs in savings.
+            {t('Founder → investor: needs a year of living costs in savings.')}
           </p>
           <div className="chips">
             {meta?.industries.map((i) => (
@@ -281,11 +653,11 @@ function CareerMoves() {
                   )
                 }
               >
-                {i.label}
+                {tx(i.label)}
               </button>
             ))}
           </div>
-          <Field label="Typical cheque">
+          <Field label={t('Typical cheque')}>
             {(id) => <input id={id} value={check} onChange={(e) => setCheck(e.target.value)} />}
           </Field>
           <Button
@@ -300,16 +672,16 @@ function CareerMoves() {
                     checkSize: parseAmount(check) ?? 0,
                   },
                 },
-                (r: { message: string }) => r.message,
+                (r: { message: string }) => tx(r.message),
               )
             }
           >
-            Become an angel
+            {t('Become an angel')}
           </Button>
         </>
       ) : (
         <>
-          <p className="small muted">Investor → founder: start a company any time.</p>
+          <p className="small muted">{t('Investor → founder: start a company any time.')}</p>
           <FoundCompany />
         </>
       )}
@@ -335,20 +707,22 @@ export function FoundCompany() {
   return (
     <div className="stack">
       <Field
-        label="Company name"
-        hint={check && !check.ok ? <span className="bad">{check.reason}</span> : undefined}
+        label={t('Company name')}
+        hint={
+          check && !check.ok ? <span className="bad">{tx(check.reason ?? '')}</span> : undefined
+        }
       >
         {(id) => (
           <input id={id} value={name} maxLength={32} onChange={(e) => verify(e.target.value)} />
         )}
       </Field>
-      <Field label="Idea in one line">
+      <Field label={t('Idea in one line')}>
         {(id) => (
           <input id={id} value={idea} maxLength={120} onChange={(e) => setIdea(e.target.value)} />
         )}
       </Field>
       <div className="grid2">
-        <Field label="Industry">
+        <Field label={t('Industry')}>
           {(id) => (
             <select
               id={id}
@@ -357,13 +731,13 @@ export function FoundCompany() {
             >
               {meta?.industries.map((i) => (
                 <option key={i.id} value={i.id}>
-                  {i.label}
+                  {tx(i.label)}
                 </option>
               ))}
             </select>
           )}
         </Field>
-        <Field label="Model">
+        <Field label={t('Model')}>
           {(id) => (
             <select
               id={id}
@@ -372,7 +746,7 @@ export function FoundCompany() {
             >
               {meta?.revenueModels.map((r) => (
                 <option key={r} value={r}>
-                  {titleCase(r)}
+                  {modelLabel(r)}
                 </option>
               ))}
             </select>
@@ -387,11 +761,11 @@ export function FoundCompany() {
               type: 'company.found',
               company: { name, idea, industry, revenueModel: model, incorporation: 'local' },
             },
-            `${name} is open for business.`,
+            t('{name} is open for business.', { name }),
           )
         }
       >
-        Start the company
+        {t('Start the company')}
       </Button>
     </div>
   );
@@ -402,16 +776,19 @@ function People() {
   return (
     <>
       <Chats />
-      <Card title={`Players in ${view.market.name}`}>
+      <Card title={t('Players in {market}', { market: view.market.name })}>
         {view.players.length === 0 ? (
-          <Empty>You’re early. More players arrive as markets open.</Empty>
+          <Empty>{t('You’re early. More players arrive as markets open.')}</Empty>
         ) : (
           <ul className="list">
             {view.players.map((p) => (
               <li key={p.id}>
                 <span className="item-title">{p.name}</span>{' '}
                 <span className="small muted">
-                  @{p.handle} · {p.role} · {p.stars.toFixed(1)}★
+                  @{p.handle} · {roleLabel(p.role)} · {p.stars.toFixed(1)}★
+                  {p.trust !== 0
+                    ? ` · ${t('trust {n}', { n: `${p.trust > 0 ? '+' : ''}${p.trust}` })}`
+                    : ''}
                   {p.companies.length ? ` · ${p.companies.join(', ')}` : ''}
                 </span>
               </li>
@@ -425,54 +802,76 @@ function People() {
 
 function Settings() {
   const { view, lite, setLite, refresh, toast, meta } = useView();
+  const lang = useLang();
   return (
     <>
-      <Card title="Data saver">
+      <Card title={t('Language')}>
+        <div className="chips">
+          {LANGS.map((l) => (
+            <button
+              key={l.id}
+              className="chip"
+              lang={l.id}
+              aria-pressed={lang === l.id}
+              onClick={() => setLang(l.id)}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </Card>
+      <Card title={t('Data saver')}>
         <label className="row">
-          <input type="checkbox" checked={lite} onChange={(e) => setLite(e.target.checked)} /> Lite
-          mode: no charts, no live connection (refreshes every minute)
+          <input type="checkbox" checked={lite} onChange={(e) => setLite(e.target.checked)} />{' '}
+          {t('Lite mode: no charts, no live connection (refreshes every minute)')}
         </label>
       </Card>
-      <Card title="Where the numbers come from">
+      <Card title={t('Where the numbers come from')}>
         <p className="small muted">
-          Real data sets the conditions; the simulation decides outcomes.
+          {t('Real data sets the conditions; the simulation decides outcomes.')}
         </p>
         <ul className="list small">
           {view.market.sources.map((s) => (
             <li key={s.input}>
-              {s.input}: {s.source} <span className="muted">({s.refresh})</span>
+              {tx(s.input)}: {tx(s.source)} <span className="muted">({tx(s.refresh)})</span>
             </li>
           ))}
         </ul>
         <p className="small muted">
-          Tax: corporate {Math.round(view.market.tax.corporate * 100)}%, income{' '}
-          {Math.round(view.market.tax.personalIncome * 100)}%, capital gains{' '}
-          {Math.round(view.market.tax.capitalGains * 100)}% (simplified). Deposit insurance{' '}
-          {money(view.market.depositInsurance, view.market.currency)}.
+          {t(
+            'Tax: corporate {corporate}%, income {income}%, capital gains {gains}% (simplified). Deposit insurance {insurance}.',
+            {
+              corporate: Math.round(view.market.tax.corporate * 100),
+              income: Math.round(view.market.tax.personalIncome * 100),
+              gains: Math.round(view.market.tax.capitalGains * 100),
+              insurance: money(view.market.depositInsurance, view.market.currency),
+            },
+          )}
         </p>
       </Card>
-      <Card title="Account">
+      <Card title={t('Account')}>
         <div className="stack">
           <Button variant="ghost" onClick={() => void api.logout().then(refresh)}>
-            Sign out
+            {t('Sign out')}
           </Button>
           <Confirm
-            label="Delete my account"
-            confirmLabel="Delete forever"
+            label={t('Delete my account')}
+            confirmLabel={t('Delete forever')}
             onConfirm={() =>
               void api.deleteAccount().then(() => {
-                toast('Account deleted.', 'ok');
+                toast(t('Account deleted.'), 'ok');
                 return refresh();
               })
             }
           />
           <p className="small muted">
-            We keep the minimum: a hashed phone number, your handle and your market. Deleting
-            removes your personal data and chats; your past deals stay in the world anonymously.
+            {t(
+              'We keep the minimum: a hashed phone number, your handle and your market. Deleting removes your personal data and chats; your past deals stay in the world anonymously.',
+            )}
           </p>
         </div>
       </Card>
-      <p className="disclaimer">{meta?.disclaimer}</p>
+      <p className="disclaimer">{meta?.disclaimer ? tx(meta.disclaimer) : null}</p>
     </>
   );
 }

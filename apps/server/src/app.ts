@@ -32,6 +32,7 @@ import {
   playerView,
   startersFor,
   type MarketId,
+  BANK_TYPES,
 } from '@runway/engine';
 import { AuthService, SESSION_COOKIE, SESSION_TTL_MS, isAdult, normalisePhone } from './auth.js';
 import type { Config } from './config.js';
@@ -155,6 +156,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     incorporation: INCORPORATION,
     lifestyleTiers: LIFESTYLE_TIERS,
     chatMaxLength: CHAT_MAX_LENGTH,
+    bankTypes: Object.entries(BANK_TYPES).map(([id, t]) => ({
+      id,
+      label: t.label,
+      minCapitalCol: t.minCapitalCol,
+      earns: t.earns,
+      risk: t.risk,
+    })),
     devTools: config.DEV_TOOLS,
   }));
 
@@ -164,6 +172,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       .object({ market: z.enum(Object.keys(MARKET_DATA) as [MarketId, ...MarketId[]]) })
       .parse(req.query);
     const m = game.current.markets[market];
+    if (!m)
+      return reply
+        .code(404)
+        .send({ error: { code: 'market', message: 'That market isn’t open yet.' } });
     reply.header('cache-control', 'public, max-age=300');
     return {
       market,
@@ -451,7 +463,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const { market } = z
         .object({ market: z.enum(Object.keys(MARKET_DATA) as [MarketId, ...MarketId[]]) })
         .parse(req.body);
-      const last = game.current.markets[market].lastSettledDate!;
+      const open = game.current.markets[market];
+      if (!open)
+        return reply
+          .code(404)
+          .send({ error: { code: 'market', message: 'That market isn’t open yet.' } });
+      const last = open.lastSettledDate!;
       const d = new Date(`${last}T00:00:00Z`);
       d.setUTCDate(d.getUTCDate() + 1);
       const r = game.execute(null, {
@@ -460,7 +477,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         date: d.toISOString().slice(0, 10),
       });
       if (!r.ok) return reply.code(422).send({ error: r.error });
-      return { ok: true, month: game.current.markets[market].month };
+      return { ok: true, month: game.current.markets[market]!.month };
     });
   }
 

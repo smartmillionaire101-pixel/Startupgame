@@ -82,7 +82,9 @@ export function reliability(c: Company): number {
   const cap = serviceCapacity(c);
   // A team stretched past capacity ships outages and slow support.
   const stretch = load <= cap ? 1 : clamp(Math.pow(cap / load, 0.6), 0.3, 1);
-  return clamp01(c.product.quality * (1 - 0.5 * c.product.techDebt) * stretch);
+  return clamp01(
+    c.product.quality * (1 - 0.5 * c.product.techDebt) * stretch + c.supply.reliabilityAdd,
+  );
 }
 
 export function segmentFit(c: Company, segKey: string): number {

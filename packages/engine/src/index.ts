@@ -13,7 +13,8 @@ export * from './errors.js';
 export * from './commands.js';
 export { dispatch } from './dispatch.js';
 export type { CommandContext, DispatchResult } from './dispatch.js';
-export { createWorld } from './world.js';
+export { createWorld, openMarket } from './world.js';
+export { upgradeWorld, CURRENT_SCHEMA } from './upgrade.js';
 export type { CreateWorldOptions } from './world.js';
 export { localDate, dueSettlements, gameDate, datesBetween } from './clock.js';
 export { playerView, economyDashboard, digest, leaderboards } from './views.js';
@@ -29,6 +30,7 @@ export {
   addSafe,
 } from './captable.js';
 export { SLIDES, MAX_SLIDES } from './fundraising.js';
+export { BANK_TYPES, MIN_CAPITAL_RATIO, RESERVE_RATIO } from './banks.js';
 export { INCORPORATION } from './world.js';
 export * from './data/markets.js';
 export * from './data/industries.js';

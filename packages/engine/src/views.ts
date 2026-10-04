@@ -13,7 +13,20 @@ import { gameDate } from './clock.js';
 import { companyRunway, defaultAlive } from './company.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
-import { burn, getMarket, hoursLeft, lastPnl, nextStage, totalCustomers } from './helpers.js';
+import { creditProfile } from './credit.js';
+import { tripCostUsd } from './travel.js';
+import { marketRate, playerRevenueShare } from './marketplace.js';
+import { boardOf } from './governance.js';
+import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
+import {
+  burn,
+  getMarket,
+  usdToLocal,
+  hoursLeft,
+  lastPnl,
+  nextStage,
+  totalCustomers,
+} from './helpers.js';
 import { lifestyleCost, tierOf } from './personal.js';
 import { hasPublicWarning } from './stars.js';
 import { isOverloaded, managementCapacity } from './staff.js';
@@ -29,6 +42,9 @@ export function publicCompany(world: World, c: Company) {
     id: c.id,
     name: c.name,
     market: c.market,
+    marketName: getMarket(world, c.market).data.name,
+    currency: getMarket(world, c.market).data.currency,
+    aiCeo: c.aiCeo,
     industry: c.industry,
     industryLabel: INDUSTRY_LABEL[c.industry],
     idea: c.idea,
@@ -73,7 +89,16 @@ export function diligenceView(world: World, c: Company, depth: number) {
     ...base,
     monthlyChurnPct: Math.round((churned / Math.max(1, paying + churned)) * 1000) / 10,
     largestSegmentShare: paying ? Math.round((top / paying) * 100) : 0,
-    playerRevenueShare: 0,
+    playerRevenueShare: Math.round(playerRevenueShare(c) * 100),
+    // Connected parties and guardrail flags (§6): what diligence surfaces.
+    flaggedContracts: Object.values(world.contracts)
+      .filter((k) => k.flags.length && (k.sellerId === c.id || k.buyerId === c.id))
+      .map((k) => ({
+        with: world.companies[k.sellerId === c.id ? k.buyerId : k.sellerId]?.name ?? '',
+        flags: k.flags,
+        status: k.status,
+      })),
+    bannedFromRaising: c.bannedFromRaising,
     complianceGaps: rulesFor(c.market, c.industry)
       .filter((r) => !c.compliance[r.id])
       .map((r) => r.title),
@@ -104,6 +129,7 @@ export function companyDetail(world: World, c: Company) {
     revenueModel: c.revenueModel,
     incorporation: c.incorporation,
     cash,
+    bankId: world.accounts[c.account]!.bankId ?? null,
     runwayMonths: finite(companyRunway(world, c)),
     defaultAlive: defaultAlive(world, c),
     monthlyRevenue: lastPnl(c)?.revenue ?? 0,
@@ -137,7 +163,11 @@ export function companyDetail(world: World, c: Company) {
           world.players[holderId]?.name ??
           world.funds[holderId]?.name ??
           c.staff.find((s) => s.id === holderId)?.name ??
-          (holderId === 'pool' ? 'Option pool' : holderId),
+          (holderId === 'pool'
+            ? 'Option pool'
+            : holderId.startsWith('bank:')
+              ? `${getMarket(world, holderId.slice(5) as MarketId).bankName} (seized)`
+              : holderId),
         kind: h.kind,
         shares: h.shares,
         pct: Math.round(ownership(c.capTable, holderId) * 1000) / 10,
@@ -158,6 +188,29 @@ export function companyDetail(world: World, c: Company) {
       unpaidPayroll: c.finance.unpaidPayroll,
     },
     rules: rulesFor(c.market, c.industry).map((r) => ({ ...r, done: !!c.compliance[r.id] })),
+    listing: Object.values(world.listings).find((l) => l.companyId === c.id) ?? null,
+    marketRate: marketRate(world, c),
+    contracts: Object.values(world.contracts)
+      .filter((k) => k.buyerId === c.id || k.sellerId === c.id)
+      .sort((a, b) => b.startMonth - a.startMonth)
+      .slice(0, 20)
+      .map((k) => ({
+        ...k,
+        role: k.sellerId === c.id ? ('seller' as const) : ('buyer' as const),
+        counterparty: world.companies[k.sellerId === c.id ? k.buyerId : k.sellerId]?.name ?? '',
+        category: world.listings[k.listingId]?.category ?? '',
+      })),
+    supply: c.supply,
+    /** Board (§9): founders plus investors who negotiated a seat; vetoes on sale. */
+    board: boardOf(c).map((h) => ({
+      id: h,
+      name: world.players[h]?.name ?? world.funds[h]?.name ?? h,
+      founder: c.founderIds.includes(h),
+    })),
+    vetoes: c.vetoes.map((h) => world.players[h]?.name ?? world.funds[h]?.name ?? h),
+    parentName: c.parentId ? (world.companies[c.parentId]?.name ?? null) : null,
+    removedFounders: Object.keys(c.removedFounders),
+    bannedFromRaising: c.bannedFromRaising,
     warnings: c.warnings,
     pivots: c.pivots,
     /** Illustrative exit at the model valuation: who would get what (§12). */
@@ -174,7 +227,7 @@ export function companyDetail(world: World, c: Company) {
 
 function dealView(world: World, d: DealCard, viewerId: Id) {
   const { aiLimit: _hidden, ...rest } = d;
-  const c = world.companies[d.companyId];
+  const c = d.companyId ? world.companies[d.companyId] : undefined;
   const name = (p: DealCard['proposer']) =>
     p.kind === 'player'
       ? world.players[p.id]?.name
@@ -188,10 +241,12 @@ function dealView(world: World, d: DealCard, viewerId: Id) {
   const mine = (p: DealCard['proposer']) =>
     (p.kind === 'player' && p.id === viewerId) ||
     (p.kind === 'fund' && world.funds[p.id]?.managerId === viewerId) ||
-    (p.kind === 'company' && !!world.companies[p.id]?.founderIds.includes(viewerId));
+    (p.kind === 'company' && !!world.companies[p.id]?.founderIds.includes(viewerId)) ||
+    (p.kind === 'playerbank' && world.banks[p.id]?.ownerId === viewerId);
   return {
     ...rest,
-    companyName: c?.name ?? '',
+    companyName: c?.name ?? 'Personal',
+    currency: getMarket(world, d.market).data.currency,
     proposerName: name(d.proposer) ?? '',
     counterpartyName: name(d.counterparty) ?? '',
     yourTurn: d.status === 'open' && mine(d.awaiting),
@@ -263,6 +318,7 @@ export function portfolio(world: World, p: Player) {
       return {
         companyId: c.id,
         name: c.name,
+        currency: getMarket(world, c.market).data.currency,
         status: c.status,
         stars: round1(c.stars.value),
         via: x.investorId === p.id ? 'personal' : 'fund',
@@ -271,6 +327,8 @@ export function portfolio(world: World, p: Player) {
         mark,
         ownershipPct: Math.round(ownership(c.capTable, x.investorId) * 1000) / 10,
         writtenOff: x.writtenOff,
+        onBoard: c.board.includes(x.investorId),
+        founders: c.founderIds.map((id) => ({ id, name: world.players[id]?.name ?? '—' })),
       };
     });
 }
@@ -287,12 +345,18 @@ export function playerView(world: World, playerId: Id) {
           currency: world.accounts[id]!.currency,
           balance: world.accounts[id]!.balance,
           recent: world.accounts[id]!.recent,
+          bankId: world.accounts[id]!.bankId ?? null,
+          bankName: world.accounts[id]!.bankId
+            ? (world.banks[world.accounts[id]!.bankId!]?.name ?? null)
+            : null,
         }
       : null;
   const myCompanies = p.companyIds.map((id) => world.companies[id]!).filter(Boolean);
   const fund = p.investor?.fundId ? world.funds[p.investor.fundId] : undefined;
   const others = Object.values(world.companies).filter(
-    (c) => c.market === p.market && !c.founderIds.includes(p.id),
+    // Your market, plus any market you've travelled to (§14).
+    (c) =>
+      (c.market === p.market || p.visited[c.market] !== undefined) && !c.founderIds.includes(p.id),
   );
   return {
     worldVersion: world.version,
@@ -312,14 +376,26 @@ export function playerView(world: World, playerId: Id) {
       energy: Math.round(p.energy),
       burnout: p.burnout,
       lifestyle: { ...tierOf(p), monthlyCost: lifestyleCost(world, p) },
-      credit: p.credit,
+      credit: { ...p.credit, ...creditProfile(world, p) },
+      loans: p.loans,
       milestones: p.milestones,
       investor: p.investor ?? null,
       failures: p.failures,
+      visited: p.visited,
+      /** Where you can go, and what a trip costs from here (§14). */
+      destinations: (Object.keys(world.markets) as MarketId[])
+        .filter((id) => id !== p.market)
+        .map((id) => ({
+          id,
+          name: getMarket(world, id).data.name,
+          tripCost: usdToLocal(world, m, tripCostUsd(p.market, id)),
+          visitingNow: p.visited[id] === m.month,
+        })),
       lastMonth: p.lastMonth,
       gigsThisMonth: p.gigsThisMonth,
     },
     accounts: { local: acc(p.accounts.local), usd: acc(p.accounts.usd) },
+    bank: ownBankView(world, p.id),
     market: {
       id: m.id,
       name: m.data.name,
@@ -353,10 +429,14 @@ export function playerView(world: World, playerId: Id) {
       })),
       outlets: m.outlets,
       funds: Object.values(world.funds)
-        .filter((f) => f.market === m.id)
+        // Home funds, plus funds in a market you're visiting this month (§14).
+        .filter((f) => f.market === m.id || p.visited[f.market] === m.month)
         .map((f) => ({
           id: f.id,
           name: f.name,
+          market: f.market,
+          marketName: getMarket(world, f.market).data.name,
+          currency: getMarket(world, f.market).data.currency,
           partner: f.partner,
           ai: f.ai,
           sectors: f.sectors,
@@ -367,6 +447,50 @@ export function playerView(world: World, playerId: Id) {
           mood: f.mood > 1.1 ? 'hungry' : f.mood < 0.9 ? 'cautious' : 'steady',
         })),
       talent: p.role === 'founder' || myCompanies.length ? m.talent : [],
+      /** B2B marketplace listings in your market (§6). */
+      /** Player banks in this market (§8), for depositors and borrowers. */
+      banks: Object.values(world.banks)
+        .filter((b) => b.market === m.id && b.status === 'licensed')
+        .map((b) => ({
+          id: b.id,
+          name: b.name,
+          type: b.type,
+          typeLabel: BANK_TYPES[b.type].label,
+          owner: world.players[b.ownerId]?.name ?? '',
+          stars: round1(b.stars.value),
+          depositRateBps: b.policy.depositRateBps,
+          loanSpreadPp: b.policy.loanSpreadPp,
+          accountFee: b.policy.accountFee,
+          rating: b.reviews.count ? Math.round((b.reviews.sum / b.reviews.count) * 10) / 10 : null,
+          lends: {
+            people: BANK_TYPES[b.type].personal,
+            companies: BANK_TYPES[b.type].companies,
+            advisory: BANK_TYPES[b.type].advisory,
+          },
+        })),
+      bankTypes: Object.entries(BANK_TYPES).map(([id, t]) => ({
+        id,
+        ...t,
+        minCapital: Math.round(m.data.costOfLiving * 100 * t.minCapitalCol),
+      })),
+      listings: Object.values(world.listings)
+        .filter(
+          (l) => l.market === m.id && l.active && world.companies[l.companyId]?.status === 'active',
+        )
+        .map((l) => {
+          const seller = world.companies[l.companyId]!;
+          return {
+            ...l,
+            seller: seller.name,
+            sellerAi: seller.ai,
+            sellerStars: round1(seller.stars.value),
+            uptime: Math.round(reliability(seller) * 100),
+            rating: l.reviews.count
+              ? Math.round((l.reviews.sum / l.reviews.count) * 10) / 10
+              : null,
+            marketRate: marketRate(world, seller),
+          };
+        }),
     },
     lifestyleTiers: LIFESTYLE_TIERS.map((t) => ({
       ...t,
@@ -393,6 +517,8 @@ export function playerView(world: World, playerId: Id) {
         role: x.role,
         stars: round1(x.stars.value),
         companies: x.companyIds.map((id) => world.companies[id]?.name).filter(Boolean),
+        /** Your trust with them, built only through real interactions (§13). */
+        trust: Math.round((p.trust[x.id] ?? 0) * 100) / 100,
       })),
     deals: Object.values(world.deals)
       .filter((d) => d.market === p.market)
@@ -402,7 +528,9 @@ export function playerView(world: World, playerId: Id) {
           d.yourTurn ||
           d.youProposed ||
           myCompanies.some((c) => c.id === d.companyId) ||
-          (d.counterparty.kind === 'player' && d.counterparty.id === p.id),
+          (d.counterparty.kind === 'player' && d.counterparty.id === p.id) ||
+          (d.counterparty.kind === 'playerbank' &&
+            world.banks[d.counterparty.id]?.ownerId === p.id),
       )
       .sort((a, b) => b.createdMonth - a.createdMonth)
       .slice(0, 40),
@@ -434,10 +562,101 @@ export function playerView(world: World, playerId: Id) {
     leaderboards: leaderboards(world, m.id),
     portfolio: portfolio(world, p),
     record: trackRecord(world, [p.id]),
+    votes: Object.values(world.votes)
+      .filter((v) => {
+        const mine = (h: string) => h === p.id || world.funds[h]?.managerId === p.id;
+        return Object.keys(v.weights).some(mine) || p.companyIds.includes(v.companyId);
+      })
+      .sort((a, b) => b.createdMonth - a.createdMonth)
+      .slice(0, 20)
+      .map((v) => {
+        const myHolders = Object.keys(v.weights).filter(
+          (h) => h === p.id || world.funds[h]?.managerId === p.id,
+        );
+        const tally = (b: 'yes' | 'no') =>
+          Math.round(
+            Object.entries(v.ballots)
+              .filter(([, x]) => x === b)
+              .reduce((a, [h]) => a + (v.weights[h] ?? 0), 0) * 1000,
+          ) / 10;
+        return {
+          id: v.id,
+          companyId: v.companyId,
+          targetIsMe: v.targetId === p.id,
+          kind: v.kind,
+          reason: v.reason,
+          status: v.status,
+          companyName: world.companies[v.companyId]?.name ?? '',
+          deadlineMonth: v.deadlineMonth,
+          canVote: v.status === 'open' && myHolders.length > 0,
+          myBallot: myHolders.map((h) => v.ballots[h]).find(Boolean) ?? null,
+          yesPct:
+            v.kind === 'sale'
+              ? tally('yes')
+              : Object.values(v.ballots).filter((b) => b === 'yes').length,
+          noPct:
+            v.kind === 'sale'
+              ? tally('no')
+              : Object.values(v.ballots).filter((b) => b === 'no').length,
+          weighting: v.kind === 'sale' ? 'shares' : 'seats',
+        };
+      }),
+    disputes: Object.values(world.disputes)
+      .filter(
+        (d) =>
+          d.claimantId === p.id ||
+          (world.contracts[d.refId] && p.companyIds.includes(world.contracts[d.refId]!.buyerId)) ||
+          p.companyIds.includes(d.refId),
+      )
+      .sort((a, b) => b.filedMonth - a.filedMonth)
+      .slice(0, 20),
   };
 }
 
 export type PlayerView = NonNullable<ReturnType<typeof playerView>>;
+
+/** The bank a player runs, with its regulatory figures (§8). */
+export function ownBankView(world: World, playerId: Id) {
+  const b = Object.values(world.banks)
+    .filter((x) => x.ownerId === playerId)
+    .sort((a, c) => c.appliedMonth - a.appliedMonth)[0];
+  if (!b) return null;
+  const m = getMarket(world, b.market);
+  const f = bankFigures(world, b);
+  const loans = [
+    ...Object.values(world.companies).flatMap((c) =>
+      c.finance.loans
+        .filter((l) => l.lenderBankId === b.id)
+        .map((l) => ({
+          borrower: c.name,
+          outstanding: l.outstanding,
+          rateBps: l.rateBps,
+          monthsLeft: l.monthsLeft,
+        })),
+    ),
+    ...Object.values(world.players).flatMap((p) =>
+      p.loans
+        .filter((l) => l.lenderBankId === b.id)
+        .map((l) => ({
+          borrower: p.name,
+          outstanding: l.outstanding,
+          rateBps: l.rateBps,
+          monthsLeft: l.monthsLeft,
+        })),
+    ),
+  ];
+  return {
+    ...b,
+    typeLabel: BANK_TYPES[b.type].label,
+    figures: f,
+    minCapitalRatio: MIN_CAPITAL_RATIO,
+    minCapital: Math.round(m.data.costOfLiving * 100 * BANK_TYPES[b.type].minCapitalCol),
+    licenceDueMonth: b.appliedMonth + 2,
+    stars: round1(b.stars.value),
+    depositors: Object.values(world.accounts).filter((a) => a.bankId === b.id).length,
+    loanBook: loans,
+  };
+}
 
 /** Internal game-economy dashboard (§20 "Running the live game"). Not for players. */
 export function economyDashboard(world: World) {

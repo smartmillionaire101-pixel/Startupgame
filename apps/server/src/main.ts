@@ -24,6 +24,8 @@ const app = await buildApp({
   now,
 });
 
+game.openMarkets(config.OPEN_MARKETS);
+
 // The clock: check every 30s whether any market has passed local midnight.
 const clock = setInterval(() => {
   try {
@@ -40,7 +42,7 @@ async function refreshFx() {
   try {
     const current = Object.fromEntries(
       Object.values(game.current.markets).map((m) => [m.id, m.data.unitsPerUsd]),
-    ) as Record<MarketId, number>;
+    ) as Partial<Record<MarketId, number>>;
     for (const u of await fetchFxUpdates(config.FX_FEED_URL, current)) {
       game.execute(null, { type: 'market.data', market: u.market, unitsPerUsd: u.unitsPerUsd });
     }

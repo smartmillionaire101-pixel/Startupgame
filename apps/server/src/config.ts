@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MARKET_IDS } from '@runway/engine';
 
 const bool = z
   .enum(['0', '1', 'true', 'false'])
@@ -17,6 +18,17 @@ const schema = z.object({
   ADMIN_TOKEN: z.string().optional(),
   WEB_DIST: z.string().optional(),
   SNAPSHOT_EVERY: z.coerce.number().int().min(1).default(200),
+  /** Markets to have open, in opening order. Unopened ones open on the next boot. */
+  OPEN_MARKETS: z
+    .string()
+    .default(MARKET_IDS.join(','))
+    .transform((v) =>
+      v
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.enum(MARKET_IDS)).min(1)),
 });
 
 export type Config = z.infer<typeof schema> & { SESSION_SECRET: string };
