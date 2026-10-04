@@ -27,6 +27,7 @@ import {
 import { tripCostUsd } from './travel.js';
 import { EVENT_KINDS, EVENT_KIND_DATA, EVENT_RECENT_MONTHS } from './data/events.js';
 import { contactWarmth, eventCost } from './events.js';
+import { businessCustomersOf, businessesView, economyView } from './economy.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { boardOf } from './governance.js';
 import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
@@ -566,6 +567,10 @@ export function playerView(world: World, playerId: Id) {
         }),
       /** City events (Wave 2): upcoming, and held or cancelled recently. */
       events: eventsView(world, p, m.id, m.month),
+      /** Local businesses (Wave 3): open ones, and those closed in the last few months. */
+      businesses: businessesView(world, p, m),
+      /** The city economy at a glance (Wave 3). */
+      economy: economyView(m),
       eventKinds: EVENT_KINDS.map((kind) => {
         const k = EVENT_KIND_DATA[kind];
         return {
@@ -595,6 +600,8 @@ export function playerView(world: World, playerId: Id) {
         rescue: plan && plan.level ? plan : null,
         hibernating: !!c.hibernation,
         officeDownsized: !!c.officeDownsized,
+        /** Local businesses buying from this company (Wave 3), with last month's amount. */
+        businessCustomers: businessCustomersOf(world, c),
       };
     }),
     fund: fund
@@ -739,6 +746,13 @@ function eventsView(world: World, viewer: Player, market: MarketId, month: numbe
         title: e.title,
         host: { id: e.hostId, name: host?.name ?? '' },
         venue: e.venue,
+        /** A local hotel or event venue hosting it (Wave 3). */
+        business: e.businessId
+          ? {
+              id: e.businessId,
+              name: world.markets[e.market]?.businesses?.[e.businessId]?.name ?? '',
+            }
+          : null,
         month: e.month,
         dateLabel: gameDate(e.month).label,
         capacity: e.capacity,
