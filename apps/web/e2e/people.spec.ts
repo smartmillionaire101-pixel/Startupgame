@@ -118,15 +118,23 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
     await browser.newContext({ ...phone, baseURL: test.info().project.use.baseURL })
   ).newPage();
   await withoutNetlifyDrawer(b);
-  await signUpFounder(a, 'Amaka Host');
+  // Unique surnames per run: a deploy preview keeps earlier runs' players.
+  const tag = String(Date.now())
+    .slice(-5)
+    .replace(/\d/g, (d) => 'abcdefghij'[Number(d)]!);
+  // Name tags show first names, so the run's tag goes there.
+  const hostFirst = `Amaka${tag}`;
+  const hostName = `${hostFirst} Host`;
+  await signUpFounder(a, hostName);
   test.skip(!(await presenceAvailable(a)), 'Presence API not deployed here.');
-  await signUpFounder(b, 'Bode Guest');
+  await signUpFounder(b, `Bode${tag} Guest`);
 
   // B sees A walking the city (polls every 5 s), taps them and starts a chat.
-  const avatar = b.locator('.city-person-player', { hasText: 'Amaka' });
+  const avatar = b.locator('.city-person-player', { hasText: hostFirst });
   await expect(avatar).toBeAttached({ timeout: 20_000 });
-  await tap(b, '.city-person-player');
-  const card = b.getByRole('dialog', { name: 'Amaka Host' });
+  await avatar.dispatchEvent('pointerdown', { pointerId: 7, clientX: 5, clientY: 5 });
+  await avatar.dispatchEvent('pointerup', { pointerId: 7, clientX: 5, clientY: 5 });
+  const card = b.getByRole('dialog', { name: hostName });
   await expect(card).toBeVisible();
   await card.getByRole('button', { name: 'Chat' }).click();
   const starters = b.getByRole('dialog', { name: 'Start with one tap' });
@@ -144,18 +152,20 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
     timeout: 8000,
   });
   await hall.getByRole('radio', { name: /Founder meetup/ }).click();
-  await hall.getByLabel('Title').fill('Stall founders meetup');
+  // Unique per run: a deploy preview keeps one world, with earlier runs' events in it.
+  const title = `Stall founders ${String(Date.now()).slice(-5)}`;
+  await hall.getByLabel('Title').fill(title);
   await hall.getByRole('radio', { name: 'This month' }).click();
   await hall.getByLabel(/Budget/).fill('0');
   await hall.getByRole('button', { name: 'Host it' }).click();
-  await expect(hall.getByText('Stall founders meetup')).toBeVisible();
+  await expect(hall.getByText(title)).toBeVisible();
   await expect(hall.getByText('You host')).toBeVisible();
 
   // B RSVPs.
   await b.getByRole('application', { name: /Map of Lagos/ }).waitFor();
   await openPlace(b, 'Event Hall');
   const bHall = b.getByRole('dialog');
-  await bHall.getByRole('button', { name: 'RSVP to Stall founders meetup' }).click();
+  await bHall.getByRole('button', { name: `RSVP to ${title}` }).click();
   await expect(bHall.getByText('Going', { exact: true })).toBeVisible();
 
   // The month closes (dev tools): both see a recap.
@@ -173,7 +183,7 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
     await p.getByRole('application', { name: /Map of Lagos/ }).waitFor();
     await openPlace(p, 'Event Hall');
     const past = p.getByRole('list', { name: 'Past events' });
-    await expect(past.getByText('Stall founders meetup')).toBeVisible({ timeout: 8000 });
+    await expect(past.getByText(title)).toBeVisible({ timeout: 8000 });
     await expect(past.getByText('Your recap')).toBeVisible();
   }
 });
