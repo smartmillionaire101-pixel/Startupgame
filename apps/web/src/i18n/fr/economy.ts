@@ -76,4 +76,10 @@ export const economy: Record<string, string> = {
     'Il nous manque encore quelqu’un pour : {sector}. Venez me présenter votre offre.',
   'We’re short-handed: there’s a shift going if you want it.':
     'On manque de bras : il y a un service à prendre si ça vous dit.',
+  'Where in town': 'Où en ville',
+  'A hotel or event venue gets the venue fee; the Event Hall is the default.':
+    'Un hôtel ou une salle de réception touche les frais de salle ; par défaut, c’est la Salle des événements.',
+  'Business customers': 'Clients professionnels',
+  'No local businesses buy from you yet. Walk into shops and restaurants in the City and pitch them.':
+    'Aucun commerce local ne vous achète encore. Entrez dans les boutiques et les restaurants de la Ville et présentez-leur votre offre.',
 };

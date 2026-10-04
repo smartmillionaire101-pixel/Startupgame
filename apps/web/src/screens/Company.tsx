@@ -305,6 +305,24 @@ function Customers({ c }: { c: CompanyT }) {
       {segs.map((s) => (
         <SegmentCard key={s.key} c={c} s={s} />
       ))}
+      <Card title={t('Business customers')}>
+        {(c.businessCustomers ?? []).length === 0 ? (
+          <Empty>
+            {t(
+              'No local businesses buy from you yet. Walk into shops and restaurants in the City and pitch them.',
+            )}
+          </Empty>
+        ) : (
+          <ul className="list">
+            {(c.businessCustomers ?? []).map((b) => (
+              <li key={b.businessId} className="spread">
+                <span>{b.name}</span>
+                <span>{t('{amount}/month', { amount: money(b.monthly, cur) })}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
       <Card title={t('Pricing and spend')}>
         <Field
           label={t('Price per customer per month ({cur})', { cur })}
