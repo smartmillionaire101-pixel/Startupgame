@@ -70,7 +70,7 @@ export function NewsScreen() {
 }
 
 /** Reads the public digest endpoint so the service worker can serve it offline. */
-function Digest() {
+export function Digest() {
   const { view } = useView();
   const { status } = useGame();
   const [digest, setDigest] = useState<{ note: string; headlines: Article[] } | null>(null);

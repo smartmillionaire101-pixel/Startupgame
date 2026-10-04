@@ -1,0 +1,485 @@
+/* The city (src/city): map, HUD, places list and interiors. */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.app.app-city {
+  max-width: 1180px;
+}
+
+.city-stage {
+  position: relative;
+  height: calc(100dvh - 7.6rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  min-height: 360px;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.08),
+    0 12px 32px rgb(15 23 42 / 0.12);
+  background: #dbeafe;
+  isolation: isolate;
+}
+
+.city-map {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+.city-map:active {
+  cursor: grabbing;
+}
+.city-map:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+  border-radius: 22px;
+}
+
+.city-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.city-lane {
+  stroke-width: 1;
+  stroke-dasharray: 6 7;
+  opacity: 0.5;
+}
+
+.city-street-name {
+  fill: #fff;
+  opacity: 0.6;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.city-building {
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.city-building:hover {
+  filter: brightness(1.07) saturate(1.05);
+}
+.city-building.is-dim:hover {
+  filter: none;
+}
+
+.city-label rect {
+  fill: rgb(255 255 255 / 0.94);
+  stroke: rgb(15 23 42 / 0.1);
+  stroke-width: 1;
+}
+.city-label text {
+  font-size: 9.5px;
+  font-weight: 650;
+  fill: #0f172a;
+}
+.city-label.lbl-main rect {
+  fill: #0f172a;
+  stroke: none;
+}
+.city-label.lbl-main text {
+  fill: #fff;
+}
+.city-label.is-soon rect {
+  fill: #ede9fe;
+}
+.city-label.is-soon text {
+  fill: #5b21b6;
+}
+.city-map[data-zoom='0'] .lbl-detail,
+.city-map[data-zoom='0'] .lbl-stall,
+.city-map[data-zoom='1'] .lbl-stall,
+.city-map[data-zoom='2'] .city-district {
+  display: none;
+}
+
+.city-district {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  fill: rgb(15 23 42 / 0.55);
+  paint-order: stroke;
+  stroke: rgb(255 255 255 / 0.8);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.city-you rect {
+  fill: #0f766e;
+}
+.city-you text {
+  fill: #fff;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.city-leg,
+.city-body,
+.city-arm-l,
+.city-arm-r {
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+}
+.city-avatar.is-walking .city-leg-l,
+.city-avatar.is-walking .city-arm-r {
+  animation: city-swing 0.34s ease-in-out infinite alternate;
+}
+.city-avatar.is-walking .city-leg-r,
+.city-avatar.is-walking .city-arm-l {
+  animation: city-swing 0.34s ease-in-out infinite alternate-reverse;
+}
+.city-avatar.is-walking .city-body {
+  animation: city-step 0.17s ease-in-out infinite alternate;
+}
+@keyframes city-swing {
+  from {
+    transform: rotate(-24deg);
+  }
+  to {
+    transform: rotate(24deg);
+  }
+}
+@keyframes city-step {
+  to {
+    transform: translateY(-1.2px);
+  }
+}
+
+.city-siren {
+  animation: city-flash 0.9s ease-in-out infinite;
+}
+@keyframes city-flash {
+  50% {
+    opacity: 0.25;
+  }
+}
+.city-blink {
+  animation: city-flash 2.4s ease-in-out infinite;
+}
+.city-flag {
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: city-flag 1.6s ease-in-out infinite alternate;
+}
+@keyframes city-flag {
+  to {
+    transform: scaleX(0.82) skewY(-6deg);
+  }
+}
+.city-wave {
+  animation: city-wave 3.2s ease-in-out infinite;
+}
+@keyframes city-wave {
+  50% {
+    opacity: 0.15;
+    transform: translateX(6px);
+  }
+}
+.city-pulse ellipse:first-child {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: city-pulse 1.6s ease-out infinite;
+}
+@keyframes city-pulse {
+  from {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+.city-bob {
+  animation: city-bob 1.2s ease-in-out infinite alternate;
+}
+@keyframes city-bob {
+  to {
+    transform: translateY(-5px);
+  }
+}
+.city-spray {
+  animation: city-flash 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .city-map *,
+  .city-avatar * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* HUD over the map */
+.city-hud {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+.city-hud > * {
+  pointer-events: auto;
+}
+.city-hud-top {
+  top: 0.7rem;
+  left: 0.7rem;
+  right: 4rem;
+}
+.city-hud-zoom {
+  top: 0.7rem;
+  right: 0.7rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.city-hud-bottom {
+  left: 0.7rem;
+  right: 0.7rem;
+  bottom: 0.7rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.hud-chip,
+.hud-round,
+.hud-places,
+.hud-banner,
+.hud-hint {
+  background: rgb(255 255 255 / 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #0f172a;
+  border: 1px solid rgb(15 23 42 / 0.08);
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.12);
+}
+
+.hud-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  border-radius: 14px;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  max-width: 100%;
+}
+.hud-name {
+  font-weight: 800;
+  font-size: 0.86rem;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hud-chip.hud-danger,
+.hud-chip.hud-critical,
+.hud-banner.hud-danger,
+.hud-banner.hud-critical {
+  border-color: #ef4444;
+  box-shadow:
+    0 0 0 3px rgb(239 68 68 / 0.25),
+    0 4px 14px rgb(15 23 42 / 0.12);
+}
+.hud-chip.hud-watch,
+.hud-banner.hud-watch {
+  border-color: #f59e0b;
+}
+
+.hud-round {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.hud-places {
+  border-radius: 999px;
+  padding: 0.55rem 0.95rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.hud-hint {
+  margin: 0;
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.78rem;
+  color: #334155;
+}
+
+.hud-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 16px;
+  padding: 0.45rem 0.5rem 0.45rem 0.8rem;
+  font-size: 0.82rem;
+  flex: 1;
+  min-width: 0;
+}
+.hud-banner > span {
+  flex: 1;
+  min-width: 0;
+}
+.hud-banner .btn {
+  padding: 0.4rem 0.8rem;
+  white-space: nowrap;
+}
+
+/* Places list */
+.places {
+  display: grid;
+  gap: 0.8rem;
+}
+.places-group h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+.places-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+.place-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+}
+.place-btn > span:nth-child(2) {
+  flex: 1;
+}
+.place-btn.is-dim {
+  opacity: 0.7;
+}
+.place-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 4px;
+  flex: none;
+}
+.city-lite .places {
+  margin-top: 0.6rem;
+}
+
+/* Interiors */
+.interior > * + * {
+  margin-top: 0.7rem;
+}
+.interior-scene {
+  position: relative;
+  height: 168px;
+  border-radius: 18px;
+  overflow: hidden;
+}
+.interior-scene > svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.interior-npc {
+  position: absolute;
+  left: 0.6rem;
+  bottom: 0.6rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.3rem;
+  padding: 0.2rem 0.7rem 0.4rem 0.3rem;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.9);
+  color: #0f172a;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.12);
+  max-width: calc(100% - 1.2rem);
+}
+.interior-npc .muted {
+  color: #475569;
+}
+.interior-h {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.product-terms {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.8rem;
+  margin: 0.55rem 0;
+}
+.product-terms dt {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.product-terms dd {
+  margin: 0;
+  font-weight: 650;
+  font-size: 0.9rem;
+}
+
+.story-headline {
+  font-weight: 700;
+  font-size: 1.02rem;
+}
+.story-item {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+}
+.story-dot {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-top: 0.4rem;
+  border-radius: 99px;
+  background: var(--muted);
+}
+.story-good .story-dot {
+  background: var(--good);
+}
+.story-bad .story-dot {
+  background: var(--bad);
+}
+
+.rescue {
+  border: 2px solid var(--warn);
+}
+.rescue-danger,
+.rescue-critical {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 7%, var(--surface));
+}
+
+@media (min-width: 900px) {
+  .city-stage {
+    height: calc(100dvh - 8.6rem);
+  }
+}
