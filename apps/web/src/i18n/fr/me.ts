@@ -177,8 +177,8 @@ export const me: Record<string, string> = {
   'Delete my account': 'Supprimer mon compte',
   'Delete forever': 'Supprimer définitivement',
   'Account deleted.': 'Compte supprimé.',
-  'We keep the minimum: a hashed phone number, your handle and your market. Deleting removes your personal data and chats; your past deals stay in the world anonymously.':
-    'Nous gardons le minimum : un numéro de téléphone haché, votre pseudo et votre marché. La suppression efface vos données personnelles et vos discussions ; vos accords passés restent dans le monde de façon anonyme.',
+  'We keep the minimum: your email if you saved one, your handle and your market. Deleting removes your personal data and chats; your past deals stay in the world anonymously.':
+    'Nous gardons le minimum : votre email si vous l’avez enregistré, votre pseudo et votre marché. La suppression efface vos données personnelles et vos discussions ; vos accords passés restent dans le monde de façon anonyme.',
 
   // Bank
   'The central bank wound this bank down.': 'La banque centrale a liquidé cette banque.',

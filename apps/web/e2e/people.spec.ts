@@ -1,5 +1,5 @@
 import { devices, type Page } from '@playwright/test';
-import { digits, expect, letters, test, withoutNetlifyDrawer } from './fixtures';
+import { expect, letters, test, withoutNetlifyDrawer, playAsGuest } from './fixtures';
 
 /**
  * Wave 2: people in the city. AI characters and the person card always run;
@@ -8,13 +8,7 @@ import { digits, expect, letters, test, withoutNetlifyDrawer } from './fixtures'
  */
 
 async function signUpFounder(page: Page, name: string) {
-  await page.goto('/');
-  await page.getByLabel('Mobile number').fill(`+23482${digits(8)}`);
-  await page.getByLabel('Date of birth').fill('1992-04-18');
-  await page.getByRole('button', { name: 'Send code' }).click();
-  const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
-  await page.getByLabel('6-digit code').fill(code);
-  await page.getByRole('button', { name: 'Verify' }).click();
+  await playAsGuest(page);
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();

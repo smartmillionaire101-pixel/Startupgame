@@ -489,6 +489,38 @@ table.table {
 .btn-block {
   width: 100%;
 }
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+.btn-big {
+  min-height: 3.2rem;
+  font-size: 1.1rem;
+}
+
+/* A checkbox with a big, easy tap target (sign-in 18+ confirmation). */
+.check {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+.check input {
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: none;
+  margin: 0.05rem 0 0;
+  accent-color: var(--accent);
+}
+.field-error {
+  color: var(--bad);
+  margin: 0.25rem 0 0.5rem;
+}
 
 .icon-btn {
   border: 0;
@@ -518,6 +550,7 @@ table.table {
 
 input[type='text'],
 input[type='tel'],
+input[type='email'],
 input[type='number'],
 input:not([type]),
 select,

@@ -3,19 +3,31 @@ import type { Industry, RevenueModel, Stage } from '@runway/engine';
 import { api } from '../api';
 import { LANGS, setLang, t, tx, useLang } from '../i18n';
 import { amountInput, money, parseAmount, stars } from '../format';
-import { useView } from '../store';
+import { useGame, useView } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Sparkline, Stat } from '../ui';
 import { Chats } from './Chat';
 import { visitPlace } from '../city/goto';
 import { contactsOf, type ContactView } from '../city/people';
 import { BankPicker } from './common';
+import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
 
 export function MeScreen() {
   const [tab, setTab] = useState<Tab>('profile');
+  const { account } = useGame();
   return (
     <>
+      {account?.guest && (
+        <Card tone="warn">
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="small">
+              {t('Playing as a guest: your game lives only in this browser.')}
+            </span>
+            <SaveProgressButton />
+          </div>
+        </Card>
+      )}
       <div className="tabs" role="tablist">
         {(['profile', 'money', 'people', 'settings'] as Tab[]).map((k) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>
@@ -948,9 +960,8 @@ function Settings() {
       </Card>
       <Card title={t('Account')}>
         <div className="stack">
-          <Button variant="ghost" onClick={() => void api.logout().then(refresh)}>
-            {t('Sign out')}
-          </Button>
+          <AccountStatus />
+          <SignOutButton />
           <Confirm
             label={t('Delete my account')}
             confirmLabel={t('Delete forever')}
@@ -963,7 +974,7 @@ function Settings() {
           />
           <p className="small muted">
             {t(
-              'We keep the minimum: a hashed phone number, your handle and your market. Deleting removes your personal data and chats; your past deals stay in the world anonymously.',
+              'We keep the minimum: your email if you saved one, your handle and your market. Deleting removes your personal data and chats; your past deals stay in the world anonymously.',
             )}
           </p>
         </div>

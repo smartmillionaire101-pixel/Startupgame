@@ -37,6 +37,7 @@ export const test = base.extend({
 });
 
 export { expect } from '@playwright/test';
+export type { Page } from '@playwright/test';
 
 /**
  * Random letters / digits for names and phone numbers. A deploy preview keeps
@@ -49,3 +50,18 @@ const pick = (alphabet: string, n: number) =>
   );
 export const letters = (n = 6) => pick('abcdefghijklmnopqrstuvwxyz', n);
 export const digits = (n = 7) => pick('0123456789', n);
+
+/** Start a game as a guest: tick the 18+ box, then Play now (English or French). */
+export async function playAsGuest(page: Page, lang: 'en' | 'fr' = 'en') {
+  await page.goto('/');
+  if (lang === 'fr') {
+    await page.getByLabel('Je confirme avoir 18 ans ou plus').check();
+    await page.getByRole('button', { name: 'Jouer maintenant' }).click();
+  } else {
+    await page.getByLabel('I confirm I’m 18 or older').check();
+    await page.getByRole('button', { name: 'Play now' }).click();
+  }
+}
+
+/** A random address on a reserved domain: never receives real mail. */
+export const randomEmail = () => `e2e-${letters(10)}@example.com`;

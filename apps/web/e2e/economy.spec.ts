@@ -1,15 +1,9 @@
-import { digits, expect, letters, test } from './fixtures';
+import { expect, letters, test, playAsGuest } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /** Sign up a founder in a market (by its button label), straight into the City. */
 async function founder(page: Page, market: RegExp, name: string) {
-  await page.goto('/');
-  await page.getByLabel('Mobile number').fill(`+23481${digits(8)}`);
-  await page.getByLabel('Date of birth').fill('1992-03-14');
-  await page.getByRole('button', { name: 'Send code' }).click();
-  const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
-  await page.getByLabel('6-digit code').fill(code);
-  await page.getByRole('button', { name: 'Verify' }).click();
+  await playAsGuest(page);
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: market }).click();

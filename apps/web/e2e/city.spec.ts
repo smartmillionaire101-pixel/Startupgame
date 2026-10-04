@@ -1,13 +1,7 @@
-import { digits, letters, expect, test } from './fixtures';
+import { letters, expect, test, playAsGuest } from './fixtures';
 
 test('a founder walks the city to a bank, goes in, then visits the market', async ({ page }) => {
-  await page.goto('/');
-  await page.getByLabel('Mobile number').fill(`+23481${digits(8)}`);
-  await page.getByLabel('Date of birth').fill('1993-06-21');
-  await page.getByRole('button', { name: 'Send code' }).click();
-  const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
-  await page.getByLabel('6-digit code').fill(code);
-  await page.getByRole('button', { name: 'Verify' }).click();
+  await playAsGuest(page);
 
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();

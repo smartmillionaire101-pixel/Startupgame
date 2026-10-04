@@ -1,4 +1,4 @@
-import { digits, expect, test } from './fixtures';
+import { expect, test } from './fixtures';
 
 /**
  * Smoke test that is safe to run against the live game: it checks the app,
@@ -23,18 +23,15 @@ test('the live site serves the app, the API and sign-in, and cleans up after its
   expect(await deep.text()).toContain('<div id="root">');
 
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Send code' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play now' })).toBeVisible();
   // Language switch works before sign-in.
   await page.getByRole('button', { name: 'Français' }).click();
-  await expect(page.getByRole('button', { name: 'Envoyer le code' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Jouer maintenant' })).toBeVisible();
   await page.getByRole('button', { name: 'English' }).click();
 
-  await page.getByLabel('Mobile number').fill(`+1555${digits(7)}`);
-  await page.getByLabel('Date of birth').fill('1985-07-01');
-  await page.getByRole('button', { name: 'Send code' }).click();
-  const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
-  await page.getByLabel('6-digit code').fill(code);
-  await page.getByRole('button', { name: 'Verify' }).click();
+  // A guest account (no email): deleted below, so nothing is left behind.
+  await page.getByLabel('I confirm I’m 18 or older').check();
+  await page.getByRole('button', { name: 'Play now' }).click();
   // Signed in: onboarding starts with the three roles.
   await expect(page.getByRole('button', { name: /Founder/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Banker/ })).toBeVisible();

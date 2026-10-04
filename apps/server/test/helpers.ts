@@ -1,12 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
+import type { EmailProvider } from '../src/adapters/email.js';
 import { loadConfig } from '../src/config.js';
 import { GameService } from '../src/game.js';
 import { Store } from '../src/store/sqlite.js';
 
 export const T0 = Date.UTC(2026, 9, 3, 12);
 
-export async function makeApp(opts: { path?: string; now?: () => number } = {}) {
+export async function makeApp(
+  opts: {
+    path?: string;
+    now?: () => number;
+    env?: Record<string, string>;
+    email?: EmailProvider;
+  } = {},
+) {
   const store = new Store(opts.path ?? ':memory:');
   const now = opts.now ?? (() => T0);
   const config = loadConfig({
@@ -14,6 +22,7 @@ export async function makeApp(opts: { path?: string; now?: () => number } = {}) 
     DEV_TOOLS: '1',
     SESSION_SECRET: 'x'.repeat(40),
     ADMIN_TOKEN: 'admin-token-123',
+    ...opts.env,
   });
   const game = new GameService(store, { seed: 99, snapshotEvery: 5, now });
   const sent: string[] = [];
@@ -22,6 +31,7 @@ export async function makeApp(opts: { path?: string; now?: () => number } = {}) 
     store,
     game,
     sms: { send: async (_p, t) => void sent.push(t) },
+    ...(opts.email ? { email: opts.email } : {}),
     now,
   });
   return { app, store, game, sent };
@@ -44,6 +54,19 @@ export async function signIn(app: FastifyInstance, phone = '+2348031234567'): Pr
     payload: { phone, code: devCode },
   });
   const cookie = verify.cookies.find((c) => c.name === 'rw_session')!;
+  return `rw_session=${cookie.value}`;
+}
+
+/** Guest play: confirm 18+, get a session cookie. */
+export async function playAsGuest(app: FastifyInstance): Promise<string> {
+  const r = await app.inject({
+    method: 'POST',
+    url: '/api/auth/guest',
+    headers: H,
+    payload: { adult: true },
+  });
+  if (r.statusCode !== 200) throw new Error(`guest: ${r.statusCode} ${r.body}`);
+  const cookie = r.cookies.find((c) => c.name === 'rw_session')!;
   return `rw_session=${cookie.value}`;
 }
 

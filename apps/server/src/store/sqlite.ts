@@ -10,7 +10,14 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
-import type { AccountStore, ChatRow, MessageRow, PresenceRow } from './types.js';
+import type {
+  AccountRow,
+  AccountStore,
+  EmailTokenRow,
+  ChatRow,
+  MessageRow,
+  PresenceRow,
+} from './types.js';
 
 export type { ChatRow, MessageRow } from './types.js';
 
@@ -87,6 +94,18 @@ const MIGRATIONS: string[] = [
      user_id TEXT PRIMARY KEY,
      visible INTEGER NOT NULL DEFAULT 1
    );`,
+  // Guest play and email sign-in. Guests keep phone_hash = 'guest:<id>' so the
+  // column stays NOT NULL UNIQUE without rebuilding the table.
+  `ALTER TABLE users ADD COLUMN email TEXT;
+   ALTER TABLE users ADD COLUMN guest INTEGER NOT NULL DEFAULT 0;
+   CREATE UNIQUE INDEX users_email ON users(email);
+   CREATE TABLE email_tokens (
+     token_hash TEXT PRIMARY KEY,
+     email TEXT NOT NULL,
+     intent TEXT NOT NULL,
+     user_id TEXT,
+     expires_at INTEGER NOT NULL
+   );`,
 ];
 
 /** Presence rows this much older than the caller's window are deleted. */
@@ -152,13 +171,71 @@ export class Store implements AccountStore {
       .run(id, phoneHash, now);
   }
 
+  createGuestUser(id: string, now: number) {
+    this.db
+      .prepare('INSERT INTO users (id, phone_hash, created_at, guest) VALUES (?, ?, ?, 1)')
+      .run(id, `guest:${id}`, now);
+  }
+
+  setEmail(userId: string, emailNorm: string): boolean {
+    return this.tx(() => {
+      const owner = this.db.prepare('SELECT id FROM users WHERE email = ?').get(emailNorm) as
+        { id: string } | undefined;
+      if (owner && owner.id !== userId) return false;
+      const r = this.db
+        .prepare('UPDATE users SET email = ?, guest = 0 WHERE id = ? AND deleted_at IS NULL')
+        .run(emailNorm, userId);
+      return r.changes === 1;
+    });
+  }
+
+  findUserByEmail(emailNorm: string): { id: string } | undefined {
+    return this.db
+      .prepare('SELECT id FROM users WHERE email = ? AND deleted_at IS NULL')
+      .get(emailNorm) as { id: string } | undefined;
+  }
+
+  getAccount(userId: string): AccountRow | undefined {
+    const row = this.db
+      .prepare('SELECT guest, email FROM users WHERE id = ? AND deleted_at IS NULL')
+      .get(userId) as { guest: number; email: string | null } | undefined;
+    return row ? { guest: row.guest === 1, email: row.email } : undefined;
+  }
+
+  putEmailToken(tokenHash: string, row: EmailTokenRow) {
+    this.db
+      .prepare(
+        'INSERT INTO email_tokens (token_hash, email, intent, user_id, expires_at) VALUES (?, ?, ?, ?, ?)',
+      )
+      .run(tokenHash, row.email, row.intent, row.userId, row.expiresAt);
+  }
+
+  takeEmailToken(tokenHash: string, now: number): EmailTokenRow | undefined {
+    return this.tx(() => {
+      this.db.prepare('DELETE FROM email_tokens WHERE expires_at <= ?').run(now);
+      const row = this.db
+        .prepare(
+          'DELETE FROM email_tokens WHERE token_hash = ? RETURNING email, intent, user_id, expires_at',
+        )
+        .get(tokenHash) as
+        | { email: string; intent: 'login' | 'save'; user_id: string | null; expires_at: number }
+        | undefined;
+      return row
+        ? { email: row.email, intent: row.intent, userId: row.user_id, expiresAt: row.expires_at }
+        : undefined;
+    });
+  }
+
   /** Account deletion: drop personal data; keep only a tombstone id for game history. */
   deleteUser(id: string, now: number) {
     this.tx(() => {
       this.db
-        .prepare("UPDATE users SET phone_hash = 'deleted:' || id, deleted_at = ? WHERE id = ?")
+        .prepare(
+          "UPDATE users SET phone_hash = 'deleted:' || id, email = NULL, deleted_at = ? WHERE id = ?",
+        )
         .run(now, id);
       this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM email_tokens WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM chats WHERE a = ? OR b = ?').run(id, id);
       this.db.prepare('DELETE FROM presence WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM presence_settings WHERE user_id = ?').run(id);

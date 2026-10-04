@@ -34,10 +34,23 @@ import {
   type MarketId,
   BANK_TYPES,
 } from '@runway/engine';
-import { AuthService, SESSION_COOKIE, SESSION_TTL_MS, isAdult, normalisePhone } from './auth.js';
+import {
+  AuthService,
+  SESSION_COOKIE,
+  SESSION_TTL_MS,
+  isAdult,
+  normaliseEmail,
+  normalisePhone,
+} from './auth.js';
 import type { Config } from './config.js';
 import type { Game } from './game.js';
 import type { SmsProvider } from './adapters/sms.js';
+import {
+  emailProviderFrom,
+  isReservedAddress,
+  signInEmail,
+  type EmailProvider,
+} from './adapters/email.js';
 import type { AccountStore } from './store/types.js';
 
 /** Avatars not seen for this long drop off the city map. */
@@ -56,6 +69,8 @@ export interface AppDeps {
   store: AccountStore;
   game: Game;
   sms: SmsProvider;
+  /** Defaults to the provider the config selects (Resend, SMTP, or the dev logger). */
+  email?: EmailProvider;
   now: () => number;
 }
 
@@ -63,6 +78,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const { config, store, game, sms, now } = deps;
   const auth = new AuthService(store, config.SESSION_SECRET, now);
   const prod = config.NODE_ENV === 'production';
+  const emailer = deps.email ?? emailProviderFrom(config, (m) => console.log(m));
 
   const app = Fastify({
     logger:
@@ -75,6 +91,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
               'req.headers.authorization',
               'req.body.phone',
               'req.body.code',
+              'req.body.email',
+              'req.body.token',
               'res.headers["set-cookie"]',
             ],
           },
@@ -215,6 +233,143 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     config: { rateLimit: { max: config.AUTH_RATE_LIMIT, timeWindow: '10 minutes' } },
   };
 
+  const setSession = (reply: FastifyReply, token: string) =>
+    reply.setCookie(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: prod,
+      path: '/',
+      maxAge: SESSION_TTL_MS / 1000,
+    });
+
+  /** Ends the session this browser had, if any (logging into another account). */
+  const dropCurrentSession = async (req: FastifyRequest) => {
+    const token = req.cookies[SESSION_COOKIE];
+    if (token && req.userId) await auth.logout(token);
+  };
+
+  /** Guest play: confirm 18+, get a session. Progress lives in this browser until saved. */
+  app.post(
+    '/api/auth/guest',
+    { config: { rateLimit: { max: config.GUEST_RATE_LIMIT, timeWindow: '10 minutes' } } },
+    async (req, reply) => {
+      const parsed = z.object({ adult: z.literal(true) }).safeParse(req.body);
+      if (!parsed.success)
+        return reply
+          .code(400)
+          .send({ error: { code: 'age', message: 'Confirm you are 18 or older to play.' } });
+      await dropCurrentSession(req);
+      const { token } = await auth.createGuest();
+      setSession(reply, token);
+      return { ok: true, guest: true };
+    },
+  );
+
+  // Links on screen instead of by email: never in production; in development
+  // and previews (dev tools or SHOW_SIGNIN_CODE) so testers and E2E can sign in.
+  const showLinks = !prod && (config.DEV_TOOLS || config.SHOW_SIGNIN_CODE);
+  const linkBase = (req: FastifyRequest) => {
+    if (config.PUBLIC_URL) return config.PUBLIC_URL.replace(/\/$/, '');
+    // Production never trusts the Host header for a link that carries a key.
+    if (prod) return null;
+    const proto = String(req.headers['x-forwarded-proto'] ?? req.protocol).split(',')[0]!;
+    return `${proto}://${req.host}`;
+  };
+
+  // Per-email limit on top of the per-address one. In memory: on serverless
+  // hosts it counts per function instance, which still slows abuse a lot.
+  const EMAIL_WINDOW_MS = 15 * 60_000;
+  const LINKS_PER_EMAIL = 5;
+  const linkTimes = new Map<string, number[]>();
+  const tooManyLinks = (email: string) => {
+    const t = now();
+    if (linkTimes.size > 10_000)
+      for (const [k, v] of linkTimes)
+        if (!v.some((x) => x > t - EMAIL_WINDOW_MS)) linkTimes.delete(k);
+    const recent = (linkTimes.get(email) ?? []).filter((x) => x > t - EMAIL_WINDOW_MS);
+    recent.push(t);
+    linkTimes.set(email, recent);
+    return recent.length > LINKS_PER_EMAIL;
+  };
+
+  /**
+   * Ask for a sign-in link. `intent: 'save'` (signed in) confirms an email for
+   * this account; `'login'` opens the email's account (or, if none, saves the
+   * guest who asked, or makes a new one). Always the same answer, whether or
+   * not the email has an account.
+   */
+  app.post(
+    '/api/auth/email',
+    { config: { rateLimit: { max: config.EMAIL_RATE_LIMIT, timeWindow: '15 minutes' } } },
+    async (req, reply) => {
+      const body = z
+        .object({
+          email: z.string().max(254),
+          intent: z.enum(['login', 'save']),
+          lang: z.enum(['en', 'fr']).default('en'),
+        })
+        .parse(req.body);
+      const email = normaliseEmail(body.email);
+      if (!email)
+        return reply
+          .code(400)
+          .send({ error: { code: 'email', message: 'Enter a valid email address.' } });
+      if (body.intent === 'save' && !req.userId)
+        return reply.code(401).send({ error: { code: 'auth', message: 'Sign in first.' } });
+      const base = linkBase(req);
+      if ((!emailer.real && !showLinks) || !base) {
+        if (prod) req.log.warn('email sign-in is off: set an email provider and PUBLIC_URL');
+        return reply.code(503).send({
+          error: { code: 'email.off', message: 'Email sign-in isn’t switched on yet.' },
+        });
+      }
+      if (tooManyLinks(email))
+        return reply.code(429).send({
+          error: { code: 'rate', message: 'Too many tries. Wait a few minutes and try again.' },
+        });
+      const token = await auth.issueEmailToken(email, body.intent, req.userId ?? null);
+      const link = `${base}/?signin=${token}`;
+      // Reserved test domains (example.com, .test…) never get real mail.
+      if (emailer.real && !isReservedAddress(email)) {
+        try {
+          await emailer.send(signInEmail(email, link, body.intent, body.lang));
+        } catch (err) {
+          req.log.error({ err }, 'sign-in email failed');
+          return reply.code(502).send({
+            error: { code: 'email.failed', message: 'We couldn’t send the email. Try again.' },
+          });
+        }
+      }
+      return showLinks ? { ok: true, sent: true, devLink: link } : { ok: true, sent: true };
+    },
+  );
+
+  /** Open a sign-in link: sets the session cookie. */
+  app.post(
+    '/api/auth/email/verify',
+    {
+      config: {
+        rateLimit: { max: Math.max(60, config.EMAIL_RATE_LIMIT), timeWindow: '15 minutes' },
+      },
+    },
+    async (req, reply) => {
+      const { token } = z.object({ token: z.string().max(200) }).parse(req.body);
+      const r = await auth.useEmailToken(token);
+      if (!r.ok)
+        return reply
+          .code(r.code === 'email.taken' ? 409 : r.code === 'auth' ? 401 : 400)
+          .send({ error: { code: r.code, message: r.message } });
+      await dropCurrentSession(req);
+      setSession(reply, r.token);
+      return {
+        ok: true,
+        intent: r.intent,
+        isNew: r.isNew,
+        account: { guest: false, email: r.email },
+      };
+    },
+  );
+
   app.post('/api/auth/start', authLimit, async (req, reply) => {
     const body = z
       .object({
@@ -253,13 +408,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         .send({ error: { code: 'phone', message: 'Enter a valid mobile number.' } });
     const r = await auth.verifyOtp(phone, body.code);
     if (!r.ok) return reply.code(401).send({ error: { code: 'otp', message: r.reason } });
-    reply.setCookie(SESSION_COOKIE, r.token, {
-      httpOnly: true,
-      sameSite: 'strict',
-      secure: prod,
-      path: '/',
-      maxAge: SESSION_TTL_MS / 1000,
-    });
+    setSession(reply, r.token);
     return { ok: true, isNew: r.isNew };
   });
 
@@ -281,9 +430,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   // ---------------------------------------------------------------- game
 
+  /**
+   * The player's world, plus `account`: `{ guest, email }`. A guest's game is
+   * kept only by this browser's session cookie until they save it with an email.
+   */
   app.get('/api/state', { preHandler: requireUser }, async (req) => {
     const view = playerView(game.current, req.userId!);
-    return view ? { onboarded: true, view } : { onboarded: false };
+    const a = await store.getAccount(req.userId!);
+    const account = { guest: a?.guest ?? false, email: a?.email ?? null };
+    return view ? { onboarded: true, view, account } : { onboarded: false, account };
   });
 
   app.post(

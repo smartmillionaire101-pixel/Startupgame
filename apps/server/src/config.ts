@@ -20,8 +20,29 @@ const schema = z.object({
    * off once a real SMS provider is plugged in.
    */
   SHOW_SIGNIN_CODE: bool,
-  /** Sign-in attempts allowed per IP address per 10 minutes, for each step. */
+  /** Legacy phone sign-in: attempts allowed per IP address per 10 minutes, for each step. */
   AUTH_RATE_LIMIT: z.coerce.number().int().min(1).default(5),
+  /** New guest accounts per IP address per 10 minutes (generous: phones share carrier IPs). */
+  GUEST_RATE_LIMIT: z.coerce.number().int().min(1).default(30),
+  /** Sign-in links per IP address per 15 minutes. Each email also gets 5 per 15 minutes. */
+  EMAIL_RATE_LIMIT: z.coerce.number().int().min(1).default(20),
+  /**
+   * The site's address, for sign-in links (https://runway.example). Required
+   * in production for email sign-in; elsewhere the request's own address is used.
+   */
+  PUBLIC_URL: z.string().url().optional().or(z.literal('')),
+  /** Email sign-in, option 1: Resend (https://resend.com). */
+  RESEND_API_KEY: z.string().optional(),
+  /** Email sign-in, option 2: SMTP, e.g. Gmail with an App Password (smtp.gmail.com, 465). */
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.coerce.number().int().min(1).max(65535).optional(),
+  ),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  /** Sender, e.g. "Runway <you@gmail.com>". Defaults to the SMTP user. */
+  EMAIL_FROM: z.string().optional(),
   FX_FEED_URL: z.string().url().optional().or(z.literal('')),
   ADMIN_TOKEN: z.string().optional(),
   WEB_DIST: z.string().optional(),
