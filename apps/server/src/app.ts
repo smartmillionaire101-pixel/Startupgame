@@ -497,41 +497,55 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     },
   );
 
-  app.get('/api/presence', { preHandler: requireUser }, async (req) => {
-    const world = game.current;
-    const me = world.players[req.userId!];
-    if (!me) return { players: [] };
-    const rows = (await store.listPresence(me.market, now() - PRESENCE_WINDOW_MS)).filter(
-      (r) => r.userId !== me.id && world.players[r.userId]?.market === me.market,
-    );
-    const blocked = await Promise.all(
-      rows.map(async (r) => !!(await store.findChat(me.id, r.userId))?.blocked_by),
-    );
-    return {
-      players: rows
-        .filter((_, i) => !blocked[i])
-        .map((r) => {
-          const p = world.players[r.userId]!;
-          const company = [...p.companyIds]
-            .reverse()
-            .map((id) => world.companies[id])
-            .find((c) => c?.status === 'active');
-          return {
-            id: p.id,
-            name: p.name,
-            handle: p.handle,
-            role: p.role,
-            backgroundId: p.backgroundId,
-            stars: p.stars.value,
-            company: company?.name ?? null,
-            x: r.x,
-            y: r.y,
-            place: r.place,
-            seenAt: r.at,
-          };
-        }),
-    };
-  });
+  app.get(
+    '/api/presence',
+    {
+      preHandler: requireUser,
+      // Polled every few seconds by each open map: count per player, not per shared address.
+      config: {
+        rateLimit: {
+          max: 60,
+          timeWindow: '1 minute',
+          keyGenerator: (req: FastifyRequest) => req.userId ?? req.ip,
+        },
+      },
+    },
+    async (req) => {
+      const world = game.current;
+      const me = world.players[req.userId!];
+      if (!me) return { players: [] };
+      const rows = (await store.listPresence(me.market, now() - PRESENCE_WINDOW_MS)).filter(
+        (r) => r.userId !== me.id && world.players[r.userId]?.market === me.market,
+      );
+      const blocked = await Promise.all(
+        rows.map(async (r) => !!(await store.findChat(me.id, r.userId))?.blocked_by),
+      );
+      return {
+        players: rows
+          .filter((_, i) => !blocked[i])
+          .map((r) => {
+            const p = world.players[r.userId]!;
+            const company = [...p.companyIds]
+              .reverse()
+              .map((id) => world.companies[id])
+              .find((c) => c?.status === 'active');
+            return {
+              id: p.id,
+              name: p.name,
+              handle: p.handle,
+              role: p.role,
+              backgroundId: p.backgroundId,
+              stars: p.stars.value,
+              company: company?.name ?? null,
+              x: r.x,
+              y: r.y,
+              place: r.place,
+              seenAt: r.at,
+            };
+          }),
+      };
+    },
+  );
 
   app.get('/api/me/presence', { preHandler: requireUser }, async (req) => ({
     visible: await store.getPresenceVisible(req.userId!),
