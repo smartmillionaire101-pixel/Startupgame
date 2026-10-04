@@ -6,7 +6,7 @@
 import { memo, type ReactNode } from 'react';
 import { hash } from './contract';
 import type { Flavour, LandmarkKind, TreeKind, VehicleSpec } from './flavour';
-import { project, TH, TW, type Decor, type Place } from './layout';
+import { project, TH, TW, type Decor, type Place, type Pt } from './layout';
 
 // ---------------------------------------------------------------------------
 // Geometry and colour helpers
@@ -1777,6 +1777,75 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
           </text>
         </g>
       )}
+    </g>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bunting (Wave 2): strings of pennants over a venue with an event coming up.
+
+const PENNANTS = ['#f43f5e', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+
+/** A sagging string of pennants between two screen points. */
+function Garland({ a, b, sag, n }: { a: Pt; b: Pt; sag: number; n: number }) {
+  const at = (u: number): Pt => ({
+    x: a.x + (b.x - a.x) * u,
+    y: a.y + (b.y - a.y) * u + sag * 4 * u * (1 - u),
+  });
+  const mid = at(0.5);
+  const flags: ReactNode[] = [];
+  for (let k = 0; k < n; k++) {
+    const u0 = (k + 0.15) / n;
+    const u1 = (k + 0.85) / n;
+    const p0 = at(u0);
+    const p1 = at(u1);
+    const tip = at((u0 + u1) / 2);
+    flags.push(
+      <polygon
+        key={k}
+        points={`${r1(p0.x)},${r1(p0.y)} ${r1(p1.x)},${r1(p1.y)} ${r1(tip.x)},${r1(tip.y + 6)}`}
+        fill={PENNANTS[k % PENNANTS.length]}
+      />,
+    );
+  }
+  return (
+    <g>
+      <path
+        d={`M ${r1(a.x)} ${r1(a.y)} Q ${r1(mid.x)} ${r1(mid.y + sag)} ${r1(b.x)} ${r1(b.y)}`}
+        stroke="#334155"
+        strokeWidth="0.7"
+        fill="none"
+      />
+      {flags}
+    </g>
+  );
+}
+
+/** Bunting draped along a building's two visible roof edges, plus a flag on a pole. */
+export function Bunting({ p }: { p: Place }) {
+  const z = p.h + 3;
+  const sp = (x: number, y: number): Pt => {
+    const s = project(x, y);
+    return { x: s.x, y: s.y - z };
+  };
+  const front = sp(p.x, p.y + p.d);
+  const corner = sp(p.x + p.w, p.y + p.d);
+  const back = sp(p.x + p.w, p.y);
+  const top = project(p.x + p.w / 2, p.y + p.d / 2);
+  const poleX = r1(top.x);
+  const poleY = r1(top.y - p.h - (p.motif === 'hall' ? 11 : 2));
+  const n = (a: Pt, b: Pt) => Math.max(3, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / 9));
+  return (
+    <g className="city-bunting" pointerEvents="none">
+      <Garland a={front} b={corner} sag={4} n={n(front, corner)} />
+      <Garland a={corner} b={back} sag={4} n={n(corner, back)} />
+      <line x1={poleX} y1={poleY} x2={poleX} y2={poleY - 22} stroke="#475569" strokeWidth="1.2" />
+      <polygon
+        className="city-flag"
+        points={`${poleX},${poleY - 22} ${poleX + 13},${poleY - 18} ${poleX},${poleY - 14}`}
+        fill="#8b5cf6"
+      />
+      <circle cx={poleX} cy={poleY - 22.5} r="1.3" fill="#fbbf24" />
     </g>
   );
 }

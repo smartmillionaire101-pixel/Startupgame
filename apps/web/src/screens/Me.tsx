@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Industry, RevenueModel, Stage } from '@runway/engine';
 import { api } from '../api';
 import { LANGS, setLang, t, tx, useLang } from '../i18n';
@@ -6,6 +6,8 @@ import { amountInput, money, parseAmount, stars } from '../format';
 import { useView } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Sparkline, Stat } from '../ui';
 import { Chats } from './Chat';
+import { visitPlace } from '../city/goto';
+import { contactsOf, type ContactView } from '../city/people';
 import { BankPicker } from './common';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
@@ -771,10 +773,59 @@ export function FoundCompany() {
   );
 }
 
+const contactKindLabel = (k: ContactView['kind']) =>
+  ({
+    fund: t('Investor'),
+    founder: t('Founder'),
+    talent: t('Talent'),
+    customer: t('Customers'),
+    player: t('Player'),
+  })[k];
+
+/** People you've met at events, warmest first within each month (Wave 2). */
+export function Contacts() {
+  const { view } = useView();
+  const contacts = contactsOf(view);
+  const funds = new Set(view.market.funds.map((f) => f.id));
+  return (
+    <Card title={t('Contacts')} action={<Pill>{contacts.length}</Pill>}>
+      {contacts.length === 0 ? (
+        <Empty>
+          {t('No contacts yet. Host or attend an event at the Event Hall to meet people.')}
+        </Empty>
+      ) : (
+        <ul className="list" aria-label={t('Contacts')}>
+          {contacts.map((c) => (
+            <li key={c.id}>
+              <div className="spread">
+                <div>
+                  <div className="item-title">{c.name}</div>
+                  <div className="small muted">{contactKindLabel(c.kind)}</div>
+                </div>
+                {c.kind === 'fund' && funds.has(c.refId) && (
+                  <Button variant="ghost" onClick={() => visitPlace(`fund:${c.refId}`)}>
+                    {t('Visit office')}
+                  </Button>
+                )}
+              </div>
+              <Bar
+                value={c.warmth}
+                label={t('Warmth')}
+                tone={c.warmth >= 0.6 ? 'good' : c.warmth < 0.25 ? 'warn' : undefined}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 export function People() {
   const { view } = useView();
   return (
     <>
+      <Contacts />
       <Chats />
       <Card title={t('Players in {market}', { market: view.market.name })}>
         {view.players.length === 0 ? (
@@ -797,6 +848,50 @@ export function People() {
         )}
       </Card>
     </>
+  );
+}
+
+/** Wave 2: whether other players see you on the city map. */
+function MapVisibility() {
+  const { toast } = useView();
+  const [visible, setVisible] = useState<boolean | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.presenceSetting().then(
+      (r) => live && setVisible(r.visible !== false),
+      () => live && setUnavailable(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  const change = (v: boolean) => {
+    setVisible(v);
+    api.setPresenceSetting(v).catch((e: Error) => {
+      setVisible(!v);
+      toast(tx(e.message), 'error');
+    });
+  };
+  return (
+    <Card title={t('Privacy')}>
+      <label className="row">
+        <input
+          type="checkbox"
+          checked={unavailable ? true : (visible ?? true)}
+          disabled={unavailable || visible === null}
+          onChange={(e) => change(e.target.checked)}
+        />{' '}
+        {t('Show me on the map')}
+      </label>
+      <p className="small muted">
+        {unavailable
+          ? t('Other players on the map arrive soon.')
+          : t(
+              'Other players in your market see your avatar walking the city. Turn this off to walk unseen.',
+            )}
+      </p>
+    </Card>
   );
 }
 
@@ -826,6 +921,7 @@ function Settings() {
           {t('Lite mode: no charts, no live connection (refreshes every minute)')}
         </label>
       </Card>
+      <MapVisibility />
       <Card title={t('Where the numbers come from')}>
         <p className="small muted">
           {t('Real data sets the conditions; the simulation decides outcomes.')}

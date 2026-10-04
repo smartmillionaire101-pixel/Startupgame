@@ -29,27 +29,13 @@ import {
   type RescuePlan,
   type StoryPlace,
 } from './contract';
+import { EventHall } from './Events';
 import { project, type CityLayout, type Place } from './layout';
+import { npcName } from './people';
 
 /** Where a story or rescue action points, as a navigable request. */
 export type GoTo = (place: StoryPlace) => void;
 export type Nav = (tab: 'company' | 'money' | 'news' | 'me' | 'home') => void;
-
-const NPC_NAMES: Record<string, string[]> = {
-  lagos: ['Chiamaka', 'Tunde', 'Ngozi', 'Bayo', 'Funmi', 'Emeka'],
-  nairobi: ['Wanjiru', 'Otieno', 'Achieng', 'Kamau', 'Njeri', 'Mwangi'],
-  london: ['Priya', 'Tom', 'Grace', 'Oliver', 'Amara', 'Callum'],
-  accra: ['Ama', 'Kwame', 'Efua', 'Kofi', 'Akosua', 'Yaw'],
-  freetown: ['Fatmata', 'Mohamed', 'Isatu', 'Abu', 'Mariama', 'Ibrahim'],
-  kigali: ['Aline', 'Eric', 'Clarisse', 'Jean', 'Diane', 'Patrick'],
-  johannesburg: ['Thandi', 'Sipho', 'Lerato', 'Pieter', 'Naledi', 'Thabo'],
-  cairo: ['Nour', 'Omar', 'Mariam', 'Youssef', 'Salma', 'Karim'],
-  dubai: ['Layla', 'Rashid', 'Aisha', 'Faisal', 'Meera', 'Hamdan'],
-};
-const npcName = (market: string, seed: string) => {
-  const xs = NPC_NAMES[market] ?? ['Sam', 'Alex', 'Jordan', 'Robin'];
-  return xs[hash(seed) % xs.length]!;
-};
 
 const npcBackgrounds = ['b-commercial', 'i-banker', 'i-operator', 'i-exited', 'b-fintech'];
 
@@ -514,7 +500,7 @@ function HubInterior({ place, layout }: { place: Place; layout: CityLayout }) {
       />
       <p className="small muted">
         {t(
-          'Co-working café: founders, talent and freelancers. Avatars of other players arrive soon.',
+          'Co-working café: founders, talent and freelancers. Tap anyone on the street outside to say hello.',
         )}
       </p>
       {company && <Team c={company} />}
@@ -737,14 +723,13 @@ function NewsstandInterior({ place, layout, nav }: { place: Place; layout: CityL
 function EventHallInterior({ place, layout }: { place: Place; layout: CityLayout }) {
   return (
     <>
-      <Scene place={place} layout={layout} />
-      <Card title={t('Opening soon')}>
-        <p>
-          {t(
-            'Hosted events, demo days and networking with other players open here in the next wave.',
-          )}
-        </p>
-      </Card>
+      <Scene
+        place={place}
+        layout={layout}
+        who={npcName(layout.marketId, 'eventhall')}
+        role={t('Events manager')}
+      />
+      <EventHall />
     </>
   );
 }

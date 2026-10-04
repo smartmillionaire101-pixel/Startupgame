@@ -110,4 +110,11 @@ export const api = {
   block: (chatId: string) => request('POST', `/api/chats/${chatId}/block`, {}),
   report: (chatId: string, reason: 'harassment' | 'scam' | 'spam' | 'other') =>
     request('POST', `/api/chats/${chatId}/report`, { reason }),
+  /** Who else is on the map (Wave 2 §A). Raw body: validate with normPresence. */
+  presence: () => request<unknown>('GET', '/api/presence'),
+  reportPresence: (p: { x: number; y: number; place: string | null }) =>
+    request<unknown>('POST', '/api/presence', p),
+  presenceSetting: () => request<{ visible: boolean }>('GET', '/api/me/presence'),
+  setPresenceSetting: (visible: boolean) =>
+    request<{ visible: boolean }>('PUT', '/api/me/presence', { visible }),
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGame, useView } from './store';
 import { Pill, Toasts } from './ui';
 import { stars } from './format';
@@ -13,6 +13,7 @@ import { NewsScreen } from './screens/News';
 import { MeScreen } from './screens/Me';
 import { BankScreen } from './screens/Bank';
 import { CityScreen } from './city/CityScreen';
+import { onVisit } from './city/goto';
 
 export function App() {
   const { status } = useGame();
@@ -86,6 +87,15 @@ function Game() {
     setTab(id);
     window.scrollTo({ top: 0 });
   };
+  // "Take me there" (e.g. a contact's office) opens the City, which walks you over.
+  useEffect(
+    () =>
+      onVisit(() => {
+        setTab('city');
+        window.scrollTo({ top: 0 });
+      }),
+    [],
+  );
 
   return (
     <>

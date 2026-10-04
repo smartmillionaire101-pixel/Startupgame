@@ -91,8 +91,6 @@ export const city: Record<string, string> = {
   'All stalls ({n})': 'Tous les étals ({n})',
   '{buyers} buyers · budget {budget}/mo': '{buyers} acheteurs · budget {budget}/mois',
   'Community manager': 'Responsable de la communauté',
-  'Co-working café: founders, talent and freelancers. Avatars of other players arrive soon.':
-    'Café coworking : fondateurs, talents et indépendants. Les avatars des autres joueurs arrivent bientôt.',
 
   // Office: story and rescue
   Watch: 'Vigilance',
@@ -109,8 +107,6 @@ export const city: Record<string, string> = {
   'Open the money screen': 'Ouvrir l’écran argent',
   'Open the news screen': 'Ouvrir l’écran actualités',
   '{tier}: {housing}': '{tier} : {housing}',
-  'Hosted events, demo days and networking with other players open here in the next wave.':
-    'Événements, demo days et réseautage avec les autres joueurs ouvriront ici lors de la prochaine vague.',
   '{n} mo left': '{n} mois restants',
   'Cash for about {n} months: build revenue or plan a raise.':
     'Trésorerie pour environ {n} mois : développez le chiffre d’affaires ou préparez une levée.',

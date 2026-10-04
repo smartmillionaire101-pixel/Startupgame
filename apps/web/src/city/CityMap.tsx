@@ -13,6 +13,7 @@ import {
   ArtDefs,
   AvatarFigure,
   Building,
+  Bunting,
   DecorItem,
   P,
   VehicleShape,
@@ -34,6 +35,8 @@ import {
   type Place,
   type Pt,
 } from './layout';
+import { Crowd } from './Crowd';
+import type { AiPerson, PresenceView } from './people';
 
 // ---------------------------------------------------------------------------
 // Reduced motion, as a subscribable media query.
@@ -49,12 +52,18 @@ const getRM = () =>
   typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(RM).matches;
 export const useReducedMotion = () => useSyncExternalStore(subscribeRM, getRM, () => false);
 
+const NONE_AI: AiPerson[] = [];
+const NONE_PLAYERS: PresenceView[] = [];
+const NONE_FLAGS: string[] = [];
+
 /** Last avatar position per market, so switching tabs doesn't send you home. */
 const lastPos = new Map<string, Pt>();
 
 export interface CityMapHandle {
   /** Walk to a place's door, then call onEnter. */
   goTo: (placeId: string) => void;
+  /** Walk to a place's door without going in. */
+  walkToPlace: (placeId: string) => void;
   recentre: () => void;
   zoom: (factor: number) => void;
 }
@@ -432,6 +441,11 @@ export function CityMap({
   onEnter,
   handleRef,
   ariaLabel,
+  ai = NONE_AI,
+  players = NONE_PLAYERS,
+  flags = NONE_FLAGS,
+  onPerson,
+  onArrive,
 }: {
   layout: CityLayout;
   look: AvatarLook;
@@ -442,6 +456,16 @@ export function CityMap({
   onEnter: (p: Place) => void;
   handleRef?: { current: CityMapHandle | null };
   ariaLabel: string;
+  /** Ambient AI characters (Wave 2). */
+  ai?: AiPerson[];
+  /** Other players, from presence (Wave 2). */
+  players?: PresenceView[];
+  /** Place ids flying bunting: an event is coming up there. */
+  flags?: string[];
+  /** Someone was tapped. */
+  onPerson?: (id: string) => void;
+  /** The avatar stopped somewhere (after a walk, or on arrival in the city). */
+  onArrive?: (at: Pt, placeId: string | null) => void;
 }) {
   const reduced = useReducedMotion();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -454,9 +478,11 @@ export function CityMap({
   const walk = useRef<{ raf: number; cancel: () => void } | null>(null);
   const following = useRef(true);
   const onEnterRef = useRef(onEnter);
+  const onArriveRef = useRef(onArrive);
   useEffect(() => {
     onEnterRef.current = onEnter;
-  }, [onEnter]);
+    onArriveRef.current = onArrive;
+  }, [onEnter, onArrive]);
 
   const zoomLimits = useCallback(() => {
     const { w, h } = cam.current;
@@ -525,6 +551,7 @@ export function CityMap({
     placeAvatar(pos.current);
     cam.current.z = cam.current.w < 500 ? 1 : 1.15;
     centreOn(pos.current);
+    onArriveRef.current?.(pos.current, null);
   }, [layout, placeAvatar, centreOn]);
 
   const stopWalk = useCallback(() => {
@@ -536,7 +563,7 @@ export function CityMap({
   useEffect(() => stopWalk, [stopWalk]);
 
   const walkTo = useCallback(
-    (target: Pt, then?: () => void) => {
+    (target: Pt, then?: () => void, placeId: string | null = null) => {
       stopWalk();
       const path = findPath(layout, pos.current, target);
       const len = pathLength(path);
@@ -545,6 +572,7 @@ export function CityMap({
         lastPos.set(layout.marketId, target);
         placeAvatar(target);
         stopWalk();
+        onArriveRef.current?.(target, placeId);
         then?.();
       };
       if (len < 0.05 || reduced) {
@@ -594,7 +622,14 @@ export function CityMap({
     (id: string) => {
       const p = layout.places.find((x) => x.id === id);
       if (!p) return;
-      walkTo(p.door, () => onEnterRef.current(p));
+      walkTo(p.door, () => onEnterRef.current(p), p.id);
+    },
+    [layout, walkTo],
+  );
+  const walkToPlace = useCallback(
+    (id: string) => {
+      const p = layout.places.find((x) => x.id === id);
+      if (p) walkTo(p.door, undefined, p.id);
     },
     [layout, walkTo],
   );
@@ -623,13 +658,14 @@ export function CityMap({
     if (!handleRef) return;
     handleRef.current = {
       goTo,
+      walkToPlace,
       recentre: () => centreOn(pos.current),
       zoom: (f) => zoomAt(f),
     };
     return () => {
       handleRef.current = null;
     };
-  }, [handleRef, goTo, centreOn, zoomAt]);
+  }, [handleRef, goTo, walkToPlace, centreOn, zoomAt]);
 
   // ---- Pointer input: drag to pan, pinch to zoom, tap to walk or enter.
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -683,7 +719,12 @@ export function CityMap({
     const had = pointers.current.delete(e.pointerId);
     if (!had || pointers.current.size > 0) return;
     if (gesture.current.moved > 6) return;
-    // A tap.
+    // A tap: on a person, a building or a street.
+    const who = (e.target as Element).closest?.('[data-person]')?.getAttribute('data-person');
+    if (who && onPerson) {
+      onPerson(who);
+      return;
+    }
     const el = (e.target as Element).closest?.('[data-place]');
     const id = el?.getAttribute('data-place');
     if (id) {
@@ -790,6 +831,11 @@ export function CityMap({
           <ellipse rx="4" ry="2" fill="#fff" opacity="0.8" />
         </g>
         <Skyline layout={layout} />
+        {flags.map((id) => {
+          const p = layout.places.find((x) => x.id === id);
+          return p ? <Bunting key={id} p={p} /> : null;
+        })}
+        <Crowd layout={layout} ai={ai} players={players} reduced={reduced} />
         <Labels layout={layout} labelOf={labelOf} />
         {mp && markerPlace && (
           <g transform={`translate(${mp.x},${mp.y - markerPlace.h - 40})`} className="city-marker">
