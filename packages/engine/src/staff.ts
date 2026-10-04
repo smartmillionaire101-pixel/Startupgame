@@ -190,7 +190,9 @@ export function settleStaff(
       8 * (c.stars.value - 2.5) +
       (runwayMonths < 3 ? -15 : 0) +
       (overloaded ? -15 : 0) +
-      (unpaid ? -45 : 0);
+      (unpaid ? -45 : 0) +
+      // Furloughed on reduced pay: people look elsewhere.
+      (c.hibernation ? -20 : 0);
     if (s.personality === 'anxious' && runwayMonths < 6) target -= 10;
     if (s.personality === 'ambitious' && c.stars.value > 3) target += 8;
     if (s.personality === 'steady') target += 5;

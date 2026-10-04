@@ -67,6 +67,15 @@ import { deriveRng } from './rng.js';
 import { settleMarket } from './settlement.js';
 import { bandSalary, evaluateOffer, hire, layoff } from './staff.js';
 import { companyRunway } from './company.js';
+import {
+  BRIDGE_HOURS,
+  FIRE_SALE_HOURS,
+  HIBERNATE_HOURS,
+  cutCosts,
+  fireSale,
+  requestBridge,
+  setHibernation,
+} from './rescue.js';
 import { createCompany, createPlayer, openMarket, setCogs, welcomeNewPlayer } from './world.js';
 import type { DealTerms, Id, PartyRef, World } from './types.js';
 
@@ -184,6 +193,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     }
     case 'company.build': {
       const c = touch(cmd.companyId);
+      ensure(!c.hibernation, 'build.hibernating', 'The product is frozen while you hibernate.');
       spendHours(me, cmd.hours, 'Building');
       c.buildHours += cmd.hours;
       me.skills.product = Math.min(100, me.skills.product + cmd.hours / 40);
@@ -191,6 +201,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     }
     case 'company.offer': {
       const c = touch(cmd.companyId);
+      ensure(!c.hibernation, 'hire.hibernating', 'You can’t hire while the company hibernates.');
       const cand = m.talent.find((t) => t.id === cmd.candidateId);
       ensure(cand, 'hire.candidate', 'That candidate has left the market.');
       spendHours(me, 2, 'Making an offer');
@@ -344,6 +355,46 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
             : 'Loan offer ready.',
         monthly: monthlyPayment(terms.amount, terms.rateBps, terms.months),
       };
+    }
+    // ------------------------------------------------------------ rescue plan
+    case 'company.cutCosts': {
+      const c = touch(cmd.companyId);
+      return cutCosts(
+        world,
+        c,
+        { marketing: cmd.marketing, founderSalary: cmd.founderSalary, office: cmd.office },
+        month,
+      );
+    }
+    case 'company.hibernate': {
+      const c = touch(cmd.companyId);
+      if (cmd.on) spendHours(me, HIBERNATE_HOURS, 'Furloughing the team');
+      return setHibernation(world, c, cmd.on, month);
+    }
+    case 'company.bridge': {
+      const c = touch(cmd.companyId);
+      spendHours(me, BRIDGE_HOURS, 'Calling your investors');
+      const deals = requestBridge(world, c, cmd.amount, me.id);
+      const accepted = deals.filter((d) => d.status === 'accepted').length;
+      const waiting = deals.filter((d) => d.status === 'open').length;
+      return {
+        dealIds: deals.map((d) => d.id),
+        deals: deals.map((d) => ({ dealId: d.id, status: d.status, summary: d.summary })),
+        message:
+          accepted === deals.length
+            ? 'Your investors backed the bridge. The money is in.'
+            : waiting > 0
+              ? `${accepted} of ${deals.length} said yes. ${waiting} still to answer: check your deal cards.`
+              : accepted > 0
+                ? `${accepted} of ${deals.length} said yes.`
+                : 'Your investors passed on the bridge.',
+      };
+    }
+    case 'company.fireSale': {
+      const c = touch(cmd.companyId);
+      spendHours(me, FIRE_SALE_HOURS, 'Calling buyers');
+      const d = fireSale(world, c, month);
+      return { dealId: d.id, status: d.status, summary: d.summary };
     }
     case 'company.found': {
       const active = me.companyIds.filter((id) => world.companies[id]?.status === 'active').length;

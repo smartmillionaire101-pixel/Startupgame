@@ -94,7 +94,10 @@ export function summarise(
         terms.instrument === 'safe'
           ? `${partyName} puts in ${money(world, c, terms.amount)} now for about ${pct(owns)} later (cap ${money(world, c, terms.valuation)}).`
           : `${partyName} gets ${pct(owns)} for ${money(world, c, terms.amount)}.`;
-      return `${head}${pref}${extras.length ? ` Plus ${extras.join(', ')}.` : ''}${pool}`;
+      const bridge = terms.bridge
+        ? ' A bridge to keep the company going, at a discount to the last round.'
+        : '';
+      return `${head}${pref}${extras.length ? ` Plus ${extras.join(', ')}.` : ''}${pool}${bridge}`;
     }
     case 'loan': {
       const pay = monthlyPayment(terms.amount, terms.rateBps, terms.months);

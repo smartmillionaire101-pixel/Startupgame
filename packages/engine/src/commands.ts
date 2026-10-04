@@ -111,6 +111,17 @@ export const commandSchema = z.discriminatedUnion('type', [
     personalGuarantee: z.boolean(),
   }),
   z.object({ type: z.literal('company.found'), company: companySetup }),
+  // ---- rescue plan (Wave 1)
+  z.object({
+    type: z.literal('company.cutCosts'),
+    companyId: id,
+    marketing: money.optional(),
+    founderSalary: money.optional(),
+    office: z.literal('downsize').optional(),
+  }),
+  z.object({ type: z.literal('company.hibernate'), companyId: id, on: z.boolean() }),
+  z.object({ type: z.literal('company.bridge'), companyId: id, amount: money }),
+  z.object({ type: z.literal('company.fireSale'), companyId: id }),
   z.object({
     type: z.literal('cofounder.invite'),
     companyId: id,

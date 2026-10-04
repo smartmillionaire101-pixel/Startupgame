@@ -10,6 +10,7 @@ import type { MarketData, MarketId, Seniority, StaffRole } from './data/markets.
 import type { Industry, SegmentKind, NeedWeights } from './data/industries.js';
 import type { Role, Skills } from './data/characters.js';
 import type { OutletType } from './data/fiction.js';
+import type { Command } from './commands.js';
 
 export type Id = string;
 
@@ -184,7 +185,13 @@ export interface SegmentPosition {
   pipeline: { due: number; count: number }[];
   /** Funnel numbers from the last settlement, for the dashboard. */
   funnel: { aware: number; interested: number; trial: number; paying: number; churned: number };
+  /** Last month's new customers by channel (for the monthly story). Missing on old saves. */
+  channels?: { marketing: number; outreach: number; wordOfMouth: number; pipeline: number };
+  /** Main reason customers left last month. */
+  churnCause?: ChurnCause;
 }
+
+export type ChurnCause = 'reliability' | 'price' | 'competition' | 'normal';
 
 export interface MonthlyPnl {
   month: number;
@@ -330,6 +337,61 @@ export interface Company {
   parentId: Id | null;
   /** Founders removed by the board, with the month (evidence for the arbitrator). */
   removedFounders: Record<Id, number>;
+  /** Why last month went the way it did (Wave 1). Missing on old saves = null. */
+  story?: CompanyStory | null;
+  /** Distress state for the rescue plan. Missing = null (not in distress). */
+  distress?: Distress | null;
+  /** Hibernation: staff furloughed on reduced pay, product frozen. Missing = null. */
+  hibernation?: { since: number } | null;
+  /** Office downsized to cut rent. Missing = false. */
+  officeDownsized?: boolean;
+  /** Snapshot at the end of last settlement, to explain what changed. Internal. */
+  storyBase?: StoryBase | null;
+}
+
+export type StoryPlace = 'bank' | 'investors' | 'market' | 'hub' | 'office' | 'home' | 'airport';
+
+export interface StoryAction {
+  label: string;
+  why: string;
+  /** Where the UI should take the player. */
+  place: StoryPlace;
+  /** Optional one-tap action. */
+  command?: Command;
+}
+
+export interface StoryItem {
+  tone: 'good' | 'bad' | 'neutral';
+  text: string;
+  cause: string;
+  metric?: 'revenue' | 'customers' | 'cash' | 'burn' | 'morale' | 'stars' | 'product';
+  delta?: number;
+}
+
+export interface CompanyStory {
+  month: number;
+  headline: string;
+  items: StoryItem[];
+  next: StoryAction[];
+}
+
+export type DistressLevel = 'watch' | 'danger' | 'critical';
+
+export interface Distress {
+  level: DistressLevel;
+  /** Whole months of cash left at today's spending. */
+  monthsLeft: number;
+  /** Market month the company entered distress. */
+  since: number;
+}
+
+export interface StoryBase {
+  month: number;
+  price: number;
+  marketingBudget: number;
+  staffIds: Id[];
+  output: number;
+  morale: number;
 }
 
 export interface SupplyEffectsState {
@@ -495,6 +557,8 @@ export interface InvestmentTerms {
   vetoOnSale: boolean;
   /** Option pool top-up (bps of post-money) created before the round. */
   poolTopUpBps: number;
+  /** A bridge SAFE offered to existing investors at a discount (rescue plan). */
+  bridge?: boolean;
 }
 
 export interface CofounderTerms {

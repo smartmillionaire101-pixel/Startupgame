@@ -11,6 +11,7 @@ import { rulesFor } from './data/rules.js';
 import { markValue, ownership, waterfall } from './captable.js';
 import { gameDate } from './clock.js';
 import { companyRunway, defaultAlive } from './company.js';
+import { rescuePlan } from './rescue.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
 import { creditProfile } from './credit.js';
@@ -496,7 +497,18 @@ export function playerView(world: World, playerId: Id) {
       ...t,
       monthlyCost: Math.round(m.data.costOfLiving * 100 * t.costCol),
     })),
-    companies: myCompanies.map((c) => companyDetail(world, c)),
+    companies: myCompanies.map((c) => {
+      const plan = c.status === 'active' ? rescuePlan(world, c, playerId) : null;
+      return {
+        ...companyDetail(world, c),
+        /** Why last month went the way it did (Wave 1). */
+        story: c.story ?? null,
+        /** The rescue plan; null when the company isn't in distress. */
+        rescue: plan && plan.level ? plan : null,
+        hibernating: !!c.hibernation,
+        officeDownsized: !!c.officeDownsized,
+      };
+    }),
     fund: fund
       ? {
           ...fund,
