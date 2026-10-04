@@ -36,7 +36,7 @@ export function DealCard({ deal }: { deal: Deal }) {
           }
         : t.kind === 'acquisition'
           ? { price: parseAmount(valuation) ?? undefined }
-          : t.kind === 'loan'
+          : t.kind === 'loan' || t.kind === 'personal-loan'
             ? { amount: parseAmount(amount) ?? undefined }
             : { equityBps: Math.round(equity * 100) };
     const r = await send(
@@ -121,7 +121,7 @@ export function DealCard({ deal }: { deal: Deal }) {
       )}
       {countering && (
         <div className="stack" style={{ marginTop: '0.5rem' }}>
-          {(t.kind === 'investment' || t.kind === 'loan') && (
+          {(t.kind === 'investment' || t.kind === 'loan' || t.kind === 'personal-loan') && (
             <Field label={`Amount (${cur})`}>
               {(id) => <input id={id} value={amount} onChange={(e) => setAmount(e.target.value)} />}
             </Field>

@@ -376,6 +376,41 @@ function CapTable({ c }: { c: Company }) {
   );
 }
 
+/** Put personal savings (or a personal loan) into the company. */
+function Inject({ c }: { c: Company }) {
+  const { send, cur, view } = useView();
+  const [amount, setAmount] = useState('');
+  return (
+    <Card title="Founder capital">
+      <p className="small muted">
+        Your savings: {money(view.accounts.local?.balance ?? 0, cur)}. Money you put in buys no new
+        shares.
+      </p>
+      <div className="row">
+        <input
+          aria-label="Amount to put in"
+          value={amount}
+          placeholder="e.g. 500k"
+          onChange={(e) => setAmount(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <Button
+          variant="subtle"
+          disabled={!parseAmount(amount)}
+          onClick={() =>
+            void send(
+              { type: 'company.inject', companyId: c.id, amount: parseAmount(amount) ?? 0 },
+              (r: { message: string }) => r.message,
+            ).then(() => setAmount(''))
+          }
+        >
+          Put in
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function Finance({ c }: { c: Company }) {
   const { cur } = useView();
   const last = c.finance.history.at(-1);
@@ -428,6 +463,7 @@ function Finance({ c }: { c: Company }) {
         )}
         <Sparkline values={c.finance.history.map((h) => h.cashEnd)} label="Cash over time" />
       </Card>
+      <Inject c={c} />
       <Card title="Debt and receivables">
         <p className="small">
           Unpaid invoices: {money(c.finance.receivables, cur)}

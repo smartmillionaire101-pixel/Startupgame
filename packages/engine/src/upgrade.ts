@@ -5,13 +5,20 @@
  */
 import type { World } from './types.js';
 
-export const CURRENT_SCHEMA = 2;
+export const CURRENT_SCHEMA = 3;
 
 type Step = (world: World) => void;
 
 const STEPS: Record<number, Step> = {
   // v1 → v2: Phase 2 (markets open in waves; later Phase 2 fields default here).
   1: () => {},
+  // v2 → v3: personal loans and on-time payment history.
+  2: (world) => {
+    for (const p of Object.values(world.players)) {
+      p.loans ??= [];
+      p.credit.onTimePayments ??= 0;
+    }
+  },
 };
 
 export function upgradeWorld(world: World): World {

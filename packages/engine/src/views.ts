@@ -13,6 +13,7 @@ import { gameDate } from './clock.js';
 import { companyRunway, defaultAlive } from './company.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
+import { creditProfile } from './credit.js';
 import { burn, getMarket, hoursLeft, lastPnl, nextStage, totalCustomers } from './helpers.js';
 import { lifestyleCost, tierOf } from './personal.js';
 import { hasPublicWarning } from './stars.js';
@@ -137,7 +138,11 @@ export function companyDetail(world: World, c: Company) {
           world.players[holderId]?.name ??
           world.funds[holderId]?.name ??
           c.staff.find((s) => s.id === holderId)?.name ??
-          (holderId === 'pool' ? 'Option pool' : holderId),
+          (holderId === 'pool'
+            ? 'Option pool'
+            : holderId.startsWith('bank:')
+              ? `${getMarket(world, holderId.slice(5) as MarketId).bankName} (seized)`
+              : holderId),
         kind: h.kind,
         shares: h.shares,
         pct: Math.round(ownership(c.capTable, holderId) * 1000) / 10,
@@ -174,7 +179,7 @@ export function companyDetail(world: World, c: Company) {
 
 function dealView(world: World, d: DealCard, viewerId: Id) {
   const { aiLimit: _hidden, ...rest } = d;
-  const c = world.companies[d.companyId];
+  const c = d.companyId ? world.companies[d.companyId] : undefined;
   const name = (p: DealCard['proposer']) =>
     p.kind === 'player'
       ? world.players[p.id]?.name
@@ -191,7 +196,7 @@ function dealView(world: World, d: DealCard, viewerId: Id) {
     (p.kind === 'company' && !!world.companies[p.id]?.founderIds.includes(viewerId));
   return {
     ...rest,
-    companyName: c?.name ?? '',
+    companyName: c?.name ?? 'Personal',
     proposerName: name(d.proposer) ?? '',
     counterpartyName: name(d.counterparty) ?? '',
     yourTurn: d.status === 'open' && mine(d.awaiting),
@@ -312,7 +317,8 @@ export function playerView(world: World, playerId: Id) {
       energy: Math.round(p.energy),
       burnout: p.burnout,
       lifestyle: { ...tierOf(p), monthlyCost: lifestyleCost(world, p) },
-      credit: p.credit,
+      credit: { ...p.credit, ...creditProfile(world, p) },
+      loans: p.loans,
       milestones: p.milestones,
       investor: p.investor ?? null,
       failures: p.failures,
@@ -393,6 +399,8 @@ export function playerView(world: World, playerId: Id) {
         role: x.role,
         stars: round1(x.stars.value),
         companies: x.companyIds.map((id) => world.companies[id]?.name).filter(Boolean),
+        /** Your trust with them, built only through real interactions (§13). */
+        trust: Math.round((p.trust[x.id] ?? 0) * 100) / 100,
       })),
     deals: Object.values(world.deals)
       .filter((d) => d.market === p.market)

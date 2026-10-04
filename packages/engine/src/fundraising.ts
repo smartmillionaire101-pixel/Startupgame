@@ -302,7 +302,9 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
       (m.climate - 1) * 0.2 -
       gaps * 0.015 -
       keyLoss -
-      tooManyPivots,
+      tooManyPivots +
+      // Relationship capital (§13): a fund that backed you before remembers how it went.
+      (founder?.trust[fund.id] ?? 0) * 0.1,
   );
 }
 

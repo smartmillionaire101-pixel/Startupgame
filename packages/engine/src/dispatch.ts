@@ -24,6 +24,7 @@ import {
   startPitch,
 } from './fundraising.js';
 import { raiseFund } from './funds.js';
+import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
 import {
   achieve,
   col,
@@ -314,6 +315,18 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         achieve(world, me, 'any.comeback', 'First comeback after failure', month);
       if (me.role === 'investor') achieve(world, me, 'any.role-switch', 'First role switch', month);
       welcomeNewPlayer(world, me, c.id);
+      // Trust becomes usable in a comeback: people who trust you hear first (§13).
+      if (me.failures > 0) {
+        for (const other of Object.values(world.players)) {
+          if (other.ai || other.id === me.id || (other.trust[me.id] ?? 0) < 0.2) continue;
+          notify(world, other.id, {
+            month,
+            kind: 'pitch',
+            text: `${me.name}, whom you’ve worked with before, just started ${c.name}.`,
+            ref: { kind: 'company', id: c.id },
+          });
+        }
+      }
       return { companyId: c.id };
     }
     case 'cofounder.invite': {
@@ -465,6 +478,21 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return setLifestyle(world, me, cmd.tier);
     case 'player.gig':
       return takeGig(world, me, month);
+    case 'player.loan': {
+      const deal = requestPersonalLoan(world, me, {
+        amount: cmd.amount,
+        months: cmd.months,
+        collateralCompanyId: cmd.collateralCompanyId,
+      });
+      return { dealId: deal.id, summary: deal.summary };
+    }
+    case 'player.repay':
+      return repayPersonalLoan(world, me, cmd.loanId, cmd.amount, month);
+    case 'company.inject': {
+      touch(cmd.companyId);
+      injectCapital(world, me, cmd.companyId, cmd.amount, month);
+      return { message: 'Money moved into the company.' };
+    }
     case 'player.usdOpen':
       return { accountId: openUsdAccount(world, me) };
     case 'player.convert':

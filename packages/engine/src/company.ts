@@ -11,6 +11,7 @@ import { RECURRING, emptyPosition, reliability } from './customers.js';
 import { ensure } from './errors.js';
 import {
   achieve,
+  adjustTrust,
   burn,
   col,
   getMarket,
@@ -579,6 +580,19 @@ export function shutdownCompany(
     if (pos.companyId === c.id && pos.returned < pos.invested) pos.writtenOff = true;
 
   const cleanExit = how === 'orderly' && staffPaid >= owedStaff;
+  // Relationship capital (§13): returning money fairly builds trust; collapsing burns it.
+  const backers = Object.values(world.positions).filter((p) => p.companyId === c.id);
+  for (const fid of c.founderIds) {
+    for (const b of backers) {
+      const investorPlayer =
+        world.players[b.investorId] ??
+        (world.funds[b.investorId]?.managerId
+          ? world.players[world.funds[b.investorId]!.managerId!]
+          : undefined);
+      adjustTrust(investorPlayer, fid, cleanExit ? 0.1 : -0.3);
+      adjustTrust(world.players[fid], b.investorId, cleanExit ? 0.05 : -0.1);
+    }
+  }
   for (const fid of c.founderIds) {
     const f = world.players[fid];
     if (!f) continue;

@@ -174,6 +174,14 @@ export const commandSchema = z.discriminatedUnion('type', [
   // ---- personal
   z.object({ type: z.literal('player.lifestyle'), tier: z.number().int().min(1).max(5) }),
   z.object({ type: z.literal('player.gig') }),
+  z.object({
+    type: z.literal('player.loan'),
+    amount: money,
+    months: z.number().int().min(3).max(60),
+    collateralCompanyId: id.optional(),
+  }),
+  z.object({ type: z.literal('player.repay'), loanId: id, amount: money }),
+  z.object({ type: z.literal('company.inject'), companyId: id, amount: money }),
   z.object({ type: z.literal('player.usdOpen') }),
   z.object({
     type: z.literal('player.convert'),

@@ -9,6 +9,7 @@ import { account, convert, openAccount, transfer, transferUpTo } from './ledger.
 import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { applyStarEvent } from './stars.js';
+import { settlePersonalLoans } from './credit.js';
 import type { Player, World } from './types.js';
 
 export const GIGS_PER_MONTH = 2;
@@ -35,6 +36,8 @@ export function computeHours(p: Player): number {
  */
 export function settlePerson(world: World, p: Player, month: number) {
   const m = getMarket(world, p.market);
+  // Banks debit loan repayments before anything else.
+  settlePersonalLoans(world, p, month);
   const cost = lifestyleCost(world, p);
   const paid = transferUpTo(
     world,

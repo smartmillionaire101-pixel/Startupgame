@@ -250,8 +250,123 @@ function PersonalMoney() {
           ))}
         </ul>
       </Card>
+      <Credit />
       <CareerMoves />
     </>
+  );
+}
+
+/** Credit profile and personal loans (§8). */
+function Credit() {
+  const { view, send, cur } = useView();
+  const credit = view.me.credit;
+  const [amount, setAmount] = useState('');
+  const [months, setMonths] = useState(12);
+  const [collateral, setCollateral] = useState('');
+  const pledgeable = view.companies.filter(
+    (c) =>
+      c.status === 'active' &&
+      c.capTable.lastPostMoney > 0 &&
+      c.capTable.rows.some((r) => r.holderId === view.me.id),
+  );
+  return (
+    <Card
+      title="Credit and loans"
+      action={
+        <Pill tone={credit.score >= 65 ? 'good' : credit.score < 35 ? 'bad' : 'warn'}>
+          {credit.score} · {credit.band}
+        </Pill>
+      }
+    >
+      <p className="small muted">
+        {credit.onTimePayments} on-time payments · {credit.missedPayments} missed ·{' '}
+        {credit.defaults} defaults · debt {money(credit.debt, cur)}
+      </p>
+      {view.me.loans.length > 0 && (
+        <ul className="list small">
+          {view.me.loans.map((l) => (
+            <li key={l.id} className="spread">
+              <span>
+                {l.lender}: {money(l.outstanding, cur)} left · {money(l.monthlyPayment, cur)}/mo ·{' '}
+                {l.monthsLeft} months
+                {l.collateral ? ` · ${l.collateral.label} pledged` : ''}
+                {l.missed > 0 && <span className="bad"> · payment missed</span>}
+              </span>
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  void send(
+                    { type: 'player.repay', loanId: l.id, amount: l.outstanding },
+                    'Loan repaid.',
+                  )
+                }
+              >
+                Repay
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="small muted">
+        Unsecured limit today: {money(credit.unsecuredLimit, cur)}. Pledging shares raises it and
+        lowers the rate.
+      </p>
+      <div className="grid2">
+        <Field label={`Amount (${cur})`}>
+          {(id) => (
+            <input
+              id={id}
+              value={amount}
+              placeholder="e.g. 2m"
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          )}
+        </Field>
+        <Field label="Months">
+          {(id) => (
+            <input
+              id={id}
+              type="number"
+              min={3}
+              max={60}
+              value={months}
+              onChange={(e) => setMonths(Number(e.target.value))}
+            />
+          )}
+        </Field>
+      </div>
+      {pledgeable.length > 0 && (
+        <Field label="Collateral">
+          {(id) => (
+            <select id={id} value={collateral} onChange={(e) => setCollateral(e.target.value)}>
+              <option value="">None (unsecured)</option>
+              {pledgeable.map((c) => (
+                <option key={c.id} value={c.id}>
+                  My {c.name} shares
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+      )}
+      <Button
+        variant="subtle"
+        disabled={!parseAmount(amount)}
+        onClick={() =>
+          void send(
+            {
+              type: 'player.loan',
+              amount: parseAmount(amount) ?? 0,
+              months,
+              ...(collateral ? { collateralCompanyId: collateral } : {}),
+            },
+            (r: { summary: string }) => `Offer ready on your deal cards: ${r.summary}`,
+          )
+        }
+      >
+        Ask {view.market.bankName}
+      </Button>
+    </Card>
   );
 }
 
@@ -412,6 +527,7 @@ function People() {
                 <span className="item-title">{p.name}</span>{' '}
                 <span className="small muted">
                   @{p.handle} · {p.role} · {p.stars.toFixed(1)}★
+                  {p.trust !== 0 ? ` · trust ${p.trust > 0 ? '+' : ''}${p.trust}` : ''}
                   {p.companies.length ? ` · ${p.companies.join(', ')}` : ''}
                 </span>
               </li>

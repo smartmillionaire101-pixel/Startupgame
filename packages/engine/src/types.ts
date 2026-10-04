@@ -64,6 +64,21 @@ export interface StarState {
 
 // ---------------------------------------------------------------- Players
 
+export interface PersonalLoan {
+  id: Id;
+  lender: string;
+  /** Market whose bank lent the money (repayments go there). */
+  market: MarketId;
+  principal: number;
+  outstanding: number;
+  rateBps: number;
+  monthlyPayment: number;
+  monthsLeft: number;
+  collateral: { companyId: Id; shares: number; label: string } | null;
+  /** Consecutive missed payments; two in a row is a default. */
+  missed: number;
+}
+
 export interface InvestorProfile {
   sectors: Industry[];
   stages: Stage[];
@@ -92,7 +107,9 @@ export interface Player {
   burnout: boolean;
   lifestyleTier: number;
   accounts: { local: Id; usd?: Id };
-  credit: { missedPayments: number; defaults: number };
+  credit: { missedPayments: number; defaults: number; onTimePayments: number };
+  /** Personal loans from banks (§8). */
+  loans: PersonalLoan[];
   companyIds: Id[];
   investor?: InvestorProfile;
   milestones: Record<string, number>;
@@ -361,7 +378,18 @@ export interface AcquisitionTerms {
   buyer: string;
 }
 
-export type DealTerms = InvestmentTerms | CofounderTerms | LoanTerms | AcquisitionTerms;
+/** A bank lends to a person (§8 "Personal loans and credit profiles"). */
+export interface PersonalLoanTerms {
+  kind: 'personal-loan';
+  amount: number;
+  rateBps: number;
+  months: number;
+  /** Shares pledged as collateral; seized on default. */
+  collateral: { companyId: Id; shares: number; label: string } | null;
+}
+
+export type DealTerms =
+  InvestmentTerms | CofounderTerms | LoanTerms | AcquisitionTerms | PersonalLoanTerms;
 
 export interface PartyRef {
   kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company';
@@ -373,7 +401,8 @@ export type DealStatus = 'open' | 'accepted' | 'declined' | 'expired' | 'withdra
 export interface DealCard {
   id: Id;
   market: MarketId;
-  companyId: Id;
+  /** The company the deal is about; null for deals with a person (personal loans). */
+  companyId: Id | null;
   proposer: PartyRef;
   counterparty: PartyRef;
   /** The party whose move it is. */
