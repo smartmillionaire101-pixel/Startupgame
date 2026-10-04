@@ -60,9 +60,7 @@ export function aiFounderPolicy(world: World, c: Company, rng: Rng, month: numbe
 /** AI funds back AI startups that are raising (so markets move and player marks change). */
 export function aiFundsInvest(world: World, market: MarketId, rng: Rng, month: number) {
   // AI angels invest on their own stream (angels.ts), so this pick never shifts.
-  const funds = Object.values(world.funds).filter(
-    (f) => f.market === market && f.ai && !f.angelId,
-  );
+  const funds = Object.values(world.funds).filter((f) => f.market === market && f.ai && !f.angelId);
   for (const c of Object.values(world.companies)) {
     if (!(c.ai || c.aiCeo) || c.market !== market || c.status !== 'active' || !c.raising) continue;
     const stage = nextStage(c.lastRound);

@@ -63,7 +63,8 @@ export const WAVE3_DATA = {
     sources: {
       fx: 'US dollar: the reference currency (no conversion)',
       rate: 'Federal Reserve FOMC federal funds target range (upper bound)',
-      stats: 'US Census Bureau ACS, County Business Patterns and Nonemployer Statistics, Bay Area (est.)',
+      stats:
+        'US Census Bureau ACS, County Business Patterns and Nonemployer Statistics, Bay Area (est.)',
       tax: 'IRS and California Franchise Tax Board (simplified effective rates)',
       deposit: 'FDIC',
       salaries: 'BLS OEWS, San Francisco–Oakland–Fremont MSA, and job boards (est.)',

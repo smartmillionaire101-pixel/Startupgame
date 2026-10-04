@@ -1515,7 +1515,8 @@ export const CAPITAL: Record<MarketId, CapitalProfile> = {
             spreadBps: 600,
             termMonths: [24, 60],
             guarantee: 'required',
-            pitch: 'A federally guaranteed loan for young businesses, with your personal guarantee.',
+            pitch:
+              'A federally guaranteed loan for young businesses, with your personal guarantee.',
           },
           {
             id: 'microloan',

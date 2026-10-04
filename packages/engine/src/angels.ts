@@ -134,12 +134,22 @@ export function ensureAngels(world: World, market: MarketId, now: number) {
   }
 }
 
-/** Is a company out raising? AI companies say so; human founders show it by pitching. */
-function isRaising(world: World, c: Company, month: number): boolean {
+/** Most angel SAFEs one company takes before its priced round. */
+const MAX_ANGELS_PER_COMPANY = 3;
+
+/**
+ * Would this company take an angel cheque? AI founders say so by raising, or
+ * take one while young (two years or less); human founders show it by
+ * raising or pitching in the last three months.
+ */
+function isRaising(c: Company, month: number, pitched: Set<Id>): boolean {
   if (c.raising) return true;
-  if (c.ai || c.aiCeo) return false;
-  return Object.values(world.pitches).some((p) => p.companyId === c.id && p.month >= month - 3);
+  if (c.ai || c.aiCeo) return month - c.foundedMonth <= 24;
+  return pitched.has(c.id);
 }
+
+const angelSafes = (world: World, c: Company) =>
+  c.capTable.safes.filter((s) => !!world.funds[s.holderId]?.angelId).length;
 
 /**
  * Monthly: each active angel looks at the companies raising in its market
@@ -151,23 +161,34 @@ function isRaising(world: World, c: Company, month: number): boolean {
 export function angelsInvest(world: World, market: MarketId, month: number) {
   const m = getMarket(world, market);
   const rng = deriveRng(world.seed, 'angels', market, month);
+  // Looked up once per settlement, not per angel and company.
+  const pitched = new Set(
+    Object.values(world.pitches)
+      .filter((p) => p.month >= month - 3)
+      .map((p) => p.companyId),
+  );
+  const angelDeals = Object.values(world.deals).filter(
+    (d) =>
+      d.market === market &&
+      d.terms.kind === 'investment' &&
+      d.proposer.kind === 'fund' &&
+      !!world.funds[d.proposer.id]?.angelId,
+  );
   for (const angel of activeAngels(world, market)) {
     const fund = world.funds[angel.angel!.fundId];
     if (!fund) continue;
     const candidates = Object.values(world.companies).filter((c) => {
       if (c.market !== market || c.status !== 'active' || c.bannedFromRaising) return false;
-      if (c.capTable.roundsRaised > 0 || !isRaising(world, c, month)) return false;
+      if (c.capTable.roundsRaised > 0 || !isRaising(c, month, pitched)) return false;
       if (!fund.stages.includes(nextStage(c.lastRound))) return false;
       if (fund.sectors !== 'any' && !fund.sectors.includes(c.industry)) return false;
       if (world.positions[`${fund.id}:${c.id}`]) return false;
+      if (angelSafes(world, c) >= MAX_ANGELS_PER_COMPANY) return false;
       // One open offer per company from angels at a time; no repeat offers from this angel.
-      return !Object.values(world.deals).some(
+      return !angelDeals.some(
         (d) =>
           d.companyId === c.id &&
-          d.terms.kind === 'investment' &&
-          d.proposer.kind === 'fund' &&
-          ((d.status === 'open' && !!world.funds[d.proposer.id]?.angelId) ||
-            (d.proposer.id === fund.id && month - d.createdMonth < 6)),
+          (d.status === 'open' || (d.proposer.id === fund.id && month - d.createdMonth < 6)),
       );
     });
     if (candidates.length === 0) continue;
@@ -199,7 +220,7 @@ export function angelsInvest(world: World, market: MarketId, month: number) {
       continue;
     }
     // openDeal tells the founders: a new deal card from "<angel> Angel Fund".
-    openDeal(world, {
+    const deal = openDeal(world, {
       companyId: c.id,
       proposer: { kind: 'fund', id: fund.id },
       counterparty: { kind: 'company', id: c.id },
@@ -219,5 +240,6 @@ export function angelsInvest(world: World, market: MarketId, month: number) {
       by: fund.id,
       aiLimit: { maxValuation: Math.round(cap * 1.15), maxAmount: fund.check[1] },
     });
+    angelDeals.push(deal);
   }
 }
