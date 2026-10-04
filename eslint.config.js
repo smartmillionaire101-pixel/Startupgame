@@ -10,6 +10,7 @@ export default tseslint.config(
       '**/node_modules/**',
       'apps/web/public/**',
       'netlify/runtime/*.mjs',
+      '.claude/**',
     ],
   },
   js.configs.recommended,
