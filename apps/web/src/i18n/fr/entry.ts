@@ -15,6 +15,8 @@ export const entry: Record<string, string> = {
   'Send code': 'Envoyer le code',
   '6-digit code': 'Code à 6 chiffres',
   'Dev mode: your code is {code}': 'Mode dev : votre code est {code}',
+  'Test version: no text messages yet. Your code is {code}':
+    'Version de test : pas encore de SMS. Votre code est {code}',
   'Sent by SMS. It expires in 10 minutes.': 'Envoyé par SMS. Il expire dans 10 minutes.',
   Verify: 'Vérifier',
   'Change number': 'Changer de numéro',

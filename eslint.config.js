@@ -30,7 +30,11 @@ export default tseslint.config(
     rules: { ...reactHooks.configs.recommended.rules },
   },
   {
-    files: ['apps/server/**/*.ts'],
+    files: ['apps/server/**/*.ts', 'netlify/**/*.mts'],
     rules: { 'no-restricted-syntax': 'off' },
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly', console: 'readonly' } },
   },
 );

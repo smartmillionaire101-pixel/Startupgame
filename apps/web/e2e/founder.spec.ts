@@ -8,7 +8,7 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.getByLabel('Mobile number').fill(`+23480${Date.now().toString().slice(-8)}`);
   await page.getByLabel('Date of birth').fill('1994-03-12');
   await page.getByRole('button', { name: 'Send code' }).click();
-  const hint = page.getByText(/Dev mode: your code is \d{6}/);
+  const hint = page.getByText(/your code is \d{6}/i);
   await expect(hint).toBeVisible();
   const code = (await hint.textContent())!.match(/\d{6}/)![0];
   await page.getByLabel('6-digit code').fill(code);

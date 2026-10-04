@@ -14,6 +14,12 @@ const schema = z.object({
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters').optional(),
   WORLD_SEED: z.coerce.number().int().default(20261003),
   DEV_TOOLS: bool,
+  /**
+   * Show the sign-in code on screen because no SMS gateway is connected yet
+   * (test deployments). Anyone can then sign in with any number, so turn it
+   * off once a real SMS provider is plugged in.
+   */
+  SHOW_SIGNIN_CODE: bool,
   FX_FEED_URL: z.string().url().optional().or(z.literal('')),
   ADMIN_TOKEN: z.string().optional(),
   WEB_DIST: z.string().optional(),

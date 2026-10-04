@@ -10,6 +10,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
+import type { AccountStore, ChatRow, MessageRow } from './types.js';
+
+export type { ChatRow, MessageRow } from './types.js';
 
 const MIGRATIONS: string[] = [
   `CREATE TABLE users (
@@ -80,24 +83,7 @@ export interface CommandRow {
   world_version: number;
 }
 
-export interface ChatRow {
-  id: string;
-  a: string;
-  b: string;
-  created_at: number;
-  blocked_by: string | null;
-}
-
-export interface MessageRow {
-  id: number;
-  chat_id: string;
-  sender: string;
-  text: string;
-  flagged: number;
-  created_at: number;
-}
-
-export class Store {
+export class Store implements AccountStore {
   readonly db: DatabaseSync;
 
   constructor(path: string) {

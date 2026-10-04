@@ -33,6 +33,10 @@ Balancing constants live in one place per system (`CUSTOMER_TUNING`, `STAR_TUNIN
 - **Security.** Phone numbers stored only as HMAC; OTPs and session tokens stored as SHA-256; OTP attempts limited; DOB checked and discarded; `httpOnly` + `SameSite=Strict` cookies plus a required `x-runway` header against CSRF; rate limits; strict CSP; Zod validation at every boundary; logs redact phone, code and cookies; system commands cannot be sent by clients.
 - **Chat** lives outside the simulation (it must never affect outcomes or be visible to reporters/arbitrators): starters only to begin, filters for links/phones/emails/handles, scam flagging, block and report.
 
+### Serverless hosting (Netlify)
+
+The same Fastify app runs inside a Netlify Function: each request is passed through `app.inject`, so routes, validation, security headers and rate limits are identical. Because no process lives long enough to hold the world, `KvGame` keeps it in Netlify Blobs as an event log plus a snapshot. Writing `log/<version>` with "only if new" is the commit point: exactly one writer can produce each version, and a writer that loses the race reloads and re-runs the command on the newer world. The snapshot follows; if a function dies between the two writes, the next reader replays the log entry (the engine is deterministic). A warm function asks only for the snapshot's etag and downloads the world when it changed. Accounts and chats use per-record compare-and-swap (`KvAccountStore`). The clock is a scheduled function; clients poll instead of holding a server-sent-events connection.
+
 ### Scaling path
 
 Markets are independent except for FX and cross-market rules, so the natural next step is one writer per market (shard the command log by market) behind the same API. The read model can be cached per `(player, worldVersion)`. Postgres can replace SQLite behind the `Store` class.

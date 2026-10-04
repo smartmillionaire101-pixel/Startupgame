@@ -5,30 +5,38 @@ const PORT = 8799;
 /**
  * End-to-end: the real server (fresh temp database, dev tools on, no network
  * feeds) serving the production build of the client, driven on a phone viewport.
+ *
+ * E2E_BASE_URL points the same tests at a deployed site instead (a Netlify
+ * deploy preview, which has its own world and dev tools). E2E_SUITE=live
+ * runs only the smoke test that is safe for the live game.
  */
+const REMOTE = process.env.E2E_BASE_URL;
 export default defineConfig({
   testDir: './e2e',
+  ...(process.env.E2E_SUITE === 'live' ? { testMatch: 'live.spec.ts' } : {}),
   timeout: 60_000,
-  retries: process.env.CI ? 1 : 0,
+  retries: process.env.CI && !REMOTE ? 1 : 0,
   use: {
-    baseURL: `http://127.0.0.1:${PORT}`,
+    baseURL: REMOTE ?? `http://127.0.0.1:${PORT}`,
     ...devices['Pixel 7'],
     trace: 'retain-on-failure',
   },
-  webServer: {
-    command: 'NODE_ENV=production npx vite build && npx tsx ../server/src/main.ts',
-    url: `http://127.0.0.1:${PORT}/api/health`,
-    reuseExistingServer: false,
-    timeout: 120_000,
-    env: {
-      NODE_ENV: 'development',
-      PORT: String(PORT),
-      HOST: '127.0.0.1',
-      DATABASE_PATH: `${process.env.TMPDIR ?? '/tmp'}/runway-e2e-${Date.now()}.db`,
-      DEV_TOOLS: '1',
-      FX_FEED_URL: '',
-      WEB_DIST: './dist',
-      SESSION_SECRET: 'e2e-secret-e2e-secret-e2e-secret-0001',
-    },
-  },
+  webServer: REMOTE
+    ? undefined
+    : {
+        command: 'NODE_ENV=production npx vite build && npx tsx ../server/src/main.ts',
+        url: `http://127.0.0.1:${PORT}/api/health`,
+        reuseExistingServer: false,
+        timeout: 120_000,
+        env: {
+          NODE_ENV: 'development',
+          PORT: String(PORT),
+          HOST: '127.0.0.1',
+          DATABASE_PATH: `${process.env.TMPDIR ?? '/tmp'}/runway-e2e-${Date.now()}.db`,
+          DEV_TOOLS: '1',
+          FX_FEED_URL: '',
+          WEB_DIST: './dist',
+          SESSION_SECRET: 'e2e-secret-e2e-secret-e2e-secret-0001',
+        },
+      },
 });
