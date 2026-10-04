@@ -239,9 +239,7 @@ describe('getting around town (Wave 4)', () => {
     const abroad = run(w, 'u_inv', { type: 'city.ride', mode: 'taxi', distance: 'long' });
     w = abroad.world;
     expect(abroad.result.currency).toBe('GBP');
-    expect(abroad.result.fare).toBe(
-      Math.round(w.markets.london!.data.costOfLiving * 100 * 0.035),
-    );
+    expect(abroad.result.fare).toBe(Math.round(w.markets.london!.data.costOfLiving * 100 * 0.035));
     expect(before - savings(w, 'u_inv')).toBe(abroad.result.paid);
     expect(moneyByCurrency(w)).toEqual(total);
   });

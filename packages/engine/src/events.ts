@@ -275,7 +275,14 @@ export function rsvpEvent(world: World, me: Player, eventId: Id, going: boolean)
     ensure(e.attendees.length + 1 < e.capacity, 'event.full', 'The event is full.');
     spendHours(me, k.hoursAttend, `Going to ${e.title}`);
     if (e.ticket > 0 && host)
-      payExact(world, me.accounts.local, host.accounts.local, e.ticket, `Ticket: ${e.title}`, m.month);
+      payExact(
+        world,
+        me.accounts.local,
+        host.accounts.local,
+        e.ticket,
+        `Ticket: ${e.title}`,
+        m.month,
+      );
     e.attendees.push(me.id);
     notify(world, e.hostId, {
       month: m.month,
@@ -286,7 +293,14 @@ export function rsvpEvent(world: World, me: Player, eventId: Id, going: boolean)
   }
   ensure(isGoing, 'event.notGoing', 'You weren’t going.');
   if (e.ticket > 0 && host)
-    pay(world, host.accounts.local, me.accounts.local, e.ticket, `Ticket refund: ${e.title}`, m.month);
+    pay(
+      world,
+      host.accounts.local,
+      me.accounts.local,
+      e.ticket,
+      `Ticket refund: ${e.title}`,
+      m.month,
+    );
   e.attendees = e.attendees.filter((id) => id !== me.id);
   return {
     going: false,

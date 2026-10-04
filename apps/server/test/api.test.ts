@@ -183,8 +183,7 @@ describe('API boundary', () => {
   });
 
   it('sends the clock, where you are and flight fares with the state (Wave 4)', async () => {
-    let t = T0;
-    const { app } = await makeApp({ now: () => t, env: { MONTH_MINUTES: '5' } });
+    const { app } = await makeApp({ now: () => T0, env: { MONTH_MINUTES: '5' } });
     const s = api(app, await signIn(app));
     await s.command(founderSetup());
     let view = (await s.get('/api/state')).json().view;

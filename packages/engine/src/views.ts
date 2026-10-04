@@ -500,9 +500,7 @@ function marketView(world: World, p: Player, m: MarketState, founderish: boolean
           sellerAi: seller.ai,
           sellerStars: round1(seller.stars.value),
           uptime: Math.round(reliability(seller) * 100),
-          rating: l.reviews.count
-            ? Math.round((l.reviews.sum / l.reviews.count) * 10) / 10
-            : null,
+          rating: l.reviews.count ? Math.round((l.reviews.sum / l.reviews.count) * 10) / 10 : null,
           marketRate: marketRate(world, seller),
         };
       }),

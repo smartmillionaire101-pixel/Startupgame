@@ -1,6 +1,6 @@
 /**
- * Monthly settlement for one market (§2 "The clock"). Runs at local midnight
- * in that market: salaries, revenue, interest, loan repayments, taxes, rent,
+ * Monthly settlement for one market (§2 "The clock"). Runs once per game
+ * month (see clock.ts): salaries, revenue, interest, loan repayments, taxes, rent,
  * lifestyle — then the AI world moves.
  *
  * Deterministic: the RNG stream is derived from (world seed, market, month).

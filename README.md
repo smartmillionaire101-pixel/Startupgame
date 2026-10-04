@@ -20,7 +20,15 @@ cp apps/server/.env.example apps/server/.env
 npm run dev                 # server on :8787, web on http://localhost:5173
 ```
 
-In development, sign-in links are shown on screen (no email is sent), and Home has an **Advance one month** button so you don't have to wait for midnight.
+In development, sign-in links are shown on screen (no email is sent), and Home has an **Advance one month** button so you don't have to wait for the clock.
+
+## Game time
+
+**Five real minutes = one game month** (one game year is an hour). The length is the server's `MONTH_MINUTES` setting (default `5`; any positive number, e.g. `1440` for the old one-day month). Every market settles at the same instant, at each period boundary: period *n* starts at `2026-01-01T00:00Z + n × MONTH_MINUTES`. After downtime the clock catches up at most seven months per market and skips older ones. Clients get `view.clock = { monthMs, nextSettlementAt, serverNow }` with the state, for a "Next month in 3:42" countdown. A month is still a month inside the game: hours, salaries and rents are unchanged.
+
+Absence is counted in game months: a player not seen for **2 months** has each company they run hibernated (a note in the inbox says so; nothing wakes it up automatically), **6 months** brings a warning, **12 months** puts their companies up for sale. Any signed-in request counts as being seen (recorded at most every fifth of a month).
+
+Travel is being somewhere: `travel.fly` costs a one-way fare (half the old round trip) and 4 hours, and puts the player in that city (`view.me.location`, `view.here`) until they fly on or home. Venues, gigs, business pitches, event RSVPs, in-person fund pitches and the city map's presence all follow where the player is. `city.ride` pays a bus or taxi fare in the city they're in; walking and cycling are free.
 
 | Command | What it does |
 | --- | --- |
@@ -33,7 +41,7 @@ In development, sign-in links are shown on screen (no email is sent), and Home h
 
 ## Deploying
 
-**Netlify** (`netlify.toml`): the client is served as static files, the API runs as a Netlify Function (`netlify/functions/api.mts`), and the game clock as a scheduled function every five minutes (`netlify/functions/clock.mts`). State lives in Netlify Blobs: the world as a command log plus a snapshot, with compare-and-swap commits so simultaneous players never overwrite each other (`apps/server/src/serverless`). Production uses one site-wide store that survives redeploys; every deploy preview gets its own empty world with dev tools on. Connect the repository in Netlify and it deploys on every push to `main`; the **Deploy check** workflow then tests the live site.
+**Netlify** (`netlify.toml`): the client is served as static files, the API runs as a Netlify Function (`netlify/functions/api.mts`), and the game clock as a scheduled function every minute (`netlify/functions/clock.mts`). State lives in Netlify Blobs: the world as a command log plus a snapshot, with compare-and-swap commits so simultaneous players never overwrite each other (`apps/server/src/serverless`). Production uses one site-wide store that survives redeploys; every deploy preview gets its own empty world with dev tools on. Connect the repository in Netlify and it deploys on every push to `main`; the **Deploy check** workflow then tests the live site.
 
 - Players start as guests; to let them save their game and log in on other devices, switch on email sign-in (below). Until then production answers "Email sign-in isn’t switched on yet" and guest play still works.
 - The old phone sign-in endpoints still exist for older clients; `SHOW_SIGNIN_CODE` only affects them (and lets previews show sign-in links). Nothing new depends on it.
