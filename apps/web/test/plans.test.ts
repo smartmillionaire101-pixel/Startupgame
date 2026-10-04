@@ -1,18 +1,57 @@
 import { describe, expect, it } from 'vitest';
 import { officeOf, type BusinessCategory, type BusinessShape } from '../src/city/contract';
-import { B, buildLayout, findPath, nearestStreetPoint, segKey, type CityInput, type Pt } from '../src/city/layout';
+import {
+  B,
+  buildLayout,
+  findPath,
+  nearestStreetPoint,
+  segKey,
+  type CityInput,
+  type Pt,
+} from '../src/city/layout';
 import { PLANS } from '../src/city/plans';
+import {
+  CITY_BUSINESSES,
+  CITY_DISTRICTS,
+  businessKind,
+} from '../../../packages/engine/src/data/businesses';
 
 /** The district ids the engine's business seeds reference (Wave 3 §C). */
 const DISTRICTS: Record<string, string[]> = {
-  london: ['city', 'shoreditch', 'mayfair', 'soho', 'borough', 'camden', 'southbank', 'canary-wharf'],
+  london: [
+    'city',
+    'shoreditch',
+    'mayfair',
+    'soho',
+    'borough',
+    'camden',
+    'southbank',
+    'canary-wharf',
+  ],
   lagos: ['marina', 'victoria-island', 'ikoyi', 'yaba', 'ikeja', 'balogun', 'lekki', 'surulere'],
-  nairobi: ['cbd', 'upper-hill', 'westlands', 'kilimani', 'gikomba', 'karen', 'eastleigh', 'industrial-area'],
+  nairobi: [
+    'cbd',
+    'upper-hill',
+    'westlands',
+    'kilimani',
+    'gikomba',
+    'karen',
+    'eastleigh',
+    'industrial-area',
+  ],
   accra: ['osu', 'airport-city', 'makola', 'cantonments', 'labadi', 'east-legon', 'jamestown'],
   freetown: ['central', 'aberdeen', 'lumley', 'kissy', 'wilberforce', 'congo-cross'],
   kigali: ['kiyovu', 'kimihurura', 'nyarugenge', 'nyabugogo', 'kacyiru', 'remera'],
   johannesburg: ['sandton', 'braamfontein', 'maboneng', 'rosebank', 'soweto', 'marshalltown'],
-  cairo: ['downtown', 'zamalek', 'garden-city', 'khan-el-khalili', 'maadi', 'new-cairo', 'heliopolis'],
+  cairo: [
+    'downtown',
+    'zamalek',
+    'garden-city',
+    'khan-el-khalili',
+    'maadi',
+    'new-cairo',
+    'heliopolis',
+  ],
   dubai: ['difc', 'marina', 'deira', 'jumeirah', 'business-bay', 'al-quoz', 'creek'],
   'san-francisco': [
     'fidi',
@@ -123,7 +162,11 @@ describe('city plans', () => {
       const cuts = new Set(l.cuts);
 
       it('has every important place, bank, fund, stall and business', () => {
-        for (const id of IMPORTANT) expect(l.places.filter((p) => p.id === id), id).toHaveLength(1);
+        for (const id of IMPORTANT)
+          expect(
+            l.places.filter((p) => p.id === id),
+            id,
+          ).toHaveLength(1);
         expect(l.places.filter((p) => p.kind === 'lender')).toHaveLength(6);
         expect(l.places.filter((p) => p.kind === 'playerbank')).toHaveLength(1);
         expect(l.places.filter((p) => p.kind === 'fund')).toHaveLength(14);
@@ -210,12 +253,44 @@ describe('city plans', () => {
     }
   });
 
+  it('matches the engine: every seeded business lands in its own district', () => {
+    for (const [m, ids] of Object.entries(CITY_DISTRICTS)) {
+      expect([...ids].sort(), m).toEqual([...DISTRICTS[m]!].sort());
+      const seeds = CITY_BUSINESSES[m as keyof typeof CITY_BUSINESSES];
+      const l = buildLayout(
+        input(m, {
+          businesses: seeds.map((s, n) => {
+            const k = businessKind(s.kind)!;
+            return {
+              id: `seed${n}`,
+              name: s.name,
+              kind: s.kind,
+              category: k.category,
+              district: s.district,
+              shape: k.look.shape,
+              color: k.look.color,
+              awning: k.look.awning ?? null,
+            };
+          }),
+        }),
+      );
+      seeds.forEach((s, n) => {
+        const p = l.places.find((x) => x.ref === `seed${n}`);
+        expect(p?.area, `${m}: ${s.name}`).toBe(s.district);
+      });
+    }
+  });
+
   it('falls back to the generic generator for an unknown market', () => {
     const l = buildLayout(input('atlantis', { businesses: [] }));
     expect(l.areas).toEqual([]);
     expect(l.cuts).toEqual([]);
     expect(l.blocks).toHaveLength(l.size * l.size);
-    for (const id of IMPORTANT) expect(l.places.some((p) => p.id === id), id).toBe(true);
+    for (const id of IMPORTANT)
+      expect(
+        l.places.some((p) => p.id === id),
+        id,
+      ).toBe(true);
     const withBiz = buildLayout(input('atlantis'));
     expect(withBiz.places.filter((p) => p.kind === 'business').length).toBeGreaterThan(0);
   });
@@ -223,6 +298,10 @@ describe('city plans', () => {
   it('still lays out a plan when the engine sends no businesses yet', () => {
     const l = buildLayout(input('london', { businesses: undefined }));
     expect(l.places.some((p) => p.kind === 'business')).toBe(false);
-    for (const id of IMPORTANT) expect(l.places.some((p) => p.id === id), id).toBe(true);
+    for (const id of IMPORTANT)
+      expect(
+        l.places.some((p) => p.id === id),
+        id,
+      ).toBe(true);
   });
 });

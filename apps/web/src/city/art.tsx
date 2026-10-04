@@ -277,7 +277,19 @@ export function Cylinder({
 }
 
 /** Soft cast shadow toward the east (light from the north-west). */
-export function Shadow({ x, y, w, d, h }: { x: number; y: number; w: number; d: number; h: number }) {
+export function Shadow({
+  x,
+  y,
+  w,
+  d,
+  h,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  h: number;
+}) {
   const s = Math.min(1.6, h / 55);
   return (
     <polygon
@@ -1533,9 +1545,7 @@ export function DecorItem({ d, f }: { d: Decor; f: Flavour }) {
     case 'runway':
       return <RunwayStrip d={d} />;
     case 'landmark':
-      return (
-        <Landmark x={d.x} y={d.y} kind={d.landmark ?? f.landmark} color={f.landmarkColor} />
-      );
+      return <Landmark x={d.x} y={d.y} kind={d.landmark ?? f.landmark} color={f.landmarkColor} />;
     case 'hill':
       return <Hill d={d} leaf={f.leaf[1]} park={f.park} />;
     case 'bridge':
@@ -1617,7 +1627,16 @@ export function VehicleShape({ spec, axis }: { spec: VehicleSpec; axis: 'x' | 'y
           <g transform={leftM(x, y, d, h - 1)}>
             <rect x={0} y={3} width={w} height={2} fill={spec.accent} />
           </g>
-          <Box x={x - 0.04} y={y - 0.04} w={w + 0.08} d={d + 0.08} h={2} z={h} color="#7f1d1d" edge={false} />
+          <Box
+            x={x - 0.04}
+            y={y - 0.04}
+            w={w + 0.08}
+            d={d + 0.08}
+            h={2}
+            z={h}
+            color="#7f1d1d"
+            edge={false}
+          />
         </>
       )}
       {spec.extra === 'sensor' && (

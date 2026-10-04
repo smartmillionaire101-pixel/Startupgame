@@ -1,15 +1,13 @@
 /**
  * Local businesses (Wave 3 §C): the interior of a shop, restaurant or
  * workshop (eat and meet, take a shift, sell to them), the Jobs board at the
- * Hub and "Who buys what" at the Market.
- *
- * The three commands (`venue.buy`, `gig.take`, `business.pitch`) belong to
- * the engine's city economy (§B). They are sent through the app's usual
- * `send` flow; `economyCommand` is the one place they are typed loosely, so
- * this screen works before and after the engine's Command union has them.
+ * Hub and "Who buys what" at the Market. The commands (`venue.buy`,
+ * `gig.take`, `business.pitch`) go through the app's usual `send` flow.
  */
 import { useState } from 'react';
 import type { Command } from '@runway/engine';
+
+const cmd = (c: Command) => c;
 import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
@@ -25,25 +23,23 @@ import {
 import type { CityLayout, Place } from './layout';
 import { contactsOf, type PresenceView } from './people';
 
-type EconomyCommand =
-  | { type: 'venue.buy'; businessId: string; itemId: string; withId?: string }
-  | { type: 'gig.take'; businessId: string; gigId: string }
-  | { type: 'business.pitch'; companyId: string; businessId: string };
-
-/** The single loose boundary: the engine's Command union may not list these yet. */
-const economyCommand = (c: EconomyCommand) => c as unknown as Command;
-
-type Loose = {
-  message?: string;
-  text?: string;
-  answer?: string;
-  accepted?: boolean;
+/** What the economy commands answer (engine §B). */
+type PitchResult = {
+  answer: 'yes' | 'later' | 'no';
   monthly?: number;
-  amount?: number;
   reason?: string;
-  paid?: number;
-  short?: boolean;
+  message?: string;
+  coffee?: number;
 } | null;
+type GigResult = {
+  pay?: number;
+  promised?: number;
+  tax?: number;
+  short?: boolean;
+  message?: string;
+} | null;
+type BuyResult = { price?: number; message?: string } | null;
+type Loose = { message?: string; text?: string } | null;
 
 const resultText = (r: Loose, fallback: string) =>
   r?.message ? tx(r.message) : r?.text ? tx(r.text) : fallback;
@@ -125,13 +121,13 @@ function Venue({ b, players }: { b: BusinessView; players: PresenceView[] }) {
   if (!b.venue || !b.venue.items.length) return null;
   const buy = (itemId: string, label: string) =>
     void send(
-      economyCommand({
+      cmd({
         type: 'venue.buy',
         businessId: b.id,
         itemId,
         ...(withId ? { withId } : {}),
       }),
-      (r: Loose) => resultText(r, t('Enjoy: {item}.', { item: tx(label) })),
+      (r: BuyResult) => resultText(r, t('Enjoy: {item}.', { item: tx(label) })),
     );
   return (
     <Card title={b.category === 'food' ? t('Eat and drink') : t('Buy')}>
@@ -197,11 +193,11 @@ function GigRow({
         variant="subtle"
         disabled={left < g.hours}
         onClick={() =>
-          void send(economyCommand({ type: 'gig.take', businessId: b.id, gigId: g.id }), (r: Loose) =>
+          void send(cmd({ type: 'gig.take', businessId: b.id, gigId: g.id }), (r: GigResult) =>
             resultText(
               r,
-              r?.short && typeof r.paid === 'number'
-                ? t('They could only pay {amount}.', { amount: money(r.paid, cur) })
+              r?.short && typeof r.pay === 'number'
+                ? t('They could only pay {amount}.', { amount: money(r.pay, cur) })
                 : t('Shift done at {name}.', { name: b.name }),
             ),
           )
@@ -247,20 +243,19 @@ function SellToThem({ b }: { b: BusinessView }) {
   const wants = company ? b.buys.find((x) => x.sector === company.industry) : undefined;
   const pitch = async () => {
     if (!company) return;
-    const r = await send<Loose>(
-      economyCommand({ type: 'business.pitch', companyId: company.id, businessId: b.id }),
+    const r = await send<PitchResult>(
+      cmd({ type: 'business.pitch', companyId: company.id, businessId: b.id }),
     );
     if (!r) return;
-    const monthly = r.monthly ?? r.amount;
-    const yes = r.accepted === true || r.answer === 'yes';
-    const later = r.answer === 'later' || r.answer === 'come-back';
+    const yes = r.answer === 'yes';
+    const later = r.answer === 'later';
     setAnswer({
       tone: yes ? 'good' : later ? 'warn' : 'bad',
       text: yes
-        ? typeof monthly === 'number'
+        ? typeof r.monthly === 'number'
           ? t('Yes! {owner} will buy about {amount} a month from {company}.', {
               owner: b.owner.name,
-              amount: money(monthly, cur),
+              amount: money(r.monthly, cur),
               company: company.name,
             })
           : t('Yes! {owner} is giving {company} a try.', {
@@ -305,7 +300,9 @@ function SellToThem({ b }: { b: BusinessView }) {
           {b.you.customer && <p className="good small">{t('They are already your customer.')}</p>}
           {!wants && b.buys.length > 0 && (
             <p className="small muted">
-              {t('They don’t buy in your sector ({sector}).', { sector: tx(company.industryLabel) })}
+              {t('They don’t buy in your sector ({sector}).', {
+                sector: tx(company.industryLabel),
+              })}
             </p>
           )}
           {b.you.reason && <p className="small muted">{tx(b.you.reason)}</p>}
@@ -396,12 +393,24 @@ export function WhoBuysWhat({ onVisit }: { onVisit?: (placeId: string) => void }
   const company = activeCompany(view);
   const biz = businessesOf(view).filter((b) => b.open);
   if (!biz.length) return null;
-  const sectors = new Map<string, { label: string; total: number; rows: { b: BusinessView; budget: number; supplier: string | null; you: boolean }[] }>();
+  const sectors = new Map<
+    string,
+    {
+      label: string;
+      total: number;
+      rows: { b: BusinessView; budget: number; supplier: string | null; you: boolean }[];
+    }
+  >();
   for (const b of biz)
     for (const x of b.buys) {
       const s = sectors.get(x.sector) ?? { label: x.label, total: 0, rows: [] };
       s.total += x.monthlyBudget;
-      s.rows.push({ b, budget: x.monthlyBudget, supplier: x.supplier?.name ?? null, you: !!x.supplier?.you });
+      s.rows.push({
+        b,
+        budget: x.monthlyBudget,
+        supplier: x.supplier?.name ?? null,
+        you: !!x.supplier?.you,
+      });
       sectors.set(x.sector, s);
     }
   const order = [...sectors.entries()].sort(
@@ -417,7 +426,10 @@ export function WhoBuysWhat({ onVisit }: { onVisit?: (placeId: string) => void }
         <details key={key} className="who-buys" open={key === company?.industry}>
           <summary>
             <b>{tx(s.label)}</b> ·{' '}
-            {t('{n} businesses, about {amount}/mo', { n: s.rows.length, amount: money(s.total, cur) })}
+            {t('{n} businesses, about {amount}/mo', {
+              n: s.rows.length,
+              amount: money(s.total, cur),
+            })}
             {key === company?.industry && <Pill tone="good">{t('Your sector')}</Pill>}
           </summary>
           <ul className="biz-buys">
@@ -430,7 +442,7 @@ export function WhoBuysWhat({ onVisit }: { onVisit?: (placeId: string) => void }
                     <span className="small muted">
                       {' '}
                       · {money(r.budget, cur)} ·{' '}
-                      {r.you ? t('You supply them') : r.supplier ?? t('No supplier yet')}
+                      {r.you ? t('You supply them') : (r.supplier ?? t('No supplier yet'))}
                     </span>
                   </span>
                   {onVisit && (
@@ -489,9 +501,12 @@ export function MealSheet({
                 <Button
                   onClick={() =>
                     void send(
-                      economyCommand({ type: 'venue.buy', businessId: b!.id, itemId: it.id, withId }),
-                      (r: Loose) =>
-                        resultText(r, t('Lunch with {name} at {place}.', { name: withName, place: b!.name })),
+                      cmd({ type: 'venue.buy', businessId: b!.id, itemId: it.id, withId }),
+                      (r: BuyResult) =>
+                        resultText(
+                          r,
+                          t('Lunch with {name} at {place}.', { name: withName, place: b!.name }),
+                        ),
                     ).then((r) => r && onClose())
                   }
                 >

@@ -217,13 +217,7 @@ export function flaggedPlaces(events: CityEventView[] | null): string[] {
 // Ambient AI characters
 
 export type PersonKind =
-  | 'player'
-  | 'partner'
-  | 'founder'
-  | 'candidate'
-  | 'shopper'
-  | 'owner'
-  | 'angel';
+  'player' | 'partner' | 'founder' | 'candidate' | 'shopper' | 'owner' | 'angel';
 
 export interface AiPerson {
   /** Stable id: `ai:<kind>:<ref>`. */
@@ -457,7 +451,9 @@ export function aiCharacters(layout: CityLayout, input: CrowdInput, max: number)
   const funds = layout.places.filter((p) => p.kind === 'fund');
   const angels = byId(input.angels ?? [])
     .map((a): AiPerson | null => {
-      const office = (a.fundId && places.get(`fund:${a.fundId}`)) || funds[hash(a.id) % Math.max(1, funds.length)];
+      const office =
+        (a.fundId && places.get(`fund:${a.fundId}`)) ||
+        funds[hash(a.id) % Math.max(1, funds.length)];
       if (!office) return null;
       const venue = venues[hash(`${a.id}:lunch`) % Math.max(1, venues.length)];
       const base = make('angel', a.id, a.name, ANGEL_BG, office, 'loop');

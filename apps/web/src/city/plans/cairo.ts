@@ -3,8 +3,22 @@ import type { CityPlan } from './types';
 /** Cairo: Downtown and Garden City on the east bank of the Nile, Zamalek and Giza across. */
 export const cairo: CityPlan = {
   districts: [
-    { id: 'zamalek', name: 'Zamalek', kind: 'nightlife', at: [0, 0], size: [2, 3], hosts: ['investors'] },
-    { id: 'downtown', name: 'Downtown', kind: 'downtown', at: [3, 0], size: [2, 2], hosts: ['finance'] },
+    {
+      id: 'zamalek',
+      name: 'Zamalek',
+      kind: 'nightlife',
+      at: [0, 0],
+      size: [2, 3],
+      hosts: ['investors'],
+    },
+    {
+      id: 'downtown',
+      name: 'Downtown',
+      kind: 'downtown',
+      at: [3, 0],
+      size: [2, 2],
+      hosts: ['finance'],
+    },
     {
       id: 'khan-el-khalili',
       name: 'Khan el-Khalili',
@@ -13,7 +27,14 @@ export const cairo: CityPlan = {
       size: [2, 2],
       hosts: ['market'],
     },
-    { id: 'garden-city', name: 'Garden City', kind: 'downtown', at: [3, 2], size: [2, 2], hosts: ['hub'] },
+    {
+      id: 'garden-city',
+      name: 'Garden City',
+      kind: 'downtown',
+      at: [3, 2],
+      size: [2, 2],
+      hosts: ['hub'],
+    },
     {
       id: 'heliopolis',
       name: 'Heliopolis',

@@ -8,7 +8,14 @@ export const lagos: CityPlan = {
     { id: 'surulere', name: 'Surulere', kind: 'residential', at: [5, 0], size: [2, 3] },
     { id: 'balogun', name: 'Balogun', kind: 'market', at: [0, 4], size: [2, 2], hosts: ['market'] },
     { id: 'marina', name: 'Marina', kind: 'finance', at: [2, 4], size: [2, 2], hosts: ['finance'] },
-    { id: 'ikoyi', name: 'Ikoyi', kind: 'residential', at: [4, 4], size: [2, 1], hosts: ['investors'] },
+    {
+      id: 'ikoyi',
+      name: 'Ikoyi',
+      kind: 'residential',
+      at: [4, 4],
+      size: [2, 1],
+      hosts: ['investors'],
+    },
     {
       id: 'victoria-island',
       name: 'Victoria Island',

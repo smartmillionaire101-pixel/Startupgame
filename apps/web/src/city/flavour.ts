@@ -618,7 +618,15 @@ export const FLAVOURS: Record<string, Flavour> = {
         h: 15,
         extra: 'stripes',
       },
-      { id: 'robotaxi', body: '#f8fafc', accent: '#0f172a', len: 0.52, wid: 0.28, h: 11, extra: 'sensor' },
+      {
+        id: 'robotaxi',
+        body: '#f8fafc',
+        accent: '#0f172a',
+        len: 0.52,
+        wid: 0.28,
+        h: 11,
+        extra: 'sensor',
+      },
       {
         id: 'scooter',
         body: '#16a34a',

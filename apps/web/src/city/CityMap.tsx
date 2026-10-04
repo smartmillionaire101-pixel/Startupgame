@@ -324,9 +324,7 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
   }
   rivers.forEach((w, n) => out.push(<WaterBody key={`river${n}`} w={w} E={E} />));
   for (const br of layout.bridges)
-    out.push(
-      <Deck key={`deck${br.name}${br.from.x},${br.from.y}`} br={br} asphalt={f.asphalt} />,
-    );
+    out.push(<Deck key={`deck${br.name}${br.from.x},${br.from.y}`} br={br} asphalt={f.asphalt} />);
   for (const r of layout.roundabouts) {
     const c = project(r.x, r.y);
     out.push(
@@ -652,7 +650,11 @@ const Labels = memo(function Labels({
               ? project((w.x0 + w.x1) / 2, (w.y0 + w.y1) / 2)
               : project(
                   w.side === 'east' ? w.x0 + 1.4 : (w.x0 + w.x1) / 2,
-                  w.side === 'south' ? w.y0 + 1.2 : w.side === 'north' ? w.y1 - 1.2 : layout.extent / 2,
+                  w.side === 'south'
+                    ? w.y0 + 1.2
+                    : w.side === 'north'
+                      ? w.y1 - 1.2
+                      : layout.extent / 2,
                 );
           return (
             <text key="water" x={c.x} y={c.y + 4} className="city-water-name" textAnchor="middle">

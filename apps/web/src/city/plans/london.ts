@@ -3,9 +3,23 @@ import type { CityPlan } from './types';
 /** London: the City's banks, Mayfair's investors, Shoreditch tech, the Thames. */
 export const london: CityPlan = {
   districts: [
-    { id: 'mayfair', name: 'Mayfair', kind: 'finance', at: [0, 0], size: [2, 2], hosts: ['investors'] },
+    {
+      id: 'mayfair',
+      name: 'Mayfair',
+      kind: 'finance',
+      at: [0, 0],
+      size: [2, 2],
+      hosts: ['investors'],
+    },
     { id: 'soho', name: 'Soho', kind: 'nightlife', at: [2, 0], size: [2, 2] },
-    { id: 'shoreditch', name: 'Shoreditch', kind: 'tech', at: [4, 0], size: [3, 2], hosts: ['hub'] },
+    {
+      id: 'shoreditch',
+      name: 'Shoreditch',
+      kind: 'tech',
+      at: [4, 0],
+      size: [3, 2],
+      hosts: ['hub'],
+    },
     { id: 'camden', name: 'Camden', kind: 'market', at: [0, 2], size: [2, 2], hosts: ['market'] },
     { id: 'city', name: 'The City', kind: 'finance', at: [2, 2], size: [3, 2], hosts: ['finance'] },
     {
@@ -16,7 +30,14 @@ export const london: CityPlan = {
       size: [2, 2],
       hosts: ['eventhall', 'airport'],
     },
-    { id: 'southbank', name: 'South Bank', kind: 'waterfront', at: [0, 5], size: [3, 2], hosts: ['home'] },
+    {
+      id: 'southbank',
+      name: 'South Bank',
+      kind: 'waterfront',
+      at: [0, 5],
+      size: [3, 2],
+      hosts: ['home'],
+    },
     { id: 'borough', name: 'Borough', kind: 'market', at: [3, 5], size: [2, 2] },
   ],
   water: { side: 'south', name: 'River Thames', river: 4 },

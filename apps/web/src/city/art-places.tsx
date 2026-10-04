@@ -116,10 +116,17 @@ export function BusinessBody({ p }: { p: Place }): ReactNode {
           <Sign p={p} z={h - 1} />
           <Awning x={x} y={y} w={w} d={d} z={h - 8} color={a} />
           {cafe ? (
-            <g transform={`translate(${r1(project(x + w / 2, y + d / 2).x)},${r1(project(x + w / 2, y + d / 2).y - h - 9)})`}>
+            <g
+              transform={`translate(${r1(project(x + w / 2, y + d / 2).x)},${r1(project(x + w / 2, y + d / 2).y - h - 9)})`}
+            >
               <rect x="-5" y="-4" width="10" height="8" rx="2" fill="#fff" stroke="#78350f" />
               <path d="M5 -2 q4 0 0 4" stroke="#78350f" fill="none" />
-              <path d="M-2 -7 q2 -2 0 -4 M2 -7 q2 -2 0 -4" stroke="#94a3b8" fill="none" strokeWidth="0.8" />
+              <path
+                d="M-2 -7 q2 -2 0 -4 M2 -7 q2 -2 0 -4"
+                stroke="#94a3b8"
+                fill="none"
+                strokeWidth="0.8"
+              />
             </g>
           ) : (
             <Box x={x + 0.2} y={y + 0.15} w={0.25} d={0.25} h={10} z={h} color="#78716c" />
@@ -136,15 +143,37 @@ export function BusinessBody({ p }: { p: Place }): ReactNode {
           <g transform={leftM(x, y, d, h)}>
             <rect x={0} y={0} width={w} height={h} fill="#000" opacity="0.08" />
             <rect x={0.1} y={13} width={w * 0.35} height={h - 16} fill="#fbbf24" opacity="0.65" />
-            <rect x={w * 0.55} y={13} width={w * 0.35} height={h - 16} fill="#fbbf24" opacity="0.65" />
+            <rect
+              x={w * 0.55}
+              y={13}
+              width={w * 0.35}
+              height={h - 16}
+              fill="#fbbf24"
+              opacity="0.65"
+            />
             <rect x={w * 0.45 - 0.05} y={h - 14} width={0.18} height={14} fill="#1c1917" />
             <rect x={0.04} y={2} width={w - 0.08} height={7} fill="#1c1917" />
             <rect x={0.14} y={4.5} width={w * 0.6} height={1.6} fill="#fbbf24" />
           </g>
           <Gable x={x} y={y} w={w} d={d} z={h} rise={8} color="#334155" />
           {/* The hanging pub sign at the corner. */}
-          <line x1={q.x} y1={q.y - h + 8} x2={q.x + 9} y2={q.y - h + 3} stroke="#1c1917" strokeWidth="1.2" />
-          <rect x={q.x + 5} y={q.y - h + 4} width="8" height="9" fill={a} stroke="#1c1917" strokeWidth="0.8" />
+          <line
+            x1={q.x}
+            y1={q.y - h + 8}
+            x2={q.x + 9}
+            y2={q.y - h + 3}
+            stroke="#1c1917"
+            strokeWidth="1.2"
+          />
+          <rect
+            x={q.x + 5}
+            y={q.y - h + 4}
+            width="8"
+            height="9"
+            fill={a}
+            stroke="#1c1917"
+            strokeWidth="0.8"
+          />
           <circle cx={q.x - 2} cy={q.y - h + 14} r="1.6" fill="#fde68a" />
         </g>
       );
@@ -191,7 +220,16 @@ export function BusinessBody({ p }: { p: Place }): ReactNode {
             <rect x={0} y={0} width={w} height={4} fill={a} />
             <rect x={w / 2 - 0.15} y={h - 12} width={0.3} height={12} fill="#bae6fd" />
           </g>
-          <Box x={x + w / 2 - 0.2} y={y + d / 2 - 0.2} w={0.4} d={0.08} h={12} z={h} color="#fff" edge={false} />
+          <Box
+            x={x + w / 2 - 0.2}
+            y={y + d / 2 - 0.2}
+            w={0.4}
+            d={0.08}
+            h={12}
+            z={h}
+            color="#fff"
+            edge={false}
+          />
           <g transform={`translate(${r1(ct.x)},${r1(ct.y - h - 8)})`}>
             <rect x="-2" y="-6" width="4" height="12" fill="#dc2626" />
             <rect x="-6" y="-2" width="12" height="4" fill="#dc2626" />
@@ -210,7 +248,14 @@ export function BusinessBody({ p }: { p: Place }): ReactNode {
           </g>
           <Gable x={x} y={y} w={w} d={d} z={h} rise={10} color="#7c2d12" />
           <Sign p={p} z={h - 2} len={w * 0.8} />
-          <line x1={q.x} y1={q.y - h - 4} x2={q.x} y2={q.y - h - 30} stroke="#475569" strokeWidth="1" />
+          <line
+            x1={q.x}
+            y1={q.y - h - 4}
+            x2={q.x}
+            y2={q.y - h - 30}
+            stroke="#475569"
+            strokeWidth="1"
+          />
           <rect x={q.x} y={q.y - h - 30} width="9" height="6" fill={p.accent} />
         </g>
       );
@@ -220,11 +265,30 @@ export function BusinessBody({ p }: { p: Place }): ReactNode {
       return (
         <g>
           <Box x={x} y={y} w={w} d={d} h={h} color={c} left={shade(c, 0.1)} />
-          <Windows x={x} y={y} w={w} d={d} zt={h} h={h - 10} color={shade(c, -0.45)} seed={p.id} row={8} />
+          <Windows
+            x={x}
+            y={y}
+            w={w}
+            d={d}
+            zt={h}
+            h={h - 10}
+            color={shade(c, -0.45)}
+            seed={p.id}
+            row={8}
+          />
           <g transform={leftM(x, y, d, h)}>
             <rect x={0.1} y={h - 10} width={w - 0.2} height={10} fill="#fde68a" opacity="0.7" />
           </g>
-          <Box x={x + w / 2 - 0.3} y={y + d} w={0.6} d={0.3} h={2} z={9} color={p.accent} edge={false} />
+          <Box
+            x={x + w / 2 - 0.3}
+            y={y + d}
+            w={0.6}
+            d={0.3}
+            h={2}
+            z={9}
+            color={p.accent}
+            edge={false}
+          />
           <g transform={`translate(${r1(ct.x)},${r1(ct.y - h - 4)})`}>
             <rect x="-14" y="-8" width="28" height="8" rx="1" fill={p.accent} />
             <rect x="-10" y="-5.5" width="20" height="2" fill="#fff" />
@@ -267,7 +331,15 @@ export function PlanLandmark({
             const a = project(x - s * k, y + s * k);
             const b = project(x + s * k, y + s * k);
             return (
-              <line key={i} x1={a.x} y1={a.y - z} x2={b.x} y2={b.y - z} stroke="#a8a29e" strokeWidth="0.7" />
+              <line
+                key={i}
+                x1={a.x}
+                y1={a.y - z}
+                x2={b.x}
+                y2={b.y - z}
+                stroke="#a8a29e"
+                strokeWidth="0.7"
+              />
             );
           })}
           <rect x={c.x - 0.8} y={c.y - H - 22} width="1.6" height="24" fill="#e7e5e4" />
@@ -291,11 +363,20 @@ export function PlanLandmark({
                   <rect x={0.08} y={16} width={0.34} height={6} fill="#fff" opacity="0.8" />
                 </g>
                 <polygon
-                  points={poly(P(hx, hy + 0.7, hh), P(hx + 0.5, hy + 0.7, hh), P(hx + 0.25, hy + 0.7, hh + 12))}
+                  points={poly(
+                    P(hx, hy + 0.7, hh),
+                    P(hx + 0.5, hy + 0.7, hh),
+                    P(hx + 0.25, hy + 0.7, hh + 12),
+                  )}
                   fill={shade(col, -0.25)}
                 />
                 <polygon
-                  points={poly(P(hx + 0.5, hy + 0.7, hh), P(hx + 0.5, hy, hh), P(hx + 0.25, hy, hh + 12), P(hx + 0.25, hy + 0.7, hh + 12))}
+                  points={poly(
+                    P(hx + 0.5, hy + 0.7, hh),
+                    P(hx + 0.5, hy, hh),
+                    P(hx + 0.25, hy, hh + 12),
+                    P(hx + 0.25, hy + 0.7, hh + 12),
+                  )}
                   fill={shade(col, -0.4)}
                 />
               </g>
@@ -309,13 +390,29 @@ export function PlanLandmark({
         <g data-landmark="cable-car">
           <ellipse cx={c.x} cy={c.y} rx={TW * 1.4} ry={TH * 1.4} fill="#57534e" />
           <ellipse cx={c.x} cy={c.y} rx={TW * 1.2} ry={TH * 1.2} fill="#78716c" />
-          <line x1={c.x - TW * 2} y1={c.y - TH * 2} x2={c.x + TW * 2} y2={c.y + TH * 2} stroke="#334155" strokeWidth="1.5" />
+          <line
+            x1={c.x - TW * 2}
+            y1={c.y - TH * 2}
+            x2={c.x + TW * 2}
+            y2={c.y + TH * 2}
+            stroke="#334155"
+            strokeWidth="1.5"
+          />
           <Box x={x - 0.4} y={y - 0.15} w={0.8} d={0.32} h={15} color="#b91c1c" />
           <g transform={leftM(x - 0.4, y - 0.15, 0.32, 15)}>
             <rect x={0.04} y={3} width={0.72} height={4} fill="#fde68a" />
             <rect x={0} y={9} width={0.8} height={1.5} fill="#fef3c7" />
           </g>
-          <Box x={x - 0.45} y={y - 0.2} w={0.9} d={0.42} h={2} z={15} color="#7f1d1d" edge={false} />
+          <Box
+            x={x - 0.45}
+            y={y - 0.2}
+            w={0.9}
+            d={0.42}
+            h={2}
+            z={15}
+            color="#7f1d1d"
+            edge={false}
+          />
         </g>
       );
     }
@@ -356,7 +453,15 @@ export function PlanLandmark({
         <g data-landmark="london-eye">
           <line x1={c.x - 20} y1={c.y} x2={c.x} y2={cy} stroke="#e2e8f0" strokeWidth="3" />
           <line x1={c.x + 14} y1={c.y + 4} x2={c.x} y2={cy} stroke="#cbd5e1" strokeWidth="3" />
-          <ellipse cx={c.x} cy={cy} rx={R * 0.82} ry={R} fill="none" stroke="#f1f5f9" strokeWidth="2.4" />
+          <ellipse
+            cx={c.x}
+            cy={cy}
+            rx={R * 0.82}
+            ry={R}
+            fill="none"
+            stroke="#f1f5f9"
+            strokeWidth="2.4"
+          />
           {Array.from({ length: 16 }, (_, i) => {
             const t = (i / 16) * Math.PI * 2;
             const px = c.x + Math.cos(t) * R * 0.82;
@@ -364,7 +469,15 @@ export function PlanLandmark({
             return (
               <g key={i}>
                 <line x1={c.x} y1={cy} x2={px} y2={py} stroke="#e2e8f0" strokeWidth="0.6" />
-                <ellipse cx={px} cy={py} rx="3.4" ry="2.4" fill="#bae6fd" stroke="#64748b" strokeWidth="0.5" />
+                <ellipse
+                  cx={px}
+                  cy={py}
+                  rx="3.4"
+                  ry="2.4"
+                  fill="#bae6fd"
+                  stroke="#64748b"
+                  strokeWidth="0.5"
+                />
               </g>
             );
           })}
@@ -379,10 +492,25 @@ export function PlanLandmark({
           <Shadow x={x - 0.3} y={y - 0.3} w={0.6} d={0.6} h={H} />
           <Cylinder cx={x} cy={y} r={0.38} h={8} color="#e7e5e4" />
           {[0, 1, 2, 3].map((k) => (
-            <Cylinder key={k} cx={x} cy={y} r={0.28 - k * 0.02} h={14} z={8 + k * 14} color={k % 2 ? '#fff' : '#dc2626'} />
+            <Cylinder
+              key={k}
+              cx={x}
+              cy={y}
+              r={0.28 - k * 0.02}
+              h={14}
+              z={8 + k * 14}
+              color={k % 2 ? '#fff' : '#dc2626'}
+            />
           ))}
           <Cylinder cx={x} cy={y} r={0.22} h={8} z={64} color="#fde68a" top="#1f2937" />
-          <circle cx={c.x} cy={c.y - 68} r="5" fill="#fef9c3" opacity="0.6" className="city-blink" />
+          <circle
+            cx={c.x}
+            cy={c.y - 68}
+            r="5"
+            fill="#fef9c3"
+            opacity="0.6"
+            className="city-blink"
+          />
         </g>
       );
     }
@@ -416,10 +544,21 @@ export function PlanLandmark({
           <Box x={x - 1.1} y={y - 0.6} w={1.8} d={1.4} h={22} color="#e7d5b0" />
           <g transform={leftM(x - 1.1, y - 0.6, 1.4, 22)}>
             {[0.3, 0.75, 1.2].map((u) => (
-              <path key={u} d={`M ${u} 22 v -10 q 0.12 -6 0.24 0 v 10 z`} fill="#92400e" opacity="0.6" />
+              <path
+                key={u}
+                d={`M ${u} 22 v -10 q 0.12 -6 0.24 0 v 10 z`}
+                fill="#92400e"
+                opacity="0.6"
+              />
             ))}
           </g>
-          <ellipse cx={project(x - 0.2, y + 0.1).x} cy={project(x - 0.2, y + 0.1).y - 22} rx="24" ry="9" fill="#c2a46b" />
+          <ellipse
+            cx={project(x - 0.2, y + 0.1).x}
+            cy={project(x - 0.2, y + 0.1).y - 22}
+            rx="24"
+            ry="9"
+            fill="#c2a46b"
+          />
           <path
             d={`M ${project(x - 0.2, y + 0.1).x - 22} ${project(x - 0.2, y + 0.1).y - 22} Q ${project(x - 0.2, y + 0.1).x} ${project(x - 0.2, y + 0.1).y - 56} ${project(x - 0.2, y + 0.1).x + 22} ${project(x - 0.2, y + 0.1).y - 22} Z`}
             fill="#d4b77c"
@@ -464,7 +603,15 @@ export function PlanLandmark({
           ].map(([dx, dy, w, d, h], i) => (
             <g key={i}>
               <Box x={x + dx!} y={y + dy!} w={w!} d={d!} h={h!} color={sand} />
-              <Box x={x + dx! + 0.3} y={y + dy! + 0.25} w={0.32} d={0.32} h={16} z={h!} color={shade(sand, 0.08)} />
+              <Box
+                x={x + dx! + 0.3}
+                y={y + dy! + 0.25}
+                w={0.32}
+                d={0.32}
+                h={16}
+                z={h!}
+                color={shade(sand, 0.08)}
+              />
               <g transform={leftM(x + dx! + 0.3, y + dy! + 0.25, 0.32, h! + 16)}>
                 <rect x={0.06} y={2} width={0.05} height={10} fill="#78350f" opacity="0.6" />
                 <rect x={0.2} y={2} width={0.05} height={10} fill="#78350f" opacity="0.6" />
@@ -519,7 +666,15 @@ export function BridgeTop({ d }: { d: Decor }) {
             const base = at(f, s, 0);
             const top = at(f, s, H + 6);
             return (
-              <line key={`${f}${s}`} x1={base.x} y1={base.y + 6} x2={top.x} y2={top.y} stroke={shade(col, -0.1)} strokeWidth="4" />
+              <line
+                key={`${f}${s}`}
+                x1={base.x}
+                y1={base.y + 6}
+                x2={top.x}
+                y2={top.y}
+                stroke={shade(col, -0.1)}
+                strokeWidth="4"
+              />
             );
           }),
         )}
@@ -550,8 +705,14 @@ export function BridgeTop({ d }: { d: Decor }) {
           {[14, 28, 42].map((v) => (
             <rect key={v} x={g.x - 4} y={g.y - v - 6} width="3" height="6" fill="#475569" />
           ))}
-          <polygon points={`${g.x - 10},${g.y - 56} ${g.x + 10},${g.y - 56} ${g.x},${g.y - 74}`} fill={col} />
-          <polygon points={`${g.x - 10},${g.y - 56} ${g.x - 6},${g.y - 56} ${g.x - 8},${g.y - 66}`} fill={shade(col, 0.2)} />
+          <polygon
+            points={`${g.x - 10},${g.y - 56} ${g.x + 10},${g.y - 56} ${g.x},${g.y - 74}`}
+            fill={col}
+          />
+          <polygon
+            points={`${g.x - 10},${g.y - 56} ${g.x - 6},${g.y - 56} ${g.x - 8},${g.y - 66}`}
+            fill={shade(col, 0.2)}
+          />
         </g>
       );
     };
@@ -563,12 +724,29 @@ export function BridgeTop({ d }: { d: Decor }) {
     const t2 = at(0.67, 0, 40);
     return (
       <g data-bridge={d.name}>
-        <path d={`M ${pt(e1)} Q ${pt(at(0.2, 0, 10))} ${pt(t1)}`} stroke={col} strokeWidth="2.2" fill="none" />
-        <path d={`M ${pt(e2)} Q ${pt(at(0.8, 0, 10))} ${pt(t2)}`} stroke={col} strokeWidth="2.2" fill="none" />
+        <path
+          d={`M ${pt(e1)} Q ${pt(at(0.2, 0, 10))} ${pt(t1)}`}
+          stroke={col}
+          strokeWidth="2.2"
+          fill="none"
+        />
+        <path
+          d={`M ${pt(e2)} Q ${pt(at(0.8, 0, 10))} ${pt(t2)}`}
+          stroke={col}
+          strokeWidth="2.2"
+          fill="none"
+        />
         {tower(0.33)}
         {tower(0.67)}
         <line x1={w1.x} y1={w1.y} x2={w2.x} y2={w2.y} stroke={col} strokeWidth="4" />
-        <line x1={w1.x} y1={w1.y + 6} x2={w2.x} y2={w2.y + 6} stroke={shade(col, 0.3)} strokeWidth="2" />
+        <line
+          x1={w1.x}
+          y1={w1.y + 6}
+          x2={w2.x}
+          y2={w2.y + 6}
+          stroke={shade(col, 0.3)}
+          strokeWidth="2"
+        />
       </g>
     );
   }
@@ -579,10 +757,25 @@ export function BridgeTop({ d }: { d: Decor }) {
   });
   return (
     <g data-bridge={d.name}>
-      <polyline points={pts.map((p) => pt(p.top)).join(' ')} stroke={col} strokeWidth="2.6" fill="none" />
+      <polyline
+        points={pts.map((p) => pt(p.top)).join(' ')}
+        stroke={col}
+        strokeWidth="2.6"
+        fill="none"
+      />
       {pts.map((p, i) => {
         const b = at(p.f, 0, 3);
-        return <line key={i} x1={b.x} y1={b.y} x2={p.top.x} y2={p.top.y} stroke={col} strokeWidth="0.7" />;
+        return (
+          <line
+            key={i}
+            x1={b.x}
+            y1={b.y}
+            x2={p.top.x}
+            y2={p.top.y}
+            stroke={col}
+            strokeWidth="0.7"
+          />
+        );
       })}
     </g>
   );
@@ -614,7 +807,8 @@ export function Hill({ d, leaf, park }: { d: Decor; leaf: string; park: string }
       {houses.map(([hx, hy], i) => {
         const q = project(d.x + hx!, d.y + hy!);
         const lift = H * (1.2 - (Math.abs(hx!) + Math.abs(hy!)) * 0.45);
-        const col = i % 2 ? (d.color ?? '#fde68a') : (d.roof ? mix(d.roof, '#ffffff', 0.7) : '#e2e8f0');
+        const col =
+          i % 2 ? (d.color ?? '#fde68a') : d.roof ? mix(d.roof, '#ffffff', 0.7) : '#e2e8f0';
         return (
           <g key={i} transform={`translate(${r1(q.x)},${r1(q.y - lift)})`}>
             <rect x="-6" y="-10" width="12" height="10" fill={col} />

@@ -689,9 +689,7 @@ function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: string) {
   let y = l.y + (LOT_SIZE - d) * (l.b ? 1 : 0);
   if (l.b) y -= terrace;
   else if (l.a) x -= terrace;
-  const motif = (
-    cafe ? 'b-cafe' : b.shape === 'shopfront' ? 'b-shop' : `b-${b.shape}`
-  ) as Motif;
+  const motif = (cafe ? 'b-cafe' : b.shape === 'shopfront' ? 'b-shop' : `b-${b.shape}`) as Motif;
   ctx.places.push({
     id: `biz:${b.id}`,
     kind: 'business',
@@ -756,7 +754,10 @@ function putFiller(ctx: Ctx, { i, j }: Cell, style: FillStyle) {
       w: 1.1,
       d: 1.1,
       h,
-      color: style === 'warehouses' ? pickColor(ctx, ['#a8a29e', '#94a3b8', '#d6d3d1']) : pickColor(ctx, flavour.walls),
+      color:
+        style === 'warehouses'
+          ? pickColor(ctx, ['#a8a29e', '#94a3b8', '#d6d3d1'])
+          : pickColor(ctx, flavour.walls),
       roof: style === 'warehouses' ? '#57534e' : pickColor(ctx, flavour.roofs),
     });
   }
@@ -892,7 +893,15 @@ function finish(
   ctx: Ctx,
   parts: Pick<
     CityLayout,
-    'size' | 'blocks' | 'districts' | 'areas' | 'waters' | 'bridges' | 'roundabouts' | 'transit' | 'boats'
+    | 'size'
+    | 'blocks'
+    | 'districts'
+    | 'areas'
+    | 'waters'
+    | 'bridges'
+    | 'roundabouts'
+    | 'transit'
+    | 'boats'
   > & { cuts: Set<string> },
 ): CityLayout {
   const { input, flavour, rnd, places, decor } = ctx;
@@ -923,8 +932,7 @@ function finish(
   const mid = Math.floor(size / 2);
   const segFor = (axis: 'x' | 'y', k: number) => {
     for (let o = 0; o < size; o++)
-      for (const s of [mid - o, mid + o])
-        if (s >= 0 && s < size && segOpen(axis, k, s)) return s;
+      for (const s of [mid - o, mid + o]) if (s >= 0 && s < size && segOpen(axis, k, s)) return s;
     return mid;
   };
   const streets: StreetName[] = [];
@@ -1164,7 +1172,9 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
           free.push({ i, j, adj, dist: Math.abs(i - x.cx) + Math.abs(j - x.cy) });
         }
       if (!free.length) return null;
-      free.sort((a, b) => Number(b.adj) - Number(a.adj) || a.dist - b.dist || a.j - b.j || a.i - b.i);
+      free.sort(
+        (a, b) => Number(b.adj) - Number(a.adj) || a.dist - b.dist || a.j - b.j || a.i - b.i,
+      );
       const c = free[0]!;
       owner.set(ck(c.i, c.j), x.d.id);
       x.cells.push({ i: c.i, j: c.j });
@@ -1188,7 +1198,11 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
       });
       return;
     }
-    blocks.push({ ...c, district: style === 'park' || style === 'plaza' ? 'park' : 'houses', area });
+    blocks.push({
+      ...c,
+      district: style === 'park' || style === 'plaza' ? 'park' : 'houses',
+      area,
+    });
     putFiller(ctx, c, style);
   };
   const tree = (l: Lot) => ctx.decor.push({ kind: 'tree', x: l.x + 0.7, y: l.y + 0.7, size: 1 });
@@ -1221,9 +1235,7 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
     }
     const items = lotItemsOf(n);
     const lotBlocks = Array.from({ length: Math.ceil(items.length / 4) }, take);
-    lotBlocks.forEach((cell, k) =>
-      blocks.push({ ...cell, district: roleOf(items[k * 4]!), area }),
-    );
+    lotBlocks.forEach((cell, k) => blocks.push({ ...cell, district: roleOf(items[k * 4]!), area }));
     fillLots(ctx, lotBlocks, items, area, tree);
     while (c < cells.length) filler(take(), FILL_FOR[x.d.kind], area);
   });
@@ -1246,8 +1258,7 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
   }
   for (let j = 0; j < size; j++)
     for (let i = 0; i < size; i++)
-      if (!owner.has(ck(i, j)) && !isRiver(i, j))
-        filler({ i, j }, rnd() < 0.4 ? 'park' : 'houses');
+      if (!owner.has(ck(i, j)) && !isRiver(i, j)) filler({ i, j }, rnd() < 0.4 ? 'park' : 'houses');
   blocks.sort((a, b) => a.j - b.j || a.i - b.i);
 
   // ---- Water and bridges.
@@ -1345,7 +1356,9 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
       if (e.length === 2) doorSegs.add(segKey(e[0]![0], e[0]![1], e[1]![0], e[1]![1]));
     }
     const bridgeNodes = new Set(
-      bridges.filter((b) => b.walk).flatMap((b) => [ck(b.from.x / B, b.from.y / B), ck(b.to.x / B, b.to.y / B)]),
+      bridges
+        .filter((b) => b.walk)
+        .flatMap((b) => [ck(b.from.x / B, b.from.y / B), ck(b.to.x / B, b.to.y / B)]),
     );
     const embank = (i: number, j: number, i2: number, j2: number) =>
       river !== undefined &&
@@ -1353,10 +1366,8 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
         ? j === j2 && (j === river || j === river + 1)
         : i === i2 && (i === river || i === river + 1));
     const cand: [number, number, number, number][] = [];
-    for (let j = 1; j < size; j++)
-      for (let i = 0; i < size; i++) cand.push([i, j, i + 1, j]);
-    for (let i = 1; i < size; i++)
-      for (let j = 0; j < size; j++) cand.push([i, j, i, j + 1]);
+    for (let j = 1; j < size; j++) for (let i = 0; i < size; i++) cand.push([i, j, i + 1, j]);
+    for (let i = 1; i < size; i++) for (let j = 0; j < size; j++) cand.push([i, j, i, j + 1]);
     const pool = cand.filter(
       ([i, j, i2, j2]) =>
         !cuts.has(segKey(i, j, i2, j2)) &&
@@ -1375,7 +1386,11 @@ function tryPlanned(input: CityInput, plan: CityPlan, size: number): CityLayout 
       if (made >= target) break;
       const key = segKey(i, j, i2, j2);
       cuts.add(key);
-      if (degree(size, cuts, i, j) < 2 || degree(size, cuts, i2, j2) < 2 || !connected(size, cuts)) {
+      if (
+        degree(size, cuts, i, j) < 2 ||
+        degree(size, cuts, i2, j2) < 2 ||
+        !connected(size, cuts)
+      ) {
         cuts.delete(key);
         continue;
       }

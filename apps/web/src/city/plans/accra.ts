@@ -3,8 +3,22 @@ import type { CityPlan } from './types';
 /** Accra: Airport City money, Osu's Oxford Street, Makola Market, the Atlantic shore. */
 export const accra: CityPlan = {
   districts: [
-    { id: 'east-legon', name: 'East Legon', kind: 'residential', at: [0, 0], size: [2, 2], hosts: ['home'] },
-    { id: 'cantonments', name: 'Cantonments', kind: 'residential', at: [2, 0], size: [2, 2], hosts: ['investors'] },
+    {
+      id: 'east-legon',
+      name: 'East Legon',
+      kind: 'residential',
+      at: [0, 0],
+      size: [2, 2],
+      hosts: ['home'],
+    },
+    {
+      id: 'cantonments',
+      name: 'Cantonments',
+      kind: 'residential',
+      at: [2, 0],
+      size: [2, 2],
+      hosts: ['investors'],
+    },
     {
       id: 'airport-city',
       name: 'Airport City',
@@ -15,7 +29,14 @@ export const accra: CityPlan = {
     },
     { id: 'makola', name: 'Makola', kind: 'market', at: [0, 3], size: [2, 2], hosts: ['market'] },
     { id: 'osu', name: 'Osu', kind: 'nightlife', at: [2, 3], size: [2, 2], hosts: ['hub'] },
-    { id: 'labadi', name: 'Labadi', kind: 'waterfront', at: [4, 3], size: [3, 2], hosts: ['eventhall'] },
+    {
+      id: 'labadi',
+      name: 'Labadi',
+      kind: 'waterfront',
+      at: [4, 3],
+      size: [3, 2],
+      hosts: ['eventhall'],
+    },
     { id: 'jamestown', name: 'Jamestown', kind: 'waterfront', at: [0, 5], size: [3, 2] },
   ],
   water: { side: 'south', name: 'Gulf of Guinea' },

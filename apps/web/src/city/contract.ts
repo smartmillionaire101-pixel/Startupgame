@@ -327,14 +327,7 @@ export function cityInput(view: PlayerView): CityInput {
 // world without `market.businesses` simply has no businesses on the map.
 
 export type BusinessCategory =
-  | 'food'
-  | 'retail'
-  | 'services'
-  | 'trades'
-  | 'health'
-  | 'education'
-  | 'logistics'
-  | 'hospitality';
+  'food' | 'retail' | 'services' | 'trades' | 'health' | 'education' | 'logistics' | 'hospitality';
 
 export const BUSINESS_CATEGORIES: readonly BusinessCategory[] = [
   'food',
@@ -425,8 +418,7 @@ export interface BusinessView {
 }
 
 const strOf = (v: unknown, d = ''): string => (typeof v === 'string' ? v : d);
-const numOf = (v: unknown, d = 0): number =>
-  typeof v === 'number' && Number.isFinite(v) ? v : d;
+const numOf = (v: unknown, d = 0): number => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 
 /** A café is drawn as a café even though its look is a restaurant's. */
 export const isCafe = (kind: string) => /caf|coffee|bakery|tea|juice|roaster/i.test(kind);
