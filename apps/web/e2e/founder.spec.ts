@@ -32,6 +32,9 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   ).toBeVisible();
   await page.getByRole('button', { name: 'Start' }).click();
 
+  // The City opens first; the dashboard is the Home tab.
+  await page.getByRole('button', { name: 'Home' }).click();
+
   // Dashboard leads with four numbers; the first day brings an early win.
   await expect(page.getByText('Monthly revenue')).toBeVisible();
   await expect(page.getByText('Runway', { exact: true })).toBeVisible();

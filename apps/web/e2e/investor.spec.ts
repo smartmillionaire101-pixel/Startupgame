@@ -20,6 +20,7 @@ test('an investor screens an AI startup, does diligence and writes a first chequ
   await page.getByLabel(/Typical cheque/).fill('20k');
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
+  await page.getByRole('button', { name: 'Home' }).click();
 
   // First day: three AI startup pitches in the focus area.
   await expect(page.getByText(/wants to pitch you/).first()).toBeVisible();

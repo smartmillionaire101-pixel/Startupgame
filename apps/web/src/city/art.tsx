@@ -20,6 +20,8 @@ export const P = (x: number, y: number, z = 0) => {
 const poly = (...pts: string[]) => pts.join(' ');
 
 function rgb(hex: string): [number, number, number] {
+  const m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(hex);
+  if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
   const h = hex.replace('#', '');
   const f = h.length === 3 ? h.replace(/./g, (c) => c + c) : h.padEnd(6, '0').slice(0, 6);
   const n = parseInt(f, 16);

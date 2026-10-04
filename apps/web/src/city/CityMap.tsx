@@ -338,6 +338,53 @@ const Skyline = memo(function Skyline({ layout }: { layout: CityLayout }) {
   return <g className="city-skyline">{items.map((i) => i.node)}</g>;
 });
 
+/**
+ * Building labels with simple collision avoidance: important places first;
+ * a label that would overlap one already placed moves up a little, and minor
+ * labels that still overlap are dropped. Labels scale with the map, so this
+ * holds at every zoom.
+ */
+export function placeLabels(layout: CityLayout, labelOf: (p: Place) => string) {
+  const rank = (p: Place) =>
+    p.kind === 'stall'
+      ? 2
+      : p.kind === 'lender' || p.kind === 'fund' || p.kind === 'playerbank'
+        ? 1
+        : 0;
+  const placed: {
+    id: string;
+    x: number;
+    y: number;
+    w: number;
+    text: string;
+    tier: string;
+    soon: boolean;
+  }[] = [];
+  const hits = (x: number, y: number, w: number) =>
+    placed.some((o) => Math.abs(o.x - x) < (o.w + w) / 2 + 2 && Math.abs(o.y - y) < 18);
+  const sorted = [...layout.places]
+    .filter((p) => !(p.kind === 'stall' && p.dim))
+    .sort((a, b) => rank(a) - rank(b));
+  for (const p of sorted) {
+    const raw = labelOf(p);
+    if (!raw) continue;
+    const text = raw.length > 26 ? `${raw.slice(0, 25)}…` : raw;
+    const w = Math.min(150, text.length * 5.6 + 14);
+    const c = project(p.x + p.w / 2, p.y + p.d / 2);
+    const x = c.x;
+    let y = c.y - p.h - (p.kind === 'stall' ? 12 : 18);
+    let tries = 0;
+    while (hits(x, y, w) && tries < 3) {
+      y -= 19;
+      tries++;
+    }
+    if (hits(x, y, w) && rank(p) > 0) continue;
+    const tier = ['lbl-main', 'lbl-detail', 'lbl-stall'][rank(p)]!;
+    placed.push({ id: p.id, x, y, w, text, tier, soon: !!p.soon });
+  }
+  return placed;
+}
+
 const Labels = memo(function Labels({
   layout,
   labelOf,
@@ -347,40 +394,28 @@ const Labels = memo(function Labels({
 }) {
   return (
     <g className="city-labels" pointerEvents="none">
-      {layout.districts.map((d) => {
-        const c = project(d.at.x, d.at.y);
-        const text = districtLabel(d.id);
-        if (!text) return null;
-        return (
-          <text key={d.id} x={c.x} y={c.y - 4} className="city-district" textAnchor="middle">
-            {text.toUpperCase()}
-          </text>
-        );
-      })}
-      {layout.places.map((p) => {
-        const label = labelOf(p);
-        if (!label) return null;
-        const c = project(p.x + p.w / 2, p.y + p.d / 2);
-        const tier =
-          p.kind === 'stall'
-            ? 'lbl-stall'
-            : p.kind === 'lender' || p.kind === 'fund' || p.kind === 'playerbank'
-              ? 'lbl-detail'
-              : 'lbl-main';
-        const w = Math.min(150, label.length * 5.6 + 14);
-        return (
-          <g
-            key={p.id}
-            className={`city-label ${tier}${p.soon ? ' is-soon' : ''}`}
-            transform={`translate(${Math.round(c.x)},${Math.round(c.y - p.h - (p.kind === 'stall' ? 12 : 18))})`}
-          >
-            <rect x={-w / 2} y={-9} width={w} height={17} rx={8.5} />
-            <text x={0} y={3.5} textAnchor="middle">
-              {label.length > 26 ? `${label.slice(0, 25)}…` : label}
+      {layout.districts
+        .filter((d) => d.id === 'finance' || d.id === 'investors' || d.id === 'market')
+        .map((d) => {
+          const c = project(d.at.x, d.at.y);
+          return (
+            <text key={d.id} x={c.x} y={c.y - 4} className="city-district" textAnchor="middle">
+              {districtLabel(d.id).toUpperCase()}
             </text>
-          </g>
-        );
-      })}
+          );
+        })}
+      {placeLabels(layout, labelOf).map((l) => (
+        <g
+          key={l.id}
+          className={`city-label ${l.tier}${l.soon ? ' is-soon' : ''}`}
+          transform={`translate(${Math.round(l.x)},${Math.round(l.y)})`}
+        >
+          <rect x={-l.w / 2} y={-9} width={l.w} height={17} rx={8.5} />
+          <text x={0} y={3.5} textAnchor="middle">
+            {l.text}
+          </text>
+        </g>
+      ))}
     </g>
   );
 });

@@ -63,6 +63,13 @@
   letter-spacing: 0.04em;
 }
 
+.city-avatar,
+.city-target,
+.city-marker,
+.city-traffic {
+  pointer-events: none;
+}
+
 .city-building {
   cursor: pointer;
   transition: filter 0.15s;
@@ -319,6 +326,7 @@
 
 .hud-hint {
   margin: 0;
+  max-width: 62%;
   border-radius: 999px;
   padding: 0.45rem 0.8rem;
   font-size: 0.78rem;

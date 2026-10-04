@@ -69,7 +69,7 @@ function Scene({
 }) {
   const c = project(place.x + place.w / 2, place.y + place.d / 2);
   const size = Math.max(70, place.h + 50);
-  const vb = `${c.x - 95} ${c.y - size} 190 ${size + 24}`;
+  const vb = `${c.x - (who ? 128 : 95)} ${c.y - size} 190 ${size + 24}`;
   const look = avatarLook(npcBackgrounds[hash(place.id) % npcBackgrounds.length], place.id);
   return (
     <div
