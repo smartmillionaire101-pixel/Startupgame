@@ -49,12 +49,12 @@ const eventsAvailable = (page: Page) =>
     return Array.isArray(s.view?.market?.events);
   });
 
-async function openPlace(page: Page, district: string) {
+/** Open a place from the Places list by its kind (lists are grouped by each city's districts). */
+async function openPlace(page: Page, kind: string) {
   await page.getByRole('button', { name: /Places/ }).click();
   await page
     .getByRole('dialog', { name: 'Places' })
-    .locator('section', { has: page.getByRole('heading', { name: district }) })
-    .getByRole('button')
+    .locator(`[data-kind="${kind}"]`)
     .first()
     .click();
 }
@@ -92,7 +92,7 @@ test('AI characters stroll the city and open a person card when tapped', async (
   await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
 
   // The Event Hall is open (or says it opens soon), with the host form.
-  await openPlace(page, 'Event Hall');
+  await openPlace(page, 'eventhall');
   const hall = page.getByRole('dialog');
   await expect(hall.getByRole('heading', { name: 'Host an event' })).toBeVisible({
     timeout: 8000,
@@ -142,7 +142,7 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   test.skip(!(await eventsAvailable(a)), 'Engine events not deployed here.');
 
   // A hosts a free founder meetup this month at the Event Hall.
-  await openPlace(a, 'Event Hall');
+  await openPlace(a, 'eventhall');
   const hall = a.getByRole('dialog');
   await expect(hall.getByRole('heading', { name: 'Host an event' })).toBeVisible({
     timeout: 8000,
@@ -159,7 +159,7 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
 
   // B RSVPs.
   await b.getByRole('application', { name: /Map of Lagos/ }).waitFor();
-  await openPlace(b, 'Event Hall');
+  await openPlace(b, 'eventhall');
   const bHall = b.getByRole('dialog');
   await bHall.getByRole('button', { name: `RSVP to ${title}` }).click();
   await expect(bHall.getByText('Going', { exact: true })).toBeVisible();
@@ -177,7 +177,7 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   for (const p of [a, b]) {
     await p.reload();
     await p.getByRole('application', { name: /Map of Lagos/ }).waitFor();
-    await openPlace(p, 'Event Hall');
+    await openPlace(p, 'eventhall');
     const past = p.getByRole('list', { name: 'Past events' });
     await expect(past.getByText(title)).toBeVisible({ timeout: 8000 });
     await expect(past.getByText('Your recap')).toBeVisible();

@@ -10,6 +10,7 @@ import {
   type Pt,
 } from '../src/city/layout';
 import { PLANS } from '../src/city/plans';
+import { aiCharacters, crowdSize } from '../src/city/people';
 import {
   CITY_BUSINESSES,
   CITY_DISTRICTS,
@@ -303,5 +304,38 @@ describe('city plans', () => {
         l.places.some((p) => p.id === id),
         id,
       ).toBe(true);
+  });
+
+  it('stands owners at their shops and walks angels from their fund to a restaurant', () => {
+    const l = buildLayout(input('san-francisco'));
+    const businesses = l.places.filter((p) => p.kind === 'business');
+    const cast = aiCharacters(
+      l,
+      {
+        marketId: 'san-francisco',
+        funds: [],
+        founders: [],
+        candidates: [],
+        segments: [],
+        owners: businesses.map((p) => ({ id: p.ref!, name: `Owner ${p.ref}` })),
+        angels: [
+          { id: 'ang1', name: 'Wes Angel', fundId: 'f3' },
+          { id: 'ang2', name: 'Kai Angel', fundId: null },
+        ],
+      },
+      crowdSize(375),
+    );
+    expect(cast.length).toBeLessThanOrEqual(crowdSize(375));
+    const owner = cast.find((c) => c.kind === 'owner')!;
+    expect(owner.home).toBe(`biz:${owner.ref}`);
+    const angel = cast.find((c) => c.ref === 'ang1')!;
+    expect(angel.fund).toBe('f3');
+    const office = l.places.find((p) => p.id === 'fund:f3')!;
+    expect(angel.route[0]).toEqual(office.door);
+    const venues = l.places.filter((p) => ['b-restaurant', 'b-cafe', 'b-pub'].includes(p.motif));
+    expect(venues.some((v) => angel.route.some((q) => q.x === v.door.x && q.y === v.door.y))).toBe(
+      true,
+    );
+    expect(usesOnlyOpenStreets(angel.route, new Set(l.cuts))).toBe(true);
   });
 });
