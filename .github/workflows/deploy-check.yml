@@ -65,8 +65,13 @@ jobs:
               curl -fsS "$URL/api/health"; echo
               exit 0
             fi
+            # Show why the API is unhealthy (Netlify's function error page names the error).
+            if [ "$health" != "200" ] && [ "$health" != "404" ] && [ $((i % 6)) -eq 1 ]; then
+              curl -sS "$URL/api/health" | head -c 1500; echo
+            fi
             sleep 10
           done
+          curl -sS "$URL/api/health" | head -c 3000; echo
           echo "::error::$URL did not serve ${COMMIT:-a healthy build} within 15 minutes"
           exit 1
       - uses: actions/setup-node@v4

@@ -3,7 +3,7 @@
 # (netlify/functions/clock.mts). State lives in Netlify Blobs.
 
 [build]
-  command = "npm run build -w @runway/web && node scripts/write-version.mjs apps/web/dist"
+  command = "npm run build -w @runway/web && node scripts/build-functions.mjs && node scripts/write-version.mjs apps/web/dist"
   publish = "apps/web/dist"
 
 [build.environment]

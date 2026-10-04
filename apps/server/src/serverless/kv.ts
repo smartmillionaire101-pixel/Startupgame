@@ -14,8 +14,6 @@ export type KvCondition = { ifMatch: string } | { ifNew: true } | undefined;
 
 export interface Kv {
   get(key: string): Promise<KvEntry | null>;
-  /** The entry's current etag without downloading it, or null when absent. */
-  etag(key: string): Promise<string | null>;
   /** Write; with a condition, returns ok:false (and writes nothing) when it doesn't hold. */
   set(
     key: string,
@@ -67,10 +65,6 @@ export class MemoryKv implements Kv {
     return e ? { data: e.data.slice(), etag: e.etag } : null;
   }
 
-  async etag(key: string) {
-    return this.map.get(key)?.etag ?? null;
-  }
-
   async set(key: string, data: Uint8Array | string, cond?: KvCondition) {
     const cur = this.map.get(key);
     if (cond && 'ifNew' in cond && cur) return { ok: false };
@@ -101,6 +95,8 @@ export class NetlifyKv implements Kv {
 
   async set(key: string, data: Uint8Array | string, cond?: KvCondition) {
     const body = typeof data === 'string' ? data : new Blob([data as Uint8Array<ArrayBuffer>]);
+    // Netlify returns etags on reads; a store that doesn't (the local dev
+    // server) gets plain writes rather than a refused compare-and-swap.
     const r = await this.store.set(
       key,
       body,
@@ -111,10 +107,6 @@ export class NetlifyKv implements Kv {
           : {},
     );
     return { ok: r.modified, ...(r.etag ? { etag: r.etag } : {}) };
-  }
-
-  async etag(key: string) {
-    return (await this.store.getMetadata(key))?.etag ?? null;
   }
 
   async delete(key: string) {

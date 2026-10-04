@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { gzipSync } from 'node:zlib';
 import { KvAccountStore } from '../src/serverless/kv-accounts.js';
-import { KvGame } from '../src/serverless/kv-game.js';
+import { KvGame, SNAPSHOT_EVERY } from '../src/serverless/kv-game.js';
 import { MemoryKv, kvJson } from '../src/serverless/kv.js';
 import {
   configFor,
@@ -102,19 +102,36 @@ describe('the world on a key-value store', () => {
     expect(fresh.current.version).toBe(before);
   });
 
-  it('recovers a command whose snapshot was never written (function died mid-write)', async () => {
+  it('a cold start loads the newest snapshot and replays the log after it', async () => {
     const kv = new MemoryKv();
     const g = make(kv);
-    await g.openMarkets(['lagos']);
-    const v = g.current.version;
-    // Simulate a crash after the log entry, before the snapshot.
-    const snapshotBefore = await kv.get('world');
-    await g.execute(null, { type: 'market.open', market: 'accra' });
-    await kv.set('world', snapshotBefore!.data);
+    await g.openMarkets(['lagos', 'accra', 'kigali']);
+    // Fewer than SNAPSHOT_EVERY commands: nothing but the first snapshot exists yet.
+    expect((await kv.list('snap/')).length).toBe(1);
     const fresh = make(kv);
     await fresh.refresh();
-    expect(fresh.current.version).toBe(v + 1);
-    expect(fresh.current.markets.accra).toBeDefined();
+    expect(fresh.current.version).toBe(g.current.version);
+    expect(fresh.current).toEqual(g.current);
+  });
+
+  it('snapshots every SNAPSHOT_EVERY commands and keeps only the newest few', async () => {
+    const kv = new MemoryKv();
+    const g = make(kv);
+    await g.refresh();
+    for (let i = 0; i < SNAPSHOT_EVERY * 4; i++) {
+      const r = await g.execute(null, {
+        type: 'market.data',
+        market: 'lagos',
+        unitsPerUsd: 1500 + i,
+      });
+      expect(r.ok).toBe(true);
+    }
+    const snaps = await kv.list('snap/');
+    expect(snaps.length).toBe(3);
+    expect(snaps[snaps.length - 1]).toBe(`snap/${String(g.current.version).padStart(12, '0')}`);
+    const fresh = make(kv);
+    await fresh.refresh();
+    expect(fresh.current).toEqual(g.current);
   });
 
   it('upgrades an older saved world on load', async () => {
@@ -124,7 +141,12 @@ describe('the world on a key-value store', () => {
     const old = structuredClone(g.current) as unknown as Record<string, unknown>;
     delete old.banks;
     old.schemaVersion = 6;
-    await kv.set('world', gzipSync(JSON.stringify(old)));
+    const keys = await kv.list('snap/');
+    for (const k of keys) await kv.delete(k);
+    await kv.set(
+      `snap/${String(g.current.version).padStart(12, '0')}`,
+      gzipSync(JSON.stringify(old)),
+    );
     const fresh = make(kv);
     await fresh.refresh();
     expect(fresh.current.banks).toEqual({});

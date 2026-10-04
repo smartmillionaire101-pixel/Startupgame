@@ -1,12 +1,6 @@
 /** The Runway HTTP API as a Netlify Function (see apps/server/src/serverless/netlify.ts). */
 import type { Config, Context } from '@netlify/functions';
-import {
-  configFor,
-  createRuntime,
-  handle,
-  kvFor,
-  type Runtime,
-} from '../../apps/server/src/serverless/netlify.js';
+import { configFor, createRuntime, handle, kvFor, type Runtime } from '../runtime/runtime.mjs';
 
 let runtime: Promise<Runtime> | undefined;
 

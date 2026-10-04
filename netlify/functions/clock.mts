@@ -5,12 +5,7 @@
  * Scheduled functions only run on the published (production) deploy.
  */
 import type { Config } from '@netlify/functions';
-import {
-  configFor,
-  createRuntime,
-  kvFor,
-  runClock,
-} from '../../apps/server/src/serverless/netlify.js';
+import { configFor, createRuntime, kvFor, runClock } from '../runtime/runtime.mjs';
 
 const PRODUCTION = { context: 'production', published: true };
 

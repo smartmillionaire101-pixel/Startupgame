@@ -3,17 +3,20 @@
  * process lives long enough to hold the world in memory.
  *
  * Same event-sourcing model as the long-running server:
- *   log/<version>  one entry per command (actor, command, time). Creating it
- *                  with "only if new" is the commit point: exactly one writer
- *                  can ever produce version N, so concurrent players can't
- *                  overwrite each other.
- *   world          gzip snapshot of the latest world. Written after each
- *                  commit; if a function dies between the two writes, the next
- *                  reader replays the missing log entries (the engine is
- *                  deterministic, so replay gives the identical world).
+ *   log/<version>   one entry per command (actor, command, time). Creating it
+ *                   "only if new" is the commit point: exactly one writer can
+ *                   ever produce version N, so concurrent players can't
+ *                   overwrite each other.
+ *   snap/<version>  gzip snapshots, written once per version every
+ *                   SNAPSHOT_EVERY commands and after each settlement; the
+ *                   newest few are kept. A reader loads the newest snapshot
+ *                   and replays the log after it (the engine is deterministic,
+ *                   so replay gives the identical world).
  *
- * On a lost race the command is re-run on the newer world, so the player's
- * action is judged against the true current state.
+ * Nothing relies on read etags: a warm function knows its world is current
+ * when log/<version + 1> doesn't exist yet, which is one small read. On a
+ * lost race the command is re-run on the newer world, so the player's action
+ * is judged against the true current state.
  */
 import { gunzipSync, gzipSync } from 'node:zlib';
 import {
@@ -30,9 +33,12 @@ import {
 import type { Game } from '../game.js';
 import type { Kv } from './kv.js';
 
-const WORLD = 'world';
-const logKey = (version: number) => `log/${String(version).padStart(12, '0')}`;
+const pad = (v: number) => String(v).padStart(12, '0');
+const logKey = (version: number) => `log/${pad(version)}`;
+const snapKey = (version: number) => `snap/${pad(version)}`;
 const RETRIES = 6;
+export const SNAPSHOT_EVERY = 10;
+const SNAPSHOTS_KEPT = 3;
 
 interface LogEntry {
   actor: string | null;
@@ -42,7 +48,6 @@ interface LogEntry {
 
 export class KvGame implements Game {
   private world: World | null = null;
-  private etag: string | null = null;
 
   constructor(
     private readonly kv: Kv,
@@ -58,41 +63,32 @@ export class KvGame implements Game {
     return this.world;
   }
 
-  /**
-   * Bring the cached world up to date: reuse it when the stored snapshot is
-   * unchanged, otherwise load it. Then replay any log entries past it.
-   */
+  /** Bring the world up to date: load the newest snapshot on a cold start, then apply newer log entries. */
   async refresh(): Promise<World> {
-    const etag = this.world ? await this.kv.etag(WORLD) : null;
-    if (!this.world || etag !== this.etag) {
-      const snap = await this.kv.get(WORLD);
-      if (!snap) await this.init();
-      else this.load(snap.data, snap.etag);
-    }
+    if (!this.world) await this.loadLatest();
     await this.catchUp();
     return this.world!;
   }
 
-  private load(data: Uint8Array, etag: string) {
-    this.world = upgradeWorld(JSON.parse(gunzipSync(data).toString('utf8')) as World);
-    this.etag = etag;
+  private async loadLatest(): Promise<void> {
+    const keys = await this.kv.list('snap/');
+    const newest = keys[keys.length - 1];
+    const snap = newest ? await this.kv.get(newest) : null;
+    if (!snap) return this.init();
+    this.world = upgradeWorld(JSON.parse(gunzipSync(snap.data).toString('utf8')) as World);
   }
 
-  private async init() {
+  private async init(): Promise<void> {
     const world = createWorld({ seed: this.opts.seed, now: this.opts.now() });
-    const r = await this.kv.set(WORLD, gzipSync(JSON.stringify(world)), { ifNew: true });
-    if (!r.ok) {
-      // Another function created it first.
-      const snap = (await this.kv.get(WORLD))!;
-      this.load(snap.data, snap.etag);
-      return;
-    }
+    const r = await this.kv.set(snapKey(world.version), gzipSync(JSON.stringify(world)), {
+      ifNew: true,
+    });
+    if (!r.ok) return this.loadLatest(); // another function created it first
     this.world = world;
-    this.etag = r.etag ?? (await this.kv.etag(WORLD));
     this.opts.log?.('world created', { seed: this.opts.seed });
   }
 
-  /** Apply log entries newer than the cached world (a writer died before saving the snapshot). */
+  /** Apply log entries newer than the cached world. */
   private async catchUp() {
     let replayed = 0;
     for (;;) {
@@ -107,18 +103,15 @@ export class KvGame implements Game {
       this.world = r.world;
       replayed++;
     }
-    if (replayed) {
-      this.opts.log?.('replayed command log', { replayed, version: this.world!.version });
-      await this.saveSnapshot();
-    }
+    if (replayed >= SNAPSHOT_EVERY) await this.saveSnapshot();
   }
 
   private async saveSnapshot() {
-    const data = gzipSync(JSON.stringify(this.world));
-    const cond = this.etag ? { ifMatch: this.etag } : { ifNew: true as const };
-    const r = await this.kv.set(WORLD, data, cond);
-    // Losing this race is harmless: whoever won wrote the same or a newer world.
-    if (r.ok) this.etag = r.etag ?? (await this.kv.etag(WORLD));
+    const v = this.world!.version;
+    // Write-once per version: losing the race means someone saved the same world.
+    await this.kv.set(snapKey(v), gzipSync(JSON.stringify(this.world)), { ifNew: true });
+    const keys = await this.kv.list('snap/');
+    for (const old of keys.slice(0, -SNAPSHOTS_KEPT)) await this.kv.delete(old);
   }
 
   async execute(actorId: string | null, command: Command): Promise<DispatchResult> {
@@ -133,7 +126,8 @@ export class KvGame implements Game {
       });
       if (committed.ok) {
         this.world = r.world;
-        await this.saveSnapshot();
+        if (r.world.version % SNAPSHOT_EVERY === 0 || command.type === 'market.settle')
+          await this.saveSnapshot();
         return r;
       }
       // Someone else committed this version first: catch up and try again.
