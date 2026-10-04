@@ -58,7 +58,17 @@ export interface Meta {
   devTools: boolean;
 }
 
-export type StateResponse = { onboarded: false } | { onboarded: true; view: PlayerView };
+/** The signed-in account: a guest until they save their progress with an email. */
+export interface Account {
+  guest: boolean;
+  email: string | null;
+}
+
+export type StateResponse = { account?: Account } & (
+  { onboarded: false } | { onboarded: true; view: PlayerView }
+);
+
+export type EmailIntent = 'login' | 'save';
 
 export interface ChatSummary {
   id: string;
@@ -82,6 +92,21 @@ export const api = {
     ),
   verify: (phone: string, code: string) =>
     request<{ ok: true; isNew: boolean }>('POST', '/api/auth/verify', { phone, code }),
+  /** Play without an email after confirming 18+. */
+  guest: () => request<{ ok: true; guest: true }>('POST', '/api/auth/guest', { adult: true }),
+  /** Ask for a sign-in link; devLink only in development and previews. */
+  emailLink: (email: string, intent: EmailIntent, lang: 'en' | 'fr') =>
+    request<{ ok: true; sent: true; devLink?: string }>('POST', '/api/auth/email', {
+      email,
+      intent,
+      lang,
+    }),
+  openLink: (token: string) =>
+    request<{ ok: true; intent: EmailIntent; isNew: boolean; account: Account }>(
+      'POST',
+      '/api/auth/email/verify',
+      { token },
+    ),
   logout: () => request('POST', '/api/auth/logout', {}),
   deleteAccount: () => request('DELETE', '/api/account'),
   checkName: (name: string, market: string, kind: 'company' | 'handle') =>

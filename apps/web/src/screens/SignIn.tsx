@@ -2,42 +2,26 @@ import { useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { LANGS, setLang, t, tx, useLang } from '../i18n';
 import { useGame } from '../store';
-import { Button, Field } from '../ui';
+import { Button } from '../ui';
+import { EmailLinkForm } from './Account';
 
-/** Sign up / sign in with phone verification and an 18+ check (§3 step 1). */
+/**
+ * Entry (§3 step 1): play straight away after confirming 18+ (no date of
+ * birth, no email), or log back in to a saved game with an email link.
+ */
 export function SignIn() {
   const { refresh, toast, meta } = useGame();
   const lang = useLang();
-  const [phone, setPhone] = useState('');
-  const [dob, setDob] = useState('');
-  const [code, setCode] = useState('');
-  const [step, setStep] = useState<'phone' | 'code'>('phone');
-  const [devCode, setDevCode] = useState<string | undefined>();
-  const [codeShown, setCodeShown] = useState<'dev' | 'no-sms' | undefined>();
+  const [adult, setAdult] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [login, setLogin] = useState(false);
 
-  const start = async (e: FormEvent) => {
+  const play = async (e: FormEvent) => {
     e.preventDefault();
-    const [year, month, day] = dob.split('-').map(Number);
-    if (!year || !month || !day) return toast(t('Enter your date of birth.'), 'error');
+    if (!adult) return toast(t('Confirm you are 18 or older to play.'), 'error');
     setLoading(true);
     try {
-      const r = await api.startAuth(phone, { year, month, day });
-      setDevCode(r.devCode);
-      setCodeShown(r.codeShown);
-      setStep('code');
-    } catch (err) {
-      toast(tx((err as Error).message), 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verify = async (e: FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await api.verify(phone, code);
+      await api.guest();
       await refresh();
     } catch (err) {
       toast(tx((err as Error).message), 'error');
@@ -75,80 +59,47 @@ export function SignIn() {
         <p className="muted">{t('Real startup lessons. No real-world losses.')}</p>
       </div>
       <section className="card">
-        {step === 'phone' ? (
-          <form onSubmit={start}>
-            <Field
-              label={t('Mobile number')}
-              hint={t('One account per number. We store it only as a one-way hash.')}
-            >
-              {(id) => (
-                <input
-                  id={id}
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  placeholder="+234 803 123 4567"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                />
-              )}
-            </Field>
-            <Field
-              label={t('Date of birth')}
-              hint={t('Runway is 18+. We check it and don’t keep it.')}
-            >
-              {(id) => (
-                <input
-                  id={id}
-                  type="date"
-                  value={dob}
-                  onChange={(e) => setDob(e.target.value)}
-                  required
-                />
-              )}
-            </Field>
-            <Button type="submit" className="btn btn-primary btn-block" loading={loading}>
-              {t('Send code')}
+        <form onSubmit={play} className="stack">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={adult}
+              onChange={(e) => setAdult(e.target.checked)}
+              required
+            />
+            <span>{t('I confirm I’m 18 or older')}</span>
+          </label>
+          <Button
+            type="submit"
+            className="btn btn-primary btn-block btn-big"
+            loading={loading}
+            disabled={!adult}
+          >
+            {t('Play now')}
+          </Button>
+          <p className="small muted">
+            {t('No sign-up needed. You can save your progress with an email later.')}
+          </p>
+        </form>
+      </section>
+      <section className="card">
+        {login ? (
+          <>
+            <h2>{t('Log in')}</h2>
+            <EmailLinkForm intent="login" submitLabel={t('Email me a sign-in link')} />
+            <Button type="button" variant="ghost" onClick={() => setLogin(false)}>
+              {t('Back')}
             </Button>
-          </form>
+          </>
         ) : (
-          <form onSubmit={verify}>
-            <Field
-              label={t('6-digit code')}
-              hint={
-                devCode
-                  ? codeShown === 'no-sms'
-                    ? t('Test version: no text messages yet. Your code is {code}', {
-                        code: devCode,
-                      })
-                    : t('Dev mode: your code is {code}', { code: devCode })
-                  : t('Sent by SMS. It expires in 10 minutes.')
-              }
-            >
-              {(id) => (
-                <input
-                  id={id}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="\d{6}"
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                  required
-                  autoFocus
-                />
-              )}
-            </Field>
-            <div className="row">
-              <Button type="submit" loading={loading}>
-                {t('Verify')}
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setStep('phone')}>
-                {t('Change number')}
-              </Button>
-            </div>
-          </form>
+          <Button
+            type="button"
+            variant="ghost"
+            className="btn btn-ghost btn-block"
+            onClick={() => setLogin(true)}
+          >
+            {t('Already saved? Log in')}
+          </Button>
         )}
       </section>
       <p className="disclaimer">

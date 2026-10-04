@@ -6,6 +6,7 @@ import { useView, type Company } from '../store';
 import { Button, Card, Pill, Sparkline, Stat } from '../ui';
 import { Inbox } from './common';
 import { FoundCompany } from './Me';
+import { SaveNudge } from './Account';
 
 export function Home() {
   const { view, cur, meta } = useView();
@@ -47,6 +48,7 @@ export function Home() {
         </Card>
       )}
       {isInvestor && c && <InvestorKpis />}
+      <SaveNudge />
       <Votes />
       <Inbox />
       <Card title={t('{market} today', { market: view.market.name })}>

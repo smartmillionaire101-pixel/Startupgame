@@ -2,24 +2,9 @@
 export const entry: Record<string, string> = {
   // SignIn
   Language: 'Langue',
-  'Enter your date of birth.': 'Saisissez votre date de naissance.',
   'Build, invest and grow.': 'Créez, investissez, grandissez.',
   'Real startup lessons. No real-world losses.':
     'De vraies leçons de startup. Aucune perte réelle.',
-  'Mobile number': 'Numéro de mobile',
-  'One account per number. We store it only as a one-way hash.':
-    'Un compte par numéro. Nous ne le conservons que sous forme de hachage irréversible.',
-  'Date of birth': 'Date de naissance',
-  'Runway is 18+. We check it and don’t keep it.':
-    'Runway est réservé aux 18 ans et plus. Nous la vérifions sans la conserver.',
-  'Send code': 'Envoyer le code',
-  '6-digit code': 'Code à 6 chiffres',
-  'Dev mode: your code is {code}': 'Mode dev : votre code est {code}',
-  'Test version: no text messages yet. Your code is {code}':
-    'Version de test : pas encore de SMS. Votre code est {code}',
-  'Sent by SMS. It expires in 10 minutes.': 'Envoyé par SMS. Il expire dans 10 minutes.',
-  Verify: 'Vérifier',
-  'Change number': 'Changer de numéro',
   'This is a game. Nothing here is financial, legal, or tax advice.':
     'Ceci est un jeu. Rien ici ne constitue un conseil financier, juridique ou fiscal.',
 

@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { Command, PlayerView } from '@runway/engine';
-import { api, ApiError, type Meta } from './api';
+import { api, ApiError, type Account, type Meta } from './api';
 import { t, tx } from './i18n';
 
 type Status = 'loading' | 'signedOut' | 'onboarding' | 'ready' | 'offline';
@@ -27,6 +27,8 @@ interface Toast {
 interface GameContext {
   status: Status;
   view: PlayerView | null;
+  /** Guest or saved; null while signed out. */
+  account: Account | null;
   meta: Meta | null;
   lite: boolean;
   setLite: (v: boolean) => void;
@@ -42,6 +44,17 @@ interface GameContext {
 
 const Ctx = createContext<GameContext | null>(null);
 
+/** Takes ?signin=<token> out of the address bar (so it isn't reused or shared) and returns it. */
+function readSignInToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get('signin');
+  if (!token) return null;
+  url.searchParams.delete('signin');
+  window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  return token;
+}
+
 const readLite = () => {
   try {
     return localStorage.getItem('rw_lite') === '1';
@@ -53,6 +66,7 @@ const readLite = () => {
 export function GameProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading');
   const [view, setView] = useState<PlayerView | null>(null);
+  const [account, setAccount] = useState<Account | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [busy, setBusy] = useState(false);
@@ -70,6 +84,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const apply = useCallback((s: Awaited<ReturnType<typeof api.state>>) => {
+    setAccount(s.account ?? { guest: false, email: null });
     if (s.onboarded) {
       versionRef.current = s.view.worldVersion;
       setView(s.view);
@@ -82,6 +97,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     setView(null);
+    setAccount(null);
     setStatus('signedOut');
   }, []);
 
@@ -114,8 +130,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
         if (attempt < 5) setTimeout(() => void loadMeta(attempt + 1), 1000 * 2 ** attempt);
       });
     void loadMeta(0);
-    api.state().then(apply, applyError);
-  }, [apply, applyError]);
+    // Opened from a sign-in email: use the link first, then load the game.
+    const token = readSignInToken();
+    const opened = token
+      ? api.openLink(token).then(
+          (r) => {
+            if (r.intent === 'save')
+              toast(
+                t('Progress saved. Log in with {email} on any device.', {
+                  email: r.account.email ?? '',
+                }),
+                'ok',
+              );
+            else toast(t('Signed in as {email}.', { email: r.account.email ?? '' }), 'ok');
+          },
+          (e: unknown) =>
+            toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error'),
+        )
+      : Promise.resolve();
+    void opened.then(() => api.state().then(apply, applyError));
+  }, [apply, applyError, toast]);
 
   // Live updates: SSE normally; polling where the host can't hold a connection
   // open (the server answers 204), and a slow poll in lite mode to save data.
@@ -178,8 +212,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ status, view, meta, lite, setLite, refresh, send, toast, toasts, busy }),
-    [status, view, meta, lite, setLite, refresh, send, toast, toasts, busy],
+    () => ({ status, view, account, meta, lite, setLite, refresh, send, toast, toasts, busy }),
+    [status, view, account, meta, lite, setLite, refresh, send, toast, toasts, busy],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
