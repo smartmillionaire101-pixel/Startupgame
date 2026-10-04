@@ -821,3 +821,294 @@
     grid-auto-flow: column;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Wave 4: rides, the month countdown, being away, flights */
+
+.city-you-ring {
+  fill: rgb(20 184 166 / 0.25);
+  stroke: #0f766e;
+  stroke-width: 1.5;
+}
+.city-avatar.is-riding .city-avatar-fig,
+.city-avatar.is-riding .city-you-ring {
+  display: none;
+}
+.city-ride[data-axis='x'] .city-ride-y,
+.city-ride[data-axis='y'] .city-ride-x {
+  display: none;
+}
+
+.city-hud-top {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+}
+.hud-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+.hud-clock,
+.hud-away {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: rgb(15 23 42 / 0.78);
+  color: #fff;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hud-away {
+  background: #1d4ed8;
+  padding-right: 0.25rem;
+}
+.hud-away-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  background: #fff;
+  color: #1d4ed8;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.hud-away-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.city-lite-hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.ride-chooser {
+  flex: 1;
+  min-width: 0;
+  background: rgb(255 255 255 / 0.96);
+  color: #0f172a;
+  border-radius: 18px;
+  padding: 0.6rem;
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.22);
+  border: 1px solid rgb(15 23 42 / 0.08);
+}
+.ride-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  padding: 0 0.15rem 0.45rem;
+}
+.ride-where {
+  color: #475569;
+}
+.ride-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+@media (min-width: 640px) {
+  .ride-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+.ride-opt {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.45rem;
+  align-items: center;
+  text-align: left;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  border-radius: 14px;
+  padding: 0.45rem 0.55rem;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  min-height: 3.2rem;
+}
+.ride-opt:hover:not(:disabled) {
+  border-color: #94a3b8;
+}
+.ride-opt:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.ride-opt.is-last {
+  border-color: #0f766e;
+  background: #f0fdfa;
+}
+.ride-icon {
+  grid-row: span 2;
+  color: #0f766e;
+  display: grid;
+  place-items: center;
+}
+.ride-name {
+  font-weight: 800;
+  font-size: 0.86rem;
+}
+.ride-meta {
+  font-size: 0.72rem;
+  color: #475569;
+}
+
+/* The flight: full screen, over everything. */
+.flight {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #0f172a;
+  color: #fff;
+  animation: fl-in 0.35s ease-out;
+}
+@keyframes fl-in {
+  from {
+    opacity: 0;
+  }
+}
+.fl-stage,
+.fl-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.fl-stage > .fl-svg {
+  animation: fl-in 0.4s ease-out;
+}
+.fl-sign {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  fill: #fde68a;
+}
+.fl-top {
+  position: absolute;
+  top: calc(0.9rem + env(safe-area-inset-top));
+  left: 1rem;
+  right: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 800;
+}
+.fl-route,
+.fl-hours,
+.fl-caption {
+  background: rgb(15 23 42 / 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+}
+.fl-hours {
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.fl-bottom {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: calc(1.2rem + env(safe-area-inset-bottom));
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  text-align: center;
+}
+.fl-caption {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.fl-note {
+  margin: 0;
+  max-width: 26rem;
+  background: rgb(255 255 255 / 0.95);
+  color: #0f172a;
+  border-radius: 14px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9rem;
+}
+.fl-skip {
+  border: 1px solid rgb(255 255 255 / 0.5);
+  background: rgb(15 23 42 / 0.4);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 1rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.fl-takeoff {
+  animation: fl-takeoff 2.8s cubic-bezier(0.55, 0, 0.8, 0.6) forwards;
+}
+@keyframes fl-takeoff {
+  0% {
+    transform: translate(-30px, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(150px, 0) rotate(0deg);
+  }
+  62% {
+    transform: translate(205px, -6px) rotate(-7deg);
+  }
+  100% {
+    transform: translate(520px, -230px) rotate(-16deg);
+  }
+}
+.fl-landing {
+  animation: fl-landing 2.8s cubic-bezier(0.2, 0.6, 0.35, 1) forwards;
+}
+@keyframes fl-landing {
+  0% {
+    transform: translate(-260px, -190px) rotate(9deg);
+  }
+  55% {
+    transform: translate(40px, -6px) rotate(3deg);
+  }
+  64% {
+    transform: translate(80px, 0) rotate(0deg);
+  }
+  100% {
+    transform: translate(170px, 0) rotate(0deg);
+  }
+}
+.fl-parked {
+  transform: translate(170px, 0);
+}
+.fl-cloud {
+  animation: fl-cloud 8s linear infinite;
+}
+@keyframes fl-cloud {
+  from {
+    transform: translateX(60px);
+  }
+  to {
+    transform: translateX(-60px);
+  }
+}
+.departures .btn {
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flight .fl-cloud {
+    animation: none;
+  }
+}

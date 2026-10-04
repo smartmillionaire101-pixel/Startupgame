@@ -253,9 +253,7 @@ export function rideVehicle(
     const want = TRANSIT[marketId]?.vehicle ?? 'bus';
     return vehicles.find((v) => v.id === want) ?? vehicles.find((v) => v.len >= 0.8) ?? BUS;
   }
-  return (
-    vehicles.find((v) => v.id === 'taxi' || v.id === 'cab' || v.id === 'robotaxi') ?? TAXI
-  );
+  return vehicles.find((v) => v.id === 'taxi' || v.id === 'cab' || v.id === 'robotaxi') ?? TAXI;
 }
 
 const RIDE_KEY = 'rw_ride';

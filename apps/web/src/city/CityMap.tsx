@@ -630,11 +630,7 @@ export function placeLabels(
   marketName = '',
 ): { labels: MapLabel[]; areas: MapAreaLabel[] } {
   const rank = (p: Place) =>
-    KEY_KINDS.includes(p.kind)
-      ? 0
-      : p.kind === 'stall' || p.kind === 'business'
-        ? 2
-        : 1;
+    KEY_KINDS.includes(p.kind) ? 0 : p.kind === 'stall' || p.kind === 'business' ? 2 : 1;
   type Box = { x: number; y: number; w: number };
   const hits = (boxes: Box[], x: number, y: number, w: number) =>
     boxes.some((o) => Math.abs(o.x - x) < (o.w + w) / 2 + 3 && Math.abs(o.y - y) < 19);
@@ -675,7 +671,12 @@ export function placeLabels(
   const far: Box[] = [...main];
   const areas: MapAreaLabel[] = [];
   const named = layout.areas.length
-    ? layout.areas.map((a) => ({ id: a.id, at: a.at, text: a.name.toUpperCase(), key: keyAreas.has(a.id) }))
+    ? layout.areas.map((a) => ({
+        id: a.id,
+        at: a.at,
+        text: a.name.toUpperCase(),
+        key: keyAreas.has(a.id),
+      }))
     : layout.districts
         .filter((d) => d.id === 'finance' || d.id === 'investors' || d.id === 'market')
         .map((d) => ({
@@ -837,9 +838,7 @@ export function CityMap({
   const pos = useRef<Pt>(lastPos.get(layout.marketId) ?? layout.start);
   const walk = useRef<{ raf: number; cancel: () => void } | null>(null);
   const rideRef = useRef<SVGGElement>(null);
-  const pending = useRef<{ target: Pt; then?: () => void; placeId: string | null } | null>(
-    null,
-  );
+  const pending = useRef<{ target: Pt; then?: () => void; placeId: string | null } | null>(null);
   const [vehicle, setVehicle] = useState<VehicleSpec | null>(null);
   const following = useRef(true);
   const onEnterRef = useRef(onEnter);

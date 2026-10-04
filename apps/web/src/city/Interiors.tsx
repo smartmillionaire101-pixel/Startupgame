@@ -737,7 +737,7 @@ function Departures({ desk, homeId }: { desk: FlightDesk; homeId: string | null 
           <li key={d.id} className="spread">
             <span>
               <b>{d.name}</b>
-              {d.id === homeId && <Pill tone="good">{t('Home')}</Pill>}
+              {d.id === homeId && <Pill tone="good">{t('Home city')}</Pill>}
               <br />
               <span className="small muted">
                 {money(d.fare, desk.currency)} · {t('{n}h flight', { n: d.hours })}

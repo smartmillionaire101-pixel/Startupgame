@@ -4,6 +4,7 @@ import { locale, t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import { Button, Card, Empty, Field, Pill, Sheet, Sparkline, Stat } from '../ui';
 import { BankPicker, DealList, stageLabel } from './common';
+import { clockOf } from '../city/travel';
 
 type Tab = 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire';
 
@@ -488,13 +489,20 @@ function Inject({ c }: { c: Company }) {
 }
 
 function Finance({ c }: { c: Company }) {
-  const { cur } = useView();
+  const { cur, view } = useView();
+  const clock = clockOf(view);
   const last = c.finance.history.at(-1);
   return (
     <>
       <Card title={t('Last month')}>
         {!last ? (
-          <Empty>{t('Your first month settles at midnight in your market.')}</Empty>
+          <Empty>
+            {clock
+              ? t('Your first month settles in about {n} min.', {
+                  n: Math.max(1, Math.ceil((clock.nextSettlementAt - clock.serverNow) / 60_000)),
+                })
+              : t('Your first month settles soon.')}
+          </Empty>
         ) : (
           <table className="table">
             <tbody>

@@ -14,13 +14,7 @@ import { t, tx, useLang } from '../i18n';
 import { useView, WithView } from '../store';
 import { Button, Pill, Sheet } from '../ui';
 import { avatarLook } from './art';
-import {
-  CityMap,
-  districtLabel,
-  placeAvatarAt,
-  type CityMapHandle,
-  type FarTrip,
-} from './CityMap';
+import { CityMap, districtLabel, placeAvatarAt, type CityMapHandle, type FarTrip } from './CityMap';
 import { FlightScene } from './Flight';
 import { MonthCountdown, RideChooser, RideIcon } from './Transport';
 import {
@@ -28,11 +22,11 @@ import {
   clockOf,
   destinationsOf,
   flightsOf,
-  hasHere,
   hereOf,
   lastRide,
   rememberRide,
   rideDistance,
+  type Destination,
   type RideMode,
 } from './travel';
 import { categoryLabel } from './Business';
@@ -294,13 +288,12 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
         toName,
         hours: dest?.hours ?? flights?.hours ?? 4,
         status: 'pending',
-        note:
-          flights && hasHere(view)
-            ? undefined
-            : t(
-                'Your trip to {city} counts this month: pitch its investors and invest there. Walking its streets opens soon; for now you’re back in {home}.',
-                { city: toName, home: view.market.name },
-              ),
+        note: flights
+          ? undefined
+          : t(
+              'Your trip to {city} counts this month: pitch its investors and invest there. Walking its streets opens soon; for now you’re back in {home}.',
+              { city: toName, home: view.market.name },
+            ),
       });
       try {
         await api.command(
@@ -326,14 +319,15 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
   const landed = useCallback(() => setLanding(null), []);
   const done = useCallback(() => {
     setFlight(null);
-    // Without `view.here` the city never changes: nothing to land in.
-    if (!hasHere(view)) setLanding(null);
+    // The old trip command never moves you: nothing to land in.
+    if (!flightsOf(view)) setLanding(null);
   }, [view]);
 
   const body = (
     <CityBody
       onNavigate={onNavigate}
       home={view.market}
+      destinations={destinationsOf(view)}
       onFly={(to) => void fly(to)}
       onFlyHome={flyHome}
       landing={landing}
@@ -362,6 +356,7 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
 function CityBody({
   onNavigate,
   home,
+  destinations,
   onFly,
   onFlyHome,
   landing,
@@ -370,6 +365,8 @@ function CityBody({
   onNavigate: Nav;
   /** Your home market (the view's market is the one you're in). */
   home: PlayerView['market'];
+  /** Where the airport flies (worked out from the home view). */
+  destinations: Destination[];
   onFly: (to: string) => void;
   onFlyHome: () => void;
   /** A city you're flying to: arrive at its airport. */
@@ -728,11 +725,26 @@ function CityBody({
           onGo={goToStory}
           onVisit={visit}
           players={players}
-          onFly={(to) => {
-            setInside(null);
-            onFly(to);
+          desk={{
+            destinations,
+            currency: home.currency,
+            onFly: (to) => {
+              setInside(null);
+              onFly(to);
+            },
           }}
-          away={abroad ? { homeName: home.name, onFlyHome: () => (setInside(null), onFlyHome()) } : null}
+          homeId={home.id}
+          away={
+            abroad
+              ? {
+                  homeName: home.name,
+                  onFlyHome: () => {
+                    setInside(null);
+                    onFlyHome();
+                  },
+                }
+              : null
+          }
           nav={(tab) => {
             setInside(null);
             onNavigate(tab);

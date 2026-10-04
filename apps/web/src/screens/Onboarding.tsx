@@ -500,9 +500,9 @@ export function Onboarding() {
                     { company, market: m.name },
                   )
                 : t('You start investing in {market}.', { market: m.name })}{' '}
-            {t('One real day is one game month. Settlement runs at midnight in {market}.', {
-              market: m.name,
-            })}
+            {t(
+              'Time runs fast: a game month passes every few real minutes, at the same moment in every city.',
+            )}
           </p>
           <p className="disclaimer">{tx(meta.disclaimer)}</p>
           <div className="row">

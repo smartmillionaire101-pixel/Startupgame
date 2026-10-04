@@ -549,7 +549,13 @@ function putAirport(ctx: Ctx, { i, j }: Cell, area?: string) {
     door: { x: x + 1.45, y: (j + 1) * B },
     doorFace: 'left',
   });
-  ctx.decor.push({ kind: 'runway', x: i * B + SW + 0.1, y: j * B + SW + 0.15, w: B - 2 * SW - 0.2, d: 1.3 });
+  ctx.decor.push({
+    kind: 'runway',
+    x: i * B + SW + 0.1,
+    y: j * B + SW + 0.15,
+    w: B - 2 * SW - 0.2,
+    d: 1.3,
+  });
 }
 
 const AWNINGS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
@@ -1070,7 +1076,10 @@ export function planSize(plan: CityPlan): number {
  * every street line (bridges) to match. `belt` says whether a block lies on
  * an open lane, which stays a park or plaza where it can.
  */
-export function spreadPlan(plan: CityPlan): { plan: CityPlan; belt: (i: number, j: number) => boolean } {
+export function spreadPlan(plan: CityPlan): {
+  plan: CityPlan;
+  belt: (i: number, j: number) => boolean;
+} {
   const cols = [...(plan.open?.cols ?? [])].sort((a, b) => a - b);
   const rows = [...(plan.open?.rows ?? [])].sort((a, b) => a - b);
   if (!cols.length && !rows.length) return { plan, belt: () => false };
@@ -1174,9 +1183,7 @@ function tryPlanned(
     // lanes last, so they stay open unless the district needs them.
     x.cells.sort(
       (a, b) =>
-        Number(belt(a.i, a.j)) - Number(belt(b.i, b.j)) ||
-        b.i + b.j - (a.i + a.j) ||
-        b.i - a.i,
+        Number(belt(a.i, a.j)) - Number(belt(b.i, b.j)) || b.i + b.j - (a.i + a.j) || b.i - a.i,
     );
   }
 
