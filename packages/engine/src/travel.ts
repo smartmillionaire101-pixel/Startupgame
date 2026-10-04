@@ -16,6 +16,7 @@ import {
   col,
   holderAccount,
   getMarket,
+  hoursLeft,
   locationOf,
   notify,
   spendHours,
@@ -100,17 +101,21 @@ export function fly(world: World, p: Player, to: MarketId, now: number) {
   ensure(to !== from, 'travel.here', `You’re already in ${dest.data.name}.`);
   const used = p.flights?.month === home.month ? p.flights.count : 0;
   ensure(
-    used < MAX_FLIGHTS_PER_MONTH,
+    used < MAX_FLIGHTS_PER_MONTH || to === p.market,
     'travel.flights',
     `That’s ${MAX_FLIGHTS_PER_MONTH} flights this month. Stay a while.`,
   );
-  const cost = flightFare(world, p, to);
+  const fare = flightFare(world, p, to);
+  const balance = Math.max(0, account(world, p.accounts.local).balance);
+  const goingHome = to === p.market;
+  // Nobody is stranded abroad: short of the fare home, you fly standby for what you have.
+  const cost = goingHome ? Math.min(fare, balance) : fare;
   ensure(
-    account(world, p.accounts.local).balance >= cost,
+    balance >= cost,
     'travel.funds',
     `The flight costs ${formatMoney(cost, home.data.currency)}; you don’t have it.`,
   );
-  spendHours(p, FLIGHT_HOURS, 'A flight');
+  spendHours(p, goingHome ? Math.min(FLIGHT_HOURS, hoursLeft(p)) : FLIGHT_HOURS, 'A flight');
   transfer(
     world,
     p.accounts.local,
