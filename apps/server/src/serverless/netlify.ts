@@ -12,7 +12,7 @@
  *   tests there never touch the live world.
  * - The settlement clock and data feeds run in a scheduled function.
  */
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { getDeployStore, getStore } from '@netlify/blobs';
 import type { Context } from '@netlify/functions';
 import type { FastifyInstance } from 'fastify';
@@ -105,10 +105,43 @@ export async function createRuntime(kv: Kv, config: Config): Promise<Runtime> {
   return { app, game, kv, config };
 }
 
+const INSTANCE = randomUUID().slice(0, 8);
+
+/**
+ * Previews only: checks the guarantees the game relies on against the real
+ * store (create-only writes, compare-and-swap, read-your-writes) and reports
+ * which function instance answered, with a short fingerprint of its session
+ * secret (a hash, never the secret), so a deploy check can see whether
+ * instances agree.
+ */
+export async function kvSelfTest(rt: Runtime) {
+  const kv = rt.kv;
+  const key = `selftest/${INSTANCE}-${randomUUID().slice(0, 8)}`;
+  const first = await kv.set(key, 'a', { ifNew: true });
+  const second = await kv.set(key, 'b', { ifNew: true });
+  const read = await kv.get(key);
+  const stale = await kv.set(key, 'c', { ifMatch: '"not-the-etag"' });
+  const cas = read ? await kv.set(key, 'd', { ifMatch: read.etag }) : { ok: false };
+  const after = await kv.get(key);
+  await kv.delete(key);
+  const text = (e: { data: Uint8Array } | null) => (e ? new TextDecoder().decode(e.data) : null);
+  return {
+    instance: INSTANCE,
+    secret: createHash('sha256').update(rt.config.SESSION_SECRET).digest('hex').slice(0, 8),
+    createOnlyHonoured: first.ok && !second.ok && text(read) === 'a',
+    staleWriteRefused: !stale.ok,
+    readEtag: read?.etag ?? null,
+    casWithReadEtag: cas.ok && text(after) === 'd',
+    worldVersion: rt.game.current.version,
+  };
+}
+
 /** Pass a Fetch API request through the Fastify app and back. */
 export async function handle(rt: Runtime, req: Request, ip?: string): Promise<Response> {
   await rt.game.refresh();
   const url = new URL(req.url);
+  if (url.pathname === '/api/dev/kv-selftest' && rt.config.DEV_TOOLS)
+    return Response.json(await kvSelfTest(rt));
   const body =
     req.method === 'GET' || req.method === 'HEAD'
       ? undefined

@@ -50,6 +50,21 @@ async function flow(n) {
   return { ok: state.res.ok && del.res.ok, out };
 }
 
+// Preview deploys expose a store self-test: run it from several instances at once.
+const selftests = await Promise.all(
+  [1, 2, 3, 4, 5, 6].map(() =>
+    fetch(`${base}/api/dev/kv-selftest`)
+      .then(async (r) => (r.ok ? r.json() : { status: r.status }))
+      .catch((e) => ({ error: String(e) })),
+  ),
+);
+if (selftests.some((t) => t.instance)) {
+  console.log('store self-test:');
+  for (const t of selftests) console.log(' ', JSON.stringify(t));
+  const secrets = new Set(selftests.filter((t) => t.secret).map((t) => t.secret));
+  if (secrets.size > 1) console.log('  !! instances disagree on the session secret');
+}
+
 const results = await Promise.all([1, 2, 3].map(flow));
 results.forEach((r, i) =>
   console.log(`flow ${i + 1}: ${r.ok ? 'ok' : 'FAILED'}\n  ${r.out.join('\n  ')}`),

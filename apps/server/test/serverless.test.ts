@@ -287,3 +287,23 @@ describe('Netlify runtime', () => {
     expect(fresh.current.markets.lagos!.month).toBeGreaterThan(month);
   });
 });
+
+describe('store self-test (previews)', () => {
+  it('reports the guarantees the game relies on', async () => {
+    const kv = new MemoryKv();
+    const rt = await createRuntime(kv, await configFor(kv, PREVIEW));
+    const res = await handle(rt, new Request('https://runway.test/api/dev/kv-selftest'));
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      createOnlyHonoured: true,
+      staleWriteRefused: true,
+      casWithReadEtag: true,
+    });
+    expect(String(body.secret)).toHaveLength(8);
+    // Not exposed in production.
+    const prodKv = new MemoryKv();
+    const prod = await createRuntime(prodKv, await configFor(prodKv, PROD));
+    const hidden = await handle(prod, new Request('https://runway.test/api/dev/kv-selftest'));
+    expect(hidden.status).toBe(404);
+  });
+});
