@@ -11,9 +11,19 @@ import { rulesFor } from './data/rules.js';
 import { markValue, ownership, waterfall } from './captable.js';
 import { gameDate } from './clock.js';
 import { companyRunway, defaultAlive } from './company.js';
+import { rescuePlan } from './rescue.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
 import { creditProfile } from './credit.js';
+import { CAPITAL } from './data/capital.js';
+import {
+  appetiteLabel,
+  companyQuote,
+  founderQuote,
+  fundOffice,
+  productAmount,
+  productRateBps,
+} from './capital.js';
 import { tripCostUsd } from './travel.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { boardOf } from './governance.js';
@@ -236,7 +246,9 @@ function dealView(world: World, d: DealCard, viewerId: Id) {
         : p.kind === 'company'
           ? world.companies[p.id]?.name
           : p.kind === 'bank'
-            ? getMarket(world, p.id as MarketId).bankName
+            ? ((p.lenderId
+                ? getMarket(world, p.id as MarketId).lenders?.[p.lenderId]?.name
+                : undefined) ?? getMarket(world, p.id as MarketId).bankName)
             : p.id;
   const mine = (p: DealCard['proposer']) =>
     (p.kind === 'player' && p.id === viewerId) ||
@@ -331,6 +343,51 @@ export function portfolio(world: World, p: Player) {
         founders: c.founderIds.map((id) => ({ id, name: world.players[id]?.name ?? '—' })),
       };
     });
+}
+
+/**
+ * The market's AI lenders and products (Wave 1), with what each would mean
+ * for the viewer: eligible, how much, or exactly why not. Company products
+ * are quoted for the viewer's first active company in this market.
+ */
+function lendersView(world: World, p: Player) {
+  const m = getMarket(world, p.market);
+  const company =
+    p.companyIds
+      .map((id) => world.companies[id])
+      .find((c) => c && c.status === 'active' && c.market === m.id) ?? null;
+  return Object.values(m.lenders ?? {}).map((l) => ({
+    id: l.id,
+    name: l.name,
+    kind: l.kind,
+    appetite: appetiteLabel(l.appetite),
+    look: l.look,
+    products: l.products.map((pr) => {
+      const q =
+        pr.borrower === 'founder'
+          ? founderQuote(world, m, l, pr, p)
+          : companyQuote(world, m, l, pr, company);
+      return {
+        id: pr.id,
+        kind: pr.kind,
+        label: pr.label,
+        borrower: pr.borrower,
+        pitch: pr.pitch,
+        termMonths: pr.termMonths,
+        guarantee: pr.guarantee,
+        /** What it costs today: base + spread, or fixed. Revenue-based: the flat fee (1000 = repay 1.1×). */
+        rateBps: productRateBps(m, pr),
+        ...(pr.revenueShareBps !== undefined ? { revenueShareBps: pr.revenueShareBps } : {}),
+        amount: productAmount(world, m, pr),
+        you: {
+          eligible: q.eligible,
+          reason: q.reason,
+          maxMinor: q.maxMinor,
+          companyId: q.companyId,
+        },
+      };
+    }),
+  }));
 }
 
 /** Everything the client needs to render a player's game, in one payload. */
@@ -445,7 +502,16 @@ export function playerView(world: World, playerId: Id) {
           minStars: f.minStars,
           thesis: f.thesis,
           mood: f.mood > 1.1 ? 'hungry' : f.mood < 0.9 ? 'cautious' : 'steady',
+          /** City art: deterministic from the fund id. */
+          office: fundOffice(f.id),
         })),
+      lenders: lendersView(world, p),
+      capital: {
+        vcDepth: CAPITAL[m.id].vcDepth,
+        angelDepth: CAPITAL[m.id].angelDepth,
+        schemes: CAPITAL[m.id].schemes,
+        sources: CAPITAL[m.id].sources,
+      },
       talent: p.role === 'founder' || myCompanies.length ? m.talent : [],
       /** B2B marketplace listings in your market (§6). */
       /** Player banks in this market (§8), for depositors and borrowers. */
@@ -496,7 +562,18 @@ export function playerView(world: World, playerId: Id) {
       ...t,
       monthlyCost: Math.round(m.data.costOfLiving * 100 * t.costCol),
     })),
-    companies: myCompanies.map((c) => companyDetail(world, c)),
+    companies: myCompanies.map((c) => {
+      const plan = c.status === 'active' ? rescuePlan(world, c, playerId) : null;
+      return {
+        ...companyDetail(world, c),
+        /** Why last month went the way it did (Wave 1). */
+        story: c.story ?? null,
+        /** The rescue plan; null when the company isn't in distress. */
+        rescue: plan && plan.level ? plan : null,
+        hibernating: !!c.hibernation,
+        officeDownsized: !!c.officeDownsized,
+      };
+    }),
     fund: fund
       ? {
           ...fund,

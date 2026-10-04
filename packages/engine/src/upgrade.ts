@@ -3,9 +3,13 @@
  * place on load, deterministically, so replaying later commands stays exact.
  * Each step fills defaults for fields introduced by that version.
  */
+import { capitalNames } from './data/capital.js';
+import type { MarketId } from './data/markets.js';
+import { seedExtraFunds, seedLenders } from './capital.js';
+import { normaliseName } from './names.js';
 import type { World } from './types.js';
 
-export const CURRENT_SCHEMA = 7;
+export const CURRENT_SCHEMA = 8;
 
 type Step = (world: World) => void;
 
@@ -70,6 +74,17 @@ const STEPS: Record<number, Step> = {
         l.lenderAccount ??= world.markets[l.market]!.ext.bank;
         l.lenderBankId ??= null;
       }
+    }
+  },
+  // v7 → v8: per-market lenders and depth-scaled funds (Wave 1). Existing funds stay.
+  7: (world) => {
+    for (const id of Object.keys(world.markets) as MarketId[]) {
+      const m = world.markets[id]!;
+      m.lenders ??= seedLenders(id);
+      const names = (world.names[id] ??= {});
+      // Reserve the new AI names, unless a player already holds one.
+      for (const n of capitalNames(id)) names[normaliseName(n)] ??= 'ai';
+      seedExtraFunds(world, id);
     }
   },
 };

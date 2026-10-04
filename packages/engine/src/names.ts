@@ -8,6 +8,7 @@
  */
 import { AI_BANKS, AI_FUNDS, AI_INCUMBENTS, OUTLETS } from './data/fiction.js';
 import type { MarketId } from './data/markets.js';
+import { capitalNames } from './data/capital.js';
 
 /** Well-known brands players may not imitate. Extend via server config. */
 export const PROTECTED_BRANDS = [
@@ -217,5 +218,6 @@ export function reservedAiNames(market: MarketId): string[] {
     ...OUTLETS[market].map((o) => o.name),
     AI_BANKS[market],
     ...Object.values(AI_INCUMBENTS[market]),
+    ...capitalNames(market),
   ];
 }

@@ -12,6 +12,7 @@ import { DealFlow, Portfolio } from './screens/Investor';
 import { NewsScreen } from './screens/News';
 import { MeScreen } from './screens/Me';
 import { BankScreen } from './screens/Bank';
+import { CityScreen } from './city/CityScreen';
 
 export function App() {
   const { status } = useGame();
@@ -41,12 +42,12 @@ export function App() {
   );
 }
 
-type TabId = 'home' | 'company' | 'money' | 'deals' | 'portfolio' | 'bank' | 'news' | 'me';
+type TabId = 'city' | 'home' | 'company' | 'money' | 'deals' | 'portfolio' | 'bank' | 'news' | 'me';
 
 function Game() {
   const { view } = useView();
   const founder = view.me.role === 'founder' || view.companies.some((c) => c.status === 'active');
-  const [tab, setTab] = useState<TabId>('home');
+  const [tab, setTab] = useState<TabId>('city');
   const unread = view.inbox.filter((i) => !i.read).length;
   const myTurn = view.deals.filter((d) => d.yourTurn).length;
   const stories = view.media.filter((m) => m.status === 'invited' || m.status === 'preview').length;
@@ -54,8 +55,10 @@ function Game() {
     (d) => d.yourTurn && d.counterparty.kind === 'playerbank',
   ).length;
   const banker = view.me.role === 'banker';
+  const city = { id: 'city' as const, label: t('City'), icon: '◈' };
   const tabs: { id: TabId; label: string; icon: string; badge?: number }[] = banker
     ? [
+        city,
         { id: 'home', label: t('Home'), icon: '⌂', badge: unread },
         { id: 'bank', label: t('Bank'), icon: '🏦', badge: bankRequests },
         { id: 'news', label: t('News'), icon: '▤', badge: stories },
@@ -63,6 +66,7 @@ function Game() {
       ]
     : founder
       ? [
+          city,
           { id: 'home', label: t('Home'), icon: '⌂', badge: unread },
           { id: 'company', label: t('Company'), icon: '◧' },
           { id: 'money', label: t('Money'), icon: '◎', badge: myTurn },
@@ -70,17 +74,22 @@ function Game() {
           { id: 'me', label: t('Me'), icon: '◉' },
         ]
       : [
+          city,
           { id: 'home', label: t('Home'), icon: '⌂', badge: unread },
           { id: 'deals', label: t('Deal flow'), icon: '◎', badge: myTurn },
           { id: 'portfolio', label: t('Portfolio'), icon: '◧' },
           { id: 'news', label: t('News'), icon: '▤', badge: stories },
           { id: 'me', label: t('Me'), icon: '◉' },
         ];
-  const current = tabs.some((t) => t.id === tab) ? tab : 'home';
+  const current = tabs.some((t) => t.id === tab) ? tab : 'city';
+  const go = (id: TabId) => {
+    setTab(id);
+    window.scrollTo({ top: 0 });
+  };
 
   return (
     <>
-      <div className="app">
+      <div className={`app${current === 'city' ? ' app-city' : ''}`}>
         <header className="topbar">
           <div className="brand">
             <img src="/icon.svg" alt="" width={22} height={22} /> {view.market.name}
@@ -97,6 +106,7 @@ function Game() {
           </div>
         </header>
         <main>
+          {current === 'city' && <CityScreen onNavigate={go} />}
           {current === 'home' && <Home />}
           {current === 'company' && <CompanyScreen />}
           {current === 'money' && <MoneyScreen />}
@@ -108,15 +118,12 @@ function Game() {
         </main>
       </div>
       <nav className="nav" aria-label={t('Main')}>
-        <div className="nav-inner">
+        <div className="nav-inner" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
           {tabs.map((t) => (
             <button
               key={t.id}
               aria-current={current === t.id ? 'page' : undefined}
-              onClick={() => {
-                setTab(t.id);
-                window.scrollTo({ top: 0 });
-              }}
+              onClick={() => go(t.id)}
             >
               <span className="ico" aria-hidden>
                 {t.icon}

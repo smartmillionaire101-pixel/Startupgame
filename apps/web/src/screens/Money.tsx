@@ -41,7 +41,7 @@ const pitchStatusLabel = (x: string) =>
     }) as Record<string, string>
   )[x] ?? titleCase(x);
 
-const moodLabel = (x: string) =>
+export const moodLabel = (x: string) =>
   (
     ({ hungry: t('hungry'), cautious: t('cautious'), steady: t('steady') }) as Record<
       string,
@@ -200,7 +200,7 @@ function Raise({ c }: { c: Company }) {
   );
 }
 
-function PitchSheet({
+export function PitchSheet({
   c,
   target,
   onClose,
@@ -269,7 +269,7 @@ function PitchSheet({
 }
 
 /** The AI partner asks a few short questions; answers are checked in diligence. */
-function PitchFlow({ pitchId }: { pitchId: string }) {
+export function PitchFlow({ pitchId }: { pitchId: string }) {
   const { view, send } = useView();
   const p = view.pitches.find((x) => x.id === pitchId)!;
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -326,12 +326,12 @@ function PitchFlow({ pitchId }: { pitchId: string }) {
   );
 }
 
-function LoanCard({ c }: { c: Company }) {
+export function LoanCard({ c, bankId: initialBank = '' }: { c: Company; bankId?: string }) {
   const { send, cur } = useView();
   const [amount, setAmount] = useState(amountInput(Math.max(c.monthlyRevenue * 3, 0)));
   const [months, setMonths] = useState(12);
   const [pg, setPg] = useState(false);
-  const [bankId, setBankId] = useState('');
+  const [bankId, setBankId] = useState(initialBank);
   return (
     <Card title={t('Working capital')}>
       <BankPicker value={bankId} onChange={setBankId} product="companies" />

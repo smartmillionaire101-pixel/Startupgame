@@ -169,7 +169,7 @@ function Profile() {
   );
 }
 
-function PersonalMoney() {
+export function PersonalMoney({ travel = true }: { travel?: boolean } = {}) {
   const { view, send, cur } = useView();
   const local = view.accounts.local!;
   const usd = view.accounts.usd;
@@ -308,14 +308,14 @@ function PersonalMoney() {
       </Card>
       <Credit />
       <WhereYouBank />
-      <Travel />
+      {travel && <Travel />}
       <CareerMoves />
     </>
   );
 }
 
 /** Travel and relocation (§14). */
-function Travel() {
+export function Travel() {
   const { view, send, cur } = useView();
   const [moveTo, setMoveTo] = useState('');
   const [handle, setHandle] = useState('');
@@ -400,7 +400,7 @@ function Travel() {
 }
 
 /** Credit profile and personal loans (§8). */
-function Credit() {
+export function Credit() {
   const { view, send, cur } = useView();
   const credit = view.me.credit;
   const [amount, setAmount] = useState('');
@@ -771,7 +771,7 @@ export function FoundCompany() {
   );
 }
 
-function People() {
+export function People() {
   const { view } = useView();
   return (
     <>

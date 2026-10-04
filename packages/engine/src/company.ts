@@ -30,7 +30,17 @@ import { outputOf, settleStaff } from './staff.js';
 import { monthlyGrowth } from './valuation.js';
 import { setCogs } from './world.js';
 import { recordInterest, recordLoanLoss } from './banks.js';
-import type { BuildMode, Company, MonthlyPnl, Player, RevenueModel, World } from './types.js';
+import { updateDistress } from './rescue.js';
+import { buildStory, storySnapshot } from './story.js';
+import type {
+  BuildMode,
+  Company,
+  MarketState,
+  MonthlyPnl,
+  Player,
+  RevenueModel,
+  World,
+} from './types.js';
 
 export const PNL_HISTORY = 36;
 
@@ -84,6 +94,68 @@ export function settleProduct(c: Company, founder: Player | undefined) {
   c.buildHours = 0;
 }
 
+/** Share of salary paid to furloughed staff while a company hibernates. */
+export const FURLOUGH_PAY = 0.4;
+/** Rent saved by downsizing the office. */
+export const DOWNSIZED_OFFICE = 0.5;
+
+/** Salaries due this month (reduced while hibernating), excluding arrears. */
+export function payrollThisMonth(c: Company): number {
+  const full = c.staff.reduce((a, s) => a + s.salary, 0);
+  return c.hibernation ? Math.round(full * FURLOUGH_PAY) : full;
+}
+
+export function officeRent(m: MarketState, c: Company): number {
+  const seats = c.staff.length + c.founderIds.length;
+  const rent = Math.round(scale(m.data.officeSeat * 100, seats) * c.supply.overheadMult);
+  return c.officeDownsized ? Math.round(rent * DOWNSIZED_OFFICE) : rent;
+}
+
+/** Marketing actually spent this month (nothing while hibernating). */
+export function marketingSpend(c: Company): number {
+  return c.hibernation ? 0 : Math.round(c.marketingBudget * c.supply.overheadMult);
+}
+
+export function cloudCost(m: MarketState, c: Company, customers = totalCustomers(c)): number {
+  return Math.round(
+    (Math.round(c.cogsUsdPerCustomer * customers * m.data.unitsPerUsd) + scale(col(m), 0.05)) *
+      c.supply.cogsMult,
+  );
+}
+
+/** Loan repayments due this month across all loans. */
+export function loanPaymentsDue(c: Company): number {
+  return c.finance.loans.reduce((a, l) => {
+    const r = Math.round((l.outstanding * l.rateBps) / 10_000 / 12);
+    return a + Math.min(l.monthlyPayment, l.outstanding + r);
+  }, 0);
+}
+
+/**
+ * What the company will spend next month at today's settings (no randomness):
+ * payroll, founder pay, rent, marketing, cloud, loan repayments and supplier contracts.
+ */
+export function monthlyCosts(world: World, c: Company): number {
+  const m = getMarket(world, c.market);
+  const contracts = Object.values(world.contracts ?? {})
+    .filter((k) => k.buyerId === c.id && k.status === 'active')
+    .reduce((a, k) => a + k.price, 0);
+  return (
+    payrollThisMonth(c) +
+    c.founderSalary * c.founderIds.length +
+    officeRent(m, c) +
+    marketingSpend(c) +
+    cloudCost(m, c) +
+    loanPaymentsDue(c) +
+    contracts
+  );
+}
+
+/** Net cash out next month at today's settings, using last month's revenue. */
+export function projectedBurn(world: World, c: Company): number {
+  return monthlyCosts(world, c) - (lastPnl(c)?.revenue ?? 0);
+}
+
 interface CostLine {
   key: keyof Pick<
     MonthlyPnl,
@@ -129,12 +201,8 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
   // Costs. Cloud/processing is priced in dollars, so devaluation hurts local earners (§8).
   const customers = totalCustomers(c);
   // A good payments supplier cuts processing costs; a procurement supplier trims overheads.
-  const cloudLocal = Math.round(
-    (Math.round(c.cogsUsdPerCustomer * customers * m.data.unitsPerUsd) + scale(col(m), 0.05)) *
-      c.supply.cogsMult,
-  );
-  const seats = c.staff.length + c.founderIds.length;
-  const payroll = c.staff.reduce((a, s) => a + s.salary, 0) + c.finance.unpaidPayroll;
+  const cloudLocal = cloudCost(m, c, customers);
+  const payroll = payrollThisMonth(c) + c.finance.unpaidPayroll;
 
   const lines: CostLine[] = [
     { key: 'payroll', amount: payroll, to: m.ext.payroll, memo: 'Payroll' },
@@ -148,13 +216,13 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
     },
     {
       key: 'office',
-      amount: Math.round(scale(m.data.officeSeat * 100, seats) * c.supply.overheadMult),
+      amount: officeRent(m, c),
       to: m.ext.suppliers,
       memo: 'Office rent',
     },
     {
       key: 'marketing',
-      amount: Math.round(c.marketingBudget * c.supply.overheadMult),
+      amount: marketingSpend(c),
       to: m.ext.suppliers,
       memo: 'Marketing',
     },
@@ -203,8 +271,12 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
       // Each loan repays its own lender (the AI bank or a player bank).
       let total = 0;
       for (const l of c.finance.loans) {
-        const r = Math.round((l.outstanding * l.rateBps) / 10_000 / 12);
-        const due = Math.min(l.monthlyPayment, l.outstanding + r);
+        // Revenue-based finance repays a share of this month's revenue; the fee is built into what's owed.
+        const rbf = !!(l.revenueShareBps && l.repayCapBps);
+        const r = rbf ? 0 : Math.round((l.outstanding * l.rateBps) / 10_000 / 12);
+        const due = rbf
+          ? Math.min(l.outstanding, Math.round((totalRevenue * l.revenueShareBps!) / 10_000))
+          : Math.min(l.monthlyPayment, l.outstanding + r);
         const got = transferUpTo(
           world,
           c.account,
@@ -213,11 +285,13 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
           `Loan repayment (${l.lender})`,
           month,
         );
-        const interestPart = Math.min(got, r);
+        const interestPart = rbf
+          ? Math.round((got * (l.repayCapBps! - 10_000)) / l.repayCapBps!)
+          : Math.min(got, r);
         recordInterest(world, l.lenderBankId, interestPart);
         paidInterest += interestPart;
         paidPrincipal += got - interestPart;
-        l.outstanding -= got - interestPart;
+        l.outstanding -= rbf ? got : got - interestPart;
         l.monthsLeft -= 1;
         if (got < due) loanShort = true;
         total += got;
@@ -407,10 +481,13 @@ export function inspections(world: World, c: Company, rng: Rng, month: number) {
 export function settleCompany(world: World, c: Company, rng: Rng, month: number) {
   const founder = world.players[c.founderIds[0]!];
   const owedBefore = c.finance.unpaidPayroll > 0;
-  settleProduct(c, founder);
+  const before = c.ai ? null : storySnapshot(world, c);
+  // Hibernation freezes the product: no progress, no new debt.
+  if (c.hibernation) c.buildHours = 0;
+  else settleProduct(c, founder);
   const pnl = settleFinances(world, c, rng, month);
   const runway = companyRunway(world, c);
-  settleStaff(world, c, rng, month, runway, c.finance.unpaidPayroll > 0);
+  const departures = settleStaff(world, c, rng, month, runway, c.finance.unpaidPayroll > 0);
   inspections(world, c, rng, month);
   settleStars(c.stars, companyPerformanceRating(world, c));
   c.warnings = computeWarnings(world, c);
@@ -440,7 +517,16 @@ export function settleCompany(world: World, c: Company, rng: Rng, month: number)
     }
   }
   // A second month of unpaid payroll means the company cannot go on.
-  if (owedBefore && c.finance.unpaidPayroll > 0) shutdownCompany(world, c, 'insolvent', month);
+  if (owedBefore && c.finance.unpaidPayroll > 0) {
+    shutdownCompany(world, c, 'insolvent', month);
+    c.distress = null;
+    return;
+  }
+  if (!c.ai && before) {
+    updateDistress(world, c, month, true);
+    c.story = buildStory(world, c, month, c.storyBase ?? before, departures);
+    c.storyBase = storySnapshot(world, c);
+  }
 }
 
 /** Compliance (§11): costs money and hours; skipping it is a gamble. */

@@ -47,11 +47,28 @@ describe('world invariants under random play', () => {
       }),
       fc.record({ k: fc.constant('gig' as const) }),
       fc.record({ k: fc.constant('lifestyle' as const), tier: fc.integer({ min: 1, max: 5 }) }),
+      fc.record({ k: fc.constant('cut' as const) }),
+      fc.record({ k: fc.constant('hibernate' as const), on: fc.boolean() }),
+      fc.record({
+        k: fc.constant('bridge' as const),
+        amount: fc.integer({ min: 1_000_00, max: 5_000_000_00 }),
+      }),
+      fc.record({ k: fc.constant('fireSale' as const) }),
+      fc.record({ k: fc.constant('acceptDeal' as const) }),
       fc.record({
         k: fc.constant('invest' as const),
         pick: fc.nat(10),
         amount: fc.integer({ min: 1_000_00, max: 10_000_000_00 }),
       }),
+      // Named lenders (Wave 1): company and founder products, then accept what comes back.
+      fc.record({
+        k: fc.constant('borrow' as const),
+        pick: fc.nat(20),
+        amount: fc.integer({ min: 10_000_00, max: 50_000_000_00 }),
+        months: fc.integer({ min: 3, max: 60 }),
+        guarantee: fc.boolean(),
+      }),
+      fc.record({ k: fc.constant('accept' as const) }),
     );
 
     fc.assert(
@@ -100,6 +117,26 @@ describe('world invariants under random play', () => {
             case 'lifestyle':
               cmd = { type: 'player.lifestyle', tier: a.tier };
               break;
+            case 'cut':
+              cmd = { type: 'company.cutCosts', companyId: cid };
+              break;
+            case 'hibernate':
+              cmd = { type: 'company.hibernate', companyId: cid, on: a.on };
+              break;
+            case 'bridge':
+              cmd = { type: 'company.bridge', companyId: cid, amount: a.amount };
+              break;
+            case 'fireSale':
+              cmd = { type: 'company.fireSale', companyId: cid };
+              break;
+            case 'acceptDeal': {
+              const d = Object.values(w.deals).find(
+                (x) =>
+                  x.status === 'open' && x.awaiting.kind === 'company' && x.awaiting.id === cid,
+              );
+              cmd = { type: 'deal.act', dealId: d?.id ?? 'none', action: 'accept' };
+              break;
+            }
             case 'invest': {
               actor = 'u_inv';
               const targets = Object.values(w.companies).filter(
@@ -116,6 +153,43 @@ describe('world invariants under random play', () => {
                 boardSeat: false,
                 vetoOnSale: false,
               };
+              break;
+            }
+            case 'borrow': {
+              const products = Object.values(w.markets.lagos!.lenders).flatMap((l) =>
+                l.products.map((p) => ({ lenderId: l.id, p })),
+              );
+              const { lenderId, p } = products[a.pick % products.length]!;
+              cmd =
+                p.borrower === 'founder'
+                  ? {
+                      type: 'player.loan',
+                      lenderId,
+                      productId: p.id,
+                      amount: a.amount,
+                      months: a.months,
+                    }
+                  : {
+                      type: 'company.loan',
+                      companyId: cid,
+                      lenderId,
+                      productId: p.id,
+                      amount: a.amount,
+                      months: a.months,
+                      personalGuarantee: a.guarantee,
+                    };
+              break;
+            }
+            case 'accept': {
+              const open = Object.values(w.deals).find(
+                (d) =>
+                  d.status === 'open' &&
+                  ((d.awaiting.kind === 'company' && d.awaiting.id === cid) ||
+                    (d.awaiting.kind === 'player' && d.awaiting.id === 'u_founder')),
+              );
+              cmd = open
+                ? { type: 'deal.act', dealId: open.id, action: 'accept' }
+                : { type: 'inbox.read' };
               break;
             }
           }

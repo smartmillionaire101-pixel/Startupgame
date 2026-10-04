@@ -10,6 +10,8 @@ import type { MarketData, MarketId, Seniority, StaffRole } from './data/markets.
 import type { Industry, SegmentKind, NeedWeights } from './data/industries.js';
 import type { Role, Skills } from './data/characters.js';
 import type { OutletType } from './data/fiction.js';
+import type { Command } from './commands.js';
+import type { LenderKind, LenderLook, LenderProductSeed } from './data/capital.js';
 
 export type Id = string;
 
@@ -83,6 +85,9 @@ export interface PersonalLoan {
   collateral: { companyId: Id; shares: number; label: string } | null;
   /** Consecutive missed payments; two in a row is a default. */
   missed: number;
+  /** AI lender and product, when borrowed from a named lender (Wave 1). */
+  lenderId?: Id;
+  productId?: string;
 }
 
 export interface InvestorProfile {
@@ -184,7 +189,13 @@ export interface SegmentPosition {
   pipeline: { due: number; count: number }[];
   /** Funnel numbers from the last settlement, for the dashboard. */
   funnel: { aware: number; interested: number; trial: number; paying: number; churned: number };
+  /** Last month's new customers by channel (for the monthly story). Missing on old saves. */
+  channels?: { marketing: number; outreach: number; wordOfMouth: number; pipeline: number };
+  /** Main reason customers left last month. */
+  churnCause?: ChurnCause;
 }
+
+export type ChurnCause = 'reliability' | 'price' | 'competition' | 'normal';
 
 export interface MonthlyPnl {
   month: number;
@@ -218,6 +229,13 @@ export interface Loan {
   monthlyPayment: number;
   monthsLeft: number;
   personalGuarantee: Id | null;
+  /** AI lender and product, when borrowed from a named lender (Wave 1). */
+  lenderId?: Id;
+  productId?: string;
+  /** Revenue-based finance: share of each month's revenue repaid until `outstanding` is cleared. */
+  revenueShareBps?: number;
+  /** Revenue-based finance: total repayable as a multiple of the advance (bps). */
+  repayCapBps?: number;
 }
 
 export interface Holding {
@@ -330,6 +348,61 @@ export interface Company {
   parentId: Id | null;
   /** Founders removed by the board, with the month (evidence for the arbitrator). */
   removedFounders: Record<Id, number>;
+  /** Why last month went the way it did (Wave 1). Missing on old saves = null. */
+  story?: CompanyStory | null;
+  /** Distress state for the rescue plan. Missing = null (not in distress). */
+  distress?: Distress | null;
+  /** Hibernation: staff furloughed on reduced pay, product frozen. Missing = null. */
+  hibernation?: { since: number } | null;
+  /** Office downsized to cut rent. Missing = false. */
+  officeDownsized?: boolean;
+  /** Snapshot at the end of last settlement, to explain what changed. Internal. */
+  storyBase?: StoryBase | null;
+}
+
+export type StoryPlace = 'bank' | 'investors' | 'market' | 'hub' | 'office' | 'home' | 'airport';
+
+export interface StoryAction {
+  label: string;
+  why: string;
+  /** Where the UI should take the player. */
+  place: StoryPlace;
+  /** Optional one-tap action. */
+  command?: Command;
+}
+
+export interface StoryItem {
+  tone: 'good' | 'bad' | 'neutral';
+  text: string;
+  cause: string;
+  metric?: 'revenue' | 'customers' | 'cash' | 'burn' | 'morale' | 'stars' | 'product';
+  delta?: number;
+}
+
+export interface CompanyStory {
+  month: number;
+  headline: string;
+  items: StoryItem[];
+  next: StoryAction[];
+}
+
+export type DistressLevel = 'watch' | 'danger' | 'critical';
+
+export interface Distress {
+  level: DistressLevel;
+  /** Whole months of cash left at today's spending. */
+  monthsLeft: number;
+  /** Market month the company entered distress. */
+  since: number;
+}
+
+export interface StoryBase {
+  month: number;
+  price: number;
+  marketingBudget: number;
+  staffIds: Id[];
+  output: number;
+  morale: number;
 }
 
 export interface SupplyEffectsState {
@@ -495,6 +568,8 @@ export interface InvestmentTerms {
   vetoOnSale: boolean;
   /** Option pool top-up (bps of post-money) created before the round. */
   poolTopUpBps: number;
+  /** A bridge SAFE offered to existing investors at a discount (rescue plan). */
+  bridge?: boolean;
 }
 
 export interface CofounderTerms {
@@ -511,6 +586,11 @@ export interface LoanTerms {
   rateBps: number;
   months: number;
   personalGuarantee: boolean;
+  /** Product borrowed from a named AI lender. */
+  productId?: string;
+  /** Revenue-based products: share of monthly revenue repaid, and the total cap (bps of the advance). */
+  revenueShareBps?: number;
+  repayCapBps?: number;
 }
 
 export interface AcquisitionTerms {
@@ -535,6 +615,8 @@ export interface PersonalLoanTerms {
   months: number;
   /** Shares pledged as collateral; seized on default. */
   collateral: { companyId: Id; shares: number; label: string } | null;
+  /** Product borrowed from a named AI lender. */
+  productId?: string;
 }
 
 /** A supply contract on the B2B marketplace (§6). */
@@ -554,6 +636,8 @@ export interface PartyRef {
   /** 'bank' is the market's AI bank (id = market); 'playerbank' is a player-owned bank (id = bank id). */
   kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company' | 'playerbank';
   id: Id;
+  /** For 'bank': the named AI lender in that market (absent: the market's default bank). */
+  lenderId?: Id;
 }
 
 export type DealStatus = 'open' | 'accepted' | 'declined' | 'expired' | 'withdrawn';
@@ -582,7 +666,15 @@ export interface DealCard {
   /** A board or shareholder vote this deal is waiting on (§9). */
   pendingVoteId?: Id | null;
   /** For AI counterparties: the most they will concede (hidden from players in views). */
-  aiLimit?: { minValuation?: number; maxValuation?: number; maxAmount?: number };
+  aiLimit?: {
+    minValuation?: number;
+    maxValuation?: number;
+    maxAmount?: number;
+    /** AI lenders: a personal guarantee is a condition. */
+    needsGuarantee?: boolean;
+    /** AI lenders: the lowest rate they will take. */
+    minRateBps?: number;
+  };
 }
 
 // ---------------------------------------------------------------- Pitches
@@ -731,10 +823,26 @@ export interface MarketState {
   talent: Candidate[];
   outlets: Outlet[];
   news: NewsItem[];
+  /** The first high-street lender's name (kept for anything still reading it). */
   bankName: string;
+  /** AI lenders and their products, seeded from data/capital.ts (Wave 1). */
+  lenders: Record<Id, LenderState>;
   economicNote: string;
   /** Accounts that model the outside world in this market, keyed by purpose. */
   ext: Record<ExternalPurpose, Id>;
+}
+
+/** An AI lender in a market. All AI lenders lend from the market's external bank account. */
+export interface LenderState {
+  id: Id;
+  name: string;
+  kind: LenderKind;
+  /** 0.5 tight … 1.5 loose; moves monthly with the funding climate. */
+  appetite: number;
+  /** Appetite in a normal climate. */
+  baseAppetite: number;
+  products: LenderProductSeed[];
+  look: LenderLook;
 }
 
 export type ExternalPurpose =

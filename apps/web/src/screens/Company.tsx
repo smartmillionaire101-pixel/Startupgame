@@ -289,16 +289,6 @@ function Customers({ c }: { c: CompanyT }) {
   const [mkt, setMkt] = useState(amountInput(c.marketingBudget));
   const [salary, setSalary] = useState(amountInput(c.founderSalary));
   const segs = view.market.segments.filter((s) => s.industry === c.industry);
-  const toggleTarget = (key: string) => {
-    const next = c.targetSegments.includes(key)
-      ? c.targetSegments.filter((k) => k !== key)
-      : [...c.targetSegments, key].slice(-2);
-    if (next.length === 0) return;
-    void send(
-      { type: 'company.strategy', companyId: c.id, targetSegments: next },
-      t('Targets updated.'),
-    );
-  };
   const save = () =>
     send(
       {
@@ -312,82 +302,9 @@ function Customers({ c }: { c: CompanyT }) {
     );
   return (
     <>
-      {segs.map((s) => {
-        const pos = c.segments.find((x) => x.key === s.key);
-        const targeted = c.targetSegments.includes(s.key);
-        return (
-          <Card
-            key={s.key}
-            title={
-              <>
-                {s.name} <Pill>{s.kind.toUpperCase()}</Pill>
-              </>
-            }
-            action={
-              <Button variant={targeted ? 'primary' : 'ghost'} onClick={() => toggleTarget(s.key)}>
-                {targeted ? t('Targeting') : t('Target')}
-              </Button>
-            }
-          >
-            <p className="small">{s.needsLabel}</p>
-            <p className="small muted">
-              {t('{buyers} buyers · budget {budget}/mo · {incumbent} serves {share}%', {
-                buyers: s.buyers.toLocaleString(locale()),
-                budget: money(s.budget, cur),
-                incumbent: s.incumbentName,
-                share: s.incumbentShare,
-              })}
-              {s.kind === 'b2b'
-                ? ' · ' +
-                  t('{min}–{max} month sales cycle', {
-                    min: s.salesCycle[0],
-                    max: s.salesCycle[1],
-                  })
-                : ''}
-            </p>
-            {pos && (
-              <>
-                <div className="funnel" aria-label={t('Funnel')}>
-                  <div>
-                    <b>{pos.funnel.aware.toLocaleString(locale())}</b>
-                    {t('Aware')}
-                  </div>
-                  <div>
-                    <b>{pos.funnel.interested.toLocaleString(locale())}</b>
-                    {t('Interested')}
-                  </div>
-                  <div>
-                    <b>{pos.funnel.trial.toLocaleString(locale())}</b>
-                    {s.kind === 'b2b' ? t('Pipeline') : t('Trial')}
-                  </div>
-                  <div>
-                    <b>{pos.paying.toLocaleString(locale())}</b>
-                    {t('Paying')}
-                  </div>
-                  <div>
-                    <b className={pos.churned > 0 ? 'bad' : ''}>
-                      {pos.churned.toLocaleString(locale())}
-                    </b>
-                    {t('Churned')}
-                  </div>
-                </div>
-                <Bar label={t('Fit for this segment')} value={pos.fit} />
-              </>
-            )}
-            <Button
-              variant="subtle"
-              onClick={() =>
-                void send(
-                  { type: 'company.discovery', companyId: c.id, segmentKey: s.key },
-                  (r: { message: string }) => tx(r.message),
-                )
-              }
-            >
-              {t('Customer discovery (20h)')}
-            </Button>
-          </Card>
-        );
-      })}
+      {segs.map((s) => (
+        <SegmentCard key={s.key} c={c} s={s} />
+      ))}
       <Card title={t('Pricing and spend')}>
         <Field
           label={t('Price per customer per month ({cur})', { cur })}
@@ -412,7 +329,95 @@ function Customers({ c }: { c: CompanyT }) {
   );
 }
 
-function Team({ c }: { c: CompanyT }) {
+export type Segment = ReturnType<typeof useView>['view']['market']['segments'][number];
+
+/** One customer segment: who they are, your funnel there, and customer discovery. */
+export function SegmentCard({ c, s }: { c: CompanyT; s: Segment }) {
+  const { send, cur } = useView();
+  const toggleTarget = (key: string) => {
+    const next = c.targetSegments.includes(key)
+      ? c.targetSegments.filter((k) => k !== key)
+      : [...c.targetSegments, key].slice(-2);
+    if (next.length === 0) return;
+    void send(
+      { type: 'company.strategy', companyId: c.id, targetSegments: next },
+      t('Targets updated.'),
+    );
+  };
+  const pos = c.segments.find((x) => x.key === s.key);
+  const targeted = c.targetSegments.includes(s.key);
+  return (
+    <Card
+      title={
+        <>
+          {s.name} <Pill>{s.kind.toUpperCase()}</Pill>
+        </>
+      }
+      action={
+        <Button variant={targeted ? 'primary' : 'ghost'} onClick={() => toggleTarget(s.key)}>
+          {targeted ? t('Targeting') : t('Target')}
+        </Button>
+      }
+    >
+      <p className="small">{s.needsLabel}</p>
+      <p className="small muted">
+        {t('{buyers} buyers · budget {budget}/mo · {incumbent} serves {share}%', {
+          buyers: s.buyers.toLocaleString(locale()),
+          budget: money(s.budget, cur),
+          incumbent: s.incumbentName,
+          share: s.incumbentShare,
+        })}
+        {s.kind === 'b2b'
+          ? ' · ' +
+            t('{min}–{max} month sales cycle', {
+              min: s.salesCycle[0],
+              max: s.salesCycle[1],
+            })
+          : ''}
+      </p>
+      {pos && (
+        <>
+          <div className="funnel" aria-label={t('Funnel')}>
+            <div>
+              <b>{pos.funnel.aware.toLocaleString(locale())}</b>
+              {t('Aware')}
+            </div>
+            <div>
+              <b>{pos.funnel.interested.toLocaleString(locale())}</b>
+              {t('Interested')}
+            </div>
+            <div>
+              <b>{pos.funnel.trial.toLocaleString(locale())}</b>
+              {s.kind === 'b2b' ? t('Pipeline') : t('Trial')}
+            </div>
+            <div>
+              <b>{pos.paying.toLocaleString(locale())}</b>
+              {t('Paying')}
+            </div>
+            <div>
+              <b className={pos.churned > 0 ? 'bad' : ''}>{pos.churned.toLocaleString(locale())}</b>
+              {t('Churned')}
+            </div>
+          </div>
+          <Bar label={t('Fit for this segment')} value={pos.fit} />
+        </>
+      )}
+      <Button
+        variant="subtle"
+        onClick={() =>
+          void send(
+            { type: 'company.discovery', companyId: c.id, segmentKey: s.key },
+            (r: { message: string }) => tx(r.message),
+          )
+        }
+      >
+        {t('Customer discovery (20h)')}
+      </Button>
+    </Card>
+  );
+}
+
+export function Team({ c }: { c: CompanyT }) {
   const { view, cur, send } = useView();
   const [role, setRole] = useState<string>('engineer');
   const [offer, setOffer] = useState<(typeof view.market.talent)[number] | null>(null);
