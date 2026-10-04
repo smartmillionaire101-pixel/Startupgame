@@ -1,10 +1,10 @@
-import { expect, test } from './fixtures';
+import { digits, letters, expect, test } from './fixtures';
 
 test('an investor screens an AI startup, does diligence and writes a first cheque', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByLabel('Mobile number').fill(`+25471${Date.now().toString().slice(-7)}`);
+  await page.getByLabel('Mobile number').fill(`+25471${digits(7)}`);
   await page.getByLabel('Date of birth').fill('1988-11-02');
   await page.getByRole('button', { name: 'Send code' }).click();
   const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
@@ -15,7 +15,7 @@ test('an investor screens an AI startup, does diligence and writes a first chequ
   await page.getByRole('button', { name: /Exited founder/ }).click();
   await page.getByRole('button', { name: /Nairobi, Kenya/ }).click();
   await page.getByLabel('Your name').fill('Wanjiku E2E');
-  await page.getByLabel('Handle').fill(`wanjiku_${Date.now().toString().slice(-5)}`);
+  await page.getByLabel('Handle').fill(`wanjiku_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();
   await page.getByLabel(/Typical cheque/).fill('20k');
   await page.getByRole('button', { name: 'Continue' }).click();

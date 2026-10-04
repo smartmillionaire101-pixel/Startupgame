@@ -6,21 +6,23 @@ import {
   handle,
   kvFor,
   modeFor,
-  type Mode,
+  storeFor,
   type Runtime,
 } from '../runtime/runtime.mjs';
 
-const runtimes = new Map<Mode, Promise<Runtime>>();
+/** One runtime per store this instance has served (production, or a preview's own). */
+const runtimes = new Map<string, Promise<Runtime>>();
 
 export default async (req: Request, context: Context) => {
   const mode = modeFor(context.deploy, req.url);
-  let runtime = runtimes.get(mode);
+  const key = `${mode}:${storeFor(mode, req.url).name}`;
+  let runtime = runtimes.get(key);
   if (!runtime) {
     runtime = (async () => {
-      const kv = kvFor(mode);
+      const kv = kvFor(mode, req.url);
       return createRuntime(kv, await configFor(kv, mode));
     })();
-    runtimes.set(mode, runtime);
+    runtimes.set(key, runtime);
   }
   try {
     const res = await handle(await runtime, req, context.ip);
@@ -33,7 +35,7 @@ export default async (req: Request, context: Context) => {
     return res;
   } catch (err) {
     // Rebuild on the next request rather than keep a broken instance.
-    runtimes.delete(mode);
+    runtimes.delete(key);
     console.error('api failed', err);
     return Response.json(
       { error: { code: 'error', message: 'Something went wrong.' } },

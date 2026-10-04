@@ -32,7 +32,7 @@ const roleLabel = (r: string) =>
   })[r] ?? titleCase(r);
 
 /** "Senior engineer" / "Ingénieur senior". */
-const jobTitle = (seniority: string, role: string) => {
+export const jobTitle = (seniority: string, role: string) => {
   const s = t('{seniority} {role}', {
     seniority: seniorityLabel(seniority).toLowerCase(),
     role: roleLabel(role).toLowerCase(),

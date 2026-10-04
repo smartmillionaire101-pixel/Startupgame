@@ -82,7 +82,7 @@ export function Chats() {
   );
 }
 
-function StarterSheet({
+export function StarterSheet({
   playerId,
   onDone,
 }: {
@@ -121,7 +121,7 @@ function StarterSheet({
   );
 }
 
-function ChatSheet({ chatId, onClose }: { chatId: string; onClose: () => void }) {
+export function ChatSheet({ chatId, onClose }: { chatId: string; onClose: () => void }) {
   const { toast, meta } = useView();
   const [data, setData] = useState<Awaited<ReturnType<typeof api.messages>> | null>(null);
   const [text, setText] = useState('');

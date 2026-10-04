@@ -12,6 +12,7 @@ import type { Role, Skills } from './data/characters.js';
 import type { OutletType } from './data/fiction.js';
 import type { Command } from './commands.js';
 import type { LenderKind, LenderLook, LenderProductSeed } from './data/capital.js';
+import type { EventKind, EventVenue } from './data/events.js';
 
 export type Id = string;
 
@@ -139,6 +140,61 @@ export interface Player {
   gigsThisMonth: number;
   /** Has this player ever had a company fail? (for "first comeback"). */
   failures: number;
+  /** People met at events (Wave 2), newest first. Missing on old saves = none. */
+  contacts?: Contact[];
+}
+
+// ---------------------------------------------------------------- Events & contacts (Wave 2)
+
+export type ContactKind = 'fund' | 'founder' | 'talent' | 'customer' | 'player';
+
+export interface Contact {
+  /** `${kind}:${refId}`: one contact per person (meeting again warms it). */
+  id: Id;
+  kind: ContactKind;
+  /** Fund id, AI founder's player id, candidate id, segment key, or player id. */
+  refId: Id;
+  name: string;
+  /** 0..1 at `month`; fades over time (see contactWarmth). */
+  warmth: number;
+  /** Market month of the last meeting. */
+  month: number;
+}
+
+export interface EventOutcome {
+  /** AI guests who came. */
+  aiGuests: number;
+  /** Human players present (host included). */
+  humans: number;
+  /** Share of seats filled, 0..1. */
+  fill: number;
+  summary: string;
+  /** New or warmed contacts per human participant. */
+  contacts: Record<Id, number>;
+  /** Star change for the host. */
+  hostStars: number;
+}
+
+export interface CityEvent {
+  id: Id;
+  market: MarketId;
+  hostId: Id;
+  kind: EventKind;
+  title: string;
+  venue: EventVenue;
+  /** Game month in which it is held (at that month's settlement). */
+  month: number;
+  capacity: number;
+  /** Spent on top of the venue (food, speakers, promotion), local minor. */
+  budget: number;
+  /** Ticket per attendee, paid to the host, local minor. */
+  ticket: number;
+  segmentKey?: string;
+  /** Human attendees (the host is not listed). */
+  attendees: Id[];
+  status: 'upcoming' | 'held' | 'cancelled';
+  createdMonth: number;
+  outcome?: EventOutcome;
 }
 
 // ---------------------------------------------------------------- Companies
@@ -177,6 +233,8 @@ export interface Candidate {
   expiresMonth: number;
   /** Company that last countered or was declined, to make repeat offers cost more. */
   rejectedBy: Id[];
+  /** Referred to this company at an event (Wave 2): keener to join it. */
+  referredFor?: Id;
 }
 
 export interface SegmentPosition {
@@ -888,4 +946,6 @@ export interface World {
   disputes: Record<Id, Dispute>;
   /** USD external accounts (dollar costs, dollar accounts). */
   usdExt: { fx: Id; suppliers: Id; genesis: Id };
+  /** Player-hosted city events (Wave 2). Missing on old saves = none. */
+  events?: Record<Id, CityEvent>;
 }

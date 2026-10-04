@@ -80,16 +80,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const applyError = useCallback((e: unknown) => {
-    if (e instanceof ApiError && e.status === 401) {
-      setView(null);
-      setStatus('signedOut');
-    } else {
-      setStatus((s) => (s === 'ready' ? s : 'offline'));
-    }
+  const signOut = useCallback(() => {
+    setView(null);
+    setStatus('signedOut');
   }, []);
 
-  const refresh = useCallback(() => api.state().then(apply, applyError), [apply, applyError]);
+  const applyError = useCallback(
+    (e: unknown) => {
+      if (e instanceof ApiError && e.status === 401) signOut();
+      else setStatus((s) => (s === 'ready' ? s : 'offline'));
+    },
+    [signOut],
+  );
+
+  // A background refresh that comes back "signed out" in the middle of a game
+  // is asked once more before the player is sent to the sign-in screen, so a
+  // single bad answer from a busy server never throws someone out mid-move.
+  const refresh = useCallback(
+    () =>
+      api.state().then(apply, (e: unknown) => {
+        if (!(e instanceof ApiError && e.status === 401)) return applyError(e);
+        return new Promise((r) => setTimeout(r, 1500))
+          .then(() => api.state())
+          .then(apply, applyError);
+      }),
+    [apply, applyError],
+  );
 
   useEffect(() => {
     // Game settings; retried so one failed request at startup doesn't hide them.

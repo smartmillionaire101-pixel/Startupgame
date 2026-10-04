@@ -162,6 +162,8 @@ export interface CityInput {
   industry: string | null;
   office: { headcount: number; siren: boolean } | null;
   homeTier: number;
+  /** Wave 2: hosted events are available (otherwise the hall is "opening soon"). */
+  eventsOpen?: boolean;
 }
 
 const LENDER_H: Record<string, number> = {
@@ -551,7 +553,7 @@ export function buildLayout(input: CityInput): CityLayout {
       accent: '#8b5cf6',
       door: { x: x + 1.4, y: (blk.j + 1) * B },
       doorFace: 'left',
-      soon: true,
+      soon: !input.eventsOpen,
     });
   }
   for (const blk of of('airport').slice(0, 1)) {

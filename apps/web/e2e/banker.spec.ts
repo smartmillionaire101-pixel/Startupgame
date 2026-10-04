@@ -1,8 +1,8 @@
-import { expect, test } from './fixtures';
+import { digits, letters, expect, test } from './fixtures';
 
 test('a banker applies for a licence in Accra, gets it, and sets pricing', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Mobile number').fill(`+23324${Date.now().toString().slice(-7)}`);
+  await page.getByLabel('Mobile number').fill(`+23324${digits(7)}`);
   await page.getByLabel('Date of birth').fill('1979-03-14');
   await page.getByRole('button', { name: 'Send code' }).click();
   const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
@@ -13,8 +13,8 @@ test('a banker applies for a licence in Accra, gets it, and sets pricing', async
   await page.getByRole('button', { name: /Wealthy exited founder/ }).click();
   await page.getByRole('button', { name: /Accra, Ghana/ }).click();
   await page.getByLabel('Your name').fill('Ama E2E');
-  await page.getByLabel('Handle').fill(`ama_${Date.now().toString().slice(-5)}`);
-  await page.getByLabel('Bank name').fill(`Adinkra Trust ${Date.now().toString().slice(-4)}`);
+  await page.getByLabel('Handle').fill(`ama_${letters(6)}`);
+  await page.getByLabel('Bank name').fill(`Adinkra Trust ${letters(5)}`);
   await expect(page.getByText('Available in Accra')).toBeVisible();
   await page.getByRole('button', { name: /Microfinance bank/ }).click();
   await page.getByRole('button', { name: 'Continue' }).click();

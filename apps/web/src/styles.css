@@ -608,7 +608,7 @@ input[type='range'] {
 
 .sheet-backdrop {
   position: fixed;
-  inset: 0;
+  inset: 0 0 var(--nav-h, 0px);
   background: rgb(0 0 0 / 0.45);
   z-index: 20;
   display: flex;

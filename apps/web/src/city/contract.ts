@@ -304,5 +304,7 @@ export function cityInput(view: PlayerView): CityInput {
     industry: c?.industry ?? null,
     office: c ? { headcount: c.teamSize, siren: rescueOf(c) !== null } : null,
     homeTier: view.me.lifestyle.tier,
+    // Wave 2: the Event Hall opens once the engine sends events.
+    eventsOpen: Array.isArray((view.market as Market & { events?: unknown }).events),
   };
 }

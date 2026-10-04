@@ -1,8 +1,8 @@
-import { expect, test } from './fixtures';
+import { digits, letters, expect, test } from './fixtures';
 
 test('a founder walks the city to a bank, goes in, then visits the market', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Mobile number').fill(`+23481${Date.now().toString().slice(-8)}`);
+  await page.getByLabel('Mobile number').fill(`+23481${digits(8)}`);
   await page.getByLabel('Date of birth').fill('1993-06-21');
   await page.getByRole('button', { name: 'Send code' }).click();
   const code = (await page.getByText(/your code is \d{6}/i).textContent())!.match(/\d{6}/)![0];
@@ -13,10 +13,10 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
   await page.getByLabel('Your name').fill('Tobi City');
-  await page.getByLabel('Handle').fill(`tobi_${Date.now().toString().slice(-6)}`);
+  await page.getByLabel('Handle').fill(`tobi_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();
   await page.getByLabel('Your idea in one line').fill('Invoices for market traders');
-  await page.getByLabel('Company name').fill(`Oja Ledger ${Date.now().toString().slice(-4)}`);
+  await page.getByLabel('Company name').fill(`Oja Ledger ${letters(5)}`);
   await expect(page.getByText(/Available in Lagos/)).toBeVisible();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
@@ -55,8 +55,17 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
     market.getByRole('button', { name: 'Customer discovery (20h)' }).first(),
   ).toBeVisible();
 
-  // The classic dashboard is still one tap away.
-  await market.getByRole('button', { name: 'Close' }).click();
-  await page.getByRole('button', { name: 'Home' }).click();
+  // The bottom tabs work even with a panel open: tapping one leaves the city.
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await nav.getByRole('button', { name: 'Company' }).click();
+  await expect(market).toBeHidden();
+  await nav.getByRole('button', { name: 'Home' }).click();
   await expect(page.getByText('Monthly revenue')).toBeVisible();
+  for (const tab of ['Money', 'News', 'Me', 'City']) {
+    await nav.getByRole('button', { name: tab, exact: true }).click();
+    await expect(nav.getByRole('button', { name: tab, exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  }
 });

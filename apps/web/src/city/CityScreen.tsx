@@ -5,7 +5,7 @@
 /* The build doesn't use the React Compiler; these memos are deliberate (they keep the
    static SVG scene from re-rendering), so its preservation check doesn't apply. */
 /* eslint-disable react-hooks/preserve-manual-memoization */
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './city.css';
 import { money, runway } from '../format';
 import { t, tx, useLang } from '../i18n';
@@ -14,13 +14,27 @@ import { Button, Pill, Sheet } from '../ui';
 import { avatarLook } from './art';
 import { CityMap, districtLabel, type CityMapHandle } from './CityMap';
 import { activeCompany, cityInput, rescueOf, storyOf, type StoryPlace } from './contract';
+import { onVisit, takeVisit } from './goto';
 import { Interior, placeLabel, type Nav } from './Interiors';
+import {
+  aiCharacters,
+  crowdInput,
+  crowdSize,
+  eventsOf,
+  flaggedPlaces,
+  type AiPerson,
+  type CrowdInput,
+  type PresenceView,
+} from './people';
+import { PersonCard, roleName, type PersonRef } from './PersonCard';
+import { usePresence } from './presence';
 import {
   buildLayout,
   type CityInput,
   type CityLayout,
   type DistrictId,
   type Place,
+  type Pt,
 } from './layout';
 
 const kindLabel = (p: Place, companyName: string | null, _lang?: string) =>
@@ -101,6 +115,49 @@ export function PlacesList({
   );
 }
 
+const KIND_ORDER = ['player', 'partner', 'founder', 'candidate', 'shopper'];
+
+/** Everyone around, as a list: for keyboards, screen readers and lite mode. */
+export function PeopleList({
+  players,
+  ai,
+  onPick,
+}: {
+  players: PresenceView[];
+  ai: AiPerson[];
+  onPick: (p: PersonRef) => void;
+}) {
+  const all: PersonRef[] = [
+    ...players.map((p) => ({ kind: 'player' as const, p })),
+    ...[...ai]
+      .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind))
+      .map((a) => ({ kind: 'ai' as const, a })),
+  ];
+  if (!all.length) return <p className="small muted">{t('Nobody around right now.')}</p>;
+  return (
+    <ul className="places-list people-list" aria-label={t('People around')}>
+      {all.map((x) => {
+        const id = x.kind === 'player' ? x.p.id : x.a.id;
+        const kind = x.kind === 'player' ? 'player' : x.a.kind;
+        const name = x.kind === 'player' ? x.p.name : x.a.name;
+        const role = roleName(x.kind === 'player' ? x.p.role : x.a.kind);
+        return (
+          <li key={id}>
+            <button type="button" className="place-btn" onClick={() => onPick(x)}>
+              <span className={`person-dot person-dot-${kind}`} aria-hidden />
+              <span>
+                {name}
+                <span className="small muted"> · {role}</span>
+              </span>
+              {x.kind === 'player' && <span className="pill pill-info">{t('Player')}</span>}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
   const { view, lite, cur } = useView();
   const lang = useLang();
@@ -114,11 +171,40 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
   const look = useMemo(() => avatarLook(bg, meId), [bg, meId]);
   const [inside, setInside] = useState<Place | null>(null);
   const [placesOpen, setPlacesOpen] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [person, setPerson] = useState<PersonRef | null>(null);
   const mapRef = useRef<CityMapHandle | null>(null);
 
   // Rebuild the layout only when what it depends on changes.
   const key = JSON.stringify(cityInput(view));
   const layout = useMemo(() => buildLayout(JSON.parse(key) as CityInput), [key]);
+  // Ambient people: deterministic for the market, sized for the screen.
+  const crowdKey = JSON.stringify(crowdInput(view));
+  const [crowdMax] = useState(() =>
+    crowdSize(typeof window === 'undefined' ? 375 : window.innerWidth),
+  );
+  const ai = useMemo(
+    () => aiCharacters(layout, JSON.parse(crowdKey) as CrowdInput, crowdMax),
+    [layout, crowdKey, crowdMax],
+  );
+  // Other players (never in lite mode: no polling to save data).
+  const { players, report } = usePresence({ enabled: !lite, selfId: meId });
+  const flagKey = flaggedPlaces(eventsOf(view)).join(',');
+  const flags = useMemo(() => (flagKey ? flagKey.split(',') : []), [flagKey]);
+  const onArrive = useCallback(
+    (at: Pt, placeId: string | null) => report({ x: at.x, y: at.y, place: placeId }),
+    [report],
+  );
+  const onPerson = useCallback(
+    (id: string) => {
+      const p = players.find((x) => x.id === id);
+      if (p) return setPerson({ kind: 'player', p });
+      const a = ai.find((x) => x.id === id);
+      if (a) setPerson({ kind: 'ai', a });
+    },
+    [players, ai],
+  );
+
   const story = storyOf(company);
   const rescue = rescueOf(company);
   // Under six months of cash is normal for a young startup: a gentle note, not an alarm.
@@ -144,6 +230,25 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
     [layout, goTo],
   );
   const office = layout.places.find((p) => p.kind === 'office')!;
+  const visit = useCallback(
+    (placeId: string) => {
+      const p = layout.places.find((x) => x.id === placeId);
+      setPerson(null);
+      setPeopleOpen(false);
+      if (p) goTo(p);
+    },
+    [layout, goTo],
+  );
+
+  // "Take me there" from elsewhere in the app (Me → Contacts).
+  useEffect(() => {
+    const go = () => {
+      const id = takeVisit();
+      if (id) visit(id);
+    };
+    go();
+    return onVisit(go);
+  }, [visit]);
 
   return (
     <div className={`city${lite ? ' city-lite' : ''}`}>
@@ -154,6 +259,10 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
             {t('Lite mode: the city map is off to save data. Pick a place to go in.')}
           </p>
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
+          <section className="places-group people-group">
+            <h3>{t('People around')}</h3>
+            <PeopleList players={players} ai={ai} onPick={setPerson} />
+          </section>
         </>
       ) : (
         <div className="city-stage">
@@ -165,6 +274,11 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
             marker={markerPlace?.id ?? null}
             onEnter={setInside}
             handleRef={mapRef}
+            ai={ai}
+            players={players}
+            flags={flags}
+            onPerson={onPerson}
+            onArrive={onArrive}
             ariaLabel={t(
               'Map of {market}. Arrow keys pan, plus and minus zoom. Use the places list to go into a building.',
               { market: view.market.name },
@@ -247,9 +361,22 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
             ) : (
               <p className="hud-hint">{t('Tap a street to walk, a building to go in.')}</p>
             )}
-            <button type="button" className="hud-places" onClick={() => setPlacesOpen(true)}>
-              ☰ {t('Places')}
-            </button>
+            <div className="hud-stack">
+              <button type="button" className="hud-places" onClick={() => setPeopleOpen(true)}>
+                <span aria-hidden>☺</span> {t('Who’s here')}
+                {players.length > 0 && (
+                  <span className="hud-count">
+                    <span className="sr-only">
+                      {t('{n} players nearby', { n: players.length })}
+                    </span>
+                    <span aria-hidden>{players.length}</span>
+                  </span>
+                )}
+              </button>
+              <button type="button" className="hud-places" onClick={() => setPlacesOpen(true)}>
+                ☰ {t('Places')}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -257,6 +384,26 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
         <Sheet title={t('Places')} onClose={() => setPlacesOpen(false)}>
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
         </Sheet>
+      )}
+      {peopleOpen && (
+        <Sheet title={t('People around')} onClose={() => setPeopleOpen(false)}>
+          <PeopleList
+            players={players}
+            ai={ai}
+            onPick={(p) => {
+              setPeopleOpen(false);
+              setPerson(p);
+            }}
+          />
+        </Sheet>
+      )}
+      {person && (
+        <PersonCard
+          person={person}
+          onClose={() => setPerson(null)}
+          onVisit={visit}
+          onHub={() => visit('hub')}
+        />
       )}
       {inside && (
         <Interior

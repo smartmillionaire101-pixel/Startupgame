@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useGame, useView } from './store';
 import { Pill, Toasts } from './ui';
 import { stars } from './format';
@@ -13,6 +13,7 @@ import { NewsScreen } from './screens/News';
 import { MeScreen } from './screens/Me';
 import { BankScreen } from './screens/Bank';
 import { CityScreen } from './city/CityScreen';
+import { onVisit } from './city/goto';
 
 export function App() {
   const { status } = useGame();
@@ -86,6 +87,32 @@ function Game() {
     setTab(id);
     window.scrollTo({ top: 0 });
   };
+  // "Take me there" (e.g. a contact's office) opens the City, which walks you over.
+  useEffect(
+    () =>
+      onVisit(() => {
+        setTab('city');
+        window.scrollTo({ top: 0 });
+      }),
+    [],
+  );
+
+  // Panels (sheets) open above the bottom bar, never over it, so the tabs keep
+  // working while one is open: tapping a tab leaves the screen and closes it.
+  const navRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const root = document.documentElement;
+    const set = () => root.style.setProperty('--nav-h', `${nav.offsetHeight}px`);
+    set();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(set);
+    ro?.observe(nav);
+    return () => {
+      ro?.disconnect();
+      root.style.removeProperty('--nav-h');
+    };
+  }, []);
 
   return (
     <>
@@ -117,7 +144,7 @@ function Game() {
           {current === 'me' && <MeScreen />}
         </main>
       </div>
-      <nav className="nav" aria-label={t('Main')}>
+      <nav className="nav" ref={navRef} aria-label={t('Main')}>
         <div className="nav-inner" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
           {tabs.map((t) => (
             <button

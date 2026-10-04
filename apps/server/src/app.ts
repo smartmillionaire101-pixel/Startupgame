@@ -40,6 +40,9 @@ import type { Game } from './game.js';
 import type { SmsProvider } from './adapters/sms.js';
 import type { AccountStore } from './store/types.js';
 
+/** Avatars not seen for this long drop off the city map. */
+export const PRESENCE_WINDOW_MS = 120_000;
+
 export const DISCLAIMER = 'This is a game. Nothing here is financial, legal, or tax advice.';
 
 declare module 'fastify' {
@@ -458,6 +461,100 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     await store.report(id, req.userId!, reason, now());
     await store.blockChat(id, req.userId!);
     return { ok: true };
+  });
+
+  // ---------------------------------------------------------------- presence (city map)
+
+  // Where avatars stand is social and ephemeral, so like chat it lives outside
+  // the simulation and is never visible to reporters or arbitrators.
+  const coord = z.number().finite().min(-100_000).max(100_000);
+
+  app.post(
+    '/api/presence',
+    {
+      preHandler: requireUser,
+      // Per player rather than per address: many phones share one carrier IP.
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+          keyGenerator: (req: FastifyRequest) => req.userId ?? req.ip,
+        },
+      },
+    },
+    async (req, reply) => {
+      const body = z
+        .object({ x: coord, y: coord, place: z.string().max(64).nullable() })
+        .parse(req.body);
+      const me = game.current.players[req.userId!];
+      if (!me)
+        return reply
+          .code(404)
+          .send({ error: { code: 'player', message: 'Create a player first.' } });
+      if (await store.getPresenceVisible(me.id))
+        await store.putPresence(me.id, me.market, { ...body, at: now() });
+      return reply.code(204).send();
+    },
+  );
+
+  app.get(
+    '/api/presence',
+    {
+      preHandler: requireUser,
+      // Polled every few seconds by each open map: count per player, not per shared address.
+      config: {
+        rateLimit: {
+          max: 60,
+          timeWindow: '1 minute',
+          keyGenerator: (req: FastifyRequest) => req.userId ?? req.ip,
+        },
+      },
+    },
+    async (req) => {
+      const world = game.current;
+      const me = world.players[req.userId!];
+      if (!me) return { players: [] };
+      const rows = (await store.listPresence(me.market, now() - PRESENCE_WINDOW_MS)).filter(
+        (r) => r.userId !== me.id && world.players[r.userId]?.market === me.market,
+      );
+      const blocked = await Promise.all(
+        rows.map(async (r) => !!(await store.findChat(me.id, r.userId))?.blocked_by),
+      );
+      return {
+        players: rows
+          .filter((_, i) => !blocked[i])
+          .map((r) => {
+            const p = world.players[r.userId]!;
+            const company = [...p.companyIds]
+              .reverse()
+              .map((id) => world.companies[id])
+              .find((c) => c?.status === 'active');
+            return {
+              id: p.id,
+              name: p.name,
+              handle: p.handle,
+              role: p.role,
+              backgroundId: p.backgroundId,
+              stars: p.stars.value,
+              company: company?.name ?? null,
+              x: r.x,
+              y: r.y,
+              place: r.place,
+              seenAt: r.at,
+            };
+          }),
+      };
+    },
+  );
+
+  app.get('/api/me/presence', { preHandler: requireUser }, async (req) => ({
+    visible: await store.getPresenceVisible(req.userId!),
+  }));
+
+  app.put('/api/me/presence', { preHandler: requireUser }, async (req) => {
+    const { visible } = z.object({ visible: z.boolean() }).parse(req.body);
+    await store.setPresenceVisible(req.userId!, visible);
+    return { visible };
   });
 
   // ---------------------------------------------------------------- ops

@@ -7,9 +7,10 @@
  * - State lives in Netlify Blobs (`KvGame` for the world, `KvAccountStore`
  *   for accounts and chats). Before each request the instance checks whether
  *   the stored world changed and reloads only then.
- * - Production uses the site-wide store, which survives redeploys. Deploy
- *   previews and branch deploys each get their own store and dev tools, so
- *   tests there never touch the live world.
+ * - Production uses the site-wide store, which survives redeploys. Each deploy
+ *   preview or branch deploy gets its own store (shared by that preview's
+ *   deploys, see `storeFor`) and dev tools, so tests there never touch the
+ *   live world.
  * - The settlement clock and data feeds run in a scheduled function.
  */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
@@ -42,9 +43,35 @@ export function modeFor(deploy: DeployInfo | undefined, url?: string): Mode {
   return deploy?.context === 'production' ? 'production' : 'preview';
 }
 
-export function kvFor(mode: Mode): Kv {
-  const opts = { name: 'runway', consistency: 'strong' as const };
-  return new NetlifyKv(mode === 'production' ? getStore(opts) : getDeployStore(opts));
+/**
+ * Which store a request's world lives in. Production: the site-wide "runway"
+ * store. A preview or branch deploy: one store per preview address
+ * ("deploy-preview-5--site" → "runway-preview-deploy-preview-5"), shared by
+ * every deploy of that pull request or branch. Right after a new deploy,
+ * Netlify briefly sends the same address to the old and the new deploy's
+ * functions; with a store per deploy those would be two different worlds and
+ * a session made in one would be unknown in the other. Anything else that
+ * isn't production (no "--" address) keeps a store of its own deploy.
+ */
+export function storeFor(mode: Mode, url?: string): { name: string; perDeploy: boolean } {
+  if (mode === 'production') return { name: 'runway', perDeploy: false };
+  const host = url ? new URL(url).hostname : '';
+  const alias = host.includes('--')
+    ? host
+        .split('--')[0]!
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .slice(0, 40)
+    : '';
+  return alias
+    ? { name: `runway-preview-${alias}`, perDeploy: false }
+    : { name: 'runway', perDeploy: true };
+}
+
+export function kvFor(mode: Mode, url?: string): Kv {
+  const { name, perDeploy } = storeFor(mode, url);
+  const opts = { name, consistency: 'strong' as const };
+  return new NetlifyKv(perDeploy ? getDeployStore(opts) : getStore(opts));
 }
 
 /**
