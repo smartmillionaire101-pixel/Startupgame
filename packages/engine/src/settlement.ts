@@ -17,6 +17,7 @@ import { settleCompany } from './company.js';
 import { updateLenderAppetite } from './capital.js';
 import { settleSegment } from './customers.js';
 import { expireDeals } from './deals.js';
+import { holdDueEvents } from './events.js';
 import { settleFundFees } from './funds.js';
 import { payDividends } from './travel.js';
 import { settleVotes } from './governance.js';
@@ -102,6 +103,9 @@ export function settleMarket(world: World, marketId: MarketId, now: number, loca
     );
     settleSegment(seg, present, rng, month, isMaintenance);
   }
+  // City events due this month are held now (own RNG stream per event), so their
+  // customer leads count in this month's revenue.
+  holdDueEvents(world, marketId, month);
   for (const c of active()) {
     settleCompany(world, c, rng, month);
     payDividends(world, c, month);

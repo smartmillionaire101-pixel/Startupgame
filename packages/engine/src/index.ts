@@ -39,3 +39,4 @@ export * from './data/industries.js';
 export * from './data/characters.js';
 export * from './data/rules.js';
 export { OUTLET_EFFECT } from './data/fiction.js';
+export * from './data/events.js';

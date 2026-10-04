@@ -27,6 +27,7 @@ import { raiseFund } from './funds.js';
 import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
 import { hasVisited, relocate, travel } from './travel.js';
+import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
 import { proposeAcquisition } from './acquisitions.js';
 import { boardOf, castVote, openVote } from './governance.js';
@@ -838,6 +839,21 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       achieve(world, me, 'any.role-switch', 'First role switch', month);
       return { message: 'You’re an angel investor now. Founders will start pitching you.' };
     }
+    // ------------------------------------------------------------ city events (Wave 2)
+    case 'event.host':
+      return hostEvent(world, me, {
+        kind: cmd.kind,
+        title: cmd.title,
+        venue: cmd.venue,
+        month: cmd.month,
+        budget: cmd.budget,
+        ticket: cmd.ticket,
+        segmentKey: cmd.segmentKey,
+      });
+    case 'event.rsvp':
+      return rsvpEvent(world, me, cmd.eventId, cmd.going);
+    case 'event.cancel':
+      return cancelEvent(world, me, cmd.eventId);
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;
@@ -904,6 +920,11 @@ function anonymize(world: World, playerId: Id) {
   p.name = 'Former player';
   p.handle = `former_${p.id.slice(-6)}`;
   p.trust = {};
+  p.contacts = [];
+  // Other players' contact cards stop naming them.
+  for (const other of Object.values(world.players))
+    for (const c of other.contacts ?? [])
+      if (c.kind === 'player' && c.refId === p.id) c.name = p.name;
   delete world.inbox[p.id];
   for (const inv of Object.values(world.media))
     if (inv.playerId === p.id && inv.status !== 'published') inv.status = 'pulled';
