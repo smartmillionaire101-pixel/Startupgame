@@ -104,8 +104,8 @@ test('AI characters stroll the city and open a person card when tapped', async (
 
 test('two players see each other, chat, and meet at an event', async ({ page: a, browser }) => {
   const { defaultBrowserType: _, ...phone } = devices['Pixel 7'];
-  // Two sign-ups, presence polling and a month's settlement over the network.
-  if (process.env.E2E_BASE_URL) test.slow();
+  // Two sign-ups, presence polling and a month's settlement: a long scenario.
+  test.slow();
   const b = await (
     await browser.newContext({ ...phone, baseURL: test.info().project.use.baseURL })
   ).newPage();
