@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import type { EmailProvider } from '../src/adapters/email.js';
+import type { AiClient } from '../src/ai-claude.js';
 import { loadConfig, monthMsOf } from '../src/config.js';
 import { GameService } from '../src/game.js';
 import { Store } from '../src/store/sqlite.js';
@@ -13,6 +14,7 @@ export async function makeApp(
     now?: () => number;
     env?: Record<string, string>;
     email?: EmailProvider;
+    createAiClient?: (apiKey: string) => AiClient;
   } = {},
 ) {
   const store = new Store(opts.path ?? ':memory:');
@@ -37,6 +39,7 @@ export async function makeApp(
     game,
     sms: { send: async (_p, t) => void sent.push(t) },
     ...(opts.email ? { email: opts.email } : {}),
+    ...(opts.createAiClient ? { createAiClient: opts.createAiClient } : {}),
     now,
   });
   return { app, store, game, sent, config };
