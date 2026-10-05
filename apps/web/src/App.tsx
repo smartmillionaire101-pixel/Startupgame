@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useGame, useView } from './store';
-import { Pill, Toasts } from './ui';
+import { Pill, Sheet, Toasts } from './ui';
 import { stars } from './format';
 import { t } from './i18n';
 import { SignIn } from './screens/SignIn';
@@ -13,7 +13,11 @@ import { NewsScreen } from './screens/News';
 import { MeScreen } from './screens/Me';
 import { BankScreen } from './screens/Bank';
 import { CityScreen } from './city/CityScreen';
-import { onVisit } from './city/goto';
+import { onVisit, visitPlace } from './city/goto';
+import { DealCard } from './screens/common';
+import { PhoneDock } from './phone/Phone';
+import { NavContext, type Nav } from './phone/bus';
+import { inboxTarget, type TabId, type Target } from './phone/navigate';
 import { UpdateBanner } from './update';
 import { hereOf, isAbroad } from './city/travel';
 
@@ -46,10 +50,8 @@ export function App() {
   );
 }
 
-type TabId = 'city' | 'home' | 'company' | 'money' | 'deals' | 'portfolio' | 'bank' | 'news' | 'me';
-
 function Game() {
-  const { view } = useView();
+  const { view, send } = useView();
   const founder = view.me.role === 'founder' || view.companies.some((c) => c.status === 'active');
   const [tab, setTab] = useState<TabId>('city');
   const unread = view.inbox.filter((i) => !i.read).length;
@@ -90,6 +92,33 @@ function Game() {
     setTab(id);
     window.scrollTo({ top: 0 });
   };
+  // Where notifications take you (phone Alerts and the Home inbox).
+  const [focusDeal, setFocusDeal] = useState<string | null>(null);
+  const goTarget = useCallback((target: Target) => {
+    if (target.kind === 'place') {
+      visitPlace(target.place);
+      return;
+    }
+    setTab(target.tab);
+    window.scrollTo({ top: 0 });
+    setFocusDeal(target.dealId ?? null);
+  }, []);
+  const viewRef = useRef(view);
+  useEffect(() => {
+    viewRef.current = view;
+  });
+  const nav = useMemo<Nav>(
+    () => ({
+      go: goTarget,
+      openItem: (item) => {
+        if (!item.read) void send({ type: 'inbox.read', ids: [item.id] });
+        goTarget(inboxTarget(item, viewRef.current));
+      },
+    }),
+    [goTarget, send],
+  );
+  const dealOpen = focusDeal ? view.deals.find((d) => d.id === focusDeal) : undefined;
+
   // "Take me there" (e.g. a contact's office) opens the City, which walks you over.
   useEffect(
     () =>
@@ -118,7 +147,7 @@ function Game() {
   }, []);
 
   return (
-    <>
+    <NavContext.Provider value={nav}>
       <div className={`app${current === 'city' ? ' app-city' : ''}`}>
         <header className="topbar">
           <div className="brand">
@@ -167,6 +196,12 @@ function Game() {
           ))}
         </div>
       </nav>
-    </>
+      <PhoneDock />
+      {dealOpen && (
+        <Sheet title={t('Deal card')} onClose={() => setFocusDeal(null)}>
+          <DealCard deal={dealOpen} />
+        </Sheet>
+      )}
+    </NavContext.Provider>
   );
 }

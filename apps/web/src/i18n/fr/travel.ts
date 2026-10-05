@@ -36,6 +36,8 @@ export const travel: Record<string, string> = {
   'Moving for good': 'Déménager pour de bon',
   'Flights leave from the airport: one way, {hours} hours, and you can go any time. While you’re there you can meet its investors and invest.':
     'Les vols partent de l’aéroport : aller simple, {hours} heures, à tout moment. Sur place, vous pouvez rencontrer ses investisseurs et investir.',
+  'Flights leave from the airport: one way, paid with money only, and you can go any time. While you’re there you can meet its investors and invest.':
+    'Les vols partent de l’aéroport : aller simple, payé en argent uniquement, à tout moment. Sur place, vous pouvez rencontrer ses investisseurs et investir.',
   'To the airport': 'Vers l’aéroport',
   'from {city}': 'depuis {city}',
   'A new version of Runway is ready. Your game is saved.':

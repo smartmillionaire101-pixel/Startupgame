@@ -66,8 +66,6 @@ describe('travel (§14)', () => {
   it('lets a founder pitch another market’s investors only while visiting', () => {
     let w = addFounder(makeWorld(32, ['lagos', 'nairobi', 'london']));
     const c = companyOf(w, 'u_founder');
-    // A London trip costs more than a Lagos founder's starting savings.
-    expect(tryRun(w, 'u_founder', { type: 'player.travel', market: 'london' }).ok).toBe(false);
     const fund = Object.values(w.funds).find(
       (f) => f.market === 'nairobi' && f.stages.includes('pre-seed'),
     )!;

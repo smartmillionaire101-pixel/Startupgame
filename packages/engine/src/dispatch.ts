@@ -28,7 +28,16 @@ import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
 import { fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
-import { pitchBusiness, takeBusinessGig, venueBuy } from './economy.js';
+import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
+import { buyCar, buyFurniture, sellCar } from './shop.js';
+import {
+  applyAccelerator,
+  applyGrant,
+  broadcastEvent,
+  pitchAngel,
+  pitchLp,
+  quickInvest,
+} from './programs.js';
 import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
 import { proposeAcquisition } from './acquisitions.js';
 import { boardOf, castVote, openVote } from './governance.js';
@@ -565,12 +574,14 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     }
     case 'fund.raise': {
       spendHours(me, 15, 'An LP panel');
-      return raiseFund(
+      const raised = raiseFund(
         world,
         me,
         { sectors: cmd.sectors, stages: cmd.stages, checkSize: cmd.checkSize, why: cmd.why },
         month,
       );
+      if (raised.ok && cmd.investorType) raised.fund.investorType = cmd.investorType;
+      return raised;
     }
     // ------------------------------------------------------------ media
     case 'media.accept':
@@ -878,6 +889,35 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return takeBusinessGig(world, me, cmd.businessId, cmd.gigId);
     case 'venue.buy':
       return venueBuy(world, me, cmd.businessId, cmd.itemId, cmd.withId);
+    // ------------------------------------------------------------ life and work (Wave 5)
+    case 'job.take':
+      return takeJob(world, me, cmd.businessId, cmd.role);
+    case 'job.quit':
+      return quitJob(world, me);
+    case 'home.buy':
+      return buyFurniture(world, me, cmd.itemId);
+    case 'car.buy':
+      return buyCar(world, me, cmd.modelId);
+    case 'car.sell':
+      return sellCar(world, me);
+    // ------------------------------------------------------------ capital programmes (Wave 5)
+    case 'accelerator.apply':
+      return applyAccelerator(world, me, cmd.acceleratorId, cmd.companyId);
+    case 'grant.apply':
+      return applyGrant(world, me, cmd.partnerId, cmd.programId, cmd.companyId);
+    case 'lp.pitch':
+      return pitchLp(world, me, cmd.lpId);
+    case 'invest.quick':
+      return quickInvest(world, me, cmd.companyId, cmd.amount);
+    case 'pitch.angel':
+      return pitchAngel(world, me, {
+        angelId: cmd.angelId,
+        companyId: cmd.companyId,
+        businessId: cmd.businessId,
+        treat: cmd.treat,
+      });
+    case 'event.broadcast':
+      return broadcastEvent(world, me, cmd.eventId, cmd.spend);
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;
@@ -910,6 +950,7 @@ function createFromOnboarding(
     backgroundId: cmd.backgroundId,
     market: cmd.market,
     now,
+    ...(cmd.gender ? { gender: cmd.gender } : {}),
   });
   let companyId: Id | null = null;
   if (cmd.role === 'founder' && cmd.company) {

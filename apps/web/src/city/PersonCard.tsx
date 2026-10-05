@@ -10,6 +10,7 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Bar, Button, Pill, Sheet } from '../ui';
 import { ChatSheet, StarterSheet } from '../screens/Chat';
+import { aiCharacterId, openPhone } from '../phone/bus';
 import { jobTitle } from '../screens/Company';
 import { PitchSheet, moodLabel } from '../screens/Money';
 import { AvatarFigure, avatarLook } from './art';
@@ -241,6 +242,8 @@ export function PersonCard({
         ? view.market.funds.find((f) => f.id === person.a.fund)
         : undefined;
   const angel = person.kind === 'ai' && person.a.kind === 'angel';
+  // Wave 5: AI characters chat too, in the phone.
+  const aiChat = person.kind === 'ai' ? aiCharacterId(person.a) : null;
 
   return (
     <>
@@ -286,6 +289,7 @@ export function PersonCard({
           {fund && <p className="small muted">{tx(fund.thesis)}</p>}
 
           <div className="row person-actions">
+            {aiChat && <Button onClick={() => openPhone({ ai: aiChat })}>{t('Chat')}</Button>}
             {person.kind === 'player' && (
               <>
                 <Button onClick={() => void openChat(person.p)}>{t('Chat')}</Button>

@@ -55,6 +55,28 @@ export interface EmailTokenRow {
   expiresAt: number;
 }
 
+/** One player's conversation with an AI character (Wave 5 §C). */
+export interface AiThreadRow {
+  characterId: string;
+  /** The character's name when last written to (they may leave the world). */
+  name: string;
+  createdAt: number;
+  lastText: string | null;
+  lastAt: number | null;
+  lastFromAi: boolean;
+  /** Character messages after the last one the player read. */
+  unread: number;
+  /** Messages in the thread. */
+  count: number;
+}
+
+export interface AiMessageRow {
+  id: number;
+  fromAi: boolean;
+  text: string;
+  at: number;
+}
+
 export interface AccountStore {
   findUserByPhone(phoneHash: string): Awaitable<{ id: string } | undefined>;
   createUser(id: string, phoneHash: string, now: number): Awaitable<void>;
@@ -85,7 +107,9 @@ export interface AccountStore {
   getChat(id: string): Awaitable<ChatRow | undefined>;
   chatsFor(
     userId: string,
-  ): Awaitable<(ChatRow & { last_text: string | null; last_at: number | null })[]>;
+  ): Awaitable<
+    (ChatRow & { last_text: string | null; last_at: number | null; last_sender: string | null })[]
+  >;
   addMessage(
     chatId: string,
     sender: string,
@@ -110,4 +134,21 @@ export interface AccountStore {
   getPresenceVisible(userId: string): Awaitable<boolean>;
   /** Turning visibility off also removes the player's current position. */
   setPresenceVisible(userId: string, visible: boolean): Awaitable<void>;
+  // ---- AI chats (Wave 5 §C): private to each player, deleted with the account.
+  /** The player's AI threads, most recent first (at most 100). */
+  aiThreads(userId: string): Awaitable<AiThreadRow[]>;
+  aiThread(userId: string, characterId: string): Awaitable<AiThreadRow | undefined>;
+  /** The last `limit` messages, oldest first. */
+  aiMessages(userId: string, characterId: string, limit?: number): Awaitable<AiMessageRow[]>;
+  /** Appends a message (creating the thread); returns it. */
+  addAiMessage(
+    userId: string,
+    characterId: string,
+    name: string,
+    fromAi: boolean,
+    text: string,
+    now: number,
+  ): Awaitable<AiMessageRow>;
+  /** Everything in the thread so far counts as read. */
+  markAiRead(userId: string, characterId: string): Awaitable<void>;
 }
