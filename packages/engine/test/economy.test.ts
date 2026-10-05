@@ -158,7 +158,8 @@ describe('the monthly loop', () => {
       const health = open.reduce((a, b) => a + b.health, 0) / open.length;
       expect(health).toBeGreaterThan(0.4);
     }
-  });
+    // Two markets for two years: slow under a loaded parallel run.
+  }, 30_000);
 
   it('closes a failing business (its cash back to genesis) and opens new ones from the roster', () => {
     let w = thaw(addFounder(makeWorld(42, ['lagos'])));

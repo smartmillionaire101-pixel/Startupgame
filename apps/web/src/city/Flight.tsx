@@ -554,7 +554,7 @@ export function FlightScene({
         <span className="fl-route">
           {fromName} → {toName}
         </span>
-        <span className="fl-hours">{t('{n}h flight', { n: hours })}</span>
+        {hours > 0 && <span className="fl-hours">{t('{n}h flight', { n: hours })}</span>}
       </div>
       <div className="fl-bottom">
         <p className="fl-caption" aria-live="polite">
