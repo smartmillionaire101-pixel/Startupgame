@@ -367,10 +367,14 @@ export class Store implements AccountStore {
     return this.db.prepare('SELECT * FROM chats WHERE id = ?').get(id) as ChatRow | undefined;
   }
 
-  chatsFor(userId: string): (ChatRow & { last_text: string | null; last_at: number | null })[] {
+  chatsFor(userId: string): (ChatRow & {
+    last_text: string | null;
+    last_at: number | null;
+    last_sender: string | null;
+  })[] {
     return this.db
       .prepare(
-        `SELECT c.*, m.text AS last_text, m.created_at AS last_at FROM chats c
+        `SELECT c.*, m.text AS last_text, m.created_at AS last_at, m.sender AS last_sender FROM chats c
          LEFT JOIN chat_messages m ON m.id = (SELECT MAX(id) FROM chat_messages WHERE chat_id = c.id)
          WHERE c.a = ? OR c.b = ? ORDER BY COALESCE(m.created_at, c.created_at) DESC LIMIT 100`,
       )

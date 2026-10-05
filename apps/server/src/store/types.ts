@@ -107,7 +107,9 @@ export interface AccountStore {
   getChat(id: string): Awaitable<ChatRow | undefined>;
   chatsFor(
     userId: string,
-  ): Awaitable<(ChatRow & { last_text: string | null; last_at: number | null })[]>;
+  ): Awaitable<
+    (ChatRow & { last_text: string | null; last_at: number | null; last_sender: string | null })[]
+  >;
   addMessage(
     chatId: string,
     sender: string,

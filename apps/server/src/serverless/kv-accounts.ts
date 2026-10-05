@@ -290,7 +290,12 @@ export class KvAccountStore implements AccountStore {
       .filter((d): d is ChatDoc => !!d)
       .map((d) => {
         const last = d.messages[d.messages.length - 1];
-        return { ...d.row, last_text: last?.text ?? null, last_at: last?.created_at ?? null };
+        return {
+          ...d.row,
+          last_text: last?.text ?? null,
+          last_at: last?.created_at ?? null,
+          last_sender: last?.sender ?? null,
+        };
       })
       .sort((p, q) => (q.last_at ?? q.created_at) - (p.last_at ?? p.created_at));
   }

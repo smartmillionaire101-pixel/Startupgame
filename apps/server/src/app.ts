@@ -518,6 +518,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       blocked_by: string | null;
       last_text?: string | null;
       last_at?: number | null;
+      last_sender?: string | null;
     },
   ) => {
     const other = c.a === userId ? c.b : c.a;
@@ -534,6 +535,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       blockedByMe: c.blocked_by === userId,
       lastText: c.last_text ?? null,
       lastAt: c.last_at ?? null,
+      /** Whether the last message is yours (Wave 5: unread badges in the phone). */
+      lastMine: !!c.last_sender && c.last_sender === userId,
     };
   };
   const ownChat = async (userId: string, chatId: string) => {
@@ -668,8 +671,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       return reply
         .code(404)
         .send({ error: { code: 'character', message: 'Character not found.' } });
-    const { characterId } = parsed.data;
-    const ch = resolveCharacter(game.current, characterId);
+    const ch = resolveCharacter(game.current, parsed.data.characterId);
+    // An angel's fund id names the angel: their thread is under their own id.
+    const characterId = ch?.id ?? parsed.data.characterId;
     const thread = await store.aiThread(req.userId!, characterId);
     if (!ch && !thread)
       return reply

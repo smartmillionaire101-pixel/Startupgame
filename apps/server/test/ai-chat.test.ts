@@ -205,6 +205,37 @@ describe('AI chat routes', () => {
     expect((await a.del('/api/account')).statusCode).toBe(200);
   });
 
+  it('files an angel’s thread under the angel, whether asked by person or fund', async () => {
+    const { app, game } = await makeApp();
+    const s = api(app, await playAsGuest(app));
+    await s.command(founderSetup('angel_asker'));
+    const angel = Object.values(game.current.players).find((p) => p.ai && p.angel);
+    if (!angel) return;
+    const viaFund = await s.post('/api/ai-chat', {
+      characterId: `fund:${angel.angel!.fundId}`,
+      text: 'Can we meet for lunch?',
+    });
+    expect(viaFund.json().thread).toMatchObject({ characterId: angel.id, kind: 'angel' });
+    const read = (
+      await s.get(`/api/ai-chat/${encodeURIComponent(`fund:${angel.angel!.fundId}`)}`)
+    ).json();
+    expect(read.thread.characterId).toBe(angel.id);
+    expect(read.messages).toHaveLength(2);
+  });
+
+  it('tells the phone who wrote the last player-chat message', async () => {
+    const { app, game } = await makeApp();
+    const a = api(app, await playAsGuest(app));
+    const b = api(app, await playAsGuest(app));
+    await a.command(founderSetup('ada_lastm'));
+    await b.command(founderSetup('bola_lastm'));
+    const bId = Object.values(game.current.players).find((p) => p.handle === 'bola_lastm')!.id;
+    const starters = (await a.get(`/api/chats/starters/${bId}`)).json().starters as string[];
+    await a.post('/api/chats', { playerId: bId, starter: starters[0] });
+    expect((await a.get('/api/chats')).json().chats[0].lastMine).toBe(true);
+    expect((await b.get('/api/chats')).json().chats[0].lastMine).toBe(false);
+  });
+
   it('rate-limits each player', async () => {
     const { app, game } = await makeApp();
     const s = api(app, await playAsGuest(app));
