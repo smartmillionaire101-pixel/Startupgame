@@ -194,7 +194,7 @@ describe('API boundary', () => {
     });
     expect(view.me.location).toBeNull();
     expect(view.here).toBeNull();
-    expect(view.flights.hours).toBe(4);
+    expect(view.flights.hours).toBe(0); // Wave 5: flights cost money only
     const fare = view.flights.fareTo.london;
     expect(fare).toBeGreaterThan(0);
 

@@ -2,6 +2,7 @@ import { describe, it } from 'vitest';
 import fc from 'fast-check';
 import { dispatch } from '../src/dispatch.js';
 import type { Command } from '../src/commands.js';
+import { CAR_MODEL_IDS, FURNITURE } from '../src/data/lifestyle-shop.js';
 import {
   addFounder,
   addInvestor,
@@ -37,7 +38,7 @@ describe('world invariants under random play', () => {
       fc.record({
         k: fc.constant('ride' as const),
         investor: fc.boolean(),
-        mode: fc.constantFrom('bus' as const, 'taxi' as const),
+        mode: fc.constantFrom('bus' as const, 'taxi' as const, 'drive' as const),
         distance: fc.constantFrom('short' as const, 'medium' as const, 'long' as const),
       }),
       fc.record({ k: fc.constant('build' as const), hours: fc.integer({ min: 10, max: 80 }) }),
@@ -128,8 +129,29 @@ describe('world invariants under random play', () => {
       }),
     );
 
+    // Wave 5: jobs paid from business tills, furniture and cars (sell-backs, running costs).
+    const life = fc.oneof(
+      fc.record({
+        k: fc.constant('job' as const),
+        pick: fc.nat(60),
+        role: fc.nat(3),
+        investor: fc.boolean(),
+        quit: fc.boolean(),
+      }),
+      fc.record({
+        k: fc.constant('furniture' as const),
+        pick: fc.nat(FURNITURE.length - 1),
+        investor: fc.boolean(),
+      }),
+      fc.record({
+        k: fc.constant('car' as const),
+        pick: fc.nat(CAR_MODEL_IDS.length),
+        investor: fc.boolean(),
+      }),
+    );
+
     fc.assert(
-      fc.property(fc.array(action, { minLength: 1, maxLength: 25 }), (actions) => {
+      fc.property(fc.array(fc.oneof(action, life), { minLength: 1, maxLength: 25 }), (actions) => {
         let w = base;
         let day = 0;
         // Local businesses where a player is right now (home, or abroad after a flight).
@@ -351,6 +373,29 @@ describe('world invariants under random play', () => {
               };
               break;
             }
+            case 'job': {
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              if (a.quit) {
+                cmd = { type: 'job.quit' };
+                break;
+              }
+              const list = bizHere(actor);
+              const biz = list[a.pick % list.length]!;
+              const roles = ['waiter', 'barista', 'cashier', 'driver', 'junior-dev', 'sales-rep'];
+              cmd = { type: 'job.take', businessId: biz.id, role: roles[a.role % roles.length]! };
+              break;
+            }
+            case 'furniture':
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              cmd = { type: 'home.buy', itemId: FURNITURE[a.pick]!.id };
+              break;
+            case 'car':
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              cmd =
+                a.pick === CAR_MODEL_IDS.length
+                  ? { type: 'car.sell' }
+                  : { type: 'car.buy', modelId: CAR_MODEL_IDS[a.pick]! };
+              break;
             case 'cancel': {
               actor = a.investor ? 'u_inv' : 'u_founder';
               const e = Object.values(w.events ?? {}).find(
