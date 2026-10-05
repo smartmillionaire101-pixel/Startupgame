@@ -46,8 +46,12 @@ export const kigali: CityPlan = {
   ],
   open: { rows: [2], cols: [2] },
   streets: 'radial',
-  landmarks: [{ kind: 'convention-dome', name: 'Convention Centre', at: [5, 1] }],
+  landmarks: [
+    { kind: 'convention-dome', name: 'Convention Centre', at: [5, 1] },
+    { kind: 'market-hall', name: 'Kimironko Market', at: [3, 5] },
+  ],
   transit: ['boda', 'bus'],
+  marketName: 'Nyabugogo Market',
   streetNames: [
     'KN 3 Avenue',
     'KG 7 Avenue',

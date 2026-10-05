@@ -62,8 +62,12 @@ export const johannesburg: CityPlan = {
   ],
   open: { rows: [2], cols: [2] },
   streets: 'grid',
-  landmarks: [{ kind: 'hillbrow-tower', name: 'Hillbrow Tower', at: [2, 0] }],
+  landmarks: [
+    { kind: 'hillbrow-tower', name: 'Hillbrow Tower', at: [2, 0] },
+    { kind: 'market-hall', name: 'Mai Mai Market', at: [1, 3] },
+  ],
   transit: ['bus'],
+  marketName: 'Market on Main',
   streetNames: [
     'Jan Smuts Avenue',
     'Rivonia Road',

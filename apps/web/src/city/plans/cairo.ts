@@ -58,8 +58,10 @@ export const cairo: CityPlan = {
     { kind: 'cairo-tower', name: 'Cairo Tower', at: [1, 2] },
     { kind: 'pyramid', name: 'Pyramids of Giza', at: [0, 5] },
     { kind: 'minaret', name: 'Al-Azhar', at: [6, 1] },
+    { kind: 'market-hall', name: 'Attaba Market', at: [4, 1] },
   ],
   transit: ['bus', 'metro', 'ferry'],
+  marketName: 'Khan el-Khalili',
   streetNames: [
     'Tahrir Street',
     'Qasr El Nil',

@@ -52,8 +52,10 @@ export const london: CityPlan = {
     { kind: 'clocktower', name: 'Big Ben', at: [0, 3] },
     { kind: 'gherkin', name: 'The Gherkin', at: [4, 3] },
     { kind: 'london-eye', name: 'The Eye', at: [0, 5] },
+    { kind: 'market-hall', name: 'Borough Market', at: [4, 6] },
   ],
   transit: ['bus', 'tube', 'ferry'],
+  marketName: 'Camden Market',
   streetNames: [
     'Threadneedle Street',
     'Lombard Street',

@@ -23,7 +23,7 @@ import {
   LATE_OPENINGS,
   businessKind,
 } from './data/businesses.js';
-import type { BusinessCategory, BusinessKindSpec } from './data/businesses.js';
+import type { BusinessCategory, BusinessKindSpec, JobRole } from './data/businesses.js';
 import { INDUSTRY_LABEL } from './data/industries.js';
 import type { Industry } from './data/industries.js';
 import type { MarketId } from './data/markets.js';
@@ -110,13 +110,20 @@ export const ECONOMY = {
   closeHealth: 0.05,
   pitchesPerMonth: 4,
   pitchHours: 6,
-  gigsPerMonth: 4,
+  /** Gigs a month (Wave 5: up from 4), shared with the agency gig. */
+  gigsPerMonth: 8,
   /** Energy spent per hour of gig work. */
   gigEnergyPerHour: 0.6,
   /** A gig matching your background pays this much more. */
   skillPremium: 1.5,
-  meetingHours: 2,
+  /** Wave 5: a meeting over a meal costs money only. */
+  meetingHours: 0,
 } as const;
+
+/** Wave 5: a part-time job takes this many hours a month. */
+export const JOB_HOURS = 40;
+/** A job matching your background pays this much more. */
+export const JOB_SKILL_PREMIUM = 1.25;
 
 export const BUSINESS_RECENT_MONTHS = 3;
 
@@ -186,6 +193,25 @@ export function ensureBusinesses(world: World, marketId: MarketId) {
   const rng = deriveRng(world.seed, 'economy', 'genesis', marketId);
   const first = Math.max(0, roster.length - LATE_OPENINGS);
   for (let i = 0; i < first; i++) openBusiness(world, m, i, rng, m.month, true);
+}
+
+/**
+ * Saved worlds (Wave 5): roster places added after the market opened (new
+ * business kinds, Freetown's full roster) open now, as established businesses.
+ * Places that have ever been open keep their history; ids stay as they are.
+ * Own RNG stream, so nothing else shifts. A no-op for new worlds.
+ */
+export function ensureRoster(world: World, marketId: MarketId, month: number) {
+  const m = getMarket(world, marketId);
+  const roster = CITY_BUSINESSES[marketId] ?? [];
+  const all = Object.values(businessesOf(m));
+  const seen = new Set(all.map((b) => b.seed));
+  const first = Math.max(0, roster.length - LATE_OPENINGS);
+  const missing = [];
+  for (let i = 0; i < first; i++) if (!seen.has(i)) missing.push(i);
+  if (!missing.length) return;
+  const rng = deriveRng(world.seed, 'economy', 'roster', marketId, month);
+  for (const i of missing) openBusiness(world, m, i, rng, month, true);
 }
 
 function openBusiness(
@@ -334,6 +360,7 @@ function raiseRapport(b: LocalBusiness, playerId: Id, by: number) {
 
 export function settleEconomy(world: World, marketId: MarketId, month: number) {
   ensureBusinesses(world, marketId);
+  ensureRoster(world, marketId, month);
   const m = getMarket(world, marketId);
   const rng = deriveRng(world.seed, 'economy', marketId, month);
   const stats = emptyStats(month);
@@ -695,6 +722,113 @@ export function takeBusinessGig(world: World, me: Player, businessId: Id, gigId:
   };
 }
 
+// ---------------------------------------------------------------- Jobs (Wave 5)
+
+export const jobSkillMatch = gigSkillMatch;
+
+/** Monthly pay for a role at a business in this city (gross, local minor units). */
+export function jobPay(m: MarketState, p: Player | null, r: JobRole): number {
+  return scale(col(m), r.payCol * (p && gigSkillMatch(p, r.skill) ? JOB_SKILL_PREMIUM : 1));
+}
+
+/** Take a part-time job: 40 hours this month and every month, paid at each settlement. */
+export function takeJob(world: World, me: Player, businessId: Id, roleId: string) {
+  const b = openBusinessOf(world, me, businessId);
+  ensure(b.market === me.market, 'job.market', 'Jobs are in your home city.');
+  const role = specOf(b).roles.find((r) => r.role === roleId);
+  ensure(role, 'job.role', 'That job isn’t on offer here.');
+  if (me.job) {
+    const cur = world.markets[me.market]?.businesses?.[me.job.businessId];
+    fail('job.one', `You already work at ${cur?.name ?? 'a business'}. Quit that job first.`);
+  }
+  const m = getMarket(world, b.market);
+  spendHours(me, JOB_HOURS, `A job at ${b.name}`);
+  me.job = { businessId: b.id, role: role.role, since: m.month };
+  raiseRapport(b, me.id, 0.05);
+  const pay = jobPay(m, me, role);
+  return {
+    job: myJobView(world, me),
+    message: `You’re a ${role.label.toLowerCase()} at ${b.name}: ${formatMoney(pay, m.data.currency)} a month for ${JOB_HOURS} hours, paid at month end.`,
+  };
+}
+
+export function quitJob(world: World, me: Player) {
+  ensure(me.job, 'job.none', 'You don’t have a job.');
+  const b = world.markets[me.market]?.businesses?.[me.job.businessId];
+  delete me.job;
+  return {
+    message: `You left ${b?.name ?? 'your job'}. This month’s hours are gone and won’t be paid.`,
+  };
+}
+
+/** Month-end: the business pays your wage from its till (as much as it has), taxed at home. */
+export function payJob(world: World, p: Player, month: number) {
+  if (!p.job) return;
+  const m = getMarket(world, p.market);
+  const b = m.businesses?.[p.job.businessId];
+  const role = b ? specOf(b).roles.find((r) => r.role === p.job!.role) : undefined;
+  if (!b || !role || !isOpen(b)) {
+    notify(world, p.id, {
+      month,
+      kind: 'warning',
+      text: b ? `${b.name} closed down: you’ve lost your job there.` : 'Your job has ended.',
+    });
+    delete p.job;
+    return;
+  }
+  const promised = jobPay(m, p, role);
+  const paid = transferUpTo(
+    world,
+    b.account,
+    p.accounts.local,
+    promised,
+    `Wages: ${role.label} at ${b.name}`,
+    month,
+  );
+  const tax = Math.round(paid * m.data.tax.personalIncome);
+  transfer(world, p.accounts.local, m.ext.tax, tax, 'Personal income tax', month);
+  raiseRapport(b, p.id, 0.02);
+  if (paid < promised)
+    notify(world, p.id, {
+      month,
+      kind: 'warning',
+      text: `${b.owner.name} could only pay ${formatMoney(paid, m.data.currency)} of your ${formatMoney(promised, m.data.currency)} wage: business is slow.`,
+    });
+}
+
+/** `view.me.job`. */
+export function myJobView(world: World, p: Player) {
+  if (!p.job) return null;
+  const m = world.markets[p.market];
+  const b = m?.businesses?.[p.job.businessId];
+  const role = b ? businessKind(b.kind)?.roles.find((r) => r.role === p.job!.role) : undefined;
+  if (!m || !b || !role) return null;
+  return {
+    businessId: b.id,
+    businessName: b.name,
+    role: role.role,
+    label: role.label,
+    monthlyPay: jobPay(m, p, role),
+    hours: JOB_HOURS,
+  };
+}
+
+/** `view.here.jobs` / `view.market.jobs`: every role at every open business in the city. */
+export function jobsView(viewer: Player, m: MarketState) {
+  return Object.values(businessesOf(m))
+    .filter(isOpen)
+    .flatMap((b) =>
+      specOf(b).roles.map((r) => ({
+        businessId: b.id,
+        businessName: b.name,
+        role: r.role,
+        label: r.label,
+        monthlyPay: jobPay(m, viewer, r),
+        hours: JOB_HOURS,
+      })),
+    );
+}
+
 // ---------------------------------------------------------------- Venues and meetings
 
 interface Guest {
@@ -764,10 +898,8 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
   let guest: Guest | null = null;
   if (withId) {
     ensure(it.meeting, 'venue.meeting', `${it.label} isn’t something to invite someone to.`);
+    // Wave 5: a meeting over a meal costs money only (no hours for anyone).
     guest = resolveGuest(world, me, withId, b);
-    // Only the inviter spends time: a human guest never loses hours to an
-    // invitation they didn't accept (they get an inbox note instead).
-    spendHours(me, ECONOMY.meetingHours, `Meeting ${guest.name}`);
   }
   const total = guest ? price * 2 : price;
   const mine = account(world, me.accounts.local);
@@ -846,6 +978,8 @@ export function businessesView(world: World, viewer: Player, m: MarketState) {
         kindLabel: spec.label,
         category: spec.category,
         district: b.district,
+        /** The real street or area (Wave 5); null when the roster doesn't name one. */
+        street: CITY_BUSINESSES[m.id]?.[b.seed]?.street ?? null,
         owner: { name: b.owner.name },
         look: spec.look,
         open: isOpen(b),

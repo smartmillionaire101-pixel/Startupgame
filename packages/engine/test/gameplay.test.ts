@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { playerView } from '../src/views.js';
+import { GIGS_PER_MONTH } from '../src/personal.js';
 import {
   addFounder,
   addInvestor,
@@ -401,11 +402,14 @@ describe('failure and the floor (§13)', () => {
     expect(again.world.players.u_founder!.milestones['any.comeback']).toBeDefined();
   });
 
-  it('anyone can take a freelance gig, at most twice a month', () => {
+  it('anyone can take a freelance gig, at most eight a month', () => {
     let w = addInvestor(makeWorld());
-    w = run(w, 'u_investor', { type: 'player.gig' }).world;
-    w = run(w, 'u_investor', { type: 'player.gig' }).world;
-    expect(tryRun(w, 'u_investor', { type: 'player.gig' }).ok).toBe(false);
+    w = structuredClone(w);
+    w.players.u_investor!.hours.available = 400;
+    for (let i = 0; i < GIGS_PER_MONTH; i++) w = run(w, 'u_investor', { type: 'player.gig' }).world;
+    const r = tryRun(w, 'u_investor', { type: 'player.gig' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('gig.limit');
   });
 
   it('dollar accounts convert at the official rate minus a fee', () => {

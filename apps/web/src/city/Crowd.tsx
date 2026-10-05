@@ -52,6 +52,7 @@ function Figure({
   scale,
   setRef,
   known = false,
+  gender = null,
 }: {
   id: string;
   name: string;
@@ -61,8 +62,10 @@ function Figure({
   setRef: (id: string, el: SVGGElement | null) => void;
   /** A player you know: their name shows at every zoom. */
   known?: boolean;
+  /** A player's chosen gender (Wave 5). */
+  gender?: 'female' | 'male' | null;
 }) {
-  const look = useMemo(() => avatarLook(bg, id), [bg, id]);
+  const look = useMemo(() => avatarLook(bg, id, gender), [bg, id, gender]);
   const w = name.length * 5.4 + 16;
   return (
     <g
@@ -213,6 +216,7 @@ export const Crowd = memo(function Crowd({
           name={p.name.split(' ')[0] ?? p.name}
           kind="player"
           bg={p.backgroundId}
+          gender={p.gender}
           scale={1.15}
           setRef={setRef}
           known={known.includes(p.id)}

@@ -1,5 +1,5 @@
 import { devices, type Page } from '@playwright/test';
-import { expect, letters, playAsGuest, test, withoutNetlifyDrawer } from './fixtures';
+import { expect, letters, more, playAsGuest, test, withoutNetlifyDrawer } from './fixtures';
 
 /**
  * Wave 4: getting around. A far trip across town asks how to get there (a
@@ -16,6 +16,7 @@ async function founder(page: Page, city: RegExp, name: string) {
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: city }).click();
+  await page.getByRole('button', { name: 'Female', exact: true }).click();
   await page.getByLabel('Your name').fill(name);
   await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();
@@ -70,6 +71,7 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   await expect(chooser).toBeHidden();
   await expect(page.locator('.city-avatar')).toHaveClass(/is-riding/);
   await expect(page.locator('[data-ride]')).toBeAttached();
+  await more(page);
   const hall = page.getByRole('dialog').getByRole('heading', { name: 'Host an event' });
   await expect(hall).toBeVisible({ timeout: 10_000 });
   const s1 = await state(page);
@@ -93,6 +95,7 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   // To the airport (from the Places list) and onto a plane to London.
   await page.getByRole('button', { name: /Places/ }).click();
   await page.getByRole('dialog', { name: 'Places' }).locator('[data-kind="airport"]').click();
+  await more(page);
   const desk = page.getByRole('list', { name: 'Departures' });
   await expect(desk).toBeVisible({ timeout: 10_000 });
   await desk.getByRole('button', { name: 'Fly to London' }).click();

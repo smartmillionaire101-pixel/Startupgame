@@ -34,10 +34,15 @@ export const lagos: CityPlan = {
     { name: 'Carter Bridge', from: [3, 3], to: [3, 4], style: 'beam', color: '#a8a29e' },
     { name: 'Eko Bridge', from: [5, 3], to: [5, 4], style: 'beam', color: '#cbd5e1' },
   ],
-  landmarks: [{ kind: 'theatre', name: 'National Theatre', at: [3, 2] }],
+  landmarks: [
+    { kind: 'theatre', name: 'National Theatre', at: [3, 2] },
+    { kind: 'market-hall', name: 'Computer Village', at: [0, 1] },
+  ],
   transit: ['danfo', 'okada', 'keke', 'bus', 'ferry'],
+  marketName: 'Balogun Market',
   streetNames: [
     'Broad Street',
+    'Ahmadu Bello Way',
     'Marina',
     'Awolowo Road',
     'Adeola Odeku',

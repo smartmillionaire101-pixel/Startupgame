@@ -98,5 +98,10 @@ export interface CityPlan {
   bridges?: PlanBridge[];
   landmarks: { kind: LandmarkKind; name: string; at: [number, number] }[];
   transit: Transit[];
+  /** Real street names, painted on the streets (shown zoomed in). */
   streetNames: string[];
+  /** Wave 5: the city's real market, named over the Market's stalls (Balogun Market…). */
+  marketName?: string;
+  /** Wave 5: a sandy beach along a coast (Lumley Beach). */
+  beach?: { side: Side; name: string };
 }

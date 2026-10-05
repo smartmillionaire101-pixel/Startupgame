@@ -345,15 +345,19 @@ export function Travel({ trips = true }: { trips?: boolean } = {}) {
       {trips && (
         <>
           <p className="small muted">
-            {flights
+            {flights && flights.hours === 0
               ? t(
-                  'Flights leave from the airport: one way, {hours} hours, and you can go any time. While you’re there you can meet its investors and invest.',
-                  { hours: flights.hours },
+                  'Flights leave from the airport: one way, paid with money only, and you can go any time. While you’re there you can meet its investors and invest.',
                 )
-              : t(
-                  'A trip costs money and {hours} hours. You must visit a market before investing or acquiring there, and you can pitch its investors during the trip month.',
-                  { hours: 40 },
-                )}
+              : flights
+                ? t(
+                    'Flights leave from the airport: one way, {hours} hours, and you can go any time. While you’re there you can meet its investors and invest.',
+                    { hours: flights.hours },
+                  )
+                : t(
+                    'A trip costs money and {hours} hours. You must visit a market before investing or acquiring there, and you can pitch its investors during the trip month.',
+                    { hours: 40 },
+                  )}
           </p>
           <ul className="list">
             {dests.map((d) => (

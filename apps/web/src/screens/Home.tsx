@@ -7,6 +7,8 @@ import { Button, Card, Pill, Sparkline, Stat } from '../ui';
 import { Inbox } from './common';
 import { FoundCompany } from './Me';
 import { SaveNudge } from './Account';
+import { visitPlace } from '../city/goto';
+import { WhatNowCard } from '../city/WhatNow';
 
 export function Home() {
   const { view, cur, meta } = useView();
@@ -48,6 +50,7 @@ export function Home() {
         </Card>
       )}
       {isInvestor && c && <InvestorKpis />}
+      <WhatNowCard onGo={visitPlace} />
       <SaveNudge />
       <Votes />
       <Inbox />

@@ -621,6 +621,28 @@ export function PlanLandmark({
         </g>
       );
     }
+    case 'market-hall': {
+      // Wave 5: a city's famous market: a long roof over rows of stalls.
+      const roof = '#b45309';
+      return (
+        <g data-landmark="market-hall">
+          <Shadow x={x - 1.6} y={y - 1.2} w={3.2} d={2.4} h={22} />
+          <Box x={x - 1.6} y={y - 1.2} w={3.2} d={2.4} h={14} color="#fef3c7" />
+          <Gable x={x - 1.7} y={y - 1.3} w={3.4} d={2.6} z={14} rise={12} color={roof} />
+          {[-1.1, -0.2, 0.7].map((dx) => (
+            <Awning
+              key={dx}
+              x={x + dx}
+              y={y + 1.2}
+              w={0.7}
+              d={0.35}
+              z={6}
+              color={dx > 0 ? '#16a34a' : dx < -0.5 ? '#dc2626' : '#2563eb'}
+            />
+          ))}
+        </g>
+      );
+    }
     default:
       return null;
   }

@@ -27,10 +27,23 @@ import {
 import { flightsView, isVisiting, tripCostUsd } from './travel.js';
 import { EVENT_KINDS, EVENT_KIND_DATA, EVENT_RECENT_MONTHS } from './data/events.js';
 import { contactWarmth, eventCost } from './events.js';
-import { businessCustomersOf, businessesView, economyView } from './economy.js';
+import {
+  businessCustomersOf,
+  businessesView,
+  economyView,
+  jobsView,
+  myJobView,
+} from './economy.js';
+import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { boardOf } from './governance.js';
 import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
+import {
+  attendeesAi,
+  capitalProgramsView,
+  fundInvestorType,
+  playerInvestorType,
+} from './programs.js';
 import {
   burn,
   getMarket,
@@ -397,7 +410,15 @@ function lendersView(world: World, p: Player, m: MarketState) {
  * A city as the player sees it: the home market (`view.market`) or the one
  * they're physically in (`view.here`, Wave 4), same shape.
  */
-function marketView(world: World, p: Player, m: MarketState, founderish: boolean) {
+type ViewClock = { now: number; monthMs: number };
+
+function marketView(
+  world: World,
+  p: Player,
+  m: MarketState,
+  founderish: boolean,
+  clock?: ViewClock,
+) {
   return {
     id: m.id,
     name: m.data.name,
@@ -449,6 +470,8 @@ function marketView(world: World, p: Player, m: MarketState, founderish: boolean
         mood: f.mood > 1.1 ? 'hungry' : f.mood < 0.9 ? 'cautious' : 'steady',
         /** City art: deterministic from the fund id. */
         office: fundOffice(f.id),
+        /** Wave 5: angel, VC, impact or corporate. */
+        type: fundInvestorType(f),
         /** AI angel funds (Wave 3): the person behind the cheque; null for other funds. */
         angel: f.angelId
           ? { playerId: f.angelId, name: world.players[f.angelId]?.name ?? f.partner }
@@ -505,11 +528,20 @@ function marketView(world: World, p: Player, m: MarketState, founderish: boolean
         };
       }),
     /** City events (Wave 2): upcoming, and held or cancelled recently. */
-    events: eventsView(world, p, m.id, m.month),
+    events: eventsView(world, p, m.id, m.month, clock),
     /** Local businesses (Wave 3): open ones, and those closed in the last few months. */
     businesses: businessesView(world, p, m),
+    /** Part-time jobs at open businesses (Wave 5): 40 hours a month, paid monthly. */
+    jobs: jobsView(p, m),
+    /** Furniture and cars with prices in this city's currency (Wave 5). */
+    shop: shopView(m),
     /** The city economy at a glance (Wave 3). */
     economy: economyView(m),
+    /**
+     * Wave 5 (section B): accelerators, devPartners, lps, dealFlow, angelsAt
+     * (businessId → AI angel ids there this period), angels, centralBank.
+     */
+    ...capitalProgramsView(world, p, m),
     eventKinds: EVENT_KINDS.map((kind) => {
       const k = EVENT_KIND_DATA[kind];
       return {
@@ -519,7 +551,8 @@ function marketView(world: World, p: Player, m: MarketState, founderish: boolean
         /** Hosting at the Event Hall, before any budget (minor units). */
         cost: eventCost(m, kind, 'hall'),
         hoursHost: k.hoursHost,
-        hoursAttend: k.hoursAttend,
+        /** Wave 5: going to an event costs the ticket only, no hours. */
+        hoursAttend: 0,
         capacity: k.capacity,
         who: k.who,
       };
@@ -553,7 +586,7 @@ export function playerView(
       : null;
   const myCompanies = p.companyIds.map((id) => world.companies[id]!).filter(Boolean);
   const founderish = p.role === 'founder' || myCompanies.length > 0;
-  const homeView = marketView(world, p, m, founderish);
+  const homeView = marketView(world, p, m, founderish, clock);
   const fund = p.investor?.fundId ? world.funds[p.investor.fundId] : undefined;
   const others = Object.values(world.companies).filter(
     // Your market, plus any market you've travelled to (§14).
@@ -586,6 +619,8 @@ export function playerView(
       loans: p.loans,
       milestones: p.milestones,
       investor: p.investor ?? null,
+      /** Wave 5: angel, VC, impact or corporate; null for non-investors. */
+      investorType: playerInvestorType(world, p),
       failures: p.failures,
       visited: p.visited,
       /** Where you are (Wave 4): null at home. */
@@ -607,6 +642,16 @@ export function playerView(
         })),
       lastMonth: p.lastMonth,
       gigsThisMonth: p.gigsThisMonth,
+      /** Wave 5: null for saved players who never chose (the client keeps its avatar). */
+      gender: p.gender ?? null,
+      /** Wave 5: your part-time job, or null. */
+      job: myJobView(world, p),
+      /** Wave 5: your furniture and how comfortable home is (0–100). */
+      home: myHomeView(p),
+      /** Wave 5: your car, or null. */
+      car: carView(world, p),
+      /** Wave 5: status (0–100) from your home, car and lifestyle, shown on your profile. */
+      status: statusOf(p),
       /** People met at events (Wave 2), newest first; warmth fades with time. */
       contacts: (p.contacts ?? []).slice(0, CONTACTS_VIEW_LIMIT).map((c) => ({
         ...c,
@@ -618,7 +663,8 @@ export function playerView(
     market: homeView,
     /** The city you're physically in (Wave 4): same shape as `market`; your home city unless you've flown. */
     // Only when away: at home the client uses `market`, so the city isn't sent twice.
-    here: hereId === m.id ? null : marketView(world, p, getMarket(world, hereId), founderish),
+    here:
+      hereId === m.id ? null : marketView(world, p, getMarket(world, hereId), founderish, clock),
     lifestyleTiers: LIFESTYLE_TIERS.map((t) => ({
       ...t,
       monthlyCost: Math.round(m.data.costOfLiving * 100 * t.costCol),
@@ -775,7 +821,13 @@ export function playerView(
 
 const CONTACTS_VIEW_LIMIT = 50;
 
-function eventsView(world: World, viewer: Player, market: MarketId, month: number) {
+function eventsView(
+  world: World,
+  viewer: Player,
+  market: MarketId,
+  month: number,
+  clock?: ViewClock,
+) {
   return Object.values(world.events ?? {})
     .filter(
       (e) =>
@@ -816,6 +868,10 @@ function eventsView(world: World, viewer: Player, market: MarketId, month: numbe
         status: e.status,
         youHost: e.hostId === viewer.id,
         youGoing: e.attendees.includes(viewer.id),
+        /** Spent on broadcasting it (Wave 5), local minor units. */
+        broadcast: e.broadcast ?? 0,
+        /** AI guests by name: RSVPs so far, or who came (Wave 5). */
+        attendeesAi: attendeesAi(world, e, clock),
         outcome: e.outcome
           ? {
               summary: e.outcome.summary,

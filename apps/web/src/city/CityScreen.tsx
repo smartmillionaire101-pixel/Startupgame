@@ -40,6 +40,8 @@ import {
   type StoryPlace,
 } from './contract';
 import { onVisit, takeVisit } from './goto';
+import { genderOf } from './life';
+import { WhatNowCard, WhatNowList } from './WhatNow';
 import { Interior, placeLabel, type Nav } from './Interiors';
 import {
   aiCharacters,
@@ -105,7 +107,11 @@ type Filter = 'all' | 'capital' | 'customers' | (typeof BUSINESS_CATEGORIES)[num
 
 const matches = (p: Place, f: Filter) =>
   f === 'all' ||
-  (f === 'capital' && (p.kind === 'lender' || p.kind === 'playerbank' || p.kind === 'fund')) ||
+  (f === 'capital' &&
+    (p.kind === 'lender' ||
+      p.kind === 'playerbank' ||
+      p.kind === 'fund' ||
+      p.kind === 'capital')) ||
   (f === 'customers' && p.kind === 'stall') ||
   p.category === f;
 
@@ -386,7 +392,8 @@ function CityBody({
     (p: Place) => kindLabel(p, companyName, abroad, lang),
     [companyName, abroad, lang],
   );
-  const look = useMemo(() => avatarLook(bg, meId), [bg, meId]);
+  const gender = genderOf(view.me);
+  const look = useMemo(() => avatarLook(bg, meId, gender), [bg, meId, gender]);
   const [inside, setInside] = useState<Place | null>(null);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
@@ -394,6 +401,22 @@ function CityBody({
   const [trip, setTrip] = useState<FarTrip | null>(null);
   const [rideBusy, setRideBusy] = useState(false);
   const [preferred, setPreferred] = useState<RideMode>(lastRide);
+  const [whatNowSheet, setWhatNowSheet] = useState(false);
+  const [whatNow, setWhatNow] = useState(() => {
+    try {
+      return sessionStorage.getItem('rw_whatnow') !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const showWhatNow = (v: boolean) => {
+    setWhatNow(v);
+    try {
+      sessionStorage.setItem('rw_whatnow', v ? '1' : '0');
+    } catch {
+      /* storage unavailable: lasts until the City closes */
+    }
+  };
   const mapRef = useRef<CityMapHandle | null>(null);
 
   // Rebuild the layout only when what it depends on changes.
@@ -467,9 +490,14 @@ function CityBody({
   const office = layout.places.find((p) => p.kind === 'office')!;
   const visit = useCallback(
     (placeId: string) => {
-      const p = layout.places.find((x) => x.id === placeId);
+      // 'market' stands for the Market's stalls ("What to do now").
+      const p =
+        placeId === 'market'
+          ? placeFor(layout, 'market')
+          : layout.places.find((x) => x.id === placeId);
       setPerson(null);
       setPeopleOpen(false);
+      setInside(null);
       if (p) goTo(p);
     },
     [layout, goTo],
@@ -545,6 +573,7 @@ function CityBody({
           <p className="small muted">
             {t('Lite mode: the city map is off to save data. Pick a place to go in.')}
           </p>
+          <WhatNowCard onGo={visit} />
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
           <section className="places-group people-group">
             <h3>{t('People around')}</h3>
@@ -652,6 +681,21 @@ function CityBody({
                       {t('See the plan')}
                     </Button>
                   </div>
+                ) : whatNow ? (
+                  <section className="hud-whatnow" aria-label={t('What to do now')}>
+                    <div className="hud-whatnow-head">
+                      <h2>{t('What to do now')}</h2>
+                      <button
+                        type="button"
+                        className="hud-whatnow-close"
+                        aria-label={t('Hide')}
+                        onClick={() => showWhatNow(false)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <WhatNowList onGo={visit} />
+                  </section>
                 ) : next && markerPlace ? (
                   <div className="hud-banner" role="status">
                     <span>
@@ -671,6 +715,15 @@ function CityBody({
                   <p className="hud-hint">{t('Tap a street to walk, a building to go in.')}</p>
                 )}
                 <div className="hud-stack">
+                  {!(whatNow && !(alarm && !abroad)) && (
+                    <button
+                      type="button"
+                      className="hud-places"
+                      onClick={() => (alarm && !abroad ? setWhatNowSheet(true) : showWhatNow(true))}
+                    >
+                      <span aria-hidden>✦</span> {t('What to do now')}
+                    </button>
+                  )}
                   <button type="button" className="hud-places" onClick={() => setPeopleOpen(true)}>
                     <span aria-hidden>☺</span> {t('Who’s here')}
                     {players.length > 0 && (
@@ -691,6 +744,16 @@ function CityBody({
           </div>
         </div>
       )}
+      {whatNowSheet && (
+        <Sheet title={t('What to do now')} onClose={() => setWhatNowSheet(false)}>
+          <WhatNowList
+            onGo={(id) => {
+              setWhatNowSheet(false);
+              visit(id);
+            }}
+          />
+        </Sheet>
+      )}
       {placesOpen && (
         <Sheet title={t('Places')} onClose={() => setPlacesOpen(false)}>
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
@@ -707,14 +770,6 @@ function CityBody({
             }}
           />
         </Sheet>
-      )}
-      {person && (
-        <PersonCard
-          person={person}
-          onClose={() => setPerson(null)}
-          onVisit={visit}
-          onHub={() => visit('hub')}
-        />
       )}
       {inside && (
         <Interior
@@ -734,6 +789,8 @@ function CityBody({
             },
           }}
           homeId={home.id}
+          scene={!lite}
+          onPerson={setPerson}
           away={
             abroad
               ? {
@@ -749,6 +806,15 @@ function CityBody({
             setInside(null);
             onNavigate(tab);
           }}
+        />
+      )}
+      {person && (
+        <PersonCard
+          person={person}
+          onClose={() => setPerson(null)}
+          onVisit={visit}
+          onHub={() => visit('hub')}
+          atBusiness={inside?.kind === 'business' ? inside.ref : undefined}
         />
       )}
     </div>

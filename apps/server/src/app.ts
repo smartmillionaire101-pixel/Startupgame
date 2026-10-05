@@ -52,7 +52,8 @@ import {
   signInEmail,
   type EmailProvider,
 } from './adapters/email.js';
-import type { AccountStore } from './store/types.js';
+import type { AccountStore, AiThreadRow } from './store/types.js';
+import { CHARACTER_ID, aiReply, resolveCharacter, type Character } from './ai-chat.js';
 
 /** Avatars not seen for this long drop off the city map. */
 export const PRESENCE_WINDOW_MS = 120_000;
@@ -162,7 +163,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return reply.code(status).send({
       error: {
         code: status === 429 ? 'rate' : 'error',
-        message: status >= 500 ? 'Something went wrong.' : err.message,
+        // Test deployments (dev tools on) say what broke; production never does.
+        message:
+          status >= 500
+            ? config.DEV_TOOLS
+              ? `Something went wrong. (${err.message})`
+              : 'Something went wrong.'
+            : err.message,
       },
     });
   });
@@ -517,6 +524,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       blocked_by: string | null;
       last_text?: string | null;
       last_at?: number | null;
+      last_sender?: string | null;
     },
   ) => {
     const other = c.a === userId ? c.b : c.a;
@@ -533,6 +541,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       blockedByMe: c.blocked_by === userId,
       lastText: c.last_text ?? null,
       lastAt: c.last_at ?? null,
+      /** Whether the last message is yours (Wave 5: unread badges in the phone). */
+      lastMine: !!c.last_sender && c.last_sender === userId,
     };
   };
   const ownChat = async (userId: string, chatId: string) => {
@@ -631,6 +641,109 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     await store.blockChat(id, req.userId!);
     return { ok: true };
   });
+
+  // ---------------------------------------------------------------- AI chat (Wave 5 §C)
+
+  // Characters run by the simulation answer from templates filled with live
+  // data. Like player chats, threads live outside the simulation, private to
+  // each player.
+  const characterParam = z.object({ characterId: z.string().regex(CHARACTER_ID) });
+
+  const aiThreadView = (t: AiThreadRow | undefined, ch: Character | null, characterId: string) => ({
+    characterId,
+    name: ch?.name ?? t?.name ?? '',
+    kind: ch?.kind ?? null,
+    org: ch?.org ?? null,
+    market: ch?.market ?? null,
+    place: ch?.place ?? null,
+    /** False once the character has left the world (the thread stays readable). */
+    available: !!ch,
+    lastText: t?.lastText ?? null,
+    lastAt: t?.lastAt ?? null,
+    lastFromAi: t?.lastFromAi ?? false,
+    unread: t?.unread ?? 0,
+    count: t?.count ?? 0,
+  });
+
+  app.get('/api/ai-chat', { preHandler: requireUser }, async (req) => ({
+    threads: (await store.aiThreads(req.userId!)).map((t) =>
+      aiThreadView(t, resolveCharacter(game.current, t.characterId), t.characterId),
+    ),
+  }));
+
+  app.get('/api/ai-chat/:characterId', { preHandler: requireUser }, async (req, reply) => {
+    const parsed = characterParam.safeParse(req.params);
+    if (!parsed.success)
+      return reply
+        .code(404)
+        .send({ error: { code: 'character', message: 'Character not found.' } });
+    const ch = resolveCharacter(game.current, parsed.data.characterId);
+    // An angel's fund id names the angel: their thread is under their own id.
+    const characterId = ch?.id ?? parsed.data.characterId;
+    const thread = await store.aiThread(req.userId!, characterId);
+    if (!ch && !thread)
+      return reply
+        .code(404)
+        .send({ error: { code: 'character', message: 'Character not found.' } });
+    if (thread?.unread) await store.markAiRead(req.userId!, characterId);
+    return {
+      thread: { ...aiThreadView(thread, ch, characterId), unread: 0 },
+      messages: (await store.aiMessages(req.userId!, characterId)).map((m) => ({
+        id: m.id,
+        mine: !m.fromAi,
+        text: m.text,
+        at: m.at,
+      })),
+    };
+  });
+
+  app.post(
+    '/api/ai-chat',
+    {
+      preHandler: requireUser,
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+          keyGenerator: (req: FastifyRequest) => req.userId ?? req.ip,
+        },
+      },
+    },
+    async (req, reply) => {
+      const body = z
+        .object({
+          characterId: z.string().regex(CHARACTER_ID),
+          text: z.string().max(CHAT_MAX_LENGTH * 2),
+          lang: z.enum(['en', 'fr']).default('en'),
+        })
+        .parse(req.body);
+      const world = game.current;
+      const me = world.players[req.userId!];
+      if (!me)
+        return reply
+          .code(404)
+          .send({ error: { code: 'player', message: 'Create a player first.' } });
+      const ch = resolveCharacter(world, body.characterId);
+      if (!ch || ch.id === me.id)
+        return reply
+          .code(404)
+          .send({ error: { code: 'character', message: 'Character not found.' } });
+      const check = checkChatMessage(body.text);
+      if (!check.ok)
+        return reply.code(400).send({ error: { code: 'filtered', message: check.reason } });
+      const before = (await store.aiThread(me.id, ch.id))?.count ?? 0;
+      await store.addAiMessage(me.id, ch.id, ch.name, false, check.text, now());
+      const text = aiReply(world, me, ch, check.text, before + 1, body.lang);
+      const m = await store.addAiMessage(me.id, ch.id, ch.name, true, text, now());
+      await store.markAiRead(me.id, ch.id);
+      const thread = await store.aiThread(me.id, ch.id);
+      return {
+        reply: { id: m.id, mine: false, text: m.text, at: m.at },
+        flagged: check.flagged,
+        thread: aiThreadView(thread, ch, ch.id),
+      };
+    },
+  );
 
   // ---------------------------------------------------------------- presence (city map)
 

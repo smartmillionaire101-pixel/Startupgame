@@ -1,4 +1,4 @@
-import { expect, letters, test, playAsGuest, tapPlace } from './fixtures';
+import { expect, letters, more, test, playAsGuest, tapPlace } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /** Sign up a founder in a market (by its button label), straight into the City. */
@@ -7,6 +7,7 @@ async function founder(page: Page, market: RegExp, name: string) {
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: market }).click();
+  await page.getByRole('button', { name: 'Female', exact: true }).click();
   await page.getByLabel('Your name').fill(name);
   await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();
@@ -23,6 +24,7 @@ async function enter(page: Page, selector: string) {
   await tapPlace(page, selector, 'cycle');
   const sheet = page.getByRole('dialog');
   await expect(sheet).toBeVisible({ timeout: 10_000 });
+  await more(page);
   return sheet;
 }
 
@@ -42,7 +44,8 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
     page,
     (await food.count()) ? '[data-place^="biz:"][data-category="food"]' : '[data-place^="biz:"]',
   );
-  await expect(sheet.getByText('Owner')).toBeVisible();
+  // The owner is in the room (the scene's people), the menu under More.
+  await expect(sheet.getByRole('button', { name: /, Owner$/ })).toBeAttached();
   const pocket = sheet.locator('[data-pocket]');
   const before = Number(await pocket.getAttribute('data-pocket'));
   const buy = sheet.locator('.biz-items').getByRole('button', { name: 'Buy', exact: true }).first();
@@ -57,7 +60,7 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
   // The Jobs board at the Hub lists every gig in town: take a shift.
   await page.getByRole('button', { name: /Places/ }).click();
   await page.getByRole('dialog', { name: 'Places' }).locator('[data-kind="hub"]').click();
-  const hub = page.getByRole('dialog');
+  const hub = await more(page);
   await expect(hub.getByRole('heading', { name: 'Jobs board' })).toBeVisible({ timeout: 8000 });
   await hub.getByRole('button', { name: 'Take shift' }).first().click();
   await expect(page.locator('.toast-ok').last()).toBeVisible();
@@ -73,7 +76,7 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
       .locator('[data-kind="business"]')
       .nth(n)
       .click();
-    const shop = page.getByRole('dialog');
+    const shop = await more(page);
     await expect(shop.getByRole('heading', { name: 'Sell to them' })).toBeVisible({
       timeout: 8000,
     });
@@ -97,7 +100,7 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
   await nav.getByRole('button', { name: 'City', exact: true }).click();
   await page.getByRole('button', { name: /Places/ }).click();
   await page.getByRole('dialog', { name: 'Places' }).locator('[data-kind="eventhall"]').click();
-  const hall = page.getByRole('dialog');
+  const hall = await more(page);
   await expect(hall.getByRole('heading', { name: 'Host an event' })).toBeVisible({
     timeout: 8000,
   });

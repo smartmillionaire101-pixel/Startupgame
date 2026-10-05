@@ -11,6 +11,7 @@ test('a player switches to French before signing in and plays in French', async 
   await page.getByRole('button', { name: /Fondateur/ }).click();
   await page.getByRole('button', { name: /Ex-ingénieur/ }).click();
   await page.getByRole('button', { name: /Kigali/ }).click();
+  await page.getByRole('button', { name: 'Femme', exact: true }).click();
   await page.getByLabel('Votre nom').fill('Aline E2E');
   await page.getByLabel('Pseudo').fill(`aline_${letters(6)}`);
   await expect(page.getByText('Disponible', { exact: true })).toBeVisible();

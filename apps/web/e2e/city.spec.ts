@@ -1,4 +1,4 @@
-import { letters, expect, test, playAsGuest, tapPlace } from './fixtures';
+import { expect, letters, more, playAsGuest, tab, tapPlace, test } from './fixtures';
 
 test('a founder walks the city to a bank, goes in, then visits the market', async ({ page }) => {
   await playAsGuest(page);
@@ -6,6 +6,7 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
+  await page.getByRole('button', { name: 'Female', exact: true }).click();
   await page.getByLabel('Your name').fill('Tobi City');
   await page.getByLabel('Handle').fill(`tobi_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();
@@ -16,7 +17,7 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await page.getByRole('button', { name: 'Start' }).click();
 
   // The City is the first tab and opens by default, centred on your office.
-  await expect(page.getByRole('button', { name: 'City' })).toHaveAttribute('aria-current', 'page');
+  await expect(tab(page, 'City')).toHaveAttribute('aria-current', 'page');
   const map = page.getByRole('application', { name: /Map of Lagos/ });
   await expect(map).toBeVisible();
   await expect(page.locator('[data-place="office"]')).toBeAttached();
@@ -31,7 +32,10 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await expect(page.locator('.city-avatar')).toHaveClass(/is-walking/);
   const lobby = page.getByRole('dialog');
   await expect(lobby).toBeVisible({ timeout: 10_000 });
-  await expect(lobby.getByText('Loan officer')).toBeVisible();
+  // A bank lobby, with the loan officer behind the counter.
+  await expect(lobby).toHaveAttribute('data-room', 'bank');
+  await expect(lobby.getByRole('button', { name: /Loan officer/ })).toBeAttached();
+  await more(page);
   await expect(lobby.getByText(/Working capital|For companies|For founders/).first()).toBeVisible();
   await lobby.getByRole('button', { name: 'Close' }).click();
   await expect(lobby).toBeHidden();
@@ -44,6 +48,8 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await places.locator('[data-kind="stall"]').first().click();
   const market = page.getByRole('dialog');
   await expect(market).toBeVisible({ timeout: 8000 });
+  await expect(market).toHaveAttribute('data-room', 'market');
+  await more(page);
   await expect(market.getByText(/Every stall is a customer segment/)).toBeVisible();
   await expect(
     market.getByRole('button', { name: 'Customer discovery (20h)' }).first(),

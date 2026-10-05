@@ -58,8 +58,10 @@ export const dubai: CityPlan = {
     { kind: 'wind-tower', name: 'Wind towers', at: [0, 2] },
     { kind: 'needle-tower', name: 'The Tower', at: [6, 3] },
     { kind: 'sail-hotel', name: 'Sail Hotel', at: [0, 6] },
+    { kind: 'market-hall', name: 'Spice Souk', at: [1, 1] },
   ],
   transit: ['metro', 'bus', 'abra'],
+  marketName: 'Gold Souk',
   streetNames: [
     'Sheikh Zayed Road',
     'Al Wasl Road',

@@ -54,3 +54,14 @@ export * from './data/characters.js';
 export * from './data/rules.js';
 export { OUTLET_EFFECT } from './data/fiction.js';
 export * from './data/events.js';
+// Wave 5: life, money and work.
+export { JOB_HOURS } from './economy.js';
+export { GIGS_PER_MONTH } from './personal.js';
+export {
+  FURNITURE,
+  FURNITURE_SLOTS,
+  CAR_MODEL_IDS,
+  SELL_BACK,
+  carsFor,
+} from './data/lifestyle-shop.js';
+export type { FurnitureSlot, FurnitureItem, CarModel, CarModelId } from './data/lifestyle-shop.js';

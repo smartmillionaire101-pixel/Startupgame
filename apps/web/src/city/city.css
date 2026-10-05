@@ -58,7 +58,10 @@
 
 .city-street-name {
   fill: #fff;
-  opacity: 0.6;
+  opacity: 0.85;
+  paint-order: stroke;
+  stroke: rgb(30 41 59 / 0.55);
+  stroke-width: 1.2px;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -111,7 +114,6 @@
 .city-map[data-zoom='1'] :is(.lbl-detail, .lbl-stall, .lbl-biz),
 .city-map[data-zoom='1'] .city-district:not(.is-key),
 .city-map[data-zoom='2'] .city-district,
-.city-map[data-zoom='0'] .city-street-name,
 .city-map:is([data-zoom='0'], [data-zoom='1']) .city-you {
   display: none;
 }

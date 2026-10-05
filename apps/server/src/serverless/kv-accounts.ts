@@ -20,9 +20,13 @@
  *   presence/<market>/<user> → PresenceRow    (listed by prefix; stale ones pruned)
  *   presence-of/<user> → { market }             (where the user's presence doc lives)
  *   presence-settings/<user> → { visible }
+ *   ai/<user>/<character> → AiThreadDoc        (chat with an AI character; last MAX_AI_MESSAGES kept)
+ *   ai-of/<user>       → string[]               (character ids with a thread, oldest first)
  */
 import { createHash, randomUUID } from 'node:crypto';
 import type {
+  AiMessageRow,
+  AiThreadRow,
   AccountRow,
   AccountStore,
   ChatRow,
@@ -34,6 +38,8 @@ import type {
 import { kvJson, type Kv } from './kv.js';
 
 const MAX_MESSAGES = 500;
+const MAX_AI_MESSAGES = 200;
+const MAX_AI_THREADS = 100;
 const RATE_WINDOW_MS = 3_600_000;
 /** Presence docs this much older than a reader's window are deleted. */
 const PRESENCE_PRUNE_GRACE_MS = 10 * 60_000;
@@ -48,6 +54,18 @@ interface UserDoc {
   guest?: boolean;
   email?: string | null;
 }
+interface AiThreadDoc {
+  characterId: string;
+  name: string;
+  createdAt: number;
+  readId: number;
+  /** Total messages ever written (ids run 1…total; only the last ones are kept). */
+  total: number;
+  messages: AiMessageRow[];
+}
+const aiKey = (userId: string, characterId: string) =>
+  `ai/${userId}/${encodeURIComponent(characterId)}`;
+
 interface ChatDoc {
   row: ChatRow;
   messages: MessageRow[];
@@ -195,6 +213,9 @@ export class KvAccountStore implements AccountStore {
     await this.kv.delete(`rate/${id}`);
     await this.dropPresence(id);
     await this.kv.delete(`presence-settings/${id}`);
+    const ai = (await this.val<string[]>(`ai-of/${id}`)) ?? [];
+    for (const characterId of ai) await this.kv.delete(aiKey(id, characterId));
+    await this.kv.delete(`ai-of/${id}`);
   }
 
   async createSession(tokenHash: string, userId: string, now: number, ttlMs: number) {
@@ -269,7 +290,12 @@ export class KvAccountStore implements AccountStore {
       .filter((d): d is ChatDoc => !!d)
       .map((d) => {
         const last = d.messages[d.messages.length - 1];
-        return { ...d.row, last_text: last?.text ?? null, last_at: last?.created_at ?? null };
+        return {
+          ...d.row,
+          last_text: last?.text ?? null,
+          last_at: last?.created_at ?? null,
+          last_sender: last?.sender ?? null,
+        };
       })
       .sort((p, q) => (q.last_at ?? q.created_at) - (p.last_at ?? p.created_at));
   }
@@ -366,5 +392,81 @@ export class KvAccountStore implements AccountStore {
     const where = await this.val<{ market: string }>(`presence-of/${userId}`);
     if (where) await this.kv.delete(`presence/${where.market}/${userId}`);
     await this.kv.delete(`presence-of/${userId}`);
+  }
+
+  // ---------------------------------------------------------------- AI chats
+
+  private static aiRow(d: AiThreadDoc): AiThreadRow {
+    const last = d.messages[d.messages.length - 1];
+    return {
+      characterId: d.characterId,
+      name: d.name,
+      createdAt: d.createdAt,
+      lastText: last?.text ?? null,
+      lastAt: last?.at ?? null,
+      lastFromAi: last?.fromAi ?? false,
+      unread: d.messages.filter((m) => m.fromAi && m.id > d.readId).length,
+      count: d.total,
+    };
+  }
+
+  async aiThreads(userId: string) {
+    const ids = ((await this.val<string[]>(`ai-of/${userId}`)) ?? []).slice(-MAX_AI_THREADS);
+    const docs = await Promise.all(ids.map((c) => this.val<AiThreadDoc>(aiKey(userId, c))));
+    return docs
+      .filter((d): d is AiThreadDoc => !!d)
+      .map(KvAccountStore.aiRow)
+      .sort((p, q) => (q.lastAt ?? q.createdAt) - (p.lastAt ?? p.createdAt));
+  }
+
+  async aiThread(userId: string, characterId: string) {
+    const d = await this.val<AiThreadDoc>(aiKey(userId, characterId));
+    return d ? KvAccountStore.aiRow(d) : undefined;
+  }
+
+  async aiMessages(userId: string, characterId: string, limit = 100) {
+    const d = await this.val<AiThreadDoc>(aiKey(userId, characterId));
+    return d ? d.messages.slice(-limit) : [];
+  }
+
+  async addAiMessage(
+    userId: string,
+    characterId: string,
+    name: string,
+    fromAi: boolean,
+    text: string,
+    now: number,
+  ) {
+    let msg: AiMessageRow | undefined;
+    let created = false;
+    await kvJson.update<AiThreadDoc>(this.kv, aiKey(userId, characterId), (d) => {
+      created = !d;
+      const base: AiThreadDoc = d ?? {
+        characterId,
+        name,
+        createdAt: now,
+        readId: 0,
+        total: 0,
+        messages: [],
+      };
+      msg = { id: base.total + 1, fromAi, text, at: now };
+      return {
+        ...base,
+        name,
+        total: base.total + 1,
+        messages: [...base.messages, msg].slice(-MAX_AI_MESSAGES),
+      };
+    });
+    if (created)
+      await kvJson.update<string[]>(this.kv, `ai-of/${userId}`, (l) =>
+        (l ?? []).includes(characterId) ? undefined : [...(l ?? []), characterId],
+      );
+    return msg!;
+  }
+
+  async markAiRead(userId: string, characterId: string) {
+    await kvJson.update<AiThreadDoc>(this.kv, aiKey(userId, characterId), (d) =>
+      d && d.readId !== d.total ? { ...d, readId: d.total } : undefined,
+    );
   }
 }

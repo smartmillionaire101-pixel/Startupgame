@@ -8,6 +8,7 @@ import { INDUSTRIES } from './data/industries.js';
 import { MARKET_IDS, type MarketId } from './data/markets.js';
 import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
+import { INVESTOR_TYPES } from './data/programs.js';
 import { REVENUE_MODELS, STAGES } from './types.js';
 
 const id = z.string().min(1).max(64);
@@ -28,6 +29,8 @@ export const investorSetup = z.object({
   sectors: z.array(industry).min(1).max(INDUSTRIES.length),
   stages: z.array(z.enum(STAGES)).min(1).max(STAGES.length),
   checkSize: money,
+  /** Wave 5: angel, VC, impact or corporate (optional; angel until you run a fund). */
+  type: z.enum(INVESTOR_TYPES).optional(),
 });
 
 export const commandSchema = z.discriminatedUnion('type', [
@@ -80,6 +83,8 @@ export const commandSchema = z.discriminatedUnion('type', [
       })
       .optional(),
     investor: investorSetup.optional(),
+    /** Wave 5: who you are (picks your avatar). Optional so older clients still work. */
+    gender: z.enum(['female', 'male']).optional(),
   }),
   // ---- founder
   z.object({
@@ -199,6 +204,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     stages: z.array(z.enum(STAGES)).min(1),
     checkSize: money,
     why: z.string().min(10).max(200),
+    /** Wave 5: the fund's investor type (default VC). */
+    investorType: z.enum(INVESTOR_TYPES).optional(),
   }),
   // ---- media
   z.object({ type: z.literal('media.accept'), inviteId: id, angle: z.string().max(40) }),
@@ -227,10 +234,13 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('player.travel'), market }),
   /** Wave 4: fly one way to another city and be there (or fly home). */
   z.object({ type: z.literal('travel.fly'), to: market }),
-  /** Wave 4: a bus or taxi across the city you're in. Walking and cycling are free. */
+  /**
+   * Wave 4: a bus or taxi across the city you're in. Walking and cycling are free,
+   * and so is driving your own car in your home city (Wave 5; fuel is in its running cost).
+   */
   z.object({
     type: z.literal('city.ride'),
-    mode: z.enum(['bus', 'taxi']),
+    mode: z.enum(['bus', 'taxi', 'drive']),
     distance: z.enum(['short', 'medium', 'long']),
   }),
   /** Wave 4: "I'm here" (the server sends it, throttled, on authenticated requests). */
@@ -338,7 +348,37 @@ export const commandSchema = z.discriminatedUnion('type', [
     /** Invite someone: a player, a fund, an AI founder or angel, or a contact id. */
     withId: id.optional(),
   }),
+  // ---- life and work (Wave 5)
+  /** A part-time job at a local business in your home city: 40 hours a month, paid monthly. */
+  z.object({ type: z.literal('job.take'), businessId: id, role: z.string().min(1).max(32) }),
+  z.object({ type: z.literal('job.quit') }),
+  /** Furniture for your apartment: one per slot; replacing sells the old one back at 40%. */
+  z.object({ type: z.literal('home.buy'), itemId: z.string().min(1).max(32) }),
+  /** A car: replacing sells the old one back at 50%; running costs are paid monthly. */
+  z.object({ type: z.literal('car.buy'), modelId: z.string().min(1).max(32) }),
+  /** Sell your car back at 50% of what you paid. */
+  z.object({ type: z.literal('car.sell') }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
+  // ---- capital programmes and investor play (Wave 5, section B)
+  z.object({ type: z.literal('accelerator.apply'), acceleratorId: id, companyId: id }),
+  z.object({ type: z.literal('grant.apply'), partnerId: id, programId: id, companyId: id }),
+  /** A player-run fund pitches an LP in the city you're in. */
+  z.object({ type: z.literal('lp.pitch'), lpId: id }),
+  /** One-tap investment in a raising company at model terms (SAFE or priced). */
+  z.object({ type: z.literal('invest.quick'), companyId: id, amount: money }),
+  /**
+   * Pitch an AI angel in person. With `businessId`: where they are right now
+   * (`view.here.angelsAt`), a warm pitch; `treat` buys the coffee for two.
+   */
+  z.object({
+    type: z.literal('pitch.angel'),
+    angelId: id,
+    companyId: id,
+    businessId: id.optional(),
+    treat: z.boolean().optional(),
+  }),
+  /** Pay to broadcast an event you host: more AI guests. */
+  z.object({ type: z.literal('event.broadcast'), eventId: id, spend: money }),
 ]);
 
 export type Command = z.infer<typeof commandSchema>;

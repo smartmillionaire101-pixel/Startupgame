@@ -60,15 +60,13 @@ describe('hosting, RSVPs and cancelling', () => {
     expect(e.month).toBe(m.month);
     expect(e.capacity).toBe(EVENT_KIND_DATA['founder-meetup'].capacity[1]);
 
-    // RSVP: the ticket goes to the host; hours are spent.
+    // RSVP: the ticket goes to the host; no hours (Wave 5: money only).
     const f2Before = bal(w, 'u_f2');
     const f2Hours = w.players.u_f2!.hours.used;
     w = run(w, 'u_f2', { type: 'event.rsvp', eventId: id, going: true }).world;
     expect(bal(w, 'u_f2')).toBe(f2Before - ticket);
     expect(bal(w, 'u_founder')).toBe(hostBefore - cost + ticket);
-    expect(w.players.u_f2!.hours.used - f2Hours).toBe(
-      EVENT_KIND_DATA['founder-meetup'].hoursAttend,
-    );
+    expect(w.players.u_f2!.hours.used - f2Hours).toBe(0);
     expect(tryRun(w, 'u_f2', { type: 'event.rsvp', eventId: id, going: true }).ok).toBe(false);
 
     // Un-RSVP: refunded.

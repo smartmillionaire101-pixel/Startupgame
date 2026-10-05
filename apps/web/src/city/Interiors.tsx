@@ -2,7 +2,7 @@
  * Building interiors: one sheet per place, each reusing the game's existing
  * flows (loans, pitching, discovery, hiring, personal money, travel, news).
  */
-import { useState, type ReactNode } from 'react';
+import { useContext, useState, type ReactNode } from 'react';
 import type { Command } from '@runway/engine';
 import { amountInput, money, parseAmount, pct } from '../format';
 import { t, tx } from '../i18n';
@@ -33,6 +33,8 @@ import { BusinessInterior, JobsBoard, WhoBuysWhat } from './Business';
 import { EventHall } from './Events';
 import { project, type CityLayout, type Place } from './layout';
 import { npcName, type PresenceView } from './people';
+import type { PersonRef } from './PersonCard';
+import { CapitalDetails, InScene, PlaceScene } from './PlaceScene';
 import type { Destination } from './travel';
 
 /** Where a story or rescue action points, as a navigable request. */
@@ -43,6 +45,25 @@ const npcBackgrounds = ['b-commercial', 'i-banker', 'i-operator', 'i-exited', 'b
 
 /** Illustrated header: the building, a person to talk to and a caption. */
 function Scene({
+  place,
+  layout,
+  who,
+  role,
+  tint,
+}: {
+  place: Place;
+  layout: CityLayout;
+  who?: string;
+  role?: string;
+  tint?: string;
+}) {
+  // Inside a full-screen scene the room is the picture: no header.
+  const inScene = useContext(InScene);
+  if (inScene) return null;
+  return <SceneHeader place={place} layout={layout} who={who} role={role} tint={tint} />;
+}
+
+function SceneHeader({
   place,
   layout,
   who,
@@ -740,7 +761,8 @@ function Departures({ desk, homeId }: { desk: FlightDesk; homeId: string | null 
               {d.id === homeId && <Pill tone="good">{t('Home city')}</Pill>}
               <br />
               <span className="small muted">
-                {money(d.fare, desk.currency)} · {t('{n}h flight', { n: d.hours })}
+                {money(d.fare, desk.currency)}
+                {d.hours > 0 ? ` · ${t('{n}h flight', { n: d.hours })}` : ''}
               </span>
             </span>
             {d.done ? (
@@ -868,6 +890,8 @@ export function Interior({
   desk,
   away = null,
   homeId = null,
+  scene = false,
+  onPerson,
 }: {
   place: Place;
   layout: CityLayout;
@@ -885,6 +909,10 @@ export function Interior({
   away?: Away | null;
   /** Your home market, marked on the departures board. */
   homeId?: string | null;
+  /** Wave 5: a full-screen scene with people and a tray (off in lite mode: the cards). */
+  scene?: boolean;
+  /** Someone in the scene was tapped. */
+  onPerson?: (p: PersonRef) => void;
 }) {
   const body = (() => {
     switch (place.kind) {
@@ -921,8 +949,28 @@ export function Interior({
         return <NewsstandInterior place={place} layout={layout} nav={nav} />;
       case 'eventhall':
         return <EventHallInterior place={place} layout={layout} />;
+      case 'capital':
+        return <CapitalDetails place={place} />;
     }
   })();
+  if (scene)
+    return (
+      <InScene.Provider value={true}>
+        <PlaceScene
+          place={place}
+          title={title}
+          onClose={onClose}
+          onPerson={(p) => onPerson?.(p)}
+          onVisit={onVisit}
+          nav={nav}
+          players={players}
+          abroad={!!away}
+          onFlyHome={away?.onFlyHome}
+        >
+          {body}
+        </PlaceScene>
+      </InScene.Provider>
+    );
   return (
     <InteriorSheet title={title} onClose={onClose}>
       {body}

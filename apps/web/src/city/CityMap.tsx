@@ -39,6 +39,7 @@ import {
   TH,
   TW,
   unproject,
+  BEACH_W,
   MARGIN,
   type Boat,
   type Bridge,
@@ -131,25 +132,67 @@ const rect = (x0: number, y0: number, x1: number, y1: number, z = 0) =>
   [P(x0, y0, z), P(x1, y0, z), P(x1, y1, z), P(x0, y1, z)].join(' ');
 
 /** Sand along a coast, between the land and the water. */
-function shoreOf(w: Water, E: number): [number, number, number, number] {
+function shoreOf(w: Water, E: number, wide = 1.9): [number, number, number, number] {
   const m = MARGIN;
   switch (w.side) {
     case 'south':
-      return [-m, E + 1.1, E + m, E + 1.9];
+      return [-m, E + 1.1, E + m, E + wide];
     case 'north':
-      return [-m, -1.9, E + m, -1.1];
+      return [-m, -wide, E + m, -1.1];
     case 'east':
-      return [E + 1.1, -m, E + 1.9, E + m];
+      return [E + 1.1, -m, E + wide, E + m];
     default:
-      return [-1.9, -m, -1.1, E + m];
+      return [-wide, -m, -1.1, E + m];
   }
 }
 
-function WaterBody({ w, E }: { w: Water; E: number }) {
+const UMBRELLAS = ['#f43f5e', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7'];
+
+function WaterBody({ w, E, beach }: { w: Water; E: number; beach?: string }) {
   const out: ReactNode[] = [];
   if (w.kind === 'edge') {
-    const [a, b, c, d] = shoreOf(w, E);
+    const [a, b, c, d] = shoreOf(w, E, beach ? BEACH_W + 0.1 : 1.9);
     out.push(<polygon key="shore" points={rect(a, b, c, d)} fill="#f5e6c4" />);
+    if (beach) {
+      // Lumley Beach: umbrellas and loungers along the sand, and its name.
+      const along = w.side === 'north' || w.side === 'south';
+      const mid = (along ? b + d : a + c) / 2;
+      for (let k = 0; k < 9; k++) {
+        const u = 1 + k * ((E - 2) / 8);
+        const at = along ? project(u, mid) : project(mid, u);
+        out.push(
+          <g key={`umb${k}`} data-beach-umbrella>
+            <line x1={at.x} y1={at.y} x2={at.x} y2={at.y - 12} stroke="#78716c" strokeWidth="1" />
+            <path
+              d={`M ${at.x - 8} ${at.y - 11} Q ${at.x} ${at.y - 19} ${at.x + 8} ${at.y - 11} Z`}
+              fill={UMBRELLAS[k % UMBRELLAS.length]}
+            />
+            <rect
+              x={at.x + 3}
+              y={at.y - 2}
+              width="8"
+              height="3"
+              rx="1"
+              fill="#fff"
+              opacity="0.85"
+            />
+          </g>,
+        );
+      }
+      const c0 = along ? project(E / 2, mid) : project(mid, E / 2);
+      out.push(
+        <text
+          key="beach-name"
+          x={c0.x}
+          y={c0.y + 12}
+          textAnchor="middle"
+          className="city-landmark-name"
+          data-beach={beach}
+        >
+          {beach}
+        </text>,
+      );
+    }
   } else {
     // Stone embankments either side of the river.
     const along = w.x1 - w.x0 > w.y1 - w.y0;
@@ -256,7 +299,16 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
   const edges = waters.filter((w) => w.kind === 'edge');
   const rivers = waters.filter((w) => w.kind === 'river');
   // Coasts behind everything; hills (or mine dumps) on the horizon when the back is dry.
-  edges.forEach((w, n) => out.push(<WaterBody key={`edge${n}`} w={w} E={E} />));
+  edges.forEach((w, n) =>
+    out.push(
+      <WaterBody
+        key={`edge${n}`}
+        w={w}
+        E={E}
+        beach={layout.beach?.side === w.side ? layout.beach.name : undefined}
+      />,
+    ),
+  );
   if (!edges.some((w) => w.side === 'north') && (planned || f.edge !== 'water')) {
     const edgeColor = f.edge === 'water' ? f.parkEdge : f.edgeColor;
     for (let k = 0; k < 6; k++) {
@@ -429,7 +481,7 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
       const o = project(mid + 0.6, st.k * B - 0.06);
       out.push(
         <text
-          key={`sn${st.axis}${st.k}`}
+          key={`sn${st.axis}${st.k}:${st.seg}`}
           className="city-street-name"
           transform={`matrix(${TW * s},${TH * s},${-TW * s},${TH * s},${o.x},${o.y})`}
           fontSize="4.6"
@@ -441,7 +493,7 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
       const o = project(st.k * B + 0.06, mid + B - 0.6);
       out.push(
         <text
-          key={`sn${st.axis}${st.k}`}
+          key={`sn${st.axis}${st.k}:${st.seg}`}
           className="city-street-name"
           transform={`matrix(${TW * s},${-TH * s},${TW * s},${TH * s},${o.x},${o.y})`}
           fontSize="4.6"
@@ -730,7 +782,11 @@ const Labels = memo(function Labels({
   layout: CityLayout;
   labelOf: (p: Place) => string;
 }) {
-  const { labels, areas } = placeLabels(layout, labelOf, districtLabel('market'));
+  const { labels, areas } = placeLabels(
+    layout,
+    labelOf,
+    layout.marketName ?? districtLabel('market'),
+  );
   return (
     <g className="city-labels" pointerEvents="none">
       {areas.map((a) => (
@@ -763,6 +819,23 @@ const Labels = memo(function Labels({
           return (
             <text key="water" x={c.x} y={c.y + 4} className="city-water-name" textAnchor="middle">
               {w.name}
+            </text>
+          );
+        })}
+      {layout.decor
+        .filter((d) => d.kind === 'landmark' && d.name)
+        .map((d) => {
+          const c = project(d.x, d.y);
+          return (
+            <text
+              key={`lm${d.name}`}
+              x={c.x}
+              y={c.y + 30}
+              textAnchor="middle"
+              className="city-landmark-name"
+              data-landmark-name={d.name}
+            >
+              {d.name}
             </text>
           );
         })}

@@ -8,7 +8,8 @@
  * always renders and simply gets richer once the engine sends more.
  */
 import type { Command, PlayerView } from '@runway/engine';
-import type { CityInput } from './layout';
+import type { CapitalInput, CityInput } from './layout';
+import { acceleratorsOf, devPartnersOf, lpsOf } from './life';
 
 export type LenderKind =
   'high-street' | 'challenger' | 'government' | 'development' | 'microfinance' | 'fintech';
@@ -291,7 +292,14 @@ export const activeCompany = (view: Pick<PlayerView, 'companies'>) =>
 /** Everything the layout needs from the view, with fallbacks applied. */
 export function cityInput(view: PlayerView): CityInput {
   const c = activeCompany(view);
+  // Wave 5: accelerators, development partners and LPs get offices in town.
+  const capital: CapitalInput[] = [
+    ...acceleratorsOf(view).map((a) => ({ id: a.id, name: a.name, kind: 'accelerator' as const })),
+    ...devPartnersOf(view).map((d) => ({ id: d.id, name: d.name, kind: 'devpartner' as const })),
+    ...lpsOf(view).map((l) => ({ id: l.id, name: l.name, kind: 'lp' as const })),
+  ];
   return {
+    ...(capital.length ? { capital } : {}),
     marketId: view.market.id,
     lenders: lendersOf(view).map((l) => ({ id: l.id, name: l.name, look: l.look })),
     playerBanks: view.market.banks.map((b) => ({ id: b.id, name: b.name })),
@@ -406,6 +414,8 @@ export interface BusinessView {
   name: string;
   kind: string;
   kindLabel: string;
+  /** Wave 5: the real street it stands on. */
+  street?: string;
   category: BusinessCategory;
   district: string;
   owner: { name: string };
@@ -439,6 +449,7 @@ function normBusiness(raw: unknown): BusinessView | null {
     name: raw.name,
     kind: strOf(raw.kind, 'shop'),
     kindLabel: strOf(raw.kindLabel, strOf(raw.kind, 'Shop')),
+    ...(typeof raw.street === 'string' && raw.street ? { street: raw.street } : {}),
     category,
     district: strOf(raw.district),
     owner: { name: strOf(isObj(raw.owner) ? raw.owner.name : undefined, '—') },

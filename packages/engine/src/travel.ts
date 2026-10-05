@@ -16,7 +16,6 @@ import {
   col,
   holderAccount,
   getMarket,
-  hoursLeft,
   locationOf,
   notify,
   spendHours,
@@ -69,7 +68,8 @@ export const isVisiting = (world: World, p: Player, market: MarketId) =>
 
 // ---------------------------------------------------------------- Flights (Wave 4)
 
-export const FLIGHT_HOURS = 4;
+/** Wave 5: flights cost money only (no hours). Kept for older clients. */
+export const FLIGHT_HOURS = 0;
 export const MAX_FLIGHTS_PER_MONTH = 6;
 
 /** One-way fare in USD: half a round trip (§14). */
@@ -115,7 +115,6 @@ export function fly(world: World, p: Player, to: MarketId, now: number) {
     'travel.funds',
     `The flight costs ${formatMoney(cost, home.data.currency)}; you don’t have it.`,
   );
-  spendHours(p, goingHome ? Math.min(FLIGHT_HOURS, hoursLeft(p)) : FLIGHT_HOURS, 'A flight');
   transfer(
     world,
     p.accounts.local,
@@ -139,31 +138,47 @@ export function fly(world: World, p: Player, to: MarketId, now: number) {
     location: p.location ? { market: to, name: dest.data.name, sinceAt: now } : null,
     text:
       to === p.market
-        ? `Welcome home to ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}, ${FLIGHT_HOURS}h.`
-        : `You’ve landed in ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}, ${FLIGHT_HOURS}h.`,
+        ? `Welcome home to ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}.`
+        : `You’ve landed in ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}.`,
   };
 }
 
 // ---------------------------------------------------------------- Getting around town (Wave 4)
 
-export type RideMode = 'bus' | 'taxi';
+export type FareMode = 'bus' | 'taxi';
+/** Wave 5: 'drive' is your own car, free in your home city. */
+export type RideMode = FareMode | 'drive';
 export type RideDistance = 'short' | 'medium' | 'long';
 export const MAX_RIDES_PER_MONTH = 30;
 
 /** Fares as a share of the city's monthly cost of living. */
-export const RIDE_FARE_COL: Record<RideMode, Record<RideDistance, number>> = {
+export const RIDE_FARE_COL: Record<FareMode, Record<RideDistance, number>> = {
   bus: { short: 0.002, medium: 0.0035, long: 0.005 },
   taxi: { short: 0.01, medium: 0.02, long: 0.035 },
 };
 
 /** A fare in the local currency of the city the player is in (minor units). */
-export const rideFare = (world: World, market: MarketId, mode: RideMode, distance: RideDistance) =>
+export const rideFare = (world: World, market: MarketId, mode: FareMode, distance: RideDistance) =>
   Math.max(1, scale(col(getMarket(world, market)), RIDE_FARE_COL[mode][distance]));
 
 /** Take a bus or a taxi across the city you're in, paid to its suppliers (converted if abroad). */
 export function ride(world: World, p: Player, mode: RideMode, distance: RideDistance) {
   const home = getMarket(world, p.market);
   const m = getMarket(world, locationOf(p));
+  if (mode === 'drive') {
+    ensure(p.car, 'ride.car', 'You don’t have a car. Buy one at a car dealership.');
+    ensure(m.id === p.market, 'ride.car', 'Your car is at home. Take a bus or a taxi here.');
+    return {
+      mode,
+      distance,
+      market: m.id,
+      fare: 0,
+      currency: m.data.currency,
+      paid: 0,
+      ridesLeft: MAX_RIDES_PER_MONTH - (p.rides?.month === home.month ? p.rides.count : 0),
+      text: 'You drove: fuel is in your car’s running costs.',
+    };
+  }
   const used = p.rides?.month === home.month ? p.rides.count : 0;
   ensure(
     used < MAX_RIDES_PER_MONTH,

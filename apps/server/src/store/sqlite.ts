@@ -11,6 +11,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import type {
+  AiMessageRow,
+  AiThreadRow,
   AccountRow,
   AccountStore,
   EmailTokenRow,
@@ -106,6 +108,24 @@ const MIGRATIONS: string[] = [
      user_id TEXT,
      expires_at INTEGER NOT NULL
    );`,
+  // Wave 5: chats with AI characters, one thread per player and character.
+  `CREATE TABLE ai_threads (
+     user_id TEXT NOT NULL,
+     character_id TEXT NOT NULL,
+     name TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     read_id INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (user_id, character_id)
+   );
+   CREATE TABLE ai_messages (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     user_id TEXT NOT NULL,
+     character_id TEXT NOT NULL,
+     from_ai INTEGER NOT NULL,
+     text TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   );
+   CREATE INDEX ai_messages_thread ON ai_messages(user_id, character_id, id);`,
 ];
 
 /** Presence rows this much older than the caller's window are deleted. */
@@ -239,6 +259,8 @@ export class Store implements AccountStore {
       this.db.prepare('DELETE FROM chats WHERE a = ? OR b = ?').run(id, id);
       this.db.prepare('DELETE FROM presence WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM presence_settings WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM ai_messages WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM ai_threads WHERE user_id = ?').run(id);
     });
   }
 
@@ -345,10 +367,14 @@ export class Store implements AccountStore {
     return this.db.prepare('SELECT * FROM chats WHERE id = ?').get(id) as ChatRow | undefined;
   }
 
-  chatsFor(userId: string): (ChatRow & { last_text: string | null; last_at: number | null })[] {
+  chatsFor(userId: string): (ChatRow & {
+    last_text: string | null;
+    last_at: number | null;
+    last_sender: string | null;
+  })[] {
     return this.db
       .prepare(
-        `SELECT c.*, m.text AS last_text, m.created_at AS last_at FROM chats c
+        `SELECT c.*, m.text AS last_text, m.created_at AS last_at, m.sender AS last_sender FROM chats c
          LEFT JOIN chat_messages m ON m.id = (SELECT MAX(id) FROM chat_messages WHERE chat_id = c.id)
          WHERE c.a = ? OR c.b = ? ORDER BY COALESCE(m.created_at, c.created_at) DESC LIMIT 100`,
       )
@@ -438,5 +464,101 @@ export class Store implements AccountStore {
         .run(userId, visible ? 1 : 0);
       if (!visible) this.db.prepare('DELETE FROM presence WHERE user_id = ?').run(userId);
     });
+  }
+
+  // ---------------------------------------------------------------- AI chats
+
+  private static readonly AI_THREAD_SQL = `
+    SELECT t.character_id AS characterId, t.name, t.created_at AS createdAt,
+      m.text AS lastText, m.created_at AS lastAt, COALESCE(m.from_ai, 0) AS lastFromAi,
+      (SELECT COUNT(*) FROM ai_messages u WHERE u.user_id = t.user_id
+         AND u.character_id = t.character_id AND u.from_ai = 1 AND u.id > t.read_id) AS unread,
+      (SELECT COUNT(*) FROM ai_messages c WHERE c.user_id = t.user_id
+         AND c.character_id = t.character_id) AS count
+    FROM ai_threads t
+    LEFT JOIN ai_messages m ON m.id = (SELECT MAX(id) FROM ai_messages
+      WHERE user_id = t.user_id AND character_id = t.character_id)`;
+
+  private static aiThreadRow(r: Record<string, unknown>): AiThreadRow {
+    return {
+      characterId: r.characterId as string,
+      name: r.name as string,
+      createdAt: r.createdAt as number,
+      lastText: (r.lastText as string | null) ?? null,
+      lastAt: (r.lastAt as number | null) ?? null,
+      lastFromAi: r.lastFromAi === 1,
+      unread: Number(r.unread),
+      count: Number(r.count),
+    };
+  }
+
+  aiThreads(userId: string): AiThreadRow[] {
+    return (
+      this.db
+        .prepare(
+          `${Store.AI_THREAD_SQL} WHERE t.user_id = ?
+           ORDER BY COALESCE(m.id, 0) DESC, t.created_at DESC LIMIT 100`,
+        )
+        .all(userId) as Record<string, unknown>[]
+    ).map(Store.aiThreadRow);
+  }
+
+  aiThread(userId: string, characterId: string): AiThreadRow | undefined {
+    const r = this.db
+      .prepare(`${Store.AI_THREAD_SQL} WHERE t.user_id = ? AND t.character_id = ?`)
+      .get(userId, characterId) as Record<string, unknown> | undefined;
+    return r ? Store.aiThreadRow(r) : undefined;
+  }
+
+  aiMessages(userId: string, characterId: string, limit = 100): AiMessageRow[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT id, from_ai, text, created_at FROM ai_messages
+           WHERE user_id = ? AND character_id = ? ORDER BY id DESC LIMIT ?`,
+        )
+        .all(userId, characterId, limit) as {
+        id: number;
+        from_ai: number;
+        text: string;
+        created_at: number;
+      }[]
+    )
+      .reverse()
+      .map((m) => ({ id: m.id, fromAi: m.from_ai === 1, text: m.text, at: m.created_at }));
+  }
+
+  addAiMessage(
+    userId: string,
+    characterId: string,
+    name: string,
+    fromAi: boolean,
+    text: string,
+    now: number,
+  ): AiMessageRow {
+    return this.tx(() => {
+      this.db
+        .prepare(
+          `INSERT INTO ai_threads (user_id, character_id, name, created_at) VALUES (?, ?, ?, ?)
+           ON CONFLICT(user_id, character_id) DO UPDATE SET name = excluded.name`,
+        )
+        .run(userId, characterId, name, now);
+      const r = this.db
+        .prepare(
+          'INSERT INTO ai_messages (user_id, character_id, from_ai, text, created_at) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run(userId, characterId, fromAi ? 1 : 0, text, now);
+      return { id: Number(r.lastInsertRowid), fromAi, text, at: now };
+    });
+  }
+
+  markAiRead(userId: string, characterId: string) {
+    this.db
+      .prepare(
+        `UPDATE ai_threads SET read_id = COALESCE((SELECT MAX(id) FROM ai_messages
+           WHERE user_id = ? AND character_id = ?), 0)
+         WHERE user_id = ? AND character_id = ?`,
+      )
+      .run(userId, characterId, userId, characterId);
   }
 }

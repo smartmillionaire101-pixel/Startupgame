@@ -45,8 +45,10 @@ export const accra: CityPlan = {
   landmarks: [
     { kind: 'star-gate', name: 'Black Star Gate', at: [3, 5] },
     { kind: 'lighthouse', name: 'Jamestown Lighthouse', at: [0, 6] },
+    { kind: 'market-hall', name: 'Kaneshie Market', at: [1, 4] },
   ],
   transit: ['bus', 'okada'],
+  marketName: 'Makola Market',
   streetNames: [
     'Oxford Street',
     'Liberation Road',

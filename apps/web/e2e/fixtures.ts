@@ -54,6 +54,11 @@ export const digits = (n = 7) => pick('0123456789', n);
 /** Start a game as a guest: tick the 18+ box, then Play now (English or French). */
 export async function playAsGuest(page: Page, lang: 'en' | 'fr' = 'en') {
   await page.goto('/');
+  // Wait for the guest session itself, not just the click: on a deployed site
+  // the next request can otherwise go out before the session cookie exists.
+  const signedIn = page.waitForResponse(
+    (r) => r.url().endsWith('/api/auth/guest') && r.request().method() === 'POST',
+  );
   if (lang === 'fr') {
     await page.getByLabel('Je confirme avoir 18 ans ou plus').check();
     await page.getByRole('button', { name: 'Jouer maintenant' }).click();
@@ -61,6 +66,8 @@ export async function playAsGuest(page: Page, lang: 'en' | 'fr' = 'en') {
     await page.getByLabel('I confirm I’m 18 or older').check();
     await page.getByRole('button', { name: 'Play now' }).click();
   }
+  const res = await signedIn;
+  if (!res.ok()) throw new Error(`Guest sign-in failed: ${res.status()} ${await res.text()}`);
 }
 
 /**
@@ -79,5 +86,23 @@ export async function tapPlace(page: Page, selector: string, mode = 'walk') {
   if (far) await chooser.locator(`[data-mode="${mode}"]`).click();
 }
 
+/**
+ * Wave 5: going into a place opens a full-screen scene (the room, its people
+ * and a tray of things to do). "More" shows the detailed cards; returns the scene.
+ */
+export async function more(page: Page) {
+  const scene = page.locator('.place-scene');
+  await scene.waitFor({ timeout: 10_000 });
+  await scene.locator('.tray-more').click();
+  return scene;
+}
+
 /** A random address on a reserved domain: never receives real mail. */
 export const randomEmail = () => `e2e-${letters(10)}@example.com`;
+
+/** A bottom-bar tab, matched exactly (alerts and other buttons can share its word). */
+export const tab = (page: Page, name: string) =>
+  page
+    .getByRole('navigation', { name: 'Main' })
+    // The name can carry a badge count ("Home 3").
+    .getByRole('button', { name: new RegExp(`^${name}(\\s+\\d+)?$`) });

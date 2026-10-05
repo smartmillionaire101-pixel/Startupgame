@@ -43,6 +43,8 @@ export function holderAccount(world: World, m: MarketState, holderId: string): I
 export function externalHolderAccount(m: MarketState, holderId: string): Id {
   if (holderId.startsWith('bank:')) return m.ext.bank;
   if (holderId.startsWith('cb:')) return m.ext.tax;
+  // Accelerators (Wave 5) invest from, and are repaid to, the LP side of the world.
+  if (holderId.startsWith('accel:')) return m.ext.lps;
   return m.ext.payroll;
 }
 export const NEWS_LIMIT = 120;

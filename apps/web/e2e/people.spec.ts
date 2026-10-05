@@ -1,5 +1,5 @@
 import { devices, type Page } from '@playwright/test';
-import { expect, letters, test, withoutNetlifyDrawer, playAsGuest } from './fixtures';
+import { expect, letters, more, test, withoutNetlifyDrawer, playAsGuest } from './fixtures';
 
 /**
  * Wave 2: people in the city. AI characters and the person card always run;
@@ -12,6 +12,7 @@ async function signUpFounder(page: Page, name: string) {
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
+  await page.getByRole('button', { name: 'Female', exact: true }).click();
   await page.getByLabel('Your name').fill(name);
   await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();
@@ -51,6 +52,7 @@ async function openPlace(page: Page, kind: string) {
     .locator(`[data-kind="${kind}"]`)
     .first()
     .click();
+  await more(page);
 }
 
 test('AI characters stroll the city and open a person card when tapped', async ({ page }) => {
@@ -71,6 +73,7 @@ test('AI characters stroll the city and open a person card when tapped', async (
   await expect(card.getByRole('button', { name: 'Pitch' })).toBeEnabled();
   // Visiting walks you to the office and goes in.
   await card.getByRole('button', { name: 'Visit their office' }).click();
+  await more(page);
   await expect(page.getByRole('dialog').getByText('Thesis')).toBeVisible({ timeout: 8000 });
   await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
 
@@ -104,8 +107,8 @@ test('AI characters stroll the city and open a person card when tapped', async (
 
 test('two players see each other, chat, and meet at an event', async ({ page: a, browser }) => {
   const { defaultBrowserType: _, ...phone } = devices['Pixel 7'];
-  // Two sign-ups, presence polling and a month's settlement over the network.
-  if (process.env.E2E_BASE_URL) test.slow();
+  // Two sign-ups, presence polling and a month's settlement: a long scenario.
+  test.slow();
   const b = await (
     await browser.newContext({ ...phone, baseURL: test.info().project.use.baseURL })
   ).newPage();

@@ -10,9 +10,12 @@ import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { applyStarEvent } from './stars.js';
 import { settlePersonalLoans } from './credit.js';
+import { JOB_HOURS, payJob } from './economy.js';
+import { comfortEnergy, settleCar } from './shop.js';
 import type { Player, World } from './types.js';
 
-export const GIGS_PER_MONTH = 2;
+/** Gigs a month (Wave 5: up from 2), shared with gigs at businesses. */
+export const GIGS_PER_MONTH = 8;
 export const BURNOUT_ENERGY = 25;
 export const OVERWORK_HOURS = 170;
 
@@ -38,6 +41,9 @@ export function settlePerson(world: World, p: Player, month: number) {
   const m = getMarket(world, p.market);
   // Banks debit loan repayments before anything else.
   settlePersonalLoans(world, p, month);
+  // Wave 5: your wage arrives from the business till, then the car's running costs go out.
+  payJob(world, p, month);
+  settleCar(world, p, month);
   const cost = lifestyleCost(world, p);
   const paid = transferUpTo(
     world,
@@ -67,7 +73,8 @@ export function settlePerson(world: World, p: Player, month: number) {
     }
   }
   const overwork = Math.max(0, p.hours.used - OVERWORK_HOURS) * 0.3;
-  p.energy = clamp(p.energy + tierOf(p).recovery - 18 - overwork, 0, 100);
+  // A comfortable home helps you recover (Wave 5).
+  p.energy = clamp(p.energy + tierOf(p).recovery + comfortEnergy(p) - 18 - overwork, 0, 100);
   const wasBurnt = p.burnout;
   p.burnout = p.energy < BURNOUT_ENERGY;
   if (p.burnout && !wasBurnt)
@@ -77,6 +84,8 @@ export function settlePerson(world: World, p: Player, month: number) {
       text: 'You’re burning out. Fewer hours and worse decisions until you rest.',
     });
   p.hours = { available: computeHours(p), used: 0 };
+  // A job takes its hours at the start of every month (Wave 5).
+  if (p.job) p.hours.used = Math.min(p.hours.available, JOB_HOURS);
   p.gigsThisMonth = 0;
   // Lavish lifestyles at struggling companies attract tabloid attention (§4).
   const tier = tierOf(p);
@@ -104,11 +113,33 @@ export function setLifestyle(world: World, p: Player, tier: number) {
   return { cost: lifestyleCost(world, p) };
 }
 
+/**
+ * Wave 5: "zero personal cash": less than 2% of a month's living costs at
+ * home and nothing in a dollar account. Broke founders can always take the
+ * agency gig (no monthly cap, and whatever hours they have left).
+ */
+export function isBroke(world: World, p: Player): boolean {
+  const m = getMarket(world, p.market);
+  const local = account(world, p.accounts.local).balance;
+  const usd = p.accounts.usd ? account(world, p.accounts.usd).balance : 0;
+  return local < scale(col(m), 0.02) && usd <= 0;
+}
+
 /** The floor (§13): nobody is ever locked out. */
 export function takeGig(world: World, p: Player, month: number) {
   const m = getMarket(world, p.market);
-  ensure(p.gigsThisMonth < GIGS_PER_MONTH, 'gig.limit', `At most ${GIGS_PER_MONTH} gigs a month.`);
-  spendHours(p, m.data.floorGig.hours, 'A freelance gig');
+  const broke = isBroke(world, p);
+  if (broke) {
+    // Never stuck: no cap, and it fits whatever hours are left.
+    p.hours.used = Math.min(p.hours.available, p.hours.used + m.data.floorGig.hours);
+  } else {
+    ensure(
+      p.gigsThisMonth < GIGS_PER_MONTH,
+      'gig.limit',
+      `At most ${GIGS_PER_MONTH} gigs a month.`,
+    );
+    spendHours(p, m.data.floorGig.hours, 'A freelance gig');
+  }
   const pay = m.data.floorGig.pay * 100;
   transfer(world, m.ext.gigs, p.accounts.local, pay, 'Freelance consulting gig', month);
   const tax = Math.round(pay * m.data.tax.personalIncome);

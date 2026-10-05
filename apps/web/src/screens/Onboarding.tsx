@@ -5,6 +5,7 @@ import { money, parseAmount, titleCase } from '../format';
 import { t, tx } from '../i18n';
 import { useGame } from '../store';
 import { Button, Field, Pill } from '../ui';
+import { AvatarFigure, avatarLook } from '../city/art';
 
 type Role = 'founder' | 'investor' | 'banker';
 
@@ -57,6 +58,7 @@ export function Onboarding() {
   const [backgroundId, setBackgroundId] = useState('');
   const [market, setMarket] = useState<MarketId>('lagos');
   const [name, setName] = useState('');
+  const [gender, setGender] = useState<'female' | 'male' | ''>('');
   const [handle, setHandle] = useState('');
   const [company, setCompany] = useState('');
   const [industry, setIndustry] = useState<Industry>('fintech');
@@ -106,7 +108,16 @@ export function Onboarding() {
   const m = meta.markets.find((x) => x.id === market)!;
 
   const finish = async () => {
-    const base = { type: 'player.create' as const, handle, name, role, backgroundId, market };
+    // Wave 5: who you are (the engine stores it once section A lands; older ones ignore it).
+    const base = {
+      type: 'player.create' as const,
+      handle,
+      name,
+      role,
+      backgroundId,
+      market,
+      ...(gender ? { gender } : {}),
+    };
     const cmd: Command =
       role === 'founder'
         ? {
@@ -124,6 +135,7 @@ export function Onboarding() {
   };
 
   const canSetup =
+    gender !== '' &&
     name.trim().length >= 1 &&
     handleCheck?.ok === true &&
     (role === 'founder'
@@ -242,6 +254,23 @@ export function Onboarding() {
 
       {step === 3 && (
         <section className="card">
+          <div className="gender-pick" role="group" aria-label={t('You are')}>
+            {(['female', 'male'] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                className="choice"
+                aria-pressed={gender === g}
+                data-gender={g}
+                onClick={() => setGender(g)}
+              >
+                <svg viewBox="-16 -46 32 50" width="52" height="82" aria-hidden="true">
+                  <AvatarFigure look={avatarLook(backgroundId, `preview:${handle || name}`, g)} />
+                </svg>
+                <span className="item-title">{g === 'female' ? t('Female') : t('Male')}</span>
+              </button>
+            ))}
+          </div>
           <Field label={t('Your name')}>
             {(id) => (
               <input
