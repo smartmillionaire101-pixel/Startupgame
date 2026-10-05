@@ -51,6 +51,6 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await expect(date).not.toHaveText(before);
 
   // The news digest is reachable.
-  await page.getByRole('button', { name: 'News' }).click();
+  await page.getByRole('button', { name: 'News', exact: true }).click();
   await expect(page.getByText(/Lagos daily digest/)).toBeVisible();
 });
