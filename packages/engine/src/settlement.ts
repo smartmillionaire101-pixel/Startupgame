@@ -14,6 +14,7 @@ import {
   updateFundMood,
 } from './ai.js';
 import { angelsInvest } from './angels.js';
+import { appointGovernor, settlePrograms } from './programs.js';
 import { settleCompany } from './company.js';
 import { updateLenderAppetite } from './capital.js';
 import { settleSegment } from './customers.js';
@@ -126,6 +127,8 @@ export function settleMarket(
   aiFundsInvest(world, marketId, rng, month);
   // AI angels back raising companies, AI and human (own RNG stream: 'angels').
   angelsInvest(world, marketId, month);
+  // Accelerators, grants and LPs decide; mentoring, demo days, grant reports (Wave 5).
+  settlePrograms(world, marketId, month);
   for (const f of Object.values(world.funds)) {
     if (f.market !== marketId) continue;
     updateFundMood(world, f);
@@ -146,6 +149,8 @@ export function settleMarket(
   const bankRng = deriveRng(world.seed, 'banks', marketId, month);
   aiBanking(world, marketId, bankRng);
   settleBanks(world, marketId, bankRng, month);
+  // Each quarter the best human banker may become central bank governor (Wave 5).
+  appointGovernor(world, marketId, month);
 
   settleVotes(world, marketId, month);
   settleDisputes(world, marketId, month);

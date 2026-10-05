@@ -30,6 +30,14 @@ import { fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
+import {
+  applyAccelerator,
+  applyGrant,
+  broadcastEvent,
+  pitchAngel,
+  pitchLp,
+  quickInvest,
+} from './programs.js';
 import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
 import { proposeAcquisition } from './acquisitions.js';
 import { boardOf, castVote, openVote } from './governance.js';
@@ -566,12 +574,14 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     }
     case 'fund.raise': {
       spendHours(me, 15, 'An LP panel');
-      return raiseFund(
+      const raised = raiseFund(
         world,
         me,
         { sectors: cmd.sectors, stages: cmd.stages, checkSize: cmd.checkSize, why: cmd.why },
         month,
       );
+      if (raised.ok && cmd.investorType) raised.fund.investorType = cmd.investorType;
+      return raised;
     }
     // ------------------------------------------------------------ media
     case 'media.accept':
@@ -890,6 +900,24 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return buyCar(world, me, cmd.modelId);
     case 'car.sell':
       return sellCar(world, me);
+    // ------------------------------------------------------------ capital programmes (Wave 5)
+    case 'accelerator.apply':
+      return applyAccelerator(world, me, cmd.acceleratorId, cmd.companyId);
+    case 'grant.apply':
+      return applyGrant(world, me, cmd.partnerId, cmd.programId, cmd.companyId);
+    case 'lp.pitch':
+      return pitchLp(world, me, cmd.lpId);
+    case 'invest.quick':
+      return quickInvest(world, me, cmd.companyId, cmd.amount);
+    case 'pitch.angel':
+      return pitchAngel(world, me, {
+        angelId: cmd.angelId,
+        companyId: cmd.companyId,
+        businessId: cmd.businessId,
+        treat: cmd.treat,
+      });
+    case 'event.broadcast':
+      return broadcastEvent(world, me, cmd.eventId, cmd.spend);
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;

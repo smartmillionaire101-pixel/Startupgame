@@ -345,12 +345,14 @@ export function expectedFill(world: World, e: CityEvent): number {
   const stars = starMultiplier(host?.stars.value ?? 1);
   const investorEvent = e.kind === 'investor-breakfast' || e.kind === 'demo-day';
   const depth = investorEvent ? 0.5 + 0.5 * Math.min(1, Math.sqrt(CAPITAL[m.id].vcDepth)) : 1;
-  return clamp(k.baseTurnout * budget * stars * depth, 0.05, 1);
+  // A broadcast (Wave 5) reaches people who'd never have heard: up to +50% turnout.
+  const reach = 1 + 0.5 * Math.min(1, (e.broadcast ?? 0) / (ref * 1.5));
+  return clamp(k.baseTurnout * budget * stars * depth * reach, 0.05, 1);
 }
 
 type Guest = { kind: ContactKind; refId: Id; name: string };
 
-function guestPool(world: World, e: CityEvent, m: MarketState): Guest[] {
+export function guestPool(world: World, e: CityEvent, m: MarketState): Guest[] {
   const funds = (): Guest[] =>
     Object.values(world.funds)
       .filter((f) => f.ai && f.market === m.id)
@@ -486,7 +488,11 @@ function holdEvent(world: World, e: CityEvent, month: number) {
           ? ' Fund partners swapped numbers.'
           : '';
   outcome.summary = `${aiGuests + humans.length} came (${pct}% full).${extra}`;
-  e.outcome = outcome;
+  // Who came, by name (Wave 5): the first guests of the shuffled pool.
+  e.outcome = {
+    ...outcome,
+    aiNames: pool.slice(0, Math.min(aiGuests, 40)).map((g) => ({ name: g.name, kind: g.kind })),
+  };
   e.status = 'held';
 
   for (const p of humans) {

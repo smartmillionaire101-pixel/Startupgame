@@ -186,12 +186,26 @@ export function corporateOffers(world: World, market: MarketId, rng: Rng, month:
   }
 }
 
-/** Keep markets populated; AI founders step back as real founders arrive (AI incumbents stay forever). */
+/** Fewest AI startups a market keeps, so the economy stays liquid whoever joins. */
+export const AI_STARTUPS_MIN = 4;
+
+/**
+ * AI startups a market keeps: one fewer for every three human founders, and
+ * (Wave 5) one fewer for every six other human players, never below the minimum.
+ */
+export function aiStartupTarget(world: World, market: MarketId): number {
+  const humans = Object.values(world.players).filter((p) => !p.ai && p.market === market);
+  const founders = humans.filter((p) => p.role === 'founder').length;
+  const others = humans.length - founders;
+  return Math.max(
+    AI_STARTUPS_MIN,
+    AI_STARTUPS_PER_MARKET - Math.floor(founders / 3) - Math.floor(others / 6),
+  );
+}
+
+/** Keep markets populated; AI founders step back as real players arrive (AI incumbents stay forever). */
 export function maintainPopulation(world: World, market: MarketId, rng: Rng, now: number) {
-  const humans = Object.values(world.players).filter(
-    (p) => !p.ai && p.market === market && p.role === 'founder',
-  ).length;
-  const target = Math.max(4, AI_STARTUPS_PER_MARKET - Math.floor(humans / 3));
+  const target = aiStartupTarget(world, market);
   const active = Object.values(world.companies).filter(
     (c) => c.ai && c.market === market && c.status === 'active',
   ).length;

@@ -33,9 +33,20 @@ import { valueCompany } from './valuation.js';
 import { createPlayer } from './world.js';
 import type { Company, Fund, Id, Player, Stage, World } from './types.js';
 
-/** How many AI angels a market keeps: round(4 × angelDepth), at least 2. */
-export const angelTarget = (market: MarketId): number =>
-  Math.max(2, Math.round(4 * CAPITAL[market].angelDepth));
+/**
+ * How many AI angels a market keeps: round(4 × angelDepth), at least 2. As
+ * human investors join (Wave 5), one AI angel steps back for every two, never
+ * below 2, so there is always someone writing cheques.
+ */
+export const angelTarget = (market: MarketId, humanInvestors = 0): number =>
+  Math.max(2, Math.round(4 * CAPITAL[market].angelDepth) - Math.floor(humanInvestors / 2));
+
+/** Human investors living in a market (for the AI phase-out). */
+export const humanInvestorsIn = (world: World, market: MarketId): number =>
+  Object.values(world.players).filter((p) => !p.ai && p.market === market && p.role === 'investor')
+    .length;
+
+const angelIndex = (p: Player) => Number(p.id.slice(p.id.lastIndexOf('_') + 1)) || 0;
 
 export const angelPlayerId = (market: MarketId, n: number): Id => `ai_angel_${market}_${n}`;
 export const angelFundId = (market: MarketId, n: number): Id => `fund_${market}_angel_${n}`;
@@ -125,8 +136,12 @@ export function ensureAngels(world: World, market: MarketId, now: number) {
     const f = world.funds[p.angel!.fundId];
     if (!f || account(world, f.account).balance < f.check[0]) p.angel!.retiredMonth = m.month;
   }
+  const target = angelTarget(market, humanInvestorsIn(world, market));
+  // Phase-out (Wave 5): the newest angels retire first when humans have taken their place.
+  const surplus = activeAngels(world, market).sort((a, b) => angelIndex(b) - angelIndex(a));
+  for (const p of surplus.slice(0, Math.max(0, surplus.length - target)))
+    p.angel!.retiredMonth = m.month;
   let active = activeAngels(world, market).length;
-  const target = angelTarget(market);
   for (let n = 0; active < target && n < target + 50; n++) {
     if (world.players[angelPlayerId(market, n)] || world.funds[angelFundId(market, n)]) continue;
     createAngel(world, market, n, now);
@@ -144,6 +159,8 @@ const MAX_ANGELS_PER_COMPANY = 3;
  */
 function isRaising(c: Company, month: number, pitched: Set<Id>): boolean {
   if (c.raising) return true;
+  // Fresh from an accelerator demo day (Wave 5).
+  if (c.accelerator?.demoDayDone && month - c.accelerator.demoDayMonth < 3) return true;
   if (c.ai || c.aiCeo) return month - c.foundedMonth <= 24;
   return pitched.has(c.id);
 }
