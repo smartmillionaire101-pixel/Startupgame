@@ -99,3 +99,10 @@ export async function more(page: Page) {
 
 /** A random address on a reserved domain: never receives real mail. */
 export const randomEmail = () => `e2e-${letters(10)}@example.com`;
+
+/** A bottom-bar tab, matched exactly (alerts and other buttons can share its word). */
+export const tab = (page: Page, name: string) =>
+  page
+    .getByRole('navigation', { name: 'Main' })
+    // The name can carry a badge count ("Home 3").
+    .getByRole('button', { name: new RegExp(`^${name}(\\s+\\d+)?$`) });

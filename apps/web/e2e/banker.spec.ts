@@ -1,4 +1,4 @@
-import { letters, expect, test, playAsGuest } from './fixtures';
+import { expect, letters, playAsGuest, tab, test } from './fixtures';
 
 test('a banker applies for a licence in Accra, gets it, and sets pricing', async ({ page }) => {
   await playAsGuest(page);
@@ -16,11 +16,11 @@ test('a banker applies for a licence in Accra, gets it, and sets pricing', async
   await expect(page.getByText(/applies for a licence in Accra/)).toBeVisible();
   await page.getByRole('button', { name: 'Start' }).click();
 
-  await page.getByRole('button', { name: 'Bank' }).click();
+  await tab(page, 'Bank').click();
   await expect(page.getByText('Applying')).toBeVisible();
 
   // Two game months later the central bank decides.
-  await page.getByRole('button', { name: 'Home' }).click();
+  await tab(page, 'Home').click();
   for (let i = 0; i < 2; i++) {
     const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
     await page.getByRole('button', { name: /Advance Accra one month/ }).click();
@@ -28,7 +28,7 @@ test('a banker applies for a licence in Accra, gets it, and sets pricing', async
     expect(res.status(), await res.text()).toBe(200);
     await expect(page.getByText(/Advanced to month \d+\./).last()).toBeVisible();
   }
-  await page.getByRole('button', { name: 'Bank' }).click();
+  await tab(page, 'Bank').click();
   await expect(page.getByText(/Licensed ·/)).toBeVisible();
   await page.getByLabel('Deposit rate (%)').fill('8');
   await page.getByRole('button', { name: 'Save pricing' }).click();

@@ -1,4 +1,4 @@
-import { expect, letters, playAsGuest, randomEmail, test, type Page } from './fixtures';
+import { expect, letters, type Page, playAsGuest, randomEmail, tab, test } from './fixtures';
 
 /** Guest → a founder in Lagos; returns the company name. */
 async function onboardFounder(page: Page) {
@@ -16,7 +16,7 @@ async function onboardFounder(page: Page) {
   await expect(page.getByText(/Available in Lagos/)).toBeVisible();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
-  await expect(page.getByRole('button', { name: 'Home' })).toBeVisible();
+  await expect(tab(page, 'Home')).toBeVisible();
   return company;
 }
 
@@ -32,7 +32,7 @@ test('a guest saves their game with an email link, signs out, and logs back in b
   const email = randomEmail();
 
   // Home nudges a guest to save once their first month is over.
-  await page.getByRole('button', { name: 'Home' }).click();
+  await tab(page, 'Home').click();
   await expect(page.getByText(/First customer/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Keep your game' })).toHaveCount(0);
   const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
@@ -69,7 +69,7 @@ test('a guest saves their game with an email link, signs out, and logs back in b
   await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
   await page.getByRole('link', { name: 'Preview: open your sign-in link' }).click();
   await expect(page.getByText(`Signed in as ${email}.`)).toBeVisible();
-  await page.getByRole('button', { name: 'Company' }).click();
+  await tab(page, 'Company').click();
   await expect(page.getByText(company).first()).toBeVisible();
   await openSettings(page);
   await expect(page.getByText(`Saved as ${email}`)).toBeVisible();

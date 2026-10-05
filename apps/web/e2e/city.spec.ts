@@ -1,4 +1,4 @@
-import { letters, expect, more, test, playAsGuest, tapPlace } from './fixtures';
+import { expect, letters, more, playAsGuest, tab, tapPlace, test } from './fixtures';
 
 test('a founder walks the city to a bank, goes in, then visits the market', async ({ page }) => {
   await playAsGuest(page);
@@ -17,7 +17,7 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await page.getByRole('button', { name: 'Start' }).click();
 
   // The City is the first tab and opens by default, centred on your office.
-  await expect(page.getByRole('button', { name: 'City' })).toHaveAttribute('aria-current', 'page');
+  await expect(tab(page, 'City')).toHaveAttribute('aria-current', 'page');
   const map = page.getByRole('application', { name: /Map of Lagos/ });
   await expect(map).toBeVisible();
   await expect(page.locator('[data-place="office"]')).toBeAttached();

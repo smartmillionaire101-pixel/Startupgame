@@ -1,4 +1,4 @@
-import { letters, expect, test } from './fixtures';
+import { expect, letters, tab, test } from './fixtures';
 
 test('a founder signs up, onboards in under two minutes, and plays a month', async ({ page }) => {
   await page.goto('/');
@@ -29,7 +29,7 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.getByRole('button', { name: 'Start' }).click();
 
   // The City opens first; the dashboard is the Home tab.
-  await page.getByRole('button', { name: 'Home' }).click();
+  await tab(page, 'Home').click();
 
   // Dashboard leads with four numbers; the first day brings an early win.
   await expect(page.getByText('Monthly revenue')).toBeVisible();
@@ -37,10 +37,10 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await expect(page.getByText(/First customer/)).toBeVisible();
 
   // Do some work, then advance a month.
-  await page.getByRole('button', { name: 'Company' }).click();
+  await tab(page, 'Company').click();
   await page.getByRole('button', { name: 'Build yourself (40h)' }).click();
   await expect(page.getByText(/40h of building logged/)).toBeVisible();
-  await page.getByRole('button', { name: 'Home' }).click();
+  await tab(page, 'Home').click();
   // A deploy preview keeps one world across runs, so compare with today's date.
   const date = page.locator('.topbar .brand .small');
   const before = (await date.textContent())!;
