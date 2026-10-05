@@ -301,11 +301,11 @@ describe('Netlify runtime', () => {
   it('the clock settles markets once a game month has passed', async () => {
     const kv = new MemoryKv();
     const rt = await createRuntime(kv, await configFor(kv, PREVIEW));
-    expect(rt.config.MONTH_MINUTES).toBe(5);
+    expect(rt.config.MONTH_MINUTES).toBe(15);
     const month = rt.game.current.markets.lagos!.month;
     const realNow = Date.now;
     try {
-      const later = realNow() + 5 * 60_000;
+      const later = realNow() + 15 * 60_000;
       Date.now = () => later;
       const r = await runClock({ ...rt, config: { ...rt.config, FX_FEED_URL: '' } });
       expect(r.settled).toBe(Object.keys(rt.game.current.markets).length);

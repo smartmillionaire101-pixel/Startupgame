@@ -24,7 +24,7 @@ In development, sign-in links are shown on screen (no email is sent), and Home h
 
 ## Game time
 
-**Five real minutes = one game month** (one game year is an hour). The length is the server's `MONTH_MINUTES` setting (default `5`; any positive number, e.g. `1440` for the old one-day month). Every market settles at the same instant, at each period boundary: period *n* starts at `2026-01-01T00:00Z + n × MONTH_MINUTES`. After downtime the clock catches up at most seven months per market and skips older ones. Clients get `view.clock = { monthMs, nextSettlementAt, serverNow }` with the state, for a "Next month in 3:42" countdown. A month is still a month inside the game: hours, salaries and rents are unchanged.
+**Fifteen real minutes = one game month** (one game year is three hours). The length is the server's `MONTH_MINUTES` setting (default `15`; any positive number, e.g. `1440` for the old one-day month). Every market settles at the same instant, at each period boundary: period *n* starts at `2026-01-01T00:00Z + n × MONTH_MINUTES`. After downtime the clock catches up at most seven months per market and skips older ones. Clients get `view.clock = { monthMs, nextSettlementAt, serverNow }` with the state, for a "Next month in 3:42" countdown. A month is still a month inside the game: hours, salaries and rents are unchanged.
 
 Absence is counted in game months: a player not seen for **2 months** has each company they run hibernated (a note in the inbox says so; nothing wakes it up automatically), **6 months** brings a warning, **12 months** puts their companies up for sale. Any signed-in request counts as being seen (recorded at most every fifth of a month).
 

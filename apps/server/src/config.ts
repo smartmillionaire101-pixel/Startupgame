@@ -51,7 +51,7 @@ const schema = z.object({
    * Real minutes in one game month (Wave 4). Every market settles once per
    * month, at the same instant. Production and previews: 5. Tests may use any value.
    */
-  MONTH_MINUTES: z.coerce.number().positive().max(525_600).default(5),
+  MONTH_MINUTES: z.coerce.number().positive().max(525_600).default(15),
   /** Markets to have open, in opening order. Unopened ones open on the next boot. */
   OPEN_MARKETS: z
     .string()
