@@ -54,6 +54,11 @@ export const digits = (n = 7) => pick('0123456789', n);
 /** Start a game as a guest: tick the 18+ box, then Play now (English or French). */
 export async function playAsGuest(page: Page, lang: 'en' | 'fr' = 'en') {
   await page.goto('/');
+  // Wait for the guest session itself, not just the click: on a deployed site
+  // the next request can otherwise go out before the session cookie exists.
+  const signedIn = page.waitForResponse(
+    (r) => r.url().endsWith('/api/auth/guest') && r.request().method() === 'POST',
+  );
   if (lang === 'fr') {
     await page.getByLabel('Je confirme avoir 18 ans ou plus').check();
     await page.getByRole('button', { name: 'Jouer maintenant' }).click();
@@ -61,6 +66,8 @@ export async function playAsGuest(page: Page, lang: 'en' | 'fr' = 'en') {
     await page.getByLabel('I confirm I’m 18 or older').check();
     await page.getByRole('button', { name: 'Play now' }).click();
   }
+  const res = await signedIn;
+  if (!res.ok()) throw new Error(`Guest sign-in failed: ${res.status()} ${await res.text()}`);
 }
 
 /**
