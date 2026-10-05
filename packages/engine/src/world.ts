@@ -40,7 +40,7 @@ import type { Rng } from './rng.js';
 import { newStars } from './stars.js';
 import { newCapTable } from './captable.js';
 import { refreshTalent } from './staff.js';
-import { ensureBusinesses } from './economy.js';
+import { ensureBusinesses, growOnJoin } from './economy.js';
 import type {
   Gender,
   Company,
@@ -161,6 +161,12 @@ export interface NewPlayerInput {
 /** Wave 5: new human players start with twice the savings, so nobody is stuck early. */
 export const HUMAN_SAVINGS_MULTIPLIER = 2;
 
+/**
+ * Wave 6: a new human's savings last at least this many months at the Modest
+ * lifestyle with no income, whatever their background.
+ */
+export const HUMAN_MIN_RUNWAY_MONTHS = 24;
+
 export function createPlayer(world: World, input: NewPlayerInput): Player {
   ensure(!world.players[input.playerId], 'player.exists', 'Player already exists.');
   const bg = backgroundById(input.backgroundId);
@@ -180,11 +186,15 @@ export function createPlayer(world: World, input: NewPlayerInput): Player {
     ...(input.accountId ? { id: input.accountId } : {}),
   });
   // Starting savings: same months of personal runway in every market (§3), adjusted by background.
-  const savings = Math.round(
-    col(m) *
-      STARTING_RUNWAY_MONTHS *
-      bg.savingsMultiplier *
-      (input.ai ? 1 : HUMAN_SAVINGS_MULTIPLIER),
+  // Wave 6: a human's savings cover at least 24 months at Modest (exactly, in minor units).
+  const savings = Math.max(
+    Math.round(
+      col(m) *
+        STARTING_RUNWAY_MONTHS *
+        bg.savingsMultiplier *
+        (input.ai ? 1 : HUMAN_SAVINGS_MULTIPLIER),
+    ),
+    input.ai ? 0 : HUMAN_MIN_RUNWAY_MONTHS * scale(col(m), LIFESTYLE_TIERS[1]!.costCol),
   );
   transfer(world, m.ext.genesis, local, savings, 'Starting savings', m.month);
   const tier = LIFESTYLE_TIERS[1]!;
@@ -220,6 +230,8 @@ export function createPlayer(world: World, input: NewPlayerInput): Player {
     visited: {},
     ...(input.gender ? { gender: input.gender } : {}),
   };
+  // Wave 6: the city grows as people arrive (counted before the player is stored).
+  if (!input.ai) growOnJoin(world, input.market, player.id);
   world.players[player.id] = player;
   if (!input.ai) world.names[input.market]![handleKey] = player.id;
   world.inbox[player.id] = [];

@@ -30,6 +30,7 @@ import { fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
+import { removeContact, saveContact } from './people.js';
 import {
   applyAccelerator,
   applyGrant,
@@ -895,9 +896,14 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'job.quit':
       return quitJob(world, me);
     case 'home.buy':
-      return buyFurniture(world, me, cmd.itemId);
+      return buyFurniture(world, me, cmd.itemId, cmd.businessId);
     case 'car.buy':
-      return buyCar(world, me, cmd.modelId);
+      return buyCar(world, me, cmd.modelId, cmd.businessId);
+    // ------------------------------------------------------------ Who's here (Wave 6)
+    case 'contact.save':
+      return saveContact(world, me, cmd.personId, cmd.name);
+    case 'contact.remove':
+      return removeContact(me, cmd.contactId);
     case 'car.sell':
       return sellCar(world, me);
     // ------------------------------------------------------------ capital programmes (Wave 5)
@@ -966,7 +972,9 @@ function createFromOnboarding(
   }
   if (cmd.role === 'banker' && cmd.bank) {
     // First day (§3): an AI shareholder meeting raises starting capital and the licence application is filed.
-    const contribution = Math.floor(account(world, p.accounts.local).balance * 0.8);
+    // Wave 6: savings doubled (12 months of runway), so the same capital is 40% of them;
+    // the rest is there to live on.
+    const contribution = Math.floor(account(world, p.accounts.local).balance * 0.4);
     foundBank(world, p, { name: cmd.bank.name, type: cmd.bank.bankType, contribution });
   }
   welcomeNewPlayer(world, p, companyId);

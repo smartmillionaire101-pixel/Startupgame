@@ -25,7 +25,13 @@ import {
   productRateBps,
 } from './capital.js';
 import { flightsView, isVisiting, tripCostUsd } from './travel.js';
-import { EVENT_KINDS, EVENT_KIND_DATA, EVENT_RECENT_MONTHS } from './data/events.js';
+import {
+  CONTACTS_LIMIT,
+  EVENT_KINDS,
+  EVENT_KIND_DATA,
+  EVENT_RECENT_MONTHS,
+} from './data/events.js';
+import { chatIdOf } from './people.js';
 import { contactWarmth, eventCost } from './events.js';
 import {
   businessCustomersOf,
@@ -54,7 +60,7 @@ import {
   nextStage,
   totalCustomers,
 } from './helpers.js';
-import { lifestyleCost, tierOf } from './personal.js';
+import { floorGigPay, lifestyleCost, tierOf } from './personal.js';
 import { hasPublicWarning } from './stars.js';
 import { isOverloaded, managementCapacity } from './staff.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
@@ -436,7 +442,7 @@ function marketView(
     economicNote: m.economicNote,
     bankName: m.bankName,
     depositInsurance: m.data.depositInsurance * 100,
-    floorGig: { pay: m.data.floorGig.pay * 100, hours: m.data.floorGig.hours },
+    floorGig: { pay: floorGigPay(m), hours: m.data.floorGig.hours },
     sources: m.data.sources,
     segments: Object.values(m.segments).map((s) => ({
       key: s.key,
@@ -652,10 +658,14 @@ export function playerView(
       car: carView(world, p),
       /** Wave 5: status (0–100) from your home, car and lifestyle, shown on your profile. */
       status: statusOf(p),
-      /** People met at events (Wave 2), newest first; warmth fades with time. */
+      /**
+       * People met at events (Wave 2) and saved from Who's here (Wave 6),
+       * newest first; warmth fades with time. `chatId` opens a chat with them.
+       */
       contacts: (p.contacts ?? []).slice(0, CONTACTS_VIEW_LIMIT).map((c) => ({
         ...c,
         warmth: Math.round(contactWarmth(c, m.month) * 100) / 100,
+        chatId: chatIdOf(c),
       })),
     },
     accounts: { local: acc(p.accounts.local), usd: acc(p.accounts.usd) },
@@ -819,7 +829,8 @@ export function playerView(
   };
 }
 
-const CONTACTS_VIEW_LIMIT = 50;
+/** Wave 6: every saved contact (the phone's Contacts app lists them all). */
+const CONTACTS_VIEW_LIMIT = CONTACTS_LIMIT;
 
 function eventsView(
   world: World,

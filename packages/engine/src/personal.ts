@@ -10,9 +10,13 @@ import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { applyStarEvent } from './stars.js';
 import { settlePersonalLoans } from './credit.js';
-import { JOB_HOURS, payJob } from './economy.js';
+import { ECONOMY, JOB_HOURS, payJob } from './economy.js';
 import { comfortEnergy, settleCar } from './shop.js';
-import type { Player, World } from './types.js';
+import type { MarketState, Player, World } from './types.js';
+
+/** The agency gig's pay, local minor units (Wave 6: about 30% more). */
+export const floorGigPay = (m: MarketState) =>
+  Math.round(m.data.floorGig.pay * 100 * ECONOMY.gigPayBoost);
 
 /** Gigs a month (Wave 5: up from 2), shared with gigs at businesses. */
 export const GIGS_PER_MONTH = 8;
@@ -140,7 +144,7 @@ export function takeGig(world: World, p: Player, month: number) {
     );
     spendHours(p, m.data.floorGig.hours, 'A freelance gig');
   }
-  const pay = m.data.floorGig.pay * 100;
+  const pay = floorGigPay(m);
   transfer(world, m.ext.gigs, p.accounts.local, pay, 'Freelance consulting gig', month);
   const tax = Math.round(pay * m.data.tax.personalIncome);
   transfer(world, p.accounts.local, m.ext.tax, tax, 'Personal income tax', month);

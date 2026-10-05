@@ -1,7 +1,8 @@
 /**
  * The lifestyle shop (Wave 5): furniture for your apartment and a car.
  *
- * Furniture comes in nine slots and three quality tiers; one item per slot.
+ * Furniture comes in 21 slots (Wave 6; nine in Wave 5) and three quality
+ * tiers; one item per slot, sold by furniture or appliance showrooms.
  * Prices are in cost-of-living units (one adult's monthly living costs in
  * that city), so a sofa is the same effort to buy everywhere. Cars are priced
  * in cost-of-living units too, scaled per market: a car costs many more
@@ -11,7 +12,28 @@
 import type { MarketId } from './markets.js';
 
 export type FurnitureSlot =
-  'sofa' | 'bed' | 'desk' | 'tv' | 'plants' | 'art' | 'kitchen' | 'sound' | 'gaming';
+  | 'sofa'
+  | 'bed'
+  | 'desk'
+  | 'tv'
+  | 'plants'
+  | 'art'
+  | 'kitchen'
+  | 'sound'
+  | 'gaming'
+  // Wave 6: the rest of a home.
+  | 'fridge'
+  | 'washer'
+  | 'cooling'
+  | 'power'
+  | 'lights'
+  | 'rug'
+  | 'dining'
+  | 'wardrobe'
+  | 'books'
+  | 'coffee'
+  | 'wifi'
+  | 'laptop';
 
 export const FURNITURE_SLOTS: readonly FurnitureSlot[] = [
   'sofa',
@@ -23,7 +45,60 @@ export const FURNITURE_SLOTS: readonly FurnitureSlot[] = [
   'kitchen',
   'sound',
   'gaming',
+  'fridge',
+  'washer',
+  'cooling',
+  'power',
+  'lights',
+  'rug',
+  'dining',
+  'wardrobe',
+  'books',
+  'coffee',
+  'wifi',
+  'laptop',
 ];
+
+/**
+ * Wave 6: which business kinds sell each slot (you buy in their showroom).
+ * Furniture stores sell furniture and decor; appliance and electronics
+ * stores sell appliances and electronics.
+ */
+const FURNITURE_STORE = ['furniture-store'] as const;
+const APPLIANCE_STORE = ['appliance-store', 'electronics'] as const;
+export const SHOP_KINDS_FOR_SLOT: Record<FurnitureSlot, readonly string[]> = {
+  sofa: FURNITURE_STORE,
+  bed: FURNITURE_STORE,
+  desk: FURNITURE_STORE,
+  plants: FURNITURE_STORE,
+  art: FURNITURE_STORE,
+  rug: FURNITURE_STORE,
+  dining: FURNITURE_STORE,
+  wardrobe: FURNITURE_STORE,
+  books: FURNITURE_STORE,
+  lights: FURNITURE_STORE,
+  tv: APPLIANCE_STORE,
+  kitchen: APPLIANCE_STORE,
+  sound: APPLIANCE_STORE,
+  gaming: APPLIANCE_STORE,
+  fridge: APPLIANCE_STORE,
+  washer: APPLIANCE_STORE,
+  cooling: APPLIANCE_STORE,
+  power: APPLIANCE_STORE,
+  coffee: APPLIANCE_STORE,
+  wifi: APPLIANCE_STORE,
+  laptop: APPLIANCE_STORE,
+};
+
+/** Wave 6: business kinds that sell cars (`car-dealership` is the Wave 5 name). */
+export const CAR_SHOP_KINDS: readonly string[] = ['car-dealer', 'car-dealership'];
+
+/** The slots a business kind sells, or 'cars', or null (not a showroom). */
+export function shopSells(kind: string): { slots: FurnitureSlot[] } | { cars: true } | null {
+  if (CAR_SHOP_KINDS.includes(kind)) return { cars: true };
+  const slots = FURNITURE_SLOTS.filter((s) => SHOP_KINDS_FOR_SLOT[s].includes(kind));
+  return slots.length ? { slots } : null;
+}
 
 export type Tier = 1 | 2 | 3;
 
@@ -68,6 +143,49 @@ const FURNITURE_SPEC: Record<
     labels: ['Second-hand console', 'New console and a big chair', 'Gaming PC rig'],
     priceCol: 0.2,
   },
+  fridge: { labels: ['Small fridge', 'Fridge-freezer', 'Big double-door fridge'], priceCol: 0.2 },
+  washer: {
+    labels: ['Twin-tub washer', 'Front-loading washing machine', 'Washer-dryer'],
+    priceCol: 0.2,
+  },
+  cooling: { labels: ['Standing fan', 'Air conditioner', 'Quiet inverter AC'], priceCol: 0.1 },
+  power: {
+    labels: ['Small petrol generator', 'Inverter and batteries', 'Rooftop solar with storage'],
+    priceCol: 0.25,
+  },
+  lights: { labels: ['Bare bulbs', 'Warm lamps', 'Smart lighting'], priceCol: 0.04 },
+  rug: { labels: ['Woven mat', 'Thick wool rug', 'Hand-knotted rug'], priceCol: 0.05 },
+  dining: {
+    labels: ['Small table and stools', 'Dining table for six', 'Hardwood dining set'],
+    priceCol: 0.15,
+  },
+  wardrobe: {
+    labels: ['Clothes rail', 'Wooden wardrobe', 'Walk-in wardrobe fit-out'],
+    priceCol: 0.1,
+  },
+  books: { labels: ['A shelf of books', 'Full bookcase', 'Library wall'], priceCol: 0.04 },
+  coffee: {
+    labels: ['Kettle and a cafetière', 'Espresso machine', 'Barista coffee bar'],
+    priceCol: 0.04,
+  },
+  wifi: {
+    labels: ['Mobile hotspot', 'Home fibre router', 'Mesh Wi-Fi everywhere'],
+    priceCol: 0.04,
+  },
+  laptop: { labels: ['Refurbished laptop', 'New work laptop', 'Top-spec laptop'], priceCol: 0.25 },
+};
+
+/**
+ * Wave 6: power is named locally (a generator where the grid is patchy,
+ * batteries or solar elsewhere). Per market, per tier.
+ */
+const LOCAL_POWER: Partial<Record<MarketId, [string, string, string]>> = {
+  london: ['Plug-in battery pack', 'Home battery', 'Rooftop solar with storage'],
+  'san-francisco': ['Portable power station', 'Home battery backup', 'Rooftop solar with storage'],
+  dubai: ['Portable power station', 'Home battery backup', 'Rooftop solar with storage'],
+  lagos: ['"I better pass my neighbour" generator', 'Inverter and batteries', 'Solar and inverter'],
+  freetown: ['Small petrol generator', 'Inverter and batteries', 'Rooftop solar with storage'],
+  johannesburg: ['Load-shedding inverter', 'Inverter and lithium batteries', 'Solar and batteries'],
 };
 
 /** Price multiple per tier (basic, good, luxury). */
@@ -87,7 +205,17 @@ export const FURNITURE: FurnitureItem[] = FURNITURE_SLOTS.flatMap((slot) =>
 const FURNITURE_BY_ID = new Map(FURNITURE.map((f) => [f.id, f]));
 export const furnitureItem = (id: string) => FURNITURE_BY_ID.get(id);
 
-/** Most comfort points a home can have (luxury in every slot). */
+/** An item's label in a city (Wave 6: power is named locally). */
+export function furnitureLabel(f: FurnitureItem, market: MarketId): string {
+  if (f.slot === 'power') return LOCAL_POWER[market]?.[f.tier - 1] ?? f.label;
+  return f.label;
+}
+
+/**
+ * Most comfort points a home can have (luxury in every slot). Comfort is a
+ * share of this, so the best home gives the same energy however many slots
+ * there are (`MAX_COMFORT_ENERGY`).
+ */
 export const MAX_COMFORT_POINTS = FURNITURE_SLOTS.length * 3;
 
 // ---------------------------------------------------------------- Cars
