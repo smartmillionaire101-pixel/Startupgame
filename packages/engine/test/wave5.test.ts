@@ -40,7 +40,8 @@ const NEW_KINDS = [
   'coffee-chain',
   'cinema',
   'studio-gym',
-  'car-dealership',
+  // Wave 6: rosters call it 'car-dealer' ('car-dealership' stays for saved worlds).
+  'car-dealer',
   'furniture-store',
   'co-working',
   'art-gallery',
@@ -59,9 +60,10 @@ describe('more to do in town (Wave 5)', () => {
     for (const k of BUSINESS_KINDS) {
       expect(k.roles.length, k.kind).toBeGreaterThan(0);
       expect(new Set(k.roles.map((r) => r.role)).size, k.kind).toBe(k.roles.length);
+      // Wave 6: a job pays a living (0.9–3 COL take-home).
       for (const r of k.roles) {
-        expect(r.payCol).toBeGreaterThan(0.2);
-        expect(r.payCol).toBeLessThan(1);
+        expect(r.payCol).toBeGreaterThanOrEqual(0.9);
+        expect(r.payCol).toBeLessThanOrEqual(3);
       }
     }
     // Clubs and cinemas have something to buy.
@@ -108,7 +110,7 @@ describe('more to do in town (Wave 5)', () => {
     const after = settle(w, 'lagos', 1);
     const list = Object.values(after.markets.lagos!.businesses!);
     for (const [id, name] of before) expect(after.markets.lagos!.businesses![id]!.name).toBe(name);
-    for (const k of ['nightclub', 'cinema', 'car-dealership', 'furniture-store'])
+    for (const k of ['nightclub', 'cinema', 'car-dealer', 'furniture-store'])
       expect(
         list.some((b) => b.kind === k && isOpen(b)),
         k,
@@ -218,7 +220,8 @@ describe('jobs (Wave 5)', () => {
       hours: JOB_HOURS,
     });
     const m = w.markets.lagos!;
-    expect(offer.monthlyPay).toBe(scale(col(m), 0.3));
+    // Wave 6: 0.9 COL take-home, grossed up for the city's income tax.
+    expect(offer.monthlyPay).toBe(scale(col(m), 0.9 / (1 - m.data.tax.personalIncome)));
     const hours = w.players.u_founder!.hours.used;
     w = run(w, 'u_founder', { type: 'job.take', businessId: cafe.id, role: 'barista' }).world;
     expect(w.players.u_founder!.hours.used - hours).toBe(JOB_HOURS);
@@ -301,7 +304,8 @@ describe('home and car (Wave 5)', () => {
       { slot: 'sofa', itemId: 'sofa-2', label: 'Comfy fabric sofa', tier: 2 },
       { slot: 'bed', itemId: 'bed-3', label: 'King bed, hotel linen', tier: 3 },
     ]);
-    expect(home.comfort).toBe(Math.round((100 * 5) / 27));
+    // Wave 6: 21 slots of three tiers.
+    expect(home.comfort).toBe(Math.round((100 * 5) / (21 * 3)));
     expect(moneyByCurrency(w)).toEqual(total);
   });
 
@@ -316,7 +320,7 @@ describe('home and car (Wave 5)', () => {
     expect(tryRun(w, 'u_founder', { type: 'city.ride', mode: 'drive', distance: 'long' }).ok).toBe(
       false,
     );
-    const dealer = byKind(w, 'car-dealership');
+    const dealer = byKind(w, 'car-dealer');
     const till = bal(w, dealer.account);
     w = run(w, 'u_founder', { type: 'car.buy', modelId: 'motorbike' }).world;
     expect(bal(w, dealer.account)).toBe(till + bike.price);

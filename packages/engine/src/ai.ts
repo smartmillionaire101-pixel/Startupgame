@@ -189,18 +189,17 @@ export function corporateOffers(world: World, market: MarketId, rng: Rng, month:
 /** Fewest AI startups a market keeps, so the economy stays liquid whoever joins. */
 export const AI_STARTUPS_MIN = 4;
 
+/** Wave 6: at most this many extra AI startups as humans arrive. */
+export const AI_STARTUPS_GROWTH_CAP = 20;
+
 /**
- * AI startups a market keeps: one fewer for every three human founders, and
- * (Wave 5) one fewer for every six other human players, never below the minimum.
+ * AI startups a market keeps (Wave 6): the city grows with its people, so
+ * one more for every four human players, up to 20 more. (Wave 5 shrank it;
+ * AI angels still phase out as human investors arrive.)
  */
 export function aiStartupTarget(world: World, market: MarketId): number {
-  const humans = Object.values(world.players).filter((p) => !p.ai && p.market === market);
-  const founders = humans.filter((p) => p.role === 'founder').length;
-  const others = humans.length - founders;
-  return Math.max(
-    AI_STARTUPS_MIN,
-    AI_STARTUPS_PER_MARKET - Math.floor(founders / 3) - Math.floor(others / 6),
-  );
+  const humans = Object.values(world.players).filter((p) => !p.ai && p.market === market).length;
+  return AI_STARTUPS_PER_MARKET + Math.min(AI_STARTUPS_GROWTH_CAP, Math.floor(humans / 4));
 }
 
 /** Keep markets populated; AI founders step back as real players arrive (AI incumbents stay forever). */
