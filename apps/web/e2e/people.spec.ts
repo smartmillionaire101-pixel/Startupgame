@@ -65,7 +65,8 @@ test('AI characters are inside buildings: Who’s here, then their card', async 
   await expect(page.locator('[data-person]')).toHaveCount(0);
 
   // Who's around: the notable people, by the building they're in. A fund
-  // partner is at their office: going there opens it.
+  // partner spends the month somewhere in town (a hotel, a restaurant, their
+  // office): going there opens that place.
   await page.getByRole('button', { name: /Who’s here/ }).click();
   const list = page.getByRole('list', { name: 'People around' });
   await list
@@ -74,21 +75,16 @@ test('AI characters are inside buildings: Who’s here, then their card', async 
     .click();
   const scene = page.locator('.place-scene');
   await expect(scene).toBeVisible({ timeout: 10_000 });
-  await expect(scene).toHaveAttribute('data-room', 'investor');
 
   // Inside, Who's here lists the partner, with Chat and Save.
   await scene.getByRole('button', { name: /Who’s here/ }).click();
   const here = page.getByRole('dialog', { name: 'Who’s here' });
   const partner = here.locator('[data-person-here^="fund:"]').first();
-  await expect(partner).toContainText('Fund partner');
+  await expect(partner).toContainText(/Partner/i);
   await expect(partner.getByRole('button', { name: 'Chat' })).toBeVisible();
   await expect(partner.getByRole('button', { name: /Save/ })).toBeVisible();
   await here.getByRole('button', { name: 'Close' }).click();
-
-  // The office's details are under More.
-  await scene.locator('.tray-more').click();
-  await expect(page.getByRole('dialog').getByText('Thesis')).toBeVisible({ timeout: 8000 });
-  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).first().click();
+  await scene.getByRole('button', { name: 'Close' }).first().click();
 
   // The Event Hall is open (or says it opens soon), with the host form.
   await openPlace(page, 'eventhall');
