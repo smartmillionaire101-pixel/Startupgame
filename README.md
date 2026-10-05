@@ -24,7 +24,7 @@ In development, sign-in links are shown on screen (no email is sent), and Home h
 
 ## Game time
 
-**Fifteen real minutes = one game month** (one game year is three hours). The length is the server's `MONTH_MINUTES` setting (default `15`; any positive number, e.g. `1440` for the old one-day month). Every market settles at the same instant, at each period boundary: period *n* starts at `2026-01-01T00:00Z + n × MONTH_MINUTES`. After downtime the clock catches up at most seven months per market and skips older ones. Clients get `view.clock = { monthMs, nextSettlementAt, serverNow }` with the state, for a "Next month in 3:42" countdown. A month is still a month inside the game: hours, salaries and rents are unchanged.
+**Thirty real minutes = one game month** (one game year is six hours). The length is the server's `MONTH_MINUTES` setting (default `30`; any positive number, e.g. `1440` for the old one-day month). Every market settles at the same instant, at each period boundary: period *n* starts at `2026-01-01T00:00Z + n × MONTH_MINUTES`. After downtime the clock catches up at most seven months per market and skips older ones. Clients get `view.clock = { monthMs, nextSettlementAt, serverNow }` with the state, for a "Next month in 3:42" countdown. A month is still a month inside the game: hours, salaries and rents are unchanged.
 
 Absence is counted in game months: a player not seen for **2 months** has each company they run hibernated (a note in the inbox says so; nothing wakes it up automatically), **6 months** brings a warning, **12 months** puts their companies up for sale. Any signed-in request counts as being seen (recorded at most every fifth of a month).
 
@@ -81,6 +81,10 @@ The server sends links through **Resend** if `RESEND_API_KEY` is set, otherwise 
 **Alternative: Resend** (free tier, better deliverability, needs a domain you control): create an API key at resend.com, verify your sending domain, then set `RESEND_API_KEY` and `EMAIL_FROM=Runway <signin@your.domain>`. Resend wins if both are set.
 
 **Docker** (`Dockerfile`): the long-running server with SQLite and live updates over server-sent events.
+
+## AI chat
+
+AI characters (founders, angels, fund partners, shop owners, locals) answer in the phone's chat (`/api/ai-chat`). Without a key they answer from templates filled with live game data; the templates remember the thread (what you asked last, what they already said, the names and numbers you gave), so follow-ups like "tell me more" or "where?" continue the topic and no line repeats. With `ANTHROPIC_API_KEY` set, replies come from Claude, given the same live facts; on any error, timeout (10 s) or refusal the template reply is used. `AI_CHAT_DAILY_LIMIT` (default 80) caps Claude replies per player per day, and `AI_CHAT_MODEL` overrides the model. The key is never logged. On Netlify, add these as environment variables for Functions.
 
 ## How it fits together
 
