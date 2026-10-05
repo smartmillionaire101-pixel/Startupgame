@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 8799;
+// E2E_PORT lets several checkouts run their suites side by side.
+const PORT = Number(process.env.E2E_PORT ?? 8799);
 
 /**
  * End-to-end: the real server (fresh temp database, dev tools on, no network

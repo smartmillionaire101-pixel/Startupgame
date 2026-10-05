@@ -77,6 +77,33 @@ export interface ChatSummary {
   blockedByMe: boolean;
   lastText: string | null;
   lastAt: number | null;
+  /** Wave 5: the last message is yours (missing on older servers). */
+  lastMine?: boolean;
+}
+
+/** A chat with an AI character (Wave 5 §C). */
+export interface AiThread {
+  /** `<playerId>`, `fund:<id>`, `biz:<id>`, `lp:<id>`, `acc:<id>` or `dp:<id>`. */
+  characterId: string;
+  name: string;
+  kind: string | null;
+  org: string | null;
+  market: string | null;
+  /** A city place id where you can meet them. */
+  place: string | null;
+  available: boolean;
+  lastText: string | null;
+  lastAt: number | null;
+  lastFromAi: boolean;
+  unread: number;
+  count: number;
+}
+
+export interface ChatMessage {
+  id: number;
+  mine: boolean;
+  text: string;
+  at: number;
 }
 
 export const api = {
@@ -135,6 +162,18 @@ export const api = {
   block: (chatId: string) => request('POST', `/api/chats/${chatId}/block`, {}),
   report: (chatId: string, reason: 'harassment' | 'scam' | 'spam' | 'other') =>
     request('POST', `/api/chats/${chatId}/report`, { reason }),
+  aiThreads: () => request<{ threads: AiThread[] }>('GET', '/api/ai-chat'),
+  aiThread: (characterId: string) =>
+    request<{ thread: AiThread; messages: ChatMessage[] }>(
+      'GET',
+      `/api/ai-chat/${encodeURIComponent(characterId)}`,
+    ),
+  aiSend: (characterId: string, text: string, lang: 'en' | 'fr') =>
+    request<{ reply: ChatMessage; flagged: boolean; thread: AiThread }>('POST', '/api/ai-chat', {
+      characterId,
+      text,
+      lang,
+    }),
   /** Who else is on the map (Wave 2 §A). Raw body: validate with normPresence. */
   presence: () => request<unknown>('GET', '/api/presence'),
   reportPresence: (p: { x: number; y: number; place: string | null }) =>
