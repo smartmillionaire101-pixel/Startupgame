@@ -1,5 +1,5 @@
 import { devices, type Page } from '@playwright/test';
-import { expect, letters, test, withoutNetlifyDrawer, playAsGuest } from './fixtures';
+import { expect, letters, more, test, withoutNetlifyDrawer, playAsGuest } from './fixtures';
 
 /**
  * Wave 2: people in the city. AI characters and the person card always run;
@@ -52,6 +52,7 @@ async function openPlace(page: Page, kind: string) {
     .locator(`[data-kind="${kind}"]`)
     .first()
     .click();
+  await more(page);
 }
 
 test('AI characters stroll the city and open a person card when tapped', async ({ page }) => {
@@ -72,6 +73,7 @@ test('AI characters stroll the city and open a person card when tapped', async (
   await expect(card.getByRole('button', { name: 'Pitch' })).toBeEnabled();
   // Visiting walks you to the office and goes in.
   await card.getByRole('button', { name: 'Visit their office' }).click();
+  await more(page);
   await expect(page.getByRole('dialog').getByText('Thesis')).toBeVisible({ timeout: 8000 });
   await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
 

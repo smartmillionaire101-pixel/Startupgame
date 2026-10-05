@@ -79,5 +79,16 @@ export async function tapPlace(page: Page, selector: string, mode = 'walk') {
   if (far) await chooser.locator(`[data-mode="${mode}"]`).click();
 }
 
+/**
+ * Wave 5: going into a place opens a full-screen scene (the room, its people
+ * and a tray of things to do). "More" shows the detailed cards; returns the scene.
+ */
+export async function more(page: Page) {
+  const scene = page.locator('.place-scene');
+  await scene.waitFor({ timeout: 10_000 });
+  await scene.locator('.tray-more').click();
+  return scene;
+}
+
 /** A random address on a reserved domain: never receives real mail. */
 export const randomEmail = () => `e2e-${letters(10)}@example.com`;

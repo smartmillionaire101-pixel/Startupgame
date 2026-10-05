@@ -1,4 +1,4 @@
-import { expect, letters, test, playAsGuest, tapPlace } from './fixtures';
+import { expect, letters, more, test, playAsGuest, tapPlace } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /** Sign up a founder in a market (by its button label), straight into the City. */
@@ -24,6 +24,7 @@ async function enter(page: Page, selector: string) {
   await tapPlace(page, selector, 'cycle');
   const sheet = page.getByRole('dialog');
   await expect(sheet).toBeVisible({ timeout: 10_000 });
+  await more(page);
   return sheet;
 }
 
@@ -58,7 +59,7 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
   // The Jobs board at the Hub lists every gig in town: take a shift.
   await page.getByRole('button', { name: /Places/ }).click();
   await page.getByRole('dialog', { name: 'Places' }).locator('[data-kind="hub"]').click();
-  const hub = page.getByRole('dialog');
+  const hub = await more(page);
   await expect(hub.getByRole('heading', { name: 'Jobs board' })).toBeVisible({ timeout: 8000 });
   await hub.getByRole('button', { name: 'Take shift' }).first().click();
   await expect(page.locator('.toast-ok').last()).toBeVisible();
@@ -74,7 +75,7 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
       .locator('[data-kind="business"]')
       .nth(n)
       .click();
-    const shop = page.getByRole('dialog');
+    const shop = await more(page);
     await expect(shop.getByRole('heading', { name: 'Sell to them' })).toBeVisible({
       timeout: 8000,
     });
@@ -98,7 +99,7 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
   await nav.getByRole('button', { name: 'City', exact: true }).click();
   await page.getByRole('button', { name: /Places/ }).click();
   await page.getByRole('dialog', { name: 'Places' }).locator('[data-kind="eventhall"]').click();
-  const hall = page.getByRole('dialog');
+  const hall = await more(page);
   await expect(hall.getByRole('heading', { name: 'Host an event' })).toBeVisible({
     timeout: 8000,
   });
