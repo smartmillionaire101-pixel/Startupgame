@@ -44,7 +44,8 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
     page,
     (await food.count()) ? '[data-place^="biz:"][data-category="food"]' : '[data-place^="biz:"]',
   );
-  await expect(sheet.getByText('Owner')).toBeVisible();
+  // The owner is in the room (the scene's people), the menu under More.
+  await expect(sheet.getByRole('button', { name: /, Owner$/ })).toBeAttached();
   const pocket = sheet.locator('[data-pocket]');
   const before = Number(await pocket.getAttribute('data-pocket'));
   const buy = sheet.locator('.biz-items').getByRole('button', { name: 'Buy', exact: true }).first();
