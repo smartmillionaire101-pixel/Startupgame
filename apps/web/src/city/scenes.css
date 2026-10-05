@@ -382,6 +382,23 @@
   display: grid;
   gap: 0.35rem;
 }
+.hud-whatnow {
+  flex: 1 1 auto;
+  max-width: 420px;
+}
+@media (max-width: 560px) {
+  .city-hud-bottom:has(.hud-whatnow) {
+    flex-wrap: wrap;
+  }
+  .city-hud-bottom .hud-whatnow {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .city-hud-bottom:has(.hud-whatnow) .hud-stack {
+    margin-left: auto;
+    grid-auto-flow: column;
+  }
+}
 .hud-whatnow-head {
   display: flex;
   justify-content: space-between;
@@ -418,15 +435,3 @@
   display: none;
 }
 
-/* Onboarding: who you are. */
-.gender-pick {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-.gender-pick .choice {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-}

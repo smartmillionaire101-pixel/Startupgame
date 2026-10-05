@@ -12,6 +12,7 @@ async function signUpFounder(page: Page, name: string) {
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
+  await page.getByRole('button', { name: 'Female', exact: true }).click();
   await page.getByLabel('Your name').fill(name);
   await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();

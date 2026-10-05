@@ -6,6 +6,7 @@ test('a banker applies for a licence in Accra, gets it, and sets pricing', async
   await page.getByRole('button', { name: /Banker/ }).click();
   await page.getByRole('button', { name: /Wealthy exited founder/ }).click();
   await page.getByRole('button', { name: /Accra, Ghana/ }).click();
+  await page.getByRole('button', { name: 'Female', exact: true }).click();
   await page.getByLabel('Your name').fill('Ama E2E');
   await page.getByLabel('Handle').fill(`ama_${letters(6)}`);
   await page.getByLabel('Bank name').fill(`Adinkra Trust ${letters(5)}`);

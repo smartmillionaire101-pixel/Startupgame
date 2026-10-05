@@ -13,6 +13,7 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
+  await page.getByRole('button', { name: 'Female', exact: true }).click();
   await page.getByLabel('Your name').fill('Ada E2E');
   await page.getByLabel('Handle').fill(`ada_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();

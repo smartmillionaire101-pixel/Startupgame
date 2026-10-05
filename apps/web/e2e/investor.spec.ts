@@ -8,6 +8,7 @@ test('an investor screens an AI startup, does diligence and writes a first chequ
   await page.getByRole('button', { name: /Investor/ }).click();
   await page.getByRole('button', { name: /Exited founder/ }).click();
   await page.getByRole('button', { name: /Nairobi, Kenya/ }).click();
+  await page.getByRole('button', { name: 'Female', exact: true }).click();
   await page.getByLabel('Your name').fill('Wanjiku E2E');
   await page.getByLabel('Handle').fill(`wanjiku_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();

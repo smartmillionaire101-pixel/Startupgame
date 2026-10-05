@@ -41,6 +41,7 @@ import {
 } from './contract';
 import { onVisit, takeVisit } from './goto';
 import { genderOf } from './life';
+import { WhatNowCard, WhatNowList } from './WhatNow';
 import { Interior, placeLabel, type Nav } from './Interiors';
 import {
   aiCharacters,
@@ -397,6 +398,21 @@ function CityBody({
   const [trip, setTrip] = useState<FarTrip | null>(null);
   const [rideBusy, setRideBusy] = useState(false);
   const [preferred, setPreferred] = useState<RideMode>(lastRide);
+  const [whatNow, setWhatNow] = useState(() => {
+    try {
+      return sessionStorage.getItem('rw_whatnow') !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const showWhatNow = (v: boolean) => {
+    setWhatNow(v);
+    try {
+      sessionStorage.setItem('rw_whatnow', v ? '1' : '0');
+    } catch {
+      /* storage unavailable: lasts until the City closes */
+    }
+  };
   const mapRef = useRef<CityMapHandle | null>(null);
 
   // Rebuild the layout only when what it depends on changes.
@@ -553,6 +569,7 @@ function CityBody({
           <p className="small muted">
             {t('Lite mode: the city map is off to save data. Pick a place to go in.')}
           </p>
+          <WhatNowCard onGo={visit} />
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
           <section className="places-group people-group">
             <h3>{t('People around')}</h3>
@@ -669,6 +686,21 @@ function CityBody({
                       {t('Go')}
                     </Button>
                   </div>
+                ) : whatNow ? (
+                  <section className="hud-whatnow" aria-label={t('What to do now')}>
+                    <div className="hud-whatnow-head">
+                      <h2>{t('What to do now')}</h2>
+                      <button
+                        type="button"
+                        className="hud-whatnow-close"
+                        aria-label={t('Hide')}
+                        onClick={() => showWhatNow(false)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <WhatNowList onGo={visit} />
+                  </section>
                 ) : rescue && !abroad ? (
                   <p className="hud-hint">
                     {t('Cash for about {n} months: build revenue or plan a raise.', {
@@ -679,6 +711,11 @@ function CityBody({
                   <p className="hud-hint">{t('Tap a street to walk, a building to go in.')}</p>
                 )}
                 <div className="hud-stack">
+                  {!whatNow && (
+                    <button type="button" className="hud-places" onClick={() => showWhatNow(true)}>
+                      <span aria-hidden>✦</span> {t('What to do now')}
+                    </button>
+                  )}
                   <button type="button" className="hud-places" onClick={() => setPeopleOpen(true)}>
                     <span aria-hidden>☺</span> {t('Who’s here')}
                     {players.length > 0 && (

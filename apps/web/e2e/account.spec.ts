@@ -7,6 +7,7 @@ async function onboardFounder(page: Page) {
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
+  await page.getByRole('button', { name: 'Female', exact: true }).click();
   await page.getByLabel('Your name').fill('Kemi E2E');
   await page.getByLabel('Handle').fill(`kemi_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();

@@ -6,6 +6,7 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await page.getByRole('button', { name: /Founder/ }).click();
   await page.getByRole('button', { name: /Ex-engineer/ }).click();
   await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
+  await page.getByRole('button', { name: 'Female', exact: true }).click();
   await page.getByLabel('Your name').fill('Tobi City');
   await page.getByLabel('Handle').fill(`tobi_${letters(6)}`);
   await expect(page.getByText('Available', { exact: true })).toBeVisible();
