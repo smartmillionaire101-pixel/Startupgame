@@ -174,8 +174,15 @@ export const api = {
       text,
       lang,
     }),
-  /** Who else is on the map (Wave 2 §A). Raw body: validate with normPresence. */
-  presence: () => request<unknown>('GET', '/api/presence'),
+  /**
+   * Who else is on the map (Wave 2 §A). Raw body: validate with normPresence.
+   * Wave 6: with a place id, only the players there (an older server ignores it).
+   */
+  presence: (place?: string) =>
+    request<unknown>(
+      'GET',
+      place ? `/api/presence?${new URLSearchParams({ place })}` : '/api/presence',
+    ),
   reportPresence: (p: { x: number; y: number; place: string | null }) =>
     request<unknown>('POST', '/api/presence', p),
   presenceSetting: () => request<{ visible: boolean }>('GET', '/api/me/presence'),

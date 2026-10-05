@@ -91,7 +91,49 @@ export function addContact(
     warmth: Math.round(warmth * 100) / 100,
     month,
   });
-  if (list.length > CONTACTS_LIMIT) list.length = CONTACTS_LIMIT;
+  trimContacts(list, month);
+}
+
+/**
+ * Wave 6: add a contact at exactly this warmth (saving someone you met), or
+ * reset an existing one to it; newest first. Returns the stored contact.
+ */
+export function putContact(
+  p: Player,
+  input: { kind: ContactKind; refId: Id; name: string; warmth: number },
+  month: number,
+): Contact {
+  const list = (p.contacts ??= []);
+  const id = `${input.kind}:${input.refId}`;
+  const i = list.findIndex((c) => c.id === id);
+  if (i >= 0) list.splice(i, 1);
+  const c: Contact = {
+    id,
+    kind: input.kind,
+    refId: input.refId,
+    name: input.name,
+    warmth: Math.round(clamp01(input.warmth) * 100) / 100,
+    month,
+  };
+  list.unshift(c);
+  trimContacts(list, month);
+  return c;
+}
+
+/** Keep at most CONTACTS_LIMIT contacts, dropping the coldest first (never the newest). */
+function trimContacts(list: Contact[], month: number) {
+  while (list.length > CONTACTS_LIMIT) {
+    let coldest = list.length - 1;
+    let w = contactWarmth(list[coldest]!, month);
+    for (let i = list.length - 2; i >= 1; i--) {
+      const x = contactWarmth(list[i]!, month);
+      if (x < w) {
+        w = x;
+        coldest = i;
+      }
+    }
+    list.splice(coldest, 1);
+  }
 }
 
 /**

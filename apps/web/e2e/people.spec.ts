@@ -1,10 +1,19 @@
 import { devices, type Page } from '@playwright/test';
-import { expect, letters, more, test, withoutNetlifyDrawer, playAsGuest } from './fixtures';
+import {
+  expect,
+  letters,
+  more,
+  playAsGuest,
+  tapPlace,
+  test,
+  withoutNetlifyDrawer,
+} from './fixtures';
 
 /**
- * Wave 2: people in the city. AI characters and the person card always run;
- * the two-player presence and event checks need the server's presence API and
- * the engine's events, so they skip themselves where those aren't deployed.
+ * Wave 2: people in the city, inside buildings since Wave 6. AI characters,
+ * Who's here and the person card always run; the two-player presence and
+ * event checks need the server's presence API and the engine's events, so
+ * they skip themselves where those aren't deployed.
  */
 
 async function signUpFounder(page: Page, name: string) {
@@ -22,13 +31,6 @@ async function signUpFounder(page: Page, name: string) {
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
-}
-
-/** Tap an SVG element the way the map listens for taps. */
-async function tap(page: Page, selector: string) {
-  const el = page.locator(selector).first();
-  await el.dispatchEvent('pointerdown', { pointerId: 7, clientX: 5, clientY: 5 });
-  await el.dispatchEvent('pointerup', { pointerId: 7, clientX: 5, clientY: 5 });
 }
 
 const presenceAvailable = (page: Page) =>
@@ -55,38 +57,38 @@ async function openPlace(page: Page, kind: string) {
   await more(page);
 }
 
-test('AI characters stroll the city and open a person card when tapped', async ({ page }) => {
+test('AI characters are inside buildings: Who’s here, then their card', async ({ page }) => {
   await signUpFounder(page, 'Kemi Walker');
 
-  // Ambient people: partners, founders, shoppers and candidates.
-  const people = page.locator('[data-person^="ai:"]');
-  await expect(people.first()).toBeAttached();
-  expect(await people.count()).toBeGreaterThan(3);
-  await expect(page.locator('[data-person^="ai:partner:"]').first()).toBeAttached();
+  // The street has a few anonymous passers-by, and nobody to tap.
+  await expect(page.locator('[data-walker]').first()).toBeAttached();
+  await expect(page.locator('[data-person]')).toHaveCount(0);
 
-  // Tap a fund partner: their card offers a visit and a pitch.
-  await tap(page, '[data-person^="ai:partner:"]');
-  const card = page.getByRole('dialog');
-  await expect(card).toBeVisible();
-  await expect(card.getByText(/Fund partner/)).toBeVisible();
-  await expect(card.getByRole('button', { name: 'Visit their office' })).toBeVisible();
-  await expect(card.getByRole('button', { name: 'Pitch' })).toBeEnabled();
-  // Visiting walks you to the office and goes in.
-  await card.getByRole('button', { name: 'Visit their office' }).click();
-  await more(page);
-  await expect(page.getByRole('dialog').getByText('Thesis')).toBeVisible({ timeout: 8000 });
-  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
-
-  // The same people as an accessible list.
+  // Who's around: the notable people, by the building they're in. A fund
+  // partner is at their office: going there opens it.
   await page.getByRole('button', { name: /Who’s here/ }).click();
   const list = page.getByRole('list', { name: 'People around' });
-  await expect(list.getByRole('button').first()).toBeVisible();
   await list
-    .getByRole('button', { name: /Customer/ })
+    .getByRole('button', { name: /Fund partner/ })
     .first()
     .click();
-  await expect(page.getByRole('dialog').locator('.person-talk')).toBeVisible();
-  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+  const scene = page.locator('.place-scene');
+  await expect(scene).toBeVisible({ timeout: 10_000 });
+  await expect(scene).toHaveAttribute('data-room', 'investor');
+
+  // Inside, Who's here lists the partner, with Chat and Save.
+  await scene.getByRole('button', { name: /Who’s here/ }).click();
+  const here = page.getByRole('dialog', { name: 'Who’s here' });
+  const partner = here.locator('[data-person-here^="fund:"]').first();
+  await expect(partner).toContainText('Fund partner');
+  await expect(partner.getByRole('button', { name: 'Chat' })).toBeVisible();
+  await expect(partner.getByRole('button', { name: /Save/ })).toBeVisible();
+  await here.getByRole('button', { name: 'Close' }).click();
+
+  // The office's details are under More.
+  await scene.locator('.tray-more').click();
+  await expect(page.getByRole('dialog').getByText('Thesis')).toBeVisible({ timeout: 8000 });
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).first().click();
 
   // The Event Hall is open (or says it opens soon), with the host form.
   await openPlace(page, 'eventhall');
@@ -115,25 +117,33 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   await withoutNetlifyDrawer(b);
   // Unique surnames per run: a deploy preview keeps earlier runs' players.
   const tag = letters(5);
-  // Name tags show first names, so the run's tag goes there.
+  // The run’s tag goes in the first name, which is what people see first.
   const hostFirst = `Amaka${tag}`;
   const hostName = `${hostFirst} Host`;
   await signUpFounder(a, hostName);
   test.skip(!(await presenceAvailable(a)), 'Presence API not deployed here.');
   await signUpFounder(b, `Bode${tag} Guest`);
 
-  // B sees A walking the city (polls every 5 s), taps them and starts a chat.
-  const avatar = b.locator('.city-person-player', { hasText: hostFirst });
-  await expect(avatar).toBeAttached({ timeout: 20_000 });
-  await avatar.dispatchEvent('pointerdown', { pointerId: 7, clientX: 5, clientY: 5 });
-  await avatar.dispatchEvent('pointerup', { pointerId: 7, clientX: 5, clientY: 5 });
-  const card = b.getByRole('dialog', { name: hostName });
-  await expect(card).toBeVisible();
-  await card.getByRole('button', { name: 'Chat' }).click();
-  const starters = b.getByRole('dialog', { name: 'Start with one tap' });
-  await expect(starters).toBeVisible();
-  await starters.locator('.choice').first().click();
-  await expect(b.locator('.chat-log .bubble').first()).toBeVisible();
+  // A goes into the Hub. B sees a player there (a count on the building,
+  // polled every 5 s), goes in, finds A under Who's here and starts a chat.
+  await a.getByRole('button', { name: /Places/ }).click();
+  await a.getByRole('dialog', { name: 'Places' }).locator('[data-kind="hub"]').first().click();
+  await expect(a.locator('.place-scene')).toBeVisible({ timeout: 10_000 });
+  const badge = b.locator('[data-here="hub"]');
+  await expect(badge).toBeAttached({ timeout: 20_000 });
+  await tapPlace(b, '[data-here="hub"]');
+  const hub = b.locator('.place-scene');
+  await expect(hub).toBeVisible({ timeout: 10_000 });
+  await hub.getByRole('button', { name: /Who’s here/ }).click();
+  const host = b
+    .getByRole('dialog', { name: 'Who’s here' })
+    .locator('[data-kind="player"]', { hasText: hostName });
+  await expect(host).toBeVisible({ timeout: 10_000 });
+  await host.getByRole('button', { name: 'Chat' }).click();
+  const bPhone = b.getByRole('dialog', { name: 'Phone' });
+  await bPhone.locator('.choice').first().click();
+  await expect(bPhone.locator('.bubble').first()).toBeVisible();
+  await a.getByRole('button', { name: 'Close' }).first().click();
   await b.reload();
 
   test.skip(!(await eventsAvailable(a)), 'Engine events not deployed here.');

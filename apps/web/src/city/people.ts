@@ -8,22 +8,15 @@
  *   fall back when the server or engine doesn't send them yet: no presence
  *   means no other players on the map; no events means the Event Hall shows
  *   "Events open soon".
- * - Deterministic ambient AI characters: fund partners near their offices,
- *   AI founders near the Hub, shoppers at the Market stalls, candidates at
- *   the Hub. Each strolls a loop along the street graph. Positions are a pure
- *   function of wall-clock time, so every player sees the same city.
+ * - Wave 6 (docs/WAVE6-ALIVE-CITY.md §C1): people live inside buildings.
+ *   Who's here reads `businesses[].people` and merges in players from
+ *   presence; the streets only carry a few anonymous passers-by, whose
+ *   positions are a pure function of wall-clock time, so every player sees
+ *   the same city.
  */
 import type { PlayerView } from '@runway/engine';
-import { angelsOf, businessesOf, hash, seeded } from './contract';
-import {
-  B,
-  findPath,
-  pathLength,
-  pointAlong,
-  type CityLayout,
-  type Place,
-  type Pt,
-} from './layout';
+import { hash, seeded } from './contract';
+import { B, pathLength, pointAlong, type CityLayout, type Place, type Pt } from './layout';
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -115,8 +108,11 @@ export interface CityEventView {
 
 export interface ContactView {
   id: string;
-  kind: 'fund' | 'founder' | 'talent' | 'customer' | 'player';
+  /** Wave 6: 'local' is a business owner or a regular you saved (`biz:` or `npc:`). */
+  kind: 'fund' | 'founder' | 'talent' | 'customer' | 'player' | 'local';
   refId: string;
+  /** Wave 6: the id to open a chat with, when the engine sends it. */
+  chatId: string | null;
   name: string;
   warmth: number;
   month: number;
@@ -184,23 +180,24 @@ export function eventKindsOf(view: { market: Market }): EventKindView[] | null {
   return out;
 }
 
-/** Your contacts, newest first; empty when the engine doesn't send them yet. */
+/** Your contacts (up to the engine's 300), newest first; empty when the engine doesn't send them yet. */
 export function contactsOf(view: { me: Me }): ContactView[] {
   const raw: unknown = (view.me as Me & { contacts?: unknown }).contacts;
   if (!Array.isArray(raw)) return [];
-  const kinds = ['fund', 'founder', 'talent', 'customer', 'player'];
+  const kinds = ['fund', 'founder', 'talent', 'customer', 'player', 'local'];
   return (raw as unknown[])
     .filter((c): c is Record<string, unknown> => isObj(c) && typeof c.id === 'string')
     .map((c) => ({
       id: c.id as string,
       kind: (kinds.includes(c.kind as string) ? c.kind : 'founder') as ContactView['kind'],
       refId: str(c.refId),
+      chatId: typeof c.chatId === 'string' && c.chatId ? c.chatId : null,
       name: str(c.name, '—'),
       warmth: Math.max(0, Math.min(1, num(c.warmth))),
       month: num(c.month),
     }))
     .sort((a, b) => b.month - a.month)
-    .slice(0, 50);
+    .slice(0, 300);
 }
 
 /** The place ids that should fly bunting: venues with an event coming up. */
@@ -255,16 +252,116 @@ export interface AiPerson {
   dwell: number;
 }
 
-export interface CrowdInput {
-  marketId: string;
-  funds: { id: string; partner: string }[];
-  founders: { id: string; name: string; companyId: string }[];
-  candidates: { id: string; name: string }[];
-  segments: { key: string }[];
-  /** Wave 3: AI business owners, by business id. */
-  owners?: { id: string; name: string }[];
-  /** Wave 3: AI angel investors. */
-  angels?: { id: string; name: string; fundId: string | null }[];
+// ---------------------------------------------------------------------------
+// Who's here (docs/WAVE6-ALIVE-CITY.md §A6, §C1): people live inside buildings.
+
+/** Who someone is, inside a place. 'player' is a human from presence. */
+export type HereKind = 'owner' | 'staff' | 'founder' | 'angel' | 'partner' | 'regular' | 'player';
+
+export interface PersonHere {
+  /** The chat character id: a player id, `fund:<id>`, `biz:<bizId>` or `npc:<market>:<n>`. */
+  id: string;
+  name: string;
+  kind: HereKind;
+  /** "Owner", "Bartender", "Founder, Kola Pay"… (engine text, or ours). */
+  role: string;
+  /** When it's a player (human staff, an AI founder or angel). */
+  playerId?: string;
+  gender: 'female' | 'male' | null;
+  /** A real person: chats go to player chat, not the AI. */
+  human: boolean;
+  /** A player's background id (their outfit), from presence. */
+  bg?: string;
+}
+
+const HERE_KINDS: readonly HereKind[] = [
+  'owner',
+  'staff',
+  'founder',
+  'angel',
+  'partner',
+  'regular',
+  'player',
+];
+
+type ViewLike = Pick<PlayerView, 'market' | 'players'>;
+
+const rawBusinesses = (view: Pick<PlayerView, 'market'>) => {
+  const raw = (view.market as Market & { businesses?: unknown }).businesses;
+  return Array.isArray(raw) ? (raw as unknown[]).filter(isObj) : [];
+};
+
+const isHumanPlayer = (view: ViewLike, id: string | undefined) =>
+  !!id && (view.players ?? []).some((p) => p.id === id && !(p as { ai?: unknown }).ai);
+
+/**
+ * `businesses[].people` for one business, or null when the engine doesn't
+ * send it yet (then Who's here falls back to what the view already says).
+ */
+export function peopleField(view: ViewLike, businessId: string): PersonHere[] | null {
+  const b = rawBusinesses(view).find((x) => x.id === businessId);
+  if (!b || !Array.isArray(b.people)) return null;
+  const out: PersonHere[] = [];
+  for (const p of b.people) {
+    if (!isObj(p) || typeof p.id !== 'string' || !p.id) continue;
+    const kind = HERE_KINDS.includes(p.kind as HereKind) ? (p.kind as HereKind) : 'regular';
+    const playerId = typeof p.playerId === 'string' ? p.playerId : undefined;
+    out.push({
+      id: p.id,
+      name: str(p.name, '—'),
+      kind,
+      role: str(p.role),
+      ...(playerId ? { playerId } : {}),
+      gender: p.gender === 'female' || p.gender === 'male' ? p.gender : null,
+      human: isHumanPlayer(view, playerId ?? p.id),
+    });
+  }
+  return out;
+}
+
+/** Business ids the engine marks `isNew` (opened in the last two months). */
+export function newBusinessIds(view: Pick<PlayerView, 'market'>): string[] {
+  return rawBusinesses(view)
+    .filter((b) => b.isNew === true && typeof b.id === 'string' && b.open !== false)
+    .map((b) => b.id as string)
+    .sort();
+}
+
+/** How many other players are in each place right now (presence `place`). */
+export function playersByPlace(players: PresenceView[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const p of players) if (p.place) out.set(p.place, (out.get(p.place) ?? 0) + 1);
+  return out;
+}
+
+/** Whether you've saved this person: their chat id (or what it points at) is a contact. */
+export function savedContact(contacts: ContactView[], personId: string): ContactView | null {
+  const ref = personId.startsWith('fund:') ? personId.slice(5) : personId;
+  return (
+    contacts.find(
+      (c) =>
+        c.chatId === personId ||
+        c.refId === personId ||
+        (c.kind === 'fund' && personId.startsWith('fund:') && c.refId === ref),
+    ) ?? null
+  );
+}
+
+/** The chat to open for a contact: a player thread, an AI character, or none. */
+export function contactChat(
+  c: ContactView,
+  view: ViewLike,
+): { player: string } | { ai: string } | null {
+  if (c.chatId) {
+    if (c.kind === 'player' || isHumanPlayer(view, c.chatId)) return { player: c.chatId };
+    return { ai: c.chatId };
+  }
+  if (c.kind === 'fund') return { ai: `fund:${c.refId}` };
+  if (c.kind === 'player') return { player: c.refId };
+  if (c.kind === 'founder')
+    return isHumanPlayer(view, c.refId) ? { player: c.refId } : { ai: c.refId };
+  if (c.kind === 'local' && c.refId) return { ai: c.refId };
+  return null;
 }
 
 const NPC_NAMES: Record<string, string[]> = {
@@ -285,35 +382,6 @@ export const npcName = (market: string, seed: string) => {
   const xs = NPC_NAMES[market] ?? ['Sam', 'Alex', 'Jordan', 'Robin'];
   return xs[hash(seed) % xs.length]!;
 };
-
-/** What the city needs from the view to cast its characters. */
-export function crowdInput(view: PlayerView): CrowdInput {
-  const m = view.market;
-  const founders: CrowdInput['founders'] = [];
-  for (const c of view.directory) {
-    if (!c.ai || c.status !== 'active' || c.market !== m.id) continue;
-    const f = c.founders.find((x) => x.ai) ?? c.founders[0];
-    if (f) founders.push({ id: f.id, name: f.name, companyId: c.id });
-  }
-  return {
-    marketId: m.id,
-    funds: m.funds.filter((f) => f.market === m.id).map((f) => ({ id: f.id, partner: f.partner })),
-    founders,
-    candidates: m.talent.map((c) => ({ id: c.id, name: c.name })),
-    segments: m.segments.map((s) => ({ key: s.key })),
-    owners: businessesOf(view)
-      .filter((b) => b.open)
-      .map((b) => ({ id: b.id, name: b.owner.name })),
-    angels: angelsOf(view),
-  };
-}
-
-const PARTNER_BG = ['i-banker', 'i-operator', 'i-exited', 'i-corporate', 'i-consultant'];
-const FOUNDER_BG = ['f-engineer', 'f-dropout', 'f-second-time', 'f-consultant'];
-const SHOPPER_BG = ['b-microfinance', 'b-commercial', 'f-corporate', 'b-wealthy'];
-const CANDIDATE_BG = ['f-dropout', 'f-engineer', 'b-fintech'];
-const OWNER_BG = ['b-commercial', 'b-microfinance', 'f-corporate', 'f-second-time'];
-const ANGEL_BG = ['i-exited', 'i-operator', 'b-wealthy', 'i-banker'];
 
 /** Lanes just inside the kerb, so people walk beside the traffic, not in it. */
 const blockLoop = (i: number, j: number, inset: number, cw: boolean, startAt: Pt): Pt[] => {
@@ -347,8 +415,33 @@ const blockLoop = (i: number, j: number, inset: number, cw: boolean, startAt: Pt
   return out;
 };
 
-/** Up and down one stretch of kerb (a short pace back and forth). */
-const pace = (from: Pt, to: Pt): Pt[] => [from, to, from];
+// ---------------------------------------------------------------------------
+// Passers-by: a few anonymous people strolling the pavements for life. They
+// have no name and no tap target; everyone you can talk to is inside a building.
+
+export interface Walker {
+  id: string;
+  /** Background id for the outfit, and the seed for skin and hair. */
+  bg: string;
+  /** A closed loop just inside the kerb (first point = last point). */
+  route: Pt[];
+  /** Milliseconds per loop. */
+  period: number;
+  /** Offset into the loop, 0–1. */
+  phase: number;
+  /** Fraction of each loop spent standing at the start. */
+  dwell: number;
+}
+
+const WALKER_BG = [
+  'b-microfinance',
+  'b-commercial',
+  'f-corporate',
+  'b-wealthy',
+  'f-dropout',
+  'f-engineer',
+  'i-operator',
+];
 
 const blockOf = (p: Place) => ({
   i: Math.floor((p.x + p.w / 2) / B),
@@ -356,162 +449,40 @@ const blockOf = (p: Place) => ({
 });
 
 /**
- * The cast of ambient characters for a city, at most `max` of them. Pure and
- * deterministic: the same layout and input give the same people, routes and
- * timings.
+ * Up to `max` passers-by, each looping the pavement around a block with
+ * buildings on it. Pure and deterministic for the layout, so every player
+ * sees the same street life.
  */
-export function aiCharacters(layout: CityLayout, input: CrowdInput, max: number): AiPerson[] {
-  const rnd = seeded(hash(`crowd:${input.marketId}`));
-  const places = new Map(layout.places.map((p) => [p.id, p]));
-  const hub = places.get('hub');
-
-  const make = (
-    kind: AiPerson['kind'],
-    ref: string,
-    name: string,
-    bgs: string[],
-    home: Place,
-    style: 'loop' | 'pace',
-  ): AiPerson => {
-    const h = hash(`${input.marketId}:${kind}:${ref}`);
-    const { i, j } = blockOf(home);
+export function passersBy(layout: CityLayout, max: number): Walker[] {
+  const rnd = seeded(hash(`walkers:${layout.marketId}`));
+  const blocks = new Map<string, { i: number; j: number; door: Pt }>();
+  for (const p of [...layout.places].sort((a, b) => (a.id < b.id ? -1 : 1))) {
+    const { i, j } = blockOf(p);
+    if (!blocks.has(`${i},${j}`)) blocks.set(`${i},${j}`, { i, j, door: p.door });
+  }
+  const pool = [...blocks.values()];
+  const out: Walker[] = [];
+  for (let n = 0; n < max && pool.length; n++) {
+    const blk = pool.splice(Math.floor(rnd() * pool.length), 1)[0]!;
+    const h = hash(`${layout.marketId}:walker:${n}`);
     const inset = 0.44 + ((h >>> 3) % 5) * 0.02;
-    const door = home.door;
-    let route: Pt[];
-    if (style === 'loop') route = blockLoop(i, j, inset, ((h >>> 7) & 1) === 1, door);
-    else {
-      // Pace along the kerb in front of the door, about a tile each way.
-      const loop = blockLoop(i, j, inset, true, door);
-      const start = loop[0]!;
-      const horiz = Math.abs(door.y - Math.round(door.y / B) * B) < 1e-6;
-      const off = 0.6 + ((h >>> 11) % 5) * 0.12;
-      const lo = (v: number, base: number) => Math.max(base + inset, Math.min(base + B - inset, v));
-      const end = horiz
-        ? { x: lo(start.x + (h & 1 ? off : -off), i * B), y: start.y }
-        : { x: start.x, y: lo(start.y + (h & 1 ? off : -off), j * B) };
-      route = pace(start, end);
-    }
+    const route = blockLoop(blk.i, blk.j, inset, ((h >>> 7) & 1) === 1, blk.door);
     const len = Math.max(0.5, pathLength(route));
-    // Slow strolling pace: about a third of a tile a second, give or take.
     const speed = 0.28 + ((h >>> 13) % 7) * 0.025;
-    return {
-      id: `ai:${kind}:${ref}`,
-      kind,
-      name,
-      ref,
-      bg: bgs[h % bgs.length]!,
-      home: home.id,
+    out.push({
+      id: `walker:${n}`,
+      bg: WALKER_BG[h % WALKER_BG.length]!,
       route,
-      period: Math.round((len / speed) * 1000 * (style === 'pace' ? 2.2 : 1)),
+      period: Math.round((len / speed) * 1000),
       phase: (h % 1000) / 1000,
-      dwell: style === 'pace' ? 0.35 : 0.12 + ((h >>> 17) % 4) * 0.03,
-    };
-  };
-
-  const byId = <T extends { id: string }>(xs: T[]) =>
-    [...xs].sort((a, b) => (a.id < b.id ? -1 : 1));
-
-  const partners = byId(input.funds)
-    .map((f) => {
-      const home = places.get(`fund:${f.id}`);
-      return home ? make('partner', f.id, f.partner, PARTNER_BG, home, 'pace') : null;
-    })
-    .filter((x): x is AiPerson => x !== null);
-
-  const founders = hub
-    ? byId(input.founders).map((f, n) => ({
-        ...make('founder', f.id, f.name, FOUNDER_BG, hub, n % 2 ? 'pace' : 'loop'),
-        company: f.companyId,
-      }))
-    : [];
-
-  const stalls = layout.places.filter((p) => p.kind === 'stall');
-  const shoppers = [...stalls]
-    .sort((a, b) =>
-      hash(`${input.marketId}:${a.id}`) < hash(`${input.marketId}:${b.id}`) ? -1 : 1,
-    )
-    .map((s, n) =>
-      make(
-        'shopper',
-        s.ref ?? s.id,
-        npcName(input.marketId, `shopper:${s.id}`),
-        SHOPPER_BG,
-        s,
-        n % 2 ? 'loop' : 'pace',
-      ),
-    );
-
-  const candidates = hub
-    ? byId(input.candidates).map((c, n) =>
-        make('candidate', c.id, c.name, CANDIDATE_BG, hub, n % 2 ? 'loop' : 'pace'),
-      )
-    : [];
-
-  // Business owners stand at their shop doors.
-  const owners = byId(input.owners ?? [])
-    .map((o) => {
-      const home = places.get(`biz:${o.id}`);
-      return home ? make('owner', o.id, o.name, OWNER_BG, home, 'pace') : null;
-    })
-    .filter((x): x is AiPerson => x !== null);
-
-  // AI angels walk between their offices and the city's restaurants and back.
-  const venues = layout.places
-    .filter((p) => p.motif === 'b-restaurant' || p.motif === 'b-cafe' || p.motif === 'b-pub')
-    .sort((a, b) => (a.id < b.id ? -1 : 1));
-  const funds = layout.places.filter((p) => p.kind === 'fund');
-  const angels = byId(input.angels ?? [])
-    .map((a): AiPerson | null => {
-      const office =
-        (a.fundId && places.get(`fund:${a.fundId}`)) ||
-        funds[hash(a.id) % Math.max(1, funds.length)];
-      if (!office) return null;
-      const venue = venues[hash(`${a.id}:lunch`) % Math.max(1, venues.length)];
-      const base = make('angel', a.id, a.name, ANGEL_BG, office, 'loop');
-      if (!venue) return { ...base, fund: a.fundId ?? undefined };
-      const there = findPath(layout, office.door, venue.door);
-      const route = [...there, ...[...there].reverse().slice(1)];
-      const len = Math.max(0.5, pathLength(route));
-      return {
-        ...base,
-        fund: a.fundId ?? undefined,
-        route,
-        period: Math.round((len / 0.6) * 1000),
-        dwell: 0.18,
-      };
-    })
-    .filter((x): x is AiPerson => x !== null);
-
-  // Share the budget round-robin, so a small phone still sees every kind.
-  const queues = [partners, founders, shoppers, candidates, owners, angels].map((q) => {
-    // A seeded shuffle, so which partners show up varies by market, not by id order.
-    const xs = [...q];
-    for (let k = xs.length - 1; k > 0; k--) {
-      const r = Math.floor(rnd() * (k + 1));
-      [xs[k], xs[r]] = [xs[r]!, xs[k]!];
-    }
-    return xs;
-  });
-  const out: AiPerson[] = [];
-  const caps = [5, 4, 4, 3, 6, 5];
-  const taken = [0, 0, 0, 0, 0, 0];
-  let progress = true;
-  while (out.length < max && progress) {
-    progress = false;
-    for (let q = 0; q < queues.length && out.length < max; q++) {
-      if (taken[q]! >= caps[q]!) continue;
-      const next = queues[q]![taken[q]!];
-      if (!next) continue;
-      out.push(next);
-      taken[q]!++;
-      progress = true;
-    }
+      dwell: 0.1 + ((h >>> 17) % 4) * 0.03,
+    });
   }
   return out;
 }
 
-/** How many ambient people to draw for a screen width. */
-export const crowdSize = (width: number) => (width < 500 ? 6 : width < 900 ? 14 : 22);
+/** How many passers-by to draw for a screen width: a few, never a crowd. */
+export const crowdSize = (width: number) => (width < 500 ? 4 : width < 900 ? 7 : 10);
 
 /** Where a character is at a moment in time (ms), and whether they're walking. */
 export function personAt(

@@ -8,6 +8,7 @@ import { entry } from './entry';
 import { me } from './me';
 import { money } from './money';
 import { people } from './people';
+import { peopleWave6 } from './people-wave6';
 import { phone } from './phone';
 import { places } from './places';
 import { server } from './server';
@@ -23,6 +24,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   money,
   me,
   people,
+  peopleWave6,
   phone,
   places,
   server,

@@ -87,16 +87,22 @@ test('Home inbox items are tappable, and person cards chat with AI people', asyn
     page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'News' }),
   ).toHaveAttribute('aria-current', 'page');
 
-  // A fund partner in the city: Chat opens their thread in the phone.
+  // A fund partner, at their office (Wave 6: people are inside buildings).
+  // Tap them in the room: Chat on their card opens their thread in the phone.
   await page
     .getByRole('navigation', { name: 'Main' })
     .getByRole('button', { name: 'City' })
     .click();
-  const partner = page.locator('[data-person^="ai:partner:"]').first();
-  await expect(partner).toBeAttached();
-  await partner.dispatchEvent('pointerdown', { pointerId: 3, clientX: 5, clientY: 5 });
-  await partner.dispatchEvent('pointerup', { pointerId: 3, clientX: 5, clientY: 5 });
-  await page.getByRole('dialog').getByRole('button', { name: 'Chat', exact: true }).click();
+  await page.getByRole('button', { name: /Places/ }).click();
+  await page.getByRole('dialog', { name: 'Places' }).locator('[data-kind="fund"]').first().click();
+  const scene = page.locator('.place-scene');
+  await expect(scene).toBeVisible({ timeout: 10_000 });
+  await scene.getByRole('button', { name: /, Partner$/ }).dispatchEvent('click');
+  await page
+    .getByRole('dialog')
+    .filter({ hasText: 'Fund partner' })
+    .getByRole('button', { name: 'Chat', exact: true })
+    .click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await expect(phone.locator('[data-thread^="fund:"]')).toBeVisible();
 });

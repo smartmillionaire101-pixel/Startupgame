@@ -109,7 +109,9 @@ describe('San Francisco (Wave 3 §A)', () => {
     const before = balance(w, p.accounts.local);
     const gig = run(w, 'u_sf', { type: 'player.gig' });
     w = gig.world;
-    expect(balance(w, p.accounts.local) - before).toBe(1_500_00 - Math.round(1_500_00 * 0.35));
+    // Wave 6: gigs pay 30% more.
+    const gigPay = Math.round(1_500_00 * 1.3);
+    expect(balance(w, p.accounts.local) - before).toBe(gigPay - Math.round(gigPay * 0.35));
     w = settle(w, SF, 3);
     const history = w.companies[c.id]!.finance.history;
     expect(history).toHaveLength(3);

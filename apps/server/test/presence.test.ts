@@ -154,6 +154,16 @@ describe('presence routes', () => {
     // Market isolation: the Nairobi player only sees nobody.
     expect((await d.get('/api/presence')).json().players).toEqual([]);
 
+    // Wave 6: `?place=` lists only the players at that place.
+    const atPlace = async (s: typeof a, place: string) =>
+      (await s.get(`/api/presence?place=${encodeURIComponent(place)}`))
+        .json()
+        .players.map((p: { id: string }) => p.id);
+    expect(await atPlace(a, 'market')).toEqual([cId]);
+    expect(await atPlace(b, 'hub')).toEqual([aId]);
+    expect(await atPlace(a, 'biz:nowhere')).toEqual([]);
+    expect((await a.get(`/api/presence?place=${'x'.repeat(65)}`)).statusCode).toBe(400);
+
     // Blocking hides both ways.
     const starters = (await a.get(`/api/chats/starters/${bId}`)).json().starters as string[];
     const chat = (await a.post('/api/chats', { playerId: bId, starter: starters[0] })).json().chat;

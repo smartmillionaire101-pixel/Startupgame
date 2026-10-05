@@ -163,6 +163,8 @@ export interface Player {
   home?: { items: HomeItem[] };
   /** Wave 5: your car. Missing = none. */
   car?: PlayerCar;
+  /** Wave 6: venue buys this month (seeds the "who you meet" roll). Missing = none. */
+  venueBuys?: { month: number; count: number };
 }
 
 export type Gender = 'female' | 'male';
@@ -191,7 +193,11 @@ export interface PlayerCar {
 
 // ---------------------------------------------------------------- Events & contacts (Wave 2)
 
-export type ContactKind = 'fund' | 'founder' | 'talent' | 'customer' | 'player';
+/**
+ * Wave 6 adds 'local': a business owner (`biz:<businessId>`) or a regular
+ * met around town (`npc:<market>:<n>`); the refId is that person id.
+ */
+export type ContactKind = 'fund' | 'founder' | 'talent' | 'customer' | 'player' | 'local';
 
 export interface Contact {
   /** `${kind}:${refId}`: one contact per person (meeting again warms it). */
@@ -981,6 +987,11 @@ export interface MarketState {
   businesses?: Record<Id, LocalBusiness>;
   /** City economy totals (Wave 3). */
   economy?: EconomyStats;
+  /**
+   * Wave 6: human players who ever joined in this market (drives how many
+   * businesses the city grows). Missing on old saves: counted from the players.
+   */
+  humansJoined?: number;
   /** Head of the central bank (Wave 5): the best human banker each quarter. Missing = the AI governor. */
   governor?: Governor;
 }
@@ -1045,8 +1056,13 @@ export interface LocalBusiness {
   suppliers: { companyId: Id; sector: Industry; monthlyMinor: number; since: number }[];
   openedMonth: number;
   closedMonth?: number;
-  /** Index of its seed in the city roster. */
+  /** Index of its seed in the city roster; -1 for a generated business (Wave 6, see `gen`). */
   seed: number;
+  /**
+   * Wave 6: a business generated as the city grows (not from the roster).
+   * Every roster lookup (`CITY_BUSINESSES[m.id][b.seed]`) falls back to this.
+   */
+  gen?: { name: string; kind: string; district: string; street: string | null; owner: string };
   /** Underlying monthly demand, local minor (takings before season and noise). */
   base: number;
   /** What the cost structure (staff, rent) is sized for, local minor; follows demand slowly. */

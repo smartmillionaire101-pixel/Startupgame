@@ -46,14 +46,14 @@ function prospect(w: World, sector: Industry = 'fintech'): LocalBusiness {
 const thaw = (w: World): World => structuredClone(w);
 
 describe('city rosters', () => {
-  it('every city has 24–48 businesses with known kinds, real districts and unique names', () => {
+  it('every city has 24–60 businesses with known kinds, real districts and unique names', () => {
     const cities = [...MARKET_IDS];
     expect(cities).toContain('san-francisco');
     for (const city of cities) {
       const roster = CITY_BUSINESSES[city];
       expect(roster, city).toBeDefined();
       expect(roster!.length).toBeGreaterThanOrEqual(24);
-      expect(roster!.length).toBeLessThanOrEqual(48);
+      expect(roster!.length).toBeLessThanOrEqual(60);
       const districts = CITY_DISTRICTS[city]!;
       for (const s of roster!) {
         expect(businessKind(s.kind), `${city}: ${s.kind}`).toBeDefined();
@@ -78,7 +78,8 @@ describe('city rosters', () => {
       expect(buys, k.kind).toBeLessThan(0.12);
       expect(k.gigs.length, k.kind).toBeGreaterThan(0);
       expect(k.revenueCol[0]).toBeLessThan(k.revenueCol[1]);
-      for (const it of k.venue?.items ?? []) expect(it.priceCol).toBeLessThan(0.05);
+      // Wave 6: bottle service at a club is the dearest night out.
+      for (const it of k.venue?.items ?? []) expect(it.priceCol).toBeLessThan(0.1);
     }
   });
 
@@ -328,7 +329,7 @@ describe('gigs at businesses', () => {
     const energy = w.players.u_founder!.energy;
     const r = run(w, 'u_founder', { type: 'gig.take', businessId: b.id, gigId: 'shift' });
     w = r.world;
-    const pay = Math.round(col(m) * businessKind(b.kind)!.gigs[0]!.payCol);
+    const pay = Math.round(col(m) * businessKind(b.kind)!.gigs[0]!.payCol * ECONOMY.gigPayBoost);
     expect(r.result.pay).toBe(pay);
     expect(r.result.short).toBe(false);
     expect(r.result.tax).toBe(Math.round(pay * m.data.tax.personalIncome));
@@ -357,7 +358,7 @@ describe('gigs at businesses', () => {
     const view = playerView(w, 'u_founder')!.market.businesses.find((x) => x.id === b.id)!;
     const gv = view.gigs.find((x) => x.id === g.id)!;
     expect(gv.skillMatch).toBe(true); // an engineer
-    expect(gv.pay).toBe(Math.round(col(m) * g.payCol * ECONOMY.skillPremium));
+    expect(gv.pay).toBe(Math.round(col(m) * g.payCol * ECONOMY.gigPayBoost * ECONOMY.skillPremium));
     // The business is nearly broke: it pays what it has, and says so.
     const left = 1000;
     const acc = w.accounts[b.account]!;

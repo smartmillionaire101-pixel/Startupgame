@@ -56,6 +56,7 @@ import { Showroom, slotsOwned } from './Showroom';
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
 import type { PersonRef } from './PersonCard';
 import { RoomBack, RoomFront } from './RoomArt';
+import { WhoIsHere } from './WhoIsHere';
 import {
   ENTRANCE,
   FUN_ROOMS,
@@ -1037,6 +1038,7 @@ export function PlaceScene({
             <AvatarFigure look={meLook} />
           </g>
         </svg>
+        <WhoIsHere place={place} players={players} />
       </div>
       {/* Who's here (WhoIsHere.tsx, Wave 6 §C1) goes on this line: under the room, above the tray. */}
       {more ? (

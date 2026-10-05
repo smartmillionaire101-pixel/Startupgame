@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@fastify/cookie": "^11.0.2",
     "@fastify/helmet": "^13.0.1",
     "@fastify/rate-limit": "^10.3.0",

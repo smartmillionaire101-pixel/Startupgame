@@ -106,7 +106,7 @@ export const EVENT_MAX_BUDGET_COL = 20;
 export const EVENT_MAX_TICKET_COL = 2;
 /** Held and cancelled events stay in the market view for this many months. */
 export const EVENT_RECENT_MONTHS = 3;
-/** Contacts kept per player (oldest dropped first). */
-export const CONTACTS_LIMIT = 200;
+/** Contacts kept per player (Wave 6: 300, the coldest dropped first). */
+export const CONTACTS_LIMIT = 300;
 /** A contact's warmth fades to nothing over this many months without contact. */
 export const CONTACT_FADE_MONTHS = 12;

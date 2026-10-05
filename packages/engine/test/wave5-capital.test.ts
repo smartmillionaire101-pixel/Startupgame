@@ -386,7 +386,7 @@ describe('Wave 5 B: central bank governor', () => {
 });
 
 describe('Wave 5 B: AI phase-out', () => {
-  it('shrinks AI startups and angels as humans join, keeping minimums', () => {
+  it('phases out angels as human investors join; AI startups grow with humans (Wave 6)', () => {
     expect(angelTarget('london')).toBe(4);
     expect(angelTarget('london', 2)).toBe(3);
     expect(angelTarget('london', 40)).toBe(2);
@@ -394,7 +394,8 @@ describe('Wave 5 B: AI phase-out', () => {
     let w = makeWorld(71, ['london']);
     expect(aiStartupTarget(w, 'london')).toBe(10);
     for (let i = 0; i < 4; i++) w = addInvestor(w, `u_inv${i}`, 'london');
-    expect(aiStartupTarget(w, 'london')).toBe(10);
+    // Wave 6: one more AI startup for every four humans (it used to shrink).
+    expect(aiStartupTarget(w, 'london')).toBe(11);
     w = settle(w, 'london', 1);
     expect(activeAngels(w, 'london')).toHaveLength(2);
     const names =
@@ -402,7 +403,8 @@ describe('Wave 5 B: AI phase-out', () => {
         ' ',
       );
     for (const [i, n] of names.entries()) w = addFounder(w, `u_f${i}`, 'london', `${n}ly`);
-    expect(aiStartupTarget(w, 'london')).toBe(4);
+    // 22 humans: 10 + floor(22 / 4).
+    expect(aiStartupTarget(w, 'london')).toBe(15);
   });
 
   it('is deterministic', () => {
