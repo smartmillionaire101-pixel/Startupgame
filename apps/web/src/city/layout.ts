@@ -78,7 +78,9 @@ export type PlaceKind =
   | 'airport'
   | 'newsstand'
   | 'eventhall'
-  | 'business';
+  | 'business'
+  /** Wave 5: an accelerator, a development partner or an LP's office. */
+  | 'capital';
 
 export type Motif =
   | 'columns'
@@ -287,7 +289,22 @@ export interface CityInput {
   eventsOpen?: boolean;
   /** Wave 3: open local businesses. */
   businesses?: BizInput[];
+  /** Wave 5: accelerators (near the Hub), development partners and LPs (with the investors). */
+  capital?: CapitalInput[];
 }
+
+export type CapitalKind = 'accelerator' | 'devpartner' | 'lp';
+export interface CapitalInput {
+  id: string;
+  name: string;
+  kind: CapitalKind;
+}
+
+const CAPITAL_LOOK: Record<CapitalKind, { motif: Motif; color: string; accent: string }> = {
+  accelerator: { motif: 'loft', color: '#7e22ce', accent: '#f0abfc' },
+  devpartner: { motif: 'garden', color: '#0e7490', accent: '#a5f3fc' },
+  lp: { motif: 'tower', color: '#334155', accent: '#fde68a' },
+};
 
 const LENDER_H: Record<string, number> = {
   columns: 46,
@@ -622,6 +639,7 @@ function putStalls(ctx: Ctx, blocks: Cell[], area?: string) {
 type LotItem =
   | { kind: 'lender' | 'playerbank'; id: string; name: string; look: LenderLook }
   | { kind: 'fund'; id: string; name: string; office: FundOffice }
+  | { kind: 'capital'; cap: CapitalInput }
   | { kind: 'business'; biz: BizInput };
 
 function financeItems(input: CityInput): LotItem[] {
@@ -689,6 +707,31 @@ function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: string) {
       accent: '#fef3c7',
       ...doorFor(blk.i, blk.j, l.a, l.b, x, y, w, w),
       level: it.office.floor,
+    });
+    return;
+  }
+  if (it.kind === 'capital') {
+    const look = CAPITAL_LOOK[it.cap.kind] ?? CAPITAL_LOOK.lp;
+    const w = LOT_SIZE;
+    const x = l.x + (LOT_SIZE - w) * (l.a ? 1 : 0);
+    const y = l.y + (LOT_SIZE - w) * (l.b ? 1 : 0);
+    ctx.places.push({
+      id: `cap:${it.cap.id}`,
+      kind: 'capital',
+      ref: it.cap.id,
+      name: it.cap.name,
+      district: 'investors',
+      area,
+      x,
+      y,
+      w,
+      d: w,
+      h: OFFICE_H[look.motif] ?? 48,
+      motif: look.motif,
+      color: look.color,
+      accent: look.accent,
+      ...doorFor(blk.i, blk.j, l.a, l.b, x, y, w, w),
+      level: 2,
     });
     return;
   }
@@ -810,7 +853,8 @@ function buildGeneric(input: CityInput): CityLayout {
   const fin = financeItems(input);
   const biz = [...(input.businesses ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
   const nF = Math.max(1, Math.ceil(fin.length / 4));
-  const nI = Math.max(1, Math.ceil(input.funds.length / 4));
+  const capital = [...(input.capital ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
+  const nI = Math.max(1, Math.ceil((input.funds.length + capital.length) / 4));
   const nM = Math.max(1, Math.ceil(input.segments.length / 9));
   const nS = Math.ceil(biz.length / 4);
   const core = 3 + nF + nI + nM + nS + 2;
@@ -855,7 +899,10 @@ function buildGeneric(input: CityInput): CityLayout {
   fillLots(
     ctx,
     of('investors'),
-    input.funds.map((f) => ({ kind: 'fund', ...f })),
+    [
+      ...input.funds.map((f) => ({ kind: 'fund' as const, ...f })),
+      ...capital.map((c) => ({ kind: 'capital' as const, cap: c })),
+    ],
     undefined,
     tree,
   );
@@ -1218,10 +1265,18 @@ function tryPlanned(
     (Object.keys(HOST_FALLBACK) as Host[]).filter((h) => hostOf.get(h) === n);
   const fin = financeItems(input);
   const marketBlocks = Math.ceil(input.segments.length / 9);
+  const capital = [...(input.capital ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
   const lotItemsOf = (n: number): LotItem[] => [
     ...(hosts(n).includes('finance') ? fin : []),
     ...(hosts(n).includes('investors')
       ? input.funds.map((f) => ({ kind: 'fund' as const, ...f }))
+      : []),
+    // Accelerators sit by the Hub; partners and LPs with the investors.
+    ...(hosts(n).includes('hub')
+      ? capital.filter((c) => c.kind === 'accelerator').map((c) => ({ kind: 'capital' as const, cap: c }))
+      : []),
+    ...(hosts(n).includes('investors')
+      ? capital.filter((c) => c.kind !== 'accelerator').map((c) => ({ kind: 'capital' as const, cap: c }))
       : []),
     ...bizIn[n]!.map((b) => ({ kind: 'business' as const, biz: b })),
   ];

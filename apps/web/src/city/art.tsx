@@ -1668,6 +1668,8 @@ export interface AvatarLook {
   top: string;
   bottom: string;
   accessory: 'glasses' | 'tie' | 'cap' | 'lanyard' | 'scarf' | 'none';
+  /** Wave 5: the player's choice (AI characters: from their seed). */
+  gender?: 'female' | 'male';
 }
 
 const SKINS = [
@@ -1703,19 +1705,36 @@ const OUTFITS: Record<string, Pick<AvatarLook, 'top' | 'bottom' | 'accessory'>> 
   'b-wealthy': { top: '#a16207', bottom: '#1f2937', accessory: 'scarf' },
 };
 
-/** Appearance from the background (outfit) and the player id (skin, hair). */
-export function avatarLook(backgroundId: string | undefined, playerId: string): AvatarLook {
+const FEMALE_STYLES: AvatarLook['hairStyle'][] = ['bun', 'long', 'braids', 'afro'];
+const MALE_STYLES: AvatarLook['hairStyle'][] = ['short', 'buzz', 'afro', 'short'];
+
+/**
+ * Appearance from the background (outfit) and the player id (skin, hair).
+ * With a gender (Wave 5) the hair and figure follow it; without one (saved
+ * players, AI characters) it comes from the seed, as before.
+ */
+export function avatarLook(
+  backgroundId: string | undefined,
+  playerId: string,
+  gender?: 'female' | 'male' | null,
+): AvatarLook {
   const h = hash(`${playerId}:${backgroundId ?? ''}`);
   const outfit = OUTFITS[backgroundId ?? ''] ?? {
     top: '#0f766e',
     bottom: '#1e293b',
     accessory: 'none' as const,
   };
+  const style = STYLES[(h >>> 9) % STYLES.length]!;
+  const g = gender ?? (['bun', 'long', 'braids'].includes(style) ? 'female' : 'male');
+  const styles = g === 'female' ? FEMALE_STYLES : MALE_STYLES;
   return {
     skin: SKINS[h % SKINS.length]!,
     hair: HAIRS[(h >>> 5) % HAIRS.length]!,
-    hairStyle: STYLES[(h >>> 9) % STYLES.length]!,
+    hairStyle: gender ? styles[(h >>> 9) % styles.length]! : style,
     ...outfit,
+    // A tie reads as a man's suit: women wear a scarf instead.
+    ...(g === 'female' && outfit.accessory === 'tie' ? { accessory: 'scarf' as const } : {}),
+    gender: g,
   };
 }
 
@@ -1733,6 +1752,9 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
         <rect x="0.4" y="-12" width="3.2" height="12" rx="1.5" fill={shade(bottom, -0.15)} />
         <ellipse cx="2" cy="-0.5" rx="2.4" ry="1.3" fill="#111827" />
       </g>
+      {look.gender === 'female' && (
+        <path d="M -5.6 -12.5 L 5.6 -12.5 L 7 -5 L -7 -5 Z" fill={bottom} />
+      )}
       <g className="city-body">
         <rect x="-5.5" y="-24" width="11" height="14" rx="4" fill={top} />
         <rect
@@ -1796,6 +1818,12 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
         )}
         <circle cx="2" cy="-30.5" r="0.8" fill="#111827" />
         <circle cx="-1.5" cy="-30.5" r="0.8" fill="#111827" />
+        {look.gender === 'female' && (
+          <>
+            <circle cx="-5.8" cy="-28.6" r="0.9" fill="#fbbf24" />
+            <circle cx="5.8" cy="-28.6" r="0.9" fill="#fbbf24" />
+          </>
+        )}
         <path d="M -0.8 -27.6 Q 0.6 -26.6 2 -27.6" stroke="#7c2d12" strokeWidth="0.7" fill="none" />
         {accessory === 'glasses' && (
           <g stroke="#111827" strokeWidth="0.7" fill="none">

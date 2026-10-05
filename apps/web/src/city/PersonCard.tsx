@@ -15,6 +15,7 @@ import { PitchSheet, moodLabel } from '../screens/Money';
 import { AvatarFigure, avatarLook } from './art';
 import { MealSheet } from './Business';
 import { activeCompany, businessesOf, hash } from './contract';
+import { looseCmd } from './life';
 import {
   contactsOf,
   eventsOf,
@@ -36,6 +37,8 @@ export const roleName = (r: string) =>
       shopper: t('Customer'),
       owner: t('Business owner'),
       angel: t('Angel investor'),
+      patron: t('Regular'),
+      staff: t('Staff'),
     }) as Record<string, string>
   )[r] ?? r;
 
@@ -107,6 +110,17 @@ export function tipFor(a: AiPerson, view: View, cur: string): string {
           ? t('We’re short-handed: there’s a shift going if you want it.')
           : t('Come in, we’re open.');
     }
+    case 'patron': {
+      const tips = [
+        t('I come here every week. Best spot in {city}.', { city: m.name }),
+        t('Everyone in town ends up here sooner or later.'),
+        t('Heard a founder pitched an angel at the next table last month.'),
+        t('If you need work, ask the owner: they’re always hiring.'),
+      ];
+      return tips[pickN(tips.length)]!;
+    }
+    case 'staff':
+      return t('Welcome! Tell me if you need anything.');
     case 'angel': {
       const f = m.funds.find((x) => x.id === a.fund);
       return f
@@ -128,6 +142,7 @@ export function PersonCard({
   onClose,
   onVisit,
   onHub,
+  atBusiness,
 }: {
   person: PersonRef;
   onClose: () => void;
@@ -135,8 +150,10 @@ export function PersonCard({
   onVisit: (placeId: string) => void;
   /** Open the Hub (for candidates). */
   onHub: () => void;
+  /** Wave 5: you're both in this business (pitch an angel at the table). */
+  atBusiness?: string;
 }) {
-  const { view, cur, toast } = useView();
+  const { view, cur, toast, send, busy } = useView();
   const company = activeCompany(view);
   const contacts = contactsOf(view);
   const [chat, setChat] = useState<{ open?: string; start?: boolean } | null>(null);
@@ -146,7 +163,8 @@ export function PersonCard({
   const id = person.kind === 'player' ? person.p.id : person.a.id;
   const name = person.kind === 'player' ? person.p.name : person.a.name;
   const bg = person.kind === 'player' ? person.p.backgroundId : person.a.bg;
-  const look = useMemo(() => avatarLook(bg, id), [bg, id]);
+  const gender = person.kind === 'player' ? (person.p.gender ?? null) : null;
+  const look = useMemo(() => avatarLook(bg, id, gender), [bg, id, gender]);
   const role = person.kind === 'player' ? person.p.role : person.a.kind;
 
   const refs =
@@ -294,6 +312,22 @@ export function PersonCard({
                   {angel ? t('Pitch their fund') : t('Pitch')}
                 </Button>
               </>
+            )}
+            {angel && atBusiness && company && (
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void send(
+                    looseCmd({ type: 'pitch.angel', angelId: person.a.ref, companyId: company.id }),
+                    (r: { message?: string } | null) =>
+                      r?.message
+                        ? tx(r.message)
+                        : t('You pitched {name} over the table.', { name }),
+                  )
+                }
+              >
+                {t('Pitch {company} here', { company: company.name })}
+              </Button>
             )}
             {angel && (
               <Button variant="ghost" onClick={() => setMeal(true)}>

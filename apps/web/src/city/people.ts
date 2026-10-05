@@ -45,6 +45,8 @@ export interface PresenceView {
   y: number;
   place: string | null;
   seenAt: number;
+  /** Wave 5: the player's chosen gender, when the server sends it. */
+  gender?: 'female' | 'male' | null;
 }
 
 /** Validates a `GET /api/presence` body; anything malformed is dropped. */
@@ -67,6 +69,7 @@ export function normPresence(raw: unknown, selfId?: string): PresenceView[] {
       y: p.y,
       place: typeof p.place === 'string' ? p.place : null,
       seenAt: num(p.seenAt),
+      gender: p.gender === 'female' || p.gender === 'male' ? p.gender : null,
     });
   }
   return out;
@@ -217,7 +220,7 @@ export function flaggedPlaces(events: CityEventView[] | null): string[] {
 // Ambient AI characters
 
 export type PersonKind =
-  'player' | 'partner' | 'founder' | 'candidate' | 'shopper' | 'owner' | 'angel';
+  'player' | 'partner' | 'founder' | 'candidate' | 'shopper' | 'owner' | 'angel' | 'patron' | 'staff';
 
 export interface AiPerson {
   /** Stable id: `ai:<kind>:<ref>`. */
