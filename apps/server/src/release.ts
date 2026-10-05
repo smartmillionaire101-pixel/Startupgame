@@ -3,9 +3,10 @@
  * game plays. Bump `id` for each new note; the engine sends each id once.
  */
 export const RELEASE_NOTE = {
-  id: 'release-2026-10-04-wave4',
+  id: 'release-2026-10-05-pace',
   text:
-    'Runway has been updated: a game month now passes every 5 minutes, you can fly to other cities ' +
-    'and play there, and the city has more room with new ways to get around (walk, cycle, local ' +
-    'transport or taxi). Refresh the page to get the new version. Your game is saved and nothing is lost.',
+    'Thanks for the feedback: a game month now lasts 15 minutes instead of 5, so your cash lasts ' +
+    'longer while you explore. Lots more is on the way: restaurants, cafés and clubs you can walk ' +
+    'into, a phone for chats and alerts, more jobs, accelerators and investors to meet. ' +
+    'Refresh to get the latest version; your game is saved.',
 } as const;
