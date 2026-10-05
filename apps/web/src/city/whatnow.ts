@@ -126,7 +126,7 @@ export function suggestionsFor(view: PlayerView, max = 3): Suggestion[] {
 
   // 4. An accelerator (or a grant) to apply to.
   if (company) {
-    const acc = acceleratorsOf(view).find((a) => !a.status);
+    const acc = acceleratorsOf(view).find((a) => !a.status && a.eligible);
     if (acc) add({ kind: 'accelerator', placeId: `cap:${acc.id}`, name: acc.name });
     const grant = devPartnersOf(view)
       .flatMap((p) => p.programs.filter((g) => g.eligible && !g.status).map((g) => ({ p, g })))

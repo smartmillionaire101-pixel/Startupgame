@@ -178,30 +178,54 @@ export const sellsFurniture = (kind: string) => /furnit|interior|homeware|decor/
 // ---------------------------------------------------------------------------
 // Capital (§B): accelerators, development partners, LPs, angels around town
 
+/**
+ * Your status with a programme. The engine sends `you` as one entry per
+ * company you run (`{ companyId, status, reason }`); "eligible" and
+ * "ineligible" mean you haven't applied yet.
+ */
+function youOf(raw: unknown, companyId: string | null) {
+  const xs = Array.isArray(raw) ? raw.filter(isObj) : isObj(raw) ? [raw] : [];
+  const mine = xs.find((x) => x.companyId === companyId) ?? xs[0] ?? {};
+  const st = str(mine.status);
+  return {
+    status: st && st !== 'eligible' && st !== 'ineligible' && st !== 'open' ? st : null,
+    eligible: st !== 'ineligible' && mine.eligible !== false && mine.canPitch !== false,
+    reason: str(mine.reason) || null,
+  };
+}
+
+const activeCompanyId = (view: View) =>
+  (view.companies ?? []).find((c) => c.status === 'active')?.id ?? null;
+
 export interface AcceleratorView {
   id: string;
   name: string;
   blurb: string;
-  /** e.g. "applied", "accepted", "rejected"; null when you haven't applied. */
+  /** "applied", "accepted", "rejected", "alumni"; null when you haven't applied. */
   status: string | null;
-  /** Minor units offered for the SAFE, when the engine says. */
+  eligible: boolean;
+  reason: string | null;
+  /** Minor units offered on a SAFE. */
   cash: number;
   equityPct: number;
+  demoDay: string;
 }
 
 export function acceleratorsOf(view: View): AcceleratorView[] {
+  const cid = activeCompanyId(view);
   return list(hereField(view, 'accelerators'))
     .filter((a) => typeof a.id === 'string')
     .map((a) => {
-      const you = isObj(a.you) ? a.you : {};
-      const st = a.status ?? you.status ?? a.application;
+      const you = youOf(a.you ?? (a.status !== undefined ? { status: a.status } : undefined), cid);
+      const cohort = isObj(a.cohort) ? a.cohort : {};
       return {
         id: a.id as string,
         name: str(a.name, a.id as string),
-        blurb: str(a.blurb, str(a.description, str(a.pitch))),
-        status: typeof st === 'string' ? st : isObj(st) ? str(st.status) || null : null,
-        cash: num(a.cash, num(a.amount)),
-        equityPct: num(a.equityPct, num(a.equity)),
+        blurb: str(a.tagline, str(a.blurb, str(a.description))),
+        ...you,
+        cash: num(a.check, num(a.cash)),
+        equityPct: typeof a.equityBps === 'number' ? a.equityBps / 100 : num(a.equityPct),
+        demoDay: str(cohort.demoDayLabel),
       };
     });
 }
@@ -209,6 +233,7 @@ export function acceleratorsOf(view: View): AcceleratorView[] {
 export interface ProgramView {
   id: string;
   label: string;
+  /** The most it gives, minor units. */
   amount: number;
   eligible: boolean;
   reason: string | null;
@@ -223,25 +248,21 @@ export interface DevPartnerView {
 }
 
 export function devPartnersOf(view: View): DevPartnerView[] {
+  const cid = activeCompanyId(view);
   return list(hereField(view, 'devPartners'))
     .filter((p) => typeof p.id === 'string')
     .map((p) => ({
       id: p.id as string,
       name: str(p.name, p.id as string),
-      blurb: str(p.blurb, str(p.description, str(p.focus))),
+      blurb: str(p.kindLabel, str(p.blurb, str(p.description))),
       programs: list(p.programs)
         .filter((g) => typeof g.id === 'string')
-        .map((g) => {
-          const you = isObj(g.you) ? g.you : {};
-          return {
-            id: g.id as string,
-            label: str(g.label, str(g.name, g.id as string)),
-            amount: num(g.amount, num(g.max)),
-            eligible: (g.eligible ?? you.eligible) !== false,
-            reason: str(g.reason, str(you.reason)) || null,
-            status: str(g.status, str(you.status)) || null,
-          };
-        }),
+        .map((g) => ({
+          id: g.id as string,
+          label: str(g.label, str(g.name, g.id as string)),
+          amount: Array.isArray(g.amount) ? num(g.amount[1], num(g.amount[0])) : num(g.amount),
+          ...youOf(g.you, cid),
+        })),
     }));
 }
 
@@ -250,6 +271,10 @@ export interface LpView {
   name: string;
   kind: string;
   kindLabel: string;
+  pitch: string;
+  status: string | null;
+  canPitch: boolean;
+  reason: string | null;
 }
 
 export function lpsOf(view: View): LpView[] {
@@ -260,6 +285,24 @@ export function lpsOf(view: View): LpView[] {
       name: str(l.name, l.id as string),
       kind: str(l.kind, 'lp'),
       kindLabel: str(l.kindLabel, str(l.kind)),
+      pitch: str(l.pitch),
+      status: (() => {
+        const st = isObj(l.you) ? str(l.you.status) : '';
+        return st && st !== 'open' && st !== 'no-fund' ? st : null;
+      })(),
+      canPitch: !isObj(l.you) || l.you.canPitch !== false,
+      reason: (isObj(l.you) && str(l.you.reason)) || null,
+    }));
+}
+
+/** AI angels active in the city you're in (`view.here.angels`), with their fund. */
+export function cityAngelsOf(view: View): { id: string; name: string; fundId: string | null }[] {
+  return list(hereField(view, 'angels'))
+    .filter((a) => typeof a.id === 'string')
+    .map((a) => ({
+      id: a.id as string,
+      name: str(a.name, '—'),
+      fundId: typeof a.fundId === 'string' ? a.fundId : null,
     }));
 }
 
@@ -292,6 +335,8 @@ export function angelsAtOf(view: View): Record<string, AngelHere[]> | null {
 }
 
 function angelName(view: View, id: string): string {
+  const a = list(hereField(view, 'angels')).find((x) => x.id === id);
+  if (a) return str(a.name, '—');
   const p = view.players?.find((x) => x.id === id);
   if (p) return p.name;
   for (const f of view.market.funds) {

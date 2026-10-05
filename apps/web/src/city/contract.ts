@@ -414,6 +414,8 @@ export interface BusinessView {
   name: string;
   kind: string;
   kindLabel: string;
+  /** Wave 5: the real street it stands on. */
+  street?: string;
   category: BusinessCategory;
   district: string;
   owner: { name: string };
@@ -447,6 +449,7 @@ function normBusiness(raw: unknown): BusinessView | null {
     name: raw.name,
     kind: strOf(raw.kind, 'shop'),
     kindLabel: strOf(raw.kindLabel, strOf(raw.kind, 'Shop')),
+    ...(typeof raw.street === 'string' && raw.street ? { street: raw.street } : {}),
     category,
     district: strOf(raw.district),
     owner: { name: strOf(isObj(raw.owner) ? raw.owner.name : undefined, '—') },

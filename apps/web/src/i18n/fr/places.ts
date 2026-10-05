@@ -12,6 +12,7 @@ export const places: Record<string, string> = {
   'Apply with {company}': 'Postuler avec {company}',
   'Apply: {programme}': 'Postuler : {programme}',
   'Ask about a loan': 'Demander un prêt',
+  'Demo day: {date}': 'Demo day : {date}',
   'At the Event Hall · {date}': 'À la salle des événements · {date}',
   'At the Market: learn what they’d pay for': 'Au marché : découvrez ce qu’ils paieraient',
   'Back to the room': 'Retour à la salle',

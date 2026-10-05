@@ -322,7 +322,12 @@ export function PersonCard({
                 disabled={busy}
                 onClick={() =>
                   void send(
-                    looseCmd({ type: 'pitch.angel', angelId: person.a.ref, companyId: company.id }),
+                    looseCmd({
+                      type: 'pitch.angel',
+                      angelId: person.a.ref,
+                      companyId: company.id,
+                      businessId: atBusiness,
+                    }),
                     (r: { message?: string } | null) =>
                       r?.message
                         ? tx(r.message)

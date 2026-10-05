@@ -31,6 +31,7 @@ import type { Place } from './layout';
 import {
   acceleratorsOf,
   angelsAtOf,
+  cityAngelsOf,
   attendeesAiOf,
   carOf,
   devPartnersOf,
@@ -118,7 +119,8 @@ export function angelsIn(
   view: View,
   businessId: string,
 ): (AngelHere & { fundId: string | null })[] {
-  const all = angelsOf(view);
+  const engine = cityAngelsOf(view);
+  const all: AngelRef[] = engine.length ? engine : angelsOf(view);
   const byId = new Map<string, AngelRef>(all.map((a) => [a.id, a]));
   const at = angelsAtOf(view);
   if (at)
@@ -608,7 +610,12 @@ export function PlaceScene({
         disabled: busy,
         run: () =>
           send(
-            looseCmd({ type: 'pitch.angel', angelId: angel.id, companyId: company.id }),
+            looseCmd({
+              type: 'pitch.angel',
+              angelId: angel.id,
+              companyId: company.id,
+              businessId: b.id,
+            }),
             (r: Loose) => said(r, t('You pitched {name} over the table.', { name: angel.name })),
           ),
       });
@@ -678,9 +685,14 @@ export function PlaceScene({
         label: a.status
           ? t('Applied: {status}', { status: tx(a.status) })
           : t('Apply with {company}', { company: company.name }),
-        sub: t('Answer at the next settlement'),
+        sub:
+          !a.status && !a.eligible && a.reason
+            ? tx(a.reason)
+            : a.demoDay
+              ? t('Demo day: {date}', { date: a.demoDay })
+              : t('Answer at the next settlement'),
         icon: '🚀',
-        disabled: !!a.status || busy,
+        disabled: !!a.status || !a.eligible || busy,
         run: () =>
           send(
             looseCmd({ type: 'accelerator.apply', acceleratorId: a.id, companyId: company.id }),
@@ -724,10 +736,13 @@ export function PlaceScene({
     if (lp && view.fund)
       actions.push({
         id: 'lp-pitch',
-        label: t('Pitch {fund} to {lp}', { fund: view.fund.name, lp: lp.name }),
-        sub: t('Their commitment arrives at settlement'),
+        label: lp.status
+          ? t('{programme}: {status}', { programme: lp.name, status: tx(lp.status) })
+          : t('Pitch {fund} to {lp}', { fund: view.fund.name, lp: lp.name }),
+        sub:
+          !lp.canPitch && lp.reason ? tx(lp.reason) : t('Their commitment arrives at settlement'),
         icon: '🏛',
-        disabled: busy,
+        disabled: !lp.canPitch || !!lp.status || busy,
         run: () =>
           send(looseCmd({ type: 'lp.pitch', lpId: lp.id }), (r: Loose) =>
             said(r, t('You pitched {name}.', { name: lp.name })),
@@ -842,7 +857,12 @@ export function PlaceScene({
       <header className="place-head">
         <div className="place-title">
           <h2>{title}</h2>
-          {business && <span className="small muted">{tx(business.kindLabel)}</span>}
+          {business && (
+            <span className="small muted">
+              {tx(business.kindLabel)}
+              {business.street ? ` · ${business.street}` : ''}
+            </span>
+          )}
         </div>
         <button type="button" className="icon-btn" aria-label={t('Close')} onClick={onClose}>
           ✕
