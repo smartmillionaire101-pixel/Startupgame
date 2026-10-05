@@ -3,15 +3,19 @@ import type { PlayerView } from '@runway/engine';
 import { cityInput, officeOf } from '../src/city/contract';
 import { buildLayout, type CityInput } from '../src/city/layout';
 import {
-  aiCharacters,
+  contactChat,
   contactsOf,
   crowdSize,
   eventKindsOf,
   eventsOf,
   flaggedPlaces,
+  newBusinessIds,
   normPresence,
+  passersBy,
+  peopleField,
   personAt,
-  type CrowdInput,
+  playersByPlace,
+  savedContact,
 } from '../src/city/people';
 
 const cityIn = (marketId = 'lagos'): CityInput => ({
@@ -35,74 +39,126 @@ const cityIn = (marketId = 'lagos'): CityInput => ({
   homeTier: 2,
 });
 
-const crowdIn = (marketId = 'lagos'): CrowdInput => ({
-  marketId,
-  funds: Array.from({ length: 6 }, (_, i) => ({ id: `f${i}`, partner: `Partner ${i}` })),
-  founders: Array.from({ length: 5 }, (_, i) => ({
-    id: `ai-founder-${i}`,
-    name: `Founder ${i}`,
-    companyId: `c${i}`,
-  })),
-  candidates: Array.from({ length: 4 }, (_, i) => ({ id: `cand-${i}`, name: `Candidate ${i}` })),
-  segments: Array.from({ length: 12 }, (_, i) => ({ key: `s${i}` })),
-});
-
-describe('ambient AI characters', () => {
+describe('passers-by (Wave 6: nobody to tap on the street)', () => {
   const layout = buildLayout(cityIn());
 
-  it('are deterministic for a market', () => {
-    const a = aiCharacters(layout, crowdIn(), 12);
-    const b = aiCharacters(buildLayout(cityIn()), crowdIn(), 12);
-    expect(a).toEqual(b);
-    // Input order doesn't matter.
-    const shuffled = { ...crowdIn(), funds: [...crowdIn().funds].reverse() };
-    expect(aiCharacters(layout, shuffled, 12)).toEqual(a);
-    // Another market casts differently.
-    const other = aiCharacters(buildLayout(cityIn('nairobi')), crowdIn('nairobi'), 12);
-    expect(other.map((p) => p.route)).not.toEqual(a.map((p) => p.route));
+  it('are deterministic for a city, and differ between cities', () => {
+    expect(passersBy(layout, 6)).toEqual(passersBy(buildLayout(cityIn()), 6));
+    const other = passersBy(buildLayout(cityIn('nairobi')), 6);
+    expect(other.map((p) => p.route)).not.toEqual(passersBy(layout, 6).map((p) => p.route));
   });
 
-  it('respect the density budget and include every kind', () => {
-    for (const max of [0, 4, 9, 16]) {
-      const cast = aiCharacters(layout, crowdIn(), max);
+  it('are a few anonymous people: no names, no characters to talk to', () => {
+    for (const max of [0, 4, 7, 10]) {
+      const cast = passersBy(layout, max);
       expect(cast.length).toBeLessThanOrEqual(max);
       expect(new Set(cast.map((p) => p.id)).size).toBe(cast.length);
+      for (const w of cast) {
+        expect(w.id).toMatch(/^walker:/);
+        expect(w).not.toHaveProperty('name');
+      }
     }
-    const kinds = new Set(aiCharacters(layout, crowdIn(), 9).map((p) => p.kind));
-    expect([...kinds].sort()).toEqual(['candidate', 'founder', 'partner', 'shopper']);
+    expect(crowdSize(375)).toBeLessThanOrEqual(4);
     expect(crowdSize(375)).toBeLessThan(crowdSize(1280));
   });
 
-  it('stay near their places on closed loops inside the city', () => {
-    const cast = aiCharacters(layout, crowdIn(), 16);
-    for (const p of cast) {
-      const home = layout.places.find((x) => x.id === p.home)!;
-      expect(home).toBeDefined();
-      if (p.kind === 'partner') expect(home.kind).toBe('fund');
-      if (p.kind === 'shopper') expect(home.kind).toBe('stall');
-      if (p.kind === 'founder' || p.kind === 'candidate') expect(home.id).toBe('hub');
+  it('loop the pavement inside the city, where the clock says', () => {
+    for (const p of passersBy(layout, 10)) {
       expect(p.route[0]).toEqual(p.route[p.route.length - 1]);
       for (const q of p.route) {
         expect(q.x).toBeGreaterThanOrEqual(0);
         expect(q.y).toBeGreaterThanOrEqual(0);
         expect(q.x).toBeLessThanOrEqual(layout.extent);
         expect(q.y).toBeLessThanOrEqual(layout.extent);
-        // Within a block or so of their door.
-        expect(Math.abs(q.x - home.door.x) + Math.abs(q.y - home.door.y)).toBeLessThan(9);
       }
       expect(p.period).toBeGreaterThan(1000);
     }
-  });
-
-  it('are where the clock says, for everyone', () => {
-    const [p] = aiCharacters(layout, crowdIn(), 4);
+    const [p] = passersBy(layout, 4);
     const t = 1_700_000_000_000;
     expect(personAt(p!, t)).toEqual(personAt(p!, t));
     expect(personAt(p!, t + p!.period)).toEqual(personAt(p!, t));
-    // Standing at the start during the dwell.
     const atStart = personAt({ ...p!, phase: 0 }, 0);
     expect(atStart.walking).toBe(false);
     expect(atStart.at).toEqual(p!.route[0]);
+  });
+});
+
+describe('Wave 6 adapters', () => {
+  const v = (market: Record<string, unknown>, me: Record<string, unknown> = {}, players = []) =>
+    ({ market, me, players }) as unknown as PlayerView;
+
+  it('read businesses[].people, or say the engine has none yet', () => {
+    const view = v(
+      {
+        businesses: [
+          {
+            id: 'b1',
+            name: 'Mama Put',
+            isNew: true,
+            people: [
+              { id: 'biz:b1', name: 'Ada', kind: 'owner', role: 'Owner', gender: 'female' },
+              { id: 'npc:lagos:3', name: 'Tunde', kind: 'regular', role: 'Taxi driver' },
+              { id: 'p9', name: 'Kemi', kind: 'staff', role: 'Bartender', playerId: 'p9' },
+              { id: 'x', kind: 'alien' },
+              { name: 'no id' },
+            ],
+          },
+          { id: 'b2', name: 'Old Shop' },
+          { id: 'b3', name: 'Shut', isNew: true, open: false },
+        ],
+      },
+      {},
+      [{ id: 'p9', name: 'Kemi', ai: false }] as never,
+    );
+    const ps = peopleField(view, 'b1')!;
+    expect(ps.map((p) => p.id)).toEqual(['biz:b1', 'npc:lagos:3', 'p9', 'x']);
+    expect(ps[0]).toMatchObject({ kind: 'owner', gender: 'female', human: false });
+    expect(ps[2]).toMatchObject({ kind: 'staff', playerId: 'p9', human: true });
+    expect(ps[3]!.kind).toBe('regular');
+    expect(peopleField(view, 'b2')).toBeNull();
+    expect(peopleField(view, 'nope')).toBeNull();
+    expect(newBusinessIds(view)).toEqual(['b1']);
+    expect(newBusinessIds(v({}))).toEqual([]);
+  });
+
+  it('count players by the building they are in', () => {
+    const ps = normPresence({
+      players: [
+        { id: 'a', x: 1, y: 1, place: 'hub' },
+        { id: 'b', x: 1, y: 1, place: 'hub' },
+        { id: 'c', x: 1, y: 1, place: 'biz:b1' },
+        { id: 'd', x: 1, y: 1, place: null },
+      ],
+    });
+    expect(Object.fromEntries(playersByPlace(ps))).toEqual({ hub: 2, 'biz:b1': 1 });
+  });
+
+  it('read saved contacts with their chat id, and find the chat for each kind', () => {
+    const view = v(
+      {},
+      {
+        contacts: [
+          { id: 'c1', kind: 'local', refId: 'npc:lagos:3', chatId: 'npc:lagos:3', name: 'Tunde' },
+          { id: 'c2', kind: 'fund', refId: 'f1', name: 'Pat, Fund', month: 2 },
+          { id: 'c3', kind: 'player', refId: 'p9', chatId: 'p9', name: 'Kemi', month: 3 },
+          { id: 'c4', kind: 'founder', refId: 'ai1', chatId: 'ai1', name: 'Bot', month: 1 },
+          { id: 'c5', kind: 'talent', refId: 't1', name: 'Job seeker' },
+        ],
+      },
+      [{ id: 'p9', name: 'Kemi' }] as never,
+    );
+    const cs = contactsOf(view);
+    const by = (id: string) => cs.find((c) => c.id === id)!;
+    expect(by('c1')).toMatchObject({ kind: 'local', chatId: 'npc:lagos:3' });
+    expect(by('c2').chatId).toBeNull();
+    expect(contactChat(by('c1'), view)).toEqual({ ai: 'npc:lagos:3' });
+    expect(contactChat(by('c2'), view)).toEqual({ ai: 'fund:f1' });
+    expect(contactChat(by('c3'), view)).toEqual({ player: 'p9' });
+    expect(contactChat(by('c4'), view)).toEqual({ ai: 'ai1' });
+    expect(contactChat(by('c5'), view)).toBeNull();
+    expect(savedContact(cs, 'npc:lagos:3')?.id).toBe('c1');
+    expect(savedContact(cs, 'fund:f1')?.id).toBe('c2');
+    expect(savedContact(cs, 'biz:zz')).toBeNull();
   });
 });
 

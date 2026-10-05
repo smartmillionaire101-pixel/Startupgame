@@ -1,0 +1,112 @@
+/* Wave 6: Who's here, in a scene and on the map. */
+
+.who-strip {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.6rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: calc(100% - 1.2rem);
+  padding: 0.2rem 0.7rem 0.2rem 0.3rem;
+  border: none;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.72);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+.who-strip b {
+  font-weight: 800;
+}
+.who-faces {
+  display: inline-flex;
+}
+.who-faces .who-face {
+  border: 2px solid rgb(15 23 42 / 0.72);
+}
+.who-faces .who-face + .who-face {
+  margin-left: -0.55rem;
+}
+.who-humans {
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: #2563eb;
+  font-size: 0.75rem;
+}
+
+.who-face {
+  flex: none;
+  border-radius: 50%;
+  background: var(--surface-2);
+}
+.who-face.who-player {
+  background: #dbeafe;
+}
+.who-face.who-owner,
+.who-face.who-staff {
+  background: #ffedd5;
+}
+.who-face.who-angel,
+.who-face.who-partner {
+  background: #fef3c7;
+}
+
+.who-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.who-row {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.who-id {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+.who-name {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.who-name > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.who-actions,
+.who-invite {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.who-actions .btn,
+.who-invite .btn {
+  padding: 0.35rem 0.75rem;
+  min-height: 2.25rem;
+  font-size: 0.85rem;
+}
+.who-saved {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.who-around .place-btn {
+  padding: 0.4rem 0.6rem;
+}

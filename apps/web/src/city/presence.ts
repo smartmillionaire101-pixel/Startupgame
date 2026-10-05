@@ -90,5 +90,49 @@ export function usePresence({ enabled, selfId }: { enabled: boolean; selfId: str
   return { players: enabled ? players : [], report };
 }
 
+/**
+ * Wave 6: the players inside one place, polled while its scene is open
+ * (`GET /api/presence?place=<id>`). An older server ignores the parameter
+ * and sends everyone, so the answer is filtered by `place` here as well.
+ */
+export function usePlacePresence({
+  place,
+  enabled,
+  selfId,
+}: {
+  place: string;
+  enabled: boolean;
+  selfId: string;
+}): PresenceView[] {
+  const [players, setPlayers] = useState<PresenceView[]>([]);
+  useEffect(() => {
+    if (!enabled || missing) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      if (stopped) return;
+      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+        try {
+          const raw = await api.presence(place);
+          if (!stopped) setPlayers(normPresence(raw, selfId).filter((p) => p.place === place));
+        } catch (e) {
+          if (isMissing(e)) {
+            missing = true;
+            return;
+          }
+          // Offline or a hiccup: keep what we have and try again.
+        }
+      }
+      if (!stopped) timer = setTimeout(() => void tick(), POLL_MS);
+    };
+    void tick();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [place, enabled, selfId]);
+  return enabled ? players : [];
+}
+
 /** Test hook: whether the server answered 404 for presence. */
 export const presenceMissing = () => missing;
