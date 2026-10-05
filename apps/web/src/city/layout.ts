@@ -1008,6 +1008,11 @@ function finish(
     streets.push({ name: names[(2 * k) % names.length]!, axis: 'y', k, seg: segFor('y', k) });
     streets.push({ name: names[(2 * k + 1) % names.length]!, axis: 'x', k, seg: segFor('x', k) });
   }
+  // Wave 5: names show only zoomed in, so repeat them along each street (every
+  // third open segment) for one to be in view wherever you are.
+  for (const st of [...streets])
+    for (let s2 = (st.seg ?? mid) % 3; s2 < size; s2 += 3)
+      if (s2 !== st.seg && segOpen(st.axis, st.k, s2)) streets.push({ ...st, seg: s2 });
 
   // ---- Traffic: each vehicle drives one open stretch of street end to end, in its lane.
   const lines: { axis: 'x' | 'y'; k: number; s0: number; s1: number }[] = [];

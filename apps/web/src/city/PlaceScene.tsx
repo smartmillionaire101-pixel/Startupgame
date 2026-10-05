@@ -781,6 +781,7 @@ export function PlaceScene({
           run: () => onVisit?.(`biz:${store.id}`),
         });
       actions.push({ ...toMore, label: t('Your money and lifestyle'), icon: '💳' });
+      actions.push(go('me', t('Your profile and contacts'), '🪪'));
     }
   } else if (place.kind === 'eventhall') {
     const events = eventsOf(view) ?? [];
@@ -849,7 +850,7 @@ export function PlaceScene({
       </header>
       <div className="place-room">
         <svg
-          viewBox="0 0 360 240"
+          viewBox="0 -80 360 320"
           preserveAspectRatio="xMidYMax slice"
           role="group"
           aria-label={t('People here')}

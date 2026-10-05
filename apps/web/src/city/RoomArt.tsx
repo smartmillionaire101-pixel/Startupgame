@@ -30,7 +30,7 @@ function Wall({ wall, floor, trim }: { wall: string; floor: string; trim?: strin
   }
   return (
     <>
-      <rect width="360" height={FLOOR_Y} fill={wall} />
+      <rect y="-220" width="360" height={FLOOR_Y + 220} fill={wall} />
       <rect y="0" width="360" height="10" fill={shade(wall, -0.12)} />
       <polygon points={`0,${FLOOR_Y} 360,${FLOOR_Y} 360,240 0,240`} fill={floor} />
       {lines}
@@ -636,7 +636,7 @@ export function RoomBack({ kind, tint, sign, home = null }: RoomArtProps) {
               className={`room-light room-light-${k % 3}`}
             />
           ))}
-          {sign && <Sign x={180} y={92} w={140} text={sign} c="#7c3aed" />}
+          {sign && <Sign x={180} y={-46} w={180} text={sign} c="#7c3aed" />}
         </g>
       );
     case 'bar':
@@ -887,7 +887,7 @@ export function RoomBack({ kind, tint, sign, home = null }: RoomArtProps) {
     case 'market':
       return (
         <g>
-          <rect width="360" height="140" fill="#bae6fd" />
+          <rect y="-220" width="360" height="360" fill="#bae6fd" />
           <polygon points="0,140 360,140 360,240 0,240" fill="#d6b88f" />
           {[60, 180, 300].map((x, k) => (
             <g key={x}>

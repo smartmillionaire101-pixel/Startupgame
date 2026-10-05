@@ -83,6 +83,7 @@ export const places: Record<string, string> = {
   'You start at {place} this month.': 'Vous commencez chez {place} ce mois-ci.',
   'Your money and credit': 'Votre argent et votre crédit',
   'Your money and lifestyle': 'Votre argent et votre train de vie',
+  'Your profile and contacts': 'Votre profil et vos contacts',
   'Your team': 'Votre équipe',
   'You’re tired: {dish} for {price}': 'Vous êtes fatigué·e : {dish} pour {price}',
   '{amount} for {pct}%': '{amount} pour {pct} %',

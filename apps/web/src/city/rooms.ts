@@ -374,7 +374,7 @@ export const ROOM_SLOTS: Record<RoomKind, Slot[]> = {
 };
 
 /** Where you stand when you walk in: near the door, bottom right. */
-export const ENTRANCE: Slot = { x: 334, y: 232, act: 'waiting', who: 'guest', flip: true };
+export const ENTRANCE: Slot = { x: 306, y: 232, act: 'waiting', who: 'guest', flip: true };
 
 export interface Seatable {
   /** Staff take the staff spots (an owner behind the counter, a partner at the desk). */

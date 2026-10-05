@@ -31,8 +31,7 @@ async function founder(page: Page, name: string, gender: 'Female' | 'Male' = 'Fe
 test('onboarding asks Female or Male, and the choice is sent', async ({ page }) => {
   const sent: string[] = [];
   page.on('request', (r) => {
-    if (r.method() === 'POST' && r.url().includes('/api/command'))
-      sent.push(r.postData() ?? '');
+    if (r.method() === 'POST' && r.url().includes('/api/command')) sent.push(r.postData() ?? '');
   });
   await founder(page, 'Kadi Gender', 'Male');
   expect(sent.some((b) => b.includes('"player.create"') && b.includes('"gender":"male"'))).toBe(

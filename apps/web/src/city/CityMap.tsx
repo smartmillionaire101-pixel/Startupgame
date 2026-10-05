@@ -481,7 +481,7 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
       const o = project(mid + 0.6, st.k * B - 0.06);
       out.push(
         <text
-          key={`sn${st.axis}${st.k}`}
+          key={`sn${st.axis}${st.k}:${st.seg}`}
           className="city-street-name"
           transform={`matrix(${TW * s},${TH * s},${-TW * s},${TH * s},${o.x},${o.y})`}
           fontSize="4.6"
@@ -493,7 +493,7 @@ const Ground = memo(function Ground({ layout }: { layout: CityLayout }) {
       const o = project(st.k * B + 0.06, mid + B - 0.6);
       out.push(
         <text
-          key={`sn${st.axis}${st.k}`}
+          key={`sn${st.axis}${st.k}:${st.seg}`}
           className="city-street-name"
           transform={`matrix(${TW * s},${-TH * s},${TW * s},${TH * s},${o.x},${o.y})`}
           fontSize="4.6"

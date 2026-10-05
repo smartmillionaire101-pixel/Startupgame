@@ -4,7 +4,8 @@
   position: fixed;
   inset: 0 0 var(--nav-h, 0px);
   z-index: 20;
-  background: var(--bg);
+  /* Below the tray on a very tall phone: the tray's colour. */
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   max-width: 560px;
@@ -34,6 +35,8 @@
   position: relative;
   flex: 1 1 auto;
   min-height: 200px;
+  /* The room is drawn about square; a tall phone gives what's left to the tray. */
+  max-height: min(100vw, 480px);
   overflow: hidden;
   background: #1e293b;
 }
