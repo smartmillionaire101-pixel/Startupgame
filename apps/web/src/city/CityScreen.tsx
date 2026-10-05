@@ -108,7 +108,10 @@ type Filter = 'all' | 'capital' | 'customers' | (typeof BUSINESS_CATEGORIES)[num
 const matches = (p: Place, f: Filter) =>
   f === 'all' ||
   (f === 'capital' &&
-    (p.kind === 'lender' || p.kind === 'playerbank' || p.kind === 'fund' || p.kind === 'capital')) ||
+    (p.kind === 'lender' ||
+      p.kind === 'playerbank' ||
+      p.kind === 'fund' ||
+      p.kind === 'capital')) ||
   (f === 'customers' && p.kind === 'stall') ||
   p.category === f;
 

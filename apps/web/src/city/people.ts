@@ -220,7 +220,15 @@ export function flaggedPlaces(events: CityEventView[] | null): string[] {
 // Ambient AI characters
 
 export type PersonKind =
-  'player' | 'partner' | 'founder' | 'candidate' | 'shopper' | 'owner' | 'angel' | 'patron' | 'staff';
+  | 'player'
+  | 'partner'
+  | 'founder'
+  | 'candidate'
+  | 'shopper'
+  | 'owner'
+  | 'angel'
+  | 'patron'
+  | 'staff';
 
 export interface AiPerson {
   /** Stable id: `ai:<kind>:<ref>`. */

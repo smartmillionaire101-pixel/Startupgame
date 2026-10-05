@@ -1,6 +1,11 @@
 import type { CityPlan } from './types';
 
-/** Freetown: Central around the Cotton Tree, Aberdeen and Lumley Beach, hills behind. */
+/**
+ * Freetown (Wave 5: filled out): Central around the Cotton Tree and Big
+ * Market, the East End along Kissy Road, Aberdeen and Lumley on the beach,
+ * Congo Cross and Brookfields inland, and the hills behind (Hill Station,
+ * Leicester Peak) with the whole peninsula's green rising to the south.
+ */
 export const freetown: CityPlan = {
   districts: [
     {
@@ -16,14 +21,15 @@ export const freetown: CityPlan = {
       name: 'Central',
       kind: 'downtown',
       at: [2, 0],
-      size: [2, 3],
+      size: [2, 2],
       hosts: ['finance', 'market'],
     },
+    { id: 'east-end', name: 'East End', kind: 'market', at: [4, 0], size: [2, 2] },
     {
       id: 'kissy',
       name: 'Kissy',
       kind: 'industrial',
-      at: [4, 0],
+      at: [6, 0],
       size: [2, 2],
       hosts: ['airport'],
     },
@@ -32,35 +38,53 @@ export const freetown: CityPlan = {
       id: 'congo-cross',
       name: 'Congo Cross',
       kind: 'tech',
-      at: [2, 3],
+      at: [2, 2],
       size: [2, 2],
       hosts: ['hub'],
     },
+    { id: 'brookfields', name: 'Brookfields', kind: 'nightlife', at: [4, 2], size: [2, 2] },
     { id: 'wilberforce', name: 'Wilberforce', kind: 'residential', at: [0, 4], size: [2, 2] },
+    { id: 'murray-town', name: 'Murray Town', kind: 'residential', at: [2, 4], size: [2, 2] },
+    { id: 'hill-station', name: 'Hill Station', kind: 'residential', at: [4, 4], size: [2, 2] },
   ],
   water: { side: 'north', name: 'Atlantic Ocean', also: ['west'] },
+  beach: { side: 'west', name: 'Lumley Beach' },
   hills: [
-    { at: [4, 3], height: 3 },
-    { at: [5, 4], height: 2 },
-    { at: [4, 5], height: 2 },
+    { at: [6, 2], height: 2 },
+    { at: [7, 3], height: 3 },
+    { at: [6, 4], height: 3 },
+    { at: [7, 5], height: 2 },
+    { at: [5, 5], height: 2 },
+    { at: [0, 6], height: 2 },
+    { at: [3, 6], height: 2 },
+    { at: [6, 6], height: 3 },
   ],
-  open: { cols: [2, 4] },
+  open: { cols: [2, 4], rows: [4] },
   streets: 'organic',
-  bridges: [{ name: 'Ferry to Lungi', from: [6, 0], to: [6, -3], style: 'beam', color: '#a8a29e' }],
+  bridges: [{ name: 'Ferry to Lungi', from: [7, 0], to: [7, -3], style: 'beam', color: '#a8a29e' }],
   landmarks: [
     { kind: 'cotton-tree', name: 'Cotton Tree', at: [3, 1] },
     { kind: 'lighthouse', name: 'Cape Lighthouse', at: [0, 0] },
+    { kind: 'market-hall', name: 'Big Market', at: [4, 1] },
   ],
   transit: ['keke', 'okada', 'bus', 'ferry'],
+  marketName: 'Big Market',
   streetNames: [
     'Siaka Stevens Street',
-    'Lightfoot Boston Street',
+    'Lumley Beach Road',
     'Wilkinson Road',
     'Kissy Road',
+    'Lightfoot Boston Street',
     'Pademba Road',
     'Wallace Johnson Street',
+    'Sir Samuel Lewis Road',
+    'Aberdeen Road',
+    'Main Motor Road',
+    'Fourah Bay Road',
+    'Circular Road',
+    'Hill Station Road',
     'Howe Street',
-    'Lumley Beach Road',
     'Spur Road',
+    'Regent Road',
   ],
 };

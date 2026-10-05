@@ -41,6 +41,8 @@ export const TW = 32;
 export const TH = 16;
 /** Land drawn around the street grid, in tiles. */
 export const MARGIN = 6;
+/** How far a beach's sea starts from the last street (tiles). */
+export const BEACH_W = 3.4;
 
 export interface Pt {
   x: number;
@@ -262,6 +264,10 @@ export interface CityLayout {
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
   /** Where the avatar starts: your office's door (or downtown). */
   start: Pt;
+  /** Wave 5: the city's real market name (planned cities). */
+  marketName?: string;
+  /** Wave 5: a beach along a coast: wider sand, umbrellas, its name. */
+  beach?: { side: Side; name: string };
 }
 
 export interface BizInput {
@@ -1273,10 +1279,14 @@ function tryPlanned(
       : []),
     // Accelerators sit by the Hub; partners and LPs with the investors.
     ...(hosts(n).includes('hub')
-      ? capital.filter((c) => c.kind === 'accelerator').map((c) => ({ kind: 'capital' as const, cap: c }))
+      ? capital
+          .filter((c) => c.kind === 'accelerator')
+          .map((c) => ({ kind: 'capital' as const, cap: c }))
       : []),
     ...(hosts(n).includes('investors')
-      ? capital.filter((c) => c.kind !== 'accelerator').map((c) => ({ kind: 'capital' as const, cap: c }))
+      ? capital
+          .filter((c) => c.kind !== 'accelerator')
+          .map((c) => ({ kind: 'capital' as const, cap: c }))
       : []),
     ...bizIn[n]!.map((b) => ({ kind: 'business' as const, biz: b })),
   ];
@@ -1409,14 +1419,16 @@ function tryPlanned(
   // ---- Water and bridges.
   const m = MARGIN;
   const waters: Water[] = [];
+  // A beach pushes the sea back to make room for the sand.
+  const off = (side: Side) => (plan.beach?.side === side ? BEACH_W : 1.8);
   const edge = (side: Side, name: string): Water =>
     side === 'south'
-      ? { name, kind: 'edge', side, x0: -m, y0: E + 1.8, x1: E + m, y1: E + m }
+      ? { name, kind: 'edge', side, x0: -m, y0: E + off(side), x1: E + m, y1: E + m }
       : side === 'north'
-        ? { name, kind: 'edge', side, x0: -m, y0: -m, x1: E + m, y1: -1.8 }
+        ? { name, kind: 'edge', side, x0: -m, y0: -m, x1: E + m, y1: -off(side) }
         : side === 'east'
-          ? { name, kind: 'edge', side, x0: E + 1.8, y0: -m, x1: E + m, y1: E + m }
-          : { name, kind: 'edge', side, x0: -m, y0: -m, x1: -1.8, y1: E + m };
+          ? { name, kind: 'edge', side, x0: E + off(side), y0: -m, x1: E + m, y1: E + m }
+          : { name, kind: 'edge', side, x0: -m, y0: -m, x1: -off(side), y1: E + m };
   if (water) {
     if (river !== undefined)
       waters.push(
@@ -1631,7 +1643,7 @@ function tryPlanned(
     };
   });
 
-  return finish(ctx, {
+  const out = finish(ctx, {
     size,
     blocks,
     districts: [],
@@ -1643,6 +1655,10 @@ function tryPlanned(
     transit: [...plan.transit],
     boats,
   });
+  if (plan.marketName) out.marketName = plan.marketName;
+  if (plan.beach && waters.some((w) => w.kind === 'edge' && w.side === plan.beach!.side))
+    out.beach = { ...plan.beach };
+  return out;
 }
 
 /** How many open streets meet at an intersection. */

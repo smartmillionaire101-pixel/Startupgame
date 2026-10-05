@@ -66,7 +66,10 @@ export function suggestionText(s: Suggestion, cur: string): { label: string; why
         why: t('At the Event Hall · {date}', { date: s.where ?? '' }),
       };
     case 'customers':
-      return { label: t('Interview customers'), why: t('At the Market: learn what they’d pay for') };
+      return {
+        label: t('Interview customers'),
+        why: t('At the Market: learn what they’d pay for'),
+      };
     case 'hub':
       return { label: t('Meet people at the Hub'), why: t('Founders, talent and the jobs board') };
   }

@@ -132,7 +132,12 @@ export function suggestionsFor(view: PlayerView, max = 3): Suggestion[] {
       .flatMap((p) => p.programs.filter((g) => g.eligible && !g.status).map((g) => ({ p, g })))
       .at(0);
     if (grant)
-      add({ kind: 'grant', placeId: `cap:${grant.p.id}`, name: grant.g.label, where: grant.p.name });
+      add({
+        kind: 'grant',
+        placeId: `cap:${grant.p.id}`,
+        name: grant.g.label,
+        where: grant.p.name,
+      });
   }
 
   // 5. A business that buys what you sell, with nobody supplying it yet.
@@ -155,7 +160,8 @@ export function suggestionsFor(view: PlayerView, max = 3): Suggestion[] {
   const event = (eventsOf(view) ?? []).find(
     (e) => e.status === 'upcoming' && !e.youHost && !e.youGoing,
   );
-  if (event) add({ kind: 'event', placeId: 'eventhall', name: event.title, where: event.dateLabel });
+  if (event)
+    add({ kind: 'event', placeId: 'eventhall', name: event.title, where: event.dateLabel });
 
   // Always something: talk to customers, meet people at the Hub, take a shift.
   if (company) add({ kind: 'customers', placeId: 'market', name: '' });
@@ -163,7 +169,13 @@ export function suggestionsFor(view: PlayerView, max = 3): Suggestion[] {
   if (!broke) {
     const gig = biz.flatMap((b) => b.gigs.map((g) => ({ b, g })))[0];
     if (gig)
-      add({ kind: 'gig', placeId: `biz:${gig.b.id}`, name: gig.b.name, detail: gig.g.label, amount: gig.g.pay });
+      add({
+        kind: 'gig',
+        placeId: `biz:${gig.b.id}`,
+        name: gig.b.name,
+        detail: gig.g.label,
+        amount: gig.g.pay,
+      });
   }
   return out;
 }

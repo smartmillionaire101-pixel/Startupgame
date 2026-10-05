@@ -65,7 +65,14 @@ export const InScene = createContext(false);
 
 type View = PlayerView;
 
-const PATRON_BG = ['b-commercial', 'f-dropout', 'f-engineer', 'i-first', 'b-wealthy', 'f-corporate'];
+const PATRON_BG = [
+  'b-commercial',
+  'f-dropout',
+  'f-engineer',
+  'i-first',
+  'b-wealthy',
+  'f-corporate',
+];
 const STAFF_BG = ['b-commercial', 'i-operator', 'b-fintech', 'f-consultant'];
 
 interface Occupant {
@@ -107,11 +114,15 @@ const aiPerson = (
 const pickBg = (xs: string[], seed: string) => xs[hash(seed) % xs.length]!;
 
 /** The AI angels sitting in this business: `view.here.angelsAt`, else where the map walks them. */
-export function angelsIn(view: View, businessId: string): (AngelHere & { fundId: string | null })[] {
+export function angelsIn(
+  view: View,
+  businessId: string,
+): (AngelHere & { fundId: string | null })[] {
   const all = angelsOf(view);
   const byId = new Map<string, AngelRef>(all.map((a) => [a.id, a]));
   const at = angelsAtOf(view);
-  if (at) return (at[businessId] ?? []).map((a) => ({ ...a, fundId: byId.get(a.id)?.fundId ?? null }));
+  if (at)
+    return (at[businessId] ?? []).map((a) => ({ ...a, fundId: byId.get(a.id)?.fundId ?? null }));
   const venues = lunchVenues(view);
   return all
     .filter((a) => lunchVenueOf(a.id, venues) === businessId)
@@ -140,18 +151,48 @@ function occupantsOf(
     tag: true,
   });
   const staffMember = (seed: string, role: string, act?: Activity) =>
-    ai(aiPerson(place, 'staff', `${place.id}:${seed}`, npcName(m.id, `${place.id}:${seed}`), pickBg(STAFF_BG, seed)), true, role, act);
+    ai(
+      aiPerson(
+        place,
+        'staff',
+        `${place.id}:${seed}`,
+        npcName(m.id, `${place.id}:${seed}`),
+        pickBg(STAFF_BG, seed),
+      ),
+      true,
+      role,
+      act,
+    );
 
   switch (place.kind) {
     case 'business': {
       if (business) {
-        out.push(ai(aiPerson(place, 'owner', business.id, business.owner.name, pickBg(STAFF_BG, business.id)), true, t('Owner')));
+        out.push(
+          ai(
+            aiPerson(
+              place,
+              'owner',
+              business.id,
+              business.owner.name,
+              pickBg(STAFF_BG, business.id),
+            ),
+            true,
+            t('Owner'),
+          ),
+        );
         for (const a of angelsIn(view, business.id).slice(0, 2))
           out.push(
             ai(
-              aiPerson(place, 'angel', a.id, a.name, pickBg(['i-exited', 'i-operator', 'b-wealthy'], a.id), {
-                fund: a.fundId ?? undefined,
-              }),
+              aiPerson(
+                place,
+                'angel',
+                a.id,
+                a.name,
+                pickBg(['i-exited', 'i-operator', 'b-wealthy'], a.id),
+                {
+                  fund: a.fundId ?? undefined,
+                },
+              ),
               false,
               t('Angel investor'),
               room === 'restaurant' ? 'eating' : 'chatting',
@@ -163,11 +204,27 @@ function occupantsOf(
     case 'fund': {
       const f = m.funds.find((x) => x.id === place.ref);
       if (f) {
-        out.push(ai(aiPerson(place, 'partner', f.id, f.partner, pickBg(['i-banker', 'i-operator', 'i-exited'], f.id)), true, t('Partner')));
+        out.push(
+          ai(
+            aiPerson(
+              place,
+              'partner',
+              f.id,
+              f.partner,
+              pickBg(['i-banker', 'i-operator', 'i-exited'], f.id),
+            ),
+            true,
+            t('Partner'),
+          ),
+        );
         const angel = angelsOf(view).find((a) => a.fundId === f.id);
         if (angel)
           out.push(
-            ai(aiPerson(place, 'angel', angel.id, angel.name, 'i-exited', { fund: f.id }), false, t('Angel investor')),
+            ai(
+              aiPerson(place, 'angel', angel.id, angel.name, 'i-exited', { fund: f.id }),
+              false,
+              t('Angel investor'),
+            ),
           );
       }
       break;
@@ -191,19 +248,52 @@ function occupantsOf(
         const f = c.founders.find((x) => x.ai) ?? c.founders[0];
         if (f)
           out.push(
-            ai(aiPerson(place, 'founder', f.id, f.name, pickBg(['f-engineer', 'f-dropout', 'f-second-time'], f.id), { company: c.id }), false, t('Founder'), 'typing'),
+            ai(
+              aiPerson(
+                place,
+                'founder',
+                f.id,
+                f.name,
+                pickBg(['f-engineer', 'f-dropout', 'f-second-time'], f.id),
+                { company: c.id },
+              ),
+              false,
+              t('Founder'),
+              'typing',
+            ),
           );
       }
       for (const c of m.talent.slice(0, 2))
-        out.push(ai(aiPerson(place, 'candidate', c.id, c.name, pickBg(['f-dropout', 'f-engineer'], c.id)), false, t('Looking for work'), 'chatting'));
+        out.push(
+          ai(
+            aiPerson(place, 'candidate', c.id, c.name, pickBg(['f-dropout', 'f-engineer'], c.id)),
+            false,
+            t('Looking for work'),
+            'chatting',
+          ),
+        );
       break;
     }
     case 'stall': {
       out.push(staffMember('stall-a', t('Stallholder')));
       out.push(staffMember('stall-b', t('Stallholder')));
-      const segs = [...m.segments].sort((a, b) => (a.key === place.ref ? -1 : b.key === place.ref ? 1 : 0));
+      const segs = [...m.segments].sort((a, b) =>
+        a.key === place.ref ? -1 : b.key === place.ref ? 1 : 0,
+      );
       for (const s of segs.slice(0, 3))
-        out.push(ai(aiPerson(place, 'shopper', s.key, npcName(m.id, `shopper:${s.key}`), pickBg(PATRON_BG, s.key)), false, t('Customer')));
+        out.push(
+          ai(
+            aiPerson(
+              place,
+              'shopper',
+              s.key,
+              npcName(m.id, `shopper:${s.key}`),
+              pickBg(PATRON_BG, s.key),
+            ),
+            false,
+            t('Customer'),
+          ),
+        );
       break;
     }
     case 'office': {
@@ -223,7 +313,13 @@ function occupantsOf(
       const raw = (m as unknown as { events?: unknown[] }).events ?? [];
       const names = raw.flatMap((e) => attendeesAiOf(e)).slice(0, 5);
       names.forEach((a, k) =>
-        out.push(ai(aiPerson(place, 'patron', `${place.id}:att${k}`, a.name, pickBg(PATRON_BG, a.name)), false, tx(a.kind))),
+        out.push(
+          ai(
+            aiPerson(place, 'patron', `${place.id}:att${k}`, a.name, pickBg(PATRON_BG, a.name)),
+            false,
+            tx(a.kind),
+          ),
+        ),
       );
       break;
     }
@@ -253,7 +349,11 @@ function occupantsOf(
     for (let j = 1; used.has(name) && j < 8; j++) name = npcName(m.id, `${place.id}:reg${k}:${j}`);
     used.add(name);
     out.push(
-      ai(aiPerson(place, 'patron', `${place.id}:${k}`, name, pickBg(PATRON_BG, `${place.id}:${k}`)), false, t('Regular')),
+      ai(
+        aiPerson(place, 'patron', `${place.id}:${k}`, name, pickBg(PATRON_BG, `${place.id}:${k}`)),
+        false,
+        t('Regular'),
+      ),
     );
     out[out.length - 1]!.tag = false;
   }
@@ -341,7 +441,11 @@ export function PlaceScene({
 }: SceneProps) {
   const { view, send, cur, busy } = useView();
   const [more, setMore] = useState(false);
-  const [pitch, setPitch] = useState<{ fundId: string; name: string; check: [number, number] } | null>(null);
+  const [pitch, setPitch] = useState<{
+    fundId: string;
+    name: string;
+    check: [number, number];
+  } | null>(null);
   const company = activeCompany(view);
   const business =
     place.kind === 'business' ? businessesOf(view).find((b) => b.id === place.ref) : undefined;
@@ -366,7 +470,14 @@ export function PlaceScene({
     () => occupantsOf(view, place, room, players, business),
     [view, place, room, players, business],
   );
-  const seats = useMemo(() => seat(room, occupants.map((o) => ({ staff: o.staff }))), [room, occupants]);
+  const seats = useMemo(
+    () =>
+      seat(
+        room,
+        occupants.map((o) => ({ staff: o.staff })),
+      ),
+    [room, occupants],
+  );
   const slots = ROOM_SLOTS[room];
   const placed = occupants
     .map((o, n) => ({ o, slot: seats[n]! >= 0 ? slots[seats[n]!]! : null }))
@@ -401,7 +512,14 @@ export function PlaceScene({
         sub: it.energy
           ? t('{price} · +{n} energy', { price: money(it.price, cur), n: it.energy })
           : money(it.price, cur),
-        icon: room === 'cafe' ? '☕' : room === 'bar' || room === 'club' ? '🍹' : room === 'restaurant' ? '🍽' : '🛍',
+        icon:
+          room === 'cafe'
+            ? '☕'
+            : room === 'bar' || room === 'club'
+              ? '🍹'
+              : room === 'restaurant'
+                ? '🍽'
+                : '🛍',
         disabled: pocket < it.price || busy,
         run: () =>
           send(looseCmd({ type: 'venue.buy', businessId: b.id, itemId: it.id }), (r: Loose) =>
@@ -416,7 +534,10 @@ export function PlaceScene({
         actions.push({
           id: `car:${c.id}`,
           label: t('Buy the {car}', { car: tx(c.label) }),
-          sub: t('{price} · {cost}/mo to run', { price: money(c.price, cur), cost: money(c.monthlyCost, cur) }),
+          sub: t('{price} · {cost}/mo to run', {
+            price: money(c.price, cur),
+            cost: money(c.monthlyCost, cur),
+          }),
           icon: '🚗',
           confirm: true,
           disabled: pocket < c.price || busy,
@@ -492,7 +613,12 @@ export function PlaceScene({
           ),
       });
     // Sell to them.
-    if (company && b.you.canPitch && !b.you.customer && b.buys.some((x) => x.sector === company.industry))
+    if (
+      company &&
+      b.you.canPitch &&
+      !b.you.customer &&
+      b.buys.some((x) => x.sector === company.industry)
+    )
       actions.push({
         id: 'sell',
         label: t('Pitch {company}', { company: company.name }),
@@ -500,12 +626,17 @@ export function PlaceScene({
         icon: '📣',
         disabled: busy,
         run: () =>
-          send(looseCmd({ type: 'business.pitch', companyId: company.id, businessId: b.id }), (r: Loose) =>
-            r?.answer === 'yes'
-              ? t('Yes! {owner} is giving {company} a try.', { owner: b.owner.name, company: company.name })
-              : r?.reason
-                ? t('Not now: {reason}', { reason: tx(r.reason) })
-                : said(r, t('Not now.')),
+          send(
+            looseCmd({ type: 'business.pitch', companyId: company.id, businessId: b.id }),
+            (r: Loose) =>
+              r?.answer === 'yes'
+                ? t('Yes! {owner} is giving {company} a try.', {
+                    owner: b.owner.name,
+                    company: company.name,
+                  })
+                : r?.reason
+                  ? t('Not now: {reason}', { reason: tx(r.reason) })
+                  : said(r, t('Not now.')),
           ),
       });
   } else if (place.kind === 'lender' || place.kind === 'playerbank') {
@@ -513,7 +644,9 @@ export function PlaceScene({
     const products = lender?.products.filter((p) => p.you?.eligible) ?? [];
     actions.push({
       id: 'loans',
-      label: products.length ? t('See {n} loans you can get', { n: products.length }) : t('Ask about a loan'),
+      label: products.length
+        ? t('See {n} loans you can get', { n: products.length })
+        : t('Ask about a loan'),
       icon: '🏦',
       run: () => setMore(true),
     });
@@ -524,10 +657,15 @@ export function PlaceScene({
       actions.push({
         id: 'pitch-fund',
         label: t('Pitch {name}', { name: f.name }),
-        sub: t('Cheques of {min}–{max}', { min: money(f.check[0], f.currency), max: money(f.check[1], f.currency) }),
+        sub: t('Cheques of {min}–{max}', {
+          min: money(f.check[0], f.currency),
+          max: money(f.check[1], f.currency),
+        }),
         icon: '📊',
         disabled: view.pitches.some(
-          (p) => (p.status === 'questions' || p.status === 'partner-meeting') && p.companyId === company.id,
+          (p) =>
+            (p.status === 'questions' || p.status === 'partner-meeting') &&
+            p.companyId === company.id,
         ),
         run: () => setPitch({ fundId: f.id, name: f.name, check: f.check }),
       });
@@ -537,13 +675,16 @@ export function PlaceScene({
     if (a && company)
       actions.push({
         id: 'apply',
-        label: a.status ? t('Applied: {status}', { status: tx(a.status) }) : t('Apply with {company}', { company: company.name }),
+        label: a.status
+          ? t('Applied: {status}', { status: tx(a.status) })
+          : t('Apply with {company}', { company: company.name }),
         sub: t('Answer at the next settlement'),
         icon: '🚀',
         disabled: !!a.status || busy,
         run: () =>
-          send(looseCmd({ type: 'accelerator.apply', acceleratorId: a.id, companyId: company.id }), (r: Loose) =>
-            said(r, t('Application sent to {name}.', { name: a.name })),
+          send(
+            looseCmd({ type: 'accelerator.apply', acceleratorId: a.id, companyId: company.id }),
+            (r: Loose) => said(r, t('Application sent to {name}.', { name: a.name })),
           ),
       });
     actions.push(toMore);
@@ -552,14 +693,28 @@ export function PlaceScene({
     for (const g of (d?.programs ?? []).slice(0, 3))
       actions.push({
         id: `grant:${g.id}`,
-        label: g.status ? t('{programme}: {status}', { programme: tx(g.label), status: tx(g.status) }) : t('Apply: {programme}', { programme: tx(g.label) }),
-        sub: g.eligible ? (g.amount ? t('Up to {amount}, no equity', { amount: money(g.amount, cur) }) : t('No equity')) : g.reason ? tx(g.reason) : t('Not eligible yet.'),
+        label: g.status
+          ? t('{programme}: {status}', { programme: tx(g.label), status: tx(g.status) })
+          : t('Apply: {programme}', { programme: tx(g.label) }),
+        sub: g.eligible
+          ? g.amount
+            ? t('Up to {amount}, no equity', { amount: money(g.amount, cur) })
+            : t('No equity')
+          : g.reason
+            ? tx(g.reason)
+            : t('Not eligible yet.'),
         icon: '🌍',
         disabled: !company || !g.eligible || !!g.status || busy,
         run: () =>
           company
-            ? send(looseCmd({ type: 'grant.apply', partnerId: d!.id, programId: g.id, companyId: company.id }), (r: Loose) =>
-                said(r, t('Application sent to {name}.', { name: d!.name })),
+            ? send(
+                looseCmd({
+                  type: 'grant.apply',
+                  partnerId: d!.id,
+                  programId: g.id,
+                  companyId: company.id,
+                }),
+                (r: Loose) => said(r, t('Application sent to {name}.', { name: d!.name })),
               )
             : undefined,
       });
@@ -574,7 +729,9 @@ export function PlaceScene({
         icon: '🏛',
         disabled: busy,
         run: () =>
-          send(looseCmd({ type: 'lp.pitch', lpId: lp.id }), (r: Loose) => said(r, t('You pitched {name}.', { name: lp.name }))),
+          send(looseCmd({ type: 'lp.pitch', lpId: lp.id }), (r: Loose) =>
+            said(r, t('You pitched {name}.', { name: lp.name })),
+          ),
       });
     actions.push(toMore);
   } else if (place.kind === 'hub') {
@@ -589,14 +746,21 @@ export function PlaceScene({
       });
     actions.push({ ...toMore, id: 'jobs-board', label: t('Jobs board and people'), icon: '📌' });
     const acc = acceleratorsOf(view)[0];
-    if (acc) actions.push({ id: 'hub-acc', label: t('Visit {name}', { name: acc.name }), icon: '🚀', run: () => onVisit?.(`cap:${acc.id}`) });
+    if (acc)
+      actions.push({
+        id: 'hub-acc',
+        label: t('Visit {name}', { name: acc.name }),
+        icon: '🚀',
+        run: () => onVisit?.(`cap:${acc.id}`),
+      });
   } else if (place.kind === 'stall') {
     actions.push({ ...toMore, id: 'interview', label: t('Interview customers'), icon: '🗣' });
     actions.push({ ...toMore, id: 'who-buys', label: t('Who buys what'), icon: '🧺' });
   } else if (place.kind === 'office') {
     if (abroad) {
       actions.push(go('company', t('Open the company screen'), '🏢'));
-      if (onFlyHome) actions.push({ id: 'fly-home', label: t('Fly home'), icon: '✈', run: onFlyHome });
+      if (onFlyHome)
+        actions.push({ id: 'fly-home', label: t('Fly home'), icon: '✈', run: onFlyHome });
     } else {
       actions.push(go('company', t('Open the company screen'), '🏢'));
       actions.push(go('money', t('Open the money screen'), '💰'));
@@ -604,7 +768,8 @@ export function PlaceScene({
     }
   } else if (place.kind === 'home') {
     if (abroad) {
-      if (onFlyHome) actions.push({ id: 'fly-home', label: t('Fly home'), icon: '✈', run: onFlyHome });
+      if (onFlyHome)
+        actions.push({ id: 'fly-home', label: t('Fly home'), icon: '✈', run: onFlyHome });
     } else {
       const store = businessesOf(view).find((b) => b.open && sellsFurniture(b.kind));
       if (store)
@@ -643,11 +808,15 @@ export function PlaceScene({
         icon: '🎟',
         disabled: busy,
         run: () =>
-          send(looseCmd({ type: 'event.rsvp', eventId: next.id, going: true }), t('See you there.')),
+          send(
+            looseCmd({ type: 'event.rsvp', eventId: next.id, going: true }),
+            t('See you there.'),
+          ),
       });
     actions.push({ ...toMore, label: t('Host or join an event'), icon: '🎤' });
   } else if (place.kind === 'airport') {
-    if (abroad && onFlyHome) actions.push({ id: 'fly-home', label: t('Fly home'), icon: '✈', run: onFlyHome });
+    if (abroad && onFlyHome)
+      actions.push({ id: 'fly-home', label: t('Fly home'), icon: '✈', run: onFlyHome });
     actions.push({ ...toMore, id: 'departures', label: t('Departures'), icon: '🛫' });
   } else if (place.kind === 'newsstand') {
     actions.push({ ...toMore, label: t('Read the papers'), icon: '📰' });
@@ -679,16 +848,38 @@ export function PlaceScene({
         </button>
       </header>
       <div className="place-room">
-        <svg viewBox="0 0 360 240" preserveAspectRatio="xMidYMax slice" role="group" aria-label={t('People here')}>
-          <RoomBack kind={room} tint={business?.look.color ?? place.color} sign={sign?.toUpperCase().slice(0, 22)} home={home?.items ?? null} />
-          {placed.filter((x) => x.slot.sit).map((x) => (
-            <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} />
-          ))}
-          <RoomFront kind={room} tint={business?.look.color ?? place.color} home={home?.items ?? null} />
-          {placed.filter((x) => !x.slot.sit).sort((a, b) => a.slot.y - b.slot.y).map((x) => (
-            <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} />
-          ))}
-          <g className="scene-you" transform={`translate(${ENTRANCE.x} ${ENTRANCE.y}) scale(-1.9 1.9)`}>
+        <svg
+          viewBox="0 0 360 240"
+          preserveAspectRatio="xMidYMax slice"
+          role="group"
+          aria-label={t('People here')}
+        >
+          <RoomBack
+            kind={room}
+            tint={business?.look.color ?? place.color}
+            sign={sign?.toUpperCase().slice(0, 22)}
+            home={home?.items ?? null}
+          />
+          {placed
+            .filter((x) => x.slot.sit)
+            .map((x) => (
+              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} />
+            ))}
+          <RoomFront
+            kind={room}
+            tint={business?.look.color ?? place.color}
+            home={home?.items ?? null}
+          />
+          {placed
+            .filter((x) => !x.slot.sit)
+            .sort((a, b) => a.slot.y - b.slot.y)
+            .map((x) => (
+              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} />
+            ))}
+          <g
+            className="scene-you"
+            transform={`translate(${ENTRANCE.x} ${ENTRANCE.y}) scale(-1.9 1.9)`}
+          >
             <AvatarFigure look={meLook} />
           </g>
         </svg>
@@ -763,7 +954,13 @@ function Person({
       </g>
       {o.tag && (
         <g className="scene-tag" transform={`translate(0 ${-48 * s - 4})`}>
-          <rect x={-o.name.length * 2.6 - 5} y="-7" width={o.name.length * 5.2 + 10} height="11" rx="5.5" />
+          <rect
+            x={-o.name.length * 2.6 - 5}
+            y="-7"
+            width={o.name.length * 5.2 + 10}
+            height="11"
+            rx="5.5"
+          />
           <text y="1.5" textAnchor="middle">
             {o.name}
           </text>
@@ -786,11 +983,17 @@ export function CapitalDetails({ place }: { place: Place }) {
       <Card title={acc.name}>
         {acc.blurb && <p>{tx(acc.blurb)}</p>}
         <div className="row">
-          {acc.cash > 0 && <Pill tone="good">{t('{amount} for {pct}%', { amount: money(acc.cash, cur), pct: acc.equityPct })}</Pill>}
+          {acc.cash > 0 && (
+            <Pill tone="good">
+              {t('{amount} for {pct}%', { amount: money(acc.cash, cur), pct: acc.equityPct })}
+            </Pill>
+          )}
           {acc.status && <Pill tone="info">{tx(acc.status)}</Pill>}
         </div>
         <p className="small muted">
-          {t('A new cohort every three months: cash for a little equity, a mentor and a demo day that gets funds interested.')}
+          {t(
+            'A new cohort every three months: cash for a little equity, a mentor and a demo day that gets funds interested.',
+          )}
         </p>
       </Card>
     );
@@ -804,7 +1007,9 @@ export function CapitalDetails({ place }: { place: Place }) {
               <li key={g.id}>
                 <div className="item-title">{tx(g.label)}</div>
                 <div className="small muted">
-                  {g.amount ? t('Up to {amount}, no equity', { amount: money(g.amount, cur) }) : t('No equity')}
+                  {g.amount
+                    ? t('Up to {amount}, no equity', { amount: money(g.amount, cur) })
+                    : t('No equity')}
                   {g.reason ? ` · ${tx(g.reason)}` : ''}
                 </div>
               </li>
@@ -820,10 +1025,11 @@ export function CapitalDetails({ place }: { place: Place }) {
       <Card title={lp.name}>
         <Pill>{tx(lp.kindLabel)}</Pill>
         <p className="small muted">
-          {t('Limited partners back funds. Pitch them with your track record and stars; commitments arrive at settlement.')}
+          {t(
+            'Limited partners back funds. Pitch them with your track record and stars; commitments arrive at settlement.',
+          )}
         </p>
       </Card>
     );
   return <Empty>{t('Nobody’s in right now.')}</Empty>;
 }
-

@@ -434,4 +434,3 @@
 .city-map:is([data-zoom='0'], [data-zoom='1']) :is(.city-street-name, .city-landmark-name) {
   display: none;
 }
-

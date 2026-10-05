@@ -71,8 +71,10 @@ export const sanFrancisco: CityPlan = {
     { kind: 'transamerica', name: 'The Pyramid', at: [6, 0] },
     { kind: 'painted-ladies', name: 'Painted Ladies', at: [1, 2] },
     { kind: 'cable-car', name: 'Cable car turnaround', at: [3, 1] },
+    { kind: 'market-hall', name: 'Ferry Building', at: [3, 0] },
   ],
   transit: ['cable-car', 'bus', 'tram', 'ferry'],
+  marketName: 'Ferry Building Marketplace',
   streetNames: [
     'Market Street',
     'Valencia Street',

@@ -165,7 +165,13 @@ export function roomOf(
   }
 }
 
-const S = (x: number, y: number, act: Activity, who: Slot['who'] = 'guest', more: Partial<Slot> = {}): Slot => ({
+const S = (
+  x: number,
+  y: number,
+  act: Activity,
+  who: Slot['who'] = 'guest',
+  more: Partial<Slot> = {},
+): Slot => ({
   x,
   y,
   act,
@@ -291,7 +297,10 @@ export const ROOM_SLOTS: Record<RoomKind, Slot[]> = {
     S(230, 214, 'browsing', 'guest', { flip: true }),
     S(60, 216, 'browsing'),
   ],
-  apartment: [S(150, 196, 'relaxing', 'guest', { sit: true }), S(250, 214, 'chatting', 'guest', { flip: true })],
+  apartment: [
+    S(150, 196, 'relaxing', 'guest', { sit: true }),
+    S(250, 214, 'chatting', 'guest', { flip: true }),
+  ],
   hotel: [S(250, 214, 'relaxing', 'guest', { flip: true }), S(110, 214, 'chatting')],
   hub: [
     S(300, 152, 'chatting', 'staff', { flip: true }),
@@ -397,7 +406,12 @@ export function seat(kind: RoomKind, people: Seatable[]): number[] {
 }
 
 /** How many extra regulars fill a room, so no room feels empty (stable per place and month). */
-export function regularsFor(kind: RoomKind, placeId: string, month: number, present: number): number {
+export function regularsFor(
+  kind: RoomKind,
+  placeId: string,
+  month: number,
+  present: number,
+): number {
   const slots = ROOM_SLOTS[kind].filter((s) => s.who === 'guest').length;
   if (kind === 'apartment' || kind === 'hotel') return 0;
   const want = 2 + (hash(`${placeId}:${month}`) % 3);

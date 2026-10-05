@@ -40,8 +40,12 @@ export const nairobi: CityPlan = {
   ],
   open: { rows: [2], cols: [4] },
   streets: 'mixed',
-  landmarks: [{ kind: 'conference-tower', name: 'Conference Centre', at: [2, 1] }],
+  landmarks: [
+    { kind: 'conference-tower', name: 'Conference Centre', at: [2, 1] },
+    { kind: 'market-hall', name: 'City Market', at: [3, 3] },
+  ],
   transit: ['matatu', 'boda', 'bus'],
+  marketName: 'Gikomba Market',
   streetNames: [
     'Moi Avenue',
     'Kenyatta Avenue',

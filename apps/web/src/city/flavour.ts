@@ -26,7 +26,9 @@ export type LandmarkKind =
   | 'cairo-tower'
   | 'minaret'
   | 'sail-hotel'
-  | 'wind-tower';
+  | 'wind-tower'
+  // Wave 5: a city's famous market (Balogun, Makola, Big Market…).
+  | 'market-hall';
 
 export interface VehicleSpec {
   id: string;
