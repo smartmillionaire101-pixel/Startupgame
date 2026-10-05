@@ -439,31 +439,31 @@ type Draw = (c: string, p: Piece) => ReactNode;
 const BACK_PIECES: Record<string, Draw> = {
   wardrobe: (c) => (
     <g>
-      <rect x={6} y={52} width={40} height={88} rx="2" fill={shade(c, 0.35)} />
-      <line x1={26} y1={54} x2={26} y2={138} stroke={shade(c, -0.2)} />
-      <circle cx={23} cy={96} r="1.5" fill="#44403c" />
-      <circle cx={29} cy={96} r="1.5" fill="#44403c" />
+      <rect x={28} y={60} width={32} height={80} rx="2" fill={shade(c, 0.35)} />
+      <line x1={44} y1={62} x2={44} y2={138} stroke={shade(c, -0.2)} />
+      <circle cx={41} cy={100} r="1.5" fill="#44403c" />
+      <circle cx={47} cy={100} r="1.5" fill="#44403c" />
     </g>
   ),
   cooling: (c, p) =>
     p.tier >= 2 ? (
       <g>
-        <rect x={58} y={4} width={58} height={16} rx="4" fill="#f8fafc" stroke={c} />
+        <rect x={66} y={6} width={52} height={15} rx="4" fill="#f8fafc" stroke={c} />
         {[0, 1, 2].map((k) => (
-          <line key={k} x1={64} y1={13 + k * 2} x2={110} y2={13 + k * 2} stroke="#cbd5e1" />
+          <line key={k} x1={71} y1={14 + k * 2} x2={113} y2={14 + k * 2} stroke="#cbd5e1" />
         ))}
       </g>
     ) : (
       <g>
-        <circle cx={130} cy={16} r={11} fill="none" stroke={c} strokeWidth="2" />
-        <path d="M 130 16 l 8 -4 M 130 16 l -4 8 M 130 16 l -4 -8" stroke={c} strokeWidth="3" />
+        <circle cx={92} cy={13} r={9} fill="none" stroke={c} strokeWidth="2" />
+        <path d="M 92 13 l 7 -3 M 92 13 l -3 7 M 92 13 l -3 -7" stroke={c} strokeWidth="3" />
       </g>
     ),
-  art: (c) => <Picture x={126} y={30} w={36} h={28} c={c} />,
+  art: (c) => <Picture x={126} y={30} w={34} h={26} c={c} />,
   power: (c) => (
     <g>
-      <rect x={130} y={88} width={22} height={30} rx="2" fill="#e5e7eb" stroke={c} />
-      <path d="M 143 92 l -6 11 h 5 l -3 11 l 8 -14 h -5 z" fill={c} />
+      <rect x={128} y={88} width={20} height={30} rx="2" fill="#e5e7eb" stroke={c} />
+      <path d="M 140 92 l -6 11 h 5 l -3 11 l 8 -14 h -5 z" fill={c} />
     </g>
   ),
   plants: (_c, p) => <Plant x={160} y={140} s={0.7 + p.tier * 0.15} />,
@@ -503,34 +503,34 @@ const BACK_PIECES: Record<string, Draw> = {
       <circle cx={258} cy={15} r="1.3" fill={c} className="room-light" />
     </g>
   ),
-  lights: (c) => <Pendant x={302} len={20} c={c === TIER_COLORS[0] ? '#fbbf24' : c} />,
+  lights: (c) => <Pendant x={292} len={20} c={c === TIER_COLORS[0] ? '#fbbf24' : c} />,
   kitchen: (c) => (
     <g>
-      <rect x={290} y={58} width={30} height={10} rx="2" fill="#d6d3d1" />
-      <Counter x={280} y={140} w={46} h={40} c="#e7e5e4" top={c} />
+      <rect x={278} y={62} width={26} height={9} rx="2" fill="#d6d3d1" />
+      <Counter x={272} y={140} w={38} h={40} c="#e7e5e4" top={c} />
+      <circle cx={282} cy={94} r="2.5" fill="#44403c" />
       <circle cx={292} cy={94} r="2.5" fill="#44403c" />
-      <circle cx={304} cy={94} r="2.5" fill="#44403c" />
     </g>
   ),
   coffee: (c) => (
     <g>
-      <rect x={312} y={80} width={11} height={14} rx="2" fill="#292524" />
-      <rect x={314} y={83} width={7} height={3} fill={c} />
-      <rect x={315} y={89} width={5} height={4} fill="#fff" />
+      <rect x={298} y={80} width={10} height={14} rx="2" fill="#292524" />
+      <rect x={300} y={83} width={6} height={3} fill={c} />
+      <rect x={301} y={89} width={4} height={4} fill="#fff" />
     </g>
   ),
   washer: (c) => (
     <g>
-      <rect x={300} y={112} width={24} height={26} rx="2" fill="#f8fafc" stroke="#cbd5e1" />
-      <circle cx={312} cy={126} r={8} fill="#bae6fd" stroke={c} strokeWidth="2" />
+      <rect x={284} y={112} width={24} height={26} rx="2" fill="#f8fafc" stroke="#cbd5e1" />
+      <circle cx={296} cy={126} r={8} fill="#bae6fd" stroke={c} strokeWidth="2" />
     </g>
   ),
   fridge: (c) => (
     <g>
-      <rect x={328} y={62} width={28} height={78} rx="3" fill="#f1f5f9" stroke="#cbd5e1" />
-      <line x1={328} y1={88} x2={356} y2={88} stroke="#cbd5e1" />
-      <rect x={331} y={70} width={2} height={10} fill={c} />
-      <rect x={331} y={94} width={2} height={14} fill={c} />
+      <rect x={312} y={64} width={22} height={76} rx="3" fill="#f1f5f9" stroke="#cbd5e1" />
+      <line x1={312} y1={88} x2={334} y2={88} stroke="#cbd5e1" />
+      <rect x={315} y={72} width={2} height={10} fill={c} />
+      <rect x={315} y={94} width={2} height={14} fill={c} />
     </g>
   ),
 };
@@ -540,17 +540,17 @@ const FRONT_PIECES: Record<string, Draw> = {
   rug: (c) => <ellipse cx={176} cy={222} rx={76} ry={12} fill={c} opacity="0.55" />,
   bed: (c) => (
     <g>
-      <rect x={2} y={150} width={8} height={46} rx="2" fill="#78350f" />
-      <rect x={4} y={180} width={84} height={14} rx="2" fill="#57534e" />
-      <rect x={8} y={168} width={78} height={14} rx="3" fill={c} />
-      <rect x={12} y={161} width={20} height={9} rx="3" fill="#fff" />
+      <rect x={26} y={150} width={7} height={44} rx="2" fill="#78350f" />
+      <rect x={28} y={180} width={72} height={14} rx="2" fill="#57534e" />
+      <rect x={32} y={168} width={66} height={14} rx="3" fill={c} />
+      <rect x={36} y={161} width={18} height={9} rx="3" fill="#fff" />
     </g>
   ),
   dining: (c) => (
     <g>
-      <Table x={300} y={196} w={52} top={c === TIER_COLORS[0] ? '#a16207' : c} items="plates" />
-      <rect x={264} y={170} width={6} height={28} rx="2" fill="#78350f" />
-      <rect x={330} y={170} width={6} height={28} rx="2" fill="#78350f" />
+      <Table x={294} y={196} w={46} top={c === TIER_COLORS[0] ? '#a16207' : c} items="plates" />
+      <rect x={262} y={170} width={6} height={28} rx="2" fill="#78350f" />
+      <rect x={320} y={170} width={6} height={28} rx="2" fill="#78350f" />
     </g>
   ),
   sofa: (c) => <Sofa x={150} y={204} w={96} c={c} />,
@@ -560,7 +560,7 @@ const FRONT_PIECES: Record<string, Draw> = {
       <rect x={136} y={213} width={20} height={2} fill="#475569" />
     </g>
   ),
-  desk: () => <Desk x={56} y={236} w={64} />,
+  desk: () => <Desk x={68} y={238} w={56} />,
   gaming: (c) => (
     <g>
       <rect x={222} y={224} width={26} height={10} rx="3" fill="#111827" />
@@ -613,10 +613,10 @@ function ApartmentBack({ items, car }: { items: HomeItemView[] | null; car: stri
   return (
     <g>
       <Wall wall="#fef3c7" floor="#d6a86b" />
-      <Window x={56} y={28} w={62} h={58} />
+      <Window x={68} y={30} w={50} h={52} />
       {car && (
         <g data-car={car} aria-label={car}>
-          <Car x={88} y={84} c="#dc2626" w={46} />
+          <Car x={93} y={80} c="#dc2626" w={40} />
         </g>
       )}
       <Pieces draw={BACK_PIECES} mine={mine} />
