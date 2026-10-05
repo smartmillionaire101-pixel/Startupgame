@@ -243,7 +243,7 @@ the new venue items, shop buys with `businessId`, and growth), jobs at least
   - never invent numbers beyond the facts given;
   - never claim to have done an in-game action; suggest the player do it
     ("come by the café and pitch me").
-- Timeout 10s. On any error, refusal or empty answer, fall back to templates.
+- Timeout 7s, no retry (Netlify stops a function at 10s). On any error, refusal or empty answer, fall back to templates.
 - Per-user budget: `AI_CHAT_DAILY_LIMIT` (default 80) Claude replies a day,
   templates after that.
 - Nothing about the key is ever logged.

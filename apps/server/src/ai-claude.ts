@@ -18,12 +18,12 @@ export interface AiClient {
   };
 }
 
-/** The real client: 10 seconds, one retry. */
+/** The real client: 7 seconds, no retry (Netlify stops a function at 10 s; the template reply needs the rest). */
 export const createClient = (apiKey: string): AiClient =>
-  new Anthropic({ apiKey, timeout: 10_000, maxRetries: 1 });
+  new Anthropic({ apiKey, timeout: 7_000, maxRetries: 0 });
 
 /** Hard limit on one reply, retries included. */
-export const AI_CHAT_DEADLINE_MS = 10_000;
+export const AI_CHAT_DEADLINE_MS = 7_000;
 
 /** Turns of the thread sent with each request. */
 export const AI_CHAT_HISTORY = 16;

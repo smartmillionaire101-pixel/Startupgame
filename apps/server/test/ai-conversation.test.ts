@@ -92,7 +92,10 @@ describe('templates that follow the conversation', () => {
     expect(converse(world, me, ch, ['Hello!', 'What do you invest in?']).replies).toEqual(
       replies.slice(0, 2),
     );
-    expect(replies[1]).toMatch(/cheques of/);
+    // The investing question is answered from the investing facts (which line
+    // comes first depends on the thread, and the company name is random).
+    expect(memories[1]!.topic).toBe('invest');
+    expect(replies[1]).toMatch(/cheques of|fits what we do/);
     // Follow-ups stay on investing and say something new from that topic.
     const invest = characterFacts(world, me, ch, 'en', null, memories[1]).invest;
     expect(memories[2]!.topic).toBe('invest');
