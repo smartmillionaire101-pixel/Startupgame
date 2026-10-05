@@ -120,6 +120,82 @@
 .tray-more {
   width: 100%;
 }
+/* What just happened (a dance, a film), and someone you met. */
+.tray-result {
+  position: relative;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  padding: 0.45rem 2rem 0.45rem 0.65rem;
+  font-size: 0.82rem;
+  display: grid;
+  gap: 0.3rem;
+}
+.tray-result p {
+  margin: 0;
+}
+.tray-met {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+.tray-save {
+  padding: 0.25rem 0.7rem;
+  flex: 0 0 auto;
+}
+.tray-saved {
+  color: var(--good, #15803d);
+  flex: 0 0 auto;
+}
+.tray-result-x {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.3rem;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+}
+
+/* Showrooms: what's for sale, by slot. */
+.shop-group + .shop-group {
+  margin-top: 0.6rem;
+}
+.shop-h {
+  font-size: 0.86rem;
+  margin: 0.2rem 0 0.25rem;
+}
+.shop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+.shop-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.shop-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.shop-price {
+  flex: 0 0 auto;
+  font-size: 0.86rem;
+}
+.shop-buy {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.7rem;
+}
 .place-more {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -198,6 +274,20 @@
 }
 .scene-person[data-act='dj'] .scene-fig {
   animation: act-bob 0.5s ease-in-out infinite alternate;
+}
+/* Wave 6: singing into a mic, playing a game, a kickabout. */
+.scene-person[data-act='singing'] .city-arm-r {
+  transform: rotate(-120deg);
+}
+.scene-person[data-act='singing'] .city-body {
+  animation: act-nod 1.2s ease-in-out infinite;
+}
+.scene-person[data-act='playing'] .city-arm-l,
+.scene-person[data-act='playing'] .city-arm-r {
+  animation: act-type 0.22s ease-in-out infinite alternate;
+}
+.scene-person[data-act='football'] .scene-fig {
+  animation: act-dance 0.45s ease-in-out infinite alternate;
 }
 @keyframes act-lift {
   0%,

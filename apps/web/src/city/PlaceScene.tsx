@@ -42,18 +42,25 @@ import {
   lpsOf,
   lunchVenueOf,
   lunchVenues,
+  metOf,
   myJobOf,
-  sellsCars,
-  sellsFurniture,
-  shopOf,
+  nearest,
+  sellsOf,
+  storeForSlot,
+  venueItemsOf,
   type AngelHere,
+  type Met,
+  type VenueItemView,
 } from './life';
+import { Showroom, slotsOwned } from './Showroom';
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
 import type { PersonRef } from './PersonCard';
 import { RoomBack, RoomFront } from './RoomArt';
 import {
   ENTRANCE,
+  FUN_ROOMS,
   ROOM_SLOTS,
+  SHOWROOMS,
   regularsFor,
   roomOf,
   seat,
@@ -380,6 +387,74 @@ type Loose = { message?: string; text?: string; reason?: string; answer?: string
 const said = (r: Loose, fallback: string) =>
   r?.message ? tx(r.message) : r?.text ? tx(r.text) : fallback;
 
+/** An icon for a thing to do, from its name (the engine names them; §A2). */
+export function funIcon(label: string, room: RoomKind): string {
+  const l = label.toLowerCase();
+  const by: [RegExp, string][] = [
+    [/danc/, '💃'],
+    [/vip|bottle/, '🍾'],
+    [/film|movie|premiere|screen/, '🎬'],
+    [/karaoke|sing|song/, '🎤'],
+    [/bowl/, '🎳'],
+    [/arcade|game/, '🕹'],
+    [/massage|spa|day pass|sauna/, '💆'],
+    [/five-a-side|match|football|kick/, '⚽'],
+    [/gig|music|open-mic|concert|band/, '🎸'],
+    [/exhibit|opening|gallery|art/, '🖼'],
+    [/day bed|sunset|beach/, '🏖'],
+    [/shisha|dj/, '🎶'],
+    [/class|workout|session/, '🏋'],
+  ];
+  const hit = by.find(([re]) => re.test(l));
+  if (hit) return hit[1];
+  return room === 'club' ? '🪩' : room === 'bar' || room === 'lounge' ? '🍸' : '🎉';
+}
+
+/** What happened after you did something: a line, and maybe someone you met. */
+interface Outcome {
+  text: string;
+  met: Met | null;
+  saved: boolean;
+}
+
+function OutcomeLine({
+  o,
+  onSave,
+  onClose,
+  busy,
+}: {
+  o: Outcome;
+  onSave: () => void;
+  onClose: () => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="tray-result" role="status">
+      <p className="tray-result-text">{o.text}</p>
+      {o.met && (
+        <p className="tray-met" data-met={o.met.refId}>
+          <span>{t('You met {name}. Save the contact?', { name: o.met.name })}</span>
+          {o.saved ? (
+            <b className="tray-saved">{t('Saved ✓')}</b>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-subtle tray-save"
+              disabled={busy}
+              onClick={onSave}
+            >
+              {t('Save')}
+            </button>
+          )}
+        </p>
+      )}
+      <button type="button" className="tray-result-x" aria-label={t('Dismiss')} onClick={onClose}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function TrayButton({ a }: { a: TrayAction }) {
   const [armed, setArmed] = useState(false);
   return (
@@ -425,6 +500,8 @@ export interface SceneProps {
   abroad: boolean;
   /** The airport: fly home. */
   onFlyHome?: () => void;
+  /** Every place on the map (to find the nearest showroom from home). */
+  places?: Place[];
   /** The detailed cards, under "More". */
   children: ReactNode;
 }
@@ -439,10 +516,15 @@ export function PlaceScene({
   players,
   abroad,
   onFlyHome,
+  places,
   children,
 }: SceneProps) {
   const { view, send, cur, busy } = useView();
-  const [more, setMore] = useState(false);
+  /** Below the room: the tray, everything else ("More"), or a showroom's catalogue. */
+  const [panel, setPanel] = useState<'tray' | 'more' | 'shop'>('tray');
+  const more = panel !== 'tray';
+  const setMore = (on: boolean) => setPanel(on ? 'more' : 'tray');
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [pitch, setPitch] = useState<{
     fundId: string;
     name: string;
@@ -486,6 +568,34 @@ export function PlaceScene({
     .filter((x): x is { o: Occupant; slot: (typeof slots)[number] } => x.slot !== null);
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
 
+  // ---- Things to do: the price, then whether you'll meet people or rest.
+  const funSub = (it: VenueItemView) =>
+    it.meetChance >= 0.25
+      ? t('{price} · you may meet someone', { price: money(it.price, cur) })
+      : it.energy
+        ? t('{price} · +{n} energy', { price: money(it.price, cur), n: it.energy })
+        : money(it.price, cur);
+  const doFun = async (businessId: string, it: VenueItemView) => {
+    const r = await send<Loose & { met?: unknown }>(
+      looseCmd({ type: 'venue.buy', businessId, itemId: it.id }),
+    );
+    if (r !== null)
+      setOutcome({
+        text: said(r, t('Enjoy: {item}.', { item: tx(it.label) })),
+        met: metOf(r),
+        saved: false,
+      });
+  };
+  const saveMet = async () => {
+    const met = outcome?.met;
+    if (!met) return;
+    const r = await send(
+      looseCmd({ type: 'contact.save', personId: met.refId, name: met.name }),
+      t('{name} is in your contacts.', { name: met.name }),
+    );
+    if (r !== null) setOutcome((o) => (o ? { ...o, saved: true } : o));
+  };
+
   // ---- What you can do here.
   const actions: TrayAction[] = [];
   const toMore: TrayAction = {
@@ -503,11 +613,41 @@ export function PlaceScene({
 
   if (business) {
     const b = business;
+    const venue = venueItemsOf(view, b.id);
+    // Things to do first (Wave 6 §C2): dance, a film, karaoke, five-a-side…
+    const fun = venue
+      .filter((i) => i.activity)
+      .sort((x, y) => y.fun - x.fun || x.price - y.price)
+      .slice(0, FUN_ROOMS.has(room) ? 2 : 1);
+    for (const it of fun)
+      actions.push({
+        id: `fun:${it.id}`,
+        label: tx(it.label),
+        sub: funSub(it),
+        icon: funIcon(it.label, room),
+        disabled: pocket < it.price || busy,
+        run: () => doFun(b.id, it),
+      });
+    // A showroom: what's for sale (§A3).
+    const sells = sellsOf(view, b);
+    if (sells && (SHOWROOMS.has(room) || !fun.length))
+      actions.push({
+        id: 'showroom',
+        label: 'cars' in sells ? t('See the cars') : t('See what’s for sale'),
+        sub: t('Prices, comfort and what you own'),
+        icon:
+          'cars' in sells
+            ? '🚗'
+            : sells.slots.some((s) => storeForSlot(s) === 'appliance')
+              ? '📺'
+              : '🛋',
+        run: () => setPanel('shop'),
+      });
     // Eat, drink, buy: one tap.
-    const items = [...(b.venue?.items ?? [])].sort(
-      (x, y) => Number(!!y.energy) - Number(!!x.energy) || x.price - y.price,
-    );
-    for (const it of items.slice(0, 2))
+    const items = [...(b.venue?.items ?? [])]
+      .filter((i) => !fun.some((f) => f.id === i.id))
+      .sort((x, y) => Number(!!y.energy) - Number(!!x.energy) || x.price - y.price);
+    for (const it of items.slice(0, fun.length ? 1 : 2))
       actions.push({
         id: `buy:${it.id}`,
         label: t('Buy {item}', { item: tx(it.label) }),
@@ -528,47 +668,6 @@ export function PlaceScene({
             said(r, t('Enjoy: {item}.', { item: tx(it.label) })),
           ),
       });
-    // A car or furniture (section A's shop).
-    const shop = shopOf(view);
-    if (sellsCars(b.kind) && shop.cars.length) {
-      const mine = carOf(view);
-      for (const c of shop.cars.filter((x) => x.id !== mine?.modelId).slice(0, 2))
-        actions.push({
-          id: `car:${c.id}`,
-          label: t('Buy the {car}', { car: tx(c.label) }),
-          sub: t('{price} · {cost}/mo to run', {
-            price: money(c.price, cur),
-            cost: money(c.monthlyCost, cur),
-          }),
-          icon: '🚗',
-          confirm: true,
-          disabled: pocket < c.price || busy,
-          run: () =>
-            send(looseCmd({ type: 'car.buy', modelId: c.id }), (r: Loose) =>
-              said(r, t('The {car} is yours.', { car: tx(c.label) })),
-            ),
-        });
-    }
-    if (sellsFurniture(b.kind) && shop.furniture.length) {
-      const owned = new Set((homeOf(view)?.items ?? []).map((i) => i.itemId));
-      const pickFurniture = shop.furniture
-        .filter((f) => !owned.has(f.id) && f.price <= Math.max(pocket, 1))
-        .sort((x, y) => y.price - x.price)
-        .slice(0, 2);
-      for (const f of pickFurniture.length ? pickFurniture : shop.furniture.slice(0, 2))
-        actions.push({
-          id: `home:${f.id}`,
-          label: t('Buy {item}', { item: tx(f.label) }),
-          sub: money(f.price, cur),
-          icon: '🛋',
-          confirm: true,
-          disabled: pocket < f.price || busy,
-          run: () =>
-            send(looseCmd({ type: 'home.buy', itemId: f.id }), (r: Loose) =>
-              said(r, t('{item} is on its way to your flat.', { item: tx(f.label) })),
-            ),
-        });
-    }
     // A job here (section A), else a shift.
     const job = jobsOf(view).find((j) => j.businessId === b.id);
     const myJob = myJobOf(view);
@@ -786,14 +885,47 @@ export function PlaceScene({
       if (onFlyHome)
         actions.push({ id: 'fly-home', label: t('Fly home'), icon: '✈', run: onFlyHome });
     } else {
-      const store = businessesOf(view).find((b) => b.open && sellsFurniture(b.kind));
-      if (store)
+      // The old shop buttons: now a walk (or a ride) to the nearest showroom.
+      const open = businessesOf(view).filter((b) => b.open);
+      const doorOf = new Map((places ?? []).map((p) => [p.id, p.door]));
+      const closest = (want: 'furniture' | 'appliance' | 'car') =>
+        nearest(
+          open.filter((b) => {
+            const s = sellsOf(view, b);
+            if (!s) return false;
+            if ('cars' in s) return want === 'car';
+            return want !== 'car' && s.slots.some((x) => storeForSlot(x) === want);
+          }),
+          (b) => doorOf.get(`biz:${b.id}`),
+          place.door,
+        );
+      const furniture = closest('furniture');
+      const appliances = closest('appliance');
+      const dealer = closest('car');
+      const car = carOf(view);
+      if (furniture)
         actions.push({
-          id: 'furnish',
-          label: t('Furnish your flat'),
-          sub: store.name,
+          id: 'showroom:furniture',
+          label: t('Go to the showroom'),
+          sub: t('Furniture at {store}', { store: furniture.name }),
           icon: '🛋',
-          run: () => onVisit?.(`biz:${store.id}`),
+          run: () => onVisit?.(`biz:${furniture.id}`),
+        });
+      if (appliances && appliances.id !== furniture?.id)
+        actions.push({
+          id: 'showroom:appliance',
+          label: t('Shop for a TV and appliances'),
+          sub: appliances.name,
+          icon: '📺',
+          run: () => onVisit?.(`biz:${appliances.id}`),
+        });
+      if (dealer)
+        actions.push({
+          id: 'showroom:car',
+          label: car ? t('Your car: {car}', { car: tx(car.label) }) : t('Buy a car'),
+          sub: t('Showroom: {store}', { store: dealer.name }),
+          icon: '🚗',
+          run: () => onVisit?.(`biz:${dealer.id}`),
         });
       actions.push({ ...toMore, label: t('Your money and lifestyle'), icon: '💳' });
       actions.push(go('me', t('Your profile and contacts'), '🪪'));
@@ -880,6 +1012,7 @@ export function PlaceScene({
             tint={business?.look.color ?? place.color}
             sign={sign?.toUpperCase().slice(0, 22)}
             home={home?.items ?? null}
+            car={home ? (carOf(view)?.label ?? null) : null}
           />
           {placed
             .filter((x) => x.slot.sit)
@@ -905,19 +1038,40 @@ export function PlaceScene({
           </g>
         </svg>
       </div>
+      {/* Who's here (WhoIsHere.tsx, Wave 6 §C1) goes on this line: under the room, above the tray. */}
       {more ? (
         <div className="place-more">
           <button type="button" className="place-back" onClick={() => setMore(false)}>
             ‹ {t('Back to the room')}
           </button>
-          <div className="interior">{children}</div>
+          {panel === 'shop' && business ? (
+            <Showroom business={business} />
+          ) : (
+            <div className="interior">{children}</div>
+          )}
         </div>
       ) : (
         <div className="place-tray">
-          {business?.venue && (
+          {(business?.venue || (business && sellsOf(view, business))) && (
             <p className="small muted tray-pocket" data-pocket={pocket}>
               {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
             </p>
+          )}
+          {home && (
+            <p className="small muted tray-pocket" data-comfort={home.comfort}>
+              {t('Comfort {n} · {owned} of {total} things for your flat', {
+                n: home.comfort,
+                ...slotsOwned(home.items),
+              })}
+            </p>
+          )}
+          {outcome && (
+            <OutcomeLine
+              o={outcome}
+              busy={busy}
+              onSave={() => void saveMet()}
+              onClose={() => setOutcome(null)}
+            />
           )}
           <div className="tray-actions" role="group" aria-label={t('What you can do here')}>
             {primary.length ? (

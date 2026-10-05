@@ -14,10 +14,14 @@ import {
   lunchVenueOf,
   lunchVenues,
   myJobOf,
+  venueItemsOf,
 } from './life';
 import { eventsOf } from './people';
+import { businessRoom, FUN_ROOMS } from './rooms';
+import { isNight, localHour } from './travel';
 
 export type SuggestionKind =
+  | 'fun'
   | 'job'
   | 'gig'
   | 'eat'
@@ -41,10 +45,53 @@ export interface Suggestion {
   detail?: string;
   /** Minor units, when it matters (pay, price). */
   amount?: number;
+  /** Fun: it's evening or night in the city. */
+  night?: boolean;
 }
 
-/** Up to `max` suggestions, most urgent first. */
-export function suggestionsFor(view: PlayerView, max = 3): Suggestion[] {
+/**
+ * The best night out you can afford: a thing to do (Wave 6 §A2) at a fun
+ * place, clubs and live music first, then the most fun for the money.
+ */
+function funFor(view: PlayerView, pocket: number, night: boolean): Suggestion | null {
+  const best = businessesOf(view)
+    .filter((b) => b.open)
+    .flatMap((b) => {
+      const room = businessRoom(b.kind, b.look.shape);
+      if (!FUN_ROOMS.has(room)) return [];
+      return venueItemsOf(view, b.id)
+        .filter((i) => i.activity && i.price > 0 && i.price <= pocket)
+        .map((i) => ({
+          b,
+          i,
+          score:
+            (night && (room === 'club' || room === 'stage' || room === 'karaoke') ? 20 : 0) +
+            i.fun * 2 +
+            i.meetChance * 10,
+        }));
+    })
+    .sort((x, y) => y.score - x.score || x.i.price - y.i.price || (x.b.id < y.b.id ? -1 : 1))[0];
+  return best
+    ? {
+        kind: 'fun',
+        placeId: `biz:${best.b.id}`,
+        name: best.b.name,
+        detail: best.i.label,
+        amount: best.i.price,
+        night,
+      }
+    : null;
+}
+
+/**
+ * Up to `max` suggestions, most urgent first. `hour` is the local hour in
+ * the city (evenings suggest going out).
+ */
+export function suggestionsFor(
+  view: PlayerView,
+  max = 3,
+  hour = localHour(view.market.id),
+): Suggestion[] {
   const out: Suggestion[] = [];
   const add = (s: Suggestion | null | undefined) => {
     if (s && out.length < max && !out.some((x) => x.placeId === s.placeId)) out.push(s);
@@ -54,10 +101,13 @@ export function suggestionsFor(view: PlayerView, max = 3): Suggestion[] {
   const col = view.market.costOfLiving || 1;
   const biz = businessesOf(view).filter((b) => b.open);
   const broke = pocket < col * 0.5;
+  /** Under two months of living costs and no job: work comes up first. */
+  const low = pocket < col * 2;
   const tired = view.me.energy < 45;
+  const night = isNight(hour) || hour >= 18;
 
-  // 1. Broke: a job (section A), else the best-paid shift.
-  if (broke && !myJobOf(view)) {
+  // 1. Low on money: a job (section A), else the best-paid shift.
+  if (low && !myJobOf(view)) {
     const job = jobsOf(view)[0];
     if (job)
       add({
@@ -99,7 +149,10 @@ export function suggestionsFor(view: PlayerView, max = 3): Suggestion[] {
       });
   }
 
-  // 3. An angel at a café (founders).
+  // 3. Evening: a night out (money you spend lands in a real business's till).
+  if (night && !broke) add(funFor(view, pocket, true));
+
+  // 4. An angel at a café (founders).
   if (company) {
     const at = angelsAtOf(view);
     let found: { angel: string; biz: string } | null = null;
@@ -124,7 +177,7 @@ export function suggestionsFor(view: PlayerView, max = 3): Suggestion[] {
       });
   }
 
-  // 4. An accelerator (or a grant) to apply to.
+  // 5. An accelerator (or a grant) to apply to.
   if (company) {
     const acc = acceleratorsOf(view).find((a) => !a.status && a.eligible);
     if (acc) add({ kind: 'accelerator', placeId: `cap:${acc.id}`, name: acc.name });
@@ -140,7 +193,7 @@ export function suggestionsFor(view: PlayerView, max = 3): Suggestion[] {
       });
   }
 
-  // 5. A business that buys what you sell, with nobody supplying it yet.
+  // 6. A business that buys what you sell, with nobody supplying it yet.
   if (company) {
     const lead = biz
       .filter((b) => b.you.canPitch && !b.you.customer)
@@ -156,15 +209,16 @@ export function suggestionsFor(view: PlayerView, max = 3): Suggestion[] {
       });
   }
 
-  // 6. An event to go to.
+  // 7. An event to go to.
   const event = (eventsOf(view) ?? []).find(
     (e) => e.status === 'upcoming' && !e.youHost && !e.youGoing,
   );
   if (event)
     add({ kind: 'event', placeId: 'eventhall', name: event.title, where: event.dateLabel });
 
-  // Always something: talk to customers, meet people at the Hub, take a shift.
+  // Always something: talk to customers, have some fun, meet people at the Hub, take a shift.
   if (company) add({ kind: 'customers', placeId: 'market', name: '' });
+  if (!low && !night) add(funFor(view, pocket, false));
   add({ kind: 'hub', placeId: 'hub', name: '' });
   if (!broke) {
     const gig = biz.flatMap((b) => b.gigs.map((g) => ({ b, g })))[0];

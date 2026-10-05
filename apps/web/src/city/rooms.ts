@@ -36,7 +36,16 @@ export type RoomKind =
   | 'clinic'
   | 'gallery'
   | 'school'
-  | 'workshop';
+  | 'workshop'
+  // Wave 6: things to do, and showrooms.
+  | 'lounge'
+  | 'karaoke'
+  | 'arcade'
+  | 'spa'
+  | 'beach'
+  | 'stage'
+  | 'pitch'
+  | 'appliance';
 
 export const ROOM_KINDS: readonly RoomKind[] = [
   'restaurant',
@@ -64,6 +73,14 @@ export const ROOM_KINDS: readonly RoomKind[] = [
   'gallery',
   'school',
   'workshop',
+  'lounge',
+  'karaoke',
+  'arcade',
+  'spa',
+  'beach',
+  'stage',
+  'pitch',
+  'appliance',
 ];
 
 export type Activity =
@@ -80,7 +97,10 @@ export type Activity =
   | 'relaxing'
   | 'waiting'
   | 'presenting'
-  | 'dj';
+  | 'dj'
+  | 'singing'
+  | 'playing'
+  | 'football';
 
 export interface Slot {
   x: number;
@@ -95,17 +115,28 @@ export interface Slot {
   flip?: boolean;
 }
 
-/** A business's room, from its kind (section A adds clubs, cinemas, showrooms…) and shape. */
+/**
+ * A business's room, from its kind and shape. Wave 6 kinds (docs/WAVE6-ALIVE-CITY.md
+ * §A2) each have their own room; unknown kinds fall back by shape, then a shop.
+ */
 export function businessRoom(kind: string, shape?: string): RoomKind {
   const k = kind.toLowerCase();
+  if (/beach/.test(k)) return 'beach';
+  if (/football|(^|-)pitch|five-a-side|stadium|futsal/.test(k)) return 'pitch';
+  if (/karaoke/.test(k)) return 'karaoke';
+  if (/arcade|bowling/.test(k)) return 'arcade';
+  if (/(^|-)spa($|-)|massage|wellness|hammam|sauna/.test(k)) return 'spa';
+  if (/live-music|music|jazz|concert/.test(k)) return 'stage';
   if (/night-?club|disco|club(?!.*(golf|book))/.test(k)) return 'club';
   if (/cinema|movie|film/.test(k)) return 'cinema';
-  if (/car|dealer|motor|showroom|auto/.test(k)) return 'showroom';
+  if (/lounge|shisha|cocktail/.test(k)) return 'lounge';
+  if (/car-|dealer|motor|showroom|auto/.test(k)) return 'showroom';
   if (/furnit|interior|homeware|decor/.test(k)) return 'furniture';
-  if (/gallery|art/.test(k)) return 'gallery';
+  if (/applian|electronic/.test(k)) return 'appliance';
+  if (/gallery|(^|-)art($|-)/.test(k)) return 'gallery';
   if (/cowork|co-work/.test(k)) return 'cowork';
   if (/gym|fitness|yoga|boxing|pilates|climb|studio/.test(k)) return 'gym';
-  if (/lounge|rooftop|bar|pub|music|jazz|live|karaoke|wine/.test(k)) return 'bar';
+  if (/rooftop|bar|pub|wine/.test(k)) return 'bar';
   if (isCafe(k)) return 'cafe';
   if (
     /restaurant|buka|grill|chop|suya|food|eatery|kitchen|diner|taquer|dim-sum|curry|koshary|shawarma|caff|kibanda|waakye|canteen|bistro/.test(
@@ -124,6 +155,29 @@ export function businessRoom(kind: string, shape?: string): RoomKind {
   if (shape === 'warehouse') return 'workshop';
   return 'shop';
 }
+
+/** Rooms you go to for fun: their scene leads with the things to do. */
+export const FUN_ROOMS: ReadonlySet<RoomKind> = new Set<RoomKind>([
+  'club',
+  'cinema',
+  'lounge',
+  'karaoke',
+  'arcade',
+  'spa',
+  'beach',
+  'stage',
+  'pitch',
+  'gallery',
+  'bar',
+  'gym',
+]);
+
+/** Showrooms: the scene lists what they sell. */
+export const SHOWROOMS: ReadonlySet<RoomKind> = new Set<RoomKind>([
+  'showroom',
+  'furniture',
+  'appliance',
+]);
 
 /** The room you walk into at a place. Away from home, your office is a co-working desk and home a hotel room. */
 export function roomOf(
@@ -370,6 +424,73 @@ export const ROOM_SLOTS: Record<RoomKind, Slot[]> = {
     S(250, 196, 'chatting', 'guest', { flip: true }),
     S(310, 214, 'browsing'),
     S(50, 214, 'chatting'),
+  ],
+  lounge: [
+    S(300, 150, 'serving', 'staff', { flip: true }),
+    S(70, 196, 'drinking', 'guest', { sit: true }),
+    S(124, 196, 'chatting', 'guest', { sit: true, flip: true }),
+    S(206, 204, 'relaxing', 'guest', { sit: true }),
+    S(256, 204, 'drinking', 'guest', { sit: true, flip: true }),
+    S(160, 228, 'chatting'),
+    S(36, 228, 'chatting', 'guest', { flip: true }),
+  ],
+  karaoke: [
+    S(334, 156, 'serving', 'staff', { flip: true }),
+    S(150, 172, 'singing'),
+    S(206, 176, 'singing', 'guest', { flip: true }),
+    S(90, 214, 'watching', 'guest', { sit: true }),
+    S(150, 214, 'drinking', 'guest', { sit: true }),
+    S(210, 214, 'watching', 'guest', { sit: true, flip: true }),
+    S(270, 214, 'chatting', 'guest', { sit: true, flip: true }),
+  ],
+  arcade: [
+    S(322, 150, 'serving', 'staff', { flip: true }),
+    S(52, 162, 'playing'),
+    S(112, 162, 'playing'),
+    S(172, 162, 'playing'),
+    S(150, 218, 'workout', 'guest', { flip: true }),
+    S(236, 224, 'chatting'),
+    S(286, 206, 'watching', 'guest', { flip: true }),
+  ],
+  spa: [
+    S(300, 156, 'serving', 'staff', { flip: true }),
+    S(110, 200, 'relaxing', 'guest', { sit: true }),
+    S(190, 204, 'relaxing', 'guest', { sit: true, flip: true }),
+    S(60, 224, 'chatting'),
+    S(250, 224, 'waiting', 'guest', { flip: true }),
+  ],
+  beach: [
+    S(310, 150, 'serving', 'staff', { flip: true }),
+    S(80, 196, 'relaxing', 'guest', { sit: true }),
+    S(170, 196, 'drinking', 'guest', { sit: true, flip: true }),
+    S(120, 228, 'dancing'),
+    S(220, 224, 'dancing', 'guest', { flip: true }),
+    S(268, 198, 'chatting'),
+    S(36, 228, 'drinking'),
+  ],
+  stage: [
+    S(180, 134, 'singing', 'staff'),
+    S(116, 134, 'dj', 'staff'),
+    S(100, 206, 'dancing'),
+    S(160, 214, 'watching', 'guest', { flip: true }),
+    S(220, 208, 'dancing'),
+    S(280, 222, 'watching', 'guest', { flip: true }),
+    S(50, 228, 'drinking'),
+  ],
+  pitch: [
+    S(334, 150, 'chatting', 'staff', { flip: true }),
+    S(90, 176, 'football'),
+    S(170, 194, 'football', 'guest', { flip: true }),
+    S(244, 176, 'football'),
+    S(130, 222, 'football', 'guest', { flip: true }),
+    S(256, 222, 'football'),
+    S(36, 210, 'watching'),
+  ],
+  appliance: [
+    S(290, 156, 'serving', 'staff', { flip: true }),
+    S(110, 200, 'browsing'),
+    S(200, 214, 'watching', 'guest', { flip: true }),
+    S(50, 222, 'browsing'),
   ],
 };
 

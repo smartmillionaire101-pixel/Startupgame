@@ -424,102 +424,617 @@ function Whiteboard({
 }
 
 // ---------------------------------------------------------------------------
-// The apartment: what you own, else a basic furnished flat.
+// The apartment (Wave 6 §C2): every home slot has a spot. What you own is
+// drawn in its tier's colour; an empty spot is drawn faintly, so you can see
+// what's missing. Slots the flat doesn't know yet go on the floor as boxes.
 
 const TIER_COLORS = ['#a8a29e', '#2563eb', '#7c3aed'];
+const FAINT = 0.14;
 
-function ApartmentBack({ items }: { items: HomeItemView[] | null }) {
-  const has = (slot: RegExp) => items?.find((i) => slot.test(i.slot) || slot.test(i.itemId));
-  const tv = has(/tv|screen/);
-  const art = has(/art|paint/);
-  const kitchen = has(/kitchen/);
-  const sound = has(/sound|speaker|audio/);
-  const bed = has(/bed/);
-  const basic = !items || items.length === 0;
+/** Whether a piece is yours, and how good. `basic`: the flat's own (no item). */
+type Piece = { tier: number; owned: boolean; basic?: boolean };
+type Draw = (c: string, p: Piece) => ReactNode;
+
+/** Drawn behind the people (on the wall and against it). */
+const BACK_PIECES: Record<string, Draw> = {
+  wardrobe: (c) => (
+    <g>
+      <rect x={6} y={52} width={40} height={88} rx="2" fill={shade(c, 0.35)} />
+      <line x1={26} y1={54} x2={26} y2={138} stroke={shade(c, -0.2)} />
+      <circle cx={23} cy={96} r="1.5" fill="#44403c" />
+      <circle cx={29} cy={96} r="1.5" fill="#44403c" />
+    </g>
+  ),
+  cooling: (c, p) =>
+    p.tier >= 2 ? (
+      <g>
+        <rect x={58} y={4} width={58} height={16} rx="4" fill="#f8fafc" stroke={c} />
+        {[0, 1, 2].map((k) => (
+          <line key={k} x1={64} y1={13 + k * 2} x2={110} y2={13 + k * 2} stroke="#cbd5e1" />
+        ))}
+      </g>
+    ) : (
+      <g>
+        <circle cx={130} cy={16} r={11} fill="none" stroke={c} strokeWidth="2" />
+        <path d="M 130 16 l 8 -4 M 130 16 l -4 8 M 130 16 l -4 -8" stroke={c} strokeWidth="3" />
+      </g>
+    ),
+  art: (c) => <Picture x={126} y={30} w={36} h={28} c={c} />,
+  power: (c) => (
+    <g>
+      <rect x={130} y={88} width={22} height={30} rx="2" fill="#e5e7eb" stroke={c} />
+      <path d="M 143 92 l -6 11 h 5 l -3 11 l 8 -14 h -5 z" fill={c} />
+    </g>
+  ),
+  plants: (_c, p) => <Plant x={160} y={140} s={0.7 + p.tier * 0.15} />,
+  tv: (c) => (
+    <g>
+      <rect x={172} y={34} width={64} height={40} rx="2" fill="#0f172a" />
+      <rect x={175} y={37} width={58} height={34} fill={c} opacity="0.65" className="room-screen" />
+      <rect x={182} y={104} width={44} height={36} fill="#57534e" />
+    </g>
+  ),
+  sound: () => (
+    <g>
+      {[168, 230].map((x) => (
+        <g key={x}>
+          <rect x={x} y={98} width={10} height={42} rx="2" fill="#1f2937" />
+          <circle cx={x + 5} cy={112} r="3" fill="#4b5563" />
+          <circle cx={x + 5} cy={126} r="4" fill="#4b5563" />
+        </g>
+      ))}
+    </g>
+  ),
+  books: (c) => (
+    <Shelf
+      x={244}
+      y={22}
+      w={30}
+      rows={4}
+      c="#78350f"
+      goods={[c, '#f59e0b', '#16a34a', '#e11d48']}
+    />
+  ),
+  wifi: (c) => (
+    <g>
+      <rect x={248} y={12} width={20} height={6} rx="2" fill="#1f2937" />
+      <line x1={252} y1={12} x2={250} y2={4} stroke="#1f2937" strokeWidth="1.5" />
+      <line x1={264} y1={12} x2={266} y2={4} stroke="#1f2937" strokeWidth="1.5" />
+      <circle cx={258} cy={15} r="1.3" fill={c} className="room-light" />
+    </g>
+  ),
+  lights: (c) => <Pendant x={302} len={20} c={c === TIER_COLORS[0] ? '#fbbf24' : c} />,
+  kitchen: (c) => (
+    <g>
+      <rect x={290} y={58} width={30} height={10} rx="2" fill="#d6d3d1" />
+      <Counter x={280} y={140} w={46} h={40} c="#e7e5e4" top={c} />
+      <circle cx={292} cy={94} r="2.5" fill="#44403c" />
+      <circle cx={304} cy={94} r="2.5" fill="#44403c" />
+    </g>
+  ),
+  coffee: (c) => (
+    <g>
+      <rect x={312} y={80} width={11} height={14} rx="2" fill="#292524" />
+      <rect x={314} y={83} width={7} height={3} fill={c} />
+      <rect x={315} y={89} width={5} height={4} fill="#fff" />
+    </g>
+  ),
+  washer: (c) => (
+    <g>
+      <rect x={300} y={112} width={24} height={26} rx="2" fill="#f8fafc" stroke="#cbd5e1" />
+      <circle cx={312} cy={126} r={8} fill="#bae6fd" stroke={c} strokeWidth="2" />
+    </g>
+  ),
+  fridge: (c) => (
+    <g>
+      <rect x={328} y={62} width={28} height={78} rx="3" fill="#f1f5f9" stroke="#cbd5e1" />
+      <line x1={328} y1={88} x2={356} y2={88} stroke="#cbd5e1" />
+      <rect x={331} y={70} width={2} height={10} fill={c} />
+      <rect x={331} y={94} width={2} height={14} fill={c} />
+    </g>
+  ),
+};
+
+/** Drawn in front of the people (on the floor). */
+const FRONT_PIECES: Record<string, Draw> = {
+  rug: (c) => <ellipse cx={176} cy={222} rx={76} ry={12} fill={c} opacity="0.55" />,
+  bed: (c) => (
+    <g>
+      <rect x={2} y={150} width={8} height={46} rx="2" fill="#78350f" />
+      <rect x={4} y={180} width={84} height={14} rx="2" fill="#57534e" />
+      <rect x={8} y={168} width={78} height={14} rx="3" fill={c} />
+      <rect x={12} y={161} width={20} height={9} rx="3" fill="#fff" />
+    </g>
+  ),
+  dining: (c) => (
+    <g>
+      <Table x={300} y={196} w={52} top={c === TIER_COLORS[0] ? '#a16207' : c} items="plates" />
+      <rect x={264} y={170} width={6} height={28} rx="2" fill="#78350f" />
+      <rect x={330} y={170} width={6} height={28} rx="2" fill="#78350f" />
+    </g>
+  ),
+  sofa: (c) => <Sofa x={150} y={204} w={96} c={c} />,
+  laptop: (c) => (
+    <g>
+      <path d="M 138 214 l 4 -12 h 16 l -4 12 Z" fill={c} />
+      <rect x={136} y={213} width={20} height={2} fill="#475569" />
+    </g>
+  ),
+  desk: () => <Desk x={56} y={236} w={64} />,
+  gaming: (c) => (
+    <g>
+      <rect x={222} y={224} width={26} height={10} rx="3" fill="#111827" />
+      <circle cx={228} cy={229} r="2" fill="#22d3ee" />
+      <circle cx={242} cy={229} r="2" fill={c} />
+    </g>
+  ),
+};
+
+const { rug: rugPiece, ...FLOOR } = FRONT_PIECES;
+const RUG: Record<string, Draw> = { rug: rugPiece! };
+
+/** Your stuff: slot → tier (the best you own in that slot). */
+function piecesOf(items: HomeItemView[] | null): Map<string, Piece> {
+  const out = new Map<string, Piece>();
+  for (const i of items ?? []) {
+    const slot = i.slot.toLowerCase();
+    const prev = out.get(slot);
+    if (!prev || i.tier > prev.tier) out.set(slot, { tier: i.tier, owned: true });
+  }
+  // A bare flat still has a bed and an old sofa.
+  for (const slot of ['bed', 'sofa'])
+    if (!out.has(slot)) out.set(slot, { tier: 1, owned: false, basic: true });
+  return out;
+}
+
+function Pieces({ draw, mine }: { draw: Record<string, Draw>; mine: Map<string, Piece> }) {
+  return (
+    <>
+      {Object.entries(draw).map(([slot, fn]) => {
+        const p = mine.get(slot) ?? { tier: 1, owned: false };
+        const c = p.owned ? TIER_COLORS[p.tier - 1]! : '#94a3b8';
+        return (
+          <g
+            key={slot}
+            data-furniture={slot}
+            data-owned={p.owned ? '1' : '0'}
+            opacity={p.owned || p.basic ? 1 : FAINT}
+          >
+            {fn(c, p)}
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+function ApartmentBack({ items, car }: { items: HomeItemView[] | null; car: string | null }) {
+  const mine = piecesOf(items);
   return (
     <g>
       <Wall wall="#fef3c7" floor="#d6a86b" />
-      <Window x={22} y={24} w={86} h={70} />
-      {(art || basic) && (
-        <Picture x={128} y={26} w={44} h={34} c={art ? TIER_COLORS[art.tier - 1]! : '#f472b6'} />
-      )}
-      {tv && (
-        <g data-furniture="tv">
-          <rect x={190} y={34} width={80} height={46} rx="2" fill="#0f172a" />
-          <rect
-            x={194}
-            y={38}
-            width={72}
-            height={38}
-            fill={TIER_COLORS[tv.tier - 1]}
-            opacity="0.65"
-            className="room-screen"
-          />
-          <rect x={200} y={96} width={60} height={36} fill="#57534e" />
+      <Window x={56} y={28} w={62} h={58} />
+      {car && (
+        <g data-car={car} aria-label={car}>
+          <Car x={88} y={84} c="#dc2626" w={46} />
         </g>
       )}
-      {kitchen && (
-        <g data-furniture="kitchen">
-          <rect x={286} y={60} width={70} height={72} fill="#e7e5e4" />
-          <rect x={286} y={56} width={70} height={6} fill={TIER_COLORS[kitchen.tier - 1]} />
-          <rect x={292} y={24} width={58} height={26} fill="#f5f5f4" stroke="#d6d3d1" />
-          <circle cx={306} cy={56} r="3" fill="#44403c" />
-          <circle cx={322} cy={56} r="3" fill="#44403c" />
-        </g>
-      )}
-      {sound && (
-        <g data-furniture="sound">
-          <rect x={176} y={88} width={12} height={44} rx="2" fill="#1f2937" />
-          <circle cx={182} cy={104} r="4" fill="#4b5563" />
-          <circle cx={182} cy={120} r="5" fill="#4b5563" />
-        </g>
-      )}
-      {(bed || basic) && (
-        <g data-furniture="bed">
-          <rect
-            x={288}
-            y={bed ? 104 : 96}
-            width={68}
-            height={34}
-            rx="3"
-            fill={bed ? TIER_COLORS[bed.tier - 1] : '#94a3b8'}
-          />
-          <rect x={290} y={bed ? 98 : 90} width={22} height={10} rx="3" fill="#fff" />
-        </g>
-      )}
-      <Plant x={14} y={138} s={has(/plant/) ? 1.2 : 0.9} />
+      <Pieces draw={BACK_PIECES} mine={mine} />
     </g>
   );
 }
 
 function ApartmentFront({ items }: { items: HomeItemView[] | null }) {
-  const has = (slot: RegExp) => items?.find((i) => slot.test(i.slot) || slot.test(i.itemId));
-  const sofa = has(/sofa|couch/);
-  const desk = has(/desk|office/);
-  const gaming = has(/gam|console/);
-  const basic = !items || items.length === 0;
+  const mine = piecesOf(items);
+  // Anything the flat has no spot for (a slot added later) sits on the floor, boxed.
+  const known = new Set([...Object.keys(BACK_PIECES), ...Object.keys(FRONT_PIECES)]);
+  const extra = [...mine.entries()].filter(([s, p]) => p.owned && !known.has(s));
   return (
     <g>
-      {(sofa || basic) && (
-        <g data-furniture="sofa">
-          <Sofa x={150} y={204} w={96} c={sofa ? TIER_COLORS[sofa.tier - 1]! : '#78716c'} />
+      <Pieces draw={RUG} mine={mine} />
+      <rect x={128} y={214} width={46} height={14} rx="3" fill="#a16207" />
+      <Pieces draw={FLOOR} mine={mine} />
+      {extra.map(([slot, p], k) => (
+        <g key={slot} data-furniture={slot} data-owned="1">
+          <rect
+            x={96 + k * 20}
+            y={226}
+            width={16}
+            height={12}
+            rx="2"
+            fill={TIER_COLORS[p.tier - 1]}
+          />
+          <rect x={96 + k * 20} y={230} width={16} height={2} fill="#fff" opacity="0.6" />
         </g>
-      )}
-      {desk && (
-        <g data-furniture="desk">
-          <Desk x={60} y={214} w={64} />
-        </g>
-      )}
-      {gaming && (
-        <g data-furniture="gaming">
-          <rect x={226} y={222} width={26} height={10} rx="3" fill="#111827" />
-          <circle cx={232} cy={227} r="2" fill="#22d3ee" />
-          <circle cx={246} cy={227} r="2" fill="#f43f5e" />
-        </g>
-      )}
-      <rect x={130} y={214} width={44} height={14} rx="3" fill="#a16207" />
+      ))}
     </g>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Wave 6 rooms: things to do (§A2) and showrooms (§A3).
+
+/** An arcade cabinet. */
+function Cabinet({ x, c }: { x: number; c: string }) {
+  return (
+    <g>
+      <rect x={x - 20} y={64} width={40} height={76} rx="3" fill={c} />
+      <rect x={x - 20} y={64} width={40} height={10} fill={shade(c, -0.3)} />
+      <rect x={x - 15} y={78} width={30} height={22} fill="#22d3ee" className="room-screen" />
+      <rect x={x - 18} y={104} width={36} height={6} fill={shade(c, -0.2)} />
+      <circle cx={x - 8} cy={107} r="2" fill="#f43f5e" />
+      <circle cx={x + 4} cy={107} r="2" fill="#fde047" />
+    </g>
+  );
+}
+
+function Tv({ x, y, w = 62, c }: { x: number; y: number; w?: number; c: string }) {
+  const h = Math.round(w * 0.6);
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} rx="2" fill="#0f172a" />
+      <rect
+        x={x + 3}
+        y={y + 3}
+        width={w - 6}
+        height={h - 6}
+        fill={c}
+        opacity="0.7"
+        className="room-screen"
+      />
+    </g>
+  );
+}
+
+/** A lounger or day bed seen from the front (hides seated legs). */
+function DayBed({ x, w, c }: { x: number; w: number; c: string }) {
+  return (
+    <g>
+      <rect x={x - w / 2} y={196} width={w} height={12} rx="4" fill={c} />
+      <rect x={x - w / 2 + 2} y={206} width={w - 4} height={10} fill="#a16207" />
+    </g>
+  );
+}
+
+function newRoomBack(kind: RoomKind, t: string, sign: string | undefined): ReactNode {
+  switch (kind) {
+    case 'lounge':
+      return (
+        <g>
+          <Wall wall={shade(t, -0.6)} floor="#3f3f46" trim={shade(t, -0.75)} />
+          <Window x={18} y={22} w={120} h={70} night />
+          <Shelf
+            x={252}
+            y={30}
+            w={96}
+            rows={2}
+            c="#78350f"
+            goods={['#f59e0b', '#a855f7', '#16a34a', '#e5e7eb']}
+          />
+          <Counter x={248} y={140} w={104} h={32} c="#78350f" top="#451a03" />
+          {sign && (
+            <text
+              x="194"
+              y="56"
+              textAnchor="middle"
+              fontSize="12"
+              fontWeight="800"
+              fill="#5eead4"
+              className="room-neon"
+            >
+              {sign.split(' ')[0]}
+            </text>
+          )}
+          <Pendant x={170} len={24} c="#f59e0b" />
+          <Pendant x={222} len={18} c="#f59e0b" />
+          <Plant x={156} y={140} s={1.1} />
+        </g>
+      );
+    case 'karaoke':
+      return (
+        <g>
+          <Wall wall="#3b0764" floor="#1e1b4b" trim="#581c87" />
+          <rect x="104" y="18" width="152" height="84" rx="3" fill="#0f172a" />
+          <rect
+            x="108"
+            y="22"
+            width="144"
+            height="76"
+            fill="#7c3aed"
+            opacity="0.55"
+            className="room-screen"
+          />
+          {[0, 1, 2].map((k) => (
+            <rect
+              key={k}
+              x={124 + k * 6}
+              y={52 + k * 14}
+              width={112 - k * 18}
+              height="6"
+              rx="3"
+              fill={k === 0 ? '#fde047' : '#f5f3ff'}
+              opacity="0.9"
+            />
+          ))}
+          {[64, 276].map((x) => (
+            <g key={x}>
+              <rect x={x} y={50} width={20} height={90} rx="3" fill="#111827" />
+              <circle cx={x + 10} cy={74} r="6" fill="#374151" />
+              <circle cx={x + 10} cy={110} r="8" fill="#374151" />
+            </g>
+          ))}
+          <circle cx="40" cy="20" r="9" fill="#cbd5e1" className="room-ball" />
+          {sign && <Sign x={180} y={-40} w={160} text={sign} c="#db2777" />}
+        </g>
+      );
+    case 'arcade':
+      return (
+        <g>
+          <Wall wall="#0f172a" floor="#1e293b" trim="#312e81" />
+          <polygon points="236,140 340,140 360,240 214,240" fill="#d97706" />
+          <polygon points="236,140 248,140 230,240 214,240" fill="#92400e" />
+          <polygon points="328,140 340,140 360,240 346,240" fill="#92400e" />
+          {[0, 1, 2, 3, 4, 5].map((k) => (
+            <g key={k}>
+              <ellipse
+                cx={272 + (k % 3) * 12 + (k > 2 ? 6 : 0)}
+                cy={k > 2 ? 136 : 140}
+                rx="3.5"
+                ry="7"
+                fill="#fff"
+              />
+              <rect
+                x={269 + (k % 3) * 12 + (k > 2 ? 6 : 0)}
+                y={k > 2 ? 131 : 135}
+                width="7"
+                height="1.6"
+                fill="#dc2626"
+              />
+            </g>
+          ))}
+          <Cabinet x={52} c="#7c3aed" />
+          <Cabinet x={112} c="#db2777" />
+          <Cabinet x={172} c="#0891b2" />
+          {sign && <Sign x={180} y={22} w={170} text={sign} c="#7c3aed" fg="#fde047" />}
+        </g>
+      );
+    case 'spa':
+      return (
+        <g>
+          <Wall wall="#ecfeff" floor="#d6d3d1" trim="#a5f3fc" />
+          <Window x={20} y={26} w={96} h={70} sky="#d9f99d" />
+          <Shelf
+            x={136}
+            y={36}
+            w={80}
+            rows={2}
+            c="#a8a29e"
+            goods={['#fff', '#99f6e4', '#fef3c7']}
+          />
+          <Counter x={262} y={140} w={88} h={34} c="#f5f5f4" top="#14b8a6" />
+          {[150, 170, 190].map((x) => (
+            <g key={x}>
+              <rect x={x} y={124} width="6" height="10" fill="#fef3c7" />
+              <ellipse cx={x + 3} cy={121} rx="2" ry="3" fill="#f59e0b" className="room-light" />
+            </g>
+          ))}
+          <Plant x={240} y={140} s={1.2} />
+          {sign && <Sign x={306} y={60} w={100} text={sign} c="#0f766e" />}
+        </g>
+      );
+    case 'beach':
+      return (
+        <g>
+          <rect y="-220" width="360" height="310" fill="#7dd3fc" />
+          <circle cx="300" cy="22" r="18" fill="#fde047" />
+          <rect y="88" width="360" height="52" fill="#0ea5e9" />
+          {[0, 1, 2, 3].map((k) => (
+            <path
+              key={k}
+              d={`M ${k * 96} 104 q 12 -6 24 0 t 24 0`}
+              stroke="#e0f2fe"
+              strokeWidth="2"
+              fill="none"
+            />
+          ))}
+          <polygon points="0,140 360,140 360,240 0,240" fill="#fde68a" />
+          <g>
+            <path d="M 30 140 q 6 -50 -2 -96" stroke="#78350f" strokeWidth="6" fill="none" />
+            {[-60, -20, 20, 60].map((r) => (
+              <ellipse
+                key={r}
+                cx="28"
+                cy="44"
+                rx="26"
+                ry="7"
+                fill="#16a34a"
+                transform={`rotate(${r} 28 44)`}
+              />
+            ))}
+          </g>
+          {[80, 170].map((x, k) => (
+            <g key={x}>
+              <line x1={x + 20} y1={198} x2={x + 20} y2={130} stroke="#57534e" strokeWidth="2" />
+              <path
+                d={`M ${x - 10} 134 Q ${x + 20} 108 ${x + 50} 134 Z`}
+                fill={k ? t : '#f43f5e'}
+              />
+            </g>
+          ))}
+          <rect x="284" y="96" width="70" height="44" fill="#a16207" />
+          <polygon points="276,100 362,100 344,74 294,74" fill="#ca8a04" />
+          {sign && <Sign x={318} y={110} w={70} text={sign.split(' ')[0]!} c="#0369a1" />}
+        </g>
+      );
+    case 'stage':
+      return (
+        <g>
+          <Wall wall="#18181b" floor="#27272a" trim="#3f3f46" />
+          <g className="room-beams">
+            <polygon points="90,0 110,0 200,126 150,126" fill="#fde047" opacity="0.16" />
+            <polygon points="250,0 270,0 210,126 160,126" fill="#f472b6" opacity="0.16" />
+          </g>
+          <rect x="40" y="122" width="280" height="22" fill="#3f3f46" />
+          <rect x="40" y="122" width="280" height="4" fill="#71717a" />
+          <rect x="54" y="88" width="30" height="34" rx="2" fill="#111827" />
+          <circle cx="69" cy="105" r="9" fill="#374151" />
+          <g>
+            <ellipse cx="256" cy="112" rx="16" ry="10" fill="#dc2626" />
+            <ellipse cx="236" cy="104" rx="8" ry="3" fill="#fde047" />
+            <ellipse cx="278" cy="102" rx="8" ry="3" fill="#fde047" />
+          </g>
+          <line x1="196" y1="124" x2="196" y2="92" stroke="#a1a1aa" strokeWidth="1.5" />
+          <circle cx="196" cy="90" r="2.5" fill="#71717a" />
+          {sign && <Sign x={180} y={30} w={170} text={sign} c="#be123c" />}
+        </g>
+      );
+    case 'pitch':
+      return (
+        <g>
+          <rect y="-220" width="360" height="360" fill="#1e3a8a" />
+          {Array.from({ length: 19 }, (_, k) => (
+            <line key={k} x1={k * 20} y1="40" x2={k * 20} y2="140" stroke="#64748b" />
+          ))}
+          <line x1="0" y1="40" x2="360" y2="40" stroke="#94a3b8" strokeWidth="2" />
+          {[24, 336].map((x) => (
+            <g key={x}>
+              <rect x={x - 2} y="-30" width="4" height="170" fill="#cbd5e1" />
+              <rect x={x - 14} y="-40" width="28" height="12" rx="2" fill="#f8fafc" />
+              <rect
+                x={x - 12}
+                y="-38"
+                width="24"
+                height="8"
+                fill="#fef9c3"
+                className="room-light"
+              />
+            </g>
+          ))}
+          <polygon points="0,140 360,140 360,240 0,240" fill="#16a34a" />
+          {[0, 1, 2, 3].map((k) => (
+            <polygon
+              key={k}
+              points={`${k * 90},140 ${k * 90 + 45},140 ${k * 120 - 30},240 ${k * 120 - 90},240`}
+              fill="#15803d"
+              opacity="0.5"
+            />
+          ))}
+          <rect x="132" y="96" width="96" height="44" fill="none" stroke="#fff" strokeWidth="4" />
+          {Array.from({ length: 6 }, (_, k) => (
+            <line
+              key={k}
+              x1={140 + k * 16}
+              y1="98"
+              x2={140 + k * 16}
+              y2="140"
+              stroke="#e2e8f0"
+              opacity="0.6"
+            />
+          ))}
+          <path d="M 40 186 Q 180 172 320 186" stroke="#fff" strokeWidth="2" fill="none" />
+          {sign && <Sign x={180} y={56} w={150} text={sign} c="#14532d" />}
+        </g>
+      );
+    case 'appliance':
+      return (
+        <g>
+          <Wall wall="#f8fafc" floor="#cbd5e1" />
+          {[0, 1, 2, 3, 4, 5].map((k) => (
+            <Tv
+              key={k}
+              x={16 + (k % 3) * 80}
+              y={16 + Math.floor(k / 3) * 50}
+              w={k % 3 === 1 ? 72 : 62}
+              c={['#38bdf8', '#a855f7', '#f97316', '#22c55e', t, '#e11d48'][k]!}
+            />
+          ))}
+          <rect x="262" y="58" width="32" height="82" rx="3" fill="#f1f5f9" stroke="#94a3b8" />
+          <line x1="262" y1="86" x2="294" y2="86" stroke="#94a3b8" />
+          <rect x="304" y="100" width="44" height="40" rx="3" fill="#fff" stroke="#94a3b8" />
+          <circle cx="326" cy="122" r="12" fill="#bae6fd" stroke="#64748b" strokeWidth="2" />
+          {sign && <Sign x={130} y={116} w={150} text={sign} c={t} />}
+        </g>
+      );
+    default:
+      return null;
+  }
+}
+
+function newRoomFront(kind: RoomKind, t: string): ReactNode {
+  switch (kind) {
+    case 'lounge':
+      return (
+        <g>
+          <Sofa x={98} y={214} w={108} c={t} />
+          <Sofa x={232} y={222} w={92} c={shade(t, -0.25)} />
+          <rect x={150} y={222} width={34} height={12} rx="3" fill="#292524" />
+          <g>
+            <path d="M 168 222 q -6 -10 0 -16 q 6 6 0 16 Z" fill="#14b8a6" />
+            <line x1="168" y1="206" x2="168" y2="194" stroke="#a8a29e" strokeWidth="1.5" />
+          </g>
+        </g>
+      );
+    case 'karaoke':
+      return (
+        <g>
+          <Sofa x={120} y={226} w={110} c="#db2777" />
+          <Sofa x={240} y={226} w={110} c="#7c3aed" />
+          <line x1="150" y1="176" x2="150" y2="150" stroke="#9ca3af" strokeWidth="2" />
+        </g>
+      );
+    case 'arcade':
+      return <circle cx="300" cy="226" r="9" fill="#1d4ed8" stroke="#1e3a8a" strokeWidth="2" />;
+    case 'spa':
+      return (
+        <g>
+          {[110, 194].map((x) => (
+            <g key={x}>
+              <rect x={x - 36} y={196} width={72} height={10} rx="4" fill="#fff" />
+              <rect x={x - 36} y={202} width={72} height={6} fill="#99f6e4" />
+              <rect x={x - 30} y={208} width={5} height={20} fill="#a8a29e" />
+              <rect x={x + 25} y={208} width={5} height={20} fill="#a8a29e" />
+            </g>
+          ))}
+        </g>
+      );
+    case 'beach':
+      return (
+        <g>
+          <DayBed x={98} w={64} c="#f8fafc" />
+          <DayBed x={186} w={64} c={shade(t, 0.5)} />
+          <circle cx="300" cy="230" r="7" fill="#f97316" />
+        </g>
+      );
+    case 'stage':
+      return (
+        <g>
+          {[0, 1, 2, 3].map((k) => (
+            <rect
+              key={k}
+              x={60 + k * 70}
+              y="146"
+              width="14"
+              height="6"
+              rx="2"
+              fill={['#fde047', '#f472b6', '#22d3ee', '#a3e635'][k]}
+              className={`room-light room-light-${k % 3}`}
+            />
+          ))}
+        </g>
+      );
+    case 'pitch':
+      return <circle cx="204" cy="224" r="6" fill="#fff" stroke="#0f172a" strokeWidth="1.5" />;
+    case 'appliance':
+      return (
+        <g>
+          <Table x={160} y={232} w={110} top="#e2e8f0" items="laptops" />
+          <PriceTag x={130} y={184} />
+          <PriceTag x={276} y={150} />
+        </g>
+      );
+    default:
+      return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -532,9 +1047,13 @@ export interface RoomArtProps {
   sign?: string;
   /** Your apartment's furniture (null: none known, a basic flat). */
   home?: HomeItemView[] | null;
+  /** Your car, parked outside the flat's window (its name). */
+  car?: string | null;
 }
 
-export function RoomBack({ kind, tint, sign, home = null }: RoomArtProps) {
+export function RoomBack({ kind, tint, sign, home = null, car = null }: RoomArtProps) {
+  const fresh = newRoomBack(kind, tint, sign);
+  if (fresh) return fresh;
   const t = tint;
   switch (kind) {
     case 'restaurant':
@@ -871,7 +1390,7 @@ export function RoomBack({ kind, tint, sign, home = null }: RoomArtProps) {
         </g>
       );
     case 'apartment':
-      return <ApartmentBack items={home} />;
+      return <ApartmentBack items={home} car={car} />;
     case 'hotel':
       return (
         <g>
@@ -1051,6 +1570,8 @@ export function RoomBack({ kind, tint, sign, home = null }: RoomArtProps) {
 }
 
 export function RoomFront({ kind, tint, home = null }: RoomArtProps) {
+  const fresh = newRoomFront(kind, tint);
+  if (fresh) return fresh;
   switch (kind) {
     case 'restaurant':
       return (
