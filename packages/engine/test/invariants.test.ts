@@ -1,6 +1,8 @@
 import { describe, it } from 'vitest';
 import fc from 'fast-check';
 import { dispatch } from '../src/dispatch.js';
+import { angelsAt } from '../src/programs.js';
+import { ACCELERATORS, DEV_PARTNERS, LPS } from '../src/data/programs.js';
 import type { Command } from '../src/commands.js';
 import {
   addFounder,
@@ -120,6 +122,21 @@ describe('world invariants under random play', () => {
         item: fc.nat(3),
         with: fc.constantFrom('none', 'player', 'fund', 'angel'),
         investor: fc.boolean(),
+      }),
+      // Wave 5 B: accelerators, grants, LPs, one-tap investing, angels about town, broadcasts.
+      fc.record({ k: fc.constant('accel' as const), pick: fc.nat(5), london: fc.boolean() }),
+      fc.record({ k: fc.constant('grant' as const), pick: fc.nat(10) }),
+      fc.record({ k: fc.constant('lp' as const), pick: fc.nat(5) }),
+      fc.record({
+        k: fc.constant('quick' as const),
+        pick: fc.nat(20),
+        amount: fc.integer({ min: 1_000_00, max: 20_000_000_00 }),
+      }),
+      fc.record({ k: fc.constant('angelHere' as const), pick: fc.nat(10), treat: fc.boolean() }),
+      fc.record({
+        k: fc.constant('broadcast' as const),
+        investor: fc.boolean(),
+        spend: fc.integer({ min: 1_00, max: 500_000_00 }),
       }),
       fc.record({
         k: fc.constant('venueHost' as const),
@@ -349,6 +366,56 @@ describe('world invariants under random play', () => {
                 budget: a.budget,
                 businessId: biz.id,
               };
+              break;
+            }
+            case 'accel': {
+              const list = ACCELERATORS[a.london ? 'london' : 'lagos'];
+              cmd = {
+                type: 'accelerator.apply',
+                acceleratorId: list[a.pick % list.length]!.id,
+                companyId: cid,
+              };
+              break;
+            }
+            case 'grant': {
+              const programs = DEV_PARTNERS.lagos.flatMap((p) =>
+                p.programs.map((pr) => ({ partnerId: p.id, programId: pr.id })),
+              );
+              cmd = { type: 'grant.apply', ...programs[a.pick % programs.length]!, companyId: cid };
+              break;
+            }
+            case 'lp':
+              actor = 'u_inv';
+              cmd = { type: 'lp.pitch', lpId: LPS.lagos[a.pick % LPS.lagos.length]!.id };
+              break;
+            case 'quick': {
+              actor = 'u_inv';
+              const targets = Object.values(w.companies).filter((c) => c.status === 'active');
+              const t = targets[a.pick % targets.length]!;
+              cmd = { type: 'invest.quick', companyId: t.id, amount: a.amount };
+              break;
+            }
+            case 'angelHere': {
+              const market = w.players.u_founder!.location?.market ?? 'lagos';
+              const spots = Object.entries(angelsAt(w, market));
+              const spot = spots[a.pick % Math.max(1, spots.length)];
+              cmd = spot
+                ? {
+                    type: 'pitch.angel',
+                    angelId: spot[1][0]!,
+                    companyId: cid,
+                    businessId: spot[0],
+                    treat: a.treat,
+                  }
+                : { type: 'inbox.read' };
+              break;
+            }
+            case 'broadcast': {
+              actor = a.investor ? 'u_inv' : 'u_founder';
+              const e = Object.values(w.events ?? {}).find(
+                (x) => x.status === 'upcoming' && x.hostId === actor,
+              );
+              cmd = { type: 'event.broadcast', eventId: e?.id ?? 'none', spend: a.spend };
               break;
             }
             case 'cancel': {
