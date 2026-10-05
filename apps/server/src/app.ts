@@ -163,7 +163,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return reply.code(status).send({
       error: {
         code: status === 429 ? 'rate' : 'error',
-        message: status >= 500 ? 'Something went wrong.' : err.message,
+        // Test deployments (dev tools on) say what broke; production never does.
+        message:
+          status >= 500
+            ? config.DEV_TOOLS
+              ? `Something went wrong. (${err.message})`
+              : 'Something went wrong.'
+            : err.message,
       },
     });
   });

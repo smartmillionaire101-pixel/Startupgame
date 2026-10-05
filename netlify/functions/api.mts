@@ -37,8 +37,10 @@ export default async (req: Request, context: Context) => {
     // Rebuild on the next request rather than keep a broken instance.
     runtimes.delete(key);
     console.error('api failed', err);
+    // Previews say what went wrong (they're test worlds); production never does.
+    const detail = mode === 'preview' ? ` (${String((err as Error)?.message ?? err)})` : '';
     return Response.json(
-      { error: { code: 'error', message: 'Something went wrong.' } },
+      { error: { code: 'error', message: `Something went wrong.${detail}` } },
       { status: 500 },
     );
   }
