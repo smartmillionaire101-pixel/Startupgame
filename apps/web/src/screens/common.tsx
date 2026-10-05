@@ -3,6 +3,7 @@ import { t, tx } from '../i18n';
 import { amountInput, money, parseAmount, titleCase } from '../format';
 import { useView, type Deal } from '../store';
 import { Button, Card, Empty, Field, Pill } from '../ui';
+import { useNav } from '../phone/bus';
 
 /** Funding stages, in the player's language. */
 export const stageLabel = (s: string) =>
@@ -304,6 +305,7 @@ const KIND_ICON: Record<string, string> = {
 
 export function Inbox({ limit = 8 }: { limit?: number }) {
   const { view, send } = useView();
+  const nav = useNav();
   const unread = view.inbox.filter((i) => !i.read);
   const items = view.inbox.slice(0, limit);
   return (
@@ -323,8 +325,17 @@ export function Inbox({ limit = 8 }: { limit?: number }) {
         <ul className="list">
           {items.map((i) => (
             <li key={i.id} style={{ opacity: i.read ? 0.65 : 1 }}>
-              <span aria-hidden>{KIND_ICON[i.kind] ?? '•'}</span> {tx(i.text)}
-              <div className="small muted">{t('Month {n}', { n: i.month })}</div>
+              {nav ? (
+                <button className="inbox-item" data-alert={i.kind} onClick={() => nav.openItem(i)}>
+                  <span aria-hidden>{KIND_ICON[i.kind] ?? '•'}</span> {tx(i.text)}
+                  <div className="small muted">{t('Month {n}', { n: i.month })} ›</div>
+                </button>
+              ) : (
+                <>
+                  <span aria-hidden>{KIND_ICON[i.kind] ?? '•'}</span> {tx(i.text)}
+                  <div className="small muted">{t('Month {n}', { n: i.month })}</div>
+                </>
+              )}
             </li>
           ))}
         </ul>

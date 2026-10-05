@@ -280,7 +280,7 @@ const INTENTS: [Intent, RegExp][] = [
   ],
   [
     'numbers',
-    /(how.{0,12}(going|business|things)|numbers|revenue|customers|growth|traction|ça va|comment (ça|va)|chiffres|revenu|client|croissance)/i,
+    /(how.{0,12}(going|business|things)|numbers|revenue|customers|growth|traction|ça va|comment (ça|va)|chiffres|revenu|client|croissance|affaires)/i,
   ],
   [
     'advice',
