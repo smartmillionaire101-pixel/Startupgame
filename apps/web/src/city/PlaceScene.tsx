@@ -51,6 +51,7 @@ import {
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
 import type { PersonRef } from './PersonCard';
 import { RoomBack, RoomFront } from './RoomArt';
+import { WhoIsHere } from './WhoIsHere';
 import {
   ENTRANCE,
   ROOM_SLOTS,
@@ -904,6 +905,7 @@ export function PlaceScene({
             <AvatarFigure look={meLook} />
           </g>
         </svg>
+        <WhoIsHere place={place} players={players} />
       </div>
       {more ? (
         <div className="place-more">

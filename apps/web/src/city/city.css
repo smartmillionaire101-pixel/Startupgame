@@ -503,17 +503,15 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Wave 2: people in the city */
+   Wave 6: street life is a few anonymous passers-by (no tap target); players
+   show as a count on the building they're in; new businesses wear a ribbon. */
 
-.city-crowd {
+.city-crowd,
+.city-person {
   pointer-events: none;
 }
-.city-person {
-  cursor: pointer;
-  pointer-events: auto;
-}
-.city-person .city-hit {
-  pointer-events: all;
+.city-passerby {
+  opacity: 0.92;
 }
 .city-person.is-walking .city-leg-l,
 .city-person.is-walking .city-arm-r {
@@ -523,29 +521,36 @@
 .city-person.is-walking .city-arm-l {
   animation: city-swing 0.42s ease-in-out infinite alternate-reverse;
 }
-.city-person:hover .city-person-fig {
-  filter: brightness(1.08) drop-shadow(0 0 2px rgb(255 255 255 / 0.9));
+.city-here {
+  cursor: pointer;
 }
-.city-tag rect {
-  fill: rgb(255 255 255 / 0.92);
-  stroke: rgb(15 23 42 / 0.12);
-  stroke-width: 0.8;
-}
-.city-tag text {
-  font-size: 8px;
-  font-weight: 700;
-  fill: #0f172a;
-}
-.city-person-player .city-tag rect {
+.city-here circle {
   fill: #1d4ed8;
-  stroke: none;
+  stroke: #fff;
+  stroke-width: 2;
 }
-.city-person-player .city-tag text {
+.city-here text {
+  font-size: 10px;
+  font-weight: 800;
   fill: #fff;
 }
-/* Name tags only up close, except players you know; tap anyone for their card. */
-.city-map[data-zoom='0'] .city-person:not(.is-known) .city-tag,
-.city-map[data-zoom='1'] .city-person:not(.is-known) .city-tag {
+.city-new {
+  cursor: pointer;
+}
+.city-new rect {
+  fill: #16a34a;
+  stroke: #fff;
+  stroke-width: 1.2;
+}
+.city-new text {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  fill: #fff;
+  text-transform: uppercase;
+}
+/* Ribbons only from the default zoom in: zoomed right out, the map stays calm. */
+.city-map[data-zoom='0'] .city-new {
   display: none;
 }
 

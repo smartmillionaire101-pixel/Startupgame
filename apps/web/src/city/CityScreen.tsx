@@ -43,18 +43,9 @@ import { onVisit, takeVisit } from './goto';
 import { genderOf } from './life';
 import { WhatNowCard, WhatNowList } from './WhatNow';
 import { Interior, placeLabel, type Nav } from './Interiors';
-import {
-  aiCharacters,
-  contactsOf,
-  crowdInput,
-  crowdSize,
-  eventsOf,
-  flaggedPlaces,
-  type AiPerson,
-  type CrowdInput,
-  type PresenceView,
-} from './people';
-import { PersonCard, roleName, type PersonRef } from './PersonCard';
+import { crowdSize, eventsOf, flaggedPlaces, newBusinessIds, passersBy } from './people';
+import { PersonCard, type PersonRef } from './PersonCard';
+import { WhoIsAround } from './WhoIsHere';
 import { usePresence } from './presence';
 import {
   buildLayout,
@@ -210,49 +201,6 @@ export function PlacesList({
         );
       })}
     </div>
-  );
-}
-
-const KIND_ORDER = ['player', 'angel', 'partner', 'founder', 'owner', 'candidate', 'shopper'];
-
-/** Everyone around, as a list: for keyboards, screen readers and lite mode. */
-export function PeopleList({
-  players,
-  ai,
-  onPick,
-}: {
-  players: PresenceView[];
-  ai: AiPerson[];
-  onPick: (p: PersonRef) => void;
-}) {
-  const all: PersonRef[] = [
-    ...players.map((p) => ({ kind: 'player' as const, p })),
-    ...[...ai]
-      .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind))
-      .map((a) => ({ kind: 'ai' as const, a })),
-  ];
-  if (!all.length) return <p className="small muted">{t('Nobody around right now.')}</p>;
-  return (
-    <ul className="places-list people-list" aria-label={t('People around')}>
-      {all.map((x) => {
-        const id = x.kind === 'player' ? x.p.id : x.a.id;
-        const kind = x.kind === 'player' ? 'player' : x.a.kind;
-        const name = x.kind === 'player' ? x.p.name : x.a.name;
-        const role = roleName(x.kind === 'player' ? x.p.role : x.a.kind);
-        return (
-          <li key={id}>
-            <button type="button" className="place-btn" onClick={() => onPick(x)}>
-              <span className={`person-dot person-dot-${kind}`} aria-hidden />
-              <span>
-                {name}
-                <span className="small muted"> · {role}</span>
-              </span>
-              {x.kind === 'player' && <span className="pill pill-info">{t('Player')}</span>}
-            </button>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
@@ -429,36 +377,24 @@ function CityBody({
     if (airport) placeAvatarAt(layout.marketId, airport.door);
     onLanded();
   }, [layout, landing, onLanded]);
-  // Ambient people: deterministic for the market, sized for the screen.
-  const crowdKey = JSON.stringify(crowdInput(view));
+  // A few anonymous passers-by: deterministic for the city, sized for the screen.
+  // Everyone you can talk to is inside a building (Wave 6).
   const [crowdMax] = useState(() =>
     crowdSize(typeof window === 'undefined' ? 375 : window.innerWidth),
   );
-  const ai = useMemo(
-    () => aiCharacters(layout, JSON.parse(crowdKey) as CrowdInput, crowdMax),
-    [layout, crowdKey, crowdMax],
-  );
-  // Other players (never in lite mode: no polling to save data).
+  const walkers = useMemo(() => passersBy(layout, crowdMax), [layout, crowdMax]);
+  // Other players (never in lite mode: no polling to save data): a count on their building.
   const { players, report } = usePresence({ enabled: !lite, selfId: meId });
-  const knownKey = contactsOf(view)
-    .filter((c) => c.kind === 'player')
-    .map((c) => c.refId)
-    .join(',');
-  const known = useMemo(() => (knownKey ? knownKey.split(',') : []), [knownKey]);
+  const freshKey = newBusinessIds(view).join(',');
+  const fresh = useMemo(
+    () => (freshKey ? freshKey.split(',').map((id) => `biz:${id}`) : []),
+    [freshKey],
+  );
   const flagKey = flaggedPlaces(eventsOf(view)).join(',');
   const flags = useMemo(() => (flagKey ? flagKey.split(',') : []), [flagKey]);
   const onArrive = useCallback(
     (at: Pt, placeId: string | null) => report({ x: at.x, y: at.y, place: placeId }),
     [report],
-  );
-  const onPerson = useCallback(
-    (id: string) => {
-      const p = players.find((x) => x.id === id);
-      if (p) return setPerson({ kind: 'player', p });
-      const a = ai.find((x) => x.id === id);
-      if (a) setPerson({ kind: 'ai', a });
-    },
-    [players, ai],
   );
 
   const story = abroad ? null : storyOf(company);
@@ -577,7 +513,7 @@ function CityBody({
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
           <section className="places-group people-group">
             <h3>{t('People around')}</h3>
-            <PeopleList players={players} ai={ai} onPick={setPerson} />
+            <WhoIsAround layout={layout} players={players} labelOf={labelOf} onGo={visit} />
           </section>
         </>
       ) : (
@@ -590,11 +526,10 @@ function CityBody({
             marker={markerPlace?.id ?? null}
             onEnter={setInside}
             handleRef={mapRef}
-            ai={ai}
+            walkers={walkers}
             players={players}
             flags={flags}
-            known={known}
-            onPerson={onPerson}
+            fresh={fresh}
             onArrive={onArrive}
             onFarTrip={setTrip}
             ariaLabel={t(
@@ -761,12 +696,13 @@ function CityBody({
       )}
       {peopleOpen && (
         <Sheet title={t('People around')} onClose={() => setPeopleOpen(false)}>
-          <PeopleList
+          <WhoIsAround
+            layout={layout}
             players={players}
-            ai={ai}
-            onPick={(p) => {
+            labelOf={labelOf}
+            onGo={(id) => {
               setPeopleOpen(false);
-              setPerson(p);
+              visit(id);
             }}
           />
         </Sheet>

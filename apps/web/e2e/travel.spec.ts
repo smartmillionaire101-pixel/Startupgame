@@ -1,5 +1,13 @@
 import { devices, type Page } from '@playwright/test';
-import { expect, letters, more, playAsGuest, test, withoutNetlifyDrawer } from './fixtures';
+import {
+  expect,
+  letters,
+  more,
+  playAsGuest,
+  tapPlace,
+  test,
+  withoutNetlifyDrawer,
+} from './fixtures';
 
 /**
  * Wave 4: getting around. A far trip across town asks how to get there (a
@@ -127,10 +135,25 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   ).toBeVisible();
   await page.getByRole('dialog', { name: 'Places' }).getByRole('button', { name: 'Close' }).click();
 
-  // Londoners see the visitor walking their city (presence polls every few seconds).
-  const me = s0.view.me.id;
-  await expect(local.locator(`[data-person="${me}"]`)).toBeAttached({ timeout: 25_000 });
+  // Londoners see the visitor in the building they go into (presence polls
+  // every few seconds): a count on the Hub, and their name under Who's here.
+  await page.getByRole('button', { name: /Places/ }).click();
+  await page.getByRole('dialog', { name: 'Places' }).locator('[data-kind="hub"]').first().click();
+  const hub = page.locator('.place-scene');
+  await expect(hub).toBeVisible({ timeout: 10_000 });
+  await expect(local.locator('[data-here="hub"]')).toBeAttached({ timeout: 25_000 });
+  await tapPlace(local, '[data-here="hub"]');
+  await local
+    .locator('.place-scene')
+    .getByRole('button', { name: /Who’s here/ })
+    .click();
+  await expect(
+    local
+      .getByRole('dialog', { name: 'Who’s here' })
+      .locator(`[data-person-here="${s0.view.me.id}"]`),
+  ).toBeVisible({ timeout: 10_000 });
   await ctx.close();
+  await hub.getByRole('button', { name: 'Close' }).first().click();
 
   // Fly home.
   await page.getByRole('button', { name: 'Fly home' }).click();

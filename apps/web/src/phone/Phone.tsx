@@ -12,7 +12,8 @@ import { useView } from '../store';
 import { Bar, Button, Empty, Pill } from '../ui';
 import { visitPlace } from '../city/goto';
 import { businessesOf } from '../city/contract';
-import { contactsOf, type ContactView } from '../city/people';
+import { looseCmd } from '../city/life';
+import { contactChat, contactsOf, type ContactView } from '../city/people';
 import { cityViewOf, hereOf } from '../city/travel';
 import { onPhone, useNav, type PhoneApp, type PhoneOpen } from './bus';
 import './phone.css';
@@ -472,10 +473,6 @@ function PhoneScreen(props: {
               onChat={(r) => {
                 setApp('messages');
                 setThread(r);
-              }}
-              onGo={(place) => {
-                visitPlace(place);
-                onClose();
               }}
             />
           )}
@@ -1086,58 +1083,50 @@ const contactKind = (k: ContactView['kind']) =>
     talent: t('Looking for work'),
     customer: t('Customer'),
     player: t('Player'),
+    local: t('In town'),
   })[k];
 
-function Contacts({
-  onChat,
-  onGo,
-}: {
-  onChat: (r: ThreadRef) => void;
-  onGo: (place: string) => void;
-}) {
-  const { view } = useView();
+/**
+ * Wave 6: the people you saved ("Who's here" → Save) and met, with warmth
+ * and kind; Chat opens their thread, Remove forgets them (`contact.remove`).
+ */
+function Contacts({ onChat }: { onChat: (r: ThreadRef) => void }) {
+  const { view, send } = useView();
   const contacts = contactsOf(view);
-  const human = (id: string) => view.players.some((p) => p.id === id && !p.ai);
-  const ref = (c: ContactView): ThreadRef | null => {
-    if (c.kind === 'fund') return { ai: `fund:${c.refId}` };
-    if (c.kind === 'player') return { player: c.refId };
-    if (c.kind === 'founder') return human(c.refId) ? { player: c.refId } : { ai: c.refId };
-    return null;
-  };
-  const place = (c: ContactView) =>
-    c.kind === 'talent' ? 'hub' : c.kind === 'customer' ? `stall:${c.refId}` : null;
+  const [armed, setArmed] = useState<string | null>(null);
   return contacts.length === 0 ? (
-    <Empty>{t('No contacts yet. Meet people at events, cafés and the Hub.')}</Empty>
+    <Empty>{t('No contacts yet. Go into a café, a bar or the Hub and save who you meet.')}</Empty>
   ) : (
     <ul className="phone-list" aria-label={t('Contacts')}>
       {contacts.map((c) => {
-        const r = ref(c);
-        const where = place(c);
+        const r = contactChat(c, view);
         return (
-          <li key={c.id} className="phone-contact">
+          <li key={c.id} className="phone-contact" data-contact={c.chatId ?? c.refId}>
             <div className="phone-row static">
-              <Avatar name={c.name} ai={!r?.player} />
+              <Avatar name={c.name} ai={!(r && 'player' in r)} />
               <span className="phone-row-main">
                 <span className="item-title">{c.name}</span>
-                <span className="small muted">{contactKind(c.kind)}</span>
+                <span className="small muted">
+                  {c.chatId?.startsWith('biz:') ? t('Business owner') : contactKind(c.kind)}
+                </span>
                 <Bar value={c.warmth} label={t('Contact warmth')} tone="good" />
               </span>
             </div>
             <div className="row">
               <Button variant="subtle" disabled={!r} onClick={() => r && onChat(r)}>
-                {t('Call')}
+                {t('Chat')}
               </Button>
               <Button
                 variant="ghost"
-                disabled={!r && !where}
                 onClick={() => {
-                  if (r?.ai) onChat({ ai: r.ai, say: t('Can we meet?') });
-                  else if (r?.player)
-                    onChat({ player: r.player, say: t('Shall we meet at the Hub?') });
-                  else if (where) onGo(where);
+                  if (armed !== c.id) return setArmed(c.id);
+                  setArmed(null);
+                  void send(looseCmd({ type: 'contact.remove', contactId: c.id }), () =>
+                    t('{name} is no longer in your contacts.', { name: c.name }),
+                  );
                 }}
               >
-                {t('Meet')}
+                {armed === c.id ? t('Tap again to remove') : t('Remove')}
               </Button>
             </div>
           </li>

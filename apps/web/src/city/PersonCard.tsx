@@ -17,6 +17,7 @@ import { AvatarFigure, avatarLook } from './art';
 import { MealSheet } from './Business';
 import { activeCompany, businessesOf, hash } from './contract';
 import { looseCmd } from './life';
+import { SaveContact } from './WhoIsHere';
 import {
   contactsOf,
   eventsOf,
@@ -290,6 +291,9 @@ export function PersonCard({
 
           <div className="row person-actions">
             {aiChat && <Button onClick={() => openPhone({ ai: aiChat })}>{t('Chat')}</Button>}
+            {!contact && (aiChat || person.kind === 'player') && (
+              <SaveContact personId={aiChat ?? id} name={name} />
+            )}
             {person.kind === 'player' && (
               <>
                 <Button onClick={() => void openChat(person.p)}>{t('Chat')}</Button>
