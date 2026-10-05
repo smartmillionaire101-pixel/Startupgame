@@ -13,6 +13,7 @@ import type { OutletType } from './data/fiction.js';
 import type { Command } from './commands.js';
 import type { LenderKind, LenderLook, LenderProductSeed } from './data/capital.js';
 import type { EventKind, EventVenue } from './data/events.js';
+import type { GrantCondition, InvestorType } from './data/programs.js';
 
 export type Id = string;
 
@@ -99,6 +100,8 @@ export interface InvestorProfile {
   lpCredibility: number;
   founderTrust: number;
   fundId?: Id;
+  /** Wave 5: angel, VC, impact or corporate. Missing = angel (no fund) or VC (with a fund). */
+  type?: InvestorType;
 }
 
 export interface Player {
@@ -183,6 +186,8 @@ export interface EventOutcome {
   contacts: Record<Id, number>;
   /** Star change for the host. */
   hostStars: number;
+  /** AI guests who came, by name (Wave 5). Missing on old saves. */
+  aiNames?: { name: string; kind: ContactKind }[];
 }
 
 export interface CityEvent {
@@ -204,6 +209,8 @@ export interface CityEvent {
   businessId?: Id;
   /** Human attendees (the host is not listed). */
   attendees: Id[];
+  /** Spent on broadcasting it (Wave 5), local minor: more AI guests. Missing = 0. */
+  broadcast?: number;
   status: 'upcoming' | 'held' | 'cancelled';
   createdMonth: number;
   outcome?: EventOutcome;
@@ -438,6 +445,20 @@ export interface Company {
   storyBase?: StoryBase | null;
   /** Local business customers won and lost since the last story (Wave 3). Internal. */
   businessNews?: BusinessNews | null;
+  /** In (or graduated from) an accelerator (Wave 5). Missing = never joined one. */
+  accelerator?: CompanyAccelerator | null;
+}
+
+/** A company's accelerator place (Wave 5). Months are the accelerator market's months. */
+export interface CompanyAccelerator {
+  acceleratorId: Id;
+  market: MarketId;
+  name: string;
+  mentor: string;
+  joinedMonth: number;
+  /** Demo day is held at the settlement that reaches this month. */
+  demoDayMonth: number;
+  demoDayDone?: boolean;
 }
 
 export interface BusinessNews {
@@ -627,6 +648,8 @@ export interface Fund {
   stars: StarState;
   /** AI angel funds (Wave 3): the AI angel player who runs it. `managerId` stays null (no human). */
   angelId?: Id;
+  /** Wave 5: angel, VC, impact or corporate. Missing = derived (see fundInvestorType). */
+  investorType?: InvestorType;
 }
 
 /** Cost basis of an investor in a company, for marks, DPI and write-offs. */
@@ -926,6 +949,51 @@ export interface MarketState {
   businesses?: Record<Id, LocalBusiness>;
   /** City economy totals (Wave 3). */
   economy?: EconomyStats;
+  /** Head of the central bank (Wave 5): the best human banker each quarter. Missing = the AI governor. */
+  governor?: Governor;
+}
+
+export interface Governor {
+  /** Null: the AI governor. */
+  playerId: Id | null;
+  name: string;
+  bankId: Id | null;
+  /** Market month appointed. */
+  since: number;
+}
+
+/** Applications to accelerators, development partners and LPs (Wave 5). */
+export type ApplicationKind = 'accelerator' | 'grant' | 'lp';
+
+export interface CapitalApplication {
+  /** Stable: `app:<kind>:<target>:<applicant>:<month>`. */
+  id: Id;
+  kind: ApplicationKind;
+  /** The accelerator's, partner's or LP's market (decided at its settlement). */
+  market: MarketId;
+  playerId: Id;
+  companyId: Id | null;
+  fundId: Id | null;
+  /** Accelerator, partner or LP id. */
+  targetId: Id;
+  programId?: string;
+  /** Market month applied. */
+  month: number;
+  status: 'pending' | 'accepted' | 'rejected';
+  reason: string;
+  decidedMonth?: number;
+  /** Cash received so far, in the receiving account's currency. */
+  amount: number;
+  /** Grants: two tranches; the second after a report. */
+  grant?: {
+    total: number;
+    paid: number;
+    reportMonth: number;
+    condition: GrantCondition;
+    reported?: 'met' | 'missed';
+  };
+  /** Pitched over a meal / met at their office. */
+  warm?: boolean;
 }
 
 /** A local business run by an AI owner (Wave 3, data/businesses.ts). */
@@ -1031,4 +1099,6 @@ export interface World {
   usdExt: { fx: Id; suppliers: Id; genesis: Id };
   /** Player-hosted city events (Wave 2). Missing on old saves = none. */
   events?: Record<Id, CityEvent>;
+  /** Accelerator, grant and LP applications (Wave 5). Missing on old saves = none. */
+  applications?: Record<Id, CapitalApplication>;
 }

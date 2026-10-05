@@ -61,7 +61,7 @@ export const PARTNER_MEETING_HOURS = 6;
 /** Rounds at or above this USD size, or Series A+, need a partner meeting. */
 const PARTNER_MEETING_USD = 1_000_000;
 
-function strengths(world: World, c: Company): Record<Slide, number> {
+export function strengths(world: World, c: Company): Record<Slide, number> {
   const m = getMarket(world, c.market);
   const pnl = lastPnl(c);
   const growth = monthlyGrowth(c);
@@ -315,7 +315,12 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
       keyLoss -
       tooManyPivots +
       // Relationship capital (§13): a fund that backed you before remembers how it went.
-      (founder?.trust[fund.id] ?? 0) * 0.1,
+      (founder?.trust[fund.id] ?? 0) * 0.1 +
+      // Fresh from an accelerator's demo day (Wave 5): funds lean in for three months.
+      (c.accelerator?.demoDayDone &&
+      (world.markets[c.accelerator.market]?.month ?? m.month) - c.accelerator.demoDayMonth < 3
+        ? 0.06
+        : 0),
   );
 }
 

@@ -8,6 +8,7 @@ import { INDUSTRIES } from './data/industries.js';
 import { MARKET_IDS, type MarketId } from './data/markets.js';
 import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
+import { INVESTOR_TYPES } from './data/programs.js';
 import { REVENUE_MODELS, STAGES } from './types.js';
 
 const id = z.string().min(1).max(64);
@@ -28,6 +29,8 @@ export const investorSetup = z.object({
   sectors: z.array(industry).min(1).max(INDUSTRIES.length),
   stages: z.array(z.enum(STAGES)).min(1).max(STAGES.length),
   checkSize: money,
+  /** Wave 5: angel, VC, impact or corporate (optional; angel until you run a fund). */
+  type: z.enum(INVESTOR_TYPES).optional(),
 });
 
 export const commandSchema = z.discriminatedUnion('type', [
@@ -199,6 +202,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     stages: z.array(z.enum(STAGES)).min(1),
     checkSize: money,
     why: z.string().min(10).max(200),
+    /** Wave 5: the fund's investor type (default VC). */
+    investorType: z.enum(INVESTOR_TYPES).optional(),
   }),
   // ---- media
   z.object({ type: z.literal('media.accept'), inviteId: id, angle: z.string().max(40) }),
@@ -339,6 +344,26 @@ export const commandSchema = z.discriminatedUnion('type', [
     withId: id.optional(),
   }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
+  // ---- capital programmes and investor play (Wave 5, section B)
+  z.object({ type: z.literal('accelerator.apply'), acceleratorId: id, companyId: id }),
+  z.object({ type: z.literal('grant.apply'), partnerId: id, programId: id, companyId: id }),
+  /** A player-run fund pitches an LP in the city you're in. */
+  z.object({ type: z.literal('lp.pitch'), lpId: id }),
+  /** One-tap investment in a raising company at model terms (SAFE or priced). */
+  z.object({ type: z.literal('invest.quick'), companyId: id, amount: money }),
+  /**
+   * Pitch an AI angel in person. With `businessId`: where they are right now
+   * (`view.here.angelsAt`), a warm pitch; `treat` buys the coffee for two.
+   */
+  z.object({
+    type: z.literal('pitch.angel'),
+    angelId: id,
+    companyId: id,
+    businessId: id.optional(),
+    treat: z.boolean().optional(),
+  }),
+  /** Pay to broadcast an event you host: more AI guests. */
+  z.object({ type: z.literal('event.broadcast'), eventId: id, spend: money }),
 ]);
 
 export type Command = z.infer<typeof commandSchema>;
