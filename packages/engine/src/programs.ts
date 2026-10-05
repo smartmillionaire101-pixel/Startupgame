@@ -317,6 +317,14 @@ function decideAccelerator(
   if (filled >= seed.seats)
     return reject(world, app, month, 'This cohort is full. Apply for the next one.', seed.name);
   const { score, weakest } = acceleratorScore(world, c);
+  // Selective programmes want paying customers; open-door ones at least customer discovery.
+  const discovery = Math.max(0, ...Object.values(c.product.discovery));
+  if (seed.tier < 3 && totalCustomers(c) === 0)
+    return reject(world, app, month, 'No paying customers yet.', seed.name);
+  if (seed.tier < 3 && c.product.fit < 0.4)
+    return reject(world, app, month, 'The product isn’t there yet.', seed.name);
+  if (seed.tier === 3 && totalCustomers(c) === 0 && discovery < 0.2)
+    return reject(world, app, month, 'Talk to more customers first.', seed.name);
   if (score + rng.normal(0, 0.05) < ACCEL_BAR[seed.tier])
     return reject(world, app, month, weakest, seed.name);
 
@@ -958,7 +966,13 @@ export function lpsView(world: World, viewer: Player, m: MarketState) {
 /** Raising: AI companies say so; human founders by pitching lately; anyone fresh from demo day. */
 function raisingNow(world: World, c: Company, pitched: Map<Id, number>): boolean {
   if (demoDayGlow(world, c)) return true;
-  if (c.ai || c.aiCeo) return c.raising;
+  // AI founders say so, or take money while young and before a priced round (like angels see it).
+  if (c.ai || c.aiCeo)
+    return (
+      c.raising ||
+      (c.capTable.roundsRaised === 0 &&
+        (world.markets[c.market]?.month ?? 0) - c.foundedMonth <= 24)
+    );
   return pitched.has(c.id);
 }
 
