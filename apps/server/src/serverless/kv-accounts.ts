@@ -22,6 +22,7 @@
  *   presence-settings/<user> → { visible }
  *   ai/<user>/<character> → AiThreadDoc        (chat with an AI character; last MAX_AI_MESSAGES kept)
  *   ai-of/<user>       → string[]               (character ids with a thread, oldest first)
+ *   ai-budget/<user>   → { day, n }             (Claude replies used today, Wave 6)
  */
 import { createHash, randomUUID } from 'node:crypto';
 import type {
@@ -62,6 +63,8 @@ interface AiThreadDoc {
   /** Total messages ever written (ids run 1…total; only the last ones are kept). */
   total: number;
   messages: AiMessageRow[];
+  /** What the templates remember about the thread (Wave 6). */
+  memory?: unknown;
 }
 const aiKey = (userId: string, characterId: string) =>
   `ai/${userId}/${encodeURIComponent(characterId)}`;
@@ -216,6 +219,7 @@ export class KvAccountStore implements AccountStore {
     const ai = (await this.val<string[]>(`ai-of/${id}`)) ?? [];
     for (const characterId of ai) await this.kv.delete(aiKey(id, characterId));
     await this.kv.delete(`ai-of/${id}`);
+    await this.kv.delete(`ai-budget/${id}`);
   }
 
   async createSession(tokenHash: string, userId: string, now: number, ttlMs: number) {
@@ -468,5 +472,25 @@ export class KvAccountStore implements AccountStore {
     await kvJson.update<AiThreadDoc>(this.kv, aiKey(userId, characterId), (d) =>
       d && d.readId !== d.total ? { ...d, readId: d.total } : undefined,
     );
+  }
+
+  async aiMemory(userId: string, characterId: string) {
+    return (await this.val<AiThreadDoc>(aiKey(userId, characterId)))?.memory;
+  }
+
+  async setAiMemory(userId: string, characterId: string, memory: unknown) {
+    await kvJson.update<AiThreadDoc>(this.kv, aiKey(userId, characterId), (d) =>
+      d ? { ...d, memory } : undefined,
+    );
+  }
+
+  async takeAiBudget(userId: string, day: string, limit: number) {
+    let ok = false;
+    await kvJson.update<{ day: string; n: number }>(this.kv, `ai-budget/${userId}`, (d) => {
+      const n = d?.day === day ? d.n : 0;
+      ok = n < limit;
+      return ok ? { day, n: n + 1 } : undefined;
+    });
+    return ok;
   }
 }

@@ -49,9 +49,21 @@ const schema = z.object({
   SNAPSHOT_EVERY: z.coerce.number().int().min(1).default(200),
   /**
    * Real minutes in one game month (Wave 4). Every market settles once per
-   * month, at the same instant. Production and previews: 5. Tests may use any value.
+   * month, at the same instant. Default 30 (Wave 6). Tests may use any value.
    */
-  MONTH_MINUTES: z.coerce.number().positive().max(525_600).default(15),
+  MONTH_MINUTES: z.coerce.number().positive().max(525_600).default(30),
+  /**
+   * AI chat (Wave 6): with a key, AI characters answer with Claude; without
+   * one (or when Claude fails), from templates. Never logged.
+   */
+  ANTHROPIC_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /** The Claude model for AI chat; the code's default when unset. */
+  AI_CHAT_MODEL: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /** Claude replies per player per day (UTC); templates after that. */
+  AI_CHAT_DAILY_LIMIT: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.coerce.number().int().min(0).default(80),
+  ),
   /** Markets to have open, in opening order. Unopened ones open on the next boot. */
   OPEN_MARKETS: z
     .string()

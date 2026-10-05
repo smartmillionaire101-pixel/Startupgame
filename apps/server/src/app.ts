@@ -53,7 +53,15 @@ import {
   type EmailProvider,
 } from './adapters/email.js';
 import type { AccountStore, AiThreadRow } from './store/types.js';
-import { CHARACTER_ID, aiReply, resolveCharacter, type Character } from './ai-chat.js';
+import {
+  CHARACTER_ID,
+  characterBlock,
+  resolveCharacter,
+  safeView,
+  templateReply,
+  type Character,
+} from './ai-chat.js';
+import { AI_CHAT_HISTORY, claudeReply, createClient, type AiClient } from './ai-claude.js';
 
 /** Avatars not seen for this long drop off the city map. */
 export const PRESENCE_WINDOW_MS = 120_000;
@@ -74,6 +82,8 @@ export interface AppDeps {
   /** Defaults to the provider the config selects (Resend, SMTP, or the dev logger). */
   email?: EmailProvider;
   now: () => number;
+  /** Builds the Claude client for AI chat (tests pass a fake; no network in tests). */
+  createAiClient?: (apiKey: string) => AiClient;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -645,9 +655,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // ---------------------------------------------------------------- AI chat (Wave 5 §C)
 
   // Characters run by the simulation answer from templates filled with live
-  // data. Like player chats, threads live outside the simulation, private to
-  // each player.
+  // data, or with Claude when a key is set (Wave 6), from the same facts. Like
+  // player chats, threads live outside the simulation, private to each player.
   const characterParam = z.object({ characterId: z.string().regex(CHARACTER_ID) });
+  let aiClient: AiClient | null = null;
+  const claude = (): AiClient | null => {
+    const key = config.ANTHROPIC_API_KEY;
+    if (!key) return null;
+    aiClient ??= (deps.createAiClient ?? createClient)(key);
+    return aiClient;
+  };
 
   const aiThreadView = (t: AiThreadRow | undefined, ch: Character | null, characterId: string) => ({
     characterId,
@@ -657,6 +674,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     market: ch?.market ?? null,
     place: ch?.place ?? null,
     /** False once the character has left the world (the thread stays readable). */
+    role: ch?.role ?? null,
     available: !!ch,
     lastText: t?.lastText ?? null,
     lastAt: t?.lastAt ?? null,
@@ -665,11 +683,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     count: t?.count ?? 0,
   });
 
-  app.get('/api/ai-chat', { preHandler: requireUser }, async (req) => ({
-    threads: (await store.aiThreads(req.userId!)).map((t) =>
-      aiThreadView(t, resolveCharacter(game.current, t.characterId), t.characterId),
-    ),
-  }));
+  app.get('/api/ai-chat', { preHandler: requireUser }, async (req) => {
+    const world = game.current;
+    const threads = await store.aiThreads(req.userId!);
+    const view = threads.some((t) => t.characterId.startsWith('npc:'))
+      ? safeView(world, req.userId!)
+      : null;
+    return {
+      threads: threads.map((t) =>
+        aiThreadView(t, resolveCharacter(world, t.characterId, view), t.characterId),
+      ),
+    };
+  });
 
   app.get('/api/ai-chat/:characterId', { preHandler: requireUser }, async (req, reply) => {
     const parsed = characterParam.safeParse(req.params);
@@ -677,7 +702,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       return reply
         .code(404)
         .send({ error: { code: 'character', message: 'Character not found.' } });
-    const ch = resolveCharacter(game.current, parsed.data.characterId);
+    const ch = resolveCharacter(
+      game.current,
+      parsed.data.characterId,
+      parsed.data.characterId.startsWith('npc:') ? safeView(game.current, req.userId!) : null,
+    );
     // An angel's fund id names the angel: their thread is under their own id.
     const characterId = ch?.id ?? parsed.data.characterId;
     const thread = await store.aiThread(req.userId!, characterId);
@@ -723,7 +752,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         return reply
           .code(404)
           .send({ error: { code: 'player', message: 'Create a player first.' } });
-      const ch = resolveCharacter(world, body.characterId);
+      const view = safeView(world, me.id);
+      const ch = resolveCharacter(world, body.characterId, view);
       if (!ch || ch.id === me.id)
         return reply
           .code(404)
@@ -732,9 +762,40 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       if (!check.ok)
         return reply.code(400).send({ error: { code: 'filtered', message: check.reason } });
       const before = (await store.aiThread(me.id, ch.id))?.count ?? 0;
+      const memory = before ? await store.aiMemory(me.id, ch.id) : undefined;
       await store.addAiMessage(me.id, ch.id, ch.name, false, check.text, now());
-      const text = aiReply(world, me, ch, check.text, before + 1, body.lang);
+      // The template reply always: it's the fallback, and it moves the thread's memory on.
+      const tpl = templateReply(world, me, ch, check.text, {
+        lang: body.lang,
+        n: before + 1,
+        memory,
+        view,
+      });
+      let text = tpl.text;
+      let nextMemory = tpl.memory;
+      const client = claude();
+      if (
+        client &&
+        (await store.takeAiBudget(
+          me.id,
+          new Date(now()).toISOString().slice(0, 10),
+          config.AI_CHAT_DAILY_LIMIT,
+        ))
+      ) {
+        const history = await store.aiMessages(me.id, ch.id, AI_CHAT_HISTORY);
+        const r = await claudeReply(client, {
+          ...(config.AI_CHAT_MODEL ? { model: config.AI_CHAT_MODEL } : {}),
+          characterBlock: characterBlock(world, me, ch, body.lang, view, memory),
+          history,
+        });
+        if (r.ok) {
+          text = r.text;
+          // The template lines weren't sent, so they stay available later.
+          nextMemory = tpl.memoryWithoutLines;
+        } else req.log.warn({ reason: r.reason }, 'ai chat: using a template reply');
+      }
       const m = await store.addAiMessage(me.id, ch.id, ch.name, true, text, now());
+      await store.setAiMemory(me.id, ch.id, nextMemory);
       await store.markAiRead(me.id, ch.id);
       const thread = await store.aiThread(me.id, ch.id);
       return {
@@ -794,6 +855,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       },
     },
     async (req) => {
+      // `?place=<placeId>`: only the players at that place (a scene's "who's here").
+      const { place } = z
+        .object({ place: z.string().min(1).max(64).optional() })
+        .parse(req.query ?? {});
       const world = game.current;
       const me = world.players[req.userId!];
       if (!me) return { players: [] };
@@ -801,7 +866,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const here = locationOf(me);
       const rows = (await store.listPresence(here, now() - PRESENCE_WINDOW_MS)).filter((r) => {
         const p = world.players[r.userId];
-        return r.userId !== me.id && !!p && locationOf(p) === here;
+        return (
+          r.userId !== me.id &&
+          !!p &&
+          locationOf(p) === here &&
+          (place === undefined || r.place === place)
+        );
       });
       const blocked = await Promise.all(
         rows.map(async (r) => !!(await store.findChat(me.id, r.userId))?.blocked_by),
