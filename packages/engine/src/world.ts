@@ -42,6 +42,7 @@ import { newCapTable } from './captable.js';
 import { refreshTalent } from './staff.js';
 import { ensureBusinesses } from './economy.js';
 import type {
+  Gender,
   Company,
   ExternalPurpose,
   Id,
@@ -153,7 +154,12 @@ export interface NewPlayerInput {
   ai?: boolean;
   /** Fixed personal account id (AI angels), so creating them never shifts other ids. */
   accountId?: Id;
+  /** Wave 5: chosen at onboarding (stored when given). */
+  gender?: Gender;
 }
+
+/** Wave 5: new human players start with twice the savings, so nobody is stuck early. */
+export const HUMAN_SAVINGS_MULTIPLIER = 2;
 
 export function createPlayer(world: World, input: NewPlayerInput): Player {
   ensure(!world.players[input.playerId], 'player.exists', 'Player already exists.');
@@ -174,7 +180,12 @@ export function createPlayer(world: World, input: NewPlayerInput): Player {
     ...(input.accountId ? { id: input.accountId } : {}),
   });
   // Starting savings: same months of personal runway in every market (§3), adjusted by background.
-  const savings = Math.round(col(m) * STARTING_RUNWAY_MONTHS * bg.savingsMultiplier);
+  const savings = Math.round(
+    col(m) *
+      STARTING_RUNWAY_MONTHS *
+      bg.savingsMultiplier *
+      (input.ai ? 1 : HUMAN_SAVINGS_MULTIPLIER),
+  );
   transfer(world, m.ext.genesis, local, savings, 'Starting savings', m.month);
   const tier = LIFESTYLE_TIERS[1]!;
   const player: Player = {
@@ -207,6 +218,7 @@ export function createPlayer(world: World, input: NewPlayerInput): Player {
     gigsThisMonth: 0,
     failures: 0,
     visited: {},
+    ...(input.gender ? { gender: input.gender } : {}),
   };
   world.players[player.id] = player;
   if (!input.ai) world.names[input.market]![handleKey] = player.id;

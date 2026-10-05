@@ -152,6 +152,38 @@ export interface Player {
   rides?: { month: number; count: number };
   /** AI angels only (Wave 3): the angel fund this person runs; set when they stop investing. */
   angel?: { fundId: Id; retiredMonth?: number };
+  /** Wave 5: chosen at onboarding. Missing on old saves (the client keeps its avatar). */
+  gender?: Gender;
+  /** Wave 5: a part-time job at a local business in the home city. Missing = none. */
+  job?: PlayerJob;
+  /** Wave 5: furniture in your apartment, one item per slot. Missing = bare. */
+  home?: { items: HomeItem[] };
+  /** Wave 5: your car. Missing = none. */
+  car?: PlayerCar;
+}
+
+export type Gender = 'female' | 'male';
+
+export interface PlayerJob {
+  businessId: Id;
+  /** JobRole.role of the business's kind. */
+  role: string;
+  /** Home month the job started. */
+  since: number;
+}
+
+export interface HomeItem {
+  slot: string;
+  itemId: string;
+  /** What you paid (home currency, minor units): sell-back is a share of it. */
+  paid: number;
+}
+
+export interface PlayerCar {
+  modelId: string;
+  paid: number;
+  /** Home month it was bought. */
+  since: number;
 }
 
 // ---------------------------------------------------------------- Events & contacts (Wave 2)

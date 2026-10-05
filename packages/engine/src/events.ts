@@ -267,13 +267,11 @@ export function rsvpEvent(world: World, me: Player, eventId: Id, going: boolean)
   ensure(e.status === 'upcoming', 'event.closed', 'This event is no longer taking RSVPs.');
   ensure(e.hostId !== me.id, 'event.host', 'You are hosting this one.');
   ensure(locationOf(me) === e.market, 'event.market', 'Events are for people in this city.');
-  const k = EVENT_KIND_DATA[e.kind];
   const isGoing = e.attendees.includes(me.id);
   const host = world.players[e.hostId];
   if (going) {
     ensure(!isGoing, 'event.going', 'You are already going.');
     ensure(e.attendees.length + 1 < e.capacity, 'event.full', 'The event is full.');
-    spendHours(me, k.hoursAttend, `Going to ${e.title}`);
     if (e.ticket > 0 && host)
       payExact(
         world,

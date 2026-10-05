@@ -142,7 +142,7 @@ describe('flights: being somewhere (Wave 4)', () => {
     const v0 = playerView(w, 'u_founder')!;
     expect(v0.me.location).toBeNull();
     expect(v0.here).toBeNull(); // at home the client uses `market`
-    expect(v0.flights.hours).toBe(4);
+    expect(v0.flights.hours).toBe(0); // Wave 5: money only
     expect(v0.flights.fareTo.lagos).toBeUndefined();
     const fare = v0.flights.fareTo.london!;
     expect(flightFareUsd('lagos', 'london')).toBe(tripCostUsd('lagos', 'london') / 2);
@@ -154,7 +154,7 @@ describe('flights: being somewhere (Wave 4)', () => {
     expect(r.result.cost).toBe(fare);
     expect(r.result.location).toEqual({ market: 'london', name: 'London', sinceAt: T0 + 1000 });
     expect(savings(w, 'u_founder')).toBe(before - fare);
-    expect(w.players.u_founder!.hours.used - hours).toBe(4);
+    expect(w.players.u_founder!.hours.used - hours).toBe(0);
     const v = playerView(w, 'u_founder')!;
     expect(v.me.location).toEqual({ market: 'london', name: 'London', sinceAt: T0 + 1000 });
     expect(v.market.id).toBe('lagos');

@@ -80,6 +80,8 @@ export const commandSchema = z.discriminatedUnion('type', [
       })
       .optional(),
     investor: investorSetup.optional(),
+    /** Wave 5: who you are (picks your avatar). Optional so older clients still work. */
+    gender: z.enum(['female', 'male']).optional(),
   }),
   // ---- founder
   z.object({
@@ -227,10 +229,13 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('player.travel'), market }),
   /** Wave 4: fly one way to another city and be there (or fly home). */
   z.object({ type: z.literal('travel.fly'), to: market }),
-  /** Wave 4: a bus or taxi across the city you're in. Walking and cycling are free. */
+  /**
+   * Wave 4: a bus or taxi across the city you're in. Walking and cycling are free,
+   * and so is driving your own car in your home city (Wave 5; fuel is in its running cost).
+   */
   z.object({
     type: z.literal('city.ride'),
-    mode: z.enum(['bus', 'taxi']),
+    mode: z.enum(['bus', 'taxi', 'drive']),
     distance: z.enum(['short', 'medium', 'long']),
   }),
   /** Wave 4: "I'm here" (the server sends it, throttled, on authenticated requests). */
@@ -338,6 +343,16 @@ export const commandSchema = z.discriminatedUnion('type', [
     /** Invite someone: a player, a fund, an AI founder or angel, or a contact id. */
     withId: id.optional(),
   }),
+  // ---- life and work (Wave 5)
+  /** A part-time job at a local business in your home city: 40 hours a month, paid monthly. */
+  z.object({ type: z.literal('job.take'), businessId: id, role: z.string().min(1).max(32) }),
+  z.object({ type: z.literal('job.quit') }),
+  /** Furniture for your apartment: one per slot; replacing sells the old one back at 40%. */
+  z.object({ type: z.literal('home.buy'), itemId: z.string().min(1).max(32) }),
+  /** A car: replacing sells the old one back at 50%; running costs are paid monthly. */
+  z.object({ type: z.literal('car.buy'), modelId: z.string().min(1).max(32) }),
+  /** Sell your car back at 50% of what you paid. */
+  z.object({ type: z.literal('car.sell') }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
 ]);
 

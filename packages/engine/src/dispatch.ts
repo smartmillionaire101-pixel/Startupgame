@@ -28,7 +28,8 @@ import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
 import { fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
-import { pitchBusiness, takeBusinessGig, venueBuy } from './economy.js';
+import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
+import { buyCar, buyFurniture, sellCar } from './shop.js';
 import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
 import { proposeAcquisition } from './acquisitions.js';
 import { boardOf, castVote, openVote } from './governance.js';
@@ -878,6 +879,17 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return takeBusinessGig(world, me, cmd.businessId, cmd.gigId);
     case 'venue.buy':
       return venueBuy(world, me, cmd.businessId, cmd.itemId, cmd.withId);
+    // ------------------------------------------------------------ life and work (Wave 5)
+    case 'job.take':
+      return takeJob(world, me, cmd.businessId, cmd.role);
+    case 'job.quit':
+      return quitJob(world, me);
+    case 'home.buy':
+      return buyFurniture(world, me, cmd.itemId);
+    case 'car.buy':
+      return buyCar(world, me, cmd.modelId);
+    case 'car.sell':
+      return sellCar(world, me);
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;
@@ -910,6 +922,7 @@ function createFromOnboarding(
     backgroundId: cmd.backgroundId,
     market: cmd.market,
     now,
+    ...(cmd.gender ? { gender: cmd.gender } : {}),
   });
   let companyId: Id | null = null;
   if (cmd.role === 'founder' && cmd.company) {

@@ -46,14 +46,14 @@ function prospect(w: World, sector: Industry = 'fintech'): LocalBusiness {
 const thaw = (w: World): World => structuredClone(w);
 
 describe('city rosters', () => {
-  it('every city has 24–36 businesses with known kinds, real districts and unique names', () => {
+  it('every city has 24–48 businesses with known kinds, real districts and unique names', () => {
     const cities = [...MARKET_IDS];
     expect(cities).toContain('san-francisco');
     for (const city of cities) {
       const roster = CITY_BUSINESSES[city];
       expect(roster, city).toBeDefined();
       expect(roster!.length).toBeGreaterThanOrEqual(24);
-      expect(roster!.length).toBeLessThanOrEqual(36);
+      expect(roster!.length).toBeLessThanOrEqual(48);
       const districts = CITY_DISTRICTS[city]!;
       for (const s of roster!) {
         expect(businessKind(s.kind), `${city}: ${s.kind}`).toBeDefined();
@@ -317,7 +317,7 @@ describe('pitching businesses', () => {
 });
 
 describe('gigs at businesses', () => {
-  it('pays from the business till, taxes it, spends hours and energy, and caps at 4 a month', () => {
+  it('pays from the business till, taxes it, spends hours and energy, and caps at 8 a month', () => {
     let w = addFounder(makeWorld(42, ['lagos']));
     const total = moneyByCurrency(w);
     const m = w.markets.lagos!;
@@ -335,7 +335,7 @@ describe('gigs at businesses', () => {
     expect(bal(w, b.account)).toBe(till - pay);
     expect(w.players.u_founder!.energy).toBeLessThan(energy);
     expect(playerView(w, 'u_founder')!.market.economy.gigsWorked).toBe(1);
-    for (let i = 0; i < 3; i++)
+    for (let i = 1; i < ECONOMY.gigsPerMonth; i++)
       w = run(w, 'u_founder', { type: 'gig.take', businessId: b.id, gigId: 'shift' }).world;
     const fifth = tryRun(w, 'u_founder', { type: 'gig.take', businessId: b.id, gigId: 'shift' });
     expect(fifth.ok).toBe(false);

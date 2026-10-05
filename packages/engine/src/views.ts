@@ -27,7 +27,14 @@ import {
 import { flightsView, isVisiting, tripCostUsd } from './travel.js';
 import { EVENT_KINDS, EVENT_KIND_DATA, EVENT_RECENT_MONTHS } from './data/events.js';
 import { contactWarmth, eventCost } from './events.js';
-import { businessCustomersOf, businessesView, economyView } from './economy.js';
+import {
+  businessCustomersOf,
+  businessesView,
+  economyView,
+  jobsView,
+  myJobView,
+} from './economy.js';
+import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { boardOf } from './governance.js';
 import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
@@ -508,6 +515,10 @@ function marketView(world: World, p: Player, m: MarketState, founderish: boolean
     events: eventsView(world, p, m.id, m.month),
     /** Local businesses (Wave 3): open ones, and those closed in the last few months. */
     businesses: businessesView(world, p, m),
+    /** Part-time jobs at open businesses (Wave 5): 40 hours a month, paid monthly. */
+    jobs: jobsView(p, m),
+    /** Furniture and cars with prices in this city's currency (Wave 5). */
+    shop: shopView(m),
     /** The city economy at a glance (Wave 3). */
     economy: economyView(m),
     eventKinds: EVENT_KINDS.map((kind) => {
@@ -519,7 +530,8 @@ function marketView(world: World, p: Player, m: MarketState, founderish: boolean
         /** Hosting at the Event Hall, before any budget (minor units). */
         cost: eventCost(m, kind, 'hall'),
         hoursHost: k.hoursHost,
-        hoursAttend: k.hoursAttend,
+        /** Wave 5: going to an event costs the ticket only, no hours. */
+        hoursAttend: 0,
         capacity: k.capacity,
         who: k.who,
       };
@@ -607,6 +619,16 @@ export function playerView(
         })),
       lastMonth: p.lastMonth,
       gigsThisMonth: p.gigsThisMonth,
+      /** Wave 5: null for saved players who never chose (the client keeps its avatar). */
+      gender: p.gender ?? null,
+      /** Wave 5: your part-time job, or null. */
+      job: myJobView(world, p),
+      /** Wave 5: your furniture and how comfortable home is (0–100). */
+      home: myHomeView(p),
+      /** Wave 5: your car, or null. */
+      car: carView(world, p),
+      /** Wave 5: status (0–100) from your home, car and lifestyle, shown on your profile. */
+      status: statusOf(p),
       /** People met at events (Wave 2), newest first; warmth fades with time. */
       contacts: (p.contacts ?? []).slice(0, CONTACTS_VIEW_LIMIT).map((c) => ({
         ...c,
