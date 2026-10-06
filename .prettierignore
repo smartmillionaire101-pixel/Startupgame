@@ -5,3 +5,4 @@ package-lock.json
 *.md
 netlify/runtime/runtime.mjs
 .claude
+apps/web/src/city/geo/*.json
