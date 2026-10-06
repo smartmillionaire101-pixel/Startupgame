@@ -9,6 +9,9 @@ import { AvatarFigure, avatarLook } from '../city/art';
 
 type Role = 'founder' | 'investor' | 'banker';
 
+/** A picture for each role card. */
+const ROLE_EMOJI: Record<string, string> = { founder: '🚀', investor: '📈', banker: '🏦' };
+
 const roleCards = (): { role: Role; title: string; text: string; disabled?: boolean }[] => [
   { role: 'founder', title: t('Founder'), text: t('Build a company from an idea to an exit.') },
   {
@@ -100,7 +103,7 @@ export function Onboarding() {
 
   if (!meta)
     return (
-      <div className="app">
+      <div className="app app-narrow">
         <p className="muted">{t('Loading…')}</p>
       </div>
     );
@@ -145,7 +148,7 @@ export function Onboarding() {
         : sectors.length > 0 && stages.length > 0 && (parseAmount(check) ?? 0) > 0);
 
   return (
-    <div className="app">
+    <div className="app app-narrow">
       <div className="hero" style={{ paddingTop: '1.4rem' }}>
         <h1>{t('Set up your player')}</h1>
         <Dots n={step} />
@@ -165,10 +168,15 @@ export function Onboarding() {
                 setStep(1);
               }}
             >
-              <div className="item-title">
-                {r.title} {r.disabled && <Pill>{t('Phase 2')}</Pill>}
-              </div>
-              <div className="muted small">{r.text}</div>
+              <span className="choice-lead" aria-hidden="true">
+                {ROLE_EMOJI[r.role] ?? '•'}
+              </span>
+              <span className="choice-body">
+                <span className="item-title">
+                  {r.title} {r.disabled && <Pill>{t('Phase 2')}</Pill>}
+                </span>
+                <span className="muted small">{r.text}</span>
+              </span>
             </button>
           ))}
         </div>

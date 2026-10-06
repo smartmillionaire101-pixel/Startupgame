@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { t, tx } from '../i18n';
 import { useGame, useView } from '../store';
-import { Button, Card, Empty, Pill, Sparkline } from '../ui';
+import { Button, Card, Empty, EmptyState, Pill, Sparkline } from '../ui';
 
 type Tab = 'digest' | 'feed' | 'stories';
 type Article = ReturnType<typeof useView>['view']['news'][number];
@@ -90,7 +90,7 @@ export function Digest() {
       {items.length ? (
         items.map((n) => <ArticleCard key={n.id} a={n} />)
       ) : (
-        <Empty>{t('No headlines yet this month.')}</Empty>
+        <EmptyState icon="news">{t('No headlines yet this month.')}</EmptyState>
       )}
     </>
   );

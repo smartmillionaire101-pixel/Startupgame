@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { useGame, useView } from './store';
-import { CountUp, Icon, initReduceMotion, Sheet, Toasts, type IconName } from './ui';
+import { CountUp, Icon, initReduceMotion, reduceMotion, Sheet, Toasts, type IconName } from './ui';
 import { money } from './format';
 import { t } from './i18n';
 import { SignIn } from './screens/SignIn';
@@ -78,10 +78,10 @@ export function App() {
   return (
     <>
       {status === 'loading' && (
-        <div className="app">
-          <p className="muted" style={{ paddingTop: '3rem' }}>
-            {t('Loading Runway…')}
-          </p>
+        <div className="app loading-screen" role="status">
+          <img src="/icon.svg" alt="" width={56} height={56} />
+          <span className="spinner" aria-hidden="true" />
+          <p className="muted">{t('Loading Runway…')}</p>
         </div>
       )}
       {status === 'offline' && (
@@ -267,6 +267,29 @@ function Game() {
   );
 }
 
+/** The cash readout pops when money comes in and dips when it goes out. */
+function useBump(value: number) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const last = useRef(value);
+  useEffect(() => {
+    const before = last.current;
+    last.current = value;
+    const el = ref.current;
+    if (value === before || !el || reduceMotion() || typeof el.animate !== 'function') return;
+    el.animate(
+      value > before
+        ? [{ transform: 'scale(1)' }, { transform: 'scale(1.1)' }, { transform: 'scale(1)' }]
+        : [
+            { transform: 'translateY(0)' },
+            { transform: 'translateY(2px)', color: 'var(--bad)' },
+            { transform: 'translateY(0)' },
+          ],
+      { duration: 360, easing: 'cubic-bezier(0.34, 1.5, 0.64, 1)' },
+    );
+  }, [value]);
+  return ref;
+}
+
 /**
  * The top bar (Wave 7): one 48px line that never wraps. Where you are and
  * when, your cash (it ticks to new values), an energy ring and the phone.
@@ -282,6 +305,7 @@ function TopBar({ alerts }: { alerts: number }) {
   const tone = view.me.burnout || energy < 25 ? 'bad' : energy < 40 ? 'warn' : 'good';
   const cash = view.accounts.local?.balance ?? 0;
   const hoursLeft = view.me.hours.left;
+  const bump = useBump(cash);
   return (
     <header className="topbar">
       <div className="brand" title={d.label}>
@@ -295,13 +319,15 @@ function TopBar({ alerts }: { alerts: number }) {
         </span>
       </div>
       <div className="topbar-meta">
-        <span className="topbar-cash" aria-label={t('Cash in your pocket')}>
+        <span ref={bump} className="topbar-cash" aria-label={t('Cash in your pocket')}>
+          <Icon name="wallet" size={15} />
           <CountUp value={cash} format={(n) => money(n, cur)} />
         </span>
         <span
           className={`topbar-hours${hoursLeft < 20 ? ' is-low' : ''}`}
           aria-label={t('{n} hours left this month', { n: hoursLeft })}
         >
+          <Icon name="clock" size={13} />
           {t('{n}h', { n: hoursLeft })}
         </span>
         <span

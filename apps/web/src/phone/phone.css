@@ -420,11 +420,13 @@ body:has(.app-city) .phone-fab {
 /* ---- Rows, lists, cards ------------------------------------------------- */
 
 .phone-h {
-  font-size: 0.76rem;
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: var(--muted);
-  margin: 0.5rem 0 0.25rem;
+  margin: var(--sp-3) 0 var(--sp-1);
 }
 .phone-stack {
   display: grid;
@@ -439,21 +441,29 @@ body:has(.app-city) .phone-fab {
 }
 .phone-row {
   width: 100%;
-  min-height: 3.2rem;
+  min-height: 3.5rem;
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: var(--sp-3);
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 0.55rem 0.7rem;
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
   cursor: pointer;
   color: var(--text);
   font: inherit;
+  box-shadow: var(--sh-1);
+  transition:
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
-.phone-row:active {
+button.phone-row:hover {
+  background: color-mix(in srgb, var(--surface-2) 50%, var(--surface));
+}
+button.phone-row:active {
   background: var(--surface-2);
+  transform: scale(0.99);
 }
 .phone-row.static {
   cursor: default;
@@ -461,6 +471,7 @@ body:has(.app-city) .phone-fab {
   padding: 0;
   background: none;
   min-height: 0;
+  box-shadow: none;
 }
 .phone-row.read {
   opacity: 0.65;
@@ -484,9 +495,9 @@ body:has(.app-city) .phone-fab {
 }
 .phone-row-icon {
   flex: none;
-  width: 2.2rem;
-  height: 2.2rem;
-  border-radius: 0.7rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--r-sm);
   display: grid;
   place-items: center;
   color: #fff;
@@ -526,7 +537,8 @@ body:has(.app-city) .phone-fab {
 .phone-contact {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-1);
   padding: 0.6rem 0.7rem;
   display: grid;
   gap: 0.45rem;
@@ -545,10 +557,17 @@ body:has(.app-city) .phone-fab {
 .phone-nothing {
   display: grid;
   justify-items: center;
-  gap: 0.4rem;
+  gap: var(--sp-2);
   text-align: center;
-  padding: 1.6rem 1rem;
+  padding: var(--sp-8) var(--sp-4) var(--sp-6);
   color: var(--muted);
+}
+.phone-nothing > svg:first-child,
+.phone-nothing-icon {
+  box-sizing: content-box;
+  padding: 14px;
+  border-radius: 50%;
+  background: var(--surface-2);
 }
 .phone-nothing p {
   margin: 0;
@@ -567,18 +586,35 @@ body:has(.app-city) .phone-fab {
 .phone-card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 0.8rem 0.9rem;
+  border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4);
   display: grid;
-  gap: 0.4rem;
+  gap: var(--sp-2);
+  box-shadow: var(--sh-1);
 }
 .phone-card .phone-h {
   margin-top: 0;
 }
 .phone-hero {
+  position: relative;
+  overflow: hidden;
   color: #fff;
   border: 0;
+  padding: var(--sp-4);
   background: linear-gradient(140deg, #0f766e, #134e4a);
+  box-shadow: var(--sh-2);
+}
+/* A soft light in the corner, like a bank card. */
+.phone-hero::after {
+  content: '';
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  right: -80px;
+  top: -110px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.18), transparent);
+  pointer-events: none;
 }
 .phone-hero .muted,
 .phone-hero .small {
@@ -591,6 +627,22 @@ body:has(.app-city) .phone-fab {
 .phone-hero .btn-ghost {
   color: #fff;
   border-color: rgb(255 255 255 / 0.5);
+}
+/* Buttons on a coloured hero: white, or glass. */
+.phone-hero .btn-subtle,
+.phone-hero .btn-secondary {
+  background: rgb(255 255 255 / 0.18);
+  color: #fff;
+  border-color: rgb(255 255 255 / 0.28);
+  backdrop-filter: blur(6px);
+}
+.phone-hero .btn-subtle:not(:disabled):hover,
+.phone-hero .btn-secondary:not(:disabled):hover {
+  background: rgb(255 255 255 / 0.28);
+}
+.phone-hero .btn-primary {
+  background: #fff;
+  color: #0f3d3a;
 }
 .phone-hero.tone-bank {
   background: linear-gradient(140deg, #0f766e, #0c4a6e);
@@ -605,8 +657,10 @@ body:has(.app-city) .phone-fab {
   background: linear-gradient(140deg, #57534e, #292524);
 }
 .phone-hero-big {
-  font-size: 1.7rem;
-  font-weight: 750;
+  font-family: var(--font-display);
+  font-size: var(--fs-3xl);
+  line-height: 1.1;
+  font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -1180,11 +1234,8 @@ body:has(.app-city) .phone-fab {
 
 /* Inbox items on Home are buttons too. */
 .inbox-item {
-  width: 100%;
   text-align: left;
-  background: none;
   border: 0;
-  padding: 0;
   color: inherit;
   font: inherit;
   cursor: pointer;
@@ -1200,11 +1251,11 @@ body:has(.app-city) .phone-fab {
     animation: none;
   }
 }
-:root[data-reduce-motion] .phone-frame,
-:root[data-reduce-motion] .phone-screen,
-:root[data-reduce-motion] .phone-banner-slot,
-:root[data-reduce-motion] .phone-arriving-icon,
-:root[data-reduce-motion] .phone-fab.buzz,
-:root[data-reduce-motion] .phone-typing span {
+:root[data-reduce-motion='1'] .phone-frame,
+:root[data-reduce-motion='1'] .phone-screen,
+:root[data-reduce-motion='1'] .phone-banner-slot,
+:root[data-reduce-motion='1'] .phone-arriving-icon,
+:root[data-reduce-motion='1'] .phone-fab.buzz,
+:root[data-reduce-motion='1'] .phone-typing span {
   animation: none;
 }

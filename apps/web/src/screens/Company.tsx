@@ -71,11 +71,16 @@ export function CompanyScreen() {
   if (!c) return <Empty>{t('No active company. Start one from Home.')}</Empty>;
   return (
     <>
-      <div className="spread">
-        <h1>{c.name}</h1>
+      <header className="screen-head">
+        <span className="screen-logo" aria-hidden="true">
+          {c.name.trim().charAt(0).toUpperCase()}
+        </span>
+        <span className="screen-head-main">
+          <h1>{c.name}</h1>
+          <span className="muted small">{c.idea}</span>
+        </span>
         <Pill>{c.industryLabel}</Pill>
-      </div>
-      <p className="muted small">{c.idea}</p>
+      </header>
       <div className="tabs" role="tablist">
         {(['product', 'customers', 'team', 'suppliers', 'board', 'rules'] as Tab[]).map((id) => (
           <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>

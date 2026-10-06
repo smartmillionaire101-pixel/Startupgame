@@ -134,9 +134,9 @@
     transition: none;
   }
 }
-:root[data-reduce-motion] .tech-person,
-:root[data-reduce-motion] .tech-bubble,
-:root[data-reduce-motion] .tech-met li {
+:root[data-reduce-motion='1'] .tech-person,
+:root[data-reduce-motion='1'] .tech-bubble,
+:root[data-reduce-motion='1'] .tech-met li {
   animation: none;
   transition: none;
 }

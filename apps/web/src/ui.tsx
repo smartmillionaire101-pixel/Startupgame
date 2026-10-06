@@ -12,20 +12,30 @@ import { t } from './i18n';
 
 export function Card({
   title,
+  sub,
   action,
   children,
   tone,
+  className,
 }: {
   title?: ReactNode;
+  /** A quiet line under the title. */
+  sub?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
-  tone?: 'warn' | 'good';
+  tone?: 'warn' | 'good' | 'bad';
+  className?: string;
 }) {
   return (
-    <section className={`card${tone ? ` card-${tone}` : ''}`}>
+    <section className={`card${tone ? ` card-${tone}` : ''}${className ? ` ${className}` : ''}`}>
       {(title || action) && (
         <header className="card-head">
-          {title && <h2>{title}</h2>}
+          {title && (
+            <h2>
+              {title}
+              {sub && <span className="card-sub">{sub}</span>}
+            </h2>
+          )}
           {action}
         </header>
       )}
@@ -34,20 +44,26 @@ export function Card({
   );
 }
 
+/** A stat tile: a small label, one big number, and a hint under it. */
 export function Stat({
   label,
   value,
   hint,
   tone,
+  icon,
 }: {
   label: string;
   value: ReactNode;
   hint?: ReactNode;
-  tone?: 'good' | 'bad';
+  tone?: 'good' | 'bad' | 'warn' | 'money';
+  icon?: IconName;
 }) {
   return (
     <div className={`stat${tone ? ` stat-${tone}` : ''}`}>
-      <div className="stat-label">{label}</div>
+      <div className="stat-label">
+        {icon && <Icon name={icon} size={14} />}
+        {label}
+      </div>
       <div
         className={`stat-value${typeof value === 'string' && value.length > 9 ? ' is-long' : ''}`}
       >
@@ -57,19 +73,33 @@ export function Stat({
     </div>
   );
 }
+/** The kit's name for a stat tile. */
+export const StatTile = Stat;
 
 export function Button({
   variant = 'primary',
+  size,
+  block,
   loading,
   children,
+  className,
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'ghost' | 'danger' | 'subtle';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'subtle';
+  size?: 'sm' | 'lg';
+  block?: boolean;
   loading?: boolean;
 }) {
   const { busy } = useGame();
+  const cls =
+    className ?? `btn btn-${variant}${size ? ` btn-${size}` : ''}${block ? ' btn-block' : ''}`;
   return (
-    <button className={`btn btn-${variant}`} disabled={rest.disabled || busy || loading} {...rest}>
+    <button
+      className={cls}
+      disabled={rest.disabled || busy || loading}
+      aria-busy={loading || undefined}
+      {...rest}
+    >
       {children}
     </button>
   );
@@ -192,7 +222,109 @@ export function Empty({ children }: { children: ReactNode }) {
   return <p className="empty">{children}</p>;
 }
 
-/** Bottom sheet for focused flows (offers, pitches, deal cards). */
+/** An empty state: an icon, a title, why it's empty and what to do next. */
+export function EmptyState({
+  icon = 'spark',
+  emoji,
+  title,
+  children,
+  action,
+}: {
+  icon?: IconName;
+  emoji?: string;
+  title?: ReactNode;
+  children?: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="empty-state">
+      <span className="empty-state-icon" aria-hidden="true">
+        {emoji ?? <Icon name={icon} size={24} />}
+      </span>
+      {title && <p className="empty-state-title">{title}</p>}
+      {children && <p>{children}</p>}
+      {action}
+    </div>
+  );
+}
+
+/**
+ * A list row: something at the start (an icon, emoji or avatar), a title,
+ * a line under it, and something at the end. With onClick it's a button
+ * with a chevron.
+ */
+export function ListRow({
+  lead,
+  leadRound,
+  title,
+  sub,
+  end,
+  onClick,
+  chevron,
+  read,
+  className,
+  label,
+}: {
+  lead?: ReactNode;
+  leadRound?: boolean;
+  title: ReactNode;
+  sub?: ReactNode;
+  end?: ReactNode;
+  onClick?: () => void;
+  chevron?: boolean;
+  read?: boolean;
+  className?: string;
+  /** An accessible name, when the title alone doesn't say it. */
+  label?: string;
+}) {
+  const body = (
+    <>
+      {lead !== undefined && (
+        <span className={`lrow-lead${leadRound ? ' is-round' : ''}`} aria-hidden="true">
+          {lead}
+        </span>
+      )}
+      <span className="lrow-main">
+        <span className="lrow-title">{title}</span>
+        {sub && <span className="lrow-sub">{sub}</span>}
+      </span>
+      {(end !== undefined || (onClick && chevron !== false)) && (
+        <span className="lrow-end">
+          {end}
+          {onClick && chevron !== false && <Icon name="chevron" size={18} className="lrow-chev" />}
+        </span>
+      )}
+    </>
+  );
+  const cls = `lrow${read ? ' is-read' : ''}${className ? ` ${className}` : ''}`;
+  return onClick ? (
+    <button type="button" className={cls} onClick={onClick} aria-label={label}>
+      {body}
+    </button>
+  ) : (
+    <div className={cls}>{body}</div>
+  );
+}
+
+/** A chip: a small toggle or filter. */
+export function Chip({
+  on,
+  children,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & { on?: boolean }) {
+  return (
+    <button type="button" className="chip" aria-pressed={on} {...rest}>
+      {children}
+    </button>
+  );
+}
+
+/** A quiet heading between cards. */
+export function SectionHeader({ children }: { children: ReactNode }) {
+  return <h2 className="section-h">{children}</h2>;
+}
+
+/** Bottom sheet for focused flows (offers, pitches, deal cards). Escape closes it. */
 export function Sheet({
   title,
   onClose,
@@ -202,6 +334,17 @@ export function Sheet({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div
@@ -214,7 +357,7 @@ export function Sheet({
         <header className="sheet-head">
           <h2>{title}</h2>
           <button className="icon-btn" aria-label={t('Close')} onClick={onClose}>
-            ✕
+            <Icon name="close" size={18} />
           </button>
         </header>
         <div className="sheet-body">{children}</div>
@@ -251,13 +394,22 @@ export function Confirm({
   );
 }
 
+const TOAST_ICON: Record<'ok' | 'error' | 'info', IconName> = {
+  ok: 'check',
+  error: 'alert',
+  info: 'spark',
+};
+
 export function Toasts() {
   const { toasts } = useGame();
   return (
     <div className="toasts" aria-live="polite">
       {toasts.map((x) => (
         <div key={x.id} className={`toast toast-${x.tone}`}>
-          {x.text}
+          <span className="toast-icon" aria-hidden="true">
+            <Icon name={TOAST_ICON[x.tone]} size={16} />
+          </span>
+          <span>{x.text}</span>
         </div>
       ))}
     </div>
@@ -314,7 +466,11 @@ export type IconName =
   | 'spark'
   | 'chevron'
   | 'close'
-  | 'bolt';
+  | 'bolt'
+  | 'check'
+  | 'alert'
+  | 'wallet'
+  | 'clock';
 
 /** One stroke style for every icon: 24-unit grid, 1.8 stroke, round caps. */
 const PATHS: Record<IconName, ReactNode> = {
@@ -400,6 +556,26 @@ const PATHS: Record<IconName, ReactNode> = {
   chevron: <path d="m6 9 6 6 6-6" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
   bolt: <path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z" />,
+  check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  alert: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5M12 16.5h.01" />
+    </>
+  ),
+  wallet: (
+    <>
+      <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3" />
+      <rect x="3.5" y="7.5" width="17" height="12" rx="2.5" />
+      <path d="M16 13.5h.01" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
 };
 
 export function Icon({
