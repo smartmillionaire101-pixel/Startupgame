@@ -1,0 +1,97 @@
+/* Wave 7 §B: the flight's cabin, ferry and Skip. */
+.flight .fl-bottom {
+  /* Clear of Skip (bottom right) and the cabin buttons. */
+  right: 7.5rem;
+  justify-items: start;
+  text-align: left;
+}
+.fl7-skip {
+  position: absolute;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  min-width: 96px;
+  min-height: 48px;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 24px;
+  background: rgb(15 23 42 / 0.82);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  z-index: 2;
+}
+.fl7-skip:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+}
+.fl-cabin {
+  position: absolute;
+  inset: 0;
+  background: #d6d3d1;
+}
+.fl-cabin-acts {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(3.6rem + env(safe-area-inset-top));
+  display: flex;
+  gap: 0.5rem;
+}
+.fl-cabin-acts button {
+  min-height: 40px;
+  padding: 0 0.9rem;
+  border-radius: 20px;
+  border: 1px solid rgb(15 23 42 / 0.2);
+  background: rgb(255 255 255 / 0.9);
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fl-cabin-acts button[aria-pressed='true'] {
+  background: #0f766e;
+  color: #fff;
+}
+.fl-left {
+  font-size: 22px;
+  font-weight: 800;
+  fill: #f8fafc;
+  font-variant-numeric: tabular-nums;
+}
+.fl-left-sub {
+  font-size: 11px;
+  fill: #94a3b8;
+}
+.fl-laptop {
+  animation: fl-glow 1.4s ease-in-out infinite alternate;
+}
+@keyframes fl-glow {
+  to {
+    opacity: 0.7;
+  }
+}
+.fl-boat {
+  animation: fl-boat 2.6s ease-in-out forwards;
+}
+@keyframes fl-boat {
+  from {
+    transform: translate(-40px, 0);
+  }
+  to {
+    transform: translate(330px, -50px) scale(0.8);
+  }
+}
+.fl-waves {
+  animation: fl-cloud 3s linear infinite;
+}
+.flight.is-reduced .fl-boat,
+.flight.is-reduced .fl-waves,
+.flight.is-reduced .fl-laptop {
+  animation: none;
+}
+:root[data-reduce-motion='1'] .flight .fl-cloud {
+  animation: none;
+}
