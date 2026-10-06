@@ -38,7 +38,10 @@ async function founder(page: Page) {
   }, handle);
   expect(status).toBe(200);
   await page.reload();
-  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
+  // The first answer after Start can be a cold start that loads the whole world.
+  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
+    timeout: 30_000,
+  });
 }
 
 /** An open café in town and its owner, as the view has them. */

@@ -24,7 +24,8 @@ async function founder(page: Page, name: string) {
     .click();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
-  await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible();
+  // The first answer after Start can be a cold start that loads the whole world.
+  await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
 }
 
 interface Biz {

@@ -30,7 +30,10 @@ async function signUpFounder(page: Page, name: string) {
   await expect(page.getByText(/Available in Lagos/)).toBeVisible();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
-  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
+  // The first answer after Start can be a cold start that loads the whole world.
+  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
+    timeout: 30_000,
+  });
 }
 
 const presenceAvailable = (page: Page) =>

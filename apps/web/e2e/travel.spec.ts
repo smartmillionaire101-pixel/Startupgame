@@ -61,7 +61,10 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
 }) => {
   test.slow();
   await founder(page, /Lagos, Nigeria/, 'Ada Traveller');
-  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
+  // The first answer after Start can be a cold start that loads the whole world.
+  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
+    timeout: 30_000,
+  });
   const s0 = await state(page);
   const wave4 = s0.view.flights !== undefined;
 
