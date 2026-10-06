@@ -1,0 +1,273 @@
+/* Wave 7 §B: ride interludes. */
+.ride-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #0b1210;
+  color: #fff;
+  overflow: hidden;
+  animation: ride-in 0.2s ease-out;
+}
+.ride-scene.is-chase {
+  /* Reduced motion: the map's own chase shows through. */
+  background: transparent;
+  pointer-events: none;
+  animation: none;
+}
+.ride-scene.is-chase > * {
+  pointer-events: auto;
+}
+@keyframes ride-in {
+  from {
+    opacity: 0;
+  }
+}
+.ride-stage,
+.ride-stage > div,
+.ride-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* The top card, in ride-app style. */
+.ride-card {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100% - 24px));
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  color: var(--text, #0f1a17);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+  z-index: 2;
+}
+.ride-card-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--accent-soft, #d5efe9);
+  color: var(--accent, #0f766e);
+}
+.ride-card-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ride-card-to {
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ride-card-sub {
+  font-size: 0.85rem;
+  color: var(--muted, #5b6b66);
+  white-space: nowrap;
+}
+.ride-eta {
+  font-weight: 700;
+  color: var(--text, #0f1a17);
+  font-variant-numeric: tabular-nums;
+}
+.ride-card-fare {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.ride-jam {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ride-skip {
+  position: absolute;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  min-width: 96px;
+  min-height: 48px;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 24px;
+  background: rgb(15 23 42 / 0.82);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  z-index: 3;
+  animation: ride-in 0.2s ease-out;
+}
+.ride-skip:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+}
+.ride-always {
+  position: absolute;
+  left: 16px;
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0 0.8rem;
+  border-radius: 20px;
+  background: rgb(15 23 42 / 0.7);
+  color: #fff;
+  font-size: 0.85rem;
+  z-index: 3;
+}
+.ride-always input {
+  width: 18px;
+  height: 18px;
+}
+
+/* Taxi: the booking card, then the back seat and a mini-map. */
+.taxi-booking {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 96px 16px 80px;
+  background: #0f172a;
+  z-index: 1;
+  transition: opacity 0.25s ease-out;
+}
+.taxi.is-riding .taxi-booking {
+  opacity: 0;
+  pointer-events: none;
+}
+.taxi-booking-map {
+  width: min(340px, 100%);
+  height: auto;
+  border-radius: 16px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
+}
+.taxi-status,
+.taxi-driver {
+  margin: 0;
+  text-align: center;
+}
+.taxi-status b {
+  font-size: 1.2rem;
+}
+.taxi-arriving,
+.taxi.is-arriving .taxi-finding {
+  display: none;
+}
+.taxi.is-arriving .taxi-arriving {
+  display: inline;
+}
+.taxi-driver {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.taxi.is-arriving .taxi-driver {
+  opacity: 1;
+}
+.taxi-plate {
+  padding: 0.15rem 0.5rem;
+  border: 2px solid #0f172a;
+  border-radius: 6px;
+  background: #fefce8;
+  color: #0f172a;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  font-family: ui-monospace, monospace;
+}
+.taxi-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: taxi-pulse 1s ease-out infinite;
+}
+@keyframes taxi-pulse {
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+.taxi-mini {
+  position: absolute;
+  left: 16px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  width: 128px;
+  height: 128px;
+  padding: 6px;
+  border-radius: 16px;
+  background: #f1f5f9;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.35);
+  z-index: 2;
+}
+.taxi-mini svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Bus: the stop ticker. */
+.bus-ticker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  background: rgb(15 23 42 / 0.88);
+  color: #fff;
+  font-size: 0.95rem;
+  overflow: hidden;
+  z-index: 2;
+}
+.bus-ticker-label {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #facc15;
+  font-weight: 800;
+}
+.bus-ticker ol {
+  display: flex;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  white-space: nowrap;
+}
+.bus-ticker li {
+  opacity: 0.55;
+}
+.bus-ticker li.is-past {
+  display: none;
+}
+.bus-ticker li.is-next {
+  opacity: 1;
+  font-weight: 800;
+}
+.bus-ticker li + li::before {
+  content: '› ';
+  opacity: 0.6;
+}

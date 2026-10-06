@@ -19,7 +19,14 @@ import {
   routeOf,
   SHORT_HOP,
   transitName,
+  airportSchedule,
+  boardRows,
+  CITY_NAMES,
+  fmtFlightTime,
+  nextFlightTo,
+  stopsAlong,
 } from '../src/city/travel';
+import { sceneMs } from '../src/city/ride/state';
 import { B } from '../src/city/layout';
 
 const market = (id: string, name: string) => ({ id, name, segments: [], currency: 'NGN' });
@@ -140,5 +147,53 @@ describe('the flight route', () => {
     }
     // London is north of Lagos: the plane heads up the map (negative y).
     expect(end.y).toBeLessThan(start.y);
+  });
+});
+
+describe('Wave 7: rides and the busy airport', () => {
+  it('scales ride scenes with distance, 5–12 s (walking 5–8 s)', () => {
+    for (const mode of ['walk', 'cycle', 'bus', 'taxi'] as const) {
+      const short = sceneMs(mode, 1);
+      const long = sceneMs(mode, 500);
+      expect(short).toBe(5000);
+      expect(long).toBe(mode === 'walk' ? 8000 : 12000);
+      expect(sceneMs(mode, 40)).toBeGreaterThanOrEqual(short);
+    }
+  });
+
+  it('names the districts along a route, topped up with streets', () => {
+    const areas = [
+      { name: 'Yaba', at: { x: 0, y: 0 } },
+      { name: 'Ikeja', at: { x: 50, y: 0 } },
+      { name: 'Marina', at: { x: 100, y: 0 } },
+    ];
+    const path = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ];
+    expect(stopsAlong(areas, ['Broad Street'], path)).toEqual(['Yaba', 'Ikeja', 'Marina']);
+    expect(stopsAlong([], ['A Road', 'B Road', 'C Road', 'D Road'], path)).toEqual([
+      'A Road',
+      'B Road',
+      'C Road',
+    ]);
+  });
+
+  it('keeps a deterministic schedule per airport and day, to real markets', () => {
+    const a = airportSchedule('lagos', '3:2026-10-06');
+    expect(airportSchedule('lagos', '3:2026-10-06')).toEqual(a);
+    expect(airportSchedule('lagos', '4:2026-10-06')).not.toEqual(a);
+    expect(a.every((f) => f.city in CITY_NAMES && f.city !== 'lagos')).toBe(true);
+    const rows = boardRows(a, 12 * 60);
+    expect(rows).toHaveLength(6);
+    expect(rows.some((r) => r.status === 'Departed' || r.status === 'Landed')).toBe(true);
+    const next = nextFlightTo(a, 'london', 12 * 60);
+    expect(next?.city).toBe('london');
+    expect(next?.arrival).toBe(false);
+  });
+
+  it('formats flight times', () => {
+    expect(fmtFlightTime(6 + 20 / 60)).toBe('6h 20m');
+    expect(fmtFlightTime(0.5)).toBe('30m');
   });
 });

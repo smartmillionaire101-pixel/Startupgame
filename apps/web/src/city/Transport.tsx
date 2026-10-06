@@ -5,6 +5,8 @@
 import { useEffect, useState } from 'react';
 import { money } from '../format';
 import { t } from '../i18n';
+import { quoteRide } from './ride/state';
+import './ride/map.css';
 import {
   fmtCountdown,
   msLeft,
@@ -145,7 +147,11 @@ export function RideChooser({
               className={`ride-opt${mode === preferred ? ' is-last' : ''}`}
               data-mode={mode}
               disabled={busy}
-              onClick={() => onPick(mode)}
+              onClick={() => {
+                // The ride scene shows where you're going and what it costs.
+                quoteRide({ mode, fare, currency, where });
+                onPick(mode);
+              }}
             >
               <span className="ride-icon" aria-hidden>
                 <RideIcon mode={mode} />

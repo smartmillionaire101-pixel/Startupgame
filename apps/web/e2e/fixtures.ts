@@ -22,6 +22,16 @@ export async function withoutNetlifyDrawer(page: Page) {
 export const test = base.extend({
   page: async ({ page }, use, testInfo) => {
     await withoutNetlifyDrawer(page);
+    // Wave 7: rides play as full-screen scenes (5–12 s). Specs about other
+    // things travel the old way ("Always skip rides"); travel-scenes.spec.ts
+    // turns the scenes back on.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('runway.skipRides', '1');
+      } catch {
+        /* storage blocked: rides play */
+      }
+    });
     const errors: string[] = [];
     page.on('response', async (res) => {
       if (!res.url().includes('/api/') || res.status() < 400) return;

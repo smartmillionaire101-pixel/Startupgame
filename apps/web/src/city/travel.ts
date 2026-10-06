@@ -351,3 +351,253 @@ export function alongRoute(r: ReturnType<typeof routeOf>, t: number) {
   const dy = 2 * u * (r.c.y - r.a.y) + 2 * t * (r.b.y - r.c.y);
   return { x, y, deg: (Math.atan2(dy, dx) * 180) / Math.PI };
 }
+
+// ---------------------------------------------------------------------------
+// Wave 7: rides you experience
+
+/** A string's FNV-1a hash (deterministic schedules and looks). */
+export function fnv(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/** A small seeded generator (mulberry32): the same seed, the same numbers. */
+export function seeded(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let x = a;
+    x = Math.imul(x ^ (x >>> 15), x | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Cities that drive on the left: the taxi driver sits on the right. */
+export const driveOnLeft = (marketId: string) =>
+  marketId === 'london' || marketId === 'nairobi' || marketId === 'johannesburg';
+
+/** Light at a local hour (for skies). */
+export type DayPart = 'night' | 'dusk' | 'day';
+export const dayPart = (hour: number): DayPart =>
+  isNight(hour) ? 'night' : hour < 8 || hour >= 17 ? 'dusk' : 'day';
+
+/**
+ * Named districts along a route, in order (the bus's stop ticker): the
+ * nearest named district every few tiles, topped up with the city's street
+ * names when the city has no plan or the trip is short.
+ */
+export function stopsAlong(
+  areas: { name: string; at: { x: number; y: number } }[],
+  streets: string[],
+  path: { x: number; y: number }[],
+  max = 6,
+): string[] {
+  const out: string[] = [];
+  const push = (n: string) => {
+    if (n && !out.includes(n)) out.push(n);
+  };
+  if (areas.length && path.length) {
+    // Sample evenly along the route's length.
+    const seg = path.slice(1).map((q, i) => Math.hypot(q.x - path[i]!.x, q.y - path[i]!.y));
+    const total = seg.reduce((s, d) => s + d, 0);
+    const n = 12;
+    for (let k = 0; k < n; k++) {
+      let left = (k / (n - 1)) * total;
+      let i = 0;
+      while (i < seg.length - 1 && left > seg[i]!) left -= seg[i++]!;
+      const a = path[i]!;
+      const b = path[Math.min(i + 1, path.length - 1)]!;
+      const f = seg[i] ? Math.min(1, left / seg[i]!) : 0;
+      const p = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+      let best = areas[0]!;
+      let bd = Infinity;
+      for (const a of areas) {
+        const d = Math.hypot(a.at.x - p.x, a.at.y - p.y);
+        if (d < bd) {
+          bd = d;
+          best = a;
+        }
+      }
+      push(best.name);
+    }
+  }
+  for (const s of streets) {
+    if (out.length >= 3) break;
+    push(s);
+  }
+  return out.slice(0, max);
+}
+
+/** Each market's name (English), for boards that list every city. */
+export const CITY_NAMES: Record<string, string> = {
+  lagos: 'Lagos',
+  nairobi: 'Nairobi',
+  london: 'London',
+  accra: 'Accra',
+  freetown: 'Freetown',
+  kigali: 'Kigali',
+  johannesburg: 'Johannesburg',
+  cairo: 'Cairo',
+  dubai: 'Dubai',
+  'san-francisco': 'San Francisco',
+};
+
+/** The airport's own name (Freetown flies from Lungi, across the estuary). */
+export const AIRPORT_NAMES: Record<string, string> = {
+  lagos: 'Murtala Muhammed',
+  nairobi: 'Jomo Kenyatta',
+  london: 'Heathrow',
+  accra: 'Kotoka',
+  freetown: 'Lungi',
+  kigali: 'Kigali International',
+  johannesburg: 'O. R. Tambo',
+  cairo: 'Cairo International',
+  dubai: 'Dubai International',
+  'san-francisco': 'SFO',
+};
+
+/** Fictional local airlines: [name, two-letter code, livery colour]. */
+const AIRLINES: Record<string, [string, string, string][]> = {
+  lagos: [
+    ['Eko Air', 'EK', '#16a34a'],
+    ['Naija Wings', 'NW', '#0f766e'],
+  ],
+  nairobi: [
+    ['Savannah Air', 'SV', '#b91c1c'],
+    ['Simba Express', 'SX', '#d97706'],
+  ],
+  london: [
+    ['Thames Air', 'TA', '#1d4ed8'],
+    ['Albion Airways', 'AL', '#7c3aed'],
+  ],
+  accra: [['Kente Airways', 'KN', '#ca8a04']],
+  freetown: [['Salone Air', 'SL', '#059669']],
+  kigali: [['Thousand Hills Air', 'TH', '#0284c7']],
+  johannesburg: [
+    ['Highveld Air', 'HV', '#ea580c'],
+    ['Protea Airlines', 'PR', '#db2777'],
+  ],
+  cairo: [['Nile Wings', 'NL', '#0e7490']],
+  dubai: [
+    ['Falcon Gulf', 'FG', '#a16207'],
+    ['Oasis Air', 'OA', '#be123c'],
+  ],
+  'san-francisco': [['Golden Gate Air', 'GG', '#c2410c']],
+};
+const airlinesOf = (id: string) => AIRLINES[id] ?? [['Runway Air', 'RW', '#0f766e']];
+
+export type FlightStatus = 'Boarding' | 'Delayed' | 'Departed' | 'Landed' | 'On time';
+
+export interface ScheduledFlight {
+  /** Minutes after local midnight. */
+  at: number;
+  /** "14:05". */
+  time: string;
+  flight: string;
+  airline: string;
+  livery: string;
+  /** The other city: where it flies to, or where it came from. */
+  city: string;
+  cityName: string;
+  gate: string;
+  arrival: boolean;
+  /** Delayed by this many minutes (0: on time). */
+  late: number;
+}
+
+const hhmm = (min: number) =>
+  `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+/**
+ * Today's flights at an airport: deterministic from the airport and the game
+ * day, every other game market served once or twice, plus arrivals.
+ */
+export function airportSchedule(marketId: string, day: string | number): ScheduledFlight[] {
+  const rnd = seeded(fnv(`${marketId}:${day}`));
+  const others = Object.keys(CITY_NAMES).filter((id) => id !== marketId);
+  const out: ScheduledFlight[] = [];
+  const mk = (city: string, arrival: boolean): ScheduledFlight => {
+    const own = airlinesOf(arrival ? city : marketId);
+    const [airline, code, livery] = own[Math.floor(rnd() * own.length)]!;
+    const at = (6 * 60 + Math.floor(rnd() * 210) * 5) % (24 * 60);
+    return {
+      at,
+      time: hhmm(at),
+      flight: `${code} ${100 + Math.floor(rnd() * 880)}`,
+      airline,
+      livery,
+      city,
+      cityName: CITY_NAMES[city] ?? city,
+      gate: `${'ABC'[Math.floor(rnd() * 3)]}${1 + Math.floor(rnd() * 12)}`,
+      arrival,
+      late: rnd() < 0.18 ? 15 + Math.floor(rnd() * 8) * 5 : 0,
+    };
+  };
+  for (const id of others) {
+    out.push(mk(id, false));
+    if (rnd() < 0.5) out.push(mk(id, false));
+    out.push(mk(id, true));
+  }
+  return out.sort((a, b) => a.at - b.at || a.flight.localeCompare(b.flight));
+}
+
+/** A flight's status at a local time (minutes after midnight). */
+export function flightStatus(f: ScheduledFlight, now: number): FlightStatus {
+  const due = f.at + f.late;
+  if (f.arrival) return now >= due ? 'Landed' : f.late ? 'Delayed' : 'On time';
+  if (now >= due) return 'Departed';
+  if (due - now <= 40) return 'Boarding';
+  return f.late ? 'Delayed' : 'On time';
+}
+
+/** The board: six rows around now (a couple gone, the rest still to come). */
+export function boardRows(
+  schedule: ScheduledFlight[],
+  now: number,
+  n = 6,
+): (ScheduledFlight & { status: FlightStatus })[] {
+  if (!schedule.length) return [];
+  let first = schedule.findIndex((f) => f.at + f.late >= now);
+  if (first < 0) first = schedule.length;
+  const start = Math.max(0, Math.min(schedule.length - n, first - 2));
+  return schedule.slice(start, start + n).map((f) => ({ ...f, status: flightStatus(f, now) }));
+}
+
+/** The next departure to a city after now (tomorrow's first if none is left today). */
+export function nextFlightTo(
+  schedule: ScheduledFlight[],
+  to: string,
+  now: number,
+): ScheduledFlight | null {
+  const deps = schedule.filter((f) => !f.arrival && f.city === to);
+  return deps.find((f) => f.at + f.late > now) ?? deps[0] ?? null;
+}
+
+/** "6h 20m" for a flight time in hours. */
+export const fmtFlightTime = (hours: number) => {
+  const m = Math.max(1, Math.round(hours * 60));
+  return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : `${m}m`;
+};
+
+/** Minutes after local midnight in a city right now. */
+export function localMinutes(marketId: string, now = Date.now()): number {
+  const tz = CITY_GEO[marketId]?.tz;
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      hour: 'numeric',
+      minute: 'numeric',
+      hourCycle: 'h23',
+      timeZone: tz,
+    }).formatToParts(new Date(now));
+    const h = Number(parts.find((p) => p.type === 'hour')?.value);
+    const m = Number(parts.find((p) => p.type === 'minute')?.value);
+    return Number.isFinite(h) && Number.isFinite(m) ? (h % 24) * 60 + m : 12 * 60;
+  } catch {
+    return 12 * 60;
+  }
+}
