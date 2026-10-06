@@ -169,6 +169,38 @@ export interface Player {
   needs?: { hunger: number; hygiene: number; fun: number; social: number };
   /** Wave 7: home acts (and 'invite') used per home month. Missing = none. */
   homeActs?: Record<string, { month: number; n: number }>;
+  /** Wave 8: money sent to other players on one real (UTC) day, for the daily limit. Missing = none. */
+  moneySent?: { day: number; total: number };
+  /** Wave 8: tech events attended in a market month (`te:<market>:<month>:<n>` ids). Missing = none. */
+  techEvents?: { month: number; ids: string[] };
+}
+
+// ---------------------------------------------------------------- Friends (Wave 8)
+
+/** An invitation to visit a player's home: it lasts the host city's month it was sent in. */
+export interface Visit {
+  id: Id;
+  hostId: Id;
+  guestId: Id;
+  /** The host's home city (where the home is). */
+  market: MarketId;
+  /** Host city month the invitation was sent (and, once accepted, the visit lasts). */
+  month: number;
+  status: 'pending' | 'accepted' | 'declined';
+}
+
+/** Going out together: a venue in a city, the people asked and the people who came. */
+export interface Hangout {
+  id: Id;
+  market: MarketId;
+  businessId: Id;
+  hostId: Id;
+  inviteeIds: Id[];
+  memberIds: Id[];
+  when: 'now' | 'tonight';
+  /** City month planned (it is over when the month ends). */
+  month: number;
+  status: 'open' | 'cancelled';
 }
 
 export type Gender = 'female' | 'male';
@@ -927,7 +959,20 @@ export interface InboxItem {
     | 'milestone'
     | 'staff';
   text: string;
-  ref?: { kind: 'deal' | 'pitch' | 'media' | 'company' | 'candidate'; id: Id };
+  ref?: {
+    kind:
+      | 'deal'
+      | 'pitch'
+      | 'media'
+      | 'company'
+      | 'candidate'
+      /** Wave 8: a visit invitation, a hangout, a tech event, or a player (money sent). */
+      | 'visit'
+      | 'hangout'
+      | 'techevent'
+      | 'player';
+    id: Id;
+  };
   read: boolean;
 }
 
@@ -1153,4 +1198,8 @@ export interface World {
   events?: Record<Id, CityEvent>;
   /** Accelerator, grant and LP applications (Wave 5). Missing on old saves = none. */
   applications?: Record<Id, CapitalApplication>;
+  /** Wave 8: home visit invitations. Missing on old saves = none. */
+  visits?: Record<Id, Visit>;
+  /** Wave 8: hangouts. Missing on old saves = none. */
+  hangouts?: Record<Id, Hangout>;
 }

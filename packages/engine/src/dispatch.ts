@@ -33,6 +33,16 @@ import { buyCar, buyFurniture, sellCar } from './shop.js';
 import { foodOrder, homeAct, homeInvite } from './needs.js';
 import { removeContact, saveContact } from './people.js';
 import {
+  acceptVisit,
+  attendTechEvent,
+  declineVisit,
+  inviteVisit,
+  joinHangout,
+  leaveHangout,
+  planHangout,
+  sendMoney,
+} from './social.js';
+import {
   applyAccelerator,
   applyGrant,
   broadcastEvent,
@@ -914,6 +924,23 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return homeInvite(world, me, cmd.personId);
     case 'food.order':
       return foodOrder(world, me, cmd.businessId, cmd.itemId);
+    // ------------------------------------------------------------ friends (Wave 8)
+    case 'money.send':
+      return sendMoney(world, me, cmd.toPlayerId, cmd.amount, cmd.note, ctx.now);
+    case 'visit.invite':
+      return inviteVisit(world, me, cmd.toPlayerId);
+    case 'visit.accept':
+      return acceptVisit(world, me, cmd.inviteId);
+    case 'visit.decline':
+      return declineVisit(world, me, cmd.inviteId);
+    case 'hangout.plan':
+      return planHangout(world, me, cmd.businessId, cmd.inviteeIds, cmd.when);
+    case 'hangout.join':
+      return joinHangout(world, me, cmd.hangoutId);
+    case 'hangout.leave':
+      return leaveHangout(world, me, cmd.hangoutId);
+    case 'techevent.attend':
+      return attendTechEvent(world, me, cmd.eventId);
     // ------------------------------------------------------------ capital programmes (Wave 5)
     case 'accelerator.apply':
       return applyAccelerator(world, me, cmd.acceleratorId, cmd.companyId);
