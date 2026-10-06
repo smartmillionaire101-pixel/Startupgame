@@ -25,7 +25,7 @@ export const cabinClassOf = (tier: number | undefined): CabinClass =>
 // ---------------------------------------------------------------------------
 // Perspective: the camera stands in the aisle at the front, eyes at y = 0.
 
-const VP = { x: 200, y: 280 };
+const VP = { x: 200, y: 236 };
 const K = 0.36;
 const sAt = (z: number) => 1 / (1 + z * K);
 /** Screen point for world (x, h) at depth z: h is down from eye level (floor = 330). */
@@ -37,11 +37,11 @@ const pt = (x: number, h: number, z: number) => {
   const p = P(x, h, z);
   return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
 };
-const FLOOR = 330;
-const CEIL = -250;
-const BIN = -140;
+const FLOOR = 290;
+const CEIL = -215;
+const BIN = -118;
 const ROWS = 6;
-const rowZ = (i: number) => 0.9 + i * 1.08;
+const rowZ = (i: number) => 0.45 + i * 1.0;
 const NEAR = -1.6;
 const FAR = rowZ(ROWS - 1) + 1.1;
 const YOUR_ROW = 2;
@@ -381,7 +381,7 @@ export function Cabin({
           fill={shade(spec.wall, -0.06)}
         />
         {Array.from({ length: ROWS + 1 }, (_, i) => {
-          const p = P(w, -60, rowZ(i) - 0.5);
+          const p = P(w, 20, rowZ(i) - 0.5);
           return (
             <g key={i}>
               <ellipse cx={p.x} cy={p.y} rx={9 * p.s} ry={26 * p.s} fill="#cbd5e1" />
@@ -601,7 +601,7 @@ export function Cabin({
         </g>
         {/* A second crew member at the galley for the take-off demo. */}
         <g
-          transform={`translate(${P(-spec.aisle - 10, FLOOR, FAR - 0.6).x} ${P(0, FLOOR, FAR - 0.6).y}) scale(${(3.4 * sAt(FAR - 0.6)).toFixed(3)})`}
+          transform={`translate(${P(-18, FLOOR, FAR - 0.15).x} ${P(0, FLOOR, FAR - 0.15).y}) scale(${(3.4 * sAt(FAR - 0.15)).toFixed(3)})`}
         >
           <AvatarFigure look={crew2} />
         </g>
