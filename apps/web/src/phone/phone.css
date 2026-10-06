@@ -1,4 +1,4 @@
-/* Wave 5 §C: the phone. */
+/* Wave 5 §C, Wave 7 §C: the phone. */
 
 .phone-fab {
   position: fixed;
@@ -23,7 +23,7 @@ body:has(.app-city) .phone-fab {
   position: absolute;
   top: -0.15rem;
   right: -0.15rem;
-  background: var(--bad);
+  background: #ef4444;
   color: #fff;
   border-radius: 999px;
   font-size: 0.7rem;
@@ -54,33 +54,47 @@ body:has(.app-city) .phone-fab {
   }
 }
 
+/* ---- The phone and its frame ------------------------------------------ */
+
 .phone {
+  --ph-bezel: #0b0f19;
+  --ph-radius: 26px;
   position: fixed;
   inset: 0;
   z-index: 25;
-  background: rgb(0 0 0 / 0.5);
+  background: rgb(2 6 23 / 0.55);
   display: flex;
   justify-content: center;
   align-items: stretch;
+  padding: 6px;
   outline: none;
 }
 .phone-frame {
+  position: relative;
   width: 100%;
-  max-width: 440px;
+  max-width: 430px;
   background: var(--bg);
   display: flex;
   flex-direction: column;
   min-height: 0;
-  animation: phone-in 0.2s ease-out;
+  border: 5px solid var(--ph-bezel);
+  border-radius: var(--ph-radius);
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.08),
+    0 24px 60px rgb(0 0 0 / 0.45);
+  animation: phone-in 0.22s ease-out;
 }
 @media (min-width: 600px) {
   .phone {
     padding: 1.5rem;
+    align-items: center;
   }
   .phone-frame {
-    border-radius: 34px;
-    border: 8px solid #0f172a;
-    overflow: hidden;
+    --ph-radius: 44px;
+    border-width: 10px;
+    height: min(860px, 100%);
+    max-width: 400px;
   }
 }
 @keyframes phone-in {
@@ -89,60 +103,202 @@ body:has(.app-city) .phone-fab {
     opacity: 0.5;
   }
 }
-.phone-bar {
+
+/* Home-screen wallpaper (also behind the status bar). */
+.phone-frame.at-home {
+  background:
+    radial-gradient(120% 70% at 10% 0%, #fdba74 0%, transparent 55%),
+    radial-gradient(120% 80% at 100% 30%, #a78bfa 0%, transparent 60%),
+    linear-gradient(170deg, #0f766e 0%, #1e1b4b 100%);
+  color: #fff;
+}
+
+/* ---- Status bar --------------------------------------------------------- */
+
+.phone-status {
+  flex: none;
   display: grid;
-  grid-template-columns: 2.6rem 1fr 2.6rem;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: calc(0.35rem + env(safe-area-inset-top)) 1.1rem 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface);
+}
+.at-home .phone-status {
+  background: transparent;
+}
+.phone-status-notch {
+  width: 4.6rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--ph-bezel);
+}
+.phone-status-right {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.phone-battery {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.phone-battery-n {
+  font-size: 0.72rem;
+}
+
+/* ---- App bar ------------------------------------------------------------ */
+
+.phone-bar {
+  flex: none;
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
   align-items: center;
   gap: 0.25rem;
-  padding: calc(0.5rem + env(safe-area-inset-top)) 0.6rem 0.5rem;
+  padding: 0.2rem 0.4rem 0.45rem;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
 .phone-title {
   margin: 0;
-  font-size: 1.05rem;
-  text-align: center;
+  font-size: 1.02rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.phone-time {
-  white-space: nowrap;
-  overflow: visible;
+.phone-title-icon {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 0.42rem;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  flex: none;
 }
-.phone-back {
+.phone-back,
+.phone-x {
+  width: 2.75rem;
+  height: 2.75rem;
   border: 0;
+  border-radius: 50%;
   background: none;
-  font-size: 1.8rem;
-  line-height: 1;
   color: var(--accent);
+  display: grid;
+  place-items: center;
   cursor: pointer;
-  padding: 0 0.4rem;
 }
+.phone-x {
+  color: var(--muted);
+}
+.phone-back:hover,
+.phone-x:hover {
+  background: var(--surface-2);
+}
+.flip {
+  transform: scaleX(-1);
+}
+
 .phone-screen {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.8rem 0.85rem calc(1rem + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
   min-height: 0;
+  animation: phone-app-in 0.18s ease-out;
+}
+@keyframes phone-app-in {
+  from {
+    transform: scale(0.97);
+    opacity: 0.4;
+  }
+}
+.phone-home-screen {
+  padding: 0.4rem 0.9rem 0.4rem;
 }
 
-.phone-glance {
-  text-align: center;
-  padding: 1rem 0 0.4rem;
+/* Home indicator: tap to close. */
+.phone-indicator {
+  flex: none;
+  height: 1.9rem;
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.phone-indicator span {
+  width: 8rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.85);
+}
+
+/* ---- Home screen -------------------------------------------------------- */
+
+.phone-home {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  gap: 0.9rem;
+}
+.phone-widget {
+  border-radius: 22px;
+  padding: 0.85rem 1rem;
+  background: rgb(255 255 255 / 0.16);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgb(255 255 255 / 0.22);
+  display: grid;
+  gap: 0.2rem;
+}
+.phone-widget-top,
+.phone-widget-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  opacity: 0.92;
+}
+.phone-widget-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 .phone-glance-cash {
-  font-size: 1.9rem;
+  font-size: 1.85rem;
   font-weight: 750;
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 .phone-apps {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem 0.5rem;
-  padding: 1rem 0.25rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.95rem 0.2rem;
+  align-content: start;
+  flex: 1;
+}
+.phone-dock {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.2rem;
+  padding: 0.6rem 0.3rem 0.45rem;
+  border-radius: 26px;
+  background: rgb(255 255 255 / 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.phone-dock .phone-app-label {
+  display: none;
 }
 .phone-app {
   border: 0;
@@ -150,66 +306,129 @@ body:has(.app-city) .phone-fab {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
   cursor: pointer;
-  color: var(--text);
+  color: inherit;
   font: inherit;
+  min-width: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 .phone-app-icon {
   position: relative;
-  width: 3.6rem;
-  height: 3.6rem;
-  border-radius: 1rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 15px;
   display: grid;
   place-items: center;
-  font-size: 1.7rem;
-  box-shadow: var(--shadow);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    0 4px 10px rgb(0 0 0 / 0.22);
+  transition: transform 0.15s ease-out;
 }
-.tone-green .phone-app-icon {
-  background: #bbf7d0;
+.phone-app:active .phone-app-icon {
+  transform: scale(0.92);
 }
-.tone-red .phone-app-icon {
-  background: #fecaca;
-}
-.tone-blue .phone-app-icon {
-  background: #bfdbfe;
-}
-.tone-gold .phone-app-icon {
-  background: #fde68a;
-}
-.tone-teal .phone-app-icon {
-  background: #99f6e4;
-}
-.tone-violet .phone-app-icon {
-  background: #ddd6fe;
+.phone-app:focus-visible .phone-app-icon {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
 }
 .phone-app-label {
-  font-size: 0.82rem;
+  font-size: 0.74rem;
+  font-weight: 550;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
 }
 .phone-app-badge,
 .phone-unread {
-  background: var(--bad);
+  background: #ef4444;
   color: #fff;
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 700;
-  min-width: 1.25rem;
-  line-height: 1.25rem;
-  padding: 0 0.3rem;
+  min-width: 1.3rem;
+  line-height: 1.3rem;
+  padding: 0 0.32rem;
   text-align: center;
 }
 .phone-app-badge {
   position: absolute;
-  top: -0.35rem;
-  right: -0.35rem;
+  top: -0.4rem;
+  right: -0.4rem;
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.15);
 }
 
+/* ---- Notification banner ------------------------------------------------ */
+
+.phone-banner-slot {
+  position: fixed;
+  top: calc(0.5rem + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: min(400px, calc(100vw - 1rem));
+  animation: phone-banner-in 0.25s ease-out;
+}
+@keyframes phone-banner-in {
+  from {
+    transform: translate(-50%, -140%);
+  }
+}
+.phone-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  text-align: left;
+  padding: 0.65rem 0.8rem;
+  border-radius: 20px;
+  border: 1px solid rgb(255 255 255 / 0.15);
+  background: rgb(23 23 23 / 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+}
+.phone-banner-icon {
+  flex: none;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.65rem;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+.phone-banner-title {
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+.phone-banner-text {
+  font-size: 0.82rem;
+  opacity: 0.85;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---- Rows, lists, cards ------------------------------------------------- */
+
 .phone-h {
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--muted);
-  margin: 0.6rem 0 0.3rem;
+  margin: 0.5rem 0 0.25rem;
+}
+.phone-stack {
+  display: grid;
+  gap: 0.65rem;
 }
 .phone-list {
   list-style: none;
@@ -220,23 +439,28 @@ body:has(.app-city) .phone-fab {
 }
 .phone-row {
   width: 100%;
+  min-height: 3.2rem;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.65rem;
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 0.6rem 0.7rem;
+  padding: 0.55rem 0.7rem;
   cursor: pointer;
   color: var(--text);
   font: inherit;
+}
+.phone-row:active {
+  background: var(--surface-2);
 }
 .phone-row.static {
   cursor: default;
   border: 0;
   padding: 0;
   background: none;
+  min-height: 0;
 }
 .phone-row.read {
   opacity: 0.65;
@@ -258,6 +482,21 @@ body:has(.app-city) .phone-fab {
   text-align: right;
   white-space: nowrap;
 }
+.phone-row-icon {
+  flex: none;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.7rem;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--muted);
+}
+.phone-go {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent);
+}
 .phone-avatar {
   flex: none;
   width: 2.4rem;
@@ -273,10 +512,6 @@ body:has(.app-city) .phone-fab {
 .phone-avatar.ai {
   background: var(--surface-2);
   color: var(--text);
-}
-.phone-alert-icon {
-  flex: none;
-  font-size: 1.2rem;
 }
 .phone-dot {
   flex: none;
@@ -294,8 +529,594 @@ body:has(.app-city) .phone-fab {
   border-radius: 14px;
   padding: 0.6rem 0.7rem;
   display: grid;
+  gap: 0.45rem;
+}
+.phone-contact-actions {
+  flex-wrap: wrap;
+}
+.phone-note {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+.phone-nothing {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  text-align: center;
+  padding: 1.6rem 1rem;
+  color: var(--muted);
+}
+.phone-nothing p {
+  margin: 0;
+  max-width: 28ch;
+}
+.phone-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.phone-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 0.8rem 0.9rem;
+  display: grid;
   gap: 0.4rem;
 }
+.phone-card .phone-h {
+  margin-top: 0;
+}
+.phone-hero {
+  color: #fff;
+  border: 0;
+  background: linear-gradient(140deg, #0f766e, #134e4a);
+}
+.phone-hero .muted,
+.phone-hero .small {
+  color: rgb(255 255 255 / 0.85);
+}
+.phone-hero .good,
+.phone-hero .bad {
+  color: #fff;
+}
+.phone-hero .btn-ghost {
+  color: #fff;
+  border-color: rgb(255 255 255 / 0.5);
+}
+.phone-hero.tone-bank {
+  background: linear-gradient(140deg, #0f766e, #0c4a6e);
+}
+.phone-hero.tone-founder {
+  background: linear-gradient(140deg, #ea580c, #9a3412);
+}
+.phone-hero.tone-house {
+  background: linear-gradient(140deg, #15803d, #14532d);
+}
+.phone-hero.tone-teal {
+  background: linear-gradient(140deg, #57534e, #292524);
+}
+.phone-hero-big {
+  font-size: 1.7rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.phone-hero-sub {
+  font-weight: 650;
+}
+.phone-kpis {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+}
+.phone-kpis > div {
+  display: grid;
+}
+.phone-kpis strong {
+  font-size: 1.1rem;
+}
+.phone-warn {
+  color: #fecaca;
+}
+.phone-quick-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.phone-quick-actions .btn,
+.phone-amounts .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+.phone-amounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.phone-line {
+  gap: 0.75rem;
+}
+.phone-line > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.phone-line > :last-child {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Meters (needs) */
+.phone-meter {
+  display: grid;
+  grid-template-columns: auto 5.2rem 1fr 2rem;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+}
+.phone-meter-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.phone-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #22c55e;
+  transition: width 0.25s ease-out;
+}
+.phone-meter.tone-warn .phone-meter-fill {
+  background: #f59e0b;
+}
+.phone-meter.tone-bad .phone-meter-fill {
+  background: #ef4444;
+}
+.phone-meter-n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fit rings */
+.phone-rings {
+  grid-template-columns: 1fr 1fr;
+  justify-items: center;
+}
+.phone-ring {
+  --v: 0;
+  width: 6.6rem;
+  height: 6.6rem;
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  background:
+    radial-gradient(closest-side, var(--surface) 78%, transparent 80%),
+    conic-gradient(#f59e0b calc(var(--v) * 1%), var(--surface-2) 0);
+}
+.phone-ring.mood {
+  background:
+    radial-gradient(closest-side, var(--surface) 78%, transparent 80%),
+    conic-gradient(#ec4899 calc(var(--v) * 1%), var(--surface-2) 0);
+}
+.phone-ring strong {
+  font-size: 1.3rem;
+  line-height: 1.1;
+}
+
+/* Bank */
+.phone-score {
+  font-weight: 700;
+}
+.phone-score.tone-good {
+  color: var(--good);
+}
+.phone-score.tone-warn {
+  color: var(--warn, #b45309);
+}
+.phone-score.tone-bad {
+  color: var(--bad);
+}
+.phone-score-bar {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ef4444, #f59e0b, #22c55e);
+  position: relative;
+  opacity: 0.9;
+}
+.phone-score-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-right: 3px solid var(--text);
+}
+.phone-loan {
+  display: grid;
+  gap: 0.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed var(--line);
+}
+.phone-tx {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+.phone-tx li > :last-child {
+  white-space: nowrap;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.phone-tx-memo {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Chop */
+.phone-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.phone-menu li {
+  gap: 0.6rem;
+}
+.phone-arriving {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #78350f;
+}
+.phone-arriving .small {
+  color: #92400e;
+}
+.phone-arriving-icon {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #f59e0b;
+  color: #fff;
+  animation: phone-bob 0.9s ease-in-out infinite alternate;
+}
+@keyframes phone-bob {
+  to {
+    transform: translateX(6px);
+  }
+}
+
+/* Rides */
+.phone-where {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.phone-where input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 1rem;
+  padding: 0.55rem 0;
+}
+.phone-trip-line {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.phone-trip-line .item-title {
+  flex: 1;
+}
+.phone-trip-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: #22c55e;
+  flex: none;
+}
+.phone-trip-dot.to {
+  border-radius: 2px;
+  background: var(--text);
+}
+.phone-rides {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.phone-ride {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-radius: 16px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.phone-ride[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.phone-ride-icon {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+}
+.phone-ride-fare {
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+/* Invest */
+.phone-ticker {
+  margin: 0 -0.85rem;
+  overflow-x: auto;
+  background: #0b1220;
+  color: #e2e8f0;
+}
+.phone-ticker ul {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.85rem;
+  display: flex;
+  gap: 1rem;
+  width: max-content;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+.phone-ticker li {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: baseline;
+}
+.phone-ticker-sym {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.phone-ticker .good {
+  color: #4ade80;
+}
+.phone-ticker .bad {
+  color: #f87171;
+}
+.phone-ticker-news {
+  font-size: 0.7rem;
+  padding: 0 0.3rem;
+  border-radius: 4px;
+  background: #fbbf24;
+  color: #111;
+}
+.phone-deal {
+  gap: 0.3rem;
+}
+
+/* Travel */
+.phone-flight {
+  gap: 0.3rem;
+}
+.phone-flight-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.phone-flight-top .item-title {
+  flex: 1;
+  min-width: 0;
+}
+.phone-flight-time {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-weight: 750;
+  font-size: 1.05rem;
+  color: #b45309;
+}
+.phone-flight-fare {
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+/* Map */
+.phone-map-filter {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+}
+.phone-map-filter .chip {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.phone-swatch {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+}
+.phone-map-wrap {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #bfdbfe;
+}
+.phone-map-scroll {
+  overflow: auto;
+  max-height: 58vh;
+}
+.phone-map {
+  display: block;
+  min-width: 100%;
+  height: auto;
+}
+.phone-map-land {
+  fill: #d6d3d1;
+}
+.phone-map-water {
+  fill: #60a5fa;
+}
+.phone-map-block {
+  stroke: #fff;
+  stroke-width: 1.2;
+}
+.phone-map-place {
+  cursor: pointer;
+}
+.phone-map-place circle + circle {
+  stroke: #fff;
+  stroke-width: 2;
+}
+.phone-map-place text {
+  fill: #0f172a;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.phone-map-place.on circle + circle {
+  stroke: #0f172a;
+  stroke-width: 5;
+}
+.phone-map-place:focus-visible {
+  outline: none;
+}
+.phone-map-place:focus-visible circle + circle {
+  stroke: var(--accent);
+  stroke-width: 5;
+}
+.phone-map-zoom {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: grid;
+  gap: 0.3rem;
+}
+.phone-map-zoom button {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  border: 0;
+  background: rgb(255 255 255 / 0.95);
+  color: #0f172a;
+  font-size: 1.2rem;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
+  cursor: pointer;
+}
+.phone-map-zoom button:disabled {
+  opacity: 0.45;
+}
+.phone-map-list summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 0.3rem 0;
+}
+
+/* Social */
+.phone-post-item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.6rem 0.7rem;
+}
+
+/* Settings */
+.phone-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  cursor: pointer;
+  position: relative;
+}
+.phone-toggle + .phone-toggle {
+  border-top: 1px solid var(--line);
+}
+.phone-toggle input {
+  position: absolute;
+  opacity: 0;
+  right: 0;
+  width: 3.1rem;
+  height: 1.85rem;
+  margin: 0;
+  cursor: pointer;
+}
+.phone-switch {
+  flex: none;
+  width: 3.1rem;
+  height: 1.85rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  position: relative;
+  transition: background 0.2s ease-out;
+}
+.phone-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(1.85rem - 6px);
+  height: calc(1.85rem - 6px);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  transition: transform 0.2s ease-out;
+}
+.phone-toggle input:checked + .phone-switch {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+.phone-toggle input:checked + .phone-switch::after {
+  transform: translateX(1.25rem);
+}
+.phone-toggle input:focus-visible + .phone-switch {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* News (the screen, inside the phone) */
+.phone-news > h1 {
+  display: none;
+}
+.phone-news .tabs {
+  margin-top: 0;
+}
+
+/* ---- Messages ------------------------------------------------------------- */
 
 .phone-thread {
   display: flex;
@@ -330,6 +1151,9 @@ body:has(.app-city) .phone-fab {
   flex: 1;
   min-width: 0;
 }
+.phone-post {
+  position: static;
+}
 .phone-typing {
   display: flex;
   gap: 0.25rem;
@@ -354,38 +1178,6 @@ body:has(.app-city) .phone-fab {
   }
 }
 
-.phone-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 0.75rem 0.85rem;
-  display: grid;
-  gap: 0.35rem;
-}
-.phone-card .phone-h {
-  margin-top: 0;
-}
-.phone-cash {
-  background: linear-gradient(135deg, #0f766e, #134e4a);
-  color: #fff;
-  border: 0;
-}
-.phone-wallet {
-  display: grid;
-  gap: 0.6rem;
-}
-.phone-line {
-  gap: 0.75rem;
-}
-.phone-line > :first-child {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.phone-line > :last-child {
-  white-space: nowrap;
-  font-weight: 600;
-}
-
 /* Inbox items on Home are buttons too. */
 .inbox-item {
   width: 100%;
@@ -400,8 +1192,19 @@ body:has(.app-city) .phone-fab {
 
 @media (prefers-reduced-motion: reduce) {
   .phone-frame,
+  .phone-screen,
+  .phone-banner-slot,
+  .phone-arriving-icon,
   .phone-fab.buzz,
   .phone-typing span {
     animation: none;
   }
+}
+:root[data-reduce-motion] .phone-frame,
+:root[data-reduce-motion] .phone-screen,
+:root[data-reduce-motion] .phone-banner-slot,
+:root[data-reduce-motion] .phone-arriving-icon,
+:root[data-reduce-motion] .phone-fab.buzz,
+:root[data-reduce-motion] .phone-typing span {
+  animation: none;
 }

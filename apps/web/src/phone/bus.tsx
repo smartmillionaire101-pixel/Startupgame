@@ -2,11 +2,33 @@
  * Opening the phone from anywhere (a person card's "Chat", a contact), and
  * the navigation the phone and the Home inbox share.
  */
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useSyncExternalStore } from 'react';
 import type { PlayerView } from '@runway/engine';
 import type { Target } from './navigate';
 
-export type PhoneApp = 'home' | 'messages' | 'alerts' | 'contacts' | 'wallet' | 'jobs' | 'map';
+/**
+ * The phone's screens. 'home' is the home screen; 'house' is the Home app
+ * (your flat). 'wallet' is the Wave 5 name of the Bank app and still opens it.
+ */
+export type PhoneApp =
+  | 'home'
+  | 'messages'
+  | 'alerts'
+  | 'contacts'
+  | 'wallet'
+  | 'jobs'
+  | 'map'
+  | 'rides'
+  | 'chop'
+  | 'bank'
+  | 'invest'
+  | 'fit'
+  | 'founder'
+  | 'news'
+  | 'travel'
+  | 'house'
+  | 'social'
+  | 'settings';
 
 export interface PhoneOpen {
   app?: PhoneApp;
@@ -16,17 +38,57 @@ export interface PhoneOpen {
   player?: string;
   /** Text to put in the message box, or send at once to an AI character. */
   say?: string;
+  /** Contacts: open the picker to invite someone over (`home.invite`). */
+  invite?: boolean;
 }
 
 const listeners = new Set<(o: PhoneOpen) => void>();
+/** An open request made before the phone mounted (e.g. while it lazy-loads). */
+let queued: PhoneOpen | null = null;
 
 export function openPhone(o: PhoneOpen = {}) {
+  if (!listeners.size) {
+    queued = o;
+    return;
+  }
   for (const l of listeners) l(o);
 }
 
 export function onPhone(cb: (o: PhoneOpen) => void): () => void {
   listeners.add(cb);
+  if (queued) {
+    const o = queued;
+    queued = null;
+    cb(o);
+  }
   return () => listeners.delete(cb);
+}
+
+// ---------------------------------------------------------------------------
+// The phone's badge (unread messages + alerts), for a phone button elsewhere
+// (the top bar). The phone itself keeps it up to date.
+
+let badge = 0;
+const badgeListeners = new Set<() => void>();
+
+export function setPhoneBadge(n: number) {
+  if (n === badge) return;
+  badge = n;
+  for (const l of badgeListeners) l();
+}
+
+export const getPhoneBadge = () => badge;
+
+/** Unread messages and alerts, live. */
+export function usePhoneBadge(): number {
+  return useSyncExternalStore(
+    (cb) => {
+      badgeListeners.add(cb);
+      return () => badgeListeners.delete(cb);
+    },
+    getPhoneBadge,
+    getPhoneBadge,
+  );
 }
 
 /** The AI chat id for a city character (fund partners, AI founders, owners and angels). */
