@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type AiThread, type ChatMessage, type ChatSummary } from '../../api';
 import { getLang, t, tx } from '../../i18n';
 import { useView } from '../../store';
-import { Button, Empty } from '../../ui';
+import { Button, Empty, EmptyState } from '../../ui';
 import { visitPlace } from '../../city/goto';
 import { businessesOf } from '../../city/contract';
 import { cityViewOf, hereOf } from '../../city/travel';
@@ -131,7 +131,9 @@ export function MessagesList({
     <>
       <Button onClick={onNew}>{t('New message')}</Button>
       {convos.length === 0 ? (
-        <Empty>{t('No conversations yet. Say hello to someone in town.')}</Empty>
+        <EmptyState icon="people">
+          {t('No conversations yet. Say hello to someone in town.')}
+        </EmptyState>
       ) : (
         <ul className="phone-list" aria-label={t('Conversations')}>
           {convos.map((c) => (
