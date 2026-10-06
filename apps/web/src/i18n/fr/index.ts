@@ -5,6 +5,7 @@ import { city } from './city';
 import { company } from './company';
 import { economy } from './economy';
 import { entry } from './entry';
+import { home } from './home';
 import { me } from './me';
 import { money } from './money';
 import { people } from './people';
@@ -20,6 +21,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   city,
   economy,
   entry,
+  home,
   company,
   money,
   me,
