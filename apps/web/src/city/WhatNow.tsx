@@ -10,6 +10,7 @@ import { Card } from '../ui';
 import { suggestionsFor, type Suggestion } from './whatnow';
 
 const ICON: Record<Suggestion['kind'], string> = {
+  fun: '🎉',
   job: '💼',
   gig: '🧾',
   eat: '🍽',
@@ -25,6 +26,13 @@ const ICON: Record<Suggestion['kind'], string> = {
 export function suggestionText(s: Suggestion, cur: string): { label: string; why: string } {
   const amount = s.amount !== undefined ? money(s.amount, cur) : '';
   switch (s.kind) {
+    case 'fun':
+      return {
+        label: s.night
+          ? t('Tonight: {place} is busy', { place: s.name })
+          : t('Have some fun at {place}', { place: s.name }),
+        why: t('{activity} for {price}', { activity: tx(s.detail ?? ''), price: amount }),
+      };
     case 'job':
       return {
         label: t('Get a job at {place}', { place: s.name }),

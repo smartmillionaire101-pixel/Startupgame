@@ -966,6 +966,7 @@ export function Interior({
           players={players}
           abroad={!!away}
           onFlyHome={away?.onFlyHome}
+          places={layout.places}
         >
           {body}
         </PlaceScene>
