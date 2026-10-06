@@ -28,7 +28,7 @@ test('a player switches to French before signing in and plays in French', async 
   ).toBeVisible();
   await page.getByRole('button', { name: 'Commencer' }).click();
 
-  await expect(page.getByRole('button', { name: /Accueil/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Aujourd’hui/ })).toBeVisible();
   // Kigali money is shown in Rwandan francs.
   await expect(page.getByText(/FRw/).first()).toBeVisible();
 });

@@ -5,17 +5,25 @@
 /* The build doesn't use the React Compiler; these memos are deliberate (they keep the
    static SVG scene from re-rendering), so its preservation check doesn't apply. */
 /* eslint-disable react-hooks/preserve-manual-memoization */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { Command, PlayerView } from '@runway/engine';
 import './city.css';
 import { api, ApiError } from '../api';
 import { money, runway } from '../format';
 import { t, tx, useLang } from '../i18n';
 import { useView, WithView } from '../store';
-import { Button, Pill, Sheet } from '../ui';
+import { Button, Icon, Pill, Sheet } from '../ui';
 import { avatarLook } from './art';
 import { CityMap, districtLabel, placeAvatarAt, type CityMapHandle, type FarTrip } from './CityMap';
-import { FlightScene } from './Flight';
 import { MonthCountdown, RideChooser, RideIcon } from './Transport';
 import {
   cityViewOf,
@@ -41,8 +49,10 @@ import {
 } from './contract';
 import { onVisit, takeVisit } from './goto';
 import { genderOf } from './life';
-import { WhatNowCard, WhatNowList } from './WhatNow';
-import { Interior, placeLabel, type Nav } from './Interiors';
+import { suggestionText, WhatNowCard, WhatNowList } from './WhatNow';
+import { suggestionsFor } from './whatnow';
+import type { Nav } from './Interiors';
+import { useRiding } from './riding';
 import { crowdSize, eventsOf, flaggedPlaces, newBusinessIds, passersBy } from './people';
 import { PersonCard, type PersonRef } from './PersonCard';
 import { WhoIsAround } from './WhoIsHere';
@@ -56,6 +66,10 @@ import {
   type Pt,
 } from './layout';
 
+// Scenes and flights load on demand (Wave 7 §D: a small main bundle).
+const Interior = lazy(() => import('./Interiors').then((m) => ({ default: m.Interior })));
+const FlightScene = lazy(() => import('./Flight').then((m) => ({ default: m.FlightScene })));
+
 const kindLabel = (p: Place, companyName: string | null, abroad: boolean, _lang?: string) =>
   (
     ({
@@ -68,6 +82,18 @@ const kindLabel = (p: Place, companyName: string | null, abroad: boolean, _lang?
       eventhall: t('Event Hall'),
     }) as Partial<Record<Place['kind'], string>>
   )[p.kind] ?? p.name;
+
+/** A story step's place, in words (as the interiors name it). */
+const placeLabel = (p: StoryPlace) =>
+  ({
+    bank: t('Finance Row'),
+    investors: t('Investor Quarter'),
+    market: t('The Market'),
+    hub: t('The Hub'),
+    office: t('Your office'),
+    home: t('Your home'),
+    airport: t('Airport'),
+  })[p] ?? p;
 
 /** The building a story or rescue action points at. */
 function placeFor(layout: CityLayout, where: StoryPlace): Place | undefined {
@@ -292,16 +318,18 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
     <>
       {abroad ? <WithView view={cityView}>{body}</WithView> : body}
       {flight && !lite && (
-        <FlightScene
-          from={flight.from}
-          to={flight.to}
-          fromName={flight.fromName}
-          toName={flight.toName}
-          hours={flight.hours}
-          status={flight.status}
-          note={flight.note}
-          onDone={done}
-        />
+        <Suspense fallback={null}>
+          <FlightScene
+            from={flight.from}
+            to={flight.to}
+            fromName={flight.fromName}
+            toName={flight.toName}
+            hours={flight.hours}
+            status={flight.status}
+            note={flight.note}
+            onDone={done}
+          />
+        </Suspense>
       )}
     </>
   );
@@ -349,22 +377,10 @@ function CityBody({
   const [trip, setTrip] = useState<FarTrip | null>(null);
   const [rideBusy, setRideBusy] = useState(false);
   const [preferred, setPreferred] = useState<RideMode>(lastRide);
+  // "What to do now" is a one-line chip until you open it (Wave 7), and it
+  // stays out of the way during a ride.
   const [whatNowSheet, setWhatNowSheet] = useState(false);
-  const [whatNow, setWhatNow] = useState(() => {
-    try {
-      return sessionStorage.getItem('rw_whatnow') !== '0';
-    } catch {
-      return true;
-    }
-  });
-  const showWhatNow = (v: boolean) => {
-    setWhatNow(v);
-    try {
-      sessionStorage.setItem('rw_whatnow', v ? '1' : '0');
-    } catch {
-      /* storage unavailable: lasts until the City closes */
-    }
-  };
+  const riding = useRiding();
   const mapRef = useRef<CityMapHandle | null>(null);
 
   // Rebuild the layout only when what it depends on changes.
@@ -483,6 +499,8 @@ function CityBody({
     },
     [trip, refresh, toast],
   );
+  const tips = suggestionsFor(view);
+  const firstTip = tips[0] ? suggestionText(tips[0], view.market.currency).label : '';
   const tripPlace = trip?.placeId ? layout.places.find((p) => p.id === trip.placeId) : undefined;
 
   const clock = clockOf(view);
@@ -572,7 +590,7 @@ function CityBody({
               aria-label={t('Zoom in')}
               onClick={() => mapRef.current?.zoom(1.3)}
             >
-              +
+              <Icon name="plus" />
             </button>
             <button
               type="button"
@@ -580,7 +598,7 @@ function CityBody({
               aria-label={t('Zoom out')}
               onClick={() => mapRef.current?.zoom(1 / 1.3)}
             >
-              −
+              <Icon name="minus" />
             </button>
             <button
               type="button"
@@ -588,7 +606,7 @@ function CityBody({
               aria-label={t('Centre on me')}
               onClick={() => mapRef.current?.recentre()}
             >
-              ◎
+              <Icon name="locate" />
             </button>
           </div>
           <div className="city-hud city-hud-bottom">
@@ -606,7 +624,7 @@ function CityBody({
               />
             ) : (
               <>
-                {alarm && !abroad ? (
+                {alarm && !abroad && (
                   <div className={`hud-banner hud-${alarm.level}`} role="status">
                     <span>
                       <b>{t('Rescue plan')}</b>
@@ -616,63 +634,46 @@ function CityBody({
                       {t('See the plan')}
                     </Button>
                   </div>
-                ) : whatNow ? (
-                  <section className="hud-whatnow" aria-label={t('What to do now')}>
-                    <div className="hud-whatnow-head">
-                      <h2>{t('What to do now')}</h2>
-                      <button
-                        type="button"
-                        className="hud-whatnow-close"
-                        aria-label={t('Hide')}
-                        onClick={() => showWhatNow(false)}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <WhatNowList onGo={visit} />
-                  </section>
-                ) : next && markerPlace ? (
-                  <div className="hud-banner" role="status">
-                    <span>
-                      <b>{tx(next.label)}</b> · {placeLabel(next.place)}
-                    </span>
-                    <Button variant="subtle" onClick={() => goTo(markerPlace)}>
-                      {t('Go')}
-                    </Button>
-                  </div>
-                ) : rescue && !abroad ? (
-                  <p className="hud-hint">
-                    {t('Cash for about {n} months: build revenue or plan a raise.', {
-                      n: rescue.monthsLeft ?? '?',
-                    })}
-                  </p>
-                ) : (
-                  <p className="hud-hint">{t('Tap a street to walk, a building to go in.')}</p>
                 )}
-                <div className="hud-stack">
-                  {!(whatNow && !(alarm && !abroad)) && (
+                <div className="hud-row-bottom">
+                  {!riding && (
+                    <button
+                      type="button"
+                      className="hud-whatnow-chip"
+                      aria-haspopup="dialog"
+                      onClick={() => setWhatNowSheet(true)}
+                    >
+                      <Icon name="spark" size={18} />
+                      <span className="hud-whatnow-label">{t('What to do now')}</span>
+                      {firstTip && <span className="hud-whatnow-tip">{firstTip}</span>}
+                    </button>
+                  )}
+                  <div className="hud-stack">
                     <button
                       type="button"
                       className="hud-places"
-                      onClick={() => (alarm && !abroad ? setWhatNowSheet(true) : showWhatNow(true))}
+                      onClick={() => setPeopleOpen(true)}
                     >
-                      <span aria-hidden>✦</span> {t('What to do now')}
-                    </button>
-                  )}
-                  <button type="button" className="hud-places" onClick={() => setPeopleOpen(true)}>
-                    <span aria-hidden>☺</span> {t('Who’s here')}
-                    {players.length > 0 && (
-                      <span className="hud-count">
-                        <span className="sr-only">
-                          {t('{n} players nearby', { n: players.length })}
+                      <Icon name="people" size={20} />
+                      <span className="hud-btn-label">{t('Who’s here')}</span>
+                      {players.length > 0 && (
+                        <span className="hud-count">
+                          <span className="sr-only">
+                            {t('{n} players nearby', { n: players.length })}
+                          </span>
+                          <span aria-hidden>{players.length}</span>
                         </span>
-                        <span aria-hidden>{players.length}</span>
-                      </span>
-                    )}
-                  </button>
-                  <button type="button" className="hud-places" onClick={() => setPlacesOpen(true)}>
-                    ☰ {t('Places')}
-                  </button>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="hud-places"
+                      onClick={() => setPlacesOpen(true)}
+                    >
+                      <Icon name="list" size={20} />
+                      <span className="hud-btn-label">{t('Places')}</span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -681,12 +682,22 @@ function CityBody({
       )}
       {whatNowSheet && (
         <Sheet title={t('What to do now')} onClose={() => setWhatNowSheet(false)}>
-          <WhatNowList
-            onGo={(id) => {
-              setWhatNowSheet(false);
-              visit(id);
-            }}
-          />
+          <div className="hud-whatnow">
+            <WhatNowList
+              onGo={(id) => {
+                setWhatNowSheet(false);
+                visit(id);
+              }}
+            />
+            {next && markerPlace && (
+              <p className="small muted">
+                {t('Next for your company: {step} · {place}', {
+                  step: tx(next.label),
+                  place: placeLabel(next.place),
+                })}
+              </p>
+            )}
+          </div>
         </Sheet>
       )}
       {placesOpen && (
@@ -708,41 +719,45 @@ function CityBody({
         </Sheet>
       )}
       {inside && (
-        <Interior
-          place={inside}
-          layout={layout}
-          title={labelOf(inside)}
-          onClose={() => setInside(null)}
-          onGo={goToStory}
-          onVisit={visit}
-          players={players}
-          desk={{
-            destinations,
-            currency: home.currency,
-            onFly: (to) => {
+        <Suspense
+          fallback={<div className="scene-loading" role="status" aria-label={t('Loading…')} />}
+        >
+          <Interior
+            place={inside}
+            layout={layout}
+            title={labelOf(inside)}
+            onClose={() => setInside(null)}
+            onGo={goToStory}
+            onVisit={visit}
+            players={players}
+            desk={{
+              destinations,
+              currency: home.currency,
+              onFly: (to) => {
+                setInside(null);
+                onFly(to);
+              },
+            }}
+            homeId={home.id}
+            scene={!lite}
+            onPerson={setPerson}
+            away={
+              abroad
+                ? {
+                    homeName: home.name,
+                    onFlyHome: () => {
+                      setInside(null);
+                      onFlyHome();
+                    },
+                  }
+                : null
+            }
+            nav={(tab) => {
               setInside(null);
-              onFly(to);
-            },
-          }}
-          homeId={home.id}
-          scene={!lite}
-          onPerson={setPerson}
-          away={
-            abroad
-              ? {
-                  homeName: home.name,
-                  onFlyHome: () => {
-                    setInside(null);
-                    onFlyHome();
-                  },
-                }
-              : null
-          }
-          nav={(tab) => {
-            setInside(null);
-            onNavigate(tab);
-          }}
-        />
+              onNavigate(tab);
+            }}
+          />
+        </Suspense>
       )}
       {person && (
         <PersonCard

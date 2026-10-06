@@ -1738,6 +1738,22 @@ export function avatarLook(
   };
 }
 
+/**
+ * Wave 7 scale on the map: people are drawn at 0.6 (about 25 px tall at
+ * zoom 1, against 15–34 px shop walls) and your ride at the same scale as the
+ * traffic. Interiors keep their own, larger figures.
+ */
+export const MAP_FIGURE_SCALE = 0.6;
+export const MAP_RIDE_SCALE = 1;
+
+/**
+ * Depth on the map: everything is ordered by its iso base (x + y in tiles).
+ * The skyline is cut into bands this many tiles deep, with an empty slot after
+ * each band that moving people and vehicles are put into.
+ */
+export const DEPTH_STEP = 0.5;
+export const depthBand = (depth: number) => Math.floor(depth / DEPTH_STEP);
+
 /** A small vector character with feet at (0,0). Legs swing when the parent has .is-walking. */
 export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string }) {
   const { skin, hair, hairStyle, top, bottom, accessory } = look;

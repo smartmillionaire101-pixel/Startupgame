@@ -9,7 +9,7 @@
  * accelerator.apply, grant.apply, lp.pitch, pitch.angel, event.broadcast)
  * are offered only when the view carries the data they need.
  */
-import { createContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import './scenes.css';
 import type { PlayerView } from '@runway/engine';
 import { money } from '../format';
@@ -575,6 +575,26 @@ export function PlaceScene({
     .map((o, n) => ({ o, slot: seats[n]! >= 0 ? slots[seats[n]!]! : null }))
     .filter((x): x is { o: Occupant; slot: (typeof slots)[number] } => x.slot !== null);
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
+  // Wave 7: the count shown is the people drawn, plus "+k" for any without a seat.
+  const unseated = occupants.length - placed.length;
+  // The part of the room you can see (the art is cropped to fit), so name
+  // tags can be kept inside it.
+  const roomRef = useRef<HTMLDivElement>(null);
+  const [vis, setVis] = useState<[number, number]>([0, 360]);
+  useLayoutEffect(() => {
+    const el = roomRef.current;
+    if (!el) return;
+    const measure = () => {
+      const { width: w, height: h } = el.getBoundingClientRect();
+      if (!w || !h) return;
+      const vw = w / Math.max(w / 360, h / 320);
+      setVis((v) => (Math.abs(v[0] - (180 - vw / 2)) < 0.5 ? v : [180 - vw / 2, 180 + vw / 2]));
+    };
+    measure();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, []);
 
   // ---- Things to do: the price, then whether you'll meet people or rest.
   const funSub = (it: VenueItemView) =>
@@ -1021,7 +1041,7 @@ export function PlaceScene({
           ✕
         </button>
       </header>
-      <div className="place-room">
+      <div className="place-room" ref={roomRef}>
         <svg
           viewBox="0 -80 360 320"
           preserveAspectRatio="xMidYMax slice"
@@ -1038,7 +1058,7 @@ export function PlaceScene({
           {placed
             .filter((x) => x.slot.sit)
             .map((x) => (
-              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} />
+              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} vis={vis} />
             ))}
           <RoomFront
             kind={room}
@@ -1049,7 +1069,7 @@ export function PlaceScene({
             .filter((x) => !x.slot.sit)
             .sort((a, b) => a.slot.y - b.slot.y)
             .map((x) => (
-              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} />
+              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} vis={vis} />
             ))}
           <g
             className="scene-you"
@@ -1059,6 +1079,14 @@ export function PlaceScene({
           </g>
         </svg>
         <WhoIsHere place={place} players={players} />
+        <span
+          className="scene-count"
+          data-drawn={placed.length}
+          aria-label={t('{n} people here', { n: placed.length + unseated })}
+        >
+          {t('{n} here', { n: placed.length })}
+          {unseated > 0 && <b> +{unseated}</b>}
+        </span>
       </div>
       {more ? (
         <div className="place-more">
@@ -1112,14 +1140,21 @@ export function PlaceScene({
 }
 
 /** One person in the room, doing their thing; tap for their card. */
+/** Move a name tag sideways just enough to stay inside the visible room. */
+const tagShift = (x: number, half: number, [x0, x1]: [number, number]) =>
+  Math.round(Math.max(x0 + half, Math.min(x1 - half, x)) - x);
+
 function Person({
   o,
   slot,
   onTap,
+  vis = [0, 360],
 }: {
   o: Occupant;
   slot: { x: number; y: number; act: Activity; flip?: boolean };
   onTap: (p: PersonRef) => void;
+  /** The visible x range of the room, to keep the name tag inside it. */
+  vis?: [number, number];
 }) {
   const look = useMemo(() => avatarLook(o.bg, o.id, o.gender), [o.bg, o.id, o.gender]);
   const s = 1.3 + ((slot.y - 140) / 100) * 0.65;
@@ -1149,7 +1184,10 @@ function Person({
         </g>
       </g>
       {o.tag && (
-        <g className="scene-tag" transform={`translate(0 ${-48 * s - 4})`}>
+        <g
+          className="scene-tag"
+          transform={`translate(${tagShift(slot.x, o.name.length * 2.6 + 6, vis)} ${-48 * s - 4})`}
+        >
           <rect
             x={-o.name.length * 2.6 - 5}
             y="-7"

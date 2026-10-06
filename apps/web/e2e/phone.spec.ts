@@ -72,26 +72,24 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
     1,
   );
 
-  // Alerts: the reporter's welcome note opens the News tab.
+  // Alerts: the reporter's welcome note opens the News screen.
   await phone.getByRole('button', { name: 'Back' }).click();
   await phone.locator('[data-app="alerts"]').click();
   await phone.locator('[data-alert="reporter"]').first().click();
   await expect(phone).toBeHidden();
-  await expect(
-    page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'News' }),
-  ).toHaveAttribute('aria-current', 'page');
+  // Wave 7: News is a screen behind Today (and the phone), not a tab.
+  await expect(page.getByRole('heading', { name: 'News', level: 1 })).toBeVisible();
 });
 
-test('Home inbox items are tappable, and person cards chat with AI people', async ({ page }) => {
+test('Today inbox items are tappable, and person cards chat with AI people', async ({ page }) => {
   await founder(page);
   await page
     .getByRole('navigation', { name: 'Main' })
-    .getByRole('button', { name: 'Home' })
+    .getByRole('button', { name: 'Today' })
     .click();
   await page.locator('.inbox-item[data-alert="reporter"]').first().click();
-  await expect(
-    page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'News' }),
-  ).toHaveAttribute('aria-current', 'page');
+  // Wave 7: News is a screen behind Today (and the phone), not a tab.
+  await expect(page.getByRole('heading', { name: 'News', level: 1 })).toBeVisible();
 
   // A fund partner, at their office (Wave 6: people are inside buildings).
   // Tap them in the room: Chat on their card opens their thread in the phone.
