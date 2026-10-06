@@ -58,6 +58,8 @@ import type { PersonRef } from './PersonCard';
 import { RoomBack, RoomFront } from './RoomArt';
 import { WhoIsHere } from './WhoIsHere';
 import { HomeScene } from '../home/HomeScene';
+import { TechEventScene } from './TechEventScene';
+import { techEventAt } from './techevent';
 import {
   ENTRANCE,
   FUN_ROOMS,
@@ -516,6 +518,9 @@ export interface SceneProps {
 }
 
 export function PlaceScene(props: SceneProps) {
+  // Wave 8 §C: a tech event you chose to attend here.
+  if (techEventAt(props.place.id))
+    return <TechEventScene {...props} eventId={techEventAt(props.place.id)!} />;
   // Wave 7 §A: your flat is a walkable top-down home.
   if (roomOf(props.place, { abroad: props.abroad }) === 'apartment')
     return <HomeScene {...props} />;

@@ -10,6 +10,7 @@ import { visitPlace } from '../../city/goto';
 import { businessesOf } from '../../city/contract';
 import { cityViewOf, hereOf } from '../../city/travel';
 import { Avatar, isObj, kindName, str, type ThreadRef, type View } from '../shared';
+import { FriendActions } from './Friends';
 
 // ---------------------------------------------------------------------------
 // People you can message
@@ -475,6 +476,8 @@ export function PlayerThreadView({
           <Avatar name={name} />
           <div className="item-title">{name}</div>
         </div>
+        {/* Wave 8: Send money, Invite over, Plan a hangout. */}
+        {!other?.ai && <FriendActions playerId={playerId} />}
         <p className="small muted">{t('Start with one tap')}</p>
         <div className="choice-grid">
           {(starters ?? []).map((s) => (
@@ -517,6 +520,7 @@ export function PlayerThreadView({
           {other && <div className="small muted">{kindName(other.role)}</div>}
         </div>
       </div>
+      {!other?.ai && <FriendActions playerId={playerId} />}
       <ChatLog messages={data?.messages ?? []} />
       {data?.chat.blocked ? (
         <p className="small muted">{t('This chat is blocked.')}</p>

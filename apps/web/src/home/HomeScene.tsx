@@ -150,11 +150,29 @@ const GUEST_BG = ['f-dropout', 'i-first', 'b-wealthy', 'f-corporate', 'i-operato
 const guestLook = (personId: string) =>
   avatarLook(GUEST_BG[hash(personId) % GUEST_BG.length], personId);
 
-export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps) {
+/**
+ * Wave 8 §C: a friend's home you're visiting, shown read-only (no acts, no
+ * shopping): their tier and furniture, with them in it.
+ */
+export interface HostView {
+  id: string;
+  name: string;
+  tier: number;
+  tiers: Map<string, number>;
+}
+
+export function HomeScene({
+  place,
+  title,
+  onClose,
+  onVisit,
+  places,
+  hostView,
+}: SceneProps & { hostView?: HostView }) {
   const { view, send, busy, cur, toast } = useView();
-  const tier = Math.max(1, Math.min(5, view.me.lifestyle?.tier ?? 2));
+  const tier = Math.max(1, Math.min(5, hostView?.tier ?? view.me.lifestyle?.tier ?? 2));
   const plan = planFor(tier);
-  const tiers = useMemo(() => ownedTiers(view), [view]);
+  const tiers = useMemo(() => hostView?.tiers ?? ownedTiers(view), [view, hostView]);
   const ownedKey = [...tiers.keys()].sort().join(',');
   const owned = useMemo(() => new Set(ownedKey ? ownedKey.split(',') : []), [ownedKey]);
   const grid: Grid = useMemo(
@@ -164,7 +182,7 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
   const hour = localHour(view.market.id);
   const night = isNight(hour);
   const dusk = !night && (hour >= 17 || hour < 7);
-  const car = carOf(view);
+  const car = hostView ? null : carOf(view);
   const needs = needsOf(view);
   const mood = moodOf(view);
 
@@ -199,7 +217,11 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
   const meStart = { x: plan.door.x, y: plan.door.y - 1 };
   const me = useRef<Person>(newPerson('me', view.me.name, meLook, meStart));
-  const [guests, setGuests] = useState<Guest[]>(() => GUESTS.get(view.me.id) ?? []);
+  const [guests, setGuests] = useState<Guest[]>(() => {
+    if (!hostView) return GUESTS.get(view.me.id) ?? [];
+    seenGuests.add(hostView.id); // The host is already home: seated, not walking in.
+    return [{ personId: hostView.id, name: hostView.name }];
+  });
   const guestPeople = useRef(new Map<string, Person>());
   const guestSpots = useMemo(() => {
     const d = plan.slots.dining!.interact;
@@ -590,7 +612,7 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
     const d = drag.current;
     drag.current = null;
     if (!d || d.moved || acting) return;
-    const el = (e.target as Element).closest?.('[data-obj]');
+    const el = hostView ? null : (e.target as Element).closest?.('[data-obj]');
     if (el) {
       const obj = objects.find((o) => o.id === el.getAttribute('data-obj'));
       if (obj) {
@@ -753,7 +775,9 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
 
   const inviteLeft = actsLeft(view, 'invite');
   const pocket = view.accounts.local?.balance ?? 0;
-  const homeName = t(TIER_HOME[tier - 1]!);
+  const homeName = hostView
+    ? t('{name}’s place', { name: hostView.name.split(' ')[0]! })
+    : t(TIER_HOME[tier - 1]!);
 
   return (
     <div
@@ -767,6 +791,7 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
       data-night={night ? '1' : '0'}
       data-energy={view.me.energy}
       data-pocket={pocket}
+      data-host-view={hostView?.id}
     >
       <header className="home-hud">
         <div
@@ -914,7 +939,7 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
             )}
             {acting && <ActEffect act={acting.act} x={acting.x} y={acting.y} />}
             {objects
-              .filter((o) => o.slot && !o.owned)
+              .filter((o) => !hostView && o.slot && !o.owned)
               .map((o) => (
                 <g
                   key={`plus-${o.id}`}
@@ -967,18 +992,27 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
         )}
       </div>
       <nav className="home-bar" aria-label={t('Home actions')}>
-        <button type="button" className="home-bar-btn" onClick={() => setSheet('edit')}>
-          <span aria-hidden="true">🛋</span>
-          {t('Edit')}
-        </button>
-        <button type="button" className="home-bar-btn" onClick={() => setSheet('invite')}>
-          <span aria-hidden="true">👋</span>
-          {t('Invite')}
-        </button>
-        <button type="button" className="home-bar-btn" onClick={onClose}>
-          <span aria-hidden="true">🚪</span>
-          {t('Go out')}
-        </button>
+        {hostView ? (
+          <button type="button" className="home-bar-btn" onClick={onClose}>
+            <span aria-hidden="true">👋</span>
+            {t('Say goodbye')}
+          </button>
+        ) : (
+          <>
+            <button type="button" className="home-bar-btn" onClick={() => setSheet('edit')}>
+              <span aria-hidden="true">🛋</span>
+              {t('Edit')}
+            </button>
+            <button type="button" className="home-bar-btn" onClick={() => setSheet('invite')}>
+              <span aria-hidden="true">👋</span>
+              {t('Invite')}
+            </button>
+            <button type="button" className="home-bar-btn" onClick={onClose}>
+              <span aria-hidden="true">🚪</span>
+              {t('Go out')}
+            </button>
+          </>
+        )}
       </nav>
       {sheet && (
         <div className="home-sheet-back" onClick={() => setSheet(null)}>
