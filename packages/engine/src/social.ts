@@ -4,7 +4,7 @@
  *
  * Money: `money.send` moves the amount from the sender's personal account to
  * the receiver's (converted at the official rate through the FX desks when
- * the currencies differ) and a 1% fee (at least 0.002 of the sender's monthly
+ * the currencies differ) and a 1% fee (at least 0.0001 of the sender's monthly
  * cost of living) to the receiver's market bank sink (`ext.bank`). The sender
  * may send at most 2 cost-of-living units a real (UTC) day. Tickets to tech
  * events go to the venue's till (or the city's suppliers at the Hub or the
@@ -34,7 +34,7 @@ import type { Hangout, Id, LocalBusiness, MarketState, Player, Visit, World } fr
 // ---------------------------------------------------------------- Tuning
 
 export const SEND_FEE_RATE = 0.01;
-export const SEND_FEE_MIN_COL = 0.002;
+export const SEND_FEE_MIN_COL = 0.0001;
 export const SEND_DAILY_LIMIT_COL = 2;
 export const SEND_NOTE_MAX = 80;
 const DAY_MS = 86_400_000;

@@ -79,7 +79,7 @@ Scripts, at least:
 **Send money:** `{ type: 'money.send', toPlayerId, amount, note? }`
 
 - Between human players in any city; currency is converted at the existing FX rate.
-- 1% fee, with a minimum of 0.002 col, paid to the receiver's market bank sink.
+- 1% fee, with a minimum of 0.0001 col (about ₦45 in Lagos, like a real transfer fee), paid to the receiver's market bank sink.
 - Limit 2 col per day per sender (anti-abuse).
 - Both players get an inbox line.
 - Covered by the money-conservation property test.
