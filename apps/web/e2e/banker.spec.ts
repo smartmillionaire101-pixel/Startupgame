@@ -1,20 +1,19 @@
+import { setupPlayer } from './fixtures';
 import { expect, letters, playAsGuest, tab, test } from './fixtures';
 
 test('a banker applies for a licence in Accra, gets it, and sets pricing', async ({ page }) => {
   await playAsGuest(page);
 
-  await page.getByRole('button', { name: /Banker/ }).click();
-  await page.getByRole('button', { name: /Wealthy exited founder/ }).click();
-  await page.getByRole('button', { name: /Accra, Ghana/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill('Ama E2E');
-  await page.getByLabel('Handle').fill(`ama_${letters(6)}`);
-  await page.getByLabel('Bank name').fill(`Adinkra Trust ${letters(5)}`);
-  await expect(page.getByText('Available in Accra')).toBeVisible();
-  await page.getByRole('button', { name: /Microfinance bank/ }).click();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByText(/applies for a licence in Accra/)).toBeVisible();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupPlayer(page, {
+    type: 'player.create',
+    name: 'Ama E2E',
+    handle: `ama_${letters(6)}`,
+    role: 'banker',
+    backgroundId: 'b-wealthy',
+    market: 'accra',
+    gender: 'female',
+    bank: { name: `Adinkra Trust ${letters(5)}`, bankType: 'microfinance' },
+  });
 
   await tab(page, 'Bank').click();
   await expect(page.getByText('Applying')).toBeVisible();

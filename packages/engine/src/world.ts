@@ -331,7 +331,7 @@ export function createCompany(world: World, input: NewCompanyInput): Company {
   const incCost = scale(col(m), INCORPORATION[input.incorporation].costCol);
   const personal = world.accounts[founder.accounts.local]!;
   const seed = Math.min(personal.balance, Math.max(incCost, Math.round(col(m) * 1)));
-  transfer(world, founder.accounts.local, account, seed, 'Founder capital', m.month);
+  transfer(world, founder.accounts.local, account, seed, 'Founder capital', m.month, 'capital');
   transfer(
     world,
     account,

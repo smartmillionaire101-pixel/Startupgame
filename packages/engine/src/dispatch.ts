@@ -121,6 +121,8 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
   let result: unknown = null;
   try {
     const next = produce(world, (draft) => {
+      draft.activity ??= { since: ctx.now, at: ctx.now, sequence: 0, totals: {}, recent: [] };
+      draft.activity.at = ctx.now;
       result = apply(draft as World, command, ctx);
       draft.version += 1;
     });
@@ -164,6 +166,33 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
 
   const actorId = ctx.actorId!;
   if (cmd.type === 'player.create') return createFromOnboarding(world, cmd, actorId, ctx.now);
+  if (cmd.type === 'player.quickStart') {
+    const market = world.markets.lagos ? 'lagos' : Object.values(world.markets)[0]!.id;
+    const backgroundId = { founder: 'f-engineer', investor: 'i-first', banker: 'b-commercial' }[
+      cmd.role
+    ];
+    const p = createPlayer(world, {
+      playerId: actorId,
+      handle: cmd.username,
+      name: cmd.username,
+      role: cmd.role,
+      backgroundId,
+      market,
+      now: ctx.now,
+    });
+    if (cmd.role === 'investor') {
+      const bg = backgroundById(backgroundId)!;
+      p.investor = {
+        sectors: ['fintech'],
+        stages: ['pre-seed', 'seed'],
+        checkSize: col(getMarket(world, market)),
+        lpCredibility: bg.lpCredibility ?? 0.3,
+        founderTrust: bg.founderTrust ?? 0.5,
+      };
+    }
+    welcomeNewPlayer(world, p, null);
+    return { playerId: p.id, companyId: null };
+  }
 
   const me = getPlayer(world, actorId);
   ensure(!me.ai, 'player.ai', 'AI players are run by the simulation.');
@@ -177,6 +206,26 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
   };
 
   switch (cmd.type) {
+    case 'player.profile': {
+      const bg = backgroundById(cmd.backgroundId);
+      ensure(bg && bg.role === me.role, 'player.background', 'Pick a background for your role.');
+      me.name = cmd.name.trim();
+      if (cmd.gender) me.gender = cmd.gender;
+      // Biography edits never reset earned skills, savings or reputation.
+      me.backgroundId = cmd.backgroundId;
+      if (cmd.investor) {
+        ensure(
+          me.role === 'investor' && me.investor,
+          'investor.role',
+          'Only investors can set an investment focus.',
+        );
+        me.investor = { ...me.investor!, ...cmd.investor };
+      }
+      for (const other of Object.values(world.players))
+        for (const contact of other.contacts ?? [])
+          if (contact.kind === 'player' && contact.refId === me.id) contact.name = me.name;
+      return { saved: true };
+    }
     // ------------------------------------------------------------ founder
     case 'company.strategy': {
       const c = touch(cmd.companyId);

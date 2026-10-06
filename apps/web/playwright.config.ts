@@ -33,6 +33,7 @@ export default defineConfig({
         timeout: 120_000,
         env: {
           NODE_ENV: 'development',
+          ADMIN_TOKEN: 'e2e-admin-password',
           PORT: String(PORT),
           HOST: '127.0.0.1',
           DATABASE_PATH: `${process.env.TMPDIR ?? '/tmp'}/runway-e2e-${Date.now()}.db`,

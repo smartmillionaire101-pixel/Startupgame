@@ -375,5 +375,5 @@ export function injectCapital(
     'Not your company.',
   );
   ensure(amount > 0, 'inject.amount', 'Enter an amount.');
-  transfer(world, p.accounts.local, c.account, amount, 'Founder capital', month);
+  transfer(world, p.accounts.local, c.account, amount, 'Founder capital', month, 'capital');
 }

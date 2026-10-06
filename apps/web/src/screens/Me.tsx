@@ -11,6 +11,8 @@ import { contactsOf, type ContactView } from '../city/people';
 import { flightsOf } from '../city/travel';
 import { BankPicker } from './common';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
+import { ProfileDetails } from './ProfileDetails';
+import { FoundBank } from './Bank';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
 
@@ -149,6 +151,19 @@ function Profile() {
           {me.burnout ? ` · ${t('burnout cuts your hours')}` : ''}
         </p>
       </Card>
+      <ProfileDetails key={me.id + me.role} />
+      {me.role === 'founder' && !view.companies.some((c) => c.status === 'active') && (
+        <Card title={t('Set up your business')}>
+          <FoundCompany />
+        </Card>
+      )}
+      {me.role === 'banker' &&
+        (!view.bank || ['failed', 'rejected'].includes(view.bank.status)) && <FoundBank />}
+      <details className="card">
+        <summary>{t('City and career')}</summary>
+        <Travel trips={false} />
+        <CareerMoves />
+      </details>
       <Card title={t('Skills')}>
         {skills.map(([k, v]) => (
           <Bar key={k} label={skillLabel(k)} value={v / 100} />
@@ -744,6 +759,7 @@ export function FoundCompany() {
   const [idea, setIdea] = useState('');
   const [industry, setIndustry] = useState<Industry>('saas');
   const [model, setModel] = useState<RevenueModel>('subscription');
+  const [incorporation, setIncorporation] = useState<'local' | 'uk' | 'us'>('local');
   const [check, setCheck] = useState<{ ok: boolean; reason?: string } | null>(null);
   const verify = (v: string) => {
     setName(v);
@@ -802,13 +818,32 @@ export function FoundCompany() {
           )}
         </Field>
       </div>
+      <Field
+        label={t('Incorporation')}
+        hint={t('Foreign holding companies cost more but some investors prefer them.')}
+      >
+        {(id) => (
+          <select
+            id={id}
+            value={incorporation}
+            onChange={(e) => setIncorporation(e.target.value as typeof incorporation)}
+          >
+            {Object.entries(meta?.incorporation ?? {}).map(([key, value]) => (
+              <option key={key} value={key}>
+                {tx(value.label)} (
+                {money(Math.round(view.market.costOfLiving * value.costCol), view.market.currency)})
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
       <Button
         disabled={!check?.ok || idea.trim().length < 5}
         onClick={() =>
           void send(
             {
               type: 'company.found',
-              company: { name, idea, industry, revenueModel: model, incorporation: 'local' },
+              company: { name, idea, industry, revenueModel: model, incorporation },
             },
             t('{name} is open for business.', { name }),
           )

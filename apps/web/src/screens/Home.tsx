@@ -8,7 +8,7 @@ import { Inbox } from './common';
 import { FoundCompany } from './Me';
 import { SaveNudge } from './Account';
 import { visitPlace } from '../city/goto';
-import { WhatNowCard } from '../city/WhatNow';
+import { WhatNowCard } from '../city/WhatNowCards';
 
 /** Today (was "Home"): the dashboard and inbox. `onNews` opens the city's news. */
 export function Home({ onNews }: { onNews?: () => void } = {}) {

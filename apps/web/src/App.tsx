@@ -26,6 +26,8 @@ import { DealCard } from './screens/common';
 import { NavContext, openPhone, type Nav } from './phone/bus';
 import { inboxTarget, type TabId, type Target } from './phone/navigate';
 import { UpdateBanner } from './update';
+import { useVisits } from './useVisits';
+import { GameActivity } from './GameActivity';
 import { hereOf, isAbroad } from './city/travel';
 
 // Reduced motion is decided once, before anything animates (Wave 7 §D).
@@ -74,6 +76,7 @@ const PhoneDock = lazy(async () => {
 const NewsScreen = lazy(() => import('./screens/News').then((m) => ({ default: m.NewsScreen })));
 
 export function App() {
+  useVisits();
   const { status } = useGame();
   return (
     <>
@@ -221,6 +224,7 @@ function Game() {
     <NavContext.Provider value={nav}>
       <div className={`app${current === 'city' ? ' app-city' : ''}`}>
         <TopBar alerts={unread} />
+        <GameActivity />
         <main>
           {current === 'city' && <CityScreen onNavigate={go} />}
           {current === 'home' && <Home onNews={() => go('news')} />}

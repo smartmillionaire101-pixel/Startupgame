@@ -15,7 +15,7 @@
 
 .city-stage {
   position: relative;
-  height: calc(100dvh - 48px - var(--nav-h, 3.6rem) - 0.6rem - env(safe-area-inset-top));
+  height: calc(100dvh - 48px - 44px - var(--nav-h, 3.6rem) - 1rem - env(safe-area-inset-top));
   min-height: 360px;
   border-radius: 22px;
   overflow: hidden;
@@ -498,7 +498,7 @@
 
 @media (min-width: 900px) {
   .city-stage {
-    height: calc(100dvh - 8.6rem);
+    height: calc(100dvh - 9rem - 44px);
   }
 }
 

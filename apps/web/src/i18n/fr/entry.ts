@@ -1,5 +1,24 @@
 /** French catalog fragment: entry. */
 export const entry: Record<string, string> = {
+  'Join the game': 'Rejoindre le jeu',
+  Username: 'Nom d’utilisateur',
+  'Join as': 'Rejoindre en tant que',
+  'Set up the rest later in Me → Profile.': 'Configurez le reste plus tard dans Moi → Profil.',
+  'By playing, you confirm you are 18 or older.':
+    'En jouant, vous confirmez avoir au moins 18 ans.',
+  'Profile details': 'Informations du profil',
+  'Choose later': 'Choisir plus tard',
+  Background: 'Parcours',
+  'Changing your background keeps your current skills and savings.':
+    'Changer de parcours conserve vos compétences et votre épargne actuelles.',
+  'Save profile': 'Enregistrer le profil',
+  'Profile saved.': 'Profil enregistré.',
+  'Email: {email} (not confirmed)': 'E-mail : {email} (non confirmé)',
+  'Set up your business': 'Configurer votre entreprise',
+  'City and career': 'Ville et carrière',
+  'No active company. Set up your business in Me → Profile.':
+    'Aucune entreprise active. Configurez votre entreprise dans Moi → Profil.',
+
   // SignIn
   Language: 'Langue',
   'Build, invest and grow.': 'Créez, investissez, grandissez.',

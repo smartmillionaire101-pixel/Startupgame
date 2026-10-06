@@ -1,20 +1,16 @@
+import { setupFounder } from './fixtures';
 import { expect, letters, more, playAsGuest, tab, tapPlace, test } from './fixtures';
 
 test('a founder walks the city to a bank, goes in, then visits the market', async ({ page }) => {
   await playAsGuest(page);
 
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill('Tobi City');
-  await page.getByLabel('Handle').fill(`tobi_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Invoices for market traders');
-  await page.getByLabel('Company name').fill(`Oja Ledger ${letters(5)}`);
-  await expect(page.getByText(/Available in Lagos/)).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: 'Tobi City',
+    handle: `tobi_${letters(6)}`,
+    company: `Oja Ledger ${letters(5)}`,
+    idea: 'Invoices for market traders',
+    market: /Lagos, Nigeria/,
+  });
 
   // The City is the first tab and opens by default, centred on your office.
   await expect(tab(page, 'City')).toHaveAttribute('aria-current', 'page');

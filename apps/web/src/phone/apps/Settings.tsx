@@ -1,5 +1,5 @@
 /**
- * Settings: Reduce motion, Always skip rides, Sound (cosmetic) and Language.
+ * Settings: Reduce motion, Always skip rides, Sound and Language.
  */
 import { LANGS, setLang, t, useLang } from '../../i18n';
 import { setSetting, useSetting, type SettingKey } from '../settings';
@@ -40,7 +40,7 @@ export function Settings(_: { ctx: PhoneCtx }) {
           label={t('Always skip rides')}
           hint={t('Arrive straight away, without the ride scene.')}
         />
-        <Toggle k="sound" label={t('Sound')} hint={t('Game sounds, when there are some.')} />
+        <Toggle k="sound" label={t('Sound')} hint={t('Background game music.')} />
       </section>
       <section className="phone-card">
         <H>{t('Language')}</H>

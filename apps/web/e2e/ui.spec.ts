@@ -1,3 +1,4 @@
+import { setupFounder } from './fixtures';
 import { expect, letters, playAsGuest, test, type Page } from './fixtures';
 
 /** Wave 7 §D: the UI overhaul, measured on a small phone (360 px wide). */
@@ -5,18 +6,13 @@ test.use({ viewport: { width: 360, height: 780 } });
 
 async function founder(page: Page) {
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill('Ada Overhaul');
-  await page.getByLabel('Handle').fill(`ada_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Payments for market traders');
-  await page.getByLabel('Company name').fill(`Ledger ${letters(5)}`);
-  await expect(page.getByText(/Available in Lagos/)).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: 'Ada Overhaul',
+    handle: `ada_${letters(6)}`,
+    company: `Ledger ${letters(5)}`,
+    idea: 'Payments for market traders',
+    market: /Lagos, Nigeria/,
+  });
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
 }
 

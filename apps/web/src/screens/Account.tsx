@@ -33,7 +33,8 @@ export function EmailLinkForm({
   intent: EmailIntent;
   submitLabel: string;
 }) {
-  const [email, setEmail] = useState('');
+  const { account } = useGame();
+  const [email, setEmail] = useState(intent === 'save' ? (account?.pendingEmail ?? '') : '');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState<{ email: string; devLink?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -188,6 +189,9 @@ export function AccountStatus() {
   if (account.guest)
     return (
       <>
+        {account.pendingEmail && (
+          <p>{t('Email: {email} (not confirmed)', { email: account.pendingEmail })}</p>
+        )}
         <p>
           {t('Guest: not saved yet')}
           <br />

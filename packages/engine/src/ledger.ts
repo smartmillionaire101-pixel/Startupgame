@@ -13,6 +13,41 @@ import type { MarketId } from './data/markets.js';
 import type { Account, Id, World } from './types.js';
 
 const RECENT_LIMIT = 30;
+export type MoneyPurpose = 'spent' | 'sent' | 'invested' | 'capital' | 'move';
+
+/** Count the outgoing leg once, in its source currency. AI cash is excluded. */
+function recordActivity(
+  world: World,
+  from: Account,
+  amount: number,
+  memo: string,
+  kind: MoneyPurpose,
+) {
+  const stats = world.activity;
+  if (!stats || kind === 'move' || from.external) return;
+  let player = Object.values(world.players).find(
+    (p) => !p.ai && (p.accounts.local === from.id || p.accounts.usd === from.id),
+  );
+  if (!player && kind === 'invested') {
+    const fund = Object.values(world.funds).find(
+      (f) => f.account === from.id && !f.ai && f.managerId,
+    );
+    if (fund?.managerId) player = world.players[fund.managerId];
+  }
+  if (!player || player.ai) return;
+  const totals = (stats.totals[from.currency] ??= { spent: 0, sent: 0, invested: 0, capital: 0 });
+  totals[kind] += amount;
+  stats.recent.unshift({
+    id: ++stats.sequence,
+    at: stats.at,
+    playerId: player.id,
+    kind,
+    currency: from.currency,
+    amount,
+    memo,
+  });
+  stats.recent.length = Math.min(stats.recent.length, 100);
+}
 
 export function openAccount(
   world: World,
@@ -55,6 +90,7 @@ export function transfer(
   amount: number,
   memo: string,
   month: number,
+  purpose: MoneyPurpose = 'spent',
 ): void {
   if (!Number.isInteger(amount) || amount < 0) fail('ledger.amount', `Invalid amount ${amount}`);
   if (amount === 0) return;
@@ -67,6 +103,7 @@ export function transfer(
   to.balance += amount;
   record(from, month, -amount, memo);
   record(to, month, amount, memo);
+  recordActivity(world, from, amount, memo, purpose);
 }
 
 /** Transfer as much as possible up to `amount`; returns what actually moved. */
@@ -125,19 +162,20 @@ export function convert(
   amount: number,
   memo: string,
   month: number,
+  purpose: MoneyPurpose = 'move',
 ): number {
   const from = account(world, fromId);
   const to = account(world, toId);
   // Same currency (e.g. a dollar account in a dollar market): no desk, no fee.
   if (from.currency === to.currency) {
-    transfer(world, fromId, toId, amount, memo, month);
+    transfer(world, fromId, toId, amount, memo, month, purpose);
     return amount;
   }
   const rate = fxRate(world, from.currency, to.currency);
   const fee = fxFeeBps(world, from.currency, to.currency) / 10_000;
   const received = Math.floor(amount * rate * (1 - fee));
-  transfer(world, fromId, fxDesk(world, from.currency), amount, memo, month);
-  transfer(world, fxDesk(world, to.currency), toId, received, memo, month);
+  transfer(world, fromId, fxDesk(world, from.currency), amount, memo, month, purpose);
+  transfer(world, fxDesk(world, to.currency), toId, received, memo, month, purpose);
   return received;
 }
 
@@ -157,12 +195,13 @@ export function pay(
   amount: number,
   memo: string,
   month: number,
+  purpose: MoneyPurpose = 'spent',
 ): number {
   if (account(world, fromId).currency === account(world, toId).currency) {
-    transfer(world, fromId, toId, amount, memo, month);
+    transfer(world, fromId, toId, amount, memo, month, purpose);
     return amount;
   }
-  return convert(world, fromId, toId, amount, memo, month);
+  return convert(world, fromId, toId, amount, memo, month, purpose);
 }
 
 /**
@@ -177,11 +216,12 @@ export function payExact(
   target: number,
   memo: string,
   month: number,
+  purpose: MoneyPurpose = 'spent',
 ): number {
   const from = account(world, fromId);
   const to = account(world, toId);
   if (from.currency === to.currency) {
-    transfer(world, fromId, toId, target, memo, month);
+    transfer(world, fromId, toId, target, memo, month, purpose);
     return target;
   }
   const rate =
@@ -190,8 +230,8 @@ export function payExact(
   const needed = Math.ceil(target / rate) + 1;
   if (!from.external && from.balance < needed)
     fail('ledger.funds', 'Not enough money in the account');
-  transfer(world, fromId, fxDesk(world, from.currency), needed, memo, month);
-  transfer(world, fxDesk(world, to.currency), toId, target, memo, month);
+  transfer(world, fromId, fxDesk(world, from.currency), needed, memo, month, purpose);
+  transfer(world, fxDesk(world, to.currency), toId, target, memo, month, purpose);
   return needed;
 }
 

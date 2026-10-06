@@ -49,7 +49,7 @@ import {
 } from './contract';
 import { onVisit, takeVisit } from './goto';
 import { genderOf } from './life';
-import { suggestionText, WhatNowCard, WhatNowList } from './WhatNow';
+import { suggestionText, WhatNowCard, WhatNowList } from './WhatNowCards';
 import { suggestionsFor } from './whatnow';
 import type { Nav } from './Interiors';
 import { useRiding } from './riding';
