@@ -43,6 +43,7 @@ import {
   MARGIN,
   type Boat,
   type Bridge,
+  type Decor,
   type Water,
   type CityLayout,
   type DistrictId,
@@ -53,7 +54,7 @@ import { CATEGORY_COLOR } from './contract';
 import { Crowd } from './Crowd';
 import { rideMs, rideVehicle, SHORT_HOP, type RideMode } from './travel';
 import type { VehicleSpec } from './flavour';
-import type { AiPerson, PresenceView } from './people';
+import { playersByPlace, type PresenceView, type Walker } from './people';
 
 // ---------------------------------------------------------------------------
 // Reduced motion, as a subscribable media query.
@@ -69,7 +70,7 @@ const getRM = () =>
   typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(RM).matches;
 export const useReducedMotion = () => useSyncExternalStore(subscribeRM, getRM, () => false);
 
-const NONE_AI: AiPerson[] = [];
+const NONE_WALKERS: Walker[] = [];
 const NONE_PLAYERS: PresenceView[] = [];
 const NONE_FLAGS: string[] = [];
 
@@ -621,6 +622,85 @@ const Fog = memo(function Fog({ layout }: { layout: CityLayout }) {
   );
 });
 
+/** An empty building plot: a kerbed patch of ground with a small sign. */
+function EmptyLot({ d }: { d: Decor }) {
+  const w = d.w ?? 1;
+  const dd = d.d ?? 1;
+  const post = project(d.x + w * 0.75, d.y + dd * 0.8);
+  return (
+    <g className="city-lot" data-lot="">
+      <polygon
+        points={[P(d.x, d.y), P(d.x + w, d.y), P(d.x + w, d.y + dd), P(d.x, d.y + dd)].join(' ')}
+        fill={shade(d.color ?? '#d6d3d1', 0.25)}
+        stroke={shade(d.color ?? '#d6d3d1', -0.25)}
+        strokeWidth="1"
+        strokeDasharray="3 2"
+        opacity="0.7"
+      />
+      <line x1={post.x} y1={post.y} x2={post.x} y2={post.y - 9} stroke="#57534e" strokeWidth="1" />
+      <rect x={post.x - 5} y={post.y - 14} width="10" height="6" rx="1" fill="#fef3c7" />
+    </g>
+  );
+}
+
+/**
+ * Wave 6: how many players are inside each building (a count badge on its
+ * roof), and a "New" ribbon on businesses that opened lately. Both are part
+ * of the building: a tap on them goes in.
+ */
+const Overlays = memo(function Overlays({
+  layout,
+  players,
+  fresh,
+}: {
+  layout: CityLayout;
+  players: PresenceView[];
+  fresh: string[];
+}) {
+  const here = playersByPlace(players);
+  const isNew = new Set(fresh);
+  const out: ReactNode[] = [];
+  for (const p of layout.places) {
+    const n = here.get(p.id) ?? 0;
+    const ribbon = isNew.has(p.id);
+    if (!n && !ribbon) continue;
+    // The count sits on the roof (the name label floats just above it); the
+    // ribbon hangs from the roof's left corner.
+    const roof = project(p.x + p.w / 2, p.y + p.d / 2);
+    const corner = project(p.x, p.y + p.d);
+    out.push(
+      <g key={p.id} data-place={p.id}>
+        {ribbon && (
+          <g
+            className="city-new"
+            data-new={p.id}
+            transform={`translate(${corner.x + 10} ${corner.y - p.h + 4})`}
+          >
+            <rect x={-14} y={-6} width={28} height={12} rx={3} />
+            <text y={3} textAnchor="middle">
+              {t('New')}
+            </text>
+          </g>
+        )}
+        {n > 0 && (
+          <g
+            className="city-here"
+            data-here={p.id}
+            data-count={n}
+            transform={`translate(${roof.x} ${roof.y - p.h})`}
+          >
+            <circle r={8} />
+            <text y={3.5} textAnchor="middle">
+              {n > 9 ? '9+' : n}
+            </text>
+          </g>
+        )}
+      </g>,
+    );
+  }
+  return <g className="city-overlays">{out}</g>;
+});
+
 /** Buildings and decor, painted back to front. */
 const Skyline = memo(function Skyline({ layout }: { layout: CityLayout }) {
   const f = layout.flavour;
@@ -631,7 +711,12 @@ const Skyline = memo(function Skyline({ layout }: { layout: CityLayout }) {
   layout.decor.forEach((d, n) =>
     items.push({
       depth: d.x + (d.w ?? 0) / 2 + d.y + (d.d ?? 0) / 2 + (d.kind === 'runway' ? -10 : 0),
-      node: <DecorItem key={`d${n}`} d={d} f={f} />,
+      node:
+        d.kind === 'lot' ? (
+          <EmptyLot key={`d${n}`} d={d} />
+        ) : (
+          <DecorItem key={`d${n}`} d={d} f={f} />
+        ),
     }),
   );
   items.sort((a, b) => a.depth - b.depth);
@@ -869,13 +954,12 @@ export function CityMap({
   onEnter,
   handleRef,
   ariaLabel,
-  ai = NONE_AI,
+  walkers = NONE_WALKERS,
   players = NONE_PLAYERS,
   flags = NONE_FLAGS,
-  onPerson,
+  fresh = NONE_FLAGS,
   onArrive,
   onFarTrip,
-  known = NONE_FLAGS,
 }: {
   layout: CityLayout;
   look: AvatarLook;
@@ -886,20 +970,18 @@ export function CityMap({
   onEnter: (p: Place) => void;
   handleRef?: { current: CityMapHandle | null };
   ariaLabel: string;
-  /** Ambient AI characters (Wave 2). */
-  ai?: AiPerson[];
-  /** Other players, from presence (Wave 2). */
+  /** A few anonymous passers-by (Wave 6: nobody to tap on the street). */
+  walkers?: Walker[];
+  /** Other players, from presence: a count on the building they're in. */
   players?: PresenceView[];
   /** Place ids flying bunting: an event is coming up there. */
   flags?: string[];
-  /** Someone was tapped. */
-  onPerson?: (id: string) => void;
+  /** Place ids of businesses that opened lately (a "New" ribbon). */
+  fresh?: string[];
   /** The avatar stopped somewhere (after a walk, or on arrival in the city). */
   onArrive?: (at: Pt, placeId: string | null) => void;
   /** A tap on somewhere far: choose how to get there, then call handle.ride. */
   onFarTrip?: (trip: FarTrip) => void;
-  /** Ids of players you know: their name tags show at every zoom. */
-  known?: string[];
 }) {
   const reduced = useReducedMotion();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -1211,12 +1293,7 @@ export function CityMap({
     const had = pointers.current.delete(e.pointerId);
     if (!had || pointers.current.size > 0) return;
     if (gesture.current.moved > 6) return;
-    // A tap: on a person, a building or a street.
-    const who = (e.target as Element).closest?.('[data-person]')?.getAttribute('data-person');
-    if (who && onPerson) {
-      onPerson(who);
-      return;
-    }
+    // A tap: on a building (or its badge) or a street. People live inside buildings.
     const el = (e.target as Element).closest?.('[data-place]');
     const id = el?.getAttribute('data-place');
     if (id) {
@@ -1327,9 +1404,10 @@ export function CityMap({
           const p = layout.places.find((x) => x.id === id);
           return p ? <Bunting key={id} p={p} /> : null;
         })}
-        <Crowd layout={layout} ai={ai} players={players} reduced={reduced} known={known} />
+        <Crowd walkers={walkers} reduced={reduced} />
         {layout.flavour.fog && <Fog layout={layout} />}
         <Labels layout={layout} labelOf={labelOf} />
+        <Overlays layout={layout} players={players} fresh={fresh} />
         {mp && markerPlace && (
           <g transform={`translate(${mp.x},${mp.y - markerPlace.h - 40})`} className="city-marker">
             <g className="city-bob">

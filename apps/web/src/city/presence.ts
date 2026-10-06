@@ -90,5 +90,60 @@ export function usePresence({ enabled, selfId }: { enabled: boolean; selfId: str
   return { players: enabled ? players : [], report };
 }
 
+/**
+ * Wave 6: the players inside one place, polled while its scene is open
+ * (`GET /api/presence?place=<id>`). An older server ignores the parameter
+ * and sends everyone, so the answer is filtered by `place` here as well.
+ */
+/** How long a player who was just in a place stays listed when a poll misses them. */
+export const STICKY_MS = 30_000;
+
+export function usePlacePresence({
+  place,
+  enabled,
+  selfId,
+}: {
+  place: string;
+  enabled: boolean;
+  selfId: string;
+}): PresenceView[] {
+  const [players, setPlayers] = useState<PresenceView[]>([]);
+  useEffect(() => {
+    if (!enabled || missing) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // A player stays listed for a while after one poll misses them, so their row
+    // (and its Chat button) doesn't blink out from under your finger.
+    const recent = new Map<string, { p: PresenceView; seen: number }>();
+    const tick = async () => {
+      if (stopped) return;
+      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+        try {
+          const raw = await api.presence(place);
+          const now = Date.now();
+          for (const p of normPresence(raw, selfId))
+            if (p.place === place) recent.set(p.id, { p, seen: now });
+            else recent.delete(p.id);
+          for (const [id, r] of recent) if (now - r.seen > STICKY_MS) recent.delete(id);
+          if (!stopped) setPlayers([...recent.values()].map((r) => r.p));
+        } catch (e) {
+          if (isMissing(e)) {
+            missing = true;
+            return;
+          }
+          // Offline or a hiccup: keep what we have and try again.
+        }
+      }
+      if (!stopped) timer = setTimeout(() => void tick(), POLL_MS);
+    };
+    void tick();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [place, enabled, selfId]);
+  return enabled ? players : [];
+}
+
 /** Test hook: whether the server answered 404 for presence. */
 export const presenceMissing = () => missing;

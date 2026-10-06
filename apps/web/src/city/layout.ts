@@ -154,7 +154,9 @@ export interface Decor {
     | 'lamp'
     | 'hill'
     | 'bridge'
-    | 'station';
+    | 'station'
+    /** Wave 6: an empty building plot (no dead buildings: new businesses open here). */
+    | 'lot';
   x: number;
   y: number;
   w?: number;
@@ -485,7 +487,7 @@ function putDowntown(ctx: Ctx, { i, j }: Cell, area?: string) {
   decor.push({ kind: 'bench', x: lt.x + 0.2, y: lt.y + 1.15 });
 }
 
-/** Your home, plus the neighbours' houses. */
+/** Your home, plus the neighbours' gardens (every building on the map opens). */
 function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
   const { input, flavour, places, decor } = ctx;
   const tier = Math.max(1, Math.min(5, input.homeTier));
@@ -516,16 +518,11 @@ function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
     [0, 0],
   ] as [0 | 1, 0 | 1][]) {
     const lh = lot(i, j, a, b);
-    decor.push({
-      kind: 'house',
-      x: lh.x + 0.15,
-      y: lh.y + 0.15,
-      w: 1,
-      d: 1,
-      h: 18 + Math.floor(ctx.rnd() * 14),
-      color: pickColor(ctx, flavour.walls),
-      roof: pickColor(ctx, flavour.roofs),
-    });
+    // Keep the RNG draws of the old houses, so the rest of the city stays put.
+    ctx.rnd();
+    pickColor(ctx, flavour.walls);
+    pickColor(ctx, flavour.roofs);
+    decor.push({ kind: 'tree', x: lh.x + 0.45 + a * 0.5, y: lh.y + 0.45 + b * 0.5, size: 0.9 });
   }
 }
 
@@ -803,27 +800,16 @@ function putFiller(ctx: Ctx, { i, j }: Cell, style: FillStyle) {
       if (rnd() < 0.65) decor.push({ kind: 'tree', x: l.x + 0.7, y: l.y + 0.7, size: 1 });
       continue;
     }
-    const h =
-      style === 'towers'
-        ? 50 + Math.floor(rnd() * 60)
-        : style === 'low'
-          ? 14 + Math.floor(rnd() * 14)
-          : style === 'warehouses'
-            ? 14 + Math.floor(rnd() * 8)
-            : 16 + Math.floor(rnd() * 40);
-    decor.push({
-      kind: 'house',
-      x: l.x + 0.1,
-      y: l.y + 0.1,
-      w: 1.1,
-      d: 1.1,
-      h,
-      color:
-        style === 'warehouses'
-          ? pickColor(ctx, ['#a8a29e', '#94a3b8', '#d6d3d1'])
-          : pickColor(ctx, flavour.walls),
-      roof: style === 'warehouses' ? '#57534e' : pickColor(ctx, flavour.roofs),
-    });
+    // Wave 6: no decorative buildings you can't go into. What used to be a
+    // filler house is an empty plot, where the city's new businesses open.
+    // (The same RNG draws as before, so every other building stays put.)
+    rnd();
+    const color =
+      style === 'warehouses'
+        ? pickColor(ctx, ['#a8a29e', '#94a3b8', '#d6d3d1'])
+        : pickColor(ctx, flavour.walls);
+    if (style !== 'warehouses') pickColor(ctx, flavour.roofs);
+    decor.push({ kind: 'lot', x: l.x + 0.1, y: l.y + 0.1, w: 1.1, d: 1.1, color });
   }
 }
 

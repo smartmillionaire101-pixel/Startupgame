@@ -817,6 +817,7 @@ const contactKindLabel = (k: ContactView['kind']) =>
     talent: t('Talent'),
     customer: t('Customers'),
     player: t('Player'),
+    local: t('In town'),
   })[k];
 
 /** People you've met at events, warmest first within each month (Wave 2). */

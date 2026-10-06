@@ -21,7 +21,9 @@ import {
   type BusinessView,
 } from './contract';
 import type { CityLayout, Place } from './layout';
+import { sellsOf, venueItemsOf } from './life';
 import { contactsOf, type PresenceView } from './people';
+import { Showroom } from './Showroom';
 
 /** What the economy commands answer (engine §B). */
 type PitchResult = {
@@ -119,6 +121,7 @@ function Venue({ b, players }: { b: BusinessView; players: PresenceView[] }) {
   const [withId, setWithId] = useState('');
   const pocket = view.accounts.local?.balance ?? 0;
   if (!b.venue || !b.venue.items.length) return null;
+  const extra = new Map(venueItemsOf(view, b.id).map((i) => [i.id, i]));
   const buy = (itemId: string, label: string) =>
     void send(
       cmd({
@@ -143,6 +146,9 @@ function Venue({ b, players }: { b: BusinessView; players: PresenceView[] }) {
             <span>
               <span className="item-title">{tx(it.label)}</span>
               {it.meeting && <span className="small muted"> · {t('good for a meeting')}</span>}
+              {(extra.get(it.id)?.meetChance ?? 0) >= 0.25 && (
+                <span className="small muted"> · {t('you may meet someone')}</span>
+              )}
               {it.energy ? (
                 <span className="small muted"> · {t('+{n} energy', { n: it.energy })}</span>
               ) : null}
@@ -353,6 +359,7 @@ export function BusinessInterior({
         {b.you.customer && <Pill tone="good">{t('Your customer')}</Pill>}
       </div>
       <Venue b={b} players={players} />
+      {sellsOf(view, b) && <Showroom business={b} />}
       <Gigs b={b} />
       <SellToThem b={b} />
     </div>

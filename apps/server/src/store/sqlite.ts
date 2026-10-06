@@ -126,6 +126,14 @@ const MIGRATIONS: string[] = [
      created_at INTEGER NOT NULL
    );
    CREATE INDEX ai_messages_thread ON ai_messages(user_id, character_id, id);`,
+  // Wave 6: what the templates remember about each thread, and the daily Claude budget.
+  `ALTER TABLE ai_threads ADD COLUMN memory TEXT;
+   CREATE TABLE ai_budget (
+     user_id TEXT NOT NULL,
+     day TEXT NOT NULL,
+     n INTEGER NOT NULL,
+     PRIMARY KEY (user_id, day)
+   );`,
 ];
 
 /** Presence rows this much older than the caller's window are deleted. */
@@ -261,6 +269,7 @@ export class Store implements AccountStore {
       this.db.prepare('DELETE FROM presence_settings WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM ai_messages WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM ai_threads WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM ai_budget WHERE user_id = ?').run(id);
     });
   }
 
@@ -560,5 +569,41 @@ export class Store implements AccountStore {
          WHERE user_id = ? AND character_id = ?`,
       )
       .run(userId, characterId, userId, characterId);
+  }
+
+  aiMemory(userId: string, characterId: string): unknown {
+    const r = this.db
+      .prepare('SELECT memory FROM ai_threads WHERE user_id = ? AND character_id = ?')
+      .get(userId, characterId) as { memory: string | null } | undefined;
+    if (!r?.memory) return undefined;
+    try {
+      return JSON.parse(r.memory) as unknown;
+    } catch {
+      return undefined;
+    }
+  }
+
+  setAiMemory(userId: string, characterId: string, memory: unknown) {
+    this.db
+      .prepare('UPDATE ai_threads SET memory = ? WHERE user_id = ? AND character_id = ?')
+      .run(JSON.stringify(memory), userId, characterId);
+  }
+
+  takeAiBudget(userId: string, day: string, limit: number): boolean {
+    return this.tx(() => {
+      const r = this.db
+        .prepare('SELECT n FROM ai_budget WHERE user_id = ? AND day = ?')
+        .get(userId, day) as { n: number } | undefined;
+      if ((r?.n ?? 0) >= limit) return false;
+      // Only today's row matters; older days go.
+      this.db.prepare('DELETE FROM ai_budget WHERE user_id = ? AND day <> ?').run(userId, day);
+      this.db
+        .prepare(
+          `INSERT INTO ai_budget (user_id, day, n) VALUES (?, ?, 1)
+           ON CONFLICT(user_id, day) DO UPDATE SET n = n + 1`,
+        )
+        .run(userId, day);
+      return true;
+    });
   }
 }

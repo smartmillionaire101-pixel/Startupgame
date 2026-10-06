@@ -353,12 +353,32 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('job.take'), businessId: id, role: z.string().min(1).max(32) }),
   z.object({ type: z.literal('job.quit') }),
   /** Furniture for your apartment: one per slot; replacing sells the old one back at 40%. */
-  z.object({ type: z.literal('home.buy'), itemId: z.string().min(1).max(32) }),
+  /** Wave 6: `businessId` is the showroom you buy in (its till gets the money). */
+  z.object({
+    type: z.literal('home.buy'),
+    itemId: z.string().min(1).max(32),
+    businessId: id.optional(),
+  }),
   /** A car: replacing sells the old one back at 50%; running costs are paid monthly. */
-  z.object({ type: z.literal('car.buy'), modelId: z.string().min(1).max(32) }),
+  z.object({
+    type: z.literal('car.buy'),
+    modelId: z.string().min(1).max(32),
+    businessId: id.optional(),
+  }),
   /** Sell your car back at 50% of what you paid. */
   z.object({ type: z.literal('car.sell') }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
+  // ---- Who's here (Wave 6)
+  /**
+   * Save someone you see in town: a player id, `fund:<id>`, `biz:<businessId>`
+   * (the owner) or `npc:<market>:<n>` (a regular). Free; same city only.
+   */
+  z.object({
+    type: z.literal('contact.save'),
+    personId: z.string().min(1).max(80),
+    name: z.string().max(80),
+  }),
+  z.object({ type: z.literal('contact.remove'), contactId: z.string().min(1).max(100) }),
   // ---- capital programmes and investor play (Wave 5, section B)
   z.object({ type: z.literal('accelerator.apply'), acceleratorId: id, companyId: id }),
   z.object({ type: z.literal('grant.apply'), partnerId: id, programId: id, companyId: id }),

@@ -16,7 +16,8 @@ async function founder(page: Page, market: RegExp, name: string) {
   await expect(page.getByText(/Available in/)).toBeVisible();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
-  await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible();
+  // The first answer after Start can be a cold start that loads the whole world.
+  await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
 }
 
 /** Tap a building on the map: the avatar goes there (cycling, if it's far) and goes in. */

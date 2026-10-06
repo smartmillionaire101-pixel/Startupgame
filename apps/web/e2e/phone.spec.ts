@@ -52,13 +52,19 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
   await phone.getByRole('button', { name: 'New message' }).click();
   await phone.locator('[data-group="partner"] [data-character]').first().click();
   await phone.getByRole('button', { name: 'What do you invest in?' }).click();
-  // Their reply comes from the fund's real thesis and cheque sizes.
-  await expect(phone.locator('.bubble:not(.mine)').first()).toContainText(/cheques of/, {
-    timeout: 10_000,
-  });
+  // Their reply comes from the fund's real thesis and cheque sizes (worded by
+  // the templates, or freely by Claude when the server has a key).
+  await expect(phone.locator('.bubble:not(.mine):not(.phone-typing)').first()).toContainText(
+    /cheque|invest|back/i,
+    {
+      timeout: 15_000,
+    },
+  );
   await phone.getByRole('textbox', { name: 'Message' }).fill('Can we meet?');
   await phone.getByRole('button', { name: 'Send' }).click();
-  await expect(phone.locator('.bubble:not(.mine)')).toHaveCount(2);
+  await expect(phone.locator('.bubble:not(.mine):not(.phone-typing)')).toHaveCount(2, {
+    timeout: 15_000,
+  });
 
   // The thread shows in the list.
   await phone.getByRole('button', { name: 'Back' }).click();
@@ -87,16 +93,22 @@ test('Home inbox items are tappable, and person cards chat with AI people', asyn
     page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'News' }),
   ).toHaveAttribute('aria-current', 'page');
 
-  // A fund partner in the city: Chat opens their thread in the phone.
+  // A fund partner, at their office (Wave 6: people are inside buildings).
+  // Tap them in the room: Chat on their card opens their thread in the phone.
   await page
     .getByRole('navigation', { name: 'Main' })
     .getByRole('button', { name: 'City' })
     .click();
-  const partner = page.locator('[data-person^="ai:partner:"]').first();
-  await expect(partner).toBeAttached();
-  await partner.dispatchEvent('pointerdown', { pointerId: 3, clientX: 5, clientY: 5 });
-  await partner.dispatchEvent('pointerup', { pointerId: 3, clientX: 5, clientY: 5 });
-  await page.getByRole('dialog').getByRole('button', { name: 'Chat', exact: true }).click();
+  await page.getByRole('button', { name: /Places/ }).click();
+  await page.getByRole('dialog', { name: 'Places' }).locator('[data-kind="fund"]').first().click();
+  const scene = page.locator('.place-scene');
+  await expect(scene).toBeVisible({ timeout: 10_000 });
+  await scene.getByRole('button', { name: /, Partner$/ }).dispatchEvent('click');
+  await page
+    .getByRole('dialog')
+    .filter({ hasText: 'Fund partner' })
+    .getByRole('button', { name: 'Chat', exact: true })
+    .click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await expect(phone.locator('[data-thread^="fund:"]')).toBeVisible();
 });

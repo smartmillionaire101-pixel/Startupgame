@@ -24,6 +24,8 @@ import {
   businessKind,
 } from './data/businesses.js';
 import type { BusinessCategory, BusinessKindSpec, JobRole } from './data/businesses.js';
+import { CITY_NAME_PARTS, KIND_NAME_SUFFIXES } from './data/business-names.js';
+import { shopSells } from './data/lifestyle-shop.js';
 import { INDUSTRY_LABEL } from './data/industries.js';
 import type { Industry } from './data/industries.js';
 import type { MarketId } from './data/markets.js';
@@ -52,6 +54,7 @@ import {
 import { CATEGORY } from './marketplace.js';
 import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
+import { metAtVenue, peopleHere } from './people.js';
 import { deriveRng } from './rng.js';
 import type { Rng } from './rng.js';
 import type {
@@ -118,6 +121,32 @@ export const ECONOMY = {
   skillPremium: 1.5,
   /** Wave 5: a meeting over a meal costs money only. */
   meetingHours: 0,
+  /** Wave 6: gigs pay about 30% more. */
+  gigPayBoost: 1.3,
+} as const;
+
+/**
+ * Wave 6: the city grows as people arrive. Each human who ever joined a
+ * market adds `perHuman` businesses to its target, up to `cap` beyond the
+ * roster; each settlement opens at most `perSettlement` while below it.
+ */
+export const GROWTH = {
+  perHuman: 2,
+  cap: 150,
+  perSettlement: 3,
+  /** A business opened within this many months shows as new. */
+  newMonths: 2,
+  /** How often each category is picked for a new business (food and services most). */
+  categoryWeight: {
+    food: 4,
+    services: 3,
+    retail: 2,
+    hospitality: 2,
+    health: 1.5,
+    education: 0.6,
+    trades: 0.6,
+    logistics: 0.4,
+  } as Record<BusinessCategory, number>,
 } as const;
 
 /** Wave 5: a part-time job takes this many hours a month. */
@@ -138,6 +167,18 @@ export function specOf(b: LocalBusiness): BusinessKindSpec {
   if (!spec) fail('business.kind', `Unknown business kind ${b.kind}`);
   return spec;
 }
+
+/** Wave 6: what a business was opened as: its roster seed, or its generated identity. */
+export function seedOf(
+  b: LocalBusiness,
+): { name: string; kind: string; district: string; owner: string; street: string | null } | null {
+  const seed = b.seed >= 0 ? CITY_BUSINESSES[b.market]?.[b.seed] : undefined;
+  if (seed) return { ...seed, street: seed.street ?? null };
+  return b.gen ?? null;
+}
+
+/** The real street or area a business stands on (null when nobody named one). */
+export const streetOf = (b: LocalBusiness): string | null => seedOf(b)?.street ?? null;
 
 export function getBusiness(world: World, id: Id): LocalBusiness {
   for (const m of Object.values(world.markets)) {
@@ -221,8 +262,9 @@ function openBusiness(
   rng: Rng,
   month: number,
   founding: boolean,
+  gen?: NonNullable<LocalBusiness['gen']>,
 ): LocalBusiness | null {
-  const seed = CITY_BUSINESSES[m.id]?.[seedIdx];
+  const seed = gen ?? CITY_BUSINESSES[m.id]?.[seedIdx];
   const spec = seed ? businessKind(seed.kind) : undefined;
   if (!seed || !spec) return null;
   const all = (m.businesses ??= {});
@@ -256,7 +298,8 @@ function openBusiness(
     health: founding ? rng.range(0.55, 0.85) : 0.6,
     suppliers: [],
     openedMonth: founding ? month - rng.int(6, 120) : month,
-    seed: seedIdx,
+    seed: gen ? -1 : seedIdx,
+    ...(gen ? { gen } : {}),
     base,
     costBase: base,
     rapport: {},
@@ -326,6 +369,145 @@ function closeBusiness(world: World, m: MarketState, b: LocalBusiness, month: nu
   b.health = 0;
 }
 
+// ---------------------------------------------------------------- Growth (Wave 6)
+
+/** Human players who ever joined this market (old saves: counted from the players there). */
+export function humansJoined(world: World, m: MarketState): number {
+  return (
+    m.humansJoined ?? Object.values(world.players).filter((p) => !p.ai && p.market === m.id).length
+  );
+}
+
+/** How many businesses the city aims to have open: the roster plus two per human, capped. */
+export function growthTarget(world: World, m: MarketState): number {
+  const roster = CITY_BUSINESSES[m.id] ?? [];
+  const rosterOpen = Object.values(businessesOf(m)).filter((b) => b.seed >= 0 && isOpen(b)).length;
+  return Math.min(
+    rosterOpen + GROWTH.perHuman * humansJoined(world, m),
+    roster.length + GROWTH.cap,
+  );
+}
+
+const DISTRICT_LABEL: Record<string, string> = {
+  fidi: 'FiDi',
+  soma: 'SoMa',
+  difc: 'DIFC',
+  cbd: 'the CBD',
+  city: 'the City',
+};
+
+/** 'congo-cross' → 'Congo Cross'. */
+export const districtLabel = (d: string): string =>
+  DISTRICT_LABEL[d] ??
+  d
+    .split('-')
+    .map((w) => (w ? w[0]!.toUpperCase() + w.slice(1) : w))
+    .join(' ');
+
+/** Kinds a city already has, weighted for new openings (food and services most often). */
+function growthKinds(marketId: MarketId): { kind: string; w: number }[] {
+  const seen = new Set<string>();
+  const out: { kind: string; w: number }[] = [];
+  for (const s of CITY_BUSINESSES[marketId] ?? []) {
+    if (seen.has(s.kind) || s.kind === 'car-dealership') continue;
+    seen.add(s.kind);
+    const spec = businessKind(s.kind);
+    if (spec) out.push({ kind: s.kind, w: GROWTH.categoryWeight[spec.category] });
+  }
+  return out;
+}
+
+function weightedPick<T extends { w: number }>(rng: Rng, items: readonly T[]): T {
+  const total = items.reduce((a, x) => a + x.w, 0);
+  let r = rng.next() * total;
+  for (const x of items) {
+    r -= x.w;
+    if (r < 0) return x;
+  }
+  return items[items.length - 1]!;
+}
+
+/** A new local business's identity: kind, a local name, a district and street from the city's seeds. */
+function generateIdentity(m: MarketState, rng: Rng): NonNullable<LocalBusiness['gen']> | null {
+  const roster = CITY_BUSINESSES[m.id] ?? [];
+  const kinds = growthKinds(m.id);
+  const parts = CITY_NAME_PARTS[m.id];
+  if (!roster.length || !kinds.length || !parts) return null;
+  const kind = weightedPick(rng, kinds).kind;
+  const spec = businessKind(kind)!;
+  const where = rng.pick(roster);
+  const female = rng.chance(0.5);
+  const first = rng.pick(female ? parts.female : parts.male);
+  const last = rng.pick(parts.last);
+  const suffixes = KIND_NAME_SUFFIXES[kind] ?? [spec.label];
+  const taken = new Set(Object.values(businessesOf(m)).map((b) => b.name));
+  for (const s of roster) taken.add(s.name);
+  let name = '';
+  for (let attempt = 0; attempt < 8 && (!name || taken.has(name)); attempt++) {
+    const suffix = rng.pick(suffixes);
+    const style = rng.int(0, 3);
+    const title = parts.honorific ? parts.honorific[female ? 'female' : 'male'] : null;
+    name =
+      style === 0 && title
+        ? `${title} ${first}'s ${suffix}`
+        : style <= 1
+          ? `${first}'s ${suffix}`
+          : style === 2
+            ? `${rng.pick(parts.places)} ${suffix}`
+            : `${districtLabel(where.district).replace(/^the /, '')} ${suffix}`;
+  }
+  if (taken.has(name)) name = `${name} ${Object.keys(businessesOf(m)).length}`;
+  return {
+    name,
+    kind,
+    district: where.district,
+    street: where.street ?? null,
+    owner: `${first} ${last}`,
+  };
+}
+
+/** Open up to `count` generated businesses while the city is below its target. */
+function grow(world: World, m: MarketState, rng: Rng, month: number, count: number) {
+  const opened: LocalBusiness[] = [];
+  for (let i = 0; i < count; i++) {
+    const open = Object.values(businessesOf(m)).filter(isOpen).length;
+    if (open >= growthTarget(world, m)) break;
+    const gen = generateIdentity(m, rng);
+    if (!gen) break;
+    const b = openBusiness(world, m, -1, rng, month, false, gen);
+    if (b) opened.push(b);
+  }
+  return opened;
+}
+
+/**
+ * A human player joined this market (Wave 6): count them, and open one new
+ * business right away so the newcomer sees the city grow.
+ */
+export function growOnJoin(world: World, marketId: MarketId, playerId: Id) {
+  const m = world.markets[marketId];
+  if (!m) return;
+  // Count before the new player is stored (old saves: from the players already there).
+  m.humansJoined = humansJoined(world, m) + (world.players[playerId] ? 0 : 1);
+  if (!m.businesses) return;
+  const rng = deriveRng(world.seed, 'economy', 'growth', marketId, 'join', playerId);
+  const opened = grow(world, m, rng, m.month, 1);
+  if (m.economy) m.economy.openings += opened.length;
+}
+
+/** "New in town: Mama Fatu's Kitchen opened in Aberdeen." to every human living here. */
+function announceOpenings(world: World, m: MarketState, opened: LocalBusiness[], month: number) {
+  if (!opened.length) return;
+  const lines = opened.map((b) => `${b.name} opened in ${districtLabel(b.district)}`);
+  const text = `New in town: ${
+    lines.length === 1
+      ? lines[0]
+      : `${lines.slice(0, -1).join(', ')} and ${lines[lines.length - 1]}`
+  }.`;
+  for (const p of Object.values(world.players))
+    if (!p.ai && p.market === m.id) notify(world, p.id, { month, kind: 'system', text });
+}
+
 // ---------------------------------------------------------------- Choosing suppliers
 
 const rapportWith = (b: LocalBusiness, c: Company) =>
@@ -367,6 +549,14 @@ export function settleEconomy(world: World, marketId: MarketId, month: number) {
   stats.gigs = m.economy?.gigsNow ?? 0;
   const climate = 0.85 + 0.15 * clamp(m.climate, 0.5, 1.6);
   const cityCol = col(m);
+  // Wave 6: human staff are part of the wage bill (paid from the till at their own settlement).
+  const staffDue: Record<Id, number> = {};
+  for (const p of Object.values(world.players)) {
+    if (p.ai || !p.job || p.market !== marketId) continue;
+    const b = m.businesses?.[p.job.businessId];
+    const role = b && isOpen(b) ? specOf(b).roles.find((r) => r.role === p.job!.role) : undefined;
+    if (b && role) staffDue[b.id] = (staffDue[b.id] ?? 0) + jobPay(m, p, role);
+  }
 
   for (const b of Object.values(businessesOf(m))) {
     if (!isOpen(b)) continue;
@@ -384,7 +574,9 @@ export function settleEconomy(world: World, marketId: MarketId, month: number) {
     transfer(world, m.ext.customers, b.account, takings, 'Takings', month);
 
     // 2. Costs: staff and rent are sized to the business; stock follows sales.
-    const wagesDue = Math.round(b.costBase * ECONOMY.wageShare[spec.category]);
+    // Players on the staff take part of the wage bill; the rest goes to everyone else.
+    const staff = staffDue[b.id] ?? 0;
+    const wagesDue = Math.max(0, Math.round(b.costBase * ECONOMY.wageShare[spec.category]) - staff);
     const rentDue = Math.round(b.costBase * rentShare(spec.category));
     const wages = transferUpTo(world, b.account, m.ext.payroll, wagesDue, 'Wages', month);
     const rent = transferUpTo(world, b.account, m.ext.suppliers, rentDue, 'Rent', month);
@@ -469,7 +661,7 @@ export function settleEconomy(world: World, marketId: MarketId, month: number) {
     }
 
     // 4. Health: profit grows a business slowly; losses shrink it and, in the end, close it.
-    const costs = wages + rent + goods + incumbent;
+    const costs = wages + rent + goods + incumbent + staff;
     const profit = takings - costs - trade;
     b.costBase = Math.round(b.costBase + (b.base - b.costBase) * 0.1);
     const target = clamp01(0.5 + (8 * profit) / Math.max(1, b.base));
@@ -492,7 +684,7 @@ export function settleEconomy(world: World, marketId: MarketId, month: number) {
   // New businesses open from the roster pool, so the city keeps changing.
   const roster = CITY_BUSINESSES[marketId] ?? [];
   const all = Object.values(businessesOf(m));
-  const openNow = all.filter(isOpen);
+  const openNow = all.filter((b) => isOpen(b) && b.seed >= 0);
   const pool = roster
     .map((_, i) => i)
     .filter(
@@ -503,13 +695,28 @@ export function settleEconomy(world: World, marketId: MarketId, month: number) {
         ),
     );
   const belowStart = openNow.length < roster.length - LATE_OPENINGS;
+  const opened: LocalBusiness[] = [];
   if (
     pool.length &&
     rng.chance(belowStart ? 0.4 : ECONOMY.openChance * clamp(m.climate, 0.5, 1.6))
   ) {
     const b = openBusiness(world, m, rng.pick(pool), rng, month, false);
-    if (b) stats.openings += 1;
+    if (b) {
+      stats.openings += 1;
+      opened.push(b);
+    }
   }
+  // Wave 6: the city grows with its people (own RNG stream, so nothing above shifts).
+  const grown = grow(
+    world,
+    m,
+    deriveRng(world.seed, 'economy', 'growth', marketId, month),
+    month,
+    GROWTH.perSettlement,
+  );
+  stats.openings += grown.length;
+  opened.push(...grown);
+  announceOpenings(world, m, opened, month);
   m.economy = stats;
 }
 
@@ -662,7 +869,10 @@ export function gigPay(
   p: Player | null,
   g: { payCol: number; skill?: string | null },
 ) {
-  return scale(col(m), g.payCol * (p && gigSkillMatch(p, g.skill) ? ECONOMY.skillPremium : 1));
+  return scale(
+    col(m),
+    g.payCol * ECONOMY.gigPayBoost * (p && gigSkillMatch(p, g.skill) ? ECONOMY.skillPremium : 1),
+  );
 }
 
 /** Work a shift or a freelance job at a business, paid from its till. */
@@ -726,9 +936,15 @@ export function takeBusinessGig(world: World, me: Player, businessId: Id, gigId:
 
 export const jobSkillMatch = gigSkillMatch;
 
-/** Monthly pay for a role at a business in this city (gross, local minor units). */
+/**
+ * Monthly pay for a role at a business in this city (gross, local minor
+ * units). Wave 6: `payCol` is take-home, so the gross is grossed up for the
+ * city's income tax: an entry job (0.9 COL) covers Modest living (0.75 COL)
+ * with a little to spare in every city.
+ */
 export function jobPay(m: MarketState, p: Player | null, r: JobRole): number {
-  return scale(col(m), r.payCol * (p && gigSkillMatch(p, r.skill) ? JOB_SKILL_PREMIUM : 1));
+  const net = r.payCol * (p && gigSkillMatch(p, r.skill) ? JOB_SKILL_PREMIUM : 1);
+  return scale(col(m), net / Math.max(0.2, 1 - m.data.tax.personalIncome));
 }
 
 /** Take a part-time job: 40 hours this month and every month, paid at each settlement. */
@@ -813,7 +1029,10 @@ export function myJobView(world: World, p: Player) {
   };
 }
 
-/** `view.here.jobs` / `view.market.jobs`: every role at every open business in the city. */
+/**
+ * `view.here.jobs` / `view.market.jobs`: every role at every open business in
+ * the city, best paid first (Wave 6).
+ */
 export function jobsView(viewer: Player, m: MarketState) {
   return Object.values(businessesOf(m))
     .filter(isOpen)
@@ -823,9 +1042,16 @@ export function jobsView(viewer: Player, m: MarketState) {
         businessName: b.name,
         role: r.role,
         label: r.label,
+        /** Wave 6: entry, skilled or lead. */
+        level: r.level ?? 'entry',
         monthlyPay: jobPay(m, viewer, r),
         hours: JOB_HOURS,
       })),
+    )
+    .sort(
+      (a, z) =>
+        z.monthlyPay - a.monthlyPay ||
+        (a.businessId < z.businessId ? -1 : a.businessId > z.businessId ? 1 : 0),
     );
 }
 
@@ -909,15 +1135,28 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
     `That costs ${fmt(total)}; you don’t have it.`,
   );
   payExact(world, me.accounts.local, b.account, total, `${it.label} at ${b.name}`, month);
-  const energy = it.energy ?? 0;
+  // Wave 6: fun adds energy too.
+  const energy = (it.energy ?? 0) + Math.round((it.fun ?? 0) / 2);
   if (energy) me.energy = clamp(me.energy + energy, 0, 100);
   raiseRapport(b, me.id, 0.02);
+  // Wave 6: you might meet someone new here (one roll per buy, on its own stream).
+  const buys = me.venueBuys?.month === month ? me.venueBuys.count : 0;
+  me.venueBuys = { month, count: buys + 1 };
+  let met: { name: string; kind: ContactKind; refId: Id; role: string; personId: string } | null =
+    null;
+  if (it.meetChance) {
+    const rng = deriveRng(world.seed, 'venue', me.id, month, buys);
+    if (rng.chance(it.meetChance))
+      met = metAtVenue(world, me, b, rng, month, withId ? [withId] : []);
+  }
+  const metLine = met ? ` You met ${met.name} (${met.role}).` : '';
   if (!guest)
     return {
       price: total,
       energy,
       warmth: null as number | null,
-      message: `${it.label} at ${b.name}: ${fmt(total)}.`,
+      met,
+      message: `${it.label} at ${b.name}: ${fmt(total)}.${metLine}`,
     };
 
   // A meeting over a meal: warmer than a handshake at an event.
@@ -944,7 +1183,8 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
     price: total,
     energy,
     warmth: now,
-    message: `${it.label} with ${guest.name} at ${b.name}: ${fmt(total)}. You’re on warmer terms (${Math.round(now * 100)}%).`,
+    met,
+    message: `${it.label} with ${guest.name} at ${b.name}: ${fmt(total)}. You’re on warmer terms (${Math.round(now * 100)}%).${metLine}`,
   };
 }
 
@@ -966,11 +1206,13 @@ export function eventVenueBusiness(world: World, me: Player, businessId: Id): Lo
 
 export function businessesView(world: World, viewer: Player, m: MarketState) {
   const month = m.month;
+  const here = peopleHere(world, m);
   return Object.values(businessesOf(m))
     .filter((b) => isOpen(b) || month - (b.closedMonth ?? month) <= BUSINESS_RECENT_MONTHS)
     .map((b) => {
       const spec = specOf(b);
       const blocker = pitchBlocker(world, viewer, b);
+      const open = isOpen(b);
       return {
         id: b.id,
         name: b.name,
@@ -979,10 +1221,16 @@ export function businessesView(world: World, viewer: Player, m: MarketState) {
         category: spec.category,
         district: b.district,
         /** The real street or area (Wave 5); null when the roster doesn't name one. */
-        street: CITY_BUSINESSES[m.id]?.[b.seed]?.street ?? null,
+        street: streetOf(b),
         owner: { name: b.owner.name },
         look: spec.look,
-        open: isOpen(b),
+        open,
+        /** Wave 6: opened within the last two months (generated or from the roster). */
+        isNew: open && month - b.openedMonth < GROWTH.newMonths,
+        /** Wave 6: a showroom's stock (furniture or appliance slots, or cars); null otherwise. */
+        sells: shopSells(b.kind),
+        /** Wave 6: who's here this month (owner, staff, AI founders, angels, partners, regulars). */
+        people: open ? (here[b.id] ?? []) : [],
         venue: spec.venue
           ? {
               items: spec.venue.items.map((it) => ({
@@ -991,6 +1239,9 @@ export function businessesView(world: World, viewer: Player, m: MarketState) {
                 price: scale(col(m), it.priceCol),
                 ...(it.energy ? { energy: it.energy } : {}),
                 ...(it.meeting ? { meeting: true } : {}),
+                ...(it.fun ? { fun: it.fun } : {}),
+                ...(it.meetChance ? { meetChance: it.meetChance } : {}),
+                ...(it.activity ? { activity: true } : {}),
               })),
             }
           : null,

@@ -151,4 +151,13 @@ export interface AccountStore {
   ): Awaitable<AiMessageRow>;
   /** Everything in the thread so far counts as read. */
   markAiRead(userId: string, characterId: string): Awaitable<void>;
+  /** What the templates remember about a thread (Wave 6), as stored; undefined when none. */
+  aiMemory(userId: string, characterId: string): Awaitable<unknown>;
+  /** Save a thread's memory (the thread must exist; otherwise nothing happens). */
+  setAiMemory(userId: string, characterId: string, memory: unknown): Awaitable<void>;
+  /**
+   * Count one Claude reply against the player's daily budget. Returns false,
+   * counting nothing, when `day` (YYYY-MM-DD, UTC) already has `limit` replies.
+   */
+  takeAiBudget(userId: string, day: string, limit: number): Awaitable<boolean>;
 }

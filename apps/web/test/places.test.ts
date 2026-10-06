@@ -1,5 +1,8 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { PlayerView } from '@runway/engine';
+import { RoomBack, RoomFront } from '../src/city/RoomArt';
 import { cityInput } from '../src/city/contract';
 import { buildLayout, findPath } from '../src/city/layout';
 import {
@@ -7,10 +10,16 @@ import {
   angelsAtOf,
   devPartnersOf,
   genderOf,
+  HOME_SLOTS,
   homeOf,
   jobsOf,
+  metOf,
   myJobOf,
+  nearest,
+  sellsOf,
+  sellsThing,
   shopOf,
+  venueItemsOf,
 } from '../src/city/life';
 import { PLANS } from '../src/city/plans';
 import { avatarLook } from '../src/city/art';
@@ -97,7 +106,8 @@ describe('rooms (Wave 5 §D)', () => {
     expect(businessRoom('cafe')).toBe('cafe');
     expect(businessRoom('coffee-roaster')).toBe('cafe');
     expect(businessRoom('nightclub')).toBe('club');
-    expect(businessRoom('lounge')).toBe('bar');
+    expect(businessRoom('lounge')).toBe('lounge');
+    expect(businessRoom('lounge-bar', 'pub')).toBe('lounge');
     expect(businessRoom('rooftop-bar')).toBe('bar');
     expect(businessRoom('pub', 'pub')).toBe('bar');
     expect(businessRoom('cinema')).toBe('cinema');
@@ -108,6 +118,69 @@ describe('rooms (Wave 5 §D)', () => {
     expect(businessRoom('art-gallery')).toBe('gallery');
     expect(businessRoom('clinic', 'clinic')).toBe('clinic');
     expect(businessRoom('tailor', 'shopfront')).toBe('shop');
+  });
+
+  it('gives every Wave 6 kind its own room', () => {
+    const want: Record<string, string> = {
+      nightclub: 'club',
+      cinema: 'cinema',
+      lounge: 'lounge',
+      karaoke: 'karaoke',
+      arcade: 'arcade',
+      spa: 'spa',
+      'beach-club': 'beach',
+      'live-music': 'stage',
+      'football-pitch': 'pitch',
+      'art-gallery': 'gallery',
+      'furniture-store': 'furniture',
+      'car-dealer': 'showroom',
+      'car-dealership': 'showroom',
+      'appliance-store': 'appliance',
+      electronics: 'appliance',
+    };
+    for (const [kind, room] of Object.entries(want)) expect(businessRoom(kind), kind).toBe(room);
+    // Look-alikes stay where they were.
+    expect(businessRoom('co-working')).toBe('cowork');
+    expect(businessRoom('climbing-gym')).toBe('gym');
+    expect(businessRoom('phone-repair', 'shopfront')).toBe('shop');
+  });
+
+  it('draws every room, and the flat with all its slots (empty ones faint)', () => {
+    for (const k of ROOM_KINDS) {
+      const html = renderToStaticMarkup(
+        createElement('svg', null, [
+          createElement(RoomBack, { key: 'b', kind: k, tint: '#336699', sign: 'CLUB EKO' }),
+          createElement(RoomFront, { key: 'f', kind: k, tint: '#336699' }),
+        ]),
+      );
+      expect(html.length, k).toBeGreaterThan(100);
+    }
+    const flat = renderToStaticMarkup(
+      createElement('svg', null, [
+        createElement(RoomBack, {
+          key: 'b',
+          kind: 'apartment',
+          tint: '#fff',
+          car: 'Okada motorbike',
+          home: [
+            { slot: 'tv', itemId: 'tv-2', label: 'Big smart TV', tier: 2 },
+            { slot: 'hammock', itemId: 'hammock-1', label: 'Hammock', tier: 1 },
+          ],
+        }),
+        createElement(RoomFront, {
+          key: 'f',
+          kind: 'apartment',
+          tint: '#fff',
+          home: [{ slot: 'hammock', itemId: 'hammock-1', label: 'Hammock', tier: 1 }],
+        }),
+      ]),
+    );
+    for (const slot of HOME_SLOTS) expect(flat, slot).toContain(`data-furniture="${slot}"`);
+    expect(flat).toContain('data-furniture="tv" data-owned="1"');
+    expect(flat).toContain('data-furniture="fridge" data-owned="0"');
+    // A slot the client doesn't know yet still shows, as a box.
+    expect(flat).toContain('data-furniture="hammock" data-owned="1"');
+    expect(flat).toContain('data-car="Okada motorbike"');
   });
 
   it('turns your office and home into a desk and a hotel room abroad', () => {
@@ -225,7 +298,129 @@ describe('Wave 5 view adapters', () => {
   });
 });
 
+describe('Wave 6: things to do and showrooms', () => {
+  it('reads fun, meetChance and activity, with a fallback for older engines', () => {
+    const v = view({
+      businesses: [
+        biz('club', {
+          kind: 'nightclub',
+          venue: {
+            items: [
+              { id: 'dance', label: 'Dance', price: 3000, fun: 8, meetChance: 0.3, activity: true },
+              { id: 'drink', label: 'A drink', price: 1500, energy: 2, activity: false },
+            ],
+          },
+        }),
+        biz('old', {
+          kind: 'nightclub',
+          venue: { items: [{ id: 'vip', label: 'VIP table', price: 9000, meeting: true }] },
+        }),
+      ],
+    });
+    const [dance, drink] = venueItemsOf(v, 'club');
+    expect(dance).toMatchObject({ activity: true, fun: 8, meetChance: 0.3 });
+    expect(drink!.activity).toBe(false);
+    expect(venueItemsOf(v, 'old')[0]!.activity).toBe(true);
+    expect(venueItemsOf(v, 'nope')).toEqual([]);
+  });
+
+  it('reads who you met, and nothing when nobody', () => {
+    expect(
+      metOf({ met: { name: 'Ama', kind: 'local', refId: 'npc:lagos:4', role: 'Nurse' } }),
+    ).toEqual({
+      name: 'Ama',
+      kind: 'local',
+      refId: 'npc:lagos:4',
+      role: 'Nurse',
+      personId: 'npc:lagos:4',
+    });
+    // A fund partner: the engine's personId wins; older engines fall back to fund:<refId>.
+    expect(
+      metOf({
+        met: { name: 'Pat', kind: 'fund', refId: 'f1', role: 'Partner', personId: 'fund:f1' },
+      })?.personId,
+    ).toBe('fund:f1');
+    expect(
+      metOf({ met: { name: 'Pat', kind: 'fund', refId: 'f1', role: 'Partner' } })?.personId,
+    ).toBe('fund:f1');
+    expect(metOf({ met: null })).toBeNull();
+    expect(metOf(null)).toBeNull();
+  });
+
+  it('knows what a showroom sells: `sells` when sent, else by kind', () => {
+    const v = view({
+      businesses: [
+        biz('f', { kind: 'furniture-store', sells: { slots: ['sofa', 'rug'] } }),
+        biz('c', { kind: 'car-dealer', sells: { cars: true } }),
+        biz('r', { kind: 'restaurant', sells: null }),
+        biz('old-f', { kind: 'furniture-store' }),
+        biz('old-e', { kind: 'electronics' }),
+      ],
+    });
+    const of = (id: string) => sellsOf(v, { id, kind: businessesKind(v, id) });
+    expect(of('f')).toEqual({ slots: ['sofa', 'rug'] });
+    expect(of('c')).toEqual({ cars: true });
+    expect(of('r')).toBeNull();
+    expect(sellsThing(v, { id: 'old-f', kind: 'furniture-store' }, 'sofa')).toBe(true);
+    expect(sellsThing(v, { id: 'old-f', kind: 'furniture-store' }, 'tv')).toBe(false);
+    expect(sellsThing(v, { id: 'old-e', kind: 'electronics' }, 'tv')).toBe(true);
+    expect(sellsThing(v, { id: 'old-e', kind: 'electronics' }, 'car')).toBe(false);
+    expect(HOME_SLOTS.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it('finds the nearest showroom', () => {
+    const at: Record<string, { x: number; y: number }> = { a: { x: 10, y: 10 }, b: { x: 2, y: 1 } };
+    expect(nearest(['a', 'b'], (k) => at[k], { x: 0, y: 0 })).toBe('b');
+    expect(nearest(['a', 'b'], () => undefined, { x: 0, y: 0 })).toBe('a');
+    expect(nearest([], () => undefined, undefined)).toBeUndefined();
+  });
+});
+
+const businessesKind = (v: PlayerView, id: string) =>
+  (
+    (v.market as unknown as { businesses: { id: string; kind: string }[] }).businesses.find(
+      (b) => b.id === id,
+    ) ?? { kind: '' }
+  ).kind;
+
 describe('What to do now', () => {
+  it('suggests a night out in the evening, and work when money is low', () => {
+    const club = biz('club', {
+      kind: 'nightclub',
+      name: 'Club Eko Nights',
+      venue: { items: [{ id: 'dance', label: 'Dance', price: 3000, fun: 8, activity: true }] },
+    });
+    const evening = suggestionsFor(view({ businesses: [club, biz('b1')] }), 3, 21);
+    expect(evening.find((s) => s.kind === 'fun')).toMatchObject({
+      placeId: 'biz:club',
+      name: 'Club Eko Nights',
+      detail: 'Dance',
+      night: true,
+    });
+    const low = suggestionsFor(
+      view(
+        {
+          businesses: [club],
+          jobs: [
+            {
+              businessId: 'club',
+              businessName: 'Club Eko Nights',
+              role: 'dj',
+              label: 'DJ',
+              monthlyPay: 90000,
+              hours: 40,
+            },
+          ],
+        },
+        {},
+        150_000,
+      ),
+      3,
+      21,
+    );
+    expect(low[0]).toMatchObject({ kind: 'job', placeId: 'biz:club' });
+  });
+
   it('suggests three things, a job first when you’re broke', () => {
     const v = view(
       {

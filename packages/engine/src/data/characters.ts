@@ -284,8 +284,11 @@ export const backgroundById = (id: string): Background | undefined =>
 
 export const PLAYABLE_ROLES: readonly Role[] = ['founder', 'investor', 'banker'];
 
-/** Months of personal runway every player starts with, before background adjustment (§3). */
-export const STARTING_RUNWAY_MONTHS = 6;
+/**
+ * Months of personal runway every player starts with, before background
+ * adjustment (§3). Wave 6: 12 (was 6), so months feel slower.
+ */
+export const STARTING_RUNWAY_MONTHS = 12;
 
 /** Base hours per game month. Open question §21: tune in beta. */
 export const BASE_HOURS = 200;
@@ -295,7 +298,7 @@ export interface LifestyleTier {
   name: string;
   housing: string;
   transport: string;
-  /** Monthly cost as a multiple of local cost of living. */
+  /** Monthly cost as a multiple of local cost of living (Wave 6: about 25% lower). */
   costCol: number;
   /** Energy recovered per month. */
   recovery: number;
@@ -311,7 +314,7 @@ export const LIFESTYLE_TIERS: readonly LifestyleTier[] = [
     name: 'Lean',
     housing: 'Shared flat',
     transport: 'Public transport',
-    costCol: 0.7,
+    costCol: 0.5,
     recovery: 14,
     hours: -10,
     flash: 0,
@@ -321,7 +324,7 @@ export const LIFESTYLE_TIERS: readonly LifestyleTier[] = [
     name: 'Modest',
     housing: 'Small flat',
     transport: 'Ride-hailing',
-    costCol: 1,
+    costCol: 0.75,
     recovery: 20,
     hours: 0,
     flash: 0.1,
@@ -331,7 +334,7 @@ export const LIFESTYLE_TIERS: readonly LifestyleTier[] = [
     name: 'Comfortable',
     housing: 'Good flat',
     transport: 'Own car',
-    costCol: 1.8,
+    costCol: 1.35,
     recovery: 26,
     hours: 5,
     flash: 0.3,
@@ -341,7 +344,7 @@ export const LIFESTYLE_TIERS: readonly LifestyleTier[] = [
     name: 'Affluent',
     housing: 'House',
     transport: 'Car and driver',
-    costCol: 3.5,
+    costCol: 2.625,
     recovery: 30,
     hours: 12,
     flash: 0.65,
@@ -351,7 +354,7 @@ export const LIFESTYLE_TIERS: readonly LifestyleTier[] = [
     name: 'Lavish',
     housing: 'Penthouse',
     transport: 'Driver, travel',
-    costCol: 7,
+    costCol: 5.25,
     recovery: 32,
     hours: 15,
     flash: 1,

@@ -135,6 +135,8 @@ export interface ShopFurniture {
   label: string;
   tier: number;
   price: number;
+  /** Comfort points it adds (0 when the engine doesn't say). */
+  comfort: number;
 }
 
 export interface ShopCar {
@@ -157,6 +159,7 @@ export function shopOf(view: View): { furniture: ShopFurniture[]; cars: ShopCar[
         label: str(f.label, str(f.itemId, str(f.id))),
         tier: Math.max(1, Math.min(3, num(f.tier, 1))),
         price: num(f.price),
+        comfort: num(f.comfort),
       }))
       .filter((f) => f.id && f.price > 0),
     cars: list(s.cars)
@@ -171,9 +174,185 @@ export function shopOf(view: View): { furniture: ShopFurniture[]; cars: ShopCar[
   };
 }
 
-/** Which business kinds sell furniture or cars (section A adds them). */
-export const sellsCars = (kind: string) => /car|dealer|motor|showroom|auto/i.test(kind);
+/** Which business kinds sell furniture or cars (by kind, for engines without `sells`). */
+export const sellsCars = (kind: string) => /car-|dealer|motor|showroom|auto/i.test(kind);
 export const sellsFurniture = (kind: string) => /furnit|interior|homeware|decor/i.test(kind);
+export const sellsAppliances = (kind: string) => /applian|electronic/i.test(kind);
+
+/**
+ * Every home slot, in the order the flat and the showrooms show them
+ * (docs/WAVE6-ALIVE-CITY.md §A3): the Wave 5 nine, then the Wave 6 twelve.
+ * Slots the engine adds later still show (after these).
+ */
+export const HOME_SLOTS = [
+  'sofa',
+  'bed',
+  'desk',
+  'tv',
+  'plants',
+  'art',
+  'kitchen',
+  'sound',
+  'gaming',
+  'fridge',
+  'washer',
+  'cooling',
+  'power',
+  'lights',
+  'rug',
+  'dining',
+  'wardrobe',
+  'books',
+  'coffee',
+  'wifi',
+  'laptop',
+] as const;
+
+/** Furniture store slots; the rest are appliances and electronics (§A3 `SHOP_KINDS_FOR_SLOT`). */
+const FURNITURE_STORE_SLOTS = new Set([
+  'sofa',
+  'bed',
+  'desk',
+  'plants',
+  'art',
+  'rug',
+  'dining',
+  'wardrobe',
+  'books',
+  'lights',
+]);
+
+/** Which kind of showroom sells a slot: 'furniture' or 'appliance'. */
+export const storeForSlot = (slot: string): 'furniture' | 'appliance' =>
+  FURNITURE_STORE_SLOTS.has(slot) ? 'furniture' : 'appliance';
+
+/** What a business sells you for your home: furniture slots, cars, or nothing. */
+export type Sells = { slots: string[] } | { cars: true } | null;
+
+/** The raw business entry, for Wave 6 fields the shared normaliser doesn't keep. */
+function rawBusiness(view: View, businessId: string): Record<string, unknown> | null {
+  const xs = (view.market as unknown as { businesses?: unknown }).businesses;
+  return Array.isArray(xs)
+    ? ((xs.find((b) => isObj(b) && b.id === businessId) as Record<string, unknown>) ?? null)
+    : null;
+}
+
+/**
+ * `businesses[].sells` (§A3) when the engine sends it; otherwise guessed
+ * from the kind (furniture store, appliance or electronics shop, car dealer).
+ */
+export function sellsOf(view: View, b: Pick<BusinessView, 'id' | 'kind'>): Sells {
+  const raw = rawBusiness(view, b.id);
+  if (raw && 'sells' in raw) {
+    const s = raw.sells;
+    if (isObj(s) && s.cars === true) return { cars: true };
+    if (isObj(s) && Array.isArray(s.slots))
+      return { slots: s.slots.filter((x): x is string => typeof x === 'string') };
+    return null;
+  }
+  if (sellsCars(b.kind)) return { cars: true };
+  const all = [...HOME_SLOTS];
+  if (sellsFurniture(b.kind)) return { slots: all.filter((s) => storeForSlot(s) === 'furniture') };
+  if (sellsAppliances(b.kind)) return { slots: all.filter((s) => storeForSlot(s) === 'appliance') };
+  return null;
+}
+
+/** Whether a business sells this slot (or cars, with 'car'). */
+export function sellsThing(view: View, b: Pick<BusinessView, 'id' | 'kind'>, what: string) {
+  const s = sellsOf(view, b);
+  if (!s) return false;
+  if ('cars' in s) return what === 'car';
+  // A furniture store from an older engine still sells the slots it always did.
+  return s.slots.includes(what);
+}
+
+// ---------------------------------------------------------------------------
+// Things to do (§A2)
+
+export interface VenueItemView {
+  id: string;
+  label: string;
+  price: number;
+  energy?: number;
+  meeting?: boolean;
+  /** 0..10. */
+  fun: number;
+  /** 0..1: the chance you meet someone here. */
+  meetChance: number;
+  /** A thing to do (dance, watch a film), not just food. */
+  activity: boolean;
+}
+
+/** Labels that are fun even from an engine without `activity` (Wave 5 clubs, cinemas…). */
+const FUN_WORDS =
+  /danc|film|movie|cinema|premiere|karaoke|sing|bowl|arcade|massage|spa |day pass|ticket|gig\b|open-mic|five-a-side|match|exhibition|opening|entry|vip|bottle|day bed|party|shisha|dj\b/i;
+
+/** A business's venue items with the Wave 6 fun fields (absent → 0 / false). */
+export function venueItemsOf(view: View, businessId: string): VenueItemView[] {
+  const raw = rawBusiness(view, businessId);
+  const venue = raw && isObj(raw.venue) ? raw.venue : null;
+  return list(venue?.items)
+    .filter((i) => typeof i.id === 'string')
+    .map((i) => {
+      const label = str(i.label, i.id as string);
+      const fun = Math.max(0, Math.min(10, num(i.fun)));
+      return {
+        id: i.id as string,
+        label,
+        price: num(i.price),
+        ...(typeof i.energy === 'number' ? { energy: i.energy } : {}),
+        ...(i.meeting === true ? { meeting: true } : {}),
+        fun,
+        meetChance: Math.max(0, Math.min(1, num(i.meetChance))),
+        activity:
+          i.activity === true || (i.activity === undefined && (fun > 0 || FUN_WORDS.test(label))),
+      };
+    });
+}
+
+/** Someone you met doing something (`venueBuy` → `met`, §A2). */
+export interface Met {
+  name: string;
+  kind: string;
+  refId: string;
+  /** "Nurse", "Founder, Kola Pay"; empty when the engine doesn't say. */
+  role: string;
+  /** The Who's here id (`fund:<id>`, `npc:…`, a player id) that `contact.save` takes. */
+  personId: string;
+}
+
+export function metOf(result: unknown): Met | null {
+  const m = isObj(result) ? result.met : null;
+  if (!isObj(m) || typeof m.refId !== 'string' || !m.refId) return null;
+  return {
+    name: str(m.name, '—'),
+    kind: str(m.kind, 'local'),
+    refId: m.refId,
+    role: str(m.role),
+    // Older engines sent only refId; a fund's refId is its bare id.
+    personId: str(m.personId) || (m.kind === 'fund' ? `fund:${m.refId}` : m.refId),
+  };
+}
+
+/** The nearest of `xs` to a point (by straight line), or the first when positions are unknown. */
+export function nearest<T>(
+  xs: T[],
+  at: (x: T) => { x: number; y: number } | undefined,
+  from: { x: number; y: number } | undefined,
+): T | undefined {
+  if (!from) return xs[0];
+  let best: T | undefined;
+  let d = Infinity;
+  for (const x of xs) {
+    const p = at(x);
+    const dd = p ? (p.x - from.x) ** 2 + (p.y - from.y) ** 2 : Number.MAX_VALUE;
+    if (best === undefined || dd < d) {
+      best = x;
+      d = dd;
+    }
+  }
+  return best;
+}
 
 // ---------------------------------------------------------------------------
 // Capital (§B): accelerators, development partners, LPs, angels around town
