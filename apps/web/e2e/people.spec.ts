@@ -79,10 +79,13 @@ test('AI characters are inside buildings: Who’s here, then their card', async 
   // Inside, Who's here lists the partner, with Chat and Save.
   await scene.getByRole('button', { name: /Who’s here/ }).click();
   const here = page.getByRole('dialog', { name: 'Who’s here' });
-  const partner = here.locator('[data-person-here^="fund:"]').first();
+  const partner = here.locator('[data-kind="partner"]').first();
   await expect(partner).toContainText(/Partner/i);
   await expect(partner.getByRole('button', { name: 'Chat' })).toBeVisible();
-  await expect(partner.getByRole('button', { name: /Save/ })).toBeVisible();
+  // Save, or "Saved ✓" when onboarding already introduced you to this fund.
+  await expect(
+    partner.getByRole('button', { name: /Save/ }).or(partner.getByText('Saved ✓')),
+  ).toBeVisible();
   await here.getByRole('button', { name: 'Close' }).click();
   await scene.getByRole('button', { name: 'Close' }).first().click();
 

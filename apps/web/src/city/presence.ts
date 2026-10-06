@@ -95,6 +95,9 @@ export function usePresence({ enabled, selfId }: { enabled: boolean; selfId: str
  * (`GET /api/presence?place=<id>`). An older server ignores the parameter
  * and sends everyone, so the answer is filtered by `place` here as well.
  */
+/** How long a player who was just in a place stays listed when a poll misses them. */
+export const STICKY_MS = 30_000;
+
 export function usePlacePresence({
   place,
   enabled,
@@ -109,12 +112,20 @@ export function usePlacePresence({
     if (!enabled || missing) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // A player stays listed for a while after one poll misses them, so their row
+    // (and its Chat button) doesn't blink out from under your finger.
+    const recent = new Map<string, { p: PresenceView; seen: number }>();
     const tick = async () => {
       if (stopped) return;
       if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
         try {
           const raw = await api.presence(place);
-          if (!stopped) setPlayers(normPresence(raw, selfId).filter((p) => p.place === place));
+          const now = Date.now();
+          for (const p of normPresence(raw, selfId))
+            if (p.place === place) recent.set(p.id, { p, seen: now });
+            else recent.delete(p.id);
+          for (const [id, r] of recent) if (now - r.seen > STICKY_MS) recent.delete(id);
+          if (!stopped) setPlayers([...recent.values()].map((r) => r.p));
         } catch (e) {
           if (isMissing(e)) {
             missing = true;

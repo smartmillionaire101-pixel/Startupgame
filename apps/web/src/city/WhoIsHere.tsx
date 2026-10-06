@@ -85,6 +85,18 @@ function foundersAtHub(view: View): PersonHere[] {
   return out;
 }
 
+/** True when the engine lists this fund's partner (or its angel) inside some business. */
+function placedElsewhere(view: View, f: { id: string }): boolean {
+  const angel = (f as { angel?: { playerId?: unknown } | null }).angel;
+  const ids = new Set([
+    `fund:${f.id}`,
+    ...(typeof angel?.playerId === 'string' ? [angel.playerId] : []),
+  ]);
+  return businessesOf(view).some((b) =>
+    (peopleField(view, b.id) ?? []).some((p) => ids.has(p.id) || ids.has(p.playerId ?? '')),
+  );
+}
+
 /** What the view says about who's in a place, before players are merged in. */
 function aiPeopleAt(view: View, place: Place): PersonHere[] {
   if (place.kind === 'business' && place.ref) {
@@ -116,6 +128,9 @@ function aiPeopleAt(view: View, place: Place): PersonHere[] {
   if (place.kind === 'fund' && place.ref) {
     const f = view.market.funds.find((x) => x.id === place.ref);
     if (!f) return [];
+    // Wave 6: the engine places every partner and angel in one building a month.
+    // When it does, they are there, not at the office, so nobody shows twice.
+    if (placedElsewhere(view, f)) return [];
     const angel = (f as typeof f & { angel?: { playerId?: unknown; name?: unknown } | null }).angel;
     if (angel && typeof angel.playerId === 'string')
       return [
