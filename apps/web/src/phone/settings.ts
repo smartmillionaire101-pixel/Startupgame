@@ -5,7 +5,7 @@
  *  - `runway.reduceMotion` '1' / '0': also mirrored as `data-reduce-motion`
  *    on <html> at once, so CSS can switch animations off.
  *  - `runway.skipRides` '1' / '0': ride scenes jump straight to arrival.
- *  - `runway.sound` '1' / '0': cosmetic for now.
+ *  - `runway.sound` '1' / '0': background game music.
  */
 import { useSyncExternalStore } from 'react';
 

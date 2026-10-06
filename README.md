@@ -49,12 +49,12 @@ Travel is being somewhere: `travel.fly` costs a one-way fare (half the old round
 
 ## Sign-in
 
-- **Play now.** The player ticks "I confirm I’m 18 or older" and taps Play now: a guest account and a session cookie (30 days), no email, no date of birth. The game lives only in that browser until it is saved.
+- **Play now.** One form asks for username, email, and Founder / Investor / Banker. Submitting confirms 18+ and enters the city immediately with starter settings and a 30-day session. Company/bank setup, personal details, and investment focus can be completed later in **Me → Profile**. The email is retained privately as unconfirmed; it never signs the player into an existing account. Confirm it through Save progress to enable recovery on another device.
 - **Save progress.** Guests see a Save progress button (Me tab, Settings, and a nudge on Home after their first month). They enter an email and get a one-time sign-in link (valid 15 minutes, single use; only its SHA-256 is stored). Opening it attaches the email to their account. One account per email: an email that already has a saved game is never merged or overwritten — the player is told to log in instead.
 - **Log in.** "Already saved? Log in" emails a link that opens the saved game on any device. No passwords.
 - **Signing out as a guest** first warns: "You’ll lose this game unless you save it with an email".
 
-API: `POST /api/auth/guest {adult:true}` → `{ok, guest}`; `POST /api/auth/email {email, intent:'login'|'save', lang?}` → `{ok, sent}` (the same whether or not the email has an account; `devLink` too in development and previews); `POST /api/auth/email/verify {token}` → `{ok, intent, isNew, account}` + session cookie; `GET /api/state` includes `account: {guest, email}`. All POSTs need the `x-runway: 1` header. Limits: 30 new guests per address per 10 minutes (`GUEST_RATE_LIMIT`), 20 links per address (`EMAIL_RATE_LIMIT`) and 5 per email per 15 minutes.
+API: `POST /api/onboarding {username,email,role,adult:true}` → `{ok}` + session cookie; `POST /api/auth/guest {adult:true}` → `{ok, guest}`; `POST /api/auth/email {email, intent:'login'|'save', lang?}` → `{ok, sent}` (the same whether or not the email has an account; `devLink` too in development and previews); `POST /api/auth/email/verify {token}` → `{ok, intent, isNew, account}` + session cookie; `GET /api/state` includes `account: {guest, email, pendingEmail?}`. All POSTs need the `x-runway: 1` header. Limits: 30 new guests per address per 10 minutes (`GUEST_RATE_LIMIT`), 20 links per address (`EMAIL_RATE_LIMIT`) and 5 per email per 15 minutes.
 
 ### Email sign-in: switching it on
 
@@ -98,3 +98,32 @@ docs/             Architecture, decision records, design-document coverage.
 An analogy: the **engine is a chess rulebook**, the **server is the referee with the scoresheet**, and the **web app is the board players look at**. The referee never improvises rules — it writes down every move (the command log). Because the rulebook is deterministic, anyone with the scoresheet can replay the whole game and arrive at exactly the same position. That is how the world survives restarts, and how any dispute or bug can be audited.
 
 Read more in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the decision records in [docs/adr](docs/adr). What is and isn't built yet, section by section of the design document, is in [docs/DESIGN-COVERAGE.md](docs/DESIGN-COVERAGE.md).
+
+### Admin dashboard
+
+Open `/admin` (locally: <http://localhost:8787/admin>) for live visitor and player
+counts, visits by UTC day, player search, role/city breakdowns, business/bank/fund
+counts, open report counts and game-money activity. It refreshes every 10 seconds.
+The local Node development server allows access from a loopback connection with a
+localhost host header when no `ADMIN_TOKEN` is configured. Production and
+serverless deployments always require `ADMIN_TOKEN`: set a strong secret in the
+server environment, restart/redeploy, and enter it on the dashboard sign-in form.
+It is never bundled into the client. Admin sessions use an eight-hour HttpOnly,
+SameSite=Strict cookie (Secure in production); login attempts are rate-limited.
+
+Visits are anonymous browser-tab sessions, with a new visit after 30 minutes of
+inactivity. Visible game pages send a heartbeat every 15 seconds; live visitors
+and signed-in players expire after 45 seconds without one. Admin pages do not
+count as visits. These are application traffic metrics, not bot-filtered unique
+people or web-server request counts. SQLite stores them in `visit_sessions`,
+`visit_days` and `visit_summary`; the serverless adapter uses its shared KV store.
+No IP addresses or emails are stored by visit tracking.
+
+Money metrics are **virtual game currency**, grouped by source currency. Personal
+spending includes payments, fees, living costs, taxes and repayments; transfers,
+completed investments and business capital contributions have separate counters.
+Investments include human-managed funds. AI transactions and moves between a
+player's own currency accounts are excluded. Totals are gross outgoing payments,
+not revenue, profit or real-money purchases. Counters persist in world snapshots
+and command replay, independently of the short account ledger. The dashboard
+shows when financial tracking began: older historical activity is not backfilled.

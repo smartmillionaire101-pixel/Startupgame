@@ -586,7 +586,15 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
       const cost = costIn(world, t.amount, m.data.currency, account(world, from).currency);
       if (account(world, from).balance < cost)
         fail('deal.funds', `${partyName(world, investor)} doesn’t have the money for this deal.`);
-      payExact(world, from, c.account, t.amount, `Investment in ${c.name} (${t.stage})`, m.month);
+      payExact(
+        world,
+        from,
+        c.account,
+        t.amount,
+        `Investment in ${c.name} (${t.stage})`,
+        m.month,
+        'invested',
+      );
       if (t.instrument === 'safe') {
         addSafe(c.capTable, { holderId, amount: t.amount, cap: t.valuation, month: m.month });
         c.capTable.lastPostMoney = Math.max(c.capTable.lastPostMoney, t.valuation);

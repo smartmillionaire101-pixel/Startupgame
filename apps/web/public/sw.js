@@ -3,7 +3,7 @@
  * starts, and the daily digest cached network-first for offline reading.
  * Private game state is never cached here.
  */
-const SHELL = 'runway-shell-v1';
+const SHELL = 'runway-shell-v2';
 const DIGEST = 'runway-digest-v1';
 
 self.addEventListener('install', (event) => {
@@ -46,8 +46,11 @@ self.addEventListener('fetch', (event) => {
         (hit) =>
           hit ||
           fetch(event.request).then((res) => {
-            const copy = res.clone();
-            caches.open(SHELL).then((c) => c.put(event.request, copy));
+            // Never cache an HTML fallback or an error as a JavaScript asset.
+            if (res.ok && !res.headers.get('content-type')?.includes('text/html')) {
+              const copy = res.clone();
+              caches.open(SHELL).then((c) => c.put(event.request, copy));
+            }
             return res;
           }),
       ),

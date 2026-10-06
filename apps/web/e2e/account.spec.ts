@@ -1,21 +1,17 @@
+import { setupFounder } from './fixtures';
 import { expect, letters, type Page, playAsGuest, randomEmail, tab, test } from './fixtures';
 
 /** Guest → a founder in Lagos; returns the company name. */
 async function onboardFounder(page: Page) {
   const company = `Keep Pay ${letters(5)}`;
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill('Kemi E2E');
-  await page.getByLabel('Handle').fill(`kemi_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Savings for market traders');
-  await page.getByLabel('Company name').fill(company);
-  await expect(page.getByText(/Available in Lagos/)).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: 'Kemi E2E',
+    handle: `kemi_${letters(6)}`,
+    company: company,
+    idea: 'Savings for market traders',
+    market: /Lagos, Nigeria/,
+  });
   await expect(tab(page, 'Today')).toBeVisible();
   return company;
 }

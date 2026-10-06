@@ -11,10 +11,16 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+async function request<T>(
+  method: string,
+  url: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   const res = await fetch(url, {
     method,
     credentials: 'same-origin',
+    signal,
     headers: {
       'x-runway': '1',
       ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
@@ -62,6 +68,7 @@ export interface Meta {
 export interface Account {
   guest: boolean;
   email: string | null;
+  pendingEmail?: string;
 }
 
 export type StateResponse = { account?: Account } & (
@@ -107,6 +114,8 @@ export interface ChatMessage {
 }
 
 export const api = {
+  onboard: (input: { username: string; email: string; role: 'founder' | 'investor' | 'banker' }) =>
+    request<{ ok: true }>('POST', '/api/onboarding', { ...input, adult: true }),
   meta: () => request<Meta>('GET', '/api/meta'),
   state: () => request<StateResponse>('GET', '/api/state'),
   command: <R = unknown>(command: Command) =>
@@ -186,6 +195,8 @@ export const api = {
   reportPresence: (p: { x: number; y: number; place: string | null }) =>
     request<unknown>('POST', '/api/presence', p),
   presenceSetting: () => request<{ visible: boolean }>('GET', '/api/me/presence'),
+  online: (signal?: AbortSignal) =>
+    request<{ count: number }>('POST', '/api/online', undefined, signal),
   setPresenceSetting: (visible: boolean) =>
     request<{ visible: boolean }>('PUT', '/api/me/presence', { visible }),
 };

@@ -28,7 +28,6 @@ import {
   checkName,
   commandSchema,
   digest,
-  economyDashboard,
   locationOf,
   playerView,
   startersFor,
@@ -61,6 +60,7 @@ import {
   templateReply,
   type Character,
 } from './ai-chat.js';
+import { registerAdmin } from './admin.js';
 import { AI_CHAT_HISTORY, claudeReply, createClient, type AiClient } from './ai-claude.js';
 
 /** Avatars not seen for this long drop off the city map. */
@@ -75,6 +75,8 @@ declare module 'fastify' {
 }
 
 export interface AppDeps {
+  /** Process-local development only. Serverless runtimes never enable this. */
+  allowLocalAdmin?: boolean;
   config: Config;
   store: AccountStore;
   game: Game;
@@ -321,6 +323,58 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     },
   );
 
+  // Quick entry keeps email private and unverified. It never claims an existing
+  // email account or makes the player wait for a confirmation link.
+  app.post(
+    '/api/onboarding',
+    {
+      config: {
+        rateLimit: {
+          max: config.GUEST_RATE_LIMIT,
+          timeWindow: '10 minutes',
+          keyGenerator: byAddress,
+        },
+      },
+    },
+    async (req, reply) => {
+      const body = z
+        .object({
+          username: z.string().trim().min(3).max(20),
+          email: z.string().max(254),
+          role: z.enum(['founder', 'investor', 'banker']),
+          adult: z.literal(true),
+        })
+        .parse(req.body);
+      const email = normaliseEmail(body.email);
+      if (!email)
+        return reply
+          .code(400)
+          .send({ error: { code: 'email', message: 'Enter a valid email address.' } });
+      let userId = req.userId;
+      if (!userId) {
+        const guest = await auth.createGuest();
+        userId = guest.userId;
+        setSession(reply, guest.token);
+      }
+      const existing = game.current.players[userId];
+      if (existing) {
+        if (existing.handle === body.username && existing.role === body.role) return { ok: true };
+        return reply
+          .code(409)
+          .send({ error: { code: 'player.exists', message: 'Player already exists.' } });
+      }
+      const account = await store.getAccount(userId);
+      if (account?.email !== email) await store.setPendingEmail(userId, email);
+      const r = await game.execute(userId, {
+        type: 'player.quickStart',
+        username: body.username,
+        role: body.role,
+      });
+      if (!r.ok) return reply.code(422).send({ error: r.error });
+      return { ok: true };
+    },
+  );
+
   // Links on screen instead of by email: never in production; in development
   // and previews (dev tools or SHOW_SIGNIN_CODE) so testers and E2E can sign in.
   const showLinks = !prod && (config.DEV_TOOLS || config.SHOW_SIGNIN_CODE);
@@ -505,7 +559,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get('/api/state', { preHandler: requireUser }, async (req) => {
     const view = playerView(game.current, req.userId!, { now: now(), monthMs });
     const a = await store.getAccount(req.userId!);
-    const account = { guest: a?.guest ?? false, email: a?.email ?? null };
+    const account = {
+      guest: a?.guest ?? false,
+      email: a?.email ?? null,
+      ...(a?.pendingEmail ? { pendingEmail: a.pendingEmail } : {}),
+    };
     return view ? { onboarded: true, view, account } : { onboarded: false, account };
   });
 
@@ -845,6 +903,30 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   // ---------------------------------------------------------------- presence (city map)
 
+  // All game screens send a heartbeat every 15 seconds. Only an anonymous total
+  // is exposed, independent of map visibility; closed/hidden tabs expire in 45s.
+  app.post(
+    '/api/online',
+    {
+      preHandler: requireUser,
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+          keyGenerator: (req: FastifyRequest) => req.userId ?? req.ip,
+        },
+      },
+    },
+    async (req, reply) => {
+      if (!game.current.players[req.userId!])
+        return reply
+          .code(404)
+          .send({ error: { code: 'player', message: 'Create a player first.' } });
+      reply.header('Cache-Control', 'no-store');
+      return { count: await store.heartbeatOnline(req.userId!, now(), 45_000) };
+    },
+  );
+
   // Where avatars stand is social and ephemeral, so like chat it lives outside
   // the simulation and is never visible to reporters or arbitrators.
   const coord = z.number().finite().min(-100_000).max(100_000);
@@ -952,12 +1034,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   // ---------------------------------------------------------------- ops
 
-  app.get('/api/admin/economy', async (req, reply) => {
-    const token = req.headers.authorization?.replace(/^Bearer /, '');
-    if (!config.ADMIN_TOKEN || token !== config.ADMIN_TOKEN)
-      return reply.code(404).send({ error: { code: 'not-found', message: 'Not found.' } });
-    return { ...economyDashboard(game.current), openReports: (await store.openReports()).length };
-  });
+  registerAdmin(app, deps);
+  app.post(
+    '/api/visits',
+    {
+      config: { rateLimit: { max: 120, timeWindow: '1 minute', keyGenerator: byAddress } },
+    },
+    async (req, reply) => {
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.body);
+      await store.recordVisit(id, now());
+      return reply.header('Cache-Control', 'no-store').code(204).send();
+    },
+  );
 
   if (config.DEV_TOOLS) {
     /** Dev only: advance a market by one game month without waiting for the clock. */
@@ -981,11 +1069,26 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   const dist = config.WEB_DIST ? resolve(config.WEB_DIST) : null;
   if (dist && existsSync(dist)) {
-    await app.register(fastifyStatic, { root: dist, wildcard: false, maxAge: prod ? '1h' : 0 });
+    // Resolve assets on each request: Vite rebuilds create new hashed filenames.
+    // Enumerating files at startup leaves rebuilt clients pointing at missing routes.
+    await app.register(fastifyStatic, {
+      root: dist,
+      wildcard: true,
+      maxAge: prod ? '1h' : 0,
+      setHeaders: (reply, path) => {
+        if (path.endsWith('.html')) reply.header('Cache-Control', 'no-store');
+      },
+    });
     app.setNotFoundHandler((req, reply) => {
-      if (req.url.startsWith('/api/') || req.method !== 'GET')
+      const pathname = req.url.split('?')[0]!;
+      if (
+        pathname.startsWith('/api/') ||
+        pathname.startsWith('/assets/') ||
+        /\.[^/]+$/.test(pathname) ||
+        req.method !== 'GET'
+      )
         return reply.code(404).send({ error: { code: 'not-found', message: 'Not found.' } });
-      return reply.sendFile('index.html');
+      return reply.header('Cache-Control', 'no-store').sendFile('index.html', { maxAge: 0 });
     });
   }
 

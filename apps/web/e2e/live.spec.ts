@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { expect, playAsGuest, test } from './fixtures';
 
 /**
  * Smoke test that is safe to run against the live game: it checks the app,
@@ -29,12 +29,10 @@ test('the live site serves the app, the API and sign-in, and cleans up after its
   await expect(page.getByRole('button', { name: 'Jouer maintenant' })).toBeVisible();
   await page.getByRole('button', { name: 'English' }).click();
 
-  // A guest account (no email): deleted below, so nothing is left behind.
-  await page.getByLabel('I confirm I’m 18 or older').check();
-  await page.getByRole('button', { name: 'Play now' }).click();
-  // Signed in: onboarding starts with the three roles.
-  await expect(page.getByRole('button', { name: /Founder/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Banker/ })).toBeVisible();
+  // Exercise an unconfigured session, without creating a player in the live world.
+  await playAsGuest(page);
+  await expect(page.getByLabel('Username', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Join as')).toBeVisible();
 
   // Clean up: delete the test account.
   const del = await page.evaluate(async () => {

@@ -37,6 +37,14 @@ import type {
   PresenceRow,
 } from '../store/types.js';
 import { kvJson, type Kv } from './kv.js';
+import { LIVE_WINDOW_MS, VISIT_GAP_MS, utcDay, visitDays } from '../visits.js';
+
+interface TrafficDoc {
+  since: number;
+  total: number;
+  days: Record<string, number>;
+  sessions: Record<string, number>;
+}
 
 const MAX_MESSAGES = 500;
 const MAX_AI_MESSAGES = 200;
@@ -54,6 +62,7 @@ interface UserDoc {
   /** Absent on accounts made before guest play (phone sign-up): not a guest. */
   guest?: boolean;
   email?: string | null;
+  pendingEmail?: string | null;
 }
 interface AiThreadDoc {
   characterId: string;
@@ -148,7 +157,7 @@ export class KvAccountStore implements AccountStore {
     const updated = await kvJson.update<UserDoc>(this.kv, `user/${userId}`, (u) => {
       if (!u || u.deletedAt) return undefined;
       previous = u.email;
-      return { ...u, guest: false, email: emailNorm };
+      return { ...u, guest: false, email: emailNorm, pendingEmail: null };
     });
     if (!updated || updated.email !== emailNorm || updated.deletedAt) {
       await this.kv.delete(key);
@@ -166,7 +175,17 @@ export class KvAccountStore implements AccountStore {
   async getAccount(userId: string): Promise<AccountRow | undefined> {
     const u = await this.val<UserDoc>(`user/${userId}`);
     if (!u || u.deletedAt) return undefined;
-    return { guest: u.guest ?? false, email: u.email ?? null };
+    return {
+      guest: u.guest ?? false,
+      email: u.email ?? null,
+      ...(u.pendingEmail ? { pendingEmail: u.pendingEmail } : {}),
+    };
+  }
+
+  async setPendingEmail(userId: string, email: string) {
+    await kvJson.update<UserDoc>(this.kv, `user/${userId}`, (u) =>
+      u && !u.deletedAt ? { ...u, pendingEmail: email } : undefined,
+    );
   }
 
   async putEmailToken(tokenHash: string, row: EmailTokenRow) {
@@ -195,6 +214,7 @@ export class KvAccountStore implements AccountStore {
         deletedAt: now,
         sessions: [],
         email: null,
+        pendingEmail: null,
       };
     });
     if (!doc) return;
@@ -215,6 +235,11 @@ export class KvAccountStore implements AccountStore {
     await this.kv.delete(`chats-of/${id}`);
     await this.kv.delete(`rate/${id}`);
     await this.dropPresence(id);
+    await kvJson.update<Record<string, number>>(this.kv, 'online-players', (players) => {
+      if (!players) return undefined;
+      delete players[id];
+      return players;
+    });
     await this.kv.delete(`presence-settings/${id}`);
     const ai = (await this.val<string[]>(`ai-of/${id}`)) ?? [];
     for (const characterId of ai) await this.kv.delete(aiKey(id, characterId));
@@ -354,6 +379,58 @@ export class KvAccountStore implements AccountStore {
   }
 
   // ---------------------------------------------------------------- presence
+
+  async recordVisit(id: string, now: number) {
+    await kvJson.update<TrafficDoc>(this.kv, 'traffic', (previous) => {
+      const data = previous ?? { since: now, total: 0, days: {}, sessions: {} };
+      data.sessions = Object.fromEntries(
+        Object.entries(data.sessions).filter(([, at]) => at >= now - VISIT_GAP_MS),
+      );
+      if (data.sessions[id] === undefined) {
+        data.total++;
+        const day = utcDay(now);
+        data.days[day] = (data.days[day] ?? 0) + 1;
+      }
+      data.sessions[id] = Math.max(data.sessions[id] ?? 0, now);
+      return data;
+    });
+  }
+
+  async visitStats(now: number) {
+    const data = await this.val<TrafficDoc>('traffic');
+    const days = data?.days ?? {};
+    return {
+      since: data?.since ?? null,
+      total: data?.total ?? 0,
+      today: days[utcDay(now)] ?? 0,
+      active: Object.values(data?.sessions ?? {}).filter((at) => at >= now - LIVE_WINDOW_MS).length,
+      daily: visitDays(days, now),
+    };
+  }
+
+  async onlinePlayerIds(since: number) {
+    const players = await this.val<Record<string, number>>('online-players');
+    return Object.entries(players ?? {})
+      .filter(([, at]) => at >= since)
+      .map(([id]) => id);
+  }
+
+  async heartbeatOnline(userId: string, now: number, windowMs: number): Promise<number> {
+    // CAS keeps simultaneous heartbeats from separate function instances intact.
+    // Pruning inside the same update cannot erase a newly refreshed heartbeat.
+    const players = await kvJson.update<Record<string, number>>(
+      this.kv,
+      'online-players',
+      (current) => {
+        const active = Object.fromEntries(
+          Object.entries(current ?? {}).filter(([, at]) => at >= now - windowMs),
+        );
+        active[userId] = Math.max(active[userId] ?? 0, now);
+        return active;
+      },
+    );
+    return Object.keys(players ?? {}).length;
+  }
 
   async putPresence(
     userId: string,

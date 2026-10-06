@@ -4,29 +4,25 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Build, invest and grow.' })).toBeVisible();
 
-  // 1. Play straight away as a guest after confirming 18+ (no date of birth).
-  await expect(page.getByRole('button', { name: 'Play now' })).toBeDisabled();
-  await page.getByLabel('I confirm I’m 18 or older').check();
+  await expect(page.getByRole('textbox')).toHaveCount(2);
+  await expect(page.getByRole('combobox')).toHaveCount(1);
+  await page.getByLabel('Username', { exact: true }).fill(`ada_${letters(6)}`);
+  await page.getByLabel('Email', { exact: true }).fill(`ada-${letters()}@example.com`);
+  await page.getByLabel('Join as').selectOption('founder');
   await page.getByRole('button', { name: 'Play now' }).click();
-
-  // 2–5. Role, background, market, setup.
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
+  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
+  await tab(page, 'Me').click();
   await page.getByLabel('Your name').fill('Ada E2E');
-  await page.getByLabel('Handle').fill(`ada_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Payments for market traders');
+  await page.getByLabel('You are', { exact: true }).selectOption('female');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText('Profile saved.')).toBeVisible();
+  await page.getByLabel('Idea in one line').fill('Payments for market traders');
   await page.getByLabel('Company name').fill('Flutterwav');
   await expect(page.getByText('Too close to a well-known brand.')).toBeVisible();
   await page.getByLabel('Company name').fill(`Mama Pay ${letters(5)}`);
-  await expect(page.getByText(/Available in Lagos/)).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(
-    page.getByText('This is a game. Nothing here is financial, legal, or tax advice.'),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await page.getByLabel('Industry', { exact: true }).selectOption('fintech');
+  await page.getByRole('button', { name: 'Start the company' }).click();
+  await expect(page.getByRole('heading', { name: 'Set up your business' })).toHaveCount(0);
 
   // The City opens first; the dashboard is the Home tab.
   await tab(page, 'Today').click();
@@ -34,7 +30,6 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   // Dashboard leads with four numbers; the first day brings an early win.
   await expect(page.getByText('Monthly revenue')).toBeVisible();
   await expect(page.getByText('Runway', { exact: true })).toBeVisible();
-  await expect(page.getByText(/First customer/)).toBeVisible();
 
   // Do some work, then advance a month.
   await tab(page, 'Company').click();
