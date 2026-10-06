@@ -15,7 +15,7 @@
 
 .city-stage {
   position: relative;
-  height: calc(100dvh - 7.6rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  height: calc(100dvh - 48px - var(--nav-h, 3.6rem) - 0.6rem - env(safe-area-inset-top));
   min-height: 360px;
   border-radius: 22px;
   overflow: hidden;
@@ -1117,5 +1117,169 @@
 @media (prefers-reduced-motion: reduce) {
   .flight .fl-cloud {
     animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Wave 7: labels at a steady size, the bottom HUD, dark tint */
+
+/* Labels and name tags counter-scale with the zoom (CityMap sets --lbl-s on
+   the svg), so they stay about 11–13 px on screen however far you zoom. */
+.city-svg .lbl-s {
+  transform: scale(var(--lbl-s, 1));
+}
+.city-district {
+  font-size: 10px;
+}
+.city-water-name {
+  font-size: 10.5px;
+}
+
+.city-hud-bottom {
+  flex-direction: column;
+  align-items: stretch;
+}
+.hud-row-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+.hud-row-bottom > * {
+  pointer-events: auto;
+}
+.hud-whatnow-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  max-width: min(62%, 340px);
+  min-width: 0;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem 0.45rem 0.7rem;
+  border: 1px solid rgb(15 23 42 / 0.08);
+  background: #0f172a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.2);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.hud-whatnow-chip .icon {
+  color: #fbbf24;
+  flex: none;
+}
+.hud-whatnow-label {
+  flex: none;
+}
+.hud-whatnow-tip {
+  font-weight: 500;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.hud-whatnow-tip::before {
+  content: '· ';
+}
+@media (max-width: 420px) {
+  .hud-whatnow-tip {
+    display: none;
+  }
+}
+.hud-places {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+}
+.city-hud-bottom .hud-stack {
+  grid-auto-flow: column;
+  align-items: end;
+}
+/* On phones the two map buttons are round icons (their names stay for
+   screen readers), so the "What to do now" chip has the room it needs. */
+@media (max-width: 560px) {
+  .city-hud-bottom .hud-places {
+    width: 46px;
+    height: 46px;
+    padding: 0;
+    justify-content: center;
+    position: relative;
+  }
+  .city-hud-bottom .hud-btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .city-hud-bottom .hud-places .hud-count {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    margin: 0;
+  }
+  .hud-whatnow-chip {
+    max-width: none;
+    flex: 0 1 auto;
+  }
+}
+.hud-round .icon {
+  width: 20px;
+  height: 20px;
+}
+.sheet .hud-whatnow {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  max-width: none;
+}
+
+/* Scenes (light polish): one count, the people drawn ("+k" for the rest);
+   a slightly taller room and a tray that reaches the bottom (no dead space). */
+.scene-count {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.6rem;
+  z-index: 2;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.72);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.place-room .who-strip {
+  max-width: calc(100% - 7.5rem);
+}
+.place-room .who-strip > b {
+  display: none;
+}
+.place-scene:not(.is-more) .place-room {
+  flex: 0 1 min(112vw, 500px);
+  max-height: min(112vw, 500px);
+}
+.place-scene:not(.is-more) .place-tray {
+  flex: 1 0 auto;
+  align-content: start;
+}
+
+/* Dark mode: the map's art is dimmed a little to sit with the dark UI. */
+@media (prefers-color-scheme: dark) {
+  .city-stage::after,
+  .place-room::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: rgb(20 12 40 / 0.28);
+    mix-blend-mode: multiply;
+    z-index: 1;
   }
 }

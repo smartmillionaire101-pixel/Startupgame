@@ -1036,12 +1036,14 @@ function finish(
     vehicles.push({ spec, from, to, axis, dur: 16 + rnd() * 14, delay: -rnd() * 30 });
   }
 
-  const m = MARGIN;
+  // The camera's bounds (Wave 7): tight around the streets, with a strip of
+  // the coast or hills beyond, so zooming out shows the city, not empty sea.
+  const m = 2.5;
   const left = project(-m, extent + m);
   const right = project(extent + m, -m);
   const top = project(-m, -m);
   const bottom = project(extent + m, extent + m);
-  const bounds = { minX: left.x, maxX: right.x, minY: top.y - 140, maxY: bottom.y };
+  const bounds = { minX: left.x, maxX: right.x, minY: top.y - 90, maxY: bottom.y };
 
   const office = places.find((p) => p.kind === 'office')!;
   return {

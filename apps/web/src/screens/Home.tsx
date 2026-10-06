@@ -3,15 +3,17 @@ import { api } from '../api';
 import { money, runway, stars } from '../format';
 import { t, tx } from '../i18n';
 import { useView, type Company } from '../store';
-import { Button, Card, Pill, Sparkline, Stat } from '../ui';
+import { Button, Card, Icon, Pill, Sparkline, Stat } from '../ui';
 import { Inbox } from './common';
 import { FoundCompany } from './Me';
 import { SaveNudge } from './Account';
 import { visitPlace } from '../city/goto';
 import { WhatNowCard } from '../city/WhatNow';
 
-export function Home() {
+/** Today (was "Home"): the dashboard and inbox. `onNews` opens the city's news. */
+export function Home({ onNews }: { onNews?: () => void } = {}) {
   const { view, cur, meta } = useView();
+  const stories = view.media.filter((m) => m.status === 'invited' || m.status === 'preview').length;
   const isInvestor = view.me.role === 'investor';
   const active = view.companies.filter((c) => c.status === 'active');
   const [idx, setIdx] = useState(0);
@@ -54,6 +56,23 @@ export function Home() {
       <SaveNudge />
       <Votes />
       <Inbox />
+      {onNews && (
+        <button
+          type="button"
+          className="card link-card"
+          onClick={onNews}
+          data-news-link=""
+          aria-label={stories ? t('News, {n} new', { n: stories }) : t('News')}
+        >
+          <Icon name="news" />
+          <span className="link-card-main">
+            <b>{t('News')}</b>
+            <span className="small muted">{t('Headlines, the daily digest and reporters')}</span>
+          </span>
+          {stories > 0 && <span className="badge-inline">{stories}</span>}
+          <Icon name="chevron" className="link-card-go" />
+        </button>
+      )}
       <Card title={t('{market} today', { market: view.market.name })}>
         <p>{tx(view.market.economicNote)}</p>
         <div className="row small">
@@ -80,6 +99,11 @@ export function Home() {
 /** Cash, runway, revenue and stars: the four numbers a founder checks first. */
 export function CompanyKpis({ c }: { c: Company }) {
   const { cur } = useView();
+  // Day one has no revenue and no costs yet: that's "pre-revenue", not
+  // "profitable" and "default dead" at once. A brand-new company is "New",
+  // not under a public warning for its starting rating.
+  const preRevenue = c.monthlyRevenue <= 0 && c.runwayMonths === null;
+  const fresh = ((c as { ageMonths?: number }).ageMonths ?? 1) < 1;
   return (
     <div className="kpis">
       <Stat
@@ -89,9 +113,15 @@ export function CompanyKpis({ c }: { c: Company }) {
       />
       <Stat
         label={t('Runway')}
-        value={runway(c.runwayMonths)}
+        value={preRevenue ? t('Pre-revenue') : runway(c.runwayMonths)}
         tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
-        hint={c.defaultAlive ? t('Default alive') : t('Default dead')}
+        hint={
+          preRevenue
+            ? t('No monthly costs yet')
+            : c.defaultAlive
+              ? t('Default alive')
+              : t('Default dead')
+        }
       />
       <Stat
         label={t('Monthly revenue')}
@@ -105,8 +135,16 @@ export function CompanyKpis({ c }: { c: Company }) {
       />
       <Stat
         label={t('Stars')}
-        value={stars(c.stars)}
-        hint={c.publicWarning ? <span className="bad">{t('Public warning')}</span> : c.name}
+        value={fresh ? t('New') : stars(c.stars)}
+        hint={
+          fresh ? (
+            t('Rated after your first month')
+          ) : c.publicWarning ? (
+            <span className="bad">{t('Public warning')}</span>
+          ) : (
+            c.name
+          )
+        }
       />
     </div>
   );

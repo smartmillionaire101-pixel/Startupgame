@@ -29,7 +29,7 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.getByRole('button', { name: 'Start' }).click();
 
   // The City opens first; the dashboard is the Home tab.
-  await tab(page, 'Home').click();
+  await tab(page, 'Today').click();
 
   // Dashboard leads with four numbers; the first day brings an early win.
   await expect(page.getByText('Monthly revenue')).toBeVisible();
@@ -40,7 +40,7 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await tab(page, 'Company').click();
   await page.getByRole('button', { name: 'Build yourself (40h)' }).click();
   await expect(page.getByText(/40h of building logged/)).toBeVisible();
-  await tab(page, 'Home').click();
+  await tab(page, 'Today').click();
   // A deploy preview keeps one world across runs, so compare with today's date.
   const date = page.locator('.topbar .brand .small');
   const before = (await date.textContent())!;

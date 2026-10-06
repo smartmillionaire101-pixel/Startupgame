@@ -117,8 +117,18 @@ function Profile() {
       <Card title={`${me.name} · @${me.handle}`} action={<Pill>{roleLabel(me.role)}</Pill>}>
         <div className="spread">
           <div>
-            <div className="stat-value">{stars(me.stars)}</div>
-            {me.publicWarning && <Pill tone="bad">{t('Public warning')}</Pill>}
+            {/* Day one: no track record yet, so no rating (and no warning) to show. */}
+            {me.starHistory.length < 2 ? (
+              <>
+                <div className="stat-value">{t('New')}</div>
+                <Pill>{t('Rated after your first month')}</Pill>
+              </>
+            ) : (
+              <>
+                <div className="stat-value">{stars(me.stars)}</div>
+                {me.publicWarning && <Pill tone="bad">{t('Public warning')}</Pill>}
+              </>
+            )}
           </div>
           <Sparkline values={me.starHistory} label={t('Stars over time')} />
         </div>

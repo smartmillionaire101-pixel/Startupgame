@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useGame, useView } from './store';
-import { Pill, Sheet, Toasts } from './ui';
-import { stars } from './format';
+import { CountUp, Icon, initReduceMotion, Sheet, Toasts, type IconName } from './ui';
+import { money } from './format';
 import { t } from './i18n';
 import { SignIn } from './screens/SignIn';
 import { Onboarding } from './screens/Onboarding';
@@ -9,17 +18,60 @@ import { Home } from './screens/Home';
 import { CompanyScreen } from './screens/Company';
 import { MoneyScreen } from './screens/Money';
 import { DealFlow, Portfolio } from './screens/Investor';
-import { NewsScreen } from './screens/News';
 import { MeScreen } from './screens/Me';
 import { BankScreen } from './screens/Bank';
 import { CityScreen } from './city/CityScreen';
 import { onVisit, visitPlace } from './city/goto';
 import { DealCard } from './screens/common';
-import { PhoneDock } from './phone/Phone';
-import { NavContext, type Nav } from './phone/bus';
+import { NavContext, openPhone, type Nav } from './phone/bus';
 import { inboxTarget, type TabId, type Target } from './phone/navigate';
 import { UpdateBanner } from './update';
 import { hereOf, isAbroad } from './city/travel';
+
+// Reduced motion is decided once, before anything animates (Wave 7 §D).
+initReduceMotion();
+
+// The display font for headings, loaded without blocking the first paint (and
+// skipped in lite mode to save data: the system font stands in).
+if (typeof document !== 'undefined' && !document.getElementById('rw-font')) {
+  let lite = false;
+  try {
+    lite = localStorage.getItem('rw_lite') === '1';
+  } catch {
+    /* storage blocked */
+  }
+  const add = () => {
+    if (document.getElementById('rw-font')) return;
+    const link = document.createElement('link');
+    link.id = 'rw-font';
+    link.rel = 'stylesheet';
+    link.href =
+      'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap';
+    document.head.appendChild(link);
+  };
+  // After the page has loaded, so a slow font host never holds the game up.
+  if (!lite) {
+    if (document.readyState === 'complete') add();
+    else window.addEventListener('load', add, { once: true });
+  }
+}
+
+// Heavy, occasional screens load on demand: the main chunk stays small.
+// The phone is opened from the top bar: wait until its dock is mounted (and so
+// listening) before asking it to open, in case the chunk is still loading.
+let phoneMounted: () => void = () => {};
+const phoneReady = new Promise<void>((resolve) => {
+  phoneMounted = resolve;
+});
+const PhoneDock = lazy(async () => {
+  const m = await import('./phone/Phone');
+  function Dock() {
+    useEffect(() => phoneMounted(), []);
+    return <m.PhoneDock />;
+  }
+  return { default: Dock };
+});
+const NewsScreen = lazy(() => import('./screens/News').then((m) => ({ default: m.NewsScreen })));
 
 export function App() {
   const { status } = useGame();
@@ -50,50 +102,69 @@ export function App() {
   );
 }
 
+interface TabDef {
+  id: TabId;
+  label: string;
+  icon: IconName;
+  badge?: number;
+}
+
+/**
+ * The bottom tabs (Wave 7: at most five). "Today" is the inbox dashboard
+ * (its id stays 'home' for notifications); News lives behind Today and the
+ * phone rather than in a tab of its own.
+ */
+function tabsOf(
+  role: 'banker' | 'founder' | 'investor',
+  b: { unread: number; myTurn: number; bankRequests: number },
+): TabDef[] {
+  const city: TabDef = { id: 'city', label: t('City'), icon: 'city' };
+  const today: TabDef = { id: 'home', label: t('Today'), icon: 'today', badge: b.unread };
+  const me: TabDef = { id: 'me', label: t('Me'), icon: 'me' };
+  if (role === 'banker')
+    return [city, today, { id: 'bank', label: t('Bank'), icon: 'bank', badge: b.bankRequests }, me];
+  if (role === 'founder')
+    return [
+      city,
+      today,
+      { id: 'company', label: t('Company'), icon: 'company' },
+      { id: 'money', label: t('Money'), icon: 'money', badge: b.myTurn },
+      me,
+    ];
+  return [
+    city,
+    today,
+    { id: 'portfolio', label: t('Portfolio'), icon: 'portfolio' },
+    { id: 'deals', label: t('Deal flow'), icon: 'deals', badge: b.myTurn },
+    me,
+  ];
+}
+
+/** Screens you reach without a tab of their own (News, from Today or a notification). */
+const EXTRA: TabId[] = ['news'];
+
 function Game() {
   const { view, send } = useView();
   const founder = view.me.role === 'founder' || view.companies.some((c) => c.status === 'active');
   const [tab, setTab] = useState<TabId>('city');
+  const [focusDeal, setFocusDeal] = useState<string | null>(null);
   const unread = view.inbox.filter((i) => !i.read).length;
   const myTurn = view.deals.filter((d) => d.yourTurn).length;
-  const stories = view.media.filter((m) => m.status === 'invited' || m.status === 'preview').length;
   const bankRequests = view.deals.filter(
     (d) => d.yourTurn && d.counterparty.kind === 'playerbank',
   ).length;
   const banker = view.me.role === 'banker';
-  const city = { id: 'city' as const, label: t('City'), icon: '◈' };
-  const tabs: { id: TabId; label: string; icon: string; badge?: number }[] = banker
-    ? [
-        city,
-        { id: 'home', label: t('Home'), icon: '⌂', badge: unread },
-        { id: 'bank', label: t('Bank'), icon: '🏦', badge: bankRequests },
-        { id: 'news', label: t('News'), icon: '▤', badge: stories },
-        { id: 'me', label: t('Me'), icon: '◉' },
-      ]
-    : founder
-      ? [
-          city,
-          { id: 'home', label: t('Home'), icon: '⌂', badge: unread },
-          { id: 'company', label: t('Company'), icon: '◧' },
-          { id: 'money', label: t('Money'), icon: '◎', badge: myTurn },
-          { id: 'news', label: t('News'), icon: '▤', badge: stories },
-          { id: 'me', label: t('Me'), icon: '◉' },
-        ]
-      : [
-          city,
-          { id: 'home', label: t('Home'), icon: '⌂', badge: unread },
-          { id: 'deals', label: t('Deal flow'), icon: '◎', badge: myTurn },
-          { id: 'portfolio', label: t('Portfolio'), icon: '◧' },
-          { id: 'news', label: t('News'), icon: '▤', badge: stories },
-          { id: 'me', label: t('Me'), icon: '◉' },
-        ];
-  const current = tabs.some((t) => t.id === tab) ? tab : 'city';
+  const tabs = tabsOf(banker ? 'banker' : founder ? 'founder' : 'investor', {
+    unread,
+    myTurn,
+    bankRequests,
+  });
+  const current = tabs.some((x) => x.id === tab) || EXTRA.includes(tab) ? tab : 'city';
   const go = (id: TabId) => {
     setTab(id);
     window.scrollTo({ top: 0 });
   };
-  // Where notifications take you (phone Alerts and the Home inbox).
-  const [focusDeal, setFocusDeal] = useState<string | null>(null);
+  // Where notifications take you (phone Alerts and the Today inbox).
   const goTarget = useCallback((target: Target) => {
     if (target.kind === 'place') {
       visitPlace(target.place);
@@ -149,59 +220,116 @@ function Game() {
   return (
     <NavContext.Provider value={nav}>
       <div className={`app${current === 'city' ? ' app-city' : ''}`}>
-        <header className="topbar">
-          <div className="brand">
-            <img src="/icon.svg" alt="" width={22} height={22} /> {hereOf(view).name}
-            {isAbroad(view) && (
-              <span className="small muted">{t('from {city}', { city: view.market.name })}</span>
-            )}
-            <span className="small muted">{view.market.date.label}</span>
-          </div>
-          <div className="topbar-meta">
-            <Pill tone={view.me.hours.left < 20 ? 'warn' : undefined}>
-              {t('{n}h', { n: view.me.hours.left })}
-            </Pill>
-            <Pill tone={view.me.burnout ? 'bad' : view.me.energy < 40 ? 'warn' : undefined}>
-              ⚡{view.me.energy}
-            </Pill>
-            <Pill>{stars(view.me.stars)}</Pill>
-          </div>
-        </header>
+        <TopBar alerts={unread} />
         <main>
           {current === 'city' && <CityScreen onNavigate={go} />}
-          {current === 'home' && <Home />}
+          {current === 'home' && <Home onNews={() => go('news')} />}
           {current === 'company' && <CompanyScreen />}
           {current === 'money' && <MoneyScreen />}
           {current === 'deals' && <DealFlow />}
           {current === 'portfolio' && <Portfolio />}
           {current === 'bank' && <BankScreen />}
-          {current === 'news' && <NewsScreen />}
+          {current === 'news' && (
+            <Suspense fallback={<p className="muted">{t('Loading…')}</p>}>
+              <NewsScreen />
+            </Suspense>
+          )}
           {current === 'me' && <MeScreen />}
         </main>
       </div>
       <nav className="nav" ref={navRef} aria-label={t('Main')}>
         <div className="nav-inner" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
-          {tabs.map((t) => (
+          {tabs.map((x) => (
             <button
-              key={t.id}
-              aria-current={current === t.id ? 'page' : undefined}
-              onClick={() => go(t.id)}
+              key={x.id}
+              data-tab={x.id}
+              aria-current={current === x.id ? 'page' : undefined}
+              onClick={() => go(x.id)}
             >
-              <span className="ico" aria-hidden>
-                {t.icon}
+              <span className="ico">
+                <Icon name={x.icon} />
               </span>
-              {t.label}
-              {!!t.badge && <span className="badge">{t.badge}</span>}
+              <span className="nav-label">{x.label}</span>
+              {!!x.badge && <span className="badge">{x.badge > 99 ? '99+' : x.badge}</span>}
             </button>
           ))}
         </div>
       </nav>
-      <PhoneDock />
+      <Suspense fallback={null}>
+        <PhoneDock />
+      </Suspense>
       {dealOpen && (
         <Sheet title={t('Deal card')} onClose={() => setFocusDeal(null)}>
           <DealCard deal={dealOpen} />
         </Sheet>
       )}
     </NavContext.Provider>
+  );
+}
+
+/**
+ * The top bar (Wave 7): one 48px line that never wraps. Where you are and
+ * when, your cash (it ticks to new values), an energy ring and the phone.
+ */
+function TopBar({ alerts }: { alerts: number }) {
+  const { view, cur } = useView();
+  const here = hereOf(view);
+  const d = view.market.date;
+  const short = t('Y{y} M{m}', { y: d.year, m: d.month });
+  const energy = Math.max(0, Math.min(100, Math.round(view.me.energy)));
+  // Builder A adds a mood (0–100); until then the ring shows energy alone.
+  const mood = (view.me as { mood?: number }).mood;
+  const tone = view.me.burnout || energy < 25 ? 'bad' : energy < 40 ? 'warn' : 'good';
+  const cash = view.accounts.local?.balance ?? 0;
+  const hoursLeft = view.me.hours.left;
+  return (
+    <header className="topbar">
+      <div className="brand" title={d.label}>
+        <img src="/icon.svg" alt="" width={22} height={22} />
+        <span className="brand-city">{here.name}</span>
+        {isAbroad(view) && (
+          <span className="sr-only">{t('from {city}', { city: view.market.name })}</span>
+        )}
+        <span className="topbar-date" aria-label={d.label}>
+          {short}
+        </span>
+      </div>
+      <div className="topbar-meta">
+        <span className="topbar-cash" aria-label={t('Cash in your pocket')}>
+          <CountUp value={cash} format={(n) => money(n, cur)} />
+        </span>
+        <span
+          className={`topbar-hours${hoursLeft < 20 ? ' is-low' : ''}`}
+          aria-label={t('{n} hours left this month', { n: hoursLeft })}
+        >
+          {t('{n}h', { n: hoursLeft })}
+        </span>
+        <span
+          className={`ring ring-${tone}`}
+          role="meter"
+          aria-label={mood !== undefined ? t('Energy and mood') : t('Energy')}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={energy}
+          style={{ ['--v' as string]: energy }}
+          title={
+            mood !== undefined
+              ? t('Energy {e} · mood {m}', { e: energy, m: Math.round(mood) })
+              : t('Energy {e}', { e: energy })
+          }
+        >
+          <span className="ring-num">{energy}</span>
+        </span>
+        <button
+          type="button"
+          className="topbar-phone"
+          aria-label={alerts ? t('Phone, {n} new', { n: alerts }) : t('Phone')}
+          onClick={() => void phoneReady.then(() => openPhone({ app: 'home' }))}
+        >
+          <Icon name="phone" size={20} />
+          {alerts > 0 && <span className="badge">{alerts > 99 ? '99+' : alerts}</span>}
+        </button>
+      </div>
+    </header>
   );
 }

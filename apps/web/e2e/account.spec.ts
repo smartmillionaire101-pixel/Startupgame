@@ -16,7 +16,7 @@ async function onboardFounder(page: Page) {
   await expect(page.getByText(/Available in Lagos/)).toBeVisible();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Start' }).click();
-  await expect(tab(page, 'Home')).toBeVisible();
+  await expect(tab(page, 'Today')).toBeVisible();
   return company;
 }
 
@@ -32,7 +32,7 @@ test('a guest saves their game with an email link, signs out, and logs back in b
   const email = randomEmail();
 
   // Home nudges a guest to save once their first month is over.
-  await tab(page, 'Home').click();
+  await tab(page, 'Today').click();
   await expect(page.getByText(/First customer/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Keep your game' })).toHaveCount(0);
   const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));

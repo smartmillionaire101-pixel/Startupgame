@@ -88,27 +88,34 @@ test('walk into a restaurant: a full scene with people, and buy a meal from the 
   await expect(scene).toBeHidden();
 });
 
-test('"What to do now" taps through, on the City and on Home', async ({ page }) => {
+test('"What to do now" taps through, on the City and on Today', async ({ page }) => {
   await founder(page, 'Bisi Nowish');
-  const card = page.locator('.hud-whatnow');
+  // Wave 7: a one-line chip on the map; tapping it opens the suggestions as a sheet.
+  const chip = page.locator('.hud-whatnow-chip');
+  await expect(chip).toBeVisible();
+  await expect(page.locator('.hud-whatnow')).toHaveCount(0);
+  await chip.click();
+  const card = page.getByRole('dialog', { name: 'What to do now' });
   await expect(card).toBeVisible();
   const items = card.locator('.whatnow-btn');
   expect(await items.count()).toBe(3);
   await items.first().click();
+  await expect(card).toBeHidden();
   // You walk (or cycle) there and go in.
   const scene = page.locator('.place-scene');
   await expect(scene).toBeVisible({ timeout: 15_000 });
   await scene.getByRole('button', { name: 'Close' }).click();
 
-  // It can be tucked away and brought back.
-  await card.getByRole('button', { name: 'Hide' }).click();
-  await expect(card).toBeHidden();
-  await page.getByRole('button', { name: /What to do now/ }).click();
+  // The sheet closes without going anywhere, and opens again.
+  await chip.click();
   await expect(card).toBeVisible();
+  await card.getByRole('button', { name: 'Close' }).click();
+  await expect(card).toBeHidden();
+  await expect(chip).toBeVisible();
 
-  // On Home too: a tap opens the City and takes you there.
+  // On Today too: a tap opens the City and takes you there.
   const nav = page.getByRole('navigation', { name: 'Main' });
-  await nav.getByRole('button', { name: /^Home/ }).click();
+  await nav.getByRole('button', { name: /^Today/ }).click();
   const home = page.locator('section.card').filter({ hasText: 'What to do now' });
   await expect(home).toBeVisible();
   await home.locator('.whatnow-btn').first().click();
