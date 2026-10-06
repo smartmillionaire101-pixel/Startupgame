@@ -1916,3 +1916,37 @@ body:has(.app-city) .toasts {
   gap: 0.1rem;
   min-width: 0;
 }
+
+/* A screen header with a logo tile (Company). */
+.screen-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: var(--sp-3) 0 var(--sp-1);
+}
+.screen-logo {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  color: #fff;
+  background: linear-gradient(140deg, #ea580c, #9a3412);
+  box-shadow: var(--sh-1);
+}
+.screen-head-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.screen-head h1 {
+  font-size: var(--fs-xl);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
