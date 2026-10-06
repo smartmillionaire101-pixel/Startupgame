@@ -393,6 +393,32 @@ export const commandSchema = z.discriminatedUnion('type', [
     businessId: id,
     itemId: z.string().min(1).max(32),
   }),
+  // ---- Friends (Wave 8)
+  /**
+   * Send money to another human player (any city): converted at the official
+   * rate, 1% fee (min 0.002 col) to the receiver's city bank, 2 col a day at most.
+   */
+  z.object({
+    type: z.literal('money.send'),
+    toPlayerId: id,
+    amount: z.number().int().positive().max(1e15),
+    note: z.string().max(200).optional(),
+  }),
+  /** Invite a player over to your home (lasts the rest of the month once accepted). */
+  z.object({ type: z.literal('visit.invite'), toPlayerId: id }),
+  z.object({ type: z.literal('visit.accept'), inviteId: id }),
+  z.object({ type: z.literal('visit.decline'), inviteId: id }),
+  /** Go out together at a venue in the city you're in. */
+  z.object({
+    type: z.literal('hangout.plan'),
+    businessId: id,
+    inviteeIds: z.array(id).min(1).max(8),
+    when: z.enum(['now', 'tonight']),
+  }),
+  z.object({ type: z.literal('hangout.join'), hangoutId: id }),
+  z.object({ type: z.literal('hangout.leave'), hangoutId: id }),
+  /** Go to one of the city's tech events this month (`here.techEvents`). */
+  z.object({ type: z.literal('techevent.attend'), eventId: id }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
   // ---- Who's here (Wave 6)
   /**

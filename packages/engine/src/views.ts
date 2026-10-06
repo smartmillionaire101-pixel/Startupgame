@@ -42,6 +42,7 @@ import {
 } from './economy.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { deliveryView, homeActsView, moodOf, needsOf } from './needs.js';
+import { hangoutsView, sendLimits, techEventsView, visitingView, visitsView } from './social.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { boardOf } from './governance.js';
 import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
@@ -544,6 +545,8 @@ function marketView(
     shop: shopView(m),
     /** Wave 7: food delivery (the Chop app): open food businesses, cheapest first (up to 20). */
     delivery: deliveryView(m),
+    /** Wave 8: the city's tech events: this month's ("on") and next month's ("soon"). */
+    techEvents: techEventsView(world, p, m),
     /** The city economy at a glance (Wave 3). */
     economy: economyView(m),
     /**
@@ -678,6 +681,14 @@ export function playerView(
       })),
     },
     accounts: { local: acc(p.accounts.local), usd: acc(p.accounts.usd) },
+    /** Wave 8: sending money to friends: what's left today, the fee rate and minimum. */
+    sendMoney: clock ? sendLimits(world, p, clock.now) : sendLimits(world, p, p.lastActiveAt),
+    /** Wave 8: the friend's home you're visiting right now (read-only), or null. */
+    visiting: visitingView(world, p),
+    /** Wave 8: visit invitations this month (to you and from you). */
+    visits: visitsView(world, p),
+    /** Wave 8: hangouts this month you planned, were asked to or joined. */
+    hangouts: hangoutsView(world, p),
     bank: ownBankView(world, p.id),
     market: homeView,
     /** The city you're physically in (Wave 4): same shape as `market`; your home city unless you've flown. */

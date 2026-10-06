@@ -1,0 +1,77 @@
+/* Wave 8 §C: friends (send money, plans, invitations) and the Events app. */
+.phone-field {
+  display: grid;
+  gap: 0.25rem;
+}
+.phone-field select,
+.phone-field input {
+  min-height: 44px;
+}
+.phone-send {
+  border-color: var(--accent);
+}
+.phone-send-total {
+  font:
+    800 2rem/1.1 var(--font-display, system-ui),
+    system-ui,
+    sans-serif;
+  text-align: center;
+  padding: 0.4rem 0;
+}
+.phone-send-done {
+  width: 56px;
+  height: 56px;
+  margin: 0.2rem auto;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.8rem;
+}
+.phone-check {
+  min-height: 48px;
+  cursor: pointer;
+}
+.phone-check input {
+  width: 20px;
+  height: 20px;
+}
+.phone-invites {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.phone-invite {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--line);
+}
+.phone-invites > .phone-h + .phone-invite {
+  border-top: 0;
+}
+.phone-invite .row,
+.phone-friend-actions .row,
+.phone-event .row {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.phone-friend-actions {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.5rem;
+}
+.phone-events {
+  gap: 0.6rem;
+}
+.phone-event-kind {
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+.phone-speakers {
+  list-style: none;
+  margin: 0.15rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.15rem;
+}

@@ -7,6 +7,7 @@ import { ACCELERATORS, DEV_PARTNERS, LPS } from '../src/data/programs.js';
 import type { Command } from '../src/commands.js';
 import { CAR_MODEL_IDS, FURNITURE } from '../src/data/lifestyle-shop.js';
 import { HOME_ACT_IDS } from '../src/needs.js';
+import { techEventsFor } from '../src/social.js';
 import {
   addFounder,
   addInvestor,
@@ -28,6 +29,8 @@ describe('world invariants under random play', () => {
     // London too (Wave 4): flights, rides and city spending abroad cross currencies.
     let base = addFounder(makeWorld(5, ['lagos', 'london']));
     base = addInvestor(base, 'u_inv', 'lagos');
+    // Wave 8: a London player, so money sent between friends crosses currencies.
+    base = addInvestor(base, 'u_lon', 'london');
     const cid = companyOf(base, 'u_founder').id;
     const total = moneyByCurrency(base);
 
@@ -215,9 +218,37 @@ describe('world invariants under random play', () => {
       }),
     );
 
+    // Wave 8: friends: sending money (any city, with fee and daily limit), visits,
+    // hangouts and tech events (tickets).
+    const friends = fc.oneof(
+      fc.record({
+        k: fc.constant('send' as const),
+        from: fc.constantFrom('u_founder', 'u_inv', 'u_lon'),
+        to: fc.constantFrom('u_founder', 'u_inv', 'u_lon', 'ai'),
+        amount: fc.integer({ min: -10, max: 300_000_00 }),
+      }),
+      fc.record({
+        k: fc.constant('visit' as const),
+        investor: fc.boolean(),
+        step: fc.constantFrom('invite' as const, 'accept' as const, 'decline' as const),
+      }),
+      fc.record({
+        k: fc.constant('hangout' as const),
+        investor: fc.boolean(),
+        pick: fc.nat(40),
+        step: fc.constantFrom('plan' as const, 'join' as const, 'leave' as const),
+      }),
+      fc.record({
+        k: fc.constant('tech' as const),
+        who: fc.constantFrom('u_founder', 'u_inv', 'u_lon'),
+        pick: fc.nat(6),
+        next: fc.boolean(),
+      }),
+    );
+
     fc.assert(
       fc.property(
-        fc.array(fc.oneof(action, life, alive, home), { minLength: 1, maxLength: 25 }),
+        fc.array(fc.oneof(action, life, alive, home, friends), { minLength: 1, maxLength: 25 }),
         (actions) => {
           let w = base;
           let day = 0;
@@ -553,6 +584,56 @@ describe('world invariants under random play', () => {
                 const biz = list[a.pick % list.length]!;
                 const items = ['lunch', 'plate', 'coffee', 'drink', 'pool'];
                 cmd = { type: 'food.order', businessId: biz.id, itemId: items[a.item]! };
+                break;
+              }
+              case 'send': {
+                actor = a.from;
+                const ai = Object.values(w.players).find((p) => p.ai)!;
+                cmd = {
+                  type: 'money.send',
+                  toPlayerId: a.to === 'ai' ? ai.id : a.to,
+                  amount: a.amount,
+                };
+                break;
+              }
+              case 'visit': {
+                actor = a.investor ? 'u_inv' : 'u_founder';
+                const other = actor === 'u_inv' ? 'u_founder' : 'u_inv';
+                const v = Object.values(w.visits ?? {}).find(
+                  (x) => x.guestId === actor && x.status === 'pending',
+                );
+                cmd =
+                  a.step === 'invite'
+                    ? { type: 'visit.invite', toPlayerId: other }
+                    : a.step === 'accept'
+                      ? { type: 'visit.accept', inviteId: v?.id ?? 'none' }
+                      : { type: 'visit.decline', inviteId: v?.id ?? 'none' };
+                break;
+              }
+              case 'hangout': {
+                actor = a.investor ? 'u_inv' : 'u_founder';
+                const other = actor === 'u_inv' ? 'u_founder' : 'u_inv';
+                const list = bizHere(actor);
+                const h = Object.values(w.hangouts ?? {}).find((x) => x.status === 'open');
+                cmd =
+                  a.step === 'plan'
+                    ? {
+                        type: 'hangout.plan',
+                        businessId: list[a.pick % list.length]!.id,
+                        inviteeIds: [other],
+                        when: 'now',
+                      }
+                    : a.step === 'join'
+                      ? { type: 'hangout.join', hangoutId: h?.id ?? 'none' }
+                      : { type: 'hangout.leave', hangoutId: h?.id ?? 'none' };
+                break;
+              }
+              case 'tech': {
+                actor = a.who;
+                const market = w.players[actor]!.location?.market ?? w.players[actor]!.market;
+                const m = w.markets[market]!;
+                const list = techEventsFor(w, m, m.month + (a.next ? 1 : 0));
+                cmd = { type: 'techevent.attend', eventId: list[a.pick % list.length]!.id };
                 break;
               }
               case 'accel': {
