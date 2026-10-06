@@ -140,7 +140,9 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   const host = b
     .getByRole('dialog', { name: 'Who’s here' })
     .locator('[data-kind="player"]', { hasText: hostName });
-  await expect(host).toBeVisible({ timeout: 10_000 });
+  // Earlier specs' players can still be in the Hub (they light the badge first),
+  // so wait for A by name: their arrival shows within a few presence polls.
+  await expect(host).toBeVisible({ timeout: 30_000 });
   await host.getByRole('button', { name: 'Chat' }).click();
   const bPhone = b.getByRole('dialog', { name: 'Phone' });
   await bPhone.locator('.choice').first().click();
