@@ -16,7 +16,16 @@
  */
 import type { PlayerView } from '@runway/engine';
 import { hash, seeded } from './contract';
-import { B, pathLength, pointAlong, type CityLayout, type Place, type Pt } from './layout';
+import {
+  B,
+  findPath,
+  nearestStreetPoint,
+  pathLength,
+  pointAlong,
+  type CityLayout,
+  type Place,
+  type Pt,
+} from './layout';
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -454,6 +463,7 @@ const blockOf = (p: Place) => ({
  * sees the same street life.
  */
 export function passersBy(layout: CityLayout, max: number): Walker[] {
+  if (layout.geo) return roadWalkers(layout, max);
   const rnd = seeded(hash(`walkers:${layout.marketId}`));
   const blocks = new Map<string, { i: number; j: number; door: Pt }>();
   for (const p of [...layout.places].sort((a, b) => (a.id < b.id ? -1 : 1))) {
@@ -467,6 +477,41 @@ export function passersBy(layout: CityLayout, max: number): Walker[] {
     const h = hash(`${layout.marketId}:walker:${n}`);
     const inset = 0.44 + ((h >>> 3) % 5) * 0.02;
     const route = blockLoop(blk.i, blk.j, inset, ((h >>> 7) & 1) === 1, blk.door);
+    const len = Math.max(0.5, pathLength(route));
+    const speed = 0.28 + ((h >>> 13) % 7) * 0.025;
+    out.push({
+      id: `walker:${n}`,
+      bg: WALKER_BG[h % WALKER_BG.length]!,
+      route,
+      period: Math.round((len / speed) * 1000),
+      phase: (h % 1000) / 1000,
+      dwell: 0.1 + ((h >>> 17) % 4) * 0.03,
+    });
+  }
+  return out;
+}
+
+/**
+ * Wave 8: on a real map, passers-by walk out from a building along the real
+ * roads and back again.
+ */
+function roadWalkers(layout: CityLayout, max: number): Walker[] {
+  const rnd = seeded(hash(`walkers:${layout.marketId}`));
+  const pool = [...layout.places]
+    .filter((p) => p.kind !== 'stall' && p.kind !== 'airport')
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  const out: Walker[] = [];
+  for (let n = 0; n < max && pool.length; n++) {
+    const p = pool.splice(Math.floor(rnd() * pool.length), 1)[0]!;
+    const h = hash(`${layout.marketId}:walker:${n}`);
+    const ang = ((h % 360) * Math.PI) / 180;
+    const reach = 4 + ((h >>> 9) % 5);
+    const end = nearestStreetPoint(layout, {
+      x: p.door.x + Math.cos(ang) * reach,
+      y: p.door.y + Math.sin(ang) * reach,
+    });
+    const there = findPath(layout, p.door, end);
+    const route = [...there, ...there.slice(0, -1).reverse()];
     const len = Math.max(0.5, pathLength(route));
     const speed = 0.28 + ((h >>> 13) % 7) * 0.025;
     out.push({

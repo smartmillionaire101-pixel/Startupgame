@@ -15,6 +15,57 @@ import { Icon } from '../icons';
 import { Nothing, RowIcon, type PhoneCtx } from '../shared';
 import { placeColor, placeIcon, placeName, useCityLayout } from './city';
 import { CATEGORY_ICON } from './Jobs';
+import { GEO_KX, GEO_KY } from '../../city/geoLayout';
+import type { GeoData } from '../../city/geo';
+
+/**
+ * Wave 8: a real map, flat: land, water, parks and the main roads around
+ * the city's places, as SVG paths in the City's screen frame.
+ */
+function geoMini(g: GeoData, box: [number, number, number, number]) {
+  const [x0, y0, x1, y1] = box;
+  const path = (lines: number[][], close: boolean) => {
+    let d = '';
+    for (const l of lines) {
+      let a = Infinity;
+      let b = Infinity;
+      let c = -Infinity;
+      let e = -Infinity;
+      for (let i = 0; i + 1 < l.length; i += 2) {
+        const x = l[i]! * GEO_KX;
+        const y = l[i + 1]! * GEO_KY;
+        a = Math.min(a, x);
+        c = Math.max(c, x);
+        b = Math.min(b, y);
+        e = Math.max(e, y);
+      }
+      if (c < x0 || a > x1 || e < y0 || b > y1) continue;
+      for (let i = 0; i + 1 < l.length; i += 2)
+        d += `${i ? 'L' : 'M'}${Math.round(l[i]! * GEO_KX)} ${Math.round(l[i + 1]! * GEO_KY)}`;
+      if (close) d += 'Z';
+    }
+    return d;
+  };
+  return {
+    land: g.land?.length ? path(g.land, true) : null,
+    water: path(g.water ?? [], true),
+    parks: path([...(g.parks ?? []), ...(g.green ?? [])], true),
+    major: path(
+      ['motorway', 'trunk', 'primary'].flatMap((c) =>
+        (g.roads?.[c as 'primary'] ?? []).map((r) => r.l),
+      ),
+      false,
+    ),
+    minor: path(
+      ['secondary', 'tertiary'].flatMap((c) => (g.roads?.[c as 'secondary'] ?? []).map((r) => r.l)),
+      false,
+    ),
+    bridges: path(
+      (g.bridges ?? []).map((b) => b.l),
+      false,
+    ),
+  };
+}
 
 const GROUND: Record<DistrictId, string> = {
   downtown: '#e7e5e4',
@@ -63,6 +114,30 @@ export function MapApp({ ctx }: { ctx: PhoneCtx }) {
 
   const drawn = useMemo(() => {
     if (!layout) return null;
+    if (layout.geo) {
+      // The real city: framed on its places.
+      const cs = layout.places.map((p) => project(p.x + p.w / 2, p.y + p.d / 2));
+      const xs = cs.map((c) => c.x);
+      const ys = cs.map((c) => c.y);
+      let minX = Math.min(...xs);
+      let maxX = Math.max(...xs);
+      let minY = Math.min(...ys);
+      let maxY = Math.max(...ys);
+      const pad = Math.max(maxX - minX, maxY - minY) * 0.08 + 300;
+      minX -= pad;
+      maxX += pad;
+      minY -= pad;
+      maxY += pad;
+      return {
+        viewBox: `${minX} ${minY} ${maxX - minX} ${maxY - minY}`,
+        width: maxX - minX,
+        land: '',
+        waters: [],
+        blocks: [],
+        geo: geoMini(layout.geo.data, [minX, minY, maxX, maxY]),
+        frame: { minX, minY, w: maxX - minX, h: maxY - minY },
+      };
+    }
     const E = layout.extent;
     const lo = -MARGIN / 6;
     const hi = E + MARGIN / 6;
@@ -106,9 +181,19 @@ export function MapApp({ ctx }: { ctx: PhoneCtx }) {
   const key = (p: Place) => p.kind !== 'business' && p.kind !== 'stall';
   const font = drawn.width / 30;
   const go = (p: Place) => ctx.goPlace(p.id);
-  const shownPlaces = places.filter(visible).sort((a, b) => Number(key(a)) - Number(key(b)));
+  // Businesses under the rest, and the landmarks (the Hub on top) over everything.
+  const rank = (p: Place) =>
+    !key(p) ? 0 : LABELLED.has(p.kind) || p.kind === 'office' ? (p.kind === 'hub' ? 3 : 2) : 1;
+  const shownPlaces = places.filter(visible).sort((a, b) => rank(a) - rank(b));
   /** A tap picks the nearest place (within a thumb's reach), so small dots are easy to hit. */
   const tap = (e: MouseEvent<SVGSVGElement>) => {
+    // A dot you hit is the one you meant (a real map's dots can sit close).
+    const hitId = (e.target as Element).closest?.('[data-place]')?.getAttribute('data-place');
+    const hit = hitId ? shownPlaces.find((p) => p.id === hitId) : undefined;
+    if (hit) {
+      setSel(hit);
+      return;
+    }
     const svg = e.currentTarget;
     const m = svg.getScreenCTM?.();
     if (!m) return;
@@ -154,7 +239,42 @@ export function MapApp({ ctx }: { ctx: PhoneCtx }) {
             aria-label={t('Map of {city}', { city: cityViewOf(view).market.name })}
             onClick={tap}
           >
-            <polygon points={drawn.land} className="phone-map-land" />
+            {drawn.geo ? (
+              <g className="phone-map-geo" pointerEvents="none">
+                <rect
+                  x={drawn.frame.minX}
+                  y={drawn.frame.minY}
+                  width={drawn.frame.w}
+                  height={drawn.frame.h}
+                  fill={drawn.geo.land === null ? '#eef0e6' : '#9fd0ea'}
+                />
+                {drawn.geo.land && <path d={drawn.geo.land} fill="#eef0e6" />}
+                <path d={drawn.geo.parks} fill="#c8e6b8" />
+                <path d={drawn.geo.water} fill="#9fd0ea" />
+                <path
+                  d={drawn.geo.minor}
+                  fill="none"
+                  stroke="#fff"
+                  strokeWidth={drawn.width / 300}
+                  strokeLinejoin="round"
+                />
+                <path
+                  d={drawn.geo.major}
+                  fill="none"
+                  stroke="#fcd34d"
+                  strokeWidth={drawn.width / 180}
+                  strokeLinejoin="round"
+                />
+                <path
+                  d={drawn.geo.bridges}
+                  fill="none"
+                  stroke="#94a3b8"
+                  strokeWidth={drawn.width / 160}
+                />
+              </g>
+            ) : (
+              <polygon points={drawn.land} className="phone-map-land" />
+            )}
             {drawn.waters.map((w) => (
               <polygon key={w.key} points={w.points} className="phone-map-water" />
             ))}
@@ -166,7 +286,8 @@ export function MapApp({ ctx }: { ctx: PhoneCtx }) {
               .map((p) => {
                 const c = project(p.x + p.w / 2, p.y + p.d / 2);
                 const big = key(p);
-                const r = (big ? 1 : 0.7) * font * 0.5;
+                // A real map is wide: smaller dots, so neighbours stay apart.
+                const r = (big ? 1 : 0.7) * font * (layout.geo ? 0.2 : 0.5);
                 const label = LABELLED.has(p.kind) || sel?.id === p.id;
                 return (
                   <g

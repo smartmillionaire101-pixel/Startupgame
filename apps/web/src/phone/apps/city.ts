@@ -5,20 +5,26 @@
 import { useMemo } from 'react';
 import { t } from '../../i18n';
 import { CATEGORY_COLOR, cityInput } from '../../city/contract';
-import { buildLayout, findPath, pathLength, type CityInput, type Place } from '../../city/layout';
+import { findPath, pathLength, travelTiles, type CityInput, type Place } from '../../city/layout';
+import { useGeo } from '../../city/geo';
+import { buildCityLayout } from '../../city/geoLayout';
 import { cityViewOf, isAbroad } from '../../city/travel';
 import type { IconName } from '../icons';
 import type { View } from '../shared';
 
 export function useCityLayout(view: View) {
-  const key = JSON.stringify(cityInput(cityViewOf(view)));
+  const input = cityInput(cityViewOf(view));
+  const key = JSON.stringify(input);
+  // Wave 8: the real map when the city has one (null while it loads).
+  const geo = useGeo(input.marketId);
   return useMemo(() => {
+    if (geo === 'loading') return null;
     try {
-      return buildLayout(JSON.parse(key) as CityInput);
+      return buildCityLayout(JSON.parse(key) as CityInput, geo);
     } catch {
       return null;
     }
-  }, [key]);
+  }, [key, geo]);
 }
 
 export function placeName(p: Place, view: View): string {
@@ -94,7 +100,7 @@ export function placeIcon(p: Place): IconName {
 /** Tiles along the streets from where you usually start to a place (an estimate). */
 export function tilesTo(layout: NonNullable<ReturnType<typeof useCityLayout>>, p: Place): number {
   try {
-    return Math.max(1, pathLength(findPath(layout, layout.start, p.door)));
+    return Math.max(1, travelTiles(layout, pathLength(findPath(layout, layout.start, p.door))));
   } catch {
     return Math.hypot(p.door.x - layout.start.x, p.door.y - layout.start.y);
   }

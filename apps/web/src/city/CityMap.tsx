@@ -12,6 +12,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -46,6 +47,7 @@ import {
   unproject,
   BEACH_W,
   MARGIN,
+  travelTiles,
   type Boat,
   type Bridge,
   type Decor,
@@ -62,6 +64,9 @@ import { rideMs, rideVehicle, SHORT_HOP, type RideMode } from './travel';
 import type { VehicleSpec } from './flavour';
 import { playersByPlace, type PresenceView, type Walker } from './people';
 import { beginRide } from './ride/state';
+import { OSM_CREDIT } from './geo';
+import { GeoPainter } from './geoPaint';
+import { GeoSprite } from './geoSprites';
 
 // ---------------------------------------------------------------------------
 // Reduced motion, as a subscribable media query.
@@ -545,6 +550,13 @@ const Traffic = memo(function Traffic({
       {layout.vehicles.map((v, n) => {
         const a = project(v.from.x, v.from.y);
         const b = project(v.to.x, v.to.y);
+        // A real map's road: along its whole line.
+        const line = v.path
+          ? `M ${v.path
+              .map((q) => project(q.x, q.y))
+              .map((q) => `${q.x.toFixed(1)} ${q.y.toFixed(1)}`)
+              .join(' L ')}`
+          : null;
         if (reduced) {
           // Parked: a third of the way along, no motion.
           const p = project(
@@ -564,7 +576,7 @@ const Traffic = memo(function Traffic({
               dur={`${v.dur.toFixed(1)}s`}
               begin={`${v.delay.toFixed(1)}s`}
               repeatCount="indefinite"
-              path={`M ${a.x} ${a.y} L ${b.x} ${b.y}`}
+              path={line ?? `M ${a.x} ${a.y} L ${b.x} ${b.y}`}
             />
           </g>
         );
@@ -767,6 +779,8 @@ export function skylineItems(layout: CityLayout): SkyItem[] {
       node:
         d.kind === 'lot' ? (
           <EmptyLot key={`d${n}`} d={d} />
+        ) : d.sprite ? (
+          <GeoSprite key={`d${n}`} d={d} />
         ) : (
           <DecorItem key={`d${n}`} d={d} f={f} />
         ),
@@ -873,10 +887,17 @@ export function placeLabels(
   // The Market: one label over its stalls instead of a label per stall.
   const stalls = layout.places.filter((p) => p.kind === 'stall');
   if (stalls.length && marketName) {
-    const first = stalls[0]!;
-    const i = Math.floor(first.x / B);
-    const j = Math.floor(first.y / B);
-    put('market', marketName, project(i * B + B / 2, j * B + B / 2), 16);
+    if (layout.geo) {
+      // A real map's stalls line the streets: the name goes over their middle.
+      const cx = stalls.reduce((s, p) => s + p.x + p.w / 2, 0) / stalls.length;
+      const cy = stalls.reduce((s, p) => s + p.y + p.d / 2, 0) / stalls.length;
+      put('market', marketName, project(cx, cy), 16);
+    } else {
+      const first = stalls[0]!;
+      const i = Math.floor(first.x / B);
+      const j = Math.floor(first.y / B);
+      put('market', marketName, project(i * B + B / 2, j * B + B / 2), 16);
+    }
   }
 
   // ---- Far set: district names, skipping any that would cover a key place.
@@ -982,7 +1003,11 @@ const Labels = memo(function Labels({
                       : layout.extent / 2,
                 );
           return (
-            <g key="water" transform={`translate(${Math.round(c.x)},${Math.round(c.y + 4)})`}>
+            <g
+              key="water"
+              data-water={layout.geo ? w.name : undefined}
+              transform={`translate(${Math.round(c.x)},${Math.round(c.y + 4)})`}
+            >
               <text className="city-water-name lbl-s" textAnchor="middle">
                 {w.name}
               </text>
@@ -1098,7 +1123,10 @@ export function CityMap({
     // Zoomed right out, the whole city just fits (Wave 7: tight bounds, so
     // little empty sea or sand), but never smaller than 0.3.
     const fit = Math.min(w / (b.maxX - b.minX), h / (b.maxY - b.minY));
-    return { min: Math.max(0.3, fit), max: 2.6 };
+    // A real map zooms right out, to the whole city.
+    // (filling the view: beyond the map's edge there is no data).
+    const cover = Math.max(w / (b.maxX - b.minX), h / (b.maxY - b.minY));
+    return { min: layout.geo ? Math.max(0.004, cover) : Math.max(0.3, fit), max: 2.6 };
   }, [layout]);
 
   // ---- Depth: slots in the skyline that people are moved into (see Skyline).
@@ -1149,6 +1177,20 @@ export function CityMap({
     }
   }, []);
 
+  // Wave 8: a real map's base layers, on a canvas under the SVG.
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const painter = useMemo(
+    () =>
+      layout.geo
+        ? new GeoPainter(
+            layout.geo,
+            layout.flavour,
+            layout.areas.map((a) => project(a.at.x, a.at.y)),
+          )
+        : null,
+    [layout],
+  );
+
   const lastZ = useRef(0);
   const apply = useCallback(() => {
     const c = cam.current;
@@ -1167,6 +1209,7 @@ export function CityMap({
     const vb = `${(c.x - hw).toFixed(1)} ${(c.y - hh).toFixed(1)} ${(hw * 2).toFixed(1)} ${(hh * 2).toFixed(1)}`;
     // Only touch the DOM when the camera really moved.
     if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
+    if (painter && canvasRef.current) painter.draw(canvasRef.current, c);
     if (Math.abs(c.z - lastZ.current) > 0.002) {
       lastZ.current = c.z;
       // Labels counter-scale with the zoom (CSS `.lbl-s`): about 12 px on screen.
@@ -1175,7 +1218,7 @@ export function CityMap({
     const zl = c.z < 0.75 ? '0' : c.z < 1.25 ? '1' : '2';
     if (wrapRef.current && wrapRef.current.dataset.zoom !== zl) wrapRef.current.dataset.zoom = zl;
     runCull();
-  }, [layout, zoomLimits, runCull]);
+  }, [layout, zoomLimits, runCull, painter]);
 
   // The avatar's body is drawn into the depth slots (behind buildings in
   // front of it); its name tag stays on top.
@@ -1266,7 +1309,7 @@ export function CityMap({
   useEffect(() => {
     pos.current = lastPos.get(layout.marketId) ?? layout.start;
     placeAvatar(pos.current);
-    cam.current.z = cam.current.w < 500 ? 1 : 1.15;
+    cam.current.z = layout.geo ? (cam.current.w < 500 ? 0.9 : 1) : cam.current.w < 500 ? 1 : 1.15;
     centreOn(pos.current);
     onArriveRef.current?.(pos.current, null);
   }, [layout, placeAvatar, centreOn]);
@@ -1301,7 +1344,8 @@ export function CityMap({
       pending.current = null;
       focusLabel(placeId);
       const path = findPath(layout, pos.current, target);
-      const len = pathLength(path);
+      // Trips count in travel tiles (about 50 m), whatever the map's scale.
+      const len = travelTiles(layout, pathLength(path));
       const ts = project(target.x, target.y);
       // Somewhere far that you tapped: ask how to get there first.
       if (opts.ask && len > SHORT_HOP && onFarTripRef.current) {
@@ -1572,9 +1616,10 @@ export function CityMap({
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
     >
+      {painter && <canvas ref={canvasRef} className="city-geo-canvas" aria-hidden="true" />}
       <svg
         ref={svgRef}
-        className="city-svg"
+        className={`city-svg${painter ? ' is-geo' : ''}`}
         aria-hidden="true"
         viewBox={`${b.minX} ${b.minY} ${b.maxX - b.minX} ${b.maxY - b.minY}`}
         preserveAspectRatio="xMidYMid meet"
@@ -1584,14 +1629,16 @@ export function CityMap({
         onPointerCancel={onPointerCancel}
       >
         <ArtDefs f={layout.flavour} />
-        <rect
-          x={b.minX - 2000}
-          y={b.minY - 2000}
-          width={b.maxX - b.minX + 4000}
-          height={b.maxY - b.minY + 4000}
-          fill="url(#sky)"
-        />
-        <Ground layout={layout} />
+        {!painter && (
+          <rect
+            x={b.minX - 2000}
+            y={b.minY - 2000}
+            width={b.maxX - b.minX + 4000}
+            height={b.maxY - b.minY + 4000}
+            fill="url(#sky)"
+          />
+        )}
+        {!painter && <Ground layout={layout} />}
         {md && (
           <g transform={`translate(${md.x},${md.y})`} className="city-pulse">
             <ellipse rx="22" ry="11" fill="url(#pulse)" />
@@ -1609,7 +1656,7 @@ export function CityMap({
           return p ? <Bunting key={id} p={p} /> : null;
         })}
         <Crowd walkers={walkers} reduced={reduced} placeDepth={placeDepth} />
-        {layout.flavour.fog && <Fog layout={layout} />}
+        {layout.flavour.fog && !painter && <Fog layout={layout} />}
         <Labels layout={layout} labelOf={labelOf} />
         <Overlays layout={layout} players={players} fresh={fresh} />
         {mp && markerPlace && (
@@ -1674,6 +1721,17 @@ export function CityMap({
             avatarHost,
           )}
       </svg>
+      {painter && (
+        <a
+          className="city-osm-credit"
+          data-osm-credit=""
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer"
+        >
+          {OSM_CREDIT}
+        </a>
+      )}
     </div>
   );
 }
