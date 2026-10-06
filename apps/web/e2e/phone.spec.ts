@@ -45,7 +45,10 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
   await page.getByRole('button', { name: /^Phone/ }).click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await expect(phone).toBeVisible();
-  await expect(phone.locator('[data-app]')).toHaveCount(6);
+  // Wave 7: every app on the home screen (12 in the grid, 4 in the dock).
+  await expect(phone.locator('[data-app]')).toHaveCount(16);
+  await expect(phone.locator('.phone-dock [data-app]')).toHaveCount(4);
+  await expect(phone.getByRole('meter', { name: 'Energy' })).toBeVisible();
 
   // Messages → New message → a fund partner.
   await phone.locator('[data-app="messages"]').click();
@@ -72,13 +75,12 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
     1,
   );
 
-  // Alerts: the reporter's welcome note opens the News screen.
+  // Alerts: the reporter's welcome note opens the phone's News app.
   await phone.getByRole('button', { name: 'Back' }).click();
   await phone.locator('[data-app="alerts"]').click();
   await phone.locator('[data-alert="reporter"]').first().click();
-  await expect(phone).toBeHidden();
-  // Wave 7: News is a screen behind Today (and the phone), not a tab.
-  await expect(page.getByRole('heading', { name: 'News', level: 1 })).toBeVisible();
+  await expect(phone.locator('[data-phone-app="news"]')).toBeVisible();
+  await expect(phone.getByRole('tab', { name: 'Top 5' })).toBeVisible();
 });
 
 test('Today inbox items are tappable, and person cards chat with AI people', async ({ page }) => {
@@ -111,7 +113,7 @@ test('Today inbox items are tappable, and person cards chat with AI people', asy
   await expect(phone.locator('[data-thread^="fund:"]')).toBeVisible();
 });
 
-test('take a job, then quit it from the phone’s Wallet', async ({ page }) => {
+test('take a job, then quit it from the phone’s Jobs app', async ({ page }) => {
   await founder(page);
   // Take the first job on offer, through the API (the scene flow has its own spec).
   const taken = await page.evaluate(async () => {
@@ -133,7 +135,7 @@ test('take a job, then quit it from the phone’s Wallet', async ({ page }) => {
 
   await page.getByRole('button', { name: /^Phone/ }).click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
-  await phone.locator('[data-app="wallet"]').click();
+  await phone.locator('[data-app="jobs"]').click();
   await phone.getByRole('button', { name: 'Quit job' }).click();
   await phone.getByRole('button', { name: 'Tap again to quit' }).click();
   await expect(phone.getByText('No job right now.')).toBeVisible({ timeout: 10_000 });

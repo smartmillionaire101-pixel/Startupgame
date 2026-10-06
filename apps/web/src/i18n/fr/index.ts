@@ -11,6 +11,7 @@ import { money } from './money';
 import { people } from './people';
 import { peopleWave6 } from './people-wave6';
 import { phone } from './phone';
+import { phoneApps } from './phone-apps';
 import { places } from './places';
 import { server } from './server';
 import { travel } from './travel';
@@ -30,6 +31,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   people,
   peopleWave6,
   phone,
+  phoneApps,
   places,
   server,
   travel,
