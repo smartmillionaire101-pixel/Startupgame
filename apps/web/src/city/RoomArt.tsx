@@ -935,6 +935,81 @@ function newRoomBack(kind: RoomKind, t: string, sign: string | undefined): React
           {sign && <Sign x={180} y={56} w={150} text={sign} c="#14532d" />}
         </g>
       );
+    case 'salon':
+      return (
+        <g>
+          <Wall wall={shade(t, 0.78)} floor="#e7e5e4" trim={shade(t, 0.2)} />
+          {/* Checkerboard floor. */}
+          {Array.from({ length: 12 }, (_, k) => (
+            <rect
+              key={k}
+              x={(k % 6) * 60 + (Math.floor(k / 6) % 2) * 30}
+              y={150 + Math.floor(k / 6) * 44}
+              width="30"
+              height="22"
+              fill="#292524"
+              opacity="0.12"
+            />
+          ))}
+          {/* Two stations: a mirror, a ledge, a chair. */}
+          {[96, 256].map((x) => (
+            <g key={x}>
+              <rect x={x - 40} y="14" width="80" height="96" rx="40" fill="#d6d3d1" />
+              <rect x={x - 34} y="20" width="68" height="84" rx="34" fill="#bfdbfe" />
+              <path
+                d={`M ${x - 20} 96 L ${x + 6} 26 L ${x + 14} 28 L ${x - 12} 98 Z`}
+                fill="#fff"
+                opacity="0.35"
+              />
+              <rect x={x - 46} y="112" width="92" height="7" rx="2" fill="#78350f" />
+              {['#f43f5e', '#0ea5e9', '#f59e0b'].map((c, k) => (
+                <rect key={c} x={x - 38 + k * 10} y={98} width="7" height="14" rx="2" fill={c} />
+              ))}
+              <rect x={x - 20} y="136" width="40" height="58" rx="7" fill="#7f1d1d" />
+              <rect x={x - 9} y="128" width="18" height="10" rx="3" fill="#1f2937" />
+              <rect x={x - 5} y="194" width="10" height="12" fill="#cbd5e1" />
+              <ellipse cx={x} cy="208" rx="18" ry="4" fill="#94a3b8" />
+            </g>
+          ))}
+          {/* Styles on the wall, and the pole by the door. */}
+          <rect x="152" y="24" width="56" height="70" fill="#fff" />
+          {[0, 1, 2, 3].map((k) => (
+            <g
+              key={k}
+              transform={`translate(${166 + (k % 2) * 28} ${40 + Math.floor(k / 2) * 32})`}
+            >
+              <circle r="7" fill="#e0ac69" />
+              <path
+                d={
+                  [
+                    'M -7 -1 A 7 7 0 0 1 7 -1 Q 0 -10 -7 -1 Z',
+                    'M -8 -2 A 8 8 0 0 1 8 -2 L 8 6 L 6 6 L 6 -2 Q 0 -7 -6 -2 L -6 6 L -8 6 Z',
+                    'M -7 -1 A 7 7 0 0 1 7 -1 Z',
+                    'M -8 -3 A 9 9 0 0 1 8 -3 A 7 7 0 0 0 -8 -3 Z',
+                  ][k]
+                }
+                fill="#2b1b10"
+              />
+            </g>
+          ))}
+          <g transform="translate(334 40)">
+            <rect x="-6" width="12" height="56" rx="5" fill="#f8fafc" />
+            {[0, 1, 2, 3].map((k) => (
+              <rect
+                key={k}
+                x="-6"
+                y={6 + k * 12}
+                width="12"
+                height="5"
+                fill={k % 2 ? '#2563eb' : '#dc2626'}
+                transform={`skewY(-20)`}
+              />
+            ))}
+          </g>
+          {sign && <Sign x={180} y={-40} w={170} text={sign} c={shade(t, -0.35)} />}
+          <Plant x={20} y={140} s={0.9} />
+        </g>
+      );
     case 'appliance':
       return (
         <g>
@@ -1024,6 +1099,27 @@ function newRoomFront(kind: RoomKind, t: string): ReactNode {
       );
     case 'pitch':
       return <circle cx="204" cy="224" r="6" fill="#fff" stroke="#0f172a" strokeWidth="1.5" />;
+    case 'salon':
+      return (
+        <g>
+          {[96, 256].map((x) => (
+            <g key={x}>
+              <rect x={x - 26} y="178" width="12" height="7" rx="3" fill="#450a0a" />
+              <rect x={x + 14} y="178" width="12" height="7" rx="3" fill="#450a0a" />
+              <rect x={x - 12} y="203" width="24" height="3" rx="1.5" fill="#cbd5e1" />
+              {/* Whoever's in the chair wears a cape. */}
+              <path
+                d={`M ${x - 6} 153 Q ${x} 158 ${x + 6} 153 L ${x + 22} 204 Q ${x} 209 ${x - 22} 204 Z`}
+                fill={x < 180 ? '#111827' : '#db2777'}
+              />
+            </g>
+          ))}
+          {/* The waiting bench. */}
+          <rect x="136" y="214" width="84" height="14" rx="4" fill={shade(t, -0.3)} />
+          <rect x="140" y="226" width="6" height="12" fill="#57534e" />
+          <rect x="210" y="226" width="6" height="12" fill="#57534e" />
+        </g>
+      );
     case 'appliance':
       return (
         <g>
