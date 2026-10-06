@@ -698,16 +698,28 @@ function spritesOf(data: GeoData, marketId: string): GeoSprite[] {
       else if (hit && 'p' in hit) at = centroidOf(hit.p);
     }
     if (spec.bridge) {
-      // The longest stretch of the named bridge: its two ends.
+      // The longest stretch of the named bridge: its two ends (or, for a
+      // curving one, its longest straight run, where the towers stand).
       let bestLen = 0;
       for (const br of data.bridges ?? []) {
         if (!br.n || !spec.bridge.test(br.n)) continue;
         const l = br.l;
-        const len = Math.hypot(l[l.length - 2]! - l[0]!, l[l.length - 1]! - l[1]!);
-        if (len > bestLen) {
-          bestLen = len;
-          at = { x: l[0]!, y: l[1]! };
-          to = { x: l[l.length - 2]!, y: l[l.length - 1]! };
+        const chord = Math.hypot(l[l.length - 2]! - l[0]!, l[l.length - 1]! - l[1]!);
+        let len = 0;
+        let seg = { i: 0, len: 0 };
+        for (let i = 0; i + 3 < l.length; i += 2) {
+          const d = Math.hypot(l[i + 2]! - l[i]!, l[i + 3]! - l[i + 1]!);
+          len += d;
+          if (d > seg.len) seg = { i, len: d };
+        }
+        const straight = chord >= len * 0.97;
+        const use = straight ? chord : seg.len;
+        if (use > bestLen) {
+          bestLen = use;
+          const i0 = straight ? 0 : seg.i;
+          const i1 = straight ? l.length - 2 : seg.i + 2;
+          at = { x: l[i0]!, y: l[i0 + 1]! };
+          to = { x: l[i1]!, y: l[i1 + 1]! };
         }
       }
     }

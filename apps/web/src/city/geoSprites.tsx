@@ -117,7 +117,7 @@ function Suspension({
             x2={r1(l.top.x)}
             y2={r1(l.top.y)}
             stroke={shade(col, -0.08)}
-            strokeWidth="6"
+            strokeWidth="9"
           />
         ))}
         {[0.98, 0.75, 0.5, 0.3].map((u) => {
@@ -131,7 +131,7 @@ function Suspension({
               x2={r1(q.x)}
               y2={r1(q.y)}
               stroke={col}
-              strokeWidth="3"
+              strokeWidth="4.5"
             />
           );
         })}
@@ -202,7 +202,7 @@ function Bascule({ d }: { d: Decor }) {
   const H = M(65);
   const tower = (f: number) => {
     const c = along(a, b, f, 0, 0);
-    const w = 16;
+    const w = Math.max(16, M(20));
     return (
       <g key={f}>
         <rect x={c.x - w / 2} y={c.y - H} width={w} height={H} fill="#d6c7a1" />
