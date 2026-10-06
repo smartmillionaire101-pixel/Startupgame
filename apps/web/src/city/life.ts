@@ -315,12 +315,19 @@ export interface Met {
   name: string;
   kind: string;
   refId: string;
+  /** "Nurse", "Founder, Kola Pay"; empty when the engine doesn't say. */
+  role: string;
 }
 
 export function metOf(result: unknown): Met | null {
   const m = isObj(result) ? result.met : null;
   if (!isObj(m) || typeof m.refId !== 'string' || !m.refId) return null;
-  return { name: str(m.name, '—'), kind: str(m.kind, 'local'), refId: m.refId };
+  return {
+    name: str(m.name, '—'),
+    kind: str(m.kind, 'local'),
+    refId: m.refId,
+    role: str(m.role),
+  };
 }
 
 /** The nearest of `xs` to a point (by straight line), or the first when positions are unknown. */

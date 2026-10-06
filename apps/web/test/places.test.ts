@@ -325,10 +325,13 @@ describe('Wave 6: things to do and showrooms', () => {
   });
 
   it('reads who you met, and nothing when nobody', () => {
-    expect(metOf({ met: { name: 'Ama', kind: 'local', refId: 'npc:lagos:4' } })).toEqual({
+    expect(
+      metOf({ met: { name: 'Ama', kind: 'local', refId: 'npc:lagos:4', role: 'Nurse' } }),
+    ).toEqual({
       name: 'Ama',
       kind: 'local',
       refId: 'npc:lagos:4',
+      role: 'Nurse',
     });
     expect(metOf({ met: null })).toBeNull();
     expect(metOf(null)).toBeNull();

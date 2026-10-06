@@ -434,7 +434,14 @@ function OutcomeLine({
       <p className="tray-result-text">{o.text}</p>
       {o.met && (
         <p className="tray-met" data-met={o.met.refId}>
-          <span>{t('You met {name}. Save the contact?', { name: o.met.name })}</span>
+          <span>
+            {o.met.role
+              ? t('You met {name}, {role}. Save the contact?', {
+                  name: o.met.name,
+                  role: tx(o.met.role),
+                })
+              : t('You met {name}. Save the contact?', { name: o.met.name })}
+          </span>
           {o.saved ? (
             <b className="tray-saved">{t('Saved ✓')}</b>
           ) : (
@@ -1040,7 +1047,6 @@ export function PlaceScene({
         </svg>
         <WhoIsHere place={place} players={players} />
       </div>
-      {/* Who's here (WhoIsHere.tsx, Wave 6 §C1) goes on this line: under the room, above the tray. */}
       {more ? (
         <div className="place-more">
           <button type="button" className="place-back" onClick={() => setMore(false)}>

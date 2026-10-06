@@ -103,6 +103,8 @@ export const places: Record<string, string> = {
   'you may meet someone': 'vous rencontrerez peut-être quelqu’un',
   '{price} · you may meet someone': '{price} · vous rencontrerez peut-être quelqu’un',
   'You met {name}. Save the contact?': 'Vous avez rencontré {name}. Garder le contact ?',
+  'You met {name}, {role}. Save the contact?':
+    'Vous avez rencontré {name}, {role}. Garder le contact ?',
   'Saved ✓': 'Enregistré ✓',
   Dismiss: 'Fermer',
   '{name} is in your contacts.': '{name} est dans vos contacts.',
