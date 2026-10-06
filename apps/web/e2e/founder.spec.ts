@@ -42,13 +42,13 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await expect(page.getByText(/40h of building logged/)).toBeVisible();
   await tab(page, 'Today').click();
   // A deploy preview keeps one world across runs, so compare with today's date.
-  const date = page.locator('.topbar .brand .small');
+  const date = page.locator('.topbar .topbar-date');
   const before = (await date.textContent())!;
   const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
   await page.getByRole('button', { name: /Advance Lagos one month/ }).click();
   const res = await settled;
   expect(res.status(), await res.text()).toBe(200);
-  await expect(date).toHaveText(/Year \d+, Month \d+/);
+  await expect(date).toHaveText(/^Y\d+ M\d+$/);
   await expect(date).not.toHaveText(before);
 
   // The news digest is reachable.
