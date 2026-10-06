@@ -52,13 +52,19 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
   await phone.getByRole('button', { name: 'New message' }).click();
   await phone.locator('[data-group="partner"] [data-character]').first().click();
   await phone.getByRole('button', { name: 'What do you invest in?' }).click();
-  // Their reply comes from the fund's real thesis and cheque sizes.
-  await expect(phone.locator('.bubble:not(.mine)').first()).toContainText(/cheques of/, {
-    timeout: 10_000,
-  });
+  // Their reply comes from the fund's real thesis and cheque sizes (worded by
+  // the templates, or freely by Claude when the server has a key).
+  await expect(phone.locator('.bubble:not(.mine):not(.phone-typing)').first()).toContainText(
+    /cheque|invest|back/i,
+    {
+      timeout: 15_000,
+    },
+  );
   await phone.getByRole('textbox', { name: 'Message' }).fill('Can we meet?');
   await phone.getByRole('button', { name: 'Send' }).click();
-  await expect(phone.locator('.bubble:not(.mine)')).toHaveCount(2);
+  await expect(phone.locator('.bubble:not(.mine):not(.phone-typing)')).toHaveCount(2, {
+    timeout: 15_000,
+  });
 
   // The thread shows in the list.
   await phone.getByRole('button', { name: 'Back' }).click();

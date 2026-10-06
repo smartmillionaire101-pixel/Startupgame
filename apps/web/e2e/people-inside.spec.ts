@@ -99,7 +99,9 @@ test('people live inside buildings: Who’s here, Chat, Save and Contacts', asyn
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await expect(phone.locator(`[data-thread="biz:${id}"]`)).toBeVisible({ timeout: 10_000 });
   await phone.locator('.phone-quick .chip').first().click();
-  await expect(phone.locator('.bubble:not(.mine)').first()).toBeVisible({ timeout: 10_000 });
+  await expect(phone.locator('.bubble:not(.mine):not(.phone-typing)').first()).toHaveText(/\S/, {
+    timeout: 15_000,
+  });
   await phone.getByRole('button', { name: 'Close phone' }).click();
 
   // Save needs the Wave 6 engine (`contact.save`); older builds stop here.
