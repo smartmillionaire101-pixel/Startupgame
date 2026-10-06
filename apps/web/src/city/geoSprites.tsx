@@ -138,7 +138,11 @@ function Suspension({
       </g>,
     );
   }
-  return <g data-landmark={d.name}>{out}</g>;
+  return (
+    <g data-landmark={d.name} data-bridge={d.name}>
+      {out}
+    </g>
+  );
 }
 
 function CableStayed({ d }: { d: Decor }) {
@@ -192,7 +196,11 @@ function CableStayed({ d }: { d: Decor }) {
       />,
     );
   }
-  return <g data-landmark={d.name}>{out}</g>;
+  return (
+    <g data-landmark={d.name} data-bridge={d.name}>
+      {out}
+    </g>
+  );
 }
 
 function Bascule({ d }: { d: Decor }) {
@@ -233,7 +241,7 @@ function Bascule({ d }: { d: Decor }) {
   const d1 = along(a, b, 0.37, 0, M(9));
   const d2 = along(a, b, 0.63, 0, M(9));
   return (
-    <g data-landmark={d.name}>
+    <g data-landmark={d.name} data-bridge={d.name}>
       <line x1={e1.x} y1={e1.y} x2={e2.x} y2={e2.y} stroke="#475569" strokeWidth="4" />
       <line x1={d1.x} y1={d1.y} x2={d2.x} y2={d2.y} stroke={col} strokeWidth="4" />
       <path

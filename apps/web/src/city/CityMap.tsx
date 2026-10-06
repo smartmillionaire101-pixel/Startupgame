@@ -1003,7 +1003,11 @@ const Labels = memo(function Labels({
                       : layout.extent / 2,
                 );
           return (
-            <g key="water" transform={`translate(${Math.round(c.x)},${Math.round(c.y + 4)})`}>
+            <g
+              key="water"
+              data-water={layout.geo ? w.name : undefined}
+              transform={`translate(${Math.round(c.x)},${Math.round(c.y + 4)})`}
+            >
               <text className="city-water-name lbl-s" textAnchor="middle">
                 {w.name}
               </text>
@@ -1305,7 +1309,7 @@ export function CityMap({
   useEffect(() => {
     pos.current = lastPos.get(layout.marketId) ?? layout.start;
     placeAvatar(pos.current);
-    cam.current.z = layout.geo ? (cam.current.w < 500 ? 0.5 : 0.6) : cam.current.w < 500 ? 1 : 1.15;
+    cam.current.z = layout.geo ? (cam.current.w < 500 ? 0.9 : 1) : cam.current.w < 500 ? 1 : 1.15;
     centreOn(pos.current);
     onArriveRef.current?.(pos.current, null);
   }, [layout, placeAvatar, centreOn]);

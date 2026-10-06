@@ -181,9 +181,19 @@ export function MapApp({ ctx }: { ctx: PhoneCtx }) {
   const key = (p: Place) => p.kind !== 'business' && p.kind !== 'stall';
   const font = drawn.width / 30;
   const go = (p: Place) => ctx.goPlace(p.id);
-  const shownPlaces = places.filter(visible).sort((a, b) => Number(key(a)) - Number(key(b)));
+  // Businesses under the rest, and the landmarks (the Hub on top) over everything.
+  const rank = (p: Place) =>
+    !key(p) ? 0 : LABELLED.has(p.kind) || p.kind === 'office' ? (p.kind === 'hub' ? 3 : 2) : 1;
+  const shownPlaces = places.filter(visible).sort((a, b) => rank(a) - rank(b));
   /** A tap picks the nearest place (within a thumb's reach), so small dots are easy to hit. */
   const tap = (e: MouseEvent<SVGSVGElement>) => {
+    // A dot you hit is the one you meant (a real map's dots can sit close).
+    const hitId = (e.target as Element).closest?.('[data-place]')?.getAttribute('data-place');
+    const hit = hitId ? shownPlaces.find((p) => p.id === hitId) : undefined;
+    if (hit) {
+      setSel(hit);
+      return;
+    }
     const svg = e.currentTarget;
     const m = svg.getScreenCTM?.();
     if (!m) return;
@@ -276,7 +286,8 @@ export function MapApp({ ctx }: { ctx: PhoneCtx }) {
               .map((p) => {
                 const c = project(p.x + p.w / 2, p.y + p.d / 2);
                 const big = key(p);
-                const r = (big ? 1 : 0.7) * font * 0.5;
+                // A real map is wide: smaller dots, so neighbours stay apart.
+                const r = (big ? 1 : 0.7) * font * (layout.geo ? 0.2 : 0.5);
                 const label = LABELLED.has(p.kind) || sel?.id === p.id;
                 return (
                   <g

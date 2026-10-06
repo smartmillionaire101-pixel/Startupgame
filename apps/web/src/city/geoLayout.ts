@@ -37,6 +37,7 @@ import {
   TW,
   type Area,
   type BizInput,
+  type Water,
   type CityInput,
   type CityLayout,
   type Ctx,
@@ -938,6 +939,33 @@ function airportAt(data: GeoData, near: { e: number; s: number }) {
   return best;
 }
 
+/** The open water nearest a point (metres), searched on a 150 m grid. */
+function waterNear(data: GeoData, e: number, s: number) {
+  const land = new PolySet(data.land ?? []);
+  const water = new PolySet(data.water ?? []);
+  const [x0, y0, x1, y1] = data.bounds;
+  const wet = (x: number, y: number) =>
+    x > x0 && x < x1 && y > y0 && y < y1 && (water.has(x, y) || (land.size > 0 && !land.has(x, y)));
+  const step = 150;
+  for (let r = 0; r < 60; r++) {
+    let best: { e: number; s: number } | null = null;
+    let bestD = Infinity;
+    for (let i = -r; i <= r; i++)
+      for (let j = -r; j <= r; j++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
+        const x = e + i * step;
+        const y = s + j * step;
+        const d = Math.hypot(i, j);
+        if (d < bestD && wet(x, y)) {
+          bestD = d;
+          best = { e: x, s: y };
+        }
+      }
+    if (best) return best;
+  }
+  return null;
+}
+
 /** Traffic on the main roads near the places, along their real lines. */
 function trafficOf(data: GeoData, flavour: Flavour, near: { e: number; s: number }[]) {
   const rnd = seeded(hash(`traffic:${data.city}`));
@@ -1123,6 +1151,29 @@ export function buildGeoLayout(input: CityInput, data: GeoData, plan: CityPlan):
     if (!b) placer.clear.push({ e: sp.e, s: sp.s, r: 45 });
   }
 
+  // The water the plan names (the Thames, the Lagoon, the Bay): labelled
+  // at the water nearest the city's districts.
+  const waters: Water[] = [];
+  if (plan.water?.name) {
+    const at = waterNear(
+      data,
+      D.reduce((sum, x) => sum + x.at.e, 0) / D.length,
+      D.reduce((sum, x) => sum + x.at.s, 0) / D.length,
+    );
+    if (at) {
+      const t = geoTile(at.e, at.s);
+      waters.push({
+        name: plan.water.name,
+        kind: 'river',
+        side: plan.water.side,
+        x0: t.x - 0.5,
+        y0: t.y - 0.5,
+        x1: t.x + 0.5,
+        y1: t.y + 0.5,
+      });
+    }
+  }
+
   const areas: Area[] = D.map((x) => ({
     id: x.d.id,
     name: x.d.name,
@@ -1154,7 +1205,7 @@ export function buildGeoLayout(input: CityInput, data: GeoData, plan: CityPlan):
     streets: [],
     districts: [],
     areas,
-    waters: [],
+    waters,
     bridges: [],
     cuts: [],
     boats: [],
