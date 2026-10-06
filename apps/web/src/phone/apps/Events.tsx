@@ -49,7 +49,7 @@ export function Events({ ctx }: { ctx: PhoneCtx }) {
   const card = (e: TechEventView) => (
     <li key={e.id} className="phone-card phone-event" data-tech-event={e.id} data-kind={e.kind}>
       <div className="spread">
-        <span className="chip phone-event-kind">
+        <span className="pill phone-event-kind">
           <span aria-hidden="true">{KIND_EMOJI[e.kind] ?? '📅'}</span> {techKindLabel(e.kind)}
         </span>
         <span className="small muted">{t('Day {day}', { day: e.day })}</span>

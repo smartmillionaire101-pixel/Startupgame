@@ -31,7 +31,7 @@ export function SignIn() {
   };
 
   return (
-    <div className="app">
+    <div className="app app-narrow">
       <div
         className="chips"
         role="group"

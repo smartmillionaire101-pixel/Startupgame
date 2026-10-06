@@ -1885,3 +1885,34 @@ body:has(.app-city) .toasts {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 }
+
+/* Sign-in and onboarding: one focused column, even on a wide screen. */
+.app.app-narrow {
+  max-width: 520px;
+}
+
+/* Onboarding role cards: a picture, then the words. */
+.choice:has(> .choice-lead) {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.choice-lead {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+  font-size: 1.6rem;
+  background: var(--surface-2);
+}
+.choice[aria-pressed='true'] .choice-lead {
+  background: var(--surface);
+}
+.choice-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
