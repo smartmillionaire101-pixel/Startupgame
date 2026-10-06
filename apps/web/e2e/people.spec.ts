@@ -70,18 +70,32 @@ test('AI characters are inside buildings: Who’s here, then their card', async 
   // Who's around: the notable people, by the building they're in. A fund
   // partner spends the month somewhere in town (a hotel, a restaurant, their
   // office): going there opens that place.
-  await page.getByRole('button', { name: /Who’s here/ }).click();
-  const list = page.getByRole('list', { name: 'People around' });
-  await list
-    .getByRole('button', { name: /Fund partner/ })
-    .first()
-    .click();
+  // Specs running alongside can advance the shared world a month, and partners
+  // move on at the month's turn: if they've left by the time we walk in, look again.
   const scene = page.locator('.place-scene');
-  await expect(scene).toBeVisible({ timeout: 10_000 });
-
-  // Inside, Who's here lists the partner, with Chat and Save.
-  await scene.getByRole('button', { name: /Who’s here/ }).click();
   const here = page.getByRole('dialog', { name: 'Who’s here' });
+  for (let attempt = 0; ; attempt++) {
+    await page.getByRole('button', { name: /Who’s here/ }).click();
+    const list = page.getByRole('list', { name: 'People around' });
+    await list
+      .getByRole('button', { name: /Fund partner/ })
+      .first()
+      .click();
+    await expect(scene).toBeVisible({ timeout: 10_000 });
+    // Inside, Who's here lists the partner, with Chat and Save.
+    await scene.getByRole('button', { name: /Who’s here/ }).click();
+    const found = await here
+      .locator('[data-kind="partner"]')
+      .first()
+      .waitFor({ timeout: 5000 })
+      .then(
+        () => true,
+        () => false,
+      );
+    if (found || attempt >= 2) break;
+    await here.getByRole('button', { name: 'Close' }).click();
+    await scene.getByRole('button', { name: 'Close' }).first().click();
+  }
   const partner = here.locator('[data-kind="partner"]').first();
   await expect(partner).toContainText(/Partner/i);
   await expect(partner.getByRole('button', { name: 'Chat' })).toBeVisible();
@@ -136,13 +150,17 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   await tapPlace(b, '[data-here="hub"]');
   const hub = b.locator('.place-scene');
   await expect(hub).toBeVisible({ timeout: 10_000 });
-  await hub.getByRole('button', { name: /Who’s here/ }).click();
   const host = b
     .getByRole('dialog', { name: 'Who’s here' })
     .locator('[data-kind="player"]', { hasText: hostName });
   // Earlier specs' players can still be in the Hub (they light the badge first),
-  // so wait for A by name: their arrival shows within a few presence polls.
-  await expect(host).toBeVisible({ timeout: 30_000 });
+  // so wait for A by name, reopening the list if a tap landed while the scene
+  // was still opening: their arrival shows within a few presence polls.
+  await expect(async () => {
+    const list = b.getByRole('dialog', { name: 'Who’s here' });
+    if (!(await list.isVisible())) await hub.getByRole('button', { name: /Who’s here/ }).click();
+    await expect(host).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 40_000 });
   await host.getByRole('button', { name: 'Chat' }).click();
   const bPhone = b.getByRole('dialog', { name: 'Phone' });
   await bPhone.locator('.choice').first().click();
