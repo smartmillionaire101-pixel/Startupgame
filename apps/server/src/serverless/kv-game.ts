@@ -136,7 +136,10 @@ export class KvGame implements Game {
       if (old !== GENESIS) await this.kv.delete(old);
   }
 
-  async execute(actorId: string | null, command: Command): Promise<DispatchResult> {
+  async execute(actorId: string | null, raw: Command): Promise<DispatchResult> {
+    // Only what the log can be replayed from goes into it: an entry that fails
+    // the schema would stop every later start (catchUp parses each entry).
+    const command = commandSchema.parse(raw);
     for (let attempt = 0; attempt < RETRIES; attempt++) {
       const base = this.world ?? (await this.refresh());
       const now = this.opts.now();

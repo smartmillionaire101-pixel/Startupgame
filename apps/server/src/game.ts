@@ -91,7 +91,9 @@ export class GameService implements Game {
   }
 
   /** Apply a command as a player (actorId) or as the system (null). */
-  execute(actorId: string | null, command: Command) {
+  execute(actorId: string | null, raw: Command) {
+    // Only what the log can be replayed from goes into it (boot parses each entry).
+    const command = commandSchema.parse(raw);
     const now = this.opts.now();
     const r = dispatch(this.world, command, { actorId, now });
     if (!r.ok) return r;

@@ -61,11 +61,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     multiples: z.partialRecord(industry, z.number().positive().max(100)).optional(),
   }),
   z.object({ type: z.literal('player.anonymize'), playerId: id }),
-  /** A one-off message to every human player's inbox (e.g. "a new version is out"); repeats are ignored. */
+  /**
+   * A one-off message to every human player's inbox (e.g. "a new version is out"); repeats are ignored.
+   * The text limit only ever grows: logged announcements are re-read on every start.
+   */
   z.object({
     type: z.literal('system.announce'),
     id: z.string().min(1).max(60),
-    text: z.string().min(1).max(500),
+    text: z.string().min(1).max(1000),
   }),
   // ---- onboarding
   z.object({

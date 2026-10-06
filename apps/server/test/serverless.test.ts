@@ -11,6 +11,8 @@ import {
   runClock,
   storeFor,
 } from '../src/serverless/netlify.js';
+import { commandSchema } from '@runway/engine';
+import { RELEASE_NOTE } from '../src/release.js';
 import { founderSetup, T0 } from './helpers.js';
 
 const PREVIEW = 'preview' as const;
@@ -101,6 +103,41 @@ describe('the world on a key-value store', () => {
     const fresh = make(kv);
     await fresh.refresh();
     expect(fresh.current.version).toBe(before);
+  });
+
+  it('the release note is a command the log can replay', () => {
+    expect(commandSchema.safeParse({ type: 'system.announce', ...RELEASE_NOTE }).success).toBe(
+      true,
+    );
+  });
+
+  it('refuses to log a command that could not be replayed', async () => {
+    const kv = new MemoryKv();
+    const g = make(kv);
+    await g.openMarkets(['lagos']);
+    const before = g.current.version;
+    await expect(
+      g.execute(null, { type: 'system.announce', id: 'x', text: 'y'.repeat(5000) }),
+    ).rejects.toThrow();
+    expect(await kv.get(`log/${String(before + 1).padStart(12, '0')}`)).toBeNull();
+    const fresh = make(kv);
+    await fresh.refresh();
+    expect(fresh.current.version).toBe(before);
+  });
+
+  it('replays a logged 555-character announcement (the Wave 8 release note)', async () => {
+    const kv = new MemoryKv();
+    const g = make(kv);
+    await g.openMarkets(['lagos']);
+    const v = g.current.version + 1;
+    const command = { type: 'system.announce', id: 'release-long', text: 'z'.repeat(555) };
+    await kv.set(
+      `log/${String(v).padStart(12, '0')}`,
+      JSON.stringify({ actor: null, command, at: T0 }),
+    );
+    const fresh = make(kv);
+    await fresh.refresh();
+    expect(fresh.current.version).toBe(v);
   });
 
   it('a cold start loads the newest snapshot and replays the log after it', async () => {
