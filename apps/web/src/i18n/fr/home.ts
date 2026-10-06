@@ -39,7 +39,6 @@ export const home: Record<string, string> = {
   Snack: 'Grignoter',
   'Snacks for two': 'Grignotages pour deux',
   'Snacks for two · {n} left this month': 'Grignotages pour deux · encore {n} ce mois-ci',
-  Social: 'Vie sociale',
   'TVs and appliances': 'Télés et électroménager',
   'The flat is full': 'L’appartement est plein',
   Toilet: 'Toilettes',
