@@ -257,12 +257,31 @@ describe('things to do (Wave 6 §A2)', () => {
     const c = w.players.u_founder!.contacts!.find((x) => x.refId === met.refId)!;
     expect(c.kind).toBe(met.kind);
     expect(c.warmth).toBeCloseTo(0.12, 2);
+    // "Save contact" after meeting someone takes the Who's here id the result carries.
+    expect(typeof met.personId).toBe('string');
+    const saved = run(w, 'u_founder', {
+      type: 'contact.save',
+      personId: met.personId,
+      name: met.name,
+    });
+    w = saved.world;
+    expect(saved.result.contact.kind).toBe(met.kind);
     expect(moneyByCurrency(w)).toEqual(total);
     // Same world, same buys: same outcome.
     const w2 = thaw(addFounder(makeWorld(42, ['lagos'])));
     w2.players.u_founder!.energy = 40;
     const r2 = run(w2, 'u_founder', { type: 'venue.buy', businessId: club.id, itemId: 'dance' });
     expect(r2.result.met).toEqual(r.result.met);
+  });
+
+  it('contact.save accepts a fund partner by `fund:<id>` or by the bare fund id', () => {
+    let w = thaw(addFounder(makeWorld(42, ['lagos'])));
+    const fund = Object.values(w.funds).find((f) => f.market === 'lagos')!;
+    const a = run(w, 'u_founder', { type: 'contact.save', personId: fund.id, name: '' });
+    w = a.world;
+    expect(a.result.contact.kind).toBe('fund');
+    const b = run(w, 'u_founder', { type: 'contact.save', personId: `fund:${fund.id}`, name: '' });
+    expect(b.result.contact.id).toBe(a.result.contact.id);
   });
 });
 

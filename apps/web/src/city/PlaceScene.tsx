@@ -598,7 +598,7 @@ export function PlaceScene({
     const met = outcome?.met;
     if (!met) return;
     const r = await send(
-      looseCmd({ type: 'contact.save', personId: met.refId, name: met.name }),
+      looseCmd({ type: 'contact.save', personId: met.personId, name: met.name }),
       t('{name} is in your contacts.', { name: met.name }),
     );
     if (r !== null) setOutcome((o) => (o ? { ...o, saved: true } : o));

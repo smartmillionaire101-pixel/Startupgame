@@ -1142,7 +1142,8 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
   // Wave 6: you might meet someone new here (one roll per buy, on its own stream).
   const buys = me.venueBuys?.month === month ? me.venueBuys.count : 0;
   me.venueBuys = { month, count: buys + 1 };
-  let met: { name: string; kind: ContactKind; refId: Id; role: string } | null = null;
+  let met: { name: string; kind: ContactKind; refId: Id; role: string; personId: string } | null =
+    null;
   if (it.meetChance) {
     const rng = deriveRng(world.seed, 'venue', me.id, month, buys);
     if (rng.chance(it.meetChance))

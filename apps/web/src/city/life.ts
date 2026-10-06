@@ -317,6 +317,8 @@ export interface Met {
   refId: string;
   /** "Nurse", "Founder, Kola Pay"; empty when the engine doesn't say. */
   role: string;
+  /** The Who's here id (`fund:<id>`, `npc:…`, a player id) that `contact.save` takes. */
+  personId: string;
 }
 
 export function metOf(result: unknown): Met | null {
@@ -327,6 +329,8 @@ export function metOf(result: unknown): Met | null {
     kind: str(m.kind, 'local'),
     refId: m.refId,
     role: str(m.role),
+    // Older engines sent only refId; a fund's refId is its bare id.
+    personId: str(m.personId) || (m.kind === 'fund' ? `fund:${m.refId}` : m.refId),
   };
 }
 

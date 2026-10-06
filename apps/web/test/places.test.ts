@@ -332,7 +332,17 @@ describe('Wave 6: things to do and showrooms', () => {
       kind: 'local',
       refId: 'npc:lagos:4',
       role: 'Nurse',
+      personId: 'npc:lagos:4',
     });
+    // A fund partner: the engine's personId wins; older engines fall back to fund:<refId>.
+    expect(
+      metOf({
+        met: { name: 'Pat', kind: 'fund', refId: 'f1', role: 'Partner', personId: 'fund:f1' },
+      })?.personId,
+    ).toBe('fund:f1');
+    expect(
+      metOf({ met: { name: 'Pat', kind: 'fund', refId: 'f1', role: 'Partner' } })?.personId,
+    ).toBe('fund:f1');
     expect(metOf({ met: null })).toBeNull();
     expect(metOf(null)).toBeNull();
   });

@@ -260,7 +260,7 @@ export function metAtVenue(
   rng: Rng,
   month: number,
   exclude: readonly string[] = [],
-): { name: string; kind: ContactKind; refId: Id; role: string } | null {
+): { name: string; kind: ContactKind; refId: Id; role: string; personId: string } | null {
   const m = getMarket(world, b.market);
   const here = (peopleHere(world, m)[b.id] ?? []).filter(
     (x) =>
@@ -280,7 +280,14 @@ export function metAtVenue(
   const c = asContact(world, person);
   if (!c) return null;
   addContact(me, { ...c, warmth: MET_WARMTH }, month);
-  return { name: person.name, kind: c.kind, refId: c.refId, role: person.role };
+  // personId: the Who's here id, which `contact.save` and the chat take.
+  return {
+    name: person.name,
+    kind: c.kind,
+    refId: c.refId,
+    role: person.role,
+    personId: person.id,
+  };
 }
 
 /** The id to open a chat with for a contact (null for kinds you can't chat with). */
@@ -311,8 +318,9 @@ export function saveContact(world: World, me: Player, personId: string, givenNam
       const co = p.companyIds.map((id) => world.companies[id]).find((x) => x?.status === 'active');
       c = { kind: 'founder', refId: p.id, name: co ? `${p.name}, ${co.name}` : p.name };
     } else c = { kind: 'player', refId: p.id, name: p.name };
-  } else if (personId.startsWith('fund:')) {
-    const f = world.funds[personId.slice('fund:'.length)];
+  } else if (personId.startsWith('fund:') || world.funds[personId]) {
+    // A fund contact's refId is the bare fund id; accept it as well as `fund:<id>`.
+    const f = world.funds[personId.replace(/^fund:/, '')];
     ensure(f, 'contact.person', 'We can’t find that person.');
     ensure(f.market === here, 'contact.where', `${f.partner} isn’t in this city.`);
     c = { kind: 'fund', refId: f.id, name: `${f.partner}, ${f.name}` };
