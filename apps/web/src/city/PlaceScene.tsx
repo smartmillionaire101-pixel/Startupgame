@@ -679,7 +679,20 @@ export function PlaceScene({
     // A job here (section A), else a shift.
     const job = jobsOf(view).find((j) => j.businessId === b.id);
     const myJob = myJobOf(view);
-    if (job && myJob?.businessId !== b.id)
+    if (myJob?.businessId === b.id)
+      actions.push({
+        id: 'job:quit',
+        label: t('Quit job'),
+        sub: t('{role} · this month’s hours won’t be paid', { role: tx(myJob.label) }),
+        icon: '🚪',
+        confirm: true,
+        disabled: busy,
+        run: () =>
+          send(looseCmd({ type: 'job.quit' }), (r: Loose) =>
+            said(r, t('You left your job at {place}.', { place: b.name })),
+          ),
+      });
+    else if (job)
       actions.push({
         id: `job:${job.role}`,
         label: t('Work here: {role}', { role: tx(job.label) }),

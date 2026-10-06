@@ -112,3 +112,31 @@ test('Home inbox items are tappable, and person cards chat with AI people', asyn
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await expect(phone.locator('[data-thread^="fund:"]')).toBeVisible();
 });
+
+test('take a job, then quit it from the phone’s Wallet', async ({ page }) => {
+  await founder(page);
+  // Take the first job on offer, through the API (the scene flow has its own spec).
+  const taken = await page.evaluate(async () => {
+    const s = await (await fetch('/api/state', { headers: { 'x-runway': '1' } })).json();
+    const view = s.view ?? s;
+    const jobs = (view.here ?? view.market).jobs as { businessId: string; role: string }[];
+    const j = jobs[0]!;
+    const r = await fetch('/api/commands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-runway': '1' },
+      body: JSON.stringify({
+        command: { type: 'job.take', businessId: j.businessId, role: j.role },
+      }),
+    });
+    return r.status;
+  });
+  expect(taken).toBe(200);
+  await page.reload();
+
+  await page.getByRole('button', { name: /^Phone/ }).click();
+  const phone = page.getByRole('dialog', { name: 'Phone' });
+  await phone.locator('[data-app="wallet"]').click();
+  await phone.getByRole('button', { name: 'Quit job' }).click();
+  await phone.getByRole('button', { name: 'Tap again to quit' }).click();
+  await expect(phone.getByText('No job right now.')).toBeVisible({ timeout: 10_000 });
+});

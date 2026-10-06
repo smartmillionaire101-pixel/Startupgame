@@ -1148,6 +1148,26 @@ function Line({ label, value, tone }: { label: string; value: ReactNode; tone?: 
   );
 }
 
+/** Quit your job: a second tap confirms (this month's hours aren't paid). */
+export function QuitJob({ place }: { place: string }) {
+  const { send } = useView();
+  const [armed, setArmed] = useState(false);
+  return (
+    <Button
+      variant={armed ? 'primary' : 'ghost'}
+      onClick={() => {
+        if (!armed) return setArmed(true);
+        setArmed(false);
+        void send(looseCmd({ type: 'job.quit' }), (r: { message?: string } | null) =>
+          r?.message ? tx(r.message) : t('You left your job at {place}.', { place }),
+        );
+      }}
+    >
+      {armed ? t('Tap again to quit') : t('Quit job')}
+    </Button>
+  );
+}
+
 function Wallet({ onJobs }: { onJobs: () => void }) {
   const { view, cur } = useView();
   const job = myJobOf(view);
@@ -1188,6 +1208,7 @@ function Wallet({ onJobs }: { onJobs: () => void }) {
               tone="good"
             />
             <Line label={t('Hours')} value={t('{n}h a month', { n: job.hours })} />
+            <QuitJob place={job.businessName} />
           </>
         ) : (
           <>
@@ -1251,9 +1272,15 @@ function Jobs({ onGo }: { onGo: (place: string) => void }) {
   return (
     <>
       {mine && (
-        <p className="small">
-          {t('You work as {role} at {place}.', { role: tx(mine.label), place: mine.businessName })}
-        </p>
+        <div className="phone-card">
+          <p className="small">
+            {t('You work as {role} at {place}.', {
+              role: tx(mine.label),
+              place: mine.businessName,
+            })}
+          </p>
+          <QuitJob place={mine.businessName} />
+        </div>
       )}
       <h3 className="phone-h">{t('Jobs')}</h3>
       {jobs.length === 0 ? (
