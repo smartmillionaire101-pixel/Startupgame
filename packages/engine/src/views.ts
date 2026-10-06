@@ -41,6 +41,7 @@ import {
   myJobView,
 } from './economy.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
+import { deliveryView, homeActsView, moodOf, needsOf } from './needs.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { boardOf } from './governance.js';
 import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
@@ -541,6 +542,8 @@ function marketView(
     jobs: jobsView(p, m),
     /** Furniture and cars with prices in this city's currency (Wave 5). */
     shop: shopView(m),
+    /** Wave 7: food delivery (the Chop app): open food businesses, cheapest first (up to 20). */
+    delivery: deliveryView(m),
     /** The city economy at a glance (Wave 3). */
     economy: economyView(m),
     /**
@@ -620,6 +623,12 @@ export function playerView(
       hours: { available: p.hours.available, used: p.hours.used, left: hoursLeft(p) },
       energy: Math.round(p.energy),
       burnout: p.burnout,
+      /** Wave 7: hunger, hygiene, fun and social, 0–100 each. */
+      needs: needsOf(p),
+      /** Wave 7: 0–100, the average of energy and the four needs. */
+      mood: moodOf(p),
+      /** Wave 7: home acts (and 'invite') this month: used, cap and left. */
+      homeActs: homeActsView(p, m.month),
       lifestyle: { ...tierOf(p), monthlyCost: lifestyleCost(world, p) },
       credit: { ...p.credit, ...creditProfile(world, p) },
       loans: p.loans,
