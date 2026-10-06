@@ -32,13 +32,14 @@ import {
   type Spot,
   type Verb,
 } from './layout';
+import { ActFx } from './ActFx';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
 
 /** The back wall's face, in px above row 0. */
 const WALL = 44;
 const SPEED = 3.5; // tiles per second
-const ACT_MS = 1500;
+const ACT_MS = 2200;
 const TAP_SLOP = 8;
 const MAX_GUESTS = 4;
 
@@ -937,7 +938,7 @@ export function HomeScene({
                 <circle cx={56} cy={31} r={5} fill="#111827" />
               </g>
             )}
-            {acting && <ActEffect act={acting.act} x={acting.x} y={acting.y} />}
+            {acting && <ActFx act={acting.act} x={acting.x} y={acting.y} />}
             {objects
               .filter((o) => !hostView && o.slot && !o.owned)
               .map((o) => (
@@ -1306,41 +1307,6 @@ function Front({ plan }: { plan: HomePlan }) {
       <rect x={-8} y={H} width={dx + 8} height={8} fill="var(--home-wall-top)" />
       <rect x={dx + TILE} y={H} width={W - dx - TILE + 8} height={8} fill="var(--home-wall-top)" />
       <rect x={dx + 2} y={H} width={TILE - 4} height={6} rx={2} fill="#a16207" />
-    </g>
-  );
-}
-
-function ActEffect({ act, x, y }: { act: HomeAct; x: number; y: number }) {
-  const icon: Record<HomeAct, string> = {
-    sleep: 'Zzz',
-    nap: 'zz',
-    shower: '💧',
-    toilet: '🧻',
-    cook: '🍳',
-    snack: '🥪',
-    tv: '📺',
-    game: '🎮',
-    read: '📖',
-    work: '💻',
-    workout: '💪',
-  };
-  return (
-    <g
-      className={`home-act act-${act}`}
-      transform={`translate(${x} ${y - 50})`}
-      pointerEvents="none"
-    >
-      {(act === 'shower' || act === 'cook') && (
-        <g className="home-steam">
-          <circle cx="-6" cy="8" r="6" />
-          <circle cx="4" cy="2" r="7" />
-          <circle cx="10" cy="10" r="5" />
-        </g>
-      )}
-      {act === 'tv' && <circle className="home-tvglow" cx="0" cy="40" r="34" />}
-      <text className="home-act-icon" textAnchor="middle">
-        {icon[act]}
-      </text>
     </g>
   );
 }

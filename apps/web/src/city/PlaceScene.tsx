@@ -9,7 +9,15 @@
  * accelerator.apply, grant.apply, lp.pitch, pitch.angel, event.broadcast)
  * are offered only when the view carries the data they need.
  */
-import { createContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import './scenes.css';
 import type { PlayerView } from '@runway/engine';
 import { money } from '../format';
@@ -60,6 +68,12 @@ import { WhoIsHere } from './WhoIsHere';
 import { HomeScene } from '../home/HomeScene';
 import { TechEventScene } from './TechEventScene';
 import { techEventAt } from './techevent';
+import { useReducedMotion } from './CityMap';
+import { ActStage } from './acts/ActStage';
+import { ActCard, ActHud, type ActResult } from './acts/ActHud';
+import { nextLook, setLookOverride, type HairStyle } from './acts/look';
+import { scriptFor, scriptOf, type ActPick } from './acts/scripts';
+import type { ActScript } from './acts/types';
 import {
   ENTRANCE,
   FUN_ROOMS,
@@ -414,6 +428,26 @@ export function funIcon(label: string, room: RoomKind): string {
   return room === 'club' ? '🪩' : room === 'bar' || room === 'lounge' ? '🍸' : '🎉';
 }
 
+/** Acts played so far (a late answer for an old act is ignored). */
+let actSeq = 0;
+
+/** An act playing in the room (Wave 8 §B). */
+interface Playing {
+  n: number;
+  pick: ActPick;
+  script: ActScript;
+  title: string;
+  icon: string;
+  /** Skipped, or the scene has played out. */
+  ended: boolean;
+  /** The engine's answer, once it's in. */
+  result?: ActResult;
+  met?: Met | null;
+  saved: boolean;
+  /** A haircut's new style. */
+  look: { hairStyle: HairStyle; hair: string } | null;
+}
+
 /** What happened after you did something: a line, and maybe someone you met. */
 interface Outcome {
   text: string;
@@ -546,6 +580,9 @@ function RoomScene({
   const more = panel !== 'tray';
   const setMore = (on: boolean) => setPanel(on ? 'more' : 'tray');
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  // Wave 8 §B: what you're doing right now, played in the room.
+  const [act, setAct] = useState<Playing | null>(null);
+  const reduced = useReducedMotion();
   const [pitch, setPitch] = useState<{
     fundId: string;
     name: string;
@@ -588,6 +625,7 @@ function RoomScene({
     .map((o, n) => ({ o, slot: seats[n]! >= 0 ? slots[seats[n]!]! : null }))
     .filter((x): x is { o: Occupant; slot: (typeof slots)[number] } => x.slot !== null);
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
+  const endAct = useCallback(() => setAct((a) => (a && !a.ended ? { ...a, ended: true } : a)), []);
   // Wave 7: the count shown is the people drawn, plus "+k" for any without a seat.
   const unseated = occupants.length - placed.length;
   // The part of the room you can see (the art is cropped to fit), so name
@@ -616,25 +654,42 @@ function RoomScene({
       : it.energy
         ? t('{price} · +{n} energy', { price: money(it.price, cur), n: it.energy })
         : money(it.price, cur);
-  const doFun = async (businessId: string, it: VenueItemView) => {
-    const r = await send<Loose & { met?: unknown }>(
-      looseCmd({ type: 'venue.buy', businessId, itemId: it.id }),
+  /**
+   * Wave 8 §B: buy or do something and watch it happen. The command goes
+   * first (money and needs are right even if you skip); the scene plays
+   * meanwhile and ends on the result card.
+   */
+  const playAct = async (b: BusinessView, it: { id: string; label: string }, icon: string) => {
+    const n = ++actSeq;
+    const pick = scriptFor(room, b.kind, it);
+    const script = scriptOf(pick);
+    const look =
+      pick.id === 'haircut'
+        ? nextLook(meLook, pick.variant === 'barber' ? 'barber' : 'salon')
+        : null;
+    setOutcome(null);
+    setAct({ n, pick, script, title: tx(it.label), icon, ended: false, look, saved: false });
+    const r = await send<(ActResult & Loose & { met?: unknown }) | null>(
+      looseCmd({ type: 'venue.buy', businessId: b.id, itemId: it.id }),
     );
-    if (r !== null)
-      setOutcome({
-        text: said(r, t('Enjoy: {item}.', { item: tx(it.label) })),
-        met: metOf(r),
-        saved: false,
-      });
+    if (r === null) {
+      setAct((a) => (a?.n === n ? null : a));
+      return;
+    }
+    if (look) setLookOverride(view.me.id, look);
+    setAct((a) => (a?.n === n ? { ...a, result: r ?? {}, met: metOf(r) } : a));
   };
+  const doFun = (b: BusinessView, it: VenueItemView) => playAct(b, it, funIcon(it.label, room));
   const saveMet = async () => {
-    const met = outcome?.met;
+    const met = act?.met ?? outcome?.met;
     if (!met) return;
     const r = await send(
       looseCmd({ type: 'contact.save', personId: met.personId, name: met.name }),
       t('{name} is in your contacts.', { name: met.name }),
     );
-    if (r !== null) setOutcome((o) => (o ? { ...o, saved: true } : o));
+    if (r === null) return;
+    setOutcome((o) => (o ? { ...o, saved: true } : o));
+    setAct((a) => (a ? { ...a, saved: true } : a));
   };
 
   // ---- What you can do here.
@@ -667,7 +722,7 @@ function RoomScene({
         sub: funSub(it),
         icon: funIcon(it.label, room),
         disabled: pocket < it.price || busy,
-        run: () => doFun(b.id, it),
+        run: () => doFun(b, it),
       });
     // A showroom: what's for sale (§A3).
     const sells = sellsOf(view, b);
@@ -688,27 +743,28 @@ function RoomScene({
     const items = [...(b.venue?.items ?? [])]
       .filter((i) => !fun.some((f) => f.id === i.id))
       .sort((x, y) => Number(!!y.energy) - Number(!!x.energy) || x.price - y.price);
-    for (const it of items.slice(0, fun.length ? 1 : 2))
-      actions.push({
-        id: `buy:${it.id}`,
-        label: t('Buy {item}', { item: tx(it.label) }),
-        sub: it.energy
-          ? t('{price} · +{n} energy', { price: money(it.price, cur), n: it.energy })
-          : money(it.price, cur),
-        icon:
-          room === 'cafe'
+    for (const it of items.slice(0, fun.length ? 1 : 2)) {
+      const icon =
+        room === 'salon'
+          ? '💈'
+          : room === 'cafe'
             ? '☕'
             : room === 'bar' || room === 'club'
               ? '🍹'
               : room === 'restaurant'
                 ? '🍽'
-                : '🛍',
+                : '🛍';
+      actions.push({
+        id: `buy:${it.id}`,
+        label: room === 'salon' ? tx(it.label) : t('Buy {item}', { item: tx(it.label) }),
+        sub: it.energy
+          ? t('{price} · +{n} energy', { price: money(it.price, cur), n: it.energy })
+          : money(it.price, cur),
+        icon,
         disabled: pocket < it.price || busy,
-        run: () =>
-          send(looseCmd({ type: 'venue.buy', businessId: b.id, itemId: it.id }), (r: Loose) =>
-            said(r, t('Enjoy: {item}.', { item: tx(it.label) })),
-          ),
+        run: () => playAct(b, it, icon),
       });
+    }
     // A job here (section A), else a shift.
     const job = jobsOf(view).find((j) => j.businessId === b.id);
     const myJob = myJobOf(view);
@@ -1080,17 +1136,39 @@ function RoomScene({
           />
           {placed
             .filter((x) => !x.slot.sit)
+            // During an act, nobody stands in the way of your station.
+            .filter((x) => !act || Math.abs(x.slot.x - act.script.station.x) > 56)
             .sort((a, b) => a.slot.y - b.slot.y)
             .map((x) => (
               <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} vis={vis} />
             ))}
-          <g
-            className="scene-you"
-            transform={`translate(${ENTRANCE.x} ${ENTRANCE.y}) scale(-1.9 1.9)`}
-          >
-            <AvatarFigure look={meLook} />
-          </g>
+          {act ? (
+            <ActStage
+              key={act.n}
+              script={act.script}
+              ended={act.ended}
+              onEnd={endAct}
+              reduced={reduced}
+              ctx={{
+                look: meLook,
+                newLook: act.look ? { ...meLook, ...act.look } : meLook,
+                extra: (seed, bg) =>
+                  avatarLook(bg ?? pickBg(STAFF_BG, seed), `${place.id}:act:${seed}`),
+                tint: business?.look.color ?? place.color,
+                variant: act.pick.variant,
+                label: act.title,
+              }}
+            />
+          ) : (
+            <g
+              className="scene-you"
+              transform={`translate(${ENTRANCE.x} ${ENTRANCE.y}) scale(-1.9 1.9)`}
+            >
+              <AvatarFigure look={meLook} />
+            </g>
+          )}
         </svg>
+        {act && <ActHud title={act.title} ended={act.ended} onSkip={endAct} />}
         <WhoIsHere place={place} players={players} />
         <span
           className="scene-count"
@@ -1110,6 +1188,34 @@ function RoomScene({
             <Showroom business={business} />
           ) : (
             <div className="interior">{children}</div>
+          )}
+        </div>
+      ) : act ? (
+        <div className="place-tray is-act">
+          <p className="small muted tray-pocket" data-pocket={pocket}>
+            {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
+          </p>
+          {act.ended ? (
+            <ActCard
+              title={act.title}
+              icon={act.icon}
+              result={act.result}
+              cur={cur}
+              met={act.met ?? null}
+              saved={act.saved}
+              busy={busy}
+              look={act.result ? (act.look?.hairStyle ?? null) : null}
+              onSave={() => void saveMet()}
+              onDone={() => setAct(null)}
+            />
+          ) : (
+            <p className="act-playing" data-act-playing="">
+              <span aria-hidden="true">{act.icon}</span> {act.title}
+              <span
+                className="act-progress"
+                style={{ animationDuration: `${act.script.loopMs + 2200}ms` }}
+              />
+            </p>
           )}
         </div>
       ) : (

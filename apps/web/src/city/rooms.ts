@@ -45,7 +45,9 @@ export type RoomKind =
   | 'beach'
   | 'stage'
   | 'pitch'
-  | 'appliance';
+  | 'appliance'
+  // Wave 8: the barber's and the hair salon (chairs and mirrors).
+  | 'salon';
 
 export const ROOM_KINDS: readonly RoomKind[] = [
   'restaurant',
@@ -81,6 +83,7 @@ export const ROOM_KINDS: readonly RoomKind[] = [
   'stage',
   'pitch',
   'appliance',
+  'salon',
 ];
 
 export type Activity =
@@ -122,6 +125,7 @@ export interface Slot {
 export function businessRoom(kind: string, shape?: string): RoomKind {
   const k = kind.toLowerCase();
   if (/beach/.test(k)) return 'beach';
+  if (/barb|(^|-)salon|hair|kinyozi|braid/.test(k)) return 'salon';
   if (/football|(^|-)pitch|five-a-side|stadium|futsal/.test(k)) return 'pitch';
   if (/karaoke/.test(k)) return 'karaoke';
   if (/arcade|bowling/.test(k)) return 'arcade';
@@ -485,6 +489,15 @@ export const ROOM_SLOTS: Record<RoomKind, Slot[]> = {
     S(130, 222, 'football', 'guest', { flip: true }),
     S(256, 222, 'football'),
     S(36, 210, 'watching'),
+  ],
+  salon: [
+    S(132, 186, 'serving', 'staff', { flip: true }),
+    S(292, 186, 'serving', 'staff', { flip: true }),
+    S(96, 196, 'relaxing', 'guest', { sit: true }),
+    S(256, 196, 'relaxing', 'guest', { sit: true }),
+    S(176, 226, 'waiting', 'guest', { sit: true }),
+    S(30, 222, 'chatting'),
+    S(330, 230, 'waiting', 'guest', { flip: true }),
   ],
   appliance: [
     S(290, 156, 'serving', 'staff', { flip: true }),

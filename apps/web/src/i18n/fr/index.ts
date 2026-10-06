@@ -1,5 +1,6 @@
 /** The French catalog, merged from one file per screen. */
 import { account } from './account';
+import { acts } from './acts';
 import { app } from './app';
 import { city } from './city';
 import { company } from './company';
@@ -21,6 +22,7 @@ import { friendsWave8 } from './friends-wave8';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
+  acts,
   app,
   city,
   economy,

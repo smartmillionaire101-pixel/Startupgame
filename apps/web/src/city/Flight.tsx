@@ -3,31 +3,25 @@
  *
  * 1. Take-off: close up on the apron of your city's airport, the plane
  *    rolls and lifts.
- * 2. The cabin: a window seat, clouds sliding past the oval window, day or
- *    night sky, the seatbelt sign, a meal cart coming down the aisle and a
- *    progress arc with the time left ("6h 20m"). "Sleep through" and "Work
- *    on laptop" are just for the mood.
+ * 2. The cabin (Wave 8, ./acts/Cabin.tsx): down the aisle in perspective,
+ *    rows of passengers, the crew and the trolley, your seat, the window,
+ *    the seatbelt sign and the meal; the class follows your lifestyle.
+ *    "Sleep through" and "Work on laptop" are just for the mood.
  * 3. Landing: a wider frame of the destination's airport, in its colours.
  *    Freetown lands at Lungi, so a water taxi crosses the estuary last.
  *
  * One requestAnimationFrame loop for the cabin, paused while the tab is
  * hidden. Reduced motion: the cabin alone, still, then you've arrived.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t } from '../i18n';
-import { AvatarFigure, avatarLook } from './art';
+import { useView } from '../store';
+import { avatarLook } from './art';
 import { useReducedMotion } from './CityMap';
+import { Cabin } from './acts/Cabin';
+import { genderOf } from './life';
 import { flavourOf } from './flavour';
-import {
-  AIRPORT_NAMES,
-  CITY_GEO,
-  dayPart,
-  fmtFlightTime,
-  isNight,
-  localHour,
-  seeded,
-  fnv,
-} from './travel';
+import { AIRPORT_NAMES, CITY_GEO, fmtFlightTime, isNight, localHour, seeded, fnv } from './travel';
 import './flight.css';
 
 type Phase = 'takeoff' | 'cruise' | 'landing' | 'ferry' | 'arrived';
@@ -193,217 +187,6 @@ function Airfield({
   );
 }
 
-/** The cabin: window seat, clouds, the cart, the seatbelt sign and the progress arc. */
-function Cabin({
-  from,
-  to,
-  hours,
-  still,
-}: {
-  from: string;
-  to: string;
-  hours: number;
-  still: boolean;
-}) {
-  const near = useRef<SVGGElement>(null);
-  const far = useRef<SVGGElement>(null);
-  const cart = useRef<SVGGElement>(null);
-  const plane = useRef<SVGGElement>(null);
-  const left = useRef<SVGTextElement>(null);
-  const belt = useRef<SVGGElement>(null);
-  const [mood, setMood] = useState<'awake' | 'sleep' | 'work'>('awake');
-  const part = dayPart(localHour(from));
-  const sky =
-    part === 'night'
-      ? ['#020617', '#1e3a8a']
-      : part === 'dusk'
-        ? ['#7c3aed', '#fb923c']
-        : ['#0284c7', '#bae6fd'];
-
-  useEffect(() => {
-    const t0 = performance.now();
-    const arc = (k: number) => {
-      const a = Math.PI * (1 - k);
-      return { x: 60 + 50 * Math.cos(a) + 50, y: 60 - 44 * Math.sin(a) };
-    };
-    let raf = 0;
-    let lastText = '';
-    const put = (ms: number) => {
-      const k = Math.min(1, ms / DUR.cruise);
-      far.current?.setAttribute(
-        'transform',
-        `translate(${(-((ms / 1000) * 30) % 400).toFixed(1)} 0)`,
-      );
-      near.current?.setAttribute(
-        'transform',
-        `translate(${(-((ms / 1000) * 120) % 400).toFixed(1)} 0)`,
-      );
-      // The cart rolls in, stops by your row, and rolls on.
-      const c = ms < 2200 ? 1 - ms / 2200 : ms < 4200 ? 0 : -((ms - 4200) / 2300);
-      cart.current?.setAttribute('transform', `translate(${(330 + c * 260).toFixed(0)} 470)`);
-      belt.current?.setAttribute('opacity', ms < 1800 ? '1' : '0.25');
-      const p = arc(k);
-      const p2 = arc(Math.min(1, k + 0.01));
-      const deg = (Math.atan2(p2.y - p.y, p2.x - p.x) * 180) / Math.PI;
-      plane.current?.setAttribute(
-        'transform',
-        `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${deg.toFixed(0)})`,
-      );
-      const text = fmtFlightTime(hours * (1 - k));
-      if (text !== lastText && left.current) {
-        lastText = text;
-        left.current.textContent = text;
-      }
-    };
-    if (still) {
-      put(DUR.cruise / 2);
-      return;
-    }
-    const step = (now: number) => {
-      put(now - t0);
-      raf = requestAnimationFrame(step);
-    };
-    const onVis = () => {
-      cancelAnimationFrame(raf);
-      if (!document.hidden) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      cancelAnimationFrame(raf);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [hours, still]);
-
-  const clouds = (n: number, y0: number, s: number) =>
-    Array.from({ length: n }, (_, k) => (
-      <g
-        key={k}
-        transform={`translate(${(k * 400) / n + ((k * 53) % 60)} ${y0 + ((k * 37) % 90)}) scale(${s})`}
-      >
-        <ellipse rx="40" ry="14" fill="#fff" opacity="0.9" />
-        <ellipse cx="22" cy="-8" rx="24" ry="14" fill="#fff" opacity="0.9" />
-      </g>
-    ));
-  const attendant = avatarLook('f-corporate', `${from}:${to}:crew`);
-
-  return (
-    <div className={`fl-cabin is-${mood}`} data-cabin="">
-      <svg className="fl-svg" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid meet" aria-hidden>
-        <defs>
-          <linearGradient id="fl-cabin-sky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={sky[0]} />
-            <stop offset="1" stopColor={sky[1]} />
-          </linearGradient>
-        </defs>
-        {/* Out of the window. */}
-        <rect x="0" y="80" width="300" height="320" fill="url(#fl-cabin-sky)" />
-        <g ref={far}>
-          {clouds(4, 200, 0.6)}
-          <g transform="translate(400 0)">{clouds(4, 200, 0.6)}</g>
-        </g>
-        <g ref={near}>
-          {clouds(3, 270, 1.3)}
-          <g transform="translate(400 0)">{clouds(3, 270, 1.3)}</g>
-        </g>
-        <path d="M 60 340 L 230 300 L 236 312 L 90 380 Z" fill="#cbd5e1" stroke="#94a3b8" />
-        {/* The cabin wall with its oval window. */}
-        <path
-          fillRule="evenodd"
-          fill="#e7e5e4"
-          d="M -800 -400 H 1200 V 1000 H -800 Z M 150 120 a 78 108 0 1 0 0.1 0 Z"
-        />
-        <ellipse cx="150" cy="228" rx="86" ry="116" fill="none" stroke="#d6d3d1" strokeWidth="12" />
-        <rect x="70" y="110" width="160" height="34" rx="12" fill="#f5f5f4" opacity="0.92" />
-        {/* Overhead: the seatbelt sign. */}
-        <rect x="-800" y="-400" width="2000" height="440" fill="#d6d3d1" />
-        <g transform="translate(300 18)">
-          <rect x="-34" y="-12" width="68" height="26" rx="6" fill="#1c1917" />
-          <g ref={belt}>
-            <circle cx="-14" cy="1" r="8" fill="#fbbf24" />
-            <rect x="0" y="-3" width="22" height="8" rx="3" fill="#fbbf24" />
-          </g>
-        </g>
-        {/* The aisle, the meal cart and the crew. */}
-        <rect x="300" y="400" width="900" height="600" fill="#a8a29e" />
-        <g ref={cart} transform="translate(590 470)">
-          <g transform="translate(46 0) scale(2.2)">
-            <AvatarFigure look={attendant} />
-          </g>
-          <rect x="-26" y="-74" width="52" height="74" rx="4" fill="#94a3b8" />
-          <rect x="-22" y="-66" width="44" height="6" fill="#e2e8f0" />
-          <rect x="-22" y="-40" width="44" height="6" fill="#e2e8f0" />
-          <circle cx="-16" cy="4" r="4" fill="#1f2937" />
-          <circle cx="16" cy="4" r="4" fill="#1f2937" />
-        </g>
-        {/* The seat in front, its screen showing the progress arc. */}
-        <path d="M -800 430 H 290 Q 300 430 300 450 V 1000 H -800 Z" fill="#1e3a8a" />
-        <g transform="translate(40 445)">
-          <rect width="220" height="128" rx="10" fill="#0f172a" />
-          <path
-            d="M 60 60 A 50 44 0 0 1 160 60"
-            fill="none"
-            stroke="#38bdf8"
-            strokeWidth="3"
-            strokeDasharray="4 5"
-          />
-          <circle cx="60" cy="60" r="4" fill="#f59e0b" />
-          <circle cx="160" cy="60" r="4" fill="#f59e0b" />
-          <g ref={plane} data-flight-plane="">
-            <path d="M 7 0 L -5 -4 L -3 0 L -5 4 Z" fill="#fff" />
-            <path d="M 1 0 L -3 -8 L -5 -8 L -3 0 L -5 8 L -3 8 Z" fill="#fff" />
-          </g>
-          <text x="110" y="92" textAnchor="middle" className="fl-left" ref={left}>
-            {fmtFlightTime(hours)}
-          </text>
-          <text x="110" y="112" textAnchor="middle" className="fl-left-sub">
-            {t('to go')}
-          </text>
-        </g>
-        {mood === 'work' && (
-          <g transform="translate(150 560)">
-            <rect x="-60" y="-40" width="120" height="70" rx="6" fill="#334155" />
-            <rect
-              x="-54"
-              y="-34"
-              width="108"
-              height="56"
-              rx="3"
-              fill="#a5f3fc"
-              className="fl-laptop"
-            />
-            <rect x="-70" y="28" width="140" height="10" rx="3" fill="#475569" />
-          </g>
-        )}
-        {mood === 'sleep' && (
-          <g className="fl-zzz">
-            <rect x="-800" y="-400" width="2000" height="1400" fill="#020617" opacity="0.55" />
-            <text x="250" y="200" fontSize="34" fontWeight="800" fill="#e0e7ff">
-              Z z z
-            </text>
-          </g>
-        )}
-      </svg>
-      <div className="fl-cabin-acts">
-        <button
-          type="button"
-          aria-pressed={mood === 'sleep'}
-          onClick={() => setMood((m) => (m === 'sleep' ? 'awake' : 'sleep'))}
-        >
-          {t('Sleep through')}
-        </button>
-        <button
-          type="button"
-          aria-pressed={mood === 'work'}
-          onClick={() => setMood((m) => (m === 'work' ? 'awake' : 'work'))}
-        >
-          {t('Work on laptop')}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /** Lungi to Freetown: a water taxi across the Sierra Leone River estuary. */
 function Ferry({ night }: { night: boolean }) {
   return (
@@ -476,6 +259,7 @@ export function FlightScene({
   onDone: () => void;
 }) {
   const reduced = useReducedMotion();
+  const { view } = useView();
   const [phase, setPhase] = useState<Phase>(reduced ? 'cruise' : 'takeoff');
   const nightFrom = isNight(localHour(from));
   const nightTo = isNight(localHour(to));
@@ -538,7 +322,17 @@ export function FlightScene({
             </g>
           </Airfield>
         )}
-        {phase === 'cruise' && <Cabin from={from} to={to} hours={realHours} still={reduced} />}
+        {phase === 'cruise' && (
+          <Cabin
+            from={from}
+            to={to}
+            hours={realHours}
+            still={reduced}
+            dur={DUR.cruise}
+            tier={view.me.lifestyle?.tier}
+            look={avatarLook(view.me.background?.id, view.me.id, genderOf(view.me))}
+          />
+        )}
         {(phase === 'landing' || (phase === 'arrived' && !ferry)) && (
           <Airfield marketId={to} name={airportTo} night={nightTo} arriving>
             <g className={`fl-plane${phase === 'landing' ? ' fl-landing' : ' fl-parked'}`}>

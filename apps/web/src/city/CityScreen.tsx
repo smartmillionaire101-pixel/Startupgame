@@ -57,6 +57,7 @@ import { crowdSize, eventsOf, flaggedPlaces, newBusinessIds, passersBy } from '.
 import { PersonCard, type PersonRef } from './PersonCard';
 import { WhoIsAround } from './WhoIsHere';
 import { usePresence } from './presence';
+import { useLookVersion } from './acts/look';
 import {
   buildLayout,
   type CityInput,
@@ -369,7 +370,13 @@ function CityBody({
     [companyName, abroad, lang],
   );
   const gender = genderOf(view.me);
-  const look = useMemo(() => avatarLook(bg, meId, gender), [bg, meId, gender]);
+  // Wave 8: a new haircut redraws you on the map.
+  const lookV = useLookVersion();
+  const look = useMemo(
+    () => avatarLook(bg, meId, gender),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lookV: the saved look changed
+    [bg, meId, gender, lookV],
+  );
   const [inside, setInside] = useState<Place | null>(null);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);

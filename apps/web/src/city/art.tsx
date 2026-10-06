@@ -8,6 +8,7 @@ import { hash } from './contract';
 import type { Flavour, LandmarkKind, TreeKind, VehicleSpec } from './flavour';
 import { project, TH, TW, type Decor, type Place, type Pt } from './layout';
 import { BridgeTop, BusinessBody, Hill, PlanLandmark, Station } from './art-places';
+import { lookOverride } from './acts/look';
 
 // ---------------------------------------------------------------------------
 // Geometry and colour helpers
@@ -1711,7 +1712,8 @@ const MALE_STYLES: AvatarLook['hairStyle'][] = ['short', 'buzz', 'afro', 'short'
 /**
  * Appearance from the background (outfit) and the player id (skin, hair).
  * With a gender (Wave 5) the hair and figure follow it; without one (saved
- * players, AI characters) it comes from the seed, as before.
+ * players, AI characters) it comes from the seed, as before. A look you
+ * changed in town (Wave 8 §B, ./acts/look.ts) wins over the seed.
  */
 export function avatarLook(
   backgroundId: string | undefined,
@@ -1735,6 +1737,8 @@ export function avatarLook(
     // A tie reads as a man's suit: women wear a scarf instead.
     ...(g === 'female' && outfit.accessory === 'tie' ? { accessory: 'scarf' as const } : {}),
     gender: g,
+    // Wave 8: a haircut (or braids) you got in town, saved on this device.
+    ...lookOverride(playerId),
   };
 }
 
@@ -1758,7 +1762,7 @@ export const depthBand = (depth: number) => Math.floor(depth / DEPTH_STEP);
 export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string }) {
   const { skin, hair, hairStyle, top, bottom, accessory } = look;
   return (
-    <g className="city-avatar-fig">
+    <g className="city-avatar-fig" data-hair={hairStyle}>
       <ellipse cx="0" cy="0" rx="7" ry="3" fill="#0f172a" opacity="0.22" />
       <g className="city-leg city-leg-l">
         <rect x="-3.6" y="-12" width="3.2" height="12" rx="1.5" fill={bottom} />
