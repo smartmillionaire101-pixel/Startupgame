@@ -61,6 +61,7 @@ import { setRiding } from './riding';
 import { rideMs, rideVehicle, SHORT_HOP, type RideMode } from './travel';
 import type { VehicleSpec } from './flavour';
 import { playersByPlace, type PresenceView, type Walker } from './people';
+import { beginRide } from './ride/state';
 
 // ---------------------------------------------------------------------------
 // Reduced motion, as a subscribable media query.
@@ -1303,7 +1304,7 @@ export function CityMap({
       const len = pathLength(path);
       const ts = project(target.x, target.y);
       // Somewhere far that you tapped: ask how to get there first.
-      if (opts.ask && !reduced && len > SHORT_HOP && onFarTripRef.current) {
+      if (opts.ask && len > SHORT_HOP && onFarTripRef.current) {
         pending.current = { target, then, placeId };
         targetRef.current?.setAttribute('transform', `translate(${ts.x},${ts.y})`);
         targetRef.current?.setAttribute('visibility', 'visible');
@@ -1312,7 +1313,15 @@ export function CityMap({
       }
       // Short hops always walk.
       const mode: RideMode = len > SHORT_HOP ? (opts.mode ?? 'walk') : 'walk';
+      // Wave 7: a ride across town plays full screen (or a chase with reduced motion).
+      const spec0 = rideVehicle(mode, layout.marketId, layout.flavour.vehicles);
+      const spec = spec0 && mode !== 'bus' ? { ...spec0, body: look.top } : spec0;
+      const scene =
+        len > SHORT_HOP
+          ? beginRide({ mode, tiles: len, path, layout, placeId, look, mapMs: rideMs(mode, len) })
+          : null;
       const done = () => {
+        scene?.end();
         pos.current = target;
         lastPos.set(layout.marketId, target);
         placeAvatar(target);
@@ -1321,25 +1330,24 @@ export function CityMap({
         onArriveRef.current?.(target, placeId);
         then?.();
       };
-      if (len < 0.05 || reduced) {
+      if (len < 0.05 || (reduced && !scene)) {
         done();
         if (reduced) centreOn(target);
         return;
       }
       targetRef.current?.setAttribute('transform', `translate(${ts.x},${ts.y})`);
       targetRef.current?.setAttribute('visibility', 'visible');
-      const spec = rideVehicle(mode, layout.marketId, layout.flavour.vehicles);
       setVehicle(spec);
       avatarRef.current?.classList.add(spec ? 'is-riding' : 'is-walking');
       following.current = true;
       // Each way of getting around has its own pace (walking: about 5 tiles a second).
-      const ms = rideMs(mode, len);
+      const ms = scene?.ms ?? rideMs(mode, len);
       const t0 = performance.now();
       let cancelled = false;
       let axis = '';
       const step = (now: number) => {
         if (cancelled) return;
-        const k = Math.min(1, (now - t0) / ms);
+        const k = scene?.skipped() ? 1 : Math.min(1, (now - t0) / ms);
         const eased = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
         const { p, dx, dy } = pointAlong(path, eased);
         pos.current = p;
@@ -1366,12 +1374,13 @@ export function CityMap({
         raf: requestAnimationFrame(step),
         cancel: () => {
           cancelled = true;
+          scene?.end();
           if (walk.current) cancelAnimationFrame(walk.current.raf);
           lastPos.set(layout.marketId, pos.current);
         },
       };
     },
-    [layout, reduced, placeAvatar, stopWalk, apply, centreOn, focusLabel],
+    [layout, reduced, look, placeAvatar, stopWalk, apply, centreOn, focusLabel],
   );
 
   const goTo = useCallback(

@@ -1,0 +1,25 @@
+/* Wave 7 §B: your vehicle on the map stands out: a pulsing ring in your colour. */
+g.city-avatar.is-riding ellipse.city-you-ring {
+  display: inline;
+  fill: rgb(250 204 21 / 0.3);
+  stroke: #facc15;
+  stroke-width: 3;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(2.4);
+  animation: ride-ring 1.1s ease-in-out infinite alternate;
+}
+@keyframes ride-ring {
+  to {
+    transform: scale(2.9);
+    opacity: 0.6;
+  }
+}
+:root[data-reduce-motion='1'] g.city-avatar.is-riding ellipse.city-you-ring {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  g.city-avatar.is-riding ellipse.city-you-ring {
+    animation: none;
+  }
+}

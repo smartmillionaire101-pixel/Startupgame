@@ -1,0 +1,259 @@
+/* Wave 7 §B: the busy airport. */
+.airport-scene .airport-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0f172a;
+  overflow: hidden;
+}
+
+/* Split-flap departures board. */
+.board {
+  flex: 0 0 auto;
+  padding: 0.45rem 0.5rem 0.5rem;
+  background: #050505;
+  color: #fbbf24;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+.board-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fde68a;
+  padding: 0 0.15rem 0.3rem;
+}
+.board table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 3px;
+  table-layout: auto;
+}
+.board td {
+  padding: 0 0.15rem;
+  white-space: nowrap;
+}
+.board-dest {
+  width: 100%;
+}
+.flaps {
+  display: inline-flex;
+  gap: 1px;
+}
+.flap {
+  position: relative;
+  display: inline-block;
+  width: 0.62em;
+  padding: 1px 0;
+  font-size: clamp(9px, 2.7vw, 13px);
+  line-height: 1.25;
+  font-weight: 700;
+  text-align: center;
+  background: #171717;
+  border-radius: 2px;
+  transform-origin: 50% 50%;
+  animation: flap 0.32s ease-out backwards;
+}
+.flap::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: #000;
+}
+@keyframes flap {
+  0% {
+    transform: rotateX(90deg);
+    color: transparent;
+  }
+  60% {
+    transform: rotateX(-20deg);
+  }
+}
+.board .is-boarding .board-status .flap {
+  color: #4ade80;
+}
+.board .is-delayed .board-status .flap {
+  color: #f87171;
+}
+.board .is-departed .flap,
+.board .is-landed .flap {
+  color: #a3a3a3;
+}
+:root[data-reduce-motion='1'] .flap {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flap {
+    animation: none;
+  }
+}
+
+/* Apron and terminal. */
+.apron {
+  position: relative;
+  flex: 1 1 140px;
+  min-height: 110px;
+}
+.apron svg,
+.terminal svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.terminal {
+  position: relative;
+  flex: 0 0 76px;
+}
+
+/* Your trip. */
+.trip-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.trip-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 32px;
+}
+.trip-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.trip-step {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.trip-step.is-now {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-soft);
+}
+.trip-step.is-done {
+  color: var(--good);
+}
+.trip-step-n {
+  font-size: 0.8rem;
+}
+.trip-body {
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.trip-go {
+  width: 100%;
+  min-height: 48px;
+}
+.trip-lounge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.trip-lounge p {
+  margin: 0;
+}
+.trip-flights {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 34vh;
+  overflow: auto;
+}
+.trip-flights li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.trip-flight-time {
+  font-family: ui-monospace, monospace;
+  font-weight: 800;
+}
+.trip-flight-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.trip-flight-main .small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trip-flight-fare {
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.trip-anim {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.trip-pass {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.8rem;
+  border-radius: 10px;
+  border-left: 6px solid var(--accent);
+  background: var(--surface-2);
+  animation: trip-print 1.2s ease-out both;
+}
+@keyframes trip-print {
+  from {
+    clip-path: inset(0 0 100% 0);
+    transform: translateY(-8px);
+  }
+}
+.trip-scanner {
+  position: relative;
+  flex: 1;
+  height: 40px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #cbd5e1 0 35%, #1e293b 35% 65%, #cbd5e1 65%);
+  overflow: hidden;
+}
+.trip-bag {
+  position: absolute;
+  top: 8px;
+  left: -30px;
+  width: 30px;
+  height: 22px;
+  border-radius: 4px;
+  background: #f59e0b;
+  animation: trip-bag 1.6s linear forwards;
+}
+@keyframes trip-bag {
+  to {
+    left: 100%;
+  }
+}

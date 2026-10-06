@@ -15,6 +15,7 @@ import { places } from './places';
 import { server } from './server';
 import { travel } from './travel';
 import { uiWave7 } from './ui-wave7';
+import { travelWave7 } from './travel-wave7';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -33,6 +34,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   server,
   travel,
   uiWave7,
+  travelWave7,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));
