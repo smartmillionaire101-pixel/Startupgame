@@ -98,6 +98,9 @@ describe('real city maps (Wave 8 §A)', () => {
           expect(Math.hypot(n.x - q.x, n.y - q.y)).toBeLessThan(1e-6);
         }
       }
+      // Every building has its own door.
+      const doors = new Set(layout.places.map((p) => `${p.door.x},${p.door.y}`));
+      expect(doors.size).toBe(layout.places.length);
       // Buildings don't overlap.
       const ps = layout.places;
       for (let i = 0; i < ps.length; i++)

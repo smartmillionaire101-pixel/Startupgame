@@ -794,15 +794,16 @@ class Placer {
       const nxx = -(by - ay) / L;
       const nyy = (bx - ax) / L;
       const k = Math.max(1, Math.floor(L / step));
-      for (let i = 0; i < k; i++) {
-        const t = (i + 0.5) / k;
-        const px = ax + (bx - ax) * t;
-        const py = ay + (by - ay) * t;
-        const d = Math.hypot(px - a.e, py - a.s);
-        if (d > a.R) continue;
-        for (const sign of [1, -1])
+      for (let i = 0; i < k; i++)
+        for (const sign of [1, -1]) {
+          // Doors on the two sides of a road are staggered: no two places share one.
+          const t = (i + 0.5 + sign * 0.22) / k;
+          const px = ax + (bx - ax) * t;
+          const py = ay + (by - ay) * t;
+          const d = Math.hypot(px - a.e, py - a.s);
+          if (d > a.R) continue;
           out.push({ px, py, nx: nxx * sign, ny: nyy * sign, half: HALF[c] ?? 5, d, used: false });
-      }
+        }
     }
     out.sort((p, q) => p.d - q.d || p.px - q.px || p.py - q.py || p.nx - q.nx || p.ny - q.ny);
     return out;
