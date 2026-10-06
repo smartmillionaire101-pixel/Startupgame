@@ -229,6 +229,8 @@ export function createPlayer(world: World, input: NewPlayerInput): Player {
     failures: 0,
     visited: {},
     ...(input.gender ? { gender: input.gender } : {}),
+    // Wave 7: people have needs (AI players don't).
+    ...(input.ai ? {} : { needs: { hunger: 80, hygiene: 80, fun: 80, social: 80 } }),
   };
   // Wave 6: the city grows as people arrive (counted before the player is stored).
   if (!input.ai) growOnJoin(world, input.market, player.id);

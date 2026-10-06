@@ -3,11 +3,12 @@
  * game plays. Bump `id` for each new note; the engine sends each id once.
  */
 export const RELEASE_NOTE = {
-  id: 'release-2026-10-06-wave6',
+  id: 'release-2026-10-06-wave7',
   text:
-    'Big update: the city comes alive. Go dancing at nightclubs, catch a film, sing karaoke or ' +
-    'play five-a-side. Walk into showrooms to buy cars, TVs and furniture. There are many more ' +
-    'jobs, and new shops open as more people join. Tap "Who’s here" in any building to chat with ' +
-    'people and save them as contacts. AI people now listen and follow the conversation. Months ' +
-    'are slower (30 minutes) and your money lasts longer. Refresh to get it; your game is saved.',
+    'Big update: live in your home. Walk around your flat from above, sleep, shower, cook, watch ' +
+    'TV and invite friends over; keep an eye on your mood. Rides are now trips you see: on a ' +
+    'bike, in the back of a taxi or on a danfo, with Skip. The airport is busy and flights have ' +
+    'a cabin. Your phone has real apps: order food, bank, invest, rides, gym, news and more. ' +
+    'People on the map are smaller and the screens are cleaner. You can now quit a job. ' +
+    'Refresh to get it; your game is saved.',
 } as const;

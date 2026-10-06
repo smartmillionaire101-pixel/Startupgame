@@ -131,7 +131,19 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     crossOriginEmbedderPolicy: false,
   });
   await app.register(cookie);
-  await app.register(rateLimit, { max: 300, timeWindow: '1 minute' });
+  // Sign-in, guest and email-link routes always count per address (a new
+  // guest gets a new id, so per-player keys would never run out).
+  const byAddress = (req: FastifyRequest) => req.ip;
+  // Limits count per signed-in player, else per address: on mobile networks
+  // many phones share one public IP (carrier NAT), and a busy game screen
+  // polls several endpoints. Checked after sign-in is known (preHandler), so a
+  // made-up cookie can't buy a fresh allowance.
+  await app.register(rateLimit, {
+    max: 300,
+    timeWindow: '1 minute',
+    hook: 'preHandler',
+    keyGenerator: (req: FastifyRequest) => (req.userId ? `u:${req.userId}` : req.ip),
+  });
 
   // ---------------------------------------------------------------- hooks
 
@@ -239,7 +251,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.get(
     '/api/names/check',
-    { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    { config: { rateLimit: { max: 60, timeWindow: '1 minute', keyGenerator: byAddress } } },
     async (req) => {
       const q = z
         .object({
@@ -261,7 +273,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // ---------------------------------------------------------------- auth
 
   const authLimit = {
-    config: { rateLimit: { max: config.AUTH_RATE_LIMIT, timeWindow: '10 minutes' } },
+    config: {
+      rateLimit: { max: config.AUTH_RATE_LIMIT, timeWindow: '10 minutes', keyGenerator: byAddress },
+    },
   };
 
   const setSession = (reply: FastifyReply, token: string) =>
@@ -282,7 +296,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   /** Guest play: confirm 18+, get a session. Progress lives in this browser until saved. */
   app.post(
     '/api/auth/guest',
-    { config: { rateLimit: { max: config.GUEST_RATE_LIMIT, timeWindow: '10 minutes' } } },
+    {
+      config: {
+        rateLimit: {
+          max: config.GUEST_RATE_LIMIT,
+          timeWindow: '10 minutes',
+          keyGenerator: byAddress,
+        },
+      },
+    },
     async (req, reply) => {
       const parsed = z.object({ adult: z.literal(true) }).safeParse(req.body);
       if (!parsed.success)
@@ -331,7 +353,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
    */
   app.post(
     '/api/auth/email',
-    { config: { rateLimit: { max: config.EMAIL_RATE_LIMIT, timeWindow: '15 minutes' } } },
+    {
+      config: {
+        rateLimit: {
+          max: config.EMAIL_RATE_LIMIT,
+          timeWindow: '15 minutes',
+          keyGenerator: byAddress,
+        },
+      },
+    },
     async (req, reply) => {
       const body = z
         .object({
@@ -380,7 +410,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     '/api/auth/email/verify',
     {
       config: {
-        rateLimit: { max: Math.max(60, config.EMAIL_RATE_LIMIT), timeWindow: '15 minutes' },
+        rateLimit: {
+          max: Math.max(60, config.EMAIL_RATE_LIMIT),
+          timeWindow: '15 minutes',
+          keyGenerator: byAddress,
+        },
       },
     },
     async (req, reply) => {

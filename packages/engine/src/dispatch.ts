@@ -30,6 +30,7 @@ import { fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
+import { foodOrder, homeAct, homeInvite } from './needs.js';
 import { removeContact, saveContact } from './people.js';
 import {
   applyAccelerator,
@@ -906,6 +907,13 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return removeContact(me, cmd.contactId);
     case 'car.sell':
       return sellCar(world, me);
+    // ------------------------------------------------------------ life at home (Wave 7)
+    case 'home.act':
+      return homeAct(world, me, cmd.act);
+    case 'home.invite':
+      return homeInvite(world, me, cmd.personId);
+    case 'food.order':
+      return foodOrder(world, me, cmd.businessId, cmd.itemId);
     // ------------------------------------------------------------ capital programmes (Wave 5)
     case 'accelerator.apply':
       return applyAccelerator(world, me, cmd.acceleratorId, cmd.companyId);

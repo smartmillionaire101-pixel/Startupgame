@@ -78,6 +78,11 @@ export const places: Record<string, string> = {
   'What you can do here': 'Ce que vous pouvez faire ici',
   'Word is out about “{title}”.': 'On parle de « {title} » partout.',
   'Work here: {role}': 'Travailler ici : {role}',
+  'Quit job': 'Quitter mon emploi',
+  'Tap again to quit': 'Touchez encore pour quitter',
+  'You left your job at {place}.': 'Vous avez quitté votre emploi chez {place}.',
+  '{role} · this month’s hours won’t be paid':
+    '{role} · les heures de ce mois ne seront pas payées',
   'You are': 'Vous êtes',
   'You pitched {name} over the table.': 'Vous avez pitché {name} à table.',
   'You pitched {name}.': 'Vous avez pitché {name}.',

@@ -45,7 +45,10 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
   await page.getByRole('button', { name: /^Phone/ }).click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await expect(phone).toBeVisible();
-  await expect(phone.locator('[data-app]')).toHaveCount(6);
+  // Wave 7: every app on the home screen (12 in the grid, 4 in the dock).
+  await expect(phone.locator('[data-app]')).toHaveCount(16);
+  await expect(phone.locator('.phone-dock [data-app]')).toHaveCount(4);
+  await expect(phone.getByRole('meter', { name: 'Energy' })).toBeVisible();
 
   // Messages → New message → a fund partner.
   await phone.locator('[data-app="messages"]').click();
@@ -72,26 +75,23 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
     1,
   );
 
-  // Alerts: the reporter's welcome note opens the News tab.
+  // Alerts: the reporter's welcome note opens the phone's News app.
   await phone.getByRole('button', { name: 'Back' }).click();
   await phone.locator('[data-app="alerts"]').click();
   await phone.locator('[data-alert="reporter"]').first().click();
-  await expect(phone).toBeHidden();
-  await expect(
-    page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'News' }),
-  ).toHaveAttribute('aria-current', 'page');
+  await expect(phone.locator('[data-phone-app="news"]')).toBeVisible();
+  await expect(phone.getByRole('tab', { name: 'Top 5' })).toBeVisible();
 });
 
-test('Home inbox items are tappable, and person cards chat with AI people', async ({ page }) => {
+test('Today inbox items are tappable, and person cards chat with AI people', async ({ page }) => {
   await founder(page);
   await page
     .getByRole('navigation', { name: 'Main' })
-    .getByRole('button', { name: 'Home' })
+    .getByRole('button', { name: 'Today' })
     .click();
   await page.locator('.inbox-item[data-alert="reporter"]').first().click();
-  await expect(
-    page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'News' }),
-  ).toHaveAttribute('aria-current', 'page');
+  // Wave 7: News is a screen behind Today (and the phone), not a tab.
+  await expect(page.getByRole('heading', { name: 'News', level: 1 })).toBeVisible();
 
   // A fund partner, at their office (Wave 6: people are inside buildings).
   // Tap them in the room: Chat on their card opens their thread in the phone.
@@ -111,4 +111,32 @@ test('Home inbox items are tappable, and person cards chat with AI people', asyn
     .click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await expect(phone.locator('[data-thread^="fund:"]')).toBeVisible();
+});
+
+test('take a job, then quit it from the phone’s Jobs app', async ({ page }) => {
+  await founder(page);
+  // Take the first job on offer, through the API (the scene flow has its own spec).
+  const taken = await page.evaluate(async () => {
+    const s = await (await fetch('/api/state', { headers: { 'x-runway': '1' } })).json();
+    const view = s.view ?? s;
+    const jobs = (view.here ?? view.market).jobs as { businessId: string; role: string }[];
+    const j = jobs[0]!;
+    const r = await fetch('/api/commands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-runway': '1' },
+      body: JSON.stringify({
+        command: { type: 'job.take', businessId: j.businessId, role: j.role },
+      }),
+    });
+    return r.status;
+  });
+  expect(taken).toBe(200);
+  await page.reload();
+
+  await page.getByRole('button', { name: /^Phone/ }).click();
+  const phone = page.getByRole('dialog', { name: 'Phone' });
+  await phone.locator('[data-app="jobs"]').click();
+  await phone.getByRole('button', { name: 'Quit job' }).click();
+  await phone.getByRole('button', { name: 'Tap again to quit' }).click();
+  await expect(phone.getByText('No job right now.')).toBeVisible({ timeout: 10_000 });
 });

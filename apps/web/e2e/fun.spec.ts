@@ -96,6 +96,8 @@ test('a car dealer lists cars; buy one and it’s parked at home', async ({ page
   // From home: "Go to the showroom" for a car walks you to a dealer.
   let scene = await enter(page, 'home');
   await expect(scene).toHaveAttribute('data-room', 'apartment');
+  // Wave 7: showrooms are under Edit in the walkable home.
+  await scene.getByRole('button', { name: 'Edit' }).click();
   await scene.locator('[data-action="showroom:car"]').click();
   scene = page.locator('.place-scene[data-room="showroom"]');
   await expect(scene).toBeVisible({ timeout: 20_000 });
@@ -131,10 +133,11 @@ test('an appliance shop sells a TV, and it shows in your flat', async ({ page })
   );
   test.skip(!shop, 'This build has no shop that sells TVs.');
 
-  // Your flat: every slot has a spot, the empty ones faint.
+  // Your flat: every slot has a spot (Wave 7: an empty one is a "+" to shop for it).
   let scene = await enter(page, 'home');
   await expect(scene.locator('[data-furniture="tv"]')).toHaveAttribute('data-owned', '0');
   await expect(scene.locator('[data-furniture="fridge"]')).toBeAttached();
+  await scene.getByRole('button', { name: 'Edit' }).click();
   await scene.locator('[data-action="showroom:appliance"]').click();
   scene = page.locator('.place-scene[data-room="appliance"]');
   await expect(scene).toBeVisible({ timeout: 20_000 });

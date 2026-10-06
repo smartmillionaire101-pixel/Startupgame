@@ -20,7 +20,7 @@ test('a banker applies for a licence in Accra, gets it, and sets pricing', async
   await expect(page.getByText('Applying')).toBeVisible();
 
   // Two game months later the central bank decides.
-  await tab(page, 'Home').click();
+  await tab(page, 'Today').click();
   for (let i = 0; i < 2; i++) {
     const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
     await page.getByRole('button', { name: /Advance Accra one month/ }).click();

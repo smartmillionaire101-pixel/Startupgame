@@ -56,6 +56,7 @@ import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { metAtVenue, peopleHere } from './people.js';
 import { deriveRng } from './rng.js';
+import { venueNeeds } from './needs.js';
 import type { Rng } from './rng.js';
 import type {
   BusinessNews,
@@ -1138,6 +1139,8 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
   // Wave 6: fun adds energy too.
   const energy = (it.energy ?? 0) + Math.round((it.fun ?? 0) / 2);
   if (energy) me.energy = clamp(me.energy + energy, 0, 100);
+  // Wave 7: food feeds you, fun is fun, a meeting is social, the gym gets you sweaty.
+  const needs = me.ai ? {} : venueNeeds(me, specOf(b), it, !!withId);
   raiseRapport(b, me.id, 0.02);
   // Wave 6: you might meet someone new here (one roll per buy, on its own stream).
   const buys = me.venueBuys?.month === month ? me.venueBuys.count : 0;
@@ -1154,6 +1157,7 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
     return {
       price: total,
       energy,
+      needs,
       warmth: null as number | null,
       met,
       message: `${it.label} at ${b.name}: ${fmt(total)}.${metLine}`,
@@ -1166,6 +1170,7 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
   if (guest.player) {
     const q = guest.player;
     if (energy) q.energy = clamp(q.energy + energy, 0, 100);
+    if (!q.ai) venueNeeds(q, specOf(b), it, true);
     addContact(q, { kind: 'player', refId: me.id, name: me.name, warmth }, month);
     adjustTrust(me, q.id, 0.06);
     adjustTrust(q, me.id, 0.06);
@@ -1182,6 +1187,7 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
   return {
     price: total,
     energy,
+    needs,
     warmth: now,
     met,
     message: `${it.label} with ${guest.name} at ${b.name}: ${fmt(total)}. You’re on warmer terms (${Math.round(now * 100)}%).${metLine}`,

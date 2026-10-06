@@ -112,16 +112,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // A background refresh that comes back "signed out" in the middle of a game
   // is asked once more before the player is sent to the sign-in screen, so a
   // single bad answer from a busy server never throws someone out mid-move.
-  const refresh = useCallback(
-    () =>
-      api.state().then(apply, (e: unknown) => {
-        if (!(e instanceof ApiError && e.status === 401)) return applyError(e);
-        return new Promise((r) => setTimeout(r, 1500))
-          .then(() => api.state())
-          .then(apply, applyError);
-      }),
-    [apply, applyError],
-  );
+  //
+  // Only the newest refresh may change the screen: an answer to a request sent
+  // before the player tapped "Play now" (no session yet) can arrive after the
+  // signed-in one, and must not send them back to the sign-in screen.
+  const refreshSeq = useRef(0);
+  const refresh = useCallback(() => {
+    const seq = ++refreshSeq.current;
+    const latest = () => seq === refreshSeq.current;
+    const ok = (s: Awaited<ReturnType<typeof api.state>>) => {
+      if (latest()) apply(s);
+    };
+    const fail = (e: unknown) => {
+      if (latest()) applyError(e);
+    };
+    return api.state().then(ok, (e: unknown) => {
+      if (!latest()) return;
+      if (!(e instanceof ApiError && e.status === 401)) return applyError(e);
+      return new Promise((r) => setTimeout(r, 1500)).then(() =>
+        latest() ? api.state().then(ok, fail) : undefined,
+      );
+    });
+  }, [apply, applyError]);
 
   useEffect(() => {
     // Game settings; retried so one failed request at startup doesn't hide them.

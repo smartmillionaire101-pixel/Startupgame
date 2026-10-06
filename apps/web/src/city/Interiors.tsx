@@ -2,7 +2,7 @@
  * Building interiors: one sheet per place, each reusing the game's existing
  * flows (loans, pitching, discovery, hiring, personal money, travel, news).
  */
-import { useContext, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useContext, useState, type ReactNode } from 'react';
 import type { Command } from '@runway/engine';
 import { amountInput, money, parseAmount, pct } from '../format';
 import { t, tx } from '../i18n';
@@ -36,6 +36,11 @@ import { npcName, type PresenceView } from './people';
 import type { PersonRef } from './PersonCard';
 import { CapitalDetails, InScene, PlaceScene } from './PlaceScene';
 import type { Destination } from './travel';
+
+/** Wave 7: the busy airport scene, loaded when you go in. */
+const AirportScene = lazy(() =>
+  import('./airport/AirportScene').then((m) => ({ default: m.AirportScene })),
+);
 
 /** Where a story or rescue action points, as a navigable request. */
 export type GoTo = (place: StoryPlace) => void;
@@ -953,6 +958,25 @@ export function Interior({
         return <CapitalDetails place={place} />;
     }
   })();
+  // Wave 7: the busy airport (departures board, apron, your trip).
+  if (scene && place.kind === 'airport')
+    return (
+      <Suspense fallback={null}>
+        <AirportScene
+          place={place}
+          title={title}
+          marketId={layout.marketId}
+          onClose={onClose}
+          onPerson={onPerson}
+          players={players}
+          desk={desk}
+          homeId={homeId}
+          onFlyHome={away?.onFlyHome}
+        >
+          {body}
+        </AirportScene>
+      </Suspense>
+    );
   if (scene)
     return (
       <InScene.Provider value={true}>

@@ -59,9 +59,9 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   const nav = page.getByRole('navigation', { name: 'Main' });
   await nav.getByRole('button', { name: 'Company' }).click();
   await expect(market).toBeHidden();
-  await nav.getByRole('button', { name: 'Home' }).click();
+  await nav.getByRole('button', { name: 'Today' }).click();
   await expect(page.getByText('Monthly revenue')).toBeVisible();
-  for (const tab of ['Money', 'News', 'Me', 'City']) {
+  for (const tab of ['Money', 'Me', 'City']) {
     await nav.getByRole('button', { name: tab, exact: true }).click();
     await expect(nav.getByRole('button', { name: tab, exact: true })).toHaveAttribute(
       'aria-current',

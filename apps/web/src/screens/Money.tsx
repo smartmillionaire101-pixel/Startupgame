@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { amountInput, money, parseAmount, titleCase } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView, type Company } from '../store';
-import { Button, Card, Empty, Field, Pill, Sheet, Sparkline, Stat } from '../ui';
+import { Button, Card, Empty, Field, Fold, Pill, Sheet, Sparkline, Stat } from '../ui';
 import { BankPicker, DealList, stageLabel } from './common';
 import { clockOf } from '../city/travel';
 
@@ -102,6 +102,31 @@ function Raise({ c }: { c: Company }) {
     (f.sectors === 'any' || f.sectors.includes(c.industry)) && f.stages.includes(c.nextStage);
   // Human investors take pitches in person; AI angels are pitched through their fund above.
   const investors = view.players.filter((p) => p.role === 'investor' && !p.ai);
+  // The ones that fit your stage and sector first; the rest fold away.
+  const sorted = [...funds].sort((a, b) => Number(fits(b)) - Number(fits(a)));
+  const shown = sorted.slice(0, 3);
+  const more = sorted.slice(3);
+  const fundRow = (f: (typeof funds)[number]) => (
+    <li key={f.id} className="spread">
+      <div>
+        <div className="item-title">
+          {f.name} {fits(f) ? <Pill tone="good">{t('Fits')}</Pill> : <Pill>{t('Off-thesis')}</Pill>}
+        </div>
+        <div className="small muted">
+          {f.market !== view.me.market ? `${f.marketName} · ` : ''}
+          {f.partner} · {tx(f.thesis)} · {money(f.check[0], f.currency)}–
+          {money(f.check[1], f.currency)} · {moodLabel(f.mood)}
+        </div>
+      </div>
+      <Button
+        variant="subtle"
+        disabled={!!openPitch}
+        onClick={() => setTarget({ fundId: f.id, name: f.name, check: f.check })}
+      >
+        {t('Pitch')}
+      </Button>
+    </li>
+  );
   return (
     <>
       <div className="kpis">
@@ -125,33 +150,23 @@ function Raise({ c }: { c: Company }) {
         />
       </div>
       {openPitch && <PitchFlow pitchId={openPitch.id} />}
-      <Card title={t('AI investors')}>
-        <ul className="list">
-          {funds.map((f) => (
-            <li key={f.id} className="spread">
-              <div>
-                <div className="item-title">
-                  {f.name}{' '}
-                  {fits(f) ? <Pill tone="good">{t('Fits')}</Pill> : <Pill>{t('Off-thesis')}</Pill>}
-                </div>
-                <div className="small muted">
-                  {f.market !== view.me.market ? `${f.marketName} · ` : ''}
-                  {f.partner} · {tx(f.thesis)} · {money(f.check[0], f.currency)}–
-                  {money(f.check[1], f.currency)} · {moodLabel(f.mood)}
-                </div>
-              </div>
-              <Button
-                variant="subtle"
-                disabled={!!openPitch}
-                onClick={() => setTarget({ fundId: f.id, name: f.name, check: f.check })}
-              >
-                {t('Pitch')}
-              </Button>
-            </li>
-          ))}
-        </ul>
+      <Card title={t('Investors in town')}>
+        <ul className="list">{shown.map(fundRow)}</ul>
+        {more.length > 0 && (
+          <details className="more-list">
+            <summary>{t('{n} more investors', { n: more.length })}</summary>
+            <ul className="list">{more.map(fundRow)}</ul>
+          </details>
+        )}
       </Card>
-      <Card title={t('Player investors')}>
+      <Fold
+        title={t('Player investors')}
+        sub={
+          investors.length
+            ? t('{n} in {market}', { n: investors.length, market: view.market.name })
+            : t('None in {market} yet', { market: view.market.name })
+        }
+      >
         {investors.length === 0 ? (
           <Empty>{t('No player investors in {market} yet.', { market: view.market.name })}</Empty>
         ) : (
@@ -174,9 +189,9 @@ function Raise({ c }: { c: Company }) {
             ))}
           </ul>
         )}
-      </Card>
+      </Fold>
       {pitches.length > 0 && (
-        <Card title={t('Pitch history')}>
+        <Fold title={t('Pitch history')} sub={t('{n} pitches', { n: pitches.length })}>
           <ul className="list">
             {pitches.slice(0, 8).map((p) => (
               <li key={p.id}>
@@ -194,9 +209,9 @@ function Raise({ c }: { c: Company }) {
               </li>
             ))}
           </ul>
-        </Card>
+        </Fold>
       )}
-      <LoanCard c={c} />
+      <LoanCard c={c} folded />
       {target && <PitchSheet c={c} target={target} onClose={() => setTarget(null)} />}
     </>
   );
@@ -328,14 +343,23 @@ export function PitchFlow({ pitchId }: { pitchId: string }) {
   );
 }
 
-export function LoanCard({ c, bankId: initialBank = '' }: { c: Company; bankId?: string }) {
+export function LoanCard({
+  c,
+  bankId: initialBank = '',
+  folded,
+}: {
+  c: Company;
+  bankId?: string;
+  /** Folded away behind its title (the Money screen keeps its first screen short). */
+  folded?: boolean;
+}) {
   const { send, cur } = useView();
   const [amount, setAmount] = useState(amountInput(Math.max(c.monthlyRevenue * 3, 0)));
   const [months, setMonths] = useState(12);
   const [pg, setPg] = useState(false);
   const [bankId, setBankId] = useState(initialBank);
-  return (
-    <Card title={t('Working capital')}>
+  const body = (
+    <>
       <BankPicker value={bankId} onChange={setBankId} product="companies" />
       <div className="grid2">
         <Field label={t('Amount ({cur})', { cur })}>
@@ -376,7 +400,14 @@ export function LoanCard({ c, bankId: initialBank = '' }: { c: Company; bankId?:
       >
         {t('Ask for a loan')}
       </Button>
-    </Card>
+    </>
+  );
+  return folded ? (
+    <Fold title={t('Working capital')} sub={t('A bank loan for the company')}>
+      {body}
+    </Fold>
+  ) : (
+    <Card title={t('Working capital')}>{body}</Card>
   );
 }
 

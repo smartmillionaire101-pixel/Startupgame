@@ -29,6 +29,7 @@ import { adjustTrust, col, getMarket, locationOf, notify, spendHours } from './h
 import { newId } from './ids.js';
 import { pay, payExact, transfer } from './ledger.js';
 import { eventVenueBusiness } from './economy.js';
+import { bumpNeed } from './needs.js';
 import { clamp, clamp01 } from './math.js';
 import { scale } from './money.js';
 import { checkName } from './names.js';
@@ -463,6 +464,8 @@ function holdEvent(world: World, e: CityEvent, month: number) {
 
   for (const p of humans) {
     const isHost = p.id === e.hostId;
+    // Wave 7: an evening out with people is social.
+    bumpNeed(p, 'social', 20);
     let made = 0;
     const warmth = () =>
       clamp(0.25 + 0.35 * fill + rng.range(0, 0.25) + (isHost ? 0.1 : 0), 0.1, 1);

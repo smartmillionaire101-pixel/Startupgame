@@ -65,3 +65,14 @@ export {
   carsFor,
 } from './data/lifestyle-shop.js';
 export type { FurnitureSlot, FurnitureItem, CarModel, CarModelId } from './data/lifestyle-shop.js';
+// Wave 7: needs, mood and life at home.
+export {
+  HOME_ACTS,
+  HOME_ACT_IDS,
+  NEED_KEYS,
+  INVITE_CAP,
+  DELIVERY_FEE,
+  MOOD_LOW,
+  MOOD_HIGH,
+} from './needs.js';
+export type { HomeActId, NeedKey, Needs } from './needs.js';

@@ -416,6 +416,21 @@ describe('sign-in links: expiry, limits, providers', () => {
     expect(guests[30]).toBe(429);
   });
 
+  it('players sharing one address (carrier NAT) each get their own request allowance', async () => {
+    const { app } = await makeApp();
+    const a = fastifyClient(app);
+    const b = fastifyClient(app);
+    expect((await a('POST', '/api/auth/guest', { adult: true })).status).toBe(200);
+    expect((await b('POST', '/api/auth/guest', { adult: true })).status).toBe(200);
+    // 200 each from the same IP: 400 together, over the 300 a minute an address gets.
+    const statuses: number[] = [];
+    for (let i = 0; i < 200; i++) {
+      statuses.push((await a('GET', '/api/state')).status);
+      statuses.push((await b('GET', '/api/state')).status);
+    }
+    expect(statuses.filter((s) => s === 429)).toHaveLength(0);
+  });
+
   it('production with no email provider says email sign-in is off; guest play still works', async () => {
     const { app } = await makeApp({ env: { NODE_ENV: 'production', DEV_TOOLS: '0' } });
     const c = fastifyClient(app);

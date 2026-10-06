@@ -11,15 +11,20 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { t } from '../i18n';
 import {
   ArtDefs,
   AvatarFigure,
+  depthBand,
+  MAP_FIGURE_SCALE,
+  MAP_RIDE_SCALE,
   Building,
   Bunting,
   DecorItem,
@@ -52,25 +57,46 @@ import {
 } from './layout';
 import { CATEGORY_COLOR } from './contract';
 import { Crowd } from './Crowd';
+import { setRiding } from './riding';
 import { rideMs, rideVehicle, SHORT_HOP, type RideMode } from './travel';
 import type { VehicleSpec } from './flavour';
 import { playersByPlace, type PresenceView, type Walker } from './people';
+import { beginRide } from './ride/state';
 
 // ---------------------------------------------------------------------------
 // Reduced motion, as a subscribable media query.
 
+// The OS setting, or the in-game one: App puts the answer on <html> as
+// data-reduce-motion (Wave 7), so both are followed.
 const RM = '(prefers-reduced-motion: reduce)';
 const subscribeRM = (cb: () => void) => {
-  if (typeof window === 'undefined' || !window.matchMedia) return () => {};
-  const mq = window.matchMedia(RM);
-  mq.addEventListener?.('change', cb);
-  return () => mq.removeEventListener?.('change', cb);
+  if (typeof window === 'undefined') return () => {};
+  const mq = window.matchMedia?.(RM);
+  mq?.addEventListener?.('change', cb);
+  const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(cb);
+  mo?.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-reduce-motion'],
+  });
+  return () => {
+    mq?.removeEventListener?.('change', cb);
+    mo?.disconnect();
+  };
 };
-const getRM = () =>
-  typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(RM).matches;
+const getRM = () => {
+  if (typeof window === 'undefined') return false;
+  const d = document.documentElement.dataset.reduceMotion;
+  if (d === '1' || d === '0') return d === '1';
+  return !!window.matchMedia && window.matchMedia(RM).matches;
+};
 export const useReducedMotion = () => useSyncExternalStore(subscribeRM, getRM, () => false);
 
 const NONE_WALKERS: Walker[] = [];
+const SVG_NS = 'http://www.w3.org/2000/svg';
+/** The camera looks this far above your feet (about half your height on the map). */
+const CAM_LIFT = 14;
+/** On-screen size of labels, as a multiple of their drawn size (9.5 px: about 12 px). */
+const LABEL_PX = 1.25;
 const NONE_PLAYERS: PresenceView[] = [];
 const NONE_FLAGS: string[] = [];
 
@@ -701,26 +727,81 @@ const Overlays = memo(function Overlays({
   return <g className="city-overlays">{out}</g>;
 });
 
-/** Buildings and decor, painted back to front. */
-const Skyline = memo(function Skyline({ layout }: { layout: CityLayout }) {
+/** Where an item of the skyline is drawn, for culling: a screen-space box. */
+type CullBox = [minX: number, minY: number, maxX: number, maxY: number] | null;
+
+interface SkyItem {
+  depth: number;
+  box: CullBox;
+  node: ReactNode;
+}
+
+/** Large or long decor is never culled (runways, hills, landmarks, bridges). */
+const UNCULLED: Decor['kind'][] = ['runway', 'hill', 'landmark', 'bridge', 'station'];
+
+/** Buildings and decor with their depth and on-screen box (shared with culling). */
+export function skylineItems(layout: CityLayout): SkyItem[] {
   const f = layout.flavour;
-  type Item = { depth: number; node: ReactNode };
-  const items: Item[] = [];
-  for (const p of layout.places)
-    items.push({ depth: p.x + p.w / 2 + p.y + p.d / 2, node: <Building key={p.id} p={p} f={f} /> });
-  layout.decor.forEach((d, n) =>
+  const items: SkyItem[] = [];
+  for (const p of layout.places) {
+    const l = project(p.x, p.y + p.d);
+    const r = project(p.x + p.w, p.y);
+    const tp = project(p.x, p.y);
+    const bt = project(p.x + p.w, p.y + p.d);
     items.push({
-      depth: d.x + (d.w ?? 0) / 2 + d.y + (d.d ?? 0) / 2 + (d.kind === 'runway' ? -10 : 0),
+      depth: p.x + p.w / 2 + p.y + p.d / 2,
+      box: [l.x - 12, tp.y - p.h - 30, r.x + 12, bt.y + 8],
+      node: <Building key={p.id} p={p} f={f} />,
+    });
+  }
+  layout.decor.forEach((d, n) => {
+    const w = d.w ?? 0;
+    const dd = d.d ?? 0;
+    const c = project(d.x + w / 2, d.y + dd / 2);
+    const half = Math.max(36, ((w + dd) * TW) / 2 + 24);
+    items.push({
+      depth: d.x + w / 2 + d.y + dd / 2 + (d.kind === 'runway' ? -10 : 0),
+      box: UNCULLED.includes(d.kind)
+        ? null
+        : [c.x - half, c.y - 90, c.x + half, c.y + half / 2 + 10],
       node:
         d.kind === 'lot' ? (
           <EmptyLot key={`d${n}`} d={d} />
         ) : (
           <DecorItem key={`d${n}`} d={d} f={f} />
         ),
-    }),
-  );
+    });
+  });
   items.sort((a, b) => a.depth - b.depth);
-  return <g className="city-skyline">{items.map((i) => i.node)}</g>;
+  return items;
+}
+
+/**
+ * Buildings and decor, painted back to front, in depth bands. After each band
+ * is an empty slot (`data-depth-slot`) that people and vehicles are moved into
+ * as they walk, so nobody is drawn on a roof (Wave 7). Each item sits in a
+ * `data-cull` group the map hides while it's off screen.
+ */
+const Skyline = memo(function Skyline({ layout }: { layout: CityLayout }) {
+  const items = skylineItems(layout);
+  let band = items.length ? depthBand(items[0]!.depth) : 0;
+  // A slot under everything, for anyone behind the furthest building.
+  const out: ReactNode[] = [<g key="slotlow" data-depth-slot={band - 1} />];
+  items.forEach((it, i) => {
+    const k = depthBand(it.depth);
+    while (band < k) {
+      out.push(<g key={`slot${band}`} data-depth-slot={band} />);
+      band++;
+    }
+    out.push(
+      <g key={`c${i}`} data-cull={i}>
+        {it.node}
+      </g>,
+    );
+  });
+  // Room for people beyond the last building (the front streets and the shore).
+  for (let n = 0; n < 40; n++, band++) out.push(<g key={`slot${band}`} data-depth-slot={band} />);
+  return <g className="city-skyline">{out}</g>;
 });
 
 /**
@@ -875,16 +956,15 @@ const Labels = memo(function Labels({
   return (
     <g className="city-labels" pointerEvents="none">
       {areas.map((a) => (
-        <text
-          key={a.id}
-          x={a.x}
-          y={a.y}
-          className={`city-district${a.key ? ' is-key' : ''}`}
-          textAnchor="middle"
-          data-area={a.id}
-        >
-          {a.text}
-        </text>
+        <g key={a.id} transform={`translate(${Math.round(a.x)},${Math.round(a.y)})`}>
+          <text
+            className={`city-district lbl-s${a.key ? ' is-key' : ''}`}
+            textAnchor="middle"
+            data-area={a.id}
+          >
+            {a.text}
+          </text>
+        </g>
       ))}
       {layout.waters
         .filter((w) => w.name)
@@ -902,9 +982,11 @@ const Labels = memo(function Labels({
                       : layout.extent / 2,
                 );
           return (
-            <text key="water" x={c.x} y={c.y + 4} className="city-water-name" textAnchor="middle">
-              {w.name}
-            </text>
+            <g key="water" transform={`translate(${Math.round(c.x)},${Math.round(c.y + 4)})`}>
+              <text className="city-water-name lbl-s" textAnchor="middle">
+                {w.name}
+              </text>
+            </g>
           );
         })}
       {layout.decor
@@ -912,16 +994,18 @@ const Labels = memo(function Labels({
         .map((d) => {
           const c = project(d.x, d.y);
           return (
-            <text
+            <g
               key={`lm${d.name}`}
-              x={c.x}
-              y={c.y + 30}
-              textAnchor="middle"
-              className="city-landmark-name"
-              data-landmark-name={d.name}
+              transform={`translate(${Math.round(c.x)},${Math.round(c.y + 30)})`}
             >
-              {d.name}
-            </text>
+              <text
+                textAnchor="middle"
+                className="city-landmark-name lbl-s"
+                data-landmark-name={d.name}
+              >
+                {d.name}
+              </text>
+            </g>
           );
         })}
       {labels.map((l) => (
@@ -931,11 +1015,14 @@ const Labels = memo(function Labels({
           className={`city-label ${l.tier}${l.soon ? ' is-soon' : ''}`}
           transform={`translate(${Math.round(l.x)},${Math.round(l.y)})`}
         >
-          <rect x={-l.w / 2} y={-9} width={l.w} height={17} rx={8.5} />
-          {l.color && <circle cx={-l.w / 2 + 7} cy={-0.5} r={3} fill={l.color} />}
-          <text x={l.color ? 3 : 0} y={3.5} textAnchor="middle">
-            {l.text}
-          </text>
+          {/* Counter-scaled with the zoom, so a label stays 11–13 px on screen. */}
+          <g className="lbl-s">
+            <rect x={-l.w / 2} y={-9} width={l.w} height={17} rx={8.5} />
+            {l.color && <circle cx={-l.w / 2 + 7} cy={-0.5} r={3} fill={l.color} />}
+            <text x={l.color ? 3 : 0} y={3.5} textAnchor="middle">
+              {l.text}
+            </text>
+          </g>
         </g>
       ))}
     </g>
@@ -1008,10 +1095,61 @@ export function CityMap({
   const zoomLimits = useCallback(() => {
     const { w, h } = cam.current;
     const b = layout.bounds;
+    // Zoomed right out, the whole city just fits (Wave 7: tight bounds, so
+    // little empty sea or sand), but never smaller than 0.3.
     const fit = Math.min(w / (b.maxX - b.minX), h / (b.maxY - b.minY));
-    return { min: Math.max(0.25, fit * 0.95), max: 2.6 };
+    return { min: Math.max(0.3, fit), max: 2.6 };
   }, [layout]);
 
+  // ---- Depth: slots in the skyline that people are moved into (see Skyline).
+  const slots = useRef<{ min: number; els: Element[] } | null>(null);
+  const entitiesRef = useRef<SVGGElement>(null);
+  const placeDepth = useCallback((host: Element, depth: number) => {
+    const s = slots.current;
+    const parent = s?.els.length
+      ? s.els[Math.max(0, Math.min(s.els.length - 1, depthBand(depth) - s.min))]!
+      : entitiesRef.current;
+    if (parent && host.parentNode !== parent) parent.appendChild(host);
+  }, []);
+
+  // ---- Culling: skyline items well off screen are hidden (fewer nodes to paint).
+  const cull = useRef<{
+    els: (SVGElement | undefined)[];
+    boxes: CullBox[];
+    shown: Uint8Array;
+    at: { x: number; y: number; z: number; w: number; h: number };
+  } | null>(null);
+  const runCull = useCallback((force = false) => {
+    const k = cull.current;
+    if (!k) return;
+    const c = cam.current;
+    const moved =
+      Math.abs(c.x - k.at.x) * c.z > 48 ||
+      Math.abs(c.y - k.at.y) * c.z > 48 ||
+      Math.abs(c.z / k.at.z - 1) > 0.04 ||
+      c.w !== k.at.w ||
+      c.h !== k.at.h;
+    if (!force && !moved) return;
+    k.at = { x: c.x, y: c.y, z: c.z, w: c.w, h: c.h };
+    // The view plus half a screen each way, so a pan reveals buildings already drawn.
+    const hw = c.w / c.z;
+    const hh = c.h / c.z;
+    const x0 = c.x - hw;
+    const x1 = c.x + hw;
+    const y0 = c.y - hh;
+    const y1 = c.y + hh;
+    for (let i = 0; i < k.boxes.length; i++) {
+      const b = k.boxes[i];
+      const on = !b || (b[2] >= x0 && b[0] <= x1 && b[3] >= y0 && b[1] <= y1) ? 1 : 0;
+      if (on !== k.shown[i]) {
+        k.shown[i] = on;
+        const el = k.els[i];
+        if (el) el.style.display = on ? '' : 'none';
+      }
+    }
+  }, []);
+
+  const lastZ = useRef(0);
   const apply = useCallback(() => {
     const c = cam.current;
     const b = layout.bounds;
@@ -1019,36 +1157,94 @@ export function CityMap({
     c.z = Math.max(lim.min, Math.min(lim.max, c.z));
     const hw = c.w / c.z / 2;
     const hh = c.h / c.z / 2;
-    // Keep some of the city in view.
-    c.x = Math.max(b.minX + hw * 0.4, Math.min(b.maxX - hw * 0.4, c.x));
-    c.y = Math.max(b.minY + hh * 0.4, Math.min(b.maxY - hh * 0.4, c.y));
+    // Keep the view on the city: centred when it all fits, else clamped to its edges.
+    const bw = b.maxX - b.minX;
+    const bh = b.maxY - b.minY;
+    c.x = hw * 2 >= bw ? (b.minX + b.maxX) / 2 : Math.max(b.minX + hw, Math.min(b.maxX - hw, c.x));
+    c.y = hh * 2 >= bh ? (b.minY + b.maxY) / 2 : Math.max(b.minY + hh, Math.min(b.maxY - hh, c.y));
     const svg = svgRef.current;
     if (!svg) return;
-    svg.setAttribute(
-      'viewBox',
-      `${(c.x - hw).toFixed(1)} ${(c.y - hh).toFixed(1)} ${(hw * 2).toFixed(1)} ${(hh * 2).toFixed(1)}`,
-    );
+    const vb = `${(c.x - hw).toFixed(1)} ${(c.y - hh).toFixed(1)} ${(hw * 2).toFixed(1)} ${(hh * 2).toFixed(1)}`;
+    // Only touch the DOM when the camera really moved.
+    if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
+    if (Math.abs(c.z - lastZ.current) > 0.002) {
+      lastZ.current = c.z;
+      // Labels counter-scale with the zoom (CSS `.lbl-s`): about 12 px on screen.
+      svg.style.setProperty('--lbl-s', (LABEL_PX / c.z).toFixed(3));
+    }
     const zl = c.z < 0.75 ? '0' : c.z < 1.25 ? '1' : '2';
     if (wrapRef.current && wrapRef.current.dataset.zoom !== zl) wrapRef.current.dataset.zoom = zl;
-  }, [layout, zoomLimits]);
+    runCull();
+  }, [layout, zoomLimits, runCull]);
 
-  const placeAvatar = useCallback((p: Pt, dx = 0, dy = 0) => {
-    const s = project(p.x, p.y);
-    avatarRef.current?.setAttribute('transform', `translate(${s.x.toFixed(1)},${s.y.toFixed(1)})`);
-    const sdx = (dx - dy) * TW;
-    if (flipRef.current && Math.abs(sdx) > 0.001)
-      flipRef.current.setAttribute('transform', `scale(${sdx < 0 ? -1.25 : 1.25},1.25)`);
-  }, []);
+  // The avatar's body is drawn into the depth slots (behind buildings in
+  // front of it); its name tag stays on top.
+  const [avatarHost] = useState(() =>
+    typeof document === 'undefined' ? null : document.createElementNS(SVG_NS, 'g'),
+  );
+  const tagRef = useRef<SVGGElement>(null);
+  const placeAvatar = useCallback(
+    (p: Pt, dx = 0, dy = 0) => {
+      const s = project(p.x, p.y);
+      const tr = `translate(${s.x.toFixed(1)},${s.y.toFixed(1)})`;
+      avatarRef.current?.setAttribute('transform', tr);
+      tagRef.current?.setAttribute('transform', tr);
+      if (avatarHost) placeDepth(avatarHost, p.x + p.y);
+      const sdx = (dx - dy) * TW;
+      if (flipRef.current && Math.abs(sdx) > 0.001)
+        flipRef.current.setAttribute(
+          'transform',
+          `scale(${sdx < 0 ? -MAP_FIGURE_SCALE : MAP_FIGURE_SCALE},${MAP_FIGURE_SCALE})`,
+        );
+    },
+    [avatarHost, placeDepth],
+  );
 
   const centreOn = useCallback(
     (p: Pt) => {
       const s = project(p.x, p.y);
       cam.current.x = s.x;
-      cam.current.y = s.y - 30;
+      cam.current.y = s.y - CAM_LIFT;
       apply();
     },
     [apply],
   );
+
+  // After the skyline is drawn: find its depth slots and cull groups, then put
+  // the avatar in place.
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const found = [...svg.querySelectorAll<SVGGElement>('[data-depth-slot]')];
+    slots.current = found.length
+      ? { min: Number(found[0]!.getAttribute('data-depth-slot')), els: found }
+      : null;
+    const items = skylineItems(layout);
+    const els: (SVGElement | undefined)[] = [];
+    svg.querySelectorAll<SVGGElement>('[data-cull]').forEach((el) => {
+      els[Number(el.getAttribute('data-cull'))] = el;
+    });
+    cull.current = {
+      els,
+      boxes: items.map((i) => i.box),
+      shown: new Uint8Array(items.length).fill(1),
+      at: { x: 0, y: 0, z: 1, w: 0, h: 0 },
+    };
+    if (avatarHost) {
+      avatarHost.setAttribute('pointer-events', 'none');
+      placeDepth(avatarHost, pos.current.x + pos.current.y);
+    }
+    runCull(true);
+  }, [layout, avatarHost, placeDepth, runCull]);
+  useEffect(() => () => avatarHost?.remove(), [avatarHost]);
+
+  // Riding or not, for the HUD ("What to do now" hides during a ride). The
+  // ride scenes (city/ride) send the same event; see CityScreen.
+  useEffect(() => {
+    if (!vehicle) return;
+    setRiding(true);
+    return () => setRiding(false);
+  }, [vehicle]);
 
   // Size the camera to the element and keep it sized.
   useEffect(() => {
@@ -1108,7 +1304,7 @@ export function CityMap({
       const len = pathLength(path);
       const ts = project(target.x, target.y);
       // Somewhere far that you tapped: ask how to get there first.
-      if (opts.ask && !reduced && len > SHORT_HOP && onFarTripRef.current) {
+      if (opts.ask && len > SHORT_HOP && onFarTripRef.current) {
         pending.current = { target, then, placeId };
         targetRef.current?.setAttribute('transform', `translate(${ts.x},${ts.y})`);
         targetRef.current?.setAttribute('visibility', 'visible');
@@ -1117,7 +1313,15 @@ export function CityMap({
       }
       // Short hops always walk.
       const mode: RideMode = len > SHORT_HOP ? (opts.mode ?? 'walk') : 'walk';
+      // Wave 7: a ride across town plays full screen (or a chase with reduced motion).
+      const spec0 = rideVehicle(mode, layout.marketId, layout.flavour.vehicles);
+      const spec = spec0 && mode !== 'bus' ? { ...spec0, body: look.top } : spec0;
+      const scene =
+        len > SHORT_HOP
+          ? beginRide({ mode, tiles: len, path, layout, placeId, look, mapMs: rideMs(mode, len) })
+          : null;
       const done = () => {
+        scene?.end();
         pos.current = target;
         lastPos.set(layout.marketId, target);
         placeAvatar(target);
@@ -1126,25 +1330,24 @@ export function CityMap({
         onArriveRef.current?.(target, placeId);
         then?.();
       };
-      if (len < 0.05 || reduced) {
+      if (len < 0.05 || (reduced && !scene)) {
         done();
         if (reduced) centreOn(target);
         return;
       }
       targetRef.current?.setAttribute('transform', `translate(${ts.x},${ts.y})`);
       targetRef.current?.setAttribute('visibility', 'visible');
-      const spec = rideVehicle(mode, layout.marketId, layout.flavour.vehicles);
       setVehicle(spec);
       avatarRef.current?.classList.add(spec ? 'is-riding' : 'is-walking');
       following.current = true;
       // Each way of getting around has its own pace (walking: about 5 tiles a second).
-      const ms = rideMs(mode, len);
+      const ms = scene?.ms ?? rideMs(mode, len);
       const t0 = performance.now();
       let cancelled = false;
       let axis = '';
       const step = (now: number) => {
         if (cancelled) return;
-        const k = Math.min(1, (now - t0) / ms);
+        const k = scene?.skipped() ? 1 : Math.min(1, (now - t0) / ms);
         const eased = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
         const { p, dx, dy } = pointAlong(path, eased);
         pos.current = p;
@@ -1161,7 +1364,7 @@ export function CityMap({
           // Faster rides pull the camera along harder, so you never lose yourself.
           const pull = spec ? 0.14 : 0.08;
           c.x += (s.x - c.x) * pull;
-          c.y += (s.y - 30 - c.y) * pull;
+          c.y += (s.y - CAM_LIFT - c.y) * pull;
           apply();
         }
         if (k < 1) walk.current!.raf = requestAnimationFrame(step);
@@ -1171,12 +1374,13 @@ export function CityMap({
         raf: requestAnimationFrame(step),
         cancel: () => {
           cancelled = true;
+          scene?.end();
           if (walk.current) cancelAnimationFrame(walk.current.raf);
           lastPos.set(layout.marketId, pos.current);
         },
       };
     },
-    [layout, reduced, placeAvatar, stopWalk, apply, centreOn, focusLabel],
+    [layout, reduced, look, placeAvatar, stopWalk, apply, centreOn, focusLabel],
   );
 
   const goTo = useCallback(
@@ -1404,7 +1608,7 @@ export function CityMap({
           const p = layout.places.find((x) => x.id === id);
           return p ? <Bunting key={id} p={p} /> : null;
         })}
-        <Crowd walkers={walkers} reduced={reduced} />
+        <Crowd walkers={walkers} reduced={reduced} placeDepth={placeDepth} />
         {layout.flavour.fog && <Fog layout={layout} />}
         <Labels layout={layout} labelOf={labelOf} />
         <Overlays layout={layout} players={players} fresh={fresh} />
@@ -1419,34 +1623,56 @@ export function CityMap({
             </g>
           </g>
         )}
-        <g ref={avatarRef} className="city-avatar" transform={`translate(${start.x},${start.y})`}>
-          <ellipse className="city-you-ring" rx="12" ry="6" />
-          <g ref={flipRef} className="city-avatar-fig" transform="scale(1.25,1.25)">
-            <AvatarFigure look={look} />
-          </g>
-          {vehicle && (
-            <g ref={rideRef} className="city-ride" data-axis="x" data-ride={vehicle.id}>
-              <g className="city-ride-x" transform="scale(1.8)">
-                <VehicleShape spec={vehicle} axis="x" />
-              </g>
-              <g className="city-ride-y" transform="scale(1.8)">
-                <VehicleShape spec={vehicle} axis="y" />
-              </g>
+        <g ref={entitiesRef} className="city-entities" pointerEvents="none" />
+        <g
+          ref={tagRef}
+          className="city-you-tag"
+          transform={`translate(${start.x},${start.y})`}
+          pointerEvents="none"
+        >
+          <g transform="translate(0 -30)">
+            <g className="city-you lbl-s">
+              <rect
+                x={-name.length * 3.1 - 7}
+                y="-15"
+                width={name.length * 6.2 + 14}
+                height="15"
+                rx="7.5"
+              />
+              <text y="-4.5" textAnchor="middle">
+                {name}
+              </text>
             </g>
-          )}
-          <g transform="translate(0 -62)" className="city-you">
-            <rect
-              x={-name.length * 3.1 - 7}
-              y="-8"
-              width={name.length * 6.2 + 14}
-              height="15"
-              rx="7.5"
-            />
-            <text y="3" textAnchor="middle">
-              {name}
-            </text>
           </g>
         </g>
+        {avatarHost &&
+          createPortal(
+            <g
+              ref={avatarRef}
+              className="city-avatar"
+              transform={`translate(${start.x},${start.y})`}
+            >
+              <ellipse className="city-you-ring" rx="8" ry="4" />
+              <g
+                ref={flipRef}
+                className="city-avatar-fig"
+                transform={`scale(${MAP_FIGURE_SCALE},${MAP_FIGURE_SCALE})`}
+              >
+                <AvatarFigure look={look} />
+              </g>
+              {vehicle && (
+                <g ref={rideRef} className="city-ride" data-axis="x" data-ride={vehicle.id}>
+                  <g className="city-ride-x" transform={`scale(${MAP_RIDE_SCALE})`}>
+                    <VehicleShape spec={vehicle} axis="x" />
+                  </g>
+                  <g className="city-ride-y" transform={`scale(${MAP_RIDE_SCALE})`}>
+                    <VehicleShape spec={vehicle} axis="y" />
+                  </g>
+                </g>
+              )}
+            </g>,
+            avatarHost,
+          )}
       </svg>
     </div>
   );
