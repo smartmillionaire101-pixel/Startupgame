@@ -22,7 +22,7 @@ permissions:
 jobs:
   maps:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,13 +45,17 @@ jobs:
               "scripts/osm/work/land-$id.geojson" "$SHP"
             echo "land $id: $(wc -c < "scripts/osm/work/land-$id.geojson") bytes"
           done
-      - name: Build maps (Overpass)
-        run: node scripts/osm/build.mjs
-      - name: Commit maps
+      - name: Build and commit each city (Overpass)
+        # One commit per city, so a slow or failing Overpass mirror never loses
+        # the cities already done; cities already in the repo are skipped.
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/src/city/geo
-          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
-          git commit -m "Maps: real city geography from OpenStreetMap (© OpenStreetMap contributors, ODbL)"
-          git push origin HEAD:${{ github.ref_name }}
+          for id in $(node -e 'import("./scripts/osm/cities.mjs").then(({ CITIES }) => console.log(Object.keys(CITIES).join(" ")))'); do
+            if [ -f "apps/web/src/city/geo/$id.json" ]; then echo "skip $id (already built)"; continue; fi
+            node scripts/osm/build.mjs "$id" || { echo "::warning::$id failed"; continue; }
+            git add "apps/web/src/city/geo/$id.json"
+            git commit -m "Maps: $id from OpenStreetMap (© OpenStreetMap contributors, ODbL)"
+            git pull --rebase origin ${{ github.ref_name }}
+            git push origin HEAD:${{ github.ref_name }}
+          done
