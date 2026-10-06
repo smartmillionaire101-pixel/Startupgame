@@ -130,4 +130,4 @@ The same tokens drive `phone.css` (cards, rows, hero, section heads) and `city/s
 
 ## Screenshots
 
-Before and after sets are saved outside the repo; the final report gives the paths.
+Before and after sets (390 px in `m/`, 1280 px in `d/`) are in `/home/user/wave8-ui-shots/before` and `/home/user/wave8-ui-shots/after`.
