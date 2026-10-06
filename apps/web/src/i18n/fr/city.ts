@@ -24,6 +24,7 @@ export const city: Record<string, string> = {
   'Centre on me': 'Me recentrer',
   'Tap a street to walk, a building to go in.':
     'Touchez une rue pour marcher, un bâtiment pour entrer.',
+  'Loading the map…': 'Chargement de la carte…',
   'Lite mode: the city map is off to save data. Pick a place to go in.':
     'Mode léger : la carte est désactivée pour économiser les données. Choisissez un lieu où entrer.',
   'Map of {market}. Arrow keys pan, plus and minus zoom. Use the places list to go into a building.':
