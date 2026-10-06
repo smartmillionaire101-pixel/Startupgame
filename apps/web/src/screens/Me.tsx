@@ -10,6 +10,8 @@ import { visitPlace } from '../city/goto';
 import { contactsOf, type ContactView } from '../city/people';
 import { flightsOf } from '../city/travel';
 import { BankPicker } from './common';
+import { AvatarFigure, avatarLook } from '../city/art';
+import { genderOf } from '../city/life';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
@@ -114,28 +116,45 @@ function Profile() {
   const skills = Object.entries(me.skills).sort((a, b) => b[1] - a[1]);
   return (
     <>
-      <Card title={`${me.name} · @${me.handle}`} action={<Pill>{roleLabel(me.role)}</Pill>}>
-        <div className="spread">
+      <section className="card profile-card">
+        <header className="profile-head">
+          <span className="profile-avatar" aria-hidden="true">
+            <svg viewBox="-16 -46 32 50" width="44" height="70">
+              <AvatarFigure look={avatarLook(me.background?.id, me.id, genderOf(me))} />
+            </svg>
+          </span>
+          <span className="profile-who">
+            <h2>{me.name}</h2>
+            <span className="small muted">@{me.handle}</span>
+            <span className="row profile-tags">
+              <Pill tone="info">{roleLabel(me.role)}</Pill>
+              {me.background?.name && <Pill>{tx(me.background.name)}</Pill>}
+            </span>
+          </span>
+        </header>
+        <div className="profile-stats">
           <div>
+            <span className="stat-label">{t('Stars')}</span>
             {/* Day one: no track record yet, so no rating (and no warning) to show. */}
             {me.starHistory.length < 2 ? (
               <>
-                <div className="stat-value">{t('New')}</div>
-                <Pill>{t('Rated after your first month')}</Pill>
+                <b className="profile-stat">{t('New')}</b>
+                <span className="small muted">{t('Rated after your first month')}</span>
               </>
             ) : (
               <>
-                <div className="stat-value">{stars(me.stars)}</div>
+                <b className="profile-stat">{stars(me.stars)}</b>
                 {me.publicWarning && <Pill tone="bad">{t('Public warning')}</Pill>}
+                <Sparkline values={me.starHistory} label={t('Stars over time')} />
               </>
             )}
           </div>
-          <Sparkline values={me.starHistory} label={t('Stars over time')} />
+          <div>
+            <span className="stat-label">{t('Network')}</span>
+            <b className="profile-stat">{me.network}</b>
+            <span className="small muted">{view.market.name}</span>
+          </div>
         </div>
-        <p className="small muted">
-          {tx(me.background?.name ?? '')} · {view.market.name} ·{' '}
-          {t('network {n}', { n: me.network })}
-        </p>
         <Bar
           label={t('Energy')}
           value={me.energy / 100}
@@ -148,11 +167,13 @@ function Profile() {
           })}
           {me.burnout ? ` · ${t('burnout cuts your hours')}` : ''}
         </p>
-      </Card>
+      </section>
       <Card title={t('Skills')}>
-        {skills.map(([k, v]) => (
-          <Bar key={k} label={skillLabel(k)} value={v / 100} />
-        ))}
+        <div className="skills-grid">
+          {skills.map(([k, v]) => (
+            <Bar key={k} label={skillLabel(k)} value={v / 100} />
+          ))}
+        </div>
       </Card>
       <Card title={t('Milestones')}>
         {Object.keys(me.milestones).length === 0 ? (
@@ -168,21 +189,25 @@ function Profile() {
         )}
       </Card>
       <Card title={t('{market} leaderboards', { market: view.market.name })}>
-        <h3>{t('Highest stars')}</h3>
-        <ol className="small">
+        <h3 className="section-h">{t('Highest stars')}</h3>
+        <ol className="board">
           {view.leaderboards.highestStars.slice(0, 5).map((r) => (
             <li key={r.id}>
-              {r.name}
-              {r.ai ? '' : ` ${t('(player)')}`} · {r.value.toFixed(1)}★
+              <span className="board-name">
+                {r.name}
+                {r.ai ? '' : ` ${t('(player)')}`}
+              </span>
+              <b>{r.value.toFixed(1)}★</b>
             </li>
           ))}
         </ol>
-        <h3>{t('Fastest growing')}</h3>
+        <h3 className="section-h">{t('Fastest growing')}</h3>
         {view.leaderboards.fastestGrowing.length ? (
-          <ol className="small">
+          <ol className="board">
             {view.leaderboards.fastestGrowing.slice(0, 5).map((r) => (
               <li key={r.id}>
-                {r.name} · {t('{n}%/mo', { n: r.value })}
+                <span className="board-name">{r.name}</span>
+                <b>{t('{n}%/mo', { n: r.value })}</b>
               </li>
             ))}
           </ol>

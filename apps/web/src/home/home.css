@@ -483,11 +483,11 @@
     animation: home-fade 2.2s linear forwards;
   }
 }
-:root[data-reduce-motion]:not([data-reduce-motion='false']) .home-scene * {
+:root[data-reduce-motion='1'] .home-scene * {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
 }
-:root[data-reduce-motion]:not([data-reduce-motion='false']) .home-float {
+:root[data-reduce-motion='1'] .home-float {
   animation: home-fade 2.2s linear forwards !important;
 }
 @keyframes home-fade {

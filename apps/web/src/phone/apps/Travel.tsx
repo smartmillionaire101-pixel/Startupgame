@@ -22,9 +22,9 @@ const AIRLINES = [
 export function flightFor(from: string, to: string, month: number) {
   const h = hash(`${from}>${to}:${month}`);
   const [airline, code] = AIRLINES[h % AIRLINES.length]!;
-  const mins = 6 * 60 + ((h >> 3) % (15 * 12)) * 5;
+  const mins = 6 * 60 + ((h >>> 3) % (15 * 12)) * 5;
   const time = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
-  return { airline, number: `${code} ${100 + ((h >> 7) % 800)}`, time };
+  return { airline, number: `${code} ${100 + ((h >>> 7) % 800)}`, time };
 }
 
 export function Travel({ ctx }: { ctx: PhoneCtx }) {

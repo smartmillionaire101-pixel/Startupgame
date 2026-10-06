@@ -28,6 +28,8 @@ import {
 } from './contract';
 import { flavourOf, type Flavour, type LandmarkKind, type VehicleSpec } from './flavour';
 import { planOf, type CityPlan, type DistrictKind, type Host, type Side } from './plans';
+import type { GeoWorld } from './geoLayout';
+import type { SpriteKind } from './geo';
 
 /**
  * Tiles from one street to the next. Wave 4 made blocks bigger (4 → 5) and
@@ -173,6 +175,8 @@ export interface Decor {
   from?: Pt;
   to?: Pt;
   style?: Bridge['style'];
+  /** Wave 8: a real map's hand-drawn landmark (geoSprites.tsx). */
+  sprite?: SpriteKind;
 }
 
 export interface Vehicle {
@@ -183,6 +187,8 @@ export interface Vehicle {
   axis: 'x' | 'y';
   dur: number;
   delay: number;
+  /** Wave 8: the road's real line on a real map (tiles), instead of from → to. */
+  path?: Pt[];
 }
 
 export interface Block {
@@ -270,7 +276,19 @@ export interface CityLayout {
   marketName?: string;
   /** Wave 5: a beach along a coast: wider sand, umbrellas, its name. */
   beach?: { side: Side; name: string };
+  /**
+   * Wave 8: the real city (OpenStreetMap): its walk graph and map data. Grid
+   * fields (size, extent, blocks, streets, cuts) are empty then.
+   */
+  geo?: GeoWorld;
 }
+
+/** Metres in a tile of the generated city (the travel maths counts in these). */
+export const TILE_METRES = 50;
+
+/** A path's length in travel tiles (about 50 m each), whatever the map's scale. */
+export const travelTiles = (layout: { geo?: GeoWorld }, len: number) =>
+  layout.geo ? (len * layout.geo.tileM) / TILE_METRES : len;
 
 export interface BizInput {
   id: string;
@@ -387,8 +405,8 @@ const LOT_ORDER: [0 | 1, 0 | 1][] = [
   [0, 0],
 ];
 
-type Lot = { x: number; y: number; a: 0 | 1; b: 0 | 1 };
-function lot(i: number, j: number, a: 0 | 1, b: 0 | 1): Lot {
+export type Lot = { x: number; y: number; a: 0 | 1; b: 0 | 1 };
+export function lot(i: number, j: number, a: 0 | 1, b: 0 | 1): Lot {
   return { x: i * B + LOT[a]!, y: j * B + LOT[b]!, a, b };
 }
 
@@ -411,7 +429,7 @@ function doorFor(
 // ---------------------------------------------------------------------------
 // Building helpers, shared by both generators
 
-interface Ctx {
+export interface Ctx {
   input: CityInput;
   flavour: Flavour;
   rnd: () => number;
@@ -420,10 +438,10 @@ interface Ctx {
 }
 
 const pickColor = (ctx: Ctx, xs: string[]) => xs[Math.floor(ctx.rnd() * xs.length)]!;
-type Cell = { i: number; j: number };
+export type Cell = { i: number; j: number };
 
 /** Your office, the Hub, the newsstand and a fountain, on one block. */
-function putDowntown(ctx: Ctx, { i, j }: Cell, area?: string) {
+export function putDowntown(ctx: Ctx, { i, j }: Cell, area?: string) {
   const { input, places, decor } = ctx;
   const head = input.office?.headcount ?? 0;
   const w = head < 3 ? 1.05 : head < 8 ? 1.2 : LOT_SIZE;
@@ -488,7 +506,7 @@ function putDowntown(ctx: Ctx, { i, j }: Cell, area?: string) {
 }
 
 /** Your home, plus the neighbours' gardens (every building on the map opens). */
-function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
+export function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
   const { input, flavour, places, decor } = ctx;
   const tier = Math.max(1, Math.min(5, input.homeTier));
   const l = lot(i, j, 1, 1);
@@ -526,7 +544,7 @@ function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
   }
 }
 
-function putEventHall(ctx: Ctx, { i, j }: Cell, area?: string) {
+export function putEventHall(ctx: Ctx, { i, j }: Cell, area?: string) {
   const x = i * B + (B - 2.8) / 2;
   const y = (j + 1) * B - SW - 0.25 - 2.2;
   ctx.places.push({
@@ -549,7 +567,7 @@ function putEventHall(ctx: Ctx, { i, j }: Cell, area?: string) {
   });
 }
 
-function putAirport(ctx: Ctx, { i, j }: Cell, area?: string) {
+export function putAirport(ctx: Ctx, { i, j }: Cell, area?: string) {
   const x = i * B + SW + 0.2;
   const y = (j + 1) * B - SW - 0.2 - 1.35;
   ctx.places.push({
@@ -584,7 +602,7 @@ const STALL_GAP = 1.2;
 const STALL0 = (B - 2 * STALL_GAP - 0.76) / 2;
 
 /** A plaza of stalls, nine per block, one per customer segment. */
-function putStalls(ctx: Ctx, blocks: Cell[], area?: string) {
+export function putStalls(ctx: Ctx, blocks: Cell[], area?: string) {
   const { input, places, decor } = ctx;
   let n = 0;
   for (const blk of blocks) {
@@ -639,13 +657,13 @@ function putStalls(ctx: Ctx, blocks: Cell[], area?: string) {
   }
 }
 
-type LotItem =
+export type LotItem =
   | { kind: 'lender' | 'playerbank'; id: string; name: string; look: LenderLook }
   | { kind: 'fund'; id: string; name: string; office: FundOffice }
   | { kind: 'capital'; cap: CapitalInput }
   | { kind: 'business'; biz: BizInput };
 
-function financeItems(input: CityInput): LotItem[] {
+export function financeItems(input: CityInput): LotItem[] {
   return [
     ...input.lenders.map((l) => ({
       kind: 'lender' as const,
@@ -663,7 +681,7 @@ function financeItems(input: CityInput): LotItem[] {
 }
 
 /** One building on a corner lot: a bank, a fund's office or a local business. */
-function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: string) {
+export function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: string) {
   if (it.kind === 'lender' || it.kind === 'playerbank') {
     const motif = it.look.motif;
     const w = motif === 'kiosk' ? 0.8 : motif === 'shopfront' ? 1.15 : LOT_SIZE;
@@ -1073,7 +1091,7 @@ function finish(
 // Planned cities
 
 /** Kinds of district a host falls back to when the plan names none. */
-const HOST_FALLBACK: Record<Host, DistrictKind[]> = {
+export const HOST_FALLBACK: Record<Host, DistrictKind[]> = {
   finance: ['finance', 'downtown'],
   investors: ['finance', 'tech', 'downtown'],
   market: ['market', 'downtown', 'nightlife'],
@@ -1082,7 +1100,7 @@ const HOST_FALLBACK: Record<Host, DistrictKind[]> = {
   eventhall: ['downtown', 'waterfront', 'nightlife'],
   airport: ['airport', 'industrial'],
 };
-const CATEGORY_FALLBACK: Record<BusinessCategory, DistrictKind[]> = {
+export const CATEGORY_FALLBACK: Record<BusinessCategory, DistrictKind[]> = {
   food: ['nightlife', 'market', 'downtown'],
   retail: ['market', 'downtown'],
   services: ['residential', 'market'],
@@ -1741,9 +1759,10 @@ function onCut(p: Pt, cuts: Set<string>) {
 
 /** The closest point on any open street to a ground point. */
 export function nearestStreetPoint(
-  layout: Pick<CityLayout, 'extent' | 'size'> & { cuts?: string[] },
+  layout: Pick<CityLayout, 'extent' | 'size'> & { cuts?: string[]; geo?: GeoWorld },
   p: Pt,
 ): Pt {
+  if (layout.geo) return layout.geo.graph.nearestTile(p);
   const cuts = cutSet(layout);
   const clamp = (v: number) => Math.max(0, Math.min(layout.extent, v));
   let best: Pt = { x: 0, y: 0 };
@@ -1794,10 +1813,11 @@ function straightOpen(from: Pt, to: Pt, cuts: Set<string>) {
  * a polyline in grid coordinates. Turns cost a little, so routes are tidy.
  */
 export function findPath(
-  layout: Pick<CityLayout, 'size'> & { cuts?: string[] },
+  layout: Pick<CityLayout, 'size'> & { cuts?: string[]; geo?: GeoWorld },
   from: Pt,
   to: Pt,
 ): Pt[] {
+  if (layout.geo) return layout.geo.graph.pathTiles(from, to);
   const cuts = cutSet(layout);
   const n = layout.size + 1;
   const sameX = onLine(from.x) && onLine(to.x) && Math.abs(from.x - to.x) < EPS;

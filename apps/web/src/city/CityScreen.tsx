@@ -57,14 +57,10 @@ import { crowdSize, eventsOf, flaggedPlaces, newBusinessIds, passersBy } from '.
 import { PersonCard, type PersonRef } from './PersonCard';
 import { WhoIsAround } from './WhoIsHere';
 import { usePresence } from './presence';
-import {
-  buildLayout,
-  type CityInput,
-  type CityLayout,
-  type DistrictId,
-  type Place,
-  type Pt,
-} from './layout';
+import { useLookVersion } from './acts/look';
+import { useGeo, type GeoData } from './geo';
+import { buildCityLayout } from './geoLayout';
+import { type CityInput, type CityLayout, type DistrictId, type Place, type Pt } from './layout';
 
 // Scenes and flights load on demand (Wave 7 §D: a small main bundle).
 const Interior = lazy(() => import('./Interiors').then((m) => ({ default: m.Interior })));
@@ -335,7 +331,38 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
   );
 }
 
-function CityBody({
+type CityBodyProps = {
+  onNavigate: Nav;
+  /** Your home market (the view's market is the one you're in). */
+  home: PlayerView['market'];
+  /** Where the airport flies (worked out from the home view). */
+  destinations: Destination[];
+  onFly: (to: string) => void;
+  onFlyHome: () => void;
+  /** A city you're flying to: arrive at its airport. */
+  landing: string | null;
+  onLanded: () => void;
+};
+
+/**
+ * Wave 8: a city with a real map (OpenStreetMap) waits for its map to load
+ * (its own chunk) before it lays out; one without keeps the generated city.
+ */
+function CityBody(props: CityBodyProps) {
+  const { view } = useView();
+  const geo = useGeo(view.market.id);
+  if (geo === 'loading')
+    return (
+      <div className="city">
+        <div className="city-stage city-loading" role="status">
+          <p>{t('Loading the map…')}</p>
+        </div>
+      </div>
+    );
+  return <CityBodyInner {...props} geo={geo} />;
+}
+
+function CityBodyInner({
   onNavigate,
   home,
   destinations,
@@ -343,7 +370,9 @@ function CityBody({
   onFlyHome,
   landing,
   onLanded,
+  geo,
 }: {
+  geo: GeoData | null;
   onNavigate: Nav;
   /** Your home market (the view's market is the one you're in). */
   home: PlayerView['market'];
@@ -369,7 +398,13 @@ function CityBody({
     [companyName, abroad, lang],
   );
   const gender = genderOf(view.me);
-  const look = useMemo(() => avatarLook(bg, meId, gender), [bg, meId, gender]);
+  // Wave 8: a new haircut redraws you on the map.
+  const lookV = useLookVersion();
+  const look = useMemo(
+    () => avatarLook(bg, meId, gender),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lookV: the saved look changed
+    [bg, meId, gender, lookV],
+  );
   const [inside, setInside] = useState<Place | null>(null);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
@@ -385,7 +420,7 @@ function CityBody({
 
   // Rebuild the layout only when what it depends on changes.
   const key = JSON.stringify(cityInput(view));
-  const layout = useMemo(() => buildLayout(JSON.parse(key) as CityInput), [key]);
+  const layout = useMemo(() => buildCityLayout(JSON.parse(key) as CityInput, geo), [key, geo]);
   // Landed: you step out of the airport.
   useLayoutEffect(() => {
     if (!landing || layout.marketId !== landing) return;

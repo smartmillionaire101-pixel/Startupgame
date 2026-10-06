@@ -28,7 +28,9 @@ export type PhoneApp =
   | 'travel'
   | 'house'
   | 'social'
-  | 'settings';
+  | 'settings'
+  /** Wave 8: tech events, hangouts and invitations. */
+  | 'events';
 
 export interface PhoneOpen {
   app?: PhoneApp;
@@ -40,6 +42,8 @@ export interface PhoneOpen {
   say?: string;
   /** Contacts: open the picker to invite someone over (`home.invite`). */
   invite?: boolean;
+  /** Wave 8: open the wallet to send money to this player ('' = pick who). */
+  send?: string;
 }
 
 const listeners = new Set<(o: PhoneOpen) => void>();

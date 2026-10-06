@@ -74,10 +74,14 @@ test('walk into a restaurant: a full scene with people, and buy a meal from the 
   const buy = tray.locator('[data-action^="buy:"]').first();
   await expect(buy).toBeEnabled();
   await buy.click();
-  await expect(page.locator('.toast-ok').last()).toBeVisible();
+  // Wave 8: you sit down and eat (Skip), then a result card says what it did.
+  await scene.getByRole('button', { name: 'Skip' }).click();
+  const result = scene.locator('.act-result[data-act-result="ok"]');
+  await expect(result).toBeVisible({ timeout: 10_000 });
   await expect
     .poll(async () => Number(await pocket.getAttribute('data-pocket')), { timeout: 8000 })
     .toBeLessThan(before);
+  await result.getByRole('button', { name: 'Done' }).click();
 
   // More: everything else (the menu, gigs, selling to them).
   await more(page);

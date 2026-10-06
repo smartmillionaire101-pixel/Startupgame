@@ -1,5 +1,6 @@
 /** The French catalog, merged from one file per screen. */
 import { account } from './account';
+import { acts } from './acts';
 import { app } from './app';
 import { city } from './city';
 import { company } from './company';
@@ -17,9 +18,12 @@ import { server } from './server';
 import { travel } from './travel';
 import { uiWave7 } from './ui-wave7';
 import { travelWave7 } from './travel-wave7';
+import { friendsWave8 } from './friends-wave8';
+import { uiWave8 } from './ui-wave8';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
+  acts,
   app,
   city,
   economy,
@@ -37,6 +41,8 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   travel,
   uiWave7,
   travelWave7,
+  friendsWave8,
+  uiWave8,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

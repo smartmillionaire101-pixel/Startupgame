@@ -5,11 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type AiThread, type ChatMessage, type ChatSummary } from '../../api';
 import { getLang, t, tx } from '../../i18n';
 import { useView } from '../../store';
-import { Button, Empty } from '../../ui';
+import { Button, Empty, EmptyState } from '../../ui';
 import { visitPlace } from '../../city/goto';
 import { businessesOf } from '../../city/contract';
 import { cityViewOf, hereOf } from '../../city/travel';
 import { Avatar, isObj, kindName, str, type ThreadRef, type View } from '../shared';
+import { FriendActions } from './Friends';
 
 // ---------------------------------------------------------------------------
 // People you can message
@@ -130,7 +131,9 @@ export function MessagesList({
     <>
       <Button onClick={onNew}>{t('New message')}</Button>
       {convos.length === 0 ? (
-        <Empty>{t('No conversations yet. Say hello to someone in town.')}</Empty>
+        <EmptyState icon="people">
+          {t('No conversations yet. Say hello to someone in town.')}
+        </EmptyState>
       ) : (
         <ul className="phone-list" aria-label={t('Conversations')}>
           {convos.map((c) => (
@@ -475,6 +478,8 @@ export function PlayerThreadView({
           <Avatar name={name} />
           <div className="item-title">{name}</div>
         </div>
+        {/* Wave 8: Send money, Invite over, Plan a hangout. */}
+        {!other?.ai && <FriendActions playerId={playerId} />}
         <p className="small muted">{t('Start with one tap')}</p>
         <div className="choice-grid">
           {(starters ?? []).map((s) => (
@@ -517,6 +522,7 @@ export function PlayerThreadView({
           {other && <div className="small muted">{kindName(other.role)}</div>}
         </div>
       </div>
+      {!other?.ai && <FriendActions playerId={playerId} />}
       <ChatLog messages={data?.messages ?? []} />
       {data?.chat.blocked ? (
         <p className="small muted">{t('This chat is blocked.')}</p>

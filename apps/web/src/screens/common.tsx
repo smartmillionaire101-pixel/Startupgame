@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { t, tx } from '../i18n';
 import { amountInput, money, parseAmount, titleCase } from '../format';
 import { useView, type Deal } from '../store';
-import { Button, Card, Empty, Field, Pill } from '../ui';
+import { Button, Card, Empty, EmptyState, Field, Pill } from '../ui';
 import { useNav } from '../phone/bus';
 
 /** Funding stages, in the player's language. */
@@ -313,31 +313,45 @@ export function Inbox({ limit = 8 }: { limit?: number }) {
       title={unread.length ? t('Inbox · {n} new', { n: unread.length }) : t('Inbox')}
       action={
         unread.length > 0 && (
-          <Button variant="ghost" onClick={() => void send({ type: 'inbox.read' })}>
+          <Button variant="ghost" size="sm" onClick={() => void send({ type: 'inbox.read' })}>
             {t('Mark read')}
           </Button>
         )
       }
     >
       {items.length === 0 ? (
-        <Empty>{t('Nothing yet.')}</Empty>
+        <EmptyState icon="today">{t('Nothing yet.')}</EmptyState>
       ) : (
-        <ul className="list">
-          {items.map((i) => (
-            <li key={i.id} style={{ opacity: i.read ? 0.65 : 1 }}>
-              {nav ? (
-                <button className="inbox-item" data-alert={i.kind} onClick={() => nav.openItem(i)}>
-                  <span aria-hidden>{KIND_ICON[i.kind] ?? '•'}</span> {tx(i.text)}
-                  <div className="small muted">{t('Month {n}', { n: i.month })} ›</div>
-                </button>
-              ) : (
-                <>
-                  <span aria-hidden>{KIND_ICON[i.kind] ?? '•'}</span> {tx(i.text)}
-                  <div className="small muted">{t('Month {n}', { n: i.month })}</div>
-                </>
-              )}
-            </li>
-          ))}
+        <ul className="lrows inbox-list">
+          {items.map((i) => {
+            const body = (
+              <>
+                <span className="lrow-lead" aria-hidden>
+                  {KIND_ICON[i.kind] ?? '•'}
+                </span>
+                <span className="lrow-main">
+                  <span className="lrow-title inbox-text">{tx(i.text)}</span>
+                  <span className="lrow-sub">{t('Month {n}', { n: i.month })}</span>
+                </span>
+                {!i.read && <span className="lrow-dot" aria-hidden />}
+              </>
+            );
+            return (
+              <li key={i.id}>
+                {nav ? (
+                  <button
+                    className={`lrow inbox-item${i.read ? ' is-read' : ''}`}
+                    data-alert={i.kind}
+                    onClick={() => nav.openItem(i)}
+                  >
+                    {body}
+                  </button>
+                ) : (
+                  <div className={`lrow${i.read ? ' is-read' : ''}`}>{body}</div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>

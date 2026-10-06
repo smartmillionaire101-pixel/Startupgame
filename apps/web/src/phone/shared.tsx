@@ -48,6 +48,8 @@ export interface PhoneCtx {
   pickGuest: () => void;
   /** Contacts opened to invite someone over. */
   invite?: boolean;
+  /** Wave 8: the wallet opened to send money ('' = pick who). */
+  sendTo?: string;
 }
 
 // ---------------------------------------------------------------------------

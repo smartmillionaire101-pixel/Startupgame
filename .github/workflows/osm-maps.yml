@@ -1,0 +1,61 @@
+name: City maps from OpenStreetMap
+
+# Builds the real city maps (apps/web/src/city/geo/*.json) from OpenStreetMap
+# (© OpenStreetMap contributors, ODbL) and commits them to the branch. GitHub's
+# runners can reach the Overpass API and the OSM land polygons; the game never
+# fetches map data at runtime.
+
+on:
+  push:
+    paths:
+      - 'scripts/osm/**'
+      - '.github/workflows/osm-maps.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: osm-maps-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  maps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin unzip
+      - name: OSM land polygons (coastlines)
+        run: |
+          mkdir -p scripts/osm/work
+          curl -sSL --retry 3 -o /tmp/land.zip https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip
+          unzip -q /tmp/land.zip -d /tmp/land
+          SHP=$(find /tmp/land -name 'land_polygons.shp' | head -1)
+          node -e '
+            import("./scripts/osm/cities.mjs").then(({ CITIES }) => {
+              for (const [id, c] of Object.entries(CITIES)) console.log(id, ...c.wide);
+            });
+          ' | while read -r id w s e n; do
+            ogr2ogr -f GeoJSON -spat "$w" "$s" "$e" "$n" -clipsrc "$w" "$s" "$e" "$n" \
+              "scripts/osm/work/land-$id.geojson" "$SHP"
+            echo "land $id: $(wc -c < "scripts/osm/work/land-$id.geojson") bytes"
+          done
+      - name: Build and commit each city (Overpass)
+        # One commit per city, so a slow or failing Overpass mirror never loses
+        # the cities already done; cities already in the repo are skipped.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for id in $(node -e 'import("./scripts/osm/cities.mjs").then(({ CITIES }) => console.log(Object.keys(CITIES).join(" ")))'); do
+            if [ -f "apps/web/src/city/geo/$id.json" ]; then echo "skip $id (already built)"; continue; fi
+            node scripts/osm/build.mjs "$id" || { echo "::warning::$id failed"; continue; }
+            git add "apps/web/src/city/geo/$id.json"
+            git commit -m "Maps: $id from OpenStreetMap (© OpenStreetMap contributors, ODbL)"
+            git pull --rebase origin ${{ github.ref_name }}
+            git push origin HEAD:${{ github.ref_name }}
+          done

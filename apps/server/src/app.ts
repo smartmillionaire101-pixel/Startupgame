@@ -134,6 +134,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // Sign-in, guest and email-link routes always count per address (a new
   // guest gets a new id, so per-player keys would never run out).
   const byAddress = (req: FastifyRequest) => req.ip;
+  const byPlayer = (req: FastifyRequest) => (req.userId ? `u:${req.userId}` : req.ip);
   // Limits count per signed-in player, else per address: on mobile networks
   // many phones share one public IP (carrier NAT), and a busy game screen
   // polls several endpoints. Checked after sign-in is known (preHandler), so a
@@ -251,7 +252,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.get(
     '/api/names/check',
-    { config: { rateLimit: { max: 60, timeWindow: '1 minute', keyGenerator: byAddress } } },
+    // Per player once signed in (onboarding is signed in as a guest): many
+    // phones share one carrier address and each checks a few names.
+    { config: { rateLimit: { max: 60, timeWindow: '1 minute', keyGenerator: byPlayer } } },
     async (req) => {
       const q = z
         .object({

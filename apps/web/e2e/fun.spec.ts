@@ -71,7 +71,9 @@ test('a nightclub: Dance comes first, costs money and says what happened', async
   const before = await pocketOf(page);
   await expect(go).toBeEnabled();
   await go.click();
-  await expect(scene.locator('.tray-result')).toBeVisible({ timeout: 8000 });
+  // Wave 8: you watch it happen (Skip is always there), then the result card.
+  await expect(scene.locator('.act-stage')).toBeAttached();
+  await expect(scene.locator('.tray-result')).toBeVisible({ timeout: 15_000 });
   await expect.poll(() => pocketOf(page), { timeout: 8000 }).toBeLessThan(before);
 
   // Sometimes you meet someone: save them.

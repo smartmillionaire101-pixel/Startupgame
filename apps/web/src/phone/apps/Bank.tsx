@@ -1,5 +1,5 @@
 /**
- * Bank: personal and dollar balances, recent transactions, credit score,
+ * Bank (the wallet): Send money to a friend (Wave 8), personal and dollar balances, recent transactions, credit score,
  * loans (borrow with `player.loan`, repay with `player.repay`; an offer
  * arrives as a deal card, shown right here) and what a month costs you.
  */
@@ -11,6 +11,7 @@ import { Button } from '../../ui';
 import { DealCard } from '../../screens/common';
 import { carOf, myJobOf } from '../../city/life';
 import { H, Line, Nothing, num, type PhoneCtx } from '../shared';
+import { SendMoney } from './Friends';
 
 const bandLabel = (b: string) =>
   ({
@@ -34,6 +35,7 @@ export function Bank({ ctx }: { ctx: PhoneCtx }) {
   const net = (job?.monthlyPay ?? 0) - living - (car?.monthlyCost ?? 0);
   const limit = Math.max(0, num(credit.unsecuredLimit));
   const [months, setMonths] = useState(12);
+  const [sending, setSending] = useState(ctx.sendTo !== undefined);
   const offers = view.deals.filter(
     (d) =>
       d.status === 'open' &&
@@ -63,7 +65,14 @@ export function Bank({ ctx }: { ctx: PhoneCtx }) {
             spend: money(view.me.lastMonth.spend, cur),
           })}
         </div>
+        {!sending && (
+          <Button variant="subtle" data-send-money onClick={() => setSending(true)}>
+            {t('Send money')}
+          </Button>
+        )}
       </section>
+
+      {sending && <SendMoney to={ctx.sendTo || undefined} onDone={() => setSending(false)} />}
 
       <section className="phone-card">
         <div className="spread">

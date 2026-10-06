@@ -1,0 +1,142 @@
+/* Wave 8 §C: the tech event scene (TechEventScene.tsx). */
+.tech-hall {
+  position: relative;
+  flex: 1 1 0;
+  min-height: min(62vh, 560px);
+  overflow: hidden;
+  background: #0f172a;
+}
+.tech-hall > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.tech-screen-kind {
+  fill: #a5b4fc;
+  font:
+    700 9px/1 var(--font-display, system-ui),
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.12em;
+}
+.tech-screen-title {
+  fill: #fff;
+  font:
+    700 12px/1 var(--font-display, system-ui),
+    system-ui,
+    sans-serif;
+}
+.tech-person {
+  transition: transform 1.1s ease-in-out;
+}
+.tech-person.is-you .city-avatar-fig {
+  filter: drop-shadow(0 0 3px #fde047);
+}
+.tech-chat-dot {
+  font-size: 9px;
+  animation: tech-pop 1.4s ease-in-out infinite;
+}
+.tech-clap text {
+  font-size: 18px;
+  animation: tech-pop 0.6s ease-in-out infinite;
+}
+.tech-bubble {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  width: min(86%, 340px);
+  padding: 0.55rem 0.75rem;
+  border-radius: 14px;
+  background: #fff;
+  color: #111827;
+  font-size: 0.86rem;
+  line-height: 1.3;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+  animation: tech-in 0.25s ease-out;
+}
+.tech-bubble::after {
+  content: '';
+  position: absolute;
+  left: 58%;
+  bottom: -8px;
+  border: 8px solid transparent;
+  border-bottom: 0;
+  border-top-color: #fff;
+}
+.tech-bubble .small {
+  color: #6b7280;
+}
+.tech-met {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.tech-met li {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 0.78rem;
+  animation: tech-chip 0.3s ease-out both;
+}
+.tech-interest {
+  margin-top: 0.35rem;
+  font-weight: 700;
+  color: #b45309;
+}
+.tech-tray {
+  flex: 0 0 auto;
+  min-height: 92px;
+}
+.tech-result h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+.tech-result ul {
+  margin: 0 0 0.6rem;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+.tech-gone {
+  padding: 1.5rem 1rem;
+}
+@keyframes tech-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+@keyframes tech-chip {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+@keyframes tech-pop {
+  50% {
+    opacity: 0.4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tech-person,
+  .tech-bubble,
+  .tech-met li,
+  .tech-chat-dot,
+  .tech-clap text {
+    animation: none;
+    transition: none;
+  }
+}
+:root[data-reduce-motion='1'] .tech-person,
+:root[data-reduce-motion='1'] .tech-bubble,
+:root[data-reduce-motion='1'] .tech-met li {
+  animation: none;
+  transition: none;
+}

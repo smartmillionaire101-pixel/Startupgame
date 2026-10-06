@@ -11,3 +11,5 @@ playwright-report/
 test-results/
 .DS_Store
 netlify/runtime/runtime.mjs
+scripts/osm/work/
+*.tsbuildinfo

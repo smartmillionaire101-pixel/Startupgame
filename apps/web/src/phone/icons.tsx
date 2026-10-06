@@ -41,7 +41,9 @@ export type IconName =
   | 'school'
   | 'truck'
   | 'tools'
-  | 'bed';
+  | 'bed'
+  | 'events'
+  | 'send';
 
 const PATHS: Record<IconName, ReactNode> = {
   messages: <path d="M4 5.5h16v10H9l-4 3.5v-3.5H4z" />,
@@ -173,6 +175,13 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   bolt: <path d="M13 3L5.5 13.5H12L11 21l7.5-10.5H12z" />,
+  events: (
+    <>
+      <rect x="4" y="5.5" width="16" height="14.5" rx="2.5" />
+      <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4M8 14h3M13 14h3M8 17h3" />
+    </>
+  ),
+  send: <path d="M4 12l16-7-6 15-2.5-6.5zM11.5 13.5L20 5" />,
   heart: (
     <path d="M12 19.5s-7.5-4.6-7.5-10A4.2 4.2 0 0112 7a4.2 4.2 0 017.5 2.5c0 5.4-7.5 10-7.5 10z" />
   ),

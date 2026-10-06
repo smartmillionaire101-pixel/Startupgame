@@ -107,11 +107,13 @@ export function CompanyKpis({ c }: { c: Company }) {
   return (
     <div className="kpis">
       <Stat
+        icon="wallet"
         label={t('Cash')}
         value={money(c.cash, cur)}
         hint={t('Burn {amount}/mo', { amount: money(c.burn, cur) })}
       />
       <Stat
+        icon="clock"
         label={t('Runway')}
         value={preRevenue ? t('Pre-revenue') : runway(c.runwayMonths)}
         tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
@@ -124,6 +126,7 @@ export function CompanyKpis({ c }: { c: Company }) {
         }
       />
       <Stat
+        icon="portfolio"
         label={t('Monthly revenue')}
         value={money(c.monthlyRevenue, cur)}
         hint={
@@ -134,6 +137,7 @@ export function CompanyKpis({ c }: { c: Company }) {
         }
       />
       <Stat
+        icon="spark"
         label={t('Stars')}
         value={fresh ? t('New') : stars(c.stars)}
         hint={
@@ -158,16 +162,19 @@ function InvestorKpis() {
   return (
     <div className="kpis">
       <Stat
+        icon="wallet"
         label={t('Savings')}
         value={money(view.accounts.local?.balance ?? 0, cur)}
         hint={t('Living {amount}/mo', { amount: money(view.me.lifestyle.monthlyCost, cur) })}
       />
       <Stat
+        icon="portfolio"
         label={t('Deployed')}
         value={money(deployed, cur)}
         hint={t('{n} companies', { n: view.portfolio.length })}
       />
       <Stat
+        icon="money"
         label={t('Cash returned')}
         value={money(returned, cur)}
         hint={t('DPI {dpi}x · paper {amount}', {
@@ -176,6 +183,7 @@ function InvestorKpis() {
         })}
       />
       <Stat
+        icon="spark"
         label={t('Stars')}
         value={stars(view.me.stars)}
         hint={view.fund ? view.fund.name : t('Angel')}

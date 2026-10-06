@@ -32,13 +32,14 @@ import {
   type Spot,
   type Verb,
 } from './layout';
+import { ActFx } from './ActFx';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
 
 /** The back wall's face, in px above row 0. */
 const WALL = 44;
 const SPEED = 3.5; // tiles per second
-const ACT_MS = 1500;
+const ACT_MS = 2200;
 const TAP_SLOP = 8;
 const MAX_GUESTS = 4;
 
@@ -150,11 +151,29 @@ const GUEST_BG = ['f-dropout', 'i-first', 'b-wealthy', 'f-corporate', 'i-operato
 const guestLook = (personId: string) =>
   avatarLook(GUEST_BG[hash(personId) % GUEST_BG.length], personId);
 
-export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps) {
+/**
+ * Wave 8 §C: a friend's home you're visiting, shown read-only (no acts, no
+ * shopping): their tier and furniture, with them in it.
+ */
+export interface HostView {
+  id: string;
+  name: string;
+  tier: number;
+  tiers: Map<string, number>;
+}
+
+export function HomeScene({
+  place,
+  title,
+  onClose,
+  onVisit,
+  places,
+  hostView,
+}: SceneProps & { hostView?: HostView }) {
   const { view, send, busy, cur, toast } = useView();
-  const tier = Math.max(1, Math.min(5, view.me.lifestyle?.tier ?? 2));
+  const tier = Math.max(1, Math.min(5, hostView?.tier ?? view.me.lifestyle?.tier ?? 2));
   const plan = planFor(tier);
-  const tiers = useMemo(() => ownedTiers(view), [view]);
+  const tiers = useMemo(() => hostView?.tiers ?? ownedTiers(view), [view, hostView]);
   const ownedKey = [...tiers.keys()].sort().join(',');
   const owned = useMemo(() => new Set(ownedKey ? ownedKey.split(',') : []), [ownedKey]);
   const grid: Grid = useMemo(
@@ -164,7 +183,7 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
   const hour = localHour(view.market.id);
   const night = isNight(hour);
   const dusk = !night && (hour >= 17 || hour < 7);
-  const car = carOf(view);
+  const car = hostView ? null : carOf(view);
   const needs = needsOf(view);
   const mood = moodOf(view);
 
@@ -199,7 +218,11 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
   const meStart = { x: plan.door.x, y: plan.door.y - 1 };
   const me = useRef<Person>(newPerson('me', view.me.name, meLook, meStart));
-  const [guests, setGuests] = useState<Guest[]>(() => GUESTS.get(view.me.id) ?? []);
+  const [guests, setGuests] = useState<Guest[]>(() => {
+    if (!hostView) return GUESTS.get(view.me.id) ?? [];
+    seenGuests.add(hostView.id); // The host is already home: seated, not walking in.
+    return [{ personId: hostView.id, name: hostView.name }];
+  });
   const guestPeople = useRef(new Map<string, Person>());
   const guestSpots = useMemo(() => {
     const d = plan.slots.dining!.interact;
@@ -590,7 +613,7 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
     const d = drag.current;
     drag.current = null;
     if (!d || d.moved || acting) return;
-    const el = (e.target as Element).closest?.('[data-obj]');
+    const el = hostView ? null : (e.target as Element).closest?.('[data-obj]');
     if (el) {
       const obj = objects.find((o) => o.id === el.getAttribute('data-obj'));
       if (obj) {
@@ -753,7 +776,9 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
 
   const inviteLeft = actsLeft(view, 'invite');
   const pocket = view.accounts.local?.balance ?? 0;
-  const homeName = t(TIER_HOME[tier - 1]!);
+  const homeName = hostView
+    ? t('{name}’s place', { name: hostView.name.split(' ')[0]! })
+    : t(TIER_HOME[tier - 1]!);
 
   return (
     <div
@@ -767,6 +792,7 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
       data-night={night ? '1' : '0'}
       data-energy={view.me.energy}
       data-pocket={pocket}
+      data-host-view={hostView?.id}
     >
       <header className="home-hud">
         <div
@@ -912,9 +938,9 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
                 <circle cx={56} cy={31} r={5} fill="#111827" />
               </g>
             )}
-            {acting && <ActEffect act={acting.act} x={acting.x} y={acting.y} />}
+            {acting && <ActFx act={acting.act} x={acting.x} y={acting.y} />}
             {objects
-              .filter((o) => o.slot && !o.owned)
+              .filter((o) => !hostView && o.slot && !o.owned)
               .map((o) => (
                 <g
                   key={`plus-${o.id}`}
@@ -967,18 +993,27 @@ export function HomeScene({ place, title, onClose, onVisit, places }: SceneProps
         )}
       </div>
       <nav className="home-bar" aria-label={t('Home actions')}>
-        <button type="button" className="home-bar-btn" onClick={() => setSheet('edit')}>
-          <span aria-hidden="true">🛋</span>
-          {t('Edit')}
-        </button>
-        <button type="button" className="home-bar-btn" onClick={() => setSheet('invite')}>
-          <span aria-hidden="true">👋</span>
-          {t('Invite')}
-        </button>
-        <button type="button" className="home-bar-btn" onClick={onClose}>
-          <span aria-hidden="true">🚪</span>
-          {t('Go out')}
-        </button>
+        {hostView ? (
+          <button type="button" className="home-bar-btn" onClick={onClose}>
+            <span aria-hidden="true">👋</span>
+            {t('Say goodbye')}
+          </button>
+        ) : (
+          <>
+            <button type="button" className="home-bar-btn" onClick={() => setSheet('edit')}>
+              <span aria-hidden="true">🛋</span>
+              {t('Edit')}
+            </button>
+            <button type="button" className="home-bar-btn" onClick={() => setSheet('invite')}>
+              <span aria-hidden="true">👋</span>
+              {t('Invite')}
+            </button>
+            <button type="button" className="home-bar-btn" onClick={onClose}>
+              <span aria-hidden="true">🚪</span>
+              {t('Go out')}
+            </button>
+          </>
+        )}
       </nav>
       {sheet && (
         <div className="home-sheet-back" onClick={() => setSheet(null)}>
@@ -1272,41 +1307,6 @@ function Front({ plan }: { plan: HomePlan }) {
       <rect x={-8} y={H} width={dx + 8} height={8} fill="var(--home-wall-top)" />
       <rect x={dx + TILE} y={H} width={W - dx - TILE + 8} height={8} fill="var(--home-wall-top)" />
       <rect x={dx + 2} y={H} width={TILE - 4} height={6} rx={2} fill="#a16207" />
-    </g>
-  );
-}
-
-function ActEffect({ act, x, y }: { act: HomeAct; x: number; y: number }) {
-  const icon: Record<HomeAct, string> = {
-    sleep: 'Zzz',
-    nap: 'zz',
-    shower: '💧',
-    toilet: '🧻',
-    cook: '🍳',
-    snack: '🥪',
-    tv: '📺',
-    game: '🎮',
-    read: '📖',
-    work: '💻',
-    workout: '💪',
-  };
-  return (
-    <g
-      className={`home-act act-${act}`}
-      transform={`translate(${x} ${y - 50})`}
-      pointerEvents="none"
-    >
-      {(act === 'shower' || act === 'cook') && (
-        <g className="home-steam">
-          <circle cx="-6" cy="8" r="6" />
-          <circle cx="4" cy="2" r="7" />
-          <circle cx="10" cy="10" r="5" />
-        </g>
-      )}
-      {act === 'tv' && <circle className="home-tvglow" cx="0" cy="40" r="34" />}
-      <text className="home-act-icon" textAnchor="middle">
-        {icon[act]}
-      </text>
     </g>
   );
 }
