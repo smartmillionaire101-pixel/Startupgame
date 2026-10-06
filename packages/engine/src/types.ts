@@ -165,6 +165,10 @@ export interface Player {
   car?: PlayerCar;
   /** Wave 6: venue buys this month (seeds the "who you meet" roll). Missing = none. */
   venueBuys?: { month: number; count: number };
+  /** Wave 7: needs, 0–100 each. New players start at 80; missing on old saves = 70. */
+  needs?: { hunger: number; hygiene: number; fun: number; social: number };
+  /** Wave 7: home acts (and 'invite') used per home month. Missing = none. */
+  homeActs?: Record<string, { month: number; n: number }>;
 }
 
 export type Gender = 'female' | 'male';

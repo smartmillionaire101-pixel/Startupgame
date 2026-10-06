@@ -6,6 +6,7 @@ import { peopleHere } from '../src/people.js';
 import { ACCELERATORS, DEV_PARTNERS, LPS } from '../src/data/programs.js';
 import type { Command } from '../src/commands.js';
 import { CAR_MODEL_IDS, FURNITURE } from '../src/data/lifestyle-shop.js';
+import { HOME_ACT_IDS } from '../src/needs.js';
 import {
   addFounder,
   addInvestor,
@@ -194,9 +195,29 @@ describe('world invariants under random play', () => {
       fc.record({ k: fc.constant('join' as const), london: fc.boolean() }),
     );
 
+    // Wave 7: life at home (acts with groceries, having people over) and food delivery.
+    const home = fc.oneof(
+      fc.record({
+        k: fc.constant('homeAct' as const),
+        act: fc.constantFrom(...HOME_ACT_IDS),
+        investor: fc.boolean(),
+      }),
+      fc.record({
+        k: fc.constant('invite' as const),
+        who: fc.constantFrom('player', 'fund', 'npc', 'contact', 'away'),
+        investor: fc.boolean(),
+      }),
+      fc.record({
+        k: fc.constant('order' as const),
+        pick: fc.nat(40),
+        item: fc.nat(4),
+        investor: fc.boolean(),
+      }),
+    );
+
     fc.assert(
       fc.property(
-        fc.array(fc.oneof(action, life, alive), { minLength: 1, maxLength: 25 }),
+        fc.array(fc.oneof(action, life, alive, home), { minLength: 1, maxLength: 25 }),
         (actions) => {
           let w = base;
           let day = 0;
@@ -503,6 +524,37 @@ describe('world invariants under random play', () => {
                 };
                 break;
               }
+              case 'homeAct':
+                actor = a.investor ? 'u_inv' : 'u_founder';
+                cmd = { type: 'home.act', act: a.act };
+                break;
+              case 'invite': {
+                actor = a.investor ? 'u_inv' : 'u_founder';
+                const me = w.players[actor]!;
+                const fund = Object.values(w.funds).find((f) => f.market === 'lagos');
+                const personId =
+                  a.who === 'player'
+                    ? actor === 'u_inv'
+                      ? 'u_founder'
+                      : 'u_inv'
+                    : a.who === 'fund'
+                      ? `fund:${fund?.id ?? 'none'}`
+                      : a.who === 'npc'
+                        ? 'npc:lagos:2'
+                        : a.who === 'away'
+                          ? 'npc:london:2'
+                          : (me.contacts?.[0]?.refId ?? 'npc:lagos:5');
+                cmd = { type: 'home.invite', personId };
+                break;
+              }
+              case 'order': {
+                actor = a.investor ? 'u_inv' : 'u_founder';
+                const list = bizHere(actor);
+                const biz = list[a.pick % list.length]!;
+                const items = ['lunch', 'plate', 'coffee', 'drink', 'pool'];
+                cmd = { type: 'food.order', businessId: biz.id, itemId: items[a.item]! };
+                break;
+              }
               case 'accel': {
                 const list = ACCELERATORS[a.london ? 'london' : 'lagos'];
                 cmd = {
@@ -575,6 +627,9 @@ describe('world invariants under random play', () => {
           if (negativeInternalAccounts(w).length) throw new Error('overdrawn account');
           for (const p of Object.values(w.players))
             if (p.stars.value < 0 || p.stars.value > 5) throw new Error('stars out of range');
+          for (const p of Object.values(w.players))
+            for (const v of Object.values(p.needs ?? {}))
+              if (v < 0 || v > 100) throw new Error('need out of range');
           return true;
         },
       ),

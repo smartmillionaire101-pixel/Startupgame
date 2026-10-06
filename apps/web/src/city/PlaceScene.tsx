@@ -57,6 +57,7 @@ import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
 import type { PersonRef } from './PersonCard';
 import { RoomBack, RoomFront } from './RoomArt';
 import { WhoIsHere } from './WhoIsHere';
+import { HomeScene } from '../home/HomeScene';
 import {
   ENTRANCE,
   FUN_ROOMS,
@@ -514,7 +515,14 @@ export interface SceneProps {
   children: ReactNode;
 }
 
-export function PlaceScene({
+export function PlaceScene(props: SceneProps) {
+  // Wave 7 §A: your flat is a walkable top-down home.
+  if (roomOf(props.place, { abroad: props.abroad }) === 'apartment')
+    return <HomeScene {...props} />;
+  return <RoomScene {...props} />;
+}
+
+function RoomScene({
   place,
   title,
   onClose,

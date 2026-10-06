@@ -12,6 +12,7 @@ import { applyStarEvent } from './stars.js';
 import { settlePersonalLoans } from './credit.js';
 import { ECONOMY, JOB_HOURS, payJob } from './economy.js';
 import { comfortEnergy, settleCar } from './shop.js';
+import { decayNeeds, moodHoursFactor } from './needs.js';
 import type { MarketState, Player, World } from './types.js';
 
 /** The agency gig's pay, local minor units (Wave 6: about 30% more). */
@@ -34,7 +35,8 @@ export function computeHours(p: Player): number {
   const bg = backgroundById(p.backgroundId);
   const base = BASE_HOURS + (bg?.hoursBonus ?? 0) + tierOf(p).hours;
   const energyFactor = 0.6 + (0.4 * p.energy) / 100;
-  return Math.round(base * energyFactor * (p.burnout ? 0.7 : 1));
+  // Wave 7: a low mood costs hours, a good one adds a few.
+  return Math.round(base * energyFactor * (p.burnout ? 0.7 : 1) * moodHoursFactor(p));
 }
 
 /**
@@ -87,6 +89,8 @@ export function settlePerson(world: World, p: Player, month: number) {
       kind: 'warning',
       text: 'You’re burning out. Fewer hours and worse decisions until you rest.',
     });
+  // Wave 7: needs fall each month (mood then shapes next month's hours).
+  decayNeeds(world, p, month);
   p.hours = { available: computeHours(p), used: 0 };
   // A job takes its hours at the start of every month (Wave 5).
   if (p.job) p.hours.used = Math.min(p.hours.available, JOB_HOURS);

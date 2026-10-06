@@ -367,6 +367,32 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   /** Sell your car back at 50% of what you paid. */
   z.object({ type: z.literal('car.sell') }),
+  // ---- Life at home (Wave 7)
+  /** Something to do at home: each act has a monthly cap; cook and snack cost a little. */
+  z.object({
+    type: z.literal('home.act'),
+    act: z.enum([
+      'sleep',
+      'nap',
+      'shower',
+      'toilet',
+      'cook',
+      'snack',
+      'tv',
+      'game',
+      'read',
+      'work',
+      'workout',
+    ]),
+  }),
+  /** Have someone over: a contact chat id, a player id, or a `fund:`/`biz:`/`npc:` id in your city. */
+  z.object({ type: z.literal('home.invite'), personId: z.string().min(1).max(100) }),
+  /** Food delivered from a food business in the city you're in (price + 15% delivery). */
+  z.object({
+    type: z.literal('food.order'),
+    businessId: id,
+    itemId: z.string().min(1).max(32),
+  }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
   // ---- Who's here (Wave 6)
   /**
