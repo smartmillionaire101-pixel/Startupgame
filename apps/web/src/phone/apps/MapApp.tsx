@@ -3,7 +3,7 @@
  * layout as the City (blocks by district, water, every place as a dot).
  * Tap a place, then Go: the City takes you there.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button } from '../../ui';
@@ -42,6 +42,9 @@ const categoryLabel = (c: BusinessCategory) =>
     hospitality: t('Hotels'),
   })[c];
 
+/** Only the landmarks carry a label (and whatever you tapped), so names never pile up. */
+const LABELLED = new Set<Place['kind']>(['airport', 'hub', 'eventhall', 'home']);
+
 const pts = (xs: { x: number; y: number }[]) => xs.map((p) => `${p.x},${p.y}`).join(' ');
 const diamond = (x: number, y: number, w: number, d: number) =>
   pts([project(x, y), project(x + w, y), project(x + w, y + d), project(x, y + d)]);
@@ -61,8 +64,8 @@ export function MapApp({ ctx }: { ctx: PhoneCtx }) {
   const drawn = useMemo(() => {
     if (!layout) return null;
     const E = layout.extent;
-    const lo = -MARGIN / 2;
-    const hi = E + MARGIN / 2;
+    const lo = -MARGIN / 6;
+    const hi = E + MARGIN / 6;
     const clamp = (v: number) => Math.max(lo, Math.min(hi, v));
     const corners = [project(lo, lo), project(hi, lo), project(hi, hi), project(lo, hi)];
     const minX = Math.min(...corners.map((c) => c.x));
@@ -101,8 +104,29 @@ export function MapApp({ ctx }: { ctx: PhoneCtx }) {
     (cat === 'key' ? p.kind !== 'business' && p.kind !== 'stall' : p.category === cat);
   const places = layout.places.filter((p) => !p.soon);
   const key = (p: Place) => p.kind !== 'business' && p.kind !== 'stall';
-  const font = drawn.width / 34;
+  const font = drawn.width / 30;
   const go = (p: Place) => ctx.goPlace(p.id);
+  const shownPlaces = places.filter(visible).sort((a, b) => Number(key(a)) - Number(key(b)));
+  /** A tap picks the nearest place (within a thumb's reach), so small dots are easy to hit. */
+  const tap = (e: MouseEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const m = svg.getScreenCTM?.();
+    if (!m) return;
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    const reach = 26 / m.a;
+    let best: Place | null = null;
+    let bestD = Infinity;
+    for (const p of shownPlaces) {
+      const c = project(p.x + p.w / 2, p.y + p.d / 2);
+      // Key places win ties: they're what people aim at.
+      const d = Math.hypot(c.x - pt.x, c.y - pt.y) * (key(p) ? 0.8 : 1);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    if (best && bestD <= reach) setSel(best);
+  };
 
   return (
     <div className="phone-stack phone-map-app">
@@ -126,8 +150,9 @@ export function MapApp({ ctx }: { ctx: PhoneCtx }) {
             className="phone-map"
             viewBox={drawn.viewBox}
             style={{ width: `${zoom * 100}%` }}
-            role="img"
+            role="group"
             aria-label={t('Map of {city}', { city: cityViewOf(view).market.name })}
+            onClick={tap}
           >
             <polygon points={drawn.land} className="phone-map-land" />
             {drawn.waters.map((w) => (
@@ -136,36 +161,37 @@ export function MapApp({ ctx }: { ctx: PhoneCtx }) {
             {drawn.blocks.map((b) => (
               <polygon key={b.key} points={b.points} fill={b.fill} className="phone-map-block" />
             ))}
-            {places.filter(visible).map((p) => {
-              const c = project(p.x + p.w / 2, p.y + p.d / 2);
-              const big = key(p);
-              const r = (big ? 1.25 : 0.8) * font * 0.5;
-              return (
-                <g
-                  key={p.id}
-                  className={`phone-map-place${sel?.id === p.id ? ' on' : ''}`}
-                  data-place={p.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={placeName(p, view)}
-                  onClick={() => setSel(p)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setSel(p);
-                    }
-                  }}
-                >
-                  <circle cx={c.x} cy={c.y} r={r * 2.4} fill="transparent" />
-                  <circle cx={c.x} cy={c.y} r={r} fill={placeColor(p)} />
-                  {big && (
-                    <text x={c.x} y={c.y - r * 1.6} fontSize={font} textAnchor="middle">
-                      {placeName(p, view)}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
+            {[...shownPlaces]
+              .sort((a, b) => Number(a.id === sel?.id) - Number(b.id === sel?.id))
+              .map((p) => {
+                const c = project(p.x + p.w / 2, p.y + p.d / 2);
+                const big = key(p);
+                const r = (big ? 1 : 0.7) * font * 0.5;
+                const label = LABELLED.has(p.kind) || sel?.id === p.id;
+                return (
+                  <g
+                    key={p.id}
+                    className={`phone-map-place${sel?.id === p.id ? ' on' : ''}`}
+                    data-place={p.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={placeName(p, view)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSel(p);
+                      }
+                    }}
+                  >
+                    <circle cx={c.x} cy={c.y} r={r} fill={placeColor(p)} />
+                    {label && (
+                      <text x={c.x} y={c.y - r * 1.6} fontSize={font} textAnchor="middle">
+                        {placeName(p, view)}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
           </svg>
         </div>
         <div className="phone-map-zoom">

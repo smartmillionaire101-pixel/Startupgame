@@ -878,7 +878,7 @@ body:has(.app-city) .phone-fab {
 
 /* Invest */
 .phone-ticker {
-  margin: 0 -0.85rem;
+  margin: -0.8rem -0.85rem 0;
   overflow-x: auto;
   background: #0b1220;
   color: #e2e8f0;
@@ -944,7 +944,7 @@ body:has(.app-city) .phone-fab {
 }
 
 /* Map */
-.phone-map-filter {
+.phone-map-filter.chips {
   flex-wrap: nowrap;
   overflow-x: auto;
   padding-bottom: 0.15rem;
@@ -986,10 +986,10 @@ body:has(.app-city) .phone-fab {
   stroke: #fff;
   stroke-width: 1.2;
 }
-.phone-map-place {
+.phone-map {
   cursor: pointer;
 }
-.phone-map-place circle + circle {
+.phone-map-place circle {
   stroke: #fff;
   stroke-width: 2;
 }
@@ -1002,14 +1002,14 @@ body:has(.app-city) .phone-fab {
   stroke-linejoin: round;
   pointer-events: none;
 }
-.phone-map-place.on circle + circle {
+.phone-map-place.on circle {
   stroke: #0f172a;
   stroke-width: 5;
 }
 .phone-map-place:focus-visible {
   outline: none;
 }
-.phone-map-place:focus-visible circle + circle {
+.phone-map-place:focus-visible circle {
   stroke: var(--accent);
   stroke-width: 5;
 }
