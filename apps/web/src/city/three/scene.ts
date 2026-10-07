@@ -974,11 +974,12 @@ export class CityScene {
       let d = Math.PI - av.heading - this.rig.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       this.rig.yaw += d * ease;
-      this.rig.pitch += (0.36 - this.rig.pitch) * ease;
-      this.want.dist = 70;
+      this.rig.pitch += (0.42 - this.rig.pitch) * ease;
+      this.want.dist = 48;
       if (this.following) {
-        this.want.x = av.x + Math.sin(av.heading) * 22;
-        this.want.y = av.y + Math.cos(av.heading) * 22;
+        // Locked on (a fast car would outrun a lagging camera).
+        this.want.x = this.rig.x = av.x + Math.sin(av.heading) * 12;
+        this.want.y = this.rig.y = av.y + Math.cos(av.heading) * 12;
       }
       this.dirty = true;
     }

@@ -143,11 +143,21 @@ const LAMP = ['#ffb35c', '#ffbf6e', '#ffd49a', '#ffe2b8', '#ffe9c9', '#fff0d8'];
 export function streetLamps(roads: RoadIndex, max = 40000): LightList {
   const out = new LightList();
   let n = 0;
+  const stepOf = (c: number) => (c <= 1 ? 34 : c <= 3 ? 30 : c === 4 ? 36 : 44);
+  // Over budget: the side streets thin out evenly (the main roads keep every lamp).
+  let main = 0;
+  let side = 0;
+  for (const s of roads.segs) {
+    const k = Math.hypot(s.bx - s.ax, s.by - s.ay) / stepOf(s.c);
+    if (s.c <= 2) main += 2 * k;
+    else side += k;
+  }
+  const keep = Math.max(0.05, Math.min(1, (max - main) / Math.max(1, side)));
   for (const s of roads.segs) {
     const L = Math.hypot(s.bx - s.ax, s.by - s.ay);
     if (L < 1) continue;
     const half = [12, 10, 8.5, 7.5, 6.5, 5][s.c] ?? 5;
-    const step = s.c <= 1 ? 34 : s.c <= 3 ? 30 : s.c === 4 ? 36 : 44;
+    const step = stepOf(s.c);
     const both = s.c <= 2;
     const nx = -(s.by - s.ay) / L;
     const ny = (s.bx - s.ax) / L;
@@ -162,10 +172,11 @@ export function streetLamps(roads: RoadIndex, max = 40000): LightList {
         out.add(x - nx * half, h, y - ny * half, LAMP[s.c]!, size);
       } else {
         const sg = (n++ & 1) * 2 - 1;
+        if (keep < 1 && hash01(x, y) > keep) continue;
         out.add(x + nx * half * sg, h, y + ny * half * sg, LAMP[s.c]!, size);
       }
     }
-    if (out.length > max) break;
+    if (out.length > max * 1.2) break;
   }
   return out;
 }

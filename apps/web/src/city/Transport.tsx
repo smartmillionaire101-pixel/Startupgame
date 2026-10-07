@@ -179,9 +179,8 @@ export function RideChooser({
                 <RideIcon mode={mode} />
               </span>
               <span className="ride-name">
-                {mode === 'drive' && car
-                  ? t('Drive your {car}', { car: car.label })
-                  : rideLabel(mode, marketId)}
+                {rideLabel(mode, marketId)}
+                {mode === 'drive' && car && <span className="ride-car"> · {car.label}</span>}
               </span>
               <span className="ride-meta">
                 {mode === 'drive'

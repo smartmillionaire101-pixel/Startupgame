@@ -118,6 +118,8 @@ export interface RideHandle {
 
 /** Scene length: scaled by distance, 5–12 s (walking 5–8 s). */
 export function sceneMs(mode: RideMode, tiles: number): number {
+  // Your own car on the map: about 60 m a second (tiles are ~50 m), 7–18 s.
+  if (mode === 'drive') return Math.round(Math.min(18000, Math.max(7000, tiles * 830)));
   const per = { walk: 70, cycle: 60, bus: 95, taxi: 80, drive: 90 }[mode];
   const max = mode === 'walk' ? 8000 : 12000;
   return Math.round(Math.min(max, Math.max(5000, 3800 + tiles * per)));
