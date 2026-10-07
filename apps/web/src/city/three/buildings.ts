@@ -11,9 +11,20 @@
  *   tall ones are made city-wide once, so the skyline shows from anywhere.
  */
 import * as THREE from 'three';
-import type { GeoData } from '../geo';
 import type { CityLook } from './cities';
-import { COVER, type GroundMask } from './mask';
+import {
+  boxesMeet,
+  convexOverlap,
+  dedupeFootprints,
+  makeFp,
+  polyBox,
+  rectPoly,
+  segRectDist,
+  type BBox,
+  type FootprintGrid,
+  type Fp,
+} from './footprints';
+import { COVER, ROAD_HALF, type GroundMask } from './mask';
 import { rgbBytes, type SharedUniforms, facadeMaterial } from './materials';
 import type { RoadIndex } from './roads';
 
@@ -441,17 +452,43 @@ function units(out: BoxB[], b: BoxB) {
 }
 
 // ---------------------------------------------------------------------------
-// OpenStreetMap outlines (the city file's core)
+// Real outlines: the city file's core (OpenStreetMap) and full-density tiles.
 
+/** A real building as the sources give it. */
+export interface RealBuilding {
+  p: ArrayLike<number>;
+  /** Storeys. */
+  h?: number;
+  /** Height in metres (wins over storeys). */
+  hm?: number;
+  /** Bottom in metres (a raised part). */
+  base?: number;
+}
+
+export interface RealOptions {
+  /** Ground kept clear (the game's places, landmarks): outlines meeting it are not drawn. */
+  blocked?: FootprintGrid;
+  /** Footprints already standing (neighbouring tiles): no new one may share their space. */
+  grid?: FootprintGrid;
+}
+
+/**
+ * Real outlines → extrusions. Every outline is cleaned, kept off the game's
+ * ground and thinned so no two share space (footprints.ts): the smaller of
+ * two overlapping ones goes, a tower inside its podium is stacked on it.
+ */
 export function osmFootprints(
-  data: GeoData,
+  data: { buildings?: RealBuilding[] },
   look: CityLook,
   clear: { e: number; s: number; r: number }[],
   marketId: string,
-): { polys: Footprint[]; boxes: BoxB[] } {
+  opts: RealOptions = {},
+): { polys: Footprint[]; boxes: BoxB[]; fps: Fp[] } {
   const polys: Footprint[] = [];
   const boxes: BoxB[] = [];
   const brick = BRICK_SHARE[marketId] ?? 0.05;
+  // First the outlines and their heights; then which of them stand.
+  const cands: Fp[] = [];
   (data.buildings ?? []).forEach((b, i) => {
     const p = cleanOutline(b.p);
     if (!p) return;
@@ -466,7 +503,23 @@ export function osmFootprints(
         : area < 500
           ? Math.round(lerp(look.floors.res[0], look.floors.res[1] + 1, r))
           : Math.round(lerp(look.floors.res[1], look.floors.urban[1], r)));
-    const H = Math.max(3, levels * 3.25 + 0.8);
+    const base = Math.max(0, b.base ?? 0);
+    const H = Math.max(base + 3, b.hm && b.hm > 0 ? b.hm : levels * 3.25 + 0.8);
+    const f = makeFp(p, base, H, { r, levels, c, area });
+    if (opts.blocked?.overlapsPlan(f, 0.5)) return;
+    cands.push(f);
+  });
+  const { kept } = dedupeFootprints(cands, opts.grid);
+  for (const f of kept) {
+    const p = f.p as number[];
+    const { r, levels, c, area } = f.tag as {
+      r: number;
+      levels: number;
+      c: Centroid;
+      area: number;
+    };
+    const H = f.top;
+    const B = f.base;
     const style =
       H >= 60
         ? pick([3, 3, 4, 2, 3], r)
@@ -478,11 +531,11 @@ export function osmFootprints(
               ? 6
               : 0;
     const { wall, roof } = paint(look, style, (r * 17.3) % 1, false);
-    const base: Footprint = { p, base: 0, top: H, vOff: 0, style, wall, roof, seed: r };
-    if (H >= 70 && area < 6000) {
+    const base: Footprint = { p, base: B, top: H, vOff: B, style, wall, roof, seed: r };
+    if (H - B >= 70 && area < 6000) {
       // Setbacks: the shaft narrows twice; a crown on top.
-      const t1 = H * lerp(0.55, 0.7, r);
-      const t2 = H * lerp(0.8, 0.9, (r * 3.1) % 1);
+      const t1 = B + (H - B) * lerp(0.55, 0.7, r);
+      const t2 = B + (H - B) * lerp(0.8, 0.9, (r * 3.1) % 1);
       const k1 = lerp(0.8, 0.9, (r * 5.7) % 1);
       const k2 = k1 * 0.82;
       polys.push({ ...base, top: t1 });
@@ -539,9 +592,11 @@ export function osmFootprints(
           });
       }
     }
-  });
-  return { polys, boxes };
+  }
+  return { polys, boxes, fps: kept };
 }
+
+type Centroid = { x: number; y: number };
 
 // ---------------------------------------------------------------------------
 // Infill: the rest of the city, lot by lot.
@@ -555,10 +610,50 @@ export interface Centre {
 
 export const CHUNK = 600;
 const CELL = 150;
+/** Clear space kept between two generated lots, and to a real building (metres). */
+export const LOT_GAP = 1.2;
+export const REAL_GAP = 1.5;
+/** Beyond the road ribbon (its class's half-width, pavements included). */
+export const ROAD_SETBACK = 1.5;
 
 type Zone = 0 | 1 | 2;
 
+/** A lot that could stand: its boxes, its footprint, and who wins a clash. */
+interface Cand {
+  boxes: BoxB[];
+  main: BoxB;
+  /** Footprint grown by half the gap (two that don't overlap keep LOT_GAP apart). */
+  poly: number[];
+  box: BBox;
+  pri: number;
+  /** A row of lots along a block face (for the far rows), and its place in it. */
+  run: string;
+  k: number;
+  lw: number;
+  gap: number;
+  /** Lot depth and the street's line. */
+  fd: number;
+  th: number;
+  low: boolean;
+}
+
+/** The plan footprint of a generated box (a house's eaves overhang its walls). */
+export function lotPoly(b: BoxB, grow = 0): number[] {
+  const k = b.roofType === 1 ? 1.12 : 1;
+  return rectPoly(b.x, b.y, b.w * k + 2 * grow, b.d * k + 2 * grow, b.rot);
+}
+
+export interface LotLimits {
+  /** Real buildings standing (the city file's outlines). */
+  real?: FootprintGrid;
+  /** Ground kept clear: the game's places and the landmarks. */
+  blocked?: FootprintGrid;
+}
+
 export class LotMaker {
+  private cells = new Map<string, Cand[]>();
+  private tiles: { keys: Set<string>; size: number } | null = null;
+
   constructor(
     private mask: GroundMask,
     private roads: RoadIndex,
@@ -566,7 +661,17 @@ export class LotMaker {
     private centres: Centre[],
     private marketId: string,
     private bounds: [number, number, number, number],
+    private limits: LotLimits = {},
   ) {}
+
+  /**
+   * Full-density tiles stand here (tx_ty keys): no infill on them, or near
+   * enough that one of their buildings could reach across the edge.
+   */
+  setTiles(keys: Set<string>, size: number) {
+    this.tiles = { keys, size };
+    this.cells.clear();
+  }
 
   /** Built-up land beyond the mapped streets, strongest near the centre. */
   sprawlAt(x: number, y: number) {
@@ -592,119 +697,221 @@ export class LotMaker {
     return { zone: I > 0.62 ? 2 : I > 0.32 ? 1 : 0, I };
   }
 
-  /** Lots in one chunk: low ones and tall ones (≥ 24 m). */
+  /** Lots in one chunk: low ones and tall ones (≥ 24 m), none touching another. */
   chunk(ci: number, cj: number, merge = 4): { low: BoxB[]; tall: BoxB[]; far: BoxB[] } {
     const low: BoxB[] = [];
     const tall: BoxB[] = [];
     /** Far away: runs of `merge` neighbouring low lots as one box (one row of a block). */
     const far: BoxB[] = [];
-    let run: BoxB[] = [];
-    const flush = (lw: number, gap: number) => {
-      for (let i = 0; i < run.length; i += merge) {
-        const g = run.slice(i, i + merge);
-        const a = g[0]!;
-        let x = 0;
-        let y = 0;
-        let h = 0;
-        for (const b of g) {
-          x += b.x;
-          y += b.y;
-          h += b.h;
+    const per = CHUNK / CELL;
+    const runs = new Map<string, Cand[]>();
+    for (let a = 0; a < per; a++)
+      for (let b = 0; b < per; b++) {
+        const ix = ci * per + a;
+        const iy = cj * per + b;
+        for (const c of this.survivors(ix, iy)) {
+          for (const box of c.boxes) (c.low ? low : tall).push(box);
+          if (c.low) {
+            let r = runs.get(c.run);
+            if (!r) runs.set(c.run, (r = []));
+            r.push(c);
+          }
         }
-        far.push({
-          ...a,
-          x: x / g.length,
-          y: y / g.length,
-          w: lw * g.length - gap,
-          d: a.d,
-          h: h / g.length,
-          rot: runRot,
-        });
       }
-      run = [];
-    };
-    let runRot = 0;
+    for (const run of runs.values()) {
+      run.sort((p, q) => p.k - q.k);
+      let seq: Cand[] = [];
+      const flush = () => {
+        for (let i = 0; i < seq.length; i += merge) {
+          const g = seq.slice(i, i + merge);
+          const a = g[0]!;
+          let x = 0;
+          let y = 0;
+          let h = 0;
+          for (const c of g) {
+            x += c.main.x;
+            y += c.main.y;
+            h += c.main.h;
+          }
+          far.push({
+            ...a.main,
+            x: x / g.length,
+            y: y / g.length,
+            w: a.lw * g.length - a.gap,
+            d: a.fd,
+            h: h / g.length,
+            rot: a.th,
+            roofType: 0,
+          });
+        }
+        seq = [];
+      };
+      for (const c of run) {
+        const prev = seq[seq.length - 1];
+        if (prev && c.k !== prev.k + 1) flush();
+        seq.push(c);
+      }
+      flush();
+    }
+    return { low, tall, far };
+  }
+
+  /** A cell's lots that no better lot (here or next door) clashes with. */
+  private survivors(ix: number, iy: number): Cand[] {
+    const mine = this.cands(ix, iy);
+    if (!mine.length) return mine;
+    const near: Cand[] = [];
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++) near.push(...this.cands(ix + dx, iy + dy));
+    return mine.filter(
+      (c) =>
+        !near.some(
+          (o) =>
+            o !== c &&
+            (o.pri > c.pri ||
+              (o.pri === c.pri && o.main.x + o.main.y * 1e-3 > c.main.x + c.main.y * 1e-3)) &&
+            boxesMeet(o.box, c.box) &&
+            convexOverlap(o.poly, c.poly),
+        ),
+    );
+  }
+
+  /** Every lot a cell could hold, before clashes with its neighbours are settled (cached). */
+  private cands(ix: number, iy: number): Cand[] {
+    const key = `${ix},${iy}`;
+    const hit = this.cells.get(key);
+    if (hit) return hit;
+    const out: Cand[] = [];
+    this.cellLots(ix, iy, out);
+    if (this.cells.size > 6000) this.cells.clear();
+    this.cells.set(key, out);
+    return out;
+  }
+
+  private cellLots(ix: number, iy: number, out: Cand[]) {
     const L = this.look;
     const mask = this.mask;
     const brick = BRICK_SHARE[this.marketId] ?? 0.05;
-    const per = CHUNK / CELL;
-    for (let a = 0; a < per; a++)
-      for (let b = 0; b < per; b++) {
-        const x0 = ci * CHUNK + a * CELL;
-        const y0 = cj * CHUNK + b * CELL;
-        const cx = x0 + CELL / 2;
-        const cy = y0 + CELL / 2;
-        const u0 = mask.urbanAt(cx, cy) + this.sprawlAt(cx, cy);
-        if (u0 < 0.07) continue;
-        const cov = mask.coverAt(cx, cy);
-        if (cov === COVER.water && mask.coverAt(x0, y0) === COVER.water) continue;
-        const road = this.roads.nearest(cx, cy, 300) ?? this.roads.nearest(cx, cy, 800);
-        if (!road) continue;
-        // The street grain, to the nearest 3°, folded into a quarter turn.
-        const q = Math.PI / 2;
-        let th = ((road.angle % q) + q) % q;
-        th = Math.round(th / (Math.PI / 60)) * (Math.PI / 60);
-        const { zone } = this.zoneAt(cx, cy);
-        const lotW =
-          zone === 2 ? 30 : zone === 1 ? lerp(L.lotW[1], 20, 0.5) : lerp(L.lotW[0], L.lotW[1], 0.5);
-        const lotD =
-          zone === 2 ? 32 : zone === 1 ? Math.max(L.lotD[0], 16) : lerp(L.lotD[0], L.lotD[1], 0.5);
-        const gap =
-          zone === 2 ? 5 : zone === 1 ? Math.max(0.5, L.gap[0]) : lerp(L.gap[0], L.gap[1], 0.5);
-        const street = zone === 2 ? 16 : 12;
-        const Pv = 2 * lotD + street;
-        const Pu = zone === 2 ? 100 : 120;
-        const c = Math.cos(th);
-        const s = Math.sin(th);
-        // The cell's corners in the street frame.
-        let umin = Infinity;
-        let umax = -Infinity;
-        let vmin = Infinity;
-        let vmax = -Infinity;
-        for (const [px, py] of [
-          [x0, y0],
-          [x0 + CELL, y0],
-          [x0, y0 + CELL],
-          [x0 + CELL, y0 + CELL],
-        ] as const) {
-          const u = px * c + py * s;
-          const v = -px * s + py * c;
-          umin = Math.min(umin, u);
-          umax = Math.max(umax, u);
-          vmin = Math.min(vmin, v);
-          vmax = Math.max(vmax, v);
-        }
-        const nPer = Math.max(1, Math.floor((Pu - street) / lotW));
-        const lw = (Pu - street) / nPer;
-        for (let bv = Math.floor(vmin / Pv); bv <= Math.ceil(vmax / Pv); bv++)
-          for (let side = 0; side < 2; side++) {
-            const vc = bv * Pv + street / 2 + lotD * (side + 0.5);
-            for (let bu = Math.floor(umin / Pu); bu <= Math.ceil(umax / Pu); bu++) {
-              runRot = th;
-              for (let k = 0; k < nPer; k++) {
-                const uc = bu * Pu + street / 2 + (k + 0.5) * lw;
-                const x = uc * c - vc * s;
-                const y = uc * s + vc * c;
-                if (x < x0 || x >= x0 + CELL || y < y0 || y >= y0 + CELL) {
-                  flush(lw, gap);
-                  continue;
-                }
-                const r = h3(Math.round(x * 4), Math.round(y * 4), 77);
-                const w = lw - gap;
-                const d = lotD * (zone === 0 ? 0.88 : 0.92);
-                if (r > (zone === 0 ? 0.95 : 0.97) || !this.free(x, y, w, d, c, s)) {
-                  flush(lw, gap);
-                  continue;
-                }
-                const b = this.lot(low, tall, { x, y, w, d, rot: th, zone, r, brick });
-                if (b && b.h < 24) run.push({ ...b, w, d, rot: th });
-                else flush(lw, gap);
-              }
-              flush(lw, gap);
-            }
+    const x0 = ix * CELL;
+    const y0 = iy * CELL;
+    const cx = x0 + CELL / 2;
+    const cy = y0 + CELL / 2;
+    const u0 = mask.urbanAt(cx, cy) + this.sprawlAt(cx, cy);
+    if (u0 < 0.07) return;
+    const cov = mask.coverAt(cx, cy);
+    if (cov === COVER.water && mask.coverAt(x0, y0) === COVER.water) return;
+    if (this.onTiles([x0, y0, x0 + CELL, y0 + CELL], -60)) return;
+    const road = this.roads.nearest(cx, cy, 300) ?? this.roads.nearest(cx, cy, 800);
+    if (!road) return;
+    // The street grain, to the nearest 3°, folded into a quarter turn.
+    const q = Math.PI / 2;
+    let th = ((road.angle % q) + q) % q;
+    th = Math.round(th / (Math.PI / 60)) * (Math.PI / 60);
+    const { zone } = this.zoneAt(cx, cy);
+    const lotW =
+      zone === 2 ? 30 : zone === 1 ? lerp(L.lotW[1], 20, 0.5) : lerp(L.lotW[0], L.lotW[1], 0.5);
+    const lotD =
+      zone === 2 ? 32 : zone === 1 ? Math.max(L.lotD[0], 16) : lerp(L.lotD[0], L.lotD[1], 0.5);
+    const gap = Math.max(
+      LOT_GAP,
+      zone === 2 ? 5 : zone === 1 ? Math.max(0.5, L.gap[0]) : lerp(L.gap[0], L.gap[1], 0.5),
+    );
+    const street = zone === 2 ? 16 : 12;
+    const Pv = 2 * lotD + street;
+    const Pu = zone === 2 ? 100 : 120;
+    const c = Math.cos(th);
+    const s = Math.sin(th);
+    // The cell's corners in the street frame.
+    let umin = Infinity;
+    let umax = -Infinity;
+    let vmin = Infinity;
+    let vmax = -Infinity;
+    for (const [px, py] of [
+      [x0, y0],
+      [x0 + CELL, y0],
+      [x0, y0 + CELL],
+      [x0 + CELL, y0 + CELL],
+    ] as const) {
+      const u = px * c + py * s;
+      const v = -px * s + py * c;
+      umin = Math.min(umin, u);
+      umax = Math.max(umax, u);
+      vmin = Math.min(vmin, v);
+      vmax = Math.max(vmax, v);
+    }
+    const nPer = Math.max(1, Math.floor((Pu - street) / lotW));
+    const lw = (Pu - street) / nPer;
+    for (let bv = Math.floor(vmin / Pv); bv <= Math.ceil(vmax / Pv); bv++)
+      for (let side = 0; side < 2; side++) {
+        const vc = bv * Pv + street / 2 + lotD * (side + 0.5);
+        for (let bu = Math.floor(umin / Pu); bu <= Math.ceil(umax / Pu); bu++) {
+          const run = `${ix},${iy},${bv},${side},${bu}`;
+          for (let k = 0; k < nPer; k++) {
+            const uc = bu * Pu + street / 2 + (k + 0.5) * lw;
+            const x = uc * c - vc * s;
+            const y = uc * s + vc * c;
+            if (x < x0 || x >= x0 + CELL || y < y0 || y >= y0 + CELL) continue;
+            const r = h3(Math.round(x * 4), Math.round(y * 4), 77);
+            const w = lw - gap;
+            const d = lotD * (zone === 0 ? 0.88 : 0.92);
+            if (r > (zone === 0 ? 0.95 : 0.97) || !this.free(x, y, w, d, c, s)) continue;
+            const lot = this.lot({ x, y, w, d, rot: th, zone, r, brick });
+            if (!this.clear(lot.main)) continue;
+            const poly = lotPoly(lot.main, LOT_GAP / 2);
+            out.push({
+              boxes: lot.boxes,
+              main: lot.main,
+              poly,
+              box: polyBox(poly),
+              pri: (lot.main.h >= 24 ? 2 : 1) + r,
+              run,
+              k,
+              lw,
+              gap,
+              fd: d,
+              th,
+              low: lot.main.h < 24,
+            });
           }
+        }
       }
-    return { low, tall, far };
+  }
+
+  /** Whether a box (padded by `pad`, negative shrinks) meets a full-density tile. */
+  private onTiles(b: BBox, pad: number) {
+    const t = this.tiles;
+    if (!t || !t.keys.size) return false;
+    const s = t.size;
+    for (let ty = Math.floor((b[1] - pad) / s); ty <= Math.floor((b[3] + pad) / s); ty++)
+      for (let tx = Math.floor((b[0] - pad) / s); tx <= Math.floor((b[2] + pad) / s); tx++)
+        if (t.keys.has(`${tx}_${ty}`)) return true;
+    return false;
+  }
+
+  /**
+   * The lot's footprint is clear of everything real: the road ribbons (by
+   * class, plus a setback), real buildings, the game's places, landmarks and
+   * full-density tiles.
+   */
+  private clear(b: BoxB): boolean {
+    const k = b.roofType === 1 ? 1.12 : 1;
+    const w = b.w * k;
+    const d = b.d * k;
+    const reach = Math.hypot(w, d) / 2;
+    let ok = true;
+    this.roads.forNear(b.x, b.y, reach + ROAD_HALF[0]! + ROAD_SETBACK, (sg) => {
+      if (!ok) return;
+      const need = ROAD_HALF[sg.c]! + ROAD_SETBACK;
+      if (segRectDist(sg.ax, sg.ay, sg.bx, sg.by, b.x, b.y, w, d, b.rot) < need) ok = false;
+    });
+    if (!ok) return false;
+    const poly = rectPoly(b.x, b.y, w + 2 * REAL_GAP, d + 2 * REAL_GAP, b.rot);
+    const box = polyBox(poly);
+    if (this.onTiles(box, 50)) return false;
+    const f = makeFp(poly);
+    if (this.limits.real?.overlapsPlan(f)) return false;
+    if (this.limits.blocked?.overlapsPlan(f)) return false;
+    return true;
   }
 
   private free(x: number, y: number, w: number, d: number, c: number, s: number) {
@@ -724,20 +931,16 @@ export class LotMaker {
     return true;
   }
 
-  private lot(
-    low: BoxB[],
-    tall: BoxB[],
-    o: {
-      x: number;
-      y: number;
-      w: number;
-      d: number;
-      rot: number;
-      zone: Zone;
-      r: number;
-      brick: number;
-    },
-  ) {
+  private lot(o: {
+    x: number;
+    y: number;
+    w: number;
+    d: number;
+    rot: number;
+    zone: Zone;
+    r: number;
+    brick: number;
+  }): { main: BoxB; boxes: BoxB[] } {
     const L = this.look;
     const { r, zone } = o;
     const r2 = (r * 7.31) % 1;
@@ -791,11 +994,11 @@ export class LotMaker {
       if (d > w) b.rot += Math.PI / 2;
       if (d > w) [b.w, b.d] = [d, w];
     }
-    const into = h >= 24 ? tall : low;
-    if (h >= 70) towerBoxes(into, b, L, r);
-    else into.push(b);
-    if (!pitched) units(into, b);
-    return b;
+    const boxes: BoxB[] = [];
+    if (h >= 70) towerBoxes(boxes, b, L, r);
+    else boxes.push(b);
+    if (!pitched) units(boxes, b);
+    return { main: b, boxes };
   }
 }
 

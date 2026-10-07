@@ -24,11 +24,13 @@ import {
   mergedMesh,
   osmFootprints,
   h3,
+  centroid,
   type BoxB,
   type Centre,
   type Footprint,
 } from './buildings';
 import { buildGround, mixHex } from './ground';
+import { discPoly, FootprintGrid, makeFp, rectPoly } from './footprints';
 import { applySky, skyAt, skyDome, skyEnvironment, skyUniforms, type SkyState } from './sky';
 import { treeMeshes, treeSpots } from './trees';
 import { buildLandmarks, EXTRA_3D, type LandmarkPlan } from './landmarks';
@@ -57,6 +59,20 @@ export interface PlaceBox {
 }
 
 const PITCH_MIN = 0.3;
+/** Full-density tiles' size (metres): the city file's outlines are grouped the same way. */
+const TILE_M = 1000;
+
+/** Ground a landmark model covers (metres). */
+function landmarkRadius(kind: string) {
+  const r: Record<string, number> = {
+    'burj-al-arab': 75,
+    'london-eye': 70,
+    'burj-khalifa': 60,
+    kicc: 45,
+    dome: 50,
+  };
+  return r[kind] ?? 40;
+}
 const PITCH_MAX = 1.42;
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -105,6 +121,15 @@ export class CityScene {
   private chunks = new Map<string, { group: THREE.Group; ci: number; cj: number }>();
   private queue: [number, number][] = [];
   private tiles: TileSet | null = null;
+  /** Whether the tiles' index has answered (infill waits for it). */
+  private tilesKnown = false;
+  /** The city file's outlines, by 1 km tile (hidden while a full-density tile stands there). */
+  private fileTiles = new Map<string, THREE.Group>();
+  /** Real outlines standing from the city file. */
+  private realGrid = new FootprintGrid();
+  /** The game's places and the landmarks: nothing else stands there. */
+  readonly blocked = new FootprintGrid();
+  private clear: { e: number; s: number; r: number }[] = [];
   private raf = 0;
   private lastRender = 0;
   private dirty = true;
@@ -200,27 +225,45 @@ export class CityScene {
     // Ground cleared for landmarks and the game's places.
     const clear = [...this.geo.clear];
     for (const p of plans) if (p.e2 === undefined) clear.push({ e: p.e, s: p.s, r: 40 });
+    this.clear = clear;
 
     // No infill or trees where the game's places and the landmarks stand.
     for (const c of clear) this.mask.markBuilt(c.e, c.s, c.r + 8);
 
-    // OSM outlines, merged per chunk.
-    const osm = osmFootprints(data, this.look, clear, layout.marketId);
-    const byChunk = new Map<string, Footprint[]>();
-    for (const f of osm.polys) {
-      const k = `${Math.floor(f.p[0]! / 800)},${Math.floor(f.p[1]! / 800)}`;
-      let a = byChunk.get(k);
-      if (!a) byChunk.set(k, (a = []));
-      a.push(f);
-    }
-    for (const list of byChunk.values()) {
-      const m = mergedMesh(list, this.mergedMat);
-      if (m) this.scene.add(m);
-    }
-    for (const m of boxMeshes(osm.boxes, this.instMat)) this.scene.add(m);
-
     // The game's places: their own buildings, glowing softly.
     this.buildPlaces();
+    // Their plots and the landmarks' ground: no real outline or lot may stand there.
+    for (const b of this.places)
+      this.blocked.add(makeFp(rectPoly(b.x, b.y, b.w + 6, b.d + 6, b.rot)));
+    for (const p of plans)
+      if (p.e2 === undefined) this.blocked.add(makeFp(discPoly(p.e, p.s, landmarkRadius(p.kind))));
+
+    // OSM outlines, thinned (no two in one space), merged per 1 km tile: a
+    // full-density tile, when it stands, takes over its square.
+    const osm = osmFootprints(data, this.look, clear, layout.marketId, {
+      blocked: this.blocked,
+      grid: this.realGrid,
+    });
+    const byTile = new Map<string, { polys: Footprint[]; boxes: BoxB[] }>();
+    const slot = (x: number, y: number) => {
+      const k = `${Math.floor(x / TILE_M)}_${Math.floor(y / TILE_M)}`;
+      let a = byTile.get(k);
+      if (!a) byTile.set(k, (a = { polys: [], boxes: [] }));
+      return a;
+    };
+    for (const f of osm.polys) {
+      const c = centroid(f.p);
+      slot(c.x, c.y).polys.push(f);
+    }
+    for (const b of osm.boxes) slot(b.x, b.y).boxes.push(b);
+    for (const [k, list] of byTile) {
+      const g = new THREE.Group();
+      const m = mergedMesh(list.polys, this.mergedMat);
+      if (m) g.add(m);
+      for (const b of boxMeshes(list.boxes, this.instMat)) g.add(b);
+      this.fileTiles.set(k, g);
+      this.scene.add(g);
+    }
 
     // Infill: lots made around the camera; tall ones city-wide, in the background.
     const centres: Centre[] = [];
@@ -238,6 +281,7 @@ export class CityScene {
       centres,
       layout.marketId,
       data.bounds,
+      { real: this.realGrid, blocked: this.blocked },
     );
     this.scene.add(this.lowGroup, this.tallGroup);
 
@@ -267,12 +311,20 @@ export class CityScene {
     this.rig.y = this.want.y = start.s;
 
     this.stats.buildMs = Math.round(performance.now() - t0);
-    this.backgroundTall();
-    void loadTiles(layout.marketId).then((t) => {
-      if (this.disposed || !t) return;
-      this.tiles = t;
-      this.invalidate();
-    });
+    // Infill waits for the tiles' index: where real buildings stand, none is made.
+    void loadTiles(layout.marketId)
+      .catch(() => null)
+      .then((t) => {
+        if (this.disposed) return;
+        if (t) {
+          this.tiles = t;
+          this.lots.setTiles(t.keys, t.size);
+        }
+        this.tilesKnown = true;
+        this.lastChunkAt = { x: Infinity, y: Infinity, d: 0 };
+        this.backgroundTall();
+        this.invalidate();
+      });
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
     document.addEventListener('visibilitychange', this.onVis);
@@ -410,7 +462,6 @@ export class CityScene {
       const t = performance.now();
       while (i < list.length && performance.now() - t < 12) {
         const [ci, cj] = list[i++]!;
-        if (this.tiles) continue;
         const { tall, far } = this.lots.chunk(ci, cj, merge);
         const k = `${Math.floor((ci * CHUNK) / SUPER)},${Math.floor((cj * CHUNK) / SUPER)}`;
         if (tall.length) {
@@ -452,17 +503,20 @@ export class CityScene {
 
   /** Low-rise lots near the camera: made when they come near, dropped when far. */
   private updateChunks() {
-    if (this.tiles) {
-      this.tiles.update(
-        this.rig.x,
-        this.rig.y,
-        this.rig.dist,
-        this.scene,
-        this.mergedMat,
-        this.look,
-      );
-      return;
-    }
+    if (!this.tilesKnown) return;
+    this.tiles?.update(this.rig.x, this.rig.y, this.rig.dist, {
+      scene: this.scene,
+      mat: this.mergedMat,
+      inst: this.instMat,
+      look: this.look,
+      clear: this.clear,
+      blocked: this.blocked,
+      onShow: (k, shown) => {
+        const g = this.fileTiles.get(k);
+        if (g) g.visible = !shown;
+        this.invalidate();
+      },
+    });
     const R =
       (this.opts.tier === 'high' ? 1 : 0.7) * Math.min(2200, Math.max(900, this.rig.dist * 1.8));
     const show = this.rig.dist < 6000;

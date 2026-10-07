@@ -365,15 +365,18 @@ export const loadTrees = (city: string) => fetchBin(`${geoBase(city)}/trees.bin`
  * The 3D map's tile hook (city/three/tiles.ts) reads buildings as outlines
  * (flat x, y in local metres) with a height in metres.
  */
-export function decodeTile(buf: ArrayBuffer): { p: Float32Array; h: number; levels: number }[] {
+export function decodeTile(
+  buf: ArrayBuffer,
+): { p: Float32Array; h: number; levels: number; minHeight: number }[] {
   const t = decodeBuildingTile(buf);
-  const out: { p: Float32Array; h: number; levels: number }[] = [];
+  const out: { p: Float32Array; h: number; levels: number; minHeight: number }[] = [];
   for (let i = 0; i < t.length; i++) {
     const s = t.start[i]! * 2;
     out.push({
       p: t.xy.subarray(s, s + t.count[i]! * 2),
       h: t.height[i]!,
       levels: t.levels[i]!,
+      minHeight: t.minHeight[i]!,
     });
   }
   return out;
