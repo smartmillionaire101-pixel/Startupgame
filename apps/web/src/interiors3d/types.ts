@@ -59,6 +59,8 @@ export interface Home3DProps {
   dusk: boolean;
   car: string | null;
   buyMode: boolean;
+  /** The catalogue sheet covers the bottom of the screen. */
+  sheetOpen: boolean;
   ghost: Ghost | null;
   /** A slot being moved (drawn as the ghost instead). */
   moving: string | null;

@@ -30,7 +30,6 @@ export interface StageOpts {
   maxFps?: number;
 }
 
-
 export type Animator = (t: number, dt: number) => boolean | void;
 
 export class Stage {
@@ -130,6 +129,8 @@ export class Stage {
   fitCenter: THREE.Vector3 | null = null;
   /** Extra room around the fitted points (1 = none). */
   fitMargin = 1.08;
+  /** Fraction of the height the picture is moved up by. */
+  shiftY = 0;
 
   private fitSpan() {
     if (!this.fit?.length) return;
@@ -168,8 +169,9 @@ export class Stage {
     const c = this.camera;
     c.left = -hw;
     c.right = hw;
-    c.top = hh;
-    c.bottom = -hh;
+    // shiftY moves the picture up (a sheet covers the bottom of the screen).
+    c.top = hh - this.shiftY * 2 * hh;
+    c.bottom = -hh - this.shiftY * 2 * hh;
     const r = 60;
     const ce = Math.cos(this.elevation);
     c.position.set(

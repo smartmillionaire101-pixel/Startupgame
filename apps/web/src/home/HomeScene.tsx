@@ -1057,6 +1057,7 @@ export function HomeScene({
               dusk={dusk}
               car={car?.modelId ?? null}
               buyMode={sheet === 'buy' || !!placing}
+              sheetOpen={sheet === 'buy'}
               ghost={ghost}
               moving={placing?.slot ?? null}
               api={api3d}

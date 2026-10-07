@@ -409,6 +409,15 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       if (p) p.group.visible = true;
     };
   }, [buyMode, moving, objKey]);
+  // With the catalogue open, the house moves up above it, a little smaller.
+  const sheetOpen = props.sheetOpen;
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    stage.shiftY = sheetOpen ? 0.26 : moving ? 0.1 : 0;
+    stage.zoom = sheetOpen ? Math.min(stage.zoom, 0.82) : Math.max(stage.zoom, 1);
+    stage.updateCamera();
+  }, [sheetOpen, moving]);
 
   useEffect(() => {
     const stage = stageRef.current;
