@@ -136,10 +136,17 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
   if (opts.ring) {
     const ring = new THREE.Mesh(
       g.ring!,
-      new THREE.MeshBasicMaterial({ color: opts.ring, transparent: true, opacity: 0.85, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        color: opts.ring,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+        depthTest: false,
+      }),
     );
+    // Seen through buildings, so you never lose yourself.
     ring.position.y = 0.04;
-    ring.renderOrder = 2;
+    ring.renderOrder = 10;
     root.add(ring);
   }
   const pose = (walk: number, phase: number) => {

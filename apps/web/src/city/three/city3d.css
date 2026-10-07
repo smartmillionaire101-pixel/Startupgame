@@ -1,5 +1,7 @@
 /* Wave 9 §B: the 3D city map — the canvas, and HTML labels placed over it. */
 .city-map-3d {
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   background: #c9d7e3;
 }

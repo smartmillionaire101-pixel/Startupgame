@@ -27,13 +27,19 @@ export interface SharedUniforms {
   uNight: { value: number };
   uTime: { value: number };
   uSunDir: { value: THREE.Vector3 };
+  /** Detail ring: (x, z) of its centre and its radius; near lots inside, far rows outside. */
+  uDetail: { value: THREE.Vector3 };
 }
 
 export const makeShared = (): SharedUniforms => ({
   uNight: { value: 0 },
   uTime: { value: 0 },
   uSunDir: { value: new THREE.Vector3(0.4, 0.8, 0.3) },
+  uDetail: { value: new THREE.Vector3(0, 0, 0) },
 });
+
+/** Which side of the detail ring an instanced mesh draws. */
+export type Lod = 'all' | 'near' | 'far';
 
 const COMMON_FRAG = /* glsl */ `
 uniform float uNight;
@@ -74,10 +80,13 @@ const FACADE = /* glsl */ `
     else if (st == 5.0) { wa = vec2(0.2, 0.62); wb = vec2(0.8, 0.86); }
     else if (st == 6.0) { wa = vec2(0.3, 0.32); wb = vec2(0.7, 0.8); }
     else { wa = vec2(0.24, 0.27); wb = vec2(0.76, 0.82); }
-    float win = abox(f.x, wa.x, wb.x, fw.x) * abox(f.y, wa.y, wb.y, fw.y);
-    float cov = (wb.x - wa.x) * (wb.y - wa.y);
-    float farK = smoothstep(0.18, 0.55, max(fw.x, fw.y));
-    win = mix(win, cov, farK);
+    // Each axis fades to its average on its own: from afar the bays blur
+    // first and the floors still read as bands of windows.
+    vec2 farK2 = smoothstep(vec2(0.22), vec2(0.6), fw);
+    float wx = mix(abox(f.x, wa.x, wb.x, fw.x), wb.x - wa.x, farK2.x);
+    float wy = mix(abox(f.y, wa.y, wb.y, fw.y), wb.y - wa.y, farK2.y);
+    float win = wx * wy;
+    float farK = max(farK2.x, farK2.y);
     // Ground floor: shopfronts on everything but houses, sheds and towers of glass.
     float ground = (st < 2.5 || st == 4.0) && vFac.y < 4.6 && seed > 0.25 ? 1.0 : 0.0;
     if (ground > 0.5 && id.y < 0.5) {
@@ -105,9 +114,10 @@ const FACADE = /* glsl */ `
       fMetal = mix(0.3, 0.95, win);
     } else {
       float tint = bh21(id + seed * 31.0);
-      glass = mix(vec3(0.16, 0.2, 0.24), vec3(0.3, 0.36, 0.42), tint);
-      fRough = mix(0.88, 0.18, win);
-      fMetal = mix(0.0, 0.55, win);
+      // Window glass reads dark from the air: curtains, rooms, a little sky.
+      glass = mix(vec3(0.035, 0.045, 0.06), vec3(0.11, 0.13, 0.16), tint);
+      fRough = mix(0.88, 0.3, win);
+      fMetal = mix(0.0, 0.3, win);
     }
     base = mix(wall, glass, win);
     // Night: a share of the windows lit, warm or cool, by window.
@@ -145,16 +155,18 @@ const FACADE = /* glsl */ `
 `;
 
 /** Patch a standard material into the facade shader. */
-function patch(mat: THREE.MeshStandardMaterial, shared: SharedUniforms, instanced: boolean) {
+function patch(mat: THREE.MeshStandardMaterial, shared: SharedUniforms, instanced: boolean, lod: Lod) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uNight = shared.uNight;
     sh.uniforms.uTime = shared.uTime;
+    sh.uniforms.uDetail = shared.uDetail;
     const vHead = instanced
       ? /* glsl */ `
 attribute float aPart;
 attribute vec3 iColor;
 attribute vec3 iRoof;
 attribute vec3 iStyle;
+uniform vec3 uDetail;
 varying vec4 vFac;
 varying vec3 vBase;
 varying float vHl;
@@ -182,6 +194,12 @@ varying float vHl;
   vFac = vec4(u, v, st, iStyle.y);
   vBase = col;
   vHl = 0.0;
+  ${
+    lod === 'all'
+      ? ''
+      : `{ float dd = distance(instanceMatrix[3].xz, uDetail.xy);
+    if (${lod === 'near' ? 'dd >= uDetail.z' : 'dd < uDetail.z'}) transformed = vec3(0.0); }`
+  }
 `
       : /* glsl */ `
   vFac = aFac;
@@ -201,18 +219,18 @@ varying float vHl;
         '#include <emissivemap_fragment>\n  totalEmissiveRadiance += fEmis;',
       );
   };
-  mat.customProgramCacheKey = () => (instanced ? 'facade-i' : 'facade-m');
+  mat.customProgramCacheKey = () => (instanced ? `facade-i-${lod}` : 'facade-m');
 }
 
-export function facadeMaterial(shared: SharedUniforms, instanced: boolean) {
+export function facadeMaterial(shared: SharedUniforms, instanced: boolean, lod: Lod = 'all') {
   const mat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.9,
     metalness: 0,
     flatShading: true,
-    envMapIntensity: 1,
+    envMapIntensity: 1.6,
   });
-  patch(mat, shared, instanced);
+  patch(mat, shared, instanced, lod);
   return mat;
 }
 

@@ -34,8 +34,9 @@ export function skyAt(hour: number, lat: number, haze: number): SkyState {
   // Day arc: sunrise ~6, noon 12.5, sunset ~19.
   const dayT = (hour - 6.2) / 12.6; // 0..1 across the day
   const elev = Math.sin(Math.PI * Math.max(-0.25, Math.min(1.25, dayT)));
-  const maxElev = (90 - Math.abs(lat - 10)) * (Math.PI / 180);
-  const el = Math.asin(Math.max(-0.4, elev) * Math.sin(Math.min(maxElev, 1.35)));
+  // Kept below ~50°: a lower sun models the buildings and casts the long
+  // shadows of the photographs (the noon sun of the tropics would flatten them).
+  const el = Math.asin(Math.max(-0.4, elev) * Math.sin(0.86));
   // Azimuth: east (90°) at dawn, through the equator side at noon, west at dusk.
   const south = lat >= 0 ? 180 : 0;
   const az = ((90 + (south === 180 ? 1 : -1) * 180 * Math.max(0, Math.min(1, dayT))) * Math.PI) / 180;
@@ -67,10 +68,10 @@ export function skyAt(hour: number, lat: number, haze: number): SkyState {
   return {
     sunDir: lightDir,
     sunColor: night > 0.5 ? moon : sunColor,
-    sunIntensity: night > 0.5 ? 0.25 : 3.2 * day + 0.2,
+    sunIntensity: night > 0.5 ? 0.25 : 3.4 * day + 0.2,
     hemiSky: mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#2a3a63'), night),
     hemiGround: mixC(C('#8c8476'), C('#1a1d26'), night),
-    hemiIntensity: 0.55 + 0.75 * (1 - night),
+    hemiIntensity: 0.35 + 0.4 * (1 - night),
     zenith,
     horizon,
     night,

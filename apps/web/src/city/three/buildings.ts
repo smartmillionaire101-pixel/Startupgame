@@ -536,9 +536,37 @@ export class LotMaker {
   }
 
   /** Lots in one chunk: low ones and tall ones (≥ 24 m). */
-  chunk(ci: number, cj: number): { low: BoxB[]; tall: BoxB[] } {
+  chunk(ci: number, cj: number, merge = 4): { low: BoxB[]; tall: BoxB[]; far: BoxB[] } {
     const low: BoxB[] = [];
     const tall: BoxB[] = [];
+    /** Far away: runs of `merge` neighbouring low lots as one box (one row of a block). */
+    const far: BoxB[] = [];
+    let run: BoxB[] = [];
+    const flush = (lw: number, gap: number) => {
+      for (let i = 0; i < run.length; i += merge) {
+        const g = run.slice(i, i + merge);
+        const a = g[0]!;
+        let x = 0;
+        let y = 0;
+        let h = 0;
+        for (const b of g) {
+          x += b.x;
+          y += b.y;
+          h += b.h;
+        }
+        far.push({
+          ...a,
+          x: x / g.length,
+          y: y / g.length,
+          w: lw * g.length - gap,
+          d: a.d,
+          h: h / g.length,
+          rot: runRot,
+        });
+      }
+      run = [];
+    };
+    let runRot = 0;
     const L = this.look;
     const mask = this.mask;
     const brick = BRICK_SHARE[this.marketId] ?? 0.05;
@@ -592,22 +620,32 @@ export class LotMaker {
         for (let bv = Math.floor(vmin / Pv); bv <= Math.ceil(vmax / Pv); bv++)
           for (let side = 0; side < 2; side++) {
             const vc = bv * Pv + street / 2 + lotD * (side + 0.5);
-            for (let bu = Math.floor(umin / Pu); bu <= Math.ceil(umax / Pu); bu++)
+            for (let bu = Math.floor(umin / Pu); bu <= Math.ceil(umax / Pu); bu++) {
+              runRot = th;
               for (let k = 0; k < nPer; k++) {
                 const uc = bu * Pu + street / 2 + (k + 0.5) * lw;
                 const x = uc * c - vc * s;
                 const y = uc * s + vc * c;
-                if (x < x0 || x >= x0 + CELL || y < y0 || y >= y0 + CELL) continue;
+                if (x < x0 || x >= x0 + CELL || y < y0 || y >= y0 + CELL) {
+                  flush(lw, gap);
+                  continue;
+                }
                 const r = h3(Math.round(x * 4), Math.round(y * 4), 77);
-                if (r > (zone === 0 ? 0.95 : 0.97)) continue;
                 const w = lw - gap;
                 const d = lotD * (zone === 0 ? 0.88 : 0.92);
-                if (!this.free(x, y, w, d, c, s)) continue;
-                this.lot(low, tall, { x, y, w, d, rot: th, zone, r, brick });
+                if (r > (zone === 0 ? 0.95 : 0.97) || !this.free(x, y, w, d, c, s)) {
+                  flush(lw, gap);
+                  continue;
+                }
+                const b = this.lot(low, tall, { x, y, w, d, rot: th, zone, r, brick });
+                if (b && b.h < 24) run.push({ ...b, w, d, rot: th });
+                else flush(lw, gap);
               }
+              flush(lw, gap);
+            }
           }
       }
-    return { low, tall };
+    return { low, tall, far };
   }
 
   private free(x: number, y: number, w: number, d: number, c: number, s: number) {
@@ -689,6 +727,7 @@ export class LotMaker {
     if (h >= 70) towerBoxes(into, b, L, r);
     else into.push(b);
     if (!pitched) units(into, b);
+    return b;
   }
 }
 

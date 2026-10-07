@@ -125,7 +125,7 @@ function merge(parts: THREE.BufferGeometry[]) {
 }
 
 /** Instanced trees, in chunks so that off-screen ones are skipped. */
-export function treeMeshes(spots: TreeSpot[], look: CityLook, chunk = 2500): THREE.Group {
+export function treeMeshes(spots: TreeSpot[], look: CityLook, shadows: boolean, chunk = 2500): THREE.Group {
   const group = new THREE.Group();
   const trunkH = look.tree === 'palm' ? 9 : look.tree === 'cypress' ? 3.5 : 4.5;
   const trunk = new THREE.CylinderGeometry(look.tree === 'palm' ? 0.2 : 0.22, 0.32, trunkH, 5);
@@ -163,7 +163,7 @@ export function treeMeshes(spots: TreeSpot[], look: CityLook, chunk = 2500): THR
     });
     for (const im of [t, c]) {
       im.computeBoundingSphere();
-      im.castShadow = true;
+      im.castShadow = shadows;
       im.receiveShadow = false;
       group.add(im);
     }

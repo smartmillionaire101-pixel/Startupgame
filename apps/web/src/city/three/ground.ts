@@ -487,7 +487,10 @@ function horizon(data: GeoData, look: CityLook, mask: GroundMask, ground: THREE.
     hgt *= 0.85 + 0.3 * n;
     const isLand = land || hgt > 15;
     const y3 = out < 1 ? -0.2 : isLand ? hgt : -6;
-    const c = ground.clone().lerp(hill, Math.min(1, hgt / 120)).multiplyScalar(0.92 + 0.12 * n);
+    const c = ground
+      .clone()
+      .lerp(hill, Math.min(1, 0.35 + hgt / 120))
+      .multiplyScalar(0.85 + 0.15 * n);
     return { x, y, z: y3, c, keep: out > 0 && isLand };
   };
   const grid: ReturnType<typeof vtx>[] = [];
@@ -515,7 +518,7 @@ function horizon(data: GeoData, look: CityLook, mask: GroundMask, ground: THREE.
   g.computeVertexNormals();
   const m = new THREE.Mesh(
     g,
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }),
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }),
   );
   m.renderOrder = -38;
   m.frustumCulled = false;

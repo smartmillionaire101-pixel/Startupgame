@@ -82,6 +82,8 @@ export class CityScene {
   rig = { x: 0, y: 0, dist: 700, yaw: 0, pitch: 0.72 };
   private want = { x: 0, y: 0, dist: 700 };
   following = true;
+  /** Stop drawing on its own (screenshots and tests draw with renderNow). */
+  paused = false;
 
   private shared = makeShared();
   private sky = skyUniforms();
@@ -92,7 +94,10 @@ export class CityScene {
   private skyState: SkyState;
   private env: THREE.WebGLRenderTarget | null = null;
   private instMat: THREE.Material;
+  private nearMat: THREE.Material;
+  private farMat: THREE.Material;
   private mergedMat: THREE.Material;
+  private detailR = 0;
   private lowGroup = new THREE.Group();
   private tallGroup = new THREE.Group();
   private lights: THREE.Points | null = null;
@@ -108,10 +113,12 @@ export class CityScene {
   private dprMax: number;
   private frameTimes: number[] = [];
   private disposed = false;
+  private slow = 0;
+  private degraded = false;
   private size = { w: 1, h: 1 };
   private hour: number;
   private onFrameCbs = new Set<() => void>();
-  readonly stats = { draws: 0, tris: 0, frameMs: 0, buildMs: 0, lots: 0, trees: 0, dpr: 1 };
+  readonly stats = { draws: 0, tris: 0, frameMs: 0, buildMs: 0, lots: 0, trees: 0, dpr: 1, bgDone: false };
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -140,7 +147,7 @@ export class CityScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = true;
 
     this.camera = new THREE.PerspectiveCamera(38, 1, 1, 50000);
@@ -164,6 +171,8 @@ export class CityScene {
     this.mask = new GroundMask(data, high ? 2048 : 1400);
     this.roads = new RoadIndex(data);
     this.instMat = facadeMaterial(this.shared, true);
+    this.nearMat = facadeMaterial(this.shared, true, 'near');
+    this.farMat = facadeMaterial(this.shared, true, 'far');
     this.mergedMat = facadeMaterial(this.shared, false);
 
     const plans = this.landmarkPlans();
@@ -208,7 +217,7 @@ export class CityScene {
     // Trees.
     const spots = treeSpots(data, this.look, this.mask, high ? 26000 : 11000);
     this.stats.trees = spots.length;
-    this.scene.add(treeMeshes(spots, this.look));
+    this.scene.add(treeMeshes(spots, this.look, high));
 
     // Street lights (night).
     this.lights = this.streetLights();
@@ -258,14 +267,12 @@ export class CityScene {
       const rot = Math.atan2(door.s - c.s, door.e - c.e) + Math.PI / 2;
       const spec = placeSpec(p);
       const r = h3(p.id.length * 31 + p.id.charCodeAt(p.id.length - 1), p.id.charCodeAt(0));
-      const w = spec.w;
-      const d = spec.d;
-      // Pull it back from the road so the door is on the pavement.
-      const back = Math.max(0, Math.hypot(door.e - c.e, door.s - c.s) - d / 2 - 2);
-      const dirx = (c.e - door.e) / (Math.hypot(c.e - door.e, c.s - door.s) || 1);
-      const diry = (c.s - door.s) / (Math.hypot(c.e - door.e, c.s - door.s) || 1);
-      const cx = door.e + dirx * (d / 2 + 2 + Math.min(back, 6));
-      const cy = door.s + diry * (d / 2 + 2 + Math.min(back, 6));
+      // Inside its plot (the 2D map's tile square, turned to face the street).
+      const side = Math.min(p.w, p.d) * 30 * 0.68;
+      const w = Math.min(spec.w, Math.max(side, 4));
+      const d = Math.min(spec.d, Math.max(side, 3));
+      const cx = c.e;
+      const cy = c.s;
       const co = Math.cos(rot);
       const si = Math.sin(rot);
       const pts: number[] = [];
@@ -310,6 +317,8 @@ export class CityScene {
     );
     const SUPER = 2400;
     const groups = new Map<string, BoxB[]>();
+    const farGroups = new Map<string, BoxB[]>();
+    const merge = this.opts.tier === 'high' ? 3 : 6;
     let i = 0;
     const step = () => {
       if (this.disposed) return;
@@ -317,19 +326,31 @@ export class CityScene {
       while (i < list.length && performance.now() - t < 12) {
         const [ci, cj] = list[i++]!;
         if (this.tiles) continue;
-        const { tall } = this.lots.chunk(ci, cj);
-        if (!tall.length) continue;
+        const { tall, far } = this.lots.chunk(ci, cj, merge);
         const k = `${Math.floor((ci * CHUNK) / SUPER)},${Math.floor((cj * CHUNK) / SUPER)}`;
-        let a = groups.get(k);
-        if (!a) groups.set(k, (a = []));
-        a.push(...tall);
-        this.stats.lots += tall.length;
+        if (tall.length) {
+          let a = groups.get(k);
+          if (!a) groups.set(k, (a = []));
+          a.push(...tall);
+        }
+        if (far.length) {
+          let a = farGroups.get(k);
+          if (!a) farGroups.set(k, (a = []));
+          a.push(...far);
+        }
+        this.stats.lots += tall.length + far.length;
       }
       if (i < list.length) {
         setTimeout(step, 0);
         return;
       }
       for (const boxes of groups.values()) for (const m of boxMeshes(boxes, this.instMat)) this.tallGroup.add(m);
+      for (const boxes of farGroups.values())
+        for (const m of boxMeshes(boxes, this.farMat)) {
+          m.castShadow = false;
+          this.tallGroup.add(m);
+        }
+      this.stats.bgDone = true;
       this.invalidate();
     };
     setTimeout(step, 30);
@@ -343,6 +364,8 @@ export class CityScene {
     }
     const R = (this.opts.tier === 'high' ? 1 : 0.7) * Math.min(2200, Math.max(900, this.rig.dist * 1.8));
     const show = this.rig.dist < 6000;
+    this.detailR = show ? R : 0;
+    this.shared.uDetail.value.set(this.rig.x, this.rig.y, this.detailR);
     const want = new Set<string>();
     if (show) {
       const i0 = Math.floor((this.rig.x - R) / CHUNK);
@@ -352,12 +375,12 @@ export class CityScene {
       for (let j = j0; j <= j1; j++)
         for (let i = i0; i <= i1; i++) {
           const d = Math.hypot((i + 0.5) * CHUNK - this.rig.x, (j + 0.5) * CHUNK - this.rig.y);
-          if (d < R) want.add(`${i},${j}`);
+          if (d < R + CHUNK * 0.72) want.add(`${i},${j}`);
         }
     }
     for (const [k, c] of this.chunks) {
       const d = Math.hypot((c.ci + 0.5) * CHUNK - this.rig.x, (c.cj + 0.5) * CHUNK - this.rig.y);
-      if (!want.has(k) && (d > R * 1.35 || !show)) {
+      if (!want.has(k) && (d > R * 1.35 + CHUNK || !show)) {
         c.group.removeFromParent();
         c.group.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
         this.chunks.delete(k);
@@ -381,7 +404,7 @@ export class CityScene {
       if (this.chunks.has(k)) continue;
       const { low } = this.lots.chunk(ci, cj);
       const group = new THREE.Group();
-      for (const m of boxMeshes(low, this.instMat)) group.add(m);
+      for (const m of boxMeshes(low, this.nearMat)) group.add(m);
       this.lowGroup.add(group);
       this.chunks.set(k, { group, ci, cj });
       this.dirty = true;
@@ -441,7 +464,7 @@ export class CityScene {
     this.env?.dispose();
     this.env = skyEnvironment(this.renderer, this.sky);
     this.scene.environment = this.env.texture;
-    this.scene.environmentIntensity = 1 - this.skyState.night * 0.75;
+    this.scene.environmentIntensity = 0.55 - this.skyState.night * 0.4;
   }
 
   // ---------------------------------------------------------------------------
@@ -468,9 +491,12 @@ export class CityScene {
     r.y = Math.max(by0, Math.min(by1, r.y));
     const fx = Math.sin(r.yaw);
     const fz = -Math.cos(r.yaw);
-    const ch = Math.cos(r.pitch) * r.dist;
+    // Pulled right back, the view lowers towards the horizon (an aerial photo's angle).
+    const kf = Math.max(0, Math.min(1, (r.dist - 2500) / 7000));
+    const pitch = r.pitch > 0.48 ? r.pitch + (0.48 - r.pitch) * kf * kf * (3 - 2 * kf) : r.pitch;
+    const ch = Math.cos(pitch) * r.dist;
     const ground = this.groundAt(r.x, r.y);
-    this.camera.position.set(r.x - fx * ch, ground + Math.sin(r.pitch) * r.dist, r.y - fz * ch);
+    this.camera.position.set(r.x - fx * ch, ground + Math.sin(pitch) * r.dist, r.y - fz * ch);
     this.camera.lookAt(r.x, ground, r.y);
     this.camera.near = Math.max(0.5, r.dist * 0.01);
     this.camera.far = Math.max(6000, r.dist * 30);
@@ -483,7 +509,7 @@ export class CityScene {
     // Shadows: fitted around what is in view, off when the whole city shows.
     const S = Math.max(90, Math.min(1600, r.dist * 1.15));
     const sd = this.skyState.sunDir;
-    this.sun.castShadow = r.dist < 4500 && sd.y > 0.05;
+    this.sun.castShadow = !this.degraded && r.dist < 4500 && sd.y > 0.05;
     const cam = this.sun.shadow.camera;
     cam.left = -S;
     cam.right = S;
@@ -639,7 +665,7 @@ export class CityScene {
   private loop(t: number) {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
-    if (document.visibilityState === 'hidden') return;
+    if (document.visibilityState === 'hidden' || this.paused) return;
     const dt = Math.min(0.1, this.lastT ? (t - this.lastT) / 1000 : 0.016);
     this.lastT = t;
     // Follow the avatar; glide to where we were sent.
@@ -683,6 +709,17 @@ export class CityScene {
     // Adapt the resolution to how fast frames come.
     const frame = t - this.lastRender;
     this.lastRender = t;
+    // Very slow frames (a software renderer, an old phone): shadows off, fewer pixels.
+    if (frame > 250 && frame < 20000) {
+      this.slow++;
+      if (this.slow >= 4 && !this.degraded) {
+        this.degraded = true;
+        this.renderer.shadowMap.enabled = false;
+        this.sun.castShadow = false;
+        this.dprMax = 1;
+        this.setDpr(1);
+      }
+    } else this.slow = 0;
     if (frame < 200) {
       this.frameTimes.push(frame);
       if (this.frameTimes.length > 40) {
