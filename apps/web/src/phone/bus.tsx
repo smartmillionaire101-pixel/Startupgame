@@ -47,6 +47,8 @@ export interface PhoneOpen {
   invite?: boolean;
   /** Wave 8: open the wallet to send money to this player ('' = pick who). */
   send?: string;
+  /** Wave 10: open the Homes app on your portfolio, at this home. */
+  property?: string;
 }
 
 const listeners = new Set<(o: PhoneOpen) => void>();

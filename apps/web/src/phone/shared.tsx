@@ -50,6 +50,8 @@ export interface PhoneCtx {
   invite?: boolean;
   /** Wave 8: the wallet opened to send money ('' = pick who). */
   sendTo?: string;
+  /** Wave 10: the Homes app opened at one of your homes. */
+  property?: string;
 }
 
 // ---------------------------------------------------------------------------

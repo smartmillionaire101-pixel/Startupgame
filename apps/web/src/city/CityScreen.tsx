@@ -5,6 +5,7 @@
 /* The build doesn't use the React Compiler; these memos are deliberate (they keep the
    static SVG scene from re-rendering), so its preservation check doesn't apply. */
 /* eslint-disable react-hooks/preserve-manual-memoization */
+import { openPhone } from '../phone/bus';
 import {
   lazy,
   Suspense,
@@ -300,6 +301,7 @@ export function CityScreen({
     [view, refresh, toast, lite],
   );
   const flyHome = useCallback(() => void fly(view.market.id), [fly, view.market.id]);
+  const openHome = useCallback((id: string) => openPhone({ property: id }), []);
   const landed = useCallback(() => setLanding(null), []);
   const done = useCallback(() => {
     setFlight(null);
@@ -316,7 +318,7 @@ export function CityScreen({
       onFlyHome={flyHome}
       landing={landing}
       onLanded={landed}
-      onOpenProperty={onOpenProperty}
+      onOpenProperty={onOpenProperty ?? openHome}
     />
   );
   return (

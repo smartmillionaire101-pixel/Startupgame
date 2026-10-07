@@ -38,9 +38,9 @@ const PropertyTour3D = lazy(() =>
 type Tab = 'listings' | 'portfolio';
 
 export function Homes({ ctx }: { ctx: PhoneCtx }) {
-  const [tab, setTab] = useState<Tab>('listings');
+  // A tap on one of your homes on the map opens the portfolio.
+  const [tab, setTab] = useState<Tab>(ctx.property ? 'portfolio' : 'listings');
   const [open, setOpen] = useState<string | null>(null);
-  void ctx;
   if (open) return <ListingDetail id={open} onBack={() => setOpen(null)} />;
   return (
     <div className="phone-stack homes">

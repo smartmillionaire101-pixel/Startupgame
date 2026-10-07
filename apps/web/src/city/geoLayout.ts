@@ -1058,6 +1058,20 @@ export function buildGeoLayout(input: CityInput, data: GeoData, plan: CityPlan):
   const fin = financeItems(input);
   const capital = [...(input.capital ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
   const marketBlocks = Math.ceil(input.segments.length / 9);
+  // Investors are scattered like a real city's: the investor district takes
+  // every other fund, the rest go round the other districts (not the airport).
+  const invHome = hostOf.get('investors') ?? 0;
+  const others = D.map((_, n) => n).filter((n) => n !== invHome && hostOf.get('airport') !== n);
+  const ring = others.flatMap((n) => [invHome, n]);
+  const spread = ring.length ? ring : [invHome];
+  const invItems: LotItem[] = [
+    ...input.funds.map((f) => ({ kind: 'fund' as const, ...f })),
+    ...capital
+      .filter((c) => c.kind !== 'accelerator')
+      .map((c) => ({ kind: 'capital' as const, cap: c })),
+  ];
+  const invIn = D.map(() => [] as LotItem[]);
+  invItems.forEach((it, i) => invIn[spread[i % spread.length]!]!.push(it));
 
   // ---- Make each district's buildings (the shared builders), then stand
   // each one on real ground near the district's heart.
@@ -1098,19 +1112,12 @@ export function buildGeoLayout(input: CityInput, data: GeoData, plan: CityPlan):
     }
     const items: LotItem[] = [
       ...(hs.includes('finance') ? fin : []),
-      ...(hs.includes('investors')
-        ? input.funds.map((f) => ({ kind: 'fund' as const, ...f }))
-        : []),
       ...(hs.includes('hub')
         ? capital
             .filter((c) => c.kind === 'accelerator')
             .map((c) => ({ kind: 'capital' as const, cap: c }))
         : []),
-      ...(hs.includes('investors')
-        ? capital
-            .filter((c) => c.kind !== 'accelerator')
-            .map((c) => ({ kind: 'capital' as const, cap: c }))
-        : []),
+      ...invIn[n]!,
     ];
     for (const it of items) putLotItem(ctx, it, lot(0, 0, 1, 1), cell, area);
     take(n, 1);
