@@ -78,8 +78,12 @@ describe('city rosters', () => {
       expect(buys, k.kind).toBeLessThan(0.12);
       expect(k.gigs.length, k.kind).toBeGreaterThan(0);
       expect(k.revenueCol[0]).toBeLessThan(k.revenueCol[1]);
-      // Wave 6: bottle service at a club is the dearest night out.
-      for (const it of k.venue?.items ?? []) expect(it.priceCol).toBeLessThan(0.1);
+      // Wave 6: bottle service at a club is the dearest night out. Wave 10: except the
+      // luxuries gated at lifestyle tier 4+ (a yacht day, a gala, polo, a private jet).
+      for (const it of k.venue?.items ?? [])
+        expect(it.priceCol, `${k.kind}/${it.id}`).toBeLessThan(
+          (it.requiresTier ?? 1) >= 4 ? 5 : 0.1,
+        );
     }
   });
 

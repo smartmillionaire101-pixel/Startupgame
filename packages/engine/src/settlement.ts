@@ -14,6 +14,9 @@ import {
   updateFundMood,
 } from './ai.js';
 import { angelsInvest } from './angels.js';
+import { aiExpansion, settleBranches } from './branches.js';
+import { ensureCompetition, resolveCompetitions } from './competitions.js';
+import { settleProperties } from './property.js';
 import { appointGovernor, settlePrograms } from './programs.js';
 import { settleCompany } from './company.js';
 import { updateLenderAppetite } from './capital.js';
@@ -118,6 +121,10 @@ export function settleMarket(
   // The city economy (Wave 3): households, local businesses and their trade with
   // startups. Own RNG stream; before companies so purchases count in this month's revenue.
   settleEconomy(world, marketId, month);
+  // Wave 10: branches trade (before companies settle, so this city's count this month),
+  // and now and then an AI company or a thriving local business expands. Own streams.
+  settleBranches(world, marketId, month);
+  aiExpansion(world, marketId, month);
   for (const c of active()) {
     settleCompany(world, c, rng, month);
     payDividends(world, c, month);
@@ -138,6 +145,9 @@ export function settleMarket(
   // Lenders loosen or tighten with the funding climate (deterministic).
   updateLenderAppetite(m);
 
+  // Wave 10: house prices move; rent, running costs and mortgages (own stream).
+  settleProperties(world, marketId, month);
+
   for (const p of Object.values(world.players)) {
     if (p.market !== marketId) continue;
     if (!p.ai) settlePerson(world, p, month);
@@ -156,6 +166,9 @@ export function settleMarket(
   settleDisputes(world, marketId, month);
   refreshTalent(world, marketId, rng);
   expireDeals(world, marketId);
+  // Wave 10: last month's pitch competitions are judged; this month's is announced.
+  resolveCompetitions(world, marketId, month);
+  ensureCompetition(world, marketId, month);
   reporterOutreach(world, marketId, rng, month);
   maintainPopulation(world, marketId, rng, now);
   inactivity(world, marketId, now, month, clock.monthMs);

@@ -9,6 +9,12 @@ import { seedExtraFunds, seedLenders } from './capital.js';
 import { normaliseName } from './names.js';
 import type { World } from './types.js';
 
+/**
+ * Wave 10 needs no step: its fields are optional and fill in at the next
+ * settlement of each city (`world.properties`, `world.competitions`, the
+ * landmarks and tech campuses, the tech capital's funds); `world.branches`
+ * and `player.residence` start empty.
+ */
 export const CURRENT_SCHEMA = 8;
 
 type Step = (world: World) => void;

@@ -44,6 +44,15 @@ import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { deliveryView, homeActsView, moodOf, needsOf } from './needs.js';
 import { hangoutsView, sendLimits, techEventsView, visitingView, visitsView } from './social.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
+import { myPropertiesView, netWorth, propertiesView, residenceView } from './property.js';
+import {
+  cityBranchesView,
+  cityOfficesView,
+  companyBranchesView,
+  companyDistrict,
+} from './branches.js';
+import { competitionsView } from './competitions.js';
+import { stableDistrict } from './districts.js';
 import { boardOf } from './governance.js';
 import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
 import {
@@ -97,6 +106,8 @@ export function publicCompany(world: World, c: Company) {
     })),
     ageMonths: getMarket(world, c.market).month - c.foundedMonth,
     forSale: c.forSale,
+    /** Wave 10: the district of its head office. */
+    district: companyDistrict(c),
   };
 }
 
@@ -478,6 +489,8 @@ function marketView(
         mood: f.mood > 1.1 ? 'hungry' : f.mood < 0.9 ? 'cautious' : 'steady',
         /** City art: deterministic from the fund id. */
         office: fundOffice(f.id),
+        /** Wave 10: the district its office is in (spread across the city). */
+        district: stableDistrict(f.market, 'fund', f.id),
         /** Wave 5: angel, VC, impact or corporate. */
         type: fundInvestorType(f),
         /** AI angel funds (Wave 3): the person behind the cheque; null for other funds. */
@@ -549,6 +562,14 @@ function marketView(
     techEvents: techEventsView(world, p, m),
     /** The city economy at a glance (Wave 3). */
     economy: economyView(m),
+    /** Wave 10: the property market: price index, and every home (for sale or owned). */
+    properties: propertiesView(world, p, m),
+    /** Wave 10: open company branches in this city (for the map). */
+    branches: cityBranchesView(world, p, m),
+    /** Wave 10: where each active company has its head office (district, for the map). */
+    offices: cityOfficesView(world, m),
+    /** Wave 10: pitch competitions here: this month's and recent ones. */
+    competitions: competitionsView(world, p, m),
     /**
      * Wave 5 (section B): accelerators, devPartners, lps, dealFlow, angelsAt
      * (businessId → AI angel ids there this period), angels, centralBank.
@@ -670,6 +691,12 @@ export function playerView(
       car: carView(world, p),
       /** Wave 5: status (0–100) from your home, car and lifestyle, shown on your profile. */
       status: statusOf(p),
+      /** Wave 10: homes you own, in every city (amounts in each home's currency). */
+      properties: myPropertiesView(world, p),
+      /** Wave 10: the home you own and live in, or null when renting. */
+      residence: residenceView(world, p),
+      /** Wave 10: cash + property equity − personal loans, in your home currency. */
+      netWorth: netWorth(world, p),
       /**
        * People met at events (Wave 2) and saved from Who's here (Wave 6),
        * newest first; warmth fades with time. `chatId` opens a chat with them.
@@ -711,6 +738,8 @@ export function playerView(
         officeDownsized: !!c.officeDownsized,
         /** Local businesses buying from this company (Wave 3), with last month's amount. */
         businessCustomers: businessCustomersOf(world, c),
+        /** Wave 10: head office, branches, and what opening one costs in each city. */
+        expansion: companyBranchesView(world, c, playerId),
       };
     }),
     fund: fund

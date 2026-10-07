@@ -18,8 +18,10 @@ import { newId } from './ids.js';
 import { openAccount, transfer } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney } from './money.js';
+import { TECH_CAPITAL_FUNDS } from './data/tech-capital.js';
 import { hashString } from './rng.js';
 import { newStars } from './stars.js';
+import { normaliseName } from './names.js';
 import type {
   Company,
   DealCard,
@@ -494,6 +496,21 @@ export function seedExtraFunds(world: World, marketId: MarketId) {
   for (const seed of extraFunds(marketId)) {
     const id = extraFundId(marketId, seed.name);
     if (!world.funds[id]) createAiFund(world, marketId, seed, id);
+  }
+}
+
+/**
+ * Wave 10: a tech capital's extra funds and angel syndicates (stable ids,
+ * names reserved). New markets get them when they open, saved worlds at the
+ * next settlement.
+ */
+export function seedTechCapitalFunds(world: World, marketId: MarketId) {
+  const names = (world.names[marketId] ??= {});
+  for (const seed of TECH_CAPITAL_FUNDS[marketId] ?? []) {
+    const id = extraFundId(marketId, seed.name);
+    if (world.funds[id]) continue;
+    createAiFund(world, marketId, seed, id);
+    names[normaliseName(seed.name)] ??= 'ai';
   }
 }
 

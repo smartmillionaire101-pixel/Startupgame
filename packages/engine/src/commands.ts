@@ -362,6 +362,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     itemId: z.string().min(1).max(32),
     /** Invite someone: a player, a fund, an AI founder or angel, or a contact id. */
     withId: id.optional(),
+    /** Wave 10: where a travel activity (a private-jet weekend) takes you. */
+    to: market.optional(),
   }),
   // ---- life and work (Wave 5)
   /** A part-time job at a local business in your home city: 40 hours a month, paid monthly. */
@@ -466,6 +468,46 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   /** Pay to broadcast an event you host: more AI guests. */
   z.object({ type: z.literal('event.broadcast'), eventId: id, spend: money }),
+  // ---- a living economy (Wave 10)
+  /**
+   * Buy a home in the city you're in (`here.properties`): cash, or a mortgage
+   * from the city's bank (`downPct` 20–90, `months` 60–360).
+   */
+  z.object({
+    type: z.literal('property.buy'),
+    propertyId: id,
+    mortgage: z
+      .object({
+        downPct: z.number().int().min(20).max(90),
+        months: z.number().int().min(60).max(360),
+      })
+      .optional(),
+  }),
+  /** Sell a home you own (the bank is repaid first; 2% agent's fee). */
+  z.object({ type: z.literal('property.sell'), propertyId: id }),
+  /** Let a home you own: rent arrives at each settlement of its city. */
+  z.object({ type: z.literal('property.rent'), propertyId: id }),
+  z.object({ type: z.literal('property.unrent'), propertyId: id }),
+  /** Live in a home you own: your home city and lifestyle tier follow it. */
+  z.object({ type: z.literal('property.moveIn'), propertyId: id }),
+  /** Open a branch in a district (`CITY_DISTRICTS`) of any open city. */
+  z.object({
+    type: z.literal('company.branch.open'),
+    companyId: id,
+    market,
+    district: z.string().min(1).max(40),
+  }),
+  z.object({ type: z.literal('company.branch.close'), branchId: id }),
+  /** Pitch at a competition this month (`here.competitions`) with a company you run. */
+  z.object({ type: z.literal('competition.enter'), competitionId: id, companyId: id }),
+  /** Investors: sit on the judging panel. */
+  z.object({ type: z.literal('competition.judge.join'), competitionId: id }),
+  z.object({
+    type: z.literal('competition.score'),
+    competitionId: id,
+    entryId: id,
+    score: z.number().int().min(1).max(10),
+  }),
 ]);
 
 export type Command = z.infer<typeof commandSchema>;

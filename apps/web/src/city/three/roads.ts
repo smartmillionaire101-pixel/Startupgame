@@ -175,6 +175,16 @@ export class RoadIndex {
       }
   }
 
+  /** Every road segment (bridges included) whose cell is within r of a point. */
+  forNear(x: number, y: number, r: number, cb: (s: Seg) => void) {
+    const seen = new Set<number>();
+    this.near(this.grid, x, y, r, (n) => {
+      if (seen.has(n)) return;
+      seen.add(n);
+      cb(this.segs[n]!);
+    });
+  }
+
   /** The nearest road segment within r: its direction (radians) and distance. */
   nearest(
     x: number,

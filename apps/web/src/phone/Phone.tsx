@@ -27,6 +27,9 @@ import { Contacts } from './apps/Contacts';
 import { Events } from './apps/Events';
 import { Fit } from './apps/Fit';
 import { Founder } from './apps/Founder';
+import { GoingOut } from './apps/GoingOut';
+import { Homes } from './apps/Homes';
+import { OutingHost } from '../city/OutingScene';
 import { HomeApp } from './apps/HomeApp';
 import { Invest } from './apps/Invest';
 import { Jobs } from './apps/Jobs';
@@ -80,6 +83,8 @@ export const APPS: AppDef[] = [
   { id: 'house', icon: 'house', label: () => t('Home'), bg: ['#86efac', '#15803d'] },
   { id: 'social', icon: 'social', label: () => t('Social'), bg: ['#e879f9', '#a21caf'] },
   { id: 'events', icon: 'events', label: () => t('Events'), bg: ['#818cf8', '#4338ca'] },
+  { id: 'homes', icon: 'key', label: () => t('Homes'), bg: ['#fcd34d', '#b45309'] },
+  { id: 'goingout', icon: 'cocktail', label: () => t('Going out'), bg: ['#fb7185', '#be123c'] },
   { id: 'settings', icon: 'settings', label: () => t('Settings'), bg: ['#9ca3af', '#4b5563'] },
 ];
 const DOCK: AppId[] = ['messages', 'map', 'bank', 'founder'];
@@ -154,6 +159,7 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
   const [app, setApp] = useState<PhoneApp>('home');
   const [invite, setInvite] = useState(false);
   const [sendTo, setSendTo] = useState<string | undefined>(undefined);
+  const [property, setProperty] = useState<string | undefined>(undefined);
   const [thread, setThread] = useState<ThreadRef | null>(null);
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [ai, setAi] = useState<AiThread[]>([]);
@@ -262,7 +268,11 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
     setOpen(true);
     setInvite(!!o.invite);
     setSendTo(o.send);
-    if (o.send !== undefined) {
+    setProperty(o.property);
+    if (o.property !== undefined) {
+      setApp('homes');
+      setThread(null);
+    } else if (o.send !== undefined) {
       setApp('bank');
       setThread(null);
     } else if (o.ai || o.player) {
@@ -326,6 +336,7 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
         </div>
       )}
       <VisitHome />
+      <OutingHost />
       {open && (
         <PhoneScreen
           app={app}
@@ -334,9 +345,11 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
             setThread(null);
             setInvite(false);
             setSendTo(undefined);
+            setProperty(undefined);
           }}
           invite={invite}
           sendTo={sendTo}
+          property={property}
           pickGuest={() => openWith({ invite: true })}
           thread={thread}
           setThread={setThread}
@@ -415,6 +428,7 @@ function PhoneScreen(props: {
   setApp: (a: PhoneApp) => void;
   invite: boolean;
   sendTo?: string;
+  property?: string;
   pickGuest: () => void;
   thread: ThreadRef | null;
   setThread: (t: ThreadRef | null) => void;
@@ -460,6 +474,7 @@ function PhoneScreen(props: {
     pickGuest: props.pickGuest,
     invite: props.invite,
     sendTo: props.sendTo,
+    property: props.property,
   };
 
   const def = APPS.find((a) => a.id === app);
@@ -551,6 +566,12 @@ function PhoneScreen(props: {
       break;
     case 'events':
       body = <Events ctx={ctx} />;
+      break;
+    case 'homes':
+      body = <Homes ctx={ctx} />;
+      break;
+    case 'goingout':
+      body = <GoingOut ctx={ctx} />;
       break;
   }
 

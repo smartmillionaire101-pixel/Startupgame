@@ -84,3 +84,18 @@ export {
   MOOD_HIGH,
 } from './needs.js';
 export type { HomeActId, NeedKey, Needs } from './needs.js';
+// Wave 10: a living economy.
+export {
+  NEIGHBOURHOODS,
+  TIER_LABEL as PROPERTY_TIER_LABEL,
+  TIER_LIFESTYLE as PROPERTY_TIER_LIFESTYLE,
+  MORTGAGE,
+  BUY_COSTS as PROPERTY_BUY_COSTS,
+  SELL_FEE as PROPERTY_SELL_FEE,
+} from './data/property.js';
+export type { Neighbourhood } from './data/property.js';
+export { CITY_DISTRICTS } from './data/businesses.js';
+export { LANDMARKS } from './data/landmarks.js';
+export type { LandmarkSeed } from './data/landmarks.js';
+export { BRANCH } from './branches.js';
+export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.js';

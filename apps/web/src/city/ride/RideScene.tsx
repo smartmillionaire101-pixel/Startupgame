@@ -124,7 +124,7 @@ export function RideScene({ ride }: { ride: Ride }) {
   ) : (
     <BusScene {...common} stops={stops} livery={TRANSIT_LIVERY[marketId] ?? '#f59e0b'} />
   );
-  const how = rideLabel(mode, marketId);
+  const how = mode === 'drive' && ride.car ? ride.car : rideLabel(mode, marketId);
   const where = ride.where ? tx(ride.where) : '';
 
   return (
@@ -149,7 +149,13 @@ export function RideScene({ ride }: { ride: Ride }) {
           </span>
         </span>
         <span className="ride-card-fare">
-          {ride.fare > 0 ? money(ride.fare, ride.currency) : t('Free')}
+          {mode === 'drive'
+            ? ride.fuel > 0
+              ? t('Fuel {amount}', { amount: money(ride.fuel, ride.currency) })
+              : t('Your car')
+            : ride.fare > 0
+              ? money(ride.fare, ride.currency)
+              : t('Free')}
         </span>
         {jam && (
           <p ref={slow} className="ride-jam" hidden>

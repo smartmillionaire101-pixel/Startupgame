@@ -15,7 +15,16 @@ import { INDUSTRIES, SEGMENT_TEMPLATES, segmentsForIndustry } from './data/indus
 import type { Industry } from './data/industries.js';
 import { LAUNCH_MARKETS, MARKET_DATA, PUBLIC_MULTIPLES } from './data/markets.js';
 import { CURRENT_SCHEMA } from './upgrade.js';
-import { createAiFund, firstHighStreetName, seedExtraFunds, seedLenders } from './capital.js';
+import {
+  createAiFund,
+  firstHighStreetName,
+  seedExtraFunds,
+  seedLenders,
+  seedTechCapitalFunds,
+} from './capital.js';
+import { TECH_CAPITAL_STARTUPS } from './data/tech-capital.js';
+import { ensureProperties } from './property.js';
+import { ensureCompetition } from './competitions.js';
 import { ensureAngels } from './angels.js';
 import { NO_EFFECTS } from './marketplace.js';
 import type { MarketId } from './data/markets.js';
@@ -454,6 +463,14 @@ export function openMarket(
   ensureBusinesses(world, id);
   // AI angels (Wave 3): stable ids and their own RNG stream, so nothing above shifts.
   ensureAngels(world, id, now);
+  // Wave 10: the tech capital's extra funds and AI startups (own stream), the
+  // property market and this month's pitch competition.
+  seedTechCapitalFunds(world, id);
+  const extra = Math.round(aiStartups * (TECH_CAPITAL_STARTUPS[id] ?? 0));
+  const capitalRng = deriveRng(world.seed, 'tech-capital', 'genesis', id);
+  for (let i = 0; i < extra; i++) spawnAiStartup(world, id, capitalRng, now);
+  ensureProperties(world, id);
+  ensureCompetition(world, id, world.markets[id]!.month);
   return world.markets[id]!;
 }
 

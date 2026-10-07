@@ -29,6 +29,17 @@ import { beginRide } from '../ride/state';
 import { localHour, rideMs, rideVehicle, SHORT_HOP, type RideMode } from '../travel';
 import type { VehicleSpec } from '../flavour';
 import { CityScene, type Tier } from './scene';
+import type { PropertyTier } from '../properties';
+
+const tierLabel = (tier: PropertyTier) =>
+  ({
+    studio: t('Studio'),
+    apartment: t('Apartment'),
+    townhouse: t('Townhouse'),
+    villa: t('Villa'),
+    mansion: t('Mansion'),
+    penthouse: t('Penthouse'),
+  })[tier];
 import { markWebGLBroken } from './quality';
 import './city3d.css';
 
@@ -81,6 +92,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     flags = NONE,
     fresh = NONE,
     onBroken,
+    properties = NONE,
   } = props;
   const reduced = useReducedMotion();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -93,6 +105,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   const pending = useRef<{ target: Pt; then?: () => void; placeId: string | null } | null>(null);
   const [vehicle, setVehicle] = useState<VehicleSpec | null>(null);
   const [walking, setWalking] = useState(false);
+  const [driving, setDriving] = useState(false);
   const [focus, setFocus] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const cb = useRef(props);
@@ -153,6 +166,10 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   useEffect(() => {
     sceneRef.current?.actors.setWalkers(walkers);
   }, [walkers, ready]);
+  // Wave 10: the homes you own, at their neighbourhoods.
+  useEffect(() => {
+    sceneRef.current?.setProperties(properties);
+  }, [properties, ready]);
 
   // The sky follows the city's clock.
   useEffect(() => {
@@ -214,15 +231,24 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         cb.current.onFarTrip({ tiles: len, placeId });
         return;
       }
-      const mode: RideMode = len > SHORT_HOP ? (opts.mode ?? 'walk') : 'walk';
-      const spec0 = rideVehicle(mode, layout.marketId, layout.flavour.vehicles);
-      const spec = spec0 && mode !== 'bus' ? { ...spec0, body: look.top } : spec0;
+      // Your own car goes even round the corner; other short hops walk.
+      const mode: RideMode =
+        len > SHORT_HOP || opts.mode === 'drive' ? (opts.mode ?? 'walk') : 'walk';
+      const spec0 = rideVehicle(mode, layout.marketId, layout.flavour.vehicles, cb.current.car);
+      const spec =
+        spec0 && mode !== 'bus' && mode !== 'drive' ? { ...spec0, body: look.top } : spec0;
+      const driving = mode === 'drive';
       const scene =
-        len > SHORT_HOP
+        len > SHORT_HOP || driving
           ? beginRide({ mode, tiles: len, path, layout, placeId, look, mapMs: rideMs(mode, len) })
           : null;
       const done = () => {
         scene?.end();
+        if (driving) {
+          sceneRef.current?.actors.setDriving(0);
+          sceneRef.current?.endChase();
+          setDriving(false);
+        }
         pos.current = target;
         placeAvatarAt(layout.marketId, target);
         placeAvatar(target);
@@ -240,6 +266,12 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       const s3 = sceneRef.current;
       s3?.actors.setWalking(true);
       if (s3) s3.following = true;
+      if (driving && s3) {
+        // Keep to your lane, the camera behind you.
+        s3.actors.setDriving(2.2);
+        if (!reduced) s3.startChase();
+        setDriving(true);
+      }
       const ms = scene?.ms ?? rideMs(mode, len);
       const t0 = performance.now();
       let cancelled = false;
@@ -258,6 +290,11 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         cancel: () => {
           cancelled = true;
           scene?.end();
+          if (driving) {
+            sceneRef.current?.actors.setDriving(0);
+            sceneRef.current?.endChase();
+            setDriving(false);
+          }
           if (walk.current) cancelAnimationFrame(walk.current.raf);
           placeAvatarAt(layout.marketId, pos.current);
         },
@@ -271,6 +308,19 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       const p = layout.places.find((x) => x.id === id);
       if (!p) return;
       walkTo(p.door, () => cb.current.onEnter(p), p.id, { mode, ask });
+    },
+    [layout, walkTo],
+  );
+
+  /** A home of yours: open it (the Homes app), or go there when nothing opens it. */
+  const openHome = useCallback(
+    (id: string) => {
+      if (cb.current.onOpenProperty) {
+        cb.current.onOpenProperty(id);
+        return;
+      }
+      const h = sceneRef.current?.homes.find((x) => x.prop.id === id);
+      if (h) walkTo(nearestStreetPoint(layout, geoTile(h.x, h.y)), undefined, null, { ask: true });
     },
     [layout, walkTo],
   );
@@ -374,6 +424,14 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     const s = sceneRef.current;
     if (!s) return;
     const p = local(e);
+    // One of your homes (its label or its model).
+    const hid =
+      (e.target as Element).closest?.('[data-property]')?.getAttribute('data-property') ??
+      s.pickHome(p.x, p.y)?.id;
+    if (hid) {
+      openHome(hid);
+      return;
+    }
     const hit = s.pickPlace(p.x, p.y);
     if (hit) {
       goTo(hit.id, undefined, true);
@@ -555,6 +613,17 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         if (vis) el.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
         if (el.hidden === vis) el.hidden = !vis;
       });
+      host.querySelectorAll<HTMLElement>('[data-property]').forEach((el) => {
+        const h = s.homes.find((x) => x.prop.id === el.dataset.property);
+        if (!h) {
+          el.hidden = true;
+          return;
+        }
+        s.project(h.x, h.h + 16, h.y, out);
+        const vis = out.z < 1 && out.x > -40 && out.x < W + 40 && out.y > 0 && out.y < H + 20;
+        if (vis) el.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
+        if (el.hidden === vis) el.hidden = !vis;
+      });
       const tag = tagRef.current;
       if (tag) {
         const a = s.actors.avatarPos();
@@ -568,7 +637,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     return () => {
       off();
     };
-  }, [labels, ready]);
+  }, [labels, ready, properties]);
 
   // The suggested move pulses; flags (events coming up) show on the label.
   const landmarks = layout.geo?.sprites ?? [];
@@ -582,6 +651,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       aria-roledescription={t('map')}
       aria-label={ariaLabel}
       data-map3d={ready ? 'ready' : 'loading'}
+      data-driving={driving ? '1' : undefined}
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -634,6 +704,15 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
             </div>
           );
         })}
+        {properties.map((h) => (
+          <div key={h.id} className="c3-label c3-home" data-property={h.id} hidden>
+            <span className="c3-pill">
+              <i className="c3-home-dot" aria-hidden="true" />
+              {h.name || tierLabel(h.tier)}
+              {h.neighbourhood && <span className="c3-home-where"> · {h.neighbourhood}</span>}
+            </span>
+          </div>
+        ))}
       </div>
       <div
         ref={tagRef}

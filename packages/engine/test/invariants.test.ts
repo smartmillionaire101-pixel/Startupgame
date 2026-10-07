@@ -8,6 +8,9 @@ import type { Command } from '../src/commands.js';
 import { CAR_MODEL_IDS, FURNITURE } from '../src/data/lifestyle-shop.js';
 import { HOME_ACT_IDS } from '../src/needs.js';
 import { techEventsFor } from '../src/social.js';
+import { marketProperties } from '../src/property.js';
+import { CITY_DISTRICTS } from '../src/data/businesses.js';
+import type { World } from '../src/types.js';
 import {
   addFounder,
   addInvestor,
@@ -31,6 +34,17 @@ describe('world invariants under random play', () => {
     base = addInvestor(base, 'u_inv', 'lagos');
     // Wave 8: a London player, so money sent between friends crosses currencies.
     base = addInvestor(base, 'u_lon', 'london');
+    // Wave 10: money to buy homes with (from the outside world, so the books still balance).
+    base = structuredClone(base) as World;
+    for (const [id, amount] of [
+      ['u_inv', 3_000_000_000_00],
+      ['u_lon', 8_000_000_00],
+      ['u_founder', 400_000_000_00],
+    ] as const) {
+      const p = base.players[id]!;
+      base.accounts[base.markets[p.market]!.ext.genesis]!.balance -= amount;
+      base.accounts[p.accounts.local]!.balance += amount;
+    }
     const cid = companyOf(base, 'u_founder').id;
     const total = moneyByCurrency(base);
 
@@ -246,9 +260,54 @@ describe('world invariants under random play', () => {
       }),
     );
 
+    // Wave 10: homes (cash and mortgages, letting, selling, moving in), branches,
+    // pitch competitions and lifestyle-gated activities.
+    const living = fc.oneof(
+      fc.record({
+        k: fc.constant('propBuy' as const),
+        who: fc.constantFrom('u_founder', 'u_inv', 'u_lon'),
+        pick: fc.nat(40),
+        mortgage: fc.boolean(),
+        downPct: fc.integer({ min: 20, max: 90 }),
+        months: fc.integer({ min: 60, max: 360 }),
+      }),
+      fc.record({
+        k: fc.constant('propAct' as const),
+        who: fc.constantFrom('u_founder', 'u_inv', 'u_lon'),
+        act: fc.constantFrom(
+          'property.sell' as const,
+          'property.rent' as const,
+          'property.unrent' as const,
+          'property.moveIn' as const,
+        ),
+      }),
+      fc.record({
+        k: fc.constant('branch' as const),
+        london: fc.boolean(),
+        pick: fc.nat(10),
+        close: fc.boolean(),
+      }),
+      fc.record({
+        k: fc.constant('compete' as const),
+        step: fc.constantFrom('enter' as const, 'judge' as const, 'score' as const),
+        london: fc.boolean(),
+        score: fc.integer({ min: 1, max: 10 }),
+        pick: fc.nat(10),
+      }),
+      fc.record({
+        k: fc.constant('luxe' as const),
+        investor: fc.boolean(),
+        item: fc.constantFrom('golf', 'polo', 'yacht-day', 'gala', 'jet-weekend', 'rooftop-party'),
+        to: fc.constantFrom('lagos' as const, 'london' as const),
+      }),
+    );
+
     fc.assert(
       fc.property(
-        fc.array(fc.oneof(action, life, alive, home, friends), { minLength: 1, maxLength: 25 }),
+        fc.array(fc.oneof(action, life, alive, home, friends, living), {
+          minLength: 1,
+          maxLength: 25,
+        }),
         (actions) => {
           let w = base;
           let day = 0;
@@ -688,6 +747,82 @@ describe('world invariants under random play', () => {
                   (x) => x.status === 'upcoming' && x.hostId === actor,
                 );
                 cmd = { type: 'event.broadcast', eventId: e?.id ?? 'none', spend: a.spend };
+                break;
+              }
+              case 'propBuy': {
+                actor = a.who;
+                const here = w.players[actor]!.location?.market ?? w.players[actor]!.market;
+                const list = marketProperties(w, here);
+                cmd = {
+                  type: 'property.buy',
+                  propertyId: list[a.pick % list.length]!.id,
+                  ...(a.mortgage ? { mortgage: { downPct: a.downPct, months: a.months } } : {}),
+                };
+                break;
+              }
+              case 'propAct': {
+                actor = a.who;
+                const mine = Object.values(w.properties ?? {}).find((x) => x.ownerId === actor);
+                cmd = { type: a.act, propertyId: mine?.id ?? 'none' };
+                break;
+              }
+              case 'branch': {
+                const open = Object.values(w.branches ?? {}).find(
+                  (b) => b.companyId === cid && b.status === 'open',
+                );
+                const market = a.london ? 'london' : 'lagos';
+                const ds = CITY_DISTRICTS[market];
+                cmd =
+                  a.close && open
+                    ? { type: 'company.branch.close', branchId: open.id }
+                    : {
+                        type: 'company.branch.open',
+                        companyId: cid,
+                        market,
+                        district: ds[a.pick % ds.length]!,
+                      };
+                break;
+              }
+              case 'compete': {
+                const market = a.london ? 'london' : 'lagos';
+                const comp = Object.values(w.competitions ?? {}).find(
+                  (c) => c.market === market && c.status === 'open',
+                );
+                const compId = comp?.id ?? 'none';
+                if (a.step === 'enter') {
+                  cmd = { type: 'competition.enter', competitionId: compId, companyId: cid };
+                } else if (a.step === 'judge') {
+                  actor = 'u_inv';
+                  cmd = { type: 'competition.judge.join', competitionId: compId };
+                } else {
+                  actor = 'u_inv';
+                  const e = comp?.entries[a.pick % Math.max(1, comp.entries.length)];
+                  cmd = {
+                    type: 'competition.score',
+                    competitionId: compId,
+                    entryId: e?.id ?? 'none',
+                    score: a.score,
+                  };
+                }
+                break;
+              }
+              case 'luxe': {
+                actor = a.investor ? 'u_inv' : 'u_founder';
+                const kinds: Record<string, string> = {
+                  golf: 'golf-club',
+                  polo: 'golf-club',
+                  'yacht-day': 'marina',
+                  gala: 'ballroom',
+                  'jet-weekend': 'private-terminal',
+                  'rooftop-party': 'lounge-bar',
+                };
+                const biz = bizHere(actor).find((b) => b.kind === kinds[a.item]);
+                cmd = {
+                  type: 'venue.buy',
+                  businessId: biz?.id ?? 'none',
+                  itemId: a.item,
+                  ...(a.item === 'jet-weekend' ? { to: a.to } : {}),
+                };
                 break;
               }
               case 'cancel': {

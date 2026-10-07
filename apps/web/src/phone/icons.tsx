@@ -43,7 +43,10 @@ export type IconName =
   | 'tools'
   | 'bed'
   | 'events'
-  | 'send';
+  | 'send'
+  /** Wave 10: Homes (a key) and Going out (a cocktail). */
+  | 'key'
+  | 'cocktail';
 
 const PATHS: Record<IconName, ReactNode> = {
   messages: <path d="M4 5.5h16v10H9l-4 3.5v-3.5H4z" />,
@@ -182,6 +185,18 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   send: <path d="M4 12l16-7-6 15-2.5-6.5zM11.5 13.5L20 5" />,
+  key: (
+    <>
+      <circle cx="8" cy="12" r="3.6" />
+      <path d="M11.6 12H20M17 12v3M14.5 12v2.2" />
+    </>
+  ),
+  cocktail: (
+    <>
+      <path d="M5 5h14l-7 8z" />
+      <path d="M12 13v6.5M8.5 19.5h7M15.5 3.5l2 3" />
+    </>
+  ),
   heart: (
     <path d="M12 19.5s-7.5-4.6-7.5-10A4.2 4.2 0 0112 7a4.2 4.2 0 017.5 2.5c0 5.4-7.5 10-7.5 10z" />
   ),

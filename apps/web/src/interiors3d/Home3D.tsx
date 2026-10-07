@@ -101,6 +101,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   const actT = useRef(0);
 
   const { plan, tier, objects, night, dusk, car, ghost, moving, buyMode, acting } = props;
+  const estate = props.estate ?? null;
   // Anything that changes what people do: draw again.
   useEffect(() => {
     stageRef.current?.invalidate();
@@ -218,7 +219,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const h = buildHouse(plan, { tier, night, car });
+    const h = buildHouse(plan, { tier, night, car, estate });
     houseRef.current = h;
     stage.scene.add(h.root);
     stage.target.copy(h.centre);
@@ -243,7 +244,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       disposeTree(h.root);
       houseRef.current = null;
     };
-  }, [plan, tier, night, car]);
+  }, [plan, tier, night, car, estate]);
 
   // ---- Light: day, dusk or night.
   useEffect(() => {

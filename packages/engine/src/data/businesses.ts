@@ -49,6 +49,14 @@ export interface VenueItem {
   meetChance?: number;
   /** Wave 6: a thing to do (dance, watch a film), not just food and drink. */
   activity?: boolean;
+  /**
+   * Wave 10: the lifestyle tier you need (1 Lean … 5 Lavish). Missing = anyone.
+   * Street food, buses and football are for everyone; gyms and cinemas 2;
+   * fine dining, golf and spas 3; yachts, galas and polo 4; private jets 5.
+   */
+  requiresTier?: number;
+  /** Wave 10: the activity takes you to another city (`venue.buy` with `to`). */
+  travel?: boolean;
 }
 
 export interface BusinessGig {
@@ -151,6 +159,21 @@ const act = (
   opts: { energy?: number; meeting?: boolean } = {},
 ): VenueItem =>
   item(id, label, priceCol, opts.energy, opts.meeting, { fun, meetChance, activity: true });
+
+/** Wave 10: an activity that needs a lifestyle tier (and may take you to another city). */
+const luxe = (
+  id: string,
+  label: string,
+  priceCol: number,
+  fun: number,
+  meetChance: number,
+  requiresTier: number,
+  opts: { energy?: number; meeting?: boolean; travel?: boolean } = {},
+): VenueItem => ({
+  ...act(id, label, priceCol, fun, meetChance, opts),
+  requiresTier,
+  ...(opts.travel ? { travel: true } : {}),
+});
 
 const gig = (
   id: string,
@@ -689,6 +712,8 @@ export const BUSINESS_KINDS: BusinessKindSpec[] = [
       item('cocktail', 'Cocktail', 0.01, 3, true),
       item('sundowner', 'Sundowner and small plates', 0.022, 6, true),
       act('dj-set', 'Sunset DJ set', 0.008, 7, 0.2),
+      // Wave 10: the rooftop party, for people doing well.
+      luxe('rooftop-party', 'Rooftop party', 0.04, 9, 0.4, 3, { meeting: true }),
     ],
     roles: BAR_STAFF,
     awning: '#00695c',
@@ -708,7 +733,7 @@ export const BUSINESS_KINDS: BusinessKindSpec[] = [
     items: [
       act('ticket', 'Film ticket', 0.006, 6, 0.05, { energy: 3, meeting: true }),
       act('combo', 'Ticket, popcorn and a drink', 0.01, 7, 0.06, { energy: 4, meeting: true }),
-      act('premiere', 'Premiere night', 0.02, 9, 0.3, { meeting: true }),
+      { ...act('premiere', 'Premiere night', 0.02, 9, 0.3, { meeting: true }), requiresTier: 3 },
     ],
     buys: { fintech: 0.012, saas: 0.015, ecommerce: 0.01 },
     gigs: [
@@ -876,8 +901,11 @@ export const BUSINESS_KINDS: BusinessKindSpec[] = [
   }),
   kind('spa', 'health', 'Spa', 'clinic', [6, 16], {
     items: [
-      act('massage', 'Massage', 0.02, 6, 0.03, { energy: 12 }),
-      act('day-pass', 'Spa day pass', 0.012, 5, 0.08, { energy: 8, meeting: true }),
+      { ...act('massage', 'Massage', 0.02, 6, 0.03, { energy: 12 }), requiresTier: 3 },
+      {
+        ...act('day-pass', 'Spa day pass', 0.012, 5, 0.08, { energy: 8, meeting: true }),
+        requiresTier: 3,
+      },
     ],
     buys: { healthtech: 0.025, fintech: 0.012, saas: 0.012 },
     gigs: [
@@ -947,6 +975,100 @@ export const BUSINESS_KINDS: BusinessKindSpec[] = [
     ],
     awning: '#0277bd',
     color: '#01579b',
+  }),
+  // Wave 10: lifestyle venues (landmarks, data/landmarks.ts) and the tech campuses of SF.
+  kind('marina', 'hospitality', 'Yacht marina', 'hotel', [20, 50], {
+    items: [
+      luxe('sunset-cruise', 'Sunset cruise', 0.06, 8, 0.3, 3, { meeting: true }),
+      luxe('yacht-day', 'Yacht day', 0.8, 10, 0.6, 4, { energy: 10, meeting: true }),
+      item('drink', 'A drink on the pontoon', 0.008, 2, true),
+    ],
+    buys: { fintech: 0.012, saas: 0.015, logistics: 0.012 },
+    gigs: [
+      gig('deckhand', 'Deckhand for the day', 8, 0.07),
+      gig('charters', 'Sell charters to companies', 10, 0.15, 'sales'),
+    ],
+    roles: [
+      entry('deckhand', 'Deckhand', 0.95),
+      skilled('skipper', 'Skipper', 1.8),
+      lead('manager', 'Harbour master', 2.6),
+    ],
+    awning: '#0d47a1',
+    color: '#1565c0',
+  }),
+  kind('golf-club', 'hospitality', 'Golf and country club', 'hotel', [20, 50], {
+    items: [
+      item('clubhouse', 'Lunch at the clubhouse', 0.03, 8, true),
+      luxe('golf', 'Round of golf', 0.06, 7, 0.45, 3, { energy: 4, meeting: true }),
+      luxe('polo', 'Polo match', 0.3, 9, 0.5, 4, { meeting: true }),
+    ],
+    buys: { fintech: 0.012, saas: 0.015, agritech: 0.015 },
+    gigs: [
+      gig('caddie', 'Caddie a round', 6, 0.06),
+      gig('members', 'Sign up new members', 10, 0.15, 'sales'),
+    ],
+    roles: [
+      entry('caddie', 'Caddie', 0.95),
+      skilled('pro', 'Golf pro', 1.9),
+      lead('manager', 'Club secretary', 2.6),
+    ],
+    awning: '#1b5e20',
+    color: '#2e7d32',
+  }),
+  kind('ballroom', 'hospitality', 'Grand ballroom', 'hotel', [18, 45], {
+    items: [
+      luxe('charity-ball', 'Charity ball', 0.09, 8, 0.45, 3, { meeting: true }),
+      luxe('gala', 'Gala dinner', 0.4, 9, 0.6, 4, { meeting: true }),
+    ],
+    buys: { fintech: 0.012, saas: 0.015, agritech: 0.02, logistics: 0.008 },
+    gigs: [
+      gig('events', 'Gala staffing', 8, 0.07),
+      gig('sales', 'Sell tables to companies', 10, 0.15, 'sales'),
+    ],
+    roles: [
+      entry('waiter', 'Waiter'),
+      skilled('planner', 'Events planner', 1.6, 'ops'),
+      lead('manager', 'Banqueting manager', 2.5),
+    ],
+    awning: '#6a1b9a',
+    color: '#4a148c',
+  }),
+  kind('private-terminal', 'hospitality', 'Private jet terminal', 'warehouse', [25, 60], {
+    items: [
+      item('lounge', 'Lounge access', 0.03, 4, true),
+      luxe('jet-weekend', 'Private-jet weekend', 4, 10, 0.5, 5, { meeting: true, travel: true }),
+    ],
+    buys: { fintech: 0.015, saas: 0.015, logistics: 0.02 },
+    gigs: [
+      gig('ground', 'Ground crew shift', 8, 0.08),
+      gig('charters', 'Sell charter hours', 10, 0.16, 'sales'),
+    ],
+    roles: [
+      entry('ground', 'Ground crew', 0.95),
+      skilled('dispatcher', 'Flight dispatcher', 1.7, 'ops'),
+      lead('manager', 'Terminal manager', 2.8),
+    ],
+    awning: '#263238',
+    color: '#37474f',
+  }),
+  kind('tech-campus', 'services', 'Tech campus', 'hotel', [150, 400], {
+    items: [
+      item('cafeteria', 'Lunch at the campus café', 0.004, 7, true),
+      act('tour', 'Campus tour and talk', 0.006, 5, 0.4, { meeting: true }),
+    ],
+    buys: { saas: 0.03, fintech: 0.01, healthtech: 0.01, edtech: 0.008, logistics: 0.008 },
+    gigs: [
+      gig('contract', 'Contract engineering sprint', 12, 0.25, 'tech'),
+      gig('research', 'User research sessions', 10, 0.18, 'creative'),
+    ],
+    roles: [
+      entry('support', 'Support specialist', 1.1, 'tech'),
+      skilled('engineer', 'Software engineer', 2, 'tech'),
+      skilled('pm', 'Product manager', 1.9, 'ops'),
+      lead('director', 'Engineering director', 3, 'tech'),
+    ],
+    awning: '#00bcd4',
+    color: '#0097a7',
   }),
 ];
 

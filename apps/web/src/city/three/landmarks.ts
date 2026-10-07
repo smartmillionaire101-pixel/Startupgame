@@ -9,6 +9,11 @@
  */
 import * as THREE from 'three';
 import type { RoadIndex } from './roads';
+import { LightList } from './lights';
+
+/** Night lights of the landmarks being built (buildLandmarks collects them). */
+let LIGHTS = new LightList();
+const BEACON = '#ff2a1a';
 
 const matCache = new Map<string, THREE.MeshStandardMaterial>();
 function mat(
@@ -88,6 +93,9 @@ function suspension(
     anchors?: number[];
     legs: number;
     portals: number;
+    /** Light colour (cables and floodlights), and the Bay Lights on the suspenders. */
+    light?: string;
+    bayLights?: boolean;
   },
 ) {
   const g = new THREE.Group();
@@ -106,6 +114,13 @@ function suspension(
     tower.position.set(p.x, 0, p.y);
     tower.rotation.y = yaw;
     const top = o.deck + o.towerH;
+    // Floodlit legs, red beacons on top.
+    for (const sg of [-1, 1]) {
+      const lx = p.x + -dy * sg * half;
+      const lz = p.y + dx * sg * half;
+      for (let y = 6; y < top; y += 14) LIGHTS.add(lx, y, lz, o.light ?? '#ffcf8a', 7);
+      LIGHTS.add(lx, top + 7, lz, BEACON, 9, 0.13 + sg * 0.2);
+    }
     for (const sg of [-1, 1]) {
       add(tower, box(o.legs, top, o.legs * 1.6), m, 0, 0, sg * half);
       add(tower, box(o.legs * 0.7, 6, o.legs * 1.2), m, 0, top, sg * half);
@@ -151,6 +166,11 @@ function suspension(
       pts.push(new THREE.Vector3(p.x + nx * sg * half, yAt(t), p.y + ny * sg * half));
     }
     g.add(tube(pts, 0.9, cableM));
+    // A string of lights along each main cable.
+    for (let i = 0; i < pts.length; i += 2) {
+      const q = pts[i]!;
+      LIGHTS.add(q.x, q.y + 1, q.z, o.light ?? '#ffd9a0', 6);
+    }
     const step = 16 / L;
     for (let t = anchors[0]! + step; t < anchors[1]!; t += step) {
       const y = yAt(t);
@@ -159,9 +179,18 @@ function suspension(
       const x = p.x + nx * sg * half;
       const z = p.y + ny * sg * half;
       susp.push(x, o.deck, z, x, y, z);
+      if (o.bayLights)
+        for (let yy = o.deck + 5; yy < y; yy += 9)
+          LIGHTS.add(x, yy, z, '#eef4ff', 4.2, -((t * 13.7 + yy * 0.07) % 1) - 0.01);
     }
   }
   g.add(lines(susp, o.color));
+  // Lamps along the deck.
+  for (let t = anchors[0]!; t <= anchors[1]!; t += 30 / L) {
+    const q = at(s, t);
+    for (const sg of [-1, 1])
+      LIGHTS.add(q.x + nx * sg * (half - 2), o.deck + 6, q.y + ny * sg * (half - 2), '#ffc477', 7);
+  }
   return g;
 }
 
@@ -176,6 +205,8 @@ function cableStayed(s: Span, o: { color: string; deck: number; pylons: [number,
   for (const [t, H] of o.pylons) {
     const p = at(s, t);
     add(g, box(3, o.deck + H, 4), m, p.x, 0, p.y);
+    for (let y = 6; y < o.deck + H; y += 8) LIGHTS.add(p.x, y, p.y, '#f4f7ff', 7);
+    LIGHTS.add(p.x, o.deck + H + 3, p.y, BEACON, 8, 0.4);
     const reach = Math.min(L * 0.45, H * 2.2);
     for (let k = 1; k <= 10; k++) {
       for (const sg of [-1, 1]) {
@@ -192,6 +223,11 @@ function cableStayed(s: Span, o: { color: string; deck: number; pylons: [number,
     }
   }
   g.add(lines(stays, '#e5e7eb'));
+  for (let t = 0; t <= 1; t += 30 / L) {
+    const q = at(s, t);
+    LIGHTS.add(q.x - dy * 9, o.deck + 6, q.y + dx * 9, '#ffd49a', 6);
+    LIGHTS.add(q.x + dy * 9, o.deck + 6, q.y - dx * 9, '#ffd49a', 6);
+  }
   return g;
 }
 
@@ -256,6 +292,23 @@ function towerBridge(s: Span) {
       }
     }
   g.add(lines(chain, '#5b8fc4'));
+  for (let i = 0; i < chain.length; i += 6)
+    LIGHTS.add(chain[i]!, chain[i + 1]!, chain[i + 2]!, '#cfe3ff', 5);
+  for (const t of [0.5 - spanT, 0.5 + spanT]) {
+    const q = at(s, t);
+    for (let y = 4; y < 60; y += 6)
+      for (const [a, b] of [
+        [-8, -8],
+        [8, -8],
+        [-8, 8],
+        [8, 8],
+      ] as const)
+        LIGHTS.add(q.x + a, y, q.y + b, '#ffd8a0', 7);
+  }
+  for (let k = 0; k <= 8; k++) {
+    const q = at(s, 0.5 - spanT + (2 * spanT * k) / 8);
+    LIGHTS.add(q.x, 44, q.y, '#ffe6c0', 6);
+  }
   return g;
 }
 
@@ -649,6 +702,7 @@ export function deckFor(p: LandmarkPlan): number | null {
 
 export function buildLandmarks(plans: LandmarkPlan[], roads: RoadIndex): THREE.Group {
   const out = new THREE.Group();
+  LIGHTS = new LightList();
   for (const p of plans) {
     let g: THREE.Group | null = null;
     if (p.e2 !== undefined && p.s2 !== undefined) {
@@ -662,6 +716,7 @@ export function buildLandmarks(plans: LandmarkPlan[], roads: RoadIndex): THREE.G
           towers: [0.28, 0.72],
           legs: 10,
           portals: 4,
+          light: '#ffbf66',
         });
       else if (p.kind === 'suspension')
         g = suspension(s, {
@@ -671,6 +726,8 @@ export function buildLandmarks(plans: LandmarkPlan[], roads: RoadIndex): THREE.G
           towers: [0.18, 0.4, 0.6, 0.82],
           legs: 8,
           portals: 3,
+          light: '#eef4ff',
+          bayLights: /Bay Bridge|Oakland/i.test(p.name),
         });
       else if (p.kind === 'cable-stayed')
         g = cableStayed(s, {
@@ -690,12 +747,57 @@ export function buildLandmarks(plans: LandmarkPlan[], roads: RoadIndex): THREE.G
       }
     } else {
       g = model(p.kind, p.name);
-      if (g) g.position.set(p.e, 0, p.s);
+      if (g) {
+        g.position.set(p.e, 0, p.s);
+        floodlight(g, p);
+      }
     }
     if (g) {
       g.name = p.name;
       out.add(g);
     }
   }
+  out.userData.lights = LIGHTS;
   return out;
+}
+
+/** The night lights of a built landmark group (buildLandmarks). */
+export const landmarkLights = (g: THREE.Group): LightList =>
+  (g.userData.lights as LightList | undefined) ?? new LightList();
+
+/** Tower floodlights: strings of lights up its corners, a beacon on top, a ring for a wheel. */
+function floodlight(g: THREE.Group, p: LandmarkPlan) {
+  g.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(g);
+  if (b.isEmpty()) return;
+  const H = b.max.y;
+  const cx = (b.min.x + b.max.x) / 2;
+  const cz = (b.min.z + b.max.z) / 2;
+  const hx = ((b.max.x - b.min.x) / 2) * 0.7;
+  const hz = ((b.max.z - b.min.z) / 2) * 0.7;
+  if (p.kind === 'london-eye') {
+    // The wheel's rim: lights all round (in the model's own frame, then placed).
+    const v = new THREE.Vector3();
+    for (let k = 0; k < 64; k++) {
+      const an = (k / 64) * Math.PI * 2;
+      v.set(Math.cos(an) * 61, 70 + Math.sin(an) * 61, 0).applyMatrix4(g.matrixWorld);
+      LIGHTS.add(v.x, v.y, v.z, '#bcd9ff', 6.5);
+    }
+    return;
+  }
+  const warm = /burj|shard|salesforce|gherkin|transamerica/.test(p.kind) ? '#eaf2ff' : '#ffd9a0';
+  const step = Math.max(5, H / 28);
+  const size = Math.max(5, Math.min(14, H / 40));
+  for (let y = step * 0.5; y < H - step * 0.5; y += step)
+    for (const [a, c] of [
+      [-hx, -hz],
+      [hx, -hz],
+      [-hx, hz],
+      [hx, hz],
+    ] as const) {
+      // The corners narrow with the tower (a box is widest at its foot).
+      const k = H > 120 ? 1 - (y / H) * 0.75 : 1;
+      LIGHTS.add(cx + a * k, y, cz + c * k, warm, size);
+    }
+  if (H > 60) LIGHTS.add(cx, H + 3, cz, BEACON, Math.max(9, H / 30), 0.27);
 }

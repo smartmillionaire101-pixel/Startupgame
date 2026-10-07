@@ -281,6 +281,11 @@ export interface VenueItemView {
   meetChance: number;
   /** A thing to do (dance, watch a film), not just food. */
   activity: boolean;
+  /** Wave 10: the lifestyle tier it needs (1 = anyone), and whether you're below it. */
+  requiresTier: number;
+  locked: boolean;
+  /** Wave 10: it takes you to another city (`venue.buy` with `to`). */
+  travel?: boolean;
 }
 
 /** Labels that are fun even from an engine without `activity` (Wave 5 clubs, cinemas…). */
@@ -306,6 +311,9 @@ export function venueItemsOf(view: View, businessId: string): VenueItemView[] {
         meetChance: Math.max(0, Math.min(1, num(i.meetChance))),
         activity:
           i.activity === true || (i.activity === undefined && (fun > 0 || FUN_WORDS.test(label))),
+        requiresTier: Math.max(1, Math.round(num(i.requiresTier, 1))),
+        locked: i.locked === true,
+        ...(i.travel === true ? { travel: true } : {}),
       };
     });
 }
