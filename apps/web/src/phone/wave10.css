@@ -1,0 +1,352 @@
+/* Wave 10 §C: Homes, Going out, Competitions (phone) and Expansion. */
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.chip-btn {
+  min-height: 2.25rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chip-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.warn-text {
+  color: var(--warn, #b45309);
+}
+
+/* ---- Homes */
+.homes-market {
+  gap: 0.2rem;
+}
+.listing {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 0.7rem;
+  align-items: stretch;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 0.45rem;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  box-shadow: var(--sh-1);
+}
+.listing:active {
+  transform: scale(0.99);
+}
+.listing .prop-art {
+  width: 96px;
+  height: 100%;
+  min-height: 84px;
+  border-radius: 10px;
+  display: block;
+}
+.listing-main {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  align-content: center;
+}
+.listing-price {
+  color: var(--accent);
+}
+.tour {
+  position: relative;
+  height: 280px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: #17233f;
+}
+.tour .tour-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.tour.is-3d .tour-art {
+  opacity: 0;
+  pointer-events: none;
+}
+.tour-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 0.5rem;
+  transform: translateX(-50%);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.5);
+  color: #fff;
+  pointer-events: none;
+}
+.homes-worth {
+  gap: 0.2rem;
+  background: linear-gradient(140deg, #b45309, #78350f);
+}
+.homes-worth-total {
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+.owned-top {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+}
+.prop-art.small {
+  width: 84px;
+  height: 64px;
+  flex: none;
+  border-radius: 10px;
+}
+.owned-main {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  justify-items: start;
+}
+.row.wrap {
+  flex-wrap: wrap;
+}
+
+/* ---- Going out */
+.going-tier {
+  gap: 0.25rem;
+}
+.tier-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+.tier-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.tier-dots span.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.going-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 0.55rem 0.7rem;
+  box-shadow: var(--sh-1);
+}
+.going-row.is-locked {
+  opacity: 0.55;
+  filter: grayscale(0.8);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+.going-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+.going-lock {
+  font-weight: 600;
+  color: var(--text);
+}
+.going-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex: none;
+}
+
+/* ---- Competitions */
+.comp-facts {
+  display: grid;
+  gap: 0.15rem;
+}
+.comp-prize {
+  white-space: nowrap;
+}
+.comp-judges,
+.comp-lineup,
+.comp-standings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.comp-judge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.comp-judge.is-player {
+  background: color-mix(in srgb, #7c3aed 14%, var(--surface));
+}
+.comp-lineup li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+.comp-lineup li.is-you {
+  border-color: var(--accent);
+}
+.score-picker {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+}
+.score-btn {
+  min-height: 2.2rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+.score-btn.on {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+.comp-actions {
+  display: grid;
+  gap: 0.4rem;
+}
+.comp-actions select {
+  min-height: 2.5rem;
+}
+.comp-standing {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.comp-standing.is-winner {
+  background: linear-gradient(120deg, #fef3c7, #fde68a);
+  color: #451a03;
+}
+.comp-standing.is-you {
+  outline: 2px solid var(--accent);
+}
+.comp-rank {
+  flex: none;
+  width: 2rem;
+  text-align: center;
+  font-weight: 800;
+}
+.comp-standing-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.4rem;
+  align-items: baseline;
+}
+.comp-standing-end {
+  text-align: right;
+  display: grid;
+}
+.comp-cards {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+}
+.comp-card {
+  min-width: 1.4rem;
+  padding: 0 0.2rem;
+  text-align: center;
+  border-radius: 4px;
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+/* ---- Expansion */
+.expansion-h {
+  font-size: var(--fs-sm, 0.95rem);
+  margin: 0.6rem 0 0.2rem;
+}
+.branch-list {
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.branch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.branch-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.district-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 0.35rem;
+  padding: 0.5rem;
+  margin: 0.4rem 0;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 30% 30%, rgb(56 189 248 / 0.18), transparent 55%),
+    radial-gradient(circle at 80% 70%, rgb(74 222 128 / 0.16), transparent 60%), var(--surface-2);
+}
+.district {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2.4rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+}
+.district.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.district.taken {
+  opacity: 0.55;
+  cursor: default;
+}

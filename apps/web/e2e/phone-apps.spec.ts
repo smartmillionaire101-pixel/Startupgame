@@ -137,7 +137,7 @@ test('screenshots of the phone (PHONE_SHOTS)', async ({ page }) => {
   await founder(page);
   await page.getByRole('button', { name: /^Phone/ }).click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
-  await expect(phone.locator('[data-app]')).toHaveCount(16);
+  await expect(phone.locator('[data-app]')).toHaveCount(19);
   await page.screenshot({ path: `${dir}/phone-home.png` });
   for (const app of [
     'bank',

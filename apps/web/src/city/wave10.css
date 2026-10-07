@@ -1,0 +1,203 @@
+/* Wave 10 §C: the outing and pitch competition scenes (OutingScene, CompetitionScene). */
+
+.outing-scene,
+.comp-scene {
+  z-index: 40;
+}
+.outing-room,
+.comp-room {
+  flex: 1 1 0;
+  min-height: min(52vh, 460px);
+  max-height: none;
+}
+.outing-room.is-3d > svg,
+.comp-room.is-3d > svg {
+  opacity: 0;
+  pointer-events: none;
+}
+.outing-scene .place-tray,
+.comp-scene .place-tray {
+  max-height: 48vh;
+  overflow-y: auto;
+}
+.outing-pick {
+  display: grid;
+  gap: 0.6rem;
+}
+.outing-pick h3 {
+  margin: 0;
+}
+
+/* Lite drawings: a little motion. */
+.outing-art.is-live .oa-boat {
+  animation: oa-bob 2.6s ease-in-out infinite;
+  transform-origin: 200px 190px;
+}
+.outing-art.is-live .oa-wave {
+  animation: oa-wave 3s linear infinite;
+}
+.outing-art.is-live .oa-ball {
+  animation: oa-ball 2.6s ease-out 1.4s forwards;
+}
+.outing-art.is-live .oa-riders {
+  animation: oa-ride 3s ease-in-out infinite alternate;
+}
+.outing-art.is-live .oa-dancers {
+  animation: oa-bob 0.9s ease-in-out infinite;
+  transform-origin: 180px 200px;
+}
+.outing-art.is-live .oa-clouds {
+  animation: oa-clouds 1.6s linear infinite;
+}
+.outing-art .oa-bulb {
+  animation: oa-twinkle 1.2s ease-in-out infinite alternate;
+}
+.outing-art.is-live .oa-chandelier {
+  animation: oa-twinkle 2s ease-in-out infinite alternate;
+}
+@keyframes oa-bob {
+  50% {
+    transform: translateY(3px) rotate(0.6deg);
+  }
+}
+@keyframes oa-wave {
+  to {
+    transform: translateX(-60px);
+  }
+}
+@keyframes oa-ball {
+  40% {
+    transform: translate(90px, -150px);
+  }
+  to {
+    transform: translate(170px, -52px);
+  }
+}
+@keyframes oa-ride {
+  to {
+    transform: translateX(60px);
+  }
+}
+@keyframes oa-clouds {
+  from {
+    transform: translateX(40px);
+  }
+  to {
+    transform: translateX(-40px);
+  }
+}
+@keyframes oa-twinkle {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The competition, drawn. */
+.comp-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.comp-slide-kicker {
+  fill: #fde68a;
+  font:
+    700 8px/1 system-ui,
+    sans-serif;
+  letter-spacing: 0.1em;
+}
+.comp-slide-title {
+  fill: #fff;
+  font:
+    800 20px/1 system-ui,
+    sans-serif;
+}
+.comp-slide-idea {
+  fill: rgb(255 255 255 / 0.85);
+  font:
+    400 8px/1 system-ui,
+    sans-serif;
+}
+.comp-judge-name {
+  fill: #fff;
+  font:
+    700 8px/1 system-ui,
+    sans-serif;
+}
+.comp-card-n {
+  fill: #1e293b;
+  font:
+    900 14px/1 system-ui,
+    sans-serif;
+}
+.comp-card-up {
+  animation: comp-card 0.3s ease-out;
+}
+.comp-trophy {
+  font-size: 26px;
+}
+@keyframes comp-card {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+}
+.comp-results {
+  display: grid;
+  gap: 0.5rem;
+}
+.comp-results h3 {
+  margin: 0;
+}
+.comp-live {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* Confetti over the winner's moment (Lite and 3D alike). */
+.confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background-image:
+    radial-gradient(circle, #f43f5e 2px, transparent 3px),
+    radial-gradient(circle, #f59e0b 2px, transparent 3px),
+    radial-gradient(circle, #22c55e 2px, transparent 3px),
+    radial-gradient(circle, #3b82f6 2px, transparent 3px),
+    radial-gradient(circle, #a855f7 2px, transparent 3px);
+  background-size:
+    47px 53px,
+    61px 41px,
+    37px 59px,
+    53px 47px,
+    43px 37px;
+  animation: confetti-fall 2.4s linear infinite;
+}
+@keyframes confetti-fall {
+  from {
+    background-position:
+      0 -60px,
+      20px -40px,
+      10px -70px,
+      30px -50px,
+      5px -30px;
+  }
+  to {
+    background-position:
+      10px 300px,
+      0 340px,
+      25px 280px,
+      15px 320px,
+      30px 310px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .confetti,
+  .outing-art * {
+    animation: none !important;
+  }
+}

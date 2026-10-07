@@ -166,6 +166,12 @@ export interface HouseOpts {
   night: boolean;
   /** Your car's model id, or null. */
   car: string | null;
+  /**
+   * Wave 10: a home on the property market. A villa or mansion gets a pool
+   * terrace (and a mansion a formal garden with a fountain); a penthouse a
+   * glass-railed terrace with a hot tub and the city's towers around it.
+   */
+  estate?: 'villa' | 'mansion' | 'penthouse' | null;
 }
 
 export function buildHouse(plan: HomePlan, o: HouseOpts): House {
@@ -178,7 +184,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const centre = new THREE.Vector3(totalW / 2, 0, H / 2 + 0.6);
 
   // ---- Ground: a dark backdrop, a round lawn, the slab.
-  const R = Math.max(totalW, H) * 0.78 + 2.4;
+  const R =
+    Math.max(totalW, H) * 0.78 + 2.4 + (o.estate === 'villa' || o.estate === 'mansion' ? 2 : 0);
   const lawnTex = floorTexture('grass').clone();
   lawnTex.needsUpdate = true;
   lawnTex.repeat.set((R * 2) / 6, (R * 2) / 6);
@@ -214,6 +221,9 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     const z = centre.z + Math.sin(a) * r;
     if (Math.abs(x - dx) < 1.2 && z > H) continue;
     if (x > -0.6 && x < totalW + 0.6 && z > -0.6 && z < H + 0.6) continue;
+    // Wave 10: keep the pool terrace and the garden clear.
+    if (o.estate && o.estate !== 'penthouse' && x < 0 && x > -8 && z > 0 && z < H) continue;
+    if (o.estate === 'mansion' && z < 0 && z > -6.4 && x > 0 && x < totalW) continue;
     if (i % 3 === 0) {
       k.cyl(0.08, 0.1, 0.9, '#6b4a2f', x, -0.16, z);
       k.sphere(0.65, i % 2 ? '#3f6f35' : '#4d7f3c', x, 1.15, z, { seg: 9, sy: 0.9 });
@@ -399,12 +409,171 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     root.add(m.group);
   }
 
-  const span = Math.max(totalW, H) * 1.18 + 2;
+  // ---- Wave 10: the estate around a villa, mansion or penthouse.
+  const ext = o.estate ? buildEstate(root, o.estate, W, H, totalW, R, centre) : null;
+
+  const span = Math.max(totalW + (ext?.left ?? 0), H + (ext?.back ?? 0)) * 1.18 + 2;
   const fitPoints: THREE.Vector3[] = [];
-  for (const x of [-0.3, totalW + 0.2])
-    for (const z of [-0.6, H + (garage || o.car ? 2.2 : 1.2)])
+  for (const x of [-0.3 - (ext?.left ?? 0), totalW + 0.2])
+    for (const z of [-0.6 - (ext?.back ?? 0), H + (garage || o.car ? 2.2 : 1.2)])
       for (const y of [0, WALL_H]) fitPoints.push(new THREE.Vector3(x, y, z));
   return { root, sides, centre, span, fitPoints, garage: garageOut };
+}
+
+/**
+ * Wave 10: a pool terrace with loungers and a parasol (villa, mansion), a
+ * formal garden with hedges, flower beds and a fountain (mansion), or a
+ * penthouse terrace with a glass rail, a hot tub and towers all around.
+ * Returns how far it reaches past the house (left and behind), for the camera.
+ */
+function buildEstate(
+  root: THREE.Group,
+  kind: 'villa' | 'mansion' | 'penthouse',
+  W: number,
+  H: number,
+  totalW: number,
+  R: number,
+  centre: THREE.Vector3,
+): { left: number; back: number } {
+  const k = new Kit();
+  if (kind === 'penthouse') {
+    // A terrace along the front, glass rail, hot tub and planters.
+    const tz = H + 0.25;
+    k.box(W, 0.06, 3.2, '#cbb89d', W / 2, -0.12, tz + 1.6, { rough: 0.8 });
+    for (let i = 0; i < Math.floor(W / 0.6); i++)
+      k.box(0.04, 0.005, 3.2, '#a8916f', 0.3 + i * 0.6, -0.06, tz + 1.6, { noShadow: true });
+    k.box(W, 1.0, 0.04, '#bfe3f0', W / 2, -0.06, tz + 3.2, {
+      opacity: 0.35,
+      noShadow: true,
+      metal: 0.2,
+      rough: 0.1,
+    });
+    k.box(W, 0.05, 0.08, '#d9dde3', W / 2, 0.94, tz + 3.2, { metal: 0.6, rough: 0.3 });
+    k.cyl(0.95, 0.95, 0.55, '#e2e8f0', W - 2, -0.06, tz + 1.5, { seg: 28 });
+    k.cyl(0.82, 0.82, 0.02, '#38bdf8', W - 2, 0.48, tz + 1.5, {
+      seg: 28,
+      emissive: '#0ea5e9',
+      emissiveIntensity: 0.35,
+      rough: 0.1,
+    });
+    for (const x of [0.6, W / 2 - 1.5]) {
+      k.box(0.7, 0.5, 0.7, '#57534e', x, -0.06, tz + 2.6, { round: 0.05 });
+      k.sphere(0.42, '#3f7a3a', x, 0.75, tz + 2.6, { seg: 9 });
+    }
+    // The city around: towers beyond the edge, windows lit.
+    const rnd = (n: number) => (((Math.sin(n * 91.7) * 47453.5) % 1) + 1) % 1;
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2;
+      const r = R + 3 + rnd(i) * 5;
+      const x = centre.x + Math.cos(a) * r;
+      const z = centre.z + Math.sin(a) * r;
+      const h = 6 + rnd(i + 7) * 14;
+      const w = 2.5 + rnd(i + 3) * 2.5;
+      k.box(w, h, w, i % 3 ? '#334155' : '#475569', x, -18, z, { rough: 0.6 });
+      k.box(w + 0.02, h * 0.8, w + 0.02, '#fde68a', x, -16, z, {
+        opacity: 0.12,
+        emissive: '#fde68a',
+        emissiveIntensity: 0.6,
+        noShadow: true,
+      });
+    }
+    root.add(k.build());
+    return { left: 0, back: 0 };
+  }
+  // ---- A pool terrace on the left of the house.
+  const px0 = -7.2;
+  const px1 = -0.6;
+  const pz0 = 1;
+  const pz1 = Math.min(H - 1, 11);
+  k.box(px1 - px0, 0.06, pz1 - pz0, '#e7dcc8', (px0 + px1) / 2, -0.16, (pz0 + pz1) / 2, {
+    rough: 0.85,
+  });
+  const wx0 = px0 + 0.8;
+  const wx1 = px1 - 1.9;
+  const wz0 = pz0 + 0.9;
+  const wz1 = pz1 - 0.9;
+  k.box(wx1 - wx0 + 0.3, 0.1, wz1 - wz0 + 0.3, '#f8fafc', (wx0 + wx1) / 2, -0.11, (wz0 + wz1) / 2);
+  const water = new THREE.Mesh(
+    new THREE.PlaneGeometry(wx1 - wx0, wz1 - wz0),
+    mat('#38bdf8', { emissive: '#0ea5e9', emissiveIntensity: 0.3, rough: 0.08, metal: 0.1 }),
+  );
+  water.rotation.x = -Math.PI / 2;
+  water.position.set((wx0 + wx1) / 2, -0.005, (wz0 + wz1) / 2);
+  water.receiveShadow = true;
+  root.add(water);
+  // Loungers along the house side, a parasol.
+  for (let i = 0; i < 3; i++) {
+    const z = pz0 + 1.2 + i * 1.6;
+    if (z > pz1 - 0.8) break;
+    k.box(0.7, 0.28, 1.7, '#f8fafc', px1 - 0.95, -0.1, z, { round: 0.06 });
+    k.box(0.7, 0.5, 0.12, '#f8fafc', px1 - 0.95, 0.12, z - 0.78, { rx: -0.6, round: 0.04 });
+    k.box(0.66, 0.06, 1.6, i % 2 ? '#f59e0b' : '#0ea5e9', px1 - 0.95, 0.18, z, { round: 0.03 });
+  }
+  k.cyl(0.03, 0.03, 2.2, '#e5e7eb', px1 - 1.0, -0.1, pz1 - 0.6);
+  k.cyl(0.02, 1.1, 0.45, '#ef4444', px1 - 1.0, 1.8, pz1 - 0.6, { seg: 10 });
+  // Palms at the corners.
+  for (const [x, z] of [
+    [px0 + 0.3, pz0 + 0.2],
+    [px0 + 0.3, pz1 - 0.2],
+  ] as const) {
+    k.cyl(0.09, 0.13, 3.2, '#8b6b4a', x, -0.16, z, { seg: 8 });
+    for (let j = 0; j < 6; j++) {
+      const a = (j / 6) * Math.PI * 2;
+      k.box(0.25, 0.04, 1.4, '#3f8f3a', x + Math.cos(a) * 0.55, 2.95, z + Math.sin(a) * 0.55, {
+        ry: -a + Math.PI / 2,
+        rx: 0.35,
+      });
+    }
+  }
+  let back = 0;
+  if (kind === 'mansion') {
+    // A formal garden behind the house: hedges, beds, a fountain.
+    back = 6;
+    const gz0 = -5.6;
+    const gz1 = -0.8;
+    const gx0 = 0.6;
+    const gx1 = Math.min(totalW - 0.6, W + 2);
+    const cx = (gx0 + gx1) / 2;
+    const cz = (gz0 + gz1) / 2;
+    k.box(gx1 - gx0, 0.03, 0.9, '#d6cbb5', cx, -0.155, cz, { rough: 0.95 });
+    k.box(0.9, 0.03, gz1 - gz0, '#d6cbb5', cx, -0.155, cz, { rough: 0.95 });
+    for (const [x0, x1] of [
+      [gx0, cx - 0.6],
+      [cx + 0.6, gx1],
+    ] as const)
+      for (const [z0, z1] of [
+        [gz0, cz - 0.6],
+        [cz + 0.6, gz1],
+      ] as const) {
+        k.box(x1 - x0, 0.45, 0.3, '#2f6b35', (x0 + x1) / 2, -0.16, z0 + 0.15, { round: 0.1 });
+        k.box(x1 - x0, 0.45, 0.3, '#2f6b35', (x0 + x1) / 2, -0.16, z1 - 0.15, { round: 0.1 });
+        k.box(x1 - x0 - 0.8, 0.12, z1 - z0 - 0.9, '#7c4a2a', (x0 + x1) / 2, -0.16, (z0 + z1) / 2);
+        for (let f = 0; f < 6; f++)
+          k.sphere(
+            0.13,
+            ['#f472b6', '#facc15', '#f87171', '#c084fc'][f % 4]!,
+            x0 + 0.6 + ((f * 1.37) % Math.max(0.5, x1 - x0 - 1.2)),
+            0.05,
+            (z0 + z1) / 2 + ((f % 3) - 1) * 0.4,
+            { seg: 7 },
+          );
+      }
+    // The fountain.
+    k.cyl(1.0, 1.05, 0.35, '#e5e7eb', cx, -0.16, cz, { seg: 24 });
+    k.cyl(0.9, 0.9, 0.02, '#7dd3fc', cx, 0.16, cz, {
+      seg: 24,
+      emissive: '#38bdf8',
+      emissiveIntensity: 0.3,
+    });
+    k.cyl(0.12, 0.16, 0.9, '#e5e7eb', cx, 0.1, cz, { seg: 10 });
+    k.cyl(0.4, 0.15, 0.12, '#e5e7eb', cx, 0.95, cz, { seg: 16 });
+    k.sphere(0.12, '#bae6fd', cx, 1.15, cz, { seg: 8, opacity: 0.8 });
+    // Topiary along the drive.
+    for (let i = 0; i < 4; i++)
+      k.cyl(0.0, 0.42, 1.3, '#2f6b35', totalW + 0.9, -0.16, H + 0.5 - i * 2.2, { seg: 10 });
+  }
+  root.add(k.build());
+  return { left: 7.4, back };
 }
 
 /** Cut away the outer walls that face the camera (azimuth, radians). */
