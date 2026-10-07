@@ -124,6 +124,39 @@ export class RoadIndex {
     }
   }
 
+  /**
+   * A landmark bridge stands here: decks along the line rise to its height
+   * (and if the file has no deck there, one is added).
+   */
+  raiseAlong(ax: number, ay: number, bx: number, by: number, H: number) {
+    const L = Math.hypot(bx - ax, by - ay) || 1;
+    const prof = (t: number) => {
+      const a = Math.max(0, Math.min(1, (t + 0.02) / 0.1));
+      const b = Math.max(0, Math.min(1, (1.02 - t) / 0.1));
+      const f = Math.min(a, b);
+      return H * f * f * (3 - 2 * f);
+    };
+    const tOf = (x: number, y: number) => ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (L * L);
+    let hits = 0;
+    for (const s of this.decks) {
+      const da = segDist(s.ax, s.ay, ax, ay, bx, by).d;
+      const db = segDist(s.bx, s.by, ax, ay, bx, by).d;
+      if (da > 45 || db > 45) continue;
+      s.ha = prof(tOf(s.ax, s.ay));
+      s.hb = prof(tOf(s.bx, s.by));
+      hits++;
+    }
+    if (hits) return;
+    const l: number[] = [];
+    const h: number[] = [];
+    for (let i = 0; i <= 24; i++) {
+      const t = -0.02 + (1.04 * i) / 24;
+      l.push(ax + (bx - ax) * t, ay + (by - ay) * t);
+      h.push(prof(t));
+    }
+    this.addLine(l, 0, h);
+  }
+
   private near(grid: Map<number, number[]>, x: number, y: number, r: number, cb: (n: number) => void) {
     const i0 = Math.floor((x - r) / CELL);
     const i1 = Math.floor((x + r) / CELL);
