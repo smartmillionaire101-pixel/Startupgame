@@ -142,7 +142,8 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   await a.getByRole('dialog', { name: 'Places' }).locator('[data-kind="hub"]').first().click();
   await expect(a.locator('.place-scene')).toBeVisible({ timeout: 10_000 });
   const badge = b.locator('[data-here="hub"]');
-  await expect(badge).toBeAttached({ timeout: 20_000 });
+  // Presence is polled every 5 s; a busy CI runner can take several polls.
+  await expect(badge).toBeAttached({ timeout: 45_000 });
   await tapPlace(b, '[data-here="hub"]');
   const hub = b.locator('.place-scene');
   await expect(hub).toBeVisible({ timeout: 10_000 });

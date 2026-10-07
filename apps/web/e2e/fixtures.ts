@@ -1,4 +1,5 @@
 import { test as base, type Page } from '@playwright/test';
+import { checkName } from '@runway/engine';
 
 /**
  * Shared fixture for all E2E tests.
@@ -62,7 +63,13 @@ const pick = (alphabet: string, n: number) =>
   Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => alphabet[b % alphabet.length]).join(
     '',
   );
-export const letters = (n = 6) => pick('abcdefghijklmnopqrstuvwxyz', n);
+/** Random letters the game's name filter accepts (a random run can spell a refused word). */
+export function letters(n = 6): string {
+  for (;;) {
+    const s = pick('abcdefghijklmnopqrstuvwxyz', n);
+    if (n < 3 || checkName(s, { taken: {}, kind: 'handle' }).ok) return s;
+  }
+}
 export const digits = (n = 7) => pick('0123456789', n);
 
 /** Create an unconfigured session for tests whose subject is gameplay, not signup. */
