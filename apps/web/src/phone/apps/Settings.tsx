@@ -3,6 +3,7 @@
  */
 import { LANGS, setLang, t, useLang } from '../../i18n';
 import { setSetting, useSetting, type SettingKey } from '../settings';
+import { setMapQuality, useMapQuality } from '../../city/three/quality';
 import { H, type PhoneCtx } from '../shared';
 
 function Toggle({ k, label, hint }: { k: SettingKey; label: string; hint: string }) {
@@ -25,6 +26,35 @@ function Toggle({ k, label, hint }: { k: SettingKey; label: string; hint: string
   );
 }
 
+/** Wave 9: the city map in 3D, or the Lite 2D map. */
+function MapQuality() {
+  const q = useMapQuality();
+  return (
+    <section className="phone-card" data-setting="mapQuality">
+      <H>{t('Map quality')}</H>
+      <p className="small muted">{t('3D draws the real city; Lite is lighter on older phones.')}</p>
+      <div className="chips" role="radiogroup" aria-label={t('Map quality')}>
+        {(
+          [
+            ['3d', t('3D')],
+            ['lite', t('Lite')],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            className="chip"
+            role="radio"
+            aria-checked={q === id}
+            onClick={() => setMapQuality(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function Settings(_: { ctx: PhoneCtx }) {
   const lang = useLang();
   return (
@@ -42,6 +72,7 @@ export function Settings(_: { ctx: PhoneCtx }) {
         />
         <Toggle k="sound" label={t('Sound')} hint={t('Background game music.')} />
       </section>
+      <MapQuality />
       <section className="phone-card">
         <H>{t('Language')}</H>
         <div className="chips" role="radiogroup" aria-label={t('Language')}>

@@ -14,8 +14,10 @@
   },
   "dependencies": {
     "@runway/engine": "*",
+    "@types/three": "^0.180.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",

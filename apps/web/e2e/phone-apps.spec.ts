@@ -91,6 +91,13 @@ test('Bank shows the balance; Invest lists deal flow; Settings toggles reduce mo
   const skip = phone.getByRole('switch', { name: 'Always skip rides' });
   await skip.check({ force: true });
   expect(await page.evaluate(() => localStorage.getItem('runway.skipRides'))).toBe('1');
+  // Wave 9: Map quality, 3D or Lite (the specs run on Lite).
+  const quality = phone.getByRole('radiogroup', { name: 'Map quality' });
+  await expect(quality.getByRole('radio', { name: 'Lite' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await expect(quality.getByRole('radio', { name: '3D' })).toHaveAttribute('aria-checked', 'false');
 });
 
 test('Map: tap a place on the mini map, Go, and you arrive there', async ({ page }) => {

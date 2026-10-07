@@ -23,6 +23,8 @@ export default defineConfig({
     baseURL: REMOTE ?? `http://127.0.0.1:${PORT}`,
     ...devices['Pixel 7'],
     trace: 'retain-on-failure',
+    // Wave 9: WebGL (the 3D city) through software rendering in headless Chromium.
+    launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
   },
   webServer: REMOTE
     ? undefined

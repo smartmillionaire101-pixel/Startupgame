@@ -8,7 +8,9 @@
  * re-render React.
  */
 import {
+  lazy,
   memo,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -67,6 +69,10 @@ import { beginRide } from './ride/state';
 import { OSM_CREDIT } from './geo';
 import { GeoPainter } from './geoPaint';
 import { GeoSprite } from './geoSprites';
+import { hasWebGL, useMapQuality } from './three/quality';
+
+// The 3D city is its own chunk (three.js), loaded when a real map first shows.
+const CityMap3D = lazy(() => import('./three/CityMap3D'));
 
 // ---------------------------------------------------------------------------
 // Reduced motion, as a subscribable media query.
@@ -112,6 +118,9 @@ const lastPos = new Map<string, Pt>();
 export function placeAvatarAt(marketId: string, at: Pt) {
   lastPos.set(marketId, at);
 }
+
+/** Where the avatar last stood in a city (shared by the 2D and 3D maps). */
+export const avatarPosIn = (marketId: string): Pt | undefined => lastPos.get(marketId);
 
 /** A far trip waiting for the player to choose how to get there. */
 export interface FarTrip {
@@ -1057,7 +1066,27 @@ const Labels = memo(function Labels({
 // ---------------------------------------------------------------------------
 // The interactive map
 
-export function CityMap({
+export type CityMapProps = Parameters<typeof CityMap2D>[0];
+
+/**
+ * Wave 9 §B: a real city (OpenStreetMap) is drawn in 3D (WebGL, loaded on
+ * demand) unless the player chose the Lite map or WebGL is missing; the 2D
+ * map shows while the 3D one loads, and stands in if it fails.
+ */
+export function CityMap(props: CityMapProps) {
+  const quality = useMapQuality();
+  const [broken, setBroken] = useState(false);
+  const use3d = !!props.layout.geo && quality === '3d' && !broken && hasWebGL();
+  if (!use3d) return <CityMap2D {...props} />;
+  return (
+    <Suspense fallback={<CityMap2D {...props} />}>
+      <CityMap3D {...props} onBroken={() => setBroken(true)} />
+    </Suspense>
+  );
+}
+
+/** The 2D map: Wave 8's canvas + SVG, and the generated cities. */
+function CityMap2D({
   layout,
   look,
   name,
