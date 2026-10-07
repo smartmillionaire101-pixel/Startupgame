@@ -1,5 +1,19 @@
 /** Wave 4: getting around town, the month countdown, flights (src/city). */
 export const travel: Record<string, string> = {
+  // Wave 10: your own car, your homes on the map.
+  Drive: 'Conduire',
+  'Drive your {car}': 'Conduire votre {car}',
+  'Fuel ≈ {amount}': 'Carburant ≈ {amount}',
+  'Charged at home': 'Rechargée à la maison',
+  'Your car is at home. Take a bus or a taxi here.':
+    'Votre voiture est restée chez vous. Prenez un bus ou un taxi ici.',
+  'Fuel {amount}': 'Carburant {amount}',
+  'Your car': 'Votre voiture',
+  Studio: 'Studio',
+  Apartment: 'Appartement',
+  Townhouse: 'Maison de ville',
+  Villa: 'Villa',
+  Mansion: 'Manoir',
   'Coworking space': 'Espace de coworking',
   'Your hotel': 'Votre hôtel',
   'Your trip to {city} counts this month: pitch its investors and invest there. Walking its streets opens soon; for now you’re back in {home}.':

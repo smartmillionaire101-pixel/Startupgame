@@ -30,7 +30,10 @@ import {
   type Footprint,
 } from './buildings';
 import { buildGround, mixHex } from './ground';
-import { discPoly, FootprintGrid, makeFp, rectPoly } from './footprints';
+import { discPoly, FootprintGrid, makeFp, rectPoly, segRectDist, type Fp } from './footprints';
+import { homeModel, PLOT, setHomesNight } from './homes3d';
+import { ROAD_HALF, COVER } from './mask';
+import { hoodAt, type OwnedProperty } from '../properties';
 import { applySky, skyAt, skyDome, skyEnvironment, skyUniforms, type SkyState } from './sky';
 import { treeMeshes, treeSpots } from './trees';
 import { buildLandmarks, EXTRA_3D, landmarkLights, type LandmarkPlan } from './landmarks';
@@ -137,6 +140,19 @@ export class CityScene {
   /** The game's places and the landmarks: nothing else stands there. */
   readonly blocked = new FootprintGrid();
   private clear: { e: number; s: number; r: number }[] = [];
+  /** The homes you own, on their plots (Wave 10). */
+  readonly homes: {
+    prop: OwnedProperty;
+    x: number;
+    y: number;
+    w: number;
+    d: number;
+    h: number;
+    rot: number;
+  }[] = [];
+  private homesGroup = new THREE.Group();
+  private homePlots: Fp[] = [];
+  private homesKey = '';
   private raf = 0;
   private lastRender = 0;
   private dirty = true;
@@ -515,20 +531,7 @@ export class CityScene {
   /** Low-rise lots near the camera: made when they come near, dropped when far. */
   private updateChunks() {
     if (!this.tilesKnown) return;
-    this.tiles?.update(this.rig.x, this.rig.y, this.rig.dist, {
-      scene: this.scene,
-      mat: this.mergedMat,
-      inst: this.instMat,
-      look: this.look,
-      clear: this.clear,
-      blocked: this.blocked,
-      glow: this.glowMat,
-      onShow: (k, shown) => {
-        const g = this.fileTiles.get(k);
-        if (g) g.visible = !shown;
-        this.invalidate();
-      },
-    });
+    this.tiles?.update(this.rig.x, this.rig.y, this.rig.dist, this.tileCtx());
     const R =
       (this.opts.tier === 'high' ? 1 : 0.7) * Math.min(2200, Math.max(900, this.rig.dist * 1.8));
     const show = this.rig.dist < 6000;
@@ -588,6 +591,118 @@ export class CityScene {
   }
 
   // ---------------------------------------------------------------------------
+  // Your homes
+
+  /**
+   * Show the homes you own at their real neighbourhoods: each on a free plot
+   * near the neighbourhood's centre (off the roads, clear of buildings and
+   * the game's places); tile buildings there give way.
+   */
+  setProperties(list: OwnedProperty[]) {
+    const key = list.map((p) => `${p.id}:${p.tier}:${p.neighbourhood}`).join('|');
+    if (key === this.homesKey) return;
+    this.homesKey = key;
+    this.homesGroup.removeFromParent();
+    this.homesGroup.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    this.homesGroup = new THREE.Group();
+    for (const f of this.homePlots) this.blocked.remove(f);
+    this.homePlots = [];
+    this.homes.length = 0;
+    for (const prop of list) {
+      const at = hoodAt(this.geo.data, this.layout.marketId, prop.neighbourhood || prop.name);
+      const [w, d] = PLOT[prop.tier];
+      const spot = this.freePlot(at.x, at.y, w, d, prop.id);
+      if (!spot) continue;
+      const { group, h } = homeModel(prop.tier, h3(prop.id.length, prop.id.charCodeAt(0) || 1));
+      group.position.set(spot.x, this.groundAt(spot.x, spot.y), spot.y);
+      group.rotation.y = -spot.rot;
+      this.homesGroup.add(group);
+      const plot = makeFp(rectPoly(spot.x, spot.y, w + 4, d + 4, spot.rot));
+      this.blocked.add(plot);
+      this.homePlots.push(plot);
+      this.homes.push({ prop, x: spot.x, y: spot.y, w, d, h, rot: spot.rot });
+    }
+    this.scene.add(this.homesGroup);
+    // Real buildings on the new plots give way: the tiles are thinned again.
+    if (this.tiles && this.tilesKnown) {
+      this.tiles.reset(this.tileCtx());
+      this.lastChunkAt = { x: Infinity, y: Infinity, d: 0 };
+    }
+    this.invalidate();
+  }
+
+  /** A free plot near (x, y), facing the nearest street. */
+  private freePlot(x: number, y: number, w: number, d: number, seed: string) {
+    const turn = (seed.charCodeAt(seed.length - 1) || 0) * 0.37;
+    for (let r = 0; r <= 900; r += 18)
+      for (let k = 0; k < Math.max(1, Math.round(r / 12)); k++) {
+        const a = turn + (k / Math.max(1, Math.round(r / 12))) * Math.PI * 2;
+        const px = x + Math.cos(a) * r;
+        const py = y + Math.sin(a) * r;
+        if (this.mask.coverAt(px, py) === COVER.water) continue;
+        const road = this.roads.nearest(px, py, 200);
+        const rot = road ? road.angle : 0;
+        let ok = true;
+        this.roads.forNear(px, py, Math.hypot(w, d) / 2 + 16, (sg) => {
+          if (
+            ok &&
+            segRectDist(sg.ax, sg.ay, sg.bx, sg.by, px, py, w, d, rot) < ROAD_HALF[sg.c]! + 2
+          )
+            ok = false;
+        });
+        if (!ok) continue;
+        const f = makeFp(rectPoly(px, py, w + 4, d + 4, rot));
+        if (this.realGrid.overlapsPlan(f) || this.blocked.overlapsPlan(f)) continue;
+        return { x: px, y: py, rot };
+      }
+    return null;
+  }
+
+  /** The home of yours under a screen point. */
+  pickHome(sx: number, sy: number): OwnedProperty | null {
+    _ndc.set((sx / this.size.w) * 2 - 1, -(sy / this.size.h) * 2 + 1);
+    _rc.setFromCamera(_ndc, this.camera);
+    const o = _rc.ray.origin;
+    const dv = _rc.ray.direction;
+    let best: OwnedProperty | null = null;
+    let bt = Infinity;
+    for (const b of this.homes) {
+      const c = Math.cos(-b.rot);
+      const s = Math.sin(-b.rot);
+      const ox = o.x - b.x;
+      const oz = o.z - b.y;
+      const t = slab(
+        [ox * c - oz * s, o.y, ox * s + oz * c],
+        [dv.x * c - dv.z * s, dv.y, dv.x * s + dv.z * c],
+        [-b.w / 2, -1, -b.d / 2],
+        [b.w / 2, b.h + 14, b.d / 2],
+      );
+      if (t !== null && t < bt) {
+        bt = t;
+        best = b.prop;
+      }
+    }
+    return best;
+  }
+
+  private tileCtx() {
+    return {
+      scene: this.scene,
+      mat: this.mergedMat,
+      inst: this.instMat,
+      look: this.look,
+      clear: this.clear,
+      blocked: this.blocked,
+      glow: this.glowMat,
+      onShow: (k: string, shown: boolean) => {
+        const g = this.fileTiles.get(k);
+        if (g) g.visible = !shown;
+        this.invalidate();
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------
   // Sky
 
   setHour(hour: number) {
@@ -603,6 +718,7 @@ export class CityScene {
     this.shared.uNight.value = this.skyState.night;
     this.shared.uHour.value = this.hour;
     this.glow.uNight.value = this.skyState.night;
+    setHomesNight(this.skyState.night);
     this.actors?.setNight(this.skyState.night);
     this.renderer.toneMappingExposure = 1.05 * this.skyState.exposure;
     for (const o of this.nightSets) o.visible = this.skyState.night > 0.02;

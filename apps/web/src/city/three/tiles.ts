@@ -59,6 +59,8 @@ export interface TileSet {
   update(x: number, y: number, dist: number, ctx: TileContext): void;
   /** How many tiles stand now. */
   loaded(): number;
+  /** Drop every tile (the ground kept clear changed): they come back at the next update. */
+  reset(ctx: TileContext): void;
 }
 
 /** Raw tile buildings → the shape osmFootprints takes. */
@@ -103,6 +105,17 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
     keys,
     size,
     loaded: () => [...loaded.values()].filter((v) => v !== 'loading').length,
+    reset(ctx) {
+      for (const [k, o] of loaded) {
+        if (o !== 'loading') {
+          o.obj.removeFromParent();
+          o.obj.traverse((m) => (m as THREE.Mesh).geometry?.dispose());
+          for (const f of o.fps) grid.remove(f);
+          ctx.onShow?.(k, false);
+        }
+        loaded.delete(k);
+      }
+    },
     update(x, y, dist, ctx) {
       const R = Math.min(3000, Math.max(1200, dist * 2));
       const want = new Set<string>();

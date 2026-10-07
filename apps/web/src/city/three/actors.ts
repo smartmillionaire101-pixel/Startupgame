@@ -325,9 +325,46 @@ export class Actors {
       if (double) box(2.54, 0.8, 10.4, 3.2, mat('#1c242c', 0.15, 0.8));
       this.avatar.root.visible = false;
     } else {
-      box(1.85, 0.95, 4.4, 0.3, mat(spec.body));
-      box(1.62, 0.6, 2.3, 1.25, mat('#1c242c', 0.15, 0.8), -0.25);
-      if (spec.extra === 'sign') box(0.6, 0.25, 0.3, 1.85, mat(spec.accent, 0.5, 0));
+      // A car (your own by its model: the SUV tall, the luxury one long and low).
+      const model = spec.id.startsWith('my-car-') ? spec.id.slice(7) : '';
+      const L =
+        model === 'luxury' ? 5.1 : model === 'hatchback' ? 3.9 : model === 'city-suv' ? 4.6 : 4.4;
+      const W = model === 'city-suv' ? 1.95 : 1.85;
+      const bodyH = model === 'city-suv' ? 1.15 : model === 'luxury' ? 0.8 : 0.95;
+      const cabH = model === 'city-suv' ? 0.75 : model === 'luxury' ? 0.52 : 0.6;
+      const cabL = model === 'hatchback' ? L * 0.62 : L * 0.5;
+      const glass = mat('#1c242c', 0.15, 0.8);
+      box(W, bodyH, L, 0.35, mat(spec.body, 0.3, 0.6));
+      box(W * 0.88, cabH, cabL, 0.35 + bodyH, glass, model === 'hatchback' ? -0.35 : -0.2);
+      if (spec.extra === 'sign') box(0.6, 0.25, 0.3, 0.35 + bodyH + cabH, mat(spec.accent, 0.5, 0));
+      if (model === 'luxury' || model === 'electric')
+        box(W * 0.9, 0.08, 0.2, 0.35 + bodyH * 0.6, mat(spec.accent, 0.4, 0.8), L / 2);
+      const tyre = mat('#111214', 0.9, 0);
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1]) {
+          const w = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.36, 0.36, 0.28, 12).rotateZ(Math.PI / 2),
+            tyre,
+          );
+          w.position.set(sx * (W / 2 - 0.08), 0.36, sz * (L / 2 - 0.75));
+          g.add(w);
+        }
+      const head = new THREE.MeshStandardMaterial({
+        color: '#fff6dd',
+        emissive: '#fff1c8',
+        emissiveIntensity: 1.2,
+      });
+      const tail = new THREE.MeshStandardMaterial({
+        color: '#7f1d1d',
+        emissive: '#ff2a1a',
+        emissiveIntensity: 1.2,
+      });
+      for (const sx of [-1, 1]) {
+        box(0.42, 0.18, 0.06, 0.35 + bodyH * 0.6, head, L / 2 + 0.01);
+        g.children.at(-1)!.position.x = sx * (W / 2 - 0.35);
+        box(0.42, 0.16, 0.06, 0.35 + bodyH * 0.65, tail, -L / 2 - 0.01);
+        g.children.at(-1)!.position.x = sx * (W / 2 - 0.35);
+      }
       this.avatar.root.visible = false;
     }
     this.ride = g;
