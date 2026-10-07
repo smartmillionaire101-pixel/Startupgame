@@ -7,7 +7,7 @@
  * Coordinates are tiles; (0,0) is the top-left floor tile under the back wall.
  */
 
-export type RoomId = 'bedroom' | 'bathroom' | 'kitchen' | 'living';
+export type RoomId = 'bedroom' | 'bathroom' | 'kitchen' | 'living' | 'study';
 
 export interface Rect {
   x: number;
@@ -52,7 +52,18 @@ export interface Spot extends Rect {
 }
 
 export type FixtureId =
-  'door' | 'kitchenette' | 'mat' | 'cushions' | 'shower' | 'toilet' | 'sink' | 'shared-bath';
+  | 'door'
+  | 'kitchenette'
+  | 'mat'
+  | 'cushions'
+  | 'shower'
+  | 'toilet'
+  | 'sink'
+  | 'shared-bath'
+  // Wave 9: a house (tiers 4–5) has a bathtub, a study with a pool table and a piano.
+  | 'bathtub'
+  | 'pool'
+  | 'piano';
 
 export interface HomePlan {
   tier: number;
@@ -163,21 +174,41 @@ function flat(tier: number): HomePlan {
   const oy = Math.floor((H - T - 6) / 2);
   const bedDoor = B - 2;
   const bathDoor = B + 1;
+  // Wave 9: a house splits the big bathroom: an en-suite off the bedroom at the
+  // back and a study (a pool table) you reach from the living room.
+  const house = tier >= 4;
+  const S = 3;
   const walls: HomePlan['walls'] = [];
-  for (let y = 0; y < T; y++) walls.push({ dir: 'v', x: B, y });
+  for (let y = 0; y < T; y++) if (!house || y !== 1) walls.push({ dir: 'v', x: B, y });
   for (let x = 0; x < W; x++)
     if (x !== bedDoor && x !== bathDoor) walls.push({ dir: 'h', x, y: T });
+  if (house) for (let x = B; x < W; x++) walls.push({ dir: 'h', x, y: S });
   const sofaY = T + 3 + oy;
+  const houseFixtures: Partial<Record<FixtureId, Spot>> = house
+    ? {
+        bathtub: spot(W - 3, S - 1, 2, 1, W - 4, S - 1),
+        pool: spot(B + 2, S + 1, 3, 2, B + 1, S + 1),
+        piano: spot(L - 3, H - 3, 2, 2, L - 4, H - 2),
+      }
+    : {};
   return {
     tier,
     w: W,
     h: H,
-    rooms: [
-      { id: 'bedroom', x: 0, y: 0, w: B, h: T },
-      { id: 'bathroom', x: B, y: 0, w: W - B, h: T },
-      { id: 'living', x: 0, y: T, w: L, h: H - T },
-      { id: 'kitchen', x: L, y: T, w: W - L, h: H - T },
-    ],
+    rooms: house
+      ? [
+          { id: 'bedroom', x: 0, y: 0, w: B, h: T },
+          { id: 'bathroom', x: B, y: 0, w: W - B, h: S },
+          { id: 'study', x: B, y: S, w: W - B, h: T - S },
+          { id: 'living', x: 0, y: T, w: L, h: H - T },
+          { id: 'kitchen', x: L, y: T, w: W - L, h: H - T },
+        ]
+      : [
+          { id: 'bedroom', x: 0, y: 0, w: B, h: T },
+          { id: 'bathroom', x: B, y: 0, w: W - B, h: T },
+          { id: 'living', x: 0, y: T, w: L, h: H - T },
+          { id: 'kitchen', x: L, y: T, w: W - L, h: H - T },
+        ],
     walls,
     slots: {
       bed: spot(0, 0, 2, 3, 2, 1),
@@ -187,7 +218,7 @@ function flat(tier: number): HomePlan {
       lights: spot(B - 1, T - 1, 1, 1, B - 2, T - 1),
       cooling: spot(0, 0, 2, 1, 2, 1, { wall: true }),
       art: spot(4, 0, 1, 1, 3, 1, { wall: true }),
-      washer: spot(W - 1, T - 1, 1, 1, W - 2, T - 1),
+      washer: house ? spot(W - 1, S - 1, 1, 1, W - 1, S - 2) : spot(W - 1, T - 1, 1, 1, W - 2, T - 1),
       sound: spot(0, T, 1, 1, 1, T + 1),
       tv: spot(1 + ox, T, 2, 1, 2 + ox, T + 1),
       gaming: spot(3 + ox, T, 1, 1, 3 + ox, T + 1),
@@ -210,6 +241,7 @@ function flat(tier: number): HomePlan {
       toilet: spot(B, 0, 1, 1, B, 1),
       sink: spot(B + 1, 0, 1, 1, B + 1, 1),
       shower: spot(W - 1, 0, 1, 1, W - 2, 0),
+      ...houseFixtures,
     },
     door: { x: 1, y: H - 1 },
     seats: [
@@ -245,7 +277,8 @@ export function blockedTiles(plan: HomePlan, owned: ReadonlySet<string>): Set<st
   const f = plan.fixtures;
   if (f.kitchenette && !owned.has('kitchen')) add(f.kitchenette);
   if (f.mat && !owned.has('bed')) add(f.mat);
-  for (const id of ['toilet', 'sink', 'shower'] as const) if (f[id]) add(f[id]!);
+  for (const id of ['toilet', 'sink', 'shower', 'bathtub', 'pool', 'piano'] as const)
+    if (f[id]) add(f[id]!);
   return out;
 }
 

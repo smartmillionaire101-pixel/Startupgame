@@ -1200,6 +1200,9 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
   fixture('shower', 'shower', t('Shower'), [act('shower', t('Shower'))]);
   fixture('toilet', 'toilet', t('Toilet'), [act('toilet', t('Use'))]);
   fixture('sink', 'sink', t('Sink'), [act('toilet', t('Freshen up'))]);
+  fixture('bathtub', 'bathtub', t('Bathtub'), [act('shower', t('Take a bath'))]);
+  fixture('pool', 'pool', t('Pool table'), [act('tv', t('Play pool'))]);
+  fixture('piano', 'piano', t('Piano'), [act('tv', t('Play the piano'))]);
   fixture('door', 'door', t('Front door'), [{ id: 'out', label: t('Go out') }]);
   // Owned slots carry their verbs; the rest get a "+".
   for (const slot of Object.keys(plan.slots)) if (!has(slot)) plus(slot);

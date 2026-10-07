@@ -449,6 +449,33 @@ export function FixtureArt({ id, w, h }: { id: string; w: number; h: number }): 
           </text>
         </g>
       );
+    case 'bathtub':
+      return (
+        <g>
+          {shadow(W, H)}
+          <rect x={2} y={2} width={W - 4} height={H - 4} rx={10} fill="#f8fafc" stroke="#cbd5e1" />
+          <rect x={7} y={7} width={W - 14} height={H - 14} rx={7} fill="#bae6fd" />
+        </g>
+      );
+    case 'pool':
+      return (
+        <g>
+          {shadow(W, H)}
+          <rect x={3} y={3} width={W - 6} height={H - 6} rx={5} fill="#5b3a22" />
+          <rect x={9} y={9} width={W - 18} height={H - 18} rx={2} fill="#166534" />
+          <circle cx={W * 0.3} cy={H / 2} r={3} fill="#fff" />
+          <circle cx={W * 0.65} cy={H / 2 - 4} r={3} fill="#facc15" />
+          <circle cx={W * 0.7} cy={H / 2 + 4} r={3} fill="#dc2626" />
+        </g>
+      );
+    case 'piano':
+      return (
+        <g>
+          {shadow(W, H)}
+          <path d={`M4 ${H - 10} L4 10 Q4 3 14 3 L${W - 8} ${H * 0.4} L${W - 6} ${H - 10} Z`} fill="#111827" />
+          <rect x={4} y={H - 16} width={W - 10} height={8} fill="#f8fafc" />
+        </g>
+      );
     default:
       return null;
   }
