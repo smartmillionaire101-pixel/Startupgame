@@ -32,6 +32,7 @@ import { CityScene, type Tier } from './scene';
 import { markWebGLBroken } from './quality';
 import './city3d.css';
 
+const NONE: never[] = [];
 const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall'];
 
 interface Lbl {
@@ -75,10 +76,10 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     marker,
     handleRef,
     ariaLabel,
-    walkers = [],
-    players = [],
-    flags = [],
-    fresh = [],
+    walkers = NONE,
+    players = NONE,
+    flags = NONE,
+    fresh = NONE,
     onBroken,
   } = props;
   const reduced = useReducedMotion();

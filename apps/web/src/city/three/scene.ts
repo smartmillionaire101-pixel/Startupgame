@@ -79,7 +79,7 @@ export class CityScene {
   readonly actors: Actors;
 
   /** Camera rig: target on the ground (metres), distance, yaw (0 = north), pitch. */
-  rig = { x: 0, y: 0, dist: 700, yaw: 0, pitch: 0.72 };
+  rig = { x: 0, y: 0, dist: 700, yaw: 0, pitch: 0.64 };
   private want = { x: 0, y: 0, dist: 700 };
   following = true;
   /** Stop drawing on its own (screenshots and tests draw with renderNow). */
