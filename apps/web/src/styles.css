@@ -297,6 +297,47 @@ textarea {
   min-width: 0;
   flex: 1 1 auto;
 }
+
+.game-activity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 44px;
+  margin-bottom: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.online-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-variant-numeric: tabular-nums;
+}
+.online-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--good);
+}
+.is-unavailable .online-dot {
+  background: var(--muted);
+}
+.music-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: inherit;
+  white-space: nowrap;
+}
 .brand img {
   flex: none;
   border-radius: 6px;

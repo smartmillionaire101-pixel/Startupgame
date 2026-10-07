@@ -1,21 +1,17 @@
-import { expect, letters, playAsGuest, tapPlace, test } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, tapPlace, test } from './fixtures';
 
 /** Wave 8 §A: Lagos on its real map (OpenStreetMap). */
 test('Lagos is drawn from OpenStreetMap, credited, and you can walk its real roads', async ({
   page,
 }) => {
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Male', exact: true }).click();
-  await page.getByLabel('Your name').fill('Femi Maps');
-  await page.getByLabel('Handle').fill(`femi_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Delivery for island shops');
-  await page.getByLabel('Company name').fill(`Eko Routes ${letters(5)}`);
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: 'Femi Maps',
+    handle: `femi_${letters(6)}`,
+    company: `Eko Routes ${letters(5)}`,
+    idea: 'Delivery for island shops',
+    gender: 'male',
+  });
 
   const map = page.getByRole('application', { name: /Map of Lagos/ });
   await expect(map).toBeVisible({ timeout: 30_000 });

@@ -1,0 +1,110 @@
+/**
+ * Wave 9: how the game draws its 3D views. `runway.mapQuality` in localStorage:
+ * '3d' (the default, when WebGL works) or 'lite' (the 2D SVG scenes). Shared
+ * by the city map and the interiors; the Settings app writes it.
+ */
+import { useSyncExternalStore } from 'react';
+
+export type Quality = '3d' | 'lite';
+
+/** The same key as the map's (city/three/quality.ts): one Settings switch for every 3D view. */
+export const QUALITY_KEY = 'runway.mapQuality';
+
+const listeners = new Set<() => void>();
+let memory: Quality | null = null;
+
+function saved(): Quality | null {
+  if (memory) return memory;
+  try {
+    const v = localStorage.getItem(QUALITY_KEY);
+    if (v === '3d' || v === 'lite') return v;
+  } catch {
+    /* storage blocked: the default */
+  }
+  return null;
+}
+
+let gl: boolean | null = null;
+let soft = false;
+
+/**
+ * WebGL drawn on the CPU (SwiftShader, llvmpipe): 3D views go easy (no
+ * antialiasing or shadows, a few frames a second). `runway.hq` = '1' in
+ * localStorage asks for full quality anyway (screenshots).
+ */
+/** WebGL on the CPU, whatever the screenshot setting says (frame rate caps). */
+export function cpuGl(): boolean {
+  webglAvailable();
+  return soft;
+}
+
+export function softwareGl(): boolean {
+  webglAvailable();
+  try {
+    if (localStorage.getItem('runway.hq') === '1') return false;
+  } catch {
+    /* storage blocked */
+  }
+  return soft;
+}
+/** Whether this browser can draw WebGL at all (checked once). */
+export function webglAvailable(): boolean {
+  if (gl !== null) return gl;
+  try {
+    if (typeof document === 'undefined' || typeof navigator === 'undefined') return (gl = false);
+    if (/jsdom/i.test(navigator.userAgent)) return (gl = false);
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('webgl2') ?? c.getContext('webgl');
+    gl = !!ctx;
+    if (ctx) {
+      const c2 = ctx as WebGLRenderingContext;
+      const ext = c2.getExtension('WEBGL_debug_renderer_info');
+      const r = ext ? String(c2.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+      soft = /swiftshader|llvmpipe|software/i.test(r);
+    }
+    (ctx as WebGLRenderingContext | null)?.getExtension('WEBGL_lose_context')?.loseContext();
+  } catch {
+    gl = false;
+  }
+  return gl;
+}
+
+/** The player's choice, else 3D. */
+export const getQuality = (): Quality => saved() ?? '3d';
+
+export function setQuality(q: Quality) {
+  memory = q;
+  try {
+    localStorage.setItem(QUALITY_KEY, q);
+  } catch {
+    /* lasts this session */
+  }
+  for (const l of listeners) l();
+}
+
+/** The quality setting, live. */
+export function useQuality(): Quality {
+  return useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb);
+      const onStorage = (e: StorageEvent) => {
+        if (e.key === QUALITY_KEY) {
+          memory = null;
+          cb();
+        }
+      };
+      window.addEventListener('storage', onStorage);
+      return () => {
+        listeners.delete(cb);
+        window.removeEventListener('storage', onStorage);
+      };
+    },
+    getQuality,
+    () => 'lite' as Quality,
+  );
+}
+
+/** Draw in 3D: the player didn't choose Lite and WebGL works. */
+export function use3d(): boolean {
+  return useQuality() === '3d' && webglAvailable();
+}

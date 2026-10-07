@@ -10,6 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
+import { LIVE_WINDOW_MS, VISIT_GAP_MS, utcDay, visitDays } from '../visits.js';
 import type {
   AiMessageRow,
   AiThreadRow,
@@ -134,6 +135,13 @@ const MIGRATIONS: string[] = [
      n INTEGER NOT NULL,
      PRIMARY KEY (user_id, day)
    );`,
+  `CREATE TABLE online_players (user_id TEXT PRIMARY KEY, at INTEGER NOT NULL);
+   CREATE INDEX online_players_at ON online_players(at);`,
+  `ALTER TABLE users ADD COLUMN pending_email TEXT;`,
+  `CREATE TABLE visit_sessions (id TEXT PRIMARY KEY, at INTEGER NOT NULL);
+   CREATE INDEX visit_sessions_at ON visit_sessions(at);
+   CREATE TABLE visit_days (day TEXT PRIMARY KEY, n INTEGER NOT NULL);
+   CREATE TABLE visit_summary (id INTEGER PRIMARY KEY CHECK(id = 1), since INTEGER NOT NULL, total INTEGER NOT NULL);`,
 ];
 
 /** Presence rows this much older than the caller's window are deleted. */
@@ -211,7 +219,9 @@ export class Store implements AccountStore {
         { id: string } | undefined;
       if (owner && owner.id !== userId) return false;
       const r = this.db
-        .prepare('UPDATE users SET email = ?, guest = 0 WHERE id = ? AND deleted_at IS NULL')
+        .prepare(
+          'UPDATE users SET email = ?, pending_email = NULL, guest = 0 WHERE id = ? AND deleted_at IS NULL',
+        )
         .run(emailNorm, userId);
       return r.changes === 1;
     });
@@ -225,9 +235,22 @@ export class Store implements AccountStore {
 
   getAccount(userId: string): AccountRow | undefined {
     const row = this.db
-      .prepare('SELECT guest, email FROM users WHERE id = ? AND deleted_at IS NULL')
-      .get(userId) as { guest: number; email: string | null } | undefined;
-    return row ? { guest: row.guest === 1, email: row.email } : undefined;
+      .prepare('SELECT guest, email, pending_email FROM users WHERE id = ? AND deleted_at IS NULL')
+      .get(userId) as
+      { guest: number; email: string | null; pending_email: string | null } | undefined;
+    return row
+      ? {
+          guest: row.guest === 1,
+          email: row.email,
+          ...(row.pending_email ? { pendingEmail: row.pending_email } : {}),
+        }
+      : undefined;
+  }
+
+  setPendingEmail(userId: string, email: string) {
+    this.db
+      .prepare('UPDATE users SET pending_email = ? WHERE id = ? AND deleted_at IS NULL')
+      .run(email, userId);
   }
 
   putEmailToken(tokenHash: string, row: EmailTokenRow) {
@@ -259,13 +282,14 @@ export class Store implements AccountStore {
     this.tx(() => {
       this.db
         .prepare(
-          "UPDATE users SET phone_hash = 'deleted:' || id, email = NULL, deleted_at = ? WHERE id = ?",
+          "UPDATE users SET phone_hash = 'deleted:' || id, email = NULL, pending_email = NULL, deleted_at = ? WHERE id = ?",
         )
         .run(now, id);
       this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM email_tokens WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM chats WHERE a = ? OR b = ?').run(id, id);
       this.db.prepare('DELETE FROM presence WHERE user_id = ?').run(id);
+      this.db.prepare('DELETE FROM online_players WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM presence_settings WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM ai_messages WHERE user_id = ?').run(id);
       this.db.prepare('DELETE FROM ai_threads WHERE user_id = ?').run(id);
@@ -429,6 +453,67 @@ export class Store implements AccountStore {
   }
 
   // ---------------------------------------------------------------- presence
+
+  recordVisit(id: string, now: number) {
+    this.tx(() => {
+      this.db.prepare('DELETE FROM visit_sessions WHERE at < ?').run(now - VISIT_GAP_MS);
+      const existing = this.db.prepare('SELECT at FROM visit_sessions WHERE id = ?').get(id);
+      if (!existing) {
+        this.db
+          .prepare(
+            'INSERT INTO visit_summary VALUES (1, ?, 1) ON CONFLICT(id) DO UPDATE SET total = total + 1',
+          )
+          .run(now);
+        this.db
+          .prepare('INSERT INTO visit_days VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET n = n + 1')
+          .run(utcDay(now));
+      }
+      this.db
+        .prepare(
+          'INSERT INTO visit_sessions VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET at = MAX(at, excluded.at)',
+        )
+        .run(id, now);
+    });
+  }
+
+  visitStats(now: number) {
+    const summary = this.db.prepare('SELECT since, total FROM visit_summary WHERE id = 1').get() as
+      { since: number; total: number } | undefined;
+    const rows = this.db
+      .prepare('SELECT day, n FROM visit_days WHERE day >= ?')
+      .all(utcDay(now - 13 * 86_400_000));
+    const days = Object.fromEntries(rows.map((r) => [String(r.day), Number(r.n)]));
+    const active = this.db
+      .prepare('SELECT COUNT(*) AS n FROM visit_sessions WHERE at >= ?')
+      .get(now - LIVE_WINDOW_MS)!.n;
+    return {
+      since: summary?.since ?? null,
+      total: summary?.total ?? 0,
+      today: days[utcDay(now)] ?? 0,
+      active: Number(active),
+      daily: visitDays(days, now),
+    };
+  }
+
+  onlinePlayerIds(since: number) {
+    return this.db
+      .prepare('SELECT user_id FROM online_players WHERE at >= ?')
+      .all(since)
+      .map((r) => String(r.user_id));
+  }
+
+  heartbeatOnline(userId: string, now: number, windowMs: number): number {
+    return this.tx(() => {
+      this.db.prepare('DELETE FROM online_players WHERE at < ?').run(now - windowMs);
+      this.db
+        .prepare(
+          `INSERT INTO online_players (user_id, at) VALUES (?, ?)
+           ON CONFLICT(user_id) DO UPDATE SET at = MAX(at, excluded.at)`,
+        )
+        .run(userId, now);
+      return (this.db.prepare('SELECT COUNT(*) AS n FROM online_players').get() as { n: number }).n;
+    });
+  }
 
   putPresence(
     userId: string,

@@ -96,7 +96,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
         working-directory: apps/web
       - name: End-to-end against ${{ steps.target.outputs.url }}
-        run: npx playwright test
+        run: npx playwright test --reporter=github,list
         working-directory: apps/web
         env:
           CI: '1'

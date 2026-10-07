@@ -256,6 +256,7 @@ export function sendMoney(
     amount,
     `Transfer: ${me.name} to ${to.name}`,
     m.month,
+    'sent',
   );
   pay(world, me.accounts.local, toM.ext.bank, fee, 'Transfer fee', m.month);
   me.moneySent = { day: lim.day, total: lim.used + amount };

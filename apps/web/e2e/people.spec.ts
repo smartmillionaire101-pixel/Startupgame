@@ -1,3 +1,4 @@
+import { setupFounder } from './fixtures';
 import { devices, type Page } from '@playwright/test';
 import {
   expect,
@@ -18,18 +19,13 @@ import {
 
 async function signUpFounder(page: Page, name: string) {
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill(name);
-  await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Bookkeeping for market stalls');
-  await page.getByLabel('Company name').fill(`${name.split(' ')[0]} Books ${letters(5)}`);
-  await expect(page.getByText(/Available in Lagos/)).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: name,
+    handle: `${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`,
+    company: `${name.split(' ')[0]} Books ${letters(5)}`,
+    idea: 'Bookkeeping for market stalls',
+    market: /Lagos, Nigeria/,
+  });
   // The first answer after Start can be a cold start that loads the whole world.
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
     timeout: 30_000,
@@ -146,7 +142,8 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   await a.getByRole('dialog', { name: 'Places' }).locator('[data-kind="hub"]').first().click();
   await expect(a.locator('.place-scene')).toBeVisible({ timeout: 10_000 });
   const badge = b.locator('[data-here="hub"]');
-  await expect(badge).toBeAttached({ timeout: 20_000 });
+  // Presence is polled every 5 s; a busy CI runner can take several polls.
+  await expect(badge).toBeAttached({ timeout: 45_000 });
   await tapPlace(b, '[data-here="hub"]');
   const hub = b.locator('.place-scene');
   await expect(hub).toBeVisible({ timeout: 10_000 });

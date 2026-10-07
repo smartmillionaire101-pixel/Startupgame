@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { App } from '../src/App';
 import { GameProvider } from '../src/store';
 
@@ -46,32 +46,34 @@ const renderApp = () =>
   );
 
 describe('sign in', () => {
-  it('plays as a guest only after the 18+ box is ticked, with the CSRF header', async () => {
-    let signedIn = false;
+  it('joins with only username, email and role in one request', async () => {
     const calls = stub((url) => {
       if (url === '/api/state')
-        return signedIn
-          ? json(200, { onboarded: false, account: { guest: true, email: null } })
-          : json(401, { error: { code: 'auth', message: 'Sign in first.' } });
-      if (url === '/api/auth/guest') {
-        signedIn = true;
-        return json(200, { ok: true, guest: true });
-      }
+        return json(401, { error: { code: 'auth', message: 'Sign in first.' } });
+      if (url === '/api/onboarding')
+        return json(422, { error: { code: 'player.handle', message: 'That handle is taken.' } });
     });
     renderApp();
     await screen.findByText('Build, invest and grow.');
-    expect(screen.getByText(/Nothing here is financial/)).toBeTruthy();
-    expect(screen.queryByLabelText(/Date of birth/)).toBeNull();
-
-    const play = screen.getByRole('button', { name: 'Play now' }) as HTMLButtonElement;
-    expect(play.disabled).toBe(true);
-    fireEvent.click(screen.getByLabelText('I confirm I’m 18 or older'));
-    expect(play.disabled).toBe(false);
-    fireEvent.click(play);
-    await waitFor(() => expect(calls.some((c) => c.url === '/api/auth/guest')).toBe(true));
-    const guest = calls.find((c) => c.url === '/api/auth/guest')!;
-    expect((guest.init?.headers as Record<string, string>)['x-runway']).toBe('1');
-    expect(JSON.parse(guest.init!.body as string)).toEqual({ adult: true });
+    expect(screen.getAllByRole('textbox')).toHaveLength(2);
+    expect(screen.getAllByRole('combobox')).toHaveLength(1);
+    expect(screen.queryByLabelText('Company name')).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada_test' } });
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } });
+    fireEvent.change(screen.getByLabelText('Join as'), { target: { value: 'investor' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Play now' }));
+    await screen.findByRole('alert');
+    const submitted = calls.find((c) => c.url === '/api/onboarding')!;
+    expect((submitted.init?.headers as Record<string, string>)['x-runway']).toBe('1');
+    expect(JSON.parse(submitted.init!.body as string)).toEqual({
+      username: 'ada_test',
+      email: 'ada@example.com',
+      role: 'investor',
+      adult: true,
+    });
+    expect(screen.getByRole('alert').textContent).toBe('That handle is taken.');
+    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('ada@example.com');
   });
 
   it('asks for a log-in link by email and shows the preview link when the server gives one', async () => {

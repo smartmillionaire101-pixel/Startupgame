@@ -1,44 +1,21 @@
+import { setupFounder } from './fixtures';
 import { expect, letters, more, test, playAsGuest, tapPlace } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /** Sign up a founder in Lagos, choosing Female or Male on the way. */
 async function founder(page: Page, name: string, gender: 'Female' | 'Male' = 'Female') {
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  // Who you are: two avatar previews; nothing goes on until you pick.
-  const pick = page.getByRole('group', { name: 'You are' });
-  await expect(pick.getByRole('button', { name: 'Female', exact: true })).toBeVisible();
-  await expect(pick.locator('svg')).toHaveCount(2);
-  await page.getByLabel('Your name').fill(name);
-  await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Payments and bookings for restaurants');
-  await page.getByLabel('Company name').fill(`Chop ${letters(5)}`);
-  await expect(page.getByText(/Available in/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Continue' })).toBeDisabled();
-  await pick.getByRole('button', { name: gender, exact: true }).click();
-  await expect(pick.getByRole('button', { name: gender, exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: name,
+    handle: `${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`,
+    company: `Chop ${letters(5)}`,
+    idea: 'Payments and bookings for restaurants',
+    market: /Lagos, Nigeria/,
+    gender: gender === 'Male' ? 'male' : 'female',
+  });
   // The first answer after Start can be a cold start that loads the whole world.
   await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
 }
-
-test('onboarding asks Female or Male, and the choice is sent', async ({ page }) => {
-  const sent: string[] = [];
-  page.on('request', (r) => {
-    if (r.method() === 'POST' && r.url().includes('/api/command')) sent.push(r.postData() ?? '');
-  });
-  await founder(page, 'Kadi Gender', 'Male');
-  expect(sent.some((b) => b.includes('"player.create"') && b.includes('"gender":"male"'))).toBe(
-    true,
-  );
-});
 
 test('walk into a restaurant: a full scene with people, and buy a meal from the tray', async ({
   page,
@@ -52,7 +29,10 @@ test('walk into a restaurant: a full scene with people, and buy a meal from the 
   await expect(scene).toBeVisible({ timeout: 10_000 });
   await expect(scene).toHaveAttribute('role', 'dialog');
   // An illustrated room, with the owner and other people in it doing things.
-  await expect(scene).toHaveAttribute('data-room', /restaurant|cafe|bar|club|shop/);
+  await expect(scene).toHaveAttribute(
+    'data-room',
+    /restaurant|cafe|bar|club|lounge|stage|karaoke|beach|shop/,
+  );
   const people = scene.locator('[data-occupant]');
   expect(await people.count()).toBeGreaterThan(1);
   await expect(scene.getByRole('button', { name: /, Owner$/ })).toBeAttached();

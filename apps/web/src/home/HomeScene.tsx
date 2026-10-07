@@ -9,8 +9,29 @@
  * person when they change tile, for the depth sort). The loop pauses when the
  * tab is hidden; reduced motion cuts instead of walking.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import './home.css';
+import { use3d } from '../three-kit/quality';
+import type { Ghost, Home3DApi, Home3DPerson } from '../interiors3d/types';
+import {
+  MOVABLE,
+  canPlace,
+  loadPlacements,
+  placedSpot,
+  savePlacement,
+  withPlacements,
+  type Placement,
+} from '../interiors3d/placement';
+import { BuySheet, PlaceBar } from '../interiors3d/BuyMode';
 import { money } from '../format';
 import { t } from '../i18n';
 import { useView } from '../store';
@@ -35,6 +56,10 @@ import {
 import { ActFx } from './ActFx';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
+
+/** Wave 9 §C: the 3D home, loaded on demand (three.js is its own chunk). */
+// A chunk that fails to load (offline) leaves the 2D home in place.
+const Home3D = lazy(() => import('../interiors3d/Home3D').catch(() => ({ default: () => null })));
 
 /** The back wall's face, in px above row 0. */
 const WALL = 44;
@@ -172,10 +197,25 @@ export function HomeScene({
 }: SceneProps & { hostView?: HostView }) {
   const { view, send, busy, cur, toast } = useView();
   const tier = Math.max(1, Math.min(5, hostView?.tier ?? view.me.lifestyle?.tier ?? 2));
-  const plan = planFor(tier);
+  const basePlan = planFor(tier);
   const tiers = useMemo(() => hostView?.tiers ?? ownedTiers(view), [view, hostView]);
   const ownedKey = [...tiers.keys()].sort().join(',');
   const owned = useMemo(() => new Set(ownedKey ? ownedKey.split(',') : []), [ownedKey]);
+  // Wave 9 §C: where you moved things in Buy mode (this device only).
+  const placeOwner = hostView?.id ?? view.me.id;
+  const [placements, setPlacements] = useState<Record<string, Placement>>(() =>
+    loadPlacements(placeOwner, MOVABLE),
+  );
+  const plan = useMemo(
+    () => withPlacements(basePlan, owned, placements),
+    [basePlan, owned, placements],
+  );
+  // ---- 3D (Wave 9 §C): drawn by three.js under this scene's invisible 2D hit layer.
+  const want3d = use3d();
+  const [ready3d, setReady3d] = useState(false);
+  const is3d = want3d && ready3d;
+  const api3d = useRef<Home3DApi | null>(null);
+  const mat3d = useRef<string | null>(null);
   const grid: Grid = useMemo(
     () => ({ w: plan.w, h: plan.h, blocked: blockedTiles(plan, owned), walls: wallEdges(plan) }),
     [plan, owned],
@@ -301,6 +341,10 @@ export function HomeScene({
   const writeCamera = useCallback(() => {
     const w = worldRef.current;
     if (!w) return;
+    if (mat3d.current) {
+      if (w.getAttribute('transform') !== mat3d.current) w.setAttribute('transform', mat3d.current);
+      return;
+    }
     const c = cam.current;
     w.setAttribute(
       'transform',
@@ -335,6 +379,7 @@ export function HomeScene({
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       for (const p of people()) {
+        if (p.i < p.path.length) api3d.current?.wake();
         if (p.i >= p.path.length) continue;
         const target = p.path[p.i]!;
         const dx = target.x - p.x;
@@ -459,6 +504,11 @@ export function HomeScene({
   const menu = menuState?.obj ?? null;
   const setMenu = (o: Obj | null) => {
     if (!o) return setMenuState(null);
+    if (is3d && api3d.current) {
+      const s = o.spot;
+      const at = api3d.current.project(s.x + s.w / 2, s.y + s.h / 2, s.wall ? 2.2 : 1.3);
+      return setMenuState({ obj: o, at });
+    }
     const c = cam.current;
     const ox = (o.spot.x + o.spot.w / 2) * TILE;
     const oy = o.spot.wall ? -WALL / 2 : o.spot.y * TILE;
@@ -467,12 +517,58 @@ export function HomeScene({
       at: { x: (ox - c.x) * zoom + size.w / 2, y: (oy - c.y) * zoom + size.h / 2 },
     });
   };
-  const [sheet, setSheet] = useState<'edit' | 'invite' | null>(null);
+  const [sheet, setSheet] = useState<'edit' | 'invite' | 'buy' | null>(null);
   const [ring, setRing] = useState<{ x: number; y: number; n: number } | null>(null);
-  const [acting, setActing] = useState<{ act: HomeAct; x: number; y: number } | null>(null);
+  const [acting, setActing] = useState<{
+    act: HomeAct;
+    x: number;
+    y: number;
+    obj?: string;
+  } | null>(null);
   const [floats, setFloats] = useState<
-    { id: number; text: string; x: number; y: number; tone: string }[]
+    { id: number; text: string; x: number; y: number; tone: string; sx: number; sy: number }[]
   >([]);
+  // ---- Buy mode: the thing you're placing.
+  const [placing, setPlacing] = useState<{ slot: string; label: string; p: Placement } | null>(
+    null,
+  );
+  const ghost: Ghost | null = useMemo(() => {
+    if (!placing) return null;
+    const base = basePlan.slots[placing.slot];
+    if (!base) return null;
+    return {
+      slot: placing.slot,
+      tier: tiers.get(placing.slot) ?? 1,
+      spot: placedSpot(base, placing.p),
+      ok: canPlace(plan, owned, placing.slot, placing.p),
+    };
+  }, [placing, basePlan, plan, owned, tiers]);
+  const startPlacing = (slot: string, label: string) => {
+    if (!MOVABLE.has(slot)) return;
+    const s = plan.slots[slot];
+    if (!s) return;
+    const rot = (s as { rot?: number }).rot ?? 0;
+    setSheet(null);
+    setMenuState(null);
+    setPlacing({ slot, label, p: { x: s.x, y: s.y, rot } });
+  };
+  const finishPlacing = () => {
+    if (!placing || !ghost?.ok) return;
+    const p = placing.p;
+    savePlacement(placeOwner, placing.slot, p);
+    setPlacements((xs) => ({ ...xs, [placing.slot]: p }));
+    setPlacing(null);
+  };
+  const resetPlacing = () => {
+    if (!placing) return;
+    savePlacement(placeOwner, placing.slot, null);
+    setPlacements((xs) => {
+      const next = { ...xs };
+      delete next[placing.slot];
+      return next;
+    });
+    setPlacing(null);
+  };
   const floatId = useRef(0);
   const actTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(actTimer.current), []);
@@ -484,6 +580,11 @@ export function HomeScene({
       ...l,
       x: f.x,
       y: f.y - 52 - n * 14,
+      // In 3D: over your head on screen, one line under another.
+      ...(() => {
+        const at = api3d.current?.project(me.current.x + 0.5, me.current.y + 0.5, 2.0);
+        return { sx: at?.x ?? 0, sy: (at?.y ?? 0) - n * 18 };
+      })(),
     }));
     setFloats((xs) => [...xs, ...add]);
     window.setTimeout(
@@ -505,7 +606,7 @@ export function HomeScene({
         bump(p);
       }
       const f = feet(p);
-      setActing({ act, x: f.x, y: f.y });
+      setActing({ act, x: f.x, y: f.y, obj: obj.id });
       await new Promise<void>((res) => {
         actTimer.current = window.setTimeout(res, reduceMotion() ? 250 : ACT_MS);
       });
@@ -545,6 +646,7 @@ export function HomeScene({
     if (v.id === 'invite') return setSheet('invite');
     if (v.id === 'order') return openPhone({ app: 'chop' } as unknown as PhoneOpen);
     if ('slot' in v) return goShop(v.slot);
+    if ('move' in v) return startPlacing(v.move, obj.label);
     const p = me.current;
     if (v.id === 'sit') {
       const seat = plan.seats[0]!;
@@ -580,7 +682,31 @@ export function HomeScene({
       y: (clientY - r.top - size.h / 2) / zoom + c.y,
     };
   };
+  // 3D: one finger orbits, two pinch to zoom.
+  const pts = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef(0);
+  /** A tap on a tile while placing: the thing moves there (centred on it). */
+  const placeAt = (tx: number, ty: number) => {
+    if (!placing) return;
+    const base = basePlan.slots[placing.slot]!;
+    const turned = placing.p.rot % 2 === 1;
+    const w = turned ? base.h : base.w;
+    const h = turned ? base.w : base.h;
+    setPlacing({
+      ...placing,
+      p: {
+        ...placing.p,
+        x: Math.max(0, Math.min(plan.w - w, tx - Math.floor((w - 1) / 2))),
+        y: Math.max(0, Math.min(plan.h - h, ty - Math.floor((h - 1) / 2))),
+      },
+    });
+  };
   const onDown = (e: React.PointerEvent) => {
+    pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.current.size === 2) {
+      const [a, b] = [...pts.current.values()];
+      pinch.current = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+    }
     drag.current = {
       x: e.clientX,
       y: e.clientY,
@@ -591,9 +717,26 @@ export function HomeScene({
   };
   const onMove = (e: React.PointerEvent) => {
     const d = drag.current;
+    const prev = pts.current.get(e.pointerId);
+    if (prev) pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (!d) return;
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
+    if (is3d && api3d.current) {
+      if (pts.current.size >= 2) {
+        const [a, b] = [...pts.current.values()];
+        const dist = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+        if (pinch.current > 0 && dist > 0) api3d.current.zoom(dist / pinch.current);
+        pinch.current = dist;
+        d.moved = true;
+        return;
+      }
+      if (!d.moved && Math.hypot(dx, dy) < TAP_SLOP) return;
+      if (!d.moved) setMenu(null);
+      d.moved = true;
+      if (prev) api3d.current.orbit(e.clientX - prev.x, e.clientY - prev.y);
+      return;
+    }
     if (!d.moved && Math.hypot(dx, dy) < TAP_SLOP) return;
     d.moved = true;
     const fitsW = bounds.x1 - bounds.x0 <= size.w / zoom;
@@ -610,9 +753,37 @@ export function HomeScene({
     setMenu(null);
   };
   const onUp = (e: React.PointerEvent) => {
+    pts.current.delete(e.pointerId);
     const d = drag.current;
-    drag.current = null;
+    if (pts.current.size === 0) drag.current = null;
     if (!d || d.moved || acting) return;
+    if (is3d && api3d.current) {
+      const r = svgRef.current!.getBoundingClientRect();
+      const hit = api3d.current.pick(e.clientX - r.left, e.clientY - r.top);
+      if (placing) {
+        if (hit?.tile) placeAt(hit.tile.x, hit.tile.y);
+        return;
+      }
+      // The 3D thing under your finger wins; else the 2D hit layer; else the floor.
+      const svgObj = hostView ? null : (e.target as Element).closest?.('[data-obj]');
+      const id = hostView ? undefined : (hit?.obj ?? svgObj?.getAttribute('data-obj') ?? undefined);
+      const obj = id ? objects.find((o) => o.id === id) : undefined;
+      if (obj) {
+        setMenu(menu?.id === obj.id ? null : obj);
+        return;
+      }
+      setMenu(null);
+      if (!hit?.tile) return;
+      const path = walk(me.current, hit.tile);
+      setWalkPath(reduceMotion() ? null : path);
+      setRing({ x: (hit.tile.x + 0.5) * TILE, y: (hit.tile.y + 0.5) * TILE, n: Date.now() });
+      return;
+    }
+    if (placing) {
+      const w = toWorld(e.clientX, e.clientY);
+      placeAt(Math.floor(w.x / TILE), Math.floor(w.y / TILE));
+      return;
+    }
     const el = hostView ? null : (e.target as Element).closest?.('[data-obj]');
     if (el) {
       const obj = objects.find((o) => o.id === el.getAttribute('data-obj'));
@@ -774,6 +945,38 @@ export function HomeScene({
 
   const menuAt = menuState?.at ?? null;
 
+  // ---- What the 3D view needs.
+  const objects3d = useMemo(
+    () =>
+      objects.map((o) => ({
+        id: o.id,
+        label: o.label,
+        spot: o.spot,
+        slot: o.slot,
+        owned: o.owned,
+        tier: o.slot ? (tiers.get(o.slot) ?? 1) : 1,
+      })),
+    [objects, tiers],
+  );
+  const people3d = useCallback((): Home3DPerson[] => {
+    const out: Home3DPerson[] = [];
+    for (const p of [me.current, ...guestPeople.current.values()])
+      out.push({ id: p.id, look: p.look, x: p.x, y: p.y, pose: p.pose });
+    return out;
+  }, []);
+  const onCamera3d = useCallback(
+    (m: string) => {
+      mat3d.current = m;
+      writeCamera();
+    },
+    [writeCamera],
+  );
+  const onReady3d = useCallback(() => setReady3d(true), []);
+  const acting3d = useMemo(() => (acting ? { act: acting.act, obj: acting.obj } : null), [acting]);
+  useEffect(() => {
+    if (!want3d) mat3d.current = null;
+  }, [want3d]);
+
   const inviteLeft = actsLeft(view, 'invite');
   const pocket = view.accounts.local?.balance ?? 0;
   const homeName = hostView
@@ -782,7 +985,7 @@ export function HomeScene({
 
   return (
     <div
-      className="place-scene home-scene"
+      className={`place-scene home-scene${is3d ? ' is-3d' : ''}${placing ? ' is-placing' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -842,6 +1045,28 @@ export function HomeScene({
         </button>
       </header>
       <div className="home-stage">
+        {want3d && (
+          <Suspense fallback={null}>
+            <Home3D
+              plan={plan}
+              tier={tier}
+              objects={objects3d}
+              people={people3d}
+              acting={acting3d}
+              night={night}
+              dusk={dusk}
+              car={car?.modelId ?? null}
+              buyMode={sheet === 'buy' || !!placing}
+              sheetOpen={sheet === 'buy'}
+              ghost={ghost}
+              moving={placing?.slot ?? null}
+              api={api3d}
+              onCamera={onCamera3d}
+              onReady={onReady3d}
+              reduced={reduceMotion()}
+            />
+          </Suspense>
+        )}
         <svg
           ref={svgRef}
           className="home-svg"
@@ -856,7 +1081,11 @@ export function HomeScene({
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
-          onPointerCancel={() => (drag.current = null)}
+          onPointerCancel={(e) => {
+            pts.current.delete(e.pointerId);
+            drag.current = null;
+          }}
+          onWheel={(e) => is3d && api3d.current?.zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1)}
           onKeyDown={onKey}
         >
           <defs>
@@ -938,7 +1167,18 @@ export function HomeScene({
                 <circle cx={56} cy={31} r={5} fill="#111827" />
               </g>
             )}
-            {acting && <ActFx act={acting.act} x={acting.x} y={acting.y} />}
+            {acting && !is3d && <ActFx act={acting.act} x={acting.x} y={acting.y} />}
+            {ghost && !is3d && (
+              <rect
+                className="home-ghost"
+                data-ok={ghost.ok ? '1' : '0'}
+                x={ghost.spot.x * TILE}
+                y={ghost.spot.y * TILE}
+                width={ghost.spot.w * TILE}
+                height={ghost.spot.h * TILE}
+                rx={4}
+              />
+            )}
             {objects
               .filter((o) => !hostView && o.slot && !o.owned)
               .map((o) => (
@@ -967,7 +1207,7 @@ export function HomeScene({
                 opacity={night ? 0.32 : 0.08}
               />
             )}
-            {floats.map((f) => (
+            {(is3d ? [] : floats).map((f) => (
               <text
                 key={f.id}
                 className={`home-float tone-${f.tone}`}
@@ -980,6 +1220,67 @@ export function HomeScene({
             ))}
           </g>
         </svg>
+        {is3d &&
+          floats.map((f) => (
+            <span
+              key={f.id}
+              className={`home-float home-float-3d tone-${f.tone}`}
+              style={{ left: f.sx, top: f.sy }}
+            >
+              {f.text}
+            </span>
+          ))}
+        {is3d && !placing && (
+          <div className="home-cam" role="group" aria-label={t('Camera')}>
+            <button
+              type="button"
+              aria-label={t('Turn left')}
+              onClick={() => api3d.current?.turn(-1)}
+            >
+              ⟲
+            </button>
+            <button
+              type="button"
+              aria-label={t('Turn right')}
+              onClick={() => api3d.current?.turn(1)}
+            >
+              ⟳
+            </button>
+            <button
+              type="button"
+              aria-label={t('Zoom in')}
+              onClick={() => api3d.current?.zoom(1.25)}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              aria-label={t('Zoom out')}
+              onClick={() => api3d.current?.zoom(0.8)}
+            >
+              −
+            </button>
+          </div>
+        )}
+        {placing && ghost && (
+          <PlaceBar
+            label={placing.label}
+            ok={ghost.ok}
+            moved={!!placements[placing.slot]}
+            onRotate={() =>
+              setPlacing({ ...placing, p: { ...placing.p, rot: (placing.p.rot + 1) % 4 } })
+            }
+            onNudge={(dx, dy) =>
+              setPlacing({
+                ...placing,
+                p: { ...placing.p, x: placing.p.x + dx, y: placing.p.y + dy },
+              })
+            }
+            onDone={finishPlacing}
+            onReset={resetPlacing}
+            onCancel={() => setPlacing(null)}
+          />
+        )}
         {menu && menuAt && (
           <PieMenu
             obj={menu}
@@ -1000,6 +1301,10 @@ export function HomeScene({
           </button>
         ) : (
           <>
+            <button type="button" className="home-bar-btn" onClick={() => setSheet('buy')}>
+              <span aria-hidden="true">🛒</span>
+              {t('Buy')}
+            </button>
             <button type="button" className="home-bar-btn" onClick={() => setSheet('edit')}>
               <span aria-hidden="true">🛋</span>
               {t('Edit')}
@@ -1015,7 +1320,15 @@ export function HomeScene({
           </>
         )}
       </nav>
-      {sheet && (
+      {sheet === 'buy' && (
+        <BuySheet
+          owned={tiers}
+          placed={placements}
+          onClose={() => setSheet(null)}
+          onPlace={startPlacing}
+        />
+      )}
+      {sheet && sheet !== 'buy' && (
         <div className="home-sheet-back" onClick={() => setSheet(null)}>
           <section
             className="home-sheet"
@@ -1096,7 +1409,10 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
       id: slot,
       label: slotLabel(slot),
       spot: s,
-      verbs,
+      verbs:
+        MOVABLE.has(slot) && verbs.length < 4
+          ? [...verbs, { id: 'move', label: t('Move'), move: slot }]
+          : verbs,
       slot,
       owned: true,
       art: (
@@ -1200,6 +1516,9 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
   fixture('shower', 'shower', t('Shower'), [act('shower', t('Shower'))]);
   fixture('toilet', 'toilet', t('Toilet'), [act('toilet', t('Use'))]);
   fixture('sink', 'sink', t('Sink'), [act('toilet', t('Freshen up'))]);
+  fixture('bathtub', 'bathtub', t('Bathtub'), [act('shower', t('Take a bath'))]);
+  fixture('pool', 'pool', t('Pool table'), [act('tv', t('Play pool'))]);
+  fixture('piano', 'piano', t('Piano'), [act('tv', t('Play the piano'))]);
   fixture('door', 'door', t('Front door'), [{ id: 'out', label: t('Go out') }]);
   // Owned slots carry their verbs; the rest get a "+".
   for (const slot of Object.keys(plan.slots)) if (!has(slot)) plus(slot);

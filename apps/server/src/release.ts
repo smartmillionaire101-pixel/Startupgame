@@ -3,12 +3,10 @@
  * game plays. Bump `id` for each new note; the engine sends each id once.
  */
 export const RELEASE_NOTE = {
-  id: 'release-2026-10-07-wave8',
+  id: 'release-2026-10-07-wave9',
   text:
-    'Big update: your city is now the real city. Every map is built from real streets, coastline, ' +
-    'bridges and buildings (© OpenStreetMap contributors), with landmarks like the Golden Gate, ' +
-    'the Bay Bridge, Third Mainland Bridge and Tower Bridge. You now see what you do: sit in the ' +
-    'barber chair for a haircut, eat at the table, dance at the club, work out at the gym. Flights ' +
-    'have a full cabin. Send money to friends, invite them home, plan hangouts and attend tech ' +
-    'events from the Events app. The screens are cleaner too. Refresh to get it; your game is saved.',
+    'Big update: your city is now 3D. Real streets and buildings with windows, glass towers, ' +
+    'sunlight, shadows and landmarks you can fly around. Your home is a 3D house you walk ' +
+    'through, with a Buy mode to place furniture. Barbers, restaurants, clubs and gyms are 3D ' +
+    'too. On an older phone, choose Lite in Settings. Refresh to get it; your game is saved.',
 } as const;

@@ -1,0 +1,314 @@
+/* Wave 9 §C: 3D interiors, Buy mode and the camera buttons. */
+
+.home-3d,
+.room-3d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+/* In 3D the 2D scene stays on top as an invisible hit layer. */
+.home-scene.is-3d .home-shell,
+.home-scene.is-3d .home-tiles,
+.home-scene.is-3d .home-wallitems,
+.home-scene.is-3d .home-objects,
+.home-scene.is-3d .home-front,
+.home-scene.is-3d .home-path,
+.home-scene.is-3d .home-tint,
+.home-scene.is-3d .home-plus,
+.home-scene.is-3d [data-car] {
+  opacity: 0;
+}
+.home-scene.is-3d .home-ring {
+  stroke-width: 3px;
+}
+
+.home-float-3d {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow:
+    0 1px 0 rgb(15 23 42 / 0.9),
+    0 0 6px rgb(15 23 42 / 0.6);
+  animation: home-float-3d 2.2s ease-out forwards;
+}
+.home-float-3d.tone-energy {
+  color: #fde047;
+}
+.home-float-3d.tone-money {
+  color: #fca5a5;
+}
+.home-float-3d.tone-hunger,
+.home-float-3d.tone-hygiene,
+.home-float-3d.tone-fun,
+.home-float-3d.tone-social,
+.home-float-3d.tone-hours {
+  color: #86efac;
+}
+@keyframes home-float-3d {
+  0% {
+    transform: translate(-50%, -80%);
+    opacity: 0;
+  }
+  12% {
+    transform: translate(-50%, -100%);
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -260%);
+    opacity: 0;
+  }
+}
+
+/* Camera: turn and zoom (also: drag to turn, pinch or wheel to zoom). */
+.home-cam,
+.room-cam {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(2, 38px);
+  gap: 6px;
+}
+.home-cam button,
+.room-cam button {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  background: rgb(15 23 42 / 0.55);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.home-cam button:active,
+.room-cam button:active {
+  transform: scale(0.94);
+}
+
+.home-bar {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+.home-bar .home-bar-btn {
+  padding: 0 0.3rem;
+  white-space: nowrap;
+}
+
+/* Buy mode: the catalogue. */
+.buy-sheet {
+  max-height: 62%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.buy-sheet > header {
+  gap: 0.5rem;
+}
+.buy-sheet > header h3 {
+  flex: 1;
+}
+.buy-pocket {
+  font-weight: 700;
+}
+.buy-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.buy-tab {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2, var(--surface));
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.buy-tab.is-on {
+  background: var(--text);
+  color: var(--surface);
+}
+.buy-grid {
+  display: grid;
+  gap: 0.7rem;
+  overflow: auto;
+}
+.buy-slot-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.3rem;
+}
+.buy-slot-head b {
+  flex: 1;
+}
+.buy-move {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--accent, #2563eb);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.buy-items {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.buy-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  min-height: 68px;
+  padding: 0.4rem 0.45rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-2, var(--surface));
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.buy-item.tier-2 {
+  border-color: #93c5fd;
+}
+.buy-item.tier-3 {
+  border-color: #fbbf24;
+}
+.buy-item.is-mine {
+  background: rgb(34 197 94 / 0.12);
+  border-color: #22c55e;
+}
+.buy-item.is-armed {
+  background: var(--text);
+  color: var(--surface);
+}
+.buy-item:disabled:not(.is-mine) {
+  opacity: 0.5;
+}
+.buy-stars {
+  color: #f59e0b;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+}
+.buy-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.15;
+  flex: 1;
+}
+.buy-price {
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+/* Placing something. */
+.place-bar {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 3;
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border-radius: 16px;
+  background: rgb(15 23 42 / 0.82);
+  color: #fff;
+  backdrop-filter: blur(8px);
+}
+.place-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  text-align: center;
+}
+.place-row {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+}
+.place-row button {
+  min-height: 40px;
+  min-width: 40px;
+  padding: 0 0.7rem;
+  border-radius: 12px;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.place-row .place-done {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+.place-row .place-done:disabled {
+  background: #475569;
+  border-color: #475569;
+  opacity: 0.7;
+}
+.home-ghost {
+  fill: rgb(34 197 94 / 0.35);
+  stroke: #16a34a;
+  stroke-width: 2;
+  pointer-events: none;
+}
+.home-ghost[data-ok='0'] {
+  fill: rgb(239 68 68 / 0.35);
+  stroke: #dc2626;
+}
+
+/* Venues in 3D: the 2D room stays for words and hit areas, invisible. */
+.place-room.is-3d > svg {
+  opacity: 0;
+  pointer-events: none;
+}
+.place-room.is-3d {
+  background: #111827;
+}
+
+@media (max-width: 360px) {
+  .buy-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-float-3d {
+    animation: home-fade 2.2s linear forwards;
+  }
+}
+
+.buy-back {
+  background: rgb(0 0 0 / 0.12);
+}
+
+.tech-hall.is-3d > svg {
+  opacity: 0;
+}

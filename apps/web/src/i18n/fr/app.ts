@@ -1,5 +1,13 @@
 /** Shell, shared UI primitives and formatting. */
 export const app: Record<string, string> = {
+  '{n} online': '{n} en ligne',
+  'Online count unavailable': 'Nombre en ligne indisponible',
+  'Players across all cities, including you. Updates every 15 seconds.':
+    'Joueurs de toutes les villes, vous compris. Actualisé toutes les 15 secondes.',
+  'Game music': 'Musique du jeu',
+  'Music on': 'Musique activée',
+  'Music off': 'Musique coupée',
+  'Background game music.': 'Musique de fond du jeu.',
   'Something went wrong.': 'Un problème est survenu.',
   Close: 'Fermer',
   Cancel: 'Annuler',

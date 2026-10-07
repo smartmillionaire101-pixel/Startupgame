@@ -10,7 +10,9 @@
  * are offered only when the view carries the data they need.
  */
 import {
+  Suspense,
   createContext,
+  lazy,
   useCallback,
   useLayoutEffect,
   useMemo,
@@ -19,6 +21,9 @@ import {
   type ReactNode,
 } from 'react';
 import './scenes.css';
+import '../interiors3d/i3d.css';
+import { use3d } from '../three-kit/quality';
+import { isNight, localHour } from './travel';
 import type { PlayerView } from '@runway/engine';
 import { money } from '../format';
 import { t, tx } from '../i18n';
@@ -85,6 +90,9 @@ import {
   type Activity,
   type RoomKind,
 } from './rooms';
+
+/** Wave 9 §C: the room in 3D, loaded on demand. */
+const Venue3D = lazy(() => import('../interiors3d/Venue3D').catch(() => ({ default: () => null })));
 
 /** Inside a scene, the old card header (a building and a person) is not drawn. */
 export const InScene = createContext(false);
@@ -625,6 +633,52 @@ function RoomScene({
     .map((o, n) => ({ o, slot: seats[n]! >= 0 ? slots[seats[n]!]! : null }))
     .filter((x): x is { o: Occupant; slot: (typeof slots)[number] } => x.slot !== null);
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
+  // ---- Wave 9 §C: the room in 3D (the 2D room stays underneath, invisible).
+  const want3d = use3d();
+  const [ready3d, setReady3d] = useState(false);
+  const is3d = want3d && ready3d;
+  const onReady3d = useCallback(() => setReady3d(true), []);
+  const people3d = useMemo(
+    () =>
+      occupants.flatMap((o, n) =>
+        seats[n]! >= 0
+          ? [
+              {
+                id: o.id,
+                look: avatarLook(o.bg, o.id, o.gender),
+                slot: seats[n]!,
+                act: o.act ?? slots[seats[n]!]!.act,
+                staff: o.staff,
+              },
+            ]
+          : [],
+      ),
+    [occupants, seats, slots],
+  );
+  const onPerson3d = useCallback(
+    (id: string) => {
+      const o = occupants.find((x) => x.id === id);
+      if (o?.person) onPerson(o.person);
+    },
+    [occupants, onPerson],
+  );
+  const act3d = useMemo(
+    () =>
+      act
+        ? {
+            n: act.n,
+            id: act.pick.id,
+            variant: act.pick.variant,
+            script: act.script,
+            ended: act.ended,
+            newLook: act.look ? { ...meLook, ...act.look } : meLook,
+            extra: (seed: string) => avatarLook(pickBg(STAFF_BG, seed), `${place.id}:act:${seed}`),
+          }
+        : null,
+    // meLook is rebuilt each render; its parts are what matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [act?.n, act?.ended, act?.look, place.id],
+  );
   const endAct = useCallback(() => setAct((a) => (a && !a.ended ? { ...a, ended: true } : a)), []);
   // Wave 7: the count shown is the people drawn, plus "+k" for any without a seat.
   const unseated = occupants.length - placed.length;
@@ -1110,7 +1164,24 @@ function RoomScene({
           ✕
         </button>
       </header>
-      <div className="place-room" ref={roomRef}>
+      <div className={`place-room${is3d ? ' is-3d' : ''}`} ref={roomRef}>
+        {want3d && (
+          <Suspense fallback={null}>
+            <Venue3D
+              room={room}
+              tint={business?.look.color ?? place.color}
+              sign={sign?.toUpperCase().slice(0, 22)}
+              night={isNight(localHour(view.market.id))}
+              slots={slots}
+              people={people3d}
+              me={meLook}
+              act={act3d}
+              onPerson={onPerson3d}
+              onReady={onReady3d}
+              reduced={reduced}
+            />
+          </Suspense>
+        )}
         <svg
           viewBox="0 -80 360 320"
           preserveAspectRatio="xMidYMax slice"

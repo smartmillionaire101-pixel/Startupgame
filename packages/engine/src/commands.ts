@@ -72,6 +72,18 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   // ---- onboarding
   z.object({
+    type: z.literal('player.quickStart'),
+    username: z.string().trim().min(3).max(20),
+    role: z.enum(ROLES),
+  }),
+  z.object({
+    type: z.literal('player.profile'),
+    name: z.string().trim().min(1).max(40),
+    gender: z.enum(['female', 'male']).optional(),
+    backgroundId: z.string().max(32),
+    investor: investorSetup.optional(),
+  }),
+  z.object({
     type: z.literal('player.create'),
     handle: z.string().min(3).max(20),
     name: z.string().min(1).max(40),

@@ -68,7 +68,7 @@ export function CompanyScreen() {
   const { view } = useView();
   const [tab, setTab] = useState<Tab>('product');
   const c = view.companies.find((x) => x.status === 'active');
-  if (!c) return <Empty>{t('No active company. Start one from Home.')}</Empty>;
+  if (!c) return <Empty>{t('No active company. Set up your business in Me → Profile.')}</Empty>;
   return (
     <>
       <header className="screen-head">

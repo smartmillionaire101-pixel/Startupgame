@@ -1,5 +1,6 @@
 /** Process entry: wire real adapters, start the clock and data feeds, serve. */
 import type { MarketId } from '@runway/engine';
+import type { FastifyBaseLogger } from 'fastify';
 import { buildApp } from './app.js';
 import { loadConfig, monthMsOf } from './config.js';
 import { GameService } from './game.js';
@@ -11,20 +12,24 @@ import { RELEASE_NOTE } from './release.js';
 const config = loadConfig();
 const store = new Store(config.DATABASE_PATH);
 const now = () => Date.now();
+// Restoring a saved world can log before buildApp has finished.
+let logger: FastifyBaseLogger | undefined = undefined;
 const game = new GameService(store, {
   seed: config.WORLD_SEED,
   snapshotEvery: config.SNAPSHOT_EVERY,
   now,
   monthMs: monthMsOf(config),
-  log: (msg, extra) => app.log.info(extra ?? {}, msg),
+  log: (msg, extra) => logger?.info(extra ?? {}, msg),
 });
 const app = await buildApp({
+  allowLocalAdmin: true,
   config,
   store,
   game,
   sms: new DevSmsProvider((m) => app.log.info(m)),
   now,
 });
+logger = app.log;
 
 game.openMarkets(config.OPEN_MARKETS);
 // Tell every player about a new release once (a no-op after the first time).

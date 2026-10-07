@@ -1,15 +1,24 @@
-import { StrictMode } from 'react';
+import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { GameProvider } from './store';
 import { getLang, useLang } from './i18n';
 import './styles.css';
 
+const Admin = lazy(() => import('./admin/Admin'));
+const adminRoute = /^\/admin\/?$/.test(location.pathname);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <GameProvider>
-      <Localised />
-    </GameProvider>
+    {adminRoute ? (
+      <Suspense fallback={<p>Loading dashboard…</p>}>
+        <Admin />
+      </Suspense>
+    ) : (
+      <GameProvider>
+        <Localised />
+      </GameProvider>
+    )}
   </StrictMode>,
 );
 

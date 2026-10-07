@@ -1,21 +1,17 @@
+import { setupFounder } from './fixtures';
 import { expect, letters, more, test, playAsGuest, tapPlace } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /** Sign up a founder in a market (by its button label), straight into the City. */
 async function founder(page: Page, market: RegExp, name: string) {
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: market }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill(name);
-  await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Payments and bookings for restaurants');
-  await page.getByLabel('Company name').fill(`Till ${letters(5)}`);
-  await expect(page.getByText(/Available in/)).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: name,
+    handle: `${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`,
+    company: `Till ${letters(5)}`,
+    idea: 'Payments and bookings for restaurants',
+    market: market,
+  });
   // The first answer after Start can be a cold start that loads the whole world.
   await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
 }

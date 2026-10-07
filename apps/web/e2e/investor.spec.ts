@@ -1,3 +1,4 @@
+import { setupPlayer } from './fixtures';
 import { expect, letters, playAsGuest, tab, test } from './fixtures';
 
 test('an investor screens an AI startup, does diligence and writes a first cheque', async ({
@@ -5,16 +6,16 @@ test('an investor screens an AI startup, does diligence and writes a first chequ
 }) => {
   await playAsGuest(page);
 
-  await page.getByRole('button', { name: /Investor/ }).click();
-  await page.getByRole('button', { name: /Exited founder/ }).click();
-  await page.getByRole('button', { name: /Nairobi, Kenya/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill('Wanjiku E2E');
-  await page.getByLabel('Handle').fill(`wanjiku_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel(/Typical cheque/).fill('20k');
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupPlayer(page, {
+    type: 'player.create',
+    name: 'Wanjiku E2E',
+    handle: `wanjiku_${letters(6)}`,
+    role: 'investor',
+    backgroundId: 'i-exited',
+    market: 'nairobi',
+    gender: 'female',
+    investor: { sectors: ['fintech'], stages: ['pre-seed', 'seed'], checkSize: 2000000 },
+  });
   await tab(page, 'Today').click();
 
   // First day: three AI startup pitches in the focus area.

@@ -14,14 +14,17 @@
   },
   "dependencies": {
     "@runway/engine": "*",
+    "@types/three": "^0.180.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.180.0",
     "@vitejs/plugin-react": "^6.0.0",
     "jsdom": "^27.0.0",
     "vite": "^8.0.0"

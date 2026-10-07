@@ -1,21 +1,17 @@
+import { setupFounder } from './fixtures';
 import { expect, letters, type Page, playAsGuest, randomEmail, tab, test } from './fixtures';
 
 /** Guest → a founder in Lagos; returns the company name. */
 async function onboardFounder(page: Page) {
   const company = `Keep Pay ${letters(5)}`;
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill('Kemi E2E');
-  await page.getByLabel('Handle').fill(`kemi_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Savings for market traders');
-  await page.getByLabel('Company name').fill(company);
-  await expect(page.getByText(/Available in Lagos/)).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: 'Kemi E2E',
+    handle: `kemi_${letters(6)}`,
+    company: company,
+    idea: 'Savings for market traders',
+    market: /Lagos, Nigeria/,
+  });
   await expect(tab(page, 'Today')).toBeVisible();
   return company;
 }
@@ -51,7 +47,10 @@ test('a guest saves their game with an email link, signs out, and logs back in b
   await expect(sheet.getByText(`we sent a link to ${email}`, { exact: false })).toBeVisible();
   // No email leaves a test server: it hands the link back instead.
   await sheet.getByRole('link', { name: 'Preview: open your sign-in link' }).click();
-  await expect(page.getByText(`Progress saved. Log in with ${email} on any device.`)).toBeVisible();
+  // Checked on the toast list, so a failure says which message showed instead.
+  await expect(page.locator('.toasts')).toContainText(
+    `Progress saved. Log in with ${email} on any device.`,
+  );
   await expect(page).not.toHaveURL(/signin=/);
 
   // Saved: the email shows in Settings, and the guest banner is gone.
