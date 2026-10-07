@@ -20,7 +20,7 @@ export const CUT_H = 0.32;
 const THICK = 0.14;
 const WALL_GREEN = '#3f7a52';
 const WALL_CAP = '#eef2ea';
-const WALL_INNER = '#e9e2d3';
+const WALL_INNER = '#7fa585';
 
 export interface WallSide {
   /** Outward normal on the floor plane. */
@@ -345,7 +345,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
 
   const span = Math.max(totalW, H) * 1.18 + 2;
   const fitPoints: THREE.Vector3[] = [];
-  for (const x of [-0.6, totalW + 0.4])
+  for (const x of [-0.3, totalW + 0.2])
     for (const z of [-0.6, H + (garage || o.car ? 2.2 : 1.2)])
       for (const y of [0, WALL_H]) fitPoints.push(new THREE.Vector3(x, y, z));
   return { root, sides, centre, span, fitPoints, garage: garageOut };

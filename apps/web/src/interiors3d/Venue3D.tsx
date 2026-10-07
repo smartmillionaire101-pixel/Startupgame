@@ -129,7 +129,7 @@ export default function Venue3D(props: Venue3DProps) {
     stage.fitCenter = new THREE.Vector3(0, 0.6, 0.2);
     stage.fitMargin = 1.02;
     const fit: THREE.Vector3[] = [];
-    for (const x of [-RW / 2, RW / 2]) for (const z of [BACK + 0.6, RD / 2]) for (const y of [0, 2.2]) fit.push(new THREE.Vector3(x * 0.8, y, z));
+    for (const x of [-RW / 2, RW / 2]) for (const z of [BACK + 0.6, RD / 2]) for (const y of [0, 2.2]) fit.push(new THREE.Vector3(x * 0.68, y, z));
     stage.fit = fit;
     stage.sun.position.set(-6, 14, 9);
     stage.sun.target.position.set(0, 0, 0);

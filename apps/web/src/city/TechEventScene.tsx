@@ -9,8 +9,9 @@
  * Opened by PlaceScene when you walk into the venue of an event you chose
  * (./techevent.ts).
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import './techevent.css';
+import { use3d } from '../three-kit/quality';
 import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
@@ -23,6 +24,9 @@ import { hereOf } from './travel';
 import type { SceneProps } from './PlaceScene';
 
 type Phase = 'intro' | 'talk' | 'network' | 'pitch' | 'done';
+
+/** Wave 9 §C: the hall in 3D, loaded on demand. */
+const TechEvent3D = lazy(() => import('../interiors3d/TechEvent3D'));
 
 interface AttendResult {
   ticket?: number;
@@ -169,6 +173,8 @@ function EventStage({
   const onStage = phase === 'pitch';
   const met = result?.contacts ?? [];
   const live = phase === 'talk' || phase === 'network' || phase === 'pitch';
+  const want3d = use3d();
+  const [ready3d, setReady3d] = useState(false);
 
   return (
     <div
@@ -191,7 +197,19 @@ function EventStage({
           ✕
         </button>
       </header>
-      <div className="tech-hall">
+      <div className={`tech-hall${want3d && ready3d ? ' is-3d' : ''}`}>
+        {want3d && (
+          <Suspense fallback={null}>
+            <TechEvent3D
+              phase={phase}
+              crowd={crowd}
+              you={YOU}
+              me={meLook}
+              speaker={speakerLook}
+              onReady={() => setReady3d(true)}
+            />
+          </Suspense>
+        )}
         <svg viewBox="0 0 360 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
           <defs>
             <linearGradient id="tech-floor" x1="0" y1="0" x2="0" y2="1">

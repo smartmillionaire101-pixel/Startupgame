@@ -202,6 +202,9 @@ export default function Home3D(props: Home3DProps) {
     stage.span = h.span;
     stage.fitCenter = h.centre.clone();
     stage.fit = h.fitPoints;
+    stage.fitMargin = 1.0;
+    // A tall phone: look down a little more so the house fills the screen.
+    if (stage.w / stage.h < 0.8) stage.elevation = 1.0;
     const s = Math.max(plan.w, plan.h) * 0.9 + 4;
     const sc = stage.sun.shadow.camera;
     sc.left = -s;

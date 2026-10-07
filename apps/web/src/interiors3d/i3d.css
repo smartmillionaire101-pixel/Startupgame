@@ -308,3 +308,7 @@
 .buy-back {
   background: rgb(0 0 0 / 0.12);
 }
+
+.tech-hall.is-3d > svg {
+  opacity: 0;
+}

@@ -236,8 +236,8 @@ export function buildVenue(o: VenueOpts): VenueRoom {
     for (const { s, i } of seated) {
       const x = vx(s.x);
       const z = vz(s.y);
-      // The desk's chair is at local z = 0.55: put it under the person.
-      add('office-desk', x, z + 0.55, 1.3, 0.8, Math.PI);
+      // The desk behind them (its chair, at local z = 0.55, under them), the screen towards us.
+      add('office-desk', x, z - 0.55, 1.3, 0.8, 0);
       seat(i, x, z, Math.PI, 0.46);
     }
   } else if (style === 'stool') {
@@ -305,8 +305,7 @@ export function buildVenue(o: VenueOpts): VenueRoom {
   const counterAt = (x2d: number, y2d: number, w: number, tint?: string) => add('counter', vx(x2d), vz(y2d) + 0.6, w, 0.7, 0, tint ?? o.tint);
   switch (o.kind) {
     case 'restaurant': {
-      counterAt(286, 150, 3.2, '#7c2d12');
-      add('shelves', vx(286), backZ(0.5), 3, 0.5);
+      add('bar-counter', vx(286), vz(150) + 0.6, 3.4, 2.2, 0, '#7c2d12');
       add('plants', -RW / 2 + 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
       add('plants', RW / 2 - 0.5, RD / 2 - 0.6, 0.8, 0.8, 0, undefined, 3);
       for (const x of [-4, 0, 4]) add('art', x - 1.2, backZ(1) - 0.45, 1, 1, 0, undefined, 2, x + 9);
@@ -316,7 +315,6 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       counterAt(86, 146, 3.4, '#a16207');
       const em = add('espresso', vx(86) + 0.9, vz(146) + 0.6, 0.6, 0.45);
       em.group.position.y = 1.03;
-      add('shelves', vx(86), backZ(0.5), 3, 0.5);
       add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
       add('art', 3, backZ(1) - 0.45, 1.2, 1, 0, undefined, 3, 4);
       break;
@@ -342,7 +340,7 @@ export function buildVenue(o: VenueOpts): VenueRoom {
     }
     case 'bar':
     case 'lounge': {
-      add('bar-counter', vx(150), BACK + 1.25, 6, 2.5, 0, o.kind === 'bar' ? '#5b3a22' : '#4c1d95');
+      add('bar-counter', vx(150), vz(144) + 0.6, 6, 2.2, 0, o.kind === 'bar' ? '#5b3a22' : '#4c1d95');
       add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 3);
       break;
     }
