@@ -1,12 +1,16 @@
 /**
- * The 3D city data (Wave 9 §A) from OpenStreetMap (© OpenStreetMap
- * contributors, ODbL) and the AWS Terrarium elevation tiles. Runs in GitHub
- * Actions after build.mjs (.github/workflows/osm-maps.yml) and writes, per
- * city, into apps/web/public/geo/<city>/:
+ * The 3D city data (Wave 9 §A). Runs in GitHub Actions after build.mjs and
+ * overture.py (.github/workflows/osm-maps.yml) and writes, per city, into
+ * apps/web/public/geo/<city>/:
  *
- *   b-<tx>_<ty>.bin  every building in the `wide` box, in 1 km tiles
- *   terrain.bin      an elevation grid over `wide` (water at 0 m)
- *   trees.bin        tree points (mapped trees, parks and woods, streets)
+ *   b-<tx>_<ty>.bin  every building in the `wide` box, in 1 km tiles, from
+ *                    Overture Maps (OpenStreetMap plus Microsoft and Google
+ *                    footprints), exported by overture.py to
+ *                    scripts/osm/work/buildings-<city>.ndjson
+ *   terrain.bin      an elevation grid over `wide` (AWS Terrarium; water at 0 m)
+ *   trees.bin        tree points: mapped trees and residential streets from
+ *                    Overpass (optional: on failure the geo JSON's streets are
+ *                    used), plus samples in the geo JSON's parks and woods
  *   index.json       tile list, bounds, origin, sizes, enums, attribution
  *
  * The formats are documented in format.mjs and decoded in the web app by
@@ -32,20 +36,18 @@ import {
   encodeTrees,
   parseLength,
 } from './format.mjs';
-import {
-  LEVEL_HEIGHT,
-  buildingsFrom,
-  fitBudget,
-  resolveParts,
-  tileBuildings,
-} from './buildings.mjs';
+import { LEVEL_HEIGHT, fitBudget, resolveParts, tileBuildings } from './buildings.mjs';
 import { bb, flat, hash01, projector, simplify } from './geom.mjs';
+import { readOverture } from './overture.mjs';
 import { overpass, sleep } from './overpass.mjs';
 import { clampWater, fetchTerrarium, sampleGrid, terrainPlan } from './terrain.mjs';
 import { cityTrees } from './trees.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
+
+export const ATTRIBUTION =
+  '© OpenStreetMap contributors, Overture Maps Foundation; includes data from Microsoft and Google Open Buildings under ODbL/CDLA';
 
 /** Split a [w, s, e, n] box into sub-boxes of at most `step` degrees a side. */
 export function chunkBox([w, s, e, n], step) {
@@ -63,36 +65,55 @@ export function chunkBox([w, s, e, n], step) {
   return out;
 }
 
-const query = (box) => `[out:json][timeout:300][maxsize:1073741824];(
-  way["building"](${bb(box)});
-  relation["building"]["type"="multipolygon"](${bb(box)});
-  way["building:part"]["height"](${bb(box)});
-  way["building:part"]["building:levels"](${bb(box)});
+/** The small Overpass query: mapped trees and residential streets. */
+const query = (box) => `[out:json][timeout:120];(
   node["natural"="tree"](${bb(box)});
   way["highway"~"^(residential|living_street)$"](${bb(box)});
 );out body geom qt;`;
 
-/** Fetch one sub-box; on repeated failure split it in four (twice at most). */
-async function fetchBox(box, depth, onElements) {
-  try {
-    const data = await overpass(query(box), { attempts: depth < 2 ? 3 : 6, pause: 10_000 });
-    onElements(data.elements ?? []);
-  } catch (e) {
-    if (depth >= 2) throw e;
-    console.warn(`split ${box.map((v) => v.toFixed(4)).join(',')}: ${e?.message}`);
-    const [w, s, ee, n] = box;
-    const mx = (w + ee) / 2;
-    const my = (s + n) / 2;
-    for (const sub of [
-      [w, s, mx, my],
-      [mx, s, ee, my],
-      [w, my, mx, n],
-      [mx, my, ee, n],
-    ]) {
-      await sleep(3000);
-      await fetchBox(sub, depth + 1, onElements);
+/**
+ * Mapped trees and residential streets from Overpass, chunk by chunk. Never
+ * fatal: returns { tagged, streets, ok }, ok false when any chunk failed (the
+ * caller then plants street trees along the geo JSON's streets instead).
+ */
+async function overpassTrees(id, wide, proj) {
+  const seen = new Set();
+  const tagged = [];
+  const streets = [];
+  let ok = true;
+  const boxes = chunkBox(wide, 0.05);
+  for (const [k, box] of boxes.entries()) {
+    try {
+      const data = await overpass(query(box), { attempts: 2, pause: 5000 });
+      for (const e of data.elements ?? []) {
+        const t = e.tags ?? {};
+        const key = `${e.type}/${e.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (e.type === 'node' && t.natural === 'tree') {
+          const [x, y] = proj.p(e.lon, e.lat);
+          const h = parseLength(t.height);
+          tagged.push({
+            x,
+            y,
+            height: h > 1 && h < 80 ? h : 6 + hash01(x * 10, y * 10, 5) * 8,
+            kind: 0,
+          });
+        } else if (e.type === 'way' && t.highway && e.geometry) {
+          const pts = simplify(
+            e.geometry.map((g) => proj.p(g.lon, g.lat)),
+            2,
+          );
+          if (pts.length >= 2) streets.push(flat(pts));
+        }
+      }
+    } catch (e) {
+      ok = false;
+      console.warn(`[${id}] trees chunk ${k + 1}/${boxes.length} failed: ${e?.message}`);
     }
+    await sleep(2000);
   }
+  return { tagged, streets, ok };
 }
 
 const kb = (n) => `${(n / 1024).toFixed(0)} KB`;
@@ -110,46 +131,14 @@ export async function build(id) {
   const core = [...corner(coreBox[0], coreBox[3]), ...corner(coreBox[2], coreBox[1])];
   const budget = Number(process.env.BUDGET_MB || 6) * 1024 * 1024;
 
-  // ----- Overpass, chunk by chunk
-  const seen = new Set();
-  const seenOther = new Set();
-  const buildings = [];
-  const tagged = [];
-  const streets = [];
-  const boxes = chunkBox(wide, 0.05);
-  for (const [k, box] of boxes.entries()) {
-    console.log(`[${id}] chunk ${k + 1}/${boxes.length}`);
-    await fetchBox(box, 0, (elements) => {
-      buildings.push(...buildingsFrom(elements, proj, bounds, core, seen));
-      for (const e of elements) {
-        const t = e.tags ?? {};
-        const key = `${e.type}/${e.id}`;
-        if (e.type === 'node' && t.natural === 'tree' && !seenOther.has(key)) {
-          seenOther.add(key);
-          const [x, y] = proj.p(e.lon, e.lat);
-          const h = parseLength(t.height);
-          tagged.push({
-            x,
-            y,
-            height: h > 1 && h < 80 ? h : 6 + hash01(x * 10, y * 10, 5) * 8,
-            kind: 0,
-          });
-        } else if (e.type === 'way' && t.highway && e.geometry && !seenOther.has(key)) {
-          seenOther.add(key);
-          const pts = simplify(
-            e.geometry.map((g) => proj.p(g.lon, g.lat)),
-            2,
-          );
-          if (pts.length >= 2) streets.push(flat(pts));
-        }
-      }
-    });
-    await sleep(3000);
-  }
-
-  // ----- Buildings → tiles
+  // ----- Buildings (Overture export) → tiles
+  const ndjson = join(here, 'work', `buildings-${id}.ndjson`);
+  if (!existsSync(ndjson)) throw new Error(`${ndjson} missing: run overture.py first`);
+  const metaFile = join(here, 'work', `buildings-${id}.meta.json`);
+  const meta = existsSync(metaFile) ? JSON.parse(readFileSync(metaFile, 'utf8')) : {};
+  const { buildings, rows } = await readOverture(ndjson, proj, bounds, core);
   const resolved = resolveParts(buildings);
-  const { list, minArea } = fitBudget(resolved, budget);
+  const { list, minArea, dropped } = fitBudget(resolved, budget, core);
   const tiles = tileBuildings(list);
   for (const f of readdirSync(outDir))
     if (/^b-.*\.bin$/.test(f) || f === 'index.json') rmSync(join(outDir, f));
@@ -169,8 +158,8 @@ export async function build(id) {
   }
   const estimated = list.filter((b) => b.estimated).length;
   console.log(
-    `[${id}] buildings ${count}/${resolved.length} (${buildings.length} incl. parts) in ${tileList.length} tiles, ${kb(bytes)}` +
-      `${minArea ? `, dropped footprints < ${minArea} m² outside the core` : ''}, ${estimated} heights estimated`,
+    `[${id}] Overture ${meta.release ?? '?'}: ${rows} rows → ${buildings.length} footprints → ${count} kept in ${tileList.length} tiles, ${kb(bytes)}` +
+      `${dropped ? `; dropped ${dropped} small ones outside the core (cut-off ${minArea} m² at the core's edge)` : ''}; ${estimated} heights estimated`,
   );
 
   // ----- Terrain
@@ -211,11 +200,13 @@ export async function build(id) {
   }
 
   // ----- Trees
+  const { tagged, streets, ok } = await overpassTrees(id, wide, proj);
+  if (!ok) console.warn(`[${id}] Overpass incomplete: street trees from the geo JSON`);
   const trees = cityTrees({
     tagged,
     parks: geo?.parks ?? [],
     green: geo?.green ?? [],
-    streets: streets.length ? streets : (geo?.roads?.residential ?? []).map((r) => r.l),
+    streets: ok && streets.length ? streets : (geo?.roads?.residential ?? []).map((r) => r.l),
     water: geo?.water ?? [],
     bounds,
   });
@@ -229,14 +220,16 @@ export async function build(id) {
   const index = {
     format: FORMAT_VERSION,
     city: id,
-    attribution: '© OpenStreetMap contributors',
-    license: 'ODbL (buildings, trees); terrain: Mapzen Terrarium on AWS Open Data',
+    attribution: ATTRIBUTION,
+    license:
+      'Buildings: Overture Maps (ODbL; CDLA Permissive 2.0 for ML footprints); trees: OpenStreetMap (ODbL); terrain: Mapzen Terrarium on AWS Open Data',
+    sources: { overture: meta.release ?? null },
     origin: proj.origin.map((v) => Math.round(v * 1e6) / 1e6),
     bounds,
     core,
     tileSize: TILE_SIZE,
     levelHeight: LEVEL_HEIGHT,
-    buildings: { count, bytes, minArea },
+    buildings: { count, bytes, minArea, dropped },
     tiles: tileList,
     terrain,
     trees: { file: 'trees.bin', count: trees.length, bytes: treeBuf.length },

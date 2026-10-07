@@ -3,6 +3,7 @@
  * The OpenStreetMap → 3D city pipeline (scripts/osm), offline: synthetic
  * fixtures only (Overpass and AWS are reached by the GitHub Action alone).
  */
+import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
 import geoSF from '../src/city/geo/san-francisco.json';
@@ -11,6 +12,7 @@ import {
   estimateHeight,
   fitBudget,
   heightOf,
+  overtureTags,
   resolveParts,
   tileBuildings,
 } from '../../../scripts/osm/buildings.mjs';
@@ -25,6 +27,7 @@ import {
   terrainPlan,
   terrariumElevation,
 } from '../../../scripts/osm/terrain.mjs';
+import { readOverture } from '../../../scripts/osm/overture.mjs';
 import { chunkBox } from '../../../scripts/osm/tiles.mjs';
 import { cityTrees, sampleStreets } from '../../../scripts/osm/trees.mjs';
 import { decodeBuildingTile } from '../src/city/geo3d/tiles';
@@ -293,22 +296,85 @@ describe('buildings from Overpass elements', () => {
     expect(Math.max(...xs)).toBeCloseTo(1509, 0);
   });
 
-  it('drops small footprints outside the core first to meet the budget', () => {
-    const many = Array.from({ length: 400 }, (_, i) => ({
-      points: square(i * 30, 2000, i % 2 ? 4 : 12),
-      area: i % 2 ? 16 : 144,
-      core: i < 10,
-      part: false,
-      estimated: true,
-      colour: -1,
-      roofColour: -1,
-    }));
-    const all = fitBudget(many, 1e9);
+  it('drops the smallest footprints, farthest from the core, first to meet the budget', () => {
+    const many = Array.from({ length: 400 }, (_, i) => {
+      const s = i % 2 ? 4 : 12;
+      return {
+        points: square(i * 30, 0, s),
+        cx: i * 30 + s / 2,
+        cy: s / 2,
+        area: s * s,
+        core: i < 10,
+        part: false,
+        estimated: true,
+        colour: -1,
+        roofColour: -1,
+      };
+    });
+    const coreBox = [0, 0, 300, 300];
+    const all = fitBudget(many, 1e9, coreBox);
     expect(all.list).toHaveLength(400);
-    expect(all.minArea).toBe(0);
-    const cut = fitBudget(many, 16 + 300 * 28);
-    expect(cut.minArea).toBe(25);
-    expect(cut.list).toHaveLength(200 + 5);
+    expect([all.minArea, all.dropped]).toEqual([0, 0]);
+    const cut = fitBudget(many, 16 + 300 * 28, coreBox);
+    expect(cut.list).toHaveLength(300);
+    expect(cut.dropped).toBe(100);
+    // The core stays whole, every big footprint stays, and the small ones
+    // kept are the nearest to the core.
+    expect(cut.list.filter((b: { core: boolean }) => b.core)).toHaveLength(10);
+    expect(cut.list.filter((b: { area: number }) => b.area === 144)).toHaveLength(200);
+    const smallX = cut.list
+      .filter((b: { area: number; core: boolean }) => b.area === 16 && !b.core)
+      .map((b: { cx: number }) => b.cx);
+    expect(Math.max(...smallX)).toBeLessThan(
+      Math.min(...many.filter((b) => b.area === 16 && !cut.list.includes(b)).map((b) => b.cx)),
+    );
+    expect(cut.minArea).toBeGreaterThan(0);
+    expect(cut.minArea).toBeLessThan(16);
+  });
+});
+
+describe('Overture buildings (overture.py export)', () => {
+  it('maps Overture fields onto OSM tags', () => {
+    expect(
+      overtureTags({ kind: 'building', class: 'apartments', num_floors: 6, facade_color: 'beige' }),
+    ).toEqual({ building: 'apartments', 'building:levels': '6', 'building:colour': 'beige' });
+    expect(overtureTags({ kind: 'building', subtype: 'education' }).building).toBe('school');
+    expect(overtureTags({ kind: 'building', subtype: 'residential' }).building).toBe('house');
+    expect(overtureTags({ kind: 'building' }).building).toBe('yes');
+    expect(overtureTags({ kind: 'part', height: 40, min_height: 10 })).toEqual({
+      'building:part': 'yes',
+      height: '40',
+      min_height: '10',
+    });
+  });
+
+  it('streams the newline-delimited export into footprints', async () => {
+    const file = fileURLToPath(new URL('./fixtures/overture-sample.ndjson', import.meta.url));
+    const { buildings, rows, bad } = await readOverture(file, proj, bounds, core);
+    expect([rows, bad]).toEqual([8, 1]);
+    // Underground and out-of-box rows go; the multipolygon gives two.
+    expect(buildings).toHaveLength(6);
+    const office = buildings.find((b: { type: number }) => b.type === typeCode('office'))!;
+    expect(office).toMatchObject({
+      height: 95.5,
+      levels: 24,
+      estimated: false,
+      colour: 0x8899aa,
+      material: 3,
+      roof: 1,
+    });
+    expect(office.area).toBeGreaterThan(400);
+    const house = buildings.find((b: { type: number }) => b.type === typeCode('house'))!;
+    expect(house.estimated).toBe(true);
+    const churches = buildings.filter((b: { type: number }) => b.type === typeCode('church'));
+    expect(churches).toHaveLength(2);
+    expect(churches[0]).toMatchObject({ height: 12.4, levels: 2, roof: 2, roofHeight: 6 });
+    expect(churches[0].roofColour).toBe(0xb03a2e);
+    for (const b of buildings) expect(signedArea(b.points)).toBeGreaterThan(0);
+    const resolved = resolveParts(buildings);
+    expect(resolved).toHaveLength(6);
+    const part = resolved.find((b: { part: boolean }) => b.part)!;
+    expect(part).toMatchObject({ height: 40, minHeight: 10, type: typeCode('office') });
   });
 });
 
