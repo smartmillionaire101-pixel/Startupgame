@@ -219,7 +219,9 @@ function flat(tier: number): HomePlan {
       lights: spot(B - 1, T - 1, 1, 1, B - 2, T - 1),
       cooling: spot(0, 0, 2, 1, 2, 1, { wall: true }),
       art: spot(4, 0, 1, 1, 3, 1, { wall: true }),
-      washer: house ? spot(W - 1, S - 1, 1, 1, W - 1, S - 2) : spot(W - 1, T - 1, 1, 1, W - 2, T - 1),
+      washer: house
+        ? spot(W - 1, S - 1, 1, 1, W - 1, S - 2)
+        : spot(W - 1, T - 1, 1, 1, W - 2, T - 1),
       sound: spot(0, T, 1, 1, 1, T + 1),
       tv: spot(1 + ox, T, 2, 1, 2 + ox, T + 1),
       gaming: spot(3 + ox, T, 1, 1, 3 + ox, T + 1),

@@ -21,7 +21,8 @@ export const vx = (x: number) => ((x - 180) / 360) * RW;
 /** 2D room y (feet) → metres (z). */
 export const vz = (y: number) => BACK + 0.8 + ((Math.max(118, y) - 130) / 110) * (RD - 1.1);
 
-type SeatStyle = 'table' | 'desk' | 'stool' | 'row' | 'armchair' | 'salon' | 'lounger' | 'sofa' | 'none';
+type SeatStyle =
+  'table' | 'desk' | 'stool' | 'row' | 'armchair' | 'salon' | 'lounger' | 'sofa' | 'none';
 
 interface RoomStyle {
   floor: FloorKind;
@@ -45,7 +46,13 @@ export const ROOM_STYLE: Record<RoomKind, RoomStyle> = {
   office: { floor: 'carpet', floorTint: '#7b8794', wall: '#dbe4ee', seat: 'desk', mood: 'day' },
   bank: { floor: 'marble', wall: '#d6d3d1', seat: 'none', mood: 'day' },
   investor: { floor: 'parquet-dark', wall: '#3f4a3c', seat: 'table', mood: 'warm' },
-  accelerator: { floor: 'carpet', floorTint: '#6b7a8f', wall: '#f1f5f9', seat: 'table', mood: 'day' },
+  accelerator: {
+    floor: 'carpet',
+    floorTint: '#6b7a8f',
+    wall: '#f1f5f9',
+    seat: 'table',
+    mood: 'day',
+  },
   devpartner: { floor: 'parquet', wall: '#dfe7e2', seat: 'table', mood: 'day' },
   showroom: { floor: 'marble', wall: '#e5e7eb', seat: 'none', mood: 'day' },
   furniture: { floor: 'parquet', wall: '#efe4d2', seat: 'sofa', mood: 'warm' },
@@ -106,7 +113,10 @@ function floor(root: THREE.Group, kind: FloorKind, tint?: string, w = RW, d = RD
   tex.needsUpdate = true;
   const s = FLOOR_SCALE[kind];
   tex.repeat.set(w / s, d / s);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat('#ffffff', { map: tex, rough: kind === 'marble' ? 0.3 : 0.8, own: true }));
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, d),
+    mat('#ffffff', { map: tex, rough: kind === 'marble' ? 0.3 : 0.8, own: true }),
+  );
   m.rotation.x = -Math.PI / 2;
   m.receiveShadow = true;
   root.add(m);
@@ -121,7 +131,10 @@ function pairs(slots: { s: Slot; i: number }[]) {
   for (const a of left) {
     if (used.has(a.i)) continue;
     used.add(a.i);
-    const b = left.find((c) => !used.has(c.i) && Math.abs(c.s.y - a.s.y) <= 14 && c.s.x - a.s.x > 0 && c.s.x - a.s.x <= 64);
+    const b = left.find(
+      (c) =>
+        !used.has(c.i) && Math.abs(c.s.y - a.s.y) <= 14 && c.s.x - a.s.x > 0 && c.s.x - a.s.x <= 64,
+    );
     if (b) used.add(b.i);
     out.push({ a, b });
   }
@@ -145,7 +158,17 @@ export function buildVenue(o: VenueOpts): VenueRoom {
   const movers: THREE.PointLight[] = [];
   const lamps: THREE.PointLight[] = [];
   const sides: VenueRoom['sides'] = [];
-  const add = (id: string, x: number, z: number, w: number, d: number, ry = 0, tint?: string, tier = 2, seed = 0) => {
+  const add = (
+    id: string,
+    x: number,
+    z: number,
+    w: number,
+    d: number,
+    ry = 0,
+    tint?: string,
+    tier = 2,
+    seed = 0,
+  ) => {
     const m = place(root, buildModel(id, { w, d, tier, tint, seed }), x, z, ry);
     screens.push(...m.screens);
     if (m.parts.deckL) decks.push(m.parts.deckL, m.parts.deckR!);
@@ -181,11 +204,20 @@ export function buildVenue(o: VenueOpts): VenueRoom {
     const front = mk(RW + 0.4, 0.2, 0, RD / 2 + 0.1);
     front.scale.y = 0.25;
     front.userData.low = true;
-    sides.push({ nx: 0, nz: -1, meshes: [back] }, { nx: -1, nz: 0, meshes: [left] }, { nx: 1, nz: 0, meshes: [right] });
+    sides.push(
+      { nx: 0, nz: -1, meshes: [back] },
+      { nx: -1, nz: 0, meshes: [left] },
+      { nx: 1, nz: 0, meshes: [right] },
+    );
     // AO along the back wall.
     const ao = new THREE.Mesh(
       new THREE.PlaneGeometry(RW, 0.8),
-      new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.18, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        color: '#000',
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+      }),
     );
     ao.rotation.x = -Math.PI / 2;
     ao.position.set(0, 0.005, BACK + 0.4);
@@ -194,12 +226,23 @@ export function buildVenue(o: VenueOpts): VenueRoom {
     if (o.sign) {
       const sm = new THREE.Mesh(
         new THREE.PlaneGeometry(3.6, 0.9),
-        new THREE.MeshStandardMaterial({ map: signTexture(o.sign, tone(o.tint, -0.15), '#ffffff'), emissive: '#ffffff', emissiveIntensity: 0.25, transparent: true }),
+        new THREE.MeshStandardMaterial({
+          map: signTexture(o.sign, tone(o.tint, -0.15), '#ffffff'),
+          emissive: '#ffffff',
+          emissiveIntensity: 0.25,
+          transparent: true,
+        }),
       );
-      (sm.material as THREE.MeshStandardMaterial).emissiveMap = (sm.material as THREE.MeshStandardMaterial).map;
+      (sm.material as THREE.MeshStandardMaterial).emissiveMap = (
+        sm.material as THREE.MeshStandardMaterial
+      ).map;
       sm.material.map!.repeat.set(1, 0.25);
       sm.material.map!.offset.set(0, 0.75);
-      sm.position.set(o.kind === 'club' || o.kind === 'cinema' || o.kind === 'stage' ? -3.6 : 0, 2.55, BACK + 0.02);
+      sm.position.set(
+        o.kind === 'club' || o.kind === 'cinema' || o.kind === 'stage' ? -3.6 : 0,
+        2.55,
+        BACK + 0.02,
+      );
       root.add(sm);
     }
   }
@@ -220,7 +263,17 @@ export function buildVenue(o: VenueOpts): VenueRoom {
         chairAt(tk, ax, az, Math.PI / 2, 'dining', '#5b3a22');
         chairAt(tk, bx, az, -Math.PI / 2, 'dining', '#5b3a22');
         root.add(tk.build());
-        add('restaurant-table', mx, az, 1.2, 0.9, Math.PI / 2, o.kind === 'restaurant' ? '#f8fafc' : o.kind === 'cafe' ? '#d6b98c' : '#e7e5e4', 2, Math.round(ax * 10));
+        add(
+          'restaurant-table',
+          mx,
+          az,
+          1.2,
+          0.9,
+          Math.PI / 2,
+          o.kind === 'restaurant' ? '#f8fafc' : o.kind === 'cafe' ? '#d6b98c' : '#e7e5e4',
+          2,
+          Math.round(ax * 10),
+        );
         seat(p.a.i, ax, az, Math.PI / 2, 0.45);
         seat(p.b.i, bx, az, -Math.PI / 2, 0.45);
       } else {
@@ -242,7 +295,8 @@ export function buildVenue(o: VenueOpts): VenueRoom {
     }
   } else if (style === 'stool') {
     const rows = new Map<number, { s: Slot; i: number }[]>();
-    for (const x of seated) rows.set(Math.round(x.s.y / 20), [...(rows.get(Math.round(x.s.y / 20)) ?? []), x]);
+    for (const x of seated)
+      rows.set(Math.round(x.s.y / 20), [...(rows.get(Math.round(x.s.y / 20)) ?? []), x]);
     for (const row of rows.values()) {
       const xs = row.map((r) => vx(r.s.x));
       const z = vz(row[0]!.s.y);
@@ -259,7 +313,15 @@ export function buildVenue(o: VenueOpts): VenueRoom {
     for (const { s, i } of seated) {
       const x = vx(s.x);
       const z = vz(s.y);
-      add('cinema-seats', x, z, 0.7, 0.7, Math.PI, o.kind === 'cinema' ? '#991b1b' : o.kind === 'airport' ? '#334155' : '#0f766e');
+      add(
+        'cinema-seats',
+        x,
+        z,
+        0.7,
+        0.7,
+        Math.PI,
+        o.kind === 'cinema' ? '#991b1b' : o.kind === 'airport' ? '#334155' : '#0f766e',
+      );
       seat(i, x, z, Math.PI, 0.48);
     }
   } else if (style === 'armchair' || style === 'sofa') {
@@ -269,12 +331,29 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       if (p.b) {
         const bx = vx(p.b.s.x);
         add('armchair', ax, az, 0.9, 0.9, Math.PI / 2, o.kind === 'lounge' ? '#6d28d9' : undefined);
-        add('armchair', bx, az, 0.9, 0.9, -Math.PI / 2, o.kind === 'lounge' ? '#6d28d9' : undefined);
+        add(
+          'armchair',
+          bx,
+          az,
+          0.9,
+          0.9,
+          -Math.PI / 2,
+          o.kind === 'lounge' ? '#6d28d9' : undefined,
+        );
         add('coffee-table', (ax + bx) / 2, az, 0.9, 0.7, Math.PI / 2, undefined, 2);
         seat(p.a.i, ax, az, Math.PI / 2, 0.5);
         seat(p.b.i, bx, az, -Math.PI / 2, 0.5);
       } else {
-        add(style === 'sofa' ? 'sofa' : 'armchair', ax, az, style === 'sofa' ? 2.2 : 0.9, 0.9, Math.PI, o.kind === 'karaoke' ? '#be185d' : undefined, 2);
+        add(
+          style === 'sofa' ? 'sofa' : 'armchair',
+          ax,
+          az,
+          style === 'sofa' ? 2.2 : 0.9,
+          0.9,
+          Math.PI,
+          o.kind === 'karaoke' ? '#be185d' : undefined,
+          2,
+        );
         seat(p.a.i, ax, az, Math.PI, 0.5);
       }
     }
@@ -296,19 +375,22 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       const x = vx(s.x);
       const z = vz(s.y);
       add('lounger', x, z, 0.8, 2, 0, o.kind === 'spa' ? '#d6d3d1' : '#0ea5e9');
-      if (o.kind === 'beach') add('parasol', x + 0.7, z - 0.6, 1, 1, 0, i % 2 ? '#f97316' : '#0ea5e9');
+      if (o.kind === 'beach')
+        add('parasol', x + 0.7, z - 0.6, 1, 1, 0, i % 2 ? '#f97316' : '#0ea5e9');
       seat(i, x, z + 0.1, 0, 0.55);
     }
   }
 
   // ---- Props by kind.
-  const counterAt = (x2d: number, y2d: number, w: number, tint?: string) => add('counter', vx(x2d), vz(y2d) + 0.6, w, 0.7, 0, tint ?? o.tint);
+  const counterAt = (x2d: number, y2d: number, w: number, tint?: string) =>
+    add('counter', vx(x2d), vz(y2d) + 0.6, w, 0.7, 0, tint ?? o.tint);
   switch (o.kind) {
     case 'restaurant': {
       add('bar-counter', vx(286), vz(150) + 0.6, 3.4, 2.2, 0, '#7c2d12');
       add('plants', -RW / 2 + 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
       add('plants', RW / 2 - 0.5, RD / 2 - 0.6, 0.8, 0.8, 0, undefined, 3);
-      for (const x of [-4, 0, 4]) add('art', x - 1.2, backZ(1) - 0.45, 1, 1, 0, undefined, 2, x + 9);
+      for (const x of [-4, 0, 4])
+        add('art', x - 1.2, backZ(1) - 0.45, 1, 1, 0, undefined, 2, x + 9);
       break;
     }
     case 'cafe': {
@@ -325,14 +407,21 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       if (o.kind === 'stage') add('stage', 0.6, BACK + 1.3, 7.5, 2.4, 0, o.tint);
       add('dj-booth', djX, vz(136) + 0.75, 1.8, 0.8, 0, o.tint);
       add('bar-counter', RW / 2 - 1.6, 1.0, 3.5, 1.6, -Math.PI / 2, '#312e81');
-      for (const [x, c] of [[-3, '#ec4899'], [0, '#22d3ee'], [3, '#a3e635']] as const) {
+      for (const [x, c] of [
+        [-3, '#ec4899'],
+        [0, '#22d3ee'],
+        [3, '#a3e635'],
+      ] as const) {
         const l = new THREE.PointLight(c, 6, 9, 1.4);
         l.position.set(x, 2.6, 0.5);
         root.add(l);
         movers.push(l);
       }
       // A mirror ball.
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), mat('#e5e7eb', { metal: 0.9, rough: 0.15 }));
+      const ball = new THREE.Mesh(
+        new THREE.SphereGeometry(0.28, 16, 12),
+        mat('#e5e7eb', { metal: 0.9, rough: 0.15 }),
+      );
       ball.position.set(0, 2.7, 0.3);
       root.add(ball);
       decks.push(ball);
@@ -340,7 +429,15 @@ export function buildVenue(o: VenueOpts): VenueRoom {
     }
     case 'bar':
     case 'lounge': {
-      add('bar-counter', vx(150), vz(144) + 0.6, 6, 2.2, 0, o.kind === 'bar' ? '#5b3a22' : '#4c1d95');
+      add(
+        'bar-counter',
+        vx(150),
+        vz(144) + 0.6,
+        6,
+        2.2,
+        0,
+        o.kind === 'bar' ? '#5b3a22' : '#4c1d95',
+      );
       add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 3);
       break;
     }
@@ -358,7 +455,16 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       break;
     }
     case 'arcade':
-      for (const x of [52, 112, 172, 232]) add('arcade', vx(x), vz(162) - 0.9, 0.8, 0.8, 0, ['#7c3aed', '#db2777', '#0891b2', '#ea580c'][(x / 60) | 0]);
+      for (const x of [52, 112, 172, 232])
+        add(
+          'arcade',
+          vx(x),
+          vz(162) - 0.9,
+          0.8,
+          0.8,
+          0,
+          ['#7c3aed', '#db2777', '#0891b2', '#ea580c'][(x / 60) | 0],
+        );
       add('pool-table', 2.8, 1.6, 2.2, 1.2);
       break;
     case 'gym': {
@@ -410,7 +516,10 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       break;
     }
     case 'showroom':
-      for (const [x, c, k] of [[-3, '#dc2626', 'luxury'], [2.6, '#2563eb', 'city-suv']] as const) {
+      for (const [x, c, k] of [
+        [-3, '#dc2626', 'luxury'],
+        [2.6, '#2563eb', 'city-suv'],
+      ] as const) {
         const m = buildModel(`car:${k}`, { w: 2, d: 4.5, tier: 1, tint: c });
         m.group.position.set(x, 0.12, -1.0);
         m.group.rotation.y = 0.5;
@@ -442,7 +551,16 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       add('rug', 0, 1, 3, 2, 0, undefined, 3);
       break;
     case 'market':
-      for (const x of [70, 190, 300]) add('stall', vx(x), vz(150) + 0.6, 2.6, 1, 0, ['#16a34a', '#ea580c', '#2563eb'][(x / 100) | 0]);
+      for (const x of [70, 190, 300])
+        add(
+          'stall',
+          vx(x),
+          vz(150) + 0.6,
+          2.6,
+          1,
+          0,
+          ['#16a34a', '#ea580c', '#2563eb'][(x / 100) | 0],
+        );
       break;
     case 'airport':
       add('checkin', vx(250), vz(156) + 0.7, 4, 0.8);
@@ -460,7 +578,13 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
       break;
     case 'gallery':
-      for (const [x, s] of [[-4, 1], [-1.3, 2], [1.4, 3], [4.1, 4]] as const) add('art', x, backZ(1) - 0.45, 1.3, 1, 0, undefined, 3, s * 5);
+      for (const [x, s] of [
+        [-4, 1],
+        [-1.3, 2],
+        [1.4, 3],
+        [4.1, 4],
+      ] as const)
+        add('art', x, backZ(1) - 0.45, 1.3, 1, 0, undefined, 3, s * 5);
       add('easel', -2, 0.6, 1.3, 0.3, 0.3, undefined, 1, 8);
       add('easel', 2.4, 1.2, 1.3, 0.3, -0.4, undefined, 1, 9);
       break;
@@ -491,15 +615,32 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       sea.rotation.x = -Math.PI / 2;
       sea.position.set(0, 0.03, BACK - 5.5);
       root.add(sea);
-      const surf = new THREE.Mesh(new THREE.PlaneGeometry(40, 0.6), mat('#f0f9ff', { opacity: 0.7 }));
+      const surf = new THREE.Mesh(
+        new THREE.PlaneGeometry(40, 0.6),
+        mat('#f0f9ff', { opacity: 0.7 }),
+      );
       surf.rotation.x = -Math.PI / 2;
       surf.position.set(0, 0.04, BACK + 0.4);
       root.add(surf);
       add('bar-counter', vx(310) - 0.3, vz(150) + 0.4, 2.6, 1.6, -0.3, '#a16207');
-      for (const [x, z] of [[-5.4, -2.5], [5.6, 2.5], [-5.8, 2]] as const) {
+      for (const [x, z] of [
+        [-5.4, -2.5],
+        [5.6, 2.5],
+        [-5.8, 2],
+      ] as const) {
         const k = new Kit();
         k.cyl(0.1, 0.16, 3.4, '#8b5a2b', x, 0, z, { rz: 0.12 });
-        for (let i = 0; i < 6; i++) k.box(1.4, 0.05, 0.35, '#15803d', x + Math.cos(i) * 0.6 + 0.4, 3.35, z + Math.sin(i) * 0.6, { ry: i, rz: -0.3 });
+        for (let i = 0; i < 6; i++)
+          k.box(
+            1.4,
+            0.05,
+            0.35,
+            '#15803d',
+            x + Math.cos(i) * 0.6 + 0.4,
+            3.35,
+            z + Math.sin(i) * 0.6,
+            { ry: i, rz: -0.3 },
+          );
         root.add(k.build());
       }
       break;
@@ -509,7 +650,11 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       k.box(RW, 0.01, 0.08, '#ffffff', 0, 0.02, 0, {});
       k.torus(1.2, 0.04, '#ffffff', 0, 0.02, 0, { rx: Math.PI / 2, seg: 32 });
       k.box(0.08, 0.01, RD - 1, '#ffffff', 0, 0.02, 0);
-      for (const [x, z] of [[-RW / 2 - 0.4, 0], [RW / 2 + 0.4, 0]] as const) k.box(0.1, 1.2, RD + 2, '#334155', x, 0, z, { opacity: 0.6 });
+      for (const [x, z] of [
+        [-RW / 2 - 0.4, 0],
+        [RW / 2 + 0.4, 0],
+      ] as const)
+        k.box(0.1, 1.2, RD + 2, '#334155', x, 0, z, { opacity: 0.6 });
       root.add(k.build());
       add('goal', -RW / 2 + 0.6, 0, 3, 1.2, Math.PI / 2);
       add('goal', RW / 2 - 0.6, 0, 3, 1.2, -Math.PI / 2);
@@ -527,13 +672,21 @@ export function buildVenue(o: VenueOpts): VenueRoom {
   if (!st.open) {
     const warm = st.mood === 'warm' || o.night;
     for (const x of [-3.5, 3.5]) {
-      const l = new THREE.PointLight(warm ? '#ffcf8f' : '#fff7ed', st.mood === 'club' || st.mood === 'dark' ? 1.2 : 3.2, 9, 1.5);
+      const l = new THREE.PointLight(
+        warm ? '#ffcf8f' : '#fff7ed',
+        st.mood === 'club' || st.mood === 'dark' ? 1.2 : 3.2,
+        9,
+        1.5,
+      );
       l.position.set(x, 2.6, -0.5);
       root.add(l);
       lamps.push(l);
       const k = new Kit();
       k.cyl(0.005, 0.005, 0.5, '#111', x, 2.5, -0.5);
-      k.cyl(0.08, 0.22, 0.2, warm ? '#f59e0b' : '#e5e7eb', x, 2.3, -0.5, { emissive: '#fde68a', emissiveIntensity: warm ? 1.4 : 0.6 });
+      k.cyl(0.08, 0.22, 0.2, warm ? '#f59e0b' : '#e5e7eb', x, 2.3, -0.5, {
+        emissive: '#fde68a',
+        emissiveIntensity: warm ? 1.4 : 0.6,
+      });
       root.add(k.build());
     }
   }

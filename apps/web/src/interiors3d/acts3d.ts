@@ -50,7 +50,14 @@ const ease = (u: number) => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
 const seg = (k: number, a: number, b: number) => Math.max(0, Math.min(1, (k - a) / (b - a)));
 const lerp = (a: number, b: number, u: number) => a + (b - a) * u;
 
-function extraAt(g: THREE.Group, ctx: RigCtx, seed: string, x: number, z: number, ry = 0): Character {
+function extraAt(
+  g: THREE.Group,
+  ctx: RigCtx,
+  seed: string,
+  x: number,
+  z: number,
+  ry = 0,
+): Character {
   const c = makeCharacter(ctx.extra(seed), `extra:${seed}`);
   c.root.position.set(x, 0, z);
   c.root.rotation.y = ry;
@@ -65,7 +72,10 @@ function holdIn(c: Character, obj: THREE.Object3D, hand: 'L' | 'R' = 'R') {
 
 const glass = (color = '#f59e0b') => {
   const g = new THREE.Group();
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.12, 10), mat(color, { opacity: 0.85, rough: 0.1 }));
+  const m = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.03, 0.12, 10),
+    mat(color, { opacity: 0.85, rough: 0.1 }),
+  );
   m.position.y = 0.05;
   g.add(m);
   return g;
@@ -78,14 +88,31 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
   const station = new THREE.Vector3(sx, 0, sz);
   const extras: Character[] = [];
   const add = (c: Character) => (extras.push(c), c);
-  const model = (mid: string, x: number, z: number, w: number, d: number, ry = 0, tint?: string, tier = 2) => {
+  const model = (
+    mid: string,
+    x: number,
+    z: number,
+    w: number,
+    d: number,
+    ry = 0,
+    tint?: string,
+    tier = 2,
+  ) => {
     const m = buildModel(mid, { w, d, tier, tint });
     m.group.position.set(x, 0, z);
     m.group.rotation.y = ry;
     props.add(m.group);
     return m;
   };
-  const base: Omit<Rig, 'update'> = { props, station, ry: 0, pose: 'stand', seat: 0.45, dim: 0.25, extras };
+  const base: Omit<Rig, 'update'> = {
+    props,
+    station,
+    ry: 0,
+    pose: 'stand',
+    seat: 0.45,
+    dim: 0.25,
+    extras,
+  };
 
   switch (id) {
     case 'haircut': {
@@ -93,14 +120,22 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
       const salon = ctx.variant === 'salon';
       const st = model('salon-station', sx, sz - 0.15, 1.2, 2.2, 0, salon ? '#be185d' : '#7f1d1d');
       void st;
-      const barber = add(extraAt(props, ctx, salon ? 'stylist' : 'barber', sx + 0.6, sz, -Math.PI / 2));
+      const barber = add(
+        extraAt(props, ctx, salon ? 'stylist' : 'barber', sx + 0.6, sz, -Math.PI / 2),
+      );
       const clip = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.04), mat(salon ? '#f472b6' : '#111827'));
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.14, 0.04),
+        mat(salon ? '#f472b6' : '#111827'),
+      );
       body.position.y = -0.05;
       clip.add(body);
       holdIn(barber, clip);
       // A cape: a cone over your shoulders.
-      const cape = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.75, 16, 1, true), mat(salon ? '#f9a8d4' : '#1f2937', { side: THREE.DoubleSide }));
+      const cape = new THREE.Mesh(
+        new THREE.ConeGeometry(0.42, 0.75, 16, 1, true),
+        mat(salon ? '#f9a8d4' : '#1f2937', { side: THREE.DoubleSide }),
+      );
       cape.position.y = 0.12;
       let swapped = false;
       let caped = false;
@@ -120,7 +155,10 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
           // The barber walks round behind and beside you.
           const a = Math.sin(k * Math.PI * 5) * 0.9;
           barber.root.position.set(sx + Math.sin(a) * 0.62, 0, sz + Math.cos(a) * 0.62 - 0.05);
-          barber.root.rotation.y = Math.atan2(sx - barber.root.position.x, sz - barber.root.position.z);
+          barber.root.rotation.y = Math.atan2(
+            sx - barber.root.position.x,
+            sz - barber.root.position.z,
+          );
           pose(barber, k > 0.82 ? 'clap' : 'cut', ms / 1000);
           if (k > 0.1 && k < 0.8) {
             const hp = new THREE.Vector3();
@@ -150,15 +188,24 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
       model('restaurant-table', sx, sz - 0.65, 1.0, 0.8, 0, '#f8fafc', 2);
       const waiter = add(extraAt(props, ctx, 'waiter', sx + 3, BACK + 1, -Math.PI / 2));
       const plate = new THREE.Group();
-      const pm = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.12, 0.025, 20), mat('#ffffff', { rough: 0.3 }));
+      const pm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.15, 0.12, 0.025, 20),
+        mat('#ffffff', { rough: 0.3 }),
+      );
       plate.add(pm);
       const food = new THREE.Group();
       const kind = ctx.variant;
       if (kind === 'cup') {
-        const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.09, 12), mat('#f8fafc'));
+        const cup = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.05, 0.04, 0.09, 12),
+          mat('#f8fafc'),
+        );
         cup.position.y = 0.055;
         food.add(cup);
-        const coffee = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.01, 12), mat('#3f2a1c'));
+        const coffee = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.045, 0.045, 0.01, 12),
+          mat('#3f2a1c'),
+        );
         coffee.position.y = 0.1;
         food.add(coffee);
       } else if (kind === 'laptop') {
@@ -203,7 +250,10 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
             const z = wOut > 0 ? lerp(tz, BACK + 1, ease(wOut)) : lerp(BACK + 1, tz, ease(wIn));
             waiter.root.position.set(x, 0, z);
             const moving = (wIn > 0 && wIn < 1) || (wOut > 0 && wOut < 1);
-            waiter.root.rotation.y = wOut > 0 ? Math.atan2(sx + 3 - tx, BACK + 1 - tz) : Math.atan2(tx - (sx + 3), tz - (BACK + 1));
+            waiter.root.rotation.y =
+              wOut > 0
+                ? Math.atan2(sx + 3 - tx, BACK + 1 - tz)
+                : Math.atan2(tx - (sx + 3), tz - (BACK + 1));
             pose(waiter, moving ? 'walk' : 'chat', t);
             if (!moving) waiter.root.rotation.y = -Math.PI / 2;
             if (!onTable) {
@@ -220,11 +270,23 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
           if (onTable && kind === 'plate') {
             const eaten = seg(k, 0.4, 0.92);
             food.scale.setScalar(Math.max(0.05, 1 - eaten * 0.95));
-            if (k < 0.6) fx.steam(ps, plate.position.clone().add(new THREE.Vector3(0, 0.1, 0)), dt, 5);
+            if (k < 0.6)
+              fx.steam(ps, plate.position.clone().add(new THREE.Vector3(0, 0.1, 0)), dt, 5);
           }
-          if (onTable && kind === 'cup' && k < 0.85) fx.steam(ps, plate.position.clone().add(new THREE.Vector3(0, 0.12, 0)), dt, 4);
+          if (onTable && kind === 'cup' && k < 0.85)
+            fx.steam(ps, plate.position.clone().add(new THREE.Vector3(0, 0.12, 0)), dt, 4);
           void you;
-          return { pose: kind === 'laptop' ? 'type' : k > 0.38 && k < 0.92 ? (kind === 'cup' ? 'drink' : 'eat') : 'sit', seat: 0.45 };
+          return {
+            pose:
+              kind === 'laptop'
+                ? 'type'
+                : k > 0.38 && k < 0.92
+                  ? kind === 'cup'
+                    ? 'drink'
+                    : 'eat'
+                  : 'sit',
+            seat: 0.45,
+          };
         },
       };
     }
@@ -292,7 +354,9 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
         [-0.6, -0.9],
         [0.7, -1.0],
         [0, 1.0],
-      ].map(([x, z], i) => add(extraAt(props, ctx, `dancer${i}`, sx + x!, sz + z!, (i * 1.3) % Math.PI)));
+      ].map(([x, z], i) =>
+        add(extraAt(props, ctx, `dancer${i}`, sx + x!, sz + z!, (i * 1.3) % Math.PI)),
+      );
       const vip = ctx.variant === 'vip';
       if (vip) {
         const tk = new Kit();
@@ -310,7 +374,14 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
             pose(c, k > 0.5 && k < 0.7 ? 'cheer' : 'dance', t, { phase: i * 1.3 });
             c.root.rotation.y += dt * (i % 2 ? 0.6 : -0.4);
           });
-          if (vip || (k > 0.5 && k < 0.7)) fx.sparkle(ps, new THREE.Vector3(sx, 2.2, sz), dt, ['#f472b6', '#22d3ee', '#fde047'][Math.floor(t * 3) % 3]!, 16);
+          if (vip || (k > 0.5 && k < 0.7))
+            fx.sparkle(
+              ps,
+              new THREE.Vector3(sx, 2.2, sz),
+              dt,
+              ['#f472b6', '#22d3ee', '#fde047'][Math.floor(t * 3) % 3]!,
+              16,
+            );
           fx.notes(ps, new THREE.Vector3(vx(180), 1.9, vz(136) + 0.6), dt, '#c4b5fd');
           void you;
           return { pose: k > 0.5 && k < 0.7 ? 'cheer' : 'dance', ry: Math.sin(t * 0.8) * 0.6 };
@@ -324,7 +395,14 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
         const k = new Kit();
         k.box(2.6, 3.0, 0.2, '#64748b', sx, 0, BACK + 0.12);
         for (let i = 0; i < 24; i++)
-          k.sphere(0.06, ['#ef4444', '#facc15', '#22c55e', '#3b82f6'][i % 4]!, sx - 1.1 + ((i * 37) % 22) / 10, 0.3 + ((i * 53) % 26) / 10, BACK + 0.24, { seg: 6 });
+          k.sphere(
+            0.06,
+            ['#ef4444', '#facc15', '#22c55e', '#3b82f6'][i % 4]!,
+            sx - 1.1 + ((i * 37) % 22) / 10,
+            0.3 + ((i * 53) % 26) / 10,
+            BACK + 0.24,
+            { seg: 6 },
+          );
         props.add(k.build());
         return {
           ...base,
@@ -355,11 +433,17 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
             if (!bells.length && ms >= 0)
               for (const h of ['L', 'R'] as const) {
                 const b = new THREE.Group();
-                const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.25, 8), mat('#d4d4d8', { metal: 0.6 }));
+                const bar = new THREE.Mesh(
+                  new THREE.CylinderGeometry(0.015, 0.015, 0.25, 8),
+                  mat('#d4d4d8', { metal: 0.6 }),
+                );
                 bar.rotation.z = Math.PI / 2;
                 b.add(bar);
                 for (const s of [-1, 1]) {
-                  const w = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.06, 10), mat('#18181b'));
+                  const w = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.05, 0.05, 0.06, 10),
+                    mat('#18181b'),
+                  );
                   w.rotation.z = Math.PI / 2;
                   w.position.x = s * 0.12;
                   b.add(w);
@@ -408,26 +492,46 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
             holdIn(you, pop, 'L');
             held = true;
           }
-          return { pose: k > 0.3 && k < 0.86 && Math.sin(ms / 900) > 0.6 ? 'eat' : 'sit', seat: 0.48 };
+          return {
+            pose: k > 0.3 && k < 0.86 && Math.sin(ms / 900) > 0.6 ? 'eat' : 'sit',
+            seat: 0.48,
+          };
         },
       };
     }
     case 'karaoke':
     case 'gig': {
       const mic = new THREE.Group();
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), mat('#3f3f46', { metal: 0.6 }));
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.035, 10, 8),
+        mat('#3f3f46', { metal: 0.6 }),
+      );
       head.position.y = 0.1;
       mic.add(head);
-      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.012, 0.16, 8), mat('#111827'));
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.015, 0.012, 0.16, 8),
+        mat('#111827'),
+      );
       handle.position.y = 0.02;
       mic.add(handle);
       const crowd = [-1.2, -0.4, 0.4, 1.2].map((x, i) =>
-        add(extraAt(props, ctx, `fan${i}`, sx + x, sz + (id === 'gig' ? -1.6 : 1.1), id === 'gig' ? 0 : Math.PI)),
+        add(
+          extraAt(
+            props,
+            ctx,
+            `fan${i}`,
+            sx + x,
+            sz + (id === 'gig' ? -1.6 : 1.1),
+            id === 'gig' ? 0 : Math.PI,
+          ),
+        ),
       );
       let held = false;
       if (id === 'gig') {
         // The band on the stage at the back.
-        const band = [-1.2, 0, 1.2].map((x, i) => add(extraAt(props, ctx, `band${i}`, x + 0.6, BACK + 1.2, 0)));
+        const band = [-1.2, 0, 1.2].map((x, i) =>
+          add(extraAt(props, ctx, `band${i}`, x + 0.6, BACK + 1.2, 0)),
+        );
         for (const b of band) b.root.position.y = 0.45;
         return {
           ...base,
@@ -502,7 +606,10 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
           const t = ms / 1000;
           // Pass in, dribble, shoot at 0.6, goal at 0.72.
           const shoot = seg(k, 0.6, 0.72);
-          const bx = shoot > 0 ? lerp(sx - 0.4, vx(0) + 0.4, ease(shoot)) : lerp(sx + 1.6, sx - 0.4, ease(seg(k, 0.05, 0.55)));
+          const bx =
+            shoot > 0
+              ? lerp(sx - 0.4, vx(0) + 0.4, ease(shoot))
+              : lerp(sx + 1.6, sx - 0.4, ease(seg(k, 0.05, 0.55)));
           const bz = shoot > 0 ? lerp(sz, 0.2, shoot) : lerp(sz - 1.2, sz, seg(k, 0.05, 0.3));
           ball.position.set(bx, 0.11 + (shoot > 0 ? Math.sin(shoot * Math.PI) * 0.6 : 0), bz);
           ball.rotation.z += dt * 8;
@@ -512,10 +619,20 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
           });
           keeper.root.position.z = shoot > 0 ? lerp(0, -0.9, shoot) : Math.sin(t) * 0.4;
           pose(keeper, shoot > 0.5 ? 'cheer' : 'idle', t);
-          if (k > 0.72 && k < 0.95) fx.sparkle(ps, new THREE.Vector3(vx(0) + 0.6, 1.4, 0.2), dt, ['#facc15', '#22c55e', '#f472b6'][Math.floor(t * 6) % 3]!, 40);
+          if (k > 0.72 && k < 0.95)
+            fx.sparkle(
+              ps,
+              new THREE.Vector3(vx(0) + 0.6, 1.4, 0.2),
+              dt,
+              ['#facc15', '#22c55e', '#f472b6'][Math.floor(t * 6) % 3]!,
+              40,
+            );
           const run = seg(k, 0.05, 0.6);
           void you;
-          return { pose: k >= 0.58 && k < 0.66 ? 'kick' : k > 0.72 ? 'cheer' : 'run', dx: -run * 0.4 };
+          return {
+            pose: k >= 0.58 && k < 0.66 ? 'kick' : k > 0.72 ? 'cheer' : 'run',
+            dx: -run * 0.4,
+          };
         },
       };
     }
@@ -527,13 +644,19 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
         const pins: THREE.Mesh[] = [];
         for (let r = 0; r < 4; r++)
           for (let c = 0; c <= r; c++) {
-            const p = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.28, 10), mat('#f8fafc'));
+            const p = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.03, 0.05, 0.28, 10),
+              mat('#f8fafc'),
+            );
             p.position.set(sx + (c - r / 2) * 0.14, 0.18, sz - 5.6 - r * 0.13);
             p.castShadow = true;
             props.add(p);
             pins.push(p);
           }
-        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.11, 14, 10), mat('#1d4ed8', { rough: 0.2 }));
+        const ball = new THREE.Mesh(
+          new THREE.SphereGeometry(0.11, 14, 10),
+          mat('#1d4ed8', { rough: 0.2 }),
+        );
         props.add(ball);
         return {
           ...base,
@@ -548,7 +671,8 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
                 p.rotation.x = Math.min(1.5, (kk - 0.6) * 8 * (1 + (i % 3) * 0.3));
                 p.rotation.z = (i % 2 ? 1 : -1) * Math.min(0.8, (kk - 0.6) * 4);
               });
-            if (kk > 0.6 && kk < 0.75) fx.sparkle(ps, new THREE.Vector3(sx, 0.8, sz - 5.8), dt, '#fde047', 30);
+            if (kk > 0.6 && kk < 0.75)
+              fx.sparkle(ps, new THREE.Vector3(sx, 0.8, sz - 5.8), dt, '#fde047', 30);
             void you;
             return { pose: kk < 0.15 ? 'lift' : kk > 0.7 ? 'cheer' : 'stand' };
           },
@@ -583,7 +707,8 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
           const i = Math.min(2, Math.floor(k * 3));
           const u = seg(k * 3 - i, 0.7, 1);
           const x = lerp(pts[i]!, pts[Math.min(2, i + 1)]!, ease(u)) - sx;
-          if (ctx.variant === 'opening' && k > 0.5) fx.sparkle(ps, new THREE.Vector3(sx + x, 2.2, sz), dt, '#fde68a', 4);
+          if (ctx.variant === 'opening' && k > 0.5)
+            fx.sparkle(ps, new THREE.Vector3(sx + x, 2.2, sz), dt, '#fde68a', 4);
           void you;
           return { pose: u > 0 && u < 1 ? 'walk' : 'browse', dx: x, dz: -1.2, ry: Math.PI };
         },
@@ -625,7 +750,13 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
         };
       }
       model('sofa', sx, sz, 2.2, 0.9, Math.PI, '#0f766e', 3);
-      return { ...base, ry: Math.PI, pose: 'sit', seat: 0.5, update: () => ({ pose: 'sit', seat: 0.5 }) };
+      return {
+        ...base,
+        ry: Math.PI,
+        pose: 'sit',
+        seat: 0.5,
+        update: () => ({ pose: 'sit', seat: 0.5 }),
+      };
     }
     default: {
       // A counter: you and someone behind it.

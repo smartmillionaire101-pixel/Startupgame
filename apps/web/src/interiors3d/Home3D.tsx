@@ -58,9 +58,22 @@ const modelIdOf = (o: Home3DObject): string | null => {
 /** A "+" on the floor (or wall) where something you could buy would go. */
 function plusMarker(): THREE.Group {
   const k = new Kit();
-  k.torus(0.2, 0.028, '#ffffff', 0, 0, 0, { rx: Math.PI / 2, emissive: '#ffffff', emissiveIntensity: 0.4, noShadow: true });
-  k.box(0.2, 0.02, 0.05, '#ffffff', 0, -0.01, 0, { emissive: '#ffffff', emissiveIntensity: 0.4, noShadow: true });
-  k.box(0.05, 0.02, 0.2, '#ffffff', 0, -0.01, 0, { emissive: '#ffffff', emissiveIntensity: 0.4, noShadow: true });
+  k.torus(0.2, 0.028, '#ffffff', 0, 0, 0, {
+    rx: Math.PI / 2,
+    emissive: '#ffffff',
+    emissiveIntensity: 0.4,
+    noShadow: true,
+  });
+  k.box(0.2, 0.02, 0.05, '#ffffff', 0, -0.01, 0, {
+    emissive: '#ffffff',
+    emissiveIntensity: 0.4,
+    noShadow: true,
+  });
+  k.box(0.05, 0.02, 0.2, '#ffffff', 0, -0.01, 0, {
+    emissive: '#ffffff',
+    emissiveIntensity: 0.4,
+    noShadow: true,
+  });
   const g = k.build();
   const disc = new THREE.Mesh(
     new THREE.CircleGeometry(0.22, 24),
@@ -127,10 +140,15 @@ export default function Home3D(props: Home3DProps) {
       if (houseRef.current) {
         cutWalls(houseRef.current, stage.azimuth);
         for (const p of placedRef.current.values())
-          if (p.wall) p.group.visible = !houseRef.current.sides[['back', 'front', 'left', 'right'].indexOf(p.wall)]!.cut;
+          if (p.wall)
+            p.group.visible =
+              !houseRef.current.sides[['back', 'front', 'left', 'right'].indexOf(p.wall)]!.cut;
         for (const m of markers.current.values())
           if (m.userData.wall) {
-            m.userData.shown = !houseRef.current.sides[['back', 'front', 'left', 'right'].indexOf(m.userData.wall as string)]!.cut;
+            m.userData.shown =
+              !houseRef.current.sides[
+                ['back', 'front', 'left', 'right'].indexOf(m.userData.wall as string)
+              ]!.cut;
             m.visible = live.current.buyMode && m.userData.shown !== false;
           }
       }
@@ -253,14 +271,18 @@ export default function Home3D(props: Home3DProps) {
 
   // ---- Furniture and fixtures.
   const objKey = objects
-    .map((o) => `${o.id}:${o.owned ? 1 : 0}:${o.tier ?? 1}:${o.spot.x},${o.spot.y},${o.spot.w},${o.spot.h},${o.spot.rot ?? ''}`)
+    .map(
+      (o) =>
+        `${o.id}:${o.owned ? 1 : 0}:${o.tier ?? 1}:${o.spot.x},${o.spot.y},${o.spot.w},${o.spot.h},${o.spot.rot ?? ''}`,
+    )
     .join('|');
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
     const root = new THREE.Group();
     const placed = new Map<string, Placed>();
-    const lampsOut: { pos: THREE.Vector3; color: string; intensity: number; distance: number }[] = [];
+    const lampsOut: { pos: THREE.Vector3; color: string; intensity: number; distance: number }[] =
+      [];
     const mk = new Map<string, THREE.Group>();
     const desk = objects.find((o) => o.slot === 'desk' && o.owned);
     for (const o of objects) {
@@ -277,7 +299,11 @@ export default function Home3D(props: Home3DProps) {
           m.position.set(s.x + 0.5, 0.8, s.y + 0.4);
         } else {
           const corner = ['bed', 'kitchen', 'sofa'].includes(o.slot);
-          m.position.set(corner ? s.x + s.w - 0.3 : s.x + s.w / 2, 0.03, corner ? s.y + 0.3 : s.y + s.h / 2);
+          m.position.set(
+            corner ? s.x + s.w - 0.3 : s.x + s.w / 2,
+            0.03,
+            corner ? s.y + 0.3 : s.y + s.h / 2,
+          );
         }
         m.traverse((c) => (c.userData.obj = o.id));
         m.userData.obj = o.id;
@@ -290,7 +316,12 @@ export default function Home3D(props: Home3DProps) {
       if (!id) continue;
       const ry = facingOf(plan, o.slot ?? o.id, o.spot);
       const fr = frameOf(o.spot, ry);
-      const model = buildModel(id, { w: fr.w, d: fr.d, tier: o.tier ?? 1, seed: o.spot.x * 7 + o.spot.y });
+      const model = buildModel(id, {
+        w: fr.w,
+        d: fr.d,
+        tier: o.tier ?? 1,
+        seed: o.spot.x * 7 + o.spot.y,
+      });
       const g = model.group;
       g.position.set(fr.x, 0, fr.z);
       g.rotation.y = ry;
@@ -324,10 +355,24 @@ export default function Home3D(props: Home3DProps) {
     const want = [...lampsOut];
     if (lit)
       for (const r of plan.rooms)
-        if (!want.some((l) => l.pos.x >= r.x && l.pos.x < r.x + r.w && l.pos.z >= r.y && l.pos.z < r.y + r.h))
-          want.push({ pos: new THREE.Vector3(r.x + r.w / 2, 2.2, r.y + r.h / 2), color: '#ffd9a0', intensity: 1.6, distance: Math.max(r.w, r.h) * 1.1 });
+        if (
+          !want.some(
+            (l) => l.pos.x >= r.x && l.pos.x < r.x + r.w && l.pos.z >= r.y && l.pos.z < r.y + r.h,
+          )
+        )
+          want.push({
+            pos: new THREE.Vector3(r.x + r.w / 2, 2.2, r.y + r.h / 2),
+            color: '#ffd9a0',
+            intensity: 1.6,
+            distance: Math.max(r.w, r.h) * 1.1,
+          });
     for (const l of want.slice(0, MAX_LAMPS)) {
-      const pl = new THREE.PointLight(l.color, lit ? l.intensity * 1.6 : l.intensity * 0.6, l.distance, 1.6);
+      const pl = new THREE.PointLight(
+        l.color,
+        lit ? l.intensity * 1.6 : l.intensity * 0.6,
+        l.distance,
+        1.6,
+      );
       pl.position.copy(l.pos);
       lamps.add(pl);
     }
@@ -375,7 +420,9 @@ export default function Home3D(props: Home3DProps) {
       if (!m.isMesh) return;
       const src = m.material as THREE.MeshStandardMaterial;
       const nm = new THREE.MeshStandardMaterial({
-        color: src.color ? src.color.clone().lerp(new THREE.Color(tint), 0.35) : new THREE.Color(tint),
+        color: src.color
+          ? src.color.clone().lerp(new THREE.Color(tint), 0.35)
+          : new THREE.Color(tint),
         transparent: true,
         opacity: 0.72,
         emissive: new THREE.Color(tint),
@@ -387,7 +434,12 @@ export default function Home3D(props: Home3DProps) {
     // A footprint on the floor.
     const foot = new THREE.Mesh(
       new THREE.PlaneGeometry(ghost.spot.w, ghost.spot.h),
-      new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.3, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        color: tint,
+        transparent: true,
+        opacity: 0.3,
+        depthWrite: false,
+      }),
     );
     foot.rotation.x = -Math.PI / 2;
     foot.position.set(ghost.spot.x + ghost.spot.w / 2, 0.02, ghost.spot.y + ghost.spot.h / 2);
@@ -411,7 +463,10 @@ export default function Home3D(props: Home3DProps) {
     const stage = stageRef.current;
     if (!stage) return;
     const chars = new Map<string, Character>();
-    const last = new Map<string, { x: number; y: number; ry: number; moving: number; hair: string }>();
+    const last = new Map<
+      string,
+      { x: number; y: number; ry: number; moving: number; hair: string }
+    >();
     const particles = stage.scene.userData.particles as Particles;
     let lastAct: string | null = null;
     const bedOf = () => {
@@ -419,7 +474,8 @@ export default function Home3D(props: Home3DProps) {
       return pl.get('bed')?.obj.spot;
     };
     const center = (s: Spot) => new THREE.Vector3(s.x + s.w / 2, 0, s.y + s.h / 2);
-    const toward = (from: THREE.Vector3, to: THREE.Vector3) => Math.atan2(to.x - from.x, to.z - from.z);
+    const toward = (from: THREE.Vector3, to: THREE.Vector3) =>
+      Math.atan2(to.x - from.x, to.z - from.z);
     const seatOf = (id: string, i = 0) => {
       const p = placedRef.current.get(id);
       if (!p || !p.model.seats.length) return null;
@@ -463,7 +519,13 @@ export default function Home3D(props: Home3DProps) {
         const movingNow = Math.hypot(dx, dy) > 1e-4;
         let ry = prev?.ry ?? Math.PI;
         if (movingNow) ry = Math.atan2(dx, dy);
-        const st = { x: p.x, y: p.y, ry, moving: movingNow ? 0.12 : Math.max(0, (prev?.moving ?? 0) - dt), hair: `${p.look.hairStyle}${p.look.hair}` };
+        const st = {
+          x: p.x,
+          y: p.y,
+          ry,
+          moving: movingNow ? 0.12 : Math.max(0, (prev?.moving ?? 0) - dt),
+          hair: `${p.look.hairStyle}${p.look.hair}`,
+        };
         last.set(p.id, st);
         const walking = st.moving > 0;
         let pos = new THREE.Vector3(p.x + 0.5, 0, p.y + 0.5);
@@ -476,7 +538,9 @@ export default function Home3D(props: Home3DProps) {
           if (b) {
             const bc = center(b);
             const bedRy = facingOf(P.plan, 'bed', b);
-            pos = bc.clone().add(new THREE.Vector3(Math.sin(bedRy) * 0.25, 0, Math.cos(bedRy) * 0.25));
+            pos = bc
+              .clone()
+              .add(new THREE.Vector3(Math.sin(bedRy) * 0.25, 0, Math.cos(bedRy) * 0.25));
             face = bedRy;
             poseId = 'lie';
             seatH = placedRef.current.has('bed') ? 0.5 : 0.12;
@@ -572,11 +636,18 @@ export default function Home3D(props: Home3DProps) {
                 }
                 break;
               }
-              const seat = !isGame && placedRef.current.has('sofa') ? seatOf('sofa', 1) : isGame ? seatOf('gaming') : null;
+              const seat =
+                !isGame && placedRef.current.has('sofa')
+                  ? seatOf('sofa', 1)
+                  : isGame
+                    ? seatOf('gaming')
+                    : null;
               if (seat) {
                 pos = seat.pos.clone();
                 pos.y = 0;
-                face = seat.ry + (isGame && placedRef.current.get('gaming')?.obj.tier === 3 ? Math.PI : 0);
+                face =
+                  seat.ry +
+                  (isGame && placedRef.current.get('gaming')?.obj.tier === 3 ? Math.PI : 0);
                 poseId = isGame ? 'play' : 'sit';
                 seatH = seat.h;
               } else if (tv) {
@@ -584,33 +655,58 @@ export default function Home3D(props: Home3DProps) {
                 poseId = isGame ? 'play' : 'stand';
                 if (isGame) poseId = 'cheer';
               }
-              for (const sm of [...(tv?.model.screens ?? []), ...(placedRef.current.get('tv')?.model.screens ?? [])]) {
+              for (const sm of [
+                ...(tv?.model.screens ?? []),
+                ...(placedRef.current.get('tv')?.model.screens ?? []),
+              ]) {
                 sm.emissiveIntensity = 0.9 + Math.sin(at * 13) * 0.25 + Math.sin(at * 3.1) * 0.2;
               }
-              if (isGame) fx.sparkle(particles, pos.clone().add(new THREE.Vector3(0, 1.8, 0)), dt, '#a78bfa', 3);
+              if (isGame)
+                fx.sparkle(
+                  particles,
+                  pos.clone().add(new THREE.Vector3(0, 1.8, 0)),
+                  dt,
+                  '#a78bfa',
+                  3,
+                );
               break;
             }
             case 'work':
             case 'read': {
-              const s = acting.act === 'work' ? seatOf('desk') : placedRef.current.has('sofa') ? seatOf('sofa', 1) : seatOf('desk');
+              const s =
+                acting.act === 'work'
+                  ? seatOf('desk')
+                  : placedRef.current.has('sofa')
+                    ? seatOf('sofa', 1)
+                    : seatOf('desk');
               if (s && (acting.act === 'work' || acting.obj !== 'books')) {
                 pos = s.pos.clone();
                 pos.y = 0;
-                face = s.ry + (acting.act === 'work' || !placedRef.current.has('sofa') ? Math.PI : 0);
+                face =
+                  s.ry + (acting.act === 'work' || !placedRef.current.has('sofa') ? Math.PI : 0);
                 poseId = acting.act === 'work' ? 'type' : 'read';
                 seatH = s.h;
               } else {
                 face = toward(pos, oc);
                 poseId = 'browse';
               }
-              for (const sm of [...(placedRef.current.get('laptop')?.model.screens ?? []), ...(placedRef.current.get('desk')?.model.screens ?? [])])
+              for (const sm of [
+                ...(placedRef.current.get('laptop')?.model.screens ?? []),
+                ...(placedRef.current.get('desk')?.model.screens ?? []),
+              ])
                 sm.emissiveIntensity = 0.9;
               break;
             }
             case 'workout':
               poseId = 'squat';
               face = P.plan ? Math.PI * 0.15 : face;
-              fx.sparkle(particles, pos.clone().add(new THREE.Vector3(0, 1.7, 0)), dt, '#7dd3fc', 2);
+              fx.sparkle(
+                particles,
+                pos.clone().add(new THREE.Vector3(0, 1.7, 0)),
+                dt,
+                '#7dd3fc',
+                2,
+              );
               break;
           }
         }
@@ -640,11 +736,19 @@ export default function Home3D(props: Home3DProps) {
         }
       }
       // Screens fade back when nobody watches.
-      if (!acting || (acting.act !== 'tv' && acting.act !== 'game' && acting.act !== 'work' && acting.act !== 'read'))
-        for (const p of placedRef.current.values()) for (const sm of p.model.screens) if (sm.emissiveIntensity !== 0.05) {
-          sm.emissiveIntensity = 0.05;
-          busy = true;
-        }
+      if (
+        !acting ||
+        (acting.act !== 'tv' &&
+          acting.act !== 'game' &&
+          acting.act !== 'work' &&
+          acting.act !== 'read')
+      )
+        for (const p of placedRef.current.values())
+          for (const sm of p.model.screens)
+            if (sm.emissiveIntensity !== 0.05) {
+              sm.emissiveIntensity = 0.05;
+              busy = true;
+            }
       // The fan turns.
       const fan = placedRef.current.get('cooling')?.model.parts.fan;
       if (fan) {

@@ -472,7 +472,10 @@ export function FixtureArt({ id, w, h }: { id: string; w: number; h: number }): 
       return (
         <g>
           {shadow(W, H)}
-          <path d={`M4 ${H - 10} L4 10 Q4 3 14 3 L${W - 8} ${H * 0.4} L${W - 6} ${H - 10} Z`} fill="#111827" />
+          <path
+            d={`M4 ${H - 10} L4 10 Q4 3 14 3 L${W - 8} ${H * 0.4} L${W - 6} ${H - 10} Z`}
+            fill="#111827"
+          />
           <rect x={4} y={H - 16} width={W - 10} height={8} fill="#f8fafc" />
         </g>
       );

@@ -970,10 +970,7 @@ export function HomeScene({
     [writeCamera],
   );
   const onReady3d = useCallback(() => setReady3d(true), []);
-  const acting3d = useMemo(
-    () => (acting ? { act: acting.act, obj: acting.obj } : null),
-    [acting],
-  );
+  const acting3d = useMemo(() => (acting ? { act: acting.act, obj: acting.obj } : null), [acting]);
   useEffect(() => {
     if (!want3d) mat3d.current = null;
   }, [want3d]);
@@ -1232,16 +1229,32 @@ export function HomeScene({
           ))}
         {is3d && !placing && (
           <div className="home-cam" role="group" aria-label={t('Camera')}>
-            <button type="button" aria-label={t('Turn left')} onClick={() => api3d.current?.turn(-1)}>
+            <button
+              type="button"
+              aria-label={t('Turn left')}
+              onClick={() => api3d.current?.turn(-1)}
+            >
               ⟲
             </button>
-            <button type="button" aria-label={t('Turn right')} onClick={() => api3d.current?.turn(1)}>
+            <button
+              type="button"
+              aria-label={t('Turn right')}
+              onClick={() => api3d.current?.turn(1)}
+            >
               ⟳
             </button>
-            <button type="button" aria-label={t('Zoom in')} onClick={() => api3d.current?.zoom(1.25)}>
+            <button
+              type="button"
+              aria-label={t('Zoom in')}
+              onClick={() => api3d.current?.zoom(1.25)}
+            >
               +
             </button>
-            <button type="button" aria-label={t('Zoom out')} onClick={() => api3d.current?.zoom(0.8)}>
+            <button
+              type="button"
+              aria-label={t('Zoom out')}
+              onClick={() => api3d.current?.zoom(0.8)}
+            >
               −
             </button>
           </div>
@@ -1393,7 +1406,10 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
       id: slot,
       label: slotLabel(slot),
       spot: s,
-      verbs: MOVABLE.has(slot) && verbs.length < 4 ? [...verbs, { id: 'move', label: t('Move'), move: slot }] : verbs,
+      verbs:
+        MOVABLE.has(slot) && verbs.length < 4
+          ? [...verbs, { id: 'move', label: t('Move'), move: slot }]
+          : verbs,
       slot,
       owned: true,
       art: (

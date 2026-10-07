@@ -129,7 +129,9 @@ export default function Venue3D(props: Venue3DProps) {
     stage.fitCenter = new THREE.Vector3(0, 0.6, 0.2);
     stage.fitMargin = 1.02;
     const fit: THREE.Vector3[] = [];
-    for (const x of [-RW / 2, RW / 2]) for (const z of [BACK + 0.6, RD / 2]) for (const y of [0, 2.2]) fit.push(new THREE.Vector3(x * 0.68, y, z));
+    for (const x of [-RW / 2, RW / 2])
+      for (const z of [BACK + 0.6, RD / 2])
+        for (const y of [0, 2.2]) fit.push(new THREE.Vector3(x * 0.68, y, z));
     stage.fit = fit;
     stage.sun.position.set(-6, 14, 9);
     stage.sun.target.position.set(0, 0, 0);
@@ -185,7 +187,8 @@ export default function Venue3D(props: Venue3DProps) {
     const mood = st.mood ?? 'day';
     stage.hemi.intensity = mood === 'club' ? 0.35 : mood === 'dark' ? 0.25 : night ? 0.8 : 1.25;
     stage.hemi.color.set(mood === 'club' ? '#a78bfa' : '#fff4e0');
-    stage.sun.intensity = mood === 'club' || mood === 'dark' ? 0.3 : st.open ? 2.2 : night ? 0.8 : 1.6;
+    stage.sun.intensity =
+      mood === 'club' || mood === 'dark' ? 0.3 : st.open ? 2.2 : night ? 0.8 : 1.6;
     stage.ambient.intensity = mood === 'club' ? 0.15 : 0.25;
     stage.hemi.userData.base = stage.hemi.intensity;
     stage.scene.background = new THREE.Color(st.open ? (night ? '#0b1328' : '#7dd3fc') : '#0f172a');
@@ -207,7 +210,10 @@ export default function Venue3D(props: Venue3DProps) {
       const c = makeCharacter(p.look, p.id);
       stage.scene.add(c.root);
       if (p.act === 'drinking') {
-        const g = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.12, 10), mat('#f59e0b', { opacity: 0.85 }));
+        const g = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.035, 0.03, 0.12, 10),
+          mat('#f59e0b', { opacity: 0.85 }),
+        );
         g.position.y = 0.05;
         c.handR.add(g);
       }
@@ -295,7 +301,12 @@ export default function Venue3D(props: Venue3DProps) {
         } else {
           c.root.position.set(vx(s.x), 0, vz(s.y));
           const flip = s.flip ? -1 : 1;
-          c.root.rotation.y = p.act === 'serving' || p.act === 'dj' || p.act === 'presenting' ? 0 : p.act === 'football' ? -flip * Math.PI / 2 : flip * 0.5;
+          c.root.rotation.y =
+            p.act === 'serving' || p.act === 'dj' || p.act === 'presenting'
+              ? 0
+              : p.act === 'football'
+                ? (-flip * Math.PI) / 2
+                : flip * 0.5;
           if (p.act === 'football') c.root.position.x += Math.sin(t * 0.8 + p.slot) * 0.8;
           pose(c, POSE[p.act] ?? 'idle', t, { phase: p.slot });
         }
@@ -322,25 +333,36 @@ export default function Venue3D(props: Venue3DProps) {
           } else {
             const f = r.rig.update(ms, r.ended ? 1 : k, you, dt, particles) ?? {};
             const seat = f.seat ?? r.rig.seat;
-            you.root.position.set(r.rig.station.x + (f.dx ?? 0), f.dy ?? 0, r.rig.station.z + (f.dz ?? 0));
+            you.root.position.set(
+              r.rig.station.x + (f.dx ?? 0),
+              f.dy ?? 0,
+              r.rig.station.z + (f.dz ?? 0),
+            );
             you.root.rotation.y = f.ry ?? r.rig.ry;
-            if (f.pose !== undefined || !('pose' in f)) pose(you, f.pose ?? r.rig.pose, t, { seat });
+            if (f.pose !== undefined || !('pose' in f))
+              pose(you, f.pose ?? r.rig.pose, t, { seat });
           }
         }
       }
       // Dim the room for the act; sweep the club lights.
       dimNow += (dim - dimNow) * Math.min(1, dt * 3);
       if (v) {
-        for (const l of v.lamps) l.intensity = (l.userData.base ??= l.intensity) * (1 - dimNow * 0.85);
+        for (const l of v.lamps)
+          l.intensity = (l.userData.base ??= l.intensity) * (1 - dimNow * 0.85);
         v.movers.forEach((l, i) => {
           l.position.x = Math.sin(t * 0.9 + i * 2) * 4;
           l.position.z = Math.cos(t * 0.7 + i) * 2;
           l.color.setHSL((t * 0.08 + i * 0.33) % 1, 0.9, 0.55);
         });
         for (const d of v.decks) d.rotation.y += dt * 4;
-        for (const s of v.screens) s.emissiveIntensity = ROOM_STYLE[P.room].mood === 'dark' || P.room === 'karaoke' ? 0.9 + Math.sin(t * 7) * 0.15 : 0.6;
+        for (const s of v.screens)
+          s.emissiveIntensity =
+            ROOM_STYLE[P.room].mood === 'dark' || P.room === 'karaoke'
+              ? 0.9 + Math.sin(t * 7) * 0.15
+              : 0.6;
       }
-      stage.hemi.intensity = (stage.hemi.userData.base ??= stage.hemi.intensity) * (1 - dimNow * 0.7);
+      stage.hemi.intensity =
+        (stage.hemi.userData.base ??= stage.hemi.intensity) * (1 - dimNow * 0.7);
       particles.update(dt);
       return true;
     });

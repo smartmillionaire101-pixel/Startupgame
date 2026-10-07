@@ -37,7 +37,10 @@ export const MOVABLE = new Set([
   'wifi',
 ]);
 
-export function loadPlacements(playerId: string, slots: Iterable<string>): Record<string, Placement> {
+export function loadPlacements(
+  playerId: string,
+  slots: Iterable<string>,
+): Record<string, Placement> {
   const out: Record<string, Placement> = {};
   for (const slot of slots) {
     try {

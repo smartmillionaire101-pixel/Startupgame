@@ -520,7 +520,8 @@ export class Kit {
     tmp.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1));
     const g = geo.index ? geo.toNonIndexed() : geo;
     g.applyMatrix4(tmp);
-    for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+    for (const k of Object.keys(g.attributes))
+      if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
     let b = this.buckets.get(m);
     if (!b) {
       b = { mat: m, geos: [], shadow: !o.noShadow };
@@ -536,7 +537,16 @@ export class Kit {
   }
 
   /** A box: w (x) × h (y) × d (z), bottom at y. */
-  box(w: number, h: number, d: number, color: string, x: number, y: number, z: number, o: PartOpts = {}) {
+  box(
+    w: number,
+    h: number,
+    d: number,
+    color: string,
+    x: number,
+    y: number,
+    z: number,
+    o: PartOpts = {},
+  ) {
     const geo =
       o.round && o.round > 0
         ? new RoundedBoxGeometry(w, h, d, 2, Math.min(o.round, w / 2, h / 2, d / 2) * 0.999)
@@ -546,15 +556,35 @@ export class Kit {
   }
 
   /** A cylinder (or cone), bottom at y. */
-  cyl(rTop: number, rBot: number, h: number, color: string, x: number, y: number, z: number, o: PartOpts = {}) {
+  cyl(
+    rTop: number,
+    rBot: number,
+    h: number,
+    color: string,
+    x: number,
+    y: number,
+    z: number,
+    o: PartOpts = {},
+  ) {
     const geo = new THREE.CylinderGeometry(rTop, rBot, h, o.seg ?? 16);
     geo.translate(0, h / 2, 0);
     return this.add(geo, this.m(color, o), x, y, z, o);
   }
 
   /** A sphere (scaled to an ellipsoid with sx/sy/sz), centred at (x, y, z). */
-  sphere(r: number, color: string, x: number, y: number, z: number, o: PartOpts & { sx?: number; sy?: number; sz?: number } = {}) {
-    const geo = new THREE.SphereGeometry(r, o.seg ?? 14, Math.max(6, Math.round((o.seg ?? 14) * 0.7)));
+  sphere(
+    r: number,
+    color: string,
+    x: number,
+    y: number,
+    z: number,
+    o: PartOpts & { sx?: number; sy?: number; sz?: number } = {},
+  ) {
+    const geo = new THREE.SphereGeometry(
+      r,
+      o.seg ?? 14,
+      Math.max(6, Math.round((o.seg ?? 14) * 0.7)),
+    );
     geo.scale(o.sx ?? 1, o.sy ?? 1, o.sz ?? 1);
     return this.add(geo, this.m(color, o), x, y, z, o);
   }
@@ -568,7 +598,10 @@ export class Kit {
   /** A flat panel (a picture, a screen) facing +z, centred at (x, y, z). */
   plane(w: number, h: number, color: string, x: number, y: number, z: number, o: PartOpts = {}) {
     const geo = new THREE.PlaneGeometry(w, h);
-    return this.add(geo, this.m(color, { ...o, noShadow: true }), x, y, z, { ...o, noShadow: true });
+    return this.add(geo, this.m(color, { ...o, noShadow: true }), x, y, z, {
+      ...o,
+      noShadow: true,
+    });
   }
 
   /** Keep a mesh separate (it moves or changes colour). */

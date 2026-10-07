@@ -15,7 +15,11 @@ import { slotLabel } from '../city/Showroom';
 import { MOVABLE, type Placement } from './placement';
 
 export const BUY_ROOMS: { id: string; label: string; slots: string[] }[] = [
-  { id: 'living', label: 'Living room', slots: ['sofa', 'tv', 'sound', 'gaming', 'rug', 'lights', 'plants', 'art', 'books'] },
+  {
+    id: 'living',
+    label: 'Living room',
+    slots: ['sofa', 'tv', 'sound', 'gaming', 'rug', 'lights', 'plants', 'art', 'books'],
+  },
   { id: 'bedroom', label: 'Bedroom', slots: ['bed', 'wardrobe', 'desk', 'laptop'] },
   { id: 'kitchen', label: 'Kitchen', slots: ['kitchen', 'fridge', 'coffee', 'dining'] },
   { id: 'utility', label: 'Utility', slots: ['washer', 'cooling', 'power', 'wifi'] },
@@ -65,8 +69,10 @@ export function BuySheet({
   const r = BUY_ROOMS.find((x) => x.id === room)!;
   const buy = async (id: string, slot: string, label: string) => {
     setArmed(null);
-    const res = await send(looseCmd({ type: 'home.buy', itemId: id }), (x: { message?: string } | null) =>
-      x?.message ? tx(x.message) : t('{item} is on its way to your flat.', { item: tx(label) }),
+    const res = await send(
+      looseCmd({ type: 'home.buy', itemId: id }),
+      (x: { message?: string } | null) =>
+        x?.message ? tx(x.message) : t('{item} is on its way to your flat.', { item: tx(label) }),
     );
     if (res === null) return;
     if (MOVABLE.has(slot)) onPlace(slot, tx(label));
@@ -105,7 +111,9 @@ export function BuySheet({
         </div>
         <div className="buy-grid" role="list" aria-label={t('Catalogue')}>
           {r.slots.map((slot) => {
-            const items = shop.furniture.filter((f) => f.slot === slot).sort((a, b) => a.tier - b.tier);
+            const items = shop.furniture
+              .filter((f) => f.slot === slot)
+              .sort((a, b) => a.tier - b.tier);
             const have = owned.get(slot);
             return (
               <div key={slot} className="buy-slot" role="listitem" data-buy-slot={slot}>
@@ -141,7 +149,11 @@ export function BuySheet({
                         </span>
                         <span className="buy-name">{tx(f.label)}</span>
                         <span className="buy-price">
-                          {mine ? t('Yours ✓') : isArmed ? t('Tap again to buy') : money(f.price, cur)}
+                          {mine
+                            ? t('Yours ✓')
+                            : isArmed
+                              ? t('Tap again to buy')
+                              : money(f.price, cur)}
                         </span>
                       </button>
                     );
@@ -179,7 +191,9 @@ export function PlaceBar({
   return (
     <div className="place-bar" role="toolbar" aria-label={t('Place {thing}', { thing: label })}>
       <p className="place-hint">
-        {ok ? t('Tap the floor to move it. Turn it, then put it here.') : t('It doesn’t fit there.')}
+        {ok
+          ? t('Tap the floor to move it. Turn it, then put it here.')
+          : t('It doesn’t fit there.')}
       </p>
       <div className="place-row">
         <button type="button" aria-label={t('Left')} onClick={() => onNudge(-1, 0)}>

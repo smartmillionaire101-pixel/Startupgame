@@ -46,11 +46,19 @@ export const FIXTURE_MODEL: Record<string, string> = {
   piano: 'piano',
 };
 
-export const CAR_MODELS = ['motorbike', 'hatchback', 'ride-hail-sedan', 'city-suv', 'electric', 'luxury'];
+export const CAR_MODELS = [
+  'motorbike',
+  'hatchback',
+  'ride-hail-sedan',
+  'city-suv',
+  'electric',
+  'luxury',
+];
 
 /** The model for a catalogue item id ('sofa-2'), a slot, a fixture or a car ('car:luxury'). */
 export function modelFor(id: string): { model: string; tier: number } {
-  if (id.startsWith('car:')) return { model: CAR_MODELS.includes(id.slice(4)) ? id : 'car:hatchback', tier: 1 };
+  if (id.startsWith('car:'))
+    return { model: CAR_MODELS.includes(id.slice(4)) ? id : 'car:hatchback', tier: 1 };
   const m = /^([a-z-]+?)-([123])$/.exec(id);
   const slot = m ? m[1]! : id;
   const tier = m ? Number(m[2]) : 1;
@@ -72,8 +80,10 @@ export function facingOf(plan: HomePlan, id: string, s: Spot & { rot?: number })
   if (s.x === 0) return Math.PI / 2;
   if (s.y + s.h === plan.h) return Math.PI;
   // Against an inner wall: one behind it (top edge) faces +z, below it faces -z.
-  if (plan.walls.some((w) => w.dir === 'h' && w.y === s.y && w.x >= s.x && w.x < s.x + s.w)) return 0;
-  if (plan.walls.some((w) => w.dir === 'h' && w.y === s.y + s.h && w.x >= s.x && w.x < s.x + s.w)) return Math.PI;
+  if (plan.walls.some((w) => w.dir === 'h' && w.y === s.y && w.x >= s.x && w.x < s.x + s.w))
+    return 0;
+  if (plan.walls.some((w) => w.dir === 'h' && w.y === s.y + s.h && w.x >= s.x && w.x < s.x + s.w))
+    return Math.PI;
   return 0;
 }
 

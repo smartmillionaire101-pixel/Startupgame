@@ -89,7 +89,10 @@ export default function TechEvent3D(props: TechEvent3DProps) {
     spot.target.position.set(1.2, 0, BACK + 1.2);
     stage.scene.add(spot, spot.target);
     const crowd: Character[] = live.current.crowd.map((look, n) => {
-      const c = makeCharacter(n === live.current.you ? live.current.me : look, n === live.current.you ? 'me' : `crowd:${n}`);
+      const c = makeCharacter(
+        n === live.current.you ? live.current.me : look,
+        n === live.current.you ? 'me' : `crowd:${n}`,
+      );
       stage.scene.add(c.root);
       return c;
     });
@@ -136,7 +139,14 @@ export default function TechEvent3D(props: TechEvent3DProps) {
       speaker.root.position.set(lectern.x + 0.05, 0.45, lectern.z - 0.35);
       speaker.root.rotation.y = 0;
       pose(speaker, 'present', t);
-      if (pitch) fx.sparkle(particles, new THREE.Vector3(lectern.x - 0.6, 2.3, lectern.z), dt, '#fde047', 10);
+      if (pitch)
+        fx.sparkle(
+          particles,
+          new THREE.Vector3(lectern.x - 0.6, 2.3, lectern.z),
+          dt,
+          '#fde047',
+          10,
+        );
       particles.update(dt);
       return true;
     });

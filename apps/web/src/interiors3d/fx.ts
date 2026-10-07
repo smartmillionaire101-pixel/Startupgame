@@ -169,15 +169,18 @@ export const fx = {
   },
   sparkle(ps: Particles, at: THREE.Vector3, dt: number, color = '#fde047', rate = 8) {
     if (rand() < dt * rate)
-      ps.emit(at.clone().add(new THREE.Vector3((rand() - 0.5) * 0.6, rand() * 0.4, (rand() - 0.5) * 0.6)), {
-        vel: new THREE.Vector3(0, 0.25, 0),
-        life: 0.9,
-        size: 0.12,
-        grow: 0.3,
-        color,
-        alpha: 1,
-        additive: true,
-      });
+      ps.emit(
+        at.clone().add(new THREE.Vector3((rand() - 0.5) * 0.6, rand() * 0.4, (rand() - 0.5) * 0.6)),
+        {
+          vel: new THREE.Vector3(0, 0.25, 0),
+          life: 0.9,
+          size: 0.12,
+          grow: 0.3,
+          color,
+          alpha: 1,
+          additive: true,
+        },
+      );
   },
   hearts(ps: Particles, at: THREE.Vector3, dt: number) {
     if (rand() < dt * 1.5)

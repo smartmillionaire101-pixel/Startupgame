@@ -81,7 +81,15 @@ function limb(r: number, len: number, color: string) {
 function buildHair(look: AvatarLook): THREE.Group {
   const g = new THREE.Group();
   const hm = mat(look.hair, { rough: 0.9 });
-  const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number, sx = 1, sy = 1, sz = 1) => {
+  const add = (
+    geo: THREE.BufferGeometry,
+    x: number,
+    y: number,
+    z: number,
+    sx = 1,
+    sy = 1,
+    sz = 1,
+  ) => {
     const m = new THREE.Mesh(geo, hm);
     m.position.set(x, y, z);
     m.scale.set(sx, sy, sz);
@@ -106,7 +114,12 @@ function buildHair(look: AvatarLook): THREE.Group {
       add(cap, 0, 0.005, 0, 1.03, 1.03, 1.05);
       for (let i = 0; i < 6; i++) {
         const a = Math.PI * 0.6 + (i / 5) * Math.PI * 0.8;
-        add(new THREE.CylinderGeometry(0.018, 0.014, 0.34, 6), Math.cos(a) * 0.13, -0.16, Math.sin(a) * 0.13 - 0.02);
+        add(
+          new THREE.CylinderGeometry(0.018, 0.014, 0.34, 6),
+          Math.cos(a) * 0.13,
+          -0.16,
+          Math.sin(a) * 0.13 - 0.02,
+        );
       }
       break;
     case 'buzz':
@@ -135,7 +148,10 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
   const hips = new THREE.Group();
   hips.position.y = HIP_Y;
   body.add(hips);
-  const pelvis = new THREE.Mesh(new THREE.BoxGeometry(female ? 0.3 : 0.28, 0.16, 0.18), mat(bottom));
+  const pelvis = new THREE.Mesh(
+    new THREE.BoxGeometry(female ? 0.3 : 0.28, 0.16, 0.18),
+    mat(bottom),
+  );
   pelvis.position.y = 0.0;
   pelvis.castShadow = true;
   hips.add(pelvis);
@@ -161,10 +177,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
   const torso = new THREE.Group();
   torso.position.y = 0.06;
   hips.add(torso);
-  const chest = new THREE.Mesh(
-    capsule(female ? 0.14 : 0.155, 0.26),
-    mat(top, { rough: 0.85 }),
-  );
+  const chest = new THREE.Mesh(capsule(female ? 0.14 : 0.155, 0.26), mat(top, { rough: 0.85 }));
   chest.scale.set(1.05, 1, 0.72);
   chest.position.y = 0.24;
   chest.castShadow = true;
@@ -235,7 +248,10 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     }
     case 'cap': {
       const cm = mat(top, { rough: 0.7 });
-      const c = new THREE.Mesh(new THREE.SphereGeometry(0.158, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), cm);
+      const c = new THREE.Mesh(
+        new THREE.SphereGeometry(0.158, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+        cm,
+      );
       c.position.y = 0.23;
       head.add(c);
       const brim = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.015, 0.14), cm);
@@ -261,7 +277,10 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       break;
     }
     case 'lanyard': {
-      const l = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.006, 4, 16, Math.PI), mat('#2563eb'));
+      const l = new THREE.Mesh(
+        new THREE.TorusGeometry(0.12, 0.006, 4, 16, Math.PI),
+        mat('#2563eb'),
+      );
       l.rotation.z = Math.PI;
       l.position.set(0, 0.44, 0.105);
       torso.add(l);
@@ -321,7 +340,12 @@ const S = Math.sin;
  * Put a person in a pose at time `t` (seconds). `seat` is the height of
  * what they sit on (sitting), or of the bed (lying). `phase` desyncs crowds.
  */
-export function pose(c: Character, p: PoseId, t: number, o: { seat?: number; phase?: number } = {}) {
+export function pose(
+  c: Character,
+  p: PoseId,
+  t: number,
+  o: { seat?: number; phase?: number } = {},
+) {
   const ph = (o.phase ?? 0) * 1.7;
   const tt = t + ph;
   // Reset.
@@ -526,6 +550,7 @@ export function pose(c: Character, p: PoseId, t: number, o: { seat?: number; pha
 /** Every person's meshes, for picking. */
 export const characterMeshes = (cs: Iterable<Character>) => {
   const out: THREE.Object3D[] = [];
-  for (const c of cs) c.root.traverse((o) => (o as THREE.Mesh).isMesh && o !== c.shadow && out.push(o));
+  for (const c of cs)
+    c.root.traverse((o) => (o as THREE.Mesh).isMesh && o !== c.shadow && out.push(o));
   return out;
 };

@@ -73,7 +73,10 @@ export class Stage {
   readonly soft: boolean;
   maxFps: number;
 
-  constructor(readonly canvas: HTMLCanvasElement, o: StageOpts) {
+  constructor(
+    readonly canvas: HTMLCanvasElement,
+    o: StageOpts,
+  ) {
     this.opts = o;
     this.renderer = new THREE.WebGLRenderer({
       canvas,

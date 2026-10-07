@@ -62,7 +62,10 @@ function floorMesh(kind: FloorKind, x: number, z: number, w: number, d: number, 
   tex.needsUpdate = true;
   const s = FLOOR_SCALE[kind];
   tex.repeat.set(w / s, d / s);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat('#ffffff', { map: tex, rough: kind === 'marble' ? 0.35 : 0.8, own: true }));
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, d),
+    mat('#ffffff', { map: tex, rough: kind === 'marble' ? 0.35 : 0.8, own: true }),
+  );
   m.rotation.x = -Math.PI / 2;
   m.position.set(x + w / 2, 0.002, z + d / 2);
   m.receiveShadow = true;
@@ -70,7 +73,9 @@ function floorMesh(kind: FloorKind, x: number, z: number, w: number, d: number, 
 }
 
 /** A soft dark band on the floor along a wall (baked ambient occlusion). */
-function edgeStrips(segs: { x0: number; z0: number; x1: number; z1: number; nx: number; nz: number }[]) {
+function edgeStrips(
+  segs: { x0: number; z0: number; x1: number; z1: number; nx: number; nz: number }[],
+) {
   const geos: THREE.BufferGeometry[] = [];
   const W = 0.55;
   for (const s of segs) {
@@ -89,7 +94,12 @@ function edgeStrips(segs: { x0: number; z0: number; x1: number; z1: number; nx: 
   const geo = mergeGeometries(geos, false)!;
   const m = new THREE.Mesh(
     geo,
-    new THREE.MeshBasicMaterial({ map: edgeTexture(), transparent: true, depthWrite: false, opacity: 0.9 }),
+    new THREE.MeshBasicMaterial({
+      map: edgeTexture(),
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.9,
+    }),
   );
   m.renderOrder = 1;
   return m;
@@ -105,7 +115,11 @@ function slab(len: number, along: 'x' | 'z', color: string): THREE.Mesh {
 }
 
 function cap(len: number, along: 'x' | 'z'): THREE.Mesh {
-  const geo = new THREE.BoxGeometry((along === 'x' ? len : THICK) + 0.02, 0.05, (along === 'x' ? THICK : len) + 0.02);
+  const geo = new THREE.BoxGeometry(
+    (along === 'x' ? len : THICK) + 0.02,
+    0.05,
+    (along === 'x' ? THICK : len) + 0.02,
+  );
   const m = new THREE.Mesh(geo, mat(WALL_CAP, { rough: 0.6 }));
   m.castShadow = false;
   return m;
@@ -118,7 +132,11 @@ function windowOn(along: 'x' | 'z', c: number, fixed: number, night: boolean): T
   const h = 1.0;
   const y = 1.0;
   const pane = night ? '#1e3a8a' : '#bfe6f5';
-  const opts = { emissive: night ? '#f8d77a' : '#9fd7ee', emissiveIntensity: night ? 0.15 : 0.35, rough: 0.1 };
+  const opts = {
+    emissive: night ? '#f8d77a' : '#9fd7ee',
+    emissiveIntensity: night ? 0.15 : 0.35,
+    rough: 0.1,
+  };
   if (along === 'x') {
     k.box(w + 0.12, h + 0.12, THICK + 0.04, '#f8fafc', c, y - 0.06, fixed);
     k.box(w, h, THICK + 0.06, pane, c, y, fixed, opts);
@@ -164,22 +182,31 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const lawnTex = floorTexture('grass').clone();
   lawnTex.needsUpdate = true;
   lawnTex.repeat.set((R * 2) / 6, (R * 2) / 6);
-  const lawn = new THREE.Mesh(new THREE.CircleGeometry(R, 64), mat('#ffffff', { map: lawnTex, rough: 1, own: true }));
+  const lawn = new THREE.Mesh(
+    new THREE.CircleGeometry(R, 64),
+    mat('#ffffff', { map: lawnTex, rough: 1, own: true }),
+  );
   lawn.rotation.x = -Math.PI / 2;
   lawn.position.set(centre.x, -0.16, centre.z);
   lawn.receiveShadow = true;
   root.add(lawn);
-  const rim = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 1.01, 0.5, 64, 1, true), mat('#3d4f2c', { rough: 1, side: THREE.DoubleSide }));
+  const rim = new THREE.Mesh(
+    new THREE.CylinderGeometry(R, R * 1.01, 0.5, 64, 1, true),
+    mat('#3d4f2c', { rough: 1, side: THREE.DoubleSide }),
+  );
   rim.position.set(centre.x, -0.41, centre.z);
   root.add(rim);
   const k = new Kit();
   k.box(W + 0.36, 0.16, H + 0.36, '#d8d2c4', W / 2, -0.16, H / 2, { rough: 0.9 });
   // Front path to the edge of the lawn.
   const dx = plan.door.x + 0.5;
-  k.box(1.1, 0.03, R - H / 2 + 0.6, '#c9bfae', dx, -0.155, H + (R - H / 2) / 2 - 0.2, { rough: 0.95 });
-  for (let i = 0; i < 4; i++) k.box(0.9, 0.04, 0.5, '#b9ad98', dx, -0.15, H + 0.8 + i * 0.9, { round: 0.04 });
+  k.box(1.1, 0.03, R - H / 2 + 0.6, '#c9bfae', dx, -0.155, H + (R - H / 2) / 2 - 0.2, {
+    rough: 0.95,
+  });
+  for (let i = 0; i < 4; i++)
+    k.box(0.9, 0.04, 0.5, '#b9ad98', dx, -0.15, H + 0.8 + i * 0.9, { round: 0.04 });
   // Bushes and trees around the plot.
-  const rnd = (n: number) => ((Math.sin(n * 12.9898) * 43758.5453) % 1 + 1) % 1;
+  const rnd = (n: number) => (((Math.sin(n * 12.9898) * 43758.5453) % 1) + 1) % 1;
   for (let i = 0; i < 14; i++) {
     const a = (i / 14) * Math.PI * 2 + 0.2;
     const r = R - 0.9 - rnd(i) * 0.6;
@@ -191,7 +218,11 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       k.cyl(0.08, 0.1, 0.9, '#6b4a2f', x, -0.16, z);
       k.sphere(0.65, i % 2 ? '#3f6f35' : '#4d7f3c', x, 1.15, z, { seg: 9, sy: 0.9 });
       k.sphere(0.45, '#5a8f45', x + 0.2, 1.5, z - 0.1, { seg: 8 });
-    } else k.sphere(0.4 + rnd(i + 3) * 0.2, i % 2 ? '#4b7d3a' : '#3a6a30', x, 0.05, z, { seg: 8, sy: 0.7 });
+    } else
+      k.sphere(0.4 + rnd(i + 3) * 0.2, i % 2 ? '#4b7d3a' : '#3a6a30', x, 0.05, z, {
+        seg: 8,
+        sy: 0.7,
+      });
   }
   root.add(k.build());
 
@@ -210,7 +241,14 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const front = side(new THREE.Vector2(0, 1));
   const left = side(new THREE.Vector2(-1, 0));
   const right = side(new THREE.Vector2(1, 0));
-  const addRun = (s: WallSide, along: 'x' | 'z', a: number, b: number, fixed: number, color: string) => {
+  const addRun = (
+    s: WallSide,
+    along: 'x' | 'z',
+    a: number,
+    b: number,
+    fixed: number,
+    color: string,
+  ) => {
     const len = b - a + (along === 'x' ? THICK : 0);
     const m = slab(len, along, color);
     const c = cap(len, along);
@@ -235,7 +273,11 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   addRun(front, 'x', plan.door.x + 1, W + o2, H + o2, WALL_GREEN);
   // Inner faces: a warm plaster lining on the back and side walls.
   const lining = (s: WallSide, along: 'x' | 'z', a: number, b: number, fixed: number) => {
-    const geo = new THREE.BoxGeometry(along === 'x' ? b - a : 0.02, 1, along === 'x' ? 0.02 : b - a);
+    const geo = new THREE.BoxGeometry(
+      along === 'x' ? b - a : 0.02,
+      1,
+      along === 'x' ? 0.02 : b - a,
+    );
     geo.translate(0, 0.5, 0);
     const m = new THREE.Mesh(geo, mat(WALL_INNER, { rough: 0.9 }));
     m.receiveShadow = true;
@@ -250,9 +292,13 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   lining(right, 'z', 0, H, W - 0.012);
   // Windows: on the back wall per room, and on the side walls.
   for (const r of plan.rooms) {
-    if (r.y === 0 && r.w >= 3) back.extras.add(windowOn('x', r.x + r.w / 2 + (r.id === 'bedroom' && r.w > 4 ? 0.8 : 0), -o2, o.night));
+    if (r.y === 0 && r.w >= 3)
+      back.extras.add(
+        windowOn('x', r.x + r.w / 2 + (r.id === 'bedroom' && r.w > 4 ? 0.8 : 0), -o2, o.night),
+      );
     if (r.x === 0 && r.h >= 3) left.extras.add(windowOn('z', r.y + r.h / 2, -o2, o.night));
-    if (r.x + r.w === W && r.h >= 3 && !(garage && r.y + r.h > H - 5)) right.extras.add(windowOn('z', r.y + r.h / 2, W + o2, o.night));
+    if (r.x + r.w === W && r.h >= 3 && !(garage && r.y + r.h > H - 5))
+      right.extras.add(windowOn('z', r.y + r.h / 2, W + o2, o.night));
   }
   // The front door: a frame and an open leaf.
   {
@@ -284,13 +330,19 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     for (const [a, b] of runs(xs)) {
       inner.box(b - a + THICK, INNER_H, THICK, WALL_GREEN, (a + b) / 2, 0, y, { rough: 0.85 });
       inner.box(b - a + THICK + 0.02, 0.05, THICK + 0.02, WALL_CAP, (a + b) / 2, INNER_H, y);
-      edgeSegs.push({ x0: a, z0: y, x1: b, z1: y, nx: 0, nz: 1 }, { x0: a, z0: y, x1: b, z1: y, nx: 0, nz: -1 });
+      edgeSegs.push(
+        { x0: a, z0: y, x1: b, z1: y, nx: 0, nz: 1 },
+        { x0: a, z0: y, x1: b, z1: y, nx: 0, nz: -1 },
+      );
     }
   for (const [x, ys] of vLines)
     for (const [a, b] of runs(ys)) {
       inner.box(THICK, INNER_H, b - a + THICK, WALL_GREEN, x, 0, (a + b) / 2, { rough: 0.85 });
       inner.box(THICK + 0.02, 0.05, b - a + THICK + 0.02, WALL_CAP, x, INNER_H, (a + b) / 2);
-      edgeSegs.push({ x0: x, z0: a, x1: x, z1: b, nx: 1, nz: 0 }, { x0: x, z0: a, x1: x, z1: b, nx: -1, nz: 0 });
+      edgeSegs.push(
+        { x0: x, z0: a, x1: x, z1: b, nx: 1, nz: 0 },
+        { x0: x, z0: a, x1: x, z1: b, nx: -1, nz: 0 },
+      );
     }
   // Skirting along the outer walls.
   inner.box(W, 0.08, 0.025, '#f5f1e8', W / 2, 0, 0.03);
@@ -312,7 +364,11 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     // Low walls and posts, an open front like a carport.
     g.box(GW + THICK, 1.0, THICK, WALL_GREEN, gx + GW / 2, 0, gz, { rough: 0.85 });
     g.box(THICK, 1.0, 6, WALL_GREEN, gx + GW, 0, gz + 3, { rough: 0.85 });
-    for (const [px, pz] of [[gx + 0.1, H - 0.05], [gx + GW - 0.05, H - 0.05], [gx + GW - 0.05, gz + 0.1]] as const)
+    for (const [px, pz] of [
+      [gx + 0.1, H - 0.05],
+      [gx + GW - 0.05, H - 0.05],
+      [gx + GW - 0.05, gz + 0.1],
+    ] as const)
       g.box(0.16, 2.4, 0.16, '#2f6b45', px, 0, pz);
     g.box(GW + 0.3, 0.1, 0.18, '#2f6b45', gx + GW / 2, 2.4, H - 0.05);
     g.box(0.18, 0.1, 6.1, '#2f6b45', gx + GW, 2.4, gz + 3);
