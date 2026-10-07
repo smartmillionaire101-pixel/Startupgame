@@ -110,7 +110,11 @@ function sponsorsOf(world: World, m: MarketState): Competition['sponsor'][] {
   return out;
 }
 
-function aiJudgesFor(world: World, m: MarketState, rng: ReturnType<typeof deriveRng>): CompetitionJudge[] {
+function aiJudgesFor(
+  world: World,
+  m: MarketState,
+  rng: ReturnType<typeof deriveRng>,
+): CompetitionJudge[] {
   const funds = Object.values(world.funds)
     .filter((f) => f.market === m.id && f.ai && !f.managerId)
     .filter((f) => !f.angelId || world.players[f.angelId]?.angel?.retiredMonth === undefined)
@@ -203,7 +207,12 @@ const isFounderIn = (world: World, comp: Competition, playerId: Id) =>
 // ---------------------------------------------------------------- Commands
 
 /** Why a founder can't enter (null when they can). */
-export function enterBlocker(world: World, me: Player, comp: Competition, companyId?: Id): string | null {
+export function enterBlocker(
+  world: World,
+  me: Player,
+  comp: Competition,
+  companyId?: Id,
+): string | null {
   const m = getMarket(world, comp.market);
   if (comp.status !== 'open' || comp.month !== m.month) return 'Entries are closed.';
   const mine = me.companyIds
@@ -284,7 +293,11 @@ export function scoreEntry(
     'competition.judge',
     'Join the panel to score.',
   );
-  ensure(Number.isInteger(score) && score >= 1 && score <= 10, 'competition.score', 'Score 1 to 10.');
+  ensure(
+    Number.isInteger(score) && score >= 1 && score <= 10,
+    'competition.score',
+    'Score 1 to 10.',
+  );
   const e = comp.entries.find((x) => x.id === entryId);
   ensure(e, 'competition.entry', 'That pitch isn’t in the line-up.');
   e.scores[me.id] = score;
@@ -293,14 +306,21 @@ export function scoreEntry(
     entryId: e.id,
     score,
     left,
-    message: left ? `Scored. ${left} pitch${left === 1 ? '' : 'es'} left.` : 'All scored. Results at the end of the month.',
+    message: left
+      ? `Scored. ${left} pitch${left === 1 ? '' : 'es'} left.`
+      : 'All scored. Results at the end of the month.',
   };
 }
 
 // ---------------------------------------------------------------- Judging
 
 /** An AI investor's score for a pitch: the company's numbers plus seeded noise (1–10). */
-export function aiScore(world: World, comp: Competition, judge: CompetitionJudge, e: CompetitionEntry): number {
+export function aiScore(
+  world: World,
+  comp: Competition,
+  judge: CompetitionJudge,
+  e: CompetitionEntry,
+): number {
   const c = world.companies[e.companyId];
   if (!c) return 1;
   const founder = world.players[e.founderId];
@@ -333,7 +353,8 @@ function judge(world: World, comp: Competition, month: number) {
   const fmt = (v: number) => formatMoney(v, m.data.currency);
   const refund = () => {
     const left = account(world, comp.account).balance;
-    if (left > 0) transfer(world, comp.account, m.ext.lps, left, `Unawarded prize: ${comp.name}`, month);
+    if (left > 0)
+      transfer(world, comp.account, m.ext.lps, left, `Unawarded prize: ${comp.name}`, month);
   };
   if (!comp.entries.length) {
     comp.status = 'cancelled';
@@ -357,13 +378,23 @@ function judge(world: World, comp: Competition, month: number) {
   // Prizes: most to the winner, the rest to the runner-up.
   const shares =
     ranked.length > 1
-      ? [comp.prizePool - Math.round(comp.prizePool * COMPETITION.runnerUpShare), Math.round(comp.prizePool * COMPETITION.runnerUpShare)]
+      ? [
+          comp.prizePool - Math.round(comp.prizePool * COMPETITION.runnerUpShare),
+          Math.round(comp.prizePool * COMPETITION.runnerUpShare),
+        ]
       : [comp.prizePool];
   shares.forEach((amount, i) => {
     const e = ranked[i]!;
     const c = world.companies[e.companyId];
     if (!c || c.status !== 'active' || amount <= 0) return;
-    pay(world, comp.account, c.account, amount, `${i === 0 ? 'Winner' : 'Runner-up'}: ${comp.name}`, month);
+    pay(
+      world,
+      comp.account,
+      c.account,
+      amount,
+      `${i === 0 ? 'Winner' : 'Runner-up'}: ${comp.name}`,
+      month,
+    );
     e.prize = amount;
   });
   refund();
@@ -444,8 +475,16 @@ function judge(world: World, comp: Competition, month: number) {
     for (const e of comp.entries) {
       const f = world.players[e.founderId];
       if (!f || f.ai || f.id === p.id) continue;
-      addContact(p, { kind: 'player', refId: f.id, name: f.name, warmth: COMPETITION.judgeWarmth }, month);
-      addContact(f, { kind: 'player', refId: p.id, name: p.name, warmth: COMPETITION.judgeWarmth }, month);
+      addContact(
+        p,
+        { kind: 'player', refId: f.id, name: f.name, warmth: COMPETITION.judgeWarmth },
+        month,
+      );
+      addContact(
+        f,
+        { kind: 'player', refId: p.id, name: p.name, warmth: COMPETITION.judgeWarmth },
+        month,
+      );
     }
     notify(world, p.id, {
       month,
@@ -468,8 +507,7 @@ export function competitionsView(world: World, viewer: Player, m: MarketState) {
   const list = Object.values(competitionsOf(world))
     .filter(
       (c) =>
-        c.market === m.id &&
-        (c.status === 'open' || m.month - c.month <= COMPETITION.recentMonths),
+        c.market === m.id && (c.status === 'open' || m.month - c.month <= COMPETITION.recentMonths),
     )
     .sort((a, b) => b.month - a.month);
   return {
@@ -546,7 +584,10 @@ export function competitionsView(world: World, viewer: Player, m: MarketState) {
           canJudge: judgeReason === null,
           judgeReason: judging ? null : judgeReason,
           /** As a judge: pitches you still have to score. */
-          toScore: judging && !revealed ? comp.entries.filter((e) => e.scores[viewer.id] === undefined).length : 0,
+          toScore:
+            judging && !revealed
+              ? comp.entries.filter((e) => e.scores[viewer.id] === undefined).length
+              : 0,
         },
       };
     }),

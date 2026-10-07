@@ -201,8 +201,7 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
   // Wave 10: branches, already paid by settleBranches (this city's or another's).
   const branchRevenue = b2b.branchRevenue ?? 0;
   const branchCost = b2b.branchCost ?? 0;
-  const totalRevenue =
-    revenue + collected + b2b.playerRevenue + businessRevenue + branchRevenue;
+  const totalRevenue = revenue + collected + b2b.playerRevenue + businessRevenue + branchRevenue;
 
   // Costs. Cloud/processing is priced in dollars, so devaluation hurts local earners (§8).
   const customers = totalCustomers(c);
@@ -348,7 +347,9 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
     playerRevenue: b2b.playerRevenue,
     suppliers: b2b.supplierCost,
     businessRevenue,
-    ...(branchRevenue || branchCost ? { branches: { revenue: branchRevenue, opex: branchCost } } : {}),
+    ...(branchRevenue || branchCost
+      ? { branches: { revenue: branchRevenue, opex: branchCost } }
+      : {}),
     payroll: paid.payroll ?? 0,
     founderSalary: paid.founderSalary ?? 0,
     office: paid.office ?? 0,

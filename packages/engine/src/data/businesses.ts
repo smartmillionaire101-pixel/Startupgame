@@ -902,7 +902,10 @@ export const BUSINESS_KINDS: BusinessKindSpec[] = [
   kind('spa', 'health', 'Spa', 'clinic', [6, 16], {
     items: [
       { ...act('massage', 'Massage', 0.02, 6, 0.03, { energy: 12 }), requiresTier: 3 },
-      { ...act('day-pass', 'Spa day pass', 0.012, 5, 0.08, { energy: 8, meeting: true }), requiresTier: 3 },
+      {
+        ...act('day-pass', 'Spa day pass', 0.012, 5, 0.08, { energy: 8, meeting: true }),
+        requiresTier: 3,
+      },
     ],
     buys: { healthtech: 0.025, fintech: 0.012, saas: 0.012 },
     gigs: [

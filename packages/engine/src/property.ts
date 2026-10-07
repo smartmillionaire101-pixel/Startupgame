@@ -219,7 +219,14 @@ export function buyProperty(
   const month = m.month;
   const what = label(p);
   payExact(world, me.accounts.local, m.ext.genesis, q.deposit, `Bought: ${what}`, month);
-  payExact(world, me.accounts.local, m.ext.tax, q.closingCosts, `Stamp duty and fees: ${what}`, month);
+  payExact(
+    world,
+    me.accounts.local,
+    m.ext.tax,
+    q.closingCosts,
+    `Stamp duty and fees: ${what}`,
+    month,
+  );
   if (q.loan > 0) {
     // The bank pays the seller the rest; you repay the bank monthly.
     transfer(world, m.ext.bank, m.ext.genesis, q.loan, `Mortgage: ${what}`, month);
@@ -288,13 +295,29 @@ export function sellProperty(world: World, me: Player, propertyId: Id) {
       `You owe ${fmt(owed)} on it and it sells for ${fmt(net)} after fees: you need ${fmt(short)} to clear the mortgage.`,
     );
     transfer(world, m.ext.genesis, p.mortgage!.lenderAccount, net, `Sale: ${what}`, month);
-    payExact(world, me.accounts.local, p.mortgage!.lenderAccount, short, `Mortgage shortfall: ${what}`, month);
+    payExact(
+      world,
+      me.accounts.local,
+      p.mortgage!.lenderAccount,
+      short,
+      `Mortgage shortfall: ${what}`,
+      month,
+    );
   } else if (owed > 0) {
-    transfer(world, m.ext.genesis, p.mortgage!.lenderAccount, owed, `Mortgage repaid: ${what}`, month);
+    transfer(
+      world,
+      m.ext.genesis,
+      p.mortgage!.lenderAccount,
+      owed,
+      `Mortgage repaid: ${what}`,
+      month,
+    );
   }
   const proceeds = Math.max(0, net - owed);
   const received =
-    proceeds > 0 ? pay(world, m.ext.genesis, me.accounts.local, proceeds, `Sold: ${what}`, month) : 0;
+    proceeds > 0
+      ? pay(world, m.ext.genesis, me.accounts.local, proceeds, `Sold: ${what}`, month)
+      : 0;
   const gain = price - (p.bought?.price ?? price);
   release(world, p);
   return {
@@ -334,7 +357,11 @@ export function letProperty(world: World, me: Player, propertyId: Id, on: boolea
 export function moveIn(world: World, me: Player, propertyId: Id) {
   const p = ownProperty(world, me, propertyId);
   ensure(!p.rentedOut, 'property.let', 'It’s let to tenants. End the let first.');
-  ensure(me.residence?.propertyId !== p.id || me.market !== p.market, 'property.home', 'You already live there.');
+  ensure(
+    me.residence?.propertyId !== p.id || me.market !== p.market,
+    'property.home',
+    'You already live there.',
+  );
   let relocated = false;
   if (p.market !== me.market) {
     // Moving into a home in another city makes that city your home (the usual relocation rules).
@@ -361,10 +388,18 @@ function repossess(world: World, p: Property, owner: Player | undefined, month: 
   const sale = Math.round(priceOf(world, p) * MORTGAGE.repossessionPrice);
   const owed = p.mortgage?.outstanding ?? 0;
   const toBank = Math.min(owed, sale);
-  if (p.mortgage) transfer(world, m.ext.genesis, p.mortgage.lenderAccount, toBank, 'Repossession sale', month);
+  if (p.mortgage)
+    transfer(world, m.ext.genesis, p.mortgage.lenderAccount, toBank, 'Repossession sale', month);
   const surplus = sale - toBank;
   if (owner && surplus > 0)
-    pay(world, m.ext.genesis, owner.accounts.local, surplus, `Repossession surplus: ${label(p)}`, month);
+    pay(
+      world,
+      m.ext.genesis,
+      owner.accounts.local,
+      surplus,
+      `Repossession surplus: ${label(p)}`,
+      month,
+    );
   if (owner) {
     owner.credit.defaults += 1;
     notify(world, owner.id, {
@@ -386,8 +421,9 @@ export function settleProperties(world: World, marketId: MarketId, month: number
   const climate = (clamp(m.climate, 0.5, 1.6) - 1) * 0.004;
   idx.prev = idx.value;
   idx.value =
-    Math.round(clamp(idx.value * Math.exp(rng.normal(trend.drift + climate, trend.vol)), 0.4, 4) * 10_000) /
-    10_000;
+    Math.round(
+      clamp(idx.value * Math.exp(rng.normal(trend.drift + climate, trend.vol)), 0.4, 4) * 10_000,
+    ) / 10_000;
   idx.month = month;
 
   for (const p of marketProperties(world, marketId)) {
@@ -412,11 +448,19 @@ export function settleProperties(world: World, marketId: MarketId, month: number
       }
     }
     const mine = () => account(world, owner.accounts.local);
-    const canPay = (v: number) => mine().balance >= costIn(world, v, m.data.currency, mine().currency);
+    const canPay = (v: number) =>
+      mine().balance >= costIn(world, v, m.data.currency, mine().currency);
     // 2. Running costs.
     let upkeep = upkeepOf(world, p);
     if (canPay(upkeep))
-      payExact(world, owner.accounts.local, m.ext.suppliers, upkeep, `Running costs: ${label(p)}`, month);
+      payExact(
+        world,
+        owner.accounts.local,
+        m.ext.suppliers,
+        upkeep,
+        `Running costs: ${label(p)}`,
+        month,
+      );
     else {
       notify(world, owner.id, {
         month,
@@ -432,7 +476,14 @@ export function settleProperties(world: World, marketId: MarketId, month: number
       const interest = Math.round((mg.outstanding * mg.rateBps) / 10_000 / 12);
       const due = Math.min(mg.monthlyPayment, mg.outstanding + interest);
       if (canPay(due)) {
-        payExact(world, owner.accounts.local, mg.lenderAccount, due, `Mortgage: ${label(p)}`, month);
+        payExact(
+          world,
+          owner.accounts.local,
+          mg.lenderAccount,
+          due,
+          `Mortgage: ${label(p)}`,
+          month,
+        );
         mg.outstanding = Math.max(0, mg.outstanding - (due - Math.min(due, interest)));
         mg.monthsLeft = Math.max(0, mg.monthsLeft - 1);
         mg.missed = 0;
@@ -601,8 +652,7 @@ export function netWorth(world: World, p: Player) {
     property += valueIn(world, equity, getMarket(world, x.market).data.currency, cur);
   }
   const loans = p.loans.reduce(
-    (a, l) =>
-      a + valueIn(world, l.outstanding, world.markets[l.market]?.data.currency ?? cur, cur),
+    (a, l) => a + valueIn(world, l.outstanding, world.markets[l.market]?.data.currency ?? cur, cur),
     0,
   );
   return { currency: cur, cash, propertyEquity: property, loans, total: cash + property - loans };

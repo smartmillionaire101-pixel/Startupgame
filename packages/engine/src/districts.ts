@@ -6,7 +6,7 @@
  */
 import { CITY_BUSINESSES, CITY_DISTRICTS } from './data/businesses.js';
 import type { MarketId } from './data/markets.js';
-import { hashString } from './rng.js';
+import { createRng, hashString } from './rng.js';
 import type { Rng } from './rng.js';
 
 const cache = new Map<MarketId, { district: string; w: number }[]>();
@@ -36,7 +36,11 @@ function pickWeighted(items: { district: string; w: number }[], r: number): stri
 }
 
 /** A district drawn from an RNG stream (weighted). `avoid` districts are skipped when possible. */
-export function randomDistrict(market: MarketId, rng: Rng, avoid: readonly string[] = []): string | null {
+export function randomDistrict(
+  market: MarketId,
+  rng: Rng,
+  avoid: readonly string[] = [],
+): string | null {
   const all = districtWeights(market);
   const pool = all.filter((d) => !avoid.includes(d.district));
   return pickWeighted(pool.length ? pool : all, rng.next());
@@ -47,6 +51,7 @@ export function randomDistrict(market: MarketId, rng: Rng, avoid: readonly strin
  * office, a fund's office): the same id always lands in the same district.
  */
 export function stableDistrict(market: MarketId, ...labels: (string | number)[]): string | null {
-  const h = hashString(`district:${market}:${labels.join(':')}`);
-  return pickWeighted(districtWeights(market), h / 4294967296);
+  // Mixed through the generator: FNV alone keeps similar ids (co_1, co_2…) too close.
+  const r = createRng(hashString(`district:${market}:${labels.join(':')}`)).next();
+  return pickWeighted(districtWeights(market), r);
 }

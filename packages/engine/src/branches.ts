@@ -159,7 +159,14 @@ export function closeBranch(world: World, me: Player, branchId: Id) {
   const cash = account(world, c.account);
   let paid = 0;
   if (cash.balance >= costIn(world, b.monthlyOpex, m.data.currency, cash.currency)) {
-    payExact(world, c.account, m.ext.suppliers, b.monthlyOpex, 'Branch lease break', getMarket(world, c.market).month);
+    payExact(
+      world,
+      c.account,
+      m.ext.suppliers,
+      b.monthlyOpex,
+      'Branch lease break',
+      getMarket(world, c.market).month,
+    );
     paid = b.monthlyOpex;
   }
   b.status = 'closed';
@@ -175,10 +182,14 @@ export function closeBranch(world: World, me: Player, branchId: Id) {
  * What a branch takes in a month at full ramp (before noise), branch-city
  * minor units. Without a district: a typical one.
  */
-export function branchDemand(world: World, c: Company, market: MarketId, district?: string): number {
+export function branchDemand(
+  world: World,
+  c: Company,
+  market: MarketId,
+  district?: string,
+): number {
   const m = getMarket(world, market);
-  const quality =
-    0.25 + 0.35 * c.product.fit + 0.25 * reliability(c) + 0.15 * (c.stars.value / 5);
+  const quality = 0.25 + 0.35 * c.product.fit + 0.25 * reliability(c) + 0.15 * (c.stars.value / 5);
   const climate = 0.85 + 0.15 * clamp(m.climate, 0.5, 1.6);
   const pull = district ? districtPull(market, district) : 1;
   return Math.round(scale(col(m), BRANCH.demandCol) * pull * quality * climate);
@@ -218,11 +229,23 @@ export function settleBranches(world: World, marketId: MarketId, month: number) 
     const hibernating = c.hibernation ? 0.3 : 1;
     const takings = Math.max(
       0,
-      Math.round(branchDemand(world, c, b.market, b.district) * ramp * hibernating * (1 + rng.normal(0, 0.08))),
+      Math.round(
+        branchDemand(world, c, b.market, b.district) *
+          ramp *
+          hibernating *
+          (1 + rng.normal(0, 0.08)),
+      ),
     );
     const homeMonth = getMarket(world, c.market).month;
     const received = takings
-      ? pay(world, m.ext.customers, c.account, takings, `Branch takings: ${districtLabel(b.district)}`, homeMonth)
+      ? pay(
+          world,
+          m.ext.customers,
+          c.account,
+          takings,
+          `Branch takings: ${districtLabel(b.district)}`,
+          homeMonth,
+        )
       : 0;
     const ledger = c.ledgerThisMonth;
     ledger.branchRevenue = (ledger.branchRevenue ?? 0) + received;
@@ -271,7 +294,12 @@ export function aiExpansion(world: World, marketId: MarketId, month: number) {
   localBranches(world, m, rng, month);
 }
 
-function localBranches(world: World, m: MarketState, rng: ReturnType<typeof deriveRng>, month: number) {
+function localBranches(
+  world: World,
+  m: MarketState,
+  rng: ReturnType<typeof deriveRng>,
+  month: number,
+) {
   const all = Object.values(businessesOf(m));
   if (all.filter((b) => b.branchOf && isOpen(b)).length >= BRANCH.localCap) return;
   for (const b of all) {
@@ -306,7 +334,13 @@ function localBranches(world: World, m: MarketState, rng: ReturnType<typeof deri
   }
 }
 
-function announce(world: World, m: MarketState, parent: LocalBusiness, b: LocalBusiness, month: number) {
+function announce(
+  world: World,
+  m: MarketState,
+  parent: LocalBusiness,
+  b: LocalBusiness,
+  month: number,
+) {
   const text = `${parent.name} opened a second site in ${districtLabel(b.district)}.`;
   for (const p of Object.values(world.players))
     if (!p.ai && p.market === m.id) notify(world, p.id, { month, kind: 'system', text });

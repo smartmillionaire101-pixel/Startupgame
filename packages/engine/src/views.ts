@@ -45,7 +45,12 @@ import { deliveryView, homeActsView, moodOf, needsOf } from './needs.js';
 import { hangoutsView, sendLimits, techEventsView, visitingView, visitsView } from './social.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { myPropertiesView, netWorth, propertiesView, residenceView } from './property.js';
-import { cityBranchesView, cityOfficesView, companyBranchesView, companyDistrict } from './branches.js';
+import {
+  cityBranchesView,
+  cityOfficesView,
+  companyBranchesView,
+  companyDistrict,
+} from './branches.js';
 import { competitionsView } from './competitions.js';
 import { stableDistrict } from './districts.js';
 import { boardOf } from './governance.js';

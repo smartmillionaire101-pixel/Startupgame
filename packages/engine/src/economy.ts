@@ -313,7 +313,14 @@ export function openBusiness(
   // Day-one businesses are established; new openings start a little smaller.
   const base = scale(col(m), rng.range(lo, hi) * (founding ? 1 : 0.8));
   if (capitalFrom)
-    transferUpTo(world, capitalFrom, acc, Math.round(base * ECONOMY.startCashMonths), 'Opening capital', month);
+    transferUpTo(
+      world,
+      capitalFrom,
+      acc,
+      Math.round(base * ECONOMY.startCashMonths),
+      'Opening capital',
+      month,
+    );
   else
     transfer(
       world,
