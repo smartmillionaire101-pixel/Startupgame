@@ -39,7 +39,8 @@ export type Verb =
   | { id: 'sit'; label: string }
   | { id: 'invite'; label: string }
   | { id: 'out'; label: string }
-  | { id: 'buy'; label: string; slot: string };
+  | { id: 'buy'; label: string; slot: string }
+  | { id: 'move'; label: string; move: string };
 
 /** Where a furniture slot (or a fixture) stands. */
 export interface Spot extends Rect {
