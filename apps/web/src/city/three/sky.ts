@@ -39,7 +39,8 @@ export function skyAt(hour: number, lat: number, haze: number): SkyState {
   const el = Math.asin(Math.max(-0.4, elev) * Math.sin(0.86));
   // Azimuth: east (90°) at dawn, through the equator side at noon, west at dusk.
   const south = lat >= 0 ? 180 : 0;
-  const az = ((90 + (south === 180 ? 1 : -1) * 180 * Math.max(0, Math.min(1, dayT))) * Math.PI) / 180;
+  const az =
+    ((90 + (south === 180 ? 1 : -1) * 180 * Math.max(0, Math.min(1, dayT))) * Math.PI) / 180;
   // Bearing → three's frame: north is −z, east is +x.
   const sunDir = new THREE.Vector3(
     Math.sin(az) * Math.cos(el),

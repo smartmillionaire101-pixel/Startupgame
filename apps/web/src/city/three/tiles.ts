@@ -28,7 +28,14 @@ interface RawBuilding {
 }
 
 export interface TileSet {
-  update(x: number, y: number, dist: number, scene: THREE.Scene, mat: THREE.Material, look: CityLook): void;
+  update(
+    x: number,
+    y: number,
+    dist: number,
+    scene: THREE.Scene,
+    mat: THREE.Material,
+    look: CityLook,
+  ): void;
 }
 
 export async function loadTiles(marketId: string): Promise<TileSet | null> {

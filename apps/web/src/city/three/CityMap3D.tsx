@@ -14,7 +14,15 @@ import { avatarPosIn, placeAvatarAt, useReducedMotion, type CityMapProps } from 
 import { CATEGORY_COLOR } from '../contract';
 import { OSM_CREDIT } from '../geo';
 import { geoTile } from '../geoLayout';
-import { findPath, nearestStreetPoint, pathLength, pointAlong, travelTiles, type Place, type Pt } from '../layout';
+import {
+  findPath,
+  nearestStreetPoint,
+  pathLength,
+  pointAlong,
+  travelTiles,
+  type Place,
+  type Pt,
+} from '../layout';
 import { playersByPlace } from '../people';
 import { setRiding } from '../riding';
 import { beginRide } from '../ride/state';
@@ -98,7 +106,13 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     if (!canvas || !wrap) return;
     let scene: CityScene;
     try {
-      scene = new CityScene(canvas, layout, { tier: tierOf(), reduced, hour: hourOf(layout.marketId) }, look, walkers);
+      scene = new CityScene(
+        canvas,
+        layout,
+        { tier: tierOf(), reduced, hour: hourOf(layout.marketId) },
+        look,
+        walkers,
+      );
     } catch {
       markWebGLBroken();
       onBroken?.();
@@ -118,9 +132,10 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       onBroken?.();
     };
     canvas.addEventListener('webglcontextlost', lost);
-    setReady(true);
+    const shown = requestAnimationFrame(() => setReady(true));
     cb.current.onArrive?.(pos.current, null);
     return () => {
+      cancelAnimationFrame(shown);
       canvas.removeEventListener('webglcontextlost', lost);
       scene.dispose();
       sceneRef.current = null;
@@ -182,7 +197,12 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   useEffect(() => stopWalk, [stopWalk]);
 
   const walkTo = useCallback(
-    (target: Pt, then?: () => void, placeId: string | null = null, opts: { mode?: RideMode; ask?: boolean } = {}) => {
+    (
+      target: Pt,
+      then?: () => void,
+      placeId: string | null = null,
+      opts: { mode?: RideMode; ask?: boolean } = {},
+    ) => {
       stopWalk();
       pending.current = null;
       setFocus(placeId);
@@ -296,7 +316,8 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   const onPointerDown = (e: React.PointerEvent) => {
     const p = local(e);
     pointers.current.set(e.pointerId, { ...p, button: e.button });
-    if (pointers.current.size === 1) gesture.current = { moved: 0, downX: p.x, downY: p.y, pinch: 0, angle: 0, midY: p.y };
+    if (pointers.current.size === 1)
+      gesture.current = { moved: 0, downX: p.x, downY: p.y, pinch: 0, angle: 0, midY: p.y };
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
       gesture.current.pinch = Math.hypot(a!.x - b!.x, a!.y - b!.y);
@@ -330,8 +351,10 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     }
     g.moved = Math.max(g.moved, Math.hypot(next.x - g.downX, next.y - g.downY));
     if (g.moved > 6) {
-      if (!wrapRef.current?.hasPointerCapture?.(e.pointerId)) wrapRef.current?.setPointerCapture?.(e.pointerId);
-      if (prev.button === 2 || e.shiftKey || e.ctrlKey) s.rotate((next.x - prev.x) * -0.006, (next.y - prev.y) * 0.004);
+      if (!wrapRef.current?.hasPointerCapture?.(e.pointerId))
+        wrapRef.current?.setPointerCapture?.(e.pointerId);
+      if (prev.button === 2 || e.shiftKey || e.ctrlKey)
+        s.rotate((next.x - prev.x) * -0.006, (next.y - prev.y) * 0.004);
       else s.pan(prev.x, prev.y, next.x, next.y);
     }
   };
@@ -371,7 +394,11 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const r = el.getBoundingClientRect();
-      sceneRef.current?.zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
+      sceneRef.current?.zoomAt(
+        Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)),
+        e.clientX - r.left,
+        e.clientY - r.top,
+      );
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -409,8 +436,6 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   // ---- Labels over the canvas.
   const labels = useMemo<Lbl[]>(() => {
     const out: Lbl[] = [];
-    const scene = sceneRef.current;
-    void scene;
     for (const p of layout.places) {
       if (p.kind === 'stall') continue;
       const text = labelOf(p);
@@ -423,14 +448,27 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         y: 0,
         z: 0,
         rank: KEY_KINDS.includes(p.kind) ? 0 : p.kind === 'business' ? 2 : 1,
-        tier: KEY_KINDS.includes(p.kind) ? 'lbl-main' : p.kind === 'business' ? 'lbl-biz' : 'lbl-detail',
+        tier: KEY_KINDS.includes(p.kind)
+          ? 'lbl-main'
+          : p.kind === 'business'
+            ? 'lbl-biz'
+            : 'lbl-detail',
         color: p.category ? CATEGORY_COLOR[p.category] : undefined,
         soon: !!p.soon,
       });
     }
     const stalls = layout.places.filter((p) => p.kind === 'stall');
     if (stalls.length && layout.marketName)
-      out.push({ id: 'market', text: layout.marketName, place: null, x: 0, y: 0, z: 0, rank: 0, tier: 'lbl-main' });
+      out.push({
+        id: 'market',
+        text: layout.marketName,
+        place: null,
+        x: 0,
+        y: 0,
+        z: 0,
+        rank: 0,
+        tier: 'lbl-main',
+      });
     return out;
   }, [layout, labelOf]);
 
@@ -438,38 +476,36 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   const freshSet = useMemo(() => new Set(fresh), [fresh]);
   const flagSet = useMemo(() => new Set(flags), [flags]);
 
-  // Anchor each label on its building's roof (or over the market's stalls).
-  useEffect(() => {
-    const s = sceneRef.current;
-    if (!s) return;
-    const byId = new Map(s.places.map((b) => [b.place.id, b]));
-    const stalls = s.places.filter((b) => b.place.kind === 'stall');
-    for (const l of labels) {
-      if (l.place) {
-        const b = byId.get(l.place.id);
-        if (b) {
-          l.x = b.x;
-          l.y = b.h + 3;
-          l.z = b.y;
-        }
-      } else if (stalls.length) {
-        l.x = stalls.reduce((a, b) => a + b.x, 0) / stalls.length;
-        l.z = stalls.reduce((a, b) => a + b.y, 0) / stalls.length;
-        l.y = 8;
-      }
-    }
-  }, [labels, ready]);
-
   // Place labels and the name tag after each frame, decluttered.
   useEffect(() => {
     const s = sceneRef.current;
     const host = labelsRef.current;
     if (!s || !host) return;
     const els = new Map<string, HTMLElement>();
-    host.querySelectorAll<HTMLElement>('[data-label]').forEach((el) => els.set(el.dataset.label!, el));
+    host
+      .querySelectorAll<HTMLElement>('[data-label]')
+      .forEach((el) => els.set(el.dataset.label!, el));
     const lms = [...host.querySelectorAll<HTMLElement>('[data-landmark]')];
-    const lmPos = lms.map((el) => ({ x: Number(el.dataset.x), y: Number(el.dataset.h), z: Number(el.dataset.z) }));
+    const lmPos = lms.map((el) => ({
+      x: Number(el.dataset.x),
+      y: Number(el.dataset.h),
+      z: Number(el.dataset.z),
+    }));
     const out = { x: 0, y: 0, z: 0 };
+    // Each label sits on its building's roof (the market's over its stalls).
+    const byId = new Map(s.places.map((b) => [b.place.id, b]));
+    const stalls = s.places.filter((b) => b.place.kind === 'stall');
+    const anchor = new Map<string, { x: number; y: number; z: number }>();
+    for (const l of labels) {
+      const b = l.place ? byId.get(l.place.id) : null;
+      if (b) anchor.set(l.id, { x: b.x, y: b.h + 3, z: b.y });
+      else if (!l.place && stalls.length)
+        anchor.set(l.id, {
+          x: stalls.reduce((a, q) => a + q.x, 0) / stalls.length,
+          y: 8,
+          z: stalls.reduce((a, q) => a + q.y, 0) / stalls.length,
+        });
+    }
     const order = [...labels].sort((a, b) => a.rank - b.rank);
     const shown = new Map<HTMLElement, string>();
     const place = () => {
@@ -484,11 +520,20 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         const tierOk = l.rank === 0 || focusOn || (l.rank === 1 ? d < 2600 : d < 1100);
         let vis = false;
         if (tierOk) {
-          s.project(l.x, l.y, l.z, out);
+          const at = anchor.get(l.id);
+          if (at) s.project(at.x, at.y, at.z, out);
+          else out.z = 2;
           if (out.z < 1 && out.x > -60 && out.x < W + 60 && out.y > -20 && out.y < H + 20) {
             const w = el.offsetWidth || l.text.length * 7 + 16;
-            const box: [number, number, number, number] = [out.x - w / 2, out.y - 22, out.x + w / 2, out.y];
-            const hit = boxes.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1]);
+            const box: [number, number, number, number] = [
+              out.x - w / 2,
+              out.y - 22,
+              out.x + w / 2,
+              out.y,
+            ];
+            const hit = boxes.some(
+              (b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1],
+            );
             if (!hit || focusOn || l.rank === 0) {
               vis = true;
               boxes.push(box);
@@ -589,7 +634,11 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
           );
         })}
       </div>
-      <div ref={tagRef} className={`c3-you-tag city-avatar${walking ? (vehicle ? ' is-riding' : ' is-walking') : ''}`} hidden>
+      <div
+        ref={tagRef}
+        className={`c3-you-tag city-avatar${walking ? (vehicle ? ' is-riding' : ' is-walking') : ''}`}
+        hidden
+      >
         <span>{name}</span>
       </div>
       {!ready && <div className="c3-loading">{t('Building the city…')}</div>}

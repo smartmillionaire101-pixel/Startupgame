@@ -31,7 +31,8 @@ export function h3(a: number, b: number, c = 0): number {
   h ^= h >>> 15;
   return (h >>> 0) / 4294967296;
 }
-const pick = <T>(arr: T[], r: number): T => arr[Math.min(arr.length - 1, Math.floor(r * arr.length))]!;
+const pick = <T>(arr: T[], r: number): T =>
+  arr[Math.min(arr.length - 1, Math.floor(r * arr.length))]!;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 const byteCache = new Map<string, [number, number, number]>();
@@ -176,7 +177,17 @@ class Writer {
   col: number[] = [];
   fac: number[] = [];
   hl: number[] = [];
-  vert(x: number, y: number, z: number, c: [number, number, number], u: number, v: number, st: number, seed: number, hl: number) {
+  vert(
+    x: number,
+    y: number,
+    z: number,
+    c: [number, number, number],
+    u: number,
+    v: number,
+    st: number,
+    seed: number,
+    hl: number,
+  ) {
     this.pos.push(x, y, z);
     this.col.push(c[0], c[1], c[2]);
     this.fac.push(u, v, st, seed);
@@ -230,7 +241,11 @@ export function cleanOutline(src: ArrayLike<number>): number[] | null {
     if (n >= 2 && Math.abs(p[n - 2]! - x) < 0.05 && Math.abs(p[n - 1]! - y) < 0.05) continue;
     p.push(x, y);
   }
-  if (p.length >= 4 && Math.abs(p[0]! - p[p.length - 2]!) < 0.05 && Math.abs(p[1]! - p[p.length - 1]!) < 0.05)
+  if (
+    p.length >= 4 &&
+    Math.abs(p[0]! - p[p.length - 2]!) < 0.05 &&
+    Math.abs(p[1]! - p[p.length - 1]!) < 0.05
+  )
     p.length -= 2;
   if (p.length < 6) return null;
   if (signedArea(p) > 0) {
@@ -270,13 +285,25 @@ function extrude(w: Writer, f: Footprint) {
   for (let i = 0; i < n; i++) contour.push(new THREE.Vector2(p[2 * i]!, p[2 * i + 1]!));
   const tris = THREE.ShapeUtils.triangulateShape(contour, []);
   for (const t of tris) {
-    let [a, b, c] = t as [number, number, number];
+    const a = t[0]!;
+    let b = t[1]!;
+    let c = t[2]!;
     const ax = p[2 * a]!;
     const az = p[2 * a + 1]!;
     const cy = (p[2 * b + 1]! - az) * (p[2 * c]! - ax) - (p[2 * b]! - ax) * (p[2 * c + 1]! - az);
     if (cy < 0) [b, c] = [c, b];
     for (const k of [a, b, c])
-      w.vert(p[2 * k]!, f.top, p[2 * k + 1]!, f.roof, p[2 * k]!, p[2 * k + 1]!, 8, f.seed, f.hl ?? 0);
+      w.vert(
+        p[2 * k]!,
+        f.top,
+        p[2 * k + 1]!,
+        f.roof,
+        p[2 * k]!,
+        p[2 * k + 1]!,
+        8,
+        f.seed,
+        f.hl ?? 0,
+      );
   }
 }
 
@@ -338,7 +365,9 @@ function paint(look: CityLook, style: number, r: number, pitched: boolean) {
         : style === 3
           ? pick(look.glass, r)
           : pick(look.walls, r);
-  const roof = pitched ? pick(look.pitchedRoofs, (r * 7.3) % 1) : pick(look.flatRoofs, (r * 5.1) % 1);
+  const roof = pitched
+    ? pick(look.pitchedRoofs, (r * 7.3) % 1)
+    : pick(look.flatRoofs, (r * 5.1) % 1);
   return { wall: bytes(wall), roof: bytes(roof) };
 }
 
@@ -359,11 +388,28 @@ function towerBoxes(out: BoxB[], b: BoxB, look: CityLook, r: number) {
   // Crown: a lantern, a plant room, or a spire.
   const crown = (r * 13.1) % 1;
   if (crown < 0.4)
-    out.push({ ...b, style: 7, y0: H, h: 6, w: b.w * k2 * 0.6, d: b.d * k2 * 0.6, vOff: 0, wall: bytes(pick(look.stone, r)) });
+    out.push({
+      ...b,
+      style: 7,
+      y0: H,
+      h: 6,
+      w: b.w * k2 * 0.6,
+      d: b.d * k2 * 0.6,
+      vOff: 0,
+      wall: bytes(pick(look.stone, r)),
+    });
   else if (crown < 0.7)
-    out.push({ ...b, style: 10, y0: H, h: 4, w: b.w * k2 * 0.45, d: b.d * k2 * 0.5, vOff: 0, roof: bytes('#8f949a') });
-  else
-    out.push({ ...b, style: 10, y0: H, h: 22, w: 1.2, d: 1.2, vOff: 0, roof: bytes('#9aa0a6') });
+    out.push({
+      ...b,
+      style: 10,
+      y0: H,
+      h: 4,
+      w: b.w * k2 * 0.45,
+      d: b.d * k2 * 0.5,
+      vOff: 0,
+      roof: bytes('#8f949a'),
+    });
+  else out.push({ ...b, style: 10, y0: H, h: 22, w: 1.2, d: 1.2, vOff: 0, roof: bytes('#9aa0a6') });
 }
 
 /** Rooftop plant on a flat roof. */
@@ -601,8 +647,10 @@ export class LotMaker {
         const { zone } = this.zoneAt(cx, cy);
         const lotW =
           zone === 2 ? 30 : zone === 1 ? lerp(L.lotW[1], 20, 0.5) : lerp(L.lotW[0], L.lotW[1], 0.5);
-        const lotD = zone === 2 ? 32 : zone === 1 ? Math.max(L.lotD[0], 16) : lerp(L.lotD[0], L.lotD[1], 0.5);
-        const gap = zone === 2 ? 5 : zone === 1 ? Math.max(0.5, L.gap[0]) : lerp(L.gap[0], L.gap[1], 0.5);
+        const lotD =
+          zone === 2 ? 32 : zone === 1 ? Math.max(L.lotD[0], 16) : lerp(L.lotD[0], L.lotD[1], 0.5);
+        const gap =
+          zone === 2 ? 5 : zone === 1 ? Math.max(0.5, L.gap[0]) : lerp(L.gap[0], L.gap[1], 0.5);
         const street = zone === 2 ? 16 : 12;
         const Pv = 2 * lotD + street;
         const Pu = zone === 2 ? 100 : 120;
@@ -679,7 +727,16 @@ export class LotMaker {
   private lot(
     low: BoxB[],
     tall: BoxB[],
-    o: { x: number; y: number; w: number; d: number; rot: number; zone: Zone; r: number; brick: number },
+    o: {
+      x: number;
+      y: number;
+      w: number;
+      d: number;
+      rot: number;
+      zone: Zone;
+      r: number;
+      brick: number;
+    },
   ) {
     const L = this.look;
     const { r, zone } = o;

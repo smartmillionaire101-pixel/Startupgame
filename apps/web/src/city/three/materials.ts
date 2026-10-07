@@ -167,7 +167,12 @@ const FACADE = /* glsl */ `
 `;
 
 /** Patch a standard material into the facade shader. */
-function patch(mat: THREE.MeshStandardMaterial, shared: SharedUniforms, instanced: boolean, lod: Lod) {
+function patch(
+  mat: THREE.MeshStandardMaterial,
+  shared: SharedUniforms,
+  instanced: boolean,
+  lod: Lod,
+) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uNight = shared.uNight;
     sh.uniforms.uTime = shared.uTime;

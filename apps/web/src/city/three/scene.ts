@@ -118,7 +118,16 @@ export class CityScene {
   private size = { w: 1, h: 1 };
   private hour: number;
   private onFrameCbs = new Set<() => void>();
-  readonly stats = { draws: 0, tris: 0, frameMs: 0, buildMs: 0, lots: 0, trees: 0, dpr: 1, bgDone: false };
+  readonly stats = {
+    draws: 0,
+    tris: 0,
+    frameMs: 0,
+    buildMs: 0,
+    lots: 0,
+    trees: 0,
+    dpr: 1,
+    bgDone: false,
+  };
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -177,7 +186,15 @@ export class CityScene {
 
     const plans = this.landmarkPlans();
     const landmarks = buildLandmarks(plans, this.roads);
-    const ground = buildGround(data, this.look, this.mask, this.roads, this.shared, this.sky, this.instMat);
+    const ground = buildGround(
+      data,
+      this.look,
+      this.mask,
+      this.roads,
+      this.shared,
+      this.sky,
+      this.instMat,
+    );
     this.scene.add(ground.group, landmarks);
 
     // Ground cleared for landmarks and the game's places.
@@ -211,7 +228,14 @@ export class CityScene {
       const m = toMetres(a.at);
       centres.push({ x: m.e, y: m.s, r: 1300, w: a.kind === 'finance' ? 0.95 : 0.8 });
     }
-    this.lots = new LotMaker(this.mask, this.roads, this.look, centres, layout.marketId, data.bounds);
+    this.lots = new LotMaker(
+      this.mask,
+      this.roads,
+      this.look,
+      centres,
+      layout.marketId,
+      data.bounds,
+    );
     this.scene.add(this.lowGroup, this.tallGroup);
 
     // Trees.
@@ -224,7 +248,15 @@ export class CityScene {
     this.scene.add(this.lights);
 
     // People and traffic.
-    this.actors = new Actors(this.scene, layout, this.roads, look, walkers, opts.tier, opts.reduced);
+    this.actors = new Actors(
+      this.scene,
+      layout,
+      this.roads,
+      look,
+      walkers,
+      opts.tier,
+      opts.reduced,
+    );
 
     // Start at the avatar.
     const start = toMetres(layout.start);
@@ -288,12 +320,60 @@ export class CityScene {
       const roof = bytes(spec.roof ?? '#bdb9b1');
       if (p.kind === 'stall') {
         // A market stall: a counter and a striped awning.
-        boxes.push({ x: cx, y: cy, w, d, h: 1.1, y0: 0, rot, style: 7, wall: bytes('#8a6a4a'), roof: bytes('#8a6a4a'), seed: r, vOff: 0, roofType: 0 });
-        boxes.push({ x: cx, y: cy, w: w + 0.6, d: d + 0.6, h: 0.5, y0: 2.5, rot, style: 7, wall: bytes(p.color), roof: bytes(p.color), seed: r, vOff: 0, roofType: 1 });
+        boxes.push({
+          x: cx,
+          y: cy,
+          w,
+          d,
+          h: 1.1,
+          y0: 0,
+          rot,
+          style: 7,
+          wall: bytes('#8a6a4a'),
+          roof: bytes('#8a6a4a'),
+          seed: r,
+          vOff: 0,
+          roofType: 0,
+        });
+        boxes.push({
+          x: cx,
+          y: cy,
+          w: w + 0.6,
+          d: d + 0.6,
+          h: 0.5,
+          y0: 2.5,
+          rot,
+          style: 7,
+          wall: bytes(p.color),
+          roof: bytes(p.color),
+          seed: r,
+          vOff: 0,
+          roofType: 1,
+        });
       } else {
-        fps.push({ p: outline, base: 0, top: spec.h, vOff: 0, style: spec.style, wall, roof, seed: r, hl: 1 });
+        fps.push({
+          p: outline,
+          base: 0,
+          top: spec.h,
+          vOff: 0,
+          style: spec.style,
+          wall,
+          roof,
+          seed: r,
+          hl: 1,
+        });
         // A coloured band at the top: the brand.
-        fps.push({ p: outline, base: spec.h, top: spec.h + 1.4, vOff: 0, style: 12, wall: bytes(p.accent || p.color), roof, seed: r, hl: 1 });
+        fps.push({
+          p: outline,
+          base: spec.h,
+          top: spec.h + 1.4,
+          vOff: 0,
+          style: 12,
+          wall: bytes(p.accent || p.color),
+          roof,
+          seed: r,
+          hl: 1,
+        });
       }
       this.places.push({ place: p, x: cx, y: cy, w, d, h: spec.h + 1.4, rot });
     }
@@ -307,13 +387,15 @@ export class CityScene {
     const [bx0, by0, bx1, by1] = this.geo.data.bounds;
     const list: [number, number][] = [];
     for (let cj = Math.floor(by0 / CHUNK); cj <= Math.floor(by1 / CHUNK); cj++)
-      for (let ci = Math.floor(bx0 / CHUNK); ci <= Math.floor(bx1 / CHUNK); ci++) list.push([ci, cj]);
+      for (let ci = Math.floor(bx0 / CHUNK); ci <= Math.floor(bx1 / CHUNK); ci++)
+        list.push([ci, cj]);
     // Nearest first.
     const cx = this.rig.x;
     const cy = this.rig.y;
     list.sort(
       (a, b) =>
-        Math.hypot(a[0] * CHUNK - cx, a[1] * CHUNK - cy) - Math.hypot(b[0] * CHUNK - cx, b[1] * CHUNK - cy),
+        Math.hypot(a[0] * CHUNK - cx, a[1] * CHUNK - cy) -
+        Math.hypot(b[0] * CHUNK - cx, b[1] * CHUNK - cy),
     );
     const SUPER = 2400;
     const groups = new Map<string, BoxB[]>();
@@ -344,7 +426,8 @@ export class CityScene {
         setTimeout(step, 0);
         return;
       }
-      for (const boxes of groups.values()) for (const m of boxMeshes(boxes, this.instMat)) this.tallGroup.add(m);
+      for (const boxes of groups.values())
+        for (const m of boxMeshes(boxes, this.instMat)) this.tallGroup.add(m);
       // A budget for the far city: thinned evenly beyond it (the haze hides the gaps).
       const budget = this.opts.tier === 'high' ? 70000 : 32000;
       let total = 0;
@@ -367,10 +450,18 @@ export class CityScene {
   /** Low-rise lots near the camera: made when they come near, dropped when far. */
   private updateChunks() {
     if (this.tiles) {
-      this.tiles.update(this.rig.x, this.rig.y, this.rig.dist, this.scene, this.mergedMat, this.look);
+      this.tiles.update(
+        this.rig.x,
+        this.rig.y,
+        this.rig.dist,
+        this.scene,
+        this.mergedMat,
+        this.look,
+      );
       return;
     }
-    const R = (this.opts.tier === 'high' ? 1 : 0.7) * Math.min(2200, Math.max(900, this.rig.dist * 1.8));
+    const R =
+      (this.opts.tier === 'high' ? 1 : 0.7) * Math.min(2200, Math.max(900, this.rig.dist * 1.8));
     const show = this.rig.dist < 6000;
     this.detailR = show ? R : 0;
     this.shared.uDetail.value.set(this.rig.x, this.rig.y, this.detailR);
@@ -432,7 +523,11 @@ export class CityScene {
         const sg = (n++ & 1) * 2 - 1;
         const t = d / L;
         const h = s.ha + (s.hb - s.ha) * t;
-        pts.push(s.ax + (s.bx - s.ax) * t + nx * half * sg, h + 7, s.ay + (s.by - s.ay) * t + ny * half * sg);
+        pts.push(
+          s.ax + (s.bx - s.ax) * t + nx * half * sg,
+          h + 7,
+          s.ay + (s.by - s.ay) * t + ny * half * sg,
+        );
       }
       if (pts.length > 3 * 60000) break;
     }
@@ -641,7 +736,12 @@ export class CityScene {
       const dx = d.x * c - d.z * s;
       const dz = d.x * s + d.z * c;
       const pad = Math.max(2, this.rig.dist * 0.01);
-      const t = slab([lx, o.y, lz], [dx, d.y, dz], [-b.w / 2 - pad, -1, -b.d / 2 - pad], [b.w / 2 + pad, b.h + pad, b.d / 2 + pad]);
+      const t = slab(
+        [lx, o.y, lz],
+        [dx, d.y, dz],
+        [-b.w / 2 - pad, -1, -b.d / 2 - pad],
+        [b.w / 2 + pad, b.h + pad, b.d / 2 + pad],
+      );
       if (t !== null && t < bt) {
         bt = t;
         best = b.place;
@@ -701,7 +801,10 @@ export class CityScene {
     this.dirty = false;
     // Chunks near the camera.
     const lc = this.lastChunkAt;
-    if (Math.hypot(lc.x - this.rig.x, lc.y - this.rig.y) > 150 || Math.abs(lc.d - this.rig.dist) / (lc.d || 1) > 0.25) {
+    if (
+      Math.hypot(lc.x - this.rig.x, lc.y - this.rig.y) > 150 ||
+      Math.abs(lc.d - this.rig.dist) / (lc.d || 1) > 0.25
+    ) {
       this.lastChunkAt = { x: this.rig.x, y: this.rig.y, d: this.rig.dist };
       this.updateChunks();
     }
@@ -797,7 +900,14 @@ function slab(o: number[], d: number[], lo: number[], hi: number[]): number | nu
 }
 
 /** How each kind of game place stands in 3D (metres). */
-function placeSpec(p: Place): { w: number; d: number; h: number; style: number; wall?: string; roof?: string } {
+function placeSpec(p: Place): {
+  w: number;
+  d: number;
+  h: number;
+  style: number;
+  wall?: string;
+  roof?: string;
+} {
   const W = (k: number, max = 40) => Math.min(max, Math.max(8, p.w * 30 * k));
   const D = (k: number, max = 40) => Math.min(max, Math.max(8, p.d * 30 * k));
   switch (p.kind) {

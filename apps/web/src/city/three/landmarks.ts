@@ -11,7 +11,10 @@ import * as THREE from 'three';
 import type { RoadIndex } from './roads';
 
 const matCache = new Map<string, THREE.MeshStandardMaterial>();
-function mat(color: string, o: { rough?: number; metal?: number; emissive?: string; side?: THREE.Side } = {}) {
+function mat(
+  color: string,
+  o: { rough?: number; metal?: number; emissive?: string; side?: THREE.Side } = {},
+) {
   const k = `${color}|${o.rough}|${o.metal}|${o.emissive}|${o.side}`;
   let m = matCache.get(k);
   if (!m) {
@@ -37,7 +40,8 @@ function add(g: THREE.Object3D, geo: THREE.BufferGeometry, m: THREE.Material, x 
   g.add(o);
   return o;
 }
-const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0);
+const box = (w: number, h: number, d: number) =>
+  new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0);
 const cyl = (rt: number, rb: number, h: number, n = 16) =>
   new THREE.CylinderGeometry(rt, rb, h, n).translate(0, h / 2, 0);
 function lathe(profile: [number, number][], n = 24) {
@@ -76,7 +80,15 @@ const at = (s: Span, t: number) => ({ x: s.ax + (s.bx - s.ax) * t, y: s.ay + (s.
 /** A suspension bridge: towers, main cables, suspenders (the deck is the road's). */
 function suspension(
   s: Span,
-  o: { color: string; deck: number; towerH: number; towers: number[]; anchors?: number[]; legs: number; portals: number },
+  o: {
+    color: string;
+    deck: number;
+    towerH: number;
+    towers: number[];
+    anchors?: number[];
+    legs: number;
+    portals: number;
+  },
 ) {
   const g = new THREE.Group();
   const L = Math.hypot(s.bx - s.ax, s.by - s.ay);
@@ -168,7 +180,14 @@ function cableStayed(s: Span, o: { color: string; deck: number; pylons: [number,
     for (let k = 1; k <= 10; k++) {
       for (const sg of [-1, 1]) {
         const d = (reach * k) / 10;
-        stays.push(p.x, o.deck + H * (0.55 + 0.04 * k), p.y, p.x + dx * d * sg, o.deck + 1, p.y + dy * d * sg);
+        stays.push(
+          p.x,
+          o.deck + H * (0.55 + 0.04 * k),
+          p.y,
+          p.x + dx * d * sg,
+          o.deck + 1,
+          p.y + dy * d * sg,
+        );
       }
     }
   }
@@ -191,7 +210,14 @@ function towerBridge(s: Span) {
     tw.rotation.y = yaw;
     add(tw, box(18, 8, 26), mat('#a49c8a'), 0, -4, 0);
     add(tw, box(16, 52, 16), stone, 0, 0, 0);
-    add(tw, new THREE.ConeGeometry(9, 12, 4).rotateY(Math.PI / 4).translate(0, 6, 0), slate, 0, 52, 0);
+    add(
+      tw,
+      new THREE.ConeGeometry(9, 12, 4).rotateY(Math.PI / 4).translate(0, 6, 0),
+      slate,
+      0,
+      52,
+      0,
+    );
     for (const a of [-1, 1])
       for (const b of [-1, 1]) {
         add(tw, cyl(1.6, 1.6, 6, 8), stone, a * 7, 52, b * 7);
@@ -222,7 +248,8 @@ function towerBridge(s: Span) {
       for (let i = 0; i < n; i++) {
         const u0 = i / n;
         const u1 = (i + 1) / n;
-        const y = (u: number) => (t0 < 0.5 ? 10 + u * 34 - 8 * u * (1 - u) : 44 - u * 34 - 8 * u * (1 - u));
+        const y = (u: number) =>
+          t0 < 0.5 ? 10 + u * 34 - 8 * u * (1 - u) : 44 - u * 34 - 8 * u * (1 - u);
         const p0 = at(s, t0 + (t1 - t0) * u0);
         const p1 = at(s, t0 + (t1 - t0) * u1);
         chain.push(p0.x + nx * sg, y(u0), p0.y + ny * sg, p1.x + nx * sg, y(u1), p1.y + ny * sg);
@@ -239,15 +266,38 @@ function model(kind: string, name: string): THREE.Group | null {
   const g = new THREE.Group();
   switch (kind) {
     case 'transamerica': {
-      add(g, new THREE.CylinderGeometry(1.5, 26, 212, 4, 1).rotateY(Math.PI / 4).translate(0, 106, 0), mat('#ece8e0', { rough: 0.6 }));
+      add(
+        g,
+        new THREE.CylinderGeometry(1.5, 26, 212, 4, 1).rotateY(Math.PI / 4).translate(0, 106, 0),
+        mat('#ece8e0', { rough: 0.6 }),
+      );
       // The "wings" (lift and stair towers) and the spire.
       add(g, box(9, 160, 6).translate(0, 0, 0), mat('#e2ddd3'), 0, 0, -14);
       add(g, box(9, 160, 6), mat('#e2ddd3'), 0, 0, 14);
-      add(g, new THREE.CylinderGeometry(0.2, 3.5, 48, 4).rotateY(Math.PI / 4).translate(0, 236, 0), mat('#f2efe8'));
+      add(
+        g,
+        new THREE.CylinderGeometry(0.2, 3.5, 48, 4).rotateY(Math.PI / 4).translate(0, 236, 0),
+        mat('#f2efe8'),
+      );
       return g;
     }
     case 'salesforce': {
-      add(g, lathe([[0, 0], [24, 0], [23.5, 120], [21, 240], [17, 300], [15.5, 326], [0, 326]], 28), GLASS('#b7c6d1'));
+      add(
+        g,
+        lathe(
+          [
+            [0, 0],
+            [24, 0],
+            [23.5, 120],
+            [21, 240],
+            [17, 300],
+            [15.5, 326],
+            [0, 326],
+          ],
+          28,
+        ),
+        GLASS('#b7c6d1'),
+      );
       add(g, cyl(15.8, 16.6, 30, 28), mat('#dfe5ea', { rough: 0.35, metal: 0.4 }), 0, 296, 0);
       return g;
     }
@@ -263,7 +313,22 @@ function model(kind: string, name: string): THREE.Group | null {
       return g;
     }
     case 'gherkin': {
-      add(g, lathe([[0, 0], [24, 0], [28, 50], [27, 100], [20, 150], [9, 175], [0, 180]], 24), GLASS('#3e6670'));
+      add(
+        g,
+        lathe(
+          [
+            [0, 0],
+            [24, 0],
+            [28, 50],
+            [27, 100],
+            [20, 150],
+            [9, 175],
+            [0, 180],
+          ],
+          24,
+        ),
+        GLASS('#3e6670'),
+      );
       return g;
     }
     case 'big-ben': {
@@ -275,11 +340,32 @@ function model(kind: string, name: string): THREE.Group | null {
         [7.05, 0, Math.PI / 2],
         [-7.05, 0, -Math.PI / 2],
       ] as const) {
-        const face = add(g, new THREE.CircleGeometry(5, 20), mat('#f3ecd2', { emissive: '#000000' }), x, 70, z);
+        const face = add(
+          g,
+          new THREE.CircleGeometry(5, 20),
+          mat('#f3ecd2', { emissive: '#000000' }),
+          x,
+          70,
+          z,
+        );
         face.rotation.y = ry;
       }
-      add(g, new THREE.ConeGeometry(9, 18, 4).rotateY(Math.PI / 4).translate(0, 9, 0), mat('#5a6152'), 0, 78, 0);
-      add(g, new THREE.ConeGeometry(1.5, 10, 6).translate(0, 5, 0), mat('#c9a948', { metal: 0.6, rough: 0.4 }), 0, 95, 0);
+      add(
+        g,
+        new THREE.ConeGeometry(9, 18, 4).rotateY(Math.PI / 4).translate(0, 9, 0),
+        mat('#5a6152'),
+        0,
+        78,
+        0,
+      );
+      add(
+        g,
+        new THREE.ConeGeometry(1.5, 10, 6).translate(0, 5, 0),
+        mat('#c9a948', { metal: 0.6, rough: 0.4 }),
+        0,
+        95,
+        0,
+      );
       return g;
     }
     case 'london-eye': {
@@ -292,7 +378,10 @@ function model(kind: string, name: string): THREE.Group | null {
       for (let k = 0; k < 32; k++) {
         const a = (k / 32) * Math.PI * 2;
         spokes.push(0, 0, 0, Math.cos(a) * 60, Math.sin(a) * 60, 0);
-        const pod = new THREE.Mesh(new THREE.CapsuleGeometry(1.8, 3.5, 3, 8).rotateZ(Math.PI / 2), GLASS('#dfe8ee'));
+        const pod = new THREE.Mesh(
+          new THREE.CapsuleGeometry(1.8, 3.5, 3, 8).rotateZ(Math.PI / 2),
+          GLASS('#dfe8ee'),
+        );
         pod.position.set(Math.cos(a) * 62, Math.sin(a) * 62, 0);
         wheel.add(pod);
       }
@@ -322,11 +411,25 @@ function model(kind: string, name: string): THREE.Group | null {
         // A three-lobed plan: three overlapping cylinders.
         for (let k = 0; k < 3; k++) {
           const a = (k / 3) * Math.PI * 2;
-          add(g, cyl(r! * 0.55, r! * 0.6, y1! - y0!, 10), steel, Math.cos(a) * r! * 0.5, y0!, Math.sin(a) * r! * 0.5);
+          add(
+            g,
+            cyl(r! * 0.55, r! * 0.6, y1! - y0!, 10),
+            steel,
+            Math.cos(a) * r! * 0.5,
+            y0!,
+            Math.sin(a) * r! * 0.5,
+          );
         }
         add(g, cyl(r! * 0.55, r! * 0.6, y1! - y0!, 12), steel, 0, y0!, 0);
       }
-      add(g, new THREE.CylinderGeometry(0.6, 4.5, 148, 8).translate(0, 74, 0), mat('#dfe4e8', { metal: 0.6, rough: 0.3 }), 0, 680, 0);
+      add(
+        g,
+        new THREE.CylinderGeometry(0.6, 4.5, 148, 8).translate(0, 74, 0),
+        mat('#dfe4e8', { metal: 0.6, rough: 0.3 }),
+        0,
+        680,
+        0,
+      );
       return g;
     }
     case 'burj-al-arab': {
@@ -336,7 +439,11 @@ function model(kind: string, name: string): THREE.Group | null {
       shape.lineTo(60, 0);
       shape.quadraticCurveTo(52, 170, 6, 300);
       shape.lineTo(0, 300);
-      const geo = new THREE.ExtrudeGeometry(shape, { depth: 36, bevelEnabled: false, curveSegments: 12 });
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: 36,
+        bevelEnabled: false,
+        curveSegments: 12,
+      });
       geo.translate(-20, 0, -18);
       add(g, geo, mat('#f4f4f2', { rough: 0.5 }));
       add(g, box(4, 321, 4), mat('#e2e4e6', { metal: 0.4 }), -22, 0, 0);
@@ -346,7 +453,23 @@ function model(kind: string, name: string): THREE.Group | null {
     }
     case 'cairo-tower': {
       const c = mat('#c79a6a', { rough: 0.9 });
-      add(g, lathe([[0, 0], [9, 0], [7, 20], [6.5, 140], [9, 160], [12, 172], [11, 180], [0, 182]], 16), c);
+      add(
+        g,
+        lathe(
+          [
+            [0, 0],
+            [9, 0],
+            [7, 20],
+            [6.5, 140],
+            [9, 160],
+            [12, 172],
+            [11, 180],
+            [0, 182],
+          ],
+          16,
+        ),
+        c,
+      );
       add(g, cyl(0.3, 0.6, 10, 6), mat('#9ca3af'), 0, 182, 0);
       return g;
     }
@@ -362,17 +485,45 @@ function model(kind: string, name: string): THREE.Group | null {
       const c = mat('#c4a174', { rough: 0.85 });
       add(g, cyl(12, 12, 98, 20), c, 0, 0, 0);
       add(g, new THREE.ConeGeometry(17, 9, 20).translate(0, 4.5, 0), mat('#7f6a4f'), 0, 98, 0);
-      add(g, new THREE.SphereGeometry(22, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat('#9c5b34'), 45, 0, 10);
+      add(
+        g,
+        new THREE.SphereGeometry(22, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+        mat('#9c5b34'),
+        45,
+        0,
+        10,
+      );
       return g;
     }
     case 'dome': {
-      add(g, lathe([[0, 0], [34, 0], [33, 20], [26, 40], [15, 55], [0, 62]], 28), mat('#d6dbe0', { rough: 0.2, metal: 0.7, emissive: '#000000' }));
+      add(
+        g,
+        lathe(
+          [
+            [0, 0],
+            [34, 0],
+            [33, 20],
+            [26, 40],
+            [15, 55],
+            [0, 62],
+          ],
+          28,
+        ),
+        mat('#d6dbe0', { rough: 0.2, metal: 0.7, emissive: '#000000' }),
+      );
       add(g, box(120, 22, 60), mat('#e8e5df'), 70, 0, 0);
       return g;
     }
     case 'cotton-tree': {
       add(g, cyl(2.5, 4, 22, 8), mat('#6b5a45', { rough: 1 }));
-      const crown = add(g, new THREE.IcosahedronGeometry(24, 1), mat('#3f6b2a', { rough: 1 }), 0, 30, 0);
+      const crown = add(
+        g,
+        new THREE.IcosahedronGeometry(24, 1),
+        mat('#3f6b2a', { rough: 1 }),
+        0,
+        30,
+        0,
+      );
       crown.scale.set(1.3, 0.55, 1.2);
       return g;
     }
@@ -388,12 +539,26 @@ function model(kind: string, name: string): THREE.Group | null {
         if (k) star.lineTo(Math.cos(a) * r, Math.sin(a) * r);
         else star.moveTo(Math.cos(a) * r, Math.sin(a) * r);
       }
-      add(g, new THREE.ExtrudeGeometry(star, { depth: 1.5, bevelEnabled: false }), mat('#111111'), 0, 30.5, 4.3);
+      add(
+        g,
+        new THREE.ExtrudeGeometry(star, { depth: 1.5, bevelEnabled: false }),
+        mat('#111111'),
+        0,
+        30.5,
+        4.3,
+      );
       return g;
     }
     case 'lighthouse': {
       for (let k = 0; k < 5; k++)
-        add(g, cyl(3.2 - k * 0.3, 3.5 - k * 0.3, 5, 12), mat(k % 2 ? '#c8102e' : '#f5f5f5'), 0, k * 5, 0);
+        add(
+          g,
+          cyl(3.2 - k * 0.3, 3.5 - k * 0.3, 5, 12),
+          mat(k % 2 ? '#c8102e' : '#f5f5f5'),
+          0,
+          k * 5,
+          0,
+        );
       add(g, cyl(2.4, 2.4, 3, 12), mat('#fde68a', { emissive: '#b45309' }), 0, 25, 0);
       add(g, new THREE.ConeGeometry(2.8, 3, 12).translate(0, 1.5, 0), mat('#1f2937'), 0, 28, 0);
       return g;
@@ -401,7 +566,14 @@ function model(kind: string, name: string): THREE.Group | null {
     case 'minaret': {
       const c = mat('#d9c39b');
       add(g, box(30, 14, 30), c);
-      add(g, new THREE.SphereGeometry(10, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat('#c8b48a'), 0, 14, 0);
+      add(
+        g,
+        new THREE.SphereGeometry(10, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+        mat('#c8b48a'),
+        0,
+        14,
+        0,
+      );
       add(g, cyl(2.4, 3, 48, 8), c, 18, 0, 18);
       add(g, cyl(3.4, 3.4, 2, 8), c, 18, 34, 18);
       add(g, new THREE.ConeGeometry(2.4, 6, 8).translate(0, 3, 0), c, 18, 48, 18);
@@ -410,18 +582,36 @@ function model(kind: string, name: string): THREE.Group | null {
     case 'theatre': {
       add(g, cyl(58, 62, 22, 32), mat('#d9d2c2'));
       // The "military cap" roof, with its ribs.
-      add(g, new THREE.CylinderGeometry(20, 64, 14, 32, 1).translate(0, 7, 0), mat('#8b9096', { metal: 0.3 }), 0, 22, 0);
+      add(
+        g,
+        new THREE.CylinderGeometry(20, 64, 14, 32, 1).translate(0, 7, 0),
+        mat('#8b9096', { metal: 0.3 }),
+        0,
+        22,
+        0,
+      );
       return g;
     }
     case 'pyramid': {
-      add(g, new THREE.ConeGeometry(160, 139, 4).rotateY(Math.PI / 4).translate(0, 69.5, 0), mat('#d6b77f', { rough: 1 }));
+      add(
+        g,
+        new THREE.ConeGeometry(160, 139, 4).rotateY(Math.PI / 4).translate(0, 69.5, 0),
+        mat('#d6b77f', { rough: 1 }),
+      );
       return g;
     }
     case 'painted-ladies': {
       const cols = ['#f4c6cf', '#bfe0d3', '#f6e3a4', '#c9d8f2', '#e2d2f2', '#f6d2b5', '#f1f5f9'];
       cols.forEach((c, k) => {
         add(g, box(7.6, 11, 16), mat(c), k * 8.2 - 25, 0, 0);
-        add(g, new THREE.ConeGeometry(5.6, 5, 4).rotateY(Math.PI / 4).translate(0, 2.5, 0), mat('#5b6168'), k * 8.2 - 25, 11, 2);
+        add(
+          g,
+          new THREE.ConeGeometry(5.6, 5, 4).rotateY(Math.PI / 4).translate(0, 2.5, 0),
+          mat('#5b6168'),
+          k * 8.2 - 25,
+          11,
+          2,
+        );
       });
       return g;
     }
@@ -465,7 +655,14 @@ export function buildLandmarks(plans: LandmarkPlan[], roads: RoadIndex): THREE.G
       const s: Span = { ax: p.e, ay: p.s, bx: p.e2, by: p.s2 };
       const deck = deckFor(p) ?? 12;
       if (p.kind === 'suspension' && /Golden Gate/i.test(p.name))
-        g = suspension(s, { color: '#c0362c', deck, towerH: 160, towers: [0.28, 0.72], legs: 10, portals: 4 });
+        g = suspension(s, {
+          color: '#c0362c',
+          deck,
+          towerH: 160,
+          towers: [0.28, 0.72],
+          legs: 10,
+          portals: 4,
+        });
       else if (p.kind === 'suspension')
         g = suspension(s, {
           color: p.color ?? '#9ca3af',
@@ -479,7 +676,12 @@ export function buildLandmarks(plans: LandmarkPlan[], roads: RoadIndex): THREE.G
         g = cableStayed(s, {
           color: p.color ?? '#f1f5f9',
           deck,
-          pylons: /Mandela/i.test(p.name) ? [[0.35, 42], [0.7, 28]] : [[0.5, 85]],
+          pylons: /Mandela/i.test(p.name)
+            ? [
+                [0.35, 42],
+                [0.7, 28],
+              ]
+            : [[0.5, 85]],
         });
       else if (p.kind === 'bascule') g = towerBridge(s);
       if (g) {

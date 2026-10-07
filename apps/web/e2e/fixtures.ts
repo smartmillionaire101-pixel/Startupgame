@@ -23,6 +23,10 @@ export async function withoutNetlifyDrawer(page: Page) {
   await page.addInitScript(() => {
     try {
       localStorage.setItem('runway.skipRides', '1');
+      // Wave 9: specs about other things use the Lite (2D) map; map3d.spec.ts
+      // turns the WebGL city back on (software WebGL is slow in CI).
+      if (!localStorage.getItem('runway.mapQuality'))
+        localStorage.setItem('runway.mapQuality', 'lite');
     } catch {
       /* storage blocked: rides play */
     }

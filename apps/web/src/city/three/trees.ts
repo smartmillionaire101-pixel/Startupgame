@@ -16,7 +16,12 @@ export interface TreeSpot {
   c: number;
 }
 
-export function treeSpots(data: GeoData, look: CityLook, mask: GroundMask, max: number): TreeSpot[] {
+export function treeSpots(
+  data: GeoData,
+  look: CityLook,
+  mask: GroundMask,
+  max: number,
+): TreeSpot[] {
   const out: TreeSpot[] = [];
   const [bx0, by0, bx1, by1] = data.bounds;
   // Parks: a jittered grid.
@@ -28,7 +33,8 @@ export function treeSpots(data: GeoData, look: CityLook, mask: GroundMask, max: 
       if (r > 0.62) continue;
       const px = x + (h3(Math.round(x), Math.round(y), 32) - 0.5) * step;
       const py = y + (h3(Math.round(x), Math.round(y), 33) - 0.5) * step;
-      if (mask.coverAt(px, py) !== COVER.park || mask.roadAt(px, py) || mask.builtAt(px, py)) continue;
+      if (mask.coverAt(px, py) !== COVER.park || mask.roadAt(px, py) || mask.builtAt(px, py))
+        continue;
       parks.push({ x: px, y: py, s: 0.75 + r * 0.7, c: r });
     }
   // Streets: both sides of the smaller roads, on the pavement.
@@ -125,13 +131,21 @@ function merge(parts: THREE.BufferGeometry[]) {
 }
 
 /** Instanced trees, in chunks so that off-screen ones are skipped. */
-export function treeMeshes(spots: TreeSpot[], look: CityLook, shadows: boolean, chunk = 2500): THREE.Group {
+export function treeMeshes(
+  spots: TreeSpot[],
+  look: CityLook,
+  shadows: boolean,
+  chunk = 2500,
+): THREE.Group {
   const group = new THREE.Group();
   const trunkH = look.tree === 'palm' ? 9 : look.tree === 'cypress' ? 3.5 : 4.5;
   const trunk = new THREE.CylinderGeometry(look.tree === 'palm' ? 0.2 : 0.22, 0.32, trunkH, 5);
   trunk.translate(0, trunkH / 2, 0);
   const crown = crownGeometry(look.tree);
-  const trunkMat = new THREE.MeshStandardMaterial({ color: look.tree === 'palm' ? '#8a7356' : '#5a4632', roughness: 1 });
+  const trunkMat = new THREE.MeshStandardMaterial({
+    color: look.tree === 'palm' ? '#8a7356' : '#5a4632',
+    roughness: 1,
+  });
   const crownMat = new THREE.MeshStandardMaterial({
     color: '#ffffff',
     roughness: 0.95,

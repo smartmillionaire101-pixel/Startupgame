@@ -157,7 +157,13 @@ export class RoadIndex {
     this.addLine(l, 0, h);
   }
 
-  private near(grid: Map<number, number[]>, x: number, y: number, r: number, cb: (n: number) => void) {
+  private near(
+    grid: Map<number, number[]>,
+    x: number,
+    y: number,
+    r: number,
+    cb: (n: number) => void,
+  ) {
     const i0 = Math.floor((x - r) / CELL);
     const i1 = Math.floor((x + r) / CELL);
     const j0 = Math.floor((y - r) / CELL);
@@ -170,7 +176,12 @@ export class RoadIndex {
   }
 
   /** The nearest road segment within r: its direction (radians) and distance. */
-  nearest(x: number, y: number, r: number, maxClass = 5): { angle: number; d: number; c: number } | null {
+  nearest(
+    x: number,
+    y: number,
+    r: number,
+    maxClass = 5,
+  ): { angle: number; d: number; c: number } | null {
     let best: { angle: number; d: number; c: number } | null = null;
     this.near(this.grid, x, y, r, (n) => {
       const s = this.segs[n]!;

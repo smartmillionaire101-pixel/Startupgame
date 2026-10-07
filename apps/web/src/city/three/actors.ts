@@ -30,7 +30,17 @@ const FLEET: Record<string, { taxi: string; bus: string; double?: boolean }> = {
   cairo: { taxi: '#f5f5f4', bus: '#e9e4d8' },
   dubai: { taxi: '#d9c3a0', bus: '#e9e4d8' },
 };
-const CARS = ['#f4f4f2', '#c9cdd1', '#8f969d', '#2b2f36', '#1f3a5f', '#7a1f1f', '#e9e6df', '#4a4f55', '#b9bec4'];
+const CARS = [
+  '#f4f4f2',
+  '#c9cdd1',
+  '#8f969d',
+  '#2b2f36',
+  '#1f3a5f',
+  '#7a1f1f',
+  '#e9e6df',
+  '#4a4f55',
+  '#b9bec4',
+];
 
 interface Car {
   pts: Float32Array;
@@ -85,7 +95,9 @@ export class Actors {
     const fleet = FLEET[layout.marketId] ?? { taxi: '#f2c230', bus: '#e9e4d8' };
     const want = tier === 'high' ? 220 : 90;
     const lines = [...this.roads.lines].sort(
-      (a, b) => h3(Math.round(a.l[0]!), Math.round(a.l[1]!), 3) - h3(Math.round(b.l[0]!), Math.round(b.l[1]!), 3),
+      (a, b) =>
+        h3(Math.round(a.l[0]!), Math.round(a.l[1]!), 3) -
+        h3(Math.round(b.l[0]!), Math.round(b.l[1]!), 3),
     );
     // The game's own traffic first (its routes), then the main roads.
     for (const v of layout.vehicles) {
@@ -112,7 +124,11 @@ export class Actors {
     const busGeo = new THREE.BoxGeometry(11, 2.6, 2.5).translate(0, 1.6, 0);
     const bandGeo = new THREE.BoxGeometry(10.4, 0.8, 2.54).translate(0, 2.15, 0);
     const paint = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.5 });
-    const glass = new THREE.MeshStandardMaterial({ color: '#1c242c', roughness: 0.15, metalness: 0.8 });
+    const glass = new THREE.MeshStandardMaterial({
+      color: '#1c242c',
+      roughness: 0.15,
+      metalness: 0.8,
+    });
     this.carBody = new THREE.InstancedMesh(carGeo, paint, Math.max(1, n - nb));
     this.carCab = new THREE.InstancedMesh(cabGeo, glass, Math.max(1, n - nb));
     this.busBody = new THREE.InstancedMesh(busGeo, paint.clone(), Math.max(1, nb));
@@ -207,7 +223,8 @@ export class Actors {
     this.avatar.root.visible = true;
     if (!spec) return;
     const g = new THREE.Group();
-    const mat = (c: string, r = 0.4, m = 0.4) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
+    const mat = (c: string, r = 0.4, m = 0.4) =>
+      new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
     const box = (w: number, h: number, d: number, y: number, c: THREE.Material, z = 0) => {
       const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d).translate(0, y + h / 2, z), c);
       o.castShadow = true;
@@ -297,7 +314,8 @@ export class Actors {
         this.carCab.setMatrixAt(ci++, _m);
       }
     }
-    for (const m of [this.carBody, this.carCab, this.busBody, this.busBand]) m.instanceMatrix.needsUpdate = true;
+    for (const m of [this.carBody, this.carCab, this.busBody, this.busBand])
+      m.instanceMatrix.needsUpdate = true;
     return this.walking;
   }
 

@@ -74,7 +74,14 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
   const top = charMaterial(look.top, 0.85);
   const bottom = charMaterial(look.bottom, 0.85);
   const shoe = charMaterial('#26221f', 0.6);
-  const mesh = (geo: THREE.BufferGeometry, m: THREE.Material, parent: THREE.Object3D, x = 0, y = 0, z = 0) => {
+  const mesh = (
+    geo: THREE.BufferGeometry,
+    m: THREE.Material,
+    parent: THREE.Object3D,
+    x = 0,
+    y = 0,
+    z = 0,
+  ) => {
     const o = new THREE.Mesh(geo, m);
     o.position.set(x, y, z);
     o.castShadow = true;

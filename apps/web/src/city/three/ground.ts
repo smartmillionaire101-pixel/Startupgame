@@ -50,12 +50,15 @@ function polyGeometry(polys: number[][], y = 0, minArea = 0): THREE.BufferGeomet
     if (p.length < 6) continue;
     const contour: THREE.Vector2[] = [];
     for (let i = 0; i + 1 < p.length; i += 2) contour.push(new THREE.Vector2(p[i]!, p[i + 1]!));
-    if (contour.length > 3 && contour[0]!.distanceTo(contour[contour.length - 1]!) < 0.01) contour.pop();
+    if (contour.length > 3 && contour[0]!.distanceTo(contour[contour.length - 1]!) < 0.01)
+      contour.pop();
     if (contour.length < 3) continue;
     if (minArea && Math.abs(THREE.ShapeUtils.area(contour)) < minArea) continue;
     const tris = THREE.ShapeUtils.triangulateShape(contour, []);
     for (const t of tris) {
-      let [a, b, c] = t as [number, number, number];
+      const a = t[0]!;
+      let b = t[1]!;
+      let c = t[2]!;
       const A = contour[a]!;
       const B = contour[b]!;
       const C = contour[c]!;
@@ -305,13 +308,17 @@ export function buildGround(
 
   const ground = new THREE.Color(look.ground);
   // Land: the city file's coast (or the whole frame), with what is beyond.
-  const landPolys = data.land?.length
-    ? data.land
-    : [[bx0, by0, bx1, by0, bx1, by1, bx0, by1]];
+  const landPolys = data.land?.length ? data.land : [[bx0, by0, bx1, by0, bx1, by1, bx0, by1]];
   const add = (m: THREE.Object3D | null) => m && group.add(m);
   add(layer(polyGeometry(landPolys), flatMat(look.ground, -39), -39));
   add(layer(polyGeometry(data.airport ?? []), flatMat('#a9a79f', -38), -38));
-  add(layer(polyGeometry(data.green ?? [], 0, 400), flatMat(mixHex(look.park, look.ground, 0.35), -37), -37));
+  add(
+    layer(
+      polyGeometry(data.green ?? [], 0, 400),
+      flatMat(mixHex(look.park, look.ground, 0.35), -37),
+      -37,
+    ),
+  );
   add(layer(polyGeometry(data.parks ?? [], 0, 200), flatMat(look.park, -36), -36));
   add(layer(polyGeometry(data.beach ?? []), flatMat(look.beach, -35), -35));
   // Water on land (lakes, the river, the lagoon): drawn by the same shader.
@@ -522,10 +529,7 @@ function horizon(data: GeoData, look: CityLook, mask: GroundMask, ground: THREE.
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.computeVertexNormals();
-  const m = new THREE.Mesh(
-    g,
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }),
-  );
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
   m.renderOrder = -38;
   m.frustumCulled = false;
   m.receiveShadow = false;
