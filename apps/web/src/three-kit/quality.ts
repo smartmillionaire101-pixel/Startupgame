@@ -31,6 +31,12 @@ let soft = false;
  * antialiasing or shadows, a few frames a second). `runway.hq` = '1' in
  * localStorage asks for full quality anyway (screenshots).
  */
+/** WebGL on the CPU, whatever the screenshot setting says (frame rate caps). */
+export function cpuGl(): boolean {
+  webglAvailable();
+  return soft;
+}
+
 export function softwareGl(): boolean {
   webglAvailable();
   try {

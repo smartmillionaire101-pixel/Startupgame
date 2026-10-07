@@ -6,7 +6,7 @@
  * while something moves, and never while the tab is hidden.
  */
 import * as THREE from 'three';
-import { softwareGl } from '../three-kit/quality';
+import { cpuGl, softwareGl } from '../three-kit/quality';
 
 export interface StageOpts {
   /** The world-space point the camera looks at. */
@@ -75,7 +75,7 @@ export class Stage {
     // A software renderer (no GPU) gets a lighter stage: 1× pixels, no shadows, 4 fps.
     this.soft = softwareGl();
     this.renderer.setPixelRatio(this.soft ? 1 : Math.min(2, window.devicePixelRatio || 1));
-    this.maxFps = this.soft ? 4 : (o.maxFps ?? 60);
+    this.maxFps = cpuGl() ? 4 : (o.maxFps ?? 60);
     this.renderer.shadowMap.enabled = !this.soft;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
