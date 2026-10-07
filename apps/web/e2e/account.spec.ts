@@ -47,7 +47,10 @@ test('a guest saves their game with an email link, signs out, and logs back in b
   await expect(sheet.getByText(`we sent a link to ${email}`, { exact: false })).toBeVisible();
   // No email leaves a test server: it hands the link back instead.
   await sheet.getByRole('link', { name: 'Preview: open your sign-in link' }).click();
-  await expect(page.getByText(`Progress saved. Log in with ${email} on any device.`)).toBeVisible();
+  // Checked on the toast list, so a failure says which message showed instead.
+  await expect(page.locator('.toasts')).toContainText(
+    `Progress saved. Log in with ${email} on any device.`,
+  );
   await expect(page).not.toHaveURL(/signin=/);
 
   // Saved: the email shows in Settings, and the guest banner is gone.
