@@ -24,6 +24,22 @@ function saved(): Quality | null {
 }
 
 let gl: boolean | null = null;
+let soft = false;
+
+/**
+ * WebGL drawn on the CPU (SwiftShader, llvmpipe): 3D views go easy (no
+ * antialiasing or shadows, a few frames a second). `runway.hq` = '1' in
+ * localStorage asks for full quality anyway (screenshots).
+ */
+export function softwareGl(): boolean {
+  webglAvailable();
+  try {
+    if (localStorage.getItem('runway.hq') === '1') return false;
+  } catch {
+    /* storage blocked */
+  }
+  return soft;
+}
 /** Whether this browser can draw WebGL at all (checked once). */
 export function webglAvailable(): boolean {
   if (gl !== null) return gl;
@@ -33,6 +49,12 @@ export function webglAvailable(): boolean {
     const c = document.createElement('canvas');
     const ctx = c.getContext('webgl2') ?? c.getContext('webgl');
     gl = !!ctx;
+    if (ctx) {
+      const c2 = ctx as WebGLRenderingContext;
+      const ext = c2.getExtension('WEBGL_debug_renderer_info');
+      const r = ext ? String(c2.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+      soft = /swiftshader|llvmpipe|software/i.test(r);
+    }
     (ctx as WebGLRenderingContext | null)?.getExtension('WEBGL_lose_context')?.loseContext();
   } catch {
     gl = false;

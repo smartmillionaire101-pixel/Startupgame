@@ -609,7 +609,7 @@ const art: Builder = (k, o) => {
 const rug: Builder = (k, o) => {
   const w = o.w - 0.1;
   const d = o.d - 0.1;
-  const col = ['#c8a165', '#4f6f9a', '#8b1e1e'][o.tier - 1]!;
+  const col = ['#c8a165', '#36557f', '#8b1e1e'][o.tier - 1]!;
   const geo = new THREE.PlaneGeometry(w, d);
   const mesh = new THREE.Mesh(geo, mat('#ffffff', { map: rugTexture(o.tier, col) }));
   mesh.rotation.x = -Math.PI / 2;

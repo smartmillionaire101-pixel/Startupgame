@@ -131,7 +131,7 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
     const fit: THREE.Vector3[] = [];
     for (const x of [-RW / 2, RW / 2])
       for (const z of [BACK + 0.6, RD / 2])
-        for (const y of [0, 2.2]) fit.push(new THREE.Vector3(x * 0.68, y, z));
+        for (const y of [0, 2.2]) fit.push(new THREE.Vector3(x * 0.6, y, z));
     stage.fit = fit;
     stage.sun.position.set(-6, 14, 9);
     stage.sun.target.position.set(0, 0, 0);
