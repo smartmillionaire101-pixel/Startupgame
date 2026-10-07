@@ -1159,19 +1159,18 @@ const bench: Builder = (k) => {
     k.cyl(0.2, 0.2, 0.06, '#18181b', sx * 0.72, 1.1, -0.55, { rz: Math.PI / 2 });
 };
 
-const salonStation: Builder = (k, o, m) => {
-  // A chair facing a mirror on the back wall (z = -d/2).
-  const z = 0.15;
-  const c = o.tint ?? '#7f1d1d';
+/** A salon chair; dir 1 faces +z, -1 faces -z (towards a mirror behind). */
+function salonChair(k: Kit, c: string, z: number, dir = 1) {
   k.cyl(0.25, 0.3, 0.06, CHROME, 0, 0, z, metal);
   k.cyl(0.05, 0.05, 0.36, CHROME, 0, 0.06, z, metal);
   k.box(0.56, 0.14, 0.52, c, 0, 0.42, z, { round: 0.05, rough: 0.35 });
-  k.box(0.56, 0.62, 0.12, c, 0, 0.5, z - 0.26, { round: 0.05, rough: 0.35 });
-  k.box(0.26, 0.12, 0.1, c, 0, 1.1, z - 0.28, { round: 0.04 });
+  k.box(0.56, 0.62, 0.12, c, 0, 0.5, z - dir * 0.26, { round: 0.05, rough: 0.35 });
+  k.box(0.26, 0.12, 0.1, c, 0, 1.1, z - dir * 0.28, { round: 0.04 });
   for (const sx of [-1, 1]) k.box(0.08, 0.06, 0.44, BLACK, sx * 0.31, 0.68, z, { round: 0.02 });
-  k.box(0.4, 0.04, 0.2, CHROME, 0, 0.12, z + 0.4, { ...metal, rx: -0.4 });
-  // mirror and shelf
-  const mz = -o.d / 2 + 0.03;
+  k.box(0.4, 0.04, 0.2, CHROME, 0, 0.12, z + dir * 0.4, { ...metal, rx: -dir * 0.4 });
+}
+
+function salonMirror(k: Kit, mz: number) {
   k.box(0.9, 2.0, 0.06, '#e7d9c4', 0, 0, mz, { round: 0.02 });
   k.plane(0.8, 1.05, '#d7ecf3', 0, 1.42, mz + 0.045, { metal: 0.7, rough: 0.04 });
   k.box(0.9, 0.04, 0.24, '#e7d9c4', 0, 0.8, mz + 0.12);
@@ -1188,8 +1187,23 @@ const salonStation: Builder = (k, o, m) => {
     );
   k.sphere(0.1, '#fef9c3', -0.5, 1.6, mz + 0.06, { emissive: '#fff7d6', emissiveIntensity: 1.2 });
   k.sphere(0.1, '#fef9c3', 0.5, 1.6, mz + 0.06, { emissive: '#fff7d6', emissiveIntensity: 1.2 });
+}
+
+const salonStation: Builder = (k, o, m) => {
+  // A chair facing a mirror on the back wall (z = -d/2).
+  const z = 0.15;
+  salonChair(k, o.tint ?? '#7f1d1d', z, -1);
+  salonMirror(k, -o.d / 2 + 0.03);
   m.seats.push(new THREE.Vector3(0, 0.55, z));
 };
+
+/** The chair alone (it turns round for the mirror check), at the origin. */
+const salonChairOnly: Builder = (k, o, m) => {
+  salonChair(k, o.tint ?? '#7f1d1d', 0);
+  m.seats.push(new THREE.Vector3(0, 0.55, 0));
+};
+
+const salonMirrorOnly: Builder = (k, o) => salonMirror(k, -o.d / 2 + 0.03);
 
 const barCounter: Builder = (k, o, m) => {
   // Counter running along x, bar stools in front (+z), shelves of bottles behind (-z).
@@ -1594,6 +1608,8 @@ export const BUILDERS: Record<string, Builder> = {
   'weight-rack': weightRack,
   bench,
   'salon-station': salonStation,
+  'salon-chair': salonChairOnly,
+  'salon-mirror': salonMirrorOnly,
   'bar-counter': barCounter,
   'dj-booth': djBooth,
   'cinema-seats': cinemaSeat,

@@ -281,6 +281,7 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
     const particles = stage.scene.userData.particles as Particles;
     const ent = new THREE.Vector3(vx(ENTRANCE.x), 0, vz(ENTRANCE.y));
     let dimNow = 0;
+    let focused = false;
     const off = stage.add((t, dt) => {
       const P = live.current;
       const v = roomRef.current;
@@ -343,6 +344,27 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
               pose(you, f.pose ?? r.rig.pose, t, { seat });
           }
         }
+      }
+      // The camera moves in on your act, and back out after.
+      {
+        const fc = stage.fitCenter!;
+        const want = r && !P.reduced ? r.rig.station : fc;
+        const wz = r ? 1.75 : 1;
+        const u = P.reduced ? 1 : Math.min(1, dt * 2.5);
+        const tx = want.x;
+        const tz = want.z + (r ? -0.2 : 0);
+        if (r) focused = true;
+        if (
+          focused &&
+          (Math.abs(stage.target.x - tx) > 0.005 ||
+            Math.abs(stage.target.z - tz) > 0.005 ||
+            Math.abs(stage.zoom - wz) > 0.005)
+        ) {
+          stage.target.x += (tx - stage.target.x) * u;
+          stage.target.z += (tz - stage.target.z) * u;
+          stage.zoom += (wz - stage.zoom) * u;
+          stage.updateCamera();
+        } else if (!r) focused = false;
       }
       // Dim the room for the act; sweep the club lights.
       dimNow += (dim - dimNow) * Math.min(1, dt * 3);

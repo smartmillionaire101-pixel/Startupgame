@@ -118,8 +118,9 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
     case 'haircut': {
       // The chair facing a mirror; the barber circles you with the clippers.
       const salon = ctx.variant === 'salon';
-      const st = model('salon-station', sx, sz - 0.15, 1.2, 2.2, 0, salon ? '#be185d' : '#7f1d1d');
-      void st;
+      // A mirror in front, and the chair (it turns round for the mirror check).
+      model('salon-mirror', sx, sz - 0.15, 1.2, 2.2);
+      const chair = model('salon-chair', sx, sz, 0.7, 0.7, Math.PI, salon ? '#be185d' : '#7f1d1d');
       const barber = add(
         extraAt(props, ctx, salon ? 'stylist' : 'barber', sx + 0.6, sz, -Math.PI / 2),
       );
@@ -174,9 +175,12 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
             you.head.getWorldPosition(hp);
             fx.sparkle(ps, hp.add(new THREE.Vector3(0, 0.3, 0)), dt, '#fde047', 10);
           }
-          // Mirror check: turn your head.
-          if (k > 0.82) you.head.rotation.y = Math.sin(ms / 300) * 0.4;
-          return { pose: 'sit', seat: 0.55, ry: Math.PI };
+          // Mirror check: the barber spins the chair round to show off the cut.
+          const spin = ease(seg(k, 0.8, 0.9));
+          const ry = Math.PI * (1 - spin);
+          chair.group.rotation.y = ry;
+          if (k > 0.9) you.head.rotation.y = Math.sin(ms / 300) * 0.3;
+          return { pose: 'sit', seat: 0.55, ry };
         },
       };
     }
