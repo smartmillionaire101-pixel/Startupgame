@@ -45,6 +45,21 @@ const schema = z.object({
   EMAIL_FROM: z.string().optional(),
   FX_FEED_URL: z.string().url().optional().or(z.literal('')),
   ADMIN_TOKEN: z.string().optional(),
+  /**
+   * Comma-separated emails whose signed-in accounts open the admin dashboard.
+   * Only a confirmed email counts (one proven by a sign-in link), never one
+   * merely typed in. When set, the admin password (ADMIN_TOKEN) is not
+   * accepted: these accounts are the only way in.
+   */
+  ADMIN_EMAILS: z
+    .string()
+    .default('')
+    .transform((v) =>
+      v
+        .split(',')
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean),
+    ),
   WEB_DIST: z.string().optional(),
   SNAPSHOT_EVERY: z.coerce.number().int().min(1).default(200),
   /**

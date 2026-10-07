@@ -69,6 +69,8 @@ const empty: Totals = { spent: 0, sent: 0, invested: 0, capital: 0 };
 export default function Admin() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [locked, setLocked] = useState(false);
+  /** The server's sign-in method once locked: an admin email in the game, or the admin password. */
+  const [signIn, setSignIn] = useState<'email' | 'password'>('password');
   const [error, setError] = useState('');
   const [token, setToken] = useState('');
   const [currency, setCurrency] = useState('');
@@ -85,6 +87,8 @@ export default function Admin() {
         signal: AbortSignal.timeout(10_000),
       });
       if (r.status === 401) {
+        const body = (await r.json().catch(() => ({}))) as { signIn?: string };
+        setSignIn(body.signIn === 'email' ? 'email' : 'password');
         setLocked(true);
         setData(null);
         return;
@@ -203,21 +207,35 @@ export default function Admin() {
           <section className="admin-panel admin-login">
             <div className="admin-eyebrow">PRIVATE WORKSPACE</div>
             <h2>Sign in to admin</h2>
-            <p>Use the admin password configured on your server.</p>
-            <form onSubmit={login}>
-              <label htmlFor="admin-password">Admin password</label>
-              <input
-                id="admin-password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-              />
-              <button className="admin-primary" disabled={submitting}>
-                {submitting ? 'Signing in…' : 'Open dashboard →'}
-              </button>
-            </form>
+            {signIn === 'email' ? (
+              <>
+                <p>
+                  Admin is open to the admin email only. Sign in to the game with that email (from
+                  the sign-in link we send you), then come back to this page.
+                </p>
+                <a className="admin-primary" href="/">
+                  Go to sign-in →
+                </a>
+              </>
+            ) : (
+              <>
+                <p>Use the admin password configured on your server.</p>
+                <form onSubmit={login}>
+                  <label htmlFor="admin-password">Admin password</label>
+                  <input
+                    id="admin-password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                  />
+                  <button className="admin-primary" disabled={submitting}>
+                    {submitting ? 'Signing in…' : 'Open dashboard →'}
+                  </button>
+                </form>
+              </>
+            )}
           </section>
         ) : !data ? (
           <section className="admin-panel">

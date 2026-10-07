@@ -111,6 +111,13 @@ server environment, restart/redeploy, and enter it on the dashboard sign-in form
 It is never bundled into the client. Admin sessions use an eight-hour HttpOnly,
 SameSite=Strict cookie (Secure in production); login attempts are rate-limited.
 
+To give admin to named accounts instead, set `ADMIN_EMAILS` (comma-separated) in
+the server environment (on Netlify: Site configuration → Environment variables).
+Then only a signed-in game account whose email is **confirmed** (proven by a
+sign-in link) and listed there opens the dashboard; an email merely typed in
+does not count, and the admin password is switched off. Keep the list in the
+environment, not in the code: the repository is public.
+
 Visits are anonymous browser-tab sessions, with a new visit after 30 minutes of
 inactivity. Visible game pages send a heartbeat every 15 seconds; live visitors
 and signed-in players expire after 45 seconds without one. Admin pages do not

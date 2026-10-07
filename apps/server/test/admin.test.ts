@@ -147,3 +147,54 @@ it('counts real visits and human players, exposes persisted finances, and exclud
   expect(restored.current.activity).toEqual(game.current.activity);
   expect(store.visitStats(T0).total).toBe(1);
 });
+describe('admin by email only (ADMIN_EMAILS)', () => {
+  const ADMIN = 'owner@example.com';
+  async function player(app: Awaited<ReturnType<typeof fixture>>['app'], handle: string) {
+    const cookie = await playAsGuest(app);
+    const user = api(app, cookie);
+    await user.command(founderSetup(handle));
+    const id = (await user.get('/api/state')).json().view.me.id as string;
+    return { cookie, user, id };
+  }
+  const dashboard = (app: Awaited<ReturnType<typeof fixture>>['app'], cookie?: string) =>
+    app.inject({ url: '/api/admin/dashboard', headers: cookie ? { cookie } : {} });
+
+  it('opens the dashboard only for a signed-in account whose confirmed email is listed', async () => {
+    const { app, store } = await fixture({ env: { ADMIN_EMAILS: ` ${ADMIN.toUpperCase()} ` } });
+    const owner = await player(app, 'owner_one');
+    // Before the email is confirmed: no access, and the page is told to use email sign-in.
+    const before = await dashboard(app, owner.cookie);
+    expect(before.statusCode).toBe(401);
+    expect(before.json().signIn).toBe('email');
+    store.setEmail(owner.id, ADMIN);
+    expect((await dashboard(app, owner.cookie)).statusCode).toBe(200);
+    // Someone else's confirmed email is not enough, nor is no session at all.
+    const other = await player(app, 'other_one');
+    store.setEmail(other.id, 'someone@example.com');
+    expect((await dashboard(app, other.cookie)).statusCode).toBe(401);
+    expect((await dashboard(app)).statusCode).toBe(401);
+  });
+
+  it('does not count an email that was only typed in, never confirmed', async () => {
+    const { app, store } = await fixture({ env: { ADMIN_EMAILS: ADMIN } });
+    const p = await player(app, 'typed_only');
+    store.setPendingEmail(p.id, ADMIN);
+    expect((await dashboard(app, p.cookie)).statusCode).toBe(401);
+  });
+
+  it('turns the admin password off', async () => {
+    const { app } = await fixture({ env: { ADMIN_EMAILS: ADMIN } });
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/admin/login',
+      headers: H,
+      payload: { token: 'admin-token-123' },
+    });
+    expect(login.statusCode).toBe(401);
+    const bearer = await app.inject({
+      url: '/api/admin/dashboard',
+      headers: { authorization: 'Bearer admin-token-123' },
+    });
+    expect(bearer.statusCode).toBe(401);
+  });
+});

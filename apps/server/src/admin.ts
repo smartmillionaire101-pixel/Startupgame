@@ -19,15 +19,26 @@ export function registerAdmin(app: FastifyInstance, deps: AppDeps) {
     deps.allowLocalAdmin === true &&
     config.NODE_ENV !== 'production' &&
     !config.ADMIN_TOKEN &&
+    config.ADMIN_EMAILS.length === 0 &&
     ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.raw.socket.remoteAddress ?? '') &&
     /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(req.headers.host ?? '');
   const sign = (expires: string) =>
     createHmac('sha256', config.SESSION_SECRET)
       .update(`admin:${config.ADMIN_TOKEN}:${expires}`)
       .digest('hex');
-  const authorized = (req: FastifyRequest) => {
+  /** With ADMIN_EMAILS set, those accounts are the only way in (no admin password). */
+  const emailOnly = config.ADMIN_EMAILS.length > 0;
+  const passwordOn = !emailOnly && !!config.ADMIN_TOKEN;
+  /** A signed-in account whose confirmed email is listed in ADMIN_EMAILS. */
+  const adminAccount = async (req: FastifyRequest) => {
+    if (!emailOnly || !req.userId) return false;
+    const email = (await store.getAccount(req.userId))?.email?.toLowerCase();
+    return !!email && config.ADMIN_EMAILS.includes(email);
+  };
+  const authorized = async (req: FastifyRequest) => {
     if (local(req)) return true;
-    if (!config.ADMIN_TOKEN) return false;
+    if (emailOnly) return adminAccount(req);
+    if (!passwordOn || !config.ADMIN_TOKEN) return false;
     const bearer = req.headers.authorization?.replace(/^Bearer /, '');
     if (bearer && equal(bearer, config.ADMIN_TOKEN)) return true;
     const [expires = '', signature = ''] = (req.cookies[COOKIE] ?? '').split('.');
@@ -40,14 +51,18 @@ export function registerAdmin(app: FastifyInstance, deps: AppDeps) {
   };
   const protect = async (req: FastifyRequest, reply: FastifyReply) => {
     reply.header('Cache-Control', 'no-store');
-    if (!authorized(req))
+    if (!(await authorized(req)))
       return reply
-        .code(req.url === '/api/admin/economy' ? 404 : config.ADMIN_TOKEN ? 401 : 503)
+        .code(req.url === '/api/admin/economy' ? 404 : emailOnly || passwordOn ? 401 : 503)
         .send({
+          /** How to get in: 'email' (sign in to the game with an admin email) or 'password'. */
+          signIn: emailOnly ? 'email' : 'password',
           error: {
-            message: config.ADMIN_TOKEN
-              ? 'Admin sign-in required.'
-              : 'Set ADMIN_TOKEN on the server to enable admin access.',
+            message: emailOnly
+              ? 'Sign in to the game with an admin email to open the dashboard.'
+              : passwordOn
+                ? 'Admin sign-in required.'
+                : 'Set ADMIN_EMAILS (or ADMIN_TOKEN) on the server to enable admin access.',
           },
         });
   };
@@ -65,7 +80,7 @@ export function registerAdmin(app: FastifyInstance, deps: AppDeps) {
     async (req, reply) => {
       reply.header('Cache-Control', 'no-store');
       const { token } = z.object({ token: z.string().max(1024) }).parse(req.body);
-      if (!config.ADMIN_TOKEN || !equal(token, config.ADMIN_TOKEN))
+      if (!passwordOn || !config.ADMIN_TOKEN || !equal(token, config.ADMIN_TOKEN))
         return reply.code(401).send({ error: { message: 'Incorrect admin password.' } });
       const expires = String(now() + TTL);
       reply.setCookie(COOKIE, `${expires}.${sign(expires)}`, {
