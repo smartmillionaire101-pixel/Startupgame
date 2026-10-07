@@ -9,12 +9,35 @@ import { useState } from 'react';
 import { money } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
-import { Button } from '../../ui';
+import { Button, Segmented } from '../../ui';
 import { goToTechEvent, techKindLabel } from '../../city/techevent';
 import { hereOf } from '../../city/travel';
 import { readRsvps, techEventsOf, writeRsvps, type TechEventView } from '../friends';
 import { H, Nothing, type PhoneCtx } from '../shared';
 import { Invitations, PlanHangout } from './Friends';
+import { Competitions } from './Competitions';
+import { competitionsHere } from '../../city/wave10';
+
+/** Wave 10: the Events app has two tabs, tech events and pitch competitions. */
+export function Events({ ctx }: { ctx: PhoneCtx }) {
+  const { view } = useView();
+  const open = competitionsHere(view).some((c) => c.status === 'open');
+  const [tab, setTab] = useState<'events' | 'competitions'>('events');
+  return (
+    <div className="phone-stack">
+      <Segmented<'events' | 'competitions'>
+        label={t('Events')}
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'events', label: t('Tech events') },
+          { value: 'competitions', label: open ? t('Competitions •') : t('Competitions') },
+        ]}
+      />
+      {tab === 'events' ? <TechEvents ctx={ctx} /> : <Competitions ctx={ctx} />}
+    </div>
+  );
+}
 
 const KIND_EMOJI: Record<string, string> = {
   meetup: '🍻',
@@ -24,7 +47,7 @@ const KIND_EMOJI: Record<string, string> = {
   workshop: '🛠',
 };
 
-export function Events({ ctx }: { ctx: PhoneCtx }) {
+function TechEvents({ ctx }: { ctx: PhoneCtx }) {
   const { view, send, busy } = useView();
   const events = techEventsOf(view);
   const cur = hereOf(view).currency;

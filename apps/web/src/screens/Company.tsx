@@ -4,6 +4,7 @@ import { amountInput, money, parseAmount, pct, stars, titleCase } from '../forma
 import { locale, t, tx } from '../i18n';
 import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Segmented, Sheet } from '../ui';
+import { ExpansionCard } from './Expansion';
 
 type Tab = 'product' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -88,7 +89,12 @@ export function CompanyScreen() {
           </button>
         ))}
       </div>
-      {tab === 'product' && <Product c={c} />}
+      {tab === 'product' && (
+        <>
+          <Product c={c} />
+          <ExpansionCard c={c} />
+        </>
+      )}
       {tab === 'customers' && <Customers c={c} />}
       {tab === 'team' && <Team c={c} />}
       {tab === 'suppliers' && <Suppliers c={c} />}

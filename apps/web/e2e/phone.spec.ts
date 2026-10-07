@@ -45,8 +45,8 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
   await page.getByRole('button', { name: /^Phone/ }).click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await expect(phone).toBeVisible();
-  // Wave 7: every app on the home screen (13 in the grid with Wave 8's Events, 4 in the dock).
-  await expect(phone.locator('[data-app]')).toHaveCount(17);
+  // Wave 7: every app on the home screen (15 in the grid with Wave 10’s Homes and Going out, 4 in the dock).
+  await expect(phone.locator('[data-app]')).toHaveCount(19);
   await expect(phone.locator('.phone-dock [data-app]')).toHaveCount(4);
   await expect(phone.getByRole('meter', { name: 'Energy' })).toBeVisible();
 

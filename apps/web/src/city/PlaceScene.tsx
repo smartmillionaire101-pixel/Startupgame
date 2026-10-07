@@ -78,6 +78,8 @@ import { ActStage } from './acts/ActStage';
 import { ActCard, ActHud, type ActResult } from './acts/ActHud';
 import { nextLook, setLookOverride, type HairStyle } from './acts/look';
 import { scriptFor, scriptOf, type ActPick } from './acts/scripts';
+import { openCompetition, outingOf, startOuting } from './outings';
+import { competitionsHere, lifestyleName } from './wave10';
 import type { ActScript } from './acts/types';
 import {
   ENTRANCE,
@@ -713,7 +715,20 @@ function RoomScene({
    * first (money and needs are right even if you skip); the scene plays
    * meanwhile and ends on the result card.
    */
-  const playAct = async (b: BusinessView, it: { id: string; label: string }, icon: string) => {
+  const playAct = async (
+    b: BusinessView,
+    it: { id: string; label: string; price?: number; travel?: boolean },
+    icon: string,
+  ) => {
+    // Wave 10: a yacht, golf, a gala, the jet, a rooftop party: their own act, full screen.
+    if (outingOf(it)) {
+      startOuting({
+        businessId: b.id,
+        venueName: b.name,
+        item: { id: it.id, label: it.label, price: it.price ?? 0, travel: it.travel },
+      });
+      return;
+    }
     const n = ++actSeq;
     const pick = scriptFor(room, b.kind, it);
     const script = scriptOf(pick);
@@ -765,18 +780,41 @@ function RoomScene({
     const b = business;
     const venue = venueItemsOf(view, b.id);
     // Things to do first (Wave 6 §C2): dance, a film, karaoke, five-a-side…
+    // Wave 10: what your lifestyle reaches first; a locked one says when it unlocks.
     const fun = venue
       .filter((i) => i.activity)
-      .sort((x, y) => y.fun - x.fun || x.price - y.price)
-      .slice(0, FUN_ROOMS.has(room) ? 2 : 1);
+      .sort((x, y) => Number(x.locked) - Number(y.locked) || y.fun - x.fun || x.price - y.price)
+      .slice(0, FUN_ROOMS.has(room) || venue.some((i) => i.requiresTier > 1) ? 2 : 1);
     for (const it of fun)
       actions.push({
         id: `fun:${it.id}`,
         label: tx(it.label),
-        sub: funSub(it),
-        icon: funIcon(it.label, room),
-        disabled: pocket < it.price || busy,
+        sub: it.locked
+          ? t('Unlocks at tier {n} ({name})', {
+              n: it.requiresTier,
+              name: lifestyleName(view, it.requiresTier),
+            })
+          : funSub(it),
+        icon: it.locked ? '🔒' : funIcon(it.label, room),
+        disabled: pocket < it.price || busy || it.locked,
         run: () => doFun(b, it),
+      });
+    // Wave 10: a pitch competition held here.
+    const comp = competitionsHere(view).find((c) => c.venue.businessId === b.id);
+    if (comp)
+      actions.push({
+        id: `competition:${comp.id}`,
+        label: t('Pitch competition: {name}', { name: comp.name }),
+        sub:
+          comp.status === 'judged'
+            ? t('The results are in')
+            : t('{n} startups, {j} judges · prize {prize}', {
+                n: comp.entries.length,
+                j: comp.judges.length,
+                prize: money(comp.prizePool, comp.currency),
+              }),
+        icon: '🎤',
+        run: () => openCompetition(comp.id),
       });
     // A showroom: what's for sale (§A3).
     const sells = sellsOf(view, b);

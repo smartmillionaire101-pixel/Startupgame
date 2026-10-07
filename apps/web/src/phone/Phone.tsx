@@ -27,6 +27,9 @@ import { Contacts } from './apps/Contacts';
 import { Events } from './apps/Events';
 import { Fit } from './apps/Fit';
 import { Founder } from './apps/Founder';
+import { GoingOut } from './apps/GoingOut';
+import { Homes } from './apps/Homes';
+import { OutingHost } from '../city/OutingScene';
 import { HomeApp } from './apps/HomeApp';
 import { Invest } from './apps/Invest';
 import { Jobs } from './apps/Jobs';
@@ -80,6 +83,8 @@ export const APPS: AppDef[] = [
   { id: 'house', icon: 'house', label: () => t('Home'), bg: ['#86efac', '#15803d'] },
   { id: 'social', icon: 'social', label: () => t('Social'), bg: ['#e879f9', '#a21caf'] },
   { id: 'events', icon: 'events', label: () => t('Events'), bg: ['#818cf8', '#4338ca'] },
+  { id: 'homes', icon: 'key', label: () => t('Homes'), bg: ['#fcd34d', '#b45309'] },
+  { id: 'goingout', icon: 'cocktail', label: () => t('Going out'), bg: ['#fb7185', '#be123c'] },
   { id: 'settings', icon: 'settings', label: () => t('Settings'), bg: ['#9ca3af', '#4b5563'] },
 ];
 const DOCK: AppId[] = ['messages', 'map', 'bank', 'founder'];
@@ -326,6 +331,7 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
         </div>
       )}
       <VisitHome />
+      <OutingHost />
       {open && (
         <PhoneScreen
           app={app}
@@ -551,6 +557,12 @@ function PhoneScreen(props: {
       break;
     case 'events':
       body = <Events ctx={ctx} />;
+      break;
+    case 'homes':
+      body = <Homes ctx={ctx} />;
+      break;
+    case 'goingout':
+      body = <GoingOut ctx={ctx} />;
       break;
   }
 

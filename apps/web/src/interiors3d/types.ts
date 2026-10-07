@@ -69,4 +69,6 @@ export interface Home3DProps {
   onCamera: (svgTransform: string) => void;
   onReady: () => void;
   reduced: boolean;
+  /** Wave 10: a listing's grounds (pool, garden, penthouse terrace). */
+  estate?: 'villa' | 'mansion' | 'penthouse' | null;
 }
