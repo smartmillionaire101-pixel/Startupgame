@@ -73,7 +73,14 @@ jobs:
           for id in $(node -e 'import("./scripts/osm/cities.mjs").then(({ CITIES }) => console.log(Object.keys(CITIES).join(" ")))'); do
             if [ -f "apps/web/public/geo/$id/index.json" ]; then echo "skip 3D $id (already built)"; continue; fi
             if [ ! -f "apps/web/src/city/geo/$id.json" ]; then echo "::warning::3D $id needs its geo JSON first"; continue; fi
-            node scripts/osm/tiles.mjs "$id" || { echo "::warning::3D $id failed"; continue; }
+            # On failure, put the end of the log in the warning (job logs aren't always reachable).
+            if ! node scripts/osm/tiles.mjs "$id" > "/tmp/tiles-$id.log" 2>&1; then
+              cat "/tmp/tiles-$id.log"
+              echo "::warning title=3D $id failed::$(tail -c 1500 "/tmp/tiles-$id.log" | tr '\n' '|')"
+              # Stop at the first failure: the same fault would cost hours across every city.
+              break
+            fi
+            tail -5 "/tmp/tiles-$id.log"
             du -sh "apps/web/public/geo/$id"
             git add "apps/web/public/geo/$id"
             git commit -m "3D city: $id buildings, terrain and trees (© OpenStreetMap contributors, ODbL)"
