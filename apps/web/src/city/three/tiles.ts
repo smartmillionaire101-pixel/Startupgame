@@ -7,16 +7,24 @@
  *
  * Expected decoder contract (normalised here, so small differences are fine):
  *   export function decodeTile(buf: ArrayBuffer, index?: unknown):
- *     Array<{ p: ArrayLike<number>; h?: number; levels?: number }>
+ *     Array<{ p: ArrayLike<number>; h?: number; levels?: number; minHeight?: number }>
  *     | { buildings: Array<…same…> }
  * with outlines in the city file's metres (x east, y south) and h in metres.
  * The index lists its tiles as "tx_ty" strings, [tx, ty] pairs or {x, y}
- * objects, with the tile size in metres as `tile` or `size` (default 1000).
+ * objects, with the tile size in metres as `tile`, `tileSize` or `size`
+ * (default 1000).
+ *
+ * Wave 10 §B: a tile's outlines are thinned as they arrive (buildings.ts
+ * osmFootprints → footprints.ts): none on the game's places or landmarks,
+ * and none sharing space with another, in this tile or a neighbour already
+ * standing. While a tile stands, the city file's own outlines there hide
+ * (`onShow`), so the same building is never drawn twice.
  */
 import * as THREE from 'three';
-import type { GeoData } from '../geo';
 import type { CityLook } from './cities';
-import { mergedMesh, osmFootprints } from './buildings';
+import { boxMeshes, mergedMesh, osmFootprints, type RealBuilding } from './buildings';
+import { FootprintGrid, type Fp } from './footprints';
+import { beacons, glowPoints } from './lights';
 
 type Decoder = (buf: ArrayBuffer, index?: unknown) => unknown;
 const DECODERS = import.meta.glob<{ decodeTile?: Decoder; decode?: Decoder }>('../geo3d/tiles.ts');
@@ -25,17 +33,45 @@ interface RawBuilding {
   p: ArrayLike<number>;
   h?: number;
   levels?: number;
+  minHeight?: number;
+  /** BUILDING_TYPES index (geo3d/tiles.ts). */
+  type?: number;
+}
+
+export interface TileContext {
+  scene: THREE.Scene;
+  mat: THREE.Material;
+  /** For the instanced boxes (spires, roof plant). */
+  inst: THREE.Material;
+  look: CityLook;
+  clear: { e: number; s: number; r: number }[];
+  blocked: FootprintGrid;
+  /** Night lights (the towers' beacons). */
+  glow?: THREE.Material;
+  /** A tile came (true) or went (false): hide or show what stood in for it. */
+  onShow?: (key: string, shown: boolean) => void;
 }
 
 export interface TileSet {
-  update(
-    x: number,
-    y: number,
-    dist: number,
-    scene: THREE.Scene,
-    mat: THREE.Material,
-    look: CityLook,
-  ): void;
+  /** Tiles that exist ("tx_ty") and their size in metres. */
+  keys: Set<string>;
+  size: number;
+  update(x: number, y: number, dist: number, ctx: TileContext): void;
+  /** How many tiles stand now. */
+  loaded(): number;
+  /** Drop every tile (the ground kept clear changed): they come back at the next update. */
+  reset(ctx: TileContext): void;
+}
+
+/** Raw tile buildings → the shape osmFootprints takes. */
+export function tileBuildings(list: RawBuilding[]): RealBuilding[] {
+  return list.map((b) => ({
+    p: b.p,
+    h: b.levels || (b.h ? Math.max(1, Math.round(b.h / 3.25)) : undefined),
+    hm: b.h && b.h > 0 ? b.h : undefined,
+    base: b.minHeight && b.minHeight > 0 ? b.minHeight : undefined,
+    kind: b.type,
+  }));
 }
 
 export async function loadTiles(marketId: string): Promise<TileSet | null> {
@@ -52,7 +88,7 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
   const mod = await loader().catch(() => null);
   const decode = mod?.decodeTile ?? mod?.decode;
   if (!decode) return null;
-  const size = Number(index.tile ?? index.size ?? 1000) || 1000;
+  const size = Number(index.tileSize ?? index.tile ?? index.size ?? 1000) || 1000;
   const keys = new Set<string>();
   for (const t of (index.tiles as unknown[]) ?? []) {
     if (typeof t === 'string') keys.add(t);
@@ -62,9 +98,25 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
       keys.add(`${o.x}_${o.y}`);
     }
   }
-  const loaded = new Map<string, THREE.Object3D | 'loading'>();
+  /** What stands of every tile shown: no new outline may share their space. */
+  const grid = new FootprintGrid();
+  const loaded = new Map<string, { obj: THREE.Object3D; fps: Fp[] } | 'loading'>();
   return {
-    update(x, y, dist, scene, mat, look) {
+    keys,
+    size,
+    loaded: () => [...loaded.values()].filter((v) => v !== 'loading').length,
+    reset(ctx) {
+      for (const [k, o] of loaded) {
+        if (o !== 'loading') {
+          o.obj.removeFromParent();
+          o.obj.traverse((m) => (m as THREE.Mesh).geometry?.dispose());
+          for (const f of o.fps) grid.remove(f);
+          ctx.onShow?.(k, false);
+        }
+        loaded.delete(k);
+      }
+    },
+    update(x, y, dist, ctx) {
       const R = Math.min(3000, Math.max(1200, dist * 2));
       const want = new Set<string>();
       for (let ty = Math.floor((y - R) / size); ty <= Math.floor((y + R) / size); ty++)
@@ -74,9 +126,11 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
         }
       for (const [k, o] of loaded)
         if (!want.has(k) && o !== 'loading') {
-          o.removeFromParent();
-          (o as THREE.Mesh).geometry?.dispose();
+          o.obj.removeFromParent();
+          o.obj.traverse((m) => (m as THREE.Mesh).geometry?.dispose());
+          for (const f of o.fps) grid.remove(f);
           loaded.delete(k);
+          ctx.onShow?.(k, false);
         }
       for (const k of want) {
         if (loaded.has(k)) continue;
@@ -84,22 +138,27 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
         void fetch(`/geo/${marketId}/b-${k}.bin`)
           .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
           .then((buf) => {
+            if (loaded.get(k) !== 'loading') return;
             const out = decode(buf, index) as RawBuilding[] | { buildings: RawBuilding[] };
             const list = Array.isArray(out) ? out : (out?.buildings ?? []);
-            const data = {
-              buildings: list.map((b) => ({
-                p: Array.from(b.p),
-                h: b.levels ?? (b.h ? Math.max(1, Math.round(b.h / 3.25)) : undefined),
-              })),
-            } as unknown as GeoData;
-            const fp = osmFootprints(data, look, [], marketId);
-            const m = mergedMesh(fp.polys, mat);
-            if (m && loaded.get(k) === 'loading') {
-              scene.add(m);
-              loaded.set(k, m);
-            }
+            const fp = osmFootprints(
+              { buildings: tileBuildings(list) },
+              ctx.look,
+              ctx.clear,
+              marketId,
+              { blocked: ctx.blocked, grid },
+            );
+            const g = new THREE.Group();
+            const m = mergedMesh(fp.polys, ctx.mat);
+            if (m) g.add(m);
+            for (const b of boxMeshes(fp.boxes, ctx.inst)) g.add(b);
+            const lights = ctx.glow ? glowPoints(beacons(fp.fps), ctx.glow) : null;
+            if (lights) g.add(lights);
+            ctx.scene.add(g);
+            loaded.set(k, { obj: g, fps: fp.fps });
+            ctx.onShow?.(k, true);
           })
-          .catch(() => loaded.set(k, new THREE.Group()));
+          .catch(() => loaded.set(k, { obj: new THREE.Group(), fps: [] }));
       }
     },
   };

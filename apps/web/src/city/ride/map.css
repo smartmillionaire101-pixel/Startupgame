@@ -23,3 +23,15 @@ g.city-avatar.is-riding ellipse.city-you-ring {
     animation: none;
   }
 }
+
+/* Wave 10: your own car leads the chooser, across the whole row. */
+.ride-grid.has-car .ride-opt[data-mode='drive'] {
+  grid-column: 1 / -1;
+}
+.ride-car {
+  font-weight: 500;
+  opacity: 0.8;
+}
+.ride-note {
+  margin: 8px 4px 0;
+}

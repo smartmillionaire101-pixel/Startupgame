@@ -24,14 +24,20 @@ import {
   mergedMesh,
   osmFootprints,
   h3,
+  centroid,
   type BoxB,
   type Centre,
   type Footprint,
 } from './buildings';
 import { buildGround, mixHex } from './ground';
+import { discPoly, FootprintGrid, makeFp, rectPoly, segRectDist, type Fp } from './footprints';
+import { homeModel, PLOT, setHomesNight } from './homes3d';
+import { ROAD_HALF, COVER } from './mask';
+import { hoodAt, type OwnedProperty } from '../properties';
 import { applySky, skyAt, skyDome, skyEnvironment, skyUniforms, type SkyState } from './sky';
 import { treeMeshes, treeSpots } from './trees';
-import { buildLandmarks, EXTRA_3D, type LandmarkPlan } from './landmarks';
+import { buildLandmarks, EXTRA_3D, landmarkLights, type LandmarkPlan } from './landmarks';
+import { beacons, glowMaterial, glowPoints, glowUniforms, streetLamps } from './lights';
 import { Actors } from './actors';
 import { loadTiles, type TileSet } from './tiles';
 import type { AvatarLook } from '../art';
@@ -57,6 +63,20 @@ export interface PlaceBox {
 }
 
 const PITCH_MIN = 0.3;
+/** Full-density tiles' size (metres): the city file's outlines are grouped the same way. */
+const TILE_M = 1000;
+
+/** Ground a landmark model covers (metres). */
+function landmarkRadius(kind: string) {
+  const r: Record<string, number> = {
+    'burj-al-arab': 75,
+    'london-eye': 70,
+    'burj-khalifa': 60,
+    kicc: 45,
+    dome: 50,
+  };
+  return r[kind] ?? 40;
+}
 const PITCH_MAX = 1.42;
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -82,6 +102,9 @@ export class CityScene {
   rig = { x: 0, y: 0, dist: 700, yaw: 0, pitch: 0.64 };
   private want = { x: 0, y: 0, dist: 700 };
   following = true;
+  /** Driving: the camera rides behind the car, looking down the road. */
+  private chaseOn = false;
+  private savedRig: { dist: number; pitch: number; yaw: number } | null = null;
   /** Stop drawing on its own (screenshots and tests draw with renderNow). */
   paused = false;
 
@@ -100,11 +123,36 @@ export class CityScene {
   private detailR = 0;
   private lowGroup = new THREE.Group();
   private tallGroup = new THREE.Group();
-  private lights: THREE.Points | null = null;
+  /** Night: street lamps, landmark and tower lights (glowing sprites). */
+  private glow = glowUniforms();
+  readonly glowMat: THREE.ShaderMaterial;
+  private nightSets: THREE.Object3D[] = [];
   private lots: LotMaker;
   private chunks = new Map<string, { group: THREE.Group; ci: number; cj: number }>();
   private queue: [number, number][] = [];
   private tiles: TileSet | null = null;
+  /** Whether the tiles' index has answered (infill waits for it). */
+  private tilesKnown = false;
+  /** The city file's outlines, by 1 km tile (hidden while a full-density tile stands there). */
+  private fileTiles = new Map<string, THREE.Group>();
+  /** Real outlines standing from the city file. */
+  private realGrid = new FootprintGrid();
+  /** The game's places and the landmarks: nothing else stands there. */
+  readonly blocked = new FootprintGrid();
+  private clear: { e: number; s: number; r: number }[] = [];
+  /** The homes you own, on their plots (Wave 10). */
+  readonly homes: {
+    prop: OwnedProperty;
+    x: number;
+    y: number;
+    w: number;
+    d: number;
+    h: number;
+    rot: number;
+  }[] = [];
+  private homesGroup = new THREE.Group();
+  private homePlots: Fp[] = [];
+  private homesKey = '';
   private raf = 0;
   private lastRender = 0;
   private dirty = true;
@@ -160,6 +208,7 @@ export class CityScene {
     this.renderer.shadowMap.autoUpdate = true;
 
     this.camera = new THREE.PerspectiveCamera(38, 1, 1, 50000);
+    this.glowMat = glowMaterial(this.glow);
     this.fog = new THREE.FogExp2(0xc8d8e8, 0.0002);
     this.scene.fog = this.fog;
 
@@ -196,31 +245,50 @@ export class CityScene {
       this.instMat,
     );
     this.scene.add(ground.group, landmarks);
+    this.addNight(glowPoints(landmarkLights(landmarks), this.glowMat));
 
     // Ground cleared for landmarks and the game's places.
     const clear = [...this.geo.clear];
     for (const p of plans) if (p.e2 === undefined) clear.push({ e: p.e, s: p.s, r: 40 });
+    this.clear = clear;
 
     // No infill or trees where the game's places and the landmarks stand.
     for (const c of clear) this.mask.markBuilt(c.e, c.s, c.r + 8);
 
-    // OSM outlines, merged per chunk.
-    const osm = osmFootprints(data, this.look, clear, layout.marketId);
-    const byChunk = new Map<string, Footprint[]>();
-    for (const f of osm.polys) {
-      const k = `${Math.floor(f.p[0]! / 800)},${Math.floor(f.p[1]! / 800)}`;
-      let a = byChunk.get(k);
-      if (!a) byChunk.set(k, (a = []));
-      a.push(f);
-    }
-    for (const list of byChunk.values()) {
-      const m = mergedMesh(list, this.mergedMat);
-      if (m) this.scene.add(m);
-    }
-    for (const m of boxMeshes(osm.boxes, this.instMat)) this.scene.add(m);
-
     // The game's places: their own buildings, glowing softly.
     this.buildPlaces();
+    // Their plots and the landmarks' ground: no real outline or lot may stand there.
+    for (const b of this.places)
+      this.blocked.add(makeFp(rectPoly(b.x, b.y, b.w + 6, b.d + 6, b.rot)));
+    for (const p of plans)
+      if (p.e2 === undefined) this.blocked.add(makeFp(discPoly(p.e, p.s, landmarkRadius(p.kind))));
+
+    // OSM outlines, thinned (no two in one space), merged per 1 km tile: a
+    // full-density tile, when it stands, takes over its square.
+    const osm = osmFootprints(data, this.look, clear, layout.marketId, {
+      blocked: this.blocked,
+      grid: this.realGrid,
+    });
+    const byTile = new Map<string, { polys: Footprint[]; boxes: BoxB[] }>();
+    const slot = (x: number, y: number) => {
+      const k = `${Math.floor(x / TILE_M)}_${Math.floor(y / TILE_M)}`;
+      let a = byTile.get(k);
+      if (!a) byTile.set(k, (a = { polys: [], boxes: [] }));
+      return a;
+    };
+    for (const f of osm.polys) {
+      const c = centroid(f.p);
+      slot(c.x, c.y).polys.push(f);
+    }
+    for (const b of osm.boxes) slot(b.x, b.y).boxes.push(b);
+    for (const [k, list] of byTile) {
+      const g = new THREE.Group();
+      const m = mergedMesh(list.polys, this.mergedMat);
+      if (m) g.add(m);
+      for (const b of boxMeshes(list.boxes, this.instMat)) g.add(b);
+      this.fileTiles.set(k, g);
+      this.scene.add(g);
+    }
 
     // Infill: lots made around the camera; tall ones city-wide, in the background.
     const centres: Centre[] = [];
@@ -238,6 +306,7 @@ export class CityScene {
       centres,
       layout.marketId,
       data.bounds,
+      { real: this.realGrid, blocked: this.blocked },
     );
     this.scene.add(this.lowGroup, this.tallGroup);
 
@@ -246,9 +315,9 @@ export class CityScene {
     this.stats.trees = spots.length;
     this.scene.add(treeMeshes(spots, this.look, high));
 
-    // Street lights (night).
-    this.lights = this.streetLights();
-    this.scene.add(this.lights);
+    // Street lamps (night).
+    this.addNight(glowPoints(streetLamps(this.roads, high ? 40000 : 18000), this.glowMat));
+    this.addNight(glowPoints(beacons(osm.fps), this.glowMat));
 
     // People and traffic.
     this.actors = new Actors(
@@ -259,7 +328,9 @@ export class CityScene {
       walkers,
       opts.tier,
       opts.reduced,
+      this.glowMat,
     );
+    this.actors.setNight(this.skyState.night);
 
     // Start at the avatar.
     const start = toMetres(layout.start);
@@ -267,12 +338,20 @@ export class CityScene {
     this.rig.y = this.want.y = start.s;
 
     this.stats.buildMs = Math.round(performance.now() - t0);
-    this.backgroundTall();
-    void loadTiles(layout.marketId).then((t) => {
-      if (this.disposed || !t) return;
-      this.tiles = t;
-      this.invalidate();
-    });
+    // Infill waits for the tiles' index: where real buildings stand, none is made.
+    void loadTiles(layout.marketId)
+      .catch(() => null)
+      .then((t) => {
+        if (this.disposed) return;
+        if (t) {
+          this.tiles = t;
+          this.lots.setTiles(t.keys, t.size);
+        }
+        this.tilesKnown = true;
+        this.lastChunkAt = { x: Infinity, y: Infinity, d: 0 };
+        this.backgroundTall();
+        this.invalidate();
+      });
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
     document.addEventListener('visibilitychange', this.onVis);
@@ -410,7 +489,6 @@ export class CityScene {
       const t = performance.now();
       while (i < list.length && performance.now() - t < 12) {
         const [ci, cj] = list[i++]!;
-        if (this.tiles) continue;
         const { tall, far } = this.lots.chunk(ci, cj, merge);
         const k = `${Math.floor((ci * CHUNK) / SUPER)},${Math.floor((cj * CHUNK) / SUPER)}`;
         if (tall.length) {
@@ -452,17 +530,8 @@ export class CityScene {
 
   /** Low-rise lots near the camera: made when they come near, dropped when far. */
   private updateChunks() {
-    if (this.tiles) {
-      this.tiles.update(
-        this.rig.x,
-        this.rig.y,
-        this.rig.dist,
-        this.scene,
-        this.mergedMat,
-        this.look,
-      );
-      return;
-    }
+    if (!this.tilesKnown) return;
+    this.tiles?.update(this.rig.x, this.rig.y, this.rig.dist, this.tileCtx());
     const R =
       (this.opts.tier === 'high' ? 1 : 0.7) * Math.min(2200, Math.max(900, this.rig.dist * 1.8));
     const show = this.rig.dist < 6000;
@@ -513,42 +582,124 @@ export class CityScene {
     }
   }
 
-  private streetLights() {
-    const pts: number[] = [];
-    let n = 0;
-    for (const s of this.roads.segs) {
-      if (s.c > 4) continue;
-      const L = Math.hypot(s.bx - s.ax, s.by - s.ay);
-      const half = s.c <= 1 ? 12 : 8;
-      const nx = -(s.by - s.ay) / (L || 1);
-      const ny = (s.bx - s.ax) / (L || 1);
-      for (let d = 15; d < L; d += 38) {
-        const sg = (n++ & 1) * 2 - 1;
-        const t = d / L;
-        const h = s.ha + (s.hb - s.ha) * t;
-        pts.push(
-          s.ax + (s.bx - s.ax) * t + nx * half * sg,
-          h + 7,
-          s.ay + (s.by - s.ay) * t + ny * half * sg,
-        );
-      }
-      if (pts.length > 3 * 60000) break;
+  /** A set of night lights: shown only when it is dark enough to see them. */
+  private addNight(o: THREE.Object3D | null) {
+    if (!o) return;
+    o.visible = this.skyState.night > 0.02;
+    this.nightSets.push(o);
+    this.scene.add(o);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Your homes
+
+  /**
+   * Show the homes you own at their real neighbourhoods: each on a free plot
+   * near the neighbourhood's centre (off the roads, clear of buildings and
+   * the game's places); tile buildings there give way.
+   */
+  setProperties(list: OwnedProperty[]) {
+    const key = list.map((p) => `${p.id}:${p.tier}:${p.neighbourhood}`).join('|');
+    if (key === this.homesKey) return;
+    this.homesKey = key;
+    this.homesGroup.removeFromParent();
+    this.homesGroup.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    this.homesGroup = new THREE.Group();
+    for (const f of this.homePlots) this.blocked.remove(f);
+    this.homePlots = [];
+    this.homes.length = 0;
+    for (const prop of list) {
+      const at = hoodAt(this.geo.data, this.layout.marketId, prop.neighbourhood || prop.name);
+      const [w, d] = PLOT[prop.tier];
+      const spot = this.freePlot(at.x, at.y, w, d, prop.id);
+      if (!spot) continue;
+      const { group, h } = homeModel(prop.tier, h3(prop.id.length, prop.id.charCodeAt(0) || 1));
+      group.position.set(spot.x, this.groundAt(spot.x, spot.y), spot.y);
+      group.rotation.y = -spot.rot;
+      this.homesGroup.add(group);
+      const plot = makeFp(rectPoly(spot.x, spot.y, w + 4, d + 4, spot.rot));
+      this.blocked.add(plot);
+      this.homePlots.push(plot);
+      this.homes.push({ prop, x: spot.x, y: spot.y, w, d, h, rot: spot.rot });
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    const m = new THREE.PointsMaterial({
-      color: '#ffd9a0',
-      size: 18,
-      sizeAttenuation: true,
-      transparent: true,
-      opacity: 0.9,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      fog: true,
-    });
-    const p = new THREE.Points(g, m);
-    p.visible = false;
-    return p;
+    this.scene.add(this.homesGroup);
+    // Real buildings on the new plots give way: the tiles are thinned again.
+    if (this.tiles && this.tilesKnown) {
+      this.tiles.reset(this.tileCtx());
+      this.lastChunkAt = { x: Infinity, y: Infinity, d: 0 };
+    }
+    this.invalidate();
+  }
+
+  /** A free plot near (x, y), facing the nearest street. */
+  private freePlot(x: number, y: number, w: number, d: number, seed: string) {
+    const turn = (seed.charCodeAt(seed.length - 1) || 0) * 0.37;
+    for (let r = 0; r <= 900; r += 18)
+      for (let k = 0; k < Math.max(1, Math.round(r / 12)); k++) {
+        const a = turn + (k / Math.max(1, Math.round(r / 12))) * Math.PI * 2;
+        const px = x + Math.cos(a) * r;
+        const py = y + Math.sin(a) * r;
+        if (this.mask.coverAt(px, py) === COVER.water) continue;
+        const road = this.roads.nearest(px, py, 200);
+        const rot = road ? road.angle : 0;
+        let ok = true;
+        this.roads.forNear(px, py, Math.hypot(w, d) / 2 + 16, (sg) => {
+          if (
+            ok &&
+            segRectDist(sg.ax, sg.ay, sg.bx, sg.by, px, py, w, d, rot) < ROAD_HALF[sg.c]! + 2
+          )
+            ok = false;
+        });
+        if (!ok) continue;
+        const f = makeFp(rectPoly(px, py, w + 4, d + 4, rot));
+        if (this.realGrid.overlapsPlan(f) || this.blocked.overlapsPlan(f)) continue;
+        return { x: px, y: py, rot };
+      }
+    return null;
+  }
+
+  /** The home of yours under a screen point. */
+  pickHome(sx: number, sy: number): OwnedProperty | null {
+    _ndc.set((sx / this.size.w) * 2 - 1, -(sy / this.size.h) * 2 + 1);
+    _rc.setFromCamera(_ndc, this.camera);
+    const o = _rc.ray.origin;
+    const dv = _rc.ray.direction;
+    let best: OwnedProperty | null = null;
+    let bt = Infinity;
+    for (const b of this.homes) {
+      const c = Math.cos(-b.rot);
+      const s = Math.sin(-b.rot);
+      const ox = o.x - b.x;
+      const oz = o.z - b.y;
+      const t = slab(
+        [ox * c - oz * s, o.y, ox * s + oz * c],
+        [dv.x * c - dv.z * s, dv.y, dv.x * s + dv.z * c],
+        [-b.w / 2, -1, -b.d / 2],
+        [b.w / 2, b.h + 14, b.d / 2],
+      );
+      if (t !== null && t < bt) {
+        bt = t;
+        best = b.prop;
+      }
+    }
+    return best;
+  }
+
+  private tileCtx() {
+    return {
+      scene: this.scene,
+      mat: this.mergedMat,
+      inst: this.instMat,
+      look: this.look,
+      clear: this.clear,
+      blocked: this.blocked,
+      glow: this.glowMat,
+      onShow: (k: string, shown: boolean) => {
+        const g = this.fileTiles.get(k);
+        if (g) g.visible = !shown;
+        this.invalidate();
+      },
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -565,8 +716,12 @@ export class CityScene {
   private applySky() {
     applySky(this.skyState, this.sky, this.sun, this.hemi, this.fog);
     this.shared.uNight.value = this.skyState.night;
+    this.shared.uHour.value = this.hour;
+    this.glow.uNight.value = this.skyState.night;
+    setHomesNight(this.skyState.night);
+    this.actors?.setNight(this.skyState.night);
     this.renderer.toneMappingExposure = 1.05 * this.skyState.exposure;
-    if (this.lights) this.lights.visible = this.skyState.night > 0.4;
+    for (const o of this.nightSets) o.visible = this.skyState.night > 0.02;
     this.env?.dispose();
     this.env = skyEnvironment(this.renderer, this.sky);
     this.scene.environment = this.env.texture;
@@ -608,6 +763,8 @@ export class CityScene {
     this.camera.far = Math.max(6000, r.dist * 30);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
+    this.glow.uScale.value =
+      (this.size.h * this.dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
     this.dome.position.copy(this.camera.position);
     this.dome.scale.setScalar(this.camera.far * 0.9);
     // Haze: thicker the further you see, by the city's air.
@@ -708,6 +865,32 @@ export class CityScene {
     this.touch(1200);
   }
 
+  /** Driving your own car: a chase camera until endChase(). */
+  startChase() {
+    if (!this.chaseOn)
+      this.savedRig = { dist: this.rig.dist, pitch: this.rig.pitch, yaw: this.rig.yaw };
+    this.chaseOn = true;
+    this.following = true;
+    this.touch(1000);
+  }
+
+  endChase() {
+    if (!this.chaseOn) return;
+    this.chaseOn = false;
+    const s = this.savedRig;
+    if (s) {
+      this.want.dist = s.dist;
+      this.rig.pitch = s.pitch;
+      this.rig.yaw = s.yaw;
+    }
+    this.savedRig = null;
+    this.touch(1500);
+  }
+
+  get chasing() {
+    return this.chaseOn;
+  }
+
   /** Something changed: draw (and keep drawing for a moment). */
   touch(ms = 400) {
     this.dirty = true;
@@ -785,6 +968,21 @@ export class CityScene {
       this.want.x = av.x;
       this.want.y = av.y;
     }
+    if (this.chaseOn) {
+      // Behind the car, a little above, looking ahead down the street.
+      const ease = 1 - Math.pow(0.04, dt);
+      let d = Math.PI - av.heading - this.rig.yaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.rig.yaw += d * ease;
+      this.rig.pitch += (0.42 - this.rig.pitch) * ease;
+      this.want.dist = 48;
+      if (this.following) {
+        // Locked on (a fast car would outrun a lagging camera).
+        this.want.x = this.rig.x = av.x + Math.sin(av.heading) * 12;
+        this.want.y = this.rig.y = av.y + Math.cos(av.heading) * 12;
+      }
+      this.dirty = true;
+    }
     const k = 1 - Math.pow(0.0015, dt);
     const ddx = this.want.x - this.rig.x;
     const ddy = this.want.y - this.rig.y;
@@ -817,6 +1015,7 @@ export class CityScene {
     }
     this.shared.uTime.value = t / 1000;
     this.sky.uTime.value = t / 1000;
+    this.glow.uTime.value = t / 1000;
     this.placeCamera();
     this.renderer.render(this.scene, this.camera);
     for (const cb of this.onFrameCbs) cb();

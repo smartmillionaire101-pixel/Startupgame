@@ -178,3 +178,23 @@
   color: #fff;
   font-size: 12px;
 }
+
+/* Wave 10: the homes you own, a gold pill over the roof. */
+.c3-home .c3-pill {
+  background: #1f2937;
+  color: #fde68a;
+  border: 1px solid #d4a017;
+}
+.c3-home-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: #f5b700;
+  margin-right: 6px;
+  display: inline-block;
+}
+.c3-home-where {
+  color: #e5e7eb;
+  font-weight: 500;
+}

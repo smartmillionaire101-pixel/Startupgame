@@ -48,7 +48,8 @@ import {
   type StoryPlace,
 } from './contract';
 import { onVisit, takeVisit } from './goto';
-import { genderOf } from './life';
+import { carOf, genderOf } from './life';
+import { propertiesOf } from './properties';
 import { suggestionText, WhatNowCard, WhatNowList } from './WhatNowCards';
 import { suggestionsFor } from './whatnow';
 import type { Nav } from './Interiors';
@@ -242,7 +243,14 @@ interface FlightState {
  * stands in for your home market, so its places, people and prices are
  * that city's; flights between cities play full screen over it.
  */
-export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
+export function CityScreen({
+  onNavigate,
+  onOpenProperty,
+}: {
+  onNavigate: Nav;
+  /** Wave 10: a tap on one of your homes on the 3D map (the Homes app opens it). */
+  onOpenProperty?: (id: string) => void;
+}) {
   const { view, lite, refresh, toast } = useView();
   const cityView = useMemo(() => cityViewOf(view), [view]);
   const abroad = cityView.market.id !== view.market.id;
@@ -308,6 +316,7 @@ export function CityScreen({ onNavigate }: { onNavigate: Nav }) {
       onFlyHome={flyHome}
       landing={landing}
       onLanded={landed}
+      onOpenProperty={onOpenProperty}
     />
   );
   return (
@@ -342,6 +351,7 @@ type CityBodyProps = {
   /** A city you're flying to: arrive at its airport. */
   landing: string | null;
   onLanded: () => void;
+  onOpenProperty?: (id: string) => void;
 };
 
 /**
@@ -370,6 +380,7 @@ function CityBodyInner({
   onFlyHome,
   landing,
   onLanded,
+  onOpenProperty,
   geo,
 }: {
   geo: GeoData | null;
@@ -383,6 +394,7 @@ function CityBodyInner({
   /** A city you're flying to: arrive at its airport. */
   landing: string | null;
   onLanded: () => void;
+  onOpenProperty?: (id: string) => void;
 }) {
   const { view, lite, refresh, toast } = useView();
   const lang = useLang();
@@ -412,6 +424,19 @@ function CityBodyInner({
   const [trip, setTrip] = useState<FarTrip | null>(null);
   const [rideBusy, setRideBusy] = useState(false);
   const [preferred, setPreferred] = useState<RideMode>(lastRide);
+  // Wave 10: your own car (drive it yourself at home) and the homes you own here.
+  const carView = carOf(view);
+  const carModel = carView?.modelId;
+  const carLabel = carView?.label ?? '';
+  const carCost = carView?.monthlyCost ?? 0;
+  const car = useMemo(
+    () => (carModel ? { modelId: carModel, label: carLabel, monthlyCost: carCost } : null),
+    [carModel, carLabel, carCost],
+  );
+  const myHomes = useMemo(
+    () => propertiesOf(view).filter((p) => !p.market || p.market === view.market.id),
+    [view],
+  );
   // "What to do now" is a one-line chip until you open it (Wave 7), and it
   // stays out of the way during a ride.
   const [whatNowSheet, setWhatNowSheet] = useState(false);
@@ -510,7 +535,7 @@ function CityBodyInner({
       if (!trip) return;
       rememberRide(mode);
       setPreferred(mode);
-      if (mode === 'bus' || mode === 'taxi') {
+      if (mode === 'bus' || mode === 'taxi' || mode === 'drive') {
         setRideBusy(true);
         try {
           await api.command({
@@ -585,6 +610,9 @@ function CityBodyInner({
             fresh={fresh}
             onArrive={onArrive}
             onFarTrip={setTrip}
+            car={abroad ? null : car}
+            properties={myHomes}
+            onOpenProperty={onOpenProperty}
             ariaLabel={t(
               'Map of {market}. Arrow keys pan, plus and minus zoom. Use the places list to go into a building.',
               { market: view.market.name },
@@ -656,6 +684,8 @@ function CityBodyInner({
                 busy={rideBusy}
                 onPick={(m) => void pickRide(m)}
                 onCancel={cancelTrip}
+                car={car}
+                abroad={abroad}
               />
             ) : (
               <>

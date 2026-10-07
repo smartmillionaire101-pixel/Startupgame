@@ -62,7 +62,8 @@ import {
 import { CATEGORY_COLOR } from './contract';
 import { Crowd } from './Crowd';
 import { setRiding } from './riding';
-import { rideMs, rideVehicle, SHORT_HOP, type RideMode } from './travel';
+import { rideMs, rideVehicle, SHORT_HOP, type MyCar, type RideMode } from './travel';
+import type { OwnedProperty } from './properties';
 import type { VehicleSpec } from './flavour';
 import { playersByPlace, type PresenceView, type Walker } from './people';
 import { beginRide } from './ride/state';
@@ -1101,6 +1102,7 @@ function CityMap2D({
   fresh = NONE_FLAGS,
   onArrive,
   onFarTrip,
+  car = null,
 }: {
   layout: CityLayout;
   look: AvatarLook;
@@ -1123,6 +1125,12 @@ function CityMap2D({
   onArrive?: (at: Pt, placeId: string | null) => void;
   /** A tap on somewhere far: choose how to get there, then call handle.ride. */
   onFarTrip?: (trip: FarTrip) => void;
+  /** Wave 10: your car (drive it yourself), when it is in this city. */
+  car?: MyCar | null;
+  /** Wave 10: homes you own here (the 3D map shows them; the 2D map ignores them). */
+  properties?: OwnedProperty[];
+  /** Wave 10: a tap on one of your homes on the map. */
+  onOpenProperty?: (id: string) => void;
 }) {
   const reduced = useReducedMotion();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -1140,6 +1148,10 @@ function CityMap2D({
   const onEnterRef = useRef(onEnter);
   const onArriveRef = useRef(onArrive);
   const onFarTripRef = useRef(onFarTrip);
+  const carRef = useRef(car);
+  useEffect(() => {
+    carRef.current = car;
+  }, [car]);
   useEffect(() => {
     onEnterRef.current = onEnter;
     onArriveRef.current = onArrive;
@@ -1387,8 +1399,9 @@ function CityMap2D({
       // Short hops always walk.
       const mode: RideMode = len > SHORT_HOP ? (opts.mode ?? 'walk') : 'walk';
       // Wave 7: a ride across town plays full screen (or a chase with reduced motion).
-      const spec0 = rideVehicle(mode, layout.marketId, layout.flavour.vehicles);
-      const spec = spec0 && mode !== 'bus' ? { ...spec0, body: look.top } : spec0;
+      const spec0 = rideVehicle(mode, layout.marketId, layout.flavour.vehicles, carRef.current);
+      const spec =
+        spec0 && mode !== 'bus' && mode !== 'drive' ? { ...spec0, body: look.top } : spec0;
       const scene =
         len > SHORT_HOP
           ? beginRide({ mode, tiles: len, path, layout, placeId, look, mapMs: rideMs(mode, len) })

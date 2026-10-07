@@ -56,8 +56,9 @@ export function skyAt(hour: number, lat: number, haze: number): SkyState {
   const horizonDay = mixC(C('#c6dbea'), C('#e3e3dc'), haze * 0.6);
   const zenithGold = C('#5a7bb0');
   const horizonGold = C('#f0b27a');
-  const zenithNight = C('#0b1530');
-  const horizonNight = C('#25304a');
+  // A deep blue night; the horizon a little warmer, lit from below by the city.
+  const zenithNight = C('#030918');
+  const horizonNight = mixC(C('#141c36'), C('#3a2f3c'), 0.35 + haze * 0.25);
   let zenith = mixC(zenithDay, zenithGold, golden * 0.6);
   let horizon = mixC(horizonDay, horizonGold, golden * 0.85);
   zenith = mixC(zenith, zenithNight, night);
@@ -69,14 +70,14 @@ export function skyAt(hour: number, lat: number, haze: number): SkyState {
   return {
     sunDir: lightDir,
     sunColor: night > 0.5 ? moon : sunColor,
-    sunIntensity: night > 0.5 ? 0.25 : 3.4 * day + 0.2,
+    sunIntensity: night > 0.5 ? 0.12 : 3.4 * day + 0.2,
     hemiSky: mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#2a3a63'), night),
-    hemiGround: mixC(C('#8c8476'), C('#1a1d26'), night),
-    hemiIntensity: 0.6 + 0.15 * (1 - night),
+    hemiGround: mixC(C('#8c8476'), C('#2a2522'), night),
+    hemiIntensity: 0.6 + 0.15 * (1 - night) - 0.25 * night,
     zenith,
     horizon,
     night,
-    exposure: 1.0 + night * 0.25,
+    exposure: 1.0 + night * 0.1,
   };
 }
 
@@ -109,15 +110,18 @@ export function skyDome(sky: SkyUniforms, radius: number) {
       }`,
     fragmentShader: /* glsl */ `
       varying vec3 vDir;
+      uniform float uTime;
       ${SKY_FN}
       float sh(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
       void main() {
         vec3 c = skyColor(vDir);
-        // Stars at night.
-        if (uNight > 0.5 && vDir.y > 0.05) {
-          vec3 q = floor(vDir * 300.0);
-          float s = step(0.9985, sh(q));
-          c += vec3(s) * (uNight - 0.5) * 1.6;
+        // Stars at night: a few bright, many faint, fading into the haze low down.
+        if (uNight > 0.3 && vDir.y > 0.02) {
+          vec3 q = floor(vDir * 420.0);
+          float h = sh(q);
+          float s = step(0.9975, h) * (0.35 + 0.65 * step(0.9995, h));
+          float tw = 0.75 + 0.25 * sin(uTime * 3.0 + h * 900.0);
+          c += vec3(0.9, 0.94, 1.0) * s * tw * smoothstep(0.3, 0.8, uNight) * smoothstep(0.02, 0.25, vDir.y) * 1.8;
         }
         gl_FragColor = vec4(c, 1.0);
         #include <tonemapping_fragment>

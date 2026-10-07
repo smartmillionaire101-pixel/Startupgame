@@ -31,6 +31,7 @@ const MODE_ICON: Record<RideMode, IconName> = {
   cycle: 'cycle',
   bus: 'bus',
   taxi: 'taxi',
+  drive: 'taxi',
 };
 
 const effort = (m: RideMode, tiles: number) =>
