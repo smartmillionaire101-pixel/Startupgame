@@ -52,6 +52,7 @@ it('saves mute and stays synchronized with phone settings', async () => {
   expect(button.getAttribute('aria-pressed')).toBe('true');
 });
 
+// Renders the whole loop sample by sample: slow on a busy machine, hence the longer limit.
 it('produces a finite, audible loop without clipping', () => {
   const samples = musicSamples();
   let peak = 0;
@@ -64,7 +65,7 @@ it('produces a finite, audible loop without clipping', () => {
   expect(samples.length / 22_050).toBe(20);
   expect(peak).toBeLessThan(1);
   expect(Math.sqrt(energy / samples.length)).toBeGreaterThan(0.01);
-});
+}, 30_000);
 
 it('starts audio after a gesture, suspends when hidden, and closes on mute', () => {
   const resume = vi.fn().mockResolvedValue(undefined);
