@@ -25,6 +25,7 @@
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@types/node": "^22.18.0",
+    "@types/pngjs": "^6.0.5",
     "eslint": "^9.0.0",
     "eslint-plugin-react-hooks": "^7.0.0",
     "fast-check": "^4.3.0",

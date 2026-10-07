@@ -20,8 +20,6 @@ export const LEVEL_HEIGHT = 3.2;
 /** Footprint simplification tolerance (metres): corners stay, near-collinear points go. */
 export const SIMPLIFY_TOLERANCE = 0.5;
 
-const T = Object.fromEntries(BUILDING_TYPES.map((t, i) => [t, i]));
-
 /**
  * Levels by type when nothing is tagged: [lo, hi] for a small footprint and
  * for a large one, outside / inside the core. Heights in metres for the
@@ -63,7 +61,8 @@ export function estimateHeight(type, area, core, h) {
   if (m) return { height: round1(m[0] + h * (m[1] - m[0])), levels: name === 'garage' ? 1 : 0 };
   const spec = LEVELS[name] ?? LEVELS.other;
   // Tiny footprints are sheds and kiosks whatever their tag.
-  if (area < 40) return { height: round1(LEVEL_HEIGHT * (h < 0.7 ? 1 : 2)), levels: h < 0.7 ? 1 : 2 };
+  if (area < 40)
+    return { height: round1(LEVEL_HEIGHT * (h < 0.7 ? 1 : 2)), levels: h < 0.7 ? 1 : 2 };
   const range = core && spec.core ? spec.core : area >= 600 ? spec.large : spec.small;
   // Bigger footprints lean to the top of the range.
   const lean = Math.min(1, Math.log10(Math.max(area, 40) / 40) / 2);
@@ -102,7 +101,13 @@ export function heightOf(tags, type, area, core, h) {
   height = Math.min(height, 1000);
   if (height < minHeight + 1) height = minHeight + LEVEL_HEIGHT;
   roofHeight = Math.min(roofHeight, height - minHeight);
-  return { height: round1(height), minHeight: round1(minHeight), levels: lv, roofHeight, estimated };
+  return {
+    height: round1(height),
+    minHeight: round1(minHeight),
+    levels: lv,
+    roofHeight,
+    estimated,
+  };
 }
 
 /** The outer rings ([[x, y], …], projected) of a way or multipolygon relation. */

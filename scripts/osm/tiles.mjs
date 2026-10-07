@@ -32,7 +32,13 @@ import {
   encodeTrees,
   parseLength,
 } from './format.mjs';
-import { LEVEL_HEIGHT, buildingsFrom, fitBudget, resolveParts, tileBuildings } from './buildings.mjs';
+import {
+  LEVEL_HEIGHT,
+  buildingsFrom,
+  fitBudget,
+  resolveParts,
+  tileBuildings,
+} from './buildings.mjs';
 import { bb, flat, hash01, projector, simplify } from './geom.mjs';
 import { overpass, sleep } from './overpass.mjs';
 import { clampWater, fetchTerrarium, sampleGrid, terrainPlan } from './terrain.mjs';

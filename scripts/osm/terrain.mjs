@@ -30,7 +30,12 @@ export function lonLatToPixel(lon, lat, z) {
 }
 
 /** The grid size and the zoom to sample for a box `w`×`h` metres at latitude `lat`. */
-export function terrainPlan(w, h, lat, { spacing = 30, min = 129, max = 513, maxTiles = 100 } = {}) {
+export function terrainPlan(
+  w,
+  h,
+  lat,
+  { spacing = 30, min = 129, max = 513, maxTiles = 100 } = {},
+) {
   const cols = Math.max(min, Math.min(max, Math.ceil(w / spacing) + 1));
   const rows = Math.max(min, Math.min(max, Math.ceil(h / spacing) + 1));
   const step = Math.min(w / (cols - 1), h / (rows - 1));

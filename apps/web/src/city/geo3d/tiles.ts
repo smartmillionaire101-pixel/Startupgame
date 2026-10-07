@@ -314,7 +314,8 @@ export function decodeTrees(buf: ArrayBuffer | ArrayBufferView): Trees {
 
 export const geoBase = (city: string) => `/geo/${encodeURIComponent(city)}`;
 export const indexUrl = (city: string) => `${geoBase(city)}/index.json`;
-export const tileUrl = (city: string, tx: number, ty: number) => `${geoBase(city)}/b-${tx}_${ty}.bin`;
+export const tileUrl = (city: string, tx: number, ty: number) =>
+  `${geoBase(city)}/b-${tx}_${ty}.bin`;
 
 /** The tile (tx, ty) holding local point (x, y). */
 export const tileOf = (x: number, y: number, size = TILE_SIZE): [number, number] => [
