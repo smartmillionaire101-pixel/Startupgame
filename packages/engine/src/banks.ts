@@ -202,7 +202,15 @@ export function foundBank(
   const aiStake = Math.round(args.contribution * aiMultiple);
   const id = newId(world, 'bank');
   const acc = openAccount(world, { currency: m.data.currency, market: m.id, label: args.name });
-  transfer(world, p.accounts.local, acc, args.contribution, `Capital for ${args.name}`, m.month);
+  transfer(
+    world,
+    p.accounts.local,
+    acc,
+    args.contribution,
+    `Capital for ${args.name}`,
+    m.month,
+    'capital',
+  );
   transfer(world, m.ext.lps, acc, aiStake, `AI shareholders’ capital for ${args.name}`, m.month);
   const total = args.contribution + aiStake;
   const bank: Bank = {

@@ -11,6 +11,7 @@ export const T0 = Date.UTC(2026, 9, 3, 12);
 export async function makeApp(
   opts: {
     path?: string;
+    allowLocalAdmin?: boolean;
     now?: () => number;
     env?: Record<string, string>;
     email?: EmailProvider;
@@ -34,6 +35,7 @@ export async function makeApp(
   });
   const sent: string[] = [];
   const app = await buildApp({
+    ...(opts.allowLocalAdmin ? { allowLocalAdmin: true } : {}),
     config,
     store,
     game,

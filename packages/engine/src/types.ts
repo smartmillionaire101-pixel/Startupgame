@@ -1164,6 +1164,22 @@ export type ExternalPurpose =
 // ---------------------------------------------------------------- World
 
 export interface World {
+  /** Durable admin counters. Older snapshots start tracking at their next command. */
+  activity?: {
+    since: number;
+    at: number;
+    sequence: number;
+    totals: Record<string, { spent: number; sent: number; invested: number; capital: number }>;
+    recent: {
+      id: number;
+      at: number;
+      playerId: Id;
+      kind: 'spent' | 'sent' | 'invested' | 'capital';
+      currency: Currency;
+      amount: number;
+      memo: string;
+    }[];
+  };
   /** Bumped when the shape changes; `upgradeWorld` migrates older saves. */
   schemaVersion: number;
   seed: number;

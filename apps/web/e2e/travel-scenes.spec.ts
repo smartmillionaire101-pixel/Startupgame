@@ -1,3 +1,4 @@
+import { setupFounder } from './fixtures';
 import type { Locator, Page } from '@playwright/test';
 import { expect, letters, playAsGuest, test } from './fixtures';
 
@@ -30,17 +31,13 @@ test.beforeEach(async ({ page }) => {
 
 async function founder(page: Page, name: string) {
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill(name);
-  await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Ledgers for traders');
-  await page.getByLabel('Company name').fill(`${name.split(' ')[0]} Ledger ${letters(5)}`);
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: name,
+    handle: `${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`,
+    company: `${name.split(' ')[0]} Ledger ${letters(5)}`,
+    idea: 'Ledgers for traders',
+    market: /Lagos, Nigeria/,
+  });
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
     timeout: 30_000,
   });

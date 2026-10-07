@@ -61,23 +61,59 @@ const pick = (alphabet: string, n: number) =>
 export const letters = (n = 6) => pick('abcdefghijklmnopqrstuvwxyz', n);
 export const digits = (n = 7) => pick('0123456789', n);
 
-/** Start a game as a guest: tick the 18+ box, then Play now (English or French). */
-export async function playAsGuest(page: Page, lang: 'en' | 'fr' = 'en') {
+/** Create an unconfigured session for tests whose subject is gameplay, not signup. */
+export async function playAsGuest(page: Page) {
   await page.goto('/');
-  // Wait for the guest session itself, not just the click: on a deployed site
-  // the next request can otherwise go out before the session cookie exists.
-  const signedIn = page.waitForResponse(
-    (r) => r.url().endsWith('/api/auth/guest') && r.request().method() === 'POST',
+  const response = await page.request.post('/api/auth/guest', {
+    headers: { 'x-runway': '1' },
+    data: { adult: true },
+  });
+  if (!response.ok()) throw new Error(`Guest session: ${response.status()}`);
+  await page.reload();
+}
+
+/** Seed an established founder; onboarding itself has dedicated UI tests. */
+export async function setupFounder(
+  page: Page,
+  input: {
+    name: string;
+    handle: string;
+    company: string;
+    idea: string;
+    market?: RegExp;
+    gender?: 'female' | 'male';
+  },
+) {
+  const meta = await page.request.get('/api/meta').then((r) => r.json());
+  const market = meta.markets.find((m: { name: string; country: string }) =>
+    (input.market ?? /Lagos/).test(`${m.name}, ${m.country}`),
   );
-  if (lang === 'fr') {
-    await page.getByLabel('Je confirme avoir 18 ans ou plus').check();
-    await page.getByRole('button', { name: 'Jouer maintenant' }).click();
-  } else {
-    await page.getByLabel('I confirm I’m 18 or older').check();
-    await page.getByRole('button', { name: 'Play now' }).click();
-  }
-  const res = await signedIn;
-  if (!res.ok()) throw new Error(`Guest sign-in failed: ${res.status()} ${await res.text()}`);
+  if (!market) throw new Error('Test market not found');
+  await setupPlayer(page, {
+    type: 'player.create',
+    name: input.name,
+    handle: input.handle,
+    role: 'founder',
+    backgroundId: 'f-engineer',
+    market: market.id,
+    gender: input.gender ?? 'female',
+    company: {
+      name: input.company,
+      industry: 'fintech',
+      revenueModel: 'subscription',
+      idea: input.idea,
+      incorporation: 'local',
+    },
+  });
+}
+
+export async function setupPlayer(page: Page, command: unknown) {
+  const response = await page.request.post('/api/commands', {
+    headers: { 'x-runway': '1' },
+    data: { command },
+  });
+  if (!response.ok()) throw new Error(`Test setup: ${await response.text()}`);
+  await page.reload();
 }
 
 /**

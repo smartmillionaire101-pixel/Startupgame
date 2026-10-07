@@ -1,3 +1,4 @@
+import { setupFounder } from './fixtures';
 import { devices, type Page } from '@playwright/test';
 import {
   expect,
@@ -18,18 +19,13 @@ import {
 
 async function signUpFounder(page: Page, name: string) {
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill(name);
-  await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Bookkeeping for market stalls');
-  await page.getByLabel('Company name').fill(`${name.split(' ')[0]} Books ${letters(5)}`);
-  await expect(page.getByText(/Available in Lagos/)).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: name,
+    handle: `${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`,
+    company: `${name.split(' ')[0]} Books ${letters(5)}`,
+    idea: 'Bookkeeping for market stalls',
+    market: /Lagos, Nigeria/,
+  });
   // The first answer after Start can be a cold start that loads the whole world.
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
     timeout: 30_000,

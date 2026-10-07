@@ -1,3 +1,4 @@
+import type { VisitStats } from '../visits.js';
 /**
  * The non-game data store: accounts, sessions, one-time codes, private chats
  * and reports. Two implementations: SQLite for a long-running server
@@ -44,6 +45,8 @@ export interface AccountRow {
   /** True until the player saves their progress with an email. */
   guest: boolean;
   email: string | null;
+  /** Collected at entry, never usable for sign-in until confirmed. */
+  pendingEmail?: string;
 }
 
 /** A pending email sign-in link (stored under the SHA-256 of its token). */
@@ -78,6 +81,9 @@ export interface AiMessageRow {
 }
 
 export interface AccountStore {
+  recordVisit(id: string, now: number): Awaitable<void>;
+  visitStats(now: number): Awaitable<VisitStats>;
+  onlinePlayerIds(since: number): Awaitable<string[]>;
   findUserByPhone(phoneHash: string): Awaitable<{ id: string } | undefined>;
   createUser(id: string, phoneHash: string, now: number): Awaitable<void>;
   /** A guest: no phone, no email, until they save their progress. */
@@ -91,6 +97,7 @@ export interface AccountStore {
   findUserByEmail(emailNorm: string): Awaitable<{ id: string } | undefined>;
   /** Undefined for unknown or deleted accounts. */
   getAccount(userId: string): Awaitable<AccountRow | undefined>;
+  setPendingEmail(userId: string, email: string): Awaitable<void>;
   putEmailToken(tokenHash: string, row: EmailTokenRow): Awaitable<void>;
   /** Single use: returns the row and removes it; undefined if unknown, used or expired. */
   takeEmailToken(tokenHash: string, now: number): Awaitable<EmailTokenRow | undefined>;
@@ -122,6 +129,8 @@ export interface AccountStore {
   blockChat(chatId: string, by: string): Awaitable<void>;
   report(chatId: string, reporter: string, reason: string, now: number): Awaitable<void>;
   openReports(): Awaitable<unknown[]>;
+  /** Refresh one account's heartbeat and count distinct active players across all cities. */
+  heartbeatOnline(userId: string, now: number, windowMs: number): Awaitable<number>;
   /** Upsert one player's position (one row per player; a new market replaces the old row). */
   putPresence(
     userId: string,

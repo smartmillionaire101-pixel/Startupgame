@@ -1,5 +1,5 @@
 /**
- * The "What to do now" card (Wave 5 §D), on the City and on Home: three
+ * The "What to do now" cards (Wave 5 §D), on the City and on Home: three
  * suggestions, each one tap to walk there.
  */
 import './scenes.css';

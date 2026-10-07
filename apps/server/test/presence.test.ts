@@ -281,7 +281,7 @@ describe('presence through the serverless handler', () => {
           new Request(`https://runway.test${path}`, {
             method,
             headers: {
-              'content-type': 'application/json',
+              ...(body === undefined ? {} : { 'content-type': 'application/json' }),
               'x-runway': '1',
               ...(cookie ? { cookie } : {}),
             },
@@ -309,6 +309,9 @@ describe('presence through the serverless handler', () => {
       expect(created.json).toMatchObject({ ok: true });
     }
     const [a, b] = clients as [(typeof clients)[0], (typeof clients)[0]];
+    expect((await a('POST', '/api/online')).json).toEqual({ count: 1 });
+    expect((await b('POST', '/api/online')).json).toEqual({ count: 2 });
+    expect((await a('POST', '/api/online')).json).toEqual({ count: 2 });
     expect((await a('POST', '/api/presence', { x: 5, y: 6, place: 'hall' })).status).toBe(204);
     const seen = await b('GET', '/api/presence');
     expect(seen.status).toBe(200);
