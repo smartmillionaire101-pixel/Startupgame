@@ -201,6 +201,9 @@ export class CityScene {
     const clear = [...this.geo.clear];
     for (const p of plans) if (p.e2 === undefined) clear.push({ e: p.e, s: p.s, r: 40 });
 
+    // No infill or trees where the game's places and the landmarks stand.
+    for (const c of clear) this.mask.markBuilt(c.e, c.s, c.r + 8);
+
     // OSM outlines, merged per chunk.
     const osm = osmFootprints(data, this.look, clear, layout.marketId);
     const byChunk = new Map<string, Footprint[]>();

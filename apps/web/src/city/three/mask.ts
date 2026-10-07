@@ -189,6 +189,20 @@ export class GroundMask {
     return j * this.w + i;
   }
 
+  /** Mark a disc as taken (the game's places and the landmarks stand there). */
+  markBuilt(x: number, y: number, r: number) {
+    const i0 = Math.max(0, Math.floor((x - r - this.x0) / this.res));
+    const i1 = Math.min(this.w - 1, Math.floor((x + r - this.x0) / this.res));
+    const j0 = Math.max(0, Math.floor((y - r - this.y0) / this.res));
+    const j1 = Math.min(this.h - 1, Math.floor((y + r - this.y0) / this.res));
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) {
+        const cx = this.x0 + (i + 0.5) * this.res;
+        const cy = this.y0 + (j + 0.5) * this.res;
+        if (Math.hypot(cx - x, cy - y) <= r + this.res * 0.5) this.built[j * this.w + i] = 1;
+      }
+  }
+
   coverAt(x: number, y: number): number {
     const i = this.idx(x, y);
     return i < 0 ? COVER.water : this.cover[i]!;
