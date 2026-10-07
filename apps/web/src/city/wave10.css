@@ -170,11 +170,11 @@
     radial-gradient(circle, #3b82f6 2px, transparent 3px),
     radial-gradient(circle, #a855f7 2px, transparent 3px);
   background-size:
-    47px 53px,
-    61px 41px,
-    37px 59px,
-    53px 47px,
-    43px 37px;
+    97px 113px,
+    131px 89px,
+    83px 127px,
+    109px 97px,
+    91px 79px;
   animation: confetti-fall 2.4s linear infinite;
 }
 @keyframes confetti-fall {
@@ -200,4 +200,23 @@
   .outing-art * {
     animation: none !important;
   }
+}
+.comp-tally {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.comp-tally li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.comp-tally li.is-on {
+  background: color-mix(in srgb, #7c3aed 18%, var(--surface));
+  font-weight: 700;
 }

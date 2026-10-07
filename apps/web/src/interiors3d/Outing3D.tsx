@@ -67,7 +67,7 @@ function yacht(p: Outing3DProps): World {
   const root = new THREE.Group();
   const sunset = p.variant === 'sunset';
   // The sea: a wide plane with gentle waves.
-  const seaGeo = new THREE.PlaneGeometry(80, 80, 40, 40);
+  const seaGeo = new THREE.PlaneGeometry(44, 44, 30, 30);
   seaGeo.rotateX(-Math.PI / 2);
   const sea = new THREE.Mesh(
     seaGeo,
@@ -85,32 +85,12 @@ function yacht(p: Outing3DProps): World {
       emissiveIntensity: 1.4,
     }),
   );
-  sun.position.set(-6, sunset ? 1.2 : 9, -34);
-  root.add(sun);
-  const glint = new THREE.Mesh(
-    new THREE.PlaneGeometry(3, 30),
-    mat(sunset ? '#fdba74' : '#e0f2fe', {
-      opacity: 0.35,
-      emissive: '#fde68a',
-      emissiveIntensity: 0.4,
-    }),
-  );
-  glint.rotation.x = -Math.PI / 2;
-  glint.position.set(-5, -0.28, -18);
-  root.add(glint);
-  // A distant coast.
-  const coast = new Kit();
-  for (let i = 0; i < 9; i++)
-    coast.box(
-      3 + (i % 3),
-      1 + ((i * 7) % 5) * 0.6,
-      2,
-      i % 2 ? '#64748b' : '#475569',
-      12 + i * 3.2,
-      -0.3,
-      -30 + (i % 2),
-    );
-  root.add(coast.build());
+  // What lies ahead of the camera: the sun low over the water.
+  const far = new THREE.Group();
+  far.rotation.y = 0.9;
+  root.add(far);
+  sun.position.set(-1.5, sunset ? 0.2 : 1.6, -19);
+  far.add(sun);
   // The yacht: hull, deck, cabin, rails, a mast.
   const boat = new THREE.Group();
   const k = new Kit();
@@ -145,9 +125,9 @@ function yacht(p: Outing3DProps): World {
   return {
     root,
     target: new THREE.Vector3(0, 0.6, 0.4),
-    span: 11,
+    span: 12,
     azimuth: 0.9,
-    elevation: 0.45,
+    elevation: 0.3,
     background: sunset ? '#7c2d12' : '#7dd3fc',
     light: sunset
       ? { sun: 1.4, hemi: 0.9, sunColor: '#fdba74', hemiColor: '#fed7aa' }
@@ -165,7 +145,6 @@ function yacht(p: Outing3DProps): World {
       boat.rotation.x = Math.sin(t * 0.7) * 0.015;
       boat.position.y = Math.sin(t * 1.1) * 0.05;
       boat.position.z = -k * 2;
-      glint.material.opacity = 0.25 + Math.sin(t * 2) * 0.08;
       // You lounge, then stand at the rail and toast the view.
       const standing = k > 0.45;
       if (standing) {
@@ -209,6 +188,8 @@ function golf(p: Outing3DProps): World {
     const a = (i / 16) * Math.PI * 2;
     const x = Math.cos(a) * (15 + (i % 3) * 2);
     const z = Math.sin(a) * (13 + (i % 2) * 3) - 2;
+    // Nothing between the camera and the tee.
+    if (z > 5) continue;
     k.cyl(0.15, 0.2, 1.6, '#6b4a2f', x, 0, z);
     k.sphere(1.3, i % 2 ? '#166534' : '#15803d', x, 2.4, z, { seg: 9 });
   }
@@ -281,7 +262,7 @@ function golf(p: Outing3DProps): World {
   return {
     root,
     target: new THREE.Vector3(polo ? 3 : 0, 0.4, polo ? 0 : -1),
-    span: polo ? 22 : 16,
+    span: polo ? 17 : 15,
     azimuth: polo ? 0.5 : 0.35,
     elevation: 0.55,
     background: '#bae6fd',
@@ -558,6 +539,8 @@ function rooftop(p: Outing3DProps): World {
     const r = 16 + (i % 4) * 3;
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r - 4;
+    // The skyline behind and beside the roof, never in front of the camera.
+    if (z > -2 && Math.abs(x) < 20) continue;
     const h = 4 + ((i * 37) % 13);
     k.box(3, h + 8, 3, i % 2 ? '#1e293b' : '#334155', x, -12, z);
     k.box(3.04, h + 6, 3.04, '#fde68a', x, -11, z, {

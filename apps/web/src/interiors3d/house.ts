@@ -178,7 +178,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const root = new THREE.Group();
   const W = plan.w;
   const H = plan.h;
-  const garage = o.tier >= 4;
+  const sky = o.estate === 'penthouse';
+  const garage = o.tier >= 4 && !sky;
   const GW = 4.4;
   const totalW = W + (garage ? GW + 0.3 : 0);
   const centre = new THREE.Vector3(totalW / 2, 0, H / 2 + 0.6);
@@ -191,7 +192,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   lawnTex.repeat.set((R * 2) / 6, (R * 2) / 6);
   const lawn = new THREE.Mesh(
     new THREE.CircleGeometry(R, 64),
-    mat('#ffffff', { map: lawnTex, rough: 1, own: true }),
+    sky ? mat('#9ca3af', { rough: 0.95 }) : mat('#ffffff', { map: lawnTex, rough: 1, own: true }),
   );
   lawn.rotation.x = -Math.PI / 2;
   lawn.position.set(centre.x, -0.16, centre.z);
@@ -199,7 +200,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   root.add(lawn);
   const rim = new THREE.Mesh(
     new THREE.CylinderGeometry(R, R * 1.01, 0.5, 64, 1, true),
-    mat('#3d4f2c', { rough: 1, side: THREE.DoubleSide }),
+    mat(sky ? '#475569' : '#3d4f2c', { rough: 1, side: THREE.DoubleSide }),
   );
   rim.position.set(centre.x, -0.41, centre.z);
   root.add(rim);
@@ -214,7 +215,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     k.box(0.9, 0.04, 0.5, '#b9ad98', dx, -0.15, H + 0.8 + i * 0.9, { round: 0.04 });
   // Bushes and trees around the plot.
   const rnd = (n: number) => (((Math.sin(n * 12.9898) * 43758.5453) % 1) + 1) % 1;
-  for (let i = 0; i < 14; i++) {
+  // A penthouse sits on a roof: no garden round it.
+  for (let i = 0; i < (sky ? 0 : 14); i++) {
     const a = (i / 14) * Math.PI * 2 + 0.2;
     const r = R - 0.9 - rnd(i) * 0.6;
     const x = centre.x + Math.cos(a) * r;

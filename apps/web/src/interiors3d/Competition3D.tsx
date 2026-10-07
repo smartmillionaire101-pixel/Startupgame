@@ -201,7 +201,7 @@ export default function Competition3D(props: Competition3DProps): ReactElement |
     try {
       stage = new Stage(canvas, {
         target: new THREE.Vector3(0, 1.0, -0.6),
-        span: 10.5,
+        span: 9.2,
         azimuth: 0.32,
         elevation: 0.42,
         minAzimuth: -0.9,
@@ -288,14 +288,14 @@ export default function Competition3D(props: Competition3DProps): ReactElement |
       const label = new THREE.Sprite(
         new THREE.SpriteMaterial({ map: labelTexture(j.name, j.org, j.ai), depthTest: false }),
       );
-      label.scale.set(1.0, 0.3, 1);
-      label.position.set(nJ === 1 ? 0 : x, 0.98, 1.0);
+      label.scale.set(1.25, 0.38, 1);
+      label.position.set(nJ === 1 ? 0 : x, 1.0, 0.95);
       label.renderOrder = 6;
       stage.scene.add(label);
       const card = new THREE.Sprite(
         new THREE.SpriteMaterial({ map: cardTexture('?'), depthTest: false }),
       );
-      card.scale.set(0.42, 0.52, 1);
+      card.scale.set(0.58, 0.72, 1);
       card.visible = false;
       card.renderOrder = 7;
       stage.scene.add(card);
@@ -400,7 +400,7 @@ export default function Competition3D(props: Competition3DProps): ReactElement |
           }
         }
         j.card.visible = up;
-        j.card.position.set(j.x, 1.75 + Math.sin(t * 3 + i) * 0.03, 1.15);
+        j.card.position.set(j.x, 1.95 + Math.sin(t * 3 + i) * 0.03, 1.15);
       });
       audience.forEach((c, n) =>
         pose(

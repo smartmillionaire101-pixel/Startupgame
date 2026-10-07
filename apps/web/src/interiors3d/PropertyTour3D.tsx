@@ -57,7 +57,7 @@ export default function PropertyTour3D(props: PropertyTour3DProps): ReactElement
       acting={null}
       night={props.night}
       dusk={false}
-      car={props.planTier >= 4 ? 'luxury' : null}
+      car={props.planTier >= 4 && props.estate !== 'penthouse' ? 'luxury' : null}
       buyMode={false}
       sheetOpen={false}
       ghost={null}

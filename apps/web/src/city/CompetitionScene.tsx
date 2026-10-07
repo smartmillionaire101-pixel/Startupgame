@@ -222,7 +222,9 @@ function Stage({ c, onClose }: { c: CompetitionView; onClose: () => void }) {
           </Suspense>
         )}
         <CompetitionArt c={c} f={f} me={me} />
-        {phase === 'crown' && <div className="confetti" aria-hidden="true" />}
+        {phase === 'crown' && !(want3d && ready3d) && (
+          <div className="confetti" aria-hidden="true" />
+        )}
         <div className="act-hud" data-act-hud="">
           <p className="act-caption" aria-live="polite">
             <b>{t('Pitch competition')}</b>
@@ -250,9 +252,29 @@ function Stage({ c, onClose }: { c: CompetitionView; onClose: () => void }) {
           </section>
         )}
         {(phase === 'reveal' || phase === 'crown') && (
-          <p className="act-playing">
-            <span aria-hidden="true">🎤</span> {t('The judges’ scores')}
-          </p>
+          <section className="comp-live" aria-label={t('The judges’ scores')}>
+            <p className="act-playing">
+              <span aria-hidden="true">🎤</span> {t('The judges’ scores')}
+            </p>
+            <ol className="comp-tally" aria-label={t('Scores so far')}>
+              {entries.map((e, i) => {
+                const on = i === f.entry && phase === 'reveal';
+                const done =
+                  phase === 'crown' ||
+                  i < f.entry ||
+                  (on && f.cards.length > 0 && f.cards.every((x) => x !== null));
+                return (
+                  <li key={e.id} className={on ? 'is-on' : ''}>
+                    <span>
+                      {e.companyName}
+                      {e.you && <span className="pill pill-info">{t('you')}</span>}
+                    </span>
+                    <b>{done ? `${e.total ?? '–'}/10` : on ? '…' : ''}</b>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
         )}
         {phase === 'results' && (
           <section className="comp-results" role="status" data-result="">

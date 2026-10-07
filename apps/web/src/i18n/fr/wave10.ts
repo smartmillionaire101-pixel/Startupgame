@@ -44,6 +44,7 @@ export const wave10: Record<string, string> = {
   'Join as a judge': 'Rejoindre le jury',
   Results: 'Résultats',
   Scores: 'Notes',
+  'Scores so far': 'Notes jusqu’ici',
   'Entries open': 'Inscriptions ouvertes',
   Judged: 'Jugé',
   'Called off': 'Annulé',

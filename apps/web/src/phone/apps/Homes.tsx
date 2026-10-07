@@ -7,7 +7,7 @@
  * every city (`me.properties`), with Rent out, Sell and Move in, and your
  * net worth (`me.netWorth`).
  */
-import { Suspense, lazy, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { money, pct } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
@@ -173,6 +173,9 @@ function ListingDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [years, setYears] = useState(25);
   const want3d = use3d();
   const [ready, setReady] = useState(false);
+  // Open at the top of the listing (the list may have been scrolled far down).
+  const top = useRef<HTMLDivElement>(null);
+  useEffect(() => top.current?.scrollIntoView({ block: 'start' }), [id]);
   const night = false;
   if (!l || !market)
     return (
@@ -198,7 +201,7 @@ function ListingDetail({ id, onBack }: { id: string; onBack: () => void }) {
       (r) => (r?.message ? tx(r.message) : t('It’s yours.')),
     );
   return (
-    <div className="phone-stack listing-detail" data-listing-detail={l.id}>
+    <div className="phone-stack listing-detail" data-listing-detail={l.id} ref={top}>
       <button type="button" className="phone-link" onClick={onBack}>
         ‹ {t('Back to the listings')}
       </button>
@@ -287,12 +290,14 @@ function ListingDetail({ id, onBack }: { id: string; onBack: () => void }) {
               label={t('Monthly payment')}
               value={<b data-monthly={monthly}>{money(monthly, cur)}</b>}
             />
-            <p className="small muted">
-              {t('You need {now} now and {reserve} in reserve (six payments).', {
-                now: money(deposit + l.closingCosts, cur),
-                reserve: money(monthly * 6, cur),
-              })}
-            </p>
+            {!mortgageReason && (
+              <p className="small muted">
+                {t('You need {now} now and {reserve} in reserve (six payments).', {
+                  now: money(deposit + l.closingCosts, cur),
+                  reserve: money(monthly * 6, cur),
+                })}
+              </p>
+            )}
             <Button
               variant="secondary"
               disabled={busy || !!mortgageReason}
