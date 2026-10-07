@@ -93,6 +93,54 @@ function layer(g: THREE.BufferGeometry | null, m: THREE.Material, order: number)
   return mesh;
 }
 
+/**
+ * Land: paved and built-up where the city is (its streets are dense), scrub
+ * and grass where it is not (Marin's headlands, the edges of town).
+ */
+function landMaterial(look: CityLook, mask: GroundMask) {
+  const m = flatMat(look.ground, -39);
+  const tex = new THREE.DataTexture(
+    mask.urban,
+    mask.w,
+    mask.h,
+    THREE.RedFormat,
+    THREE.UnsignedByteType,
+  );
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  const natural = new THREE.Color(look.park).lerp(new THREE.Color(look.hillColor), 0.45);
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uUrban = { value: tex };
+    sh.uniforms.uNatural = { value: natural };
+    sh.uniforms.uFrame = {
+      value: new THREE.Vector4(mask.x0, mask.y0, mask.w * mask.res, mask.h * mask.res),
+    };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vLand;')
+      .replace(
+        '#include <worldpos_vertex>',
+        '#include <worldpos_vertex>\nvLand = (modelMatrix * vec4(transformed, 1.0)).xz;',
+      );
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec2 vLand;\nuniform sampler2D uUrban;\nuniform vec3 uNatural;\nuniform vec4 uFrame;',
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        {
+          vec2 uv = (vLand - uFrame.xy) / uFrame.zw;
+          float u = texture2D(uUrban, uv).r + ${look.sprawl.toFixed(3)} * 0.6;
+          diffuseColor.rgb = mix(uNatural, diffuseColor.rgb, smoothstep(0.04, 0.22, u));
+        }`,
+      );
+  };
+  m.customProgramCacheKey = () => 'land-urban';
+  return m;
+}
+
 // ---------------------------------------------------------------------------
 // Water
 
@@ -310,7 +358,7 @@ export function buildGround(
   // Land: the city file's coast (or the whole frame), with what is beyond.
   const landPolys = data.land?.length ? data.land : [[bx0, by0, bx1, by0, bx1, by1, bx0, by1]];
   const add = (m: THREE.Object3D | null) => m && group.add(m);
-  add(layer(polyGeometry(landPolys), flatMat(look.ground, -39), -39));
+  add(layer(polyGeometry(landPolys), landMaterial(look, mask), -39));
   add(layer(polyGeometry(data.airport ?? []), flatMat('#a9a79f', -38), -38));
   add(
     layer(
