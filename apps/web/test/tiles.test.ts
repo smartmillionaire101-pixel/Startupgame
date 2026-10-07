@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import * as F from '../../../scripts/osm/format.mjs';
 import {
+  decodeTile,
   BUILDING_TYPES,
   FLAG_COLOUR,
   FLAG_CORE,
@@ -94,6 +95,11 @@ describe('3D city tiles: encoder (scripts/osm/format.mjs) ↔ decoder (geo3d/til
       expect(Math.abs(t.xy[2 * k + 1]! - y!)).toBeLessThanOrEqual(0.051);
     });
     expect(t.height[0]).toBeCloseTo(23.5, 4);
+    // The 3D map's view of the same tile: outlines and heights per building.
+    const flat = decodeTile(bytes.slice().buffer);
+    expect(flat.map((b) => b.p.length)).toEqual([8, 8]);
+    expect(flat[0]!.h).toBeCloseTo(23.5, 4);
+    expect(flat[1]!.p[0]).toBeCloseTo(t.xy[8]!, 4);
     expect(t.minHeight[1]).toBeCloseTo(3.2, 4);
     expect(t.roofHeight[0]).toBe(1.5);
     expect(t.levels[0]).toBe(7);
