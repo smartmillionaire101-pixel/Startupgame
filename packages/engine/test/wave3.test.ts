@@ -180,7 +180,7 @@ describe('San Francisco (Wave 3 §A)', () => {
 describe('AI angel investors as people (Wave 3 §A)', () => {
   it('creates round(4 × angelDepth) angels per market (min 2) with funds and savings', () => {
     const w = withSf(21, ['lagos', 'nairobi', 'london']);
-    const expected: Record<string, number> = { lagos: 2, nairobi: 2, london: 4, [SF]: 7 };
+    const expected: Record<string, number> = { lagos: 2, nairobi: 2, london: 4, [SF]: 11 };
     for (const [market, n] of Object.entries(expected)) {
       expect(angelTarget(market as MarketId)).toBe(n);
       const angels = activeAngels(w, market as MarketId);
@@ -213,13 +213,14 @@ describe('AI angel investors as people (Wave 3 §A)', () => {
     const w = addSfFounder(withSf(22));
     const v = playerView(w, 'u_sf')!;
     const angels = v.players.filter((p) => p.ai);
-    expect(angels).toHaveLength(7);
+    // Wave 10: SF, the tech capital, keeps four more AI angels (7 + 4).
+    expect(angels).toHaveLength(11);
     for (const a of angels) {
       expect(a.role).toBe('investor');
       expect(a.angel?.fundId).toBeTruthy();
     }
     const tagged = v.market.funds.filter((f) => f.angel);
-    expect(tagged).toHaveLength(7);
+    expect(tagged).toHaveLength(11);
     for (const f of tagged) expect(angels.map((a) => a.id)).toContain(f.angel!.playerId);
     expect(v.market.funds.filter((f) => !f.angel).length).toBeGreaterThan(6);
     // Leaderboards and directory still render with AI investors around.
@@ -292,7 +293,7 @@ describe('AI angel investors as people (Wave 3 §A)', () => {
     expect(activeAngels(w, SF)).toHaveLength(0);
     zeroSums(w);
     w = settle(w, SF, 1);
-    expect(activeAngels(w, SF)).toHaveLength(7);
+    expect(activeAngels(w, SF)).toHaveLength(11);
     expect(w.players[angelPlayerId(SF, 0)]).toBeDefined();
     zeroSums(w);
 
@@ -304,9 +305,9 @@ describe('AI angel investors as people (Wave 3 §A)', () => {
     w.accounts[f0.account]!.balance = 0;
     w = settle(w, SF, 1);
     expect(w.players[angelPlayerId(SF, 0)]!.angel!.retiredMonth).toBeDefined();
-    expect(activeAngels(w, SF)).toHaveLength(7);
-    expect(w.players[angelPlayerId(SF, 7)]).toBeDefined();
-    expect(playerView(w, angelPlayerId(SF, 7))).not.toBeNull();
+    expect(activeAngels(w, SF)).toHaveLength(11);
+    expect(w.players[angelPlayerId(SF, 11)]).toBeDefined();
+    expect(playerView(w, angelPlayerId(SF, 11))).not.toBeNull();
     zeroSums(w);
   });
 });

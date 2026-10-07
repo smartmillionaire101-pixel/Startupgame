@@ -12,6 +12,9 @@ import { account, transfer } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import type { Rng } from './rng.js';
+import { deriveRng } from './rng.js';
+import { seedTechCapitalFunds } from './capital.js';
+import { TECH_CAPITAL_STARTUPS } from './data/tech-capital.js';
 import { applyStarEvent } from './stars.js';
 import { bandSalary, hire } from './staff.js';
 import { valueCompany } from './valuation.js';
@@ -199,7 +202,11 @@ export const AI_STARTUPS_GROWTH_CAP = 20;
  */
 export function aiStartupTarget(world: World, market: MarketId): number {
   const humans = Object.values(world.players).filter((p) => !p.ai && p.market === market).length;
-  return AI_STARTUPS_PER_MARKET + Math.min(AI_STARTUPS_GROWTH_CAP, Math.floor(humans / 4));
+  // Wave 10: the tech capital keeps more AI startups.
+  const capital = Math.round(AI_STARTUPS_PER_MARKET * (TECH_CAPITAL_STARTUPS[market] ?? 0));
+  return (
+    AI_STARTUPS_PER_MARKET + capital + Math.min(AI_STARTUPS_GROWTH_CAP, Math.floor(humans / 4))
+  );
 }
 
 /** Keep markets populated; AI founders step back as real players arrive (AI incumbents stay forever). */
@@ -215,6 +222,21 @@ export function maintainPopulation(world: World, market: MarketId, rng: Rng, now
     } catch {
       /* try again next month */
     }
+  }
+  // Wave 10: the tech capital fills up faster (its own stream, so nothing above shifts).
+  if (TECH_CAPITAL_STARTUPS[market] && active + 1 < target) {
+    const extra = deriveRng(world.seed, 'tech-capital', market, now);
+    if (extra.chance(0.5))
+      try {
+        spawnAiStartup(world, market, extra, now);
+      } catch {
+        /* next month */
+      }
+  }
+  try {
+    seedTechCapitalFunds(world, market);
+  } catch {
+    /* next month */
   }
   // AI angels: replace any who stopped investing; saved worlds get theirs here.
   try {

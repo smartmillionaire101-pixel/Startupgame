@@ -13,6 +13,7 @@ import { settlePersonalLoans } from './credit.js';
 import { ECONOMY, JOB_HOURS, payJob } from './economy.js';
 import { comfortEnergy, settleCar } from './shop.js';
 import { decayNeeds, moodHoursFactor } from './needs.js';
+import { livingCostFactor } from './property.js';
 import type { MarketState, Player, World } from './types.js';
 
 /** The agency gig's pay, local minor units (Wave 6: about 30% more). */
@@ -26,9 +27,9 @@ export const OVERWORK_HOURS = 170;
 
 export const tierOf = (p: Player) => LIFESTYLE_TIERS[clamp(p.lifestyleTier, 1, 5) - 1]!;
 
-/** Monthly lifestyle cost in local minor units. */
+/** Monthly lifestyle cost in local minor units (Wave 10: no rent when you live in a home you own). */
 export const lifestyleCost = (world: World, p: Player) =>
-  scale(col(getMarket(world, p.market)), tierOf(p).costCol);
+  scale(col(getMarket(world, p.market)), tierOf(p).costCol * livingCostFactor(world, p));
 
 /** Hours available next month: base, background, lifestyle, energy and burnout. */
 export function computeHours(p: Player): number {

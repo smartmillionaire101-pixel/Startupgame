@@ -18,6 +18,7 @@ import { addSafe } from './captable.js';
 import { createAiFund } from './capital.js';
 import { BACKGROUNDS } from './data/characters.js';
 import { CAPITAL } from './data/capital.js';
+import { TECH_CAPITAL_ANGELS } from './data/tech-capital.js';
 import { AI_FIRST_NAMES, AI_LAST_NAMES } from './data/fiction.js';
 import { INDUSTRIES } from './data/industries.js';
 import type { Industry } from './data/industries.js';
@@ -39,7 +40,12 @@ import type { Company, Fund, Id, Player, Stage, World } from './types.js';
  * below 2, so there is always someone writing cheques.
  */
 export const angelTarget = (market: MarketId, humanInvestors = 0): number =>
-  Math.max(2, Math.round(4 * CAPITAL[market].angelDepth) - Math.floor(humanInvestors / 2));
+  Math.max(
+    2,
+    Math.round(4 * CAPITAL[market].angelDepth) +
+      (TECH_CAPITAL_ANGELS[market] ?? 0) -
+      Math.floor(humanInvestors / 2),
+  );
 
 /** Human investors living in a market (for the AI phase-out). */
 export const humanInvestorsIn = (world: World, market: MarketId): number =>

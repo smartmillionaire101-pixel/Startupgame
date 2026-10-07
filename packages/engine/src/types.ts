@@ -173,6 +173,8 @@ export interface Player {
   moneySent?: { day: number; total: number };
   /** Wave 8: tech events attended in a market month (`te:<market>:<month>:<n>` ids). Missing = none. */
   techEvents?: { month: number; ids: string[] };
+  /** Wave 10: the property you live in (one you own). Missing = renting, as before. */
+  residence?: { propertyId: Id; since: number };
 }
 
 // ---------------------------------------------------------------- Friends (Wave 8)
@@ -357,6 +359,8 @@ export interface MonthlyPnl {
   suppliers: number;
   /** Of revenue, what local businesses paid (Wave 3). Missing on old saves = 0. */
   businessRevenue?: number;
+  /** Wave 10: branch takings (part of revenue) and branch running costs. Missing = none. */
+  branches?: { revenue: number; opex: number };
   payroll: number;
   founderSalary: number;
   office: number;
@@ -494,6 +498,9 @@ export interface Company {
     flaggedRevenue: number;
     /** Paid by local businesses this month (Wave 3). */
     businessRevenue?: number;
+    /** Wave 10: branch takings and running costs this month (company currency). */
+    branchRevenue?: number;
+    branchCost?: number;
   };
   lastFlaggedRevenue: number;
   /** Consecutive months of mostly flagged revenue (anti-cheat, §18). */
@@ -1043,6 +1050,8 @@ export interface MarketState {
   humansJoined?: number;
   /** Head of the central bank (Wave 5): the best human banker each quarter. Missing = the AI governor. */
   governor?: Governor;
+  /** Wave 10: the city's property price index (1 = when the market opened) and last month's. */
+  propertyIndex?: { value: number; prev: number; month: number };
 }
 
 export interface Governor {
@@ -1105,7 +1114,10 @@ export interface LocalBusiness {
   suppliers: { companyId: Id; sector: Industry; monthlyMinor: number; since: number }[];
   openedMonth: number;
   closedMonth?: number;
-  /** Index of its seed in the city roster; -1 for a generated business (Wave 6, see `gen`). */
+  /**
+   * Index of its seed in the city roster; -1 for a generated business (Wave 6, see `gen`);
+   * -2 for a landmark or a second site (Wave 10, also described by `gen`).
+   */
   seed: number;
   /**
    * Wave 6: a business generated as the city grows (not from the roster).
@@ -1120,6 +1132,10 @@ export interface LocalBusiness {
   rapport: Record<Id, number>;
   /** Last month's figures. */
   lastMonth: { takings: number; costs: number; trade: number; profit: number };
+  /** Wave 10: a second site opened by another business (its parent's id). */
+  branchOf?: Id;
+  /** Wave 10: a landmark venue (marina, golf club, ballroom, terminal, tech campus): its stable key. */
+  landmark?: string;
 }
 
 export interface EconomyStats {
@@ -1218,4 +1234,123 @@ export interface World {
   visits?: Record<Id, Visit>;
   /** Wave 8: hangouts. Missing on old saves = none. */
   hangouts?: Record<Id, Hangout>;
+  /** Wave 10: every city's property market (listed and owned). Missing = seeded at the next settlement. */
+  properties?: Record<Id, Property>;
+  /** Wave 10: company branches in other neighbourhoods and cities. Missing = none. */
+  branches?: Record<Id, Branch>;
+  /** Wave 10: pitch competitions. Missing = none. */
+  competitions?: Record<Id, Competition>;
+}
+
+// ---------------------------------------------------------------- Wave 10: a living economy
+
+export const PROPERTY_TIERS = [
+  'studio',
+  'apartment',
+  'townhouse',
+  'villa',
+  'mansion',
+  'penthouse',
+] as const;
+export type PropertyTier = (typeof PROPERTY_TIERS)[number];
+
+export interface Mortgage {
+  /** The AI bank of the property's market lends (its external bank account). */
+  lenderAccount: Id;
+  lender: string;
+  /** Local minor units of the property's market. */
+  principal: number;
+  outstanding: number;
+  rateBps: number;
+  monthlyPayment: number;
+  monthsLeft: number;
+  /** Missed payments in a row; three is repossession. */
+  missed: number;
+  startMonth: number;
+}
+
+/** A home on a city's property market (Wave 10). Prices in the market's local minor units. */
+export interface Property {
+  /** Stable: `prop-<market>-<n>`. */
+  id: Id;
+  market: MarketId;
+  /** The real neighbourhood (Pacific Heights, Banana Island…). */
+  neighbourhood: string;
+  /** The city-plan district it sits in (for the map). */
+  district: string;
+  street: string;
+  tier: PropertyTier;
+  bedrooms: number;
+  /** Price when the city index is 1. Current price = basePrice × index. */
+  basePrice: number;
+  /** Human owner, or null when it's on the market. */
+  ownerId: Id | null;
+  /** What the owner paid (local minor) and when (market month). */
+  bought?: { price: number; month: number };
+  rentedOut: boolean;
+  mortgage?: Mortgage | null;
+  /** Rent and running costs last month (local minor), for the portfolio. */
+  lastMonth?: { month: number; rent: number; upkeep: number; mortgage: number; vacant: boolean };
+}
+
+/** A company's branch in another neighbourhood or city (Wave 10). */
+export interface Branch {
+  id: Id;
+  companyId: Id;
+  market: MarketId;
+  district: string;
+  /** Branch-market month it opened (and closed). */
+  openedMonth: number;
+  closedMonth?: number;
+  status: 'open' | 'closed';
+  /** Running costs a month, branch-market local minor units. */
+  monthlyOpex: number;
+  /** What opening it cost (branch-market local minor). */
+  setupCost: number;
+  lastMonth: { month: number; revenue: number; opex: number };
+  closedReason?: string;
+}
+
+export interface CompetitionJudge {
+  /** A player id (human judge) or `fund:<fundId>` (AI investor). */
+  id: Id;
+  kind: 'player' | 'ai';
+  name: string;
+  org: string;
+  fundId: Id | null;
+}
+
+export interface CompetitionEntry {
+  id: Id;
+  companyId: Id;
+  /** The founder who pitched (an AI founder for AI entrants). */
+  founderId: Id;
+  ai: boolean;
+  /** Judge id → score 1–10. Hidden from other players until the result. */
+  scores: Record<Id, number>;
+  /** Average score after the result. */
+  total?: number;
+  rank?: number;
+  prize?: number;
+}
+
+/** A pitch competition (Wave 10): enter this month, judged at the settlement. */
+export interface Competition {
+  /** Stable: `comp-<market>-<month>`. */
+  id: Id;
+  market: MarketId;
+  /** Market month of the entry window (it is judged when that month settles). */
+  month: number;
+  name: string;
+  sponsor: { name: string; kind: 'fund' | 'bank' | 'corporate' };
+  venue: { businessId: Id | null; name: string; district: string };
+  /** Local minor units, held in `account` (from the sponsor's side of the world). */
+  prizePool: number;
+  account: Id;
+  judges: CompetitionJudge[];
+  entries: CompetitionEntry[];
+  status: 'open' | 'judged' | 'cancelled';
+  winnerEntryId?: Id | null;
+  /** Fund that wants to meet the winner (the investor interest). */
+  interest?: { fundId: Id; name: string } | null;
 }

@@ -23,8 +23,10 @@ import {
   LATE_OPENINGS,
   businessKind,
 } from './data/businesses.js';
-import type { BusinessCategory, BusinessKindSpec, JobRole } from './data/businesses.js';
+import type { BusinessCategory, BusinessKindSpec, JobRole, VenueItem } from './data/businesses.js';
+import { LIFESTYLE_TIERS } from './data/characters.js';
 import { CITY_NAME_PARTS, KIND_NAME_SUFFIXES } from './data/business-names.js';
+import { LANDMARKS } from './data/landmarks.js';
 import { shopSells } from './data/lifestyle-shop.js';
 import { INDUSTRY_LABEL } from './data/industries.js';
 import type { Industry } from './data/industries.js';
@@ -56,6 +58,7 @@ import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { metAtVenue, peopleHere } from './people.js';
 import { deriveRng } from './rng.js';
+import { randomDistrict } from './districts.js';
 import { venueNeeds } from './needs.js';
 import type { Rng } from './rng.js';
 import type {
@@ -256,7 +259,35 @@ export function ensureRoster(world: World, marketId: MarketId, month: number) {
   for (const i of missing) openBusiness(world, m, i, rng, month, true);
 }
 
-function openBusiness(
+/**
+ * Wave 10: open the city's lifestyle landmarks and tech campuses
+ * (data/landmarks.ts) that aren't open yet: at the first settlement for new
+ * worlds and saved ones alike; a closed one reopens under new owners after
+ * a while. Own RNG stream, so nothing else shifts.
+ */
+export function ensureLandmarks(world: World, marketId: MarketId, month: number) {
+  const m = getMarket(world, marketId);
+  const all = Object.values(businessesOf(m));
+  const rng = deriveRng(world.seed, 'economy', 'landmarks', marketId, month);
+  for (const seed of LANDMARKS[marketId] ?? []) {
+    const mine = all.filter((b) => b.landmark === seed.key);
+    if (mine.some(isOpen)) continue;
+    if (mine.some((b) => month - (b.closedMonth ?? month) < ECONOMY.reopenAfter)) continue;
+    const b = openBusiness(world, m, -1, rng, month, mine.length === 0, {
+      name: seed.name,
+      kind: seed.kind,
+      district: seed.district,
+      street: seed.street ?? null,
+      owner: seed.owner,
+    });
+    if (b) {
+      b.landmark = seed.key;
+      b.seed = -2;
+    }
+  }
+}
+
+export function openBusiness(
   world: World,
   m: MarketState,
   seedIdx: number,
@@ -264,6 +295,8 @@ function openBusiness(
   month: number,
   founding: boolean,
   gen?: NonNullable<LocalBusiness['gen']>,
+  /** Wave 10: who puts up the opening capital (a parent business); default the outside world. */
+  capitalFrom?: Id,
 ): LocalBusiness | null {
   const seed = gen ?? CITY_BUSINESSES[m.id]?.[seedIdx];
   const spec = seed ? businessKind(seed.kind) : undefined;
@@ -279,14 +312,17 @@ function openBusiness(
   const [lo, hi] = spec.revenueCol;
   // Day-one businesses are established; new openings start a little smaller.
   const base = scale(col(m), rng.range(lo, hi) * (founding ? 1 : 0.8));
-  transfer(
-    world,
-    m.ext.genesis,
-    acc,
-    Math.round(base * ECONOMY.startCashMonths),
-    'Opening capital',
-    month,
-  );
+  if (capitalFrom)
+    transferUpTo(world, capitalFrom, acc, Math.round(base * ECONOMY.startCashMonths), 'Opening capital', month);
+  else
+    transfer(
+      world,
+      m.ext.genesis,
+      acc,
+      Math.round(base * ECONOMY.startCashMonths),
+      'Opening capital',
+      month,
+    );
   const b: LocalBusiness = {
     id,
     market: m.id,
@@ -418,7 +454,7 @@ function growthKinds(marketId: MarketId): { kind: string; w: number }[] {
   return out;
 }
 
-function weightedPick<T extends { w: number }>(rng: Rng, items: readonly T[]): T {
+export function weightedPick<T extends { w: number }>(rng: Rng, items: readonly T[]): T {
   const total = items.reduce((a, x) => a + x.w, 0);
   let r = rng.next() * total;
   for (const x of items) {
@@ -436,7 +472,12 @@ function generateIdentity(m: MarketState, rng: Rng): NonNullable<LocalBusiness['
   if (!roster.length || !kinds.length || !parts) return null;
   const kind = weightedPick(rng, kinds).kind;
   const spec = businessKind(kind)!;
-  const where = rng.pick(roster);
+  // Wave 10: spread across every district (weighted by activity), not wherever the roster is densest.
+  const district = randomDistrict(m.id, rng) ?? rng.pick(roster).district;
+  const local = roster.filter((s) => s.district === district && s.street);
+  const where: { district: string; street?: string } = local.length
+    ? { district, street: rng.pick(local).street }
+    : { district };
   const female = rng.chance(0.5);
   const first = rng.pick(female ? parts.female : parts.male);
   const last = rng.pick(parts.last);
@@ -471,7 +512,8 @@ function generateIdentity(m: MarketState, rng: Rng): NonNullable<LocalBusiness['
 function grow(world: World, m: MarketState, rng: Rng, month: number, count: number) {
   const opened: LocalBusiness[] = [];
   for (let i = 0; i < count; i++) {
-    const open = Object.values(businessesOf(m)).filter(isOpen).length;
+    // Landmarks and second sites (Wave 10, seed -2) don't take the newcomers' places.
+    const open = Object.values(businessesOf(m)).filter((b) => isOpen(b) && b.seed !== -2).length;
     if (open >= growthTarget(world, m)) break;
     const gen = generateIdentity(m, rng);
     if (!gen) break;
@@ -544,6 +586,7 @@ function raiseRapport(b: LocalBusiness, playerId: Id, by: number) {
 export function settleEconomy(world: World, marketId: MarketId, month: number) {
   ensureBusinesses(world, marketId);
   ensureRoster(world, marketId, month);
+  ensureLandmarks(world, marketId, month);
   const m = getMarket(world, marketId);
   const rng = deriveRng(world.seed, 'economy', marketId, month);
   const stats = emptyStats(month);
@@ -1113,13 +1156,39 @@ function resolveGuest(world: World, me: Player, withId: Id, b: LocalBusiness): G
   return { name: c.name.split(',')[0]!, contact: { kind: c.kind, refId: c.refId, name: c.name } };
 }
 
+/** Wave 10: why a lifestyle tier keeps you from this (null when it doesn't). */
+export function tierLock(me: Player, it: VenueItem): string | null {
+  const need = it.requiresTier ?? 1;
+  if (me.lifestyleTier >= need) return null;
+  const want = LIFESTYLE_TIERS[need - 1]!;
+  const have = LIFESTYLE_TIERS[clamp(me.lifestyleTier, 1, 5) - 1]!;
+  return `${it.label} unlocks at lifestyle tier ${need} (${want.name}). You live ${have.name} (tier ${have.tier}).`;
+}
+
 /** Eat, drink or get a haircut; with `withId`, a meeting over a meal (the inviter pays). */
-export function venueBuy(world: World, me: Player, businessId: Id, itemId: string, withId?: Id) {
+export function venueBuy(
+  world: World,
+  me: Player,
+  businessId: Id,
+  itemId: string,
+  withId?: Id,
+  /** Wave 10: where a travel activity (a private-jet weekend) takes you. */
+  to?: MarketId,
+  now?: number,
+) {
   const b = openBusinessOf(world, me, businessId);
   const m = getMarket(world, b.market);
   const month = m.month;
   const it = specOf(b).venue?.items.find((x) => x.id === itemId);
   ensure(it, 'venue.item', `${b.name} doesn’t sell that.`);
+  // Wave 10: some things to do need a lifestyle tier.
+  const locked = tierLock(me, it);
+  ensure(!locked, 'venue.tier', locked ?? '');
+  if (it.travel) {
+    ensure(to, 'venue.travel', `Pick where ${it.label.toLowerCase()} takes you.`);
+    ensure(world.markets[to], 'venue.travel', 'That city isn’t open yet.');
+    ensure(to !== b.market, 'venue.travel', 'Pick another city.');
+  }
   const price = scale(col(m), it.priceCol);
   const fmt = (v: number) => formatMoney(v, m.data.currency);
   let guest: Guest | null = null;
@@ -1153,6 +1222,21 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
       met = metAtVenue(world, me, b, rng, month, withId ? [withId] : []);
   }
   const metLine = met ? ` You met ${met.name} (${met.role}).` : '';
+  // Wave 10: a private-jet weekend lands you (and a guest who's a player) in another city.
+  let travelled: { market: MarketId; name: string } | null = null;
+  if (it.travel && to) {
+    const fly = (p: Player) => {
+      if (to === p.market) delete p.location;
+      else {
+        p.location = { market: to, since: now ?? p.lastActiveAt };
+        p.visited[to] = getMarket(world, p.market).month;
+      }
+    };
+    fly(me);
+    if (guest?.player && !guest.player.ai) fly(guest.player);
+    travelled = { market: to, name: getMarket(world, to).data.name };
+  }
+  const travelLine = travelled ? ` Wheels down in ${travelled.name}.` : '';
   if (!guest)
     return {
       price: total,
@@ -1160,7 +1244,8 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
       needs,
       warmth: null as number | null,
       met,
-      message: `${it.label} at ${b.name}: ${fmt(total)}.${metLine}`,
+      travelled,
+      message: `${it.label} at ${b.name}: ${fmt(total)}.${metLine}${travelLine}`,
     };
 
   // A meeting over a meal: warmer than a handshake at an event.
@@ -1183,14 +1268,15 @@ export function venueBuy(world: World, me: Player, businessId: Id, itemId: strin
   const c = (me.contacts ?? []).find(
     (x) => x.id === `${guest.contact.kind}:${guest.contact.refId}`,
   );
-  const now = c ? Math.round(contactWarmth(c, month) * 100) / 100 : warmth;
+  const warmNow = c ? Math.round(contactWarmth(c, month) * 100) / 100 : warmth;
   return {
     price: total,
     energy,
     needs,
-    warmth: now,
+    warmth: warmNow,
     met,
-    message: `${it.label} with ${guest.name} at ${b.name}: ${fmt(total)}. You’re on warmer terms (${Math.round(now * 100)}%).${metLine}`,
+    travelled,
+    message: `${it.label} with ${guest.name} at ${b.name}: ${fmt(total)}. You’re on warmer terms (${Math.round(warmNow * 100)}%).${metLine}${travelLine}`,
   };
 }
 
@@ -1233,6 +1319,12 @@ export function businessesView(world: World, viewer: Player, m: MarketState) {
         open,
         /** Wave 6: opened within the last two months (generated or from the roster). */
         isNew: open && month - b.openedMonth < GROWTH.newMonths,
+        /** Wave 10: a second site of another business (its id and name), or null. */
+        branchOf: b.branchOf
+          ? { id: b.branchOf, name: m.businesses?.[b.branchOf]?.name ?? '' }
+          : null,
+        /** Wave 10: a landmark (marina, golf club, ballroom, jet terminal, tech campus). */
+        landmark: !!b.landmark,
         /** Wave 6: a showroom's stock (furniture or appliance slots, or cars); null otherwise. */
         sells: shopSells(b.kind),
         /** Wave 6: who's here this month (owner, staff, AI founders, angels, partners, regulars). */
@@ -1248,6 +1340,10 @@ export function businessesView(world: World, viewer: Player, m: MarketState) {
                 ...(it.fun ? { fun: it.fun } : {}),
                 ...(it.meetChance ? { meetChance: it.meetChance } : {}),
                 ...(it.activity ? { activity: true } : {}),
+                /** Wave 10: the lifestyle tier it needs (1 = anyone), and whether you're below it. */
+                requiresTier: it.requiresTier ?? 1,
+                locked: tierLock(viewer, it) !== null,
+                ...(it.travel ? { travel: true } : {}),
               })),
             }
           : null,

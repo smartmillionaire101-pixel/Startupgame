@@ -27,6 +27,7 @@ import { bumpNeed, moodOf, needsOf } from './needs.js';
 import { NPC_POOL, npcPerson } from './people.js';
 import { getBusiness, isOpen, specOf } from './economy.js';
 import { deriveRng } from './rng.js';
+import { TECH_CAPITAL_EVENTS, TECH_CAPITAL_TOPICS } from './data/tech-capital.js';
 import { homeView } from './shop.js';
 import type { MarketId } from './data/markets.js';
 import type { Hangout, Id, LocalBusiness, MarketState, Player, Visit, World } from './types.js';
@@ -660,7 +661,9 @@ function speakerPool(world: World, m: MarketState): Omit<TechSpeaker, 'talk'>[] 
 /** The city's tech events in a month: 3–6, deterministic. */
 export function techEventsFor(world: World, m: MarketState, month: number): TechEvent[] {
   const rng = deriveRng(world.seed, 'tech-events', m.id, month);
-  const count = rng.int(3, 6);
+  // Wave 10: the tech capital's calendar is busier.
+  const count = rng.int(3, 6) + (TECH_CAPITAL_EVENTS[m.id] ?? 0);
+  const extraTopics = TECH_CAPITAL_TOPICS[m.id] ?? [];
   // Venues that were open before the month began, so the calendar holds all month.
   const venues: TechEvent['venue'][] = [
     { kind: 'hub', businessId: null, name: 'The Hub', placeId: 'hub' },
@@ -684,7 +687,8 @@ export function techEventsFor(world: World, m: MarketState, month: number): Tech
     const kind = r.pick(TECH_EVENT_KINDS);
     const spec = TECH_EVENT_KIND_DATA[kind];
     const venue = venues[Math.floor(r.next() * venues.length)]!;
-    const title = spec.topics[Math.floor(r.next() * spec.topics.length)]!;
+    const topics = extraTopics.length ? [...spec.topics, ...extraTopics] : spec.topics;
+    const title = topics[Math.floor(r.next() * topics.length)]!;
     const day = 1 + Math.floor(r.next() * 28);
     const capacity = r.int(spec.capacity[0], spec.capacity[1]);
     const ticket = r.chance(spec.free)

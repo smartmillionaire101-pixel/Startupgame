@@ -51,6 +51,9 @@ import {
   quickInvest,
 } from './programs.js';
 import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
+import { buyProperty, letProperty, moveIn, sellProperty } from './property.js';
+import { closeBranch, openBranch } from './branches.js';
+import { enterCompetition, joinJudges, scoreEntry } from './competitions.js';
 import { proposeAcquisition } from './acquisitions.js';
 import { boardOf, castVote, openVote } from './governance.js';
 import { fileDispute } from './arbitration.js';
@@ -949,7 +952,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'gig.take':
       return takeBusinessGig(world, me, cmd.businessId, cmd.gigId);
     case 'venue.buy':
-      return venueBuy(world, me, cmd.businessId, cmd.itemId, cmd.withId);
+      return venueBuy(world, me, cmd.businessId, cmd.itemId, cmd.withId, cmd.to, ctx.now);
     // ------------------------------------------------------------ life and work (Wave 5)
     case 'job.take':
       return takeJob(world, me, cmd.businessId, cmd.role);
@@ -1008,6 +1011,27 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       });
     case 'event.broadcast':
       return broadcastEvent(world, me, cmd.eventId, cmd.spend);
+    // ------------------------------------------------------------ a living economy (Wave 10)
+    case 'property.buy':
+      return buyProperty(world, me, cmd.propertyId, cmd.mortgage ?? null);
+    case 'property.sell':
+      return sellProperty(world, me, cmd.propertyId);
+    case 'property.rent':
+      return letProperty(world, me, cmd.propertyId, true);
+    case 'property.unrent':
+      return letProperty(world, me, cmd.propertyId, false);
+    case 'property.moveIn':
+      return moveIn(world, me, cmd.propertyId);
+    case 'company.branch.open':
+      return openBranch(world, me, cmd.companyId, cmd.market, cmd.district);
+    case 'company.branch.close':
+      return closeBranch(world, me, cmd.branchId);
+    case 'competition.enter':
+      return enterCompetition(world, me, cmd.competitionId, cmd.companyId);
+    case 'competition.judge.join':
+      return joinJudges(world, me, cmd.competitionId);
+    case 'competition.score':
+      return scoreEntry(world, me, cmd.competitionId, cmd.entryId, cmd.score);
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;
