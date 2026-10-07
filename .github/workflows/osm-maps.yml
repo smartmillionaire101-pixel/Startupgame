@@ -1,7 +1,10 @@
 name: City maps from OpenStreetMap
 
 # Builds the real city maps (apps/web/src/city/geo/*.json) from OpenStreetMap
-# (© OpenStreetMap contributors, ODbL) and commits them to the branch. GitHub's
+# (© OpenStreetMap contributors, ODbL) and commits them to the branch. Then the
+# 3D city data (Wave 9 §A, scripts/osm/tiles.mjs): every building in 1 km binary
+# tiles, a terrain grid (AWS Terrarium tiles) and trees, into
+# apps/web/public/geo/<city>/. GitHub's
 # runners can reach the Overpass API and the OSM land polygons; the game never
 # fetches map data at runtime.
 
@@ -22,12 +25,14 @@ permissions:
 jobs:
   maps:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Dependencies (pngjs for the terrain tiles)
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin unzip
       - name: OSM land polygons (coastlines)
@@ -56,6 +61,22 @@ jobs:
             node scripts/osm/build.mjs "$id" || { echo "::warning::$id failed"; continue; }
             git add "apps/web/src/city/geo/$id.json"
             git commit -m "Maps: $id from OpenStreetMap (© OpenStreetMap contributors, ODbL)"
+            git pull --rebase origin ${{ github.ref_name }}
+            git push origin HEAD:${{ github.ref_name }}
+          done
+      - name: 3D tiles, terrain and trees per city (Overpass, AWS Terrarium)
+        # Needs the city's geo JSON (water, land, parks). One commit per city;
+        # a city whose index.json exists is skipped (index.json is written last).
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for id in $(node -e 'import("./scripts/osm/cities.mjs").then(({ CITIES }) => console.log(Object.keys(CITIES).join(" ")))'); do
+            if [ -f "apps/web/public/geo/$id/index.json" ]; then echo "skip 3D $id (already built)"; continue; fi
+            if [ ! -f "apps/web/src/city/geo/$id.json" ]; then echo "::warning::3D $id needs its geo JSON first"; continue; fi
+            node scripts/osm/tiles.mjs "$id" || { echo "::warning::3D $id failed"; continue; }
+            du -sh "apps/web/public/geo/$id"
+            git add "apps/web/public/geo/$id"
+            git commit -m "3D city: $id buildings, terrain and trees (© OpenStreetMap contributors, ODbL)"
             git pull --rebase origin ${{ github.ref_name }}
             git push origin HEAD:${{ github.ref_name }}
           done

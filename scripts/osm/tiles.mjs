@@ -97,7 +97,7 @@ async function fetchBox(box, depth, onElements) {
 
 const kb = (n) => `${(n / 1024).toFixed(0)} KB`;
 
-async function build(id) {
+export async function build(id) {
   const { wide, core: coreBox } = CITIES[id];
   const proj = projector(wide);
   const outDir = join(root, 'apps/web/public/geo', id);
