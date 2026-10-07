@@ -93,6 +93,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   const pending = useRef<{ target: Pt; then?: () => void; placeId: string | null } | null>(null);
   const [vehicle, setVehicle] = useState<VehicleSpec | null>(null);
   const [walking, setWalking] = useState(false);
+  const [driving, setDriving] = useState(false);
   const [focus, setFocus] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const cb = useRef(props);
@@ -214,15 +215,24 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         cb.current.onFarTrip({ tiles: len, placeId });
         return;
       }
-      const mode: RideMode = len > SHORT_HOP ? (opts.mode ?? 'walk') : 'walk';
-      const spec0 = rideVehicle(mode, layout.marketId, layout.flavour.vehicles);
-      const spec = spec0 && mode !== 'bus' ? { ...spec0, body: look.top } : spec0;
+      // Your own car goes even round the corner; other short hops walk.
+      const mode: RideMode =
+        len > SHORT_HOP || opts.mode === 'drive' ? (opts.mode ?? 'walk') : 'walk';
+      const spec0 = rideVehicle(mode, layout.marketId, layout.flavour.vehicles, cb.current.car);
+      const spec =
+        spec0 && mode !== 'bus' && mode !== 'drive' ? { ...spec0, body: look.top } : spec0;
+      const driving = mode === 'drive';
       const scene =
-        len > SHORT_HOP
+        len > SHORT_HOP || driving
           ? beginRide({ mode, tiles: len, path, layout, placeId, look, mapMs: rideMs(mode, len) })
           : null;
       const done = () => {
         scene?.end();
+        if (driving) {
+          sceneRef.current?.actors.setDriving(0);
+          sceneRef.current?.endChase();
+          setDriving(false);
+        }
         pos.current = target;
         placeAvatarAt(layout.marketId, target);
         placeAvatar(target);
@@ -240,6 +250,12 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       const s3 = sceneRef.current;
       s3?.actors.setWalking(true);
       if (s3) s3.following = true;
+      if (driving && s3) {
+        // Keep to your lane, the camera behind you.
+        s3.actors.setDriving(2.2);
+        if (!reduced) s3.startChase();
+        setDriving(true);
+      }
       const ms = scene?.ms ?? rideMs(mode, len);
       const t0 = performance.now();
       let cancelled = false;
@@ -258,6 +274,11 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         cancel: () => {
           cancelled = true;
           scene?.end();
+          if (driving) {
+            sceneRef.current?.actors.setDriving(0);
+            sceneRef.current?.endChase();
+            setDriving(false);
+          }
           if (walk.current) cancelAnimationFrame(walk.current.raf);
           placeAvatarAt(layout.marketId, pos.current);
         },
@@ -582,6 +603,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       aria-roledescription={t('map')}
       aria-label={ariaLabel}
       data-map3d={ready ? 'ready' : 'loading'}
+      data-driving={driving ? '1' : undefined}
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

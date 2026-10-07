@@ -149,8 +149,37 @@ export function destinationsOf(view: PlayerView): Destination[] {
 // ---------------------------------------------------------------------------
 // Rides across town
 
-export type RideMode = 'walk' | 'cycle' | 'bus' | 'taxi';
+/** Wave 10: 'drive' is your own car (engine `city.ride` mode 'drive': free at home, fuel is in its running cost). */
+export type RideMode = 'walk' | 'cycle' | 'bus' | 'taxi' | 'drive';
 export const RIDE_MODES: RideMode[] = ['walk', 'cycle', 'bus', 'taxi'];
+
+/** Your car as the chooser needs it (life.ts carOf), and whether it is with you. */
+export interface MyCar {
+  modelId: string;
+  label: string;
+  /** Monthly running cost (fuel, insurance, upkeep), minor units; 0 when unknown. */
+  monthlyCost?: number;
+}
+
+/**
+ * Every way you can go: your own car first when you have one (and it is in
+ * this city: it stays at home when you fly), then walk, cycle, transit, taxi.
+ */
+export function rideModesFor(car: MyCar | null | undefined, abroad = false): RideMode[] {
+  return car && !abroad ? ['drive', ...RIDE_MODES] : RIDE_MODES;
+}
+
+/**
+ * Fuel for a drive (minor units), for display only: the engine bills fuel in
+ * the car's monthly running cost. About a fifth of that cost is fuel, spread
+ * over some 40 trips a month, scaled by the trip's length.
+ */
+export function fuelCost(car: MyCar | null | undefined, tiles: number, costOfLiving: number) {
+  if (car?.modelId === 'electric') return 0;
+  const monthly = car?.monthlyCost && car.monthlyCost > 0 ? car.monthlyCost : costOfLiving * 0.08;
+  const k = { short: 0.7, medium: 1, long: 1.6 }[rideDistance(tiles)];
+  return Math.max(1, Math.round((monthly * 0.2 * k) / 40));
+}
 export type RideDistance = 'short' | 'medium' | 'long';
 
 /** A trip this long (tiles along the streets) or shorter just walks. */
@@ -167,7 +196,7 @@ const FARE_SHARE: Record<'bus' | 'taxi', Record<RideDistance, number>> = {
 
 /** Estimated fare (minor units of the city's currency); walking and cycling are free. */
 export function rideFare(mode: RideMode, tiles: number, costOfLiving: number): number {
-  if (mode === 'walk' || mode === 'cycle') return 0;
+  if (mode === 'walk' || mode === 'cycle' || mode === 'drive') return 0;
   return Math.round(costOfLiving * FARE_SHARE[mode][rideDistance(tiles)]);
 }
 
@@ -177,6 +206,7 @@ const RIDE_PACE: Record<RideMode, { speed: number; min: number; max: number }> =
   cycle: { speed: 9, min: 350, max: 4000 },
   bus: { speed: 12, min: 900, max: 4500 },
   taxi: { speed: 16, min: 700, max: 3200 },
+  drive: { speed: 16, min: 700, max: 3200 },
 };
 
 export const rideMs = (mode: RideMode, tiles: number) => {
@@ -193,7 +223,9 @@ export function rideMinutes(mode: RideMode, tiles: number): number {
         ? tiles * 0.22
         : mode === 'bus'
           ? 5 + tiles * 0.15
-          : 2 + tiles * 0.1;
+          : mode === 'drive'
+            ? 1 + tiles * 0.1
+            : 2 + tiles * 0.1;
   return Math.max(1, Math.round(m));
 }
 
@@ -241,13 +273,37 @@ const BIKE: VehicleSpec = {
   extra: 'rider',
 };
 
+/** Your own car on the map: its paint by model (the luxury one is black, the electric white…). */
+const MY_CAR: Record<string, Partial<VehicleSpec>> = {
+  motorbike: { body: '#b91c1c', len: 0.34, wid: 0.12, h: 8, extra: 'rider' },
+  hatchback: { body: '#2563eb', len: 0.42 },
+  'ride-hail-sedan': { body: '#e5e7eb', len: 0.5 },
+  'city-suv': { body: '#475569', len: 0.52, h: 13 },
+  electric: { body: '#f8fafc', accent: '#0ea5e9', len: 0.5 },
+  luxury: { body: '#111827', accent: '#d4af37', len: 0.58 },
+};
+
+export function myCarSpec(modelId: string | undefined): VehicleSpec {
+  return {
+    id: `my-car-${modelId ?? 'car'}`,
+    body: '#2563eb',
+    accent: '#0f172a',
+    len: 0.48,
+    wid: 0.26,
+    h: 11,
+    ...(modelId ? MY_CAR[modelId] : undefined),
+  };
+}
+
 /** The vehicle you ride for a mode in a city (null for walking). */
 export function rideVehicle(
   mode: RideMode,
   marketId: string,
   vehicles: VehicleSpec[],
+  car?: MyCar | null,
 ): VehicleSpec | null {
   if (mode === 'walk') return null;
+  if (mode === 'drive') return myCarSpec(car?.modelId);
   if (mode === 'cycle') return BIKE;
   if (mode === 'bus') {
     const want = TRANSIT[marketId]?.vehicle ?? 'bus';
@@ -261,7 +317,7 @@ const RIDE_KEY = 'rw_ride';
 export function lastRide(): RideMode {
   try {
     const v = localStorage.getItem(RIDE_KEY);
-    return RIDE_MODES.includes(v as RideMode) ? (v as RideMode) : 'walk';
+    return RIDE_MODES.includes(v as RideMode) || v === 'drive' ? (v as RideMode) : 'walk';
   } catch {
     return 'walk';
   }

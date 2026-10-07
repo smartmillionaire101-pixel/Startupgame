@@ -24,6 +24,7 @@ import * as THREE from 'three';
 import type { CityLook } from './cities';
 import { boxMeshes, mergedMesh, osmFootprints, type RealBuilding } from './buildings';
 import { FootprintGrid, type Fp } from './footprints';
+import { beacons, glowPoints } from './lights';
 
 type Decoder = (buf: ArrayBuffer, index?: unknown) => unknown;
 const DECODERS = import.meta.glob<{ decodeTile?: Decoder; decode?: Decoder }>('../geo3d/tiles.ts');
@@ -33,6 +34,8 @@ interface RawBuilding {
   h?: number;
   levels?: number;
   minHeight?: number;
+  /** BUILDING_TYPES index (geo3d/tiles.ts). */
+  type?: number;
 }
 
 export interface TileContext {
@@ -43,6 +46,8 @@ export interface TileContext {
   look: CityLook;
   clear: { e: number; s: number; r: number }[];
   blocked: FootprintGrid;
+  /** Night lights (the towers' beacons). */
+  glow?: THREE.Material;
   /** A tile came (true) or went (false): hide or show what stood in for it. */
   onShow?: (key: string, shown: boolean) => void;
 }
@@ -63,6 +68,7 @@ export function tileBuildings(list: RawBuilding[]): RealBuilding[] {
     h: b.levels || (b.h ? Math.max(1, Math.round(b.h / 3.25)) : undefined),
     hm: b.h && b.h > 0 ? b.h : undefined,
     base: b.minHeight && b.minHeight > 0 ? b.minHeight : undefined,
+    kind: b.type,
   }));
 }
 
@@ -133,6 +139,8 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
             const m = mergedMesh(fp.polys, ctx.mat);
             if (m) g.add(m);
             for (const b of boxMeshes(fp.boxes, ctx.inst)) g.add(b);
+            const lights = ctx.glow ? glowPoints(beacons(fp.fps), ctx.glow) : null;
+            if (lights) g.add(lights);
             ctx.scene.add(g);
             loaded.set(k, { obj: g, fps: fp.fps });
             ctx.onShow?.(k, true);

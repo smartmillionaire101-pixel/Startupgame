@@ -9,12 +9,14 @@ import { quoteRide } from './ride/state';
 import './ride/map.css';
 import {
   fmtCountdown,
+  fuelCost,
   msLeft,
-  RIDE_MODES,
   rideFare,
   rideMinutes,
+  rideModesFor,
   transitName,
   type ClockView,
+  type MyCar,
   type RideMode,
 } from './travel';
 
@@ -61,6 +63,15 @@ export function RideIcon({ mode }: { mode: RideMode | 'clock' | 'plane' }) {
           <path d="M7.5 13.5h.01M16.5 13.5h.01" />
         </svg>
       );
+    case 'drive':
+      return (
+        <svg {...common}>
+          <path d="M4 15v-3l2.2-5h11.6l2.2 5v3z M2.5 15h19v3h-19z" />
+          <path d="M7 18v2M17 18v2M7 12h10" />
+          <circle cx="7" cy="15.5" r=".6" />
+          <circle cx="17" cy="15.5" r=".6" />
+        </svg>
+      );
     case 'plane':
       return (
         <svg {...common}>
@@ -90,10 +101,13 @@ export const rideLabel = (mode: RideMode, marketId: string) =>
       ? t('Cycle')
       : mode === 'bus'
         ? transitLabel(marketId)
-        : t('Taxi');
+        : mode === 'drive'
+          ? t('Drive')
+          : t('Taxi');
 
 /**
- * How do you want to get there? Walk (free, slow), cycle (free, faster), the
+ * How do you want to get there? Your own car (when you have one here: fuel
+ * is in its running cost), walk (free, slow), cycle (free, faster), the
  * city's own transit or a taxi (with fares), each with an ETA. The last
  * choice is highlighted.
  */
@@ -107,6 +121,8 @@ export function RideChooser({
   busy,
   onPick,
   onCancel,
+  car = null,
+  abroad = false,
 }: {
   tiles: number;
   where: string;
@@ -117,7 +133,12 @@ export function RideChooser({
   busy: boolean;
   onPick: (mode: RideMode) => void;
   onCancel: () => void;
+  /** Your car (life.ts carOf): "Drive" when it is in this city. */
+  car?: MyCar | null;
+  /** You flew here: your car stayed at home. */
+  abroad?: boolean;
 }) {
+  const modes = rideModesFor(car, abroad);
   // Escape cancels, like any dialog.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -137,9 +158,10 @@ export function RideChooser({
           ✕
         </button>
       </div>
-      <div className="ride-grid">
-        {RIDE_MODES.map((mode) => {
+      <div className={`ride-grid${modes.length > 4 ? ' has-car' : ''}`}>
+        {modes.map((mode) => {
           const fare = rideFare(mode, tiles, costOfLiving);
+          const fuel = mode === 'drive' ? fuelCost(car, tiles, costOfLiving) : 0;
           return (
             <button
               key={mode}
@@ -149,22 +171,37 @@ export function RideChooser({
               disabled={busy}
               onClick={() => {
                 // The ride scene shows where you're going and what it costs.
-                quoteRide({ mode, fare, currency, where });
+                quoteRide({ mode, fare, currency, where, fuel, car: car?.label });
                 onPick(mode);
               }}
             >
               <span className="ride-icon" aria-hidden>
                 <RideIcon mode={mode} />
               </span>
-              <span className="ride-name">{rideLabel(mode, marketId)}</span>
+              <span className="ride-name">
+                {mode === 'drive' && car
+                  ? t('Drive your {car}', { car: car.label })
+                  : rideLabel(mode, marketId)}
+              </span>
               <span className="ride-meta">
-                {fare > 0 ? `≈ ${money(fare, currency)}` : t('Free')} ·{' '}
-                {t('{n} min', { n: rideMinutes(mode, tiles) })}
+                {mode === 'drive'
+                  ? fuel > 0
+                    ? t('Fuel ≈ {amount}', { amount: money(fuel, currency) })
+                    : t('Charged at home')
+                  : fare > 0
+                    ? `≈ ${money(fare, currency)}`
+                    : t('Free')}{' '}
+                · {t('{n} min', { n: rideMinutes(mode, tiles) })}
               </span>
             </button>
           );
         })}
       </div>
+      {car && abroad && (
+        <p className="ride-note small muted">
+          {t('Your car is at home. Take a bus or a taxi here.')}
+        </p>
+      )}
     </div>
   );
 }

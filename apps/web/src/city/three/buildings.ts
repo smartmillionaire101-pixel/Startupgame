@@ -463,6 +463,8 @@ export interface RealBuilding {
   hm?: number;
   /** Bottom in metres (a raised part). */
   base?: number;
+  /** What it is (geo3d BUILDING_TYPES index): homes, offices, sheds light up differently. */
+  kind?: number;
 }
 
 export interface RealOptions {
@@ -505,23 +507,25 @@ export function osmFootprints(
           : Math.round(lerp(look.floors.res[1], look.floors.urban[1], r)));
     const base = Math.max(0, b.base ?? 0);
     const H = Math.max(base + 3, b.hm && b.hm > 0 ? b.hm : levels * 3.25 + 0.8);
-    const f = makeFp(p, base, H, { r, levels, c, area });
+    const f = makeFp(p, base, H, { r, levels, c, area, kind: b.kind ?? 0 });
     if (opts.blocked?.overlapsPlan(f, 0.5)) return;
     cands.push(f);
   });
   const { kept } = dedupeFootprints(cands, opts.grid);
   for (const f of kept) {
     const p = f.p as number[];
-    const { r, levels, c, area } = f.tag as {
+    const { r, levels, c, area, kind } = f.tag as {
       r: number;
       levels: number;
       c: Centroid;
       area: number;
+      kind: number;
     };
     const H = f.top;
     const B = f.base;
     const style =
-      H >= 60
+      styleOfKind(kind, H, r, brick) ??
+      (H >= 60
         ? pick([3, 3, 4, 2, 3], r)
         : H >= 22
           ? pick([2, 4, 0, 3, 2, 1], r)
@@ -529,7 +533,7 @@ export function osmFootprints(
             ? 1
             : levels <= 2 && area < 200
               ? 6
-              : 0;
+              : 0);
     const { wall, roof } = paint(look, style, (r * 17.3) % 1, false);
     const base: Footprint = { p, base: B, top: H, vOff: B, style, wall, roof, seed: r };
     if (H - B >= 70 && area < 6000) {
@@ -597,6 +601,39 @@ export function osmFootprints(
 }
 
 type Centroid = { x: number; y: number };
+
+/**
+ * A facade style from what the building is (tiles say: house, apartments,
+ * office, shed…), so homes, offices and sheds look — and light up at night —
+ * as they should. Null when the type says nothing.
+ */
+function styleOfKind(kind: number, H: number, r: number, brick: number): number | null {
+  switch (kind) {
+    case 1: // house
+      return H <= 10 ? 6 : r < brick ? 1 : 0;
+    case 2: // apartments
+      return H >= 60 ? pick([3, 4], r) : r < brick ? 1 : 0;
+    case 3: // commercial
+    case 4: // retail
+      return H >= 22 ? 2 : 0;
+    case 5: // office
+      return H >= 40 ? pick([3, 3, 2, 4], r) : 2;
+    case 6: // industrial
+    case 13: // garage
+    case 14: // shed
+    case 18: // parking
+      return 5;
+    case 7: // civic
+    case 8: // school
+    case 9: // hospital
+    case 10: // religious
+      return H >= 22 ? 4 : 2;
+    case 11: // hotel
+      return H >= 50 ? 3 : 0;
+    default:
+      return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Infill: the rest of the city, lot by lot.

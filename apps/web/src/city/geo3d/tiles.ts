@@ -367,9 +367,9 @@ export const loadTrees = (city: string) => fetchBin(`${geoBase(city)}/trees.bin`
  */
 export function decodeTile(
   buf: ArrayBuffer,
-): { p: Float32Array; h: number; levels: number; minHeight: number }[] {
+): { p: Float32Array; h: number; levels: number; minHeight: number; type: number }[] {
   const t = decodeBuildingTile(buf);
-  const out: { p: Float32Array; h: number; levels: number; minHeight: number }[] = [];
+  const out: { p: Float32Array; h: number; levels: number; minHeight: number; type: number }[] = [];
   for (let i = 0; i < t.length; i++) {
     const s = t.start[i]! * 2;
     out.push({
@@ -377,6 +377,7 @@ export function decodeTile(
       h: t.height[i]!,
       levels: t.levels[i]!,
       minHeight: t.minHeight[i]!,
+      type: t.type[i]!,
     });
   }
   return out;

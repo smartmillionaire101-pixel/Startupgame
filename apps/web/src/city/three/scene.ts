@@ -33,7 +33,8 @@ import { buildGround, mixHex } from './ground';
 import { discPoly, FootprintGrid, makeFp, rectPoly } from './footprints';
 import { applySky, skyAt, skyDome, skyEnvironment, skyUniforms, type SkyState } from './sky';
 import { treeMeshes, treeSpots } from './trees';
-import { buildLandmarks, EXTRA_3D, type LandmarkPlan } from './landmarks';
+import { buildLandmarks, EXTRA_3D, landmarkLights, type LandmarkPlan } from './landmarks';
+import { beacons, glowMaterial, glowPoints, glowUniforms, streetLamps } from './lights';
 import { Actors } from './actors';
 import { loadTiles, type TileSet } from './tiles';
 import type { AvatarLook } from '../art';
@@ -98,6 +99,9 @@ export class CityScene {
   rig = { x: 0, y: 0, dist: 700, yaw: 0, pitch: 0.64 };
   private want = { x: 0, y: 0, dist: 700 };
   following = true;
+  /** Driving: the camera rides behind the car, looking down the road. */
+  private chaseOn = false;
+  private savedRig: { dist: number; pitch: number; yaw: number } | null = null;
   /** Stop drawing on its own (screenshots and tests draw with renderNow). */
   paused = false;
 
@@ -116,7 +120,10 @@ export class CityScene {
   private detailR = 0;
   private lowGroup = new THREE.Group();
   private tallGroup = new THREE.Group();
-  private lights: THREE.Points | null = null;
+  /** Night: street lamps, landmark and tower lights (glowing sprites). */
+  private glow = glowUniforms();
+  readonly glowMat: THREE.ShaderMaterial;
+  private nightSets: THREE.Object3D[] = [];
   private lots: LotMaker;
   private chunks = new Map<string, { group: THREE.Group; ci: number; cj: number }>();
   private queue: [number, number][] = [];
@@ -185,6 +192,7 @@ export class CityScene {
     this.renderer.shadowMap.autoUpdate = true;
 
     this.camera = new THREE.PerspectiveCamera(38, 1, 1, 50000);
+    this.glowMat = glowMaterial(this.glow);
     this.fog = new THREE.FogExp2(0xc8d8e8, 0.0002);
     this.scene.fog = this.fog;
 
@@ -221,6 +229,7 @@ export class CityScene {
       this.instMat,
     );
     this.scene.add(ground.group, landmarks);
+    this.addNight(glowPoints(landmarkLights(landmarks), this.glowMat));
 
     // Ground cleared for landmarks and the game's places.
     const clear = [...this.geo.clear];
@@ -290,9 +299,9 @@ export class CityScene {
     this.stats.trees = spots.length;
     this.scene.add(treeMeshes(spots, this.look, high));
 
-    // Street lights (night).
-    this.lights = this.streetLights();
-    this.scene.add(this.lights);
+    // Street lamps (night).
+    this.addNight(glowPoints(streetLamps(this.roads, high ? 40000 : 18000), this.glowMat));
+    this.addNight(glowPoints(beacons(osm.fps), this.glowMat));
 
     // People and traffic.
     this.actors = new Actors(
@@ -303,7 +312,9 @@ export class CityScene {
       walkers,
       opts.tier,
       opts.reduced,
+      this.glowMat,
     );
+    this.actors.setNight(this.skyState.night);
 
     // Start at the avatar.
     const start = toMetres(layout.start);
@@ -511,6 +522,7 @@ export class CityScene {
       look: this.look,
       clear: this.clear,
       blocked: this.blocked,
+      glow: this.glowMat,
       onShow: (k, shown) => {
         const g = this.fileTiles.get(k);
         if (g) g.visible = !shown;
@@ -567,42 +579,12 @@ export class CityScene {
     }
   }
 
-  private streetLights() {
-    const pts: number[] = [];
-    let n = 0;
-    for (const s of this.roads.segs) {
-      if (s.c > 4) continue;
-      const L = Math.hypot(s.bx - s.ax, s.by - s.ay);
-      const half = s.c <= 1 ? 12 : 8;
-      const nx = -(s.by - s.ay) / (L || 1);
-      const ny = (s.bx - s.ax) / (L || 1);
-      for (let d = 15; d < L; d += 38) {
-        const sg = (n++ & 1) * 2 - 1;
-        const t = d / L;
-        const h = s.ha + (s.hb - s.ha) * t;
-        pts.push(
-          s.ax + (s.bx - s.ax) * t + nx * half * sg,
-          h + 7,
-          s.ay + (s.by - s.ay) * t + ny * half * sg,
-        );
-      }
-      if (pts.length > 3 * 60000) break;
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    const m = new THREE.PointsMaterial({
-      color: '#ffd9a0',
-      size: 18,
-      sizeAttenuation: true,
-      transparent: true,
-      opacity: 0.9,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      fog: true,
-    });
-    const p = new THREE.Points(g, m);
-    p.visible = false;
-    return p;
+  /** A set of night lights: shown only when it is dark enough to see them. */
+  private addNight(o: THREE.Object3D | null) {
+    if (!o) return;
+    o.visible = this.skyState.night > 0.02;
+    this.nightSets.push(o);
+    this.scene.add(o);
   }
 
   // ---------------------------------------------------------------------------
@@ -619,8 +601,11 @@ export class CityScene {
   private applySky() {
     applySky(this.skyState, this.sky, this.sun, this.hemi, this.fog);
     this.shared.uNight.value = this.skyState.night;
+    this.shared.uHour.value = this.hour;
+    this.glow.uNight.value = this.skyState.night;
+    this.actors?.setNight(this.skyState.night);
     this.renderer.toneMappingExposure = 1.05 * this.skyState.exposure;
-    if (this.lights) this.lights.visible = this.skyState.night > 0.4;
+    for (const o of this.nightSets) o.visible = this.skyState.night > 0.02;
     this.env?.dispose();
     this.env = skyEnvironment(this.renderer, this.sky);
     this.scene.environment = this.env.texture;
@@ -662,6 +647,8 @@ export class CityScene {
     this.camera.far = Math.max(6000, r.dist * 30);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
+    this.glow.uScale.value =
+      (this.size.h * this.dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
     this.dome.position.copy(this.camera.position);
     this.dome.scale.setScalar(this.camera.far * 0.9);
     // Haze: thicker the further you see, by the city's air.
@@ -762,6 +749,32 @@ export class CityScene {
     this.touch(1200);
   }
 
+  /** Driving your own car: a chase camera until endChase(). */
+  startChase() {
+    if (!this.chaseOn)
+      this.savedRig = { dist: this.rig.dist, pitch: this.rig.pitch, yaw: this.rig.yaw };
+    this.chaseOn = true;
+    this.following = true;
+    this.touch(1000);
+  }
+
+  endChase() {
+    if (!this.chaseOn) return;
+    this.chaseOn = false;
+    const s = this.savedRig;
+    if (s) {
+      this.want.dist = s.dist;
+      this.rig.pitch = s.pitch;
+      this.rig.yaw = s.yaw;
+    }
+    this.savedRig = null;
+    this.touch(1500);
+  }
+
+  get chasing() {
+    return this.chaseOn;
+  }
+
   /** Something changed: draw (and keep drawing for a moment). */
   touch(ms = 400) {
     this.dirty = true;
@@ -839,6 +852,20 @@ export class CityScene {
       this.want.x = av.x;
       this.want.y = av.y;
     }
+    if (this.chaseOn) {
+      // Behind the car, a little above, looking ahead down the street.
+      const ease = 1 - Math.pow(0.04, dt);
+      let d = Math.PI - av.heading - this.rig.yaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.rig.yaw += d * ease;
+      this.rig.pitch += (0.36 - this.rig.pitch) * ease;
+      this.want.dist = 70;
+      if (this.following) {
+        this.want.x = av.x + Math.sin(av.heading) * 22;
+        this.want.y = av.y + Math.cos(av.heading) * 22;
+      }
+      this.dirty = true;
+    }
     const k = 1 - Math.pow(0.0015, dt);
     const ddx = this.want.x - this.rig.x;
     const ddy = this.want.y - this.rig.y;
@@ -871,6 +898,7 @@ export class CityScene {
     }
     this.shared.uTime.value = t / 1000;
     this.sky.uTime.value = t / 1000;
+    this.glow.uTime.value = t / 1000;
     this.placeCamera();
     this.renderer.render(this.scene, this.camera);
     for (const cb of this.onFrameCbs) cb();

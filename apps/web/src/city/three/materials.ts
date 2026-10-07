@@ -26,6 +26,8 @@ import * as THREE from 'three';
 export interface SharedUniforms {
   uNight: { value: number };
   uTime: { value: number };
+  /** Local hour (0–24): who is in, so which windows are lit. */
+  uHour: { value: number };
   uSunDir: { value: THREE.Vector3 };
   /** Detail ring: (x, z) of its centre and its radius; near lots inside, far rows outside. */
   uDetail: { value: THREE.Vector3 };
@@ -34,6 +36,7 @@ export interface SharedUniforms {
 export const makeShared = (): SharedUniforms => ({
   uNight: { value: 0 },
   uTime: { value: 0 },
+  uHour: { value: 12 },
   uSunDir: { value: new THREE.Vector3(0.4, 0.8, 0.3) },
   uDetail: { value: new THREE.Vector3(0, 0, 0) },
 });
@@ -44,6 +47,7 @@ export type Lod = 'all' | 'near' | 'far';
 const COMMON_FRAG = /* glsl */ `
 uniform float uNight;
 uniform float uTime;
+uniform float uHour;
 varying vec4 vFac;
 varying vec3 vBase;
 varying float vHl;
@@ -123,14 +127,27 @@ const FACADE = /* glsl */ `
     // Night: a share of the windows lit, warm or cool, by window.
     float r = bh21(id * vec2(1.7, 3.1) + seed * 57.0);
     float fs = fract(seed * 5.3);
-    float frac = 0.03 + 0.5 * fs * fs;
+    // Who is in at this hour: homes fill up in the evening and go dark after
+    // midnight; offices empty after seven (a few work late); sheds stay dark.
+    float hh = uHour < 6.0 ? uHour + 24.0 : uHour;
+    float office = (st == 2.0 || st == 3.0 || st == 4.0) ? 1.0 : 0.0;
+    float occHome = 0.1 + 0.52 * smoothstep(16.5, 19.5, hh) * (1.0 - smoothstep(22.5, 26.5, hh));
+    float occWork = 0.06 + 0.6 * (1.0 - smoothstep(17.5, 21.5, hh)) * smoothstep(7.0, 8.5, hh)
+      + 0.24 * (1.0 - smoothstep(20.5, 24.5, hh));
+    float occ = st == 5.0 ? 0.04 : mix(occHome, occWork, office);
+    float frac = clamp(occ * (0.35 + 1.3 * fs), 0.02, 0.9);
     // Far off, the lit share is averaged (no sparkle).
     // Floors differ (offices dark, a few lit); far off, each floor averages.
     float rowFrac = frac * (0.3 + 1.4 * bh21(vec2(id.y * 7.1, seed * 13.0)));
     float litX = mix(step(r, rowFrac), rowFrac, farK2.x);
     float lit = mix(litX, frac, farK2.y) * win;
-    vec3 warm = mix(vec3(1.0, 0.74, 0.42), vec3(0.85, 0.9, 1.0), step(0.78, fract(r * 9.1)) * (1.0 - farK));
-    fEmis = warm * lit * uNight * mix(1.5, 0.75, farK);
+    // Homes glow warm (lamps, curtains); offices cool (strip lights). Far off, the average.
+    vec3 warmC = vec3(1.0, 0.6, 0.26);
+    vec3 coolC = vec3(0.75, 0.86, 1.0);
+    float coolShare = mix(0.16, 0.7, office);
+    vec3 near = mix(warmC, coolC, step(1.0 - coolShare, fract(r * 9.1)));
+    vec3 warm = mix(near, mix(warmC, coolC, coolShare), farK);
+    fEmis = warm * lit * uNight * mix(2.4, 0.8, farK);
     if (ground > 0.5 && vFac.y < 4.6) fEmis += vec3(1.0, 0.85, 0.6) * win * uNight * 0.9;
   } else if (st == 8.0) {
     // Flat roofs: membrane and gravel with patches.
@@ -176,6 +193,7 @@ function patch(
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uNight = shared.uNight;
     sh.uniforms.uTime = shared.uTime;
+    sh.uniforms.uHour = shared.uHour;
     sh.uniforms.uDetail = shared.uDetail;
     const vHead = instanced
       ? /* glsl */ `

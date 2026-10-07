@@ -67,6 +67,10 @@ export interface RideQuote {
   fare: number;
   currency: string;
   where: string;
+  /** Driving: fuel for the trip (display only; the car's running cost pays it). */
+  fuel?: number;
+  /** Driving: your car's name. */
+  car?: string;
 }
 let quote: RideQuote | null = null;
 export function quoteRide(q: RideQuote) {
@@ -99,6 +103,8 @@ export interface Ride extends RideRequest {
   chase: boolean;
   /** Show the "Always skip rides" toggle. */
   offerSkip: boolean;
+  fuel: number;
+  car: string;
 }
 
 export interface RideHandle {
@@ -112,7 +118,7 @@ export interface RideHandle {
 
 /** Scene length: scaled by distance, 5–12 s (walking 5–8 s). */
 export function sceneMs(mode: RideMode, tiles: number): number {
-  const per = { walk: 70, cycle: 60, bus: 95, taxi: 80 }[mode];
+  const per = { walk: 70, cycle: 60, bus: 95, taxi: 80, drive: 90 }[mode];
   const max = mode === 'walk' ? 8000 : 12000;
   return Math.round(Math.min(max, Math.max(5000, 3800 + tiles * per)));
 }
@@ -169,7 +175,8 @@ const KIND_NAMES: Record<string, string> = {
  */
 export function beginRide(req: RideRequest): RideHandle | null {
   if (typeof window === 'undefined' || skipRides()) return null;
-  const chase = reduceMotion();
+  // Driving your own car plays on the map itself (the chase camera), under the trip card.
+  const chase = reduceMotion() || req.mode === 'drive';
   const q = quote && quote.mode === req.mode ? quote : null;
   quote = null;
   const place = req.placeId ? req.layout.places.find((p) => p.id === req.placeId) : undefined;
@@ -178,13 +185,20 @@ export function beginRide(req: RideRequest): RideHandle | null {
   const ride: Ride = {
     ...req,
     id: ++seq,
-    ms: chase ? Math.max(1500, req.mapMs) : sceneMs(req.mode, req.tiles),
+    ms:
+      req.mode === 'drive' && !reduceMotion()
+        ? sceneMs('drive', req.tiles)
+        : chase
+          ? Math.max(1500, req.mapMs)
+          : sceneMs(req.mode, req.tiles),
     startedAt: performance.now(),
     where: q?.where || place?.name || (place ? (KIND_NAMES[place.kind] ?? '') : ''),
     fare: q?.fare ?? 0,
     currency: q?.currency ?? '',
     chase,
     offerSkip: n >= 2,
+    fuel: q?.fuel ?? 0,
+    car: q?.car ?? '',
   };
   current = ride;
   skipped = false;
