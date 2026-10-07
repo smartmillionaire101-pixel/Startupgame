@@ -156,6 +156,10 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
           // The barber walks round behind and beside you.
           const a = Math.sin(k * Math.PI * 5) * 0.9;
           barber.root.position.set(sx + Math.sin(a) * 0.62, 0, sz + Math.cos(a) * 0.62 - 0.05);
+          // For the reveal the barber steps aside.
+          const aside = ease(seg(k, 0.78, 0.86));
+          barber.root.position.x += (sx + 0.95 - barber.root.position.x) * aside;
+          barber.root.position.z += (sz - 0.1 - barber.root.position.z) * aside;
           barber.root.rotation.y = Math.atan2(
             sx - barber.root.position.x,
             sz - barber.root.position.z,

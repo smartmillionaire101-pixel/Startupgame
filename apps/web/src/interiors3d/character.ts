@@ -100,7 +100,7 @@ function buildHair(look: AvatarLook): THREE.Group {
   const cap = new THREE.SphereGeometry(0.152, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55);
   switch (look.hairStyle) {
     case 'afro':
-      add(new THREE.SphereGeometry(0.22, 12, 10), 0, 0.06, -0.03, 1, 0.9, 1);
+      add(new THREE.SphereGeometry(0.2, 12, 10), 0, 0.1, -0.07, 1, 0.9, 1);
       break;
     case 'bun':
       add(cap, 0, 0.005, 0, 1.02, 1.02, 1.05);
