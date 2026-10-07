@@ -92,7 +92,7 @@ import {
 } from './rooms';
 
 /** Wave 9 §C: the room in 3D, loaded on demand. */
-const Venue3D = lazy(() => import('../interiors3d/Venue3D'));
+const Venue3D = lazy(() => import('../interiors3d/Venue3D').catch(() => ({ default: () => null })));
 
 /** Inside a scene, the old card header (a building and a person) is not drawn. */
 export const InScene = createContext(false);

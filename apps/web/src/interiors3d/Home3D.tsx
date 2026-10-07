@@ -10,7 +10,7 @@
  * view keeps aligned with the 3D floor (`onCamera`), and asks `api.pick` what
  * is under a tap.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { TILE } from '../home/art';
 import type { Spot } from '../home/layout';
@@ -85,7 +85,7 @@ function plusMarker(): THREE.Group {
   return g;
 }
 
-export default function Home3D(props: Home3DProps) {
+export default function Home3D(props: Home3DProps): ReactElement | null {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const live = useRef(props);
   useEffect(() => {
@@ -100,7 +100,11 @@ export default function Home3D(props: Home3DProps) {
   const ghostRef = useRef<THREE.Group | null>(null);
   const actT = useRef(0);
 
-  const { plan, tier, objects, night, dusk, car, ghost, moving, buyMode } = props;
+  const { plan, tier, objects, night, dusk, car, ghost, moving, buyMode, acting } = props;
+  // Anything that changes what people do: draw again.
+  useEffect(() => {
+    stageRef.current?.invalidate();
+  }, [acting]);
 
   // ---- The stage (once).
   useEffect(() => {
@@ -183,6 +187,7 @@ export default function Home3D(props: Home3DProps) {
       project: (x, y, h) => stage.project(new THREE.Vector3(x, h, y)),
       orbit: (dx, dy) => stage.orbit(dx, dy),
       zoom: (f) => stage.zoomBy(f),
+      wake: () => stage.invalidate(),
       turn: (dir) => {
         const from = stage.azimuth;
         const to = from + (dir * Math.PI) / 2;

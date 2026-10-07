@@ -26,7 +26,9 @@ import type { SceneProps } from './PlaceScene';
 type Phase = 'intro' | 'talk' | 'network' | 'pitch' | 'done';
 
 /** Wave 9 §C: the hall in 3D, loaded on demand. */
-const TechEvent3D = lazy(() => import('../interiors3d/TechEvent3D'));
+const TechEvent3D = lazy(() =>
+  import('../interiors3d/TechEvent3D').catch(() => ({ default: () => null })),
+);
 
 interface AttendResult {
   ticket?: number;

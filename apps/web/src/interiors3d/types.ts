@@ -38,6 +38,8 @@ export interface Home3DApi {
   zoom(f: number): void;
   /** Turn the camera a quarter (±1). */
   turn(dir: number): void;
+  /** Draw again (someone started walking). */
+  wake(): void;
 }
 
 export interface Ghost {

@@ -58,7 +58,8 @@ import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
 
 /** Wave 9 §C: the 3D home, loaded on demand (three.js is its own chunk). */
-const Home3D = lazy(() => import('../interiors3d/Home3D'));
+// A chunk that fails to load (offline) leaves the 2D home in place.
+const Home3D = lazy(() => import('../interiors3d/Home3D').catch(() => ({ default: () => null })));
 
 /** The back wall's face, in px above row 0. */
 const WALL = 44;
@@ -378,6 +379,7 @@ export function HomeScene({
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       for (const p of people()) {
+        if (p.i < p.path.length) api3d.current?.wake();
         if (p.i >= p.path.length) continue;
         const target = p.path[p.i]!;
         const dx = target.x - p.x;

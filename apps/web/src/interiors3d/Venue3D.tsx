@@ -8,7 +8,7 @@
  * The 2D room (../city/PlaceScene.tsx) stays mounted underneath, invisible:
  * its captions, Skip, result card and accessible people list still work.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 import * as THREE from 'three';
 import type { AvatarLook } from '../city/art';
 import { timeline } from '../city/acts/ActStage';
@@ -81,7 +81,7 @@ const SEATED: Partial<Record<Activity, PoseId>> = {
   waiting: 'sit',
 };
 
-export default function Venue3D(props: Venue3DProps) {
+export default function Venue3D(props: Venue3DProps): ReactElement | null {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const live = useRef(props);
   useEffect(() => {

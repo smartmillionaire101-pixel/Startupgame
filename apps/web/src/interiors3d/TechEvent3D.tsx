@@ -4,7 +4,7 @@
  * networking (everyone up and chatting), and on demo day you on the stage
  * while the hall claps. The 2D scene keeps the bubbles, buttons and result.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 import * as THREE from 'three';
 import type { AvatarLook } from '../city/art';
 import { makeCharacter, pose, type Character } from './character';
@@ -34,7 +34,7 @@ const seatPos = (n: number) => {
 const minglePos = (n: number) =>
   new THREE.Vector3(-4.6 + ((n * 67) % 90) / 10, 0, -0.4 + ((n * 29) % 34) / 10);
 
-export default function TechEvent3D(props: TechEvent3DProps) {
+export default function TechEvent3D(props: TechEvent3DProps): ReactElement | null {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const live = useRef(props);
   useEffect(() => {
