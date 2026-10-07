@@ -68,7 +68,7 @@ test('buy a home in Lagos with cash and move in', async ({ page }) => {
   const phone = await openApp(page, 'homes');
   await expect(phone.getByText(/Homes in Lagos/)).toBeVisible();
   // The cheapest home you can pay for in cash.
-  const studio = phone.locator('[data-listing][data-tier="studio"]').first();
+  const studio = phone.locator('[data-listing][data-tier="studio"]').last();
   await expect(studio).toBeVisible();
   await studio.click();
   const detail = phone.locator('[data-listing-detail]');
