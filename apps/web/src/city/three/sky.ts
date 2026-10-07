@@ -71,7 +71,7 @@ export function skyAt(hour: number, lat: number, haze: number): SkyState {
     sunIntensity: night > 0.5 ? 0.25 : 3.4 * day + 0.2,
     hemiSky: mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#2a3a63'), night),
     hemiGround: mixC(C('#8c8476'), C('#1a1d26'), night),
-    hemiIntensity: 0.35 + 0.4 * (1 - night),
+    hemiIntensity: 0.6 + 0.15 * (1 - night),
     zenith,
     horizon,
     night,

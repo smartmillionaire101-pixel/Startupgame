@@ -519,7 +519,18 @@ export class LotMaker {
     private look: CityLook,
     private centres: Centre[],
     private marketId: string,
+    private bounds: [number, number, number, number],
   ) {}
+
+  /** Built-up land beyond the mapped streets, strongest near the centre. */
+  sprawlAt(x: number, y: number) {
+    const c = this.centres[0];
+    if (!c || !this.look.sprawl) return 0;
+    const [x0, y0, x1, y1] = this.bounds;
+    const span = Math.max(x1 - x0, y1 - y0);
+    const d = Math.hypot(x - c.x, y - c.y);
+    return this.look.sprawl * Math.max(0, Math.min(1, 1.25 - d / (0.42 * span)));
+  }
 
   zoneAt(x: number, y: number): { zone: Zone; I: number } {
     let I = 0;
@@ -577,11 +588,11 @@ export class LotMaker {
         const y0 = cj * CHUNK + b * CELL;
         const cx = x0 + CELL / 2;
         const cy = y0 + CELL / 2;
-        const u0 = mask.urbanAt(cx, cy);
-        if (u0 < 0.06) continue;
+        const u0 = mask.urbanAt(cx, cy) + this.sprawlAt(cx, cy);
+        if (u0 < 0.07) continue;
         const cov = mask.coverAt(cx, cy);
         if (cov === COVER.water && mask.coverAt(x0, y0) === COVER.water) continue;
-        const road = this.roads.nearest(cx, cy, 260);
+        const road = this.roads.nearest(cx, cy, 300) ?? this.roads.nearest(cx, cy, 800);
         if (!road) continue;
         // The street grain, to the nearest 3°, folded into a quarter turn.
         const q = Math.PI / 2;

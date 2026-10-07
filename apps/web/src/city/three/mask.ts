@@ -168,7 +168,7 @@ export class GroundMask {
     small.height = sh;
     const sctx = small.getContext('2d', { willReadFrequently: true });
     if (sctx) {
-      sctx.filter = 'blur(3px)';
+      sctx.filter = 'blur(5px)';
       sctx.drawImage(canvas, 0, 0, sw, sh);
       const img = sctx.getImageData(0, 0, sw, sh).data;
       for (let j = 0; j < this.h; j++) {

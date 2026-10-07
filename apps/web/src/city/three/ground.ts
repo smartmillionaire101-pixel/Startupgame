@@ -212,8 +212,14 @@ function roadMaterial(shared: SharedUniforms, color: string, marked: boolean) {
           diffuseColor.rgb = mix(diffuseColor.rgb, paint, line * vis * 0.85);
           // Wear: a darker strip where the wheels run.
           diffuseColor.rgb *= 1.0 - 0.06 * vis * (1.0 - smoothstep(0.0, 1.2, abs(abs(m) - halfW * 0.45)));
+          roadGlow = (cls < 3.5 ? 1.0 : 0.6) * (0.55 + 0.45 * line);
         }`,
-      );
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vec3(1.0, 0.7, 0.35) * 0.06 * uNight * roadGlow;',
+      )
+      .replace('void main() {', 'float roadGlow = 0.0;\nvoid main() {');
   };
   m.customProgramCacheKey = () => 'road-marked';
   return m;

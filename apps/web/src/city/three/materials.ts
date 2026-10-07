@@ -122,14 +122,26 @@ const FACADE = /* glsl */ `
     base = mix(wall, glass, win);
     // Night: a share of the windows lit, warm or cool, by window.
     float r = bh21(id * vec2(1.7, 3.1) + seed * 57.0);
-    float lit = step(r, 0.42 + 0.25 * seed) * win;
-    vec3 warm = mix(vec3(1.0, 0.78, 0.48), vec3(0.85, 0.9, 1.0), step(0.75, fract(r * 9.1)));
-    fEmis = warm * lit * uNight * (st == 3.0 ? 1.3 : 1.6);
-    if (ground > 0.5 && vFac.y < 4.6) fEmis += vec3(1.0, 0.85, 0.6) * win * uNight * 1.4;
+    float fs = fract(seed * 5.3);
+    float frac = 0.03 + 0.5 * fs * fs;
+    // Far off, the lit share is averaged (no sparkle).
+    // Floors differ (offices dark, a few lit); far off, each floor averages.
+    float rowFrac = frac * (0.3 + 1.4 * bh21(vec2(id.y * 7.1, seed * 13.0)));
+    float litX = mix(step(r, rowFrac), rowFrac, farK2.x);
+    float lit = mix(litX, frac, farK2.y) * win;
+    vec3 warm = mix(vec3(1.0, 0.74, 0.42), vec3(0.85, 0.9, 1.0), step(0.78, fract(r * 9.1)) * (1.0 - farK));
+    fEmis = warm * lit * uNight * mix(1.5, 0.75, farK);
+    if (ground > 0.5 && vFac.y < 4.6) fEmis += vec3(1.0, 0.85, 0.6) * win * uNight * 0.9;
   } else if (st == 8.0) {
     // Flat roofs: membrane and gravel with patches.
-    float n = bh21(floor(vec2(vFac.x, vFac.y) * 0.35) + seed * 11.0);
-    base *= 0.9 + 0.14 * n;
+    // Patches of membrane, blended (no blocky squares), fading out far away.
+    vec2 rp = vec2(vFac.x, vFac.y) * 0.18 + seed * 11.0;
+    vec2 ri = floor(rp);
+    vec2 rf = fract(rp);
+    rf = rf * rf * (3.0 - 2.0 * rf);
+    float n = mix(mix(bh21(ri), bh21(ri + vec2(1, 0)), rf.x), mix(bh21(ri + vec2(0, 1)), bh21(ri + vec2(1, 1)), rf.x), rf.y);
+    float rfar = smoothstep(0.3, 1.5, length(fwidth(rp)));
+    base *= mix(0.92 + 0.12 * n, 0.98, rfar);
     fRough = 0.95;
   } else if (st == 9.0) {
     // Tiles or sheets: courses along the slope.

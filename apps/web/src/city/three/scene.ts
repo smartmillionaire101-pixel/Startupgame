@@ -211,7 +211,7 @@ export class CityScene {
       const m = toMetres(a.at);
       centres.push({ x: m.e, y: m.s, r: 1300, w: a.kind === 'finance' ? 0.95 : 0.8 });
     }
-    this.lots = new LotMaker(this.mask, this.roads, this.look, centres, layout.marketId);
+    this.lots = new LotMaker(this.mask, this.roads, this.look, centres, layout.marketId, data.bounds);
     this.scene.add(this.lowGroup, this.tallGroup);
 
     // Trees.
@@ -318,7 +318,7 @@ export class CityScene {
     const SUPER = 2400;
     const groups = new Map<string, BoxB[]>();
     const farGroups = new Map<string, BoxB[]>();
-    const merge = this.opts.tier === 'high' ? 3 : 6;
+    const merge = this.opts.tier === 'high' ? 4 : 8;
     let i = 0;
     const step = () => {
       if (this.disposed) return;
@@ -345,11 +345,19 @@ export class CityScene {
         return;
       }
       for (const boxes of groups.values()) for (const m of boxMeshes(boxes, this.instMat)) this.tallGroup.add(m);
-      for (const boxes of farGroups.values())
+      // A budget for the far city: thinned evenly beyond it (the haze hides the gaps).
+      const budget = this.opts.tier === 'high' ? 70000 : 32000;
+      let total = 0;
+      for (const b of farGroups.values()) total += b.length;
+      const keep = Math.min(1, budget / Math.max(1, total));
+      for (let boxes of farGroups.values()) {
+        if (keep < 1) boxes = boxes.filter((b) => h3(Math.round(b.x), Math.round(b.y), 61) < keep);
         for (const m of boxMeshes(boxes, this.farMat)) {
           m.castShadow = false;
           this.tallGroup.add(m);
         }
+      }
+      this.stats.lots = total;
       this.stats.bgDone = true;
       this.invalidate();
     };
@@ -432,7 +440,7 @@ export class CityScene {
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     const m = new THREE.PointsMaterial({
       color: '#ffd9a0',
-      size: 9,
+      size: 18,
       sizeAttenuation: true,
       transparent: true,
       opacity: 0.9,

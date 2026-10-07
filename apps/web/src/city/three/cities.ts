@@ -49,6 +49,8 @@ export interface CityLook {
   haze: number;
   /** Latitude, for the sun. */
   lat: number;
+  /** How built-up the land is away from the mapped roads (0–1), fading out from the centre. */
+  sprawl: number;
 }
 
 const BASE: CityLook = {
@@ -76,11 +78,13 @@ const BASE: CityLook = {
   hillColor: '#7d8a6a',
   haze: 0.5,
   lat: 0,
+  sprawl: 0.1,
 };
 
 export const CITY_LOOKS: Record<string, CityLook> = {
   'san-francisco': {
     ...BASE,
+    sprawl: 0.2,
     // Pale stucco: whites, creams, greys and a few pastels (the photo).
     walls: [
       '#f1eee8',
@@ -127,6 +131,7 @@ export const CITY_LOOKS: Record<string, CityLook> = {
   },
   lagos: {
     ...BASE,
+    sprawl: 0.28,
     walls: ['#efe4c9', '#e8d6ad', '#dcc092', '#f2ebd9', '#d9c7a6', '#e6dccb', '#cfc6b0', '#e9cfa0'],
     stone: ['#d5cbb7', '#c2b8a3', '#e0d8c6', '#a8a091'],
     glass: ['#4f7488', '#3f6275', '#6e8e9c'],
@@ -140,7 +145,7 @@ export const CITY_LOOKS: Record<string, CityLook> = {
     floors: { res: [1, 3], urban: [2, 5], down: [5, 18] },
     towers: 0.2,
     towerMax: 30,
-    ground: '#b9ab8c',
+    ground: '#a39377',
     park: '#5f8e3c',
     beach: '#e8d4a6',
     water: ['#2a5867', '#3c7280'],
@@ -154,6 +159,7 @@ export const CITY_LOOKS: Record<string, CityLook> = {
   },
   london: {
     ...BASE,
+    sprawl: 0.25,
     walls: ['#e9e4da', '#ddd5c6', '#d2c7b3', '#c8bca5'],
     brick: ['#8e4f37', '#9c5c3f', '#7a4431', '#a5694d', '#b07a57', '#6f4637'],
     stone: ['#d8d0bf', '#c9bfac', '#b8b0a2', '#9e9a93'],
@@ -183,6 +189,7 @@ export const CITY_LOOKS: Record<string, CityLook> = {
   },
   dubai: {
     ...BASE,
+    sprawl: 0.0,
     walls: ['#efe6d4', '#e6d8bd', '#f4efe5', '#dccaa9', '#ebe0cb', '#f2ece2'],
     stone: ['#e3d6bd', '#d4c4a5', '#efe7d8', '#bfb39c'],
     glass: ['#6d8fa6', '#4d7690', '#8fb0c2', '#3e6178', '#7aa0a8'],
@@ -213,6 +220,7 @@ export const CITY_LOOKS: Record<string, CityLook> = {
   },
   cairo: {
     ...BASE,
+    sprawl: 0.28,
     walls: ['#d9c6a3', '#cdb38a', '#c4a57c', '#e2d3b6', '#bf9f78', '#d5bf9c', '#ad8d6a'],
     brick: ['#a5694a', '#9a6045', '#b27656'],
     stone: ['#d8c7a7', '#c8b493', '#bba78a'],
@@ -239,6 +247,7 @@ export const CITY_LOOKS: Record<string, CityLook> = {
   },
   nairobi: {
     ...BASE,
+    sprawl: 0.1,
     walls: ['#ebe5d7', '#ddd0b6', '#cfc0a2', '#e6dccb', '#d6cbb7'],
     stone: ['#cfc6b4', '#bcb29e', '#a8a091'],
     glass: ['#56788c', '#3f6276'],
@@ -266,6 +275,7 @@ export const CITY_LOOKS: Record<string, CityLook> = {
   },
   accra: {
     ...BASE,
+    sprawl: 0.15,
     walls: ['#efe7d3', '#e7d2a9', '#d6bd92', '#e9e2d0', '#dcc9a6'],
     stone: ['#d3c8b2', '#c0b49c'],
     glass: ['#56798c', '#41657a'],
@@ -292,6 +302,7 @@ export const CITY_LOOKS: Record<string, CityLook> = {
   },
   freetown: {
     ...BASE,
+    sprawl: 0.12,
     walls: ['#ece2c8', '#d9e0d2', '#e8d0c0', '#d8dbe6', '#e9dcb9', '#f0eadc'],
     stone: ['#cfc6b2', '#bdb4a0'],
     glass: ['#56798c'],
@@ -322,6 +333,7 @@ export const CITY_LOOKS: Record<string, CityLook> = {
   },
   kigali: {
     ...BASE,
+    sprawl: 0.08,
     walls: ['#efe9dc', '#e0d4bc', '#d4c3a3', '#e9e5da', '#d9cfbd'],
     stone: ['#cfc6b4', '#bdb39f'],
     glass: ['#56798c', '#3f6276'],
@@ -350,6 +362,7 @@ export const CITY_LOOKS: Record<string, CityLook> = {
   },
   johannesburg: {
     ...BASE,
+    sprawl: 0.12,
     walls: ['#e9e4d9', '#d9cfbd', '#cbbfa8', '#e2dccf', '#d3c6ae'],
     brick: ['#9a5b43', '#8b5039', '#a8694c'],
     stone: ['#cbc4b6', '#b8b0a1', '#a39d91', '#8e8a83'],
