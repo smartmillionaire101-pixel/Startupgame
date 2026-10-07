@@ -81,11 +81,11 @@ export class Stage {
       alpha: false,
       powerPreference: 'high-performance',
     });
-    // A software renderer (no GPU) gets a lighter stage: 1× pixels, smaller shadows, 20 fps.
+    // A software renderer (no GPU) gets a lighter stage: 1× pixels, no shadows, 8 fps.
     this.soft = softwareGl(this.renderer.getContext());
     this.renderer.setPixelRatio(this.soft ? 1 : Math.min(2, window.devicePixelRatio || 1));
-    this.maxFps = this.soft ? 20 : (o.maxFps ?? 60);
-    this.renderer.shadowMap.enabled = true;
+    this.maxFps = this.soft ? 8 : (o.maxFps ?? 60);
+    this.renderer.shadowMap.enabled = !this.soft;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
