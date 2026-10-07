@@ -1,4 +1,8 @@
-import { expect, letters, playAsGuest, test } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, test } from './fixtures';
+
+// WebGL through software rendering, for this spec only: the flags slow the
+// CSS-animated scenes (airport, flights) other specs time.
+test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
 /**
  * Wave 9 §B: the city in 3D (WebGL). Playwright's Chromium draws it with
@@ -17,17 +21,12 @@ test('The 3D city renders, credits OpenStreetMap, and a place opens from its lab
     }
   });
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Female', exact: true }).click();
-  await page.getByLabel('Your name').fill('Tolu Three');
-  await page.getByLabel('Handle').fill(`tolu_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Payments for market traders');
-  await page.getByLabel('Company name').fill(`Eko Cubes ${letters(5)}`);
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name: 'Tolu Three',
+    handle: `tolu_${letters(6)}`,
+    company: `Eko Cubes ${letters(5)}`,
+    idea: 'Payments for market traders',
+  });
 
   const map = page.getByRole('application', { name: /Map of Lagos/ });
   await expect(map).toBeVisible({ timeout: 30_000 });
