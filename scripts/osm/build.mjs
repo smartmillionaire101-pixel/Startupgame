@@ -18,6 +18,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CITIES } from './cities.mjs';
+import { areaOf, bb, flat, projector, rings, simplify } from './geom.mjs';
+import { overpass, sleep } from './overpass.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
@@ -25,128 +27,12 @@ const outDir = join(root, 'apps/web/src/city/geo');
 const work = join(here, 'work');
 mkdirSync(outDir, { recursive: true });
 
-const MIRRORS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
-];
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-async function overpass(query) {
-  let last;
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const url = MIRRORS[attempt % MIRRORS.length];
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/x-www-form-urlencoded',
-          'user-agent': 'runway-startup-game-map-builder',
-        },
-        body: 'data=' + encodeURIComponent(query),
-      });
-      if (res.ok) return await res.json();
-      last = new Error(`${url} ${res.status} ${(await res.text()).slice(0, 200)}`);
-    } catch (e) {
-      last = e;
-    }
-    console.warn(`overpass retry ${attempt + 1}: ${last?.message}`);
-    await sleep(15_000 * (attempt + 1));
-  }
-  throw last;
-}
-
-const bb = ([w, s, e, n]) => `${s},${w},${n},${e}`;
-
-// ---------------------------------------------------------------- geometry
-
-function projector(wide) {
-  const lon0 = (wide[0] + wide[2]) / 2;
-  const lat0 = (wide[1] + wide[3]) / 2;
-  const kx = 111_320 * Math.cos((lat0 * Math.PI) / 180);
-  const ky = 110_540;
-  return {
-    origin: [lon0, lat0],
-    p: (lon, lat) => [(lon - lon0) * kx, -(lat - lat0) * ky],
-  };
-}
-
-/** Douglas–Peucker on [[x, y], …]. */
-function simplify(pts, tol) {
-  if (pts.length < 3) return pts;
-  const keep = new Uint8Array(pts.length);
-  keep[0] = keep[pts.length - 1] = 1;
-  const stack = [[0, pts.length - 1]];
-  const t2 = tol * tol;
-  while (stack.length) {
-    const [a, b] = stack.pop();
-    const [ax, ay] = pts[a];
-    const [bx, by] = pts[b];
-    const dx = bx - ax;
-    const dy = by - ay;
-    const len2 = dx * dx + dy * dy || 1e-9;
-    let best = -1;
-    let bestD = t2;
-    for (let i = a + 1; i < b; i++) {
-      const [px, py] = pts[i];
-      const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
-      const ex = ax + t * dx - px;
-      const ey = ay + t * dy - py;
-      const d = ex * ex + ey * ey;
-      if (d > bestD) {
-        bestD = d;
-        best = i;
-      }
-    }
-    if (best >= 0) {
-      keep[best] = 1;
-      stack.push([a, best], [best, b]);
-    }
-  }
-  return pts.filter((_, i) => keep[i]);
-}
-
-const flat = (pts) => pts.flatMap(([x, y]) => [Math.round(x), Math.round(y)]);
-
 function line(geom, proj, tol) {
   const pts = simplify(
     geom.map((g) => proj.p(g.lon, g.lat)),
     tol,
   );
   return pts.length >= 2 ? flat(pts) : null;
-}
-
-function areaOf(pts) {
-  let a = 0;
-  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++)
-    a += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]);
-  return Math.abs(a / 2);
-}
-
-/** Join way segments (arrays of {lat, lon}) end to end into closed rings. */
-function rings(segments) {
-  const key = (g) => `${g.lat.toFixed(7)},${g.lon.toFixed(7)}`;
-  const left = segments.filter((s) => s.length >= 2).map((s) => s.slice());
-  const out = [];
-  while (left.length) {
-    let ring = left.shift();
-    let grew = true;
-    while (key(ring[0]) !== key(ring[ring.length - 1]) && grew) {
-      grew = false;
-      for (let i = 0; i < left.length; i++) {
-        const s = left[i];
-        const end = key(ring[ring.length - 1]);
-        if (key(s[0]) === end) ring = ring.concat(s.slice(1));
-        else if (key(s[s.length - 1]) === end) ring = ring.concat(s.slice(0, -1).reverse());
-        else continue;
-        left.splice(i, 1);
-        grew = true;
-        break;
-      }
-    }
-    if (key(ring[0]) === key(ring[ring.length - 1]) && ring.length >= 4) out.push(ring);
-  }
-  return out;
 }
 
 /** Polygons (outer rings only, holes dropped for size) from ways and multipolygon relations. */
