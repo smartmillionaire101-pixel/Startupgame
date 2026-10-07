@@ -123,6 +123,39 @@ export function outerRings(el, proj) {
 const inBox = (x, y, [x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
 
 /**
+ * Add one footprint (a projected raw ring) with OSM-style tags to `out`:
+ * simplified, oriented, with its centroid inside `bounds` ([minX, minY,
+ * maxX, maxY] in local metres) and its height resolved.
+ */
+export function addFootprint(out, t, raw, isPart, bounds, core) {
+  const ring = simplifyRing(raw, SIMPLIFY_TOLERANCE);
+  if (!ring) return;
+  if (signedArea(ring) < 0) ring.reverse();
+  const area = areaOf(ring);
+  if (area < 4) return;
+  const [cx, cy] = centroid(ring);
+  if (!inBox(cx, cy, bounds)) return;
+  const inCore = inBox(cx, cy, core);
+  const type = typeCode(isPart ? t['building:part'] : t.building);
+  const h = hash01(cx * 10, cy * 10, area);
+  const hgt = heightOf(t, type, area, inCore, h);
+  out.push({
+    points: ring,
+    cx,
+    cy,
+    area,
+    type,
+    roof: roofCode(t['roof:shape']),
+    material: materialCode(t['building:material'] ?? t['building:facade:material']),
+    colour: parseColour(t['building:colour'] ?? t['building:facade:colour']),
+    roofColour: parseColour(t['roof:colour']),
+    ...hgt,
+    part: isPart,
+    core: inCore,
+  });
+}
+
+/**
  * Buildings (and building parts) from OSM elements. `bounds` and `core` are
  * [minX, minY, maxX, maxY] in local metres; a footprint whose centroid falls
  * outside `bounds` is dropped. Elements are deduplicated by type and id via
@@ -138,33 +171,80 @@ export function buildingsFrom(elements, proj, bounds, core, seen = new Set()) {
     const key = `${el.type}/${el.id}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    for (const raw of outerRings(el, proj)) {
-      const ring = simplifyRing(raw, SIMPLIFY_TOLERANCE);
-      if (!ring) continue;
-      if (signedArea(ring) < 0) ring.reverse();
-      const area = areaOf(ring);
-      if (area < 4) continue;
-      const [cx, cy] = centroid(ring);
-      if (!inBox(cx, cy, bounds)) continue;
-      const inCore = inBox(cx, cy, core);
-      const type = typeCode(isPart ? t['building:part'] : t.building);
-      const h = hash01(cx * 10, cy * 10, area);
-      const hgt = heightOf(t, type, area, inCore, h);
-      out.push({
-        points: ring,
-        cx,
-        cy,
-        area,
-        type,
-        roof: roofCode(t['roof:shape']),
-        material: materialCode(t['building:material'] ?? t['building:facade:material']),
-        colour: parseColour(t['building:colour'] ?? t['building:facade:colour']),
-        roofColour: parseColour(t['roof:colour']),
-        ...hgt,
-        part: isPart,
-        core: inCore,
-      });
-    }
+    for (const raw of outerRings(el, proj)) addFootprint(out, t, raw, isPart, bounds, core);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- Overture
+
+/** Overture `subtype` → an OSM building value, when `class` is missing. */
+const SUBTYPE = {
+  commercial: 'commercial',
+  industrial: 'industrial',
+  civic: 'civic',
+  religious: 'religious',
+  education: 'school',
+  medical: 'hospital',
+  transportation: 'transportation',
+  outbuilding: 'shed',
+  agricultural: 'industrial',
+  entertainment: 'commercial',
+  military: 'civic',
+  service: 'industrial',
+};
+
+/**
+ * OSM-style tags of an Overture Maps building or building_part row (fields:
+ * class, subtype, height, min_height, num_floors, min_floor, roof_shape,
+ * roof_height, roof_color, facade_color, facade_material), so the OSM height
+ * and enum rules apply unchanged. Residential rows without a class (most
+ * machine-learned footprints) count as houses.
+ */
+export function overtureTags(row) {
+  const t = {};
+  const value =
+    row.class || SUBTYPE[row.subtype] || (row.subtype === 'residential' ? 'house' : null) || 'yes';
+  if (row.kind === 'part') t['building:part'] = row.class || 'yes';
+  else t.building = value;
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? String(v) : undefined);
+  const set = (k, v) => {
+    if (v !== undefined && v !== null && v !== '') t[k] = v;
+  };
+  set('height', num(row.height));
+  set('min_height', num(row.min_height));
+  set('building:levels', num(row.num_floors));
+  set('building:min_level', num(row.min_floor));
+  set('roof:shape', row.roof_shape);
+  set('roof:height', num(row.roof_height));
+  set('roof:colour', row.roof_color);
+  set('building:colour', row.facade_color);
+  set('building:material', row.facade_material);
+  return t;
+}
+
+/** The outer rings of a GeoJSON Polygon / MultiPolygon in lon/lat, projected. */
+export function geojsonOuterRings(geom, proj) {
+  const g = typeof geom === 'string' ? JSON.parse(geom) : geom;
+  const polys =
+    g?.type === 'Polygon' ? [g.coordinates] : g?.type === 'MultiPolygon' ? g.coordinates : [];
+  return polys
+    .filter((p) => p?.[0]?.length >= 4)
+    .map((p) => p[0].map(([lon, lat]) => proj.p(lon, lat)));
+}
+
+/**
+ * Buildings from Overture rows (one parsed line of the newline-delimited
+ * JSON that overture.py exports: the fields above plus `kind` ("building" or
+ * "part"), `is_underground` and `geom`, a GeoJSON geometry or its string).
+ */
+export function buildingsFromOverture(rows, proj, bounds, core) {
+  const out = [];
+  for (const row of rows) {
+    if (row.is_underground) continue;
+    const t = overtureTags(row);
+    for (const raw of geojsonOuterRings(row.geom, proj))
+      addFootprint(out, t, raw, row.kind === 'part', bounds, core);
   }
   return out;
 }
@@ -227,22 +307,45 @@ export function tileBuildings(list) {
   return tiles;
 }
 
+/** Metres from (x, y) to the box [minX, minY, maxX, maxY] (0 inside). */
+const distToBox = (x, y, [x0, y0, x1, y1]) =>
+  Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(y0 - y, 0, y - y1));
+
 /**
- * Keep the total size within `budget` bytes: drop the smallest footprints
- * outside the core first (< 25 m², then 40, 60, 80 m²). Returns the list kept
- * and the area threshold used (0 when nothing was dropped).
+ * Keep the total size within `budget` bytes. Everything in the core and
+ * every building part stays; the rest is ranked by footprint area, weighed
+ * down with distance from the core (area / (1 + d / 3 km)), and the smallest
+ * go first: tiny sheds far out before anything near the centre. Returns the
+ * list kept, the cut-off (`minArea`, in m² at the core's edge; it grows with
+ * distance; 0 when nothing was dropped) and how many were dropped.
  */
-export function fitBudget(list, budget) {
-  const total = (l) => 16 + l.reduce((s, b) => s + buildingBytes(b), 0);
-  if (total(list) <= budget) return { list, minArea: 0 };
-  let kept = list;
-  let used = 0;
-  for (const minArea of [25, 40, 60, 80, 120]) {
-    used = minArea;
-    kept = list.filter((b) => b.core || b.part || b.area >= minArea || !b.estimated);
-    if (total(kept) <= budget) break;
-    kept = list.filter((b) => b.core || b.part || b.area >= minArea);
-    if (total(kept) <= budget) break;
+export function fitBudget(list, budget, core = [0, 0, 0, 0]) {
+  let total = 16;
+  for (const b of list) total += buildingBytes(b);
+  if (total <= budget) return { list, minArea: 0, dropped: 0 };
+  const must = [];
+  const rest = [];
+  let used = 16;
+  for (const b of list) {
+    if (b.core || b.part) {
+      must.push(b);
+      used += buildingBytes(b);
+    } else rest.push({ b, key: b.area / (1 + distToBox(b.cx, b.cy, core) / 3000) });
   }
-  return { list: kept, minArea: used };
+  rest.sort((p, q) => q.key - p.key);
+  const kept = must;
+  let k = 0;
+  for (; k < rest.length; k++) {
+    const bytes = buildingBytes(rest[k].b);
+    if (used + bytes > budget) break;
+    used += bytes;
+    kept.push(rest[k].b);
+  }
+  // The cut-off: the key of the biggest footprint left out.
+  const minArea = k < rest.length ? rest[k].key : 0;
+  return {
+    list: kept,
+    minArea: Math.round(minArea * 10) / 10,
+    dropped: rest.length - k,
+  };
 }
