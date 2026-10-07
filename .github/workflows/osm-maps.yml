@@ -2,8 +2,8 @@ name: City maps from OpenStreetMap
 
 # Builds the real city maps (apps/web/src/city/geo/*.json) from OpenStreetMap
 # (© OpenStreetMap contributors, ODbL) and commits them to the branch. Then the
-# 3D city data (Wave 9 §A, scripts/osm/tiles.mjs): every building in 1 km binary
-# tiles, a terrain grid (AWS Terrarium tiles) and trees, into
+# 3D city data (Wave 9 §A, scripts/osm/tiles.mjs): every building (Overture
+# Maps) in 1 km binary tiles, a terrain grid (AWS Terrarium tiles) and trees, into
 # apps/web/public/geo/<city>/. GitHub's
 # runners can reach the Overpass API and the OSM land polygons; the game never
 # fetches map data at runtime.
@@ -31,8 +31,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Dependencies (pngjs for the terrain tiles)
-        run: npm ci --ignore-scripts --no-audit --no-fund
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Dependencies (pngjs for the terrain tiles; DuckDB for Overture)
+        # The DuckDB extensions come as PyPI wheels pinned to DuckDB's version,
+        # so nothing is fetched from DuckDB's extension server at run time.
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          pip install -q duckdb==1.5.5 duckdb-extension-spatial==1.5.5 duckdb-extension-httpfs==1.5.5
       - name: Tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin unzip
       - name: OSM land polygons (coastlines)
@@ -64,26 +71,33 @@ jobs:
             git pull --rebase origin ${{ github.ref_name }}
             git push origin HEAD:${{ github.ref_name }}
           done
-      - name: 3D tiles, terrain and trees per city (Overpass, AWS Terrarium)
-        # Needs the city's geo JSON (water, land, parks). One commit per city;
-        # a city whose index.json exists is skipped (index.json is written last).
+      - name: 3D tiles, terrain and trees per city (Overture, AWS Terrarium)
+        # Buildings: Overture Maps by bbox from its public GeoParquet on S3
+        # (overture.py, DuckDB). Overpass is only asked for trees and streets,
+        # and its failures are not fatal. Needs the city's geo JSON (water,
+        # land, parks). One commit per city; a city whose index.json exists is
+        # skipped (index.json is written last).
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for id in $(node -e 'import("./scripts/osm/cities.mjs").then(({ CITIES }) => console.log(Object.keys(CITIES).join(" ")))'); do
             if [ -f "apps/web/public/geo/$id/index.json" ]; then echo "skip 3D $id (already built)"; continue; fi
             if [ ! -f "apps/web/src/city/geo/$id.json" ]; then echo "::warning::3D $id needs its geo JSON first"; continue; fi
+            bbox=$(node -e 'import("./scripts/osm/cities.mjs").then(({ CITIES }) => console.log(CITIES[process.argv[1]].wide.join(" ")))' "$id")
             # On failure, put the end of the log in the warning (job logs aren't always reachable).
-            if ! node scripts/osm/tiles.mjs "$id" > "/tmp/tiles-$id.log" 2>&1; then
+            # shellcheck disable=SC2086
+            if ! { python3 scripts/osm/overture.py "$id" $bbox && node scripts/osm/tiles.mjs "$id"; } > "/tmp/tiles-$id.log" 2>&1; then
               cat "/tmp/tiles-$id.log"
               echo "::warning title=3D $id failed::$(tail -c 1500 "/tmp/tiles-$id.log" | tr '\n' '|')"
-              # Stop at the first failure: the same fault would cost hours across every city.
-              break
+              continue
             fi
-            tail -5 "/tmp/tiles-$id.log"
+            grep -v 'retry' "/tmp/tiles-$id.log" | tail -8
+            rm -f "scripts/osm/work/buildings-$id.ndjson"
             du -sh "apps/web/public/geo/$id"
             git add "apps/web/public/geo/$id"
-            git commit -m "3D city: $id buildings, terrain and trees (© OpenStreetMap contributors, ODbL)"
+            git commit -m "3D city: $id buildings, terrain and trees (© OpenStreetMap contributors, Overture Maps Foundation)"
             git pull --rebase origin ${{ github.ref_name }}
             git push origin HEAD:${{ github.ref_name }}
           done
