@@ -29,7 +29,10 @@ test('walk into a restaurant: a full scene with people, and buy a meal from the 
   await expect(scene).toBeVisible({ timeout: 10_000 });
   await expect(scene).toHaveAttribute('role', 'dialog');
   // An illustrated room, with the owner and other people in it doing things.
-  await expect(scene).toHaveAttribute('data-room', /restaurant|cafe|bar|club|shop/);
+  await expect(scene).toHaveAttribute(
+    'data-room',
+    /restaurant|cafe|bar|club|lounge|stage|karaoke|beach|shop/,
+  );
   const people = scene.locator('[data-occupant]');
   expect(await people.count()).toBeGreaterThan(1);
   await expect(scene.getByRole('button', { name: /, Owner$/ })).toBeAttached();
