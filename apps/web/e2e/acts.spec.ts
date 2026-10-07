@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, letters, playAsGuest, tapPlace, test } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, tapPlace, test } from './fixtures';
 
 /**
  * Wave 8 §B (docs/WAVE8-REAL-AND-SOCIAL.md): activities you watch happen.
@@ -18,17 +18,13 @@ test.use({ viewport: { width: 390, height: 844 } });
 
 async function founder(page: Page, name: string) {
   await playAsGuest(page);
-  await page.getByRole('button', { name: /Founder/ }).click();
-  await page.getByRole('button', { name: /Ex-engineer/ }).click();
-  await page.getByRole('button', { name: /Lagos, Nigeria/ }).click();
-  await page.getByRole('button', { name: 'Male', exact: true }).click();
-  await page.getByLabel('Your name').fill(name);
-  await page.getByLabel('Handle').fill(`${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`);
-  await expect(page.getByText('Available', { exact: true })).toBeVisible();
-  await page.getByLabel('Your idea in one line').fill('Bookings for barbers');
-  await page.getByLabel('Company name').fill(`Fade ${letters(5)}`);
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await setupFounder(page, {
+    name,
+    handle: `${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`,
+    company: `Fade ${letters(5)}`,
+    idea: 'Bookings for barbers',
+    gender: 'male',
+  });
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
     timeout: 30_000,
   });
