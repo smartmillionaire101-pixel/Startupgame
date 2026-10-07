@@ -185,9 +185,10 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
       };
     }
     case 'meal': {
-      // A table in front of you; the waiter brings the plate.
+      // You sit at the far side of a table, facing us; the waiter brings the plate.
+      const seatZ = sz - 1.3;
       const tk = new Kit();
-      chairAt(tk, sx, sz, Math.PI, 'dining', '#5b3a22');
+      chairAt(tk, sx, seatZ, 0, 'dining', '#5b3a22');
       props.add(tk.build());
       model('restaurant-table', sx, sz - 0.65, 1.0, 0.8, 0, '#f8fafc', 2);
       const waiter = add(extraAt(props, ctx, 'waiter', sx + 3, BACK + 1, -Math.PI / 2));
@@ -232,13 +233,14 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
       plate.add(food);
       if (kind !== 'laptop') holdIn(waiter, plate);
       else {
-        plate.position.set(sx, 0.77, sz - 0.6);
+        plate.position.set(sx, 0.77, sz - 0.85);
         props.add(plate);
       }
       let onTable = kind === 'laptop';
       return {
         ...base,
-        ry: Math.PI,
+        station: new THREE.Vector3(sx, 0, seatZ),
+        ry: 0,
         pose: 'sit',
         seat: 0.45,
         dim: 0.22,
@@ -267,7 +269,7 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
             if (!onTable && k >= 0.32) {
               onTable = true;
               waiter.handR.remove(plate);
-              plate.position.set(sx, 0.775, sz - 0.5);
+              plate.position.set(sx, 0.775, sz - 0.85);
               props.add(plate);
             }
           } else pose(waiter, 'idle', t);

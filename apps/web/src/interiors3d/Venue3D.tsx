@@ -349,7 +349,7 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
       {
         const fc = stage.fitCenter!;
         const want = r && !P.reduced ? r.rig.station : fc;
-        const wz = r ? 1.75 : 1;
+        const wz = r ? 1.5 : 1;
         const u = P.reduced ? 1 : Math.min(1, dt * 2.5);
         const tx = want.x;
         const tz = want.z + (r ? -0.2 : 0);
