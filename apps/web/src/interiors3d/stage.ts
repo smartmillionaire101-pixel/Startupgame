@@ -23,6 +23,23 @@ export interface StageOpts {
   background?: string;
   /** The sun's shadow box (half-size, metres). */
   shadowSize?: number;
+  /** Shadow map resolution (default 2048). */
+  shadowMap?: number;
+  /** Frames a second at most while animating (default 60). */
+  maxFps?: number;
+}
+
+/** Is WebGL running on the CPU (SwiftShader, llvmpipe)? */
+function softwareGl(gl: WebGLRenderingContext | WebGL2RenderingContext): boolean {
+  try {
+    // Screenshots and demos can ask for full quality anyway.
+    if (localStorage.getItem('runway.hq') === '1') return false;
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const r = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+    return /swiftshader|llvmpipe|software/i.test(r);
+  } catch {
+    return false;
+  }
 }
 
 export type Animator = (t: number, dt: number) => boolean | void;
@@ -53,6 +70,8 @@ export class Stage {
   /** Called after each drawn frame. */
   onFrame: (() => void) | null = null;
   frames = 0;
+  readonly soft: boolean;
+  maxFps: number;
 
   constructor(readonly canvas: HTMLCanvasElement, o: StageOpts) {
     this.opts = o;
@@ -62,7 +81,10 @@ export class Stage {
       alpha: false,
       powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    // A software renderer (no GPU) gets a lighter stage: 1× pixels, smaller shadows, 20 fps.
+    this.soft = softwareGl(this.renderer.getContext());
+    this.renderer.setPixelRatio(this.soft ? 1 : Math.min(2, window.devicePixelRatio || 1));
+    this.maxFps = this.soft ? 20 : (o.maxFps ?? 60);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -82,7 +104,8 @@ export class Stage {
     this.sun = new THREE.DirectionalLight('#fff1d6', 1.9);
     this.sun.castShadow = true;
     const s = o.shadowSize ?? 10;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    const sm = this.soft ? 512 : (o.shadowMap ?? 2048);
+    this.sun.shadow.mapSize.set(sm, sm);
     const sc = this.sun.shadow.camera;
     sc.left = -s;
     sc.right = s;
@@ -109,7 +132,43 @@ export class Stage {
     this.updateCamera();
   }
 
+  /** Points to keep in view at zoom 1 (the span follows them as the camera turns). */
+  fit: THREE.Vector3[] | null = null;
+  /** The middle of what's fitted (the target can wander off it when zoomed in). */
+  fitCenter: THREE.Vector3 | null = null;
+  /** Extra room around the fitted points (1 = none). */
+  fitMargin = 1.08;
+
+  private fitSpan() {
+    if (!this.fit?.length) return;
+    const c = this.camera;
+    const r = 60;
+    const ce = Math.cos(this.elevation);
+    c.position.set(
+      this.target.x + r * ce * Math.sin(this.azimuth),
+      this.target.y + r * Math.sin(this.elevation),
+      this.target.z + r * ce * Math.cos(this.azimuth),
+    );
+    c.lookAt(this.target);
+    c.updateMatrixWorld();
+    const t = (this.fitCenter ?? this.target).clone().applyMatrix4(c.matrixWorldInverse);
+    let mx = 0;
+    let my = 0;
+    for (const p of this.fit) {
+      const v = p.clone().applyMatrix4(c.matrixWorldInverse);
+      mx = Math.max(mx, Math.abs(v.x - t.x));
+      my = Math.max(my, Math.abs(v.y - t.y));
+    }
+    const aspect = this.w / this.h;
+    // span is the shorter side: portrait → width, landscape → height.
+    this.span =
+      aspect >= 1
+        ? Math.max(2 * my, (2 * mx) / aspect) * this.fitMargin
+        : Math.max(2 * mx, 2 * my * aspect) * this.fitMargin;
+  }
+
   updateCamera() {
+    this.fitSpan();
     const aspect = this.w / this.h;
     const half = this.span / 2 / this.zoom;
     const hw = aspect >= 1 ? half * aspect : half;
@@ -184,9 +243,17 @@ export class Stage {
     this.raf = requestAnimationFrame(this.tick);
   }
 
+  private lastDraw = 0;
   private tick = (now: number) => {
     this.raf = 0;
     if (this.disposed) return;
+    // Frame cap: skip this frame if the last one was drawn too recently.
+    const gap = 1000 / this.maxFps - 4;
+    if (now - this.lastDraw < gap && !this.dirty) {
+      this.raf = requestAnimationFrame(this.tick);
+      return;
+    }
+    this.lastDraw = now;
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     const t = (now - this.t0) / 1000;

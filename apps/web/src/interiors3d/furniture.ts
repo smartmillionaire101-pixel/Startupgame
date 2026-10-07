@@ -436,7 +436,7 @@ const art: Builder = (k, o) => {
 const rug: Builder = (k, o) => {
   const w = o.w - 0.1;
   const d = o.d - 0.1;
-  const col = ['#b6884f', '#8e9aaf', '#7f1d1d'][o.tier - 1]!;
+  const col = ['#c8a165', '#4f6f9a', '#8b1e1e'][o.tier - 1]!;
   const geo = new THREE.PlaneGeometry(w, d);
   const mesh = new THREE.Mesh(geo, mat('#ffffff', { map: rugTexture(o.tier, col) }));
   mesh.rotation.x = -Math.PI / 2;
@@ -875,8 +875,8 @@ const salonStation: Builder = (k, o, m) => {
   k.box(0.4, 0.04, 0.2, CHROME, 0, 0.12, z + 0.4, { ...metal, rx: -0.4 });
   // mirror and shelf
   const mz = -o.d / 2 + 0.03;
-  k.box(0.9, 1.15, 0.04, '#e7d9c4', 0, 0.85, mz, { round: 0.02 });
-  k.plane(0.8, 1.05, '#d7ecf3', 0, 1.42, mz + 0.03, { metal: 0.7, rough: 0.04 });
+  k.box(0.9, 2.0, 0.06, '#e7d9c4', 0, 0, mz, { round: 0.02 });
+  k.plane(0.8, 1.05, '#d7ecf3', 0, 1.42, mz + 0.045, { metal: 0.7, rough: 0.04 });
   k.box(0.9, 0.04, 0.24, '#e7d9c4', 0, 0.8, mz + 0.12);
   for (let i = 0; i < 4; i++) k.cyl(0.03, 0.03, 0.12 + (i % 2) * 0.05, ['#0ea5e9', '#f472b6', '#facc15', '#22c55e'][i]!, -0.3 + i * 0.18, 0.84, mz + 0.12, shiny);
   k.sphere(0.1, '#fef9c3', -0.5, 1.6, mz + 0.06, { emissive: '#fff7d6', emissiveIntensity: 1.2 });

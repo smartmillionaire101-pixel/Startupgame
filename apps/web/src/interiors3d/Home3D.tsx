@@ -75,7 +75,9 @@ function plusMarker(): THREE.Group {
 export default function Home3D(props: Home3DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const live = useRef(props);
-  live.current = props;
+  useEffect(() => {
+    live.current = props;
+  });
   const stageRef = useRef<Stage | null>(null);
   const placedRef = useRef(new Map<string, Placed>());
   const houseRef = useRef<House | null>(null);
@@ -127,7 +129,10 @@ export default function Home3D(props: Home3DProps) {
         for (const p of placedRef.current.values())
           if (p.wall) p.group.visible = !houseRef.current.sides[['back', 'front', 'left', 'right'].indexOf(p.wall)]!.cut;
         for (const m of markers.current.values())
-          if (m.userData.wall) m.visible = !houseRef.current.sides[['back', 'front', 'left', 'right'].indexOf(m.userData.wall as string)]!.cut;
+          if (m.userData.wall) {
+            m.userData.shown = !houseRef.current.sides[['back', 'front', 'left', 'right'].indexOf(m.userData.wall as string)]!.cut;
+            m.visible = live.current.buyMode && m.userData.shown !== false;
+          }
       }
     };
     const offCam = stage.onCamera(sync);
@@ -195,6 +200,8 @@ export default function Home3D(props: Home3DProps) {
     stage.scene.add(h.root);
     stage.target.copy(h.centre);
     stage.span = h.span;
+    stage.fitCenter = h.centre.clone();
+    stage.fit = h.fitPoints;
     const s = Math.max(plan.w, plan.h) * 0.9 + 4;
     const sc = stage.sun.shadow.camera;
     sc.left = -s;
@@ -217,11 +224,11 @@ export default function Home3D(props: Home3DProps) {
     const stage = stageRef.current;
     if (!stage) return;
     if (night) {
-      stage.sun.intensity = 0.45;
-      stage.sun.color.set('#9fb3ff');
-      stage.hemi.intensity = 0.55;
-      stage.hemi.color.set('#9fb0e0');
-      stage.ambient.intensity = 0.18;
+      stage.sun.intensity = 0.6;
+      stage.sun.color.set('#a9bbff');
+      stage.hemi.intensity = 0.95;
+      stage.hemi.color.set('#c9c8e8');
+      stage.ambient.intensity = 0.3;
       stage.scene.background = new THREE.Color('#0b1328');
     } else if (dusk) {
       stage.sun.intensity = 1.4;
@@ -271,6 +278,7 @@ export default function Home3D(props: Home3DProps) {
         }
         m.traverse((c) => (c.userData.obj = o.id));
         m.userData.obj = o.id;
+        m.visible = live.current.buyMode;
         mk.set(o.id, m);
         root.add(m);
         continue;
@@ -337,7 +345,10 @@ export default function Home3D(props: Home3DProps) {
 
   // ---- Buy mode: markers pulse; the thing being moved is a ghost.
   useEffect(() => {
-    for (const m of markers.current.values()) m.scale.setScalar(buyMode ? 1.5 : 1);
+    for (const m of markers.current.values()) {
+      m.visible = buyMode && (!m.userData.wall || m.userData.shown !== false);
+      m.scale.setScalar(1.4);
+    }
     const p = moving ? placedRef.current.get(moving) : undefined;
     if (p) p.group.visible = false;
     stageRef.current?.invalidate();

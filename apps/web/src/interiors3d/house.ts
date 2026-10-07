@@ -37,7 +37,8 @@ export interface House {
   /** Where the camera looks by default, and how much fits. */
   centre: THREE.Vector3;
   span: number;
-  /** Things on a side wall (hidden when it's cut away). */
+  /** The corners the camera keeps in view. */
+  fitPoints: THREE.Vector3[];
   garage: { car: THREE.Group | null } | null;
 }
 
@@ -343,7 +344,11 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   }
 
   const span = Math.max(totalW, H) * 1.18 + 2;
-  return { root, sides, centre, span, garage: garageOut };
+  const fitPoints: THREE.Vector3[] = [];
+  for (const x of [-0.6, totalW + 0.4])
+    for (const z of [-0.6, H + (garage || o.car ? 2.2 : 1.2)])
+      for (const y of [0, WALL_H]) fitPoints.push(new THREE.Vector3(x, y, z));
+  return { root, sides, centre, span, fitPoints, garage: garageOut };
 }
 
 /** Cut away the outer walls that face the camera (azimuth, radians). */

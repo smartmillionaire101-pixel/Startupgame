@@ -6,6 +6,15 @@
 import * as THREE from 'three';
 import { glowTexture } from './kit';
 
+/** Cosmetic jitter only (not the game's simulation): a tiny xorshift. */
+let seed = 0x2f6b45;
+function rand() {
+  seed ^= seed << 13;
+  seed ^= seed >>> 17;
+  seed ^= seed << 5;
+  return ((seed >>> 0) % 100000) / 100000;
+}
+
 const GLYPHS = new Map<string, THREE.Texture>();
 export function glyphTexture(ch: string, color: string): THREE.Texture {
   const key = `${ch}|${color}`;
@@ -114,9 +123,9 @@ export class Particles {
 /** Emitters for the common effects, called each frame with a spawn chance. */
 export const fx = {
   steam(ps: Particles, at: THREE.Vector3, dt: number, rate = 10) {
-    if (Math.random() < dt * rate)
-      ps.emit(at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.25, 0, (Math.random() - 0.5) * 0.25)), {
-        vel: new THREE.Vector3((Math.random() - 0.5) * 0.1, 0.45 + Math.random() * 0.2, 0),
+    if (rand() < dt * rate)
+      ps.emit(at.clone().add(new THREE.Vector3((rand() - 0.5) * 0.25, 0, (rand() - 0.5) * 0.25)), {
+        vel: new THREE.Vector3((rand() - 0.5) * 0.1, 0.45 + rand() * 0.2, 0),
         life: 1.6,
         size: 0.22,
         grow: 3,
@@ -126,8 +135,8 @@ export const fx = {
   },
   water(ps: Particles, at: THREE.Vector3, dt: number) {
     for (let i = 0; i < 3; i++)
-      if (Math.random() < dt * 30)
-        ps.emit(at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3)), {
+      if (rand() < dt * 30)
+        ps.emit(at.clone().add(new THREE.Vector3((rand() - 0.5) * 0.3, 0, (rand() - 0.5) * 0.3)), {
           vel: new THREE.Vector3(0, -2.4, 0),
           life: 0.75,
           size: 0.05,
@@ -137,7 +146,7 @@ export const fx = {
         });
   },
   zz(ps: Particles, at: THREE.Vector3, dt: number) {
-    if (Math.random() < dt * 1.2)
+    if (rand() < dt * 1.2)
       ps.emit(at.clone(), {
         vel: new THREE.Vector3(0.12, 0.3, 0),
         life: 2.4,
@@ -148,19 +157,19 @@ export const fx = {
       });
   },
   notes(ps: Particles, at: THREE.Vector3, dt: number, color = '#f9a8d4') {
-    if (Math.random() < dt * 2.5)
-      ps.emit(at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.4, 0, 0)), {
-        vel: new THREE.Vector3((Math.random() - 0.5) * 0.3, 0.45, 0),
+    if (rand() < dt * 2.5)
+      ps.emit(at.clone().add(new THREE.Vector3((rand() - 0.5) * 0.4, 0, 0)), {
+        vel: new THREE.Vector3((rand() - 0.5) * 0.3, 0.45, 0),
         life: 1.8,
         size: 0.2,
         grow: 1.2,
-        map: glyphTexture(Math.random() > 0.5 ? '♪' : '♫', color),
+        map: glyphTexture(rand() > 0.5 ? '♪' : '♫', color),
         alpha: 1,
       });
   },
   sparkle(ps: Particles, at: THREE.Vector3, dt: number, color = '#fde047', rate = 8) {
-    if (Math.random() < dt * rate)
-      ps.emit(at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, Math.random() * 0.4, (Math.random() - 0.5) * 0.6)), {
+    if (rand() < dt * rate)
+      ps.emit(at.clone().add(new THREE.Vector3((rand() - 0.5) * 0.6, rand() * 0.4, (rand() - 0.5) * 0.6)), {
         vel: new THREE.Vector3(0, 0.25, 0),
         life: 0.9,
         size: 0.12,
@@ -171,9 +180,9 @@ export const fx = {
       });
   },
   hearts(ps: Particles, at: THREE.Vector3, dt: number) {
-    if (Math.random() < dt * 1.5)
+    if (rand() < dt * 1.5)
       ps.emit(at.clone(), {
-        vel: new THREE.Vector3((Math.random() - 0.5) * 0.2, 0.4, 0),
+        vel: new THREE.Vector3((rand() - 0.5) * 0.2, 0.4, 0),
         life: 1.6,
         size: 0.2,
         map: glyphTexture('♥', '#fb7185'),
@@ -182,9 +191,9 @@ export const fx = {
       });
   },
   hair(ps: Particles, at: THREE.Vector3, dt: number, color: string) {
-    if (Math.random() < dt * 14)
-      ps.emit(at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3)), {
-        vel: new THREE.Vector3((Math.random() - 0.5) * 0.3, -0.9, (Math.random() - 0.5) * 0.3),
+    if (rand() < dt * 14)
+      ps.emit(at.clone().add(new THREE.Vector3((rand() - 0.5) * 0.3, 0, (rand() - 0.5) * 0.3)), {
+        vel: new THREE.Vector3((rand() - 0.5) * 0.3, -0.9, (rand() - 0.5) * 0.3),
         life: 0.9,
         size: 0.04,
         grow: 1,

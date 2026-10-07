@@ -101,12 +101,18 @@
 }
 
 .home-bar {
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+.home-bar .home-bar-btn {
+  padding: 0 0.3rem;
+  white-space: nowrap;
 }
 
 /* Buy mode: the catalogue. */
 .buy-sheet {
-  max-height: 78%;
+  max-height: 62%;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -121,6 +127,7 @@
   font-weight: 700;
 }
 .buy-tabs {
+  flex: 0 0 auto;
   display: flex;
   gap: 0.35rem;
   overflow-x: auto;
@@ -178,8 +185,8 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0.15rem;
-  min-height: 84px;
-  padding: 0.5rem;
+  min-height: 68px;
+  padding: 0.4rem 0.45rem;
   border-radius: 14px;
   border: 1px solid var(--line);
   background: var(--surface-2, var(--surface));
@@ -296,4 +303,8 @@
   .home-float-3d {
     animation: home-fade 2.2s linear forwards;
   }
+}
+
+.buy-back {
+  background: rgb(0 0 0 / 0.12);
 }

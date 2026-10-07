@@ -524,7 +524,7 @@ export function HomeScene({
     obj?: string;
   } | null>(null);
   const [floats, setFloats] = useState<
-    { id: number; text: string; x: number; y: number; tone: string; tx: number; ty: number }[]
+    { id: number; text: string; x: number; y: number; tone: string; sx: number; sy: number }[]
   >([]);
   // ---- Buy mode: the thing you're placing.
   const [placing, setPlacing] = useState<{ slot: string; label: string; p: Placement } | null>(
@@ -541,18 +541,15 @@ export function HomeScene({
       ok: canPlace(plan, owned, placing.slot, placing.p),
     };
   }, [placing, basePlan, plan, owned, tiers]);
-  const startPlacing = useCallback(
-    (slot: string, label: string) => {
-      if (!MOVABLE.has(slot)) return;
-      const s = plan.slots[slot];
-      if (!s) return;
-      const rot = (s as { rot?: number }).rot ?? 0;
-      setSheet(null);
-      setMenuState(null);
-      setPlacing({ slot, label, p: { x: s.x, y: s.y, rot } });
-    },
-    [plan],
-  );
+  const startPlacing = (slot: string, label: string) => {
+    if (!MOVABLE.has(slot)) return;
+    const s = plan.slots[slot];
+    if (!s) return;
+    const rot = (s as { rot?: number }).rot ?? 0;
+    setSheet(null);
+    setMenuState(null);
+    setPlacing({ slot, label, p: { x: s.x, y: s.y, rot } });
+  };
   const finishPlacing = () => {
     if (!placing || !ghost?.ok) return;
     const p = placing.p;
@@ -581,8 +578,11 @@ export function HomeScene({
       ...l,
       x: f.x,
       y: f.y - 52 - n * 14,
-      tx: me.current.x + 0.5,
-      ty: me.current.y + 0.5,
+      // In 3D: over your head on screen, one line under another.
+      ...(() => {
+        const at = api3d.current?.project(me.current.x + 0.5, me.current.y + 0.5, 2.0);
+        return { sx: at?.x ?? 0, sy: (at?.y ?? 0) - n * 18 };
+      })(),
     }));
     setFloats((xs) => [...xs, ...add]);
     window.setTimeout(
@@ -975,10 +975,7 @@ export function HomeScene({
     [acting],
   );
   useEffect(() => {
-    if (!want3d) {
-      mat3d.current = null;
-      setReady3d(false);
-    }
+    if (!want3d) mat3d.current = null;
   }, [want3d]);
 
   const inviteLeft = actsLeft(view, 'invite');
@@ -1224,19 +1221,15 @@ export function HomeScene({
           </g>
         </svg>
         {is3d &&
-          floats.map((f, n) => {
-            const at = api3d.current?.project(f.tx, f.ty, 2.0) ?? { x: 0, y: 0 };
-            const k = floats.filter((x, i) => i < n && x.tx === f.tx && x.ty === f.ty).length;
-            return (
-              <span
-                key={f.id}
-                className={`home-float home-float-3d tone-${f.tone}`}
-                style={{ left: at.x, top: at.y - k * 18 }}
-              >
-                {f.text}
-              </span>
-            );
-          })}
+          floats.map((f) => (
+            <span
+              key={f.id}
+              className={`home-float home-float-3d tone-${f.tone}`}
+              style={{ left: f.sx, top: f.sy }}
+            >
+              {f.text}
+            </span>
+          ))}
         {is3d && !placing && (
           <div className="home-cam" role="group" aria-label={t('Camera')}>
             <button type="button" aria-label={t('Turn left')} onClick={() => api3d.current?.turn(-1)}>
