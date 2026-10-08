@@ -114,8 +114,14 @@ export interface ChatMessage {
 }
 
 export const api = {
-  onboard: (input: { username: string; email: string; role: 'founder' | 'investor' | 'banker' }) =>
-    request<{ ok: true }>('POST', '/api/onboarding', { ...input, adult: true }),
+  onboard: (input: {
+    username: string;
+    email: string;
+    role: 'founder' | 'investor' | 'banker';
+    name?: string;
+    gender?: 'female' | 'male';
+    market?: string;
+  }) => request<{ ok: true }>('POST', '/api/onboarding', { ...input, adult: true }),
   meta: () => request<Meta>('GET', '/api/meta'),
   state: () => request<StateResponse>('GET', '/api/state'),
   command: <R = unknown>(command: Command) =>

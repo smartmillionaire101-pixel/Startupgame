@@ -1,14 +1,15 @@
-import { expect, letters, tab, test } from './fixtures';
+import { expect, letters, pickIdentity, tab, test } from './fixtures';
 
 test('a founder signs up, onboards in under two minutes, and plays a month', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Build, invest and grow.' })).toBeVisible();
 
-  await expect(page.getByRole('textbox')).toHaveCount(2);
+  await expect(page.getByRole('textbox')).toHaveCount(3);
   await expect(page.getByRole('combobox')).toHaveCount(1);
   await page.getByLabel('Username', { exact: true }).fill(`ada_${letters(6)}`);
   await page.getByLabel('Email', { exact: true }).fill(`ada-${letters()}@example.com`);
   await page.getByLabel('Join as').selectOption('founder');
+  await pickIdentity(page, { name: 'Ada E2E' });
   await page.getByRole('button', { name: 'Play now' }).click();
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
   await tab(page, 'Me').click();

@@ -163,3 +163,23 @@ export const tab = (page: Page, name: string) =>
     .getByRole('navigation', { name: 'Main' })
     // The name can carry a badge count ("Home 3").
     .getByRole('button', { name: new RegExp(`^${name}(\\s+\\d+)?$`) });
+
+/** Onboarding's who-you-are and where-you-build choices (name, sex, city). */
+export async function pickIdentity(
+  page: Page,
+  {
+    name = 'E2E Player',
+    gender = 'Woman',
+    city = 'Lagos',
+  }: { name?: string; gender?: 'Woman' | 'Man'; city?: string } = {},
+) {
+  await page.getByLabel('Your name', { exact: true }).fill(name);
+  await page
+    .getByRole('group', { name: 'I am' })
+    .getByRole('button', { name: gender, exact: true })
+    .click();
+  await page
+    .getByRole('group', { name: 'Your city' })
+    .getByRole('button', { name: new RegExp(`^${city}`) })
+    .click();
+}

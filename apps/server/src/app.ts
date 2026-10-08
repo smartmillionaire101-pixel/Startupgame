@@ -342,6 +342,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           username: z.string().trim().min(3).max(20),
           email: z.string().max(254),
           role: z.enum(['founder', 'investor', 'banker']),
+          name: z.string().trim().min(1).max(40).optional(),
+          gender: z.enum(['female', 'male']).optional(),
+          market: z.enum(Object.keys(MARKET_DATA) as [MarketId, ...MarketId[]]).optional(),
           adult: z.literal(true),
         })
         .parse(req.body);
@@ -369,6 +372,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         type: 'player.quickStart',
         username: body.username,
         role: body.role,
+        ...(body.name ? { name: body.name } : {}),
+        ...(body.gender ? { gender: body.gender } : {}),
+        ...(body.market ? { market: body.market } : {}),
       });
       if (!r.ok) return reply.code(422).send({ error: r.error });
       return { ok: true };

@@ -4,9 +4,17 @@ import { t, tx } from '../i18n';
 import { useGame } from '../store';
 import { Button, Field } from '../ui';
 
-/** Three fields, one submit: all other setup lives in Me → Profile. */
+type Gender = 'female' | 'male';
+
+/**
+ * Who you are (name, sex), where you build (the city) and how you play, on one
+ * screen: everything else lives in Me → Profile.
+ */
 export function Onboarding({ embedded = false }: { embedded?: boolean }) {
-  const { account, refresh, toast } = useGame();
+  const { account, meta, refresh, toast } = useGame();
+  const [name, setName] = useState('');
+  const [gender, setGender] = useState<Gender | null>(null);
+  const [market, setMarket] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState(account?.email ?? account?.pendingEmail ?? '');
   const [role, setRole] = useState<'founder' | 'investor' | 'banker'>('founder');
@@ -15,10 +23,19 @@ export function Onboarding({ embedded = false }: { embedded?: boolean }) {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (loading) return;
+    if (!gender) return setError(t('Choose who you are.'));
+    if (!market) return setError(t('Choose the city you want to build in.'));
     setLoading(true);
     setError(null);
     try {
-      await api.onboard({ username: username.trim(), email: email.trim(), role });
+      await api.onboard({
+        username: username.trim(),
+        email: email.trim(),
+        role,
+        name: name.trim() || username.trim(),
+        gender,
+        market,
+      });
       toast(t('Welcome to Runway.'), 'ok');
       await refresh();
     } catch (err) {
@@ -32,6 +49,53 @@ export function Onboarding({ embedded = false }: { embedded?: boolean }) {
       <h2>{t('Join the game')}</h2>
       <p className="small muted">{t('Set up the rest later in Me → Profile.')}</p>
       <form className="stack" onSubmit={submit}>
+        <Field label={t('Your name')}>
+          {(id) => (
+            <input
+              id={id}
+              name="name"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={40}
+              required
+            />
+          )}
+        </Field>
+        <div className="stack" role="group" aria-label={t('I am')}>
+          <span className="field-label">{t('I am')}</span>
+          <div className="segmented">
+            {(['female', 'male'] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                className={gender === g ? 'on' : undefined}
+                aria-pressed={gender === g}
+                onClick={() => setGender(g)}
+              >
+                {g === 'female' ? t('Woman') : t('Man')}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="stack" role="group" aria-label={t('Your city')}>
+          <span className="field-label">{t('The city you build in')}</span>
+          <div className="choice-grid onboard-cities">
+            {(meta?.markets ?? []).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className="choice"
+                data-market={m.id}
+                aria-pressed={market === m.id}
+                onClick={() => setMarket(m.id)}
+              >
+                <strong>{m.name}</strong>
+                <span className="small muted">{m.country}</span>
+              </button>
+            ))}
+          </div>
+        </div>
         <Field label={t('Username')} hint={t('Letters, numbers, underscores.')}>
           {(id) => (
             <input

@@ -10,7 +10,10 @@ const json = (status: number, body: unknown) =>
 
 const META = {
   disclaimer: 'This is a game. Nothing here is financial, legal, or tax advice.',
-  markets: [],
+  markets: [
+    { id: 'lagos', name: 'Lagos', country: 'Nigeria' },
+    { id: 'nairobi', name: 'Nairobi', country: 'Kenya' },
+  ],
   backgrounds: [],
   industries: [],
   revenueModels: [],
@@ -46,7 +49,7 @@ const renderApp = () =>
   );
 
 describe('sign in', () => {
-  it('joins with only username, email and role in one request', async () => {
+  it('joins with a name, sex, city, username, email and role in one request', async () => {
     const calls = stub((url) => {
       if (url === '/api/state')
         return json(401, { error: { code: 'auth', message: 'Sign in first.' } });
@@ -55,10 +58,13 @@ describe('sign in', () => {
     });
     renderApp();
     await screen.findByText('Build, invest and grow.');
-    expect(screen.getAllByRole('textbox')).toHaveLength(2);
+    expect(screen.getAllByRole('textbox')).toHaveLength(3);
     expect(screen.getAllByRole('combobox')).toHaveLength(1);
     expect(screen.queryByLabelText('Company name')).toBeNull();
     expect(screen.queryByRole('checkbox')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Ada Obi' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Woman' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Nairobi/ }));
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada_test' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } });
     fireEvent.change(screen.getByLabelText('Join as'), { target: { value: 'investor' } });
@@ -70,6 +76,9 @@ describe('sign in', () => {
       username: 'ada_test',
       email: 'ada@example.com',
       role: 'investor',
+      name: 'Ada Obi',
+      gender: 'female',
+      market: 'nairobi',
       adult: true,
     });
     expect(screen.getByRole('alert').textContent).toBe('That handle is taken.');

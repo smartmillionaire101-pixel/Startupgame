@@ -74,3 +74,18 @@ it('allows investors to update their focus from their profile', () => {
     checkSize: 500_000,
   });
 });
+
+it('starts you with the name, sex and city you chose', () => {
+  const before = makeWorld();
+  const { world } = run(before, 'quick', {
+    type: 'player.quickStart',
+    username: 'amara_k',
+    role: 'founder',
+    name: 'Amara Kamara',
+    gender: 'female',
+    market: 'nairobi',
+  });
+  const p = world.players.quick!;
+  expect(p).toMatchObject({ name: 'Amara Kamara', gender: 'female', market: 'nairobi' });
+  expect(moneyByCurrency(world)).toEqual(moneyByCurrency(before));
+});

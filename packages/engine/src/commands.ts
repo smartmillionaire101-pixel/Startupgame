@@ -75,6 +75,10 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('player.quickStart'),
     username: z.string().trim().min(3).max(20),
     role: z.enum(ROLES),
+    /** Who you are and where you build. Optional so logged older starts replay. */
+    name: z.string().trim().min(1).max(40).optional(),
+    gender: z.enum(['female', 'male']).optional(),
+    market: market.optional(),
   }),
   z.object({
     type: z.literal('player.profile'),
