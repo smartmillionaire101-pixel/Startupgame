@@ -78,6 +78,42 @@ function tierOf(): Tier {
   return small || cores <= 4 ? 'low' : 'high';
 }
 
+/**
+ * The scene of the City tab you left, kept drawing nothing: coming back to
+ * the same city shows it at once instead of building it again. Let go after
+ * a while away (its memory is the phone's).
+ */
+let parked: { scene: CityScene; reduced: boolean; timer: ReturnType<typeof setTimeout> } | null =
+  null;
+const PARK_MS = 10 * 60_000;
+
+function park(scene: CityScene, reduced: boolean) {
+  if (parked && parked.scene !== scene) dropParked();
+  if (parked) clearTimeout(parked.timer);
+  scene.paused = true;
+  parked = { scene, reduced, timer: setTimeout(dropParked, PARK_MS) };
+}
+
+function dropParked() {
+  if (!parked) return;
+  clearTimeout(parked.timer);
+  parked.scene.dispose();
+  parked = null;
+}
+
+/** The parked scene, if it shows this city (brought up to this layout). */
+function unpark(layout: CityScene['layout'], reduced: boolean): CityScene | null {
+  const p = parked;
+  if (!p) return null;
+  if (p.reduced === reduced && p.scene.updatePlaces(layout)) {
+    clearTimeout(p.timer);
+    parked = null;
+    return p.scene;
+  }
+  dropParked();
+  return null;
+}
+
 export default function CityMap3D(props: CityMapProps & { onBroken?: () => void }) {
   const {
     layout,
@@ -93,10 +129,11 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     fresh = NONE,
     onBroken,
     properties = NONE,
+    paused = false,
   } = props;
   const reduced = useReducedMotion();
   const wrapRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasHostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<CityScene | null>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const tagRef = useRef<HTMLDivElement>(null);
@@ -113,51 +150,110 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     cb.current = props;
   });
 
-  // ---- The scene: one per layout.
+  // ---- The scene: one per city. A new layout of the same city (a hire, a
+  // siren, a business closing) only rebuilds the places in it; a city built
+  // again (a new place, another city) gets a fresh canvas (a canvas whose
+  // context was let go can't draw again) and keeps the camera where it was.
+  // Leaving the City tab parks the scene: coming back shows it at once.
+  const [gen, setGen] = useState(0);
+  const layoutRef = useRef(layout);
+  const keep = useRef<{ market: string; rig: CityScene['rig']; following: boolean } | null>(null);
   useLayoutEffect(() => {
-    const canvas = canvasRef.current;
+    layoutRef.current = layout;
+    const s = sceneRef.current;
+    if (!s || s.layout === layout) return;
+    if (s.updatePlaces(layout)) return;
+    keep.current = { market: s.layout.marketId, rig: { ...s.rig }, following: s.following };
+    setGen((g) => g + 1);
+  }, [layout]);
+
+  useLayoutEffect(() => {
+    const host = canvasHostRef.current;
     const wrap = wrapRef.current;
-    if (!canvas || !wrap) return;
+    const layout = layoutRef.current;
+    if (!host || !wrap) return;
     let scene: CityScene;
-    try {
-      scene = new CityScene(
-        canvas,
-        layout,
-        { tier: tierOf(), reduced, hour: hourOf(layout.marketId) },
-        look,
-        walkers,
-      );
-    } catch {
-      markWebGLBroken();
-      onBroken?.();
-      return;
+    let canvas: HTMLCanvasElement;
+    const old = unpark(layout, reduced);
+    if (old) {
+      scene = old;
+      canvas = scene.canvas;
+    } else {
+      canvas = document.createElement('canvas');
+      canvas.className = 'c3-canvas';
+      canvas.setAttribute('aria-hidden', 'true');
+      try {
+        scene = new CityScene(
+          canvas,
+          layout,
+          { tier: tierOf(), reduced, hour: hourOf(layout.marketId) },
+          look,
+          walkers,
+        );
+      } catch {
+        markWebGLBroken();
+        onBroken?.();
+        return;
+      }
     }
+    host.appendChild(canvas);
     sceneRef.current = scene;
     (window as unknown as { __city3d?: CityScene }).__city3d = scene;
     const r = wrap.getBoundingClientRect();
     scene.resize(r.width, r.height);
-    scene.rig.dist = r.width < 500 ? 520 : 640;
-    pos.current = avatarPosIn(layout.marketId) ?? layout.start;
-    scene.actors.setAvatar(pos.current);
-    scene.following = true;
+    if (old) {
+      // Back on the City tab: where you left it.
+      scene.paused = false;
+      scene.setHour(hourOf(layout.marketId));
+      pos.current = avatarPosIn(layout.marketId) ?? pos.current;
+      scene.actors.setAvatar(pos.current);
+      scene.touch(400);
+      cb.current.onArrive?.(pos.current, null);
+    } else {
+      const was = keep.current?.market === layout.marketId ? keep.current : null;
+      keep.current = null;
+      if (!was) pos.current = avatarPosIn(layout.marketId) ?? layout.start;
+      scene.actors.setAvatar(pos.current);
+      if (was) {
+        Object.assign(scene.rig, was.rig);
+        scene.flyTo(was.rig.x, was.rig.y, was.rig.dist);
+        scene.following = was.following;
+      } else {
+        scene.rig.dist = r.width < 500 ? 520 : 640;
+        scene.following = true;
+      }
+      if (!was) cb.current.onArrive?.(pos.current, null);
+    }
+    let broken = false;
     const lost = (e: Event) => {
       e.preventDefault();
+      broken = true;
       markWebGLBroken();
       onBroken?.();
     };
     canvas.addEventListener('webglcontextlost', lost);
     const shown = requestAnimationFrame(() => setReady(true));
-    cb.current.onArrive?.(pos.current, null);
     return () => {
       cancelAnimationFrame(shown);
       canvas.removeEventListener('webglcontextlost', lost);
-      scene.dispose();
+      canvas.remove();
+      if (broken) scene.dispose();
+      else park(scene, reduced);
       sceneRef.current = null;
       setReady(false);
     };
-    // The look and walkers are pushed in below; reduced motion rebuilds.
+    // The layout is read from its ref (a new layout of the same city is
+    // handled above); the look and walkers are pushed in below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout, reduced]);
+  }, [gen, reduced]);
+
+  // Hidden under a place's scene or a flight: no drawing behind it.
+  useEffect(() => {
+    const s = sceneRef.current;
+    if (!s) return;
+    s.paused = !!paused;
+    if (!paused) s.touch(400);
+  }, [paused, ready]);
 
   useEffect(() => {
     sceneRef.current?.actors.setLook(look);
@@ -567,38 +663,72 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     }
     const order = [...labels].sort((a, b) => a.rank - b.rank);
     const shown = new Map<HTMLElement, string>();
+    const homesEls = [...host.querySelectorAll<HTMLElement>('[data-property]')];
+    // Pill widths, read once each (a label is a 1 px point; its pill is what
+    // takes room). Reading layout every frame would force a reflow per label.
+    const widths = new Map<HTMLElement, number>();
+    const widthOf = (el: HTMLElement, l: Lbl) => {
+      const w = widths.get(el);
+      if (w) return w;
+      const pill = el.firstElementChild as HTMLElement | null;
+      const m = !el.hidden && pill ? pill.offsetWidth : 0;
+      if (m > 0) widths.set(el, m + 4);
+      return m > 0 ? m + 4 : l.text.length * 7 + 22;
+    };
+    const PILL_H = 24;
+    type Box = [number, number, number, number];
+    const hits = (boxes: Box[], b: Box) =>
+      boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
     const place = () => {
       const d = s.rig.dist;
-      const boxes: [number, number, number, number][] = [];
-      const W = host.clientWidth;
-      const H = host.clientHeight;
+      const boxes: Box[] = [];
+      const { w: W, h: H } = s.viewSize;
+      // Your name tag first: labels make room for it.
+      const tag = tagRef.current;
+      if (tag) {
+        const a = s.actors.avatarPos();
+        const grow = Math.max(1, Math.min(9, d / 140));
+        s.project(a.x, a.h + 2.3 * grow, a.y, out);
+        tag.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
+        tag.hidden = out.z >= 1;
+        const tw = name.length * 7 + 20;
+        if (!tag.hidden) boxes.push([out.x - tw / 2, out.y - 22, out.x + tw / 2, out.y]);
+      }
       for (const l of order) {
         const el = els.get(l.id);
         if (!el) continue;
-        const focusOn = el.classList.contains('is-focus');
-        const tierOk = l.rank === 0 || focusOn || (l.rank === 1 ? d < 2600 : d < 1100);
+        const focusOn = el.classList.contains('is-focus') || el.classList.contains('is-marker');
+        const key = l.rank === 0 || focusOn;
+        const tierOk = key || (l.rank === 1 ? d < 2600 : d < 1100);
         let vis = false;
+        let lift = 0;
         if (tierOk) {
           const at = anchor.get(l.id);
           if (at) s.project(at.x, at.y, at.z, out);
           else out.z = 2;
           if (out.z < 1 && out.x > -60 && out.x < W + 60 && out.y > -20 && out.y < H + 20) {
-            const w = el.offsetWidth || l.text.length * 7 + 16;
-            const box: [number, number, number, number] = [
-              out.x - w / 2,
-              out.y - 22,
-              out.x + w / 2,
-              out.y,
-            ];
-            const hit = boxes.some(
-              (b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1],
-            );
-            if (!hit || focusOn || l.rank === 0) {
+            const w = widthOf(el, l);
+            // Crowded: a key label rises on a leader line until it is clear;
+            // the others step up once, else wait their turn (zoom in).
+            const tries = key ? 6 : 2;
+            let box: Box | null = null;
+            for (let k = 0; k < tries; k++) {
+              const y = out.y - k * (PILL_H + 2);
+              const b: Box = [out.x - w / 2, y - PILL_H - 6, out.x + w / 2, y - 4];
+              if (!hits(boxes, b)) {
+                box = b;
+                lift = k * (PILL_H + 2);
+                break;
+              }
+            }
+            if (!box && key) box = [out.x - w / 2, out.y - PILL_H - 6, out.x + w / 2, out.y - 4];
+            if (box) {
               vis = true;
               boxes.push(box);
-              const tr = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
+              const tr = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)|${lift}`;
               if (shown.get(el) !== tr) {
-                el.style.transform = tr;
+                el.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
+                el.style.setProperty('--lift', `${lift}px`);
                 shown.set(el, tr);
               }
             }
@@ -613,31 +743,23 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         if (vis) el.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
         if (el.hidden === vis) el.hidden = !vis;
       });
-      host.querySelectorAll<HTMLElement>('[data-property]').forEach((el) => {
+      for (const el of homesEls) {
         const h = s.homes.find((x) => x.prop.id === el.dataset.property);
         if (!h) {
           el.hidden = true;
-          return;
+          continue;
         }
         s.project(h.x, h.h + 16, h.y, out);
         const vis = out.z < 1 && out.x > -40 && out.x < W + 40 && out.y > 0 && out.y < H + 20;
         if (vis) el.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
         if (el.hidden === vis) el.hidden = !vis;
-      });
-      const tag = tagRef.current;
-      if (tag) {
-        const a = s.actors.avatarPos();
-        const grow = Math.max(1, Math.min(9, d / 140));
-        s.project(a.x, a.h + 2.3 * grow, a.y, out);
-        tag.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
-        tag.hidden = out.z >= 1;
       }
     };
     const off = s.onFrame(place);
     return () => {
       off();
     };
-  }, [labels, ready, properties]);
+  }, [labels, ready, properties, name]);
 
   // The suggested move pulses; flags (events coming up) show on the label.
   const landmarks = layout.geo?.sprites ?? [];
@@ -659,7 +781,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       onPointerCancel={onPointerCancel}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <canvas ref={canvasRef} className="c3-canvas" aria-hidden="true" />
+      <div ref={canvasHostRef} className="c3-canvas-host" aria-hidden="true" />
       <div ref={labelsRef} className="c3-labels" aria-hidden="true">
         {landmarks.map((lm) => (
           <span

@@ -67,13 +67,26 @@ import type { OwnedProperty } from './properties';
 import type { VehicleSpec } from './flavour';
 import { playersByPlace, type PresenceView, type Walker } from './people';
 import { beginRide } from './ride/state';
-import { OSM_CREDIT } from './geo';
+import { loadGeo, OSM_CREDIT } from './geo';
 import { GeoPainter } from './geoPaint';
 import { GeoSprite } from './geoSprites';
-import { hasWebGL, useMapQuality } from './three/quality';
+import { getMapQuality, hasWebGL, useMapQuality } from './three/quality';
 
-// The 3D city is its own chunk (three.js), loaded when a real map first shows.
-const CityMap3D = lazy(() => import('./three/CityMap3D'));
+// The 3D city is its own chunk (three.js), loaded when a real map first shows
+// (or early, see preloadCityMap).
+const load3d = () => import('./three/CityMap3D');
+const CityMap3D = lazy(load3d);
+
+/**
+ * Start fetching what the city map needs before the City tab asks for it:
+ * the 3D chunk (when the 3D map will draw) and the city's map file. Called as
+ * soon as the game knows where you are, so neither waits behind sign-in.
+ */
+export function preloadCityMap(marketId?: string) {
+  if (typeof navigator === 'undefined' || /jsdom/i.test(navigator.userAgent)) return;
+  if (getMapQuality() === '3d' && hasWebGL()) void load3d().catch(() => {});
+  if (marketId) void loadGeo(marketId);
+}
 
 // ---------------------------------------------------------------------------
 // Reduced motion, as a subscribable media query.
@@ -1079,8 +1092,16 @@ export function CityMap(props: CityMapProps) {
   const [broken, setBroken] = useState(false);
   const use3d = !!props.layout.geo && quality === '3d' && !broken && hasWebGL();
   if (!use3d) return <CityMap2D {...props} />;
+  // While the 3D chunk loads: a quiet placeholder, not the 2D map (it would
+  // paint a whole other city for a moment, then be swapped out).
   return (
-    <Suspense fallback={<CityMap2D {...props} />}>
+    <Suspense
+      fallback={
+        <div className="city-map city-loading" data-map3d="loading" role="status">
+          <p>{t('Building the city…')}</p>
+        </div>
+      }
+    >
       <CityMap3D {...props} onBroken={() => setBroken(true)} />
     </Suspense>
   );
@@ -1131,6 +1152,8 @@ function CityMap2D({
   properties?: OwnedProperty[];
   /** Wave 10: a tap on one of your homes on the map. */
   onOpenProperty?: (id: string) => void;
+  /** Covered (a place's scene, a flight): the 3D map stops drawing meanwhile. */
+  paused?: boolean;
 }) {
   const reduced = useReducedMotion();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -1220,6 +1243,8 @@ function CityMap2D({
 
   // Wave 8: a real map's base layers, on a canvas under the SVG.
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // The painted ground depends on the map alone: a new layout of the same city
+  // (a business opening, a hire) keeps the painter and its cached tiles.
   const painter = useMemo(
     () =>
       layout.geo
@@ -1229,7 +1254,8 @@ function CityMap2D({
             layout.areas.map((a) => project(a.at.x, a.at.y)),
           )
         : null,
-    [layout],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- same map and city, same ground
+    [layout.geo?.data, layout.marketId],
   );
 
   const lastZ = useRef(0);
@@ -1346,8 +1372,12 @@ function CityMap2D({
     return () => ro?.disconnect();
   }, [apply]);
 
-  // A new layout (other market): start at the avatar, at a comfortable zoom.
+  // Another city: start at the avatar, at a comfortable zoom. (A new layout
+  // of the same city leaves the camera where you put it.)
+  const shownMarket = useRef<string | null>(null);
   useEffect(() => {
+    if (shownMarket.current === layout.marketId) return;
+    shownMarket.current = layout.marketId;
     pos.current = lastPos.get(layout.marketId) ?? layout.start;
     placeAvatar(pos.current);
     cam.current.z = layout.geo ? (cam.current.w < 500 ? 0.9 : 1) : cam.current.w < 500 ? 1 : 1.15;

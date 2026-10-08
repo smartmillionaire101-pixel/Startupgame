@@ -5,6 +5,10 @@
   overflow: hidden;
   background: #c9d7e3;
 }
+.c3-canvas-host {
+  position: absolute;
+  inset: 0;
+}
 .c3-canvas {
   position: absolute;
   inset: 0;
@@ -39,7 +43,8 @@
 }
 .c3-pill {
   position: absolute;
-  bottom: 6px;
+  /* --lift: raised clear of a crowded spot, on a longer leader line. */
+  bottom: calc(6px + var(--lift, 0px));
   left: 0;
   transform: translateX(-50%);
   display: inline-flex;
@@ -59,9 +64,9 @@
   content: '';
   position: absolute;
   left: 50%;
-  bottom: -5px;
+  bottom: calc(-5px - var(--lift, 0px));
   width: 2px;
-  height: 5px;
+  height: calc(5px + var(--lift, 0px));
   margin-left: -1px;
   background: rgb(255 255 255 / 0.85);
 }

@@ -228,6 +228,23 @@ export function PlacesList({
   );
 }
 
+/**
+ * The last layout per city. Coming back to the City tab reuses it (laying
+ * out a real map takes a moment on a phone), and a changed city is laid out
+ * from it, so what already stood keeps its ground: a fund, bank or business
+ * opening elsewhere moves nothing you know.
+ */
+const layouts = new Map<string, { key: string; geo: GeoData | null; layout: CityLayout }>();
+
+function layoutFor(key: string, geo: GeoData | null): CityLayout {
+  const input = JSON.parse(key) as CityInput;
+  const hit = layouts.get(input.marketId);
+  if (hit && hit.key === key && hit.geo === geo) return hit.layout;
+  const layout = buildCityLayout(input, geo, hit && hit.geo === geo ? hit.layout : null);
+  layouts.set(input.marketId, { key, geo, layout });
+  return layout;
+}
+
 interface FlightState {
   from: string;
   to: string;
@@ -447,7 +464,7 @@ function CityBodyInner({
 
   // Rebuild the layout only when what it depends on changes.
   const key = JSON.stringify(cityInput(view));
-  const layout = useMemo(() => buildCityLayout(JSON.parse(key) as CityInput, geo), [key, geo]);
+  const layout = useMemo(() => layoutFor(key, geo), [key, geo]);
   // Landed: you step out of the airport.
   useLayoutEffect(() => {
     if (!landing || layout.marketId !== landing) return;
@@ -615,6 +632,7 @@ function CityBodyInner({
             car={abroad ? null : car}
             properties={myHomes}
             onOpenProperty={onOpenProperty}
+            paused={!!inside}
             ariaLabel={t(
               'Map of {market}. Arrow keys pan, plus and minus zoom. Use the places list to go into a building.',
               { market: view.market.name },
