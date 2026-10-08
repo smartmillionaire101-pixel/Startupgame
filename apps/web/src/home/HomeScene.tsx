@@ -53,6 +53,7 @@ import {
   type Spot,
   type Verb,
 } from './layout';
+import { newGame } from '../games/open';
 import { ActFx } from './ActFx';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
@@ -646,6 +647,13 @@ export function HomeScene({
     if (v.id === 'out') return onClose();
     if (v.id === 'invite') return setSheet('invite');
     if (v.id === 'order') return openPhone({ app: 'chop' } as unknown as PhoneOpen);
+    // Wave 12 §A: a real game (with the friend you're visiting, if you are).
+    if ('game' in v)
+      return newGame({
+        kind: v.game,
+        where: 'home',
+        ...(hostView ? { invite: [hostView.id] } : {}),
+      });
     if ('slot' in v) return goShop(v.slot);
     if ('move' in v) return startPlacing(v.move, obj.label);
     const p = me.current;
@@ -1297,10 +1305,20 @@ export function HomeScene({
       </div>
       <nav className="home-bar" aria-label={t('Home actions')}>
         {hostView ? (
-          <button type="button" className="home-bar-btn" onClick={onClose}>
-            <span aria-hidden="true">👋</span>
-            {t('Say goodbye')}
-          </button>
+          <>
+            <button
+              type="button"
+              className="home-bar-btn"
+              onClick={() => newGame({ kind: 'football', where: 'home', invite: [hostView.id] })}
+            >
+              <span aria-hidden="true">⚽</span>
+              {t('Play football')}
+            </button>
+            <button type="button" className="home-bar-btn" onClick={onClose}>
+              <span aria-hidden="true">👋</span>
+              {t('Say goodbye')}
+            </button>
+          </>
         ) : (
           <>
             <button type="button" className="home-bar-btn" onClick={() => setSheet('buy')}>
@@ -1314,6 +1332,14 @@ export function HomeScene({
             <button type="button" className="home-bar-btn" onClick={() => setSheet('invite')}>
               <span aria-hidden="true">👋</span>
               {t('Invite')}
+            </button>
+            <button
+              type="button"
+              className="home-bar-btn"
+              onClick={() => openPhone({ app: 'games' } as unknown as PhoneOpen)}
+            >
+              <span aria-hidden="true">🎮</span>
+              {t('Games')}
             </button>
             <button type="button" className="home-bar-btn" onClick={onClose}>
               <span aria-hidden="true">🚪</span>
@@ -1468,7 +1494,8 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
     ]);
   if (has('coffee')) slotObj('coffee', [act('snack', t('Have a coffee'))]);
   // Sofa (or floor cushions).
-  const tvVerb = has('tv') ? [act('tv', t('Watch TV'))] : [];
+  const playFootball: Verb = { id: 'play', label: t('Play football'), game: 'football' };
+  const tvVerb = has('tv') ? [act('tv', t('Watch TV')), playFootball] : [];
   if (has('sofa'))
     slotObj('sofa', [
       { id: 'sit', label: t('Sit') },
@@ -1481,8 +1508,8 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
       { id: 'invite', label: t('Invite friend') },
       ...tvVerb,
     ]);
-  if (has('tv')) slotObj('tv', [act('tv', t('Watch TV'))]);
-  if (has('gaming')) slotObj('gaming', [act('game', t('Play'))]);
+  if (has('tv')) slotObj('tv', [act('tv', t('Watch TV')), playFootball]);
+  if (has('gaming')) slotObj('gaming', [act('game', t('Play')), playFootball]);
   if (has('desk'))
     slotObj(
       'desk',
@@ -1519,7 +1546,10 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
   fixture('toilet', 'toilet', t('Toilet'), [act('toilet', t('Use'))]);
   fixture('sink', 'sink', t('Sink'), [act('toilet', t('Freshen up'))]);
   fixture('bathtub', 'bathtub', t('Bathtub'), [act('shower', t('Take a bath'))]);
-  fixture('pool', 'pool', t('Pool table'), [act('tv', t('Play pool'))]);
+  fixture('pool', 'pool', t('Pool table'), [
+    act('tv', t('Play pool')),
+    { id: 'play', label: t('Play pool for a stake'), game: 'pool' },
+  ]);
   fixture('piano', 'piano', t('Piano'), [act('tv', t('Play the piano'))]);
   fixture('door', 'door', t('Front door'), [{ id: 'out', label: t('Go out') }]);
   // Owned slots carry their verbs; the rest get a "+".

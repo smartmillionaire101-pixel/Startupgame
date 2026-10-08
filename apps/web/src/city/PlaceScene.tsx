@@ -79,6 +79,7 @@ import { ActCard, ActHud, type ActResult } from './acts/ActHud';
 import { nextLook, setLookOverride, type HairStyle } from './acts/look';
 import { scriptFor, scriptOf, type ActPick } from './acts/scripts';
 import { openCompetition, outingOf, startOuting } from './outings';
+import { gameActions } from '../games/venue';
 import { competitionsHere, lifestyleName } from './wave10';
 import type { ActScript } from './acts/types';
 import {
@@ -818,6 +819,8 @@ function RoomScene({
         icon: '🎤',
         run: () => openCompetition(comp.id),
       });
+    // Wave 12 §A: games you play for real here (a quiz night, pool, darts; football at the arcade).
+    for (const a of gameActions(view, b)) actions.push(a);
     // A showroom: what's for sale (§A3).
     const sells = sellsOf(view, b);
     if (sells && (SHOWROOMS.has(room) || !fun.length))

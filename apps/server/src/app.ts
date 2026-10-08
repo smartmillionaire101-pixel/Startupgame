@@ -61,6 +61,7 @@ import {
   type Character,
 } from './ai-chat.js';
 import { registerAdmin } from './admin.js';
+import { registerGames } from './games.js';
 import { AI_CHAT_HISTORY, claudeReply, createClient, type AiClient } from './ai-claude.js';
 
 /** Avatars not seen for this long drop off the city map. */
@@ -1052,6 +1053,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // ---------------------------------------------------------------- ops
 
   registerAdmin(app, deps);
+  // Wave 12: a game in play, polled by the players' phones.
+  registerGames(app, { game, now, requireUser });
   app.post(
     '/api/visits',
     {

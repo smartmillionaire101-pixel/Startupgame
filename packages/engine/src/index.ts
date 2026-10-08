@@ -47,6 +47,15 @@ export {
   parseTechEventId,
 } from './social.js';
 export { playerView, economyDashboard, digest, leaderboards } from './views.js';
+// Wave 12: games for stakes. The physics is shared with the client (it animates the same shot).
+export * from './games-types.js';
+export * from './pool-physics.js';
+export { gameView, venueGames, GAMES } from './games.js';
+export type { GameView, GameSummary } from './games.js';
+export { QUIZ } from './games-quiz.js';
+export { POOL } from './games-pool.js';
+export { FOOTBALL } from './games-football.js';
+export { DARTS, DART_SECTORS, DART_RINGS, dartScore } from './games-darts.js';
 export type { PlayerView } from './views.js';
 export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';
 export { checkChatMessage, startersFor, CHAT_MAX_LENGTH } from './chat.js';
