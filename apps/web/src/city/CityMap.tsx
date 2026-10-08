@@ -1124,6 +1124,7 @@ function CityMap2D({
   onArrive,
   onFarTrip,
   car = null,
+  paused = false,
 }: {
   layout: CityLayout;
   look: AvatarLook;
@@ -1355,6 +1356,15 @@ function CityMap2D({
     setRiding(true);
     return () => setRiding(false);
   }, [vehicle]);
+
+  // Covered by a place's scene: the traffic (SVG animations) stops meanwhile,
+  // so the hidden map isn't repainted every frame.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg?.pauseAnimations) return;
+    if (paused) svg.pauseAnimations();
+    else svg.unpauseAnimations();
+  }, [paused]);
 
   // Size the camera to the element and keep it sized.
   useEffect(() => {
@@ -1727,7 +1737,7 @@ function CityMap2D({
           const p = layout.places.find((x) => x.id === id);
           return p ? <Bunting key={id} p={p} /> : null;
         })}
-        <Crowd walkers={walkers} reduced={reduced} placeDepth={placeDepth} />
+        <Crowd walkers={walkers} reduced={reduced} paused={paused} placeDepth={placeDepth} />
         {layout.flavour.fog && !painter && <Fog layout={layout} />}
         <Labels layout={layout} labelOf={labelOf} />
         <Overlays layout={layout} players={players} fresh={fresh} />
