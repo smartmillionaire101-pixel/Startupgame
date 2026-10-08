@@ -35,6 +35,14 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# The 3D cities' building tiles change only when the map data is rebuilt: a
+# day fresh, then served from cache while the browser checks for a newer one
+# (no round trip per tile on every visit).
+[[headers]]
+  for = "/geo/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400, stale-while-revalidate=604800"
+
 [[headers]]
   for = "/sw.js"
   [headers.values]

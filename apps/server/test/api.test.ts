@@ -110,6 +110,30 @@ describe('API boundary', () => {
     expect((await app.inject({ method: 'GET', url: '/api/state' })).statusCode).toBe(401);
   });
 
+  it('answers a state poll that finds nothing new with an empty 304', async () => {
+    const { app } = await makeApp();
+    const cookie = await signIn(app);
+    const s = api(app, cookie);
+    await s.command(founderSetup());
+    const first = await s.get('/api/state');
+    const tag = first.headers.etag as string;
+    expect(tag).toMatch(/^".+"$/);
+    expect(first.json().view.me.handle).toBe('ada_builds');
+    const poll = (etag: string) =>
+      app.inject({ method: 'GET', url: '/api/state', headers: { cookie, 'if-none-match': etag } });
+    // Only the server's clock moved: nothing to send.
+    const same = await poll(tag);
+    expect(same.statusCode).toBe(304);
+    expect(same.body).toBe('');
+    // The world changed: the whole new state, with a new tag.
+    const cid = first.json().view.companies[0].id;
+    await s.command({ type: 'company.build', companyId: cid, hours: 40 });
+    const changed = await poll(tag);
+    expect(changed.statusCode).toBe(200);
+    expect(changed.headers.etag).not.toBe(tag);
+    expect(changed.json().view.worldVersion).toBeGreaterThan(first.json().view.worldVersion);
+  });
+
   it('onboards, plays, and maps rule errors to 422 and bad input to 400', async () => {
     const { app } = await makeApp();
     const s = api(app, await signIn(app));

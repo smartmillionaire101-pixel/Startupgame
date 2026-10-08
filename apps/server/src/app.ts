@@ -9,7 +9,7 @@ import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   BACKGROUNDS,
@@ -556,7 +556,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
    * The player's world, plus `account`: `{ guest, email }`. A guest's game is
    * kept only by this browser's session cookie until they save it with an email.
    */
-  app.get('/api/state', { preHandler: requireUser }, async (req) => {
+  // The state is polled (every 20 s where the host can't stream): an answer
+  // the client already has comes back as an empty 304. Its tag leaves out
+  // the server's clock, the one thing that differs between two such answers.
+  app.get('/api/state', { preHandler: requireUser }, async (req, reply) => {
     const view = playerView(game.current, req.userId!, { now: now(), monthMs });
     const a = await store.getAccount(req.userId!);
     const account = {
@@ -564,7 +567,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       email: a?.email ?? null,
       ...(a?.pendingEmail ? { pendingEmail: a.pendingEmail } : {}),
     };
-    return view ? { onboarded: true, view, account } : { onboarded: false, account };
+    const json = JSON.stringify(
+      view ? { onboarded: true, view, account } : { onboarded: false, account },
+    );
+    const tag = `"${createHash('sha1')
+      .update(json.replace(/"serverNow":\d+/, ''))
+      .digest('base64url')}"`;
+    reply.header('etag', tag).header('cache-control', 'private, no-cache');
+    if (req.headers['if-none-match'] === tag) return reply.code(304).send();
+    return reply.type('application/json; charset=utf-8').send(json);
   });
 
   app.post(

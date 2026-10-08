@@ -12,7 +12,28 @@
  * which translates exact matches and otherwise leaves the English.
  */
 import { useSyncExternalStore } from 'react';
-import { FR } from './fr';
+
+/**
+ * The French catalog is its own chunk, loaded only for French players (English
+ * players never download it). Until it arrives the text reads in English;
+ * main.tsx waits for it before the first render when French is chosen.
+ */
+let FR: Record<string, string> | null = null;
+let loadingFr: Promise<void> | null = null;
+
+/** Load a language's catalog (English has none). */
+export function loadLang(l: Lang): Promise<void> {
+  if (l !== 'fr' || FR) return Promise.resolve();
+  loadingFr ??= import('./fr').then(
+    (m) => {
+      FR = m.FR;
+    },
+    () => {
+      loadingFr = null; // offline: English for now, retried next time
+    },
+  );
+  return loadingFr;
+}
 
 export type Lang = 'en' | 'fr';
 export const LANGS: { id: Lang; label: string }[] = [
@@ -39,7 +60,15 @@ const listeners = new Set<() => void>();
 
 export const getLang = () => lang;
 
-export function setLang(next: Lang) {
+/** Switch language (once its catalog has loaded). */
+export function setLang(next: Lang): Promise<void> {
+  if (next === lang) return Promise.resolve();
+  if (next === 'fr' && !FR) return loadLang('fr').then(() => apply(next));
+  apply(next);
+  return Promise.resolve();
+}
+
+function apply(next: Lang) {
   if (next === lang) return;
   lang = next;
   try {
@@ -67,12 +96,12 @@ const fill = (s: string, vars?: Record<string, string | number>) =>
 
 /** Translate a UI string written in English. */
 export function t(text: string, vars?: Record<string, string | number>): string {
-  return fill(lang === 'fr' ? (FR[text] ?? text) : text, vars);
+  return fill(lang === 'fr' ? (FR?.[text] ?? text) : text, vars);
 }
 
 /** Translate text that came from the server, when there's an exact match. */
 export function tx(text: string): string {
-  return lang === 'fr' ? (FR[text] ?? text) : text;
+  return lang === 'fr' ? (FR?.[text] ?? text) : text;
 }
 
 /** BCP 47 locale for Intl formatting. */

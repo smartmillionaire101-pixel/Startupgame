@@ -52,6 +52,8 @@ const MAX_AI_THREADS = 100;
 const RATE_WINDOW_MS = 3_600_000;
 /** Presence docs this much older than a reader's window are deleted. */
 const PRESENCE_PRUNE_GRACE_MS = 10 * 60_000;
+/** How long a warm instance reuses its read of a city's presence (see listPresence). */
+const PRESENCE_READ_MS = 2_000;
 
 interface UserDoc {
   id: string;
@@ -440,24 +442,55 @@ export class KvAccountStore implements AccountStore {
     const row: PresenceRow = { userId, market, x: p.x, y: p.y, place: p.place, at: p.at };
     const where = await this.val<{ market: string }>(`presence-of/${userId}`);
     if (where?.market !== market) {
-      if (where) await this.kv.delete(`presence/${where.market}/${userId}`);
+      if (where) {
+        await this.kv.delete(`presence/${where.market}/${userId}`);
+        this.notePresence(where.market, userId, null);
+      }
       await kvJson.set(this.kv, `presence-of/${userId}`, { market });
     }
     await kvJson.set(this.kv, `presence/${market}/${userId}`, row);
+    this.notePresence(market, userId, row);
     // Hidden a moment ago, while this write was in flight: take it back down.
     if (!(await this.getPresenceVisible(userId))) await this.dropPresence(userId);
   }
 
+  /**
+   * A city's presence rows as last read by this function instance: every open
+   * map polls every few seconds (twice inside a place), and each read is a
+   * listing plus one read per player. A warm instance answers from a read
+   * under PRESENCE_READ_MS old; its own writes update it.
+   */
+  private presenceRead = new Map<string, { at: number; rows: PresenceRow[] }>();
+
   async listPresence(market: string, sinceMs: number) {
-    const keys = await this.kv.list(`presence/${market}/`);
-    const rows = await Promise.all(keys.map((k) => this.val<PresenceRow>(k)));
-    const out: PresenceRow[] = [];
-    for (const [i, r] of rows.entries()) {
-      if (!r) continue;
-      if (r.at >= sinceMs) out.push(r);
-      else if (r.at < sinceMs - PRESENCE_PRUNE_GRACE_MS) await this.kv.delete(keys[i]!);
+    const now = Date.now();
+    let hit = this.presenceRead.get(market);
+    if (!hit || now - hit.at > PRESENCE_READ_MS) {
+      const keys = await this.kv.list(`presence/${market}/`);
+      const got = await Promise.all(keys.map((k) => this.val<PresenceRow>(k)));
+      const rows: PresenceRow[] = [];
+      const stale: string[] = [];
+      for (const [i, r] of got.entries()) {
+        if (!r) continue;
+        if (r.at < sinceMs - PRESENCE_PRUNE_GRACE_MS) stale.push(keys[i]!);
+        else rows.push(r);
+      }
+      await Promise.all(stale.map((k) => this.kv.delete(k)));
+      hit = { at: now, rows };
+      this.presenceRead.set(market, hit);
     }
-    return out.sort((a, b) => b.at - a.at).slice(0, 500);
+    return hit.rows
+      .filter((r) => r.at >= sinceMs)
+      .sort((a, b) => b.at - a.at)
+      .slice(0, 500);
+  }
+
+  /** Keep this instance's read of a city's presence in step with its own writes. */
+  private notePresence(market: string, userId: string, row: PresenceRow | null) {
+    const hit = this.presenceRead.get(market);
+    if (!hit) return;
+    hit.rows = hit.rows.filter((r) => r.userId !== userId);
+    if (row) hit.rows.push(row);
   }
 
   async getPresenceVisible(userId: string) {
@@ -471,7 +504,10 @@ export class KvAccountStore implements AccountStore {
 
   private async dropPresence(userId: string) {
     const where = await this.val<{ market: string }>(`presence-of/${userId}`);
-    if (where) await this.kv.delete(`presence/${where.market}/${userId}`);
+    if (where) {
+      await this.kv.delete(`presence/${where.market}/${userId}`);
+      this.notePresence(where.market, userId, null);
+    }
     await this.kv.delete(`presence-of/${userId}`);
   }
 

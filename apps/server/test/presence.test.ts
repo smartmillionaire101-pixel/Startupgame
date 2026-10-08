@@ -87,6 +87,37 @@ describe.each(stores)('presence in the %s store', (_name, make) => {
   });
 });
 
+describe('presence in the key-value store, polled', () => {
+  it('a warm instance reads a city once per moment, and sees its own writes at once', async () => {
+    const kv = new MemoryKv();
+    let lists = 0;
+    const list = kv.list.bind(kv);
+    kv.list = (prefix: string) => {
+      if (prefix.startsWith('presence/')) lists++;
+      return list(prefix);
+    };
+    const a = new KvAccountStore(kv);
+    const b = new KvAccountStore(kv);
+    await a.putPresence('u1', 'lagos', { x: 1, y: 1, place: null, at: T0 });
+    // Every open map polls: one listing serves the polls that come together.
+    for (let i = 0; i < 5; i++)
+      expect((await a.listPresence('lagos', T0 - 60_000)).map((r) => r.userId)).toEqual(['u1']);
+    expect(lists).toBe(1);
+    // Its own moves show at once; another instance reads the store.
+    await a.putPresence('u2', 'lagos', { x: 2, y: 2, place: 'hub', at: T0 + 1 });
+    expect((await a.listPresence('lagos', T0 - 60_000)).map((r) => r.userId).sort()).toEqual([
+      'u1',
+      'u2',
+    ]);
+    expect((await b.listPresence('lagos', T0 - 60_000)).map((r) => r.userId).sort()).toEqual([
+      'u1',
+      'u2',
+    ]);
+    await a.setPresenceVisible('u1', false);
+    expect((await a.listPresence('lagos', T0 - 60_000)).map((r) => r.userId)).toEqual(['u2']);
+  });
+});
+
 const investorSetup = (handle: string) => ({
   type: 'player.create',
   handle,

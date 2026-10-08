@@ -2,24 +2,27 @@ import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { GameProvider } from './store';
-import { getLang, useLang } from './i18n';
+import { getLang, loadLang, useLang } from './i18n';
 import './styles.css';
 
 const Admin = lazy(() => import('./admin/Admin'));
 const adminRoute = /^\/admin\/?$/.test(location.pathname);
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    {adminRoute ? (
-      <Suspense fallback={<p>Loading dashboard…</p>}>
-        <Admin />
-      </Suspense>
-    ) : (
-      <GameProvider>
-        <Localised />
-      </GameProvider>
-    )}
-  </StrictMode>,
+// French players: the catalog first (its own chunk), so nothing flashes in English.
+void loadLang(getLang()).then(() =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      {adminRoute ? (
+        <Suspense fallback={<p>Loading dashboard…</p>}>
+          <Admin />
+        </Suspense>
+      ) : (
+        <GameProvider>
+          <Localised />
+        </GameProvider>
+      )}
+    </StrictMode>,
+  ),
 );
 
 /** Re-mount the screens when the language changes so every string re-renders. */
