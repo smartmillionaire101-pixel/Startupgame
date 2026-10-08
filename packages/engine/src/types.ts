@@ -977,7 +977,9 @@ export interface InboxItem {
       | 'visit'
       | 'hangout'
       | 'techevent'
-      | 'player';
+      | 'player'
+      /** Wave 12: a game (quiz night, pool, football, darts). */
+      | 'game';
     id: Id;
   };
   read: boolean;
@@ -1177,6 +1179,8 @@ export type ExternalPurpose =
   | 'fx'
   | 'gigs';
 
+import type { Game, GameStats } from './games-types.js';
+
 // ---------------------------------------------------------------- World
 
 export interface World {
@@ -1240,6 +1244,10 @@ export interface World {
   branches?: Record<Id, Branch>;
   /** Wave 10: pitch competitions. Missing = none. */
   competitions?: Record<Id, Competition>;
+  /** Wave 12: games played for stakes (quiz, pool, football, darts). Missing = none. */
+  games?: Record<Id, Game>;
+  /** Wave 12: per city, per game, per player: wins, streaks, winnings. Missing = none. */
+  gameStats?: GameStats;
 }
 
 // ---------------------------------------------------------------- Wave 10: a living economy

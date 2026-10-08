@@ -54,6 +54,16 @@ import { createListing, endContract, proposeSupply, reviewSupplier } from './mar
 import { buyProperty, letProperty, moveIn, sellProperty } from './property.js';
 import { closeBranch, openBranch } from './branches.js';
 import { enterCompetition, joinJudges, scoreEntry } from './competitions.js';
+import {
+  createGame,
+  finishGame,
+  inviteToGame,
+  joinGame,
+  leaveGame,
+  playMove,
+  rematch,
+  startByHost,
+} from './games.js';
 import { proposeAcquisition } from './acquisitions.js';
 import { boardOf, castVote, openVote } from './governance.js';
 import { fileDispute } from './arbitration.js';
@@ -1038,6 +1048,22 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return joinJudges(world, me, cmd.competitionId);
     case 'competition.score':
       return scoreEntry(world, me, cmd.competitionId, cmd.entryId, cmd.score);
+    case 'game.create':
+      return createGame(world, me, cmd, ctx.now);
+    case 'game.join':
+      return joinGame(world, me, cmd.gameId, ctx.now);
+    case 'game.invite':
+      return inviteToGame(world, me, cmd.gameId, cmd.playerIds);
+    case 'game.start':
+      return startByHost(world, me, cmd.gameId, ctx.now);
+    case 'game.leave':
+      return leaveGame(world, me, cmd.gameId, ctx.now);
+    case 'game.play':
+      return playMove(world, me, cmd, ctx.now);
+    case 'game.finish':
+      return finishGame(world, me, cmd.gameId, ctx.now);
+    case 'game.rematch':
+      return rematch(world, me, cmd.gameId, ctx.now);
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;

@@ -52,6 +52,7 @@ import {
   companyDistrict,
 } from './branches.js';
 import { competitionsView } from './competitions.js';
+import { gamesView } from './games.js';
 import { stableDistrict } from './districts.js';
 import { boardOf } from './governance.js';
 import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
@@ -716,6 +717,8 @@ export function playerView(
     visits: visitsView(world, p),
     /** Wave 8: hangouts this month you planned, were asked to or joined. */
     hangouts: hangoutsView(world, p),
+    /** Wave 12: games for stakes: yours, invitations, open ones in town, leaderboards. */
+    games: gamesView(world, p, clock?.now ?? p.lastActiveAt),
     bank: ownBankView(world, p.id),
     market: homeView,
     /** The city you're physically in (Wave 4): same shape as `market`; your home city unless you've flown. */

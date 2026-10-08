@@ -16,6 +16,7 @@ import {
 import { angelsInvest } from './angels.js';
 import { aiExpansion, settleBranches } from './branches.js';
 import { ensureCompetition, resolveCompetitions } from './competitions.js';
+import { sweepGames } from './games.js';
 import { settleProperties } from './property.js';
 import { appointGovernor, settlePrograms } from './programs.js';
 import { settleCompany } from './company.js';
@@ -169,6 +170,8 @@ export function settleMarket(
   // Wave 10: last month's pitch competitions are judged; this month's is announced.
   resolveCompetitions(world, marketId, month);
   ensureCompetition(world, marketId, month);
+  // Wave 12: stale game lobbies refunded, abandoned games ended, old ones forgotten.
+  sweepGames(world, marketId, now);
   reporterOutreach(world, marketId, rng, month);
   maintainPopulation(world, marketId, rng, now);
   inactivity(world, marketId, now, month, clock.monthMs);
