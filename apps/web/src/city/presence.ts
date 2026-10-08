@@ -19,6 +19,11 @@ let missing = false;
 const isMissing = (e: unknown) =>
   e instanceof ApiError && (e.status === 404 || e.status === 405 || e.status === 501);
 
+/** `next`, or `was` when it holds the same players (so React keeps the old one). */
+function same(was: PresenceView[], next: PresenceView[]): PresenceView[] {
+  return was.length === next.length && JSON.stringify(was) === JSON.stringify(next) ? was : next;
+}
+
 export interface Spot {
   x: number;
   y: number;
@@ -40,7 +45,9 @@ export function usePresence({ enabled, selfId }: { enabled: boolean; selfId: str
       if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
         try {
           const raw = await api.presence();
-          if (!stopped) setPlayers(normPresence(raw, selfId));
+          // The same players where they were: keep the old list, so the map
+          // and the HUD don't re-render every few seconds for nothing.
+          if (!stopped) setPlayers((was) => same(was, normPresence(raw, selfId)));
         } catch (e) {
           if (isMissing(e)) {
             missing = true;
@@ -125,7 +132,13 @@ export function usePlacePresence({
             if (p.place === place) recent.set(p.id, { p, seen: now });
             else recent.delete(p.id);
           for (const [id, r] of recent) if (now - r.seen > STICKY_MS) recent.delete(id);
-          if (!stopped) setPlayers([...recent.values()].map((r) => r.p));
+          if (!stopped)
+            setPlayers((was) =>
+              same(
+                was,
+                [...recent.values()].map((r) => r.p),
+              ),
+            );
         } catch (e) {
           if (isMissing(e)) {
             missing = true;

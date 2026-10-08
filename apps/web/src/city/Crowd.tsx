@@ -50,10 +50,13 @@ function Figure({ w, setRef }: { w: Walker; setRef: (id: string, slot: Slot | nu
 export const Crowd = memo(function Crowd({
   walkers,
   reduced,
+  paused = false,
   placeDepth,
 }: {
   walkers: Walker[];
   reduced: boolean;
+  /** The map is covered (a place's scene): nobody moves meanwhile. */
+  paused?: boolean;
   /** Put a person's group into the depth slot for `depth` (x + y in tiles). */
   placeDepth?: PlaceDepth;
 }) {
@@ -105,6 +108,7 @@ export const Crowd = memo(function Crowd({
   });
 
   useEffect(() => {
+    if (paused) return;
     if (reduced) {
       // Standing still: one more frame once the map's depth slots exist.
       const id = requestAnimationFrame(() => frame.current());
@@ -113,9 +117,10 @@ export const Crowd = memo(function Crowd({
     let raf = 0;
     let last = 0;
     const loop = (t: number) => {
-      // About 30 frames a second is plenty for a stroll, and kinder to phones;
-      // nothing at all while the tab is hidden.
-      if (t - last > 32 && document.visibilityState !== 'hidden') {
+      // About 15 frames a second is plenty for a stroll at map scale, and much
+      // kinder to phones (each step repaints the map); nothing at all while
+      // the tab is hidden.
+      if (t - last > 64 && document.visibilityState !== 'hidden') {
         last = t;
         frame.current();
       }
@@ -123,7 +128,7 @@ export const Crowd = memo(function Crowd({
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [reduced, walkers]);
+  }, [reduced, walkers, paused]);
 
   return (
     <g ref={groupRef} className="city-crowd" pointerEvents="none" aria-hidden="true">

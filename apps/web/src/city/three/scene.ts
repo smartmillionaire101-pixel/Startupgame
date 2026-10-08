@@ -91,8 +91,8 @@ export class CityScene {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   readonly look: CityLook;
-  readonly layout: CityLayout;
-  readonly geo: GeoWorld;
+  layout: CityLayout;
+  geo: GeoWorld;
   readonly roads: RoadIndex;
   readonly mask: GroundMask;
   readonly places: PlaceBox[] = [];
@@ -151,6 +151,9 @@ export class CityScene {
     rot: number;
   }[] = [];
   private homesGroup = new THREE.Group();
+  /** The game's places (rebuilt in place when only their looks change). */
+  private placesGroup = new THREE.Group();
+  private placeFps: Fp[] = [];
   private homePlots: Fp[] = [];
   private homesKey = '';
   private raf = 0;
@@ -197,7 +200,9 @@ export class CityScene {
       powerPreference: 'high-performance',
       stencil: false,
     });
-    this.dprMax = Math.min(2, window.devicePixelRatio || 1, high ? 2 : 1.75);
+    // Phones: at most 1.5 device pixels per CSS pixel (sharp enough on a small
+    // screen; 1.75 draws a third more pixels for little to see).
+    this.dprMax = Math.min(2, window.devicePixelRatio || 1, high ? 2 : 1.5);
     this.dpr = this.dprMax;
     this.renderer.setPixelRatio(this.dpr);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -205,7 +210,9 @@ export class CityScene {
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
-    this.renderer.shadowMap.autoUpdate = true;
+    // Redrawn when something that casts one moved (see loop), not every frame.
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = true;
 
     this.camera = new THREE.PerspectiveCamera(38, 1, 1, 50000);
     this.glowMat = glowMaterial(this.glow);
@@ -256,10 +263,9 @@ export class CityScene {
     for (const c of clear) this.mask.markBuilt(c.e, c.s, c.r + 8);
 
     // The game's places: their own buildings, glowing softly.
+    this.scene.add(this.placesGroup);
     this.buildPlaces();
-    // Their plots and the landmarks' ground: no real outline or lot may stand there.
-    for (const b of this.places)
-      this.blocked.add(makeFp(rectPoly(b.x, b.y, b.w + 6, b.d + 6, b.rot)));
+    // The landmarks' ground: no real outline or lot may stand there.
     for (const p of plans)
       if (p.e2 === undefined) this.blocked.add(makeFp(discPoly(p.e, p.s, landmarkRadius(p.kind))));
 
@@ -371,7 +377,35 @@ export class CityScene {
     return plans;
   }
 
+  /**
+   * The same city, laid out again (a new office level, a siren, a business
+   * that closed): the places are rebuilt where they stand, and the camera,
+   * the avatar and everything else stay as they are. False when a place is
+   * new or moved, or the map is another: then the city must be built again.
+   */
+  updatePlaces(layout: CityLayout): boolean {
+    if (layout === this.layout) return true;
+    if (!layout.geo || layout.geo.data !== this.geo.data) return false;
+    const was = new Map(this.layout.places.map((p) => [p.id, p]));
+    for (const p of layout.places) {
+      const o = was.get(p.id);
+      if (!o || o.x !== p.x || o.y !== p.y || o.w !== p.w || o.d !== p.d || o.kind !== p.kind)
+        return false;
+    }
+    this.layout = layout;
+    this.geo = layout.geo;
+    this.buildPlaces();
+    this.invalidate();
+    return true;
+  }
+
   private buildPlaces() {
+    // Out with the old (shared materials stay).
+    this.placesGroup.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    this.placesGroup.clear();
+    for (const f of this.placeFps) this.blocked.remove(f);
+    this.placeFps = [];
+    this.places.length = 0;
     const fps: Footprint[] = [];
     const boxes: BoxB[] = [];
     for (const p of this.layout.places) {
@@ -460,8 +494,14 @@ export class CityScene {
       this.places.push({ place: p, x: cx, y: cy, w, d, h: spec.h + 1.4, rot });
     }
     const m = mergedMesh(fps, this.mergedMat);
-    if (m) this.scene.add(m);
-    for (const b of boxMeshes(boxes, this.instMat)) this.scene.add(b);
+    if (m) this.placesGroup.add(m);
+    for (const b of boxMeshes(boxes, this.instMat)) this.placesGroup.add(b);
+    // Their plots: no real outline or lot may stand there.
+    for (const b of this.places) {
+      const f = makeFp(rectPoly(b.x, b.y, b.w + 6, b.d + 6, b.rot));
+      this.blocked.add(f);
+      this.placeFps.push(f);
+    }
   }
 
   /** Tall infill (towers, mid-rise) over the whole city, a few chunks at a time. */
@@ -731,6 +771,11 @@ export class CityScene {
   // ---------------------------------------------------------------------------
   // Camera
 
+  /** The canvas's size in CSS px (as last measured). */
+  get viewSize() {
+    return this.size;
+  }
+
   resize(w: number, h: number) {
     this.size = { w: Math.max(1, w), h: Math.max(1, h) };
     this.renderer.setSize(this.size.w, this.size.h, false);
@@ -955,6 +1000,7 @@ export class CityScene {
 
   private lastChunkAt = { x: Infinity, y: Infinity, d: 0 };
   private lastT = 0;
+  private ambientFrames = 0;
 
   private loop(t: number) {
     if (this.disposed) return;
@@ -993,12 +1039,18 @@ export class CityScene {
       this.rig.dist += ddd * k;
       this.dirty = true;
     }
-    const moved = this.actors.update(t, this.opts.reduced, this.rig.dist);
-    if (moved) this.dirty = true;
     const active = this.dirty || t < this.activeUntil || this.actors.busy();
     const ambient = !this.opts.reduced;
-    // Idle: about 20 frames a second for the traffic and the water.
-    if (!active && !(ambient && t - this.lastRender > 50)) return;
+    // Idle: about 20 frames a second for the traffic and the water (10 on a
+    // phone, which has the battery and the heat to think of).
+    const idleMs = this.opts.tier === 'high' ? 50 : 100;
+    if (!active && !(ambient && t - this.lastRender > idleMs)) return;
+    // The people and the traffic move only in frames that are drawn.
+    this.actors.update(t, this.opts.reduced, this.rig.dist);
+    // Shadows: redrawn with the camera, the avatar or the city changing; while
+    // only the traffic and the passers-by move, every few frames.
+    this.renderer.shadowMap.needsUpdate =
+      active || this.ambientFrames++ % (this.opts.tier === 'high' ? 2 : 4) === 0;
     this.dirty = false;
     // Chunks near the camera.
     const lc = this.lastChunkAt;
@@ -1060,6 +1112,7 @@ export class CityScene {
     this.updateChunks();
     while (this.queue.length) this.buildQueued(1000);
     this.placeCamera();
+    this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
     for (const cb of this.onFrameCbs) cb();
   }

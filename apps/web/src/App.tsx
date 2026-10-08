@@ -21,6 +21,7 @@ import { DealFlow, Portfolio } from './screens/Investor';
 import { MeScreen } from './screens/Me';
 import { BankScreen } from './screens/Bank';
 import { CityScreen } from './city/CityScreen';
+import { preloadCityMap } from './city/CityMap';
 import { onVisit, visitPlace } from './city/goto';
 import { DealCard } from './screens/common';
 import { NavContext, openPhone, type Nav } from './phone/bus';
@@ -75,9 +76,29 @@ const PhoneDock = lazy(async () => {
 });
 const NewsScreen = lazy(() => import('./screens/News').then((m) => ({ default: m.NewsScreen })));
 
+// The city map's code and map file start loading with the game, not after it:
+// the city you were last in is remembered, so they load alongside sign-in.
+const MARKET_KEY = 'runway.market';
+try {
+  const m = typeof localStorage === 'undefined' ? null : localStorage.getItem(MARKET_KEY);
+  if (m) preloadCityMap(m);
+} catch {
+  /* storage blocked */
+}
+
 export function App() {
   useVisits();
-  const { status } = useGame();
+  const { status, view } = useGame();
+  const here = view ? hereOf(view).id : null;
+  useEffect(() => {
+    if (!here) return;
+    preloadCityMap(here);
+    try {
+      localStorage.setItem(MARKET_KEY, here);
+    } catch {
+      /* storage blocked */
+    }
+  }, [here]);
   return (
     <>
       {status === 'loading' && (

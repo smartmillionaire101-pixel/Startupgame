@@ -182,7 +182,9 @@ export class Actors {
     if (fleet.double) this.busBody.scale.set(1, 1, 1);
     for (const m of [this.carBody, this.carCab, this.busBody, this.busBand]) {
       m.frustumCulled = false;
-      m.castShadow = true;
+      // Phones: traffic casts no shadow (tiny from the air, and the shadow
+      // map then needn't be redrawn for every car that moves).
+      m.castShadow = tier === 'high';
       m.count = m === this.carBody || m === this.carCab ? n - nb : nb;
       scene.add(m);
     }
