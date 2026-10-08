@@ -492,7 +492,8 @@ function TripSheet({
   const fromName = CITY_NAMES[marketId] ?? marketId;
   const flights = (desk?.destinations ?? [])
     .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))
-    .sort((a, b) => ((a.f?.time ?? '99') < (b.f?.time ?? '99') ? -1 : 1));
+    // The next to leave first: today's still to come, then tomorrow's from the morning.
+    .sort((a, b) => departs(a.f, now) - departs(b.f, now));
   // A ticket booked for a flight out of here (in the Travel app, or at the desk below).
   const ticket = ticketFrom(useTicket(), marketId, desk?.destinations ?? []);
   // No ticket yet: the first thing is the ticket desk, where you choose where to go.
@@ -789,4 +790,10 @@ export function AirportScene({
       )}
     </div>
   );
+}
+
+/** When a flight next leaves, for ordering: one already gone today leaves tomorrow. */
+function departs(f: ScheduledFlight | null, now: number): number {
+  if (!f) return Infinity;
+  return f.at + f.late > now ? f.at : f.at + 86_400_000;
 }
