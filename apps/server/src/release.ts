@@ -3,12 +3,11 @@
  * game plays. Bump `id` for each new note; the engine sends each id once.
  */
 export const RELEASE_NOTE = {
-  id: 'release-2026-10-07-wave10',
+  id: 'release-2026-10-08-wave11',
   text:
-    'Big update: cities never sleep. At night the streets, windows and landmarks light up. ' +
-    'Drive your own car, take the bus or a taxi, or walk. Buy homes, from studios to mansions, ' +
-    'in cash or with a mortgage; rent them out or move in, in any city. Open branches of your ' +
-    'business across town and in other cities. San Francisco has more investors and tech ' +
-    'events, and pitch competitions where founders pitch on stage and investors judge. The new ' +
-    'Going out app has yachts, golf and galas as your lifestyle grows. Refresh to get it.',
+    'Update: one real day is now one game month again. New players choose their name, who ' +
+    'they are and the city they build in. Book your flight first, then check in, go through ' +
+    'security and board. Your wallet shows exact amounts, so money you send visibly leaves ' +
+    'and arrives. The city map is faster, stays in 3D and keeps every place where it is. ' +
+    'Refresh to get it; your game is saved.',
 } as const;

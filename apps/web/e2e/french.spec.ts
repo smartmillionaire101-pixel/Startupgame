@@ -7,6 +7,15 @@ test('a player joins and edits their profile in French', async ({ page }) => {
   await page.getByLabel('Nom d’utilisateur').fill(`aline_${letters(6)}`);
   await page.getByLabel('Email', { exact: true }).fill(`aline-${letters()}@example.com`);
   await page.getByLabel('Rejoindre en tant que').selectOption('founder');
+  await page.getByLabel('Votre nom', { exact: true }).fill('Aline');
+  await page
+    .getByRole('group', { name: 'Je suis' })
+    .getByRole('button', { name: 'Une femme' })
+    .click();
+  await page
+    .getByRole('group', { name: 'Votre ville' })
+    .getByRole('button', { name: /^Lagos/ })
+    .click();
   await page.getByRole('button', { name: 'Jouer maintenant' }).click();
   await expect(page.getByRole('button', { name: /Aujourd’hui/ })).toBeVisible();
   await page.getByRole('button', { name: 'Moi', exact: true }).click();
