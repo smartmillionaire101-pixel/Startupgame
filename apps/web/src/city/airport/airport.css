@@ -257,3 +257,18 @@
     left: 100%;
   }
 }
+.trip-desk {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.trip-desk p {
+  margin: 0;
+}
+.trip-flights li.is-booked {
+  background: var(--accent-soft);
+}
+.trip-pass-route {
+  font-weight: 800;
+  font-size: 1.05rem;
+}

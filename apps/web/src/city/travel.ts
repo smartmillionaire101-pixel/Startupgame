@@ -602,6 +602,10 @@ export function airportSchedule(marketId: string, day: string | number): Schedul
   return out.sort((a, b) => a.at - b.at || a.flight.localeCompare(b.flight));
 }
 
+/** The schedule's day key: the game month and today's date (the airport and the Travel app agree). */
+export const scheduleDay = (month: number, now = Date.now()) =>
+  `${month}:${new Date(now).toISOString().slice(0, 10)}`;
+
 /** A flight's status at a local time (minutes after midnight). */
 export function flightStatus(f: ScheduledFlight, now: number): FlightStatus {
   const due = f.at + f.late;

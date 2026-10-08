@@ -45,6 +45,25 @@ const state = (page: Page) =>
     return (await r.json()) as State;
   });
 
+/**
+ * At the airport with a ticket: check in for that flight (the boarding pass
+ * names the destination), security, the gate, board.
+ */
+async function checkInAndBoard(page: Page, city: string) {
+  const trip = page.getByRole('region', { name: 'Your trip' });
+  await expect(trip.locator(`[data-ticket]`)).toContainText(city, { timeout: 10_000 });
+  await trip.getByRole('button', { name: `Check in for ${city}` }).click();
+  // The boarding pass prints (Skip, unless motion is reduced and it's already done).
+  await trip
+    .getByRole('button', { name: 'Skip' })
+    .click({ timeout: 3000 })
+    .catch(() => undefined);
+  await expect(trip.locator('[data-boarding-pass]')).toContainText(city);
+  await trip.getByRole('button', { name: 'Go through security' }).click();
+  await trip.getByRole('button', { name: 'Go to the gate' }).click({ timeout: 5000 });
+  await trip.getByRole('button', { name: `Board for ${city}` }).click();
+}
+
 /** Tap a place on the map the way the map listens for taps. */
 async function tap(page: Page, selector: string) {
   const el = page.locator(selector).first();
@@ -100,13 +119,21 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
     await expect(local.getByRole('application', { name: /Map of London/ })).toBeVisible();
   }
 
-  // To the airport (from the Places list) and onto a plane to London.
+  // To the airport (from the Places list). With no ticket the first thing is
+  // the ticket desk: choose where to go and book, before any check-in.
   await page.getByRole('button', { name: /Places/ }).click();
   await page.getByRole('dialog', { name: 'Places' }).locator('[data-kind="airport"]').click();
-  await more(page);
-  const desk = page.getByRole('list', { name: 'Departures' });
+  const trip = page.getByRole('region', { name: 'Your trip' });
+  const desk = trip.getByRole('list', { name: 'Where do you want to go?' });
   await expect(desk).toBeVisible({ timeout: 10_000 });
-  await desk.getByRole('button', { name: 'Fly to London' }).click();
+  await expect(trip.getByRole('button', { name: /Check in/ })).toBeDisabled();
+  await expect(trip.getByRole('button', { name: /Security/ })).toBeDisabled();
+  // The detailed departures stay under More.
+  await more(page);
+  await expect(page.getByRole('list', { name: 'Departures' })).toBeVisible();
+  await page.getByRole('button', { name: /Back to the terminal/ }).click();
+  await desk.getByRole('button', { name: 'Book a flight to London' }).click();
+  await checkInAndBoard(page, 'London');
 
   // The flight: take-off, the route map, landing.
   const flight = page.getByRole('dialog', { name: 'Flight to London' });
@@ -155,8 +182,10 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   await ctx.close();
   await hub.getByRole('button', { name: 'Close' }).first().click();
 
-  // Fly home.
+  // Fly home: the ticket home is booked, you go to the airport and check in for it.
   await page.getByRole('button', { name: 'Fly home' }).click();
+  await expect(page.locator('.airport-scene')).toBeVisible({ timeout: 20_000 });
+  await checkInAndBoard(page, 'Lagos');
   const home = page.getByRole('dialog', { name: 'Flight to Lagos' });
   await expect(home).toBeVisible();
   await home.getByRole('button', { name: 'Skip' }).click();

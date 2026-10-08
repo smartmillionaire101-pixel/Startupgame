@@ -144,8 +144,6 @@ export const phoneApps: Record<string, string> = {
 
   // Travel
   'No flights from here right now.': 'Aucun vol d’ici pour le moment.',
-  'Departures from {city}. Book, then check in at the airport.':
-    'Départs de {city}. Réservez, puis enregistrez-vous à l’aéroport.',
   Flights: 'Vols',
   home: 'chez vous',
   'Already this month': 'Déjà ce mois-ci',
