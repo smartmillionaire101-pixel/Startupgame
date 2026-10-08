@@ -56,6 +56,14 @@ describe('world invariants under random play', () => {
         investor: fc.boolean(),
         to: fc.constantFrom('lagos' as const, 'london' as const),
       }),
+      // Wave 12: tickets paid when booked, boarded without a second charge, cancelled for a refund.
+      fc.record({
+        k: fc.constant('ticket' as const),
+        op: fc.constantFrom('book' as const, 'board' as const, 'cancel' as const, 'fly' as const),
+        investor: fc.boolean(),
+        to: fc.constantFrom('lagos' as const, 'london' as const),
+        aheadH: fc.integer({ min: -2, max: 40 }),
+      }),
       fc.record({
         k: fc.constant('ride' as const),
         investor: fc.boolean(),
@@ -335,6 +343,19 @@ describe('world invariants under random play', () => {
               case 'fly':
                 actor = a.investor ? 'u_inv' : 'u_founder';
                 cmd = { type: 'travel.fly', to: a.to };
+                break;
+              case 'ticket':
+                actor = a.investor ? 'u_inv' : 'u_founder';
+                cmd =
+                  a.op === 'book'
+                    ? {
+                        type: 'travel.book',
+                        to: a.to,
+                        departAt: Math.max(0, T0 + day * DAY + a.aheadH * 3_600_000),
+                      }
+                    : a.op === 'fly'
+                      ? { type: 'travel.fly', to: a.to }
+                      : { type: a.op === 'board' ? 'travel.board' : 'travel.cancel' };
                 break;
               case 'ride':
                 actor = a.investor ? 'u_inv' : 'u_founder';

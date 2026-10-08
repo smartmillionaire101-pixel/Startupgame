@@ -13,7 +13,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { t } from '../../i18n';
 import { AvatarFigure, avatarLook, shade, type AvatarLook } from '../art';
-import { dayPart, fmtFlightTime, localHour } from '../travel';
+import { fmtFlightTime } from '../travel';
+import { dayLightFor } from '../sun';
 import './acts.css';
 import { SeatedFigure } from './figure';
 import { ease, fade, lerp, put, seg, text } from './types';
@@ -228,7 +229,7 @@ export function Cabin({
   const spec = CLASSES[cls];
   const root = useRef<HTMLDivElement>(null);
   const [mood, setMood] = useState<'awake' | 'sleep' | 'work'>('awake');
-  const part = dayPart(localHour(from));
+  const part = dayLightFor(from);
   const sky =
     part === 'night'
       ? ['#020617', '#1e3a8a']

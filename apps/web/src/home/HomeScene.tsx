@@ -40,7 +40,7 @@ import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
 import { businessesOf, hash } from '../city/contract';
 import { carOf, genderOf, nearest, sellsOf, storeForSlot } from '../city/life';
 import type { SceneProps } from '../city/PlaceScene';
-import { isNight, localHour } from '../city/travel';
+import { dayLightOf, useSun } from '../city/sun';
 import { FixtureArt, SlotArt, TILE } from './art';
 import {
   TIER_HOME,
@@ -220,9 +220,10 @@ export function HomeScene({
     () => ({ w: plan.w, h: plan.h, blocked: blockedTiles(plan, owned), walls: wallEdges(plan) }),
     [plan, owned],
   );
-  const hour = localHour(view.market.id);
-  const night = isNight(hour);
-  const dusk = !night && (hour >= 17 || hour < 7);
+  // Wave 12: the city's real sun (sunrise and sunset at their real times).
+  const sun = useSun(view.market.id);
+  const night = sun.night > 0.5;
+  const dusk = !night && dayLightOf(sun) !== 'day';
   const car = hostView ? null : carOf(view);
   const needs = needsOf(view);
   const mood = moodOf(view);
@@ -1055,6 +1056,7 @@ export function HomeScene({
               acting={acting3d}
               night={night}
               dusk={dusk}
+              sun={sun}
               car={car?.modelId ?? null}
               buyMode={sheet === 'buy' || !!placing}
               sheetOpen={sheet === 'buy'}

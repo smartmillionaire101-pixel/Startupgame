@@ -253,6 +253,21 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('player.travel'), market }),
   /** Wave 4: fly one way to another city and be there (or fly home). */
   z.object({ type: z.literal('travel.fly'), to: market }),
+  /** Wave 12: book a flight; the fare is charged now and a ticket issued (tickets.ts). */
+  z.object({
+    type: z.literal('travel.book'),
+    to: market,
+    /** Epoch ms of the departure (default: two hours from now). */
+    departAt: z.number().int().nonnegative().max(1e15).optional(),
+    flight: z.string().max(16).optional(),
+    airline: z.string().max(40).optional(),
+    gate: z.string().max(8).optional(),
+    time: z.string().max(8).optional(),
+  }),
+  /** Wave 12: board the flight on your ticket (no charge). */
+  z.object({ type: z.literal('travel.board') }),
+  /** Wave 12: cancel your ticket before departure (refund minus a small fee). */
+  z.object({ type: z.literal('travel.cancel') }),
   /**
    * Wave 4: a bus or taxi across the city you're in. Walking and cycling are free,
    * and so is driving your own car in your home city (Wave 5; fuel is in its running cost).

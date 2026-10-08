@@ -26,7 +26,8 @@ import {
 import { playersByPlace } from '../people';
 import { setRiding } from '../riding';
 import { beginRide } from '../ride/state';
-import { localHour, rideMs, rideVehicle, SHORT_HOP, type RideMode } from '../travel';
+import { rideMs, rideVehicle, SHORT_HOP, type RideMode } from '../travel';
+import { sunFor, SUN_TICK_MS, useSunValue } from '../sun';
 import type { VehicleSpec } from '../flavour';
 import { CityScene, type Tier } from './scene';
 import type { PropertyTier } from '../properties';
@@ -58,17 +59,6 @@ interface Lbl {
   tier: string;
   color?: string;
   soon?: boolean;
-}
-
-/** The hour the sky shows: the city's clock (a debug override for screenshots). */
-function hourOf(marketId: string) {
-  try {
-    const o = localStorage.getItem('runway.mapHour');
-    if (o !== null && o !== '' && Number.isFinite(Number(o))) return Number(o);
-  } catch {
-    /* no storage */
-  }
-  return localHour(marketId) + new Date().getMinutes() / 60;
 }
 
 function tierOf(): Tier {
@@ -132,6 +122,8 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     paused = false,
   } = props;
   const reduced = useReducedMotion();
+  // Wave 12: the light phase, for the page (the scene itself is relit every minute below).
+  const sunPhase = useSunValue(layout.marketId, (s) => `${s.phase}:${s.lightsOn ? 'on' : 'off'}`);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasHostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<CityScene | null>(null);
@@ -186,7 +178,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         scene = new CityScene(
           canvas,
           layout,
-          { tier: tierOf(), reduced, hour: hourOf(layout.marketId) },
+          { tier: tierOf(), reduced, sun: sunFor(layout.marketId) },
           look,
           walkers,
         );
@@ -204,7 +196,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     if (old) {
       // Back on the City tab: where you left it.
       scene.paused = false;
-      scene.setHour(hourOf(layout.marketId));
+      scene.setSun(sunFor(layout.marketId));
       pos.current = avatarPosIn(layout.marketId) ?? pos.current;
       scene.actors.setAvatar(pos.current);
       scene.touch(400);
@@ -267,9 +259,9 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     sceneRef.current?.setProperties(properties);
   }, [properties, ready]);
 
-  // The sky follows the city's clock.
+  // Wave 12: the sky follows the city's real sun, a minute at a time (no re-render).
   useEffect(() => {
-    const id = setInterval(() => sceneRef.current?.setHour(hourOf(layout.marketId)), 60_000);
+    const id = setInterval(() => sceneRef.current?.setSun(sunFor(layout.marketId)), SUN_TICK_MS);
     return () => clearInterval(id);
   }, [layout.marketId]);
 
@@ -772,6 +764,8 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       role="application"
       aria-roledescription={t('map')}
       aria-label={ariaLabel}
+      data-sun-phase={sunPhase.split(':')[0]}
+      data-lights={sunPhase.split(':')[1]}
       data-map3d={ready ? 'ready' : 'loading'}
       data-driving={driving ? '1' : undefined}
       onKeyDown={onKeyDown}

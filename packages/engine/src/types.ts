@@ -151,6 +151,8 @@ export interface Player {
   location?: { market: MarketId; since: number };
   /** Flights taken this (home) month (Wave 4). Missing = none. */
   flights?: { month: number; count: number };
+  /** Wave 12: a flight booked and paid for, not yet flown (tickets.ts). Missing = none. */
+  ticket?: FlightTicket;
   /** Bus and taxi rides taken this (home) month (Wave 4). Missing = none. */
   rides?: { month: number; count: number };
   /** AI angels only (Wave 3): the angel fund this person runs; set when they stop investing. */
@@ -1353,4 +1355,23 @@ export interface Competition {
   winnerEntryId?: Id | null;
   /** Fund that wants to meet the winner (the investor interest). */
   interest?: { fundId: Id; name: string } | null;
+}
+
+/** Wave 12: a plane ticket, paid when booked (tickets.ts). */
+export interface FlightTicket {
+  from: MarketId;
+  to: MarketId;
+  /** Epoch ms of the scheduled departure; the ticket expires once it has left. */
+  departAt: number;
+  bookedAt: number;
+  /** What was charged, minor units of `currency` (the home currency when booked). */
+  fare: number;
+  currency: Currency;
+  /** The account the fare was paid to (refunds come back from it). */
+  account: Id;
+  flight?: string;
+  airline?: string;
+  gate?: string;
+  /** "14:05", local time at the departure city. */
+  time?: string;
 }

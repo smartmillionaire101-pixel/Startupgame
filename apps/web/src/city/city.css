@@ -33,6 +33,21 @@
   cursor: grab;
   -webkit-tap-highlight-color: transparent;
 }
+/* Wave 12: the real light (sun.ts mapTint), multiplied over the 2D map. */
+.city-daylight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  transition:
+    opacity 2s ease,
+    background-color 2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .city-daylight {
+    transition: none;
+  }
+}
 .city-map:active {
   cursor: grabbing;
 }

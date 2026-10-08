@@ -32,6 +32,13 @@ export {
 } from './clock.js';
 export { FLIGHT_HOURS, MAX_FLIGHTS_PER_MONTH, MAX_RIDES_PER_MONTH, locationOf } from './travel.js';
 export {
+  BOOK_AHEAD_MS,
+  BOARDING_GRACE_MS,
+  CANCEL_FEE_SHARE,
+  cancelFee,
+  ticketExpired,
+} from './tickets.js';
+export {
   SEND_DAILY_LIMIT_COL,
   SEND_FEE_MIN_COL,
   SEND_FEE_RATE,

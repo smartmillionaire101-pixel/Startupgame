@@ -12,7 +12,8 @@ import { money } from '../../format';
 import { t, tx } from '../../i18n';
 import { flavourOf } from '../flavour';
 import { rideLabel, RideIcon } from '../Transport';
-import { dayPart, fnv, localHour, rideMinutes, stopsAlong } from '../travel';
+import { fnv, rideMinutes, stopsAlong } from '../travel';
+import { dayLightFor } from '../sun';
 import type { Frame } from './art';
 import { BusScene } from './BusScene';
 import { CycleScene } from './CycleScene';
@@ -43,7 +44,7 @@ export function RideScene({ ride }: { ride: Ride }) {
   const slow = useRef<HTMLParagraphElement>(null);
   const [skipShown, setSkipShown] = useState(false);
   const [always, setAlways] = useState(skipRides);
-  const part = dayPart(localHour(marketId));
+  const part = dayLightFor(marketId);
   const uid = `ride${ride.id}`;
   const minutes = rideMinutes(mode, ride.tiles);
   const stops = useMemo(

@@ -133,6 +133,10 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   await expect(page.getByRole('list', { name: 'Departures' })).toBeVisible();
   await page.getByRole('button', { name: /Back to the terminal/ }).click();
   await desk.getByRole('button', { name: 'Book a flight to London' }).click();
+  // Wave 12: the fare is charged when you book; boarding doesn't charge again.
+  await expect(trip.locator('[data-ticket]')).toContainText('London', { timeout: 10_000 });
+  const booked = (await state(page)).view.accounts.local?.balance ?? 0;
+  if (wave4) expect(booked).toBeLessThan(after);
   await checkInAndBoard(page, 'London');
 
   // The flight: take-off, the route map, landing.
@@ -156,6 +160,7 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   await expect(flight).toBeHidden({ timeout: 15_000 });
   await expect(page.getByRole('application', { name: /Map of London/ })).toBeVisible();
   await expect(page.getByText('You’re in London')).toBeVisible();
+  expect((await state(page)).view.accounts.local?.balance).toBe(booked);
   await page.getByRole('button', { name: /Places/ }).click();
   await expect(
     page.getByRole('dialog', { name: 'Places' }).getByRole('heading', { name: 'Shoreditch' }),

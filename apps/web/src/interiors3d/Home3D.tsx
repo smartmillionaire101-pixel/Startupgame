@@ -21,6 +21,7 @@ import { Particles, fx } from './fx';
 import { buildHouse, cutWalls, wallOf, type House } from './house';
 import { Kit, disposeTree, mat } from './kit';
 import { Stage, gestures } from './stage';
+import { applyDaylight } from './daylight';
 import type { Home3DObject, Home3DPerson, Home3DProps } from './types';
 
 const MAX_LAMPS = 4;
@@ -246,10 +247,16 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     };
   }, [plan, tier, night, car, estate]);
 
-  // ---- Light: day, dusk or night.
+  // ---- Light: the city's real sun (Wave 12), else day, dusk or night.
+  const sun = props.sun ?? null;
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
+    if (sun) {
+      const h = houseRef.current;
+      applyDaylight(stage, sun, h ? h.centre : stage.target, 24);
+      return;
+    }
     if (night) {
       stage.sun.intensity = 0.6;
       stage.sun.color.set('#a9bbff');
@@ -273,7 +280,8 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       stage.scene.background = new THREE.Color('#17233f');
     }
     stage.invalidate();
-  }, [night, dusk]);
+    // The house effect re-aims the sun when it rebuilds: aim again after it.
+  }, [night, dusk, sun, plan, tier, car, estate]);
 
   // ---- Furniture and fixtures.
   const objKey = objects
