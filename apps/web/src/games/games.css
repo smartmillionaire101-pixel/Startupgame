@@ -934,3 +934,6 @@
 .games-play + .btn {
   margin-top: 0.6rem;
 }
+.gm-body > * {
+  flex-shrink: 0;
+}
