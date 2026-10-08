@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { openGame } from './games/open';
 import { useGame, useView } from './store';
 import { CountUp, Icon, initReduceMotion, reduceMotion, Sheet, Toasts, type IconName } from './ui';
 import { money, moneyExact } from './format';
@@ -207,6 +208,7 @@ function Game() {
       go: goTarget,
       openItem: (item) => {
         if (!item.read) void send({ type: 'inbox.read', ids: [item.id] });
+        if (item.ref?.kind === 'game') return openGame(item.ref.id);
         goTarget(inboxTarget(item, viewRef.current));
       },
     }),

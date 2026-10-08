@@ -33,7 +33,9 @@ export type PhoneApp =
   | 'events'
   /** Wave 10: the property market and your portfolio; things to do by lifestyle tier. */
   | 'homes'
-  | 'goingout';
+  | 'goingout'
+  /** Wave 12: games for stakes (quiz, pool, football, darts) and leaderboards. */
+  | 'games';
 
 export interface PhoneOpen {
   app?: PhoneApp;

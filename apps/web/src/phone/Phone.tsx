@@ -30,6 +30,8 @@ import { Founder } from './apps/Founder';
 import { GoingOut } from './apps/GoingOut';
 import { Homes } from './apps/Homes';
 import { OutingHost } from '../city/OutingScene';
+import { GamesHost } from '../games/GamesHost';
+import { GamesApp } from '../games/GamesApp';
 import { HomeApp } from './apps/HomeApp';
 import { Invest } from './apps/Invest';
 import { Jobs } from './apps/Jobs';
@@ -85,6 +87,7 @@ export const APPS: AppDef[] = [
   { id: 'events', icon: 'events', label: () => t('Events'), bg: ['#818cf8', '#4338ca'] },
   { id: 'homes', icon: 'key', label: () => t('Homes'), bg: ['#fcd34d', '#b45309'] },
   { id: 'goingout', icon: 'cocktail', label: () => t('Going out'), bg: ['#fb7185', '#be123c'] },
+  { id: 'games', icon: 'games', label: () => t('Games'), bg: ['#facc15', '#7c3aed'] },
   { id: 'settings', icon: 'settings', label: () => t('Settings'), bg: ['#9ca3af', '#4b5563'] },
 ];
 const DOCK: AppId[] = ['messages', 'map', 'bank', 'founder'];
@@ -337,6 +340,7 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
       )}
       <VisitHome />
       <OutingHost />
+      <GamesHost />
       {open && (
         <PhoneScreen
           app={app}
@@ -572,6 +576,9 @@ function PhoneScreen(props: {
       break;
     case 'goingout':
       body = <GoingOut ctx={ctx} />;
+      break;
+    case 'games':
+      body = <GamesApp ctx={ctx} />;
       break;
   }
 

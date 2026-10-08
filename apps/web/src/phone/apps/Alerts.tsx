@@ -9,6 +9,7 @@ import { Button, Empty } from '../../ui';
 import { useNav } from '../bus';
 import type { IconName } from '../icons';
 import { inboxTarget } from '../navigate';
+import { openGame } from '../../games/open';
 import { RowIcon, type PhoneCtx } from '../shared';
 
 export const KIND_ICON: Record<string, [IconName, string]> = {
@@ -30,6 +31,13 @@ export function useOpenItem(ctx: PhoneCtx) {
   const { view, send } = useView();
   const nav = useNav();
   return (i: InboxItem) => {
+    // Wave 12: a game invitation or result opens the game.
+    if (i.ref?.kind === 'game') {
+      if (!i.read) void send({ type: 'inbox.read', ids: [i.id] });
+      ctx.close();
+      openGame(i.ref.id);
+      return;
+    }
     const target = inboxTarget(i, view);
     if (target.kind === 'tab' && target.tab === 'news') {
       if (!i.read) void send({ type: 'inbox.read', ids: [i.id] });

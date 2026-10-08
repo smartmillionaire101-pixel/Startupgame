@@ -23,6 +23,7 @@ import { uiWave8 } from './ui-wave8';
 import { city3d } from './city3d';
 import { interiorsWave9 } from './interiors-wave9';
 import { wave10 } from './wave10';
+import { games } from './games';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -49,6 +50,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   city3d,
   interiorsWave9,
   wave10,
+  games,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));
