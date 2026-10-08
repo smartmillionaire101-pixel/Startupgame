@@ -644,16 +644,25 @@ export const fmtFlightTime = (hours: number) => {
   return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : `${m}m`;
 };
 
+/** One formatter per time zone (making one is slow; the sun asks every minute). */
+const HM_FORMATS = new Map<string, Intl.DateTimeFormat>();
+
 /** Minutes after local midnight in a city right now. */
 export function localMinutes(marketId: string, now = Date.now()): number {
   const tz = CITY_GEO[marketId]?.tz;
   try {
-    const parts = new Intl.DateTimeFormat('en-GB', {
-      hour: 'numeric',
-      minute: 'numeric',
-      hourCycle: 'h23',
-      timeZone: tz,
-    }).formatToParts(new Date(now));
+    const key = tz ?? '';
+    let fmt = HM_FORMATS.get(key);
+    if (!fmt) {
+      fmt = new Intl.DateTimeFormat('en-GB', {
+        hour: 'numeric',
+        minute: 'numeric',
+        hourCycle: 'h23',
+        timeZone: tz,
+      });
+      HM_FORMATS.set(key, fmt);
+    }
+    const parts = fmt.formatToParts(new Date(now));
     const h = Number(parts.find((p) => p.type === 'hour')?.value);
     const m = Number(parts.find((p) => p.type === 'minute')?.value);
     return Number.isFinite(h) && Number.isFinite(m) ? (h % 24) * 60 + m : 12 * 60;

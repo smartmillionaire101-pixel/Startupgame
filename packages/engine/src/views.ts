@@ -25,6 +25,7 @@ import {
   productRateBps,
 } from './capital.js';
 import { flightsView, isVisiting, tripCostUsd } from './travel.js';
+import { ticketView } from './tickets.js';
 import {
   CONTACTS_LIMIT,
   EVENT_KINDS,
@@ -632,6 +633,8 @@ export function playerView(
     clock: clock ? clockView(clock.now, clock.monthMs) : null,
     /** One-way flights from where you are (Wave 4): fares in your home currency, minor units. */
     flights: flightsView(world, p),
+    /** Wave 12: your plane ticket (paid when booked), or null. */
+    ticket: ticketView(world, p, clock?.now ?? p.lastActiveAt),
     me: {
       id: p.id,
       handle: p.handle,

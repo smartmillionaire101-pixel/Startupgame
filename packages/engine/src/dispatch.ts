@@ -26,7 +26,8 @@ import {
 import { raiseFund } from './funds.js';
 import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
-import { fly, hasVisited, relocate, ride, travel } from './travel.js';
+import { hasVisited, relocate, ride, travel } from './travel.js';
+import { board, book, cancel, flyOrBoard } from './tickets.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
@@ -905,7 +906,13 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'player.travel':
       return travel(world, me, cmd.market);
     case 'travel.fly':
-      return fly(world, me, cmd.to, ctx.now);
+      return flyOrBoard(world, me, cmd.to, ctx.now);
+    case 'travel.book':
+      return book(world, me, cmd, ctx.now);
+    case 'travel.board':
+      return board(world, me, ctx.now);
+    case 'travel.cancel':
+      return cancel(world, me, ctx.now);
     case 'city.ride':
       return ride(world, me, cmd.mode, cmd.distance);
     case 'player.seen':

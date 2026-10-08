@@ -23,7 +23,7 @@ import {
 import './scenes.css';
 import '../interiors3d/i3d.css';
 import { use3d } from '../three-kit/quality';
-import { isNight, localHour } from './travel';
+import { useSun } from './sun';
 import type { PlayerView } from '@runway/engine';
 import { money } from '../format';
 import { t, tx } from '../i18n';
@@ -585,6 +585,8 @@ function RoomScene({
   children,
 }: SceneProps) {
   const { view, send, cur, busy } = useView();
+  // Wave 12: the real sun outside, for the daylight through the windows.
+  const sun = useSun(view.market.id);
   /** Below the room: the tray, everything else ("More"), or a showroom's catalogue. */
   const [panel, setPanel] = useState<'tray' | 'more' | 'shop'>('tray');
   const more = panel !== 'tray';
@@ -1209,7 +1211,8 @@ function RoomScene({
               room={room}
               tint={business?.look.color ?? place.color}
               sign={sign?.toUpperCase().slice(0, 22)}
-              night={isNight(localHour(view.market.id))}
+              night={sun.night > 0.5}
+              sun={sun}
               slots={slots}
               people={people3d}
               me={meLook}

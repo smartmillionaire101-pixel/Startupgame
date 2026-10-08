@@ -20,6 +20,8 @@ import { disposeTree, mat } from './kit';
 import { makeRig, type Rig } from './acts3d';
 import { BACK, RD, ROOM_STYLE, RW, buildVenue, vx, vz, type VenueRoom } from './venues';
 import { Stage, gestures } from './stage';
+import { aimStageSun, interiorLight } from './daylight';
+import type { SunState } from '../city/sun';
 
 export interface VenuePerson {
   id: string;
@@ -49,6 +51,8 @@ export interface Venue3DProps {
   onPerson: (id: string) => void;
   onReady: () => void;
   reduced: boolean;
+  /** Wave 12: the city's real sun: the daylight through the windows (or open to the sky). */
+  sun?: SunState | null;
 }
 
 const POSE: Record<Activity, PoseId> = {
@@ -199,6 +203,25 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
       roomRef.current = null;
     };
   }, [room, tint, sign, slots, night]);
+
+  // ---- Wave 12: daylight from the real sun, in along its bearing (day rooms only:
+  // clubs and dark rooms keep their own light).
+  const sun = props.sun ?? null;
+  useEffect(() => {
+    const stage = stageRef.current;
+    const st = ROOM_STYLE[room];
+    const mood = st.mood ?? 'day';
+    if (!stage || !sun || mood === 'club' || mood === 'dark') return;
+    const l = interiorLight(sun);
+    stage.sun.color.set(l.sunColor);
+    stage.sun.intensity = l.sunIntensity * (st.open ? 1.15 : 0.85);
+    if (st.open)
+      stage.scene.background = new THREE.Color(
+        sun.night > 0.5 ? '#0b1328' : sun.golden > 0.3 ? '#f4a96b' : '#7dd3fc',
+      );
+    aimStageSun(stage, sun, new THREE.Vector3(0, 0, 0), 16);
+    stage.invalidate();
+  }, [room, tint, sign, slots, night, sun]);
 
   // ---- People.
   const peopleKey = people.map((p) => `${p.id}:${p.slot}:${p.act}`).join('|');

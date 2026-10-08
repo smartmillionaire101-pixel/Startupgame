@@ -63,6 +63,7 @@ import { CATEGORY_COLOR } from './contract';
 import { Crowd } from './Crowd';
 import { setRiding } from './riding';
 import { rideMs, rideVehicle, SHORT_HOP, type MyCar, type RideMode } from './travel';
+import { mapTint, useSun } from './sun';
 import type { OwnedProperty } from './properties';
 import type { VehicleSpec } from './flavour';
 import { playersByPlace, type PresenceView, type Walker } from './people';
@@ -1157,6 +1158,8 @@ function CityMap2D({
   paused?: boolean;
 }) {
   const reduced = useReducedMotion();
+  // Wave 12: the real light in this city now (night blue, sunset gold).
+  const sun = useSun(layout.marketId);
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const avatarRef = useRef<SVGGElement>(null);
@@ -1686,11 +1689,14 @@ function CityMap2D({
   const md = markerPlace ? project(markerPlace.door.x, markerPlace.door.y) : null;
   const b = layout.bounds;
   const start = project(layout.start.x, layout.start.y);
+  const tint = mapTint(sun);
 
   return (
     <div
       ref={wrapRef}
       className={`city-map${reduced ? ' is-reduced' : ''}`}
+      data-sun-phase={sun.phase}
+      data-lights={sun.lightsOn ? 'on' : 'off'}
       data-zoom="1"
       tabIndex={0}
       role="application"
@@ -1803,6 +1809,14 @@ function CityMap2D({
             avatarHost,
           )}
       </svg>
+      {/* Wave 12: the city's real light over the map (night blue, sunset gold). */}
+      {tint.opacity > 0 && (
+        <div
+          className="city-daylight"
+          aria-hidden="true"
+          style={{ background: tint.color, opacity: tint.opacity }}
+        />
+      )}
       {painter && (
         <a
           className="city-osm-credit"
