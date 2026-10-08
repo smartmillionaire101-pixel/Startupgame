@@ -594,7 +594,7 @@ export function playMove(world: World, me: Player, cmd: PlayCmd, now: number) {
   let result: Record<string, unknown> = {};
   if (mv.k === 'answer') {
     ensure(g.kind === 'quiz', 'game.move', 'That’s a quiz move.');
-    result = answerQuestion(g, me.id, mv.q, mv.choice, now);
+    result = answerQuestion(world, g, me.id, mv.q, mv.choice, now);
   } else if (mv.k === 'shot') {
     ensure(g.kind === 'pool', 'game.move', 'That’s a pool shot.');
     end = poolShot(g, me.id, mv, now);

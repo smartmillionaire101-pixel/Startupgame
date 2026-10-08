@@ -145,9 +145,8 @@ describe('quiz night at a bar (AI players, a stake)', () => {
     let now = start;
     for (let i = 0; i < g.quiz!.questions.length; i++) {
       const gq = w.games![id]!;
-      const ph = quizPhase(gq, now + QUIZ.leadMs + 10);
-      now =
-        ph.phase === 'question' ? ph.openAt + 400 : gq.quiz!.closeAt[i - 1]! + QUIZ.revealMs + 400;
+      now = (i === 0 ? start + QUIZ.leadMs : gq.quiz!.closeAt[i - 1]! + QUIZ.revealMs) + 400;
+      expect(quizPhase(gq, now).phase).toBe('question');
       const right = rightSlot(gq.quiz!.questions[i]!);
       // While it's open, the view hides the answer and others' choices.
       const v = gameView(w, id, 'u_inv', now)!;

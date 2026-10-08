@@ -131,12 +131,14 @@
   gap: 0.5rem;
   justify-content: center;
 }
-.gm-screen .btn-subtle {
-  background: rgb(255 255 255 / 0.1);
+.gm-screen .btn.btn-subtle {
+  background: rgb(255 255 255 / 0.12);
   color: var(--gm-ink);
+  border-color: rgb(255 255 255 / 0.18);
 }
-.gm-screen .btn-ghost {
+.gm-screen .btn.btn-ghost {
   color: var(--gm-muted);
+  border-color: rgb(255 255 255 / 0.18);
 }
 .gm-screen .btn-primary {
   background: linear-gradient(135deg, #f59e0b, #facc15);
@@ -435,6 +437,13 @@
   font-size: 1.6rem;
   color: var(--gm-accent);
 }
+.gm-board li {
+  text-align: left;
+}
+.gm-result > :not(.gm-confetti) {
+  position: relative;
+  z-index: 1;
+}
 .gm-board li.is-winner {
   outline: 2px solid var(--gm-accent);
 }
@@ -480,7 +489,7 @@
     20px 12px,
     8px 30px;
   animation: gm-fall 3s linear infinite;
-  opacity: 0.7;
+  opacity: 0.3;
 }
 .gm-concede {
   display: flex;
@@ -921,4 +930,7 @@
     animation: none;
     transition: none;
   }
+}
+.games-play + .btn {
+  margin-top: 0.6rem;
 }

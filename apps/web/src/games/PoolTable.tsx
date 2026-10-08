@@ -168,7 +168,6 @@ export default function PoolTable({ g, act, busy }: { g: Match; act: Act; busy: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.seq]);
 
-
   const cuePos = (): [number, number] | null => {
     if (inHand && cue) return cue;
     const c = p.balls.find((b) => b[0] === 0);

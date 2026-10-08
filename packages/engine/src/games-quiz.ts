@@ -148,7 +148,14 @@ export function quizScores(world: World, g: Game, upTo = Infinity) {
 }
 
 /** `game.play { move: { k: 'answer' } }`. */
-export function answerQuestion(g: Game, playerId: string, q: number, choice: number, now: number) {
+export function answerQuestion(
+  world: World,
+  g: Game,
+  playerId: string,
+  q: number,
+  choice: number,
+  now: number,
+) {
   const ph = quizPhase(g, now);
   ensure(ph.phase === 'question' && ph.i === q, 'game.closed', 'That question has closed.');
   ensure(Number.isInteger(choice) && choice >= 0 && choice <= 3, 'game.move', 'Pick an answer.');
@@ -160,7 +167,12 @@ export function answerQuestion(g: Game, playerId: string, q: number, choice: num
   // Everyone still in has answered: close it a moment from now and move the rest up.
   const humans = g.players.filter((p) => !p.ai && !p.out);
   if (humans.every((p) => qz.answers[p.id]?.[q])) {
-    const close = Math.min(qz.closeAt[q]!, now + QUIZ.graceMs);
+    // ...but not before the AI players have had their say (they think at their own pace).
+    const opened = openAt(g, q);
+    const aiDone = g.players
+      .filter((p) => p.ai && !p.out)
+      .reduce((t, p) => Math.max(t, opened + aiAnswer(world, g, p, q).ms + 300), 0);
+    const close = Math.min(qz.closeAt[q]!, Math.max(now + QUIZ.graceMs, aiDone));
     const shift = qz.closeAt[q]! - close;
     if (shift > 0) for (let i = q; i < qz.closeAt.length; i++) qz.closeAt[i]! -= shift;
   }
