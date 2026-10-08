@@ -762,6 +762,8 @@ interface Anchor {
 class Placer {
   private placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
   private anchors = new Map<string, Anchor>();
+  /** Doors of kept buildings (their slots are taken once their anchor lists them). */
+  private kept: { e: number; s: number }[] = [];
   private land: PolySet;
   private water: PolySet;
   private airport: PolySet;
@@ -834,6 +836,43 @@ class Placer {
     return true;
   }
 
+  /**
+   * Stand a building where it stood in the previous layout (same id, same
+   * size), if that ground is still free: the city doesn't reshuffle when a
+   * fund, bank or business opens or closes elsewhere while you play.
+   * (Laid out afresh, as on a new visit, it may stand elsewhere.)
+   */
+  keep(p: Place, prev: Place): boolean {
+    // Same middle and door: a bigger office grows where it stands, or (no
+    // room to grow there) keeps its plot and only rises.
+    const mx = prev.x + prev.w / 2;
+    const my = prev.y + prev.d / 2;
+    const c = geoMetres({ x: mx, y: my });
+    const fits = () =>
+      this.free(p, c.e, c.s, (Math.hypot(p.w, p.d) / 2) * GEO_TILE_M, p.kind === 'airport');
+    if (!fits()) {
+      if (p.w === prev.w && p.d === prev.d) return false;
+      p.w = prev.w;
+      p.d = prev.d;
+      if (!fits()) return false;
+    }
+    const r = (Math.hypot(p.w, p.d) / 2) * GEO_TILE_M;
+    p.x = mx - p.w / 2;
+    p.y = my - p.d / 2;
+    p.door = prev.door;
+    p.doorFace = prev.doorFace;
+    this.placed.push({ x0: p.x, y0: p.y, x1: p.x + p.w, y1: p.y + p.d });
+    this.clear.push({ e: c.e, s: c.s, r: r * 1.15 });
+    // Its door's slot is taken (when the anchor's slots are already listed).
+    const door = geoMetres(prev.door);
+    for (const a of this.anchors.values())
+      for (const sl of a.slots)
+        if (!sl.used && Math.abs(sl.px - door.e) < 0.5 && Math.abs(sl.py - door.s) < 0.5)
+          sl.used = true;
+    this.kept.push(door);
+    return true;
+  }
+
   /** Stand a building near an anchor: on free ground, its door on a road. */
   place(p: Place, key: string, e: number, s: number): boolean {
     let a = this.anchors.get(key);
@@ -847,6 +886,9 @@ class Placer {
       if (a.R === 0 || tries > 0) {
         a.R = a.R === 0 ? 260 : a.R * 1.7;
         a.slots = this.slotsFor(a);
+        for (const sl of a.slots)
+          if (this.kept.some((k) => Math.abs(sl.px - k.e) < 0.5 && Math.abs(sl.py - k.s) < 0.5))
+            sl.used = true;
       }
       for (const sl of a.slots) {
         if (sl.used) continue;
@@ -1011,7 +1053,12 @@ function trafficOf(data: GeoData, flavour: Flavour, near: { e: number; s: number
   return vehicles;
 }
 
-export function buildGeoLayout(input: CityInput, data: GeoData, plan: CityPlan): CityLayout {
+export function buildGeoLayout(
+  input: CityInput,
+  data: GeoData,
+  plan: CityPlan,
+  prev?: CityLayout | null,
+): CityLayout {
   const base = flavourOf(input.marketId);
   const flavour: Flavour = {
     ...base,
@@ -1127,8 +1174,24 @@ export function buildGeoLayout(input: CityInput, data: GeoData, plan: CityPlan):
   });
   // Key places first, then banks and funds, the market, then businesses.
   jobs.sort((a, b) => a.rank - b.rank);
+  // The same city a moment ago (same map): what stood there stays put, and
+  // only what is new looks for ground.
+  const before =
+    prev && prev.marketId === input.marketId && prev.geo?.data === data
+      ? new Map(prev.places.map((p) => [p.id, p]))
+      : null;
+  const kept = new Set<Place>();
+  if (before)
+    for (const j of jobs) {
+      const old = before.get(j.p.id);
+      if (old && placer.keep(j.p, old)) kept.add(j.p);
+    }
   const places: Place[] = [];
   for (const j of jobs) {
+    if (kept.has(j.p)) {
+      places.push(j.p);
+      continue;
+    }
     if (!placer.place(j.p, j.key, j.e, j.s)) {
       // Nowhere free (a tiny map): stand it at the nearest road anyway.
       const h = graph.nearest(j.e, j.s);
@@ -1230,8 +1293,12 @@ export function buildGeoLayout(input: CityInput, data: GeoData, plan: CityPlan):
  * The city to show: on its real map when the market has one (loaded) and a
  * plan, else the generated city.
  */
-export function buildCityLayout(input: CityInput, data: GeoData | null): CityLayout {
+export function buildCityLayout(
+  input: CityInput,
+  data: GeoData | null,
+  prev?: CityLayout | null,
+): CityLayout {
   const plan = planOf(input.marketId);
-  if (data && plan) return buildGeoLayout(input, data, plan);
+  if (data && plan) return buildGeoLayout(input, data, plan, prev);
   return buildLayout(input);
 }

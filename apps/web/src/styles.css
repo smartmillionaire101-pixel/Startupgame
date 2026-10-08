@@ -1210,7 +1210,8 @@ a.btn {
   margin: var(--sp-3) 0;
 }
 
-.field label {
+.field label,
+.field-label {
   display: block;
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
@@ -1990,4 +1991,17 @@ body:has(.app-city) .toasts {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Onboarding: the cities to build in, two to a row. */
+.onboard-cities {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.onboard-cities .choice {
+  min-height: 48px;
+  padding: var(--sp-2) var(--sp-3);
+}
+.onboard-cities .choice strong,
+.onboard-cities .choice span {
+  display: block;
 }

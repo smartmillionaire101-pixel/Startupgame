@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import '../friends.css';
-import { money, parseAmount } from '../../format';
+import { money, moneyExact, parseAmount } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button } from '../../ui';
@@ -213,6 +213,9 @@ export function SendMoney({ to, onDone }: { to?: string; onDone: () => void }) {
               })}
             </p>
           )}
+          <p className="small" data-balance-after>
+            {t('Your balance: {amount}', { amount: moneyExact(pocket, cur) })}
+          </p>
         </div>
       )}
     </section>

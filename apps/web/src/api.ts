@@ -39,6 +39,35 @@ async function request<T>(
   return data as T;
 }
 
+/**
+ * The last state and its tag: a poll that finds nothing new gets an empty 304
+ * and returns the very same object, so React has nothing to re-render.
+ */
+let lastState: { tag: string; body: StateResponse } | null = null;
+
+async function state(): Promise<StateResponse> {
+  const res = await fetch('/api/state', {
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { 'x-runway': '1', ...(lastState ? { 'if-none-match': lastState.tag } : {}) },
+  });
+  if (res.status === 304 && lastState) return lastState.body;
+  const data = (await res.json().catch(() => ({}))) as StateResponse & {
+    error?: { code: string; message: string };
+  };
+  if (!res.ok) {
+    lastState = null;
+    throw new ApiError(
+      res.status,
+      data.error?.code ?? 'error',
+      data.error?.message ?? 'Something went wrong.',
+    );
+  }
+  const tag = res.headers.get('etag');
+  lastState = tag ? { tag, body: data } : null;
+  return data;
+}
+
 export interface Meta {
   disclaimer: string;
   markets: {
@@ -114,10 +143,16 @@ export interface ChatMessage {
 }
 
 export const api = {
-  onboard: (input: { username: string; email: string; role: 'founder' | 'investor' | 'banker' }) =>
-    request<{ ok: true }>('POST', '/api/onboarding', { ...input, adult: true }),
+  onboard: (input: {
+    username: string;
+    email: string;
+    role: 'founder' | 'investor' | 'banker';
+    name?: string;
+    gender?: 'female' | 'male';
+    market?: string;
+  }) => request<{ ok: true }>('POST', '/api/onboarding', { ...input, adult: true }),
   meta: () => request<Meta>('GET', '/api/meta'),
-  state: () => request<StateResponse>('GET', '/api/state'),
+  state,
   command: <R = unknown>(command: Command) =>
     request<{ ok: true; result: R; version: number }>('POST', '/api/commands', { command }),
   startAuth: (phone: string, dob: { year: number; month: number; day: number }) =>

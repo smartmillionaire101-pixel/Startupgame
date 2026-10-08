@@ -1,8 +1,8 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { FR, FR_PARTS } from '../src/i18n/fr';
-import { setLang, t, tx } from '../src/i18n';
+import { loadLang, setLang, t, tx } from '../src/i18n';
 import { money, parseAmount, pct } from '../src/format';
 
 const SRC = join(__dirname, '..', 'src');
@@ -30,7 +30,8 @@ function uiStrings() {
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 describe('French (§20)', () => {
-  afterEach(() => setLang('en'));
+  beforeAll(() => loadLang('fr'));
+  afterEach(() => void setLang('en'));
 
   it('has a translation for every UI string', () => {
     const missing = uiStrings()

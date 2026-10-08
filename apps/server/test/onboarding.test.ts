@@ -7,6 +7,32 @@ import { createRuntime, configFor, handle } from '../src/serverless/netlify.js';
 
 const H = { 'x-runway': '1' };
 describe('quick onboarding', () => {
+  it('starts you in the city you chose, with your name and sex', async () => {
+    const { app } = await makeApp();
+    try {
+      const joined = await app.inject({
+        method: 'POST',
+        url: '/api/onboarding',
+        headers: H,
+        payload: {
+          username: 'city_pick',
+          email: 'pick@example.com',
+          role: 'founder',
+          name: 'Kofi Mensah',
+          gender: 'male',
+          market: 'nairobi',
+          adult: true,
+        },
+      });
+      expect(joined.statusCode).toBe(200);
+      const cookie = `rw_session=${joined.cookies.find((c) => c.name === 'rw_session')!.value}`;
+      const state = (await api(app, cookie).get('/api/state')).json();
+      expect(state.view.market.id).toBe('nairobi');
+      expect(state.view.me).toMatchObject({ name: 'Kofi Mensah', gender: 'male' });
+    } finally {
+      await app.close();
+    }
+  });
   it.each(['founder', 'investor', 'banker'] as const)(
     'enters as %s without business setup',
     async (role) => {

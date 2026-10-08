@@ -3,6 +3,13 @@ export const entry: Record<string, string> = {
   'Join the game': 'Rejoindre le jeu',
   Username: 'Nom d’utilisateur',
   'Join as': 'Rejoindre en tant que',
+  'I am': 'Je suis',
+  Woman: 'Une femme',
+  Man: 'Un homme',
+  'Your city': 'Votre ville',
+  'The city you build in': 'La ville où vous bâtissez',
+  'Choose who you are.': 'Choisissez qui vous êtes.',
+  'Choose the city you want to build in.': 'Choisissez la ville où vous voulez bâtir.',
   'Set up the rest later in Me → Profile.': 'Configurez le reste plus tard dans Moi → Profil.',
   'By playing, you confirm you are 18 or older.':
     'En jouant, vous confirmez avoir au moins 18 ans.',

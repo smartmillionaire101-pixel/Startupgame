@@ -64,9 +64,10 @@ const schema = z.object({
   SNAPSHOT_EVERY: z.coerce.number().int().min(1).default(200),
   /**
    * Real minutes in one game month (Wave 4). Every market settles once per
-   * month, at the same instant. Default 30 (Wave 6). Tests may use any value.
+   * month, at the same instant. Default 1440: a real day is a game month.
+   * Tests may use any value.
    */
-  MONTH_MINUTES: z.coerce.number().positive().max(525_600).default(30),
+  MONTH_MINUTES: z.coerce.number().positive().max(525_600).default(1440),
   /**
    * AI chat (Wave 6): with a key, AI characters answer with Claude; without
    * one (or when Claude fails), from templates. Never logged.

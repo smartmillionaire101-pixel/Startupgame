@@ -122,6 +122,43 @@ describe('real city maps (Wave 8 §A)', () => {
     expect(passersBy(a, 6)).toEqual(passersBy(b, 6));
   });
 
+  it('keeps what stood where it stood when the city changes (laid out from the last layout)', async () => {
+    const data = await geo('lagos');
+    const a = buildCityLayout(input('lagos'), data);
+    const at = (l: typeof a) => new Map(l.places.map((p) => [p.id, [p.x, p.y, p.door]]));
+    // A new fund sorts first: laid out from scratch, the funds reshuffle...
+    const more = input('lagos', {
+      funds: [
+        { id: 'a0', name: 'New Fund', office: officeOf({ id: 'a0' }) },
+        ...input('lagos').funds,
+      ],
+      office: { headcount: 9, siren: true },
+    });
+    const fresh = at(buildCityLayout(more, data));
+    const was = at(a);
+    expect([...was].some(([id, v]) => JSON.stringify(fresh.get(id)) !== JSON.stringify(v))).toBe(
+      true,
+    );
+    // ...laid out from the last layout, nothing that stood moves, and the new one finds ground.
+    const b = buildCityLayout(more, data, a);
+    const now = at(b);
+    for (const [id, v] of was) expect([id, now.get(id)]).toEqual([id, v]);
+    const fund = b.places.find((p) => p.id === 'fund:a0')!;
+    expect(fund).toBeTruthy();
+    for (const p of b.places)
+      if (p !== fund)
+        expect(
+          fund.x < p.x + p.w &&
+            fund.x + fund.w > p.x &&
+            fund.y < p.y + p.d &&
+            fund.y + fund.d > p.y,
+        ).toBe(false);
+    // Another city's last layout is ignored.
+    expect(
+      buildCityLayout(input('lagos'), data, buildCityLayout(input('london'), await geo('london'))),
+    ).toEqual(a);
+  });
+
   it('puts districts in their real neighbourhoods (Lagos: Balogun on the Island, Lekki east)', async () => {
     const data = await geo('lagos');
     const l = buildCityLayout(input('lagos'), data);

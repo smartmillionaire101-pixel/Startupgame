@@ -806,7 +806,7 @@ function AirportInterior({
         place={place}
         layout={layout}
         who={npcName(layout.marketId, 'airport')}
-        role={t('Check-in')}
+        role={t('Ticket desk')}
       />
       {desk ? <Departures desk={desk} homeId={homeId} /> : null}
       <Travel trips={!desk} />

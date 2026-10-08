@@ -1,6 +1,6 @@
 /**
  * The game clock as a scheduled Netlify Function: every minute, settle any
- * market whose game month has ended (MONTH_MINUTES real minutes, 5 by
+ * market whose game month has ended (MONTH_MINUTES real minutes, a day by
  * default), open newly configured markets, and refresh FX every six hours.
  * Scheduled functions only run on the published (production) deploy.
  */

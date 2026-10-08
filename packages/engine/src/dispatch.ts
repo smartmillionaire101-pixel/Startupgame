@@ -170,19 +170,25 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
   const actorId = ctx.actorId!;
   if (cmd.type === 'player.create') return createFromOnboarding(world, cmd, actorId, ctx.now);
   if (cmd.type === 'player.quickStart') {
-    const market = world.markets.lagos ? 'lagos' : Object.values(world.markets)[0]!.id;
+    const market =
+      cmd.market && world.markets[cmd.market]
+        ? cmd.market
+        : world.markets.lagos
+          ? 'lagos'
+          : Object.values(world.markets)[0]!.id;
     const backgroundId = { founder: 'f-engineer', investor: 'i-first', banker: 'b-commercial' }[
       cmd.role
     ];
     const p = createPlayer(world, {
       playerId: actorId,
       handle: cmd.username,
-      name: cmd.username,
+      name: cmd.name?.trim() || cmd.username,
       role: cmd.role,
       backgroundId,
       market,
       now: ctx.now,
     });
+    if (cmd.gender) p.gender = cmd.gender;
     if (cmd.role === 'investor') {
       const bg = backgroundById(backgroundId)!;
       p.investor = {

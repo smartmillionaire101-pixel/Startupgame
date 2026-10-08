@@ -4,7 +4,7 @@
  * arrives as a deal card, shown right here) and what a month costs you.
  */
 import { useState } from 'react';
-import { money } from '../../format';
+import { money, moneyExact } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button } from '../../ui';
@@ -55,10 +55,10 @@ export function Bank({ ctx }: { ctx: PhoneCtx }) {
       <section className="phone-card phone-hero tone-bank" aria-label={t('Balance')}>
         <div className="small">{t('Personal account')}</div>
         <div className="phone-hero-big" data-balance>
-          {money(local?.balance ?? 0, cur)}
+          {moneyExact(local?.balance ?? 0, cur)}
         </div>
         {local?.bankName && <div className="small">{local.bankName}</div>}
-        {usd && <div className="phone-hero-sub">{money(usd.balance, 'USD')}</div>}
+        {usd && <div className="phone-hero-sub">{moneyExact(usd.balance, 'USD')}</div>}
         <div className="small">
           {t('Last month: in {income}, out {spend}', {
             income: money(view.me.lastMonth.income, cur),

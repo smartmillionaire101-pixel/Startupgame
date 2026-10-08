@@ -212,17 +212,19 @@ test('a flight: the cabin down the aisle, with the trolley and your seat', async
   await tapPlace(page, '[data-place="airport"]', 'cycle');
   await expect(page.locator('.place-scene')).toBeVisible({ timeout: 20_000 });
   const trip = page.getByRole('region', { name: 'Your trip' });
-  await trip.getByRole('button', { name: 'Check in', exact: true }).last().click();
+  // The ticket first, then check in for that flight.
+  await trip
+    .getByRole('list', { name: 'Where do you want to go?' })
+    .getByRole('button', { name: 'Book a flight to London' })
+    .click();
+  await trip.getByRole('button', { name: 'Check in for London' }).click();
   await trip.getByRole('button', { name: 'Skip' }).click();
   await trip.getByRole('button', { name: 'Go through security' }).click();
   await expect(trip.getByRole('button', { name: 'Go to the gate' })).toBeVisible({
     timeout: 4000,
   });
   await trip.getByRole('button', { name: 'Go to the gate' }).click();
-  await trip
-    .getByRole('list', { name: 'Flights from here' })
-    .getByRole('button', { name: 'Board for London' })
-    .click();
+  await trip.getByRole('button', { name: 'Board for London' }).click();
   const flight = page.getByRole('dialog', { name: 'Flight to London' });
   await expect(flight).toHaveAttribute('data-flight-phase', 'cruise', { timeout: 6000 });
   const cabin = flight.locator('[data-cabin]');

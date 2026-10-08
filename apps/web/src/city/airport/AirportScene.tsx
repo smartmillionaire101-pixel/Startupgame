@@ -10,9 +10,11 @@
  *    seconds), and ground vehicles.
  * 3. The terminal: travellers walking with their bags.
  *
- * And a bottom sheet "Your trip": check in → security → the lounge (Who's
- * here: investors wait for flights too) → board, each step a short animation
- * you can skip. "More" keeps the detailed cards (departures, trips).
+ * And a bottom sheet "Your trip", in the order of a real trip: the ticket
+ * desk (where do you want to go? the time, the fare; book it, unless you
+ * booked in the Travel app) → check in for that flight (the boarding pass
+ * names the destination) → security → the lounge (Who's here: investors wait
+ * for flights too) → board, each step a short animation you can skip. "More" keeps the detailed cards (departures, trips).
  *
  * One requestAnimationFrame loop moves the planes, vehicles and people
  * through refs; it stops while the tab is hidden or motion is reduced.
@@ -32,11 +34,14 @@ import {
   airportSchedule,
   boardRows,
   CITY_NAMES,
+  fmtFlightTime,
   localMinutes,
   nextFlightTo,
+  scheduleDay,
   type FlightStatus,
   type ScheduledFlight,
 } from '../travel';
+import { seatOf, setTicket, ticketFrom, useTicket, type Ticket } from '../ticket';
 import { WhoIsHere } from '../WhoIsHere';
 import './airport.css';
 
@@ -423,38 +428,76 @@ function Apron({
 // ---------------------------------------------------------------------------
 // Your trip
 
-type Step = 'checkin' | 'security' | 'lounge' | 'board';
-const STEPS: Step[] = ['checkin', 'security', 'lounge', 'board'];
+type Step = 'ticket' | 'checkin' | 'security' | 'lounge' | 'board';
+const STEPS: Step[] = ['ticket', 'checkin', 'security', 'lounge', 'board'];
 const STEP_LABEL = (s: Step) =>
-  s === 'checkin'
-    ? t('Check in')
-    : s === 'security'
-      ? t('Security')
-      : s === 'lounge'
-        ? t('Lounge')
-        : t('Boarding');
+  s === 'ticket'
+    ? t('Ticket')
+    : s === 'checkin'
+      ? t('Check in')
+      : s === 'security'
+        ? t('Security')
+        : s === 'lounge'
+          ? t('Lounge')
+          : t('Boarding');
+
+/** Your ticket in one line: "14:05 · Savanna Air SV 123 · Gate B4". */
+const ticketLine = (k: Ticket) =>
+  [
+    k.time,
+    [k.airline, k.flight].filter(Boolean).join(' '),
+    k.gate ? t('Gate {gate}', { gate: k.gate }) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+function BoardingPass({ ticket, from }: { ticket: Ticket; from: string }) {
+  const line = ticketLine(ticket);
+  return (
+    <div className="trip-pass" data-boarding-pass={ticket.to}>
+      <b>{t('Boarding pass')}</b>
+      <span className="trip-pass-route">
+        {from} → {ticket.toName}
+      </span>
+      <span className="small">
+        {line ? `${line} · ` : ''}
+        {t('Seat {seat}', { seat: seatOf(ticket) })}
+      </span>
+    </div>
+  );
+}
 
 function TripSheet({
   place,
+  marketId,
   players,
   desk,
   homeId,
   schedule,
   now,
-  onFlyHome,
+  abroad,
   onMore,
 }: {
   place: Place;
+  marketId: string;
   players: PresenceView[];
   desk?: FlightDesk;
   homeId: string | null;
   schedule: ScheduledFlight[];
   now: number;
-  onFlyHome?: () => void;
+  abroad: boolean;
   onMore: () => void;
 }) {
   const { busy } = useView();
-  const [step, setStep] = useState<Step>('checkin');
+  const fromName = CITY_NAMES[marketId] ?? marketId;
+  const flights = (desk?.destinations ?? [])
+    .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))
+    // The next to leave first: today's still to come, then tomorrow's from the morning.
+    .sort((a, b) => departs(a.f, now) - departs(b.f, now));
+  // A ticket booked for a flight out of here (in the Travel app, or at the desk below).
+  const ticket = ticketFrom(useTicket(), marketId, desk?.destinations ?? []);
+  // No ticket yet: the first thing is the ticket desk, where you choose where to go.
+  const [step, setStep] = useState<Step>(() => (ticket ? 'checkin' : 'ticket'));
   const [playing, setPlaying] = useState<Step | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -463,11 +506,16 @@ function TripSheet({
     },
     [],
   );
+  // Without a ticket (flown, or no longer on sale) you're at the desk.
+  const at: Step = ticket ? step : 'ticket';
   const next = (s: Step) => STEPS[Math.min(STEPS.length - 1, STEPS.indexOf(s) + 1)]!;
-  const finish = () => {
+  const stop = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     setPlaying(null);
+  };
+  const finish = () => {
+    stop();
     setStep((s) => next(s));
   };
   const play = (s: Step) => {
@@ -478,20 +526,32 @@ function TripSheet({
     setPlaying(s);
     timer.current = setTimeout(finish, s === 'checkin' ? 1500 : 1700);
   };
-  const flights = (desk?.destinations ?? []).map((d) => ({
-    d,
-    f: nextFlightTo(schedule, d.id, now),
-  }));
+  const book = (to: string) => {
+    const row = flights.find((x) => x.d.id === to);
+    if (!row || !desk) return;
+    const { d, f } = row;
+    setTicket({
+      from: marketId,
+      to: d.id,
+      toName: d.name,
+      fare: d.fare,
+      currency: desk.currency,
+      hours: d.hours,
+      time: f?.time,
+      airline: f?.airline,
+      flight: f?.flight,
+      gate: f?.gate,
+    });
+    stop();
+    setStep('checkin');
+  };
 
-  let body: ReactNode;
-  if (playing)
+  let body: ReactNode = null;
+  if (playing && ticket)
     body = (
       <div className={`trip-anim trip-anim-${playing}`} data-trip-anim={playing}>
         {playing === 'checkin' ? (
-          <div className="trip-pass">
-            <b>{t('Boarding pass')}</b>
-            <span>{t('Seat {seat}', { seat: `${12 + (now % 20)}A` })}</span>
-          </div>
+          <BoardingPass ticket={ticket} from={fromName} />
         ) : (
           <div className="trip-scanner">
             <span className="trip-bag" />
@@ -502,19 +562,68 @@ function TripSheet({
         </button>
       </div>
     );
-  else if (step === 'checkin')
-    body = (
-      <button type="button" className="btn btn-primary trip-go" onClick={() => play('checkin')}>
-        {t('Check in')}
-      </button>
+  else if (at === 'ticket')
+    body = flights.length ? (
+      <div className="trip-desk">
+        <p className="small muted">
+          {t('Ticket desk: where do you want to go? Choose a flight and book it.')}
+        </p>
+        <ul className="trip-flights" aria-label={t('Where do you want to go?')}>
+          {flights.map(({ d, f }) => (
+            <li
+              key={d.id}
+              data-dest={d.id}
+              className={ticket?.to === d.id ? 'is-booked' : undefined}
+            >
+              <span className="trip-flight-time">{f?.time ?? '—'}</span>
+              <span className="trip-flight-main">
+                <b>{d.name}</b>
+                <span className="small muted">
+                  {f ? `${f.airline} · ${f.flight}` : ''}
+                  {d.hours > 0 && d.hours < 40 ? ` · ${fmtFlightTime(d.hours)}` : ''}
+                  {d.id === homeId ? ` · ${t('Home city')}` : ''}
+                </span>
+              </span>
+              <span className="trip-flight-fare">{desk ? money(d.fare, desk.currency) : ''}</span>
+              <button
+                type="button"
+                className={`btn ${ticket?.to === d.id ? 'btn-primary' : 'btn-ghost'}`}
+                disabled={busy || d.done}
+                aria-label={t('Book a flight to {city}', { city: d.name })}
+                onClick={() => book(d.id)}
+              >
+                {d.done ? t('This month') : ticket?.to === d.id ? t('Booked') : t('Book')}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ) : (
+      <p className="small muted">{t('No flights from here today.')}</p>
     );
-  else if (step === 'security')
+  else if (ticket && at === 'checkin')
     body = (
-      <button type="button" className="btn btn-primary trip-go" onClick={() => play('security')}>
-        {t('Go through security')}
-      </button>
+      <div className="trip-lounge">
+        <p className="small muted" data-ticket={ticket.to}>
+          {t('Your ticket: {from} → {to}', { from: fromName, to: ticket.toName })}
+          {ticketLine(ticket) ? ` · ${ticketLine(ticket)}` : ''} ·{' '}
+          {money(ticket.fare, ticket.currency)}
+        </p>
+        <button type="button" className="btn btn-primary trip-go" onClick={() => play('checkin')}>
+          {t('Check in for {city}', { city: ticket.toName })}
+        </button>
+      </div>
     );
-  else if (step === 'lounge')
+  else if (ticket && at === 'security')
+    body = (
+      <div className="trip-lounge">
+        <BoardingPass ticket={ticket} from={fromName} />
+        <button type="button" className="btn btn-primary trip-go" onClick={() => play('security')}>
+          {t('Go through security')}
+        </button>
+      </div>
+    );
+  else if (ticket && at === 'lounge')
     body = (
       <div className="trip-lounge">
         <p className="small muted">
@@ -526,63 +635,56 @@ function TripSheet({
         </button>
       </div>
     );
-  else
-    body = flights.length ? (
-      <ul className="trip-flights" aria-label={t('Flights from here')}>
-        {flights.map(({ d, f }) => (
-          <li key={d.id}>
-            <span className="trip-flight-time">{f?.time ?? '—'}</span>
-            <span className="trip-flight-main">
-              <b>{d.name}</b>
-              <span className="small muted">
-                {f ? `${f.airline} · ${f.flight}` : ''}
-                {d.id === homeId ? ` · ${t('Home city')}` : ''}
-              </span>
-            </span>
-            <span className="trip-flight-fare">{desk ? money(d.fare, desk.currency) : ''}</span>
-            <button
-              type="button"
-              className={`btn ${d.id === homeId ? 'btn-primary' : 'btn-ghost'}`}
-              disabled={busy || d.done}
-              aria-label={t('Board for {city}', { city: d.name })}
-              onClick={() => desk?.onFly(d.id)}
-            >
-              {d.done ? t('This month') : t('Fly now')}
-            </button>
-          </li>
-        ))}
-      </ul>
-    ) : (
-      <p className="small muted">{t('No flights from here today.')}</p>
+  else if (ticket)
+    body = (
+      <div className="trip-lounge">
+        <BoardingPass ticket={ticket} from={fromName} />
+        <button
+          type="button"
+          className="btn btn-primary trip-go"
+          disabled={busy}
+          aria-label={t('Board for {city}', { city: ticket.toName })}
+          onClick={() => desk?.onFly(ticket.to)}
+        >
+          {t('Board the flight to {city}', { city: ticket.toName })}
+        </button>
+      </div>
     );
 
+  const canFlyHome = abroad && !!homeId && flights.some((x) => x.d.id === homeId && !x.d.done);
   return (
     <div className="place-tray trip-sheet" aria-label={t('Your trip')} role="region">
       <div className="trip-head">
         <b>{t('Your trip')}</b>
-        {onFlyHome && (
-          <button type="button" className="btn btn-subtle" onClick={onFlyHome}>
+        {canFlyHome && ticket?.to !== homeId && (
+          // Going home: book the flight home, then check in for it.
+          <button type="button" className="btn btn-subtle" onClick={() => book(homeId!)}>
             {t('Fly home')}
           </button>
         )}
       </div>
       <ol className="trip-steps">
-        {STEPS.map((s, n) => (
-          <li key={s}>
-            <button
-              type="button"
-              className={`trip-step${s === step ? ' is-now' : ''}${STEPS.indexOf(step) > n ? ' is-done' : ''}`}
-              aria-current={s === step ? 'step' : undefined}
-              onClick={() => {
-                finish();
-                setStep(s);
-              }}
-            >
-              <span className="trip-step-n">{STEPS.indexOf(step) > n ? '✓' : n + 1}</span>
-              {STEP_LABEL(s)}
-            </button>
-          </li>
-        ))}
+        {STEPS.map((s, n) => {
+          const done = STEPS.indexOf(at) > n;
+          return (
+            <li key={s}>
+              <button
+                type="button"
+                className={`trip-step${s === at ? ' is-now' : ''}${done ? ' is-done' : ''}`}
+                aria-current={s === at ? 'step' : undefined}
+                // Every step after the ticket desk needs a ticket.
+                disabled={!ticket && s !== 'ticket'}
+                onClick={() => {
+                  stop();
+                  setStep(s);
+                }}
+              >
+                <span className="trip-step-n">{done ? '✓' : n + 1}</span>
+                {STEP_LABEL(s)}
+              </button>
+            </li>
+          );
+        })}
       </ol>
       <div className="trip-body">{body}</div>
       <button type="button" className="btn btn-ghost tray-more" onClick={onMore}>
@@ -619,11 +721,8 @@ export function AirportScene({
 }) {
   const { view } = useView();
   const [more, setMore] = useState(false);
-  const [{ dateKey, now }] = useState(() => ({
-    dateKey: new Date().toISOString().slice(0, 10),
-    now: localMinutes(marketId),
-  }));
-  const day = `${view.market.month}:${dateKey}`;
+  const [{ at0, now }] = useState(() => ({ at0: Date.now(), now: localMinutes(marketId) }));
+  const day = scheduleDay(view.market.month, at0);
   const schedule = useMemo(() => airportSchedule(marketId, day), [marketId, day]);
   const walkers = useMemo(() => {
     const bgs = [
@@ -678,16 +777,23 @@ export function AirportScene({
           </div>
           <TripSheet
             place={place}
+            marketId={marketId}
             players={players}
             desk={desk}
             homeId={homeId}
             schedule={schedule}
             now={now}
-            onFlyHome={onFlyHome}
+            abroad={!!onFlyHome}
             onMore={() => setMore(true)}
           />
         </>
       )}
     </div>
   );
+}
+
+/** When a flight next leaves, for ordering: one already gone today leaves tomorrow. */
+function departs(f: ScheduledFlight | null, now: number): number {
+  if (!f) return Infinity;
+  return f.at + f.late > now ? f.at : f.at + 86_400_000;
 }
