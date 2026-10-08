@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { PlayerView } from '@runway/engine';
 import { api, type AiThread, type ChatSummary } from '../api';
-import { money } from '../format';
+import { moneyExact } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { visitPlace } from '../city/goto';
@@ -658,7 +658,9 @@ function PhoneHome({
           <span>{hereOf(view).name}</span>
           <span>{tx(view.market.date.label)}</span>
         </div>
-        <div className="phone-glance-cash">{money(view.accounts.local?.balance ?? 0, cur)}</div>
+        <div className="phone-glance-cash">
+          {moneyExact(view.accounts.local?.balance ?? 0, cur)}
+        </div>
         <div className="phone-widget-row">
           <span>
             <Icon name="bolt" size={14} /> {t('Energy {n}', { n: view.me.energy })}

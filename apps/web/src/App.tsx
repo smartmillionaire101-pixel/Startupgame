@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { useGame, useView } from './store';
 import { CountUp, Icon, initReduceMotion, reduceMotion, Sheet, Toasts, type IconName } from './ui';
-import { money } from './format';
+import { money, moneyExact } from './format';
 import { t } from './i18n';
 import { SignIn } from './screens/SignIn';
 import { Onboarding } from './screens/Onboarding';
@@ -323,7 +323,12 @@ function TopBar({ alerts }: { alerts: number }) {
         </span>
       </div>
       <div className="topbar-meta">
-        <span ref={bump} className="topbar-cash" aria-label={t('Cash in your pocket')}>
+        <span
+          ref={bump}
+          className="topbar-cash"
+          aria-label={t('Cash in your pocket')}
+          title={moneyExact(cash, cur)}
+        >
           <Icon name="wallet" size={15} />
           <CountUp value={cash} format={(n) => money(n, cur)} />
         </span>
