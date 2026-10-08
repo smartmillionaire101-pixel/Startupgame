@@ -1,4 +1,4 @@
-import { formatMoney, type Currency } from '@runway/engine';
+import { CURRENCY_SYMBOL, formatMoney, type Currency } from '@runway/engine';
 import { getLang, t } from './i18n';
 
 /**
@@ -14,6 +14,22 @@ export function money(minor: number, currency: string): string {
   const n = num!.replace(/,/g, '\u202f').replace('.', ',');
   const fr = { bn: '\u00a0Md', m: '\u00a0M', k: '\u00a0k' }[suffix as 'bn' | 'm' | 'k'] ?? '';
   return `${sign}${sym}${n}${fr}`;
+}
+
+/**
+ * The exact amount, every unit shown: ₦11,424,950 or £1,234.56 (French
+ * ₦11 424 950, £1 234,56). For balances: the short form (₦11.4m) hides a
+ * transfer of a few thousand, so the money looked like it never moved.
+ */
+export function moneyExact(minor: number, currency: string): string {
+  const fr = getLang() === 'fr';
+  const v = Math.round(Math.abs(minor));
+  const whole = Math.floor(v / 100)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, fr ? ' ' : ',');
+  const cents = v % 100 ? `${fr ? ',' : '.'}${String(v % 100).padStart(2, '0')}` : '';
+  const sym = CURRENCY_SYMBOL[currency as Currency] ?? `${currency} `;
+  return `${minor < 0 && v > 0 ? '-' : ''}${sym}${whole}${cents}`;
 }
 
 /** Percent; French puts a space before the sign and uses a decimal comma. */

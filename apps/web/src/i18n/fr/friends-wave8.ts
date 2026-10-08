@@ -121,6 +121,7 @@ export const friendsWave8: Record<string, string> = {
   Total: 'Total',
   'You can send up to {amount} more today.':
     'Vous pouvez encore envoyer jusqu’à {amount} aujourd’hui.',
+  'Your balance: {amount}': 'Votre solde : {amount}',
   // Hangouts
   Join: 'Rejoindre',
   'No friends to ask yet.': 'Personne à inviter pour l’instant.',
