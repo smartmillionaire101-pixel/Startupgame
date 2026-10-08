@@ -1259,3 +1259,6 @@ button.phone-row:active {
 :root[data-reduce-motion='1'] .phone-typing span {
   animation: none;
 }
+.phone-ticket {
+  border-left: 5px solid #b45309;
+}

@@ -49,6 +49,7 @@ import {
   type StoryPlace,
 } from './contract';
 import { onVisit, takeVisit } from './goto';
+import { setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
 import { suggestionText, WhatNowCard, WhatNowList } from './WhatNowCards';
@@ -287,6 +288,8 @@ export function CityScreen({
             : { type: 'player.travel', market: to }) as unknown as Command,
         );
         await refresh();
+        // The ticket is used: you've flown.
+        setTicket(null);
         setFlight((f) => (f && f.to === to ? { ...f, status: 'ok' } : f));
         if (lite) {
           setFlight(null);
@@ -502,6 +505,21 @@ function CityBodyInner({
     [layout, goTo],
   );
   const office = layout.places.find((p) => p.kind === 'office')!;
+  // Going home is a trip like any other: the ticket home is booked, then you
+  // go to the airport and check in for it (lite mode, without the airport
+  // scene, flies at once).
+  const homeMonth = view.market.month;
+  const flyHomeViaAirport = useCallback(() => {
+    const d = destinations.find((x) => x.id === home.id);
+    const airport = layout.places.find((p) => p.kind === 'airport');
+    if (lite || !d || d.done || !airport) {
+      onFlyHome();
+      return;
+    }
+    setTicket(ticketFor(layout.marketId, d, home.currency, homeMonth));
+    setInside(null);
+    goTo(airport);
+  }, [destinations, home.id, home.currency, homeMonth, layout, lite, onFlyHome, goTo]);
   const visit = useCallback(
     (placeId: string) => {
       // 'market' stands for the Market's stalls ("What to do now").
@@ -569,7 +587,7 @@ function CityBodyInner({
   const awayChip = abroad && (
     <span className="hud-away" role="status">
       <span>{t('You’re in {city}', { city: view.market.name })}</span>
-      <button type="button" className="hud-away-btn" onClick={onFlyHome}>
+      <button type="button" className="hud-away-btn" onClick={flyHomeViaAirport}>
         <RideIcon mode="plane" /> {t('Fly home')}
       </button>
     </span>
@@ -812,10 +830,7 @@ function CityBodyInner({
               abroad
                 ? {
                     homeName: home.name,
-                    onFlyHome: () => {
-                      setInside(null);
-                      onFlyHome();
-                    },
+                    onFlyHome: flyHomeViaAirport,
                   }
                 : null
             }

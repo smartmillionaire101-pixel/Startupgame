@@ -104,9 +104,14 @@ test('taxi, bike, bus, the busy airport and a flight with a cabin', async ({ pag
   await shot(page, 'bike');
   await skip(page, bike);
 
-  // The airport: a six-row split-flap board, planes on the move, your trip.
+  // The airport: a six-row split-flap board, planes on the move, your trip,
+  // which starts at the ticket desk (no ticket yet): where do you want to go?
   const airport = page.locator('.airport-scene');
   await expect(airport).toBeVisible();
+  await expect(
+    airport.getByRole('list', { name: 'Where do you want to go?' }).locator('[data-dest]'),
+  ).not.toHaveCount(0);
+  await expect(airport.locator('.trip-step.is-now')).toContainText('Ticket');
   await expect(airport.locator('[data-board-row]')).toHaveCount(6);
   const planes = airport.locator('[data-plane]');
   expect(await planes.count()).toBeGreaterThanOrEqual(3);
@@ -129,24 +134,40 @@ test('taxi, bike, bus, the busy airport and a flight with a cabin', async ({ pag
   await skip(page, bus);
   await closeScene(page);
 
-  // Walk back to the airport (top-down street), then through the trip steps and fly.
+  // Walk back to the airport (top-down street). The trip runs in a real
+  // trip's order: choose where to go and book first, then check in for that
+  // flight, security, the gate, board.
   const walk = await rideTo(page, 'airport', 'walk');
   await expect(walk.locator('[data-walk-strip]')).toBeVisible();
   await shot(page, 'walk');
   await skip(page, walk);
   const trip = page.getByRole('region', { name: 'Your trip' });
-  await trip.getByRole('button', { name: 'Check in', exact: true }).last().click();
-  await expect(trip.locator('[data-trip-anim="checkin"]')).toBeVisible();
+  const desk = trip.getByRole('list', { name: 'Where do you want to go?' });
+  await expect(desk).toContainText(/\d\d:\d\d/);
+  await expect(desk.locator('[data-dest="london"]')).toContainText('London');
+  // No check-in before there's a ticket.
+  await expect(trip.getByRole('button', { name: /Check in/ })).toBeDisabled();
+  await shot(page, 'airport-ticket-desk');
+  await desk.getByRole('button', { name: 'Book a flight to London' }).click();
+  await expect(trip.locator('[data-ticket="london"]')).toContainText('London');
+  await expect(trip.locator('.trip-step.is-now')).toContainText('Check in');
+  await shot(page, 'airport-check-in');
+  await trip.getByRole('button', { name: 'Check in for London' }).click();
+  const pass = trip.locator('[data-trip-anim="checkin"] [data-boarding-pass="london"]');
+  await expect(pass).toBeVisible();
+  await expect(pass).toContainText('Lagos → London');
   await trip.getByRole('button', { name: 'Skip' }).click();
+  // Checked in: the boarding pass (to London) stays in hand for security.
   await expect(trip.getByRole('button', { name: 'Go through security' })).toBeVisible();
+  await expect(trip.locator('[data-boarding-pass="london"]')).toContainText('Lagos → London');
+  await shot(page, 'airport-boarding-pass');
   await trip.getByRole('button', { name: 'Go through security' }).click();
   await expect(trip.getByRole('button', { name: 'Go to the gate' })).toBeVisible({
     timeout: 4000,
   });
   await trip.getByRole('button', { name: 'Go to the gate' }).click();
-  const flights = trip.getByRole('list', { name: 'Flights from here' });
-  await expect(flights).toContainText(/\d\d:\d\d/);
-  await flights.getByRole('button', { name: 'Board for London' }).click();
+  await expect(trip.locator('[data-boarding-pass="london"]')).toBeVisible();
+  await trip.getByRole('button', { name: 'Board for London' }).click();
 
   const flight = page.getByRole('dialog', { name: 'Flight to London' });
   await expect(flight).toHaveAttribute('data-flight-phase', 'takeoff');
@@ -169,4 +190,47 @@ test('reduced motion: a bird’s-eye chase on the map, still skippable', async (
   await expect(taxi.locator('.ride-stage')).toHaveCount(0);
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
   await skip(page, taxi);
+});
+
+test('the Travel app books first; the airport then checks you in for that flight', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await founder(page, 'Chidi Booker');
+  await page.getByRole('button', { name: /^Phone/ }).click();
+  const phone = page.getByRole('dialog', { name: 'Phone' });
+  await phone.locator('[data-app="travel"]').click();
+  const london = phone.locator('[data-flight="london"]');
+  await expect(london).toContainText(/\d\d:\d\d/);
+  await shot(page, 'phone-travel');
+  await london.getByRole('button', { name: 'Book a flight to London' }).click();
+
+  // At the airport the ticket is already booked: the first step is check-in for London.
+  const trip = page.getByRole('region', { name: 'Your trip' });
+  await expect(trip).toBeVisible({ timeout: 20_000 });
+  await expect(trip.locator('.trip-step.is-now')).toContainText('Check in');
+  await expect(trip.locator('[data-ticket="london"]')).toContainText('Lagos → London');
+  // Reduced motion: each step is done at once.
+  await trip.getByRole('button', { name: 'Check in for London' }).click();
+  await expect(trip.locator('[data-boarding-pass="london"]')).toContainText('London');
+  await trip.getByRole('button', { name: 'Go through security' }).click();
+  await trip.getByRole('button', { name: 'Go to the gate' }).click();
+  await trip.getByRole('button', { name: 'Board for London' }).click();
+  const flight = page.getByRole('dialog', { name: 'Flight to London' });
+  await expect(flight).toBeVisible();
+  await flight
+    .getByRole('button', { name: 'Skip' })
+    .click({ timeout: 5000 })
+    .catch(() => undefined);
+  await expect(flight).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByRole('application', { name: /Map of London/ })).toBeVisible();
+
+  // The ticket was used: the Travel app has nothing booked any more.
+  await page.getByRole('button', { name: /^Phone/ }).click();
+  await expect(phone).toBeVisible();
+  if (!(await phone.locator('[data-phone-app="home"]').isVisible()))
+    await phone.getByRole('button', { name: 'Back' }).click();
+  await phone.locator('[data-app="travel"]').click();
+  await expect(phone.locator('[data-flight]').first()).toBeVisible();
+  await expect(phone.locator('[data-ticket]')).toHaveCount(0);
 });

@@ -1,52 +1,72 @@
 /**
- * Travel: flights from the city you're in, with departure times, airline,
- * flight number and fare. Book takes you to the airport, where you check in.
+ * Travel: where you can fly from the city you're in, with the departure
+ * time, airline, flight number, flight time and fare. You choose where to go
+ * and book first; then you go to the airport and check in for that flight.
  */
+import { useState } from 'react';
 import { money } from '../../format';
 import { t } from '../../i18n';
 import { useView } from '../../store';
-import { hash } from '../../city/contract';
-import { destinationsOf, hereOf, isAbroad } from '../../city/travel';
+import {
+  airportSchedule,
+  destinationsOf,
+  fmtFlightTime,
+  hereOf,
+  isAbroad,
+  localMinutes,
+  nextFlightTo,
+  scheduleDay,
+} from '../../city/travel';
+import { setTicket, ticketFrom, useTicket } from '../../city/ticket';
 import { Icon } from '../icons';
 import { Nothing, type PhoneCtx } from '../shared';
-
-const AIRLINES = [
-  ['Savanna Air', 'SV'],
-  ['Kora Airways', 'KR'],
-  ['Baobab Wings', 'BW'],
-  ['Harmattan Air', 'HM'],
-  ['Atlantic Kestrel', 'AK'],
-] as const;
-
-/** A deterministic flight for a route on a game month: time, airline and number. */
-export function flightFor(from: string, to: string, month: number) {
-  const h = hash(`${from}>${to}:${month}`);
-  const [airline, code] = AIRLINES[h % AIRLINES.length]!;
-  const mins = 6 * 60 + ((h >>> 3) % (15 * 12)) * 5;
-  const time = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
-  return { airline, number: `${code} ${100 + ((h >>> 7) % 800)}`, time };
-}
 
 export function Travel({ ctx }: { ctx: PhoneCtx }) {
   const { view, cur } = useView();
   const here = hereOf(view);
   const dests = destinationsOf(view);
   const month = view.market.month;
+  const [{ day, now }] = useState(() => ({
+    day: scheduleDay(month),
+    now: localMinutes(here.id),
+  }));
+  const booked = ticketFrom(useTicket(), here.id, dests);
   if (dests.length === 0)
     return <Nothing icon="travel">{t('No flights from here right now.')}</Nothing>;
+  const schedule = airportSchedule(here.id, day);
   const rows = dests
-    .map((d) => ({ d, f: flightFor(here.id, d.id, month) }))
-    .sort((a, b) => (a.f.time < b.f.time ? -1 : 1));
+    .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))
+    .sort((a, b) => ((a.f?.time ?? '99') < (b.f?.time ?? '99') ? -1 : 1));
   return (
     <div className="phone-stack">
+      {booked && (
+        <div className="phone-card phone-ticket" data-ticket={booked.to}>
+          <div className="spread">
+            <span>
+              <span className="small muted">{t('Your ticket')}</span>
+              <br />
+              <b>
+                {here.name} → {booked.toName}
+              </b>
+              <br />
+              <span className="small muted">
+                {[booked.time, booked.airline, booked.flight].filter(Boolean).join(' · ')}
+              </span>
+            </span>
+            <button className="btn btn-primary" onClick={() => ctx.goPlace('airport')}>
+              {t('Go to the airport')}
+            </button>
+          </div>
+        </div>
+      )}
       <p className="small muted">
-        {t('Departures from {city}. Book, then check in at the airport.', { city: here.name })}
+        {t('Where do you want to go? Choose a flight and book it, then check in at the airport.')}
       </p>
       <ul className="phone-list" aria-label={t('Flights')}>
         {rows.map(({ d, f }) => (
           <li key={d.id} className="phone-card phone-flight" data-flight={d.id}>
             <div className="phone-flight-top">
-              <span className="phone-flight-time">{f.time}</span>
+              <span className="phone-flight-time">{f?.time ?? '—'}</span>
               <Icon name="travel" size={18} />
               <span className="item-title">
                 {d.name}
@@ -58,14 +78,30 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
             </div>
             <div className="spread small muted">
               <span>
-                {f.airline} · {f.number}
+                {f ? `${f.airline} · ${f.flight}` : ''}
+                {d.hours > 0 && d.hours < 40 ? ` · ${fmtFlightTime(d.hours)}` : ''}
               </span>
               <button
-                className="btn btn-subtle"
+                className={`btn ${booked?.to === d.id ? 'btn-primary' : 'btn-subtle'}`}
                 disabled={d.done}
-                onClick={() => ctx.goPlace('airport')}
+                aria-label={t('Book a flight to {city}', { city: d.name })}
+                onClick={() => {
+                  setTicket({
+                    from: here.id,
+                    to: d.id,
+                    toName: d.name,
+                    fare: d.fare,
+                    currency: cur,
+                    hours: d.hours,
+                    time: f?.time,
+                    airline: f?.airline,
+                    flight: f?.flight,
+                    gate: f?.gate,
+                  });
+                  ctx.goPlace('airport');
+                }}
               >
-                {d.done ? t('Already this month') : t('Book')}
+                {d.done ? t('Already this month') : booked?.to === d.id ? t('Booked') : t('Book')}
               </button>
             </div>
           </li>

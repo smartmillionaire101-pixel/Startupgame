@@ -35,7 +35,22 @@ export const travelWave7: Record<string, string> = {
   'Investors wait for flights too. See who’s in the lounge.':
     'Les investisseurs aussi attendent leur vol. Voyez qui est au salon.',
   'Go to the gate': 'Aller à la porte',
-  'Flights from here': 'Vols au départ d’ici',
+  // The ticket comes first: choose where to go, book, then check in.
+  Ticket: 'Billet',
+  'Ticket desk': 'Billetterie',
+  'Ticket desk: where do you want to go? Choose a flight and book it.':
+    'Billetterie : où voulez-vous aller ? Choisissez un vol et réservez-le.',
+  'Where do you want to go?': 'Où voulez-vous aller ?',
+  'Where do you want to go? Choose a flight and book it, then check in at the airport.':
+    'Où voulez-vous aller ? Choisissez un vol et réservez-le, puis enregistrez-vous à l’aéroport.',
+  'Book a flight to {city}': 'Réserver un vol pour {city}',
+  Booked: 'Réservé',
+  'Your ticket': 'Votre billet',
+  'Your ticket: {from} → {to}': 'Votre billet : {from} → {to}',
+  'Gate {gate}': 'Porte {gate}',
+  'Check in for {city}': 'S’enregistrer pour {city}',
+  'Board the flight to {city}': 'Embarquer sur le vol pour {city}',
+  'Go to the airport': 'Aller à l’aéroport',
   'Board for {city}': 'Embarquer pour {city}',
   'No flights from here today.': 'Aucun vol au départ d’ici aujourd’hui.',
   'Your trip': 'Votre voyage',
