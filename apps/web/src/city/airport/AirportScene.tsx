@@ -1,3 +1,4 @@
+import type { MarketId } from '@runway/engine';
 /**
  * Wave 7 §B: a busy airport. Top to bottom:
  *
@@ -488,7 +489,7 @@ function TripSheet({
   abroad: boolean;
   onMore: () => void;
 }) {
-  const { busy } = useView();
+  const { busy, send } = useView();
   const fromName = CITY_NAMES[marketId] ?? marketId;
   const flights = (desk?.destinations ?? [])
     .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))
@@ -526,10 +527,11 @@ function TripSheet({
     setPlaying(s);
     timer.current = setTimeout(finish, s === 'checkin' ? 1500 : 1700);
   };
-  const book = (to: string) => {
+  const book = async (to: string) => {
     const row = flights.find((x) => x.d.id === to);
     if (!row || !desk) return;
     const { d, f } = row;
+    if (!(await send({ type: 'travel.book', to: d.id as MarketId }))) return;
     setTicket({
       from: marketId,
       to: d.id,
@@ -611,6 +613,20 @@ function TripSheet({
         </p>
         <button type="button" className="btn btn-primary trip-go" onClick={() => play('checkin')}>
           {t('Check in for {city}', { city: ticket.toName })}
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          disabled={busy}
+          onClick={async () => {
+            const result = await send({ type: 'travel.cancel' });
+            if (result) {
+              setTicket(null);
+              setStep('ticket');
+            }
+          }}
+        >
+          Cancel ticket · full refund
         </button>
       </div>
     );

@@ -1,0 +1,544 @@
+.experience-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: #06130de6;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  backdrop-filter: blur(12px);
+}
+.experience-shell {
+  width: min(950px, 100%);
+  max-height: 94dvh;
+  overflow: auto;
+  border: 1px solid #385b4c;
+  border-radius: 22px;
+  background: #10291f;
+  color: #effce9;
+  padding: 28px;
+  box-shadow: 0 30px 100px #0008;
+  font:
+    14px/1.55 system-ui,
+    sans-serif;
+}
+.experience-shell h1 {
+  font-size: clamp(25px, 4vw, 40px);
+  letter-spacing: -1px;
+  margin: 8px 0;
+}
+.experience-shell h2 {
+  font-size: 22px;
+  margin: 20px 0 12px;
+}
+.experience-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+}
+.experience-header small {
+  color: #bacba2;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.experience-shell button {
+  border: 1px solid #50765b;
+  border-radius: 10px;
+  background: #224634;
+  color: #f1fde8;
+  padding: 12px 16px;
+  cursor: pointer;
+  font: inherit;
+}
+.experience-shell button:hover:not(:disabled) {
+  background: #386449;
+}
+.experience-shell button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.experience-shell button.selected,
+.experience-shell .experience-primary {
+  background: #dcf59e;
+  color: #153221;
+  border-color: #dcf59e;
+  font-weight: 700;
+}
+.experience-shell .experience-close {
+  font-size: 24px;
+  padding: 0 12px;
+}
+.experience-note {
+  font-size: 11px;
+  color: #b7c8b5;
+  border-bottom: 1px solid #34513d;
+  padding-bottom: 18px;
+}
+.experience-games {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 24px 0;
+}
+.experience-games button {
+  display: grid;
+  gap: 10px;
+  min-height: 160px;
+  text-align: left;
+}
+.experience-games button > span {
+  font-size: 36px;
+}
+.experience-games small {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.experience-rooms {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.experience-rooms button {
+  display: grid;
+  text-align: left;
+  gap: 5px;
+}
+.experience-rooms span,
+.experience-rooms small {
+  font-size: 11px;
+}
+.experience-create {
+  background: #ffffff08;
+  border-radius: 15px;
+  padding: 20px;
+  margin-top: 20px;
+  display: grid;
+  gap: 14px;
+}
+.experience-shell label {
+  display: grid;
+  gap: 6px;
+}
+.experience-shell input:not([type='checkbox']),
+.experience-shell select {
+  background: #0b1d16;
+  color: #f2ffe5;
+  padding: 11px;
+  border: 1px solid #56745c;
+  border-radius: 7px;
+  width: 100%;
+  font: inherit;
+}
+.experience-shell input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+}
+.experience-create fieldset {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #406547;
+  border-radius: 12px;
+}
+.experience-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.experience-toolbar b {
+  margin-left: auto;
+}
+.experience-timer {
+  background: #e7f4b0;
+  color: #28432a;
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  display: grid;
+  place-items: center;
+}
+.experience-scores {
+  display: flex;
+  gap: 10px;
+  overflow: auto;
+}
+.experience-scores > div {
+  padding: 15px;
+  border: 1px solid #476b4e;
+  border-radius: 10px;
+  min-width: 110px;
+  display: grid;
+  gap: 5px;
+  background: #092017;
+}
+.experience-scores > div.you {
+  border-color: #d4ed99;
+}
+.experience-scores strong {
+  font-size: 28px;
+}
+.experience-scores small {
+  font-size: 10px;
+  color: #d4ed99;
+}
+.experience-wait {
+  padding: 25px 0;
+}
+.experience-wait button {
+  margin: 8px 8px 0 0;
+}
+.experience-quiz {
+  text-align: center;
+  padding: 35px 0;
+}
+.experience-quiz h2 {
+  font-size: 28px;
+  max-width: 650px;
+  margin: 15px auto 30px;
+}
+.experience-answers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.experience-answers button {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  text-align: left;
+  padding: 20px;
+}
+.experience-answers b {
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+.experience-result {
+  background: #dae9a4;
+  color: #1d3d2a;
+  padding: 17px;
+  border-radius: 12px;
+}
+.experience-snooker svg {
+  width: 100%;
+  touch-action: none;
+  max-height: 390px;
+  margin: 20px 0;
+}
+.experience-snooker label {
+  margin: 12px 0;
+}
+.experience-football {
+  text-align: center;
+  background: repeating-linear-gradient(#153f28 0 65px, #19482d 65px 130px);
+  padding: 20px;
+  border-radius: 15px;
+  margin: 20px 0;
+}
+.experience-goal {
+  border: 7px solid white;
+  border-bottom: 0;
+  padding: 15px;
+  margin: 25px auto;
+  max-width: 620px;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 23px, #ffffff25 23px 25px),
+    repeating-linear-gradient(90deg, transparent 0 23px, #ffffff25 23px 25px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.experience-goal button:nth-child(3) {
+  grid-column: 1/-1;
+  justify-self: center;
+}
+.experience-ball {
+  font-size: 48px;
+}
+.experience-penalties {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  color: #dff59a;
+}
+.experience-entry {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.experience-shell button:focus-visible,
+.experience-shell input:focus-visible,
+.experience-shell select:focus-visible {
+  outline: 3px solid #ffdc83;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .experience-backdrop {
+    padding: 0;
+  }
+  .experience-shell {
+    border-radius: 0;
+    max-height: 100dvh;
+    height: 100dvh;
+    padding: 20px 15px;
+  }
+  .experience-games {
+    gap: 6px;
+  }
+  .experience-games button {
+    padding: 12px 8px;
+    font-size: 12px;
+    min-height: 145px;
+  }
+  .experience-games small {
+    font-size: 10px;
+  }
+  .experience-rooms {
+    grid-template-columns: 1fr;
+  }
+  .experience-answers {
+    grid-template-columns: 1fr;
+  }
+  .experience-quiz h2 {
+    font-size: 23px;
+  }
+  .experience-header small {
+    letter-spacing: 1px;
+  }
+  .experience-toolbar {
+    font-size: 11px;
+    gap: 9px;
+  }
+  .experience-goal {
+    gap: 8px;
+    padding: 8px;
+  }
+  .experience-goal button {
+    font-size: 10px;
+    padding: 12px 6px;
+  }
+}
+.living-delivery {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border: 1px solid #476b4e;
+  padding: 16px;
+  border-radius: 12px;
+  margin: 12px 0;
+}
+.living-delivery > div:nth-child(2) {
+  flex: 1;
+}
+.living-delivery p {
+  font-size: 12px;
+}
+.living-van {
+  font-size: 42px;
+  animation: vanApproach 4s ease-out both;
+}
+.living-van[data-arrived='true'] {
+  animation: none;
+}
+.living-car {
+  border: 1px solid #476b4e;
+  padding: 18px;
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+}
+.living-car > span {
+  font-size: 32px;
+}
+.living-couple {
+  display: flex;
+  justify-content: center;
+  gap: 35px;
+  align-items: center;
+  font-size: 45px;
+  padding: 22px;
+  background: #c9e2a411;
+  border-radius: 15px;
+}
+.living-couple b {
+  font-size: 24px;
+  color: #b5c6a9;
+}
+.living-couple.holding {
+  gap: 10px;
+}
+.living-couple.holding b {
+  color: #ffb1be;
+  animation: dateHeart 2s infinite;
+}
+.living-reactions {
+  border-left: 3px solid #b4da8d;
+  padding-left: 15px;
+}
+.panorama {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: #10231f;
+  color: white;
+}
+.panorama-canvas {
+  position: absolute;
+  inset: 0;
+}
+.panorama header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 25px;
+  background: linear-gradient(#0009, transparent);
+  pointer-events: none;
+}
+.panorama header button {
+  align-self: flex-start;
+  pointer-events: auto;
+}
+.panorama header h2 {
+  margin: 6px 0;
+  text-shadow: 0 1px 6px #000;
+  font-size: 28px;
+}
+.panorama header p {
+  font-size: 12px;
+}
+.panorama header small {
+  letter-spacing: 3px;
+  font-size: 9px;
+}
+.panorama footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20px;
+  background: linear-gradient(transparent, #06120df2);
+  text-shadow: 0 1px 5px #000;
+}
+.panorama footer > div {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+.panorama footer button {
+  white-space: nowrap;
+  font-size: 11px;
+  background: #183c30d9;
+  padding: 9px 13px;
+}
+.panorama footer small {
+  font-size: 10px;
+}
+.panorama-controls {
+  flex-wrap: wrap;
+}
+.panorama-error {
+  position: absolute;
+  top: 35%;
+  left: 10%;
+  right: 10%;
+  padding: 20px;
+  background: #2d4239;
+  border-radius: 15px;
+}
+.panorama-canvas canvas {
+  display: block;
+}
+.home-delivery-banner {
+  position: relative;
+  margin: 0 12px 8px;
+  flex-shrink: 0;
+  z-index: 10;
+  background: #e6f6c9;
+  color: #203c24;
+  border-radius: 12px;
+  padding: 10px 14px;
+  border: 1px solid #678d50;
+  box-shadow: 0 4px 20px #0003;
+  font-size: 12px;
+}
+.home-delivery-banner button {
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  font-weight: bold;
+  cursor: pointer;
+}
+@keyframes vanApproach {
+  from {
+    transform: translateX(-35px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes dateHeart {
+  50% {
+    transform: scale(1.15);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .living-van,
+  .living-couple.holding b {
+    animation: none;
+  }
+}
+@media (max-width: 600px) {
+  .living-delivery {
+    flex-wrap: wrap;
+  }
+  .living-delivery button {
+    width: 100%;
+  }
+  .panorama header {
+    padding: 18px;
+  }
+  .panorama header h2 {
+    font-size: 21px;
+  }
+  .panorama footer {
+    padding: 14px;
+  }
+}
+.experience-ball.is-kicked {
+  animation: penaltyKick 1s ease-out both;
+}
+.panorama-date {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: #173729ce;
+  border-radius: 12px;
+  padding: 10px;
+}
+.panorama-date > span {
+  font-size: 11px;
+}
+.panorama-date button {
+  font-size: 11px !important;
+}
+@keyframes penaltyKick {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    transform: translate(var(--shot-x), var(--shot-y)) scale(0.4) rotate(300deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .experience-ball.is-kicked {
+    animation: none;
+  }
+}

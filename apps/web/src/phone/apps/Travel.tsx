@@ -3,6 +3,7 @@
  * time, airline, flight number, flight time and fare. You choose where to go
  * and book first; then you go to the airport and check in for that flight.
  */
+import type { MarketId } from '@runway/engine';
 import { useState } from 'react';
 import { money } from '../../format';
 import { t } from '../../i18n';
@@ -22,7 +23,7 @@ import { Icon } from '../icons';
 import { Nothing, type PhoneCtx } from '../shared';
 
 export function Travel({ ctx }: { ctx: PhoneCtx }) {
-  const { view, cur } = useView();
+  const { view, cur, send, busy } = useView();
   const here = hereOf(view);
   const dests = destinationsOf(view);
   const month = view.market.month;
@@ -59,6 +60,18 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
           </div>
         </div>
       )}
+      {booked && (
+        <button
+          className="btn btn-ghost"
+          disabled={busy}
+          onClick={() => void send({ type: 'travel.cancel' })}
+        >
+          Cancel ticket · full refund
+        </button>
+      )}
+      <p className="small muted">
+        Flights are charged when booked. Boarding does not charge again.
+      </p>
       <p className="small muted">
         {t('Where do you want to go? Choose a flight and book it, then check in at the airport.')}
       </p>
@@ -83,9 +96,10 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
               </span>
               <button
                 className={`btn ${booked?.to === d.id ? 'btn-primary' : 'btn-subtle'}`}
-                disabled={d.done}
+                disabled={busy || d.done || !!booked}
                 aria-label={t('Book a flight to {city}', { city: d.name })}
-                onClick={() => {
+                onClick={async () => {
+                  if (!(await send({ type: 'travel.book', to: d.id as MarketId }))) return;
                   setTicket({
                     from: here.id,
                     to: d.id,

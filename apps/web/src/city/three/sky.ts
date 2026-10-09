@@ -30,16 +30,22 @@ const smooth = (a: number, b: number, x: number) => {
 };
 
 /** The sky at a local hour (0–24, fractional) and latitude. */
-export function skyAt(hour: number, lat: number, haze: number): SkyState {
+export function skyAt(
+  hour: number,
+  lat: number,
+  haze: number,
+  solar?: { altitude: number; azimuth: number },
+): SkyState {
   // Day arc: sunrise ~6, noon 12.5, sunset ~19.
   const dayT = (hour - 6.2) / 12.6; // 0..1 across the day
   const elev = Math.sin(Math.PI * Math.max(-0.25, Math.min(1.25, dayT)));
   // Kept below ~50°: a lower sun models the buildings and casts the long
   // shadows of the photographs (the noon sun of the tropics would flatten them).
-  const el = Math.asin(Math.max(-0.4, elev) * Math.sin(0.86));
+  const el = solar?.altitude ?? Math.asin(Math.max(-0.4, elev) * Math.sin(0.86));
   // Azimuth: east (90°) at dawn, through the equator side at noon, west at dusk.
   const south = lat >= 0 ? 180 : 0;
   const az =
+    solar?.azimuth ??
     ((90 + (south === 180 ? 1 : -1) * 180 * Math.max(0, Math.min(1, dayT))) * Math.PI) / 180;
   // Bearing → three's frame: north is −z, east is +x.
   const sunDir = new THREE.Vector3(

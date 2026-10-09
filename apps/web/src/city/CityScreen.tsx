@@ -526,17 +526,35 @@ function CityBodyInner({
   // go to the airport and check in for it (lite mode, without the airport
   // scene, flies at once).
   const homeMonth = view.market.month;
-  const flyHomeViaAirport = useCallback(() => {
+  const flyHomeViaAirport = useCallback(async () => {
     const d = destinations.find((x) => x.id === home.id);
     const airport = layout.places.find((p) => p.kind === 'airport');
     if (lite || !d || d.done || !airport) {
       onFlyHome();
       return;
     }
+    try {
+      await api.command({ type: 'travel.book', to: home.id } as Command);
+      await refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Booking failed.', 'error');
+      return;
+    }
     setTicket(ticketFor(layout.marketId, d, home.currency, homeMonth));
     setInside(null);
     goTo(airport);
-  }, [destinations, home.id, home.currency, homeMonth, layout, lite, onFlyHome, goTo]);
+  }, [
+    destinations,
+    home.id,
+    home.currency,
+    homeMonth,
+    layout,
+    lite,
+    onFlyHome,
+    goTo,
+    refresh,
+    toast,
+  ]);
   const visit = useCallback(
     (placeId: string) => {
       // 'market' stands for the Market's stalls ("What to do now").

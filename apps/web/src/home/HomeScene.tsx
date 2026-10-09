@@ -1,3 +1,6 @@
+import { openLiving } from '../experiences/living-bus';
+import { useDaylight } from '../city/useDaylight';
+import { openPlay } from '../experiences/play-bus';
 /**
  * Your home, walkable (docs/WAVE7-IMMERSIVE.md §A): a top-down 3/4 view of a
  * flat that grows with your lifestyle tier. Tap the floor to walk there (A*),
@@ -40,7 +43,6 @@ import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
 import { businessesOf, hash } from '../city/contract';
 import { carOf, genderOf, nearest, sellsOf, storeForSlot } from '../city/life';
 import type { SceneProps } from '../city/PlaceScene';
-import { isNight, localHour } from '../city/travel';
 import { FixtureArt, SlotArt, TILE } from './art';
 import {
   TIER_HOME,
@@ -185,6 +187,8 @@ export interface HostView {
   name: string;
   tier: number;
   tiers: Map<string, number>;
+  cars?: string[];
+  estate?: 'villa' | 'mansion' | 'penthouse' | null;
 }
 
 export function HomeScene({
@@ -196,7 +200,10 @@ export function HomeScene({
   hostView,
 }: SceneProps & { hostView?: HostView }) {
   const { view, send, busy, cur, toast } = useView();
-  const tier = Math.max(1, Math.min(5, hostView?.tier ?? view.me.lifestyle?.tier ?? 2));
+  const tier = Math.max(
+    1,
+    Math.min(5, hostView?.tier ?? view.me.residence?.lifestyleTier ?? view.me.lifestyle?.tier ?? 2),
+  );
   const basePlan = planFor(tier);
   const tiers = useMemo(() => hostView?.tiers ?? ownedTiers(view), [view, hostView]);
   const ownedKey = [...tiers.keys()].sort().join(',');
@@ -220,9 +227,7 @@ export function HomeScene({
     () => ({ w: plan.w, h: plan.h, blocked: blockedTiles(plan, owned), walls: wallEdges(plan) }),
     [plan, owned],
   );
-  const hour = localHour(view.market.id);
-  const night = isNight(hour);
-  const dusk = !night && (hour >= 17 || hour < 7);
+  const { night, dusk } = useDaylight(view.market.id);
   const car = hostView ? null : carOf(view);
   const needs = needsOf(view);
   const mood = moodOf(view);
@@ -642,6 +647,8 @@ export function HomeScene({
 
   const choose = (obj: Obj, v: Verb) => {
     setMenu(null);
+    if (v.id === 'game')
+      return openPlay({ venue: `home:${placeOwner}`, name: homeName, game: 'football' });
     if (v.id === 'out') return onClose();
     if (v.id === 'invite') return setSheet('invite');
     if (v.id === 'order') return openPhone({ app: 'chop' } as unknown as PhoneOpen);
@@ -1056,6 +1063,17 @@ export function HomeScene({
               night={night}
               dusk={dusk}
               car={car?.modelId ?? null}
+              cars={hostView ? (hostView.cars ?? []) : view.me.garage.map((c) => c.modelId)}
+              estate={
+                hostView
+                  ? hostView.estate
+                  : ['villa', 'mansion', 'penthouse'].includes(view.me.residence?.tier ?? '')
+                    ? (view.me.residence!.tier as 'villa' | 'mansion' | 'penthouse')
+                    : null
+              }
+              delivery={
+                view.living.deliveries.find((d) => d.owner === placeOwner && !d.complete) ?? null
+              }
               buyMode={sheet === 'buy' || !!placing}
               sheetOpen={sheet === 'buy'}
               ghost={ghost}
@@ -1293,7 +1311,23 @@ export function HomeScene({
           />
         )}
       </div>
+      {view.living.deliveries.some((d) => d.owner === placeOwner && !d.complete) && (
+        <div className="home-delivery-banner">
+          <button onClick={() => openLiving(placeOwner)}>
+            🚚 Delivery on its way / at your door · Open
+          </button>
+        </div>
+      )}
       <nav className="home-bar" aria-label={t('Home actions')}>
+        <button className="home-bar-btn" onClick={() => openLiving(placeOwner)}>
+          🚚 Home & friends
+        </button>
+        <button
+          className="home-bar-btn"
+          onClick={() => openPlay({ venue: `home:${placeOwner}`, name: homeName })}
+        >
+          🎮 Play together
+        </button>
         {hostView ? (
           <button type="button" className="home-bar-btn" onClick={onClose}>
             <span aria-hidden="true">👋</span>

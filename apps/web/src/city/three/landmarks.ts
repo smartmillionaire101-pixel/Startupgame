@@ -801,3 +801,18 @@ function floodlight(g: THREE.Group, p: LandmarkPlan) {
     }
   if (H > 60) LIGHTS.add(cx, H + 3, cz, BEACON, Math.max(9, H / 30), 0.27);
 }
+
+/** A self-contained landmark for the skyline viewer; materials can be disposed independently. */
+export function panoramaLandmark(kind: string, name: string): THREE.Group | null {
+  const g =
+    kind === 'bascule' ? towerBridge({ ax: 0, ay: -150, bx: 0, by: 150 }) : model(kind, name);
+  if (!g) return null;
+  g.traverse((o) => {
+    if (o instanceof THREE.Mesh || o instanceof THREE.Line) {
+      o.material = Array.isArray(o.material)
+        ? o.material.map((m) => m.clone())
+        : o.material.clone();
+    }
+  });
+  return g;
+}

@@ -107,6 +107,8 @@ export function visitsOf(view: View): { incoming: VisitRow[]; outgoing: VisitRow
 
 export interface Visiting {
   visitId: string;
+  cars: string[];
+  estate: 'villa' | 'mansion' | 'penthouse' | null;
   host: { id: string; name: string; backgroundId: string; gender: 'female' | 'male' | null };
   tier: number;
   /** Furniture tier per slot the host owns. */
@@ -121,6 +123,11 @@ export function visitingOf(view: View): Visiting | null {
   const home = isObj(v.home) ? v.home : {};
   return {
     visitId: str(v.visitId),
+    cars: Array.isArray(v.cars) ? v.cars.filter((c): c is string => typeof c === 'string') : [],
+    estate:
+      isObj(v.residence) && ['villa', 'mansion', 'penthouse'].includes(str(v.residence.tier))
+        ? (v.residence.tier as 'villa' | 'mansion' | 'penthouse')
+        : null,
     host: {
       id: str(h.id),
       name: str(h.name, '—'),

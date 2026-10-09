@@ -1,3 +1,4 @@
+import { citySun } from '../solar';
 /**
  * Wave 9 §B: the 3D city — a three.js scene for a real-map CityLayout.
  *
@@ -228,7 +229,7 @@ export class CityScene {
     this.scene.add(this.sun, this.sun.target, this.hemi);
     this.dome = skyDome(this.sky, 1);
     this.scene.add(this.dome);
-    this.skyState = skyAt(this.hour, this.look.lat, this.look.haze);
+    this.skyState = skyAt(this.hour, this.look.lat, this.look.haze, citySun(this.layout.marketId));
     this.applySky();
 
     // ---- The city.
@@ -748,7 +749,7 @@ export class CityScene {
   setHour(hour: number) {
     if (Math.abs(hour - this.hour) < 0.05) return;
     this.hour = hour;
-    this.skyState = skyAt(hour, this.look.lat, this.look.haze);
+    this.skyState = skyAt(hour, this.look.lat, this.look.haze, citySun(this.layout.marketId));
     this.applySky();
     this.invalidate();
   }

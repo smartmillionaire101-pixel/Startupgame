@@ -10,7 +10,6 @@ import { useView } from '../../store';
 import { Button } from '../../ui';
 import { hereField, looseCmd } from '../../city/life';
 import { cityViewOf } from '../../city/travel';
-import { prefersReducedMotion } from '../settings';
 import { Icon } from '../icons';
 import { H, Meter, Nothing, isObj, list, needsOf, num, str, type PhoneCtx } from '../shared';
 
@@ -49,9 +48,6 @@ export function deliveryOf(view: Parameters<typeof hereField>[0]): DeliveryPlace
 /** Delivery adds 15% (paid to the business). */
 export const withDelivery = (price: number) => Math.round(price * 1.15);
 
-/** How long the "Arriving" card shows before the food lands (ms). */
-const ARRIVE_MS = 4000;
-
 export function Chop(_: { ctx: PhoneCtx }) {
   const { view, send, toast } = useView();
   const cur = cityViewOf(view).market.currency;
@@ -67,16 +63,10 @@ export function Chop(_: { ctx: PhoneCtx }) {
     if (r === null) return;
     setComing({ label: i.label, from: p.name });
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(
-      () => {
-        setComing(null);
-        toast(
-          t('Your {item} from {place} has arrived. Enjoy!', { item: i.label, place: p.name }),
-          'ok',
-        );
-      },
-      prefersReducedMotion() ? 600 : ARRIVE_MS,
-    );
+    timer.current = setTimeout(() => {
+      setComing(null);
+      toast(`Your ${i.label} from ${p.name} is at your door. Unpack it at home.`, 'ok');
+    }, 30_000);
   };
 
   if (!places)
@@ -97,7 +87,7 @@ export function Chop(_: { ctx: PhoneCtx }) {
             <Icon name="rides" size={22} />
           </span>
           <div>
-            <div className="item-title">{t('Arriving in 20 min')}</div>
+            <div className="item-title">{'Delivery arrives in 30 seconds · unpack at home'}</div>
             <div className="small">
               {t('{item} from {place}', { item: coming.label, place: coming.from })}
             </div>

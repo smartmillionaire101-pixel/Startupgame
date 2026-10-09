@@ -1,3 +1,5 @@
+import { openLiving } from './experiences/living-bus';
+import { useView } from './store';
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { t } from './i18n';
@@ -5,6 +7,7 @@ import { useMusic } from './music';
 import { setSetting, useSetting } from './phone/settings';
 
 export function GameActivity() {
+  const { view } = useView();
   const sound = useSetting('sound');
   useMusic(sound);
   const [count, setCount] = useState<number | null>(null);
@@ -61,6 +64,12 @@ export function GameActivity() {
         <span className="online-dot" aria-hidden="true" />
         {count === null ? t('Online count unavailable') : t('{n} online', { n: count })}
       </span>
+      <button type="button" onClick={() => openLiving(view.me.id)}>
+        Together
+        {view.living.dates.some((d) => d.status === 'invited' && d.guest === view.me.id)
+          ? ' • Invitation'
+          : ''}
+      </button>
       <button
         type="button"
         className="music-toggle"

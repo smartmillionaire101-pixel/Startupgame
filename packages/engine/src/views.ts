@@ -1,3 +1,5 @@
+import { livingView } from './living.js';
+import { playView } from './play.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
  *  - their own accounts, companies, deals, pitches, stories and inbox in full,
@@ -628,12 +630,15 @@ export function playerView(
   );
   return {
     worldVersion: world.version,
+    playRooms: playView(world, p),
+    living: livingView(world, p),
     /** The month clock (Wave 4): when the next settlement is due, for a countdown. */
     clock: clock ? clockView(clock.now, clock.monthMs) : null,
     /** One-way flights from where you are (Wave 4): fares in your home currency, minor units. */
     flights: flightsView(world, p),
     me: {
       id: p.id,
+      flightTicket: p.flightTicket ?? null,
       handle: p.handle,
       name: p.name,
       role: p.role,
@@ -689,6 +694,10 @@ export function playerView(
       home: myHomeView(p),
       /** Wave 5: your car, or null. */
       car: carView(world, p),
+      garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({
+        ...car,
+        active: car.modelId === p.car?.modelId,
+      })),
       /** Wave 5: status (0–100) from your home, car and lifestyle, shown on your profile. */
       status: statusOf(p),
       /** Wave 10: homes you own, in every city (amounts in each home's currency). */

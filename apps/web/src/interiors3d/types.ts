@@ -58,6 +58,8 @@ export interface Home3DProps {
   night: boolean;
   dusk: boolean;
   car: string | null;
+  cars?: string[];
+  delivery?: { id: string; orderedAt: number; arrivesAt: number } | null;
   buyMode: boolean;
   /** The catalogue sheet covers the bottom of the screen. */
   sheetOpen: boolean;
