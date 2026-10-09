@@ -1,6 +1,6 @@
 /**
  * Wave 9 §C: Buy mode at home. A catalogue sheet of everything for your home
- * (by room, with prices, comfort and what you own); buying sends `home.buy`
+ * (by room, with prices, comfort and what you own); buying sends `home.order`
  * (the nearest showroom delivers) and then you place it: tap the floor to
  * move it, turn it, and put it down. Placement is kept on this device
  * (./placement.ts).
@@ -67,16 +67,15 @@ export function BuySheet({
   const shop = shopOf(view);
   const pocket = view.accounts.local?.balance ?? 0;
   const r = BUY_ROOMS.find((x) => x.id === room)!;
-  const buy = async (id: string, slot: string, label: string) => {
+  const buy = async (id: string, _slot: string, label: string) => {
     setArmed(null);
     const res = await send(
-      looseCmd({ type: 'home.buy', itemId: id }),
+      looseCmd({ type: 'home.order', itemId: id }),
       (x: { message?: string } | null) =>
         x?.message ? tx(x.message) : t('{item} is on its way to your flat.', { item: tx(label) }),
     );
     if (res === null) return;
-    if (MOVABLE.has(slot)) onPlace(slot, tx(label));
-    else onClose();
+    onClose();
   };
   return (
     <div className="home-sheet-back buy-back" onClick={onClose}>
@@ -133,6 +132,9 @@ export function BuySheet({
                 <div className="buy-items">
                   {items.map((f) => {
                     const mine = have === f.tier;
+                    const pending = view.living.deliveries.some(
+                      (d) => d.owner === view.me.id && !d.complete && d.item?.slot === slot,
+                    );
                     const isArmed = armed === f.id;
                     return (
                       <button
@@ -141,7 +143,7 @@ export function BuySheet({
                         className={`buy-item tier-${f.tier}${mine ? ' is-mine' : ''}${isArmed ? ' is-armed' : ''}`}
                         data-buy-item={f.id}
                         data-owned={mine ? '1' : '0'}
-                        disabled={mine || busy || pocket < f.price}
+                        disabled={mine || pending || busy || pocket < f.price}
                         onClick={() => (isArmed ? void buy(f.id, slot, f.label) : setArmed(f.id))}
                       >
                         <span className="buy-stars" aria-hidden="true">
@@ -151,9 +153,11 @@ export function BuySheet({
                         <span className="buy-price">
                           {mine
                             ? t('Yours ✓')
-                            : isArmed
-                              ? t('Tap again to buy')
-                              : money(f.price, cur)}
+                            : pending
+                              ? 'On its way'
+                              : isArmed
+                                ? t('Tap again to buy')
+                                : money(f.price, cur)}
                         </span>
                       </button>
                     );

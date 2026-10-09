@@ -102,6 +102,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
 
   const { plan, tier, objects, night, dusk, car, ghost, moving, buyMode, acting } = props;
   const estate = props.estate ?? null;
+  const garageKey = props.cars?.join(',');
   // Anything that changes what people do: draw again.
   useEffect(() => {
     stageRef.current?.invalidate();
@@ -219,13 +220,24 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const h = buildHouse(plan, { tier, night, car, estate });
+    const h = buildHouse(plan, {
+      tier,
+      night,
+      car,
+      estate,
+      cars: garageKey?.split(',').filter(Boolean),
+    });
     houseRef.current = h;
     stage.scene.add(h.root);
     stage.target.copy(h.centre);
     stage.span = h.span;
     stage.fitCenter = h.centre.clone();
-    stage.fit = h.fitPoints;
+    stage.fit = [
+      ...h.fitPoints,
+      ...[-4, 4].flatMap((dx) =>
+        [3, 6].map((dz) => new THREE.Vector3(plan.w / 2 + dx, 2.5, plan.h + dz)),
+      ),
+    ];
     stage.fitMargin = 1.0;
     // A tall phone: look down a little more so the house fills the screen.
     if (stage.w / stage.h < 0.8) stage.elevation = 1.0;
@@ -244,7 +256,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       disposeTree(h.root);
       houseRef.current = null;
     };
-  }, [plan, tier, night, car, estate]);
+  }, [plan, tier, night, car, estate, garageKey]);
 
   // ---- Light: day, dusk or night.
   useEffect(() => {
@@ -472,6 +484,46 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       stage.invalidate();
     };
   }, [ghost]);
+
+  // A real van drives up to the front door, then waits while the parcels are unloaded.
+  const delivery = props.delivery;
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !delivery) return;
+    const k = new Kit();
+    k.box(2.1, 1.6, 3.8, '#f5efdc', 0, 0.6, 0, { round: 0.12 });
+    k.box(2, 1.2, 1.4, '#286948', 0, 0.6, 2.4, { round: 0.12 });
+    k.box(1.7, 0.55, 0.04, '#acd2dd', 0, 1.2, 3.12);
+    for (const x of [-1.01, 1.01]) {
+      k.box(0.03, 0.5, 1, '#acd2dd', x, 1.2, 2.35);
+      k.box(0.03, 0.22, 3.4, '#286948', x, 0.95, 0);
+    }
+    for (const x of [-0.7, 0.7])
+      k.box(0.3, 0.18, 0.06, '#ffeeb3', x, 0.78, 3.13, {
+        emissive: '#ffeeb3',
+        emissiveIntensity: 0.5,
+      });
+    for (const x of [-1.05, 1.05])
+      for (const z of [-1.1, 2.4])
+        k.cyl(0.37, 0.37, 0.2, '#20252a', x, 0.32, z, { rz: Math.PI / 2, seg: 12 });
+    const van = k.build();
+    stage.scene.add(van);
+    const off = stage.add(() => {
+      const u = Math.min(
+        1,
+        Math.max(0, (Date.now() - delivery.orderedAt) / (delivery.arrivesAt - delivery.orderedAt)),
+      );
+      van.position.set(plan.w / 2 + (1 - u) * 18, 0, plan.h + 4.5);
+      van.rotation.y = -Math.PI / 2;
+      return u < 1;
+    });
+    stage.invalidate();
+    return () => {
+      off();
+      stage.scene.remove(van);
+      disposeTree(van);
+    };
+  }, [delivery, plan.w, plan.h]);
 
   // ---- People and acts: one animator.
   useEffect(() => {

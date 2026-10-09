@@ -1,3 +1,5 @@
+import { useDaylight } from './useDaylight';
+import { openPlay } from '../experiences/play-bus';
 /**
  * Places you walk into (docs/WAVE5-FUN-LIFE-AND-CAPITAL.md §D): going into
  * any place opens a full-screen scene, not a card. An illustrated room for
@@ -23,7 +25,6 @@ import {
 import './scenes.css';
 import '../interiors3d/i3d.css';
 import { use3d } from '../three-kit/quality';
-import { isNight, localHour } from './travel';
 import type { PlayerView } from '@runway/engine';
 import { money } from '../format';
 import { t, tx } from '../i18n';
@@ -585,6 +586,7 @@ function RoomScene({
   children,
 }: SceneProps) {
   const { view, send, cur, busy } = useView();
+  const daylight = useDaylight(view.here?.id ?? view.market.id);
   /** Below the room: the tray, everything else ("More"), or a showroom's catalogue. */
   const [panel, setPanel] = useState<'tray' | 'more' | 'shop'>('tray');
   const more = panel !== 'tray';
@@ -748,7 +750,21 @@ function RoomScene({
     if (look) setLookOverride(view.me.id, look);
     setAct((a) => (a?.n === n ? { ...a, result: r ?? {}, met: metOf(r) } : a));
   };
-  const doFun = (b: BusinessView, it: VenueItemView) => playAct(b, it, funIcon(it.label, room));
+  const doFun = (b: BusinessView, it: VenueItemView) => {
+    if (/quiz|snooker|pool|video.game|football/i.test(`${it.id} ${it.label}`)) {
+      openPlay({
+        venue: b.id,
+        name: b.name,
+        game: /quiz/i.test(it.id)
+          ? 'quiz'
+          : /football|video.game/i.test(it.id)
+            ? 'football'
+            : 'snooker',
+      });
+      return;
+    }
+    return playAct(b, it, funIcon(it.label, room));
+  };
   const saveMet = async () => {
     const met = act?.met ?? outcome?.met;
     if (!met) return;
@@ -1209,7 +1225,7 @@ function RoomScene({
               room={room}
               tint={business?.look.color ?? place.color}
               sign={sign?.toUpperCase().slice(0, 22)}
-              night={isNight(localHour(view.market.id))}
+              night={daylight.night}
               slots={slots}
               people={people3d}
               me={meLook}
@@ -1329,6 +1345,14 @@ function RoomScene({
         </div>
       ) : (
         <div className="place-tray">
+          {business && ['bar', 'lounge', 'club'].includes(room) && (
+            <button
+              className="btn btn-primary"
+              onClick={() => openPlay({ venue: business.id, name: business.name })}
+            >
+              Play together · quiz, snooker & football
+            </button>
+          )}
           {(business?.venue || (business && sellsOf(view, business))) && (
             <p className="small muted tray-pocket" data-pocket={pocket}>
               {t('In your pocket: {amount}', { amount: money(pocket, cur) })}

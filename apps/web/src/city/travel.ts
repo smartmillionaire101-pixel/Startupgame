@@ -1,3 +1,4 @@
+import { CITY_GEO } from './coordinates';
 /**
  * Wave 4: getting around (docs/WAVE4-PACE-TRAVEL-SPACE.md §B).
  *
@@ -335,32 +336,22 @@ export function rememberRide(mode: RideMode) {
 // Flights
 
 /** Where each city is, for the route map, and its time zone (day or night). */
-export const CITY_GEO: Record<string, { lat: number; lon: number; tz: string }> = {
-  lagos: { lat: 6.52, lon: 3.38, tz: 'Africa/Lagos' },
-  nairobi: { lat: -1.29, lon: 36.82, tz: 'Africa/Nairobi' },
-  london: { lat: 51.51, lon: -0.13, tz: 'Europe/London' },
-  accra: { lat: 5.6, lon: -0.19, tz: 'Africa/Accra' },
-  freetown: { lat: 8.48, lon: -13.23, tz: 'Africa/Freetown' },
-  kigali: { lat: -1.95, lon: 30.06, tz: 'Africa/Kigali' },
-  johannesburg: { lat: -26.2, lon: 28.05, tz: 'Africa/Johannesburg' },
-  cairo: { lat: 30.04, lon: 31.24, tz: 'Africa/Cairo' },
-  dubai: { lat: 25.2, lon: 55.27, tz: 'Asia/Dubai' },
-  'san-francisco': { lat: 37.77, lon: -122.42, tz: 'America/Los_Angeles' },
-};
+export { CITY_GEO } from './coordinates';
 
 /** Local hour (0–23) in a city right now; noon when unknown. */
 export function localHour(marketId: string, now = Date.now()): number {
   const tz = CITY_GEO[marketId]?.tz;
   if (!tz) return 12;
-  try {
-    const h = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: tz })
-      .formatToParts(new Date(now))
-      .find((p) => p.type === 'hour')?.value;
-    const n = Number(h);
-    return Number.isFinite(n) ? n % 24 : 12;
-  } catch {
-    return 12;
-  }
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    hour: 'numeric',
+    minute: 'numeric',
+    hourCycle: 'h23',
+    timeZone: tz,
+  }).formatToParts(new Date(now));
+  return (
+    (Number(parts.find((p) => p.type === 'hour')?.value ?? 12) % 24) +
+    Number(parts.find((p) => p.type === 'minute')?.value ?? 0) / 60
+  );
 }
 
 export const isNight = (hour: number) => hour < 6 || hour >= 19;

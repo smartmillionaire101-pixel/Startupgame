@@ -21,7 +21,8 @@ import { useReducedMotion } from './CityMap';
 import { Cabin } from './acts/Cabin';
 import { genderOf } from './life';
 import { flavourOf } from './flavour';
-import { AIRPORT_NAMES, CITY_GEO, fmtFlightTime, isNight, localHour, seeded, fnv } from './travel';
+import { useDaylight } from './useDaylight';
+import { AIRPORT_NAMES, CITY_GEO, fmtFlightTime, seeded, fnv } from './travel';
 import './flight.css';
 
 type Phase = 'takeoff' | 'cruise' | 'landing' | 'ferry' | 'arrived';
@@ -261,8 +262,8 @@ export function FlightScene({
   const reduced = useReducedMotion();
   const { view } = useView();
   const [phase, setPhase] = useState<Phase>(reduced ? 'cruise' : 'takeoff');
-  const nightFrom = isNight(localHour(from));
-  const nightTo = isNight(localHour(to));
+  const nightFrom = useDaylight(from).night;
+  const nightTo = useDaylight(to).night;
   const ferry = to === 'freetown';
   const realHours = flightHours(from, to, hours);
 

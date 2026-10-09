@@ -86,6 +86,9 @@ try {
   /* storage blocked */
 }
 
+const LivingHost = lazy(() => import('./experiences/LivingHost'));
+const PlayHost = lazy(() => import('./experiences/PlayHost'));
+
 export function App() {
   useVisits();
   const { status, view } = useGame();
@@ -119,7 +122,15 @@ export function App() {
       )}
       {status === 'signedOut' && <SignIn />}
       {status === 'onboarding' && <Onboarding />}
-      {status === 'ready' && <Game />}
+      {status === 'ready' && (
+        <>
+          <Game />
+          <Suspense fallback={null}>
+            <PlayHost />
+            <LivingHost />
+          </Suspense>
+        </>
+      )}
       <Toasts />
       <UpdateBanner />
     </>

@@ -28,6 +28,7 @@ import { NPC_POOL, npcPerson } from './people.js';
 import { getBusiness, isOpen, specOf } from './economy.js';
 import { deriveRng } from './rng.js';
 import { TECH_CAPITAL_EVENTS, TECH_CAPITAL_TOPICS } from './data/tech-capital.js';
+import { residenceView } from './property.js';
 import { homeView } from './shop.js';
 import type { MarketId } from './data/markets.js';
 import type { Hangout, Id, LocalBusiness, MarketState, Player, Visit, World } from './types.js';
@@ -393,7 +394,9 @@ export function visitingView(world: World, p: Player) {
       backgroundId: host.backgroundId,
       gender: host.gender ?? null,
     },
-    lifestyleTier: host.lifestyleTier,
+    lifestyleTier: residenceView(world, host)?.lifestyleTier ?? host.lifestyleTier,
+    residence: residenceView(world, host),
+    cars: (host.garage ?? (host.car ? [host.car] : [])).map((c) => c.modelId),
     home: homeView(host),
     readOnly: true as const,
   };

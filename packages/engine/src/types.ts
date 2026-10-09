@@ -1,3 +1,5 @@
+import type { Delivery, DateSession } from './living.js';
+import type { PlayRoom } from './play.js';
 /**
  * World state. Plain JSON-serialisable data only (no classes, Maps or Dates)
  * so it can be snapshotted, diffed, sent to clients and replayed.
@@ -105,6 +107,8 @@ export interface InvestorProfile {
 }
 
 export interface Player {
+  garage?: PlayerCar[];
+  flightTicket?: { from: MarketId; to: MarketId; paid: number; bookedAt: number };
   id: Id;
   handle: string;
   name: string;
@@ -1180,6 +1184,9 @@ export type ExternalPurpose =
 // ---------------------------------------------------------------- World
 
 export interface World {
+  deliveries?: Record<Id, Delivery>;
+  dates?: Record<Id, DateSession>;
+  playRooms?: Record<Id, PlayRoom>;
   /** Durable admin counters. Older snapshots start tracking at their next command. */
   activity?: {
     since: number;

@@ -148,9 +148,16 @@ test('an appliance shop sells a TV, and it shows in your flat', async ({ page })
   await buy.click();
   await expect(buy).toHaveText('Tap again to buy');
   await buy.click();
-  await expect(tvs.locator('[data-owned="1"]')).toHaveCount(1, { timeout: 8000 });
+  await expect(tvs.getByText('Delivery on the way').first()).toBeVisible({ timeout: 8000 });
 
   await scene.getByRole('button', { name: 'Close' }).click();
   const home = await enter(page, 'home');
+  await home.getByRole('button', { name: /Home & friends/ }).click();
+  const social = page.getByRole('dialog', { name: 'Home and social experiences' });
+  await expect(social.getByRole('button', { name: 'Unpack delivery' })).toBeEnabled({
+    timeout: 40000,
+  });
+  await social.getByRole('button', { name: 'Unpack delivery' }).click();
+  await social.getByRole('button', { name: 'Close home experiences' }).click();
   await expect(home.locator('[data-furniture="tv"]')).toHaveAttribute('data-owned', '1');
 });

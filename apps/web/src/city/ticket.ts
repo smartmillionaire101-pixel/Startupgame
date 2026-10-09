@@ -4,11 +4,13 @@
  * and the fare), book, go to the airport, check in for that flight, security,
  * the gate, fly.
  *
- * The ticket is held on this device (the engine's `travel.fly` charges the
- * fare and moves you when you board), shared by the Travel app, the airport
- * and the "Fly home" buttons. It belongs to the city you booked it in.
+ * Paid tickets are stored by the server. Only flight display details are cached
+ * on this device. Booking charges the fare; boarding consumes the ticket without
+ * another charge. Cancellation refunds the original payment.
  */
 import { useSyncExternalStore } from 'react';
+import { useView } from '../store';
+import { destinationsOf } from './travel';
 import {
   airportSchedule,
   localMinutes,
@@ -63,7 +65,8 @@ export function setTicket(next: Ticket | null) {
 }
 
 export function useTicket(): Ticket | null {
-  return useSyncExternalStore(
+  const { view } = useView();
+  const cached = useSyncExternalStore(
     (cb) => {
       listeners.add(cb);
       return () => listeners.delete(cb);
@@ -71,6 +74,15 @@ export function useTicket(): Ticket | null {
     getTicket,
     getTicket,
   );
+  const paid = view.me.flightTicket;
+  if (!paid) return null;
+  const dest = destinationsOf(view).find((d) => d.id === paid.to);
+  if (!dest) return null;
+  const detail =
+    cached?.from === paid.from && cached.to === paid.to
+      ? cached
+      : ticketFor(paid.from, dest, view.market.currency, view.market.month);
+  return { ...detail, fare: paid.paid };
 }
 
 /** The ticket if it's for a flight out of this city to one of these destinations. */

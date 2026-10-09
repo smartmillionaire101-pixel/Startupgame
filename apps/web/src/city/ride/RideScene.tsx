@@ -9,10 +9,11 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { money } from '../../format';
+import { useDaylight } from '../useDaylight';
 import { t, tx } from '../../i18n';
 import { flavourOf } from '../flavour';
 import { rideLabel, RideIcon } from '../Transport';
-import { dayPart, fnv, localHour, rideMinutes, stopsAlong } from '../travel';
+import { fnv, rideMinutes, stopsAlong } from '../travel';
 import type { Frame } from './art';
 import { BusScene } from './BusScene';
 import { CycleScene } from './CycleScene';
@@ -43,7 +44,8 @@ export function RideScene({ ride }: { ride: Ride }) {
   const slow = useRef<HTMLParagraphElement>(null);
   const [skipShown, setSkipShown] = useState(false);
   const [always, setAlways] = useState(skipRides);
-  const part = dayPart(localHour(marketId));
+  const sunlight = useDaylight(marketId);
+  const part: 'night' | 'dusk' | 'day' = sunlight.night ? 'night' : sunlight.dusk ? 'dusk' : 'day';
   const uid = `ride${ride.id}`;
   const minutes = rideMinutes(mode, ride.tiles);
   const stops = useMemo(

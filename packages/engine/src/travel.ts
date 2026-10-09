@@ -93,7 +93,13 @@ export function flightsView(world: World, p: Player) {
  * Fly one way to another city and be there. Paid from the personal account
  * to the home market's suppliers; flying home clears the location.
  */
-export function fly(world: World, p: Player, to: MarketId, now: number) {
+export function bookFlight(world: World, p: Player, to: MarketId, now: number) {
+  if (p.flightTicket?.to === to && p.flightTicket.from === locationOf(p)) return p.flightTicket;
+  ensure(
+    !p.flightTicket,
+    'travel.booked',
+    'Cancel your existing ticket before booking another flight.',
+  );
   const home = getMarket(world, p.market);
   const from = locationOf(p);
   const dest = world.markets[to];
@@ -123,6 +129,33 @@ export function fly(world: World, p: Player, to: MarketId, now: number) {
     `Flight ${getMarket(world, from).data.name} → ${dest.data.name}`,
     home.month,
   );
+  p.flightTicket = { from, to, paid: cost, bookedAt: now };
+  return p.flightTicket;
+}
+
+export function cancelFlight(world: World, p: Player) {
+  const ticket = p.flightTicket;
+  ensure(ticket, 'travel.ticket', 'You have no booked flight.');
+  const home = getMarket(world, p.market);
+  transfer(world, home.ext.suppliers, p.accounts.local, ticket.paid, 'Flight refund', home.month);
+  delete p.flightTicket;
+  return { refunded: ticket.paid };
+}
+
+export function fly(world: World, p: Player, to: MarketId, now: number) {
+  // Legacy clients book and board in one command. Modern clients book first.
+  const ticket = p.flightTicket ?? bookFlight(world, p, to, now);
+  const from = locationOf(p);
+  ensure(
+    ticket.from === from && ticket.to === to,
+    'travel.ticket',
+    'That is not your booked flight.',
+  );
+  const home = getMarket(world, p.market);
+  const dest = getMarket(world, to);
+  const used = p.flights?.month === home.month ? p.flights.count : 0;
+  const cost = ticket.paid;
+  delete p.flightTicket;
   p.flights = { month: home.month, count: used + 1 };
   if (to === p.market) delete p.location;
   else {
@@ -247,6 +280,22 @@ export const centralBankHolderId = (market: MarketId) => `cb:${market}`;
  * personal guarantees outstanding (you can't move away from your debts).
  */
 export function relocate(world: World, p: Player, to: MarketId, newHandle: string | undefined) {
+  ensure(!p.flightTicket, 'travel.booked', 'Cancel or use your flight ticket before relocating.');
+  ensure(
+    !Object.values(world.playRooms ?? {}).some(
+      (r) =>
+        (r.status === 'waiting' || r.status === 'playing') &&
+        r.stake > 0 &&
+        r.members.some((m) => m.id === p.id),
+    ),
+    'travel.game',
+    'Finish your staked game or leave its waiting room before relocating.',
+  );
+  ensure(
+    !Object.values(world.deliveries ?? {}).some((d) => d.owner === p.id && !d.complete),
+    'travel.delivery',
+    'Unpack your home deliveries before relocating.',
+  );
   const from = getMarket(world, p.market);
   const dest = world.markets[to];
   ensure(dest, 'relocate.closed', 'That market isn’t open yet.');
