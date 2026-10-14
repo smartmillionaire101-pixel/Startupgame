@@ -5,6 +5,10 @@ import { api } from '../src/api';
 import { musicSamples, useMusic } from '../src/music';
 import { setSetting } from '../src/phone/settings';
 
+vi.mock('../src/store', () => ({
+  useView: () => ({ view: { me: { id: 'test' }, living: { dates: [] } } }),
+}));
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();

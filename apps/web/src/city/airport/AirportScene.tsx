@@ -1,3 +1,4 @@
+import type { MarketId } from '@runway/engine';
 /**
  * Wave 7 §B: a busy airport. Top to bottom:
  *
@@ -36,11 +37,12 @@ import {
   CITY_NAMES,
   fmtFlightTime,
   localMinutes,
+  nextFlightTo,
   scheduleDay,
   type FlightStatus,
   type ScheduledFlight,
 } from '../travel';
-import { bookCommand, nextBookable, seatOf, ticketFrom, useTicket, type Ticket } from '../ticket';
+import { seatOf, setTicket, ticketFrom, useTicket, type Ticket } from '../ticket';
 import { WhoIsHere } from '../WhoIsHere';
 import './airport.css';
 
@@ -487,18 +489,14 @@ function TripSheet({
   abroad: boolean;
   onMore: () => void;
 }) {
-  const { busy, send, view } = useView();
+  const { busy, send } = useView();
   const fromName = CITY_NAMES[marketId] ?? marketId;
   const flights = (desk?.destinations ?? [])
-    .map((d) => ({ d, f: nextBookable(schedule, d.id, now) }))
+    .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))
     // The next to leave first: today's still to come, then tomorrow's from the morning.
     .sort((a, b) => departs(a.f, now) - departs(b.f, now));
   // A ticket booked for a flight out of here (in the Travel app, or at the desk below).
-  // Wave 12: the ticket is the server's (paid when booked), on every device.
-  const held = useTicket();
-  const ticket = ticketFrom(held, marketId, desk?.destinations ?? []);
-  // A good ticket from somewhere else, or to somewhere you can't fly now: cancel to change.
-  const other = held && held.status === 'valid' && held !== ticket ? held : null;
+  const ticket = ticketFrom(useTicket(), marketId, desk?.destinations ?? []);
   // No ticket yet: the first thing is the ticket desk, where you choose where to go.
   const [step, setStep] = useState<Step>(() => (ticket ? 'checkin' : 'ticket'));
   const [playing, setPlaying] = useState<Step | null>(null);
@@ -532,27 +530,23 @@ function TripSheet({
   const book = async (to: string) => {
     const row = flights.find((x) => x.d.id === to);
     if (!row || !desk) return;
-    if (ticket?.to === to) {
-      stop();
-      setStep('checkin');
-      return;
-    }
     const { d, f } = row;
-    // The fare is charged now (Wave 12): the desk takes your money and prints the ticket.
-    const r = await send<{ charged: number; currency: string }>(
-      bookCommand(marketId, d, view.market.month, undefined, f),
-      (r) => t('Booked: {amount} charged.', { amount: money(r.charged, r.currency) }),
-    );
-    if (!r) return;
+    if (!(await send({ type: 'travel.book', to: d.id as MarketId }))) return;
+    setTicket({
+      from: marketId,
+      to: d.id,
+      toName: d.name,
+      fare: d.fare,
+      currency: desk.currency,
+      hours: d.hours,
+      time: f?.time,
+      airline: f?.airline,
+      flight: f?.flight,
+      gate: f?.gate,
+    });
     stop();
     setStep('checkin');
   };
-  const cancel = () =>
-    void send<{ refund: number; currency: string }>({ type: 'travel.cancel' }, (r) =>
-      t('Ticket cancelled: {amount} refunded.', { amount: money(r.refund, r.currency) }),
-    ).then((r) => {
-      if (r) setStep('ticket');
-    });
 
   let body: ReactNode = null;
   if (playing && ticket)
@@ -574,27 +568,8 @@ function TripSheet({
     body = flights.length ? (
       <div className="trip-desk">
         <p className="small muted">
-          {t(
-            'Ticket desk: where do you want to go? Choose a flight and book it: the fare is charged now.',
-          )}
+          {t('Ticket desk: where do you want to go? Choose a flight and book it.')}
         </p>
-        {held?.status === 'missed' && (
-          <p className="small" data-ticket-missed={held.to}>
-            {t('You missed your flight to {city}. The fare isn’t refunded.', {
-              city: held.toName,
-            })}
-          </p>
-        )}
-        {other && (
-          <p className="small" data-ticket-other={other.to}>
-            {t('You hold a ticket to {city}. Cancel it to book another flight.', {
-              city: other.toName,
-            })}{' '}
-            <button type="button" className="btn btn-ghost" disabled={busy} onClick={cancel}>
-              {t('Cancel ticket · {amount} back', { amount: money(other.refund, other.currency) })}
-            </button>
-          </p>
-        )}
         <ul className="trip-flights" aria-label={t('Where do you want to go?')}>
           {flights.map(({ d, f }) => (
             <li
@@ -615,9 +590,9 @@ function TripSheet({
               <button
                 type="button"
                 className={`btn ${ticket?.to === d.id ? 'btn-primary' : 'btn-ghost'}`}
-                disabled={busy || d.done || !!other || (!!ticket && ticket.to !== d.id)}
+                disabled={busy || d.done}
                 aria-label={t('Book a flight to {city}', { city: d.name })}
-                onClick={() => void book(d.id)}
+                onClick={() => book(d.id)}
               >
                 {d.done ? t('This month') : ticket?.to === d.id ? t('Booked') : t('Book')}
               </button>
@@ -634,12 +609,24 @@ function TripSheet({
         <p className="small muted" data-ticket={ticket.to}>
           {t('Your ticket: {from} → {to}', { from: fromName, to: ticket.toName })}
           {ticketLine(ticket) ? ` · ${ticketLine(ticket)}` : ''} ·{' '}
-          <span data-ticket-paid>
-            {t('Paid {amount}', { amount: money(ticket.fare, ticket.currency) })}
-          </span>
+          {money(ticket.fare, ticket.currency)}
         </p>
         <button type="button" className="btn btn-primary trip-go" onClick={() => play('checkin')}>
           {t('Check in for {city}', { city: ticket.toName })}
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          disabled={busy}
+          onClick={async () => {
+            const result = await send({ type: 'travel.cancel' });
+            if (result) {
+              setTicket(null);
+              setStep('ticket');
+            }
+          }}
+        >
+          Cancel ticket · full refund
         </button>
       </div>
     );
@@ -685,27 +672,10 @@ function TripSheet({
     <div className="place-tray trip-sheet" aria-label={t('Your trip')} role="region">
       <div className="trip-head">
         <b>{t('Your trip')}</b>
-        {canFlyHome && !ticket && !other && (
+        {canFlyHome && ticket?.to !== homeId && (
           // Going home: book the flight home, then check in for it.
-          <button
-            type="button"
-            className="btn btn-subtle"
-            disabled={busy}
-            onClick={() => void book(homeId!)}
-          >
+          <button type="button" className="btn btn-subtle" onClick={() => book(homeId!)}>
             {t('Fly home')}
-          </button>
-        )}
-        {ticket && at !== 'ticket' && (
-          // Before it leaves: the fare back, minus a small fee.
-          <button
-            type="button"
-            className="btn btn-ghost"
-            disabled={busy || !!playing}
-            aria-label={t('Cancel your ticket to {city}', { city: ticket.toName })}
-            onClick={cancel}
-          >
-            {t('Cancel ticket')}
           </button>
         )}
       </div>

@@ -4,7 +4,6 @@
  */
 import type { MutableRefObject } from 'react';
 import type { AvatarLook } from '../city/art';
-import type { SunState } from '../city/sun';
 import type { HomeAct, HomePlan, Spot } from '../home/layout';
 
 export interface Home3DPerson {
@@ -59,6 +58,8 @@ export interface Home3DProps {
   night: boolean;
   dusk: boolean;
   car: string | null;
+  cars?: string[];
+  delivery?: { id: string; orderedAt: number; arrivesAt: number } | null;
   buyMode: boolean;
   /** The catalogue sheet covers the bottom of the screen. */
   sheetOpen: boolean;
@@ -72,6 +73,4 @@ export interface Home3DProps {
   reduced: boolean;
   /** Wave 10: a listing's grounds (pool, garden, penthouse terrace). */
   estate?: 'villa' | 'mansion' | 'penthouse' | null;
-  /** Wave 12: the city's real sun (city/sun.ts); without it, `night` and `dusk` light the house. */
-  sun?: SunState | null;
 }

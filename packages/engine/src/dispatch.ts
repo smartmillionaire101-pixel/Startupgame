@@ -1,3 +1,5 @@
+import { livingCommand, orderFurniture, queueDelivery } from './living.js';
+import { expirePlay, playCommand } from './play.js';
 /**
  * The command dispatcher: (world, command, actor, now) → new world + result.
  *
@@ -26,8 +28,7 @@ import {
 import { raiseFund } from './funds.js';
 import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
-import { hasVisited, relocate, ride, travel } from './travel.js';
-import { board, book, cancel, flyOrBoard } from './tickets.js';
+import { bookFlight, cancelFlight, fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
@@ -55,16 +56,6 @@ import { createListing, endContract, proposeSupply, reviewSupplier } from './mar
 import { buyProperty, letProperty, moveIn, sellProperty } from './property.js';
 import { closeBranch, openBranch } from './branches.js';
 import { enterCompetition, joinJudges, scoreEntry } from './competitions.js';
-import {
-  createGame,
-  finishGame,
-  inviteToGame,
-  joinGame,
-  leaveGame,
-  playMove,
-  rematch,
-  startByHost,
-} from './games.js';
 import { proposeAcquisition } from './acquisitions.js';
 import { boardOf, castVote, openVote } from './governance.js';
 import { fileDispute } from './arbitration.js';
@@ -137,6 +128,7 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
     const next = produce(world, (draft) => {
       draft.activity ??= { since: ctx.now, at: ctx.now, sequence: 0, totals: {}, recent: [] };
       draft.activity.at = ctx.now;
+      expirePlay(draft as World, ctx.now);
       result = apply(draft as World, command, ctx);
       draft.version += 1;
     });
@@ -224,6 +216,11 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     c.lastDecisionMonth = month;
     return c;
   };
+
+  if (cmd.type.startsWith('living.'))
+    return livingCommand(world, me, cmd as Extract<Command, { type: `living.${string}` }>, ctx.now);
+  if (cmd.type.startsWith('play.'))
+    return playCommand(world, me, cmd as Extract<Command, { type: `play.${string}` }>, ctx.now);
 
   switch (cmd.type) {
     case 'player.profile': {
@@ -915,14 +912,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     }
     case 'player.travel':
       return travel(world, me, cmd.market);
-    case 'travel.fly':
-      return flyOrBoard(world, me, cmd.to, ctx.now);
     case 'travel.book':
-      return book(world, me, cmd, ctx.now);
-    case 'travel.board':
-      return board(world, me, ctx.now);
+      return bookFlight(world, me, cmd.to, ctx.now);
     case 'travel.cancel':
-      return cancel(world, me, ctx.now);
+      return cancelFlight(world, me);
+    case 'travel.fly':
+      return fly(world, me, cmd.to, ctx.now);
     case 'city.ride':
       return ride(world, me, cmd.mode, cmd.distance);
     case 'player.seen':
@@ -981,15 +976,23 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return takeJob(world, me, cmd.businessId, cmd.role);
     case 'job.quit':
       return quitJob(world, me);
+    case 'home.order':
+      return orderFurniture(world, me, cmd.itemId, ctx.now, cmd.businessId);
     case 'home.buy':
       return buyFurniture(world, me, cmd.itemId, cmd.businessId);
     case 'car.buy':
-      return buyCar(world, me, cmd.modelId, cmd.businessId);
+      return buyCar(world, me, cmd.modelId, cmd.businessId, cmd.keepCurrent);
     // ------------------------------------------------------------ Who's here (Wave 6)
     case 'contact.save':
       return saveContact(world, me, cmd.personId, cmd.name);
     case 'contact.remove':
       return removeContact(me, cmd.contactId);
+    case 'car.select': {
+      const car = me.garage?.find((c) => c.modelId === cmd.modelId);
+      ensure(car, 'car.owned', 'That car is not in your garage.');
+      me.car = { ...car };
+      return { ok: true };
+    }
     case 'car.sell':
       return sellCar(world, me);
     // ------------------------------------------------------------ life at home (Wave 7)
@@ -997,8 +1000,20 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return homeAct(world, me, cmd.act);
     case 'home.invite':
       return homeInvite(world, me, cmd.personId);
-    case 'food.order':
-      return foodOrder(world, me, cmd.businessId, cmd.itemId);
+    case 'food.order': {
+      const before = me.needs?.hunger ?? 70;
+      const result = foodOrder(world, me, cmd.businessId, cmd.itemId);
+      if (before !== undefined && me.needs) me.needs.hunger = before;
+      const id = queueDelivery(world, me, cmd.itemId, 'food', ctx.now);
+      return {
+        ...result,
+        effects: { hunger: 0 },
+        needs: me.needs,
+        id,
+        etaMinutes: 0.5,
+        message: 'Paid. Your food arrives at home in 30 seconds. Collect it at the door.',
+      };
+    }
     // ------------------------------------------------------------ friends (Wave 8)
     case 'money.send':
       return sendMoney(world, me, cmd.toPlayerId, cmd.amount, cmd.note, ctx.now);
@@ -1055,22 +1070,6 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return joinJudges(world, me, cmd.competitionId);
     case 'competition.score':
       return scoreEntry(world, me, cmd.competitionId, cmd.entryId, cmd.score);
-    case 'game.create':
-      return createGame(world, me, cmd, ctx.now);
-    case 'game.join':
-      return joinGame(world, me, cmd.gameId, ctx.now);
-    case 'game.invite':
-      return inviteToGame(world, me, cmd.gameId, cmd.playerIds);
-    case 'game.start':
-      return startByHost(world, me, cmd.gameId, ctx.now);
-    case 'game.leave':
-      return leaveGame(world, me, cmd.gameId, ctx.now);
-    case 'game.play':
-      return playMove(world, me, cmd, ctx.now);
-    case 'game.finish':
-      return finishGame(world, me, cmd.gameId, ctx.now);
-    case 'game.rematch':
-      return rematch(world, me, cmd.gameId, ctx.now);
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;

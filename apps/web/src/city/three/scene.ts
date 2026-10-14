@@ -1,3 +1,4 @@
+import { citySun } from '../solar';
 /**
  * Wave 9 §B: the 3D city — a three.js scene for a real-map CityLayout.
  *
@@ -34,8 +35,7 @@ import { discPoly, FootprintGrid, makeFp, rectPoly, segRectDist, type Fp } from 
 import { homeModel, PLOT, setHomesNight } from './homes3d';
 import { ROAD_HALF, COVER } from './mask';
 import { hoodAt, type OwnedProperty } from '../properties';
-import { applySky, skyDome, skyEnvironment, skyFromSun, skyUniforms, type SkyState } from './sky';
-import type { SunState } from '../sun';
+import { applySky, skyAt, skyDome, skyEnvironment, skyUniforms, type SkyState } from './sky';
 import { treeMeshes, treeSpots } from './trees';
 import { buildLandmarks, EXTRA_3D, landmarkLights, type LandmarkPlan } from './landmarks';
 import { beacons, glowMaterial, glowPoints, glowUniforms, streetLamps } from './lights';
@@ -49,8 +49,8 @@ export type Tier = 'high' | 'low';
 export interface SceneOptions {
   tier: Tier;
   reduced: boolean;
-  /** Wave 12: the city's real sun (sun.ts `sunFor`): sky, shadows, haze and lights. */
-  sun: SunState;
+  /** Local hour (fractional), from the city's clock. */
+  hour: number;
 }
 
 export interface PlaceBox {
@@ -169,7 +169,6 @@ export class CityScene {
   private degraded = false;
   private size = { w: 1, h: 1 };
   private hour: number;
-  private sunState: SunState;
   private onFrameCbs = new Set<() => void>();
   readonly stats = {
     draws: 0,
@@ -194,8 +193,7 @@ export class CityScene {
     this.layout = layout;
     this.geo = layout.geo;
     this.look = cityLook(layout.marketId);
-    this.sunState = opts.sun;
-    this.hour = opts.sun.hour;
+    this.hour = opts.hour;
     const high = opts.tier === 'high';
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -231,7 +229,7 @@ export class CityScene {
     this.scene.add(this.sun, this.sun.target, this.hemi);
     this.dome = skyDome(this.sky, 1);
     this.scene.add(this.dome);
-    this.skyState = skyFromSun(this.sunState, this.look.haze);
+    this.skyState = skyAt(this.hour, this.look.lat, this.look.haze, citySun(this.layout.marketId));
     this.applySky();
 
     // ---- The city.
@@ -748,28 +746,12 @@ export class CityScene {
   // ---------------------------------------------------------------------------
   // Sky
 
-  /** The sun moved (a minute on, or a forced time of day): relight only when it shows. */
-  setSun(sun: SunState) {
-    const was = this.sunState;
-    if (
-      sun.marketId === was.marketId &&
-      Math.abs(sun.elevation - was.elevation) < 0.1 &&
-      Math.abs(sun.azimuth - was.azimuth) < 0.2 &&
-      sun.lightsOn === was.lightsOn
-    )
-      return;
-    this.sunState = sun;
-    this.hour = sun.hour;
-    this.skyState = skyFromSun(sun, this.look.haze);
+  setHour(hour: number) {
+    if (Math.abs(hour - this.hour) < 0.05) return;
+    this.hour = hour;
+    this.skyState = skyAt(hour, this.look.lat, this.look.haze, citySun(this.layout.marketId));
     this.applySky();
-    this.placeCamera();
-    this.renderer.shadowMap.needsUpdate = true;
     this.invalidate();
-  }
-
-  /** The sun this city is lit by (tests read it). */
-  get sunNow() {
-    return this.sunState;
   }
 
   private applySky() {

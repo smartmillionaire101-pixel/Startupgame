@@ -7,7 +7,6 @@
  */
 import * as THREE from 'three';
 import { SKY_FN, type SkyUniforms } from './ground';
-import type { SunState } from '../sun';
 
 export interface SkyState {
   sunDir: THREE.Vector3;
@@ -31,16 +30,22 @@ const smooth = (a: number, b: number, x: number) => {
 };
 
 /** The sky at a local hour (0–24, fractional) and latitude. */
-export function skyAt(hour: number, lat: number, haze: number): SkyState {
+export function skyAt(
+  hour: number,
+  lat: number,
+  haze: number,
+  solar?: { altitude: number; azimuth: number },
+): SkyState {
   // Day arc: sunrise ~6, noon 12.5, sunset ~19.
   const dayT = (hour - 6.2) / 12.6; // 0..1 across the day
   const elev = Math.sin(Math.PI * Math.max(-0.25, Math.min(1.25, dayT)));
   // Kept below ~50°: a lower sun models the buildings and casts the long
   // shadows of the photographs (the noon sun of the tropics would flatten them).
-  const el = Math.asin(Math.max(-0.4, elev) * Math.sin(0.86));
+  const el = solar?.altitude ?? Math.asin(Math.max(-0.4, elev) * Math.sin(0.86));
   // Azimuth: east (90°) at dawn, through the equator side at noon, west at dusk.
   const south = lat >= 0 ? 180 : 0;
   const az =
+    solar?.azimuth ??
     ((90 + (south === 180 ? 1 : -1) * 180 * Math.max(0, Math.min(1, dayT))) * Math.PI) / 180;
   // Bearing → three's frame: north is −z, east is +x.
   const sunDir = new THREE.Vector3(
@@ -75,60 +80,6 @@ export function skyAt(hour: number, lat: number, haze: number): SkyState {
     hemiSky: mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#2a3a63'), night),
     hemiGround: mixC(C('#8c8476'), C('#2a2522'), night),
     hemiIntensity: 0.6 + 0.15 * (1 - night) - 0.25 * night,
-    zenith,
-    horizon,
-    night,
-    exposure: 1.0 + night * 0.1,
-  };
-}
-
-/**
- * Wave 12 §D: the sky from the real sun (sun.ts `sunFor`): its true azimuth,
- * so shadows fall the way they do in the city right now, and its elevation,
- * so dawn, golden hour, dusk and night come at the city's real times.
- *
- * The directional light keeps the real bearing but never climbs above ~62°
- * (the tropics' noon sun straight overhead would flatten the buildings) and
- * never dips below the horizon (twilight lights the sky, not the ground).
- */
-export function skyFromSun(sun: SunState, haze: number): SkyState {
-  const el = Math.max(1.5, Math.min(62, sun.elevation)) * (Math.PI / 180);
-  const h = Math.hypot(sun.dir.x, sun.dir.z) || 1;
-  const sunDir = new THREE.Vector3(
-    (sun.dir.x / h) * Math.cos(el),
-    Math.sin(el),
-    (sun.dir.z / h) * Math.cos(el),
-  ).normalize();
-  const { day, golden, night } = sun;
-  // Twilight: the sky still glows after the sun has gone (blue hour).
-  const twilight = Math.max(0, 1 - Math.abs(sun.elevation + 3) / 6) * (1 - golden);
-
-  const zenithDay = mixC(C('#3f7fcf'), C('#7aa6d6'), haze * 0.4);
-  const horizonDay = mixC(C('#c6dbea'), C('#e3e3dc'), haze * 0.6);
-  const zenithGold = C('#5a7bb0');
-  const horizonGold = C('#f0b27a');
-  const zenithBlue = C('#1e2f63');
-  const horizonBlue = C('#d98a6a');
-  const zenithNight = C('#030918');
-  const horizonNight = mixC(C('#141c36'), C('#3a2f3c'), 0.35 + haze * 0.25);
-  let zenith = mixC(zenithDay, zenithGold, golden * 0.6);
-  let horizon = mixC(horizonDay, horizonGold, golden * 0.85);
-  zenith = mixC(zenith, zenithBlue, twilight * 0.7);
-  horizon = mixC(horizon, horizonBlue, twilight * 0.6);
-  zenith = mixC(zenith, zenithNight, night);
-  horizon = mixC(horizon, horizonNight, night);
-
-  const sunColor = new THREE.Color(sun.color);
-  const moon = C('#9fb6e0');
-  const moonDir = new THREE.Vector3(-0.3, 0.8, 0.4).normalize();
-  const dark = night > 0.5;
-  return {
-    sunDir: dark ? moonDir : sunDir,
-    sunColor: dark ? moon : sunColor,
-    sunIntensity: dark ? 0.12 : 3.4 * day * (0.55 + 0.45 * Math.min(1, sun.intensity * 1.4)) + 0.2,
-    hemiSky: mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#2a3a63'), night),
-    hemiGround: mixC(C('#8c8476'), C('#2a2522'), night),
-    hemiIntensity: 0.6 + 0.15 * (1 - night) - 0.25 * night - 0.15 * twilight * (1 - night),
     zenith,
     horizon,
     night,

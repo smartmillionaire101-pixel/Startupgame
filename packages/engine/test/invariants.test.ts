@@ -56,14 +56,6 @@ describe('world invariants under random play', () => {
         investor: fc.boolean(),
         to: fc.constantFrom('lagos' as const, 'london' as const),
       }),
-      // Wave 12: tickets paid when booked, boarded without a second charge, cancelled for a refund.
-      fc.record({
-        k: fc.constant('ticket' as const),
-        op: fc.constantFrom('book' as const, 'board' as const, 'cancel' as const, 'fly' as const),
-        investor: fc.boolean(),
-        to: fc.constantFrom('lagos' as const, 'london' as const),
-        aheadH: fc.integer({ min: -2, max: 40 }),
-      }),
       fc.record({
         k: fc.constant('ride' as const),
         investor: fc.boolean(),
@@ -310,53 +302,12 @@ describe('world invariants under random play', () => {
       }),
     );
 
-    // Wave 12: games for stakes: set up (bar or home, AI or a friend), join, start,
-    // play (quiz answers, pool shots, kicks and dives, darts), concede, finish, rematch.
-    const games = fc.oneof(
-      fc.record({
-        k: fc.constant('gameNew' as const),
-        who: fc.constantFrom('u_founder', 'u_inv', 'u_lon'),
-        kind: fc.constantFrom(
-          'quiz' as const,
-          'pool' as const,
-          'football' as const,
-          'darts' as const,
-        ),
-        home: fc.boolean(),
-        stake: fc.integer({ min: 0, max: 6_000 }),
-        ai: fc.integer({ min: 0, max: 3 }),
-        invite: fc.boolean(),
-        custom: fc.boolean(),
-      }),
-      fc.record({
-        k: fc.constant('gameStep' as const),
-        who: fc.constantFrom('u_founder', 'u_inv', 'u_lon'),
-        step: fc.constantFrom(
-          'join' as const,
-          'join' as const,
-          'start' as const,
-          'play' as const,
-          'play' as const,
-          'leave' as const,
-          'finish' as const,
-          'rematch' as const,
-        ),
-        x: fc.double({ min: -1, max: 1, noNaN: true }),
-        y: fc.double({ min: 0, max: 1, noNaN: true }),
-        n: fc.nat(3),
-      }),
-    );
-
-    const gameMoves = new Set<string>();
     fc.assert(
       fc.property(
-        fc.array(
-          fc.oneof(action, life, alive, home, friends, living, { arbitrary: games, weight: 4 }),
-          {
-            minLength: 1,
-            maxLength: 25,
-          },
-        ),
+        fc.array(fc.oneof(action, life, alive, home, friends, living), {
+          minLength: 1,
+          maxLength: 25,
+        }),
         (actions) => {
           let w = base;
           let day = 0;
@@ -384,19 +335,6 @@ describe('world invariants under random play', () => {
               case 'fly':
                 actor = a.investor ? 'u_inv' : 'u_founder';
                 cmd = { type: 'travel.fly', to: a.to };
-                break;
-              case 'ticket':
-                actor = a.investor ? 'u_inv' : 'u_founder';
-                cmd =
-                  a.op === 'book'
-                    ? {
-                        type: 'travel.book',
-                        to: a.to,
-                        departAt: Math.max(0, T0 + day * DAY + a.aheadH * 3_600_000),
-                      }
-                    : a.op === 'fly'
-                      ? { type: 'travel.fly', to: a.to }
-                      : { type: a.op === 'board' ? 'travel.board' : 'travel.cancel' };
                 break;
               case 'ride':
                 actor = a.investor ? 'u_inv' : 'u_founder';
@@ -887,79 +825,6 @@ describe('world invariants under random play', () => {
                 };
                 break;
               }
-              case 'gameNew': {
-                actor = a.who;
-                const me = w.players[actor]!;
-                const bar = Object.values(
-                  w.markets[me.location?.market ?? me.market]!.businesses ?? {},
-                ).find((b) => b.kind === 'bar' || b.kind === 'pub');
-                const others = ['u_founder', 'u_inv', 'u_lon'].filter((x) => x !== actor);
-                cmd = {
-                  type: 'game.create',
-                  kind: a.kind,
-                  where: a.home ? 'home' : 'venue',
-                  ...(a.home ? {} : { businessId: bar?.id ?? 'none' }),
-                  stake: a.stake,
-                  ai: a.kind === 'quiz' ? a.ai : Math.min(1, a.ai),
-                  ...(a.invite ? { invite: others } : {}),
-                  ...(a.kind === 'quiz' && a.custom
-                    ? {
-                        quiz: {
-                          custom: [1, 2, 3].map((n) => ({
-                            q: `Question ${n}?`,
-                            options: ['Yes', 'No', 'Maybe', 'Never'] as [
-                              string,
-                              string,
-                              string,
-                              string,
-                            ],
-                          })),
-                        },
-                      }
-                    : {}),
-                };
-                break;
-              }
-              case 'gameStep': {
-                actor = a.who;
-                const mine = (x: NonNullable<World['games']>[string]) =>
-                  x.hostId === actor || x.players.some((p) => p.id === actor);
-                const list = Object.values(w.games ?? {}).reverse();
-                let g = list.find(mine);
-                if (a.step === 'join') {
-                  g = list.find((x) => x.status === 'lobby' && !mine(x)) ?? g;
-                } else if (a.step === 'play') {
-                  // Whoever's move it is in the latest game on (so play mostly lands).
-                  g = list.find((x) => x.status === 'playing');
-                  const turn =
-                    g?.pool?.turn ??
-                    (g?.football
-                      ? g.football.kicks.at(-1)?.[a.n % 2 ? 'keeper' : 'shooter']
-                      : undefined) ??
-                    g?.players.find((p) => !p.ai && !p.out)?.id;
-                  if (turn && w.players[turn]) actor = turn;
-                }
-                const gameId = g?.id ?? 'none';
-                if (a.step === 'play') {
-                  const kick = g?.football?.kicks.at(-1);
-                  const who = actor;
-                  cmd = {
-                    type: 'game.play',
-                    gameId,
-                    move:
-                      g?.kind === 'quiz'
-                        ? { k: 'answer', q: a.n, choice: a.n }
-                        : g?.kind === 'pool'
-                          ? { k: 'shot', dx: a.x, dy: -a.y - 0.1, power: Math.abs(a.x) }
-                          : g?.kind === 'football'
-                            ? kick?.keeper === who
-                              ? { k: 'dive', x: a.x, y: a.y }
-                              : { k: 'kick', x: a.x, y: a.y, power: a.y }
-                            : { k: 'throw', x: a.x, y: a.y },
-                  };
-                } else cmd = { type: `game.${a.step}`, gameId };
-                break;
-              }
               case 'cancel': {
                 actor = a.investor ? 'u_inv' : 'u_founder';
                 const e = Object.values(w.events ?? {}).find(
@@ -970,21 +835,12 @@ describe('world invariants under random play', () => {
               }
             }
             const r = dispatch(w, cmd, { actorId: actor, now: T0 + day * DAY });
-            if (r.ok && cmd.type.startsWith('game.')) gameMoves.add(cmd.type);
             w = r.world;
           }
           const now = moneyByCurrency(w);
           for (const [cur, v] of Object.entries(total))
             if (now[cur] !== v) throw new Error(`${cur} not conserved: ${v} → ${now[cur]}`);
           if (negativeInternalAccounts(w).length) throw new Error('overdrawn account');
-          // Wave 12: each city's games escrow holds exactly the pots of games still on.
-          for (const mk of ['lagos', 'london'] as const) {
-            const held = w.accounts[`acc:games:${mk}`]?.balance ?? 0;
-            const pots = Object.values(w.games ?? {})
-              .filter((g) => g.market === mk && (g.status === 'lobby' || g.status === 'playing'))
-              .reduce((s, g) => s + g.pot, 0);
-            if (held !== pots) throw new Error(`games escrow ${mk}: ${held} held, ${pots} in pots`);
-          }
           for (const p of Object.values(w.players))
             if (p.stars.value < 0 || p.stars.value > 5) throw new Error('stars out of range');
           for (const p of Object.values(w.players))
@@ -995,8 +851,5 @@ describe('world invariants under random play', () => {
       ),
       { numRuns: 40 },
     );
-    // The games paths really ran (stakes in, pots out).
-    for (const t of ['game.create'])
-      if (!gameMoves.has(t)) throw new Error(`no successful ${t} in the random play`);
   }, 120_000);
 });

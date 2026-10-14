@@ -1,3 +1,6 @@
+import { openLiving } from '../experiences/living-bus';
+import { useDaylight } from '../city/useDaylight';
+import { openPlay } from '../experiences/play-bus';
 /**
  * Your home, walkable (docs/WAVE7-IMMERSIVE.md §A): a top-down 3/4 view of a
  * flat that grows with your lifestyle tier. Tap the floor to walk there (A*),
@@ -40,7 +43,6 @@ import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
 import { businessesOf, hash } from '../city/contract';
 import { carOf, genderOf, nearest, sellsOf, storeForSlot } from '../city/life';
 import type { SceneProps } from '../city/PlaceScene';
-import { dayLightOf, useSun } from '../city/sun';
 import { FixtureArt, SlotArt, TILE } from './art';
 import {
   TIER_HOME,
@@ -53,7 +55,6 @@ import {
   type Spot,
   type Verb,
 } from './layout';
-import { newGame } from '../games/open';
 import { ActFx } from './ActFx';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
@@ -186,6 +187,8 @@ export interface HostView {
   name: string;
   tier: number;
   tiers: Map<string, number>;
+  cars?: string[];
+  estate?: 'villa' | 'mansion' | 'penthouse' | null;
 }
 
 export function HomeScene({
@@ -197,7 +200,10 @@ export function HomeScene({
   hostView,
 }: SceneProps & { hostView?: HostView }) {
   const { view, send, busy, cur, toast } = useView();
-  const tier = Math.max(1, Math.min(5, hostView?.tier ?? view.me.lifestyle?.tier ?? 2));
+  const tier = Math.max(
+    1,
+    Math.min(5, hostView?.tier ?? view.me.residence?.lifestyleTier ?? view.me.lifestyle?.tier ?? 2),
+  );
   const basePlan = planFor(tier);
   const tiers = useMemo(() => hostView?.tiers ?? ownedTiers(view), [view, hostView]);
   const ownedKey = [...tiers.keys()].sort().join(',');
@@ -221,10 +227,7 @@ export function HomeScene({
     () => ({ w: plan.w, h: plan.h, blocked: blockedTiles(plan, owned), walls: wallEdges(plan) }),
     [plan, owned],
   );
-  // Wave 12: the city's real sun (sunrise and sunset at their real times).
-  const sun = useSun(view.market.id);
-  const night = sun.night > 0.5;
-  const dusk = !night && dayLightOf(sun) !== 'day';
+  const { night, dusk } = useDaylight(view.market.id);
   const car = hostView ? null : carOf(view);
   const needs = needsOf(view);
   const mood = moodOf(view);
@@ -644,16 +647,11 @@ export function HomeScene({
 
   const choose = (obj: Obj, v: Verb) => {
     setMenu(null);
+    if (v.id === 'game')
+      return openPlay({ venue: `home:${placeOwner}`, name: homeName, game: 'football' });
     if (v.id === 'out') return onClose();
     if (v.id === 'invite') return setSheet('invite');
     if (v.id === 'order') return openPhone({ app: 'chop' } as unknown as PhoneOpen);
-    // Wave 12 §A: a real game (with the friend you're visiting, if you are).
-    if ('game' in v)
-      return newGame({
-        kind: v.game,
-        where: 'home',
-        ...(hostView ? { invite: [hostView.id] } : {}),
-      });
     if ('slot' in v) return goShop(v.slot);
     if ('move' in v) return startPlacing(v.move, obj.label);
     const p = me.current;
@@ -1064,8 +1062,18 @@ export function HomeScene({
               acting={acting3d}
               night={night}
               dusk={dusk}
-              sun={sun}
               car={car?.modelId ?? null}
+              cars={hostView ? (hostView.cars ?? []) : view.me.garage.map((c) => c.modelId)}
+              estate={
+                hostView
+                  ? hostView.estate
+                  : ['villa', 'mansion', 'penthouse'].includes(view.me.residence?.tier ?? '')
+                    ? (view.me.residence!.tier as 'villa' | 'mansion' | 'penthouse')
+                    : null
+              }
+              delivery={
+                view.living.deliveries.find((d) => d.owner === placeOwner && !d.complete) ?? null
+              }
               buyMode={sheet === 'buy' || !!placing}
               sheetOpen={sheet === 'buy'}
               ghost={ghost}
@@ -1303,22 +1311,28 @@ export function HomeScene({
           />
         )}
       </div>
+      {view.living.deliveries.some((d) => d.owner === placeOwner && !d.complete) && (
+        <div className="home-delivery-banner">
+          <button onClick={() => openLiving(placeOwner)}>
+            🚚 Delivery on its way / at your door · Open
+          </button>
+        </div>
+      )}
       <nav className="home-bar" aria-label={t('Home actions')}>
+        <button className="home-bar-btn" onClick={() => openLiving(placeOwner)}>
+          🚚 Home & friends
+        </button>
+        <button
+          className="home-bar-btn"
+          onClick={() => openPlay({ venue: `home:${placeOwner}`, name: homeName })}
+        >
+          🎮 Play together
+        </button>
         {hostView ? (
-          <>
-            <button
-              type="button"
-              className="home-bar-btn"
-              onClick={() => newGame({ kind: 'football', where: 'home', invite: [hostView.id] })}
-            >
-              <span aria-hidden="true">⚽</span>
-              {t('Play football')}
-            </button>
-            <button type="button" className="home-bar-btn" onClick={onClose}>
-              <span aria-hidden="true">👋</span>
-              {t('Say goodbye')}
-            </button>
-          </>
+          <button type="button" className="home-bar-btn" onClick={onClose}>
+            <span aria-hidden="true">👋</span>
+            {t('Say goodbye')}
+          </button>
         ) : (
           <>
             <button type="button" className="home-bar-btn" onClick={() => setSheet('buy')}>
@@ -1332,14 +1346,6 @@ export function HomeScene({
             <button type="button" className="home-bar-btn" onClick={() => setSheet('invite')}>
               <span aria-hidden="true">👋</span>
               {t('Invite')}
-            </button>
-            <button
-              type="button"
-              className="home-bar-btn"
-              onClick={() => openPhone({ app: 'games' } as unknown as PhoneOpen)}
-            >
-              <span aria-hidden="true">🎮</span>
-              {t('Games')}
             </button>
             <button type="button" className="home-bar-btn" onClick={onClose}>
               <span aria-hidden="true">🚪</span>
@@ -1494,8 +1500,7 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
     ]);
   if (has('coffee')) slotObj('coffee', [act('snack', t('Have a coffee'))]);
   // Sofa (or floor cushions).
-  const playFootball: Verb = { id: 'play', label: t('Play football'), game: 'football' };
-  const tvVerb = has('tv') ? [act('tv', t('Watch TV')), playFootball] : [];
+  const tvVerb = has('tv') ? [act('tv', t('Watch TV'))] : [];
   if (has('sofa'))
     slotObj('sofa', [
       { id: 'sit', label: t('Sit') },
@@ -1508,8 +1513,8 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
       { id: 'invite', label: t('Invite friend') },
       ...tvVerb,
     ]);
-  if (has('tv')) slotObj('tv', [act('tv', t('Watch TV')), playFootball]);
-  if (has('gaming')) slotObj('gaming', [act('game', t('Play')), playFootball]);
+  if (has('tv')) slotObj('tv', [act('tv', t('Watch TV'))]);
+  if (has('gaming')) slotObj('gaming', [act('game', t('Play'))]);
   if (has('desk'))
     slotObj(
       'desk',
@@ -1546,10 +1551,7 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
   fixture('toilet', 'toilet', t('Toilet'), [act('toilet', t('Use'))]);
   fixture('sink', 'sink', t('Sink'), [act('toilet', t('Freshen up'))]);
   fixture('bathtub', 'bathtub', t('Bathtub'), [act('shower', t('Take a bath'))]);
-  fixture('pool', 'pool', t('Pool table'), [
-    act('tv', t('Play pool')),
-    { id: 'play', label: t('Play pool for a stake'), game: 'pool' },
-  ]);
+  fixture('pool', 'pool', t('Pool table'), [act('tv', t('Play pool'))]);
   fixture('piano', 'piano', t('Piano'), [act('tv', t('Play the piano'))]);
   fixture('door', 'door', t('Front door'), [{ id: 'out', label: t('Go out') }]);
   // Owned slots carry their verbs; the rest get a "+".

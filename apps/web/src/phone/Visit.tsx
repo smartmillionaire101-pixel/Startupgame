@@ -55,7 +55,7 @@ export function VisitHome() {
   const isOpen = useOpen();
   const visiting = visitingOf(view);
   const key = visiting
-    ? `${visiting.host.id}:${visiting.tier}:${visiting.items.map((i) => `${i.slot}${i.tier}`).join()}`
+    ? `${visiting.host.id}:${visiting.tier}:${visiting.cars.join()}:${visiting.estate}:${visiting.items.map((i) => `${i.slot}${i.tier}`).join()}`
     : '';
   const host: HostView | null = useMemo(
     () =>
@@ -64,6 +64,8 @@ export function VisitHome() {
             id: visiting.host.id,
             name: visiting.host.name,
             tier: visiting.tier,
+            cars: visiting.cars,
+            estate: visiting.estate,
             tiers: new Map(visiting.items.map((i) => [i.slot, i.tier])),
           }
         : null,

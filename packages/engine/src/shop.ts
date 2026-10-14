@@ -119,16 +119,28 @@ export function buyFurniture(world: World, me: Player, itemId: string, businessI
 }
 
 /** Buy a car; the old one is sold back at 50%. */
-export function buyCar(world: World, me: Player, modelId: string, businessId?: Id) {
+export function buyCar(
+  world: World,
+  me: Player,
+  modelId: string,
+  businessId?: Id,
+  keepCurrent = false,
+) {
   const chosen = businessId ? showroom(world, me, businessId, CAR_SHOP_KINDS, 'cars') : null;
   atHome(me);
   const m = getMarket(world, me.market);
   const model = carModel(m.id, modelId);
   ensure(model, 'car.model', 'That model isn’t sold here.');
-  ensure(me.car?.modelId !== model.id, 'car.owned', 'You already drive one.');
+  const garage = (me.garage ??= me.car ? [{ ...me.car }] : []);
+  ensure(
+    !garage.some((c) => c.modelId === model.id),
+    'car.owned',
+    'That car is already in your garage.',
+  );
+  ensure(!keepCurrent || garage.length < 8, 'car.capacity', 'Your garage holds up to eight cars.');
   const fmt = (v: number) => formatMoney(v, m.data.currency);
   const price = scale(col(m), model.priceCol);
-  const refund = me.car ? Math.round(me.car.paid * SELL_BACK.car) : 0;
+  const refund = me.car && !keepCurrent ? Math.round(me.car.paid * SELL_BACK.car) : 0;
   const oldLabel = me.car ? (carModel(m.id, me.car.modelId)?.label ?? 'your old car') : null;
   if (refund > 0)
     transfer(world, m.ext.suppliers, me.accounts.local, refund, `Sold: ${oldLabel}`, m.month);
@@ -146,14 +158,17 @@ export function buyCar(world: World, me: Player, modelId: string, businessId?: I
     `${model.label}${dealer ? ` from ${dealer.name}` : ''}`,
     m.month,
   );
+  if (!keepCurrent && me.car) me.garage = garage.filter((c) => c.modelId !== me.car!.modelId);
   me.car = { modelId: model.id, paid: price, since: m.month };
+  me.garage!.push({ ...me.car });
   return {
     price,
     refund,
     monthlyCost: scale(col(m), model.runningCol),
-    message: oldLabel
-      ? `${model.label}: ${fmt(price)}. You sold ${oldLabel} for ${fmt(refund)}.`
-      : `${model.label}: ${fmt(price)}. Driving around your city is free now (fuel is in the running costs).`,
+    message:
+      oldLabel && !keepCurrent
+        ? `${model.label}: ${fmt(price)}. You sold ${oldLabel} for ${fmt(refund)}.`
+        : `${model.label}: ${fmt(price)}. Driving around your city is free now (fuel is in the running costs).`,
   };
 }
 
@@ -164,7 +179,9 @@ export function sellCar(world: World, me: Player) {
   const label = carModel(m.id, me.car.modelId)?.label ?? 'your car';
   const refund = Math.round(me.car.paid * SELL_BACK.car);
   transfer(world, m.ext.suppliers, me.accounts.local, refund, `Sold: ${label}`, m.month);
-  delete me.car;
+  me.garage = (me.garage ?? []).filter((c) => c.modelId !== me.car!.modelId);
+  if (me.garage.length) me.car = { ...me.garage[0]! };
+  else delete me.car;
   return { refund, message: `You sold ${label} for ${formatMoney(refund, m.data.currency)}.` };
 }
 
@@ -174,7 +191,10 @@ export function settleCar(world: World, p: Player, month: number) {
   const m = getMarket(world, p.market);
   const model = carModel(m.id, p.car.modelId);
   if (!model) return;
-  const due = scale(col(m), model.runningCol);
+  const due = (p.garage ?? [p.car]).reduce(
+    (n, car) => n + scale(col(m), carModel(m.id, car.modelId)?.runningCol ?? 0),
+    0,
+  );
   const paid = transferUpTo(
     world,
     p.accounts.local,

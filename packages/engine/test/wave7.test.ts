@@ -16,6 +16,7 @@ import { playerView } from '../src/views.js';
 import type { MarketId } from '../src/data/markets.js';
 import type { Player, World } from '../src/types.js';
 import {
+  T0,
   addFounder,
   addInvestor,
   makeWorld,
@@ -260,7 +261,7 @@ describe('food.order and delivery (Wave 7 §A)', () => {
     }
   });
 
-  it('pays price + 15% to the business and feeds you', () => {
+  it('pays price + 15% and feeds you when the delivery is collected', () => {
     let w = thaw(person(makeWorld(7, ['lagos'])));
     w.players.u_p!.needs = { hunger: 10, hygiene: 50, fun: 50, social: 50 };
     const d = playerView(w, 'u_p')!.market.delivery[0]!;
@@ -274,7 +275,14 @@ describe('food.order and delivery (Wave 7 §A)', () => {
     expect(r.result.total).toBe(it.price + fee);
     expect(bal(r.world, 'u_p')).toBe(before - it.price - fee);
     expect(r.world.accounts[till]!.balance).toBe(tillBefore + it.price + fee);
-    expect(r.world.players.u_p!.needs!.hunger).toBe(45);
+    expect(r.world.players.u_p!.needs!.hunger).toBe(10);
+    const delivered = run(
+      r.world,
+      'u_p',
+      { type: 'living.collect', deliveryId: r.result.id },
+      T0 + 31_000,
+    );
+    expect(delivered.world.players.u_p!.needs!.hunger).toBe(45);
     expect(moneyByCurrency(r.world)).toEqual(total);
     w = r.world;
   });

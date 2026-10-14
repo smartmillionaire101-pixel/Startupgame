@@ -2,7 +2,7 @@
  * Showrooms (docs/WAVE6-ALIVE-CITY.md §A3, §C2): a furniture store, an
  * appliance or electronics shop, or a car dealer lists what it sells, with
  * the price, the comfort it adds and an "owned" mark. Buying sends
- * `home.buy` / `car.buy` with this `businessId`, so the money lands in this
+ * `home.order` / `car.buy` with this `businessId`, so the money lands in this
  * business's till.
  */
 import { useState } from 'react';
@@ -98,7 +98,8 @@ export function Showroom({ business: b }: { business: BusinessView }) {
         ) : (
           <ul className="shop-list" aria-label={t('Cars on the floor')}>
             {shop.cars.map((c) => {
-              const owned = mine?.modelId === c.id;
+              const owned =
+                mine?.modelId === c.id || view.me.garage.some((car) => car.modelId === c.id);
               return (
                 <li key={c.id} data-shop-item={c.id} data-owned={owned ? '1' : '0'}>
                   <span className="shop-main">
@@ -116,7 +117,12 @@ export function Showroom({ business: b }: { business: BusinessView }) {
                       disabled={busy || pocket < c.price}
                       onBuy={() =>
                         void send(
-                          looseCmd({ type: 'car.buy', modelId: c.id, businessId: b.id }),
+                          looseCmd({
+                            type: 'car.buy',
+                            modelId: c.id,
+                            businessId: b.id,
+                            keepCurrent: true,
+                          }),
                           (r: { message?: string } | null) =>
                             r?.message
                               ? tx(r.message)
@@ -159,6 +165,9 @@ export function Showroom({ business: b }: { business: BusinessView }) {
             <ul className="shop-list">
               {g.items.map((f) => {
                 const mine = owned.has(f.id);
+                const pending = view.living.deliveries.some(
+                  (d) => d.owner === view.me.id && !d.complete && d.item?.slot === f.slot,
+                );
                 return (
                   <li key={f.id} data-shop-item={f.id} data-owned={mine ? '1' : '0'}>
                     <span className="shop-main">
@@ -170,13 +179,15 @@ export function Showroom({ business: b }: { business: BusinessView }) {
                     <b className="shop-price">{money(f.price, cur)}</b>
                     {mine ? (
                       <Pill tone="good">{t('Yours ✓')}</Pill>
+                    ) : pending ? (
+                      <Pill>Delivery on the way</Pill>
                     ) : (
                       <BuyButton
                         label={t('Buy')}
                         disabled={busy || pocket < f.price}
                         onBuy={() =>
                           void send(
-                            looseCmd({ type: 'home.buy', itemId: f.id, businessId: b.id }),
+                            looseCmd({ type: 'home.order', itemId: f.id, businessId: b.id }),
                             (r: { message?: string } | null) =>
                               r?.message
                                 ? tx(r.message)

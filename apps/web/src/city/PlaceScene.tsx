@@ -1,3 +1,5 @@
+import { useDaylight } from './useDaylight';
+import { openPlay } from '../experiences/play-bus';
 /**
  * Places you walk into (docs/WAVE5-FUN-LIFE-AND-CAPITAL.md §D): going into
  * any place opens a full-screen scene, not a card. An illustrated room for
@@ -23,7 +25,6 @@ import {
 import './scenes.css';
 import '../interiors3d/i3d.css';
 import { use3d } from '../three-kit/quality';
-import { useSun } from './sun';
 import type { PlayerView } from '@runway/engine';
 import { money } from '../format';
 import { t, tx } from '../i18n';
@@ -79,7 +80,6 @@ import { ActCard, ActHud, type ActResult } from './acts/ActHud';
 import { nextLook, setLookOverride, type HairStyle } from './acts/look';
 import { scriptFor, scriptOf, type ActPick } from './acts/scripts';
 import { openCompetition, outingOf, startOuting } from './outings';
-import { gameActions } from '../games/venue';
 import { competitionsHere, lifestyleName } from './wave10';
 import type { ActScript } from './acts/types';
 import {
@@ -586,8 +586,7 @@ function RoomScene({
   children,
 }: SceneProps) {
   const { view, send, cur, busy } = useView();
-  // Wave 12: the real sun outside, for the daylight through the windows.
-  const sun = useSun(view.market.id);
+  const daylight = useDaylight(view.here?.id ?? view.market.id);
   /** Below the room: the tray, everything else ("More"), or a showroom's catalogue. */
   const [panel, setPanel] = useState<'tray' | 'more' | 'shop'>('tray');
   const more = panel !== 'tray';
@@ -751,7 +750,21 @@ function RoomScene({
     if (look) setLookOverride(view.me.id, look);
     setAct((a) => (a?.n === n ? { ...a, result: r ?? {}, met: metOf(r) } : a));
   };
-  const doFun = (b: BusinessView, it: VenueItemView) => playAct(b, it, funIcon(it.label, room));
+  const doFun = (b: BusinessView, it: VenueItemView) => {
+    if (/quiz|snooker|pool|video.game|football/i.test(`${it.id} ${it.label}`)) {
+      openPlay({
+        venue: b.id,
+        name: b.name,
+        game: /quiz/i.test(it.id)
+          ? 'quiz'
+          : /football|video.game/i.test(it.id)
+            ? 'football'
+            : 'snooker',
+      });
+      return;
+    }
+    return playAct(b, it, funIcon(it.label, room));
+  };
   const saveMet = async () => {
     const met = act?.met ?? outcome?.met;
     if (!met) return;
@@ -819,8 +832,6 @@ function RoomScene({
         icon: '🎤',
         run: () => openCompetition(comp.id),
       });
-    // Wave 12 §A: games you play for real here (a quiz night, pool, darts; football at the arcade).
-    for (const a of gameActions(view, b)) actions.push(a);
     // A showroom: what's for sale (§A3).
     const sells = sellsOf(view, b);
     if (sells && (SHOWROOMS.has(room) || !fun.length))
@@ -1214,8 +1225,7 @@ function RoomScene({
               room={room}
               tint={business?.look.color ?? place.color}
               sign={sign?.toUpperCase().slice(0, 22)}
-              night={sun.night > 0.5}
-              sun={sun}
+              night={daylight.night}
               slots={slots}
               people={people3d}
               me={meLook}
@@ -1335,6 +1345,14 @@ function RoomScene({
         </div>
       ) : (
         <div className="place-tray">
+          {business && ['bar', 'lounge', 'club'].includes(room) && (
+            <button
+              className="btn btn-primary"
+              onClick={() => openPlay({ venue: business.id, name: business.name })}
+            >
+              Play together · quiz, snooker & football
+            </button>
+          )}
           {(business?.venue || (business && sellsOf(view, business))) && (
             <p className="small muted tray-pocket" data-pocket={pocket}>
               {t('In your pocket: {amount}', { amount: money(pocket, cur) })}

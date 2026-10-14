@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { openGame } from './games/open';
 import { useGame, useView } from './store';
 import { CountUp, Icon, initReduceMotion, reduceMotion, Sheet, Toasts, type IconName } from './ui';
 import { money, moneyExact } from './format';
@@ -87,6 +86,9 @@ try {
   /* storage blocked */
 }
 
+const LivingHost = lazy(() => import('./experiences/LivingHost'));
+const PlayHost = lazy(() => import('./experiences/PlayHost'));
+
 export function App() {
   useVisits();
   const { status, view } = useGame();
@@ -120,7 +122,15 @@ export function App() {
       )}
       {status === 'signedOut' && <SignIn />}
       {status === 'onboarding' && <Onboarding />}
-      {status === 'ready' && <Game />}
+      {status === 'ready' && (
+        <>
+          <Game />
+          <Suspense fallback={null}>
+            <PlayHost />
+            <LivingHost />
+          </Suspense>
+        </>
+      )}
       <Toasts />
       <UpdateBanner />
     </>
@@ -208,7 +218,6 @@ function Game() {
       go: goTarget,
       openItem: (item) => {
         if (!item.read) void send({ type: 'inbox.read', ids: [item.id] });
-        if (item.ref?.kind === 'game') return openGame(item.ref.id);
         goTarget(inboxTarget(item, viewRef.current));
       },
     }),

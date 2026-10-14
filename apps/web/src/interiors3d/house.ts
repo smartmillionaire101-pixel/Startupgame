@@ -166,6 +166,7 @@ export interface HouseOpts {
   night: boolean;
   /** Your car's model id, or null. */
   car: string | null;
+  cars?: string[];
   /**
    * Wave 10: a home on the property market. A villa or mansion gets a pool
    * terrace (and a mansion a formal garden with a fountain); a penthouse a
@@ -179,8 +180,9 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const W = plan.w;
   const H = plan.h;
   const sky = o.estate === 'penthouse';
-  const garage = o.tier >= 4 && !sky;
-  const GW = 4.4;
+  const cars = o.cars ?? (o.car ? [o.car] : []);
+  const garage = cars.length > 0;
+  const GW = 4.4 * Math.max(1, cars.length);
   const totalW = W + (garage ? GW + 0.3 : 0);
   const centre = new THREE.Vector3(totalW / 2, 0, H / 2 + 0.6);
 
@@ -392,11 +394,28 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     g.box(0.04, 0.04, 1.0, '#dc2626', gx + 0.5, 0.55, gz + 1.3);
     root.add(g.build());
     let car: THREE.Group | null = null;
-    if (o.car) {
-      const m: Model = buildModel(`car:${o.car}`, { w: 2, d: 4.5, tier: 1, tint: carPaint(o.car) });
-      car = m.group;
-      car.position.set(gx + GW / 2 + 0.4, 0, gz + 3.2);
-      root.add(car);
+    for (let i = 0; i < cars.length; i++) {
+      const model = cars[i]!;
+      const m: Model = buildModel(`car:${model}`, { w: 2, d: 4.5, tier: 1, tint: carPaint(model) });
+      if (i === 0) car = m.group;
+      m.group.position.set(gx + 2.2 + i * 4.4, 0, gz + 3.2);
+      root.add(m.group);
+      const bay = new Kit();
+      bay.box(0.06, 0.01, 5.5, '#eeeecc', gx + i * 4.4, -0.03, gz + 3);
+      if (/electric|tesla|ev|byd/i.test(model)) {
+        bay.box(0.35, 1.3, 0.25, '#123f39', gx + i * 4.4 + 3.8, 0, gz + 0.6);
+        bay.box(0.22, 0.28, 0.03, '#8df3bc', gx + i * 4.4 + 3.8, 0.9, gz + 0.76, {
+          emissive: '#8df3bc',
+          emissiveIntensity: 0.5,
+        });
+      } else if (/luxury|sport|super|executive/i.test(model)) {
+        bay.box(3.5, 0.04, 5.5, '#36444e', gx + i * 4.4 + 2.2, 0, gz + 3);
+        bay.box(3.5, 0.03, 0.04, '#ffdfa1', gx + i * 4.4 + 2.2, 0.06, gz + 0.25, {
+          emissive: '#ffdfa1',
+          emissiveIntensity: 0.5,
+        });
+      }
+      root.add(bay.build());
     }
     garageOut = { car };
   } else if (o.car) {

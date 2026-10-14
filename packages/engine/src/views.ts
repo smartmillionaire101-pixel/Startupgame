@@ -1,3 +1,5 @@
+import { livingView } from './living.js';
+import { playView } from './play.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
  *  - their own accounts, companies, deals, pitches, stories and inbox in full,
@@ -25,7 +27,6 @@ import {
   productRateBps,
 } from './capital.js';
 import { flightsView, isVisiting, tripCostUsd } from './travel.js';
-import { ticketView } from './tickets.js';
 import {
   CONTACTS_LIMIT,
   EVENT_KINDS,
@@ -53,7 +54,6 @@ import {
   companyDistrict,
 } from './branches.js';
 import { competitionsView } from './competitions.js';
-import { gamesView } from './games.js';
 import { stableDistrict } from './districts.js';
 import { boardOf } from './governance.js';
 import { BANK_TYPES, MIN_CAPITAL_RATIO, bankFigures } from './banks.js';
@@ -630,14 +630,15 @@ export function playerView(
   );
   return {
     worldVersion: world.version,
+    playRooms: playView(world, p),
+    living: livingView(world, p),
     /** The month clock (Wave 4): when the next settlement is due, for a countdown. */
     clock: clock ? clockView(clock.now, clock.monthMs) : null,
     /** One-way flights from where you are (Wave 4): fares in your home currency, minor units. */
     flights: flightsView(world, p),
-    /** Wave 12: your plane ticket (paid when booked), or null. */
-    ticket: ticketView(world, p, clock?.now ?? p.lastActiveAt),
     me: {
       id: p.id,
+      flightTicket: p.flightTicket ?? null,
       handle: p.handle,
       name: p.name,
       role: p.role,
@@ -693,6 +694,10 @@ export function playerView(
       home: myHomeView(p),
       /** Wave 5: your car, or null. */
       car: carView(world, p),
+      garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({
+        ...car,
+        active: car.modelId === p.car?.modelId,
+      })),
       /** Wave 5: status (0–100) from your home, car and lifestyle, shown on your profile. */
       status: statusOf(p),
       /** Wave 10: homes you own, in every city (amounts in each home's currency). */
@@ -720,8 +725,6 @@ export function playerView(
     visits: visitsView(world, p),
     /** Wave 8: hangouts this month you planned, were asked to or joined. */
     hangouts: hangoutsView(world, p),
-    /** Wave 12: games for stakes: yours, invitations, open ones in town, leaderboards. */
-    games: gamesView(world, p, clock?.now ?? p.lastActiveAt),
     bank: ownBankView(world, p.id),
     market: homeView,
     /** The city you're physically in (Wave 4): same shape as `market`; your home city unless you've flown. */

@@ -40,9 +40,7 @@ export type Verb =
   | { id: 'invite'; label: string }
   | { id: 'out'; label: string }
   | { id: 'buy'; label: string; slot: string }
-  | { id: 'move'; label: string; move: string }
-  /** Wave 12: play a game for real (football on the TV, pool, a quiz night). */
-  | { id: 'play'; label: string; game: 'football' | 'pool' | 'quiz' };
+  | { id: 'move'; label: string; move: string };
 
 /** Where a furniture slot (or a fixture) stands. */
 export interface Spot extends Rect {

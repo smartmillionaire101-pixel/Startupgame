@@ -1,3 +1,5 @@
+import type { Delivery, DateSession } from './living.js';
+import type { PlayRoom } from './play.js';
 /**
  * World state. Plain JSON-serialisable data only (no classes, Maps or Dates)
  * so it can be snapshotted, diffed, sent to clients and replayed.
@@ -105,6 +107,8 @@ export interface InvestorProfile {
 }
 
 export interface Player {
+  garage?: PlayerCar[];
+  flightTicket?: { from: MarketId; to: MarketId; paid: number; bookedAt: number };
   id: Id;
   handle: string;
   name: string;
@@ -151,8 +155,6 @@ export interface Player {
   location?: { market: MarketId; since: number };
   /** Flights taken this (home) month (Wave 4). Missing = none. */
   flights?: { month: number; count: number };
-  /** Wave 12: a flight booked and paid for, not yet flown (tickets.ts). Missing = none. */
-  ticket?: FlightTicket;
   /** Bus and taxi rides taken this (home) month (Wave 4). Missing = none. */
   rides?: { month: number; count: number };
   /** AI angels only (Wave 3): the angel fund this person runs; set when they stop investing. */
@@ -979,9 +981,7 @@ export interface InboxItem {
       | 'visit'
       | 'hangout'
       | 'techevent'
-      | 'player'
-      /** Wave 12: a game (quiz night, pool, football, darts). */
-      | 'game';
+      | 'player';
     id: Id;
   };
   read: boolean;
@@ -1181,11 +1181,12 @@ export type ExternalPurpose =
   | 'fx'
   | 'gigs';
 
-import type { Game, GameStats } from './games-types.js';
-
 // ---------------------------------------------------------------- World
 
 export interface World {
+  deliveries?: Record<Id, Delivery>;
+  dates?: Record<Id, DateSession>;
+  playRooms?: Record<Id, PlayRoom>;
   /** Durable admin counters. Older snapshots start tracking at their next command. */
   activity?: {
     since: number;
@@ -1246,10 +1247,6 @@ export interface World {
   branches?: Record<Id, Branch>;
   /** Wave 10: pitch competitions. Missing = none. */
   competitions?: Record<Id, Competition>;
-  /** Wave 12: games played for stakes (quiz, pool, football, darts). Missing = none. */
-  games?: Record<Id, Game>;
-  /** Wave 12: per city, per game, per player: wins, streaks, winnings. Missing = none. */
-  gameStats?: GameStats;
 }
 
 // ---------------------------------------------------------------- Wave 10: a living economy
@@ -1363,23 +1360,4 @@ export interface Competition {
   winnerEntryId?: Id | null;
   /** Fund that wants to meet the winner (the investor interest). */
   interest?: { fundId: Id; name: string } | null;
-}
-
-/** Wave 12: a plane ticket, paid when booked (tickets.ts). */
-export interface FlightTicket {
-  from: MarketId;
-  to: MarketId;
-  /** Epoch ms of the scheduled departure; the ticket expires once it has left. */
-  departAt: number;
-  bookedAt: number;
-  /** What was charged, minor units of `currency` (the home currency when booked). */
-  fare: number;
-  currency: Currency;
-  /** The account the fare was paid to (refunds come back from it). */
-  account: Id;
-  flight?: string;
-  airline?: string;
-  gate?: string;
-  /** "14:05", local time at the departure city. */
-  time?: string;
 }

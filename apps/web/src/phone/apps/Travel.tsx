@@ -1,10 +1,9 @@
 /**
  * Travel: where you can fly from the city you're in, with the departure
  * time, airline, flight number, flight time and fare. You choose where to go
- * and book first (Wave 12: the fare is charged when you book); then you go
- * to the airport and check in for that flight. A ticket can be cancelled
- * before it leaves, for a refund minus a small fee.
+ * and book first; then you go to the airport and check in for that flight.
  */
+import type { MarketId } from '@runway/engine';
 import { useState } from 'react';
 import { money } from '../../format';
 import { t } from '../../i18n';
@@ -16,9 +15,10 @@ import {
   hereOf,
   isAbroad,
   localMinutes,
+  nextFlightTo,
   scheduleDay,
 } from '../../city/travel';
-import { bookCommand, nextBookable, ticketFrom, useTicket } from '../../city/ticket';
+import { setTicket, ticketFrom, useTicket } from '../../city/ticket';
 import { Icon } from '../icons';
 import { Nothing, type PhoneCtx } from '../shared';
 
@@ -31,70 +31,49 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
     day: scheduleDay(month),
     now: localMinutes(here.id),
   }));
-  const ticket = useTicket();
-  const booked = ticketFrom(ticket, here.id, dests);
-  const held = ticket && ticket.status === 'valid' ? ticket : null;
+  const booked = ticketFrom(useTicket(), here.id, dests);
   if (dests.length === 0)
     return <Nothing icon="travel">{t('No flights from here right now.')}</Nothing>;
   const schedule = airportSchedule(here.id, day);
   const rows = dests
-    .map((d) => ({ d, f: nextBookable(schedule, d.id, now) }))
+    .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))
     .sort((a, b) => ((a.f?.time ?? '99') < (b.f?.time ?? '99') ? -1 : 1));
-  const cancel = () =>
-    void send<{ refund: number; currency: string }>({ type: 'travel.cancel' }, (r) =>
-      t('Ticket cancelled: {amount} refunded.', { amount: money(r.refund, r.currency) }),
-    );
   return (
     <div className="phone-stack">
-      {held && (
-        <div className="phone-card phone-ticket" data-ticket={held.to}>
+      {booked && (
+        <div className="phone-card phone-ticket" data-ticket={booked.to}>
           <div className="spread">
             <span>
               <span className="small muted">{t('Your ticket')}</span>
               <br />
               <b>
-                {held.from === here.id ? here.name : held.from} → {held.toName}
+                {here.name} → {booked.toName}
               </b>
               <br />
               <span className="small muted">
-                {[held.time, held.airline, held.flight].filter(Boolean).join(' · ')}
-              </span>
-              <br />
-              <span className="small" data-ticket-paid>
-                {t('Paid {amount}', { amount: money(held.fare, held.currency || cur) })}
+                {[booked.time, booked.airline, booked.flight].filter(Boolean).join(' · ')}
               </span>
             </span>
-            {booked && (
-              <button className="btn btn-primary" onClick={() => ctx.goPlace('airport')}>
-                {t('Go to the airport')}
-              </button>
-            )}
+            <button className="btn btn-primary" onClick={() => ctx.goPlace('airport')}>
+              {t('Go to the airport')}
+            </button>
           </div>
-          <button
-            className="btn btn-ghost"
-            disabled={busy}
-            aria-label={t('Cancel your ticket to {city}', { city: held.toName })}
-            onClick={cancel}
-          >
-            {t('Cancel ticket · {amount} back', {
-              amount: money(held.refund, held.currency || cur),
-            })}
-          </button>
         </div>
       )}
-      {ticket?.status === 'missed' && (
-        <p className="phone-card small" data-ticket-missed={ticket.to}>
-          {t('You missed your flight to {city}. The fare isn’t refunded.', {
-            city: ticket.toName,
-          })}
-        </p>
+      {booked && (
+        <button
+          className="btn btn-ghost"
+          disabled={busy}
+          onClick={() => void send({ type: 'travel.cancel' })}
+        >
+          Cancel ticket · full refund
+        </button>
       )}
       <p className="small muted">
-        {held
-          ? t('Cancel your ticket to change flights.')
-          : t(
-              'Where do you want to go? Book a flight (the fare is charged now), then check in at the airport.',
-            )}
+        Flights are charged when booked. Boarding does not charge again.
+      </p>
+      <p className="small muted">
+        {t('Where do you want to go? Choose a flight and book it, then check in at the airport.')}
       </p>
       <ul className="phone-list" aria-label={t('Flights')}>
         {rows.map(({ d, f }) => (
@@ -117,18 +96,23 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
               </span>
               <button
                 className={`btn ${booked?.to === d.id ? 'btn-primary' : 'btn-subtle'}`}
-                disabled={d.done || busy || (!!held && held.to !== d.id)}
+                disabled={busy || d.done || !!booked}
                 aria-label={t('Book a flight to {city}', { city: d.name })}
                 onClick={async () => {
-                  if (booked?.to === d.id) {
-                    ctx.goPlace('airport');
-                    return;
-                  }
-                  const r = await send<{ charged: number; currency: string }>(
-                    bookCommand(here.id, d, month, Date.now(), f),
-                    (r) => t('Booked: {amount} charged.', { amount: money(r.charged, r.currency) }),
-                  );
-                  if (r) ctx.goPlace('airport');
+                  if (!(await send({ type: 'travel.book', to: d.id as MarketId }))) return;
+                  setTicket({
+                    from: here.id,
+                    to: d.id,
+                    toName: d.name,
+                    fare: d.fare,
+                    currency: cur,
+                    hours: d.hours,
+                    time: f?.time,
+                    airline: f?.airline,
+                    flight: f?.flight,
+                    gate: f?.gate,
+                  });
+                  ctx.goPlace('airport');
                 }}
               >
                 {d.done ? t('Already this month') : booked?.to === d.id ? t('Booked') : t('Book')}

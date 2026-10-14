@@ -49,7 +49,7 @@ import {
   type StoryPlace,
 } from './contract';
 import { onVisit, takeVisit } from './goto';
-import { bookCommand, ticketFrom, ticketOf } from './ticket';
+import { setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
 import { suggestionText, WhatNowCard, WhatNowList } from './WhatNowCards';
@@ -298,18 +298,15 @@ export function CityScreen({
               { city: toName, home: view.market.name },
             ),
       });
-      // Wave 12: with a ticket for this flight you board on it (paid when booked);
-      // without one ("Fly now") the fare is charged at the gate, as before.
-      const ticket = ticketFrom(ticketOf(view), here.id, destinationsOf(view));
       try {
         await api.command(
-          (ticket?.to === to
-            ? { type: 'travel.board' }
-            : flights
-              ? { type: 'travel.fly', to }
-              : { type: 'player.travel', market: to }) as unknown as Command,
+          (flights
+            ? { type: 'travel.fly', to }
+            : { type: 'player.travel', market: to }) as unknown as Command,
         );
         await refresh();
+        // The ticket is used: you've flown.
+        setTicket(null);
         setFlight((f) => (f && f.to === to ? { ...f, status: 'ok' } : f));
         if (lite) {
           setFlight(null);
@@ -421,7 +418,7 @@ function CityBodyInner({
   onLanded: () => void;
   onOpenProperty?: (id: string) => void;
 }) {
-  const { view, lite, refresh, toast, send } = useView();
+  const { view, lite, refresh, toast } = useView();
   const lang = useLang();
   const abroad = view.market.id !== home.id;
   const company = activeCompany(view);
@@ -529,8 +526,6 @@ function CityBodyInner({
   // go to the airport and check in for it (lite mode, without the airport
   // scene, flies at once).
   const homeMonth = view.market.month;
-  const held = ticketOf(view);
-  const holding = held?.status === 'valid';
   const flyHomeViaAirport = useCallback(async () => {
     const d = destinations.find((x) => x.id === home.id);
     const airport = layout.places.find((p) => p.kind === 'airport');
@@ -538,18 +533,28 @@ function CityBodyInner({
       onFlyHome();
       return;
     }
-    // Wave 12: the ticket home is booked (and paid) now, unless you hold one
-    // already (the airport shows it, or lets you cancel it).
-    if (!holding) {
-      const r = await send<{ charged: number; currency: string }>(
-        bookCommand(layout.marketId, d, homeMonth),
-        (r) => t('Booked: {amount} charged.', { amount: money(r.charged, r.currency) }),
-      );
-      if (!r) return;
+    try {
+      await api.command({ type: 'travel.book', to: home.id } as Command);
+      await refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Booking failed.', 'error');
+      return;
     }
+    setTicket(ticketFor(layout.marketId, d, home.currency, homeMonth));
     setInside(null);
     goTo(airport);
-  }, [destinations, home.id, homeMonth, holding, layout, lite, onFlyHome, goTo, send]);
+  }, [
+    destinations,
+    home.id,
+    home.currency,
+    homeMonth,
+    layout,
+    lite,
+    onFlyHome,
+    goTo,
+    refresh,
+    toast,
+  ]);
   const visit = useCallback(
     (placeId: string) => {
       // 'market' stands for the Market's stalls ("What to do now").

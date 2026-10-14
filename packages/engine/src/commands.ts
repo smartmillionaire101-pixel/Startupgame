@@ -10,7 +10,6 @@ import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { REVENUE_MODELS, STAGES } from './types.js';
-import { GAME_KINDS, GAME_WHERE, QUIZ_CATEGORIES } from './games-types.js';
 
 const id = z.string().min(1).max(64);
 const money = z.number().int().nonnegative().max(1e15);
@@ -253,22 +252,67 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('player.travel'), market }),
   /** Wave 4: fly one way to another city and be there (or fly home). */
-  z.object({ type: z.literal('travel.fly'), to: market }),
-  /** Wave 12: book a flight; the fare is charged now and a ticket issued (tickets.ts). */
+  z.object({ type: z.literal('home.order'), itemId: id, businessId: id.optional() }),
+  z.object({ type: z.literal('living.collect'), deliveryId: id }),
   z.object({
-    type: z.literal('travel.book'),
-    to: market,
-    /** Epoch ms of the departure (default: two hours from now). */
-    departAt: z.number().int().nonnegative().max(1e15).optional(),
-    flight: z.string().max(16).optional(),
-    airline: z.string().max(40).optional(),
-    gate: z.string().max(8).optional(),
-    time: z.string().max(8).optional(),
+    type: z.literal('living.date.invite'),
+    playerId: id,
+    location: z.enum(['home', 'london-eye', 'cable-car', 'rooftop']),
   }),
-  /** Wave 12: board the flight on your ticket (no charge). */
-  z.object({ type: z.literal('travel.board') }),
-  /** Wave 12: cancel your ticket before departure (refund minus a small fee). */
+  z.object({ type: z.literal('living.date.accept'), dateId: id }),
+  z.object({ type: z.literal('living.date.end'), dateId: id }),
+  z.object({
+    type: z.literal('living.date.gesture'),
+    dateId: id,
+    action: z.enum(['compliment', 'flirt', 'laugh', 'point']),
+  }),
+  z.object({ type: z.literal('living.date.hands'), dateId: id, accept: z.boolean() }),
+  z.object({ type: z.literal('car.select'), modelId: id }),
+  z.object({
+    type: z.literal('play.create'),
+    game: z.enum(['quiz', 'snooker', 'football']),
+    venue: id,
+    title: z.string().trim().min(3).max(60),
+    stake: z.number().int().min(0).max(100_000_000),
+    questions: z
+      .array(
+        z.object({
+          text: z.string().trim().min(5).max(240),
+          options: z.array(z.string().trim().min(1).max(100)).length(4),
+          answer: z.number().int().min(0).max(3),
+        }),
+      )
+      .min(3)
+      .max(20)
+      .optional(),
+  }),
+  z.object({ type: z.literal('play.join'), roomId: id }),
+  z.object({ type: z.literal('play.start'), roomId: id }),
+  z.object({ type: z.literal('play.leave'), roomId: id }),
+  z.object({ type: z.literal('play.cancel'), roomId: id }),
+  z.object({ type: z.literal('play.sync'), roomId: id }),
+  z.object({
+    type: z.literal('play.answer'),
+    roomId: id,
+    round: z.number().int().min(0),
+    choice: z.number().int().min(0).max(3),
+  }),
+  z.object({
+    type: z.literal('play.penalty'),
+    roomId: id,
+    round: z.number().int().min(0),
+    lane: z.number().int().min(0).max(4),
+  }),
+  z.object({
+    type: z.literal('play.shot'),
+    roomId: id,
+    round: z.number().int().min(0),
+    angle: z.number().min(-Math.PI).max(Math.PI),
+    power: z.number().min(5).max(100),
+  }),
+  z.object({ type: z.literal('travel.book'), to: market }),
   z.object({ type: z.literal('travel.cancel') }),
+  z.object({ type: z.literal('travel.fly'), to: market }),
   /**
    * Wave 4: a bus or taxi across the city you're in. Walking and cycling are free,
    * and so is driving your own car in your home city (Wave 5; fuel is in its running cost).
@@ -399,6 +443,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   /** A car: replacing sells the old one back at 50%; running costs are paid monthly. */
   z.object({
     type: z.literal('car.buy'),
+    keepCurrent: z.boolean().optional(),
     modelId: z.string().min(1).max(32),
     businessId: id.optional(),
   }),
@@ -528,90 +573,6 @@ export const commandSchema = z.discriminatedUnion('type', [
     entryId: id,
     score: z.number().int().min(1).max(10),
   }),
-  // ---- games you play for real (Wave 12)
-  /**
-   * Set up a game: at a venue in the city you're in (`businessId`), or at home
-   * (yours, or the friend's you're visiting). `stake` per player in the
-   * city's currency (0: a friendly), `ai` AI players at `aiSkill` 1–3, and
-   * players to `invite`. A quiz takes packs, a count, and the host's own
-   * questions (right answer first; then the host is quizmaster).
-   */
-  z.object({
-    type: z.literal('game.create'),
-    kind: z.enum(GAME_KINDS),
-    where: z.enum(GAME_WHERE),
-    businessId: id.optional(),
-    stake: money,
-    ai: z.number().int().min(0).max(7).optional(),
-    aiSkill: z.number().int().min(1).max(3).optional(),
-    invite: z.array(id).max(7).optional(),
-    quiz: z
-      .object({
-        packs: z.array(z.enum(QUIZ_CATEGORIES)).max(5).optional(),
-        count: z.number().int().min(3).max(12).optional(),
-        custom: z
-          .array(
-            z.object({
-              q: z.string().min(3).max(140),
-              options: z.tuple([
-                z.string().min(1).max(48),
-                z.string().min(1).max(48),
-                z.string().min(1).max(48),
-                z.string().min(1).max(48),
-              ]),
-            }),
-          )
-          .max(12)
-          .optional(),
-      })
-      .optional(),
-  }),
-  z.object({ type: z.literal('game.join'), gameId: id }),
-  z.object({ type: z.literal('game.invite'), gameId: id, playerIds: z.array(id).min(1).max(7) }),
-  z.object({ type: z.literal('game.start'), gameId: id }),
-  /** Leave a lobby (stake back) or concede a game in play. */
-  z.object({ type: z.literal('game.leave'), gameId: id }),
-  /** A move: a quiz answer, a pool shot, a penalty kick or dive, a dart. */
-  z.object({
-    type: z.literal('game.play'),
-    gameId: id,
-    move: z.discriminatedUnion('k', [
-      z.object({
-        k: z.literal('answer'),
-        q: z.number().int().min(0).max(30),
-        choice: z.number().int().min(0).max(3),
-      }),
-      z.object({
-        k: z.literal('shot'),
-        dx: z.number().min(-1000).max(1000),
-        dy: z.number().min(-1000).max(1000),
-        power: z.number().min(0).max(1),
-        spin: z.number().min(-1).max(1).optional(),
-        cueX: z.number().min(0).max(200).optional(),
-        cueY: z.number().min(0).max(300).optional(),
-      }),
-      z.object({
-        k: z.literal('kick'),
-        x: z.number().min(-1.5).max(1.5),
-        y: z.number().min(0).max(1.5),
-        power: z.number().min(0).max(1),
-      }),
-      z.object({
-        k: z.literal('dive'),
-        x: z.number().min(-1.5).max(1.5),
-        y: z.number().min(0).max(1.5),
-      }),
-      z.object({
-        k: z.literal('throw'),
-        x: z.number().min(-1.3).max(1.3),
-        y: z.number().min(-1.3).max(1.3),
-      }),
-    ]),
-  }),
-  /** Settle a game that's over (the server sends this when someone looks at a finished game). */
-  z.object({ type: z.literal('game.finish'), gameId: id }),
-  /** The same game again with the same people, or join the rematch someone set up. */
-  z.object({ type: z.literal('game.rematch'), gameId: id }),
 ]);
 
 export type Command = z.infer<typeof commandSchema>;
