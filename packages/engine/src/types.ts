@@ -1532,6 +1532,8 @@ export interface SalesDeal {
 export interface SalesAccount {
   dealId: Id;
   name: string;
+  /** The local business this customer is, when it is one. */
+  businessId?: Id;
   segmentKey: string;
   /** Agreed monthly price, local minor units. */
   monthly: number;

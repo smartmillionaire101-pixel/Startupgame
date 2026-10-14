@@ -808,6 +808,10 @@ export function pitchBlocker(
     return `They don’t buy ${mine.map((c) => INDUSTRY_LABEL[c.industry].toLowerCase()).join(' or ')} products.`;
   const open = sells.filter((c) => !b.suppliers.some((s) => s.companyId === c.id));
   if (!open.length) return 'They already buy from you.';
+  // Founder Journey 2a: a business won in your sales pipeline is already your customer.
+  // (Old logs never have sales accounts, so this cannot change their replay.)
+  if (open.every((c) => c.salesAccounts?.some((a) => a.businessId === b.id)))
+    return 'They already buy from you through a deal you signed.';
   const used = me.businessPitches?.month === m.month ? me.businessPitches.count : 0;
   if (used >= ECONOMY.pitchesPerMonth)
     return `You’ve made ${ECONOMY.pitchesPerMonth} pitches this month. Come back next month.`;

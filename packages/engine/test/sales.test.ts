@@ -286,3 +286,67 @@ describe('sales pipeline: closing', () => {
     expect(c.salesAccounts).toBeUndefined();
   });
 });
+
+describe('sales pipeline and business pitches never double up', () => {
+  it('business.pitch refuses a business you already won in the pipeline', () => {
+    let w = addFounder(makeWorld());
+    let id: string | undefined;
+    for (let i = 0; i < SALES.prospectsPerMonth && !id; i++) {
+      w = run(w, F, { type: 'sales.prospect' }).world;
+      id = deals(w).find((d) => d.customer.businessId)?.id;
+    }
+    expect(id).toBeDefined();
+    w = toProposal(w, id!);
+    w = tune(w, id!, (d) => {
+      d.customer.trust = 1;
+      d.customer.authority = 1;
+      d.customer.urgency = 1;
+      d.customer.current = 'nothing';
+      d.price = 1;
+    });
+    const r = run(w, F, { type: 'sales.advance', dealId: id!, action: 'close' });
+    expect(r.result.won).toBe(true);
+    const c = companyOf(r.world, F);
+    const businessId = deal(r.world, id!).customer.businessId!;
+    expect(c.salesAccounts![0]!.businessId).toBe(businessId);
+    const pitch = tryRun(r.world, F, { type: 'business.pitch', companyId: c.id, businessId });
+    expect(pitch.ok).toBe(false);
+    if (!pitch.ok) {
+      expect(pitch.error.code).toBe('business.pitch');
+      expect(pitch.error.message).toBe('They already buy from you through a deal you signed.');
+    }
+  });
+
+  it('sales.prospect skips businesses that are customers by pitch or already in a deal', () => {
+    let w = addFounder(makeWorld());
+    w = run(w, F, { type: 'sales.prospect' }).world;
+    const first = deals(w)
+      .map((d) => d.customer.businessId)
+      .filter(Boolean) as string[];
+    // Every other business that buys this kind of product becomes a customer by pitch
+    // (business.pitch records it in the business's suppliers).
+    const pitched = new Set<string>();
+    w = edit(w, (d) => {
+      const c = companyOf(d, F);
+      const m = d.markets[c.market]!;
+      for (const b of Object.values(m.businesses ?? {})) {
+        if (first.includes(b.id) || b.closedMonth !== undefined) continue;
+        b.suppliers = b.suppliers.filter((s) => s.sector !== c.industry);
+        b.suppliers.push({ companyId: c.id, sector: c.industry, monthlyMinor: 1, since: 0 });
+        pitched.add(b.id);
+      }
+    });
+    for (let i = 1; i < SALES.prospectsPerMonth; i++) {
+      const r = tryRun(w, F, { type: 'sales.prospect' });
+      if (!r.ok) break;
+      w = r.world;
+    }
+    const ids = deals(w)
+      .map((d) => d.customer.businessId)
+      .filter(Boolean) as string[];
+    // No business twice (open deals are taken), none that already buys by pitch.
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.filter((b) => pitched.has(b))).toEqual([]);
+    expect(deals(w).length).toBeGreaterThan(first.length);
+  });
+});

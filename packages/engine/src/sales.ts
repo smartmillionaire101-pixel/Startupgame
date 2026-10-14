@@ -369,12 +369,15 @@ export function prospect(world: World, me: Player, companyId?: Id) {
   c.salesProspects = { month, count: used + 1 };
   c.lastDecisionMonth = month;
   const rng = deriveRng(world.seed, 'sales', 'prospect', c.id, month, used);
-  const taken = new Set(
-    deals
+  // Never a business already in the pipeline, already won, or already a customer by pitch
+  // (business.pitch records it in the business's `suppliers`, filtered below).
+  const taken = new Set([
+    ...deals
       .filter((d) => isOpenDeal(d) || d.stage === 'won')
       .map((d) => d.customer.businessId)
       .filter(Boolean),
-  );
+    ...(c.salesAccounts ?? []).map((a) => a.businessId).filter(Boolean),
+  ]);
   const businesses = Object.values(businessesOf(m))
     .filter(
       (b) =>
@@ -556,6 +559,7 @@ function closeDeal(world: World, me: Player, c: Company, d: SalesDeal, month: nu
       dealId: d.id,
       name: d.customer.name,
       segmentKey: d.customer.segmentKey,
+      ...(d.customer.businessId ? { businessId: d.customer.businessId } : {}),
       monthly,
       since: month,
     });

@@ -154,13 +154,23 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .sales:not(.sales-compact) .sales-board {
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(220px, 1fr);
+    display: flex;
+    align-items: stretch;
     overflow-x: auto;
     padding-bottom: 6px;
   }
+  .sales:not(.sales-compact) .sales-col {
+    flex: 1 0 220px;
+  }
+  /* An empty stage collapses to a slim header strip, so busy stages get the room. */
   .sales:not(.sales-compact) .sales-col-empty {
     display: grid;
+    flex: 0 0 40px;
+    overflow: hidden;
+  }
+  .sales:not(.sales-compact) .sales-col-empty .sales-col-head {
+    writing-mode: vertical-rl;
+    white-space: nowrap;
   }
   .sales:not(.sales-compact) .sales-col {
     padding: 8px;

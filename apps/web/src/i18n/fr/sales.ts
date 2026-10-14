@@ -147,6 +147,8 @@ export const sales: Record<string, string> = {
   'A discount can be at most 40%.': 'Une remise ne peut pas dépasser 40 %.',
   'They’re tired of haggling. Close the deal or walk away.':
     'Ils en ont assez de marchander. Concluez ou abandonnez.',
+  'They already buy from you through a deal you signed.':
+    'Ils vous achètent déjà grâce à une affaire que vous avez signée.',
   'This is a customer now, not a deal.': 'C’est un client maintenant, plus une affaire.',
   'Milestone: First customer': 'Étape : premier client',
 };
