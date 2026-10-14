@@ -74,6 +74,11 @@ export function Founder({ ctx }: { ctx: PhoneCtx }) {
         >
           {t('Product roadmap')}
         </Button>
+        {c.status === 'active' && (
+          <Button variant="subtle" onClick={() => ctx.open('sales')}>
+            {t('Sales pipeline')}
+          </Button>
+        )}
         <Button variant="subtle" onClick={() => tab('money')}>
           {t('Money and fundraising')}
         </Button>

@@ -590,6 +590,14 @@ export interface Company {
   storyBase?: StoryBase | null;
   /** Local business customers won and lost since the last story (Wave 3). Internal. */
   businessNews?: BusinessNews | null;
+  /** Founder Journey 2a: the per-deal sales pipeline (only once `sales.*` is used). */
+  deals?: SalesDeal[];
+  /** Customers won through the pipeline, billed monthly on B2B terms. */
+  salesAccounts?: SalesAccount[];
+  /** Next deal number (per company, so ids never touch the world counter). */
+  salesSeq?: number;
+  /** Prospecting done this month (limited by founder hours and sales staff). */
+  salesProspects?: { month: number; count: number };
   /** In (or graduated from) an accelerator (Wave 5). Missing = never joined one. */
   accelerator?: CompanyAccelerator | null;
   /** The product roadmap (§6.3). Missing = never opened: product work runs as before. */
@@ -1481,4 +1489,96 @@ export interface Competition {
   winnerEntryId?: Id | null;
   /** Fund that wants to meet the winner (the investor interest). */
   interest?: { fundId: Id; name: string } | null;
+}
+
+// ---------------------------------------------------------------- Sales pipeline (Journey 2a)
+
+export const SALES_STAGES = [
+  'lead',
+  'contacted',
+  'discovery',
+  'demo',
+  'proposal',
+  'negotiation',
+  'won',
+  'lost',
+] as const;
+export type SalesStage = (typeof SALES_STAGES)[number];
+export const SALES_LOSS_REASONS = [
+  'price',
+  'missing_feature',
+  'timing',
+  'trust',
+  'competitor',
+  'no_budget',
+] as const;
+export type SalesLossReason = (typeof SALES_LOSS_REASONS)[number];
+export const SALES_ACTIONS = [
+  'contact',
+  'discover',
+  'demo',
+  'propose',
+  'negotiate',
+  'close',
+  'recover',
+] as const;
+export type SalesAction = (typeof SALES_ACTIONS)[number];
+export type SalesNeed = 'fit' | 'price' | 'stars' | 'reliability';
+export type SalesCurrent = 'nothing' | 'spreadsheet' | 'incumbent' | 'rival';
+
+/** A prospective customer. Need, budget, authority, urgency, current solution and trust are hidden until discovery. */
+export interface SalesCustomer {
+  name: string;
+  /** The person you deal with. */
+  contact: string;
+  /** A local business this lead is (when it is one). */
+  businessId?: Id;
+  segmentKey: string;
+  need: SalesNeed;
+  /** Willingness to pay per month, local minor units. */
+  budgetMin: number;
+  budgetMax: number;
+  /** 0–1: can they sign alone? */
+  authority: number;
+  /** 0–1: how soon they must fix the problem. */
+  urgency: number;
+  current: SalesCurrent;
+  /** Who they use today (incumbent or rival), when anyone. */
+  currentName?: string;
+  /** 0–1, grows with every good interaction. */
+  trust: number;
+}
+
+export interface SalesDeal {
+  id: Id;
+  customer: SalesCustomer;
+  stage: SalesStage;
+  createdMonth: number;
+  /** Last game month to close in; it expires at the settlement after. */
+  deadline: number;
+  /** Discovery done: the hidden attributes are known. */
+  revealed: boolean;
+  /** How the demo went, 0–1. */
+  demoScore?: number;
+  /** Proposed monthly price (before discount). */
+  price?: number;
+  discountPct?: number;
+  negotiations?: number;
+  lossReason?: SalesLossReason;
+  /** The one recovery attempt after a loss has been used. */
+  recovered?: boolean;
+  /** Lost because the deadline passed. */
+  expired?: boolean;
+  closedMonth?: number;
+}
+
+export interface SalesAccount {
+  dealId: Id;
+  name: string;
+  /** The local business this customer is, when it is one. */
+  businessId?: Id;
+  segmentKey: string;
+  /** Agreed monthly price, local minor units. */
+  monthly: number;
+  since: number;
 }

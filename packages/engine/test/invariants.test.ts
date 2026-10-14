@@ -75,6 +75,13 @@ describe('world invariants under random play', () => {
         ),
         pick: fc.nat(12),
       }),
+      // Founder Journey 2a: work the sales pipeline (prospect, advance, close, recover).
+      fc.record({
+        k: fc.constant('sales' as const),
+        pick: fc.nat(20),
+        step: fc.nat(7),
+        discount: fc.integer({ min: 0, max: 40 }),
+      }),
       fc.record({
         k: fc.constant('market' as const),
         budget: fc.integer({ min: 0, max: 5_000_000_00 }),
@@ -514,6 +521,29 @@ describe('world invariants under random play', () => {
                   slides: ['product', 'traction'],
                   ask: a.ask,
                 };
+                break;
+              }
+              case 'sales': {
+                const deals = w.companies[cid]?.deals ?? [];
+                const d = deals[a.pick % Math.max(1, deals.length)];
+                const acts = [
+                  'contact',
+                  'discover',
+                  'demo',
+                  'propose',
+                  'negotiate',
+                  'close',
+                  'recover',
+                ] as const;
+                cmd =
+                  !d || a.step === 7
+                    ? { type: 'sales.prospect', companyId: cid }
+                    : {
+                        type: 'sales.advance',
+                        dealId: d.id,
+                        action: acts[a.step]!,
+                        discountPct: a.discount,
+                      };
                 break;
               }
               case 'bizPitch': {

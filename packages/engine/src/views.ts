@@ -1,5 +1,6 @@
 import { journeyView } from './journey.js';
 import { roadmapView } from './roadmap.js';
+import { salesView } from './sales.js';
 import { livingView } from './living.js';
 import { playView } from './play.js';
 /**
@@ -238,6 +239,8 @@ export function companyDetail(world: World, c: Company) {
       receivables: c.finance.receivables.reduce((a, r) => a + r.amount, 0),
       unpaidPayroll: c.finance.unpaidPayroll,
     },
+    /** Founder Journey 2a: the per-deal sales pipeline (view.company.sales). */
+    sales: salesView(world, c),
     rules: rulesFor(c.market, c.industry).map((r) => ({ ...r, done: !!c.compliance[r.id] })),
     listing: Object.values(world.listings).find((l) => l.companyId === c.id) ?? null,
     marketRate: marketRate(world, c),

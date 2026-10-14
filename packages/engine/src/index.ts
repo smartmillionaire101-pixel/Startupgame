@@ -149,3 +149,4 @@ export {
 export { FEATURES, featuresFor, featureById, BUG_BASH } from './data/roadmap.js';
 export type { FeatureDef, FeatureEffectKind, FeatureSkill } from './data/roadmap.js';
 export { ROADMAP, FIRST_RELEASE } from './roadmap.js';
+export { SALES, ACTION_FROM as SALES_ACTION_FROM, winChance, type SalesView } from './sales.js';

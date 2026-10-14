@@ -34,6 +34,7 @@ import { HomeApp } from './apps/HomeApp';
 import { Invest } from './apps/Invest';
 import { Jobs } from './apps/Jobs';
 import { JourneyApp } from './apps/JourneyApp';
+import { SalesApp } from './apps/SalesApp';
 import { MapApp } from './apps/MapApp';
 import {
   AiThreadView,
@@ -73,6 +74,7 @@ export const APPS: AppDef[] = [
   { id: 'map', icon: 'map', label: () => t('Map'), bg: ['#60a5fa', '#2563eb'] },
   { id: 'bank', icon: 'bank', label: () => t('Bank'), bg: ['#2dd4bf', '#0f766e'] },
   { id: 'founder', icon: 'founder', label: () => t('Founder'), bg: ['#fb923c', '#ea580c'] },
+  { id: 'sales', icon: 'shop', label: () => t('Sales'), bg: ['#facc15', '#ca8a04'] },
   { id: 'contacts', icon: 'contacts', label: () => t('Contacts'), bg: ['#94a3b8', '#475569'] },
   { id: 'alerts', icon: 'alerts', label: () => t('Alerts'), bg: ['#f87171', '#dc2626'] },
   { id: 'rides', icon: 'rides', label: () => t('Rides'), bg: ['#34d399', '#047857'] },
@@ -584,6 +586,9 @@ function PhoneScreen(props: {
     case 'journey':
       body = <JourneyApp ctx={ctx} />;
       break;
+    case 'sales':
+      body = <SalesApp />;
+      break;
     case 'goingout':
       body = <GoingOut ctx={ctx} />;
       break;
@@ -664,7 +669,12 @@ function PhoneHome({
   const { view, cur } = useView();
   const mood = moodOf(view);
   // The Journey app is for founders (it follows a company).
-  const grid = APPS.filter((a) => !DOCK.includes(a.id) && (a.id !== 'journey' || !!view.journey));
+  const grid = APPS.filter(
+    (a) =>
+      !DOCK.includes(a.id) &&
+      (a.id !== 'journey' || !!view.journey) &&
+      (a.id !== 'sales' || view.companies.some((c) => c.status === 'active')),
+  );
   const dock = DOCK.map((id) => APPS.find((a) => a.id === id)!);
   return (
     <div className="phone-home">

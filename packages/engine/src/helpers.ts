@@ -147,8 +147,9 @@ export function achieve(world: World, player: Player, key: string, label: string
   notify(world, player.id, { month, kind: 'milestone', text: `Milestone: ${label}` });
 }
 
+/** Paying customers: the segment funnel plus accounts won in the sales pipeline. */
 export const totalCustomers = (c: Company): number =>
-  Object.values(c.segments).reduce((a, s) => a + s.paying, 0);
+  Object.values(c.segments).reduce((a, s) => a + s.paying, 0) + (c.salesAccounts?.length ?? 0);
 
 export const lastPnl = (c: Company) => c.finance.history[c.finance.history.length - 1];
 
