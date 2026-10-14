@@ -1,0 +1,73 @@
+/* "Online now": real players across every city. */
+.online-count {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+  min-height: 44px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.online-group h3 {
+  margin: 0.8rem 0 0.4rem;
+  font-size: 0.95rem;
+}
+.online-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.online-row {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line, rgb(127 127 127 / 0.25));
+  border-radius: 12px;
+}
+.online-id {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.online-avatar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 800;
+}
+.online-name {
+  display: grid;
+  min-width: 0;
+}
+.online-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.online-playing {
+  color: var(--good, #15803d);
+  font-weight: 600;
+}
+.online-actions,
+.online-invite .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.online-invite p {
+  margin: 0 0 0.4rem;
+}
+.people-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}

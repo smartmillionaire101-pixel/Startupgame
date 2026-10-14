@@ -4,7 +4,7 @@ import type { Command } from '../src/commands.js';
 import { createWorld } from '../src/world.js';
 import type { World } from '../src/types.js';
 import { playerView } from '../src/views.js';
-import { AUTO_QUIZ_FROM, aiShot } from '../src/play.js';
+import { AUTO_QUIZ_FROM, aiCueError, aiShot } from '../src/play.js';
 import { moneyByCurrency } from './helpers.js';
 
 const T1 = AUTO_QUIZ_FROM + 3_600_000;
@@ -54,7 +54,9 @@ const balanceOf = (w: World, id: string) => w.accounts[w.players[id]!.accounts.l
 
 /** Play a solo snooker frame: the human takes the shot the AI would, the AI plays on sync. */
 function playSnooker(seed: number, stake: number) {
-  let { w, id } = host(world(seed), 'snooker', stake);
+  const hosted = host(world(seed), 'snooker', stake);
+  const id = hosted.id;
+  let w = hosted.w;
   w = run(w, 'host', { type: 'play.ai', roomId: id }).world;
   let now = T1;
   for (let i = 0; i < 400; i++) {
@@ -118,25 +120,31 @@ describe('snooker and football against an AI opponent', () => {
     expect(playSnooker(7, stake).w.playRooms![id]).toEqual(r);
   });
 
-  it('the AI is beatable: it pots some balls and misses others', () => {
-    let pots = 0,
-      shots = 0;
-    for (const seed of [1, 2, 3]) {
-      const { w, id } = playSnooker(seed, 0);
-      const r = w.playRooms![id]!;
-      expect(r.status).toBe('finished');
-      shots += r.round;
-      pots += r.members.reduce((n, m) => n + m.score, 0);
+  it('the AI is beatable: a bounded aim error, the same shot on replay', () => {
+    for (const ai of ['ai_1', 'ai_2', 'ai_3', 'p_99', 'x']) {
+      expect(aiCueError(ai)).toBeGreaterThanOrEqual(0.035);
+      expect(aiCueError(ai)).toBeLessThan(0.06);
     }
-    expect(pots).toBeGreaterThan(0);
-    expect(shots).toBeGreaterThan(10);
+    const hosted = host(world(5), 'snooker', 0);
+    const id = hosted.id;
+    let w = hosted.w;
+    w = run(w, 'host', { type: 'play.ai', roomId: id }).world;
+    const r = w.playRooms![id]!;
+    const a = aiShot(w, r, r.ai![0]!);
+    expect(aiShot(w, r, r.ai![0]!)).toEqual(a);
+    expect(a.power).toBeGreaterThanOrEqual(5);
+    expect(a.power).toBeLessThanOrEqual(100);
+    // A perfect cue is steadier than the AI's own.
+    expect(aiShot(w, r, r.ai![0]!, 0)).not.toEqual(a);
   });
 
   it('plays a staked penalty shootout against the AI to the end', () => {
     const stake = 500;
     const before = world(11);
     const supply = moneyByCurrency(before);
-    let { w, id } = host(before, 'football', stake);
+    const hosted = host(before, 'football', stake);
+    const id = hosted.id;
+    let w = hosted.w;
     w = run(w, 'host', { type: 'play.ai', roomId: id }).world;
     let r = w.playRooms![id]!;
     const ai = r.ai![0]!;
@@ -171,7 +179,9 @@ describe('snooker and football against an AI opponent', () => {
   });
 
   it('answers as soon as you lock in, without waiting for its thinking time', () => {
-    let { w, id } = host(world(3), 'football', 0);
+    const hosted = host(world(3), 'football', 0);
+    const id = hosted.id;
+    let w = hosted.w;
     w = run(w, 'host', { type: 'play.ai', roomId: id }).world;
     w = run(w, 'host', { type: 'play.penalty', roomId: id, round: 0, lane: 2 }, T1 + 200).world;
     expect(w.playRooms![id]!.penalties).toHaveLength(1);

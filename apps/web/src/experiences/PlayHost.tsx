@@ -78,6 +78,24 @@ function Lobby({ place }: { place: PlayPlace }) {
     });
     if (result) setSelected(result.id);
   }
+  /** Solo: open a table and seat an AI opponent at once (it pays the same stake). */
+  async function playAi(g: Room['game']) {
+    const made = await send<{ id: string }>({
+      type: 'play.create',
+      game: g,
+      venue: place.venue,
+      title:
+        g === 'quiz'
+          ? t('Quiz against AI')
+          : g === 'snooker'
+            ? t('Snooker against AI')
+            : t('Penalties against AI'),
+      stake: Math.round(Number(stake) * 100),
+    });
+    if (!made) return;
+    setSelected(made.id);
+    await send({ type: 'play.ai', roomId: made.id, ...(g === 'quiz' ? { count: 2 } : {}) });
+  }
   /** Quiz quick play: join the next quiz waiting here with this stake, or open one. */
   async function match() {
     const result = await send<{ id: string }>({
@@ -216,6 +234,33 @@ function Lobby({ place }: { place: PlayPlace }) {
                 </button>
               </form>
             )}
+            {mayHost && (
+              <div className="experience-create experience-solo" aria-label={t('Play vs AI')}>
+                <h2>{t('Nobody around? Play vs AI')}</h2>
+                <p className="small">
+                  {game === 'quiz'
+                    ? t('Two AI players from this city sit down at once and the quiz starts.')
+                    : t(
+                        'An AI player from this city takes the other side and the game starts at once.',
+                      )}{' '}
+                  {Number(stake) > 0
+                    ? t(
+                        'Each AI player pays the same {stake} stake into the pot. Winner takes the pot; a tie refunds everyone.',
+                        {
+                          stake: money(Math.round(Number(stake) * 100), view.here?.currency ?? cur),
+                        },
+                      )
+                    : t('Free game: set a stake above to play for the pot.')}
+                </p>
+                <button
+                  className="experience-primary"
+                  disabled={busy}
+                  onClick={() => void playAi(game)}
+                >
+                  {t('Play vs AI')}
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -251,7 +296,9 @@ function Lobby({ place }: { place: PlayPlace }) {
                         '{n} questions, 20 seconds each. Correct answers earn 10 points. Waiting for an opponent…',
                         { n: room.totalQuestions },
                       )
-                    : 'Invite another player in this city to open this room.'}
+                    : t(
+                        'Invite another player in this city, or play an AI opponent now. The AI pays the same stake.',
+                      )}
                 </p>
                 {room.game === 'quiz' && room.host === me && room.members.length === 1 && (
                   <QuizWait createdAt={room.createdAt} />
@@ -279,6 +326,17 @@ function Lobby({ place }: { place: PlayPlace }) {
                     Leave and refund
                   </button>
                 )}
+                {room.host === me &&
+                  room.game !== 'quiz' &&
+                  room.members.length === 1 &&
+                  room.members[0]!.id === me && (
+                    <button
+                      disabled={busy}
+                      onClick={() => void send({ type: 'play.ai', roomId: room.id })}
+                    >
+                      {t('Play vs AI')}
+                    </button>
+                  )}
                 {room.host === me && room.game === 'quiz' && room.members.length < 4 && (
                   <button
                     disabled={busy}
@@ -466,6 +524,11 @@ function Snooker({ room, me }: { room: Room; me: string }) {
   return (
     <div className="experience-snooker">
       <h2>{mine ? 'Your shot' : `${room.members.find((m) => m.id === room.turn)?.name}’s turn`}</h2>
+      {!mine && room.turn && room.ai.includes(room.turn) && frame < 0 && (
+        <p className="experience-match" role="status">
+          {t('The AI player is lining up its shot…')}
+        </p>
+      )}
       <p>
         Tap the cloth to aim.{' '}
         {room.red

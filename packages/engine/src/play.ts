@@ -283,7 +283,7 @@ const POCKETS: [number, number][] = [
   [120, 60],
 ];
 /** How steady an AI player's cue is: an aim error (radians, one standard deviation). */
-export const aiCueError = (aiId: Id) => 0.03 + (hashString(`cue:${aiId}`) % 25) / 1000;
+export const aiCueError = (aiId: Id) => 0.035 + (hashString(`cue:${aiId}`) % 25) / 1000;
 
 /** Distance from point p to the segment a–b. */
 function segDist(p: { x: number; y: number }, a: [number, number], b: [number, number]) {
