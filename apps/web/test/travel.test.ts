@@ -87,6 +87,15 @@ describe('Wave 4 contracts, with fallbacks', () => {
     );
     expect(away.map((d) => d.id)).toEqual(['lagos', 'nairobi']);
     expect(away[0]!.name).toBe('Lagos');
+    // Inside the City abroad the view's market is London (cityViewOf): home still comes first.
+    const inCity = cityViewOf(
+      viewOf({
+        me: { market: 'lagos', destinations: [{ id: 'london', name: 'London', tripCost: 1 }] },
+        here: market('london', 'London'),
+        flights: { fareTo: { lagos: 450_000 }, hours: 4 },
+      }),
+    );
+    expect(destinationsOf(inCity).map((d) => [d.id, d.name])).toEqual([['lagos', 'Lagos']]);
   });
 });
 

@@ -212,6 +212,7 @@ function ListingDetail({ id, onBack }: { id: string; onBack: () => void }) {
               planTier={planTierOf(l.tier)}
               finish={l.lifestyleTier >= 4 ? 3 : l.lifestyleTier >= 3 ? 2 : 1}
               estate={estateOf(l.tier)}
+              kind={l.tier}
               night={night}
               onReady={() => setReady(true)}
             />

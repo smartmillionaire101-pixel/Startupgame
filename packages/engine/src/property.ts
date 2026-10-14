@@ -634,8 +634,29 @@ export function residenceView(world: World, p: Player) {
         tier: r.tier,
         tierLabel: TIER_LABEL[r.tier],
         lifestyleTier: TIER_LIFESTYLE[r.tier],
+        /** Wave 12: how rich you are next to this home (sizes the house you see). */
+        wealth: homeWealth(world, p, r),
       }
     : null;
+}
+
+/**
+ * Wave 12: a wealth band for the home you live in, from your net worth next
+ * to the home's value: 0 stretched (under 0.6×), 1 comfortable (under 1.5×),
+ * 2 rich (under 4×), 3 very rich. The home view grows with it: more and
+ * bigger rooms, a gym and a cinema, a bigger pool and garden. View only.
+ */
+export function homeWealth(world: World, p: Player, home: Property): number {
+  const nw = netWorth(world, p);
+  const value = valueIn(
+    world,
+    priceOf(world, home),
+    getMarket(world, home.market).data.currency,
+    nw.currency,
+  );
+  if (value <= 0) return 1;
+  const r = nw.total / value;
+  return r < 0.6 ? 0 : r < 1.5 ? 1 : r < 4 ? 2 : 3;
 }
 
 /** `me.netWorth`: cash, property equity and company stakes less personal debts, home currency. */

@@ -100,7 +100,10 @@ export type FloorKind =
   | 'grass'
   | 'turf'
   | 'sand'
-  | 'stone';
+  | 'stone'
+  // Wave 12: light honey oak and big cream tiles (the home's warm floors).
+  | 'oak'
+  | 'cream';
 
 /** One texture covers this many metres. */
 export const FLOOR_SCALE: Record<FloorKind, number> = {
@@ -117,15 +120,51 @@ export const FLOOR_SCALE: Record<FloorKind, number> = {
   turf: 4,
   sand: 4,
   stone: 3,
+  oak: 2.4,
+  cream: 2.4,
 };
 
 export function floorTexture(kind: FloorKind, tint?: string): THREE.Texture {
   return canvasTex(`floor:${kind}:${tint ?? ''}`, 256, (g, s) => {
     const r = rnd(kind.length * 977 + (tint ? tint.charCodeAt(1) : 0));
     switch (kind) {
+      case 'cream': {
+        // Four big polished tiles, faint veins, thin grout.
+        const q = s / 2;
+        for (let i = 0; i < 2; i++)
+          for (let j = 0; j < 2; j++) {
+            const v = (r() - 0.5) * 8;
+            g.fillStyle = `rgb(${240 + v},${233 + v},${222 + v})`;
+            g.fillRect(i * q, j * q, q, q);
+            for (let k = 0; k < 3; k++) {
+              g.strokeStyle = `rgba(150,135,115,${0.05 + r() * 0.06})`;
+              g.lineWidth = 0.8 + r();
+              g.beginPath();
+              g.moveTo(i * q + r() * q, j * q);
+              g.bezierCurveTo(
+                i * q + r() * q,
+                j * q + q * 0.3,
+                i * q + r() * q,
+                j * q + q * 0.7,
+                i * q + r() * q,
+                j * q + q,
+              );
+              g.stroke();
+            }
+          }
+        g.strokeStyle = 'rgba(120,105,90,0.28)';
+        g.lineWidth = 2;
+        g.strokeRect(0, 0, q, q);
+        g.strokeRect(q, q, q, q);
+        g.strokeRect(q, 0, q, q);
+        g.strokeRect(0, q, q, q);
+        break;
+      }
       case 'parquet':
-      case 'parquet-dark': {
-        const base = kind === 'parquet' ? [176, 122, 74] : [104, 66, 40];
+      case 'parquet-dark':
+      case 'oak': {
+        const base =
+          kind === 'parquet' ? [176, 122, 74] : kind === 'oak' ? [226, 190, 142] : [104, 66, 40];
         const plankW = s / 4;
         const plankL = s / 2;
         for (let col = 0; col < 4; col++)

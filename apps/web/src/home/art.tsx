@@ -483,3 +483,105 @@ export function FixtureArt({ id, w, h }: { id: string; w: number; h: number }): 
       return null;
   }
 }
+
+/**
+ * Wave 12: the Lite (2D) look of what a bigger home comes with and of the
+ * things outside: a guest bed, the island, the bar, the gym and cinema, the
+ * pool, loungers and cars. Drawn in local pixels like `SlotArt`.
+ */
+export function DecorArt({ model, w, h }: { model: string; w: number; h: number }): ReactNode {
+  const W = w * TILE;
+  const H = h * TILE;
+  if (model.startsWith('car:'))
+    return (
+      <g>
+        <rect x={W * 0.18} y={6} width={W * 0.64} height={H - 12} rx={10} fill="#334155" />
+        <rect x={W * 0.24} y={H * 0.3} width={W * 0.52} height={H * 0.3} rx={5} fill="#94a3b8" />
+      </g>
+    );
+  switch (model) {
+    case 'guest-bed':
+      return (
+        <g>
+          {shadow(W, H)}
+          <Box x={2} y={2} w={W - 4} top={H - 10} face={8} fill="#f3e8d6" side="#b98a5e" />
+          <rect x={6} y={6} width={W - 12} height={14} rx={5} fill="#ffffff" />
+          <rect x={4} y={H * 0.45} width={W - 8} height={H * 0.4} rx={4} fill="#c2410c" />
+        </g>
+      );
+    case 'island':
+    case 'bar-counter':
+      return (
+        <g>
+          {shadow(W, H)}
+          <Box x={1} y={-4} w={W - 2} top={H - 6} face={10} fill="#1f2024" side="#d7c3a5" />
+          {[0.25, 0.5, 0.75].map((f) => (
+            <circle key={f} cx={W * f} cy={H + 4} r={5} fill="#f4f1ea" stroke="#a8a29e" />
+          ))}
+        </g>
+      );
+    case 'wardrobe':
+      return (
+        <g>
+          {shadow(W, H)}
+          <Box x={1} y={-22} w={W - 2} top={10} face={H + 12} fill="#e7dcc8" side="#b98a5e" />
+        </g>
+      );
+    case 'treadmill':
+      return (
+        <g>
+          {shadow(W, H)}
+          <rect x={6} y={4} width={W - 12} height={H - 8} rx={4} fill="#27272a" />
+          <rect x={9} y={10} width={W - 18} height={H - 20} rx={2} fill="#52525b" />
+        </g>
+      );
+    case 'weight-rack':
+      return (
+        <g>
+          {shadow(W, H)}
+          <rect x={4} y={10} width={W - 8} height={6} fill="#3f3f46" />
+          {[0.2, 0.8].map((f) => (
+            <circle key={f} cx={W * f} cy={13} r={8} fill="#18181b" />
+          ))}
+        </g>
+      );
+    case 'screen-wall':
+      return (
+        <rect x={2} y={-30} width={W - 4} height={26} rx={2} fill="#0f172a" stroke="#475569" />
+      );
+    case 'cinema-seats':
+      return (
+        <g>
+          {Array.from({ length: w }, (_, i) => (
+            <rect
+              key={i}
+              x={i * TILE + 3}
+              y={4}
+              width={TILE - 6}
+              height={H - 6}
+              rx={6}
+              fill="#7f1d1d"
+            />
+          ))}
+        </g>
+      );
+    case 'pool-water':
+    case 'hot-tub':
+      return (
+        <g>
+          <rect x={-6} y={-6} width={W + 12} height={H + 12} rx={4} fill="#f8f7f4" />
+          <rect x={0} y={0} width={W} height={H} rx={model === 'hot-tub' ? 12 : 3} fill="#38bdf8" />
+        </g>
+      );
+    case 'lounger':
+      return (
+        <g>
+          {shadow(W, H)}
+          <rect x={3} y={2} width={W - 6} height={H - 4} rx={5} fill="#f8fafc" stroke="#cbd5e1" />
+          <rect x={5} y={H * 0.35} width={W - 10} height={H * 0.6} rx={3} fill="#0ea5e9" />
+        </g>
+      );
+    default:
+      return <rect x={2} y={2} width={W - 4} height={H - 4} rx={4} fill="#d6d3d1" />;
+  }
+}
