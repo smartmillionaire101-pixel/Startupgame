@@ -139,7 +139,11 @@ export function closePricedRound(ct: CapTable, round: PricedRound): PricedRoundR
   const safeShares: Record<Id, number> = {};
   const capitalisation = S + x + Z;
   for (const s of ct.safes) {
-    const shares = Math.round((capitalisation * s.amount) / s.cap);
+    const atCap = Math.round((capitalisation * s.amount) / s.cap);
+    // A discount SAFE (Friends & Family) takes the better of its cap or the discounted price.
+    const shares = s.discountPct
+      ? Math.max(atCap, Math.round(s.amount / (pricePerShare * (1 - s.discountPct / 100))))
+      : atCap;
     safeShares[s.holderId] = (safeShares[s.holderId] ?? 0) + shares;
     addShares(ct, s.holderId, shares, 'safe-converted');
     // Converted SAFEs become standard 1x non-participating preferred.

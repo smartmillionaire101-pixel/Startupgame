@@ -1,5 +1,6 @@
 import { journeyView } from './journey.js';
 import { roadmapView } from './roadmap.js';
+import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
 import { playView } from './play.js';
 /**
@@ -266,6 +267,8 @@ export function companyDetail(world: World, c: Company) {
     pivots: c.pivots,
     /** The product roadmap (§6.3): projects, feedback inbox and the feature catalogue. */
     roadmap: roadmapView(world, c),
+    /** Available vs reserve, burn and runway in plain terms, founder loans, balance sheet (§7.4). */
+    founderFinance: founderFinanceView(world, c),
     /** Illustrative exit at the model valuation: who would get what (§12). */
     waterfallPreview: waterfall(c.capTable, valuation.value).map((l) => ({
       ...l,
@@ -644,6 +647,8 @@ export function playerView(
     worldVersion: world.version,
     /** The founder journey: seven chapters and the objective prompts; null for other roles. */
     journey: journeyView(world, p),
+    /** Friends & Family rounds you can see: yours, your city's, your contacts' (chapter 3). */
+    friendsRounds: friendsRoundsView(world, p, locationOf(p)),
     playRooms: playView(world, p),
     living: livingView(world, p),
     /** The month clock (Wave 4): when the next settlement is due, for a countdown. */

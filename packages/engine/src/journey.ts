@@ -143,7 +143,11 @@ export function fundingSources(world: World, p: Player): string[] {
     if (outsiders || c.capTable.safes.length > 0 || c.capTable.roundsRaised > 0) out.add('equity');
     if (c.finance.loans.length > 0) out.add('loan');
     if (c.accelerator) out.add('accelerator');
+    // Chapter 3 (§7.3): founder money classified as equity is a funding choice.
+    if (Object.keys(c.founderEquity ?? {}).length > 0) out.add('founder');
   }
+  for (const r of Object.values(world.ffRounds ?? {}))
+    if (r.status === 'closed' && mine.has(r.companyId)) out.add('friends');
   for (const a of Object.values(world.applications ?? {}))
     if (a.kind === 'grant' && a.status === 'accepted' && a.companyId && mine.has(a.companyId))
       out.add('grant');
@@ -155,6 +159,7 @@ export function fundingSources(world: World, p: Player): string[] {
 /** Has this founder put their company in front of anyone with money? */
 function hasPitched(world: World, p: Player): boolean {
   if (Object.values(world.pitches).some((x) => x.founderId === p.id)) return true;
+  if (Object.values(world.ffRounds ?? {}).some((r) => r.founderId === p.id)) return true;
   if (Object.values(world.applications ?? {}).some((a) => a.playerId === p.id && a.companyId))
     return true;
   return Object.values(world.competitions ?? {}).some((c) =>
