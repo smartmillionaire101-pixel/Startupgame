@@ -128,7 +128,7 @@ export const founderFinance: Record<string, string> = {
   'Cancel and refund everyone': 'Annuler et rembourser tout le monde',
   'Back a friend': 'Soutenir un ami',
   'Friends & Family rounds near you': 'Tours amis et famille près de chez vous',
-  Closed: 'Clôturé',
+  'Round closed': 'Tour clôturé',
   Cancelled: 'Annulé',
   '{founder} · {have} of {target} · cap {cap} · {d}% discount':
     '{founder} · {have} sur {target} · plafond {cap} · décote de {d} %',

@@ -523,7 +523,11 @@ function BackRow({ r }: { r: FriendsRoundView }) {
       <div className="spread">
         <span className="item-title">{r.companyName}</span>
         <Pill tone={r.status === 'open' ? 'good' : undefined}>
-          {r.status === 'open' ? t('Open') : r.status === 'closed' ? t('Closed') : t('Cancelled')}
+          {r.status === 'open'
+            ? t('Open')
+            : r.status === 'closed'
+              ? t('Round closed')
+              : t('Cancelled')}
         </Pill>
       </div>
       <div className="small muted">
