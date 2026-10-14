@@ -1,5 +1,6 @@
 /** The phone's Journey app: the founder journey's objectives and chapters. */
 import { JourneyPanel } from '../../city/JourneyPanel';
+import { openCompanyTab } from '../../screens/Company';
 import type { JourneyGo } from '../../city/journey';
 import { openSky } from '../../experiences/sky-bus';
 import { useNav, type PhoneApp } from '../bus';
@@ -11,6 +12,7 @@ export function JourneyApp({ ctx }: { ctx: PhoneCtx }) {
     if (g.kind === 'place') ctx.goPlace(g.place);
     else if (g.kind === 'app') ctx.open(g.app as PhoneApp);
     else if (g.kind === 'tab') {
+      if (g.section) openCompanyTab(g.section);
       nav?.go({ kind: 'tab', tab: g.tab });
       ctx.close();
     } else {

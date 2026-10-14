@@ -70,6 +70,7 @@ import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
 import { cachedCityLayout } from './geoLayout';
 import { type CityLayout, type DistrictId, type Place, type Pt } from './layout';
+import { openCompanyTab } from '../screens/Company';
 
 // Scenes and flights load on demand (Wave 7 §D: a small main bundle).
 const Interior = lazy(() => import('./Interiors').then((m) => ({ default: m.Interior })));
@@ -613,9 +614,10 @@ function CityBodyInner({
     (g: JourneyGo) => {
       setJourneyOpen(false);
       if (g.kind === 'place') visit(g.place);
-      else if (g.kind === 'tab')
+      else if (g.kind === 'tab') {
+        if (g.section) openCompanyTab(g.section);
         onNavigate(g.tab === 'company' || g.tab === 'me' ? g.tab : 'money');
-      else if (g.kind === 'app') openPhone({ app: g.app as PhoneApp });
+      } else if (g.kind === 'app') openPhone({ app: g.app as PhoneApp });
       else openSky(g.id);
     },
     [visit, onNavigate],

@@ -188,7 +188,8 @@ export function settleStaff(
     const band = bandSalary(world, c.market, s.role, s.seniority);
     let target =
       62 +
-      40 * (s.salary / band - 1) +
+      // An AI co-founder works for equity: pay doesn't move their morale.
+      (s.cofounder ? 10 : 40 * (s.salary / band - 1)) +
       8 * (c.stars.value - 2.5) +
       (runwayMonths < 3 ? -15 : 0) +
       (overloaded ? -15 : 0) +
@@ -198,15 +199,30 @@ export function settleStaff(
     if (s.personality === 'anxious' && runwayMonths < 6) target -= 10;
     if (s.personality === 'ambitious' && c.stars.value > 3) target += 8;
     if (s.personality === 'steady') target += 5;
+    // Hiring pipeline (§6.4): fit and workload count only where they're tracked.
+    if (s.fit !== undefined) target += 20 * (s.fit - 0.5);
+    if (s.workload !== undefined) {
+      if (s.workload > 110) target -= Math.min(30, (s.workload - 110) * 0.4);
+      else if (s.workload < 35) target -= 5;
+    }
     s.morale = clamp(s.morale + (target - s.morale) * 0.3 + c.supply.moraleAdd, 0, 100);
     s.skill = clamp(s.skill + c.supply.skillAdd, 0, 1);
 
-    const leaveP = s.morale < 20 ? 0.35 : s.morale < 35 ? 0.15 : s.morale < 50 ? 0.03 : 0.005;
+    let leaveP = s.morale < 20 ? 0.35 : s.morale < 35 ? 0.15 : s.morale < 50 ? 0.03 : 0.005;
+    // A co-founder only walks when things are truly bad; overworked staff look around.
+    if (s.cofounder) leaveP = s.morale < 20 ? 0.2 : 0;
+    else if ((s.workload ?? 0) > 140) leaveP += 0.05;
     if (rng.chance(leaveP)) {
       departures.push(s);
       continue;
     }
-    if (s.personality === 'ambitious' && s.morale < 60 && s.salary < band && rng.chance(0.25)) {
+    if (
+      !s.cofounder &&
+      s.personality === 'ambitious' &&
+      s.morale < 60 &&
+      s.salary < band &&
+      rng.chance(0.25)
+    ) {
       for (const fid of c.founderIds) {
         notify(world, fid, {
           month,

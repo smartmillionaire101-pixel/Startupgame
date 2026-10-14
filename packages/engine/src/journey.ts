@@ -39,7 +39,12 @@ export type ObjectiveKind = (typeof OBJECTIVE_KINDS)[number];
 /** Where a step's Go button takes you: a city place id, a bottom tab or a phone app. */
 export type JourneyGo =
   | { kind: 'place'; place: string }
-  | { kind: 'tab'; tab: 'company' | 'money' | 'me' | 'portfolio' | 'deals' }
+  | {
+      kind: 'tab';
+      tab: 'company' | 'money' | 'me' | 'portfolio' | 'deals';
+      /** A section of that tab (the Company tab's Team, say). */
+      section?: 'team' | 'roadmap';
+    }
   | { kind: 'app'; app: string };
 
 export interface JourneyStep {
@@ -265,11 +270,21 @@ export const CHAPTERS: ChapterDef[] = [
       const customers = maxOver(f.active, totalCustomers);
       const n = JOURNEY.team.customers;
       const rev = revenueProgress(world, f, JOURNEY.team.revenueUsd);
+      const interviewed = f.companies.some((c) =>
+        (c.hiring?.candidates ?? []).some((x) => x.interviews.length > 0),
+      );
+      const team = { kind: 'tab', tab: 'company', section: 'team' } as const;
       return [
-        step('team.hire', 'Make your first hire or bring in a co-founder', hired, {
-          kind: 'place',
-          place: 'hub',
-        }),
+        step('team.hire', 'Make your first hire or bring in a co-founder', hired, team),
+        step(
+          'team.interview',
+          'Interview a candidate before you hire',
+          interviewed || hired,
+          team,
+          {
+            optional: true,
+          },
+        ),
         step(
           'team.customers',
           `Reach ${n} paying customers`,

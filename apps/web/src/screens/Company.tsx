@@ -7,6 +7,7 @@ import { Bar, Button, Card, Confirm, Empty, Field, Pill, Segmented, Sheet } from
 import { ExpansionCard } from './Expansion';
 import { Roadmap } from './Roadmap';
 import { SalesPipeline } from './Sales';
+import { CofounderCard, HiringPipeline, TeamHealth } from './Hiring';
 
 type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -490,6 +491,7 @@ export function Team({ c }: { c: CompanyT }) {
   const pool = view.market.talent.filter((p) => p.role === role);
   return (
     <>
+      <TeamHealth c={c} />
       <Card
         title={t('Team · {n}', { n: c.staff.length })}
         action={
@@ -562,7 +564,9 @@ export function Team({ c }: { c: CompanyT }) {
           </p>
         )}
       </Card>
-      <Card title={t('Hire')}>
+      <CofounderCard c={c} />
+      <HiringPipeline c={c} />
+      <Card title={t('Hire')} sub={t('Ready to hire now, no interviews')}>
         <div className="chips" style={{ marginBottom: '0.5rem' }}>
           {['engineer', 'product', 'sales', 'marketing', 'support', 'operations', 'finance'].map(
             (r) => (

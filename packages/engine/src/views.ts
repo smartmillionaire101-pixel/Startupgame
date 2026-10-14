@@ -1,6 +1,7 @@
 import { journeyView } from './journey.js';
 import { roadmapView } from './roadmap.js';
 import { salesView } from './sales.js';
+import { hiringView, teamView } from './hiring.js';
 import { livingView } from './living.js';
 import { playView } from './play.js';
 /**
@@ -269,6 +270,10 @@ export function companyDetail(world: World, c: Company) {
     pivots: c.pivots,
     /** The product roadmap (§6.3): projects, feedback inbox and the feature catalogue. */
     roadmap: roadmapView(world, c),
+    /** Team health (§6.4): workload, retention risk and missing skills. */
+    team: teamView(world, c),
+    /** The hiring pipeline and the AI co-founders on offer (§6.4). */
+    hiring: hiringView(world, c),
     /** Illustrative exit at the model valuation: who would get what (§12). */
     waterfallPreview: waterfall(c.capTable, valuation.value).map((l) => ({
       ...l,

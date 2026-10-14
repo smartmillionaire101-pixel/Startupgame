@@ -370,7 +370,26 @@ export interface Staff {
   skill: number;
   personality: Personality;
   hiredMonth: number;
+  /** Culture fit 0–1 (hired through the pipeline, §6.4). Missing = unknown: no effect. */
+  fit?: number;
+  /** Workload, % of a full load (100 = full). Missing = not tracked: no effect on morale. */
+  workload?: number;
+  /** An AI co-founder (§2.1 chapter 2): founder shares with a vesting record. */
+  cofounder?: AiCofounderRecord;
 }
+
+/** The vesting record of an AI co-founder's founder shares. */
+export interface AiCofounderRecord {
+  profile: AiCofounderProfileId;
+  title: 'CTO' | 'CEO' | 'Growth';
+  equityBps: number;
+  vestingMonths: number;
+  cliffMonths: number;
+  /** Company-market month they joined. */
+  since: number;
+}
+
+export type AiCofounderProfileId = 'cto' | 'operator' | 'growth';
 
 export type Personality = 'steady' | 'ambitious' | 'anxious' | 'maverick';
 
@@ -602,6 +621,48 @@ export interface Company {
   accelerator?: CompanyAccelerator | null;
   /** The product roadmap (§6.3). Missing = never opened: product work runs as before. */
   roadmap?: Roadmap | null;
+  /** The hiring pipeline (§6.4). Missing = never used: hiring runs as before. */
+  hiring?: Hiring | null;
+}
+
+export type InterviewStyle = 'technical' | 'culture' | 'work_trial';
+export type SalaryBand = 'lean' | 'market' | 'generous';
+export type CandidateValues = 'mission' | 'money' | 'craft' | 'stability';
+export type WorkStyle = 'independent' | 'collaborative' | 'structured' | 'fast';
+
+/** An open role (a job post). `hr<n>`, numbered per company. */
+export interface HireRole {
+  id: Id;
+  role: StaffRole;
+  seniority: Seniority | null;
+  band: SalaryBand;
+  openedMonth: number;
+  status: 'open' | 'filled' | 'closed';
+  /** Times candidates were sourced for it. */
+  sourced: number;
+  postingCost: number;
+}
+
+/** A candidate sourced for a role: a talent-pool candidate plus a CV and hidden traits. */
+export interface PipelineCandidate extends Candidate {
+  roleId: Id;
+  /** The skill their CV claims (the true skill is `skill`, hidden until interviewed). */
+  cvSkill: number;
+  /** Hidden culture fit, 0–1. */
+  fit: number;
+  values: CandidateValues;
+  workStyle: WorkStyle;
+  sourcedMonth: number;
+  /** Last month to make an offer; after it they take another job. */
+  deadline: number;
+  interviews: InterviewStyle[];
+  status: 'open' | 'hired' | 'withdrawn' | 'declined';
+}
+
+export interface Hiring {
+  roles: HireRole[];
+  candidates: PipelineCandidate[];
+  nextId: number;
 }
 
 /** A feature on the roadmap (§6.3): planned → in progress → released. */

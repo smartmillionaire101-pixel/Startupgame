@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import { INDUSTRIES } from './data/industries.js';
-import { MARKET_IDS, type MarketId } from './data/markets.js';
+import { MARKET_IDS, SENIORITIES, STAFF_ROLES, type MarketId } from './data/markets.js';
 import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
@@ -577,6 +577,31 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('roadmap.dismiss'),
     companyId: id,
     feedbackId: z.string().min(1).max(32),
+  }),
+  // ---- the hiring pipeline (§6.4): open a role, source, interview, then company.offer
+  /** Post a job (a small fee through the ledger). */
+  z.object({
+    type: z.literal('hire.open'),
+    companyId: id,
+    role: z.enum(STAFF_ROLES),
+    seniority: z.enum(SENIORITIES).optional(),
+    salaryBand: z.enum(['lean', 'market', 'generous']).optional(),
+  }),
+  /** Bring 2–4 candidates for an open role (founder hours). */
+  z.object({ type: z.literal('hire.source'), companyId: id, roleId: id }),
+  /** Interview a sourced candidate: reveals true skill and/or fit (a work trial is paid). */
+  z.object({
+    type: z.literal('hire.interview'),
+    companyId: id,
+    candidateId: id,
+    style: z.enum(['technical', 'culture', 'work_trial']),
+  }),
+  z.object({ type: z.literal('hire.close'), companyId: id, roleId: id }),
+  /** Bring in an AI co-founder (CTO, CEO-operator or growth) for founder shares. */
+  z.object({
+    type: z.literal('cofounder.ai'),
+    companyId: id,
+    candidateId: z.enum(['cto', 'operator', 'growth']).optional(),
   }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
   // ---- Who's here (Wave 6)
