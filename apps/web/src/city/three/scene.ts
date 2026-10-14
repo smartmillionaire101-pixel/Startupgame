@@ -58,6 +58,8 @@ import type { Walker } from '../people';
 const SOFT_FRAME_MS = 200;
 /** How often a software renderer compiles new shaders ahead of drawing (ms). */
 const SOFT_COMPILE_MS = 1500;
+/** How long a software renderer gives new shaders before the frame that needs them (ms). */
+const SOFT_COMPILE_WAIT_MS = 300;
 /** Most pixels a software renderer shades a frame (a phone screen's worth). */
 const SOFT_PIXELS = 360_000;
 
@@ -1295,23 +1297,25 @@ export class CityScene {
   private compiledAt = -Infinity;
 
   /**
-   * On a software renderer, compiling a shader takes the page's main thread
-   * for seconds when the first frame needs it. Compile them in the background
-   * first (and again, now and then, for what came into view since) and draw
-   * once they're ready: the page keeps answering meanwhile.
+   * On a software renderer, compiling a shader takes seconds. Hand the new
+   * ones to the GPU process first (and again, now and then, for what came into
+   * view since) and draw a moment later, so the page keeps answering while
+   * they compile instead of waiting on them in the middle of a frame.
    */
   private shadersReady(t: number): boolean {
     if (this.compiling) return false;
     if (t - this.compiledAt < SOFT_COMPILE_MS) return true;
     this.compiledAt = t;
     this.compiling = true;
-    void this.renderer
-      .compileAsync(this.scene, this.camera)
-      .catch(() => null)
-      .then(() => {
-        this.compiling = false;
-        this.invalidate();
-      });
+    try {
+      this.renderer.compile(this.scene, this.camera);
+    } catch {
+      /* drawn (and compiled) by the next frame instead */
+    }
+    setTimeout(() => {
+      this.compiling = false;
+      if (!this.disposed) this.invalidate();
+    }, SOFT_COMPILE_WAIT_MS);
     return false;
   }
 
