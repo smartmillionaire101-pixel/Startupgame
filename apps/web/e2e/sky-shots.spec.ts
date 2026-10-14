@@ -10,7 +10,15 @@ test.skip(!process.env.SKY_SHOTS, 'Screenshots only (SKY_SHOTS=1)');
 
 const OUT = process.env.SKY_OUT ?? 'test-results/sky';
 const LIGHT = process.env.SKY_LIGHT ?? 'day';
-const SHOTS: { id: string; market: string; at: number; yaw?: number; pitch?: number; fov?: number; tag?: string }[] = [
+const SHOTS: {
+  id: string;
+  market: string;
+  at: number;
+  yaw?: number;
+  pitch?: number;
+  fov?: number;
+  tag?: string;
+}[] = [
   { id: 'london-eye', market: 'london', at: 1 },
   { id: 'london-eye', market: 'london', at: 1, yaw: -2.5, pitch: -0.35, tag: 'west' },
   { id: 'london-cable-car', market: 'london', at: 0.5 },
@@ -64,10 +72,12 @@ for (const s of SHOTS.filter((x) => !only || only.includes(x.id))) {
     test.setTimeout(240_000);
     await page.setViewportSize({ width: 390, height: 844 });
     page.on('console', (m) => {
-      if (m.type() === 'error' || m.type() === 'warning') console.log('console:', m.text().slice(0, 300));
+      if (m.type() === 'error' || m.type() === 'warning')
+        console.log('console:', m.text().slice(0, 300));
     });
     if (process.env.SKY_YAW) s.yaw = Number(process.env.SKY_YAW);
     if (process.env.SKY_PITCH) s.pitch = Number(process.env.SKY_PITCH);
+    await page.addInitScript(() => localStorage.setItem('runway.hq', '1'));
     await create(page, s.market);
     await expect(page.getByRole('button', { name: /^Together/ })).toBeVisible({ timeout: 30000 });
     const home = page.getByRole('dialog', { name: 'Home and social experiences' });
@@ -85,12 +95,27 @@ for (const s of SHOTS.filter((x) => !only || only.includes(x.id))) {
     await pano.getByLabel('Light').selectOption(LIGHT);
     await page.evaluate(
       ({ at, yaw, pitch, fov }) => {
-        const h = (window as unknown as {
-          __sky3d: { ride: { seek(u: number): void; aim(y: number): void; yaw: number; pitch: number; fov: number; want?: unknown } };
-        }).__sky3d;
+        const h = (
+          window as unknown as {
+            __sky3d: {
+              ride: {
+                seek(u: number): void;
+                aim(y: number): void;
+                yaw: number;
+                pitch: number;
+                fov: number;
+                want?: unknown;
+              };
+            };
+          }
+        ).__sky3d;
         h.ride.seek(at);
         if (yaw !== undefined) h.ride.aim(yaw);
-        const r = h.ride as unknown as { want: { pitch: number; fov: number }; pitch: number; fov: number };
+        const r = h.ride as unknown as {
+          want: { pitch: number; fov: number };
+          pitch: number;
+          fov: number;
+        };
         if (pitch !== undefined) r.pitch = r.want.pitch = pitch;
         if (fov !== undefined) r.fov = r.want.fov = fov;
       },
@@ -98,7 +123,13 @@ for (const s of SHOTS.filter((x) => !only || only.includes(x.id))) {
     );
     if (process.env.SKY_HIDE)
       await page.evaluate((n) => {
-        const sc = (window as unknown as { __sky3d: { scene: { scene: { getObjectByName(n: string): { visible: boolean } | undefined } } } }).__sky3d.scene.scene;
+        const sc = (
+          window as unknown as {
+            __sky3d: {
+              scene: { scene: { getObjectByName(n: string): { visible: boolean } | undefined } };
+            };
+          }
+        ).__sky3d.scene.scene;
         for (const x of n.split(',')) {
           const o = sc.getObjectByName(x);
           if (o) o.visible = false;
@@ -110,21 +141,31 @@ for (const s of SHOTS.filter((x) => !only || only.includes(x.id))) {
     for (let i = 0; i < 90 && stable < 4; i++) {
       await page.waitForTimeout(1000);
       const n = await page.evaluate(
-        () => (window as unknown as { __sky3d: { scene: { tileCount: number } } }).__sky3d.scene.tileCount,
+        () =>
+          (window as unknown as { __sky3d: { scene: { tileCount: number } } }).__sky3d.scene
+            .tileCount,
       );
       stable = n === last ? stable + 1 : 0;
       last = n;
     }
     const stats = await page.evaluate(() => {
-      const sc = (window as unknown as { __sky3d: { scene: { stats: unknown; tileCount: number } } }).__sky3d.scene;
+      const sc = (
+        window as unknown as { __sky3d: { scene: { stats: unknown; tileCount: number } } }
+      ).__sky3d.scene;
       return { ...(sc.stats as object), tiles: sc.tileCount };
     });
     const cam = await page.evaluate(() => {
-      const h = (window as unknown as { __sky3d: { scene: { camera: { position: { x: number; y: number; z: number } } } } }).__sky3d;
+      const h = (
+        window as unknown as {
+          __sky3d: { scene: { camera: { position: { x: number; y: number; z: number } } } };
+        }
+      ).__sky3d;
       const p = h.scene.camera.position;
       return [Math.round(p.x), Math.round(p.y), Math.round(p.z)];
     });
     console.log(s.id, JSON.stringify(stats), 'camera', cam);
-    await page.screenshot({ path: `${OUT}/${s.id}${s.tag ? `-${s.tag}` : ''}-${Math.round(s.at * 100)}.png` });
+    await page.screenshot({
+      path: `${OUT}/${s.id}${s.tag ? `-${s.tag}` : ''}-${Math.round(s.at * 100)}.png`,
+    });
   });
 }

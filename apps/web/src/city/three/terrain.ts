@@ -80,7 +80,8 @@ export function terrainField(t: Terrain): TerrainField {
               n++;
             }
           }
-          if (n) e[k] = -s / n; // negative: filled this pass (not a source yet)
+          if (n)
+            e[k] = -s / n; // negative: filled this pass (not a source yet)
           else left++;
         }
       for (let k = 0; k < e.length; k++) if (e[k]! < 0) e[k] = -e[k]!;
@@ -197,9 +198,7 @@ export function terrainMaterial(m: THREE.Material, u: TerrainUniforms): THREE.Ma
     c.uniforms = { ...sm.uniforms };
     bindUniforms(c, u);
     c.vertexShader =
-      TERRAIN_GLSL +
-      'vec4 terrainLiftW(vec4 w) { w.y += terrainH(w.xz); return w; }\n' +
-      out;
+      TERRAIN_GLSL + 'vec4 terrainLiftW(vec4 w) { w.y += terrainH(w.xz); return w; }\n' + out;
     return c;
   }
   const c = m.clone();
@@ -288,8 +287,10 @@ export function tessellate(g: THREE.BufferGeometry, max: number, cap = 600_000) 
   const max2 = max * max;
   let made = 0;
   // A vertex as all its attributes, flat.
-  const vert = (i: number) => attrs.map((a) => Array.from({ length: a.itemSize }, (_, k) => a.array[i * a.itemSize + k]!));
-  const mid = (a: number[][], b: number[][]) => a.map((x, n) => x.map((v, k) => (v + b[n]![k]!) / 2));
+  const vert = (i: number) =>
+    attrs.map((a) => Array.from({ length: a.itemSize }, (_, k) => a.array[i * a.itemSize + k]!));
+  const mid = (a: number[][], b: number[][]) =>
+    a.map((x, n) => x.map((v, k) => (v + b[n]![k]!) / 2));
   const d2 = (a: number[][], b: number[][]) => {
     const p = a[names.indexOf('position')]!;
     const q = b[names.indexOf('position')]!;

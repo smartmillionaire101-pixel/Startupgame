@@ -43,7 +43,7 @@ function mat(color: string, o: { emissive?: string; metal?: number; rough?: numb
 }
 
 /** How far the view loads the city (metres) by device tier. */
-export const skyReach = (tier: 'high' | 'low') => (tier === 'high' ? 16_000 : 6_500);
+export const skyReach = (tier: 'high' | 'low') => (tier === 'high' ? 11_000 : 6_500);
 
 export class SkyRide implements ViewController {
   readonly ms: number;
@@ -81,17 +81,20 @@ export class SkyRide implements ViewController {
   constructor(
     readonly scene: CityScene,
     readonly spec: SkyViewSpec,
-    opts: { reduced: boolean; tier: 'high' | 'low' },
+    opts: { reduced: boolean; tier: 'high' | 'low'; soft?: boolean },
   ) {
     this.ms = RIDE_MS[spec.kind];
     this.reduced = opts.reduced;
-    this.reach = skyReach(opts.tier);
+    // A software renderer (no GPU) draws a nearer city: it has the memory of a phone.
+    this.reach = opts.soft ? 4_000 : skyReach(opts.tier);
     const data = scene.geo.data;
     const a = fromLatLon(data, spec.at[0], spec.at[1]);
     const lm = spec.landmark
       ? (scene.scene.getObjectByName(spec.landmark) as THREE.Object3D | undefined)
       : undefined;
-    const base = lm ? new THREE.Vector3(lm.position.x, 0, lm.position.z) : new THREE.Vector3(a.x, 0, a.y);
+    const base = lm
+      ? new THREE.Vector3(lm.position.x, 0, lm.position.z)
+      : new THREE.Vector3(a.x, 0, a.y);
     base.y = this.ground(base.x, base.z);
     this.props.userData.noTerrain = true;
     scene.scene.add(this.props);
@@ -376,7 +379,9 @@ export class SkyRide implements ViewController {
       Math.abs(this.want.yaw - this.yaw) > 0.0005 ||
       Math.abs(this.want.pitch - this.pitch) > 0.0005 ||
       Math.abs(this.want.fov - this.fov) > 0.02;
-    return (this.progress < 1 && !this.paused) || easing || (!this.reduced && this.gondolas.length > 0);
+    return (
+      (this.progress < 1 && !this.paused) || easing || (!this.reduced && this.gondolas.length > 0)
+    );
   }
 
   /** The camera's world position now. */
@@ -455,7 +460,10 @@ function buildWheel(r: number, hubY: number) {
   for (let k = 0; k < pods; k++) {
     const a = (k / pods) * Math.PI * 2;
     for (const z of [-3, 3]) spokes.push(0, 0, z, Math.cos(a) * r, Math.sin(a) * r, 0);
-    const pod = new THREE.Mesh(new THREE.CapsuleGeometry(2.4, 5, 3, 10).rotateZ(Math.PI / 2), glass);
+    const pod = new THREE.Mesh(
+      new THREE.CapsuleGeometry(2.4, 5, 3, 10).rotateZ(Math.PI / 2),
+      glass,
+    );
     pod.position.set(Math.cos(a) * (r + 3), Math.sin(a) * (r + 3), 0);
     rim.add(pod);
   }
@@ -617,7 +625,10 @@ function cableCarBody() {
   band.position.set(cx, -1.0, 0);
   g.add(band);
   // The grab pole you hold.
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.1, 6), mat('#d4af37', { metal: 0.8, rough: 0.3 }));
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.025, 2.1, 6),
+    mat('#d4af37', { metal: 0.8, rough: 0.3 }),
+  );
   pole.position.set(cx + 1.25, -0.2, -0.6);
   g.add(pole);
   return g;
@@ -631,10 +642,12 @@ export function skyExtras(scene: CityScene, spec: SkyViewSpec, water: THREE.Mate
   const data = scene.geo.data;
   const P = (lat: number, lon: number) => fromLatLon(data, lat, lon);
   const flat = (ll: [number, number][], m: THREE.Material, y: number, order: number) => {
-    const shape = new THREE.Shape(ll.map(([la, lo]) => {
-      const p = P(la, lo);
-      return new THREE.Vector2(p.x, p.y);
-    }));
+    const shape = new THREE.Shape(
+      ll.map(([la, lo]) => {
+        const p = P(la, lo);
+        return new THREE.Vector2(p.x, p.y);
+      }),
+    );
     const geo = new THREE.ShapeGeometry(shape, 4).rotateX(Math.PI / 2);
     // ShapeGeometry is in x/y; rotated so y becomes z (south). Faces up after the flip.
     const pos = geo.getAttribute('position') as THREE.BufferAttribute;
@@ -648,7 +661,15 @@ export function skyExtras(scene: CityScene, spec: SkyViewSpec, water: THREE.Mate
     g.add(mesh);
     return mesh;
   };
-  const block = (lat: number, lon: number, w: number, d: number, h: number, rot: number, m: THREE.Material) => {
+  const block = (
+    lat: number,
+    lon: number,
+    w: number,
+    d: number,
+    h: number,
+    rot: number,
+    m: THREE.Material,
+  ) => {
     const p = P(lat, lon);
     const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0), m);
     b.position.set(p.x, 0, p.y);
@@ -657,14 +678,34 @@ export function skyExtras(scene: CityScene, spec: SkyViewSpec, water: THREE.Mate
     return b;
   };
   /** Deterministic stand-in blocks of flats around a point (the map stops short of them). */
-  const district = (lat: number, lon: number, n: number, spread: number, hMin: number, hMax: number, seed: number) => {
-    const walls = [mat('#c9c4bb', { metal: 0, rough: 0.85 }), mat('#a9b4bf', { metal: 0.2, rough: 0.5 }), mat('#d8cfc2', { metal: 0, rough: 0.8 })];
+  const district = (
+    lat: number,
+    lon: number,
+    n: number,
+    spread: number,
+    hMin: number,
+    hMax: number,
+    seed: number,
+  ) => {
+    const walls = [
+      mat('#c9c4bb', { metal: 0, rough: 0.85 }),
+      mat('#a9b4bf', { metal: 0.2, rough: 0.5 }),
+      mat('#d8cfc2', { metal: 0, rough: 0.8 }),
+    ];
     let s = seed;
-    const rnd = () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 2 ** 32);
+    const rnd = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 2 ** 32;
     for (let i = 0; i < n; i++) {
       const dlat = (rnd() - 0.5) * spread;
       const dlon = (rnd() - 0.5) * spread * 1.6;
-      block(lat + dlat, lon + dlon, 18 + rnd() * 30, 14 + rnd() * 22, hMin + rnd() * (hMax - hMin), rnd() * 0.4, walls[i % 3]!);
+      block(
+        lat + dlat,
+        lon + dlon,
+        18 + rnd() * 30,
+        14 + rnd() * 22,
+        hMin + rnd() * (hMax - hMin),
+        rnd() * 0.4,
+        walls[i % 3]!,
+      );
     }
   };
   if (spec.id === 'london-cable-car') {
@@ -672,20 +713,20 @@ export function skyExtras(scene: CityScene, spec: SkyViewSpec, water: THREE.Mate
     const w = water ?? mat('#3d6f86', { metal: 0.1, rough: 0.2 });
     flat(
       [
-        [51.5092, -0.0010],
-        [51.5072, 0.0050],
-        [51.5052, 0.0110],
-        [51.5022, 0.0160],
-        [51.4990, 0.0195],
-        [51.4962, 0.0240],
-        [51.4962, 0.0420],
-        [51.4932, 0.0420],
-        [51.4930, 0.0270],
-        [51.4950, 0.0160],
-        [51.4985, 0.0100],
-        [51.5020, 0.0055],
+        [51.5092, -0.001],
+        [51.5072, 0.005],
+        [51.5052, 0.011],
+        [51.5022, 0.016],
+        [51.499, 0.0195],
+        [51.4962, 0.024],
+        [51.4962, 0.042],
+        [51.4932, 0.042],
+        [51.493, 0.027],
+        [51.495, 0.016],
+        [51.4985, 0.01],
+        [51.502, 0.0055],
         [51.5043, 0.0005],
-        [51.5062, -0.0010],
+        [51.5062, -0.001],
       ],
       w,
       0.05,
@@ -694,8 +735,8 @@ export function skyExtras(scene: CityScene, spec: SkyViewSpec, water: THREE.Mate
     flat(
       [
         [51.5085, 0.0165],
-        [51.5090, 0.0420],
-        [51.5070, 0.0420],
+        [51.509, 0.042],
+        [51.507, 0.042],
         [51.5066, 0.0165],
       ],
       w,
@@ -715,7 +756,10 @@ export function skyExtras(scene: CityScene, spec: SkyViewSpec, water: THREE.Mate
     const yellow = mat('#f2c230', { metal: 0.3, rough: 0.5, emissive: '#3a2a00' });
     for (let k = 0; k < 12; k++) {
       const a = (k / 12) * Math.PI * 2 + 0.13;
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.3, 100, 6).translate(0, 50, 0), yellow);
+      const m = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.9, 1.3, 100, 6).translate(0, 50, 0),
+        yellow,
+      );
       m.position.set(o2.x + Math.cos(a) * 112, 0, o2.y + Math.sin(a) * 112);
       m.rotation.set(Math.sin(a) * 0.17, 0, -Math.cos(a) * 0.17);
       g.add(m);
@@ -723,8 +767,8 @@ export function skyExtras(scene: CityScene, spec: SkyViewSpec, water: THREE.Mate
     // ExCeL London along the dock's north side, and the flats around.
     block(51.5083, 0.0292, 640, 110, 22, 0.02, mat('#d6d9dc', { metal: 0.3, rough: 0.5 }));
     district(51.4975, 0.0035, 26, 0.006, 25, 75, 11); // Greenwich Peninsula
-    district(51.5045, 0.0300, 22, 0.004, 15, 60, 23); // Royal Wharf, Silvertown
-    district(51.5115, 0.0200, 18, 0.004, 12, 40, 37); // Custom House, Canning Town
+    district(51.5045, 0.03, 22, 0.004, 15, 60, 23); // Royal Wharf, Silvertown
+    district(51.5115, 0.02, 18, 0.004, 12, 40, 37); // Custom House, Canning Town
   }
   if (spec.id === 'ain-dubai') {
     // Bluewaters Island, off JBR, and its low-rise homes and shops.
@@ -753,7 +797,9 @@ export function skyExtras(scene: CityScene, spec: SkyViewSpec, water: THREE.Mate
     ] as const) {
       const p = P(lat, lon);
       const m = new THREE.Mesh(
-        new THREE.ConeGeometry(base / Math.SQRT2, h, 4, 1).rotateY(Math.PI / 4).translate(0, h / 2, 0),
+        new THREE.ConeGeometry(base / Math.SQRT2, h, 4, 1)
+          .rotateY(Math.PI / 4)
+          .translate(0, h / 2, 0),
         stone,
       );
       m.position.set(p.x, 0, p.y);

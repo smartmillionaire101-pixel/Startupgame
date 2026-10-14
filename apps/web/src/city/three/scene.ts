@@ -295,7 +295,8 @@ export class CityScene {
     this.waterMaterial = ground.water.material as THREE.Material;
     this.addNight(glowPoints(landmarkLights(landmarks), this.glowMat));
     // Wave 12: a sky view stands the city on its terrain.
-    const terrain = opts.sky?.terrain ?? null;
+    // (Flat cities — Lagos, Dubai — stay flat: nothing to see and less to draw.)
+    const terrain = opts.sky?.terrain && opts.sky.terrain.max >= 25 ? opts.sky.terrain : null;
     if (terrain) {
       this.terrain = terrain;
       const u = terrainUniforms(terrain);
@@ -316,7 +317,7 @@ export class CityScene {
           continue;
         }
         // Long flat triangles cut finer, so they follow the hills.
-        const g = tessellate(m.geometry, high ? 40 : 70);
+        const g = tessellate(m.geometry, high ? 60 : 90);
         m.geometry.dispose();
         m.geometry = g;
       }
@@ -328,7 +329,12 @@ export class CityScene {
           mat.polygonOffsetFactor = 1;
           mat.polygonOffsetUnits = 2;
           const tm = terrainGround(terrain, this.mask, data.bounds, mat, {
-            step: high ? 32 : 64,
+            // About 300 cells across the city (finer where it is small).
+            step: Math.max(
+              high ? 32 : 48,
+              Math.max(data.bounds[2] - data.bounds[0], data.bounds[3] - data.bounds[1]) /
+                (high ? 360 : 240),
+            ),
             skirt: 40000,
           });
           tm.renderOrder = -38.5;

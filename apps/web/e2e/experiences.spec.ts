@@ -132,7 +132,7 @@ test('a paid home order arrives and can be unpacked, and paid flight bookings su
   await page.screenshot({ path: info.outputPath('arrival.png') });
 });
 
-test('a player writes a quiz on mobile, hosts two opponents and the winner receives the pot', async ({
+test('quiz night on mobile: questions come from the bank, three players are matched and the pot is paid', async ({
   page: host,
   browser,
 }, info) => {
@@ -158,25 +158,20 @@ test('a player writes a quiz on mobile, hosts two opponents and the winner recei
       const invite = (await state(p)).visits.incoming.find((v) => v.hostId === hostId)!;
       await command(p, { type: 'visit.accept', inviteId: invite.id });
     }
-    const beforeA = (await state(alice!)).accounts.local!.balance;
+    const balance = async (p: Page) => (await state(p)).accounts.local!.balance;
+    const before = [await balance(host), await balance(alice!), await balance(bob!)];
     const home = await together(host);
     await home.getByRole('button', { name: /Play football or host/ }).click();
     const lobby = host.getByRole('dialog', { name: 'Play together' });
     await lobby.getByRole('button', { name: /Quiz night Think fast/ }).click();
-    await lobby.getByLabel('Room name').fill('Custom quiz evening');
+    // No writing questions any more: the bank fills the quiz.
+    await expect(lobby.getByText('Write my own questions')).toHaveCount(0);
     await lobby.getByLabel(/Stake per player/).fill('10');
-    await lobby.getByLabel('Write my own questions').check();
-    for (let n = 1; n <= 3; n++) {
-      await lobby.getByLabel(`Question ${n}`, { exact: true }).fill(`What is ${n} plus one?`);
-      for (let k = 1; k <= 4; k++)
-        await lobby
-          .getByLabel(`Question ${n} option ${k}`, { exact: true })
-          .fill(k === 1 ? String(n + 1) : String(k + 6));
-    }
-    await lobby.getByRole('button', { name: 'Create room' }).click();
+    await lobby.getByRole('button', { name: 'Find an opponent' }).click();
+    await expect(lobby.getByText(/Looking for a player in this city/)).toBeVisible();
     for (const p of [alice!, bob!]) {
       const home = await together(p);
-      await home.getByRole('button', { name: /Custom quiz evening/ }).click();
+      await home.getByRole('button', { name: /Quiz night/ }).click();
       await p
         .getByRole('dialog', { name: 'Play together' })
         .getByRole('button', { name: /^Join/ })
@@ -184,17 +179,25 @@ test('a player writes a quiz on mobile, hosts two opponents and the winner recei
     }
     await expect(lobby.getByRole('button', { name: 'Start game' })).toBeEnabled({ timeout: 10000 });
     await lobby.getByRole('button', { name: 'Start game' }).click();
-    for (let n = 1; n <= 3; n++) {
-      await expect(alice!.getByRole('heading', { name: `What is ${n} plus one?` })).toBeVisible({
-        timeout: 10000,
-      });
-      await alice!.locator('.experience-answers button').nth(0).click();
-      await bob!.locator('.experience-answers button').nth(1).click();
+    const players = [host, alice!, bob!];
+    for (let n = 1; n <= 10; n++) {
+      for (const [i, p] of players.entries()) {
+        const dialog = p.getByRole('dialog', { name: 'Play together' });
+        await expect(dialog.getByText(`QUESTION ${n} OF 10`)).toBeVisible({ timeout: 15000 });
+        await p.locator('.experience-answers button').nth(i).click();
+      }
     }
-    await expect(alice!.getByRole('heading', { name: 'Alice Player wins!' })).toBeVisible({
-      timeout: 10000,
+    await expect(alice!.getByRole('heading', { name: /wins!|tie/ })).toBeVisible({
+      timeout: 15000,
     });
-    expect((await state(alice!)).accounts.local!.balance).toBe(beforeA + 1000);
+    const after = [await balance(host), await balance(alice!), await balance(bob!)];
+    // Money is conserved: the pot went to one winner, or back to everyone.
+    expect(after.reduce((x, y) => x + y, 0)).toBe(before.reduce((x, y) => x + y, 0));
+    const won = after.map((v, i) => v - before[i]!);
+    expect([
+      [-1000, -1000, 2000],
+      [0, 0, 0],
+    ]).toContainEqual([...won].sort((x, y) => x - y));
     await alice!.screenshot({ path: info.outputPath('quiz-winner-mobile.png') });
   } finally {
     for (const c of contexts) await c.close();

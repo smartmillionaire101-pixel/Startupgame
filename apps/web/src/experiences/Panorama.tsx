@@ -26,6 +26,7 @@ import { CityScene } from '../city/three/scene';
 import { SkyRide, skyExtras } from '../city/three/skyview';
 import { loadTerrainField, type TerrainField } from '../city/three/terrain';
 import { markWebGLBroken } from '../city/three/quality';
+import { softwareGl } from '../three-kit/quality';
 import { SKY_LABELS, type SkyLabel } from './skyLabels';
 import '../city/three/city3d.css';
 
@@ -43,8 +44,11 @@ export function resolveSkyView(
   if (!list.length) return null;
   if (kind === 'london-eye') return list.find((v) => v.id === 'london-eye') ?? list[0]!;
   if (kind === 'cable-car')
-    return list.find((v) => v.kind === 'cable' || v.kind === 'tram' || v.kind === 'wheel') ?? list[0]!;
-  if (kind === 'rooftop') return list.find((v) => v.kind === 'deck' || v.kind === 'hill') ?? list[0]!;
+    return (
+      list.find((v) => v.kind === 'cable' || v.kind === 'tram' || v.kind === 'wheel') ?? list[0]!
+    );
+  if (kind === 'rooftop')
+    return list.find((v) => v.kind === 'deck' || v.kind === 'hill') ?? list[0]!;
   return list[0]!;
 }
 
@@ -77,7 +81,7 @@ const KIND_ICON: Record<SkyViewSpec['kind'], string> = {
 };
 
 function tierOf(): 'high' | 'low' {
-  if (typeof window === 'undefined') return 'low';
+  if (typeof window === 'undefined' || softwareGl()) return 'low';
   const small = Math.min(window.innerWidth, window.innerHeight) < 600;
   return small || (navigator.hardwareConcurrency || 4) <= 4 ? 'low' : 'high';
 }
@@ -130,12 +134,13 @@ export default function Panorama({
   const [paused, setPaused] = useState(false);
   const [light, setLight] = useState<Light>('now');
   const [state, setState] = useState({ progress: 0, heading: 0, ready: false });
-  const [labelsList, setLabelsList] = useState<string[]>([]);
+  const [labelsList, setLabelsList] = useState<{ name: string; area: boolean }[]>([]);
   const mount = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const handle = useRef<Handle | null>(null);
   const reduced = useMemo(
-    () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
+    () =>
+      typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
     [],
   );
   const cityView = cityViewOf(view);
@@ -160,10 +165,6 @@ export default function Panorama({
     };
   }, [city]);
 
-  useEffect(() => {
-    if (geo === null) setError(t('The city map is unavailable. Reconnect and open the view again.'));
-  }, [geo]);
-
   // ---- The scene: one per view.
   useEffect(() => {
     const el = mount.current;
@@ -183,14 +184,18 @@ export default function Panorama({
       );
     } catch {
       markWebGLBroken();
-      setError(
-        t('This view needs WebGL. Enable 3D in Settings, or use a browser with hardware acceleration.'),
+      queueMicrotask(() =>
+        setError(
+          t(
+            'This view needs WebGL. Enable 3D in Settings, or use a browser with hardware acceleration.',
+          ),
+        ),
       );
       return;
     }
     el.prepend(canvas);
     scene.following = false;
-    const ride = new SkyRide(scene, spec, { reduced, tier });
+    const ride = new SkyRide(scene, spec, { reduced, tier, soft: softwareGl() });
     const extras = skyExtras(scene, spec, scene.waterMaterial);
     scene.scene.add(extras);
     scene.onTerrain(extras);
@@ -215,9 +220,13 @@ export default function Panorama({
     }
     const mine = labels.filter((l) => Math.hypot(l.x - ride.top.x, l.z - ride.top.z) > 180);
     // Nearest first (the chips), and the label positions.
-    mine.sort((a, b) => Math.hypot(a.x - ride.top.x, a.z - ride.top.z) - Math.hypot(b.x - ride.top.x, b.z - ride.top.z));
+    mine.sort(
+      (a, b) =>
+        Math.hypot(a.x - ride.top.x, a.z - ride.top.z) -
+        Math.hypot(b.x - ride.top.x, b.z - ride.top.z),
+    );
     handle.current = { ride, scene, labels: mine };
-    setLabelsList(mine.map((l) => l.name));
+    setLabelsList(mine.map((l) => ({ name: l.name, area: !!l.area })));
     // Start out facing the most of the skyline (its famous buildings, nearer ones first).
     const aim = AIM[spec.id];
     if (aim) {
@@ -233,7 +242,8 @@ export default function Panorama({
           const b = Math.atan2(l.x - ride.top.x, -(l.z - ride.top.z));
           const d = Math.atan2(Math.sin(b - yaw), Math.cos(b - yaw));
           if (Math.abs(d) < 0.5)
-            score += (l.h / 100 + 0.5) / (1 + Math.hypot(l.x - ride.top.x, l.z - ride.top.z) / 2500);
+            score +=
+              (l.h / 100 + 0.5) / (1 + Math.hypot(l.x - ride.top.x, l.z - ride.top.z) / 2500);
         }
         if (score > best.score) best = { yaw, score };
       }
@@ -297,20 +307,33 @@ export default function Panorama({
       if (host) {
         const els = host.querySelectorAll<HTMLElement>('[data-sky-label]');
         const order = [...els]
-          .map((node) => {
-            const l = mine[Number(node.dataset.i)]!;
-            return { node, l, d: Math.hypot(l.x - ride.eye.x, l.z - ride.eye.z) };
+          .flatMap((node) => {
+            // (Just after switching views the names on screen are the last view's.)
+            const l = mine[Number(node.dataset.i)];
+            if (!l || l.name !== node.dataset.skyLabel) return [];
+            return [{ node, l, d: Math.hypot(l.x - ride.eye.x, l.z - ride.eye.z) }];
           })
           .sort((a, b) => Number(!!a.l.area) - Number(!!b.l.area) || a.d - b.d);
         const boxes: [number, number, number, number][] = [];
         for (const { node, l, d } of order) {
           scene.project(l.x, l.y, l.z, out);
           let vis =
-            out.z < 1 && out.x > 4 && out.x < W - 4 && out.y > 70 && out.y < H - 150 && d < ride.reach * 1.6;
+            out.z < 1 &&
+            out.x > 4 &&
+            out.x < W - 4 &&
+            out.y > 70 &&
+            out.y < H - 150 &&
+            d < ride.reach * 1.6;
           if (vis) {
             const w = node.offsetWidth || l.name.length * 7 + 30;
-            const b: [number, number, number, number] = [out.x - w / 2, out.y - 24, out.x + w / 2, out.y];
-            if (boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1])) vis = false;
+            const b: [number, number, number, number] = [
+              out.x - w / 2,
+              out.y - 24,
+              out.x + w / 2,
+              out.y,
+            ];
+            if (boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]))
+              vis = false;
             else boxes.push(b);
           }
           if (vis) {
@@ -412,8 +435,7 @@ export default function Panorama({
     >
       <div className="panorama-canvas" ref={mount}>
         <div ref={labelsRef} className="sky-labels" aria-hidden="true">
-          {labelsList.map((name, i) => {
-            const area = handle.current?.labels[i]?.area;
+          {labelsList.map(({ name, area }, i) => {
             return (
               <span
                 key={name}
@@ -436,7 +458,8 @@ export default function Panorama({
           </small>
           <h2>{spec.name}</h2>
           <p>
-            {t(spec.blurb)} · {t('Sunrise {a} · Sunset {b}', { a: time(sun.sunrise), b: time(sun.sunset) })}
+            {t(spec.blurb)} ·{' '}
+            {t('Sunrise {a} · Sunset {b}', { a: time(sun.sunrise), b: time(sun.sunset) })}
           </p>
           <div className="panorama-progress" aria-hidden="true">
             <span style={{ width: `${Math.round(state.progress * 100)}%` }} />
@@ -446,16 +469,16 @@ export default function Panorama({
           ×
         </button>
       </header>
-      {error && (
+      {(error || geo === null) && (
         <p className="panorama-error" role="alert">
-          {error}
+          {error || t('The city map is unavailable. Reconnect and open the view again.')}
         </p>
       )}
       <footer>
         {children}
         <p>{focus || t('Drag to look around. Pick a landmark to find it on the skyline.')}</p>
         <div>
-          {labelsList.map((name) => (
+          {labelsList.map(({ name }) => (
             <button key={name} onClick={() => faceLabel(name)}>
               {name}
             </button>

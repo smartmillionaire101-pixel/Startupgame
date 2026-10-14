@@ -25,7 +25,7 @@ export interface QuizQuestion {
  * clients are ignored. Commands logged before it replay exactly as they ran
  * (custom sets honoured, the original 20-question pool).
  */
-export const AUTO_QUIZ_FROM = Date.UTC(2026, 9, 15);
+export const AUTO_QUIZ_FROM = Date.UTC(2026, 9, 14);
 /** Questions in a built-in quiz. */
 export const QUIZ_LENGTH = 10;
 /** A quiz host waiting alone this long is matched with AI opponents (on the next sync). */

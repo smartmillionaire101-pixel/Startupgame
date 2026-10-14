@@ -215,8 +215,7 @@ function LivingRoom({ host }: { host: string }) {
             <p>
               {(date.viewId && skyViews.find((v) => v.id === date.viewId)?.name) ||
                 date.location.replaceAll('-', ' ')}{' '}
-              ·{' '}
-              {date.status === 'invited' ? 'Invitation pending' : 'Together'}
+              · {date.status === 'invited' ? 'Invitation pending' : 'Together'}
             </p>
             {date.status === 'invited' && date.guest === me && (
               <button

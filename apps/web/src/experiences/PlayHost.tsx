@@ -254,7 +254,7 @@ function Lobby({ place }: { place: PlayPlace }) {
                     : 'Invite another player in this city to open this room.'}
                 </p>
                 {room.game === 'quiz' && room.host === me && room.members.length === 1 && (
-                  <QuizWait createdAt={room.createdAt} offset={timeOffset.current} />
+                  <QuizWait createdAt={room.createdAt} />
                 )}
                 <p>
                   Entry: {money(room.stake, room.currency)} ·{' '}
@@ -570,12 +570,12 @@ const CATS: Record<string, string> = {
 };
 
 /** A host waiting alone: when AI opponents will take the other seats. */
-function QuizWait({ createdAt, offset }: { createdAt: number; offset: number }) {
-  const [now, setNow] = useState(() => Date.now() + offset);
+function QuizWait({ createdAt }: { createdAt: number }) {
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now() + offset), 1000);
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [offset]);
+  }, []);
   const left = Math.max(0, Math.ceil((createdAt + QUIZ_AI_AFTER - now) / 1000));
   return (
     <p className="experience-match" role="status">
