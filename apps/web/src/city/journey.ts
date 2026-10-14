@@ -86,7 +86,7 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
     case 'hustle.first-customer':
       return {
         label: t('Win your first paying customer'),
-        why: t('Sell at the Market, or pitch a local business'),
+        why: t('Find leads in your Sales pipeline and close a deal'),
       };
     case 'hustle.customers':
       return {
@@ -96,7 +96,12 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
     case 'team.hire':
       return {
         label: t('Make your first hire or bring in a co-founder'),
-        why: t('The Hub has talent and the jobs board'),
+        why: t('On the Team screen: post a role, or choose a co-founder'),
+      };
+    case 'team.interview':
+      return {
+        label: t('Interview a candidate before you hire'),
+        why: t('Interviews show true skill and fit before you commit'),
       };
     case 'team.customers':
       return {

@@ -5,11 +5,11 @@
  */
 import { z } from 'zod';
 import { INDUSTRIES } from './data/industries.js';
-import { MARKET_IDS, type MarketId } from './data/markets.js';
+import { MARKET_IDS, SENIORITIES, STAFF_ROLES, type MarketId } from './data/markets.js';
 import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
-import { REVENUE_MODELS, STAGES } from './types.js';
+import { REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
 
 const id = z.string().min(1).max(64);
 const money = z.number().int().nonnegative().max(1e15);
@@ -437,6 +437,24 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('event.cancel'), eventId: id }),
   // ---- city economy (Wave 3)
   z.object({ type: z.literal('business.pitch'), companyId: id, businessId: id }),
+  /**
+   * Founder Journey 2a: the sales pipeline. Find 1–3 leads (limited per month
+   * by founder hours and sales staff). `companyId` defaults to your company.
+   */
+  z.object({ type: z.literal('sales.prospect'), companyId: id.optional() }),
+  /**
+   * Move a deal on: contact → discover → demo → propose (`price`) →
+   * negotiate (`discountPct`) → close; `recover` once after a loss.
+   */
+  z.object({
+    type: z.literal('sales.advance'),
+    companyId: id.optional(),
+    dealId: id,
+    action: z.enum(SALES_ACTIONS),
+    price: money.optional(),
+    discountPct: z.number().int().min(0).max(100).optional(),
+  }),
+  z.object({ type: z.literal('sales.drop'), companyId: id.optional(), dealId: id }),
   z.object({ type: z.literal('gig.take'), businessId: id, gigId: z.string().min(1).max(32) }),
   z.object({
     type: z.literal('venue.buy'),
@@ -535,6 +553,96 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   /** Choose to bootstrap (no outside money): counts as chapter 3's funding choice. */
   z.object({ type: z.literal('journey.bootstrap'), on: z.boolean() }),
+  // ---- the product roadmap (§6.3): features as projects, then a release
+  /** Add a feature from your industry's catalogue (pays its up-front cost). */
+  z.object({
+    type: z.literal('roadmap.add'),
+    companyId: id,
+    featureId: z.string().min(1).max(48),
+  }),
+  /** Move a project up, down or to the top of the queue (the top one gets the work). */
+  z.object({
+    type: z.literal('roadmap.prioritise'),
+    companyId: id,
+    projectId: id,
+    dir: z.enum(['up', 'down', 'top']),
+  }),
+  z.object({ type: z.literal('roadmap.remove'), companyId: id, projectId: id }),
+  /** Ship a finished feature. */
+  z.object({ type: z.literal('roadmap.release'), companyId: id, projectId: id }),
+  /** Pay contractors (via the ledger) to finish a project by month end. */
+  z.object({ type: z.literal('roadmap.contract'), companyId: id, projectId: id }),
+  /** Clear an item from the feedback inbox. */
+  z.object({
+    type: z.literal('roadmap.dismiss'),
+    companyId: id,
+    feedbackId: z.string().min(1).max(32),
+  }),
+  // ---- the hiring pipeline (§6.4): open a role, source, interview, then company.offer
+  /** Post a job (a small fee through the ledger). */
+  z.object({
+    type: z.literal('hire.open'),
+    companyId: id,
+    role: z.enum(STAFF_ROLES),
+    seniority: z.enum(SENIORITIES).optional(),
+    salaryBand: z.enum(['lean', 'market', 'generous']).optional(),
+  }),
+  /** Bring 2–4 candidates for an open role (founder hours). */
+  z.object({ type: z.literal('hire.source'), companyId: id, roleId: id }),
+  /** Interview a sourced candidate: reveals true skill and/or fit (a work trial is paid). */
+  z.object({
+    type: z.literal('hire.interview'),
+    companyId: id,
+    candidateId: id,
+    style: z.enum(['technical', 'culture', 'work_trial']),
+  }),
+  z.object({ type: z.literal('hire.close'), companyId: id, roleId: id }),
+  /** Bring in an AI co-founder (CTO, CEO-operator or growth) for founder shares. */
+  z.object({
+    type: z.literal('cofounder.ai'),
+    companyId: id,
+    candidateId: z.enum(['cto', 'operator', 'growth']).optional(),
+  }),
+  // ---- founder finance and Friends & Family (chapter 3, §7.2–7.3)
+  /** Put personal money in, classified: new founder shares (equity) or a founder loan. */
+  z.object({
+    type: z.literal('company.contribute'),
+    companyId: id,
+    amount: z.number().int().positive().max(1e15),
+    as: z.enum(['equity', 'loan']),
+  }),
+  /** The company repays (part of) your founder loan. */
+  z.object({
+    type: z.literal('company.repayFounder'),
+    companyId: id,
+    amount: z.number().int().positive().max(1e15),
+  }),
+  /** Move money into (`in`) or out of (`out`) the business reserve. */
+  z.object({
+    type: z.literal('company.reserve'),
+    companyId: id,
+    amount: z.number().int().positive().max(1e15),
+    dir: z.enum(['in', 'out']),
+  }),
+  /** Open a Friends & Family round on SAFE terms; contacts (and `inviteIds`) are invited. */
+  z.object({
+    type: z.literal('ff.open'),
+    companyId: id,
+    target: z.number().int().positive().max(1e15),
+    valuationCap: z.number().int().positive().max(1e15),
+    discountPct: z.number().int().min(0).max(30),
+    inviteIds: z.array(id).max(20).optional(),
+  }),
+  /** Any player (any role) backs a round: the money is held in escrow until close. */
+  z.object({
+    type: z.literal('ff.commit'),
+    roundId: id,
+    amount: z.number().int().positive().max(1e15),
+  }),
+  /** Ask the city's AI angels to join (once a month). */
+  z.object({ type: z.literal('ff.askAi'), roundId: id }),
+  z.object({ type: z.literal('ff.close'), roundId: id }),
+  z.object({ type: z.literal('ff.cancel'), roundId: id }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
   // ---- Who's here (Wave 6)
   /**

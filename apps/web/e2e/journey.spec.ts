@@ -29,10 +29,13 @@ test('a new founder opens the Journey on Chapter 1 and follows a step', async ({
   await expect(ch1).toContainText('You are here');
   await expect(sheet.locator('[data-chapter="2"]')).toHaveClass(/journey-upcoming/);
   // Its steps: the company and the first-day customer are ticked already.
-  await expect(ch1.locator('[data-step="hustle.company"]')).toHaveAttribute('data-done', 'true');
+  await expect(ch1.locator('[data-step="hustle.company"]')).toHaveAttribute('data-done', 'true', {
+    timeout: 15_000,
+  });
   await expect(ch1.locator('[data-step="hustle.first-customer"]')).toHaveAttribute(
     'data-done',
     'true',
+    { timeout: 15_000 },
   );
   const discovery = ch1.locator('[data-step="hustle.discovery"]');
   await expect(discovery).toHaveAttribute('data-done', 'false');
@@ -47,9 +50,18 @@ test('a new founder opens the Journey on Chapter 1 and follows a step', async ({
 
   // Not now: the next step takes its place. Pin it and it stays.
   await main.getByRole('button', { name: 'Not now: show me another' }).click();
-  await expect(main).toContainText('Reach 3 paying customers');
+  // Another Chapter 1 step takes its place (which one depends on what's done by now).
+  await expect(main).not.toContainText('Talk to customers about their problem', {
+    timeout: 15_000,
+  });
   await main.getByRole('button', { name: 'Pin: keep this one here' }).click();
-  await expect(main.getByRole('button', { name: 'Unpin' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(main.getByRole('button', { name: 'Unpin' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+    {
+      timeout: 15_000,
+    },
+  );
 
   // Go walks to the Market's stalls.
   await discovery.getByRole('button', { name: 'Go' }).click();

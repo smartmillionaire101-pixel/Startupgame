@@ -39,7 +39,12 @@ export type ObjectiveKind = (typeof OBJECTIVE_KINDS)[number];
 /** Where a step's Go button takes you: a city place id, a bottom tab or a phone app. */
 export type JourneyGo =
   | { kind: 'place'; place: string }
-  | { kind: 'tab'; tab: 'company' | 'money' | 'me' | 'portfolio' | 'deals' }
+  | {
+      kind: 'tab';
+      tab: 'company' | 'money' | 'me' | 'portfolio' | 'deals';
+      /** A section of that tab (the Company tab's Team, say). */
+      section?: 'team' | 'roadmap';
+    }
   | { kind: 'app'; app: string };
 
 export interface JourneyStep {
@@ -143,7 +148,11 @@ export function fundingSources(world: World, p: Player): string[] {
     if (outsiders || c.capTable.safes.length > 0 || c.capTable.roundsRaised > 0) out.add('equity');
     if (c.finance.loans.length > 0) out.add('loan');
     if (c.accelerator) out.add('accelerator');
+    // Chapter 3 (§7.3): founder money classified as equity is a funding choice.
+    if (Object.keys(c.founderEquity ?? {}).length > 0) out.add('founder');
   }
+  for (const r of Object.values(world.ffRounds ?? {}))
+    if (r.status === 'closed' && mine.has(r.companyId)) out.add('friends');
   for (const a of Object.values(world.applications ?? {}))
     if (a.kind === 'grant' && a.status === 'accepted' && a.companyId && mine.has(a.companyId))
       out.add('grant');
@@ -155,6 +164,7 @@ export function fundingSources(world: World, p: Player): string[] {
 /** Has this founder put their company in front of anyone with money? */
 function hasPitched(world: World, p: Player): boolean {
   if (Object.values(world.pitches).some((x) => x.founderId === p.id)) return true;
+  if (Object.values(world.ffRounds ?? {}).some((r) => r.founderId === p.id)) return true;
   if (Object.values(world.applications ?? {}).some((a) => a.playerId === p.id && a.companyId))
     return true;
   return Object.values(world.competitions ?? {}).some((c) =>
@@ -239,9 +249,10 @@ export const CHAPTERS: ChapterDef[] = [
           kind: 'place',
           place: 'market',
         }),
+        // Founder Journey 2a: the sales pipeline is where a first customer is won.
         step('hustle.first-customer', 'Win your first paying customer', first, {
-          kind: 'place',
-          place: 'market',
+          kind: 'app',
+          app: 'sales',
         }),
         step(
           'hustle.customers',
@@ -264,11 +275,21 @@ export const CHAPTERS: ChapterDef[] = [
       const customers = maxOver(f.active, totalCustomers);
       const n = JOURNEY.team.customers;
       const rev = revenueProgress(world, f, JOURNEY.team.revenueUsd);
+      const interviewed = f.companies.some((c) =>
+        (c.hiring?.candidates ?? []).some((x) => x.interviews.length > 0),
+      );
+      const team = { kind: 'tab', tab: 'company', section: 'team' } as const;
       return [
-        step('team.hire', 'Make your first hire or bring in a co-founder', hired, {
-          kind: 'place',
-          place: 'hub',
-        }),
+        step('team.hire', 'Make your first hire or bring in a co-founder', hired, team),
+        step(
+          'team.interview',
+          'Interview a candidate before you hire',
+          interviewed || hired,
+          team,
+          {
+            optional: true,
+          },
+        ),
         step(
           'team.customers',
           `Reach ${n} paying customers`,

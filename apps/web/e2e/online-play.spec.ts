@@ -39,7 +39,8 @@ test('Online now lists a real player, and a solo player plays a penalty shootout
   try {
     await withoutNetlifyDrawer(friend);
     await founder(page, 'Solo Sade');
-    await founder(friend, 'Friend Femi');
+    const friendName = `Friend ${letters(6)}`;
+    await founder(friend, friendName);
 
     // "● N online" opens the list of real players, grouped by city.
     const count = page.locator('.online-count');
@@ -47,12 +48,14 @@ test('Online now lists a real player, and a solo player plays a penalty shootout
     await count.click();
     const sheet = page.getByRole('dialog', { name: 'Online now' });
     await expect(sheet.getByRole('heading', { name: /In your city/ })).toBeVisible();
-    const row = sheet.locator('.online-row', { hasText: 'Friend Femi' });
+    const row = sheet.locator('.online-row', { hasText: friendName });
     await expect(row).toBeVisible({ timeout: 20000 });
     await expect(row).toContainText('London');
     await row.getByRole('button', { name: 'Invite to play' }).click();
     await row.getByRole('button', { name: 'Football' }).click();
-    await expect(page.getByText('Invitation to play Football sent to Friend Femi.')).toBeVisible();
+    await expect(
+      page.getByText(`Invitation to play Football sent to ${friendName}.`),
+    ).toBeVisible();
     await page.screenshot({ path: info.outputPath('online-now-mobile.png') });
     await sheet.getByRole('button', { name: 'Close' }).click();
 
@@ -73,7 +76,9 @@ test('Online now lists a real player, and a solo player plays a penalty shootout
     await expect(lobby.locator('.experience-scores')).toContainText('AI player');
     await expect(lobby.getByText(/Your penalty|You are in goal/)).toBeVisible();
     const finished = lobby.getByRole('heading', { name: /wins!$|^It’s a tie!$/ });
+    const kicks = lobby.locator('.experience-penalties span');
     for (let i = 0; i < 40 && !(await finished.isVisible()); i++) {
+      const taken = await kicks.count();
       const lane = lobby.locator('.experience-goal button').nth(i % 5);
       try {
         await expect(lane).toBeEnabled({ timeout: 8000 });
@@ -81,10 +86,12 @@ test('Online now lists a real player, and a solo player plays a penalty shootout
       } catch {
         // The shootout ended (or moved on) while we aimed.
       }
-      // The AI answers at once: the kick is taken (or the shootout is over).
-      await expect(lobby.locator('.experience-penalties span').nth(i).or(finished)).toBeVisible({
-        timeout: 10000,
-      });
+      // The AI answers: another kick is taken (or the shootout is over).
+      await expect
+        .poll(async () => (await finished.isVisible()) || (await kicks.count()) > taken, {
+          timeout: 20000,
+        })
+        .toBe(true);
     }
     await expect(finished).toBeVisible({ timeout: 10000 });
     const after = (await state(page)).accounts.local!.balance;

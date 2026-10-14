@@ -6,6 +6,7 @@ import { money } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button } from '../../ui';
+import { openCompanyTab } from '../../screens/Company';
 import { useNav } from '../bus';
 import type { TabId } from '../navigate';
 import { Line, Nothing, type PhoneCtx } from '../shared';
@@ -64,6 +65,20 @@ export function Founder({ ctx }: { ctx: PhoneCtx }) {
       </section>
       <div className="phone-quick-actions">
         <Button onClick={() => tab('company')}>{t('Open company')}</Button>
+        <Button
+          variant="subtle"
+          onClick={() => {
+            openCompanyTab('roadmap');
+            tab('company');
+          }}
+        >
+          {t('Product roadmap')}
+        </Button>
+        {c.status === 'active' && (
+          <Button variant="subtle" onClick={() => ctx.open('sales')}>
+            {t('Sales pipeline')}
+          </Button>
+        )}
         <Button variant="subtle" onClick={() => tab('money')}>
           {t('Money and fundraising')}
         </Button>

@@ -10,6 +10,7 @@ import { SaveNudge } from './Account';
 import { visitPlace } from '../city/goto';
 import { WhatNowCard } from '../city/WhatNowCards';
 import { HomePreview } from '../home/HomePreview';
+import { FriendsBacking } from './FundCompany';
 
 /** Today (was "Home"): the dashboard and inbox. `onNews` opens the city's news. */
 export function Home({ onNews }: { onNews?: () => void } = {}) {
@@ -54,6 +55,7 @@ export function Home({ onNews }: { onNews?: () => void } = {}) {
       )}
       {isInvestor && c && <InvestorKpis />}
       <WhatNowCard onGo={visitPlace} />
+      <FriendsBacking />
       <SaveNudge />
       <Votes />
       <Inbox />

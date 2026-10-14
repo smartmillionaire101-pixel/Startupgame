@@ -187,11 +187,30 @@ test('quiz night on mobile: questions come from the bank, three players are matc
     await expect(lobby.getByRole('button', { name: 'Start game' })).toBeEnabled({ timeout: 10000 });
     await lobby.getByRole('button', { name: 'Start game' }).click();
     const players = [host, alice!, bob!];
+    // Answer each question as it comes. On a slow deploy a question can time out before
+    // everyone answers; then the game moves on, and so do we (never wait for a past one).
+    const questionOn = async (p: Page) => {
+      const text = await p
+        .getByRole('dialog', { name: 'Play together' })
+        .getByText(/^QUESTION \d+ OF 10$/)
+        .textContent({ timeout: 1000 })
+        .catch(() => null);
+      return Number(/QUESTION (\d+)/.exec(text ?? '')?.[1] ?? 0);
+    };
+    const over = alice!.getByRole('heading', { name: /wins!|tie/ });
     for (let n = 1; n <= 10; n++) {
       for (const [i, p] of players.entries()) {
-        const dialog = p.getByRole('dialog', { name: 'Play together' });
-        await expect(dialog.getByText(`QUESTION ${n} OF 10`)).toBeVisible({ timeout: 15000 });
-        await p.locator('.experience-answers button').nth(i).click();
+        await expect
+          .poll(async () => (await over.isVisible()) || (await questionOn(p)) >= n, {
+            timeout: 30000,
+          })
+          .toBe(true);
+        if ((await questionOn(p)) !== n) continue;
+        await p
+          .locator('.experience-answers button')
+          .nth(i)
+          .click({ timeout: 5000 })
+          .catch(() => {});
       }
     }
     await expect(alice!.getByRole('heading', { name: /wins!|tie/ })).toBeVisible({

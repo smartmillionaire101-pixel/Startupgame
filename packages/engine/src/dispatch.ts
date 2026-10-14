@@ -30,6 +30,7 @@ import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
 import { bookFlight, cancelFlight, fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
+import { advanceDeal, dropDeal, prospect } from './sales.js';
 import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
 import { foodOrder, homeAct, homeInvite } from './needs.js';
@@ -96,6 +97,16 @@ import { convertPersonal, openUsdAccount, setLifestyle, takeGig } from './person
 import { deriveRng } from './rng.js';
 import { settleMarket } from './settlement.js';
 import { bandSalary, evaluateOffer, hire, layoff } from './staff.js';
+import {
+  closeRole,
+  hireAiCofounder,
+  interview,
+  onPipelineDecline,
+  onPipelineHire,
+  openRole,
+  pipelineCandidate,
+  sourceCandidates,
+} from './hiring.js';
 import { companyRunway } from './company.js';
 import {
   BRIDGE_HOURS,
@@ -116,6 +127,25 @@ import {
   recordChapters,
   recordChaptersAfterSettle,
 } from './journey.js';
+import {
+  addFeature,
+  contractProject,
+  dismissFeedback,
+  prioritise,
+  releaseProject,
+  removeProject,
+} from './roadmap.js';
+import {
+  askAiFriends,
+  cancelFriendsRound,
+  closeFriendsRound,
+  commitToRound,
+  contribute,
+  getRound,
+  moveReserve,
+  openFriendsRound,
+  repayFounder,
+} from './founderfinance.js';
 
 export interface CommandContext {
   /** The authenticated player, or null for system commands issued by the server. */
@@ -317,7 +347,11 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'company.offer': {
       const c = touch(cmd.companyId);
       ensure(!c.hibernation, 'hire.hibernating', 'You can’t hire while the company hibernates.');
-      const cand = m.talent.find((t) => t.id === cmd.candidateId);
+      // The talent pool, or (§6.4) a candidate sourced through the hiring pipeline.
+      const piped = m.talent.some((t) => t.id === cmd.candidateId)
+        ? undefined
+        : pipelineCandidate(c, cmd.candidateId);
+      const cand = piped ?? m.talent.find((t) => t.id === cmd.candidateId);
       ensure(cand, 'hire.candidate', 'That candidate has left the market.');
       spendHours(me, 2, 'Making an offer');
       const runway = companyRunway(world, c);
@@ -333,9 +367,11 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       me.skills.negotiation = Math.min(100, me.skills.negotiation + 0.3);
       if (res.outcome === 'accept') {
         const s = hire(world, c, cand, cmd.salary, cmd.equityBps, month);
+        if (piped) onPipelineHire(world, c, piped, s);
         return { ...res, staffId: s.id };
       }
       cand.rejectedBy.push(c.id);
+      if (piped && res.outcome === 'decline') onPipelineDecline(piped, c.id);
       if (res.outcome === 'decline' && cand.rejectedBy.filter((x) => x === c.id).length >= 2) {
         m.talent = m.talent.filter((t) => t.id !== cand.id);
       }
@@ -981,6 +1017,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return rsvpEvent(world, me, cmd.eventId, cmd.going);
     case 'event.cancel':
       return cancelEvent(world, me, cmd.eventId);
+    case 'sales.prospect':
+      return prospect(world, me, cmd.companyId);
+    case 'sales.advance':
+      return advanceDeal(world, me, cmd);
+    case 'sales.drop':
+      return dropDeal(world, me, cmd.dealId, cmd.companyId);
     case 'business.pitch':
       return pitchBusiness(world, me, cmd.companyId, cmd.businessId);
     case 'gig.take':
@@ -1101,6 +1143,61 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'journey.bootstrap':
       ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
       return chooseBootstrap(me, cmd.on, month);
+    case 'roadmap.add':
+      return addFeature(world, touch(cmd.companyId), cmd.featureId, month);
+    case 'roadmap.prioritise':
+      return prioritise(touch(cmd.companyId), cmd.projectId, cmd.dir);
+    case 'roadmap.remove':
+      return removeProject(touch(cmd.companyId), cmd.projectId);
+    case 'roadmap.release':
+      return releaseProject(world, touch(cmd.companyId), cmd.projectId, month);
+    case 'roadmap.contract':
+      return contractProject(world, touch(cmd.companyId), cmd.projectId, month);
+    case 'roadmap.dismiss':
+      return dismissFeedback(touch(cmd.companyId), cmd.feedbackId);
+    case 'hire.open':
+      return openRole(
+        world,
+        touch(cmd.companyId),
+        { role: cmd.role, seniority: cmd.seniority, salaryBand: cmd.salaryBand },
+        month,
+      );
+    case 'hire.source':
+      return sourceCandidates(world, touch(cmd.companyId), me, cmd.roleId, month);
+    case 'hire.interview':
+      return interview(world, touch(cmd.companyId), me, cmd.candidateId, cmd.style, month);
+    case 'hire.close':
+      return closeRole(touch(cmd.companyId), cmd.roleId);
+    case 'cofounder.ai':
+      return hireAiCofounder(world, touch(cmd.companyId), me, cmd.candidateId, month);
+    case 'company.contribute':
+      return contribute(world, me, touch(cmd.companyId), cmd.amount, cmd.as, month);
+    case 'company.repayFounder':
+      return repayFounder(world, me, touch(cmd.companyId), cmd.amount, month);
+    case 'company.reserve':
+      return moveReserve(world, touch(cmd.companyId), cmd.amount, cmd.dir, month);
+    case 'ff.open':
+      return openFriendsRound(world, me, touch(cmd.companyId), cmd, month);
+    case 'ff.commit': {
+      // Open to every role: friends back friends. Months follow the company's city.
+      const r = getRound(world, cmd.roundId);
+      return commitToRound(world, me, r, cmd.amount, getMarket(world, r.market).month);
+    }
+    case 'ff.askAi': {
+      const r = getRound(world, cmd.roundId);
+      touch(r.companyId);
+      return askAiFriends(world, me, r, getMarket(world, r.market).month);
+    }
+    case 'ff.close': {
+      const r = getRound(world, cmd.roundId);
+      touch(r.companyId);
+      return closeFriendsRound(world, me, r, getMarket(world, r.market).month);
+    }
+    case 'ff.cancel': {
+      const r = getRound(world, cmd.roundId);
+      touch(r.companyId);
+      return cancelFriendsRound(world, r, getMarket(world, r.market).month);
+    }
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;

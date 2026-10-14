@@ -7,6 +7,7 @@ import { ACCELERATORS, DEV_PARTNERS, LPS } from '../src/data/programs.js';
 import type { Command } from '../src/commands.js';
 import { CAR_MODEL_IDS, FURNITURE } from '../src/data/lifestyle-shop.js';
 import { HOME_ACT_IDS } from '../src/needs.js';
+import { featuresFor } from '../src/data/roadmap.js';
 import { techEventsFor } from '../src/social.js';
 import { marketProperties } from '../src/property.js';
 import { CITY_DISTRICTS } from '../src/data/businesses.js';
@@ -63,6 +64,24 @@ describe('world invariants under random play', () => {
         distance: fc.constantFrom('short' as const, 'medium' as const, 'long' as const),
       }),
       fc.record({ k: fc.constant('build' as const), hours: fc.integer({ min: 10, max: 80 }) }),
+      // The product roadmap (§6.3): add, contract (ledger fee), release, reorder.
+      fc.record({
+        k: fc.constant('roadmap' as const),
+        op: fc.constantFrom(
+          'add' as const,
+          'contract' as const,
+          'release' as const,
+          'top' as const,
+        ),
+        pick: fc.nat(12),
+      }),
+      // Founder Journey 2a: work the sales pipeline (prospect, advance, close, recover).
+      fc.record({
+        k: fc.constant('sales' as const),
+        pick: fc.nat(20),
+        step: fc.nat(7),
+        discount: fc.integer({ min: 0, max: 40 }),
+      }),
       fc.record({
         k: fc.constant('market' as const),
         budget: fc.integer({ min: 0, max: 5_000_000_00 }),
@@ -75,6 +94,20 @@ describe('world invariants under random play', () => {
         k: fc.constant('hire' as const),
         pick: fc.nat(30),
         mult: fc.double({ min: 0.5, max: 2, noNaN: true }),
+      }),
+      // The hiring pipeline (§6.4): job posts, sourcing, interviews (paid work trials),
+      // pipeline offers and AI co-founders.
+      fc.record({
+        k: fc.constant('pipeline' as const),
+        op: fc.constantFrom(
+          'open' as const,
+          'source' as const,
+          'technical' as const,
+          'work_trial' as const,
+          'offer' as const,
+          'cofounder' as const,
+        ),
+        pick: fc.nat(10),
       }),
       fc.record({
         k: fc.constant('salary' as const),
@@ -301,6 +334,24 @@ describe('world invariants under random play', () => {
         score: fc.integer({ min: 1, max: 10 }),
         pick: fc.nat(10),
       }),
+      // Chapter 3: founder money classified, the reserve, a Friends & Family round.
+      fc.record({
+        k: fc.constant('ff' as const),
+        op: fc.constantFrom(
+          'equity' as const,
+          'loan' as const,
+          'repay' as const,
+          'reserveIn' as const,
+          'reserveOut' as const,
+          'open' as const,
+          'commit' as const,
+          'commitLondon' as const,
+          'askAi' as const,
+          'close' as const,
+          'cancel' as const,
+        ),
+        amount: fc.integer({ min: 1, max: 3_000_000_00 }),
+      }),
       fc.record({
         k: fc.constant('luxe' as const),
         investor: fc.boolean(),
@@ -326,6 +377,35 @@ describe('world invariants under random play', () => {
             let actor: string | null = 'u_founder';
             let cmd: Command;
             switch (a.k) {
+              case 'ff': {
+                const roundId =
+                  Object.values(w.ffRounds ?? {}).find((r) => r.status === 'open')?.id ?? 'ff_none';
+                const op = a.op;
+                if (op === 'equity' || op === 'loan')
+                  cmd = { type: 'company.contribute', companyId: cid, amount: a.amount, as: op };
+                else if (op === 'repay')
+                  cmd = { type: 'company.repayFounder', companyId: cid, amount: a.amount };
+                else if (op === 'reserveIn' || op === 'reserveOut')
+                  cmd = {
+                    type: 'company.reserve',
+                    companyId: cid,
+                    amount: a.amount,
+                    dir: op === 'reserveIn' ? 'in' : 'out',
+                  };
+                else if (op === 'open')
+                  cmd = {
+                    type: 'ff.open',
+                    companyId: cid,
+                    target: a.amount * 2,
+                    valuationCap: a.amount * 20,
+                    discountPct: 15,
+                  };
+                else if (op === 'commit' || op === 'commitLondon') {
+                  actor = op === 'commit' ? 'u_inv' : 'u_lon';
+                  cmd = { type: 'ff.commit', roundId, amount: a.amount };
+                } else cmd = { type: `ff.${op}`, roundId };
+                break;
+              }
               case 'settle': {
                 actor = null;
                 day++;
@@ -350,6 +430,23 @@ describe('world invariants under random play', () => {
               case 'build':
                 cmd = { type: 'company.build', companyId: cid, hours: a.hours };
                 break;
+              case 'roadmap': {
+                const c = w.companies[cid]!;
+                const feats = featuresFor(c.industry);
+                const projects = c.roadmap?.projects ?? [];
+                const projectId = projects[a.pick % Math.max(1, projects.length)]?.id ?? 'rp1';
+                cmd =
+                  a.op === 'add'
+                    ? {
+                        type: 'roadmap.add',
+                        companyId: cid,
+                        featureId: feats[a.pick % feats.length]!.id,
+                      }
+                    : a.op === 'top'
+                      ? { type: 'roadmap.prioritise', companyId: cid, projectId, dir: 'top' }
+                      : { type: `roadmap.${a.op}`, companyId: cid, projectId };
+                break;
+              }
               case 'market':
                 cmd = { type: 'company.strategy', companyId: cid, marketingBudget: a.budget };
                 break;
@@ -359,6 +456,30 @@ describe('world invariants under random play', () => {
               case 'salary':
                 cmd = { type: 'company.strategy', companyId: cid, founderSalary: a.salary };
                 break;
+              case 'pipeline': {
+                const h = w.companies[cid]!.hiring;
+                const roleId = h?.roles[a.pick % Math.max(1, h.roles.length)]?.id ?? 'hr1';
+                const cands = h?.candidates ?? [];
+                const cand = cands[a.pick % Math.max(1, cands.length)];
+                const candidateId = cand?.id ?? 'hc1';
+                cmd =
+                  a.op === 'open'
+                    ? { type: 'hire.open', companyId: cid, role: 'engineer', salaryBand: 'lean' }
+                    : a.op === 'source'
+                      ? { type: 'hire.source', companyId: cid, roleId }
+                      : a.op === 'offer'
+                        ? {
+                            type: 'company.offer',
+                            companyId: cid,
+                            candidateId,
+                            salary: Math.round((cand?.ask ?? 1000) * 1.5),
+                            equityBps: 50,
+                          }
+                        : a.op === 'cofounder'
+                          ? { type: 'cofounder.ai', companyId: cid }
+                          : { type: 'hire.interview', companyId: cid, candidateId, style: a.op };
+                break;
+              }
               case 'hire': {
                 const cand = w.markets.lagos!.talent[a.pick % w.markets.lagos!.talent.length]!;
                 cmd = {
@@ -485,6 +606,29 @@ describe('world invariants under random play', () => {
                   slides: ['product', 'traction'],
                   ask: a.ask,
                 };
+                break;
+              }
+              case 'sales': {
+                const deals = w.companies[cid]?.deals ?? [];
+                const d = deals[a.pick % Math.max(1, deals.length)];
+                const acts = [
+                  'contact',
+                  'discover',
+                  'demo',
+                  'propose',
+                  'negotiate',
+                  'close',
+                  'recover',
+                ] as const;
+                cmd =
+                  !d || a.step === 7
+                    ? { type: 'sales.prospect', companyId: cid }
+                    : {
+                        type: 'sales.advance',
+                        dealId: d.id,
+                        action: acts[a.step]!,
+                        discountPct: a.discount,
+                      };
                 break;
               }
               case 'bizPitch': {

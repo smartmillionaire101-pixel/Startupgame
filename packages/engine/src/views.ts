@@ -1,4 +1,8 @@
 import { journeyView } from './journey.js';
+import { roadmapView } from './roadmap.js';
+import { salesView } from './sales.js';
+import { hiringView, teamView } from './hiring.js';
+import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
 import { playView } from './play.js';
 /**
@@ -237,6 +241,8 @@ export function companyDetail(world: World, c: Company) {
       receivables: c.finance.receivables.reduce((a, r) => a + r.amount, 0),
       unpaidPayroll: c.finance.unpaidPayroll,
     },
+    /** Founder Journey 2a: the per-deal sales pipeline (view.company.sales). */
+    sales: salesView(world, c),
     rules: rulesFor(c.market, c.industry).map((r) => ({ ...r, done: !!c.compliance[r.id] })),
     listing: Object.values(world.listings).find((l) => l.companyId === c.id) ?? null,
     marketRate: marketRate(world, c),
@@ -263,6 +269,14 @@ export function companyDetail(world: World, c: Company) {
     bannedFromRaising: c.bannedFromRaising,
     warnings: c.warnings,
     pivots: c.pivots,
+    /** The product roadmap (§6.3): projects, feedback inbox and the feature catalogue. */
+    roadmap: roadmapView(world, c),
+    /** Team health (§6.4): workload, retention risk and missing skills. */
+    team: teamView(world, c),
+    /** The hiring pipeline and the AI co-founders on offer (§6.4). */
+    hiring: hiringView(world, c),
+    /** Available vs reserve, burn and runway in plain terms, founder loans, balance sheet (§7.4). */
+    founderFinance: founderFinanceView(world, c),
     /** Illustrative exit at the model valuation: who would get what (§12). */
     waterfallPreview: waterfall(c.capTable, valuation.value).map((l) => ({
       ...l,
@@ -641,6 +655,8 @@ export function playerView(
     worldVersion: world.version,
     /** The founder journey: seven chapters and the objective prompts; null for other roles. */
     journey: journeyView(world, p),
+    /** Friends & Family rounds you can see: yours, your city's, your contacts' (chapter 3). */
+    friendsRounds: friendsRoundsView(world, p, locationOf(p)),
     playRooms: playView(world, p),
     living: livingView(world, p),
     /** The month clock (Wave 4): when the next settlement is due, for a countdown. */

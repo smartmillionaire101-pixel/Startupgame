@@ -370,7 +370,26 @@ export interface Staff {
   skill: number;
   personality: Personality;
   hiredMonth: number;
+  /** Culture fit 0–1 (hired through the pipeline, §6.4). Missing = unknown: no effect. */
+  fit?: number;
+  /** Workload, % of a full load (100 = full). Missing = not tracked: no effect on morale. */
+  workload?: number;
+  /** An AI co-founder (§2.1 chapter 2): founder shares with a vesting record. */
+  cofounder?: AiCofounderRecord;
 }
+
+/** The vesting record of an AI co-founder's founder shares. */
+export interface AiCofounderRecord {
+  profile: AiCofounderProfileId;
+  title: 'CTO' | 'CEO' | 'Growth';
+  equityBps: number;
+  vestingMonths: number;
+  cliffMonths: number;
+  /** Company-market month they joined. */
+  since: number;
+}
+
+export type AiCofounderProfileId = 'cto' | 'operator' | 'growth';
 
 export type Personality = 'steady' | 'ambitious' | 'anxious' | 'maverick';
 
@@ -470,6 +489,8 @@ export interface Safe {
   /** Post-money valuation cap. */
   cap: number;
   month: number;
+  /** Discount on the next round's price (Friends & Family SAFEs). Missing = none. */
+  discountPct?: number;
 }
 
 export interface Preference {
@@ -590,8 +611,139 @@ export interface Company {
   storyBase?: StoryBase | null;
   /** Local business customers won and lost since the last story (Wave 3). Internal. */
   businessNews?: BusinessNews | null;
+  /** Founder Journey 2a: the per-deal sales pipeline (only once `sales.*` is used). */
+  deals?: SalesDeal[];
+  /** Customers won through the pipeline, billed monthly on B2B terms. */
+  salesAccounts?: SalesAccount[];
+  /** Next deal number (per company, so ids never touch the world counter). */
+  salesSeq?: number;
+  /** Prospecting done this month (limited by founder hours and sales staff). */
+  salesProspects?: { month: number; count: number };
   /** In (or graduated from) an accelerator (Wave 5). Missing = never joined one. */
   accelerator?: CompanyAccelerator | null;
+  /** The product roadmap (§6.3). Missing = never opened: product work runs as before. */
+  roadmap?: Roadmap | null;
+  /** The hiring pipeline (§6.4). Missing = never used: hiring runs as before. */
+  hiring?: Hiring | null;
+  /** Business reserve account (§7.2): set aside, not counted as available cash. Missing = none. */
+  reserve?: Id;
+  /** Founder loans to the company (§7.3), outstanding per founder. A liability, never revenue. */
+  founderLoans?: Record<Id, number>;
+  /** Money each founder put in as equity (§7.3), for the books. */
+  founderEquity?: Record<Id, number>;
+}
+
+export type InterviewStyle = 'technical' | 'culture' | 'work_trial';
+export type SalaryBand = 'lean' | 'market' | 'generous';
+export type CandidateValues = 'mission' | 'money' | 'craft' | 'stability';
+export type WorkStyle = 'independent' | 'collaborative' | 'structured' | 'fast';
+
+/** An open role (a job post). `hr<n>`, numbered per company. */
+export interface HireRole {
+  id: Id;
+  role: StaffRole;
+  seniority: Seniority | null;
+  band: SalaryBand;
+  openedMonth: number;
+  status: 'open' | 'filled' | 'closed';
+  /** Times candidates were sourced for it. */
+  sourced: number;
+  postingCost: number;
+}
+
+/** A candidate sourced for a role: a talent-pool candidate plus a CV and hidden traits. */
+export interface PipelineCandidate extends Candidate {
+  roleId: Id;
+  /** The skill their CV claims (the true skill is `skill`, hidden until interviewed). */
+  cvSkill: number;
+  /** Hidden culture fit, 0–1. */
+  fit: number;
+  values: CandidateValues;
+  workStyle: WorkStyle;
+  sourcedMonth: number;
+  /** Last month to make an offer; after it they take another job. */
+  deadline: number;
+  interviews: InterviewStyle[];
+  status: 'open' | 'hired' | 'withdrawn' | 'declined';
+}
+
+export interface Hiring {
+  roles: HireRole[];
+  candidates: PipelineCandidate[];
+  nextId: number;
+}
+
+/** One friend's (or AI angel's) commitment to a Friends & Family round, held in escrow. */
+export interface FriendsCommitment {
+  /** A player id, or an AI angel's fund id (the SAFE holder). */
+  holderId: Id;
+  name: string;
+  ai: boolean;
+  /** Company-currency amount in escrow. */
+  amount: number;
+  /** Where it came from (refunds go back here). */
+  fromAccount: Id;
+  month: number;
+}
+
+/** A Friends & Family round (chapter 3): SAFE terms, commitments in escrow, then close. */
+export interface FriendsRound {
+  id: Id;
+  companyId: Id;
+  founderId: Id;
+  market: MarketId;
+  target: number;
+  valuationCap: number;
+  discountPct: number;
+  status: 'open' | 'closed' | 'cancelled';
+  openedMonth: number;
+  closedMonth?: number;
+  /** Escrow account holding commitments until close. */
+  escrow: Id;
+  commitments: FriendsCommitment[];
+  /** Months the founder asked AI angels (once per month). */
+  aiAskedMonths?: number[];
+}
+
+/** A feature on the roadmap (§6.3): planned → in progress → released. */
+export interface ProductProject {
+  /** `rp<n>`, numbered per company (the world's id counter is left alone). */
+  id: Id;
+  featureId: string;
+  status: 'planned' | 'in_progress' | 'released';
+  /** Person-weeks done so far (the feature's effort is in the catalogue). */
+  progress: number;
+  addedMonth: number;
+  startedMonth?: number;
+  releasedMonth?: number;
+  /** Person-weeks paid for from contractors, delivered at the next settlement. */
+  contractorWeeks?: number;
+  /** Contractors worked on it (a little more tech debt on release). */
+  contracted?: boolean;
+  /** Bugs it shipped with, and the tech debt it added (set on release). */
+  defects?: number;
+  debtAdded?: number;
+}
+
+/** Customer feedback for the roadmap: a feature request or a support incident. */
+export interface RoadmapFeedback {
+  /** `fb<month>_<n>`: fixed, no world id taken. */
+  id: string;
+  month: number;
+  kind: 'idea' | 'incident';
+  featureId: string;
+  /** Segment name the customer belongs to (or empty). */
+  from: string;
+  /** Incidents: bugs reaching customers. */
+  count?: number;
+}
+
+export interface Roadmap {
+  projects: ProductProject[];
+  feedback: RoadmapFeedback[];
+  /** Known bugs in the live product (support incidents until a bug bash). */
+  defects: number;
+  nextId: number;
 }
 
 /** A company's accelerator place (Wave 5). Months are the accelerator market's months. */
@@ -1301,6 +1453,8 @@ export interface World {
   events?: Record<Id, CityEvent>;
   /** Accelerator, grant and LP applications (Wave 5). Missing on old saves = none. */
   applications?: Record<Id, CapitalApplication>;
+  /** Friends & Family rounds (chapter 3). Missing on old saves = none. */
+  ffRounds?: Record<Id, FriendsRound>;
   /** Wave 8: home visit invitations. Missing on old saves = none. */
   visits?: Record<Id, Visit>;
   /** Wave 8: hangouts. Missing on old saves = none. */
@@ -1438,4 +1592,96 @@ export interface Competition {
   winnerEntryId?: Id | null;
   /** Fund that wants to meet the winner (the investor interest). */
   interest?: { fundId: Id; name: string } | null;
+}
+
+// ---------------------------------------------------------------- Sales pipeline (Journey 2a)
+
+export const SALES_STAGES = [
+  'lead',
+  'contacted',
+  'discovery',
+  'demo',
+  'proposal',
+  'negotiation',
+  'won',
+  'lost',
+] as const;
+export type SalesStage = (typeof SALES_STAGES)[number];
+export const SALES_LOSS_REASONS = [
+  'price',
+  'missing_feature',
+  'timing',
+  'trust',
+  'competitor',
+  'no_budget',
+] as const;
+export type SalesLossReason = (typeof SALES_LOSS_REASONS)[number];
+export const SALES_ACTIONS = [
+  'contact',
+  'discover',
+  'demo',
+  'propose',
+  'negotiate',
+  'close',
+  'recover',
+] as const;
+export type SalesAction = (typeof SALES_ACTIONS)[number];
+export type SalesNeed = 'fit' | 'price' | 'stars' | 'reliability';
+export type SalesCurrent = 'nothing' | 'spreadsheet' | 'incumbent' | 'rival';
+
+/** A prospective customer. Need, budget, authority, urgency, current solution and trust are hidden until discovery. */
+export interface SalesCustomer {
+  name: string;
+  /** The person you deal with. */
+  contact: string;
+  /** A local business this lead is (when it is one). */
+  businessId?: Id;
+  segmentKey: string;
+  need: SalesNeed;
+  /** Willingness to pay per month, local minor units. */
+  budgetMin: number;
+  budgetMax: number;
+  /** 0–1: can they sign alone? */
+  authority: number;
+  /** 0–1: how soon they must fix the problem. */
+  urgency: number;
+  current: SalesCurrent;
+  /** Who they use today (incumbent or rival), when anyone. */
+  currentName?: string;
+  /** 0–1, grows with every good interaction. */
+  trust: number;
+}
+
+export interface SalesDeal {
+  id: Id;
+  customer: SalesCustomer;
+  stage: SalesStage;
+  createdMonth: number;
+  /** Last game month to close in; it expires at the settlement after. */
+  deadline: number;
+  /** Discovery done: the hidden attributes are known. */
+  revealed: boolean;
+  /** How the demo went, 0–1. */
+  demoScore?: number;
+  /** Proposed monthly price (before discount). */
+  price?: number;
+  discountPct?: number;
+  negotiations?: number;
+  lossReason?: SalesLossReason;
+  /** The one recovery attempt after a loss has been used. */
+  recovered?: boolean;
+  /** Lost because the deadline passed. */
+  expired?: boolean;
+  closedMonth?: number;
+}
+
+export interface SalesAccount {
+  dealId: Id;
+  name: string;
+  /** The local business this customer is, when it is one. */
+  businessId?: Id;
+  segmentKey: string;
+  /** Agreed monthly price, local minor units. */
+  monthly: number;
+  since: number;
 }

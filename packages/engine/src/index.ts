@@ -146,3 +146,18 @@ export {
   type JourneyView,
   type ObjectiveKind,
 } from './journey.js';
+export { FEATURES, featuresFor, featureById, BUG_BASH } from './data/roadmap.js';
+export type { FeatureDef, FeatureEffectKind, FeatureSkill } from './data/roadmap.js';
+export { ROADMAP, FIRST_RELEASE } from './roadmap.js';
+export { SALES, ACTION_FROM as SALES_ACTION_FROM, winChance, type SalesView } from './sales.js';
+export { HIRING, AI_COFOUNDER_PROFILES, trialFee } from './hiring.js';
+export type { AiCofounderOffer, RetentionRisk } from './hiring.js';
+export {
+  FF,
+  committed as ffCommitted,
+  commitBlocker as ffCommitBlocker,
+  founderFinanceView,
+  friendsRoundsView,
+  reserveBalance,
+  sharePrice,
+} from './founderfinance.js';
