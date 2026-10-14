@@ -107,7 +107,15 @@ import {
   setHibernation,
 } from './rescue.js';
 import { createCompany, createPlayer, openMarket, setCogs, welcomeNewPlayer } from './world.js';
-import type { DealTerms, Id, PartyRef, World } from './types.js';
+import type { DealTerms, Id, PartyRef, Player, World } from './types.js';
+import {
+  chooseBootstrap,
+  dismissObjective,
+  hasJourney,
+  pinObjective,
+  recordChapters,
+  recordChaptersAfterSettle,
+} from './journey.js';
 
 export interface CommandContext {
   /** The authenticated player, or null for system commands issued by the server. */
@@ -133,6 +141,11 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
       if (actor) keepStatement(draft as World, actor);
       expirePlay(draft as World, ctx.now);
       result = apply(draft as World, command, ctx);
+      // The founder journey: record chapters this command (or settlement) completed.
+      if (command.type === 'market.settle')
+        recordChaptersAfterSettle(draft as World, command.market);
+      const who = ctx.actorId ? draft.players[ctx.actorId] : undefined;
+      if (who) recordChapters(draft as World, who as Player);
       draft.version += 1;
     });
     return { ok: true, world: next, result };
@@ -1079,6 +1092,15 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return joinJudges(world, me, cmd.competitionId);
     case 'competition.score':
       return scoreEntry(world, me, cmd.competitionId, cmd.entryId, cmd.score);
+    case 'journey.pin':
+      ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
+      return pinObjective(me, cmd.kind, cmd.id);
+    case 'journey.dismiss':
+      ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
+      return dismissObjective(me, cmd.kind, cmd.id, cmd.undo);
+    case 'journey.bootstrap':
+      ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
+      return chooseBootstrap(me, cmd.on, month);
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;
