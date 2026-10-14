@@ -27,6 +27,7 @@ import { formatMoney, scale } from './money.js';
 import type { Rng } from './rng.js';
 import { applyStarEvent, settleStars } from './stars.js';
 import { outputOf, settleStaff } from './staff.js';
+import { settleHiring } from './hiring.js';
 import { monthlyGrowth } from './valuation.js';
 import { setCogs } from './world.js';
 import { recordInterest, recordLoanLoss } from './banks.js';
@@ -505,6 +506,7 @@ export function settleCompany(world: World, c: Company, rng: Rng, month: number)
   if (c.hibernation) c.buildHours = 0;
   else settleProduct(c, founder, { world, month });
   roadmapFeedback(world, c, month);
+  settleHiring(world, c, month);
   const pnl = settleFinances(world, c, rng, month);
   const runway = companyRunway(world, c);
   const departures = settleStaff(world, c, rng, month, runway, c.finance.unpaidPayroll > 0);

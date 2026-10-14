@@ -96,6 +96,16 @@ import { convertPersonal, openUsdAccount, setLifestyle, takeGig } from './person
 import { deriveRng } from './rng.js';
 import { settleMarket } from './settlement.js';
 import { bandSalary, evaluateOffer, hire, layoff } from './staff.js';
+import {
+  closeRole,
+  hireAiCofounder,
+  interview,
+  onPipelineDecline,
+  onPipelineHire,
+  openRole,
+  pipelineCandidate,
+  sourceCandidates,
+} from './hiring.js';
 import { companyRunway } from './company.js';
 import {
   BRIDGE_HOURS,
@@ -325,7 +335,11 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'company.offer': {
       const c = touch(cmd.companyId);
       ensure(!c.hibernation, 'hire.hibernating', 'You can’t hire while the company hibernates.');
-      const cand = m.talent.find((t) => t.id === cmd.candidateId);
+      // The talent pool, or (§6.4) a candidate sourced through the hiring pipeline.
+      const piped = m.talent.some((t) => t.id === cmd.candidateId)
+        ? undefined
+        : pipelineCandidate(c, cmd.candidateId);
+      const cand = piped ?? m.talent.find((t) => t.id === cmd.candidateId);
       ensure(cand, 'hire.candidate', 'That candidate has left the market.');
       spendHours(me, 2, 'Making an offer');
       const runway = companyRunway(world, c);
@@ -341,9 +355,11 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       me.skills.negotiation = Math.min(100, me.skills.negotiation + 0.3);
       if (res.outcome === 'accept') {
         const s = hire(world, c, cand, cmd.salary, cmd.equityBps, month);
+        if (piped) onPipelineHire(world, c, piped, s);
         return { ...res, staffId: s.id };
       }
       cand.rejectedBy.push(c.id);
+      if (piped && res.outcome === 'decline') onPipelineDecline(piped, c.id);
       if (res.outcome === 'decline' && cand.rejectedBy.filter((x) => x === c.id).length >= 2) {
         m.talent = m.talent.filter((t) => t.id !== cand.id);
       }
@@ -1121,6 +1137,21 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return contractProject(world, touch(cmd.companyId), cmd.projectId, month);
     case 'roadmap.dismiss':
       return dismissFeedback(touch(cmd.companyId), cmd.feedbackId);
+    case 'hire.open':
+      return openRole(
+        world,
+        touch(cmd.companyId),
+        { role: cmd.role, seniority: cmd.seniority, salaryBand: cmd.salaryBand },
+        month,
+      );
+    case 'hire.source':
+      return sourceCandidates(world, touch(cmd.companyId), me, cmd.roleId, month);
+    case 'hire.interview':
+      return interview(world, touch(cmd.companyId), me, cmd.candidateId, cmd.style, month);
+    case 'hire.close':
+      return closeRole(touch(cmd.companyId), cmd.roleId);
+    case 'cofounder.ai':
+      return hireAiCofounder(world, touch(cmd.companyId), me, cmd.candidateId, month);
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;
