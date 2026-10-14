@@ -5,12 +5,14 @@ import { locale, t, tx } from '../i18n';
 import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Segmented, Sheet } from '../ui';
 import { ExpansionCard } from './Expansion';
+import { Roadmap } from './Roadmap';
 
-type Tab = 'product' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
+type Tab = 'product' | 'roadmap' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
 const tabLabel = (tab: Tab) =>
   ({
     product: t('Product'),
+    roadmap: t('Roadmap'),
     customers: t('Customers'),
     team: t('Team'),
     suppliers: t('Suppliers'),
@@ -65,9 +67,28 @@ const contractStatusLabel = (st: string) =>
 const buildModeLabel = (m: string) =>
   ({ fast: t('Fast'), balanced: t('Balanced'), quality: t('Quality') })[m] ?? titleCase(m);
 
+/** Another screen (the phone's Founder app) can ask for a tab once: `openCompanyTab('roadmap')`. */
+const TAB_KEY = 'rw.companyTab';
+export function openCompanyTab(tab: Tab) {
+  try {
+    sessionStorage.setItem(TAB_KEY, tab);
+  } catch {
+    /* storage blocked: the Product tab opens */
+  }
+}
+function takeCompanyTab(): Tab {
+  try {
+    const v = sessionStorage.getItem(TAB_KEY) as Tab | null;
+    sessionStorage.removeItem(TAB_KEY);
+    return v ?? 'product';
+  } catch {
+    return 'product';
+  }
+}
+
 export function CompanyScreen() {
   const { view } = useView();
-  const [tab, setTab] = useState<Tab>('product');
+  const [tab, setTab] = useState<Tab>(takeCompanyTab);
   const c = view.companies.find((x) => x.status === 'active');
   if (!c) return <Empty>{t('No active company. Set up your business in Me → Profile.')}</Empty>;
   return (
@@ -83,11 +104,13 @@ export function CompanyScreen() {
         <Pill>{c.industryLabel}</Pill>
       </header>
       <div className="tabs" role="tablist">
-        {(['product', 'customers', 'team', 'suppliers', 'board', 'rules'] as Tab[]).map((id) => (
-          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
-            {tabLabel(id)}
-          </button>
-        ))}
+        {(['product', 'roadmap', 'customers', 'team', 'suppliers', 'board', 'rules'] as Tab[]).map(
+          (id) => (
+            <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+              {tabLabel(id)}
+            </button>
+          ),
+        )}
       </div>
       {tab === 'product' && (
         <>
@@ -95,6 +118,7 @@ export function CompanyScreen() {
           <ExpansionCard c={c} />
         </>
       )}
+      {tab === 'roadmap' && <Roadmap c={c} />}
       {tab === 'customers' && <Customers c={c} />}
       {tab === 'team' && <Team c={c} />}
       {tab === 'suppliers' && <Suppliers c={c} />}
