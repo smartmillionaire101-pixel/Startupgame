@@ -617,8 +617,7 @@ function CityBodyInner({
       else if (g.kind === 'tab') {
         if (g.section) openCompanyTab(g.section);
         onNavigate(g.tab === 'company' || g.tab === 'me' ? g.tab : 'money');
-      }
-      else if (g.kind === 'app') openPhone({ app: g.app as PhoneApp });
+      } else if (g.kind === 'app') openPhone({ app: g.app as PhoneApp });
       else openSky(g.id);
     },
     [visit, onNavigate],
