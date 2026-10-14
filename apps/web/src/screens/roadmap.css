@@ -1,0 +1,157 @@
+/* The product roadmap: lanes, project cards, feedback and a small release party. */
+.rm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.rm-project,
+.rm-feedback {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  background: var(--surface);
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.rm-feedback p {
+  margin: 0;
+}
+
+.rm-feedback-incident {
+  border-color: color-mix(in srgb, var(--bad) 35%, var(--line));
+  background: var(--bad-soft);
+}
+
+.rm-ready {
+  border-color: var(--good);
+  box-shadow: 0 0 0 2px var(--good-soft);
+}
+
+.rm-project-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.rm-project p {
+  margin: 0;
+}
+
+.rm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.rm-effect {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.rm-effect-stability,
+.rm-effect-efficiency {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.rm-effect-retention,
+.rm-effect-pricing {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.rm-lanes {
+  display: grid;
+  gap: 0;
+}
+
+@media (min-width: 900px) {
+  .rm-lanes {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-3);
+    align-items: start;
+  }
+}
+
+.rm-party {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: var(--scrim);
+  padding: var(--gutter);
+}
+
+.rm-party-card {
+  position: relative;
+  max-width: 340px;
+  width: 100%;
+  text-align: center;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: var(--sp-6) var(--sp-4) var(--sp-4);
+  overflow: hidden;
+  display: grid;
+  gap: var(--sp-3);
+  animation: rm-pop 320ms ease-out;
+}
+
+.rm-party-card h2 {
+  margin: 0;
+  font-family: var(--font-display);
+}
+
+.rm-confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.rm-confetti span {
+  position: absolute;
+  top: -10px;
+  left: calc(4% + var(--i) * 6.8%);
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  background: hsl(calc(var(--i) * 47deg) 80% 55%);
+  animation: rm-fall 1.4s ease-in calc(var(--i) * 40ms) forwards;
+}
+
+@keyframes rm-fall {
+  to {
+    transform: translateY(260px) rotate(540deg);
+    opacity: 0;
+  }
+}
+
+@keyframes rm-pop {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rm-party-card,
+  .rm-confetti span {
+    animation: none;
+  }
+  .rm-confetti {
+    display: none;
+  }
+}

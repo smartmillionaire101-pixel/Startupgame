@@ -7,6 +7,7 @@ import { ACCELERATORS, DEV_PARTNERS, LPS } from '../src/data/programs.js';
 import type { Command } from '../src/commands.js';
 import { CAR_MODEL_IDS, FURNITURE } from '../src/data/lifestyle-shop.js';
 import { HOME_ACT_IDS } from '../src/needs.js';
+import { featuresFor } from '../src/data/roadmap.js';
 import { techEventsFor } from '../src/social.js';
 import { marketProperties } from '../src/property.js';
 import { CITY_DISTRICTS } from '../src/data/businesses.js';
@@ -63,6 +64,17 @@ describe('world invariants under random play', () => {
         distance: fc.constantFrom('short' as const, 'medium' as const, 'long' as const),
       }),
       fc.record({ k: fc.constant('build' as const), hours: fc.integer({ min: 10, max: 80 }) }),
+      // The product roadmap (§6.3): add, contract (ledger fee), release, reorder.
+      fc.record({
+        k: fc.constant('roadmap' as const),
+        op: fc.constantFrom(
+          'add' as const,
+          'contract' as const,
+          'release' as const,
+          'top' as const,
+        ),
+        pick: fc.nat(12),
+      }),
       fc.record({
         k: fc.constant('market' as const),
         budget: fc.integer({ min: 0, max: 5_000_000_00 }),
@@ -350,6 +362,23 @@ describe('world invariants under random play', () => {
               case 'build':
                 cmd = { type: 'company.build', companyId: cid, hours: a.hours };
                 break;
+              case 'roadmap': {
+                const c = w.companies[cid]!;
+                const feats = featuresFor(c.industry);
+                const projects = c.roadmap?.projects ?? [];
+                const projectId = projects[a.pick % Math.max(1, projects.length)]?.id ?? 'rp1';
+                cmd =
+                  a.op === 'add'
+                    ? {
+                        type: 'roadmap.add',
+                        companyId: cid,
+                        featureId: feats[a.pick % feats.length]!.id,
+                      }
+                    : a.op === 'top'
+                      ? { type: 'roadmap.prioritise', companyId: cid, projectId, dir: 'top' }
+                      : { type: `roadmap.${a.op}`, companyId: cid, projectId };
+                break;
+              }
               case 'market':
                 cmd = { type: 'company.strategy', companyId: cid, marketingBudget: a.budget };
                 break;
