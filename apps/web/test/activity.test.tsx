@@ -6,7 +6,8 @@ import { musicSamples, useMusic } from '../src/music';
 import { setSetting } from '../src/phone/settings';
 
 vi.mock('../src/store', () => ({
-  useView: () => ({ view: { me: { id: 'test' }, living: { dates: [] } } }),
+  useView: () => ({ view: { me: { id: 'test' }, living: { dates: [] } }, toast: () => {} }),
+  useGame: () => ({ busy: false, lite: false }),
 }));
 
 afterEach(() => {
@@ -41,6 +42,46 @@ it('refreshes totals, clears failed counts, and pauses heartbeats in hidden tabs
   cleanup();
   await act(() => vi.advanceTimersByTimeAsync(60_000));
   expect(heartbeat).toHaveBeenCalledTimes(4);
+});
+
+it('opens Online now from the count, grouped by city, polling only while open', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(api, 'online').mockResolvedValue({ count: 3 });
+  const row = (id: string, name: string, here: boolean, city: string) => ({
+    id,
+    name,
+    handle: id,
+    role: 'founder',
+    backgroundId: 'f-engineer',
+    stars: 2,
+    company: null,
+    market: here ? 'lagos' : 'nairobi',
+    city,
+    here,
+    place: here ? 'hub' : null,
+    placeName: here ? 'The Hub' : null,
+    inGame: here ? ('snooker' as const) : null,
+  });
+  const list = vi.spyOn(api, 'onlinePlayers').mockResolvedValue({
+    players: [row('p1', 'Bola', true, 'Lagos'), row('p2', 'Wanjiru', false, 'Nairobi')],
+  });
+  render(<GameActivity />);
+  await act(async () => {});
+  expect(list).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: /3 online/ }));
+  await act(async () => {});
+  const sheet = screen.getByRole('dialog', { name: 'Online now' });
+  expect(sheet.textContent).toContain('In your city');
+  expect(sheet.textContent).toContain('Bola');
+  expect(sheet.textContent).toContain('Playing Snooker');
+  expect(sheet.textContent).toContain('Other cities');
+  expect(sheet.textContent).toContain('Nairobi');
+  expect(screen.getAllByRole('button', { name: 'Invite to play' })).toHaveLength(2);
+  await act(() => vi.advanceTimersByTimeAsync(15_000));
+  expect(list).toHaveBeenCalledTimes(2);
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  await act(() => vi.advanceTimersByTimeAsync(60_000));
+  expect(list).toHaveBeenCalledTimes(2);
 });
 
 it('saves mute and stays synchronized with phone settings', async () => {

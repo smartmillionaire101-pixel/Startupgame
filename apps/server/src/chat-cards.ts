@@ -5,7 +5,13 @@
  * home given as a gift) posted for both players, with their live state read
  * from the world each time the chat is fetched.
  */
-import { parseTechEventId, techEventsFor, type Command, type World } from '@runway/engine';
+import {
+  locationOf,
+  parseTechEventId,
+  techEventsFor,
+  type Command,
+  type World,
+} from '@runway/engine';
 import type { MessageRow } from './store/types.js';
 
 // ---------------------------------------------------------------- Voice notes
@@ -73,7 +79,19 @@ export type Card =
       city: string;
       ticket: number;
       currency: string;
+    }
+  | {
+      /** An invitation to play: a table you host (when you have one waiting), in your city. */
+      type: 'play';
+      game: PlayGame;
+      market: string;
+      city: string;
+      roomId: string | null;
+      venue: string | null;
+      title: string | null;
     };
+export const PLAY_GAMES = ['quiz', 'snooker', 'football'] as const;
+export type PlayGame = (typeof PLAY_GAMES)[number];
 
 /** One-line summaries kept as the message text (chat lists, notifications, older clients). */
 export const CARD_TEXT: Record<Card['type'], string> = {
@@ -82,6 +100,7 @@ export const CARD_TEXT: Record<Card['type'], string> = {
   visit: '🏠 Come over to mine',
   gift: '🎁 A home, as a gift',
   techevent: '🎟 Tech event together',
+  play: '🎮 Come and play',
 };
 export const VOICE_TEXT = '🎤 Voice note';
 
@@ -169,6 +188,25 @@ export function techEventCard(world: World, eventId: string): Card | null {
   };
 }
 
+/** An invitation to play this game: your waiting table for it, if you host one. */
+export function playInviteCard(world: World, fromId: string, game: PlayGame): Card | null {
+  const me = world.players[fromId];
+  if (!me) return null;
+  const market = locationOf(me);
+  const room = Object.values(world.playRooms ?? {})
+    .filter((r) => r.host === fromId && r.game === game && r.status === 'waiting')
+    .sort((a, b) => b.createdAt - a.createdAt)[0];
+  return {
+    type: 'play',
+    game,
+    market,
+    city: world.markets[market]?.data.name ?? market,
+    roomId: room?.id ?? null,
+    venue: room?.venue ?? null,
+    title: room?.title ?? null,
+  };
+}
+
 const DATE_MS = 3_600_000;
 
 /** What has happened since: read from the world each time (never stored). */
@@ -201,6 +239,17 @@ export function cardState(world: World, card: Card, members: [string, string], n
         return !!ref && t?.month === ref.month && t.ids.includes(card.eventId);
       });
       return { status: on ? 'on' : 'over', going };
+    }
+    case 'play': {
+      const r = card.roomId ? world.playRooms?.[card.roomId] : undefined;
+      if (!card.roomId) return { status: 'open' };
+      if (!r) return { status: 'gone' };
+      return {
+        status: r.status,
+        stake: r.stake,
+        currency: r.currency,
+        players: r.members.length,
+      };
     }
   }
 }

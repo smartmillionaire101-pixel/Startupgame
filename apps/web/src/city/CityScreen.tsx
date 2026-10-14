@@ -64,6 +64,7 @@ import type { PhoneApp } from '../phone/bus';
 import { JourneyCelebration, JourneyChip, JourneyPanel } from './JourneyPanel';
 import type { JourneyGo } from './journey';
 import { WhoIsAround } from './WhoIsHere';
+import { OnlineNowList } from './OnlineNow';
 import { usePresence } from './presence';
 import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
@@ -433,6 +434,7 @@ function CityBodyInner({
   const [journeyOpen, setJourneyOpen] = useState(false);
   const skyCity = view.here?.id ?? view.market.id;
   const [peopleOpen, setPeopleOpen] = useState(false);
+  const [peopleTab, setPeopleTab] = useState<'here' | 'everywhere'>('here');
   const [person, setPerson] = useState<PersonRef | null>(null);
   const [trip, setTrip] = useState<FarTrip | null>(null);
   const [rideBusy, setRideBusy] = useState(false);
@@ -859,15 +861,39 @@ function CityBodyInner({
       )}
       {peopleOpen && (
         <Sheet title={t('People around')} onClose={() => setPeopleOpen(false)}>
-          <WhoIsAround
-            layout={layout}
-            players={players}
-            labelOf={labelOf}
-            onGo={(id) => {
-              setPeopleOpen(false);
-              visit(id);
-            }}
-          />
+          <div className="people-tabs" role="tablist" aria-label={t('Who to show')}>
+            <Button
+              role="tab"
+              aria-selected={peopleTab === 'here'}
+              variant={peopleTab === 'here' ? 'primary' : 'subtle'}
+              size="sm"
+              onClick={() => setPeopleTab('here')}
+            >
+              {t('In this city')}
+            </Button>
+            <Button
+              role="tab"
+              aria-selected={peopleTab === 'everywhere'}
+              variant={peopleTab === 'everywhere' ? 'primary' : 'subtle'}
+              size="sm"
+              onClick={() => setPeopleTab('everywhere')}
+            >
+              {t('Everywhere · online now')}
+            </Button>
+          </div>
+          {peopleTab === 'here' ? (
+            <WhoIsAround
+              layout={layout}
+              players={players}
+              labelOf={labelOf}
+              onGo={(id) => {
+                setPeopleOpen(false);
+                visit(id);
+              }}
+            />
+          ) : (
+            <OnlineNowList onLeave={() => setPeopleOpen(false)} />
+          )}
         </Sheet>
       )}
       {inside && (

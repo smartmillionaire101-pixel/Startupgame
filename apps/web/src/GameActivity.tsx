@@ -5,12 +5,14 @@ import { api } from './api';
 import { t } from './i18n';
 import { useMusic } from './music';
 import { setSetting, useSetting } from './phone/settings';
+import { OnlineNowSheet } from './city/OnlineNow';
 
 export function GameActivity() {
   const { view } = useView();
   const sound = useSetting('sound');
   useMusic(sound);
   const [count, setCount] = useState<number | null>(null);
+  const [listOpen, setListOpen] = useState(false);
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -56,14 +58,19 @@ export function GameActivity() {
 
   return (
     <div className="game-activity">
-      <span
+      <button
+        type="button"
         className={`online-count${count === null ? ' is-unavailable' : ''}`}
-        role="status"
-        title={t('Players across all cities, including you. Updates every 15 seconds.')}
+        aria-haspopup="dialog"
+        title={t('Players across all cities, including you. Tap to see who’s online.')}
+        onClick={() => setListOpen(true)}
       >
         <span className="online-dot" aria-hidden="true" />
-        {count === null ? t('Online count unavailable') : t('{n} online', { n: count })}
-      </span>
+        <span role="status">
+          {count === null ? t('Online count unavailable') : t('{n} online', { n: count })}
+        </span>
+      </button>
+      {listOpen && <OnlineNowSheet onClose={() => setListOpen(false)} />}
       <button type="button" onClick={() => openLiving(view.me.id)}>
         Together
         {view.living.dates.some((d) => d.status === 'invited' && d.guest === view.me.id)

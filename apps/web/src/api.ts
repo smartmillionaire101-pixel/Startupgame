@@ -174,7 +174,40 @@ export type ChatCard = { from: string; status: string } & (
       currency: string;
       going?: string[];
     }
+  | {
+      type: 'play';
+      game: PlayGame;
+      market: string;
+      city: string;
+      roomId: string | null;
+      venue: string | null;
+      title: string | null;
+      stake?: number;
+      currency?: string;
+      players?: number;
+    }
 );
+
+export type PlayGame = 'quiz' | 'snooker' | 'football';
+
+/** A real player online now (`GET /api/online/players`). */
+export interface OnlinePlayer {
+  id: string;
+  name: string;
+  handle: string;
+  role: string;
+  backgroundId: string;
+  stars: number;
+  company: string | null;
+  market: string;
+  city: string;
+  /** In the same city as you. */
+  here: boolean;
+  place: string | null;
+  placeName: string | null;
+  /** The game they're at (waiting or playing), if any. */
+  inGame: PlayGame | null;
+}
 
 export interface ChatMessage {
   id: number;
@@ -306,7 +339,10 @@ export const api = {
    * Wave 13: do something with the person you're chatting with (a command
    * aimed at them, or a tech event to go to together); a card goes in the chat.
    */
-  act: <R = unknown>(playerId: string, body: { command: Command } | { techEventId: string }) =>
+  act: <R = unknown>(
+    playerId: string,
+    body: { command: Command } | { techEventId: string } | { playGame: PlayGame },
+  ) =>
     request<{ ok: true; result: R; chat: ChatSummary; version: number }>(
       'POST',
       `/api/chats/with/${encodeURIComponent(playerId)}/act`,
@@ -343,6 +379,9 @@ export const api = {
   presenceSetting: () => request<{ visible: boolean }>('GET', '/api/me/presence'),
   online: (signal?: AbortSignal) =>
     request<{ count: number }>('POST', '/api/online', undefined, signal),
+  /** Real players online now, in every city (visible on the map, not blocked). */
+  onlinePlayers: (signal?: AbortSignal) =>
+    request<{ players: OnlinePlayer[] }>('GET', '/api/online/players', undefined, signal),
   setPresenceSetting: (visible: boolean) =>
     request<{ visible: boolean }>('PUT', '/api/me/presence', { visible }),
 };
