@@ -161,3 +161,17 @@ export {
   reserveBalance,
   sharePrice,
 } from './founderfinance.js';
+// Founder Journey 4b: the month recap ("end of day").
+export {
+  recapView,
+  RECAP_RUNWAY_RISK,
+  RECAP_TOP,
+  type RecapAccount,
+  type RecapBill,
+  type RecapCompany,
+  type RecapDate,
+  type RecapItem,
+  type RecapPerson,
+  type RecapRisk,
+  type RecapView,
+} from './recap.js';
