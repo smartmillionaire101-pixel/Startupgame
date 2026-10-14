@@ -30,6 +30,7 @@ import { outputOf, settleStaff } from './staff.js';
 import { monthlyGrowth } from './valuation.js';
 import { setCogs } from './world.js';
 import { recordInterest, recordLoanLoss } from './banks.js';
+import { advanceRoadmap, roadmapFeedback, roadmapShare } from './roadmap.js';
 import { updateDistress } from './rescue.js';
 import { buildStory, storySnapshot } from './story.js';
 import type {
@@ -77,9 +78,17 @@ const MODE: Record<BuildMode, { fit: number; quality: number; debt: number }> = 
 };
 
 /** Engineering and product output turn into fit, quality and tech debt. */
-export function settleProduct(c: Company, founder: Player | undefined) {
+export function settleProduct(
+  c: Company,
+  founder: Player | undefined,
+  roadmap?: { world: World; month: number },
+) {
   const founderBuild = founder ? (c.buildHours / 160) * (founder.skills.product / 60) : 0;
-  const output = outputOf(c, ['engineer']) + outputOf(c, ['product']) * 0.6 + founderBuild;
+  const total = outputOf(c, ['engineer']) + outputOf(c, ['product']) * 0.6 + founderBuild;
+  // The roadmap (§6.3) takes its share of the same capacity; without one, share is 0.
+  const share = roadmap && c.roadmap ? roadmapShare(c) : 0;
+  if (roadmap && c.roadmap) advanceRoadmap(roadmap.world, c, total * share, roadmap.month);
+  const output = share > 0 ? total * (1 - share) : total;
   const discovery =
     c.targetSegments.reduce((a, k) => a + (c.product.discovery[k] ?? 0), 0) /
     Math.max(1, c.targetSegments.length);
@@ -90,7 +99,7 @@ export function settleProduct(c: Company, founder: Player | undefined) {
   p.quality = clamp01(
     p.quality + output * 0.02 * (1 - p.quality) * mode.quality - p.techDebt * 0.025,
   );
-  p.techDebt = clamp01(p.techDebt + output * 0.012 * mode.debt + (output === 0 ? 0.005 : 0));
+  p.techDebt = clamp01(p.techDebt + output * 0.012 * mode.debt + (total === 0 ? 0.005 : 0));
   c.buildHours = 0;
 }
 
@@ -494,7 +503,8 @@ export function settleCompany(world: World, c: Company, rng: Rng, month: number)
   const before = c.ai ? null : storySnapshot(world, c);
   // Hibernation freezes the product: no progress, no new debt.
   if (c.hibernation) c.buildHours = 0;
-  else settleProduct(c, founder);
+  else settleProduct(c, founder, { world, month });
+  roadmapFeedback(world, c, month);
   const pnl = settleFinances(world, c, rng, month);
   const runway = companyRunway(world, c);
   const departures = settleStaff(world, c, rng, month, runway, c.finance.unpaidPayroll > 0);

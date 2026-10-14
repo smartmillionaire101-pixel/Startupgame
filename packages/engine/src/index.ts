@@ -146,3 +146,6 @@ export {
   type JourneyView,
   type ObjectiveKind,
 } from './journey.js';
+export { FEATURES, featuresFor, featureById, BUG_BASH } from './data/roadmap.js';
+export type { FeatureDef, FeatureEffectKind, FeatureSkill } from './data/roadmap.js';
+export { ROADMAP, FIRST_RELEASE } from './roadmap.js';

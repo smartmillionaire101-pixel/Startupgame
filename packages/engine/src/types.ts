@@ -592,6 +592,49 @@ export interface Company {
   businessNews?: BusinessNews | null;
   /** In (or graduated from) an accelerator (Wave 5). Missing = never joined one. */
   accelerator?: CompanyAccelerator | null;
+  /** The product roadmap (§6.3). Missing = never opened: product work runs as before. */
+  roadmap?: Roadmap | null;
+}
+
+/** A feature on the roadmap (§6.3): planned → in progress → released. */
+export interface ProductProject {
+  /** `rp<n>`, numbered per company (the world's id counter is left alone). */
+  id: Id;
+  featureId: string;
+  status: 'planned' | 'in_progress' | 'released';
+  /** Person-weeks done so far (the feature's effort is in the catalogue). */
+  progress: number;
+  addedMonth: number;
+  startedMonth?: number;
+  releasedMonth?: number;
+  /** Person-weeks paid for from contractors, delivered at the next settlement. */
+  contractorWeeks?: number;
+  /** Contractors worked on it (a little more tech debt on release). */
+  contracted?: boolean;
+  /** Bugs it shipped with, and the tech debt it added (set on release). */
+  defects?: number;
+  debtAdded?: number;
+}
+
+/** Customer feedback for the roadmap: a feature request or a support incident. */
+export interface RoadmapFeedback {
+  /** `fb<month>_<n>`: fixed, no world id taken. */
+  id: string;
+  month: number;
+  kind: 'idea' | 'incident';
+  featureId: string;
+  /** Segment name the customer belongs to (or empty). */
+  from: string;
+  /** Incidents: bugs reaching customers. */
+  count?: number;
+}
+
+export interface Roadmap {
+  projects: ProductProject[];
+  feedback: RoadmapFeedback[];
+  /** Known bugs in the live product (support incidents until a bug bash). */
+  defects: number;
+  nextId: number;
 }
 
 /** A company's accelerator place (Wave 5). Months are the accelerator market's months. */

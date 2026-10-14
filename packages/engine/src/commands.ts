@@ -535,6 +535,31 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   /** Choose to bootstrap (no outside money): counts as chapter 3's funding choice. */
   z.object({ type: z.literal('journey.bootstrap'), on: z.boolean() }),
+  // ---- the product roadmap (§6.3): features as projects, then a release
+  /** Add a feature from your industry's catalogue (pays its up-front cost). */
+  z.object({
+    type: z.literal('roadmap.add'),
+    companyId: id,
+    featureId: z.string().min(1).max(48),
+  }),
+  /** Move a project up, down or to the top of the queue (the top one gets the work). */
+  z.object({
+    type: z.literal('roadmap.prioritise'),
+    companyId: id,
+    projectId: id,
+    dir: z.enum(['up', 'down', 'top']),
+  }),
+  z.object({ type: z.literal('roadmap.remove'), companyId: id, projectId: id }),
+  /** Ship a finished feature. */
+  z.object({ type: z.literal('roadmap.release'), companyId: id, projectId: id }),
+  /** Pay contractors (via the ledger) to finish a project by month end. */
+  z.object({ type: z.literal('roadmap.contract'), companyId: id, projectId: id }),
+  /** Clear an item from the feedback inbox. */
+  z.object({
+    type: z.literal('roadmap.dismiss'),
+    companyId: id,
+    feedbackId: z.string().min(1).max(32),
+  }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
   // ---- Who's here (Wave 6)
   /**

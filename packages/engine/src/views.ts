@@ -1,4 +1,5 @@
 import { journeyView } from './journey.js';
+import { roadmapView } from './roadmap.js';
 import { livingView } from './living.js';
 import { playView } from './play.js';
 /**
@@ -263,6 +264,8 @@ export function companyDetail(world: World, c: Company) {
     bannedFromRaising: c.bannedFromRaising,
     warnings: c.warnings,
     pivots: c.pivots,
+    /** The product roadmap (§6.3): projects, feedback inbox and the feature catalogue. */
+    roadmap: roadmapView(world, c),
     /** Illustrative exit at the model valuation: who would get what (§12). */
     waterfallPreview: waterfall(c.capTable, valuation.value).map((l) => ({
       ...l,

@@ -116,6 +116,14 @@ import {
   recordChapters,
   recordChaptersAfterSettle,
 } from './journey.js';
+import {
+  addFeature,
+  contractProject,
+  dismissFeedback,
+  prioritise,
+  releaseProject,
+  removeProject,
+} from './roadmap.js';
 
 export interface CommandContext {
   /** The authenticated player, or null for system commands issued by the server. */
@@ -1101,6 +1109,18 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'journey.bootstrap':
       ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
       return chooseBootstrap(me, cmd.on, month);
+    case 'roadmap.add':
+      return addFeature(world, touch(cmd.companyId), cmd.featureId, month);
+    case 'roadmap.prioritise':
+      return prioritise(touch(cmd.companyId), cmd.projectId, cmd.dir);
+    case 'roadmap.remove':
+      return removeProject(touch(cmd.companyId), cmd.projectId);
+    case 'roadmap.release':
+      return releaseProject(world, touch(cmd.companyId), cmd.projectId, month);
+    case 'roadmap.contract':
+      return contractProject(world, touch(cmd.companyId), cmd.projectId, month);
+    case 'roadmap.dismiss':
+      return dismissFeedback(touch(cmd.companyId), cmd.feedbackId);
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;
