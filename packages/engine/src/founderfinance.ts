@@ -77,7 +77,8 @@ export function contribute(
 ) {
   ensure(amount > 0, 'contribute.amount', 'Enter an amount.');
   ensure(
-    account(world, me.accounts.local).balance >= costIn(world, amount, currencyOf(world, c), account(world, me.accounts.local).currency),
+    account(world, me.accounts.local).balance >=
+      costIn(world, amount, currencyOf(world, c), account(world, me.accounts.local).currency),
     'ledger.funds',
     'You don’t have that much in your personal account.',
   );
@@ -86,7 +87,15 @@ export function contribute(
     const shares = Math.floor(amount / price);
     ensure(shares > 0, 'contribute.small', 'That buys less than one share. Put in more.');
     withTx(world, { kind: 'investment' }, () =>
-      payExact(world, me.accounts.local, c.account, amount, `Founder equity: ${c.name}`, month, 'capital'),
+      payExact(
+        world,
+        me.accounts.local,
+        c.account,
+        amount,
+        `Founder equity: ${c.name}`,
+        month,
+        'capital',
+      ),
     );
     const h = c.capTable.holdings[me.id];
     if (h) h.shares += shares;
@@ -100,7 +109,15 @@ export function contribute(
     };
   }
   withTx(world, { kind: 'loan' }, () =>
-    payExact(world, me.accounts.local, c.account, amount, `Founder loan to ${c.name}`, month, 'capital'),
+    payExact(
+      world,
+      me.accounts.local,
+      c.account,
+      amount,
+      `Founder loan to ${c.name}`,
+      month,
+      'capital',
+    ),
   );
   const loans = (c.founderLoans ??= {});
   loans[me.id] = (loans[me.id] ?? 0) + amount;
@@ -118,7 +135,15 @@ export function repayFounder(world: World, me: Player, c: Company, amount: numbe
     'Not enough available cash in the company.',
   );
   withTx(world, { kind: 'loan' }, () =>
-    pay(world, c.account, me.accounts.local, amount, `Founder loan repaid: ${c.name}`, month, 'move'),
+    pay(
+      world,
+      c.account,
+      me.accounts.local,
+      amount,
+      `Founder loan repaid: ${c.name}`,
+      month,
+      'move',
+    ),
   );
   c.founderLoans![me.id] = owed - amount;
   if (c.founderLoans![me.id] === 0) delete c.founderLoans![me.id];
@@ -210,7 +235,15 @@ export function windDownFounderFinance(
     const cash = account(world, c.account).balance;
     const paid = Math.min(owed, cash);
     if (f && paid > 0)
-      pay(world, c.account, f.accounts.local, paid, `Founder loan repaid: ${c.name}`, month, 'move');
+      pay(
+        world,
+        c.account,
+        f.accounts.local,
+        paid,
+        `Founder loan repaid: ${c.name}`,
+        month,
+        'move',
+      );
   }
   if (c.founderLoans) c.founderLoans = {};
 }
@@ -240,7 +273,11 @@ export function openFriendsRound(
 ) {
   ensure(!openRoundOf(world, c.id), 'ff.open', 'You already have a Friends & Family round open.');
   ensure(!c.bannedFromRaising, 'ff.banned', 'Barred from raising after a fraud ruling.');
-  ensure(c.capTable.roundsRaised === 0, 'ff.priced', 'Friends & Family comes before a priced round.');
+  ensure(
+    c.capTable.roundsRaised === 0,
+    'ff.priced',
+    'Friends & Family comes before a priced round.',
+  );
   ensure(opts.target > 0, 'ff.target', 'Set how much you want to raise.');
   ensure(
     opts.valuationCap > opts.target * 2,
@@ -296,7 +333,13 @@ export function commitBlocker(world: World, p: Player, r: FriendsRound): string 
   return null;
 }
 
-export function commitToRound(world: World, me: Player, r: FriendsRound, amount: number, month: number) {
+export function commitToRound(
+  world: World,
+  me: Player,
+  r: FriendsRound,
+  amount: number,
+  month: number,
+) {
   const why = commitBlocker(world, me, r);
   ensure(!why, 'ff.commit', why ?? '');
   const c = getCompany(world, r.companyId);
@@ -310,22 +353,42 @@ export function commitToRound(world: World, me: Player, r: FriendsRound, amount:
   );
   const from = me.accounts.local;
   ensure(
-    account(world, from).balance >= costIn(world, amount, currencyOf(world, c), account(world, from).currency),
+    account(world, from).balance >=
+      costIn(world, amount, currencyOf(world, c), account(world, from).currency),
     'ledger.funds',
     'You don’t have that much in your personal account.',
   );
   withTx(world, { kind: 'investment' }, () =>
-    payExact(world, from, r.escrow, amount, `Friends & Family: ${c.name} (held until close)`, month, 'invested'),
+    payExact(
+      world,
+      from,
+      r.escrow,
+      amount,
+      `Friends & Family: ${c.name} (held until close)`,
+      month,
+      'invested',
+    ),
   );
   const mine = r.commitments.find((x) => x.holderId === me.id);
   if (mine) mine.amount += amount;
-  else r.commitments.push({ holderId: me.id, name: me.name, ai: false, amount, fromAccount: from, month });
+  else
+    r.commitments.push({
+      holderId: me.id,
+      name: me.name,
+      ai: false,
+      amount,
+      fromAccount: from,
+      month,
+    });
   notify(world, r.founderId, {
     month,
     kind: 'deal',
     text: `${me.name} committed to your Friends & Family round for ${c.name}.`,
   });
-  return { committed: committed(r), message: 'Committed. The money is held until the founder closes.' };
+  return {
+    committed: committed(r),
+    message: 'Committed. The money is held until the founder closes.',
+  };
 }
 
 /**
@@ -376,8 +439,23 @@ export function askAiFriends(world: World, me: Player, r: FriendsRound, month: n
       no.push(a.name);
       continue;
     }
-    transfer(world, f.account, r.escrow, amount, `Friends & Family: ${c.name} (held until close)`, month, 'invested');
-    r.commitments.push({ holderId: f.id, name: a.name, ai: true, amount, fromAccount: f.account, month });
+    transfer(
+      world,
+      f.account,
+      r.escrow,
+      amount,
+      `Friends & Family: ${c.name} (held until close)`,
+      month,
+      'invested',
+    );
+    r.commitments.push({
+      holderId: f.id,
+      name: a.name,
+      ai: true,
+      amount,
+      fromAccount: f.account,
+      month,
+    });
     aiRoom -= amount;
     yes.push({ name: a.name, amount });
   }
@@ -387,7 +465,11 @@ export function askAiFriends(world: World, me: Player, r: FriendsRound, month: n
 /** Close: escrow → company once, one SAFE per backer. Nothing committed: nothing to close. */
 export function closeFriendsRound(world: World, me: Player, r: FriendsRound, month: number) {
   ensure(r.status === 'open', 'ff.closed', 'This round has already closed.');
-  ensure(r.founderId === me.id || getCompany(world, r.companyId).founderIds.includes(me.id), 'company.forbidden', 'Not your round.');
+  ensure(
+    r.founderId === me.id || getCompany(world, r.companyId).founderIds.includes(me.id),
+    'company.forbidden',
+    'Not your round.',
+  );
   ensure(r.commitments.length > 0, 'ff.empty', 'No one has committed yet.');
   const c = getCompany(world, r.companyId);
   ensure(c.status === 'active', 'company.closed', 'The company is no longer operating.');
@@ -423,7 +505,11 @@ export function closeFriendsRound(world: World, me: Player, r: FriendsRound, mon
   c.capTable.lastPostMoney = Math.max(c.capTable.lastPostMoney, r.valuationCap);
   r.status = 'closed';
   r.closedMonth = month;
-  return { raised: total, backers: r.commitments.length, message: 'Round closed. The money is in the company.' };
+  return {
+    raised: total,
+    backers: r.commitments.length,
+    message: 'Round closed. The money is in the company.',
+  };
 }
 
 /** Cancel: every commitment goes back where it came from. */
@@ -467,7 +553,8 @@ const roundView = (world: World, viewer: Player, r: FriendsRound) => {
     committed: committed(r),
     commitments: r.commitments.map((x) => ({ name: x.name, ai: x.ai, amount: x.amount })),
     yourCommitment: mine?.amount ?? 0,
-    canAskAi: r.status === 'open' && !(r.aiAskedMonths ?? []).includes(getMarket(world, r.market).month),
+    canAskAi:
+      r.status === 'open' && !(r.aiAskedMonths ?? []).includes(getMarket(world, r.market).month),
     blocker: commitBlocker(world, viewer, r),
   };
 };
@@ -477,7 +564,9 @@ const roundView = (world: World, viewer: Player, r: FriendsRound) => {
  * home city or the city they're in, and rounds by their contacts.
  */
 export function friendsRoundsView(world: World, p: Player, hereMarket: string) {
-  const contacts = new Set((p.contacts ?? []).filter((k) => k.kind === 'player').map((k) => k.refId));
+  const contacts = new Set(
+    (p.contacts ?? []).filter((k) => k.kind === 'player').map((k) => k.refId),
+  );
   const mine = new Set(p.companyIds);
   return Object.values(world.ffRounds ?? {})
     .filter(
