@@ -51,13 +51,38 @@ visit invitation through Friends first. Public bar games are available from the 
   it does not simulate live weather. Browser clocks drive the visual light; game actions and
   deadlines use server time.
 
+## The home grows with wealth
+
+The 3D home follows the reference picture: a cut-away house on a round lawn under a light sky,
+green walls with white caps and wall sconces, cream tiles, light oak in the bedrooms, a pool
+with loungers and a parasol, hedges, palms, a gated drive with parked cars and a steel carport.
+
+- Size and layout come from the kind of home and a wealth band. Owners get their property's tier
+  from Homes; renters the kind their lifestyle tier pays for. The server sends
+  `me.residence.wealth` (and the same for a visited friend): 0 when your net worth is under
+  0.6× the home's value, 1 under 1.5×, 2 under 4×, 3 above. It is view only; nothing is charged.
+- A studio is one room; an apartment adds a guest room and a dining room for the rich; a
+  townhouse has them always; a villa adds a pool terrace and a carport, and for the rich a gym
+  and a cinema; a mansion has two or three guest rooms, a bigger pool and a formal garden with a
+  fountain; a penthouse is a roof terrace with a hot tub and the residents' car deck.
+- Every new thing is usable: guest beds (sleep, nap), the kitchen island (cook, snack), the bar,
+  the treadmill and weights (work out), the cinema (watch a film, invite a friend), the pool
+  (swim, float), loungers (sunbathe), the hot tub, and each parked car (drive out, which selects
+  that car). Outside things are used from the front door.
+- Each car has a bay of its own: SUVs under the carport, supercars in a glass showroom,
+  electric cars at a charger, the rest in open bays. The delivery van comes down the street to
+  the gate and leaves its parcels there.
+- Lite (2D) draws the same rooms and things flat. Dev tools on the Today screen can preview any
+  kind of home at any wealth band; `e2e/home-shots.spec.ts` (with `HOME_SHOTS=<dir>`) saves
+  phone screenshots of a studio, villas, a mansion and a penthouse.
+
 ## State and validation
 
 Game rooms, scores, escrow accounts, tickets, delivery orders, car ownership and dates are part of
 server world snapshots and command replay. Quiz answer keys and other players' uncommitted choices
 are excluded from player views. Frontends poll active experience views every 1.5–2 seconds.
 Furniture placement remains the existing device-local layout; ownership and delivered items are
-shared. The missing house reference image has not been matched.
+shared.
 
 Engine tests cover booking/refund/no double charge, custom quiz payouts and hidden answers,
 access checks, cancellation/expiry/tie refunds, football choices, deterministic snooker physics,

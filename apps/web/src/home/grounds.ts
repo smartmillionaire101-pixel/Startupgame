@@ -1,7 +1,7 @@
 /**
  * Wave 12: the grounds round your home, sized by the kind of home and how
- * rich you are (docs/WAVE12-HOME.md). Pure data in tile units (a tile is a
- * metre; the house covers 0..w × 0..h, the street is towards +y), drawn by
+ * rich you are (docs/WAVE11-SOCIAL-EXPERIENCES.md, "The home grows with
+ * wealth"). Pure data in tile units (a tile is a metre; the house covers 0..w × 0..h, the street is towards +y), drawn by
  * the 3D home (../interiors3d/house.ts) and the Lite home (./HomeScene.tsx).
  *
  * - A flat (a room, a studio, an apartment) sits in a small garden with a

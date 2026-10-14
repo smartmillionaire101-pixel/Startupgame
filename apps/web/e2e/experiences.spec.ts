@@ -9,6 +9,8 @@ import {
   type Page,
   tapPlace,
 } from './fixtures';
+// Software WebGL, so the 3D home (and the sky views) really draw on CI.
+test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 const state = async (p: Page): Promise<PlayerView> =>
   (await (await p.request.get('/api/state')).json()).view;
 async function command(p: Page, command: unknown) {
@@ -201,30 +203,39 @@ test('a player writes a quiz on mobile, hosts two opponents and the winner recei
   }
 });
 
-test('the 3D home shows a car collection and a van at the door', async ({ page }, info) => {
-  test.slow();
-  await page.setViewportSize({ width: 1000, height: 900 });
-  await founder(page, 'Tomi Moving');
-  const initial = await state(page);
-  for (const car of initial.market.shop.cars.slice(0, 2))
-    await command(page, { type: 'car.buy', modelId: car.id, keepCurrent: true });
-  const furniture = initial.market.shop.furniture.find((f) => f.slot === 'tv')!;
-  await command(page, { type: 'home.order', itemId: furniture.id });
-  await page.reload();
-  await tapPlace(page, '[data-place="home"]', 'cycle');
-  await page.evaluate(() => {
-    localStorage.setItem('runway.mapQuality', '3d');
-    window.dispatchEvent(new StorageEvent('storage', { key: 'runway.mapQuality', newValue: '3d' }));
+test.describe('the 3D home', () => {
+  test('the 3D home shows a car collection and a van at the door', async ({ page }, info) => {
+    test.slow();
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await page.addInitScript(() => localStorage.setItem('runway.mapQuality', '3d'));
+    await founder(page, 'Tomi Moving');
+    const initial = await state(page);
+    for (const car of initial.market.shop.cars.slice(0, 2))
+      await command(page, { type: 'car.buy', modelId: car.id, keepCurrent: true });
+    expect((await state(page)).me.garage).toHaveLength(2);
+    const furniture = initial.market.shop.furniture.find((f) => f.slot === 'tv')!;
+    await command(page, { type: 'home.order', itemId: furniture.id });
+    await page.reload();
+    await tapPlace(page, '[data-place="home"]', 'cycle');
+    const home = page.locator('.home-scene');
+    await expect(home).toHaveClass(/is-3d/, { timeout: 45_000 });
+    const canvas = home.locator('canvas[data-home-3d]');
+    await expect(canvas).toBeVisible();
+    // Both cars parked in bays of their own, and the van coming down the street.
+    await expect(canvas).toHaveAttribute('data-cars', '2', { timeout: 15_000 });
+    await expect(canvas).toHaveAttribute('data-van', /coming|here/, { timeout: 15_000 });
+    // It arrives 30 seconds after the order.
+    await expect(canvas).toHaveAttribute('data-van', 'here', { timeout: 45_000 });
+    await home.screenshot({ path: info.outputPath('home-van-garage.png') });
+    await home.getByRole('button', { name: /Home & friends/ }).click();
+    const living = page.getByRole('dialog', { name: 'Home and social experiences' });
+    const unpack = living.getByRole('button', { name: 'Unpack delivery' });
+    await expect(unpack).toBeEnabled({ timeout: 15_000 });
+    await unpack.click();
+    await expect
+      .poll(async () => (await state(page)).living.deliveries.filter((d) => !d.complete).length, {
+        timeout: 15_000,
+      })
+      .toBe(0);
   });
-  const home = page.locator('.home-scene');
-  await expect(home).toHaveClass(/is-3d/, { timeout: 30000 });
-  await expect(home.locator('canvas')).toBeVisible();
-  const arrival = (await state(page)).living.deliveries.find((d) => !d.complete)!.arrivesAt;
-  await page.waitForTimeout(Math.max(1000, arrival - Date.now() + 1000));
-  await home.screenshot({ path: info.outputPath('home-van-garage.png') });
-  expect((await state(page)).me.garage).toHaveLength(2);
-  await home.getByRole('button', { name: /Home & friends/ }).click();
-  const living = page.getByRole('dialog', { name: 'Home and social experiences' });
-  await expect(living.getByRole('button', { name: 'Unpack delivery' })).toBeEnabled();
-  await living.getByRole('button', { name: 'Unpack delivery' }).click();
 });
