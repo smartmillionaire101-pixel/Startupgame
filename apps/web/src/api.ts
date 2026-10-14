@@ -1,5 +1,5 @@
 /** Typed client for the Runway API. All mutations send the CSRF header. */
-import type { Command, PlayerView } from '@runway/engine';
+import type { Command, PlayerView, Receipt, StatementLine, StatementQuery } from '@runway/engine';
 
 export class ApiError extends Error {
   constructor(
@@ -142,6 +142,16 @@ export interface ChatMessage {
   at: number;
 }
 
+export interface StatementPage {
+  account: 'local' | 'usd';
+  currency: string;
+  balance: number;
+  lines: StatementLine[];
+  totals: { in: number; out: number; count: number };
+  months: number[];
+  next: number | null;
+}
+
 export const api = {
   onboard: (input: {
     username: string;
@@ -153,6 +163,21 @@ export const api = {
   }) => request<{ ok: true }>('POST', '/api/onboarding', { ...input, adult: true }),
   meta: () => request<Meta>('GET', '/api/meta'),
   state,
+  /** A page of the player's bank statement (own accounts only). */
+  statement: (q: StatementQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(q))
+      if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
+    return request<{ statement: StatementPage }>(
+      'GET',
+      `/api/statement?${params.toString()}`,
+      undefined,
+      signal,
+    );
+  },
+  /** One transaction's receipt, as this player saw it. */
+  receipt: (ref: string) =>
+    request<{ receipt: Receipt }>('GET', `/api/receipts/${encodeURIComponent(ref)}`),
   command: <R = unknown>(command: Command) =>
     request<{ ok: true; result: R; version: number }>('POST', '/api/commands', { command }),
   startAuth: (phone: string, dob: { year: number; month: number; day: number }) =>
