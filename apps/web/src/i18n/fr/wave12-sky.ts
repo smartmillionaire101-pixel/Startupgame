@@ -31,6 +31,7 @@ export const wave12Sky: Record<string, string> = {
   // ---- Sky views
   'Sky views': 'Vues du ciel',
   'Sky view': 'Vue du ciel',
+  'Opening your view…': 'Ouverture de votre vue…',
   'SKY VIEW': 'VUE DU CIEL',
   'The city’s real wheel, cable car, tower or hill, over its real buildings. Ride up, then look around freely. Open to everyone.':
     'La vraie grande roue, le vrai téléphérique, la vraie tour ou colline de la ville, au-dessus de ses vrais bâtiments. Montez, puis regardez librement autour de vous. Ouvert à tous.',

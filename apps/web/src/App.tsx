@@ -87,6 +87,7 @@ try {
 }
 
 const LivingHost = lazy(() => import('./experiences/LivingHost'));
+const SkyHost = lazy(() => import('./experiences/SkyHost'));
 const PlayHost = lazy(() => import('./experiences/PlayHost'));
 
 export function App() {
@@ -128,6 +129,7 @@ export function App() {
           <Suspense fallback={null}>
             <PlayHost />
             <LivingHost />
+            <SkyHost />
           </Suspense>
         </>
       )}

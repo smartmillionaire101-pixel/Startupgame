@@ -202,7 +202,10 @@ describe('bank statements and receipts', () => {
     const seen: string[] = [];
     let before: number | null = null;
     for (let guard = 0; guard < 50; guard++) {
-      const page = statementView(w, 'u_a', { limit: 5, before })!;
+      const page: NonNullable<ReturnType<typeof statementView>> = statementView(w, 'u_a', {
+        limit: 5,
+        before,
+      })!;
       for (const l of page.lines) seen.push(l.key);
       const refs = page.lines.map((l) => l.ref);
       const last = refs[refs.length - 1];
