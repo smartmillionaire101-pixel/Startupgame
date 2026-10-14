@@ -33,6 +33,7 @@ import { roadmap } from './roadmap';
 import { sales } from './sales';
 import { hiring } from './hiring';
 import { founderFinance } from './founder-finance';
+import { recap } from './recap';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -69,6 +70,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   sales,
   hiring,
   founderFinance,
+  recap,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

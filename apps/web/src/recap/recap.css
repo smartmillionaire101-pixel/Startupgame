@@ -1,0 +1,151 @@
+/* The month recap: full screen on a phone, a centred panel on wider screens. */
+.recap-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  background: var(--scrim);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  animation: fade-in var(--dur-2) var(--ease-out);
+}
+.recap-sheet {
+  background: var(--bg);
+  width: 100%;
+  max-width: 560px;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--sh-3);
+  animation: up var(--dur-3) var(--ease-out);
+}
+@media (min-width: 640px) {
+  .recap-backdrop {
+    align-items: center;
+    padding: var(--sp-6);
+  }
+  .recap-sheet {
+    height: auto;
+    max-height: min(88dvh, 820px);
+    border-radius: var(--r-xl);
+  }
+}
+.recap-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: calc(var(--sp-4) + env(safe-area-inset-top)) 16px var(--sp-2);
+}
+.recap-head h2 {
+  margin: 0;
+}
+.recap-months {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 0 16px var(--sp-2);
+}
+.recap-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px var(--sp-4);
+}
+.recap-foot {
+  padding: var(--sp-3) 16px calc(var(--sp-3) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.2));
+}
+.recap-foot .btn {
+  width: 100%;
+}
+.recap-intro {
+  margin: 0 0 var(--sp-3);
+}
+.recap-section {
+  background: var(--surface);
+  border-radius: var(--r-lg, 14px);
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.recap-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.recap-section-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.recap-h {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: 0.9rem;
+}
+.recap-money + .recap-money,
+.recap-company + .recap-company {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.2));
+}
+.recap-money-name {
+  font-weight: 600;
+  margin-bottom: var(--sp-1);
+}
+.recap-money-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.recap-money-row > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.recap-money-row b {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.recap-in,
+.recap-good {
+  color: var(--good);
+}
+.recap-out,
+.recap-bad {
+  color: var(--bad);
+}
+.recap-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-1);
+}
+.recap-list li {
+  overflow-wrap: anywhere;
+}
+.recap-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-variant-numeric: tabular-nums;
+}
+.recap-items li > span:last-child {
+  white-space: nowrap;
+}
+.recap-total {
+  font-weight: 600;
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.2));
+  padding-top: var(--sp-1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .recap-backdrop,
+  .recap-sheet {
+    animation: none;
+  }
+}
+:root[data-reduce-motion='1'] .recap-backdrop,
+:root[data-reduce-motion='1'] .recap-sheet {
+  animation: none;
+}

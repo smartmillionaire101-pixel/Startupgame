@@ -129,7 +129,10 @@ export interface RecapBill {
     | 'mortgage'
     | 'upkeep'
     | 'car';
+  /** English label (the client has its own copy, keyed on `kind`). */
   label: string;
+  /** The lender, or the home's street, for loans, mortgages and running costs. */
+  who?: string;
   amount: number;
   currency: Currency;
   /** Depends on things that can still change before it is paid (customers, prices). */
@@ -358,6 +361,7 @@ function personalBills(world: World, me: Player): RecapBill[] {
       bills.push({
         kind: 'loan',
         label: `Loan repayment (${loan.lender})`,
+        who: loan.lender,
         amount: due,
         currency: getMarket(world, loan.market).data.currency,
       });
@@ -375,6 +379,7 @@ function personalBills(world: World, me: Player): RecapBill[] {
     bills.push({
       kind: 'upkeep',
       label: `Running costs: ${p.street}`,
+      who: p.street,
       amount: upkeepOf(world, p),
       currency: pc,
       estimate: true,
@@ -385,6 +390,7 @@ function personalBills(world: World, me: Player): RecapBill[] {
       bills.push({
         kind: 'mortgage',
         label: `Mortgage: ${p.street}`,
+        who: p.street,
         amount: Math.min(mg.monthlyPayment, mg.outstanding + interest),
         currency: pc,
       });

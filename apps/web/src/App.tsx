@@ -30,6 +30,7 @@ import { UpdateBanner } from './update';
 import { useVisits } from './useVisits';
 import { GameActivity } from './GameActivity';
 import { hereOf, isAbroad } from './city/travel';
+import { RecapHost } from './recap/Recap';
 
 // Reduced motion is decided once, before anything animates (Wave 7 §D).
 initReduceMotion();
@@ -296,6 +297,7 @@ function Game() {
       <Suspense fallback={null}>
         <PhoneDock />
       </Suspense>
+      <RecapHost />
       {dealOpen && (
         <Sheet title={t('Deal card')} onClose={() => setFocusDeal(null)}>
           <DealCard deal={dealOpen} />
