@@ -613,7 +613,7 @@ export function PlayerThreadView({
           {other && <div className="small muted">{kindName(other.role)}</div>}
         </div>
       </div>
-      <div className="phone-log" aria-live="polite" aria-label={t('Messages')}>
+      <div className="phone-log" aria-live="polite">
         {chatId && messages.length === 0 && !data && <p className="small muted">{t('Loading…')}</p>}
         {!chatId && <p className="small muted chat-empty">{t('No messages yet. Say hello 👋')}</p>}
         {chatId &&

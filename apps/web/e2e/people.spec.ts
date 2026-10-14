@@ -161,7 +161,7 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   await host.getByRole('button', { name: 'Chat' }).click();
   const bPhone = b.getByRole('dialog', { name: 'Phone' });
   // Wave 13: no starters; the first message typed starts the chat.
-  await bPhone.getByLabel('Message').fill('Hello there 👋');
+  await bPhone.getByLabel('Message', { exact: true }).fill('Hello there 👋');
   await bPhone.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(bPhone.locator('.bubble').first()).toBeVisible();
   await a.getByRole('button', { name: 'Close' }).first().click();
