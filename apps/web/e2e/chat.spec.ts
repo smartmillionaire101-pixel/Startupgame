@@ -67,7 +67,15 @@ interface State {
   me: { id: string; properties: { id: string }[] };
   accounts: { local: { balance: number; currency: string } };
   market: {
-    properties: { listings: { id: string; canBuy: boolean; price: number }[] };
+    properties: {
+      listings: {
+        id: string;
+        canBuy: boolean;
+        forSale: boolean;
+        price: number;
+        closingCosts: number;
+      }[];
+    };
   };
   living: { dates: { id: string; status: string }[] };
   visits?: { incoming: { id: string; status: string }[] };
@@ -275,9 +283,20 @@ test('players chat with emoji and voice notes, pay, date, visit, go out and give
   await expect(aEvent).toContainText(/Going: You, Bongani/, { timeout: 15_000 });
 
   // ---- 8. A home as a gift. A buys a small flat outright (setup), then gives it from the chat.
-  const listing = (await state(a)).market.properties.listings
-    .filter((l) => l.canBuy)
-    .sort((x, y) => x.price - y.price)[0];
+  let listings = (await state(a)).market.properties.listings;
+  if (!listings.some((l) => l.canBuy)) {
+    // A shared test world can run short of flats a new founder affords alone:
+    // B chips in the difference for the cheapest one, as friends do.
+    const cheapest = listings.filter((l) => l.forSale).sort((x, y) => x.price - y.price)[0]!;
+    const cash = (await state(a)).accounts.local.balance;
+    const gap = cheapest.price + cheapest.closingCosts - cash + 100_00;
+    if (gap > 0)
+      expect((await command(b, { type: 'money.send', toPlayerId: aId, amount: gap })).status).toBe(
+        200,
+      );
+    listings = (await state(a)).market.properties.listings;
+  }
+  const listing = listings.filter((l) => l.canBuy).sort((x, y) => x.price - y.price)[0];
   expect(listing, 'a home A can afford').toBeTruthy();
   expect((await command(a, { type: 'property.buy', propertyId: listing!.id })).status).toBe(200);
   await a.reload();
@@ -300,6 +319,9 @@ test('players chat with emoji and voice notes, pay, date, visit, go out and give
     timeout: 15_000,
   });
   await shot(b, 'chat-gift-accepted');
+  // B sells it straight back to the market, so the city's stock of small flats stays
+  // the same run after run (the deploy preview keeps one world across runs).
+  expect((await command(b, { type: 'property.sell', propertyId: listing!.id })).status).toBe(200);
   await shot(a, 'chat-thread-a');
 
   // The composer fits one row on a 390 and a 360 phone: + · emoji · message · mic · Send.
