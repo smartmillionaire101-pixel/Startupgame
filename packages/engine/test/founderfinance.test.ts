@@ -72,7 +72,7 @@ describe('founder contribution: equity vs loan (§7.3)', () => {
     const c = companyOf(w, F);
     expect(fullyDiluted(c.capTable)).toBe(fd0);
     expect(c.founderLoans?.[F]).toBe(amount);
-    const fin = playerView(w, F).companies[0]!.founderFinance;
+    const fin = playerView(w, F)!.companies[0]!.founderFinance;
     expect(fin.balanceSheet.founderLoans).toBe(amount);
     expect(fin.balanceSheet.liabilities).toBeGreaterThanOrEqual(amount);
     // Not revenue.
@@ -118,7 +118,7 @@ describe('business reserve (§7.2)', () => {
     }).world;
     const c = companyOf(w, F);
     expect(c.reserve).toBeTruthy();
-    const fin = playerView(w, F).companies[0]!.founderFinance;
+    const fin = playerView(w, F)!.companies[0]!.founderFinance;
     expect(fin.available).toBe(cash0 - 1_000_00);
     expect(fin.reserve).toBe(1_000_00);
     expect(fin.total).toBe(cash0);
@@ -168,7 +168,7 @@ describe('Friends & Family round', () => {
     expect(personal(w, 'u_friend')).toBe(friend0 - 300_000_00);
     expect(bal(w, escrow)).toBe(1_000_000_00);
     // Visible to the friend, and the founder can't commit to their own round.
-    expect(playerView(w, 'u_friend').friendsRounds[0]!.yourCommitment).toBe(300_000_00);
+    expect(playerView(w, 'u_friend')!.friendsRounds[0]!.yourCommitment).toBe(300_000_00);
     expect(tryRun(w, F, { type: 'ff.commit', roundId, amount: 1_000_00 }).ok).toBe(false);
     // Over the target: refused.
     expect(tryRun(w, 'u_friend', { type: 'ff.commit', roundId, amount: 1_500_000_00 }).ok).toBe(
