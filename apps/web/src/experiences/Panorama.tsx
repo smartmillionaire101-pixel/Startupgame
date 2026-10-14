@@ -1,459 +1,404 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import * as THREE from 'three';
-import { loadGeo, OSM_CREDIT, type GeoData } from '../city/geo';
-import { panoramaLandmark } from '../city/three/landmarks';
+/**
+ * Wave 12: sky views — the city's real wheel, cable car, observation deck or
+ * hill, in its real 3D buildings (the same tiles the 3D city map draws, all
+ * of them, far out), with its landmarks, water, terrain and the real sun.
+ * The ride moves the camera along the real path (round the London Eye, over
+ * the Thames on the IFS Cloud Cable Car, up Nob Hill on the Powell–Hyde line,
+ * up the Burj Khalifa…), then you look around freely: drag to turn and tilt,
+ * pinch or wheel to zoom, pick a name to face it. Open to every player.
+ *
+ * Lazy-loaded with three.js (LivingHost). A date can come along: what the two
+ * of you do (holding hands, pointing out the view) shows in `children`.
+ */
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { skyViewById, skyViewsIn, type SkyViewSpec } from '@runway/engine';
+import { useView } from '../store';
+import { t } from '../i18n';
+import { OSM_CREDIT, fromLatLon, useGeo } from '../city/geo';
+import { buildCityLayout } from '../city/geoLayout';
+import { cityInput } from '../city/contract';
+import { cityViewOf, localHour } from '../city/travel';
+import { avatarLook } from '../city/art';
+import { genderOf } from '../city/life';
 import { citySun } from '../city/solar';
 import { CITY_GEO } from '../city/coordinates';
-import { disposeTree } from '../interiors3d/kit';
-const LONDON = [
-  {
-    name: 'Palace of Westminster',
-    lat: 51.4995,
-    lon: -0.1248,
-    height: 96,
-    detail: 'The Houses of Parliament and Elizabeth Tower beside the Thames.',
-  },
-  {
-    name: 'The Shard',
-    lat: 51.5045,
-    lon: -0.0865,
-    height: 310,
-    detail: 'Look east for the glass spire above London Bridge.',
-  },
-  {
-    name: 'St Paul’s Cathedral',
-    lat: 51.5138,
-    lon: -0.0984,
-    height: 111,
-    detail: 'The cathedral dome rises above the City of London.',
-  },
-  {
-    name: 'Tower Bridge',
-    lat: 51.5055,
-    lon: -0.0754,
-    height: 65,
-    detail: 'Two towers carry the high walkways over the river.',
-  },
-  {
-    name: 'The Gherkin',
-    lat: 51.5145,
-    lon: -0.0803,
-    height: 180,
-    detail: 'The curved tower at 30 St Mary Axe.',
-  },
-  {
-    name: 'Canary Wharf',
-    lat: 51.5049,
-    lon: -0.0195,
-    height: 235,
-    detail: 'The docklands skyline in the east.',
-  },
-];
-const point = (data: GeoData, lat: number, lon: number) =>
-  new THREE.Vector3(
-    (lon - data.origin[0]) * 111320 * Math.cos((data.origin[1] * Math.PI) / 180),
-    0,
-    -(lat - data.origin[1]) * 111320,
-  );
+import { CityScene } from '../city/three/scene';
+import { SkyRide, skyExtras } from '../city/three/skyview';
+import { loadTerrainField, type TerrainField } from '../city/three/terrain';
+import { markWebGLBroken } from '../city/three/quality';
+import { softwareGl } from '../three-kit/quality';
+import { SKY_LABELS, type SkyLabel } from './skyLabels';
+import '../city/three/city3d.css';
+
+export type LegacyPanorama = 'london-eye' | 'cable-car' | 'rooftop';
+
+/** The view a request means: an id, or (older dates) a kind in this city. */
+export function resolveSkyView(
+  city: string,
+  viewId?: string | null,
+  kind?: LegacyPanorama | null,
+): SkyViewSpec | null {
+  const byId = viewId ? skyViewById(viewId) : undefined;
+  if (byId && byId.market === city) return byId;
+  const list = skyViewsIn(city);
+  if (!list.length) return null;
+  if (kind === 'london-eye') return list.find((v) => v.id === 'london-eye') ?? list[0]!;
+  if (kind === 'cable-car')
+    return (
+      list.find((v) => v.kind === 'cable' || v.kind === 'tram' || v.kind === 'wheel') ?? list[0]!
+    );
+  if (kind === 'rooftop')
+    return list.find((v) => v.kind === 'deck' || v.kind === 'hill') ?? list[0]!;
+  return list[0]!;
+}
+
+/** Where a view first looks: its famous direction ([lat, lon] of what you face). */
+const AIM: Record<string, [number, number]> = {
+  'london-eye': [51.5138, -0.0984], // down the river to St Paul's and the City
+  'london-cable-car': [51.5049, -0.0195], // Canary Wharf over the Thames
+  'the-shard': [51.5081, -0.0759], // Tower Bridge and the Tower
+  'coit-tower': [37.8199, -122.4783], // the Golden Gate
+  'salesforce-tower': [37.8199, -122.4783],
+  'burj-khalifa': [25.2048, 55.2708], // down Sheikh Zayed Road
+  'ain-dubai': [25.0805, 55.1403], // Dubai Marina
+  'cairo-tower': [30.0444, 31.2357], // downtown over the Nile
+  'top-of-africa': [-26.1903, 28.049], // Hillbrow
+  'kicc-helipad': [-1.2995, 36.8134], // Upper Hill
+  'necom-house': [6.4281, 3.4219], // Victoria Island
+  'jamestown-lighthouse': [5.5453, -0.1925],
+  'leicester-peak': [8.4867, -13.2348], // down to the city and the harbour
+  'mount-kigali': [-1.9465, 30.0597], // the city centre
+};
+
+type Light = 'now' | 'day' | 'sunset' | 'night';
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const KIND_ICON: Record<SkyViewSpec['kind'], string> = {
+  wheel: '🎡',
+  cable: '🚡',
+  deck: '🏙',
+  tram: '🚋',
+  hill: '⛰',
+};
+
+function tierOf(): 'high' | 'low' {
+  if (typeof window === 'undefined' || softwareGl()) return 'low';
+  const small = Math.min(window.innerWidth, window.innerHeight) < 600;
+  return small || (navigator.hardwareConcurrency || 4) <= 4 ? 'low' : 'high';
+}
+
+/** The moment today a light means (ms), or null for now. */
+function lightTime(city: string, l: Light): number | null {
+  if (l === 'now') return null;
+  const s = citySun(city);
+  if (l === 'day') return (s.sunrise + s.sunset) / 2;
+  if (l === 'sunset') return s.sunset - 15 * 60_000;
+  return s.sunset + 2.5 * 3_600_000;
+}
+
+interface Placed extends SkyLabel {
+  x: number;
+  y: number;
+  z: number;
+}
+
+interface Handle {
+  ride: SkyRide;
+  scene: CityScene;
+  labels: Placed[];
+}
+
 export default function Panorama({
   city,
   kind,
+  viewId,
   holdingHands,
   onClose,
   children,
 }: {
   city: string;
-  kind: 'london-eye' | 'cable-car' | 'rooftop';
+  kind?: LegacyPanorama | null;
+  viewId?: string | null;
   holdingHands: boolean;
   onClose: () => void;
   children?: ReactNode;
 }) {
-  const mount = useRef<HTMLDivElement>(null);
-  const control = useRef({ yaw: 0, pitch: -0.12, zoom: 65, holdingHands });
+  const { view } = useView();
+  const first = resolveSkyView(city, viewId, kind);
+  const [specId, setSpecId] = useState(first?.id ?? '');
+  const spec = skyViewById(specId) ?? first;
+  const views = skyViewsIn(city);
+  const geo = useGeo(city);
+  const [terrain, setTerrain] = useState<TerrainField | null | 'loading'>('loading');
   const [error, setError] = useState('');
   const [focus, setFocus] = useState('');
   const [paused, setPaused] = useState(false);
-  const pauseRef = useRef(false);
+  const [light, setLight] = useState<Light>('now');
+  const [state, setState] = useState({ progress: 0, heading: 0, ready: false });
+  const [labelsList, setLabelsList] = useState<{ name: string; area: boolean }[]>([]);
+  const mount = useRef<HTMLDivElement>(null);
+  const labelsRef = useRef<HTMLDivElement>(null);
+  const handle = useRef<Handle | null>(null);
+  const reduced = useMemo(
+    () =>
+      typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  );
+  const cityView = cityViewOf(view);
+  const layoutKey = JSON.stringify(cityInput(cityView));
+  // The city as it stands when you go up (its places don't move while you look).
+  const layout = useMemo(() => {
+    if (!geo || geo === 'loading') return null;
+    return buildCityLayout(JSON.parse(layoutKey), geo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geo, city]);
+  const look = useMemo(
+    () => avatarLook(view.me.background?.id, view.me.id, genderOf(view.me)),
+    [view.me],
+  );
+  const lookRef = useRef(look);
+
   useEffect(() => {
-    control.current.holdingHands = holdingHands;
-    pauseRef.current = paused;
-  }, [holdingHands, paused]);
-  const target = useRef<(name: string) => void>(() => {});
-  useEffect(() => {
-    const node = mount.current!;
-    let disposed = false;
-    let renderer: THREE.WebGLRenderer | undefined;
-    let frame = 0;
-    let cleanup = () => {};
-    void loadGeo(city)
-      .then((data) => {
-        if (disposed) return;
-        if (!data) {
-          setError('The city map is unavailable. Reconnect and open the view again.');
-          return;
-        }
-        try {
-          renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-        } catch {
-          setError(
-            'This view needs WebGL. Enable 3D in Settings, or use a browser with hardware acceleration.',
-          );
-          return;
-        }
-        const render = renderer;
-        render.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-        render.outputColorSpace = THREE.SRGBColorSpace;
-        node.appendChild(render.domElement);
-        const scene = new THREE.Scene();
-        const sun = citySun(city);
-        const night = sun.night;
-        scene.background = new THREE.Color(night ? '#071327' : sun.dusk ? '#dd9d76' : '#8fc4df');
-        scene.fog = new THREE.Fog(scene.background, 5500, 18000);
-        const ambient = new THREE.HemisphereLight(
-          night ? '#9fb8dc' : '#dbeffd',
-          '#6c7057',
-          night ? 1.6 : 2,
-        );
-        scene.add(ambient);
-        const light = new THREE.DirectionalLight(
-          sun.dusk ? '#ffc78a' : '#fff6e2',
-          night ? 0.8 : 2.8,
-        );
-        light.position.set(
-          Math.sin(sun.azimuth) * 1000,
-          Math.max(100, Math.sin(sun.altitude) * 1500),
-          -Math.cos(sun.azimuth) * 1000,
-        );
-        scene.add(light);
-        const ground = new THREE.Mesh(
-          new THREE.PlaneGeometry(40000, 40000),
-          new THREE.MeshStandardMaterial({ color: night ? '#18242d' : '#b1ad95', roughness: 1 }),
-        );
-        ground.rotation.x = -Math.PI / 2;
-        ground.position.y = -2;
-        scene.add(ground);
-        function polygon(points: number[], color: string, h: number) {
-          if (points.length < 6) return;
-          const shape = new THREE.Shape();
-          shape.moveTo(points[0]!, points[1]!);
-          for (let i = 2; i < points.length; i += 2) shape.lineTo(points[i]!, points[i + 1]!);
-          const geo = new THREE.ShapeGeometry(shape);
-          geo.rotateX(Math.PI / 2);
-          const mesh = new THREE.Mesh(
-            geo,
-            new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide, roughness: 0.8 }),
-          );
-          mesh.position.y = h;
-          scene.add(mesh);
-        }
-        data.water.forEach((p) => polygon(p, night ? '#103553' : '#36849a', -0.5));
-        data.parks.forEach((p) => polygon(p, night ? '#193f2b' : '#668354', 0));
-        const roadVertices: number[] = [];
-        for (const roads of Object.values(data.roads))
-          for (const road of roads) {
-            for (let i = 2; i < road.l.length; i += 2)
-              roadVertices.push(
-                road.l[i - 2]!,
-                0.2,
-                road.l[i - 1]!,
-                road.l[i]!,
-                0.2,
-                road.l[i + 1]!,
-              );
-          }
-        const roadGeometry = new THREE.BufferGeometry();
-        roadGeometry.setAttribute('position', new THREE.Float32BufferAttribute(roadVertices, 3));
-        const roadMaterial = new THREE.LineBasicMaterial({
-          color: night ? '#ba9564' : '#8a8175',
-          transparent: true,
-          opacity: night ? 0.65 : 0.5,
-        });
-        scene.add(new THREE.LineSegments(roadGeometry, roadMaterial));
-        const canvas = document.createElement('canvas');
-        canvas.width = 64;
-        canvas.height = 128;
-        const ctx = canvas.getContext('2d')!;
-        ctx.fillStyle = '#222b34';
-        ctx.fillRect(0, 0, 64, 128);
-        for (let y = 4; y < 128; y += 12)
-          for (let x = 5; x < 64; x += 12) {
-            ctx.fillStyle = (x + y) % 5 === 0 ? '#313f4c' : '#ddbc78';
-            ctx.fillRect(x, y, 5, 6);
-          }
-        const windows = new THREE.CanvasTexture(canvas);
-        windows.colorSpace = THREE.SRGBColorSpace;
-        const buildingMaterial = new THREE.MeshStandardMaterial({
-          color: '#bfc5ce',
-          roughness: 0.82,
-          emissive: '#ffd395',
-          emissiveMap: windows,
-          emissiveIntensity: night ? 0.65 : 0,
-        });
-        const buildings = data.buildings.slice(0, 18000);
-        const blocks = new THREE.InstancedMesh(
-          new THREE.BoxGeometry(1, 1, 1),
-          buildingMaterial,
-          buildings.length,
-        );
-        const matrix = new THREE.Matrix4();
-        buildings.forEach((b, i) => {
-          const xs = b.p.filter((_, j) => j % 2 === 0),
-            ys = b.p.filter((_, j) => j % 2 === 1);
-          const minX = Math.min(...xs),
-            maxX = Math.max(...xs),
-            minZ = Math.min(...ys),
-            maxZ = Math.max(...ys);
-          const height = Math.max(8, (b.h ?? 4) * 3.25 + 0.8);
-          matrix.compose(
-            new THREE.Vector3((minX + maxX) / 2, height / 2, (minZ + maxZ) / 2),
-            new THREE.Quaternion(),
-            new THREE.Vector3(Math.max(4, maxX - minX), height, Math.max(4, maxZ - minZ)),
-          );
-          blocks.setMatrixAt(i, matrix);
-          blocks.setColorAt(
-            i,
-            new THREE.Color().setHSL(0.08 + (i % 5) * 0.025, 0.1, 0.47 + (i % 5) * 0.05),
-          );
-        });
-        scene.add(blocks);
-        const points =
-          city === 'london'
-            ? LONDON.map((l) => ({ ...l, position: point(data, l.lat, l.lon) }))
-            : data.landmarks.slice(0, 12).map((l) => ({
-                name: l.n,
-                height: 50,
-                detail: `${l.n}, seen from above ${city}.`,
-                position: new THREE.Vector3(l.x, 0, l.y),
-              }));
-        points.forEach((l, i) => {
-          const kinds: Record<string, string> = {
-            'The Shard': 'shard',
-            'The Gherkin': 'gherkin',
-            'Palace of Westminster': 'big-ben',
-            'Tower Bridge': 'bascule',
-          };
-          const group = panoramaLandmark(kinds[l.name] ?? '', l.name) ?? new THREE.Group();
-          const stone = new THREE.MeshStandardMaterial({
-            color: i % 2 ? '#b8c6d2' : '#d8c7a5',
-            roughness: 0.65,
-            emissive: '#dfbb7c',
-            emissiveIntensity: night ? 0.2 : 0,
-          });
-          const box = (w: number, h: number, d: number, x = 0, y = 0, z = 0) => {
-            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), stone);
-            m.position.set(x, y + h / 2, z);
-            group.add(m);
-          };
-          if (l.name === 'Palace of Westminster') {
-            box(40, 30, 230, 0, 0, 90);
-            for (let z = -15; z < 205; z += 22) {
-              box(46, 5, 4, 0, 30, z);
-              box(4, 42, 4, -23, 0, z);
-              box(4, 42, 4, 23, 0, z);
-            }
-            group.rotation.y = 0.15;
-          } else if (l.name.includes('Cathedral')) {
-            box(60, 35, 140);
-            const drum = new THREE.Mesh(new THREE.CylinderGeometry(24, 24, 35, 24), stone);
-            drum.position.y = 52;
-            group.add(drum);
-            const dome = new THREE.Mesh(
-              new THREE.SphereGeometry(25, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-              stone,
-            );
-            dome.position.y = 70;
-            group.add(dome);
-            box(3, 16, 3, 0, 95);
-          } else if (!group.children.length) {
-            box(40, l.height, 40);
-            box(65, l.height * 0.65, 40, 50);
-            box(35, l.height * 0.8, 35, -45);
-          }
-          group.position.copy(l.position);
-          group.traverse((o) => {
-            if (o instanceof THREE.Mesh) {
-              const materials = Array.isArray(o.material) ? o.material : [o.material];
-              for (const m of materials)
-                if (m instanceof THREE.MeshStandardMaterial) {
-                  m.emissive.set('#bfae8e');
-                  m.emissiveIntensity = night ? 0.2 : 0;
-                }
-            }
-          });
-          scene.add(group);
-        });
-        const origin =
-          city === 'london' && kind === 'london-eye'
-            ? point(data, 51.5033, -0.1196)
-            : new THREE.Vector3(
-                (data.core[0] + data.core[2]) / 2,
-                0,
-                (data.core[1] + data.core[3]) / 2,
-              );
-        const cabin = new THREE.Group();
-        scene.add(cabin);
-        const floor = new THREE.Mesh(
-          new THREE.CylinderGeometry(4.5, 4.5, 0.15, 32),
-          new THREE.MeshStandardMaterial({ color: '#263840' }),
-        );
-        cabin.add(floor);
-        const rail = new THREE.Mesh(
-          new THREE.TorusGeometry(4.5, 0.05, 6, 64),
-          new THREE.MeshStandardMaterial({ color: '#e1e8e7', metalness: 0.6, roughness: 0.3 }),
-        );
-        rail.rotation.x = Math.PI / 2;
-        rail.position.y = 1.1;
-        cabin.add(rail);
-        for (let i = 0; i < 6; i++) {
-          const post = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.06, 0.06, 3, 8),
-            new THREE.MeshStandardMaterial({ color: '#d5dcd9' }),
-          );
-          post.position.set(
-            Math.sin((i * Math.PI) / 3) * 4.5,
-            1.5,
-            Math.cos((i * Math.PI) / 3) * 4.5,
-          );
-          cabin.add(post);
-        }
-        const couple = new THREE.Group();
-        couple.position.set(0, 0.1, -2.8);
-        cabin.add(couple);
-        for (let i = 0; i < 2; i++) {
-          const body = new THREE.Mesh(
-            new THREE.CapsuleGeometry(0.22, 0.55, 4, 8),
-            new THREE.MeshStandardMaterial({ color: i ? '#c98680' : '#4d806b' }),
-          );
-          body.position.set(i ? 0.42 : -0.42, 0.85, 0);
-          couple.add(body);
-          const head = new THREE.Mesh(
-            new THREE.SphereGeometry(0.2, 12, 8),
-            new THREE.MeshStandardMaterial({ color: i ? '#b97d53' : '#81583e' }),
-          );
-          head.position.set(i ? 0.42 : -0.42, 1.48, 0);
-          couple.add(head);
-        }
-        const hands = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.065, 0.065, 0.6, 8),
-          new THREE.MeshStandardMaterial({ color: '#b8896b' }),
-        );
-        hands.rotation.z = Math.PI / 2;
-        hands.position.y = 0.8;
-        couple.add(hands);
-        const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 30000);
-        const size = () => {
-          const r = node.getBoundingClientRect();
-          render.setSize(r.width, r.height);
-          camera.aspect = r.width / r.height;
-          camera.updateProjectionMatrix();
-        };
-        const observer = new ResizeObserver(size);
-        observer.observe(node);
-        size();
-        let drag: { x: number; y: number } | null = null;
-        const down = (e: PointerEvent) => {
-          drag = { x: e.clientX, y: e.clientY };
-          render.domElement.setPointerCapture(e.pointerId);
-        };
-        const move = (e: PointerEvent) => {
-          if (!drag) return;
-          control.current.yaw -= (e.clientX - drag.x) * 0.004;
-          control.current.pitch = Math.max(
-            -1.1,
-            Math.min(0.8, control.current.pitch + (e.clientY - drag.y) * 0.003),
-          );
-          drag = { x: e.clientX, y: e.clientY };
-        };
-        const up = () => {
-          drag = null;
-        };
-        render.domElement.addEventListener('pointerdown', down);
-        render.domElement.addEventListener('pointermove', move);
-        render.domElement.addEventListener('pointerup', up);
-        render.domElement.style.touchAction = 'none';
-        target.current = (name) => {
-          const l = points.find((p) => p.name === name);
-          if (l) {
-            control.current.yaw = Math.atan2(
-              l.position.x - camera.position.x,
-              -(l.position.z - camera.position.z),
-            );
-            control.current.pitch = Math.atan2(
-              l.height / 2 - camera.position.y,
-              l.position.distanceTo(camera.position),
-            );
-            setFocus(`${l.name} · ${l.detail}`);
-          }
-        };
-        let elapsed = 0,
-          last = performance.now(),
-          lastLight = last;
-        const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const draw = (t: number) => {
-          if (disposed) return;
-          const dt = Math.min(0.05, (t - last) / 1000);
-          last = t;
-          if (!pauseRef.current && !document.hidden && !reduced) elapsed += dt;
-          cabin.position.copy(origin);
-          cabin.position.y =
-            kind === 'london-eye'
-              ? 85 + 45 * Math.sin(elapsed * 0.014)
-              : kind === 'cable-car'
-                ? 90 + 15 * Math.sin(elapsed * 0.015)
-                : 150;
-          if (kind === 'cable-car') cabin.position.x += Math.sin(elapsed * 0.01) * 1000;
-          camera.position.copy(cabin.position).add(new THREE.Vector3(0, 1.8, 1));
-          const c = control.current;
-          camera.lookAt(
-            camera.position.x + Math.sin(c.yaw) * Math.cos(c.pitch) * 100,
-            camera.position.y + Math.sin(c.pitch) * 100,
-            camera.position.z - Math.cos(c.yaw) * Math.cos(c.pitch) * 100,
-          );
-          camera.fov = c.zoom;
-          camera.updateProjectionMatrix();
-          hands.visible = c.holdingHands;
-          if (t - lastLight > 30_000) {
-            lastLight = t;
-            const sun = citySun(city);
-            scene.background = new THREE.Color(
-              sun.night ? '#071327' : sun.dusk ? '#dd9d76' : '#8fc4df',
-            );
-            if (scene.fog) scene.fog.color.copy(scene.background);
-            light.intensity = sun.night ? 0.8 : 2.8;
-            ambient.intensity = sun.night ? 1.6 : 2;
-            buildingMaterial.emissiveIntensity = sun.night ? 0.65 : 0;
-            roadMaterial.color.set(sun.night ? '#ba9564' : '#8a8175');
-            light.position.set(
-              Math.sin(sun.azimuth) * 1000,
-              Math.max(100, Math.sin(sun.altitude) * 1500),
-              -Math.cos(sun.azimuth) * 1000,
-            );
-          }
-          if (!document.hidden) render.render(scene, camera);
-          frame = requestAnimationFrame(draw);
-        };
-        frame = requestAnimationFrame(draw);
-        cleanup = () => {
-          observer.disconnect();
-          render.domElement.removeEventListener('pointerdown', down);
-          render.domElement.removeEventListener('pointermove', move);
-          render.domElement.removeEventListener('pointerup', up);
-          windows.dispose();
-          disposeTree(scene);
-          render.dispose();
-          render.domElement.remove();
-        };
-      })
-      .catch(() => {
-        if (!disposed) setError('Unable to load the skyline. Please try again.');
-      });
+    let live = true;
+    void loadTerrainField(city).then((f) => live && setTerrain(f));
     return () => {
-      disposed = true;
-      cancelAnimationFrame(frame);
-      cleanup();
+      live = false;
     };
-  }, [city, kind]);
-  const landmarks = city === 'london' ? LONDON : [];
+  }, [city]);
+
+  // ---- The scene: one per view.
+  useEffect(() => {
+    const el = mount.current;
+    if (!el || !layout?.geo || !spec || terrain === 'loading') return;
+    const canvas = document.createElement('canvas');
+    canvas.className = 'c3-canvas';
+    canvas.setAttribute('aria-hidden', 'true');
+    const tier = tierOf();
+    let scene: CityScene;
+    try {
+      scene = new CityScene(
+        canvas,
+        layout,
+        { tier, reduced, hour: localHour(city), sky: { terrain } },
+        lookRef.current,
+        [],
+      );
+    } catch {
+      markWebGLBroken();
+      queueMicrotask(() =>
+        setError(
+          t(
+            'This view needs WebGL. Enable 3D in Settings, or use a browser with hardware acceleration.',
+          ),
+        ),
+      );
+      return;
+    }
+    el.prepend(canvas);
+    scene.following = false;
+    const ride = new SkyRide(scene, spec, { reduced, tier, soft: softwareGl() });
+    const extras = skyExtras(scene, spec, scene.waterMaterial);
+    scene.scene.add(extras);
+    scene.onTerrain(extras);
+    scene.view = ride;
+    const size = () => {
+      const r = el.getBoundingClientRect();
+      scene.resize(r.width, r.height);
+    };
+    size();
+    const ro = new ResizeObserver(size);
+    ro.observe(el);
+
+    // The names you can see: the city's famous places, at their real places.
+    const data = layout.geo.data;
+    const labels: Placed[] = [];
+    const seen = new Set<string>();
+    for (const l of SKY_LABELS[city] ?? []) {
+      if (seen.has(l.name)) continue;
+      seen.add(l.name);
+      const p = fromLatLon(data, l.at[0], l.at[1]);
+      labels.push({ ...l, x: p.x, y: scene.terrainAt(p.x, p.y) + l.h + 8, z: p.y });
+    }
+    const mine = labels.filter((l) => Math.hypot(l.x - ride.top.x, l.z - ride.top.z) > 180);
+    // Nearest first (the chips), and the label positions.
+    mine.sort(
+      (a, b) =>
+        Math.hypot(a.x - ride.top.x, a.z - ride.top.z) -
+        Math.hypot(b.x - ride.top.x, b.z - ride.top.z),
+    );
+    handle.current = { ride, scene, labels: mine };
+    setLabelsList(mine.map((l) => ({ name: l.name, area: !!l.area })));
+    // Start out facing the most of the skyline (its famous buildings, nearer ones first).
+    const aim = AIM[spec.id];
+    if (aim) {
+      const p = fromLatLon(data, aim[0], aim[1]);
+      ride.aim(Math.atan2(p.x - ride.top.x, -(p.y - ride.top.z)));
+    } else if (spec.kind !== 'tram') {
+      let best = { yaw: ride.yaw, score: 0 };
+      for (let k = 0; k < 72; k++) {
+        const yaw = (k / 72) * Math.PI * 2;
+        let score = 0;
+        for (const l of mine) {
+          if (l.area) continue;
+          const b = Math.atan2(l.x - ride.top.x, -(l.z - ride.top.z));
+          const d = Math.atan2(Math.sin(b - yaw), Math.cos(b - yaw));
+          if (Math.abs(d) < 0.5)
+            score +=
+              (l.h / 100 + 0.5) / (1 + Math.hypot(l.x - ride.top.x, l.z - ride.top.z) / 2500);
+        }
+        if (score > best.score) best = { yaw, score };
+      }
+      ride.aim(best.yaw);
+    }
+    (window as unknown as { __sky3d?: Handle }).__sky3d = handle.current;
+
+    // Drag to look around (the view turns the way you drag), pinch and wheel to zoom.
+    const pts = new Map<number, { x: number; y: number }>();
+    let pinch = 0;
+    const down = (e: PointerEvent) => {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        /* not capturable */
+      }
+      if (pts.size === 2) {
+        const [a, b] = [...pts.values()];
+        pinch = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+      }
+    };
+    const move = (e: PointerEvent) => {
+      const p = pts.get(e.pointerId);
+      if (!p) return;
+      if (pts.size === 2) {
+        p.x = e.clientX;
+        p.y = e.clientY;
+        const [a, b] = [...pts.values()];
+        const d = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+        if (pinch > 0 && d > 0) ride.zoom(d / pinch);
+        pinch = d;
+        return;
+      }
+      const dx = e.clientX - p.x;
+      const dy = e.clientY - p.y;
+      p.x = e.clientX;
+      p.y = e.clientY;
+      ride.look(-dx * 0.005, dy * 0.004);
+    };
+    const up = (e: PointerEvent) => {
+      pts.delete(e.pointerId);
+      if (pts.size < 2) pinch = 0;
+    };
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      ride.zoom(Math.exp(-e.deltaY * 0.0015));
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', wheel, { passive: false });
+
+    // Each frame: place the labels (the nearest win the room), report the ride.
+    const out = { x: 0, y: 0, z: 0 };
+    let lastReport = 0;
+    const place = () => {
+      const host = labelsRef.current;
+      const { w: W, h: H } = scene.viewSize;
+      if (host) {
+        const els = host.querySelectorAll<HTMLElement>('[data-sky-label]');
+        const order = [...els]
+          .flatMap((node) => {
+            // (Just after switching views the names on screen are the last view's.)
+            const l = mine[Number(node.dataset.i)];
+            if (!l || l.name !== node.dataset.skyLabel) return [];
+            return [{ node, l, d: Math.hypot(l.x - ride.eye.x, l.z - ride.eye.z) }];
+          })
+          .sort((a, b) => Number(!!a.l.area) - Number(!!b.l.area) || a.d - b.d);
+        const boxes: [number, number, number, number][] = [];
+        for (const { node, l, d } of order) {
+          scene.project(l.x, l.y, l.z, out);
+          let vis =
+            out.z < 1 &&
+            out.x > 4 &&
+            out.x < W - 4 &&
+            out.y > 70 &&
+            out.y < H - 150 &&
+            d < ride.reach * 1.6;
+          if (vis) {
+            const w = node.offsetWidth || l.name.length * 7 + 30;
+            const b: [number, number, number, number] = [
+              out.x - w / 2,
+              out.y - 24,
+              out.x + w / 2,
+              out.y,
+            ];
+            if (boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]))
+              vis = false;
+            else boxes.push(b);
+          }
+          if (vis) {
+            node.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
+            const km = node.querySelector<HTMLElement>('[data-km]');
+            const txt = d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${Math.round(d / 10) * 10} m`;
+            if (km && km.textContent !== txt) km.textContent = txt;
+          }
+          if (node.hidden === vis) node.hidden = !vis;
+        }
+      }
+      const now = performance.now();
+      if (now - lastReport > 200) {
+        lastReport = now;
+        const deg = ((((ride.yaw * 180) / Math.PI) % 360) + 360) % 360;
+        setState({ progress: ride.progress, heading: deg, ready: true });
+      }
+    };
+    const off = scene.onFrame(place);
+    const lost = (e: Event) => {
+      e.preventDefault();
+      markWebGLBroken();
+      setError(t('The 3D view stopped. Close it and open it again.'));
+    };
+    canvas.addEventListener('webglcontextlost', lost);
+    scene.touch(1500);
+    return () => {
+      off();
+      canvas.removeEventListener('webglcontextlost', lost);
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      el.removeEventListener('wheel', wheel);
+      ro.disconnect();
+      handle.current = null;
+      ride.dispose();
+      scene.view = null;
+      scene.dispose();
+      canvas.remove();
+      delete (window as unknown as { __sky3d?: unknown }).__sky3d;
+    };
+  }, [layout, spec, terrain, reduced, city]);
+
+  useEffect(() => {
+    handle.current?.ride.setPaused(paused);
+  }, [paused]);
+
+  useEffect(() => {
+    const h = handle.current;
+    if (!h) return;
+    const at = lightTime(city, light);
+    h.scene.setSunTime(at, localHour(city, at ?? Date.now()));
+    h.scene.touch(400);
+  }, [light, city, state.ready]);
+
+  // The real light follows the clock while you look (every minute).
+  useEffect(() => {
+    if (light !== 'now') return;
+    const id = setInterval(() => {
+      handle.current?.scene.setHour(localHour(city));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [light, city]);
+
   const sun = citySun(city);
   const time = (at: number) =>
     new Intl.DateTimeFormat('en-GB', {
@@ -461,77 +406,157 @@ export default function Panorama({
       hour: '2-digit',
       minute: '2-digit',
     }).format(at);
+  const faceLabel = (name: string) => {
+    const h = handle.current;
+    const l = h?.labels.find((x) => x.name === name);
+    if (!h || !l) return;
+    h.ride.face(l.x, l.y - 8 - l.h / 2, l.z);
+    setFocus(l.detail ? `${l.name} · ${t(l.detail)}` : l.name);
+  };
+  const heading = COMPASS[Math.round(state.heading / 45) % 8]!;
+  const riding = state.progress < 1;
+  if (!spec)
+    return (
+      <section className="panorama" role="dialog" aria-modal="true" aria-label="City panorama">
+        <p className="panorama-error" role="alert">
+          {t('No sky view here yet.')}
+        </p>
+        <button onClick={onClose}>{t('Close')}</button>
+      </section>
+    );
   return (
-    <section className="panorama" role="dialog" aria-modal="true" aria-label="City panorama">
-      <div className="panorama-canvas" ref={mount} />
+    <section
+      className="panorama"
+      role="dialog"
+      aria-modal="true"
+      aria-label="City panorama"
+      data-sky-view={spec.id}
+      data-sky-phase={riding ? 'ride' : 'look'}
+    >
+      <div className="panorama-canvas" ref={mount}>
+        <div ref={labelsRef} className="sky-labels" aria-hidden="true">
+          {labelsList.map(({ name, area }, i) => {
+            return (
+              <span
+                key={name}
+                className={`sky-label${area ? ' is-area' : ''}`}
+                data-sky-label={name}
+                data-i={i}
+                hidden
+              >
+                <b>{name}</b> <i data-km="" />
+              </span>
+            );
+          })}
+        </div>
+      </div>
+      {!state.ready && !error && <p className="panorama-loading">{t('Going up…')}</p>}
       <header>
         <div>
-          <small>TAKE IT ALL IN</small>
-          <h2>
-            {kind === 'london-eye'
-              ? 'Above London, together.'
-              : kind === 'cable-car'
-                ? 'A city beneath your feet.'
-                : 'The skyline is yours.'}
-          </h2>
+          <small>
+            {KIND_ICON[spec.kind]} {t('SKY VIEW')} · {heading}
+          </small>
+          <h2>{spec.name}</h2>
           <p>
-            {city} · Sunrise {time(sun.sunrise)} · Sunset {time(sun.sunset)}
+            {t(spec.blurb)} ·{' '}
+            {t('Sunrise {a} · Sunset {b}', { a: time(sun.sunrise), b: time(sun.sunset) })}
           </p>
+          <div className="panorama-progress" aria-hidden="true">
+            <span style={{ width: `${Math.round(state.progress * 100)}%` }} />
+          </div>
         </div>
         <button onClick={onClose} aria-label="Close panorama">
           ×
         </button>
       </header>
-      {error && (
+      {(error || geo === null) && (
         <p className="panorama-error" role="alert">
-          {error}
+          {error || t('The city map is unavailable. Reconnect and open the view again.')}
         </p>
       )}
       <footer>
         {children}
-        <p>{focus || 'Drag to look around. Pick a landmark to find it on the skyline.'}</p>
+        <p>{focus || t('Drag to look around. Pick a landmark to find it on the skyline.')}</p>
         <div>
-          {landmarks.map((l) => (
-            <button key={l.name} onClick={() => target.current(l.name)}>
-              {l.name}
+          {labelsList.map(({ name }) => (
+            <button key={name} onClick={() => faceLabel(name)}>
+              {name}
             </button>
           ))}
         </div>
         <div className="panorama-controls">
           <button
-            onClick={() => {
-              control.current.yaw -= 0.3;
-            }}
+            aria-label={t('Look left')}
+            title={t('Look left')}
+            onClick={() => handle.current?.ride.look(-0.3, 0)}
           >
-            Look left
+            ◀
           </button>
           <button
-            onClick={() => {
-              control.current.yaw += 0.3;
-            }}
+            aria-label={t('Look right')}
+            title={t('Look right')}
+            onClick={() => handle.current?.ride.look(0.3, 0)}
           >
-            Look right
+            ▶
           </button>
           <button
-            onClick={() => {
-              control.current.zoom = Math.max(30, control.current.zoom - 10);
-            }}
+            aria-label={t('Zoom in')}
+            title={t('Zoom in')}
+            onClick={() => handle.current?.ride.zoom(1.3)}
           >
-            Zoom in
+            ＋
           </button>
           <button
-            onClick={() => {
-              control.current.zoom = Math.min(90, control.current.zoom + 10);
-            }}
+            aria-label={t('Zoom out')}
+            title={t('Zoom out')}
+            onClick={() => handle.current?.ride.zoom(1 / 1.3)}
           >
-            Zoom out
+            －
           </button>
-          <button onClick={() => setPaused(!paused)}>
-            {paused ? 'Resume ride' : 'Pause ride'}
-          </button>
+          {riding && (
+            <button
+              aria-label={paused ? t('Resume ride') : t('Pause ride')}
+              title={paused ? t('Resume ride') : t('Pause ride')}
+              onClick={() => setPaused(!paused)}
+            >
+              {paused ? '▷' : '❚❚'}
+            </button>
+          )}
+          {riding && (
+            <button onClick={() => handle.current?.ride.skip()}>{t('Skip to the view')}</button>
+          )}
+          <select
+            aria-label={t('Light')}
+            value={light}
+            onChange={(e) => setLight(e.target.value as Light)}
+          >
+            <option value="now">{t('Now')}</option>
+            <option value="day">{t('Midday')}</option>
+            <option value="sunset">{t('Sunset')}</option>
+            <option value="night">{t('Night')}</option>
+          </select>
+          {views.length > 1 && (
+            <select
+              aria-label={t('Sky view')}
+              value={spec.id}
+              onChange={(e) => {
+                setSpecId(e.target.value);
+                setFocus('');
+                setPaused(false);
+                setState({ progress: 0, heading: 0, ready: false });
+              }}
+            >
+              {views.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {KIND_ICON[v.kind]} {v.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         <small>
-          {OSM_CREDIT} · Stylised city model · {holdingHands ? 'Holding hands ♥' : 'Enjoy the view'}
+          {OSM_CREDIT}, Overture Maps · {t('Real buildings and terrain')} ·{' '}
+          {holdingHands ? t('Holding hands ♥') : t('Enjoy the view')}
         </small>
       </footer>
     </section>

@@ -99,3 +99,9 @@ export { LANDMARKS } from './data/landmarks.js';
 export type { LandmarkSeed } from './data/landmarks.js';
 export { BRANCH } from './branches.js';
 export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.js';
+// Wave 12: sky views and the quiz bank.
+export { SKY_VIEWS, skyViewById, skyViewsIn } from './data/sky-views.js';
+export type { SkyViewSpec, SkyViewKind } from './data/sky-views.js';
+export { QUIZ_BANK } from './data/quiz-bank.js';
+export type { BankQuestion, QuizCategory } from './data/quiz-bank.js';
+export { AUTO_QUIZ_FROM, AUTO_QUIZ_NOTE, QUIZ_LENGTH, QUIZ_AI_AFTER, drawQuiz } from './play.js';

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
-import type { PlayerView } from '@runway/engine';
+import { QUIZ_AI_AFTER, type PlayerView } from '@runway/engine';
 import { useView } from '../store';
 import { api } from '../api';
 import { money } from '../format';
+import { t, useLang } from '../i18n';
 import { closePlay, onPlay, playPlace, type PlayPlace } from './play-bus';
 import './experiences.css';
 type Room = PlayerView['playRooms'][number];
@@ -18,12 +19,7 @@ function Lobby({ place }: { place: PlayPlace }) {
   const [game, setGame] = useState<Room['game']>(place.game ?? 'quiz');
   const [title, setTitle] = useState('Game night');
   const [stake, setStake] = useState('0');
-  const [custom, setCustom] = useState(false);
-  const [questions, setQuestions] = useState([
-    { text: '', options: ['', '', '', ''], answer: 0 },
-    { text: '', options: ['', '', '', ''], answer: 0 },
-    { text: '', options: ['', '', '', ''], answer: 0 },
-  ]);
+  const lang = useLang();
   const [clock, setClock] = useState(Date.now);
   const timeOffset = useRef(0);
   useEffect(() => {
@@ -35,9 +31,11 @@ function Lobby({ place }: { place: PlayPlace }) {
   const tick = useRef(false);
   const roomRef = useRef(room);
   const refreshRef = useRef(refresh);
+  const meRef = useRef(me);
   useEffect(() => {
     roomRef.current = room;
     refreshRef.current = refresh;
+    meRef.current = me;
   });
   useEffect(() => {
     const timer = setInterval(() => {
@@ -45,10 +43,20 @@ function Lobby({ place }: { place: PlayPlace }) {
       if (document.hidden || tick.current) return;
       tick.current = true;
       const current = roomRef.current;
-      const sync =
-        current?.status === 'playing' && Date.now() + timeOffset.current >= current.deadline
-          ? api.command({ type: 'play.sync', roomId: current.id }).catch(() => undefined)
-          : Promise.resolve();
+      const now = Date.now() + timeOffset.current;
+      // Sync when the question's time is up or an AI opponent is due to answer,
+      // and once a host has waited alone long enough to be matched with AI opponents.
+      const due =
+        current?.status === 'playing'
+          ? now >= current.deadline || (current.aiDueAt !== null && now >= current.aiDueAt)
+          : current?.status === 'waiting' &&
+            current.game === 'quiz' &&
+            current.members.length === 1 &&
+            current.members[0]!.id === meRef.current &&
+            now - current.createdAt >= QUIZ_AI_AFTER;
+      const sync = due
+        ? api.command({ type: 'play.sync', roomId: current!.id }).catch(() => undefined)
+        : Promise.resolve();
       void sync
         .then(() => refreshRef.current())
         .finally(() => {
@@ -67,10 +75,19 @@ function Lobby({ place }: { place: PlayPlace }) {
       venue: place.venue,
       title,
       stake: Math.round(Number(stake) * 100),
-      ...(custom && game === 'quiz' ? { questions } : {}),
     });
     if (result) setSelected(result.id);
   }
+  /** Quiz quick play: join the next quiz waiting here with this stake, or open one. */
+  async function match() {
+    const result = await send<{ id: string }>({
+      type: 'play.match',
+      venue: place.venue,
+      stake: Math.round(Number(stake) * 100),
+    });
+    if (result) setSelected(result.id);
+  }
+  const fr = lang === 'fr';
   return (
     <div className="experience-backdrop">
       <section
@@ -122,7 +139,44 @@ function Lobby({ place }: { place: PlayPlace }) {
               ))}
               {!rooms.length && <p>No games here yet. Start the first one.</p>}
             </div>
-            {mayHost && (
+            {game === 'quiz' && (
+              <form
+                className="experience-create"
+                aria-label={t('Quick match')}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void match();
+                }}
+              >
+                <h2>{t('Quiz night: play against someone')}</h2>
+                <p>
+                  {t(
+                    'Ten questions from the quiz bank: general knowledge, business and tech, sport, music, science, geography and the cities. Everyone plays, the host too.',
+                  )}
+                </p>
+                <label>
+                  {t('Stake per player ({currency})', { currency: view.here?.currency ?? cur })}
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    max="1000000"
+                    value={stake}
+                    onChange={(e) => setStake(e.target.value)}
+                    required
+                  />
+                </label>
+                <p className="small">
+                  {t(
+                    'You join the next quiz waiting here with the same stake, or open one. If nobody joins within 45 seconds, AI players from this city take the other seats.',
+                  )}
+                </p>
+                <button className="experience-primary" disabled={busy}>
+                  {t('Find an opponent')}
+                </button>
+              </form>
+            )}
+            {mayHost && game !== 'quiz' && (
               <form
                 className="experience-create"
                 onSubmit={(e) => {
@@ -157,100 +211,6 @@ function Lobby({ place }: { place: PlayPlace }) {
                   The stake is charged when a player joins. The host starts when everyone is ready.
                   Waiting players can leave for a refund. Idle rooms expire after 30 minutes.
                 </p>
-                {game === 'quiz' && (
-                  <>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={custom}
-                        onChange={(e) => setCustom(e.target.checked)}
-                      />{' '}
-                      Write my own questions
-                    </label>
-                    {custom && (
-                      <>
-                        <p>
-                          You are the quizmaster, so you cannot compete in your own custom quiz.
-                        </p>
-                        {questions.map((q, i) => (
-                          <fieldset key={i}>
-                            <legend>Question {i + 1}</legend>
-                            <input
-                              aria-label={`Question ${i + 1}`}
-                              required
-                              minLength={5}
-                              maxLength={240}
-                              placeholder="Your question"
-                              value={q.text}
-                              onChange={(e) =>
-                                setQuestions(
-                                  questions.map((x, j) =>
-                                    j === i ? { ...x, text: e.target.value } : x,
-                                  ),
-                                )
-                              }
-                            />
-                            {q.options.map((o, k) => (
-                              <input
-                                key={k}
-                                aria-label={`Question ${i + 1} option ${k + 1}`}
-                                required
-                                maxLength={100}
-                                placeholder={`Option ${k + 1}`}
-                                value={o}
-                                onChange={(e) =>
-                                  setQuestions(
-                                    questions.map((x, j) =>
-                                      j === i
-                                        ? {
-                                            ...x,
-                                            options: x.options.map((a, b) =>
-                                              b === k ? e.target.value : a,
-                                            ),
-                                          }
-                                        : x,
-                                    ),
-                                  )
-                                }
-                              />
-                            ))}
-                            <label>
-                              Correct answer
-                              <select
-                                value={q.answer}
-                                onChange={(e) =>
-                                  setQuestions(
-                                    questions.map((x, j) =>
-                                      j === i ? { ...x, answer: Number(e.target.value) } : x,
-                                    ),
-                                  )
-                                }
-                              >
-                                {q.options.map((_, k) => (
-                                  <option key={k} value={k}>
-                                    Option {k + 1}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          </fieldset>
-                        ))}
-                        <button
-                          type="button"
-                          disabled={questions.length >= 20}
-                          onClick={() =>
-                            setQuestions([
-                              ...questions,
-                              { text: '', options: ['', '', '', ''], answer: 0 },
-                            ])
-                          }
-                        >
-                          Add question
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
                 <button className="experience-primary" disabled={busy}>
                   Create room
                 </button>
@@ -273,6 +233,7 @@ function Lobby({ place }: { place: PlayPlace }) {
                   <span>
                     {m.name}
                     {m.id === me ? ' (you)' : ''}
+                    {room.ai.includes(m.id) ? ` · ${t('AI player')}` : ''}
                   </span>
                   <strong>{m.score}</strong>
                   {(room.answered.includes(m.id) || room.locked.includes(m.id)) && (
@@ -286,9 +247,15 @@ function Lobby({ place }: { place: PlayPlace }) {
                 <h2>Get everyone around the table.</h2>
                 <p>
                   {room.game === 'quiz'
-                    ? '20 seconds per question. Correct answers earn 10 points.'
+                    ? t(
+                        '{n} questions, 20 seconds each. Correct answers earn 10 points. Waiting for an opponent…',
+                        { n: room.totalQuestions },
+                      )
                     : 'Invite another player in this city to open this room.'}
                 </p>
+                {room.game === 'quiz' && room.host === me && room.members.length === 1 && (
+                  <QuizWait createdAt={room.createdAt} />
+                )}
                 <p>
                   Entry: {money(room.stake, room.currency)} ·{' '}
                   {room.currency !== cur && room.stake > 0
@@ -310,6 +277,14 @@ function Lobby({ place }: { place: PlayPlace }) {
                     onClick={() => void send({ type: 'play.leave', roomId: room.id })}
                   >
                     Leave and refund
+                  </button>
+                )}
+                {room.host === me && room.game === 'quiz' && room.members.length < 4 && (
+                  <button
+                    disabled={busy}
+                    onClick={() => void send({ type: 'play.ai', roomId: room.id, count: 2 })}
+                  >
+                    {t('Play AI opponents now')}
                   </button>
                 )}
                 {room.host === me && (
@@ -339,9 +314,10 @@ function Lobby({ place }: { place: PlayPlace }) {
                 <small>
                   QUESTION {room.round + 1} OF {room.totalQuestions}
                 </small>
-                <h2>{room.question?.text}</h2>
+                {room.question?.cat && <small>{t(CATS[room.question.cat] ?? 'General')}</small>}
+                <h2>{(fr && room.question?.fr?.text) || room.question?.text}</h2>
                 <div className="experience-answers">
-                  {room.question?.options?.map((o, i) => (
+                  {((fr && room.question?.fr?.options) || room.question?.options)?.map((o, i) => (
                     <button
                       key={`${room.round}:${i}`}
                       disabled={busy || !member || room.myAnswer !== null || seconds === 0}
@@ -360,7 +336,14 @@ function Lobby({ place }: { place: PlayPlace }) {
                     </button>
                   ))}
                 </div>
-                {room.myAnswer !== null && <p>Answer locked. Waiting for the others…</p>}
+                {room.myAnswer !== null && <p>{t('Answer locked. Waiting for the others…')}</p>}
+                {room.reveal && (
+                  <p className="experience-reveal">
+                    {t('Last question: {answer}', {
+                      answer: (fr && room.reveal.fr?.answer) || room.reveal.answer,
+                    })}
+                  </p>
+                )}
               </div>
             )}
             {room.status === 'playing' && room.game === 'snooker' && (
@@ -572,5 +555,33 @@ function Snooker({ room, me }: { room: Room; me: string }) {
         Take shot
       </button>
     </div>
+  );
+}
+
+const CATS: Record<string, string> = {
+  general: 'General knowledge',
+  business: 'Business and money',
+  tech: 'Technology',
+  sport: 'Sport',
+  music: 'Music',
+  cities: 'The cities',
+  science: 'Science',
+  geography: 'Geography',
+};
+
+/** A host waiting alone: when AI opponents will take the other seats. */
+function QuizWait({ createdAt }: { createdAt: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const left = Math.max(0, Math.ceil((createdAt + QUIZ_AI_AFTER - now) / 1000));
+  return (
+    <p className="experience-match" role="status">
+      {left > 0
+        ? t('Looking for a player in this city… AI opponents in {n}s.', { n: left })
+        : t('Calling in AI opponents…')}
+    </p>
   );
 }

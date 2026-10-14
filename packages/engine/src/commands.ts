@@ -257,7 +257,9 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('living.date.invite'),
     playerId: id,
-    location: z.enum(['home', 'london-eye', 'cable-car', 'rooftop']),
+    location: z.enum(['home', 'london-eye', 'cable-car', 'rooftop', 'sky-view']),
+    /** Wave 12: which of the city's sky views (data/sky-views.ts) a sky date is on. */
+    viewId: z.string().min(2).max(40).optional(),
   }),
   z.object({ type: z.literal('living.date.accept'), dateId: id }),
   z.object({ type: z.literal('living.date.end'), dateId: id }),
@@ -284,7 +286,23 @@ export const commandSchema = z.discriminatedUnion('type', [
       )
       .min(3)
       .max(20)
+      /**
+       * Wave 12: no longer used. Quizzes are drawn from the built-in bank; the
+       * field stays so logged commands from older clients replay.
+       */
       .optional(),
+  }),
+  /** Wave 12: quick play — join the next waiting quiz here with this stake, or open one. */
+  z.object({
+    type: z.literal('play.match'),
+    venue: id,
+    stake: z.number().int().min(0).max(100_000_000),
+  }),
+  /** Wave 12: the host of a waiting quiz seats AI opponents and starts. */
+  z.object({
+    type: z.literal('play.ai'),
+    roomId: id,
+    count: z.number().int().min(1).max(3).optional(),
   }),
   z.object({ type: z.literal('play.join'), roomId: id }),
   z.object({ type: z.literal('play.start'), roomId: id }),

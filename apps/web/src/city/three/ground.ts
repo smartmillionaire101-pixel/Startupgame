@@ -358,7 +358,9 @@ export function buildGround(
   // Land: the city file's coast (or the whole frame), with what is beyond.
   const landPolys = data.land?.length ? data.land : [[bx0, by0, bx1, by0, bx1, by1, bx0, by1]];
   const add = (m: THREE.Object3D | null) => m && group.add(m);
-  add(layer(polyGeometry(landPolys), landMaterial(look, mask), -39));
+  const land = layer(polyGeometry(landPolys), landMaterial(look, mask), -39);
+  if (land) land.name = 'ground-land';
+  add(land);
   add(layer(polyGeometry(data.airport ?? []), flatMat('#a9a79f', -38), -38));
   add(
     layer(

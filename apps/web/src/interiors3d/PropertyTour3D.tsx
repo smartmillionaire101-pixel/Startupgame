@@ -6,7 +6,8 @@
  * over the city. Furnished as a show home; drag to look round, pinch to zoom.
  */
 import { useMemo, useRef, type ReactElement } from 'react';
-import { planFor } from '../home/layout';
+import { planFor, type HomeKind } from '../home/layout';
+import { groundsFor, outdoorThings } from '../home/grounds';
 import Home3D from './Home3D';
 import { SLOT_MODEL } from './catalog';
 import type { Home3DApi, Home3DObject } from './types';
@@ -17,6 +18,8 @@ export interface PropertyTour3DProps {
   /** Furniture quality, 1–3. */
   finish: number;
   estate: 'villa' | 'mansion' | 'penthouse' | null;
+  /** Wave 12: the listing's kind of home (its wing and grounds), as a comfortable owner has it. */
+  kind?: HomeKind;
   night: boolean;
   onReady: () => void;
   api?: React.MutableRefObject<Home3DApi | null>;
@@ -34,7 +37,12 @@ const FIXTURES: [string, string][] = [
 ];
 
 export default function PropertyTour3D(props: PropertyTour3DProps): ReactElement | null {
-  const plan = planFor(props.planTier);
+  const plan = planFor(props.planTier, props.kind ? { kind: props.kind, wealth: 1 } : undefined);
+  const houseCars = props.planTier >= 4 && props.estate !== 'penthouse';
+  const grounds = useMemo(
+    () => groundsFor(plan, houseCars ? ['luxury', 'city-suv'] : []),
+    [plan, houseCars],
+  );
   const own = useRef<Home3DApi | null>(null);
   const api = props.api ?? own;
   const objects = useMemo(() => {
@@ -46,8 +54,28 @@ export default function PropertyTour3D(props: PropertyTour3DProps): ReactElement
       const spot = plan.fixtures[fx as keyof typeof plan.fixtures];
       if (spot) out.push({ id, label: id, spot });
     }
+    // Wave 12: the wing's guest beds, gym and cinema, and the loungers and cars outside.
+    for (const d of plan.decor)
+      out.push({
+        id: d.id,
+        label: d.label,
+        spot: d.spot,
+        model: d.model,
+        ry: (d.spot.rot * Math.PI) / 2,
+        tier: d.tier,
+      });
+    for (const o of outdoorThings(grounds))
+      out.push({
+        id: o.id,
+        label: o.label,
+        spot: { x: o.x, y: o.y, w: o.w, h: o.h, blocked: false, interact: { x: 0, y: 0 } },
+        model: o.model,
+        ry: o.rot,
+        outdoor: true,
+        tier: 2,
+      });
     return out;
-  }, [plan, props.finish]);
+  }, [plan, props.finish, grounds]);
   return (
     <Home3D
       plan={plan}
@@ -57,7 +85,8 @@ export default function PropertyTour3D(props: PropertyTour3DProps): ReactElement
       acting={null}
       night={props.night}
       dusk={false}
-      car={props.planTier >= 4 && props.estate !== 'penthouse' ? 'luxury' : null}
+      car={null}
+      grounds={grounds}
       buyMode={false}
       sheetOpen={false}
       ghost={null}

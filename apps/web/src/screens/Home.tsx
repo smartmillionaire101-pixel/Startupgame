@@ -9,6 +9,7 @@ import { FoundCompany } from './Me';
 import { SaveNudge } from './Account';
 import { visitPlace } from '../city/goto';
 import { WhatNowCard } from '../city/WhatNowCards';
+import { HomePreview } from '../home/HomePreview';
 
 /** Today (was "Home"): the dashboard and inbox. `onNews` opens the city's news. */
 export function Home({ onNews }: { onNews?: () => void } = {}) {
@@ -211,6 +212,7 @@ function DevTools() {
       >
         {t('Advance {market} one month', { market: view.market.name })}
       </Button>
+      <HomePreview />
     </Card>
   );
 }

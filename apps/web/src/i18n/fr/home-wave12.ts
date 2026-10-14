@@ -1,0 +1,35 @@
+/** Wave 12: the home grows with wealth (the wing, the grounds, the dev preview). */
+export const homeWave12: Record<string, string> = {
+  'Kitchen island': 'Îlot de cuisine',
+  'Guest bed': 'Lit d’amis',
+  'Change and rest': 'Se changer et se reposer',
+  Treadmill: 'Tapis de course',
+  Run: 'Courir',
+  Weights: 'Haltères',
+  Lift: 'Soulever',
+  Bar: 'Bar',
+  'Mix a drink': 'Préparer un cocktail',
+  'Cinema screen': 'Écran de cinéma',
+  'Watch a film': 'Regarder un film',
+  'Cinema seats': 'Fauteuils de cinéma',
+  Pool: 'Piscine',
+  'Hot tub': 'Jacuzzi',
+  Swim: 'Nager',
+  Float: 'Faire la planche',
+  'Relax in the hot tub': 'Se détendre dans le jacuzzi',
+  'Sun lounger': 'Transat',
+  Sunbathe: 'Bronzer',
+  'Drive out': 'Sortir en voiture',
+  'Show home': 'Maison témoin',
+  'Preview a home': 'Aperçu d’un logement',
+  Wealth: 'Richesse',
+  'Wealth {n}': 'Richesse {n}',
+  // Wave 11 home bar, now translated.
+  '🚚 Home & friends': '🚚 Maison et amis',
+  '🎮 Play together': '🎮 Jouer ensemble',
+  '🚚 Delivery on its way / at your door · Open': '🚚 Livraison en route / à votre porte · Ouvrir',
+  'Delivery arrives in 30 seconds · unpack at home':
+    'Livraison dans 30 secondes · à déballer chez vous',
+  'Your {item} from {place} is at your door. Unpack it at home.':
+    'Votre {item} de {place} est à votre porte. Déballez-le chez vous.',
+};

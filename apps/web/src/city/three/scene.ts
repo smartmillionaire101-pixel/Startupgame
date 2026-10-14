@@ -41,6 +41,15 @@ import { buildLandmarks, EXTRA_3D, landmarkLights, type LandmarkPlan } from './l
 import { beacons, glowMaterial, glowPoints, glowUniforms, streetLamps } from './lights';
 import { Actors } from './actors';
 import { loadTiles, type TileSet } from './tiles';
+import {
+  TerrainPatcher,
+  heightAt,
+  terrainGround,
+  terrainMaterial,
+  terrainUniforms,
+  tessellate,
+  type TerrainField,
+} from './terrain';
 import type { AvatarLook } from '../art';
 import type { Walker } from '../people';
 
@@ -51,6 +60,24 @@ export interface SceneOptions {
   reduced: boolean;
   /** Local hour (fractional), from the city's clock. */
   hour: number;
+  /**
+   * Wave 12: a sky view (experiences/Panorama): the camera is flown by a
+   * ViewController, the whole city loads, there are no shadows, and with a
+   * terrain everything stands on the real hills.
+   */
+  sky?: { terrain: TerrainField | null };
+}
+
+/**
+ * Wave 12: something that flies the camera itself (a sky view: the ride up
+ * a wheel, along a cable or up a tower, then free look). It places the camera
+ * each frame and says which ground point the view is over and how far it
+ * reaches, so the city around is loaded that far.
+ */
+export interface ViewController {
+  place(camera: THREE.PerspectiveCamera): { x: number; y: number; reach: number };
+  /** Still moving (a ride, a drag easing out): keep drawing. */
+  busy(): boolean;
 }
 
 export interface PlaceBox {
@@ -108,6 +135,17 @@ export class CityScene {
   private savedRig: { dist: number; pitch: number; yaw: number } | null = null;
   /** Stop drawing on its own (screenshots and tests draw with renderNow). */
   paused = false;
+  /** Wave 12: a sky view flying the camera (null: the map's own rig). */
+  view: ViewController | null = null;
+  private viewReach = 0;
+  /** Wave 12: the terrain under a sky view (null: flat, as the map is). */
+  readonly terrain: TerrainField | null = null;
+  private patcher: TerrainPatcher | null = null;
+  private lastPatch = 0;
+  /** Wave 12: the water's material (a sky view's own rivers share it). */
+  readonly waterMaterial: THREE.Material | null = null;
+  /** Wave 12: a moment to light the sky for instead of now (ms; null: now). */
+  private sunTime: number | null = null;
 
   private shared = makeShared();
   private sky = skyUniforms();
@@ -231,6 +269,7 @@ export class CityScene {
     this.scene.add(this.dome);
     this.skyState = skyAt(this.hour, this.look.lat, this.look.haze, citySun(this.layout.marketId));
     this.applySky();
+    this.dome.userData.noTerrain = true;
 
     // ---- The city.
     const data = this.geo.data;
@@ -253,7 +292,59 @@ export class CityScene {
       this.instMat,
     );
     this.scene.add(ground.group, landmarks);
+    this.waterMaterial = ground.water.material as THREE.Material;
     this.addNight(glowPoints(landmarkLights(landmarks), this.glowMat));
+    // Wave 12: a sky view stands the city on its terrain.
+    // (Flat cities — Lagos, Dubai — stay flat: nothing to see and less to draw.)
+    const terrain = opts.sky?.terrain && opts.sky.terrain.max >= 25 ? opts.sky.terrain : null;
+    if (terrain) {
+      this.terrain = terrain;
+      const u = terrainUniforms(terrain);
+      this.patcher = new TerrainPatcher(u, terrain.max);
+      ground.water.userData.noTerrain = true;
+      for (const d of ground.decks) d.userData.noTerrain = true;
+      for (const p of plans)
+        if (p.e2 !== undefined) {
+          const b = landmarks.getObjectByName(p.name);
+          if (b) b.userData.noTerrain = true;
+        }
+      let land: THREE.Mesh | null = null;
+      for (const c of ground.group.children) {
+        const m = c as THREE.Mesh;
+        if (!m.isMesh || c === ground.water || c.userData.noTerrain) continue;
+        if (c.name === 'ground-land') {
+          land = m;
+          continue;
+        }
+        // Long flat triangles cut finer, so they follow the hills.
+        const g = tessellate(m.geometry, high ? 60 : 90);
+        m.geometry.dispose();
+        m.geometry = g;
+      }
+      if (land) {
+        const mat = terrainMaterial(land.material as THREE.Material, u);
+        if (mat) {
+          mat.depthWrite = true;
+          mat.polygonOffset = true;
+          mat.polygonOffsetFactor = 1;
+          mat.polygonOffsetUnits = 2;
+          const tm = terrainGround(terrain, this.mask, data.bounds, mat, {
+            // About 300 cells across the city (finer where it is small).
+            step: Math.max(
+              high ? 32 : 48,
+              Math.max(data.bounds[2] - data.bounds[0], data.bounds[3] - data.bounds[1]) /
+                (high ? 360 : 240),
+            ),
+            skirt: 40000,
+          });
+          tm.renderOrder = -38.5;
+          tm.receiveShadow = false;
+          tm.userData.onTerrain = true;
+          tm.name = 'terrain';
+          ground.group.add(tm);
+        }
+      }
+    }
 
     // Ground cleared for landmarks and the game's places.
     const clear = [...this.geo.clear];
@@ -344,6 +435,7 @@ export class CityScene {
     this.rig.x = this.want.x = start.e;
     this.rig.y = this.want.y = start.s;
 
+    if (this.patcher) this.patcher.patch(this.scene);
     this.stats.buildMs = Math.round(performance.now() - t0);
     // Infill waits for the tiles' index: where real buildings stand, none is made.
     void loadTiles(layout.marketId)
@@ -572,7 +664,13 @@ export class CityScene {
   /** Low-rise lots near the camera: made when they come near, dropped when far. */
   private updateChunks() {
     if (!this.tilesKnown) return;
-    this.tiles?.update(this.rig.x, this.rig.y, this.rig.dist, this.tileCtx());
+    this.tiles?.update(
+      this.rig.x,
+      this.rig.y,
+      this.rig.dist,
+      this.tileCtx(),
+      this.view ? this.viewReach : undefined,
+    );
     const R =
       (this.opts.tier === 'high' ? 1 : 0.7) * Math.min(2200, Math.max(900, this.rig.dist * 1.8));
     const show = this.rig.dist < 6000;
@@ -748,10 +846,26 @@ export class CityScene {
 
   setHour(hour: number) {
     if (Math.abs(hour - this.hour) < 0.05) return;
+    if (Number.isNaN(hour)) return;
     this.hour = hour;
-    this.skyState = skyAt(hour, this.look.lat, this.look.haze, citySun(this.layout.marketId));
+    this.skyState = skyAt(
+      hour,
+      this.look.lat,
+      this.look.haze,
+      citySun(this.layout.marketId, this.sunTime ?? Date.now()),
+    );
     this.applySky();
     this.invalidate();
+  }
+
+  /**
+   * Wave 12: light the sky for a moment of today (ms) — a sunset, the night —
+   * or now again (null). `hour` is the city's local hour at that moment.
+   */
+  setSunTime(at: number | null, hour: number) {
+    this.sunTime = at;
+    this.hour = Number.NaN;
+    this.setHour(hour);
   }
 
   private applySky() {
@@ -790,6 +904,10 @@ export class CityScene {
   }
 
   private placeCamera() {
+    if (this.view) {
+      this.placeView(this.view);
+      return;
+    }
     const r = this.rig;
     r.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, r.pitch));
     r.dist = Math.max(35, Math.min(this.maxDist(), r.dist));
@@ -836,8 +954,43 @@ export class CityScene {
     this.sun.target.updateMatrixWorld();
   }
 
+  /** A sky view's camera: placed by the view, seeing far, no shadows (the city is too big). */
+  private placeView(v: ViewController) {
+    const o = v.place(this.camera);
+    this.viewReach = o.reach;
+    this.rig.x = o.x;
+    this.rig.y = o.y;
+    this.rig.dist = Math.min(1500, o.reach / 2);
+    const cam = this.camera;
+    cam.near = 1;
+    cam.far = Math.max(30000, o.reach * 8);
+    cam.updateProjectionMatrix();
+    cam.updateMatrixWorld();
+    this.glow.uScale.value =
+      (this.size.h * this.dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
+    this.dome.position.copy(cam.position);
+    this.dome.scale.setScalar(cam.far * 0.9);
+    this.fog.density = (0.55 + this.look.haze * 0.9) / (5.5 * o.reach + 2400);
+    this.sun.castShadow = false;
+  }
+
   groundAt(x: number, y: number) {
     return this.roads.deckAt(x, y);
+  }
+
+  /** Full-density tiles standing now. */
+  get tileCount() {
+    return this.tiles?.loaded() ?? 0;
+  }
+
+  /** Wave 12: the terrain's height at (x, y) in a sky view (0 when flat). */
+  terrainAt(x: number, y: number) {
+    return this.terrain ? heightAt(this.terrain, x, y) : 0;
+  }
+
+  /** Wave 12: stand new things on the terrain (a sky view's own props). */
+  onTerrain(root: THREE.Object3D) {
+    this.patcher?.patch(root);
   }
 
   /** The ground point under a screen point (null above the horizon). */
@@ -1011,11 +1164,12 @@ export class CityScene {
     this.lastT = t;
     // Follow the avatar; glide to where we were sent.
     const av = this.actors.avatarPos();
-    if (this.following) {
+    if (this.view) this.dirty ||= this.view.busy();
+    else if (this.following) {
       this.want.x = av.x;
       this.want.y = av.y;
     }
-    if (this.chaseOn) {
+    if (this.chaseOn && !this.view) {
       // Behind the car, a little above, looking ahead down the street.
       const ease = 1 - Math.pow(0.04, dt);
       let d = Math.PI - av.heading - this.rig.yaw;
@@ -1034,7 +1188,7 @@ export class CityScene {
     const ddx = this.want.x - this.rig.x;
     const ddy = this.want.y - this.rig.y;
     const ddd = this.want.dist - this.rig.dist;
-    if (Math.abs(ddx) > 0.05 || Math.abs(ddy) > 0.05 || Math.abs(ddd) > 0.05) {
+    if (!this.view && (Math.abs(ddx) > 0.05 || Math.abs(ddy) > 0.05 || Math.abs(ddd) > 0.05)) {
       this.rig.x += ddx * k;
       this.rig.y += ddy * k;
       this.rig.dist += ddd * k;
@@ -1065,6 +1219,10 @@ export class CityScene {
     if (this.queue.length) {
       this.buildQueued(active ? 6 : 14);
       this.dirty = true;
+    }
+    if (this.patcher && t - this.lastPatch > 400) {
+      this.lastPatch = t;
+      this.patcher.patch(this.scene);
     }
     this.shared.uTime.value = t / 1000;
     this.sky.uTime.value = t / 1000;
@@ -1112,6 +1270,7 @@ export class CityScene {
   renderNow() {
     this.updateChunks();
     while (this.queue.length) this.buildQueued(1000);
+    this.patcher?.patch(this.scene);
     this.placeCamera();
     this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
@@ -1131,6 +1290,7 @@ export class CityScene {
       else mat?.dispose?.();
     });
     this.env?.dispose();
+    this.patcher?.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
   }

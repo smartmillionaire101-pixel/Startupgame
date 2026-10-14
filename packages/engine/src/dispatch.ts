@@ -1008,7 +1008,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return {
         ...result,
         effects: { hunger: 0 },
-        needs: me.needs,
+        needs: me.needs ? { ...me.needs } : undefined,
         id,
         etaMinutes: 0.5,
         message: 'Paid. Your food arrives at home in 30 seconds. Collect it at the door.',

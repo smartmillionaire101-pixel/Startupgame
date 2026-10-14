@@ -10,7 +10,7 @@
  * view keeps aligned with the 3D floor (`onCamera`), and asks `api.pick` what
  * is under a tap.
  */
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { TILE } from '../home/art';
 import type { Spot } from '../home/layout';
@@ -18,7 +18,9 @@ import { makeCharacter, pose, setHair, type Character, type PoseId } from './cha
 import { FIXTURE_MODEL, SLOT_MODEL, facingOf, frameOf } from './catalog';
 import { buildModel, type Model } from './furniture';
 import { Particles, fx } from './fx';
-import { buildHouse, cutWalls, wallOf, type House } from './house';
+import { GROUND_Y, buildHouse, cutWalls, wallOf, type House } from './house';
+import { buildEstateModel } from './estate-models';
+import { groundsFor } from '../home/grounds';
 import { Kit, disposeTree, mat } from './kit';
 import { Stage, gestures } from './stage';
 import type { Home3DObject, Home3DPerson, Home3DProps } from './types';
@@ -35,6 +37,8 @@ interface Placed {
 }
 
 const modelIdOf = (o: Home3DObject): string | null => {
+  // Wave 12: what a bigger home comes with, and things outside, name their model.
+  if (o.model) return o.model;
   if (o.slot && o.owned) return SLOT_MODEL[o.slot] ?? null;
   if (o.slot && !o.owned) return null;
   // Fixtures: their id is the fixture's name in buildObjects (bed → mat when unowned…).
@@ -101,8 +105,12 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   const actT = useRef(0);
 
   const { plan, tier, objects, night, dusk, car, ghost, moving, buyMode, acting } = props;
-  const estate = props.estate ?? null;
-  const garageKey = props.cars?.join(',');
+  const garageKey = (props.cars ?? (car ? [car] : [])).join(',');
+  // Wave 12: the grounds (pool, drive, a bay per car) from the plan and the garage.
+  const grounds = useMemo(
+    () => props.grounds ?? groundsFor(plan, garageKey ? garageKey.split(',') : []),
+    [props.grounds, plan, garageKey],
+  );
   // Anything that changes what people do: draw again.
   useEffect(() => {
     stageRef.current?.invalidate();
@@ -117,11 +125,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       stage = new Stage(canvas, {
         target: new THREE.Vector3(),
         span: 12,
-        azimuth: 0.6,
+        azimuth: -0.3,
         elevation: 0.9,
         minElevation: 0.5,
         maxElevation: 1.4,
-        background: '#17233f',
+        background: '#cfe6f2',
       });
     } catch {
       return;
@@ -216,47 +224,43 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     };
   }, []);
 
-  // ---- The house shell (plan, tier, car, night).
+  // ---- The house shell and its grounds (plan, tier, cars, night).
+  const lit = night || dusk;
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const h = buildHouse(plan, {
-      tier,
-      night,
-      car,
-      estate,
-      cars: garageKey?.split(',').filter(Boolean),
-    });
+    const h = buildHouse(plan, { tier, night, lit, grounds });
     houseRef.current = h;
     stage.scene.add(h.root);
     stage.target.copy(h.centre);
     stage.span = h.span;
     stage.fitCenter = h.centre.clone();
-    stage.fit = [
-      ...h.fitPoints,
-      ...[-4, 4].flatMap((dx) =>
-        [3, 6].map((dz) => new THREE.Vector3(plan.w / 2 + dx, 2.5, plan.h + dz)),
-      ),
-    ];
+    stage.fit = h.fitPoints;
     stage.fitMargin = 1.0;
     // A tall phone: look down a little more so the house fills the screen.
-    if (stage.w / stage.h < 0.8) stage.elevation = 1.0;
-    const s = Math.max(plan.w, plan.h) * 0.9 + 4;
+    if (stage.w / stage.h < 0.8) stage.elevation = 0.92;
+    const s = h.shadow;
     const sc = stage.sun.shadow.camera;
     sc.left = -s;
     sc.right = s;
     sc.top = s;
     sc.bottom = -s;
+    sc.far = 120;
     sc.updateProjectionMatrix();
-    stage.sun.position.set(h.centre.x - 9, 22, h.centre.z + 6);
+    stage.sun.position.set(h.centre.x - 14, 30, h.centre.z + 8);
     stage.sun.target.position.copy(h.centre);
+    stage.canvas.dataset.kind = plan.kind;
+    stage.canvas.dataset.wealth = String(plan.wealth);
+    stage.canvas.dataset.rooms = String(plan.rooms.length);
+    stage.canvas.dataset.pool = grounds.pool ? (grounds.pool.hot ? 'hot' : '1') : '0';
+    stage.canvas.dataset.bays = String(grounds.bays.length);
     stage.updateCamera();
     return () => {
       stage.scene.remove(h.root);
       disposeTree(h.root);
       houseRef.current = null;
     };
-  }, [plan, tier, night, car, estate, garageKey]);
+  }, [plan, tier, night, lit, grounds]);
 
   // ---- Light: day, dusk or night.
   useEffect(() => {
@@ -275,14 +279,14 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       stage.hemi.intensity = 1.0;
       stage.hemi.color.set('#ffe1c2');
       stage.ambient.intensity = 0.2;
-      stage.scene.background = new THREE.Color('#2a2443');
+      stage.scene.background = new THREE.Color('#e9c7a8');
     } else {
       stage.sun.intensity = 1.9;
       stage.sun.color.set('#fff1d6');
       stage.hemi.intensity = 1.35;
       stage.hemi.color.set('#fff4e0');
-      stage.ambient.intensity = 0.25;
-      stage.scene.background = new THREE.Color('#17233f');
+      stage.ambient.intensity = 0.3;
+      stage.scene.background = new THREE.Color('#cfe6f2');
     }
     stage.invalidate();
   }, [night, dusk]);
@@ -291,7 +295,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   const objKey = objects
     .map(
       (o) =>
-        `${o.id}:${o.owned ? 1 : 0}:${o.tier ?? 1}:${o.spot.x},${o.spot.y},${o.spot.w},${o.spot.h},${o.spot.rot ?? ''}`,
+        `${o.id}:${o.model ?? ''}:${o.owned ? 1 : 0}:${o.tier ?? 1}:${o.spot.x},${o.spot.y},${o.spot.w},${o.spot.h},${o.spot.rot ?? ''}:${o.ry ?? ''}`,
     )
     .join('|');
   useEffect(() => {
@@ -332,17 +336,25 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       }
       const id = modelIdOf(o);
       if (!id) continue;
-      const ry = facingOf(plan, o.slot ?? o.id, o.spot);
-      const fr = frameOf(o.spot, ry);
-      const model = buildModel(id, {
+      const ry = typeof o.ry === 'number' ? o.ry : facingOf(plan, o.slot ?? o.id, o.spot);
+      const fr =
+        o.ry !== undefined && o.outdoor
+          ? { x: o.spot.x + o.spot.w / 2, z: o.spot.y + o.spot.h / 2, w: o.spot.w, d: o.spot.h }
+          : frameOf(o.spot, ry);
+      if (o.outdoor && Math.abs(Math.sin(ry)) > 0.7) [fr.w, fr.d] = [fr.d, fr.w];
+      const model = buildEstateModel(id, {
         w: fr.w,
         d: fr.d,
         tier: o.tier ?? 1,
-        seed: o.spot.x * 7 + o.spot.y,
+        seed: Math.round(o.spot.x * 7 + o.spot.y),
+        // Wave 12: the reference's deep green velvet sofa in a well-off home.
+        ...(o.slot === 'sofa' && (o.tier ?? 1) >= 2 ? { tint: '#1f6e52' } : {}),
       });
       const g = model.group;
-      g.position.set(fr.x, 0, fr.z);
+      g.position.set(fr.x, o.outdoor ? GROUND_Y + 0.03 : 0, fr.z);
       g.rotation.y = ry;
+      if (o.outdoor) g.userData.outdoor = true;
+      if (id.startsWith('car:')) g.userData.car = true;
       if (o.slot === 'laptop') {
         // On the desk (or a stool when there's no desk).
         if (desk) {
@@ -384,7 +396,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
             intensity: 1.6,
             distance: Math.max(r.w, r.h) * 1.1,
           });
-    for (const l of want.slice(0, MAX_LAMPS)) {
+    for (const l of want.slice(0, Math.max(1, MAX_LAMPS - (houseRef.current?.lamps.length ?? 0)))) {
       const pl = new THREE.PointLight(
         l.color,
         lit ? l.intensity * 1.6 : l.intensity * 0.6,
@@ -400,6 +412,9 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     lampRoot.current = lamps;
     placedRef.current = placed;
     markers.current = mk;
+    stage.canvas.dataset.cars = String(
+      [...placed.values()].filter((p) => p.group.userData.car).length,
+    );
     stage.updateCamera();
     return () => {
       stage.scene.remove(root);
@@ -407,7 +422,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     };
     // objKey stands for `objects`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objKey, plan, night, dusk]);
+  }, [objKey, plan, night, dusk, grounds]);
 
   // ---- Buy mode: markers pulse; the thing being moved is a ghost.
   useEffect(() => {
@@ -485,36 +500,33 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     };
   }, [ghost]);
 
-  // A real van drives up to the front door, then waits while the parcels are unloaded.
+  // A real van drives along the street to the gate, then waits while the parcels are unloaded.
   const delivery = props.delivery;
   useEffect(() => {
     const stage = stageRef.current;
-    if (!stage || !delivery) return;
-    const k = new Kit();
-    k.box(2.1, 1.6, 3.8, '#f5efdc', 0, 0.6, 0, { round: 0.12 });
-    k.box(2, 1.2, 1.4, '#286948', 0, 0.6, 2.4, { round: 0.12 });
-    k.box(1.7, 0.55, 0.04, '#acd2dd', 0, 1.2, 3.12);
-    for (const x of [-1.01, 1.01]) {
-      k.box(0.03, 0.5, 1, '#acd2dd', x, 1.2, 2.35);
-      k.box(0.03, 0.22, 3.4, '#286948', x, 0.95, 0);
+    const h = houseRef.current;
+    if (!stage || !delivery || !h) return;
+    const van = buildEstateModel('van', { w: 2.1, d: 5.6, tier: 2 }).group;
+    // Parcels stacked by the open back doors once it has arrived.
+    const boxes = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+      const b = buildEstateModel('box', { w: 0.5, d: 0.5, tier: 1 }).group;
+      b.position.set(-0.4 + (i % 2) * 0.55, Math.floor(i / 2) * 0.44, -3.4);
+      boxes.add(b);
     }
-    for (const x of [-0.7, 0.7])
-      k.box(0.3, 0.18, 0.06, '#ffeeb3', x, 0.78, 3.13, {
-        emissive: '#ffeeb3',
-        emissiveIntensity: 0.5,
-      });
-    for (const x of [-1.05, 1.05])
-      for (const z of [-1.1, 2.4])
-        k.cyl(0.37, 0.37, 0.2, '#20252a', x, 0.32, z, { rz: Math.PI / 2, seg: 12 });
-    const van = k.build();
+    van.add(boxes);
     stage.scene.add(van);
+    stage.canvas.dataset.van = 'coming';
     const off = stage.add(() => {
       const u = Math.min(
         1,
         Math.max(0, (Date.now() - delivery.orderedAt) / (delivery.arrivesAt - delivery.orderedAt)),
       );
-      van.position.set(plan.w / 2 + (1 - u) * 18, 0, plan.h + 4.5);
-      van.rotation.y = -Math.PI / 2;
+      const e = live.current.reduced ? 1 : 1 - (1 - u) ** 2;
+      van.position.set(h.van.x + (1 - e) * 26, GROUND_Y + 0.02, h.van.z);
+      van.rotation.y = Math.PI / 2;
+      boxes.visible = u >= 1;
+      if (u >= 1) stage.canvas.dataset.van = 'here';
       return u < 1;
     });
     stage.invalidate();
@@ -522,8 +534,9 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       off();
       stage.scene.remove(van);
       disposeTree(van);
+      delete stage.canvas.dataset.van;
     };
-  }, [delivery, plan.w, plan.h]);
+  }, [delivery, plan, grounds]);
 
   // ---- People and acts: one animator.
   useEffect(() => {
@@ -600,7 +613,17 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         let seatH = 0.45;
         let face = ry;
         const isMe = p.id === 'me';
-        if (p.pose === 'lie') {
+        const outside = isMe && P.acting?.obj ? placedRef.current.get(P.acting.obj) : undefined;
+        if (p.pose === 'lie' && outside && outside.group.userData.outdoor) {
+          // On a sun lounger, or floating in the pool or the hot tub.
+          pos = outside.group.position.clone();
+          const water = /pool|tub/.test(outside.obj.id);
+          if (water) pos.y = GROUND_Y - 0.55;
+          face = outside.ry + (water ? 0 : Math.PI);
+          poseId = water ? 'sit' : 'lie';
+          seatH = water ? 0.2 : 0.42;
+          if (water) fx.water(particles, pos.clone().add(new THREE.Vector3(0, 0.9, 0)), dt * 0.3);
+        } else if (p.pose === 'lie') {
           const b = bedOf() ?? live.current.objects.find((o) => o.id === 'bed')?.spot;
           if (b) {
             const bc = center(b);
@@ -765,6 +788,21 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
               break;
             }
             case 'workout':
+              if (o?.group.userData.outdoor) {
+                // A swim: in the water, splashing.
+                pos = oc.clone();
+                pos.y = GROUND_Y - 0.6;
+                poseId = 'walk';
+                fx.water(particles, oc.clone().add(new THREE.Vector3(0, 0.5, 0)), dt);
+                break;
+              }
+              if (o && /treadmill|weights/.test(o.obj.id)) {
+                pos = oc.clone();
+                face = o.ry + Math.PI;
+                poseId = o.obj.id === 'treadmill' ? 'walk' : 'squat';
+                pos.y = o.obj.id === 'treadmill' ? 0.18 : 0;
+                break;
+              }
               poseId = 'squat';
               face = P.plan ? Math.PI * 0.15 : face;
               fx.sparkle(
