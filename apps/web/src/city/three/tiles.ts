@@ -56,7 +56,8 @@ export interface TileSet {
   /** Tiles that exist ("tx_ty") and their size in metres. */
   keys: Set<string>;
   size: number;
-  update(x: number, y: number, dist: number, ctx: TileContext): void;
+  /** `reach`: load this far instead (a sky view, Wave 12). */
+  update(x: number, y: number, dist: number, ctx: TileContext, reach?: number): void;
   /** How many tiles stand now. */
   loaded(): number;
   /** Drop every tile (the ground kept clear changed): they come back at the next update. */
@@ -116,8 +117,8 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
         loaded.delete(k);
       }
     },
-    update(x, y, dist, ctx) {
-      const R = Math.min(3000, Math.max(1200, dist * 2));
+    update(x, y, dist, ctx, reach) {
+      const R = reach ?? Math.min(3000, Math.max(1200, dist * 2));
       const want = new Set<string>();
       for (let ty = Math.floor((y - R) / size); ty <= Math.floor((y + R) / size); ty++)
         for (let tx = Math.floor((x - R) / size); tx <= Math.floor((x + R) / size); tx++) {
@@ -132,7 +133,15 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
           loaded.delete(k);
           ctx.onShow?.(k, false);
         }
-      for (const k of want) {
+      // Nearest first (a sky view asks for a lot at once).
+      const order = [...want].sort((a, b) => {
+        const [ax, ay] = a.split('_').map(Number) as [number, number];
+        const [bx, by] = b.split('_').map(Number) as [number, number];
+        const d = (tx: number, ty: number) =>
+          Math.hypot((tx + 0.5) * size - x, (ty + 0.5) * size - y);
+        return d(ax, ay) - d(bx, by);
+      });
+      for (const k of order) {
         if (loaded.has(k)) continue;
         loaded.set(k, 'loading');
         void fetch(`/geo/${marketId}/b-${k}.bin`)

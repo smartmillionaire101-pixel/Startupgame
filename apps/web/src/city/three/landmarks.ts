@@ -447,7 +447,9 @@ function model(kind: string, name: string): THREE.Group | null {
         l.rotation.x = -0.25;
         l.rotation.z = sx > 0 ? 0.24 : -0.24;
       }
-      g.rotation.y = 0.5;
+      // The wheel stands parallel to the Albert Embankment (its rim runs 7° east of north,
+      // as the OSM outline of its rim does), the A-frame on the land side.
+      g.rotation.y = 1.69;
       return g;
     }
     case 'burj-khalifa': {
