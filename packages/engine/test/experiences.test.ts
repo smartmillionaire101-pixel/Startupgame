@@ -38,8 +38,14 @@ it('charges flights at booking, persists paid tickets, boards without charging t
   expect(w.players.host!.location?.market).toBe('london');
   expect(tryRun(w, 'host', { type: 'travel.fly', to: 'london' }).ok).toBe(false);
 });
-it('runs a custom multiplayer quiz, hides answers, excludes its author and pays the sole winner the full pot', () => {
+it('replays a pre-Wave 12 custom quiz: hides answers, excludes its author and pays the sole winner the full pot', () => {
   let w = homeVisit(homeVisit(people(), 'alice'), 'bob');
+  // A world from before the Wave 12 release note: custom questions still ran then.
+  w = run(w, null, {
+    type: 'system.announce',
+    id: 'release-2026-10-08-wave11',
+    text: 'An earlier update.',
+  }).world;
   const supply = moneyByCurrency(w);
   const beforeA = w.accounts[w.players.alice!.accounts.local]!.balance;
   const created = run(w, 'host', {

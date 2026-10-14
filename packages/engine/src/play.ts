@@ -26,6 +26,17 @@ export interface QuizQuestion {
  * (custom sets honoured, the original 20-question pool).
  */
 export const AUTO_QUIZ_FROM = Date.UTC(2026, 9, 14);
+/**
+ * The release note that switches quizzes to the built-in bank. A world that
+ * logged earlier release notes but not this one is from before Wave 12: its
+ * rooms replay as they ran (custom questions allowed). The switch is the
+ * logged note itself, never the clock, so replay can't diverge.
+ */
+export const AUTO_QUIZ_NOTE = 'release-2026-10-14-wave12';
+export const autoQuiz = (w: World) => {
+  const notes = w.announcements ?? [];
+  return notes.length === 0 || notes.includes(AUTO_QUIZ_NOTE);
+};
 /** Questions in a built-in quiz. */
 export const QUIZ_LENGTH = 10;
 /** A quiz host waiting alone this long is matched with AI opponents (on the next sync). */
@@ -554,7 +565,7 @@ function createRoom(
   );
   const id = newId(w, 'play');
   // Before Wave 12 a host could write the questions (and then could not play).
-  const legacy = now < AUTO_QUIZ_FROM;
+  const legacy = !autoQuiz(w);
   const custom = legacy && !!cmd.questions?.length;
   let questions: QuizQuestion[];
   if (custom) questions = cmd.questions!;
@@ -712,7 +723,7 @@ export function playCommand(
   if (cmd.type === 'play.sync') {
     // A host alone at a quiz long enough is matched with AI opponents.
     if (
-      now >= AUTO_QUIZ_FROM &&
+      autoQuiz(w) &&
       r.status === 'waiting' &&
       r.game === 'quiz' &&
       !r.custom &&

@@ -228,3 +228,16 @@ describe('Wave 12: sky views', () => {
     expect(d.world.dates![d.result.id]!.viewId).toBe('london-cable-car');
   });
 });
+
+describe('the switch to bank quizzes replays exactly', () => {
+  it('keys on the logged Wave 12 release note, not the clock', async () => {
+    const { autoQuiz, AUTO_QUIZ_NOTE } = await import('../src/play.js');
+    const w = { announcements: ['release-2026-10-08-wave11'] } as unknown as Parameters<
+      typeof autoQuiz
+    >[0];
+    expect(autoQuiz(w)).toBe(false);
+    w.announcements!.push(AUTO_QUIZ_NOTE);
+    expect(autoQuiz(w)).toBe(true);
+    expect(autoQuiz({ announcements: [] } as unknown as typeof w)).toBe(true);
+  });
+});
