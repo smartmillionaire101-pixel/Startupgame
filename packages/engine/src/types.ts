@@ -489,6 +489,8 @@ export interface Safe {
   /** Post-money valuation cap. */
   cap: number;
   month: number;
+  /** Discount on the next round's price (Friends & Family SAFEs). Missing = none. */
+  discountPct?: number;
 }
 
 export interface Preference {
@@ -623,6 +625,12 @@ export interface Company {
   roadmap?: Roadmap | null;
   /** The hiring pipeline (§6.4). Missing = never used: hiring runs as before. */
   hiring?: Hiring | null;
+  /** Business reserve account (§7.2): set aside, not counted as available cash. Missing = none. */
+  reserve?: Id;
+  /** Founder loans to the company (§7.3), outstanding per founder. A liability, never revenue. */
+  founderLoans?: Record<Id, number>;
+  /** Money each founder put in as equity (§7.3), for the books. */
+  founderEquity?: Record<Id, number>;
 }
 
 export type InterviewStyle = 'technical' | 'culture' | 'work_trial';
@@ -663,6 +671,38 @@ export interface Hiring {
   roles: HireRole[];
   candidates: PipelineCandidate[];
   nextId: number;
+}
+
+/** One friend's (or AI angel's) commitment to a Friends & Family round, held in escrow. */
+export interface FriendsCommitment {
+  /** A player id, or an AI angel's fund id (the SAFE holder). */
+  holderId: Id;
+  name: string;
+  ai: boolean;
+  /** Company-currency amount in escrow. */
+  amount: number;
+  /** Where it came from (refunds go back here). */
+  fromAccount: Id;
+  month: number;
+}
+
+/** A Friends & Family round (chapter 3): SAFE terms, commitments in escrow, then close. */
+export interface FriendsRound {
+  id: Id;
+  companyId: Id;
+  founderId: Id;
+  market: MarketId;
+  target: number;
+  valuationCap: number;
+  discountPct: number;
+  status: 'open' | 'closed' | 'cancelled';
+  openedMonth: number;
+  closedMonth?: number;
+  /** Escrow account holding commitments until close. */
+  escrow: Id;
+  commitments: FriendsCommitment[];
+  /** Months the founder asked AI angels (once per month). */
+  aiAskedMonths?: number[];
 }
 
 /** A feature on the roadmap (§6.3): planned → in progress → released. */
@@ -1413,6 +1453,8 @@ export interface World {
   events?: Record<Id, CityEvent>;
   /** Accelerator, grant and LP applications (Wave 5). Missing on old saves = none. */
   applications?: Record<Id, CapitalApplication>;
+  /** Friends & Family rounds (chapter 3). Missing on old saves = none. */
+  ffRounds?: Record<Id, FriendsRound>;
   /** Wave 8: home visit invitations. Missing on old saves = none. */
   visits?: Record<Id, Visit>;
   /** Wave 8: hangouts. Missing on old saves = none. */

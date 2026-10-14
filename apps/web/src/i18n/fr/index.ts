@@ -32,6 +32,7 @@ import { onlinePlay } from './online-play';
 import { roadmap } from './roadmap';
 import { sales } from './sales';
 import { hiring } from './hiring';
+import { founderFinance } from './founder-finance';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -67,6 +68,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   roadmap,
   sales,
   hiring,
+  founderFinance,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

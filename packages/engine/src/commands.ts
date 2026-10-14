@@ -603,6 +603,46 @@ export const commandSchema = z.discriminatedUnion('type', [
     companyId: id,
     candidateId: z.enum(['cto', 'operator', 'growth']).optional(),
   }),
+  // ---- founder finance and Friends & Family (chapter 3, §7.2–7.3)
+  /** Put personal money in, classified: new founder shares (equity) or a founder loan. */
+  z.object({
+    type: z.literal('company.contribute'),
+    companyId: id,
+    amount: z.number().int().positive().max(1e15),
+    as: z.enum(['equity', 'loan']),
+  }),
+  /** The company repays (part of) your founder loan. */
+  z.object({
+    type: z.literal('company.repayFounder'),
+    companyId: id,
+    amount: z.number().int().positive().max(1e15),
+  }),
+  /** Move money into (`in`) or out of (`out`) the business reserve. */
+  z.object({
+    type: z.literal('company.reserve'),
+    companyId: id,
+    amount: z.number().int().positive().max(1e15),
+    dir: z.enum(['in', 'out']),
+  }),
+  /** Open a Friends & Family round on SAFE terms; contacts (and `inviteIds`) are invited. */
+  z.object({
+    type: z.literal('ff.open'),
+    companyId: id,
+    target: z.number().int().positive().max(1e15),
+    valuationCap: z.number().int().positive().max(1e15),
+    discountPct: z.number().int().min(0).max(30),
+    inviteIds: z.array(id).max(20).optional(),
+  }),
+  /** Any player (any role) backs a round: the money is held in escrow until close. */
+  z.object({
+    type: z.literal('ff.commit'),
+    roundId: id,
+    amount: z.number().int().positive().max(1e15),
+  }),
+  /** Ask the city's AI angels to join (once a month). */
+  z.object({ type: z.literal('ff.askAi'), roundId: id }),
+  z.object({ type: z.literal('ff.close'), roundId: id }),
+  z.object({ type: z.literal('ff.cancel'), roundId: id }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
   // ---- Who's here (Wave 6)
   /**

@@ -135,6 +135,17 @@ import {
   releaseProject,
   removeProject,
 } from './roadmap.js';
+import {
+  askAiFriends,
+  cancelFriendsRound,
+  closeFriendsRound,
+  commitToRound,
+  contribute,
+  getRound,
+  moveReserve,
+  openFriendsRound,
+  repayFounder,
+} from './founderfinance.js';
 
 export interface CommandContext {
   /** The authenticated player, or null for system commands issued by the server. */
@@ -1159,6 +1170,34 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return closeRole(touch(cmd.companyId), cmd.roleId);
     case 'cofounder.ai':
       return hireAiCofounder(world, touch(cmd.companyId), me, cmd.candidateId, month);
+    case 'company.contribute':
+      return contribute(world, me, touch(cmd.companyId), cmd.amount, cmd.as, month);
+    case 'company.repayFounder':
+      return repayFounder(world, me, touch(cmd.companyId), cmd.amount, month);
+    case 'company.reserve':
+      return moveReserve(world, touch(cmd.companyId), cmd.amount, cmd.dir, month);
+    case 'ff.open':
+      return openFriendsRound(world, me, touch(cmd.companyId), cmd, month);
+    case 'ff.commit': {
+      // Open to every role: friends back friends. Months follow the company's city.
+      const r = getRound(world, cmd.roundId);
+      return commitToRound(world, me, r, cmd.amount, getMarket(world, r.market).month);
+    }
+    case 'ff.askAi': {
+      const r = getRound(world, cmd.roundId);
+      touch(r.companyId);
+      return askAiFriends(world, me, r, getMarket(world, r.market).month);
+    }
+    case 'ff.close': {
+      const r = getRound(world, cmd.roundId);
+      touch(r.companyId);
+      return closeFriendsRound(world, me, r, getMarket(world, r.market).month);
+    }
+    case 'ff.cancel': {
+      const r = getRound(world, cmd.roundId);
+      touch(r.companyId);
+      return cancelFriendsRound(world, r, getMarket(world, r.market).month);
+    }
     case 'inbox.read': {
       for (const item of world.inbox[me.id] ?? [])
         if (!cmd.ids || cmd.ids.includes(item.id)) item.read = true;

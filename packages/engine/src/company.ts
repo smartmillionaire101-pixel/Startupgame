@@ -32,6 +32,7 @@ import { monthlyGrowth } from './valuation.js';
 import { setCogs } from './world.js';
 import { recordInterest, recordLoanLoss } from './banks.js';
 import { advanceRoadmap, roadmapFeedback, roadmapShare } from './roadmap.js';
+import { releaseReserveIfShort, windDownFounderFinance } from './founderfinance.js';
 import { updateDistress } from './rescue.js';
 import { buildStory, storySnapshot } from './story.js';
 import { salesBilling, settleSales } from './sales.js';
@@ -511,6 +512,8 @@ export function settleCompany(world: World, c: Company, rng: Rng, month: number)
   roadmapFeedback(world, c, month);
   settleSales(world, c, month);
   settleHiring(world, c, month);
+  // A business reserve covers a month the main account can't (companies with one only).
+  releaseReserveIfShort(world, c, month);
   const pnl = settleFinances(world, c, rng, month);
   const runway = companyRunway(world, c);
   const departures = settleStaff(world, c, rng, month, runway, c.finance.unpaidPayroll > 0);
@@ -657,6 +660,8 @@ export function shutdownCompany(
   month: number,
 ) {
   const m = getMarket(world, c.market);
+  // The business reserve comes back into the main account first (companies with one only).
+  windDownFounderFinance(world, c, 'reserve', month);
   // Staff first: unpaid wages plus one month's severance in an orderly wind-down.
   const owedStaff =
     c.finance.unpaidPayroll + (how === 'orderly' ? c.staff.reduce((a, s) => a + s.salary, 0) : 0);
@@ -686,6 +691,8 @@ export function shutdownCompany(
       l.outstanding = 0;
     }
   }
+  // Founder loans are debts too: repaid after the banks, before shareholders.
+  windDownFounderFinance(world, c, 'founders', month);
   // Then shareholders by preference.
   const remaining = account(world, c.account).balance;
   if (remaining > 0) {

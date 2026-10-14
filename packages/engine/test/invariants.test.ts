@@ -334,6 +334,24 @@ describe('world invariants under random play', () => {
         score: fc.integer({ min: 1, max: 10 }),
         pick: fc.nat(10),
       }),
+      // Chapter 3: founder money classified, the reserve, a Friends & Family round.
+      fc.record({
+        k: fc.constant('ff' as const),
+        op: fc.constantFrom(
+          'equity' as const,
+          'loan' as const,
+          'repay' as const,
+          'reserveIn' as const,
+          'reserveOut' as const,
+          'open' as const,
+          'commit' as const,
+          'commitLondon' as const,
+          'askAi' as const,
+          'close' as const,
+          'cancel' as const,
+        ),
+        amount: fc.integer({ min: 1, max: 3_000_000_00 }),
+      }),
       fc.record({
         k: fc.constant('luxe' as const),
         investor: fc.boolean(),
@@ -359,6 +377,35 @@ describe('world invariants under random play', () => {
             let actor: string | null = 'u_founder';
             let cmd: Command;
             switch (a.k) {
+              case 'ff': {
+                const roundId =
+                  Object.values(w.ffRounds ?? {}).find((r) => r.status === 'open')?.id ?? 'ff_none';
+                const op = a.op;
+                if (op === 'equity' || op === 'loan')
+                  cmd = { type: 'company.contribute', companyId: cid, amount: a.amount, as: op };
+                else if (op === 'repay')
+                  cmd = { type: 'company.repayFounder', companyId: cid, amount: a.amount };
+                else if (op === 'reserveIn' || op === 'reserveOut')
+                  cmd = {
+                    type: 'company.reserve',
+                    companyId: cid,
+                    amount: a.amount,
+                    dir: op === 'reserveIn' ? 'in' : 'out',
+                  };
+                else if (op === 'open')
+                  cmd = {
+                    type: 'ff.open',
+                    companyId: cid,
+                    target: a.amount * 2,
+                    valuationCap: a.amount * 20,
+                    discountPct: 15,
+                  };
+                else if (op === 'commit' || op === 'commitLondon') {
+                  actor = op === 'commit' ? 'u_inv' : 'u_lon';
+                  cmd = { type: 'ff.commit', roundId, amount: a.amount };
+                } else cmd = { type: `ff.${op}`, roundId };
+                break;
+              }
               case 'settle': {
                 actor = null;
                 day++;

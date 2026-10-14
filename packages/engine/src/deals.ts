@@ -34,6 +34,7 @@ import { contractFlags, startContract } from './marketplace.js';
 import { openVote, requiresVote } from './governance.js';
 import { assertCanLend, playerBankHolderId } from './banks.js';
 import { executePlayerAcquisition } from './acquisitions.js';
+import { exitFounderFinance } from './founderfinance.js';
 
 export const DEAL_LIFETIME_MONTHS = 2;
 
@@ -749,6 +750,10 @@ export function settleExit(
   status: 'acquired',
 ): WaterfallLine[] {
   const m = getMarket(world, c.market);
+  // Founder loans, the reserve and an open Friends & Family round are settled
+  // first (only companies that used them: older saves are untouched).
+  const hasNew = !!c.reserve || Object.keys(c.founderLoans ?? {}).length > 0 || !!world.ffRounds;
+  if (hasNew) proceeds = exitFounderFinance(world, c, proceeds, m.ext.lps, m.month);
   const lines = waterfall(c.capTable, proceeds);
   for (const line of lines) {
     if (line.total <= 0) continue;

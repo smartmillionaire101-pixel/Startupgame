@@ -8,6 +8,7 @@ import { ExpansionCard } from './Expansion';
 import { Roadmap } from './Roadmap';
 import { SalesPipeline } from './Sales';
 import { CofounderCard, HiringPipeline, TeamHealth } from './Hiring';
+import { RunwayExplainer } from './FundCompany';
 
 type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -126,6 +127,7 @@ export function CompanyScreen() {
       </div>
       {tab === 'product' && (
         <>
+          <RunwayExplainer c={c} />
           <Product c={c} />
           <ExpansionCard c={c} />
         </>
