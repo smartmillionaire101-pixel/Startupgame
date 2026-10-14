@@ -33,6 +33,7 @@ import {
   receiptView,
   startersFor,
   statementView,
+  recapView,
   STATEMENT_PAGE_MAX,
   type MarketId,
   BANK_TYPES,
@@ -627,6 +628,20 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       return reply.code(404).send({ error: { code: 'account', message: 'No such account.' } });
     reply.header('cache-control', 'private, no-store');
     return { statement };
+  });
+
+  /** The month recap for an earlier month (the current one comes with the player view). */
+  app.get('/api/recap', { preHandler: requireUser }, async (req, reply) => {
+    const parsed = z
+      .object({ month: z.coerce.number().int().min(0).max(100_000).optional() })
+      .safeParse(req.query);
+    if (!parsed.success)
+      return reply.code(400).send({ error: { code: 'invalid', message: 'Invalid query.' } });
+    const recap = recapView(game.current, req.userId!, parsed.data.month);
+    if (!recap)
+      return reply.code(404).send({ error: { code: 'player', message: 'No such player.' } });
+    reply.header('cache-control', 'private, no-store');
+    return { recap };
   });
 
   /** One transaction's receipt, as the player saw it (404 unless it touched their accounts). */
