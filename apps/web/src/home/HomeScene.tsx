@@ -43,18 +43,22 @@ import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
 import { businessesOf, hash } from '../city/contract';
 import { carOf, genderOf, nearest, sellsOf, storeForSlot } from '../city/life';
 import type { SceneProps } from '../city/PlaceScene';
-import { FixtureArt, SlotArt, TILE } from './art';
+import { DecorArt, FixtureArt, SlotArt, TILE } from './art';
 import {
+  KIND_OF_TIER,
   TIER_HOME,
   blockedTiles,
+  homeSpecOf,
   key,
   planFor,
   wallEdges,
   type HomeAct,
+  type HomeKind,
   type HomePlan,
   type Spot,
   type Verb,
 } from './layout';
+import { groundsFor, outdoorThings, type Grounds } from './grounds';
 import { ActFx } from './ActFx';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
@@ -118,6 +122,11 @@ interface Obj {
   owned?: boolean;
   /** Draw order: the footprint's bottom edge. */
   base: number;
+  /** Wave 12: a model of its own (decor, things outside), its finish and facing. */
+  model?: string;
+  finish?: number;
+  ry?: number;
+  outdoor?: boolean;
 }
 
 interface Person {
@@ -189,7 +198,19 @@ export interface HostView {
   tiers: Map<string, number>;
   cars?: string[];
   estate?: 'villa' | 'mansion' | 'penthouse' | null;
+  /** Wave 12: the host's kind of home and wealth band (the size of the house). */
+  kind?: HomeKind;
+  wealth?: number;
 }
+
+/** Wave 12: the name of a home by its kind (owners), else by lifestyle tier. */
+const KIND_NAME: Partial<Record<HomeKind, string>> = {
+  studio: 'Studio',
+  townhouse: 'Townhouse',
+  villa: 'Villa',
+  mansion: 'Mansion',
+  penthouse: 'Penthouse',
+};
 
 export function HomeScene({
   place,
@@ -204,7 +225,16 @@ export function HomeScene({
     1,
     Math.min(5, hostView?.tier ?? view.me.residence?.lifestyleTier ?? view.me.lifestyle?.tier ?? 2),
   );
-  const basePlan = planFor(tier);
+  // Wave 12: the house grows with the kind of home and how rich its owner is.
+  const residence = hostView ? null : view.me.residence;
+  const specKind = hostView
+    ? (hostView.kind ?? KIND_OF_TIER[tier]!)
+    : homeSpecOf(residence, tier).kind;
+  const specWealth = hostView ? (hostView.wealth ?? 1) : homeSpecOf(residence, tier).wealth;
+  const basePlan = planFor(tier, { kind: specKind, wealth: specWealth });
+  const garageKey = (hostView ? (hostView.cars ?? []) : view.me.garage.map((c) => c.modelId)).join(
+    ',',
+  );
   const tiers = useMemo(() => hostView?.tiers ?? ownedTiers(view), [view, hostView]);
   const ownedKey = [...tiers.keys()].sort().join(',');
   const owned = useMemo(() => new Set(ownedKey ? ownedKey.split(',') : []), [ownedKey]);
@@ -257,7 +287,18 @@ export function HomeScene({
   };
 
   // ---- What's in the flat
-  const objects = useMemo(() => buildObjects(plan, tiers, night), [plan, tiers, night]);
+  const grounds = useMemo(
+    () => groundsFor(plan, garageKey ? garageKey.split(',') : []),
+    [plan, garageKey],
+  );
+  const carNames = useMemo(
+    () => new Map<string, string>((view.market.shop?.cars ?? []).map((c) => [c.id, c.label])),
+    [view.market.shop],
+  );
+  const objects = useMemo(
+    () => buildObjects(plan, tiers, night, grounds, (m) => carNames.get(m) ?? m),
+    [plan, tiers, night, grounds, carNames],
+  );
 
   // ---- People
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
@@ -305,10 +346,16 @@ export function HomeScene({
   const [size, setSize] = useState({ w: 360, h: 480 });
 
   const bounds = useMemo(() => {
-    const top = -WALL - 10;
-    const bottom = plan.h * TILE + 14 + (car ? 58 : 0);
-    return { x0: -12, x1: plan.w * TILE + 12, y0: top, y1: bottom };
-  }, [plan, car]);
+    const f = grounds.focus;
+    const top = Math.min(-WALL - 10, f.y * TILE - 10);
+    const bottom = Math.max(plan.h * TILE + 14, (f.y + f.h) * TILE + 10);
+    return {
+      x0: Math.min(-12, f.x * TILE - 10),
+      x1: Math.max(plan.w * TILE + 12, (f.x + f.w) * TILE + 10),
+      y0: top,
+      y1: bottom,
+    };
+  }, [plan, grounds]);
   const zoom = useMemo(() => {
     const fw = size.w / (bounds.x1 - bounds.x0);
     const fh = size.h / (bounds.y1 - bounds.y0);
@@ -652,6 +699,16 @@ export function HomeScene({
     if (v.id === 'out') return onClose();
     if (v.id === 'invite') return setSheet('invite');
     if (v.id === 'order') return openPhone({ app: 'chop' } as unknown as PhoneOpen);
+    if ('model' in v) {
+      // Your car of choice for the day, then out to the city.
+      if (hostView) return;
+      void (async () => {
+        if (car?.modelId !== v.model && !(await send({ type: 'car.select', modelId: v.model })))
+          return;
+        onClose();
+      })();
+      return;
+    }
     if ('slot' in v) return goShop(v.slot);
     if ('move' in v) return startPlacing(v.move, obj.label);
     const p = me.current;
@@ -961,7 +1018,10 @@ export function HomeScene({
         spot: o.spot,
         slot: o.slot,
         owned: o.owned,
-        tier: o.slot ? (tiers.get(o.slot) ?? 1) : 1,
+        tier: o.slot ? (tiers.get(o.slot) ?? 1) : (o.finish ?? 1),
+        ...(o.model ? { model: o.model } : {}),
+        ...(o.ry !== undefined ? { ry: o.ry } : {}),
+        ...(o.outdoor ? { outdoor: true } : {}),
       })),
     [objects, tiers],
   );
@@ -988,7 +1048,9 @@ export function HomeScene({
   const pocket = view.accounts.local?.balance ?? 0;
   const homeName = hostView
     ? t('{name}’s place', { name: hostView.name.split(' ')[0]! })
-    : t(TIER_HOME[tier - 1]!);
+    : residence && KIND_NAME[specKind]
+      ? t(KIND_NAME[specKind]!)
+      : t(TIER_HOME[tier - 1]!);
 
   return (
     <div
@@ -999,6 +1061,9 @@ export function HomeScene({
       data-room="apartment"
       data-scene={place.id}
       data-tier={tier}
+      data-kind={plan.kind}
+      data-wealth={plan.wealth}
+      data-plan-w={plan.w}
       data-night={night ? '1' : '0'}
       data-energy={view.me.energy}
       data-pocket={pocket}
@@ -1064,13 +1129,7 @@ export function HomeScene({
               dusk={dusk}
               car={car?.modelId ?? null}
               cars={hostView ? (hostView.cars ?? []) : view.me.garage.map((c) => c.modelId)}
-              estate={
-                hostView
-                  ? hostView.estate
-                  : ['villa', 'mansion', 'penthouse'].includes(view.me.residence?.tier ?? '')
-                    ? (view.me.residence!.tier as 'villa' | 'mansion' | 'penthouse')
-                    : null
-              }
+              grounds={grounds}
               delivery={
                 view.living.deliveries.find((d) => d.owner === placeOwner && !d.complete) ?? null
               }
@@ -1166,25 +1225,6 @@ export function HomeScene({
             </g>
             <g className="home-objects">{drawn.map((d) => d.node)}</g>
             <Front plan={plan} />
-            {car && (
-              <g
-                data-car={car.label}
-                transform={`translate(${(plan.door.x + 2) * TILE} ${plan.h * TILE + 20})`}
-              >
-                <rect
-                  x={-20}
-                  y={-6}
-                  width={plan.w * TILE - (plan.door.x + 2) * TILE + 20}
-                  height={44}
-                  fill="#9ca3af"
-                  opacity="0.5"
-                />
-                <rect x={0} y={2} width={70} height={28} rx={9} fill="#dc2626" />
-                <rect x={14} y={6} width={34} height={20} rx={5} fill="#1f2937" opacity="0.8" />
-                <circle cx={14} cy={31} r={5} fill="#111827" />
-                <circle cx={56} cy={31} r={5} fill="#111827" />
-              </g>
-            )}
             {acting && !is3d && <ActFx act={acting.act} x={acting.x} y={acting.y} />}
             {ghost && !is3d && (
               <rect
@@ -1314,19 +1354,19 @@ export function HomeScene({
       {view.living.deliveries.some((d) => d.owner === placeOwner && !d.complete) && (
         <div className="home-delivery-banner">
           <button onClick={() => openLiving(placeOwner)}>
-            🚚 Delivery on its way / at your door · Open
+            {t('🚚 Delivery on its way / at your door · Open')}
           </button>
         </div>
       )}
       <nav className="home-bar" aria-label={t('Home actions')}>
         <button className="home-bar-btn" onClick={() => openLiving(placeOwner)}>
-          🚚 Home & friends
+          {t('🚚 Home & friends')}
         </button>
         <button
           className="home-bar-btn"
           onClick={() => openPlay({ venue: `home:${placeOwner}`, name: homeName })}
         >
-          🎮 Play together
+          {t('🎮 Play together')}
         </button>
         {hostView ? (
           <button type="button" className="home-bar-btn" onClick={onClose}>
@@ -1422,7 +1462,13 @@ const seenGuests = new Set<string>();
 // ---------------------------------------------------------------------------
 // What's in the flat
 
-function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean): Obj[] {
+function buildObjects(
+  plan: HomePlan,
+  tiers: Map<string, number>,
+  night: boolean,
+  grounds: Grounds,
+  carName: (model: string) => string,
+): Obj[] {
   const out: Obj[] = [];
   const has = (s: string) => tiers.has(s);
   const tierOf = (s: string) => tiers.get(s) ?? 1;
@@ -1554,6 +1600,44 @@ function buildObjects(plan: HomePlan, tiers: Map<string, number>, night: boolean
   fixture('pool', 'pool', t('Pool table'), [act('tv', t('Play pool'))]);
   fixture('piano', 'piano', t('Piano'), [act('tv', t('Play the piano'))]);
   fixture('door', 'door', t('Front door'), [{ id: 'out', label: t('Go out') }]);
+  // Wave 12: what a bigger home comes with (guest beds, the island, the gym, the cinema).
+  for (const d of plan.decor)
+    push({
+      id: d.id,
+      label: t(d.label),
+      spot: d.spot,
+      verbs: d.verbs.map((v) =>
+        'act' in v ? act(v.act, t(v.label)) : ({ id: 'invite', label: t(v.label) } as Verb),
+      ),
+      art: <DecorArt model={d.model} w={d.spot.w} h={d.spot.h} />,
+      model: d.model,
+      finish: d.tier,
+      ry: (d.spot.rot * Math.PI) / 2,
+    });
+  // …and outside: the pool, the loungers, your cars. You use them from the front door.
+  for (const o of outdoorThings(grounds)) {
+    const spot: Spot = {
+      x: o.x,
+      y: o.y,
+      w: o.w,
+      h: o.h,
+      blocked: false,
+      interact: { ...plan.door },
+    };
+    push({
+      id: o.id,
+      label: o.model.startsWith('car:') ? carName(o.model.slice(4)) : t(o.label),
+      spot,
+      verbs: o.verbs.map((v) =>
+        'act' in v ? act(v.act, t(v.label)) : { id: 'car', label: t(v.label), model: v.model },
+      ),
+      art: <DecorArt model={o.model} w={o.w} h={o.h} />,
+      model: o.model,
+      finish: 2,
+      ry: o.rot,
+      outdoor: true,
+    });
+  }
   // Owned slots carry their verbs; the rest get a "+".
   for (const slot of Object.keys(plan.slots)) if (!has(slot)) plus(slot);
   return out;
@@ -1569,6 +1653,8 @@ function ObjNode({ o }: { o: Obj }) {
       data-obj={o.id}
       data-furniture={o.owned ? o.slot : undefined}
       data-owned={o.owned ? '1' : undefined}
+      data-car={o.model?.startsWith('car:') ? o.label : undefined}
+      data-outdoor={o.outdoor ? '1' : undefined}
       role="button"
       aria-label={o.label}
       transform={`translate(${x} ${y})`}

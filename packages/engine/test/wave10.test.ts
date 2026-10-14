@@ -238,6 +238,23 @@ describe('real estate (Wave 10 §A)', () => {
     expect(!away.ok && away.error.message).toMatch(/Fly to Lagos/);
   });
 
+  it('the home you live in carries a wealth band from your net worth next to its value', () => {
+    let w = gift(addSfFounder(withSf(10)), 'u_sf', 20_000_000_00);
+    const villa = marketProperties(w, SF).find((x) => x.tier === 'villa')!;
+    w = run(w, 'u_sf', { type: 'property.buy', propertyId: villa.id }).world;
+    w = run(w, 'u_sf', { type: 'property.moveIn', propertyId: villa.id }).world;
+    const band = (x: World) => playerView(x, 'u_sf')!.me.residence!.wealth;
+    const b0 = band(w);
+    expect(b0).toBeGreaterThanOrEqual(0);
+    expect(b0).toBeLessThanOrEqual(3);
+    // Much richer: the band goes up (view only, nothing is charged).
+    const rich = gift(w, 'u_sf', priceOf(w, villa) * 10);
+    expect(band(rich)).toBe(3);
+    expect(band(rich)).toBeGreaterThanOrEqual(b0);
+    // The friend visiting sees the same band.
+    expect(playerView(rich, 'u_sf')!.me.residence).toMatchObject({ tier: 'villa', wealth: 3 });
+  });
+
   it('moving into a home in another city makes it your home city', () => {
     let w = gift(addInvestor(withSf(12), 'u_inv', 'lagos'), 'u_inv', 3_000_000_000_00);
     w = run(w, 'u_inv', { type: 'travel.fly', to: SF }).world;

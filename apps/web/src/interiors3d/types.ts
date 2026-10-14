@@ -5,6 +5,7 @@
 import type { MutableRefObject } from 'react';
 import type { AvatarLook } from '../city/art';
 import type { HomeAct, HomePlan, Spot } from '../home/layout';
+import type { Grounds } from '../home/grounds';
 
 export interface Home3DPerson {
   id: string;
@@ -22,6 +23,12 @@ export interface Home3DObject {
   slot?: string;
   owned?: boolean;
   tier?: number;
+  /** Wave 12: the model to draw (a guest bed, the island, a car outside…). */
+  model?: string;
+  /** Wave 12: its facing (radians; 0 = +z), when the plan says. */
+  ry?: number;
+  /** Wave 12: outside the house, on the grounds. */
+  outdoor?: boolean;
 }
 
 export interface PickResult {
@@ -73,4 +80,6 @@ export interface Home3DProps {
   reduced: boolean;
   /** Wave 10: a listing's grounds (pool, garden, penthouse terrace). */
   estate?: 'villa' | 'mansion' | 'penthouse' | null;
+  /** Wave 12: the grounds (pool, drive, garages); worked out from the plan when absent. */
+  grounds?: Grounds;
 }

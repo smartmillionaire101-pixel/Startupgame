@@ -65,7 +65,13 @@ export function Chop(_: { ctx: PhoneCtx }) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       setComing(null);
-      toast(`Your ${i.label} from ${p.name} is at your door. Unpack it at home.`, 'ok');
+      toast(
+        t('Your {item} from {place} is at your door. Unpack it at home.', {
+          item: i.label,
+          place: p.name,
+        }),
+        'ok',
+      );
     }, 30_000);
   };
 
@@ -87,7 +93,7 @@ export function Chop(_: { ctx: PhoneCtx }) {
             <Icon name="rides" size={22} />
           </span>
           <div>
-            <div className="item-title">{'Delivery arrives in 30 seconds · unpack at home'}</div>
+            <div className="item-title">{t('Delivery arrives in 30 seconds · unpack at home')}</div>
             <div className="small">
               {t('{item} from {place}', { item: coming.label, place: coming.from })}
             </div>

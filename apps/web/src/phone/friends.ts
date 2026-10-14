@@ -113,6 +113,9 @@ export interface Visiting {
   tier: number;
   /** Furniture tier per slot the host owns. */
   items: { slot: string; tier: number }[];
+  /** Wave 12: the host's own home (its tier) and wealth band, which size the house. */
+  kind: string | null;
+  wealth: number;
 }
 
 /** `view.visiting`: the friend's home you're in, or null. */
@@ -135,6 +138,10 @@ export function visitingOf(view: View): Visiting | null {
       gender: h.gender === 'female' || h.gender === 'male' ? h.gender : null,
     },
     tier: Math.max(1, Math.min(5, Math.round(num(v.lifestyleTier, 2)))),
+    kind: isObj(v.residence) && typeof v.residence.tier === 'string' ? v.residence.tier : null,
+    wealth: isObj(v.residence)
+      ? Math.max(0, Math.min(3, Math.round(num(v.residence.wealth, 1))))
+      : 1,
     items: list(home.items)
       .filter((i) => typeof i.slot === 'string')
       .map((i) => ({ slot: i.slot as string, tier: Math.max(1, Math.min(3, num(i.tier, 1))) })),
