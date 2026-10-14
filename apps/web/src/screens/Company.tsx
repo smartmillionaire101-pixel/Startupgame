@@ -5,12 +5,14 @@ import { locale, t, tx } from '../i18n';
 import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Segmented, Sheet } from '../ui';
 import { ExpansionCard } from './Expansion';
+import { SalesPipeline } from './Sales';
 
-type Tab = 'product' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
+type Tab = 'product' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
 const tabLabel = (tab: Tab) =>
   ({
     product: t('Product'),
+    sales: t('Sales'),
     customers: t('Customers'),
     team: t('Team'),
     suppliers: t('Suppliers'),
@@ -83,11 +85,13 @@ export function CompanyScreen() {
         <Pill>{c.industryLabel}</Pill>
       </header>
       <div className="tabs" role="tablist">
-        {(['product', 'customers', 'team', 'suppliers', 'board', 'rules'] as Tab[]).map((id) => (
-          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
-            {tabLabel(id)}
-          </button>
-        ))}
+        {(['product', 'sales', 'customers', 'team', 'suppliers', 'board', 'rules'] as Tab[]).map(
+          (id) => (
+            <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+              {tabLabel(id)}
+            </button>
+          ),
+        )}
       </div>
       {tab === 'product' && (
         <>
@@ -95,6 +99,7 @@ export function CompanyScreen() {
           <ExpansionCard c={c} />
         </>
       )}
+      {tab === 'sales' && <SalesPipeline c={c} />}
       {tab === 'customers' && <Customers c={c} />}
       {tab === 'team' && <Team c={c} />}
       {tab === 'suppliers' && <Suppliers c={c} />}

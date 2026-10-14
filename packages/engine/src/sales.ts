@@ -355,7 +355,7 @@ export function prospect(world: World, me: Player, companyId?: Id) {
   ensure(
     used < prospectLimit(c),
     'sales.prospect.limit',
-    `You’ve prospected ${used} times this month. Hire sales staff to do more, or wait for next month.`,
+    'You’ve done all your prospecting this month. Hire sales staff to do more, or wait for next month.',
   );
   const deals = (c.deals ??= []);
   const open = deals.filter(isOpenDeal).length;
@@ -436,7 +436,7 @@ export function advanceDeal(world: World, me: Player, cmd: SalesAdvanceInput) {
   ensure(
     ACTION_FROM[a].includes(d.stage),
     'sales.stage',
-    `You can’t ${a} a deal at the ${d.stage} stage.`,
+    'That step isn’t possible at this stage of the deal.',
   );
   if (a === 'recover') {
     ensure(!d.recovered, 'sales.recover.used', 'You’ve already tried to win this one back.');
@@ -448,7 +448,7 @@ export function advanceDeal(world: World, me: Player, cmd: SalesAdvanceInput) {
   ensure(
     hoursLeft(me) >= hours,
     'hours.short',
-    `This needs ${hours}h; you have ${Math.floor(hoursLeft(me))}h left this month.`,
+    'You don’t have enough hours left this month for that.',
   );
   c.lastDecisionMonth = month;
   const name = d.customer.name;
@@ -505,7 +505,7 @@ export function advanceDeal(world: World, me: Player, cmd: SalesAdvanceInput) {
       ensure(
         Number.isInteger(pct) && pct >= 0 && pct <= SALES.maxDiscountPct,
         'sales.discount',
-        `A discount is 0–${SALES.maxDiscountPct}%.`,
+        'A discount can be at most 40%.',
       );
       ensure(
         (d.negotiations ?? 0) < SALES.maxNegotiations,

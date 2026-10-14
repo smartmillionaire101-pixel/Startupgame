@@ -29,6 +29,7 @@ import { chatWave13 } from './chat-wave13';
 import { bankStatement } from './bank-statement';
 import { journey } from './journey';
 import { onlinePlay } from './online-play';
+import { sales } from './sales';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -61,6 +62,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   bankStatement,
   journey,
   onlinePlay,
+  sales,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

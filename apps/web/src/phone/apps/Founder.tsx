@@ -64,6 +64,11 @@ export function Founder({ ctx }: { ctx: PhoneCtx }) {
       </section>
       <div className="phone-quick-actions">
         <Button onClick={() => tab('company')}>{t('Open company')}</Button>
+        {c.status === 'active' && (
+          <Button variant="subtle" onClick={() => ctx.open('sales')}>
+            {t('Sales pipeline')}
+          </Button>
+        )}
         <Button variant="subtle" onClick={() => tab('money')}>
           {t('Money and fundraising')}
         </Button>

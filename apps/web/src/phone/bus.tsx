@@ -35,7 +35,9 @@ export type PhoneApp =
   | 'homes'
   | 'goingout'
   /** The founder journey: chapters and objectives (founders only). */
-  | 'journey';
+  | 'journey'
+  /** Founder Journey 2a: the sales pipeline (founders with a company). */
+  | 'sales';
 
 export interface PhoneOpen {
   app?: PhoneApp;

@@ -86,7 +86,7 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
     case 'hustle.first-customer':
       return {
         label: t('Win your first paying customer'),
-        why: t('Sell at the Market, or pitch a local business'),
+        why: t('Find leads in your Sales pipeline and close a deal'),
       };
     case 'hustle.customers':
       return {
