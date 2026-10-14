@@ -32,7 +32,6 @@ export const hiring: Record<string, string> = {
   Generous: 'Généreuse',
   'Great fit': 'Excellente adéquation',
   'Growth lead': 'Responsable croissance',
-  High: 'Élevé',
   'Interview with {name} done: {what}.': 'Entretien avec {name} terminé : {what}.',
   'Invitation sent. They get a deal card to accept.':
     'Invitation envoyée. Ils reçoivent une proposition à accepter.',
@@ -46,7 +45,6 @@ export const hiring: Record<string, string> = {
   'Loves working in a team': 'Adore travailler en équipe',
   Low: 'Faible',
   'Market rate': 'Prix du marché',
-  Medium: 'Moyen',
   'Missing skills': 'Compétences manquantes',
   'Motivated by pay': 'Motivé par le salaire',
   'Moves fast': 'Va vite',
