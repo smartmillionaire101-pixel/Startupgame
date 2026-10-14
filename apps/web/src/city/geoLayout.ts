@@ -1302,3 +1302,21 @@ export function buildCityLayout(
   if (data && plan) return buildGeoLayout(input, data, plan, prev);
   return buildLayout(input);
 }
+
+/**
+ * The last layout per city, shared by the City map and the sky views. Laying
+ * out a real map takes seconds on a slow device, so a view that wants the
+ * city the map already laid out gets that one; a changed city is laid out
+ * from it, so what already stood keeps its ground (a fund, bank or business
+ * opening elsewhere moves nothing you know). `key` is the JSON of the input.
+ */
+const layouts = new Map<string, { key: string; geo: GeoData | null; layout: CityLayout }>();
+
+export function cachedCityLayout(key: string, geo: GeoData | null): CityLayout {
+  const input = JSON.parse(key) as CityInput;
+  const hit = layouts.get(input.marketId);
+  if (hit && hit.key === key && hit.geo === geo) return hit.layout;
+  const layout = buildCityLayout(input, geo, hit && hit.geo === geo ? hit.layout : null);
+  layouts.set(input.marketId, { key, geo, layout });
+  return layout;
+}

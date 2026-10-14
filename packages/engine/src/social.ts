@@ -20,7 +20,7 @@ import { ensure, fail } from './errors.js';
 import { addContact } from './events.js';
 import { adjustTrust, col, getMarket, getPlayer, locationOf, notify } from './helpers.js';
 import { newId } from './ids.js';
-import { account, costIn, pay, payExact, valueIn } from './ledger.js';
+import { account, costIn, pay, payExact, valueIn, withTx } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { bumpNeed, moodOf, needsOf } from './needs.js';
@@ -251,16 +251,27 @@ export function sendMoney(
   const toM = getMarket(world, to.market);
   const theirs = account(world, to.accounts.local);
   const clean = cleanNote(note);
-  const received = pay(
+  // One transaction, one receipt on each side: the amount (converted through
+  // the FX desks if the currencies differ) and, for the sender, the fee.
+  const { received, receiptId } = withTx(
     world,
-    me.accounts.local,
-    to.accounts.local,
-    amount,
-    `Transfer: ${me.name} to ${to.name}`,
-    m.month,
-    'sent',
+    { kind: 'transfer', ...(clean ? { note: clean } : {}) },
+    (ref) => {
+      const got = pay(
+        world,
+        me.accounts.local,
+        to.accounts.local,
+        amount,
+        `Transfer: ${me.name} to ${to.name}`,
+        m.month,
+        'sent',
+      );
+      withTx(world, { kind: 'fee', fee: true }, () =>
+        pay(world, me.accounts.local, toM.ext.bank, fee, 'Transfer fee', m.month),
+      );
+      return { received: got, receiptId: ref };
+    },
   );
-  pay(world, me.accounts.local, toM.ext.bank, fee, 'Transfer fee', m.month);
   me.moneySent = { day: lim.day, total: lim.used + amount };
   warmPair(me, to, m.month, 0.05, 0.02);
   notify(world, me.id, {
@@ -283,6 +294,8 @@ export function sendMoney(
     receivedCurrency: theirs.currency,
     leftToday: lim.left - amount,
     note: clean,
+    /** The transaction's reference: both players' receipts (`/api/receipts/:id`) carry it. */
+    receiptId,
     message: `Sent ${fmt(amount)} to ${to.name}. Fee ${fmt(fee)}.`,
   };
 }

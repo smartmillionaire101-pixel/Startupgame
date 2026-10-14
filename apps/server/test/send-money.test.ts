@@ -146,4 +146,47 @@ describe('sending money between players (two function instances, one store)', ()
     expect(bal(await b.view(rt1))).toBe(b1 - 1_000 - back.fee);
     expect(bal(await a.view(rt2))).toBe(a2 + back.received);
   });
+
+  it('gives both players a statement line and a receipt, and nobody else', async () => {
+    const { rt1, rt2, a, b } = await twoInstances();
+    await a.join('+2348039990021', 'ada_receipts');
+    const bId = await b.join('+2348039990022', 'bisi_receipts');
+    const r = await a.command({
+      type: 'money.send',
+      toPlayerId: bId,
+      amount: 250_000,
+      note: 'Suya money',
+    });
+    expect(r.receiptId).toMatch(/^TX\d{8}$/);
+
+    const sa = await a.call('GET', '/api/statement?dir=out', undefined, rt2);
+    expect(sa.status).toBe(200);
+    const [feeLine, sent] = sa.json.statement.lines;
+    expect(sent).toMatchObject({ ref: r.receiptId, amount: -250_000, note: 'Suya money' });
+    expect(sent.counterparty).toMatchObject({ kind: 'player', playerId: bId });
+    expect(feeLine).toMatchObject({ ref: r.receiptId, amount: -r.fee, fee: true });
+    expect(sa.json.statement.totals.out).toBeGreaterThanOrEqual(250_000 + r.fee);
+
+    const sb = await b.call('GET', '/api/statement?q=suya', undefined, rt1);
+    expect(sb.json.statement.lines).toHaveLength(1);
+    expect(sb.json.statement.lines[0]).toMatchObject({ amount: 250_000, ref: r.receiptId });
+
+    const ra = await a.call('GET', `/api/receipts/${r.receiptId}`, undefined, rt1);
+    expect(ra.json.receipt).toMatchObject({
+      direction: 'out',
+      amount: 250_000,
+      fee: r.fee,
+      total: 250_000 + r.fee,
+      note: 'Suya money',
+    });
+    const rb = await b.call('GET', `/api/receipts/${r.receiptId}`, undefined, rt2);
+    expect(rb.json.receipt).toMatchObject({ direction: 'in', amount: 250_000, fee: 0 });
+
+    // A receipt of B's own (their starting savings) isn't A's to read.
+    const bLines = (await b.call('GET', '/api/statement?dir=in', undefined, rt1)).json.statement
+      .lines as { ref: string | null; description: string }[];
+    const own = bLines.find((l) => l.description === 'Starting savings' && l.ref)!;
+    expect((await a.call('GET', `/api/receipts/${own.ref}`)).status).toBe(404);
+    expect((await a.call('GET', '/api/statement?account=nope')).status).toBe(400);
+  });
 });

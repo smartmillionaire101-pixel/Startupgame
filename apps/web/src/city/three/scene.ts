@@ -35,6 +35,7 @@ import { discPoly, FootprintGrid, makeFp, rectPoly, segRectDist, type Fp } from 
 import { homeModel, PLOT, setHomesNight } from './homes3d';
 import { ROAD_HALF, COVER } from './mask';
 import { hoodAt, type OwnedProperty } from '../properties';
+import { covered } from '../../three-kit/cover';
 import { applySky, skyAt, skyDome, skyEnvironment, skyUniforms, type SkyState } from './sky';
 import { treeMeshes, treeSpots } from './trees';
 import { buildLandmarks, EXTRA_3D, landmarkLights, type LandmarkPlan } from './landmarks';
@@ -53,6 +54,15 @@ import {
 import type { AvatarLook } from '../art';
 import type { Walker } from '../people';
 
+/** Least time between two frames on a software renderer (ms). */
+const SOFT_FRAME_MS = 200;
+/** How often a software renderer compiles new shaders ahead of drawing (ms). */
+const SOFT_COMPILE_MS = 1500;
+/** How long a software renderer gives new shaders before the frame that needs them (ms). */
+const SOFT_COMPILE_WAIT_MS = 300;
+/** Most pixels a software renderer shades a frame (a phone screen's worth). */
+const SOFT_PIXELS = 360_000;
+
 export type Tier = 'high' | 'low';
 
 export interface SceneOptions {
@@ -66,6 +76,11 @@ export interface SceneOptions {
    * terrain everything stands on the real hills.
    */
   sky?: { terrain: TerrainField | null };
+  /**
+   * WebGL on the CPU (SwiftShader, llvmpipe): no antialiasing or shadows, one
+   * pixel per CSS pixel and a thinner far city, from the first frame.
+   */
+  soft?: boolean;
 }
 
 /**
@@ -235,19 +250,22 @@ export class CityScene {
     const high = opts.tier === 'high';
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: !opts.soft,
       powerPreference: 'high-performance',
       stencil: false,
     });
     // Phones: at most 1.5 device pixels per CSS pixel (sharp enough on a small
     // screen; 1.75 draws a third more pixels for little to see).
-    this.dprMax = Math.min(2, window.devicePixelRatio || 1, high ? 2 : 1.5);
+    this.dprMax = opts.soft ? 1 : Math.min(2, window.devicePixelRatio || 1, high ? 2 : 1.5);
     this.dpr = this.dprMax;
     this.renderer.setPixelRatio(this.dpr);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = !opts.soft;
+    // Reading back every shader's log waits for it to compile: on a CPU that's seconds.
+    if (opts.soft) this.renderer.debug.checkShaderErrors = false;
+    if (opts.soft) this.degraded = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     // Redrawn when something that casts one moved (see loop), not every frame.
     this.renderer.shadowMap.autoUpdate = false;
@@ -643,7 +661,7 @@ export class CityScene {
       for (const boxes of groups.values())
         for (const m of boxMeshes(boxes, this.instMat)) this.tallGroup.add(m);
       // A budget for the far city: thinned evenly beyond it (the haze hides the gaps).
-      const budget = this.opts.tier === 'high' ? 70000 : 32000;
+      const budget = this.opts.soft ? 12000 : this.opts.tier === 'high' ? 70000 : 32000;
       let total = 0;
       for (const b of farGroups.values()) total += b.length;
       const keep = Math.min(1, budget / Math.max(1, total));
@@ -877,6 +895,9 @@ export class CityScene {
     this.actors?.setNight(this.skyState.night);
     this.renderer.toneMappingExposure = 1.05 * this.skyState.exposure;
     for (const o of this.nightSets) o.visible = this.skyState.night > 0.02;
+    // A software renderer skips the sky's reflections: rendering the sky into a
+    // cube map takes seconds there, and every material compiles a heavier shader.
+    if (this.opts.soft) return;
     this.env?.dispose();
     this.env = skyEnvironment(this.renderer, this.sky);
     this.scene.environment = this.env.texture;
@@ -893,6 +914,12 @@ export class CityScene {
 
   resize(w: number, h: number) {
     this.size = { w: Math.max(1, w), h: Math.max(1, h) };
+    if (this.opts.soft) {
+      // Every pixel is shaded on the CPU: a big window draws fewer, scaled up.
+      const fit = Math.sqrt(SOFT_PIXELS / (this.size.w * this.size.h));
+      this.dprMax = this.dpr = Math.min(1, Math.max(0.4, fit));
+      this.renderer.setPixelRatio(this.dpr);
+    }
     this.renderer.setSize(this.size.w, this.size.h, false);
     this.camera.aspect = this.size.w / this.size.h;
     this.invalidate();
@@ -1160,6 +1187,11 @@ export class CityScene {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
     if (document.visibilityState === 'hidden' || this.paused) return;
+    // The map under a full-screen view (a sky view, the home experiences) waits.
+    if (!this.opts.sky && covered()) return;
+    // On a software renderer every frame costs the page a lot: a few a second
+    // leave it time to answer (the ride keeps to the clock, not the frames).
+    if (this.opts.soft && t - this.lastRender < SOFT_FRAME_MS) return;
     const dt = Math.min(0.1, this.lastT ? (t - this.lastT) / 1000 : 0.016);
     this.lastT = t;
     // Follow the avatar; glide to where we were sent.
@@ -1198,7 +1230,7 @@ export class CityScene {
     const ambient = !this.opts.reduced;
     // Idle: about 20 frames a second for the traffic and the water (10 on a
     // phone, which has the battery and the heat to think of).
-    const idleMs = this.opts.tier === 'high' ? 50 : 100;
+    const idleMs = this.opts.soft ? 1000 : this.opts.tier === 'high' ? 50 : 100;
     if (!active && !(ambient && t - this.lastRender > idleMs)) return;
     // The people and the traffic move only in frames that are drawn.
     this.actors.update(t, this.opts.reduced, this.rig.dist);
@@ -1228,6 +1260,7 @@ export class CityScene {
     this.sky.uTime.value = t / 1000;
     this.glow.uTime.value = t / 1000;
     this.placeCamera();
+    if (this.opts.soft && !this.shadersReady(t)) return;
     this.renderer.render(this.scene, this.camera);
     for (const cb of this.onFrameCbs) cb();
     // Adapt the resolution to how fast frames come.
@@ -1260,8 +1293,34 @@ export class CityScene {
     this.stats.dpr = this.dpr;
   }
 
+  private compiling = false;
+  private compiledAt = -Infinity;
+
+  /**
+   * On a software renderer, compiling a shader takes seconds. Hand the new
+   * ones to the GPU process first (and again, now and then, for what came into
+   * view since) and draw a moment later, so the page keeps answering while
+   * they compile instead of waiting on them in the middle of a frame.
+   */
+  private shadersReady(t: number): boolean {
+    if (this.compiling) return false;
+    if (t - this.compiledAt < SOFT_COMPILE_MS) return true;
+    this.compiledAt = t;
+    this.compiling = true;
+    try {
+      this.renderer.compile(this.scene, this.camera);
+    } catch {
+      /* drawn (and compiled) by the next frame instead */
+    }
+    setTimeout(() => {
+      this.compiling = false;
+      if (!this.disposed) this.invalidate();
+    }, SOFT_COMPILE_WAIT_MS);
+    return false;
+  }
+
   private setDpr(d: number) {
-    this.dpr = Math.max(1, Math.min(this.dprMax, d));
+    this.dpr = Math.max(Math.min(1, this.dprMax), Math.min(this.dprMax, d));
     this.renderer.setPixelRatio(this.dpr);
     this.renderer.setSize(this.size.w, this.size.h, false);
   }

@@ -5,7 +5,7 @@
 import { LIFESTYLE_TIERS, BASE_HOURS, backgroundById } from './data/characters.js';
 import { ensure } from './errors.js';
 import { col, getMarket, notify, spendHours } from './helpers.js';
-import { account, convert, openAccount, transfer, transferUpTo } from './ledger.js';
+import { account, convert, keepStatement, openAccount, transfer, transferUpTo } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { applyStarEvent } from './stars.js';
@@ -173,6 +173,7 @@ export function openUsdAccount(world: World, p: Player) {
     market: p.market,
     label: `${p.name} USD`,
   });
+  keepStatement(world, p);
   return p.accounts.usd;
 }
 

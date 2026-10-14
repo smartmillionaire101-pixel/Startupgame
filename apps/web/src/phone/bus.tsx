@@ -49,6 +49,8 @@ export interface PhoneOpen {
   send?: string;
   /** Wave 10: open the Homes app on your portfolio, at this home. */
   property?: string;
+  /** Open the Bank app on this transaction's receipt (`money.send` returns its `receiptId`). */
+  receipt?: string;
 }
 
 const listeners = new Set<(o: PhoneOpen) => void>();

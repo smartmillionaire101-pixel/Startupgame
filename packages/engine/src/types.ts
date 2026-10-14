@@ -37,10 +37,59 @@ export type BuildMode = 'fast' | 'balanced' | 'quality';
 
 // ---------------------------------------------------------------- Money
 
+/** What a movement was, for statements and receipts (set by the code that moved the money). */
+export type TxKind =
+  | 'transfer'
+  | 'purchase'
+  | 'sale'
+  | 'fee'
+  | 'salary'
+  | 'loan'
+  | 'refund'
+  | 'stake'
+  | 'pot'
+  | 'tax'
+  | 'rent'
+  | 'investment'
+  | 'income'
+  | 'exchange'
+  | 'deposit'
+  | 'other';
+
+/** Currency conversion on a movement: `sent` in `from` became `received` in `to`. */
+export interface TxFx {
+  from: Currency;
+  to: Currency;
+  /** Official units of `to` per unit of `from` (before the fee). */
+  rate: number;
+  feeBps: number;
+  sent: number;
+  received: number;
+}
+
+/**
+ * One line of an account's history. The fields after `memo` were added for
+ * statements and receipts; older lines don't have them. The balance after
+ * each line is not stored: it follows from the current balance, because every
+ * movement is recorded and only the oldest lines are ever dropped.
+ */
 export interface TxRecord {
   month: number;
+  /** Signed: money in is positive, money out negative. */
   amount: number;
   memo: string;
+  /** Transaction number: every leg of one transaction (amount, fee, FX) shares it. */
+  tx?: number;
+  /** Wall-clock time (ms) of the command that moved it. */
+  at?: number;
+  /** The other party's account (the real one, not the FX desk in between). */
+  peer?: Id;
+  kind?: TxKind;
+  /** The sender's note, on both sides of a transfer. */
+  note?: string;
+  /** This leg is a fee on the transaction. */
+  fee?: boolean;
+  fx?: TxFx;
 }
 
 export interface Account {
@@ -56,6 +105,8 @@ export interface Account {
   overdraftLimit?: number;
   label: string;
   recent: TxRecord[];
+  /** Lines of history kept (default 30); a player's own accounts keep a longer statement. */
+  history?: number;
 }
 
 // ---------------------------------------------------------------- Reputation
@@ -1210,6 +1261,8 @@ export interface World {
   seed: number;
   /** Increments with every applied command. */
   version: number;
+  /** Last transaction number handed out by the ledger (receipts). */
+  txSeq?: number;
   nextId: number;
   createdAt: number;
   /** Open markets only; more open in waves via `market.open`. */

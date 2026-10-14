@@ -5,6 +5,7 @@ import { useView } from '../store';
 import { openPhone } from '../phone/bus';
 import { closeLiving, livingPlace, onLiving } from './living-bus';
 import { openPlay } from './play-bus';
+import { cover } from '../three-kit/cover';
 import './experiences.css';
 const Panorama = lazy(() => import('./Panorama'));
 export default function LivingHost() {
@@ -13,6 +14,8 @@ export default function LivingHost() {
 }
 function LivingRoom({ host }: { host: string }) {
   const { view, send, busy, refresh } = useView();
+  // Full screen: the city map underneath stops drawing.
+  useEffect(() => cover(), []);
   const me = view.me.id;
   const [person, setPerson] = useState('');
   /** 'home', or a sky view's id (Wave 12: every city has its real ones). */

@@ -15,7 +15,8 @@ import { skyViewById, skyViewsIn, type SkyViewSpec } from '@runway/engine';
 import { useView } from '../store';
 import { t } from '../i18n';
 import { OSM_CREDIT, fromLatLon, useGeo } from '../city/geo';
-import { buildCityLayout } from '../city/geoLayout';
+import { cachedCityLayout } from '../city/geoLayout';
+import type { CityLayout } from '../city/layout';
 import { cityInput } from '../city/contract';
 import { cityViewOf, localHour } from '../city/travel';
 import { avatarLook } from '../city/art';
@@ -145,11 +146,15 @@ export default function Panorama({
   );
   const cityView = cityViewOf(view);
   const layoutKey = JSON.stringify(cityInput(cityView));
-  // The city as it stands when you go up (its places don't move while you look).
-  const layout = useMemo(() => {
-    if (!geo || geo === 'loading') return null;
-    return buildCityLayout(JSON.parse(layoutKey), geo);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // The city as it stands when you go up (its places don't move while you look):
+  // the map's own layout when it has one, else laid out after the view shows
+  // (seconds on a slow device; the dialog and "Going up…" come first).
+  const [layout, setLayout] = useState<CityLayout | null>(null);
+  const layoutKeyRef = useRef(layoutKey);
+  useEffect(() => {
+    if (!geo || geo === 'loading') return;
+    const id = setTimeout(() => setLayout(cachedCityLayout(layoutKeyRef.current, geo)), 30);
+    return () => clearTimeout(id);
   }, [geo, city]);
   const look = useMemo(
     () => avatarLook(view.me.background?.id, view.me.id, genderOf(view.me)),
@@ -173,12 +178,13 @@ export default function Panorama({
     canvas.className = 'c3-canvas';
     canvas.setAttribute('aria-hidden', 'true');
     const tier = tierOf();
+    const soft = softwareGl();
     let scene: CityScene;
     try {
       scene = new CityScene(
         canvas,
         layout,
-        { tier, reduced, hour: localHour(city), sky: { terrain } },
+        { tier, reduced, hour: localHour(city), sky: { terrain }, soft },
         lookRef.current,
         [],
       );
@@ -195,7 +201,7 @@ export default function Panorama({
     }
     el.prepend(canvas);
     scene.following = false;
-    const ride = new SkyRide(scene, spec, { reduced, tier, soft: softwareGl() });
+    const ride = new SkyRide(scene, spec, { reduced, tier, soft });
     const extras = skyExtras(scene, spec, scene.waterMaterial);
     scene.scene.add(extras);
     scene.onTerrain(extras);
@@ -523,7 +529,17 @@ export default function Panorama({
             </button>
           )}
           {riding && (
-            <button onClick={() => handle.current?.ride.skip()}>{t('Skip to the view')}</button>
+            <button
+              onClick={() => {
+                const h = handle.current;
+                if (!h) return;
+                h.ride.skip();
+                // At the view at once, whatever the frame rate.
+                setState((s) => ({ ...s, progress: 1 }));
+              }}
+            >
+              {t('Skip to the view')}
+            </button>
           )}
           <select
             aria-label={t('Light')}

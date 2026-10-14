@@ -44,6 +44,10 @@ function mat(color: string, o: { emissive?: string; metal?: number; rough?: numb
 
 /** How far the view loads the city (metres) by device tier. */
 export const skyReach = (tier: 'high' | 'low') => (tier === 'high' ? 11_000 : 6_500);
+/** How far a software renderer (no GPU) loads the city. */
+export const SOFT_REACH = 2_500;
+/** The longest step a ride takes between two frames (a hidden tab comes back where it was). */
+const MAX_STEP_MS = 2_000;
 
 export class SkyRide implements ViewController {
   readonly ms: number;
@@ -85,8 +89,9 @@ export class SkyRide implements ViewController {
   ) {
     this.ms = RIDE_MS[spec.kind];
     this.reduced = opts.reduced;
-    // A software renderer (no GPU) draws a nearer city: it has the memory of a phone.
-    this.reach = opts.soft ? 4_000 : skyReach(opts.tier);
+    // A software renderer (no GPU) draws a nearer city: every tile is decoded and
+    // drawn on the CPU, so a few kilometres round you, the rest in the haze.
+    this.reach = opts.soft ? SOFT_REACH : skyReach(opts.tier);
     const data = scene.geo.data;
     const a = fromLatLon(data, spec.at[0], spec.at[1]);
     const lm = spec.landmark
@@ -330,6 +335,8 @@ export class SkyRide implements ViewController {
 
   skip() {
     this.skipped = true;
+    // Arrived now, not at the next frame (which can be a while on a slow renderer).
+    this.progress = 1;
     this.scene.touch(600);
   }
 
@@ -391,7 +398,8 @@ export class SkyRide implements ViewController {
 
   place(camera: THREE.PerspectiveCamera) {
     const now = performance.now();
-    const dt = Math.min(250, now - this.last);
+    // Wall-clock time, so the ride lasts as long at 2 frames a second as at 60.
+    const dt = Math.min(MAX_STEP_MS, now - this.last);
     this.last = now;
     if (!this.paused && !this.skipped) this.elapsed += dt;
     this.progress = this.skipped ? 1 : clamp(this.elapsed / this.ms, 0, 1);

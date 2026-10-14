@@ -43,6 +43,22 @@ export {
 export { giftBlocker, giftsView } from './gifts.js';
 export { playerView, economyDashboard, digest, leaderboards } from './views.js';
 export type { PlayerView } from './views.js';
+export {
+  statementView,
+  receiptView,
+  classify as classifyTx,
+  STATEMENT_PAGE,
+  STATEMENT_PAGE_MAX,
+} from './statement.js';
+export type {
+  StatementLine,
+  StatementQuery,
+  StatementAccount,
+  Receipt,
+  Counterparty,
+  CounterpartyKind,
+} from './statement.js';
+export { txRef, parseTxRef } from './ledger.js';
 export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';
 export { checkChatMessage, startersFor, CHAT_MAX_LENGTH } from './chat.js';
 export {
