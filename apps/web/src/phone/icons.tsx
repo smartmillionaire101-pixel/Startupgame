@@ -46,7 +46,9 @@ export type IconName =
   | 'send'
   /** Wave 10: Homes (a key) and Going out (a cocktail). */
   | 'key'
-  | 'cocktail';
+  | 'cocktail'
+  /** The founder journey (a flag on a pole). */
+  | 'flag';
 
 const PATHS: Record<IconName, ReactNode> = {
   messages: <path d="M4 5.5h16v10H9l-4 3.5v-3.5H4z" />,
@@ -185,6 +187,12 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   send: <path d="M4 12l16-7-6 15-2.5-6.5zM11.5 13.5L20 5" />,
+  flag: (
+    <>
+      <path d="M6 21V4" />
+      <path d="M6 4.5h11l-2.5 4 2.5 4H6" />
+    </>
+  ),
   key: (
     <>
       <circle cx="8" cy="12" r="3.6" />
