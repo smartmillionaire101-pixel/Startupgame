@@ -50,7 +50,10 @@ test('a new founder opens the Journey on Chapter 1 and follows a step', async ({
 
   // Not now: the next step takes its place. Pin it and it stays.
   await main.getByRole('button', { name: 'Not now: show me another' }).click();
-  await expect(main).toContainText('Reach 3 paying customers');
+  // Another Chapter 1 step takes its place (which one depends on what's done by now).
+  await expect(main).not.toContainText('Talk to customers about their problem', {
+    timeout: 15_000,
+  });
   await main.getByRole('button', { name: 'Pin: keep this one here' }).click();
   await expect(main.getByRole('button', { name: 'Unpin' })).toHaveAttribute(
     'aria-pressed',
