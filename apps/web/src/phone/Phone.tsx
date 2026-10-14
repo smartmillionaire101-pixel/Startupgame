@@ -500,6 +500,7 @@ function PhoneScreen(props: {
           draft={thread.say}
           chats={props.chats}
           markSeen={props.markSeen}
+          ctx={ctx}
         />
       ) : picking ? (
         <NewMessage

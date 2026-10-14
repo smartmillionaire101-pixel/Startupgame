@@ -9,7 +9,6 @@ import { money, stars } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Bar, Button, Pill, Sheet } from '../ui';
-import { ChatSheet, StarterSheet } from '../screens/Chat';
 import { aiCharacterId, openPhone } from '../phone/bus';
 import { jobTitle } from '../screens/Company';
 import { PitchSheet, moodLabel } from '../screens/Money';
@@ -158,7 +157,6 @@ export function PersonCard({
   const { view, cur, toast, send, busy } = useView();
   const company = activeCompany(view);
   const contacts = contactsOf(view);
-  const [chat, setChat] = useState<{ open?: string; start?: boolean } | null>(null);
   const [pitch, setPitch] = useState(false);
   const [meal, setMeal] = useState(false);
 
@@ -204,32 +202,20 @@ export function PersonCard({
 
   const event = myEvent(eventsOf(view));
 
-  const openChat = async (p: PresenceView) => {
-    try {
-      const { chats } = await api.chats();
-      const existing = chats.find((c) => c.with.id === p.id);
-      setChat(existing ? { open: existing.id } : { start: true });
-    } catch {
-      setChat({ start: true });
-    }
-  };
+  // Wave 13: player chats live in the phone (emoji, voice notes, doing things together).
+  const openChat = (p: PresenceView) => openPhone({ player: p.id });
 
   const invite = async (p: PresenceView, e: CityEventView) => {
     try {
       const { chats } = await api.chats();
-      let chatId = chats.find((c) => c.with.id === p.id)?.id;
-      if (!chatId) {
-        const { starters } = await api.starters(p.id);
-        chatId = (await api.startChat(p.id, starters[0] ?? '')).chat.id;
-      }
-      await api.send(
-        chatId,
-        t('I’m hosting “{title}” ({kind}) on {date}. Come along: RSVP at the Event Hall.', {
-          title: e.title,
-          kind: tx(e.kindLabel),
-          date: e.dateLabel,
-        }),
+      const chatId = chats.find((c) => c.with.id === p.id)?.id;
+      const text = t(
+        'I’m hosting “{title}” ({kind}) on {date}. Come along: RSVP at the Event Hall.',
+        { title: e.title, kind: tx(e.kindLabel), date: e.dateLabel },
       );
+      // The invitation itself starts the chat when there isn't one yet.
+      if (chatId) await api.send(chatId, text);
+      else await api.startChat(p.id, text);
       toast(t('Invitation sent to {name}.', { name: p.name }), 'ok');
     } catch (err) {
       toast(tx((err as Error).message), 'error');
@@ -296,7 +282,7 @@ export function PersonCard({
             )}
             {person.kind === 'player' && (
               <>
-                <Button onClick={() => void openChat(person.p)}>{t('Chat')}</Button>
+                <Button onClick={() => openChat(person.p)}>{t('Chat')}</Button>
                 <Button
                   variant="subtle"
                   disabled={!event}
@@ -366,13 +352,6 @@ export function PersonCard({
       </Sheet>
       {meal && person.kind === 'ai' && (
         <MealSheet withId={person.a.ref} withName={name} onClose={() => setMeal(false)} />
-      )}
-      {chat?.open && <ChatSheet chatId={chat.open} onClose={() => setChat(null)} />}
-      {chat?.start && person.kind === 'player' && (
-        <StarterSheet
-          playerId={person.p.id}
-          onDone={(cid) => setChat(cid ? { open: cid } : null)}
-        />
       )}
       {pitch && company && (fund || person.kind === 'player') && (
         <PitchSheet

@@ -160,7 +160,9 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   }).toPass({ timeout: 40_000 });
   await host.getByRole('button', { name: 'Chat' }).click();
   const bPhone = b.getByRole('dialog', { name: 'Phone' });
-  await bPhone.locator('.choice').first().click();
+  // Wave 13: no starters; the first message typed starts the chat.
+  await bPhone.getByLabel('Message').fill('Hello there 👋');
+  await bPhone.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(bPhone.locator('.bubble').first()).toBeVisible();
   await a.getByRole('button', { name: 'Close' }).first().click();
   await b.reload();

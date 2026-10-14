@@ -135,11 +135,81 @@ export interface AiThread {
   count: number;
 }
 
+/**
+ * Wave 13: something done together from a player chat, with its live state
+ * (`status`) read from the world by the server. `from` is who did it.
+ */
+export type ChatCard = { from: string; status: string } & (
+  | {
+      type: 'payment';
+      amount: number;
+      currency: string;
+      received: number;
+      receivedCurrency: string;
+      fee: number;
+      note: string;
+      receiptId: string | null;
+    }
+  | { type: 'date'; dateId: string; location: string; viewId: string | null; host?: string }
+  | { type: 'visit'; inviteId: string; city: string }
+  | {
+      type: 'gift';
+      giftId: string;
+      propertyId: string;
+      label: string;
+      city: string;
+      value: number;
+      currency: string;
+    }
+  | {
+      type: 'techevent';
+      eventId: string;
+      title: string;
+      kind: string;
+      day: number;
+      venue: string;
+      placeId: string;
+      city: string;
+      ticket: number;
+      currency: string;
+      going?: string[];
+    }
+);
+
 export interface ChatMessage {
   id: number;
   mine: boolean;
   text: string;
   at: number;
+  /** Wave 13: player chats carry voice notes and cards (missing = text). */
+  kind?: 'text' | 'voice' | 'card';
+  voice?: { id: string; ms: number };
+  card?: ChatCard;
+}
+
+/** Upload a recorded voice note (raw audio) to the chat with a player. */
+async function sendVoice(playerId: string, audio: Blob, ms: number) {
+  const res = await fetch(
+    `/api/chats/with/${encodeURIComponent(playerId)}/voice?ms=${Math.round(ms)}`,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'x-runway': '1', 'content-type': audio.type || 'audio/webm' },
+      body: audio,
+    },
+  );
+  const data = (await res.json().catch(() => ({}))) as {
+    chat: ChatSummary;
+    voice: { id: string; ms: number };
+    error?: { code: string; message: string };
+  };
+  if (!res.ok)
+    throw new ApiError(
+      res.status,
+      data.error?.code ?? 'error',
+      data.error?.message ?? 'Something went wrong.',
+    );
+  return data;
 }
 
 export const api = {
@@ -194,13 +264,29 @@ export const api = {
   chats: () => request<{ chats: ChatSummary[] }>('GET', '/api/chats'),
   starters: (playerId: string) =>
     request<{ starters: string[] }>('GET', `/api/chats/starters/${playerId}`),
-  startChat: (playerId: string, starter: string) =>
-    request<{ chat: ChatSummary }>('POST', '/api/chats', { playerId, starter }),
+  /** Wave 13: a chat starts with whatever you type first. */
+  startChat: (playerId: string, text: string) =>
+    request<{ chat: ChatSummary; flagged?: boolean }>('POST', '/api/chats', {
+      playerId,
+      text,
+      // Older servers only knew one-tap starters.
+      starter: text,
+    }),
   messages: (chatId: string) =>
-    request<{
-      chat: ChatSummary;
-      messages: { id: number; mine: boolean; text: string; at: number }[];
-    }>('GET', `/api/chats/${chatId}/messages`),
+    request<{ chat: ChatSummary; messages: ChatMessage[] }>('GET', `/api/chats/${chatId}/messages`),
+  sendVoice,
+  voiceUrl: (chatId: string, voiceId: string) =>
+    `/api/chats/${encodeURIComponent(chatId)}/voice/${encodeURIComponent(voiceId)}`,
+  /**
+   * Wave 13: do something with the person you're chatting with (a command
+   * aimed at them, or a tech event to go to together); a card goes in the chat.
+   */
+  act: <R = unknown>(playerId: string, body: { command: Command } | { techEventId: string }) =>
+    request<{ ok: true; result: R; chat: ChatSummary; version: number }>(
+      'POST',
+      `/api/chats/with/${encodeURIComponent(playerId)}/act`,
+      body,
+    ),
   send: (chatId: string, text: string) =>
     request<{ ok: true; flagged: boolean }>('POST', `/api/chats/${chatId}/messages`, { text }),
   block: (chatId: string) => request('POST', `/api/chats/${chatId}/block`, {}),

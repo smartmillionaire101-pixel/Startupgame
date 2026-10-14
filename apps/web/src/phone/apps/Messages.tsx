@@ -9,8 +9,8 @@ import { Button, Empty, EmptyState } from '../../ui';
 import { visitPlace } from '../../city/goto';
 import { businessesOf } from '../../city/contract';
 import { cityViewOf, hereOf } from '../../city/travel';
-import { Avatar, isObj, kindName, str, type ThreadRef, type View } from '../shared';
-import { FriendActions } from './Friends';
+import { Avatar, isObj, kindName, str, type PhoneCtx, type ThreadRef, type View } from '../shared';
+import { ChatActions, EmojiPicker, PlayerMessage, VoiceRecorder, type ActBody } from './ChatExtras';
 
 // ---------------------------------------------------------------------------
 // People you can message
@@ -422,25 +422,99 @@ export function AiThreadView({
   );
 }
 
+/** The message box of a player chat: text with emoji, a voice note, Send. */
+function PlayerComposer({
+  value,
+  onChange,
+  onSend,
+  onVoice,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSend: () => void;
+  onVoice: (audio: Blob, ms: number) => Promise<boolean>;
+}) {
+  const { meta } = useView();
+  const input = useRef<HTMLInputElement>(null);
+  const [emoji, setEmoji] = useState(false);
+  const max = meta?.chatMaxLength ?? 280;
+  const insert = (e: string) => {
+    const el = input.current;
+    const from = el?.selectionStart ?? value.length;
+    const to = el?.selectionEnd ?? from;
+    const next = (value.slice(0, from) + e + value.slice(to)).slice(0, max);
+    onChange(next);
+    const at = Math.min(next.length, from + e.length);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(at, at);
+    });
+  };
+  return (
+    <div className="chat-composer">
+      {emoji && <EmojiPicker onPick={insert} onClose={() => setEmoji(false)} />}
+      <form
+        className="phone-compose"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (value.trim()) {
+            setEmoji(false);
+            onSend();
+          }
+        }}
+      >
+        <button
+          type="button"
+          className="chat-icon-btn"
+          aria-label={t('Emoji')}
+          aria-expanded={emoji}
+          title={t('Emoji')}
+          onClick={() => setEmoji(!emoji)}
+        >
+          😊
+        </button>
+        <input
+          ref={input}
+          aria-label={t('Message')}
+          placeholder={t('Message')}
+          value={value}
+          maxLength={max}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <VoiceRecorder onSend={onVoice} />
+        <button className="btn btn-primary" type="submit" disabled={!value.trim()}>
+          {t('Send')}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/** Cards that change someone's money or homes: the receiver's view refreshes when one arrives. */
+const MONEY_CARDS = new Set(['payment', 'gift']);
+
 export function PlayerThreadView({
   playerId,
   draft,
   chats,
   markSeen,
+  ctx,
 }: {
   playerId: string;
   draft?: string;
   chats: ChatSummary[];
   markSeen: (c: { id: string; lastAt: number | null }) => void;
+  ctx?: PhoneCtx;
 }) {
-  const { view, toast } = useView();
+  const { view, toast, refresh, lite } = useView();
   const known = chats.find((c) => c.with.id === playerId) ?? null;
   const [started, setChatId] = useState<string | null>(null);
   const chatId = started ?? known?.id ?? null;
   const [data, setData] = useState<Awaited<ReturnType<typeof api.messages>> | null>(null);
-  const [starters, setStarters] = useState<string[] | null>(null);
   const [text, setText] = useState(draft ?? '');
+  const [busy, setBusy] = useState(false);
   const other = view.players.find((p) => p.id === playerId);
+  const lastSeenId = useRef<number | null>(null);
 
   const load = useCallback(() => {
     if (!chatId) return;
@@ -449,61 +523,47 @@ export function PlayerThreadView({
         setData(r);
         const last = r.messages[r.messages.length - 1];
         markSeen({ id: chatId, lastAt: last?.at ?? null });
+        // Money (or a home) just arrived from them: show it in your balance now.
+        const before = lastSeenId.current;
+        lastSeenId.current = last?.id ?? 0;
+        if (
+          before !== null &&
+          r.messages.some((m) => m.id > before && !m.mine && m.card && MONEY_CARDS.has(m.card.type))
+        )
+          void refresh();
       },
       (e: Error) => toast(tx(e.message), 'error'),
     );
-  }, [chatId, markSeen, toast]);
+  }, [chatId, markSeen, toast, refresh]);
 
   useEffect(() => {
     if (!chatId) return;
     load();
-    const timer = setInterval(load, 8000);
-    return () => clearInterval(timer);
-  }, [chatId, load]);
-
-  useEffect(() => {
-    if (chatId || known) return;
-    void api.starters(playerId).then(
-      (r) => setStarters(r.starters),
-      () => setStarters([]),
+    // A chat on screen polls quickly, so payments and answers show up promptly.
+    const timer = setInterval(
+      () => {
+        if (document.visibilityState !== 'hidden') load();
+      },
+      lite ? 15_000 : 4_000,
     );
-  }, [chatId, known, playerId]);
+    return () => clearInterval(timer);
+  }, [chatId, load, lite]);
 
   const name = data?.chat.with.name ?? known?.with.name ?? other?.name ?? t('Chat');
-
-  if (!chatId)
-    return (
-      <div className="phone-thread">
-        <div className="phone-thread-head">
-          <Avatar name={name} />
-          <div className="item-title">{name}</div>
-        </div>
-        {/* Wave 8: Send money, Invite over, Plan a hangout. */}
-        {!other?.ai && <FriendActions key={playerId} playerId={playerId} name={name} />}
-        <p className="small muted">{t('Start with one tap')}</p>
-        <div className="choice-grid">
-          {(starters ?? []).map((s) => (
-            <button
-              key={s}
-              className="choice"
-              onClick={() =>
-                void api.startChat(playerId, s).then(
-                  (r) => setChatId(r.chat.id),
-                  (e: Error) => toast(tx(e.message), 'error'),
-                )
-              }
-            >
-              “{tx(s)}”
-            </button>
-          ))}
-        </div>
-      </div>
-    );
+  const partner = { id: playerId, name };
+  const blocked = !!data?.chat.blocked;
 
   const sendMsg = async () => {
     const body = text;
     setText('');
     try {
+      if (!chatId) {
+        // The first message you type starts the chat.
+        const r = await api.startChat(playerId, body);
+        if (r.flagged) toast(t('Careful: that looks like a common scam pattern.'), 'info');
+        setChatId(r.chat.id);
+        return;
+      }
       const r = await api.send(chatId, body);
       if (r.flagged) toast(t('Careful: that looks like a common scam pattern.'), 'info');
       load();
@@ -513,8 +573,39 @@ export function PlayerThreadView({
     }
   };
 
+  const sendVoice = async (audio: Blob, ms: number) => {
+    try {
+      const r = await api.sendVoice(playerId, audio, ms);
+      if (!chatId) setChatId(r.chat.id);
+      else load();
+      return true;
+    } catch (e) {
+      toast(tx((e as Error).message), 'error');
+      return false;
+    }
+  };
+
+  const act = async <R,>(body: ActBody, ok?: string): Promise<R | null> => {
+    setBusy(true);
+    try {
+      const r = await api.act<R>(playerId, body);
+      const msg = (r.result as { message?: string } | null)?.message;
+      toast(ok ?? (msg ? tx(msg) : t('Done.')), 'ok');
+      if (!chatId) setChatId(r.chat.id);
+      else load();
+      await refresh();
+      return (r.result ?? ({} as R)) as R;
+    } catch (e) {
+      toast(tx((e as Error).message), 'error');
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const messages = data?.messages ?? [];
   return (
-    <div className="phone-thread">
+    <div className="phone-thread" data-player-thread={playerId}>
       <div className="phone-thread-head">
         <Avatar name={name} />
         <div className="phone-row-main">
@@ -522,34 +613,64 @@ export function PlayerThreadView({
           {other && <div className="small muted">{kindName(other.role)}</div>}
         </div>
       </div>
-      {!other?.ai && <FriendActions key={playerId} playerId={playerId} name={name} />}
-      <ChatLog messages={data?.messages ?? []} />
-      {data?.chat.blocked ? (
+      <div className="phone-log" aria-live="polite" aria-label={t('Messages')}>
+        {chatId && messages.length === 0 && !data && <p className="small muted">{t('Loading…')}</p>}
+        {!chatId && <p className="small muted chat-empty">{t('No messages yet. Say hello 👋')}</p>}
+        {chatId &&
+          messages.map((m) => (
+            <PlayerMessage
+              key={m.id}
+              m={m}
+              chatId={chatId}
+              partner={partner}
+              ctx={ctx}
+              onChanged={load}
+            />
+          ))}
+        <ScrollEnd dep={messages.length} />
+      </div>
+      {blocked ? (
         <p className="small muted">{t('This chat is blocked.')}</p>
       ) : (
         <>
-          <Composer value={text} onChange={setText} onSend={() => void sendMsg()} />
+          {!other?.ai && <ChatActions partner={partner} act={act} busy={busy} />}
+          <PlayerComposer
+            value={text}
+            onChange={setText}
+            onSend={() => void sendMsg()}
+            onVoice={sendVoice}
+          />
           <p className="small muted">
             {t('No links, numbers, emails or handles. Commitments happen on deal cards.')}
           </p>
-          <div className="row">
-            <Button variant="ghost" onClick={() => void api.block(chatId).then(load)}>
-              {t('Block')}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() =>
-                void api.report(chatId, 'scam').then(() => {
-                  toast(t('Reported. A moderator will review.'), 'ok');
-                  load();
-                })
-              }
-            >
-              {t('Report')}
-            </Button>
-          </div>
+          {chatId && (
+            <div className="row">
+              <Button variant="ghost" onClick={() => void api.block(chatId).then(load)}>
+                {t('Block')}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  void api.report(chatId, 'scam').then(() => {
+                    toast(t('Reported. A moderator will review.'), 'ok');
+                    load();
+                  })
+                }
+              >
+                {t('Report')}
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>
   );
+}
+
+function ScrollEnd({ dep }: { dep: number }) {
+  const end = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    end.current?.scrollIntoView?.({ block: 'end' });
+  }, [dep]);
+  return <div ref={end} />;
 }

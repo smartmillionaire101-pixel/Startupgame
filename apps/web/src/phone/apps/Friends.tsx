@@ -5,6 +5,7 @@
  * Used by Bank (the wallet), Contacts, Messages and Events.
  */
 import { useState } from 'react';
+import type { Command } from '@runway/engine';
 import '../friends.css';
 import { money, moneyExact, parseAmount } from '../../format';
 import { t, tx } from '../../i18n';
@@ -39,11 +40,14 @@ export function SendMoney({
   to,
   toName,
   onDone,
+  via,
 }: {
   to?: string;
   /** The name to show when `to` isn't in your friends list (a chat in another city). */
   toName?: string;
   onDone: () => void;
+  /** Wave 13: send another way (a chat posts a payment card for both players). */
+  via?: (command: Extract<Command, { type: 'money.send' }>) => Promise<SendResult | null>;
 }) {
   const { view, send, busy } = useView();
   const friends = friendsOf(view);
@@ -79,12 +83,13 @@ export function SendMoney({
 
   const confirm = async () => {
     if (!who) return;
-    const r = await send<SendResult>({
-      type: 'money.send',
+    const command = {
+      type: 'money.send' as const,
       toPlayerId: who.id,
       amount,
       ...(note.trim() ? { note: note.trim() } : {}),
-    });
+    };
+    const r = via ? await via(command) : await send<SendResult>(command);
     if (!r) return;
     setResult(r);
     setStep('sent');
