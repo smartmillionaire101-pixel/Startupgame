@@ -204,5 +204,16 @@ export const founderFinance: Record<string, string> = {
     'Pas assez de trésorerie disponible dans l’entreprise.',
   'The company doesn’t owe you a founder loan.':
     'L’entreprise ne vous doit pas de prêt de fondateur.',
+  'Discount between 0 and 30%.': 'Décote entre 0 et 30 %.',
+  'Not enough available cash.': 'Pas assez de trésorerie disponible.',
+  'Not your round.': 'Ce n’est pas votre tour.',
+  'Set how much you want to raise.': 'Indiquez combien vous voulez lever.',
+  'That buys less than one share. Put in more.':
+    'Cela n’achète même pas une action. Apportez davantage.',
+  'That round doesn’t exist.': 'Ce tour n’existe pas.',
+  'This round has already closed.': 'Ce tour est déjà clôturé.',
+  'You don’t have that much in your personal account.':
+    'Vous n’avez pas autant sur votre compte personnel.',
+  'You put money in for new shares.': 'Vous avez apporté de l’argent contre des actions nouvelles.',
   'Repay up to what the company owes you.': 'Remboursez au plus ce que l’entreprise vous doit.',
 };

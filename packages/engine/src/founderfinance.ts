@@ -105,7 +105,7 @@ export function contribute(
     return {
       as,
       shares,
-      message: `You put money in for ${shares.toLocaleString('en-GB')} new shares.`,
+      message: 'You put money in for new shares.',
     };
   }
   withTx(world, { kind: 'loan' }, () =>
@@ -248,6 +248,56 @@ export function windDownFounderFinance(
   if (c.founderLoans) c.founderLoans = {};
 }
 
+/**
+ * An exit (acquisition, fire sale): before the shareholder waterfall, an open
+ * Friends & Family round is refunded, the reserve comes back into the main
+ * account, and founder loans are repaid out of the sale price (then company
+ * cash for any rest). Returns what is left of the proceeds for shareholders.
+ * Companies without the new fields are untouched (old replays unchanged).
+ */
+export function exitFounderFinance(
+  world: World,
+  c: Company,
+  proceeds: number,
+  payer: Id,
+  month: number,
+): number {
+  const open = openRoundOf(world, c.id);
+  if (open) cancelFriendsRound(world, open, month);
+  const held = reserveBalance(world, c);
+  if (held > 0) transfer(world, c.reserve!, c.account, held, 'Reserve closed', month, 'move');
+  let left = proceeds;
+  for (const [fid, owed] of Object.entries(c.founderLoans ?? {})) {
+    const f = world.players[fid];
+    if (!f || owed <= 0) continue;
+    const fromSale = Math.min(owed, left);
+    if (fromSale > 0)
+      pay(
+        world,
+        payer,
+        f.accounts.local,
+        fromSale,
+        `Founder loan repaid: ${c.name}`,
+        month,
+        'move',
+      );
+    left -= fromSale;
+    const rest = Math.min(owed - fromSale, account(world, c.account).balance);
+    if (rest > 0)
+      pay(
+        world,
+        c.account,
+        f.accounts.local,
+        rest,
+        `Founder loan repaid: ${c.name}`,
+        month,
+        'move',
+      );
+  }
+  if (c.founderLoans) c.founderLoans = {};
+  return left;
+}
+
 // ---------------------------------------------------------------- Friends & Family
 
 const rounds = (world: World) => (world.ffRounds ??= {});
@@ -287,7 +337,7 @@ export function openFriendsRound(
   ensure(
     opts.discountPct >= 0 && opts.discountPct <= FF.maxDiscountPct,
     'ff.discount',
-    `Discount between 0 and ${FF.maxDiscountPct}%.`,
+    'Discount between 0 and 30%.',
   );
   const main = account(world, c.account);
   const id = newId(world, 'ff');

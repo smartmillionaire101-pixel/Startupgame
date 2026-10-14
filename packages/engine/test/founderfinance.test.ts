@@ -4,6 +4,7 @@ import { fullyDiluted, ownership } from '../src/captable.js';
 import { fundingSources } from '../src/journey.js';
 import { closePricedRound } from '../src/captable.js';
 import { playerView } from '../src/views.js';
+import { settleExit } from '../src/deals.js';
 import type { World } from '../src/types.js';
 import {
   addFounder,
@@ -102,6 +103,57 @@ describe('founder contribution: equity vs loan (§7.3)', () => {
     expect(companyOf(w, F).founderLoans).toEqual({});
     expect(personal(w, F)).toBeGreaterThanOrEqual(before + 100_000_00);
     expect(moneyByCurrency(w)).toEqual(total);
+  });
+});
+
+describe('exits settle founder finance first', () => {
+  it('an acquisition repays the founder loan, then the founder shares in the rest', () => {
+    let w = base();
+    w = run(w, F, {
+      type: 'company.contribute',
+      companyId: cid(w),
+      amount: 100_000_00,
+      as: 'loan',
+    }).world;
+    w = run(w, F, {
+      type: 'company.reserve',
+      companyId: cid(w),
+      amount: 1_000_00,
+      dir: 'in',
+    }).world;
+    const opened = run(w, F, {
+      type: 'ff.open',
+      companyId: cid(w),
+      target: 2_000_000_00,
+      valuationCap: 50_000_000_00,
+      discountPct: 10,
+    });
+    const roundId = opened.result.roundId as string;
+    w = run(opened.world, 'u_friend', { type: 'ff.commit', roundId, amount: 300_000_00 }).world;
+    const friend = personal(w, 'u_friend');
+    const before = personal(w, F);
+    const total = moneyByCurrency(w);
+    const proceeds = 10_000_000_00;
+    let lines: ReturnType<typeof settleExit> = [];
+    w = produce(w, (d) => {
+      lines = settleExit(d as World, companyOf(d as World, F), proceeds, 'Buyer Co', 'acquired');
+    });
+    const c = companyOf(w, F);
+    expect(c.status).toBe('acquired');
+    expect(c.founderLoans).toEqual({});
+    expect(bal(w, c.reserve!)).toBe(0);
+    expect(w.ffRounds![roundId]!.status).toBe('cancelled');
+    expect(personal(w, 'u_friend')).toBe(friend + 300_000_00);
+    // The waterfall split only what was left after the loan.
+    expect(lines.reduce((a, l) => a + l.total, 0)).toBeLessThanOrEqual(proceeds - 100_000_00);
+    const share = lines.find((l) => l.holderId === F)!.total;
+    expect(share).toBeGreaterThan(0);
+    // Loan back, plus a share of the proceeds (less capital gains tax).
+    expect(personal(w, F)).toBeGreaterThan(before + 100_000_00);
+    expect(personal(w, F)).toBeLessThanOrEqual(before + 100_000_00 + share);
+    // Proceeds come from the outside world; every other balance is conserved.
+    const after = moneyByCurrency(w);
+    expect(after).toEqual(total);
   });
 });
 
