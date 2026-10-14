@@ -79,8 +79,8 @@ describe('roadmap catalogue', () => {
 
 describe('roadmap: no roadmap, no change', () => {
   it('product work without a roadmap matches the old formula exactly', () => {
-    let w = build(funded());
-    w = edit(w, (d) => {
+    const w = build(funded());
+    edit(w, (d) => {
       const c = companyOf(d, F);
       const f = d.players[F]!;
       const expected = legacyProduct(c, f.skills.product);
