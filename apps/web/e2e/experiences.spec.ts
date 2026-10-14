@@ -88,7 +88,8 @@ test('two players discover a home game, play football and share a consenting sky
     await expect(home.getByLabel('Holding hands')).toBeVisible({ timeout: 10000 });
     await home.getByRole('button', { name: 'Step into the view' }).click();
     const panorama = a.getByRole('dialog', { name: 'City panorama' });
-    await expect(panorama.locator('canvas')).toBeVisible({ timeout: 20000 });
+    // The whole of London loads on software WebGL here: as long as the sky-view spec allows.
+    await expect(panorama.locator('canvas')).toBeVisible({ timeout: 60000 });
     await panorama.getByRole('button', { name: 'Palace of Westminster' }).click();
     await expect(panorama.getByText(/Houses of Parliament and Elizabeth Tower/)).toBeVisible();
     await a.waitForTimeout(1000);
