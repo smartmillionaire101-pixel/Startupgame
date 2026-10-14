@@ -435,6 +435,15 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('event.rsvp'), eventId: id, going: z.boolean() }),
   z.object({ type: z.literal('event.cancel'), eventId: id }),
+  /**
+   * Founder Journey 4a: answer a decision event (view.decisions). Unanswered
+   * ones resolve to their default at the settlement after the deadline.
+   */
+  z.object({
+    type: z.literal('event.choose'),
+    eventId: z.string().min(1).max(32),
+    choiceId: z.string().min(1).max(32),
+  }),
   // ---- city economy (Wave 3)
   z.object({ type: z.literal('business.pitch'), companyId: id, businessId: id }),
   /**

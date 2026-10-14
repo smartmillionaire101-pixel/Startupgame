@@ -239,6 +239,8 @@ export interface Player {
     dismissed?: Partial<Record<'main' | 'opportunity' | 'personal', string[]>>;
     bootstrap?: number;
   };
+  /** Founder Journey 4a: decision events (only after the journey-events release note). */
+  decisions?: PlayerDecisions;
 }
 
 // ---------------------------------------------------------------- Friends (Wave 8)
@@ -631,6 +633,8 @@ export interface Company {
   founderLoans?: Record<Id, number>;
   /** Money each founder put in as equity (§7.3), for the books. */
   founderEquity?: Record<Id, number>;
+  /** Founder Journey 4a: a response to rivals holds until this market month (no rival pressure). */
+  rivalEdge?: { until: number; kind: 'product' | 'partner' };
 }
 
 export type InterviewStyle = 'technical' | 'culture' | 'work_trial';
@@ -1270,6 +1274,8 @@ export interface MarketState {
   governor?: Governor;
   /** Wave 10: the city's property price index (1 = when the market opened) and last month's. */
   propertyIndex?: { value: number; prev: number; month: number };
+  /** Founder Journey 4a: named rivals per industry, for founders' companies here. */
+  rivals?: Partial<Record<Industry, Rival[]>>;
 }
 
 export interface Governor {
@@ -1684,4 +1690,122 @@ export interface SalesAccount {
   /** Agreed monthly price, local minor units. */
   monthly: number;
   since: number;
+}
+
+// ---------------------------------------------------------------- Decision events & rivals (Journey 4a)
+
+export type DecisionFamily = 'customer' | 'team' | 'competition' | 'finance' | 'social' | 'life';
+
+/** One concrete consequence of a choice, its numbers fixed when the event appears. */
+export type DecisionEffect =
+  | {
+      kind: 'cash';
+      from: 'company' | 'personal';
+      to: 'suppliers' | 'payroll' | 'customers';
+      amount: number;
+    }
+  /** Shown, not applied: a rival's move keeps weighing on win chances by about this much. */
+  | { kind: 'pressure'; pct: number }
+  | { kind: 'hours'; n: number }
+  | { kind: 'morale'; n: number; staffId?: Id; name?: string }
+  | { kind: 'stars'; n: number }
+  | { kind: 'price'; pct: number }
+  | { kind: 'marketing'; pct: number }
+  | { kind: 'salary'; staffId: Id; name: string; amount: number }
+  | { kind: 'staffLeaves'; staffId: Id; name: string }
+  | { kind: 'deal'; stage: SalesStage; discountPct: number; trust: number }
+  | { kind: 'dealDiscount'; dealId: Id; pct: number }
+  | { kind: 'dealTrust'; dealId: Id; n: number }
+  | { kind: 'product'; fit?: number; quality?: number; techDebt?: number }
+  | { kind: 'edge'; months: number; edge: 'product' | 'partner' }
+  | { kind: 'trust'; playerId: Id; name: string; n: number }
+  | { kind: 'energy'; n: number }
+  | { kind: 'social'; n: number }
+  | { kind: 'network'; n: number }
+  | { kind: 'loan'; amount: number }
+  | { kind: 'collect'; amount: number; fee: number }
+  | { kind: 'hire'; role: StaffRole; cost: number }
+  /** Bounded randomness: a `pct`% chance it works out (shown up front). */
+  | { kind: 'chance'; pct: number };
+
+export interface DecisionChoice {
+  id: string;
+  effects: DecisionEffect[];
+  /** Chance-based choices: what happens instead when it doesn't work out. */
+  fail?: DecisionEffect[];
+}
+
+export interface DecisionEvent {
+  /** `ev<n>`, numbered per player (the world's id counter is left alone). */
+  id: Id;
+  template: string;
+  family: DecisionFamily;
+  companyId: Id | null;
+  market: MarketId;
+  /** Market month it appeared. */
+  month: number;
+  /** Last month to answer; unanswered, it resolves to the default at the next settlement. */
+  deadline: number;
+  /** Names and amounts in its text. */
+  vars: Record<string, string | number>;
+  choices: DecisionChoice[];
+  defaultChoice: string;
+  status: 'open' | 'chosen' | 'defaulted';
+  choiceId?: string;
+  resolvedMonth?: number;
+  /** Chance choices: did it work out. */
+  succeeded?: boolean;
+  /** The rival it's about (competition family). */
+  rivalId?: Id;
+  /** A big prospect's customer, fixed when it appears. */
+  customer?: SalesCustomer;
+  /** An existing deal it's about. */
+  dealId?: Id;
+}
+
+export interface PlayerDecisions {
+  seq: number;
+  events: DecisionEvent[];
+  /** Template id (or `family:<f>`) → first month it may fire again. */
+  cooldowns: Record<string, number>;
+}
+
+export type RivalMoveKind = 'raise' | 'launch' | 'price_cut' | 'poach' | 'win_deal' | 'fail';
+
+export interface RivalMove {
+  month: number;
+  kind: RivalMoveKind;
+  /** Plain English: "Kopapay cut prices 20% after raising ₦50m". */
+  text: string;
+  amount?: number;
+  pct?: number;
+  /** The founder company it touched (poach, win_deal). */
+  targetCompanyId?: Id;
+  /** Who they tried to hire (poach). */
+  staffId?: Id;
+}
+
+/** A named rival in a founder's industry: an AI startup's mirror, or a lightweight abstract one. */
+export interface Rival {
+  id: Id;
+  /** The AI startup it follows, or null for an abstract rival. */
+  companyId: Id | null;
+  name: string;
+  industry: Industry;
+  goal: 'growth' | 'profit' | 'dominate';
+  /** How it likes to compete. */
+  style: 'price' | 'product' | 'sales';
+  /** Money raised so far (local minor units). */
+  funding: number;
+  /** Product maturity 0–1. */
+  maturity: number;
+  /** Its price relative to what buyers spend (1 = the segment's budget). */
+  priceIndex: number;
+  /** A price cut in force, until this month. */
+  priceCut?: { pct: number; until: number };
+  reputation: number;
+  customers: number;
+  nextMoveMonth: number;
+  status: 'active' | 'failed';
+  moves: RivalMove[];
 }

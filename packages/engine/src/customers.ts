@@ -140,6 +140,8 @@ export function settleSegment(
   rng: Rng,
   month: number,
   maintenance: (c: Company) => boolean,
+  /** Journey 4a: rivals' price cuts and better products (0–0.04 off a score). Omitted = none. */
+  rivalPressure?: (c: Company) => number,
 ): SegmentOutcome[] {
   const T = CUSTOMER_TUNING;
   seg.buyers = Math.round(seg.buyers * (1 + seg.monthlyGrowth));
@@ -173,7 +175,11 @@ export function settleSegment(
   });
 
   // 2. Churn first: churned customers rejoin the unserved pool.
-  const scores = companies.map((c) => scoreOffer(c, seg));
+  const scores = companies.map((c) => {
+    const s = scoreOffer(c, seg);
+    const p = rivalPressure ? rivalPressure(c) : 0;
+    return p > 0 ? Math.max(0, s - p) : s;
+  });
   companies.forEach((c, i) => {
     const pos = positions[i]!;
     const priceStrain = c.price > seg.budget ? 0.5 * (c.price / seg.budget - 1) : 0;

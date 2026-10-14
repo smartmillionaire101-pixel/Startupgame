@@ -45,7 +45,10 @@ import { settlePerson } from './personal.js';
 import { deriveRng } from './rng.js';
 import { settleStars } from './stars.js';
 import { refreshTalent } from './staff.js';
-import type { Player, World } from './types.js';
+import type { Company, Player, World } from './types.js';
+import { journeyEventsOn } from './releases.js';
+import { rivalPressure, settleRivals } from './rivals.js';
+import { settleDecisions } from './decisions.js';
 
 /** Months a shut-down company's name stays reserved for its founder (open question §21). */
 export const NAME_RESERVATION_MONTHS = 12;
@@ -109,11 +112,13 @@ export function settleMarket(
   // Customers, segment by segment, across every company present in it.
   const isMaintenance = (c: { ai: boolean; lastDecisionMonth: number }) =>
     !c.ai && month - c.lastDecisionMonth > 1;
+  // Journey 4a: rivals weigh on founders' scores (journey-events worlds only).
+  const pressure = journeyEventsOn(world) ? (c: Company) => rivalPressure(world, c) : undefined;
   for (const seg of Object.values(m.segments)) {
     const present = active().filter(
       (c) => c.targetSegments.includes(seg.key) || c.segments[seg.key],
     );
-    settleSegment(seg, present, rng, month, isMaintenance);
+    settleSegment(seg, present, rng, month, isMaintenance, pressure);
   }
   // City events due this month are held now (own RNG stream per event), so their
   // customer leads count in this month's revenue.
@@ -169,6 +174,9 @@ export function settleMarket(
   // Wave 10: last month's pitch competitions are judged; this month's is announced.
   resolveCompetitions(world, marketId, month);
   ensureCompetition(world, marketId, month);
+  // Journey 4a (after the release note only): rivals move, then decision events (own streams).
+  settleRivals(world, marketId, month);
+  settleDecisions(world, marketId, month);
   reporterOutreach(world, marketId, rng, month);
   maintainPopulation(world, marketId, rng, now);
   inactivity(world, marketId, now, month, clock.monthMs);

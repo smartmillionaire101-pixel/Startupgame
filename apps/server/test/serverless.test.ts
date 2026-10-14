@@ -11,7 +11,8 @@ import {
   runClock,
   storeFor,
 } from '../src/serverless/netlify.js';
-import { AUTO_QUIZ_NOTE, commandSchema } from '@runway/engine';
+import { JOURNEY_EVENTS_NOTE, autoQuiz, commandSchema } from '@runway/engine';
+import type { World } from '@runway/engine';
 import { RELEASE_NOTE } from '../src/release.js';
 import { founderSetup, T0 } from './helpers.js';
 
@@ -105,8 +106,10 @@ describe('the world on a key-value store', () => {
     expect(fresh.current.version).toBe(before);
   });
 
-  it('the Wave 12 release note is the one that switches quizzes to the bank', () => {
-    expect(RELEASE_NOTE.id).toBe(AUTO_QUIZ_NOTE);
+  it('the release note switches on decision events, and keeps quizzes on the bank', () => {
+    expect(RELEASE_NOTE.id).toBe(JOURNEY_EVENTS_NOTE);
+    // A new world's first (and only) note is this one: quizzes still use the built-in bank.
+    expect(autoQuiz({ announcements: [RELEASE_NOTE.id] } as unknown as World)).toBe(true);
   });
 
   it('the release note is a command the log can replay', () => {
