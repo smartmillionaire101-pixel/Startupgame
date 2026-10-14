@@ -7,7 +7,7 @@ import { getMarket, locationOf } from './helpers.js';
 import { newId } from './ids.js';
 import { account, openAccount, transfer } from './ledger.js';
 import type { Command } from './commands.js';
-import { createRng, hashString } from './rng.js';
+import { createRng, deriveRng, hashString } from './rng.js';
 import { QUIZ_BANK, type QuizCategory } from './data/quiz-bank.js';
 
 export interface QuizQuestion {
@@ -42,6 +42,11 @@ export const QUIZ_LENGTH = 10;
 /** A quiz host waiting alone this long is matched with AI opponents (on the next sync). */
 export const QUIZ_AI_AFTER = 45_000;
 const QUESTION_MS = 20_000;
+/** Snooker: time for each shot. Football: time to lock in each penalty. */
+const SHOT_MS = 45_000;
+const PENALTY_MS = 20_000;
+/** An AI opponent at snooker waits this long into its turn (the last shot plays out first). */
+export const AI_SHOT_AFTER = 4_000;
 export interface Ball {
   id: number;
   x: number;
@@ -238,7 +243,8 @@ function aiCandidates(w: World, r: PlayRoom) {
 
 /** Seat AI opponents and start the quiz (a host alone at the table). */
 function fillWithAi(w: World, r: PlayRoom, now: number, count: number) {
-  const seats = Math.max(1, Math.min(3, count, 8 - r.members.length));
+  // Snooker and football are one against one: a single AI opponent.
+  const seats = r.game === 'quiz' ? Math.max(1, Math.min(3, count, 8 - r.members.length)) : 1;
   const picks = aiCandidates(w, r).slice(0, seats);
   ensure(
     picks.length > 0,
@@ -263,9 +269,120 @@ function fillWithAi(w: World, r: PlayRoom, now: number, count: number) {
     r.ai.push(ai.id);
   }
   r.status = 'playing';
-  r.deadline = now + QUESTION_MS;
+  r.deadline = now + (r.game === 'snooker' ? SHOT_MS : QUESTION_MS);
   r.touchedAt = now;
-  r.last = `${picks.map((p) => p.name).join(', ')} joined the quiz.`;
+  r.last = `${picks.map((p) => p.name).join(', ')} joined the ${r.game === 'quiz' ? 'quiz' : 'game'}.`;
+}
+
+const POCKETS: [number, number][] = [
+  [0, 0],
+  [60, 0],
+  [120, 0],
+  [0, 60],
+  [60, 60],
+  [120, 60],
+];
+/** How steady an AI player's cue is: an aim error (radians, one standard deviation). */
+export const aiCueError = (aiId: Id) => 0.03 + (hashString(`cue:${aiId}`) % 25) / 1000;
+
+/** Distance from point p to the segment a–b. */
+function segDist(p: { x: number; y: number }, a: [number, number], b: [number, number]) {
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1];
+  const len = dx * dx + dy * dy;
+  const t = len ? Math.max(0, Math.min(1, ((p.x - a[0]) * dx + (p.y - a[1]) * dy) / len)) : 0;
+  return Math.hypot(p.x - a[0] - t * dx, p.y - a[1] - t * dy);
+}
+
+/**
+ * The AI's snooker shot: the easiest legal pot it can see (a ghost-ball aim at
+ * a ball on, towards a pocket, avoiding blocked lines), struck with a
+ * seeded, bounded aim error so it misses often enough to be beatable.
+ */
+export function aiShot(
+  w: World,
+  r: PlayRoom,
+  aiId: Id,
+  error = aiCueError(aiId),
+): { angle: number; power: number } {
+  const rng = deriveRng(w.seed, 'play-ai', r.id, r.round, aiId);
+  const cue = r.balls[0]!;
+  const colours = r.balls.filter((b) => b.value > 1 && !b.potted).map((b) => b.value);
+  const on = r.balls.filter(
+    (b) =>
+      b.id !== 0 &&
+      !b.potted &&
+      (r.red ? b.value === 1 : r.colorFree ? b.value > 1 : b.value === Math.min(...colours)),
+  );
+  let best: { angle: number; power: number; score: number } | null = null;
+  for (const b of on)
+    for (const pocket of POCKETS) {
+      const tx = pocket[0] - b.x,
+        ty = pocket[1] - b.y,
+        d2 = Math.hypot(tx, ty);
+      if (d2 < 0.01) continue;
+      const ux = tx / d2,
+        uy = ty / d2;
+      const ghost: [number, number] = [b.x - ux * 2.7, b.y - uy * 2.7];
+      const ax = ghost[0] - cue.x,
+        ay = ghost[1] - cue.y,
+        d1 = Math.hypot(ax, ay);
+      if (d1 < 0.5) continue;
+      const cut = (ax * ux + ay * uy) / d1;
+      if (cut < 0.25) continue;
+      const others = r.balls.filter((o) => !o.potted && o.id !== 0 && o.id !== b.id);
+      const blocked =
+        others.some((o) => segDist(o, [cue.x, cue.y], ghost) < 2.7) ||
+        others.some((o) => segDist(o, [b.x, b.y], pocket) < 2.7);
+      const score = cut * 2 - (d1 + d2) / 120 - (blocked ? 3 : 0) + (r.red ? 0 : b.value / 20);
+      const power = Math.min(100, Math.max(5, (0.9 * (d1 + (d2 + 10) / cut)) / 0.75));
+      if (!best || score > best.score)
+        best = { angle: Math.atan2(ay, ax), power: Math.round(power), score };
+    }
+  // Nothing pottable: roll the cue ball into the nearest ball on.
+  if (!best) {
+    const near = [...on].sort(
+      (a, b) => Math.hypot(a.x - cue.x, a.y - cue.y) - Math.hypot(b.x - cue.x, b.y - cue.y),
+    )[0];
+    const angle = near ? Math.atan2(near.y - cue.y, near.x - cue.x) : rng.range(-Math.PI, Math.PI);
+    best = { angle, power: 45, score: 0 };
+  }
+  let angle = best.angle + rng.normal(0, error);
+  if (angle > Math.PI) angle -= 2 * Math.PI;
+  if (angle < -Math.PI) angle += 2 * Math.PI;
+  const power = Math.min(100, Math.max(5, Math.round(best.power * rng.range(0.9, 1.15))));
+  return { angle, power };
+}
+
+/** The AI's penalty: a corner drawn from the room's seed, never from the other player's choice. */
+export function aiPenalty(w: World, r: PlayRoom, aiId: Id) {
+  const rng = deriveRng(w.seed, 'play-ai', r.id, r.round, aiId);
+  return { lane: rng.int(0, 4), after: rng.int(1_500, 4_500) };
+}
+
+/**
+ * Snooker and football against AI: the AI locks in its penalty once its
+ * thinking time is up (or as soon as every human has), and takes its snooker
+ * shot once the last shot has played out.
+ */
+function aiMoves(w: World, r: PlayRoom, now: number) {
+  if (r.status !== 'playing' || !r.ai?.length) return;
+  if (r.game === 'football') {
+    const start = r.deadline - PENALTY_MS;
+    const humansDone = r.members.every((m) => r.ai!.includes(m.id) || r.moves[m.id] !== undefined);
+    for (const id of r.ai) {
+      if (r.moves[id] !== undefined) continue;
+      const a = aiPenalty(w, r, id);
+      if (humansDone || now >= start + a.after) r.moves[id] = a.lane;
+    }
+  } else if (r.game === 'snooker') {
+    const turn = r.members[r.turn % r.members.length]!.id;
+    if (!r.ai.includes(turn) || now < r.deadline - SHOT_MS + AI_SHOT_AFTER) return;
+    const s = aiShot(w, r, turn);
+    shot(r, s.angle, s.power);
+    r.deadline = now + SHOT_MS;
+    r.touchedAt = now;
+  }
 }
 
 /** AI opponents answer once their thinking time has passed. */
@@ -280,8 +397,21 @@ function aiAnswers(r: PlayRoom, now: number) {
 }
 
 /** When the next AI answer is due (null: none waiting). */
-function aiDueAt(r: PlayRoom): number | null {
-  if (r.game !== 'quiz' || r.status !== 'playing' || !r.ai?.length) return null;
+function aiDueAt(w: World, r: PlayRoom): number | null {
+  if (r.status !== 'playing' || !r.ai?.length) return null;
+  if (r.game === 'snooker')
+    return r.ai.includes(r.members[r.turn % r.members.length]!.id)
+      ? r.deadline - SHOT_MS + AI_SHOT_AFTER
+      : null;
+  if (r.game === 'football') {
+    let due: number | null = null;
+    for (const id of r.ai)
+      if (r.moves[id] === undefined) {
+        const t = r.deadline - PENALTY_MS + aiPenalty(w, r, id).after;
+        due = due === null ? t : Math.min(due, t);
+      }
+    return due;
+  }
   const start = r.deadline - QUESTION_MS;
   let due: number | null = null;
   for (const id of r.ai)
@@ -496,6 +626,7 @@ function shot(r: PlayRoom, angle: number, power: number) {
 function advance(w: World, r: PlayRoom, now: number) {
   if (r.status !== 'playing') return;
   aiAnswers(r, now);
+  aiMoves(w, r, now);
   if (
     r.game === 'quiz' &&
     (r.members.every((m) => r.answers[m.id] !== undefined) || now >= r.deadline)
@@ -736,10 +867,16 @@ export function playCommand(
     return { ok: true };
   }
   if (cmd.type === 'play.ai') {
+    // Snooker and football (new): the host alone at the table plays one AI opponent.
     ensure(
-      r.host === p.id && r.status === 'waiting' && r.game === 'quiz' && !r.custom,
+      r.host === p.id &&
+        r.status === 'waiting' &&
+        !r.custom &&
+        (r.game === 'quiz' || (r.members.length === 1 && r.members[0]!.id === p.id)),
       'play.host',
-      'Only the host of a waiting quiz can call in AI opponents.',
+      r.game === 'quiz'
+        ? 'Only the host of a waiting quiz can call in AI opponents.'
+        : 'Only the host, alone at a waiting table, can play an AI opponent.',
     );
     fillWithAi(w, r, now, cmd.count ?? 2);
     return { ok: true };
@@ -858,7 +995,7 @@ export function playView(w: World, p: Player) {
           : null,
       /** Wave 12: AI opponents at the table, and when the next one answers (clients sync then). */
       ai: r.ai ?? [],
-      aiDueAt: aiDueAt(r),
+      aiDueAt: aiDueAt(w, r),
       /** Wave 12: the last answered question (with its French), for the reveal. */
       reveal:
         r.game === 'quiz' && r.round > 0 && r.status !== 'waiting'
