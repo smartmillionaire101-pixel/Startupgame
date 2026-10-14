@@ -1,0 +1,80 @@
+/* Chapter 2: team health, the hiring pipeline and the co-founder chooser. Mobile first. */
+.hire-sub {
+  font-size: 1rem;
+  margin: var(--sp-2) 0;
+}
+
+.hire-gaps {
+  margin: 0 0 var(--sp-2);
+  padding-left: 1.2rem;
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.hire-person {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.hire-person p {
+  margin: 0;
+}
+
+.hire-form {
+  display: grid;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.hire-role {
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-2);
+  margin-top: var(--sp-2);
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.hire-cands {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.hire-cand {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  background: var(--surface);
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.hire-cand p {
+  margin: 0;
+}
+
+.hire-cv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.hire-cv dt {
+  color: var(--muted);
+}
+
+.hire-cv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.hire-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
