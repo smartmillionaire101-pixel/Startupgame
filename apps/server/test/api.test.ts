@@ -259,7 +259,7 @@ describe('API boundary', () => {
 });
 
 describe('chat (§15)', () => {
-  it('starts from a starter, filters contact details, and supports block and report', async () => {
+  it('starts with what you type, filters contact details, and supports block and report', async () => {
     const { app } = await makeApp();
     const a = api(app, await signIn(app, '+2348030000011'));
     const b = api(app, await signIn(app, '+2348030000022'));
@@ -277,10 +277,11 @@ describe('chat (§15)', () => {
     await c.command(founderSetup('gamma_three'));
     const bId = (await b.get('/api/state')).json().view.me.id;
 
-    const free = await a.post('/api/chats', { playerId: bId, starter: 'hello there' });
-    expect(free.statusCode).toBe(400);
-    const starters = (await a.get(`/api/chats/starters/${bId}`)).json().starters as string[];
-    const chat = (await a.post('/api/chats', { playerId: bId, starter: starters[0] })).json().chat;
+    // Wave 13: no starters; the first message is anything that passes the filters.
+    const filtered = await a.post('/api/chats', { playerId: bId, text: 'see www.example.com' });
+    expect(filtered.statusCode).toBe(400);
+    const first = 'hello there 👋';
+    const chat = (await a.post('/api/chats', { playerId: bId, text: first })).json().chat;
 
     expect(
       (await a.post(`/api/chats/${chat.id}/messages`, { text: 'Call me on +234 803 123 4567' }))
@@ -292,7 +293,7 @@ describe('chat (§15)', () => {
     ).toBe(200);
     const seen = (await b.get(`/api/chats/${chat.id}/messages`)).json();
     expect(seen.messages.map((m: { text: string }) => m.text)).toEqual([
-      starters[0],
+      first,
       'Our MRR grew 20% last month.',
     ]);
     // Private between participants.

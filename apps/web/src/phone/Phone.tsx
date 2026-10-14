@@ -160,6 +160,7 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
   const [invite, setInvite] = useState(false);
   const [sendTo, setSendTo] = useState<string | undefined>(undefined);
   const [property, setProperty] = useState<string | undefined>(undefined);
+  const [receipt, setReceipt] = useState<string | undefined>(undefined);
   const [thread, setThread] = useState<ThreadRef | null>(null);
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [ai, setAi] = useState<AiThread[]>([]);
@@ -269,7 +270,11 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
     setInvite(!!o.invite);
     setSendTo(o.send);
     setProperty(o.property);
-    if (o.property !== undefined) {
+    setReceipt(o.receipt);
+    if (o.receipt) {
+      setApp('bank');
+      setThread(null);
+    } else if (o.property !== undefined) {
       setApp('homes');
       setThread(null);
     } else if (o.send !== undefined) {
@@ -349,6 +354,7 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
           }}
           invite={invite}
           sendTo={sendTo}
+          receipt={receipt}
           property={property}
           pickGuest={() => openWith({ invite: true })}
           thread={thread}
@@ -428,6 +434,7 @@ function PhoneScreen(props: {
   setApp: (a: PhoneApp) => void;
   invite: boolean;
   sendTo?: string;
+  receipt?: string;
   property?: string;
   pickGuest: () => void;
   thread: ThreadRef | null;
@@ -474,6 +481,7 @@ function PhoneScreen(props: {
     pickGuest: props.pickGuest,
     invite: props.invite,
     sendTo: props.sendTo,
+    receipt: props.receipt,
     property: props.property,
   };
 
@@ -500,6 +508,7 @@ function PhoneScreen(props: {
           draft={thread.say}
           chats={props.chats}
           markSeen={props.markSeen}
+          ctx={ctx}
         />
       ) : picking ? (
         <NewMessage

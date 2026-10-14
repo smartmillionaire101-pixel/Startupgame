@@ -123,6 +123,12 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
       for (let ty = Math.floor((y - R) / size); ty <= Math.floor((y + R) / size); ty++)
         for (let tx = Math.floor((x - R) / size); tx <= Math.floor((x + R) / size); tx++) {
           const k = `${tx}_${ty}`;
+          // A sky view loads a disc round you, not the square's far corners (lost in the haze).
+          if (
+            reach !== undefined &&
+            Math.hypot((tx + 0.5) * size - x, (ty + 0.5) * size - y) > R + size * 0.71
+          )
+            continue;
           if (keys.has(k)) want.add(k);
         }
       for (const [k, o] of loaded)

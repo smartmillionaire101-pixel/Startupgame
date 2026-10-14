@@ -10,9 +10,11 @@ import { fail } from './errors.js';
 import { newId } from './ids.js';
 import type { Currency } from './money.js';
 import type { MarketId } from './data/markets.js';
-import type { Account, Id, World } from './types.js';
+import type { Account, Id, TxFx, TxKind, TxRecord, World } from './types.js';
 
 const RECENT_LIMIT = 30;
+/** Lines a human player's own accounts keep: their bank statement. */
+export const STATEMENT_HISTORY = 200;
 export type MoneyPurpose = 'spent' | 'sent' | 'invested' | 'capital' | 'move';
 
 /** Count the outgoing leg once, in its source currency. AI cash is excluded. */
@@ -74,9 +76,75 @@ export function account(world: World, id: Id): Account {
 
 export const balance = (world: World, id: Id): number => account(world, id).balance;
 
-function record(acc: Account, month: number, amount: number, memo: string) {
-  acc.recent.unshift({ month, amount, memo });
-  if (acc.recent.length > RECENT_LIMIT) acc.recent.length = RECENT_LIMIT;
+/**
+ * A human player's own accounts keep a long statement. Set when they open;
+ * saves from before statements pick it up at the player's next command.
+ */
+export function keepStatement(
+  world: World,
+  p: { ai: boolean; accounts: { local: Id; usd?: Id } },
+): void {
+  if (p.ai) return;
+  for (const id of [p.accounts.local, p.accounts.usd]) {
+    const acc = id ? world.accounts[id] : undefined;
+    if (acc && acc.history !== STATEMENT_HISTORY) acc.history = STATEMENT_HISTORY;
+  }
+}
+
+// ---------------------------------------------------------------- Transactions
+
+/**
+ * What the code moving money says about it, for statements and receipts. Every
+ * transfer made inside `withTx` shares one transaction number, so a payment,
+ * its fee and its currency conversion read as one receipt. Contexts nest: an
+ * inner one keeps the outer number and overrides the rest. They live only for
+ * the duration of a synchronous call, never in the world.
+ */
+export interface TxMeta {
+  kind?: TxKind;
+  note?: string;
+  fee?: boolean;
+  /** The real payer and payee, when the money passes through an FX desk. */
+  from?: Id;
+  to?: Id;
+}
+
+const txStack: (TxMeta & { tx: number })[] = [];
+
+const nextTx = (world: World): number => (world.txSeq = (world.txSeq ?? 0) + 1);
+
+/** A transaction number as players see it on receipts. */
+export const txRef = (tx: number): string => `TX${String(tx).padStart(8, '0')}`;
+
+/** The number in a reference from `txRef` (null if it isn't one). */
+export function parseTxRef(ref: string): number | null {
+  const m = /^TX(\d{1,15})$/.exec(ref);
+  return m ? Number(m[1]) : null;
+}
+
+/** Run `fn` as one transaction; returns what it returns. `fn` gets the receipt reference. */
+export function withTx<T>(world: World, meta: TxMeta, fn: (ref: string) => T): T {
+  const parent = txStack[txStack.length - 1];
+  const tx = parent?.tx ?? nextTx(world);
+  txStack.push({ ...parent, ...meta, tx });
+  try {
+    return fn(txRef(tx));
+  } finally {
+    txStack.pop();
+  }
+}
+
+function record(acc: Account, month: number, amount: number, memo: string, extra?: TxRecord) {
+  acc.recent.unshift(extra && !acc.external ? extra : { month, amount, memo });
+  const keep = acc.history ?? RECENT_LIMIT;
+  if (acc.recent.length > keep) acc.recent.length = keep;
+}
+
+/** Add details to the line a transfer just wrote (FX on a conversion). */
+function annotate(world: World, id: Id, patch: Partial<TxRecord>) {
+  const acc = account(world, id);
+  const line = acc.recent[0];
+  if (line && !acc.external) Object.assign(line, patch);
 }
 
 /**
@@ -101,8 +169,22 @@ export function transfer(
     fail('ledger.funds', 'Not enough money in the account');
   from.balance -= amount;
   to.balance += amount;
-  record(from, month, -amount, memo);
-  record(to, month, amount, memo);
+  const ctx = txStack[txStack.length - 1];
+  const tx = ctx?.tx ?? nextTx(world);
+  const at = world.activity?.at;
+  const line = (sign: 1 | -1, peer: Id): TxRecord => ({
+    month,
+    amount: sign * amount,
+    memo,
+    tx,
+    ...(at !== undefined ? { at } : {}),
+    peer,
+    ...(ctx?.kind ? { kind: ctx.kind } : {}),
+    ...(ctx?.note ? { note: ctx.note } : {}),
+    ...(ctx?.fee ? { fee: true } : {}),
+  });
+  record(from, month, -amount, memo, line(-1, ctx?.to ?? toId));
+  record(to, month, amount, memo, line(1, ctx?.from ?? fromId));
   recordActivity(world, from, amount, memo, purpose);
 }
 
@@ -172,11 +254,34 @@ export function convert(
     return amount;
   }
   const rate = fxRate(world, from.currency, to.currency);
-  const fee = fxFeeBps(world, from.currency, to.currency) / 10_000;
-  const received = Math.floor(amount * rate * (1 - fee));
-  transfer(world, fromId, fxDesk(world, from.currency), amount, memo, month, purpose);
-  transfer(world, fxDesk(world, to.currency), toId, received, memo, month, purpose);
+  const feeBps = fxFeeBps(world, from.currency, to.currency);
+  const received = Math.floor(amount * rate * (1 - feeBps / 10_000));
+  throughDesks(world, fromId, toId, amount, received, rate, feeBps, memo, month, purpose);
   return received;
+}
+
+/** The two legs of a conversion, recorded as one transaction between the real parties. */
+function throughDesks(
+  world: World,
+  fromId: Id,
+  toId: Id,
+  sent: number,
+  received: number,
+  rate: number,
+  feeBps: number,
+  memo: string,
+  month: number,
+  purpose: MoneyPurpose,
+) {
+  const from = account(world, fromId);
+  const to = account(world, toId);
+  const fx: TxFx = { from: from.currency, to: to.currency, rate, feeBps, sent, received };
+  withTx(world, { from: fromId, to: toId }, () => {
+    transfer(world, fromId, fxDesk(world, from.currency), sent, memo, month, purpose);
+    if (sent > 0) annotate(world, fromId, { fx });
+    transfer(world, fxDesk(world, to.currency), toId, received, memo, month, purpose);
+    if (received > 0) annotate(world, toId, { fx });
+  });
 }
 
 /** Value of an amount in another currency at the official rate (no fee), for display/valuation. */
@@ -224,14 +329,13 @@ export function payExact(
     transfer(world, fromId, toId, target, memo, month, purpose);
     return target;
   }
-  const rate =
-    fxRate(world, from.currency, to.currency) *
-    (1 - fxFeeBps(world, from.currency, to.currency) / 10_000);
+  const official = fxRate(world, from.currency, to.currency);
+  const feeBps = fxFeeBps(world, from.currency, to.currency);
+  const rate = official * (1 - feeBps / 10_000);
   const needed = Math.ceil(target / rate) + 1;
   if (!from.external && from.balance < needed)
     fail('ledger.funds', 'Not enough money in the account');
-  transfer(world, fromId, fxDesk(world, from.currency), needed, memo, month, purpose);
-  transfer(world, fxDesk(world, to.currency), toId, target, memo, month, purpose);
+  throughDesks(world, fromId, toId, needed, target, official, feeBps, memo, month, purpose);
   return needed;
 }
 

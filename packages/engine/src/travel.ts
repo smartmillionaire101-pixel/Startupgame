@@ -21,7 +21,16 @@ import {
   spendHours,
   usdToLocal,
 } from './helpers.js';
-import { account, convert, costIn, openAccount, pay, payExact, transfer } from './ledger.js';
+import {
+  account,
+  convert,
+  costIn,
+  keepStatement,
+  openAccount,
+  pay,
+  payExact,
+  transfer,
+} from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { checkName, normaliseName } from './names.js';
@@ -344,6 +353,7 @@ export function relocate(world: World, p: Player, to: MarketId, newHandle: strin
     );
   }
   p.accounts.local = newLocal;
+  keepStatement(world, p);
 
   // 2. Shares and SAFEs everywhere: half to the old market's central bank.
   const cb = centralBankHolderId(from.id);

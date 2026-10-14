@@ -41,7 +41,9 @@ test('two players discover a home game, play football and share a consenting sky
   page: a,
   browser,
 }, info) => {
-  test.slow();
+  // Two players, a game and a date, then the London Eye drawn on software
+  // WebGL (see skyviews.spec.ts): two minutes locally, double on CI.
+  test.setTimeout(360_000);
   await a.setViewportSize({ width: 1280, height: 900 });
   const context = await browser.newContext({
     baseURL: info.project.use.baseURL,
@@ -88,18 +90,20 @@ test('two players discover a home game, play football and share a consenting sky
     await expect(home.getByLabel('Holding hands')).toBeVisible({ timeout: 10000 });
     await home.getByRole('button', { name: 'Step into the view' }).click();
     const panorama = a.getByRole('dialog', { name: 'City panorama' });
-    // The whole of London loads on software WebGL here: as long as the sky-view spec allows.
-    await expect(panorama.locator('canvas')).toBeVisible({ timeout: 60000 });
+    // London loads on software WebGL here: as long as the sky-view spec allows.
+    await expect(panorama.locator('canvas')).toBeVisible({ timeout: 90_000 });
     await panorama.getByRole('button', { name: 'Palace of Westminster' }).click();
-    await expect(panorama.getByText(/Houses of Parliament and Elizabeth Tower/)).toBeVisible();
+    await expect(panorama.getByText(/Houses of Parliament and Elizabeth Tower/)).toBeVisible({
+      timeout: 30_000,
+    });
     await a.waitForTimeout(1000);
     await a.screenshot({ path: info.outputPath('london-eye.png') });
     await panorama.getByRole('button', { name: 'Look right' }).click();
     await panorama.getByRole('button', { name: 'Let go' }).click();
-    await expect(dateB.getByLabel('Holding hands')).toHaveCount(0, { timeout: 10000 });
+    await expect(dateB.getByLabel('Holding hands')).toHaveCount(0, { timeout: 30_000 });
     await panorama.getByRole('button', { name: 'End date' }).click();
     await expect(dateB.getByRole('button', { name: 'Invite on a date' })).toBeVisible({
-      timeout: 10000,
+      timeout: 30_000,
     });
     expect(errors).toEqual([]);
   } finally {

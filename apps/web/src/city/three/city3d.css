@@ -203,3 +203,14 @@
   color: #e5e7eb;
   font-weight: 500;
 }
+/* A landmark you can ride or climb up: tap its name to open the sky view. */
+.c3-landmark[data-sky] {
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.45);
+}
+.c3-landmark[data-sky]::after {
+  content: ' ↑';
+}

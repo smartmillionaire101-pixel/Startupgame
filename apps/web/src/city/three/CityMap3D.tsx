@@ -42,6 +42,8 @@ const tierLabel = (tier: PropertyTier) =>
   })[tier];
 import { markWebGLBroken } from './quality';
 import './city3d.css';
+import { SKY_VIEWS } from '@runway/engine';
+import { openSky } from '../../experiences/sky-bus';
 
 const NONE: never[] = [];
 const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall'];
@@ -510,7 +512,12 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     const had = pointers.current.delete(e.pointerId);
     if (!had || pointers.current.size > 0) return;
     if (gesture.current.moved > 6) return;
-    // A tap: a label (or badge), a building, or the street.
+    // A tap: a sky view's landmark, a label (or badge), a building, or the street.
+    const sky = (e.target as Element).closest?.('[data-sky]')?.getAttribute('data-sky');
+    if (sky) {
+      openSky(sky);
+      return;
+    }
     const el = (e.target as Element).closest?.('[data-place]');
     const id = el?.getAttribute('data-place');
     if (id) {
@@ -763,6 +770,13 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
 
   // The suggested move pulses; flags (events coming up) show on the label.
   const landmarks = layout.geo?.sprites ?? [];
+  // A landmark that is a sky view (the Salesforce Tower, the Eye…): tap to go up.
+  const skyByLandmark = new Map(
+    SKY_VIEWS.flatMap((v) => [
+      [v.name, v.id] as const,
+      ...(v.landmark ? [[v.landmark, v.id] as const] : []),
+    ]),
+  );
 
   return (
     <div
@@ -788,6 +802,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
             key={lm.name}
             className="c3-landmark"
             data-landmark={lm.name}
+            {...(skyByLandmark.get(lm.name) ? { 'data-sky': skyByLandmark.get(lm.name) } : {})}
             data-x={lm.e2 !== undefined ? (lm.e + lm.e2) / 2 : lm.e}
             data-z={lm.s2 !== undefined ? (lm.s + lm.s2!) / 2 : lm.s}
             data-h={lm.e2 !== undefined ? 90 : 40}

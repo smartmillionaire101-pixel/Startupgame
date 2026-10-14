@@ -54,6 +54,7 @@ import {
 } from './programs.js';
 import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
 import { buyProperty, letProperty, moveIn, sellProperty } from './property.js';
+import { acceptGift, declineGift, giftProperty } from './gifts.js';
 import { closeBranch, openBranch } from './branches.js';
 import { enterCompetition, joinJudges, scoreEntry } from './competitions.js';
 import { proposeAcquisition } from './acquisitions.js';
@@ -80,7 +81,7 @@ import {
   publish,
   spendHours,
 } from './helpers.js';
-import { account, transfer } from './ledger.js';
+import { account, keepStatement, transfer } from './ledger.js';
 import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
 import {
@@ -128,6 +129,8 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
     const next = produce(world, (draft) => {
       draft.activity ??= { since: ctx.now, at: ctx.now, sequence: 0, totals: {}, recent: [] };
       draft.activity.at = ctx.now;
+      const actor = ctx.actorId ? draft.players[ctx.actorId] : undefined;
+      if (actor) keepStatement(draft as World, actor);
       expirePlay(draft as World, ctx.now);
       result = apply(draft as World, command, ctx);
       draft.version += 1;
@@ -1060,6 +1063,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return letProperty(world, me, cmd.propertyId, false);
     case 'property.moveIn':
       return moveIn(world, me, cmd.propertyId);
+    case 'property.gift':
+      return giftProperty(world, me, cmd.propertyId, cmd.toPlayerId);
+    case 'property.gift.accept':
+      return acceptGift(world, me, cmd.giftId);
+    case 'property.gift.decline':
+      return declineGift(world, me, cmd.giftId);
     case 'company.branch.open':
       return openBranch(world, me, cmd.companyId, cmd.market, cmd.district);
     case 'company.branch.close':

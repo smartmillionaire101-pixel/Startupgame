@@ -18,8 +18,10 @@ import type {
   AccountStore,
   EmailTokenRow,
   ChatRow,
+  MessageExtra,
   MessageRow,
   PresenceRow,
+  VoiceRow,
 } from './types.js';
 
 export type { ChatRow, MessageRow } from './types.js';
@@ -142,6 +144,20 @@ const MIGRATIONS: string[] = [
    CREATE INDEX visit_sessions_at ON visit_sessions(at);
    CREATE TABLE visit_days (day TEXT PRIMARY KEY, n INTEGER NOT NULL);
    CREATE TABLE visit_summary (id INTEGER PRIMARY KEY CHECK(id = 1), since INTEGER NOT NULL, total INTEGER NOT NULL);`,
+  // Wave 13: voice notes and cards (payments, invitations, gifts) in player chats.
+  `ALTER TABLE chat_messages ADD COLUMN kind TEXT;
+   ALTER TABLE chat_messages ADD COLUMN meta TEXT;
+   CREATE TABLE voice_notes (
+     id TEXT PRIMARY KEY,
+     chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+     sender TEXT NOT NULL,
+     mime TEXT NOT NULL,
+     ms INTEGER NOT NULL,
+     size INTEGER NOT NULL,
+     data BLOB NOT NULL,
+     created_at INTEGER NOT NULL
+   );
+   CREATE INDEX voice_notes_chat ON voice_notes(chat_id);`,
 ];
 
 /** Presence rows this much older than the caller's window are deleted. */
@@ -414,12 +430,35 @@ export class Store implements AccountStore {
       .all(userId, userId) as never;
   }
 
-  addMessage(chatId: string, sender: string, text: string, flagged: boolean, now: number) {
+  addMessage(
+    chatId: string,
+    sender: string,
+    text: string,
+    flagged: boolean,
+    now: number,
+    extra?: MessageExtra,
+  ) {
     this.db
       .prepare(
-        'INSERT INTO chat_messages (chat_id, sender, text, flagged, created_at) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO chat_messages (chat_id, sender, text, flagged, created_at, kind, meta) VALUES (?, ?, ?, ?, ?, ?, ?)',
       )
-      .run(chatId, sender, text, flagged ? 1 : 0, now);
+      .run(chatId, sender, text, flagged ? 1 : 0, now, extra?.kind ?? null, extra?.meta ?? null);
+  }
+
+  putVoice(row: VoiceRow, data: Uint8Array) {
+    this.db
+      .prepare(
+        'INSERT INTO voice_notes (id, chat_id, sender, mime, ms, size, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run(row.id, row.chat_id, row.sender, row.mime, row.ms, row.size, data, row.created_at);
+  }
+
+  getVoice(id: string) {
+    const r = this.db.prepare('SELECT * FROM voice_notes WHERE id = ?').get(id) as
+      (VoiceRow & { data: Uint8Array }) | undefined;
+    if (!r) return undefined;
+    const { data, ...row } = r;
+    return { row, data: new Uint8Array(data) };
   }
 
   messages(chatId: string, limit = 100): MessageRow[] {

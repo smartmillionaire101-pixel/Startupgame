@@ -19,8 +19,30 @@ export interface MessageRow {
   id: number;
   chat_id: string;
   sender: string;
+  /** For voice notes and cards: a short summary (chat lists show it). */
   text: string;
   flagged: number;
+  created_at: number;
+  /** Wave 13: 'voice' or 'card'; missing or null for a text message. */
+  kind?: string | null;
+  /** Wave 13: JSON for a voice note ({ voiceId, ms, mime }) or a card. */
+  meta?: string | null;
+}
+
+/** Wave 13: what goes with a message that isn't plain text. */
+export interface MessageExtra {
+  kind: 'voice' | 'card';
+  meta: string;
+}
+
+/** Wave 13: a voice note in a player chat (the audio is stored apart from the message). */
+export interface VoiceRow {
+  id: string;
+  chat_id: string;
+  sender: string;
+  mime: string;
+  ms: number;
+  size: number;
   created_at: number;
 }
 
@@ -123,7 +145,11 @@ export interface AccountStore {
     text: string,
     flagged: boolean,
     now: number,
+    extra?: MessageExtra,
   ): Awaitable<void>;
+  /** Wave 13: store a voice note's audio (deleted with its chat). */
+  putVoice(row: VoiceRow, data: Uint8Array): Awaitable<void>;
+  getVoice(id: string): Awaitable<{ row: VoiceRow; data: Uint8Array } | undefined>;
   messages(chatId: string, limit?: number): Awaitable<MessageRow[]>;
   recentMessageCount(sender: string, since: number): Awaitable<number>;
   blockChat(chatId: string, by: string): Awaitable<void>;

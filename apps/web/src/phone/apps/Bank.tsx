@@ -12,6 +12,8 @@ import { DealCard } from '../../screens/common';
 import { carOf, myJobOf } from '../../city/life';
 import { H, Line, Nothing, num, type PhoneCtx } from '../shared';
 import { SendMoney } from './Friends';
+import { ReceiptScreen, StatementScreen, TxList } from './Statement';
+import type { StatementLine } from '@runway/engine';
 
 const bandLabel = (b: string) =>
   ({
@@ -36,13 +38,25 @@ export function Bank({ ctx }: { ctx: PhoneCtx }) {
   const limit = Math.max(0, num(credit.unsecuredLimit));
   const [months, setMonths] = useState(12);
   const [sending, setSending] = useState(ctx.sendTo !== undefined);
+  const [screen, setScreen] = useState<'home' | 'statement'>('home');
+  const [receipt, setReceipt] = useState<{
+    ref: string | null;
+    line?: StatementLine;
+    currency?: string;
+  } | null>(ctx.receipt ? { ref: ctx.receipt } : null);
+  // Opened again on another receipt (a payment card in a chat).
+  const [asked, setAsked] = useState(ctx.receipt);
+  if (ctx.receipt !== asked) {
+    setAsked(ctx.receipt);
+    if (ctx.receipt) setReceipt({ ref: ctx.receipt });
+  }
   const offers = view.deals.filter(
     (d) =>
       d.status === 'open' &&
       (d.terms as { kind?: string }).kind === 'personal-loan' &&
       (d.yourTurn || d.youProposed),
   );
-  const recent = (local?.recent ?? []).slice(0, 12);
+  const recent = local?.statement.lines ?? [];
   const scoreTone = credit.score >= 65 ? 'good' : credit.score < 35 ? 'bad' : 'warn';
   const borrow = (amount: number) =>
     void send({ type: 'player.loan', amount, months }, (r: { summary?: string } | null) =>
@@ -50,6 +64,19 @@ export function Bank({ ctx }: { ctx: PhoneCtx }) {
         ? t('Offer ready on your deal cards: {summary}', { summary: tx(r.summary) })
         : t('Offer ready below.'),
     );
+  const openLine = (line: StatementLine, currency: string) =>
+    setReceipt({ ref: line.ref, line, currency });
+  if (receipt)
+    return (
+      <ReceiptScreen
+        refId={receipt.ref}
+        line={receipt.line}
+        currency={receipt.currency}
+        onBack={() => setReceipt(null)}
+      />
+    );
+  if (screen === 'statement')
+    return <StatementScreen onBack={() => setScreen('home')} onOpen={openLine} />;
   return (
     <div className="phone-stack">
       <section className="phone-card phone-hero tone-bank" aria-label={t('Balance')}>
@@ -165,24 +192,25 @@ export function Bank({ ctx }: { ctx: PhoneCtx }) {
       </section>
 
       <section className="phone-card" aria-label={t('Recent transactions')}>
-        <H>{t('Recent transactions')}</H>
+        <div className="spread">
+          <H>{t('Recent transactions')}</H>
+          <Button
+            variant="ghost"
+            size="sm"
+            data-open-statement
+            onClick={() => setScreen('statement')}
+          >
+            {t('Full statement')}
+          </Button>
+        </div>
         {recent.length === 0 ? (
           <Nothing>{t('No transactions yet.')}</Nothing>
         ) : (
-          <ul className="phone-tx">
-            {recent.map((r, i) => (
-              <li key={i} className="spread">
-                <span className="phone-tx-memo">
-                  {tx(r.memo)}
-                  <span className="small muted"> · {t('Month {n}', { n: r.month })}</span>
-                </span>
-                <span className={r.amount >= 0 ? 'good' : 'bad'}>
-                  {r.amount >= 0 ? '+' : '−'}
-                  {money(Math.abs(r.amount), cur)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <TxList
+            lines={recent}
+            currency={local?.currency ?? cur}
+            onOpen={(l) => openLine(l, local?.currency ?? cur)}
+          />
         )}
       </section>
 

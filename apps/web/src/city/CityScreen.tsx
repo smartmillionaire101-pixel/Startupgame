@@ -58,12 +58,13 @@ import type { Nav } from './Interiors';
 import { useRiding } from './riding';
 import { crowdSize, eventsOf, flaggedPlaces, newBusinessIds, passersBy } from './people';
 import { PersonCard, type PersonRef } from './PersonCard';
+import { SkyViewsList } from '../experiences/SkyViewsList';
 import { WhoIsAround } from './WhoIsHere';
 import { usePresence } from './presence';
 import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
-import { buildCityLayout } from './geoLayout';
-import { type CityInput, type CityLayout, type DistrictId, type Place, type Pt } from './layout';
+import { cachedCityLayout } from './geoLayout';
+import { type CityLayout, type DistrictId, type Place, type Pt } from './layout';
 
 // Scenes and flights load on demand (Wave 7 §D: a small main bundle).
 const Interior = lazy(() => import('./Interiors').then((m) => ({ default: m.Interior })));
@@ -227,23 +228,6 @@ export function PlacesList({
       })}
     </div>
   );
-}
-
-/**
- * The last layout per city. Coming back to the City tab reuses it (laying
- * out a real map takes a moment on a phone), and a changed city is laid out
- * from it, so what already stood keeps its ground: a fund, bank or business
- * opening elsewhere moves nothing you know.
- */
-const layouts = new Map<string, { key: string; geo: GeoData | null; layout: CityLayout }>();
-
-function layoutFor(key: string, geo: GeoData | null): CityLayout {
-  const input = JSON.parse(key) as CityInput;
-  const hit = layouts.get(input.marketId);
-  if (hit && hit.key === key && hit.geo === geo) return hit.layout;
-  const layout = buildCityLayout(input, geo, hit && hit.geo === geo ? hit.layout : null);
-  layouts.set(input.marketId, { key, geo, layout });
-  return layout;
 }
 
 interface FlightState {
@@ -441,6 +425,8 @@ function CityBodyInner({
   );
   const [inside, setInside] = useState<Place | null>(null);
   const [placesOpen, setPlacesOpen] = useState(false);
+  const [skyOpen, setSkyOpen] = useState(false);
+  const skyCity = view.here?.id ?? view.market.id;
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [person, setPerson] = useState<PersonRef | null>(null);
   const [trip, setTrip] = useState<FarTrip | null>(null);
@@ -467,7 +453,7 @@ function CityBodyInner({
 
   // Rebuild the layout only when what it depends on changes.
   const key = JSON.stringify(cityInput(view));
-  const layout = useMemo(() => layoutFor(key, geo), [key, geo]);
+  const layout = useMemo(() => cachedCityLayout(key, geo), [key, geo]);
   // Landed: you step out of the airport.
   useLayoutEffect(() => {
     if (!landing || layout.marketId !== landing) return;
@@ -643,6 +629,10 @@ function CityBodyInner({
             {t('Lite mode: the city map is off to save data. Pick a place to go in.')}
           </p>
           <WhatNowCard onGo={visit} />
+          <section className="places-group sky-group">
+            <h3>{t('Sky views')}</h3>
+            <SkyViewsList city={skyCity} />
+          </section>
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
           <section className="places-group people-group">
             <h3>{t('People around')}</h3>
@@ -794,6 +784,15 @@ function CityBodyInner({
                       <Icon name="list" size={20} />
                       <span className="hud-btn-label">{t('Places')}</span>
                     </button>
+                    <button
+                      type="button"
+                      className="hud-places"
+                      data-testid="sky-views-btn"
+                      onClick={() => setSkyOpen(true)}
+                    >
+                      <span aria-hidden>🎡</span>
+                      <span className="hud-btn-label">{t('Sky views')}</span>
+                    </button>
                   </div>
                 </div>
               </>
@@ -821,8 +820,14 @@ function CityBodyInner({
           </div>
         </Sheet>
       )}
+      {skyOpen && (
+        <Sheet title={t('Sky views')} onClose={() => setSkyOpen(false)}>
+          <SkyViewsList city={skyCity} onOpen={() => setSkyOpen(false)} />
+        </Sheet>
+      )}
       {placesOpen && (
         <Sheet title={t('Places')} onClose={() => setPlacesOpen(false)}>
+          <SkyViewsList city={skyCity} onOpen={() => setPlacesOpen(false)} />
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
         </Sheet>
       )}

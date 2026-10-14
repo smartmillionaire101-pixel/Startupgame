@@ -25,6 +25,8 @@ import { interiorsWave9 } from './interiors-wave9';
 import { wave10 } from './wave10';
 import { homeWave12 } from './home-wave12';
 import { wave12Sky } from './wave12-sky';
+import { chatWave13 } from './chat-wave13';
+import { bankStatement } from './bank-statement';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -53,6 +55,8 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   wave10,
   homeWave12,
   wave12Sky,
+  chatWave13,
+  bankStatement,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));
