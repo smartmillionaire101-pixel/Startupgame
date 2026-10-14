@@ -58,6 +58,8 @@ import type { Walker } from '../people';
 const SOFT_FRAME_MS = 200;
 /** How often a software renderer compiles new shaders ahead of drawing (ms). */
 const SOFT_COMPILE_MS = 1500;
+/** Most pixels a software renderer shades a frame (a phone screen's worth). */
+const SOFT_PIXELS = 360_000;
 
 export type Tier = 'high' | 'low';
 
@@ -259,6 +261,8 @@ export class CityScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = !opts.soft;
+    // Reading back every shader's log waits for it to compile: on a CPU that's seconds.
+    if (opts.soft) this.renderer.debug.checkShaderErrors = false;
     if (opts.soft) this.degraded = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     // Redrawn when something that casts one moved (see loop), not every frame.
@@ -908,6 +912,12 @@ export class CityScene {
 
   resize(w: number, h: number) {
     this.size = { w: Math.max(1, w), h: Math.max(1, h) };
+    if (this.opts.soft) {
+      // Every pixel is shaded on the CPU: a big window draws fewer, scaled up.
+      const fit = Math.sqrt(SOFT_PIXELS / (this.size.w * this.size.h));
+      this.dprMax = this.dpr = Math.min(1, Math.max(0.4, fit));
+      this.renderer.setPixelRatio(this.dpr);
+    }
     this.renderer.setSize(this.size.w, this.size.h, false);
     this.camera.aspect = this.size.w / this.size.h;
     this.invalidate();
@@ -1306,7 +1316,7 @@ export class CityScene {
   }
 
   private setDpr(d: number) {
-    this.dpr = Math.max(1, Math.min(this.dprMax, d));
+    this.dpr = Math.max(Math.min(1, this.dprMax), Math.min(this.dprMax, d));
     this.renderer.setPixelRatio(this.dpr);
     this.renderer.setSize(this.size.w, this.size.h, false);
   }
