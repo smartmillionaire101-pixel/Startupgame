@@ -573,6 +573,13 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('property.unrent'), propertyId: id }),
   /** Live in a home you own: your home city and lifestyle tier follow it. */
   z.object({ type: z.literal('property.moveIn'), propertyId: id }),
+  /**
+   * Wave 13: offer a home you own (no mortgage, not let) to another player as
+   * a gift; they accept or decline (the giver may decline to take it back).
+   */
+  z.object({ type: z.literal('property.gift'), propertyId: id, toPlayerId: id }),
+  z.object({ type: z.literal('property.gift.accept'), giftId: id }),
+  z.object({ type: z.literal('property.gift.decline'), giftId: id }),
   /** Open a branch in a district (`CITY_DISTRICTS`) of any open city. */
   z.object({
     type: z.literal('company.branch.open'),

@@ -981,7 +981,9 @@ export interface InboxItem {
       | 'visit'
       | 'hangout'
       | 'techevent'
-      | 'player';
+      | 'player'
+      /** Wave 13: a home offered as a gift. */
+      | 'gift';
     id: Id;
   };
   read: boolean;
@@ -1245,6 +1247,8 @@ export interface World {
   properties?: Record<Id, Property>;
   /** Wave 10: company branches in other neighbourhoods and cities. Missing = none. */
   branches?: Record<Id, Branch>;
+  /** Wave 13: homes offered as gifts between players (gifts.ts). Missing = none. */
+  propertyGifts?: Record<Id, PropertyGift>;
   /** Wave 10: pitch competitions. Missing = none. */
   competitions?: Record<Id, Competition>;
 }
@@ -1298,6 +1302,18 @@ export interface Property {
   mortgage?: Mortgage | null;
   /** Rent and running costs last month (local minor), for the portfolio. */
   lastMonth?: { month: number; rent: number; upkeep: number; mortgage: number; vacant: boolean };
+}
+
+/** Wave 13: a home one player offers another as a gift (accepted or declined by them). */
+export interface PropertyGift {
+  id: Id;
+  propertyId: Id;
+  fromId: Id;
+  toId: Id;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+  /** Market month (of the property's city) it was offered and answered in. */
+  month: number;
+  answeredMonth?: number;
 }
 
 /** A company's branch in another neighbourhood or city (Wave 10). */

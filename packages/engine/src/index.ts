@@ -38,7 +38,9 @@ export {
   TECH_EVENT_KINDS,
   TALK_TITLES,
   parseTechEventId,
+  techEventsFor,
 } from './social.js';
+export { giftBlocker, giftsView } from './gifts.js';
 export { playerView, economyDashboard, digest, leaderboards } from './views.js';
 export type { PlayerView } from './views.js';
 export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';

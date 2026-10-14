@@ -281,6 +281,13 @@ describe('world invariants under random play', () => {
           'property.moveIn' as const,
         ),
       }),
+      // Wave 13: give a home to another player (no money moves).
+      fc.record({
+        k: fc.constant('propGift' as const),
+        who: fc.constantFrom('u_founder', 'u_inv', 'u_lon'),
+        to: fc.constantFrom('u_founder', 'u_inv', 'u_lon'),
+        step: fc.constantFrom('offer' as const, 'accept' as const, 'decline' as const),
+      }),
       fc.record({
         k: fc.constant('branch' as const),
         london: fc.boolean(),
@@ -764,6 +771,22 @@ describe('world invariants under random play', () => {
                 actor = a.who;
                 const mine = Object.values(w.properties ?? {}).find((x) => x.ownerId === actor);
                 cmd = { type: a.act, propertyId: mine?.id ?? 'none' };
+                break;
+              }
+              case 'propGift': {
+                actor = a.who;
+                if (a.step === 'offer') {
+                  const mine = Object.values(w.properties ?? {}).find((x) => x.ownerId === actor);
+                  cmd = { type: 'property.gift', propertyId: mine?.id ?? 'none', toPlayerId: a.to };
+                } else {
+                  const g = Object.values(w.propertyGifts ?? {}).find(
+                    (x) => x.status === 'pending' && (x.toId === actor || x.fromId === actor),
+                  );
+                  cmd = {
+                    type: a.step === 'accept' ? 'property.gift.accept' : 'property.gift.decline',
+                    giftId: g?.id ?? 'none',
+                  };
+                }
                 break;
               }
               case 'branch': {
