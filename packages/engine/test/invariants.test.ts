@@ -88,6 +88,20 @@ describe('world invariants under random play', () => {
         pick: fc.nat(30),
         mult: fc.double({ min: 0.5, max: 2, noNaN: true }),
       }),
+      // The hiring pipeline (§6.4): job posts, sourcing, interviews (paid work trials),
+      // pipeline offers and AI co-founders.
+      fc.record({
+        k: fc.constant('pipeline' as const),
+        op: fc.constantFrom(
+          'open' as const,
+          'source' as const,
+          'technical' as const,
+          'work_trial' as const,
+          'offer' as const,
+          'cofounder' as const,
+        ),
+        pick: fc.nat(10),
+      }),
       fc.record({
         k: fc.constant('salary' as const),
         salary: fc.integer({ min: 0, max: 2_000_000_00 }),
@@ -388,6 +402,30 @@ describe('world invariants under random play', () => {
               case 'salary':
                 cmd = { type: 'company.strategy', companyId: cid, founderSalary: a.salary };
                 break;
+              case 'pipeline': {
+                const h = w.companies[cid]!.hiring;
+                const roleId = h?.roles[a.pick % Math.max(1, h.roles.length)]?.id ?? 'hr1';
+                const cands = h?.candidates ?? [];
+                const cand = cands[a.pick % Math.max(1, cands.length)];
+                const candidateId = cand?.id ?? 'hc1';
+                cmd =
+                  a.op === 'open'
+                    ? { type: 'hire.open', companyId: cid, role: 'engineer', salaryBand: 'lean' }
+                    : a.op === 'source'
+                      ? { type: 'hire.source', companyId: cid, roleId }
+                      : a.op === 'offer'
+                        ? {
+                            type: 'company.offer',
+                            companyId: cid,
+                            candidateId,
+                            salary: Math.round((cand?.ask ?? 1000) * 1.5),
+                            equityBps: 50,
+                          }
+                        : a.op === 'cofounder'
+                          ? { type: 'cofounder.ai', companyId: cid }
+                          : { type: 'hire.interview', companyId: cid, candidateId, style: a.op };
+                break;
+              }
               case 'hire': {
                 const cand = w.markets.lagos!.talent[a.pick % w.markets.lagos!.talent.length]!;
                 cmd = {
