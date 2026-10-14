@@ -420,7 +420,11 @@ function DealCard({
         d.actions.length > 0 && (
           <div className="sales-actions">
             {primary && (
-              <Button size="sm" onClick={() => setPending(primary.action)}>
+              <Button
+                size="sm"
+                data-action={primary.action}
+                onClick={() => setPending(primary.action)}
+              >
                 {actionLabel(primary.action)}
               </Button>
             )}
@@ -429,6 +433,7 @@ function DealCard({
                 key={a.action}
                 size="sm"
                 variant="subtle"
+                data-action={a.action}
                 onClick={() => setPending(a.action)}
               >
                 {actionLabel(a.action)}

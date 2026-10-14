@@ -737,7 +737,7 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       demoScore: d.demoScore ?? null,
       negotiationsLeft: SALES.maxNegotiations - (d.negotiations ?? 0),
       actions,
-      next: actions.find((x) => x.action !== 'recover') ?? actions[0] ?? null,
+      next: actions.find((x) => x.action === 'close') ?? actions[0] ?? null,
       lossReason: d.lossReason ?? null,
       canRecover: d.stage === 'lost' && !d.recovered && !d.expired,
       expired: !!d.expired,
