@@ -187,7 +187,7 @@ export const SKY_VIEWS: readonly SkyViewSpec[] = [
     name: 'Leicester Peak',
     kind: 'hill',
     at: [8.4496, -13.2238],
-    height: 4,
+    height: 12,
     blurb: 'The peak above Freetown: the city, the harbour and the estuary below.',
   }),
   // ---- Kigali
@@ -197,7 +197,7 @@ export const SKY_VIEWS: readonly SkyViewSpec[] = [
     name: 'Mount Kigali',
     kind: 'hill',
     at: [-1.9659, 30.0392],
-    height: 4,
+    height: 12,
     blurb: 'The summit of Mont Kigali, over the thousand hills of the city.',
   }),
 ];
