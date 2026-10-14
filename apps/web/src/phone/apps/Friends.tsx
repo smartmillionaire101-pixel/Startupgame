@@ -35,15 +35,33 @@ interface SendResult {
   receivedCurrency?: string;
 }
 
-export function SendMoney({ to, onDone }: { to?: string; onDone: () => void }) {
+export function SendMoney({
+  to,
+  toName,
+  onDone,
+}: {
+  to?: string;
+  /** The name to show when `to` isn't in your friends list (a chat in another city). */
+  toName?: string;
+  onDone: () => void;
+}) {
   const { view, send, busy } = useView();
   const friends = friendsOf(view);
   const limits = sendLimitsOf(view);
   const cur = limits?.currency ?? view.accounts.local?.currency ?? view.market.currency;
   const pocket = view.accounts.local?.balance ?? 0;
-  const preset = to ? (friends.find((f) => f.id === to) ?? null) : null;
-  const [who, setWho] = useState<Friend | null>(preset);
-  const [step, setStep] = useState<SendStep>(preset ? 'amount' : 'who');
+  // Opened for one person (a chat, a contact): the money goes to exactly them,
+  // whoever is first in the friends list, and whichever chat was opened before.
+  const fixed: Friend | null = to
+    ? (friends.find((f) => f.id === to) ?? {
+        id: to,
+        name: toName ?? view.players.find((p) => p.id === to)?.name ?? t('this player'),
+        contact: false,
+      })
+    : null;
+  const [picked, setWho] = useState<Friend | null>(null);
+  const who = fixed ?? picked;
+  const [step, setStep] = useState<SendStep>(fixed ? 'amount' : 'who');
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const [result, setResult] = useState<SendResult | null>(null);
@@ -423,7 +441,7 @@ export function Invitations({ ctx }: { ctx: PhoneCtx }) {
 // ---------------------------------------------------------------- A friend's quick actions
 
 /** Send money, Invite over, Plan a hangout: for one friend (a player). */
-export function FriendActions({ playerId }: { playerId: string }) {
+export function FriendActions({ playerId, name }: { playerId: string; name?: string }) {
   const { send, busy } = useView();
   const [panel, setPanel] = useState<'send' | 'hangout' | null>(null);
   return (
@@ -448,7 +466,9 @@ export function FriendActions({ playerId }: { playerId: string }) {
           {t('Plan a hangout')}
         </Button>
       </div>
-      {panel === 'send' && <SendMoney to={playerId} onDone={() => setPanel(null)} />}
+      {panel === 'send' && (
+        <SendMoney key={playerId} to={playerId} toName={name} onDone={() => setPanel(null)} />
+      )}
       {panel === 'hangout' && <PlanHangout invitee={playerId} onDone={() => setPanel(null)} />}
     </div>
   );

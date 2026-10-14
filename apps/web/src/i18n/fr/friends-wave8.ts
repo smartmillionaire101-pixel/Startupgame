@@ -1,5 +1,6 @@
 /** Wave 8 §C: friends: sending money, visits, hangouts and tech events. */
 export const friendsWave8: Record<string, string> = {
+  'this player': 'ce joueur',
   // Phone: Events app
   Events: 'Événements',
   Attend: 'Y aller',

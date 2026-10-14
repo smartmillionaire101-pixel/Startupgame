@@ -479,7 +479,7 @@ export function PlayerThreadView({
           <div className="item-title">{name}</div>
         </div>
         {/* Wave 8: Send money, Invite over, Plan a hangout. */}
-        {!other?.ai && <FriendActions playerId={playerId} />}
+        {!other?.ai && <FriendActions key={playerId} playerId={playerId} name={name} />}
         <p className="small muted">{t('Start with one tap')}</p>
         <div className="choice-grid">
           {(starters ?? []).map((s) => (
@@ -522,7 +522,7 @@ export function PlayerThreadView({
           {other && <div className="small muted">{kindName(other.role)}</div>}
         </div>
       </div>
-      {!other?.ai && <FriendActions playerId={playerId} />}
+      {!other?.ai && <FriendActions key={playerId} playerId={playerId} name={name} />}
       <ChatLog messages={data?.messages ?? []} />
       {data?.chat.blocked ? (
         <p className="small muted">{t('This chat is blocked.')}</p>
