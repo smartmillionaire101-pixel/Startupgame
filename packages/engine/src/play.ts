@@ -7,12 +7,30 @@ import { getMarket, locationOf } from './helpers.js';
 import { newId } from './ids.js';
 import { account, openAccount, transfer } from './ledger.js';
 import type { Command } from './commands.js';
+import { createRng, hashString } from './rng.js';
+import { QUIZ_BANK, type QuizCategory } from './data/quiz-bank.js';
 
 export interface QuizQuestion {
   text: string;
   options: string[];
   answer: number;
+  /** Wave 12: the French (built-in questions only). */
+  fr?: { text: string; options: string[] };
+  cat?: QuizCategory;
 }
+
+/**
+ * Wave 12: from this moment quiz rooms are always drawn from the built-in bank
+ * (data/quiz-bank.ts) and their host plays; custom question sets sent by older
+ * clients are ignored. Commands logged before it replay exactly as they ran
+ * (custom sets honoured, the original 20-question pool).
+ */
+export const AUTO_QUIZ_FROM = Date.UTC(2026, 9, 15);
+/** Questions in a built-in quiz. */
+export const QUIZ_LENGTH = 10;
+/** A quiz host waiting alone this long is matched with AI opponents (on the next sync). */
+export const QUIZ_AI_AFTER = 45_000;
+const QUESTION_MS = 20_000;
 export interface Ball {
   id: number;
   x: number;
@@ -48,7 +66,10 @@ export interface PlayRoom {
   frames: Ball[][];
   moves: Record<Id, number>;
   penalties: { shooter: Id; shot: number; keeper: number; goal: boolean }[];
+  /** Wave 12: AI opponents in this room (world AI players; their stakes are real). */
+  ai?: Id[];
 }
+/** The pre-Wave 12 pool (kept so logged rooms replay with their questions). */
 const QUIZ: QuizQuestion[] = [
   {
     text: 'Which planet is closest to the Sun?',
@@ -149,6 +170,116 @@ const QUIZ: QuizQuestion[] = [
   },
 ];
 const active = (r: PlayRoom) => r.status === 'waiting' || r.status === 'playing';
+
+/**
+ * A quiz from the bank, by a seeded shuffle (the same room id and time always
+ * draw the same quiz): the categories take turns, so every quiz mixes general
+ * knowledge, business and tech, sport, music, science, geography and the
+ * game's own cities.
+ */
+export function drawQuiz(seed: string, n = QUIZ_LENGTH): QuizQuestion[] {
+  const rng = createRng(hashString(`quiz:${seed}`));
+  const byCat = new Map<QuizCategory, QuizQuestion[]>();
+  for (const q of rng.shuffle(QUIZ_BANK)) {
+    const list = byCat.get(q.cat) ?? [];
+    list.push({
+      text: q.text,
+      options: [...q.options],
+      answer: q.answer,
+      fr: { text: q.fr.text, options: [...q.fr.options] },
+      cat: q.cat,
+    });
+    byCat.set(q.cat, list);
+  }
+  const cats = rng.shuffle([...byCat.keys()]);
+  const out: QuizQuestion[] = [];
+  for (let i = 0; out.length < n && i < n * cats.length; i++) {
+    const q = byCat.get(cats[i % cats.length]!)!.shift();
+    if (q) out.push(q);
+  }
+  return out;
+}
+
+/** How an AI opponent answers: when (ms into the question) and what. Deterministic. */
+export function aiAnswer(r: PlayRoom, aiId: Id, round: number) {
+  const h = hashString(`${r.id}:${aiId}:${round}`);
+  const skill = 52 + (hashString(aiId) % 30); // 52–81% right
+  const q = r.questions[round];
+  const right = h % 100 < skill;
+  const wrong = q ? (q.answer + 1 + ((h >>> 8) % 3)) % 4 : 0;
+  return { after: 3_000 + ((h >>> 12) % 11_000), choice: right ? (q?.answer ?? 0) : wrong };
+}
+
+/** AI players free to sit at this table (and pay its stake), most suitable first. */
+function aiCandidates(w: World, r: PlayRoom) {
+  const busy = new Set<Id>();
+  for (const x of Object.values(w.playRooms ?? {}))
+    if (active(x)) for (const m of x.members) busy.add(m.id);
+  return Object.values(w.players)
+    .filter((p) => {
+      if (!p.ai || busy.has(p.id) || locationOf(p) !== r.market) return false;
+      if (!r.stake) return true;
+      const a = w.accounts[p.accounts.local];
+      return !!a && a.currency === r.currency && a.balance >= r.stake * 4;
+    })
+    .sort((a, b) => hashString(`${r.id}:${a.id}`) - hashString(`${r.id}:${b.id}`));
+}
+
+/** Seat AI opponents and start the quiz (a host alone at the table). */
+function fillWithAi(w: World, r: PlayRoom, now: number, count: number) {
+  const seats = Math.max(1, Math.min(3, count, 8 - r.members.length));
+  const picks = aiCandidates(w, r).slice(0, seats);
+  ensure(
+    picks.length > 0,
+    'play.ai',
+    r.stake
+      ? 'No AI opponent here can match that stake right now. Try a smaller stake or a free game.'
+      : 'No AI opponents are free in this city right now.',
+  );
+  r.ai ??= [];
+  for (const ai of picks) {
+    if (r.stake)
+      transfer(
+        w,
+        ai.accounts.local,
+        r.escrow,
+        r.stake,
+        'Social game entry',
+        getMarket(w, r.market).month,
+        'move',
+      );
+    r.members.push({ id: ai.id, score: 0 });
+    r.ai.push(ai.id);
+  }
+  r.status = 'playing';
+  r.deadline = now + QUESTION_MS;
+  r.touchedAt = now;
+  r.last = `${picks.map((p) => p.name).join(', ')} joined the quiz.`;
+}
+
+/** AI opponents answer once their thinking time has passed. */
+function aiAnswers(r: PlayRoom, now: number) {
+  if (r.game !== 'quiz' || r.status !== 'playing' || !r.ai?.length) return;
+  const start = r.deadline - QUESTION_MS;
+  for (const id of r.ai) {
+    if (r.answers[id] !== undefined) continue;
+    const a = aiAnswer(r, id, r.round);
+    if (now >= start + a.after) r.answers[id] = a.choice;
+  }
+}
+
+/** When the next AI answer is due (null: none waiting). */
+function aiDueAt(r: PlayRoom): number | null {
+  if (r.game !== 'quiz' || r.status !== 'playing' || !r.ai?.length) return null;
+  const start = r.deadline - QUESTION_MS;
+  let due: number | null = null;
+  for (const id of r.ai)
+    if (r.answers[id] === undefined) {
+      const t = start + aiAnswer(r, id, r.round).after;
+      due = due === null ? t : Math.min(due, t);
+    }
+  return due;
+}
 export function canVisitHome(w: World, p: Player, host: string) {
   const h = w.players[host];
   return (
@@ -353,6 +484,7 @@ function shot(r: PlayRoom, angle: number, power: number) {
 }
 function advance(w: World, r: PlayRoom, now: number) {
   if (r.status !== 'playing') return;
+  aiAnswers(r, now);
   if (
     r.game === 'quiz' &&
     (r.members.every((m) => r.answers[m.id] !== undefined) || now >= r.deadline)
@@ -362,8 +494,9 @@ function advance(w: World, r: PlayRoom, now: number) {
     r.last = `${q.text} Answer: ${q.options[q.answer]}.`;
     r.round++;
     r.answers = {};
-    r.deadline = now + 20_000;
+    r.deadline = now + QUESTION_MS;
     if (r.round >= r.questions.length) payOut(w, r, false);
+    else aiAnswers(r, now);
   } else if (
     r.game === 'football' &&
     (r.members.every((m) => r.moves[m.id] !== undefined) || now >= r.deadline)
@@ -396,35 +529,36 @@ function advance(w: World, r: PlayRoom, now: number) {
   if (r.game === 'snooker' && (r.round >= 60 || r.balls.slice(1).every((b) => b.potted)))
     payOut(w, r, false);
 }
-export function playCommand(
+function createRoom(
   w: World,
   p: Player,
-  cmd: Extract<Command, { type: `play.${string}` }>,
+  cmd: Extract<Command, { type: 'play.create' }>,
   now: number,
-) {
+): PlayRoom {
   const rooms = (w.playRooms ??= {});
-  if (cmd.type === 'play.create') {
-    ensure(
-      Object.values(rooms).filter((r) => active(r) && r.host === p.id).length === 0,
-      'play.host',
-      'Finish or cancel your current room first.',
-    );
-    const market = locationOf(p),
-      m = getMarket(w, market),
-      venue = cmd.venue;
-    if (venue.startsWith('home:'))
-      ensure(
-        venue === `home:${p.id}` && market === p.market,
-        'play.home',
-        'Host at your own home.',
-      );
-    else ensure(!!m.businesses?.[venue], 'play.venue', 'Choose a venue in your current city.');
-    ensure(
-      cmd.stake <= m.data.costOfLiving * 100,
-      'play.stake',
-      'The maximum stake is one month of living costs.',
-    );
-    const id = newId(w, 'play');
+  ensure(
+    Object.values(rooms).filter((r) => active(r) && r.host === p.id).length === 0,
+    'play.host',
+    'Finish or cancel your current room first.',
+  );
+  const market = locationOf(p),
+    m = getMarket(w, market),
+    venue = cmd.venue;
+  if (venue.startsWith('home:'))
+    ensure(venue === `home:${p.id}` && market === p.market, 'play.home', 'Host at your own home.');
+  else ensure(!!m.businesses?.[venue], 'play.venue', 'Choose a venue in your current city.');
+  ensure(
+    cmd.stake <= m.data.costOfLiving * 100,
+    'play.stake',
+    'The maximum stake is one month of living costs.',
+  );
+  const id = newId(w, 'play');
+  // Before Wave 12 a host could write the questions (and then could not play).
+  const legacy = now < AUTO_QUIZ_FROM;
+  const custom = legacy && !!cmd.questions?.length;
+  let questions: QuizQuestion[];
+  if (custom) questions = cmd.questions!;
+  else if (legacy) {
     const pool = [...QUIZ];
     let seed = (w.nextId * 2654435761) >>> 0;
     for (let i = pool.length - 1; i > 0; i--) {
@@ -432,44 +566,95 @@ export function playCommand(
       const j = seed % (i + 1);
       [pool[i], pool[j]] = [pool[j]!, pool[i]!];
     }
-    const r: PlayRoom = {
-      id,
-      host: p.id,
-      market,
-      venue,
-      title: cmd.title,
-      game: cmd.game,
-      status: 'waiting',
-      createdAt: now,
-      touchedAt: now,
-      deadline: 0,
-      currency: m.data.currency,
-      stake: cmd.stake,
-      escrow: openAccount(w, { currency: m.data.currency, market, label: 'Social game pot' }),
-      members: [],
-      winners: [],
-      round: 0,
-      turn: 0,
-      custom: !!cmd.questions?.length,
-      questions: cmd.questions?.length ? cmd.questions : pool.slice(0, 8),
-      answers: {},
-      last: '',
-      balls: cmd.game === 'snooker' ? rack() : [],
-      red: true,
-      colorFree: false,
-      frames: [],
-      moves: {},
-      penalties: [],
-    };
-    ensure(
-      !r.custom || r.game === 'quiz',
-      'play.questions',
-      'Custom questions are only for quizzes.',
+    questions = pool.slice(0, 8);
+  } else questions = drawQuiz(`${w.seed}:${id}:${now}`);
+  const r: PlayRoom = {
+    id,
+    host: p.id,
+    market,
+    venue,
+    title: cmd.title,
+    game: cmd.game,
+    status: 'waiting',
+    createdAt: now,
+    touchedAt: now,
+    deadline: 0,
+    currency: m.data.currency,
+    stake: cmd.stake,
+    escrow: openAccount(w, { currency: m.data.currency, market, label: 'Social game pot' }),
+    members: [],
+    winners: [],
+    round: 0,
+    turn: 0,
+    custom,
+    questions,
+    answers: {},
+    last: '',
+    balls: cmd.game === 'snooker' ? rack() : [],
+    red: true,
+    colorFree: false,
+    frames: [],
+    moves: {},
+    penalties: [],
+  };
+  ensure(
+    !r.custom || r.game === 'quiz',
+    'play.questions',
+    'Custom questions are only for quizzes.',
+  );
+  rooms[id] = r;
+  // A custom quiz author (old rooms) is the non-playing quizmaster: they knew the answers.
+  if (!r.custom) join(w, p, r);
+  return r;
+}
+
+export function playCommand(
+  w: World,
+  p: Player,
+  cmd: Extract<Command, { type: `play.${string}` }>,
+  now: number,
+) {
+  const rooms = (w.playRooms ??= {});
+  if (cmd.type === 'play.create') return { id: createRoom(w, p, cmd, now).id };
+  if (cmd.type === 'play.match') {
+    // Quick play: the next waiting quiz at this venue with the same stake, or a new one.
+    const market = locationOf(p);
+    const open = Object.values(rooms)
+      .filter(
+        (r) =>
+          r.status === 'waiting' &&
+          r.game === 'quiz' &&
+          r.market === market &&
+          r.venue === cmd.venue &&
+          r.stake === cmd.stake &&
+          !r.custom &&
+          r.members.length < 8 &&
+          !r.members.some((m) => m.id === p.id),
+      )
+      .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1));
+    for (const r of open) {
+      try {
+        access(w, p, r);
+      } catch {
+        continue;
+      }
+      join(w, p, r);
+      r.touchedAt = now;
+      return { id: r.id, joined: true };
+    }
+    const r = createRoom(
+      w,
+      p,
+      {
+        type: 'play.create',
+        game: 'quiz',
+        venue: cmd.venue,
+        title: 'Quiz night',
+        stake: cmd.stake,
+      },
+      now,
     );
-    rooms[id] = r;
-    // A custom quiz author is the non-playing quizmaster: they already know the answers.
-    if (!r.custom) join(w, p, r);
-    return { id };
+    return { id: r.id, joined: false };
   }
   const r = rooms[cmd.roomId];
   ensure(r, 'play.missing', 'This game room no longer exists.');
@@ -525,7 +710,27 @@ export function playCommand(
     'Join this game first.',
   );
   if (cmd.type === 'play.sync') {
+    // A host alone at a quiz long enough is matched with AI opponents.
+    if (
+      now >= AUTO_QUIZ_FROM &&
+      r.status === 'waiting' &&
+      r.game === 'quiz' &&
+      !r.custom &&
+      r.members.length === 1 &&
+      now - r.createdAt >= QUIZ_AI_AFTER &&
+      aiCandidates(w, r).length > 0
+    )
+      fillWithAi(w, r, now, 2);
     advance(w, r, now);
+    return { ok: true };
+  }
+  if (cmd.type === 'play.ai') {
+    ensure(
+      r.host === p.id && r.status === 'waiting' && r.game === 'quiz' && !r.custom,
+      'play.host',
+      'Only the host of a waiting quiz can call in AI opponents.',
+    );
+    fillWithAi(w, r, now, cmd.count ?? 2);
     return { ok: true };
   }
   ensure(r.status === 'playing', 'play.status', 'This game is not in progress.');
@@ -632,7 +837,27 @@ export function playView(w: World, p: Player) {
       totalQuestions: r.questions.length,
       question:
         r.status === 'playing' && r.game === 'quiz'
-          ? { text: r.questions[r.round]?.text, options: r.questions[r.round]?.options }
+          ? {
+              text: r.questions[r.round]?.text,
+              options: r.questions[r.round]?.options,
+              fr: r.questions[r.round]?.fr ?? null,
+              cat: r.questions[r.round]?.cat ?? null,
+            }
+          : null,
+      /** Wave 12: AI opponents at the table, and when the next one answers (clients sync then). */
+      ai: r.ai ?? [],
+      aiDueAt: aiDueAt(r),
+      /** Wave 12: the last answered question (with its French), for the reveal. */
+      reveal:
+        r.game === 'quiz' && r.round > 0 && r.status !== 'waiting'
+          ? (() => {
+              const q = r.questions[r.round - 1]!;
+              return {
+                text: q.text,
+                answer: q.options[q.answer]!,
+                fr: q.fr ? { text: q.fr.text, answer: q.fr.options[q.answer]! } : null,
+              };
+            })()
           : null,
       answered: Object.keys(r.answers),
       myAnswer: r.answers[p.id] ?? null,

@@ -7,6 +7,7 @@ import { buyFurniture } from './shop.js';
 import { canVisitHome } from './play.js';
 import { bumpNeed } from './needs.js';
 import type { Command } from './commands.js';
+import { skyViewById } from './data/sky-views.js';
 export interface Delivery {
   id: Id;
   owner: Id;
@@ -24,7 +25,9 @@ export interface DateSession {
   host: Id;
   guest: Id;
   market: MarketId;
-  location: 'home' | 'london-eye' | 'cable-car' | 'rooftop';
+  location: 'home' | 'london-eye' | 'cable-car' | 'rooftop' | 'sky-view';
+  /** Wave 12: the sky view (data/sky-views.ts) a date above the city is on. */
+  viewId?: string;
   status: 'invited' | 'together' | 'ended';
   createdAt: number;
   handRequest: Id | null;
@@ -130,6 +133,13 @@ export function livingCommand(
       'date.place',
       'The London Eye is in London.',
     );
+    const view = c.viewId ? skyViewById(c.viewId) : undefined;
+    ensure(
+      !c.viewId || (view && view.market === locationOf(p)),
+      'date.place',
+      'Choose a sky view in this city.',
+    );
+    ensure(c.location !== 'sky-view' || view, 'date.place', 'Choose which view to share.');
     if (c.location === 'home')
       ensure(canVisitHome(w, guest, p.id), 'date.home', 'Invite them to your home first.');
     const dates = (w.dates ??= {});
@@ -150,6 +160,7 @@ export function livingCommand(
       guest: guest.id,
       market: locationOf(p),
       location: c.location,
+      ...(view && c.location !== 'home' ? { viewId: view.id } : {}),
       status: 'invited',
       createdAt: now,
       handRequest: null,
