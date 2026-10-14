@@ -519,6 +519,22 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('hangout.leave'), hangoutId: id }),
   /** Go to one of the city's tech events this month (`here.techEvents`). */
   z.object({ type: z.literal('techevent.attend'), eventId: id }),
+  // ---- the founder journey: the objective tracker's prompts
+  /** Pin a prompt so it stays in its slot; without `id`, unpin that kind. */
+  z.object({
+    type: z.literal('journey.pin'),
+    kind: z.enum(['main', 'opportunity', 'personal']),
+    id: z.string().min(1).max(120).optional(),
+  }),
+  /** Dismiss a prompt (the next one takes its place); `undo` brings it back. */
+  z.object({
+    type: z.literal('journey.dismiss'),
+    kind: z.enum(['main', 'opportunity', 'personal']),
+    id: z.string().min(1).max(120),
+    undo: z.boolean().optional(),
+  }),
+  /** Choose to bootstrap (no outside money): counts as chapter 3's funding choice. */
+  z.object({ type: z.literal('journey.bootstrap'), on: z.boolean() }),
   z.object({ type: z.literal('inbox.read'), ids: z.array(id).max(100).optional() }),
   // ---- Who's here (Wave 6)
   /**

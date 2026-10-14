@@ -33,7 +33,9 @@ export type PhoneApp =
   | 'events'
   /** Wave 10: the property market and your portfolio; things to do by lifestyle tier. */
   | 'homes'
-  | 'goingout';
+  | 'goingout'
+  /** The founder journey: chapters and objectives (founders only). */
+  | 'journey';
 
 export interface PhoneOpen {
   app?: PhoneApp;

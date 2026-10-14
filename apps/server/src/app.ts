@@ -64,6 +64,8 @@ import {
   chatCommandTarget,
   looksLike,
   messageView,
+  PLAY_GAMES,
+  playInviteCard,
   techEventCard,
   voiceType,
   type Card,
@@ -81,6 +83,8 @@ import { AI_CHAT_HISTORY, claudeReply, createClient, type AiClient } from './ai-
 
 /** Avatars not seen for this long drop off the city map. */
 export const PRESENCE_WINDOW_MS = 120_000;
+/** "Online now" lists players whose game sent a heartbeat this recently. */
+export const ONLINE_LIST_WINDOW_MS = 120_000;
 
 export const DISCLAIMER = 'This is a game. Nothing here is financial, legal, or tax advice.';
 
@@ -919,6 +923,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         .object({
           command: commandSchema.optional(),
           techEventId: z.string().max(64).optional(),
+          /** An invitation to play (with your waiting table for that game, if any). */
+          playGame: z.enum(PLAY_GAMES).optional(),
         })
         .parse(req.body);
       const chat = await chatWith(req.userId!, playerId);
@@ -940,6 +946,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           return reply
             .code(422)
             .send({ error: { code: 'techevent.missing', message: 'We can’t find that event.' } });
+      } else if (body.playGame) {
+        card = playInviteCard(game.current, req.userId!, body.playGame);
       }
       if (!card)
         return reply
@@ -1249,6 +1257,104 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
               seenAt: r.at,
             };
           }),
+      };
+    },
+  );
+
+  // "Online now": the real players online across every city, for finding someone
+  // to chat or play with. Only players who show themselves on the map (the same
+  // setting as presence), never AI players, and nobody either side has blocked.
+  const PLACE_NAMES: Record<string, string> = {
+    hub: 'The Hub',
+    eventhall: 'Event Hall',
+    airport: 'Airport',
+    newsstand: 'Newsstand',
+    office: 'Office',
+    home: 'Home',
+  };
+  const placeName = (market: MarketId, place: string | null): string | null => {
+    if (!place) return null;
+    if (PLACE_NAMES[place]) return PLACE_NAMES[place]!;
+    const world = game.current;
+    if (place.startsWith('biz:'))
+      return world.markets[market]?.businesses?.[place.slice(4)]?.name ?? null;
+    if (place.startsWith('fund:')) return world.funds[place.slice(5)]?.name ?? null;
+    return null;
+  };
+  app.get(
+    '/api/online/players',
+    {
+      preHandler: requireUser,
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+          keyGenerator: (req: FastifyRequest) => req.userId ?? req.ip,
+        },
+      },
+    },
+    async (req, reply) => {
+      reply.header('Cache-Control', 'no-store');
+      const world = game.current;
+      const me = world.players[req.userId!];
+      if (!me) return { players: [] };
+      const at = now();
+      const ids = (await store.onlinePlayerIds(at - ONLINE_LIST_WINDOW_MS)).filter((id) => {
+        const p = world.players[id];
+        return id !== me.id && !!p && !p.ai;
+      });
+      const blocked = new Set(
+        (await store.chatsFor(me.id))
+          .filter((c) => !!c.blocked_by)
+          .map((c) => (c.a === me.id ? c.b : c.a)),
+      );
+      const shown = (
+        await Promise.all(
+          ids
+            .filter((id) => !blocked.has(id))
+            .map(async (id) => ((await store.getPresenceVisible(id)) ? id : null)),
+        )
+      ).filter((id): id is string => !!id);
+      // Where they stand, for the cities they're in (one lookup per city).
+      const markets = [...new Set(shown.map((id) => locationOf(world.players[id]!)))];
+      const spots = new Map<string, string | null>();
+      for (const m of markets)
+        for (const r of await store.listPresence(m, at - PRESENCE_WINDOW_MS))
+          spots.set(r.userId, r.place);
+      // What they're playing (a waiting or running table), from the world.
+      const playing = new Map<string, string>();
+      for (const r of Object.values(world.playRooms ?? {}))
+        if (r.status === 'waiting' || r.status === 'playing')
+          for (const m of r.members) playing.set(m.id, r.game);
+      const here = locationOf(me);
+      return {
+        players: shown
+          .map((id) => {
+            const p = world.players[id]!;
+            const market = locationOf(p);
+            const place = spots.get(id) ?? null;
+            const company = [...p.companyIds]
+              .reverse()
+              .map((c) => world.companies[c])
+              .find((c) => c?.status === 'active');
+            return {
+              id: p.id,
+              name: p.name,
+              handle: p.handle,
+              role: p.role,
+              backgroundId: p.backgroundId,
+              stars: p.stars.value,
+              company: company?.name ?? null,
+              market,
+              city: world.markets[market]?.data.name ?? MARKET_DATA[market]?.name ?? market,
+              here: market === here,
+              place,
+              placeName: placeName(market, place),
+              inGame: playing.get(id) ?? null,
+            };
+          })
+          .sort((a, b) => Number(b.here) - Number(a.here) || a.name.localeCompare(b.name))
+          .slice(0, 200),
       };
     },
   );

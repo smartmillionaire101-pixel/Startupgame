@@ -13,6 +13,7 @@ import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button } from '../../ui';
 import { openLiving } from '../../experiences/living-bus';
+import { openPlay } from '../../experiences/play-bus';
 import { techEventsOf } from '../friends';
 import { openVisit } from '../Visit';
 import type { PhoneCtx } from '../shared';
@@ -424,6 +425,13 @@ const STATUS_LABEL: Record<string, () => string> = {
   expired: () => t('Expired'),
   gone: () => t('No longer available'),
   over: () => t('Over'),
+  playing: () => t('Game on'),
+  finished: () => t('Game over'),
+};
+const PLAY_GAME: Record<string, () => string> = {
+  quiz: () => t('a quiz'),
+  snooker: () => t('snooker'),
+  football: () => t('a penalty shootout'),
 };
 
 function CardShell({
@@ -753,6 +761,59 @@ export function ChatCardView({
                 >
                   {t('Go together')}
                 </Button>
+              )}
+            </div>
+          )}
+        </CardShell>
+      );
+    }
+    case 'play': {
+      const game = PLAY_GAME[card.game]?.() ?? card.game;
+      const sameCity = (view.here?.id ?? view.market.id) === card.market;
+      const open = card.roomId && card.venue && card.status === 'waiting';
+      return (
+        <CardShell
+          type="play"
+          icon="🎮"
+          status={card.status === 'open' || card.status === 'waiting' ? undefined : card.status}
+          title={
+            mine
+              ? t('You asked {name} to play {game}', { name: first, game })
+              : t('{name} wants to play {game}', { name: first, game })
+          }
+        >
+          <span className="small">
+            {card.title ? `${card.title} · ${card.city}` : card.city}
+            {card.stake
+              ? ` · ${t('{stake} entry', { stake: money(card.stake, card.currency ?? '') })}`
+              : ''}
+          </span>
+          {!open && card.status === 'open' && (
+            <span className="small muted">
+              {mine
+                ? t('Host a table at a venue or at home and invite them again to bring them to it.')
+                : t('Reply to agree where to meet, or host a table and invite them.')}
+            </span>
+          )}
+          {open && !mine && (
+            <div className="row">
+              {sameCity ? (
+                <Button
+                  onClick={() =>
+                    openPlay({
+                      venue: card.venue!,
+                      name: card.title ?? card.city,
+                      roomId: card.roomId!,
+                      game: card.game,
+                    })
+                  }
+                >
+                  {t('Go to the table')}
+                </Button>
+              ) : (
+                <span className="small muted">
+                  {t('Travel to {city} to join this table.', { city: card.city })}
+                </span>
               )}
             </div>
           )}

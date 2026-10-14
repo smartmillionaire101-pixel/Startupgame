@@ -122,4 +122,27 @@ export { SKY_VIEWS, skyViewById, skyViewsIn } from './data/sky-views.js';
 export type { SkyViewSpec, SkyViewKind } from './data/sky-views.js';
 export { QUIZ_BANK } from './data/quiz-bank.js';
 export type { BankQuestion, QuizCategory } from './data/quiz-bank.js';
-export { AUTO_QUIZ_FROM, AUTO_QUIZ_NOTE, QUIZ_LENGTH, QUIZ_AI_AFTER, drawQuiz } from './play.js';
+export {
+  AUTO_QUIZ_FROM,
+  AUTO_QUIZ_NOTE,
+  QUIZ_LENGTH,
+  QUIZ_AI_AFTER,
+  AI_SHOT_AFTER,
+  drawQuiz,
+} from './play.js';
+export {
+  JOURNEY,
+  OBJECTIVE_KINDS,
+  CHAPTERS,
+  chapterMilestone,
+  deriveChapters,
+  fundingSources,
+  hasJourney,
+  journeyView,
+  pickObjective,
+  type JourneyChapter,
+  type JourneyGo,
+  type JourneyStep,
+  type JourneyView,
+  type ObjectiveKind,
+} from './journey.js';

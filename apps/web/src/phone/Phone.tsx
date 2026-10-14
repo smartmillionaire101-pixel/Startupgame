@@ -33,6 +33,7 @@ import { OutingHost } from '../city/OutingScene';
 import { HomeApp } from './apps/HomeApp';
 import { Invest } from './apps/Invest';
 import { Jobs } from './apps/Jobs';
+import { JourneyApp } from './apps/JourneyApp';
 import { MapApp } from './apps/MapApp';
 import {
   AiThreadView,
@@ -68,6 +69,7 @@ interface AppDef {
 
 export const APPS: AppDef[] = [
   { id: 'messages', icon: 'messages', label: () => t('Messages'), bg: ['#4ade80', '#16a34a'] },
+  { id: 'journey', icon: 'flag', label: () => t('Journey'), bg: ['#5eead4', '#0f766e'] },
   { id: 'map', icon: 'map', label: () => t('Map'), bg: ['#60a5fa', '#2563eb'] },
   { id: 'bank', icon: 'bank', label: () => t('Bank'), bg: ['#2dd4bf', '#0f766e'] },
   { id: 'founder', icon: 'founder', label: () => t('Founder'), bg: ['#fb923c', '#ea580c'] },
@@ -579,6 +581,9 @@ function PhoneScreen(props: {
     case 'homes':
       body = <Homes ctx={ctx} />;
       break;
+    case 'journey':
+      body = <JourneyApp ctx={ctx} />;
+      break;
     case 'goingout':
       body = <GoingOut ctx={ctx} />;
       break;
@@ -658,7 +663,8 @@ function PhoneHome({
 }) {
   const { view, cur } = useView();
   const mood = moodOf(view);
-  const grid = APPS.filter((a) => !DOCK.includes(a.id));
+  // The Journey app is for founders (it follows a company).
+  const grid = APPS.filter((a) => !DOCK.includes(a.id) && (a.id !== 'journey' || !!view.journey));
   const dock = DOCK.map((id) => APPS.find((a) => a.id === id)!);
   return (
     <div className="phone-home">

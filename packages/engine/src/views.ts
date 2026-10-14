@@ -1,3 +1,4 @@
+import { journeyView } from './journey.js';
 import { livingView } from './living.js';
 import { playView } from './play.js';
 /**
@@ -638,6 +639,8 @@ export function playerView(
   );
   return {
     worldVersion: world.version,
+    /** The founder journey: seven chapters and the objective prompts; null for other roles. */
+    journey: journeyView(world, p),
     playRooms: playView(world, p),
     living: livingView(world, p),
     /** The month clock (Wave 4): when the next settlement is due, for a countdown. */

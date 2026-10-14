@@ -230,6 +230,15 @@ export interface Player {
   techEvents?: { month: number; ids: string[] };
   /** Wave 10: the property you live in (one you own). Missing = renting, as before. */
   residence?: { propertyId: Id; since: number };
+  /**
+   * Founder journey: pinned and dismissed objective prompts (by kind: main,
+   * opportunity, personal) and the month you chose to bootstrap. Missing = none.
+   */
+  journey?: {
+    pinned?: Partial<Record<'main' | 'opportunity' | 'personal', string>>;
+    dismissed?: Partial<Record<'main' | 'opportunity' | 'personal', string[]>>;
+    bootstrap?: number;
+  };
 }
 
 // ---------------------------------------------------------------- Friends (Wave 8)

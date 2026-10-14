@@ -59,7 +59,12 @@ import { useRiding } from './riding';
 import { crowdSize, eventsOf, flaggedPlaces, newBusinessIds, passersBy } from './people';
 import { PersonCard, type PersonRef } from './PersonCard';
 import { SkyViewsList } from '../experiences/SkyViewsList';
+import { openSky } from '../experiences/sky-bus';
+import type { PhoneApp } from '../phone/bus';
+import { JourneyCelebration, JourneyChip, JourneyPanel } from './JourneyPanel';
+import type { JourneyGo } from './journey';
 import { WhoIsAround } from './WhoIsHere';
+import { OnlineNowList } from './OnlineNow';
 import { usePresence } from './presence';
 import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
@@ -426,8 +431,10 @@ function CityBodyInner({
   const [inside, setInside] = useState<Place | null>(null);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [skyOpen, setSkyOpen] = useState(false);
+  const [journeyOpen, setJourneyOpen] = useState(false);
   const skyCity = view.here?.id ?? view.market.id;
   const [peopleOpen, setPeopleOpen] = useState(false);
+  const [peopleTab, setPeopleTab] = useState<'here' | 'everywhere'>('here');
   const [person, setPerson] = useState<PersonRef | null>(null);
   const [trip, setTrip] = useState<FarTrip | null>(null);
   const [rideBusy, setRideBusy] = useState(false);
@@ -543,10 +550,11 @@ function CityBodyInner({
   ]);
   const visit = useCallback(
     (placeId: string) => {
-      // 'market' stands for the Market's stalls ("What to do now").
+      // 'market' stands for the Market's stalls ("What to do now"); 'investors'
+      // and 'bank' for their quarters (the founder journey).
       const p =
-        placeId === 'market'
-          ? placeFor(layout, 'market')
+        placeId === 'market' || placeId === 'investors' || placeId === 'bank'
+          ? placeFor(layout, placeId)
           : layout.places.find((x) => x.id === placeId);
       setPerson(null);
       setPeopleOpen(false);
@@ -600,6 +608,18 @@ function CityBodyInner({
     },
     [trip, refresh, toast],
   );
+  // The founder journey's Go buttons: walk somewhere, open a tab, an app or a view.
+  const journeyGo = useCallback(
+    (g: JourneyGo) => {
+      setJourneyOpen(false);
+      if (g.kind === 'place') visit(g.place);
+      else if (g.kind === 'tab')
+        onNavigate(g.tab === 'company' || g.tab === 'me' ? g.tab : 'money');
+      else if (g.kind === 'app') openPhone({ app: g.app as PhoneApp });
+      else openSky(g.id);
+    },
+    [visit, onNavigate],
+  );
   const tips = suggestionsFor(view);
   const firstTip = tips[0] ? suggestionText(tips[0], view.market.currency).label : '';
   const tripPlace = trip?.placeId ? layout.places.find((p) => p.id === trip.placeId) : undefined;
@@ -619,8 +639,9 @@ function CityBodyInner({
       <h1 className="sr-only">{t('{market} city', { market: view.market.name })}</h1>
       {lite ? (
         <>
-          {(clock || abroad) && (
+          {(clock || abroad || view.journey) && (
             <div className="city-lite-hud">
+              <JourneyChip onOpen={() => setJourneyOpen(true)} />
               {awayChip}
               {clock && <MonthCountdown clock={clock} />}
             </div>
@@ -685,6 +706,7 @@ function CityBodyInner({
                 <span>{view.market.date.label}</span>
               </span>
             )}
+            <JourneyChip onOpen={() => setJourneyOpen(true)} />
             {(clock || abroad) && (
               <div className="hud-row">
                 {awayChip}
@@ -820,6 +842,12 @@ function CityBodyInner({
           </div>
         </Sheet>
       )}
+      <JourneyCelebration onOpen={() => setJourneyOpen(true)} />
+      {journeyOpen && (
+        <Sheet title={t('Your journey')} onClose={() => setJourneyOpen(false)}>
+          <JourneyPanel onGo={journeyGo} />
+        </Sheet>
+      )}
       {skyOpen && (
         <Sheet title={t('Sky views')} onClose={() => setSkyOpen(false)}>
           <SkyViewsList city={skyCity} onOpen={() => setSkyOpen(false)} />
@@ -833,15 +861,39 @@ function CityBodyInner({
       )}
       {peopleOpen && (
         <Sheet title={t('People around')} onClose={() => setPeopleOpen(false)}>
-          <WhoIsAround
-            layout={layout}
-            players={players}
-            labelOf={labelOf}
-            onGo={(id) => {
-              setPeopleOpen(false);
-              visit(id);
-            }}
-          />
+          <div className="people-tabs" role="tablist" aria-label={t('Who to show')}>
+            <Button
+              role="tab"
+              aria-selected={peopleTab === 'here'}
+              variant={peopleTab === 'here' ? 'primary' : 'subtle'}
+              size="sm"
+              onClick={() => setPeopleTab('here')}
+            >
+              {t('In this city')}
+            </Button>
+            <Button
+              role="tab"
+              aria-selected={peopleTab === 'everywhere'}
+              variant={peopleTab === 'everywhere' ? 'primary' : 'subtle'}
+              size="sm"
+              onClick={() => setPeopleTab('everywhere')}
+            >
+              {t('Everywhere · online now')}
+            </Button>
+          </div>
+          {peopleTab === 'here' ? (
+            <WhoIsAround
+              layout={layout}
+              players={players}
+              labelOf={labelOf}
+              onGo={(id) => {
+                setPeopleOpen(false);
+                visit(id);
+              }}
+            />
+          ) : (
+            <OnlineNowList onLeave={() => setPeopleOpen(false)} />
+          )}
         </Sheet>
       )}
       {inside && (
