@@ -78,9 +78,9 @@ export const SKY_VIEWS: readonly SkyViewSpec[] = [
     at: [37.7849, -122.4078],
     path: [
       [37.7849, -122.4078], // Powell & Market turntable
-      [37.7921, -122.4091], // Powell & California, over Nob Hill
-      [37.7959, -122.4098], // Powell & Jackson
-      [37.7949, -122.4181], // Jackson & Hyde
+      [37.79205, -122.40924], // Powell & California, over Nob Hill
+      [37.7956, -122.4099], // Powell & Jackson
+      [37.7946, -122.4181], // Jackson & Hyde
       [37.8017, -122.4194], // Hyde & Lombard, top of Russian Hill
       [37.8066, -122.4205], // Hyde & Beach turntable, Aquatic Park
     ],

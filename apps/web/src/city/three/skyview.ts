@@ -228,10 +228,28 @@ export class SkyRide implements ViewController {
   /** A street cable car: along its line, stop by stop, on the running board. */
   private tramPath() {
     const data = this.scene.geo.data;
-    const pts = (this.spec.path ?? [this.spec.at]).map((ll) => {
-      const p = fromLatLon(data, ll[0], ll[1]);
-      return this.snap(p.x, p.y);
-    });
+    // The line, sampled every few metres and kept on its street (the waypoints
+    // are corners; the streets between them come from the map).
+    const corners = (this.spec.path ?? [this.spec.at]).map((ll) => fromLatLon(data, ll[0], ll[1]));
+    const pts: { x: number; y: number }[] = [];
+    for (let i = 0; i + 1 < corners.length; i++) {
+      const a = corners[i]!;
+      const b = corners[i + 1]!;
+      const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 10));
+      for (let k = 0; k < n; k++) {
+        const t = k / n;
+        pts.push(this.snap(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t));
+      }
+    }
+    const end = corners[corners.length - 1]!;
+    pts.push(this.snap(end.x, end.y));
+    // Smooth the snapped line a little (no jitter at junctions).
+    for (let pass = 0; pass < 3; pass++)
+      for (let i = 1; i + 1 < pts.length; i++) {
+        const p = pts[i]!;
+        p.x = (pts[i - 1]!.x + 2 * p.x + pts[i + 1]!.x) / 4;
+        p.y = (pts[i - 1]!.y + 2 * p.y + pts[i + 1]!.y) / 4;
+      }
     const lens = [0];
     for (let i = 1; i < pts.length; i++)
       lens.push(lens[i - 1]! + Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y));
@@ -259,8 +277,8 @@ export class SkyRide implements ViewController {
 
   /** The nearest point on a street to (x, y) (within 45 m), or the point itself. */
   private snap(x: number, y: number) {
-    let best = { x, y, d: 45 };
-    this.scene.roads.forNear(x, y, 45, (s) => {
+    let best = { x, y, d: 60 };
+    this.scene.roads.forNear(x, y, 60, (s) => {
       const dx = s.bx - s.ax;
       const dy = s.by - s.ay;
       const L2 = dx * dx + dy * dy || 1;
