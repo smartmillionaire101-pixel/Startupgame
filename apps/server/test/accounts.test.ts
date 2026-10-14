@@ -126,6 +126,39 @@ describe.each(stores)('account store: %s', (_name, make) => {
     expect(await store.setEmail('u_c', 'ada2@example.com')).toBe(true);
   });
 
+  it('keeps voice notes and message kinds apart from the text, and drops them with the chat', async () => {
+    const { store, kv } = make();
+    await store.createGuestUser('u_a', T0);
+    await store.createGuestUser('u_b', T0);
+    const chat = await store.createChat('chat_v', 'u_a', 'u_b', T0);
+    const audio = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4, 5, 6, 7, 8]);
+    await store.putVoice(
+      {
+        id: 'vn_abc',
+        chat_id: chat.id,
+        sender: 'u_a',
+        mime: 'audio/webm',
+        ms: 3000,
+        size: audio.length,
+        created_at: T0,
+      },
+      audio,
+    );
+    await store.addMessage(chat.id, 'u_a', '🎤 Voice note', false, T0, {
+      kind: 'voice',
+      meta: JSON.stringify({ voiceId: 'vn_abc', ms: 3000 }),
+    });
+    await store.addMessage(chat.id, 'u_b', 'Nice 😄', false, T0 + 1);
+    const msgs = await store.messages(chat.id);
+    expect(msgs.map((m) => m.kind ?? null)).toEqual(['voice', null]);
+    const v = await store.getVoice('vn_abc');
+    expect(v?.row).toMatchObject({ chat_id: chat.id, mime: 'audio/webm', ms: 3000 });
+    expect([...v!.data]).toEqual([...audio]);
+    await store.deleteUser('u_a', T0);
+    expect(await store.getVoice('vn_abc')).toBeUndefined();
+    if (kv) expect(await kv.list('voice')).toEqual([]);
+  });
+
   it('refuses an email for an unknown account', async () => {
     const { store, kv } = make();
     expect(await store.setEmail('u_nobody', 'x@example.com')).toBe(false);

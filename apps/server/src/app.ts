@@ -51,7 +51,20 @@ import {
   signInEmail,
   type EmailProvider,
 } from './adapters/email.js';
-import type { AccountStore, AiThreadRow } from './store/types.js';
+import type { AccountStore, AiThreadRow, ChatRow } from './store/types.js';
+import {
+  CARD_TEXT,
+  VOICE_MAX_BYTES,
+  VOICE_MAX_MS,
+  VOICE_TEXT,
+  cardFor,
+  chatCommandTarget,
+  looksLike,
+  messageView,
+  techEventCard,
+  voiceType,
+  type Card,
+} from './chat-cards.js';
 import {
   CHARACTER_ID,
   characterBlock,
@@ -685,41 +698,57 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return { starters: startersFor(me.role, other.role) };
   });
 
+  /** Find or open the chat with another (human) player; a reply to send when you can't. */
+  const chatWith = async (
+    me: string,
+    otherId: string,
+  ): Promise<ChatRow | { code: number; error: { code: string; message: string } }> => {
+    const other = game.current.players[otherId];
+    if (!game.current.players[me] || !other || other.ai || other.id === me)
+      return { code: 404, error: { code: 'player', message: 'Player not found.' } };
+    const existing = await store.findChat(me, other.id);
+    if (existing?.blocked_by)
+      return { code: 403, error: { code: 'blocked', message: 'This chat is blocked.' } };
+    return (
+      existing ?? (await store.createChat(`chat_${randomUUID().slice(0, 12)}`, me, other.id, now()))
+    );
+  };
+
+  // Wave 13: a chat starts with whatever you type first (the old one-tap
+  // starters are still accepted, as plain text, from older clients).
   app.post('/api/chats', { preHandler: requireUser }, async (req, reply) => {
     const body = z
-      .object({ playerId: z.string().max(64), starter: z.string().max(200) })
+      .object({
+        playerId: z.string().max(64),
+        text: z
+          .string()
+          .max(CHAT_MAX_LENGTH * 2)
+          .optional(),
+        starter: z
+          .string()
+          .max(CHAT_MAX_LENGTH * 2)
+          .optional(),
+      })
       .parse(req.body);
-    const me = game.current.players[req.userId!];
-    const other = game.current.players[body.playerId];
-    if (!me || !other || other.ai || other.id === me.id)
-      return reply.code(404).send({ error: { code: 'player', message: 'Player not found.' } });
-    // Chats start from one-tap conversation starters.
-    if (!startersFor(me.role, other.role).includes(body.starter))
-      return reply
-        .code(400)
-        .send({ error: { code: 'starter', message: 'Pick a conversation starter.' } });
-    const existing = await store.findChat(me.id, other.id);
-    if (existing?.blocked_by)
-      return reply.code(403).send({ error: { code: 'blocked', message: 'This chat is blocked.' } });
-    const chat =
-      existing ??
-      (await store.createChat(`chat_${randomUUID().slice(0, 12)}`, me.id, other.id, now()));
-    await store.addMessage(chat.id, me.id, body.starter, false, now());
-    return { chat: chatView(me.id, chat) };
+    const check = checkChatMessage(body.text ?? body.starter ?? '');
+    if (!check.ok)
+      return reply.code(400).send({ error: { code: 'filtered', message: check.reason } });
+    const chat = await chatWith(req.userId!, body.playerId);
+    if ('error' in chat) return reply.code(chat.code).send({ error: chat.error });
+    await store.addMessage(chat.id, req.userId!, check.text, check.flagged, now());
+    return { chat: chatView(req.userId!, chat), flagged: check.flagged };
   });
 
   app.get('/api/chats/:id/messages', { preHandler: requireUser }, async (req, reply) => {
     const { id } = z.object({ id: z.string().max(64) }).parse(req.params);
     const chat = await ownChat(req.userId!, id);
     if (!chat) return reply.code(404).send({ error: { code: 'chat', message: 'Chat not found.' } });
+    const members: [string, string] = [chat.a, chat.b];
     return {
       chat: chatView(req.userId!, chat),
-      messages: (await store.messages(id)).map((m) => ({
-        id: m.id,
-        mine: m.sender === req.userId,
-        text: m.text,
-        at: m.created_at,
-      })),
+      messages: (await store.messages(id)).map((m) =>
+        messageView(game.current, m, req.userId!, members, now()),
+      ),
     };
   });
 
@@ -741,6 +770,153 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         return reply.code(400).send({ error: { code: 'filtered', message: check.reason } });
       await store.addMessage(id, req.userId!, check.text, check.flagged, now());
       return { ok: true, flagged: check.flagged };
+    },
+  );
+
+  // ---- Wave 13: voice notes. Raw audio up to VOICE_MAX_BYTES, of an allowed
+  // type whose bytes match it; stored apart from the chat (never in the world).
+  app.addContentTypeParser(
+    /^audio\//,
+    { parseAs: 'buffer', bodyLimit: VOICE_MAX_BYTES },
+    (_req, body, done) => done(null, body),
+  );
+
+  app.post(
+    '/api/chats/with/:playerId/voice',
+    {
+      preHandler: requireUser,
+      bodyLimit: VOICE_MAX_BYTES,
+      config: { rateLimit: { max: 12, timeWindow: '1 minute' } },
+    },
+    async (req, reply) => {
+      const { playerId } = z.object({ playerId: z.string().max(64) }).parse(req.params);
+      const { ms } = z
+        .object({
+          ms: z.coerce
+            .number()
+            .int()
+            .min(300)
+            .max(VOICE_MAX_MS + 1_000),
+        })
+        .parse(req.query);
+      const type = voiceType(req.headers['content-type']);
+      const data = Buffer.isBuffer(req.body) ? req.body : null;
+      if (!type || !data)
+        return reply
+          .code(415)
+          .send({ error: { code: 'voice.type', message: 'That isn’t a voice note we can play.' } });
+      if (data.length > VOICE_MAX_BYTES)
+        return reply
+          .code(413)
+          .send({ error: { code: 'voice.size', message: 'That voice note is too long.' } });
+      if (!looksLike(type, data))
+        return reply
+          .code(415)
+          .send({ error: { code: 'voice.type', message: 'That isn’t a voice note we can play.' } });
+      const chat = await chatWith(req.userId!, playerId);
+      if ('error' in chat) return reply.code(chat.code).send({ error: chat.error });
+      const voiceId = `vn_${randomUUID().replace(/-/g, '').slice(0, 20)}`;
+      const at = now();
+      const length = Math.min(ms, VOICE_MAX_MS);
+      await store.putVoice(
+        {
+          id: voiceId,
+          chat_id: chat.id,
+          sender: req.userId!,
+          mime: type,
+          ms: length,
+          size: data.length,
+          created_at: at,
+        },
+        new Uint8Array(data),
+      );
+      await store.addMessage(chat.id, req.userId!, VOICE_TEXT, false, at, {
+        kind: 'voice',
+        meta: JSON.stringify({ voiceId, ms: length, mime: type }),
+      });
+      return { chat: chatView(req.userId!, chat), voice: { id: voiceId, ms: length } };
+    },
+  );
+
+  /** Only the two people in the chat can play its voice notes. */
+  app.get('/api/chats/:id/voice/:voiceId', { preHandler: requireUser }, async (req, reply) => {
+    const { id, voiceId } = z
+      .object({ id: z.string().max(64), voiceId: z.string().regex(/^vn_[a-f0-9]{1,32}$/) })
+      .parse(req.params);
+    const chat = await ownChat(req.userId!, id);
+    const v = chat ? await store.getVoice(voiceId) : undefined;
+    if (!chat || !v || v.row.chat_id !== chat.id)
+      return reply.code(404).send({ error: { code: 'voice', message: 'Voice note not found.' } });
+    const all = Buffer.from(v.data);
+    reply
+      .header('content-type', v.row.mime)
+      .header('cache-control', 'private, max-age=86400')
+      .header('accept-ranges', 'bytes')
+      .header('content-disposition', 'inline');
+    // Safari plays audio with range requests.
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
+    if (range && (range[1] || range[2])) {
+      const size = all.length;
+      let from = range[1] ? Number(range[1]) : size - Number(range[2]);
+      let to = range[1] && range[2] ? Number(range[2]) : size - 1;
+      from = Math.max(0, from);
+      to = Math.min(size - 1, to);
+      if (from > to) return reply.code(416).header('content-range', `bytes */${size}`).send();
+      return reply
+        .code(206)
+        .header('content-range', `bytes ${from}-${to}/${size}`)
+        .send(all.subarray(from, to + 1));
+    }
+    return reply.send(all);
+  });
+
+  // ---- Wave 13: doing things together from a chat. The command must be aimed
+  // at the chat partner; it runs like any command, then a card for both.
+  app.post(
+    '/api/chats/with/:playerId/act',
+    { preHandler: requireUser, config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
+    async (req, reply) => {
+      const { playerId } = z.object({ playerId: z.string().max(64) }).parse(req.params);
+      const body = z
+        .object({
+          command: commandSchema.optional(),
+          techEventId: z.string().max(64).optional(),
+        })
+        .parse(req.body);
+      const chat = await chatWith(req.userId!, playerId);
+      if ('error' in chat) return reply.code(chat.code).send({ error: chat.error });
+      let card: Card | null = null;
+      let result: unknown = null;
+      if (body.command) {
+        if (chatCommandTarget(body.command) !== playerId)
+          return reply
+            .code(400)
+            .send({ error: { code: 'chat.act', message: 'That can’t be done from this chat.' } });
+        const r = await game.execute(req.userId!, body.command);
+        if (!r.ok) return reply.code(422).send({ error: r.error });
+        result = r.result;
+        card = cardFor(game.current, body.command, r.result);
+      } else if (body.techEventId) {
+        card = techEventCard(game.current, body.techEventId);
+        if (!card)
+          return reply
+            .code(422)
+            .send({ error: { code: 'techevent.missing', message: 'We can’t find that event.' } });
+      }
+      if (!card)
+        return reply
+          .code(400)
+          .send({ error: { code: 'chat.act', message: 'That can’t be done from this chat.' } });
+      await store.addMessage(chat.id, req.userId!, CARD_TEXT[card.type], false, now(), {
+        kind: 'card',
+        meta: JSON.stringify(card),
+      });
+      return {
+        ok: true,
+        result,
+        chat: chatView(req.userId!, chat),
+        version: game.current.version,
+      };
     },
   );
 

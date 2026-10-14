@@ -77,6 +77,8 @@ export function giftProperty(world: World, me: Player, propertyId: Id, toPlayerI
     propertyId: p.id,
     value: priceOf(world, p),
     currency: m.data.currency,
+    label: label(p),
+    city: m.data.name,
     message: `You offered ${to.name} the ${label(p).toLowerCase()}.`,
   };
 }

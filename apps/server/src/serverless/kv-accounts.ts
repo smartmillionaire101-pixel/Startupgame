@@ -23,6 +23,9 @@
  *   ai/<user>/<character> → AiThreadDoc        (chat with an AI character; last MAX_AI_MESSAGES kept)
  *   ai-of/<user>       → string[]               (character ids with a thread, oldest first)
  *   ai-budget/<user>   → { day, n }             (Claude replies used today, Wave 6)
+ *   voice/<id>         → VoiceRow               (a voice note in a player chat, Wave 13)
+ *   voice-data/<id>    → raw audio bytes
+ *   voices-of/<chat>   → string[]               (voice note ids, deleted with the chat)
  */
 import { createHash, randomUUID } from 'node:crypto';
 import type {
@@ -32,9 +35,11 @@ import type {
   AccountStore,
   ChatRow,
   EmailTokenRow,
+  MessageExtra,
   MessageRow,
   OtpRow,
   PresenceRow,
+  VoiceRow,
 } from '../store/types.js';
 import { kvJson, type Kv } from './kv.js';
 import { LIVE_WINDOW_MS, VISIT_GAP_MS, utcDay, visitDays } from '../visits.js';
@@ -232,6 +237,7 @@ export class KvAccountStore implements AccountStore {
         (l ?? []).filter((x) => x !== chatId),
       );
       await this.kv.delete(pairKey(c.row.a, c.row.b).key);
+      await this.dropVoices(chatId);
       await this.kv.delete(`chat/${chatId}`);
     }
     await this.kv.delete(`chats-of/${id}`);
@@ -331,7 +337,14 @@ export class KvAccountStore implements AccountStore {
       .sort((p, q) => (q.last_at ?? q.created_at) - (p.last_at ?? p.created_at));
   }
 
-  async addMessage(chatId: string, sender: string, text: string, flagged: boolean, now: number) {
+  async addMessage(
+    chatId: string,
+    sender: string,
+    text: string,
+    flagged: boolean,
+    now: number,
+    extra?: MessageExtra,
+  ) {
     await kvJson.update<ChatDoc>(this.kv, `chat/${chatId}`, (d) => {
       if (!d) return undefined;
       const id = (d.messages[d.messages.length - 1]?.id ?? 0) + 1;
@@ -342,6 +355,7 @@ export class KvAccountStore implements AccountStore {
         text,
         flagged: flagged ? 1 : 0,
         created_at: now,
+        ...(extra ? { kind: extra.kind, meta: extra.meta } : {}),
       };
       return { ...d, messages: [...d.messages, msg].slice(-MAX_MESSAGES) };
     });
@@ -349,6 +363,32 @@ export class KvAccountStore implements AccountStore {
       ...(l ?? []).filter((t) => t > now - RATE_WINDOW_MS),
       now,
     ]);
+  }
+
+  // Voice notes: the audio under its own key (never inside the chat doc), with
+  // the chat listing them so they go when the chat does.
+  async putVoice(row: VoiceRow, data: Uint8Array) {
+    await this.kv.set(`voice-data/${row.id}`, data);
+    await kvJson.set(this.kv, `voice/${row.id}`, row);
+    await kvJson.update<string[]>(this.kv, `voices-of/${row.chat_id}`, (l) => [
+      ...(l ?? []),
+      row.id,
+    ]);
+  }
+
+  async getVoice(id: string) {
+    const row = await this.val<VoiceRow>(`voice/${id}`);
+    if (!row) return undefined;
+    const e = await this.kv.get(`voice-data/${id}`);
+    return e ? { row, data: e.data } : undefined;
+  }
+
+  private async dropVoices(chatId: string) {
+    for (const id of (await this.val<string[]>(`voices-of/${chatId}`)) ?? []) {
+      await this.kv.delete(`voice/${id}`);
+      await this.kv.delete(`voice-data/${id}`);
+    }
+    await this.kv.delete(`voices-of/${chatId}`);
   }
 
   async messages(chatId: string, limit = 100) {
