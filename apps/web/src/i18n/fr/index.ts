@@ -30,6 +30,7 @@ import { bankStatement } from './bank-statement';
 import { journey } from './journey';
 import { onlinePlay } from './online-play';
 import { roadmap } from './roadmap';
+import { founderFinance } from './founder-finance';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -63,6 +64,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   journey,
   onlinePlay,
   roadmap,
+  founderFinance,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

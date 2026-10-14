@@ -6,6 +6,7 @@ import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Segmented, Sheet } from '../ui';
 import { ExpansionCard } from './Expansion';
 import { Roadmap } from './Roadmap';
+import { RunwayExplainer } from './FundCompany';
 
 type Tab = 'product' | 'roadmap' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -114,6 +115,7 @@ export function CompanyScreen() {
       </div>
       {tab === 'product' && (
         <>
+          <RunwayExplainer c={c} />
           <Product c={c} />
           <ExpansionCard c={c} />
         </>

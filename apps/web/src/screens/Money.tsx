@@ -5,11 +5,20 @@ import { useView, type Company } from '../store';
 import { Button, Card, Empty, Field, Fold, Pill, Sheet, Sparkline, Stat } from '../ui';
 import { BankPicker, DealList, stageLabel } from './common';
 import { clockOf } from '../city/travel';
+import {
+  BalanceSheet,
+  FounderMoney,
+  FriendsBacking,
+  FriendsRoundCard,
+  FundingChooser,
+  RunwayExplainer,
+} from './FundCompany';
 
-type Tab = 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire';
+type Tab = 'fund' | 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire';
 
 const tabLabel = (x: Tab) =>
   ({
+    fund: t('Fund your company'),
     raise: t('Fundraising'),
     deals: t('Deals'),
     'cap table': t('Cap Table'),
@@ -66,19 +75,32 @@ export function MoneyScreen() {
   const [tab, setTab] = useState<Tab>('raise');
   const c = view.companies.find((x) => x.status === 'active');
   const myTurn = view.deals.filter((d) => d.yourTurn).length;
-  if (!c) return <DealList />;
+  if (!c)
+    return (
+      <>
+        <FriendsBacking />
+        <DealList />
+      </>
+    );
   return (
     <>
       <h1>{t('Money')}</h1>
       <div className="tabs" role="tablist">
-        {(['raise', 'deals', 'cap table', 'finance', 'acquire'] as Tab[]).map((x) => (
+        {(['fund', 'raise', 'deals', 'cap table', 'finance', 'acquire'] as Tab[]).map((x) => (
           <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)}>
             {tabLabel(x)}
             {x === 'deals' && myTurn ? ` (${myTurn})` : ''}
           </button>
         ))}
       </div>
-      {tab === 'raise' && <Raise c={c} />}
+      {tab === 'fund' && (
+        <>
+          <FundingChooser c={c} onTab={setTab} />
+          <FriendsRoundCard c={c} />
+          <FriendsBacking />
+        </>
+      )}
+      {tab === 'raise' && <Raise c={c} onTab={setTab} />}
       {tab === 'deals' && <DealList />}
       {tab === 'cap table' && <CapTable c={c} />}
       {tab === 'finance' && <Finance c={c} />}
@@ -87,7 +109,7 @@ export function MoneyScreen() {
   );
 }
 
-function Raise({ c }: { c: Company }) {
+function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
   const { view, cur } = useView();
   const [target, setTarget] = useState<{
     fundId?: string;
@@ -148,6 +170,11 @@ function Raise({ c }: { c: Company }) {
               : t('Pre-revenue: team and market')
           }
         />
+      </div>
+      <div className="row">
+        <Button variant="subtle" onClick={() => onTab('fund')}>
+          {t('Compare all ways to fund your company')}
+        </Button>
       </div>
       {openPitch && <PitchFlow pitchId={openPitch.id} />}
       <Card title={t('Investors in town')}>
@@ -578,7 +605,10 @@ function Finance({ c }: { c: Company }) {
         )}
         <Sparkline values={c.finance.history.map((h) => h.cashEnd)} label={t('Cash over time')} />
       </Card>
+      <RunwayExplainer c={c} />
+      <FounderMoney c={c} />
       <Inject c={c} />
+      <BalanceSheet c={c} />
       <Card title={t('Debt and receivables')}>
         <p className="small">
           {t('Unpaid invoices: {amount}', { amount: money(c.finance.receivables, cur) })}

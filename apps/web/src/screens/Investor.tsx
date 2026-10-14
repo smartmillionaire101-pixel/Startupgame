@@ -1,3 +1,4 @@
+import { FriendsBacking } from './FundCompany';
 import { useState } from 'react';
 import type { Industry, Stage } from '@runway/engine';
 import { amountInput, money, parseAmount } from '../format';
@@ -34,6 +35,7 @@ export function DealFlow() {
   return (
     <>
       <h1>{t('Deal flow')}</h1>
+      <FriendsBacking />
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'flow'} onClick={() => setTab('flow')}>
           {t('Companies')}
