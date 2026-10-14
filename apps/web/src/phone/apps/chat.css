@@ -14,12 +14,40 @@
 .chat-composer .phone-compose {
   position: static;
   align-items: center;
+  gap: 0.3rem;
+  container-type: inline-size;
+}
+.chat-composer .phone-compose input {
+  min-width: 4rem;
+}
+/* Send: the word when there's room, an arrow on a narrow phone. */
+.chat-send {
+  flex: none;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  padding: 0 0.85rem;
+}
+.chat-send-icon {
+  display: none;
+}
+@container (max-width: 22rem) {
+  .chat-send {
+    width: 2.5rem;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .chat-send-text {
+    display: none;
+  }
+  .chat-send-icon {
+    display: inline;
+  }
 }
 
 .chat-icon-btn {
   flex: none;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--surface);
@@ -115,9 +143,8 @@
     animation: none;
   }
 }
-/* While recording, the text box steps aside. */
-.phone-compose:has(.chat-recording) input,
-.phone-compose:has(.chat-recording) > .btn-primary[type='submit'] {
+/* While recording, everything else in the row steps aside. */
+.phone-compose:has(.chat-recording) > :not(.chat-recording) {
   display: none;
 }
 
@@ -218,15 +245,10 @@
 
 /* ---- The "+" menu and its panels */
 
+/* The menu, panels and composer sit straight in the thread (so the composer
+   stays stuck to the bottom of the whole thread). */
 .chat-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-.chat-actions-bar {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
+  display: contents;
 }
 .chat-plus {
   font-size: 1.4rem;
@@ -235,7 +257,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  flex: 1;
 }
 .chat-actions-menu button {
   border: 1px solid var(--line);

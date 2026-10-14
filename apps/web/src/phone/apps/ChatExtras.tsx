@@ -815,10 +815,13 @@ export function ChatActions({
   partner,
   act,
   busy,
+  children,
 }: {
   partner: { id: string; name: string };
   act: <R = unknown>(body: ActBody, ok?: string) => Promise<R | null>;
   busy: boolean;
+  /** The composer, given the "+" button to put first in its row. */
+  children: (plus: ReactNode) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
@@ -826,52 +829,52 @@ export function ChatActions({
     setPanel(p);
     setOpen(false);
   };
+  const plus = (
+    <button
+      type="button"
+      className="chat-icon-btn chat-plus"
+      aria-label={t('Do something together')}
+      aria-expanded={open}
+      onClick={() => {
+        setOpen(!open);
+        setPanel(null);
+      }}
+    >
+      {open ? '×' : '+'}
+    </button>
+  );
   return (
     <div className="chat-actions">
-      <div className="chat-actions-bar">
-        <button
-          type="button"
-          className="chat-icon-btn chat-plus"
-          aria-label={t('Do something together')}
-          aria-expanded={open}
-          onClick={() => {
-            setOpen(!open);
-            setPanel(null);
-          }}
-        >
-          {open ? '×' : '+'}
-        </button>
-        {open && (
-          <div className="chat-actions-menu" role="menu" aria-label={t('Do something together')}>
-            <button type="button" role="menuitem" onClick={() => pick('money')}>
-              💸 {t('Send money')}
-            </button>
-            <button type="button" role="menuitem" onClick={() => pick('date')}>
-              🌇 {t('Plan a date')}
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              disabled={busy}
-              onClick={() => {
-                setOpen(false);
-                void act(
-                  { command: { type: 'visit.invite', toPlayerId: partner.id } },
-                  t('Invitation sent. They’ll see it in their phone.'),
-                );
-              }}
-            >
-              🏠 {t('Invite over')}
-            </button>
-            <button type="button" role="menuitem" onClick={() => pick('event')}>
-              🎟 {t('Tech event together')}
-            </button>
-            <button type="button" role="menuitem" onClick={() => pick('gift')}>
-              🎁 {t('Give a home')}
-            </button>
-          </div>
-        )}
-      </div>
+      {open && (
+        <div className="chat-actions-menu" role="menu" aria-label={t('Do something together')}>
+          <button type="button" role="menuitem" onClick={() => pick('money')}>
+            💸 {t('Send money')}
+          </button>
+          <button type="button" role="menuitem" onClick={() => pick('date')}>
+            🌇 {t('Plan a date')}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={busy}
+            onClick={() => {
+              setOpen(false);
+              void act(
+                { command: { type: 'visit.invite', toPlayerId: partner.id } },
+                t('Invitation sent. They’ll see it in their phone.'),
+              );
+            }}
+          >
+            🏠 {t('Invite over')}
+          </button>
+          <button type="button" role="menuitem" onClick={() => pick('event')}>
+            🎟 {t('Tech event together')}
+          </button>
+          <button type="button" role="menuitem" onClick={() => pick('gift')}>
+            🎁 {t('Give a home')}
+          </button>
+        </div>
+      )}
       {panel === 'money' && (
         <SendMoney
           key={partner.id}
@@ -890,6 +893,7 @@ export function ChatActions({
       {panel === 'gift' && (
         <GiftPanel partner={partner} act={act} busy={busy} onDone={() => setPanel(null)} />
       )}
+      {children(plus)}
     </div>
   );
 }

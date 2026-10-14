@@ -302,6 +302,32 @@ test('players chat with emoji and voice notes, pay, date, visit, go out and give
   await shot(b, 'chat-gift-accepted');
   await shot(a, 'chat-thread-a');
 
+  // The composer fits one row on a 390 and a 360 phone: + · emoji · message · mic · Send.
+  for (const width of [390, 360]) {
+    await a.setViewportSize({ width, height: width === 360 ? 780 : 844 });
+    const form = aPhone2.locator('.chat-composer form');
+    await form.scrollIntoViewIfNeeded();
+    const controls = [
+      aPhone2.getByRole('button', { name: 'Do something together' }),
+      aPhone2.getByRole('button', { name: 'Emoji', exact: true }),
+      aPhone2.getByLabel('Message', { exact: true }),
+      aPhone2.getByRole('button', { name: 'Record a voice note' }),
+      aPhone2.getByRole('button', { name: 'Send', exact: true }),
+    ];
+    const frame = (await aPhone2.locator('.phone-frame').boundingBox())!;
+    const boxes = await Promise.all(controls.map(async (c) => (await c.boundingBox())!));
+    const mid = (b: { y: number; height: number }) => b.y + b.height / 2;
+    for (const b of boxes) {
+      expect(Math.abs(mid(b) - mid(boxes[0]!)), `one row at ${width}px`).toBeLessThan(6);
+      expect(b.x).toBeGreaterThanOrEqual(frame.x);
+      expect(b.x + b.width).toBeLessThanOrEqual(frame.x + frame.width);
+      expect(b.y + b.height).toBeLessThanOrEqual(frame.y + frame.height);
+    }
+    for (let i = 1; i < boxes.length; i++)
+      expect(boxes[i]!.x).toBeGreaterThanOrEqual(boxes[i - 1]!.x + boxes[i - 1]!.width - 1);
+    await shot(a, `chat-composer-${width}`);
+  }
+
   // Someone outside the chat can't play the voice note.
   const c = await (
     await browser.newContext({ ...phoneDevice, baseURL: test.info().project.use.baseURL })

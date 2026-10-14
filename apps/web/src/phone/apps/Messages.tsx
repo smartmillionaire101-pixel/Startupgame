@@ -1,7 +1,7 @@
 /**
  * Messages: chats with players and AI characters (Wave 5 §C).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, type AiThread, type ChatMessage, type ChatSummary } from '../../api';
 import { getLang, t, tx } from '../../i18n';
 import { useView } from '../../store';
@@ -428,11 +428,14 @@ function PlayerComposer({
   onChange,
   onSend,
   onVoice,
+  plus,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   onVoice: (audio: Blob, ms: number) => Promise<boolean>;
+  /** The "+" (do something together) button, first in the row. */
+  plus?: ReactNode;
 }) {
   const { meta } = useView();
   const input = useRef<HTMLInputElement>(null);
@@ -463,6 +466,7 @@ function PlayerComposer({
           }
         }}
       >
+        {plus}
         <button
           type="button"
           className="chat-icon-btn"
@@ -482,8 +486,16 @@ function PlayerComposer({
           onChange={(e) => onChange(e.target.value)}
         />
         <VoiceRecorder onSend={onVoice} />
-        <button className="btn btn-primary" type="submit" disabled={!value.trim()}>
-          {t('Send')}
+        <button
+          className="btn btn-primary chat-send"
+          type="submit"
+          aria-label={t('Send')}
+          disabled={!value.trim()}
+        >
+          <span className="chat-send-text">{t('Send')}</span>
+          <span className="chat-send-icon" aria-hidden="true">
+            ➤
+          </span>
         </button>
       </form>
     </div>
@@ -633,13 +645,17 @@ export function PlayerThreadView({
         <p className="small muted">{t('This chat is blocked.')}</p>
       ) : (
         <>
-          {!other?.ai && <ChatActions partner={partner} act={act} busy={busy} />}
-          <PlayerComposer
-            value={text}
-            onChange={setText}
-            onSend={() => void sendMsg()}
-            onVoice={sendVoice}
-          />
+          <ChatActions partner={partner} act={act} busy={busy}>
+            {(plus) => (
+              <PlayerComposer
+                value={text}
+                onChange={setText}
+                onSend={() => void sendMsg()}
+                onVoice={sendVoice}
+                plus={other?.ai ? undefined : plus}
+              />
+            )}
+          </ChatActions>
           <p className="small muted">
             {t('No links, numbers, emails or handles. Commitments happen on deal cards.')}
           </p>
