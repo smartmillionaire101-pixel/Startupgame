@@ -118,8 +118,7 @@ export const journey: Record<string, string> = {
   'Raise a Series A': 'Levez une série A',
   'Pitch the funds with real traction': 'Présentez-vous aux fonds avec une vraie traction',
   'Have an investor on your board': 'Ayez un investisseur à votre conseil',
-  'Negotiated with a round: governance grows up':
-    'Négocié lors d’une levée : la gouvernance mûrit',
+  'Negotiated with a round: governance grows up': 'Négocié lors d’une levée : la gouvernance mûrit',
   'Reach a valuation worth selling': 'Atteignez une valorisation qui vaut la vente',
   'Set by your last priced round': 'Fixée par votre dernière levée valorisée',
   'Get an offer for your company': 'Recevez une offre pour votre entreprise',
@@ -149,7 +148,8 @@ export const journey: Record<string, string> = {
   'Friendships open doors, and lift your mood':
     'Les amitiés ouvrent des portes et remontent le moral',
   'Ask someone out on a date': 'Proposez un rendez-vous à quelqu’un',
-  'From a chat: dinner, a view or your place': 'Depuis une discussion : dîner, une vue ou chez vous',
+  'From a chat: dinner, a view or your place':
+    'Depuis une discussion : dîner, une vue ou chez vous',
   'Make your home more comfortable': 'Rendez votre chez-vous plus confortable',
   'Better rest, better mood': 'Meilleur repos, meilleur moral',
 };

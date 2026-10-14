@@ -5,7 +5,7 @@
  * the phone's Journey app.
  */
 import './journey.css';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ObjectiveKind } from '@runway/engine';
 import { t } from '../i18n';
 import { useView } from '../store';
@@ -282,10 +282,19 @@ export function JourneyCelebration({ onOpen }: { onOpen: () => void }) {
         .join(',')
     : '';
   const [shown, setShown] = useState<number | null>(null);
+  const pending = useRef<number | null>(null);
   useEffect(() => {
     if (!j) return;
-    const fresh = freshChapters(j);
-    if (fresh[0]) setShown(fresh[0]);
+    // Kept in a ref: a re-run effect (dev strict mode) finds storage already updated.
+    const fresh = freshChapters(j)[0] ?? pending.current;
+    if (!fresh) return;
+    pending.current = fresh;
+    // A beat after the view lands, so the banner rises in over the new state.
+    const timer = setTimeout(() => {
+      pending.current = null;
+      setShown(fresh);
+    }, 300);
+    return () => clearTimeout(timer);
     // Only when the set of finished chapters changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doneKey]);
@@ -304,9 +313,7 @@ export function JourneyCelebration({ onOpen }: { onOpen: () => void }) {
         {ch.n}
       </span>
       <span className="journey-celebrate-text">
-        <b>
-          {t('Chapter {n} complete: {title}', { n: ch.n, title: chapterCopy(ch.id).title })}
-        </b>
+        <b>{t('Chapter {n} complete: {title}', { n: ch.n, title: chapterCopy(ch.id).title })}</b>
         {next && (
           <span className="journey-why">
             {t('Next: {title}', { title: chapterCopy(next.id).title })}

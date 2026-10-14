@@ -358,7 +358,11 @@ export function objectivesFor(view: PlayerView): Record<ObjectiveKind, Objective
   const dismissed = j?.dismissed ?? {};
   return {
     main: pickObjective(main, pinned.main, dismissed.main),
-    opportunity: pickObjective(opportunityCandidates(view), pinned.opportunity, dismissed.opportunity),
+    opportunity: pickObjective(
+      opportunityCandidates(view),
+      pinned.opportunity,
+      dismissed.opportunity,
+    ),
     personal: pickObjective(personalCandidates(view), pinned.personal, dismissed.personal),
   };
 }
