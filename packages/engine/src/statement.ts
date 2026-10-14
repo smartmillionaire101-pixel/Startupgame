@@ -197,7 +197,7 @@ export function statementView(world: World, playerId: Id, query: StatementQuery 
   const matches = all.filter(
     (l) =>
       (query.dir === 'in' ? l.amount > 0 : query.dir === 'out' ? l.amount < 0 : true) &&
-      (query.month == null || l.month === query.month) &&
+      (query.month === undefined || query.month === null || l.month === query.month) &&
       (!q ||
         l.description.toLowerCase().includes(q) ||
         l.counterparty.name.toLowerCase().includes(q) ||
