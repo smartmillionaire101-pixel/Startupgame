@@ -34,6 +34,7 @@ test('a founder prospects, works a deal to signature and sees the customer', asy
 
   // Each step: the next-action button, then a confirm that shows the time (and cost).
   const step = async (deal: ReturnType<typeof sales.locator>, action: string) => {
+    const before = await deal.getAttribute('data-deal-stage');
     await deal.locator(`button[data-action="${action}"]`).click();
     const confirm = deal.locator(`[data-confirm="${action}"]`);
     await expect(confirm).toBeVisible();
@@ -41,6 +42,8 @@ test('a founder prospects, works a deal to signature and sees the customer', asy
     if (action === 'propose') await confirm.getByLabel('Monthly price').fill('1');
     await confirm.getByRole('button', { name: 'Confirm' }).click();
     await expect(confirm).toBeHidden();
+    // Every step moves the deal on: wait for the board to show it before reading it.
+    await expect(deal).not.toHaveAttribute('data-deal-stage', before ?? '', { timeout: 15_000 });
   };
 
   let won = false;
@@ -65,12 +68,20 @@ test('a founder prospects, works a deal to signature and sees the customer', asy
         // The objection is named, with one more try.
         await expect(deal.getByText(/^Lost: /)).toBeVisible();
         await step(deal, 'recover');
-        const stage = await deal.getAttribute('data-deal-stage');
-        if (stage === 'discovery') {
-          await step(deal, 'demo');
-          await step(deal, 'propose');
+        // Recovery reopens the deal a stage or two back: work forward to the close again.
+        const next: Record<string, string> = {
+          contacted: 'demo',
+          discovery: 'demo',
+          demo: 'propose',
+          proposal: 'close',
+          negotiation: 'close',
+        };
+        for (let k = 0; k < 4; k++) {
+          const action = next[(await deal.getAttribute('data-deal-stage')) ?? ''];
+          if (!action) break;
+          await step(deal, action);
+          if (action === 'close') break;
         }
-        await step(deal, 'close');
         await expect(deal).toHaveAttribute('data-deal-stage', /won|lost/);
       }
       if ((await deal.getAttribute('data-deal-stage')) === 'won') {
