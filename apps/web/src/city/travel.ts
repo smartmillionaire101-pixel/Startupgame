@@ -125,7 +125,11 @@ export interface Destination {
 export function destinationsOf(view: PlayerView): Destination[] {
   const flights = flightsOf(view);
   const here = hereOf(view).id;
+  // Inside the City while you're away, `view.market` is the city you're in
+  // (cityViewOf): home is `view.me.market`, named after the market list.
+  const homeId = (view.me as { market?: string }).market ?? view.market.id;
   const names = new Map<string, string>([[view.market.id, view.market.name]]);
+  if (!names.has(homeId)) names.set(homeId, CITY_NAMES[homeId] ?? homeId);
   for (const d of view.me.destinations) names.set(d.id, d.name);
   if (!flights)
     return view.me.destinations.map((d) => ({
@@ -137,7 +141,7 @@ export function destinationsOf(view: PlayerView): Destination[] {
     }));
   const ids = [...names.keys()].filter((id) => id !== here);
   // Home first when you're away, then the rest as the server lists them.
-  ids.sort((a, b) => Number(b === view.market.id) - Number(a === view.market.id));
+  ids.sort((a, b) => Number(b === homeId) - Number(a === homeId));
   return ids.map((id) => ({
     id,
     name: names.get(id) ?? id,

@@ -273,6 +273,9 @@ describe('food.order and delivery (Wave 7 §A)', () => {
     const r = run(w, 'u_p', { type: 'food.order', businessId: d.businessId, itemId: it.id });
     const fee = Math.round(it.price * 0.15);
     expect(r.result.total).toBe(it.price + fee);
+    // The result leaves the engine as plain data (no revoked draft inside).
+    expect(() => JSON.stringify(r.result)).not.toThrow();
+    expect(r.result.needs.hunger).toBe(10);
     expect(bal(r.world, 'u_p')).toBe(before - it.price - fee);
     expect(r.world.accounts[till]!.balance).toBe(tillBefore + it.price + fee);
     expect(r.world.players.u_p!.needs!.hunger).toBe(10);
