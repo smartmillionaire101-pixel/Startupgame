@@ -824,6 +824,7 @@ export function playView(w: World, p: Player) {
       title: r.title,
       game: r.game,
       status: r.status,
+      createdAt: r.createdAt,
       currency: r.currency,
       stake: r.stake,
       pot: account(w, r.escrow).balance,

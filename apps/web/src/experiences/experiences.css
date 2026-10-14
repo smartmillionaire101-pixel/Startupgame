@@ -542,3 +542,131 @@
     animation: none;
   }
 }
+/* Wave 12: sky views in the real 3D city. */
+.panorama-canvas {
+  touch-action: none;
+  overflow: hidden;
+}
+.panorama header,
+.panorama footer {
+  z-index: 2;
+}
+.panorama footer select {
+  font-size: 11px;
+  background: #183c30d9;
+  color: white;
+  border: 1px solid #ffffff40;
+  border-radius: 8px;
+  padding: 7px 8px;
+}
+.panorama-progress {
+  height: 3px;
+  width: min(240px, 60vw);
+  margin-top: 8px;
+  background: #ffffff30;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.panorama-progress span {
+  display: block;
+  height: 100%;
+  background: #b4da8d;
+  transition: width 0.2s linear;
+}
+.panorama-loading {
+  position: absolute;
+  top: 45%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 15px;
+  text-shadow: 0 1px 6px #000;
+  z-index: 2;
+}
+.sky-labels {
+  z-index: 1;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.sky-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: rgb(10 22 18 / 0.72);
+  color: #fff;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  translate: -50% calc(-100% - 8px);
+}
+.sky-label::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 8px;
+  background: rgb(255 255 255 / 0.7);
+}
+.sky-label i {
+  font-style: normal;
+  opacity: 0.7;
+  font-size: 11px;
+}
+.sky-label.is-area {
+  background: rgb(10 22 18 / 0.4);
+  font-size: 11px;
+}
+.sky-label.is-area b {
+  font-weight: 500;
+}
+.experience-match,
+.experience-reveal {
+  font-size: 13px;
+  opacity: 0.9;
+}
+.panorama footer {
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+}
+.panorama footer > p {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.panorama footer > div {
+  margin: 6px 0;
+  gap: 6px;
+}
+.panorama footer button,
+.panorama footer select {
+  min-height: 0;
+  width: auto;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  border-radius: 999px;
+}
+.panorama-controls {
+  align-items: center;
+}
+.panorama header {
+  padding: 14px 14px 30px;
+}
+.panorama header p {
+  margin: 0;
+  max-width: 34em;
+}
+.panorama header h2 {
+  font-size: 22px;
+  margin: 4px 0;
+}
+.panorama header > button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+}

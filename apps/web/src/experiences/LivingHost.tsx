@@ -1,4 +1,6 @@
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react';
+import { skyViewsIn } from '@runway/engine';
+import { t } from '../i18n';
 import { useView } from '../store';
 import { openPhone } from '../phone/bus';
 import { closeLiving, livingPlace, onLiving } from './living-bus';
@@ -13,8 +15,12 @@ function LivingRoom({ host }: { host: string }) {
   const { view, send, busy, refresh } = useView();
   const me = view.me.id;
   const [person, setPerson] = useState('');
-  const [where, setWhere] = useState<'home' | 'london-eye' | 'cable-car' | 'rooftop'>('rooftop');
-  const [panorama, setPanorama] = useState<'london-eye' | 'cable-car' | 'rooftop' | null>(null);
+  /** 'home', or a sky view's id (Wave 12: every city has its real ones). */
+  const [where, setWhere] = useState('');
+  const [panorama, setPanorama] = useState<{
+    viewId?: string;
+    kind?: 'london-eye' | 'cable-car' | 'rooftop';
+  } | null>(null);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const timer = setInterval(() => {
@@ -24,6 +30,8 @@ function LivingRoom({ host }: { host: string }) {
     return () => clearInterval(timer);
   }, [refresh]);
   const city = view.here?.id ?? view.market.id;
+  const skyViews = skyViewsIn(city);
+  const whereNow = where || skyViews[0]?.id || 'home';
   const dates = view.living.dates.filter(
     (d) => d.status !== 'ended' && now - d.createdAt < 3_600_000,
   );
@@ -158,7 +166,16 @@ function LivingRoom({ host }: { host: string }) {
             className="experience-create"
             onSubmit={(e) => {
               e.preventDefault();
-              void send({ type: 'living.date.invite', playerId: person, location: where });
+              void send(
+                whereNow === 'home'
+                  ? { type: 'living.date.invite', playerId: person, location: 'home' }
+                  : {
+                      type: 'living.date.invite',
+                      playerId: person,
+                      location: 'sky-view',
+                      viewId: whereNow,
+                    },
+              );
             }}
           >
             <label>
@@ -174,10 +191,12 @@ function LivingRoom({ host }: { host: string }) {
             </label>
             <label>
               Where shall we go?
-              <select value={where} onChange={(e) => setWhere(e.target.value as typeof where)}>
-                {city === 'london' && <option value="london-eye">London Eye</option>}
-                <option value="cable-car">Scenic cable-car ride</option>
-                <option value="rooftop">Rooftop skyline</option>
+              <select value={whereNow} onChange={(e) => setWhere(e.target.value)}>
+                {skyViews.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
                 <option value="home">At my home · invited guests</option>
               </select>
             </label>
@@ -194,7 +213,9 @@ function LivingRoom({ host }: { host: string }) {
               {date.hostName} & {date.guestName}
             </h2>
             <p>
-              {date.location.replaceAll('-', ' ')} ·{' '}
+              {(date.viewId && skyViews.find((v) => v.id === date.viewId)?.name) ||
+                date.location.replaceAll('-', ' ')}{' '}
+              ·{' '}
               {date.status === 'invited' ? 'Invitation pending' : 'Together'}
             </p>
             {date.status === 'invited' && date.guest === me && (
@@ -220,7 +241,11 @@ function LivingRoom({ host }: { host: string }) {
                   <button
                     className="experience-primary"
                     onClick={() =>
-                      setPanorama(date.location as 'london-eye' | 'cable-car' | 'rooftop')
+                      setPanorama(
+                        date.viewId
+                          ? { viewId: date.viewId }
+                          : { kind: date.location as 'london-eye' | 'cable-car' | 'rooftop' },
+                      )
                     }
                   >
                     Step into the view
@@ -305,14 +330,18 @@ function LivingRoom({ host }: { host: string }) {
             </button>
           </section>
         )}
-        <h2>Explore the skyline</h2>
-        <p>Look around freely, find landmarks, and watch the light change with the real day.</p>
-        <div className="experience-toolbar">
-          {city === 'london' && (
-            <button onClick={() => setPanorama('london-eye')}>Ride the London Eye</button>
+        <h2>{t('Sky views')}</h2>
+        <p>
+          {t(
+            'The city’s real wheel, cable car, tower or hill, over its real buildings. Ride up, then look around freely. Open to everyone.',
           )}
-          <button onClick={() => setPanorama('cable-car')}>Scenic cable-car view</button>
-          <button onClick={() => setPanorama('rooftop')}>Rooftop panorama</button>
+        </p>
+        <div className="experience-toolbar">
+          {skyViews.map((v) => (
+            <button key={v.id} data-sky-view={v.id} onClick={() => setPanorama({ viewId: v.id })}>
+              {{ wheel: '🎡', cable: '🚡', deck: '🏙', tram: '🚋', hill: '⛰' }[v.kind]} {v.name}
+            </button>
+          ))}
         </div>
         <p className="experience-note">
           Mortgages and repayments use the existing bank system.{' '}
@@ -325,7 +354,8 @@ function LivingRoom({ host }: { host: string }) {
           <Suspense fallback={<p>Opening your view…</p>}>
             <Panorama
               city={city}
-              kind={panorama}
+              viewId={panorama.viewId}
+              kind={panorama.kind}
               holdingHands={!!date?.holdingHands}
               onClose={() => setPanorama(null)}
             >
