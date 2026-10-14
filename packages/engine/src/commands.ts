@@ -9,7 +9,7 @@ import { MARKET_IDS, type MarketId } from './data/markets.js';
 import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
-import { REVENUE_MODELS, STAGES } from './types.js';
+import { REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
 
 const id = z.string().min(1).max(64);
 const money = z.number().int().nonnegative().max(1e15);
@@ -437,6 +437,24 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('event.cancel'), eventId: id }),
   // ---- city economy (Wave 3)
   z.object({ type: z.literal('business.pitch'), companyId: id, businessId: id }),
+  /**
+   * Founder Journey 2a: the sales pipeline. Find 1–3 leads (limited per month
+   * by founder hours and sales staff). `companyId` defaults to your company.
+   */
+  z.object({ type: z.literal('sales.prospect'), companyId: id.optional() }),
+  /**
+   * Move a deal on: contact → discover → demo → propose (`price`) →
+   * negotiate (`discountPct`) → close; `recover` once after a loss.
+   */
+  z.object({
+    type: z.literal('sales.advance'),
+    companyId: id.optional(),
+    dealId: id,
+    action: z.enum(SALES_ACTIONS),
+    price: money.optional(),
+    discountPct: z.number().int().min(0).max(100).optional(),
+  }),
+  z.object({ type: z.literal('sales.drop'), companyId: id.optional(), dealId: id }),
   z.object({ type: z.literal('gig.take'), businessId: id, gigId: z.string().min(1).max(32) }),
   z.object({
     type: z.literal('venue.buy'),

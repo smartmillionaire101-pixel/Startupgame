@@ -239,9 +239,10 @@ export const CHAPTERS: ChapterDef[] = [
           kind: 'place',
           place: 'market',
         }),
+        // Founder Journey 2a: the sales pipeline is where a first customer is won.
         step('hustle.first-customer', 'Win your first paying customer', first, {
-          kind: 'place',
-          place: 'market',
+          kind: 'app',
+          app: 'sales',
         }),
         step(
           'hustle.customers',

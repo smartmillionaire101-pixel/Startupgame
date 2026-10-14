@@ -30,6 +30,7 @@ import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
 import { bookFlight, cancelFlight, fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
+import { advanceDeal, dropDeal, prospect } from './sales.js';
 import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
 import { foodOrder, homeAct, homeInvite } from './needs.js';
@@ -981,6 +982,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return rsvpEvent(world, me, cmd.eventId, cmd.going);
     case 'event.cancel':
       return cancelEvent(world, me, cmd.eventId);
+    case 'sales.prospect':
+      return prospect(world, me, cmd.companyId);
+    case 'sales.advance':
+      return advanceDeal(world, me, cmd);
+    case 'sales.drop':
+      return dropDeal(world, me, cmd.dealId, cmd.companyId);
     case 'business.pitch':
       return pitchBusiness(world, me, cmd.companyId, cmd.businessId);
     case 'gig.take':

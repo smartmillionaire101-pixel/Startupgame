@@ -32,6 +32,7 @@ import { setCogs } from './world.js';
 import { recordInterest, recordLoanLoss } from './banks.js';
 import { updateDistress } from './rescue.js';
 import { buildStory, storySnapshot } from './story.js';
+import { salesBilling, settleSales } from './sales.js';
 import type {
   BuildMode,
   Company,
@@ -184,6 +185,8 @@ export function settleFinances(world: World, c: Company, rng: Rng, month: number
     if (seg.kind === 'b2b') b2bInvoiced += billed;
     else revenue += billed;
   }
+  // Founder Journey 2a: customers won in the sales pipeline invoice on B2B terms too.
+  b2bInvoiced += salesBilling(c);
   // B2B invoices: paid on 30/60/90-day terms; some pay late, some never (§6).
   if (b2bInvoiced > 0) {
     const terms = rng.int(1, 3);
@@ -495,6 +498,7 @@ export function settleCompany(world: World, c: Company, rng: Rng, month: number)
   // Hibernation freezes the product: no progress, no new debt.
   if (c.hibernation) c.buildHours = 0;
   else settleProduct(c, founder);
+  settleSales(world, c, month);
   const pnl = settleFinances(world, c, rng, month);
   const runway = companyRunway(world, c);
   const departures = settleStaff(world, c, rng, month, runway, c.finance.unpaidPayroll > 0);
