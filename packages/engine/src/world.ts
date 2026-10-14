@@ -40,7 +40,7 @@ import type { Role, Skills } from './data/characters.js';
 import { ensure } from './errors.js';
 import { col, getMarket, notify, usdToLocal } from './helpers.js';
 import { newId } from './ids.js';
-import { openAccount, transfer } from './ledger.js';
+import { keepStatement, openAccount, transfer } from './ledger.js';
 import { major, scale } from './money.js';
 import { checkName, normaliseName, reservedAiNames } from './names.js';
 import { localDate } from './clock.js';
@@ -244,6 +244,7 @@ export function createPlayer(world: World, input: NewPlayerInput): Player {
   // Wave 6: the city grows as people arrive (counted before the player is stored).
   if (!input.ai) growOnJoin(world, input.market, player.id);
   world.players[player.id] = player;
+  keepStatement(world, player);
   if (!input.ai) world.names[input.market]![handleKey] = player.id;
   world.inbox[player.id] = [];
   return player;

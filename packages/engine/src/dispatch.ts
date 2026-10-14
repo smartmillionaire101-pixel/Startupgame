@@ -80,7 +80,7 @@ import {
   publish,
   spendHours,
 } from './helpers.js';
-import { account, transfer } from './ledger.js';
+import { account, keepStatement, transfer } from './ledger.js';
 import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
 import {
@@ -128,6 +128,8 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
     const next = produce(world, (draft) => {
       draft.activity ??= { since: ctx.now, at: ctx.now, sequence: 0, totals: {}, recent: [] };
       draft.activity.at = ctx.now;
+      const actor = ctx.actorId ? draft.players[ctx.actorId] : undefined;
+      if (actor) keepStatement(draft as World, actor);
       expirePlay(draft as World, ctx.now);
       result = apply(draft as World, command, ctx);
       draft.version += 1;

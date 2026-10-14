@@ -36,10 +36,11 @@ it('keeps durable totals beyond short ledger history, excludes AI and currency m
   const from = w.players.investor!.accounts.local;
   const to = w.markets.lagos!.ext.bank;
   const before = w.activity!.totals.NGN!.spent;
-  for (let i = 0; i < 120; i++) transfer(w, from, to, 100, 'Payment', 0);
-  expect(w.accounts[from]!.recent).toHaveLength(30);
+  for (let i = 0; i < 250; i++) transfer(w, from, to, 100, 'Payment', 0);
+  // A player's own account keeps a statement of 200 lines; the totals keep going.
+  expect(w.accounts[from]!.recent).toHaveLength(200);
   expect(w.activity!.recent).toHaveLength(100);
-  expect(w.activity!.totals.NGN!.spent - before).toBe(12_000);
+  expect(w.activity!.totals.NGN!.spent - before).toBe(25_000);
   const stats = structuredClone(w.activity);
   const usd = openAccount(w, { currency: 'USD', market: 'lagos', label: 'Investor dollars' });
   w.players.investor!.accounts.usd = usd;

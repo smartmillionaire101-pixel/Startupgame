@@ -30,7 +30,10 @@ import {
   digest,
   locationOf,
   playerView,
+  receiptView,
   startersFor,
+  statementView,
+  STATEMENT_PAGE_MAX,
   type MarketId,
   BANK_TYPES,
 } from '@runway/engine';
@@ -582,6 +585,41 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     reply.header('etag', tag).header('cache-control', 'private, no-cache');
     if (req.headers['if-none-match'] === tag) return reply.code(304).send();
     return reply.type('application/json; charset=utf-8').send(json);
+  });
+
+  /**
+   * The player's bank statement for one of their own accounts, a page at a
+   * time (`before` is the previous page's `next`), filtered by direction,
+   * game month and text. Only the player's own lines, ever.
+   */
+  app.get('/api/statement', { preHandler: requireUser }, async (req, reply) => {
+    const parsed = z
+      .object({
+        account: z.enum(['local', 'usd']).default('local'),
+        dir: z.enum(['all', 'in', 'out']).default('all'),
+        q: z.string().max(80).optional(),
+        month: z.coerce.number().int().min(0).max(100_000).optional(),
+        before: z.coerce.number().int().min(0).optional(),
+        limit: z.coerce.number().int().min(1).max(STATEMENT_PAGE_MAX).optional(),
+      })
+      .safeParse(req.query);
+    if (!parsed.success)
+      return reply.code(400).send({ error: { code: 'invalid', message: 'Invalid query.' } });
+    const statement = statementView(game.current, req.userId!, parsed.data);
+    if (!statement)
+      return reply.code(404).send({ error: { code: 'account', message: 'No such account.' } });
+    reply.header('cache-control', 'private, no-store');
+    return { statement };
+  });
+
+  /** One transaction's receipt, as the player saw it (404 unless it touched their accounts). */
+  app.get('/api/receipts/:ref', { preHandler: requireUser }, async (req, reply) => {
+    const { ref } = z.object({ ref: z.string().max(32) }).parse(req.params);
+    const receipt = receiptView(game.current, req.userId!, ref);
+    if (!receipt)
+      return reply.code(404).send({ error: { code: 'receipt', message: 'Receipt not found.' } });
+    reply.header('cache-control', 'private, no-store');
+    return { receipt };
   });
 
   app.post(

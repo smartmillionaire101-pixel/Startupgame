@@ -76,6 +76,7 @@ import {
 import { floorGigPay, lifestyleCost, tierOf } from './personal.js';
 import { hasPublicWarning } from './stars.js';
 import { isOverloaded, managementCapacity } from './staff.js';
+import { statementPreview } from './statement.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
 import type { MarketId } from './data/markets.js';
 import type { Company, DealCard, Id, MarketState, NewsItem, Player, World } from './types.js';
@@ -612,7 +613,14 @@ export function playerView(
           id,
           currency: world.accounts[id]!.currency,
           balance: world.accounts[id]!.balance,
-          recent: world.accounts[id]!.recent,
+          // Old shape, for screens that list a few raw lines.
+          recent: world.accounts[id]!.recent.slice(0, 30).map((r) => ({
+            month: r.month,
+            amount: r.amount,
+            memo: r.memo,
+          })),
+          /** The latest statement lines (running balance, other party, receipt ref). */
+          statement: statementPreview(world, p, id),
           bankId: world.accounts[id]!.bankId ?? null,
           bankName: world.accounts[id]!.bankId
             ? (world.banks[world.accounts[id]!.bankId!]?.name ?? null)
