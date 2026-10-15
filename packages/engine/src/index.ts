@@ -71,7 +71,12 @@ export {
 } from './captable.js';
 export { SLIDES, MAX_SLIDES } from './fundraising.js';
 export { rescuePlan, assessDistress } from './rescue.js';
-export { JOURNEY_EVENTS_NOTE, journeyEventsOn } from './releases.js';
+export { JOURNEY_EVENTS_NOTE, journeyEventsOn, EXITS_NOTE, exitsOn, RELEASES } from './releases.js';
+export { EXITS, ipoChecks } from './exits.js';
+export type { IpoCheck } from './exits.js';
+export { ALLOCATOR, CAUSES } from './allocator.js';
+export type { Cause, CareerDecision, CareerOrg } from './allocator.js';
+export { wealthView } from './wealth.js';
 export { DECISION_TEMPLATES, DECISIONS } from './data/decisions.js';
 export { MONEY_VARS } from './decisions.js';
 export type { DecisionsView } from './decisions.js';

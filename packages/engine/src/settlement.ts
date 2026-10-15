@@ -49,6 +49,8 @@ import type { Company, Player, World } from './types.js';
 import { journeyEventsOn } from './releases.js';
 import { rivalPressure, settleRivals } from './rivals.js';
 import { settleDecisions } from './decisions.js';
+import { settlePublicMarket } from './exits.js';
+import { settleCareers, settleMentorships } from './allocator.js';
 
 /** Months a shut-down company's name stays reserved for its founder (open question §21). */
 export const NAME_RESERVATION_MONTHS = 12;
@@ -159,6 +161,12 @@ export function settleMarket(
     settleStars(p.stars, playerPerformance(world, p));
     p.lastMonth = { income: 0, spend: p.lastMonth.spend, tax: 0 };
   }
+
+  // Founder Journey 5 (only worlds that used them): institution salaries,
+  // mentors' advice, and listed companies' share prices (own stream each).
+  settleCareers(world, marketId, month);
+  settleMentorships(world, marketId, month);
+  settlePublicMarket(world, marketId, month);
 
   // Banks settle after everyone has repaid what they owe this month (§8). Own RNG stream.
   const bankRng = deriveRng(world.seed, 'banks', marketId, month);

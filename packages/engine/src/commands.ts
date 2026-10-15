@@ -725,6 +725,57 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('competition.enter'), competitionId: id, companyId: id }),
   /** Investors: sit on the judging panel. */
   z.object({ type: z.literal('competition.judge.join'), competitionId: id }),
+  // ---- Founder Journey 5: exits (chapter 6) and the capital allocator (chapter 7)
+  /**
+   * Sell `pctBps` of your founder shares (no new shares): to a fund on your
+   * cap table (`buyerId`), an outside secondary fund (no `buyerId`), or a
+   * player (`buyerKind: 'player'`, who gets an offer to accept).
+   */
+  z.object({
+    type: z.literal('exit.secondary'),
+    companyId: id,
+    pctBps: z.number().int().min(1).max(10_000),
+    buyerKind: z.enum(['fund', 'player']),
+    buyerId: id.optional(),
+  }),
+  z.object({ type: z.literal('exit.secondary.accept'), offerId: id }),
+  z.object({ type: z.literal('exit.secondary.decline'), offerId: id }),
+  /** Hire the bankers (fee now); list a few months later. */
+  z.object({ type: z.literal('ipo.prepare'), companyId: id }),
+  z.object({
+    type: z.literal('ipo.list'),
+    companyId: id,
+    pricePerShareHint: z.number().positive().max(1e15).optional(),
+  }),
+  /** Sell part of your shares in a listed company at today's price. */
+  z.object({
+    type: z.literal('shares.sell'),
+    companyId: id,
+    pctBps: z.number().int().min(1).max(10_000),
+  }),
+  /** Buy about `amount` (the company's currency) of a listed company's shares. */
+  z.object({ type: z.literal('shares.buy'), companyId: id, amount: money }),
+  z.object({
+    type: z.literal('mentor.offer'),
+    companyId: id,
+    grantBps: z.number().int().min(25).max(100).optional(),
+  }),
+  z.object({ type: z.literal('mentor.answer'), mentorshipId: id, accept: z.boolean() }),
+  z.object({ type: z.literal('mentor.end'), mentorshipId: id }),
+  z.object({
+    type: z.literal('give.pledge'),
+    cause: z.string().min(1).max(32),
+    amount: z.number().int().positive().max(1e15),
+  }),
+  z.object({
+    type: z.literal('career.join'),
+    orgKind: z.enum(['dfi', 'bank']),
+    orgId: z.string().min(1).max(80).optional(),
+  }),
+  z.object({ type: z.literal('career.leave') }),
+  z.object({ type: z.literal('career.decide'), choiceId: z.enum(['impact', 'safe']) }),
+  /** Start a company again as a serial founder (skills, reputation and contacts carry). */
+  z.object({ type: z.literal('company.start'), company: companySetup }),
   z.object({
     type: z.literal('competition.score'),
     competitionId: id,

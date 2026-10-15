@@ -9,7 +9,7 @@ import { account, openAccount, transfer } from './ledger.js';
 import type { Command } from './commands.js';
 import { createRng, deriveRng, hashString } from './rng.js';
 import { QUIZ_BANK, type QuizCategory } from './data/quiz-bank.js';
-import { JOURNEY_EVENTS_NOTE } from './releases.js';
+import { journeyEventsOn } from './releases.js';
 
 export interface QuizQuestion {
   text: string;
@@ -38,9 +38,7 @@ export const autoQuiz = (w: World) => {
   const notes = w.announcements ?? [];
   // Later release notes come after Wave 12, so they switch it on too (a new
   // world's first note is the newest one).
-  return (
-    notes.length === 0 || notes.includes(AUTO_QUIZ_NOTE) || notes.includes(JOURNEY_EVENTS_NOTE)
-  );
+  return notes.length === 0 || notes.includes(AUTO_QUIZ_NOTE) || journeyEventsOn(w);
 };
 /** Questions in a built-in quiz. */
 export const QUIZ_LENGTH = 10;
