@@ -353,7 +353,7 @@ export function PhoneTip({ where }: { where: 'home' | 'bank' }) {
         : step === 'sale'
           ? t('Tap Sales to find your first customer.')
           : null
-      : step === 'phone' || step === 'payment'
+      : step === 'phone' || step === 'idea' || step === 'payment'
         ? t(
             'This is your personal account: your own savings and spending. Your company gets a separate business account.',
           )
