@@ -1,0 +1,95 @@
+/* Founder Journey 4a: the decisions inbox, its sheet, and the rivals panel. */
+.decision-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--tap, 44px);
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.decision-row-main {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.decision-row-main b {
+  overflow-wrap: anywhere;
+}
+.decisions-recent {
+  margin-top: 8px;
+}
+.decisions-recent summary {
+  cursor: pointer;
+  min-height: 32px;
+}
+.decision-sheet {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.decision-choices {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.decision-choice {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.25));
+  border-radius: 12px;
+  min-width: 0;
+}
+.decision-choice p {
+  margin: 0;
+}
+.decision-choice .btn {
+  justify-self: start;
+  margin-top: 4px;
+}
+.decision-effects {
+  margin: 0;
+  padding-left: 18px;
+}
+.decision-effects li {
+  overflow-wrap: anywhere;
+}
+.rivals-list .rival {
+  display: grid;
+  gap: 4px;
+}
+.rival-bars {
+  display: grid;
+  gap: 2px;
+}
+.rival-moves {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+/* The top bar's decisions badge. */
+.topbar-decisions {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--warn-bg, rgba(240, 170, 40, 0.18));
+  color: inherit;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+.topbar-decisions .badge {
+  top: -2px;
+  right: -2px;
+}

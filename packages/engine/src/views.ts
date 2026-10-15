@@ -1,5 +1,7 @@
 import { journeyView } from './journey.js';
 import { recapView } from './recap.js';
+import { decisionsView } from './decisions.js';
+import { rivalsView } from './rivals.js';
 import { roadmapView } from './roadmap.js';
 import { salesView } from './sales.js';
 import { hiringView, teamView } from './hiring.js';
@@ -658,6 +660,10 @@ export function playerView(
     journey: journeyView(world, p),
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */
     recap: p.ai ? null : recapView(world, p.id),
+    /** Founder Journey 4a: decision events waiting for you, and the last few answered. */
+    decisions: decisionsView(world, p),
+    /** Founder Journey 4a: per company you founded, its named rivals and their recent moves. */
+    rivals: rivalsView(world, myCompanies),
     /** Friends & Family rounds you can see: yours, your city's, your contacts' (chapter 3). */
     friendsRounds: friendsRoundsView(world, p, locationOf(p)),
     playRooms: playView(world, p),
