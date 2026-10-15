@@ -181,6 +181,46 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
       return { label: t('Invest in a startup'), why: t('Back a founder from the Invest app') };
     case 'allocator.fund':
       return { label: t('Raise a fund'), why: t('Pitch LPs and invest their money') };
+    case 'exit.secondary':
+      return {
+        label: t('Sell some of your shares in a secondary'),
+        why: t('Keep the company, take some money off the table: Capital app'),
+      };
+    case 'exit.ipo':
+      return {
+        label: t('Get ready for the stock market, or list'),
+        why: t('Revenue, growth, a board and a year of books: Capital app'),
+      };
+    case 'exit.cash':
+      return {
+        label: t('Turn your shares into cash: a sale, a secondary or an IPO'),
+        why: t('A high valuation is not money until you sell'),
+      };
+    case 'allocator.mentor':
+      return {
+        label: t('Mentor a startup'),
+        why: t('Monthly advice for a small advisor stake'),
+      };
+    case 'allocator.give':
+      return {
+        label: t('Give to a cause'),
+        why: t('Schools, clinics, clean water or new founders'),
+      };
+    case 'allocator.career':
+      return {
+        label: t('Take a senior role at a DFI or a bank'),
+        why: t('A salary and big calls, using what you learned'),
+      };
+    case 'allocator.serial':
+      return {
+        label: t('Start a new company as a serial founder'),
+        why: t('Your skills, name and contacts come with you'),
+      };
+    case 'allocator.path':
+      return {
+        label: t('Choose your path: invest, mentor, give, lead an institution or found again'),
+        why: t('Open the Capital app to compare the paths'),
+      };
     default:
       return { label: s.label, why: '' };
   }

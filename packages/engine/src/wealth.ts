@@ -7,6 +7,7 @@
 import { propertiesOf, priceOf } from './property.js';
 import { getMarket } from './helpers.js';
 import { valueIn } from './ledger.js';
+import { referencePrice } from './exits.js';
 import type { Player, World } from './types.js';
 
 export type ShareKind = 'private' | 'locked' | 'sellable';
@@ -39,7 +40,7 @@ export function wealthView(world: World, p: Player) {
     if (!(h && h.shares > 0) && safes <= 0) continue;
     const m = getMarket(world, c.market);
     const listed = c.ipo?.status === 'listed';
-    const price = listed ? (c.ipo!.price ?? 0) : c.capTable.lastPrice;
+    const price = listed ? (c.ipo!.price ?? 0) : referencePrice(c);
     const shares = h?.shares ?? 0;
     const lockedUntil = listed ? (c.ipo!.lockups?.[p.id] ?? 0) : 0;
     const kind: ShareKind = !listed ? 'private' : lockedUntil > m.month ? 'locked' : 'sellable';

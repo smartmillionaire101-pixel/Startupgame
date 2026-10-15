@@ -10,6 +10,7 @@ import { visitPlace } from '../city/goto';
 import { contactsOf, type ContactView } from '../city/people';
 import { flightsOf } from '../city/travel';
 import { BankPicker } from './common';
+import { WealthCard } from './Capital';
 import { AvatarFigure, avatarLook } from '../city/art';
 import { genderOf } from '../city/life';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
@@ -241,6 +242,7 @@ export function PersonalMoney({ travel = true }: { travel?: boolean } = {}) {
   const [amount, setAmount] = useState('');
   return (
     <>
+      <WealthCard />
       <div className="kpis">
         <Stat
           label={t('Savings')}
@@ -778,7 +780,8 @@ function CareerMoves() {
   );
 }
 
-export function FoundCompany() {
+/** `serial`: start again as a serial founder (`company.start`: skills and contacts carry). */
+export function FoundCompany({ serial }: { serial?: boolean } = {}) {
   const { view, send, meta } = useView();
   const [name, setName] = useState('');
   const [idea, setIdea] = useState('');
@@ -867,7 +870,7 @@ export function FoundCompany() {
         onClick={() =>
           void send(
             {
-              type: 'company.found',
+              type: serial ? 'company.start' : 'company.found',
               company: { name, idea, industry, revenueModel: model, incorporation },
             },
             t('{name} is open for business.', { name }),

@@ -39,8 +39,10 @@ import {
   listCompany,
   prepareIpo,
   proposeSecondary,
+  seedPublicMarket,
   sellShares,
 } from './exits.js';
+import { EXITS_NOTE, exitsOn } from './releases.js';
 import {
   answerMentoring,
   carrySerialFounder,
@@ -242,6 +244,8 @@ function foundCompany(
 function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
   if (cmd.type === 'market.open') {
     const m = openMarket(world, cmd.market, ctx.now);
+    // A city opening after the stock market did gets its listings too.
+    if (exitsOn(world)) seedPublicMarket(world, m.id);
     return {
       market: m.id,
       funds: Object.values(world.funds).filter((f) => f.market === m.id).length,
@@ -1409,6 +1413,9 @@ function announce(world: World, cmd: Extract<Command, { type: 'system.announce' 
   const sent = (world.announcements ??= []);
   if (sent.includes(cmd.id)) return { sent: 0 };
   sent.push(cmd.id);
+  // Founder Journey 5: the stock market opens with each city's leading AI companies.
+  if (cmd.id === EXITS_NOTE)
+    for (const id of Object.keys(world.markets)) seedPublicMarket(world, id);
   let n = 0;
   for (const p of Object.values(world.players)) {
     if (p.ai) continue;

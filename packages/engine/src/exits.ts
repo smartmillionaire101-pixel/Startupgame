@@ -17,7 +17,7 @@
  * Replay safety: only worlds that issue these commands carry any of this
  * state; settlement work loops over listed companies only.
  */
-import { fullyDiluted, sharesOf } from './captable.js';
+import { fullyDiluted, safeOwnership, sharesOf } from './captable.js';
 import { companyRunway } from './company.js';
 import { ensure, fail } from './errors.js';
 import {
@@ -134,6 +134,20 @@ export function payShareSale(
 
 // ---------------------------------------------------------------- secondary sales
 
+/**
+ * The last round's price per share: a priced round's, or (SAFEs only) the
+ * newest SAFE's post-money cap spread over today's shares. 0 = no round yet.
+ */
+export function referencePrice(c: Company): number {
+  const ct = c.capTable;
+  if (ct.lastPrice > 0) return ct.lastPrice;
+  if (!ct.safes.length) return 0;
+  const latest = ct.safes.reduce((a, x) => (x.month >= a.month ? x : a));
+  const fd = fullyDiluted(ct);
+  const p = Math.min(0.9, safeOwnership(ct));
+  return fd > 0 ? (latest.cap * (1 - p)) / fd : 0;
+}
+
 /** Bps of their holding this seller has sold in the last 12 months. */
 export function soldThisYear(c: Company, sellerId: Id, month: number): number {
   return (c.secondaries ?? [])
@@ -154,7 +168,7 @@ export function boardConsents(world: World, c: Company): { needed: boolean; ok: 
 export type SecondaryBuyer = 'investor' | 'player' | 'outside';
 
 export function secondaryPrice(c: Company, kind: SecondaryBuyer): number {
-  return c.capTable.lastPrice * (1 - EXITS.secondary.discountBps[kind] / 10_000);
+  return referencePrice(c) * (1 - EXITS.secondary.discountBps[kind] / 10_000);
 }
 
 /** Why a founder can't sell `bps` of their shares right now (null: they can). */
@@ -164,7 +178,7 @@ export function secondaryBlocker(world: World, c: Company, seller: Player, bps: 
   if (c.ipo?.status === 'listed') return 'Your company is listed: sell on the market instead.';
   if (!c.founderIds.includes(seller.id)) return 'Only a founder can sell founder shares here.';
   if (sharesOf(c.capTable, seller.id) <= 0) return 'You hold no shares in this company.';
-  if (c.capTable.lastPrice <= 0) return 'There is no share price yet: raise a priced round first.';
+  if (referencePrice(c) <= 0) return 'There is no share price yet: raise a round first.';
   const used = soldThisYear(c, seller.id, m.month);
   if (used + bps > EXITS.secondary.maxBpsPerYear)
     return `You can sell at most ${EXITS.secondary.maxBpsPerYear / 100}% of your shares in a year (${(EXITS.secondary.maxBpsPerYear - used) / 100}% left).`;
@@ -598,6 +612,65 @@ export function listCompany(world: World, me: Player, c: Company, hint?: number)
   return { price, raised, newShares, lockupUntil: m.month + EXITS.ipo.lockupMonths, by: me.id };
 }
 
+// ---------------------------------------------------------------- a stock market from day one
+
+/** Established AI companies listed in each city when the stock market opens. */
+export const SEED_LISTINGS = 2;
+
+/**
+ * The stock market opens (the exits release note, or a city opening after
+ * it): each city's most valuable AI companies list at the model's price, so
+ * there is something to buy before any founder gets there. No fees, no
+ * lock-up (no human holders), no dice.
+ */
+export function seedPublicMarket(world: World, marketId: string) {
+  const m = world.markets[marketId as MarketState['id']];
+  if (!m) return 0;
+  const listed = Object.values(world.companies).filter(
+    (c) => c.market === marketId && c.ipo?.status === 'listed',
+  ).length;
+  const candidates = Object.values(world.companies)
+    .filter(
+      (c) =>
+        c.market === marketId &&
+        c.ai &&
+        c.status === 'active' &&
+        !c.ipo &&
+        c.founderIds.every((f) => world.players[f]?.ai !== false),
+    )
+    .map((c) => ({ c, v: fairValue(world, c) }))
+    .sort((a, b) => b.v - a.v || (a.c.id < b.c.id ? -1 : 1))
+    .slice(0, Math.max(0, SEED_LISTINGS - listed));
+  for (const { c } of candidates) {
+    const ct = c.capTable;
+    const fd = fullyDiluted(ct);
+    if (fd <= 0) continue;
+    const price = listingPrice(world, c);
+    const newShares = Math.round((fd * EXITS.ipo.floatBps) / (10_000 - EXITS.ipo.floatBps));
+    const raised = Math.round(newShares * price);
+    withTx(world, { kind: 'investment' }, () =>
+      transfer(world, m.ext.lps, c.account, raised, `IPO: new shares sold to the public`, m.month),
+    );
+    ct.holdings[`pub:${c.id}`] = { shares: newShares, kind: 'investor' };
+    ct.lastPrice = price;
+    ct.lastPostMoney = Math.round(price * (fd + newShares));
+    c.ipo = {
+      status: 'listed',
+      preparedMonth: m.month,
+      readyMonth: m.month,
+      bankerFee: 0,
+      listedMonth: m.month,
+      price,
+      prevPrice: price,
+      history: [price],
+      lockups: {},
+      basis: {},
+      raised,
+    };
+  }
+  return candidates.length;
+}
+
 // ---------------------------------------------------------------- the public market
 
 export const isListed = (c: Company) => c.status === 'active' && c.ipo?.status === 'listed';
@@ -830,9 +903,9 @@ export function exitOptionsView(world: World, p: Player) {
         currency: m.data.currency,
         yourShares: shares,
         yourPct: fd ? Math.round((shares / fd) * 10_000) / 100 : 0,
-        lastPrice: round2(c.capTable.lastPrice),
+        lastPrice: round2(referencePrice(c)),
         /** Your stake at the last round price: paper value, not cash. */
-        paperValue: Math.round(shares * c.capTable.lastPrice),
+        paperValue: Math.round(shares * referencePrice(c)),
         acquisitionOffers: offers,
         secondary: {
           blocked: secondaryBlocker(world, c, p, 100),

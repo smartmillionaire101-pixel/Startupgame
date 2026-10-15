@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { produce } from 'immer';
 import { closePricedRound, fullyDiluted, sharesOf } from '../src/captable.js';
 import { settleExit } from '../src/deals.js';
-import { EXITS, ipoChecks } from '../src/exits.js';
+import { EXITS, ipoChecks, referencePrice } from '../src/exits.js';
 import { ALLOCATOR } from '../src/allocator.js';
 import { deriveChapters } from '../src/journey.js';
 import { EXITS_NOTE } from '../src/releases.js';
@@ -157,6 +157,28 @@ describe('secondary sales', () => {
       d.markets.lagos!.month += 12;
     });
     expect(sell(later, 1_000).ok).toBe(true);
+  });
+
+  it('prices a SAFE-only company from the newest SAFE cap', () => {
+    const w = edit(addFounder(makeWorld()), (d) => {
+      const c = companyOf(d, F);
+      c.capTable.safes.push({
+        holderId: 'x',
+        amount: 10_000_000_00,
+        cap: 100_000_000_00,
+        month: 0,
+      });
+    });
+    const c = companyOf(w, F);
+    const fd = fullyDiluted(c.capTable);
+    expect(referencePrice(c)).toBeCloseTo((100_000_000_00 * 0.9) / fd, 6);
+    const r = run(w, F, {
+      type: 'exit.secondary',
+      companyId: c.id,
+      pctBps: 500,
+      buyerKind: 'fund',
+    });
+    expect(r.result.price).toBeGreaterThan(0);
   });
 
   it('needs a priced round, and board consent when investors hold seats', () => {
@@ -331,6 +353,33 @@ describe('the IPO path and public shares', () => {
     expect(sharesOf(sell.world.companies[cid]!.capTable, I)).toBe(0);
     expect(moneyByCurrency(sell.world)).toEqual(money0);
     expect(negativeInternalAccounts(sell.world)).toEqual([]);
+  });
+});
+
+describe('the stock market opens with the release note', () => {
+  it('lists each city’s leading AI companies, with money conserved', () => {
+    const w = addInvestor(addFounder(makeWorld()), I);
+    const money0 = moneyByCurrency(w);
+    const noted = run(w, null, { type: 'system.announce', id: EXITS_NOTE, text: 'Exits.' }).world;
+    expect(moneyByCurrency(noted)).toEqual(money0);
+    for (const id of Object.keys(noted.markets)) {
+      const listed = Object.values(noted.companies).filter(
+        (c) => c.market === id && c.ipo?.status === 'listed',
+      );
+      expect(listed.length).toBe(2);
+      expect(listed.every((c) => c.ai)).toBe(true);
+    }
+    // Announcing twice changes nothing.
+    const again = run(noted, null, { type: 'system.announce', id: EXITS_NOTE, text: 'Exits.' });
+    expect(again.world.companies).toEqual(noted.companies);
+    const target = playerView(noted, I)!.capital!.market.find((x) => x.market === 'lagos')!;
+    const buy = run(noted, I, {
+      type: 'shares.buy',
+      companyId: target.companyId,
+      amount: 10_000_000_00,
+    });
+    expect(buy.result.shares).toBeGreaterThan(0);
+    expect(moneyByCurrency(buy.world)).toEqual(money0);
   });
 });
 

@@ -35,6 +35,7 @@ import { Invest } from './apps/Invest';
 import { Jobs } from './apps/Jobs';
 import { JourneyApp } from './apps/JourneyApp';
 import { SalesApp } from './apps/SalesApp';
+import { CapitalApp } from './apps/CapitalApp';
 import { MapApp } from './apps/MapApp';
 import {
   AiThreadView,
@@ -80,6 +81,7 @@ export const APPS: AppDef[] = [
   { id: 'rides', icon: 'rides', label: () => t('Rides'), bg: ['#34d399', '#047857'] },
   { id: 'chop', icon: 'chop', label: () => t('Chop'), bg: ['#fbbf24', '#d97706'] },
   { id: 'invest', icon: 'invest', label: () => t('Invest'), bg: ['#a78bfa', '#6d28d9'] },
+  { id: 'capital', icon: 'capital', label: () => t('Capital'), bg: ['#fde68a', '#b45309'] },
   { id: 'fit', icon: 'fit', label: () => t('Fit'), bg: ['#f472b6', '#db2777'] },
   { id: 'jobs', icon: 'jobs', label: () => t('Jobs'), bg: ['#a8a29e', '#57534e'] },
   { id: 'news', icon: 'news', label: () => t('News'), bg: ['#64748b', '#1e293b'] },
@@ -588,6 +590,9 @@ function PhoneScreen(props: {
       break;
     case 'sales':
       body = <SalesApp />;
+      break;
+    case 'capital':
+      body = <CapitalApp ctx={ctx} />;
       break;
     case 'goingout':
       body = <GoingOut ctx={ctx} />;

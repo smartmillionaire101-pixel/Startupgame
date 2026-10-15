@@ -4,6 +4,7 @@ import { locale, t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import { Button, Card, Empty, Field, Fold, Pill, Sheet, Sparkline, Stat } from '../ui';
 import { BankPicker, DealList, stageLabel } from './common';
+import { ExitOptions, WealthCard } from './Capital';
 import { clockOf } from '../city/travel';
 import {
   BalanceSheet,
@@ -14,7 +15,7 @@ import {
   RunwayExplainer,
 } from './FundCompany';
 
-type Tab = 'fund' | 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire';
+type Tab = 'fund' | 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire' | 'exit';
 
 const tabLabel = (x: Tab) =>
   ({
@@ -24,6 +25,7 @@ const tabLabel = (x: Tab) =>
     'cap table': t('Cap Table'),
     finance: t('Finance'),
     acquire: t('Acquire'),
+    exit: t('Exit'),
   })[x];
 
 const slideLabel = (x: string) =>
@@ -86,12 +88,14 @@ export function MoneyScreen() {
     <>
       <h1>{t('Money')}</h1>
       <div className="tabs" role="tablist">
-        {(['fund', 'raise', 'deals', 'cap table', 'finance', 'acquire'] as Tab[]).map((x) => (
-          <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)}>
-            {tabLabel(x)}
-            {x === 'deals' && myTurn ? ` (${myTurn})` : ''}
-          </button>
-        ))}
+        {(['fund', 'raise', 'deals', 'cap table', 'finance', 'acquire', 'exit'] as Tab[]).map(
+          (x) => (
+            <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)}>
+              {tabLabel(x)}
+              {x === 'deals' && myTurn ? ` (${myTurn})` : ''}
+            </button>
+          ),
+        )}
       </div>
       {tab === 'fund' && (
         <>
@@ -105,6 +109,12 @@ export function MoneyScreen() {
       {tab === 'cap table' && <CapTable c={c} />}
       {tab === 'finance' && <Finance c={c} />}
       {tab === 'acquire' && <Acquire c={c} />}
+      {tab === 'exit' && (
+        <>
+          <WealthCard />
+          <ExitOptions />
+        </>
+      )}
     </>
   );
 }
