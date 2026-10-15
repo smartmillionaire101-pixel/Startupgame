@@ -232,14 +232,14 @@ function scheduledMove(world: World, m: MarketState, r: Rival, rng: Rng): RivalM
       const text = raised
         ? `${r.name} cut prices ${pct}% after raising ${formatMoney(raised.amount ?? 0, cur)}`
         : `${r.name} cut prices ${pct}%`;
-      return { month, kind, text, pct };
+      return { month, kind, text, pct, ...(raised?.amount ? { amount: raised.amount } : {}) };
     }
     case 'launch': {
       const list = FEATURES[r.industry] ?? FEATURES.default!;
       const fresh = list.filter((f) => !r.moves.some((x) => x.text.endsWith(f)));
       const feature = rng.pick(fresh.length ? fresh : list);
       r.maturity = Math.round(clamp01(r.maturity + rng.range(0.05, 0.12)) * 100) / 100;
-      return { month, kind, text: `${r.name} launched ${feature}` };
+      return { month, kind, text: `${r.name} launched ${feature}`, detail: feature };
     }
     case 'poach': {
       const c = rng.pick(staffTargets);
@@ -266,7 +266,7 @@ function scheduledMove(world: World, m: MarketState, r: Rival, rng: Rng): RivalM
       }
       const parts = CITY_NAME_PARTS[m.id];
       const who = `${rng.pick(parts.places)} ${rng.pick(['Traders', 'Group', 'Logistics', 'Stores'])}`;
-      return { month, kind, text: `${r.name} won a contract with ${who}` };
+      return { month, kind, text: `${r.name} won a contract with ${who}`, detail: who };
     }
     case 'raise': {
       const amount = scale(col(m), rng.range(RIVALS.raiseCol[0], RIVALS.raiseCol[1]));

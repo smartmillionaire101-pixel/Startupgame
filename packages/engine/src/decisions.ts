@@ -295,7 +295,13 @@ const COMPANY_TRIGGERS: Record<string, Trigger> = {
     const pct = rm.move.pct ?? 10;
     return {
       rivalId: rm.rival.id,
-      vars: { company: c.name, rival: rm.rival.name, pct, move: rm.move.text },
+      vars: {
+        company: c.name,
+        rival: rm.rival.name,
+        pct,
+        move: rm.move.text,
+        ...(rm.move.amount ? { amount: rm.move.amount } : {}),
+      },
       choices: [
         { id: 'match', effects: [{ kind: 'price', pct: -Math.min(pct, 15) }] },
         {
@@ -351,7 +357,12 @@ const COMPANY_TRIGGERS: Record<string, Trigger> = {
     if (!rm || rm.move.kind !== 'launch') return null;
     return {
       rivalId: rm.rival.id,
-      vars: { company: c.name, rival: rm.rival.name, move: rm.move.text },
+      vars: {
+        company: c.name,
+        rival: rm.rival.name,
+        move: rm.move.text,
+        feature: rm.move.detail ?? '',
+      },
       choices: [
         {
           id: 'respond',

@@ -9,6 +9,7 @@ import { Roadmap } from './Roadmap';
 import { SalesPipeline } from './Sales';
 import { CofounderCard, HiringPipeline, TeamHealth } from './Hiring';
 import { RunwayExplainer } from './FundCompany';
+import { RivalsPanel } from './Decisions';
 
 type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -129,6 +130,7 @@ export function CompanyScreen() {
         <>
           <RunwayExplainer c={c} />
           <Product c={c} />
+          <RivalsPanel c={c} />
           <ExpansionCard c={c} />
         </>
       )}

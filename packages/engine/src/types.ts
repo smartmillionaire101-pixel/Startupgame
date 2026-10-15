@@ -1783,6 +1783,8 @@ export interface RivalMove {
   targetCompanyId?: Id;
   /** Who they tried to hire (poach). */
   staffId?: Id;
+  /** The feature launched, or the customer won (English). */
+  detail?: string;
 }
 
 /** A named rival in a founder's industry: an AI startup's mirror, or a lightweight abstract one. */
