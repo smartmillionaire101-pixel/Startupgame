@@ -47,13 +47,12 @@ test('a decision appears, the founder chooses, and sees what happened', async ({
   }
   await expect(badge).toBeVisible();
 
-  // The badge takes you to Today, where the decision waits.
+  // The badge takes you to Today with the first decision's sheet open.
   await badge.click();
   const card = page.locator('.card.decisions');
   await expect(card.getByRole('heading', { name: /Decisions/ })).toBeVisible();
   const row = card.locator('[data-decisions-open] .decision-row').first();
   const title = (await row.locator('b').textContent())!;
-  await row.click();
 
   const sheet = page.getByRole('dialog', { name: title });
   await expect(sheet).toBeVisible();

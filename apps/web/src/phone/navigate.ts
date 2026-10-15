@@ -95,7 +95,9 @@ export function inboxTarget(item: InboxLike, view: ViewLike): Target | null {
     return t ? { kind: 'tab', tab: t } : null;
   };
   const mine = (id?: string) =>
-    id ? view.companies.some((c) => c.id === id) : view.companies.some((c) => c.status === 'active');
+    id
+      ? view.companies.some((c) => c.id === id)
+      : view.companies.some((c) => c.status === 'active');
   const hasCompany = view.companies.some((c) => c.status === 'active');
   /** A section of your Company screen (or the nearest thing you have). */
   const company = (section?: CompanySection): Target | null =>

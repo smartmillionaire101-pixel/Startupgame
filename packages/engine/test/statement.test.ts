@@ -52,6 +52,9 @@ describe('bank statements and receipts', () => {
     const { fee, receiptId } = r.result as { fee: number; receiptId: string };
     expect(receiptId).toMatch(/^TX\d{8}$/);
     expect(moneyByCurrency(w)).toEqual(total);
+    // Both notifications lead to the receipt (and name the other player).
+    expect(w.inbox.u_b![0]).toMatchObject({ receipt: receiptId, from: 'u_a' });
+    expect(w.inbox.u_a![0]).toMatchObject({ receipt: receiptId, from: 'u_b' });
 
     const a = statementView(w, 'u_a')!;
     expect(a.currency).toBe('NGN');

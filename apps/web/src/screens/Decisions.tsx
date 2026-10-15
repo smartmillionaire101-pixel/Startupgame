@@ -413,8 +413,7 @@ export function DecisionsCard() {
   }, []);
   const d = view.decisions;
   if (!d.on || (d.open.length === 0 && d.recent.length === 0)) return null;
-  const current =
-    (openId === FIRST ? d.open[0] : d.open.find((e) => e.id === openId)) ?? null;
+  const current = (openId === FIRST ? d.open[0] : d.open.find((e) => e.id === openId)) ?? null;
   return (
     <Card
       title={t('Decisions')}
