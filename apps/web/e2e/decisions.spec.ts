@@ -13,7 +13,7 @@ const settle = (page: Page) =>
     const r = await fetch('/api/dev/settle', {
       method: 'POST',
       headers: { 'x-runway': '1', 'content-type': 'application/json' },
-      body: JSON.stringify({ market: 'lagos' }),
+      body: JSON.stringify({ market: 'kigali' }),
     });
     return r.status;
   });
@@ -27,6 +27,9 @@ test('a decision appears, the founder chooses, and sees what happened', async ({
     handle,
     company: `Choose ${handle.slice(3)}`,
     idea: 'Payments for market traders',
+    // Kigali: this spec advances the month many times, so it keeps clear of the
+    // Lagos world most other specs share (their month must not move under them).
+    market: /Kigali/,
   });
 
   const badge = page.locator('[data-decisions-badge]');

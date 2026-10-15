@@ -24,6 +24,8 @@ test('a new month opens the recap with personal and business money, and it dismi
     handle: `recap_${letters(8)}`,
     company: `Recap ${letters(6)}`,
     idea: 'Bookkeeping for market traders',
+    // Cairo: advancing the month here can't move it under specs sharing Lagos.
+    market: /Cairo/,
   });
 
   // Play a little: build, then advance a month.
@@ -36,7 +38,7 @@ test('a new month opens the recap with personal and business money, and it dismi
   await expect(sheet).toHaveCount(0);
 
   const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
-  await page.getByRole('button', { name: /Advance Lagos one month/ }).click();
+  await page.getByRole('button', { name: /Advance Cairo one month/ }).click();
   const res = await settled;
   expect(res.status(), await res.text()).toBe(200);
 
@@ -49,8 +51,8 @@ test('a new month opens the recap with personal and business money, and it dismi
   await expect(business).toContainText('Money in');
   // Next month's bills, with amounts: living costs for you, rent for the company.
   const tomorrow = sheet.locator('[data-recap-section="tomorrow"]');
-  await expect(tomorrow.locator('[data-bill="living"]')).toContainText('₦');
-  await expect(tomorrow.locator('[data-bill="rent"]')).toContainText('₦');
+  await expect(tomorrow.locator('[data-bill="living"]')).toContainText(/\d/);
+  await expect(tomorrow.locator('[data-bill="rent"]')).toContainText(/\d/);
   await expect(sheet.getByRole('button', { name: 'See details' }).first()).toBeVisible();
 
   // Quick dismiss.
