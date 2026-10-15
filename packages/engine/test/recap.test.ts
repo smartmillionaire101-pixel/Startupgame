@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { produce } from 'immer';
 import {
   cloudCost,
   loanPaymentsDue,
@@ -10,6 +11,7 @@ import {
 import { getMarket } from '../src/helpers.js';
 import { lifestyleCost } from '../src/personal.js';
 import { recapView } from '../src/recap.js';
+import { JOURNEY_EVENTS_NOTE } from '../src/releases.js';
 import { statementLines, statementView } from '../src/statement.js';
 import { playerView } from '../src/views.js';
 import type { World } from '../src/types.js';
@@ -165,5 +167,92 @@ describe('month recap', () => {
     expect(r.months[0]).toBe(month(w));
     const v = playerView(w, F)!;
     expect(v.recap?.month).toBe(month(w));
+  });
+});
+
+describe('month recap across every system (Phase 7)', () => {
+  const edit = (w: World, f: (d: World) => void) => produce(w, f);
+
+  it('lists the month’s rival moves in your industry, the ones that hit you first', () => {
+    // Rivals arrive with the decision-events release, at the next settlement.
+    let w = run(addFounder(makeWorld()), null, {
+      type: 'system.announce',
+      id: JOURNEY_EVENTS_NOTE,
+      text: 'Decisions are here.',
+    }).world;
+    w = settle(w, 'lagos', 1);
+    const c = companyOf(w, F);
+    const mo = month(w);
+    w = edit(w, (d) => {
+      const rivals = d.markets.lagos!.rivals![c.industry]!;
+      expect(rivals.length).toBeGreaterThan(0);
+      rivals[0]!.moves.push(
+        { month: mo, kind: 'raise', text: 'Rival A raised ₦50m' },
+        { month: mo, kind: 'poach', text: 'Rival A tried to poach', targetCompanyId: c.id },
+        { month: mo - 1, kind: 'launch', text: 'An old launch' },
+      );
+    });
+    const r = recapView(w, F)!;
+    const mine = r.rivals.filter((x) => x.text.startsWith('Rival A'));
+    expect(mine.map((x) => [x.kind, x.hitYou])).toEqual([
+      ['poach', true],
+      ['raise', false],
+    ]);
+    expect(r.rivals.every((x) => x.company === c.name)).toBe(true);
+    expect(r.rivals.some((x) => x.text === 'An old launch')).toBe(false);
+  });
+
+  it('lists decisions answered or defaulted that month, not open ones', () => {
+    let w = addFounder(makeWorld());
+    const c = companyOf(w, F);
+    const mo = month(w);
+    const base = {
+      family: 'team' as const,
+      companyId: c.id,
+      market: 'lagos' as const,
+      month: mo,
+      deadline: mo,
+      vars: {},
+      choices: [],
+      defaultChoice: 'wait',
+    };
+    w = edit(w, (d) => {
+      d.players[F]!.decisions = {
+        seq: 3,
+        cooldowns: {},
+        events: [
+          { ...base, id: 'ev1', template: 't1', status: 'chosen', choiceId: 'hire', resolvedMonth: mo, succeeded: true },
+          { ...base, id: 'ev2', template: 't2', status: 'defaulted', choiceId: 'wait', resolvedMonth: mo },
+          { ...base, id: 'ev3', template: 't3', status: 'open' },
+        ],
+      };
+    });
+    const r = recapView(w, F)!;
+    expect(r.decisions).toEqual([
+      { id: 'ev1', template: 't1', family: 'team', company: c.name, status: 'chosen', choiceId: 'hire', succeeded: true },
+      { id: 'ev2', template: 't2', family: 'team', company: c.name, status: 'defaulted', choiceId: 'wait', succeeded: null },
+    ]);
+  });
+
+  it('shows wealth now (liquid vs owned) only for the current month', () => {
+    const w = played();
+    const r = recapView(w, F)!;
+    const me = w.players[F]!;
+    expect(r.wealth!.liquid).toBe(w.accounts[me.accounts.local]!.balance);
+    expect(r.wealth!.netWorth).toBe(r.wealth!.liquid + r.wealth!.illiquid - r.wealth!.liabilities);
+    expect(recapView(w, F, month(w) - 1)!.wealth).toBeNull();
+  });
+
+  it('carries the chosen ambition’s progress', () => {
+    let w = addFounder(makeWorld());
+    expect(recapView(w, F)!.ambition).toBeNull();
+    w = run(w, F, { type: 'journey.ambition', id: 'serial' }).world;
+    expect(recapView(w, F)!.ambition).toMatchObject({
+      id: 'serial',
+      title: 'Serial founder',
+      done: 0,
+      need: 3,
+      reached: false,
+    });
   });
 });

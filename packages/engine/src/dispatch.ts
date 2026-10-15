@@ -1,3 +1,9 @@
+import {
+  chooseAmbition,
+  hasAmbitions,
+  recordAmbition,
+  recordAmbitionsAfterSettle,
+} from './ambitions.js';
 import { livingCommand, orderFurniture, queueDelivery } from './living.js';
 import { expirePlay, playCommand } from './play.js';
 /**
@@ -196,10 +202,15 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
       expirePlay(draft as World, ctx.now);
       result = apply(draft as World, command, ctx);
       // The founder journey: record chapters this command (or settlement) completed.
-      if (command.type === 'market.settle')
+      if (command.type === 'market.settle') {
         recordChaptersAfterSettle(draft as World, command.market);
+        recordAmbitionsAfterSettle(draft as World, command.market);
+      }
       const who = ctx.actorId ? draft.players[ctx.actorId] : undefined;
-      if (who) recordChapters(draft as World, who as Player);
+      if (who) {
+        recordChapters(draft as World, who as Player);
+        recordAmbition(draft as World, who as Player);
+      }
       draft.version += 1;
     });
     return { ok: true, world: next, result };
@@ -1220,6 +1231,9 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'journey.bootstrap':
       ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
       return chooseBootstrap(me, cmd.on, month);
+    case 'journey.ambition':
+      ensure(hasAmbitions(me), 'ambition.none', 'Ambitions are for players.');
+      return chooseAmbition(me, cmd.id, month);
     case 'roadmap.add':
       return addFeature(world, touch(cmd.companyId), cmd.featureId, month);
     case 'roadmap.prioritise':

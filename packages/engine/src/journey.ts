@@ -14,6 +14,7 @@
  * from the world counter, rolls dice or moves money, so replaying an old
  * command log reaches the same world (plus the new milestones).
  */
+import { ambitionSteps } from './ambitions.js';
 import { companyRunway } from './company.js';
 import { getMarket, lastPnl, totalCustomers, INBOX_LIMIT } from './helpers.js';
 import type { Currency } from './money.js';
@@ -614,6 +615,8 @@ export function journeyView(world: World, p: Player): JourneyView | null {
   if (!hasJourney(p)) return null;
   const chapters = deriveChapters(world, p);
   const cur = chapters.find((c) => c.status === 'current');
+  // Phase 7: the chosen ambition's next steps come first (chapter 0 = the ambition).
+  const ambition = ambitionSteps(world, p).map((s) => ({ ...s, chapter: 0 }));
   const main = chapters
     .filter((c) => c.status !== 'done')
     .flatMap((c) =>
@@ -625,7 +628,7 @@ export function journeyView(world: World, p: Player): JourneyView | null {
   return {
     current: cur?.n ?? chapters.length + 1,
     chapters,
-    main,
+    main: [...ambition, ...main],
     pinned: { ...(p.journey?.pinned ?? {}) },
     dismissed: { ...(p.journey?.dismissed ?? {}) },
     bootstrap: p.journey?.bootstrap ?? null,

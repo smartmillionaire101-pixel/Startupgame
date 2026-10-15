@@ -1,4 +1,5 @@
 import { journeyView } from './journey.js';
+import { ambitionView } from './ambitions.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
 import { allocatorView } from './allocator.js';
 import { wealthView } from './wealth.js';
@@ -664,6 +665,8 @@ export function playerView(
     worldVersion: world.version,
     /** The founder journey: seven chapters and the objective prompts; null for other roles. */
     journey: journeyView(world, p),
+    /** Phase 7: the ambition you are going for and every path's progress; null for AI players. */
+    ambition: ambitionView(world, p),
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */
     recap: p.ai ? null : recapView(world, p.id),
     /** Founder Journey 4a: decision events waiting for you, and the last few answered. */

@@ -3,6 +3,7 @@
  * boundary (server) and shared with the client for types. Each command plus
  * the world seed is enough to replay history exactly.
  */
+import { AMBITION_IDS } from './ambitions.js';
 import { z } from 'zod';
 import { INDUSTRIES } from './data/industries.js';
 import { MARKET_IDS, SENIORITIES, STAFF_ROLES, type MarketId } from './data/markets.js';
@@ -573,6 +574,8 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   /** Choose to bootstrap (no outside money): counts as chapter 3's funding choice. */
   z.object({ type: z.literal('journey.bootstrap'), on: z.boolean() }),
+  /** Phase 7: choose the ambition you are going for; without `id`, go without one. */
+  z.object({ type: z.literal('journey.ambition'), id: z.enum(AMBITION_IDS).optional() }),
   // ---- the product roadmap (§6.3): features as projects, then a release
   /** Add a feature from your industry's catalogue (pays its up-front cost). */
   z.object({

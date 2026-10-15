@@ -11,6 +11,9 @@
  * - Company: the month's P&L, the sales pipeline, the roadmap and the team.
  * - People: contacts met, visits, hangouts and dates.
  * - Journey: chapters recorded complete that month.
+ * - Phase 7, across every system: rivals' moves in your industries, the
+ *   decisions you answered (or let go to their default), your wealth now
+ *   (what you can spend vs what you own) and your ambition's progress.
  * - Risks and "Tomorrow": today's state and the same cost functions the next
  *   settlement uses (payroll, rent, loans, living costs).
  *
@@ -28,14 +31,16 @@ import {
 import { carModel } from './data/lifestyle-shop.js';
 import { featureById } from './data/roadmap.js';
 import { burn, col, getMarket } from './helpers.js';
+import { ambitionView } from './ambitions.js';
 import { deriveChapters, hasJourney } from './journey.js';
+import { wealthView } from './wealth.js';
 import { RECENT_LIMIT } from './ledger.js';
 import { scale, type Currency } from './money.js';
 import { lifestyleCost } from './personal.js';
 import { propertiesOf, upkeepOf } from './property.js';
 import { statementLines, type StatementLine } from './statement.js';
 import type { StaffRole } from './data/markets.js';
-import type { Company, Id, MonthlyPnl, Player, World } from './types.js';
+import type { Company, Id, MonthlyPnl, Player, RivalMoveKind, World } from './types.js';
 
 /** Runway below this many months is flagged as a risk. */
 export const RECAP_RUNWAY_RISK = 6;
@@ -43,6 +48,8 @@ export const RECAP_RUNWAY_RISK = 6;
 export const RECAP_TOP = 3;
 /** Relationship highlights listed at most. */
 export const RECAP_PEOPLE = 6;
+/** Rival moves listed at most. */
+export const RECAP_RIVALS = 6;
 
 export interface RecapItem {
   ref: string | null;
@@ -147,6 +154,29 @@ export type RecapDate =
   | { kind: 'demoDay'; company: string; accelerator: string }
   | { kind: 'loanEnds'; lender: string };
 
+/** A rival's move that month, in one of your companies' industries. */
+export interface RecapRival {
+  rival: string;
+  company: string;
+  kind: RivalMoveKind;
+  /** Plain English from the rival system ("Kopapay cut prices 20% after raising ₦50m"). */
+  text: string;
+  /** It touched your company (a poach attempt, a deal won from you). */
+  hitYou: boolean;
+}
+
+/** A decision you answered, or that went to its default, that month. */
+export interface RecapDecision {
+  id: Id;
+  template: string;
+  family: string;
+  company: string | null;
+  status: 'chosen' | 'defaulted';
+  choiceId: string | null;
+  /** Chance choices: whether it worked out (null: no chance involved). */
+  succeeded: boolean | null;
+}
+
 export interface RecapView {
   month: number;
   /** The home city's month now. */
@@ -162,6 +192,21 @@ export interface RecapView {
     completed: { n: number; title: string }[];
     current: { n: number; title: string; done: number; need: number } | null;
   } | null;
+  rivals: RecapRival[];
+  decisions: RecapDecision[];
+  /**
+   * Your wealth now (current month only; null for past months, which keep no
+   * snapshot): what you can spend today and what you own but can't spend yet.
+   */
+  wealth: {
+    currency: Currency;
+    liquid: number;
+    illiquid: number;
+    liabilities: number;
+    netWorth: number;
+  } | null;
+  /** The ambition you are going for: steps done, and whether it was reached this month. */
+  ambition: { id: string; title: string; done: number; need: number; reached: boolean } | null;
   /** Open problems now (always from today's state). */
   risks: RecapRisk[];
   /** What the next settlement (month `current + 1`) brings. */
@@ -448,6 +493,63 @@ export function recapView(world: World, playerId: Id, month?: number): RecapView
     };
   }
 
+  // --- Rivals: their moves this month, in your companies' industries.
+  const rivals: RecapRival[] = [];
+  for (const c of companies) {
+    const m = getMarket(world, c.market);
+    for (const r of m.rivals?.[c.industry] ?? [])
+      for (const mv of r.moves)
+        if (mv.month === mo)
+          rivals.push({
+            rival: r.name,
+            company: c.name,
+            kind: mv.kind,
+            text: mv.text,
+            hitYou: mv.targetCompanyId === c.id,
+          });
+  }
+  // The moves that hit you first.
+  rivals.sort((a, b) => Number(b.hitYou) - Number(a.hitYou));
+
+  // --- Decisions answered, or gone to their default, this month.
+  const decisions: RecapDecision[] = (me.decisions?.events ?? [])
+    .filter((e) => e.status !== 'open' && e.resolvedMonth === mo)
+    .map((e) => ({
+      id: e.id,
+      template: e.template,
+      family: e.family,
+      company: e.companyId ? (world.companies[e.companyId]?.name ?? null) : null,
+      status: e.status as 'chosen' | 'defaulted',
+      choiceId: e.choiceId ?? null,
+      succeeded: e.succeeded ?? null,
+    }));
+
+  // --- Wealth now (no history is kept, so only the current month has it).
+  let wealth: RecapView['wealth'] = null;
+  if (isCurrent && !me.ai) {
+    const w = wealthView(world, me);
+    wealth = {
+      currency: w.currency,
+      liquid: w.liquid,
+      illiquid: w.illiquid,
+      liabilities: w.liabilities.total,
+      netWorth: w.netWorth,
+    };
+  }
+
+  // --- Ambition.
+  let ambition: RecapView['ambition'] = null;
+  const av = ambitionView(world, me);
+  const chosen = av?.options.find((o) => o.id === av.chosen);
+  if (chosen)
+    ambition = {
+      id: chosen.id,
+      title: chosen.title,
+      done: chosen.steps.filter((s) => s.done).length,
+      need: chosen.steps.length,
+      reached: chosen.reachedMonth === mo,
+    };
+
   // --- Risks, from today's state.
   const risks: RecapRisk[] = [];
   const active = companies.filter((c) => c.status === 'active');
@@ -531,6 +633,10 @@ export function recapView(world: World, playerId: Id, month?: number): RecapView
     companies: companies.map((c) => companyMonth(world, c, mo)),
     people: peopleMonth(world, me, mo, isCurrent),
     journey,
+    rivals: rivals.slice(0, RECAP_RIVALS),
+    decisions,
+    wealth,
+    ambition,
     risks,
     tomorrow: {
       month: current + 1,

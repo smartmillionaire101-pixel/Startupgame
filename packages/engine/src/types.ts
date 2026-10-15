@@ -1,3 +1,4 @@
+import type { AmbitionId } from './ambitions.js';
 import type { Delivery, DateSession } from './living.js';
 import type { PlayRoom } from './play.js';
 /**
@@ -239,6 +240,11 @@ export interface Player {
     dismissed?: Partial<Record<'main' | 'opportunity' | 'personal', string[]>>;
     bootstrap?: number;
   };
+  /**
+   * Phase 7 (§4.1, §9.5): the ambition you are going for, and the home-city
+   * month you chose it. Missing = none chosen.
+   */
+  ambition?: { id: AmbitionId; since: number };
   /** Founder Journey 4a: decision events (only after the journey-events release note). */
   decisions?: PlayerDecisions;
   /**
