@@ -17,12 +17,17 @@ const shot = async (page: Page, name: string) => {
   if (dir) await page.screenshot({ path: `${dir}/${name}.png` });
 };
 
-async function enter(page: Page, background: string) {
+/**
+ * Nairobi by default: no other spec advances its month, so the guided founder's
+ * company keeps its starting cash and its deals keep their deadlines while
+ * parallel specs settle Lagos.
+ */
+async function enter(page: Page, background: string, city = 'Nairobi') {
   await page.goto('/');
   await page.getByLabel('Username', { exact: true }).fill(`fs_${letters(8)}`);
   await page.getByLabel('Email', { exact: true }).fill(`fs-${letters()}@example.com`);
   await page.getByLabel('Join as').selectOption('founder');
-  await pickIdentity(page, { name: 'Ada First' });
+  await pickIdentity(page, { name: 'Ada First', city });
   await page
     .getByRole('group', { name: 'Your background' })
     .getByRole('button', { name: new RegExp(`^${background}`) })
@@ -33,7 +38,7 @@ async function enter(page: Page, background: string) {
     .click();
   await shot(page, `entry-${background}`);
   await page.getByRole('button', { name: 'Play now' }).click();
-  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
+  await expect(page.getByRole('application', { name: new RegExp(`Map of ${city}`) })).toBeVisible();
 }
 
 const coach = (page: Page) => page.locator('.coach');
@@ -41,6 +46,8 @@ const coach = (page: Page) => page.locator('.coach');
 test('a new founder is guided from the flat to a first sale and the next objectives', async ({
   page,
 }) => {
+  // Sales outcomes are rolled: an unlucky run works through several deals.
+  test.slow();
   await enter(page, 'Consultant');
   const card = coach(page);
   await expect(card).toHaveAttribute('data-tutorial-step', 'phone');
@@ -111,7 +118,8 @@ test('a new founder is guided from the flat to a first sale and the next objecti
     for (const id of ids) {
       const deal = sales.locator(`[data-deal="${id}"]`);
       await expect(tip).toContainText('Call');
-      for (let k = 0; k < 8; k++) {
+      // The longest path is nine steps: lead to close, a loss, recovery to discovery, then demo, propose and close again.
+      for (let k = 0; k < 12; k++) {
         const stage = (await deal.getAttribute('data-deal-stage')) ?? '';
         if (stage === 'won') break;
         if (stage === 'lost') {
@@ -167,7 +175,7 @@ test('a new founder is guided from the flat to a first sale and the next objecti
 
   // Saved across a reload: the tutorial stays finished, every app is back.
   await page.reload();
-  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
+  await expect(page.getByRole('application', { name: /Map of Nairobi/ })).toBeVisible();
   await expect(page.locator('.coach')).toHaveCount(0);
   await page
     .getByRole('button', { name: /^Phone/ })
@@ -206,6 +214,6 @@ test('skipping the tutorial at step 1 leaves a full, valid game', async ({ page 
 
   // Still skipped after a reload.
   await page.reload();
-  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
+  await expect(page.getByRole('application', { name: /Map of Nairobi/ })).toBeVisible();
   await expect(page.locator('.coach')).toHaveCount(0);
 });
