@@ -92,5 +92,7 @@ export function wealthView(world: World, p: Player) {
       gains: conv(r?.gains ?? 0),
       tax: conv(r?.tax ?? 0),
     },
+    /** Phase 8: how each company sale paid you, newest first (each in its company's currency). */
+    exits: (p.exitStatements ?? []).map((x) => ({ ...x })),
   };
 }

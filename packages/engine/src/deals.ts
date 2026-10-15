@@ -4,7 +4,7 @@
  * once both accept the deal executes: money moves through banks and cap
  * tables update. Deal cards are the only evidence used in disputes.
  */
-import { addSafe, closePricedRound, fullyDiluted, waterfall } from './captable.js';
+import { addSafe, closePricedRound, fullyDiluted, POOL_ID, waterfall } from './captable.js';
 import type { WaterfallLine } from './captable.js';
 import { ensure, fail } from './errors.js';
 import { achieve, adjustTrust, holderAccount, getCompany, getMarket, notify } from './helpers.js';
@@ -15,6 +15,7 @@ import { formatMoney } from './money.js';
 import { applyStarEvent } from './stars.js';
 import { distributeFund } from './funds.js';
 import type {
+  ExitStatement,
   AcquisitionTerms,
   CofounderTerms,
   Company,
@@ -740,6 +741,9 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
   d.history.push({ month: m.month, by, action: 'accept', summary: 'Accepted. Deal executed.' });
 }
 
+/** Exit statements kept per player (newest first). */
+export const EXIT_STATEMENTS = 10;
+
 /**
  * Pay out an exit through the waterfall (§12): proceeds go to holders by
  * preference; players pay capital gains tax ("You sold shares for ₦50m. Tax: ₦5m.").
@@ -754,9 +758,14 @@ export function settleExit(
   const m = getMarket(world, c.market);
   // Founder loans, the reserve and an open Friends & Family round are settled
   // first (only companies that used them: older saves are untouched).
+  const price = proceeds;
   const hasNew = !!c.reserve || Object.keys(c.founderLoans ?? {}).length > 0 || !!world.ffRounds;
   if (hasNew) proceeds = exitFounderFinance(world, c, proceeds, m.ext.lps, m.month);
   const lines = waterfall(c.capTable, proceeds);
+  // Phase 8: shares in issue just before the sale (the unissued pool gets nothing).
+  const allShares = Object.entries(c.capTable.holdings)
+    .filter(([id]) => id !== POOL_ID)
+    .reduce((a, [, h]) => a + h.shares, 0);
   for (const line of lines) {
     if (line.total <= 0) continue;
     const player = world.players[line.holderId];
@@ -779,12 +788,42 @@ export function settleExit(
       );
       if (!player.ai) {
         // Founder Journey 5 (§7.4): exit money counts as realised wealth.
-        if (exitsOn(world))
+        const fmt = (v: number) => formatMoney(v, m.data.currency);
+        if (exitsOn(world)) {
           recordRealised(world, player, m, line.total, Math.max(0, line.total - basis), tax);
+          // Phase 8 (FR-022): how the price became your money, step by step.
+          const ahead = lines
+            .filter((l) => l.holderId !== line.holderId)
+            .reduce((a, l) => a + l.preference, 0);
+          const shares = c.capTable.holdings[line.holderId]?.shares ?? 0;
+          const statement: ExitStatement = {
+            companyId: c.id,
+            company: c.name,
+            buyer,
+            month: m.month,
+            market: m.id,
+            currency: m.data.currency,
+            price,
+            paidFirst: price - proceeds,
+            preferencesAhead: ahead,
+            stakeBps: allShares > 0 ? Math.round((shares / allShares) * 10_000) : 0,
+            preference: line.preference,
+            common: line.common,
+            gross: line.total,
+            basis,
+            tax,
+            net: line.total - tax,
+          };
+          const list = (player.exitStatements ??= []);
+          list.unshift(statement);
+          if (list.length > EXIT_STATEMENTS) list.length = EXIT_STATEMENTS;
+        }
         notify(world, player.id, {
           month: m.month,
           kind: 'deal',
-          text: `You sold shares for ${formatMoney(line.total, m.data.currency)}. Tax: ${formatMoney(tax, m.data.currency)}.`,
+          text: exitsOn(world)
+            ? `${c.name} sold to ${buyer} for ${fmt(price)}. Your share: ${fmt(line.total)}. Tax: ${fmt(tax)}. ${fmt(line.total - tax)} is in your personal account.`
+            : `You sold shares for ${fmt(line.total)}. Tax: ${fmt(tax)}.`,
         });
         achieve(
           world,

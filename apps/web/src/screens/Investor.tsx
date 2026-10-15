@@ -5,6 +5,7 @@ import { amountInput, money, parseAmount } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Field, Pill, Segmented, Sheet, Sparkline, Stat } from '../ui';
+import { multipleText, portfolioSummary, positionMultiple } from './portfolio';
 import { DealList, stageLabel } from './common';
 
 const companyStatusLabel = (x: string) =>
@@ -302,6 +303,41 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
   );
 }
 
+/** Phase 8: invested, still held, returned, and the multiples, per currency. */
+function PortfolioReturns() {
+  const { view } = useView();
+  return (
+    <div className="stack" data-testid="portfolio-returns">
+      {portfolioSummary(view.portfolio).map((s) => (
+        <div key={s.currency} className="kpis" data-portfolio-currency={s.currency}>
+          <Stat label={t('Invested')} value={money(s.invested, s.currency)} />
+          <Stat
+            label={t('Still held')}
+            value={money(s.held, s.currency)}
+            hint={t('At the last price: paper, not cash')}
+          />
+          <Stat
+            label={t('Returned')}
+            value={money(s.returned, s.currency)}
+            tone="money"
+            hint={t('Cash back from exits')}
+          />
+          <Stat
+            label={t('Total value (TVPI)')}
+            value={<span data-tvpi={s.tvpi ?? ''}>{multipleText(s.tvpi)}</span>}
+            hint={t('Held plus returned, per unit invested')}
+          />
+          <Stat
+            label={t('Cash back (DPI)')}
+            value={<span data-dpi={s.dpi ?? ''}>{multipleText(s.dpi)}</span>}
+            hint={t('Only this part is real money')}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function Portfolio() {
   const { view, cur, send, meta } = useView();
   const [sectors, setSectors] = useState<Industry[]>(view.me.investor?.sectors ?? []);
@@ -312,6 +348,7 @@ export function Portfolio() {
     <>
       <h1>{t('Portfolio')}</h1>
       <Card title={t('Positions')}>
+        {view.portfolio.length > 0 && <PortfolioReturns />}
         {view.portfolio.length === 0 ? (
           <Empty>{t('No investments yet. Start with a small cheque from Deal flow.')}</Empty>
         ) : (
@@ -322,6 +359,7 @@ export function Portfolio() {
                 <th className="num">{t('In')}</th>
                 <th className="num">{t('Mark')}</th>
                 <th className="num">{t('Out')}</th>
+                <th className="num">{t('Multiple')}</th>
               </tr>
             </thead>
             <tbody>
@@ -365,6 +403,9 @@ export function Portfolio() {
                           </Button>
                         </div>
                       ))}
+                  </td>
+                  <td className="num" data-multiple={positionMultiple(p) ?? ''}>
+                    {multipleText(positionMultiple(p))}
                   </td>
                 </tr>
               ))}

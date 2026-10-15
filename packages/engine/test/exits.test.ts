@@ -520,6 +520,47 @@ describe('replay safety', () => {
     expect(personal(after, F)).toBe(personal(before, F));
   });
 
+  it('an exit statement shows how the price became your money (Phase 8, FR-022)', () => {
+    const { w, cid } = pricedWorld();
+    const noted = run(w, null, { type: 'system.announce', id: EXITS_NOTE, text: 'Exits.' }).world;
+    // Below the investor's 1x preference: they take their ₦100m back first.
+    const price = 150_000_000_00;
+    const sold = edit(noted, (d) => {
+      settleExit(d, d.companies[cid]!, price, 'Big Co', 'acquired');
+    });
+    const st = sold.players[F]!.exitStatements!;
+    expect(st).toHaveLength(1);
+    const x = st[0]!;
+    const cgt = sold.markets.lagos!.data.tax.capitalGains;
+    expect(x).toMatchObject({
+      companyId: cid,
+      buyer: 'Big Co',
+      currency: 'NGN',
+      price,
+      paidFirst: 0,
+      preferencesAhead: 100_000_000_00,
+      gross: 50_000_000_00,
+      basis: 0,
+      tax: Math.round(50_000_000_00 * cgt),
+      net: 50_000_000_00 - Math.round(50_000_000_00 * cgt),
+    });
+    // Price = paid first + preferences ahead + every holder's common + your own preference.
+    expect(x.gross).toBe(x.preference + x.common);
+    expect(x.stakeBps).toBeGreaterThan(5_000);
+    expect(x.stakeBps).toBeLessThan(10_000);
+    // The money matches the statement, and the note says it in one line.
+    expect(personal(sold, F) - personal(noted, F)).toBe(x.net);
+    const note = sold.inbox[F]!.find((i) => i.text.startsWith(`${x.company} sold to Big Co`))!;
+    expect(note.text).toContain('is in your personal account');
+    // In the view, for the Capital app.
+    expect(wealthView(sold, sold.players[F]!).exits[0]).toEqual(x);
+    // Before the exits release, no statement is kept (old logs replay the same).
+    const old = edit(w, (d) => {
+      settleExit(d, d.companies[cid]!, price, 'Big Co', 'acquired');
+    });
+    expect(old.players[F]!.exitStatements).toBeUndefined();
+  });
+
   it('the mentor grant limits hold', () => {
     const w = addInvestor(addFounder(makeWorld()), I);
     const ai = Object.values(w.companies).find((c) => c.ai && c.market === 'lagos')!;

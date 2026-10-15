@@ -252,6 +252,11 @@ export interface Player {
    * gain over cost and the tax paid, in `currency`. Missing = nothing sold yet.
    */
   realised?: { currency: Currency; proceeds: number; gains: number; tax: number };
+  /**
+   * Phase 8 (§6.7, FR-022): how each company sale paid you, newest first (at
+   * most EXIT_STATEMENTS). Missing = no sale since the exits release.
+   */
+  exitStatements?: ExitStatement[];
   /** Founder Journey 5, chapter 7: gifts, a career at a DFI or bank, a second company. */
   allocator?: PlayerAllocator;
 }
@@ -344,6 +349,33 @@ export interface CareerRole {
   decidedMonth?: number;
   /** Decisions answered, for the CV. */
   decisions?: number;
+}
+
+/** One company sale, from the price to what reached your account (company currency). */
+export interface ExitStatement {
+  companyId: Id;
+  company: string;
+  buyer: string;
+  month: number;
+  market: MarketId;
+  currency: Currency;
+  /** What the buyer paid for the whole company. */
+  price: number;
+  /** Paid out before shareholders: founder loans, the reserve, an open Friends & Family round. */
+  paidFirst: number;
+  /** Paid to other holders' liquidation preferences before common shares. */
+  preferencesAhead: number;
+  /** Your share of the company just before the sale, in basis points of all shares. */
+  stakeBps: number;
+  /** Your payout: from your own preference and from your common shares. */
+  preference: number;
+  common: number;
+  gross: number;
+  /** What you paid for your shares (0 for founder shares). */
+  basis: number;
+  tax: number;
+  /** Paid into your personal account (before any currency conversion). */
+  net: number;
 }
 
 export interface PlayerAllocator {

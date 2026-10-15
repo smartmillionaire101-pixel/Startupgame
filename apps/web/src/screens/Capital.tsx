@@ -106,6 +106,91 @@ export function WealthCard({ compact }: { compact?: boolean }) {
   );
 }
 
+// ---------------------------------------------------------------- exit statements (Phase 8)
+
+type ExitStatementView = Wealth['exits'][number];
+
+/** One sale, step by step: from the price the buyer paid to what reached your account. */
+function ExitStatementRow({ x }: { x: ExitStatementView }) {
+  const c = x.currency;
+  const line = (label: string, value: string, key: string, tone?: 'out' | 'total') => (
+    <li key={key} data-exit-line={key} className={tone ? `exit-${tone}` : undefined}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </li>
+  );
+  return (
+    <li className="exit-statement" data-exit-statement={x.companyId}>
+      <details>
+        <summary>
+          <span>
+            <b>{t('{company} sold to {buyer}', { company: x.company, buyer: x.buyer })}</b>
+            <span className="small muted"> · {t('month {n}', { n: x.month })}</span>
+          </span>
+          <strong>{money(x.net, c)}</strong>
+        </summary>
+        <ul className="exit-lines">
+          {line(t('Price for the whole company'), money(x.price, c), 'price')}
+          {x.paidFirst > 0 &&
+            line(
+              t('Paid first: founder loans, the reserve, Friends & Family'),
+              `− ${money(x.paidFirst, c)}`,
+              'paidFirst',
+              'out',
+            )}
+          {x.preferencesAhead > 0 &&
+            line(
+              t('Investors’ preferences, paid before common shares'),
+              `− ${money(x.preferencesAhead, c)}`,
+              'preferences',
+              'out',
+            )}
+          {line(t('Your stake'), bpsText(x.stakeBps), 'stake')}
+          {line(t('Your share of the sale'), money(x.gross, c), 'gross', 'total')}
+          {x.preference > 0 &&
+            line(t('of which your own preference'), money(x.preference, c), 'yourPreference')}
+          {line(
+            x.basis > 0
+              ? t('Capital gains tax (on the gain over the {basis} you paid)', {
+                  basis: money(x.basis, c),
+                })
+              : t('Capital gains tax'),
+            `− ${money(x.tax, c)}`,
+            'tax',
+            'out',
+          )}
+          {line(t('In your personal account'), money(x.net, c), 'net', 'total')}
+        </ul>
+        <p className="small muted">
+          {t(
+            'Other holders are paid by the same rules: preferences first, then every share alike.',
+          )}
+        </p>
+      </details>
+    </li>
+  );
+}
+
+/** Every company sale that paid you, newest first. */
+export function ExitStatements() {
+  const { view } = useView();
+  const list = view.me.wealth.exits ?? [];
+  if (!list.length) return null;
+  return (
+    <Card
+      title={t('Your exits')}
+      sub={t('How each sale became money in your account')}
+      className="exit-statements"
+    >
+      <ul className="exit-list">
+        {list.map((x) => (
+          <ExitStatementRow key={`${x.companyId}:${x.month}`} x={x} />
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 // ---------------------------------------------------------------- exit options
 
 const checkLabel = (id: string) =>
@@ -975,6 +1060,7 @@ export function CapitalHub({ open }: { open?: (app: 'invest') => void }) {
     <div className="stack capital-hub">
       <OffersForYou />
       <WealthCard compact />
+      <ExitStatements />
       <Segmented
         label={t('Capital')}
         value={tab}
