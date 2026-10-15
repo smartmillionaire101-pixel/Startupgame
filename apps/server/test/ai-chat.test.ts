@@ -9,7 +9,8 @@ import { MemoryKv } from '../src/serverless/kv.js';
 import { configFor, createRuntime, handle } from '../src/serverless/netlify.js';
 import { Store } from '../src/store/sqlite.js';
 import type { AccountStore } from '../src/store/types.js';
-import { aiReply, intentOf, money, resolveCharacter } from '../src/ai-chat.js';
+import { crowdPerson } from '@runway/engine';
+import { CHARACTER_ID, aiReply, intentOf, money, resolveCharacter } from '../src/ai-chat.js';
 import { T0, api, founderSetup, makeApp, playAsGuest } from './helpers.js';
 
 const stores: [string, () => AccountStore][] = [
@@ -123,6 +124,24 @@ describe('AI replies', () => {
     expect(aiReply(world, me, fc, 'How are your numbers?', 3)).toMatch(/customers|team of/);
     const angel = Object.values(world.players).find((p) => p.ai && p.angel);
     if (angel) expect(resolveCharacter(world, angel.id)?.kind).toBe('angel');
+
+    // The city's crowd: a banker at a lender, someone on an AI company's team.
+    const lender = Object.values(world.markets.lagos!.lenders)[0]!;
+    const bankerId = `crowd:lagos:banker:${lender.id}:2`;
+    expect(CHARACTER_ID.test(bankerId)).toBe(true);
+    const banker = resolveCharacter(world, bankerId)!;
+    expect(banker).toMatchObject({
+      kind: 'person',
+      org: lender.name,
+      role: 'Loan officer',
+      place: `lender:${lender.id}`,
+      name: crowdPerson(bankerId)!.name,
+    });
+    expect(aiReply(world, me, banker, 'Hi', 1)).toBeTruthy();
+    const staff = resolveCharacter(world, `crowd:lagos:staff:${founder.companyIds[0]}:0`)!;
+    expect(staff).toMatchObject({ kind: 'person', role: 'Team member' });
+    expect(resolveCharacter(world, `crowd:lagos:banker:nope:1`)).toBeNull();
+    expect(resolveCharacter(world, `crowd:atlantis:banker:${lender.id}:1`)).toBeNull();
 
     // Humans and unknown ids are not AI characters.
     expect(resolveCharacter(world, me.id)).toBeNull();

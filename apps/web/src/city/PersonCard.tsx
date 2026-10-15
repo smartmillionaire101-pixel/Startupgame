@@ -40,6 +40,7 @@ export const roleName = (r: string) =>
       angel: t('Angel investor'),
       patron: t('Regular'),
       staff: t('Staff'),
+      employee: t('Team member'),
     }) as Record<string, string>
   )[r] ?? r;
 
@@ -122,6 +123,32 @@ export function tipFor(a: AiPerson, view: View, cur: string): string {
     }
     case 'staff':
       return t('Welcome! Tell me if you need anything.');
+    case 'banker': {
+      const tips = [
+        t('At {bank} we lend to businesses with steady sales. Come by in office hours.', {
+          bank: a.org ?? m.bankName,
+        }),
+        t('Bring your numbers when you ask for a loan: what you sell each month and what you owe.'),
+        t('A small loan paid back on time makes the next one much easier.'),
+      ];
+      return tips[pickN(tips.length)]!;
+    }
+    case 'employee': {
+      const co = view.directory.find((c) => c.id === a.company);
+      const tips = [
+        co
+          ? t('I work at {company}. We’re a team of {n} and busy.', {
+              company: co.name,
+              n: co.teamSize,
+            })
+          : t('Long week at work. Good to be out.'),
+        t('Everyone in tech ends up here after work.'),
+        co?.raising
+          ? t('Word is {company} is raising. Fingers crossed.', { company: co.name })
+          : t('If you’re hiring, I know good people.'),
+      ];
+      return tips[pickN(tips.length)]!;
+    }
     case 'angel': {
       const f = m.funds.find((x) => x.id === a.fund);
       return f
@@ -195,6 +222,8 @@ export function PersonCard({
   } else if (person.a.kind === 'angel') {
     const f = view.market.funds.find((x) => x.id === person.a.fund);
     if (f) subtitle = t('{role} · {company}', { role: subtitle, company: f.name });
+  } else if ((person.a.kind === 'banker' || person.a.kind === 'employee') && person.a.org) {
+    subtitle = t('{role} · {company}', { role: subtitle, company: person.a.org });
   } else if (person.a.kind === 'shopper') {
     const s = view.market.segments.find((x) => x.key === person.a.ref);
     if (s) subtitle = t('{role} · {company}', { role: subtitle, company: s.name });
@@ -261,6 +290,7 @@ export function PersonCard({
                 {person.kind === 'player' && person.p.place && (
                   <Pill tone="info">{t('Nearby')}</Pill>
                 )}
+                {person.kind === 'ai' && <Pill>{t('AI')}</Pill>}
               </div>
             </div>
           </div>
@@ -277,7 +307,7 @@ export function PersonCard({
 
           <div className="row person-actions">
             {aiChat && <Button onClick={() => openPhone({ ai: aiChat })}>{t('Chat')}</Button>}
-            {!contact && (aiChat || person.kind === 'player') && (
+            {!contact && (aiChat || person.kind === 'player') && !aiChat?.startsWith('crowd:') && (
               <SaveContact personId={aiChat ?? id} name={name} />
             )}
             {person.kind === 'player' && (
@@ -335,6 +365,11 @@ export function PersonCard({
             )}
             {person.kind === 'ai' && person.a.kind === 'owner' && (
               <Button onClick={() => onVisit(`biz:${person.a.ref}`)}>{t('Go in')}</Button>
+            )}
+            {person.kind === 'ai' && person.a.kind === 'banker' && (
+              <Button onClick={() => onVisit(`lender:${person.a.ref}`)}>
+                {t('Ask about a loan')}
+              </Button>
             )}
             {person.kind === 'ai' && person.a.kind === 'candidate' && (
               <Button variant="subtle" onClick={onHub}>
