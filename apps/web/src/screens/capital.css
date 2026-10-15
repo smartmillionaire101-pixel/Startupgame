@@ -1,0 +1,80 @@
+/* Founder Journey 5: exits, the stock market, wealth and the capital allocator. */
+.capital-hub {
+  gap: 0.75rem;
+}
+.cap-h {
+  font-size: 0.95rem;
+  margin: 0.5rem 0 0;
+}
+.cap-terms {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.cap-terms dd {
+  margin: 0;
+  text-align: right;
+}
+.ipo-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.ipo-checks li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  opacity: 0.8;
+}
+.ipo-checks li.ok {
+  opacity: 1;
+  color: var(--good, #16a34a);
+}
+.ipo-checks .grow,
+.listed .grow {
+  flex: 1;
+  min-width: 0;
+}
+.wealth-lines {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.wealth-lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.wealth-realised {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+.listed {
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.2));
+  padding: 0.75rem 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.listed .row {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.listed input {
+  flex: 1;
+  min-width: 7rem;
+}
+.listed-head {
+  align-items: baseline;
+}
+.path-card .stack {
+  gap: 0.5rem;
+}

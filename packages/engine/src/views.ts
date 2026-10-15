@@ -1,4 +1,7 @@
 import { journeyView } from './journey.js';
+import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
+import { allocatorView } from './allocator.js';
+import { wealthView } from './wealth.js';
 import { recapView } from './recap.js';
 import { decisionsView } from './decisions.js';
 import { rivalsView } from './rivals.js';
@@ -664,6 +667,19 @@ export function playerView(
     decisions: decisionsView(world, p),
     /** Founder Journey 4a: per company you founded, its named rivals and their recent moves. */
     rivals: rivalsView(world, myCompanies),
+    /**
+     * Founder Journey 5: exit options for your companies (offers, secondary,
+     * IPO checklist), the stock market, offers waiting for you, and the
+     * Capital Allocator hub (mentor, give, a career, start again).
+     */
+    capital: p.ai
+      ? null
+      : {
+          exits: exitOptionsView(world, p),
+          market: publicMarketView(world, p),
+          offers: secondaryOffersView(world, p),
+          allocator: allocatorView(world, p),
+        },
     /** Friends & Family rounds you can see: yours, your city's, your contacts' (chapter 3). */
     friendsRounds: friendsRoundsView(world, p, locationOf(p)),
     playRooms: playView(world, p),
@@ -742,6 +758,8 @@ export function playerView(
       residence: residenceView(world, p),
       /** Wave 10: cash + property equity − personal loans, in your home currency. */
       netWorth: netWorth(world, p),
+      /** Founder Journey 5 (§7.4): spendable cash vs shares and property at their mark, and what you've realised. */
+      wealth: wealthView(world, p),
       /**
        * People met at events (Wave 2) and saved from Who's here (Wave 6),
        * newest first; warmth fades with time. `chatId` opens a chat with them.

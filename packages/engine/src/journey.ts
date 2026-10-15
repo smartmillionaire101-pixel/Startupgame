@@ -201,6 +201,23 @@ function exited(p: Player, f: Facts): boolean {
   );
 }
 
+/** Founder Journey 5: an exit, a secondary sale or a listing. */
+function cashedOut(p: Player, f: Facts): boolean {
+  return (
+    exited(p, f) ||
+    p.milestones['founder.secondary'] !== undefined ||
+    p.milestones['founder.ipo'] !== undefined
+  );
+}
+
+function mentored(world: World, p: Player): boolean {
+  return Object.values(world.mentorships ?? {}).some(
+    (x) => x.mentorId === p.id && (x.status === 'active' || x.status === 'ended'),
+  );
+}
+
+const go = { capital: { kind: 'app', app: 'capital' } as JourneyGo };
+
 function invested(world: World, p: Player): boolean {
   if (p.milestones['investor.first-check'] !== undefined) return true;
   const holders = new Set([p.id, ...(p.investor?.fundId ? [p.investor.fundId] : [])]);
@@ -452,7 +469,37 @@ export const CHAPTERS: ChapterDef[] = [
           { kind: 'tab', tab: 'money' },
           { optional: true },
         ),
-        step('exit.sell', 'Sell your company', exited(p, f), { kind: 'tab', tab: 'money' }),
+        // Founder Journey 5: a secondary sale or a listing also turns value into money.
+        step(
+          'exit.secondary',
+          'Sell some of your shares in a secondary',
+          p.milestones['founder.secondary'] !== undefined,
+          { kind: 'app', app: 'capital' },
+          { optional: true },
+        ),
+        step(
+          'exit.ipo',
+          'Get ready for the stock market, or list',
+          f.companies.some((c) => !!c.ipo),
+          { kind: 'app', app: 'capital' },
+          { optional: true },
+        ),
+        step(
+          'exit.sell',
+          'Sell your company',
+          exited(p, f),
+          { kind: 'tab', tab: 'money' },
+          { optional: true },
+        ),
+        step(
+          'exit.cash',
+          'Turn your shares into cash: a sale, a secondary or an IPO',
+          cashedOut(p, f),
+          {
+            kind: 'app',
+            app: 'capital',
+          },
+        ),
       ];
     },
   },
@@ -468,16 +515,57 @@ export const CHAPTERS: ChapterDef[] = [
         { kind: 'tab', tab: 'me' },
         { optional: true },
       ),
-      step('allocator.invest', 'Invest in a startup', invested(world, p), {
-        kind: 'app',
-        app: 'invest',
-      }),
+      step(
+        'allocator.invest',
+        'Invest in a startup',
+        invested(world, p),
+        { kind: 'app', app: 'invest' },
+        { optional: true },
+      ),
       step(
         'allocator.fund',
         'Raise a fund',
         p.milestones['investor.fund-1'] !== undefined,
         { kind: 'app', app: 'invest' },
         { optional: true },
+      ),
+      // Founder Journey 5: the other ways to put money and experience to work.
+      step('allocator.mentor', 'Mentor a startup', mentored(world, p), go.capital, {
+        optional: true,
+      }),
+      step(
+        'allocator.give',
+        'Give to a cause',
+        (p.allocator?.pledges?.length ?? 0) > 0,
+        go.capital,
+        { optional: true },
+      ),
+      step(
+        'allocator.career',
+        'Take a senior role at a DFI or a bank',
+        !!p.allocator?.career ||
+          p.milestones['allocator.career-dfi'] !== undefined ||
+          p.milestones['allocator.career-bank'] !== undefined,
+        go.capital,
+        { optional: true },
+      ),
+      step(
+        'allocator.serial',
+        'Start a new company as a serial founder',
+        p.allocator?.serial !== undefined,
+        go.capital,
+        { optional: true },
+      ),
+      step(
+        'allocator.path',
+        'Choose your path: invest, mentor, give, lead an institution or found again',
+        invested(world, p) ||
+          mentored(world, p) ||
+          (p.allocator?.pledges?.length ?? 0) > 0 ||
+          p.milestones['allocator.career-dfi'] !== undefined ||
+          p.milestones['allocator.career-bank'] !== undefined ||
+          p.allocator?.serial !== undefined,
+        go.capital,
       ),
     ],
   },

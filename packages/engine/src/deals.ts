@@ -35,6 +35,8 @@ import { openVote, requiresVote } from './governance.js';
 import { assertCanLend, playerBankHolderId } from './banks.js';
 import { executePlayerAcquisition } from './acquisitions.js';
 import { exitFounderFinance } from './founderfinance.js';
+import { exitsOn } from './releases.js';
+import { recordRealised } from './exits.js';
 
 export const DEAL_LIFETIME_MONTHS = 2;
 
@@ -776,6 +778,9 @@ export function settleExit(
         m.month,
       );
       if (!player.ai) {
+        // Founder Journey 5 (§7.4): exit money counts as realised wealth.
+        if (exitsOn(world))
+          recordRealised(world, player, m, line.total, Math.max(0, line.total - basis), tax);
         notify(world, player.id, {
           month: m.month,
           kind: 'deal',
