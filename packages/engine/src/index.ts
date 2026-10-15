@@ -168,6 +168,7 @@ export {
   type JourneyView,
   type ObjectiveKind,
 } from './journey.js';
+export { playtestMetrics, type PlaytestMetrics } from './metrics.js';
 export {
   AMBITION,
   AMBITION_IDS,

@@ -27,6 +27,8 @@
   --info: #1d4ed8;
   --gold: #d97706;
   --good-soft: color-mix(in srgb, var(--good) 13%, var(--surface));
+  /* Small green text on --good-soft: darker than --good for 4.5:1 contrast (WCAG AA). */
+  --good-ink: #166534;
   --bad-soft: color-mix(in srgb, var(--bad) 11%, var(--surface));
   --warn-soft: color-mix(in srgb, var(--warn) 13%, var(--surface));
   --info-soft: color-mix(in srgb, var(--info) 10%, var(--surface));
@@ -119,6 +121,7 @@
     --accent-ink: #04201c;
     --accent-soft: #123a34;
     --good: #4ade80;
+    --good-ink: var(--good);
     --bad: #f87171;
     --warn: #fbbf24;
     --info: #93c5fd;
@@ -861,7 +864,7 @@ a.lrow:active {
 
 .pill-good {
   background: var(--good-soft);
-  color: var(--good);
+  color: var(--good-ink);
 }
 .pill-bad {
   background: var(--bad-soft);

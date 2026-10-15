@@ -1,4 +1,5 @@
 import { journeyView } from './journey.js';
+import { playtestMetrics } from './metrics.js';
 import { ambitionView } from './ambitions.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
 import { allocatorView } from './allocator.js';
@@ -1092,6 +1093,8 @@ export function economyDashboard(world: World) {
     },
     starDistribution: starBuckets,
     humans: Object.values(world.players).filter((p) => !p.ai).length,
+    /** Phase 9 (§10.4): aggregate playtest numbers, no player ids. */
+    playtest: playtestMetrics(world),
     markets: Object.values(world.markets).map((m) => ({
       id: m.id,
       month: m.month,
