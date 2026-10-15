@@ -16,6 +16,21 @@
 import { crowdId, crowdPerson, type MarketId, type PlayerView } from '@runway/engine';
 import { businessesOf, hash, lendersOf } from './contract';
 import { businessRoom, type RoomKind } from './rooms';
+import { localHour } from './travel';
+
+/**
+ * The city's hour for its crowd: the local clock, or `runway.mapHour` in
+ * localStorage (the same override the 3D sky takes, for tests and screenshots).
+ */
+export function crowdHour(marketId: string): number {
+  try {
+    const o = localStorage.getItem('runway.mapHour');
+    if (o !== null && o !== '' && Number.isFinite(Number(o))) return Number(o);
+  } catch {
+    /* no storage */
+  }
+  return localHour(marketId);
+}
 
 /** Who someone in the crowd is. */
 export type CrowdRole = 'founder' | 'investor' | 'banker' | 'owner' | 'employee';

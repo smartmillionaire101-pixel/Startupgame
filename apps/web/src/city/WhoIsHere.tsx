@@ -36,9 +36,8 @@ import {
   type PresenceView,
 } from './people';
 import { usePlacePresence } from './presence';
-import { crowdAt, type CrowdRole } from './crowdfill';
+import { crowdAt, crowdHour, type CrowdRole } from './crowdfill';
 import { roomOf, type RoomKind } from './rooms';
-import { localHour } from './travel';
 
 type View = PlayerView;
 
@@ -212,7 +211,7 @@ export function peopleAt(
   view: View,
   place: Place,
   players: PresenceView[],
-  hour: number = localHour(view.market.id),
+  hour: number = crowdHour(view.market.id),
 ): PersonHere[] {
   const out = aiPeopleAt(view, place);
   const seen = new Set(out.flatMap((p) => [p.id, p.playerId ?? p.id]));

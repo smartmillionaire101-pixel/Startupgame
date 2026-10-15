@@ -68,8 +68,7 @@ import {
 } from './life';
 import { Showroom, slotsOwned } from './Showroom';
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
-import { crowdAt } from './crowdfill';
-import { localHour } from './travel';
+import { crowdAt, crowdHour } from './crowdfill';
 import { aiCharacterId } from '../phone/bus';
 import type { PersonRef } from './PersonCard';
 import { RoomBack, RoomFront } from './RoomArt';
@@ -405,7 +404,7 @@ function occupantsOf(
   for (const c of crowdAt(view, {
     placeId: place.id,
     room,
-    hour: localHour(m.id),
+    hour: crowdHour(m.id),
     real,
     exclude: already,
   })) {
