@@ -196,9 +196,12 @@ export function DealCard({ deal }: { deal: Deal }) {
       {deal.status === 'open' && deal.yourTurn && !countering && (
         <div className="row" style={{ marginTop: '0.5rem' }}>
           <Button onClick={() => void act('accept')}>{t('Accept')}</Button>
-          <Button variant="subtle" onClick={() => setCountering(true)}>
-            {t('Counter')}
-          </Button>
+          {/* Phase 8: a pro-rata follow-on is take it or leave it, at the round's price. */}
+          {!(terms.kind === 'investment' && terms.followOn) && (
+            <Button variant="subtle" onClick={() => setCountering(true)}>
+              {t('Counter')}
+            </Button>
+          )}
           <Button variant="ghost" onClick={() => void act('decline')}>
             {t('Decline')}
           </Button>

@@ -4,7 +4,14 @@
  * once both accept the deal executes: money moves through banks and cap
  * tables update. Deal cards are the only evidence used in disputes.
  */
-import { addSafe, closePricedRound, fullyDiluted, POOL_ID, waterfall } from './captable.js';
+import {
+  addSafe,
+  closePricedRound,
+  fullyDiluted,
+  issueFollowOn,
+  POOL_ID,
+  waterfall,
+} from './captable.js';
 import type { WaterfallLine } from './captable.js';
 import { ensure, fail } from './errors.js';
 import { achieve, adjustTrust, holderAccount, getCompany, getMarket, notify } from './helpers.js';
@@ -15,6 +22,7 @@ import { formatMoney } from './money.js';
 import { applyStarEvent } from './stars.js';
 import { distributeFund } from './funds.js';
 import type {
+  CapTable,
   ExitStatement,
   AcquisitionTerms,
   CofounderTerms,
@@ -36,7 +44,7 @@ import { openVote, requiresVote } from './governance.js';
 import { assertCanLend, playerBankHolderId } from './banks.js';
 import { executePlayerAcquisition } from './acquisitions.js';
 import { exitFounderFinance } from './founderfinance.js';
-import { exitsOn } from './releases.js';
+import { endgameOn, exitsOn } from './releases.js';
 import { recordRealised } from './exits.js';
 
 export const DEAL_LIFETIME_MONTHS = 2;
@@ -94,6 +102,8 @@ export function summarise(
       const pool = terms.poolTopUpBps
         ? ` A ${terms.poolTopUpBps / 100}% staff option pool comes out of your side first.`
         : '';
+      if (terms.followOn)
+        return `Keep your ${pct(terms.followOn.stakeBps / 10_000)} of ${c.company?.name ?? 'the company'}: put in ${money(world, c, terms.amount)} at the ${terms.stage} round's price. Your pro-rata right; it lapses if another round closes first.`;
       const head =
         terms.instrument === 'safe'
           ? `${partyName} puts in ${money(world, c, terms.amount)} now for about ${pct(owns)} later (cap ${money(world, c, terms.valuation)}).`
@@ -362,6 +372,11 @@ export function actOnDeal(
   }
 
   if (act.action === 'counter') {
+    ensure(
+      !(d.terms.kind === 'investment' && d.terms.followOn),
+      'deal.followon',
+      'A follow-on is your right at the round’s price: take it or leave it.',
+    );
     const terms = mergeCounter(d.terms, act.terms);
     validateTerms(terms);
     d.terms = terms;
@@ -599,7 +614,25 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
         m.month,
         'invested',
       );
-      if (t.instrument === 'safe') {
+      // Phase 8: pro-rata holders' stakes before a new priced round, for their follow-ons.
+      const stakes =
+        endgameOn(world) && t.instrument === 'priced' && !t.followOn
+          ? stakesBefore(c.capTable)
+          : null;
+      if (t.followOn) {
+        ensure(
+          c.capTable.roundsRaised === t.followOn.round,
+          'deal.stale',
+          'A newer round has closed since: this follow-on has lapsed.',
+        );
+        issueFollowOn(c.capTable, {
+          holderId,
+          amount: t.amount,
+          price: t.followOn.price,
+          multiple: t.liquidationMultiple,
+          participating: t.participating,
+        });
+      } else if (t.instrument === 'safe') {
         addSafe(c.capTable, { holderId, amount: t.amount, cap: t.valuation, month: m.month });
         c.capTable.lastPostMoney = Math.max(c.capTable.lastPostMoney, t.valuation);
       } else {
@@ -612,9 +645,17 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
           participating: t.participating,
         });
       }
-      c.lastRound = t.stage;
-      c.lastRaiseMonth = m.month;
-      c.raising = false;
+      if (!t.followOn) {
+        c.lastRound = t.stage;
+        c.lastRaiseMonth = m.month;
+        c.raising = false;
+      }
+      // Phase 8: remember who has pro-rata rights.
+      if (endgameOn(world) && t.proRata) {
+        const list = (c.capTable.proRata ??= []);
+        if (!list.includes(holderId)) list.push(holderId);
+      }
+      if (stakes) offerFollowOns(world, c, holderId, t, stakes);
       // Board composition changes with each round (§9).
       if (t.boardSeat && !c.board.includes(holderId)) c.board.push(holderId);
       if (t.vetoOnSale && !c.vetoes.includes(holderId)) c.vetoes.push(holderId);
@@ -739,6 +780,91 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
   }
   d.status = 'accepted';
   d.history.push({ month: m.month, by, action: 'accept', summary: 'Accepted. Deal executed.' });
+}
+
+/**
+ * Phases 7–9 release: record the pro-rata rights in deals accepted before
+ * it, in deal order, for holders who still own shares. Takes no id, no dice
+ * and no money.
+ */
+export function recordPastProRata(world: World) {
+  const deals = Object.values(world.deals).sort((a, b) => (a.id < b.id ? -1 : 1));
+  for (const d of deals) {
+    const t = d.terms;
+    if (d.status !== 'accepted' || t.kind !== 'investment' || !t.proRata || !d.companyId) continue;
+    const c = world.companies[d.companyId];
+    if (!c || c.status !== 'active') continue;
+    const holderId = (d.proposer.kind === 'company' ? d.counterparty : d.proposer).id;
+    if (!((c.capTable.holdings[holderId]?.shares ?? 0) > 0)) continue;
+    const list = (c.capTable.proRata ??= []);
+    if (!list.includes(holderId)) list.push(holderId);
+  }
+}
+
+/** Each holder's fully diluted stake (0–1) right now. */
+function stakesBefore(ct: CapTable): Map<Id, number> {
+  const fd = fullyDiluted(ct);
+  const out = new Map<Id, number>();
+  if (fd <= 0) return out;
+  for (const [h, x] of Object.entries(ct.holdings))
+    if (h !== POOL_ID && x.shares > 0) out.set(h, x.shares / fd);
+  return out;
+}
+
+/** The party that decides for a holder, if a human does: a player, or a fund a player runs. */
+function humanHolder(world: World, holderId: Id): PartyRef | null {
+  const p = world.players[holderId];
+  if (p) return p.ai ? null : { kind: 'player', id: p.id };
+  const f = world.funds[holderId];
+  const manager = f?.managerId ? world.players[f.managerId] : undefined;
+  return f && manager && !manager.ai ? { kind: 'fund', id: f.id } : null;
+}
+
+/**
+ * Phase 8 (§6.6 follow-on choices): after a priced round, each human holder
+ * with pro-rata rights is offered enough of the round to keep their stake,
+ * at the round's price. A deal card from the company: take it or leave it.
+ */
+function offerFollowOns(
+  world: World,
+  c: Company,
+  roundInvestor: Id,
+  t: InvestmentTerms,
+  stakes: Map<Id, number>,
+) {
+  const ct = c.capTable;
+  for (const holderId of ct.proRata ?? []) {
+    if (holderId === roundInvestor) continue;
+    const stake = stakes.get(holderId) ?? 0;
+    const party = humanHolder(world, holderId);
+    const amount = Math.round(stake * t.amount);
+    if (!party || stake <= 0 || amount <= 0) continue;
+    openDeal(world, {
+      companyId: c.id,
+      proposer: { kind: 'company', id: c.id },
+      counterparty: party,
+      terms: {
+        kind: 'investment',
+        instrument: 'priced',
+        stage: t.stage,
+        amount,
+        // Pre-money at the round's price: what the company is worth before this cheque.
+        valuation: ct.lastPostMoney,
+        liquidationMultiple: t.liquidationMultiple,
+        participating: t.participating,
+        proRata: true,
+        boardSeat: false,
+        vetoOnSale: false,
+        poolTopUpBps: 0,
+        followOn: {
+          price: ct.lastPrice,
+          round: ct.roundsRaised,
+          stakeBps: Math.round(stake * 10_000),
+        },
+      },
+      by: c.id,
+    });
+  }
 }
 
 /** Exit statements kept per player (newest first). */

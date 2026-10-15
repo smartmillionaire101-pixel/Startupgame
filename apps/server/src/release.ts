@@ -3,17 +3,18 @@
  * game plays. Bump `id` for each new note; the engine sends each id once.
  *
  * Logging a note is also a switch (see the engine's releases.ts): this one
- * turns on Founder Journey 5 (exits counted as realised wealth), and, being
- * later, Founder Journey 4a (decision events and visible rivals) for new worlds.
+ * turns on Phases 7–9 (pro-rata follow-ons), and, being later, Founder
+ * Journey 5 (exits counted as realised wealth) and 4a (decision events and
+ * visible rivals) for new worlds.
  */
-import { EXITS_NOTE } from '@runway/engine';
-
+import { ENDGAME_NOTE } from '@runway/engine';
 export const RELEASE_NOTE = {
-  id: EXITS_NOTE,
+  id: ENDGAME_NOTE,
   text:
-    'Update: the Exit and Capital Allocator chapters are here. Sell some of your shares in a ' +
-    'secondary, get your company ready for the stock market, and buy and sell shares of listed ' +
-    'companies. A new wealth card shows what you can spend today and what is only on paper. ' +
-    'After an exit, mentor a startup, give to a cause, take a senior role at a DFI or a bank, ' +
-    'or start again. Open the Capital app on your phone. Refresh to get it; your game is saved.',
+    'Update: choose your ambition in the Journey (unicorn founder, profitable owner, serial ' +
+    'founder, angel, VC, lifestyle or philanthropist) and its next step leads your goals. The ' +
+    'month recap now shows your rivals, your decisions and your wealth. After a sale, "Your exits" ' +
+    'in the Capital app shows how the price became your money. Investors with pro-rata rights are ' +
+    'offered a follow-on at each new round, and the portfolio shows your returns. Refresh to get ' +
+    'it; your game is saved.',
 } as const;

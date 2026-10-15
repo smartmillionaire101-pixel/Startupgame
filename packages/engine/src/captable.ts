@@ -174,6 +174,30 @@ export function closePricedRound(ct: CapTable, round: PricedRound): PricedRoundR
   return { pricePerShare, newShares, poolShares: x, safeShares, postMoney: ct.lastPostMoney };
 }
 
+/**
+ * Phase 8: a pro-rata follow-on. New shares at the round's price, joining
+ * that round's preference tier: no pool top-up, no SAFE conversion, no new
+ * round. Post-money grows by the new cash; the price per share is unchanged.
+ */
+export function issueFollowOn(
+  ct: CapTable,
+  f: { holderId: Id; amount: number; price: number; multiple: number; participating: boolean },
+): number {
+  ensure(f.amount > 0 && f.price > 0, 'round.terms', 'Amount and price must be positive.');
+  const shares = Math.round(f.amount / f.price);
+  addShares(ct, f.holderId, shares, 'investor');
+  ct.preferences.push({
+    holderId: f.holderId,
+    invested: f.amount,
+    multiple: f.multiple,
+    participating: f.participating,
+    shares,
+    seniority: ct.roundsRaised,
+  });
+  ct.lastPostMoney += f.amount;
+  return shares;
+}
+
 /** Paper value of a holder's stake at the last round price (SAFEs at cost). */
 export function markValue(ct: CapTable, holderId: Id): number {
   const safes = ct.safes.filter((s) => s.holderId === holderId).reduce((a, s) => a + s.amount, 0);

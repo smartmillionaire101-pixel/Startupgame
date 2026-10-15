@@ -11,7 +11,7 @@ import {
   runClock,
   storeFor,
 } from '../src/serverless/netlify.js';
-import { EXITS_NOTE, autoQuiz, commandSchema, journeyEventsOn } from '@runway/engine';
+import { ENDGAME_NOTE, autoQuiz, commandSchema, journeyEventsOn } from '@runway/engine';
 import type { World } from '@runway/engine';
 import { RELEASE_NOTE } from '../src/release.js';
 import { founderSetup, T0 } from './helpers.js';
@@ -107,7 +107,7 @@ describe('the world on a key-value store', () => {
   });
 
   it('the release note switches on exits and decision events, and keeps quizzes on the bank', () => {
-    expect(RELEASE_NOTE.id).toBe(EXITS_NOTE);
+    expect(RELEASE_NOTE.id).toBe(ENDGAME_NOTE);
     // A new world's first (and only) note is this one: quizzes still use the built-in bank,
     // and the earlier journey-events switch is on too.
     const w = { announcements: [RELEASE_NOTE.id] } as unknown as World;

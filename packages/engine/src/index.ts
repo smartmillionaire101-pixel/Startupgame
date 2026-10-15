@@ -72,7 +72,15 @@ export {
 } from './captable.js';
 export { SLIDES, MAX_SLIDES } from './fundraising.js';
 export { rescuePlan, assessDistress } from './rescue.js';
-export { JOURNEY_EVENTS_NOTE, journeyEventsOn, EXITS_NOTE, exitsOn, RELEASES } from './releases.js';
+export {
+  JOURNEY_EVENTS_NOTE,
+  journeyEventsOn,
+  EXITS_NOTE,
+  exitsOn,
+  ENDGAME_NOTE,
+  endgameOn,
+  RELEASES,
+} from './releases.js';
 export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';

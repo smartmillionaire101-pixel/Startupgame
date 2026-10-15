@@ -20,7 +20,7 @@ import type { Command } from './commands.js';
 import { SYSTEM_COMMANDS } from './commands.js';
 import { payExpense } from './firstsession.js';
 import { comply, pivot, setTargets, shutdownCompany } from './company.js';
-import { actOnDeal, canAct, monthlyPayment, openDeal } from './deals.js';
+import { actOnDeal, canAct, monthlyPayment, openDeal, recordPastProRata } from './deals.js';
 import type { DealAction } from './deals.js';
 import { ensure, fail, GameRuleError } from './errors.js';
 import {
@@ -49,7 +49,7 @@ import {
   seedPublicMarket,
   sellShares,
 } from './exits.js';
-import { EXITS_NOTE, exitsOn } from './releases.js';
+import { ENDGAME_NOTE, EXITS_NOTE, exitsOn } from './releases.js';
 import {
   answerMentoring,
   carrySerialFounder,
@@ -1430,10 +1430,14 @@ function applyMarketData(world: World, cmd: Extract<Command, { type: 'market.dat
 function announce(world: World, cmd: Extract<Command, { type: 'system.announce' }>) {
   const sent = (world.announcements ??= []);
   if (sent.includes(cmd.id)) return { sent: 0 };
+  const hadExits = sent.includes(EXITS_NOTE);
   sent.push(cmd.id);
   // Founder Journey 5: the stock market opens with each city's leading AI companies.
-  if (cmd.id === EXITS_NOTE)
+  // A new world logs only the newest note, so a later note opens it too.
+  if (cmd.id === EXITS_NOTE || (cmd.id === ENDGAME_NOTE && !hadExits))
     for (const id of Object.keys(world.markets)) seedPublicMarket(world, id);
+  // Phases 7–9: pro-rata rights already agreed in accepted deals are recorded.
+  if (cmd.id === ENDGAME_NOTE) recordPastProRata(world);
   let n = 0;
   for (const p of Object.values(world.players)) {
     if (p.ai) continue;

@@ -24,8 +24,15 @@ export const JOURNEY_EVENTS_NOTE = 'release-2026-10-15-journey-events';
  */
 export const EXITS_NOTE = 'release-2026-10-16-exits';
 
+/**
+ * Phases 7–9: the living world and the endgame. This note switches on what
+ * changes existing play: pro-rata rights are recorded, and holders who have
+ * them are offered a follow-on at each later priced round (new deal cards).
+ */
+export const ENDGAME_NOTE = 'release-2026-10-17-endgame';
+
 /** Every behaviour-switching note, oldest first. */
-export const RELEASES = [JOURNEY_EVENTS_NOTE, EXITS_NOTE] as const;
+export const RELEASES = [JOURNEY_EVENTS_NOTE, EXITS_NOTE, ENDGAME_NOTE] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
 export function releaseOn(w: World, note: (typeof RELEASES)[number]): boolean {
@@ -35,3 +42,4 @@ export function releaseOn(w: World, note: (typeof RELEASES)[number]): boolean {
 
 export const journeyEventsOn = (w: World): boolean => releaseOn(w, JOURNEY_EVENTS_NOTE);
 export const exitsOn = (w: World): boolean => releaseOn(w, EXITS_NOTE);
+export const endgameOn = (w: World): boolean => releaseOn(w, ENDGAME_NOTE);

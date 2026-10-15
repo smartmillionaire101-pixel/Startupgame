@@ -52,7 +52,8 @@ export function requiresVote(world: World, d: DealCard): Vote['kind'] | null {
     );
     return others.length > 0 || c.vetoes.length > 0 ? 'sale' : null;
   }
-  if (t.kind === 'investment' && t.instrument === 'priced') {
+  // A pro-rata follow-on is an existing right at the round's agreed price: no new vote.
+  if (t.kind === 'investment' && t.instrument === 'priced' && !t.followOn) {
     return c.board.some((m) => !c.founderIds.includes(m)) ? 'raise' : null;
   }
   return null;

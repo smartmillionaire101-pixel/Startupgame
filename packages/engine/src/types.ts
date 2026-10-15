@@ -655,6 +655,11 @@ export interface CapTable {
   lastPrice: number;
   lastPostMoney: number;
   roundsRaised: number;
+  /**
+   * Phase 8: holders who negotiated pro-rata rights (offered a follow-on at
+   * each later priced round). Missing = none recorded.
+   */
+  proRata?: Id[];
 }
 
 export type CompanyStatus = 'active' | 'shutdown' | 'acquired';
@@ -1137,6 +1142,13 @@ export interface InvestmentTerms {
   poolTopUpBps: number;
   /** A bridge SAFE offered to existing investors at a discount (rescue plan). */
   bridge?: boolean;
+  /**
+   * Phase 8: a pro-rata follow-on offered by the company to an existing
+   * holder: new shares at `price` in the round numbered `round`, same
+   * preference tier, no pool top-up and no board vote. Lapses if another
+   * round closes first.
+   */
+  followOn?: { price: number; round: number; stakeBps: number };
 }
 
 export interface CofounderTerms {
