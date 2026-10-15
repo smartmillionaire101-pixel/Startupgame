@@ -49,6 +49,8 @@ import { Settings } from './apps/Settings';
 import { Social } from './apps/Social';
 import { Travel } from './apps/Travel';
 import { VisitHome } from './Visit';
+import { activeStep, tutorialApps, tutorialSaw, useTutorial } from '../tutorial/state';
+import { PhoneTip } from '../tutorial/Coach';
 import './phone.css';
 
 // Backward-compatible exports (Wave 5/6 callers).
@@ -454,6 +456,12 @@ function PhoneScreen(props: {
   const { app, setApp, thread, setThread, onClose } = props;
   const ref = useRef<HTMLDivElement>(null);
   const [picking, setPicking] = useState(false);
+  const { view } = useView();
+  const meId = view.me.id;
+  // Founder Journey 6: the tutorial waits for the Bank app in its first step.
+  useEffect(() => {
+    if (app !== 'home') tutorialSaw(meId, app === 'wallet' ? 'bank' : app);
+  }, [app, meId]);
 
   useEffect(() => {
     ref.current?.focus();
@@ -668,14 +676,19 @@ function PhoneHome({
 }) {
   const { view, cur } = useView();
   const mood = moodOf(view);
+  // Founder Journey 6: during the tutorial, apps appear one system at a time.
+  useTutorial(view.me.id);
+  const allowed = tutorialApps(activeStep(view.me.id));
+  const shown = (id: AppId) => !allowed || allowed.has(id);
   // The Journey app is for founders (it follows a company).
   const grid = APPS.filter(
     (a) =>
       !DOCK.includes(a.id) &&
+      shown(a.id) &&
       (a.id !== 'journey' || !!view.journey) &&
       (a.id !== 'sales' || view.companies.some((c) => c.status === 'active')),
   );
-  const dock = DOCK.map((id) => APPS.find((a) => a.id === id)!);
+  const dock = DOCK.filter(shown).map((id) => APPS.find((a) => a.id === id)!);
   return (
     <div className="phone-home">
       <section className="phone-widget" aria-label={t('Today')}>
@@ -697,6 +710,7 @@ function PhoneHome({
           )}
         </div>
       </section>
+      <PhoneTip where="home" />
       <div className="phone-apps" role="group" aria-label={t('Apps')}>
         {grid.map((a) => (
           <AppTile key={a.id} a={a} badge={badges[a.id]} open={open} />
