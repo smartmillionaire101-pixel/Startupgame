@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { ScreenBoundary } from '../ScreenBoundary';
 import type { BuildMode, Industry, RevenueModel } from '@runway/engine';
 import { amountInput, money, parseAmount, pct, stars, titleCase } from '../format';
 import { locale, t, tx } from '../i18n';
@@ -74,7 +75,14 @@ const buildModeLabel = (m: string) =>
 
 /** Another screen (the phone's Founder app) can ask for a tab once: `openCompanyTab('roadmap')`. */
 const TAB_KEY = 'rw.companyTab';
+const tabListeners = new Set<(tab: Tab) => void>();
+export type CompanyTab = Tab;
 export function openCompanyTab(tab: Tab) {
+  // A Company screen already open switches at once.
+  if (tabListeners.size) {
+    for (const l of tabListeners) l(tab);
+    return;
+  }
   try {
     sessionStorage.setItem(TAB_KEY, tab);
   } catch {
@@ -94,6 +102,12 @@ function takeCompanyTab(): Tab {
 export function CompanyScreen() {
   const { view } = useView();
   const [tab, setTab] = useState<Tab>(takeCompanyTab);
+  useEffect(() => {
+    tabListeners.add(setTab);
+    return () => {
+      tabListeners.delete(setTab);
+    };
+  }, []);
   const c = view.companies.find((x) => x.status === 'active');
   if (!c) return <Empty>{t('No active company. Set up your business in Me → Profile.')}</Empty>;
   return (
@@ -126,21 +140,23 @@ export function CompanyScreen() {
           </button>
         ))}
       </div>
-      {tab === 'product' && (
-        <>
-          <RunwayExplainer c={c} />
-          <Product c={c} />
-          <RivalsPanel c={c} />
-          <ExpansionCard c={c} />
-        </>
-      )}
-      {tab === 'roadmap' && <Roadmap c={c} />}
-      {tab === 'sales' && <SalesPipeline c={c} />}
-      {tab === 'customers' && <Customers c={c} />}
-      {tab === 'team' && <Team c={c} />}
-      {tab === 'suppliers' && <Suppliers c={c} />}
-      {tab === 'board' && <Board c={c} />}
-      {tab === 'rules' && <Rules c={c} />}
+      <ScreenBoundary resetKey={tab} name={`company:${tab}`}>
+        {tab === 'product' && (
+          <>
+            <RunwayExplainer c={c} />
+            <Product c={c} />
+            <RivalsPanel c={c} />
+            <ExpansionCard c={c} />
+          </>
+        )}
+        {tab === 'roadmap' && <Roadmap c={c} />}
+        {tab === 'sales' && <SalesPipeline c={c} />}
+        {tab === 'customers' && <Customers c={c} />}
+        {tab === 'team' && <Team c={c} />}
+        {tab === 'suppliers' && <Suppliers c={c} />}
+        {tab === 'board' && <Board c={c} />}
+        {tab === 'rules' && <Rules c={c} />}
+      </ScreenBoundary>
     </>
   );
 }

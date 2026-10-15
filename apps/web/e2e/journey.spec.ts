@@ -17,7 +17,7 @@ test('a new founder opens the Journey on Chapter 1 and follows a step', async ({
 
   const chip = page.getByTestId('journey-chip');
   await expect(chip).toBeVisible();
-  await expect(chip).toContainText('Chapter 1 · The Hustle');
+  await expect(chip).toHaveAttribute('aria-label', /Chapter 1 · The Hustle/);
   await chip.click();
 
   const sheet = page.getByRole('dialog', { name: 'Your journey' });

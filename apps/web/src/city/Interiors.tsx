@@ -705,6 +705,14 @@ function OfficeInterior({
   return (
     <>
       <Scene place={place} layout={layout} who={view.me.name} role={c.name} />
+      <div className="row">
+        <Button data-manage-company="" onClick={() => nav('company')}>
+          {t('Manage company')}
+        </Button>
+        <Button variant="ghost" onClick={() => nav('money')}>
+          {t('Open the money screen')}
+        </Button>
+      </div>
       {rescue && <RescueCard plan={rescue} onGo={onGo} />}
       <CompanyKpis c={c} />
       {story && <StoryCard story={story} onGo={onGo} />}
@@ -717,14 +725,6 @@ function OfficeInterior({
           </ul>
         </Card>
       )}
-      <div className="row">
-        <Button variant="subtle" onClick={() => nav('company')}>
-          {t('Open the company screen')}
-        </Button>
-        <Button variant="ghost" onClick={() => nav('money')}>
-          {t('Open the money screen')}
-        </Button>
-      </div>
     </>
   );
 }
@@ -839,8 +839,8 @@ function AwayInterior({
       </p>
       <div className="row">
         {place.kind === 'office' && (
-          <Button variant="subtle" onClick={() => nav('company')}>
-            {t('Open the company screen')}
+          <Button data-manage-company="" onClick={() => nav('company')}>
+            {t('Manage company')}
           </Button>
         )}
         <Button variant="ghost" onClick={away.onFlyHome}>

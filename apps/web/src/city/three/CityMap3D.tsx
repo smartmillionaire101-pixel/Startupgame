@@ -264,6 +264,18 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   useEffect(() => {
     sceneRef.current?.actors.setWalkers(walkers);
   }, [walkers, ready]);
+  // How many vehicles are on the streets (`data-traffic`, for tests): set on
+  // the element directly, so counting never re-renders the map.
+  useEffect(() => {
+    if (!ready) return;
+    const put = () => {
+      const n = sceneRef.current?.actors.trafficCount();
+      if (n !== undefined) wrapRef.current?.setAttribute('data-traffic', String(n));
+    };
+    put();
+    const id = setInterval(put, 2000);
+    return () => clearInterval(id);
+  }, [ready]);
   // Wave 10: the homes you own, at their neighbourhoods.
   useEffect(() => {
     sceneRef.current?.setProperties(properties);

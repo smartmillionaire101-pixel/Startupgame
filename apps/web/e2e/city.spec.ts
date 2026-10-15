@@ -2,6 +2,14 @@ import { setupFounder } from './fixtures';
 import { expect, letters, more, playAsGuest, tab, tapPlace, test } from './fixtures';
 
 test('a founder walks the city to a bank, goes in, then visits the market', async ({ page }) => {
+  // Mid-morning, so the bank also has its AI crowd (loan officers among them) whatever the real clock says.
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('runway.mapHour', '11');
+    } catch {
+      /* storage blocked */
+    }
+  });
   await playAsGuest(page);
 
   await setupFounder(page, {
@@ -28,9 +36,11 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await expect(page.locator('.city-avatar')).toHaveClass(/is-walking/);
   const lobby = page.getByRole('dialog');
   await expect(lobby).toBeVisible({ timeout: 10_000 });
-  // A bank lobby, with the loan officer behind the counter.
+  // A bank lobby, with the loan officer behind the counter (staff, not the crowd's bankers).
   await expect(lobby).toHaveAttribute('data-room', 'bank');
-  await expect(lobby.getByRole('button', { name: /Loan officer/ })).toBeAttached();
+  await expect(
+    lobby.getByRole('button', { name: /Loan officer/ }).and(lobby.locator('.is-staff')),
+  ).toBeAttached();
   await more(page);
   await expect(lobby.getByText(/Working capital|For companies|For founders/).first()).toBeVisible();
   await lobby.getByRole('button', { name: 'Close' }).click();

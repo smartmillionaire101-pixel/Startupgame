@@ -68,6 +68,8 @@ import {
 } from './life';
 import { Showroom, slotsOwned } from './Showroom';
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
+import { crowdAt, crowdHour } from './crowdfill';
+import { aiCharacterId } from '../phone/bus';
 import type { PersonRef } from './PersonCard';
 import { RoomBack, RoomFront } from './RoomArt';
 import { WhoIsHere } from './WhoIsHere';
@@ -111,6 +113,21 @@ const PATRON_BG = [
   'f-corporate',
 ];
 const STAFF_BG = ['b-commercial', 'i-operator', 'b-fintech', 'f-consultant'];
+const CROWD_ROLE: Record<string, () => string> = {
+  founder: () => t('Founder'),
+  investor: () => t('Investor'),
+  owner: () => t('Business owner'),
+  banker: () => t('Loan officer'),
+  employee: () => t('Team member'),
+};
+/** The crowd's outfits by who they are. */
+const CROWD_BG: Record<string, string[]> = {
+  founder: ['f-engineer', 'f-dropout', 'f-second-time'],
+  investor: ['i-banker', 'i-operator', 'i-exited'],
+  owner: ['b-commercial', 'i-operator', 'b-wealthy'],
+  banker: ['i-banker', 'b-commercial', 'b-fintech'],
+  employee: ['f-engineer', 'f-corporate', 'f-dropout', 'b-fintech'],
+};
 
 interface Occupant {
   id: string;
@@ -377,6 +394,55 @@ function occupantsOf(
       person: { kind: 'player', p },
       tag: true,
     });
+
+  // Wave 14: the city's crowd — named AI founders, investors, bankers, owners
+  // and team members — fewer as real players come in (./crowdfill.ts).
+  const real = players.filter((x) => x.place === place.id).length;
+  const already = out.flatMap((o) =>
+    o.person?.kind === 'ai' ? [aiCharacterId(o.person.a) ?? o.id] : o.person ? [o.id] : [],
+  );
+  for (const c of crowdAt(view, {
+    placeId: place.id,
+    room,
+    hour: crowdHour(m.id),
+    real,
+    exclude: already,
+  })) {
+    const kind: AiPerson['kind'] =
+      c.role === 'investor'
+        ? 'partner'
+        : c.role === 'founder' || c.role === 'owner' || c.role === 'banker'
+          ? c.role
+          : 'employee';
+    const ref =
+      kind === 'partner'
+        ? c.orgId
+        : kind === 'owner'
+          ? c.orgId
+          : kind === 'banker'
+            ? c.orgId
+            : c.id;
+    const crowdKind = kind === 'partner' ? 'investor' : kind;
+    out.push(
+      ai(
+        aiPerson(
+          place,
+          kind,
+          kind === 'banker' || kind === 'employee' ? c.id : ref,
+          c.name,
+          pickBg(CROWD_BG[crowdKind] ?? PATRON_BG, c.id),
+          {
+            ref,
+            org: c.org,
+            ...(kind === 'founder' || kind === 'employee' ? { company: c.orgId } : {}),
+            ...(kind === 'banker' || kind === 'employee' ? { chat: c.id } : {}),
+          },
+        ),
+        false,
+        t('{role} · {company}', { role: CROWD_ROLE[crowdKind]!(), company: c.org }),
+      ),
+    );
+  }
 
   // Regulars, so no room is ever empty.
   const guests = out.filter((o) => !o.staff).length;
@@ -1090,11 +1156,11 @@ function RoomScene({
     actions.push({ ...toMore, id: 'who-buys', label: t('Who buys what'), icon: '🧺' });
   } else if (place.kind === 'office') {
     if (abroad) {
-      actions.push(go('company', t('Open the company screen'), '🏢'));
+      actions.push(go('company', t('Manage company'), '🏢'));
       if (onFlyHome)
         actions.push({ id: 'fly-home', label: t('Fly home'), icon: '✈', run: onFlyHome });
     } else {
-      actions.push(go('company', t('Open the company screen'), '🏢'));
+      actions.push(go('company', t('Manage company'), '🏢'));
       actions.push(go('money', t('Open the money screen'), '💰'));
       actions.push({ ...toMore, label: t('This month at the office') });
     }

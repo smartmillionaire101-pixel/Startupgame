@@ -6,7 +6,7 @@ import type { PlayerView } from '@runway/engine';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button, Empty } from '../../ui';
-import { useNav } from '../bus';
+import { openPhone, useNav } from '../bus';
 import type { IconName } from '../icons';
 import { inboxTarget } from '../navigate';
 import { RowIcon, type PhoneCtx } from '../shared';
@@ -31,12 +31,19 @@ export function useOpenItem(ctx: PhoneCtx) {
   const nav = useNav();
   return (i: InboxItem) => {
     const target = inboxTarget(i, view);
-    if (target.kind === 'tab' && target.tab === 'news') {
-      if (!i.read) void send({ type: 'inbox.read', ids: [i.id] });
-      ctx.open('news');
+    if (!i.read) void send({ type: 'inbox.read', ids: [i.id] });
+    if (!target) return;
+    // Inside the phone: stories in News, apps, chats and receipts open right here.
+    if (target.kind === 'tab' && target.tab === 'news') return ctx.open('news');
+    if (target.kind === 'phone') {
+      const o = target.open;
+      if (o.player || o.ai) return ctx.chat({ player: o.player, ai: o.ai });
+      if (o.app && !o.receipt && o.property === undefined) return ctx.open(o.app);
+      ctx.close();
+      openPhone(o);
       return;
     }
-    nav?.openItem(i);
+    nav?.go(target);
     ctx.close();
   };
 }
@@ -58,20 +65,40 @@ export function Alerts({ ctx }: { ctx: PhoneCtx }) {
         <ul className="phone-list" aria-label={t('Alerts')}>
           {view.inbox.slice(0, 60).map((i) => {
             const [icon, color] = KIND_ICON[i.kind] ?? ['alerts', '#64748b'];
+            const body = (
+              <>
+                <RowIcon name={icon} color={color} />
+                <span className="phone-row-main">
+                  <span>{tx(i.text)}</span>
+                  <span className="small muted">{t('Month {n}', { n: i.month })}</span>
+                </span>
+                {!i.read && <span className="phone-dot" aria-label={t('New')} />}
+              </>
+            );
+            // Only alerts with somewhere to go are buttons.
+            const target = inboxTarget(i, view);
             return (
               <li key={i.id}>
-                <button
-                  className={`phone-row phone-alert${i.read ? ' read' : ''}`}
-                  data-alert={i.kind}
-                  onClick={() => open(i)}
-                >
-                  <RowIcon name={icon} color={color} />
-                  <span className="phone-row-main">
-                    <span>{tx(i.text)}</span>
-                    <span className="small muted">{t('Month {n}', { n: i.month })}</span>
-                  </span>
-                  {!i.read && <span className="phone-dot" aria-label={t('New')} />}
-                </button>
+                {target ? (
+                  <button
+                    className={`phone-row phone-alert${i.read ? ' read' : ''}`}
+                    data-alert={i.kind}
+                    data-target={target.kind}
+                    onClick={() => open(i)}
+                  >
+                    {body}
+                    <span className="phone-chev" aria-hidden>
+                      ›
+                    </span>
+                  </button>
+                ) : (
+                  <div
+                    className={`phone-row phone-alert is-static${i.read ? ' read' : ''}`}
+                    data-alert={i.kind}
+                  >
+                    {body}
+                  </div>
+                )}
               </li>
             );
           })}

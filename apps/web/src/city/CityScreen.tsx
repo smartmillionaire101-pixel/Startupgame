@@ -692,7 +692,9 @@ function CityBodyInner({
               <button
                 type="button"
                 className={`hud-chip${rescue ? ` hud-${rescue.level}` : ''}`}
-                onClick={() => (abroad ? onNavigate('company') : goTo(office))}
+                data-hud-company=""
+                title={t('Manage company')}
+                onClick={() => onNavigate('company')}
               >
                 <span className="hud-name">{company.name}</span>
                 <span>
@@ -708,7 +710,6 @@ function CityBodyInner({
                 <span>{view.market.date.label}</span>
               </span>
             )}
-            <JourneyChip onOpen={() => setJourneyOpen(true)} />
             {(clock || abroad) && (
               <div className="hud-row">
                 {awayChip}
@@ -717,6 +718,7 @@ function CityBodyInner({
             )}
           </div>
           <div className="city-hud city-hud-zoom">
+            <JourneyChip onOpen={() => setJourneyOpen(true)} />
             <button
               type="button"
               className="hud-round"
@@ -844,7 +846,7 @@ function CityBodyInner({
           </div>
         </Sheet>
       )}
-      <JourneyCelebration onOpen={() => setJourneyOpen(true)} />
+      <JourneyCelebration />
       {journeyOpen && (
         <Sheet title={t('Your journey')} onClose={() => setJourneyOpen(false)}>
           <JourneyPanel onGo={journeyGo} />

@@ -71,6 +71,7 @@ export function giftProperty(world: World, me: Player, propertyId: Id, toPlayerI
     kind: 'system',
     text: `${me.name} wants to give you a home: the ${label(p).toLowerCase()} in ${m.data.name}.`,
     ref: { kind: 'gift', id },
+    from: me.id,
   });
   return {
     giftId: id,
@@ -118,6 +119,7 @@ export function acceptGift(world: World, me: Player, giftId: Id) {
     kind: 'system',
     text: `${me.name} accepted your gift: the ${label(p).toLowerCase()}.`,
     ref: { kind: 'gift', id: g.id },
+    from: me.id,
   });
   return {
     giftId: g.id,
@@ -143,6 +145,7 @@ export function declineGift(world: World, me: Player, giftId: Id) {
       ? `${me.name} took back their offer of a home.`
       : `${me.name} declined your gift of a home.`,
     ref: { kind: 'gift', id: g.id },
+    from: me.id,
   });
   return { giftId: g.id, message: mine ? 'Offer withdrawn.' : 'You declined the gift.' };
 }

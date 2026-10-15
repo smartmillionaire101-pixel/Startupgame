@@ -4,6 +4,7 @@ import { amountInput, money, parseAmount, titleCase } from '../format';
 import { useView, type Deal } from '../store';
 import { Button, Card, Empty, EmptyState, Field, Pill } from '../ui';
 import { useNav } from '../phone/bus';
+import { inboxTarget } from '../phone/navigate';
 
 /** Funding stages, in the player's language. */
 export const stageLabel = (s: string) =>
@@ -338,10 +339,11 @@ export function Inbox({ limit = 8 }: { limit?: number }) {
             );
             return (
               <li key={i.id}>
-                {nav ? (
+                {nav && inboxTarget(i, view) ? (
                   <button
                     className={`lrow inbox-item${i.read ? ' is-read' : ''}`}
                     data-alert={i.kind}
+                    data-target={inboxTarget(i, view)?.kind}
                     onClick={() => nav.openItem(i)}
                   >
                     {body}

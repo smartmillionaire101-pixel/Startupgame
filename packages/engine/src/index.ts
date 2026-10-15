@@ -59,6 +59,7 @@ export type {
   CounterpartyKind,
 } from './statement.js';
 export { txRef, parseTxRef } from './ledger.js';
+export { crowdId, crowdPerson, parseCrowdId, type CrowdRole } from './crowd.js';
 export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';
 export { checkChatMessage, startersFor, CHAT_MAX_LENGTH } from './chat.js';
 export {
