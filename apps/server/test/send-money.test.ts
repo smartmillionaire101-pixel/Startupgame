@@ -193,7 +193,10 @@ describe('sending money between players (two function instances, one store)', ()
   it('serves the month recap, with personal totals matching the statement', async () => {
     const { rt1, a } = await twoInstances();
     await a.join('+2348039990031', 'ada_recap');
-    const view = await a.view();
+    const view = (await a.view()) as unknown as {
+      recap: { month: number };
+      market: { month: number };
+    };
     expect(view.recap.month).toBe(view.market.month);
     const r = await a.call('GET', `/api/recap?month=${view.market.month}`, undefined, rt1);
     expect(r.status).toBe(200);

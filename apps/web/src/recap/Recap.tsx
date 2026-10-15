@@ -86,10 +86,13 @@ export function RecapHost() {
       writeSeen(playerId, month);
       return;
     }
-    if (month > seen) {
+    if (month <= seen) return;
+    // Next frame, so the new month's screen paints first.
+    const id = requestAnimationFrame(() => {
       writeSeen(playerId, month);
       if (!skipAuto()) setOpen({ month: null });
-    }
+    });
+    return () => cancelAnimationFrame(id);
   }, [month, playerId]);
 
   if (!open || !view.recap) return null;
@@ -115,7 +118,6 @@ export function RecapSheet({ start, onClose }: { start: number | null; onClose: 
   useEffect(() => {
     if (month === latest.month) return;
     const ctl = new AbortController();
-    setError(false);
     api
       .recap(month, ctl.signal)
       .then((r) => setPast(r.recap))
@@ -134,6 +136,10 @@ export function RecapSheet({ start, onClose }: { start: number | null; onClose: 
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  const pick = (m: number) => {
+    setError(false);
+    setMonth(m);
+  };
   const months = latest.months;
   const i = months.indexOf(month);
   const older = i >= 0 ? months[i + 1] : undefined;
@@ -184,7 +190,7 @@ export function RecapSheet({ start, onClose }: { start: number | null; onClose: 
             type="button"
             className="chip"
             disabled={older === undefined}
-            onClick={() => older !== undefined && setMonth(older)}
+            onClick={() => older !== undefined && pick(older)}
           >
             {t('‹ Earlier')}
           </button>
@@ -192,7 +198,7 @@ export function RecapSheet({ start, onClose }: { start: number | null; onClose: 
             type="button"
             className="chip"
             disabled={newer === undefined}
-            onClick={() => newer !== undefined && setMonth(newer)}
+            onClick={() => newer !== undefined && pick(newer)}
           >
             {t('Later ›')}
           </button>
@@ -363,7 +369,10 @@ function Section({
 /** A number that counts up from zero when the recap opens (instant with reduced motion). */
 function Count({ value, currency }: { value: number; currency: string }) {
   const [v, setV] = useState(0);
-  useEffect(() => setV(value), [value]);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setV(value));
+    return () => cancelAnimationFrame(id);
+  }, [value]);
   return <CountUp value={v} format={(n) => money(Math.round(n), currency)} />;
 }
 
