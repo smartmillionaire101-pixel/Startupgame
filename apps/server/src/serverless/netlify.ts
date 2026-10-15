@@ -132,6 +132,10 @@ export async function createRuntime(kv: Kv, config: Config): Promise<Runtime> {
   // A brand-new world (or newly configured markets) opens its markets on first use.
   if (config.OPEN_MARKETS.some((m) => !game.current.markets[m]))
     await game.openMarkets(config.OPEN_MARKETS);
+  // The release note too, as the node server does at boot: previews have no
+  // scheduled clock, and the note is the switch for what it announces.
+  if (!game.current.announcements?.includes(RELEASE_NOTE.id))
+    await game.execute(null, { type: 'system.announce', ...RELEASE_NOTE });
   const app = await buildApp({
     config,
     store: new KvAccountStore(kv),
