@@ -20,6 +20,8 @@
 import {
   INDUSTRY_LABEL,
   MARKET_DATA,
+  crowdPerson,
+  parseCrowdId,
   playerView,
   type Company,
   type Fund,
@@ -60,7 +62,7 @@ export interface Character {
 }
 
 export const CHARACTER_ID =
-  /^(?:npc:[a-z][a-z-]{1,31}:\d{1,6}|(?:(?:fund|biz|lp|acc|dp):)?[\w.-]{1,64})$/;
+  /^(?:npc:[a-z][a-z-]{1,31}:\d{1,6}|crowd:[a-z][a-z-]{1,31}:(?:banker|staff):[\w.-]{1,64}:\d{1,3}|(?:(?:fund|biz|lp|acc|dp):)?[\w.-]{1,64})$/;
 
 type View = ReturnType<typeof playerView>;
 
@@ -409,6 +411,38 @@ export function resolveCharacter(
       place: p.place,
       role: p.job[0],
       gender: p.gender,
+    };
+  }
+  if (prefix === 'crowd') {
+    // The city's crowd: a banker at a lender, someone on an AI company's team.
+    const c = parseCrowdId(characterId);
+    const who = crowdPerson(characterId);
+    if (!c || !who || !world.markets[c.market]) return null;
+    if (c.role === 'banker') {
+      const l = world.markets[c.market]!.lenders?.[c.org];
+      if (!l) return null;
+      return {
+        id: characterId,
+        kind: 'person',
+        name: who.name,
+        org: l.name,
+        market: c.market,
+        place: `lender:${l.id}`,
+        role: 'Loan officer',
+        gender: who.gender,
+      };
+    }
+    const co = world.companies[c.org];
+    if (!co) return null;
+    return {
+      id: characterId,
+      kind: 'person',
+      name: who.name,
+      org: co.name,
+      market: c.market,
+      place: 'hub',
+      role: 'Team member',
+      gender: who.gender,
     };
   }
   if (prefix === 'fund') {
@@ -1700,8 +1734,8 @@ export function characterBlock(
     if (lines.length) sections.push(`${TOPIC_LABEL[t]}:\n${lines.map((l) => `- ${l}`).join('\n')}`);
   }
   const role =
-    ch.kind === 'regular' && ch.role
-      ? `${ch.role} (${KIND_LABEL.regular[0]})`
+    (ch.kind === 'regular' || ch.kind === 'person') && ch.role
+      ? `${ch.role} (${KIND_LABEL[ch.kind][0]})`
       : KIND_LABEL[ch.kind][0];
   const company = activeCompanyOf(world, me);
   const said = Object.entries(mem.said)

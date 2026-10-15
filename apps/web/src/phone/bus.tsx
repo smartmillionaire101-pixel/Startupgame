@@ -109,7 +109,8 @@ export function usePhoneBadge(): number {
 }
 
 /** The AI chat id for a city character (fund partners, AI founders, owners and angels). */
-export function aiCharacterId(a: { kind: string; ref: string }): string | null {
+export function aiCharacterId(a: { kind: string; ref: string; chat?: string }): string | null {
+  if (a.chat) return a.chat;
   switch (a.kind) {
     case 'partner':
       return `fund:${a.ref}`;

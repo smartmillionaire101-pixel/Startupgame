@@ -1233,6 +1233,7 @@ export class CityScene {
     const idleMs = this.opts.soft ? 1000 : this.opts.tier === 'high' ? 50 : 100;
     if (!active && !(ambient && t - this.lastRender > idleMs)) return;
     // The people and the traffic move only in frames that are drawn.
+    this.actors.setFocus(this.rig.x, this.rig.y, this.rig.dist);
     this.actors.update(t, this.opts.reduced, this.rig.dist);
     // Shadows: redrawn with the camera, the avatar or the city changing; while
     // only the traffic and the passers-by move, every few frames.

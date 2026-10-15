@@ -14,6 +14,15 @@ import { geoMetres } from '../geoLayout';
 import { h3 } from './buildings';
 import type { RoadIndex } from './roads';
 import type { Tier } from './scene';
+import {
+  buildGraph,
+  fleetOf,
+  kindOfSlot,
+  trafficBudget,
+  TrafficSim,
+  type VehicleKind,
+} from './traffic';
+import { softwareGl } from '../../three-kit/quality';
 
 const LEFT_HAND = new Set(['london', 'nairobi', 'johannesburg']);
 
@@ -106,6 +115,15 @@ export class Actors {
   private wantHeading = 0;
   /** Bus stops: shelters on the kerb. */
   private shelters: THREE.InstancedMesh | null = null;
+  /** Street traffic around you (the roads you're on are never empty). */
+  private local: TrafficSim | null = null;
+  private localMeshes: Record<VehicleKind, THREE.InstancedMesh[]> | null = null;
+  private globalMeshes: THREE.Object3D[] = [];
+  private localT = 0;
+  private filled = false;
+  private focus = { x: 0, y: 0, r: 400 };
+  private focusSet = false;
+  private doubleDecker = false;
 
   constructor(
     private scene: THREE.Scene,
@@ -126,7 +144,9 @@ export class Actors {
 
     // ---- Traffic.
     const fleet = FLEET[layout.marketId] ?? { taxi: '#f2c230', bus: '#e9e4d8' };
-    const want = tier === 'high' ? 220 : 90;
+    // Through-traffic on the main roads, everywhere (fewer on a software GPU).
+    const soft = softwareGl();
+    const want = soft ? 45 : tier === 'high' ? 120 : 70;
     const lines = [...this.roads.lines].sort(
       (a, b) =>
         h3(Math.round(a.l[0]!), Math.round(a.l[1]!), 3) -
@@ -211,8 +231,125 @@ export class Actors {
       this.carLights.visible = false;
       scene.add(this.carLights);
     }
+    this.globalMeshes = [this.carBody, this.carCab, this.busBody, this.busBand];
+    if (this.carLights) this.globalMeshes.push(this.carLights);
     this.buildShelters(scene);
+    this.buildLocal(scene, layout.marketId, tier, soft);
     this.update(0, true);
+  }
+
+  /** The traffic that lives around you: cars, taxis, buses, motorbikes and tricycles. */
+  private buildLocal(scene: THREE.Scene, marketId: string, tier: Tier, soft: boolean) {
+    const fleet = fleetOf(marketId);
+    this.doubleDecker = !!FLEET[marketId]?.double;
+    let seed = 0;
+    for (let i = 0; i < marketId.length; i++) seed = (seed * 31 + marketId.charCodeAt(i)) | 0;
+    const n = trafficBudget(tier, soft);
+    const kinds = Array.from({ length: n }, (_, k) => kindOfSlot(fleet, seed, k));
+    const graph = buildGraph(this.roads.segs);
+    if (!graph.ea.length) return;
+    this.local = new TrafficSim(graph, kinds, seed, this.leftHand);
+    const count = (k: VehicleKind) => Math.max(1, kinds.filter((x) => x === k).length);
+    const paint = new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.35 });
+    const dark = new THREE.MeshStandardMaterial({
+      color: '#1c242c',
+      roughness: 0.2,
+      metalness: 0.7,
+    });
+    const cloth = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0 });
+    const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, k: VehicleKind) => {
+      const m = new THREE.InstancedMesh(geo, mat, count(k));
+      m.frustumCulled = false;
+      m.castShadow = tier === 'high' && !soft;
+      m.count = kinds.filter((x) => x === k).length;
+      scene.add(m);
+      return m;
+    };
+    this.localMeshes = {
+      car: [
+        mk(new THREE.BoxGeometry(4.4, 0.95, 1.85).translate(0, 0.78, 0), paint, 'car'),
+        mk(new THREE.BoxGeometry(2.3, 0.6, 1.62).translate(-0.25, 1.55, 0), dark, 'car'),
+      ],
+      bus: [
+        mk(new THREE.BoxGeometry(10, 2.4, 2.4).translate(0, 1.5, 0), paint.clone(), 'bus'),
+        mk(new THREE.BoxGeometry(9.4, 0.75, 2.44).translate(0, 2.0, 0), dark, 'bus'),
+      ],
+      moto: [
+        mk(new THREE.BoxGeometry(1.9, 0.6, 0.45).translate(0, 0.55, 0), dark, 'moto'),
+        mk(new THREE.BoxGeometry(0.55, 0.85, 0.55).translate(-0.1, 1.3, 0), cloth, 'moto'),
+      ],
+      keke: [
+        mk(new THREE.BoxGeometry(2.6, 1.1, 1.4).translate(0, 0.85, 0), paint.clone(), 'keke'),
+        mk(new THREE.BoxGeometry(2.4, 0.12, 1.5).translate(-0.1, 1.95, 0), dark, 'keke'),
+      ],
+    };
+    const col = new THREE.Color();
+    const idx: Record<VehicleKind, number> = { car: 0, bus: 0, moto: 0, keke: 0 };
+    kinds.forEach((k, i) => {
+      const j = idx[k]++;
+      if (k === 'car')
+        col.set(
+          h3(seed, i, 5) < fleet.taxiShare
+            ? fleet.taxi
+            : CARS[Math.floor(h3(seed, i, 7) * CARS.length)]!,
+        );
+      else if (k === 'bus') col.set(fleet.bus[j % fleet.bus.length]!);
+      else if (k === 'keke') col.set(fleet.keke);
+      else col.set(CARS[Math.floor(h3(seed, i, 9) * CARS.length)]!);
+      // Motorbikes: the rider's shirt carries the colour.
+      this.localMeshes![k][k === 'moto' ? 1 : 0]!.setColorAt(j, col);
+    });
+  }
+
+  /** Vehicles on the streets now (the main-road fleet and the traffic around you). */
+  trafficCount() {
+    return this.cars.length + (this.local?.count() ?? 0);
+  }
+
+  /** Where the camera looks: traffic lives around it (or around your car when you drive). */
+  setFocus(x: number, y: number, dist: number) {
+    // Flown somewhere else: the traffic starts again there.
+    if (Math.hypot(x - this.focus.x, y - this.focus.y) > this.focus.r * 2) this.filled = false;
+    this.focusSet = true;
+    this.focus.x = x;
+    this.focus.y = y;
+    this.focus.r = Math.max(320, Math.min(1500, dist * 1.1));
+  }
+
+  private updateLocal(tMs: number, reduced: boolean, vs: number) {
+    const sim = this.local;
+    const meshes = this.localMeshes;
+    if (!sim || !meshes || (!this.focusSet && !this.lane)) return;
+    const f = this.lane
+      ? { x: this.pos.x, y: this.pos.y, r: Math.min(this.focus.r, 450) }
+      : this.focus;
+    if (!this.filled) {
+      sim.fill(f);
+      this.filled = true;
+      this.localT = tMs;
+    }
+    // Steps of at most a quarter second (a software GPU draws a few frames a second).
+    let dt = this.localT ? Math.min(1, (tMs - this.localT) / 1000) : 0;
+    this.localT = tMs;
+    if (reduced) dt = 0;
+    while (dt > 0) {
+      const h = Math.min(0.25, dt);
+      sim.step(h, f, { x: this.pos.x, y: this.pos.y });
+      dt -= h;
+    }
+    const idx: Record<VehicleKind, number> = { car: 0, bus: 0, moto: 0, keke: 0 };
+    for (const v of sim.vehicles) {
+      const j = idx[v.kind]++;
+      if (v.e < 0) _s.set(0, 0, 0);
+      else if (v.kind === 'bus' && this.doubleDecker) _s.set(vs, vs * 1.6, vs);
+      else _s.set(vs, vs, vs);
+      _q.setFromAxisAngle(_up, -Math.atan2(v.dy, v.dx));
+      _p.set(v.x, this.roads.deckAt(v.x, v.y), v.y);
+      _m.compose(_p, _q, _s);
+      for (const m of meshes[v.kind]) m.setMatrixAt(j, _m);
+    }
+    for (const list of Object.values(meshes))
+      for (const m of list) m.instanceMatrix.needsUpdate = true;
   }
 
   /** How dark it is (0 day … 1 night): the cars put their lights on. */
@@ -273,6 +410,11 @@ export class Actors {
       this.pos.y = m.s;
     }
     this.pos.h = this.roads.deckAt(m.e, m.s);
+    if (!this.focusSet) {
+      this.focus.x = m.e;
+      this.focus.y = m.s;
+      this.focusSet = true;
+    }
     if (Math.abs(dx) + Math.abs(dy) > 1e-6) {
       // Tile direction → metres direction.
       const a = geoMetres({ x: p.x + dx, y: p.y + dy });
@@ -472,6 +614,11 @@ export class Actors {
     for (const m of [this.carBody, this.carCab, this.busBody, this.busBand])
       m.instanceMatrix.needsUpdate = true;
     if (lp) lp.needsUpdate = true;
+    // Driving: only the traffic around you (it keeps its distance) shows.
+    const through = !this.lane;
+    for (const m of this.globalMeshes)
+      m.visible = through && (m !== this.carLights || this.night > 0.02);
+    this.updateLocal(tMs, reduced, vs);
     return this.walking;
   }
 

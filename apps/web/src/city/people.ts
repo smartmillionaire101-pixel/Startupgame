@@ -234,7 +234,10 @@ export type PersonKind =
   | 'owner'
   | 'angel'
   | 'patron'
-  | 'staff';
+  | 'staff'
+  /** The city's crowd (./crowdfill.ts): a lender's loan officer, someone on an AI company's team. */
+  | 'banker'
+  | 'employee';
 
 export interface AiPerson {
   /** Stable id: `ai:<kind>:<ref>`. */
@@ -247,6 +250,10 @@ export interface AiPerson {
   company?: string;
   /** An AI angel's fund id. */
   fund?: string;
+  /** The AI chat id, when it isn't derived from the kind (the crowd's `crowd:` ids). */
+  chat?: string;
+  /** Their company, bank or business by name (the crowd). */
+  org?: string;
   /** Background id for the outfit, and the seed for skin and hair. */
   bg: string;
   /** The place they hang around. */
@@ -265,7 +272,16 @@ export interface AiPerson {
 // Who's here (docs/WAVE6-ALIVE-CITY.md §A6, §C1): people live inside buildings.
 
 /** Who someone is, inside a place. 'player' is a human from presence. */
-export type HereKind = 'owner' | 'staff' | 'founder' | 'angel' | 'partner' | 'regular' | 'player';
+export type HereKind =
+  | 'owner'
+  | 'staff'
+  | 'founder'
+  | 'angel'
+  | 'partner'
+  | 'regular'
+  | 'player'
+  | 'banker'
+  | 'employee';
 
 export interface PersonHere {
   /** The chat character id: a player id, `fund:<id>`, `biz:<bizId>` or `npc:<market>:<n>`. */
@@ -291,6 +307,8 @@ const HERE_KINDS: readonly HereKind[] = [
   'partner',
   'regular',
   'player',
+  'banker',
+  'employee',
 ];
 
 type ViewLike = Pick<PlayerView, 'market' | 'players'>;

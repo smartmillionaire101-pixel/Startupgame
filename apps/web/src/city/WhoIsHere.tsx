@@ -36,6 +36,8 @@ import {
   type PresenceView,
 } from './people';
 import { usePlacePresence } from './presence';
+import { crowdAt, crowdHour, type CrowdRole } from './crowdfill';
+import { roomOf, type RoomKind } from './rooms';
 
 type View = PlayerView;
 
@@ -49,6 +51,8 @@ const roleOf = (kind: HereKind) =>
       partner: t('Fund partner'),
       regular: t('Regular'),
       player: t('Player'),
+      banker: t('Loan officer'),
+      employee: t('Team member'),
     }) as Record<HereKind, string>
   )[kind];
 
@@ -159,10 +163,63 @@ function aiPeopleAt(view: View, place: Place): PersonHere[] {
   return [];
 }
 
+const CROWD_KIND: Record<CrowdRole, HereKind> = {
+  founder: 'founder',
+  investor: 'partner',
+  owner: 'owner',
+  banker: 'banker',
+  employee: 'employee',
+};
+
+/** The room a place is, for its crowd. */
+export function roomFor(view: View, place: Place): RoomKind {
+  const b =
+    place.kind === 'business' ? businessesOf(view).find((x) => x.id === place.ref) : undefined;
+  return roomOf(place, { businessKind: b?.kind, businessShape: b?.look.shape });
+}
+
+/** The city's crowd in a place as Who's here people (./crowdfill.ts). */
+export function crowdHere(
+  view: View,
+  place: Place,
+  real: number,
+  exclude: readonly string[],
+  hour: number,
+): PersonHere[] {
+  return crowdAt(view, {
+    placeId: place.id,
+    room: roomFor(view, place),
+    hour,
+    real,
+    exclude,
+  }).map((c) => {
+    const kind = CROWD_KIND[c.role];
+    return {
+      id: c.id,
+      name: c.name,
+      kind,
+      role: t('{role} · {company}', { role: roleOf(kind), company: c.org }),
+      ...(c.role === 'founder' ? { playerId: c.id } : {}),
+      gender: c.gender,
+      human: false,
+    };
+  });
+}
+
 /** Everyone in a place: the AI people the view knows of, then players from presence. */
-export function peopleAt(view: View, place: Place, players: PresenceView[]): PersonHere[] {
+export function peopleAt(
+  view: View,
+  place: Place,
+  players: PresenceView[],
+  hour: number = crowdHour(view.market.id),
+): PersonHere[] {
   const out = aiPeopleAt(view, place);
   const seen = new Set(out.flatMap((p) => [p.id, p.playerId ?? p.id]));
+  const real = players.filter((p) => p.place === place.id && !seen.has(p.id)).length;
+  for (const p of crowdHere(view, place, real, [...seen], hour)) {
+    seen.add(p.id);
+    out.push(p);
+  }
   for (const p of players) {
     if (p.place !== place.id || seen.has(p.id)) continue;
     seen.add(p.id);
@@ -196,6 +253,8 @@ const BG: Record<HereKind, string[]> = {
   partner: ['i-banker', 'i-operator', 'i-exited'],
   regular: ['b-commercial', 'f-dropout', 'f-engineer', 'i-first', 'b-wealthy', 'f-corporate'],
   player: ['f-engineer', 'i-operator', 'b-commercial'],
+  banker: ['i-banker', 'b-commercial', 'b-fintech'],
+  employee: ['f-engineer', 'f-corporate', 'f-dropout', 'b-fintech'],
 };
 
 /** The look the room gives this person (its figures are seeded `ai:<kind>:<ref>`). */
@@ -279,13 +338,19 @@ function PersonRow({
           <span className="item-title">{p.name}</span>
           <span className="small muted">{p.role ? tx(p.role) : roleOf(p.kind)}</span>
         </span>
-        {p.human && <span className="pill pill-info">{t('Player')}</span>}
+        {p.human ? (
+          <span className="pill pill-info">{t('Player')}</span>
+        ) : (
+          <span className="pill who-ai" title={t('An AI character')}>
+            {t('AI')}
+          </span>
+        )}
       </div>
       <div className="who-actions">
         <Button variant="subtle" onClick={() => onChat(p)}>
           {t('Chat')}
         </Button>
-        <SaveContact personId={p.id} name={p.name} />
+        {!p.id.startsWith('crowd:') && <SaveContact personId={p.id} name={p.name} />}
         {meetings.length > 0 && withId && (
           <Button variant="ghost" aria-expanded={inviting} onClick={() => setInviting((v) => !v)}>
             {t('Invite')}
@@ -441,7 +506,9 @@ export function WhoIsAround({
               {p.human ? (
                 <span className="pill pill-info">{t('Player')}</span>
               ) : (
-                <span className="small muted">{roleOf(p.kind)}</span>
+                <span className="small muted">
+                  {roleOf(p.kind)} <span className="pill who-ai">{t('AI')}</span>
+                </span>
               )}
             </button>
           </li>

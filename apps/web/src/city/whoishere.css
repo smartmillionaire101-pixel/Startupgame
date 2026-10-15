@@ -110,3 +110,10 @@
 .who-around .place-btn {
   padding: 0.4rem 0.6rem;
 }
+/* AI characters carry a small "AI" tag (real players a "Player" one). */
+.pill.who-ai {
+  padding: 0 0.4rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  color: var(--muted, inherit);
+}
