@@ -1,0 +1,242 @@
+/* Founder Journey 6: the guided first session (coach card, coach marks, café scene). */
+
+.coach {
+  position: fixed;
+  left: max(0.75rem, calc((100vw - 560px) / 2 + 0.75rem));
+  right: max(4.75rem, calc((100vw - 560px) / 2 + 4.75rem));
+  bottom: calc(var(--nav-h, 3.6rem) + 0.75rem);
+  z-index: 18;
+  max-height: min(60vh, 30rem);
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--r-lg, 14px);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.18);
+  padding: var(--sp-3) var(--sp-4);
+  display: grid;
+  gap: var(--sp-2);
+  animation: coach-in 240ms ease-out;
+}
+.coach:focus {
+  outline: none;
+}
+.coach:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.coach-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.coach-count {
+  font-size: var(--fs-xs, 0.75rem);
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.coach-skip {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+  font-size: var(--fs-xs, 0.75rem);
+  padding: 0.5rem 0.25rem;
+  min-height: 2.25rem;
+  cursor: pointer;
+}
+.coach-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.coach-text {
+  margin: 0;
+  font-size: 0.92rem;
+}
+.coach .btn {
+  justify-self: start;
+}
+.coach-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.coach-accounts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+}
+.coach-accounts > div {
+  display: grid;
+  gap: 2px;
+  padding: var(--sp-2);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.coach-accounts > [data-account-kind='business'] {
+  background: var(--accent-soft);
+}
+.coach .journey-objectives ul {
+  margin: 0;
+  padding: 0;
+}
+
+.coach-tip {
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: 10px;
+  background: var(--warn-soft);
+  color: var(--text);
+  font-size: 0.88rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+/* The ring on the one thing to tap next. */
+.coach-spot {
+  position: relative;
+  z-index: 1;
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 6px var(--warm) !important;
+  border-radius: 12px;
+  animation: coach-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes coach-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+@keyframes coach-pulse {
+  50% {
+    box-shadow:
+      0 0 0 3px var(--surface),
+      0 0 0 9px color-mix(in srgb, var(--warm) 55%, transparent) !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coach,
+  .coach-spot {
+    animation: none;
+  }
+}
+
+/* ---- The café scene */
+.idea-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 26;
+  background: var(--bg);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.idea-scene:focus {
+  outline: none;
+}
+.idea-room {
+  flex: 0 0 auto;
+  height: 180px;
+  overflow: hidden;
+  background: #3b2a1a;
+}
+.idea-room svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.idea-panel {
+  padding: var(--sp-4) var(--gutter, 0.875rem) calc(var(--sp-8) + env(safe-area-inset-bottom));
+  display: grid;
+  gap: var(--sp-3);
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+}
+.idea-panel h2 {
+  margin: 0;
+}
+.idea-say {
+  margin: 0;
+  padding: var(--sp-3);
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.idea-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-3);
+}
+.idea-card {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg, 14px);
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+}
+.idea-card q {
+  font-style: italic;
+  color: var(--muted);
+}
+.idea-bars {
+  display: grid;
+  gap: 4px;
+}
+.idea-card .btn {
+  justify-self: start;
+}
+
+/* ---- The entry screen: background and outfit */
+.onboard-backgrounds {
+  grid-template-columns: 1fr 1fr;
+}
+.onboard-backgrounds .choice {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.onboard-mods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.onboard-mod {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: var(--fs-2xs, 0.6875rem);
+}
+.onboard-look {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.onboard-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.onboard-swatch {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  cursor: pointer;
+}
+.onboard-swatch[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--accent);
+}

@@ -12,6 +12,7 @@ import { DealCard } from '../../screens/common';
 import { carOf, myJobOf } from '../../city/life';
 import { H, Line, Nothing, num, type PhoneCtx } from '../shared';
 import { SendMoney } from './Friends';
+import { PhoneTip } from '../../tutorial/Coach';
 import { ReceiptScreen, StatementScreen, TxList } from './Statement';
 import type { StatementLine } from '@runway/engine';
 
@@ -79,6 +80,7 @@ export function Bank({ ctx }: { ctx: PhoneCtx }) {
     return <StatementScreen onBack={() => setScreen('home')} onOpen={openLine} />;
   return (
     <div className="phone-stack">
+      <PhoneTip where="bank" />
       <section className="phone-card phone-hero tone-bank" aria-label={t('Balance')}>
         <div className="small">{t('Personal account')}</div>
         <div className="phone-hero-big" data-balance>

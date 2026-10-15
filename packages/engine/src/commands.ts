@@ -9,6 +9,7 @@ import { MARKET_IDS, SENIORITIES, STAFF_ROLES, type MarketId } from './data/mark
 import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
+import { STARTER_EXPENSE_IDS } from './data/ideas.js';
 import { REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
 
 const id = z.string().min(1).max(64);
@@ -23,6 +24,8 @@ export const companySetup = z.object({
   revenueModel: z.enum(REVENUE_MODELS),
   idea: z.string().min(5).max(120),
   incorporation: z.enum(['local', 'uk', 'us']),
+  /** Founder Journey 6: a starting idea from the café (data/ideas.ts). Optional. */
+  ideaId: z.string().max(32).optional(),
 });
 
 export const investorSetup = z.object({
@@ -79,6 +82,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     name: z.string().trim().min(1).max(40).optional(),
     gender: z.enum(['female', 'male']).optional(),
     market: market.optional(),
+    /** Founder Journey 6: the background chosen at onboarding. Optional (default per role). */
+    backgroundId: z.string().max(32).optional(),
   }),
   z.object({
     type: z.literal('player.profile'),
@@ -464,6 +469,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     discountPct: z.number().int().min(0).max(100).optional(),
   }),
   z.object({ type: z.literal('sales.drop'), companyId: id.optional(), dealId: id }),
+  /** Founder Journey 6: a small one-off business expense, paid from the company account. */
+  z.object({
+    type: z.literal('company.expense'),
+    companyId: id,
+    item: z.enum(STARTER_EXPENSE_IDS),
+  }),
   z.object({ type: z.literal('gig.take'), businessId: id, gigId: z.string().min(1).max(32) }),
   z.object({
     type: z.literal('venue.buy'),

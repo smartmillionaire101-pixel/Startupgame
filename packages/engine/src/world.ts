@@ -37,6 +37,7 @@ import {
   backgroundById,
 } from './data/characters.js';
 import type { Role, Skills } from './data/characters.js';
+import { founderFit, ideaById } from './data/ideas.js';
 import { ensure } from './errors.js';
 import { col, getMarket, notify, usdToLocal } from './helpers.js';
 import { newId } from './ids.js';
@@ -258,6 +259,8 @@ export interface NewCompanyInput {
   idea: string;
   incorporation: Incorporation;
   ai?: boolean;
+  /** Founder Journey 6: a starting idea (data/ideas.ts); sets industry and model. */
+  ideaId?: string;
 }
 
 /** Incorporation costs (one-off, multiples of cost of living) and investor appeal. */
@@ -273,6 +276,10 @@ export const INCORPORATION: Record<
 export function createCompany(world: World, input: NewCompanyInput): Company {
   const founder = world.players[input.founderId];
   ensure(founder, 'player.missing', 'Founder not found.');
+  // Founder Journey 6: an idea from the café brings its industry and revenue model.
+  const starter = input.ideaId !== undefined ? ideaById(input.ideaId) : undefined;
+  ensure(input.ideaId === undefined || starter, 'company.idea', 'Pick one of the ideas on offer.');
+  if (starter) input = { ...input, industry: starter.industry, revenueModel: starter.revenueModel };
   const m = getMarket(world, founder.market);
   const check = checkName(input.name, { taken: world.names[m.id]! });
   if (!check.ok) ensure(false, 'company.name', check.reason);
@@ -332,6 +339,9 @@ export function createCompany(world: World, input: NewCompanyInput): Company {
     vetoes: [],
     parentId: null,
     removedFounders: {},
+    ...(starter
+      ? { starterIdea: { id: starter.id, fit: founderFit(starter, founder.skills) } }
+      : {}),
   };
   setCogs(world, company);
   world.companies[id] = company;

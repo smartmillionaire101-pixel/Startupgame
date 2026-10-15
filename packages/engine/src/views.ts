@@ -2,6 +2,7 @@ import { journeyView } from './journey.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
 import { allocatorView } from './allocator.js';
 import { wealthView } from './wealth.js';
+import { firstSessionView } from './firstsession.js';
 import { recapView } from './recap.js';
 import { decisionsView } from './decisions.js';
 import { rivalsView } from './rivals.js';
@@ -249,6 +250,8 @@ export function companyDetail(world: World, c: Company) {
     },
     /** Founder Journey 2a: the per-deal sales pipeline (view.company.sales). */
     sales: salesView(world, c),
+    /** Founder Journey 6: the café idea, the first up-front payment and small expenses. */
+    ...firstSessionView(world, c),
     rules: rulesFor(c.market, c.industry).map((r) => ({ ...r, done: !!c.compliance[r.id] })),
     listing: Object.values(world.listings).find((l) => l.companyId === c.id) ?? null,
     marketRate: marketRate(world, c),

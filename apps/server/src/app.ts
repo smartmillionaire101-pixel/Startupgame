@@ -13,6 +13,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   BACKGROUNDS,
+  STARTER_IDEAS,
   INCORPORATION,
   INDUSTRIES,
   INDUSTRY_LABEL,
@@ -236,6 +237,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       costOfLiving: m.data.costOfLiving * 100,
     })),
     backgrounds: BACKGROUNDS,
+    /** Founder Journey 6: the starting ideas offered at the café. */
+    ideas: STARTER_IDEAS,
     industries: INDUSTRIES.map((id) => ({ id, label: INDUSTRY_LABEL[id] })),
     revenueModels: REVENUE_MODELS,
     stages: STAGES,
@@ -366,6 +369,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
           name: z.string().trim().min(1).max(40).optional(),
           gender: z.enum(['female', 'male']).optional(),
           market: z.enum(Object.keys(MARKET_DATA) as [MarketId, ...MarketId[]]).optional(),
+          /** Founder Journey 6: the founder background chosen on the entry screen. */
+          backgroundId: z.string().max(32).optional(),
           adult: z.literal(true),
         })
         .parse(req.body);
@@ -396,6 +401,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         ...(body.name ? { name: body.name } : {}),
         ...(body.gender ? { gender: body.gender } : {}),
         ...(body.market ? { market: body.market } : {}),
+        ...(body.backgroundId ? { backgroundId: body.backgroundId } : {}),
       });
       if (!r.ok) return reply.code(422).send({ error: r.error });
       return { ok: true };

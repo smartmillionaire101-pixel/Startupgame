@@ -692,6 +692,8 @@ export interface Company {
     /** Wave 10: branch takings and running costs this month (company currency). */
     branchRevenue?: number;
     branchCost?: number;
+    /** Founder Journey 6: a first customer's up-front payment, already in the account. */
+    upfrontRevenue?: number;
   };
   lastFlaggedRevenue: number;
   /** Consecutive months of mostly flagged revenue (anti-cheat, §18). */
@@ -723,6 +725,14 @@ export interface Company {
   salesAccounts?: SalesAccount[];
   /** Next deal number (per company, so ids never touch the world counter). */
   salesSeq?: number;
+  /**
+   * Founder Journey 6: the starting idea picked at the café (data/ideas.ts),
+   * with the founder's fit when it was founded. Missing = founded the old way:
+   * no idea effects. `paid`: the first pipeline customer's up-front payment.
+   */
+  starterIdea?: { id: string; fit: number; paid?: { month: number; amount: number } };
+  /** Founder Journey 6: small one-off business expenses paid (newest last, a few kept). */
+  expenses?: { item: string; month: number; amount: number }[];
   /** Prospecting done this month (limited by founder hours and sales staff). */
   salesProspects?: { month: number; count: number };
   /** In (or graduated from) an accelerator (Wave 5). Missing = never joined one. */

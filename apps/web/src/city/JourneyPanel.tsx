@@ -119,7 +119,7 @@ function ObjectiveRow({
   );
 }
 
-function Objectives({ j, onGo }: { j: Journey; onGo: (g: JourneyGo) => void }) {
+export function Objectives({ j, onGo }: { j: Journey; onGo: (g: JourneyGo) => void }) {
   const { view } = useView();
   const o = objectivesFor(view);
   return (
