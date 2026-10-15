@@ -9,9 +9,10 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.getByLabel('Username', { exact: true }).fill(`ada_${letters(6)}`);
   await page.getByLabel('Email', { exact: true }).fill(`ada-${letters()}@example.com`);
   await page.getByLabel('Join as').selectOption('founder');
-  await pickIdentity(page, { name: 'Ada E2E' });
+  // Johannesburg: advancing its month can't land in Lagos specs' balance checks.
+  await pickIdentity(page, { name: 'Ada E2E', city: 'Johannesburg' });
   await page.getByRole('button', { name: 'Play now' }).click();
-  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
+  await expect(page.getByRole('application', { name: /Map of Johannesburg/ })).toBeVisible();
   await tab(page, 'Me').click();
   await page.getByLabel('Your name').fill('Ada E2E');
   await page.getByLabel('You are', { exact: true }).selectOption('female');
@@ -41,7 +42,7 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   const date = page.locator('.topbar .topbar-date');
   const before = (await date.textContent())!;
   const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
-  await page.getByRole('button', { name: /Advance Lagos one month/ }).click();
+  await page.getByRole('button', { name: /Advance Johannesburg one month/ }).click();
   const res = await settled;
   expect(res.status(), await res.text()).toBe(200);
   await expect(date).toHaveText(/^Y\d+ M\d+$/);
@@ -49,5 +50,5 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
 
   // The news digest is reachable.
   await page.getByRole('button', { name: 'News', exact: true }).click();
-  await expect(page.getByText(/Lagos daily digest/)).toBeVisible();
+  await expect(page.getByText(/Johannesburg daily digest/)).toBeVisible();
 });

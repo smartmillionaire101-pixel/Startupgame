@@ -1,7 +1,11 @@
 import { setupFounder } from './fixtures';
 import { expect, letters, type Page, playAsGuest, randomEmail, tab, test } from './fixtures';
 
-/** Guest → a founder in Lagos; returns the company name. */
+/**
+ * Guest → a founder in Johannesburg; returns the company name. Specs that
+ * advance a month use cities no balance-checking spec plays in (Lagos is
+ * shared by many), so a month never lands in the middle of someone's checks.
+ */
 async function onboardFounder(page: Page) {
   const company = `Keep Pay ${letters(5)}`;
   await playAsGuest(page);
@@ -10,7 +14,7 @@ async function onboardFounder(page: Page) {
     handle: `kemi_${letters(6)}`,
     company: company,
     idea: 'Savings for market traders',
-    market: /Lagos, Nigeria/,
+    market: /Johannesburg, South Africa/,
   });
   await expect(tab(page, 'Today')).toBeVisible();
   return company;
@@ -32,7 +36,7 @@ test('a guest saves their game with an email link, signs out, and logs back in b
   await expect(page.getByText(/First customer/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Keep your game' })).toHaveCount(0);
   const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
-  await page.getByRole('button', { name: /Advance Lagos one month/ }).click();
+  await page.getByRole('button', { name: /Advance Johannesburg one month/ }).click();
   expect((await settled).status()).toBe(200);
   await expect(page.getByRole('heading', { name: 'Keep your game' })).toBeVisible();
 

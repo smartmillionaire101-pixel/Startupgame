@@ -1,6 +1,10 @@
 import { expect, letters, playAsGuest, setupFounder, tab, test } from './fixtures';
 
-/** The product roadmap (§6.3, FR-006): add a feature, build it over a month, release it. */
+/**
+ * The product roadmap (§6.3, FR-006): add a feature, build it over a month,
+ * release it. In Dubai, which no other spec advances: the month it waits for
+ * is its own, and it can't land in another spec's checks.
+ */
 test('a founder adds a feature to the roadmap, it progresses over a month, and ships', async ({
   page,
 }) => {
@@ -10,7 +14,7 @@ test('a founder adds a feature to the roadmap, it progresses over a month, and s
     handle: `rhoda_${letters(6)}`,
     company: `Road Pay ${letters(5)}`,
     idea: 'Payments for market traders',
-    market: /Lagos, Nigeria/,
+    market: /Dubai, United Arab Emirates/,
   });
   await expect(tab(page, 'Today')).toBeVisible();
 
@@ -49,7 +53,7 @@ test('a founder adds a feature to the roadmap, it progresses over a month, and s
   // A month passes (dev tools).
   await tab(page, 'Today').click();
   const settled = page.waitForResponse((r) => r.url().endsWith('/api/dev/settle'));
-  await page.getByRole('button', { name: /Advance Lagos one month/ }).click();
+  await page.getByRole('button', { name: /Advance Dubai one month/ }).click();
   expect((await settled).status()).toBe(200);
 
   // The bug bash is finished; release it.

@@ -17,6 +17,12 @@ import {
  * they skip themselves where those aren't deployed.
  */
 
+/**
+ * Freetown, which no other spec advances: the event test closes the month,
+ * and a month closing in Lagos would land in other specs' balance checks.
+ */
+const CITY = 'Freetown';
+
 async function signUpFounder(page: Page, name: string) {
   await playAsGuest(page);
   await setupFounder(page, {
@@ -24,10 +30,10 @@ async function signUpFounder(page: Page, name: string) {
     handle: `${name.split(' ')[0]!.toLowerCase()}_${letters(6)}`,
     company: `${name.split(' ')[0]} Books ${letters(5)}`,
     idea: 'Bookkeeping for market stalls',
-    market: /Lagos, Nigeria/,
+    market: /Freetown, Sierra Leone/,
   });
   // The first answer after Start can be a cold start that loads the whole world.
-  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
+  await expect(page.getByRole('application', { name: new RegExp(`Map of ${CITY}`) })).toBeVisible({
     timeout: 30_000,
   });
 }
@@ -186,7 +192,7 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
   await expect(hall.getByText('You host')).toBeVisible();
 
   // B RSVPs.
-  await b.getByRole('application', { name: /Map of Lagos/ }).waitFor();
+  await b.getByRole('application', { name: new RegExp(`Map of ${CITY}`) }).waitFor();
   await openPlace(b, 'eventhall');
   const bHall = b.getByRole('dialog');
   await bHall.getByRole('button', { name: `RSVP to ${title}` }).click();
@@ -197,14 +203,14 @@ test('two players see each other, chat, and meet at an event', async ({ page: a,
     const r = await fetch('/api/dev/settle', {
       method: 'POST',
       headers: { 'x-runway': '1', 'content-type': 'application/json' },
-      body: JSON.stringify({ market: 'lagos' }),
+      body: JSON.stringify({ market: 'freetown' }),
     });
     return r.status;
   });
   expect(settled).toBe(200);
   for (const p of [a, b]) {
     await p.reload();
-    await p.getByRole('application', { name: /Map of Lagos/ }).waitFor();
+    await p.getByRole('application', { name: new RegExp(`Map of ${CITY}`) }).waitFor();
     await openPlace(p, 'eventhall');
     const past = p.getByRole('list', { name: 'Past events' });
     await expect(past.getByText(title)).toBeVisible({ timeout: 8000 });
