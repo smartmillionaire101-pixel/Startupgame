@@ -5,7 +5,7 @@
  * the phone's Journey app.
  */
 import './journey.css';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ObjectiveKind } from '@runway/engine';
 import { t } from '../i18n';
 import { useView } from '../store';
@@ -25,32 +25,34 @@ import {
 const KIND_LABEL = (k: ObjectiveKind) =>
   k === 'main' ? t('Main') : k === 'opportunity' ? t('Opportunity') : t('Personal');
 
-/** "Chapter 2 · The First Team": the chip on the City HUD. */
+/**
+ * The Journey button on the City HUD: an icon (🚩) with a thin progress ring,
+ * grouped with the map's round buttons so nothing floats over the map. Its
+ * name says the chapter ("Journey: Chapter 2 · The First Team").
+ */
 export function JourneyChip({ onOpen }: { onOpen: () => void }) {
   const { view } = useView();
   const j = journeyOf(view);
   if (!j) return null;
   const ch = j.chapters.find((c) => c.status === 'current');
   const doneSteps = ch ? ch.steps.filter((s) => s.done && !s.optional).length : 0;
+  const label = ch
+    ? t('Chapter {n} · {title}', { n: ch.n, title: chapterCopy(ch.id).title })
+    : t('Journey complete');
+  const pct = ch ? Math.round((100 * doneSteps) / Math.max(1, ch.need)) : 100;
   return (
     <button
       type="button"
-      className="hud-chip journey-chip"
+      className="hud-round journey-chip"
       data-testid="journey-chip"
+      data-chapter={ch?.n ?? 'done'}
       aria-haspopup="dialog"
+      aria-label={t('Journey: {chapter}', { chapter: label })}
+      title={label}
+      style={{ ['--p' as string]: `${pct}%` }}
       onClick={onOpen}
     >
-      <span className="hud-name">
-        <span aria-hidden>🚩 </span>
-        {ch
-          ? t('Chapter {n} · {title}', { n: ch.n, title: chapterCopy(ch.id).title })
-          : t('Journey complete')}
-      </span>
-      {ch && (
-        <span className="journey-chip-bar" aria-hidden>
-          <span style={{ width: `${(100 * doneSteps) / Math.max(1, ch.need)}%` }} />
-        </span>
-      )}
+      <span aria-hidden>🚩</span>
     </button>
   );
 }
@@ -271,9 +273,13 @@ export function JourneyPanel({ onGo }: { onGo: (g: JourneyGo) => void }) {
   );
 }
 
-/** A quiet banner when a chapter completes (once per chapter, per browser). */
-export function JourneyCelebration({ onOpen }: { onOpen: () => void }) {
-  const { view } = useView();
+/**
+ * When a chapter completes (once per chapter, per browser): a short toast,
+ * never a banner that stays over the map. The Journey button and the
+ * phone's Journey app hold the details.
+ */
+export function JourneyCelebration() {
+  const { view, toast } = useView();
   const j = journeyOf(view);
   const doneKey = j
     ? j.chapters
@@ -281,7 +287,6 @@ export function JourneyCelebration({ onOpen }: { onOpen: () => void }) {
         .map((c) => c.n)
         .join(',')
     : '';
-  const [shown, setShown] = useState<number | null>(null);
   const pending = useRef<number | null>(null);
   useEffect(() => {
     if (!j) return;
@@ -289,47 +294,26 @@ export function JourneyCelebration({ onOpen }: { onOpen: () => void }) {
     const fresh = freshChapters(j)[0] ?? pending.current;
     if (!fresh) return;
     pending.current = fresh;
-    // A beat after the view lands, so the banner rises in over the new state.
+    const ch = j.chapters[fresh - 1];
+    if (!ch) return;
+    // A beat after the view lands, so the toast follows the new state.
     const timer = setTimeout(() => {
       pending.current = null;
-      setShown(fresh);
+      const next = j.chapters.find((c) => c.status === 'current');
+      const done = t('Chapter {n} complete: {title}', {
+        n: ch.n,
+        title: chapterCopy(ch.id).title,
+      });
+      toast(
+        next
+          ? `🚩 ${done} · ${t('Next: {title}', { title: chapterCopy(next.id).title })}`
+          : `🚩 ${done}`,
+        'ok',
+      );
     }, 300);
     return () => clearTimeout(timer);
     // Only when the set of finished chapters changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doneKey]);
-  useEffect(() => {
-    if (shown === null) return;
-    const timer = setTimeout(() => setShown(null), 7000);
-    return () => clearTimeout(timer);
-  }, [shown]);
-  if (!j || shown === null) return null;
-  const ch = j.chapters[shown - 1];
-  if (!ch) return null;
-  const next = j.chapters.find((c) => c.status === 'current');
-  return (
-    <div className="journey-celebrate" role="status" data-testid="journey-celebrate">
-      <span className="journey-celebrate-badge" aria-hidden>
-        {ch.n}
-      </span>
-      <span className="journey-celebrate-text">
-        <b>{t('Chapter {n} complete: {title}', { n: ch.n, title: chapterCopy(ch.id).title })}</b>
-        {next && (
-          <span className="journey-why">
-            {t('Next: {title}', { title: chapterCopy(next.id).title })}
-          </span>
-        )}
-      </span>
-      <Button
-        size="sm"
-        variant="secondary"
-        onClick={() => {
-          setShown(null);
-          onOpen();
-        }}
-      >
-        {t('See journey')}
-      </Button>
-    </div>
-  );
+  return null;
 }

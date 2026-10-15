@@ -27,6 +27,7 @@ import { DealCard } from './screens/common';
 import { NavContext, openPhone, type Nav } from './phone/bus';
 import { inboxTarget, type TabId, type Target } from './phone/navigate';
 import { UpdateBanner } from './update';
+import { ScreenBoundary } from './ScreenBoundary';
 import { useVisits } from './useVisits';
 import { GameActivity } from './GameActivity';
 import { hereOf, isAbroad } from './city/travel';
@@ -199,7 +200,13 @@ function Game() {
     myTurn,
     bankRequests,
   });
-  const current = tabs.some((x) => x.id === tab) || EXTRA.includes(tab) ? tab : 'city';
+  // Your company's screen opens from the office (and notifications) even when
+  // it has no tab of its own (a banker who also founded a company).
+  const hasCompany = view.companies.some((c) => c.status === 'active');
+  const current =
+    tabs.some((x) => x.id === tab) || EXTRA.includes(tab) || (tab === 'company' && hasCompany)
+      ? tab
+      : 'city';
   const go = (id: TabId) => {
     setTab(id);
     window.scrollTo({ top: 0 });
@@ -263,19 +270,21 @@ function Game() {
         <TopBar alerts={unread} onDecisions={() => go('home')} />
         <GameActivity />
         <main>
-          {current === 'city' && <CityScreen onNavigate={go} />}
-          {current === 'home' && <Home onNews={() => go('news')} />}
-          {current === 'company' && <CompanyScreen />}
-          {current === 'money' && <MoneyScreen />}
-          {current === 'deals' && <DealFlow />}
-          {current === 'portfolio' && <Portfolio />}
-          {current === 'bank' && <BankScreen />}
-          {current === 'news' && (
-            <Suspense fallback={<p className="muted">{t('Loading…')}</p>}>
-              <NewsScreen />
-            </Suspense>
-          )}
-          {current === 'me' && <MeScreen />}
+          <ScreenBoundary resetKey={current} name={current}>
+            {current === 'city' && <CityScreen onNavigate={go} />}
+            {current === 'home' && <Home onNews={() => go('news')} />}
+            {current === 'company' && <CompanyScreen />}
+            {current === 'money' && <MoneyScreen />}
+            {current === 'deals' && <DealFlow />}
+            {current === 'portfolio' && <Portfolio />}
+            {current === 'bank' && <BankScreen />}
+            {current === 'news' && (
+              <Suspense fallback={<p className="muted">{t('Loading…')}</p>}>
+                <NewsScreen />
+              </Suspense>
+            )}
+            {current === 'me' && <MeScreen />}
+          </ScreenBoundary>
         </main>
       </div>
       <nav className="nav" ref={navRef} aria-label={t('Main')}>

@@ -1090,11 +1090,11 @@ function RoomScene({
     actions.push({ ...toMore, id: 'who-buys', label: t('Who buys what'), icon: '🧺' });
   } else if (place.kind === 'office') {
     if (abroad) {
-      actions.push(go('company', t('Open the company screen'), '🏢'));
+      actions.push(go('company', t('Manage company'), '🏢'));
       if (onFlyHome)
         actions.push({ id: 'fly-home', label: t('Fly home'), icon: '✈', run: onFlyHome });
     } else {
-      actions.push(go('company', t('Open the company screen'), '🏢'));
+      actions.push(go('company', t('Manage company'), '🏢'));
       actions.push(go('money', t('Open the money screen'), '💰'));
       actions.push({ ...toMore, label: t('This month at the office') });
     }
