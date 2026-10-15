@@ -106,7 +106,10 @@ interface Built {
   companyId?: Id;
 }
 
-type Trigger = (ctx: Ctx & { c: Company }, move?: { rival: Rival; move: RivalMove }) => Built | null;
+type Trigger = (
+  ctx: Ctx & { c: Company },
+  move?: { rival: Rival; move: RivalMove },
+) => Built | null;
 type PersonalTrigger = (ctx: Ctx) => Built | null;
 
 const payroll = (c: Company) => c.staff.reduce((a, s) => a + s.salary, 0);
@@ -134,7 +137,10 @@ const COMPANY_TRIGGERS: Record<string, Trigger> = {
       },
       customer: who,
       choices: [
-        { id: 'discount', effects: [{ kind: 'deal', stage: 'proposal', discountPct: 15, trust: 0.2 }] },
+        {
+          id: 'discount',
+          effects: [{ kind: 'deal', stage: 'proposal', discountPct: 15, trust: 0.2 }],
+        },
         {
           id: 'customise',
           effects: [
@@ -316,7 +322,12 @@ const COMPANY_TRIGGERS: Record<string, Trigger> = {
     const m = getMarket(world, c.market);
     return {
       rivalId: rm.rival.id,
-      vars: { company: c.name, rival: rm.rival.name, move: rm.move.text, amount: rm.move.amount ?? 0 },
+      vars: {
+        company: c.name,
+        rival: rm.rival.name,
+        move: rm.move.text,
+        amount: rm.move.amount ?? 0,
+      },
       choices: [
         {
           id: 'speed',
@@ -395,7 +406,8 @@ const COMPANY_TRIGGERS: Record<string, Trigger> = {
         id: 'collect',
         effects: [{ kind: 'collect', amount: owed, fee: Math.round(owed * 0.04) }],
       });
-    if (lend >= scale(col(m), 0.1)) choices.push({ id: 'loan', effects: [{ kind: 'loan', amount: lend }] });
+    if (lend >= scale(col(m), 0.1))
+      choices.push({ id: 'loan', effects: [{ kind: 'loan', amount: lend }] });
     choices.push({ id: 'raise', effects: [] });
     return {
       vars: { company: c.name, months: one(Math.max(0, runway)), burn: b },
@@ -416,7 +428,10 @@ const COMPANY_TRIGGERS: Record<string, Trigger> = {
             { kind: 'collect', amount: Math.round(owed / 3), fee: 0 },
           ],
         },
-        { id: 'factor', effects: [{ kind: 'collect', amount: owed, fee: Math.round(owed * 0.04) }] },
+        {
+          id: 'factor',
+          effects: [{ kind: 'collect', amount: owed, fee: Math.round(owed * 0.04) }],
+        },
         { id: 'wait', effects: [] },
       ],
     };
@@ -544,11 +559,7 @@ function cooledDown(d: PlayerDecisions, key: string, month: number) {
   return (d.cooldowns[key] ?? -Infinity) <= month;
 }
 
-function create(
-  ctx: Ctx,
-  t: DecisionTemplateData,
-  built: Built,
-): DecisionEvent {
+function create(ctx: Ctx, t: DecisionTemplateData, built: Built): DecisionEvent {
   const d = ensureDecisions(ctx.p);
   d.seq += 1;
   const ev: DecisionEvent = {
@@ -580,8 +591,7 @@ function create(
   return ev;
 }
 
-const cooldownKey = (template: string, c: Company | null) =>
-  c ? `${template}:${c.id}` : template;
+const cooldownKey = (template: string, c: Company | null) => (c ? `${template}:${c.id}` : template);
 
 function weightedPick<T extends { t: DecisionTemplateData }>(rng: Rng, list: T[]): T | undefined {
   const total = list.reduce((a, x) => a + x.t.weight, 0);
@@ -633,8 +643,16 @@ function companyEvent(world: World, p: Player, c: Company, month: number): Decis
 /** One social or life event this month, now and then. */
 function personalEvent(world: World, p: Player, month: number): DecisionEvent | null {
   const d = ensureDecisions(p);
-  if (openEvents(p).length >= DECISIONS.maxOpen) return null;
   const m = getMarket(world, p.market);
+  // Savings you already had when events began aren't a milestone: only new ones are.
+  if (d.cooldowns['wealth:base'] === undefined) {
+    d.cooldowns['wealth:base'] = month;
+    const balance = account(world, p.accounts.local).balance;
+    DECISIONS.wealth.colMonths.forEach((n, i) => {
+      if (balance >= scale(col(m), n)) d.cooldowns[`wealth:${i}`] = month;
+    });
+  }
+  if (openEvents(p).length >= DECISIONS.maxOpen) return null;
   const rng = deriveRng(world.seed, 'decisions', p.id, month);
   if (!rng.chance(DECISIONS.fireChance)) return null;
   const ctx: Ctx = { world, p, c: null, m, month, rng };
@@ -642,7 +660,11 @@ function personalEvent(world: World, p: Player, month: number): DecisionEvent | 
   const eligible: { t: DecisionTemplateData; built: Built }[] = [];
   for (const t of DECISION_TEMPLATES) {
     if (t.family !== 'social' && t.family !== 'life') continue;
-    if (busy.has(t.id) || !cooledDown(d, t.id, month) || !cooledDown(d, `family:${t.family}`, month))
+    if (
+      busy.has(t.id) ||
+      !cooledDown(d, t.id, month) ||
+      !cooledDown(d, `family:${t.family}`, month)
+    )
       continue;
     const built = PERSONAL_TRIGGERS[t.id]?.(ctx);
     if (built) eligible.push({ t, built });
@@ -696,9 +718,15 @@ const dealOf = (c: Company | null, id: Id) => c?.deals?.find((d) => d.id === id 
 /** Why this effect can't happen right now, or null. */
 function effectBlocker(a: ApplyCtx, e: DecisionEffect): string | null {
   const { world, p, c } = a;
-  const needsCompany = !['hours', 'trust', 'energy', 'social', 'network', 'chance', 'pressure'].includes(
-    e.kind,
-  );
+  const needsCompany = ![
+    'hours',
+    'trust',
+    'energy',
+    'social',
+    'network',
+    'chance',
+    'pressure',
+  ].includes(e.kind);
   if (needsCompany && e.kind !== 'cash' && (!c || c.status !== 'active'))
     return 'The company isn’t running any more.';
   switch (e.kind) {
@@ -717,7 +745,9 @@ function effectBlocker(a: ApplyCtx, e: DecisionEffect): string | null {
     case 'staffLeaves':
       return staffOf(c, e.staffId) ? null : `${e.name} isn’t on the team any more.`;
     case 'morale':
-      return e.staffId && !staffOf(c, e.staffId) ? `${e.name ?? 'They'} isn’t on the team any more.` : null;
+      return e.staffId && !staffOf(c, e.staffId)
+        ? `${e.name ?? 'They'} isn’t on the team any more.`
+        : null;
     case 'deal':
       if (!a.ev.customer) return 'That customer has moved on.';
       return hasDealRoom(c!) ? null : 'Your pipeline is full. Close or drop a deal first.';
@@ -733,7 +763,8 @@ function effectBlocker(a: ApplyCtx, e: DecisionEffect): string | null {
       return receivables(c!) <= 0 ? 'There are no unpaid invoices now.' : null;
     case 'hire':
       if (c!.hibernation) return 'You can’t hire while the company hibernates.';
-      return (c!.hiring?.roles ?? []).filter((r) => r.status === 'open').length >= HIRING.maxOpenRoles
+      return (c!.hiring?.roles ?? []).filter((r) => r.status === 'open').length >=
+        HIRING.maxOpenRoles
         ? 'You have enough open roles. Fill or close one first.'
         : null;
     default:
@@ -755,7 +786,11 @@ function applyEffect(a: ApplyCtx, e: DecisionEffect) {
   const c = a.c!;
   switch (e.kind) {
     case 'cash': {
-      const label = `${decisionTemplate(a.ev.template)?.title.replace(/\{.*?\}/g, '').trim() || 'Decision'}`;
+      const label = `${
+        decisionTemplate(a.ev.template)
+          ?.title.replace(/\{.*?\}/g, '')
+          .trim() || 'Decision'
+      }`;
       if (e.from === 'company') {
         const m = getMarket(world, c.market);
         transfer(world, c.account, m.ext[e.to], e.amount, `Decision: ${label}`, month);
@@ -882,7 +917,11 @@ export function chooseDecision(world: World, me: Player, eventId: Id, choiceId: 
   const a = contextOf(world, me, ev);
   ensure(a.month <= ev.deadline, 'decision.late', 'Too late: that one has been decided for you.');
   if (ev.companyId)
-    ensure(a.c && a.c.status === 'active', 'decision.company', 'The company isn’t running any more.');
+    ensure(
+      a.c && a.c.status === 'active',
+      'decision.company',
+      'The company isn’t running any more.',
+    );
   const ch = ev.choices.find((x) => x.id === choiceId);
   ensure(ch, 'decision.choice', 'Pick one of the options.');
   const blocker = choiceBlocker(a, ch);

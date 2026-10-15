@@ -56,13 +56,21 @@ export const RIVALS = {
 } as const;
 
 const FEATURES: Record<string, string[]> = {
-  default: ['a mobile app', 'team accounts', 'an analytics dashboard', 'an open API', 'offline mode'],
+  default: [
+    'a mobile app',
+    'team accounts',
+    'an analytics dashboard',
+    'an open API',
+    'offline mode',
+  ],
   fintech: ['instant payouts', 'a merchant app', 'cheaper transfers', 'a savings wallet'],
   saas: ['a free tier', 'integrations', 'an AI assistant', 'single sign-on'],
 };
 
 const humanFounded = (world: World, c: Company) =>
-  !c.ai && c.status === 'active' && c.founderIds.some((f) => world.players[f] && !world.players[f]!.ai);
+  !c.ai &&
+  c.status === 'active' &&
+  c.founderIds.some((f) => world.players[f] && !world.players[f]!.ai);
 
 /** Industries human founders work in, in this city. */
 function founderIndustries(world: World, market: MarketId): Industry[] {
@@ -183,15 +191,27 @@ function scheduledMove(world: World, m: MarketState, r: Rival, rng: Rng): RivalM
   const targets = targetsOf(world, m, r);
   const staffTargets = targets.filter((c) => c.staff.some((s) => !s.cofounder));
   const dealTargets = targets.filter((c) =>
-    (c.deals ?? []).some((d) => ['contacted', 'discovery', 'demo', 'proposal', 'negotiation'].includes(d.stage)),
+    (c.deals ?? []).some((d) =>
+      ['contacted', 'discovery', 'demo', 'proposal', 'negotiation'].includes(d.stage),
+    ),
   );
   const options: [RivalMoveKind, number][] = [
-    ['price_cut', r.priceCut && r.priceCut.until >= month ? 0 : (r.style === 'price' ? 3 : 1) + (raised ? 2 : 0)],
+    [
+      'price_cut',
+      r.priceCut && r.priceCut.until >= month
+        ? 0
+        : (r.style === 'price' ? 3 : 1) + (raised ? 2 : 0),
+    ],
     ['launch', r.maturity >= 0.95 ? 0 : r.style === 'product' ? 3 : 1],
-    ['poach', staffTargets.length ? (r.style === 'sales' ? 2 : 1) + (r.funding > scale(col(m), 30) ? 1 : 0) : 0],
+    [
+      'poach',
+      staffTargets.length
+        ? (r.style === 'sales' ? 2 : 1) + (r.funding > scale(col(m), 30) ? 1 : 0)
+        : 0,
+    ],
     ['win_deal', r.reputation >= 2 ? 2 : 1],
     // Abstract rivals raise on their own clock; AI startups raise through the funds.
-    ['raise', r.companyId ? 0 : r.goal === 'dominate' ? 2 : 1],
+    ['raise', r.companyId || recent(r, month, 5, 'raise') ? 0 : r.goal === 'dominate' ? 2 : 1],
   ];
   const total = options.reduce((a, [, w]) => a + w, 0);
   if (total <= 0) return null;
@@ -216,7 +236,8 @@ function scheduledMove(world: World, m: MarketState, r: Rival, rng: Rng): RivalM
     }
     case 'launch': {
       const list = FEATURES[r.industry] ?? FEATURES.default!;
-      const feature = rng.pick(list);
+      const fresh = list.filter((f) => !r.moves.some((x) => x.text.endsWith(f)));
+      const feature = rng.pick(fresh.length ? fresh : list);
       r.maturity = Math.round(clamp01(r.maturity + rng.range(0.05, 0.12)) * 100) / 100;
       return { month, kind, text: `${r.name} launched ${feature}` };
     }
@@ -293,7 +314,9 @@ export function settleRivals(world: World, market: MarketId, month: number) {
       r.funding = funding;
     }
     // Drop long-gone rivals; top up to the minimum (AI startups first).
-    const failedOld = list.filter((r) => r.status === 'failed' && month - (r.moves[0]?.month ?? 0) > 3);
+    const failedOld = list.filter(
+      (r) => r.status === 'failed' && month - (r.moves[0]?.month ?? 0) > 3,
+    );
     for (const r of failedOld) list.splice(list.indexOf(r), 1);
     const active = () => list.filter((r) => r.status === 'active');
     if (active().length < RIVALS.min) {
@@ -301,7 +324,11 @@ export function settleRivals(world: World, market: MarketId, month: number) {
       const ai = Object.values(world.companies)
         .filter(
           (c) =>
-            c.ai && c.status === 'active' && c.market === market && c.industry === industry && !linked.has(c.id),
+            c.ai &&
+            c.status === 'active' &&
+            c.market === market &&
+            c.industry === industry &&
+            !linked.has(c.id),
         )
         .sort((a, b) => (a.id < b.id ? -1 : 1));
       for (const c of ai) {

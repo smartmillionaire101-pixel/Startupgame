@@ -70,8 +70,16 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     weight: 3,
     defaultChoice: 'delay',
     choices: [
-      { id: 'discount', label: 'Offer a launch discount', outcome: 'They go straight to a proposal at 15% off.' },
-      { id: 'customise', label: 'Customise it for them', outcome: 'You build what they asked for and show them a demo.' },
+      {
+        id: 'discount',
+        label: 'Offer a launch discount',
+        outcome: 'They go straight to a proposal at 15% off.',
+      },
+      {
+        id: 'customise',
+        label: 'Customise it for them',
+        outcome: 'You build what they asked for and show them a demo.',
+      },
       { id: 'delay', label: 'Tell them to wait', outcome: 'They go on your pipeline as a lead.' },
       { id: 'decline', label: 'Say no', outcome: 'You keep your focus. Nothing changes.' },
     ],
@@ -86,9 +94,21 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     weight: 2,
     defaultChoice: 'apologise',
     choices: [
-      { id: 'fix', label: 'Drop everything and fix it', outcome: 'Less tech debt, a steadier product.' },
-      { id: 'credit', label: 'Give everyone a credit', outcome: 'You pay them back a little; they stay fond of you.' },
-      { id: 'apologise', label: 'Just apologise', outcome: 'Free, but your rating slips a little.' },
+      {
+        id: 'fix',
+        label: 'Drop everything and fix it',
+        outcome: 'Less tech debt, a steadier product.',
+      },
+      {
+        id: 'credit',
+        label: 'Give everyone a credit',
+        outcome: 'You pay them back a little; they stay fond of you.',
+      },
+      {
+        id: 'apologise',
+        label: 'Just apologise',
+        outcome: 'Free, but your rating slips a little.',
+      },
     ],
   },
   // ---------------------------------------------------------------- team
@@ -102,9 +122,21 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     weight: 3,
     defaultChoice: 'reprioritise',
     choices: [
-      { id: 'hire', label: 'Hire help', outcome: 'You post a {role} job (find candidates on the Team tab).' },
-      { id: 'reprioritise', label: 'Pause the less important work', outcome: 'The team breathes; the product moves a little slower.' },
-      { id: 'reward', label: 'Thank them with a bonus', outcome: 'A bonus paid through payroll lifts morale.' },
+      {
+        id: 'hire',
+        label: 'Hire help',
+        outcome: 'You post a {role} job (find candidates on the Team tab).',
+      },
+      {
+        id: 'reprioritise',
+        label: 'Pause the less important work',
+        outcome: 'The team breathes; the product moves a little slower.',
+      },
+      {
+        id: 'reward',
+        label: 'Thank them with a bonus',
+        outcome: 'A bonus paid through payroll lifts morale.',
+      },
       { id: 'ignore', label: 'Push on', outcome: 'Nothing changes, and morale dips.' },
     ],
   },
@@ -118,8 +150,16 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     weight: 2,
     defaultChoice: 'decline',
     choices: [
-      { id: 'raise', label: 'Pay the market rate', outcome: 'Their salary goes up every month from now.' },
-      { id: 'bonus', label: 'One-off bonus instead', outcome: 'Half a month’s pay now; their salary stays.' },
+      {
+        id: 'raise',
+        label: 'Pay the market rate',
+        outcome: 'Their salary goes up every month from now.',
+      },
+      {
+        id: 'bonus',
+        label: 'One-off bonus instead',
+        outcome: 'Half a month’s pay now; their salary stays.',
+      },
       { id: 'decline', label: 'Not now', outcome: 'Free, but they’re disappointed.' },
     ],
   },
@@ -134,9 +174,17 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     defaultChoice: 'leave-it',
     choices: [
       { id: 'counter', label: 'Counter-offer', outcome: 'You raise their pay; they stay.' },
-      { id: 'talk', label: 'Talk to them about the mission', outcome: 'Most stay after a real conversation.' },
+      {
+        id: 'talk',
+        label: 'Talk to them about the mission',
+        outcome: 'Most stay after a real conversation.',
+      },
       { id: 'let-go', label: 'Wish them well', outcome: 'They leave; you save their salary.' },
-      { id: 'leave-it', label: 'Leave it to them', outcome: 'Free. It’s a coin toss whether they stay.' },
+      {
+        id: 'leave-it',
+        label: 'Leave it to them',
+        outcome: 'Free. It’s a coin toss whether they stay.',
+      },
     ],
   },
   // ---------------------------------------------------------------- competition
@@ -150,10 +198,26 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     weight: 4,
     defaultChoice: 'hold',
     choices: [
-      { id: 'match', label: 'Cut your price too', outcome: 'You stay close on price; every customer pays a little less.' },
-      { id: 'product', label: 'Sell on quality instead', outcome: 'You show buyers what’s better; their cut stops hurting you for a while.' },
-      { id: 'partner', label: 'Partner with a bigger brand', outcome: 'A co-marketing deal that lends you their name.' },
-      { id: 'hold', label: 'Hold your price', outcome: 'Free. Their cut weighs a little on your win chances while it lasts.' },
+      {
+        id: 'match',
+        label: 'Cut your price too',
+        outcome: 'You stay close on price; every customer pays a little less.',
+      },
+      {
+        id: 'product',
+        label: 'Sell on quality instead',
+        outcome: 'You show buyers what’s better; their cut stops hurting you for a while.',
+      },
+      {
+        id: 'partner',
+        label: 'Partner with a bigger brand',
+        outcome: 'A co-marketing deal that lends you their name.',
+      },
+      {
+        id: 'hold',
+        label: 'Hold your price',
+        outcome: 'Free. Their cut weighs a little on your win chances while it lasts.',
+      },
     ],
   },
   {
@@ -167,7 +231,11 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     defaultChoice: 'hold',
     choices: [
       { id: 'speed', label: 'Ship faster with contractors', outcome: 'A better product, sooner.' },
-      { id: 'niche', label: 'Double down on your best customers', outcome: 'You go deeper where you already win.' },
+      {
+        id: 'niche',
+        label: 'Double down on your best customers',
+        outcome: 'You go deeper where you already win.',
+      },
       { id: 'hold', label: 'Stay the course', outcome: 'Free. You keep doing what works.' },
     ],
   },
@@ -182,8 +250,16 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     defaultChoice: 'hold',
     choices: [
       { id: 'respond', label: 'Build your answer', outcome: 'Your product closes the gap.' },
-      { id: 'price', label: 'Be the cheaper option', outcome: 'A small price cut instead of a race.' },
-      { id: 'hold', label: 'Ignore it', outcome: 'Free. If their product pulls ahead, it weighs a little on your deals.' },
+      {
+        id: 'price',
+        label: 'Be the cheaper option',
+        outcome: 'A small price cut instead of a race.',
+      },
+      {
+        id: 'hold',
+        label: 'Ignore it',
+        outcome: 'Free. If their product pulls ahead, it weighs a little on your deals.',
+      },
     ],
   },
   {
@@ -213,9 +289,21 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     defaultChoice: 'cut',
     choices: [
       { id: 'cut', label: 'Halve marketing', outcome: 'Burn drops; fewer new customers find you.' },
-      { id: 'collect', label: 'Collect invoices early', outcome: 'A finance house pays your invoices now, minus a fee.' },
-      { id: 'loan', label: 'Lend the company money', outcome: 'From your personal account; the company owes it back.' },
-      { id: 'raise', label: 'Plan a raise', outcome: 'No cost now: open a round from the Money tab.' },
+      {
+        id: 'collect',
+        label: 'Collect invoices early',
+        outcome: 'A finance house pays your invoices now, minus a fee.',
+      },
+      {
+        id: 'loan',
+        label: 'Lend the company money',
+        outcome: 'From your personal account; the company owes it back.',
+      },
+      {
+        id: 'raise',
+        label: 'Plan a raise',
+        outcome: 'No cost now: open a round from the Money tab.',
+      },
     ],
   },
   {
@@ -230,7 +318,11 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     choices: [
       { id: 'chase', label: 'Chase them yourself', outcome: 'About a third comes in now.' },
       { id: 'factor', label: 'Sell the invoices', outcome: 'All of it now, minus a fee.' },
-      { id: 'wait', label: 'Wait for the due dates', outcome: 'Free. The money comes when it’s due.' },
+      {
+        id: 'wait',
+        label: 'Wait for the due dates',
+        outcome: 'Free. The money comes when it’s due.',
+      },
     ],
   },
   // ---------------------------------------------------------------- social
@@ -275,7 +367,11 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
     defaultChoice: 'save',
     choices: [
       { id: 'trip', label: 'Take a weekend away', outcome: 'You come back rested.' },
-      { id: 'invest', label: 'Back your own company', outcome: 'A founder loan: the company owes it back.' },
+      {
+        id: 'invest',
+        label: 'Back your own company',
+        outcome: 'A founder loan: the company owes it back.',
+      },
       { id: 'save', label: 'Keep it saved', outcome: 'Free. The money stays where it is.' },
     ],
   },
