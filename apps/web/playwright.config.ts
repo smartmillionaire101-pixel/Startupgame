@@ -18,7 +18,12 @@ export default defineConfig({
   timeout: 60_000,
   // A deployed site answers over the network from functions that may be starting cold.
   expect: { timeout: REMOTE ? 15_000 : 5_000 },
-  retries: process.env.CI && !REMOTE ? 1 : 0,
+  // One retry in CI, locally and against a deploy preview alike. A retry starts the
+  // test again as a brand-new player, so a real failure fails twice. The preview
+  // runs on cold-starting functions under the whole suite's load, and the odd
+  // request times out at Netlify's edge (504 "Inactivity Timeout") or a page load
+  // is aborted; without a retry any one of those failed the deploy check.
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: REMOTE ?? `http://127.0.0.1:${PORT}`,
     ...devices['Pixel 7'],
