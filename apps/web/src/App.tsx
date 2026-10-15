@@ -30,6 +30,8 @@ import { UpdateBanner } from './update';
 import { useVisits } from './useVisits';
 import { GameActivity } from './GameActivity';
 import { hereOf, isAbroad } from './city/travel';
+import { RecapHost } from './recap/Recap';
+import { openDecisions } from './screens/Decisions';
 
 // Reduced motion is decided once, before anything animates (Wave 7 §D).
 initReduceMotion();
@@ -257,7 +259,7 @@ function Game() {
   return (
     <NavContext.Provider value={nav}>
       <div className={`app${current === 'city' ? ' app-city' : ''}`}>
-        <TopBar alerts={unread} />
+        <TopBar alerts={unread} onDecisions={() => go('home')} />
         <GameActivity />
         <main>
           {current === 'city' && <CityScreen onNavigate={go} />}
@@ -296,6 +298,7 @@ function Game() {
       <Suspense fallback={null}>
         <PhoneDock />
       </Suspense>
+      <RecapHost />
       {dealOpen && (
         <Sheet title={t('Deal card')} onClose={() => setFocusDeal(null)}>
           <DealCard deal={dealOpen} />
@@ -332,8 +335,9 @@ function useBump(value: number) {
  * The top bar (Wave 7): one 48px line that never wraps. Where you are and
  * when, your cash (it ticks to new values), an energy ring and the phone.
  */
-function TopBar({ alerts }: { alerts: number }) {
+function TopBar({ alerts, onDecisions }: { alerts: number; onDecisions: () => void }) {
   const { view, cur } = useView();
+  const decisions = openDecisions(view);
   const here = hereOf(view);
   const d = view.market.date;
   const short = t('Y{y} M{m}', { y: d.year, m: d.month });
@@ -389,6 +393,18 @@ function TopBar({ alerts }: { alerts: number }) {
         >
           <span className="ring-num">{energy}</span>
         </span>
+        {decisions > 0 && (
+          <button
+            type="button"
+            className="topbar-decisions"
+            data-decisions-badge={decisions}
+            aria-label={t('{n} decisions waiting', { n: decisions })}
+            onClick={onDecisions}
+          >
+            <Icon name="bolt" size={16} />
+            <span className="badge">{decisions}</span>
+          </button>
+        )}
         <button
           type="button"
           className="topbar-phone"

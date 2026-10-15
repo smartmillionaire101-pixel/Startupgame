@@ -1,5 +1,12 @@
 /** Typed client for the Runway API. All mutations send the CSRF header. */
-import type { Command, PlayerView, Receipt, StatementLine, StatementQuery } from '@runway/engine';
+import type {
+  Command,
+  PlayerView,
+  Receipt,
+  RecapView,
+  StatementLine,
+  StatementQuery,
+} from '@runway/engine';
 
 export class ApiError extends Error {
   constructor(
@@ -278,6 +285,9 @@ export const api = {
       signal,
     );
   },
+  /** The month recap for an earlier month (the current one comes with the view). */
+  recap: (month: number, signal?: AbortSignal) =>
+    request<{ recap: RecapView }>('GET', `/api/recap?month=${month}`, undefined, signal),
   /** One transaction's receipt, as this player saw it. */
   receipt: (ref: string) =>
     request<{ receipt: Receipt }>('GET', `/api/receipts/${encodeURIComponent(ref)}`),

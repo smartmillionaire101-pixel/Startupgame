@@ -34,6 +34,7 @@ import { scale } from './money.js';
 import { deriveRng } from './rng.js';
 import type { Rng } from './rng.js';
 import { outputOf } from './staff.js';
+import { rivalPressure } from './rivals.js';
 import type {
   Company,
   Id,
@@ -227,7 +228,56 @@ export function winChance(
   const who = (opts.known ?? d.revealed) ? d.customer : assumed(m, d);
   const f = factors(c, d, who, opts.price ?? dealPrice(c, d));
   const founder = opts.founder ?? world.players[c.founderIds[0]!];
-  return chanceFrom(c, f, who.need, founder?.skills.sales ?? 0);
+  const base = chanceFrom(c, f, who.need, founder?.skills.sales ?? 0);
+  // Journey 4a: a rival's price cut or better product weighs a little (zero
+  // before the journey-events release note, so old logs replay unchanged).
+  const pressure = rivalPressure(world, c);
+  return pressure > 0 ? clamp(base - pressure, SALES.chance[0], SALES.chance[1]) : base;
+}
+
+/** A bigger-than-usual lead for a decision event (decisions.ts); null when nobody here buys. */
+export function eventLead(
+  world: World,
+  c: Company,
+  rng: Rng,
+  budgetX: number,
+): SalesCustomer | null {
+  const m = getMarket(world, c.market);
+  const who = makeLead(world, c, m, rng, undefined);
+  if (!who) return null;
+  who.budgetMin = Math.max(1, Math.round(who.budgetMin * budgetX));
+  who.budgetMax = Math.max(2, Math.round(who.budgetMax * budgetX));
+  return who;
+}
+
+/** Room for one more open deal? */
+export const hasDealRoom = (c: Company): boolean =>
+  (c.deals ?? []).filter(isOpenDeal).length < openDealLimit(c);
+
+/** Put a decision event's customer on the pipeline at a given stage (ids from the per-company counter). */
+export function addEventDeal(
+  c: Company,
+  customer: SalesCustomer,
+  opts: { stage: SalesStage; discountPct: number; trust: number; month: number; months: number },
+): SalesDeal {
+  c.salesSeq = (c.salesSeq ?? 0) + 1;
+  const d: SalesDeal = {
+    id: `${c.id}-d${c.salesSeq}`,
+    customer: {
+      ...customer,
+      trust: Math.round(clamp01(customer.trust + opts.trust) * 100) / 100,
+    },
+    stage: opts.stage,
+    createdMonth: opts.month,
+    deadline: opts.month + opts.months,
+    // They told you what they want: past the lead stage, you know them.
+    revealed: opts.stage !== 'lead',
+    ...(opts.stage === 'demo' ? { demoScore: 0.6 } : {}),
+    ...(opts.discountPct > 0 ? { discountPct: opts.discountPct } : {}),
+    ...(opts.stage === 'proposal' ? { price: c.price } : {}),
+  };
+  (c.deals ??= []).push(d);
+  return d;
 }
 
 /** Why a lost deal was lost: the weakest factor on their side. */

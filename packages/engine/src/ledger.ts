@@ -12,7 +12,7 @@ import type { Currency } from './money.js';
 import type { MarketId } from './data/markets.js';
 import type { Account, Id, TxFx, TxKind, TxRecord, World } from './types.js';
 
-const RECENT_LIMIT = 30;
+export const RECENT_LIMIT = 30;
 /** Lines a human player's own accounts keep: their bank statement. */
 export const STATEMENT_HISTORY = 200;
 export type MoneyPurpose = 'spent' | 'sent' | 'invested' | 'capital' | 'move';

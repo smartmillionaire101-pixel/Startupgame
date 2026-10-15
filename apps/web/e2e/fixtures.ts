@@ -28,6 +28,9 @@ export async function withoutNetlifyDrawer(page: Page) {
       // turns the WebGL city back on (software WebGL is slow in CI).
       if (!localStorage.getItem('runway.mapQuality'))
         localStorage.setItem('runway.mapQuality', 'lite');
+      // Founder Journey 4b: the month recap opens on its own when a month
+      // starts; specs about other things skip it (recap.spec.ts turns it on).
+      if (!localStorage.getItem('runway.skipRecap')) localStorage.setItem('runway.skipRecap', '1');
     } catch {
       /* storage blocked: rides play */
     }

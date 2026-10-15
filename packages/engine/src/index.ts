@@ -71,6 +71,11 @@ export {
 } from './captable.js';
 export { SLIDES, MAX_SLIDES } from './fundraising.js';
 export { rescuePlan, assessDistress } from './rescue.js';
+export { JOURNEY_EVENTS_NOTE, journeyEventsOn } from './releases.js';
+export { DECISION_TEMPLATES, DECISIONS } from './data/decisions.js';
+export { MONEY_VARS } from './decisions.js';
+export type { DecisionsView } from './decisions.js';
+export { RIVALS } from './rivals.js';
 export type { RescuePlan, RescueOption } from './rescue.js';
 export { BANK_TYPES, MIN_CAPITAL_RATIO, RESERVE_RATIO } from './banks.js';
 export { INCORPORATION } from './world.js';
@@ -125,6 +130,7 @@ export type { BankQuestion, QuizCategory } from './data/quiz-bank.js';
 export {
   AUTO_QUIZ_FROM,
   AUTO_QUIZ_NOTE,
+  autoQuiz,
   QUIZ_LENGTH,
   QUIZ_AI_AFTER,
   AI_SHOT_AFTER,
@@ -161,3 +167,17 @@ export {
   reserveBalance,
   sharePrice,
 } from './founderfinance.js';
+// Founder Journey 4b: the month recap ("end of day").
+export {
+  recapView,
+  RECAP_RUNWAY_RISK,
+  RECAP_TOP,
+  type RecapAccount,
+  type RecapBill,
+  type RecapCompany,
+  type RecapDate,
+  type RecapItem,
+  type RecapPerson,
+  type RecapRisk,
+  type RecapView,
+} from './recap.js';

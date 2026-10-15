@@ -5,6 +5,7 @@ import type { JourneyGo } from '../../city/journey';
 import { openSky } from '../../experiences/sky-bus';
 import { useNav, type PhoneApp } from '../bus';
 import type { PhoneCtx } from '../shared';
+import { RecapButton } from '../../recap/Recap';
 
 export function JourneyApp({ ctx }: { ctx: PhoneCtx }) {
   const nav = useNav();
@@ -22,6 +23,7 @@ export function JourneyApp({ ctx }: { ctx: PhoneCtx }) {
   };
   return (
     <div className="phone-stack">
+      <RecapButton onOpen={ctx.close} />
       <JourneyPanel onGo={go} />
     </div>
   );

@@ -189,4 +189,21 @@ describe('sending money between players (two function instances, one store)', ()
     expect((await a.call('GET', `/api/receipts/${own.ref}`)).status).toBe(404);
     expect((await a.call('GET', '/api/statement?account=nope')).status).toBe(400);
   });
+
+  it('serves the month recap, with personal totals matching the statement', async () => {
+    const { rt1, a } = await twoInstances();
+    await a.join('+2348039990031', 'ada_recap');
+    const view = (await a.view()) as unknown as {
+      recap: { month: number };
+      market: { month: number };
+    };
+    expect(view.recap.month).toBe(view.market.month);
+    const r = await a.call('GET', `/api/recap?month=${view.market.month}`, undefined, rt1);
+    expect(r.status).toBe(200);
+    const s = await a.call('GET', `/api/statement?month=${view.market.month}`, undefined, rt1);
+    const mine = r.json.recap.personal[0];
+    expect(mine.in).toBe(s.json.statement.totals.in);
+    expect(mine.out).toBe(s.json.statement.totals.out);
+    expect((await a.call('GET', '/api/recap?month=-1')).status).toBe(400);
+  });
 });
