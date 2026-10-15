@@ -67,8 +67,34 @@ test('buy a home in Lagos with cash and move in', async ({ page }) => {
   await create(page, 'investor', 'lagos');
   const phone = await openApp(page, 'homes');
   await expect(phone.getByText(/Homes in Lagos/)).toBeVisible();
-  // The cheapest home you can pay for in cash.
-  const studio = phone.locator('[data-listing][data-tier="studio"]').last();
+  // A home you can pay for in cash, a studio if one is left. The deploy
+  // preview keeps one world across runs and earlier runs buy homes, so ask
+  // the game which ones you can afford rather than counting on the list.
+  const id = await page.evaluate(async () => {
+    const r = await fetch('/api/state', { headers: { 'x-runway': '1' } });
+    const s = (await r.json()) as {
+      view: {
+        market: {
+          properties?: {
+            listings: {
+              id: string;
+              tier: string;
+              forSale: boolean;
+              canBuy: boolean;
+            }[];
+          };
+        };
+      };
+    };
+    const ok = (s.view.market.properties?.listings ?? []).filter((l) => l.forSale && l.canBuy);
+    const studios = ok.filter((l) => l.tier === 'studio');
+    // Any one of them, at random: specs running alongside may buy the cheapest.
+    const pool = studios.length ? studios : ok;
+    const pick = crypto.getRandomValues(new Uint32Array(1))[0]! % Math.max(1, pool.length);
+    return pool[pick]?.id ?? null;
+  });
+  expect(id, 'a home in Lagos this investor can buy with cash').not.toBeNull();
+  const studio = phone.locator(`[data-listing="${id}"]`);
   await expect(studio).toBeVisible();
   await studio.click();
   const detail = phone.locator('[data-listing-detail]');
