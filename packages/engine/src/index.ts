@@ -199,5 +199,7 @@ export {
   type RecapItem,
   type RecapPerson,
   type RecapRisk,
+  type RecapRival,
+  type RecapDecision,
   type RecapView,
 } from './recap.js';

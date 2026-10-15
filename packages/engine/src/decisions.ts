@@ -1008,7 +1008,8 @@ function fill(text: string, vars: Record<string, string | number>, cur: Currency
   });
 }
 
-function eventView(world: World, p: Player, ev: DecisionEvent) {
+/** One event as the client shows it (also used by the month recap). */
+export function eventView(world: World, p: Player, ev: DecisionEvent) {
   const t = decisionTemplate(ev.template);
   const a = contextOf(world, p, ev);
   const cur = account(world, a.c?.account ?? p.accounts.local).currency;
@@ -1062,3 +1063,4 @@ export function decisionsView(world: World, p: Player) {
 }
 
 export type DecisionsView = ReturnType<typeof decisionsView>;
+export type DecisionEventView = ReturnType<typeof eventView>;

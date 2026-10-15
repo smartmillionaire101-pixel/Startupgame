@@ -181,7 +181,7 @@ function eventBody(ev: Ev): string {
 }
 
 /** [label, what happens] for each template's choices. */
-function choiceCopy(ev: Ev, ch: Choice): [string, string] {
+export function choiceCopy(ev: Ev, ch: Choice): [string, string] {
   const v = varsOf(ev);
   const key = `${ev.template}.${ch.id}`;
   const copy: Record<string, [string, string]> = {
@@ -558,7 +558,7 @@ const goalLabel = (g: string) =>
   ({ growth: t('Wants growth'), profit: t('Wants profit'), dominate: t('Wants to dominate') })[g] ??
   g;
 
-function moveText(m: Move, rival: string, cur: string): string {
+export function moveText(m: Move, rival: string, cur: string): string {
   switch (m.kind) {
     case 'raise':
       return t('{rival} raised {amount}', { rival, amount: money(m.amount ?? 0, cur) });

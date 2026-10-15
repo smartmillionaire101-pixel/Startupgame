@@ -149,3 +149,19 @@
 :root[data-reduce-motion='1'] .recap-sheet {
   animation: none;
 }
+
+/* Phase 7: wealth now, what you can spend apart from what you own. */
+.recap-wealth {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+.recap-wealth dt {
+  margin: 0;
+}
+.recap-wealth dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

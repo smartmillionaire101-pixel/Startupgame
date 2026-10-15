@@ -221,8 +221,150 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
         label: t('Choose your path: invest, mentor, give, lead an institution or found again'),
         why: t('Open the Capital app to compare the paths'),
       };
+    // Phase 7: the ambitions' steps.
+    case 'unicorn.company':
+      return { label: t('Start a company'), why: t('Every unicorn starts as a small company') };
+    case 'unicorn.valuation':
+      return {
+        label: t('Reach a $1bn valuation'),
+        why: t('Valuations come from your rounds: grow, then raise at a higher price'),
+      };
+    case 'profitable.streak':
+      return {
+        label: t('Be profitable {n} months in a row', { n: need }),
+        why: t('Revenue above every cost, month after month'),
+      };
+    case 'profitable.independent':
+      return {
+        label: t('Save two years of living costs'),
+        why: t('Money in your own account, not the company’s'),
+      };
+    case 'serial.end':
+      return {
+        label: t('Sell or close a company'),
+        why: t('A sale, or a proper wind-down when it’s time'),
+      };
+    case 'serial.again':
+      return {
+        label: t('Start again after it ends'),
+        why: t('Your skills, name and contacts come with you'),
+      };
+    case 'serial.companies':
+      return { label: t('Found {n} companies', { n: need }), why: t('Each one teaches you more') };
+    case 'angel.first':
+      return {
+        label: t('Invest in a startup'),
+        why: t('With your own money, in the Invest app'),
+      };
+    case 'angel.portfolio':
+      return {
+        label: t('Back {n} startups', { n: need }),
+        why: t('Spread your bets: most startups fail'),
+      };
+    case 'angel.return':
+      return {
+        label: t('Get money back from one'),
+        why: t('When a company you backed is sold or lists'),
+      };
+    case 'vc.fund':
+      return { label: t('Raise a fund'), why: t('Other people’s money, invested by you') };
+    case 'vc.portfolio':
+      return {
+        label: t('Back {n} companies from your fund', { n: need }),
+        why: t('Build a portfolio that can return the fund'),
+      };
+    case 'vc.distribute':
+      return {
+        label: t('Return money to your investors'),
+        why: t('An exit in your portfolio pays your backers first'),
+      };
+    case 'lifestyle.home':
+      return { label: t('Own your home'), why: t('Buy a place in the Homes app') };
+    case 'lifestyle.income':
+      return {
+        label: t('Pay yourself enough to cover your living costs'),
+        why: t('Set your founder pay on the Company tab'),
+      };
+    case 'lifestyle.people':
+      return {
+        label: t('Keep {n} close contacts', { n: need }),
+        why: t('Friendships fade if you never see them'),
+      };
+    case 'philanthropist.first':
+      return {
+        label: t('Give to a cause'),
+        why: t('Schools, clinics, clean water or new founders'),
+      };
+    case 'philanthropist.given':
+      return {
+        label: t('Give $100k in total'),
+        why: t('Measured in what each gift achieves'),
+      };
+    case 'philanthropist.causes':
+      return {
+        label: t('Support {n} different causes', { n: need }),
+        why: t('Spread your giving where it does most'),
+      };
     default:
       return { label: s.label, why: '' };
+  }
+}
+
+// ---------------------------------------------------------------- ambitions (Phase 7)
+
+export type Ambitions = NonNullable<PlayerView['ambition']>;
+export type AmbitionOptionView = Ambitions['options'][number];
+
+/** The ambitions, or null (AI players, or a server without them yet). */
+export const ambitionsOf = (view: PlayerView): Ambitions | null =>
+  (view as { ambition?: Ambitions | null }).ambition ?? null;
+
+export const AMBITION_ICON: Record<string, string> = {
+  unicorn: '🦄',
+  profitable: '💰',
+  serial: '🔁',
+  angel: '😇',
+  vc: '🏦',
+  lifestyle: '🌴',
+  philanthropist: '🤲',
+};
+
+export function ambitionCopy(id: string): { title: string; story: string } {
+  switch (id) {
+    case 'unicorn':
+      return { title: t('Unicorn founder'), story: t('Build a company worth a billion dollars.') };
+    case 'profitable':
+      return {
+        title: t('Profitable owner'),
+        story: t('Run a business that pays its way, and never need a job again.'),
+      };
+    case 'serial':
+      return {
+        title: t('Serial founder'),
+        story: t('Sell or close a venture, then start again with what you learned.'),
+      };
+    case 'angel':
+      return {
+        title: t('Angel investor'),
+        story: t('Back founders with your own money and build a network.'),
+      };
+    case 'vc':
+      return {
+        title: t('Venture capitalist'),
+        story: t('Raise a fund, build a portfolio and return money to your backers.'),
+      };
+    case 'lifestyle':
+      return {
+        title: t('Lifestyle entrepreneur'),
+        story: t('Freedom first: a home of your own, income that covers life, people who matter.'),
+      };
+    case 'philanthropist':
+      return {
+        title: t('Philanthropist'),
+        story: t('Put your wealth to work on causes, with outcomes you can measure.'),
+      };
+    default:
+      return { title: id, story: '' };
   }
 }
 
@@ -391,10 +533,12 @@ export function personalCandidates(view: PlayerView): Objective[] {
 /** The three prompts (any may be null when nothing fits or all were dismissed). */
 export function objectivesFor(view: PlayerView): Record<ObjectiveKind, Objective | null> {
   const j = journeyOf(view);
+  const chosen = ambitionsOf(view)?.chosen;
   const main: Objective[] = (j?.main ?? []).map((s) => ({
     kind: 'main',
     id: s.id,
-    icon: '🚩',
+    // Chapter 0 is the ambition you chose (Phase 7): its own icon.
+    icon: s.chapter === 0 && chosen ? (AMBITION_ICON[chosen] ?? '🎯') : '🚩',
     ...stepCopy(s),
     go: s.go,
     chapter: s.chapter,

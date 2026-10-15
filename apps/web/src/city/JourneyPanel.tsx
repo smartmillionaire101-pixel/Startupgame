@@ -5,20 +5,26 @@
  * the phone's Journey app.
  */
 import './journey.css';
-import { useEffect, useRef } from 'react';
-import type { ObjectiveKind } from '@runway/engine';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { AmbitionId, ObjectiveKind } from '@runway/engine';
 import { t } from '../i18n';
 import { useView } from '../store';
 import { Button } from '../ui';
 import {
+  AMBITION_ICON,
+  ambitionCopy,
+  ambitionsOf,
   chapterCopy,
   freshChapters,
   journeyOf,
   objectivesFor,
   progressText,
   stepCopy,
+  type AmbitionOptionView,
+  type Ambitions,
   type Journey,
   type JourneyGo,
+  type JourneyStepView,
   type Objective,
 } from './journey';
 
@@ -167,6 +173,150 @@ function Bootstrap({ on }: { on: boolean }) {
   );
 }
 
+/** One step with its tick, progress bar and Go button (chapters and ambitions share it). */
+function StepRow({
+  s,
+  optional,
+  onGo,
+  children,
+}: {
+  s: JourneyStepView;
+  optional?: boolean;
+  onGo: (g: JourneyGo) => void;
+  children?: ReactNode;
+}) {
+  const sc = stepCopy(s);
+  const pct = s.progress ? s.progress.have / Math.max(1, s.progress.need) : 0;
+  return (
+    <li className={`journey-step${s.done ? ' done' : ''}`} data-step={s.id} data-done={s.done}>
+      <span className="journey-tick" aria-hidden>
+        {s.done ? '✓' : ''}
+      </span>
+      <span className="journey-step-body">
+        <span className="journey-step-label">
+          {sc.label}
+          {optional && <span className="journey-opt"> · {t('optional')}</span>}
+          <span className="sr-only">{s.done ? ` (${t('done')})` : ` (${t('to do')})`}</span>
+        </span>
+        {!s.done && sc.why && <span className="journey-why">{sc.why}</span>}
+        {s.progress && !s.done && (
+          <span className="journey-progress">
+            <span className="journey-bar" aria-hidden>
+              <span style={{ width: `${Math.round(pct * 100)}%` }} />
+            </span>
+            <span className="small">{progressText(s.progress)}</span>
+          </span>
+        )}
+        {children}
+      </span>
+      {!s.done && s.go && (
+        <Button size="sm" variant="subtle" onClick={() => onGo(s.go!)}>
+          {t('Go')}
+        </Button>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Phase 7 (§4.1, §9.5): the ambition you are going for. Shows its steps and
+ * progress; "Change" lists the seven paths. Every human player has one,
+ * investors and bankers included, so it shows even without a journey.
+ */
+export function AmbitionSection({ a, onGo }: { a: Ambitions; onGo: (g: JourneyGo) => void }) {
+  const { send, busy } = useView();
+  const [picking, setPicking] = useState(a.chosen === null);
+  const chosen = a.options.find((o) => o.id === a.chosen) ?? null;
+  const pick = async (id: AmbitionId | null) => {
+    await send({ type: 'journey.ambition', ...(id ? { id } : {}) });
+    setPicking(false);
+  };
+  return (
+    <section
+      className="journey-ambition"
+      data-testid="ambition"
+      data-ambition={a.chosen ?? 'none'}
+      aria-label={t('Your ambition')}
+    >
+      <div className="journey-ambition-head">
+        <h3>{t('Your ambition')}</h3>
+        {chosen && (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => setPicking((x) => !x)}>
+            {picking ? t('Keep this one') : t('Change')}
+          </Button>
+        )}
+      </div>
+      {chosen && !picking && <ChosenAmbition o={chosen} onGo={onGo} />}
+      {picking && (
+        <>
+          <p className="small muted">
+            {t(
+              'What are you going for? Pick a path: it leads your main objective. Change it any time.',
+            )}
+          </p>
+          <ul className="journey-ambition-list">
+            {a.options.map((o) => {
+              const copy = ambitionCopy(o.id);
+              const done = o.steps.filter((s) => s.done).length;
+              const on = o.id === a.chosen;
+              return (
+                <li key={o.id} data-ambition-option={o.id}>
+                  <button
+                    type="button"
+                    className={`journey-ambition-opt${on ? ' on' : ''}`}
+                    aria-pressed={on}
+                    disabled={busy}
+                    onClick={() => void pick(o.id)}
+                  >
+                    <span className="journey-obj-icon" aria-hidden>
+                      {AMBITION_ICON[o.id] ?? '🎯'}
+                    </span>
+                    <span>
+                      <b>{copy.title}</b>
+                      <span className="journey-why">{copy.story}</span>
+                      <span className="small muted">
+                        {o.done
+                          ? t('Reached')
+                          : t('{done} of {need} steps done', { done, need: o.steps.length })}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {chosen && (
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void pick(null)}>
+              {t('Go without an ambition')}
+            </Button>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function ChosenAmbition({ o, onGo }: { o: AmbitionOptionView; onGo: (g: JourneyGo) => void }) {
+  const copy = ambitionCopy(o.id);
+  return (
+    <div className="journey-ambition-chosen" data-reached={o.done}>
+      <p>
+        <span className="journey-obj-icon" aria-hidden>
+          {AMBITION_ICON[o.id] ?? '🎯'}
+        </span>{' '}
+        <b>{copy.title}</b>
+        {o.done && <span className="journey-opt"> · {t('Reached')}</span>}
+      </p>
+      <p className="journey-story">{copy.story}</p>
+      <ul className="journey-steps">
+        {o.steps.map((s) => (
+          <StepRow key={s.id} s={s} onGo={onGo} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function Chapters({ j, onGo }: { j: Journey; onGo: (g: JourneyGo) => void }) {
   return (
     <ol className="journey-chapters">
@@ -200,50 +350,18 @@ function Chapters({ j, onGo }: { j: Journey; onGo: (g: JourneyGo) => void }) {
                 </p>
               )}
               <ul className="journey-steps">
-                {c.steps.map((s) => {
-                  const sc = stepCopy(s);
-                  const pct = s.progress ? s.progress.have / Math.max(1, s.progress.need) : 0;
-                  return (
-                    <li
-                      key={s.id}
-                      className={`journey-step${s.done ? ' done' : ''}`}
-                      data-step={s.id}
-                      data-done={s.done}
-                    >
-                      <span className="journey-tick" aria-hidden>
-                        {s.done ? '✓' : ''}
-                      </span>
-                      <span className="journey-step-body">
-                        <span className="journey-step-label">
-                          {sc.label}
-                          {s.optional && c.need >= c.steps.length && (
-                            <span className="journey-opt"> · {t('optional')}</span>
-                          )}
-                          <span className="sr-only">
-                            {s.done ? ` (${t('done')})` : ` (${t('to do')})`}
-                          </span>
-                        </span>
-                        {!s.done && sc.why && <span className="journey-why">{sc.why}</span>}
-                        {s.progress && !s.done && (
-                          <span className="journey-progress">
-                            <span className="journey-bar" aria-hidden>
-                              <span style={{ width: `${Math.round(pct * 100)}%` }} />
-                            </span>
-                            <span className="small">{progressText(s.progress)}</span>
-                          </span>
-                        )}
-                        {s.id === 'fundraising.funding' && (!s.done || j.bootstrap !== null) && (
-                          <Bootstrap on={j.bootstrap !== null} />
-                        )}
-                      </span>
-                      {!s.done && s.go && (
-                        <Button size="sm" variant="subtle" onClick={() => onGo(s.go!)}>
-                          {t('Go')}
-                        </Button>
-                      )}
-                    </li>
-                  );
-                })}
+                {c.steps.map((s) => (
+                  <StepRow
+                    key={s.id}
+                    s={s}
+                    optional={s.optional && c.need >= c.steps.length}
+                    onGo={onGo}
+                  >
+                    {s.id === 'fundraising.funding' && (!s.done || j.bootstrap !== null) && (
+                      <Bootstrap on={j.bootstrap !== null} />
+                    )}
+                  </StepRow>
+                ))}
               </ul>
             </details>
           </li>
@@ -253,20 +371,25 @@ function Chapters({ j, onGo }: { j: Journey; onGo: (g: JourneyGo) => void }) {
   );
 }
 
-/** The whole journey: objectives, then the chapters. */
+/** The whole journey: your ambition, the objectives, then the chapters. */
 export function JourneyPanel({ onGo }: { onGo: (g: JourneyGo) => void }) {
   const { view } = useView();
   const j = journeyOf(view);
+  const a = ambitionsOf(view);
   if (!j)
     return (
-      <p className="journey-none muted" data-testid="journey-none">
-        {t(
-          'The founder journey follows building a company. Start one any time and your chapters begin.',
-        )}
-      </p>
+      <div className="journey">
+        {a && <AmbitionSection a={a} onGo={onGo} />}
+        <p className="journey-none muted" data-testid="journey-none">
+          {t(
+            'The founder journey follows building a company. Start one any time and your chapters begin.',
+          )}
+        </p>
+      </div>
     );
   return (
     <div className="journey" data-testid="journey">
+      {a && <AmbitionSection a={a} onGo={onGo} />}
       <Objectives j={j} onGo={onGo} />
       <Chapters j={j} onGo={onGo} />
     </div>

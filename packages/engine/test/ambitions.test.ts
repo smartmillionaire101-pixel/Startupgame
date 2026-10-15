@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { produce } from 'immer';
-import {
-  AMBITION,
-  AMBITION_IDS,
-  ambitionMilestone,
-  ambitionView,
-} from '../src/ambitions.js';
+import { AMBITION, AMBITION_IDS, ambitionMilestone, ambitionView } from '../src/ambitions.js';
 import { journeyView } from '../src/journey.js';
 import { lifestyleCost } from '../src/personal.js';
 import { playerView } from '../src/views.js';
@@ -217,8 +212,22 @@ describe('ambitions: progress measured from the world', () => {
     w = edit(w, (d) => {
       d.players[F]!.allocator = {
         pledges: [
-          { cause: 'schools', amount: usd / 2, currency: 'USD', month: 1, market: 'lagos', outcome: 1 },
-          { cause: 'clinics', amount: usd / 2, currency: 'USD', month: 1, market: 'lagos', outcome: 1 },
+          {
+            cause: 'schools',
+            amount: usd / 2,
+            currency: 'USD',
+            month: 1,
+            market: 'lagos',
+            outcome: 1,
+          },
+          {
+            cause: 'clinics',
+            amount: usd / 2,
+            currency: 'USD',
+            month: 1,
+            market: 'lagos',
+            outcome: 1,
+          },
         ],
       };
     });

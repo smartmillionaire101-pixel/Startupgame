@@ -221,16 +221,33 @@ describe('month recap across every system (Phase 7)', () => {
         seq: 3,
         cooldowns: {},
         events: [
-          { ...base, id: 'ev1', template: 't1', status: 'chosen', choiceId: 'hire', resolvedMonth: mo, succeeded: true },
-          { ...base, id: 'ev2', template: 't2', status: 'defaulted', choiceId: 'wait', resolvedMonth: mo },
+          {
+            ...base,
+            id: 'ev1',
+            template: 't1',
+            status: 'chosen',
+            choiceId: 'hire',
+            resolvedMonth: mo,
+            succeeded: true,
+          },
+          {
+            ...base,
+            id: 'ev2',
+            template: 't2',
+            status: 'defaulted',
+            choiceId: 'wait',
+            resolvedMonth: mo,
+          },
           { ...base, id: 'ev3', template: 't3', status: 'open' },
         ],
       };
     });
     const r = recapView(w, F)!;
-    expect(r.decisions).toEqual([
-      { id: 'ev1', template: 't1', family: 'team', company: c.name, status: 'chosen', choiceId: 'hire', succeeded: true },
-      { id: 'ev2', template: 't2', family: 'team', company: c.name, status: 'defaulted', choiceId: 'wait', succeeded: null },
+    expect(
+      r.decisions.map((e) => [e.id, e.status, e.choiceId, e.succeeded, e.companyName]),
+    ).toEqual([
+      ['ev1', 'chosen', 'hire', true, c.name],
+      ['ev2', 'defaulted', 'wait', null, c.name],
     ]);
   });
 

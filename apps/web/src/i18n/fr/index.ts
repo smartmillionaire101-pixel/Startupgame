@@ -39,6 +39,7 @@ import { capital } from './capital';
 import { tutorial } from './tutorial';
 import { uiFixes } from './ui-fixes';
 import { cityAlive } from './city-alive';
+import { ambitions } from './ambitions';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -81,6 +82,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   tutorial,
   uiFixes,
   cityAlive,
+  ambitions,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

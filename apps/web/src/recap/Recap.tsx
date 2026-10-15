@@ -14,10 +14,14 @@ import type {
   RecapBill,
   RecapCompany,
   RecapDate,
+  RecapDecision,
   RecapPerson,
   RecapRisk,
+  RecapRival,
   RecapView,
 } from '@runway/engine';
+import { AMBITION_ICON, ambitionCopy } from '../city/journey';
+import { choiceCopy, eventTitle, moveText } from '../screens/Decisions';
 import { api } from '../api';
 import { money } from '../format';
 import { t, tx } from '../i18n';
@@ -296,6 +300,73 @@ function RecapBody({ recap, details }: { recap: RecapView; details: Details }) {
         </Section>
       )}
 
+      {recap.ambition && (
+        <Section id="ambition" title={t('Your ambition')} onDetails={details.journey}>
+          <p className={recap.ambition.reached ? 'recap-good' : undefined}>
+            <span aria-hidden>{AMBITION_ICON[recap.ambition.id] ?? '🎯'} </span>
+            {recap.ambition.reached
+              ? t('Ambition reached: {title}', { title: ambitionCopy(recap.ambition.id).title })
+              : t('{title}: {done} of {need} steps done', {
+                  title: ambitionCopy(recap.ambition.id).title,
+                  done: recap.ambition.done,
+                  need: recap.ambition.need,
+                })}
+          </p>
+        </Section>
+      )}
+
+      {recap.decisions.length > 0 && (
+        <Section id="decisions" title={t('Decisions')}>
+          <ul className="recap-list">
+            {recap.decisions.map((ev) => (
+              <li key={ev.id} data-recap-decision={ev.status}>
+                {decisionText(ev)}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {recap.rivals.length > 0 && (
+        <Section id="rivals" title={t('Rivals')}>
+          <ul className="recap-list">
+            {recap.rivals.map((r, i) => (
+              <li key={i} className={r.hitYou ? 'recap-bad' : undefined}>
+                {rivalText(r, recap.month)}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {recap.wealth && (
+        <Section id="wealth" title={t('Your wealth')} onDetails={details.bank}>
+          <dl className="recap-wealth">
+            <dt>{t('You can spend')}</dt>
+            <dd data-recap-liquid={recap.wealth.liquid}>
+              {money(recap.wealth.liquid, recap.wealth.currency)}
+            </dd>
+            <dt>{t('You own but can’t spend yet')}</dt>
+            <dd>{money(recap.wealth.illiquid, recap.wealth.currency)}</dd>
+            {recap.wealth.liabilities > 0 && (
+              <>
+                <dt>{t('You owe')}</dt>
+                <dd>{money(recap.wealth.liabilities, recap.wealth.currency)}</dd>
+              </>
+            )}
+            <dt>
+              <b>{t('Net worth')}</b>
+            </dt>
+            <dd>
+              <b>{money(recap.wealth.netWorth, recap.wealth.currency)}</b>
+            </dd>
+          </dl>
+          <p className="small muted">
+            {t('Shares and property count at their value, but they aren’t cash until you sell.')}
+          </p>
+        </Section>
+      )}
+
       <Section id="risks" title={t('Watch out')}>
         {recap.risks.length ? (
           <ul className="recap-list">
@@ -567,6 +638,35 @@ function Bills({
       )}
     </div>
   );
+}
+
+function decisionText(ev: RecapDecision): string {
+  const ch = ev.choices.find((c) => c.id === ev.choiceId);
+  const choice = ch ? choiceCopy(ev, ch)[0] : '';
+  const how =
+    ev.status === 'defaulted'
+      ? t('Decided for you: {choice}', { choice })
+      : t('You chose: {choice}', { choice });
+  const luck =
+    ev.succeeded === true
+      ? ` · ${t('It worked out.')}`
+      : ev.succeeded === false
+        ? ` · ${t('It didn’t work out.')}`
+        : '';
+  return `${eventTitle(ev)}: ${how}${luck}`;
+}
+
+function rivalText(r: RecapRival, month: number): string {
+  const move = {
+    month,
+    kind: r.kind,
+    text: r.text,
+    ...(r.amount !== undefined ? { amount: r.amount } : {}),
+    ...(r.pct !== undefined ? { pct: r.pct } : {}),
+    ...(r.detail !== undefined ? { detail: r.detail } : {}),
+    ...(r.hitYou ? { targetCompanyId: r.company } : {}),
+  };
+  return `${moveText(move, r.rival, r.currency)} (${r.company})`;
 }
 
 function personText(p: RecapPerson): string {

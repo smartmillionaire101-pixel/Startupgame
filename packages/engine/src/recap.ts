@@ -32,6 +32,7 @@ import { carModel } from './data/lifestyle-shop.js';
 import { featureById } from './data/roadmap.js';
 import { burn, col, getMarket } from './helpers.js';
 import { ambitionView } from './ambitions.js';
+import { eventView, type DecisionEventView } from './decisions.js';
 import { deriveChapters, hasJourney } from './journey.js';
 import { wealthView } from './wealth.js';
 import { RECENT_LIMIT } from './ledger.js';
@@ -163,19 +164,15 @@ export interface RecapRival {
   text: string;
   /** It touched your company (a poach attempt, a deal won from you). */
   hitYou: boolean;
+  /** The move's figures, for the client's own wording (amounts in `currency`). */
+  amount?: number;
+  pct?: number;
+  detail?: string;
+  currency: Currency;
 }
 
-/** A decision you answered, or that went to its default, that month. */
-export interface RecapDecision {
-  id: Id;
-  template: string;
-  family: string;
-  company: string | null;
-  status: 'chosen' | 'defaulted';
-  choiceId: string | null;
-  /** Chance choices: whether it worked out (null: no chance involved). */
-  succeeded: boolean | null;
-}
+/** A decision you answered, or that went to its default, that month (as the Decisions card shows it). */
+export type RecapDecision = DecisionEventView;
 
 export interface RecapView {
   month: number;
@@ -506,6 +503,10 @@ export function recapView(world: World, playerId: Id, month?: number): RecapView
             kind: mv.kind,
             text: mv.text,
             hitYou: mv.targetCompanyId === c.id,
+            ...(mv.amount !== undefined ? { amount: mv.amount } : {}),
+            ...(mv.pct !== undefined ? { pct: mv.pct } : {}),
+            ...(mv.detail !== undefined ? { detail: mv.detail } : {}),
+            currency: m.data.currency,
           });
   }
   // The moves that hit you first.
@@ -514,15 +515,7 @@ export function recapView(world: World, playerId: Id, month?: number): RecapView
   // --- Decisions answered, or gone to their default, this month.
   const decisions: RecapDecision[] = (me.decisions?.events ?? [])
     .filter((e) => e.status !== 'open' && e.resolvedMonth === mo)
-    .map((e) => ({
-      id: e.id,
-      template: e.template,
-      family: e.family,
-      company: e.companyId ? (world.companies[e.companyId]?.name ?? null) : null,
-      status: e.status as 'chosen' | 'defaulted',
-      choiceId: e.choiceId ?? null,
-      succeeded: e.succeeded ?? null,
-    }));
+    .map((e) => eventView(world, me, e));
 
   // --- Wealth now (no history is kept, so only the current month has it).
   let wealth: RecapView['wealth'] = null;

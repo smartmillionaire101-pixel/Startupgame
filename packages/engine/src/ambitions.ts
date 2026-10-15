@@ -158,12 +158,7 @@ export const AMBITIONS: AmbitionDef[] = [
         (a, c) =>
           Math.max(
             a,
-            valueIn(
-              world,
-              c.capTable.lastPostMoney,
-              getMarket(world, c.market).data.currency,
-              cur,
-            ),
+            valueIn(world, c.capTable.lastPostMoney, getMarket(world, c.market).data.currency, cur),
           ),
         0,
       );
@@ -225,14 +220,15 @@ export const AMBITIONS: AmbitionDef[] = [
       );
       return [
         step('serial.end', 'Sell or close a company', ended.length > 0, capital),
-        step('serial.again', 'Start again after it ends', again || p.allocator?.serial !== undefined, capital),
         step(
-          'serial.companies',
-          `Found ${n} companies`,
-          mine.length >= n,
+          'serial.again',
+          'Start again after it ends',
+          again || p.allocator?.serial !== undefined,
           capital,
-          { progress: count(mine.length, n) },
         ),
+        step('serial.companies', `Found ${n} companies`, mine.length >= n, capital, {
+          progress: count(mine.length, n),
+        }),
       ];
     },
   },
@@ -340,13 +336,9 @@ export const AMBITIONS: AmbitionDef[] = [
       const n = AMBITION.philanthropist.causes;
       return [
         step('philanthropist.first', 'Give to a cause', pledges.length > 0, capital),
-        step(
-          'philanthropist.given',
-          'Give $100k in total',
-          given >= need,
-          capital,
-          { progress: money(given, need, cur) },
-        ),
+        step('philanthropist.given', 'Give $100k in total', given >= need, capital, {
+          progress: money(given, need, cur),
+        }),
         step('philanthropist.causes', `Support ${n} different causes`, causes >= n, capital, {
           progress: count(causes, n),
         }),
@@ -389,7 +381,11 @@ export function ambitionSteps(world: World, p: Player): JourneyStep[] {
 
 /** Choose an ambition (`id` missing: go without one). Changing keeps reached milestones. */
 export function chooseAmbition(p: Player, id: AmbitionId | undefined, month: number) {
-  ensure(id === undefined || !!defOf(id), 'ambition.unknown', 'Pick one of the ambitions on offer.');
+  ensure(
+    id === undefined || !!defOf(id),
+    'ambition.unknown',
+    'Pick one of the ambitions on offer.',
+  );
   if (id === undefined) delete p.ambition;
   else if (p.ambition?.id !== id) p.ambition = { id, since: month };
   return { ambition: p.ambition?.id ?? null };
@@ -429,4 +425,3 @@ export function recordAmbitionsAfterSettle(world: World, market: string) {
     if (here) recordAmbition(world, p);
   }
 }
-

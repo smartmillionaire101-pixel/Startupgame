@@ -247,3 +247,60 @@
 .journey-obj-main b {
   font-size: 0.95rem;
 }
+
+/* Phase 7: the ambition you are going for. */
+.journey-ambition {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 0.55rem 0.65rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.journey-ambition-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.journey-ambition-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.journey-ambition-chosen p {
+  margin: 0;
+}
+.journey-ambition-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.journey-ambition-opt {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+}
+.journey-ambition-opt > span:last-child {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.journey-ambition-opt.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.journey-ambition-opt:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
