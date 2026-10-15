@@ -37,7 +37,13 @@ test('a decision appears, the founder chooses, and sees what happened', async ({
     expect(await settle(page)).toBe(200);
     await page.reload();
     await page.locator('.topbar').waitFor();
-    if (await badge.isVisible()) break;
+    // Give a slow deploy time to load the view: a decision missed here would take
+    // its default at the next settlement and never show.
+    const shown = await badge
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
+    if (shown) break;
   }
   await expect(badge).toBeVisible();
 
