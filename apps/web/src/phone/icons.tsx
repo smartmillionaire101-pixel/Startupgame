@@ -48,7 +48,9 @@ export type IconName =
   | 'key'
   | 'cocktail'
   /** The founder journey (a flag on a pole). */
-  | 'flag';
+  | 'flag'
+  /** Founder Journey 5: Capital (a rising chart over a coin). */
+  | 'capital';
 
 const PATHS: Record<IconName, ReactNode> = {
   messages: <path d="M4 5.5h16v10H9l-4 3.5v-3.5H4z" />,
@@ -191,6 +193,13 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M6 21V4" />
       <path d="M6 4.5h11l-2.5 4 2.5 4H6" />
+    </>
+  ),
+  capital: (
+    <>
+      <path d="M4 19.5h16" />
+      <path d="M5 15.5l4-4 3 3 6.5-7" />
+      <path d="M14.5 7.5h4v4" />
     </>
   ),
   key: (

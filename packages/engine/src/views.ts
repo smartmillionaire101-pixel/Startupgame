@@ -1,4 +1,8 @@
 import { journeyView } from './journey.js';
+import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
+import { allocatorView } from './allocator.js';
+import { wealthView } from './wealth.js';
+import { firstSessionView } from './firstsession.js';
 import { recapView } from './recap.js';
 import { decisionsView } from './decisions.js';
 import { rivalsView } from './rivals.js';
@@ -246,6 +250,8 @@ export function companyDetail(world: World, c: Company) {
     },
     /** Founder Journey 2a: the per-deal sales pipeline (view.company.sales). */
     sales: salesView(world, c),
+    /** Founder Journey 6: the café idea, the first up-front payment and small expenses. */
+    ...firstSessionView(world, c),
     rules: rulesFor(c.market, c.industry).map((r) => ({ ...r, done: !!c.compliance[r.id] })),
     listing: Object.values(world.listings).find((l) => l.companyId === c.id) ?? null,
     marketRate: marketRate(world, c),
@@ -664,6 +670,19 @@ export function playerView(
     decisions: decisionsView(world, p),
     /** Founder Journey 4a: per company you founded, its named rivals and their recent moves. */
     rivals: rivalsView(world, myCompanies),
+    /**
+     * Founder Journey 5: exit options for your companies (offers, secondary,
+     * IPO checklist), the stock market, offers waiting for you, and the
+     * Capital Allocator hub (mentor, give, a career, start again).
+     */
+    capital: p.ai
+      ? null
+      : {
+          exits: exitOptionsView(world, p),
+          market: publicMarketView(world, p),
+          offers: secondaryOffersView(world, p),
+          allocator: allocatorView(world, p),
+        },
     /** Friends & Family rounds you can see: yours, your city's, your contacts' (chapter 3). */
     friendsRounds: friendsRoundsView(world, p, locationOf(p)),
     playRooms: playView(world, p),
@@ -742,6 +761,8 @@ export function playerView(
       residence: residenceView(world, p),
       /** Wave 10: cash + property equity − personal loans, in your home currency. */
       netWorth: netWorth(world, p),
+      /** Founder Journey 5 (§7.4): spendable cash vs shares and property at their mark, and what you've realised. */
+      wealth: wealthView(world, p),
       /**
        * People met at events (Wave 2) and saved from Who's here (Wave 6),
        * newest first; warmth fades with time. `chatId` opens a chat with them.

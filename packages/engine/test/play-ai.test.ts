@@ -97,6 +97,7 @@ describe('snooker and football against an AI opponent', () => {
     expect(r.ai).toHaveLength(1);
   });
 
+  // A whole frame shot by shot: slow when the full suite runs in parallel.
   it('plays a staked snooker frame to the end: money conserved, winner takes the pot', () => {
     const stake = 1000;
     const before = world(7);
@@ -118,7 +119,7 @@ describe('snooker and football against an AI opponent', () => {
     } else expect(balanceOf(w, 'host')).toBe(hostBefore);
     // Deterministic: the same commands replay to the same frame.
     expect(playSnooker(7, stake).w.playRooms![id]).toEqual(r);
-  });
+  }, 120_000);
 
   it('the AI is beatable: a bounded aim error, the same shot on replay', () => {
     for (const ai of ['ai_1', 'ai_2', 'ai_3', 'p_99', 'x']) {

@@ -11,6 +11,8 @@ import { amountInput, money, parseAmount, pct } from '../format';
 import { t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import { Button, Card, Confirm, Empty, Field } from '../ui';
+import { activeStep, setTutorial, useTutorial } from '../tutorial/state';
+import { useSpotlight } from '../tutorial/spotlight';
 import './sales.css';
 
 type Sales = NonNullable<Company['sales']>;
@@ -123,6 +125,7 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
           : null;
   return (
     <div className={`sales${compact ? ' sales-compact' : ''}`} data-sales>
+      <SalesCoach sales={sales} blocked={!!blocker} />
       <Card
         title={t('Sales pipeline')}
         sub={t('Win customers one deal at a time')}
@@ -454,5 +457,95 @@ function DealCard({
         </div>
       )}
     </article>
+  );
+}
+
+const STAGE_ORDER: Stage[] = ['lead', 'contacted', 'discovery', 'demo', 'proposal', 'negotiation'];
+/** The step the tutorial suggests at each stage (contact → discover → demo → propose → close). */
+const COACH_ACTION: Partial<Record<Stage, Action>> = {
+  lead: 'contact',
+  contacted: 'discover',
+  discovery: 'demo',
+  demo: 'propose',
+  proposal: 'close',
+  negotiation: 'close',
+};
+const coachText = (a: Action, name: string) =>
+  ({
+    contact: t('Call {name} first: a friendly call builds trust.', { name }),
+    discover: t(
+      'Book a discovery meeting: you learn their budget, what they need and who decides.',
+    ),
+    demo: t('Show a demo. A product that fits how they work wins them over.'),
+    propose: t('Send a proposal. A price inside their budget is safer.'),
+    negotiate: t('Offer a small discount if the price is the problem.'),
+    close: t('Ask for the deal. It can still go either way: that’s sales.'),
+    recover: t('One more try.'),
+  })[a];
+
+/**
+ * Founder Journey 6: coaching for the first sale (only while the tutorial
+ * runs). One tip at a time, with a ring on the button to press. After a
+ * loss: the objection, and the one recovery attempt.
+ */
+function SalesCoach({ sales, blocked }: { sales: Sales; blocked: boolean }) {
+  const { view } = useView();
+  const id = view.me.id;
+  useTutorial(id);
+  const on = activeStep(id) === 'sale';
+  let text: string | null = null;
+  let target: string | null = null;
+  let giveUp = false;
+  if (on) {
+    const open = sales.deals
+      .filter((d) => d.monthsLeft !== null)
+      .sort((a, b) => STAGE_ORDER.indexOf(b.stage) - STAGE_ORDER.indexOf(a.stage));
+    const lost = sales.deals.filter((d) => d.stage === 'lost');
+    const retry = lost.find((d) => d.canRecover);
+    const best = open.find((d) => {
+      const a = COACH_ACTION[d.stage];
+      return a && d.actions.some((x) => x.action === a);
+    });
+    if (sales.accounts.length > 0) {
+      text = t('Signed! Close the phone: your first payment is waiting.');
+    } else if (retry) {
+      text = t('{name} said no: {reason}. {advice}', {
+        name: retry.name,
+        reason: retry.lossReason ? lossLabel(retry.lossReason).toLowerCase() : '',
+        advice: retry.lossReason ? lossAdvice(retry.lossReason) : '',
+      });
+      const base = `[data-deal="${retry.id}"]`;
+      target = `${base} [data-confirm] button, ${base} button[data-action="recover"]`;
+    } else if (best) {
+      const a = COACH_ACTION[best.stage]!;
+      text = coachText(a, best.name);
+      const base = `[data-deal="${best.id}"]`;
+      target = `${base} [data-confirm] button, ${base} button[data-action="${a}"]`;
+    } else if (!blocked) {
+      text =
+        lost.length > 0
+          ? t('That one is gone. Find new leads and try again.')
+          : t('Tap “Find new leads”: local businesses that might buy from you.');
+      target = '[data-sales] .sales-prospect button';
+      giveUp = lost.length > 0;
+    } else {
+      text = t('No more prospecting this month.');
+      giveUp = true;
+    }
+  }
+  useSpotlight(target);
+  if (!on || !text) return null;
+  return (
+    <div className="coach-tip sales-coach" role="note" data-coach-tip="sales">
+      <span>
+        <span aria-hidden="true">💡 </span>
+        {text}
+      </span>
+      {giveUp && (
+        <Button size="sm" variant="ghost" onClick={() => setTutorial(id, { noSale: true })}>
+          {t('Go on without a sale')}
+        </Button>
+      )}
+    </div>
   );
 }

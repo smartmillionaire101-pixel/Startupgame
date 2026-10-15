@@ -35,6 +35,7 @@ import { Invest } from './apps/Invest';
 import { Jobs } from './apps/Jobs';
 import { JourneyApp } from './apps/JourneyApp';
 import { SalesApp } from './apps/SalesApp';
+import { CapitalApp } from './apps/CapitalApp';
 import { MapApp } from './apps/MapApp';
 import {
   AiThreadView,
@@ -49,6 +50,8 @@ import { Settings } from './apps/Settings';
 import { Social } from './apps/Social';
 import { Travel } from './apps/Travel';
 import { VisitHome } from './Visit';
+import { activeStep, tutorialApps, tutorialSaw, useTutorial } from '../tutorial/state';
+import { PhoneTip } from '../tutorial/Coach';
 import './phone.css';
 
 // Backward-compatible exports (Wave 5/6 callers).
@@ -80,6 +83,7 @@ export const APPS: AppDef[] = [
   { id: 'rides', icon: 'rides', label: () => t('Rides'), bg: ['#34d399', '#047857'] },
   { id: 'chop', icon: 'chop', label: () => t('Chop'), bg: ['#fbbf24', '#d97706'] },
   { id: 'invest', icon: 'invest', label: () => t('Invest'), bg: ['#a78bfa', '#6d28d9'] },
+  { id: 'capital', icon: 'capital', label: () => t('Capital'), bg: ['#fde68a', '#b45309'] },
   { id: 'fit', icon: 'fit', label: () => t('Fit'), bg: ['#f472b6', '#db2777'] },
   { id: 'jobs', icon: 'jobs', label: () => t('Jobs'), bg: ['#a8a29e', '#57534e'] },
   { id: 'news', icon: 'news', label: () => t('News'), bg: ['#64748b', '#1e293b'] },
@@ -454,6 +458,12 @@ function PhoneScreen(props: {
   const { app, setApp, thread, setThread, onClose } = props;
   const ref = useRef<HTMLDivElement>(null);
   const [picking, setPicking] = useState(false);
+  const { view } = useView();
+  const meId = view.me.id;
+  // Founder Journey 6: the tutorial waits for the Bank app in its first step.
+  useEffect(() => {
+    if (app !== 'home') tutorialSaw(meId, app === 'wallet' ? 'bank' : app);
+  }, [app, meId]);
 
   useEffect(() => {
     ref.current?.focus();
@@ -589,6 +599,9 @@ function PhoneScreen(props: {
     case 'sales':
       body = <SalesApp />;
       break;
+    case 'capital':
+      body = <CapitalApp ctx={ctx} />;
+      break;
     case 'goingout':
       body = <GoingOut ctx={ctx} />;
       break;
@@ -668,14 +681,19 @@ function PhoneHome({
 }) {
   const { view, cur } = useView();
   const mood = moodOf(view);
+  // Founder Journey 6: during the tutorial, apps appear one system at a time.
+  useTutorial(view.me.id);
+  const allowed = tutorialApps(activeStep(view.me.id));
+  const shown = (id: AppId) => !allowed || allowed.has(id);
   // The Journey app is for founders (it follows a company).
   const grid = APPS.filter(
     (a) =>
       !DOCK.includes(a.id) &&
+      shown(a.id) &&
       (a.id !== 'journey' || !!view.journey) &&
       (a.id !== 'sales' || view.companies.some((c) => c.status === 'active')),
   );
-  const dock = DOCK.map((id) => APPS.find((a) => a.id === id)!);
+  const dock = DOCK.filter(shown).map((id) => APPS.find((a) => a.id === id)!);
   return (
     <div className="phone-home">
       <section className="phone-widget" aria-label={t('Today')}>
@@ -697,6 +715,7 @@ function PhoneHome({
           )}
         </div>
       </section>
+      <PhoneTip where="home" />
       <div className="phone-apps" role="group" aria-label={t('Apps')}>
         {grid.map((a) => (
           <AppTile key={a.id} a={a} badge={badges[a.id]} open={open} />

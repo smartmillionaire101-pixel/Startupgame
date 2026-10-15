@@ -41,10 +41,11 @@ Worlds saved before phase 2 are upgraded on boot (`upgrade.ts`, schema 7).
 - AI corporate acquisition offers with the liquidation waterfall (§12; phase 2).
 - Pivots, working-capital loans with personal guarantees, regulator inspections and fines.
 - Internal economy dashboard (`GET /api/admin/economy`) and the offline economy report (§20 "Running the live game").
+- Founder Journey 5 (`exits.ts`, `allocator.ts`, `wealth.ts`; the phone's Capital app): secondary sales of founder shares (cap-table transfer, capital gains tax, 25% a year, board consent; real-player buyers accept an offer card), the IPO path (readiness checklist, bankers' fee, listing with a public float and a 6-month lock-up) and a stock market (monthly seeded prices around the valuation model; `shares.buy` / `shares.sell`), realised vs unrealised wealth, and the Capital Allocator paths: mentoring for advisor shares, gifts to causes with measured outcomes, senior roles at DFIs and banks, and serial founding (`company.start`).
 
 ## Not built yet
 - **Phase 2 follow-ups:** French for generated news stories and inbox sentences (needs the engine to emit message keys with parameters instead of English sentences).
-- **Phase 3:** IPOs, syndicates and Fund II, awards and hall of fame, world events desk, programme version for accelerators, paid features.
+- **Phase 3:** syndicates and Fund II, awards and hall of fame, world events desk, programme version for accelerators, paid features.
 - **Simplifications to revisit:** staff and co-founder equity vests immediately; bad-news responses (statement, interview, correction) are not offered yet.
 
 ## Open questions (§21) — what the code assumes today

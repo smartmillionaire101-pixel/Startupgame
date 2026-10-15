@@ -241,6 +241,110 @@ export interface Player {
   };
   /** Founder Journey 4a: decision events (only after the journey-events release note). */
   decisions?: PlayerDecisions;
+  /**
+   * Founder Journey 5 (§7.4): cash actually received from selling shares, the
+   * gain over cost and the tax paid, in `currency`. Missing = nothing sold yet.
+   */
+  realised?: { currency: Currency; proceeds: number; gains: number; tax: number };
+  /** Founder Journey 5, chapter 7: gifts, a career at a DFI or bank, a second company. */
+  allocator?: PlayerAllocator;
+}
+
+// ---------------------------------------------------------------- Founder Journey 5: exits and the capital allocator
+
+/** A company on its way to (or on) the stock market. */
+export interface IpoState {
+  status: 'preparing' | 'listed' | 'delisted';
+  preparedMonth: number;
+  /** Market month the bankers are done and `ipo.list` can go ahead. */
+  readyMonth: number;
+  bankerFee: number;
+  listedMonth?: number;
+  /** Price per share now and at the last settlement (local minor units, fractional). */
+  price?: number;
+  prevPrice?: number;
+  /** The listing price, and the closing price at each settlement since (capped). */
+  history?: number[];
+  /** Pre-IPO holders who can't sell until this market month. */
+  lockups?: Record<Id, number>;
+  /** What each player paid for the shares they still hold (tax basis). */
+  basis?: Record<Id, number>;
+  /** New money the listing raised for the company. */
+  raised?: number;
+}
+
+/** A founder's sale of existing shares (no new shares are issued). */
+export interface SecondarySale {
+  sellerId: Id;
+  buyerId: Id;
+  month: number;
+  shares: number;
+  /** Part of the seller's holding sold, in bps. */
+  bps: number;
+  price: number;
+}
+
+/** A secondary sale offered to a real player (or a player-run fund), waiting for them. */
+export interface SecondaryOffer {
+  id: Id;
+  companyId: Id;
+  market: MarketId;
+  sellerId: Id;
+  /** The player who decides, and the holder who gets the shares (the player, or their fund). */
+  buyerId: Id;
+  holderId: Id;
+  bps: number;
+  shares: number;
+  price: number;
+  status: 'open' | 'accepted' | 'declined' | 'expired';
+  month: number;
+  expiresMonth: number;
+}
+
+/** A mentor's monthly advice to a startup, for a small advisor grant. */
+export interface Mentorship {
+  id: Id;
+  mentorId: Id;
+  companyId: Id;
+  grantBps: number;
+  status: 'offered' | 'active' | 'declined' | 'ended';
+  month: number;
+  /** Months of advice given so far. */
+  months: number;
+  /** The metric the advice moved last (fit or quality). */
+  lastBoost?: 'fit' | 'quality';
+}
+
+export interface Pledge {
+  cause: string;
+  amount: number;
+  currency: Currency;
+  month: number;
+  market: MarketId;
+  /** Measurable outcome, in the cause's units. */
+  outcome: number;
+}
+
+export interface CareerRole {
+  orgKind: 'dfi' | 'bank';
+  orgId: Id;
+  orgName: string;
+  title: string;
+  market: MarketId;
+  /** Gross monthly salary, the market's minor units. */
+  salary: number;
+  since: number;
+  /** Market month of the last answered work decision. */
+  decidedMonth?: number;
+  /** Decisions answered, for the CV. */
+  decisions?: number;
+}
+
+export interface PlayerAllocator {
+  pledges?: Pledge[];
+  career?: CareerRole | null;
+  /** Market month you started a company again after an exit or a closure. */
+  serial?: number;
 }
 
 // ---------------------------------------------------------------- Friends (Wave 8)
@@ -588,6 +692,8 @@ export interface Company {
     /** Wave 10: branch takings and running costs this month (company currency). */
     branchRevenue?: number;
     branchCost?: number;
+    /** Founder Journey 6: a first customer's up-front payment, already in the account. */
+    upfrontRevenue?: number;
   };
   lastFlaggedRevenue: number;
   /** Consecutive months of mostly flagged revenue (anti-cheat, §18). */
@@ -619,6 +725,14 @@ export interface Company {
   salesAccounts?: SalesAccount[];
   /** Next deal number (per company, so ids never touch the world counter). */
   salesSeq?: number;
+  /**
+   * Founder Journey 6: the starting idea picked at the café (data/ideas.ts),
+   * with the founder's fit when it was founded. Missing = founded the old way:
+   * no idea effects. `paid`: the first pipeline customer's up-front payment.
+   */
+  starterIdea?: { id: string; fit: number; paid?: { month: number; amount: number } };
+  /** Founder Journey 6: small one-off business expenses paid (newest last, a few kept). */
+  expenses?: { item: string; month: number; amount: number }[];
   /** Prospecting done this month (limited by founder hours and sales staff). */
   salesProspects?: { month: number; count: number };
   /** In (or graduated from) an accelerator (Wave 5). Missing = never joined one. */
@@ -635,6 +749,10 @@ export interface Company {
   founderEquity?: Record<Id, number>;
   /** Founder Journey 4a: a response to rivals holds until this market month (no rival pressure). */
   rivalEdge?: { until: number; kind: 'product' | 'partner' };
+  /** Founder Journey 5: the IPO path. Missing = private, never prepared. */
+  ipo?: IpoState;
+  /** Founder Journey 5: secondary sales of founders' shares. Missing = none. */
+  secondaries?: SecondarySale[];
 }
 
 export type InterviewStyle = 'technical' | 'culture' | 'work_trial';
@@ -1473,6 +1591,12 @@ export interface World {
   propertyGifts?: Record<Id, PropertyGift>;
   /** Wave 10: pitch competitions. Missing = none. */
   competitions?: Record<Id, Competition>;
+  /** Founder Journey 5: secondary sales offered to players. Missing = none. */
+  secondaryOffers?: Record<Id, SecondaryOffer>;
+  /** Founder Journey 5: mentors and the startups they advise. Missing = none. */
+  mentorships?: Record<Id, Mentorship>;
+  /** Founder Journey 5: each city's giving fund (a real account). Missing = none yet. */
+  charity?: Partial<Record<MarketId, Id>>;
 }
 
 // ---------------------------------------------------------------- Wave 10: a living economy

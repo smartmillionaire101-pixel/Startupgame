@@ -35,6 +35,7 @@ import { deriveRng } from './rng.js';
 import type { Rng } from './rng.js';
 import { outputOf } from './staff.js';
 import { rivalPressure } from './rivals.js';
+import { firstPayment, starterIdeaEdge } from './firstsession.js';
 import type {
   Company,
   Id,
@@ -232,7 +233,12 @@ export function winChance(
   // Journey 4a: a rival's price cut or better product weighs a little (zero
   // before the journey-events release note, so old logs replay unchanged).
   const pressure = rivalPressure(world, c);
-  return pressure > 0 ? clamp(base - pressure, SALES.chance[0], SALES.chance[1]) : base;
+  // Founder Journey 6: the starting idea's demand, competition and founder fit
+  // (zero for companies founded without an idea, so they are unchanged).
+  const edge = starterIdeaEdge(c);
+  return pressure > 0 || edge !== 0
+    ? clamp(base - pressure + edge, SALES.chance[0], SALES.chance[1])
+    : base;
 }
 
 /** A bigger-than-usual lead for a decision event (decisions.ts); null when nobody here buys. */
@@ -619,7 +625,16 @@ function closeDeal(world: World, me: Player, c: Company, d: SalesDeal, month: nu
       achieve(world, f, 'founder.first-customer', 'First customer', month);
     }
     me.skills.sales = Math.min(100, me.skills.sales + 2);
-    return { dealId: d.id, stage: d.stage, won: true, monthly, chance };
+    // Founder Journey 6: the first customer pays its first month now (idea companies only).
+    const paidNow = firstPayment(world, c, d.customer.name, monthly);
+    return {
+      dealId: d.id,
+      stage: d.stage,
+      won: true,
+      monthly,
+      chance,
+      ...(paidNow > 0 ? { paidNow } : {}),
+    };
   }
   d.stage = 'lost';
   d.lossReason = lossReasonOf(c, d);

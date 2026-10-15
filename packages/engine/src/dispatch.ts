@@ -12,6 +12,7 @@ import { PUBLIC_MULTIPLES } from './data/markets.js';
 import { rulesFor } from './data/rules.js';
 import type { Command } from './commands.js';
 import { SYSTEM_COMMANDS } from './commands.js';
+import { payExpense } from './firstsession.js';
 import { comply, pivot, setTargets, shutdownCompany } from './company.js';
 import { actOnDeal, canAct, monthlyPayment, openDeal } from './deals.js';
 import type { DealAction } from './deals.js';
@@ -32,6 +33,28 @@ import { bookFlight, cancelFlight, fly, hasVisited, relocate, ride, travel } fro
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { advanceDeal, dropDeal, prospect } from './sales.js';
 import { chooseDecision } from './decisions.js';
+import {
+  acceptSecondary,
+  buyShares,
+  declineSecondary,
+  listCompany,
+  prepareIpo,
+  proposeSecondary,
+  seedPublicMarket,
+  sellShares,
+} from './exits.js';
+import { EXITS_NOTE, exitsOn } from './releases.js';
+import {
+  answerMentoring,
+  carrySerialFounder,
+  decideCareer,
+  endMentoring,
+  joinCareer,
+  leaveCareer,
+  offerMentoring,
+  pledge,
+  serialEligible,
+} from './allocator.js';
 import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
 import { foodOrder, homeAct, homeInvite } from './needs.js';
@@ -187,9 +210,43 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
   }
 }
 
+/** Start a company (company.found; company.start adds what a serial founder carries). */
+function foundCompany(
+  world: World,
+  me: Player,
+  setup: Extract<Command, { type: 'company.found' }>['company'],
+  month: number,
+) {
+  const active = me.companyIds.filter((id) => world.companies[id]?.status === 'active').length;
+  ensure(
+    active < 2,
+    'company.limit',
+    'Two ventures at once is the limit; your hours are already split.',
+  );
+  const c = createCompany(world, { founderId: me.id, ...setup });
+  if (me.failures > 0) achieve(world, me, 'any.comeback', 'First comeback after failure', month);
+  if (me.role === 'investor') achieve(world, me, 'any.role-switch', 'First role switch', month);
+  welcomeNewPlayer(world, me, c.id);
+  // Trust becomes usable in a comeback: people who trust you hear first (§13).
+  if (me.failures > 0) {
+    for (const other of Object.values(world.players)) {
+      if (other.ai || other.id === me.id || (other.trust[me.id] ?? 0) < 0.2) continue;
+      notify(world, other.id, {
+        month,
+        kind: 'pitch',
+        text: `${me.name}, whom you’ve worked with before, just started ${c.name}.`,
+        ref: { kind: 'company', id: c.id },
+      });
+    }
+  }
+  return { companyId: c.id };
+}
+
 function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
   if (cmd.type === 'market.open') {
     const m = openMarket(world, cmd.market, ctx.now);
+    // A city opening after the stock market did gets its listings too.
+    if (exitsOn(world)) seedPublicMarket(world, m.id);
     return {
       market: m.id,
       funds: Object.values(world.funds).filter((f) => f.market === m.id).length,
@@ -226,9 +283,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         : world.markets.lagos
           ? 'lagos'
           : Object.values(world.markets)[0]!.id;
-    const backgroundId = { founder: 'f-engineer', investor: 'i-first', banker: 'b-commercial' }[
-      cmd.role
-    ];
+    // Founder Journey 6: the background picked at onboarding, else the role's default.
+    const backgroundId =
+      cmd.backgroundId ??
+      { founder: 'f-engineer', investor: 'i-first', banker: 'b-commercial' }[cmd.role];
     const p = createPlayer(world, {
       playerId: actorId,
       handle: cmd.username,
@@ -563,31 +621,16 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       const d = fireSale(world, c, month);
       return { dealId: d.id, status: d.status, summary: d.summary };
     }
-    case 'company.found': {
-      const active = me.companyIds.filter((id) => world.companies[id]?.status === 'active').length;
+    case 'company.found':
+      return foundCompany(world, me, cmd.company, month);
+    case 'company.start': {
       ensure(
-        active < 2,
-        'company.limit',
-        'Two ventures at once is the limit; your hours are already split.',
+        serialEligible(world, me),
+        'company.serial',
+        'Serial founders start again after an exit or a closed company. Use Start a company instead.',
       );
-      const c = createCompany(world, { founderId: me.id, ...cmd.company });
-      if (me.failures > 0)
-        achieve(world, me, 'any.comeback', 'First comeback after failure', month);
-      if (me.role === 'investor') achieve(world, me, 'any.role-switch', 'First role switch', month);
-      welcomeNewPlayer(world, me, c.id);
-      // Trust becomes usable in a comeback: people who trust you hear first (§13).
-      if (me.failures > 0) {
-        for (const other of Object.values(world.players)) {
-          if (other.ai || other.id === me.id || (other.trust[me.id] ?? 0) < 0.2) continue;
-          notify(world, other.id, {
-            month,
-            kind: 'pitch',
-            text: `${me.name}, whom you’ve worked with before, just started ${c.name}.`,
-            ref: { kind: 'company', id: c.id },
-          });
-        }
-      }
-      return { companyId: c.id };
+      const res = foundCompany(world, me, cmd.company, month);
+      return { ...res, ...carrySerialFounder(world, me, world.companies[res.companyId]!) };
     }
     case 'cofounder.invite': {
       const c = touch(cmd.companyId);
@@ -1020,12 +1063,43 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return cancelEvent(world, me, cmd.eventId);
     case 'event.choose':
       return chooseDecision(world, me, cmd.eventId, cmd.choiceId);
+    // ---- Founder Journey 5: exits and the capital allocator
+    case 'exit.secondary':
+      return proposeSecondary(world, me, cmd.companyId, cmd.pctBps, cmd.buyerKind, cmd.buyerId);
+    case 'exit.secondary.accept':
+      return acceptSecondary(world, me, cmd.offerId);
+    case 'exit.secondary.decline':
+      return declineSecondary(world, me, cmd.offerId);
+    case 'ipo.prepare':
+      return prepareIpo(world, me, touch(cmd.companyId));
+    case 'ipo.list':
+      return listCompany(world, me, touch(cmd.companyId), cmd.pricePerShareHint);
+    case 'shares.sell':
+      return sellShares(world, me, cmd.companyId, cmd.pctBps);
+    case 'shares.buy':
+      return buyShares(world, me, cmd.companyId, cmd.amount);
+    case 'mentor.offer':
+      return offerMentoring(world, me, cmd.companyId, cmd.grantBps);
+    case 'mentor.answer':
+      return answerMentoring(world, me, cmd.mentorshipId, cmd.accept);
+    case 'mentor.end':
+      return endMentoring(world, me, cmd.mentorshipId);
+    case 'give.pledge':
+      return pledge(world, me, cmd.cause, cmd.amount);
+    case 'career.join':
+      return joinCareer(world, me, cmd.orgKind, cmd.orgId);
+    case 'career.leave':
+      return leaveCareer(me);
+    case 'career.decide':
+      return decideCareer(world, me, cmd.choiceId);
     case 'sales.prospect':
       return prospect(world, me, cmd.companyId);
     case 'sales.advance':
       return advanceDeal(world, me, cmd);
     case 'sales.drop':
       return dropDeal(world, me, cmd.dealId, cmd.companyId);
+    case 'company.expense':
+      return payExpense(world, me, cmd.companyId, cmd.item);
     case 'business.pitch':
       return pitchBusiness(world, me, cmd.companyId, cmd.businessId);
     case 'gig.take':
@@ -1343,6 +1417,9 @@ function announce(world: World, cmd: Extract<Command, { type: 'system.announce' 
   const sent = (world.announcements ??= []);
   if (sent.includes(cmd.id)) return { sent: 0 };
   sent.push(cmd.id);
+  // Founder Journey 5: the stock market opens with each city's leading AI companies.
+  if (cmd.id === EXITS_NOTE)
+    for (const id of Object.keys(world.markets)) seedPublicMarket(world, id);
   let n = 0;
   for (const p of Object.values(world.players)) {
     if (p.ai) continue;

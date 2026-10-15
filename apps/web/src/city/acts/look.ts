@@ -13,6 +13,8 @@ export const HAIR_STYLES: readonly HairStyle[] = ['short', 'afro', 'bun', 'long'
 export interface LookOverride {
   hairStyle?: HairStyle;
   hair?: string;
+  /** Founder Journey 6: an outfit colour picked on the entry screen. */
+  top?: string;
 }
 
 const KEY = (playerId: string) => `runway.look.${playerId}`;
@@ -27,7 +29,8 @@ const valid = (raw: unknown): LookOverride | null => {
   if (typeof o.hairStyle === 'string' && (HAIR_STYLES as string[]).includes(o.hairStyle))
     out.hairStyle = o.hairStyle as HairStyle;
   if (typeof o.hair === 'string' && /^#[0-9a-f]{3,8}$/i.test(o.hair)) out.hair = o.hair;
-  return out.hairStyle || out.hair ? out : null;
+  if (typeof o.top === 'string' && /^#[0-9a-f]{3,8}$/i.test(o.top)) out.top = o.top;
+  return out.hairStyle || out.hair || out.top ? out : null;
 };
 
 /** Your saved look, or null (AI characters and players who never changed it). */
@@ -47,7 +50,8 @@ export function lookOverride(playerId: string): LookOverride | null {
 
 /** Save a new look and redraw everyone who shows it. */
 export function setLookOverride(playerId: string, o: LookOverride | null) {
-  const v = o ? valid(o) : null;
+  // A new haircut keeps the outfit colour you picked (and the other way round).
+  const v = o ? valid({ ...(lookOverride(playerId) ?? {}), ...o }) : null;
   cache.set(playerId, v);
   try {
     if (v) localStorage.setItem(KEY(playerId), JSON.stringify(v));
@@ -94,7 +98,7 @@ const DYES = ['#7a4b24', '#2b1b10', '#4a2c17', '#120c08'];
 export function nextLook(
   cur: { hairStyle: HairStyle; hair: string; gender?: 'female' | 'male' },
   where: 'barber' | 'salon',
-): Required<LookOverride> {
+): Required<Pick<LookOverride, 'hairStyle' | 'hair'>> {
   const list = where === 'barber' ? BARBER : cur.gender === 'female' ? SALON_F : SALON_M;
   const at = list.indexOf(cur.hairStyle);
   const hairStyle = list[(at + 1) % list.length]!;

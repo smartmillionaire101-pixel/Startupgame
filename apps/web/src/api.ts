@@ -4,6 +4,7 @@ import type {
   PlayerView,
   Receipt,
   RecapView,
+  StarterIdea,
   StatementLine,
   StatementQuery,
 } from '@runway/engine';
@@ -86,7 +87,20 @@ export interface Meta {
     card: Record<'costOfLiving' | 'talent' | 'capitalAccess' | 'regulation', number>;
     costOfLiving: number;
   }[];
-  backgrounds: { id: string; role: string; name: string; strengths: string; gaps: string }[];
+  backgrounds: {
+    id: string;
+    role: string;
+    name: string;
+    strengths: string;
+    gaps: string;
+    /** Skill levels that differ from the baseline of 20 (missing on older servers). */
+    skills?: Partial<Record<string, number>>;
+    savingsMultiplier?: number;
+    hoursBonus?: number;
+    network?: number;
+  }[];
+  /** Founder Journey 6: the starting ideas offered at the café (missing on older servers). */
+  ideas?: StarterIdea[];
   industries: { id: string; label: string }[];
   revenueModels: string[];
   stages: string[];
@@ -270,6 +284,7 @@ export const api = {
     name?: string;
     gender?: 'female' | 'male';
     market?: string;
+    backgroundId?: string;
   }) => request<{ ok: true }>('POST', '/api/onboarding', { ...input, adult: true }),
   meta: () => request<Meta>('GET', '/api/meta'),
   state,
