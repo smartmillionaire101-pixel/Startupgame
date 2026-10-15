@@ -82,6 +82,15 @@ describe('world invariants under random play', () => {
         step: fc.nat(7),
         discount: fc.integer({ min: 0, max: 40 }),
       }),
+      // Founder Journey 5: give, mentor, institution careers, secondaries and public shares.
+      fc.record({
+        k: fc.constant('capital' as const),
+        op: fc.nat(8),
+        investor: fc.boolean(),
+        amount: fc.integer({ min: 1, max: 80_000_000_00 }),
+        bps: fc.integer({ min: 1, max: 3_000 }),
+        pick: fc.nat(20),
+      }),
       fc.record({
         k: fc.constant('market' as const),
         budget: fc.integer({ min: 0, max: 5_000_000_00 }),
@@ -606,6 +615,25 @@ describe('world invariants under random play', () => {
                   slides: ['product', 'traction'],
                   ask: a.ask,
                 };
+                break;
+              }
+              case 'capital': {
+                actor = a.investor ? 'u_inv' : 'u_founder';
+                const cos = Object.values(w.companies).filter((c) => c.status === 'active');
+                const co = cos[a.pick % cos.length]!;
+                const listed = cos.find((c) => c.ipo?.status === 'listed');
+                const ops: Command[] = [
+                  { type: 'give.pledge', cause: 'clinics', amount: a.amount },
+                  { type: 'mentor.offer', companyId: co.id },
+                  { type: 'career.join', orgKind: a.bps % 2 ? 'dfi' : 'bank' },
+                  { type: 'career.decide', choiceId: a.bps % 2 ? 'impact' : 'safe' },
+                  { type: 'exit.secondary', companyId: cid, pctBps: a.bps, buyerKind: 'fund' },
+                  { type: 'ipo.prepare', companyId: cid },
+                  { type: 'shares.buy', companyId: listed?.id ?? co.id, amount: a.amount },
+                  { type: 'shares.sell', companyId: listed?.id ?? co.id, pctBps: a.bps },
+                  { type: 'career.leave' },
+                ];
+                cmd = ops[a.op % ops.length]!;
                 break;
               }
               case 'sales': {
