@@ -238,7 +238,13 @@ export const CHAPTERS: ChapterDef[] = [
       const discovered = f.companies.some((c) =>
         Object.values(c.product.discovery).some((v) => v > 0),
       );
-      const first = customers > 0 || f.ms['founder.first-customer'] !== undefined;
+      // Founder Journey 6: a company started from a café idea counts its first
+      // customer from the pipeline (the guided first sale), not the welcome one.
+      const guided = f.main?.starterIdea !== undefined;
+      const first = guided
+        ? f.companies.some((c) => (c.salesAccounts?.length ?? 0) > 0) ||
+          f.ms['founder.first-customer'] !== undefined
+        : customers > 0 || f.ms['founder.first-customer'] !== undefined;
       const n = JOURNEY.hustle.customers;
       return [
         step('hustle.company', 'Start your company', f.companies.length > 0, {

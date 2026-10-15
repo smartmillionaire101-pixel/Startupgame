@@ -12,6 +12,7 @@ import { PUBLIC_MULTIPLES } from './data/markets.js';
 import { rulesFor } from './data/rules.js';
 import type { Command } from './commands.js';
 import { SYSTEM_COMMANDS } from './commands.js';
+import { payExpense } from './firstsession.js';
 import { comply, pivot, setTargets, shutdownCompany } from './company.js';
 import { actOnDeal, canAct, monthlyPayment, openDeal } from './deals.js';
 import type { DealAction } from './deals.js';
@@ -226,9 +227,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         : world.markets.lagos
           ? 'lagos'
           : Object.values(world.markets)[0]!.id;
-    const backgroundId = { founder: 'f-engineer', investor: 'i-first', banker: 'b-commercial' }[
-      cmd.role
-    ];
+    // Founder Journey 6: the background picked at onboarding, else the role's default.
+    const backgroundId =
+      cmd.backgroundId ??
+      { founder: 'f-engineer', investor: 'i-first', banker: 'b-commercial' }[cmd.role];
     const p = createPlayer(world, {
       playerId: actorId,
       handle: cmd.username,
@@ -1026,6 +1028,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return advanceDeal(world, me, cmd);
     case 'sales.drop':
       return dropDeal(world, me, cmd.dealId, cmd.companyId);
+    case 'company.expense':
+      return payExpense(world, me, cmd.companyId, cmd.item);
     case 'business.pitch':
       return pitchBusiness(world, me, cmd.companyId, cmd.businessId);
     case 'gig.take':
