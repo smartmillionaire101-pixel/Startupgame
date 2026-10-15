@@ -11,7 +11,7 @@
  * Text is the client's own copy keyed on template and choice ids (French
  * included); the engine's English is the fallback.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { PlayerView } from '@runway/engine';
 import { money, pct } from '../format';
 import { t, tx } from '../i18n';
@@ -385,13 +385,36 @@ const deadlineText = (ev: Ev) =>
       ? t('Decide this month')
       : t('{n} months to decide', { n: ev.monthsLeft });
 
+// Another screen (the top bar's badge, a notification) can open a decision's
+// sheet: the card opens it when it mounts, or at once if it is already shown.
+const FIRST = '*';
+let wanted: string | null = null;
+const wantListeners = new Set<(id: string) => void>();
+/** Open this decision (null: the first one waiting) on Today. */
+export function requestDecision(id: string | null) {
+  const key = id ?? FIRST;
+  if (wantListeners.size) for (const l of wantListeners) l(key);
+  else wanted = key;
+}
+
 /** Today: decisions waiting for you, and the last few you made. */
 export function DecisionsCard() {
   const { view } = useView();
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(() => {
+    const w = wanted;
+    wanted = null;
+    return w;
+  });
+  useEffect(() => {
+    wantListeners.add(setOpenId);
+    return () => {
+      wantListeners.delete(setOpenId);
+    };
+  }, []);
   const d = view.decisions;
   if (!d.on || (d.open.length === 0 && d.recent.length === 0)) return null;
-  const current = d.open.find((e) => e.id === openId) ?? null;
+  const current =
+    (openId === FIRST ? d.open[0] : d.open.find((e) => e.id === openId)) ?? null;
   return (
     <Card
       title={t('Decisions')}

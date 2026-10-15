@@ -15,7 +15,7 @@ import { t } from './i18n';
 import { SignIn } from './screens/SignIn';
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
-import { CompanyScreen } from './screens/Company';
+import { CompanyScreen, openCompanyTab } from './screens/Company';
 import { MoneyScreen } from './screens/Money';
 import { DealFlow, Portfolio } from './screens/Investor';
 import { MeScreen } from './screens/Me';
@@ -31,9 +31,9 @@ import { ScreenBoundary } from './ScreenBoundary';
 import { useVisits } from './useVisits';
 import { GameActivity } from './GameActivity';
 import { hereOf, isAbroad } from './city/travel';
-import { RecapHost } from './recap/Recap';
+import { openRecap, RecapHost } from './recap/Recap';
 import { TutorialHost } from './tutorial/Coach';
-import { openDecisions } from './screens/Decisions';
+import { openDecisions, requestDecision } from './screens/Decisions';
 
 // Reduced motion is decided once, before anything animates (Wave 7 §D).
 initReduceMotion();
@@ -213,13 +213,29 @@ function Game() {
   };
   // Where notifications take you (phone Alerts and the Today inbox).
   const goTarget = useCallback((target: Target) => {
-    if (target.kind === 'place') {
-      visitPlace(target.place);
-      return;
+    switch (target.kind) {
+      case 'place':
+        visitPlace(target.place);
+        return;
+      case 'phone': {
+        const open = target.open;
+        void phoneReady.then(() => openPhone(open));
+        return;
+      }
+      case 'recap':
+        openRecap(target.month ?? null);
+        return;
+      case 'decision':
+        requestDecision(target.id ?? null);
+        setTab('home');
+        window.scrollTo({ top: 0 });
+        return;
+      case 'tab':
+        if (target.section) openCompanyTab(target.section);
+        setTab(target.tab);
+        window.scrollTo({ top: 0 });
+        setFocusDeal(target.dealId ?? null);
     }
-    setTab(target.tab);
-    window.scrollTo({ top: 0 });
-    setFocusDeal(target.dealId ?? null);
   }, []);
   const viewRef = useRef(view);
   useEffect(() => {
@@ -230,7 +246,8 @@ function Game() {
       go: goTarget,
       openItem: (item) => {
         if (!item.read) void send({ type: 'inbox.read', ids: [item.id] });
-        goTarget(inboxTarget(item, viewRef.current));
+        const target = inboxTarget(item, viewRef.current);
+        if (target) goTarget(target);
       },
     }),
     [goTarget, send],
@@ -267,7 +284,7 @@ function Game() {
   return (
     <NavContext.Provider value={nav}>
       <div className={`app${current === 'city' ? ' app-city' : ''}`}>
-        <TopBar alerts={unread} onDecisions={() => go('home')} />
+        <TopBar alerts={unread} onDecisions={() => goTarget({ kind: 'decision' })} />
         <GameActivity />
         <main>
           <ScreenBoundary resetKey={current} name={current}>

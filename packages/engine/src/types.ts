@@ -1320,6 +1320,10 @@ export interface InboxItem {
       | 'gift';
     id: Id;
   };
+  /** The other player this is about (a payment, a gift): their chat is where to act. */
+  from?: Id;
+  /** A payment's transaction: both players' receipts carry it (`/api/receipts/:id`). */
+  receipt?: Id;
   read: boolean;
 }
 

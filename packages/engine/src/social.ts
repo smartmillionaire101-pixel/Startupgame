@@ -279,12 +279,16 @@ export function sendMoney(
     kind: 'system',
     text: `You sent ${fmt(amount)} to ${to.name} (fee ${fmt(fee)}).`,
     ref: { kind: 'player', id: to.id },
+    from: to.id,
+    receipt: receiptId,
   });
   notify(world, to.id, {
     month: toM.month,
     kind: 'system',
     text: `${me.name} sent you ${fmt(received, theirs.currency)}${clean ? `: “${clean}”` : '.'}`,
     ref: { kind: 'player', id: me.id },
+    from: me.id,
+    receipt: receiptId,
   });
   return {
     amount,

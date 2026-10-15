@@ -16,7 +16,8 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { visitPlace } from '../city/goto';
 import { CITY_GEO, hereOf } from '../city/travel';
-import { onPhone, setPhoneBadge, type PhoneApp, type PhoneOpen } from './bus';
+import { onPhone, setPhoneBadge, useNav, type PhoneApp, type PhoneOpen } from './bus';
+import { inboxTarget } from './navigate';
 import { Battery, Icon, type IconName } from './icons';
 import { applySavedSettings, prefersReducedMotion } from './settings';
 import { moodOf, type PhoneCtx, type ThreadRef } from './shared';
@@ -129,6 +130,8 @@ interface Banner {
   title: string;
   text: string;
   open: PhoneOpen;
+  /** An inbox alert: tapping goes where it matters (the central mapping). */
+  item?: InboxItem;
 }
 
 const BANNER_MS = 3000;
@@ -163,6 +166,7 @@ type InboxItem = PlayerView['inbox'][number];
 
 export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
   const { view, lite } = useView();
+  const nav = useNav();
   const [open, setOpen] = useState(false);
   const [app, setApp] = useState<PhoneApp>('home');
   const [invite, setInvite] = useState(false);
@@ -269,6 +273,7 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
         title: t('Alerts'),
         text: tx(fresh.text),
         open: { app: 'alerts' },
+        item: fresh,
       });
     }
   }, [view.inbox, notify]);
@@ -343,7 +348,12 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
             onDone={dismissBanner}
             onTap={() => {
               setBanner(null);
-              openWith(banner.open);
+              const item = banner.item;
+              if (item && nav && inboxTarget(item, view)) {
+                // Close the phone first: the target may open it again (a chat, a receipt).
+                setOpen(false);
+                nav.openItem(item);
+              } else openWith(banner.open);
             }}
           />
         </div>
