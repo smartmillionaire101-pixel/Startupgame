@@ -9,22 +9,27 @@ import type { MarketId } from '@runway/engine';
  * 2. The apron from above: gates, a taxiway and the runway, planes pushing
  *    back, taxiing, taking off and landing (something moves every few
  *    seconds), and ground vehicles.
- * 3. The terminal: travellers walking with their bags.
+ * 3. The terminal: travellers walking with their bags. Once you hold a
+ *    ticket the view follows your trip (./halls.tsx): the check-in hall,
+ *    security, the lounge, the gate with your plane outside the windows.
  *
  * And a bottom sheet "Your trip", in the order of a real trip: the ticket
  * desk (where do you want to go? the time, the fare; book it, unless you
  * booked in the Travel app) → check in for that flight (the boarding pass
  * names the destination) → security → the lounge (Who's here: investors wait
- * for flights too) → board, each step a short animation you can skip. "More" keeps the detailed cards (departures, trips).
+ * for flights too) → board (up the jet bridge, or your own jet's airstairs),
+ * each step a short animation you can skip. "More" keeps the detailed cards (departures, trips).
  *
  * One requestAnimationFrame loop moves the planes, vehicles and people
  * through refs; it stops while the tab is hidden or motion is reduced.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { money } from '../../format';
 import { t } from '../../i18n';
 import { useView } from '../../store';
+
 import { AvatarFigure, avatarLook } from '../art';
+import { genderOf } from '../life';
 import type { FlightDesk } from '../Interiors';
 import type { Place } from '../layout';
 import type { PersonRef } from '../PersonCard';
@@ -36,6 +41,7 @@ import {
   boardRows,
   CITY_NAMES,
   fmtFlightTime,
+  liveryOf,
   localMinutes,
   nextFlightTo,
   scheduleDay,
@@ -43,7 +49,10 @@ import {
   type ScheduledFlight,
 } from '../travel';
 import { seatOf, setTicket, ticketFrom, useTicket, type Ticket } from '../ticket';
+import { useDaylight } from '../useDaylight';
 import { WhoIsHere } from '../WhoIsHere';
+import { TerminalView } from './halls';
+import { PlaneTop, fliesPrivate } from './planes';
 import './airport.css';
 
 const STATUS_LABEL = (s: FlightStatus) =>
@@ -207,31 +216,6 @@ function at(keys: Key[], ms: number) {
     s: (a.s ?? 1) + ((b.s ?? 1) - (a.s ?? 1)) * f,
     o: (a.o ?? 1) + ((b.o ?? 1) - (a.o ?? 1)) * f,
   };
-}
-
-/** A top-down airliner, nose along +x. */
-function PlaneTop({ livery }: { livery: string }) {
-  return (
-    <g>
-      <ellipse cx="2" cy="3" rx="20" ry="16" fill="#0f172a" opacity="0.12" />
-      <path
-        d="M 4 -2 L -6 -18 L -11 -18 L -6 -2 Z M 4 2 L -6 18 L -11 18 L -6 2 Z"
-        fill="#e2e8f0"
-        stroke="#64748b"
-        strokeWidth="0.6"
-      />
-      <path
-        d="M 20 0 Q 18 -3 12 -3 L -14 -3 L -19 -1 L -19 1 L -14 3 L 12 3 Q 18 3 20 0 Z"
-        fill="#f8fafc"
-        stroke="#64748b"
-        strokeWidth="0.6"
-      />
-      <path
-        d="M -14 -2 L -19 -8 L -21 -8 L -18 -1 Z M -14 2 L -19 8 L -21 8 L -18 1 Z"
-        fill={livery}
-      />
-    </g>
-  );
 }
 
 function Apron({
@@ -430,6 +414,11 @@ function Apron({
 // Your trip
 
 type Step = 'ticket' | 'checkin' | 'security' | 'lounge' | 'board';
+interface TripScene {
+  at: Step;
+  playing: Step | null;
+  ticket: Ticket | null;
+}
 const STEPS: Step[] = ['ticket', 'checkin', 'security', 'lounge', 'board'];
 const STEP_LABEL = (s: Step) =>
   s === 'ticket'
@@ -478,6 +467,7 @@ function TripSheet({
   now,
   abroad,
   onMore,
+  onScene,
 }: {
   place: Place;
   marketId: string;
@@ -488,6 +478,8 @@ function TripSheet({
   now: number;
   abroad: boolean;
   onMore: () => void;
+  /** Where you are in the terminal, for the view above the sheet. */
+  onScene: (s: TripScene) => void;
 }) {
   const { busy, send } = useView();
   const fromName = CITY_NAMES[marketId] ?? marketId;
@@ -515,18 +507,27 @@ function TripSheet({
     timer.current = null;
     setPlaying(null);
   };
-  const finish = () => {
+  const fly = () => {
+    if (ticket) desk?.onFly(ticket.to);
+  };
+  // A step's moment ends (or is skipped): on to the next; boarding takes off.
+  const finish = (s: Step) => {
     stop();
-    setStep((s) => next(s));
+    if (s === 'board') fly();
+    else setStep(next(s));
   };
   const play = (s: Step) => {
     if (reduceMotion()) {
-      setStep(next(s));
+      finish(s);
       return;
     }
     setPlaying(s);
-    timer.current = setTimeout(finish, s === 'checkin' ? 1500 : 1700);
+    timer.current = setTimeout(
+      () => finish(s),
+      s === 'checkin' ? 1500 : s === 'board' ? 1300 : 1700,
+    );
   };
+  useEffect(() => onScene({ at, playing, ticket }), [at, playing, ticket, onScene]);
   const book = async (to: string) => {
     const row = flights.find((x) => x.d.id === to);
     if (!row || !desk) return;
@@ -552,14 +553,14 @@ function TripSheet({
   if (playing && ticket)
     body = (
       <div className={`trip-anim trip-anim-${playing}`} data-trip-anim={playing}>
-        {playing === 'checkin' ? (
-          <BoardingPass ticket={ticket} from={fromName} />
-        ) : (
+        {playing === 'security' ? (
           <div className="trip-scanner">
             <span className="trip-bag" />
           </div>
+        ) : (
+          <BoardingPass ticket={ticket} from={fromName} />
         )}
-        <button type="button" className="btn btn-ghost" onClick={finish}>
+        <button type="button" className="btn btn-ghost" onClick={() => finish(playing)}>
           {t('Skip')}
         </button>
       </div>
@@ -626,7 +627,7 @@ function TripSheet({
             }
           }}
         >
-          Cancel ticket · full refund
+          {t('Cancel ticket · full refund')}
         </button>
       </div>
     );
@@ -660,7 +661,7 @@ function TripSheet({
           className="btn btn-primary trip-go"
           disabled={busy}
           aria-label={t('Board for {city}', { city: ticket.toName })}
-          onClick={() => desk?.onFly(ticket.to)}
+          onClick={() => play('board')}
         >
           {t('Board the flight to {city}', { city: ticket.toName })}
         </button>
@@ -737,6 +738,27 @@ export function AirportScene({
 }) {
   const { view } = useView();
   const [more, setMore] = useState(false);
+  const [scene, setScene] = useState<TripScene | null>(null);
+  // The sheet reports on every render: keep the same scene unless something changed.
+  const onScene = useCallback(
+    (s: TripScene) =>
+      setScene((p) =>
+        p &&
+        p.at === s.at &&
+        p.playing === s.playing &&
+        JSON.stringify(p.ticket) === JSON.stringify(s.ticket)
+          ? p
+          : s,
+      ),
+    [],
+  );
+  const night = useDaylight(marketId).night;
+  const look = useMemo(
+    () => avatarLook(view.me.background?.id, view.me.id, genderOf(view.me)),
+    [view.me],
+  );
+  // Your own jet at the top of the lifestyle ladder.
+  const jet = fliesPrivate(view.me.lifestyle?.tier);
   const [{ at0, now }] = useState(() => ({ at0: Date.now(), now: localMinutes(marketId) }));
   const day = scheduleDay(view.market.month, at0);
   const schedule = useMemo(() => airportSchedule(marketId, day), [marketId, day]);
@@ -789,7 +811,21 @@ export function AirportScene({
         <>
           <div className="airport-view">
             <Board marketId={marketId} day={day} />
-            <Apron schedule={schedule} walkers={walkers} />
+            {scene?.ticket && scene.at !== 'ticket' ? (
+              <TerminalView
+                step={scene.at}
+                playing={scene.playing === scene.at}
+                look={look}
+                kind={jet ? 'bizjet' : 'airliner'}
+                livery={jet ? '#1e3a8a' : liveryOf(marketId, scene.ticket.airline)}
+                airline={jet ? t('Private jets') : (scene.ticket.airline ?? '')}
+                gate={jet ? 'P1' : (scene.ticket.gate ?? 'A1')}
+                toName={scene.ticket.toName}
+                night={night}
+              />
+            ) : (
+              <Apron schedule={schedule} walkers={walkers} />
+            )}
           </div>
           <TripSheet
             place={place}
@@ -801,6 +837,7 @@ export function AirportScene({
             now={now}
             abroad={!!onFlyHome}
             onMore={() => setMore(true)}
+            onScene={onScene}
           />
         </>
       )}

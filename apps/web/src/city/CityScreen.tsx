@@ -49,7 +49,7 @@ import {
   type StoryPlace,
 } from './contract';
 import { onVisit, takeVisit } from './goto';
-import { setTicket, ticketFor } from './ticket';
+import { getTicket, setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
 import { suggestionText, WhatNowCard, WhatNowList } from './WhatNowCards';
@@ -246,6 +246,8 @@ interface FlightState {
   status: 'pending' | 'ok';
   /** The fallback trip (no `travel.fly` yet): what the trip gives you. */
   note?: string;
+  /** The airline on your ticket: its colours on the plane. */
+  airline?: string;
 }
 
 /**
@@ -282,6 +284,7 @@ export function CityScreen({
         toName,
         hours: dest?.hours ?? flights?.hours ?? 4,
         status: 'pending',
+        airline: getTicket()?.airline,
         note: flights
           ? undefined
           : t(
@@ -343,6 +346,7 @@ export function CityScreen({
             fromName={flight.fromName}
             toName={flight.toName}
             hours={flight.hours}
+            airline={flight.airline}
             status={flight.status}
             note={flight.note}
             onDone={done}

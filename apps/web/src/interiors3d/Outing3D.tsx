@@ -2,7 +2,8 @@
  * Wave 10 §C: the lifestyle outings in 3D (lazy-loaded), each its own little
  * world built from the interiors kit: a yacht on the sea (by day, or at
  * sunset), a golf green or a polo field, a ballroom with chandeliers and
- * dancers, the cabin of a private jet with clouds racing past the windows,
+ * dancers, a private jet (wheels up off the runway, the cabin with clouds
+ * racing past the windows, wheels down at the other end),
  * a rooftop party under string lights with the city around.
  *
  * The 2D scene owns the timeline (`progress`, 0–1), the captions, Skip and
@@ -14,6 +15,7 @@ import type { AvatarLook } from '../city/art';
 import type { OutingKind } from '../city/outings';
 import { makeCharacter, pose, type Character } from './character';
 import { Particles, fx } from './fx';
+import { makePlane3D } from '../three-kit/plane';
 import { Kit, disposeTree, mat } from './kit';
 import { Stage, gestures } from './stage';
 
@@ -417,6 +419,9 @@ function gala(p: Outing3DProps): World {
 
 function jet(p: Outing3DProps): World {
   const root = new THREE.Group();
+  // Inside: the cabin. Outside (wheels up, and wheels down at the end): the jet on the runway.
+  const cabin = new THREE.Group();
+  root.add(cabin);
   const k = new Kit();
   // The cabin, cut away: a floor, the far wall with oval windows, the ceiling arch.
   const L = 10;
@@ -428,7 +433,7 @@ function jet(p: Outing3DProps): World {
   );
   wall.rotation.x = Math.PI / 2;
   wall.position.set(0, 1.1, 0);
-  root.add(wall);
+  cabin.add(wall);
   // Leather seats facing each other, a table between.
   const seats: [number, number, number][] = [
     [-0.75, -2.4, 0],
@@ -442,7 +447,7 @@ function jet(p: Outing3DProps): World {
   }
   k.box(0.7, 0.05, 0.9, '#7c4a2a', -0.75, 0.62, -1.5, { round: 0.02 });
   k.cyl(0.05, 0.08, 0.62, '#9ca3af', -0.75, 0, -1.5);
-  root.add(k.build());
+  cabin.add(k.build());
   // Windows on the far side with sky and clouds moving behind.
   const sky = new THREE.Mesh(
     new THREE.PlaneGeometry(40, 8),
@@ -450,7 +455,7 @@ function jet(p: Outing3DProps): World {
   );
   sky.position.set(-5, 1.6, 0);
   sky.rotation.y = Math.PI / 2;
-  root.add(sky);
+  cabin.add(sky);
   const clouds = new THREE.Group();
   for (let i = 0; i < 14; i++) {
     const c = new THREE.Mesh(
@@ -461,7 +466,7 @@ function jet(p: Outing3DProps): World {
     c.position.set(-4, 0.6 + (i % 4) * 0.5, -10 + i * 1.6);
     clouds.add(c);
   }
-  root.add(clouds);
+  cabin.add(clouds);
   const winGeo = new THREE.CircleGeometry(0.22, 18);
   winGeo.scale(1, 1.4, 1);
   for (let i = 0; i < 6; i++) {
@@ -469,13 +474,36 @@ function jet(p: Outing3DProps): World {
     frame.scale.set(1, 1.4, 1);
     frame.position.set(-1.52, 1.35, -3.5 + i * 1.4);
     frame.rotation.y = Math.PI / 2;
-    root.add(frame);
+    cabin.add(frame);
   }
   // Holes in the wall are faked with a dark band; the sky shows above the cut.
-  const me = person(root, p.me, 'me', -0.75, -2.4, 0);
+  const me = person(cabin, p.me, 'me', -0.75, -2.4, 0);
   holdIn(me, glass('#fef3c7'));
-  const guest = person(root, p.extras[0] ?? p.me, 'guest', -0.75, -0.6, Math.PI);
-  const crew = person(root, p.extras[1] ?? p.me, 'crew', 0.4, 0.4, -Math.PI / 2);
+  const guest = person(cabin, p.extras[0] ?? p.me, 'guest', -0.75, -0.6, Math.PI);
+  const crew = person(cabin, p.extras[1] ?? p.me, 'crew', 0.4, 0.4, -Math.PI / 2);
+
+  // Laid across the view (the camera looks in from the track's +z side).
+  const outside = new THREE.Group();
+  outside.position.set(-0.2, 0, -0.5);
+  outside.rotation.y = 1.2;
+  root.add(outside);
+  const ko = new Kit();
+  ko.box(160, 0.1, 120, '#65a30d', 0, -0.12, 0, { rough: 1, noShadow: true });
+  ko.box(160, 0.03, 5, '#374151', 0, -0.03, 0, { rough: 0.9 });
+  for (let i = 0; i < 30; i++)
+    ko.box(2.2, 0.01, 0.18, '#f8fafc', -60 + i * 4.5, 0, 0, { noShadow: true });
+  for (const z of [-2.35, 2.35]) ko.box(160, 0.01, 0.12, '#f8fafc', 0, 0, z, { noShadow: true });
+  // The private terminal and a hangar beyond the runway.
+  ko.box(14, 4, 6, '#e2e8f0', -6, 0, -9, { round: 0.2 });
+  ko.box(14.1, 1.4, 6.1, '#7dd3fc', -6, 2, -9, { opacity: 0.85 });
+  ko.box(10, 6, 8, '#94a3b8', 10, 0, -11, { round: 0.3 });
+  outside.add(ko.build());
+  const plane = makePlane3D({ kind: 'bizjet', livery: '#1e3a8a', length: 5 });
+  outside.add(plane.root);
+  const ground = (x: number, y: number, pitch: number) => {
+    plane.root.position.set(x, y, 0);
+    plane.root.rotation.z = pitch;
+  };
   return {
     root,
     target: new THREE.Vector3(-0.2, 0.9, -0.5),
@@ -485,6 +513,29 @@ function jet(p: Outing3DProps): World {
     background: '#0c4a6e',
     light: { sun: 1.4, hemi: 1.2 },
     update(t, k, dt) {
+      // Wheels up: the roll, rotate, lift, gear away. Wheels down: the flare, then the rollout.
+      const out = k < 0.2 || k > 0.84;
+      outside.visible = out;
+      cabin.visible = !out;
+      if (k < 0.2) {
+        const u = k / 0.2;
+        const lift = seg(u, 0.55, 1);
+        ground(
+          lerp(-1.5, 7.5, u * u),
+          lift * lift * 3.4,
+          Math.min(0.22, seg(u, 0.45, 0.62) * 0.22),
+        );
+        plane.setGear(1 - seg(u, 0.72, 0.92));
+      } else if (k > 0.84) {
+        const u = seg(k, 0.84, 1);
+        const air = 1 - seg(u, 0, 0.55);
+        ground(
+          lerp(-12, 0.5, 1 - (1 - u) ** 2),
+          air * air * 3,
+          air > 0 ? 0.06 + (1 - air) * 0.04 : 0,
+        );
+        plane.setGear(seg(u, 0, 0.25));
+      }
       clouds.children.forEach((c, i) => {
         c.position.z += dt * (3 + (i % 3));
         if (c.position.z > 12) c.position.z = -12;

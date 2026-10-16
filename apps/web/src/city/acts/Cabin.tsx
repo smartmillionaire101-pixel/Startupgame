@@ -4,7 +4,8 @@
  * windows on the side walls, the crew pushing the trolley down the aisle,
  * your seat highlighted, a window inset with the sky outside, the seatbelt
  * sign and the meal. The cabin class follows your lifestyle tier: economy
- * (3+3), premium (2+2) or business (1+1 suites).
+ * (3+3), premium (2+2), business (1+1 suites) or, at the top, your own
+ * private jet: cream leather, a guest or two.
  *
  * One requestAnimationFrame loop writes the moving parts through refs; the
  * cabin itself is drawn once. Paused while the tab is hidden; reduced motion
@@ -14,14 +15,21 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDaylight } from '../useDaylight';
 import { t } from '../../i18n';
 import { AvatarFigure, avatarLook, shade, type AvatarLook } from '../art';
+import { fliesPrivate } from '../airport/planes';
 import { fmtFlightTime } from '../travel';
 import './acts.css';
 import { SeatedFigure } from './figure';
 import { ease, fade, lerp, put, seg, text } from './types';
 
-export type CabinClass = 'economy' | 'premium' | 'business';
+export type CabinClass = 'economy' | 'premium' | 'business' | 'private';
 export const cabinClassOf = (tier: number | undefined): CabinClass =>
-  (tier ?? 2) >= 4 ? 'business' : (tier ?? 2) >= 3 ? 'premium' : 'economy';
+  fliesPrivate(tier)
+    ? 'private'
+    : (tier ?? 2) >= 4
+      ? 'business'
+      : (tier ?? 2) >= 3
+        ? 'premium'
+        : 'economy';
 
 // ---------------------------------------------------------------------------
 // Perspective: the camera stands in the aisle at the front, eyes at y = 0.
@@ -92,6 +100,17 @@ const CLASSES: Record<CabinClass, ClassSpec> = {
     label: 'Business',
     rowNo: 3,
   },
+  private: {
+    perSide: 1,
+    seatW: 124,
+    aisle: 74,
+    seat: '#e7d8b8',
+    trim: '#1e3a8a',
+    wall: '#f5f0e6',
+    carpet: '#1e3a8a',
+    label: 'Private jet',
+    rowNo: 1,
+  },
 };
 
 const BGS = [
@@ -127,7 +146,7 @@ function Seat({
   const w = spec.seatW - 6;
   const p = P(x, FLOOR, z);
   const s = p.s;
-  const top = cls === 'business' ? -175 : cls === 'premium' ? -162 : -150;
+  const top = cls === 'business' || cls === 'private' ? -175 : cls === 'premium' ? -162 : -150;
   const fig = 3.4 * s;
   return (
     <g data-seat={you ? 'you' : undefined}>
@@ -146,7 +165,7 @@ function Seat({
         width={(w - 16) * s}
         height={20 * s}
         rx={6 * s}
-        fill={cls === 'business' ? '#f8fafc' : shade(spec.seat, 0.25)}
+        fill={cls === 'business' || cls === 'private' ? '#f8fafc' : shade(spec.seat, 0.25)}
       />
       {/* The cushion and the base under it. */}
       <rect
@@ -259,7 +278,8 @@ export function Cabin({
           let h = 0;
           const key = `${from}:${to}:${idx}`;
           for (let q = 0; q < key.length; q++) h = (h * 31 + key.charCodeAt(q)) >>> 0;
-          const taken = you || h % 4 !== 0;
+          // Your own jet: you, and a guest or two.
+          const taken = you || (cls === 'private' ? h % 4 === 0 : h % 4 !== 0);
           const col = side < 0 ? spec.perSide - 1 - j : spec.perSide + j;
           out.push({
             x,
@@ -272,7 +292,7 @@ export function Cabin({
         }
     }
     return out;
-  }, [from, to, spec, look]);
+  }, [from, to, spec, cls, look]);
   const mine = seats.find((s) => s.you)!;
   const youP = P(mine.x, FLOOR, mine.z);
   const W = spec.aisle + spec.perSide * spec.seatW + 14;
@@ -323,7 +343,12 @@ export function Cabin({
         lastStep = step;
         text(n('status'), t(step));
       }
-      // Out of the window: clouds slide past.
+      // Out of the window: the ground drops away, clouds slide past, the city comes up.
+      const low = k < 0.5 ? seg(k, 0, 0.14) : 1 - seg(k, 0.78, 0.96);
+      put(n('ground'), 0, low * 70);
+      const above = Math.min(seg(k, 0.04, 0.14), 1 - seg(k, 0.78, 0.92));
+      fade(n('far'), above);
+      fade(n('near'), above);
       put(n('far'), -((ms / 1000) * 14) % 140, 0);
       put(n('near'), -((ms / 1000) * 50) % 140, 0);
       // The flight map.
@@ -652,6 +677,24 @@ export function Cabin({
             [14, 40, 70, 96, 30, 84].map((x, k) => (
               <circle key={k} cx={x} cy={18 + k * 9} r="0.9" fill="#fff" />
             ))}
+          {/* The ground: falling away after take-off, the destination coming up at the end. */}
+          <g data-n={'ground'}>
+            <rect x="-10" y="104" width="140" height="60" fill={night ? '#0f172a' : '#65a30d'} />
+            <path
+              d="M -10 120 Q 40 112 70 126 Q 100 134 130 118 V 124 Q 100 140 70 132 Q 40 122 -10 128 Z"
+              fill={night ? '#1e3a8a' : '#38bdf8'}
+            />
+            {Array.from({ length: 12 }, (_, k) => (
+              <rect
+                key={k}
+                x={8 + ((k * 37) % 104)}
+                y={106 + ((k * 13) % 40)}
+                width={6 + (k % 3) * 3}
+                height="4"
+                fill={night ? '#fde68a' : k % 2 ? '#e7e5e4' : '#a8a29e'}
+              />
+            ))}
+          </g>
           <g data-n={'far'}>
             {[0, 70, 140, 210].map((x) => (
               <ellipse
@@ -673,7 +716,17 @@ export function Cabin({
               </g>
             ))}
           </g>
-          <path d="M 0 112 L 70 98 L 74 104 L 10 132 Z" fill="#cbd5e1" />
+          {/* The wing (an engine under it, unless it's your jet: those are at the back). */}
+          <path d="M -4 104 L 84 92 L 92 95 L 6 132 L -4 132 Z" fill="#cbd5e1" />
+          <path d="M 6 132 L 92 95 L 90 99 L 14 136 Z" fill="#94a3b8" />
+          <path d="M 84 92 L 90 78 L 93 78 L 92 95 Z" fill={spec.trim} />
+          {cls !== 'private' && (
+            <g>
+              <rect x="10" y="112" width="40" height="18" rx="9" fill="#e2e8f0" />
+              <ellipse cx="50" cy="121" rx="3" ry="8.4" fill="#334155" />
+              <rect x="22" y="112" width="6" height="18" fill={spec.trim} opacity="0.8" />
+            </g>
+          )}
         </g>
         <ellipse
           cx="60"

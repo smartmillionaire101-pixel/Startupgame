@@ -51,6 +51,7 @@ import {
   tessellate,
   type TerrainField,
 } from './terrain';
+import { makePlane3D } from '../../three-kit/plane';
 import type { AvatarLook } from '../art';
 import type { Walker } from '../people';
 
@@ -512,7 +513,11 @@ export class CityScene {
 
   private buildPlaces() {
     // Out with the old (shared materials stay).
-    this.placesGroup.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    this.placesGroup.traverse((o) => {
+      (o as THREE.Mesh).geometry?.dispose();
+      // The airport's planes bring their own materials.
+      if (o.userData.ownMaterial) ((o as THREE.Mesh).material as THREE.Material).dispose();
+    });
     this.placesGroup.clear();
     for (const f of this.placeFps) this.blocked.remove(f);
     this.placeFps = [];
@@ -603,6 +608,21 @@ export class CityScene {
         });
       }
       this.places.push({ place: p, x: cx, y: cy, w, d, h: spec.h + 1.4, rot });
+      // The airport: airliners parked nose-in on the airside, behind the terminal.
+      if (p.kind === 'airport') {
+        const len = Math.hypot(door.e - c.e, door.s - c.s) || 1;
+        const ue = (door.e - c.e) / len;
+        const us = (door.s - c.s) / len;
+        const back = d / 2 + 24;
+        for (const [k, off] of [-26, 26].entries()) {
+          const pe = cx - ue * back - us * off;
+          const ps = cy - us * back + ue * off;
+          const plane = makePlane3D({ livery: k ? '#0f766e' : '#1d4ed8', length: 38 });
+          plane.root.position.set(pe, this.groundAt(pe, ps), ps);
+          plane.root.rotation.y = Math.atan2(-us, ue);
+          this.placesGroup.add(plane.root);
+        }
+      }
     }
     const m = mergedMesh(fps, this.mergedMat);
     if (m) this.placesGroup.add(m);

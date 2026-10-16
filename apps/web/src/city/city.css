@@ -1063,38 +1063,117 @@
   font-size: 0.85rem;
   cursor: pointer;
 }
+/* Take-off: taxi onto the runway, a pause, the roll, rotate on the main
+   wheels, lift, gear up, climb out. The pitch turns about the main gear. */
+.fl-pitch {
+  transform-box: fill-box;
+  transform-origin: 47% 100%;
+}
+.fl-plane .pl-gear {
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+}
 .fl-takeoff {
-  animation: fl-takeoff 2.8s cubic-bezier(0.55, 0, 0.8, 0.6) forwards;
+  animation: fl-takeoff 3.2s linear forwards;
 }
 @keyframes fl-takeoff {
   0% {
-    transform: translate(-30px, 0) rotate(0deg);
+    transform: translate(-120px, 0);
+    animation-timing-function: ease-out;
   }
-  50% {
-    transform: translate(150px, 0) rotate(0deg);
+  22%,
+  30% {
+    transform: translate(0, 0);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 1);
   }
-  62% {
-    transform: translate(205px, -6px) rotate(-7deg);
+  60% {
+    transform: translate(110px, 0);
+    animation-timing-function: linear;
+  }
+  74% {
+    transform: translate(165px, -16px);
+    animation-timing-function: ease-in;
   }
   100% {
-    transform: translate(520px, -230px) rotate(-16deg);
+    transform: translate(430px, -190px);
   }
 }
+.fl-takeoff .fl-pitch {
+  animation: fl-rotate 3.2s ease-in-out forwards;
+}
+@keyframes fl-rotate {
+  0%,
+  56% {
+    transform: rotate(0deg);
+  }
+  66% {
+    transform: rotate(-10deg);
+  }
+  100% {
+    transform: rotate(-14deg);
+  }
+}
+.fl-takeoff .pl-gear {
+  animation: fl-gear-up 3.2s ease-in forwards;
+}
+@keyframes fl-gear-up {
+  0%,
+  72% {
+    transform: scaleY(1);
+  }
+  86%,
+  100% {
+    transform: scaleY(0);
+  }
+}
+/* Landing: gear down on the approach, the flare, mains first, then the nose. */
 .fl-landing {
-  animation: fl-landing 2.8s cubic-bezier(0.2, 0.6, 0.35, 1) forwards;
+  animation: fl-landing 2.8s linear forwards;
 }
 @keyframes fl-landing {
   0% {
-    transform: translate(-260px, -190px) rotate(9deg);
+    transform: translate(-330px, -140px);
+    animation-timing-function: cubic-bezier(0.3, 0.4, 0.6, 1);
   }
-  55% {
-    transform: translate(40px, -6px) rotate(3deg);
+  56% {
+    transform: translate(40px, -5px);
   }
-  64% {
-    transform: translate(80px, 0) rotate(0deg);
+  62% {
+    transform: translate(70px, 0);
+    animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
   }
   100% {
-    transform: translate(170px, 0) rotate(0deg);
+    transform: translate(170px, 0);
+  }
+}
+.fl-landing .fl-pitch {
+  animation: fl-flare 2.8s ease-in-out forwards;
+}
+@keyframes fl-flare {
+  0% {
+    transform: rotate(-2deg);
+  }
+  52% {
+    transform: rotate(-5deg);
+  }
+  64% {
+    transform: rotate(-4deg);
+  }
+  74%,
+  100% {
+    transform: rotate(0deg);
+  }
+}
+.fl-landing .pl-gear {
+  animation: fl-gear-down 2.8s ease-out forwards;
+}
+@keyframes fl-gear-down {
+  0% {
+    transform: scaleY(0);
+  }
+  22%,
+  100% {
+    transform: scaleY(1);
   }
 }
 .fl-parked {

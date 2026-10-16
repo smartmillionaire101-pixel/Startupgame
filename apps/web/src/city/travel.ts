@@ -542,6 +542,13 @@ const AIRLINES: Record<string, [string, string, string][]> = {
 };
 const airlinesOf = (id: string) => AIRLINES[id] ?? [['Runway Air', 'RW', '#0f766e']];
 
+/** The tail colour of an airline by name, else of the first airline out of `marketId`. */
+export function liveryOf(marketId: string, airline?: string): string {
+  for (const list of Object.values(AIRLINES))
+    for (const [name, , livery] of list) if (name === airline) return livery;
+  return airlinesOf(marketId)[0]![2];
+}
+
 export type FlightStatus = 'Boarding' | 'Delayed' | 'Departed' | 'Landed' | 'On time';
 
 export interface ScheduledFlight {
