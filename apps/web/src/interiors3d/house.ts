@@ -19,7 +19,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { HomePlan, RoomId, Spot } from '../home/layout';
-import { key } from '../home/layout';
+import { bathDoors, key, wallEdges } from '../home/layout';
 import type { Grounds } from '../home/grounds';
 import { FLOOR_SCALE, Kit, edgeTexture, floorTexture, mat, type FloorKind } from './kit';
 import { buildModel } from './furniture';
@@ -43,6 +43,8 @@ const WALL_INNER = '#23946e';
 const WALL_CAP = '#f4f1ea';
 /** The lawn's top (the house slab and floors sit a little above it). */
 export const GROUND_Y = -0.14;
+/** Floor to floor, upstairs. */
+export const STOREY = 3;
 
 export interface WallSide {
   /** Outward normal on the floor plane. */
@@ -67,6 +69,8 @@ export interface House {
   shadow: number;
   /** Sconce lights (switched on at dusk and night). */
   lamps: THREE.PointLight[];
+  /** How far below this floor the grounds are (0 on the ground floor). */
+  drop: number;
 }
 
 function floorKind(id: RoomId, tier: number): FloorKind {
@@ -85,14 +89,22 @@ function floorKind(id: RoomId, tier: number): FloorKind {
       return 'concrete';
     case 'bedroom':
     case 'guest':
+    case 'landing':
       return 'oak';
+    case 'hall':
+      return 'marble';
+    case 'office':
+      return 'parquet-dark';
+    case 'balcony':
+    case 'terrace':
+      return 'stone';
   }
 }
 
 /** Warm tints over the floor textures (cream tiles, honey oak). */
 const FLOOR_TINT: Partial<Record<FloorKind, string>> = {
   marble: '#fbf4ea',
-  bath: '#f2f6f8',
+  bath: '#b9e3ef',
   carpet: '#8c6f73',
   concrete: '#e2dfd9',
 };
@@ -166,6 +178,19 @@ function canvasTex(id: string, size: number, draw: (g: CanvasRenderingContext2D)
   out.needsUpdate = true;
   return out;
 }
+
+/** A tower's face: rows of windows (sky-blue glass by day, warm and lit at night). */
+const towerTexture = (night: boolean) =>
+  canvasTex(`tower:${night ? 1 : 0}`, 64, (g) => {
+    g.fillStyle = night ? '#1f2937' : '#e5e7eb';
+    g.fillRect(0, 0, 64, 64);
+    for (let y = 0; y < 4; y++)
+      for (let x = 0; x < 4; x++) {
+        const lit = (x * 7 + y * 5) % 3 !== 0;
+        g.fillStyle = night ? (lit ? '#ffe2a0' : '#111827') : '#9fc8dd';
+        g.fillRect(x * 16 + 3, y * 16 + 3, 10, 9);
+      }
+  });
 
 /** A bright mown lawn (stripes and blades). */
 const lawnTexture = () =>
@@ -264,6 +289,13 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const g = o.grounds;
   const roof = g.style === 'roof';
   const k = new Kit();
+  // Upstairs: the grounds are a storey (or two) below.
+  const level = plan.level ?? 0;
+  const drop = level * STOREY;
+  const yard = new THREE.Group();
+  yard.position.y = -drop;
+  root.add(yard);
+  const gk = new Kit();
 
   // ---- The ground: a round lawn on the sky (or a roof slab over the city).
   if (!roof) {
@@ -276,13 +308,13 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     lawn.rotation.x = -Math.PI / 2;
     lawn.position.set(g.lawn.x, GROUND_Y - 0.02, g.lawn.y);
     lawn.receiveShadow = true;
-    root.add(lawn);
+    yard.add(lawn);
     const rim = new THREE.Mesh(
       new THREE.CylinderGeometry(g.lawn.r, g.lawn.r * 0.985, 0.9, 72, 1, true),
       mat('#6b5236', { rough: 1, side: THREE.DoubleSide }),
     );
     rim.position.set(g.lawn.x, GROUND_Y - 0.47, g.lawn.y);
-    root.add(rim);
+    yard.add(rim);
     // The street, a kerb and a pavement.
     const s = g.street;
     const x0 = Math.max(s.x0, g.lawn.x - g.lawn.r);
@@ -293,42 +325,67 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       const sx1 = Math.min(x1, g.lawn.x + sw / 2 - 0.3);
       const at = asphaltTexture();
       at.repeat.set((sx1 - sx0) / 4, 1);
-      root.add(flat(at, sx0, s.y - 2.2, sx1 - sx0, 4.4, GROUND_Y + 0.005));
+      yard.add(flat(at, sx0, s.y - 2.2, sx1 - sx0, 4.4, GROUND_Y + 0.005));
       for (let x = sx0 + 1; x < sx1 - 1; x += 3)
-        k.box(1.4, 0.012, 0.12, '#f5f5f4', x + 0.7, GROUND_Y + 0.006, s.y, { noShadow: true });
-      k.box(sx1 - sx0, 0.1, 0.35, '#d6d3d1', (sx0 + sx1) / 2, GROUND_Y, s.y - 2.35);
+        gk.box(1.4, 0.012, 0.12, '#f5f5f4', x + 0.7, GROUND_Y + 0.006, s.y, { noShadow: true });
+      gk.box(sx1 - sx0, 0.1, 0.35, '#d6d3d1', (sx0 + sx1) / 2, GROUND_Y, s.y - 2.35);
     }
   } else {
     const r = g.lawn.r;
-    k.box(r * 2.2, 0.6, r * 1.9, '#cbd5e1', g.lawn.x, GROUND_Y - 0.62, g.lawn.y, { rough: 0.9 });
+    gk.box(r * 2.2, 0.6, r * 1.9, '#cbd5e1', g.lawn.x, GROUND_Y - 0.62, g.lawn.y, { rough: 0.9 });
     const rt = floorTexture('stone').clone();
     rt.needsUpdate = true;
     rt.repeat.set(r / 1.5, r / 1.5);
-    root.add(flat(rt, g.lawn.x - r * 1.1, g.lawn.y - r * 0.95, r * 2.2, r * 1.9, GROUND_Y - 0.01));
+    yard.add(flat(rt, g.lawn.x - r * 1.1, g.lawn.y - r * 0.95, r * 2.2, r * 1.9, GROUND_Y - 0.01));
     // A glass parapet round the roof.
     for (const [w, d, x, z] of [
       [r * 2.2, 0.06, g.lawn.x, g.lawn.y + r * 0.95],
       [0.06, r * 1.9, g.lawn.x + r * 1.1, g.lawn.y],
     ] as const) {
-      k.box(w, 1.0, d, '#bfe3f0', x, GROUND_Y, z, { opacity: 0.3, noShadow: true, rough: 0.1 });
-      k.box(w + 0.02, 0.05, d + 0.04, '#d9dde3', x, GROUND_Y + 1.0, z, { metal: 0.6, rough: 0.3 });
+      gk.box(w, 1.0, d, '#bfe3f0', x, GROUND_Y, z, { opacity: 0.3, noShadow: true, rough: 0.1 });
+      gk.box(w + 0.02, 0.05, d + 0.04, '#d9dde3', x, GROUND_Y + 1.0, z, { metal: 0.6, rough: 0.3 });
     }
-    // The city's towers round it, windows lit.
+    // The city's skyline round it: towers behind and to the sides (none in
+    // front, where you look in from), most of them taller than your roof,
+    // their windows lit at night.
     const rnd = (n: number) => (((Math.sin(n * 91.7) * 47453.5) % 1) + 1) % 1;
-    for (let i = 0; i < 20; i++) {
-      const a = (i / 20) * Math.PI * 2;
-      const rr = r * 1.55 + rnd(i) * 9;
-      const x = g.lawn.x + Math.cos(a) * rr;
-      const z = g.lawn.y + Math.sin(a) * rr * 0.9;
-      const h = 8 + rnd(i + 7) * 20;
-      const w = 3.5 + rnd(i + 3) * 4;
-      k.box(w, h, w, i % 3 ? '#8aa0b8' : '#a9b8c9', x, -h - 2, z, { rough: 0.5, metal: 0.2 });
-      k.box(w + 0.04, h * 0.9, w + 0.04, '#fde68a', x, -h - 1.6, z, {
-        opacity: o.night ? 0.22 : 0.1,
-        emissive: '#fde68a',
-        emissiveIntensity: o.night ? 0.7 : 0.1,
-        noShadow: true,
+    const paint = ['#f1f5f9', '#dbe5f0', '#ece5d8', '#c9d7e6', '#e2e8f0', '#d6dee8'];
+    for (let i = 0; i < 34; i++) {
+      const a = Math.PI * (0.92 + (i / 33) * 1.16) + (rnd(i + 11) - 0.5) * 0.08;
+      const rr = r * 1.2 + 3 + rnd(i) * (i % 2 ? 14 : 6);
+      const x = g.lawn.x + Math.cos(a) * rr * 1.1;
+      const z = g.lawn.y + Math.sin(a) * rr * 0.95;
+      const top = (i % 5 === 0 ? 22 : 6) + rnd(i + 7) * (i % 5 === 0 ? 26 : 18);
+      const w = 4 + rnd(i + 3) * 5;
+      const d = 4 + rnd(i + 5) * 5;
+      const hgt = top + 60;
+      const tex = towerTexture(o.night);
+      tex.repeat.set(Math.max(1, Math.round(w / 1.6)), Math.round(hgt / 1.8));
+      const m = new THREE.MeshStandardMaterial({
+        color: paint[i % paint.length]!,
+        map: tex,
+        roughness: 0.45,
+        metalness: 0.25,
+        emissive: new THREE.Color(o.night ? '#ffd27a' : '#000000'),
+        emissiveMap: o.night ? tex : null,
+        emissiveIntensity: o.night ? 0.85 : 0,
       });
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(w, hgt, d), m);
+      tower.position.set(x, top - hgt / 2, z);
+      yard.add(tower);
+      // A crown and a spire on the tallest.
+      if (i % 5 === 0) {
+        gk.box(w * 0.5, 1.2, d * 0.5, '#d9dde3', x, top, z, { metal: 0.5, rough: 0.3 });
+        gk.cyl(0.08, 0.12, 5, '#d9dde3', x, top + 1.2, z, { metal: 0.6, rough: 0.3 });
+        gk.sphere(0.25, '#ef4444', x, top + 6.3, z, { emissive: '#ef4444', emissiveIntensity: 1 });
+      }
+    }
+    // A glass railing round the terrace: the balcony you look out from.
+    if (g.terrace) {
+      const t = g.terrace;
+      railing(gk, 'x', t.x, t.x + t.w, t.y + t.h);
+      railing(gk, 'z', t.y, t.y + t.h, t.x);
+      railing(gk, 'z', t.y, t.y + t.h, t.x + t.w);
     }
   }
 
@@ -337,7 +394,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     const st = floorTexture('stone').clone();
     st.needsUpdate = true;
     st.repeat.set(g.terrace.w / 2.5, g.terrace.h / 2.5);
-    root.add(
+    yard.add(
       flat(
         st,
         g.terrace.x,
@@ -357,16 +414,16 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     const cx = p.x + p.w / 2;
     const cz = p.y + p.h / 2;
     if (p.hot) {
-      k.box(p.w + cw * 2, 0.55, p.h + cw * 2, '#e7e2da', cx, GROUND_Y, cz, { round: 0.06 });
+      gk.box(p.w + cw * 2, 0.55, p.h + cw * 2, '#e7e2da', cx, GROUND_Y, cz, { round: 0.06 });
     } else {
-      k.box(p.w + cw * 2, 0.1, cw, '#f8f7f4', cx, GROUND_Y, p.y - cw / 2, { rough: 0.5 });
-      k.box(p.w + cw * 2, 0.1, cw, '#f8f7f4', cx, GROUND_Y, p.y + p.h + cw / 2, { rough: 0.5 });
-      k.box(cw, 0.1, p.h, '#f8f7f4', p.x - cw / 2, GROUND_Y, cz, { rough: 0.5 });
-      k.box(cw, 0.1, p.h, '#f8f7f4', p.x + p.w + cw / 2, GROUND_Y, cz, { rough: 0.5 });
+      gk.box(p.w + cw * 2, 0.1, cw, '#f8f7f4', cx, GROUND_Y, p.y - cw / 2, { rough: 0.5 });
+      gk.box(p.w + cw * 2, 0.1, cw, '#f8f7f4', cx, GROUND_Y, p.y + p.h + cw / 2, { rough: 0.5 });
+      gk.box(cw, 0.1, p.h, '#f8f7f4', p.x - cw / 2, GROUND_Y, cz, { rough: 0.5 });
+      gk.box(cw, 0.1, p.h, '#f8f7f4', p.x + p.w + cw / 2, GROUND_Y, cz, { rough: 0.5 });
       // The basin under the water, pale blue tiles.
-      k.box(p.w, 1.2, p.h, '#8bd8f5', cx, GROUND_Y - 1.25, cz, { rough: 0.3 });
+      gk.box(p.w, 1.2, p.h, '#8bd8f5', cx, GROUND_Y - 1.25, cz, { rough: 0.3 });
       for (let i = 0; i < 3; i++)
-        k.box(
+        gk.box(
           0.9,
           0.06,
           0.3,
@@ -376,7 +433,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
           p.y + 0.3 + i * 0.3,
         );
       for (const sx of [-1, 1])
-        k.cyl(0.025, 0.025, 1.1, '#d9dde3', p.x + 0.6 + sx * 0.25, top - 0.7, p.y + 0.06, {
+        gk.cyl(0.025, 0.025, 1.1, '#d9dde3', p.x + 0.6 + sx * 0.25, top - 0.7, p.y + 0.06, {
           metal: 0.7,
           rough: 0.3,
         });
@@ -398,25 +455,25 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     water.position.set(cx, top - 0.04, cz);
     water.receiveShadow = true;
     water.userData.water = true;
-    root.add(water);
+    yard.add(water);
   }
   if (g.parasol) {
     const m = buildModel('parasol', { w: 1.6, d: 1.6, tier: 2, tint: '#f4efe4' });
     m.group.position.set(g.parasol.x, GROUND_Y + 0.03, g.parasol.y);
     m.group.scale.setScalar(1.25);
-    root.add(m.group);
+    yard.add(m.group);
   }
   if (g.drive) {
     const d = g.drive;
     const at = asphaltTexture();
     at.repeat.set(d.w / 4, d.h / 4);
-    root.add(flat(at, d.x, d.y, d.w, d.h, GROUND_Y + 0.015, roof ? 0.9 : 0.95));
+    yard.add(flat(at, d.x, d.y, d.w, d.h, GROUND_Y + 0.015, roof ? 0.9 : 0.95));
   }
   {
     const p = g.path;
     const n = Math.max(1, Math.round(p.h / 0.7));
     for (let i = 0; i < n; i++)
-      k.box(p.w, 0.04, 0.55, '#d8cfbf', p.x + p.w / 2, GROUND_Y, p.y + 0.2 + i * 0.7, {
+      gk.box(p.w, 0.04, 0.55, '#d8cfbf', p.x + p.w / 2, GROUND_Y, p.y + 0.2 + i * 0.7, {
         round: 0.03,
         rough: 0.9,
       });
@@ -427,69 +484,69 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     const cz = b.y + b.h / 2;
     if (b.kind === 'open' || b.kind === 'charger') {
       for (const x of [b.x, b.x + b.w])
-        k.box(0.08, 0.012, b.h, '#f5f5f4', x, GROUND_Y + 0.02, cz, { noShadow: true });
+        gk.box(0.08, 0.012, b.h, '#f5f5f4', x, GROUND_Y + 0.02, cz, { noShadow: true });
       if (b.kind === 'charger') {
-        k.box(0.36, 1.3, 0.26, '#123f39', b.x + b.w - 0.3, GROUND_Y, b.y + 0.25, { round: 0.04 });
-        k.box(0.22, 0.28, 0.03, '#8df3bc', b.x + b.w - 0.3, GROUND_Y + 0.9, b.y + 0.39, {
+        gk.box(0.36, 1.3, 0.26, '#123f39', b.x + b.w - 0.3, GROUND_Y, b.y + 0.25, { round: 0.04 });
+        gk.box(0.22, 0.28, 0.03, '#8df3bc', b.x + b.w - 0.3, GROUND_Y + 0.9, b.y + 0.39, {
           emissive: '#8df3bc',
           emissiveIntensity: 0.6,
         });
       }
     } else if (b.kind === 'deck') {
-      k.box(b.w, 0.012, 0.08, '#f5f5f4', cx, GROUND_Y + 0.02, b.y, { noShadow: true });
+      gk.box(b.w, 0.012, 0.08, '#f5f5f4', cx, GROUND_Y + 0.02, b.y, { noShadow: true });
     } else if (b.kind === 'showroom') {
       const s = showroomGarage(b.w, b.h);
       s.position.set(cx, GROUND_Y + 0.01, cz);
-      root.add(s);
+      yard.add(s);
     }
   }
   if (g.carport) {
     const c = g.carport;
     const s = carport(c.w, c.h);
     s.position.set(c.x + c.w / 2, GROUND_Y + 0.012, c.y + c.h / 2);
-    root.add(s);
+    yard.add(s);
   }
   for (const h of g.hedges) {
     const m = hedge(h.w, h.h, h.h < 0.6 ? 0.6 : 0.95);
     m.position.set(h.x + h.w / 2, GROUND_Y, h.y + h.h / 2);
-    root.add(m);
+    yard.add(m);
   }
   if (g.gate) {
     const m = gate(g.gate.w);
     m.position.set(g.gate.x, GROUND_Y, g.gate.y);
-    root.add(m);
+    yard.add(m);
   }
   for (const t of g.trees) {
     const m = t.palm ? palm(t.s) : tree(t.s);
     m.position.set(t.x, GROUND_Y, t.y);
-    root.add(m);
+    yard.add(m);
   }
   for (const p of g.pots) {
     const m = potPlant();
     m.position.set(p.x, GROUND_Y, p.y);
-    root.add(m);
+    yard.add(m);
   }
   if (g.fountain) {
     const f = g.fountain;
-    k.cyl(1.2, 1.25, 0.42, '#e7e5e4', f.x, GROUND_Y, f.y, { seg: 28 });
-    k.cyl(1.05, 1.05, 0.02, '#38bdf8', f.x, GROUND_Y + 0.38, f.y, {
+    gk.cyl(1.2, 1.25, 0.42, '#e7e5e4', f.x, GROUND_Y, f.y, { seg: 28 });
+    gk.cyl(1.05, 1.05, 0.02, '#38bdf8', f.x, GROUND_Y + 0.38, f.y, {
       seg: 28,
       emissive: '#0ea5e9',
       emissiveIntensity: 0.25,
       rough: 0.1,
     });
-    k.cyl(0.14, 0.18, 1.0, '#e7e5e4', f.x, GROUND_Y + 0.2, f.y, { seg: 12 });
-    k.cyl(0.5, 0.18, 0.14, '#e7e5e4', f.x, GROUND_Y + 1.15, f.y, { seg: 18 });
-    k.sphere(0.13, '#bae6fd', f.x, GROUND_Y + 1.42, f.y, { seg: 8, opacity: 0.8 });
-    k.box(0.9, 0.03, Math.abs(f.y) * 2 - 1.2, '#d6cbb5', f.x, GROUND_Y + 0.005, f.y, {
+    gk.cyl(0.14, 0.18, 1.0, '#e7e5e4', f.x, GROUND_Y + 0.2, f.y, { seg: 12 });
+    gk.cyl(0.5, 0.18, 0.14, '#e7e5e4', f.x, GROUND_Y + 1.15, f.y, { seg: 18 });
+    gk.sphere(0.13, '#bae6fd', f.x, GROUND_Y + 1.42, f.y, { seg: 8, opacity: 0.8 });
+    gk.box(0.9, 0.03, Math.abs(f.y) * 2 - 1.2, '#d6cbb5', f.x, GROUND_Y + 0.005, f.y, {
       rough: 0.95,
     });
   }
   for (const b of g.beds) {
-    k.box(b.w, 0.18, b.h, '#6b4a2f', b.x + b.w / 2, GROUND_Y, b.y + b.h / 2, { rough: 1 });
+    gk.box(b.w, 0.18, b.h, '#6b4a2f', b.x + b.w / 2, GROUND_Y, b.y + b.h / 2, { rough: 1 });
     const n = Math.max(3, Math.round((b.w * b.h) / 0.45));
     for (let i = 0; i < n; i++)
-      k.sphere(
+      gk.sphere(
         0.15,
         ['#f472b6', '#facc15', '#f87171', '#c084fc', '#4ade80'][i % 5]!,
         b.x + 0.3 + ((i * 0.73) % Math.max(0.4, b.w - 0.6)),
@@ -499,10 +556,13 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       );
   }
 
+  yard.add(gk.build());
+
   // ---- The house: slab, floors, walls.
   k.box(W + 0.5, Math.abs(GROUND_Y) + 0.0, H + 0.5, '#e8e1d3', W / 2, GROUND_Y, H / 2, {
     rough: 0.9,
   });
+  if (drop) storeys(k, W, H, drop, o.night);
   for (const r of plan.rooms) root.add(floorMesh(floorKind(r.id, o.tier), r.x, r.y, r.w, r.h));
 
   const sides: WallSide[] = [];
@@ -544,11 +604,38 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     s.caps.push(c);
     root.add(m, c);
   };
-  addRun(back, 'x', -THICK, W + THICK, -o2);
-  addRun(left, 'z', -o2, H + o2, -o2);
-  addRun(right, 'z', -o2, H + o2, W + o2);
-  addRun(front, 'x', -THICK, plan.door.x, H + o2);
-  addRun(front, 'x', plan.door.x + 1, W + THICK, H + o2);
+  // The outer walls, a glass railing where a room is outdoors (a balcony, the
+  // roof terrace) and the front door's gap on the ground floor.
+  const open = (x: number, y: number) =>
+    plan.rooms.find((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h)?.open === true;
+  const outer = (
+    s: WallSide,
+    along: 'x' | 'z',
+    n: number,
+    at: (i: number) => [number, number],
+    fixed: number,
+    gap = -1,
+  ) => {
+    let i = 0;
+    while (i < n) {
+      if (i === gap) {
+        i++;
+        continue;
+      }
+      const glass = open(...at(i));
+      let j = i + 1;
+      while (j < n && j !== gap && open(...at(j)) === glass) j++;
+      const a = i === 0 ? -THICK : i;
+      const b = j === n ? n + THICK : j;
+      if (glass) railing(k, along, a, b, fixed);
+      else addRun(s, along, a, b, fixed);
+      i = j;
+    }
+  };
+  outer(back, 'x', W, (i) => [i, 0], -o2);
+  outer(left, 'z', H, (i) => [0, i], -o2);
+  outer(right, 'z', H, (i) => [W - 1, i], W + o2);
+  outer(front, 'x', W, (i) => [i, H - 1], H + o2, level === 0 ? plan.door.x : -1);
   // A skirting board along the outer walls inside.
   k.box(W, 0.08, 0.025, '#f5f1e8', W / 2, 0, 0.012);
   k.box(0.025, 0.08, H, '#f5f1e8', 0.012, 0, H / 2);
@@ -587,6 +674,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   // Sconces: one per room on the back wall, and along the side walls.
   const sconces: { x: number; z: number; ry: number; s: WallSide }[] = [];
   for (const r of plan.rooms) {
+    if (r.open) continue;
     if (r.y === 0) {
       if (r.w >= 3 && r.id !== 'bathroom')
         back.extras.add(win('x', r.x + r.w * 0.62, -o2, Math.min(1.6, r.w * 0.35)));
@@ -617,7 +705,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     root.add(pl);
   }
   // The front door: a frame and an open leaf, a doormat.
-  {
+  if (level === 0) {
     const d = new Kit();
     const x0 = plan.door.x;
     d.box(0.1, 2.25, THICK + 0.06, '#f4f1ea', x0 + 0.05, 0, H + o2);
@@ -661,6 +749,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
   const edges = edgeStrips(edgeSegs);
   if (edges) root.add(edges);
+  bathrooms(plan, root, sides);
 
   // Potted plants in free room corners (the reference's green, lived-in rooms).
   {
@@ -680,7 +769,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     taken.add(key(plan.door.x, plan.door.y));
     let n = 0;
     for (const r of plan.rooms) {
-      if (r.id === 'bathroom' || r.w < 3 || r.h < 3) continue;
+      if (r.id === 'bathroom' || r.open || r.w < 3 || r.h < 3) continue;
       for (const [x, y] of [
         [r.x, r.y],
         [r.x + r.w - 1, r.y],
@@ -720,7 +809,207 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     van: { x: g.van.x, z: g.van.y, street: g.street.y },
     shadow: Math.max(f.w, f.h) * 0.75 + 4,
     lamps,
+    drop,
   };
+}
+
+/** Upstairs: the storeys below, a green block with a white band and windows, down to the lawn. */
+function storeys(k: Kit, W: number, H: number, drop: number, night: boolean) {
+  k.box(W + 0.3, drop, H + 0.3, WALL_GREEN, W / 2, GROUND_Y - drop + 0.14, H / 2, { rough: 0.85 });
+  const glass = {
+    emissive: night ? '#ffcf7a' : '#7fbfe0',
+    emissiveIntensity: night ? 0.5 : 0.2,
+    rough: 0.1,
+  };
+  for (let s = 0; s * STOREY < drop - 0.1; s++) {
+    const y = -drop + s * STOREY;
+    // The floor line.
+    k.box(W + 0.36, 0.14, H + 0.36, WALL_CAP, W / 2, y + STOREY - 0.14, H / 2, { rough: 0.6 });
+    for (let x = 1.2; x < W - 1; x += 2.6) {
+      k.box(1.3, 1.4, 0.06, '#25272c', x + 0.65, y + 0.9, H + 0.17, { metal: 0.4, rough: 0.4 });
+      k.box(1.15, 1.25, 0.08, '#9fc8dd', x + 0.65, y + 0.97, H + 0.17, glass);
+    }
+    for (let z = 1.2; z < H - 1; z += 2.6)
+      for (const x of [-0.17, W + 0.17]) {
+        k.box(0.06, 1.4, 1.3, '#25272c', x, y + 0.9, z + 0.65, { metal: 0.4, rough: 0.4 });
+        k.box(0.08, 1.25, 1.15, '#9fc8dd', x, y + 0.97, z + 0.65, glass);
+      }
+  }
+}
+
+/** A glass railing with a steel top rail, along x or z from a to b at `fixed`. */
+function railing(k: Kit, along: 'x' | 'z', a: number, b: number, fixed: number) {
+  const len = b - a;
+  const c = (a + b) / 2;
+  const [x, z] = along === 'x' ? [c, fixed] : [fixed, c];
+  const [w, d] = along === 'x' ? [len, 0.04] : [0.04, len];
+  k.box(w, 1.0, d, '#bfe3f0', x, 0, z, { opacity: 0.3, rough: 0.05, noShadow: true });
+  k.box(w + 0.02, 0.05, d + 0.04, '#d9dde3', x, 1.0, z, { metal: 0.6, rough: 0.3 });
+  for (let t = a; t <= b + 0.01; t += 1.5) {
+    const [px, pz] = along === 'x' ? [Math.min(t, b), fixed] : [fixed, Math.min(t, b)];
+    k.box(0.05, 1.0, 0.05, '#d9dde3', px, 0, pz, { metal: 0.6, rough: 0.3 });
+  }
+}
+
+/**
+ * Bathrooms read as bathrooms: white tiles up the walls round them (on the
+ * outer walls' inside too, cut away with them) and a door, ajar, with a sign.
+ */
+function bathrooms(plan: HomePlan, root: THREE.Group, sides: WallSide[]) {
+  const walls = wallEdges(plan);
+  const [back, front, left, right] = sides as [WallSide, WallSide, WallSide, WallSide];
+  const panel = (
+    along: 'x' | 'z',
+    a: number,
+    b: number,
+    fixed: number,
+    h: number,
+    into: THREE.Group,
+  ) => {
+    const len = b - a;
+    const tex = floorTexture('bath').clone();
+    tex.needsUpdate = true;
+    tex.repeat.set(len / 0.6, h / 0.6);
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(len, h),
+      mat('#d4f1f8', { map: tex, rough: 0.25, own: true }),
+    );
+    m.position.set(along === 'x' ? (a + b) / 2 : fixed, h / 2, along === 'x' ? fixed : (a + b) / 2);
+    m.receiveShadow = true;
+    into.add(m);
+    return m;
+  };
+  const hasWall = (ax: number, ay: number, bx: number, by: number) =>
+    walls.has(`${key(ax, ay)}|${key(bx, by)}`);
+  const OUT_H = 1.9;
+  const IN_H = INNER_H - 0.02;
+  const inset = THICK / 2 + 0.012;
+  for (const r of plan.rooms) {
+    if (r.id !== 'bathroom') continue;
+    // Each side: runs of tiles where a wall stands (an outer wall, or an inner one).
+    const edge = (
+      n: number,
+      at: (i: number) => { wall: boolean; outer: boolean },
+      put: (a: number, b: number, outer: boolean) => void,
+    ) => {
+      let i = 0;
+      while (i < n) {
+        const e = at(i);
+        let j = i + 1;
+        while (j < n && at(j).wall === e.wall && at(j).outer === e.outer) j++;
+        if (e.wall) put(i, j, e.outer);
+        i = j;
+      }
+    };
+    // Top edge (faces +z).
+    edge(
+      r.w,
+      (i) => ({
+        wall: r.y === 0 || hasWall(r.x + i, r.y - 1, r.x + i, r.y),
+        outer: r.y === 0,
+      }),
+      (a, b, outer) => {
+        const p = panel(
+          'x',
+          r.x + a,
+          r.x + b,
+          r.y + inset,
+          outer ? OUT_H : IN_H,
+          outer ? back.extras : root,
+        );
+        p.rotation.y = 0;
+      },
+    );
+    // Bottom edge (faces -z).
+    edge(
+      r.w,
+      (i) => ({
+        wall: r.y + r.h === plan.h || hasWall(r.x + i, r.y + r.h - 1, r.x + i, r.y + r.h),
+        outer: r.y + r.h === plan.h,
+      }),
+      (a, b, outer) => {
+        const p = panel(
+          'x',
+          r.x + a,
+          r.x + b,
+          r.y + r.h - inset,
+          outer ? OUT_H : IN_H,
+          outer ? front.extras : root,
+        );
+        p.rotation.y = Math.PI;
+      },
+    );
+    // Left edge (faces +x).
+    edge(
+      r.h,
+      (i) => ({
+        wall: r.x === 0 || hasWall(r.x - 1, r.y + i, r.x, r.y + i),
+        outer: r.x === 0,
+      }),
+      (a, b, outer) => {
+        const p = panel(
+          'z',
+          r.y + a,
+          r.y + b,
+          r.x + inset,
+          outer ? OUT_H : IN_H,
+          outer ? left.extras : root,
+        );
+        p.rotation.y = Math.PI / 2;
+      },
+    );
+    // Right edge (faces -x).
+    edge(
+      r.h,
+      (i) => ({
+        wall: r.x + r.w === plan.w || hasWall(r.x + r.w - 1, r.y + i, r.x + r.w, r.y + i),
+        outer: r.x + r.w === plan.w,
+      }),
+      (a, b, outer) => {
+        const p = panel(
+          'z',
+          r.y + a,
+          r.y + b,
+          r.x + r.w - inset,
+          outer ? OUT_H : IN_H,
+          outer ? right.extras : root,
+        );
+        p.rotation.y = -Math.PI / 2;
+      },
+    );
+  }
+  // The doors: a white frame, the leaf swung open into the bathroom, a sign.
+  for (const d of bathDoors(plan)) {
+    const g = new Kit();
+    const hgt = INNER_H + 0.35;
+    // Built along x at z = 0, hinge at x = 0, then turned for a 'v' doorway.
+    g.box(0.07, hgt, THICK + 0.04, '#f4f1ea', 0.035, 0, 0);
+    g.box(0.07, hgt, THICK + 0.04, '#f4f1ea', 0.965, 0, 0);
+    g.box(1.0, 0.08, THICK + 0.04, '#f4f1ea', 0.5, hgt - 0.08, 0);
+    const leaf = new Kit();
+    leaf.box(0.86, hgt - 0.12, 0.045, '#fbfaf7', 0.43, 0.02, 0, { round: 0.01 });
+    leaf.sphere(0.03, '#c9a86a', 0.78, 0.95, 0.04, { metal: 0.7, rough: 0.3 });
+    leaf.sphere(0.03, '#c9a86a', 0.78, 0.95, -0.04, { metal: 0.7, rough: 0.3 });
+    // A blue sign with a little white figure.
+    for (const s of [-1, 1]) {
+      leaf.box(0.2, 0.2, 0.012, '#0ea5e9', 0.43, hgt - 0.5, s * 0.03, { round: 0.02 });
+      leaf.sphere(0.022, '#ffffff', 0.43, hgt - 0.36, s * 0.04);
+      leaf.box(0.05, 0.09, 0.008, '#ffffff', 0.43, hgt - 0.47, s * 0.04);
+    }
+    const lg = leaf.build();
+    lg.position.set(0.07, 0, 0);
+    // Swung 70° into the bathroom.
+    lg.rotation.y = -d.inside * 1.22;
+    const frame = g.build();
+    frame.add(lg);
+    if (d.dir === 'h') frame.position.set(d.x, 0, d.y);
+    else {
+      frame.rotation.y = -Math.PI / 2;
+      frame.position.set(d.x, 0, d.y);
+      lg.rotation.y = d.inside * 1.22;
+    }
+    root.add(frame);
+  }
 }
 
 /** Cut away the outer walls that face the camera (azimuth, radians). */
@@ -728,7 +1017,7 @@ export function cutWalls(h: House, azimuth: number) {
   const d = new THREE.Vector2(Math.sin(azimuth), Math.cos(azimuth));
   for (const s of h.sides) {
     const cut = s.n.dot(d) > 0.15;
-    if (cut === s.cut && s.slabs[0]!.userData.done) continue;
+    if (cut === s.cut && (!s.slabs.length || s.slabs[0]!.userData.done)) continue;
     s.cut = cut;
     const hgt = cut ? CUT_H : WALL_H;
     for (const m of s.slabs) {

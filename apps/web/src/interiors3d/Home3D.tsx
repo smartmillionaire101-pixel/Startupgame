@@ -252,6 +252,8 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     stage.canvas.dataset.kind = plan.kind;
     stage.canvas.dataset.wealth = String(plan.wealth);
     stage.canvas.dataset.rooms = String(plan.rooms.length);
+    stage.canvas.dataset.floor = String(plan.level ?? 0);
+    stage.canvas.dataset.bathrooms = String(plan.rooms.filter((r) => r.id === 'bathroom').length);
     stage.canvas.dataset.pool = grounds.pool ? (grounds.pool.hot ? 'hot' : '1') : '0';
     stage.canvas.dataset.bays = String(grounds.bays.length);
     stage.updateCamera();
@@ -523,7 +525,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         Math.max(0, (Date.now() - delivery.orderedAt) / (delivery.arrivesAt - delivery.orderedAt)),
       );
       const e = live.current.reduced ? 1 : 1 - (1 - u) ** 2;
-      van.position.set(h.van.x + (1 - e) * 26, GROUND_Y + 0.02, h.van.z);
+      van.position.set(h.van.x + (1 - e) * 26, GROUND_Y + 0.02 - h.drop, h.van.z);
       van.rotation.y = Math.PI / 2;
       boxes.visible = u >= 1;
       if (u >= 1) stage.canvas.dataset.van = 'here';

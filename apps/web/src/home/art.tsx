@@ -573,6 +573,125 @@ export function DecorArt({ model, w, h }: { model: string; w: number; h: number 
           <rect x={0} y={0} width={W} height={H} rx={model === 'hot-tub' ? 12 : 3} fill="#38bdf8" />
         </g>
       );
+    case 'toilet':
+    case 'sink':
+    case 'shower':
+    case 'bathtub':
+      return <FixtureArt id={model} w={w} h={h} />;
+    case 'rug':
+      return <rect x={3} y={4} width={W - 6} height={H - 8} rx={5} fill="#7dd3fc" opacity="0.85" />;
+    case 'stairs':
+    case 'stairwell': {
+      // Treads across the flight, the top at the back; down a well they darken.
+      const n = Math.round(H / 9);
+      const up = model === 'stairs';
+      return (
+        <g>
+          {shadow(W, H)}
+          <rect x={1} y={1} width={W - 2} height={H - 2} rx={2} fill={up ? '#e9e1d4' : '#3b322b'} />
+          {Array.from({ length: n }, (_, i) => (
+            <rect
+              key={i}
+              x={3}
+              y={2 + (i * (H - 4)) / n}
+              width={W - 6}
+              height={(H - 4) / n - 1.5}
+              fill={
+                up ? (i % 2 ? '#f6f1ea' : '#e2d6c3') : `rgba(240,233,222,${0.9 - (i / n) * 0.75})`
+              }
+              stroke={up ? '#a8957a' : 'none'}
+              strokeWidth="0.8"
+            />
+          ))}
+          {W >= 3 * TILE && (
+            <rect x={W * 0.22} y={2} width={W * 0.56} height={H - 4} fill="#9f1d2b" opacity="0.8" />
+          )}
+          <rect x={0} y={0} width={3} height={H} fill="#5b3a22" />
+          <rect x={W - 3} y={0} width={3} height={H} fill="#5b3a22" />
+          {!up && <rect x={0} y={H - 3} width={W} height={3} fill="#5b3a22" />}
+          <path
+            d={
+              up
+                ? `M${W / 2 - 7} ${H * 0.55} L${W / 2} ${H * 0.4} L${W / 2 + 7} ${H * 0.55}`
+                : `M${W / 2 - 7} ${H * 0.4} L${W / 2} ${H * 0.55} L${W / 2 + 7} ${H * 0.4}`
+            }
+            fill="none"
+            stroke={up ? '#0f172a' : '#f8fafc'}
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+        </g>
+      );
+    }
+    case 'office-desk':
+      return (
+        <g>
+          {shadow(W, H)}
+          <Box x={2} y={-4} w={W - 4} top={H - 6} face={10} fill="#e7e5e4" side="#a8a29e" />
+          <rect x={W / 2 - 10} y={-14} width={20} height={12} rx={1} fill="#0f172a" />
+          <circle cx={W / 2} cy={H + 6} r={6} fill="#27272a" />
+        </g>
+      );
+    case 'shelves':
+      return (
+        <g>
+          {shadow(W, H)}
+          <Box x={1} y={-24} w={W - 2} top={10} face={H + 14} fill="#e7e5e4" side="#a8a29e" />
+          {[0, 1, 2].map((i) => (
+            <rect
+              key={i}
+              x={4}
+              y={-12 + i * 9}
+              width={W - 8}
+              height={5}
+              fill={['#ef4444', '#3b82f6', '#f59e0b'][i]}
+            />
+          ))}
+        </g>
+      );
+    case 'spa-pool':
+      return (
+        <g>
+          <rect x={0} y={0} width={W} height={H} rx={10} fill="#e7e5e4" />
+          <rect x={5} y={5} width={W - 10} height={H - 10} rx={8} fill="#38bdf8" />
+        </g>
+      );
+    case 'restaurant-table':
+      return (
+        <g>
+          {shadow(W, H)}
+          <circle
+            cx={W / 2}
+            cy={H / 2}
+            r={Math.min(W, H) / 2 - 8}
+            fill="#f4f1ea"
+            stroke="#a8a29e"
+          />
+          {[0, 1, 2, 3].map((i) => (
+            <circle
+              key={i}
+              cx={W / 2 + Math.cos((i * Math.PI) / 2) * (Math.min(W, H) / 2 - 3)}
+              cy={H / 2 + Math.sin((i * Math.PI) / 2) * (Math.min(W, H) / 2 - 3)}
+              r={5}
+              fill="#1f2937"
+            />
+          ))}
+        </g>
+      );
+    case 'skyline-rail':
+      return (
+        <g>
+          <rect x={0} y={0} width={W} height={H} fill="transparent" />
+          <rect x={0} y={H - 6} width={W} height={5} rx={2} fill="#bfe3f0" stroke="#94a3b8" />
+          <path
+            d={`M14 ${H - 10} L22 ${H * 0.2}`}
+            stroke="#c9a86a"
+            strokeWidth="5"
+            strokeLinecap="round"
+          />
+          <circle cx={W - 22} cy={H / 2} r={11} fill="#f4f1ea" stroke="#a8a29e" />
+        </g>
+      );
     case 'lounger':
       return (
         <g>

@@ -78,6 +78,8 @@ export interface Grounds {
   van: { x: number; y: number };
   /** What the camera frames: the house, the terrace, the drive and the bays. */
   focus: Rect;
+  /** A penthouse: the rail at the terrace's edge where you watch the skyline. */
+  view?: Rect | null;
 }
 
 /** Which garage a car model gets. */
@@ -342,6 +344,8 @@ function roof(plan: HomePlan, cars: readonly string[]): Grounds {
     beds: [],
     van: { x: dx + 2.6, y: drive.y + drive.h + 1.5 },
     focus,
+    // At the front of the terrace, past the loungers: the whole city ahead.
+    view: { x: 3.4, y: terrace.y + terrace.h - 1.1, w: 3.2, h: 1 },
   };
 }
 
@@ -356,7 +360,11 @@ export interface OutdoorThing {
   h: number;
   /** Facing (radians, 0 = +y). */
   rot: number;
-  verbs: ({ act: HomeAct; label: string } | { id: 'car'; label: string; model: string })[];
+  verbs: (
+    | { act: HomeAct; label: string }
+    | { id: 'car'; label: string; model: string }
+    | { id: 'skyline' | 'party'; label: string }
+  )[];
   /** Index into your garage (cars). */
   car?: number;
 }
@@ -394,6 +402,18 @@ export function outdoorThings(g: Grounds): OutdoorThing[] {
       verbs: [{ act: 'nap', label: 'Sunbathe' }],
     }),
   );
+  if (g.view)
+    out.push({
+      id: 'skyline',
+      label: 'Balcony',
+      model: 'skyline-rail',
+      ...g.view,
+      rot: 0,
+      verbs: [
+        { id: 'skyline', label: 'Watch the skyline' },
+        { id: 'party', label: 'Host a party' },
+      ],
+    });
   for (const b of g.bays)
     if (b.car)
       out.push({
