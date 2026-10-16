@@ -72,6 +72,7 @@ export function VisitHome() {
               visiting.tier,
             ),
             tiers: new Map(visiting.items.map((i) => [i.slot, i.tier])),
+            hood: visiting.neighbourhood,
           }
         : null,
     // The key captures everything the scene reads.

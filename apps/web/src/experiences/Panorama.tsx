@@ -30,6 +30,7 @@ import { markWebGLBroken } from '../city/three/quality';
 import { softwareGl } from '../three-kit/quality';
 import { SKY_LABELS, type SkyLabel } from './skyLabels';
 import '../city/three/city3d.css';
+import './experiences.css';
 
 export type LegacyPanorama = 'london-eye' | 'cable-car' | 'rooftop';
 
@@ -115,19 +116,22 @@ export default function Panorama({
   holdingHands,
   onClose,
   children,
+  balcony,
 }: {
   city: string;
   kind?: LegacyPanorama | null;
   viewId?: string | null;
   holdingHands: boolean;
+  /** A view of its own (a penthouse balcony): no ride up, you're already there. */
+  balcony?: SkyViewSpec | null;
   onClose: () => void;
   children?: ReactNode;
 }) {
   const { view } = useView();
-  const first = resolveSkyView(city, viewId, kind);
+  const first = balcony ?? resolveSkyView(city, viewId, kind);
   const [specId, setSpecId] = useState(first?.id ?? '');
-  const spec = skyViewById(specId) ?? first;
-  const views = skyViewsIn(city);
+  const spec = balcony ?? skyViewById(specId) ?? first;
+  const views = balcony ? [] : skyViewsIn(city);
   const geo = useGeo(city);
   const [terrain, setTerrain] = useState<TerrainField | null | 'loading'>('loading');
   const [error, setError] = useState('');
@@ -202,6 +206,7 @@ export default function Panorama({
     el.prepend(canvas);
     scene.following = false;
     const ride = new SkyRide(scene, spec, { reduced, tier, soft });
+    if (balcony) ride.skip();
     const extras = skyExtras(scene, spec, scene.waterMaterial);
     scene.scene.add(extras);
     scene.onTerrain(extras);
@@ -382,6 +387,8 @@ export default function Panorama({
       canvas.remove();
       delete (window as unknown as { __sky3d?: unknown }).__sky3d;
     };
+    // `balcony` is `spec` when given.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout, spec, terrain, reduced, city]);
 
   useEffect(() => {
@@ -440,6 +447,8 @@ export default function Panorama({
       data-sky-phase={riding ? 'ride' : 'look'}
     >
       <div className="panorama-canvas" ref={mount}>
+        {/* Out on your balcony: its glass railing in front of you. */}
+        {balcony && <div className="panorama-balcony" aria-hidden="true" />}
         <div ref={labelsRef} className="sky-labels" aria-hidden="true">
           {labelsList.map(({ name, area }, i) => {
             return (

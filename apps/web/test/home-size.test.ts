@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { HOME_SLOTS } from '../src/city/life';
 import {
   TIER_OF_KIND,
+  bathDoors,
   blockedTiles,
+  floorsFor,
   homeSpecOf,
   key,
   planFor,
   wallEdges,
   type HomeKind,
+  type HomePlan,
 } from '../src/home/layout';
 import { bayKindOf, groundsFor, outdoorThings } from '../src/home/grounds';
 import { findPath, type Grid } from '../src/home/path';
@@ -183,5 +186,133 @@ describe('Wave 12: the grounds', () => {
     const a = groundsFor(plan, many);
     expect(a.bays.filter((b) => b.car)).toHaveLength(8);
     expect(groundsFor(plan, many)).toEqual(a);
+  });
+});
+
+describe('floors: a house has an upstairs, a mansion a roof terrace; every home a bathroom', () => {
+  /** What's in a floor's bathrooms (fixtures and the things a bigger home comes with). */
+  const bathThings = (p: HomePlan) => {
+    const baths = p.rooms.filter((r) => r.id === 'bathroom');
+    const inBath = (s: { x: number; y: number }) =>
+      baths.some((r) => s.x >= r.x && s.x < r.x + r.w && s.y >= r.y && s.y < r.y + r.h);
+    return [
+      ...Object.entries(p.fixtures)
+        .filter(([, s]) => s && inBath(s))
+        .map(([id]) => id),
+      ...p.decor.filter((d) => inBath(d.spot)).map((d) => d.model),
+    ];
+  };
+  const STANDING = ['toilet', 'sink', 'shower', 'bathtub', 'pool', 'piano'];
+
+  for (const kind of KINDS)
+    for (const wealth of [0, 1, 2, 3])
+      it(`${kind}, wealth ${wealth}: every floor works, and the home has a proper bathroom`, () => {
+        const floors = floorsFor(TIER_OF_KIND[kind], { kind, wealth });
+        const storeys =
+          kind === 'mansion' ? 3 : ['townhouse', 'house', 'villa'].includes(kind) ? 2 : 1;
+        expect(floors).toHaveLength(storeys);
+        floors.forEach((p, i) => expect(p.level ?? 0).toBe(i));
+        // Every slot is on exactly one floor.
+        expect(floors.flatMap((p) => Object.keys(p.slots)).sort()).toEqual([...HOME_SLOTS].sort());
+        // A bathroom you'd recognise: a toilet, a basin and a shower or a bath, behind a door.
+        const things = new Set(floors.flatMap(bathThings));
+        for (const t of ['toilet', 'sink']) expect(things.has(t), t).toBe(true);
+        expect(things.has('shower') || things.has('bathtub')).toBe(true);
+        for (const p of floors)
+          expect(bathDoors(p)).toHaveLength(p.rooms.filter((r) => r.id === 'bathroom').length);
+        for (const p of floors) {
+          const cover = new Set<string>();
+          for (const r of p.rooms)
+            for (let x = r.x; x < r.x + r.w; x++)
+              for (let y = r.y; y < r.y + r.h; y++) {
+                expect(cover.has(key(x, y)), `${r.id} at ${key(x, y)}`).toBe(false);
+                cover.add(key(x, y));
+              }
+          expect(cover.size).toBe(p.w * p.h);
+          for (const owned of [new Set<string>(), ALL]) {
+            const seen = new Map<string, string>();
+            const standing = [
+              ...Object.entries(p.slots).filter(([s]) => owned.has(s)),
+              ...p.decor.map((d) => [d.id, d.spot] as const),
+              ...Object.entries(p.fixtures).filter(([f]) => STANDING.includes(f)),
+            ];
+            for (const [id, s] of standing) {
+              if (!s || !s.blocked || s.wall) continue;
+              for (let x = s.x; x < s.x + s.w; x++)
+                for (let y = s.y; y < s.y + s.h; y++) {
+                  expect(x >= 0 && y >= 0 && x < p.w && y < p.h, `${id} in bounds`).toBe(true);
+                  expect(seen.get(key(x, y)), `${id} on ${seen.get(key(x, y))}`).toBeUndefined();
+                  seen.set(key(x, y), id);
+                }
+            }
+            const g: Grid = {
+              w: p.w,
+              h: p.h,
+              blocked: blockedTiles(p, owned),
+              walls: wallEdges(p),
+            };
+            for (const s of [
+              ...Object.values(p.slots),
+              ...Object.values(p.fixtures),
+              ...p.decor.map((d) => d.spot),
+            ])
+              expect(
+                findPath(g, p.door, s!.interact),
+                `floor ${p.level} ${key(s!.interact.x, s!.interact.y)}`,
+              ).not.toBeNull();
+            for (const r of p.rooms) {
+              let ok = false;
+              for (let x = r.x; x < r.x + r.w && !ok; x++)
+                for (let y = r.y; y < r.y + r.h && !ok; y++)
+                  if (!g.blocked.has(key(x, y)) && findPath(g, p.door, { x, y })) ok = true;
+              expect(ok, `floor ${p.level} ${r.id} at ${r.x},${r.y}`).toBe(true);
+            }
+          }
+          for (const slot of MOVABLE) {
+            const s = p.slots[slot];
+            if (s) expect(canPlace(p, ALL, slot, { x: s.x, y: s.y, rot: 0 }), slot).toBe(true);
+          }
+        }
+        // The stairs join the floors: each leads to the next one up, and back down.
+        const leadsTo = (p: HomePlan, n: number) =>
+          p.decor.some((d) => d.verbs.some((v) => 'to' in v && v.to === n));
+        for (let i = 0; i < floors.length - 1; i++) {
+          expect(leadsTo(floors[i]!, i + 1), `up from ${i}`).toBe(true);
+          expect(leadsTo(floors[i + 1]!, i), `down from ${i + 1}`).toBe(true);
+        }
+      });
+
+  it('a mansion: a hall with a grand staircase, a master suite and a balcony, a roof terrace', () => {
+    const [ground, upper, roof] = floorsFor(5, { kind: 'mansion', wealth: 3 });
+    const ids = (p: HomePlan) => p.rooms.map((r) => r.id);
+    expect(ids(ground!)).toEqual(
+      expect.arrayContaining([
+        'hall',
+        'living',
+        'kitchen',
+        'dining',
+        'bathroom',
+        'office',
+        'cinema',
+      ]),
+    );
+    expect(ground!.decor.find((d) => d.model === 'stairs')!.spot.w).toBe(3);
+    expect(ids(upper!)).toEqual(expect.arrayContaining(['landing', 'bedroom', 'guest', 'balcony']));
+    expect(ids(upper!).filter((r) => r === 'bathroom')).toHaveLength(2);
+    expect(upper!.rooms.find((r) => r.id === 'balcony')!.open).toBe(true);
+    expect(upper!.slots.bed).toBeDefined();
+    expect(upper!.decor.filter((d) => d.model === 'guest-bed').length).toBeGreaterThanOrEqual(3);
+    expect(roof!.rooms.every((r) => r.open)).toBe(true);
+    // The renter's flat and a studio stay one floor.
+    expect(floorsFor(2)).toHaveLength(1);
+    expect(floorsFor(1, { kind: 'studio', wealth: 1 })).toHaveLength(1);
+  });
+
+  it('a penthouse terrace has a rail to watch the skyline and throw a party from', () => {
+    const g = groundsFor(planFor(4, { kind: 'penthouse', wealth: 1 }), []);
+    const view = outdoorThings(g).find((o) => o.id === 'skyline')!;
+    expect(view.verbs.map((v) => ('act' in v ? v.act : v.id))).toEqual(['skyline', 'party']);
+    expect(view.y).toBeGreaterThan(g.terrace!.y);
+    expect(groundsFor(planFor(4, { kind: 'villa', wealth: 1 }), []).view).toBeUndefined();
   });
 });

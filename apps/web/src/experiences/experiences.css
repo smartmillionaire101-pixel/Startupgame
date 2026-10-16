@@ -674,3 +674,23 @@
   color: #fff;
   padding: 2rem;
 }
+
+/* A penthouse balcony's glass railing along the bottom of the view. */
+.panorama-balcony {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 36%;
+  z-index: 1;
+  pointer-events: none;
+  border-top: 7px solid #e2e8f0;
+  box-shadow: 0 -2px 0 rgb(15 23 42 / 0.25);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 22%,
+      rgb(226 232 240 / 0.85) 22% calc(22% + 6px)
+    ),
+    linear-gradient(180deg, rgb(191 227 240 / 0.22), rgb(191 227 240 / 0.38));
+}

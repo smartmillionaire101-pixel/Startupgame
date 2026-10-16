@@ -521,6 +521,148 @@ const hitBox: Builder = (k, o) => {
   k.box(o.w, 0.3, o.d, '#ffffff', 0, -0.2, 0, { opacity: 0, noShadow: true });
 };
 
+// ---------------------------------------------------------------------------
+// Stairs and the penthouse balcony
+
+/** The height of a storey (the outer walls' top): the stairs climb to it. */
+const STOREY = 2.6;
+
+/** A balustrade from (z0, y0) to (z1, y1) at x: posts and a handrail. */
+function balustrade(
+  k: Kit,
+  x: number,
+  z0: number,
+  y0: number,
+  z1: number,
+  y1: number,
+  rail: string,
+  post: string,
+) {
+  const len = Math.hypot(z1 - z0, y1 - y0);
+  const n = Math.max(2, Math.round(Math.abs(z1 - z0) / 0.28));
+  for (let i = 0; i <= n; i++) {
+    const u = i / n;
+    k.cyl(0.018, 0.018, 0.9, post, x, y0 + (y1 - y0) * u, z0 + (z1 - z0) * u, metal);
+  }
+  k.box(0.07, 0.05, len, rail, x, (y0 + y1) / 2 + 0.9, (z0 + z1) / 2, {
+    rx: Math.atan2(y1 - y0, z0 - z1),
+    round: 0.02,
+  });
+}
+
+/**
+ * A flight of stairs up to the next floor along -z: the foot at +z, the top
+ * step (a landing a metre deep) against the back wall. Wide ones are the
+ * grand staircase: white stone with a red runner and brass rods.
+ */
+const stairs: Builder = (k, o) => {
+  const w = o.w - 0.12;
+  const grand = o.w >= 3;
+  const run = o.d - 1;
+  const n = Math.max(6, Math.round(run / 0.27));
+  const rise = STOREY / (n + 1);
+  const tread = run / n;
+  const stone = grand ? '#f3eee6' : '#c69563';
+  const side = grand ? '#e2dacd' : '#9a6a3f';
+  for (let i = 0; i < n; i++) {
+    const z = o.d / 2 - (i + 0.5) * tread;
+    k.box(w, (i + 1) * rise, tread + 0.005, i % 2 ? stone : tone(stone, -0.03), 0, 0, z, {
+      rough: 0.4,
+    });
+    // The nosing, a line of shadow under each step.
+    k.box(w + 0.01, 0.02, 0.03, tone(side, -0.25), 0, (i + 1) * rise - 0.03, z + tread / 2, {
+      noShadow: true,
+    });
+    if (grand) {
+      k.box(w * 0.56, 0.012, tread, '#9f1d2b', 0, (i + 1) * rise, z, { rough: 0.9 });
+      k.cyl(0.008, 0.008, w * 0.6, '#c9a86a', 0, (i + 1) * rise + 0.012, z + tread / 2 - 0.03, {
+        rz: Math.PI / 2,
+        ...metal,
+      });
+    }
+  }
+  // The top step: a landing up to the next floor.
+  k.box(w, STOREY, 1, stone, 0, 0, -o.d / 2 + 0.5, { rough: 0.4 });
+  if (grand) k.box(w * 0.56, 0.012, 1, '#9f1d2b', 0, STOREY, -o.d / 2 + 0.5, { rough: 0.9 });
+  // A balustrade up each side, newel posts at the foot.
+  const rail = grand ? '#5b3a22' : '#3f2a1a';
+  const post = grand ? '#f4f1ea' : '#2b2b30';
+  for (const sx of [-1, 1]) {
+    const x = (sx * (w + 0.06)) / 2;
+    balustrade(k, x, o.d / 2 - 0.1, rise, -o.d / 2 + 1, STOREY, rail, post);
+    k.box(0.12, 1.05, 0.12, grand ? '#f4f1ea' : rail, x, 0, o.d / 2 - 0.08, { round: 0.02 });
+    if (grand) {
+      k.sphere(0.08, '#c9a86a', x, 1.13, o.d / 2 - 0.08, metal);
+      k.sphere(0.11, '#fff4d6', x, 1.3, o.d / 2 - 0.08, {
+        emissive: '#ffe2a0',
+        emissiveIntensity: 0.9,
+      });
+    }
+  }
+};
+
+/**
+ * Upstairs, the well over the flight: the steps going down into it (darker
+ * further down) and a glass balustrade round three sides, open at the top
+ * step at the back, where you come up.
+ */
+const stairwell: Builder = (k, o) => {
+  const w = o.w - 0.06;
+  const d = o.d;
+  const n = Math.max(4, Math.round(d / 0.27));
+  const grand = o.w >= 3;
+  for (let i = 0; i < n; i++) {
+    const t = i / n;
+    const c = new THREE.Color(grand ? '#efe9df' : '#c69563').lerp(
+      new THREE.Color('#2a2420'),
+      t * 0.85,
+    );
+    k.box(w, 0.012, d / n - 0.02, `#${c.getHexString()}`, 0, 0.004, -d / 2 + (i + 0.5) * (d / n), {
+      noShadow: true,
+    });
+  }
+  if (grand) k.box(w * 0.56, 0.014, d, '#7f1726', 0, 0.006, 0, { noShadow: true, opacity: 0.9 });
+  const glass = { opacity: 0.32, rough: 0.05, noShadow: true };
+  for (const sx of [-1, 1]) {
+    const x = (sx * w) / 2;
+    k.box(0.02, 0.95, d, '#bfe3f0', x, 0, 0, glass);
+    k.box(0.06, 0.05, d + 0.04, '#5b3a22', x, 0.95, 0, { round: 0.02 });
+  }
+  k.box(w, 0.95, 0.02, '#bfe3f0', 0, 0, d / 2, glass);
+  k.box(w + 0.06, 0.05, 0.06, '#5b3a22', 0, 0.95, d / 2, { round: 0.02 });
+  for (const [x, z] of [
+    [-w / 2, d / 2],
+    [w / 2, d / 2],
+    [-w / 2, -d / 2],
+    [w / 2, -d / 2],
+  ] as const)
+    k.box(0.07, 1.0, 0.07, '#f4f1ea', x, 0, z, { round: 0.02 });
+};
+
+/** On the penthouse terrace: a brass telescope on a tripod and a high table with stools. */
+const skylineRail: Builder = (k, o, m) => {
+  const x0 = -o.w / 2 + 0.6;
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    k.cyl(0.015, 0.015, 1.25, '#3f3f46', x0 + Math.sin(a) * 0.18, 0, Math.cos(a) * 0.18, {
+      rx: Math.cos(a) * 0.14,
+      rz: -Math.sin(a) * 0.14,
+      ...metal,
+    });
+  }
+  k.cyl(0.06, 0.05, 0.75, '#c9a86a', x0, 1.25, 0.05, { rx: Math.PI / 2 - 0.35, ...metal });
+  k.cyl(0.07, 0.07, 0.05, '#1b2433', x0, 1.38, 0.42, { rx: Math.PI / 2 - 0.35 });
+  const tx = o.w / 2 - 0.7;
+  k.cyl(0.32, 0.32, 0.04, '#f4f1ea', tx, 1.05, 0, { seg: 24 });
+  k.cyl(0.03, 0.12, 1.05, '#2b2b30', tx, 0, 0, metal);
+  for (const sx of [-1, 1]) {
+    k.cyl(0.17, 0.17, 0.05, '#1f2937', tx + sx * 0.55, 0.75, 0.1, { seg: 16 });
+    k.cyl(0.02, 0.1, 0.75, '#2b2b30', tx + sx * 0.55, 0, 0.1, metal);
+    m.seats.push(new THREE.Vector3(tx + sx * 0.55, 0.8, 0.1));
+  }
+  k.cyl(0.03, 0.03, 0.18, '#fde68a', tx, 1.09, 0, { emissive: '#f59e0b', emissiveIntensity: 1 });
+};
+
 const BUILDERS: Record<string, Builder> = {
   nightstand,
   island,
@@ -530,6 +672,9 @@ const BUILDERS: Record<string, Builder> = {
   box,
   'pool-water': hitBox,
   'hot-tub': hitBox,
+  stairs,
+  stairwell,
+  'skyline-rail': skylineRail,
 };
 
 /** Models drawn here (the rest come from the furniture library). */
