@@ -168,6 +168,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     timeWindow: '1 minute',
     hook: 'preHandler',
     keyGenerator: (req: FastifyRequest) => (req.userId ? `u:${req.userId}` : req.ip),
+    // The app's own files (the page, scripts, art) aren't limited: before
+    // sign-in they'd all count against one shared address, and a phone
+    // opening the game would be turned away for loading it.
+    allowList: (req: FastifyRequest) => !req.url.startsWith('/api/'),
   });
 
   // ---------------------------------------------------------------- hooks
