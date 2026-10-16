@@ -18,7 +18,7 @@ import { makeCharacter, pose, setHair, type Character, type PoseId } from './cha
 import { FIXTURE_MODEL, SLOT_MODEL, facingOf, frameOf } from './catalog';
 import { buildModel, type Model } from './furniture';
 import { Particles, fx } from './fx';
-import { GROUND_Y, buildHouse, cutWalls, wallOf, type House } from './house';
+import { GROUND_Y, STOREY, buildHouse, cutWalls, wallOf, type House } from './house';
 import { buildEstateModel } from './estate-models';
 import { groundsFor } from '../home/grounds';
 import { Kit, disposeTree, mat } from './kit';
@@ -353,7 +353,8 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         ...(o.slot === 'sofa' && (o.tier ?? 1) >= 2 ? { tint: '#1f6e52' } : {}),
       });
       const g = model.group;
-      g.position.set(fr.x, o.outdoor ? GROUND_Y + 0.03 : 0, fr.z);
+      // Outdoors (the cars, the loungers) is down on the lawn, a storey or two below you upstairs.
+      g.position.set(fr.x, o.outdoor ? GROUND_Y + 0.03 - (plan.level ?? 0) * STOREY : 0, fr.z);
       g.rotation.y = ry;
       if (o.outdoor) g.userData.outdoor = true;
       if (id.startsWith('car:')) g.userData.car = true;
@@ -414,9 +415,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     lampRoot.current = lamps;
     placedRef.current = placed;
     markers.current = mk;
-    stage.canvas.dataset.cars = String(
-      [...placed.values()].filter((p) => p.group.userData.car).length,
-    );
+    const cars = [...placed.values()].filter((p) => p.group.userData.car);
+    stage.canvas.dataset.cars = String(cars.length);
+    // How high the parked cars stand under this floor (for tests): on the lawn, whatever floor you're on.
+    if (cars.length) stage.canvas.dataset.carsY = cars[0]!.group.position.y.toFixed(2);
+    else delete stage.canvas.dataset.carsY;
     stage.updateCamera();
     return () => {
       stage.scene.remove(root);
