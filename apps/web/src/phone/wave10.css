@@ -350,3 +350,30 @@
   opacity: 0.55;
   cursor: default;
 }
+/* A house's floors on the tour: tap one to see it. */
+.tour-floors {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.5rem;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.tour-floors button {
+  min-height: 34px;
+  padding: 0 0.75rem;
+  border-radius: 17px;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  background: rgb(15 23 42 / 0.6);
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.tour-floors button[aria-pressed='true'] {
+  background: #f8fafc;
+  color: #0f172a;
+}

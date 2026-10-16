@@ -226,3 +226,51 @@ test('a penthouse balcony: watch the skyline, and a party another player comes t
   await guestSky.getByRole('button', { name: 'Close panorama' }).click();
   await expect(guestSky).toHaveCount(0, { timeout: 30_000 });
 });
+
+test('a house on the market: the 3D tour goes up its floors', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem('runway.mapQuality', '3d'));
+  await playAsGuest(page);
+  await setupFounder(page, {
+    name: 'Tolu Tours',
+    handle: `tours_${letters(8)}`,
+    company: `Tours ${letters(8)}`,
+    idea: 'Tools for local businesses',
+    market: /Lagos/,
+  });
+  // A mansion if one is listed (three floors), else the biggest house there is.
+  const listing = await page.evaluate(async () => {
+    const s = await (await fetch('/api/state', { headers: { 'x-runway': '1' } })).json();
+    const all = ((s.view ?? s).market.properties?.listings ?? []) as { id: string; tier: string }[];
+    for (const tier of ['mansion', 'villa', 'house', 'townhouse']) {
+      const l = all.find((x) => x.tier === tier);
+      if (l) return l;
+    }
+    return null;
+  });
+  expect(listing, 'a house listed in Lagos').not.toBeNull();
+  await page.getByRole('button', { name: /^Phone/ }).click();
+  const phone = page.getByRole('dialog', { name: 'Phone' });
+  await phone.locator('[data-app="homes"]').click();
+  await phone.locator(`[data-listing="${listing!.id}"]`).click();
+  const tour = phone.locator('[data-tour]');
+  await expect(tour).toHaveClass(/is-3d/, { timeout: 90_000 });
+  const canvas = tour.locator('canvas');
+  await expect(canvas).toHaveAttribute('data-floor', '0');
+  const floors = tour.getByRole('group', { name: 'Floors' });
+  await expect(floors.locator('[data-tour-floor]')).toHaveCount(
+    listing!.tier === 'mansion' ? 3 : 2,
+  );
+  await floors.locator('[data-tour-floor="1"]').click();
+  await expect(canvas).toHaveAttribute('data-floor', '1', { timeout: 20_000 });
+  await expect(floors.locator('[data-tour-floor="1"]')).toHaveAttribute('aria-pressed', 'true');
+  await shot(page, `tour-${listing!.tier}-upstairs`);
+  if (listing!.tier === 'mansion') {
+    await floors.locator('[data-tour-floor="2"]').click();
+    await expect(canvas).toHaveAttribute('data-floor', '2', { timeout: 20_000 });
+    await shot(page, 'tour-mansion-roof');
+  }
+  await floors.locator('[data-tour-floor="0"]').click();
+  await expect(canvas).toHaveAttribute('data-floor', '0', { timeout: 20_000 });
+});

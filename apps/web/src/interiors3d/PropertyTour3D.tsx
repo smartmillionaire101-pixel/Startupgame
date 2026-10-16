@@ -4,9 +4,10 @@
  * three bedrooms, a villa or mansion gets the big plan with a pool terrace
  * (a mansion a formal garden and a fountain too), a penthouse a terrace high
  * over the city. Furnished as a show home; drag to look round, pinch to zoom.
+ * A house shows one floor at a time (a mansion's upstairs and roof terrace too).
  */
 import { useMemo, useRef, type ReactElement } from 'react';
-import { planFor, type HomeKind } from '../home/layout';
+import { floorsFor, type HomeKind } from '../home/layout';
 import { groundsFor, outdoorThings } from '../home/grounds';
 import Home3D from './Home3D';
 import { SLOT_MODEL } from './catalog';
@@ -21,6 +22,8 @@ export interface PropertyTour3DProps {
   /** Wave 12: the listing's kind of home (its wing and grounds), as a comfortable owner has it. */
   kind?: HomeKind;
   night: boolean;
+  /** Which floor (an index into `floorsFor`): 0 the ground floor. */
+  floor?: number;
   onReady: () => void;
   api?: React.MutableRefObject<Home3DApi | null>;
 }
@@ -37,11 +40,16 @@ const FIXTURES: [string, string][] = [
 ];
 
 export default function PropertyTour3D(props: PropertyTour3DProps): ReactElement | null {
-  const plan = planFor(props.planTier, props.kind ? { kind: props.kind, wealth: 1 } : undefined);
+  const floors = useMemo(
+    () => floorsFor(props.planTier, props.kind ? { kind: props.kind, wealth: 1 } : undefined),
+    [props.planTier, props.kind],
+  );
+  const plan = floors[Math.min(props.floor ?? 0, floors.length - 1)]!;
   const houseCars = props.planTier >= 4 && props.estate !== 'penthouse';
+  // The grounds are the ground floor's (upstairs, they're below you).
   const grounds = useMemo(
-    () => groundsFor(plan, houseCars ? ['luxury', 'city-suv'] : []),
-    [plan, houseCars],
+    () => groundsFor(floors[0]!, houseCars ? ['luxury', 'city-suv'] : []),
+    [floors, houseCars],
   );
   const own = useRef<Home3DApi | null>(null);
   const api = props.api ?? own;
