@@ -9,6 +9,7 @@ import type { Flavour, LandmarkKind, TreeKind, VehicleSpec } from './flavour';
 import { project, TH, TW, type Decor, type Place, type Pt } from './layout';
 import { BridgeTop, BusinessBody, Hill, PlanLandmark, Station } from './art-places';
 import { lookOverride } from './acts/look';
+import { PlaneTop } from './airport/planes';
 
 // ---------------------------------------------------------------------------
 // Geometry and colour helpers
@@ -438,12 +439,10 @@ function RunwayStrip({ d: dc }: { d: Decor }) {
         strokeDasharray="5 5"
       />
       <g transform={`translate(${r1(plane.x)},${r1(plane.y - 4)})`} className="city-plane">
-        <ellipse cx="2" cy="6" rx="16" ry="5" fill="#0f172a" opacity="0.15" />
-        {/* fuselage along +x (down-right on screen), wings across */}
-        <polygon points="-16,-8 14,7 17,7 -13,-9" fill="#f8fafc" />
-        <polygon points="-2,-6 -14,3 -9,4 4,-2" fill="#cbd5e1" />
-        <polygon points="2,-1 14,-8 18,-6 6,1" fill="#e2e8f0" />
-        <polygon points="-15,-9 -18,-15 -14,-14 -11,-8" fill="#0ea5e9" />
+        {/* The airliner from above, laid on the ground grid: nose along +x (down-right). */}
+        <g transform="matrix(0.67 0.335 -0.67 0.335 0 0)">
+          <PlaneTop livery="#0ea5e9" />
+        </g>
       </g>
     </g>
   );

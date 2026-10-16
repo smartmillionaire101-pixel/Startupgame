@@ -1,13 +1,15 @@
 /**
  * Wave 7 §B: the flight, about twelve seconds, Skip always there.
  *
- * 1. Take-off: close up on the apron of your city's airport, the plane
- *    rolls and lifts.
+ * 1. Take-off: close up on your city's airport, the plane (./airport/planes,
+ *    your own jet at the top of the lifestyle ladder) taxis onto the
+ *    runway, rolls, rotates, lifts and folds its gear away.
  * 2. The cabin (Wave 8, ./acts/Cabin.tsx): down the aisle in perspective,
  *    rows of passengers, the crew and the trolley, your seat, the window,
  *    the seatbelt sign and the meal; the class follows your lifestyle.
  *    "Sleep through" and "Work on laptop" are just for the mood.
- * 3. Landing: a wider frame of the destination's airport, in its colours.
+ * 3. Landing: a wider frame of the destination's airport, in its colours:
+ *    gear down on the approach, the flare, mains first, then the nose.
  *    Freetown lands at Lungi, so a water taxi crosses the estuary last.
  *
  * One requestAnimationFrame loop for the cabin, paused while the tab is
@@ -18,15 +20,16 @@ import { t } from '../i18n';
 import { useView } from '../store';
 import { avatarLook } from './art';
 import { useReducedMotion } from './CityMap';
-import { Cabin } from './acts/Cabin';
+import { Cabin, cabinClassOf } from './acts/Cabin';
+import { PlaneSide, type PlaneKind } from './airport/planes';
 import { genderOf } from './life';
 import { flavourOf } from './flavour';
 import { useDaylight } from './useDaylight';
-import { AIRPORT_NAMES, CITY_GEO, fmtFlightTime, seeded, fnv } from './travel';
+import { AIRPORT_NAMES, CITY_GEO, fmtFlightTime, liveryOf, seeded, fnv } from './travel';
 import './flight.css';
 
 type Phase = 'takeoff' | 'cruise' | 'landing' | 'ferry' | 'arrived';
-const DUR = { takeoff: 2600, cruise: 6500, landing: 2600, ferry: 2600 };
+const DUR = { takeoff: 3200, cruise: 6500, landing: 2800, ferry: 2600 };
 
 /** Great-circle hours at airliner speed, plus taxi and climb. */
 function flightHours(from: string, to: string, fallback: number): number {
@@ -39,43 +42,6 @@ function flightHours(from: string, to: string, fallback: number): number {
     Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lon - a.lon) * r) / 2) ** 2;
   const km = 2 * 6371 * Math.asin(Math.sqrt(h));
   return km / 820 + 0.5;
-}
-
-/** A side-on airliner, facing right, wheels at y = 0. */
-function Airliner({ gear = true, livery = '#0f766e' }: { gear?: boolean; livery?: string }) {
-  return (
-    <g>
-      {gear && (
-        <g fill="#334155">
-          <rect x="-26" y="-9" width="3" height="9" />
-          <circle cx="-24.5" cy="-1.5" r="3" />
-          <rect x="22" y="-9" width="2.5" height="9" />
-          <circle cx="23" cy="-1.5" r="2.6" />
-        </g>
-      )}
-      <path d="M -6 -16 L -24 -30 L -16 -30 L 8 -16 Z" fill="#cbd5e1" />
-      <path
-        d="M -58 -22 Q -60 -8 -48 -8 L 36 -8 Q 54 -8 58 -15 Q 54 -24 36 -24 L -44 -24 Q -54 -24 -58 -22 Z"
-        fill="#f8fafc"
-        stroke="#94a3b8"
-        strokeWidth="0.8"
-      />
-      <path d="M -56 -22 L -64 -46 L -52 -46 L -40 -24 Z" fill={livery} />
-      <path d="M -60 -20 L -70 -18 L -58 -16 Z" fill={livery} />
-      <rect x="-46" y="-15" width="88" height="2" fill={livery} />
-      {Array.from({ length: 13 }, (_, k) => (
-        <rect key={k} x={-40 + k * 6.2} y="-20.5" width="3" height="3" rx="1" fill="#1e3a5f" />
-      ))}
-      <path d="M 46 -21 Q 52 -21 55 -17 L 47 -17 Z" fill="#1e3a5f" />
-      <path
-        d="M -10 -12 L 8 -12 L -14 6 L -24 6 Z"
-        fill="#e2e8f0"
-        stroke="#94a3b8"
-        strokeWidth="0.6"
-      />
-      <rect x="-4" y="-8" width="16" height="7" rx="3.5" fill="#64748b" />
-    </g>
-  );
 }
 
 function Cloud({ x, y, s, k }: { x: number; y: number; s: number; k: number }) {
@@ -125,8 +91,8 @@ function Airfield({
   return (
     <svg
       className="fl-svg"
-      viewBox={close ? '0 150 240 140' : '0 0 400 360'}
-      preserveAspectRatio={close ? 'xMidYMid slice' : 'xMidYMax meet'}
+      viewBox={close ? '0 120 320 190' : '20 100 340 210'}
+      preserveAspectRatio="xMidYMax meet"
       aria-hidden
       data-airfield={arriving ? 'arrival' : 'departure'}
     >
@@ -244,6 +210,7 @@ export function FlightScene({
   fromName,
   toName,
   hours,
+  airline,
   status,
   note,
   onDone,
@@ -253,6 +220,8 @@ export function FlightScene({
   fromName: string;
   toName: string;
   hours: number;
+  /** The airline flying you, for the plane's colours. */
+  airline?: string;
   /** The server's answer: 'pending' keeps you at the gate until it comes. */
   status: 'pending' | 'ok';
   /** Shown on arrival with a Continue button (the fallback trip). */
@@ -266,6 +235,10 @@ export function FlightScene({
   const nightTo = useDaylight(to).night;
   const ferry = to === 'freetown';
   const realHours = flightHours(from, to, hours);
+  // Your own jet at the top of the lifestyle ladder; an airliner in the airline's colours otherwise.
+  const kind: PlaneKind =
+    cabinClassOf(view.me.lifestyle?.tier) === 'private' ? 'bizjet' : 'airliner';
+  const livery = kind === 'bizjet' ? '#1e3a8a' : liveryOf(from, airline);
 
   // Each phase hands over to the next on a timer.
   useEffect(() => {
@@ -318,7 +291,9 @@ export function FlightScene({
           <Airfield marketId={from} name={airportFrom} night={nightFrom} close>
             <g className="fl-plane fl-takeoff">
               <g transform="translate(60 246)">
-                <Airliner />
+                <g className="fl-pitch">
+                  <PlaneSide kind={kind} livery={livery} />
+                </g>
               </g>
             </g>
           </Airfield>
@@ -338,7 +313,9 @@ export function FlightScene({
           <Airfield marketId={to} name={airportTo} night={nightTo} arriving>
             <g className={`fl-plane${phase === 'landing' ? ' fl-landing' : ' fl-parked'}`}>
               <g transform="translate(60 246)">
-                <Airliner />
+                <g className="fl-pitch">
+                  <PlaneSide kind={kind} livery={livery} />
+                </g>
               </g>
             </g>
           </Airfield>

@@ -1,7 +1,7 @@
 import { expect, letters, playAsGuest, tab, test, type Page } from './fixtures';
 
 /**
- * Wave 10 §C: buy a home in Lagos (cash) and move in; a pitch competition
+ * Wave 10 §C: buy a home (cash) and move in; a pitch competition
  * in San Francisco judged at the settlement; a locked activity says when it
  * unlocks; open a branch from the Company screen.
  */
@@ -63,12 +63,13 @@ async function openApp(page: Page, app: string) {
   return phone;
 }
 
-test('buy a home in Lagos with cash and move in', async ({ page }) => {
-  await create(page, 'investor', 'lagos');
+test('buy a home with cash and move in', async ({ page }) => {
+  // Johannesburg: the city where a new investor can pay cash for the most homes.
+  await create(page, 'investor', 'johannesburg');
   const phone = await openApp(page, 'homes');
-  await expect(phone.getByText(/Homes in Lagos/)).toBeVisible();
+  await expect(phone.getByText(/Homes in Johannesburg/)).toBeVisible();
   // A home you can pay for in cash, a studio if one is left. The deploy
-  // preview keeps one world across runs and earlier runs buy homes, so ask
+  // preview keeps one world across runs and other specs buy homes, so ask
   // the game which ones you can afford rather than counting on the list.
   const id = await page.evaluate(async () => {
     const r = await fetch('/api/state', { headers: { 'x-runway': '1' } });
@@ -93,23 +94,29 @@ test('buy a home in Lagos with cash and move in', async ({ page }) => {
     const pick = crypto.getRandomValues(new Uint32Array(1))[0]! % Math.max(1, pool.length);
     return pool[pick]?.id ?? null;
   });
-  expect(id, 'a home in Lagos this investor can buy with cash').not.toBeNull();
-  const studio = phone.locator(`[data-listing="${id}"]`);
-  await expect(studio).toBeVisible();
-  await studio.click();
-  const detail = phone.locator('[data-listing-detail]');
-  await expect(detail.locator('[data-tour]')).toBeVisible();
-  await expect(detail.locator('[data-monthly]')).toBeVisible();
-  await detail.getByRole('button', { name: /^Buy for / }).click();
-  await expect(detail.locator('[data-owned]')).toBeVisible();
-  await phone.getByRole('button', { name: /Back to the listings/ }).click();
-  await phone.getByRole('radio', { name: 'Portfolio' }).click();
-  const home = phone.locator('[data-owned-home]').first();
-  await expect(home).toBeVisible();
-  await home.getByRole('button', { name: 'Move in' }).click();
-  await expect(phone.locator('[data-owned-home][data-residence]')).toBeVisible();
-  await expect(home.getByText('You live here')).toBeVisible();
-  await expect(phone.locator('[data-net-worth]')).toBeVisible();
+  expect(id, 'a home this investor can buy with cash').not.toBeNull();
+  try {
+    const studio = phone.locator(`[data-listing="${id}"]`);
+    await expect(studio).toBeVisible();
+    await studio.click();
+    const detail = phone.locator('[data-listing-detail]');
+    await expect(detail.locator('[data-tour]')).toBeVisible();
+    await expect(detail.locator('[data-monthly]')).toBeVisible();
+    await detail.getByRole('button', { name: /^Buy for / }).click();
+    await expect(detail.locator('[data-owned]')).toBeVisible();
+    await phone.getByRole('button', { name: /Back to the listings/ }).click();
+    await phone.getByRole('radio', { name: 'Portfolio' }).click();
+    const home = phone.locator('[data-owned-home]').first();
+    await expect(home).toBeVisible();
+    await home.getByRole('button', { name: 'Move in' }).click();
+    await expect(phone.locator('[data-owned-home][data-residence]')).toBeVisible();
+    await expect(home.getByText('You live here')).toBeVisible();
+    await expect(phone.locator('[data-net-worth]')).toBeVisible();
+  } finally {
+    // Back on the market, so the city's few homes a newcomer affords are
+    // still there for the next run (the preview keeps one world).
+    await command(page, { type: 'property.sell', propertyId: id! }).catch(() => null);
+  }
 });
 
 test('a pitch competition in San Francisco: enter, settle, see the result', async ({ page }) => {

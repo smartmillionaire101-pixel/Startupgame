@@ -17,7 +17,14 @@ export type RoomId =
   | 'dining'
   | 'guest'
   | 'gym'
-  | 'cinema';
+  | 'cinema'
+  // A house with an upstairs: the entrance hall, the landing, a home office,
+  // a balcony and (a mansion) the roof terrace.
+  | 'hall'
+  | 'landing'
+  | 'office'
+  | 'balcony'
+  | 'terrace';
 
 /**
  * Wave 12: what kind of home it is. Owners get their property's tier
@@ -46,7 +53,12 @@ export interface Decor {
   room: RoomId;
   /** Quarter turns: 0 faces +y (away from the back wall). */
   spot: Spot & { rot: number };
-  verbs: ({ act: HomeAct; label: string } | { id: 'invite'; label: string })[];
+  verbs: (
+    | { act: HomeAct; label: string }
+    | { id: 'invite'; label: string }
+    // The stairs: to another floor (an index into `floorsFor`).
+    | { id: 'floor'; label: string; to: number }
+  )[];
   /** Finish, 1–3. */
   tier: number;
 }
@@ -60,6 +72,8 @@ export interface Rect {
 
 export interface Room extends Rect {
   id: RoomId;
+  /** Outdoors (a balcony, a roof terrace): a glass railing, not a wall. */
+  open?: boolean;
 }
 
 export type HomeAct =
@@ -84,7 +98,12 @@ export type Verb =
   | { id: 'buy'; label: string; slot: string }
   | { id: 'move'; label: string; move: string }
   // Wave 12: take one of your cars out.
-  | { id: 'car'; label: string; model: string };
+  | { id: 'car'; label: string; model: string }
+  // Up or down the stairs (an index into `floorsFor`).
+  | { id: 'floor'; label: string; to: number }
+  // A penthouse balcony: the city's skyline, and friends over to see it.
+  | { id: 'skyline'; label: string }
+  | { id: 'party'; label: string };
 
 /** Where a furniture slot (or a fixture) stands. */
 export interface Spot extends Rect {
@@ -132,6 +151,8 @@ export interface HomePlan {
   coreW: number;
   /** Wave 12: things the bigger home comes with. */
   decor: Decor[];
+  /** 0 the ground floor (the front door), 1 upstairs, 2 a mansion's roof terrace. */
+  level?: number;
 }
 
 export const TIER_GRID: Record<number, { w: number; h: number }> = {
@@ -176,7 +197,13 @@ function sharedRoom(): HomePlan {
       { id: 'living', x: 0, y: 4, w: 6, h: 4 },
       { id: 'bathroom', x: 6, y: 5, w: 2, h: 3 },
     ],
-    walls: [],
+    // The bathroom's walls, with its door off the living room.
+    walls: [
+      { dir: 'h', x: 6, y: 5 },
+      { dir: 'h', x: 7, y: 5 },
+      { dir: 'v', x: 6, y: 5 },
+      { dir: 'v', x: 6, y: 6 },
+    ],
     slots: {
       bed: spot(0, 0, 2, 3, 2, 1),
       desk: spot(2, 0, 2, 1, 3, 1),
@@ -195,17 +222,20 @@ function sharedRoom(): HomePlan {
       washer: spot(7, 4, 1, 1, 6, 4),
       rug: spot(1, 5, 3, 1, 2, 5, { blocked: false }),
       sofa: spot(1, 6, 3, 1, 2, 5),
-      dining: spot(5, 5, 2, 1, 5, 6),
+      dining: spot(5, 5, 1, 2, 4, 5),
       plants: spot(0, 7, 1, 1, 0, 6),
-      wifi: spot(6, 7, 1, 1, 5, 7),
-      power: spot(7, 7, 1, 1, 7, 6),
+      wifi: spot(5, 2, 1, 1, 4, 2),
+      power: spot(5, 1, 1, 1, 4, 1),
     },
     fixtures: {
       door: spot(1, 7, 1, 1, 1, 7, { blocked: false }),
       kitchenette: spot(7, 1, 1, 2, 6, 1),
       mat: spot(0, 0, 2, 3, 2, 1),
       cushions: spot(1, 6, 3, 1, 2, 5, { blocked: false }),
-      'shared-bath': spot(6, 0, 1, 1, 6, 0, { wall: true }),
+      // Even the smallest home has a bathroom of its own: a shower, a basin, a toilet.
+      shower: spot(7, 5, 1, 1, 6, 5),
+      sink: spot(7, 6, 1, 1, 6, 6),
+      toilet: spot(7, 7, 1, 1, 6, 7),
     },
     door: { x: 1, y: 7 },
     seats: [
@@ -617,3 +647,420 @@ export function wallEdges(plan: HomePlan): Set<string> {
 
 export const roomAt = (plan: HomePlan, x: number, y: number): RoomId | null =>
   plan.rooms.find((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h)?.id ?? null;
+
+// ---------------------------------------------------------------------------
+// Floors: a house has an upstairs, a mansion a roof terrace too.
+
+/** How many floors a kind of home has (the rest are one floor). */
+const STOREYS: Partial<Record<HomeKind, number>> = {
+  townhouse: 2,
+  house: 2,
+  villa: 2,
+  mansion: 3,
+};
+
+/** A floor's name by its level (translated by the caller). */
+export const LEVEL_NAME: Record<number, string> = {
+  0: 'Ground floor',
+  1: 'Upper floor',
+  2: 'Roof terrace',
+};
+
+/** The bedroom things that move upstairs (the AC and the art stay in the hall). */
+const UPSTAIRS = ['bed', 'desk', 'laptop', 'wardrobe', 'lights'] as const;
+
+/** The staircase's depth in tiles: three of steps and the top step at the back. */
+const STAIR_ROWS = 4;
+
+const FLOORS = new Map<string, HomePlan[]>();
+
+/**
+ * The floors of a home, the ground floor (with the front door) first. A
+ * townhouse, a house and a villa have an upstairs; a mansion an upstairs and a
+ * roof terrace. Downstairs: an entrance hall open to the living room with the
+ * (grand) staircase, the guest bathroom, the kitchen, a home office, the
+ * dining room and the cinema. Upstairs: a landing over the stairs, the master
+ * bedroom with its en-suite, the family bathroom, bedrooms and a balcony along
+ * the front. Every other home is the one floor `planFor` gives.
+ */
+export function floorsFor(tier: number, spec?: HomeSpec): HomePlan[] {
+  const ground = planFor(tier, spec);
+  const n = spec && ground.tier >= 3 ? (STOREYS[ground.kind] ?? 1) : 1;
+  if (n < 2) return [ground];
+  const k = `${ground.tier}:${ground.kind}:${ground.wealth}`;
+  let out = FLOORS.get(k);
+  if (!out) {
+    const g = geometry(ground);
+    out = [groundFloor(ground, g), upperFloor(ground, g, n)];
+    if (n >= 3) out.push(roofFloor(ground, g));
+    FLOORS.set(k, out);
+  }
+  return out;
+}
+
+interface Geometry {
+  W: number;
+  W0: number;
+  H: number;
+  T: number;
+  B: number;
+  /** The staircase's left edge and width. */
+  sx: number;
+  sw: number;
+  /** The wing's back and front rooms on the ground floor, left to right. */
+  back: Room[];
+  front: Room[];
+}
+
+function geometry(p: HomePlan): Geometry {
+  const W0 = p.coreW;
+  const T = { 2: 4, 3: 5, 4: 6, 5: 6 }[p.tier as 2 | 3 | 4 | 5];
+  const B = Math.ceil(W0 * 0.55);
+  const sw = p.kind === 'villa' || p.kind === 'mansion' ? 3 : 2;
+  const wing = p.rooms.filter((r) => r.x >= W0).sort((a, b) => a.x - b.x);
+  return {
+    W: p.w,
+    W0,
+    H: p.h,
+    T,
+    B,
+    sx: Math.floor((B - sw) / 2),
+    sw,
+    back: wing.filter((r) => r.y === 0),
+    front: wing.filter((r) => r.y === T),
+  };
+}
+
+/**
+ * A flight of stairs up the back wall (the foot at the front, the top step
+ * against the wall), or upstairs the well over it: you step off at the top.
+ */
+function stairs(
+  id: string,
+  x: number,
+  w: number,
+  rows: number,
+  down: boolean,
+  verbs: Decor['verbs'],
+): Decor {
+  const cx = x + Math.floor(w / 2);
+  return {
+    id,
+    model: down ? 'stairwell' : 'stairs',
+    label: 'Stairs',
+    room: 'hall',
+    spot: down ? dspot(x, 1, w, rows - 1, cx, 0) : dspot(x, 0, w, rows, cx, rows),
+    verbs,
+    tier: 2,
+  };
+}
+
+const inside = (s: Rect, r: Rect) => s.x >= r.x && s.x < r.x + r.w && s.y >= r.y && s.y < r.y + r.h;
+
+function groundFloor(p: HomePlan, g: Geometry): HomePlan {
+  const { W0, T, B, sx, sw } = g;
+  let office: Room | null = null;
+  const rooms = p.rooms.map((r): Room => {
+    if (r.id === 'bedroom' && r.x === 0 && r.y === 0) return { ...r, id: 'hall' };
+    if (!office && r.id === 'guest' && r.x >= W0 && r.y === 0) {
+      office = { ...r, id: 'office' };
+      return office;
+    }
+    return r;
+  });
+  const slots = { ...p.slots };
+  for (const s of UPSTAIRS) delete slots[s];
+  // The art hangs in the hall beside the stairs; the AC is reached from the side of them.
+  slots.art = spot(B - 2, 0, 1, 1, B - 2, 1, { wall: true });
+  slots.cooling = spot(0, 0, 2, 1, Math.min(1, sx - 1), 1, { wall: true });
+  const fixtures = { ...p.fixtures };
+  delete fixtures.mat;
+  // The hall opens into the living room.
+  const walls = p.walls.filter((w) => !(w.dir === 'h' && w.y === T && w.x < B));
+  const o = office as Room | null;
+  const decor = p.decor.filter((d) => !o || !inside(d.spot, o));
+  const finish = finishOf(p.kind, p.wealth);
+  if (o)
+    decor.push(
+      {
+        id: 'office-desk',
+        model: 'office-desk',
+        label: 'Home office',
+        room: 'office',
+        spot: dspot(o.x + 1, 0, 2, 1, o.x + 2, 1),
+        verbs: [
+          { act: 'work', label: 'Work' },
+          { act: 'read', label: 'Read' },
+        ],
+        tier: finish,
+      },
+      {
+        id: 'office-shelves',
+        model: 'shelves',
+        label: 'Bookshelf',
+        room: 'office',
+        spot: dspot(o.x + o.w - 1, 0, 1, 1, o.x + o.w - 1, 1),
+        verbs: [{ act: 'read', label: 'Read' }],
+        tier: finish,
+      },
+    );
+  decor.push(
+    stairs('stairs-up', sx, sw, STAIR_ROWS, false, [{ id: 'floor', label: 'Go upstairs', to: 1 }]),
+  );
+  return { ...p, rooms, slots, fixtures, walls, decor, level: 0 };
+}
+
+function upperFloor(p: HomePlan, g: Geometry, n: number): HomePlan {
+  const { W, W0, H, T, B, sx, sw } = g;
+  const L = B;
+  const BAL = 3;
+  const finish = finishOf(p.kind, p.wealth);
+  const back = g.back.map((r): Room => ({ id: 'guest', x: r.x, y: 0, w: r.w, h: T - 1 }));
+  const front = g.front.map((r): Room => ({ id: 'guest', x: r.x, y: T, w: r.w, h: H - T - BAL }));
+  const balcony: Room | null =
+    W > W0 ? { id: 'balcony', x: W0, y: H - BAL, w: W - W0, h: BAL, open: true } : null;
+  const rooms: Room[] = [
+    { id: 'landing', x: 0, y: 0, w: B, h: T },
+    // A corridor along the back rooms.
+    { id: 'landing', x: B, y: T - 1, w: W - B, h: 1 },
+    { id: 'bathroom', x: B, y: 0, w: W0 - B, h: T - 1 },
+    { id: 'bedroom', x: 0, y: T, w: L, h: H - T },
+    { id: 'bathroom', x: L, y: T, w: W0 - L, h: H - T },
+    ...back,
+    ...front,
+    ...(balcony ? [balcony] : []),
+  ];
+
+  const walls: HomePlan['walls'] = [];
+  const v = (x: number, y0: number, y1: number, gaps: number[] = []) => {
+    for (let y = y0; y < y1; y++) if (!gaps.includes(y)) walls.push({ dir: 'v', x, y });
+  };
+  const h = (y: number, x0: number, x1: number, gaps: number[] = []) => {
+    for (let x = x0; x < x1; x++) if (!gaps.includes(x)) walls.push({ dir: 'h', x, y });
+  };
+  v(B, 0, T - 1);
+  h(T - 1, B, W, [B + 1, ...back.map((r) => r.x + 1)]);
+  for (const r of back) v(r.x, 0, T - 1);
+  h(T, 0, W, [L - 2, ...front.map((r) => r.x)]);
+  v(L, T, H, [T + 1]);
+  if (W > W0) v(W0, T, H);
+  for (const r of front.slice(1)) v(r.x, T, H - BAL);
+  // Every front bedroom opens onto the balcony.
+  if (balcony)
+    h(
+      H - BAL,
+      W0,
+      W,
+      front.map((r) => r.x + 1),
+    );
+
+  // The master bedroom, and its en-suite.
+  const slots: Record<string, Spot> = {
+    bed: spot(1, T, 2, 3, 3, T + 1),
+    lights: spot(0, T, 1, 1, 0, T + 1),
+    desk: spot(3, H - 1, 2, 1, 4, H - 2),
+    laptop: spot(3, H - 1, 1, 1, 4, H - 2, { blocked: false }),
+    wardrobe: spot(L - 2, H - 1, 2, 1, L - 2, H - 2),
+  };
+  const fixtures: HomePlan['fixtures'] = {
+    toilet: spot(L + 1, T, 1, 1, L + 1, T + 1),
+    sink: spot(L + 2, T, 1, 1, L + 2, T + 1),
+    // A walk-in shower in the corner.
+    shower: spot(W0 - 2, T, 2, 2, W0 - 3, T + 1),
+    bathtub: spot(W0 - 3, H - 1, 2, 1, W0 - 3, H - 2),
+  };
+  const decor: Decor[] = [
+    stairs('stairs-down', sx, sw, STAIR_ROWS, true, [
+      { id: 'floor', label: 'Go downstairs', to: 0 },
+    ]),
+  ];
+  if (n >= 3)
+    decor.push(
+      stairs('stairs-roof', 0, 2, 3, false, [
+        { id: 'floor', label: 'Up to the roof terrace', to: 2 },
+      ]),
+    );
+  // The family bathroom.
+  const bath = (
+    id: string,
+    model: string,
+    label: string,
+    s: Spot & { rot: number },
+    verbs: Decor['verbs'],
+  ) => decor.push({ id, model, label, room: 'bathroom', spot: s, verbs, tier: finish });
+  bath('bath2-toilet', 'toilet', 'Toilet', dspot(B, 0, 1, 1, B, 1), [
+    { act: 'toilet', label: 'Use' },
+  ]);
+  bath('bath2-sink', 'sink', 'Sink', dspot(B + 1, 0, 1, 1, B + 1, 1), [
+    { act: 'toilet', label: 'Freshen up' },
+  ]);
+  bath('bath2-shower', 'shower', 'Shower', dspot(W0 - 2, 0, 2, 2, W0 - 3, 1), [
+    { act: 'shower', label: 'Shower' },
+  ]);
+  if (B + 2 < W0 - 2)
+    bath('bath2-sink-2', 'sink', 'Sink', dspot(B + 2, 0, 1, 1, B + 2, 1), [
+      { act: 'toilet', label: 'Freshen up' },
+    ]);
+  if (L + 3 < W0 - 2)
+    bath('ensuite-sink-2', 'sink', 'Sink', dspot(L + 3, T, 1, 1, L + 3, T + 1), [
+      { act: 'toilet', label: 'Freshen up' },
+    ]);
+  // Bath mats by the tubs.
+  bath('ensuite-mat', 'rug', 'Bathtub', dspot(W0 - 3, H - 2, 2, 1, W0 - 3, H - 2, 0, false), [
+    { act: 'shower', label: 'Take a bath' },
+  ]);
+  bath('bath2-mat', 'rug', 'Bathtub', dspot(W0 - 3, T - 3, 2, 1, W0 - 3, T - 3, 0, false), [
+    { act: 'shower', label: 'Take a bath' },
+  ]);
+  bath('bath2-tub', 'bathtub', 'Bathtub', dspot(W0 - 3, T - 2, 2, 1, W0 - 3, T - 3), [
+    { act: 'shower', label: 'Take a bath' },
+  ]);
+  // The bedrooms.
+  [...back, ...front].forEach((r, i) => {
+    const bx = r.x + Math.max(1, Math.floor((r.w - 2) / 2));
+    const ix = bx + 2 < r.x + r.w ? bx + 2 : bx - 1;
+    decor.push({
+      id: `bedroom-bed-${i + 1}`,
+      model: 'guest-bed',
+      label: 'Bed',
+      room: 'guest',
+      spot: dspot(bx, r.y, 2, 3, ix, r.y + 1),
+      verbs: [
+        { act: 'sleep', label: 'Sleep' },
+        { act: 'nap', label: 'Nap' },
+      ],
+      tier: finish,
+    });
+  });
+  // Loungers on the balcony, facing the street.
+  if (balcony)
+    for (let i = 0; i < Math.min(3, Math.floor((balcony.w - 1) / 2)); i++) {
+      const x = balcony.x + balcony.w - 2 - i * 2;
+      decor.push({
+        id: `balcony-lounger-${i + 1}`,
+        model: 'lounger',
+        label: 'Sun lounger',
+        room: 'balcony',
+        spot: dspot(x, H - 2, 1, 2, x, H - BAL),
+        verbs: [{ act: 'nap', label: 'Sunbathe' }],
+        tier: finish,
+      });
+    }
+  return {
+    tier: p.tier,
+    w: W,
+    h: H,
+    rooms,
+    walls,
+    slots,
+    fixtures,
+    // You come up the stairs here.
+    door: { x: sx + Math.floor(sw / 2), y: 0 },
+    seats: [],
+    kind: p.kind,
+    wealth: p.wealth,
+    coreW: W0,
+    decor,
+    level: 1,
+  };
+}
+
+/** A mansion's roof terrace: loungers, a bar, a hot tub and a table under the sky. */
+function roofFloor(p: HomePlan, g: Geometry): HomePlan {
+  const { W, H } = g;
+  const finish = finishOf(p.kind, p.wealth);
+  const decor: Decor[] = [
+    stairs('stairs-roof-down', 0, 2, 3, true, [{ id: 'floor', label: 'Go downstairs', to: 1 }]),
+    {
+      id: 'roof-bar',
+      model: 'bar-counter',
+      label: 'Bar',
+      room: 'terrace',
+      spot: dspot(W - 4, 0, 3, 1, W - 3, 1),
+      verbs: [{ act: 'snack', label: 'Mix a drink' }],
+      tier: finish,
+    },
+    {
+      id: 'roof-hot-tub',
+      model: 'spa-pool',
+      label: 'Hot tub',
+      room: 'terrace',
+      spot: dspot(W - 5, 4, 3, 3, W - 6, 5),
+      verbs: [{ act: 'nap', label: 'Relax in the hot tub' }],
+      tier: finish,
+    },
+    {
+      id: 'roof-table',
+      model: 'restaurant-table',
+      label: 'Outdoor table',
+      room: 'terrace',
+      spot: dspot(4, 4, 2, 2, 4, 6),
+      verbs: [{ act: 'snack', label: 'Snack' }],
+      tier: finish,
+    },
+  ];
+  for (let i = 0; i < Math.min(6, Math.floor((W - 4) / 2)); i++)
+    decor.push({
+      id: `roof-lounger-${i + 1}`,
+      model: 'lounger',
+      label: 'Sun lounger',
+      room: 'terrace',
+      spot: dspot(2 + i * 2, H - 2, 1, 2, 2 + i * 2, H - 3),
+      verbs: [{ act: 'nap', label: 'Sunbathe' }],
+      tier: finish,
+    });
+  return {
+    tier: p.tier,
+    w: W,
+    h: H,
+    rooms: [{ id: 'terrace', x: 0, y: 0, w: W, h: H, open: true }],
+    walls: [],
+    slots: {},
+    fixtures: {},
+    door: { x: 1, y: 0 },
+    seats: [],
+    kind: p.kind,
+    wealth: p.wealth,
+    coreW: g.W0,
+    decor,
+    level: 2,
+  };
+}
+
+export interface Doorway {
+  /** 'h': the edge between rows y-1 and y; 'v': between columns x-1 and x. */
+  dir: 'h' | 'v';
+  x: number;
+  y: number;
+  /** +1: the bathroom is past the edge (row y / column x); -1: before it. */
+  inside: 1 | -1;
+}
+
+/** Each bathroom's doorway: the first gap in the walls round it into another room. */
+export function bathDoors(plan: HomePlan): Doorway[] {
+  const walls = wallEdges(plan);
+  const out: Doorway[] = [];
+  const open = (ax: number, ay: number, bx: number, by: number) =>
+    bx >= 0 &&
+    by >= 0 &&
+    bx < plan.w &&
+    by < plan.h &&
+    roomAt(plan, bx, by) !== 'bathroom' &&
+    !walls.has(`${key(ax, ay)}|${key(bx, by)}`);
+  for (const r of plan.rooms) {
+    if (r.id !== 'bathroom') continue;
+    let hit: Doorway | null = null;
+    for (let x = r.x; x < r.x + r.w && !hit; x++) {
+      if (open(x, r.y, x, r.y - 1)) hit = { dir: 'h', x, y: r.y, inside: 1 };
+      else if (open(x, r.y + r.h - 1, x, r.y + r.h))
+        hit = { dir: 'h', x, y: r.y + r.h, inside: -1 };
+    }
+    for (let y = r.y; y < r.y + r.h && !hit; y++) {
+      if (open(r.x, y, r.x - 1, y)) hit = { dir: 'v', x: r.x, y, inside: 1 };
+      else if (open(r.x + r.w - 1, y, r.x + r.w, y))
+        hit = { dir: 'v', x: r.x + r.w, y, inside: -1 };
+    }
+    if (hit) out.push(hit);
+  }
+  return out;
+}

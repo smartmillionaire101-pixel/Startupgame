@@ -6,6 +6,7 @@
  */
 import type { ReactNode } from 'react';
 import { shade } from './art';
+import { PlaneSide } from './airport/planes';
 import type { HomeItemView } from './life';
 import type { RoomKind } from './rooms';
 
@@ -1568,13 +1569,16 @@ export function RoomBack({ kind, tint, sign, home = null, car = null }: RoomArtP
             stroke="#94a3b8"
             strokeWidth="3"
           />
-          <g className="room-plane">
-            <path
-              d="M 40 70 L 150 64 Q 162 64 162 70 Q 162 76 150 76 L 40 76 Z"
-              fill="#f8fafc"
-              stroke="#64748b"
-            />
-            <path d="M 90 70 L 70 46 L 82 46 L 110 70 Z" fill="#94a3b8" />
+          <clipPath id="room-airport-glass">
+            <rect x="11.5" y="11.5" width="187" height="101" />
+          </clipPath>
+          <g clipPath="url(#room-airport-glass)">
+            <rect x="10" y="88" width="190" height="26" fill="#9ca3af" />
+            <g className="room-plane">
+              <g transform="translate(100 98) scale(0.85)">
+                <PlaneSide livery="#0f766e" />
+              </g>
+            </g>
           </g>
           <rect x="220" y="14" width="130" height="62" fill="#0f172a" />
           {[0, 1, 2, 3].map((k) => (
@@ -1680,6 +1684,7 @@ export function RoomFront({ kind, tint, home = null }: RoomArtProps) {
       return (
         <g>
           <Table x={208} y={192} w={40} items="laptops" />
+          <Table x={106} y={214} w={56} items="cups" />
           <Table x={272} y={192} w={56} items="cups" />
         </g>
       );

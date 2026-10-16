@@ -49,7 +49,7 @@ describe('passers-by (Wave 6: nobody to tap on the street)', () => {
   });
 
   it('are a few anonymous people: no names, no characters to talk to', () => {
-    for (const max of [0, 4, 7, 10]) {
+    for (const max of [0, 4, 7, 10, 20]) {
       const cast = passersBy(layout, max);
       expect(cast.length).toBeLessThanOrEqual(max);
       expect(new Set(cast.map((p) => p.id)).size).toBe(cast.length);
@@ -58,7 +58,7 @@ describe('passers-by (Wave 6: nobody to tap on the street)', () => {
         expect(w).not.toHaveProperty('name');
       }
     }
-    expect(crowdSize(375)).toBeLessThanOrEqual(4);
+    expect(crowdSize(375)).toBeLessThanOrEqual(8);
     expect(crowdSize(375)).toBeLessThan(crowdSize(1280));
   });
 

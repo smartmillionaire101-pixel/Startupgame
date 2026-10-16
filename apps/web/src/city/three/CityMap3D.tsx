@@ -329,7 +329,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       target: Pt,
       then?: () => void,
       placeId: string | null = null,
-      opts: { mode?: RideMode; ask?: boolean } = {},
+      opts: { mode?: RideMode; ask?: boolean; instant?: boolean } = {},
     ) => {
       stopWalk();
       pending.current = null;
@@ -348,8 +348,9 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       const spec =
         spec0 && mode !== 'bus' && mode !== 'drive' ? { ...spec0, body: look.top } : spec0;
       const driving = mode === 'drive';
+      // Skipping the trip: no ride scene, you're simply there.
       const scene =
-        len > SHORT_HOP || driving
+        (len > SHORT_HOP || driving) && !opts.instant
           ? beginRide({ mode, tiles: len, path, layout, placeId, look, mapMs: rideMs(mode, len) })
           : null;
       const done = () => {
@@ -367,8 +368,9 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         cb.current.onArrive?.(target, placeId);
         then?.();
       };
-      if (len < 0.05 || (reduced && !scene)) {
+      if (opts.instant || len < 0.05 || (reduced && !scene)) {
         done();
+        if (opts.instant && sceneRef.current) sceneRef.current.following = true;
         return;
       }
       setVehicle(spec);
@@ -378,7 +380,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       if (s3) s3.following = true;
       if (driving && s3) {
         // Keep to your lane, the camera behind you.
-        s3.actors.setDriving(2.2);
+        s3.actors.setDriving(2.2, path);
         if (!reduced) s3.startChase();
         setDriving(true);
       }
@@ -414,10 +416,10 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   );
 
   const goTo = useCallback(
-    (id: string, mode?: RideMode, ask = false) => {
+    (id: string, mode?: RideMode, opts: { ask?: boolean; instant?: boolean } = {}) => {
       const p = layout.places.find((x) => x.id === id);
       if (!p) return;
-      walkTo(p.door, () => cb.current.onEnter(p), p.id, { mode, ask });
+      walkTo(p.door, () => cb.current.onEnter(p), p.id, { mode, ...opts });
     },
     [layout, walkTo],
   );
@@ -445,14 +447,14 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   useEffect(() => {
     if (!handleRef) return;
     handleRef.current = {
-      goTo: (id, mode) => goTo(id, mode),
+      goTo: (id, mode, opts) => goTo(id, mode, opts),
       walkToPlace: (id) => {
         const p = layout.places.find((x) => x.id === id);
         if (p) walkTo(p.door, undefined, p.id);
       },
-      ride: (mode) => {
+      ride: (mode, instant = false) => {
         const trip = pending.current;
-        if (trip) walkTo(trip.target, trip.then, trip.placeId, { mode });
+        if (trip) walkTo(trip.target, trip.then, trip.placeId, { mode, instant });
       },
       cancelTrip: () => {
         pending.current = null;
@@ -533,7 +535,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     const el = (e.target as Element).closest?.('[data-place]');
     const id = el?.getAttribute('data-place');
     if (id) {
-      goTo(id, undefined, true);
+      goTo(id, undefined, { ask: true });
       return;
     }
     const s = sceneRef.current;
@@ -549,7 +551,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     }
     const hit = s.pickPlace(p.x, p.y);
     if (hit) {
-      goTo(hit.id, undefined, true);
+      goTo(hit.id, undefined, { ask: true });
       return;
     }
     const gp = s.groundPoint(p.x, p.y);

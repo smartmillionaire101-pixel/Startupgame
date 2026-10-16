@@ -47,10 +47,11 @@ import { DecorArt, FixtureArt, SlotArt, TILE } from './art';
 import {
   KIND_OF_TIER,
   TIER_HOME,
+  bathDoors,
   blockedTiles,
+  floorsFor,
   homeSpecOf,
   key,
-  planFor,
   wallEdges,
   type HomeAct,
   type HomeKind,
@@ -61,11 +62,18 @@ import {
 import { groundsFor, outdoorThings, type Grounds } from './grounds';
 import { ActFx } from './ActFx';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
+import { balconyView } from './balcony';
+import type PanoramaView from '../experiences/Panorama';
 import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
 
 /** Wave 9 §C: the 3D home, loaded on demand (three.js is its own chunk). */
 // A chunk that fails to load (offline) leaves the 2D home in place.
 const Home3D = lazy(() => import('../interiors3d/Home3D').catch(() => ({ default: () => null })));
+/** The penthouse balcony's skyline: the real city in 3D (three.js, loaded on demand). */
+type PanoramaProps = Parameters<typeof PanoramaView>[0];
+const Panorama = lazy<(p: PanoramaProps) => ReactNode>(() =>
+  import('../experiences/Panorama').catch(() => ({ default: () => null })),
+);
 
 /** The back wall's face, in px above row 0. */
 const WALL = 44;
@@ -127,6 +135,8 @@ interface Obj {
   finish?: number;
   ry?: number;
   outdoor?: boolean;
+  /** A visitor can use it too (the stairs, the balcony). */
+  guest?: boolean;
 }
 
 interface Person {
@@ -201,6 +211,8 @@ export interface HostView {
   /** Wave 12: the host's kind of home and wealth band (the size of the house). */
   kind?: HomeKind;
   wealth?: number;
+  /** The neighbourhood their home is in (a penthouse's view). */
+  hood?: string | null;
 }
 
 /** Wave 12: the name of a home by its kind (owners), else by lifestyle tier. */
@@ -231,7 +243,19 @@ export function HomeScene({
     ? (hostView.kind ?? KIND_OF_TIER[tier]!)
     : homeSpecOf(residence, tier).kind;
   const specWealth = hostView ? (hostView.wealth ?? 1) : homeSpecOf(residence, tier).wealth;
-  const basePlan = planFor(tier, { kind: specKind, wealth: specWealth });
+  // A house has an upstairs (a mansion a roof terrace too): one floor at a time.
+  const floors = useMemo(
+    () => floorsFor(tier, { kind: specKind, wealth: specWealth }),
+    [tier, specKind, specWealth],
+  );
+  const [floorAt, setFloorAt] = useState(0);
+  const floor = Math.min(floorAt, floors.length - 1);
+  const basePlan = floors[floor]!;
+  const level = basePlan.level ?? 0;
+  const floorRef = useRef(floor);
+  useEffect(() => {
+    floorRef.current = floor;
+  }, [floor]);
   const garageKey = (hostView ? (hostView.cars ?? []) : view.me.garage.map((c) => c.modelId)).join(
     ',',
   );
@@ -287,17 +311,24 @@ export function HomeScene({
   };
 
   // ---- What's in the flat
+  // The grounds are the ground floor's (upstairs, they're below you).
+  const groundPlan = floors[0]!;
   const grounds = useMemo(
-    () => groundsFor(plan, garageKey ? garageKey.split(',') : []),
-    [plan, garageKey],
+    () => groundsFor(groundPlan, garageKey ? garageKey.split(',') : []),
+    [groundPlan, garageKey],
   );
   const carNames = useMemo(
     () => new Map<string, string>((view.market.shop?.cars ?? []).map((c) => [c.id, c.label])),
     [view.market.shop],
   );
+  const guestView = !!hostView;
   const objects = useMemo(
-    () => buildObjects(plan, tiers, night, grounds, (m) => carNames.get(m) ?? m),
-    [plan, tiers, night, grounds, carNames],
+    () =>
+      buildObjects(plan, tiers, night, grounds, (m) => carNames.get(m) ?? m, {
+        outside: level === 0,
+        host: !guestView,
+      }),
+    [plan, tiers, night, grounds, carNames, level, guestView],
   );
 
   // ---- People
@@ -311,9 +342,11 @@ export function HomeScene({
   });
   const guestPeople = useRef(new Map<string, Person>());
   const guestSpots = useMemo(() => {
-    const d = plan.slots.dining!.interact;
-    return [plan.seats[1]!, plan.seats[2]!, plan.seats[0]!, d];
-  }, [plan]);
+    // Guests stay downstairs.
+    const g = floor === 0 ? plan : groundPlan;
+    const d = g.slots.dining?.interact ?? g.door;
+    return [g.seats[1] ?? d, g.seats[2] ?? d, g.seats[0] ?? d, d];
+  }, [plan, groundPlan, floor]);
 
   /** Snap a person onto a seat (or stand next to it when it's free floor). */
   const seatAt = useCallback(
@@ -530,6 +563,7 @@ export function HomeScene({
 
   // Guests: spawn at the door and walk to a seat (or appear seated when reopening).
   useEffect(() => {
+    if (floor !== 0) return;
     const map = guestPeople.current;
     guests.forEach((g, n) => {
       if (map.has(g.personId)) return;
@@ -547,7 +581,7 @@ export function HomeScene({
       }
       bump(p);
     });
-  }, [guests, guestSpots, plan, seatAt, walk, writePerson, bump]);
+  }, [guests, guestSpots, plan, floor, seatAt, walk, writePerson, bump]);
 
   // ---- Interaction state
   const [menuState, setMenuState] = useState<{ obj: Obj; at: { x: number; y: number } } | null>(
@@ -569,8 +603,11 @@ export function HomeScene({
       at: { x: (ox - c.x) * zoom + size.w / 2, y: (oy - c.y) * zoom + size.h / 2 },
     });
   };
-  const [sheet, setSheet] = useState<'edit' | 'invite' | 'buy' | null>(null);
+  const [sheet, setSheet] = useState<'edit' | 'invite' | 'buy' | 'party' | null>(null);
+  // The penthouse balcony's skyline, in 3D.
+  const [sky, setSky] = useState(false);
   const [ring, setRing] = useState<{ x: number; y: number; n: number } | null>(null);
+  const rings = useRef(0);
   const [acting, setActing] = useState<{
     act: HomeAct;
     x: number;
@@ -692,8 +729,47 @@ export function HomeScene({
     [send, cur, float, writePerson, bump],
   );
 
+  /** Up or down the stairs: you come out where they meet that floor. */
+  const goFloor = (to: number) => {
+    const next = floors[to];
+    if (!next || to === floor) return;
+    const from = floor;
+    const meet = next.decor.find((d) => d.verbs.some((v) => 'to' in v && v.to === from));
+    const at =
+      meet?.spot.interact ??
+      next.decor.find((d) => d.model.startsWith('stair'))?.spot.interact ??
+      next.door;
+    const p = me.current;
+    Object.assign(p, {
+      x: at.x,
+      y: at.y,
+      path: [],
+      i: 0,
+      pose: 'stand',
+      at: undefined,
+      arrive: undefined,
+    });
+    p.tile = key(at.x, at.y);
+    cam.current.manual = false;
+    cam.current.ready = false;
+    setMenuState(null);
+    setWalkPath(null);
+    setPlacing(null);
+    setFloorAt(to);
+    writePerson(p);
+    bump(p);
+  };
+
   const choose = (obj: Obj, v: Verb) => {
     setMenu(null);
+    if (v.id === 'skyline') return setSky(true);
+    if (v.id === 'party') return setSheet('party');
+    if (v.id === 'floor' && 'to' in v) {
+      const to = v.to;
+      const path = walk(me.current, obj.spot.interact, () => goFloor(to));
+      setWalkPath(reduceMotion() ? null : path);
+      return;
+    }
     if (v.id === 'game')
       return openPlay({ venue: `home:${placeOwner}`, name: homeName, game: 'football' });
     if (v.id === 'out') return onClose();
@@ -829,9 +905,11 @@ export function HomeScene({
         return;
       }
       // The 3D thing under your finger wins; else the 2D hit layer; else the floor.
-      const svgObj = hostView ? null : (e.target as Element).closest?.('[data-obj]');
-      const id = hostView ? undefined : (hit?.obj ?? svgObj?.getAttribute('data-obj') ?? undefined);
-      const obj = id ? objects.find((o) => o.id === id) : undefined;
+      // A visitor only uses what a guest can (the stairs, the balcony).
+      const svgObj = (e.target as Element).closest?.('[data-obj]');
+      const id = hit?.obj ?? svgObj?.getAttribute('data-obj') ?? undefined;
+      const found = id ? objects.find((o) => o.id === id) : undefined;
+      const obj = hostView && !found?.guest ? undefined : found;
       if (obj) {
         setMenu(menu?.id === obj.id ? null : obj);
         return;
@@ -840,7 +918,7 @@ export function HomeScene({
       if (!hit?.tile) return;
       const path = walk(me.current, hit.tile);
       setWalkPath(reduceMotion() ? null : path);
-      setRing({ x: (hit.tile.x + 0.5) * TILE, y: (hit.tile.y + 0.5) * TILE, n: Date.now() });
+      setRing({ x: (hit.tile.x + 0.5) * TILE, y: (hit.tile.y + 0.5) * TILE, n: ++rings.current });
       return;
     }
     if (placing) {
@@ -848,10 +926,10 @@ export function HomeScene({
       placeAt(Math.floor(w.x / TILE), Math.floor(w.y / TILE));
       return;
     }
-    const el = hostView ? null : (e.target as Element).closest?.('[data-obj]');
+    const el = (e.target as Element).closest?.('[data-obj]');
     if (el) {
       const obj = objects.find((o) => o.id === el.getAttribute('data-obj'));
-      if (obj) {
+      if (obj && (!hostView || obj.guest)) {
         setMenu(menu?.id === obj.id ? null : obj);
         return;
       }
@@ -864,7 +942,7 @@ export function HomeScene({
     cam.current.manual = false;
     const path = walk(me.current, { x: tx, y: ty });
     setWalkPath(reduceMotion() ? null : path);
-    setRing({ x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, n: Date.now() });
+    setRing({ x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, n: ++rings.current });
   };
   const onKey = (e: React.KeyboardEvent) => {
     const dir = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[
@@ -919,7 +997,7 @@ export function HomeScene({
   // ---- Draw order
   const people = [
     { id: 'me', name: view.me.name, look: meLook, base: meStart.y + 0.72 },
-    ...guests.map((g) => ({
+    ...(floor === 0 ? guests : []).map((g) => ({
       id: `guest:${g.personId}`,
       name: g.name,
       look: guestLook(g.personId),
@@ -1027,7 +1105,8 @@ export function HomeScene({
   );
   const people3d = useCallback((): Home3DPerson[] => {
     const out: Home3DPerson[] = [];
-    for (const p of [me.current, ...guestPeople.current.values()])
+    const guestsHere = floorRef.current === 0 ? [...guestPeople.current.values()] : [];
+    for (const p of [me.current, ...guestsHere])
       out.push({ id: p.id, look: p.look, x: p.x, y: p.y, pose: p.pose });
     return out;
   }, []);
@@ -1045,6 +1124,18 @@ export function HomeScene({
   }, [want3d]);
 
   const inviteLeft = actsLeft(view, 'invite');
+  // ---- The penthouse balcony: the city it looks out over.
+  const city = view.here?.id ?? view.market.id;
+  const hood = hostView ? (hostView.hood ?? null) : (residence?.neighbourhood ?? null);
+  const balconyName = hostView
+    ? t('{name}’s balcony', { name: hostView.name.split(' ')[0]! })
+    : t('Your balcony');
+  const balcony = useMemo(
+    () => (plan.kind === 'penthouse' ? balconyView(city, balconyName, hood) : null),
+    [plan.kind, city, balconyName, hood],
+  );
+  const levelName = (l: number) =>
+    l === 2 ? t('Roof terrace') : l === 1 ? t('Upper floor') : t('Ground floor');
   const pocket = view.accounts.local?.balance ?? 0;
   const homeName = hostView
     ? t('{name}’s place', { name: hostView.name.split(' ')[0]! })
@@ -1064,6 +1155,8 @@ export function HomeScene({
       data-kind={plan.kind}
       data-wealth={plan.wealth}
       data-plan-w={plan.w}
+      data-floor={level}
+      data-floors={floors.length}
       data-night={night ? '1' : '0'}
       data-energy={view.me.energy}
       data-pocket={pocket}
@@ -1179,6 +1272,16 @@ export function HomeScene({
               <rect width="8" height="8" fill="var(--home-tile-2)" />
               <rect x="8" y="8" width="8" height="8" fill="var(--home-tile-2)" />
             </pattern>
+            <pattern id="home-marble" width="32" height="32" patternUnits="userSpaceOnUse">
+              <rect width="32" height="32" fill="#f3efe8" />
+              <rect width="16" height="16" fill="#e9e3d8" />
+              <rect x="16" y="16" width="16" height="16" fill="#e9e3d8" />
+              <path d="M2 28 Q12 18 30 6" stroke="#d6cfc2" strokeWidth="0.8" fill="none" />
+            </pattern>
+            <pattern id="home-deck" width="24" height="10" patternUnits="userSpaceOnUse">
+              <rect width="24" height="10" fill="#c8a27a" />
+              <path d="M0 9.5 H24" stroke="#9a7650" strokeWidth="1" />
+            </pattern>
             <pattern id="home-bath" width="12" height="12" patternUnits="userSpaceOnUse">
               <rect width="12" height="12" fill="var(--home-bath)" />
               <path d="M0 11.5 H12 M11.5 0 V12" stroke="var(--home-bath-line)" strokeWidth="1" />
@@ -1278,6 +1381,21 @@ export function HomeScene({
             ))}
           </g>
         </svg>
+        {floors.length > 1 && (
+          <div className="home-floors" role="group" aria-label={t('Floors')}>
+            {[...floors.keys()].reverse().map((i) => (
+              <button
+                key={i}
+                type="button"
+                data-floor-btn={floors[i]!.level ?? i}
+                aria-pressed={i === floor}
+                onClick={() => goFloor(i)}
+              >
+                {levelName(floors[i]!.level ?? i)}
+              </button>
+            ))}
+          </div>
+        )}
         {is3d &&
           floats.map((f) => (
             <span
@@ -1368,6 +1486,16 @@ export function HomeScene({
         >
           {t('🎮 Play together')}
         </button>
+        {balcony && (
+          <button
+            type="button"
+            className="home-bar-btn"
+            data-action="skyline"
+            onClick={() => setSky(true)}
+          >
+            {t('🌆 Watch the skyline')}
+          </button>
+        )}
         {hostView ? (
           <button type="button" className="home-bar-btn" onClick={onClose}>
             <span aria-hidden="true">👋</span>
@@ -1407,11 +1535,11 @@ export function HomeScene({
           <section
             className="home-sheet"
             role="dialog"
-            aria-label={sheet === 'edit' ? t('Furnish your home') : t('Invite someone over')}
+            aria-label={sheetTitle(sheet)}
             onClick={(e) => e.stopPropagation()}
           >
             <header>
-              <h3>{sheet === 'edit' ? t('Furnish your home') : t('Invite someone over')}</h3>
+              <h3>{sheetTitle(sheet)}</h3>
               <button
                 type="button"
                 className="icon-btn"
@@ -1421,7 +1549,25 @@ export function HomeScene({
                 ✕
               </button>
             </header>
-            {sheet === 'edit' ? (
+            {sheet === 'party' ? (
+              <PartyList
+                people={view.living.people}
+                busy={busy}
+                onInvite={async (ids) => {
+                  let sent = 0;
+                  for (const id of ids)
+                    if (await send({ type: 'visit.invite', toPlayerId: id })) sent++;
+                  if (sent) {
+                    toast(
+                      t('{n} invited. They’ll see your skyline when they come over.', { n: sent }),
+                      'ok',
+                    );
+                    setSheet(null);
+                  }
+                }}
+                onContacts={() => setSheet('invite')}
+              />
+            ) : sheet === 'edit' ? (
               <EditList
                 comfort={(view.me as unknown as { home?: { comfort?: number } }).home?.comfort ?? 0}
                 owned={owned.size}
@@ -1441,9 +1587,26 @@ export function HomeScene({
           </section>
         </div>
       )}
+      {sky && balcony && (
+        <Suspense fallback={null}>
+          <Panorama
+            city={city}
+            balcony={balcony}
+            holdingHands={false}
+            onClose={() => setSky(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
+
+const sheetTitle = (s: 'edit' | 'invite' | 'party') =>
+  s === 'edit'
+    ? t('Furnish your home')
+    : s === 'party'
+      ? t('Host a party')
+      : t('Invite someone over');
 
 /** Where a "+" sits: the spot's centre, or its corner when something else stands there. */
 function plusAt(o: Obj): string {
@@ -1468,6 +1631,8 @@ function buildObjects(
   night: boolean,
   grounds: Grounds,
   carName: (model: string) => string,
+  /** `outside`: the ground floor (the grounds are yours to use); `host`: your own home. */
+  opts: { outside: boolean; host: boolean } = { outside: true, host: true },
 ): Obj[] {
   const out: Obj[] = [];
   const has = (s: string) => tiers.has(s);
@@ -1484,7 +1649,9 @@ function buildObjects(
   const upgrade = (slot: string): Verb => ({ id: 'buy', label: t('Upgrade'), slot });
   const push = (o: Omit<Obj, 'base'>) => out.push({ ...o, base: o.spot.y + o.spot.h });
   const slotObj = (slot: string, verbs: Verb[], extra?: ReactNode) => {
-    const s = plan.slots[slot]!;
+    // Upstairs or down: each floor has its own things.
+    const s = plan.slots[slot];
+    if (!s) return;
     push({
       id: slot,
       label: slotLabel(slot),
@@ -1523,7 +1690,8 @@ function buildObjects(
   };
 
   // Bed (or a floor mat).
-  if (has('bed')) slotObj('bed', [act('sleep', t('Sleep')), act('nap', t('Nap'))]);
+  if (has('bed') || !plan.fixtures.mat)
+    slotObj('bed', [act('sleep', t('Sleep')), act('nap', t('Nap'))]);
   else
     fixture('bed', 'mat', t('Sleeping mat'), [
       act('sleep', t('Sleep')),
@@ -1536,7 +1704,7 @@ function buildObjects(
     act('snack', t('Snack')),
     { id: 'order', label: t('Order in') } as Verb,
   ];
-  if (has('kitchen')) slotObj('kitchen', kitchenVerbs);
+  if (has('kitchen') || !plan.fixtures.kitchenette) slotObj('kitchen', kitchenVerbs);
   else fixture('kitchen', 'kitchenette', t('Kitchenette'), kitchenVerbs);
   if (has('fridge'))
     slotObj('fridge', [
@@ -1547,7 +1715,7 @@ function buildObjects(
   if (has('coffee')) slotObj('coffee', [act('snack', t('Have a coffee'))]);
   // Sofa (or floor cushions).
   const tvVerb = has('tv') ? [act('tv', t('Watch TV'))] : [];
-  if (has('sofa'))
+  if (has('sofa') || !plan.fixtures.cushions)
     slotObj('sofa', [
       { id: 'sit', label: t('Sit') },
       { id: 'invite', label: t('Invite friend') },
@@ -1606,16 +1774,21 @@ function buildObjects(
       id: d.id,
       label: t(d.label),
       spot: d.spot,
-      verbs: d.verbs.map((v) =>
-        'act' in v ? act(v.act, t(v.label)) : ({ id: 'invite', label: t(v.label) } as Verb),
+      verbs: d.verbs.map((v): Verb =>
+        'act' in v
+          ? act(v.act, t(v.label))
+          : v.id === 'floor'
+            ? { id: 'floor', label: t(v.label), to: v.to }
+            : { id: 'invite', label: t(v.label) },
       ),
       art: <DecorArt model={d.model} w={d.spot.w} h={d.spot.h} />,
       model: d.model,
       finish: d.tier,
       ry: (d.spot.rot * Math.PI) / 2,
+      ...(d.verbs.some((v) => 'to' in v) ? { guest: true } : {}),
     });
   // …and outside: the pool, the loungers, your cars. You use them from the front door.
-  for (const o of outdoorThings(grounds)) {
+  for (const o of opts.outside ? outdoorThings(grounds) : []) {
     const spot: Spot = {
       x: o.x,
       y: o.y,
@@ -1628,9 +1801,19 @@ function buildObjects(
       id: o.id,
       label: o.model.startsWith('car:') ? carName(o.model.slice(4)) : t(o.label),
       spot,
-      verbs: o.verbs.map((v) =>
-        'act' in v ? act(v.act, t(v.label)) : { id: 'car', label: t(v.label), model: v.model },
-      ),
+      verbs: o.verbs
+        // Only the owner throws a party.
+        .filter((v) => opts.host || !('id' in v) || v.id !== 'party')
+        .map((v): Verb =>
+          'act' in v
+            ? act(v.act, t(v.label))
+            : 'model' in v
+              ? { id: 'car', label: t(v.label), model: v.model }
+              : v.id === 'skyline'
+                ? { id: 'skyline', label: t(v.label) }
+                : { id: 'party', label: t(v.label) },
+        ),
+      ...(o.id === 'skyline' ? { guest: true } : {}),
       art: <DecorArt model={o.model} w={o.w} h={o.h} />,
       model: o.model,
       finish: 2,
@@ -1673,8 +1856,13 @@ function Shell({ plan, night }: { plan: HomePlan; night: boolean }) {
       ? 'url(#home-tile)'
       : id === 'bathroom'
         ? 'url(#home-bath)'
-        : 'url(#home-wood)';
-  const windows = plan.rooms.filter((r) => r.y === 0 && r.id !== 'bathroom');
+        : id === 'hall'
+          ? 'url(#home-marble)'
+          : id === 'balcony' || id === 'terrace'
+            ? 'url(#home-deck)'
+            : 'url(#home-wood)';
+  const windows = plan.rooms.filter((r) => r.y === 0 && r.id !== 'bathroom' && !r.open);
+  const outdoors = plan.rooms.filter((r) => r.open && r.y === 0);
   return (
     <g className="home-shell">
       <rect
@@ -1687,7 +1875,7 @@ function Shell({ plan, night }: { plan: HomePlan; night: boolean }) {
       />
       {plan.rooms.map((r) => (
         <rect
-          key={r.id}
+          key={`${r.id}:${r.x},${r.y}`}
           data-room={r.id}
           x={r.x * TILE}
           y={r.y * TILE}
@@ -1730,16 +1918,112 @@ function Shell({ plan, night }: { plan: HomePlan; night: boolean }) {
           </g>
         );
       })}
+      {/* Out on a roof terrace: the sky and the city over a glass railing. */}
+      {outdoors.map((r) => (
+        <g key={`sky${r.x}`} className="home-sky">
+          <rect
+            x={r.x * TILE}
+            y={-WALL - 8}
+            width={r.w * TILE}
+            height={WALL + 8}
+            fill={night ? '#1e2a5a' : '#bae6fd'}
+          />
+          <path
+            d={skylinePath(r.x * TILE, r.w * TILE, -4)}
+            fill={night ? '#0f172a' : '#94a3b8'}
+            opacity="0.85"
+          />
+          <rect
+            x={r.x * TILE}
+            y={-16}
+            width={r.w * TILE}
+            height={14}
+            fill="#bfe3f0"
+            opacity="0.5"
+          />
+          <rect x={r.x * TILE} y={-17} width={r.w * TILE} height={3} fill="#d9dde3" />
+        </g>
+      ))}
       <rect x={-8} y={-WALL - 8} width={8} height={H + WALL + 8} fill="var(--home-wall-top)" />
       <rect x={W} y={-WALL - 8} width={8} height={H + WALL + 8} fill="var(--home-wall-top)" />
+      {/* Bathroom doors, swung open, with a sign. */}
+      {bathDoors(plan).map((d) => {
+        const L = TILE * 0.85;
+        const hx = d.x * TILE;
+        const hy = d.y * TILE;
+        const s = d.inside;
+        return d.dir === 'h' ? (
+          <g key={`bd${d.x},${d.y}`} className="home-bath-door" data-bath-door="">
+            <path
+              d={`M${hx + L + 2} ${hy} A${L} ${L} 0 0 ${s > 0 ? 1 : 0} ${hx + 2} ${hy + s * L}`}
+              fill="none"
+              stroke="#94a3b8"
+              strokeDasharray="3 3"
+            />
+            <rect
+              x={hx}
+              y={s > 0 ? hy : hy - L}
+              width={4}
+              height={L}
+              rx={1}
+              fill="#fbfaf7"
+              stroke="#64748b"
+            />
+            <rect x={hx + TILE / 2 - 5} y={hy - 4} width={10} height={8} rx={2} fill="#0ea5e9" />
+          </g>
+        ) : (
+          <g key={`bd${d.x},${d.y}`} className="home-bath-door" data-bath-door="">
+            <path
+              d={`M${hx} ${hy + L + 2} A${L} ${L} 0 0 ${s > 0 ? 0 : 1} ${hx + s * L} ${hy + 2}`}
+              fill="none"
+              stroke="#94a3b8"
+              strokeDasharray="3 3"
+            />
+            <rect
+              x={s > 0 ? hx : hx - L}
+              y={hy}
+              width={L}
+              height={4}
+              rx={1}
+              fill="#fbfaf7"
+              stroke="#64748b"
+            />
+            <rect x={hx - 4} y={hy + TILE / 2 - 5} width={8} height={10} rx={2} fill="#0ea5e9" />
+          </g>
+        );
+      })}
     </g>
   );
 }
 
-/** The front ledge ("walls down") with the door gap. */
+/** A row of towers along the top of a terrace (px; `w` wide, standing on `base`). */
+function skylinePath(x0: number, w: number, base: number) {
+  let d = `M${x0} ${base}`;
+  for (let x = 0, i = 0; x < w; i++) {
+    const bw = 10 + ((i * 7) % 9) * 2;
+    const bh = 14 + ((i * 13) % 11) * 2.4;
+    const ex = Math.min(w, x + bw);
+    d += ` L${x0 + x} ${base - bh} L${x0 + ex} ${base - bh}`;
+    x = ex;
+  }
+  return `${d} L${x0 + w} ${base} Z`;
+}
+
+/** The front ledge ("walls down") with the door gap (a glass railing along a balcony). */
 function Front({ plan }: { plan: HomePlan }) {
   const W = plan.w * TILE;
   const H = plan.h * TILE;
+  if ((plan.level ?? 0) > 0)
+    return (
+      <g className="home-front" pointerEvents="none">
+        <rect x={-8} y={H} width={W + 16} height={8} fill="var(--home-wall-top)" />
+        {plan.rooms
+          .filter((r) => r.open && r.y + r.h === plan.h)
+          .map((r) => (
+            <rect key={r.x} x={r.x * TILE} y={H} width={r.w * TILE} height={8} fill="#bfe3f0" />
+          ))}
+      </g>
+    );
   const dx = plan.door.x * TILE;
   return (
     <g className="home-front" pointerEvents="none">
@@ -1873,6 +2157,76 @@ function EditList({
       ) : (
         <p className="small muted">{t('No showroom is open for that right now.')}</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * A penthouse party: invite players in town over (the same invitation as
+ * "Invite over"); when they come, your home opens for them with the balcony
+ * and its skyline. Contacts can come too (the Invite list).
+ */
+function PartyList({
+  people,
+  busy,
+  onInvite,
+  onContacts,
+}: {
+  people: { id: string; name: string }[];
+  busy: boolean;
+  onInvite: (ids: string[]) => void;
+  onContacts: () => void;
+}) {
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const toggle = (id: string) =>
+    setPicked((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  return (
+    <div className="home-sheet-body">
+      <p className="small muted">
+        {t('Friends come up to your balcony to watch the city with you.')}
+      </p>
+      {people.length ? (
+        <div className="home-invitees" role="list">
+          {people.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              role="listitem"
+              className="home-row"
+              data-party-invite={p.id}
+              aria-pressed={picked.has(p.id)}
+              onClick={() => toggle(p.id)}
+            >
+              <span aria-hidden="true">{picked.has(p.id) ? '✅' : '🧑'}</span>
+              <span>
+                <b>{p.name}</b>
+                <small>{t('Player in town')}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="small muted">{t('No other players in town right now.')}</p>
+      )}
+      <div className="home-party-actions">
+        <button
+          type="button"
+          className="home-bar-btn"
+          data-action="party-send"
+          disabled={busy || picked.size === 0}
+          onClick={() => onInvite([...picked])}
+        >
+          {t('🥂 Send invitations ({n})', { n: picked.size })}
+        </button>
+        <button type="button" className="home-bar-btn" onClick={onContacts}>
+          {t('👋 Invite a contact')}
+        </button>
+      </div>
     </div>
   );
 }

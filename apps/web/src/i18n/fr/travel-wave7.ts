@@ -60,4 +60,9 @@ export const travelWave7: Record<string, string> = {
   'Sleep through': 'Dormir',
   'Work on laptop': 'Travailler sur l’ordinateur',
   'Water taxi across the estuary to {city}': 'Bateau-taxi à travers l’estuaire jusqu’à {city}',
+  // The terminal, step by step, and your own jet
+  'Bag drop': 'Dépose bagages',
+  'Private jets': 'Jets privés',
+  'Private jet': 'Jet privé',
+  'Cancel ticket · full refund': 'Annuler le billet · remboursement intégral',
 };

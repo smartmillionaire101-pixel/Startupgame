@@ -954,10 +954,11 @@ const sink: Builder = (k, o) => {
 
 const shower: Builder = (k, o, m) => {
   const s = Math.min(o.w, o.d) - 0.08;
-  k.box(s, 0.06, s, '#e5e7eb', 0, 0, 0, { round: 0.02 });
+  k.box(s, 0.06, s, '#8fa3b8', 0, 0, 0, { round: 0.02 });
   k.cyl(0.04, 0.04, 0.005, '#9ca3af', 0, 0.06, 0);
   // glass on the two open sides
-  k.box(s, 1.95, 0.02, GLASS, 0, 0.06, s / 2, { opacity: 0.28, rough: 0.05, noShadow: true });
+  k.box(s, 1.95, 0.02, GLASS, 0, 0.06, s / 2, { opacity: 0.4, rough: 0.05, noShadow: true });
+  k.box(0.04, 2.0, 0.04, CHROME, -s / 2, 0.06, s / 2, metal);
   k.box(0.02, 1.95, s, GLASS, -s / 2, 0.06, 0, { opacity: 0.28, rough: 0.05, noShadow: true });
   k.box(s, 0.03, 0.03, CHROME, 0, 2.0, s / 2, metal);
   k.box(0.03, 0.03, s, CHROME, -s / 2, 2.0, 0, metal);

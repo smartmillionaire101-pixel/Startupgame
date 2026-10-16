@@ -814,5 +814,133 @@ export function skyExtras(scene: CityScene, spec: SkyViewSpec, water: THREE.Mate
       g.add(m);
     }
   }
+  if (spec.id === 'leicester-peak') {
+    // Across the Sierra Leone River estuary, the low Bullom shore: Lungi and its
+    // airport, Tagrin Point, a line of mangrove and palms along the water.
+    const shore: [number, number][] = [
+      [8.566, -13.31],
+      [8.569, -13.285],
+      [8.577, -13.255],
+      [8.588, -13.225],
+      [8.595, -13.195],
+      [8.594, -13.16],
+      [8.584, -13.12],
+      [8.568, -13.08],
+      [8.552, -13.04],
+    ];
+    flat(
+      [...shore, [8.56, -12.95], [8.8, -12.95], [8.8, -13.33], [8.63, -13.33]],
+      mat('#3e6a2d', { metal: 0, rough: 1 }),
+      1,
+      -36,
+    );
+    const crown = new THREE.IcosahedronGeometry(1, 0).scale(9, 6, 9).translate(0, 5, 0);
+    const roofGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+    const trees: THREE.Vector3[] = [];
+    const roofs: THREE.Vector3[] = [];
+    let s = 917;
+    const rnd = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 2 ** 32;
+    for (let i = 0; i + 1 < shore.length; i++) {
+      const a = P(...shore[i]!);
+      const b = P(...shore[i + 1]!);
+      const n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 40);
+      for (let k = 0; k < n; k++) {
+        const t = k / n;
+        // A belt of trees a few hundred metres deep, the villages behind it.
+        const back = rnd() * 600;
+        trees.push(new THREE.Vector3(a.x + (b.x - a.x) * t, 0, a.y + (b.y - a.y) * t - back));
+        if (rnd() < 0.5) {
+          const back2 = 250 + rnd() * 900;
+          roofs.push(
+            new THREE.Vector3(a.x + (b.x - a.x) * t + rnd() * 30, 0, a.y + (b.y - a.y) * t - back2),
+          );
+        }
+      }
+    }
+    // Lungi town, by the airport.
+    const lungi = P(8.607, -13.2);
+    for (let i = 0; i < 260; i++)
+      roofs.push(
+        new THREE.Vector3(lungi.x + (rnd() - 0.5) * 2200, 0, lungi.y + (rnd() - 0.5) * 1400),
+      );
+    const look = scene.look;
+    const leaf = new THREE.Color(look.canopy?.[0] ?? '#2f5a26');
+    const treeMesh = new THREE.InstancedMesh(
+      crown,
+      mat('#ffffff', { metal: 0, rough: 1 }),
+      trees.length,
+    );
+    const roofMesh = new THREE.InstancedMesh(
+      roofGeo,
+      mat('#ffffff', { metal: 0.2, rough: 0.7 }),
+      roofs.length,
+    );
+    const m4 = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const c = new THREE.Color();
+    trees.forEach((v, i) => {
+      m4.compose(v.setY(1), q, new THREE.Vector3(1, 1, 1).multiplyScalar(0.7 + rnd() * 0.8));
+      treeMesh.setMatrixAt(i, m4);
+      treeMesh.setColorAt(i, c.copy(leaf).multiplyScalar(0.8 + rnd() * 0.5));
+    });
+    roofs.forEach((v, i) => {
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * 3);
+      m4.compose(v.setY(1), q, new THREE.Vector3(9 + rnd() * 8, 4, 7 + rnd() * 6));
+      roofMesh.setMatrixAt(i, m4);
+      roofMesh.setColorAt(i, c.set(look.pitchedRoofs[i % look.pitchedRoofs.length]!));
+    });
+    q.identity();
+    for (const im of [treeMesh, roofMesh]) {
+      im.computeBoundingSphere();
+      g.add(im);
+    }
+    // Ships at Queen Elizabeth II Quay and at anchor in the estuary.
+    const hulls = ['#2b2f33', '#7a2a22', '#23395b', '#3c4a3a'];
+    const boxes = ['#b5462f', '#2f5f8f', '#d9b13b', '#3d7f5a', '#c9c4bb', '#8a3b5f'];
+    const ships = new THREE.Group();
+    ships.userData.noTerrain = true;
+    for (const [i, [lat, lon, rot, len]] of (
+      [
+        [8.495, -13.2125, 0.18, 150],
+        [8.4948, -13.2168, 0.18, 120],
+        [8.4952, -13.2085, 0.2, 95],
+        [8.502, -13.209, 0.9, 170],
+        [8.507, -13.222, 1.4, 130],
+        [8.513, -13.198, 0.5, 185],
+        [8.518, -13.235, 2.1, 110],
+        [8.524, -13.212, 1.1, 60],
+      ] as const
+    ).entries()) {
+      const ship = new THREE.Group();
+      const w = len * 0.15;
+      const hull = new THREE.Mesh(
+        new THREE.BoxGeometry(len, 7, w).translate(0, 2, 0),
+        mat(hulls[i % hulls.length]!, { metal: 0.3, rough: 0.6 }),
+      );
+      const bridge = new THREE.Mesh(
+        new THREE.BoxGeometry(len * 0.12, 12, w * 0.9).translate(-len * 0.38, 11.5, 0),
+        mat('#e9e7e1', { metal: 0.1, rough: 0.5 }),
+      );
+      ship.add(hull, bridge);
+      // Containers stacked along the deck.
+      for (let k = 0; k < Math.floor(len / 28); k++) {
+        const h = 3 + Math.floor(rnd() * 3) * 2.6;
+        const box = new THREE.Mesh(
+          new THREE.BoxGeometry(len * 0.11, h, w * 0.85).translate(
+            -len * 0.24 + k * len * 0.13,
+            5.5 + h / 2,
+            0,
+          ),
+          mat(boxes[Math.floor(rnd() * boxes.length)]!, { metal: 0.2, rough: 0.7 }),
+        );
+        ship.add(box);
+      }
+      const p = P(lat, lon);
+      ship.position.set(p.x, 0, p.y);
+      ship.rotation.y = rot;
+      ships.add(ship);
+    }
+    g.add(ships);
+  }
   return g;
 }

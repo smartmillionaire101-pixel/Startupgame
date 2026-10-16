@@ -583,6 +583,76 @@
   text-shadow: 0 1px 6px #000;
   z-index: 2;
 }
+/* Going up: the city's sky, hills and water, rising until the real city is drawn. */
+.sky-rise {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(#6f9cc4 0%, #a9c6da 38%, #dfe4dc 54%, #e9e3cf 60%);
+  transition: opacity 0.6s ease-out;
+}
+.sky-rise.is-dark {
+  background: linear-gradient(#0b1626 0%, #1c2c45 45%, #3a4258 58%);
+}
+.sky-rise.is-up {
+  opacity: 0;
+}
+.sky-rise-sea,
+.sky-rise-land {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  will-change: transform;
+  animation: skyRise 2.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.sky-rise-sea {
+  top: 57%;
+  height: 12%;
+  background: linear-gradient(#dfe4dc, var(--rise-sea) 60%);
+  opacity: 0.85;
+}
+.sky-rise-land {
+  top: 60%;
+  bottom: -30%;
+  background: linear-gradient(
+    color-mix(in srgb, var(--rise-land) 55%, #dfe4dc),
+    var(--rise-land) 18%,
+    var(--rise-park) 55%,
+    #1f3a22
+  );
+  clip-path: polygon(
+    0 18%,
+    12% 6%,
+    22% 14%,
+    34% 0,
+    47% 12%,
+    58% 4%,
+    70% 15%,
+    83% 3%,
+    100% 12%,
+    100% 100%,
+    0 100%
+  );
+}
+.sky-rise.is-dark .sky-rise-sea,
+.sky-rise.is-dark .sky-rise-land {
+  filter: brightness(0.35) saturate(0.6);
+}
+@keyframes skyRise {
+  from {
+    transform: translateY(-14%) scale(1.06);
+  }
+  to {
+    transform: translateY(6%) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky-rise-sea,
+  .sky-rise-land {
+    animation: none;
+  }
+}
 .sky-labels {
   z-index: 1;
   position: absolute;
@@ -670,7 +740,23 @@
   padding: 0;
   border-radius: 50%;
 }
-.sky-host .sky-host-loading {
-  color: #fff;
-  padding: 2rem;
+
+/* A penthouse balcony's glass railing along the bottom of the view. */
+.panorama-balcony {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 36%;
+  z-index: 1;
+  pointer-events: none;
+  border-top: 7px solid #e2e8f0;
+  box-shadow: 0 -2px 0 rgb(15 23 42 / 0.25);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 22%,
+      rgb(226 232 240 / 0.85) 22% calc(22% + 6px)
+    ),
+    linear-gradient(180deg, rgb(191 227 240 / 0.22), rgb(191 227 240 / 0.38));
 }

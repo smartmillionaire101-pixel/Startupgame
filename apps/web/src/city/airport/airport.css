@@ -1,11 +1,21 @@
 /* Wave 7 §B: the busy airport. */
 .airport-scene .airport-view {
-  flex: 1 1 auto;
+  /* The board and the view keep their room; the sheet below scrolls. */
+  flex: 1 0 clamp(300px, 50vh, 460px);
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: #0f172a;
   overflow: hidden;
+}
+.place-scene.airport-scene:not(.is-more) .trip-sheet {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.place-scene.airport-scene:not(.is-more) .trip-sheet > * {
+  flex-shrink: 0;
 }
 
 /* Split-flap departures board. */
@@ -28,7 +38,7 @@
 .board table {
   width: 100%;
   border-collapse: separate;
-  border-spacing: 0 3px;
+  border-spacing: 0 2px;
   table-layout: auto;
 }
 .board td {
@@ -47,7 +57,7 @@
   display: inline-block;
   width: 0.62em;
   padding: 1px 0;
-  font-size: clamp(9px, 2.7vw, 13px);
+  font-size: clamp(8px, 2.4vw, 12px);
   line-height: 1.25;
   font-weight: 700;
   text-align: center;
@@ -126,7 +136,7 @@
 }
 .trip-steps {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 0.3rem;
   margin: 0;
   padding: 0;
@@ -271,4 +281,9 @@
 .trip-pass-route {
   font-weight: 800;
   font-size: 1.05rem;
+}
+/* Who's here sits in the lounge step, not over the sheet's title. */
+.trip-lounge .who-strip {
+  position: static;
+  align-self: flex-start;
 }

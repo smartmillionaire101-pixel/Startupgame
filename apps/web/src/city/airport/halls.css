@@ -1,0 +1,134 @@
+/* The terminal views over the trip sheet: check-in, security, lounge, gate. */
+.hall {
+  position: relative;
+  flex: 1 1 140px;
+  min-height: 120px;
+  overflow: hidden;
+}
+.hall svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.hall:not(.is-playing) .city-person .city-leg,
+.hall:not(.is-playing) .city-person .city-arm-l,
+.hall:not(.is-playing) .city-person .city-arm-r {
+  animation: none;
+}
+
+/* Check-in: your bag onto the scale, then away on the belt. */
+.hall.is-playing .hall-bag-move {
+  animation: hall-bag 1.5s ease-in-out forwards;
+}
+@keyframes hall-bag {
+  35% {
+    transform: translate(14px, -44px);
+  }
+  70% {
+    transform: translate(26px, -44px);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(40px, -44px);
+    opacity: 0;
+  }
+}
+
+/* Security: the tray through the scanner, you through the arch. */
+.hall-arch-light {
+  fill: #f59e0b;
+}
+.hall.is-playing .hall-tray-move {
+  animation: hall-tray 1.7s linear forwards;
+}
+@keyframes hall-tray {
+  to {
+    transform: translateX(180px);
+  }
+}
+.hall.is-playing .hall-walk-move {
+  animation: hall-walk 1.7s ease-in-out forwards;
+}
+@keyframes hall-walk {
+  to {
+    transform: translateX(84px);
+  }
+}
+.hall.is-playing .hall-arch-light {
+  animation: hall-green 1.7s step-end forwards;
+}
+@keyframes hall-green {
+  55%,
+  100% {
+    fill: #22c55e;
+  }
+}
+
+/* The lounge: a plane climbing out past the glass, now and then. */
+.hall-climb {
+  animation: hall-climb 9s linear infinite;
+}
+@keyframes hall-climb {
+  from {
+    transform: translate(-80px, 40px);
+  }
+  to {
+    transform: translate(480px, -70px);
+  }
+}
+
+/* Boarding: up the jet bridge, or across the tarmac and up the airstairs. */
+.hall-board {
+  opacity: 0;
+}
+.hall.is-playing .hall-board {
+  opacity: 1;
+}
+.hall-board-bridge {
+  transform: translate(240px, 178px) scale(0.9);
+}
+.hall.is-playing .hall-board-bridge {
+  animation: hall-bridge 1.3s ease-in forwards;
+}
+@keyframes hall-bridge {
+  85% {
+    transform: translate(236px, 130px) scale(0.42);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(236px, 128px) scale(0.4);
+    opacity: 0;
+  }
+}
+.hall-board-stairs {
+  transform: translate(340px, 151px) scale(0.55);
+}
+.hall.is-playing .hall-board-stairs {
+  animation: hall-stairs 1.3s linear forwards;
+}
+@keyframes hall-stairs {
+  50% {
+    transform: translate(264px, 151px) scale(0.52);
+  }
+  88% {
+    transform: translate(240px, 135px) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(238px, 134px) scale(0.48);
+    opacity: 0;
+  }
+}
+
+:root[data-reduce-motion='1'] .hall *,
+:root[data-reduce-motion='1'] .hall {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hall *,
+  .hall {
+    animation: none !important;
+  }
+}

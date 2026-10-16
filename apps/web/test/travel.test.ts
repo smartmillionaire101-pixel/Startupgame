@@ -135,7 +135,7 @@ describe('rides', () => {
   });
 
   it('keeps the crowd small on phones', () => {
-    expect(crowdSize(375)).toBeLessThanOrEqual(6);
+    expect(crowdSize(375)).toBeLessThanOrEqual(8);
     expect(crowdSize(1280)).toBeGreaterThan(crowdSize(375));
   });
 });

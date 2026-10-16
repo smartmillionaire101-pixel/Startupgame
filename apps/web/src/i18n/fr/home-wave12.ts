@@ -32,4 +32,30 @@ export const homeWave12: Record<string, string> = {
     'Livraison dans 30 secondes · à déballer chez vous',
   'Your {item} from {place} is at your door. Unpack it at home.':
     'Votre {item} de {place} est à votre porte. Déballez-le chez vous.',
+  // Floors, stairs and bathrooms; the penthouse balcony and its parties.
+  Floors: 'Étages',
+  'Ground floor': 'Rez-de-chaussée',
+  'Upper floor': 'Étage',
+  'Roof terrace': 'Toit-terrasse',
+  Stairs: 'Escalier',
+  'Go upstairs': 'Monter',
+  'Go downstairs': 'Descendre',
+  'Up to the roof terrace': 'Monter sur le toit-terrasse',
+  'Home office': 'Bureau',
+  'Outdoor table': 'Table d’extérieur',
+  Balcony: 'Balcon',
+  'Your balcony': 'Votre balcon',
+  '{name}’s balcony': 'Le balcon de {name}',
+  'Watch the skyline': 'Admirer la ville',
+  '🌆 Watch the skyline': '🌆 Admirer la ville',
+  'The whole city from your balcony.': 'Toute la ville depuis votre balcon.',
+  'Host a party': 'Organiser une fête',
+  'Friends come up to your balcony to watch the city with you.':
+    'Vos amis montent sur votre balcon pour admirer la ville avec vous.',
+  'Player in town': 'Joueur en ville',
+  'No other players in town right now.': 'Aucun autre joueur en ville pour le moment.',
+  '🥂 Send invitations ({n})': '🥂 Envoyer les invitations ({n})',
+  '👋 Invite a contact': '👋 Inviter un contact',
+  '{n} invited. They’ll see your skyline when they come over.':
+    '{n} invité(s). Ils verront votre vue en venant chez vous.',
 };

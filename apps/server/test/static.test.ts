@@ -37,3 +37,27 @@ it('serves new build assets without restarting and never substitutes HTML for mi
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+it('never turns away the app’s own files, however many one address loads; the API stays limited', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'runway-static-'));
+  mkdirSync(join(dir, 'assets'));
+  writeFileSync(join(dir, 'index.html'), '<!doctype html><div id="root"></div>');
+  writeFileSync(join(dir, 'assets', 'app.js'), 'export {};');
+  const { app, store } = await makeApp({ env: { WEB_DIST: dir } });
+  try {
+    await app.ready();
+    // Many phones behind one carrier address, each opening the game (no sign-in yet).
+    for (let n = 0; n < 400; n++) {
+      const r = await app.inject(n % 2 ? '/assets/app.js' : '/');
+      expect(r.statusCode, `request ${n}`).toBe(200);
+    }
+    let limited = false;
+    for (let n = 0; n < 400 && !limited; n++)
+      limited = (await app.inject('/api/missing')).statusCode === 429;
+    expect(limited).toBe(true);
+  } finally {
+    await app.close();
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

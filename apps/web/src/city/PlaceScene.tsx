@@ -401,6 +401,8 @@ function occupantsOf(
   const already = out.flatMap((o) =>
     o.person?.kind === 'ai' ? [aiCharacterId(o.person.a) ?? o.id] : o.person ? [o.id] : [],
   );
+  // Name tags on the first few; the rest are in Who's here (a full club is a wall of labels).
+  let tags = 6;
   for (const c of crowdAt(view, {
     placeId: place.id,
     room,
@@ -408,6 +410,17 @@ function occupantsOf(
     real,
     exclude: already,
   })) {
+    if (c.role === 'regular') {
+      out.push(
+        ai(
+          aiPerson(place, 'patron', c.id, c.name, pickBg(PATRON_BG, c.id), { chat: c.id }),
+          false,
+          t('Regular'),
+        ),
+      );
+      Object.assign(out[out.length - 1]!, { tag: false, gender: c.gender });
+      continue;
+    }
     const kind: AiPerson['kind'] =
       c.role === 'investor'
         ? 'partner'
@@ -442,6 +455,7 @@ function occupantsOf(
         t('{role} · {company}', { role: CROWD_ROLE[crowdKind]!(), company: c.org }),
       ),
     );
+    Object.assign(out[out.length - 1]!, { tag: tags-- > 0, gender: c.gender });
   }
 
   // Regulars, so no room is ever empty.

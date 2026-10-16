@@ -120,6 +120,7 @@ export function RideChooser({
   preferred,
   busy,
   onPick,
+  onSkip,
   onCancel,
   car = null,
   abroad = false,
@@ -132,6 +133,8 @@ export function RideChooser({
   preferred: RideMode;
   busy: boolean;
   onPick: (mode: RideMode) => void;
+  /** Skip the trip: be there at once, free. */
+  onSkip?: () => void;
   onCancel: () => void;
   /** Your car (life.ts carOf): "Drive" when it is in this city. */
   car?: MyCar | null;
@@ -200,6 +203,17 @@ export function RideChooser({
         <p className="ride-note small muted">
           {t('Your car is at home. Take a bus or a taxi here.')}
         </p>
+      )}
+      {onSkip && (
+        <button
+          type="button"
+          className="ride-skip-trip"
+          data-mode="skip"
+          disabled={busy}
+          onClick={onSkip}
+        >
+          {t('Skip the trip: go straight there')} <span aria-hidden>›</span>
+        </button>
       )}
     </div>
   );

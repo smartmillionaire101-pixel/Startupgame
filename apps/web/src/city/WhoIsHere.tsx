@@ -169,6 +169,7 @@ const CROWD_KIND: Record<CrowdRole, HereKind> = {
   owner: 'owner',
   banker: 'banker',
   employee: 'employee',
+  regular: 'regular',
 };
 
 /** The room a place is, for its crowd. */
@@ -198,7 +199,7 @@ export function crowdHere(
       id: c.id,
       name: c.name,
       kind,
-      role: t('{role} · {company}', { role: roleOf(kind), company: c.org }),
+      role: c.org ? t('{role} · {company}', { role: roleOf(kind), company: c.org }) : roleOf(kind),
       ...(c.role === 'founder' ? { playerId: c.id } : {}),
       gender: c.gender,
       human: false,

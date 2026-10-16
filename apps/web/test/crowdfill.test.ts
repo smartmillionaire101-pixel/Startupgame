@@ -8,6 +8,7 @@ import {
   venueTarget,
   whereIs,
 } from '../src/city/crowdfill';
+import { ROOM_SLOTS } from '../src/city/rooms';
 
 /** A small Lagos: AI companies, funds, lenders and businesses (a club, a bar, a café). */
 function view(): PlayerView {
@@ -73,15 +74,59 @@ describe('the city crowd (AI people in venues)', () => {
     expect(aiFill(5, -2)).toBe(5);
   });
 
-  it('busy clubs at night, quiet by day; banks in office hours', () => {
-    expect(venueTarget('club', 23)).toBeGreaterThanOrEqual(8);
-    expect(venueTarget('club', 1.5)).toBeGreaterThanOrEqual(8);
-    expect(venueTarget('club', 11)).toBeLessThanOrEqual(1);
+  it('busy clubs at night, a crowd by day too; banks in office hours', () => {
+    expect(venueTarget('club', 23)).toBeGreaterThanOrEqual(14);
+    expect(venueTarget('club', 1.5)).toBeGreaterThanOrEqual(14);
+    expect(venueTarget('club', 14)).toBeGreaterThanOrEqual(4);
+    expect(venueTarget('club', 14)).toBeLessThan(venueTarget('club', 23));
+    expect(venueTarget('bar', 20)).toBeGreaterThanOrEqual(10);
     expect(venueTarget('bar', 20)).toBeGreaterThan(venueTarget('bar', 10));
+    expect(venueTarget('restaurant', 13)).toBeGreaterThanOrEqual(10);
+    expect(venueTarget('restaurant', 20)).toBeGreaterThanOrEqual(10);
+    expect(venueTarget('restaurant', 16)).toBeLessThan(venueTarget('restaurant', 13));
     expect(venueTarget('cafe', 8)).toBeGreaterThan(venueTarget('cafe', 22));
-    expect(venueTarget('bank', 11)).toBeGreaterThan(0);
-    expect(venueTarget('bank', 22)).toBe(0);
+    expect(venueTarget('hub', 11)).toBeGreaterThanOrEqual(8);
+    expect(venueTarget('cowork', 11)).toBeGreaterThanOrEqual(8);
+    expect(venueTarget('eventhall', 20)).toBeGreaterThanOrEqual(12);
+    expect(venueTarget('bank', 11)).toBeGreaterThanOrEqual(6);
+    expect(venueTarget('bank', 22)).toBeLessThan(venueTarget('bank', 11));
+    expect(venueTarget('investor', 11)).toBeGreaterThanOrEqual(5);
     expect(venueTarget('shop', 12)).toBe(0);
+  });
+
+  it('never leaves a venue you can walk into empty, at any hour', () => {
+    const rooms = [
+      'club',
+      'bar',
+      'lounge',
+      'karaoke',
+      'stage',
+      'restaurant',
+      'cafe',
+      'cowork',
+      'hub',
+      'eventhall',
+      'bank',
+      'investor',
+      'gym',
+    ] as const;
+    for (const room of rooms)
+      for (let h = 0; h < 24; h++) {
+        expect(venueTarget(room, h + 0.5), `${room} at ${h}h`).toBeGreaterThan(0);
+        // Every person the room wants has a spot to stand or sit in, with room for a few players.
+        const guests = ROOM_SLOTS[room].filter((s) => s.who === 'guest').length;
+        expect(guests, `${room} slots`).toBeGreaterThanOrEqual(venueTarget(room, h) + 1);
+      }
+  });
+
+  it('every spot is inside the room, on the floor', () => {
+    for (const slots of Object.values(ROOM_SLOTS))
+      for (const s of slots) {
+        expect(s.x).toBeGreaterThanOrEqual(10);
+        expect(s.x).toBeLessThanOrEqual(350);
+        expect(s.y).toBeGreaterThanOrEqual(130);
+        expect(s.y).toBeLessThanOrEqual(240);
+      }
   });
 
   it('draws real names from the world: founders, partners, owners, bankers, teams', () => {
@@ -112,8 +157,33 @@ describe('the city crowd (AI people in venues)', () => {
     // A different hour can bring different people.
     const later = crowdAt(v, { ...q, hour: 1 });
     expect(later.map((p) => p.id)).not.toEqual(a.map((p) => p.id));
-    // By day, nearly nobody.
-    expect(crowdAt(v, { ...q, hour: 11 }).length).toBeLessThanOrEqual(1);
+    // By day, fewer.
+    expect(crowdAt(v, { ...q, hour: 14 }).length).toBe(venueTarget('club', 14));
+    expect(crowdAt(v, { ...q, hour: 14 }).length).toBeLessThan(a.length);
+  });
+
+  it('tops the room up with the city’s regulars when the named crowd runs out', () => {
+    const v = view();
+    const q = { placeId: 'biz:club1', room: 'club' as const, hour: 23, real: 0 };
+    const here = crowdAt(v, q);
+    const regs = here.filter((p) => p.role === 'regular');
+    expect(here.length).toBe(venueTarget('club', 23));
+    for (const r of regs) {
+      expect(r.id).toMatch(/^npc:lagos:\d+$/);
+      expect(r.name).toMatch(/\S+ \S+/);
+    }
+    // Named people first.
+    const firstReg = here.findIndex((p) => p.role === 'regular');
+    if (firstReg >= 0) expect(here.slice(firstReg).every((p) => p.role === 'regular')).toBe(true);
+    // An empty world still fills its clubs, and two venues don't share a regular this hour.
+    const bare = { ...v, directory: [], market: { ...v.market, funds: [], lenders: [] } };
+    const a = crowdAt(bare as PlayerView, q);
+    const b = crowdAt(bare as PlayerView, { ...q, placeId: 'biz:club2' });
+    expect(a.length).toBe(venueTarget('club', 23));
+    expect(a.every((p) => p.role === 'regular' || p.role === 'owner')).toBe(true);
+    const ids = new Set(a.map((p) => p.id));
+    expect(b.some((p) => p.role === 'regular' && ids.has(p.id))).toBe(false);
+    expect(crowdAt(bare as PlayerView, q)).toEqual(a);
   });
 
   it('phases out as real players come in', () => {
@@ -144,6 +214,9 @@ describe('the city crowd (AI people in venues)', () => {
     const here = crowdAt(v, { placeId: 'lender:l1', room: 'bank', hour: 11, real: 0 });
     expect(here.length).toBe(venueTarget('bank', 11));
     expect(here.some((p) => p.role === 'banker' && p.orgId === 'l1')).toBe(true);
+    // Bankers on the floor, and customers too.
+    expect(here.filter((p) => p.role === 'banker').length).toBeLessThanOrEqual(here.length / 2 + 1);
+    expect(here.some((p) => p.role !== 'banker')).toBe(true);
     // Not in a bar while at work.
     const bar = crowdAt(v, { placeId: 'biz:bar1', room: 'bar', hour: 11, real: 0 });
     expect(bar.some((p) => p.role === 'banker')).toBe(false);

@@ -49,7 +49,7 @@ import {
   type StoryPlace,
 } from './contract';
 import { onVisit, takeVisit } from './goto';
-import { setTicket, ticketFor } from './ticket';
+import { getTicket, setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
 import { suggestionText, WhatNowCard, WhatNowList } from './WhatNowCards';
@@ -71,6 +71,7 @@ import { useGeo, type GeoData } from './geo';
 import { cachedCityLayout } from './geoLayout';
 import { type CityLayout, type DistrictId, type Place, type Pt } from './layout';
 import { openCompanyTab } from '../screens/Company';
+import { skipRides } from './ride/state';
 
 // Scenes and flights load on demand (Wave 7 §D: a small main bundle).
 const Interior = lazy(() => import('./Interiors').then((m) => ({ default: m.Interior })));
@@ -245,6 +246,8 @@ interface FlightState {
   status: 'pending' | 'ok';
   /** The fallback trip (no `travel.fly` yet): what the trip gives you. */
   note?: string;
+  /** The airline on your ticket: its colours on the plane. */
+  airline?: string;
 }
 
 /**
@@ -281,6 +284,7 @@ export function CityScreen({
         toName,
         hours: dest?.hours ?? flights?.hours ?? 4,
         status: 'pending',
+        airline: getTicket()?.airline,
         note: flights
           ? undefined
           : t(
@@ -342,6 +346,7 @@ export function CityScreen({
             fromName={flight.fromName}
             toName={flight.toName}
             hours={flight.hours}
+            airline={flight.airline}
             status={flight.status}
             note={flight.note}
             onDone={done}
@@ -502,8 +507,11 @@ function CityBodyInner({
       setPlacesOpen(false);
       setTrip(null);
       if (lite || !mapRef.current) setInside(place);
-      // From a list or a button: your usual free way of getting about.
-      else mapRef.current.goTo(place.id, preferred === 'cycle' ? 'cycle' : 'walk');
+      // "Always skip rides" (Settings): straight there, no trip.
+      else if (skipRides()) mapRef.current.goTo(place.id, 'walk', { instant: true });
+      // From a list or a button: somewhere far asks how to get there (walk,
+      // cycle, transit, a taxi or your car, or skip the trip); a short hop walks.
+      else mapRef.current.goTo(place.id, preferred === 'cycle' ? 'cycle' : 'walk', { ask: true });
     },
     [lite, preferred],
   );
@@ -580,6 +588,11 @@ function CityBodyInner({
     setTrip(null);
     mapRef.current?.cancelTrip();
   }, []);
+  /** Skip the trip: there at once, free. */
+  const skipTrip = useCallback(() => {
+    setTrip(null);
+    mapRef.current?.ride('walk', true);
+  }, []);
   const pickRide = useCallback(
     async (mode: RideMode) => {
       if (!trip) return;
@@ -654,7 +667,7 @@ function CityBodyInner({
           <WhatNowCard onGo={visit} />
           <section className="places-group sky-group">
             <h3>{t('Sky views')}</h3>
-            <SkyViewsList city={skyCity} />
+            <SkyViewsList city={skyCity} prewarm={false} />
           </section>
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
           <section className="places-group people-group">
@@ -755,6 +768,7 @@ function CityBodyInner({
                 preferred={preferred}
                 busy={rideBusy}
                 onPick={(m) => void pickRide(m)}
+                onSkip={skipTrip}
                 onCancel={cancelTrip}
                 car={car}
                 abroad={abroad}

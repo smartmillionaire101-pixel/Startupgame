@@ -184,3 +184,74 @@ export function treeMeshes(
   }
   return group;
 }
+
+/**
+ * Wave 12: forest on the hills in a sky view (Freetown's Peninsula
+ * Mountains): wild land — not built, paved or farmed — off the flat, on a
+ * jittered grid, thinned evenly to `max`.
+ */
+export function forestSpots(
+  data: GeoData,
+  look: CityLook,
+  mask: GroundMask,
+  heightAt: (x: number, y: number) => number,
+  max: number,
+): TreeSpot[] {
+  const [bx0, by0, bx1, by1] = data.bounds;
+  const step = 24;
+  const all: TreeSpot[] = [];
+  for (let y = by0; y < by1; y += step)
+    for (let x = bx0; x < bx1; x += step) {
+      const ix = Math.round(x);
+      const iy = Math.round(y);
+      const r = h3(ix, iy, 71);
+      if (r > 0.8) continue;
+      const px = x + (h3(ix, iy, 72) - 0.5) * step;
+      const py = y + (h3(ix, iy, 73) - 0.5) * step;
+      const cov = mask.coverAt(px, py);
+      if (cov !== COVER.land && cov !== COVER.park) continue;
+      if (mask.roadAt(px, py) || mask.builtAt(px, py)) continue;
+      if (mask.urbanAt(px, py) + look.sprawl * 0.6 > 0.12) continue;
+      if (heightAt(px, py) < 14) continue;
+      all.push({ x: px, y: py, s: 0.8 + r * 0.8, c: r / 0.8 });
+    }
+  if (all.length <= max) return all;
+  const keep = max / all.length;
+  return all.filter((t) => h3(Math.round(t.x * 7), Math.round(t.y * 7), 74) < keep);
+}
+
+/** Forest crowns: low, broad, cheap (no trunks: seen from far above). */
+export function canopyMeshes(spots: TreeSpot[], colors: [string, string], chunk = 2500) {
+  const group = new THREE.Group();
+  const crown = new THREE.IcosahedronGeometry(3, 0);
+  crown.scale(1.6, 1, 1.6);
+  crown.translate(0, 5, 0);
+  const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true });
+  const dark = new THREE.Color(colors[0]);
+  const light = new THREE.Color(colors[1]);
+  const byChunk = new Map<string, TreeSpot[]>();
+  for (const s of spots) {
+    const k = `${Math.floor(s.x / chunk)},${Math.floor(s.y / chunk)}`;
+    let a = byChunk.get(k);
+    if (!a) byChunk.set(k, (a = []));
+    a.push(s);
+  }
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const up = new THREE.Vector3(0, 1, 0);
+  const col = new THREE.Color();
+  for (const list of byChunk.values()) {
+    const im = new THREE.InstancedMesh(crown, mat, list.length);
+    list.forEach((s, i) => {
+      q.setFromAxisAngle(up, s.c * 6.283);
+      m.compose(new THREE.Vector3(s.x, 0, s.y), q, new THREE.Vector3(s.s, s.s * 1.2, s.s));
+      im.setMatrixAt(i, m);
+      im.setColorAt(i, col.copy(dark).lerp(light, (s.c * 3.7) % 1));
+    });
+    im.computeBoundingSphere();
+    im.castShadow = false;
+    im.receiveShadow = false;
+    group.add(im);
+  }
+  return group;
+}
