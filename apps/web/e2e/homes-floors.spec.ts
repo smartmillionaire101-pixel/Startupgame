@@ -265,12 +265,17 @@ test('a house on the market: the 3D tour goes up its floors', async ({ page }) =
   await floors.locator('[data-tour-floor="1"]').click();
   await expect(canvas).toHaveAttribute('data-floor', '1', { timeout: 20_000 });
   await expect(floors.locator('[data-tour-floor="1"]')).toHaveAttribute('aria-pressed', 'true');
+  // The cars stay parked on the drive: a storey below you upstairs, not up beside you.
+  const carsY = async () => Number(await canvas.getAttribute('data-cars-y'));
+  await expect.poll(carsY).toBeLessThan(-2.5);
   await shot(page, `tour-${listing!.tier}-upstairs`);
   if (listing!.tier === 'mansion') {
     await floors.locator('[data-tour-floor="2"]').click();
     await expect(canvas).toHaveAttribute('data-floor', '2', { timeout: 20_000 });
+    await expect.poll(carsY).toBeLessThan(-5.5);
     await shot(page, 'tour-mansion-roof');
   }
   await floors.locator('[data-tour-floor="0"]').click();
   await expect(canvas).toHaveAttribute('data-floor', '0', { timeout: 20_000 });
+  await expect.poll(carsY).toBeGreaterThan(-0.5);
 });
