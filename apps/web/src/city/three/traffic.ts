@@ -254,6 +254,9 @@ export interface Focus {
   y: number;
   /** Radius vehicles live in (m). */
   r: number;
+  /** Driving: which way you're heading (unit vector, map metres). Traffic comes back in ahead of you. */
+  hx?: number;
+  hy?: number;
 }
 
 /** You, on the road: traffic behind you slows down and waits. */
@@ -290,7 +293,20 @@ export class TrafficSim {
           const my = (g.ny[g.ea[e]!]! + g.ny[g.eb[e]!]!) / 2;
           const d = Math.hypot(mx - f.x, my - f.y);
           if (d > f.r || d < minD) continue;
-          out.push({ e, w: (DENSITY[g.cls[e]!] ?? 1) * g.len[e]! });
+          // Busier close to you: up to 7× the chance on the streets around you,
+          // so the roads you can see carry traffic, not just the far ones.
+          const near = 1 - d / f.r;
+          // Driving: mostly on the road ahead, where you'll meet it (you overtake the rest).
+          const ahead =
+            f.hx === undefined || d < 1
+              ? 1
+              : ((mx - f.x) * f.hx + (my - f.y) * f.hy!) / d > 0.2
+                ? 4
+                : 0.25;
+          out.push({
+            e,
+            w: (DENSITY[g.cls[e]!] ?? 1) * g.len[e]! * (1 + 6 * near * near) * ahead,
+          });
         }
       }
     return out;
@@ -423,10 +439,15 @@ export class TrafficSim {
       if (!l) onEdge.set(key, (l = []));
       l.push(v);
     }
+    // Driving: the area sits ahead of you (centre 0.4 r in front). Anything left
+    // more than 60 m behind you comes back in on the road ahead, close enough to see.
+    const driving = f.hx !== undefined;
+    const behindAt = -(f.r * 0.4 + 60);
     for (const v of this.vehicles) {
-      if (v.e < 0 || Math.hypot(v.x - f.x, v.y - f.y) > f.r * 1.25) {
+      const behind = driving && v.e >= 0 && (v.x - f.x) * f.hx! + (v.y - f.y) * f.hy! < behindAt;
+      if (v.e < 0 || behind || Math.hypot(v.x - f.x, v.y - f.y) > f.r * 1.25) {
         // Gone too far (or never placed): back in, out of sight-line of you.
-        this.place(v, f, Math.min(f.r * 0.5, 160));
+        this.place(v, f, driving ? 30 : Math.min(f.r * 0.5, 160));
         continue;
       }
       const L = g.len[v.e]!;

@@ -1317,3 +1317,21 @@
   place-items: center;
   color: var(--muted, #78716c);
 }
+/* Skip the trip: there at once (always offered with the ways to get there). */
+.ride-skip-trip {
+  margin-top: 0.45rem;
+  width: 100%;
+  min-height: 44px;
+  border: 1.5px dashed #94a3b8;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.ride-skip-trip:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

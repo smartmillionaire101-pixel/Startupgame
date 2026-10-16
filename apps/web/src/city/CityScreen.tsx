@@ -71,6 +71,7 @@ import { useGeo, type GeoData } from './geo';
 import { cachedCityLayout } from './geoLayout';
 import { type CityLayout, type DistrictId, type Place, type Pt } from './layout';
 import { openCompanyTab } from '../screens/Company';
+import { skipRides } from './ride/state';
 
 // Scenes and flights load on demand (Wave 7 §D: a small main bundle).
 const Interior = lazy(() => import('./Interiors').then((m) => ({ default: m.Interior })));
@@ -502,8 +503,11 @@ function CityBodyInner({
       setPlacesOpen(false);
       setTrip(null);
       if (lite || !mapRef.current) setInside(place);
-      // From a list or a button: your usual free way of getting about.
-      else mapRef.current.goTo(place.id, preferred === 'cycle' ? 'cycle' : 'walk');
+      // "Always skip rides" (Settings): straight there, no trip.
+      else if (skipRides()) mapRef.current.goTo(place.id, 'walk', { instant: true });
+      // From a list or a button: somewhere far asks how to get there (walk,
+      // cycle, transit, a taxi or your car, or skip the trip); a short hop walks.
+      else mapRef.current.goTo(place.id, preferred === 'cycle' ? 'cycle' : 'walk', { ask: true });
     },
     [lite, preferred],
   );
@@ -579,6 +583,11 @@ function CityBodyInner({
   const cancelTrip = useCallback(() => {
     setTrip(null);
     mapRef.current?.cancelTrip();
+  }, []);
+  /** Skip the trip: there at once, free. */
+  const skipTrip = useCallback(() => {
+    setTrip(null);
+    mapRef.current?.ride('walk', true);
   }, []);
   const pickRide = useCallback(
     async (mode: RideMode) => {
@@ -755,6 +764,7 @@ function CityBodyInner({
                 preferred={preferred}
                 busy={rideBusy}
                 onPick={(m) => void pickRide(m)}
+                onSkip={skipTrip}
                 onCancel={cancelTrip}
                 car={car}
                 abroad={abroad}

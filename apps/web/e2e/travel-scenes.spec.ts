@@ -204,6 +204,10 @@ test('the Travel app books first; the airport then checks you in for that flight
   await expect(london).toContainText(/\d\d:\d\d/);
   await shot(page, 'phone-travel');
   await london.getByRole('button', { name: 'Book a flight to London' }).click();
+  // Getting to the airport: you choose how (or skip the trip and go straight there).
+  const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
+  await expect(chooser.locator('[data-mode="taxi"]')).toBeVisible();
+  await chooser.locator('[data-mode="skip"]').click();
 
   // At the airport the ticket is already booked: the first step is check-in for London.
   const trip = page.getByRole('region', { name: 'Your trip' });

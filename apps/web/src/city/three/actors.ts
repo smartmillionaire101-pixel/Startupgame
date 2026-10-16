@@ -90,6 +90,11 @@ const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 
+/** While you drive: how far around your car the traffic lives (metres). */
+export const DRIVE_TRAFFIC_R = 180;
+/** While you drive: how many cars keep you company on your route. */
+const ESCORTS = 10;
+
 export class Actors {
   private avatar: Character;
   private avatarGroup = new THREE.Group();
@@ -124,6 +129,10 @@ export class Actors {
   private focus = { x: 0, y: 0, r: 400 };
   private focusSet = false;
   private doubleDecker = false;
+  /** Driving: your route (map metres) and how far along it you are, for the cars on it with you. */
+  private route: { pts: Float32Array; cum: Float32Array; len: number } | null = null;
+  private routeI = 1;
+  private routeS = 0;
 
   constructor(
     private scene: THREE.Scene,
@@ -320,8 +329,19 @@ export class Actors {
     const sim = this.local;
     const meshes = this.localMeshes;
     if (!sim || !meshes || (!this.focusSet && !this.lane)) return;
+    // Driving: the traffic gathers on the streets around your car (the chase
+    // camera sees a hundred metres or so), not spread over half a kilometre.
+    // Its centre sits ahead of you, so the traffic you'll meet is on the road in front.
+    const hx = Math.sin(this.pos.heading);
+    const hy = Math.cos(this.pos.heading);
     const f = this.lane
-      ? { x: this.pos.x, y: this.pos.y, r: Math.min(this.focus.r, 450) }
+      ? {
+          x: this.pos.x + hx * DRIVE_TRAFFIC_R * 0.4,
+          y: this.pos.y + hy * DRIVE_TRAFFIC_R * 0.4,
+          r: DRIVE_TRAFFIC_R,
+          hx,
+          hy,
+        }
       : this.focus;
     if (!this.filled) {
       sim.fill(f);
@@ -348,8 +368,50 @@ export class Actors {
       _m.compose(_p, _q, _s);
       for (const m of meshes[v.kind]) m.setMatrixAt(j, _m);
     }
+    if (this.lane && this.route) this.escort(tMs, sim, meshes, vs);
     for (const list of Object.values(meshes))
       for (const m of list) m.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * The cars on the road with you while you drive. The trip runs much faster
+   * than real life, so street traffic only flashes past: these few keep pace
+   * with you on your own route instead, some ahead in your lane (you slowly
+   * catch them up) and some coming the other way.
+   */
+  private escort(
+    tMs: number,
+    sim: TrafficSim,
+    meshes: Record<VehicleKind, THREE.InstancedMesh[]>,
+    vs: number,
+  ) {
+    this.trackRoute();
+    const t = tMs / 1000;
+    const idx: Record<VehicleKind, number> = { car: 0, bus: 0, moto: 0, keke: 0 };
+    const max = Math.min(ESCORTS, Math.floor(sim.vehicles.length * 0.6));
+    const lane = Math.abs(this.lane);
+    for (let n = 0; n < max; n++) {
+      const v = sim.vehicles[n]!;
+      const j = idx[v.kind]++;
+      const oncoming = n % 5 >= 2;
+      // Oncoming: one every 45 m or so out to 220 m ahead, closing at ~25 m/s.
+      // In your lane: up to 150 m ahead; you catch them at ~4 m/s, and once
+      // passed, another appears ahead.
+      const span = oncoming ? 220 : 150;
+      const phase = (n * (oncoming ? 47 : 61) + t * (oncoming ? 25 : 4)) % span;
+      const s = this.routeS + span - phase + (oncoming ? -25 : 12);
+      const off =
+        (this.leftHand ? -1 : 1) * (oncoming ? -lane : lane) * (v.kind === 'moto' ? 0.8 : 1);
+      const at = this.onRoute(s, off);
+      if (!at) _s.set(0, 0, 0);
+      else if (v.kind === 'bus' && this.doubleDecker) _s.set(vs, vs * 1.6, vs);
+      else _s.set(vs, vs, vs);
+      const sg = oncoming ? -1 : 1;
+      _q.setFromAxisAngle(_up, at ? -Math.atan2(at.dy * sg, at.dx * sg) : 0);
+      _p.set(at?.x ?? 0, at ? this.roads.deckAt(at.x, at.y) : 0, at?.y ?? 0);
+      _m.compose(_p, _q, _s);
+      for (const m of meshes[v.kind]) m.setMatrixAt(j, _m);
+    }
   }
 
   /** How dark it is (0 day … 1 night): the cars put their lights on. */
@@ -428,9 +490,60 @@ export class Actors {
    * right, or the left where the city drives on the left); 0 to stop. The
    * car turns smoothly into each street instead of snapping.
    */
-  setDriving(lane: number) {
+  setDriving(lane: number, path?: readonly Pt[]) {
     this.lane = lane ? lane * (this.leftHand ? -1 : 1) : 0;
     this.pos.heading = this.wantHeading;
+    this.route = null;
+    if (!this.lane || !path || path.length < 2) return;
+    const pts = new Float32Array(path.length * 2);
+    const cum = new Float32Array(path.length);
+    path.forEach((p, i) => {
+      const m = geoMetres(p);
+      pts[2 * i] = m.e;
+      pts[2 * i + 1] = m.s;
+      if (i) cum[i] = cum[i - 1]! + Math.hypot(m.e - pts[2 * i - 2]!, m.s - pts[2 * i - 1]!);
+    });
+    this.route = { pts, cum, len: cum[cum.length - 1]! };
+    this.routeI = 1;
+    this.routeS = 0;
+  }
+
+  /** How far along your route you are now (it only moves forward). */
+  private trackRoute() {
+    const r = this.route!;
+    let best = this.routeS;
+    let bestD = Infinity;
+    const n = r.cum.length;
+    for (let i = this.routeI; i < Math.min(n, this.routeI + 6); i++) {
+      const ax = r.pts[2 * i - 2]!;
+      const ay = r.pts[2 * i - 1]!;
+      const L = r.cum[i]! - r.cum[i - 1]! || 1;
+      const dx = (r.pts[2 * i]! - ax) / L;
+      const dy = (r.pts[2 * i + 1]! - ay) / L;
+      const u = Math.max(0, Math.min(L, (this.centre.x - ax) * dx + (this.centre.y - ay) * dy));
+      const d = Math.hypot(ax + dx * u - this.centre.x, ay + dy * u - this.centre.y);
+      if (d < bestD) {
+        bestD = d;
+        best = r.cum[i - 1]! + u;
+        this.routeI = i;
+      }
+    }
+    this.routeS = Math.max(this.routeS, best);
+  }
+
+  /** A point on your route (s metres along), `off` metres right of travel; null off its ends. */
+  private onRoute(s: number, off: number) {
+    const r = this.route!;
+    if (s < 0 || s > r.len) return null;
+    let i = 1;
+    while (i < r.cum.length - 1 && r.cum[i]! < s) i++;
+    const ax = r.pts[2 * i - 2]!;
+    const ay = r.pts[2 * i - 1]!;
+    const L = r.cum[i]! - r.cum[i - 1]! || 1;
+    const dx = (r.pts[2 * i]! - ax) / L;
+    const dy = (r.pts[2 * i + 1]! - ay) / L;
+    const u = s - r.cum[i - 1]!;
+    return { x: ax + dx * u - dy * off, y: ay + dy * u + dx * off, dx, dy };
   }
   avatarPos() {
     return this.pos;

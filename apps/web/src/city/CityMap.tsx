@@ -144,12 +144,15 @@ export interface FarTrip {
 }
 
 export interface CityMapHandle {
-  /** Go to a place's door (walking, or by `mode`), then call onEnter. */
-  goTo: (placeId: string, mode?: RideMode) => void;
+  /**
+   * Go to a place's door, then call onEnter. `ask`: somewhere far first asks
+   * how to get there (onFarTrip). `instant`: be there at once (no trip).
+   */
+  goTo: (placeId: string, mode?: RideMode, opts?: { ask?: boolean; instant?: boolean }) => void;
   /** Walk to a place's door without going in. */
   walkToPlace: (placeId: string) => void;
-  /** Set off on the trip waiting in the chooser, by this mode. */
-  ride: (mode: RideMode) => void;
+  /** Set off on the trip waiting in the chooser, by this mode (`instant`: skip the trip). */
+  ride: (mode: RideMode, instant?: boolean) => void;
   /** Drop the trip waiting in the chooser. */
   cancelTrip: () => void;
   recentre: () => void;
@@ -1419,7 +1422,7 @@ function CityMap2D({
       target: Pt,
       then?: () => void,
       placeId: string | null = null,
-      opts: { mode?: RideMode; ask?: boolean } = {},
+      opts: { mode?: RideMode; ask?: boolean; instant?: boolean } = {},
     ) => {
       stopWalk();
       pending.current = null;
@@ -1442,8 +1445,9 @@ function CityMap2D({
       const spec0 = rideVehicle(mode, layout.marketId, layout.flavour.vehicles, carRef.current);
       const spec =
         spec0 && mode !== 'bus' && mode !== 'drive' ? { ...spec0, body: look.top } : spec0;
+      // Skipping the trip: no ride scene, you're simply there.
       const scene =
-        len > SHORT_HOP
+        len > SHORT_HOP && !opts.instant
           ? beginRide({ mode, tiles: len, path, layout, placeId, look, mapMs: rideMs(mode, len) })
           : null;
       const done = () => {
@@ -1456,9 +1460,9 @@ function CityMap2D({
         onArriveRef.current?.(target, placeId);
         then?.();
       };
-      if (len < 0.05 || (reduced && !scene)) {
+      if (opts.instant || len < 0.05 || (reduced && !scene)) {
         done();
-        if (reduced) centreOn(target);
+        if (reduced || opts.instant) centreOn(target);
         return;
       }
       targetRef.current?.setAttribute('transform', `translate(${ts.x},${ts.y})`);
@@ -1510,10 +1514,10 @@ function CityMap2D({
   );
 
   const goTo = useCallback(
-    (id: string, mode?: RideMode, ask = false) => {
+    (id: string, mode?: RideMode, opts: { ask?: boolean; instant?: boolean } = {}) => {
       const p = layout.places.find((x) => x.id === id);
       if (!p) return;
-      walkTo(p.door, () => onEnterRef.current(p), p.id, { mode, ask });
+      walkTo(p.door, () => onEnterRef.current(p), p.id, { mode, ...opts });
     },
     [layout, walkTo],
   );
@@ -1525,9 +1529,9 @@ function CityMap2D({
     [layout, walkTo],
   );
   const ride = useCallback(
-    (mode: RideMode) => {
+    (mode: RideMode, instant = false) => {
       const trip = pending.current;
-      if (trip) walkTo(trip.target, trip.then, trip.placeId, { mode });
+      if (trip) walkTo(trip.target, trip.then, trip.placeId, { mode, instant });
     },
     [walkTo],
   );
@@ -1559,7 +1563,7 @@ function CityMap2D({
   useEffect(() => {
     if (!handleRef) return;
     handleRef.current = {
-      goTo: (id, mode) => goTo(id, mode),
+      goTo: (id, mode, opts) => goTo(id, mode, opts),
       walkToPlace,
       ride,
       cancelTrip,
@@ -1627,7 +1631,7 @@ function CityMap2D({
     const el = (e.target as Element).closest?.('[data-place]');
     const id = el?.getAttribute('data-place');
     if (id) {
-      goTo(id, undefined, true);
+      goTo(id, undefined, { ask: true });
       return;
     }
     const w = toWorld(e.clientX, e.clientY);

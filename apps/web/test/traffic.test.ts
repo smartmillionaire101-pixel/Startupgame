@@ -130,4 +130,15 @@ describe('street traffic', () => {
     for (const v of sim.vehicles)
       expect(Math.hypot(v.x - f.x, v.y - f.y)).toBeLessThan(f.r * 1.3 + 30);
   });
+
+  it('gathers more traffic on the streets close to you than far away', () => {
+    const kinds: VehicleKind[] = Array.from({ length: 200 }, () => 'car');
+    const sim = new TrafficSim(buildGraph(grid()), kinds, 5, false);
+    const f = { x: 250, y: 250, r: 400 };
+    sim.fill(f);
+    const near = sim.vehicles.filter((v) => Math.hypot(v.x - f.x, v.y - f.y) < 150).length;
+    const far = sim.vehicles.filter((v) => Math.hypot(v.x - f.x, v.y - f.y) >= 250).length;
+    // The inner circle is about a sixth of the area within reach, yet holds more than the outer band.
+    expect(near).toBeGreaterThan(far);
+  });
 });

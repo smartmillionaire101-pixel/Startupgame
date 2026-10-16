@@ -57,4 +57,5 @@ export const travel: Record<string, string> = {
   'A new version of Runway is ready. Your game is saved.':
     'Une nouvelle version de Runway est prête. Votre partie est sauvegardée.',
   Refresh: 'Actualiser',
+  'Skip the trip: go straight there': 'Passer le trajet : y aller directement',
 };
