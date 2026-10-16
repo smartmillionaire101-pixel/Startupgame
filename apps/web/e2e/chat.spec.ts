@@ -1,4 +1,10 @@
-import { devices, type Locator, type Page } from '@playwright/test';
+import {
+  devices,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import { expect, letters, playAsGuest, test, withoutNetlifyDrawer } from './fixtures';
 
 /**
@@ -28,6 +34,13 @@ const shot = async (page: Page, name: string) => {
 /** Both players live in Johannesburg, where a new founder can buy a small flat outright. */
 async function player(page: Page, name: string) {
   await page.setViewportSize({ width: 390, height: 844 });
+  await createPlayer(page, name);
+  await page.reload();
+  await expect(page.getByRole('button', { name: /^Phone/ })).toBeVisible({ timeout: 30_000 });
+}
+
+/** A Johannesburg founder made through the API. */
+async function createPlayer(page: Page, name: string) {
   await playAsGuest(page);
   const handle = `ch_${letters(8)}`;
   const status = await page.evaluate(
@@ -59,13 +72,37 @@ async function player(page: Page, name: string) {
     { h: handle, name },
   );
   expect(status).toBe(200);
-  await page.reload();
-  await expect(page.getByRole('button', { name: /^Phone/ })).toBeVisible({ timeout: 30_000 });
+}
+
+/**
+ * A shared test world can run short of flats a new founder affords alone,
+ * and one friend can only send so much a day: friends chip in, each up to
+ * their daily limit, until `to` has `amount` more.
+ */
+async function chipIn(browser: Browser, payer: Page, to: string, amount: number) {
+  let left = amount;
+  for (let n = 0; left > 0 && n < 16; n++) {
+    let page = payer;
+    let ctx: BrowserContext | null = null;
+    if (n > 0) {
+      ctx = await browser.newContext({ baseURL: test.info().project.use.baseURL });
+      page = await ctx.newPage();
+      await withoutNetlifyDrawer(page);
+      await createPlayer(page, `Friend${letters(4)} Mokoena`);
+    }
+    const send = Math.min(left, (await state(page)).sendMoney.left);
+    const res = await command(page, { type: 'money.send', toPlayerId: to, amount: send });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    left -= send;
+    await ctx?.close();
+  }
+  expect(left, 'friends chipped in enough').toBeLessThanOrEqual(0);
 }
 
 interface State {
   me: { id: string; properties: { id: string }[] };
   accounts: { local: { balance: number; currency: string } };
+  sendMoney: { left: number };
   market: {
     properties: {
       listings: {
@@ -285,43 +322,54 @@ test('players chat with emoji and voice notes, pay, date, visit, go out and give
   // ---- 8. A home as a gift. A buys a small flat outright (setup), then gives it from the chat.
   let listings = (await state(a)).market.properties.listings;
   if (!listings.some((l) => l.canBuy)) {
-    // A shared test world can run short of flats a new founder affords alone:
-    // B chips in the difference for the cheapest one, as friends do.
+    // Short of flats A affords alone: B (and more friends, if it takes
+    // more than one day's limit) chip in the difference for the cheapest one.
     const cheapest = listings.filter((l) => l.forSale).sort((x, y) => x.price - y.price)[0]!;
     const cash = (await state(a)).accounts.local.balance;
     const gap = cheapest.price + cheapest.closingCosts - cash + 100_00;
-    if (gap > 0)
-      expect((await command(b, { type: 'money.send', toPlayerId: aId, amount: gap })).status).toBe(
-        200,
-      );
+    if (gap > 0) {
+      test.setTimeout(test.info().timeout + 120_000);
+      await chipIn(browser, b, aId, gap);
+    }
     listings = (await state(a)).market.properties.listings;
   }
   const listing = listings.filter((l) => l.canBuy).sort((x, y) => x.price - y.price)[0];
   expect(listing, 'a home A can afford').toBeTruthy();
   expect((await command(a, { type: 'property.buy', propertyId: listing!.id })).status).toBe(200);
-  await a.reload();
-  const aPhone2 = await openChat(a, bName);
-  await aPhone2.getByRole('button', { name: 'Do something together' }).click();
-  await aPhone2.getByRole('menuitem', { name: /Give a home/ }).click();
-  const giftPanel = aPhone2.getByRole('region', { name: 'Give a home' });
-  await giftPanel.locator(`[data-gift-pick="${listing!.id}"] input`).check();
-  await shot(a, 'chat-give-home');
-  await giftPanel.getByRole('button', { name: /^Give it to / }).click();
-  await expect(lastCard(aPhone2, 'gift')).toHaveAttribute('data-card-status', 'pending');
-  const bPhone4 = await openChat(b, aName);
-  const bGift = lastCard(bPhone4, 'gift');
-  await expect(bGift).toBeVisible({ timeout: 15_000 });
-  await bGift.getByRole('button', { name: 'Accept the home' }).click();
-  await expect(bGift).toHaveAttribute('data-card-status', 'accepted', { timeout: 10_000 });
-  expect((await state(b)).me.properties.map((p) => p.id)).toContain(listing!.id);
-  expect((await state(a)).me.properties.map((p) => p.id)).not.toContain(listing!.id);
-  await expect(lastCard(aPhone2, 'gift')).toHaveAttribute('data-card-status', 'accepted', {
-    timeout: 15_000,
-  });
-  await shot(b, 'chat-gift-accepted');
-  // B sells it straight back to the market, so the city's stock of small flats stays
-  // the same run after run (the deploy preview keeps one world across runs).
-  expect((await command(b, { type: 'property.sell', propertyId: listing!.id })).status).toBe(200);
+  // Back on the market whatever happens next: a run that stops half-way
+  // mustn't keep the city's only flat a new founder can afford.
+  let back = false;
+  let aPhone2: Locator;
+  try {
+    await a.reload();
+    aPhone2 = await openChat(a, bName);
+    await aPhone2.getByRole('button', { name: 'Do something together' }).click();
+    await aPhone2.getByRole('menuitem', { name: /Give a home/ }).click();
+    const giftPanel = aPhone2.getByRole('region', { name: 'Give a home' });
+    await giftPanel.locator(`[data-gift-pick="${listing!.id}"] input`).check();
+    await shot(a, 'chat-give-home');
+    await giftPanel.getByRole('button', { name: /^Give it to / }).click();
+    await expect(lastCard(aPhone2, 'gift')).toHaveAttribute('data-card-status', 'pending');
+    const bPhone4 = await openChat(b, aName);
+    const bGift = lastCard(bPhone4, 'gift');
+    await expect(bGift).toBeVisible({ timeout: 15_000 });
+    await bGift.getByRole('button', { name: 'Accept the home' }).click();
+    await expect(bGift).toHaveAttribute('data-card-status', 'accepted', { timeout: 10_000 });
+    expect((await state(b)).me.properties.map((p) => p.id)).toContain(listing!.id);
+    expect((await state(a)).me.properties.map((p) => p.id)).not.toContain(listing!.id);
+    await expect(lastCard(aPhone2, 'gift')).toHaveAttribute('data-card-status', 'accepted', {
+      timeout: 15_000,
+    });
+    await shot(b, 'chat-gift-accepted');
+    // B sells it straight back to the market, so the city's stock of small flats stays
+    // the same run after run (the deploy preview keeps one world across runs).
+    expect((await command(b, { type: 'property.sell', propertyId: listing!.id })).status).toBe(200);
+    back = true;
+  } finally {
+    if (!back)
+      for (const owner of [a, b])
+        await command(owner, { type: 'property.sell', propertyId: listing!.id }).catch(() => null);
+  }
   await shot(a, 'chat-thread-a');
 
   // The composer fits one row on a 390 and a 360 phone: + · emoji · message · mic · Send.
