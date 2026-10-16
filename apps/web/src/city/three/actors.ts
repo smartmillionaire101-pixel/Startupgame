@@ -448,7 +448,8 @@ export class Actors {
 
   setWalkers(walkers: Walker[]) {
     for (const p of this.people) p.c.dispose();
-    this.people = walkers.map((w) => {
+    // A software GPU draws fewer of them.
+    this.people = walkers.slice(0, softwareGl() ? 8 : walkers.length).map((w) => {
       const c = makeCharacter(avatarLook(w.bg, w.id));
       this.scene.add(c.root);
       return { w, c };

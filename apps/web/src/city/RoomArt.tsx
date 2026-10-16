@@ -1680,6 +1680,7 @@ export function RoomFront({ kind, tint, home = null }: RoomArtProps) {
       return (
         <g>
           <Table x={208} y={192} w={40} items="laptops" />
+          <Table x={106} y={214} w={56} items="cups" />
           <Table x={272} y={192} w={56} items="cups" />
         </g>
       );

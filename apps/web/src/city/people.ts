@@ -544,8 +544,8 @@ function roadWalkers(layout: CityLayout, max: number): Walker[] {
   return out;
 }
 
-/** How many passers-by to draw for a screen width: a few, never a crowd. */
-export const crowdSize = (width: number) => (width < 500 ? 4 : width < 900 ? 7 : 10);
+/** How many passers-by to draw for a screen width: busy pavements, lighter on phones. */
+export const crowdSize = (width: number) => (width < 500 ? 8 : width < 900 ? 14 : 20);
 
 /** Where a character is at a moment in time (ms), and whether they're walking. */
 export function personAt(

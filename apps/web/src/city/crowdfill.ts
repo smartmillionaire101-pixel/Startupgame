@@ -3,7 +3,7 @@
  * the Hub, the Event Hall, banks, investors' offices) are filled with named AI
  * people — AI founders, fund partners, business owners, bankers and people on
  * AI companies' teams — taken from the world itself (their real names and
- * companies). The fill shrinks as real players come in, so AI people phase
+ * companies), then the city's regulars for the rest. The fill shrinks as real players come in, so AI people phase
  * out as the city fills with humans:
  *
  *   AI fill = max(0, target occupancy for this room at this hour − real players here)
@@ -13,7 +13,15 @@
  * the place and the city's hour: every player sees the same people, and it
  * costs the server nothing (bankers and team members chat as `crowd:` ids).
  */
-import { crowdId, crowdPerson, type MarketId, type PlayerView } from '@runway/engine';
+import {
+  MARKET_IDS,
+  NPC_POOL,
+  crowdId,
+  crowdPerson,
+  npcPerson,
+  type MarketId,
+  type PlayerView,
+} from '@runway/engine';
 import { businessesOf, hash, lendersOf } from './contract';
 import { businessRoom, type RoomKind } from './rooms';
 import { localHour } from './travel';
@@ -32,8 +40,12 @@ export function crowdHour(marketId: string): number {
   return localHour(marketId);
 }
 
-/** Who someone in the crowd is. */
-export type CrowdRole = 'founder' | 'investor' | 'banker' | 'owner' | 'employee';
+/** Who someone in the crowd is. Regulars (`npc:<market>:<n>`) fill the rest of a room. */
+export type CrowdRole = 'founder' | 'investor' | 'banker' | 'owner' | 'employee' | 'regular';
+
+/** People on an AI company's team who can be out, and bankers at each lender. */
+const TEAM_OUT = 12;
+const BANKERS = 8;
 
 export interface CrowdPerson {
   /** The AI chat character id: a founder's player id, `fund:<id>`, `biz:<id>` or `crowd:…`. */
@@ -49,38 +61,91 @@ export interface CrowdPerson {
 type View = Pick<PlayerView, 'market' | 'directory'>;
 
 /**
+ * How busy each room is through the day: `[from, to, people]` hours, the
+ * first that matches wins (the last, all day, is the quiet hours). Every
+ * venue you can walk into has someone in it at any hour.
+ */
+type Busy = readonly (readonly [number, number, number])[];
+const NIGHTLIFE: Busy = [
+  [19, 2, 12],
+  [17, 19, 9],
+  [12, 17, 6],
+  [2, 4, 4],
+  [0, 24, 3],
+];
+const DESKS: Busy = [
+  [9, 18, 10],
+  [18, 22, 6],
+  [7, 9, 5],
+  [0, 24, 2],
+];
+const BUSY: Partial<Record<RoomKind, Busy>> = {
+  club: [
+    [22, 4, 16],
+    [19, 22, 11],
+    [4, 6, 6],
+    [12, 19, 5],
+    [0, 24, 3],
+  ],
+  bar: NIGHTLIFE,
+  lounge: NIGHTLIFE,
+  stage: NIGHTLIFE,
+  karaoke: [
+    [19, 2, 10],
+    [17, 19, 8],
+    [12, 17, 5],
+    [0, 24, 3],
+  ],
+  // Lunch and dinner.
+  restaurant: [
+    [19, 23, 12],
+    [12, 15, 11],
+    [15, 19, 7],
+    [7, 12, 5],
+    [23, 1, 4],
+    [0, 24, 2],
+  ],
+  cafe: [
+    [7, 11, 10],
+    [11, 17, 9],
+    [17, 21, 6],
+    [21, 24, 3],
+    [0, 24, 2],
+  ],
+  cowork: DESKS,
+  hub: DESKS,
+  eventhall: [
+    [18, 22, 14],
+    [10, 18, 12],
+    [0, 24, 3],
+  ],
+  // Office hours: clients at the counter, founders pitching.
+  bank: [
+    [9, 17, 8],
+    [8, 19, 4],
+    [0, 24, 2],
+  ],
+  investor: [
+    [9, 19, 6],
+    [0, 24, 2],
+  ],
+  gym: [
+    [6, 9, 10],
+    [17, 21, 10],
+    [9, 17, 6],
+    [0, 5, 2],
+    [0, 24, 4],
+  ],
+};
+
+/**
  * How many people a room holds at an hour (players and AI people together).
  * `hour` is the city's local hour, 0–24.
  */
 export function venueTarget(room: RoomKind, hour: number): number {
   const h = ((Math.floor(hour) % 24) + 24) % 24;
   const between = (a: number, b: number) => (a <= b ? h >= a && h < b : h >= a || h < b);
-  switch (room) {
-    case 'club':
-      return between(22, 4) ? 10 : between(19, 22) ? 6 : between(4, 6) ? 3 : 1;
-    case 'bar':
-    case 'lounge':
-    case 'karaoke':
-    case 'stage':
-      return between(19, 2) ? 8 : between(17, 19) ? 6 : between(12, 17) ? 3 : 1;
-    case 'restaurant':
-      return between(19, 23) ? 8 : between(12, 15) ? 7 : between(7, 12) ? 3 : between(0, 6) ? 0 : 2;
-    case 'cafe':
-      return between(7, 11) ? 6 : between(11, 17) ? 5 : between(17, 21) ? 3 : between(0, 6) ? 0 : 1;
-    case 'cowork':
-    case 'hub':
-      return between(9, 18) ? 7 : between(18, 22) ? 3 : 1;
-    case 'eventhall':
-      return between(10, 22) ? 6 : 1;
-    case 'bank':
-      return between(9, 17) ? 5 : 0;
-    case 'investor':
-      return between(9, 19) ? 4 : 0;
-    case 'gym':
-      return between(6, 9) || between(17, 21) ? 6 : between(0, 5) ? 0 : 2;
-    default:
-      return 0;
-  }
+  return BUSY[room]?.find(([a, b]) => between(a, b))?.[2] ?? 0;
 }
 
 /** The AI people to add when `real` players are already here (never negative). */
@@ -128,7 +193,7 @@ export function crowdPool(view: View): CrowdPerson[] {
         orgId: c.id,
         gender: null,
       });
-    const team = Math.min(6, Math.max(1, (c.teamSize ?? 1) - c.founders.length));
+    const team = Math.min(TEAM_OUT, Math.max(1, (c.teamSize ?? 1) - c.founders.length));
     for (let n = 0; n < team; n++) {
       const id = crowdId(market, 'staff', c.id, n);
       const who = crowdPerson(id);
@@ -157,7 +222,7 @@ export function crowdPool(view: View): CrowdPerson[] {
     });
   for (const l of lendersOf(view)) {
     if (l.fallback) continue;
-    for (let n = 0; n < 4; n++) {
+    for (let n = 0; n < BANKERS; n++) {
       const id = crowdId(market, 'banker', l.id, n);
       const who = crowdPerson(id);
       if (who) out.push({ id, ...who, role: 'banker', org: l.name, orgId: l.id });
@@ -247,13 +312,19 @@ export function crowdAt(view: View, q: CrowdQuery, pool = crowdPool(view)): Crow
   const fits = (p: CrowdPerson) => (mix[p.role] ?? 0) > 0 && !skip.has(p.id);
   // Who is here: at work (bankers at their bank, partners at their fund in
   // office hours), then whoever's out and came here, by how well they fit.
-  const atWork = pool.filter(
+  const working = pool.filter(
     (p) =>
       fits(p) &&
       office &&
       ((p.role === 'banker' && q.placeId === `lender:${p.orgId}`) ||
         (p.role === 'investor' && q.placeId === `fund:${p.orgId}`)),
   );
+  // Half the room at most: the rest of a bank is its customers. Who's on the floor turns over by the hour.
+  const atWork = working
+    .map((p) => ({ p, k: hash(`${q.placeId}:${slot}:desk:${p.id}`) }))
+    .sort((a, b) => a.k - b.k || (a.p.id < b.p.id ? -1 : 1))
+    .slice(0, Math.ceil(want / 2))
+    .map((x) => x.p);
   const out = pool
     .filter((p) => fits(p) && !atWork.includes(p))
     // At work elsewhere in office hours: not out.
@@ -272,5 +343,42 @@ export function crowdAt(view: View, q: CrowdQuery, pool = crowdPool(view)): Crow
     }))
     .sort((a, b) => a.score - b.score || (a.p.id < b.p.id ? -1 : 1))
     .map((x) => x.p);
-  return [...atWork, ...out, ...rest].slice(0, want);
+  const named = [...atWork, ...out, ...rest].slice(0, want);
+  return [...named, ...regularsAt(view, q, venues, slot, want - named.length, skip)];
 }
+
+/**
+ * Regulars (`npc:<market>:<n>`, the engine's own) for the rest of a room:
+ * each venue draws from its own run of the pool this hour, so nobody is in
+ * two places at once until the city is fuller than the pool.
+ */
+function regularsAt(
+  view: View,
+  q: CrowdQuery,
+  venues: readonly CrowdVenue[],
+  slot: string,
+  n: number,
+  skip: ReadonlySet<string>,
+): CrowdPerson[] {
+  const market = view.market.id as MarketId;
+  if (n <= 0 || !(MARKET_IDS as readonly string[]).includes(market)) return [];
+  const at = venues.findIndex((v) => v.id === q.placeId);
+  const base = hash(`npc:${market}:${slot}`) + (at >= 0 ? at * RUN : hash(q.placeId));
+  const out: CrowdPerson[] = [];
+  for (let k = 0; out.length < n && k < RUN * 2; k++) {
+    const who = npcPerson(market, (base + k) % NPC_POOL);
+    if (skip.has(who.id)) continue;
+    out.push({
+      id: who.id,
+      name: who.name,
+      role: 'regular',
+      org: '',
+      orgId: '',
+      gender: who.gender,
+    });
+  }
+  return out;
+}
+
+/** How many regulars each venue has to itself in the pool. */
+const RUN = 24;
