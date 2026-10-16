@@ -19,3 +19,18 @@ export function closeSky() {
   open = null;
   listeners.forEach((f) => f());
 }
+
+/**
+ * A city's sky views are on screen: fetch the view's code, map and terrain
+ * and make its canvas in a quiet moment, so a tap goes up at once.
+ */
+export function prewarmSky(city: string) {
+  const go = () => {
+    import('./Panorama').then(
+      (m) => m.prewarm(city),
+      () => {},
+    );
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 2000 });
+  else setTimeout(go, 300);
+}

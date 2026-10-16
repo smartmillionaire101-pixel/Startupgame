@@ -35,6 +35,8 @@ export function skyAt(
   lat: number,
   haze: number,
   solar?: { altitude: number; azimuth: number },
+  /** The haze's own colour on the horizon (CityLook.hazeTint). */
+  tint = '#e3e3dc',
 ): SkyState {
   // Day arc: sunrise ~6, noon 12.5, sunset ~19.
   const dayT = (hour - 6.2) / 12.6; // 0..1 across the day
@@ -59,7 +61,7 @@ export function skyAt(
   const night = 1 - smooth(-0.12, 0.04, sunUp);
 
   const zenithDay = mixC(C('#3f7fcf'), C('#7aa6d6'), haze * 0.4);
-  const horizonDay = mixC(C('#c6dbea'), C('#e3e3dc'), haze * 0.6);
+  const horizonDay = mixC(C('#c6dbea'), C(tint), haze * 0.6);
   const zenithGold = C('#5a7bb0');
   const horizonGold = C('#f0b27a');
   // A deep blue night; the horizon a little warmer, lit from below by the city.

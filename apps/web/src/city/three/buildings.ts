@@ -534,7 +534,13 @@ export function osmFootprints(
             : levels <= 2 && area < 200
               ? 6
               : 0);
-    const { wall, roof } = paint(look, style, (r * 17.3) % 1, false);
+    // Low houses under corrugated iron, where the city's are (Freetown's rusty roofs).
+    const tin =
+      !!look.tinRoofs &&
+      H - B <= 12 &&
+      (style === 0 || style === 6) &&
+      (r * 29.7) % 1 < look.tinRoofs;
+    const { wall, roof } = paint(look, style, (r * 17.3) % 1, tin);
     const base: Footprint = { p, base: B, top: H, vOff: B, style, wall, roof, seed: r };
     if (H - B >= 70 && area < 6000) {
       // Setbacks: the shaft narrows twice; a crown on top.

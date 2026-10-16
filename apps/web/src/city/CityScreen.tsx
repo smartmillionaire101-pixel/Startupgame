@@ -667,7 +667,7 @@ function CityBodyInner({
           <WhatNowCard onGo={visit} />
           <section className="places-group sky-group">
             <h3>{t('Sky views')}</h3>
-            <SkyViewsList city={skyCity} />
+            <SkyViewsList city={skyCity} prewarm={false} />
           </section>
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
           <section className="places-group people-group">

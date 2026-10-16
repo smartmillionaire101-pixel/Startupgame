@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { skyViewById, skyViewsIn, type SkyViewSpec } from '@runway/engine';
 import { useView } from '../store';
 import { t } from '../i18n';
-import { OSM_CREDIT, fromLatLon, useGeo } from '../city/geo';
+import { OSM_CREDIT, fromLatLon, loadGeo, useGeo } from '../city/geo';
 import { cachedCityLayout } from '../city/geoLayout';
 import type { CityLayout } from '../city/layout';
 import { cityInput } from '../city/contract';
@@ -27,8 +27,9 @@ import { CityScene } from '../city/three/scene';
 import { SkyRide, skyExtras } from '../city/three/skyview';
 import { loadTerrainField, type TerrainField } from '../city/three/terrain';
 import { markWebGLBroken } from '../city/three/quality';
-import { softwareGl } from '../three-kit/quality';
+import { softwareGl, webglAvailable } from '../three-kit/quality';
 import { SKY_LABELS, type SkyLabel } from './skyLabels';
+import { SkyRise } from './SkyRise';
 import '../city/three/city3d.css';
 import './experiences.css';
 
@@ -52,6 +53,28 @@ export function resolveSkyView(
   if (kind === 'rooftop')
     return list.find((v) => v.kind === 'deck' || v.kind === 'hill') ?? list[0]!;
   return list[0]!;
+}
+
+/** A canvas with its WebGL context made ahead (making one takes a moment, seconds on a CPU). */
+let spare: HTMLCanvasElement | null = null;
+
+/** Fetch what a city's sky views need ahead of the tap (sky-bus prewarmSky). */
+export function prewarm(city: string) {
+  void loadGeo(city);
+  void loadTerrainField(city);
+  if (spare || !webglAvailable()) return;
+  const c = document.createElement('canvas');
+  // As CityScene's renderer asks for it (it then gets this one).
+  const gl = c.getContext('webgl2', {
+    alpha: false,
+    depth: true,
+    stencil: false,
+    antialias: !softwareGl(),
+    premultipliedAlpha: true,
+    preserveDrawingBuffer: false,
+    powerPreference: 'high-performance',
+  });
+  if (gl) spare = c;
 }
 
 /** Where a view first looks: its famous direction ([lat, lon] of what you face). */
@@ -178,215 +201,234 @@ export default function Panorama({
   useEffect(() => {
     const el = mount.current;
     if (!el || !layout?.geo || !spec || terrain === 'loading') return;
-    const canvas = document.createElement('canvas');
-    canvas.className = 'c3-canvas';
-    canvas.setAttribute('aria-hidden', 'true');
-    const tier = tierOf();
-    const soft = softwareGl();
-    let scene: CityScene;
-    try {
-      scene = new CityScene(
-        canvas,
-        layout,
-        { tier, reduced, hour: localHour(city), sky: { terrain }, soft },
-        lookRef.current,
-        [],
-      );
-    } catch {
-      markWebGLBroken();
-      queueMicrotask(() =>
-        setError(
-          t(
-            'This view needs WebGL. Enable 3D in Settings, or use a browser with hardware acceleration.',
-          ),
-        ),
-      );
-      return;
-    }
-    el.prepend(canvas);
-    scene.following = false;
-    const ride = new SkyRide(scene, spec, { reduced, tier, soft });
-    if (balcony) ride.skip();
-    const extras = skyExtras(scene, spec, scene.waterMaterial);
-    scene.scene.add(extras);
-    scene.onTerrain(extras);
-    scene.view = ride;
-    const size = () => {
-      const r = el.getBoundingClientRect();
-      scene.resize(r.width, r.height);
+    let stop: (() => void) | undefined;
+    let timer = 0;
+    // A frame for the rise to show first: laying out the city takes the main
+    // thread a moment (seconds on a slow phone), and the rise keeps moving.
+    const raf = requestAnimationFrame(() => {
+      timer = window.setTimeout(() => {
+        stop = build();
+      }, 0);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+      stop?.();
     };
-    size();
-    const ro = new ResizeObserver(size);
-    ro.observe(el);
-
-    // The names you can see: the city's famous places, at their real places.
-    const data = layout.geo.data;
-    const labels: Placed[] = [];
-    const seen = new Set<string>();
-    for (const l of SKY_LABELS[city] ?? []) {
-      if (seen.has(l.name)) continue;
-      seen.add(l.name);
-      const p = fromLatLon(data, l.at[0], l.at[1]);
-      labels.push({ ...l, x: p.x, y: scene.terrainAt(p.x, p.y) + l.h + 8, z: p.y });
-    }
-    const mine = labels.filter((l) => Math.hypot(l.x - ride.top.x, l.z - ride.top.z) > 180);
-    // Nearest first (the chips), and the label positions.
-    mine.sort(
-      (a, b) =>
-        Math.hypot(a.x - ride.top.x, a.z - ride.top.z) -
-        Math.hypot(b.x - ride.top.x, b.z - ride.top.z),
-    );
-    handle.current = { ride, scene, labels: mine };
-    setLabelsList(mine.map((l) => ({ name: l.name, area: !!l.area })));
-    // Start out facing the most of the skyline (its famous buildings, nearer ones first).
-    const aim = AIM[spec.id];
-    if (aim) {
-      const p = fromLatLon(data, aim[0], aim[1]);
-      ride.aim(Math.atan2(p.x - ride.top.x, -(p.y - ride.top.z)));
-    } else if (spec.kind !== 'tram') {
-      let best = { yaw: ride.yaw, score: 0 };
-      for (let k = 0; k < 72; k++) {
-        const yaw = (k / 72) * Math.PI * 2;
-        let score = 0;
-        for (const l of mine) {
-          if (l.area) continue;
-          const b = Math.atan2(l.x - ride.top.x, -(l.z - ride.top.z));
-          const d = Math.atan2(Math.sin(b - yaw), Math.cos(b - yaw));
-          if (Math.abs(d) < 0.5)
-            score +=
-              (l.h / 100 + 0.5) / (1 + Math.hypot(l.x - ride.top.x, l.z - ride.top.z) / 2500);
-        }
-        if (score > best.score) best = { yaw, score };
-      }
-      ride.aim(best.yaw);
-    }
-    (window as unknown as { __sky3d?: Handle }).__sky3d = handle.current;
-
-    // Drag to look around (the view turns the way you drag), pinch and wheel to zoom.
-    const pts = new Map<number, { x: number; y: number }>();
-    let pinch = 0;
-    const down = (e: PointerEvent) => {
-      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    function build(): (() => void) | undefined {
+      if (!el || !layout?.geo || !spec || terrain === 'loading') return;
+      const canvas = spare ?? document.createElement('canvas');
+      spare = null;
+      canvas.className = 'c3-canvas';
+      canvas.setAttribute('aria-hidden', 'true');
+      const tier = tierOf();
+      const soft = softwareGl();
+      let scene: CityScene;
       try {
-        el.setPointerCapture(e.pointerId);
+        scene = new CityScene(
+          canvas,
+          layout,
+          { tier, reduced, hour: localHour(city), sky: { terrain }, soft },
+          lookRef.current,
+          [],
+        );
       } catch {
-        /* not capturable */
-      }
-      if (pts.size === 2) {
-        const [a, b] = [...pts.values()];
-        pinch = Math.hypot(a!.x - b!.x, a!.y - b!.y);
-      }
-    };
-    const move = (e: PointerEvent) => {
-      const p = pts.get(e.pointerId);
-      if (!p) return;
-      if (pts.size === 2) {
-        p.x = e.clientX;
-        p.y = e.clientY;
-        const [a, b] = [...pts.values()];
-        const d = Math.hypot(a!.x - b!.x, a!.y - b!.y);
-        if (pinch > 0 && d > 0) ride.zoom(d / pinch);
-        pinch = d;
+        markWebGLBroken();
+        queueMicrotask(() =>
+          setError(
+            t(
+              'This view needs WebGL. Enable 3D in Settings, or use a browser with hardware acceleration.',
+            ),
+          ),
+        );
         return;
       }
-      const dx = e.clientX - p.x;
-      const dy = e.clientY - p.y;
-      p.x = e.clientX;
-      p.y = e.clientY;
-      ride.look(-dx * 0.005, dy * 0.004);
-    };
-    const up = (e: PointerEvent) => {
-      pts.delete(e.pointerId);
-      if (pts.size < 2) pinch = 0;
-    };
-    const wheel = (e: WheelEvent) => {
-      e.preventDefault();
-      ride.zoom(Math.exp(-e.deltaY * 0.0015));
-    };
-    el.addEventListener('pointerdown', down);
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
-    el.addEventListener('wheel', wheel, { passive: false });
+      el.prepend(canvas);
+      scene.following = false;
+      const ride = new SkyRide(scene, spec, { reduced, tier, soft });
+      if (balcony) ride.skip();
+      const extras = skyExtras(scene, spec, scene.waterMaterial);
+      scene.scene.add(extras);
+      scene.onTerrain(extras);
+      scene.view = ride;
+      const size = () => {
+        const r = el.getBoundingClientRect();
+        scene.resize(r.width, r.height);
+      };
+      size();
+      const ro = new ResizeObserver(size);
+      ro.observe(el);
 
-    // Each frame: place the labels (the nearest win the room), report the ride.
-    const out = { x: 0, y: 0, z: 0 };
-    let lastReport = 0;
-    const place = () => {
-      const host = labelsRef.current;
-      const { w: W, h: H } = scene.viewSize;
-      if (host) {
-        const els = host.querySelectorAll<HTMLElement>('[data-sky-label]');
-        const order = [...els]
-          .flatMap((node) => {
-            // (Just after switching views the names on screen are the last view's.)
-            const l = mine[Number(node.dataset.i)];
-            if (!l || l.name !== node.dataset.skyLabel) return [];
-            return [{ node, l, d: Math.hypot(l.x - ride.eye.x, l.z - ride.eye.z) }];
-          })
-          .sort((a, b) => Number(!!a.l.area) - Number(!!b.l.area) || a.d - b.d);
-        const boxes: [number, number, number, number][] = [];
-        for (const { node, l, d } of order) {
-          scene.project(l.x, l.y, l.z, out);
-          let vis =
-            out.z < 1 &&
-            out.x > 4 &&
-            out.x < W - 4 &&
-            out.y > 70 &&
-            out.y < H - 150 &&
-            d < ride.reach * 1.6;
-          if (vis) {
-            const w = node.offsetWidth || l.name.length * 7 + 30;
-            const b: [number, number, number, number] = [
-              out.x - w / 2,
-              out.y - 24,
-              out.x + w / 2,
-              out.y,
-            ];
-            if (boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]))
-              vis = false;
-            else boxes.push(b);
+      // The names you can see: the city's famous places, at their real places.
+      const data = layout.geo.data;
+      const labels: Placed[] = [];
+      const seen = new Set<string>();
+      for (const l of SKY_LABELS[city] ?? []) {
+        if (seen.has(l.name)) continue;
+        seen.add(l.name);
+        const p = fromLatLon(data, l.at[0], l.at[1]);
+        labels.push({ ...l, x: p.x, y: scene.terrainAt(p.x, p.y) + l.h + 8, z: p.y });
+      }
+      const mine = labels.filter((l) => Math.hypot(l.x - ride.top.x, l.z - ride.top.z) > 180);
+      // Nearest first (the chips), and the label positions.
+      mine.sort(
+        (a, b) =>
+          Math.hypot(a.x - ride.top.x, a.z - ride.top.z) -
+          Math.hypot(b.x - ride.top.x, b.z - ride.top.z),
+      );
+      handle.current = { ride, scene, labels: mine };
+      setLabelsList(mine.map((l) => ({ name: l.name, area: !!l.area })));
+      // Start out facing the most of the skyline (its famous buildings, nearer ones first).
+      const aim = AIM[spec.id];
+      if (aim) {
+        const p = fromLatLon(data, aim[0], aim[1]);
+        ride.aim(Math.atan2(p.x - ride.top.x, -(p.y - ride.top.z)));
+      } else if (spec.kind !== 'tram') {
+        let best = { yaw: ride.yaw, score: 0 };
+        for (let k = 0; k < 72; k++) {
+          const yaw = (k / 72) * Math.PI * 2;
+          let score = 0;
+          for (const l of mine) {
+            if (l.area) continue;
+            const b = Math.atan2(l.x - ride.top.x, -(l.z - ride.top.z));
+            const d = Math.atan2(Math.sin(b - yaw), Math.cos(b - yaw));
+            if (Math.abs(d) < 0.5)
+              score +=
+                (l.h / 100 + 0.5) / (1 + Math.hypot(l.x - ride.top.x, l.z - ride.top.z) / 2500);
           }
-          if (vis) {
-            node.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
-            const km = node.querySelector<HTMLElement>('[data-km]');
-            const txt = d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${Math.round(d / 10) * 10} m`;
-            if (km && km.textContent !== txt) km.textContent = txt;
-          }
-          if (node.hidden === vis) node.hidden = !vis;
+          if (score > best.score) best = { yaw, score };
         }
+        ride.aim(best.yaw);
       }
-      const now = performance.now();
-      if (now - lastReport > 200) {
-        lastReport = now;
-        const deg = ((((ride.yaw * 180) / Math.PI) % 360) + 360) % 360;
-        setState({ progress: ride.progress, heading: deg, ready: true });
-      }
-    };
-    const off = scene.onFrame(place);
-    const lost = (e: Event) => {
-      e.preventDefault();
-      markWebGLBroken();
-      setError(t('The 3D view stopped. Close it and open it again.'));
-    };
-    canvas.addEventListener('webglcontextlost', lost);
-    scene.touch(1500);
-    return () => {
-      off();
-      canvas.removeEventListener('webglcontextlost', lost);
-      el.removeEventListener('pointerdown', down);
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', up);
-      el.removeEventListener('wheel', wheel);
-      ro.disconnect();
-      handle.current = null;
-      ride.dispose();
-      scene.view = null;
-      scene.dispose();
-      canvas.remove();
-      delete (window as unknown as { __sky3d?: unknown }).__sky3d;
-    };
+      (window as unknown as { __sky3d?: Handle }).__sky3d = handle.current;
+
+      // Drag to look around (the view turns the way you drag), pinch and wheel to zoom.
+      const pts = new Map<number, { x: number; y: number }>();
+      let pinch = 0;
+      const down = (e: PointerEvent) => {
+        pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        try {
+          el.setPointerCapture(e.pointerId);
+        } catch {
+          /* not capturable */
+        }
+        if (pts.size === 2) {
+          const [a, b] = [...pts.values()];
+          pinch = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+        }
+      };
+      const move = (e: PointerEvent) => {
+        const p = pts.get(e.pointerId);
+        if (!p) return;
+        if (pts.size === 2) {
+          p.x = e.clientX;
+          p.y = e.clientY;
+          const [a, b] = [...pts.values()];
+          const d = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+          if (pinch > 0 && d > 0) ride.zoom(d / pinch);
+          pinch = d;
+          return;
+        }
+        const dx = e.clientX - p.x;
+        const dy = e.clientY - p.y;
+        p.x = e.clientX;
+        p.y = e.clientY;
+        ride.look(-dx * 0.005, dy * 0.004);
+      };
+      const up = (e: PointerEvent) => {
+        pts.delete(e.pointerId);
+        if (pts.size < 2) pinch = 0;
+      };
+      const wheel = (e: WheelEvent) => {
+        e.preventDefault();
+        ride.zoom(Math.exp(-e.deltaY * 0.0015));
+      };
+      el.addEventListener('pointerdown', down);
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+      el.addEventListener('wheel', wheel, { passive: false });
+
+      // Each frame: place the labels (the nearest win the room), report the ride.
+      const out = { x: 0, y: 0, z: 0 };
+      let lastReport = 0;
+      const place = () => {
+        const host = labelsRef.current;
+        const { w: W, h: H } = scene.viewSize;
+        if (host) {
+          const els = host.querySelectorAll<HTMLElement>('[data-sky-label]');
+          const order = [...els]
+            .flatMap((node) => {
+              // (Just after switching views the names on screen are the last view's.)
+              const l = mine[Number(node.dataset.i)];
+              if (!l || l.name !== node.dataset.skyLabel) return [];
+              return [{ node, l, d: Math.hypot(l.x - ride.eye.x, l.z - ride.eye.z) }];
+            })
+            .sort((a, b) => Number(!!a.l.area) - Number(!!b.l.area) || a.d - b.d);
+          const boxes: [number, number, number, number][] = [];
+          for (const { node, l, d } of order) {
+            scene.project(l.x, l.y, l.z, out);
+            let vis =
+              out.z < 1 &&
+              out.x > 4 &&
+              out.x < W - 4 &&
+              out.y > 70 &&
+              out.y < H - 150 &&
+              d < ride.reach * 1.6;
+            if (vis) {
+              const w = node.offsetWidth || l.name.length * 7 + 30;
+              const b: [number, number, number, number] = [
+                out.x - w / 2,
+                out.y - 24,
+                out.x + w / 2,
+                out.y,
+              ];
+              if (boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]))
+                vis = false;
+              else boxes.push(b);
+            }
+            if (vis) {
+              node.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
+              const km = node.querySelector<HTMLElement>('[data-km]');
+              const txt =
+                d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${Math.round(d / 10) * 10} m`;
+              if (km && km.textContent !== txt) km.textContent = txt;
+            }
+            if (node.hidden === vis) node.hidden = !vis;
+          }
+        }
+        const now = performance.now();
+        if (now - lastReport > 200) {
+          lastReport = now;
+          const deg = ((((ride.yaw * 180) / Math.PI) % 360) + 360) % 360;
+          setState({ progress: ride.progress, heading: deg, ready: true });
+        }
+      };
+      const off = scene.onFrame(place);
+      const lost = (e: Event) => {
+        e.preventDefault();
+        markWebGLBroken();
+        setError(t('The 3D view stopped. Close it and open it again.'));
+      };
+      canvas.addEventListener('webglcontextlost', lost);
+      scene.touch(1500);
+      return () => {
+        off();
+        canvas.removeEventListener('webglcontextlost', lost);
+        el.removeEventListener('pointerdown', down);
+        el.removeEventListener('pointermove', move);
+        el.removeEventListener('pointerup', up);
+        el.removeEventListener('pointercancel', up);
+        el.removeEventListener('wheel', wheel);
+        ro.disconnect();
+        handle.current = null;
+        ride.dispose();
+        scene.view = null;
+        scene.dispose();
+        canvas.remove();
+        delete (window as unknown as { __sky3d?: unknown }).__sky3d;
+      };
+    }
     // `balcony` is `spec` when given.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout, spec, terrain, reduced, city]);
@@ -447,6 +489,7 @@ export default function Panorama({
       data-sky-phase={riding ? 'ride' : 'look'}
     >
       <div className="panorama-canvas" ref={mount}>
+        <SkyRise city={city} up={state.ready || !!error} />
         {/* Out on your balcony: its glass railing in front of you. */}
         {balcony && <div className="panorama-balcony" aria-hidden="true" />}
         <div ref={labelsRef} className="sky-labels" aria-hidden="true">

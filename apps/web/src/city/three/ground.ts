@@ -141,6 +141,58 @@ function landMaterial(look: CityLook, mask: GroundMask) {
   return m;
 }
 
+/**
+ * Wave 12: the wild land of a sky view's terrain (the land material on the
+ * terrain, terrain.ts) as forest seen from above — clumps of crowns, dark in
+ * the shade and lighter in the sun, paler scrub and farms low down.
+ */
+export function canopyLand(m: THREE.Material, colors: [string, string]) {
+  const prev = m.onBeforeCompile.bind(m);
+  const key = m.customProgramCacheKey();
+  const dark = new THREE.Color(colors[0]);
+  const light = new THREE.Color(colors[1]);
+  m.onBeforeCompile = (sh, r) => {
+    prev(sh, r);
+    sh.uniforms.uCanopyDark = { value: dark };
+    sh.uniforms.uCanopyLight = { value: light };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vCanopyH;')
+      .replace(
+        'mvPosition = viewMatrix * mvPosition;',
+        'vCanopyH = mvPosition.y;\nmvPosition = viewMatrix * mvPosition;',
+      );
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying float vCanopyH;
+        uniform vec3 uCanopyDark;
+        uniform vec3 uCanopyLight;
+        float cHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float cNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(cHash(i), cHash(i + vec2(1.0, 0.0)), f.x),
+                     mix(cHash(i + vec2(0.0, 1.0)), cHash(i + vec2(1.0, 1.0)), f.x), f.y);
+        }`,
+      )
+      .replace(
+        'diffuseColor.rgb = mix(uNatural, diffuseColor.rgb, smoothstep(0.04, 0.22, u));',
+        `{
+          // Crowns about 9 m and clumps about 40 m across, fading out where they'd shimmer.
+          float px = length(fwidth(vLand));
+          float n = mix(0.5, cNoise(vLand / 40.0), 1.0 - smoothstep(6.0, 30.0, px)) * 0.6
+                  + mix(0.5, cNoise(vLand / 9.0 + 17.0), 1.0 - smoothstep(1.5, 7.0, px)) * 0.4;
+          vec3 wild = mix(uCanopyDark, uCanopyLight, smoothstep(0.32, 0.68, n));
+          wild = mix(uNatural, wild, smoothstep(6.0, 40.0, vCanopyH) * 0.85 + 0.15);
+          diffuseColor.rgb = mix(wild, diffuseColor.rgb, smoothstep(0.04, 0.22, u));
+        }`,
+      );
+  };
+  m.customProgramCacheKey = () => `${key}|canopy`;
+}
+
 // ---------------------------------------------------------------------------
 // Water
 
@@ -362,13 +414,13 @@ export function buildGround(
   if (land) land.name = 'ground-land';
   add(land);
   add(layer(polyGeometry(data.airport ?? []), flatMat('#a9a79f', -38), -38));
-  add(
-    layer(
-      polyGeometry(data.green ?? [], 0, 400),
-      flatMat(mixHex(look.park, look.ground, 0.35), -37),
-      -37,
-    ),
+  const green = layer(
+    polyGeometry(data.green ?? [], 0, 400),
+    flatMat(mixHex(look.park, look.ground, 0.35), -37),
+    -37,
   );
+  if (green) green.name = 'ground-green';
+  add(green);
   add(layer(polyGeometry(data.parks ?? [], 0, 200), flatMat(look.park, -36), -36));
   add(layer(polyGeometry(data.beach ?? []), flatMat(look.beach, -35), -35));
   // Water on land (lakes, the river, the lagoon): drawn by the same shader.
@@ -583,5 +635,6 @@ function horizon(data: GeoData, look: CityLook, mask: GroundMask, ground: THREE.
   m.renderOrder = -38;
   m.frustumCulled = false;
   m.receiveShadow = false;
+  m.name = 'ground-horizon';
   return m;
 }

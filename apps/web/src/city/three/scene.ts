@@ -30,14 +30,14 @@ import {
   type Centre,
   type Footprint,
 } from './buildings';
-import { buildGround, mixHex } from './ground';
+import { buildGround, canopyLand, mixHex } from './ground';
 import { discPoly, FootprintGrid, makeFp, rectPoly, segRectDist, type Fp } from './footprints';
 import { homeModel, PLOT, setHomesNight } from './homes3d';
 import { ROAD_HALF, COVER } from './mask';
 import { hoodAt, type OwnedProperty } from '../properties';
 import { covered } from '../../three-kit/cover';
 import { applySky, skyAt, skyDome, skyEnvironment, skyUniforms, type SkyState } from './sky';
-import { treeMeshes, treeSpots } from './trees';
+import { canopyMeshes, forestSpots, treeMeshes, treeSpots, type TreeSpot } from './trees';
 import { buildLandmarks, EXTRA_3D, landmarkLights, type LandmarkPlan } from './landmarks';
 import { beacons, glowMaterial, glowPoints, glowUniforms, streetLamps } from './lights';
 import { Actors } from './actors';
@@ -257,7 +257,9 @@ export class CityScene {
     });
     // Phones: at most 1.5 device pixels per CSS pixel (sharp enough on a small
     // screen; 1.75 draws a third more pixels for little to see).
-    this.dprMax = opts.soft ? 1 : Math.min(2, window.devicePixelRatio || 1, high ? 2 : 1.5);
+    // A sky view sees the whole city at once: 1.25 (1.5 on a big screen) is plenty.
+    const cap = opts.sky ? (high ? 1.5 : 1.25) : high ? 2 : 1.5;
+    this.dprMax = opts.soft ? 1 : Math.min(2, window.devicePixelRatio || 1, cap);
     this.dpr = this.dprMax;
     this.renderer.setPixelRatio(this.dpr);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -265,7 +267,8 @@ export class CityScene {
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = !opts.soft;
     // Reading back every shader's log waits for it to compile: on a CPU that's seconds.
-    if (opts.soft) this.renderer.debug.checkShaderErrors = false;
+    // A sky view too: it brings a whole city's shaders at once (and see programsReady).
+    if (opts.soft || opts.sky) this.renderer.debug.checkShaderErrors = false;
     if (opts.soft) this.degraded = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     // Redrawn when something that casts one moved (see loop), not every frame.
@@ -286,7 +289,13 @@ export class CityScene {
     this.scene.add(this.sun, this.sun.target, this.hemi);
     this.dome = skyDome(this.sky, 1);
     this.scene.add(this.dome);
-    this.skyState = skyAt(this.hour, this.look.lat, this.look.haze, citySun(this.layout.marketId));
+    this.skyState = skyAt(
+      this.hour,
+      this.look.lat,
+      this.look.haze,
+      citySun(this.layout.marketId),
+      this.look.hazeTint,
+    );
     this.applySky();
     this.dome.userData.noTerrain = true;
 
@@ -335,14 +344,22 @@ export class CityScene {
           land = m;
           continue;
         }
+        // Forested hills: the wild land is the terrain's own forest (canopyLand), not a flat green.
+        if (c.name === 'ground-green' && this.look.canopy) {
+          c.visible = false;
+          continue;
+        }
         // Long flat triangles cut finer, so they follow the hills.
-        const g = tessellate(m.geometry, high ? 60 : 90);
+        // (Beyond the map the cells are hundreds of metres: a coarser cut is plenty
+        // there, and the finest one made it 600,000 triangles and a second's work.)
+        const g = tessellate(m.geometry, c.name === 'ground-horizon' ? 320 : high ? 60 : 90);
         m.geometry.dispose();
         m.geometry = g;
       }
       if (land) {
         const mat = terrainMaterial(land.material as THREE.Material, u);
         if (mat) {
+          if (this.look.canopy) canopyLand(mat, this.look.canopy);
           mat.depthWrite = true;
           mat.polygonOffset = true;
           mat.polygonOffsetFactor = 1;
@@ -430,7 +447,27 @@ export class CityScene {
     // Trees.
     const spots = treeSpots(data, this.look, this.mask, high ? 26000 : 11000);
     this.stats.trees = spots.length;
-    this.scene.add(treeMeshes(spots, this.look, high));
+    const palms = this.look.palms ?? 0;
+    if (palms > 0) {
+      // Palms among the city's own trees (Freetown's mangoes and palms).
+      const isPalm = (t: TreeSpot) => h3(Math.round(t.x * 5), Math.round(t.y * 5), 81) < palms;
+      this.scene.add(
+        treeMeshes(
+          spots.filter((t) => !isPalm(t)),
+          this.look,
+          high,
+        ),
+      );
+      this.scene.add(treeMeshes(spots.filter(isPalm), { ...this.look, tree: 'palm' }, high));
+    } else this.scene.add(treeMeshes(spots, this.look, high));
+    // Wave 12: a sky view over forested hills sees the forest.
+    if (this.terrain && this.look.canopy) {
+      const tf = this.terrain;
+      const n = opts.soft ? 4000 : high ? 24000 : 12000;
+      const forest = forestSpots(data, this.look, this.mask, (x, y) => heightAt(tf, x, y), n);
+      this.stats.trees += forest.length;
+      this.scene.add(canopyMeshes(forest, this.look.canopy));
+    }
 
     // Street lamps (night).
     this.addNight(glowPoints(streetLamps(this.roads, high ? 40000 : 18000), this.glowMat));
@@ -876,6 +913,12 @@ export class CityScene {
         if (g) g.visible = !shown;
         this.invalidate();
       },
+      stage: this.opts.sky
+        ? (show: () => void) => {
+            this.staged.push(show);
+            this.invalidate();
+          }
+        : undefined,
     };
   }
 
@@ -891,6 +934,7 @@ export class CityScene {
       this.look.lat,
       this.look.haze,
       citySun(this.layout.marketId, this.sunTime ?? Date.now()),
+      this.look.hazeTint,
     );
     this.applySky();
     this.invalidate();
@@ -933,6 +977,9 @@ export class CityScene {
   }
 
   resize(w: number, h: number) {
+    // The same size again (a ResizeObserver's first call): resizing the canvas
+    // clears and reallocates it even so, a second on a software renderer.
+    if (Math.max(1, w) === this.size.w && Math.max(1, h) === this.size.h) return;
     this.size = { w: Math.max(1, w), h: Math.max(1, h) };
     if (this.opts.soft) {
       // Every pixel is shaded on the CPU: a big window draws fewer, scaled up.
@@ -1281,14 +1328,28 @@ export class CityScene {
     this.sky.uTime.value = t / 1000;
     this.glow.uTime.value = t / 1000;
     this.placeCamera();
+    // A sky view's tiles go up a few a frame: a slice of the frame's own time
+    // (on a slow GPU the frames are long anyway, so more fit in each).
+    if (this.staged.length && !this.warming) {
+      const budget = Math.max(8, Math.min(250, this.stats.frameMs * 0.25));
+      const t0 = performance.now();
+      do this.staged.shift()!();
+      while (this.staged.length && performance.now() - t0 < budget);
+      this.dirty = true;
+    }
     if (this.opts.soft && !this.shadersReady(t)) return;
+    if (this.opts.sky && !this.opts.soft && !this.programsReady()) return;
     this.renderer.render(this.scene, this.camera);
     for (const cb of this.onFrameCbs) cb();
     // Adapt the resolution to how fast frames come.
     const frame = t - this.lastRender;
     this.lastRender = t;
+    // A sky view's first seconds are slow while the city streams in: resizing
+    // then (it waits for the GPU to finish) would only make them slower.
+    const settling = this.opts.sky && (t < this.settleAt || this.staged.length > 0);
     // Very slow frames (a software renderer, an old phone): shadows off, fewer pixels.
-    if (frame > 250 && frame < 20000) {
+    if (settling) this.slow = 0;
+    else if (frame > 250 && frame < 20000) {
       this.slow++;
       if (this.slow >= 4 && !this.degraded) {
         this.degraded = true;
@@ -1298,7 +1359,7 @@ export class CityScene {
         this.setDpr(1);
       }
     } else this.slow = 0;
-    if (frame < 200) {
+    if (frame < 200 && !settling) {
       this.frameTimes.push(frame);
       if (this.frameTimes.length > 40) {
         const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
@@ -1337,6 +1398,50 @@ export class CityScene {
       this.compiling = false;
       if (!this.disposed) this.invalidate();
     }, SOFT_COMPILE_WAIT_MS);
+    return false;
+  }
+
+  private staged: (() => void)[] = [];
+  private settleAt = performance.now() + 8000;
+  private seen = -1;
+  private warming: Set<THREE.Material> | null = null;
+
+  /**
+   * Wave 12: a sky view brings in a whole city's worth of new things (its
+   * first frame, the tiles as they stream in). With KHR_parallel_shader_compile
+   * their shaders compile in the background and are drawn once ready, so no
+   * frame stops the page to wait for them: until then the last frame stays up.
+   */
+  private programsReady(): boolean {
+    if (!this.renderer.extensions.has('KHR_parallel_shader_compile')) return true;
+    const props = this.renderer.properties;
+    const ready = (m: THREE.Material) => {
+      const p = props.get(m) as { currentProgram?: { isReady(): boolean } };
+      return !p.currentProgram || p.currentProgram.isReady();
+    };
+    if (this.warming) {
+      for (const m of this.warming) if (ready(m)) this.warming.delete(m);
+      this.dirty = true;
+      if (this.warming.size) return false;
+      this.warming = null;
+      return true;
+    }
+    const n =
+      this.scene.children.length + this.tallGroup.children.length + this.lowGroup.children.length;
+    if (n === this.seen) return true;
+    this.seen = n;
+    // On the terrain first (else the flat copies compile too, for nothing).
+    this.patcher?.patch(this.scene);
+    let mats: Set<THREE.Material>;
+    try {
+      mats = this.renderer.compile(this.scene, this.camera);
+    } catch {
+      return true;
+    }
+    for (const m of mats) if (ready(m)) mats.delete(m);
+    if (!mats.size) return true;
+    this.warming = mats;
+    this.dirty = true;
     return false;
   }
 
