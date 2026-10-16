@@ -51,6 +51,14 @@ export interface CityLook {
   lat: number;
   /** How built-up the land is away from the mapped roads (0–1), fading out from the centre. */
   sprawl: number;
+  /** Share of the real low-rise roofed in corrugated iron (pitchedRoofs), not flat concrete. */
+  tinRoofs?: number;
+  /** Share of the trees that are palms (among the city's own kind). */
+  palms?: number;
+  /** Forest on the hills (a sky view): its crowns, dark to light. */
+  canopy?: [dark: string, light: string];
+  /** What colour the haze is on the horizon (a humid coast's is warm and milky). */
+  hazeTint?: string;
 }
 
 const BASE: CityLook = {
@@ -303,32 +311,64 @@ export const CITY_LOOKS: Record<string, CityLook> = {
   freetown: {
     ...BASE,
     sprawl: 0.12,
-    walls: ['#ece2c8', '#d9e0d2', '#e8d0c0', '#d8dbe6', '#e9dcb9', '#f0eadc'],
-    stone: ['#cfc6b2', '#bdb4a0'],
-    glass: ['#56798c'],
-    flatRoofs: ['#b5ad9b', '#a39a88'],
-    pitchedRoofs: ['#7b4a32', '#8a8f93', '#6f4433', '#9da2a5', '#8b5a3e'],
+    // Pastel paint and bare block: cream, salmon, mint, sky blue, yellow, lilac.
+    walls: [
+      '#efe6d2',
+      '#e2b9a1',
+      '#b5d1bf',
+      '#aec6dd',
+      '#e8d48f',
+      '#ccbad8',
+      '#e7c79a',
+      '#c9c1b0',
+      '#f0d9c4',
+      '#d9a684',
+    ],
+    stone: ['#cfc6b2', '#bdb4a0', '#d9d2c2'],
+    glass: ['#56798c', '#3f6276'],
+    flatRoofs: ['#a59c8a', '#8f877a', '#b3aa98'],
+    // Corrugated iron: rusted red-brown, bare zinc, a few painted red, green and blue.
+    pitchedRoofs: [
+      '#8a4a2e',
+      '#9b5636',
+      '#7a4030',
+      '#6e3b28',
+      '#a0643f',
+      '#9ea4a8',
+      '#b7bcc0',
+      '#868c90',
+      '#8a4a2e',
+      '#a33a2c',
+      '#3f6f5a',
+      '#45698c',
+    ],
     pitched: 0.85,
+    tinRoofs: 0.88,
     lotW: [9, 14],
     lotD: [9, 14],
     gap: [1.5, 4],
     floors: { res: [1, 2], urban: [2, 4], down: [3, 8] },
     towers: 0.05,
     towerMax: 12,
-    ground: '#a39a7c',
-    park: '#4f7f35',
+    // Red laterite earth between the houses.
+    ground: '#8c6d58',
+    park: '#3a6a26',
     beach: '#ead8ad',
-    water: ['#245c74', '#367690'],
+    water: ['#2a5f6e', '#3f7f86'],
     tree: 'round',
-    leaf: ['#3f7a2e', '#336a27', '#4d8a35'],
+    palms: 0.35,
+    leaf: ['#2f5e25', '#3b6e2c', '#466f2a', '#2b5320'],
+    canopy: ['#0d260b', '#2f5a1d'],
     streetTrees: 14,
+    // The Peninsula Mountains to the south; the low Bullom shore across the estuary.
     horizon: [
       { at: 180, h: 650, spread: 50 },
       { at: 120, h: 420, spread: 40 },
       { at: 240, h: 380, spread: 30 },
     ],
-    hillColor: '#4d6e38',
-    haze: 0.6,
+    hillColor: '#355f2a',
+    haze: 0.72,
+    hazeTint: '#e9e2cc',
     lat: 8.48,
   },
   kigali: {

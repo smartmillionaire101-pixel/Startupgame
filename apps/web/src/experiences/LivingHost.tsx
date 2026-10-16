@@ -6,6 +6,7 @@ import { openPhone } from '../phone/bus';
 import { closeLiving, livingPlace, onLiving } from './living-bus';
 import { openPlay } from './play-bus';
 import { cover } from '../three-kit/cover';
+import { prewarmSky } from './sky-bus';
 import './experiences.css';
 const Panorama = lazy(() => import('./Panorama'));
 export default function LivingHost() {
@@ -35,6 +36,10 @@ function LivingRoom({ host }: { host: string }) {
   const city = view.here?.id ?? view.market.id;
   const skyViews = skyViewsIn(city);
   const whereNow = where || skyViews[0]?.id || 'home';
+  const hasSky = skyViews.length > 0;
+  useEffect(() => {
+    if (hasSky) prewarmSky(city);
+  }, [hasSky, city]);
   const dates = view.living.dates.filter(
     (d) => d.status !== 'ended' && now - d.createdAt < 3_600_000,
   );

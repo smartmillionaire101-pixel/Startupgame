@@ -29,8 +29,23 @@ export interface TerrainField {
   max: number;
 }
 
-/** Load and prepare a city's terrain (null when it has none). */
-export async function loadTerrainField(city: string): Promise<TerrainField | null> {
+const fields = new Map<string, Promise<TerrainField | null>>();
+
+/** Load and prepare a city's terrain (null when it has none); once per city. */
+export function loadTerrainField(city: string): Promise<TerrainField | null> {
+  let f = fields.get(city);
+  if (!f) {
+    f = fetchTerrainField(city);
+    fields.set(city, f);
+    // A failed load is tried again next time.
+    void f.then((x) => {
+      if (!x) fields.delete(city);
+    });
+  }
+  return f;
+}
+
+async function fetchTerrainField(city: string): Promise<TerrainField | null> {
   try {
     const res = await fetch(`/geo/${encodeURIComponent(city)}/terrain.bin`);
     if (!res.ok) return null;

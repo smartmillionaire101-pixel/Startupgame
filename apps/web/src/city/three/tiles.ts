@@ -50,6 +50,11 @@ export interface TileContext {
   glow?: THREE.Material;
   /** A tile came (true) or went (false): hide or show what stood in for it. */
   onShow?: (key: string, shown: boolean) => void;
+  /**
+   * Make and put up a tile later, a few a frame (a sky view, Wave 12: a
+   * hundred tiles arrive at once, each to lay out and send to the GPU).
+   */
+  stage?: (show: () => void) => void;
 }
 
 export interface TileSet {
@@ -153,25 +158,35 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
         void fetch(`/geo/${marketId}/b-${k}.bin`)
           .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
           .then((buf) => {
-            if (loaded.get(k) !== 'loading') return;
-            const out = decode(buf, index) as RawBuilding[] | { buildings: RawBuilding[] };
-            const list = Array.isArray(out) ? out : (out?.buildings ?? []);
-            const fp = osmFootprints(
-              { buildings: tileBuildings(list) },
-              ctx.look,
-              ctx.clear,
-              marketId,
-              { blocked: ctx.blocked, grid },
-            );
-            const g = new THREE.Group();
-            const m = mergedMesh(fp.polys, ctx.mat);
-            if (m) g.add(m);
-            for (const b of boxMeshes(fp.boxes, ctx.inst)) g.add(b);
-            const lights = ctx.glow ? glowPoints(beacons(fp.fps), ctx.glow) : null;
-            if (lights) g.add(lights);
-            ctx.scene.add(g);
-            loaded.set(k, { obj: g, fps: fp.fps });
-            ctx.onShow?.(k, true);
+            const make = () => {
+              if (loaded.get(k) !== 'loading') return;
+              const out = decode(buf, index) as RawBuilding[] | { buildings: RawBuilding[] };
+              const list = Array.isArray(out) ? out : (out?.buildings ?? []);
+              const fp = osmFootprints(
+                { buildings: tileBuildings(list) },
+                ctx.look,
+                ctx.clear,
+                marketId,
+                { blocked: ctx.blocked, grid },
+              );
+              const g = new THREE.Group();
+              const m = mergedMesh(fp.polys, ctx.mat);
+              if (m) g.add(m);
+              for (const b of boxMeshes(fp.boxes, ctx.inst)) g.add(b);
+              const lights = ctx.glow ? glowPoints(beacons(fp.fps), ctx.glow) : null;
+              if (lights) g.add(lights);
+              ctx.scene.add(g);
+              loaded.set(k, { obj: g, fps: fp.fps });
+              ctx.onShow?.(k, true);
+            };
+            if (!ctx.stage) return make();
+            ctx.stage(() => {
+              try {
+                make();
+              } catch {
+                loaded.set(k, { obj: new THREE.Group(), fps: [] });
+              }
+            });
           })
           .catch(() => loaded.set(k, { obj: new THREE.Group(), fps: [] }));
       }
