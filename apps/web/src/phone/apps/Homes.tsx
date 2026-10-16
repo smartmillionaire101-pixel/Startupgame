@@ -14,6 +14,7 @@ import { useView } from '../../store';
 import { Button, Segmented } from '../../ui';
 import { use3d } from '../../three-kit/quality';
 import { hereOf } from '../../city/travel';
+import { floorsFor } from '../../home/layout';
 import {
   PROPERTY_TIER_ORDER,
   cityName,
@@ -173,6 +174,8 @@ function ListingDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [years, setYears] = useState(25);
   const want3d = use3d();
   const [ready, setReady] = useState(false);
+  // A house's tour: one floor at a time (a mansion has an upstairs and a roof terrace).
+  const [floor, setFloor] = useState(0);
   // Open at the top of the listing (the list may have been scrolled far down).
   const top = useRef<HTMLDivElement>(null);
   useEffect(() => top.current?.scrollIntoView({ block: 'start' }), [id]);
@@ -186,6 +189,9 @@ function ListingDetail({ id, onBack }: { id: string; onBack: () => void }) {
         </Button>
       </div>
     );
+  const floors = floorsFor(planTierOf(l.tier), { kind: l.tier, wealth: 1 });
+  const levelName = (n: number) =>
+    n === 2 ? t('Roof terrace') : n === 1 ? t('Upper floor') : t('Ground floor');
   const cur = here.currency;
   const deposit = Math.round((l.price * down) / 100);
   const loan = l.price - deposit;
@@ -213,12 +219,28 @@ function ListingDetail({ id, onBack }: { id: string; onBack: () => void }) {
               finish={l.lifestyleTier >= 4 ? 3 : l.lifestyleTier >= 3 ? 2 : 1}
               estate={estateOf(l.tier)}
               kind={l.tier}
+              floor={floor}
               night={night}
               onReady={() => setReady(true)}
             />
           </Suspense>
         )}
         <PropertyArt tier={l.tier} seed={l.id} className="tour-art" />
+        {want3d && ready && floors.length > 1 && (
+          <div className="tour-floors" role="group" aria-label={t('Floors')}>
+            {[...floors.keys()].reverse().map((i) => (
+              <button
+                key={i}
+                type="button"
+                data-tour-floor={floors[i]!.level ?? i}
+                aria-pressed={i === floor}
+                onClick={() => setFloor(i)}
+              >
+                {levelName(floors[i]!.level ?? i)}
+              </button>
+            ))}
+          </div>
+        )}
         {want3d && ready && <span className="tour-hint small">{t('Drag to look round')}</span>}
       </div>
       <section className="phone-card">
