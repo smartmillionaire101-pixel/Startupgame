@@ -6,31 +6,47 @@ import { EmailLinkForm } from './Account';
 import { Onboarding } from './Onboarding';
 
 /** Quick registration or an email link to an existing game. */
-export function SignIn({ startLogin = false }: { startLogin?: boolean }) {
+export function SignIn({
+  startLogin = false,
+  onBack,
+}: {
+  startLogin?: boolean;
+  /** Back to the landing page (when there is one). */
+  onBack?: () => void;
+}) {
   const { meta } = useGame();
   const lang = useLang();
   const [login, setLogin] = useState(startLogin);
 
   return (
     <div className="app app-narrow">
-      <div
-        className="chips"
-        role="group"
-        aria-label={t('Language')}
-        style={{ justifyContent: 'flex-end' }}
-      >
-        {LANGS.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            className="chip"
-            aria-pressed={lang === l.id}
-            lang={l.id}
-            onClick={() => setLang(l.id)}
-          >
-            {l.label}
+      <div className="spread">
+        {onBack ? (
+          <button type="button" className="back-link" data-signin-back="" onClick={onBack}>
+            ‹ {t('Back')}
           </button>
-        ))}
+        ) : (
+          <span />
+        )}
+        <div
+          className="chips"
+          role="group"
+          aria-label={t('Language')}
+          style={{ justifyContent: 'flex-end' }}
+        >
+          {LANGS.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              className="chip"
+              aria-pressed={lang === l.id}
+              lang={l.id}
+              onClick={() => setLang(l.id)}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="hero title-hero">
         <TitleSkyline />

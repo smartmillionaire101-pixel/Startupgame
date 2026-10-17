@@ -1,10 +1,10 @@
 /* The front page: bright, chunky and game-like. Mobile first. */
 .landing {
-  --ld-ink: #1b1036;
+  --ld-ink: #0f2a28;
   --ld-sun: #ffb020;
-  --ld-pink: #ff4d8d;
-  --ld-violet: #6b3cf5;
-  --ld-teal: #0fb5a0;
+  --ld-deep: #0b5f59;
+  --ld-teal: #0f766e;
+  --ld-coral: #ff6b5b;
   --ld-cream: #fff8ec;
   min-height: 100vh;
   background: var(--ld-cream);
@@ -84,9 +84,9 @@
   gap: 1.5rem;
   padding: 1.5rem 1rem 2.5rem;
   background:
-    radial-gradient(circle at 15% 10%, rgb(255 176 32 / 0.55), transparent 45%),
-    radial-gradient(circle at 90% 30%, rgb(255 77 141 / 0.45), transparent 45%),
-    linear-gradient(160deg, #7c4dff 0%, #5a2fd6 55%, #3a1a9e 100%);
+    radial-gradient(circle at 15% 10%, rgb(255 176 32 / 0.45), transparent 45%),
+    radial-gradient(circle at 90% 30%, rgb(94 234 212 / 0.35), transparent 45%),
+    linear-gradient(160deg, #14958a 0%, #0f766e 50%, #0b4f4a 100%);
   color: #fff;
   border-radius: 0 0 36px 36px;
 }
@@ -99,7 +99,7 @@
   font-weight: 800;
   font-size: 0.85rem;
   transform: rotate(-2deg);
-  box-shadow: 0 4px 0 rgb(27 16 54 / 0.35);
+  box-shadow: 0 4px 0 rgb(15 42 40 / 0.35);
 }
 .ld-hero h1 {
   margin-top: 1rem;
@@ -144,7 +144,7 @@
 .ld-login:focus-visible,
 .ld-langs button:focus-visible,
 .ld-link:focus-visible {
-  outline: 3px solid var(--ld-pink);
+  outline: 3px solid var(--ld-coral);
   outline-offset: 3px;
 }
 .ld-small {
@@ -181,7 +181,7 @@
   border-radius: 30px;
   overflow: hidden;
   background: var(--ld-ink);
-  box-shadow: 0 18px 40px rgb(27 16 54 / 0.35);
+  box-shadow: 0 18px 40px rgb(15 42 40 / 0.35);
 }
 .ld-phone img {
   display: block;
@@ -195,7 +195,7 @@
   padding: 1rem 0;
   border-block: 3px solid var(--ld-ink);
   margin: 2rem 0 0;
-  background: var(--ld-teal);
+  background: var(--ld-coral);
 }
 .ld-cities-track {
   display: flex;
@@ -266,7 +266,7 @@
   max-width: 28rem;
   font-size: 1.05rem;
   line-height: 1.5;
-  color: #4a3d63;
+  color: #3d5552;
 }
 
 /* ---- How it works */
@@ -303,12 +303,13 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--ld-pink);
+  background: var(--ld-coral);
   color: #fff;
   font-size: 1.3rem;
 }
 .ld-steps li:nth-child(2) b {
-  background: var(--ld-violet);
+  background: var(--ld-sun);
+  color: var(--ld-ink);
 }
 .ld-steps li:nth-child(3) b {
   background: var(--ld-teal);
@@ -318,7 +319,7 @@
   gap: 0.15rem;
   font-size: 1rem;
   line-height: 1.4;
-  color: #4a3d63;
+  color: #3d5552;
 }
 .ld-steps li strong {
   font-size: 1.15rem;
@@ -333,8 +334,8 @@
   text-align: center;
   color: #fff;
   background:
-    radial-gradient(circle at 80% 20%, rgb(255 176 32 / 0.5), transparent 50%),
-    linear-gradient(140deg, var(--ld-pink), var(--ld-violet));
+    radial-gradient(circle at 80% 20%, rgb(255 176 32 / 0.45), transparent 50%),
+    linear-gradient(140deg, #14958a, var(--ld-deep));
 }
 .ld-final h2 {
   font-size: clamp(1.9rem, 8vw, 2.8rem);
@@ -351,14 +352,14 @@
   align-items: center;
   gap: 0.75rem;
   padding: 2rem 1rem 2.5rem;
-  color: #4a3d63;
+  color: #3d5552;
   font-size: 0.95rem;
 }
 .ld-link {
   min-height: 44px;
   border: 0;
   background: none;
-  color: var(--ld-violet);
+  color: var(--ld-teal);
   font: inherit;
   font-weight: 700;
   text-decoration: underline;

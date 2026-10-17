@@ -96,13 +96,26 @@ const LivingHost = lazy(() => import('./experiences/LivingHost'));
 const SkyHost = lazy(() => import('./experiences/SkyHost'));
 const PlayHost = lazy(() => import('./experiences/PlayHost'));
 
+type Entry = 'landing' | 'signup' | 'login';
+
 export function App() {
   useVisits();
   const { status, view } = useGame();
   // Signed out: the landing page first (once), then sign-up or log in.
-  const [entry, setEntry] = useState<'landing' | 'signup' | 'login'>(() =>
-    shouldShowLanding() ? 'landing' : 'signup',
-  );
+  const [entry, setEntry] = useState<Entry>(() => (shouldShowLanding() ? 'landing' : 'signup'));
+  // Each step past the landing page is a history entry: Back (the browser's,
+  // or sign-up's own) comes back to the landing page.
+  const goEntry = (to: Entry) => {
+    window.history.pushState({ runwayEntry: to }, '');
+    setEntry(to);
+  };
+  useEffect(() => {
+    if (!shouldShowLanding()) return;
+    const onPop = (e: PopStateEvent) =>
+      setEntry((e.state as { runwayEntry?: Entry } | null)?.runwayEntry ?? 'landing');
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const here = view ? hereOf(view).id : null;
   useEffect(() => {
     if (!here) return;
@@ -134,10 +147,14 @@ export function App() {
       {status === 'signedOut' &&
         (entry === 'landing' ? (
           <Suspense fallback={null}>
-            <Landing onPlay={() => setEntry('signup')} onLogIn={() => setEntry('login')} />
+            <Landing onPlay={() => goEntry('signup')} onLogIn={() => goEntry('login')} />
           </Suspense>
         ) : (
-          <SignIn startLogin={entry === 'login'} />
+          <SignIn
+            key={entry}
+            startLogin={entry === 'login'}
+            onBack={shouldShowLanding() ? () => window.history.back() : undefined}
+          />
         ))}
       {status === 'onboarding' && <Onboarding />}
       {status === 'ready' && (

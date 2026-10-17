@@ -2,10 +2,9 @@
  * The front page for visitors who aren't signed in: what the game is, in
  * pictures from the game itself, and one big "Play free" that opens sign-up.
  * Signed-in players never see it; neither does anyone arriving by a sign-in
- * link. Once a visitor has pressed Play (or Log in) it stays out of the way.
+ * link. Back (the browser's or sign-up's own) returns to it.
  */
 import { LANGS, setLang, t, useLang } from '../i18n';
-import { markLandingSeen } from './seen';
 import './landing.css';
 
 const CITIES = [
@@ -73,14 +72,8 @@ const features = (): Feature[] => [
 
 export default function Landing({ onPlay, onLogIn }: { onPlay: () => void; onLogIn: () => void }) {
   const lang = useLang();
-  const play = () => {
-    markLandingSeen();
-    onPlay();
-  };
-  const logIn = () => {
-    markLandingSeen();
-    onLogIn();
-  };
+  const play = onPlay;
+  const logIn = onLogIn;
   return (
     <div className="landing" data-landing="">
       <header className="ld-top">
