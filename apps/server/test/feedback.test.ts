@@ -141,3 +141,17 @@ it('records crashes from phones once each, and requests the server fails', async
     context: { request: 'GET /api/test-boom' },
   });
 });
+
+it('emails feedback to FEEDBACK_EMAILS, which needs no account and opens no dashboard', async () => {
+  const mail: EmailMessage[] = [];
+  const { app } = await fixture({
+    env: { FEEDBACK_EMAILS: 'inbox@example.com, second@example.com' },
+    email: { real: true, send: async (m) => void mail.push(m) },
+  });
+  const user = api(app, await playAsGuest(app));
+  await user.post('/api/feedback', { topic: 'idea', text: 'Add a health bar' });
+  await new Promise((r) => setTimeout(r, 0));
+  expect(mail.map((m) => m.to).sort()).toEqual(['inbox@example.com', 'second@example.com']);
+  // The admin password still opens the dashboard: these inboxes aren't admins.
+  expect((await app.inject({ url: '/api/admin/feedback', headers: ADMIN })).statusCode).toBe(200);
+});

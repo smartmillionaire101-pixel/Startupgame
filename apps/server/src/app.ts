@@ -1073,13 +1073,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         browser: String(req.headers['user-agent'] ?? '').slice(0, 200),
       };
       await note('player', req.userId!, body.text, context);
-      // An email too, to whoever looks after the game (the admin accounts).
-      if (emailer.real && config.ADMIN_EMAILS.length) {
+      // An email too, to whoever looks after the game (FEEDBACK_EMAILS, else the admins).
+      const inboxes = config.FEEDBACK_EMAILS.length ? config.FEEDBACK_EMAILS : config.ADMIN_EMAILS;
+      if (emailer.real && inboxes.length) {
         const lines = Object.entries(context).map(([k, v]) => `${k}: ${v}`);
         const text = `${body.text}\n\n${lines.join('\n')}`;
         const html = `<p>${escapeHtml(body.text).replace(/\n/g, '<br>')}</p><p style="color:#666">${lines.map(escapeHtml).join('<br>')}</p>`;
         void Promise.all(
-          config.ADMIN_EMAILS.map((to) =>
+          inboxes.map((to) =>
             emailer.send({
               to,
               subject: `Runway feedback (${body.topic}) from ${context.player}`,
