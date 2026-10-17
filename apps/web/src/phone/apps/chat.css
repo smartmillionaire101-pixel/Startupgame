@@ -1,5 +1,38 @@
 /* Wave 13: player chats: emoji, voice notes, cards and the "+" actions. */
 
+/* The chat's rules and Block / Report, above its first message. */
+.chat-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  text-align: center;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.25rem;
+}
+.chat-intro p {
+  margin: 0;
+}
+.chat-intro .row {
+  justify-content: center;
+}
+
+/* A message you sent, until the server has it. */
+.chat-pending {
+  opacity: 0.65;
+}
+
+/* While a chat is open, toasts show under the phone's top bar: at the bottom
+   of the screen they sat on the newest messages just above the message box
+   (and, on a phone, behind the on-screen keyboard). Toasts don't take taps,
+   so the chat's name under them stays usable. `!important` and the extra
+   class outrank the bottom offsets in styles.css. */
+body:has(.phone .phone-thread) .toasts {
+  top: calc(var(--phone-top, 0px) + 6rem + env(safe-area-inset-top));
+  bottom: auto !important;
+}
+
 .chat-empty {
   text-align: center;
   padding: var(--sp-6, 1.5rem) 0;

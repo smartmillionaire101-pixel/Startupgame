@@ -1172,23 +1172,42 @@ button.phone-row:active {
 
 /* ---- Messages ------------------------------------------------------------- */
 
+/* A thread fills the screen: head on top, message box at the bottom, and the
+   log between them is the only thing that scrolls. (The whole screen used to
+   scroll, so the sticky message box sat on the newest message and moved up
+   and down with what was under it.) If a "+" panel needs more room than the
+   screen has, the thread grows and the screen scrolls, as before. */
 .phone-thread {
+  flex: 1 0 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-height: 100%;
 }
 .phone-thread-head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 0.6rem;
 }
 .phone-log {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 6rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 0;
+}
+/* Messages sit at the bottom, next to the box, when there are only a few. */
+.phone-log-items {
+  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  padding: 0.25rem 0;
+}
+.phone-thread > :not(.phone-log) {
+  flex: none;
 }
 .phone-quick .chip:disabled {
   opacity: 0.5;
