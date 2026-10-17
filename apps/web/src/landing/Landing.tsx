@@ -274,11 +274,11 @@ function Turntable() {
     return () => io.disconnect();
   }, []);
 
-  // Turning by itself (not while held, nor for reduced motion).
+  // Turning by itself, once round every 12 s (not while held, nor for reduced motion).
   useEffect(() => {
     if (!near || held) return;
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    const id = window.setInterval(() => setFrame((f) => (f + 1) % FRAMES), 140);
+    const id = window.setInterval(() => setFrame((f) => (f + 1) % FRAMES), 400);
     return () => window.clearInterval(id);
   }, [near, held]);
 
