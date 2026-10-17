@@ -2031,3 +2031,15 @@ body:has(.app-city) .toasts {
     grid-template-columns: 1fr;
   }
 }
+
+/* Sign-up: back to the landing page. */
+.back-link {
+  min-height: 44px;
+  padding: 0 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}

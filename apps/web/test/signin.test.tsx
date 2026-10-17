@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { App } from '../src/App';
 import { GameProvider } from '../src/store';
@@ -24,6 +24,9 @@ const META = {
   chatMaxLength: 280,
   devTools: false,
 };
+
+// These are about sign-up: past the landing page (e2e/landing.spec.ts covers it).
+beforeEach(() => localStorage.setItem('runway.landingSeen', '1'));
 
 afterEach(() => {
   cleanup();
