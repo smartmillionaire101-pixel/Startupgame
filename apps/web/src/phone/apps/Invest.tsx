@@ -174,15 +174,15 @@ export function Invest(_: { ctx: PhoneCtx }) {
         )}
       </section>
 
-      <H>{t('Deal flow')}</H>
+      <H>{t('Deal offers')}</H>
       {!flow ? (
-        <Nothing icon="invest">{t('Deal flow isn’t available in this city yet.')}</Nothing>
+        <Nothing icon="invest">{t('Deal offers aren’t available in this city yet.')}</Nothing>
       ) : flow.length === 0 ? (
         <Nothing icon="invest">
           {t('No one is raising right now. New pitches arrive each month.')}
         </Nothing>
       ) : (
-        <ul className="phone-list" aria-label={t('Deal flow')}>
+        <ul className="phone-list" aria-label={t('Deal offers')}>
           {flow.map((d) => {
             const top = Math.min(d.maxCheck, cash);
             return (

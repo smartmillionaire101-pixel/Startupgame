@@ -101,7 +101,7 @@ export function eventTitle(ev: Ev): string {
     case 'rival-courting':
       return t('{rival} is courting {customer}', v);
     case 'runway-low':
-      return t('Runway is short: {months} months', v);
+      return t('Money runs out soon: {months} months left', v);
     case 'slow-payers':
       return t('Customers are paying late');
     case 'friend-invite':
@@ -161,7 +161,10 @@ function eventBody(ev: Ev): string {
     case 'rival-courting':
       return t('{rival} has been talking to {customer}, one of your open deals.', v);
     case 'runway-low':
-      return t('{company} has about {months} months of cash at this burn ({burn} a month).', v);
+      return t(
+        '{company} has about {months} months of money left at this rate of spending ({burn} a month).',
+        v,
+      );
     case 'slow-payers':
       return t('{receivables} of invoices are still unpaid, more than your monthly revenue.', v);
     case 'friend-invite':
@@ -267,7 +270,7 @@ function choiceCopy(ev: Ev, ch: Choice): [string, string] {
     'rival-courting.discount': [t('Sweeten your offer'), t('10% more off your deal with them.')],
     'rival-courting.visit': [t('Go and see them'), t('Face time builds their trust in you.')],
     'rival-courting.ride': [t('Let it ride'), t('Free. Their trust in you slips a little.')],
-    'runway-low.cut': [t('Halve marketing'), t('Burn drops; fewer new customers find you.')],
+    'runway-low.cut': [t('Halve marketing'), t('Spending drops; fewer new customers find you.')],
     'runway-low.collect': [
       t('Collect invoices early'),
       t('A finance house pays your invoices now, minus a fee.'),

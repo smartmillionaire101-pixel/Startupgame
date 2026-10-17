@@ -5,6 +5,7 @@
  * thesis, stage, recent results and mood. Claims made in answers are checked
  * in due diligence.
  */
+import { barEdgeIn } from './lifebars.js';
 import { ensure, fail } from './errors.js';
 import {
   adjustTrust,
@@ -320,7 +321,10 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
       (c.accelerator?.demoDayDone &&
       (world.markets[c.accelerator.market]?.month ?? m.month) - c.accelerator.demoDayMonth < 3
         ? 0.06
-        : 0),
+        : 0) +
+      // Phase 3: how the founder feels (life bars), on the same scale as the other
+      // nudges here (±0.02–0.06); zero before that release note.
+      barEdgeIn(world, founder),
   );
 }
 

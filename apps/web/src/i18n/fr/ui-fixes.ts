@@ -5,4 +5,9 @@ export const uiFixes: Record<string, string> = {
   'Your game is safe. Try again, or open another tab and come back.':
     'Votre partie est intacte. Réessayez, ou ouvrez un autre onglet et revenez.',
   'Journey: {chapter}': 'Parcours : {chapter}',
+  'Loading the new version of Runway…': 'Chargement de la nouvelle version de Runway…',
+  'The game is updating. Try again in a moment.':
+    'Le jeu est en cours de mise à jour. Réessayez dans un instant.',
+  'Couldn’t reach the game. Check your connection and try again.':
+    'Impossible de joindre le jeu. Vérifiez votre connexion et réessayez.',
 };

@@ -642,3 +642,72 @@
     scroll-behavior: auto;
   }
 }
+
+/* Feedback and errors */
+.admin-tabs {
+  display: flex;
+  gap: 6px;
+}
+.admin-tabs button {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.admin-shell .admin-tabs button[aria-selected='true'] {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #fff;
+}
+.admin-notes {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  max-height: 560px;
+  overflow: auto;
+}
+.admin-notes li {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.admin-notes li[data-note-kind='client'],
+.admin-notes li[data-note-kind='server'] {
+  border-left: 4px solid #dc2626;
+}
+.admin-note-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 0.9rem;
+}
+.admin-note-head span {
+  color: var(--muted);
+}
+.admin-note-text {
+  margin: 6px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-notes dl {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+}
+.admin-notes dl div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 8px;
+}
+.admin-notes dt {
+  color: var(--muted);
+}
+.admin-notes dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

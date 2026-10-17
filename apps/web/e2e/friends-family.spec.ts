@@ -109,6 +109,6 @@ test('a founder opens a Friends & Family round, a friend commits, the founder cl
     a.getByText(new RegExp(`${bName}: ₦500(\\.0)?k at a ₦50(\\.0)?m cap`)),
   ).toBeVisible();
   await a.getByRole('tab', { name: 'Finance' }).click();
-  await expect(a.getByLabel('Runway explainer')).toBeVisible();
+  await expect(a.getByLabel('Money lasts explainer')).toBeVisible();
   await expect(a.getByRole('heading', { name: 'Balance sheet' })).toBeVisible();
 });

@@ -886,7 +886,7 @@ function RoomScene({
         id: `fun:${it.id}`,
         label: tx(it.label),
         sub: it.locked
-          ? t('Unlocks at tier {n} ({name})', {
+          ? t('Unlocks at standard of living {n} ({name})', {
               n: it.requiresTier,
               name: lifestyleName(view, it.requiresTier),
             })

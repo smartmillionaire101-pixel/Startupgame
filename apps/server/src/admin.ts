@@ -153,6 +153,23 @@ export function registerAdmin(app: FastifyInstance, deps: AppDeps) {
       },
     };
   });
+  /** Players' feedback and the errors they hit, newest first, with who sent them. */
+  app.get('/api/admin/feedback', { preHandler: protect }, async () => {
+    const [player, client, server] = await Promise.all([
+      store.recentFeedback('player', 100),
+      store.recentFeedback('client', 100),
+      store.recentFeedback('server', 100),
+    ]);
+    const named = (rows: Awaited<ReturnType<typeof store.recentFeedback>>) =>
+      rows.map((r) => ({
+        ...r,
+        player: (r.user_id && game.current.players[r.user_id]?.name) || r.context.player || null,
+      }));
+    return {
+      feedback: named(player),
+      errors: named([...client, ...server]).sort((a, b) => b.created_at - a.created_at),
+    };
+  });
   app.get('/api/admin/economy', { preHandler: protect }, async () => ({
     ...economyDashboard(game.current),
     openReports: (await store.openReports()).length,

@@ -24,8 +24,17 @@ export const JOURNEY_EVENTS_NOTE = 'release-2026-10-15-journey-events';
  */
 export const EXITS_NOTE = 'release-2026-10-16-exits';
 
+/**
+ * Phase 3: life bars (lifebars.ts). Health and stress join energy, and
+ * happiness is read from fun and social. Walking costs hours and energy
+ * (`city.walk`), rides cost a little time, everyday acts move the bars, the
+ * bars settle each month, and how you feel nudges sales and pitch odds.
+ * Worlds without this note play exactly as before (`city.walk` is unknown).
+ */
+export const LIFE_BARS_NOTE = 'release-2026-10-17-life-bars';
+
 /** Every behaviour-switching note, oldest first. */
-export const RELEASES = [JOURNEY_EVENTS_NOTE, EXITS_NOTE] as const;
+export const RELEASES = [JOURNEY_EVENTS_NOTE, EXITS_NOTE, LIFE_BARS_NOTE] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
 export function releaseOn(w: World, note: (typeof RELEASES)[number]): boolean {
@@ -35,3 +44,4 @@ export function releaseOn(w: World, note: (typeof RELEASES)[number]): boolean {
 
 export const journeyEventsOn = (w: World): boolean => releaseOn(w, JOURNEY_EVENTS_NOTE);
 export const exitsOn = (w: World): boolean => releaseOn(w, EXITS_NOTE);
+export const lifeBarsOn = (w: World): boolean => releaseOn(w, LIFE_BARS_NOTE);

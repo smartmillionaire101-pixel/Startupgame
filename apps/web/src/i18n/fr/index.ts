@@ -39,7 +39,10 @@ import { decisions } from './decisions';
 import { capital } from './capital';
 import { tutorial } from './tutorial';
 import { uiFixes } from './ui-fixes';
+import { feedback } from './feedback';
+import { lifeBars } from './lifebars';
 import { cityAlive } from './city-alive';
+import { simple } from './simple';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -81,7 +84,10 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   capital,
   tutorial,
   uiFixes,
+  feedback,
+  lifeBars,
   cityAlive,
+  simple,
   landing,
 };
 

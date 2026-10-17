@@ -118,6 +118,12 @@ sign-in link) and listed there opens the dashboard; an email merely typed in
 does not count, and the admin password is switched off. Keep the list in the
 environment, not in the code: the repository is public.
 
+Players' feedback (the game's Feedback button) and the errors they hit are
+listed on the dashboard under **Feedback and errors**. To also get an email for
+each piece of feedback, set `FEEDBACK_EMAILS` (comma-separated inboxes; no game
+account needed, and it gives no admin access). Without it, feedback is emailed
+to `ADMIN_EMAILS`, if set.
+
 Visits are anonymous browser-tab sessions, with a new visit after 30 minutes of
 inactivity. Visible game pages send a heartbeat every 15 seconds; live visitors
 and signed-in players expire after 45 seconds without one. Admin pages do not

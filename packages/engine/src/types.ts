@@ -224,6 +224,16 @@ export interface Player {
   needs?: { hunger: number; hygiene: number; fun: number; social: number };
   /** Wave 7: home acts (and 'invite') used per home month. Missing = none. */
   homeActs?: Record<string, { month: number; n: number }>;
+  /**
+   * Phase 3 life bars (lifebars.ts), 0–100 each. Humans created after the
+   * release note start at 80 and 20; missing (older saves) = 75 and 25.
+   */
+  health?: number;
+  stress?: number;
+  /** Phase 3: stress added by work this home month (capped). Missing = none. */
+  workStress?: { month: number; n: number };
+  /** Phase 3: health gained from long walks this home month (capped). Missing = none. */
+  walkHealth?: { month: number; n: number };
   /** Wave 8: money sent to other players on one real (UTC) day, for the daily limit. Missing = none. */
   moneySent?: { day: number; total: number };
   /** Wave 8: tech events attended in a market month (`te:<market>:<month>:<n>` ids). Missing = none. */

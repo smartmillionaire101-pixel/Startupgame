@@ -31,7 +31,7 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
 
   // Dashboard leads with four numbers; the first day brings an early win.
   await expect(page.getByText('Monthly revenue')).toBeVisible();
-  await expect(page.getByText('Runway', { exact: true })).toBeVisible();
+  await expect(page.getByText('Money lasts', { exact: true })).toBeVisible();
 
   // Do some work, then advance a month.
   await tab(page, 'Company').click();

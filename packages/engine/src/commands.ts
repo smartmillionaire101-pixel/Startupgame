@@ -345,6 +345,15 @@ export const commandSchema = z.discriminatedUnion('type', [
     mode: z.enum(['bus', 'taxi', 'drive']),
     distance: z.enum(['short', 'medium', 'long']),
   }),
+  /**
+   * Phase 3: walk or cycle across town. `minutes` is the trip time the player
+   * was shown (the engine clamps it to 1–240). Unknown before the life-bars note.
+   */
+  z.object({
+    type: z.literal('city.walk'),
+    mode: z.enum(['walk', 'cycle']),
+    minutes: z.number().finite(),
+  }),
   /** Wave 4: "I'm here" (the server sends it, throttled, on authenticated requests). */
   z.object({ type: z.literal('player.seen') }),
   // ---- acquisitions, governance, arbitration (§9, §12)

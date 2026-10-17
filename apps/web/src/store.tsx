@@ -14,6 +14,7 @@ import {
 } from 'react';
 import type { Command, PlayerView } from '@runway/engine';
 import { api, ApiError, type Account, type Meta } from './api';
+import { recordProblem } from './feedback';
 import { t, tx } from './i18n';
 
 type Status = 'loading' | 'signedOut' | 'onboarding' | 'ready' | 'offline';
@@ -75,6 +76,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const toastId = useRef(0);
 
   const toast = useCallback((text: string, tone: Toast['tone'] = 'info') => {
+    if (tone === 'error') recordProblem(text);
     const id = ++toastId.current;
     setToasts((t) => [...t.slice(-2), { id, text, tone }]);
     setTimeout(

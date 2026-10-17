@@ -14,7 +14,7 @@ import { CITY_GEO } from './coordinates';
  * And the pure helpers behind rides across town (walk, cycle, the city's
  * own transit, taxi) and flights between cities.
  */
-import type { PlayerView } from '@runway/engine';
+import { rideCost, walkCost, type PlayerView } from '@runway/engine';
 import { B } from './layout';
 import type { VehicleSpec } from './flavour';
 
@@ -203,6 +203,26 @@ const FARE_SHARE: Record<'bus' | 'taxi', Record<RideDistance, number>> = {
 export function rideFare(mode: RideMode, tiles: number, costOfLiving: number): number {
   if (mode === 'walk' || mode === 'cycle' || mode === 'drive') return 0;
   return Math.round(costOfLiving * FARE_SHARE[mode][rideDistance(tiles)]);
+}
+
+/**
+ * What a trip costs you with the life bars on (the server's `city.walk` and
+ * `city.ride`): game hours, and energy. Walking and cycling take the time the
+ * trip shows; a bus is quicker and a taxi or your car quickest.
+ */
+export function tripCost(mode: RideMode, tiles: number): { hours: number; energy: number } {
+  if (mode === 'walk' || mode === 'cycle') {
+    const c = walkCost(mode, rideMinutes(mode, tiles));
+    return { hours: c.hours, energy: c.energy };
+  }
+  const c = rideCost(mode, rideDistance(tiles));
+  return { hours: c.hours, energy: c.energy };
+}
+
+/** "1 h 52 min", "25 min": game hours as a player reads them. */
+export function hoursLabel(hours: number): { h: number; m: number } {
+  const mins = Math.max(1, Math.round(hours * 60));
+  return { h: Math.floor(mins / 60), m: mins % 60 };
 }
 
 /** Speed on screen (tiles a second), a floor and a cap on the trip's duration (ms). */

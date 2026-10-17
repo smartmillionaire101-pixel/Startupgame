@@ -10,11 +10,13 @@ import './ride/map.css';
 import {
   fmtCountdown,
   fuelCost,
+  hoursLabel,
   msLeft,
   rideFare,
   rideMinutes,
   rideModesFor,
   transitName,
+  tripCost,
   type ClockView,
   type MyCar,
   type RideMode,
@@ -109,7 +111,9 @@ export const rideLabel = (mode: RideMode, marketId: string) =>
  * How do you want to get there? Your own car (when you have one here: fuel
  * is in its running cost), walk (free, slow), cycle (free, faster), the
  * city's own transit or a taxi (with fares), each with an ETA. The last
- * choice is highlighted.
+ * choice is highlighted. With the life bars on (`me`), each option also says
+ * what it costs you in game hours and energy, and a walk you can't manage
+ * says why: the choice is no longer "walk, it's free".
  */
 export function RideChooser({
   tiles,
@@ -124,6 +128,8 @@ export function RideChooser({
   onCancel,
   car = null,
   abroad = false,
+  me = null,
+  skipAs,
 }: {
   tiles: number;
   where: string;
@@ -140,6 +146,10 @@ export function RideChooser({
   car?: MyCar | null;
   /** You flew here: your car stayed at home. */
   abroad?: boolean;
+  /** Hours left and energy, when the life bars are on (else trips cost only money). */
+  me?: { hoursLeft: number; energy: number } | null;
+  /** With the life bars, skipping still costs a trip: this way of getting there. */
+  skipAs?: RideMode;
 }) {
   const modes = rideModesFor(car, abroad);
   // Escape cancels, like any dialog.
@@ -165,13 +175,25 @@ export function RideChooser({
         {modes.map((mode) => {
           const fare = rideFare(mode, tiles, costOfLiving);
           const fuel = mode === 'drive' ? fuelCost(car, tiles, costOfLiving) : 0;
+          const cost = me ? tripCost(mode, tiles) : null;
+          const legs = mode === 'walk' || mode === 'cycle';
+          // The server refuses these (city.walk); a ride still goes on what's left.
+          const why =
+            !cost || !legs
+              ? null
+              : me!.hoursLeft < cost.hours
+                ? t('Not enough hours left')
+                : me!.energy < Math.max(10, cost.energy)
+                  ? t('Too tired')
+                  : null;
           return (
             <button
               key={mode}
               type="button"
               className={`ride-opt${mode === preferred ? ' is-last' : ''}`}
               data-mode={mode}
-              disabled={busy}
+              data-blocked={why ? '' : undefined}
+              disabled={busy || !!why}
               onClick={() => {
                 // The ride scene shows where you're going and what it costs.
                 quoteRide({ mode, fare, currency, where, fuel, car: car?.label });
@@ -193,12 +215,22 @@ export function RideChooser({
                   : fare > 0
                     ? `≈ ${money(fare, currency)}`
                     : t('Free')}{' '}
-                · {t('{n} min', { n: rideMinutes(mode, tiles) })}
+                · {cost ? timeOf(cost.hours) : t('{n} min', { n: rideMinutes(mode, tiles) })}
               </span>
+              {cost && (
+                <span className={`ride-cost${why ? ' is-blocked' : ''}`} data-ride-cost="">
+                  {why ?? (cost.energy > 0 ? t('−{n} energy', { n: cost.energy }) : t('No effort'))}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
+      {me && (
+        <p className="ride-note small muted" data-ride-hours="">
+          {t('The time comes out of your {n} h left this month.', { n: Math.floor(me.hoursLeft) })}
+        </p>
+      )}
       {car && abroad && (
         <p className="ride-note small muted">
           {t('Your car is at home. Take a bus or a taxi here.')}
@@ -212,11 +244,20 @@ export function RideChooser({
           disabled={busy}
           onClick={onSkip}
         >
-          {t('Skip the trip: go straight there')} <span aria-hidden>›</span>
+          {skipAs
+            ? t('Skip the ride: be there now ({mode})', { mode: rideLabel(skipAs, marketId) })
+            : t('Skip the trip: go straight there')}{' '}
+          <span aria-hidden>›</span>
         </button>
       )}
     </div>
   );
+}
+
+/** The game hours a trip takes, as "1 h 52 min" or "15 min". */
+function timeOf(hours: number): string {
+  const { h, m } = hoursLabel(hours);
+  return h ? (m ? t('{h} h {m} min', { h, m }) : t('{h} h', { h })) : t('{n} min', { n: m });
 }
 
 /** "Next month in 3:42", ticking every second; "Month closing…" at zero. */

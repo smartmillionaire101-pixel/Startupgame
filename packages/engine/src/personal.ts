@@ -14,6 +14,8 @@ import { ECONOMY, JOB_HOURS, payJob } from './economy.js';
 import { comfortEnergy, settleCar } from './shop.js';
 import { decayNeeds, moodHoursFactor } from './needs.js';
 import { livingCostFactor } from './property.js';
+import { barHoursFactor, settleBars } from './lifebars.js';
+import { lifeBarsOn } from './releases.js';
 import type { MarketState, Player, World } from './types.js';
 
 /** The agency gig's pay, local minor units (Wave 6: about 30% more). */
@@ -31,13 +33,18 @@ export const tierOf = (p: Player) => LIFESTYLE_TIERS[clamp(p.lifestyleTier, 1, 5
 export const lifestyleCost = (world: World, p: Player) =>
   scale(col(getMarket(world, p.market)), tierOf(p).costCol * livingCostFactor(world, p));
 
-/** Hours available next month: base, background, lifestyle, energy and burnout. */
-export function computeHours(p: Player): number {
+/**
+ * Hours available next month: base, background, lifestyle, energy and
+ * burnout. With `lifeBars` (the Phase 3 release note): being unwell or
+ * stressed out costs hours too (lifebars.ts `barHoursFactor`).
+ */
+export function computeHours(p: Player, lifeBars = false): number {
   const bg = backgroundById(p.backgroundId);
   const base = BASE_HOURS + (bg?.hoursBonus ?? 0) + tierOf(p).hours;
   const energyFactor = 0.6 + (0.4 * p.energy) / 100;
+  const bars = lifeBars ? barHoursFactor(p) : 1;
   // Wave 7: a low mood costs hours, a good one adds a few.
-  return Math.round(base * energyFactor * (p.burnout ? 0.7 : 1) * moodHoursFactor(p));
+  return Math.round(base * energyFactor * (p.burnout ? 0.7 : 1) * moodHoursFactor(p) * bars);
 }
 
 /**
@@ -92,7 +99,10 @@ export function settlePerson(world: World, p: Player, month: number) {
     });
   // Wave 7: needs fall each month (mood then shapes next month's hours).
   decayNeeds(world, p, month);
-  p.hours = { available: computeHours(p), used: 0 };
+  // Phase 3: health and stress settle after energy and needs, before hours.
+  const lifeBars = !p.ai && lifeBarsOn(world);
+  if (lifeBars) settleBars(world, p, month, { hoursUsed: p.hours.used, missedLiving: paid < cost });
+  p.hours = { available: computeHours(p, lifeBars), used: 0 };
   // A job takes its hours at the start of every month (Wave 5).
   if (p.job) p.hours.used = Math.min(p.hours.available, JOB_HOURS);
   p.gigsThisMonth = 0;

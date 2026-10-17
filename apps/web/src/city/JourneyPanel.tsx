@@ -10,6 +10,7 @@ import type { ObjectiveKind } from '@runway/engine';
 import { t } from '../i18n';
 import { useView } from '../store';
 import { Button } from '../ui';
+import { useSimple } from '../phone/settings';
 import {
   chapterCopy,
   freshChapters,
@@ -32,6 +33,8 @@ const KIND_LABEL = (k: ObjectiveKind) =>
  */
 export function JourneyChip({ onOpen }: { onOpen: () => void }) {
   const { view } = useView();
+  // Simple mode (Phase 2): the flag says "Journey" beside it.
+  const simple = useSimple();
   const j = journeyOf(view);
   if (!j) return null;
   const ch = j.chapters.find((c) => c.status === 'current');
@@ -43,7 +46,7 @@ export function JourneyChip({ onOpen }: { onOpen: () => void }) {
   return (
     <button
       type="button"
-      className="hud-round journey-chip"
+      className={`${simple ? 'hud-places journey-chip-simple' : 'hud-round'} journey-chip`}
       data-testid="journey-chip"
       data-chapter={ch?.n ?? 'done'}
       aria-haspopup="dialog"
@@ -53,6 +56,11 @@ export function JourneyChip({ onOpen }: { onOpen: () => void }) {
       onClick={onOpen}
     >
       <span aria-hidden>🚩</span>
+      {simple && (
+        <span className="hud-btn-label" aria-hidden="true">
+          {t('Journey')}
+        </span>
+      )}
     </button>
   );
 }

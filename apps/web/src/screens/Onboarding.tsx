@@ -5,6 +5,7 @@ import { t, tx } from '../i18n';
 import { useGame } from '../store';
 import { Button, Field } from '../ui';
 import { AvatarFigure, avatarLook } from '../city/art';
+import { markJoinedHere } from '../phone/settings';
 import { markNewPlayer } from '../tutorial/state';
 import '../tutorial/tutorial.css';
 
@@ -90,6 +91,8 @@ export function Onboarding({ embedded = false }: { embedded?: boolean }) {
       });
       // Founders get the guided first session; everyone keeps the outfit colour.
       markNewPlayer({ founder: role === 'founder', top: outfit });
+      // Phase 2: a player who joins from Simple mode's start day gets it on by default.
+      markJoinedHere();
       toast(t('Welcome to Runway.'), 'ok');
       await refresh();
     } catch (err) {

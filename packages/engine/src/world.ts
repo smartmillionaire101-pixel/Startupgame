@@ -2,6 +2,8 @@
  * World creation and the AI population (§2): every market opens full of AI
  * founders, investors, a bank, incumbents and a newsroom so it never feels empty.
  */
+import { LIFE_BARS } from './lifebars.js';
+import { lifeBarsOn } from './releases.js';
 import {
   AI_FIRST_NAMES,
   AI_FUNDS,
@@ -241,6 +243,10 @@ export function createPlayer(world: World, input: NewPlayerInput): Player {
     ...(input.gender ? { gender: input.gender } : {}),
     // Wave 7: people have needs (AI players don't).
     ...(input.ai ? {} : { needs: { hunger: 80, hygiene: 80, fun: 80, social: 80 } }),
+    // Phase 3: life bars (humans, after the release note; earlier players read the backfill).
+    ...(!input.ai && lifeBarsOn(world)
+      ? { health: LIFE_BARS.healthStart, stress: LIFE_BARS.stressStart }
+      : {}),
   };
   // Wave 6: the city grows as people arrive (counted before the player is stored).
   if (!input.ai) growOnJoin(world, input.market, player.id);

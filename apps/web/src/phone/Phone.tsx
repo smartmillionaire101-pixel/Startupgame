@@ -8,7 +8,14 @@
  * phone button elsewhere its badge. `<PhoneDock fab={false} />` hides the
  * floating button when the top bar has its own.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import type { PlayerView } from '@runway/engine';
 import { api, type AiThread, type ChatSummary } from '../api';
 import { moneyExact } from '../format';
@@ -19,7 +26,7 @@ import { CITY_GEO, hereOf } from '../city/travel';
 import { onPhone, setPhoneBadge, useNav, type PhoneApp, type PhoneOpen } from './bus';
 import { inboxTarget } from './navigate';
 import { Battery, Icon, type IconName } from './icons';
-import { applySavedSettings, prefersReducedMotion } from './settings';
+import { applySavedSettings, prefersReducedMotion, useSimple } from './settings';
 import { moodOf, type PhoneCtx, type ThreadRef } from './shared';
 import { Alerts, KIND_ICON } from './apps/Alerts';
 import { Bank } from './apps/Bank';
@@ -447,6 +454,49 @@ function StatusBar() {
 // ---------------------------------------------------------------------------
 // The phone
 
+/**
+ * The part of the screen you can actually see, while the on-screen keyboard
+ * hides the rest. iOS Safari and Android Chrome keep the layout viewport
+ * (what `position: fixed; inset: 0` fills) the same height when the keyboard
+ * opens and only shrink the visual viewport, so the phone ran on under the
+ * keyboard: the message box and the newest messages hid behind it, and the
+ * browser panned the page to show the focused box, pushing the phone's top
+ * off screen. While the visual viewport is shorter, the phone takes its box
+ * instead. Null when nothing is hidden (or when pinch-zoomed, where the phone
+ * should zoom like the rest of the page). `--phone-top` lets toasts follow.
+ */
+function useVisibleBox(): { top: number; height: number } | null {
+  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        // The layout viewport: on iOS `innerHeight` follows the keyboard, this doesn't.
+        const full = document.documentElement.clientHeight;
+        const next =
+          vv.scale <= 1.01 && vv.height < full - 1
+            ? { top: Math.max(0, Math.round(vv.offsetTop)), height: Math.round(vv.height) }
+            : null;
+        setBox((b) => (b?.top === next?.top && b?.height === next?.height ? b : next));
+        document.documentElement.style.setProperty('--phone-top', `${next?.top ?? 0}px`);
+      });
+    };
+    measure();
+    vv.addEventListener('resize', measure);
+    vv.addEventListener('scroll', measure);
+    return () => {
+      cancelAnimationFrame(frame);
+      vv.removeEventListener('resize', measure);
+      vv.removeEventListener('scroll', measure);
+      document.documentElement.style.removeProperty('--phone-top');
+    };
+  }, []);
+  return box;
+}
+
 function PhoneScreen(props: {
   app: PhoneApp;
   setApp: (a: PhoneApp) => void;
@@ -467,6 +517,10 @@ function PhoneScreen(props: {
 }) {
   const { app, setApp, thread, setThread, onClose } = props;
   const ref = useRef<HTMLDivElement>(null);
+  const visible = useVisibleBox();
+  const fit: CSSProperties | undefined = visible
+    ? { top: visible.top, height: visible.height, bottom: 'auto' }
+    : undefined;
   const [picking, setPicking] = useState(false);
   const { view } = useView();
   const meId = view.me.id;
@@ -524,10 +578,14 @@ function PhoneScreen(props: {
       body = <PhoneHome open={setApp} badges={props.badges} />;
       break;
     case 'messages':
+      // Keyed by who you're talking to: going from one chat straight to another
+      // (a banner, a card's Chat) used to keep the first chat's state, so the
+      // second showed the first one's messages and draft, and sent to it.
       body = thread?.ai ? (
-        <AiThreadView id={thread.ai} say={thread.say} onClose={onClose} />
+        <AiThreadView key={`ai:${thread.ai}`} id={thread.ai} say={thread.say} onClose={onClose} />
       ) : thread?.player ? (
         <PlayerThreadView
+          key={`player:${thread.player}`}
           playerId={thread.player}
           draft={thread.say}
           chats={props.chats}
@@ -618,6 +676,7 @@ function PhoneScreen(props: {
   }
 
   const home = app === 'home' && !thread;
+  const simple = useSimple();
   return (
     <div
       className="phone"
@@ -625,6 +684,8 @@ function PhoneScreen(props: {
       aria-modal="true"
       aria-label={t('Phone')}
       ref={ref}
+      style={fit}
+      data-keyboard={visible ? '' : undefined}
       tabIndex={-1}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
@@ -634,6 +695,12 @@ function PhoneScreen(props: {
           <header className="phone-bar">
             <button className="phone-back" onClick={back} aria-label={t('Back')}>
               <Icon name="chevron" size={22} strokeWidth={2.4} className="flip" />
+              {/* Simple mode: Back says so, in the same top-left spot as every sheet's. */}
+              {simple && (
+                <span className="phone-back-label" aria-hidden="true">
+                  {t('Back')}
+                </span>
+              )}
             </button>
             <h2 className="phone-title">
               {def && !thread && !picking && (
@@ -644,7 +711,13 @@ function PhoneScreen(props: {
               {title}
             </h2>
             <button className="phone-x" aria-label={t('Close phone')} onClick={onClose}>
-              <Icon name="close" size={18} strokeWidth={2.2} />
+              {simple ? (
+                <span className="phone-x-label" aria-hidden="true">
+                  {t('Close')}
+                </span>
+              ) : (
+                <Icon name="close" size={18} strokeWidth={2.2} />
+              )}
             </button>
           </header>
         )}
@@ -695,13 +768,14 @@ function PhoneHome({
   useTutorial(view.me.id);
   const allowed = tutorialApps(activeStep(view.me.id));
   const shown = (id: AppId) => !allowed || allowed.has(id);
+  const hasCompany = view.companies.some((c) => c.status === 'active');
   // The Journey app is for founders (it follows a company).
   const grid = APPS.filter(
     (a) =>
       !DOCK.includes(a.id) &&
       shown(a.id) &&
       (a.id !== 'journey' || !!view.journey) &&
-      (a.id !== 'sales' || view.companies.some((c) => c.status === 'active')),
+      (a.id !== 'sales' || hasCompany),
   );
   const dock = DOCK.filter(shown).map((id) => APPS.find((a) => a.id === id)!);
   return (
