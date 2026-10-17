@@ -6,10 +6,10 @@ import { EmailLinkForm } from './Account';
 import { Onboarding } from './Onboarding';
 
 /** Quick registration or an email link to an existing game. */
-export function SignIn() {
+export function SignIn({ startLogin = false }: { startLogin?: boolean }) {
   const { meta } = useGame();
   const lang = useLang();
-  const [login, setLogin] = useState(false);
+  const [login, setLogin] = useState(startLogin);
 
   return (
     <div className="app app-narrow">

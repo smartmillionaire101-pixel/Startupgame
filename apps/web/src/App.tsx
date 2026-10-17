@@ -13,6 +13,7 @@ import { CountUp, Icon, initReduceMotion, reduceMotion, Sheet, Toasts, type Icon
 import { money, moneyExact } from './format';
 import { t } from './i18n';
 import { SignIn } from './screens/SignIn';
+import { shouldShowLanding } from './landing/seen';
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
 import { CompanyScreen, openCompanyTab } from './screens/Company';
@@ -78,6 +79,7 @@ const PhoneDock = lazy(async () => {
   }
   return { default: Dock };
 });
+const Landing = lazy(() => import('./landing/Landing'));
 const NewsScreen = lazy(() => import('./screens/News').then((m) => ({ default: m.NewsScreen })));
 
 // The city map's code and map file start loading with the game, not after it:
@@ -97,6 +99,10 @@ const PlayHost = lazy(() => import('./experiences/PlayHost'));
 export function App() {
   useVisits();
   const { status, view } = useGame();
+  // Signed out: the landing page first (once), then sign-up or log in.
+  const [entry, setEntry] = useState<'landing' | 'signup' | 'login'>(() =>
+    shouldShowLanding() ? 'landing' : 'signup',
+  );
   const here = view ? hereOf(view).id : null;
   useEffect(() => {
     if (!here) return;
@@ -125,7 +131,14 @@ export function App() {
           </p>
         </div>
       )}
-      {status === 'signedOut' && <SignIn />}
+      {status === 'signedOut' &&
+        (entry === 'landing' ? (
+          <Suspense fallback={null}>
+            <Landing onPlay={() => setEntry('signup')} onLogIn={() => setEntry('login')} />
+          </Suspense>
+        ) : (
+          <SignIn startLogin={entry === 'login'} />
+        ))}
       {status === 'onboarding' && <Onboarding />}
       {status === 'ready' && (
         <>

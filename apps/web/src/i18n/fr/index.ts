@@ -1,5 +1,6 @@
 /** The French catalog, merged from one file per screen. */
 import { account } from './account';
+import { landing } from './landing';
 import { acts } from './acts';
 import { app } from './app';
 import { city } from './city';
@@ -81,6 +82,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   tutorial,
   uiFixes,
   cityAlive,
+  landing,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

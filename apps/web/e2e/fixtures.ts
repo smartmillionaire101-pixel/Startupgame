@@ -24,6 +24,9 @@ export async function withoutNetlifyDrawer(page: Page) {
   await page.addInitScript(() => {
     try {
       localStorage.setItem('runway.skipRides', '1');
+      // The landing page is for new visitors; landing.spec.ts sees it, other specs start at sign-up.
+      if (!localStorage.getItem('runway.landingSeen'))
+        localStorage.setItem('runway.landingSeen', '1');
       // Wave 9: specs about other things use the Lite (2D) map; map3d.spec.ts
       // turns the WebGL city back on (software WebGL is slow in CI).
       if (!localStorage.getItem('runway.mapQuality'))

@@ -1,0 +1,412 @@
+/* The front page: bright, chunky and game-like. Mobile first. */
+.landing {
+  --ld-ink: #1b1036;
+  --ld-sun: #ffb020;
+  --ld-pink: #ff4d8d;
+  --ld-violet: #6b3cf5;
+  --ld-teal: #0fb5a0;
+  --ld-cream: #fff8ec;
+  min-height: 100vh;
+  background: var(--ld-cream);
+  color: var(--ld-ink);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  overflow-x: hidden;
+}
+.landing h1,
+.landing h2 {
+  margin: 0;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+/* ---- The top bar */
+.ld-top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgb(255 248 236 / 0.9);
+  backdrop-filter: blur(10px);
+}
+.ld-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+.ld-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ld-langs {
+  display: flex;
+  border: 2px solid var(--ld-ink);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.ld-langs button {
+  min-width: 40px;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--ld-ink);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.ld-langs button[aria-pressed='true'] {
+  background: var(--ld-ink);
+  color: #fff;
+}
+.ld-login {
+  min-height: 40px;
+  padding: 0 1rem;
+  border: 2px solid var(--ld-ink);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ld-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ---- The hero */
+.ld-hero {
+  position: relative;
+  display: grid;
+  gap: 1.5rem;
+  padding: 1.5rem 1rem 2.5rem;
+  background:
+    radial-gradient(circle at 15% 10%, rgb(255 176 32 / 0.55), transparent 45%),
+    radial-gradient(circle at 90% 30%, rgb(255 77 141 / 0.45), transparent 45%),
+    linear-gradient(160deg, #7c4dff 0%, #5a2fd6 55%, #3a1a9e 100%);
+  color: #fff;
+  border-radius: 0 0 36px 36px;
+}
+.ld-sticker {
+  display: inline-block;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  background: var(--ld-sun);
+  color: var(--ld-ink);
+  font-weight: 800;
+  font-size: 0.85rem;
+  transform: rotate(-2deg);
+  box-shadow: 0 4px 0 rgb(27 16 54 / 0.35);
+}
+.ld-hero h1 {
+  margin-top: 1rem;
+  font-size: clamp(2.4rem, 11vw, 4.4rem);
+  font-weight: 800;
+}
+.ld-hero h1 span {
+  color: var(--ld-sun);
+}
+.ld-hero-text > p {
+  margin: 1rem 0 1.4rem;
+  font-size: 1.1rem;
+  line-height: 1.45;
+  max-width: 34rem;
+  color: rgb(255 255 255 / 0.92);
+}
+.ld-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 60px;
+  padding: 0 2rem;
+  border: 3px solid var(--ld-ink);
+  border-radius: 20px;
+  background: var(--ld-sun);
+  color: var(--ld-ink);
+  font: inherit;
+  font-size: 1.3rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 0 var(--ld-ink);
+  transition:
+    transform 0.1s,
+    box-shadow 0.1s;
+}
+.ld-play:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 var(--ld-ink);
+}
+.ld-play:focus-visible,
+.ld-login:focus-visible,
+.ld-langs button:focus-visible,
+.ld-link:focus-visible {
+  outline: 3px solid var(--ld-pink);
+  outline-offset: 3px;
+}
+.ld-small {
+  margin: 0.8rem 0 0;
+  font-size: 0.9rem;
+  color: rgb(255 255 255 / 0.8);
+}
+.ld-hero-phones {
+  position: relative;
+  height: 430px;
+  max-width: 360px;
+  width: 100%;
+  margin: 0 auto;
+}
+.ld-hero-phones .ld-phone {
+  position: absolute;
+  width: 190px;
+}
+.ld-phone-front {
+  left: 8%;
+  top: 0;
+  transform: rotate(-6deg);
+  z-index: 1;
+}
+.ld-phone-back {
+  right: 6%;
+  top: 40px;
+  transform: rotate(7deg);
+}
+
+/* A phone with a screenshot in it. */
+.ld-phone {
+  border: 6px solid var(--ld-ink);
+  border-radius: 30px;
+  overflow: hidden;
+  background: var(--ld-ink);
+  box-shadow: 0 18px 40px rgb(27 16 54 / 0.35);
+}
+.ld-phone img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ---- The cities ticker */
+.ld-cities {
+  overflow: hidden;
+  padding: 1rem 0;
+  border-block: 3px solid var(--ld-ink);
+  margin: 2rem 0 0;
+  background: var(--ld-teal);
+}
+.ld-cities-track {
+  display: flex;
+  gap: 1.5rem;
+  width: max-content;
+  animation: ld-ticker 30s linear infinite;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #fff;
+  white-space: nowrap;
+}
+@keyframes ld-ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ld-cities-track {
+    animation: none;
+    flex-wrap: wrap;
+    width: auto;
+    justify-content: center;
+    padding: 0 1rem;
+  }
+}
+
+/* ---- What you can do */
+.ld-features {
+  display: grid;
+  gap: 2.5rem;
+  padding: 2.5rem 1rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+.ld-feature {
+  display: grid;
+  gap: 1.25rem;
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+}
+.ld-feature .ld-phone {
+  width: min(230px, 62vw);
+  transform: rotate(-3deg);
+}
+.ld-feature.is-flip .ld-phone {
+  transform: rotate(3deg);
+}
+.ld-feature-tag {
+  display: inline-grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 3px solid var(--ld-ink);
+  border-radius: 18px;
+  background: #fff;
+  font-size: 1.8rem;
+  box-shadow: 0 4px 0 var(--ld-ink);
+  transform: rotate(-4deg);
+}
+.ld-feature h2 {
+  margin-top: 0.9rem;
+  font-size: clamp(1.6rem, 7vw, 2.3rem);
+  font-weight: 800;
+}
+.ld-feature p {
+  margin: 0.6rem auto 0;
+  max-width: 28rem;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: #4a3d63;
+}
+
+/* ---- How it works */
+.ld-steps {
+  margin: 0 1rem;
+  padding: 2rem 1.25rem;
+  border: 3px solid var(--ld-ink);
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 8px 0 var(--ld-ink);
+  max-width: 760px;
+}
+.ld-steps h2 {
+  font-size: 1.9rem;
+  font-weight: 800;
+  text-align: center;
+}
+.ld-steps ol {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.ld-steps li {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+.ld-steps li b {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--ld-pink);
+  color: #fff;
+  font-size: 1.3rem;
+}
+.ld-steps li:nth-child(2) b {
+  background: var(--ld-violet);
+}
+.ld-steps li:nth-child(3) b {
+  background: var(--ld-teal);
+}
+.ld-steps li span {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 1rem;
+  line-height: 1.4;
+  color: #4a3d63;
+}
+.ld-steps li strong {
+  font-size: 1.15rem;
+  color: var(--ld-ink);
+}
+
+/* ---- The last call */
+.ld-final {
+  margin: 3rem 1rem 0;
+  padding: 2.5rem 1.25rem;
+  border-radius: 32px;
+  text-align: center;
+  color: #fff;
+  background:
+    radial-gradient(circle at 80% 20%, rgb(255 176 32 / 0.5), transparent 50%),
+    linear-gradient(140deg, var(--ld-pink), var(--ld-violet));
+}
+.ld-final h2 {
+  font-size: clamp(1.9rem, 8vw, 2.8rem);
+  font-weight: 800;
+}
+.ld-final p {
+  margin: 0.8rem 0 1.5rem;
+  font-size: 1.05rem;
+}
+.ld-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem 2.5rem;
+  color: #4a3d63;
+  font-size: 0.95rem;
+}
+.ld-link {
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: var(--ld-violet);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---- Wider screens: side by side */
+@media (min-width: 760px) {
+  .ld-top {
+    padding: 0.9rem 2rem;
+  }
+  .ld-hero {
+    grid-template-columns: 1.1fr 1fr;
+    align-items: center;
+    padding: 3rem 3rem 4rem;
+    border-radius: 0 0 56px 56px;
+  }
+  .ld-hero-phones {
+    height: 520px;
+  }
+  .ld-hero-phones .ld-phone {
+    width: 230px;
+  }
+  .ld-feature {
+    grid-template-columns: 1fr 1.2fr;
+    text-align: left;
+    justify-items: start;
+  }
+  .ld-feature .ld-phone {
+    justify-self: center;
+    width: 250px;
+  }
+  .ld-feature.is-flip .ld-phone {
+    order: 2;
+  }
+  .ld-feature p {
+    margin-left: 0;
+  }
+  .ld-steps,
+  .ld-final {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .ld-final {
+    max-width: 1000px;
+  }
+  .ld-foot {
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+}
