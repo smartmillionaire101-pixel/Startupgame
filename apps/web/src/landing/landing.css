@@ -411,3 +411,87 @@
     margin: 0 auto;
   }
 }
+
+/* ---- The club, live */
+.ld-screen {
+  position: relative;
+  width: min(330px, 86vw);
+  border: 6px solid var(--ld-ink);
+  border-radius: 26px;
+  overflow: hidden;
+  background: var(--ld-ink);
+  box-shadow: 0 18px 40px rgb(15 42 40 / 0.35);
+  transform: rotate(2deg);
+}
+.ld-screen video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.ld-live {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--ld-coral);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---- The mansion, turning */
+.ld-turn {
+  position: relative;
+  width: min(360px, 90vw);
+  aspect-ratio: 440 / 381;
+  border: 6px solid var(--ld-ink);
+  border-radius: 26px;
+  overflow: hidden;
+  background: #cfe6f2;
+  box-shadow: 0 18px 40px rgb(15 42 40 / 0.35);
+  touch-action: pan-y;
+  cursor: grab;
+  user-select: none;
+}
+.ld-turn:active {
+  cursor: grabbing;
+}
+.ld-turn img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+}
+.ld-turn img.is-on {
+  opacity: 1;
+}
+.ld-turn-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 0.6rem;
+  transform: translateX(-50%);
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+@media (min-width: 760px) {
+  .ld-feature .ld-screen,
+  .ld-feature .ld-turn {
+    justify-self: center;
+  }
+  .ld-feature.is-flip .ld-screen,
+  .ld-feature.is-flip .ld-turn {
+    order: 2;
+  }
+}

@@ -29,6 +29,22 @@ test('a new visitor sees the landing page, then Play free opens sign-up', async 
       .poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth))
       .toBeGreaterThan(0);
   }
+  // The club plays as a clip; the mansion turns, by itself and by dragging.
+  const clip = landing.locator('.ld-screen video');
+  await clip.scrollIntoViewIfNeeded();
+  await expect.poll(() => clip.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThan(1);
+  const turn = landing.locator('[data-turntable]');
+  await turn.scrollIntoViewIfNeeded();
+  await expect(turn.locator('img')).toHaveCount(30);
+  const f0 = await turn.getAttribute('data-frame');
+  await expect.poll(() => turn.getAttribute('data-frame')).not.toBe(f0);
+  const box = (await turn.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  const held = Number(await turn.getAttribute('data-frame'));
+  await page.mouse.move(box.x + box.width / 2 - 60, box.y + box.height / 2, { steps: 6 });
+  expect(Number(await turn.getAttribute('data-frame'))).toBe((held + 5) % 30);
+  await page.mouse.up();
   await page.evaluate(() => window.scrollTo(0, 0));
   if (SHOTS) {
     await page.waitForTimeout(500);
