@@ -26,6 +26,7 @@
  *   voice/<id>         → VoiceRow               (a voice note in a player chat, Wave 13)
  *   voice-data/<id>    → raw audio bytes
  *   voices-of/<chat>   → string[]               (voice note ids, deleted with the chat)
+ *   feedback/<kind>/<time>-<n> → FeedbackRow   (newest kept; the oldest beyond the cap pruned)
  */
 import { createHash, randomUUID } from 'node:crypto';
 import type {
@@ -35,6 +36,7 @@ import type {
   AccountStore,
   ChatRow,
   EmailTokenRow,
+  FeedbackRow,
   MessageExtra,
   MessageRow,
   OtpRow,
@@ -418,6 +420,26 @@ export class KvAccountStore implements AccountStore {
     const keys = await this.kv.list('report/');
     const rows = await Promise.all(keys.map((k) => this.val<{ status: string }>(k)));
     return rows.filter((r) => r?.status === 'open');
+  }
+
+  // ---------------------------------------------------------------- feedback
+
+  async addFeedback(row: FeedbackRow, keep: number) {
+    const prefix = `feedback/${row.kind}/`;
+    await kvJson.set(
+      this.kv,
+      `${prefix}${String(row.created_at).padStart(15, '0')}-${row.id}`,
+      row,
+    );
+    // Keys sort by time, so the oldest are first.
+    const keys = (await this.kv.list(prefix)).sort();
+    await Promise.all(keys.slice(0, Math.max(0, keys.length - keep)).map((k) => this.kv.delete(k)));
+  }
+
+  async recentFeedback(kind: FeedbackRow['kind'], limit: number) {
+    const keys = (await this.kv.list(`feedback/${kind}/`)).sort().reverse().slice(0, limit);
+    const rows = await Promise.all(keys.map((k) => this.val<FeedbackRow>(k)));
+    return rows.filter((r): r is FeedbackRow => !!r);
   }
 
   // ---------------------------------------------------------------- presence

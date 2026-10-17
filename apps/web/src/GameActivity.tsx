@@ -3,6 +3,7 @@ import { useView } from './store';
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { t } from './i18n';
+import { openFeedback } from './feedback';
 import { useMusic } from './music';
 import { setSetting, useSetting } from './phone/settings';
 import { OnlineNowSheet } from './city/OnlineNow';
@@ -86,6 +87,14 @@ export function GameActivity() {
       >
         <span aria-hidden="true">♫</span>
         {sound ? t('Music on') : t('Music off')}
+      </button>
+      <button
+        type="button"
+        className="feedback-open"
+        data-feedback-open=""
+        onClick={() => openFeedback()}
+      >
+        <span aria-hidden="true">💬</span> {t('Feedback')}
       </button>
     </div>
   );

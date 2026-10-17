@@ -28,6 +28,7 @@ import { DealCard } from './screens/common';
 import { NavContext, openPhone, type Nav } from './phone/bus';
 import { inboxTarget, type TabId, type Target } from './phone/navigate';
 import { UpdateBanner } from './update';
+import { FeedbackHost, setFeedbackScreen } from './feedback';
 import { ScreenBoundary } from './ScreenBoundary';
 import { useVisits } from './useVisits';
 import { GameActivity } from './GameActivity';
@@ -169,6 +170,7 @@ export function App() {
       )}
       <Toasts />
       <UpdateBanner />
+      <FeedbackHost />
     </>
   );
 }
@@ -237,6 +239,7 @@ function Game() {
     tabs.some((x) => x.id === tab) || EXTRA.includes(tab) || (tab === 'company' && hasCompany)
       ? tab
       : 'city';
+  useEffect(() => setFeedbackScreen(current), [current]);
   const go = (id: TabId) => {
     setTab(id);
     window.scrollTo({ top: 0 });

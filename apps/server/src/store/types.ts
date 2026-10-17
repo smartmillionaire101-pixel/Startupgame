@@ -102,6 +102,23 @@ export interface AiMessageRow {
   at: number;
 }
 
+/**
+ * A note for whoever runs the game: a player's own feedback (`player`), a
+ * screen that crashed on a player's phone (`client`) or a request the server
+ * failed (`server`). Kept for the admin dashboard; the newest few hundred of
+ * each kind.
+ */
+export interface FeedbackRow {
+  id: string;
+  kind: 'player' | 'client' | 'server';
+  /** The player, when signed in. */
+  user_id: string | null;
+  text: string;
+  /** Where it happened: screen, city, page, release, browser, last error. */
+  context: Record<string, string>;
+  created_at: number;
+}
+
 export interface AccountStore {
   recordVisit(id: string, now: number): Awaitable<void>;
   visitStats(now: number): Awaitable<VisitStats>;
@@ -195,4 +212,9 @@ export interface AccountStore {
    * counting nothing, when `day` (YYYY-MM-DD, UTC) already has `limit` replies.
    */
   takeAiBudget(userId: string, day: string, limit: number): Awaitable<boolean>;
+
+  /** Keep a note (feedback or an error report); the oldest beyond `keep` of its kind go. */
+  addFeedback(row: FeedbackRow, keep: number): Awaitable<void>;
+  /** The newest notes of a kind, newest first. */
+  recentFeedback(kind: FeedbackRow['kind'], limit: number): Awaitable<FeedbackRow[]>;
 }

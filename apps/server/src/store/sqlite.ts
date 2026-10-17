@@ -18,6 +18,7 @@ import type {
   AccountStore,
   EmailTokenRow,
   ChatRow,
+  FeedbackRow,
   MessageExtra,
   MessageRow,
   PresenceRow,
@@ -158,6 +159,16 @@ const MIGRATIONS: string[] = [
      created_at INTEGER NOT NULL
    );
    CREATE INDEX voice_notes_chat ON voice_notes(chat_id);`,
+  // Players' feedback and error reports, for the admin dashboard.
+  `CREATE TABLE feedback (
+     id TEXT PRIMARY KEY,
+     kind TEXT NOT NULL,
+     user_id TEXT,
+     text TEXT NOT NULL,
+     context TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   );
+   CREATE INDEX feedback_kind ON feedback(kind, created_at);`,
 ];
 
 /** Presence rows this much older than the caller's window are deleted. */
@@ -489,6 +500,31 @@ export class Store implements AccountStore {
 
   openReports() {
     return this.db.prepare("SELECT * FROM reports WHERE status = 'open' ORDER BY id").all();
+  }
+
+  // ---------------------------------------------------------------- feedback
+
+  addFeedback(row: FeedbackRow, keep: number) {
+    this.tx(() => {
+      this.db
+        .prepare(
+          'INSERT INTO feedback (id, kind, user_id, text, context, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        )
+        .run(row.id, row.kind, row.user_id, row.text, JSON.stringify(row.context), row.created_at);
+      this.db
+        .prepare(
+          `DELETE FROM feedback WHERE kind = ? AND id NOT IN
+             (SELECT id FROM feedback WHERE kind = ? ORDER BY created_at DESC, id DESC LIMIT ?)`,
+        )
+        .run(row.kind, row.kind, keep);
+    });
+  }
+
+  recentFeedback(kind: FeedbackRow['kind'], limit: number): FeedbackRow[] {
+    const rows = this.db
+      .prepare('SELECT * FROM feedback WHERE kind = ? ORDER BY created_at DESC, id DESC LIMIT ?')
+      .all(kind, limit) as (Omit<FeedbackRow, 'context'> & { context: string })[];
+    return rows.map((r) => ({ ...r, context: JSON.parse(r.context) as Record<string, string> }));
   }
 
   // ---------------------------------------------------------------- presence

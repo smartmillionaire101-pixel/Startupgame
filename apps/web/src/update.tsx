@@ -4,6 +4,10 @@ import { t } from './i18n';
 /** How often an open app checks whether a newer version has been published. */
 const CHECK_MS = 60_000;
 
+/** The release this page loaded (its first check), for feedback and error reports. */
+let loaded: string | null = null;
+export const pageRelease = () => loaded;
+
 async function servedCommit(): Promise<string | null> {
   try {
     const r = await fetch('/version.json', { cache: 'no-store' });
@@ -28,7 +32,7 @@ export function UpdateBanner() {
     const check = async () => {
       const now = await servedCommit();
       if (stopped || !now || now === 'local') return;
-      if (first === null) first = now;
+      if (first === null) first = loaded = now;
       else if (now !== first) setReady(true);
     };
     void check();

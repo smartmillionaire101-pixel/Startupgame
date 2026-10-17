@@ -56,7 +56,7 @@ import {
   signInEmail,
   type EmailProvider,
 } from './adapters/email.js';
-import type { AccountStore, AiThreadRow, ChatRow } from './store/types.js';
+import type { AccountStore, AiThreadRow, ChatRow, FeedbackRow } from './store/types.js';
 import {
   CARD_TEXT,
   VOICE_MAX_BYTES,
@@ -203,6 +203,24 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     }
   };
 
+  /** How many of each kind of note (feedback, error report) are kept. */
+  const NOTES_KEPT = 300;
+  /** Keep a note for the admin dashboard, without ever failing the request it's about. */
+  const note = (
+    kind: FeedbackRow['kind'],
+    userId: string | null,
+    text: string,
+    context: Record<string, string>,
+  ) =>
+    Promise.resolve()
+      .then(() =>
+        store.addFeedback(
+          { id: randomUUID().slice(0, 8), kind, user_id: userId, text, context, created_at: now() },
+          NOTES_KEPT,
+        ),
+      )
+      .catch((e: unknown) => app.log.warn({ err: e }, 'could not keep a note'));
+
   app.setErrorHandler((err: Error & { statusCode?: number; validation?: unknown }, req, reply) => {
     if (err instanceof z.ZodError) {
       return reply.code(400).send({
@@ -210,7 +228,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       });
     }
     const status = err.statusCode ?? 500;
-    if (status >= 500) req.log.error({ err }, 'unhandled error');
+    if (status >= 500) {
+      req.log.error({ err }, 'unhandled error');
+      note('server', req.userId ?? null, err.message || 'Unknown error', {
+        request: `${req.method} ${req.url.split('?')[0]}`,
+        stack: (err.stack ?? '').split('\n').slice(1, 8).join('\n'),
+      });
+    }
     return reply.code(status).send({
       error: {
         code: status === 429 ? 'rate' : 'error',
@@ -1010,6 +1034,95 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     await store.blockChat(id, req.userId!);
     return { ok: true };
   });
+
+  // ---------------------------------------------------------------- feedback
+
+  const CRASH_REPEAT_MS = 10 * 60_000;
+  const seenCrashes = new Map<string, number>();
+  const escapeHtml = (v: string) => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+  // Where the player was when they wrote (or when a screen crashed): what the
+  // client knows, kept short.
+  const noteContext = z
+    .record(z.string().max(40), z.string().max(500))
+    .refine((c) => Object.keys(c).length <= 12, 'Too much context.')
+    .default({});
+
+  /** Players tell whoever runs the game what they think, from inside the game. */
+  app.post(
+    '/api/feedback',
+    {
+      preHandler: requireUser,
+      config: { rateLimit: { max: 5, timeWindow: '10 minutes', keyGenerator: byPlayer } },
+    },
+    async (req) => {
+      const body = z
+        .object({
+          topic: z.enum(['bug', 'confusing', 'idea', 'love', 'other']),
+          text: z.string().trim().min(3, 'Tell us a little more.').max(2000),
+          context: noteContext,
+        })
+        .parse(req.body);
+      const me = game.current.players[req.userId!];
+      const context = {
+        ...body.context,
+        topic: body.topic,
+        player: me?.name ?? 'Unknown',
+        role: me?.role ?? '',
+        city: me?.market ?? '',
+        browser: String(req.headers['user-agent'] ?? '').slice(0, 200),
+      };
+      await note('player', req.userId!, body.text, context);
+      // An email too, to whoever looks after the game (the admin accounts).
+      if (emailer.real && config.ADMIN_EMAILS.length) {
+        const lines = Object.entries(context).map(([k, v]) => `${k}: ${v}`);
+        const text = `${body.text}\n\n${lines.join('\n')}`;
+        const html = `<p>${escapeHtml(body.text).replace(/\n/g, '<br>')}</p><p style="color:#666">${lines.map(escapeHtml).join('<br>')}</p>`;
+        void Promise.all(
+          config.ADMIN_EMAILS.map((to) =>
+            emailer.send({
+              to,
+              subject: `Runway feedback (${body.topic}) from ${context.player}`,
+              text,
+              html,
+            }),
+          ),
+        ).catch((err: unknown) => req.log.warn({ err }, 'could not email feedback'));
+      }
+      return { ok: true };
+    },
+  );
+
+  /** A screen that crashed on a player's phone (sent by the game itself, not typed). */
+  app.post(
+    '/api/client-errors',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute', keyGenerator: byPlayer } } },
+    async (req) => {
+      const body = z
+        .object({
+          message: z.string().trim().min(1).max(500),
+          stack: z.string().max(2000).default(''),
+          context: noteContext,
+        })
+        .parse(req.body);
+      // The same crash from the same phone counts once in a while (in memory:
+      // on serverless each instance keeps its own, which is close enough).
+      const who = req.userId ?? req.ip;
+      const key = `${who}:${body.message}`;
+      const t = now();
+      for (const [k, at] of seenCrashes) if (t - at > CRASH_REPEAT_MS) seenCrashes.delete(k);
+      if (seenCrashes.has(key)) return { ok: true };
+      seenCrashes.set(key, t);
+      const me = req.userId ? game.current.players[req.userId] : undefined;
+      await note('client', req.userId ?? null, body.message, {
+        ...body.context,
+        ...(me ? { player: me.name, city: me.market } : {}),
+        stack: body.stack.split('\n').slice(0, 8).join('\n'),
+        browser: String(req.headers['user-agent'] ?? '').slice(0, 200),
+      });
+      return { ok: true };
+    },
+  );
 
   // ---------------------------------------------------------------- AI chat (Wave 5 §C)
 
