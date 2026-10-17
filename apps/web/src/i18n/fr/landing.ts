@@ -9,8 +9,8 @@ export const landing: Record<string, string> = {
   'Plays in your phone’s browser. Ready in a minute.':
     'Se joue dans le navigateur de votre téléphone. Prêt en une minute.',
   'Real cities, real streets': 'De vraies villes, de vraies rues',
-  'Walk, drive or ride across Lagos, Nairobi, London and more, built from real maps. Every shop, bank and club is a place you can go.':
-    'À pied, en voiture ou en moto à travers Lagos, Nairobi, Londres et d’autres, construites à partir de vraies cartes. Chaque boutique, banque et boîte de nuit est un lieu où aller.',
+  'Walk, drive or ride across San Francisco, London, Cairo and more, built from real maps. Every shop, bank and club is a place you can go.':
+    'À pied, en voiture ou en moto à travers San Francisco, Londres, Le Caire et d’autres, construites à partir de vraies cartes. Chaque boutique, banque et boîte de nuit est un lieu où aller.',
   'The city never sleeps': 'La ville ne dort jamais',
   'Clubs, bars and restaurants full of founders, investors and bankers. Meet them, make deals, make friends.':
     'Des boîtes, des bars et des restaurants pleins de fondateurs, d’investisseurs et de banquiers. Rencontrez-les, concluez des affaires, faites-vous des amis.',
@@ -26,8 +26,11 @@ export const landing: Record<string, string> = {
   Cities: 'Villes',
   'How it works': 'Comment ça marche',
   'Pick your city': 'Choisissez votre ville',
-  'Lagos, Nairobi, London… ten cities and counting.':
-    'Lagos, Nairobi, Londres… dix villes, et ce n’est qu’un début.',
+  'San Francisco, London, Cairo… ten cities and counting.':
+    'San Francisco, Londres, Le Caire… dix villes, et ce n’est qu’un début.',
+  'Live now': 'En direct',
+  'A mansion in the game, turning round': 'Un manoir du jeu, qui tourne sur lui-même',
+  'Drag to turn it round': 'Faites glisser pour le tourner',
   'Start your company': 'Lancez votre entreprise',
   'Choose an idea, find customers, hire, raise money.':
     'Choisissez une idée, trouvez des clients, recrutez, levez des fonds.',

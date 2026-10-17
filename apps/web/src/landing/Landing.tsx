@@ -4,24 +4,27 @@
  * Signed-in players never see it; neither does anyone arriving by a sign-in
  * link. Back (the browser's or sign-up's own) returns to it.
  */
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { LANGS, setLang, t, useLang } from '../i18n';
 import './landing.css';
 
 const CITIES = [
-  'Lagos',
-  'Nairobi',
-  'Accra',
-  'Freetown',
-  'Kigali',
-  'Johannesburg',
+  'San Francisco',
+  'London',
   'Cairo',
   'Dubai',
-  'London',
-  'San Francisco',
+  'Lagos',
+  'Nairobi',
+  'Johannesburg',
+  'Accra',
+  'Kigali',
+  'Freetown',
 ];
 
 interface Feature {
   img: string;
+  /** A phone screenshot (the default), a looping clip, or a house you can turn. */
+  media?: 'video' | 'turntable';
   tag: string;
   title: string;
   text: string;
@@ -33,11 +36,12 @@ const features = (): Feature[] => [
     tag: '🏙️',
     title: t('Real cities, real streets'),
     text: t(
-      'Walk, drive or ride across Lagos, Nairobi, London and more, built from real maps. Every shop, bank and club is a place you can go.',
+      'Walk, drive or ride across San Francisco, London, Cairo and more, built from real maps. Every shop, bank and club is a place you can go.',
     ),
   },
   {
     img: 'club',
+    media: 'video',
     tag: '🎉',
     title: t('The city never sleeps'),
     text: t(
@@ -46,6 +50,7 @@ const features = (): Feature[] => [
   },
   {
     img: 'mansion',
+    media: 'turntable',
     tag: '🏰',
     title: t('From a shared room to a mansion'),
     text: t(
@@ -137,7 +142,13 @@ export default function Landing({ onPlay, onLogIn }: { onPlay: () => void; onLog
       <section className="ld-features">
         {features().map((f, i) => (
           <article key={f.img} className={`ld-feature${i % 2 ? ' is-flip' : ''}`}>
-            <Phone img={f.img} />
+            {f.media === 'video' ? (
+              <Clip img={f.img} />
+            ) : f.media === 'turntable' ? (
+              <Turntable />
+            ) : (
+              <Phone img={f.img} />
+            )}
             <div className="ld-feature-text">
               <span className="ld-feature-tag" aria-hidden="true">
                 {f.tag}
@@ -156,7 +167,7 @@ export default function Landing({ onPlay, onLogIn }: { onPlay: () => void; onLog
             <b>1</b>
             <span>
               <strong>{t('Pick your city')}</strong>
-              {t('Lagos, Nairobi, London… ten cities and counting.')}
+              {t('San Francisco, London, Cairo… ten cities and counting.')}
             </span>
           </li>
           <li>
@@ -204,6 +215,118 @@ function Phone({ img, className, eager }: { img: string; className?: string; eag
         width={420}
         height={909}
       />
+    </div>
+  );
+}
+
+/** The club, live: a short clip from the game that plays on its own, muted. */
+function Clip({ img }: { img: string }) {
+  return (
+    <div className="ld-screen">
+      <video
+        poster={`/landing/${img}-poster.jpg`}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        aria-hidden="true"
+        width={390}
+        height={400}
+      >
+        <source src={`/landing/${img}.webm`} type="video/webm" />
+        <source src={`/landing/${img}.mp4`} type="video/mp4" />
+      </video>
+      <span className="ld-live" aria-hidden="true">
+        ● {t('Live now')}
+      </span>
+    </div>
+  );
+}
+
+const FRAMES = 30;
+const frameUrl = (i: number) => `/landing/mansion/${String(i).padStart(2, '0')}.jpg`;
+
+/**
+ * The mansion from every side: it turns slowly on its own; drag (or swipe)
+ * to turn it yourself. The other 29 angles load once it's nearly on screen.
+ */
+function Turntable() {
+  const box = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState(0);
+  const [near, setNear] = useState(false);
+  const [held, setHeld] = useState(false);
+  const drag = useRef<{ x: number; f: number } | null>(null);
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return setNear(true);
+    const io = new IntersectionObserver(
+      (es) => {
+        if (es.some((e) => e.isIntersecting)) {
+          setNear(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '400px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  // Turning by itself, once round every 12 s (not while held, nor for reduced motion).
+  useEffect(() => {
+    if (!near || held) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const id = window.setInterval(() => setFrame((f) => (f + 1) % FRAMES), 400);
+    return () => window.clearInterval(id);
+  }, [near, held]);
+
+  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, f: frame };
+    setHeld(true);
+  };
+  const move = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const step = Math.round((e.clientX - d.x) / 12);
+    setFrame((((d.f - step) % FRAMES) + FRAMES) % FRAMES);
+  };
+  const up = () => {
+    drag.current = null;
+    window.setTimeout(() => setHeld(false), 1500);
+  };
+
+  return (
+    <div
+      ref={box}
+      className="ld-turn"
+      data-turntable=""
+      data-frame={frame}
+      role="img"
+      aria-label={t('A mansion in the game, turning round')}
+      onPointerDown={down}
+      onPointerMove={move}
+      onPointerUp={up}
+      onPointerCancel={up}
+    >
+      {Array.from({ length: FRAMES }, (_, i) =>
+        i === 0 || near ? (
+          <img
+            key={i}
+            src={frameUrl(i)}
+            alt=""
+            draggable={false}
+            width={440}
+            height={381}
+            className={i === frame ? 'is-on' : undefined}
+          />
+        ) : null,
+      )}
+      <span className="ld-turn-hint" aria-hidden="true">
+        ↔ {t('Drag to turn it round')}
+      </span>
     </div>
   );
 }
