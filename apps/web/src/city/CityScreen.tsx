@@ -5,7 +5,7 @@
 /* The build doesn't use the React Compiler; these memos are deliberate (they keep the
    static SVG scene from re-rendering), so its preservation check doesn't apply. */
 /* eslint-disable react-hooks/preserve-manual-memoization */
-import { openPhone } from '../phone/bus';
+import { openPhone, useNav } from '../phone/bus';
 import {
   lazy,
   Suspense,
@@ -35,6 +35,7 @@ import {
   lastRide,
   rememberRide,
   rideDistance,
+  rideMinutes,
   type Destination,
   type RideMode,
 } from './travel';
@@ -59,10 +60,12 @@ import { useRiding } from './riding';
 import { crowdSize, eventsOf, flaggedPlaces, newBusinessIds, passersBy } from './people';
 import { PersonCard, type PersonRef } from './PersonCard';
 import { SkyViewsList } from '../experiences/SkyViewsList';
-import { openSky } from '../experiences/sky-bus';
-import type { PhoneApp } from '../phone/bus';
 import { JourneyCelebration, JourneyChip, JourneyPanel } from './JourneyPanel';
 import type { JourneyGo } from './journey';
+import { runJourneyGo } from './journeyGo';
+import { NextStepCard } from './NextStepCard';
+import { GestureHint } from './GestureHint';
+import { useSimple } from '../phone/settings';
 import { WhoIsAround } from './WhoIsHere';
 import { OnlineNowList } from './OnlineNow';
 import { usePresence } from './presence';
@@ -70,7 +73,6 @@ import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
 import { cachedCityLayout } from './geoLayout';
 import { type CityLayout, type DistrictId, type Place, type Pt } from './layout';
-import { openCompanyTab } from '../screens/Company';
 import { skipRides } from './ride/state';
 
 // Scenes and flights load on demand (Wave 7 §D: a small main bundle).
@@ -414,6 +416,16 @@ function CityBodyInner({
   onOpenProperty?: (id: string) => void;
 }) {
   const { view, lite, refresh, toast } = useView();
+  const appNav = useNav();
+  const simple = useSimple();
+  // Phase 3 life bars (server release): trips cost game hours and energy.
+  const lifeBars = !!view.me.bars;
+  /**
+   * When goTo asked for a trip that should go at once ("Always skip rides"
+   * with the life bars). A short hop asks for no trip, so only a trip right
+   * after (within a second) counts.
+   */
+  const autoNext = useRef(0);
   const lang = useLang();
   const abroad = view.market.id !== home.id;
   const company = activeCompany(view);
@@ -507,13 +519,20 @@ function CityBodyInner({
       setPlacesOpen(false);
       setTrip(null);
       if (lite || !mapRef.current) setInside(place);
-      // "Always skip rides" (Settings): straight there, no trip.
-      else if (skipRides()) mapRef.current.goTo(place.id, 'walk', { instant: true });
+      // "Always skip rides" (Settings): straight there, no trip. With the life
+      // bars a trip costs time and energy, so you still choose how (the
+      // ride then skips its animation).
+      else if (skipRides() && !lifeBars) mapRef.current.goTo(place.id, 'walk', { instant: true });
       // From a list or a button: somewhere far asks how to get there (walk,
-      // cycle, transit, a taxi or your car, or skip the trip); a short hop walks.
-      else mapRef.current.goTo(place.id, preferred === 'cycle' ? 'cycle' : 'walk', { ask: true });
+      // cycle, transit, a taxi or your car, or skip the trip); a short hop
+      // walks. With "Always skip rides" and the life bars, the trip goes your
+      // usual way at once (paid) instead of asking.
+      else {
+        autoNext.current = lifeBars && skipRides() ? Date.now() : 0;
+        mapRef.current.goTo(place.id, preferred === 'cycle' ? 'cycle' : 'walk', { ask: true });
+      }
     },
-    [lite, preferred],
+    [lite, preferred, lifeBars],
   );
   const goToStory = useCallback(
     (where: StoryPlace) => {
@@ -588,52 +607,82 @@ function CityBodyInner({
     setTrip(null);
     mapRef.current?.cancelTrip();
   }, []);
-  /** Skip the trip: there at once, free. */
-  const skipTrip = useCallback(() => {
+  /**
+   * Pay for the trip on the server: a fare for transit and taxis, and with
+   * the life bars game hours and energy (walking and cycling too). False when
+   * the server said no (too tired, no hours left), with the reason shown.
+   */
+  const chargeTrip = useCallback(
+    async (mode: RideMode, tiles: number) => {
+      const legs = mode === 'walk' || mode === 'cycle';
+      if (legs && !lifeBars) return true;
+      setRideBusy(true);
+      try {
+        await api.command(
+          (legs
+            ? { type: 'city.walk', mode, minutes: rideMinutes(mode, tiles) }
+            : { type: 'city.ride', mode, distance: rideDistance(tiles) }) as unknown as Command,
+        );
+        void refresh();
+      } catch (e) {
+        // A server without rides (or walks) yet: the trip is free (and just animates).
+        if (!(e instanceof ApiError && e.code === 'command.unknown')) {
+          setRideBusy(false);
+          toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error');
+          return false;
+        }
+      }
+      setRideBusy(false);
+      return true;
+    },
+    [lifeBars, refresh, toast],
+  );
+  /**
+   * Skip the trip: there at once. Free without the life bars; with them it
+   * costs what your usual way of getting about costs, just without the ride.
+   */
+  const skipTrip = useCallback(async () => {
+    if (!trip) return;
+    if (lifeBars && !(await chargeTrip(preferred, trip.tiles))) return;
     setTrip(null);
-    mapRef.current?.ride('walk', true);
-  }, []);
+    mapRef.current?.ride(lifeBars ? preferred : 'walk', true);
+  }, [trip, lifeBars, preferred, chargeTrip]);
   const pickRide = useCallback(
-    async (mode: RideMode) => {
+    async (mode: RideMode, instant = false) => {
       if (!trip) return;
       rememberRide(mode);
       setPreferred(mode);
-      if (mode === 'bus' || mode === 'taxi' || mode === 'drive') {
-        setRideBusy(true);
-        try {
-          await api.command({
-            type: 'city.ride',
-            mode,
-            distance: rideDistance(trip.tiles),
-          } as unknown as Command);
-          void refresh();
-        } catch (e) {
-          // A server without rides yet: the ride is free (and just animates).
-          if (!(e instanceof ApiError && e.code === 'command.unknown')) {
-            setRideBusy(false);
-            toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error');
-            return;
-          }
-        }
-        setRideBusy(false);
-      }
+      if (!(await chargeTrip(mode, trip.tiles))) return;
       setTrip(null);
-      mapRef.current?.ride(mode);
+      mapRef.current?.ride(mode, instant);
     },
-    [trip, refresh, toast],
+    [trip, chargeTrip],
   );
+  // "Always skip rides" (Settings) with the life bars, for a trip from a list
+  // or a button: no chooser, go your usual way at once and pay for it. If
+  // that's refused (too tired, no hours left), the chooser stays up with the
+  // reason. Tapping a far building on the map still asks.
+  useEffect(() => {
+    if (!trip || Date.now() - autoNext.current > 1000) return;
+    autoNext.current = 0;
+    void pickRide(preferred, true);
+  }, [trip, preferred, pickRide]);
   // The founder journey's Go buttons: walk somewhere, open a tab, an app or a view.
   const journeyGo = useCallback(
     (g: JourneyGo) => {
       setJourneyOpen(false);
-      if (g.kind === 'place') visit(g.place);
-      else if (g.kind === 'tab') {
-        if (g.section) openCompanyTab(g.section);
-        onNavigate(g.tab === 'company' || g.tab === 'me' ? g.tab : 'money');
-      } else if (g.kind === 'app') openPhone({ app: g.app as PhoneApp });
-      else openSky(g.id);
+      runJourneyGo(g, {
+        place: visit,
+        app: (app) => openPhone({ app }),
+        // The City only switches between its own few tabs; anything else
+        // (Portfolio, Deal offers) goes through the app's navigation.
+        tab: (tab) =>
+          tab === 'company' || tab === 'me' || tab === 'money'
+            ? onNavigate(tab)
+            : appNav?.go({ kind: 'tab', tab }),
+      });
     },
-    [visit, onNavigate],
+    [visit, onNavigate, appNav],
   );
   const tips = suggestionsFor(view);
   const firstTip = tips[0] ? suggestionText(tips[0], view.market.currency).label : '';
@@ -664,11 +713,14 @@ function CityBodyInner({
           <p className="small muted">
             {t('Lite mode: the city map is off to save data. Pick a place to go in.')}
           </p>
-          <WhatNowCard onGo={visit} />
-          <section className="places-group sky-group">
-            <h3>{t('Sky views')}</h3>
-            <SkyViewsList city={skyCity} prewarm={false} />
-          </section>
+          {simple ? <NextStepCard onGo={journeyGo} /> : <WhatNowCard onGo={visit} />}
+          {!simple && (
+            <section className="places-group sky-group">
+              <h3>{t('Sky views')}</h3>
+              <SkyViewsList city={skyCity} prewarm={false} />
+            </section>
+          )}
+          {simple && <h2 className="section-h">{t('Where to?')}</h2>}
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
           <section className="places-group people-group">
             <h3>{t('People around')}</h3>
@@ -732,31 +784,42 @@ function CityBodyInner({
           </div>
           <div className="city-hud city-hud-zoom">
             <JourneyChip onOpen={() => setJourneyOpen(true)} />
+            {/* Simple mode: pinch zooms; the buttons that stay say what they do. */}
+            {!simple && (
+              <>
+                <button
+                  type="button"
+                  className="hud-round"
+                  aria-label={t('Zoom in')}
+                  onClick={() => mapRef.current?.zoom(1.3)}
+                >
+                  <Icon name="plus" />
+                </button>
+                <button
+                  type="button"
+                  className="hud-round"
+                  aria-label={t('Zoom out')}
+                  onClick={() => mapRef.current?.zoom(1 / 1.3)}
+                >
+                  <Icon name="minus" />
+                </button>
+              </>
+            )}
             <button
               type="button"
-              className="hud-round"
-              aria-label={t('Zoom in')}
-              onClick={() => mapRef.current?.zoom(1.3)}
-            >
-              <Icon name="plus" />
-            </button>
-            <button
-              type="button"
-              className="hud-round"
-              aria-label={t('Zoom out')}
-              onClick={() => mapRef.current?.zoom(1 / 1.3)}
-            >
-              <Icon name="minus" />
-            </button>
-            <button
-              type="button"
-              className="hud-round"
+              className={simple ? 'hud-places hud-me' : 'hud-round'}
               aria-label={t('Centre on me')}
               onClick={() => mapRef.current?.recentre()}
             >
               <Icon name="locate" />
+              {simple && (
+                <span className="hud-btn-label" aria-hidden="true">
+                  {t('Me')}
+                </span>
+              )}
             </button>
           </div>
+          <GestureHint />
           <div className="city-hud city-hud-bottom">
             {trip ? (
               <RideChooser
@@ -768,10 +831,12 @@ function CityBodyInner({
                 preferred={preferred}
                 busy={rideBusy}
                 onPick={(m) => void pickRide(m)}
-                onSkip={skipTrip}
+                onSkip={() => void skipTrip()}
                 onCancel={cancelTrip}
                 car={car}
                 abroad={abroad}
+                me={lifeBars ? { hoursLeft: view.me.hours.left, energy: view.me.energy } : null}
+                skipAs={lifeBars ? preferred : undefined}
               />
             ) : (
               <>
@@ -787,7 +852,7 @@ function CityBodyInner({
                   </div>
                 )}
                 <div className="hud-row-bottom">
-                  {!riding && (
+                  {!riding && !simple && (
                     <button
                       type="button"
                       className="hud-whatnow-chip"
@@ -822,19 +887,22 @@ function CityBodyInner({
                       onClick={() => setPlacesOpen(true)}
                     >
                       <Icon name="list" size={20} />
-                      <span className="hud-btn-label">{t('Places')}</span>
+                      <span className="hud-btn-label">{simple ? t('Where to?') : t('Places')}</span>
                     </button>
-                    <button
-                      type="button"
-                      className="hud-places"
-                      data-testid="sky-views-btn"
-                      onClick={() => setSkyOpen(true)}
-                    >
-                      <span aria-hidden>🎡</span>
-                      <span className="hud-btn-label">{t('Sky views')}</span>
-                    </button>
+                    {!simple && (
+                      <button
+                        type="button"
+                        className="hud-places"
+                        data-testid="sky-views-btn"
+                        onClick={() => setSkyOpen(true)}
+                      >
+                        <span aria-hidden>🎡</span>
+                        <span className="hud-btn-label">{t('Sky views')}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
+                {simple && !riding && <NextStepCard onMap onGo={journeyGo} />}
               </>
             )}
           </div>
@@ -872,9 +940,11 @@ function CityBodyInner({
         </Sheet>
       )}
       {placesOpen && (
-        <Sheet title={t('Places')} onClose={() => setPlacesOpen(false)}>
-          <SkyViewsList city={skyCity} onOpen={() => setPlacesOpen(false)} />
+        <Sheet title={simple ? t('Where to?') : t('Places')} onClose={() => setPlacesOpen(false)}>
+          {/* Simple mode: places first; the sky views (no button of their own) after them. */}
+          {!simple && <SkyViewsList city={skyCity} onOpen={() => setPlacesOpen(false)} />}
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
+          {simple && <SkyViewsList city={skyCity} onOpen={() => setPlacesOpen(false)} />}
         </Sheet>
       )}
       {peopleOpen && (

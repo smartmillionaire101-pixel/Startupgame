@@ -31,6 +31,7 @@ export {
   clockView,
 } from './clock.js';
 export { FLIGHT_HOURS, MAX_FLIGHTS_PER_MONTH, MAX_RIDES_PER_MONTH, locationOf } from './travel.js';
+export type { RideMode, RideDistance } from './travel.js';
 export {
   SEND_DAILY_LIMIT_COL,
   SEND_FEE_MIN_COL,
@@ -73,7 +74,28 @@ export {
 } from './captable.js';
 export { SLIDES, MAX_SLIDES } from './fundraising.js';
 export { rescuePlan, assessDistress } from './rescue.js';
-export { JOURNEY_EVENTS_NOTE, journeyEventsOn, EXITS_NOTE, exitsOn, RELEASES } from './releases.js';
+export {
+  JOURNEY_EVENTS_NOTE,
+  journeyEventsOn,
+  EXITS_NOTE,
+  exitsOn,
+  LIFE_BARS_NOTE,
+  lifeBarsOn,
+  RELEASES,
+} from './releases.js';
+// Phase 3: life bars (energy, health, happiness, stress) and what trips cost.
+export {
+  LIFE_BARS,
+  walkCost,
+  rideCost,
+  barEdge,
+  barEffects,
+  barsOf,
+  happinessOf,
+  healthOf,
+  stressOf,
+} from './lifebars.js';
+export type { Bars, BarEffect, WalkMode } from './lifebars.js';
 export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';

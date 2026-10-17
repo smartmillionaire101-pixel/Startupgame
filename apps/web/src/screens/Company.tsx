@@ -11,6 +11,7 @@ import { SalesPipeline } from './Sales';
 import { CofounderCard, HiringPipeline, TeamHealth } from './Hiring';
 import { RunwayExplainer } from './FundCompany';
 import { RivalsPanel } from './Decisions';
+import { SimpleLink } from './SimpleLink';
 
 type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -122,6 +123,13 @@ export function CompanyScreen() {
         </span>
         <Pill>{c.industryLabel}</Pill>
       </header>
+      <SimpleLink
+        to="money"
+        emoji="💰"
+        label={t('Money and investors')}
+        hint={t('Your bank, loans, deal cards and raising money')}
+        badge={view.deals.filter((d) => d.yourTurn).length}
+      />
       <div className="tabs" role="tablist">
         {(
           [

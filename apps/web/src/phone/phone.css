@@ -1293,3 +1293,34 @@ button.phone-row:active {
 .phone-alert.is-static {
   cursor: default;
 }
+
+/* ---- Simple mode (Phase 2) ---------------------------------------------- */
+
+/* Every app shows, as in the normal phone; the dock's icons get their names too. */
+html[data-simple] .phone-dock .phone-app-label {
+  display: block;
+}
+
+/* Back says "Back", top-left, as on every sheet. */
+html[data-simple] .phone-bar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+html[data-simple] .phone-back {
+  width: auto;
+  min-width: 2.75rem;
+  height: 48px;
+  padding: 0 0.7rem 0 0.3rem;
+  border-radius: 999px;
+  grid-auto-flow: column;
+  gap: 0.1rem;
+  font: inherit;
+  font-weight: 700;
+}
+html[data-simple] .phone-x {
+  width: auto;
+  height: 48px;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
+}

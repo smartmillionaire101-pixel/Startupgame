@@ -13,6 +13,8 @@ import { HomePreview } from '../home/HomePreview';
 import { FriendsBacking } from './FundCompany';
 import { RecapButton } from '../recap/Recap';
 import { DecisionsCard } from './Decisions';
+import { NextStepCard } from '../city/NextStepCard';
+import { useSimple } from '../phone/settings';
 
 /** Today (was "Home"): the dashboard and inbox. `onNews` opens the city's news. */
 export function Home({ onNews }: { onNews?: () => void } = {}) {
@@ -22,9 +24,12 @@ export function Home({ onNews }: { onNews?: () => void } = {}) {
   const active = view.companies.filter((c) => c.status === 'active');
   const [idx, setIdx] = useState(0);
   const c = active[Math.min(idx, active.length - 1)];
+  const simple = useSimple();
 
   return (
     <>
+      {/* Simple mode (Phase 2): the one next step comes first. */}
+      {simple && <NextStepCard />}
       {c ? (
         <>
           {active.length > 1 && (
@@ -103,7 +108,7 @@ export function Home({ onNews }: { onNews?: () => void } = {}) {
   );
 }
 
-/** Cash, runway, revenue and stars: the four numbers a founder checks first. */
+/** Cash, how long it lasts (runway), revenue and stars: the four numbers a founder checks first. */
 export function CompanyKpis({ c }: { c: Company }) {
   const { cur } = useView();
   // Day one has no revenue and no costs yet: that's "pre-revenue", not
@@ -117,19 +122,19 @@ export function CompanyKpis({ c }: { c: Company }) {
         icon="wallet"
         label={t('Cash')}
         value={money(c.cash, cur)}
-        hint={t('Burn {amount}/mo', { amount: money(c.burn, cur) })}
+        hint={t('Spending {amount}/mo', { amount: money(c.burn, cur) })}
       />
       <Stat
         icon="clock"
-        label={t('Runway')}
+        label={t('Money lasts')}
         value={preRevenue ? t('Pre-revenue') : runway(c.runwayMonths)}
         tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
         hint={
           preRevenue
             ? t('No monthly costs yet')
             : c.defaultAlive
-              ? t('Default alive')
-              : t('Default dead')
+              ? t('On track to profit')
+              : t('Runs out before profit')
         }
       />
       <Stat

@@ -34,6 +34,12 @@ export async function withoutNetlifyDrawer(page: Page) {
       // Founder Journey 4b: the month recap opens on its own when a month
       // starts; specs about other things skip it (recap.spec.ts turns it on).
       if (!localStorage.getItem('runway.skipRecap')) localStorage.setItem('runway.skipRecap', '1');
+      // Phase 2: new players start in Simple mode (four tabs, big tiles).
+      // Specs about other things play the normal game; simple-mode.spec.ts
+      // turns it on. The map's one-time gesture hint is taken as seen too.
+      if (!localStorage.getItem('runway.simple')) localStorage.setItem('runway.simple', '0');
+      if (!localStorage.getItem('runway.gestureHint'))
+        localStorage.setItem('runway.gestureHint', '1');
     } catch {
       /* storage blocked: rides play */
     }

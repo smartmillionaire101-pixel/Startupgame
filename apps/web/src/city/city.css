@@ -973,6 +973,25 @@
   font-size: 0.72rem;
   color: #475569;
 }
+/* Life bars: what the trip costs you (time of your month, energy). */
+.ride-cost {
+  grid-column: 2;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #9a3412;
+}
+.ride-cost.is-blocked {
+  color: #b91c1c;
+}
+.ride-opt[data-blocked] {
+  cursor: not-allowed;
+}
+.ride-opt:has(.ride-cost) {
+  grid-template-rows: auto auto auto;
+}
+.ride-opt:has(.ride-cost) .ride-icon {
+  grid-row: span 3;
+}
 
 /* The flight: full screen, over everything. */
 .flight {
@@ -1413,4 +1432,72 @@
 .ride-skip-trip:disabled {
   opacity: 0.6;
   cursor: progress;
+}
+
+/* ---- Simple mode (Phase 2) ----------------------------------------------
+   Every map button keeps its name (even on phones), the buttons that stay
+   (Journey, Me) are pills with words, and the "What should I do now?" card
+   sits at the bottom. */
+html[data-simple] .city-hud-bottom .hud-places {
+  width: auto;
+  height: auto;
+  min-height: 48px;
+  padding: 0.55rem 0.95rem;
+}
+html[data-simple] .city-hud-bottom .hud-btn-label {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+}
+html[data-simple] .city-hud-bottom .hud-places .hud-count {
+  position: static;
+  margin-left: 0.3rem;
+}
+html[data-simple] .city-hud-zoom {
+  justify-items: end;
+}
+html[data-simple] .city-hud-zoom .hud-places {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 48px;
+}
+html[data-simple] .city-hud-top {
+  right: 7.5rem;
+}
+html[data-simple] .city-hud-bottom .hud-row-bottom {
+  justify-content: flex-end;
+}
+
+/* The map's gestures, once (city/GestureHint.tsx). */
+.gesture-hint {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  width: min(20rem, calc(100% - 2rem));
+  display: grid;
+  gap: 0.6rem;
+  justify-items: center;
+  text-align: center;
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgb(15 23 42 / 0.92);
+  color: #fff;
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.3);
+}
+.gesture-hint p {
+  margin: 0;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.gesture-hint-ok {
+  min-width: 8rem;
+}
+/* The phone lives in the top bar now: the big card can use the full width. */
+html[data-simple] .city-hud-bottom {
+  right: 0.7rem !important;
 }

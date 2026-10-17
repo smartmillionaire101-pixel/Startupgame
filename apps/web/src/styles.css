@@ -412,6 +412,103 @@ textarea {
     padding: 0 0.55rem;
   }
 }
+/* Phase 3 life bars: four small gauges in one button (LifeBars.tsx). */
+.lifebars-btn {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  flex: none;
+  height: 36px;
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.lifebar-mini {
+  --c: var(--good);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-size: 9px;
+  line-height: 1;
+}
+.lifebar-mini.is-warn {
+  --c: var(--warn);
+}
+.lifebar-mini.is-bad {
+  --c: var(--bad);
+}
+.lifebar-mini-track {
+  position: relative;
+  width: 6px;
+  height: 18px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.lifebar-mini-track > span {
+  position: absolute;
+  inset: auto 0 0;
+  background: var(--c);
+  transition: height var(--dur-3) var(--ease-out);
+}
+.lifebars-sheet {
+  /* Opened from the top bar, which never wraps: this text must. */
+  white-space: normal;
+  display: grid;
+  gap: var(--sp-3);
+}
+.lifebar {
+  --c: var(--good);
+}
+.lifebar.is-warn {
+  --c: var(--warn);
+}
+.lifebar.is-bad {
+  --c: var(--bad);
+}
+.lifebar-head {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+.lifebar-track {
+  height: 12px;
+  margin: var(--sp-1) 0;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.lifebar-track > span {
+  display: block;
+  height: 100%;
+  background: var(--c);
+}
+.lifebar p {
+  margin: 0.15rem 0 0;
+}
+.lifebar-effects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-1);
+}
+.lifebar-effects li {
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.lifebar-effects .is-bad {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+.lifebar-effects .is-good {
+  background: color-mix(in srgb, var(--good) 14%, transparent);
+}
+
 .ring {
   --c: var(--good);
   width: 34px;
@@ -2063,4 +2160,141 @@ body:has(.app-city) .toasts {
 }
 .feedback-thanks span {
   font-size: 1.6rem;
+}
+
+/* ---------- Simple mode (Phase 2): bigger and calmer
+   `data-simple` on <html> (phone/settings.ts). Small text a step up, every
+   button at least 48 px tall, the tab names bigger, Back in words. */
+
+html[data-simple] {
+  --fs-2xs: 0.75rem;
+  --fs-xs: 0.875rem;
+  --fs-sm: 1rem;
+  --tap: 48px;
+}
+html[data-simple] .btn,
+html[data-simple] .btn-sm,
+html[data-simple] .chip {
+  min-height: 48px;
+}
+html[data-simple] .chip {
+  white-space: normal;
+}
+html[data-simple] .icon-btn {
+  width: 48px;
+  height: 48px;
+}
+html[data-simple] .nav button {
+  min-height: 64px;
+  font-size: var(--fs-sm);
+  padding-inline: 0.15rem;
+}
+html[data-simple] .nav-label {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.15;
+}
+/* Long words (French) wrap rather than push the page sideways. */
+html[data-simple] .app {
+  overflow-wrap: anywhere;
+}
+
+/* "‹ Back": top-left on sheets and on screens without a tab (Simple mode). */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-height: 48px;
+  padding: 0 0.85rem 0 0.4rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+  flex: none;
+}
+.back-btn-ico {
+  transform: rotate(90deg);
+}
+main > .back-btn {
+  margin-bottom: var(--sp-3);
+}
+.sheet-head-simple {
+  justify-content: flex-start;
+}
+.sheet-head-simple h2 {
+  min-width: 0;
+}
+
+/* Simple mode's big link to a screen without a tab (Money, Deal offers). */
+.simple-link {
+  min-height: 64px;
+  border: 2px solid var(--accent);
+}
+.simple-link b {
+  font-size: var(--fs-lg);
+}
+.simple-link-emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+/* ---------- "What should I do now?" (city/NextStepCard.tsx) */
+
+.next-step {
+  display: grid;
+  gap: var(--sp-3);
+  border: 2px solid var(--accent);
+}
+.next-step-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--accent);
+}
+.next-step-main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+.next-step-icon {
+  font-size: 1.75rem;
+  line-height: 1.1;
+  flex: none;
+}
+.next-step-text {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.next-step-label {
+  font-size: var(--fs-lg);
+  line-height: 1.3;
+}
+.next-step-why {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.next-step-go {
+  min-height: 52px;
+}
+/* On the City map: a light card at the bottom, over the map. */
+.next-step-map {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  background: rgb(255 255 255 / 0.96);
+  color: #0f172a;
+  box-shadow: 0 6px 20px rgb(15 23 42 / 0.2);
+  gap: var(--sp-2);
+}
+.next-step-map .next-step-why {
+  color: #475569;
+}
+
+/* Simple mode's bigger text: the top bar keeps the city's name readable by
+   leaving out the game date (it's on the phone and the Today screen). */
+html[data-simple] .topbar-date {
+  display: none;
 }

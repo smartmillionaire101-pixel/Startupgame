@@ -6,6 +6,7 @@ import { locale, t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Field, Pill, Segmented, Sheet, Sparkline, Stat } from '../ui';
 import { DealList, stageLabel } from './common';
+import { SimpleLink } from './SimpleLink';
 
 const companyStatusLabel = (x: string) =>
   (({ shutdown: t('shut down'), acquired: t('acquired') }) as Record<string, string>)[x] ?? x;
@@ -34,7 +35,7 @@ export function DealFlow() {
   const myTurn = view.deals.filter((d) => d.yourTurn).length;
   return (
     <>
-      <h1>{t('Deal flow')}</h1>
+      <h1>{t('Deal offers')}</h1>
       <FriendsBacking />
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'flow'} onClick={() => setTab('flow')}>
@@ -170,12 +171,12 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
               hint={t('{pct}% m/m', { pct: d.growth })}
             />
             <Stat
-              label={t('Burn')}
+              label={t('Spending')}
               value={money(d.burn, cur)}
               hint={
                 d.runwayMonths === null
                   ? t('Profitable')
-                  : t('{n} mo runway', { n: Math.floor(d.runwayMonths) })
+                  : t('{n} months of money left', { n: Math.floor(d.runwayMonths) })
               }
             />
             <Stat
@@ -311,9 +312,16 @@ export function Portfolio() {
   return (
     <>
       <h1>{t('Portfolio')}</h1>
+      <SimpleLink
+        to="deals"
+        emoji="🤝"
+        label={t('Deal offers')}
+        hint={t('Startups raising money, pitches and your deal cards')}
+        badge={view.deals.filter((d) => d.yourTurn).length}
+      />
       <Card title={t('Positions')}>
         {view.portfolio.length === 0 ? (
-          <Empty>{t('No investments yet. Start with a small cheque from Deal flow.')}</Empty>
+          <Empty>{t('No investments yet. Start with a small cheque from Deal offers.')}</Empty>
         ) : (
           <table className="table">
             <thead>

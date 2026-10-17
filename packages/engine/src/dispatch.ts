@@ -43,7 +43,18 @@ import {
   seedPublicMarket,
   sellShares,
 } from './exits.js';
-import { EXITS_NOTE, exitsOn } from './releases.js';
+import { exitsOn, lifeBarsOn } from './releases.js';
+import {
+  HOME_ACT_BARS,
+  LIFE_BARS,
+  applyBars,
+  barsOf,
+  foodBars,
+  rideBars,
+  venueBars,
+  walk,
+  workStress,
+} from './lifebars.js';
 import {
   answerMentoring,
   carrySerialFounder,
@@ -55,7 +66,15 @@ import {
   pledge,
   serialEligible,
 } from './allocator.js';
-import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
+import {
+  getBusiness,
+  pitchBusiness,
+  quitJob,
+  specOf,
+  takeBusinessGig,
+  takeJob,
+  venueBuy,
+} from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
 import { foodOrder, homeAct, homeInvite } from './needs.js';
 import { removeContact, saveContact } from './people.js';
@@ -195,6 +214,9 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
       if (actor) keepStatement(draft as World, actor);
       expirePlay(draft as World, ctx.now);
       result = apply(draft as World, command, ctx);
+      // Phase 3: what the command did to the actor's life bars (after the release note).
+      if (ctx.actorId && lifeBarsOn(draft as World))
+        result = lifeBarsAfter(draft as World, command, ctx.actorId, result);
       // The founder journey: record chapters this command (or settlement) completed.
       if (command.type === 'market.settle')
         recordChaptersAfterSettle(draft as World, command.market);
@@ -1016,6 +1038,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return fly(world, me, cmd.to, ctx.now);
     case 'city.ride':
       return ride(world, me, cmd.mode, cmd.distance);
+    case 'city.walk':
+      // Phase 3: unknown until the life-bars release note (clients fall back to a free walk).
+      if (!lifeBarsOn(world)) return fail('command.unknown', 'Unknown command.');
+      return walk(world, me, cmd.mode, cmd.minutes);
     case 'player.seen':
       // lastActiveAt was set above: that's all this does.
       return null;
@@ -1285,6 +1311,67 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
   }
 }
 
+/** Phase 3: work that adds a little stress (capped per month, lifebars.ts). */
+const WORK_COMMANDS: ReadonlySet<Command['type']> = new Set([
+  'company.build',
+  'player.gig',
+  'gig.take',
+  'sales.advance',
+  'pitch.start',
+  'business.pitch',
+  'pitch.angel',
+  'lp.pitch',
+]);
+
+/**
+ * Phase 3 life bars: a command's immediate effect on the actor's health and
+ * stress (and a ride's time and energy), applied after the command itself
+ * succeeded. Results that are objects gain `barChanges` (what moved) and
+ * `bars` (all four now). Only called when `lifeBarsOn`.
+ */
+function lifeBarsAfter(world: World, cmd: Command, actorId: Id, result: unknown): unknown {
+  const me = world.players[actorId];
+  if (!me || me.ai) return result;
+  if (WORK_COMMANDS.has(cmd.type)) {
+    const stress = workStress(world, me);
+    return result && typeof result === 'object'
+      ? { ...result, barChanges: stress ? { stress } : {}, bars: barsOf(me) }
+      : result;
+  }
+  if (!result || typeof result !== 'object') return result;
+  const out = result as Record<string, unknown>;
+  const changed = (fx: { health?: number; stress?: number }) => ({
+    ...out,
+    barChanges: applyBars(me, fx),
+    bars: barsOf(me),
+  });
+  const social = { stress: LIFE_BARS.socialStress };
+  switch (cmd.type) {
+    case 'city.ride':
+      return { ...out, ...rideBars(me, cmd.mode, cmd.distance) };
+    case 'home.act':
+      return changed(HOME_ACT_BARS[cmd.act] ?? {});
+    case 'home.invite':
+    case 'hangout.plan':
+    case 'hangout.join':
+      return changed(social);
+    case 'visit.accept': {
+      const host = world.players[(out.host as { id: Id } | undefined)?.id ?? ''];
+      if (host && !host.ai) applyBars(host, social);
+      return changed(social);
+    }
+    case 'venue.buy': {
+      const spec = specOf(getBusiness(world, cmd.businessId));
+      const it = spec.venue?.items.find((x) => x.id === cmd.itemId);
+      return it ? changed(venueBars(spec, it)) : out;
+    }
+    case 'food.order':
+      return changed(foodBars(cmd.itemId));
+    default:
+      return result;
+  }
+}
+
 function createFromOnboarding(
   world: World,
   cmd: Extract<Command, { type: 'player.create' }>,
@@ -1416,9 +1503,11 @@ function applyMarketData(world: World, cmd: Extract<Command, { type: 'market.dat
 function announce(world: World, cmd: Extract<Command, { type: 'system.announce' }>) {
   const sent = (world.announcements ??= []);
   if (sent.includes(cmd.id)) return { sent: 0 };
+  const hadExits = exitsOn(world);
   sent.push(cmd.id);
   // Founder Journey 5: the stock market opens with each city's leading AI companies.
-  if (cmd.id === EXITS_NOTE)
+  // (The note that first switches exits on: the exits note, or a later one in a world without it.)
+  if (!hadExits && exitsOn(world))
     for (const id of Object.keys(world.markets)) seedPublicMarket(world, id);
   let n = 0;
   for (const p of Object.values(world.players)) {

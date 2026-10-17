@@ -34,6 +34,7 @@ import { scale } from './money.js';
 import { deriveRng } from './rng.js';
 import type { Rng } from './rng.js';
 import { outputOf } from './staff.js';
+import { barEdgeIn } from './lifebars.js';
 import { rivalPressure } from './rivals.js';
 import { firstPayment, starterIdeaEdge } from './firstsession.js';
 import type {
@@ -235,7 +236,8 @@ export function winChance(
   const pressure = rivalPressure(world, c);
   // Founder Journey 6: the starting idea's demand, competition and founder fit
   // (zero for companies founded without an idea, so they are unchanged).
-  const edge = starterIdeaEdge(c);
+  // Phase 3: how the founder feels (life bars; zero before that release note).
+  const edge = starterIdeaEdge(c) + barEdgeIn(world, founder);
   return pressure > 0 || edge !== 0
     ? clamp(base - pressure + edge, SALES.chance[0], SALES.chance[1])
     : base;

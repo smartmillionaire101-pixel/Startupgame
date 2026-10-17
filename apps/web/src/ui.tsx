@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useGame } from './store';
 import { t } from './i18n';
+import { useSimple } from './phone/settings';
 
 export function Card({
   title,
@@ -324,7 +325,11 @@ export function SectionHeader({ children }: { children: ReactNode }) {
   return <h2 className="section-h">{children}</h2>;
 }
 
-/** Bottom sheet for focused flows (offers, pitches, deal cards). Escape closes it. */
+/**
+ * Bottom sheet for focused flows (offers, pitches, deal cards). Escape closes it.
+ * Simple mode (Phase 2): "‹ Back" at the top-left closes it instead of the ×,
+ * the same word in the same spot as the phone's Back.
+ */
 export function Sheet({
   title,
   onClose,
@@ -345,6 +350,7 @@ export function Sheet({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+  const simple = useSimple();
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div
@@ -354,11 +360,19 @@ export function Sheet({
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="sheet-head">
+        <header className={`sheet-head${simple ? ' sheet-head-simple' : ''}`}>
+          {simple && (
+            <button type="button" className="back-btn" onClick={onClose}>
+              <Icon name="chevron" size={18} className="back-btn-ico" />
+              {t('Back')}
+            </button>
+          )}
           <h2>{title}</h2>
-          <button className="icon-btn" aria-label={t('Close')} onClick={onClose}>
-            <Icon name="close" size={18} />
-          </button>
+          {!simple && (
+            <button className="icon-btn" aria-label={t('Close')} onClick={onClose}>
+              <Icon name="close" size={18} />
+            </button>
+          )}
         </header>
         <div className="sheet-body">{children}</div>
       </div>

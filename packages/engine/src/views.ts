@@ -1,3 +1,5 @@
+import { barEffects, barsOf } from './lifebars.js';
+import { lifeBarsOn } from './releases.js';
 import { journeyView } from './journey.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
 import { allocatorView } from './allocator.js';
@@ -693,6 +695,8 @@ export function playerView(
     flights: flightsView(world, p),
     me: {
       id: p.id,
+      /** When this player joined (server clock, ms): the client's Simple mode default. */
+      joinedAt: p.joinedAt,
       flightTicket: p.flightTicket ?? null,
       handle: p.handle,
       name: p.name,
@@ -713,6 +717,12 @@ export function playerView(
       mood: moodOf(p),
       /** Wave 7: home acts (and 'invite') this month: used, cap and left. */
       homeActs: homeActsView(p, m.month),
+      /**
+       * Phase 3 life bars (only after the release note, so clients can hide them):
+       * energy, health, happiness and stress, 0–100 rounded, and what they're
+       * doing to you right now in plain English.
+       */
+      ...(lifeBarsOn(world) && !p.ai ? { bars: barsOf(p), barEffects: barEffects(p) } : {}),
       lifestyle: { ...tierOf(p), monthlyCost: lifestyleCost(world, p) },
       credit: { ...p.credit, ...creditProfile(world, p) },
       loans: p.loans,

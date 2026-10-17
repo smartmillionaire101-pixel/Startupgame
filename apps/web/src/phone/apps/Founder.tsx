@@ -47,7 +47,7 @@ export function Founder({ ctx }: { ctx: PhoneCtx }) {
             <strong>{money(c.cash, cur)}</strong>
           </div>
           <div>
-            <span className="small">{t('Runway')}</span>
+            <span className="small">{t('Money lasts')}</span>
             <strong className={tone === 'bad' ? 'phone-warn' : undefined}>{runwayText}</strong>
           </div>
         </div>
@@ -58,7 +58,7 @@ export function Founder({ ctx }: { ctx: PhoneCtx }) {
           value={t('{amount}/mo', { amount: money(c.monthlyRevenue, cur) })}
           tone="good"
         />
-        <Line label={t('Burn')} value={t('{amount}/mo', { amount: money(c.burn, cur) })} />
+        <Line label={t('Spending')} value={t('{amount}/mo', { amount: money(c.burn, cur) })} />
         <Line label={t('Team')} value={c.teamSize} />
         <Line label={t('Stars')} value={`${c.stars.toFixed(1)}★`} />
         {c.status !== 'active' && <p className="small bad">{t('This company has closed.')}</p>}

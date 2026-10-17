@@ -16,6 +16,7 @@ import { genderOf } from '../city/life';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
 import { FoundBank } from './Bank';
+import { setSetting, useSimple } from '../phone/settings';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
 
@@ -1007,6 +1008,24 @@ function MapVisibility() {
   );
 }
 
+/** Simple mode (Phase 2): the same switch as the phone's Settings app. */
+function SimpleModeCard() {
+  const simple = useSimple();
+  return (
+    <Card title={t('Simple mode')}>
+      <label className="row simple-toggle" data-setting="simple">
+        <input
+          type="checkbox"
+          role="switch"
+          checked={simple}
+          onChange={(e) => setSetting('simple', e.target.checked)}
+        />{' '}
+        {t('Bigger text, words on every button, four tabs and one clear next step.')}
+      </label>
+    </Card>
+  );
+}
+
 function Settings() {
   const { view, lite, setLite, refresh, toast, meta } = useView();
   const lang = useLang();
@@ -1027,6 +1046,7 @@ function Settings() {
           ))}
         </div>
       </Card>
+      <SimpleModeCard />
       <Card title={t('Data saver')}>
         <label className="row">
           <input type="checkbox" checked={lite} onChange={(e) => setLite(e.target.checked)} />{' '}

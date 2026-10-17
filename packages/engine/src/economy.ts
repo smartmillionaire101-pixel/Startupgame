@@ -17,6 +17,7 @@
  * Players also work gigs at businesses, eat and drink there, and meet people
  * over a meal. Every amount is a ledger transfer, so money is conserved.
  */
+import { barEdgeIn } from './lifebars.js';
 import {
   CITY_BUSINESSES,
   GIG_SKILL_BACKGROUNDS,
@@ -857,8 +858,13 @@ export function pitchBusiness(
   const rng = deriveRng(world.seed, 'economy', 'pitch', b.id, c.id, month);
   const budget = sectorBudget(b, c.industry);
   const rel = reliability(c);
+  // Phase 3: how you feel nudges the owner (life bars; zero before that release note).
   const score =
-    supplierScore(b, c, budget) + 0.06 + (me.skills.sales / 100) * 0.08 + rng.normal(0, 0.03);
+    supplierScore(b, c, budget) +
+    0.06 +
+    (me.skills.sales / 100) * 0.08 +
+    rng.normal(0, 0.03) +
+    barEdgeIn(world, me);
   const current = b.suppliers.find((s) => s.sector === c.industry);
   const rival = current ? world.companies[current.companyId] : undefined;
   const rivalScore = rival ? supplierScore(b, rival, budget) + ECONOMY.inertia : 0;

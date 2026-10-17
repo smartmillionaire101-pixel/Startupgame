@@ -20,7 +20,7 @@ test('an investor screens an AI startup, does diligence and writes a first chequ
 
   // First day: three AI startup pitches in the focus area.
   await expect(page.getByText(/wants to pitch you/).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Deal flow' }).click();
+  await page.getByRole('button', { name: 'Deal offers' }).click();
   await page.getByRole('button', { name: 'Open' }).first().click();
   await page.getByRole('button', { name: 'First call (4h)' }).click();
   await expect(page.getByText('Diligence · level 1')).toBeVisible();

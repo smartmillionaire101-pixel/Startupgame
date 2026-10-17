@@ -26,7 +26,7 @@ import { CITY_GEO, hereOf } from '../city/travel';
 import { onPhone, setPhoneBadge, useNav, type PhoneApp, type PhoneOpen } from './bus';
 import { inboxTarget } from './navigate';
 import { Battery, Icon, type IconName } from './icons';
-import { applySavedSettings, prefersReducedMotion } from './settings';
+import { applySavedSettings, prefersReducedMotion, useSimple } from './settings';
 import { moodOf, type PhoneCtx, type ThreadRef } from './shared';
 import { Alerts, KIND_ICON } from './apps/Alerts';
 import { Bank } from './apps/Bank';
@@ -676,6 +676,7 @@ function PhoneScreen(props: {
   }
 
   const home = app === 'home' && !thread;
+  const simple = useSimple();
   return (
     <div
       className="phone"
@@ -694,6 +695,12 @@ function PhoneScreen(props: {
           <header className="phone-bar">
             <button className="phone-back" onClick={back} aria-label={t('Back')}>
               <Icon name="chevron" size={22} strokeWidth={2.4} className="flip" />
+              {/* Simple mode: Back says so, in the same top-left spot as every sheet's. */}
+              {simple && (
+                <span className="phone-back-label" aria-hidden="true">
+                  {t('Back')}
+                </span>
+              )}
             </button>
             <h2 className="phone-title">
               {def && !thread && !picking && (
@@ -704,7 +711,13 @@ function PhoneScreen(props: {
               {title}
             </h2>
             <button className="phone-x" aria-label={t('Close phone')} onClick={onClose}>
-              <Icon name="close" size={18} strokeWidth={2.2} />
+              {simple ? (
+                <span className="phone-x-label" aria-hidden="true">
+                  {t('Close')}
+                </span>
+              ) : (
+                <Icon name="close" size={18} strokeWidth={2.2} />
+              )}
             </button>
           </header>
         )}
@@ -755,13 +768,14 @@ function PhoneHome({
   useTutorial(view.me.id);
   const allowed = tutorialApps(activeStep(view.me.id));
   const shown = (id: AppId) => !allowed || allowed.has(id);
+  const hasCompany = view.companies.some((c) => c.status === 'active');
   // The Journey app is for founders (it follows a company).
   const grid = APPS.filter(
     (a) =>
       !DOCK.includes(a.id) &&
       shown(a.id) &&
       (a.id !== 'journey' || !!view.journey) &&
-      (a.id !== 'sales' || view.companies.some((c) => c.status === 'active')),
+      (a.id !== 'sales' || hasCompany),
   );
   const dock = DOCK.filter(shown).map((id) => APPS.find((a) => a.id === id)!);
   return (

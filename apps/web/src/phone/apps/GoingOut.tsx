@@ -66,7 +66,10 @@ export function GoingOut({ ctx }: { ctx: PhoneCtx }) {
       <section className="phone-card going-tier" aria-label={t('Your lifestyle')}>
         <div className="spread">
           <span>
-            {t('Your lifestyle: tier {n} ({name})', { n: mine, name: lifestyleName(view, mine) })}
+            {t('Your standard of living: level {n} ({name})', {
+              n: mine,
+              name: lifestyleName(view, mine),
+            })}
           </span>
           <span className="tier-dots" aria-hidden="true">
             {[1, 2, 3, 4, 5].map((n) => (
@@ -101,10 +104,10 @@ export function GoingOut({ ctx }: { ctx: PhoneCtx }) {
       {[...byTier.entries()]
         .sort((a, b) => a[0] - b[0])
         .map(([tier, list]) => (
-          <section key={tier} aria-label={t('Tier {n}', { n: tier })} data-tier-group={tier}>
+          <section key={tier} aria-label={t('Level {n}', { n: tier })} data-tier-group={tier}>
             <H>
               <span aria-hidden="true">{TIER_ICON[tier - 1] ?? '✨'}</span>{' '}
-              {t('Tier {n} · {name}', { n: tier, name: lifestyleName(view, tier) })}
+              {t('Level {n} · {name}', { n: tier, name: lifestyleName(view, tier) })}
             </H>
             <ul className="phone-list">
               {list
@@ -126,7 +129,7 @@ export function GoingOut({ ctx }: { ctx: PhoneCtx }) {
                       {a.it.locked && (
                         <span className="small going-lock" data-lock>
                           🔒{' '}
-                          {t('Unlocks at tier {n} ({name})', {
+                          {t('Unlocks at standard of living {n} ({name})', {
                             n: a.it.requiresTier,
                             name: lifestyleName(view, a.it.requiresTier),
                           })}

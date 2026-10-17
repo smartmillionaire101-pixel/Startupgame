@@ -72,7 +72,7 @@ test('day one reads plainly: pre-revenue, new, investors in town', async ({ page
   const nav = page.getByRole('navigation', { name: 'Main' });
   await nav.getByRole('button', { name: /^Today/ }).click();
   await expect(page.getByText('Pre-revenue')).toBeVisible();
-  await expect(page.getByText('Default dead')).toHaveCount(0);
+  await expect(page.getByText('Runs out before profit')).toHaveCount(0);
   await expect(page.getByText('Public warning')).toHaveCount(0);
   // News lives behind Today now.
   await page.getByRole('button', { name: /^News/ }).click();

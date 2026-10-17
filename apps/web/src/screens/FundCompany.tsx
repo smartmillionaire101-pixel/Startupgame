@@ -34,7 +34,7 @@ export function RunwayExplainer({ c }: { c: Company }) {
     lines = [
       c.monthlyRevenue > 0
         ? t('You earn at least as much as you spend each month: cash-flow positive.')
-        : t('Not currently burning: there are no monthly costs yet.'),
+        : t('Not losing money: there are no monthly costs yet.'),
     ];
   else {
     lines = [
@@ -50,19 +50,20 @@ export function RunwayExplainer({ c }: { c: Company }) {
       );
   }
   return (
-    <Card title={t('Runway in plain words')}>
-      <div aria-label={t('Runway explainer')}>
+    <Card title={t('How long your money lasts')}>
+      <div aria-label={t('Money lasts explainer')}>
         {lines.map((l) => (
           <p key={l} className="item-title">
             {l}
           </p>
         ))}
       </div>
-      <p className="small muted">
+      <details className="small muted">
+        <summary>{t('What’s this?')}</summary>
         {t(
-          'Runway is available cash divided by monthly net burn (costs minus revenue). Investment and loans add cash, but they are not revenue.',
+          'How long your money lasts (investors call it runway) is your available cash divided by what you lose each month (costs minus revenue). Investment and loans add cash, but they are not revenue.',
         )}
-      </p>
+      </details>
     </Card>
   );
 }
@@ -687,7 +688,7 @@ export function FounderMoney({ c }: { c: Company }) {
       <Card title={t('Business reserve')}>
         <p className="small muted">
           {t(
-            'Set money aside for tax and planned bills. It isn’t counted as available cash or in runway, but if a month can’t be paid, the reserve covers it first.',
+            'Set money aside for tax and planned bills. It isn’t counted as available cash or in how long your money lasts, but if a month can’t be paid, the reserve covers it first.',
           )}
         </p>
         <p className="small">
