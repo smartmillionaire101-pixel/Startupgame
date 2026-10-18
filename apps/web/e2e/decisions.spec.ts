@@ -8,6 +8,14 @@ import { expect, letters, playAsGuest, setupFounder, test, type Page } from './f
  * shows the named rivals.
  */
 
+/** Founder decisions waiting (Phase 5 life events share the list and the badge). */
+const founderDecisions = (page: Page) =>
+  page.evaluate(async () => {
+    const r = await fetch('/api/state', { headers: { 'x-runway': '1' }, cache: 'no-store' });
+    const s = (await r.json()) as { view?: { decisions: { open: { life: boolean }[] } } };
+    return (s.view?.decisions.open ?? []).filter((e) => !e.life).length;
+  });
+
 const settle = (page: Page) =>
   page.evaluate(async () => {
     const r = await fetch('/api/dev/settle', {
@@ -35,6 +43,8 @@ test('a decision appears, the founder chooses, and sees what happened', async ({
   const badge = page.locator('[data-decisions-badge]');
   for (let i = 0; i < 12; i++) {
     expect(await settle(page)).toBe(200);
+    // A life event alone (it shows the badge too) isn't what this spec is about.
+    if (!(await founderDecisions(page))) continue;
     await page.reload();
     await page.locator('.topbar').waitFor();
     // Give a slow deploy time to load the view: a decision missed here would take

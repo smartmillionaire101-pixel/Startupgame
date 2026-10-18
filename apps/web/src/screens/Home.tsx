@@ -120,7 +120,7 @@ export function CompanyKpis({ c }: { c: Company }) {
     <div className="kpis">
       <Stat
         icon="wallet"
-        label={t('Cash')}
+        label={t('Company bank')}
         value={money(c.cash, cur)}
         hint={t('Spending {amount}/mo', { amount: money(c.burn, cur) })}
       />

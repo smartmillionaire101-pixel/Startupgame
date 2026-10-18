@@ -234,7 +234,20 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
   }, [peopleKey]);
 
   // ---- You.
-  const meKey = `${me.skin}${me.hair}${me.hairStyle}${me.top}${me.bottom}${me.accessory}`;
+  const meKey = [
+    me.skin,
+    me.hair,
+    me.hairStyle,
+    me.top,
+    me.bottom,
+    me.accessory,
+    // Phase 6a: the creator's parts.
+    me.face,
+    me.facialHair,
+    me.glasses,
+    me.headwear,
+    me.topStyle,
+  ].join('|');
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;

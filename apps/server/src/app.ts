@@ -1388,6 +1388,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
               handle: p.handle,
               role: p.role,
               backgroundId: p.backgroundId,
+              // Phase 6a: how they look, so they're drawn as they made themselves.
+              gender: p.gender ?? null,
+              appearance: p.appearance ?? null,
+              appearanceAt: p.appearanceAt ?? null,
               stars: p.stars.value,
               company: company?.name ?? null,
               x: r.x,
@@ -1482,6 +1486,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
               handle: p.handle,
               role: p.role,
               backgroundId: p.backgroundId,
+              // Phase 6a: how they look, so they're drawn as they made themselves.
+              gender: p.gender ?? null,
+              appearance: p.appearance ?? null,
+              appearanceAt: p.appearanceAt ?? null,
               stars: p.stars.value,
               company: company?.name ?? null,
               market,

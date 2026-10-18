@@ -11,8 +11,7 @@ import { contactsOf, type ContactView } from '../city/people';
 import { flightsOf } from '../city/travel';
 import { BankPicker } from './common';
 import { WealthCard } from './Capital';
-import { AvatarFigure, avatarLook } from '../city/art';
-import { genderOf } from '../city/life';
+import { MyLook } from '../avatar/EditLook';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
 import { FoundBank } from './Bank';
@@ -122,11 +121,8 @@ function Profile() {
     <>
       <section className="card profile-card">
         <header className="profile-head">
-          <span className="profile-avatar" aria-hidden="true">
-            <svg viewBox="-16 -46 32 50" width="44" height="70">
-              <AvatarFigure look={avatarLook(me.background?.id, me.id, genderOf(me))} />
-            </svg>
-          </span>
+          {/* Phase 6a: your portrait, and the character creator under it. */}
+          <MyLook />
           <span className="profile-who">
             <h2>{me.name}</h2>
             <span className="small muted">@{me.handle}</span>

@@ -183,7 +183,7 @@ export function bumpStress(p: Player, by: number): number {
 }
 
 /** Change energy (clamped 0–100); returns the change actually applied. */
-function bumpEnergy(p: Player, by: number): number {
+export function bumpEnergy(p: Player, by: number): number {
   const before = p.energy;
   p.energy = clamp(before + by, 0, 100);
   return p.energy - before;

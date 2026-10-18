@@ -366,6 +366,10 @@ textarea {
   flex-wrap: nowrap;
 }
 /* Cash in your pocket: the HUD's headline number. */
+button.topbar-cash {
+  font-family: inherit;
+  cursor: pointer;
+}
 .topbar-cash {
   display: inline-flex;
   align-items: center;
@@ -2293,8 +2297,77 @@ main > .back-btn {
   color: #475569;
 }
 
-/* Simple mode's bigger text: the top bar keeps the city's name readable by
-   leaving out the game date (it's on the phone and the Today screen). */
+/* The top bar keeps the city's name readable on a phone (life bars, the
+   decisions badge and the phone share the line) by leaving out the game
+   date there: it's on the phone, the map and the Today screen. Simple
+   mode's bigger text always leaves it out. */
 html[data-simple] .topbar-date {
   display: none;
+}
+@media (max-width: 430px) {
+  .topbar-date {
+    display: none;
+  }
+  .brand-city {
+    min-width: 3.5em;
+  }
+}
+
+/* ---------- your money and the payday warning (MoneyOverview.tsx) */
+
+.money-sheet {
+  white-space: normal;
+  display: grid;
+  gap: var(--sp-3);
+}
+.money-block {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg, 14px);
+  background: var(--surface);
+}
+.money-block h3 {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-md);
+}
+.money-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-variant-numeric: tabular-nums;
+}
+.money-row.is-bad b {
+  color: var(--bad);
+}
+.payday-warning {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  margin: 0 0 var(--sp-2);
+  padding: 0.55rem 0.75rem;
+  border: 1.5px solid var(--bad);
+  border-radius: var(--r-lg, 14px);
+  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.payday-warning > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.payday-fix {
+  flex: none;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--r-pill);
+  background: var(--bad);
+  color: #fff;
+  font-weight: var(--fw-semibold);
+}
+.payday-options .row {
+  margin-top: var(--sp-1);
 }

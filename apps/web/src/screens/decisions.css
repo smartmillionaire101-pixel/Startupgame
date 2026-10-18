@@ -93,3 +93,116 @@
   top: -2px;
   right: -2px;
 }
+/* Phase 5: a life event's card (BitLife-style): picture, story, big choices, the result. */
+.decision-row-emoji {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.life-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.life-card-pic {
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--surface-2, rgba(127, 127, 127, 0.12));
+  font-size: 3rem;
+  line-height: 1;
+}
+.life-card-tags {
+  justify-content: center;
+}
+.life-card-story {
+  margin: 0;
+  text-align: center;
+  font-size: 1.05rem;
+}
+.life-choices {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.life-choice-btn {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 2px solid var(--accent, #3b6cf6);
+  border-radius: 14px;
+  background: var(--surface, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.life-choice-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  border-color: var(--line, rgba(127, 127, 127, 0.3));
+}
+.life-choice-label {
+  font-size: 1.05rem;
+}
+.life-choice-odds {
+  font-style: italic;
+}
+.life-choice-effects,
+.life-choice-outcome {
+  overflow-wrap: anywhere;
+}
+.life-card-default {
+  margin: 0;
+  text-align: center;
+}
+.life-result {
+  display: grid;
+  gap: 8px;
+  text-align: center;
+}
+.life-result p {
+  margin: 0;
+}
+.life-result-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.life-result-changes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.life-result-changes li {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface-2, rgba(127, 127, 127, 0.1));
+}
+.life-result-changes li.good b,
+.life-result-changes li.good {
+  color: var(--good, #1a7f37);
+}
+.life-result-changes li.bad b,
+.life-result-changes li.bad {
+  color: var(--bad, #c62828);
+}
+/* Simple mode: bigger buttons and text on the card. */
+html[data-simple] .life-choice-btn {
+  min-height: 72px;
+  padding: 16px;
+  font-size: 1.1rem;
+}
+html[data-simple] .life-choice-label {
+  font-size: 1.2rem;
+}
+html[data-simple] .life-card-story {
+  font-size: 1.15rem;
+}

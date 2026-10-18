@@ -12,6 +12,7 @@ import { PUBLIC_MULTIPLES } from './data/markets.js';
 import { rulesFor } from './data/rules.js';
 import type { Command } from './commands.js';
 import { SYSTEM_COMMANDS } from './commands.js';
+import { appearanceSeed, defaultAppearance } from './appearance.js';
 import { payExpense } from './firstsession.js';
 import { comply, pivot, setTargets, shutdownCompany } from './company.js';
 import { actOnDeal, canAct, monthlyPayment, openDeal } from './deals.js';
@@ -350,6 +351,17 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     return playCommand(world, me, cmd as Extract<Command, { type: `play.${string}` }>, ctx.now);
 
   switch (cmd.type) {
+    case 'player.appearance': {
+      // Cosmetic: how you're drawn, never a number in the simulation. Parts
+      // left out keep what you had, or the look your seed gave you.
+      const was = me.appearance ?? defaultAppearance(appearanceSeed(me), me.gender);
+      const next = { ...was };
+      for (const [k, v] of Object.entries(cmd.appearance))
+        if (v !== undefined) (next as Record<string, unknown>)[k] = v;
+      me.appearance = next;
+      me.appearanceAt = ctx.now;
+      return { appearance: next };
+    }
     case 'player.profile': {
       const bg = backgroundById(cmd.backgroundId);
       ensure(bg && bg.role === me.role, 'player.background', 'Pick a background for your role.');
@@ -694,7 +706,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return { pitchId: p.id, status: p.status, reason: p.reason };
     }
     case 'pitch.answer': {
-      const p = answerPitch(world, cmd.pitchId, me.id, cmd.answers);
+      const p = answerPitch(world, cmd.pitchId, me.id, cmd.answers, cmd.figures);
       return { pitchId: p.id, status: p.status, reason: p.reason, dealId: p.dealId };
     }
     case 'pitch.partners': {
@@ -1432,6 +1444,9 @@ function anonymize(world: World, playerId: Id) {
   p.handle = `former_${p.id.slice(-6)}`;
   p.trust = {};
   p.contacts = [];
+  // A look picked to resemble them goes too (they're drawn from their seed again).
+  delete p.appearance;
+  delete p.appearanceAt;
   // Other players' contact cards stop naming them.
   for (const other of Object.values(world.players))
     for (const c of other.contacts ?? [])

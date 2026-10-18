@@ -40,6 +40,11 @@ export async function withoutNetlifyDrawer(page: Page) {
       if (!localStorage.getItem('runway.simple')) localStorage.setItem('runway.simple', '0');
       if (!localStorage.getItem('runway.gestureHint'))
         localStorage.setItem('runway.gestureHint', '1');
+      // Phase 5: life events pop up as cards when a month settles; specs
+      // about other things don't see them open by themselves (the events
+      // still come, in the Decisions list). life-events.spec.ts turns it on.
+      if (!localStorage.getItem('runway.lifeEventsPopup'))
+        localStorage.setItem('runway.lifeEventsPopup', '0');
     } catch {
       /* storage blocked: rides play */
     }

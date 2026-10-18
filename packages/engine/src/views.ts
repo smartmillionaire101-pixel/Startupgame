@@ -1,5 +1,6 @@
 import { barEffects, barsOf } from './lifebars.js';
 import { lifeBarsOn } from './releases.js';
+import { pitchQuestionsNow } from './fundraising.js';
 import { journeyView } from './journey.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
 import { allocatorView } from './allocator.js';
@@ -26,7 +27,7 @@ import { INDUSTRY_LABEL } from './data/industries.js';
 import { rulesFor } from './data/rules.js';
 import { markValue, ownership, waterfall } from './captable.js';
 import { clockView, gameDate } from './clock.js';
-import { companyRunway, defaultAlive } from './company.js';
+import { companyRunway, defaultAlive, monthlyCosts, payrollThisMonth } from './company.js';
 import { rescuePlan } from './rescue.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
@@ -179,6 +180,22 @@ export function diligenceView(world: World, c: Company, depth: number) {
           .map((p) => world.companies[p.companyId]?.name ?? ''),
       )
       .filter(Boolean),
+  };
+}
+
+/** Next month's bill against today's cash and last month's revenue (see `nextMonth`). */
+function nextMonthOf(world: World, c: Company) {
+  const cash = world.accounts[c.account]!.balance;
+  const costs = monthlyCosts(world, c);
+  const salaries = payrollThisMonth(c) + c.founderSalary * c.founderIds.length;
+  const revenue = lastPnl(c)?.revenue ?? 0;
+  const unpaid = c.finance.unpaidPayroll;
+  return {
+    costs: costs + unpaid,
+    salaries: salaries + unpaid,
+    revenue,
+    cash,
+    short: Math.max(0, costs + unpaid - cash - revenue),
   };
 }
 
@@ -753,6 +770,9 @@ export function playerView(
       gigsThisMonth: p.gigsThisMonth,
       /** Wave 5: null for saved players who never chose (the client keeps its avatar). */
       gender: p.gender ?? null,
+      /** Phase 6a: your look from the creator; null = never chosen (drawn from your seed). */
+      appearance: p.appearance ?? null,
+      appearanceAt: p.appearanceAt ?? null,
       /** Wave 5: your part-time job, or null. */
       job: myJobView(world, p),
       /** Wave 5: your furniture and how comfortable home is (0–100). */
@@ -810,6 +830,13 @@ export function playerView(
         story: c.story ?? null,
         /** The rescue plan; null when the company isn't in distress. */
         rescue: plan && plan.level ? plan : null,
+        /**
+         * Next payday, so a founder sees a shortfall coming before staff go
+         * unpaid: what next month costs at today's settings (salaries are
+         * part of it), what came in last month, and how much the company is
+         * short if revenue repeats (0 when it can pay).
+         */
+        nextMonth: c.status === 'active' ? nextMonthOf(world, c) : null,
         hibernating: !!c.hibernation,
         officeDownsized: !!c.officeDownsized,
         /** Local businesses buying from this company (Wave 3), with last month's amount. */
@@ -848,6 +875,10 @@ export function playerView(
         role: x.role,
         ai: x.ai,
         backgroundId: x.backgroundId,
+        /** Phase 6a: how they look, so they're drawn the same for everyone. */
+        gender: x.gender ?? null,
+        appearance: x.appearance ?? null,
+        appearanceAt: x.appearanceAt ?? null,
         stars: round1(x.stars.value),
         companies: x.companyIds.map((id) => world.companies[id]?.name).filter(Boolean),
         /** Your trust with them, built only through real interactions (§13). */
@@ -886,7 +917,8 @@ export function playerView(
             ? world.players[x.investorPlayerId]?.name
             : '',
         // Hide the truth behind each option; players only see the labels.
-        questions: x.questions.map((q) => ({
+        // An open pitch shows today's numbers (the life-bars note; as stored before it).
+        questions: pitchQuestionsNow(world, x).map((q) => ({
           ...q,
           options: q.options.map(({ truth: _t, claim: _c, ...o }) => o),
         })),

@@ -49,6 +49,7 @@ import type { Company, Player, World } from './types.js';
 import { journeyEventsOn } from './releases.js';
 import { rivalPressure, settleRivals } from './rivals.js';
 import { settleDecisions } from './decisions.js';
+import { settleLifeEvents } from './lifeevents.js';
 import { settlePublicMarket } from './exits.js';
 import { settleCareers, settleMentorships } from './allocator.js';
 
@@ -185,6 +186,8 @@ export function settleMarket(
   // Journey 4a (after the release note only): rivals move, then decision events (own streams).
   settleRivals(world, marketId, month);
   settleDecisions(world, marketId, month);
+  // Phase 5 (life-bars worlds only): friends' loans come back, new life events (own streams).
+  settleLifeEvents(world, marketId, month);
   reporterOutreach(world, marketId, rng, month);
   maintainPopulation(world, marketId, rng, now);
   inactivity(world, marketId, now, month, clock.monthMs);

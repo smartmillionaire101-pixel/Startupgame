@@ -23,6 +23,7 @@ export const travel: Record<string, string> = {
   'Fly home': 'Rentrer en avion',
   'Taking off from {city}': 'Décollage de {city}',
   'Flying to {city}': 'En vol vers {city}',
+  'Above the clouds, on the way to {city}': 'Au-dessus des nuages, en route vers {city}',
   'Landing in {city}': 'Atterrissage à {city}',
   'Taxiing to the gate…': 'Roulage vers la porte…',
   'Welcome to {city}': 'Bienvenue à {city}',

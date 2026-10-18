@@ -17,6 +17,7 @@
  * the English here is for the API and the inbox.
  */
 import type { DecisionFamily } from '../types.js';
+import { LIFE_EVENT_TEMPLATES } from './lifeevents.js';
 
 export interface DecisionChoiceData {
   id: string;
@@ -391,5 +392,6 @@ export const DECISION_TEMPLATES: DecisionTemplateData[] = [
   },
 ];
 
+/** A founder decision's template, or a life event's (Phase 5: answered the same way). */
 export const decisionTemplate = (id: string): DecisionTemplateData | undefined =>
-  DECISION_TEMPLATES.find((t) => t.id === id);
+  DECISION_TEMPLATES.find((t) => t.id === id) ?? LIFE_EVENT_TEMPLATES.find((t) => t.id === id);

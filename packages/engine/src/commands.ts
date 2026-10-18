@@ -11,12 +11,18 @@ import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { STARTER_EXPENSE_IDS } from './data/ideas.js';
 import { REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
+import { appearanceSchema } from './appearance.js';
 
 const id = z.string().min(1).max(64);
 const money = z.number().int().nonnegative().max(1e15);
 const market = z.enum(MARKET_IDS);
 const industry = z.enum(INDUSTRIES);
 const answers = z.record(z.string().max(32), z.string().max(32));
+/**
+ * Typed pitch answers by question id: customers, money (minor units) or
+ * months. The engine checks each against its question's kind and bounds.
+ */
+const figures = z.record(z.string().max(32), z.number().finite().nonnegative().max(1e15));
 
 export const companySetup = z.object({
   name: z.string().min(3).max(32),
@@ -91,6 +97,16 @@ export const commandSchema = z.discriminatedUnion('type', [
     gender: z.enum(['female', 'male']).optional(),
     backgroundId: z.string().max(32),
     investor: investorSetup.optional(),
+  }),
+  /**
+   * Phase 6a: how you look (the character creator, a haircut). Cosmetic only.
+   * Any parts left out keep what you had (or your seeded look).
+   */
+  z.object({
+    type: z.literal('player.appearance'),
+    appearance: appearanceSchema
+      .partial()
+      .refine((a) => Object.values(a).some((v) => v !== undefined), 'Change at least one part.'),
   }),
   z.object({
     type: z.literal('player.create'),
@@ -188,7 +204,13 @@ export const commandSchema = z.discriminatedUnion('type', [
     slides: z.array(z.string().max(16)).min(1).max(5),
     ask: money,
   }),
-  z.object({ type: z.literal('pitch.answer'), pitchId: id, answers }),
+  z.object({
+    type: z.literal('pitch.answer'),
+    pitchId: id,
+    answers,
+    /** Life-bars note: a typed figure instead of a picked option, per numeric question. */
+    figures: figures.optional(),
+  }),
   z.object({ type: z.literal('pitch.partners'), pitchId: id }),
   // ---- deals
   z.object({
@@ -452,6 +474,8 @@ export const commandSchema = z.discriminatedUnion('type', [
   /**
    * Founder Journey 4a: answer a decision event (view.decisions). Unanswered
    * ones resolve to their default at the settlement after the deadline.
+   * Phase 5 life events (`life: true` in the view) are answered the same
+   * way; the result then carries `result` (the bars that moved, your cash).
    */
   z.object({
     type: z.literal('event.choose'),

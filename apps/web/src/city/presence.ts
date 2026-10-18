@@ -10,6 +10,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import { normPresence, type PresenceView } from './people';
+import { rememberLook } from './acts/look';
+
+/** Phase 6a: note each player's look, so every drawing of them finds it by id. */
+function remember(players: PresenceView[]) {
+  for (const p of players) rememberLook(p.id, p.appearance, p.appearanceAt);
+  return players;
+}
 
 export const POLL_MS = 5_000;
 export const HEARTBEAT_MS = 30_000;
@@ -47,7 +54,7 @@ export function usePresence({ enabled, selfId }: { enabled: boolean; selfId: str
           const raw = await api.presence();
           // The same players where they were: keep the old list, so the map
           // and the HUD don't re-render every few seconds for nothing.
-          if (!stopped) setPlayers((was) => same(was, normPresence(raw, selfId)));
+          if (!stopped) setPlayers((was) => same(was, remember(normPresence(raw, selfId))));
         } catch (e) {
           if (isMissing(e)) {
             missing = true;
@@ -128,7 +135,7 @@ export function usePlacePresence({
         try {
           const raw = await api.presence(place);
           const now = Date.now();
-          for (const p of normPresence(raw, selfId))
+          for (const p of remember(normPresence(raw, selfId)))
             if (p.place === place) recent.set(p.id, { p, seen: now });
             else recent.delete(p.id);
           for (const [id, r] of recent) if (now - r.seen > STICKY_MS) recent.delete(id);

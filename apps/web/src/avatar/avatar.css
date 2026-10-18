@@ -1,0 +1,128 @@
+/* ---------- Phase 6a: portraits and the character creator */
+
+.portrait {
+  display: block;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.portrait-bg {
+  fill: var(--accent-soft);
+}
+
+.creator {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+/* The preview stays in sight while you scroll the swatches. */
+.creator-preview {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  /* The sheet's own background, so the sticky preview doesn't read as a box. */
+  background: var(--bg);
+}
+.creator-portrait {
+  box-shadow: var(--sh-1);
+}
+.creator-tabs {
+  flex-wrap: wrap;
+}
+.creator-tabs button {
+  min-height: 44px;
+}
+.creator-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.creator-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.creator-swatch {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  cursor: pointer;
+  padding: 0;
+}
+.creator-swatch[aria-pressed='true'],
+.creator-thumb[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--accent);
+}
+.creator-thumbs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: var(--sp-2);
+}
+.creator-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.creator-thumb-name {
+  font-size: var(--fs-2xs, 0.6875rem);
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.creator-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+.creator-actions .btn {
+  flex: 1 1 auto;
+}
+
+/* Simple mode: bigger targets. */
+html[data-simple] .creator-swatch {
+  width: 52px;
+  height: 52px;
+}
+html[data-simple] .creator-thumbs {
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+}
+html[data-simple] .creator-tabs button {
+  min-height: 52px;
+}
+
+/* Where a portrait stands in for initials or a figure. */
+.phone-avatar.has-portrait {
+  padding: 0;
+  background: none;
+  overflow: hidden;
+}
+.profile-look {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+/* Who's here: the role colour behind the face stays (whoishere.css). */
+.who-face .portrait-bg {
+  fill: transparent;
+}

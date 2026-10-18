@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { amountInput, money, parseAmount, titleCase } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView, type Company } from '../store';
+import type { PitchFigure } from '@runway/engine';
 import { Button, Card, Empty, Field, Fold, Pill, Sheet, Sparkline, Stat } from '../ui';
 import { BankPicker, DealList, stageLabel } from './common';
 import { ExitOptions, WealthCard } from './Capital';
@@ -322,11 +323,43 @@ export function PitchSheet({
   );
 }
 
+/**
+ * A typed pitch answer as the engine wants it: whole customers, money in
+ * minor units (the box takes major units, "12k" too), or months. Null when
+ * the box is empty or isn't a number.
+ */
+export function figureValue(kind: PitchFigure, input: string): number | null {
+  if (!input.trim()) return null;
+  if (kind === 'money') return parseAmount(input);
+  const n = Number(input.trim().replace(',', '.'));
+  if (!Number.isFinite(n) || n < 0) return null;
+  return kind === 'customers' ? (Number.isInteger(n) ? n : null) : n;
+}
+
 /** The AI partner asks a few short questions; answers are checked in diligence. */
 export function PitchFlow({ pitchId }: { pitchId: string }) {
-  const { view, send } = useView();
+  const { view, send, cur: myCur } = useView();
   const p = view.pitches.find((x) => x.id === pitchId)!;
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  /** What the founder typed in "Or type your own:", by question id (raw text). */
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const cur = view.companies.find((c) => c.id === p.companyId)?.currency ?? myCur;
+  const figureOf = (q: (typeof p.questions)[number]) =>
+    q.figure && typed[q.id] !== undefined ? figureValue(q.figure, typed[q.id]!) : null;
+  const pick = (qid: string, oid: string) => {
+    setAnswers((a) => ({ ...a, [qid]: oid }));
+    setTyped(({ [qid]: _gone, ...rest }) => rest);
+  };
+  const type = (qid: string, value: string) => {
+    setTyped((x) => ({ ...x, [qid]: value }));
+    setAnswers(({ [qid]: _gone, ...rest }) => rest);
+  };
+  const figures = Object.fromEntries(
+    p.questions.flatMap((q) => {
+      const v = figureOf(q);
+      return v === null ? [] : [[q.id, v] as const];
+    }),
+  );
   if (p.status === 'partner-meeting') {
     return (
       <Card title={t('{fund}: partner meeting', { fund: p.fundName ?? '' })} tone="good">
@@ -355,19 +388,51 @@ export function PitchFlow({ pitchId }: { pitchId: string }) {
                 key={o.id}
                 className="choice"
                 aria-pressed={answers[q.id] === o.id}
-                onClick={() => setAnswers((a) => ({ ...a, [q.id]: o.id }))}
+                onClick={() => pick(q.id, o.id)}
               >
                 {tx(o.label)}
               </button>
             ))}
           </div>
+          {q.figure && (
+            <label className="row small" style={{ marginTop: '0.35rem', gap: '0.5rem' }}>
+              <span>{t('Or type your own:')}</span>
+              <input
+                type="text"
+                inputMode={q.figure === 'customers' ? 'numeric' : 'decimal'}
+                aria-label={t('Your own answer')}
+                data-figure={q.id}
+                placeholder={
+                  q.figure === 'customers'
+                    ? t('Customers')
+                    : q.figure === 'money'
+                      ? t('Amount ({cur})', { cur })
+                      : t('Months')
+                }
+                value={typed[q.id] ?? ''}
+                onChange={(e) => type(q.id, e.target.value)}
+                style={{ maxWidth: '10rem' }}
+              />
+              {typed[q.id] && figureOf(q) === null && (
+                <span className="muted">
+                  {q.figure === 'customers' ? t('A whole number, please') : t('A number, please')}
+                </span>
+              )}
+            </label>
+          )}
         </div>
       ))}
       <Button
-        disabled={p.questions.some((q) => !answers[q.id])}
+        disabled={p.questions.some((q) => !answers[q.id] && figureOf(q) === null)}
         onClick={() =>
-          void send({ type: 'pitch.answer', pitchId: p.id, answers }, (r: { reason: string }) =>
-            tx(r.reason),
+          void send(
+            {
+              type: 'pitch.answer',
+              pitchId: p.id,
+              answers,
+              ...(Object.keys(figures).length ? { figures } : {}),
+            },
+            (r: { reason: string }) => tx(r.reason),
           )
         }
       >

@@ -149,7 +149,7 @@ export function MessagesList({
           {convos.map((c) => (
             <li key={c.key}>
               <button className="phone-row" onClick={() => onOpen(c.ref)}>
-                <Avatar name={c.name} ai={c.ai} />
+                <Avatar name={c.name} ai={c.ai} id={'player' in c.ref ? c.ref.player : c.ref.ai} />
                 <span className="phone-row-main">
                   <span className="item-title">{c.name}</span>
                   <span className="small muted">{c.sub}</span>
@@ -199,7 +199,7 @@ export function NewMessage({ onPick }: { onPick: (r: ThreadRef) => void }) {
             {shownPlayers.map((p) => (
               <li key={p.id}>
                 <button className="phone-row" onClick={() => onPick({ player: p.id })}>
-                  <Avatar name={p.name} />
+                  <Avatar name={p.name} id={p.id} />
                   <span className="phone-row-main">
                     <span className="item-title">{p.name}</span>
                     <span className="small muted">{kindName(p.role)}</span>
@@ -226,7 +226,7 @@ export function NewMessage({ onPick }: { onPick: (r: ThreadRef) => void }) {
                     data-character={p.id}
                     onClick={() => onPick({ ai: p.id })}
                   >
-                    <Avatar name={p.name} ai />
+                    <Avatar name={p.name} ai id={p.id} />
                     <span className="phone-row-main">
                       <span className="item-title">{p.name}</span>
                       <span className="small muted">
@@ -442,7 +442,7 @@ export function AiThreadView({
   return (
     <div className="phone-thread" data-thread={thread.characterId}>
       <div className="phone-thread-head">
-        <Avatar name={thread.name} ai />
+        <Avatar name={thread.name} ai id={thread.characterId} />
         <div className="phone-row-main">
           <div className="item-title">{thread.name}</div>
           <div className="small muted">
@@ -733,7 +733,7 @@ export function PlayerThreadView({
   return (
     <div className="phone-thread" data-player-thread={playerId}>
       <div className="phone-thread-head">
-        <Avatar name={name} />
+        <Avatar name={name} id={playerId} />
         <div className="phone-row-main">
           <div className="item-title">{name}</div>
           {other && <div className="small muted">{kindName(other.role)}</div>}

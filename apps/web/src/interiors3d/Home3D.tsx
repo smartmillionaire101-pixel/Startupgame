@@ -598,7 +598,9 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
           busy = true;
         }
         const prev = last.get(p.id);
-        if (prev && prev.hair !== `${p.look.hairStyle}${p.look.hair}`) setHair(c, p.look);
+        // The hair group also carries facial hair and headwear (Phase 6a).
+        const hairKey = `${p.look.hairStyle}${p.look.hair}${p.look.facialHair ?? ''}${p.look.headwear ?? ''}`;
+        if (prev && prev.hair !== hairKey) setHair(c, p.look);
         const dx = prev ? p.x - prev.x : 0;
         const dy = prev ? p.y - prev.y : 0;
         const movingNow = Math.hypot(dx, dy) > 1e-4;
@@ -609,7 +611,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
           y: p.y,
           ry,
           moving: movingNow ? 0.12 : Math.max(0, (prev?.moving ?? 0) - dt),
-          hair: `${p.look.hairStyle}${p.look.hair}`,
+          hair: hairKey,
         };
         last.set(p.id, st);
         const walking = st.moving > 0;

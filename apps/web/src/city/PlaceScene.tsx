@@ -31,7 +31,8 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Card, Empty, Pill } from '../ui';
 import { PitchSheet } from '../screens/Money';
-import { AvatarFigure, avatarLook } from './art';
+import { AvatarFigure, appearanceOfLook, avatarLook } from './art';
+import { api } from '../api';
 import {
   activeCompany,
   angelsOf,
@@ -827,7 +828,17 @@ function RoomScene({
       setAct((a) => (a?.n === n ? null : a));
       return;
     }
-    if (look) setLookOverride(view.me.id, look);
+    if (look) {
+      setLookOverride(view.me.id, look);
+      // Phase 6a: the new cut is saved with the rest of your look, for every
+      // device and every other player (the local copy shows it meanwhile).
+      api
+        .command({
+          type: 'player.appearance',
+          appearance: appearanceOfLook({ ...meLook, ...look }),
+        })
+        .catch(() => {});
+    }
     setAct((a) => (a?.n === n ? { ...a, result: r ?? {}, met: metOf(r) } : a));
   };
   const doFun = (b: BusinessView, it: VenueItemView) => {

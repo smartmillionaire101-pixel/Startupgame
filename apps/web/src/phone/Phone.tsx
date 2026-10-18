@@ -691,6 +691,16 @@ function PhoneScreen(props: {
     >
       <div className={`phone-frame${home ? ' at-home' : ''}`} data-phone-app={app}>
         <StatusBar />
+        {/* The way back to the game from the phone's home screen, where the
+            only other exit was the thin bar at the bottom. */}
+        {home && (
+          <div className="phone-home-bar">
+            <button type="button" className="phone-exit" data-phone-exit="" onClick={onClose}>
+              <Icon name="chevron" size={18} strokeWidth={2.4} className="flip" />
+              {t('Back to the game')}
+            </button>
+          </div>
+        )}
         {!home && (
           <header className="phone-bar">
             <button className="phone-back" onClick={back} aria-label={t('Back')}>

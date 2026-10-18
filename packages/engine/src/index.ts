@@ -62,6 +62,31 @@ export type {
 export { txRef, parseTxRef } from './ledger.js';
 export { crowdId, crowdPerson, parseCrowdId, type CrowdRole } from './crowd.js';
 export { npcPerson, NPC_POOL } from './people.js';
+export {
+  SKIN_TONES,
+  FACE_SHAPES,
+  HAIR_STYLES,
+  HAIR_COLOURS,
+  FACIAL_HAIR,
+  GLASSES,
+  HEADWEAR,
+  TOP_STYLES,
+  TOP_COLOURS,
+  appearanceSchema,
+  appearanceSeed,
+  defaultAppearance,
+  seedGender,
+} from './appearance.js';
+export type {
+  Appearance,
+  SkinTone,
+  FaceShape,
+  HairStyle,
+  FacialHair,
+  Glasses,
+  Headwear,
+  TopStyle,
+} from './appearance.js';
 export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';
 export { checkChatMessage, startersFor, CHAT_MAX_LENGTH } from './chat.js';
 export {
@@ -104,6 +129,9 @@ export { wealthView } from './wealth.js';
 export { DECISION_TEMPLATES, DECISIONS } from './data/decisions.js';
 export { MONEY_VARS } from './decisions.js';
 export type { DecisionsView } from './decisions.js';
+// Phase 5: life events (choice cards for every player, answered with `event.choose`).
+export { LIFE_EVENTS, LIFE_EVENT_TEMPLATES, lifeEventTemplate } from './data/lifeevents.js';
+export type { LifeEventTemplateData, LifeFamily } from './data/lifeevents.js';
 export { RIVALS } from './rivals.js';
 export type { RescuePlan, RescueOption } from './rescue.js';
 export { BANK_TYPES, MIN_CAPITAL_RATIO, RESERVE_RATIO } from './banks.js';

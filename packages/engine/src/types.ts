@@ -1,3 +1,4 @@
+import type { Appearance } from './appearance.js';
 import type { Delivery, DateSession } from './living.js';
 import type { PlayRoom } from './play.js';
 /**
@@ -212,6 +213,13 @@ export interface Player {
   angel?: { fundId: Id; retiredMonth?: number };
   /** Wave 5: chosen at onboarding. Missing on old saves (the client keeps its avatar). */
   gender?: Gender;
+  /**
+   * Phase 6a: the look picked in the character creator (appearance.ts).
+   * Cosmetic. Missing = never chosen: drawn from `defaultAppearance`.
+   */
+  appearance?: Appearance;
+  /** When `appearance` last changed (ms), so a device's unsaved look knows it's older. */
+  appearanceAt?: number;
   /** Wave 5: a part-time job at a local business in the home city. Missing = none. */
   job?: PlayerJob;
   /** Wave 5: furniture in your apartment, one item per slot. Missing = bare. */
@@ -1218,9 +1226,17 @@ export interface DealCard {
 
 // ---------------------------------------------------------------- Pitches
 
+/** What a typed pitch answer measures: customers, money (minor units) or months. */
+export type PitchFigure = 'customers' | 'money' | 'months';
+
 export interface PitchQuestion {
   id: string;
   text: string;
+  /**
+   * Set on a numeric question (life-bars note): the founder may type their
+   * own figure instead of picking an option, judged against today's truth.
+   */
+  figure?: PitchFigure;
   options: {
     id: string;
     label: string;
@@ -1240,6 +1256,8 @@ export interface Pitch {
   status: 'questions' | 'partner-meeting' | 'passed' | 'term-sheet' | 'sent';
   questions: PitchQuestion[];
   answers: Record<string, string>;
+  /** Figures the founder typed instead of picking an option, by question id (life-bars note). */
+  figures?: Record<string, number>;
   reason: string;
   month: number;
   dealId: Id | null;
@@ -1832,16 +1850,36 @@ export interface SalesAccount {
 
 // ---------------------------------------------------------------- Decision events & rivals (Journey 4a)
 
-export type DecisionFamily = 'customer' | 'team' | 'competition' | 'finance' | 'social' | 'life';
+/** Founder decisions, plus (Phase 5 life events) health, money, work and city; social is shared. */
+export type DecisionFamily =
+  | 'customer'
+  | 'team'
+  | 'competition'
+  | 'finance'
+  | 'social'
+  | 'life'
+  | 'health'
+  | 'money'
+  | 'work'
+  | 'city';
 
 /** One concrete consequence of a choice, its numbers fixed when the event appears. */
 export type DecisionEffect =
   | {
       kind: 'cash';
       from: 'company' | 'personal';
-      to: 'suppliers' | 'payroll' | 'customers';
+      /** `lifestyle`: someone outside the game (a friend you lend to, a gift). */
+      to: 'suppliers' | 'payroll' | 'customers' | 'lifestyle';
       amount: number;
     }
+  /** Phase 5 life events: money in from someone outside the game (a client, the tax office). */
+  | { kind: 'income'; from: 'gigs' | 'tax' | 'lifestyle'; amount: number }
+  /** Phase 5: money lent out comes back from `lifestyle` this many months later. */
+  | { kind: 'repay'; amount: number; months: number }
+  /** Phase 5 life bars, through the lifebars helpers (happiness: fun and social each by `n`). */
+  | { kind: 'health'; n: number }
+  | { kind: 'stress'; n: number }
+  | { kind: 'happiness'; n: number }
   /** Shown, not applied: a rival's move keeps weighing on win chances by about this much. */
   | { kind: 'pressure'; pct: number }
   | { kind: 'hours'; n: number }
@@ -1899,11 +1937,24 @@ export interface DecisionEvent {
   customer?: SalesCustomer;
   /** An existing deal it's about. */
   dealId?: Id;
+  /** Phase 5: a life event (lifeevents.ts), drawn for every human, not just founders. */
+  life?: boolean;
+  /** Phase 5, once a life event is answered (or defaulted): what actually changed. */
+  result?: LifeEventResult;
+}
+
+/** What a life event's choice changed: the bars (only those that moved) and your cash. */
+export interface LifeEventResult {
+  bars: Partial<Record<'energy' | 'health' | 'happiness' | 'stress', number>>;
+  /** Change in your local account (minor units; negative: spent). */
+  cash: number;
 }
 
 export interface PlayerDecisions {
   seq: number;
   events: DecisionEvent[];
+  /** Phase 5: loans to friends, paid back (from `lifestyle`) at the settlement of month `due`. */
+  repayments?: { due: number; amount: number; market: MarketId; memo: string }[];
   /** Template id (or `family:<f>`) → first month it may fire again. */
   cooldowns: Record<string, number>;
 }

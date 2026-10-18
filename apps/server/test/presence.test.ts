@@ -174,6 +174,9 @@ describe('presence routes', () => {
       handle: 'gamma_three',
       role: 'founder',
       backgroundId: 'f-engineer',
+      gender: game.current.players[cId]!.gender ?? null,
+      appearance: null,
+      appearanceAt: null,
       stars: game.current.players[cId]!.stars.value,
       company: expect.stringContaining('Trader Pay'),
       x: 50,
@@ -234,6 +237,37 @@ describe('presence routes', () => {
     expect((await c.get('/api/presence')).json().players.map((p: { id: string }) => p.id)).toEqual([
       bId,
     ]);
+  });
+
+  it('shows the look a player made in the creator (Phase 6a)', async () => {
+    const { app } = await makeApp();
+    const a = api(app, await signIn(app, '+2348030000011'));
+    const b = api(app, await signIn(app, '+2348030000022'));
+    await a.command(founderSetup('alpha_one'));
+    await b.command(founderSetup('beta_two'));
+    const look = {
+      skin: '#8d5524',
+      face: 'round',
+      hairStyle: 'locs',
+      hairColor: '#2b1b10',
+      facialHair: 'beard',
+      glasses: 'round',
+      headwear: 'none',
+      topStyle: 'kaftan',
+      topColor: '#16A34A',
+    };
+    expect((await a.command({ type: 'player.appearance', appearance: look })).statusCode).toBe(200);
+    await a.post('/api/presence', { x: 1, y: 2, place: null });
+    const [row] = (await b.get('/api/presence')).json().players;
+    // Colours are stored lower-case.
+    expect(row.appearance).toEqual({ ...look, topColor: '#16a34a' });
+    expect(row.appearanceAt).toBe(T0);
+    // A made-up part is refused at the door.
+    const bad = await a.command({
+      type: 'player.appearance',
+      appearance: { hairStyle: 'mohawk' },
+    });
+    expect(bad.statusCode).toBe(400);
   });
 
   it('lists players by the city they are in, visitors included (Wave 4)', async () => {

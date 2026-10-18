@@ -29,6 +29,8 @@ export const EXITS_NOTE = 'release-2026-10-16-exits';
  * happiness is read from fun and social. Walking costs hours and energy
  * (`city.walk`), rides cost a little time, everyday acts move the bars, the
  * bars settle each month, and how you feel nudges sales and pitch odds.
+ * Phase 5 life events ship under the same note (lifeevents.ts): choice cards
+ * for every player, drawn at settlement and answered with `event.choose`.
  * Worlds without this note play exactly as before (`city.walk` is unknown).
  */
 export const LIFE_BARS_NOTE = 'release-2026-10-17-life-bars';

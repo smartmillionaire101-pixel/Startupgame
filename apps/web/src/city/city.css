@@ -12,10 +12,27 @@
 .app.app-city {
   max-width: 1180px;
 }
+/* The payday warning (MoneyOverview.tsx) sits above the map: one line here,
+   and the map makes room for it so its bottom buttons stay on screen. */
+.app.app-city:has(.payday-warning) {
+  --payday-h: 52px;
+}
+.app-city .payday-warning {
+  height: 44px;
+  padding-block: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.app-city .payday-warning .small {
+  display: none;
+}
 
 .city-stage {
   position: relative;
-  height: calc(100dvh - 48px - 44px - var(--nav-h, 3.6rem) - 1rem - env(safe-area-inset-top));
+  height: calc(
+    100dvh - 48px - 44px - var(--nav-h, 3.6rem) - 1rem - env(safe-area-inset-top) -
+      var(--payday-h, 0px)
+  );
   min-height: 360px;
   border-radius: 22px;
   overflow: hidden;
@@ -498,7 +515,7 @@
 
 @media (min-width: 900px) {
   .city-stage {
-    height: calc(100dvh - 9rem - 44px);
+    height: calc(100dvh - 9rem - 44px - var(--payday-h, 0px));
   }
 }
 

@@ -41,8 +41,12 @@ import { tutorial } from './tutorial';
 import { uiFixes } from './ui-fixes';
 import { feedback } from './feedback';
 import { lifeBars } from './lifebars';
+import { moneyView } from './money-view';
 import { cityAlive } from './city-alive';
 import { simple } from './simple';
+import { pitchFigures } from './pitch-figures';
+import { avatar } from './avatar';
+import { lifeEvents } from './life-events';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -86,9 +90,13 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   uiFixes,
   feedback,
   lifeBars,
+  moneyView,
   cityAlive,
   simple,
+  pitchFigures,
   landing,
+  avatar,
+  lifeEvents,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

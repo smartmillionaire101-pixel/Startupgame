@@ -421,11 +421,11 @@ function CityBodyInner({
   // Phase 3 life bars (server release): trips cost game hours and energy.
   const lifeBars = !!view.me.bars;
   /**
-   * When goTo asked for a trip that should go at once ("Always skip rides"
-   * with the life bars). A short hop asks for no trip, so only a trip right
-   * after (within a second) counts.
+   * goTo just asked for a trip that should go at once ("Always skip rides"
+   * with the life bars). A short hop asks for no trip, so this only lasts a
+   * second.
    */
-  const autoNext = useRef(0);
+  const autoPending = useRef(0);
   const lang = useLang();
   const abroad = view.market.id !== home.id;
   const company = activeCompany(view);
@@ -528,7 +528,8 @@ function CityBodyInner({
       // walks. With "Always skip rides" and the life bars, the trip goes your
       // usual way at once (paid) instead of asking.
       else {
-        autoNext.current = lifeBars && skipRides() ? Date.now() : 0;
+        // The map reports the trip at once (inside goTo), so a ref, not state.
+        autoPending.current = lifeBars && skipRides() ? Date.now() : 0;
         mapRef.current.goTo(place.id, preferred === 'cycle' ? 'cycle' : 'walk', { ask: true });
       }
     },
@@ -579,11 +580,14 @@ function CityBodyInner({
   const visit = useCallback(
     (placeId: string) => {
       // 'market' stands for the Market's stalls ("What to do now"); 'investors'
-      // and 'bank' for their quarters (the founder journey).
+      // and 'bank' for their quarters (the founder journey). A building's id
+      // first, then a story place's name ('office', 'home': the rescue plan's
+      // buttons on the payday warning).
       const p =
         placeId === 'market' || placeId === 'investors' || placeId === 'bank'
           ? placeFor(layout, placeId)
-          : layout.places.find((x) => x.id === placeId);
+          : (layout.places.find((x) => x.id === placeId) ??
+            placeFor(layout, placeId as StoryPlace));
       setPerson(null);
       setPeopleOpen(false);
       setInside(null);
@@ -648,11 +652,11 @@ function CityBodyInner({
     mapRef.current?.ride(lifeBars ? preferred : 'walk', true);
   }, [trip, lifeBars, preferred, chargeTrip]);
   const pickRide = useCallback(
-    async (mode: RideMode, instant = false) => {
-      if (!trip) return;
+    async (mode: RideMode, instant = false, which: FarTrip | null = trip) => {
+      if (!which) return;
       rememberRide(mode);
       setPreferred(mode);
-      if (!(await chargeTrip(mode, trip.tiles))) return;
+      if (!(await chargeTrip(mode, which.tiles))) return;
       setTrip(null);
       mapRef.current?.ride(mode, instant);
     },
@@ -662,11 +666,19 @@ function CityBodyInner({
   // or a button: no chooser, go your usual way at once and pay for it. If
   // that's refused (too tired, no hours left), the chooser stays up with the
   // reason. Tapping a far building on the map still asks.
-  useEffect(() => {
-    if (!trip || Date.now() - autoNext.current > 1000) return;
-    autoNext.current = 0;
-    void pickRide(preferred, true);
-  }, [trip, preferred, pickRide]);
+  const [autoTrip, setAutoTrip] = useState<FarTrip | null>(null);
+  const onFarTrip = useCallback(
+    (next: FarTrip | null) => {
+      setTrip(next);
+      if (!next || Date.now() - autoPending.current > 1000) return;
+      autoPending.current = 0;
+      setAutoTrip(next);
+      void pickRide(preferred, true, next).finally(() => setAutoTrip(null));
+    },
+    [preferred, pickRide],
+  );
+  // While that trip is being paid for, the chooser stays hidden (no flash of it).
+  const asking = !!trip && trip !== autoTrip;
   // The founder journey's Go buttons: walk somewhere, open a tab, an app or a view.
   const journeyGo = useCallback(
     (g: JourneyGo) => {
@@ -742,7 +754,7 @@ function CityBodyInner({
             flags={flags}
             fresh={fresh}
             onArrive={onArrive}
-            onFarTrip={setTrip}
+            onFarTrip={onFarTrip}
             car={abroad ? null : car}
             properties={myHomes}
             onOpenProperty={onOpenProperty}
@@ -821,7 +833,7 @@ function CityBodyInner({
           </div>
           <GestureHint />
           <div className="city-hud city-hud-bottom">
-            {trip ? (
+            {trip && asking ? (
               <RideChooser
                 tiles={trip.tiles}
                 where={tripPlace ? labelOf(tripPlace) : ''}

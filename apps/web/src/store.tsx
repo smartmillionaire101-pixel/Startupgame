@@ -16,6 +16,7 @@ import type { Command, PlayerView } from '@runway/engine';
 import { api, ApiError, type Account, type Meta } from './api';
 import { recordProblem } from './feedback';
 import { t, tx } from './i18n';
+import { rememberViewLooks } from './city/acts/look';
 
 type Status = 'loading' | 'signedOut' | 'onboarding' | 'ready' | 'offline';
 
@@ -89,6 +90,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setAccount(s.account ?? { guest: false, email: null });
     if (s.onboarded) {
       versionRef.current = s.view.worldVersion;
+      // Phase 6a: everyone's saved look, for every drawing of them.
+      rememberViewLooks(s.view);
       setView(s.view);
       setStatus('ready');
     } else {

@@ -12,7 +12,9 @@ import { Bar, Button, Pill, Sheet } from '../ui';
 import { aiCharacterId, openPhone } from '../phone/bus';
 import { jobTitle } from '../screens/Company';
 import { PitchSheet, moodLabel } from '../screens/Money';
-import { AvatarFigure, avatarLook } from './art';
+import { avatarLook } from './art';
+import { useLookVersion } from './acts/look';
+import { PortraitOf } from '../avatar/Portrait';
 import { MealSheet } from './Business';
 import { activeCompany, businessesOf, hash } from './contract';
 import { looseCmd } from './life';
@@ -191,7 +193,12 @@ export function PersonCard({
   const name = person.kind === 'player' ? person.p.name : person.a.name;
   const bg = person.kind === 'player' ? person.p.backgroundId : person.a.bg;
   const gender = person.kind === 'player' ? (person.p.gender ?? null) : null;
-  const look = useMemo(() => avatarLook(bg, id, gender), [bg, id, gender]);
+  const lookV = useLookVersion();
+  const look = useMemo(
+    () => avatarLook(bg, id, gender),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lookV: a saved look changed
+    [bg, id, gender, lookV],
+  );
   const role = person.kind === 'player' ? person.p.role : person.a.kind;
 
   const refs =
@@ -270,9 +277,8 @@ export function PersonCard({
               className={`person-portrait person-${person.kind === 'player' ? 'player' : person.a.kind}`}
               aria-hidden="true"
             >
-              <svg viewBox="-16 -46 32 50" width="56" height="88">
-                <AvatarFigure look={look} />
-              </svg>
+              {/* Phase 6a: their face, as they made it (or as their seed gives it). */}
+              <PortraitOf look={look} size={72} />
             </div>
             <div className="person-id">
               <div className="item-title">{name}</div>

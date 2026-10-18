@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { BACKGROUNDS, type Background } from '@runway/engine';
+import { BACKGROUNDS, type Appearance, type Background } from '@runway/engine';
 import { api } from '../api';
 import { t, tx } from '../i18n';
 import { useGame } from '../store';
-import { Button, Field } from '../ui';
-import { AvatarFigure, avatarLook } from '../city/art';
+import { Button, Field, Sheet } from '../ui';
+import { AvatarFigure, avatarLook, lookFromAppearance } from '../city/art';
+import { Creator, randomAppearance } from '../avatar/Creator';
+import { PortraitOf } from '../avatar/Portrait';
 import { markJoinedHere } from '../phone/settings';
 import { markNewPlayer } from '../tutorial/state';
 import '../tutorial/tutorial.css';
@@ -13,9 +15,9 @@ type Gender = 'female' | 'male';
 
 /** Founder Journey 6: the founder backgrounds offered on the entry screen. */
 const FOUNDER_CHOICES = ['f-engineer', 'f-consultant', 'f-dropout', 'f-banker'];
-/** Outfit colours (null: the background's own outfit). */
+/** Outfit colours (null: the colour your look came with). */
 const OUTFITS: { c: string | null; name: () => string }[] = [
-  { c: null, name: () => t('Your background’s outfit') },
+  { c: null, name: () => t('Your look’s colour') },
   { c: '#dc2626', name: () => t('Red') },
   { c: '#2563eb', name: () => t('Blue') },
   { c: '#16a34a', name: () => t('Green') },
@@ -70,6 +72,14 @@ export function Onboarding({ embedded = false }: { embedded?: boolean }) {
   const [role, setRole] = useState<'founder' | 'investor' | 'banker'>('founder');
   const [background, setBackground] = useState('f-engineer');
   const [outfit, setOutfit] = useState<string | null>(null);
+  // Phase 6a: a random look to start from (the creator is optional); once you
+  // edit it, it stays yours when you change who you are.
+  const [look, setLook] = useState<Appearance>(() => randomAppearance());
+  const [custom, setCustom] = useState(false);
+  const pickGender = (g: Gender) => {
+    setGender(g);
+    if (!custom) setLook(randomAppearance(g));
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submit = async (event: FormEvent) => {
@@ -89,8 +99,19 @@ export function Onboarding({ embedded = false }: { embedded?: boolean }) {
         market,
         ...(role === 'founder' ? { backgroundId: background } : {}),
       });
-      // Founders get the guided first session; everyone keeps the outfit colour.
-      markNewPlayer({ founder: role === 'founder', top: outfit });
+      // Phase 6a: the look you see is the look you get (made or random).
+      const saved = await api
+        .command({
+          type: 'player.appearance',
+          appearance: outfit ? { ...look, topColor: outfit } : look,
+        })
+        .then(
+          () => true,
+          () => false,
+        );
+      // Founders get the guided first session; the outfit colour is kept on
+      // this device too if the look couldn't be saved.
+      markNewPlayer({ founder: role === 'founder', top: saved ? null : outfit });
       // Phase 2: a player who joins from Simple mode's start day gets it on by default.
       markJoinedHere();
       toast(t('Welcome to Runway.'), 'ok');
@@ -128,7 +149,7 @@ export function Onboarding({ embedded = false }: { embedded?: boolean }) {
                 type="button"
                 className={gender === g ? 'on' : undefined}
                 aria-pressed={gender === g}
-                onClick={() => setGender(g)}
+                onClick={() => pickGender(g)}
               >
                 {g === 'female' ? t('Woman') : t('Man')}
               </button>
@@ -153,9 +174,15 @@ export function Onboarding({ embedded = false }: { embedded?: boolean }) {
             ))}
           </div>
         </div>
-        <Appearance
+        <LookChoice
           background={role === 'founder' ? background : undefined}
           gender={gender}
+          look={look}
+          setLook={(a) => {
+            setLook(a);
+            setCustom(true);
+            setOutfit(null);
+          }}
           outfit={outfit}
           setOutfit={setOutfit}
         />
@@ -266,41 +293,72 @@ function BackgroundChoice({ value, onChange }: { value: string; onChange: (id: s
   );
 }
 
-/** A preview of your character and an outfit colour (saved on this device). */
-function Appearance({
+/**
+ * A preview of your character, an outfit colour, and (Phase 6a) the
+ * character creator behind "Make my look". Skipping it keeps the random look.
+ */
+function LookChoice({
   background,
   gender,
+  look,
+  setLook,
   outfit,
   setOutfit,
 }: {
   background?: string;
   gender: Gender | null;
+  look: Appearance;
+  setLook: (a: Appearance) => void;
   outfit: string | null;
   setOutfit: (c: string | null) => void;
 }) {
-  const base = avatarLook(background, 'preview', gender);
-  const look = outfit ? { ...base, top: outfit } : base;
+  const [open, setOpen] = useState(false);
+  const g = gender ?? 'female';
+  const bottom = avatarLook(background, 'preview', g).bottom;
+  const shown = lookFromAppearance(outfit ? { ...look, topColor: outfit } : look, g, bottom);
   return (
-    <div className="onboard-look" role="group" aria-label={t('Outfit colour')}>
-      <svg viewBox="-16 -46 32 50" width="44" height="70" aria-hidden="true">
-        <AvatarFigure look={look} />
-      </svg>
-      <div className="stack">
-        <span className="field-label">{t('Outfit colour')}</span>
-        <div className="onboard-swatches">
-          {OUTFITS.map(({ c, name }) => (
-            <button
-              key={c ?? 'default'}
-              type="button"
-              className="onboard-swatch"
-              aria-pressed={outfit === c}
-              aria-label={name()}
-              style={{ background: c ?? base.top }}
-              onClick={() => setOutfit(c)}
-            />
-          ))}
+    <div className="stack">
+      <div className="onboard-look" role="group" aria-label={t('Outfit colour')}>
+        <PortraitOf look={shown} size={64} label={t('Your look')} />
+        <svg viewBox="-16 -48 32 52" width="40" height="66" aria-hidden="true">
+          <AvatarFigure look={shown} />
+        </svg>
+        <div className="stack">
+          <span className="field-label">{t('Outfit colour')}</span>
+          <div className="onboard-swatches">
+            {OUTFITS.map(({ c, name }) => (
+              <button
+                key={c ?? 'default'}
+                type="button"
+                className="onboard-swatch"
+                aria-pressed={outfit === c}
+                aria-label={name()}
+                style={{ background: c ?? look.topColor }}
+                onClick={() => setOutfit(c)}
+              />
+            ))}
+          </div>
         </div>
       </div>
+      <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
+        {t('Make my look')}
+      </Button>
+      {open && (
+        <Sheet title={t('Make my look')} onClose={() => setOpen(false)}>
+          <Creator
+            initial={outfit ? { ...look, topColor: outfit } : look}
+            gender={g}
+            bottom={bottom}
+            onSave={(a) => {
+              setLook(a);
+              setOpen(false);
+            }}
+            onCancel={() => setOpen(false)}
+            cancelLabel={t('Skip for now')}
+            saveLabel={t('Use this look')}
+          />
+        </Sheet>
+      )}
     </div>
   );
 }

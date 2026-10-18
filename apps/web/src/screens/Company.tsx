@@ -12,6 +12,7 @@ import { CofounderCard, HiringPipeline, TeamHealth } from './Hiring';
 import { RunwayExplainer } from './FundCompany';
 import { RivalsPanel } from './Decisions';
 import { SimpleLink } from './SimpleLink';
+import { CompanyKpis } from './Home';
 
 type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -123,6 +124,8 @@ export function CompanyScreen() {
         </span>
         <Pill>{c.industryLabel}</Pill>
       </header>
+      {/* The company's bank, spending, how long the money lasts and revenue, up front. */}
+      <CompanyKpis c={c} />
       <SimpleLink
         to="money"
         emoji="💰"

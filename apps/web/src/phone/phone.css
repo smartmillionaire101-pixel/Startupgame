@@ -243,6 +243,30 @@ body:has(.app-city) .phone-fab {
   background: rgb(255 255 255 / 0.85);
 }
 
+/* "‹ Back to the game" at the top-left of the phone's home screen. */
+.phone-home-bar {
+  flex: none;
+  display: flex;
+  padding: 0.1rem 0.7rem 0;
+}
+.phone-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.5rem;
+  padding: 0 0.9rem 0 0.55rem;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.2);
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
 /* ---- Home screen -------------------------------------------------------- */
 
 .phone-home {
