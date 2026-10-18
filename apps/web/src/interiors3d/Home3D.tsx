@@ -230,6 +230,10 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         // back up when the turn ends.
         const e0 = stage.elevation;
         const eLow = Math.min(e0, 0.66);
+        // A hotel room also steps back to show its tower, the floors above and below.
+        const z0 = stage.zoom;
+        const lz = houseRef.current?.lookZoom ?? 1;
+        const zLow = lz < 1 ? Math.min(z0, lz) : z0;
         const ease = (u: number) => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
         let done = false;
         const stop = () => {
@@ -237,10 +241,12 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
           done = true;
           off();
           const eNow = stage.elevation;
+          const zNow = stage.zoom;
           const t1 = performance.now();
           const back = stage.add(() => {
             const u = reduced ? 1 : Math.min(1, (performance.now() - t1) / 600);
             stage.elevation = eNow + (e0 - eNow) * ease(u);
+            stage.zoom = zNow + (z0 - zNow) * ease(u);
             stage.updateCamera();
             if (u >= 1) back();
             return u < 1;
@@ -253,10 +259,13 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
           const u = Math.min(1, (now - t0) / MS);
           const turned = reduced ? Math.min(4, Math.floor(u * 4 + 0.001)) / 4 : u;
           const az = from + turned * Math.PI * 2;
-          const el = reduced ? eLow : e0 + (eLow - e0) * ease(Math.min(1, (now - t0) / 1200));
-          if (az !== stage.azimuth || el !== stage.elevation) {
+          const dip = reduced ? 1 : ease(Math.min(1, (now - t0) / 1200));
+          const el = e0 + (eLow - e0) * dip;
+          const zm = z0 + (zLow - z0) * dip;
+          if (az !== stage.azimuth || el !== stage.elevation || zm !== stage.zoom) {
             stage.azimuth = az;
             stage.elevation = el;
+            stage.zoom = zm;
             stage.updateCamera();
           }
           if (u >= 1) stop();

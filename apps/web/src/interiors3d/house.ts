@@ -11,7 +11,8 @@
  * mansion), a formal garden with a fountain (mansion, the very rich), a
  * gated drive with a bay for every car (a steel carport, a glass showroom,
  * chargers), hedges, palms, potted plants and the street; a penthouse sits
- * on a roof terrace with a hot tub and the city's towers round it.
+ * on a roof terrace with a hot tub and the city's towers round it; a hotel
+ * room is one room on a floor partway up its tower (./hotel-tower.ts).
  *
  * World units: one tile is one metre; tile (x, y) covers x..x+1 on X and
  * y..y+1 on Z, the floor at Y = 0, the lawn just below.
@@ -34,6 +35,7 @@ import {
   tree,
 } from './estate-models';
 import { asphaltTexture, canvasTex, cityBelow, neighbourhood, type Occluder } from './surroundings';
+import { hotelTower, type TowerSide } from './hotel-tower';
 
 export const WALL_H = 2.6;
 export const INNER_H = 1.25;
@@ -50,8 +52,8 @@ export const STOREY = 3;
 export interface WallSide {
   /** Outward normal on the floor plane. */
   n: THREE.Vector2;
-  slabs: THREE.Mesh[];
-  caps: THREE.Mesh[];
+  slabs: THREE.Object3D[];
+  caps: THREE.Object3D[];
   extras: THREE.Group;
   cut: boolean;
 }
@@ -76,6 +78,8 @@ export interface House {
   occluders: Occluder[];
   /** How far the world round the home reaches (metres). */
   reach: number;
+  /** How far Look around zooms out (1: not at all; a hotel room shows its tower). */
+  lookZoom: number;
 }
 
 function floorKind(id: RoomId, tier: number): FloorKind {
@@ -235,6 +239,9 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const H = plan.h;
   const g = o.grounds;
   const roof = g.style === 'roof';
+  // A hotel room: a floor of the hotel's tower round it (the roof is for penthouses).
+  const hotel = g.style === 'hotel' && g.hotel ? g.hotel : null;
+  let towerSides: TowerSide[] = [];
   const k = new Kit();
   // Upstairs: the grounds are a storey (or two) below.
   const level = plan.level ?? 0;
@@ -247,7 +254,21 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   // ---- The ground: your plot in its street among the neighbours, out to
   // the haze (or a roof over the city, the building under you down to the street).
   let around: { group: THREE.Group; occluders: Occluder[]; reach: number };
-  if (!roof) {
+  if (hotel) {
+    const t = hotelTower({
+      night: o.night,
+      groundY: GROUND_Y,
+      W,
+      H,
+      doorX: plan.door.x,
+      tier: hotel.tier,
+      name: hotel.name,
+      floor: hotel.floor,
+    });
+    around = t;
+    towerSides = t.sides;
+    yard.add(t.group);
+  } else if (!roof) {
     around = neighbourhood(g, { night: o.night, groundY: GROUND_Y, W, H });
     yard.add(around.group);
   } else {
@@ -363,7 +384,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     at.repeat.set(d.w / 4, d.h / 4);
     yard.add(flat(at, d.x, d.y, d.w, d.h, GROUND_Y + 0.015, roof ? 0.9 : 0.95));
   }
-  {
+  if (!hotel) {
     const p = g.path;
     const n = Math.max(1, Math.round(p.h / 0.7));
     for (let i = 0; i < n; i++)
@@ -470,6 +491,11 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const front = side(new THREE.Vector2(0, 1));
   const left = side(new THREE.Vector2(-1, 0));
   const right = side(new THREE.Vector2(1, 0));
+  // The hotel's corridor, the neighbours' rooms and the floors above cut away like the room's walls.
+  for (const t of towerSides) {
+    sides.push({ n: t.n, slabs: [t.walls], caps: [t.caps], extras: t.extras, cut: false });
+    root.add(t.walls, t.caps, t.extras);
+  }
   const o2 = THICK / 2;
   const addRun = (s: WallSide, along: 'x' | 'z', a: number, b: number, fixed: number) => {
     const len = b - a;
@@ -574,12 +600,15 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
         back.extras.add(win('x', r.x + r.w * 0.62, -o2, Math.min(1.6, r.w * 0.35)));
       sconces.push({ x: r.x + r.w * (r.w >= 3 ? 0.25 : 0.5), z: o2 + 0.02, ry: 0, s: back });
     }
+    // (A hotel room's side walls are the neighbours': no windows in them.)
     if (r.x === 0) {
-      if (r.h >= 3) left.extras.add(win('z', r.y + r.h * 0.6, -o2, Math.min(1.8, r.h * 0.4)));
+      if (r.h >= 3 && !hotel)
+        left.extras.add(win('z', r.y + r.h * 0.6, -o2, Math.min(1.8, r.h * 0.4)));
       if (r.h >= 4) sconces.push({ x: o2 + 0.02, z: r.y + r.h * 0.25, ry: Math.PI / 2, s: left });
     }
     if (r.x + r.w === W) {
-      if (r.h >= 3) right.extras.add(win('z', r.y + r.h * 0.55, W + o2, Math.min(2.0, r.h * 0.4)));
+      if (r.h >= 3 && !hotel)
+        right.extras.add(win('z', r.y + r.h * 0.55, W + o2, Math.min(2.0, r.h * 0.4)));
       if (r.h >= 4)
         sconces.push({ x: W - o2 - 0.02, z: r.y + r.h * 0.25, ry: -Math.PI / 2, s: right });
     }
@@ -706,6 +735,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     drop,
     occluders: around.occluders,
     reach: around.reach,
+    lookZoom: hotel ? 0.42 : 1,
   };
 }
 

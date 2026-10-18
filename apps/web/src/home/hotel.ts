@@ -11,8 +11,9 @@
  * - luxury: a suite, a living room (sofa, armchair, TV, desk) and a bedroom
  *   with a king bed, a big bathroom with a tub and a dressing area.
  *
- * Every room has a window on the city (the 3D view puts the room on a roof
- * among the city's towers) and your suitcase by the bed. Pure data in tiles,
+ * Every room has a window on the city (the 3D view puts the room partway up
+ * the hotel's tower, a corridor and the neighbours' rooms round it, the city
+ * far below) and your suitcase by the bed. Pure data in tiles,
  * like ./layout.ts.
  */
 import type { HotelTier } from '../city/travel';
@@ -257,16 +258,27 @@ export function hotelFurniture(plan: HomePlan, tier: HotelTier | null | undefine
 }
 
 /**
- * Round the room: the hotel's roof among the city's towers (the 3D home's
- * penthouse roof without the hot tub, the loungers or a car deck).
+ * Which floor of its tower the hotel puts you on (player feedback: "the
+ * hotel room is now on top of the building"): partway up, never the roof.
  */
-export function hotelGrounds(plan: HomePlan): Grounds {
+export const HOTEL_FLOOR: Record<HotelTier, number> = { budget: 8, business: 11, luxury: 14 };
+
+/**
+ * Round the room: a floor of the hotel's tower (the corridor along the door,
+ * the neighbours' rooms either side, more floors above and below, the city
+ * far below), no pool, no cars.
+ */
+export function hotelGrounds(
+  plan: HomePlan,
+  stay: { tier?: HotelTier | null; name?: string | null } = {},
+): Grounds {
+  const tier: HotelTier = stay.tier === 'business' || stay.tier === 'luxury' ? stay.tier : 'budget';
   const W = plan.w;
   const H = plan.h;
   const focus = { x: 0, y: 0, w: W, h: H + 0.6 };
   const r = Math.hypot(W, H) / 2 + 2;
   return {
-    style: 'roof',
+    style: 'hotel',
     lawn: { x: W / 2, y: H / 2, r },
     pool: null,
     terrace: null,
@@ -286,5 +298,6 @@ export function hotelGrounds(plan: HomePlan): Grounds {
     van: { x: W + 3, y: H + 3 },
     focus,
     view: null,
+    hotel: { tier, name: stay.name ?? '', floor: HOTEL_FLOOR[tier] },
   };
 }

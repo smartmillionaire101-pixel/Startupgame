@@ -562,18 +562,23 @@ export function cityBelow(o: {
   night: boolean;
   groundY: number;
   slab: { x: number; z: number; w: number; d: number };
+  /** How far below `groundY` the street is (default: a penthouse's roof). */
+  height?: number;
+  /** Draw the building under the slab (default; a hotel's tower draws its own). */
+  body?: boolean;
 }): Surroundings {
   const group = new THREE.Group();
   const occluders: Occluder[] = [];
   const s = o.slab;
   const slabBottom = o.groundY - 0.62;
-  const street = o.groundY - ROOF_HEIGHT;
+  const HGT = o.height ?? ROOF_HEIGHT;
+  const street = o.groundY - HGT;
   const REACH = 220;
   const cx = s.x + s.w / 2;
   const cz = s.z + s.d / 2;
 
   // ---- The building you're on, down to the street: floors of windows, a cornice.
-  {
+  if (o.body !== false) {
     const hgt = slabBottom - street;
     const tex = towerTexture(o.night);
     tex.repeat.set(Math.max(1, Math.round(s.w / 2.4)), Math.round(hgt / 3));
@@ -666,7 +671,7 @@ export function cityBelow(o: {
           )
             continue;
           const tall = rnd(n * 3 + 1) > (dist < P * 1.6 ? 0.55 : 0.7);
-          const top = tall ? ROOF_HEIGHT + 6 + rnd(n) * 40 : 10 + rnd(n + 2) * (ROOF_HEIGHT - 16);
+          const top = tall ? HGT + 6 + rnd(n) * 40 : 10 + rnd(n + 2) * (HGT - 16);
           blocks.push({
             x: qx,
             z: qz,

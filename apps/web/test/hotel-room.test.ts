@@ -45,9 +45,12 @@ describe('hotel rooms abroad (player feedback)', () => {
       expect(walkable(g, plan.door.x, plan.door.y)).toBe(true);
       for (const [id, s] of things)
         if (s) expect(findPath(g, plan.door, s.interact), `reach ${id}`).not.toBeNull();
-      // On the hotel's roof among the towers: no pool, no cars.
-      const gr = hotelGrounds(plan);
-      expect(gr.style).toBe('roof');
+      // A floor partway up the hotel's tower (not its roof): no pool, no cars.
+      const gr = hotelGrounds(plan, { tier, name: 'The Grand' });
+      expect(gr.style).toBe('hotel');
+      expect(gr.hotel).toMatchObject({ tier, name: 'The Grand' });
+      expect(gr.hotel!.floor).toBeGreaterThanOrEqual(8);
+      expect(gr.hotel!.floor).toBeLessThanOrEqual(14);
       expect(gr.pool).toBeNull();
       expect(gr.bays).toHaveLength(0);
     });

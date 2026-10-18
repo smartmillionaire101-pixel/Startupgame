@@ -355,9 +355,9 @@ export function HomeScene({
   const grounds = useMemo(
     () =>
       hotelTier
-        ? hotelGrounds(groundPlan)
+        ? hotelGrounds(groundPlan, { tier: hotelTier, name: hotel?.name })
         : groundsFor(groundPlan, garageKey ? garageKey.split(',') : []),
-    [hotelTier, groundPlan, garageKey],
+    [hotelTier, hotel?.name, groundPlan, garageKey],
   );
   const carNames = useMemo(
     () => new Map<string, string>((view.market.shop?.cars ?? []).map((c) => [c.id, c.label])),
