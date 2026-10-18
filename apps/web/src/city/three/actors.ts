@@ -89,6 +89,14 @@ const _q = new THREE.Quaternion();
 const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
+const _l = new THREE.Vector3();
+/** Where each kind's lights sit on its model (half length, half width, height, before scaling). */
+const LIGHT_AT: Record<VehicleKind, { half: number; side: number; h: number; size: number }> = {
+  car: { half: 2.2, side: 0.68, h: 0.75, size: 1 },
+  bus: { half: 5, side: 1, h: 1.1, size: 1.25 },
+  moto: { half: 0.95, side: 0, h: 0.7, size: 0.8 },
+  keke: { half: 1.3, side: 0.5, h: 0.8, size: 0.9 },
+};
 
 /** While you drive: how far around your car the traffic lives (metres). */
 export const DRIVE_TRAFFIC_R = 180;
@@ -123,6 +131,10 @@ export class Actors {
   /** Street traffic around you (the roads you're on are never empty). */
   private local: TrafficSim | null = null;
   private localMeshes: Record<VehicleKind, THREE.InstancedMesh[]> | null = null;
+  /** The street traffic's headlights and tail lights (night only), and its kinds in slot order. */
+  private localLights: THREE.Points | null = null;
+  private localKinds: VehicleKind[] = [];
+  private glowMat: THREE.Material | undefined;
   private globalMeshes: THREE.Object3D[] = [];
   private localT = 0;
   private filled = false;
@@ -145,6 +157,7 @@ export class Actors {
     glow?: THREE.Material,
   ) {
     void reduced;
+    this.glowMat = glow;
     this.leftHand = LEFT_HAND.has(layout.marketId);
     this.avatar = makeCharacter(look, { ring: '#f59e0b' });
     this.avatarGroup.add(this.avatar.root);
@@ -308,6 +321,64 @@ export class Actors {
       // Motorbikes: the rider's shirt carries the colour.
       this.localMeshes![k][k === 'moto' ? 1 : 0]!.setColorAt(j, col);
     });
+    this.localKinds = kinds;
+    if (this.glowMat) {
+      // Four points a vehicle: the front pair white, the back pair red.
+      const g = new THREE.BufferGeometry();
+      const col: number[] = [];
+      const size: number[] = [];
+      for (const k of kinds) {
+        const z = LIGHT_AT[k].size;
+        col.push(1, 0.93, 0.78, 1, 0.93, 0.78, 1, 0.12, 0.06, 1, 0.12, 0.06);
+        size.push(3.4 * z, 3.4 * z, 2.2 * z, 2.2 * z);
+      }
+      g.setAttribute(
+        'position',
+        // Out of sight until the traffic has been placed.
+        new THREE.BufferAttribute(
+          new Float32Array(n * 4 * 3).map((_, i) => (i % 3 === 1 ? -1e4 : 0)),
+          3,
+        ).setUsage(THREE.DynamicDrawUsage),
+      );
+      g.setAttribute('aColor', new THREE.Float32BufferAttribute(col, 3));
+      g.setAttribute('aSize', new THREE.Float32BufferAttribute(size, 1));
+      g.setAttribute('aBlink', new THREE.Float32BufferAttribute(new Float32Array(n * 4), 1));
+      this.localLights = new THREE.Points(g, this.glowMat);
+      this.localLights.frustumCulled = false;
+      this.localLights.renderOrder = 6;
+      this.localLights.visible = false;
+      scene.add(this.localLights);
+    }
+  }
+
+  /** The street traffic's lights, from where each vehicle was just drawn. */
+  private placeLocalLights(meshes: Record<VehicleKind, THREE.InstancedMesh[]>) {
+    const pts = this.localLights;
+    if (!pts || !(this.night > 0.02)) return;
+    const pos = pts.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const a = pos.array as Float32Array;
+    const idx: Record<VehicleKind, number> = { car: 0, bus: 0, moto: 0, keke: 0 };
+    let li = 0;
+    for (const k of this.localKinds) {
+      meshes[k][0]!.getMatrixAt(idx[k]++, _m);
+      // A hidden vehicle (scaled to nothing) keeps its lights out of sight too.
+      const hidden = Math.abs(_m.elements[0]!) + Math.abs(_m.elements[2]!) < 1e-6;
+      const L = LIGHT_AT[k];
+      for (const [f, sg] of [
+        [1, 1],
+        [1, -1],
+        [-1, 1],
+        [-1, -1],
+      ] as const) {
+        if (hidden) _l.set(0, -1e4, 0);
+        else _l.set(L.half * f, L.h, L.side * sg).applyMatrix4(_m);
+        a[li * 3] = _l.x;
+        a[li * 3 + 1] = _l.y;
+        a[li * 3 + 2] = _l.z;
+        li++;
+      }
+    }
+    pos.needsUpdate = true;
   }
 
   /** Vehicles on the streets now (the main-road fleet and the traffic around you). */
@@ -371,6 +442,7 @@ export class Actors {
     if (this.lane && this.route) this.escort(tMs, sim, meshes, vs);
     for (const list of Object.values(meshes))
       for (const m of list) m.instanceMatrix.needsUpdate = true;
+    this.placeLocalLights(meshes);
   }
 
   /**
@@ -418,6 +490,7 @@ export class Actors {
   setNight(n: number) {
     this.night = n;
     if (this.carLights) this.carLights.visible = n > 0.02;
+    if (this.localLights) this.localLights.visible = n > 0.02;
     if (this.shelters)
       (this.shelters.material as THREE.MeshStandardMaterial).emissiveIntensity = n * 0.9;
   }

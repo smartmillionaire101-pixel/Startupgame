@@ -7,6 +7,7 @@ import {
   setupFounder,
   withoutNetlifyDrawer,
   type Page,
+  openTogether,
 } from './fixtures';
 
 const state = async (p: Page): Promise<PlayerView> =>
@@ -21,7 +22,7 @@ async function founder(p: Page, name: string) {
     idea: 'Tools for local businesses',
     market: /London/,
   });
-  await expect(p.getByRole('button', { name: /^Together/ })).toBeVisible({ timeout: 30000 });
+  await expect(p.locator('.topbar')).toBeVisible({ timeout: 30000 });
 }
 
 test('Online now lists a real player, and a solo player plays a penalty shootout against AI', async ({
@@ -61,11 +62,7 @@ test('Online now lists a real player, and a solo player plays a penalty shootout
 
     // Solo: football against an AI opponent, played to the end.
     const before = (await state(page)).accounts.local!.balance;
-    await page.getByRole('button', { name: /^Together/ }).click();
-    await page
-      .getByRole('dialog', { name: 'Home and social experiences' })
-      .getByRole('button', { name: /Play football or host/ })
-      .click();
+    await (await openTogether(page)).getByRole('button', { name: /Play football or host/ }).click();
     const lobby = page.getByRole('dialog', { name: 'Play together' });
     await expect(lobby.getByRole('heading', { name: 'Nobody around? Play vs AI' })).toBeVisible();
     await lobby.getByLabel(/Stake per player/).fill('5');

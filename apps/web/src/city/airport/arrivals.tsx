@@ -29,6 +29,7 @@ import { hash } from '../contract';
 import { HOTEL_STARS } from '../HotelPicker';
 import { reduceMotion } from '../ride/state';
 import { lastFlight } from '../ticket';
+import { arrivalParty, firstOf, namesOf, type Traveller } from '../companions';
 import {
   AIRPORT_NAMES,
   airportSchedule,
@@ -394,9 +395,72 @@ interface Cast {
   crowd: AvatarLook[];
   night: boolean;
   livery: string;
+  /** Holiday with friends: who walks through with you, and who waits at the barrier. */
+  party?: { withMe: Traveller[]; waiting: Traveller[] } | null;
 }
 
-function Passport({ city, look, crowd, night, livery }: Cast) {
+/** A friend on holiday with you, with their name over their head. */
+function Friend({
+  f,
+  x,
+  y,
+  s,
+  flip,
+  wave,
+  lift = 0,
+}: {
+  f: Traveller;
+  x: number;
+  y: number;
+  s: number;
+  flip?: boolean;
+  wave?: boolean;
+  /** Lift the name tag (k-th friend) so neighbours' tags don't overlap. */
+  lift?: number;
+}) {
+  const w = Math.max(26, f.first.length * 5.2 + 10);
+  return (
+    <g data-arrival-friend={f.id} className={wave ? 'arr-friend is-waiting' : 'arr-friend'}>
+      <Person look={f.look} x={x} y={y} s={s} flip={flip} />
+      <g transform={`translate(${x} ${y - 52 * s - lift * 11})`}>
+        <rect x={-w / 2} y="-9" width={w} height="11" rx="5.5" fill="#5eead4" />
+        <text y="-0.8" fontSize="7.2" fontWeight="800" fill="#0f172a" textAnchor="middle">
+          {f.first}
+        </text>
+      </g>
+    </g>
+  );
+}
+
+/** Your friends from the flight, a step behind you (left of `x`, or right with `right`). */
+function WithYou({
+  party,
+  x,
+  y,
+  right,
+}: {
+  party: Cast['party'];
+  x: number;
+  y: number;
+  right?: boolean;
+}) {
+  return (
+    <>
+      {(party?.withMe ?? []).slice(0, 3).map((f, k) => (
+        <Friend
+          key={f.id}
+          f={f}
+          x={x + (right ? 1 : -1) * 34 * (k + 1)}
+          y={y + 2 + (k % 2) * 3}
+          s={1.3}
+          lift={k % 2}
+        />
+      ))}
+    </>
+  );
+}
+
+function Passport({ city, look, crowd, night, livery, party }: Cast) {
   const officers = [0, 1, 2].map((n) => staffLook(`${city}:officer${n}`, city, '#1e293b'));
   return (
     <Shell night={night} livery={livery} wall="#e2e8f0">
@@ -466,6 +530,7 @@ function Passport({ city, look, crowd, night, livery }: Cast) {
         </g>
       ))}
       <Case x={222} y={214} c="#f59e0b" h={16} mine />
+      <WithYou party={party} x={200} y={210} />
       <Person look={look} x={200} y={210} s={1.35} />
     </Shell>
   );
@@ -483,6 +548,7 @@ function Baggage({
   livery,
   belt,
   flight,
+  party,
 }: Cast & { belt: number; flight: string }) {
   const bags = Array.from({ length: 8 }, (_, n) => n);
   const place = (n: number) => {
@@ -621,6 +687,7 @@ function Baggage({
         <circle cx="266" cy="200" r="2.6" fill="#1f2937" />
         <circle cx="288" cy="200" r="2.6" fill="#1f2937" />
       </g>
+      <WithYou party={party} x={312} y={214} />
       <Person look={look} x={312} y={214} s={1.35} />
     </Shell>
   );
@@ -645,6 +712,7 @@ function Hall({
   night,
   livery,
   sign,
+  party,
 }: Cast & { sign: { hotel: string; name: string } | null }) {
   const h = hash(city);
   const boards = [0, 1, 2, 3].map((k) => BOARDS[(h + k * 3) % BOARDS.length]!);
@@ -654,7 +722,7 @@ function Hall({
   const barista = staffLook(`${city}:barista`, city, '#7c2d12');
   const clerk = staffLook(`${city}:sim`, city, '#6d28d9');
   const mineW = sign
-    ? Math.min(132, Math.max(sign.hotel.length * 4.3, sign.name.length * 5.4) + 14)
+    ? Math.min(150, Math.max(sign.hotel.length * 4.3, sign.name.length * 5.4) + 14)
     : 0;
   return (
     <Shell night={night} livery={livery} wall="#f1f5f9">
@@ -757,7 +825,9 @@ function Hall({
         ink="#111827"
       />
       {/* At the barrier: drivers with name boards, yours among them. */}
-      {drivers.map((d, n) => {
+      {/* Yours drawn last: a long board (everyone's names) stays on top. */}
+      {[0, 1, 3, 2].map((n) => {
+        const d = drivers[n]!;
         const x = [112, 176, 252, 330][n]!;
         const mine = n === 2 && !!sign;
         const w = mine ? mineW : 50;
@@ -851,7 +921,12 @@ function Hall({
           pack={n === 3}
         />
       ))}
+      {/* Friends who landed first, waiting for you by your driver. */}
+      {(party?.waiting ?? []).slice(0, 3).map((f, k) => (
+        <Friend key={f.id} f={f} x={226 - k * 30} y={208} s={1.25} flip wave lift={k % 2} />
+      ))}
       <Case x={74} y={216} c="#f59e0b" h={17} mine />
+      <WithYou party={party} x={56} y={216} right />
       <Person look={look} x={56} y={216} s={1.35} />
     </Shell>
   );
@@ -1002,11 +1077,25 @@ export function ArrivalScene({
     () => Array.from({ length: 10 }, (_, n) => travellerLook(`${marketId}:arrivals${n}`, marketId)),
     [marketId],
   );
-  const name = view.me.name;
+  // Holiday with friends: they come through with you, or wait at the barrier; one board for all.
+  const party = useMemo(
+    () => (arrival.home ? null : arrivalParty(view, marketId)),
+    [view, marketId, arrival.home],
+  );
+  const sameHotel = party && (!party.hotel || party.hotel === stay?.name);
+  const name = sameHotel
+    ? [
+        firstOf(view.me.name),
+        ...party.withMe.map((f) => f.first),
+        ...party.waiting.map((f) => f.first),
+      ]
+        .slice(0, 4)
+        .join(', ')
+    : view.me.name;
   const sign = stay ? { hotel: stay.name, name } : null;
 
   const next = () => setStep((s) => ARR_STEPS[Math.min(2, ARR_STEPS.indexOf(s) + 1)]!);
-  const cast: Cast = { city: marketId, look, crowd, night, livery: trip.livery };
+  const cast: Cast = { city: marketId, look, crowd, night, livery: trip.livery, party };
   const flightLine = trip.fromName
     ? t('{flight} from {city}', { flight: trip.flight, city: trip.fromName })
     : trip.flight;
@@ -1027,7 +1116,13 @@ export function ArrivalScene({
         : {
             title: t('Arrivals hall'),
             text: sign
-              ? t('A driver from {hotel} is holding a sign with your name.', { hotel: sign.hotel })
+              ? sameHotel
+                ? t('A driver from {hotel} is holding a sign with all your names.', {
+                    hotel: sign.hotel,
+                  })
+                : t('A driver from {hotel} is holding a sign with your name.', {
+                    hotel: sign.hotel,
+                  })
               : t('Taxis and rides are just outside; there’s a café and SIM cards here.'),
             go: '',
           };
@@ -1087,6 +1182,21 @@ export function ArrivalScene({
           <p className="arr-caption">
             <b>{caption.title}</b> {caption.text}
           </p>
+          {party && (
+            <p className="small arr-party" data-arrival-party="">
+              {party.withMe.length > 0 &&
+                t('{names} came off the plane with you.', { names: namesOf(party.withMe) })}
+              {party.withMe.length > 0 && party.waiting.length > 0 && ' '}
+              {party.waiting.length > 0 &&
+                (party.waiting.length > 1
+                  ? t('{names} got here first and are waiting at the barrier.', {
+                      names: namesOf(party.waiting),
+                    })
+                  : t('{names} got here first and is waiting at the barrier.', {
+                      names: namesOf(party.waiting),
+                    }))}
+            </p>
+          )}
           {step !== 'hall' && (
             <div className="arr-guide-go">
               <button type="button" className="btn btn-ghost arr-next" onClick={next}>

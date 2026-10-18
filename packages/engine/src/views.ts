@@ -58,8 +58,10 @@ import {
   myJobView,
 } from './economy.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
+import { golfView, mallView } from './leisure.js';
 import { deliveryView, homeActsView, moodOf, needsOf } from './needs.js';
 import { hangoutsView, sendLimits, techEventsView, visitingView, visitsView } from './social.js';
+import { holidaysView } from './holidays.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { myPropertiesView, netWorth, propertiesView, residenceView } from './property.js';
 import {
@@ -783,6 +785,10 @@ export function playerView(
       home: myHomeView(p),
       /** Wave 5: your car, or null. */
       car: carView(world, p),
+      /** Golf: the course in the city you're in, the green fee and your record. */
+      golf: golfView(world, p),
+      /** The mall in the city you're in: its shops' items and prices, your phone. */
+      mall: mallView(world, p),
       garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({
         ...car,
         active: car.modelId === p.car?.modelId,
@@ -816,6 +822,8 @@ export function playerView(
     visits: visitsView(world, p),
     /** Wave 8: hangouts this month you planned, were asked to or joined. */
     hangouts: hangoutsView(world, p),
+    /** Holiday with friends: this month's holidays you host or were invited on. */
+    holidays: holidaysView(world, p),
     bank: ownBankView(world, p.id),
     market: homeView,
     /** The city you're physically in (Wave 4): same shape as `market`; your home city unless you've flown. */

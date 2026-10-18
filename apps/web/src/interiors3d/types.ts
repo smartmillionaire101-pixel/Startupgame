@@ -14,6 +14,8 @@ export interface Home3DPerson {
   x: number;
   y: number;
   pose: 'stand' | 'sit' | 'lie';
+  /** Which way they face when standing still (radians; 0 = +z), when the scene says. */
+  ry?: number;
 }
 
 export interface Home3DObject {

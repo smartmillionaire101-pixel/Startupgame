@@ -19,6 +19,8 @@ import { Particles } from './fx';
 import { disposeTree, mat } from './kit';
 import { makeRig, type Rig } from './acts3d';
 import { BACK, RD, ROOM_STYLE, RW, buildVenue, vx, vz, type VenueRoom } from './venues';
+import { buildNightVenue, type NightRoom } from './nightlife3d';
+import type { NightStyle } from '../city/nightlife';
 import { Stage, gestures } from './stage';
 
 export interface VenuePerson {
@@ -37,6 +39,8 @@ export interface Venue3DProps {
   slots: Slot[];
   people: VenuePerson[];
   me: AvatarLook;
+  /** Holiday with friends: your companions, standing next to you. */
+  party?: AvatarLook[];
   act: {
     n: number;
     id: ActId;
@@ -49,6 +53,8 @@ export interface Venue3DProps {
   onPerson: (id: string) => void;
   onReady: () => void;
   reduced: boolean;
+  /** A bar, club or lounge's own style (../city/nightlife.ts): its plan, look and light. */
+  nightStyle?: NightStyle | null;
 }
 
 const POSE: Record<Activity, PoseId> = {
@@ -88,12 +94,13 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
     live.current = props;
   });
   const stageRef = useRef<Stage | null>(null);
-  const roomRef = useRef<VenueRoom | null>(null);
+  const roomRef = useRef<(VenueRoom & Partial<NightRoom>) | null>(null);
   const peopleRef = useRef(new Map<string, { c: Character; p: VenuePerson }>());
   const meRef = useRef<Character | null>(null);
+  const partyRef = useRef<Character[]>([]);
   const rigRef = useRef<{ rig: Rig; n: number; t0: number; ended: boolean } | null>(null);
 
-  const { room, tint, sign, night, slots, people, me, act } = props;
+  const { room, tint, sign, night, slots, people, me, act, nightStyle } = props;
 
   // ---- Stage and room.
   useEffect(() => {
@@ -180,9 +187,26 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const v = buildVenue({ kind: room, tint, sign, slots, night });
+    const v: VenueRoom & Partial<NightRoom> = nightStyle
+      ? buildNightVenue({ style: nightStyle, tint, sign, slots, night })
+      : buildVenue({ kind: room, tint, sign, slots, night });
     roomRef.current = v;
     stage.scene.add(v.root);
+    if (v.env) {
+      stage.hemi.intensity = v.env.hemi;
+      stage.hemi.color.set(v.env.hemiColor);
+      stage.sun.intensity = v.env.sun;
+      stage.ambient.intensity = v.env.ambient;
+      stage.hemi.userData.base = stage.hemi.intensity;
+      stage.scene.background = v.env.background;
+      stage.elevation = v.env.elevation ?? 0.68;
+      stage.updateCamera();
+      return () => {
+        stage.scene.remove(v.root);
+        disposeTree(v.root);
+        roomRef.current = null;
+      };
+    }
     const st = ROOM_STYLE[room];
     const mood = st.mood ?? 'day';
     stage.hemi.intensity = mood === 'club' ? 0.35 : mood === 'dark' ? 0.25 : night ? 0.8 : 1.25;
@@ -198,7 +222,7 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
       disposeTree(v.root);
       roomRef.current = null;
     };
-  }, [room, tint, sign, slots, night]);
+  }, [room, tint, sign, slots, night, nightStyle]);
 
   // ---- People.
   const peopleKey = people.map((p) => `${p.id}:${p.slot}:${p.act}`).join('|');
@@ -261,6 +285,23 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meKey, act?.n]);
 
+  // ---- Your companions on holiday.
+  const partyKey = (props.party ?? [])
+    .map((l) => [l.skin, l.hair, l.top, l.hairStyle].join('|'))
+    .join(';');
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const cs = (live.current.party ?? []).map((l, i) => makeCharacter(l, `party:${i}`));
+    for (const c of cs) stage.scene.add(c.root);
+    partyRef.current = cs;
+    stage.invalidate();
+    return () => {
+      for (const c of cs) stage.scene.remove(c.root);
+      partyRef.current = [];
+    };
+  }, [partyKey]);
+
   // ---- The act's rig.
   useEffect(() => {
     const stage = stageRef.current;
@@ -313,7 +354,7 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
           c.root.rotation.y = seat.ry;
           pose(c, SEATED[p.act] ?? 'sit', t, { seat: seat.h, phase: p.slot });
         } else {
-          c.root.position.set(vx(s.x), 0, vz(s.y));
+          c.root.position.set(vx(s.x), v?.lift?.get(p.slot) ?? 0, vz(s.y));
           const flip = s.flip ? -1 : 1;
           c.root.rotation.y =
             p.act === 'serving' || p.act === 'dj' || p.act === 'presenting'
@@ -322,7 +363,9 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
                 ? (-flip * Math.PI) / 2
                 : flip * 0.5;
           if (p.act === 'football') c.root.position.x += Math.sin(t * 0.8 + p.slot) * 0.8;
-          pose(c, POSE[p.act] ?? 'idle', t, { phase: p.slot });
+          const face = v?.faces?.get(p.slot);
+          if (face !== undefined) c.root.rotation.y = face;
+          pose(c, v?.poses?.[p.act] ?? POSE[p.act] ?? 'idle', t, { phase: p.slot });
         }
       }
       // You: at the door, or in the act.
@@ -358,6 +401,16 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
           }
         }
       }
+      // Your companions: beside you at the door (beside your station in an act).
+      if (you)
+        partyRef.current.forEach((c, i) => {
+          const side = i % 2 === 0 ? -1 : 1;
+          const step = Math.floor(i / 2) + 1;
+          const base = r ? r.rig.station : ent;
+          c.root.position.set(base.x + side * 0.62 * step, 0, base.z + (r ? 0.7 : 0.15 * step));
+          c.root.rotation.y = r ? Math.PI : Math.PI + 0.6;
+          pose(c, r ? 'chat' : 'idle', t, { phase: i + 3 });
+        });
       // The camera moves in on your act, and back out after.
       {
         const fc = stage.fitCenter!;
@@ -389,7 +442,8 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
           l.position.z = Math.cos(t * 0.7 + i) * 2;
           l.color.setHSL((t * 0.08 + i * 0.33) % 1, 0.9, 0.55);
         });
-        for (const d of v.decks) d.rotation.y += dt * 4;
+        if (!P.reduced || !v.animate) for (const d of v.decks) d.rotation.y += dt * 4;
+        v.animate?.(t, dt, P.reduced);
         for (const s of v.screens)
           s.emissiveIntensity =
             ROOM_STYLE[P.room].mood === 'dark' || P.room === 'karaoke'

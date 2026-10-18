@@ -677,8 +677,9 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         const dx = prev ? p.x - prev.x : 0;
         const dy = prev ? p.y - prev.y : 0;
         const movingNow = Math.hypot(dx, dy) > 1e-4;
-        let ry = prev?.ry ?? Math.PI;
+        let ry = prev?.ry ?? p.ry ?? Math.PI;
         if (movingNow) ry = Math.atan2(dx, dy);
+        else if (p.ry !== undefined && !(prev?.moving ?? 0)) ry = p.ry;
         const st = {
           x: p.x,
           y: p.y,

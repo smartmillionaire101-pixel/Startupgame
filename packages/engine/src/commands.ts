@@ -360,6 +360,15 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('travel.book'),
     to: market,
     hotel: z.enum(['budget', 'business', 'luxury']).optional(),
+    /** The flight the client picked off the board (cosmetic; friends on holiday share it). */
+    flight: z
+      .object({
+        airline: z.string().max(40).optional(),
+        number: z.string().max(12).optional(),
+        time: z.string().max(5).optional(),
+        gate: z.string().max(4).optional(),
+      })
+      .optional(),
   }),
   z.object({ type: z.literal('travel.cancel') }),
   z.object({ type: z.literal('travel.fly'), to: market }),
@@ -593,8 +602,42 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('hangout.join'), hangoutId: id }),
   z.object({ type: z.literal('hangout.leave'), hangoutId: id }),
+  /**
+   * Holiday with friends: invite friends on your trip abroad (a booked ticket,
+   * or where you are). `hostPays`: you pay their flight and hotel when they accept.
+   */
+  z.object({
+    type: z.literal('holiday.invite'),
+    inviteeIds: z.array(id).min(1).max(6),
+    hostPays: z.boolean(),
+  }),
+  /** Accept: books the same city and hotel tier from your own city. `payOwn`: decline the host's offer to pay. */
+  z.object({ type: z.literal('holiday.accept'), holidayId: id, payOwn: z.boolean().optional() }),
+  z.object({ type: z.literal('holiday.decline'), holidayId: id }),
+  /** Do something together on holiday: plan (or join) an outing at a venue in the holiday city. */
+  z.object({ type: z.literal('holiday.together'), holidayId: id, businessId: id }),
+  /** In the holiday's hotel: knock on a friend's door (an AI friend answers at once). */
+  z.object({ type: z.literal('hotel.knock'), holidayId: id, playerId: id }),
+  /** Answer a knock: open the door (you go over to their room) or not now. */
+  z.object({ type: z.literal('hotel.answer'), holidayId: id, from: id, accept: z.boolean() }),
+  /** End the visit: say goodbye (the host), or go back to your room (the guest). */
+  z.object({ type: z.literal('hotel.leave'), holidayId: id }),
   /** Go to one of the city's tech events this month (`here.techEvents`). */
   z.object({ type: z.literal('techevent.attend'), eventId: id }),
+  /** Golf (leisure.ts): hand in your card for the city's three holes (strokes per hole). */
+  z.object({
+    type: z.literal('golf.round'),
+    strokes: z.array(z.number().int().min(1).max(20)).min(1).max(18),
+  }),
+  /** The mall (leisure.ts): buy one thing; clothes take a colour (#rrggbb). */
+  z.object({
+    type: z.literal('mall.buy'),
+    itemId: z.string().min(1).max(32),
+    colour: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .optional(),
+  }),
   // ---- the founder journey: the objective tracker's prompts
   /** Pin a prompt so it stays in its slot; without `id`, unpin that kind. */
   z.object({

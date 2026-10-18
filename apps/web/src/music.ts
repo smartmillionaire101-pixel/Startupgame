@@ -63,13 +63,26 @@ export function musicSamples(): Float32Array {
   return samples;
 }
 
+/** A venue's own music (./city/nightlife-audio.ts) silences the background track meanwhile. */
+let ducked = 0;
+const duckers = new Set<() => void>();
+export function duckMusic(on: boolean) {
+  ducked = Math.max(0, ducked + (on ? 1 : -1));
+  duckers.forEach((f) => f());
+}
+
 /** Browsers require a gesture before sound. Dispose everything on sign-out. */
 export function useMusic(enabled: boolean) {
   useEffect(() => {
     if (!enabled || typeof AudioContext === 'undefined') return;
     let context: AudioContext | undefined;
     let source: AudioBufferSourceNode | undefined;
+    let gain: GainNode | undefined;
     let disposed = false;
+    const duck = () => {
+      if (gain && context) gain.gain.setTargetAtTime(ducked ? 0 : 0.35, context.currentTime, 0.25);
+    };
+    duckers.add(duck);
     const play = () => {
       if (disposed || document.visibilityState === 'hidden') return;
       try {
@@ -81,8 +94,8 @@ export function useMusic(enabled: boolean) {
           source = context.createBufferSource();
           source.buffer = buffer;
           source.loop = true;
-          const gain = context.createGain();
-          gain.gain.value = 0.35;
+          gain = context.createGain();
+          gain.gain.value = ducked ? 0 : 0.35;
           source.connect(gain).connect(context.destination);
           source.start();
         }
@@ -101,6 +114,7 @@ export function useMusic(enabled: boolean) {
     if (navigator.userActivation?.hasBeenActive) play();
     return () => {
       disposed = true;
+      duckers.delete(duck);
       document.removeEventListener('pointerdown', play);
       document.removeEventListener('keydown', play);
       document.removeEventListener('visibilitychange', visibility);

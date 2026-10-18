@@ -36,7 +36,7 @@ import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { checkName, normaliseName } from './names.js';
 import { waterfall } from './captable.js';
-import type { Company, HotelStay, Player, World } from './types.js';
+import type { Company, HotelStay, Player, TicketFlight, World } from './types.js';
 
 export const TRIP_HOURS = 40;
 
@@ -194,7 +194,14 @@ export function hotelOptions(world: World, p: Player, to: MarketId) {
  * to the home market's suppliers; flying home clears the location. With
  * `hotel`, a stay abroad is paid for too (none when flying home).
  */
-export function bookFlight(world: World, p: Player, to: MarketId, now: number, hotel?: HotelTier) {
+export function bookFlight(
+  world: World,
+  p: Player,
+  to: MarketId,
+  now: number,
+  hotel?: HotelTier,
+  flight?: TicketFlight,
+) {
   if (p.flightTicket?.to === to && p.flightTicket.from === locationOf(p)) return p.flightTicket;
   ensure(
     !p.flightTicket,
@@ -249,7 +256,20 @@ export function bookFlight(world: World, p: Player, to: MarketId, now: number, h
       `Hotel: ${stay.name}`,
       home.month,
     );
-  p.flightTicket = { from, to, paid: cost, bookedAt: now, ...(stay ? { hotel: stay } : {}) };
+  // Only the parts given (a command's optional fields): replays stay identical.
+  const shown = flight
+    ? (Object.fromEntries(
+        Object.entries(flight).filter(([, v]) => typeof v === 'string' && v),
+      ) as TicketFlight)
+    : undefined;
+  p.flightTicket = {
+    from,
+    to,
+    paid: cost,
+    bookedAt: now,
+    ...(stay ? { hotel: stay } : {}),
+    ...(shown && Object.keys(shown).length ? { flight: shown } : {}),
+  };
   return p.flightTicket;
 }
 
@@ -268,7 +288,23 @@ export function cancelFlight(world: World, p: Player) {
       home.month,
     );
   delete p.flightTicket;
-  return { refunded: ticket.paid + (ticket.hotel?.paid ?? 0) };
+  const refunded = ticket.paid + (ticket.hotel?.paid ?? 0);
+  // Holiday with friends: a trip a host paid for goes back to the host.
+  const host = ticket.sponsor ? world.players[ticket.sponsor.playerId] : undefined;
+  const back = host
+    ? Math.min(ticket.sponsor!.amount, refunded, account(world, p.accounts.local).balance)
+    : 0;
+  if (host && back > 0)
+    pay(
+      world,
+      p.accounts.local,
+      host.accounts.local,
+      back,
+      `Holiday refund to ${host.name}`,
+      home.month,
+      'sent',
+    );
+  return { refunded, ...(back > 0 ? { returnedToHost: back } : {}) };
 }
 
 export function fly(world: World, p: Player, to: MarketId, now: number) {

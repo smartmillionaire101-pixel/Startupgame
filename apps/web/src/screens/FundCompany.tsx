@@ -307,8 +307,8 @@ export function FundingChooser({
               <span className="item-title">{o.title}</span>
               <Pill tone={o.ok ? 'good' : 'warn'}>{o.ok ? t('Available now') : t('Not yet')}</Pill>
             </div>
-            <p className="small">{o.what}</p>
-            <dl className="fund-facts small">
+            <p className="fund-what">{o.what}</p>
+            <dl className="fund-facts">
               <div>
                 <dt>{t('Money')}</dt>
                 <dd>{o.range}</dd>
@@ -322,8 +322,10 @@ export function FundingChooser({
                 <dd>{o.time}</dd>
               </div>
             </dl>
-            {o.reason && <p className="small muted">{o.reason}</p>}
+            {o.reason && <p className="fund-reason">{o.reason}</p>}
             <Button
+              size="sm"
+              className="btn btn-subtle btn-sm fund-go"
               variant="subtle"
               aria-label={`${o.goLabel}: ${o.title}`}
               disabled={!o.ok && o.id !== 'grant' && o.id !== 'accelerator'}

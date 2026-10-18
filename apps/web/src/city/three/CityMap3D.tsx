@@ -46,7 +46,7 @@ import { SKY_VIEWS } from '@runway/engine';
 import { openSky } from '../../experiences/sky-bus';
 
 const NONE: never[] = [];
-const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall'];
+const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall', 'golf', 'mall'];
 
 interface Lbl {
   id: string;
@@ -614,8 +614,10 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     const out: Lbl[] = [];
     for (const p of layout.places) {
       if (p.kind === 'stall') continue;
-      const text = labelOf(p);
-      if (!text) continue;
+      const raw = labelOf(p);
+      if (!raw) continue;
+      // The golf course and the mall carry their sign.
+      const text = p.kind === 'golf' ? `⛳ ${raw}` : p.kind === 'mall' ? `🛍️ ${raw}` : raw;
       out.push({
         id: p.id,
         text: text.length > 26 ? `${text.slice(0, 25)}…` : text,

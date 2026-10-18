@@ -28,8 +28,10 @@ import { t } from '../../i18n';
 import { cover } from '../../three-kit/cover';
 import { cpuGl, softwareGl } from '../../three-kit/quality';
 import type { CabinClass } from '../acts/Cabin';
+import type { AvatarLook } from '../art';
 import type { Plane3DKind } from '../../three-kit/plane';
 import { CITY_GEO, fmtFlightTime } from '../travel';
+import { layoutTags } from './tags';
 import { CabinWorld } from './cabin';
 import { SkyWorld, overCity, skyOver, type Over, type WorldShot } from './world';
 import './flight3d.css';
@@ -57,6 +59,9 @@ const CLASS_LABEL: Record<CabinClass, string> = {
   private: 'Private jet',
 };
 
+/** Name tags keep this far (CSS px) from the screen's edges. */
+const TAG_MARGIN = 12;
+
 const STEPS: [number, string][] = [
   [0.3, 'Seatbelt sign on'],
   [0.48, 'Cruising'],
@@ -76,6 +81,7 @@ export default function FlightView3D({
   cls,
   still,
   onReady,
+  party,
 }: {
   phase: FlightPhase3D;
   dur: Record<'takeoff' | 'cruise' | 'sky' | 'landing', number>;
@@ -90,6 +96,11 @@ export default function FlightView3D({
   still: boolean;
   /** The first frame is drawn: the flight's timeline can start. */
   onReady?: () => void;
+  /** Holiday with friends: your seat and the friends beside you. */
+  party?: {
+    seat: string;
+    with: { id: string; first: string; look: AvatarLook; seat: string | null }[];
+  } | null;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -102,7 +113,9 @@ export default function FlightView3D({
     clouds: number;
     layer: string;
     seat: string;
-  }>({ ready: false, part: '', clouds: 0, layer: '', seat: '' });
+    /** Your friends' seats, as the cabin sat them (beside you). */
+    seats: string[];
+  }>({ ready: false, part: '', clouds: 0, layer: '', seat: '', seats: [] });
   const redraw = useRef<() => void>(() => {});
   const readyRef = useRef(onReady);
   useEffect(() => {
@@ -158,6 +171,12 @@ export default function FlightView3D({
       cabin = new CabinWorld({
         cls,
         seed,
+        ...(party
+          ? {
+              seat: party.seat,
+              companions: party.with.map((w) => ({ look: w.look, seat: w.seat ?? '' })),
+            }
+          : {}),
         zenith: `#${s.zenith.getHexString()}`,
         horizon: `#${s.horizon.getHexString()}`,
         night: s.night > 0.5,
@@ -189,13 +208,27 @@ export default function FlightView3D({
     let lastStep = '';
     let lastLeft = '';
     const hud = (k: number, c: CabinWorld, w: number, h: number) => {
-      const tag = q('[data-seat="you"]') as HTMLElement | null;
-      const at = c.tagAt(w, h);
-      if (tag) {
-        tag.style.opacity = at && k < 0.8 ? '1' : '0';
-        if (at)
-          tag.style.transform = `translate(${at.x.toFixed(0)}px, ${at.y.toFixed(0)}px) translate(-50%, -100%)`;
-      }
+      // Your tag and your friends' over their seats: on screen, none covering another.
+      const els = [
+        q('[data-seat="you"]'),
+        ...c.companions.map((_, i) => q(`[data-seat-companion="${i}"]`)),
+      ] as (HTMLElement | null)[];
+      const points = [c.tagAt(w, h), ...c.companionTags(w, h)];
+      const boxes = layoutTags(
+        points.map((p, i) => {
+          const e = els[i];
+          return p && e ? { ...p, w: e.offsetWidth, h: e.offsetHeight } : null;
+        }),
+        w,
+        h,
+        TAG_MARGIN,
+      );
+      els.forEach((e, i) => {
+        if (!e) return;
+        const b = boxes[i];
+        e.style.opacity = b && k < 0.8 ? '1' : '0';
+        if (b) e.style.transform = `translate(${b.left}px, ${b.top}px)`;
+      });
       q('[data-trolley]')?.setAttribute('data-trolley', c.trolleyAt);
       q('[data-meal]')?.setAttribute('opacity', c.meal.toFixed(2));
       const step = STEPS.find(([until]) => k < until)![1];
@@ -283,7 +316,8 @@ export default function FlightView3D({
     // Build the cabin while the plane climbs, so the cut to it is instant.
     const pre = window.setTimeout(() => {
       const c = makeCabin();
-      setInfo((i) => ({ ...i, seat: c.seatLabel }));
+      // The seats you and your friends are sat in (your ticket's row, side by side).
+      setInfo((i) => ({ ...i, seat: c.seatLabel, seats: c.companions.map((x) => x.at.label) }));
     }, 300);
     const onVis = () => {
       if (still) return;
@@ -326,6 +360,24 @@ export default function FlightView3D({
           <div className="f3-tag" data-seat="you" aria-hidden>
             {t('You · {seat}', { seat: info.seat || '—' })}
           </div>
+          {party?.with.map((w, i) => (
+            <div
+              key={w.id}
+              className="f3-tag f3-tag-friend"
+              data-seat-companion={i}
+              data-companion={w.id}
+              aria-hidden
+            >
+              {(info.seats[i] ?? w.seat)
+                ? t('{name} · {seat}', { name: w.first, seat: info.seats[i] ?? w.seat! })
+                : w.first}
+            </div>
+          ))}
+          {party && party.with.length > 0 && (
+            <p className="f3-party" data-flying-with="">
+              {t('Flying with {names}', { names: party.with.map((w) => w.first).join(', ') })}
+            </p>
+          )}
           <span className="f3-sr" data-trolley="galley" />
           {mood === 'sleep' && (
             <div className="f3-sleep" aria-hidden>

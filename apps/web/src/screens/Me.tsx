@@ -18,6 +18,7 @@ import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
 import { FoundBank } from './Bank';
 import { setSetting, useSimple } from '../phone/settings';
+import { openLiving } from '../experiences/living-bus';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
 
@@ -176,6 +177,12 @@ function Profile() {
         </p>
       </section>
       <ProfileDetails key={me.id + me.role} />
+      <Button block data-open-living="" onClick={() => openLiving(me.id)}>
+        {t('🏠 Home & friends')}
+        {view.living.dates.some((d) => d.status === 'invited' && d.guest === me.id)
+          ? ` · ${t('Invitation')}`
+          : ''}
+      </Button>
       {me.role === 'founder' && !view.companies.some((c) => c.status === 'active') && (
         <Card title={t('Set up your business')}>
           <p className="small muted">{t('Your company is set up on My company.')}</p>

@@ -30,4 +30,6 @@ export const roundTwo: Record<string, string> = {
   'On your way home': 'En route vers chez vous',
   'Your driver is taking you to the hotel.': 'Votre chauffeur vous conduit à l’hôtel.',
   'Nearly there.': 'Presque arrivé.',
+  '🏠 Home & friends': '🏠 Maison et amis',
+  Invitation: 'Invitation',
 };

@@ -315,8 +315,9 @@ export function cityInput(view: PlayerView): CityInput {
     // Wave 2: the Event Hall opens once the engine sends events.
     eventsOpen: Array.isArray((view.market as Market & { events?: unknown }).events),
     // Wave 3: local businesses, each in the district its seed names.
+    // The golf club is the city's golf course (its own place, ./leisure.ts).
     businesses: businessesOf(view)
-      .filter((b) => b.open)
+      .filter((b) => b.open && b.kind !== 'golf-club')
       .map((b) => ({
         id: b.id,
         name: b.name,

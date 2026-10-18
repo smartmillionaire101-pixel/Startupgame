@@ -187,6 +187,16 @@ export const tab = (page: Page, name: string) =>
     // The name can carry a badge count ("Home 3").
     .getByRole('button', { name: new RegExp(`^${name}(\\s+\\d+)?$`) });
 
+/** Home and social experiences (dates, games, sky views): Me → Home & friends. */
+export async function openTogether(page: Page) {
+  const sheet = page.getByRole('dialog', { name: 'Home and social experiences' });
+  if (await sheet.isVisible()) return sheet;
+  await tab(page, 'Me').click();
+  await page.locator('[data-open-living]').click();
+  await sheet.waitFor();
+  return sheet;
+}
+
 /** Onboarding's who-you-are and where-you-build choices (name, sex, city). */
 export async function pickIdentity(
   page: Page,

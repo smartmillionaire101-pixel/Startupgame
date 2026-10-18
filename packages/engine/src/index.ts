@@ -180,6 +180,9 @@ export type { Neighbourhood } from './data/property.js';
 export { CITY_DISTRICTS } from './data/businesses.js';
 export { LANDMARKS } from './data/landmarks.js';
 export type { LandmarkSeed } from './data/landmarks.js';
+// Golf and the mall.
+export { GOLF, MALL_ITEMS, MALL_SHOPS, PHONE_NAMES, golfCourse, mallItem } from './data/leisure.js';
+export type { GolfCourse, GolfHole, MallItem, MallShopId, PhoneTier } from './data/leisure.js';
 export { BRANCH } from './branches.js';
 export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.js';
 // Wave 12: sky views and the quiz bank.

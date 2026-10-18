@@ -29,6 +29,7 @@ import { use3d } from '../three-kit/quality';
 import { t } from '../i18n';
 import { useView } from '../store';
 import { avatarLook } from './art';
+import { flightPartyTo } from './companions';
 import { useReducedMotion } from './CityMap';
 import { Cabin, cabinClassOf } from './acts/Cabin';
 import { PlaneSide, type PlaneKind } from './airport/planes';
@@ -271,6 +272,8 @@ export function FlightScene({
   const kind: PlaneKind =
     cabinClassOf(view.me.lifestyle?.tier) === 'private' ? 'bizjet' : 'airliner';
   const livery = kind === 'bizjet' ? '#1e3a8a' : liveryOf(from, airline);
+  // Holiday with friends: the ones on this flight sit next to you.
+  const [party] = useState(() => flightPartyTo(view, to));
 
   // In 3D the take-off waits for the first frame (a slow phone still sees it),
   // but never more than a few seconds.
@@ -349,6 +352,7 @@ export function FlightScene({
               cls={cabinClassOf(view.me.lifestyle?.tier)}
               still={reduced}
               onReady={() => setReady3d(true)}
+              party={party}
             />
           </Suspense>
         )}
@@ -372,6 +376,7 @@ export function FlightScene({
             dur={DUR.cruise}
             tier={view.me.lifestyle?.tier}
             look={avatarLook(view.me.background?.id, view.me.id, genderOf(view.me))}
+            party={party}
           />
         )}
         {!three && (phase === 'landing' || (phase === 'arrived' && !ferry)) && (

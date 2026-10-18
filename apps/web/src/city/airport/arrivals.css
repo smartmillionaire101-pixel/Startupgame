@@ -415,3 +415,22 @@
 .place-scene.airport-scene:not(.is-more) .arrival-sheet .arrival-title {
   font-size: 1.15rem;
 }
+
+/* Holiday with friends: your companions in the hall, and who's with you. */
+.arr-party {
+  margin: 0.15rem 0 0;
+  color: #0f766e;
+  font-weight: 600;
+}
+.arr-friend.is-waiting .city-person {
+  animation: arr-friend-wave 1.6s ease-in-out infinite alternate;
+  transform-origin: 0 0;
+}
+@keyframes arr-friend-wave {
+  to {
+    transform: translateY(-1.5px);
+  }
+}
+.arr-live.is-calm .arr-friend .city-person {
+  animation: none;
+}

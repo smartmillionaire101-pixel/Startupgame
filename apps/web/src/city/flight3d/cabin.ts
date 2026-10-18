@@ -28,6 +28,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { fnv, seeded } from '../travel';
+import type { AvatarLook } from '../art';
+import { makeCharacter, pose, type Character } from '../../interiors3d/character';
 import type { CabinClass } from '../acts/Cabin';
 import {
   bulkheadTexture,
@@ -408,6 +410,10 @@ function seatGeometry(kind: SeatKind, cover: string) {
 export interface CabinOpts {
   cls: CabinClass;
   seed: string;
+  /** Holiday with friends: your seat on the host's flight ("14A"), when you share it. */
+  seat?: string;
+  /** …and the friends beside you: seated next to you, window side first. */
+  companions?: { look: AvatarLook; seat: string }[];
   /** The sky outside (the cruise's), for the window panes and the light. */
   zenith: string;
   horizon: string;
@@ -469,6 +475,9 @@ export class CabinWorld {
   private night: boolean;
   private sleeping = false;
   private youTag = new THREE.Vector3();
+  /** Holiday companions in the seats next to yours, and where their tags go. */
+  readonly companions: { c: Character; tag: THREE.Vector3; seat: string; at: SeatAt }[] = [];
+  private seatH = 0.5;
 
   constructor(o: CabinOpts) {
     const L = (this.layout = layoutOf(o.cls));
@@ -720,8 +729,18 @@ export class CabinWorld {
     }
 
     // The seats and who sits in them.
-    const yourIdx = this.pickYours(o.cls, o.seed);
+    const party = o.companions ?? [];
+    const yourIdx = this.pickYours(o.cls, o.seed, o.seat, party.length);
     this.you = L.seats[yourIdx]!;
+    // Friends on holiday: your row, window side first (you step in last), then across the aisle.
+    const row = L.seats.filter((x) => x.z === this.you.z && x !== this.you);
+    const mySide = row
+      .filter((x) => Math.sign(x.x) === Math.sign(this.you.x))
+      .sort((a, b) => Math.abs(b.x) - Math.abs(a.x));
+    const across = row
+      .filter((x) => Math.sign(x.x) !== Math.sign(this.you.x))
+      .sort((a, b) => Math.abs(a.x) - Math.abs(b.x));
+    const partySeats = [...mySide, ...across].slice(0, party.length);
     const kinds: SeatKind[] = ['economy', 'business', 'club'];
     const cover = L.jet ? '#f6f0e4' : '#e9eef5';
     const scr = screenTexture();
@@ -776,7 +795,11 @@ export class CabinWorld {
       Math.sign(st.x) === Math.sign(yours.x) &&
       Math.abs(st.x) < Math.abs(yours.x);
     const people = L.seats.filter(
-      (st, k) => k !== yourIdx && !between(st) && (L.jet ? rnd() < 0.3 : rnd() < 0.82),
+      (st, k) =>
+        k !== yourIdx &&
+        !between(st) &&
+        !partySeats.includes(st) &&
+        (L.jet ? rnd() < 0.3 : rnd() < 0.82),
     );
     const hairs = [
       '#1c1917',
@@ -985,17 +1008,56 @@ export class CabinWorld {
     const wz = L.windowZ.reduce((a, b) => (Math.abs(b - y0.z) < Math.abs(a - y0.z) ? b : a));
     this.youWindow = new THREE.Vector3(-wallX(L, L.windowY), L.windowY, wz);
     this.youTag.set(y0.x, headY + 0.35, y0.z);
+    // Your companions, seated (whole figures: they turn to talk to you).
+    this.seatH = headY - 0.66;
+    partySeats.forEach((at, k) => {
+      const c = makeCharacter(party[k]!.look, `party:${k}`);
+      c.root.position.set(at.x, 0, at.z + (at.aft ? -0.04 : 0.04));
+      // Facing forward, turned a little towards you (on your left: towards the aisle).
+      const toYou = Math.sign(this.you.x - at.x) * 0.8;
+      c.root.rotation.y = at.aft ? 0 : Math.PI - toYou;
+      pose(c, 'sit', 0, { seat: this.seatH, phase: k });
+      s.add(c.root);
+      this.companions.push({
+        c,
+        at,
+        seat: party[k]!.seat,
+        tag: new THREE.Vector3(at.x, headY + 0.2, at.z - 0.1),
+      });
+    });
   }
 
-  /** Your seat: a window seat on the left, in the section your ticket is for. */
-  private pickYours(cls: CabinClass, seed: string) {
+  /** Where each companion's tag goes on screen (CSS px), or null when it's out of view. */
+  companionTags(w: number, h: number): ({ x: number; y: number } | null)[] {
+    return this.companions.map(({ tag }) => {
+      const v = tag.clone().project(this.camera);
+      if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) return null;
+      return { x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * h };
+    });
+  }
+
+  /**
+   * Your seat: a window seat on the left, in the section your ticket is for
+   * (on a holiday flight, your ticket's row; with friends beside you, you
+   * sit nearer the aisle and they take the window).
+   */
+  private pickYours(cls: CabinClass, seed: string, seat?: string, friends = 0) {
     const L = this.layout;
     const h = fnv(`${seed}:yours`);
-    if (cls === 'private') return L.seats.findIndex((s) => s.label === '2A');
-    const window = (s: SeatAt) => s.label.endsWith('A');
+    if (cls === 'private') return L.seats.findIndex((s) => s.label === (friends ? '2B' : '2A'));
     const want = cls === 'economy' ? 'economy' : 'business';
-    const rows = L.seats.filter((s) => s.kind === want && window(s));
-    const pick = want === 'economy' ? rows[4 + (h % 6)]! : rows[1 + (h % 2)]!;
+    const left = L.seats
+      .filter((s) => s.kind === want && s.x < 0)
+      .sort((a, b) => a.row - b.row || a.x - b.x);
+    const rowNos = [...new Set(left.map((s) => s.row))];
+    const asked = seat ? Number(seat.replace(/\D+$/, '')) : NaN;
+    const rowNo = rowNos.includes(asked)
+      ? asked
+      : want === 'economy'
+        ? rowNos[4 + (h % 6)]!
+        : rowNos[1 + (h % 2)]!;
+    const inRow = left.filter((s) => s.row === rowNo);
+    const pick = inRow[Math.min(friends, inRow.length - 1)]!;
     return L.seats.indexOf(pick);
   }
 
@@ -1039,7 +1101,12 @@ export class CabinWorld {
     const sit = ease(seg(k, 0.36, 0.5));
     const dir = y.aft ? 1 : -1;
     const pS = new THREE.Vector3(y.x + 0.05, this.eye + 0.06, y.z - dir * 0.05);
-    const lS = new THREE.Vector3(L.jet ? 0.4 : 0.8, this.eye - 0.12, y.z + dir * 4);
+    // (With friends beside you, a little towards them: they're in the corner of your eye.)
+    const lS = new THREE.Vector3(
+      L.jet ? 0.4 : this.companions.length ? 0.1 : 0.8,
+      this.eye - 0.12,
+      y.z + dir * 4,
+    );
     // 3. Turn to the window and lean to it.
     const turn = ease(seg(k, 0.8, 1));
     const w = this.youWindow;
@@ -1053,7 +1120,21 @@ export class CabinWorld {
       lerp(pA.y, pS.y, down),
       lerp(pA.z, pS.z, across),
     ).lerp(pW, turn);
-    const l = lA.clone().lerp(lS, sit).lerp(lW, turn);
+    // With friends in your row: as you reach it, a look down at them in their seats.
+    const glance = this.companions.length ? ease(seg(k, 0.2, 0.33)) : 0;
+    if (glance) lA.lerp(new THREE.Vector3(y.x - 0.2, this.eye - 0.25, y.z + 0.1), glance * 0.9);
+    const l = lA.clone().lerp(lS, sit);
+    // Seated, a turn to your friends beside you (the reduced-motion still, at 0.64, too).
+    const f0 = this.companions[0]?.at;
+    if (f0) {
+      const chat = ease(seg(k, 0.55, 0.61)) * (1 - ease(seg(k, 0.7, 0.76)));
+      l.lerp(new THREE.Vector3(f0.x - 1.2, this.eye - 0.2, f0.z - dir * 0.25), chat);
+      // …leaning out towards the aisle and forward, so you see their faces.
+      p.x += 0.5 * chat * Math.sign(y.x - f0.x || 1);
+      p.y += 0.12 * chat;
+      p.z += dir * 0.5 * chat;
+    }
+    l.lerp(lW, turn);
     cam.position.copy(p);
     cam.lookAt(l);
     cam.updateProjectionMatrix();

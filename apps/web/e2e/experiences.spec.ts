@@ -8,6 +8,7 @@ import {
   withoutNetlifyDrawer,
   type Page,
   tapPlace,
+  openTogether,
 } from './fixtures';
 // Software WebGL, so the 3D home (and the sky views) really draw on CI.
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
@@ -30,12 +31,9 @@ async function founder(p: Page, name: string) {
     idea: 'Tools for local businesses',
     market: /London/,
   });
-  await expect(p.getByRole('button', { name: /^Together/ })).toBeVisible({ timeout: 30000 });
+  await expect(p.locator('.topbar')).toBeVisible({ timeout: 30000 });
 }
-const together = async (p: Page) => {
-  await p.getByRole('button', { name: /^Together/ }).click();
-  return p.getByRole('dialog', { name: 'Home and social experiences' });
-};
+const together = (p: Page) => openTogether(p);
 
 test('two players discover a home game, play football and share a consenting skyline date', async ({
   page: a,

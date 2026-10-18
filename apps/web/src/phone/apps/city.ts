@@ -65,6 +65,8 @@ export function placeColor(p: Place): string {
         airport: '#475569',
         newsstand: '#64748b',
         eventhall: '#c026d3',
+        golf: '#16a34a',
+        mall: '#db2777',
       } as Partial<Record<Place['kind'], string>>
     )[p.kind] ?? '#64748b'
   );
@@ -91,6 +93,7 @@ export function placeIcon(p: Place): IconName {
     case 'hub':
       return 'people';
     case 'stall':
+    case 'mall':
       return 'shop';
     default:
       return 'pin';

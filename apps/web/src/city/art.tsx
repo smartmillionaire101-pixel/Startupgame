@@ -1474,6 +1474,102 @@ function BuildingBody({ p, f }: { p: Place; f: Flavour }) {
           <Box x={x - 0.08} y={y - 0.08} w={w + 0.16} d={d + 0.16} h={3} z={h} color={a} />
         </g>
       );
+    case 'golf': {
+      // The course: mown grass, a fairway to a green with its flag, a bunker
+      // and a pond, trees round the edge, the clubhouse by the road.
+      const g = (u: number, v: number) => project(x + u * w, y + v * d);
+      const ell = (u: number, v: number, rx: number, ry: number, fill: string, k: string) => {
+        const o = g(u, v);
+        return <ellipse key={k} cx={r1(o.x)} cy={r1(o.y)} rx={rx} ry={ry} fill={fill} />;
+      };
+      const flag = g(0.22, 0.25);
+      return (
+        <g data-motif="golf">
+          <polygon
+            points={poly(P(x, y), P(x + w, y), P(x + w, y + d), P(x, y + d))}
+            fill="#4d9a2a"
+          />
+          <polygon
+            points={poly(
+              P(x + w * 0.7, y + d * 0.82),
+              P(x + w * 0.85, y + d * 0.7),
+              P(x + w * 0.3, y + d * 0.15),
+              P(x + w * 0.12, y + d * 0.3),
+            )}
+            fill="#7cc242"
+          />
+          {ell(0.22, 0.25, 16, 8, '#a3e05a', 'green')}
+          {ell(0.42, 0.18, 7, 3.5, '#f3e3a1', 'bunker')}
+          {ell(0.55, 0.6, 9, 4.5, '#38bdf8', 'pond')}
+          {ell(0.78, 0.8, 5, 2.5, '#a3e05a', 'tee')}
+          <line
+            x1={r1(flag.x)}
+            y1={r1(flag.y)}
+            x2={r1(flag.x)}
+            y2={r1(flag.y - 16)}
+            stroke="#f8fafc"
+            strokeWidth="1.2"
+          />
+          <polygon
+            points={`${r1(flag.x)},${r1(flag.y - 16)} ${r1(flag.x + 8)},${r1(flag.y - 13)} ${r1(flag.x)},${r1(flag.y - 10)}`}
+            fill="#ef4444"
+          />
+          {[
+            [0.05, 0.08],
+            [0.92, 0.1],
+            [0.95, 0.45],
+            [0.06, 0.62],
+            [0.35, 0.92],
+          ].map(([u, v], k) => (
+            <Tree key={k} x={x + u! * w} y={y + v! * d} kind={f.tree} leaf={f.leaf} size={0.8} />
+          ))}
+          <Box x={x + w - 1.0} y={y + d - 0.75} w={0.9} d={0.6} h={h} color="#f1ede4" />
+          <Gable x={x + w - 1.05} y={y + d - 0.8} w={1.0} d={0.7} z={h} rise={8} color="#14532d" />
+        </g>
+      );
+    }
+    case 'mall': {
+      // A long glass-fronted mall with a lit sign band and an entrance canopy.
+      return (
+        <g data-motif="mall">
+          <Box
+            x={x}
+            y={y}
+            w={w}
+            d={d}
+            h={h}
+            color={c}
+            left={mix(c, '#7dd3fc', 0.55)}
+            right={mix(c, '#0369a1', 0.3)}
+          />
+          <g transform={leftM(x, y, d, h)}>
+            {Array.from({ length: Math.floor(w / 0.25) }, (_, i) => (
+              <rect
+                key={i}
+                x={0.06 + i * 0.25}
+                y={12}
+                width={0.02}
+                height={h - 12}
+                fill="#fff"
+                opacity="0.55"
+              />
+            ))}
+            <rect x={0} y={2} width={w} height={8} fill={a} />
+            <rect x={w / 2 - 0.4} y={h - 14} width={0.8} height={14} fill="#0f172a" opacity="0.7" />
+          </g>
+          <Box x={x + w / 2 - 0.55} y={y + d} w={1.1} d={0.25} h={2} z={13} color="#f8fafc" />
+          <Box
+            x={x + 0.3}
+            y={y + 0.3}
+            w={w - 0.6}
+            d={d - 0.6}
+            h={6}
+            z={h}
+            color={shade(c, -0.08)}
+          />
+        </g>
+      );
+    }
     case 'hall': {
       const arc = (len: number) => `M 0 0 Q ${len / 2} -22 ${len} 0 Z`;
       return (
@@ -1520,7 +1616,7 @@ export const Building = memo(function Building({ p, f }: { p: Place; f: Flavour 
       data-category={p.category}
       className={`city-building${p.dim ? ' is-dim' : ''}`}
     >
-      {p.motif !== 'stall' && p.motif !== 'b-stall' && (
+      {p.motif !== 'stall' && p.motif !== 'b-stall' && p.motif !== 'golf' && (
         <Shadow x={p.x} y={p.y} w={p.w} d={p.d} h={p.h} />
       )}
       <BuildingBody p={p} f={f} />

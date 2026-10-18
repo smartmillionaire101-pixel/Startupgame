@@ -20,6 +20,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { HomePlan, RoomId, Spot } from '../home/layout';
+import type { HotelTier } from '../city/travel';
 import { bathDoors, key, wallEdges } from '../home/layout';
 import type { Grounds } from '../home/grounds';
 import { FLOOR_SCALE, Kit, edgeTexture, floorTexture, mat, type FloorKind } from './kit';
@@ -118,14 +119,49 @@ const FLOOR_TINT: Partial<Record<FloorKind, string>> = {
   concrete: '#e2dfd9',
 };
 
-function floorMesh(kind: FloorKind, x: number, z: number, w: number, d: number, y = 0.002) {
+/**
+ * A hotel room's floors and walls by tier: a budget room's laminate and
+ * sage walls, a business room's carpet and slate, a suite's walnut, marble
+ * and warm taupe walls.
+ */
+const HOTEL_FLOORS: Record<HotelTier, Partial<Record<RoomId, [FloorKind, string?]>>> = {
+  budget: { bedroom: ['oak', '#efe2cf'], hall: ['tile', '#e5e1da'], bathroom: ['bath'] },
+  business: {
+    bedroom: ['parquet', '#f1e4d4'],
+    hall: ['parquet', '#f3e6d6'],
+    bathroom: ['tile', '#d8d4cc'],
+  },
+  luxury: {
+    living: ['parquet-dark', '#f2dcc4'],
+    bedroom: ['parquet-dark', '#f2dcc4'],
+    hall: ['marble', '#f6efe4'],
+    guest: ['oak', '#e8d2b8'],
+    bathroom: ['marble', '#e0d5c5'],
+  },
+};
+const HOTEL_WALLS: Record<HotelTier, { outer: string; inner: string; cap: string; drape: string }> =
+  {
+    budget: { outer: '#6f948a', inner: '#7da197', cap: WALL_CAP, drape: '#9fb3c8' },
+    business: { outer: '#4b6279', inner: '#587089', cap: '#f1efe9', drape: '#c9c2b4' },
+    luxury: { outer: '#7a5d48', inner: '#8b6d56', cap: '#efe3cc', drape: '#b9935f' },
+  };
+
+function floorMesh(
+  kind: FloorKind,
+  x: number,
+  z: number,
+  w: number,
+  d: number,
+  y = 0.002,
+  tint?: string,
+) {
   const tex = floorTexture(kind).clone();
   tex.needsUpdate = true;
   const s = FLOOR_SCALE[kind];
   tex.repeat.set(w / s, d / s);
   const m = new THREE.Mesh(
     new THREE.PlaneGeometry(w, d),
-    mat(FLOOR_TINT[kind] ?? '#ffffff', {
+    mat(tint ?? FLOOR_TINT[kind] ?? '#ffffff', {
       map: tex,
       rough: kind === 'marble' || kind === 'cream' ? 0.3 : kind === 'bath' ? 0.35 : 0.75,
       own: true,
@@ -264,6 +300,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       tier: hotel.tier,
       name: hotel.name,
       floor: hotel.floor,
+      room: hotel.room,
+      doors: hotel.doors,
     });
     around = t;
     towerSides = t.sides;
@@ -478,7 +516,13 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     rough: 0.9,
   });
   if (drop) storeys(k, W, H, drop, o.night);
-  for (const r of plan.rooms) root.add(floorMesh(floorKind(r.id, o.tier), r.x, r.y, r.w, r.h));
+  const pal = hotel
+    ? HOTEL_WALLS[hotel.tier]
+    : { outer: WALL_GREEN, inner: WALL_INNER, cap: WALL_CAP, drape: '' };
+  for (const r of plan.rooms) {
+    const hf = hotel ? HOTEL_FLOORS[hotel.tier][r.id] : undefined;
+    root.add(floorMesh(hf?.[0] ?? floorKind(r.id, o.tier), r.x, r.y, r.w, r.h, 0.002, hf?.[1]));
+  }
 
   const sides: WallSide[] = [];
   const side = (n: THREE.Vector2) => {
@@ -501,7 +545,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     const len = b - a;
     const geo = new THREE.BoxGeometry(along === 'x' ? len : THICK, 1, along === 'x' ? THICK : len);
     geo.translate(0, 0.5, 0);
-    const m = new THREE.Mesh(geo, mat(WALL_GREEN, { rough: 0.85 }));
+    const m = new THREE.Mesh(geo, mat(pal.outer, { rough: 0.85 }));
     m.castShadow = true;
     m.receiveShadow = true;
     const c = new THREE.Mesh(
@@ -510,7 +554,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
         0.06,
         (along === 'x' ? THICK : len) + 0.03,
       ),
-      mat(WALL_CAP, { rough: 0.6 }),
+      mat(pal.cap, { rough: 0.6 }),
     );
     if (along === 'x') {
       m.position.set((a + b) / 2, 0, fixed);
@@ -562,16 +606,16 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   k.box(0.025, 0.08, H, '#f5f1e8', W - 0.012, 0, H / 2);
 
   // Windows: big dark-framed panes on the back wall, louvred ones on the sides.
-  const win = (along: 'x' | 'z', c: number, fixed: number, w: number) => {
+  const win = (along: 'x' | 'z', c: number, fixed: number, w: number, tall = false) => {
     const wk = new Kit();
-    const h = 1.35;
-    const y = 0.85;
+    const h = tall ? 2.2 : 1.35;
+    const y = tall ? 0.14 : 0.85;
     const glass = {
       emissive: o.night ? '#ffcf7a' : '#7fbfe0',
       emissiveIntensity: o.night ? 0.45 : 0.22,
       rough: 0.08,
     };
-    const bars = Math.max(2, Math.round(w / 0.45));
+    const bars = Math.max(2, Math.round(w / (tall ? 1.15 : 0.45)));
     if (along === 'x') {
       wk.box(w + 0.12, h + 0.12, THICK + 0.04, '#25272c', c, y - 0.06, fixed, {
         metal: 0.4,
@@ -580,6 +624,22 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       wk.box(w, h, THICK + 0.06, '#9fc8dd', c, y, fixed, glass);
       for (let i = 1; i < bars; i++)
         wk.box(0.03, h, THICK + 0.08, '#25272c', c - w / 2 + (i * w) / bars, y, fixed);
+      // A hotel's curtains, drawn back either side of the window (inside).
+      if (pal.drape)
+        for (const sx of [-1, 1])
+          wk.box(
+            0.32,
+            2.3,
+            0.08,
+            pal.drape,
+            c + sx * (w / 2 + 0.12),
+            0.05,
+            fixed + THICK / 2 + 0.06,
+            {
+              round: 0.03,
+              rough: 0.95,
+            },
+          );
     } else {
       wk.box(THICK + 0.04, h + 0.12, w + 0.12, '#25272c', fixed, y - 0.06, c, {
         metal: 0.4,
@@ -596,7 +656,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   for (const r of plan.rooms) {
     if (r.open) continue;
     if (r.y === 0) {
-      if (r.w >= 3 && r.id !== 'bathroom')
+      if (r.w >= 3 && r.id !== 'bathroom' && !hotel?.windows)
         back.extras.add(win('x', r.x + r.w * 0.62, -o2, Math.min(1.6, r.w * 0.35)));
       sconces.push({ x: r.x + r.w * (r.w >= 3 ? 0.25 : 0.5), z: o2 + 0.02, ry: 0, s: back });
     }
@@ -613,6 +673,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
         sconces.push({ x: W - o2 - 0.02, z: r.y + r.h * 0.25, ry: -Math.PI / 2, s: right });
     }
   }
+  // A hotel's windows where its plan puts them (a suite's glass wall onto the balcony).
+  for (const w of hotel?.windows ?? []) back.extras.add(win('x', w.c, -o2, w.w, w.tall));
   const lamps: THREE.PointLight[] = [];
   for (const s of sconces) {
     const m = buildEstateModel('sconce', { w: 0.2, d: 0.2, tier: 2 });
@@ -654,8 +716,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   ];
   for (const [y, xs] of hLines)
     for (const [a, b] of runs(xs)) {
-      k.box(b - a + THICK, INNER_H, THICK, WALL_INNER, (a + b) / 2, 0, y, { rough: 0.85 });
-      k.box(b - a + THICK + 0.03, 0.05, THICK + 0.03, WALL_CAP, (a + b) / 2, INNER_H, y);
+      k.box(b - a + THICK, INNER_H, THICK, pal.inner, (a + b) / 2, 0, y, { rough: 0.85 });
+      k.box(b - a + THICK + 0.03, 0.05, THICK + 0.03, pal.cap, (a + b) / 2, INNER_H, y);
       edgeSegs.push(
         { x0: a, z0: y, x1: b, z1: y, nx: 0, nz: 1 },
         { x0: a, z0: y, x1: b, z1: y, nx: 0, nz: -1 },
@@ -663,8 +725,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
   for (const [x, ys] of vLines)
     for (const [a, b] of runs(ys)) {
-      k.box(THICK, INNER_H, b - a + THICK, WALL_INNER, x, 0, (a + b) / 2, { rough: 0.85 });
-      k.box(THICK + 0.03, 0.05, b - a + THICK + 0.03, WALL_CAP, x, INNER_H, (a + b) / 2);
+      k.box(THICK, INNER_H, b - a + THICK, pal.inner, x, 0, (a + b) / 2, { rough: 0.85 });
+      k.box(THICK + 0.03, 0.05, b - a + THICK + 0.03, pal.cap, x, INNER_H, (a + b) / 2);
       edgeSegs.push(
         { x0: x, z0: a, x1: x, z1: b, nx: 1, nz: 0 },
         { x0: x, z0: a, x1: x, z1: b, nx: -1, nz: 0 },
@@ -672,10 +734,11 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
   const edges = edgeStrips(edgeSegs);
   if (edges) root.add(edges);
-  bathrooms(plan, root, sides);
+  bathrooms(plan, root, sides, hotel?.tier === 'luxury' ? 'marble' : 'bath');
 
-  // Potted plants in free room corners (the reference's green, lived-in rooms).
-  {
+  // Potted plants in free room corners (the reference's green, lived-in rooms);
+  // a hotel puts its own where it wants them.
+  if (!hotel) {
     const taken = new Set<string>();
     const mark = (s: Spot) => {
       for (let x = s.x - 1; x <= s.x + s.w; x++)
@@ -781,7 +844,12 @@ function railing(k: Kit, along: 'x' | 'z', a: number, b: number, fixed: number) 
  * Bathrooms read as bathrooms: white tiles up the walls round them (on the
  * outer walls' inside too, cut away with them) and a door, ajar, with a sign.
  */
-function bathrooms(plan: HomePlan, root: THREE.Group, sides: WallSide[]) {
+function bathrooms(
+  plan: HomePlan,
+  root: THREE.Group,
+  sides: WallSide[],
+  tiles: FloorKind = 'bath',
+) {
   const walls = wallEdges(plan);
   const [back, front, left, right] = sides as [WallSide, WallSide, WallSide, WallSide];
   const panel = (
@@ -793,12 +861,13 @@ function bathrooms(plan: HomePlan, root: THREE.Group, sides: WallSide[]) {
     into: THREE.Group,
   ) => {
     const len = b - a;
-    const tex = floorTexture('bath').clone();
+    const tex = floorTexture(tiles).clone();
     tex.needsUpdate = true;
-    tex.repeat.set(len / 0.6, h / 0.6);
+    const ts = tiles === 'bath' ? 0.6 : 2;
+    tex.repeat.set(len / ts, h / ts);
     const m = new THREE.Mesh(
       new THREE.PlaneGeometry(len, h),
-      mat('#d4f1f8', { map: tex, rough: 0.25, own: true }),
+      mat(tiles === 'bath' ? '#d4f1f8' : '#f3eee6', { map: tex, rough: 0.25, own: true }),
     );
     m.position.set(along === 'x' ? (a + b) / 2 : fixed, h / 2, along === 'x' ? fixed : (a + b) / 2);
     m.receiveShadow = true;

@@ -705,9 +705,29 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         return reply.code(403).send({ error: { code: 'forbidden', message: 'Not allowed.' } });
       const r = await game.execute(req.userId!, command);
       if (!r.ok) return reply.code(422).send({ error: r.error });
+      if (command.type === 'holiday.invite') await holidayChats(req.userId!, command, r.result);
       return { ok: true, result: r.result, version: r.world.version };
     },
   );
+
+  /**
+   * Holiday with friends: an AI friend answers an invitation at once (the
+   * engine's `replies`); the invitation and their answer go in your chat with
+   * them, like any AI chat thread.
+   */
+  const holidayChats = async (userId: string, command: { hostPays: boolean }, result: unknown) => {
+    const out = result as { replies?: { id: string; name: string; text: string }[]; city?: string };
+    if (!out?.replies?.length) return;
+    const at = now();
+    for (const r of out.replies) {
+      if (!CHARACTER_ID.test(r.id)) continue;
+      const ask = `Fancy a holiday in ${out.city ?? 'the city'} with me this month?${
+        command.hostPays ? ' My treat: flight and hotel.' : ''
+      }`;
+      await store.addAiMessage(userId, r.id, r.name, false, ask, at);
+      await store.addAiMessage(userId, r.id, r.name, true, r.text, at + 1);
+    }
+  };
 
   /** Server-sent events: tells clients to refetch when the world changes. Tiny payloads for low data use. */
   app.get('/api/events', { preHandler: requireUser }, (req, reply) => {

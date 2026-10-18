@@ -20,6 +20,8 @@ import {
 } from '../../city/travel';
 import { setTicket, ticketFrom, useTicket } from '../../city/ticket';
 import { HotelPicker } from '../../city/HotelPicker';
+import { HolidayCards } from './Holiday';
+import { FlyingWith } from '../../city/companions';
 import type { Destination, HotelTier } from '../../city/travel';
 import { Icon } from '../icons';
 import { Nothing, type PhoneCtx } from '../shared';
@@ -45,7 +47,15 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
     .sort((a, b) => ((a.f?.time ?? '99') < (b.f?.time ?? '99') ? -1 : 1));
   const book = async (d: Destination, hotel: HotelTier | null) => {
     const f = rows.find((r) => r.d.id === d.id)?.f;
-    const cmd = { type: 'travel.book' as const, to: d.id as MarketId, ...(hotel ? { hotel } : {}) };
+    const cmd = {
+      type: 'travel.book' as const,
+      to: d.id as MarketId,
+      ...(hotel ? { hotel } : {}),
+      // The flight off the board: friends on holiday from this city get the same one.
+      ...(f
+        ? { flight: { airline: f.airline, number: f.flight, time: f.time, gate: f.gate } }
+        : {}),
+    };
     if (!(await send(cmd))) return;
     setChoosing(null);
     const stay = hotel ? d.hotels.find((h) => h.tier === hotel) : undefined;
@@ -66,6 +76,8 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
   };
   return (
     <div className="phone-stack">
+      {/* Holiday with friends: invitations, your trips with friends, Invite friends. */}
+      <HolidayCards goPlace={ctx.goPlace} />
       {booked && (
         <div className="phone-card phone-ticket" data-ticket={booked.to}>
           <div className="spread">
@@ -79,6 +91,7 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
               <span className="small muted">
                 {[booked.time, booked.airline, booked.flight].filter(Boolean).join(' · ')}
               </span>
+              <FlyingWith to={booked.to} />
               {booked.hotel && (
                 <span className="small hotel-stay" data-ticket-hotel={booked.hotel.tier}>
                   {t('Hotel: {name}', { name: booked.hotel.name })} ·{' '}

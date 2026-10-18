@@ -70,6 +70,8 @@ import { useSimple } from '../phone/settings';
 import { WhoIsAround } from './WhoIsHere';
 import { OnlineNowList } from './OnlineNow';
 import { usePresence } from './presence';
+import { HolidayBanner } from '../phone/apps/Holiday';
+import { RideWith } from './companions';
 import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
 import { cachedCityLayout } from './geoLayout';
@@ -1003,6 +1005,7 @@ function CityBodyInner({
               />
             )}
             <>
+              {abroad && <HolidayBanner />}
               {alarm && !abroad && !(trip && asking) && (
                 <div className={`hud-banner hud-${alarm.level}`} role="status">
                   <span>
@@ -1145,6 +1148,7 @@ function CityBodyInner({
           <p className="stay-transfer-title">
             {abroad ? t('On your way to {hotel}', { hotel: transfer }) : t('On your way home')}
           </p>
+          {abroad && <RideWith market={layout.marketId} />}
           <p className="stay-transfer-sub">
             {abroad ? t('Your driver is taking you to the hotel.') : t('Nearly there.')}
           </p>

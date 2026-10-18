@@ -1,4 +1,14 @@
 import { livingCommand, orderFurniture, queueDelivery } from './living.js';
+import {
+  acceptHoliday,
+  declineHoliday,
+  doTogether,
+  holidayJoined,
+  inviteHoliday,
+  knockHotel,
+  answerKnock,
+  leaveVisit,
+} from './holidays.js';
 import { expirePlay, playCommand } from './play.js';
 /**
  * The command dispatcher: (world, command, actor, now) → new world + result.
@@ -46,6 +56,7 @@ import {
   sellShares,
 } from './exits.js';
 import { exitsOn, lifeBarsOn } from './releases.js';
+import { golfRound, mallBuy } from './leisure.js';
 import {
   HOME_ACT_BARS,
   LIFE_BARS,
@@ -264,6 +275,9 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
         recordChaptersAfterSettle(draft as World, command.market);
       const who = ctx.actorId ? draft.players[ctx.actorId] : undefined;
       if (who) recordChapters(draft as World, who as Player);
+      // The result is read (sent to the client) after the producer finished, when
+      // any draft in it is revoked: copy it out as plain data while drafts still work.
+      if (!WHOLE_WORLD.has(command.type)) result = copyDeep(result);
       draft.version += 1;
     };
     const next = WHOLE_WORLD.has(command.type)
@@ -1087,7 +1101,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'player.travel':
       return travel(world, me, cmd.market);
     case 'travel.book':
-      return bookFlight(world, me, cmd.to, ctx.now, cmd.hotel);
+      return bookFlight(world, me, cmd.to, ctx.now, cmd.hotel, cmd.flight);
     case 'travel.cancel':
       return cancelFlight(world, me);
     case 'travel.fly':
@@ -1242,12 +1256,44 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return declineVisit(world, me, cmd.inviteId);
     case 'hangout.plan':
       return planHangout(world, me, cmd.businessId, cmd.inviteeIds, cmd.when);
-    case 'hangout.join':
-      return joinHangout(world, me, cmd.hangoutId);
+    case 'hangout.join': {
+      const joined = joinHangout(world, me, cmd.hangoutId);
+      // Holiday with friends: an outing on the holiday carries the shared bonus.
+      const holiday = holidayJoined(world, me, cmd.hangoutId);
+      return holiday ? { ...joined, holiday } : joined;
+    }
+    case 'holiday.invite':
+      return inviteHoliday(world, me, cmd.inviteeIds, cmd.hostPays, ctx.now);
+    case 'holiday.accept':
+      return acceptHoliday(world, me, cmd.holidayId, cmd.payOwn, ctx.now);
+    case 'holiday.decline':
+      return declineHoliday(world, me, cmd.holidayId);
+    case 'holiday.together': {
+      const r = doTogether(world, me, cmd.holidayId, cmd.businessId);
+      if (r.plan) return r.plan;
+      const joined = joinHangout(world, me, r.join);
+      const holiday = holidayJoined(world, me, r.join);
+      return {
+        ...joined,
+        ...(holiday ? { holiday } : {}),
+        message: holiday?.message ?? joined.message,
+      };
+    }
+    case 'hotel.knock':
+      return knockHotel(world, me, cmd.holidayId, cmd.playerId, ctx.now);
+    case 'hotel.answer':
+      return answerKnock(world, me, cmd.holidayId, cmd.from, cmd.accept, ctx.now);
+    case 'hotel.leave':
+      return leaveVisit(world, me, cmd.holidayId);
     case 'hangout.leave':
       return leaveHangout(world, me, cmd.hangoutId);
     case 'techevent.attend':
       return attendTechEvent(world, me, cmd.eventId);
+    // ------------------------------------------------------------ golf and the mall
+    case 'golf.round':
+      return golfRound(world, me, cmd.strokes);
+    case 'mall.buy':
+      return mallBuy(world, me, cmd.itemId, cmd.colour, ctx.now);
     // ------------------------------------------------------------ capital programmes (Wave 5)
     case 'accelerator.apply':
       return applyAccelerator(world, me, cmd.acceleratorId, cmd.companyId);
@@ -1410,6 +1456,7 @@ function lifeBarsAfter(world: World, cmd: Command, actorId: Id, result: unknown)
     case 'home.invite':
     case 'hangout.plan':
     case 'hangout.join':
+    case 'holiday.together':
       return changed(social);
     case 'visit.accept': {
       const host = world.players[(out.host as { id: Id } | undefined)?.id ?? ''];
@@ -1423,6 +1470,11 @@ function lifeBarsAfter(world: World, cmd: Command, actorId: Id, result: unknown)
     }
     case 'food.order':
       return changed(foodBars(cmd.itemId));
+    case 'golf.round':
+    case 'mall.buy': {
+      const { barsFx, ...rest } = out as { barsFx?: { stress?: number } };
+      return barsFx ? { ...changed(barsFx), barsFx: undefined, ...rest } : out;
+    }
     default:
       return result;
   }

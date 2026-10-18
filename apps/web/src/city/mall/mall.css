@@ -1,0 +1,128 @@
+/* The mall (MallScene.tsx). */
+.mall-view {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: #f3efe8;
+}
+.mall-3d,
+.mall-2d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.mall-tray {
+  flex: 0 0 auto;
+  max-height: 46%;
+  overflow: auto;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+.mall-shops {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mall-shop {
+  border-left: 4px solid;
+}
+.mall-shop-panel {
+  display: grid;
+  gap: 8px;
+}
+.mall-back {
+  justify-self: start;
+}
+.mall-colours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mall-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgb(0 0 0 / 0.15);
+  padding: 0;
+}
+.mall-swatch.is-on {
+  outline: 3px solid var(--ink);
+  outline-offset: 1px;
+}
+.mall-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.mall-items li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: var(--surface-2, rgb(0 0 0 / 0.03));
+}
+.mall-items li.is-trying {
+  outline: 2px solid #db2777;
+}
+.mall-item-name {
+  flex: 1 1 auto;
+  display: grid;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  min-width: 0;
+}
+.mall-item-name:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.mall-price {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mall-buy {
+  flex: 0 0 auto;
+}
+.mall-bought {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+  animation: golf-pop 0.25s ease-out;
+}
+.mall-bought-fig {
+  flex: 0 0 auto;
+  background: #fdf2f8;
+  border-radius: 12px;
+}
+.mall-bought-text {
+  display: grid;
+  gap: 2px;
+}
+.mall-bought-text .btn {
+  justify-self: start;
+  margin-top: 4px;
+}
+@keyframes golf-pop {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+}

@@ -103,3 +103,27 @@
 :root[data-reduce-motion='1'] .f3-flash {
   display: none;
 }
+
+/* Holiday with friends: the friends beside you, and who you're flying with. */
+.f3-tag.f3-tag-friend {
+  background: #5eead4;
+  opacity: 0;
+}
+.f3-party {
+  position: absolute;
+  left: 50%;
+  bottom: 8.6rem;
+  transform: translateX(-50%);
+  max-width: calc(100% - 2rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.72);
+  color: #f8fafc;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}

@@ -48,6 +48,7 @@ import {
   type Vehicle,
 } from './layout';
 import { planOf, type CityPlan, type DistrictKind, type Host } from './plans';
+import { golfSpot, leisureHosts, mallSpot, putGolf, putMall } from './leisure';
 import {
   fromLatLon,
   GEO_DISTRICTS,
@@ -1085,6 +1086,7 @@ export function buildGeoLayout(
   D.forEach((x, n) => {
     for (const h of x.d.hosts ?? []) if (!hostOf.has(h)) hostOf.set(h, n);
   });
+  leisureHosts(D, hostOf, input.marketId);
   for (const h of Object.keys(HOST_FALLBACK) as Host[])
     if (!hostOf.has(h)) {
       const n = byKind(HOST_FALLBACK[h]);
@@ -1105,6 +1107,15 @@ export function buildGeoLayout(
   const fin = financeItems(input);
   const capital = [...(input.capital ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
   const marketBlocks = Math.ceil(input.segments.length / 9);
+  // The golf course and the mall stand at their real spot when the map reaches it.
+  const [gx0, gy0, gx1, gy1] = data.bounds;
+  const realAt = (at?: [number, number]) => {
+    if (!at) return null;
+    const p = fromLatLon(data, at[0], at[1]);
+    return p.x > gx0 + 200 && p.x < gx1 - 200 && p.y > gy0 + 200 && p.y < gy1 - 200
+      ? { e: p.x, s: p.y }
+      : null;
+  };
   // Investors are scattered like a real city's: the investor district takes
   // every other fund, the rest go round the other districts (not the airport).
   const invHome = hostOf.get('investors') ?? 0;
@@ -1143,6 +1154,16 @@ export function buildGeoLayout(
     if (hs.includes('eventhall')) {
       putEventHall(ctx, cell, area);
       take(n, 0);
+    }
+    if (hs.includes('golf')) {
+      const at = realAt(golfSpot(input.marketId).at);
+      putGolf(ctx, cell, area);
+      take(n, 0, at ? 'golf' : `d${n}`, at ?? x.at);
+    }
+    if (hs.includes('mall')) {
+      const at = realAt(mallSpot(input.marketId).at);
+      putMall(ctx, cell, area);
+      take(n, 0, at ? 'mall' : `d${n}`, at ?? x.at);
     }
     if (hs.includes('airport')) {
       const airport = airportAt(data, x.at);

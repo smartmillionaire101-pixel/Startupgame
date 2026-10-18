@@ -371,7 +371,15 @@ describe('a roomier city (Wave 4)', () => {
       const l = buildLayout(input(market));
       const { labels, areas } = placeLabels(l, (p) => p.name || p.kind, 'The Market');
       const main = labels.filter((x) => x.tier === 'lbl-main').map((x) => x.id);
-      expect(main.sort(), market).toEqual(['airport', 'eventhall', 'hub', 'market', 'office']);
+      expect(main.sort(), market).toEqual([
+        'airport',
+        'eventhall',
+        'golf',
+        'hub',
+        'mall',
+        'market',
+        'office',
+      ]);
       const overlaps = (xs: { x: number; y: number; w: number }[]) =>
         xs.some((a, n) =>
           xs.some(

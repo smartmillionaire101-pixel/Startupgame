@@ -174,6 +174,19 @@ export interface Player {
     bookedAt: number;
     /** A hotel booked with the flight (amount in home minor units). Missing = none. */
     hotel?: HotelStay;
+    /**
+     * Holiday with friends: a host who paid for this trip (`amount` in this
+     * player's home minor units). A cancelled ticket refunds them. Missing = you paid.
+     */
+    sponsor?: { playerId: Id; amount: number };
+    /**
+     * The flight as the client showed it when booking (cosmetic: airline,
+     * flight number, departure time, gate). Holiday friends from the same
+     * city are booked on the host's. Missing = derived by the client.
+     */
+    flight?: TicketFlight;
+    /** Holiday with friends: booked on the host's flight for this holiday. */
+    party?: { holidayId: Id };
   };
   id: Id;
   handle: string;
@@ -280,6 +293,20 @@ export interface Player {
   realised?: { currency: Currency; proceeds: number; gains: number; tax: number };
   /** Founder Journey 5, chapter 7: gifts, a career at a DFI or bank, a second company. */
   allocator?: PlayerAllocator;
+  /**
+   * Golf (leisure.ts): rounds played at a city's golf club, your best and
+   * latest score against par, and rounds this month (for who you meet).
+   * Missing = never played.
+   */
+  golf?: {
+    rounds: number;
+    best: number;
+    last: { market: MarketId; strokes: number[]; par: number; month: number };
+    month: number;
+    thisMonth: number;
+  };
+  /** The mall (leisure.ts): the phone you bought there (cosmetic). Missing = the one you came with. */
+  phone?: { tier: 1 | 2 | 3; paid: number; month: number };
 }
 
 // ---------------------------------------------------------------- Founder Journey 5: exits and the capital allocator
@@ -405,6 +432,86 @@ export interface Hangout {
   /** City month planned (it is over when the month ends). */
   month: number;
   status: 'open' | 'cancelled';
+  /** Holiday with friends: a thing to do together on this holiday (shared bonus on joining). */
+  holidayId?: Id;
+}
+
+/** A flight as the airport board shows it (cosmetic, chosen by the client). */
+export interface TicketFlight {
+  airline?: string;
+  /** "SV 123". */
+  number?: string;
+  /** Local departure time, "14:05". */
+  time?: string;
+  gate?: string;
+}
+
+/** Holiday with friends: one guest on a holiday and their answer. */
+export interface HolidayGuest {
+  /** A player id, or for an AI friend their chat id (`npc:<market>:<n>`, `biz:<id>`, an AI founder's id). */
+  id: Id;
+  status: 'pending' | 'accepted' | 'declined';
+  /** The host pays this guest's flight and hotel. */
+  hostPays: boolean;
+  /** What the host paid for them (host home minor units), once accepted. */
+  paid?: number;
+  /**
+   * An AI friend (one of the host's contacts): they answer at once. `answer`:
+   * yes, only if you pay, or can't make it this month; `text` is their chat
+   * reply. An AI friend who says yes is a travel companion (no ticket).
+   */
+  ai?: {
+    name: string;
+    kind: 'founder' | 'local';
+    market: MarketId;
+    gender: Gender;
+    answer: 'yes' | 'pay' | 'busy';
+    text: string;
+  };
+}
+
+/**
+ * Holiday with friends: a host's trip abroad and the friends invited on it.
+ * It lasts the destination city's month it was planned in.
+ */
+export interface Holiday {
+  id: Id;
+  hostId: Id;
+  /** The destination. */
+  market: MarketId;
+  /** Destination city month (the invitations expire when it ends). */
+  month: number;
+  /** The hotel tier the host booked; null = flight only. */
+  tier: HotelStay['tier'] | null;
+  guests: HolidayGuest[];
+  createdAt: number;
+  /** Things done together: the hangout, the venue and who came. */
+  together?: { hangoutId: Id; businessId: Id; name: string; memberIds: Id[] }[];
+  /**
+   * Fly together: the host's flight out of `from` and everyone booked on it
+   * (seat order: the host first, then each friend as they joined), in seats
+   * side by side from row `row`. Missing = nobody shares the host's flight.
+   */
+  flight?: { from: MarketId; row: number; ids: Id[] };
+  /**
+   * Knocks on a friend's door in the hotel (`hotel.knock`): who knocked, on
+   * whose door (`to`, their room), when, and whether it's still waiting or
+   * was turned down. One per knocker: a new knock replaces their last one.
+   */
+  knocks?: HotelKnock[];
+  /** A friend over in someone's room (`hotel.answer` accepted): the guest is in the host's room. */
+  visit?: { host: Id; guest: Id; since: number };
+  /** Pairs (`a|b`, sorted) who already had the visit bonus on this holiday. */
+  visited?: string[];
+}
+
+export interface HotelKnock {
+  from: Id;
+  to: Id;
+  at: number;
+  /** The room knocked on (the friend's), if the holiday has a hotel. */
+  room: number | null;
+  status: 'pending' | 'declined';
 }
 
 export type Gender = 'female' | 'male';
@@ -1359,7 +1466,9 @@ export interface InboxItem {
       | 'techevent'
       | 'player'
       /** Wave 13: a home offered as a gift. */
-      | 'gift';
+      | 'gift'
+      /** Holiday with friends: an invitation or an answer. */
+      | 'holiday';
     id: Id;
   };
   /** The other player this is about (a payment, a gift): their chat is where to act. */
@@ -1629,6 +1738,8 @@ export interface World {
   visits?: Record<Id, Visit>;
   /** Wave 8: hangouts. Missing on old saves = none. */
   hangouts?: Record<Id, Hangout>;
+  /** Holiday with friends: trips abroad friends were invited on. Missing = none. */
+  holidays?: Record<Id, Holiday>;
   /** Wave 10: every city's property market (listed and owned). Missing = seeded at the next settlement. */
   properties?: Record<Id, Property>;
   /** Wave 10: company branches in other neighbourhoods and cities. Missing = none. */

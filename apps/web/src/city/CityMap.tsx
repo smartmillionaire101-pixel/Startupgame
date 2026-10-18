@@ -880,7 +880,7 @@ export interface MapAreaLabel {
   key: boolean;
 }
 
-const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall'];
+const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall', 'golf', 'mall'];
 
 export function placeLabels(
   layout: CityLayout,
@@ -907,7 +907,10 @@ export function placeLabels(
     labels.push({ id, x: c.x, y, w, text, tier: 'lbl-main', soon: false, ...extra });
   };
   for (const p of layout.places.filter((x) => rank(x) === 0)) {
-    const raw = labelOf(p);
+    const name = labelOf(p);
+    // The golf course and the mall carry their sign.
+    const raw =
+      name && (p.kind === 'golf' ? `⛳ ${name}` : p.kind === 'mall' ? `🛍️ ${name}` : name);
     if (raw) put(p.id, raw, project(p.x + p.w / 2, p.y + p.d / 2), p.h, { soon: !!p.soon });
   }
   // The Market: one label over its stalls instead of a label per stall.

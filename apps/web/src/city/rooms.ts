@@ -617,8 +617,11 @@ export interface Seatable {
  * don't fit become guests and vice versa), at most one person a spot.
  * Returns the slot index per person, or -1 when the room is full.
  */
-export function seat(kind: RoomKind, people: Seatable[]): number[] {
-  const slots = ROOM_SLOTS[kind];
+export function seat(
+  kind: RoomKind,
+  people: Seatable[],
+  slots: Slot[] = ROOM_SLOTS[kind],
+): number[] {
   const free = slots.map(() => true);
   const out = people.map(() => -1);
   const take = (n: number, who: Slot['who'] | null) => {

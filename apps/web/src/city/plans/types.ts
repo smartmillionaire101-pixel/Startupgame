@@ -33,7 +33,10 @@ export type Host =
   | 'hub' // the Hub, your office and the newsstand, on one corner
   | 'home'
   | 'eventhall'
-  | 'airport';
+  | 'airport'
+  /** The golf course and the shopping mall (../leisure.ts). */
+  | 'golf'
+  | 'mall';
 
 export type Side = 'north' | 'south' | 'east' | 'west';
 

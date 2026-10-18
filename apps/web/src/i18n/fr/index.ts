@@ -52,6 +52,9 @@ import { homePhotos } from './home-photos';
 import { hotels } from './hotels';
 import { hotelRoom } from './hotel-room';
 import { arrivalsLive } from './arrivals-live';
+import { nightlife } from './nightlife';
+import { holidays } from './holidays';
+import { golfMall } from './golf-mall';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -107,6 +110,9 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   hotels,
   hotelRoom,
   arrivalsLive,
+  nightlife,
+  holidays,
+  golfMall,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

@@ -20,9 +20,11 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import './scenes.css';
+import './nightlife.css';
 import '../interiors3d/i3d.css';
 import { use3d } from '../three-kit/quality';
 import type { PlayerView } from '@runway/engine';
@@ -31,7 +33,7 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Card, Empty, Pill } from '../ui';
 import { PitchSheet } from '../screens/Money';
-import { AvatarFigure, appearanceOfLook, avatarLook } from './art';
+import { AvatarFigure, appearanceOfLook, avatarLook, type AvatarLook } from './art';
 import { api } from '../api';
 import {
   activeCompany,
@@ -73,8 +75,23 @@ import { crowdAt, crowdHour } from './crowdfill';
 import { aiCharacterId } from '../phone/bus';
 import type { PersonRef } from './PersonCard';
 import { RoomBack, RoomFront } from './RoomArt';
+import { NightBack, NightFront } from './NightArt';
+import {
+  dressFor,
+  genreOf,
+  nightRegulars,
+  nightSlots,
+  nightStyleOf,
+  styleStaff,
+  type NightStyle,
+} from './nightlife';
+import { useVenueMusic } from './nightlife-audio';
+import { useSetting } from '../phone/settings';
 import { WhoIsHere } from './WhoIsHere';
+import { VenueParty, VenuePartyLine, venueParty } from './companions';
 import { HomeScene } from '../home/HomeScene';
+import { HotelBack, HotelFront } from '../home/HotelArt';
+import { HotelKnocked } from '../phone/apps/Holiday';
 import { stayOf } from './travel';
 import { TechEventScene } from './TechEventScene';
 import { techEventAt } from './techevent';
@@ -100,6 +117,10 @@ import {
 
 /** Wave 9 §C: the room in 3D, loaded on demand. */
 const Venue3D = lazy(() => import('../interiors3d/Venue3D').catch(() => ({ default: () => null })));
+
+/** The golf course and the mall: their own scenes, loaded on demand. */
+const GolfScene = lazy(() => import('./golf/GolfScene').then((m) => ({ default: m.GolfScene })));
+const MallScene = lazy(() => import('./mall/MallScene').then((m) => ({ default: m.MallScene })));
 
 /** Inside a scene, the old card header (a building and a person) is not drawn. */
 export const InScene = createContext(false);
@@ -193,6 +214,7 @@ function occupantsOf(
   room: RoomKind,
   players: PresenceView[],
   business: BusinessView | undefined,
+  style: NightStyle | null = null,
 ): Occupant[] {
   const out: Occupant[] = [];
   const m = view.market;
@@ -237,6 +259,8 @@ function occupantsOf(
             t('Owner'),
           ),
         );
+        // A nightlife style's own staff: the DJ, the band, the braai master.
+        if (style) for (const x of styleStaff(style)) out.push(staffMember(x.seed, tx(x.role)));
         for (const a of angelsIn(view, business.id).slice(0, 2))
           out.push(
             ai(
@@ -462,7 +486,9 @@ function occupantsOf(
 
   // Regulars, so no room is ever empty.
   const guests = out.filter((o) => !o.staff).length;
-  const n = regularsFor(room, place.id, m.month, guests);
+  const n = style
+    ? nightRegulars(style, place.id, m.month, guests)
+    : regularsFor(room, place.id, m.month, guests);
   const used = new Set(out.map((o) => o.name));
   for (let k = 0; k < n; k++) {
     let name = npcName(m.id, `${place.id}:reg${k}:${m.month}`);
@@ -647,6 +673,12 @@ export interface SceneProps {
 export function PlaceScene(props: SceneProps) {
   const want3d = use3d();
   const { view } = useView();
+  if (props.place.kind === 'golf' || props.place.kind === 'mall')
+    return (
+      <Suspense fallback={null}>
+        {props.place.kind === 'golf' ? <GolfScene {...props} /> : <MallScene {...props} />}
+      </Suspense>
+    );
   // Wave 8 §C: a tech event you chose to attend here.
   if (techEventAt(props.place.id))
     return <TechEventScene {...props} eventId={techEventAt(props.place.id)!} />;
@@ -714,24 +746,54 @@ function RoomScene({
   });
   const home = place.kind === 'home' && !abroad ? homeOf(view) : null;
   const pocket = view.accounts.local?.balance ?? 0;
+  // A bar, club or lounge of its city: its own plan, look, crowd and music (./nightlife.ts).
+  const cityId = view.here?.id ?? view.market.id;
+  const nightStyle = useMemo(
+    () =>
+      business
+        ? nightStyleOf({
+            market: cityId,
+            id: business.id,
+            kind: business.kind,
+            name: business.name,
+          })
+        : null,
+    [business, cityId],
+  );
+  const genre = nightStyle ? genreOf(nightStyle) : null;
+  const sound = useSetting('sound');
+  useVenueMusic(genre?.id ?? null, sound);
 
   const occupants = useMemo(
-    () => occupantsOf(view, place, room, players, business),
-    [view, place, room, players, business],
+    () => occupantsOf(view, place, room, players, business, nightStyle),
+    [view, place, room, players, business, nightStyle],
   );
+  const slots = nightStyle ? nightSlots(nightStyle) : ROOM_SLOTS[room];
   const seats = useMemo(
     () =>
       seat(
         room,
         occupants.map((o) => ({ staff: o.staff })),
+        slots,
       ),
-    [room, occupants],
+    [room, occupants, slots],
   );
-  const slots = ROOM_SLOTS[room];
+  /** Tonight's outfits: the style's dress code on its guests (not on players or staff). */
+  const dress = useCallback(
+    (o: Occupant, look: AvatarLook) =>
+      nightStyle && !o.staff && o.person?.kind === 'ai' ? dressFor(nightStyle, look, o.id) : look,
+    [nightStyle],
+  );
   const placed = occupants
     .map((o, n) => ({ o, slot: seats[n]! >= 0 ? slots[seats[n]!]! : null }))
     .filter((x): x is { o: Occupant; slot: (typeof slots)[number] } => x.slot !== null);
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
+  // Holiday with friends: out together here, your companions next to you.
+  const party = useMemo(
+    () => (place.kind === 'business' ? venueParty(view, place.ref ?? null) : []),
+    [view, place.kind, place.ref],
+  );
+  const partyLooks = useMemo(() => party.map((f) => f.look), [party]);
   // ---- Wave 9 §C: the room in 3D (the 2D room stays underneath, invisible).
   const want3d = use3d();
   const [ready3d, setReady3d] = useState(false);
@@ -744,7 +806,7 @@ function RoomScene({
           ? [
               {
                 id: o.id,
-                look: avatarLook(o.bg, o.id, o.gender),
+                look: dress(o, avatarLook(o.bg, o.id, o.gender)),
                 slot: seats[n]!,
                 act: o.act ?? slots[seats[n]!]!.act,
                 staff: o.staff,
@@ -752,7 +814,7 @@ function RoomScene({
             ]
           : [],
       ),
-    [occupants, seats, slots],
+    [occupants, seats, slots, dress],
   );
   const onPerson3d = useCallback(
     (id: string) => {
@@ -909,7 +971,7 @@ function RoomScene({
     for (const it of fun)
       actions.push({
         id: `fun:${it.id}`,
-        label: tx(it.label),
+        label: tx(nightStyle?.relabel?.[it.id] ?? it.label),
         sub: it.locked
           ? t('Unlocks at standard of living {n} ({name})', {
               n: it.requiresTier,
@@ -969,7 +1031,12 @@ function RoomScene({
                 : '🛍';
       actions.push({
         id: `buy:${it.id}`,
-        label: room === 'salon' ? tx(it.label) : t('Buy {item}', { item: tx(it.label) }),
+        label:
+          room === 'salon'
+            ? tx(it.label)
+            : nightStyle?.relabel?.[it.id]
+              ? tx(nightStyle.relabel[it.id]!)
+              : t('Buy {item}', { item: tx(it.label) }),
         sub: it.energy
           ? t('{price} · +{n} energy', { price: money(it.price, cur), n: it.energy })
           : money(it.price, cur),
@@ -1328,13 +1395,16 @@ function RoomScene({
       aria-label={title}
       data-room={room}
       data-scene={place.id}
+      data-nightlife={nightStyle?.id}
+      data-layout={nightStyle?.layout}
+      data-genre={genre?.id}
     >
       <header className="place-head">
         <div className="place-title">
           <h2>{title}</h2>
           {business && (
             <span className="small muted">
-              {tx(business.kindLabel)}
+              {tx(nightStyle?.label ?? business.kindLabel)}
               {business.street ? ` · ${business.street}` : ''}
             </span>
           )}
@@ -1343,6 +1413,7 @@ function RoomScene({
           ✕
         </button>
       </header>
+      {room === 'hotel' && <HotelKnocked />}
       <div className={`place-room${is3d ? ' is-3d' : ''}`} ref={roomRef}>
         {want3d && (
           <Suspense fallback={null}>
@@ -1354,10 +1425,12 @@ function RoomScene({
               slots={slots}
               people={people3d}
               me={meLook}
+              party={partyLooks}
               act={act3d}
               onPerson={onPerson3d}
               onReady={onReady3d}
               reduced={reduced}
+              nightStyle={nightStyle}
             />
           </Suspense>
         )}
@@ -1367,30 +1440,46 @@ function RoomScene({
           role="group"
           aria-label={t('People here')}
         >
-          <RoomBack
-            kind={room}
-            tint={business?.look.color ?? place.color}
-            sign={sign?.toUpperCase().slice(0, 22)}
-            home={home?.items ?? null}
-            car={home ? (carOf(view)?.label ?? null) : null}
-          />
+          {nightStyle ? (
+            <NightBack
+              s={nightStyle}
+              sign={sign?.toUpperCase().slice(0, 22)}
+              night={daylight.night}
+            />
+          ) : room === 'hotel' ? (
+            <HotelBack tier={stayOf(view)?.tier ?? null} night={daylight.night} />
+          ) : (
+            <RoomBack
+              kind={room}
+              tint={business?.look.color ?? place.color}
+              sign={sign?.toUpperCase().slice(0, 22)}
+              home={home?.items ?? null}
+              car={home ? (carOf(view)?.label ?? null) : null}
+            />
+          )}
           {placed
             .filter((x) => x.slot.sit)
             .map((x) => (
-              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} vis={vis} />
+              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} vis={vis} dress={dress} />
             ))}
-          <RoomFront
-            kind={room}
-            tint={business?.look.color ?? place.color}
-            home={home?.items ?? null}
-          />
+          {nightStyle ? (
+            <NightFront s={nightStyle} />
+          ) : room === 'hotel' ? (
+            <HotelFront tier={stayOf(view)?.tier ?? null} night={daylight.night} />
+          ) : (
+            <RoomFront
+              kind={room}
+              tint={business?.look.color ?? place.color}
+              home={home?.items ?? null}
+            />
+          )}
           {placed
             .filter((x) => !x.slot.sit)
             // During an act, nobody stands in the way of your station.
             .filter((x) => !act || Math.abs(x.slot.x - act.script.station.x) > 56)
             .sort((a, b) => a.slot.y - b.slot.y)
             .map((x) => (
-              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} vis={vis} />
+              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} vis={vis} dress={dress} />
             ))}
           {act ? (
             <ActStage
@@ -1410,16 +1499,20 @@ function RoomScene({
               }}
             />
           ) : (
-            <g
-              className="scene-you"
-              transform={`translate(${ENTRANCE.x} ${ENTRANCE.y}) scale(-1.9 1.9)`}
-            >
-              <AvatarFigure look={meLook} />
-            </g>
+            <>
+              <VenueParty party={party} x={ENTRANCE.x} y={ENTRANCE.y} />
+              <g
+                className="scene-you"
+                transform={`translate(${ENTRANCE.x} ${ENTRANCE.y}) scale(-1.9 1.9)`}
+              >
+                <AvatarFigure look={meLook} />
+              </g>
+            </>
           )}
         </svg>
         {act && <ActHud title={act.title} ended={act.ended} onSkip={endAct} />}
         <WhoIsHere place={place} players={players} />
+        <VenuePartyLine party={party} />
         <span
           className="scene-count"
           data-drawn={placed.length}
@@ -1428,6 +1521,20 @@ function RoomScene({
           {t('{n} here', { n: placed.length })}
           {unseated > 0 && <b> +{unseated}</b>}
         </span>
+        {genre && nightStyle && (
+          <span
+            className={`nl-playing${sound ? '' : ' is-muted'}`}
+            data-now-playing={genre.id}
+            style={{ '--nl-beat': `${(60 / genre.groove.bpm).toFixed(3)}s` } as CSSProperties}
+          >
+            <span className="nl-eq" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+            {t('Now playing · {genre}', { genre: tx(genre.label) })}
+          </span>
+        )}
       </div>
       {more ? (
         <div className="place-more">
@@ -1526,14 +1633,20 @@ function Person({
   slot,
   onTap,
   vis = [0, 360],
+  dress,
 }: {
   o: Occupant;
   slot: { x: number; y: number; act: Activity; flip?: boolean };
   onTap: (p: PersonRef) => void;
   /** The visible x range of the room, to keep the name tag inside it. */
   vis?: [number, number];
+  /** Tonight's outfit (a nightlife style's dress code). */
+  dress?: (o: Occupant, look: AvatarLook) => AvatarLook;
 }) {
-  const look = useMemo(() => avatarLook(o.bg, o.id, o.gender), [o.bg, o.id, o.gender]);
+  const look = useMemo(
+    () => (dress ?? ((_o: Occupant, l: AvatarLook) => l))(o, avatarLook(o.bg, o.id, o.gender)),
+    [o, dress],
+  );
   const s = 1.3 + ((slot.y - 140) / 100) * 0.65;
   const act = o.act ?? slot.act;
   const tap = () => o.person && onTap(o.person);

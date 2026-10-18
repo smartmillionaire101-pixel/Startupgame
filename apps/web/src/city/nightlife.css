@@ -1,0 +1,95 @@
+/* Nightlife (./nightlife.ts): what's playing, and the 2D room's beat. */
+
+.nl-playing {
+  position: absolute;
+  left: 0.6rem;
+  bottom: 0.6rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: calc(100% - 7rem);
+  padding: 0.28rem 0.7rem 0.28rem 0.5rem;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.78);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  backdrop-filter: blur(4px);
+}
+.nl-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+.nl-eq i {
+  display: block;
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+  background: #f472b6;
+  transform-origin: bottom;
+  animation: nl-eq var(--nl-beat, 0.5s) ease-in-out infinite alternate;
+}
+.nl-eq i:nth-child(2) {
+  background: #22d3ee;
+  animation-delay: calc(var(--nl-beat, 0.5s) * -0.33);
+}
+.nl-eq i:nth-child(3) {
+  background: #facc15;
+  animation-delay: calc(var(--nl-beat, 0.5s) * -0.66);
+}
+.nl-playing.is-muted .nl-eq i {
+  animation: none;
+  transform: scaleY(0.3);
+}
+@keyframes nl-eq {
+  from {
+    transform: scaleY(0.25);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* The 2D room: neon breathes to the beat; a techno strobe. */
+.nl-neon {
+  animation: nl-neon calc(var(--nl-beat, 0.5s) * 2) ease-in-out infinite alternate;
+}
+@keyframes nl-neon {
+  from {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.nl-strobe rect {
+  animation: nl-strobe var(--nl-beat, 0.5s) steps(1) infinite;
+}
+@keyframes nl-strobe {
+  0% {
+    opacity: 0.08;
+  }
+  12% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-eq i,
+  .nl-neon,
+  .nl-strobe rect {
+    animation: none !important;
+  }
+}
+:root[data-reduce-motion='1'] .nl-eq i,
+:root[data-reduce-motion='1'] .nl-neon,
+:root[data-reduce-motion='1'] .nl-strobe rect {
+  animation: none !important;
+}

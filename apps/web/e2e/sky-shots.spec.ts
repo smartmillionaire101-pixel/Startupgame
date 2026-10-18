@@ -3,7 +3,7 @@
  * real skylines (SKY_SHOTS=1; SKY_OUT=<dir>; SKY_ONLY=<id,id> to pick).
  * Not part of the normal suite.
  */
-import { test, expect, letters, playAsGuest, type Page } from './fixtures';
+import { test, expect, letters, openTogether, playAsGuest, type Page } from './fixtures';
 
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 test.skip(!process.env.SKY_SHOTS, 'Screenshots only (SKY_SHOTS=1)');
@@ -79,12 +79,9 @@ for (const s of SHOTS.filter((x) => !only || only.includes(x.id))) {
     if (process.env.SKY_PITCH) s.pitch = Number(process.env.SKY_PITCH);
     await page.addInitScript(() => localStorage.setItem('runway.hq', '1'));
     await create(page, s.market);
-    await expect(page.getByRole('button', { name: /^Together/ })).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.topbar')).toBeVisible({ timeout: 30000 });
     const home = page.getByRole('dialog', { name: 'Home and social experiences' });
-    for (let i = 0; i < 5 && !(await home.isVisible()); i++) {
-      await page.getByRole('button', { name: /^Together/ }).click();
-      await page.waitForTimeout(1500);
-    }
+    await openTogether(page);
     await home.locator(`[data-sky-view="${s.id}"]`).click();
     const pano = page.getByRole('dialog', { name: 'City panorama' });
     await expect(pano).toBeVisible({ timeout: 20000 });

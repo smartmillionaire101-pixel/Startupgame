@@ -52,6 +52,7 @@ import {
   type ScheduledFlight,
 } from '../travel';
 import { seatOf, setTicket, ticketFrom, useTicket, type Ticket } from '../ticket';
+import { FlyingWith } from '../companions';
 import { HotelPicker } from '../HotelPicker';
 import type { HotelTier } from '../travel';
 import { useDaylight } from '../useDaylight';
@@ -446,6 +447,7 @@ function BoardingPass({ ticket, from }: { ticket: Ticket; from: string }) {
         {line ? `${line} · ` : ''}
         {t('Seat {seat}', { seat: seatOf(ticket) })}
       </span>
+      <FlyingWith to={ticket.to} />
       {ticket.hotel && (
         <span className="small" data-pass-hotel={ticket.hotel.tier}>
           {t('Hotel: {name}', { name: ticket.hotel.name })}
@@ -533,7 +535,15 @@ function TripSheet({
     const row = flights.find((x) => x.d.id === to);
     if (!row || !desk) return;
     const { d, f } = row;
-    const cmd = { type: 'travel.book' as const, to: d.id as MarketId, ...(hotel ? { hotel } : {}) };
+    const cmd = {
+      type: 'travel.book' as const,
+      to: d.id as MarketId,
+      ...(hotel ? { hotel } : {}),
+      // The flight off the board: friends on holiday from this city get the same one.
+      ...(f
+        ? { flight: { airline: f.airline, number: f.flight, time: f.time, gate: f.gate } }
+        : {}),
+    };
     if (!(await send(cmd))) return;
     setChoosing(null);
     const stay = hotel ? d.hotels.find((h) => h.tier === hotel) : undefined;

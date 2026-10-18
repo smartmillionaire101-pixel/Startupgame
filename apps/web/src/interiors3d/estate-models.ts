@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { Kit, contactShadow, tone } from './kit';
 import { buildModel, chairAt, type Model, type ModelOpts } from './furniture';
+import { HOTEL_BUILDERS } from './hotel-models';
 
 /** Car paint by model (the reference's black SUVs, a blue supercar, a silver saloon). */
 export const CAR_PAINT: Record<string, string> = {
@@ -698,13 +699,15 @@ export const ESTATE_MODELS = new Set([...Object.keys(BUILDERS), 'guest-bed']);
 export function buildEstateModel(id: string, o: ModelOpts): Model {
   if (id === 'guest-bed') return guestBedModel(o);
   const carKind = id.startsWith('car:') ? id.slice(4) : null;
-  const b = carKind ? car(carKind, o.tint ?? CAR_PAINT[carKind] ?? '#64748b') : BUILDERS[id];
+  const b = carKind
+    ? car(carKind, o.tint ?? CAR_PAINT[carKind] ?? '#64748b')
+    : (BUILDERS[id] ?? HOTEL_BUILDERS[id]);
   if (!b) return buildModel(id, o);
   const k = new Kit();
   const m: Model = { group: new THREE.Group(), parts: {}, lamps: [], screens: [], seats: [] };
   b(k, o, m);
   m.group = k.build();
-  if (id !== 'sconce' && id !== 'pool-water' && id !== 'hot-tub') {
+  if (!['sconce', 'pool-water', 'hot-tub', 'hotel-art', 'suite-rug', 'round-rug'].includes(id)) {
     const s = carKind
       ? contactShadow(2.4, 5, 0.65)
       : contactShadow(Math.max(0.5, o.w), Math.max(0.5, o.d), 0.4);

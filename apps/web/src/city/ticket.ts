@@ -11,6 +11,7 @@
 import { useSyncExternalStore } from 'react';
 import { useView } from '../store';
 import { destinationsOf } from './travel';
+import { flightPartyTo } from './companions';
 import {
   airportSchedule,
   localMinutes,
@@ -33,6 +34,8 @@ export interface Ticket {
   airline?: string;
   flight?: string;
   gate?: string;
+  /** Holiday with friends: your seat on the host's flight, next to theirs (from the server). */
+  seat?: string;
   /** The hotel booked with the flight (from the server), when there is one. */
   hotel?: { tier: string; name: string; paid: number };
 }
@@ -106,7 +109,20 @@ export function useTicket(): Ticket | null {
       : ticketFor(paid.from, dest, view.market.currency, view.market.month);
   // The server's ticket is the truth for what was paid, hotel included.
   const hotel = (paid as { hotel?: Ticket['hotel'] }).hotel;
-  return { ...detail, fare: paid.paid, hotel: hotel ?? undefined };
+  // …and for the flight when it has one: friends on holiday share the host's (./companions).
+  const shown = (
+    paid as { flight?: { airline?: string; number?: string; time?: string; gate?: string } }
+  ).flight;
+  const seat = flightPartyTo(view, paid.to)?.seat;
+  return {
+    ...detail,
+    ...(shown?.number
+      ? { time: shown.time, airline: shown.airline, flight: shown.number, gate: shown.gate }
+      : {}),
+    ...(seat ? { seat } : {}),
+    fare: paid.paid,
+    hotel: hotel ?? undefined,
+  };
 }
 
 /** The ticket if it's for a flight out of this city to one of these destinations. */
@@ -122,6 +138,7 @@ export function ticketFrom(
 
 /** A seat that stays the same for a ticket. */
 export function seatOf(t: Ticket): string {
+  if (t.seat) return t.seat;
   let h = 0;
   for (const c of `${t.from}>${t.to}:${t.flight ?? ''}`) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return `${8 + (h % 24)}${'ACDF'[(h >>> 5) % 4]}`;

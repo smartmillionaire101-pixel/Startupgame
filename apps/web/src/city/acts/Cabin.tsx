@@ -19,6 +19,7 @@ import { fliesPrivate } from '../airport/planes';
 import { fmtFlightTime } from '../travel';
 import './acts.css';
 import { SeatedFigure } from './figure';
+import { layoutTags } from '../flight3d/tags';
 import { ease, fade, lerp, put, seg, text } from './types';
 
 export type CabinClass = 'economy' | 'premium' | 'business' | 'private';
@@ -47,6 +48,8 @@ const pt = (x: number, h: number, z: number) => {
   return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
 };
 const FLOOR = 290;
+/** The drawing's viewBox (cropped to fill the screen: `slice`). */
+const VB = { x: -200, y: 0, w: 800, h: 640 };
 const CEIL = -215;
 const BIN = -118;
 const ROWS = 6;
@@ -233,6 +236,7 @@ export function Cabin({
   dur,
   tier,
   look,
+  party,
 }: {
   from: string;
   to: string;
@@ -243,6 +247,11 @@ export function Cabin({
   tier: number | undefined;
   /** You, in your seat. */
   look: AvatarLook;
+  /** Holiday with friends: your seat and the friends in the seats beside you. */
+  party?: {
+    seat: string;
+    with: { id: string; first: string; look: AvatarLook; seat: string | null }[];
+  } | null;
 }) {
   const cls = cabinClassOf(tier);
   const spec = CLASSES[cls];
@@ -267,13 +276,22 @@ export function Cabin({
       who: AvatarLook | null;
       you: boolean;
       seat: string;
+      /** A friend on holiday with you: their name tag. */
+      friend?: string;
     }[] = [];
+    const friends = party?.with ?? [];
+    // On a holiday flight, your ticket's row is your row (the seats are side by side in it).
+    const asked = party ? Number(party.seat.replace(/\D+$/, '')) : NaN;
+    const rowNo = asked > YOUR_ROW ? asked - YOUR_ROW : spec.rowNo;
     for (let i = ROWS - 1; i >= 0; i--) {
       const z = rowZ(i);
       for (let side = -1; side <= 1; side += 2)
         for (let j = 0; j < spec.perSide; j++) {
           const x = side * (spec.aisle + spec.seatW / 2 + j * spec.seatW);
           const you = i === YOUR_ROW && side === -1 && j === 0;
+          // Your friends: the seats beside yours, then across the aisle.
+          const fi = i === YOUR_ROW ? (side === -1 ? j - 1 : spec.perSide - 1 + j) : -1;
+          const friend = fi >= 0 ? friends[fi] : undefined;
           const idx = i * 10 + (side + 1) * 3 + j;
           let h = 0;
           const key = `${from}:${to}:${idx}`;
@@ -286,15 +304,72 @@ export function Cabin({
             z,
             row: i,
             you,
-            seat: `${spec.rowNo + i}${LETTERS[col]}`,
-            who: you ? look : taken ? avatarLook(BGS[h % BGS.length], `pax:${key}`) : null,
+            // The seat you're actually in (with friends beside you, yours may not be your ticket's letter).
+            seat: `${rowNo + i}${LETTERS[col]}`,
+            who: you
+              ? look
+              : friend
+                ? friend.look
+                : taken
+                  ? avatarLook(BGS[h % BGS.length], `pax:${key}`)
+                  : null,
+            ...(friend
+              ? {
+                  friend: t('{name} · {seat}', {
+                    name: friend.first,
+                    seat: `${rowNo + i}${LETTERS[col]}`,
+                  }),
+                }
+              : {}),
           });
         }
     }
     return out;
+    // party is fixed for the flight.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to, spec, cls, look]);
   const mine = seats.find((s) => s.you)!;
   const youP = P(mine.x, FLOOR, mine.z);
+  // What of the drawing shows (it's cropped to fill the screen), for the name tags.
+  const [shown, setShown] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setShown({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  /** Your tag and your friends': above their seats, kept on screen, none covering another. */
+  const tags = useMemo(() => {
+    const scale = shown.w && shown.h ? Math.max(shown.w / VB.w, shown.h / VB.h) : 1;
+    const vw = shown.w ? shown.w / scale : VB.w;
+    const vh = shown.h ? shown.h / scale : VB.h;
+    const x0 = VB.x + (VB.w - vw) / 2;
+    const y0 = VB.y + (VB.h - vh) / 2;
+    const width = (text: string) => Math.max(56, text.length * 7 + 14);
+    const you = t('You · {seat}', { seat: mine.seat });
+    const items = [
+      { text: you, x: youP.x, y: youP.y - 196 * youP.s + 4, seat: mine.seat, you: true },
+      ...seats
+        .filter((x) => x.friend)
+        .map((x) => {
+          const p = P(x.x, FLOOR, x.z);
+          return { text: x.friend!, x: p.x, y: p.y - 196 * p.s - 20, seat: x.seat, you: false };
+        }),
+    ];
+    const boxes = layoutTags(
+      items.map((x) => ({ x: x.x - x0, y: x.y - y0, w: width(x.text), h: 18 })),
+      vw,
+      vh,
+      12 / scale,
+    );
+    return items.map((x, i) => ({
+      ...x,
+      w: width(x.text),
+      left: boxes[i]!.left + x0,
+      top: boxes[i]!.top + y0,
+    }));
+  }, [shown, seats, mine, youP.x, youP.y, youP.s]);
   const W = spec.aisle + spec.perSide * spec.seatW + 14;
 
   useEffect(() => {
@@ -480,7 +555,7 @@ export function Cabin({
     <div className={`fl-cabin cab-${cls} is-${mood}`} data-cabin={cls} ref={root}>
       <svg
         className="fl-svg"
-        viewBox="-200 0 800 640"
+        viewBox={`${VB.x} ${VB.y} ${VB.w} ${VB.h}`}
         preserveAspectRatio="xMidYMid slice"
         aria-hidden
       >
@@ -570,13 +645,27 @@ export function Cabin({
             )}
           </Seat>
         ))}
-        {/* You: a tag over your seat; your meal; sleep or work. */}
-        <g transform={`translate(${youP.x.toFixed(1)} ${(youP.y - 196 * youP.s).toFixed(1)})`}>
-          <rect x="-34" y="-14" width="68" height="18" rx="9" fill="#facc15" />
-          <text y="-1" textAnchor="middle" className="cab-tag">
-            {t('You · {seat}', { seat: mine.seat })}
-          </text>
-        </g>
+        {/* Name tags: yours and, on holiday, your friends' over their seats; your meal; sleep or work. */}
+        {tags.map((x) => (
+          <g
+            key={x.you ? 'you' : `f:${x.seat}`}
+            data-companion={x.you ? undefined : x.seat}
+            data-seat-tag={x.you ? 'you' : x.seat}
+            transform={`translate(${(x.left + x.w / 2).toFixed(1)} ${(x.top + 14).toFixed(1)})`}
+          >
+            <rect
+              x={-x.w / 2}
+              y="-14"
+              width={x.w}
+              height="18"
+              rx="9"
+              fill={x.you ? '#facc15' : '#5eead4'}
+            />
+            <text y="-1" textAnchor="middle" className="cab-tag">
+              {x.text}
+            </text>
+          </g>
+        ))}
         <g data-n={'meal'} opacity="0" data-meal="">
           <rect x="-26" y="-6" width="52" height="8" rx="2" fill="#94a3b8" />
           <rect x="-22" y="-12" width="20" height="7" rx="2" fill="#f8fafc" />
