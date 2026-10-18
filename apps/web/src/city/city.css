@@ -1619,16 +1619,17 @@ html[data-simple] .city-hud-bottom {
   min-height: 32px;
 }
 
-/* Simple mode keeps the buttons' names on phones: Sky views gets its own
-   row in the bottom-right corner, over "Where to?". */
+/* Simple mode keeps the buttons' names on phones, so three don't fit in a
+   row: Sky views sits beside "Where to?" in the bottom-right corner, and
+   "Who's here" goes just above them. */
 html[data-simple] .city-hud-bottom .hud-stack {
   grid-auto-flow: row;
   grid-template-columns: auto auto;
 }
-html[data-simple] .city-hud-bottom .hud-stack > :not(.hud-sky) {
-  grid-row: 2;
-}
-html[data-simple] .city-hud-bottom .hud-stack > .hud-sky {
+html[data-simple] .city-hud-bottom .hud-stack > :first-child {
   grid-row: 1;
-  grid-column: 2;
+  grid-column: 1 / -1;
+}
+html[data-simple] .city-hud-bottom .hud-stack > :not(:first-child) {
+  grid-row: 2;
 }

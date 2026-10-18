@@ -41,6 +41,13 @@ const settle = (page: Page) =>
     });
     return r.status;
   });
+/** Settle, trying again when the deployed host times out (504) closing a busy month. */
+async function settleMonth(page: Page) {
+  for (let i = 0; ; i++) {
+    const status = await settle(page);
+    if (status !== 504 || i === 2) return status;
+  }
+}
 
 /** A new investor in Accra, with the pop-up on (and Simple mode as asked). */
 async function newInvestor(page: Page, simple: boolean) {
@@ -71,7 +78,7 @@ async function newInvestor(page: Page, simple: boolean) {
 /** Close months until a life event is waiting. */
 async function untilLifeEvent(page: Page) {
   for (let i = 0; i < 12; i++) {
-    expect(await settle(page)).toBe(200);
+    expect(await settleMonth(page)).toBe(200);
     const s = await state(page);
     if (s.view?.decisions.open.some((e) => e.life)) return;
   }
