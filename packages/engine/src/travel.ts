@@ -22,6 +22,7 @@ import {
   usdToLocal,
 } from './helpers.js';
 import {
+  forgetOwners,
   account,
   convert,
   costIn,
@@ -353,6 +354,7 @@ export function relocate(world: World, p: Player, to: MarketId, newHandle: strin
     );
   }
   p.accounts.local = newLocal;
+  forgetOwners(world);
   keepStatement(world, p);
 
   // 2. Shares and SAFEs everywhere: half to the old market's central bank.

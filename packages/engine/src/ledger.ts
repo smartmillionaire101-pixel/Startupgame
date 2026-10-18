@@ -17,6 +17,35 @@ export const RECENT_LIMIT = 30;
 export const STATEMENT_HISTORY = 200;
 export type MoneyPurpose = 'spent' | 'sent' | 'invested' | 'capital' | 'move';
 
+/**
+ * Which human player owns each personal account, built once per command
+ * (per world draft). A month's settlement makes several transfers for every
+ * player; looking the owner up by scanning every player made it quadratic,
+ * long enough on a big world for the request to time out. Dropped whenever
+ * an account is opened or a player's accounts change (`forgetOwners`).
+ */
+const owners = new WeakMap<World, Map<Id, Id>>();
+
+export function forgetOwners(world: World) {
+  owners.delete(world);
+}
+
+function ownerOf(world: World, accountId: Id) {
+  let index = owners.get(world);
+  if (!index) {
+    index = new Map();
+    for (const p of Object.values(world.players)) {
+      if (p.ai) continue;
+      index.set(p.accounts.local, p.id);
+      if (p.accounts.usd) index.set(p.accounts.usd, p.id);
+    }
+    owners.set(world, index);
+  }
+  const id = index.get(accountId);
+  const p = id ? world.players[id] : undefined;
+  return p && (p.accounts.local === accountId || p.accounts.usd === accountId) ? p : undefined;
+}
+
 /** Count the outgoing leg once, in its source currency. AI cash is excluded. */
 function recordActivity(
   world: World,
@@ -27,9 +56,7 @@ function recordActivity(
 ) {
   const stats = world.activity;
   if (!stats || kind === 'move' || from.external) return;
-  let player = Object.values(world.players).find(
-    (p) => !p.ai && (p.accounts.local === from.id || p.accounts.usd === from.id),
-  );
+  let player = ownerOf(world, from.id);
   if (!player && kind === 'invested') {
     const fund = Object.values(world.funds).find(
       (f) => f.account === from.id && !f.ai && f.managerId,
@@ -56,6 +83,7 @@ export function openAccount(
   opts: { currency: Currency; market: MarketId; label: string; external?: boolean; id?: Id },
 ): Id {
   const id = opts.id ?? newId(world, 'acc');
+  forgetOwners(world);
   world.accounts[id] = {
     id,
     currency: opts.currency,
