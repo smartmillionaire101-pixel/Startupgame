@@ -57,11 +57,12 @@ import { settleCareers, settleMentorships } from './allocator.js';
 export const NAME_RESERVATION_MONTHS = 12;
 
 function playerPerformance(world: World, p: Player): number {
-  // Bankers are judged by their bank.
-  const bank = Object.values(world.banks).find(
-    (b) => b.ownerId === p.id && b.status === 'licensed',
-  );
-  if (p.role === 'banker' && bank) return bank.stars.value;
+  // Bankers are judged by their bank (only bankers need it looked up).
+  const bank =
+    p.role === 'banker'
+      ? Object.values(world.banks).find((b) => b.ownerId === p.id && b.status === 'licensed')
+      : undefined;
+  if (bank) return bank.stars.value;
   if (p.role === 'investor') {
     const pos = Object.values(world.positions).filter(
       (x) => x.investorId === p.id || x.investorId === p.investor?.fundId,

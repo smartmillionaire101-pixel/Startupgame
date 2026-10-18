@@ -3,7 +3,8 @@ import { expirePlay, playCommand } from './play.js';
 /**
  * The command dispatcher: (world, command, actor, now) → new world + result.
  *
- * Runs each command inside an Immer producer, so a rule violation anywhere
+ * Runs each command inside an Immer producer (a settlement on a private copy
+ * of the world instead, see WHOLE_WORLD), so a rule violation anywhere
  * (GameRuleError) rolls the whole command back: no half-applied deals.
  */
 import { produce } from 'immer';
@@ -202,13 +203,53 @@ export type DispatchResult =
   | { ok: true; world: World; result: unknown }
   | { ok: false; world: World; error: { code: string; message: string } };
 
+/**
+ * Commands that read and write much of the world (a month-end settlement walks
+ * every company, account, bank and player of a market, many times over). Under
+ * Immer each of those reads makes a proxy, which in a busy world made one
+ * settlement take seconds. These run instead on a private deep copy of the
+ * world, mutated in place: the same code, the same writes in the same order,
+ * so the same resulting world, and a rule error still discards everything.
+ */
+const WHOLE_WORLD = new Set<Command['type']>(['market.settle']);
+
+/** A deep copy of plain data (the world is JSON-shaped: objects, arrays, primitives). */
+function copyDeep<T>(v: T): T {
+  if (v === null || typeof v !== 'object') return v;
+  if (Array.isArray(v)) {
+    const out = new Array(v.length);
+    for (let i = 0; i < v.length; i++) out[i] = copyDeep(v[i]);
+    return out as T;
+  }
+  const out: Record<string, unknown> = {};
+  for (const k in v) if (Object.hasOwn(v, k)) out[k] = copyDeep((v as Record<string, unknown>)[k]);
+  return out as T;
+}
+
+/**
+ * Frozen like Immer's results, so nothing outside dispatch can change a world
+ * by accident. Parts already frozen (shared with earlier worlds) are skipped.
+ */
+function freezeDeep<T>(v: T): T {
+  if (v === null || typeof v !== 'object' || Object.isFrozen(v)) return v;
+  Object.freeze(v);
+  for (const k in v) if (Object.hasOwn(v, k)) freezeDeep((v as Record<string, unknown>)[k]);
+  return v;
+}
+
+function onPrivateCopy(world: World, recipe: (draft: World) => void): World {
+  const draft = copyDeep(world);
+  recipe(draft);
+  return freezeDeep(draft);
+}
+
 export function dispatch(world: World, command: Command, ctx: CommandContext): DispatchResult {
   if (SYSTEM_COMMANDS.has(command.type) !== (ctx.actorId === null)) {
     return { ok: false, world, error: { code: 'command.forbidden', message: 'Not allowed.' } };
   }
   let result: unknown = null;
   try {
-    const next = produce(world, (draft) => {
+    const recipe = (draft: World) => {
       draft.activity ??= { since: ctx.now, at: ctx.now, sequence: 0, totals: {}, recent: [] };
       draft.activity.at = ctx.now;
       const actor = ctx.actorId ? draft.players[ctx.actorId] : undefined;
@@ -224,7 +265,10 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
       const who = ctx.actorId ? draft.players[ctx.actorId] : undefined;
       if (who) recordChapters(draft as World, who as Player);
       draft.version += 1;
-    });
+    };
+    const next = WHOLE_WORLD.has(command.type)
+      ? onPrivateCopy(world, recipe)
+      : produce(world, recipe);
     return { ok: true, world: next, result };
   } catch (e) {
     if (e instanceof GameRuleError)

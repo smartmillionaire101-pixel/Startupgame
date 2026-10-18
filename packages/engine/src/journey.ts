@@ -17,7 +17,7 @@
 import { companyRunway } from './company.js';
 import { getMarket, lastPnl, totalCustomers, INBOX_LIMIT } from './helpers.js';
 import type { Currency } from './money.js';
-import type { Company, Id, Player, World } from './types.js';
+import type { Branch, Company, Id, Player, World } from './types.js';
 import { STAGES } from './types.js';
 
 /** Every threshold in one place (money in US dollars a month, converted per city). */
@@ -100,9 +100,35 @@ interface Facts {
   /** The company the journey talks about: the first active one, else the latest. */
   main: Company | null;
   ms: Record<string, number>;
+  /** Lookups shared by every founder checked in one pass (see recordChaptersAfterSettle). */
+  shared?: SharedFacts;
 }
 
-function factsOf(world: World, p: Player): Facts {
+/**
+ * World-wide lookups built once, on first use, for a pass over many founders.
+ * Only valid while companies and branches don't change, which holds while
+ * chapters are recorded (that writes milestones and inbox notes only).
+ */
+interface SharedFacts {
+  /** Open branches by company. */
+  branches?: Map<Id, Branch[]>;
+  /** Active companies with a parent, by parent. */
+  subsidiaries?: Map<Id, Company[]>;
+}
+
+function groupBy<T>(items: Iterable<T>, key: (x: T) => Id | null | undefined): Map<Id, T[]> {
+  const out = new Map<Id, T[]>();
+  for (const x of items) {
+    const k = key(x);
+    if (!k) continue;
+    const list = out.get(k);
+    if (list) list.push(x);
+    else out.set(k, [x]);
+  }
+  return out;
+}
+
+function factsOf(world: World, p: Player, shared?: SharedFacts): Facts {
   const companies = p.companyIds.map((id) => world.companies[id]).filter((c): c is Company => !!c);
   const active = companies.filter((c) => c.status === 'active');
   return {
@@ -110,6 +136,7 @@ function factsOf(world: World, p: Player): Facts {
     active,
     main: active[0] ?? companies[companies.length - 1] ?? null,
     ms: p.milestones,
+    ...(shared ? { shared } : {}),
   };
 }
 
@@ -176,6 +203,24 @@ function secondCity(world: World, f: Facts): boolean {
   const markets = new Set(f.active.map((c) => c.market));
   if (markets.size > 1) return true;
   const ids = new Set(f.active.map((c) => c.id));
+  if (f.shared) {
+    // The same answer from the shared lookups (a yes/no: order doesn't matter).
+    const sh = f.shared;
+    sh.branches ??= groupBy(
+      Object.values(world.branches ?? {}).filter((b) => b.status === 'open'),
+      (b) => b.companyId,
+    );
+    sh.subsidiaries ??= groupBy(
+      Object.values(world.companies).filter((c) => c.status === 'active'),
+      (c) => c.parentId,
+    );
+    for (const id of ids) {
+      for (const b of sh.branches.get(id) ?? [])
+        if (b.market !== world.companies[b.companyId]!.market) return true;
+      for (const c of sh.subsidiaries.get(id) ?? []) if (!markets.has(c.market)) return true;
+    }
+    return false;
+  }
   for (const b of Object.values(world.branches ?? {}))
     if (b.status === 'open' && ids.has(b.companyId)) {
       const home = world.companies[b.companyId]!.market;
@@ -584,8 +629,8 @@ function complete(def: ChapterDef, steps: JourneyStep[]): boolean {
 }
 
 /** The seven chapters for this player right now (without the stored prompts). */
-export function deriveChapters(world: World, p: Player): JourneyChapter[] {
-  const f = factsOf(world, p);
+export function deriveChapters(world: World, p: Player, shared?: SharedFacts): JourneyChapter[] {
+  const f = factsOf(world, p, shared);
   const chapters = CHAPTERS.map((def, i): JourneyChapter => {
     const n = i + 1;
     const recorded = p.milestones[chapterMilestone(n)];
@@ -692,10 +737,10 @@ export function chooseBootstrap(p: Player, on: boolean, month: number) {
  * and after a settlement (for every founder). Takes no world id, no dice and
  * no money, so it can't change how any other command plays out.
  */
-export function recordChapters(world: World, p: Player): number[] {
+export function recordChapters(world: World, p: Player, shared?: SharedFacts): number[] {
   if (!hasJourney(p)) return [];
   const month = getMarket(world, p.market).month;
-  const chapters = deriveChapters(world, p);
+  const chapters = deriveChapters(world, p, shared);
   const fresh = chapters.filter(
     (c) => c.status === 'done' && p.milestones[chapterMilestone(c.n)] === undefined,
   );
@@ -721,10 +766,11 @@ export function recordChapters(world: World, p: Player): number[] {
 
 /** After a settlement: every human founder in that market (or with a company there). */
 export function recordChaptersAfterSettle(world: World, market: string) {
+  const shared: SharedFacts = {};
   for (const p of Object.values(world.players)) {
     if (!hasJourney(p)) continue;
     const here =
       p.market === market || p.companyIds.some((id) => world.companies[id]?.market === market);
-    if (here) recordChapters(world, p);
+    if (here) recordChapters(world, p, shared);
   }
 }

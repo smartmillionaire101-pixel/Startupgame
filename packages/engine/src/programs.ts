@@ -52,7 +52,7 @@ import { AI_FIRST_NAMES, AI_LAST_NAMES } from './data/fiction.js';
 import { INDUSTRY_LABEL } from './data/industries.js';
 import type { MarketId } from './data/markets.js';
 import { activeAngels } from './angels.js';
-import { bankFigures } from './banks.js';
+import { bankBooks, bankFigures } from './banks.js';
 import { addSafe } from './captable.js';
 import { gameDate } from './clock.js';
 import { openDeal } from './deals.js';
@@ -1328,11 +1328,17 @@ export function appointGovernor(world: World, marketId: MarketId, month: number)
   const m = getMarket(world, marketId);
   const unit = Math.max(1, col(m));
   let best: { bankId: Id; ownerId: Id; score: number } | null = null;
-  for (const b of Object.values(world.banks).sort((x, y) => (x.id < y.id ? -1 : 1))) {
-    if (b.market !== marketId || b.status !== 'licensed') continue;
-    const owner = world.players[b.ownerId];
-    if (!owner || owner.ai) continue;
-    const f = bankFigures(world, b);
+  const candidates = Object.values(world.banks)
+    .sort((x, y) => (x.id < y.id ? -1 : 1))
+    .filter((b) => b.market === marketId && b.status === 'licensed')
+    .filter((b) => {
+      const owner = world.players[b.ownerId];
+      return owner && !owner.ai;
+    });
+  // Nothing changes while the banks are scored: one pass over the world for all of them.
+  const books = bankBooks(world, candidates);
+  for (const b of candidates) {
+    const f = bankFigures(world, b, books.get(b.id));
     const score =
       Math.min(0.5, Math.max(0, f.capitalRatio)) * 4 +
       b.stars.value +
