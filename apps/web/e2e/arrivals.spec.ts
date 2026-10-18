@@ -83,8 +83,12 @@ test('landing in London: Arrivals at Heathrow, then the way to your hotel', asyn
 
   // Arrivals: Heathrow by name, welcome, the way to your hotel and places to see.
   const arrivals = page.locator('.airport-scene');
-  await expect(arrivals.locator('.place-title h2')).toContainText('Heathrow', { timeout: 20_000 });
+  await expect(arrivals.locator('.arrival-airport')).toContainText('Heathrow', {
+    timeout: 20_000,
+  });
   await expect(arrivals.locator('.place-title')).toContainText('Arrivals');
+  // Your hotel, by name, before you go.
+  await expect(arrivals.locator('.arrival-stay')).toContainText(/Guesthouse|Hotel|Grand/);
   const sheet = arrivals.locator('[data-arrival]');
   await expect(sheet).toContainText('Welcome to London');
   await expect(sheet.locator('[data-arrival-go]')).toHaveCount(5);

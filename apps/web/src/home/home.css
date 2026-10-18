@@ -537,3 +537,40 @@
 .home-row[aria-pressed='true'] {
   border-color: var(--accent, #0ea5e9);
 }
+
+/* Your hotel room abroad (./hotel.ts): the hotel's name over the room, a four-button tray. */
+.home-hotel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.home-hotel-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.home-hotel-head span {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.home-bar.is-hotel {
+  grid-template-columns: repeat(4, 1fr);
+}
+.home-bar.is-hotel .home-bar-btn {
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.78rem;
+}
+.home-bar-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

@@ -16,7 +16,11 @@ const BLURB: Record<HotelTier, () => string> = {
   luxury: () => t('Five stars'),
 };
 
-const STARS: Record<HotelTier, string> = { budget: '★', business: '★★★', luxury: '★★★★★' };
+export const HOTEL_STARS: Record<HotelTier, string> = {
+  budget: '★',
+  business: '★★★',
+  luxury: '★★★★★',
+};
 
 export function HotelPicker({
   city,
@@ -64,7 +68,7 @@ export function HotelPicker({
             <span className="hotel-main">
               <span className="hotel-name">{h.name}</span>
               <span className="small muted">
-                <span aria-hidden="true">{STARS[h.tier]} </span>
+                <span aria-hidden="true">{HOTEL_STARS[h.tier]} </span>
                 {h.affordable ? BLURB[h.tier]() : t('Can’t afford')}
               </span>
             </span>

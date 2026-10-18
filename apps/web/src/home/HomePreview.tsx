@@ -11,6 +11,13 @@ import { HOME_SLOTS } from '../city/life';
 import type { Place } from '../city/layout';
 import { HomeScene, type HostView } from './HomeScene';
 import { TIER_OF_KIND, type HomeKind } from './layout';
+import type { HotelTier } from '../city/travel';
+
+const HOTELS: { id: HotelTier; label: string; name: string }[] = [
+  { id: 'budget', label: 'Hotel: budget', name: 'Camden Guesthouse' },
+  { id: 'business', label: 'Hotel: business', name: 'Canary Wharf Business Hotel' },
+  { id: 'luxury', label: 'Hotel: luxury', name: 'The Mayfair Grand' },
+];
 
 const KINDS: { id: HomeKind; label: string }[] = [
   { id: 'studio', label: 'Studio' },
@@ -52,6 +59,9 @@ const place = (kind: HomeKind): Place => ({
 export function HomePreview() {
   const [kind, setKind] = useState<HomeKind | null>(null);
   const [wealth, setWealth] = useState(1);
+  // A hotel room abroad, any tier.
+  const [hotel, setHotel] = useState<HotelTier | null>(null);
+  const stay = HOTELS.find((h) => h.id === hotel);
   const host: HostView | null = useMemo(() => {
     if (!kind) return null;
     const finish = kind === 'studio' ? 1 : kind === 'apartment' || kind === 'townhouse' ? 2 : 3;
@@ -93,6 +103,33 @@ export function HomePreview() {
           </Button>
         ))}
       </div>
+      <div className="row wrap">
+        {HOTELS.map((h) => (
+          <Button
+            key={h.id}
+            variant="subtle"
+            data-preview-hotel={h.id}
+            onClick={() => setHotel(h.id)}
+          >
+            {t(h.label)}
+          </Button>
+        ))}
+      </div>
+      {stay && (
+        <HomeScene
+          key={`hotel:${stay.id}`}
+          place={place('room')}
+          title={stay.name}
+          onClose={() => setHotel(null)}
+          onPerson={() => {}}
+          nav={() => {}}
+          players={[]}
+          abroad
+          hotel={{ tier: stay.id, name: stay.name }}
+        >
+          {null}
+        </HomeScene>
+      )}
       {host && kind && (
         <HomeScene
           key={`${kind}:${wealth}`}

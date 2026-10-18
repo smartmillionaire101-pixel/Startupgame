@@ -23,4 +23,7 @@ export const roundTwo: Record<string, string> = {
   'Go to your hotel': 'Aller à votre hôtel',
   'Where to go in {city}': 'Où aller à {city}',
   'Stay in the airport': 'Rester à l’aéroport',
+  'Local time {time}': 'Heure locale {time}',
+  'Your flight has landed': 'Votre vol a atterri',
+  'A room in town': 'Une chambre en ville',
 };

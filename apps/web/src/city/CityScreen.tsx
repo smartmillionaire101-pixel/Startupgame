@@ -905,24 +905,14 @@ function CityBodyInner({
                 </span>
               )}
             </button>
-            {/* Simple mode: Sky views keeps its own button, and the next step is a 💡
-                button (a red dot when there's something new) that opens a small card. */}
-            {simple && (
-              <button
-                type="button"
-                className="hud-places hud-sky"
-                data-testid="sky-views-btn"
-                onClick={() => setSkyOpen(true)}
-              >
-                <span aria-hidden>🎡</span>
-                <span className="hud-btn-label">{t('Sky views')}</span>
-              </button>
-            )}
+            {/* Simple mode: the next step is a 💡 button (a red dot when there's
+                something new) that opens a small card. */}
             {simple && !riding && <NextStepCard onMap onGo={journeyGo} />}
           </div>
           <GestureHint />
           <div className="city-hud city-hud-bottom">
-            {trip && asking ? (
+            {/* How to get there: a slim strip above the map's buttons, which stay. */}
+            {trip && asking && (
               <RideChooser
                 tiles={trip.tiles}
                 where={tripPlace ? labelOf(tripPlace) : ''}
@@ -939,72 +929,61 @@ function CityBodyInner({
                 me={lifeBars ? { hoursLeft: view.me.hours.left, energy: view.me.energy } : null}
                 skipAs={lifeBars ? preferred : undefined}
               />
-            ) : (
-              <>
-                {alarm && !abroad && (
-                  <div className={`hud-banner hud-${alarm.level}`} role="status">
-                    <span>
-                      <b>{t('Rescue plan')}</b>
-                      {alarm.deadline ? ` · ${tx(alarm.deadline)}` : ''}
-                    </span>
-                    <Button variant="danger" onClick={() => goTo(office)}>
-                      {t('See the plan')}
-                    </Button>
-                  </div>
-                )}
-                <div className="hud-row-bottom">
-                  {!riding && !simple && (
-                    <button
-                      type="button"
-                      className="hud-whatnow-chip"
-                      aria-haspopup="dialog"
-                      onClick={() => setWhatNowSheet(true)}
-                    >
-                      <Icon name="spark" size={18} />
-                      <span className="hud-whatnow-label">{t('What to do now')}</span>
-                      {firstTip && <span className="hud-whatnow-tip">{firstTip}</span>}
-                    </button>
-                  )}
-                  <div className="hud-stack">
-                    <button
-                      type="button"
-                      className="hud-places"
-                      onClick={() => setPeopleOpen(true)}
-                    >
-                      <Icon name="people" size={20} />
-                      <span className="hud-btn-label">{t('Who’s here')}</span>
-                      {players.length > 0 && (
-                        <span className="hud-count">
-                          <span className="sr-only">
-                            {t('{n} players nearby', { n: players.length })}
-                          </span>
-                          <span aria-hidden>{players.length}</span>
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className="hud-places"
-                      onClick={() => setPlacesOpen(true)}
-                    >
-                      <Icon name="list" size={20} />
-                      <span className="hud-btn-label">{simple ? t('Where to?') : t('Places')}</span>
-                    </button>
-                    {!simple && (
-                      <button
-                        type="button"
-                        className="hud-places"
-                        data-testid="sky-views-btn"
-                        onClick={() => setSkyOpen(true)}
-                      >
-                        <span aria-hidden>🎡</span>
-                        <span className="hud-btn-label">{t('Sky views')}</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </>
             )}
+            <>
+              {alarm && !abroad && !(trip && asking) && (
+                <div className={`hud-banner hud-${alarm.level}`} role="status">
+                  <span>
+                    <b>{t('Rescue plan')}</b>
+                    {alarm.deadline ? ` · ${tx(alarm.deadline)}` : ''}
+                  </span>
+                  <Button variant="danger" onClick={() => goTo(office)}>
+                    {t('See the plan')}
+                  </Button>
+                </div>
+              )}
+              <div className="hud-row-bottom">
+                {!riding && !simple && (
+                  <button
+                    type="button"
+                    className="hud-whatnow-chip"
+                    aria-haspopup="dialog"
+                    onClick={() => setWhatNowSheet(true)}
+                  >
+                    <Icon name="spark" size={18} />
+                    <span className="hud-whatnow-label">{t('What to do now')}</span>
+                    {firstTip && <span className="hud-whatnow-tip">{firstTip}</span>}
+                  </button>
+                )}
+                <div className="hud-stack">
+                  <button type="button" className="hud-places" onClick={() => setPeopleOpen(true)}>
+                    <Icon name="people" size={20} />
+                    <span className="hud-btn-label">{t('Who’s here')}</span>
+                    {players.length > 0 && (
+                      <span className="hud-count">
+                        <span className="sr-only">
+                          {t('{n} players nearby', { n: players.length })}
+                        </span>
+                        <span aria-hidden>{players.length}</span>
+                      </span>
+                    )}
+                  </button>
+                  <button type="button" className="hud-places" onClick={() => setPlacesOpen(true)}>
+                    <Icon name="list" size={20} />
+                    <span className="hud-btn-label">{simple ? t('Where to?') : t('Places')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="hud-places hud-sky"
+                    data-testid="sky-views-btn"
+                    onClick={() => setSkyOpen(true)}
+                  >
+                    <span aria-hidden>🎡</span>
+                    <span className="hud-btn-label">{t('Sky views')}</span>
+                  </button>
+                </div>
+              </div>
+            </>
           </div>
         </div>
       )}

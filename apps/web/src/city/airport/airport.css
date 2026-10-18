@@ -288,39 +288,145 @@
   align-self: flex-start;
 }
 
-/* Arrivals (just landed): welcome, the way to your hotel or home, and a few
-   places worth seeing in the city. */
+/* Arrivals (just landed): the airport's sign, big, then welcome, your hotel
+   (or home) and a few places worth seeing. Theme colours throughout, so the
+   sheet reads the same in light and dark mode. */
+.arrival-hero {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+  padding: 1.1rem 1rem 1.2rem;
+  background: linear-gradient(160deg, #0f172a, #1e293b 70%, #0f766e);
+  color: #f8fafc;
+}
+.arrival-sign {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  background: #fbbf24;
+  color: #111827;
+  font-weight: 900;
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.arrival-airport {
+  margin: 0.15rem 0 0;
+  font-size: clamp(1.7rem, 8vw, 2.3rem);
+  line-height: 1.05;
+  font-weight: 900;
+  color: #fff;
+}
+.arrival-city,
+.arrival-landed {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #cbd5e1;
+}
+.arrival-landed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  color: #86efac;
+}
+.arrival-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #22c55e;
+}
 .arrival-sheet {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem 1.1rem;
+  background: var(--bg, var(--surface));
+  color: var(--text);
 }
 .arrival-title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.25rem;
+  font-weight: 900;
 }
 .arrival-sheet p {
   margin: 0;
 }
+.arrival-stay {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.8rem;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+.arrival-stay-icon {
+  font-size: 1.8rem;
+}
+.arrival-stay-text {
+  display: grid;
+  min-width: 0;
+}
+.arrival-stay-text .small {
+  color: var(--muted);
+}
+.arrival-stay-text b {
+  font-size: 1.05rem;
+}
+.arrival-stars {
+  color: #d97706;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+}
 .arrival-go {
-  min-height: 48px;
+  min-height: 50px;
+  font-size: 1.02rem;
+}
+.arrival-where {
+  margin-top: 0.3rem;
 }
 .arrival-sights {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.3rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
 }
 .arrival-sights button {
   width: 100%;
-  min-height: 44px;
+  height: 100%;
+  min-height: 72px;
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
   text-align: left;
-  padding: 0.4rem 0.65rem;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-  color: inherit;
+  padding: 0.55rem 0.65rem;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
   font: inherit;
-  font-size: 0.86rem;
+  font-size: 0.84rem;
+  line-height: 1.25;
+  cursor: pointer;
+}
+.arrival-sight-icon {
+  font-size: 1.3rem;
+}
+.arrival-stay-here {
+  justify-self: center;
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
   cursor: pointer;
 }

@@ -520,6 +520,14 @@ export function DecorArt({ model, w, h }: { model: string; w: number; h: number 
           ))}
         </g>
       );
+    case 'suitcase':
+      return (
+        <g>
+          {shadow(W, H)}
+          <rect x={W * 0.25} y={H * 0.1} width={W * 0.5} height={H * 0.7} rx={4} fill="#1e3a5f" />
+          <rect x={W * 0.4} y={H * 0.02} width={W * 0.2} height={4} rx={2} fill="#16161a" />
+        </g>
+      );
     case 'wardrobe':
       return (
         <g>

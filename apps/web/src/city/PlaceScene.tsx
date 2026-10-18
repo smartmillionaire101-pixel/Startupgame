@@ -75,6 +75,7 @@ import type { PersonRef } from './PersonCard';
 import { RoomBack, RoomFront } from './RoomArt';
 import { WhoIsHere } from './WhoIsHere';
 import { HomeScene } from '../home/HomeScene';
+import { stayOf } from './travel';
 import { TechEventScene } from './TechEventScene';
 import { techEventAt } from './techevent';
 import { useReducedMotion } from './CityMap';
@@ -644,12 +645,25 @@ export interface SceneProps {
 }
 
 export function PlaceScene(props: SceneProps) {
+  const want3d = use3d();
+  const { view } = useView();
   // Wave 8 §C: a tech event you chose to attend here.
   if (techEventAt(props.place.id))
     return <TechEventScene {...props} eventId={techEventAt(props.place.id)!} />;
   // Wave 7 §A: your flat is a walkable top-down home.
   if (roomOf(props.place, { abroad: props.abroad }) === 'apartment')
     return <HomeScene {...props} />;
+  // Away, your hotel room: drawn like your home in 3D (Lite keeps the flat room).
+  if (props.place.kind === 'home' && props.abroad && want3d) {
+    const stay = stayOf(view);
+    return (
+      <HomeScene
+        {...props}
+        title={stay?.name ?? props.title}
+        hotel={{ tier: stay?.tier ?? null, name: stay?.name ?? null }}
+      />
+    );
+  }
   return <RoomScene {...props} />;
 }
 
@@ -1191,8 +1205,28 @@ function RoomScene({
     }
   } else if (place.kind === 'home') {
     if (abroad) {
-      if (onFlyHome)
-        actions.push({ id: 'fly-home', label: t('Fly home'), icon: '✈', run: onFlyHome });
+      // Your hotel room: rest and freshen up after the trip (flying home is under More).
+      actions.push({
+        id: 'hotel-sleep',
+        label: t('Sleep'),
+        icon: '🛏',
+        disabled: busy,
+        run: () =>
+          send(looseCmd({ type: 'home.act', act: 'sleep' }), (r: Loose) =>
+            said(r, t('You slept well.')),
+          ),
+      });
+      actions.push({
+        id: 'hotel-freshen',
+        label: t('Freshen up'),
+        icon: '🚿',
+        disabled: busy,
+        run: () =>
+          send(looseCmd({ type: 'home.act', act: 'shower' }), (r: Loose) =>
+            said(r, t('A long shower.')),
+          ),
+      });
+      actions.push({ id: 'go-out', label: t('Go out'), icon: '🚪', run: onClose });
     } else {
       // The old shop buttons: now a walk (or a ride) to the nearest showroom.
       const open = businessesOf(view).filter((b) => b.open);

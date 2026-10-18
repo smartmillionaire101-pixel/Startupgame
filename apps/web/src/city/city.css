@@ -1582,3 +1582,53 @@ html[data-simple] .city-hud-bottom {
   border-radius: 10px;
   font-size: 0.74rem;
 }
+
+/* Slimmer still (player feedback: a small banner over the map's buttons,
+   not over them): icon beside the name, one line each, a one-line note. */
+.ride-chooser {
+  width: min(100%, 420px);
+  margin-left: auto;
+  margin-bottom: 0.45rem;
+}
+.ride-chooser .ride-opt {
+  grid-template-columns: auto 1fr;
+  justify-items: start;
+  column-gap: 0.25rem;
+  row-gap: 0;
+  text-align: left;
+  padding: 0.3rem 0.35rem;
+}
+.ride-chooser .ride-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.ride-chooser .ride-meta,
+.ride-chooser .ride-cost {
+  grid-column: 1 / -1;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ride-chooser .ride-note {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ride-chooser .ride-skip-trip {
+  min-height: 32px;
+}
+
+/* Simple mode keeps the buttons' names on phones: Sky views gets its own
+   row in the bottom-right corner, over "Where to?". */
+html[data-simple] .city-hud-bottom .hud-stack {
+  grid-auto-flow: row;
+  grid-template-columns: auto auto;
+}
+html[data-simple] .city-hud-bottom .hud-stack > :not(.hud-sky) {
+  grid-row: 2;
+}
+html[data-simple] .city-hud-bottom .hud-stack > .hud-sky {
+  grid-row: 1;
+  grid-column: 2;
+}

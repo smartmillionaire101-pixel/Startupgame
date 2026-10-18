@@ -43,13 +43,14 @@ import {
   fmtFlightTime,
   liveryOf,
   localMinutes,
+  stayOf,
   nextFlightTo,
   scheduleDay,
   type FlightStatus,
   type ScheduledFlight,
 } from '../travel';
 import { seatOf, setTicket, ticketFrom, useTicket, type Ticket } from '../ticket';
-import { HotelPicker } from '../HotelPicker';
+import { HOTEL_STARS, HotelPicker } from '../HotelPicker';
 import type { HotelTier } from '../travel';
 import { useDaylight } from '../useDaylight';
 import { WhoIsHere } from '../WhoIsHere';
@@ -756,9 +757,32 @@ export interface Arrival {
   onStay: () => void;
 }
 
+/** Arrivals, top half: the airport's sign, big (player feedback: the name was too quiet). */
+function ArrivalHero({ marketId }: { marketId: string }) {
+  const city = CITY_NAMES[marketId] ?? marketId;
+  const [now] = useState(() => localMinutes(marketId));
+  const time = `${String(Math.floor(now / 60) % 24).padStart(2, '0')}:${String(now % 60).padStart(2, '0')}`;
+  return (
+    <div className="arrival-hero" data-arrival-hero="">
+      <span className="arrival-sign">
+        <span aria-hidden="true">✈</span> {t('Arrivals')}
+      </span>
+      <h2 className="arrival-airport">{AIRPORT_NAMES[marketId] ?? city}</h2>
+      <p className="arrival-city">
+        {city} · {t('Local time {time}', { time })}
+      </p>
+      <p className="arrival-landed">
+        <span className="arrival-dot" aria-hidden="true" /> {t('Your flight has landed')}
+      </p>
+    </div>
+  );
+}
+
 /** Arrivals: welcome, the way to your hotel (or home) and a few places worth seeing. */
 function ArrivalSheet({ marketId, arrival }: { marketId: string; arrival: Arrival }) {
+  const { view } = useView();
   const city = CITY_NAMES[marketId] ?? marketId;
+  const stay = arrival.home ? null : stayOf(view);
   const sights: { where: 'office' | 'market' | 'hub' | 'bank'; icon: string; label: string }[] = [
     {
       where: 'office',
@@ -774,9 +798,16 @@ function ArrivalSheet({ marketId, arrival }: { marketId: string; arrival: Arriva
       <h3 className="arrival-title">
         {arrival.home ? t('Welcome home to {city}', { city }) : t('Welcome to {city}', { city })}
       </h3>
-      <p className="small muted">
-        {t('You’ve landed at {airport}.', { airport: AIRPORT_NAMES[marketId] ?? city })}
-      </p>
+      <div className="arrival-stay">
+        <span className="arrival-stay-icon" aria-hidden="true">
+          {arrival.home ? '🏠' : '🏨'}
+        </span>
+        <span className="arrival-stay-text">
+          <span className="small">{arrival.home ? t('Your home') : t('Your hotel')}</span>
+          <b>{stay?.name ?? (arrival.home ? city : t('A room in town'))}</b>
+          {stay && <span className="arrival-stars">{HOTEL_STARS[stay.tier]}</span>}
+        </span>
+      </div>
       <button
         type="button"
         className="btn btn-primary btn-block arrival-go"
@@ -785,19 +816,22 @@ function ArrivalSheet({ marketId, arrival }: { marketId: string; arrival: Arriva
       >
         {arrival.home ? t('Go home') : t('Go to your hotel')} <span aria-hidden>›</span>
       </button>
-      <p className="arrival-where small">
+      <p className="arrival-where">
         <b>{t('Where to go in {city}', { city })}</b>
       </p>
       <ul className="arrival-sights">
         {sights.map((x) => (
           <li key={x.where}>
             <button type="button" data-arrival-go={x.where} onClick={() => arrival.onGo(x.where)}>
-              <span aria-hidden="true">{x.icon}</span> {x.label}
+              <span className="arrival-sight-icon" aria-hidden="true">
+                {x.icon}
+              </span>
+              <span>{x.label}</span>
             </button>
           </li>
         ))}
       </ul>
-      <button type="button" className="btn btn-subtle btn-block" onClick={arrival.onStay}>
+      <button type="button" className="arrival-stay-here" onClick={arrival.onStay}>
         {t('Stay in the airport')}
       </button>
     </section>
@@ -886,9 +920,10 @@ export function AirportScene({
       <header className="place-head">
         <div className="place-title">
           {/* The airport's own name first (Heathrow, Murtala Muhammed…). */}
-          <h2>{AIRPORT_NAMES[marketId] ?? title}</h2>
+          {/* Landed, the airport's name is the big sign below: the header names the city. */}
+          <h2>{landed ? (CITY_NAMES[marketId] ?? title) : (AIRPORT_NAMES[marketId] ?? title)}</h2>
           <span className="small muted">
-            {landed ? t('Arrivals') : t('Departures')} · {CITY_NAMES[marketId] ?? title}
+            {landed ? t('Arrivals') : `${t('Departures')} · ${CITY_NAMES[marketId] ?? title}`}
           </span>
         </div>
         <button type="button" className="icon-btn" aria-label={t('Close')} onClick={onClose}>
@@ -904,24 +939,28 @@ export function AirportScene({
         </div>
       ) : (
         <>
-          <div className="airport-view">
-            <Board marketId={marketId} day={day} />
-            {scene?.ticket && scene.at !== 'ticket' ? (
-              <TerminalView
-                step={scene.at}
-                playing={scene.playing === scene.at}
-                look={look}
-                kind={jet ? 'bizjet' : 'airliner'}
-                livery={jet ? '#1e3a8a' : liveryOf(marketId, scene.ticket.airline)}
-                airline={jet ? t('Private jets') : (scene.ticket.airline ?? '')}
-                gate={jet ? 'P1' : (scene.ticket.gate ?? 'A1')}
-                toName={scene.ticket.toName}
-                night={night}
-              />
-            ) : (
-              <Apron schedule={schedule} walkers={walkers} />
-            )}
-          </div>
+          {landed ? (
+            <ArrivalHero marketId={marketId} />
+          ) : (
+            <div className="airport-view">
+              <Board marketId={marketId} day={day} />
+              {scene?.ticket && scene.at !== 'ticket' ? (
+                <TerminalView
+                  step={scene.at}
+                  playing={scene.playing === scene.at}
+                  look={look}
+                  kind={jet ? 'bizjet' : 'airliner'}
+                  livery={jet ? '#1e3a8a' : liveryOf(marketId, scene.ticket.airline)}
+                  airline={jet ? t('Private jets') : (scene.ticket.airline ?? '')}
+                  gate={jet ? 'P1' : (scene.ticket.gate ?? 'A1')}
+                  toName={scene.ticket.toName}
+                  night={night}
+                />
+              ) : (
+                <Apron schedule={schedule} walkers={walkers} />
+              )}
+            </div>
+          )}
           {landed ? (
             <ArrivalSheet marketId={marketId} arrival={landed} />
           ) : (

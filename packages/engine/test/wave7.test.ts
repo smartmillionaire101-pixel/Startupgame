@@ -200,11 +200,13 @@ describe('home.act (Wave 7 §A)', () => {
     expect(p.players.u_p!.hours.available).toBe(hours + 2);
   });
 
-  it('home acts need you at home', () => {
+  it('home acts need you at home, but your hotel room abroad lets you rest and wash', () => {
     let w = person(makeWorld(7, ['lagos', 'london']));
     w = run(w, 'u_p', { type: 'travel.fly', to: 'london' }).world;
-    const r = tryRun(w, 'u_p', { type: 'home.act', act: 'nap' });
-    expect(r.ok).toBe(false);
+    for (const a of ['cook', 'work', 'workout'] as const)
+      expect(tryRun(w, 'u_p', { type: 'home.act', act: a }).ok).toBe(false);
+    for (const a of ['sleep', 'nap', 'shower', 'toilet', 'tv'] as const)
+      expect(tryRun(w, 'u_p', { type: 'home.act', act: a }).ok).toBe(true);
   });
 });
 

@@ -50,6 +50,7 @@ import { roundTwo } from './round-two';
 import { lifeEvents } from './life-events';
 import { homePhotos } from './home-photos';
 import { hotels } from './hotels';
+import { hotelRoom } from './hotel-room';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -103,6 +104,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   lifeEvents,
   homePhotos,
   hotels,
+  hotelRoom,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));
