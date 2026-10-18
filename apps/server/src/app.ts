@@ -1392,6 +1392,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
               gender: p.gender ?? null,
               appearance: p.appearance ?? null,
               appearanceAt: p.appearanceAt ?? null,
+              // Their home city: an unchosen look takes its people's skin tones.
+              home: p.market,
               stars: p.stars.value,
               company: company?.name ?? null,
               x: r.x,
@@ -1490,6 +1492,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
               gender: p.gender ?? null,
               appearance: p.appearance ?? null,
               appearanceAt: p.appearanceAt ?? null,
+              // Their home city: an unchosen look takes its people's skin tones.
+              home: p.market,
               stars: p.stars.value,
               company: company?.name ?? null,
               market,

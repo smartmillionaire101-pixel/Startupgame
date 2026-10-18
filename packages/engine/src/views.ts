@@ -879,6 +879,8 @@ export function playerView(
         gender: x.gender ?? null,
         appearance: x.appearance ?? null,
         appearanceAt: x.appearanceAt ?? null,
+        /** Their home city: an unchosen look takes its people's skin tones. */
+        home: x.market,
         stars: round1(x.stars.value),
         companies: x.companyIds.map((id) => world.companies[id]?.name).filter(Boolean),
         /** Your trust with them, built only through real interactions (§13). */

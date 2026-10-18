@@ -72,6 +72,7 @@ export {
   HEADWEAR,
   TOP_STYLES,
   TOP_COLOURS,
+  SKIN_MIX,
   appearanceSchema,
   appearanceSeed,
   defaultAppearance,

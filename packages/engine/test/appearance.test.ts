@@ -114,6 +114,25 @@ describe('defaultAppearance', () => {
     expect(crowd.some((a) => a.facialHair === 'beard')).toBe(true);
   });
 
+  it('takes its skin tones from the person’s city', () => {
+    const share = (market: 'lagos' | 'london' | 'dubai') => {
+      const crowd = Array.from({ length: 600 }, (_, k) =>
+        defaultAppearance(`walker:${k}`, null, market),
+      );
+      // The three lightest tones.
+      return crowd.filter((a) => SKIN_TONES.indexOf(a.skin) >= 5).length / crowd.length;
+    };
+    expect(share('lagos')).toBeLessThan(0.15);
+    expect(share('london')).toBeGreaterThan(0.6);
+    const dubai = share('dubai');
+    expect(dubai).toBeGreaterThan(0.3);
+    expect(dubai).toBeLessThan(0.6);
+    // The same person in the same city: the same face, every time.
+    expect(defaultAppearance('ai:x', 'male', 'london')).toEqual(
+      defaultAppearance('ai:x', 'male', 'london'),
+    );
+  });
+
   it('passes the command schema', () => {
     for (let k = 0; k < 50; k++) expect(parse(defaultAppearance(`x${k}`)).success).toBe(true);
   });

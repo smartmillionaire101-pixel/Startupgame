@@ -20,7 +20,7 @@ import {
   type Headwear,
   type TopStyle,
 } from '@runway/engine';
-import { lookOverride, savedLook } from './acts/look';
+import { homeOf, lookOverride, savedLook } from './acts/look';
 import { PlaneTop } from './airport/planes';
 import { facialHairColour } from '../avatar/tone';
 
@@ -1784,7 +1784,8 @@ export function avatarLook(
   let look: AvatarLook;
   if (saved) look = lookFromAppearance(saved.a, g, bottom);
   else {
-    const a = defaultAppearance(seed, g);
+    // Skin tones as in their own city (or the one on screen).
+    const a = defaultAppearance(seed, g, homeOf(playerId));
     // A tie reads as a man's suit: women wear a scarf instead.
     const acc = outfit?.accessory ?? 'none';
     const accessory = g === 'female' && acc === 'tie' ? 'scarf' : acc;

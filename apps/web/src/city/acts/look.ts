@@ -18,7 +18,9 @@
 import { useSyncExternalStore } from 'react';
 import {
   HAIR_STYLES as ALL_STYLES,
+  MARKET_IDS,
   type Appearance,
+  type MarketId,
   type HairStyle as EngineHairStyle,
 } from '@runway/engine';
 
@@ -114,14 +116,47 @@ export function rememberLook(
   bump();
 }
 
+// Home cities: a look nobody chose takes the skin tones of the person's own
+// city (the engine's SKIN_MIX), so they look the same wherever they're seen.
+// Someone whose home we don't know (an AI person, a passer-by) lives in the
+// city on screen.
+const homes = new Map<string, MarketId>();
+let localCity: MarketId | null = null;
+const isCity = (m: unknown): m is MarketId =>
+  typeof m === 'string' && (MARKET_IDS as readonly string[]).includes(m);
+
+/** Note a player's home city (from the view or presence). */
+export function rememberHome(playerId: string, home: unknown) {
+  if (!playerId || !isCity(home) || homes.get(playerId) === home) return;
+  homes.set(playerId, home);
+  bump();
+}
+
+/** The city a person's unchosen look takes its skin tones from. */
+export const homeOf = (playerId: string): MarketId | null => homes.get(playerId) ?? localCity;
+
 /** Everyone a view names: you, and the players in your market. */
 export function rememberViewLooks(view: {
-  me: { id: string; appearance?: Appearance | null; appearanceAt?: number | null };
-  players?: { id: string; appearance?: Appearance | null; appearanceAt?: number | null }[];
+  me: { id: string; market?: string; appearance?: Appearance | null; appearanceAt?: number | null };
+  market?: { id?: string };
+  players?: {
+    id: string;
+    home?: string;
+    appearance?: Appearance | null;
+    appearanceAt?: number | null;
+  }[];
 }) {
+  const here = view.market?.id;
+  if (isCity(here) && localCity !== here) {
+    localCity = here;
+    bump();
+  }
+  rememberHome(view.me.id, view.me.market);
   rememberLook(view.me.id, view.me.appearance, view.me.appearanceAt);
-  for (const p of view.players ?? [])
+  for (const p of view.players ?? []) {
+    rememberHome(p.id, p.home);
     if (p.appearance !== undefined) rememberLook(p.id, p.appearance, p.appearanceAt);
+  }
 }
 
 /** A player's look from the server, if they saved one. */

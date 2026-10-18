@@ -16,6 +16,7 @@
 import { z } from 'zod';
 import { hashString } from './rng.js';
 import type { Gender } from './types.js';
+import type { MarketId } from './data/markets.js';
 
 /** Eight skin tones, deep to light. Old seeded looks used this order too. */
 export const SKIN_TONES = [
@@ -158,23 +159,66 @@ const MALE_TOPS: readonly TopStyle[] = ['tee', 'shirt', 'blazer', 'hoodie', 'kaf
 const at = <T>(xs: readonly T[], n: number): T => xs[n % xs.length]!;
 
 /**
+ * How often each skin tone (deep to light, as SKIN_TONES) is seeded in a
+ * city, roughly as its people look: West and East African cities mostly
+ * Black, Johannesburg mostly Black with a real mix, Cairo North African,
+ * Dubai a broad mix, London and San Francisco mostly lighter with every
+ * shade present. A player's own choice in the creator always wins.
+ */
+export const SKIN_MIX: Record<MarketId, readonly number[]> = {
+  lagos: [24, 24, 22, 14, 8, 4, 2, 2],
+  accra: [24, 24, 22, 14, 8, 4, 2, 2],
+  freetown: [24, 24, 22, 14, 8, 4, 2, 2],
+  nairobi: [22, 24, 22, 14, 8, 5, 3, 2],
+  kigali: [22, 24, 22, 14, 8, 5, 3, 2],
+  johannesburg: [18, 20, 18, 12, 10, 8, 7, 7],
+  cairo: [2, 4, 8, 16, 26, 24, 13, 7],
+  dubai: [3, 6, 10, 16, 20, 18, 15, 12],
+  london: [3, 4, 4, 6, 9, 14, 26, 34],
+  'san-francisco': [2, 3, 4, 6, 12, 23, 26, 24],
+};
+
+/** A pick from `xs` by weight, with `n` a 32-bit hash. */
+function weighted<T>(xs: readonly T[], weights: readonly number[], n: number): T {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = n % total;
+  for (let i = 0; i < xs.length; i++) {
+    r -= weights[i] ?? 0;
+    if (r < 0) return xs[i]!;
+  }
+  return xs[xs.length - 1]!;
+}
+
+/**
  * The look a seed gives: a pure function of the seed (and gender, when it's
  * known), so a player who never opened the creator, an AI founder or a
  * stranger on the pavement looks the same to everyone, every time.
- * Without a gender, one follows from the seed.
+ * Without a gender, one follows from the seed. With the person's city, the
+ * skin follows that city's mix (SKIN_MIX).
  */
-export function defaultAppearance(seed: string, gender?: Gender | null): Appearance {
+export function defaultAppearance(
+  seed: string,
+  gender?: Gender | null,
+  market?: MarketId | null,
+): Appearance {
   const h = hashString(seed);
   const g: Gender = gender ?? seedGender(seed);
   const female = g === 'female';
   // Its own hash: bits of `h` follow the seed's text closely, which gave
   // whole runs of similar ids (and far more men than women) grey hair.
   const grey = hashString(`${seed}:grey`) % 16 === 0;
+  // In a city, its own mix (an independent hash); without one, every tone alike.
+  const skin = market
+    ? weighted(SKIN_TONES, SKIN_MIX[market], hashString(`${seed}:skin`))
+    : at(SKIN_TONES, h);
   return {
-    skin: at(SKIN_TONES, h),
+    skin,
     face: at(FACE_SHAPES, h >>> 13),
     hairStyle: at(female ? FEMALE_HAIR : MALE_HAIR, h >>> 9),
-    hairColor: grey ? '#9ca3af' : at(HAIR_COLOURS.slice(0, 4), h >>> 5),
+    // Black to brown for everyone; the lightest skin can also be auburn or blonde.
+    hairColor: grey
+      ? '#9ca3af'
+      : at(HAIR_COLOURS.slice(0, SKIN_TONES.indexOf(skin) >= 6 ? 6 : 4), h >>> 5),
     facialHair: female ? 'none' : at(MALE_FACIAL, h >>> 16),
     glasses: (h >>> 19) % 5 === 0 ? (((h >>> 22) & 1) === 1 ? 'round' : 'square') : 'none',
     // Headwear only when a player picks it: a seeded crowd shows its hair.

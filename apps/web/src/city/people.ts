@@ -52,6 +52,8 @@ export interface PresenceView {
   /** Phase 6a: the look they made in the creator (null: never made one, or an older server). */
   appearance?: Appearance | null;
   appearanceAt?: number | null;
+  /** Their home city (an unchosen look follows its skin tones). */
+  home?: string | null;
 }
 
 /** A look from the server, or null when it's missing or malformed. */
@@ -83,6 +85,7 @@ export function normPresence(raw: unknown, selfId?: string): PresenceView[] {
       gender: p.gender === 'female' || p.gender === 'male' ? p.gender : null,
       appearance: normAppearance(p.appearance),
       appearanceAt: typeof p.appearanceAt === 'number' ? p.appearanceAt : null,
+      home: typeof p.home === 'string' ? p.home : null,
     });
   }
   return out;

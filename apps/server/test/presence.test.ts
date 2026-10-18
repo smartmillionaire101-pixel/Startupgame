@@ -177,6 +177,7 @@ describe('presence routes', () => {
       gender: game.current.players[cId]!.gender ?? null,
       appearance: null,
       appearanceAt: null,
+      home: 'lagos',
       stars: game.current.players[cId]!.stars.value,
       company: expect.stringContaining('Trader Pay'),
       x: 50,

@@ -10,11 +10,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import { normPresence, type PresenceView } from './people';
-import { rememberLook } from './acts/look';
+import { rememberHome, rememberLook } from './acts/look';
 
 /** Phase 6a: note each player's look, so every drawing of them finds it by id. */
 function remember(players: PresenceView[]) {
-  for (const p of players) rememberLook(p.id, p.appearance, p.appearanceAt);
+  for (const p of players) {
+    rememberHome(p.id, p.home);
+    rememberLook(p.id, p.appearance, p.appearanceAt);
+  }
   return players;
 }
 
