@@ -96,7 +96,8 @@ describe('defaultAppearance', () => {
     expect(defaultAppearance('ai:founder:x')).toEqual(defaultAppearance('ai:founder:x'));
     for (let k = 0; k < 40; k++) {
       expect(defaultAppearance(`p${k}`, 'female').facialHair).toBe('none');
-      expect(['cap', 'none']).toContain(defaultAppearance(`p${k}`, 'male').headwear);
+      expect(defaultAppearance(`p${k}`, 'male').headwear).toBe('none');
+      expect(defaultAppearance(`p${k}`, 'female').headwear).toBe('none');
     }
   });
 
@@ -108,7 +109,8 @@ describe('defaultAppearance', () => {
     expect(hair.size).toBe(HAIR_STYLES.length);
     expect(new Set(crowd.map((a) => a.topColor)).size).toBeGreaterThan(8);
     expect(crowd.some((a) => a.glasses !== 'none')).toBe(true);
-    expect(crowd.some((a) => a.headwear === 'gele')).toBe(true);
+    // Headwear is a choice in the creator, never given by the seed.
+    expect(crowd.every((a) => a.headwear === 'none')).toBe(true);
     expect(crowd.some((a) => a.facialHair === 'beard')).toBe(true);
   });
 

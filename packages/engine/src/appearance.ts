@@ -146,6 +146,7 @@ const MALE_HAIR: readonly HairStyle[] = [
 const MALE_FACIAL: readonly FacialHair[] = [
   'none',
   'none',
+  'none',
   'stubble',
   'moustache',
   'goatee',
@@ -166,8 +167,9 @@ export function defaultAppearance(seed: string, gender?: Gender | null): Appeara
   const h = hashString(seed);
   const g: Gender = gender ?? seedGender(seed);
   const female = g === 'female';
-  const grey = (h >>> 20) % 16 === 0;
-  const head = (h >>> 24) % (female ? 7 : 9);
+  // Its own hash: bits of `h` follow the seed's text closely, which gave
+  // whole runs of similar ids (and far more men than women) grey hair.
+  const grey = hashString(`${seed}:grey`) % 16 === 0;
   return {
     skin: at(SKIN_TONES, h),
     face: at(FACE_SHAPES, h >>> 13),
@@ -175,15 +177,8 @@ export function defaultAppearance(seed: string, gender?: Gender | null): Appeara
     hairColor: grey ? '#9ca3af' : at(HAIR_COLOURS.slice(0, 4), h >>> 5),
     facialHair: female ? 'none' : at(MALE_FACIAL, h >>> 16),
     glasses: (h >>> 19) % 5 === 0 ? (((h >>> 22) & 1) === 1 ? 'round' : 'square') : 'none',
-    headwear: female
-      ? head === 0
-        ? 'gele'
-        : head === 1
-          ? 'headwrap'
-          : 'none'
-      : head === 0
-        ? 'cap'
-        : 'none',
+    // Headwear only when a player picks it: a seeded crowd shows its hair.
+    headwear: 'none',
     topStyle: at(female ? FEMALE_TOPS : MALE_TOPS, h >>> 26),
     topColor: at(TOP_COLOURS, (h >>> 28) ^ (h >>> 11)),
   };

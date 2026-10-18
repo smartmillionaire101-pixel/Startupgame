@@ -22,6 +22,7 @@ import {
 } from '@runway/engine';
 import { lookOverride, savedLook } from './acts/look';
 import { PlaneTop } from './airport/planes';
+import { facialHairColour } from '../avatar/tone';
 
 // ---------------------------------------------------------------------------
 // Geometry and colour helpers
@@ -1930,6 +1931,8 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
   const headwear = look.headwear ?? (accessory === 'cap' ? 'cap' : 'none');
   const glasses = look.glasses ?? (accessory === 'glasses' ? 'round' : 'none');
   const facial = look.facialHair ?? 'none';
+  // Darker than the skin, whatever the hair colour (../avatar/tone.ts).
+  const fh = facialHairColour(skin, hair);
   const head = HEAD[look.face ?? 'oval'];
   const long = topStyle === 'kaftan' || topStyle === 'dress';
   // A headwrap or gele covers the hair; a cap or beanie leaves what hangs below it.
@@ -2034,15 +2037,15 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
         {facial === 'beard' && (
           <path
             d="M -5.4 -31 Q -5.6 -24.4 0 -24 Q 5.6 -24.4 5.4 -31 L 4.4 -29 Q 0 -26.2 -4.4 -29 Z"
-            fill={hair}
+            fill={fh}
           />
         )}
         {facial === 'stubble' && (
-          <path d="M -5 -29.5 Q 0 -23.6 5 -29.5 Q 0 -25.6 -5 -29.5 Z" fill={hair} opacity="0.35" />
+          <path d="M -5 -29.5 Q 0 -23.6 5 -29.5 Q 0 -25.6 -5 -29.5 Z" fill={fh} opacity="0.35" />
         )}
-        {facial === 'goatee' && <ellipse cx="0.3" cy="-25.6" rx="1.8" ry="1.3" fill={hair} />}
+        {facial === 'goatee' && <ellipse cx="0.3" cy="-25.6" rx="1.8" ry="1.3" fill={fh} />}
         {(facial === 'moustache' || facial === 'goatee' || facial === 'beard') && (
-          <path d="M -1.6 -28.3 Q 0.3 -29.4 2.2 -28.3 Q 0.3 -27.6 -1.6 -28.3 Z" fill={hair} />
+          <path d="M -1.6 -28.3 Q 0.3 -29.4 2.2 -28.3 Q 0.3 -27.6 -1.6 -28.3 Z" fill={fh} />
         )}
         <circle cx="2" cy="-30.5" r="0.8" fill="#111827" />
         <circle cx="-1.5" cy="-30.5" r="0.8" fill="#111827" />

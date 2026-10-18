@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import type { AvatarLook } from '../city/art';
 import { mat, contactShadow } from './kit';
+import { facialHairColour } from '../avatar/tone';
 
 export type PoseId =
   | 'stand'
@@ -202,8 +203,10 @@ function buildHair(look: AvatarLook): THREE.Group {
           0.1,
         );
     }
-  // Facial hair, in the hair's colour.
+  // Facial hair, darker than the skin whatever the hair colour (../avatar/tone.ts).
   const facial = look.facialHair ?? 'none';
+  const fc = facialHairColour(look.skin, look.hair);
+  const fm = mat(fc, { rough: 0.9 });
   if (facial === 'beard')
     add(
       geo(
@@ -216,6 +219,7 @@ function buildHair(look: AvatarLook): THREE.Group {
       0.145,
       0.15,
       0.15,
+      fm,
     );
   if (facial === 'stubble')
     add(
@@ -229,7 +233,7 @@ function buildHair(look: AvatarLook): THREE.Group {
       0.142,
       0.15,
       0.146,
-      mat(look.hair, { rough: 0.9, opacity: 0.4 }),
+      mat(fc, { rough: 0.9, opacity: 0.4 }),
     );
   if (facial === 'goatee')
     add(
@@ -237,6 +241,10 @@ function buildHair(look: AvatarLook): THREE.Group {
       0,
       -0.11,
       0.12,
+      1,
+      1,
+      1,
+      fm,
     );
   if (facial === 'moustache' || facial === 'goatee' || facial === 'beard')
     add(
@@ -244,6 +252,10 @@ function buildHair(look: AvatarLook): THREE.Group {
       0,
       -0.035,
       0.14,
+      1,
+      1,
+      1,
+      fm,
     );
   // Headwear, in the top's colour (a matching gele and buba).
   const wm = mat(look.top, { rough: 0.8 });

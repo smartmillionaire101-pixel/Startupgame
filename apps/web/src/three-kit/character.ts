@@ -9,6 +9,7 @@
  * Self-contained: only three.js and a plain look object.
  */
 import * as THREE from 'three';
+import { facialHairColour } from '../avatar/tone';
 
 export interface CharacterLook {
   skin: string;
@@ -195,10 +196,12 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
         mesh(g.hairCap!, hair, body, 0, headY + 0.01, 0);
     }
   const facial = look.facialHair ?? 'none';
-  if (facial === 'beard') mesh(g.beard!, hair, body, 0, headY - 0.08, 0.08);
-  if (facial === 'goatee') mesh(g.goatee!, hair, body, 0, headY - 0.1, 0.11);
+  // Darker than the skin whatever the hair colour (../avatar/tone.ts).
+  const fh = facial === 'none' ? hair : charMaterial(facialHairColour(look.skin, look.hair), 0.9);
+  if (facial === 'beard') mesh(g.beard!, fh, body, 0, headY - 0.08, 0.08);
+  if (facial === 'goatee') mesh(g.goatee!, fh, body, 0, headY - 0.1, 0.11);
   if (facial === 'moustache' || facial === 'goatee' || facial === 'beard')
-    mesh(g.moustache!, hair, body, 0, headY - 0.045, 0.125);
+    mesh(g.moustache!, fh, body, 0, headY - 0.045, 0.125);
   const glasses = look.glasses ?? (look.accessory === 'glasses' ? 'round' : 'none');
   if (glasses === 'shades')
     mesh(g.shades!, charMaterial('#0b1120', 0.2), body, 0, headY + 0.01, 0.13);
