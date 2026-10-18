@@ -312,7 +312,15 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
+}
+/* "Online count unavailable" is long: it shortens rather than push the row off a phone. */
+.online-count [role='status'] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .online-dot {
   width: 7px;

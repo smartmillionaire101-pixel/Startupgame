@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { gzipSync } from 'node:zlib';
 import { KvAccountStore } from '../src/serverless/kv-accounts.js';
 import { KvGame, SNAPSHOT_EVERY } from '../src/serverless/kv-game.js';
-import { MemoryKv, kvJson } from '../src/serverless/kv.js';
+import { MemoryKv, NetlifyKv, kvJson } from '../src/serverless/kv.js';
 import {
   configFor,
   createRuntime,
@@ -19,6 +19,7 @@ import {
   journeyEventsOn,
   lifeBarsOn,
 } from '@runway/engine';
+import type { Store as BlobStore } from '@netlify/blobs';
 import type { World } from '@runway/engine';
 import { RELEASE_NOTE } from '../src/release.js';
 import { founderSetup, T0 } from './helpers.js';
@@ -77,6 +78,24 @@ describe('serverless key-value store', () => {
       Array.from({ length: 10 }, () => kvJson.update<number>(kv, 'n', (n) => (n ?? 0) + 1, 50)),
     );
     expect((await kvJson.get<number>(kv, 'n'))!.value).toBe(10);
+  });
+
+  it('Netlify Blobs: a fresh client (with the current request’s token) for every call', async () => {
+    const tokens: string[] = [];
+    let token = 'first';
+    const kv = new NetlifyKv(() => {
+      const mine = token;
+      return {
+        getWithMetadata: async () => (tokens.push(mine), null),
+        list: async () => (tokens.push(mine), { blobs: [] }),
+      } as unknown as BlobStore;
+    });
+    await kv.get('a');
+    // Hours later, the instance still warm: Netlify gave this request a new token.
+    token = 'second';
+    await kv.get('a');
+    await kv.list('x/');
+    expect(tokens).toEqual(['first', 'second', 'second']);
   });
 });
 

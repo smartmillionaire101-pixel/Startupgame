@@ -9,6 +9,8 @@ const SHOTS = process.env.FEEDBACK_SHOTS;
 
 test('a player sends feedback from the top row', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  // The longest the row gets: the online count can't be fetched.
+  await page.route('**/api/online', (route) => route.abort());
   await playAsGuest(page);
   const n = letters(6);
   await setupFounder(page, {
@@ -21,6 +23,7 @@ test('a player sends feedback from the top row', async ({ page }) => {
   const open = page.locator('[data-feedback-open]');
   await expect(open).toBeVisible({ timeout: 30_000 });
   // The top row still fits a phone with the extra button.
+  await expect(page.locator('.online-count')).toContainText('unavailable');
   const row = await page.locator('.game-activity').evaluate((el) => ({
     scroll: el.scrollWidth,
     client: el.clientWidth,
