@@ -1,4 +1,12 @@
-import { expect, letters, playAsGuest, setupFounder, test, type Page } from './fixtures';
+import {
+  expect,
+  letters,
+  pickIdentity,
+  playAsGuest,
+  setupFounder,
+  test,
+  type Page,
+} from './fixtures';
 
 /**
  * Where you start (player feedback): a new session opens at home, and you
@@ -13,6 +21,31 @@ const shot = async (page: Page, name: string) => {
 };
 
 test.use({ viewport: { width: 390, height: 844 } });
+
+test('a brand-new founder starts at home too, with the guided first steps', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('runway.startAtHome', '1');
+    localStorage.removeItem('runway.lastSeen');
+  });
+  await page.goto('/');
+  await page.getByLabel('Username', { exact: true }).fill(`nh_${letters(8)}`);
+  await page.getByLabel('Email', { exact: true }).fill(`nh-${letters()}@example.com`);
+  await page.getByLabel('Join as').selectOption('founder');
+  await pickIdentity(page, { name: 'Ada Home', city: 'Nairobi' });
+  await page
+    .getByRole('group', { name: 'Your background' })
+    .getByRole('button', { name: /^Consultant/ })
+    .click();
+  await page.getByRole('button', { name: 'Play now' }).click();
+  const home = page.locator('.place-scene[data-scene="home"]');
+  await expect(home).toBeVisible({ timeout: 30_000 });
+  // The tutorial starts in the flat: open the phone from there.
+  const coach = page.locator('.coach');
+  await expect(coach).toHaveAttribute('data-tutorial-step', 'phone');
+  await shot(page, 'new-founder-home');
+  await coach.getByRole('button', { name: 'Open my phone' }).click();
+  await expect(page.getByRole('dialog', { name: 'Phone' })).toBeVisible();
+});
 
 test('a new session starts at home, and going out shows the city', async ({ page }) => {
   await page.addInitScript(() => {
@@ -107,6 +140,10 @@ test('landing in London: Arrivals at Heathrow, then the way to your hotel', asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await shot(page, 'arrivals-heathrow');
   await sheet.locator('[data-arrival-go="home"]').click();
+  // The hotel's car takes you straight there: no map, no ride to choose.
+  await expect(page.locator('[data-transfer]')).toBeVisible();
+  await shot(page, 'arrivals-transfer');
+  await expect(page.getByRole('dialog', { name: 'How do you want to get there?' })).toHaveCount(0);
   // The hotel: where your stay in London starts.
   await expect(arrivals).toBeHidden({ timeout: 20_000 });
   const hotel = page.locator('.place-scene[data-scene="home"]');

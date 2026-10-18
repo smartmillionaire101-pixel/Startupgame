@@ -1649,3 +1649,66 @@ html[data-simple] .city-hud-bottom .hud-places .hud-count {
   font-size: 20px;
   line-height: 1;
 }
+
+/* Landed: the hotel's car takes you from Arrivals straight to your room. */
+.stay-transfer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.4rem;
+  padding: 1.5rem;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  color: #f8fafc;
+  text-align: center;
+  animation: stay-transfer-in 0.3s ease-out both;
+}
+.stay-transfer-road {
+  position: relative;
+  width: min(80vw, 320px);
+  height: 64px;
+  margin-bottom: 0.6rem;
+  border-bottom: 4px solid #475569;
+  background: repeating-linear-gradient(90deg, #fbbf24 0 18px, transparent 18px 36px) bottom 10px
+    left / 100% 3px no-repeat;
+  overflow: hidden;
+}
+.stay-transfer-car {
+  position: absolute;
+  bottom: 2px;
+  left: -48px;
+  font-size: 40px;
+  line-height: 1;
+  transform: scaleX(-1);
+  animation: stay-transfer-drive 2.2s ease-in-out both;
+}
+.stay-transfer-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+.stay-transfer-sub {
+  margin: 0;
+  color: #cbd5e1;
+}
+@keyframes stay-transfer-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes stay-transfer-drive {
+  to {
+    left: calc(100% + 8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stay-transfer,
+  .stay-transfer-car {
+    animation: none;
+  }
+  .stay-transfer-car {
+    left: calc(50% - 20px);
+  }
+}

@@ -22,7 +22,7 @@ import { api, ApiError } from '../api';
 import { money, runway } from '../format';
 import { t, tx, useLang } from '../i18n';
 import { useView, WithView } from '../store';
-import { Button, Icon, Pill, Sheet } from '../ui';
+import { Button, Icon, Pill, Sheet, reduceMotion } from '../ui';
 import { avatarLook } from './art';
 import { CityMap, districtLabel, placeAvatarAt, type CityMapHandle, type FarTrip } from './CityMap';
 import { MonthCountdown, RideChooser, RideIcon } from './Transport';
@@ -51,7 +51,6 @@ import {
   type StoryPlace,
 } from './contract';
 import { onVisit, peekVisit, takeVisit } from './goto';
-import { activeStep } from '../tutorial/state';
 import { getTicket, setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
@@ -560,7 +559,6 @@ function CityBodyInner({
   // to go next: your hotel (or home), or somewhere worth seeing. Leaving it,
   // you step out of the airport's door.
   const [arrival, setArrival] = useState(false);
-  const tutorialStep = activeStep(meId);
   useLayoutEffect(() => {
     if (!landing || layout.marketId !== landing) return;
     const airport = layout.places.find((p) => p.kind === 'airport');
@@ -584,19 +582,19 @@ function CityBodyInner({
   if (!homeStart) {
     setHomeStart(true);
     const homePlace = layout.places.find((p) => p.id === 'home');
-    if (homePlace && !landing && !peekVisit() && !tutorialStep && startAtHome()) {
+    if (homePlace && !landing && !peekVisit() && startAtHome()) {
       placeAvatarAt(layout.marketId, homePlace.door);
       setInside(homePlace);
     }
     startedHome();
   }
   // Back to a phone tab left in the background for a while: a new session,
-  // so you're at home again (not mid-trip, landing or in the tutorial).
+  // so you’re at home again (not mid-trip or landing).
   const homeDoor = layout.places.find((p) => p.id === 'home');
   const resumeHome = useRef<() => void>(() => {});
   useEffect(() => {
     resumeHome.current = () => {
-      if (!homeDoor || landing || riding || tutorialStep || homeOff()) return;
+      if (!homeDoor || landing || riding || homeOff()) return;
       placeAvatarAt(layout.marketId, homeDoor.door);
       setArrival(false);
       setInside(homeDoor);
@@ -670,6 +668,26 @@ function CityBodyInner({
     },
     [layout, goTo],
   );
+  // Landed and going to your hotel (or home): the hotel's car takes you
+  // straight there, a short ride over the airport, then your room; no map
+  // and no ride to choose in between.
+  const [transfer, setTransfer] = useState<string | null>(null);
+  const transferTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(transferTimer.current), []);
+  const rideToStay = useCallback(() => {
+    const stay = layout.places.find((p) => p.id === 'home');
+    if (!stay) return goToStory('home');
+    setTransfer(hotelName ?? t('Home'));
+    transferTimer.current = window.setTimeout(
+      () => {
+        placeAvatarAt(layout.marketId, stay.door);
+        setArrival(false);
+        setInside(stay);
+        setTransfer(null);
+      },
+      reduceMotion() ? 400 : 2200,
+    );
+  }, [layout, goToStory, hotelName]);
   const office = layout.places.find((p) => p.kind === 'office')!;
   // Going home is a trip like any other: the ticket home is booked, then you
   // go to the airport and check in for it (lite mode, without the airport
@@ -1119,6 +1137,19 @@ function CityBodyInner({
           )}
         </Sheet>
       )}
+      {transfer && (
+        <div className="stay-transfer" role="status" data-transfer>
+          <div className="stay-transfer-road" aria-hidden="true">
+            <span className="stay-transfer-car">🚗</span>
+          </div>
+          <p className="stay-transfer-title">
+            {abroad ? t('On your way to {hotel}', { hotel: transfer }) : t('On your way home')}
+          </p>
+          <p className="stay-transfer-sub">
+            {abroad ? t('Your driver is taking you to the hotel.') : t('Nearly there.')}
+          </p>
+        </div>
+      )}
       {inside && (
         <Suspense
           fallback={<div className="scene-loading" role="status" aria-label={t('Loading…')} />}
@@ -1137,6 +1168,7 @@ function CityBodyInner({
                 ? {
                     home: !abroad,
                     onGo: (where: StoryPlace) => {
+                      if (where === 'home') return rideToStay();
                       setArrival(false);
                       goToStory(where);
                     },
