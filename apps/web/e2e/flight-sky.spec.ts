@@ -212,7 +212,10 @@ test('a flight in 3D: the take-off, the cabin, the full sky over the clouds, the
   const ground = await drawn(canvas);
   expect(ground.colours).toBeGreaterThan(40);
   await expect(flight).toBeHidden({ timeout: ms(20_000) * SLOW });
-  await expect(page.getByRole('application', { name: /Map of London/ })).toBeVisible();
+  // London's 3D map loads after the landing: slow on a busy software renderer.
+  await expect(page.getByRole('application', { name: /Map of London/ })).toBeVisible({
+    timeout: 15_000 * SLOW,
+  });
 });
 
 test('your own jet at night: the club chairs, the moon and the stars, Skip still works', async ({
@@ -248,7 +251,10 @@ test('your own jet at night: the club chairs, the moon and the stars, Skip still
   // Forced: the busy software renderer can keep it from settling for the check.
   await flight.getByRole('button', { name: 'Skip' }).click({ force: true });
   await expect(flight).toBeHidden({ timeout: 15_000 * SLOW });
-  await expect(page.getByRole('application', { name: /Map of London/ })).toBeVisible();
+  // London's 3D map loads after the landing: slow on a busy software renderer.
+  await expect(page.getByRole('application', { name: /Map of London/ })).toBeVisible({
+    timeout: 15_000 * SLOW,
+  });
 });
 
 test('golden hour: a dusk sky over the cloud deck, and a still flight with reduced motion', async ({
