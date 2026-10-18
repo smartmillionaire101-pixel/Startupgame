@@ -114,11 +114,11 @@ test('a life event pops up, the player chooses, and sees what happened', async (
     const delta = Number(await bar.getAttribute('data-delta'));
     const after = (await state(page)).view!.me.bars!;
     expect(after[key] - before[key]).toBe(delta);
-    // The top bar shows the new value.
-    await expect(page.locator('[data-lifebars]')).toHaveAttribute(
-      'aria-label',
-      new RegExp(`${key[0]!.toUpperCase()}${key.slice(1)} ${after[key]}\\b`),
-    );
+    // Me shows the new value.
+    await tab(page, 'Me').click();
+    await expect(
+      page.locator(`[data-lifebars-sheet] [data-bar="${key}"] [role="meter"]`),
+    ).toHaveAttribute('aria-valuenow', String(after[key]));
   }
   await shot(page, 'life-event-result');
   await sheet.getByRole('button', { name: 'OK' }).click();

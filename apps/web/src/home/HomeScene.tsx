@@ -61,6 +61,7 @@ import {
 } from './layout';
 import { groundsFor, outdoorThings, type Grounds } from './grounds';
 import { ActFx } from './ActFx';
+import { PhotoSheet, addPhoto } from './HomePhotos';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { balconyView } from './balcony';
 import type PanoramaView from '../experiences/Panorama';
@@ -277,6 +278,11 @@ export function HomeScene({
   const is3d = want3d && ready3d;
   const api3d = useRef<Home3DApi | null>(null);
   const mat3d = useRef<string | null>(null);
+  // Look around: a slow full turn round the house (stopped by any touch).
+  const [looking, setLooking] = useState(false);
+  const lookStop = useRef<(() => void) | null>(null);
+  // Stopping calls lookAround's onEnd, which clears these.
+  const endLook = useCallback(() => lookStop.current?.(), []);
   const grid: Grid = useMemo(
     () => ({ w: plan.w, h: plan.h, blocked: blockedTiles(plan, owned), walls: wallEdges(plan) }),
     [plan, owned],
@@ -842,6 +848,7 @@ export function HomeScene({
     });
   };
   const onDown = (e: React.PointerEvent) => {
+    if (lookStop.current) endLook();
     pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.current.size === 2) {
       const [a, b] = [...pts.current.values()];
@@ -1123,6 +1130,37 @@ export function HomeScene({
     if (!want3d) mat3d.current = null;
   }, [want3d]);
 
+  // ---- Look around and photos of the house.
+  const toggleLook = () => {
+    if (lookStop.current) return endLook();
+    const stop = api3d.current?.lookAround(() => {
+      lookStop.current = null;
+      setLooking(false);
+    });
+    if (!stop) return;
+    lookStop.current = stop;
+    setMenu(null);
+    setLooking(true);
+  };
+  // Stop turning when the 3D view goes away or you start moving furniture.
+  useEffect(() => {
+    if (!is3d || placing) endLook();
+  }, [is3d, placing, endLook]);
+  useEffect(() => endLook, [endLook]);
+  /** The photo sheet: open with the photo just taken (null: couldn't read the view). */
+  const [photo, setPhoto] = useState<{ src: string | null } | null>(null);
+  const [flash, setFlash] = useState(0);
+  const takePhoto = () => {
+    const src = api3d.current?.snapshot() ?? null;
+    endLook();
+    setMenu(null);
+    if (src) {
+      addPhoto(src);
+      if (!reduceMotion()) setFlash((n) => n + 1);
+    } else toast(t('Couldn’t take a photo on this device.'));
+    setPhoto({ src });
+  };
+
   const inviteLeft = actsLeft(view, 'invite');
   // ---- The penthouse balcony: the city it looks out over.
   const city = view.here?.id ?? view.market.id;
@@ -1255,7 +1293,11 @@ export function HomeScene({
             pts.current.delete(e.pointerId);
             drag.current = null;
           }}
-          onWheel={(e) => is3d && api3d.current?.zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1)}
+          onWheel={(e) => {
+            if (!is3d) return;
+            endLook();
+            api3d.current?.zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1);
+          }}
           onKeyDown={onKey}
         >
           <defs>
@@ -1438,6 +1480,36 @@ export function HomeScene({
             </button>
           </div>
         )}
+        {is3d && !placing && (
+          <div className="home-view" role="group" aria-label={t('Look and take photos')}>
+            <button
+              type="button"
+              data-action="turn"
+              onClick={() => {
+                endLook();
+                api3d.current?.turn(1);
+              }}
+            >
+              <span aria-hidden="true">↻</span>
+              {t('Turn')}
+            </button>
+            <button
+              type="button"
+              data-action="look-around"
+              data-looking={looking ? '1' : '0'}
+              aria-pressed={looking}
+              onClick={toggleLook}
+            >
+              <span aria-hidden="true">🔄</span>
+              {t('Look around')}
+            </button>
+            <button type="button" data-action="photo" onClick={takePhoto}>
+              <span aria-hidden="true">📷</span>
+              {t('Photo')}
+            </button>
+          </div>
+        )}
+        {flash > 0 && <div key={flash} className="home-flash" aria-hidden="true" />}
         {placing && ghost && (
           <PlaceBar
             label={placing.label}
@@ -1586,6 +1658,13 @@ export function HomeScene({
             )}
           </section>
         </div>
+      )}
+      {photo && (
+        <PhotoSheet
+          first={photo.src}
+          city={view.here?.name ?? view.market.name}
+          onClose={() => setPhoto(null)}
+        />
       )}
       {sky && balcony && (
         <Suspense fallback={null}>

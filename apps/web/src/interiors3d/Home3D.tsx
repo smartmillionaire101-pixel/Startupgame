@@ -210,6 +210,34 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
           return u < 1;
         });
       },
+      lookAround: (onEnd) => {
+        const from = stage.azimuth;
+        const t0 = performance.now();
+        // A full turn in 14 s; reduced motion cuts a quarter every 1.5 s instead.
+        const reduced = live.current.reduced;
+        const MS = reduced ? 6000 : 14_000;
+        let done = false;
+        const stop = () => {
+          if (done) return;
+          done = true;
+          off();
+          onEnd();
+        };
+        const off = stage.add(() => {
+          if (done) return false;
+          const u = Math.min(1, (performance.now() - t0) / MS);
+          const turned = reduced ? Math.min(4, Math.floor(u * 4 + 0.001)) / 4 : u;
+          const az = from + turned * Math.PI * 2;
+          if (az !== stage.azimuth) {
+            stage.azimuth = az;
+            stage.updateCamera();
+          }
+          if (u >= 1) stop();
+          return !done;
+        });
+        return stop;
+      },
+      snapshot: () => stage.snapshot(),
     };
     const particles = new Particles();
     stage.scene.add(particles.group);

@@ -18,13 +18,19 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.getByLabel('You are', { exact: true }).selectOption('female');
   await page.getByRole('button', { name: 'Save profile' }).click();
   await expect(page.getByText('Profile saved.')).toBeVisible();
+  // The company is set up on its own tab (Me just links there).
+  await page.locator('[data-go-company]').click();
+  await expect(page.locator('[data-company-setup]')).toBeVisible();
   await page.getByLabel('Idea in one line').fill('Payments for market traders');
   await page.getByLabel('Company name').fill('Flutterwav');
   await expect(page.getByText('Too close to a well-known brand.')).toBeVisible();
   await page.getByLabel('Company name').fill(`Mama Pay ${letters(5)}`);
   await page.getByLabel('Industry', { exact: true }).selectOption('fintech');
-  await page.getByRole('button', { name: 'Start the company' }).click();
-  await expect(page.getByRole('heading', { name: 'Set up your business' })).toHaveCount(0);
+  // The tutorial's coach covers the bottom of the screen: scroll the button above it.
+  const start = page.getByRole('button', { name: 'Start the company' });
+  await start.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await start.click();
+  await expect(page.locator('[data-company-setup]')).toHaveCount(0);
 
   // The City opens first; the dashboard is the Home tab.
   await tab(page, 'Today').click();

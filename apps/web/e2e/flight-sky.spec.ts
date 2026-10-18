@@ -82,6 +82,8 @@ async function board(page: Page, name: string, clock: string, tier?: number, pac
     .locator('[data-flight="london"]')
     .getByRole('button', { name: 'Book a flight to London' })
     .click();
+  // Where to stay: the suggested hotel is picked; book flight + hotel.
+  await phone.locator('[data-hotel-book]').click();
   // "Always skip rides" (the fixtures' setting) goes straight there; otherwise skip the trip.
   await page
     .getByRole('dialog', { name: 'How do you want to get there?' })

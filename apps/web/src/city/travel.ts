@@ -116,6 +116,54 @@ export interface Destination {
   hours: number;
   /** Fallback (old trip command) only: you already made this month's trip. */
   done: boolean;
+  /** Hotels for a stay there (none flying home, or from an older server). */
+  hotels: HotelOption[];
+}
+
+export type HotelTier = 'budget' | 'business' | 'luxury';
+
+export interface HotelOption {
+  tier: HotelTier;
+  name: string;
+  /** Minor units of your home currency. */
+  price: number;
+  /** Flight + hotel fit in your personal account. */
+  affordable: boolean;
+}
+
+const TIERS: readonly string[] = ['budget', 'business', 'luxury'];
+
+/** The hotels the server offers in a city (none from an older server). */
+export function hotelsOf(view: PlayerView, id: string): HotelOption[] {
+  const d = view.me.destinations.find((x) => x.id === id) as { hotels?: unknown } | undefined;
+  if (!Array.isArray(d?.hotels)) return [];
+  return d.hotels.filter(
+    (h): h is HotelOption =>
+      isObj(h) && TIERS.includes(String(h.tier)) && typeof h.name === 'string' && fin(h.price),
+  );
+}
+
+/** The hotel you're staying in abroad, or null. */
+export function stayOf(view: PlayerView): { tier: HotelTier; name: string } | null {
+  const l = (view.me as { location?: unknown }).location;
+  const h = isObj(l) ? l.hotel : null;
+  return isObj(h) && typeof h.name === 'string' && TIERS.includes(String(h.tier))
+    ? { tier: h.tier as HotelTier, name: h.name }
+    : null;
+}
+
+/**
+ * The hotel to suggest: the best one that leaves you at least 30% of your
+ * money after the flight and the stay; else the cheapest you can afford; else none.
+ */
+export function suggestHotel(
+  hotels: HotelOption[],
+  fare: number,
+  balance: number,
+): HotelTier | null {
+  const ok = hotels.filter((h) => h.affordable).sort((a, b) => a.price - b.price);
+  const comfy = ok.filter((h) => balance - fare - h.price >= 0.3 * balance);
+  return (comfy.at(-1) ?? ok[0])?.tier ?? null;
 }
 
 /**
@@ -138,6 +186,7 @@ export function destinationsOf(view: PlayerView): Destination[] {
       fare: d.tripCost,
       hours: 40,
       done: d.visitingNow,
+      hotels: [],
     }));
   const ids = [...names.keys()].filter((id) => id !== here);
   // Home first when you're away, then the rest as the server lists them.
@@ -148,6 +197,7 @@ export function destinationsOf(view: PlayerView): Destination[] {
     fare: flights.fareTo[id] ?? view.me.destinations.find((d) => d.id === id)?.tripCost ?? 0,
     hours: flights.hours,
     done: false,
+    hotels: id === homeId ? [] : hotelsOf(view, id),
   }));
 }
 

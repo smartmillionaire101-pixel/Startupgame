@@ -269,6 +269,34 @@ export class Stage {
     this.onFrame?.();
   }
 
+  /**
+   * A photo of the view as a JPEG data URL (null when the canvas can't be
+   * read). The drawing buffer isn't kept between frames (no
+   * preserveDrawingBuffer), so this draws a frame and reads it in the same
+   * tick; `maxSide` scales a big (2× DPR) picture down to keep it small.
+   */
+  snapshot(maxSide = 1080, quality = 0.8): string | null {
+    try {
+      this.renderer.render(this.scene, this.camera);
+      const src = this.canvas;
+      const k = Math.min(1, maxSide / Math.max(src.width, src.height));
+      const jpeg = (c: HTMLCanvasElement) => {
+        const url = c.toDataURL('image/jpeg', quality);
+        return url.startsWith('data:image/jpeg') ? url : null;
+      };
+      if (k >= 1) return jpeg(src);
+      const out = document.createElement('canvas');
+      out.width = Math.round(src.width * k);
+      out.height = Math.round(src.height * k);
+      const g = out.getContext('2d');
+      if (!g) return null;
+      g.drawImage(src, 0, 0, out.width, out.height);
+      return jpeg(out);
+    } catch {
+      return null;
+    }
+  }
+
   /** A world point on screen, in CSS pixels from the canvas's top-left. */
   project(v: THREE.Vector3): { x: number; y: number } {
     const p = v.clone().project(this.camera);

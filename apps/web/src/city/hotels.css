@@ -1,0 +1,62 @@
+/* Choosing a hotel when booking a flight abroad (HotelPicker). */
+.hotel-picker {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0 0.25rem;
+}
+.hotel-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.hotel-option {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm, 10px);
+  background: var(--surface);
+  cursor: pointer;
+}
+.hotel-option.is-picked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.hotel-option.is-off {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.hotel-option input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.hotel-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.hotel-name {
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hotel-price {
+  font-weight: 750;
+  white-space: nowrap;
+}
+.hotel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.hotel-actions .btn-primary {
+  flex: 1 1 auto;
+}
+.hotel-stay {
+  display: block;
+}

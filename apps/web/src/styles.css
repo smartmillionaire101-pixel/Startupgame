@@ -424,53 +424,19 @@ button.topbar-cash {
     padding: 0 0.55rem;
   }
 }
-/* Phase 3 life bars: four small gauges in one button (LifeBars.tsx). */
-.lifebars-btn {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 3px;
-  flex: none;
-  height: 36px;
-  padding: 2px 5px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  cursor: pointer;
-}
-.lifebar-mini {
-  --c: var(--good);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  font-size: 9px;
-  line-height: 1;
-}
-.lifebar-mini.is-warn {
-  --c: var(--warn);
-}
-.lifebar-mini.is-bad {
-  --c: var(--bad);
-}
-.lifebar-mini-track {
-  position: relative;
-  width: 6px;
-  height: 18px;
-  border-radius: 3px;
-  background: var(--line);
-  overflow: hidden;
-}
-.lifebar-mini-track > span {
-  position: absolute;
-  inset: auto 0 0;
-  background: var(--c);
-  transition: height var(--dur-3) var(--ease-out);
-}
+/* Phase 3 life bars, under Me (LifeBars.tsx). */
 .lifebars-sheet {
-  /* Opened from the top bar, which never wraps: this text must. */
   white-space: normal;
   display: grid;
   gap: var(--sp-3);
+}
+.lifebars-title {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+.lifebar-tips summary {
+  cursor: pointer;
+  color: var(--muted);
 }
 .lifebar {
   --c: var(--good);
@@ -2292,17 +2258,69 @@ main > .back-btn {
 .next-step-go {
   min-height: 52px;
 }
-/* On the City map: a light card at the bottom, over the map. */
-.next-step-map {
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r-lg);
+/* On the City map: a small banner in the bottom corner (the "What to do
+   now" chip's place), and a 💡 button once tucked away. */
+.next-step-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  align-self: flex-start;
+  width: fit-content;
+  min-width: 0;
+  max-width: min(100%, 360px);
+  margin-bottom: 0.4rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.6rem;
+  border-radius: 999px;
   background: rgb(255 255 255 / 0.96);
   color: #0f172a;
-  box-shadow: 0 6px 20px rgb(15 23 42 / 0.2);
-  gap: var(--sp-2);
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.2);
 }
-.next-step-map .next-step-why {
+.next-step-chip .next-step-icon {
+  font-size: 1.2rem;
+}
+.next-step-chip .next-step-text {
+  gap: 0;
+  line-height: 1.15;
+}
+.next-step-chip .next-step-title {
+  font-size: var(--fs-2xs);
+}
+.next-step-chip .next-step-label {
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.next-step-chip .next-step-go {
+  flex: none;
+  min-height: 40px;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+}
+.next-step-hide,
+.next-step-tucked {
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.next-step-hide {
+  width: 32px;
+  height: 32px;
+  background: transparent;
   color: #475569;
+  font-size: 1.2rem;
+}
+.next-step-tucked {
+  align-self: flex-start;
+  margin-bottom: 0.4rem;
+  width: 44px;
+  height: 44px;
+  background: rgb(255 255 255 / 0.96);
+  font-size: 1.25rem;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.2);
 }
 
 /* The top bar keeps the city's name readable on a phone (life bars, the

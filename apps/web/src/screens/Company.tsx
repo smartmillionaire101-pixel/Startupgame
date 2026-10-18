@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FoundCompany } from './Me';
 import { ScreenBoundary } from '../ScreenBoundary';
 import type { BuildMode, Industry, RevenueModel } from '@runway/engine';
 import { amountInput, money, parseAmount, pct, stars, titleCase } from '../format';
@@ -111,7 +112,20 @@ export function CompanyScreen() {
     };
   }, []);
   const c = view.companies.find((x) => x.status === 'active');
-  if (!c) return <Empty>{t('No active company. Set up your business in Me → Profile.')}</Empty>;
+  if (!c) {
+    // A founder sets up the company right here, not under Me (player feedback).
+    if (view.me.role !== 'founder')
+      return <Empty>{t('No active company. Set up your business in Me → Profile.')}</Empty>;
+    return (
+      <section className="card" data-company-setup="">
+        <h2>{t('Set up your company')}</h2>
+        <p className="small muted">
+          {t('Name it and say what it does. You can change the details later.')}
+        </p>
+        <FoundCompany />
+      </section>
+    );
+  }
   return (
     <>
       <header className="screen-head">

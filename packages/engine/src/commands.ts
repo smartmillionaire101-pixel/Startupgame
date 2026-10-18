@@ -355,7 +355,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     angle: z.number().min(-Math.PI).max(Math.PI),
     power: z.number().min(5).max(100),
   }),
-  z.object({ type: z.literal('travel.book'), to: market }),
+  /** `hotel` (optional): book a stay abroad with the flight. Missing = no hotel, as before. */
+  z.object({
+    type: z.literal('travel.book'),
+    to: market,
+    hotel: z.enum(['budget', 'business', 'luxury']).optional(),
+  }),
   z.object({ type: z.literal('travel.cancel') }),
   z.object({ type: z.literal('travel.fly'), to: market }),
   /**

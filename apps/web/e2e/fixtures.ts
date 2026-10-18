@@ -45,6 +45,12 @@ export async function withoutNetlifyDrawer(page: Page) {
       // still come, in the Decisions list). life-events.spec.ts turns it on.
       if (!localStorage.getItem('runway.lifeEventsPopup'))
         localStorage.setItem('runway.lifeEventsPopup', '0');
+      // A new session starts at home, and landing opens Arrivals in the
+      // airport; specs about other things start on the map and step out of
+      // the airport (arrivals.spec.ts turns both on).
+      if (!localStorage.getItem('runway.startAtHome'))
+        localStorage.setItem('runway.startAtHome', '0');
+      if (!localStorage.getItem('runway.arrivals')) localStorage.setItem('runway.arrivals', '0');
     } catch {
       /* storage blocked: rides play */
     }

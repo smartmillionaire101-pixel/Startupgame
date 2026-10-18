@@ -149,6 +149,8 @@ test('taxi, bike, bus, the busy airport and a flight with a cabin', async ({ pag
   await expect(trip.getByRole('button', { name: /Check in/ })).toBeDisabled();
   await shot(page, 'airport-ticket-desk');
   await desk.getByRole('button', { name: 'Book a flight to London' }).click();
+  // Where to stay: the suggested hotel is picked; book flight + hotel.
+  await desk.locator('[data-hotel-book]').click();
   await expect(trip.locator('[data-ticket="london"]')).toContainText('London');
   await expect(trip.locator('.trip-step.is-now')).toContainText('Check in');
   await shot(page, 'airport-check-in');
@@ -204,6 +206,7 @@ test('the Travel app books first; the airport then checks you in for that flight
   await expect(london).toContainText(/\d\d:\d\d/);
   await shot(page, 'phone-travel');
   await london.getByRole('button', { name: 'Book a flight to London' }).click();
+  await london.locator('[data-hotel-book]').click();
   // Getting to the airport: you choose how (or skip the trip and go straight there).
   const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
   await expect(chooser.locator('[data-mode="taxi"]')).toBeVisible();

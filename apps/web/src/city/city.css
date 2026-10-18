@@ -1518,3 +1518,67 @@ html[data-simple] .city-hud-bottom .hud-row-bottom {
 html[data-simple] .city-hud-bottom {
   right: 0.7rem !important;
 }
+
+/* ---- "How do you want to get there?": a compact card in the corner ------
+   (player feedback: the chooser covered the map). Small tiles in one row,
+   the notes and Skip in a line each. */
+.ride-chooser {
+  flex: 0 1 auto;
+  width: min(100%, 360px);
+  margin-left: auto;
+  padding: 0.45rem;
+  border-radius: 16px;
+}
+.ride-chooser .ride-head {
+  font-size: 0.78rem;
+  padding: 0 0.1rem 0.35rem;
+}
+.ride-chooser .ride-head .icon-btn {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+.ride-chooser .ride-grid,
+.ride-chooser .ride-grid.has-car {
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 0.3rem;
+}
+.ride-chooser .ride-grid.has-car .ride-opt[data-mode='drive'] {
+  grid-column: auto;
+}
+.ride-chooser .ride-opt {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto;
+  justify-items: center;
+  row-gap: 0.1rem;
+  text-align: center;
+  padding: 0.35rem 0.25rem;
+  border-radius: 12px;
+  min-height: 0;
+}
+.ride-chooser .ride-icon {
+  grid-row: auto;
+}
+.ride-chooser .ride-name {
+  font-size: 0.74rem;
+  line-height: 1.15;
+}
+.ride-chooser .ride-car {
+  display: none;
+}
+.ride-chooser .ride-meta,
+.ride-chooser .ride-cost {
+  grid-column: auto;
+  font-size: 0.64rem;
+  line-height: 1.2;
+}
+.ride-chooser .ride-note {
+  margin: 0.3rem 0.15rem 0;
+  font-size: 0.66rem;
+}
+.ride-chooser .ride-skip-trip {
+  margin-top: 0.3rem;
+  min-height: 36px;
+  border-radius: 10px;
+  font-size: 0.74rem;
+}

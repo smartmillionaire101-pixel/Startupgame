@@ -33,6 +33,8 @@ export interface Ticket {
   airline?: string;
   flight?: string;
   gate?: string;
+  /** The hotel booked with the flight (from the server), when there is one. */
+  hotel?: { tier: string; name: string; paid: number };
 }
 
 const KEY = 'runway.ticket';
@@ -82,7 +84,9 @@ export function useTicket(): Ticket | null {
     cached?.from === paid.from && cached.to === paid.to
       ? cached
       : ticketFor(paid.from, dest, view.market.currency, view.market.month);
-  return { ...detail, fare: paid.paid };
+  // The server's ticket is the truth for what was paid, hotel included.
+  const hotel = (paid as { hotel?: Ticket['hotel'] }).hotel;
+  return { ...detail, fare: paid.paid, hotel: hotel ?? undefined };
 }
 
 /** The ticket if it's for a flight out of this city to one of these destinations. */

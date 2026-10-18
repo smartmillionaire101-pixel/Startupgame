@@ -1,14 +1,11 @@
 /**
  * Phase 3 life bars: Energy, Health, Happiness and Stress (the server's
- * `me.bars`, after its release note). In the top bar they're four small
- * gauges in one button; tapping it opens what each one means, what is
- * affecting you now, and how to raise or lower it. The same rules apply to
- * every player.
+ * `me.bars`, after its release note), shown under Me: what each one is at,
+ * what is affecting you now, and how to raise or lower it. The same rules
+ * apply to every player.
  */
-import { useState } from 'react';
 import type { PlayerView } from '@runway/engine';
 import { t, tx } from './i18n';
-import { Sheet } from './ui';
 
 type Bars = NonNullable<PlayerView['me']['bars']>;
 type BarId = keyof Bars;
@@ -56,90 +53,64 @@ function toneOf(id: BarId, v: number): 'good' | 'warn' | 'bad' {
   return good < 30 ? 'bad' : good < 50 ? 'warn' : 'good';
 }
 
-/** Four small gauges in the top bar; tap for the details. */
-export function LifeBarsButton({ me }: { me: PlayerView['me'] }) {
-  const [open, setOpen] = useState(false);
-  const bars = me.bars;
-  if (!bars) return null;
-  const summary = ORDER.map((id) => `${BAR[id].label()} ${bars[id]}`).join(', ');
-  const worst = ORDER.map((id) => toneOf(id, bars[id]));
-  return (
-    <>
-      <button
-        type="button"
-        className="lifebars-btn"
-        data-lifebars=""
-        aria-label={t('Life bars: {summary}', { summary })}
-        title={summary}
-        onClick={() => setOpen(true)}
-      >
-        {ORDER.map((id, i) => (
-          <span key={id} className={`lifebar-mini is-${worst[i]}`} data-bar={id}>
-            <span aria-hidden="true">{BAR[id].emoji}</span>
-            <span className="lifebar-mini-track" aria-hidden="true">
-              <span style={{ height: `${bars[id]}%` }} />
-            </span>
-          </span>
-        ))}
-      </button>
-      {open && <LifeBarsSheet me={me} onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
-/** What each bar is at, why, and how to change it. */
-export function LifeBarsSheet({ me, onClose }: { me: PlayerView['me']; onClose: () => void }) {
+/**
+ * Under Me (player feedback: the bars belonged with you, not in the top bar):
+ * what each bar is at, what is affecting you now, and how to change it.
+ */
+export function LifeBarsPanel({ me }: { me: PlayerView['me'] }) {
   const bars = me.bars;
   if (!bars) return null;
   const effects = me.barEffects ?? [];
   return (
-    <Sheet title={t('How you’re doing')} onClose={onClose}>
-      <div className="lifebars-sheet" data-lifebars-sheet="">
-        {effects.length > 0 && (
-          <ul className="lifebar-effects">
-            {effects.map((e) => (
-              <li key={e.id} className={`is-${e.tone}`} data-effect={e.id}>
-                {tx(e.text)}
-              </li>
-            ))}
-          </ul>
-        )}
-        {ORDER.map((id) => {
-          const v = bars[id];
-          const b = BAR[id];
-          return (
-            <section key={id} className={`lifebar is-${toneOf(id, v)}`} data-bar={id}>
-              <div className="lifebar-head">
-                <b>
-                  <span aria-hidden="true">{b.emoji}</span> {b.label()}
-                </b>
-                <span>{v}/100</span>
-              </div>
-              <div
-                className="lifebar-track"
-                role="meter"
-                aria-label={b.label()}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={v}
-              >
-                <span style={{ width: `${v}%` }} />
-              </div>
+    <section className="lifebars-sheet" data-lifebars-sheet="" aria-label={t('How you’re doing')}>
+      <h3 className="lifebars-title">{t('How you’re doing')}</h3>
+      {effects.length > 0 && (
+        <ul className="lifebar-effects">
+          {effects.map((e) => (
+            <li key={e.id} className={`is-${e.tone}`} data-effect={e.id}>
+              {tx(e.text)}
+            </li>
+          ))}
+        </ul>
+      )}
+      {ORDER.map((id) => {
+        const v = bars[id];
+        const b = BAR[id];
+        return (
+          <section key={id} className={`lifebar is-${toneOf(id, v)}`} data-bar={id}>
+            <div className="lifebar-head">
+              <b>
+                <span aria-hidden="true">{b.emoji}</span> {b.label()}
+              </b>
+              <span>{v}/100</span>
+            </div>
+            <div
+              className="lifebar-track"
+              role="meter"
+              aria-label={b.label()}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={v}
+            >
+              <span style={{ width: `${v}%` }} />
+            </div>
+            <details className="lifebar-tips">
+              <summary className="small">{t('How to change it')}</summary>
               <p className="small">
                 <b>{b.high ? t('Raise it:') : t('Raised by:')}</b> {b.up()}
               </p>
               <p className="small muted">
                 <b>{b.high ? t('Lowered by:') : t('Lower it:')}</b> {b.down()}
               </p>
-            </section>
-          );
-        })}
-        <p className="small muted">
-          {t(
-            'Tired, unwell or stressed makes sales and pitches harder; feeling great helps a little. Very unwell or stressed out means fewer hours next month.',
-          )}
-        </p>
-      </div>
-    </Sheet>
+            </details>
+          </section>
+        );
+      })}
+      <p className="small muted">
+        {t(
+          'Tired, unwell or stressed makes sales and pitches harder; feeling great helps a little. Very unwell or stressed out means fewer hours next month.',
+        )}
+      </p>
+    </section>
   );
 }

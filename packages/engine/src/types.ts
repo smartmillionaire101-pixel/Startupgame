@@ -158,9 +158,23 @@ export interface InvestorProfile {
   type?: InvestorType;
 }
 
+/** A hotel stay abroad, booked with a flight. `paid` is in home minor units. */
+export interface HotelStay {
+  tier: 'budget' | 'business' | 'luxury';
+  name: string;
+  paid: number;
+}
+
 export interface Player {
   garage?: PlayerCar[];
-  flightTicket?: { from: MarketId; to: MarketId; paid: number; bookedAt: number };
+  flightTicket?: {
+    from: MarketId;
+    to: MarketId;
+    paid: number;
+    bookedAt: number;
+    /** A hotel booked with the flight (amount in home minor units). Missing = none. */
+    hotel?: HotelStay;
+  };
   id: Id;
   handle: string;
   name: string;
@@ -204,7 +218,7 @@ export interface Player {
   /** Businesses pitched this month (Wave 3). Missing = none. */
   businessPitches?: { month: number; count: number };
   /** Where the player physically is (Wave 4). Missing = at home (`market`). */
-  location?: { market: MarketId; since: number };
+  location?: { market: MarketId; since: number; hotel?: HotelStay };
   /** Flights taken this (home) month (Wave 4). Missing = none. */
   flights?: { month: number; count: number };
   /** Bus and taxi rides taken this (home) month (Wave 4). Missing = none. */

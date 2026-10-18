@@ -287,3 +287,40 @@
   position: static;
   align-self: flex-start;
 }
+
+/* Arrivals (just landed): welcome, the way to your hotel or home, and a few
+   places worth seeing in the city. */
+.arrival-sheet {
+  display: grid;
+  gap: 0.45rem;
+}
+.arrival-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.arrival-sheet p {
+  margin: 0;
+}
+.arrival-go {
+  min-height: 48px;
+}
+.arrival-sights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+.arrival-sights button {
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  padding: 0.4rem 0.65rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}

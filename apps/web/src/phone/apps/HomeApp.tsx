@@ -8,7 +8,7 @@ import { Button } from '../../ui';
 import { businessesOf } from '../../city/contract';
 import { homeOf, sellsOf } from '../../city/life';
 import { slotLabel, slotsOwned } from '../../city/Showroom';
-import { cityViewOf, isAbroad } from '../../city/travel';
+import { cityViewOf, isAbroad, stayOf } from '../../city/travel';
 import { Icon } from '../icons';
 import {
   H,
@@ -38,7 +38,13 @@ export function HomeApp({ ctx }: { ctx: PhoneCtx }) {
   return (
     <div className="phone-stack">
       <section className="phone-card phone-hero tone-house">
-        <div className="small">{isAbroad(view) ? t('Your hotel') : t('Your home')}</div>
+        <div className="small">
+          {!isAbroad(view)
+            ? t('Your home')
+            : stayOf(view)
+              ? t('Your hotel: {name}', { name: stayOf(view)!.name })
+              : t('Your hotel')}
+        </div>
         <div className="phone-hero-big">{tx(String(view.me.lifestyle.name ?? ''))}</div>
         <div className="phone-kpis">
           <div>

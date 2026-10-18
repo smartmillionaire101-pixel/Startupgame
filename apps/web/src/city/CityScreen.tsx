@@ -27,6 +27,7 @@ import { avatarLook } from './art';
 import { CityMap, districtLabel, placeAvatarAt, type CityMapHandle, type FarTrip } from './CityMap';
 import { MonthCountdown, RideChooser, RideIcon } from './Transport';
 import {
+  stayOf,
   cityViewOf,
   clockOf,
   destinationsOf,
@@ -49,7 +50,8 @@ import {
   storyOf,
   type StoryPlace,
 } from './contract';
-import { onVisit, takeVisit } from './goto';
+import { onVisit, peekVisit, takeVisit } from './goto';
+import { activeStep } from '../tutorial/state';
 import { getTicket, setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
@@ -79,12 +81,18 @@ import { skipRides } from './ride/state';
 const Interior = lazy(() => import('./Interiors').then((m) => ({ default: m.Interior })));
 const FlightScene = lazy(() => import('./Flight').then((m) => ({ default: m.FlightScene })));
 
-const kindLabel = (p: Place, companyName: string | null, abroad: boolean, _lang?: string) =>
+const kindLabel = (
+  p: Place,
+  companyName: string | null,
+  abroad: boolean,
+  _lang?: string,
+  hotel?: string | null,
+) =>
   (
     ({
       // Away from home, your office and home stand in for a coworking desk and a hotel.
       office: abroad ? t('Coworking space') : (companyName ?? t('Your office')),
-      home: abroad ? t('Your hotel') : t('Your home'),
+      home: abroad ? (hotel ?? t('Your hotel')) : t('Your home'),
       hub: t('The Hub'),
       airport: t('Airport'),
       newsstand: t('Newsstand'),
@@ -145,6 +153,41 @@ const matches = (p: Place, f: Filter) =>
  * Every building, grouped by district (a planned city's named districts),
  * with a category filter: for keyboards, screen readers and lite mode.
  */
+
+/**
+ * A new session starts at home: once per browser session. The e2e suite
+ * turns it off (`runway.startAtHome` = 0) so specs start on the map.
+ */
+/** Landing opens Arrivals in the airport (the e2e suite steps straight out: `runway.arrivals` = 0). */
+function arrivalsOn(): boolean {
+  try {
+    return localStorage.getItem('runway.arrivals') !== '0';
+  } catch {
+    return true;
+  }
+}
+
+let startHome: boolean | null = null;
+/** Whether this city should open at home: true at most once per page load. */
+function startAtHome(): boolean {
+  startHome ??= decideStartHome();
+  return startHome;
+}
+/** The city opened at home (or went elsewhere first): not again until the next session. */
+const startedHome = () => {
+  startHome = false;
+};
+function decideStartHome(): boolean {
+  try {
+    if (localStorage.getItem('runway.startAtHome') === '0') return false;
+    if (sessionStorage.getItem('runway.startedAtHome')) return false;
+    sessionStorage.setItem('runway.startedAtHome', '1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function PlacesList({
   layout,
   labelOf,
@@ -434,9 +477,11 @@ function CityBodyInner({
   const meId = view.me.id;
 
   // Labels are translated: they are rebuilt when the language changes.
+  // Abroad, your home stands in for the hotel you booked (by its name).
+  const hotelName = stayOf(view)?.name ?? null;
   const labelOf = useCallback(
-    (p: Place) => kindLabel(p, companyName, abroad, lang),
-    [companyName, abroad, lang],
+    (p: Place) => kindLabel(p, companyName, abroad, lang, hotelName),
+    [companyName, abroad, lang, hotelName],
   );
   const gender = genderOf(view.me);
   // Wave 8: a new haircut redraws you on the map.
@@ -479,13 +524,40 @@ function CityBodyInner({
   // Rebuild the layout only when what it depends on changes.
   const key = JSON.stringify(cityInput(view));
   const layout = useMemo(() => cachedCityLayout(key, geo), [key, geo]);
-  // Landed: you step out of the airport.
+  // Landed: you're in the city's airport (Arrivals), with its name and where
+  // to go next: your hotel (or home), or somewhere worth seeing. Leaving it,
+  // you step out of the airport's door.
+  const [arrival, setArrival] = useState(false);
+  const tutorialStep = activeStep(meId);
   useLayoutEffect(() => {
     if (!landing || layout.marketId !== landing) return;
     const airport = layout.places.find((p) => p.kind === 'airport');
     if (airport) placeAvatarAt(layout.marketId, airport.door);
     onLanded();
   }, [layout, landing, onLanded]);
+  // (State that follows a prop is adjusted while rendering, not in an effect.)
+  const [landedAt, setLandedAt] = useState<string | null>(null);
+  if (landing !== landedAt && (!landing || layout.marketId === landing)) {
+    setLandedAt(landing);
+    const airport = landing ? layout.places.find((p) => p.kind === 'airport') : undefined;
+    if (airport && arrivalsOn()) {
+      setArrival(true);
+      setInside(airport);
+    }
+  }
+  // A new session starts at home (or your hotel, abroad): you walk out to
+  // explore the city rather than landing straight on the map. Once per
+  // page load, and not when something already asked to go elsewhere.
+  const [homeStart, setHomeStart] = useState(false);
+  if (!homeStart) {
+    setHomeStart(true);
+    const homePlace = layout.places.find((p) => p.id === 'home');
+    if (homePlace && !landing && !peekVisit() && !tutorialStep && startAtHome()) {
+      placeAvatarAt(layout.marketId, homePlace.door);
+      setInside(homePlace);
+    }
+    startedHome();
+  }
   // A few anonymous passers-by: deterministic for the city, sized for the screen.
   // Everyone you can talk to is inside a building (Wave 6).
   const [crowdMax] = useState(() =>
@@ -539,6 +611,7 @@ function CityBodyInner({
     (where: StoryPlace) => {
       const p = placeFor(layout, where);
       setInside(null);
+      setArrival(false);
       if (p) goTo(p);
     },
     [layout, goTo],
@@ -564,6 +637,7 @@ function CityBodyInner({
     }
     setTicket(ticketFor(layout.marketId, d, home.currency, homeMonth));
     setInside(null);
+    setArrival(false);
     goTo(airport);
   }, [
     destinations,
@@ -591,6 +665,7 @@ function CityBodyInner({
       setPerson(null);
       setPeopleOpen(false);
       setInside(null);
+      setArrival(false);
       if (p) goTo(p);
     },
     [layout, goTo],
@@ -863,6 +938,8 @@ function CityBodyInner({
                     </Button>
                   </div>
                 )}
+                {/* Simple mode: the next step as a small banner in the corner, on its own line. */}
+                {!riding && simple && <NextStepCard onMap onGo={journeyGo} />}
                 <div className="hud-row-bottom">
                   {!riding && !simple && (
                     <button
@@ -914,7 +991,6 @@ function CityBodyInner({
                     )}
                   </div>
                 </div>
-                {simple && !riding && <NextStepCard onMap onGo={journeyGo} />}
               </>
             )}
           </div>
@@ -1004,8 +1080,23 @@ function CityBodyInner({
             place={inside}
             layout={layout}
             title={labelOf(inside)}
-            onClose={() => setInside(null)}
+            onClose={() => {
+              setInside(null);
+              setArrival(false);
+            }}
             onGo={goToStory}
+            arrival={
+              arrival && inside.kind === 'airport'
+                ? {
+                    home: !abroad,
+                    onGo: (where: StoryPlace) => {
+                      setArrival(false);
+                      goToStory(where);
+                    },
+                    onStay: () => setArrival(false),
+                  }
+                : null
+            }
             onVisit={visit}
             players={players}
             desk={{
@@ -1013,6 +1104,7 @@ function CityBodyInner({
               currency: home.currency,
               onFly: (to) => {
                 setInside(null);
+                setArrival(false);
                 onFly(to);
               },
             }}
@@ -1029,6 +1121,7 @@ function CityBodyInner({
             }
             nav={(tab) => {
               setInside(null);
+              setArrival(false);
               onNavigate(tab);
             }}
           />

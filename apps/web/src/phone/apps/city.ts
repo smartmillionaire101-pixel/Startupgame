@@ -8,7 +8,7 @@ import { CATEGORY_COLOR, cityInput } from '../../city/contract';
 import { findPath, pathLength, travelTiles, type CityInput, type Place } from '../../city/layout';
 import { useGeo } from '../../city/geo';
 import { buildCityLayout } from '../../city/geoLayout';
-import { cityViewOf, isAbroad } from '../../city/travel';
+import { cityViewOf, isAbroad, stayOf } from '../../city/travel';
 import type { IconName } from '../icons';
 import type { View } from '../shared';
 
@@ -34,7 +34,7 @@ export function placeName(p: Place, view: View): string {
     case 'office':
       return abroad ? t('Coworking space') : (company ?? t('Your office'));
     case 'home':
-      return abroad ? t('Your hotel') : t('Your home');
+      return abroad ? (stayOf(view)?.name ?? t('Your hotel')) : t('Your home');
     case 'hub':
       return t('The Hub');
     case 'airport':

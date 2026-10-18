@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useNav } from '../phone/bus';
+import { LifeBarsPanel } from '../LifeBars';
 import type { Industry, RevenueModel, Stage } from '@runway/engine';
 import { api } from '../api';
 import { LANGS, setLang, t, tx, useLang } from '../i18n';
@@ -115,6 +117,7 @@ const milestoneLabels = (): Record<string, string> => ({
 
 function Profile() {
   const { view } = useView();
+  const nav = useNav();
   const me = view.me;
   const skills = Object.entries(me.skills).sort((a, b) => b[1] - a[1]);
   return (
@@ -155,11 +158,15 @@ function Profile() {
             <span className="small muted">{view.market.name}</span>
           </div>
         </div>
-        <Bar
-          label={t('Energy')}
-          value={me.energy / 100}
-          tone={me.burnout ? 'bad' : me.energy < 40 ? 'warn' : 'good'}
-        />
+        {me.bars ? (
+          <LifeBarsPanel me={me} />
+        ) : (
+          <Bar
+            label={t('Energy')}
+            value={me.energy / 100}
+            tone={me.burnout ? 'bad' : me.energy < 40 ? 'warn' : 'good'}
+          />
+        )}
         <p className="small muted">
           {t('{left} of {total} hours left this month', {
             left: me.hours.left,
@@ -171,7 +178,15 @@ function Profile() {
       <ProfileDetails key={me.id + me.role} />
       {me.role === 'founder' && !view.companies.some((c) => c.status === 'active') && (
         <Card title={t('Set up your business')}>
-          <FoundCompany />
+          <p className="small muted">{t('Your company is set up on My company.')}</p>
+          <Button
+            variant="primary"
+            block
+            data-go-company=""
+            onClick={() => nav?.go({ kind: 'tab', tab: 'company' })}
+          >
+            {t('Set up my company')}
+          </Button>
         </Card>
       )}
       {me.role === 'banker' &&

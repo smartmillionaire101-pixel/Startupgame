@@ -46,7 +46,10 @@ import { cityAlive } from './city-alive';
 import { simple } from './simple';
 import { pitchFigures } from './pitch-figures';
 import { avatar } from './avatar';
+import { roundTwo } from './round-two';
 import { lifeEvents } from './life-events';
+import { homePhotos } from './home-photos';
+import { hotels } from './hotels';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -96,7 +99,10 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   pitchFigures,
   landing,
   avatar,
+  roundTwo,
   lifeEvents,
+  homePhotos,
+  hotels,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

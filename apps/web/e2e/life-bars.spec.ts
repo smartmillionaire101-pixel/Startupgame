@@ -1,8 +1,8 @@
-import { expect, letters, playAsGuest, setupFounder, test, type Page } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, tab, test, type Page } from './fixtures';
 
 /**
- * Phase 3 life bars: Energy, Health, Happiness and Stress in the top bar (tap
- * for what they mean), and trips that cost what they would: a long walk
+ * Phase 3 life bars: Energy, Health, Happiness and Stress under Me (what they
+ * mean, how to change them), and trips that cost what they would: a long walk
  * takes game hours and energy, a taxi saves both for a fare. Shown when the
  * server has the life-bars release. LIFEBARS_SHOTS=<dir> saves 390×844
  * screenshots.
@@ -29,7 +29,7 @@ async function tap(page: Page, selector: string) {
   await el.dispatchEvent('pointerup', { pointerId: 3, clientX: 10, clientY: 10 });
 }
 
-test('life bars in the top bar, and a long walk that costs time and energy', async ({ page }) => {
+test('life bars under Me, and a long walk that costs time and energy', async ({ page }) => {
   test.slow();
   await page.setViewportSize({ width: 390, height: 844 });
   await playAsGuest(page);
@@ -47,13 +47,10 @@ test('life bars in the top bar, and a long walk that costs time and energy', asy
   const s0 = await state(page);
   test.skip(!s0.view.me.bars, 'The server has no life bars yet');
 
-  // Four gauges in the top bar; tapping them explains each one.
-  const button = page.locator('[data-lifebars]');
-  await expect(button).toBeVisible();
-  await expect(button.locator('[data-bar]')).toHaveCount(4);
+  // The bars are under Me (not in the top bar): each one, what it's at, how to change it.
+  await expect(page.locator('.topbar [data-lifebars-sheet]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/lifebars-topbar.png` });
-  await button.click();
+  await tab(page, 'Me').click();
   const sheet = page.locator('[data-lifebars-sheet]');
   await expect(sheet).toBeVisible();
   for (const id of ['energy', 'health', 'happiness', 'stress'])
@@ -62,8 +59,9 @@ test('life bars in the top bar, and a long walk that costs time and energy', asy
     'aria-valuenow',
     String(s0.view.me.bars!.health),
   );
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/lifebars-sheet.png` });
-  await page.getByRole('dialog', { name: 'How you’re doing' }).getByLabel('Close').click();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/lifebars-me.png`, fullPage: true });
+  await tab(page, 'City').click();
+  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
 
   // Across the Lagoon: each way of getting there says what it costs you.
   await tap(page, '[data-place="eventhall"]');

@@ -49,6 +49,8 @@ import {
   type ScheduledFlight,
 } from '../travel';
 import { seatOf, setTicket, ticketFrom, useTicket, type Ticket } from '../ticket';
+import { HotelPicker } from '../HotelPicker';
+import type { HotelTier } from '../travel';
 import { useDaylight } from '../useDaylight';
 import { WhoIsHere } from '../WhoIsHere';
 import { TerminalView } from './halls';
@@ -453,6 +455,11 @@ function BoardingPass({ ticket, from }: { ticket: Ticket; from: string }) {
         {line ? `${line} · ` : ''}
         {t('Seat {seat}', { seat: seatOf(ticket) })}
       </span>
+      {ticket.hotel && (
+        <span className="small" data-pass-hotel={ticket.hotel.tier}>
+          {t('Hotel: {name}', { name: ticket.hotel.name })}
+        </span>
+      )}
     </div>
   );
 }
@@ -481,7 +488,10 @@ function TripSheet({
   /** Where you are in the terminal, for the view above the sheet. */
   onScene: (s: TripScene) => void;
 }) {
-  const { busy, send } = useView();
+  const { busy, send, view } = useView();
+  const balance = view.accounts.local?.balance ?? 0;
+  // The destination whose hotels you're choosing from, before booking.
+  const [choosing, setChoosing] = useState<string | null>(null);
   const fromName = CITY_NAMES[marketId] ?? marketId;
   const flights = (desk?.destinations ?? [])
     .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))
@@ -528,11 +538,14 @@ function TripSheet({
     );
   };
   useEffect(() => onScene({ at, playing, ticket }), [at, playing, ticket, onScene]);
-  const book = async (to: string) => {
+  const book = async (to: string, hotel: HotelTier | null = null) => {
     const row = flights.find((x) => x.d.id === to);
     if (!row || !desk) return;
     const { d, f } = row;
-    if (!(await send({ type: 'travel.book', to: d.id as MarketId }))) return;
+    const cmd = { type: 'travel.book' as const, to: d.id as MarketId, ...(hotel ? { hotel } : {}) };
+    if (!(await send(cmd))) return;
+    setChoosing(null);
+    const stay = hotel ? d.hotels.find((h) => h.tier === hotel) : undefined;
     setTicket({
       from: marketId,
       to: d.id,
@@ -544,6 +557,7 @@ function TripSheet({
       airline: f?.airline,
       flight: f?.flight,
       gate: f?.gate,
+      ...(stay ? { hotel: { tier: stay.tier, name: stay.name, paid: stay.price } } : {}),
     });
     stop();
     setStep('checkin');
@@ -593,10 +607,23 @@ function TripSheet({
                 className={`btn ${ticket?.to === d.id ? 'btn-primary' : 'btn-ghost'}`}
                 disabled={busy || d.done}
                 aria-label={t('Book a flight to {city}', { city: d.name })}
-                onClick={() => book(d.id)}
+                // Abroad (not home): choose a hotel first.
+                onClick={() => (d.hotels.length ? setChoosing(d.id) : void book(d.id))}
               >
                 {d.done ? t('This month') : ticket?.to === d.id ? t('Booked') : t('Book')}
               </button>
+              {choosing === d.id && desk && !ticket && (
+                <HotelPicker
+                  city={d.name}
+                  hotels={d.hotels}
+                  fare={d.fare}
+                  currency={desk.currency}
+                  balance={balance}
+                  busy={busy}
+                  onBook={(hotel) => void book(d.id, hotel)}
+                  onCancel={() => setChoosing(null)}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -611,6 +638,12 @@ function TripSheet({
           {t('Your ticket: {from} → {to}', { from: fromName, to: ticket.toName })}
           {ticketLine(ticket) ? ` · ${ticketLine(ticket)}` : ''} ·{' '}
           {money(ticket.fare, ticket.currency)}
+          {ticket.hotel && (
+            <span className="hotel-stay" data-ticket-hotel={ticket.hotel.tier}>
+              {t('Hotel: {name}', { name: ticket.hotel.name })} ·{' '}
+              {money(ticket.hotel.paid, ticket.currency)}
+            </span>
+          )}
         </p>
         <button type="button" className="btn btn-primary trip-go" onClick={() => play('checkin')}>
           {t('Check in for {city}', { city: ticket.toName })}
@@ -713,6 +746,64 @@ function TripSheet({
 
 // ---------------------------------------------------------------------------
 
+/** Just landed (player feedback: you arrive in the airport, then go to your hotel). */
+export interface Arrival {
+  /** Landed in your home city: "Go home" rather than "Go to your hotel". */
+  home: boolean;
+  /** Leave the airport for a place in the city (walk or ride there). */
+  onGo: (where: 'home' | 'office' | 'market' | 'hub' | 'bank') => void;
+  /** Stay in the terminal (the usual trip sheet). */
+  onStay: () => void;
+}
+
+/** Arrivals: welcome, the way to your hotel (or home) and a few places worth seeing. */
+function ArrivalSheet({ marketId, arrival }: { marketId: string; arrival: Arrival }) {
+  const city = CITY_NAMES[marketId] ?? marketId;
+  const sights: { where: 'office' | 'market' | 'hub' | 'bank'; icon: string; label: string }[] = [
+    {
+      where: 'office',
+      icon: '💼',
+      label: arrival.home ? t('Your office') : t('A desk at the coworking space'),
+    },
+    { where: 'hub', icon: '🤝', label: t('The tech hub: meet founders and investors') },
+    { where: 'market', icon: '🛍️', label: t('The market: customers and suppliers') },
+    { where: 'bank', icon: '🏦', label: t('The bank') },
+  ];
+  return (
+    <section className="trip-sheet arrival-sheet" data-arrival="" aria-label={t('Arrivals')}>
+      <h3 className="arrival-title">
+        {arrival.home ? t('Welcome home to {city}', { city }) : t('Welcome to {city}', { city })}
+      </h3>
+      <p className="small muted">
+        {t('You’ve landed at {airport}.', { airport: AIRPORT_NAMES[marketId] ?? city })}
+      </p>
+      <button
+        type="button"
+        className="btn btn-primary btn-block arrival-go"
+        data-arrival-go="home"
+        onClick={() => arrival.onGo('home')}
+      >
+        {arrival.home ? t('Go home') : t('Go to your hotel')} <span aria-hidden>›</span>
+      </button>
+      <p className="arrival-where small">
+        <b>{t('Where to go in {city}', { city })}</b>
+      </p>
+      <ul className="arrival-sights">
+        {sights.map((x) => (
+          <li key={x.where}>
+            <button type="button" data-arrival-go={x.where} onClick={() => arrival.onGo(x.where)}>
+              <span aria-hidden="true">{x.icon}</span> {x.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className="btn btn-subtle btn-block" onClick={arrival.onStay}>
+        {t('Stay in the airport')}
+      </button>
+    </section>
+  );
+}
+
 export function AirportScene({
   place,
   title,
@@ -722,6 +813,7 @@ export function AirportScene({
   desk,
   homeId = null,
   onFlyHome,
+  arrival: landed = null,
   children,
 }: {
   place: Place;
@@ -733,6 +825,8 @@ export function AirportScene({
   desk?: FlightDesk;
   homeId?: string | null;
   onFlyHome?: () => void;
+  /** Just landed: Arrivals instead of the trip sheet. */
+  arrival?: Arrival | null;
   /** The detailed cards, under "More". */
   children: ReactNode;
 }) {
@@ -791,9 +885,10 @@ export function AirportScene({
     >
       <header className="place-head">
         <div className="place-title">
-          <h2>{title}</h2>
+          {/* The airport's own name first (Heathrow, Murtala Muhammed…). */}
+          <h2>{AIRPORT_NAMES[marketId] ?? title}</h2>
           <span className="small muted">
-            {AIRPORT_NAMES[marketId] ?? CITY_NAMES[marketId] ?? ''}
+            {landed ? t('Arrivals') : t('Departures')} · {CITY_NAMES[marketId] ?? title}
           </span>
         </div>
         <button type="button" className="icon-btn" aria-label={t('Close')} onClick={onClose}>
@@ -827,18 +922,22 @@ export function AirportScene({
               <Apron schedule={schedule} walkers={walkers} />
             )}
           </div>
-          <TripSheet
-            place={place}
-            marketId={marketId}
-            players={players}
-            desk={desk}
-            homeId={homeId}
-            schedule={schedule}
-            now={now}
-            abroad={!!onFlyHome}
-            onMore={() => setMore(true)}
-            onScene={onScene}
-          />
+          {landed ? (
+            <ArrivalSheet marketId={marketId} arrival={landed} />
+          ) : (
+            <TripSheet
+              place={place}
+              marketId={marketId}
+              players={players}
+              desk={desk}
+              homeId={homeId}
+              schedule={schedule}
+              now={now}
+              abroad={!!onFlyHome}
+              onMore={() => setMore(true)}
+              onScene={onScene}
+            />
+          )}
         </>
       )}
     </div>

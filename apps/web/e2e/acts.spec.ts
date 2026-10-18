@@ -217,6 +217,8 @@ test('a flight: the cabin down the aisle, with the trolley and your seat', async
     .getByRole('list', { name: 'Where do you want to go?' })
     .getByRole('button', { name: 'Book a flight to London' })
     .click();
+  // Where to stay: the suggested hotel is picked; book flight + hotel.
+  await trip.locator('[data-hotel-book]').click();
   await trip.getByRole('button', { name: 'Check in for London' }).click();
   await trip.getByRole('button', { name: 'Skip' }).click();
   await trip.getByRole('button', { name: 'Go through security' }).click();

@@ -29,7 +29,6 @@ import { NavContext, openPhone, type Nav } from './phone/bus';
 import { inboxTarget, type TabId, type Target } from './phone/navigate';
 import { UpdateBanner } from './update';
 import { FeedbackHost, setFeedbackScreen } from './feedback';
-import { LifeBarsButton } from './LifeBars';
 import { MoneySheet, PaydayWarning } from './MoneyOverview';
 import { ScreenBoundary } from './ScreenBoundary';
 import { useVisits } from './useVisits';
@@ -516,9 +515,8 @@ function TopBar({
             <Icon name="clock" size={13} />
             {t('{n}h', { n: hoursLeft })}
           </span>
-          {view.me.bars ? (
-            <LifeBarsButton me={view.me} />
-          ) : (
+          {/* With the life bars, they're under Me (not up here). */}
+          {!view.me.bars && (
             <span
               className={`ring ring-${tone}`}
               role="meter"

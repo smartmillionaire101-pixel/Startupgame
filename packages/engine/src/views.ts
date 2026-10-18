@@ -41,7 +41,7 @@ import {
   productAmount,
   productRateBps,
 } from './capital.js';
-import { flightsView, isVisiting, tripCostUsd } from './travel.js';
+import { flightsView, hotelOptions, isVisiting, tripCostUsd } from './travel.js';
 import {
   CONTACTS_LIMIT,
   EVENT_KINDS,
@@ -755,6 +755,8 @@ export function playerView(
             market: p.location.market,
             name: getMarket(world, p.location.market).data.name,
             sinceAt: p.location.since,
+            /** The hotel you're staying in (missing: no hotel booked). */
+            ...(p.location.hotel ? { hotel: p.location.hotel } : {}),
           }
         : null,
       /** Where you can go, and what a trip costs from here (§14). */
@@ -765,6 +767,8 @@ export function playerView(
           name: getMarket(world, id).data.name,
           tripCost: usdToLocal(world, m, tripCostUsd(p.market, id)),
           visitingNow: p.visited[id] === m.month,
+          /** Hotels for a stay there, priced in your home currency, with flight + hotel affordability. */
+          hotels: hotelOptions(world, p, id),
         })),
       lastMonth: p.lastMonth,
       gigsThisMonth: p.gigsThisMonth,
