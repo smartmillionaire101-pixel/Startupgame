@@ -93,7 +93,8 @@ test('landing in London with a hotel: a 3D room with a bathroom, no Fly home in 
 
   // Sleep after the flight: you walk to the bed and rest (the home's own act).
   await tray.locator('[data-action="hotel-sleep"]').click();
-  await expect(room.locator('.home-float').first()).toBeAttached({ timeout: 20_000 });
+  // (Walking to the bed is frame-paced: slow under a software renderer on CI.)
+  await expect(room.locator('.home-float').first()).toBeAttached({ timeout: 60_000 });
 
   // Flying home is under More.
   await tray.locator('[data-action="more"]').click();

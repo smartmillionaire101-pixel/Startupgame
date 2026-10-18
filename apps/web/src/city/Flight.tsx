@@ -272,9 +272,18 @@ export function FlightScene({
     cabinClassOf(view.me.lifestyle?.tier) === 'private' ? 'bizjet' : 'airliner';
   const livery = kind === 'bizjet' ? '#1e3a8a' : liveryOf(from, airline);
 
+  // In 3D the take-off waits for the first frame (a slow phone still sees it),
+  // but never more than a few seconds.
+  const [ready3d, setReady3d] = useState(!three);
+  useEffect(() => {
+    if (ready3d) return;
+    const id = setTimeout(() => setReady3d(true), 8000);
+    return () => clearTimeout(id);
+  }, [ready3d]);
+
   // Each phase hands over to the next on a timer.
   useEffect(() => {
-    if (phase === 'arrived') return;
+    if (phase === 'arrived' || !ready3d) return;
     const next: Phase = reduced
       ? three && phase === 'cruise'
         ? 'sky'
@@ -292,7 +301,7 @@ export function FlightScene({
               : 'arrived';
     const id = setTimeout(() => setPhase(next), reduced ? 1600 * pace : dur[phase]);
     return () => clearTimeout(id);
-  }, [phase, reduced, ferry, three, dur, pace]);
+  }, [phase, reduced, ferry, three, dur, pace, ready3d]);
 
   // Arrived and confirmed: step out into the city (unless there's a note to read).
   useEffect(() => {
@@ -339,6 +348,7 @@ export function FlightScene({
               livery={livery}
               cls={cabinClassOf(view.me.lifestyle?.tier)}
               still={reduced}
+              onReady={() => setReady3d(true)}
             />
           </Suspense>
         )}

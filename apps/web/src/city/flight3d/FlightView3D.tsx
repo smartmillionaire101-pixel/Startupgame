@@ -75,6 +75,7 @@ export default function FlightView3D({
   livery,
   cls,
   still,
+  onReady,
 }: {
   phase: FlightPhase3D;
   dur: Record<'takeoff' | 'cruise' | 'sky' | 'landing', number>;
@@ -87,6 +88,8 @@ export default function FlightView3D({
   cls: CabinClass;
   /** Reduced motion: one still per phase. */
   still: boolean;
+  /** The first frame is drawn: the flight's timeline can start. */
+  onReady?: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -101,6 +104,10 @@ export default function FlightView3D({
     seat: string;
   }>({ ready: false, part: '', clouds: 0, layer: '', seat: '' });
   const redraw = useRef<() => void>(() => {});
+  const readyRef = useRef(onReady);
+  useEffect(() => {
+    readyRef.current = onReady;
+  });
 
   // Each phase starts its own clock.
   useEffect(() => {
@@ -270,6 +277,7 @@ export default function FlightView3D({
     // The first frame (and the ground's textures) before the clouds start moving.
     place(phaseRef.current.phase === 'cruise' ? 'takeoff' : (phaseRef.current.phase as WorldShot));
     setInfo((i) => ({ ...i, ready: true, seat: '' }));
+    readyRef.current?.();
     if (still) frame(performance.now());
     else raf = requestAnimationFrame(loop);
     // Build the cabin while the plane climbs, so the cut to it is instant.
