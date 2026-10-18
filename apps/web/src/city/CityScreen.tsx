@@ -154,10 +154,6 @@ const matches = (p: Place, f: Filter) =>
  * with a category filter: for keyboards, screen readers and lite mode.
  */
 
-/**
- * A new session starts at home: once per browser session. The e2e suite
- * turns it off (`runway.startAtHome` = 0) so specs start on the map.
- */
 /** Landing opens Arrivals in the airport (the e2e suite steps straight out: `runway.arrivals` = 0). */
 function arrivalsOn(): boolean {
   try {
@@ -167,26 +163,62 @@ function arrivalsOn(): boolean {
   }
 }
 
+/**
+ * A new session starts at home: the game opens there when you come back
+ * after a while (10 minutes or more away, or the first time), not on a
+ * quick reload. On a phone a backgrounded tab keeps its page, so coming back
+ * to it after a while counts too (CityBodyInner's visibility listener). The
+ * e2e suite turns it off (`runway.startAtHome` = 0) so specs start on the map.
+ */
+const AWAY_MS = 10 * 60_000;
+const LAST_SEEN = 'runway.lastSeen';
+function lastSeen(): number {
+  try {
+    return Number(localStorage.getItem(LAST_SEEN)) || 0;
+  } catch {
+    return 0;
+  }
+}
+function markSeen() {
+  try {
+    localStorage.setItem(LAST_SEEN, String(Date.now()));
+  } catch {
+    /* storage blocked */
+  }
+}
+const homeOff = () => {
+  try {
+    return localStorage.getItem('runway.startAtHome') === '0';
+  } catch {
+    return true;
+  }
+};
+/** Away long enough that opening the game counts as a new session. */
+const awayLong = () => Date.now() - lastSeen() >= AWAY_MS;
+// Decided as the page loads, before anything marks it seen.
+const awayAtLoad = typeof window !== 'undefined' && awayLong();
+if (typeof window !== 'undefined') {
+  markSeen();
+  window.addEventListener('pagehide', markSeen);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') markSeen();
+  });
+  // While you play, so a reload an hour in is still a quick reload.
+  setInterval(() => {
+    if (document.visibilityState === 'visible') markSeen();
+  }, 60_000);
+}
+
 let startHome: boolean | null = null;
 /** Whether this city should open at home: true at most once per page load. */
 function startAtHome(): boolean {
-  startHome ??= decideStartHome();
+  startHome ??= !homeOff() && awayAtLoad;
   return startHome;
 }
-/** The city opened at home (or went elsewhere first): not again until the next session. */
+/** The city opened at home (or went elsewhere first): not again this page load. */
 const startedHome = () => {
   startHome = false;
 };
-function decideStartHome(): boolean {
-  try {
-    if (localStorage.getItem('runway.startAtHome') === '0') return false;
-    if (sessionStorage.getItem('runway.startedAtHome')) return false;
-    sessionStorage.setItem('runway.startedAtHome', '1');
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export function PlacesList({
   layout,
@@ -558,6 +590,28 @@ function CityBodyInner({
     }
     startedHome();
   }
+  // Back to a phone tab left in the background for a while: a new session,
+  // so you're at home again (not mid-trip, landing or in the tutorial).
+  const homeDoor = layout.places.find((p) => p.id === 'home');
+  const resumeHome = useRef<() => void>(() => {});
+  useEffect(() => {
+    resumeHome.current = () => {
+      if (!homeDoor || landing || riding || tutorialStep || homeOff()) return;
+      placeAvatarAt(layout.marketId, homeDoor.door);
+      setArrival(false);
+      setInside(homeDoor);
+    };
+  });
+  useEffect(() => {
+    const onShow = () => {
+      if (document.visibilityState !== 'visible') return;
+      const away = awayLong();
+      markSeen();
+      if (away) resumeHome.current();
+    };
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, []);
   // A few anonymous passers-by: deterministic for the city, sized for the screen.
   // Everyone you can talk to is inside a building (Wave 6).
   const [crowdMax] = useState(() =>

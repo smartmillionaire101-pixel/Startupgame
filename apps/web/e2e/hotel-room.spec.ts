@@ -57,12 +57,12 @@ test('landing in London with a hotel: a 3D room with a bathroom, no Fly home in 
   expect((await state(page)).me.location?.hotel).toMatchObject({ tier: pick.tier });
 
   // A new session in London opens in your hotel room, in 3D.
-  // Cleared as the page loads: the open page could mark the session as
-  // started at home again between an evaluate and the reload.
+  // Set as the page loads: the open page marks itself seen as it unloads.
   await page.addInitScript(() => {
+    // Every load counts as coming back after a while (a new session).
+    localStorage.removeItem('runway.lastSeen');
     if (sessionStorage.getItem('hotel-room-reset')) return;
     sessionStorage.setItem('hotel-room-reset', '1');
-    sessionStorage.removeItem('runway.startedAtHome');
     localStorage.setItem('runway.startAtHome', '1');
     localStorage.setItem('runway.mapQuality', '3d');
   });
@@ -113,7 +113,6 @@ test('landing in London with a hotel: a 3D room with a bathroom, no Fly home in 
   // Lite: the flat hotel room, still without Fly home in its tray.
   await page.evaluate(() => {
     localStorage.setItem('runway.mapQuality', 'lite');
-    sessionStorage.removeItem('runway.startedAtHome');
   });
   await page.reload();
   const flat = page.locator('.place-scene[data-scene="home"]');

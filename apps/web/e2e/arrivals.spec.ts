@@ -15,7 +15,11 @@ const shot = async (page: Page, name: string) => {
 test.use({ viewport: { width: 390, height: 844 } });
 
 test('a new session starts at home, and going out shows the city', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('runway.startAtHome', '1'));
+  await page.addInitScript(() => {
+    localStorage.setItem('runway.startAtHome', '1');
+    // Signing up counts as coming back after a while; the quick reload below doesn't.
+    if (!sessionStorage.getItem('arrivals-quick')) localStorage.removeItem('runway.lastSeen');
+  });
   await playAsGuest(page);
   const n = letters(6);
   await setupFounder(page, {
@@ -30,12 +34,20 @@ test('a new session starts at home, and going out shows the city', async ({ page
   await home.getByRole('button', { name: 'Close' }).first().click();
   await expect(home).toBeHidden();
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
-  // Once a session: a reload stays on the map.
+  // A quick reload stays on the map.
+  await page.evaluate(() => sessionStorage.setItem('arrivals-quick', '1'));
   await page.reload();
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
     timeout: 30_000,
   });
   await expect(home).toHaveCount(0);
+
+  // Back to a tab left in the background for an hour: at home again.
+  await page.evaluate(() => {
+    localStorage.setItem('runway.lastSeen', String(Date.now() - 60 * 60_000));
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(home).toBeVisible({ timeout: 15_000 });
 });
 
 test('landing in London: Arrivals at Heathrow, then the way to your hotel', async ({ page }) => {
