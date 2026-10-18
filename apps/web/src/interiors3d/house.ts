@@ -7,7 +7,7 @@
  * camera, lower inner walls with door gaps, dark-framed windows, wall
  * sconces, soft darkening along every wall and a front door.
  *
- * Round it, on a round lawn under a light sky: a pool terrace (villa,
+ * Round it, on its plot in a street of neighbours (./surroundings.ts): a pool terrace (villa,
  * mansion), a formal garden with a fountain (mansion, the very rich), a
  * gated drive with a bay for every car (a steel carport, a glass showroom,
  * chargers), hedges, palms, potted plants and the street; a penthouse sits
@@ -33,6 +33,7 @@ import {
   showroomGarage,
   tree,
 } from './estate-models';
+import { asphaltTexture, canvasTex, cityBelow, neighbourhood, type Occluder } from './surroundings';
 
 export const WALL_H = 2.6;
 export const INNER_H = 1.25;
@@ -71,6 +72,10 @@ export interface House {
   lamps: THREE.PointLight[];
   /** How far below this floor the grounds are (0 on the ground floor). */
   drop: number;
+  /** The neighbours' buildings (and the city's towers) that hide while they'd block the view. */
+  occluders: Occluder[];
+  /** How far the world round the home reaches (metres). */
+  reach: number;
 }
 
 function floorKind(id: RoomId, tier: number): FloorKind {
@@ -159,64 +164,6 @@ function edgeStrips(
   return m;
 }
 
-// ---------------------------------------------------------------------------
-// Textures for the grounds (cached: one each).
-
-const texCache = new Map<string, THREE.CanvasTexture>();
-function canvasTex(id: string, size: number, draw: (g: CanvasRenderingContext2D) => void) {
-  let t = texCache.get(id);
-  if (!t) {
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    draw(c.getContext('2d')!);
-    t = new THREE.CanvasTexture(c);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.colorSpace = THREE.SRGBColorSpace;
-    texCache.set(id, t);
-  }
-  const out = t.clone();
-  out.needsUpdate = true;
-  return out;
-}
-
-/** A tower's face: rows of windows (sky-blue glass by day, warm and lit at night). */
-const towerTexture = (night: boolean) =>
-  canvasTex(`tower:${night ? 1 : 0}`, 64, (g) => {
-    g.fillStyle = night ? '#1f2937' : '#e5e7eb';
-    g.fillRect(0, 0, 64, 64);
-    for (let y = 0; y < 4; y++)
-      for (let x = 0; x < 4; x++) {
-        const lit = (x * 7 + y * 5) % 3 !== 0;
-        g.fillStyle = night ? (lit ? '#ffe2a0' : '#111827') : '#9fc8dd';
-        g.fillRect(x * 16 + 3, y * 16 + 3, 10, 9);
-      }
-  });
-
-/** A bright mown lawn (stripes and blades). */
-const lawnTexture = () =>
-  canvasTex('lawn', 256, (g) => {
-    for (let i = 0; i < 8; i++) {
-      g.fillStyle = i % 2 ? '#7cc35a' : '#72b951';
-      g.fillRect(0, i * 32, 256, 32);
-    }
-    for (let i = 0; i < 2200; i++) {
-      const a = 0.05 + (i % 5) * 0.025;
-      g.fillStyle = i % 3 ? `rgba(40,95,30,${a})` : `rgba(200,240,160,${a})`;
-      g.fillRect((i * 37) % 256, (i * 91) % 256, 1 + (i % 2), 3);
-    }
-  });
-
-/** Asphalt, a little speckled. */
-const asphaltTexture = () =>
-  canvasTex('asphalt', 128, (g) => {
-    g.fillStyle = '#56595e';
-    g.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 500; i++) {
-      g.fillStyle = `rgba(255,255,255,${0.025 + (i % 5) * 0.012})`;
-      g.fillRect((i * 37) % 128, (i * 71) % 128, 2, 2);
-    }
-  });
-
 /** Pool water with soft caustics. */
 const waterTexture = () =>
   canvasTex('water', 256, (g) => {
@@ -297,89 +244,36 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   root.add(yard);
   const gk = new Kit();
 
-  // ---- The ground: a round lawn on the sky (or a roof slab over the city).
+  // ---- The ground: your plot in its street among the neighbours, out to
+  // the haze (or a roof over the city, the building under you down to the street).
+  let around: { group: THREE.Group; occluders: Occluder[]; reach: number };
   if (!roof) {
-    const lt = lawnTexture();
-    lt.repeat.set((g.lawn.r * 2) / 5, (g.lawn.r * 2) / 5);
-    const lawn = new THREE.Mesh(
-      new THREE.CircleGeometry(g.lawn.r, 72),
-      mat('#ffffff', { map: lt, rough: 1, own: true }),
-    );
-    lawn.rotation.x = -Math.PI / 2;
-    lawn.position.set(g.lawn.x, GROUND_Y - 0.02, g.lawn.y);
-    lawn.receiveShadow = true;
-    yard.add(lawn);
-    const rim = new THREE.Mesh(
-      new THREE.CylinderGeometry(g.lawn.r, g.lawn.r * 0.985, 0.9, 72, 1, true),
-      mat('#6b5236', { rough: 1, side: THREE.DoubleSide }),
-    );
-    rim.position.set(g.lawn.x, GROUND_Y - 0.47, g.lawn.y);
-    yard.add(rim);
-    // The street, a kerb and a pavement.
-    const s = g.street;
-    const x0 = Math.max(s.x0, g.lawn.x - g.lawn.r);
-    const x1 = Math.min(s.x1, g.lawn.x + g.lawn.r);
-    const sw = 2 * Math.sqrt(Math.max(0, g.lawn.r ** 2 - (s.y - g.lawn.y) ** 2));
-    if (sw > 4) {
-      const sx0 = Math.max(x0, g.lawn.x - sw / 2 + 0.3);
-      const sx1 = Math.min(x1, g.lawn.x + sw / 2 - 0.3);
-      const at = asphaltTexture();
-      at.repeat.set((sx1 - sx0) / 4, 1);
-      yard.add(flat(at, sx0, s.y - 2.2, sx1 - sx0, 4.4, GROUND_Y + 0.005));
-      for (let x = sx0 + 1; x < sx1 - 1; x += 3)
-        gk.box(1.4, 0.012, 0.12, '#f5f5f4', x + 0.7, GROUND_Y + 0.006, s.y, { noShadow: true });
-      gk.box(sx1 - sx0, 0.1, 0.35, '#d6d3d1', (sx0 + sx1) / 2, GROUND_Y, s.y - 2.35);
-    }
+    around = neighbourhood(g, { night: o.night, groundY: GROUND_Y, W, H });
+    yard.add(around.group);
   } else {
-    const r = g.lawn.r;
-    gk.box(r * 2.2, 0.6, r * 1.9, '#cbd5e1', g.lawn.x, GROUND_Y - 0.62, g.lawn.y, { rough: 0.9 });
+    // The roof: just round your terrace and the car deck, the building's edge in sight.
+    const f = g.focus;
+    const slab = { x: f.x - 2.2, z: f.y - 2.2, w: f.w + 4.4, d: f.h + 4.4 };
+    const sx = slab.x + slab.w / 2;
+    const sz = slab.z + slab.d / 2;
+    gk.box(slab.w, 0.6, slab.d, '#cbd5e1', sx, GROUND_Y - 0.62, sz, { rough: 0.9 });
     const rt = floorTexture('stone').clone();
     rt.needsUpdate = true;
-    rt.repeat.set(r / 1.5, r / 1.5);
-    yard.add(flat(rt, g.lawn.x - r * 1.1, g.lawn.y - r * 0.95, r * 2.2, r * 1.9, GROUND_Y - 0.01));
-    // A glass parapet round the roof.
+    rt.repeat.set(slab.w / 3, slab.d / 3);
+    yard.add(flat(rt, slab.x, slab.z, slab.w, slab.d, GROUND_Y - 0.01));
+    // A glass parapet all round the roof.
     for (const [w, d, x, z] of [
-      [r * 2.2, 0.06, g.lawn.x, g.lawn.y + r * 0.95],
-      [0.06, r * 1.9, g.lawn.x + r * 1.1, g.lawn.y],
+      [slab.w, 0.06, sx, slab.z + slab.d],
+      [slab.w, 0.06, sx, slab.z],
+      [0.06, slab.d, slab.x + slab.w, sz],
+      [0.06, slab.d, slab.x, sz],
     ] as const) {
       gk.box(w, 1.0, d, '#bfe3f0', x, GROUND_Y, z, { opacity: 0.3, noShadow: true, rough: 0.1 });
       gk.box(w + 0.02, 0.05, d + 0.04, '#d9dde3', x, GROUND_Y + 1.0, z, { metal: 0.6, rough: 0.3 });
     }
-    // The city's skyline round it: towers behind and to the sides (none in
-    // front, where you look in from), most of them taller than your roof,
-    // their windows lit at night.
-    const rnd = (n: number) => (((Math.sin(n * 91.7) * 47453.5) % 1) + 1) % 1;
-    const paint = ['#f1f5f9', '#dbe5f0', '#ece5d8', '#c9d7e6', '#e2e8f0', '#d6dee8'];
-    for (let i = 0; i < 34; i++) {
-      const a = Math.PI * (0.92 + (i / 33) * 1.16) + (rnd(i + 11) - 0.5) * 0.08;
-      const rr = r * 1.2 + 3 + rnd(i) * (i % 2 ? 14 : 6);
-      const x = g.lawn.x + Math.cos(a) * rr * 1.1;
-      const z = g.lawn.y + Math.sin(a) * rr * 0.95;
-      const top = (i % 5 === 0 ? 22 : 6) + rnd(i + 7) * (i % 5 === 0 ? 26 : 18);
-      const w = 4 + rnd(i + 3) * 5;
-      const d = 4 + rnd(i + 5) * 5;
-      const hgt = top + 60;
-      const tex = towerTexture(o.night);
-      tex.repeat.set(Math.max(1, Math.round(w / 1.6)), Math.round(hgt / 1.8));
-      const m = new THREE.MeshStandardMaterial({
-        color: paint[i % paint.length]!,
-        map: tex,
-        roughness: 0.45,
-        metalness: 0.25,
-        emissive: new THREE.Color(o.night ? '#ffd27a' : '#000000'),
-        emissiveMap: o.night ? tex : null,
-        emissiveIntensity: o.night ? 0.85 : 0,
-      });
-      const tower = new THREE.Mesh(new THREE.BoxGeometry(w, hgt, d), m);
-      tower.position.set(x, top - hgt / 2, z);
-      yard.add(tower);
-      // A crown and a spire on the tallest.
-      if (i % 5 === 0) {
-        gk.box(w * 0.5, 1.2, d * 0.5, '#d9dde3', x, top, z, { metal: 0.5, rough: 0.3 });
-        gk.cyl(0.08, 0.12, 5, '#d9dde3', x, top + 1.2, z, { metal: 0.6, rough: 0.3 });
-        gk.sphere(0.25, '#ef4444', x, top + 6.3, z, { emissive: '#ef4444', emissiveIntensity: 1 });
-      }
-    }
+    // The city round it and far below: lower blocks round yours, towers rising past it.
+    around = cityBelow({ night: o.night, groundY: GROUND_Y, slab });
+    yard.add(around.group);
     // A glass railing round the terrace: the balcony you look out from.
     if (g.terrace) {
       const t = g.terrace;
@@ -810,6 +704,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     shadow: Math.max(f.w, f.h) * 0.75 + 4,
     lamps,
     drop,
+    occluders: around.occluders,
+    reach: around.reach,
   };
 }
 

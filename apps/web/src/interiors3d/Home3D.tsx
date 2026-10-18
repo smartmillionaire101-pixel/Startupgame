@@ -23,6 +23,7 @@ import { buildEstateModel } from './estate-models';
 import { groundsFor } from '../home/grounds';
 import { Kit, disposeTree, mat } from './kit';
 import { Stage, gestures } from './stage';
+import { cullOccluders } from './surroundings';
 import type { Home3DObject, Home3DPerson, Home3DProps } from './types';
 
 const MAX_LAMPS = 4;
@@ -135,6 +136,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       return;
     }
     stageRef.current = stage;
+    // The world round the home runs out into the haze (no edge, no sky under it):
+    // the camera stands well back so nothing near it is clipped.
+    stage.distance = 150;
+    stage.camera.far = 600;
+    stage.scene.fog = new THREE.Fog('#cfe6f2', 200, 400);
     const r = parent.getBoundingClientRect();
     stage.setSize(r.width, r.height);
     const ro = new ResizeObserver(() => {
@@ -153,6 +159,9 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       );
       if (houseRef.current) {
         cutWalls(houseRef.current, stage.azimuth);
+        // The neighbours' houses (the city's towers) between you and the home step aside.
+        const h = houseRef.current;
+        cullOccluders(h.occluders, stage.camera, h.fitPoints, -h.drop);
         for (const p of placedRef.current.values())
           if (p.wall)
             p.group.visible =
@@ -216,20 +225,38 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         // A full turn in 14 s; reduced motion cuts a quarter every 1.5 s instead.
         const reduced = live.current.reduced;
         const MS = reduced ? 6000 : 14_000;
+        // Turning round, the camera comes down to a drone's height over the
+        // garden (a lower angle shows the street and the neighbours), and goes
+        // back up when the turn ends.
+        const e0 = stage.elevation;
+        const eLow = Math.min(e0, 0.66);
+        const ease = (u: number) => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
         let done = false;
         const stop = () => {
           if (done) return;
           done = true;
           off();
+          const eNow = stage.elevation;
+          const t1 = performance.now();
+          const back = stage.add(() => {
+            const u = reduced ? 1 : Math.min(1, (performance.now() - t1) / 600);
+            stage.elevation = eNow + (e0 - eNow) * ease(u);
+            stage.updateCamera();
+            if (u >= 1) back();
+            return u < 1;
+          });
           onEnd();
         };
         const off = stage.add(() => {
           if (done) return false;
-          const u = Math.min(1, (performance.now() - t0) / MS);
+          const now = performance.now();
+          const u = Math.min(1, (now - t0) / MS);
           const turned = reduced ? Math.min(4, Math.floor(u * 4 + 0.001)) / 4 : u;
           const az = from + turned * Math.PI * 2;
-          if (az !== stage.azimuth) {
+          const el = reduced ? eLow : e0 + (eLow - e0) * ease(Math.min(1, (now - t0) / 1200));
+          if (az !== stage.azimuth || el !== stage.elevation) {
             stage.azimuth = az;
+            stage.elevation = el;
             stage.updateCamera();
           }
           if (u >= 1) stop();
@@ -284,6 +311,12 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     stage.canvas.dataset.bathrooms = String(plan.rooms.filter((r) => r.id === 'bathroom').length);
     stage.canvas.dataset.pool = grounds.pool ? (grounds.pool.hot ? 'hot' : '1') : '0';
     stage.canvas.dataset.bays = String(grounds.bays.length);
+    // The haze: clear over the home, thicker with distance, the far streets fading out.
+    const fog = stage.scene.fog as THREE.Fog | null;
+    if (fog) {
+      fog.near = stage.distance + h.span * 0.45;
+      fog.far = stage.distance + h.span * 1.5 + 70;
+    }
     stage.updateCamera();
     return () => {
       stage.scene.remove(h.root);
@@ -303,6 +336,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       stage.hemi.color.set('#c9c8e8');
       stage.ambient.intensity = 0.3;
       stage.scene.background = new THREE.Color('#0b1328');
+      (stage.scene.fog as THREE.Fog | null)?.color.set('#0b1328');
     } else if (dusk) {
       stage.sun.intensity = 1.4;
       stage.sun.color.set('#ffc58a');
@@ -310,6 +344,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       stage.hemi.color.set('#ffe1c2');
       stage.ambient.intensity = 0.2;
       stage.scene.background = new THREE.Color('#e9c7a8');
+      (stage.scene.fog as THREE.Fog | null)?.color.set('#e9c7a8');
     } else {
       stage.sun.intensity = 1.9;
       stage.sun.color.set('#fff1d6');
@@ -317,6 +352,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       stage.hemi.color.set('#fff4e0');
       stage.ambient.intensity = 0.3;
       stage.scene.background = new THREE.Color('#cfe6f2');
+      (stage.scene.fog as THREE.Fog | null)?.color.set('#cfe6f2');
     }
     stage.invalidate();
   }, [night, dusk]);

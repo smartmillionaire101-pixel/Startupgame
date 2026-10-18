@@ -44,6 +44,8 @@ export class Stage {
   elevation: number;
   span: number;
   zoom = 1;
+  /** How far the camera stands from what it looks at (metres; an orthographic view looks the same from any distance, this only sets what's clipped and the fog's depth). */
+  distance = 60;
   w = 1;
   h = 1;
   private opts: StageOpts;
@@ -135,7 +137,7 @@ export class Stage {
   private fitSpan() {
     if (!this.fit?.length) return;
     const c = this.camera;
-    const r = 60;
+    const r = this.distance;
     const ce = Math.cos(this.elevation);
     c.position.set(
       this.target.x + r * ce * Math.sin(this.azimuth),
@@ -172,7 +174,7 @@ export class Stage {
     // shiftY moves the picture up (a sheet covers the bottom of the screen).
     c.top = hh - this.shiftY * 2 * hh;
     c.bottom = -hh - this.shiftY * 2 * hh;
-    const r = 60;
+    const r = this.distance;
     const ce = Math.cos(this.elevation);
     c.position.set(
       this.target.x + r * ce * Math.sin(this.azimuth),
