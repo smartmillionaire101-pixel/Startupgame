@@ -77,7 +77,12 @@ async function board(page: Page, name: string, clock: string, tier?: number, pac
   // waits for: pick the bike from it if it's (still) up.
   const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
   await expect(page.locator('.place-scene').or(chooser)).toBeVisible({ timeout: 20_000 * SLOW });
-  if (await chooser.isVisible()) await chooser.locator('[data-mode="cycle"]').click();
+  // Only if tapPlace didn't pick it already (then the options are busy or gone).
+  if (await chooser.isVisible())
+    await chooser
+      .locator('[data-mode="cycle"]:not([disabled])')
+      .click({ timeout: 5000 })
+      .catch(() => undefined);
   await expect(page.locator('.place-scene')).toBeVisible({ timeout: 20_000 * SLOW });
   const trip = page.getByRole('region', { name: 'Your trip' });
   await trip
