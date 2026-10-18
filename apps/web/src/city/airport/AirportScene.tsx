@@ -20,6 +20,9 @@ import type { MarketId } from '@runway/engine';
  * for flights too) → board (up the jet bridge, or your own jet's airstairs),
  * each step a short animation you can skip. "More" keeps the detailed cards (departures, trips).
  *
+ * Just landed, the scene is Arrivals instead (./arrivals.tsx): the live hall,
+ * passport control, baggage reclaim and the way out to your hotel.
+ *
  * One requestAnimationFrame loop moves the planes, vehicles and people
  * through refs; it stops while the tab is hidden or motion is reduced.
  */
@@ -43,17 +46,18 @@ import {
   fmtFlightTime,
   liveryOf,
   localMinutes,
-  stayOf,
   nextFlightTo,
   scheduleDay,
   type FlightStatus,
   type ScheduledFlight,
 } from '../travel';
 import { seatOf, setTicket, ticketFrom, useTicket, type Ticket } from '../ticket';
-import { HOTEL_STARS, HotelPicker } from '../HotelPicker';
+import { HotelPicker } from '../HotelPicker';
 import type { HotelTier } from '../travel';
 import { useDaylight } from '../useDaylight';
 import { WhoIsHere } from '../WhoIsHere';
+import { ArrivalScene, type Arrival } from './arrivals';
+import { Flaps } from './flaps';
 import { TerminalView } from './halls';
 import { PlaneTop, fliesPrivate } from './planes';
 import './airport.css';
@@ -71,20 +75,6 @@ const STATUS_LABEL = (s: FlightStatus) =>
 
 // ---------------------------------------------------------------------------
 // The split-flap board
-
-/** One cell of letters; each letter flips in turn when the text changes. */
-function Flaps({ text, width, delay }: { text: string; width: number; delay: number }) {
-  const chars = text.toUpperCase().padEnd(width, ' ').slice(0, width).split('');
-  return (
-    <span className="flaps" aria-hidden key={text}>
-      {chars.map((c, i) => (
-        <span key={i} className="flap" style={{ animationDelay: `${delay + i * 0.035}s` }}>
-          {c === ' ' ? ' ' : c}
-        </span>
-      ))}
-    </span>
-  );
-}
 
 function Board({ marketId, day }: { marketId: string; day: string }) {
   const schedule = useMemo(() => airportSchedule(marketId, day), [marketId, day]);
@@ -747,96 +737,7 @@ function TripSheet({
 
 // ---------------------------------------------------------------------------
 
-/** Just landed (player feedback: you arrive in the airport, then go to your hotel). */
-export interface Arrival {
-  /** Landed in your home city: "Go home" rather than "Go to your hotel". */
-  home: boolean;
-  /** Leave the airport for a place in the city (walk or ride there). */
-  onGo: (where: 'home' | 'office' | 'market' | 'hub' | 'bank') => void;
-  /** Stay in the terminal (the usual trip sheet). */
-  onStay: () => void;
-}
-
-/** Arrivals, top half: the airport's sign, big (player feedback: the name was too quiet). */
-function ArrivalHero({ marketId }: { marketId: string }) {
-  const city = CITY_NAMES[marketId] ?? marketId;
-  const [now] = useState(() => localMinutes(marketId));
-  const time = `${String(Math.floor(now / 60) % 24).padStart(2, '0')}:${String(now % 60).padStart(2, '0')}`;
-  return (
-    <div className="arrival-hero" data-arrival-hero="">
-      <span className="arrival-sign">
-        <span aria-hidden="true">✈</span> {t('Arrivals')}
-      </span>
-      <h2 className="arrival-airport">{AIRPORT_NAMES[marketId] ?? city}</h2>
-      <p className="arrival-city">
-        {city} · {t('Local time {time}', { time })}
-      </p>
-      <p className="arrival-landed">
-        <span className="arrival-dot" aria-hidden="true" /> {t('Your flight has landed')}
-      </p>
-    </div>
-  );
-}
-
-/** Arrivals: welcome, the way to your hotel (or home) and a few places worth seeing. */
-function ArrivalSheet({ marketId, arrival }: { marketId: string; arrival: Arrival }) {
-  const { view } = useView();
-  const city = CITY_NAMES[marketId] ?? marketId;
-  const stay = arrival.home ? null : stayOf(view);
-  const sights: { where: 'office' | 'market' | 'hub' | 'bank'; icon: string; label: string }[] = [
-    {
-      where: 'office',
-      icon: '💼',
-      label: arrival.home ? t('Your office') : t('A desk at the coworking space'),
-    },
-    { where: 'hub', icon: '🤝', label: t('The tech hub: meet founders and investors') },
-    { where: 'market', icon: '🛍️', label: t('The market: customers and suppliers') },
-    { where: 'bank', icon: '🏦', label: t('The bank') },
-  ];
-  return (
-    <section className="trip-sheet arrival-sheet" data-arrival="" aria-label={t('Arrivals')}>
-      <h3 className="arrival-title">
-        {arrival.home ? t('Welcome home to {city}', { city }) : t('Welcome to {city}', { city })}
-      </h3>
-      <div className="arrival-stay">
-        <span className="arrival-stay-icon" aria-hidden="true">
-          {arrival.home ? '🏠' : '🏨'}
-        </span>
-        <span className="arrival-stay-text">
-          <span className="small">{arrival.home ? t('Your home') : t('Your hotel')}</span>
-          <b>{stay?.name ?? (arrival.home ? city : t('A room in town'))}</b>
-          {stay && <span className="arrival-stars">{HOTEL_STARS[stay.tier]}</span>}
-        </span>
-      </div>
-      <button
-        type="button"
-        className="btn btn-primary btn-block arrival-go"
-        data-arrival-go="home"
-        onClick={() => arrival.onGo('home')}
-      >
-        {arrival.home ? t('Go home') : t('Go to your hotel')} <span aria-hidden>›</span>
-      </button>
-      <p className="arrival-where">
-        <b>{t('Where to go in {city}', { city })}</b>
-      </p>
-      <ul className="arrival-sights">
-        {sights.map((x) => (
-          <li key={x.where}>
-            <button type="button" data-arrival-go={x.where} onClick={() => arrival.onGo(x.where)}>
-              <span className="arrival-sight-icon" aria-hidden="true">
-                {x.icon}
-              </span>
-              <span>{x.label}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button type="button" className="arrival-stay-here" onClick={arrival.onStay}>
-        {t('Stay in the airport')}
-      </button>
-    </section>
-  );
-}
+export type { Arrival } from './arrivals';
 
 export function AirportScene({
   place,
@@ -940,7 +841,7 @@ export function AirportScene({
       ) : (
         <>
           {landed ? (
-            <ArrivalHero marketId={marketId} />
+            <ArrivalScene marketId={marketId} arrival={landed} look={look} night={night} />
           ) : (
             <div className="airport-view">
               <Board marketId={marketId} day={day} />
@@ -961,9 +862,7 @@ export function AirportScene({
               )}
             </div>
           )}
-          {landed ? (
-            <ArrivalSheet marketId={marketId} arrival={landed} />
-          ) : (
+          {!landed && (
             <TripSheet
               place={place}
               marketId={marketId}

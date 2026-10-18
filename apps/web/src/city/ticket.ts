@@ -55,11 +55,31 @@ let ticket: Ticket | null = typeof window === 'undefined' ? null : load();
 
 export const getTicket = () => ticket;
 
+const LAST_KEY = 'runway.lastFlight';
+let last: Ticket | null = null;
+
+/**
+ * The last ticket put away (flown, or cancelled): Arrivals shows that flight
+ * on its board, from where it came. Check `to` against where you landed.
+ */
+export function lastFlight(): Ticket | null {
+  if (last) return last;
+  try {
+    const raw = sessionStorage.getItem(LAST_KEY);
+    const t = raw ? (JSON.parse(raw) as Ticket) : null;
+    return t && typeof t.from === 'string' && typeof t.to === 'string' ? t : null;
+  } catch {
+    return null;
+  }
+}
+
 export function setTicket(next: Ticket | null) {
+  if (!next && ticket) last = ticket;
   ticket = next;
   try {
     if (next) sessionStorage.setItem(KEY, JSON.stringify(next));
     else sessionStorage.removeItem(KEY);
+    if (!next && last) sessionStorage.setItem(LAST_KEY, JSON.stringify(last));
   } catch {
     // Storage blocked: the ticket lasts for this page.
   }
