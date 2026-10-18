@@ -1032,7 +1032,9 @@ function CityBodyInner({
                     data-testid="sky-views-btn"
                     onClick={() => setSkyOpen(true)}
                   >
-                    <span aria-hidden>🎡</span>
+                    <span className="hud-sky-icon" aria-hidden>
+                      🎡
+                    </span>
                     <span className="hud-btn-label">{t('Sky views')}</span>
                   </button>
                 </div>

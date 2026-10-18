@@ -1619,17 +1619,33 @@ html[data-simple] .city-hud-bottom {
   min-height: 32px;
 }
 
-/* Simple mode keeps the buttons' names on phones, so three don't fit in a
-   row: Sky views sits beside "Where to?" in the bottom-right corner, and
-   "Who's here" goes just above them. */
+/* Simple mode keeps the buttons' names on phones: Who's here, Where to? and
+   Sky views are three tiles in a row in the bottom-right corner, each icon
+   above its name (three pills with words don't fit a phone). */
 html[data-simple] .city-hud-bottom .hud-stack {
-  grid-auto-flow: row;
-  grid-template-columns: auto auto;
+  grid-auto-flow: column;
+  gap: 0.4rem;
 }
-html[data-simple] .city-hud-bottom .hud-stack > :first-child {
-  grid-row: 1;
-  grid-column: 1 / -1;
+html[data-simple] .city-hud-bottom .hud-stack > .hud-places {
+  position: relative;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 84px;
+  min-height: 64px;
+  padding: 0.45rem 0.3rem;
+  border-radius: 18px;
+  font-size: 0.8rem;
+  line-height: 1.1;
+  white-space: nowrap;
 }
-html[data-simple] .city-hud-bottom .hud-stack > :not(:first-child) {
-  grid-row: 2;
+html[data-simple] .city-hud-bottom .hud-places .hud-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  margin: 0;
+}
+.hud-sky-icon {
+  font-size: 20px;
+  line-height: 1;
 }
