@@ -72,11 +72,16 @@ async function board(page: Page, name: string, clock: string, tier?: number, pac
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
     timeout: 30_000,
   });
-  await tapPlace(page, '[data-place="airport"]', 'cycle');
-  // On a busy machine the ride chooser can take longer to show than tapPlace
-  // waits for: pick the bike from it if it's (still) up.
+  // On a busy machine a tap right after a reload can come before the map
+  // listens for it, and the ride chooser can take longer to show than
+  // tapPlace waits for: tap again until the chooser or the airport is up,
+  // then pick the bike if the chooser is (still) up.
   const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
-  await expect(page.locator('.place-scene').or(chooser)).toBeVisible({ timeout: 20_000 * SLOW });
+  const arrived = page.locator('.place-scene').or(chooser);
+  await expect(async () => {
+    if (!(await arrived.isVisible())) await tapPlace(page, '[data-place="airport"]', 'cycle');
+    await expect(arrived).toBeVisible({ timeout: 10_000 });
+  }).toPass({ timeout: 20_000 * SLOW });
   // Only if tapPlace didn't pick it already (then the options are busy or gone).
   if (await chooser.isVisible())
     await chooser
