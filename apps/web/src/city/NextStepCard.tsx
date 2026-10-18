@@ -4,10 +4,10 @@
  * else the best opportunity, or else a personal one (the same three the
  * Journey sheet offers), and hides when there's nothing to suggest.
  *
- * On Today it is a card at the top. On the City map (`onMap`) it is a small
- * banner in the bottom corner, in place of the "What to do now" chip: the
- * suggestion and a Go button. Tucked away (×) it is a small 💡 button until
- * the suggestion changes, so it doesn't keep coming back over the map.
+ * On Today it is a card at the top. On the City map (`onMap`) it is a 💡
+ * button with the other map buttons (a red dot while there's a suggestion
+ * you haven't opened): tapping it opens a small card with the suggestion
+ * and a Go button, so it never covers the map by itself.
  */
 import { useState } from 'react';
 import { t } from '../i18n';
@@ -24,11 +24,11 @@ export function nextObjective(o: Record<Objective['kind'], Objective | null>): O
   return [o.main, o.opportunity, o.personal].find((x) => !!x?.go) ?? null;
 }
 
-/** The suggestion the player tucked away on the map (by objective id). */
-const HIDDEN_KEY = 'runway.nextStepHidden';
-function readHidden(): string | null {
+/** The last suggestion the player opened on the map (by objective id): no red dot for it. */
+const SEEN_KEY = 'runway.nextStepSeen';
+function readSeen(): string | null {
   try {
-    return localStorage.getItem(HIDDEN_KEY);
+    return localStorage.getItem(SEEN_KEY);
   } catch {
     return null;
   }
@@ -47,58 +47,65 @@ export function NextStepCard({
 }) {
   const { view } = useView();
   const fallback = useJourneyGo();
-  const [hidden, setHidden] = useState(readHidden);
+  const [seen, setSeen] = useState(readSeen);
+  const [open, setOpen] = useState(false);
   const o = nextObjective(objectivesFor(view));
   if (!o || !o.go) return null;
   const go = o.go;
   if (onMap) {
-    const hide = (v: string | null) => {
-      setHidden(v);
+    const show = () => {
+      setOpen(true);
+      setSeen(o.id);
       try {
-        if (v) localStorage.setItem(HIDDEN_KEY, v);
-        else localStorage.removeItem(HIDDEN_KEY);
+        localStorage.setItem(SEEN_KEY, o.id);
       } catch {
-        /* storage blocked: tucked away for this visit */
+        /* storage blocked: the dot comes back next visit */
       }
     };
-    if (hidden === o.id)
-      return (
+    return (
+      <div className="next-step-pin" data-next-step={o.id}>
         <button
           type="button"
-          className="next-step-tucked"
-          data-next-step={o.id}
+          className="next-step-bulb"
           aria-label={t('What should I do now?')}
-          title={t('What should I do now?')}
-          onClick={() => hide(null)}
+          aria-expanded={open}
+          data-new={seen !== o.id ? '' : undefined}
+          onClick={() => (open ? setOpen(false) : show())}
         >
           <span aria-hidden="true">💡</span>
+          {seen !== o.id && <span className="next-step-dot" aria-hidden="true" />}
         </button>
-      );
-    return (
-      <section
-        className="next-step-chip"
-        aria-label={t('What should I do now?')}
-        data-next-step={o.id}
-      >
-        <span className="next-step-icon" aria-hidden="true">
-          {o.icon}
-        </span>
-        <span className="next-step-text">
-          <span className="next-step-title">{t('What should I do now?')}</span>
-          <b className="next-step-label">{o.label}</b>
-        </span>
-        <Button className="btn btn-primary next-step-go" onClick={() => (onGo ?? fallback)(go)}>
-          {goLabel(go)}
-        </Button>
-        <button
-          type="button"
-          className="next-step-hide"
-          aria-label={t('Hide')}
-          onClick={() => hide(o.id)}
-        >
-          ×
-        </button>
-      </section>
+        {open && (
+          <section className="next-step-pop" aria-labelledby="next-step-pop-title">
+            <div className="next-step-pop-head">
+              <h2 className="next-step-title" id="next-step-pop-title">
+                {t('What should I do now?')}
+              </h2>
+              <button
+                type="button"
+                className="next-step-hide"
+                aria-label={t('Close')}
+                onClick={() => setOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <b className="next-step-label">
+              <span aria-hidden="true">{o.icon}</span> {o.label}
+            </b>
+            {o.why && <span className="next-step-why">{o.why}</span>}
+            <Button
+              className="btn btn-primary btn-block next-step-go"
+              onClick={() => {
+                setOpen(false);
+                (onGo ?? fallback)(go);
+              }}
+            >
+              {goLabel(go)}
+            </Button>
+          </section>
+        )}
+      </div>
     );
   }
   return (

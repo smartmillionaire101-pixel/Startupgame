@@ -905,6 +905,20 @@ function CityBodyInner({
                 </span>
               )}
             </button>
+            {/* Simple mode: Sky views keeps its own button, and the next step is a 💡
+                button (a red dot when there's something new) that opens a small card. */}
+            {simple && (
+              <button
+                type="button"
+                className="hud-places hud-sky"
+                data-testid="sky-views-btn"
+                onClick={() => setSkyOpen(true)}
+              >
+                <span aria-hidden>🎡</span>
+                <span className="hud-btn-label">{t('Sky views')}</span>
+              </button>
+            )}
+            {simple && !riding && <NextStepCard onMap onGo={journeyGo} />}
           </div>
           <GestureHint />
           <div className="city-hud city-hud-bottom">
@@ -938,8 +952,6 @@ function CityBodyInner({
                     </Button>
                   </div>
                 )}
-                {/* Simple mode: the next step as a small banner in the corner, on its own line. */}
-                {!riding && simple && <NextStepCard onMap onGo={journeyGo} />}
                 <div className="hud-row-bottom">
                   {!riding && !simple && (
                     <button

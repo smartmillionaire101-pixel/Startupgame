@@ -2258,69 +2258,82 @@ main > .back-btn {
 .next-step-go {
   min-height: 52px;
 }
-/* On the City map: a small banner in the bottom corner (the "What to do
-   now" chip's place), and a 💡 button once tucked away. */
-.next-step-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  align-self: flex-start;
-  width: fit-content;
-  min-width: 0;
-  max-width: min(100%, 360px);
-  margin-bottom: 0.4rem;
-  padding: 0.3rem 0.3rem 0.3rem 0.6rem;
+/* On the City map: a 💡 button with the map's buttons (a red dot while
+   there's a suggestion not yet opened), and the small card it opens. */
+.next-step-pin {
+  position: relative;
+}
+.next-step-bulb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 0;
   border-radius: 999px;
   background: rgb(255 255 255 / 0.96);
-  color: #0f172a;
+  font-size: 1.35rem;
   box-shadow: 0 4px 14px rgb(15 23 42 / 0.2);
+  cursor: pointer;
 }
-.next-step-chip .next-step-icon {
-  font-size: 1.2rem;
+.next-step-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #dc2626;
+  border: 2px solid #fff;
 }
-.next-step-chip .next-step-text {
-  gap: 0;
-  line-height: 1.15;
+.next-step-pop {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 0.5rem);
+  z-index: 3;
+  display: grid;
+  gap: 0.35rem;
+  width: min(240px, 70vw);
+  padding: 0.7rem 0.8rem 0.8rem;
+  border-radius: 16px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.22);
 }
-.next-step-chip .next-step-title {
+.next-step-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.next-step-pop .next-step-title {
   font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
-.next-step-chip .next-step-label {
-  font-size: var(--fs-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.next-step-pop .next-step-label {
+  font-size: var(--fs-md);
 }
-.next-step-chip .next-step-go {
-  flex: none;
-  min-height: 40px;
-  padding: 0.3rem 0.8rem;
+.next-step-pop .next-step-why {
+  color: #475569;
+}
+.next-step-pop .next-step-go {
+  min-height: 44px;
+  margin-top: 0.2rem;
   border-radius: 999px;
 }
-.next-step-hide,
-.next-step-tucked {
+.next-step-hide {
   flex: none;
   display: grid;
   place-items: center;
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-}
-.next-step-hide {
   width: 32px;
   height: 32px;
+  border: 0;
+  border-radius: 999px;
   background: transparent;
   color: #475569;
   font-size: 1.2rem;
-}
-.next-step-tucked {
-  align-self: flex-start;
-  margin-bottom: 0.4rem;
-  width: 44px;
-  height: 44px;
-  background: rgb(255 255 255 / 0.96);
-  font-size: 1.25rem;
-  box-shadow: 0 4px 14px rgb(15 23 42 / 0.2);
+  cursor: pointer;
 }
 
 /* The top bar keeps the city's name readable on a phone (life bars, the

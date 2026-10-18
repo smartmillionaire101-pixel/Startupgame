@@ -72,15 +72,22 @@ test('Simple mode: four tabs, a money link, big phone tiles and a calm map', asy
   const hud = page.locator('.city-stage');
   await expect(hud.getByRole('button', { name: 'Zoom in' })).toHaveCount(0);
   await expect(hud.getByRole('button', { name: 'Zoom out' })).toHaveCount(0);
-  await expect(page.getByTestId('sky-views-btn')).toHaveCount(0);
+  // Sky views keeps its own button.
+  await expect(page.getByTestId('sky-views-btn')).toContainText('Sky views');
   await expect(hud.getByRole('button', { name: 'Centre on me' })).toContainText('Me');
   await expect(hud.locator('.city-hud-bottom').getByText('Where to?')).toBeVisible();
   await expect(hud.locator('.city-hud-bottom').getByText('Who’s here')).toBeVisible();
   await expect(page.getByTestId('journey-chip')).toContainText('Journey');
-  // The big next-step card replaces the small chip.
-  const card = page.locator('.city-hud-bottom [data-next-step]');
-  await expect(card).toContainText('What should I do now?');
+  // The next step is a 💡 button (a red dot: not opened yet) that opens a small card.
+  const bulb = page.getByRole('button', { name: 'What should I do now?' });
+  await expect(bulb).toHaveAttribute('data-new', '');
   await expect(page.locator('.hud-whatnow-chip')).toHaveCount(0);
+  await bulb.click();
+  await expect(page.locator('.next-step-pop')).toContainText('What should I do now?');
+  await noSideScroll(page);
+  await shot(page, 'city-next-step');
+  await page.locator('.next-step-pop').getByRole('button', { name: 'Close' }).click();
+  await expect(bulb).not.toHaveAttribute('data-new', '');
   await noSideScroll(page);
   await shot(page, 'city');
 
@@ -138,7 +145,8 @@ test('the next-step card goes straight there', async ({ page }) => {
   await founder(page);
   await page.getByRole('note', { name: 'How to use the map' }).getByRole('button').click();
   // A new founder's next step: talk to customers, at the Market.
-  const card = page.locator('.city-hud-bottom [data-next-step]');
+  await page.getByRole('button', { name: 'What should I do now?' }).click();
+  const card = page.locator('.next-step-pop');
   await expect(card).toContainText('Talk to customers about their problem', { timeout: 15_000 });
   await card.getByRole('button', { name: 'Go there' }).click();
   // Somewhere far asks how to get there (the ride chooser): walk.
