@@ -6,7 +6,7 @@ A persistent multiplayer simulation where players found startups, invest in them
 
 **Play it: [runwaystartup.netlify.app](https://runwaystartup.netlify.app)** (tick that you're 18 or older and press Play now).
 
-This repository implements **Phases 1 and 2** of the design document plus three waves of city play: ten markets (Lagos, Nairobi, London, Accra, Freetown, Kigali, Johannesburg, Cairo, Dubai, San Francisco), each an illustrated city with its own plan, local businesses that trade with startups, gigs, AI founders and angel investors, hosted events and networking; founder, investor and banker roles; AI customers, staff, investors, reporters and incumbents; player banks, a B2B marketplace, acquisitions and votes, travel, personal credit; guest play with email sign-in links; English and French.
+This repository implements **Phases 1 and 2** of the design document plus three waves of city play: ten markets (Lagos, Nairobi, London, Accra, Freetown, Kigali, Johannesburg, Cairo, Dubai, San Francisco), each an illustrated city with its own plan, local businesses that trade with startups, gigs, AI founders and angel investors, hosted events and networking; founder, investor and banker roles; AI customers, staff, investors, reporters and incumbents; player banks, a B2B marketplace, acquisitions and votes, travel, personal credit; guest play with email sign-in links; English and French. Investors climb a full career ladder from angel to syndicate lead, fund manager, firm founder, allocator and institution leader, with an exchange and index fund, syndicates, funds raised from AI and player LPs, and firms (see [docs/INVESTOR-CAREER.md](docs/INVESTOR-CAREER.md)).
 
 > This is a game. Nothing here is financial, legal, or tax advice.
 
