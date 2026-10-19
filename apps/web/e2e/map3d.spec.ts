@@ -51,11 +51,18 @@ test('The 3D city renders, credits OpenStreetMap, and a place opens from its lab
   // The accessible way in stays: the map's own buttons.
   await expect(page.getByRole('button', { name: 'Zoom in' })).toBeVisible();
 
-  // The Hub's label floats over its building; tapping it walks there and goes in.
+  // The Hub's badge floats over its building (a button named for it); tapping
+  // it shows its name and card, and Go walks there and goes in.
   const hub = map.locator('[data-label="hub"]');
   await expect(hub).toBeVisible({ timeout: 30_000 });
+  await expect(hub.getByRole('button', { name: 'The Hub' })).toBeAttached();
   await hub.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
   await hub.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  await expect(hub).toHaveClass(/is-picked/);
+  const card = map.getByRole('group', { name: 'The Hub' });
+  await expect(card).toBeVisible();
+  await card.getByRole('button', { name: 'Go' }).click();
+  await expect(card).toBeHidden();
   const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
   if (await chooser.isVisible().catch(() => false))
     await chooser.locator('[data-mode="walk"]').click();
@@ -122,6 +129,7 @@ test('Driving your own car across the 3D city', async ({ page }) => {
   await expect(far).toBeAttached({ timeout: 30_000 });
   await far.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
   await far.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  await map.locator('[data-badge-card="airport"]').getByRole('button', { name: 'Go' }).click();
   const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
   await expect(chooser).toBeVisible({ timeout: 15_000 });
   const drive = chooser.locator('[data-mode="drive"]');

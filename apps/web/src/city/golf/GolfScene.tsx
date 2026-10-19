@@ -29,7 +29,10 @@ import {
   CLUBS,
   LIE_CARRY,
   MAX_STROKES,
+  POWER_MAX,
   PUTTER,
+  SWEET_FROM,
+  SWEET_TO,
   along,
   clubFor,
   defaultAim,
@@ -38,8 +41,12 @@ import {
   hit,
   holeGeo,
   partnerCard,
+  powerZone,
   rollAt,
+  roundStats,
+  scoreMark,
   scoreName,
+  shotLength,
   skillOf,
   strokeRng,
   type Club,
@@ -47,6 +54,7 @@ import {
   type Lie,
   type Pt2,
   type Shot,
+  type ShotLog,
 } from './game';
 
 const Golf3D = lazy(() =>
@@ -76,6 +84,8 @@ interface Play {
   shot: Shot | null;
   /** The heading the shot was played along (the golfer's stance). */
   stance: number;
+  /** Every stroke of the round so far (the mini-map's trace, the card's numbers). */
+  log: ShotLog[];
 }
 
 const PARTNER_BG = ['i-exited', 'b-wealthy', 'i-operator', 'f-second-time'];
@@ -107,9 +117,27 @@ interface RoundResult {
   total?: number;
   best?: number;
   rounds?: number;
+  hours?: number;
+  energy?: number;
+  effects?: { fun?: number; social?: number };
+  barsFx?: { stress?: number };
   met?: { name: string; role: string } | null;
   message?: string;
 }
+
+/** The power ring: 270° of a circle, from the bottom left round to the bottom right. */
+const RING_R = 54;
+const RING_C = 2 * Math.PI * RING_R;
+const RING_L = RING_C * 0.75;
+const ringDash = (from: number, to: number) =>
+  `0 ${(RING_L * from) / POWER_MAX} ${(RING_L * (to - from)) / POWER_MAX} ${RING_C}`;
+const ringFill = (power: number) =>
+  `${(RING_L * Math.max(0, Math.min(POWER_MAX, power))) / POWER_MAX} ${RING_C}`;
+
+/** A signed whole number (+8, −6, 0). */
+const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
+/** A score against par, the golf way (+2, −1, E). */
+const vsParText = (d: number) => (d === 0 ? 'E' : signed(d));
 
 export function GolfScene(props: SceneProps) {
   const { view, send, busy } = useView();
@@ -150,9 +178,15 @@ export function GolfScene(props: SceneProps) {
   const [banner, setBanner] = useState<string | null>(null);
   const [result, setResult] = useState<RoundResult | null>(null);
   const [lunch, setLunch] = useState<string | null>(null);
+  // Your best here before this round (the card says when you beat it).
+  const [bestBefore, setBestBefore] = useState<number | null>(null);
   const meterRef = useRef<HTMLDivElement>(null);
+  const fillRef = useRef<SVGCircleElement>(null);
+  const readRef = useRef<HTMLDivElement>(null);
+  const carryRef = useRef<HTMLSpanElement>(null);
+  const clubsRef = useRef<HTMLDivElement>(null);
 
-  const newHole = (hole: number, card: number[], now: number): Play => ({
+  const newHole = (hole: number, card: number[], now: number, log: ShotLog[]): Play => ({
     hole,
     ball: { ...geos[hole]!.tee },
     lie: 'tee',
@@ -165,9 +199,10 @@ export function GolfScene(props: SceneProps) {
     power: 0,
     shot: null,
     stance: 0,
+    log,
   });
   // What the tray and the chips show: the play as of the last change.
-  const [play, setPlay] = useState<Play>(() => newHole(0, [], 0));
+  const [play, setPlay] = useState<Play>(() => newHole(0, [], 0, []));
   const P = useRef<Play>(play);
   const bump = useCallback(() => setPlay(P.current), []);
 
@@ -202,7 +237,7 @@ export function GolfScene(props: SceneProps) {
       void handIn(card);
       return;
     }
-    P.current = newHole(p.hole + 1, card, performance.now());
+    P.current = newHole(p.hole + 1, card, performance.now(), p.log);
     bump();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geos, bump, handIn]);
@@ -221,10 +256,40 @@ export function GolfScene(props: SceneProps) {
         bump();
       } else if (p.phase === 'charging') {
         const power = powerAt(e, p.club === PUTTER);
+        const zone = powerZone(power);
+        const n = Math.round(power);
         if (meterRef.current) {
-          meterRef.current.style.setProperty('--power', `${(power / 110) * 100}%`);
-          meterRef.current.dataset.power = String(Math.round(power));
+          meterRef.current.style.setProperty('--power', `${(power / POWER_MAX) * 100}%`);
+          meterRef.current.dataset.power = String(n);
+          meterRef.current.dataset.zone = zone;
         }
+        fillRef.current?.setAttribute('stroke-dasharray', ringFill(power));
+        const read = readRef.current;
+        if (read && read.dataset.power !== String(n)) {
+          read.dataset.power = String(n);
+          read.dataset.zone = zone;
+          read.firstElementChild!.textContent =
+            zone === 'sweet'
+              ? t('{n}% · Sweet!', { n })
+              : zone === 'lunge'
+                ? t('{n}% · Lunge!', { n })
+                : t('{n}%', { n });
+          read.lastElementChild!.textContent =
+            zone === 'sweet'
+              ? t('Let go now')
+              : zone === 'lunge'
+                ? t('Too much: it’ll fly wild')
+                : t('Keep holding…');
+        }
+        if (carryRef.current)
+          carryRef.current.textContent =
+            p.club === PUTTER
+              ? t('Rolls about {m} m', {
+                  m: Math.round(reachOf(p) * Math.min(1.1, power / 100) * 10) / 10,
+                })
+              : t('Carries about {m} m', {
+                  m: Math.round(reachOf(p) * Math.min(1.1, power / 100)),
+                });
       } else if (p.phase === 'swing' && p.shot) {
         const s = p.shot;
         const putt = s.club === PUTTER;
@@ -234,11 +299,8 @@ export function GolfScene(props: SceneProps) {
           (putt ? Math.min(2600, 700 + s.roll * 90) : Math.min(1800, 500 + s.roll * 25)) * sp;
         if (e > D + T + R) {
           P.current = { ...p, phase: s.holed ? 'holed' : 'rest', t0: now };
-          if (s.holed) {
-            const n = p.strokes;
-            flash(tx(scoreName(n, g.par)));
-          } else if (s.penalty) flash(t('In the water: one stroke penalty, drop'));
-          else flash(LIE_WORD[s.lie]());
+          // A drop in the hole gets the cheer; any other shot gets its result card.
+          if (s.holed) flash(tx(scoreName(p.strokes, g.par)));
           bump();
         }
       } else if (p.phase === 'rest' && e > 900 * sp) {
@@ -290,6 +352,17 @@ export function GolfScene(props: SceneProps) {
     const g = geos[p.hole]!;
     const rnd = strokeRng(rngSeed, p.hole, p.strokes);
     const shot = hit(g, p.ball, p.lie, p.club, power, p.stance, rnd, skill);
+    const logged: ShotLog = {
+      hole: p.hole,
+      par: g.par,
+      club: p.club.id,
+      from: shot.from,
+      land: shot.land,
+      rest: shot.rest,
+      lie: shot.lie,
+      fromLie: p.lie,
+      penalty: shot.penalty,
+    };
     P.current = {
       ...p,
       phase: 'swing',
@@ -297,7 +370,15 @@ export function GolfScene(props: SceneProps) {
       power,
       shot,
       strokes: p.strokes + 1 + (shot.penalty ? 1 : 0),
+      log: [...p.log, logged],
     };
+    bump();
+  };
+  // A cancelled hold (the system took the touch, the window lost focus) is no shot.
+  const abort = () => {
+    const p = P.current;
+    if (p.phase !== 'charging') return;
+    P.current = { ...p, phase: 'address', t0: performance.now() };
     bump();
   };
   const nudge = (d: number) => {
@@ -307,12 +388,10 @@ export function GolfScene(props: SceneProps) {
     P.current = { ...p, aimOff: clampAim(p.aimOff + d * step) };
     bump();
   };
-  const cycleClub = () => {
+  const pickClub = (club: Club) => {
     const p = P.current;
-    if (p.phase !== 'address' || p.club === PUTTER) return;
-    const pool = CLUBS.filter((c) => c.id !== 'driver' || p.lie === 'tee');
-    const i = pool.findIndex((c) => c.id === p.club.id);
-    P.current = { ...p, club: pool[(i + 1) % pool.length]!, aimOff: 0 };
+    if (p.phase !== 'address' || p.club === PUTTER || club.id === p.club.id) return;
+    P.current = { ...p, club, aimOff: 0 };
     bump();
   };
   const pickUp = () => {
@@ -346,9 +425,11 @@ export function GolfScene(props: SceneProps) {
     };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
+    window.addEventListener('blur', abort);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', abort);
     };
   });
 
@@ -463,9 +544,22 @@ export function GolfScene(props: SceneProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geos, partners, sp]);
 
+  // The chip for the club in your hand stays in sight (a suggested club can be off to the side).
+  useEffect(() => {
+    const on = clubsRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    const row = clubsRef.current;
+    if (!on || !row) return;
+    const x = on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2;
+    if (typeof row.scrollTo === 'function')
+      row.scrollTo({ left: x, behavior: fast ? 'auto' : 'smooth' });
+  }, [play.club.id, play.hole, stage, fast]);
+
   const p = play;
   const g = geos[p.hole]!;
-  const toPin = Math.round(dist(p.ball, g.pin));
+  const putting = p.club === PUTTER;
+  const charging = p.phase === 'charging';
+  const left = dist(p.ball, g.pin);
+  const toPin = Math.round(left);
   // The power that carries (or rolls) the ball to the pin: a mark on the meter.
   const need = Math.round(
     Math.min(100, ((dist(p.ball, g.pin) + (p.club === PUTTER ? 0.4 : 0)) / reachOf(p)) * 100),
@@ -478,8 +572,22 @@ export function GolfScene(props: SceneProps) {
         ? t('Three holes take {n} hours; you don’t have them this month.', { n: course.hours })
         : null;
 
-  const total = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   const card = p.card;
+  // This hole's strokes (the mini-map's trace) and the last one (its result card).
+  const holeShots = p.log.filter((s) => s.hole === p.hole);
+  const last = holeShots.at(-1);
+  const showResult =
+    !!last && last.lie !== 'holed' && (p.phase === 'rest' || p.phase === 'address');
+  const pool = putting ? [PUTTER] : CLUBS.filter((c) => c.id !== 'driver' || p.lie === 'tee');
+  const aimDeg = Math.round((p.aimOff * 180) / Math.PI);
+  const dots = Math.max(g.par + 2, p.strokes);
+  const needAngle = ((Math.PI * 1.5 * need) / POWER_MAX) as number;
+  const tick = (r: number) => ({
+    x: 66 + Math.cos(needAngle) * r,
+    y: 66 + Math.sin(needAngle) * r,
+  });
+  const tickA = tick(RING_R - 10);
+  const tickB = tick(RING_R + 10);
 
   return (
     <div
@@ -503,7 +611,12 @@ export function GolfScene(props: SceneProps) {
                   par: g.par,
                   m: g.length,
                 })
-              : t('{n} holes · Par {par}', { n: geos.length, par: course.par })}
+              : stage === 'card'
+                ? t('{n} holes · Par {par} · round complete', {
+                    n: geos.length,
+                    par: course.par,
+                  })
+                : t('{n} holes · Par {par}', { n: geos.length, par: course.par })}
           </span>
         </div>
         <span className="golf-pocket" data-pocket={pocket}>
@@ -513,7 +626,7 @@ export function GolfScene(props: SceneProps) {
           ✕
         </button>
       </header>
-      <div className="golf-view">
+      <div className={`golf-view${stage === 'card' ? ' is-card' : ''}`}>
         {want3d ? (
           <Suspense
             fallback={<Golf2D me={me} partners={partners.map((x) => x.look)} frame={frame} />}
@@ -525,23 +638,65 @@ export function GolfScene(props: SceneProps) {
         )}
         {stage === 'play' && (
           <>
-            <div
-              className="golf-chip"
-              data-golf-strokes={p.strokes}
-              data-golf-to-pin={Math.round(dist(p.ball, g.pin) * 100) / 100}
-              data-golf-lie={p.lie}
-            >
-              <b>{t('Stroke {n}', { n: p.strokes + 1 })}</b>
-              <span>
-                {p.lie === 'green'
-                  ? t('{m} m to the hole', {
-                      m: Math.max(0, Math.round(dist(p.ball, g.pin) * 10) / 10),
-                    })
-                  : t('{m} m to the pin', { m: toPin })}
-              </span>
-              <span>{LIE_WORD[p.lie]()}</span>
+            <div className="golf-hud">
+              <div
+                className="golf-chip"
+                data-golf-strokes={p.strokes}
+                data-golf-to-pin={Math.round(dist(p.ball, g.pin) * 100) / 100}
+                data-golf-lie={p.lie}
+              >
+                <span className="golf-kicker">
+                  {t('Hole {n}/{of}', { n: p.hole + 1, of: geos.length })}
+                </span>
+                <b className="golf-par">{t('Par {par}', { par: g.par })}</b>
+                <span className="golf-len">{t('{m} m', { m: g.length })}</span>
+                <span
+                  className="golf-dots"
+                  role="img"
+                  aria-label={t('{n} strokes so far', { n: p.strokes })}
+                >
+                  {Array.from({ length: dots }, (_, i) => (
+                    <i
+                      key={i}
+                      className={`${i < p.strokes ? 'on' : ''}${i === g.par - 1 ? ' par' : ''}`}
+                    />
+                  ))}
+                </span>
+              </div>
+              <div className="golf-pin" aria-live="polite">
+                <b>
+                  {p.lie === 'green' ? Math.max(0, Math.round(left * 10) / 10) : toPin}
+                  <small> m</small>
+                </b>
+                <span>
+                  {p.lie === 'green'
+                    ? t('to the hole · {lie}', { lie: LIE_WORD[p.lie]() })
+                    : t('to the pin · {lie}', { lie: LIE_WORD[p.lie]() })}
+                </span>
+              </div>
+              <MiniMap
+                g={g}
+                ball={p.ball}
+                aim={p.phase === 'address' ? aimOf(p) : null}
+                shots={p.phase === 'swing' ? holeShots.slice(0, -1) : holeShots}
+              />
             </div>
-            <MiniMap g={g} ball={p.ball} aim={p.phase === 'address' ? aimOf(p) : null} />
+            {showResult && last && (
+              <ShotCard
+                key={`${p.hole}:${holeShots.length}`}
+                shot={last}
+                n={p.strokes - (last.penalty ? 1 : 0)}
+                left={left}
+                lie={p.lie}
+                next={clubFor(left, p.lie)}
+              />
+            )}
+            {charging && (
+              <div className="golf-power" ref={readRef} data-zone="build" data-power="0">
+                <b>{t('{n}%', { n: 0 })}</b>
+                <span>{t('Keep holding…')}</span>
+              </div>
+            )}
           </>
         )}
         {banner && (
@@ -583,9 +738,10 @@ export function GolfScene(props: SceneProps) {
                 data-action="golf-start"
                 disabled={!canPlay}
                 onClick={() => {
-                  P.current = newHole(0, [], performance.now());
+                  P.current = newHole(0, [], performance.now(), []);
                   bump();
                   setResult(null);
+                  setBestBefore(course.you?.best ?? null);
                   setStage('play');
                 }}
               >
@@ -616,178 +772,160 @@ export function GolfScene(props: SceneProps) {
           </div>
         )}
         {stage === 'card' && (
-          <div className="golf-card" data-golf-scorecard="">
-            <h3>{t('Scorecard')}</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>{t('Hole')}</th>
-                  {course.holes.map((h) => (
-                    <th key={h.n}>{h.n}</th>
-                  ))}
-                  <th>{t('Total')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="par">
-                  <th>{t('Par')}</th>
-                  {pars.map((x, i) => (
-                    <td key={i}>{x}</td>
-                  ))}
-                  <td>{course.par}</td>
-                </tr>
-                <tr className="you">
-                  <th>{t('You')}</th>
-                  {card.map((x, i) => (
-                    <td key={i} className={x < pars[i]! ? 'under' : x > pars[i]! ? 'over' : ''}>
-                      {x}
-                    </td>
-                  ))}
-                  <td data-golf-total={total(card)}>{total(card)}</td>
-                </tr>
-                {partners.map((m) => (
-                  <tr key={m.name}>
-                    <th>{m.name.split(' ')[0]}</th>
-                    {m.card.map((x, i) => (
-                      <td key={i}>{x}</td>
-                    ))}
-                    <td>{total(m.card)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="golf-vs">
-              {(() => {
-                const d = total(card) - course.par;
-                return d === 0
-                  ? t('Level par')
-                  : d < 0
-                    ? t('{n} under par', { n: -d })
-                    : t('{n} over par', { n: d });
-              })()}
-            </p>
-            {result ? (
-              <div className="golf-result" data-golf-result={result.fee ? 'ok' : 'error'}>
-                {result.fee !== undefined && (
-                  <p>
-                    {t('Green fee {fee} paid · {n} hours on the course', {
-                      fee: money(result.fee, cur),
-                      n: course.hours,
-                    })}
-                  </p>
-                )}
-                {result.met && (
-                  <p data-golf-met="">
-                    {t(
-                      'On the course you got talking with {name} ({role}). They’re in your contacts.',
-                      {
-                        name: result.met.name,
-                        role: tx(result.met.role),
-                      },
-                    )}
-                  </p>
-                )}
-                {!result.fee && result.message && <p>{tx(result.message)}</p>}
-              </div>
-            ) : (
-              <p className="small muted">{t('Handing in your card…')}</p>
-            )}
-            <div className="golf-intro-actions">
-              {!result?.fee && result && (
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={busy}
-                  onClick={() => void handIn(card)}
-                >
-                  {t('Hand in your card')}
-                </button>
-              )}
-              <button
-                type="button"
-                className="btn btn-subtle"
-                data-action="golf-again"
-                disabled={busy || !result?.fee}
-                onClick={() => setStage('intro')}
-              >
-                {t('Play again')}
-              </button>
-              <button type="button" className="btn" data-action="golf-done" onClick={props.onClose}>
-                {t('Done')}
-              </button>
-            </div>
-          </div>
+          <ScoreCard
+            card={card}
+            pars={pars}
+            holes={course.holes.map((h) => h.n)}
+            par={course.par}
+            partners={partners}
+            log={p.log}
+            result={result}
+            bestBefore={bestBefore}
+            hours={course.hours}
+            cur={cur}
+            busy={busy}
+            onHandIn={() => void handIn(card)}
+            onAgain={() => setStage('intro')}
+            onDone={props.onClose}
+          />
         )}
       </div>
       {stage === 'play' && (
         <div className="golf-tray" role="group" aria-label={t('Your shot')}>
-          <div className="golf-row">
+          <div className="golf-clubs" ref={clubsRef} role="group" aria-label={t('Clubs')}>
+            {pool.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className="golf-club"
+                data-action="golf-club"
+                data-club={c.id}
+                aria-pressed={c.id === p.club.id}
+                disabled={p.phase !== 'address' || putting}
+                onClick={() => pickClub(c)}
+              >
+                <b>{tx(c.label)}</b>
+                <span>
+                  {c === PUTTER
+                    ? t('On the green')
+                    : t('{m} m', { m: Math.round(c.carry * LIE_CARRY[p.lie]) })}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="golf-swingrow">
             <button
               type="button"
-              className="btn btn-subtle golf-aim"
+              className="golf-aim"
               aria-label={t('Aim left')}
               data-action="golf-left"
               disabled={p.phase !== 'address'}
               onClick={() => nudge(-1)}
             >
-              ◀
+              <span aria-hidden="true">◀</span>
+              <small>{t('Aim')}</small>
             </button>
+            <div className="golf-swing-wrap">
+              <div
+                className="golf-meter"
+                ref={meterRef}
+                data-power="0"
+                data-zone="build"
+                aria-hidden="true"
+              >
+                <svg viewBox="0 0 132 132">
+                  <g transform="rotate(135 66 66)">
+                    <circle
+                      className="golf-ring-track"
+                      cx="66"
+                      cy="66"
+                      r={RING_R}
+                      strokeDasharray={`${RING_L} ${RING_C}`}
+                    />
+                    <circle
+                      className="golf-ring-sweet"
+                      cx="66"
+                      cy="66"
+                      r={RING_R}
+                      strokeDasharray={ringDash(SWEET_FROM, SWEET_TO)}
+                    />
+                    <circle
+                      className="golf-ring-lunge"
+                      cx="66"
+                      cy="66"
+                      r={RING_R}
+                      strokeDasharray={ringDash(SWEET_TO, POWER_MAX)}
+                    />
+                    <circle
+                      className="golf-ring-fill"
+                      ref={fillRef}
+                      cx="66"
+                      cy="66"
+                      r={RING_R}
+                      strokeDasharray={ringFill(p.phase === 'swing' ? p.power : 0)}
+                    />
+                    <line
+                      className="golf-need"
+                      data-golf-need={need}
+                      x1={tickA.x}
+                      y1={tickA.y}
+                      x2={tickB.x}
+                      y2={tickB.y}
+                    />
+                  </g>
+                </svg>
+              </div>
+              <button
+                type="button"
+                className="golf-swing"
+                data-action="golf-swing"
+                aria-label={
+                  charging ? t('Let go to hit') : putting ? t('Hold to putt') : t('Hold to swing')
+                }
+                disabled={p.phase !== 'address' && p.phase !== 'charging'}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+                  startSwing();
+                }}
+                onPointerUp={release}
+                onPointerCancel={abort}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                <b>{charging ? t('Let go') : t('Hold')}</b>
+                <small>{charging ? t('to hit') : putting ? t('to putt') : t('to swing')}</small>
+              </button>
+            </div>
             <button
               type="button"
-              className="btn btn-subtle golf-club"
-              data-action="golf-club"
-              disabled={p.phase !== 'address' || p.club === PUTTER}
-              onClick={cycleClub}
-            >
-              <b>{tx(p.club.label)}</b>
-              <span className="small">
-                {p.club === PUTTER ? t('Putter') : t('{m} m', { m: p.club.carry })}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-subtle golf-aim"
+              className="golf-aim"
               aria-label={t('Aim right')}
               data-action="golf-right"
               disabled={p.phase !== 'address'}
               onClick={() => nudge(1)}
             >
-              ▶
+              <span aria-hidden="true">▶</span>
+              <small>{t('Aim')}</small>
             </button>
           </div>
-          <div className="golf-meter" ref={meterRef} data-power="0" aria-hidden="true">
-            <span className="golf-sweet" />
-            <span
-              className="golf-need"
-              data-golf-need={need}
-              style={{ left: `${(need / 110) * 100}%` }}
-            />
-            <span className="golf-fill" />
-          </div>
-          <div className="golf-row">
+          <div className="golf-sub">
+            {charging ? (
+              <span ref={carryRef} />
+            ) : (
+              <span data-golf-aim={aimDeg}>
+                {aimDeg === 0
+                  ? t('Aim: straight at it')
+                  : aimDeg > 0
+                    ? t('Aim {n}° right', { n: aimDeg })
+                    : t('Aim {n}° left', { n: -aimDeg })}
+              </span>
+            )}
+            <span className="golf-sweet-note">
+              {charging ? t('Over 100 % is a lunge') : t('Sweet spot 80–100 %')}
+            </span>
             <button
               type="button"
-              className="btn golf-swing"
-              data-action="golf-swing"
-              disabled={p.phase !== 'address' && p.phase !== 'charging'}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-                startSwing();
-              }}
-              onPointerUp={release}
-              onPointerCancel={release}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              {p.phase === 'charging'
-                ? t('Let go to hit')
-                : p.club === PUTTER
-                  ? t('Hold to putt')
-                  : t('Hold to swing')}
-            </button>
-            <button
-              type="button"
-              className="btn btn-subtle golf-pickup"
+              className="golf-pickup"
               data-action="golf-pickup"
               disabled={p.phase !== 'address' || p.strokes === 0}
               onClick={pickUp}
@@ -801,15 +939,290 @@ export function GolfScene(props: SceneProps) {
   );
 }
 
-/** The hole from above: fairway, hazards, green, the ball and where you're aiming. */
-function MiniMap({ g, ball, aim }: { g: HoleGeo; ball: Pt2; aim: number | null }) {
+/** After a shot: how far it went, what it lies on, what's left and the club for it. */
+function ShotCard({
+  shot,
+  n,
+  left,
+  lie,
+  next,
+}: {
+  shot: ShotLog;
+  n: number;
+  left: number;
+  lie: Lie;
+  next: Club;
+}) {
+  const m = Math.round(shotLength(shot) * (shot.club === PUTTER.id ? 10 : 1));
+  const len = shot.club === PUTTER.id ? m / 10 : m;
+  const drive = shot.fromLie === 'tee' && (shot.club === 'driver' || shot.club === 'wood');
+  const club = CLUBS.find((c) => c.id === shot.club) ?? PUTTER;
+  const rest = lie === 'green' ? Math.round(left * 10) / 10 : Math.round(left);
+  return (
+    <div
+      className="golf-shot"
+      role="status"
+      data-golf-shot={shot.lie}
+      data-golf-shot-m={Math.round(shotLength(shot))}
+    >
+      <span className="golf-kicker">
+        {t('Stroke {n} · {lie}', { n, lie: LIE_WORD[shot.penalty ? 'water' : shot.lie]() })}
+      </span>
+      <b>
+        {shot.club === PUTTER.id
+          ? t('{m} m putt', { m: len })
+          : drive
+            ? t('{m} m drive', { m: len })
+            : t('{m} m with the {club}', { m: len, club: tx(club.label) })}
+      </b>
+      <span>
+        {shot.penalty
+          ? t('One stroke penalty, dropped · {m} m left', { m: rest })
+          : lie === 'green'
+            ? t('{m} m left · time to putt', { m: rest })
+            : t('{m} m left · try the {club}', { m: rest, club: tx(next.label) })}
+      </span>
+    </div>
+  );
+}
+
+/** The marks golf puts round a score: circles under par, squares over. */
+function Mark({ strokes, par }: { strokes: number; par: number }) {
+  const mark = scoreMark(strokes, par);
+  return (
+    <span className={`golf-mark ${mark}`} data-golf-mark={mark}>
+      {strokes}
+    </span>
+  );
+}
+
+function ScoreCard({
+  card,
+  pars,
+  holes,
+  par,
+  partners,
+  log,
+  result,
+  bestBefore,
+  hours,
+  cur,
+  busy,
+  onHandIn,
+  onAgain,
+  onDone,
+}: {
+  card: number[];
+  pars: number[];
+  holes: number[];
+  par: number;
+  partners: { name: string; card: number[] }[];
+  log: ShotLog[];
+  result: RoundResult | null;
+  bestBefore: number | null;
+  hours: number;
+  cur: string;
+  busy: boolean;
+  onHandIn: () => void;
+  onAgain: () => void;
+  onDone: () => void;
+}) {
+  const total = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+  const sum = total(card);
+  const vs = sum - par;
+  const stats = roundStats(log);
+  const ok = !!result?.fee;
+  const best = ok && (bestBefore === null || vs < bestBefore);
+  const effects: [string, number][] = result
+    ? (
+        [
+          [t('Fun'), result.effects?.fun ?? 0],
+          [t('Social'), result.effects?.social ?? 0],
+          [t('Energy'), result.energy ?? 0],
+          [t('Stress'), result.barsFx?.stress ?? 0],
+        ] as [string, number][]
+      ).filter(([, v]) => v !== 0)
+    : [];
+  return (
+    <div className="golf-card" data-golf-scorecard="" role="region" aria-label={t('Scorecard')}>
+      <div className="golf-card-head">
+        <div>
+          <span className="golf-kicker">{t('Scorecard')}</span>
+          <h3 className="golf-vs" data-golf-vs={vs}>
+            {t('{vs} · {n} strokes', { vs: vsParText(vs), n: sum })}
+          </h3>
+          <p className="small muted">
+            {vs === 0
+              ? t('Level par')
+              : vs < 0
+                ? t('{n} under par', { n: -vs })
+                : t('{n} over par', { n: vs })}
+            {ok &&
+              ` · ${
+                bestBefore === null
+                  ? t('Your first round here')
+                  : best
+                    ? t('Your best round here (was {was})', { was: vsParText(bestBefore) })
+                    : t('Your best here: {best}', { best: vsParText(bestBefore) })
+              }`}
+          </p>
+        </div>
+        <span className="golf-trophy" aria-hidden="true">
+          {best ? '🏆' : '⛳'}
+        </span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>{t('Hole')}</th>
+            {holes.map((h) => (
+              <th key={h}>{h}</th>
+            ))}
+            <th>{t('Total')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="par">
+            <th>{t('Par')}</th>
+            {pars.map((x, i) => (
+              <td key={i}>{x}</td>
+            ))}
+            <td>{par}</td>
+          </tr>
+          <tr className="you">
+            <th>{t('You')}</th>
+            {card.map((x, i) => (
+              <td key={i}>
+                <Mark strokes={x} par={pars[i]!} />
+              </td>
+            ))}
+            <td data-golf-total={sum}>{sum}</td>
+          </tr>
+          {partners.map((m) => (
+            <tr key={m.name}>
+              <th>{m.name.split(' ')[0]}</th>
+              {m.card.map((x, i) => (
+                <td key={i}>
+                  <Mark strokes={x} par={pars[i]!} />
+                </td>
+              ))}
+              <td>{total(m.card)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="golf-legend">
+        <span>
+          <i className="golf-key birdie" aria-hidden="true" />
+          {t('Under par')}
+        </span>
+        <span>
+          <i className="golf-key bogey" aria-hidden="true" />
+          {t('Bogey')}
+        </span>
+        <span>
+          <i className="golf-key double" aria-hidden="true" />
+          {t('Double bogey or worse')}
+        </span>
+      </p>
+      <div className="golf-stats">
+        {stats.fairwayHoles > 0 && (
+          <div data-golf-stat="fairways">
+            <b>
+              {stats.fairways}/{stats.fairwayHoles}
+            </b>
+            <span>{t('Fairways hit')}</span>
+          </div>
+        )}
+        <div data-golf-stat="putts">
+          <b>{stats.putts}</b>
+          <span>{t('Putts')}</span>
+        </div>
+        {stats.longest > 0 && (
+          <div data-golf-stat="longest">
+            <b>{t('{m} m', { m: stats.longest })}</b>
+            <span>{t('Longest drive')}</span>
+          </div>
+        )}
+      </div>
+      {result ? (
+        <div className="golf-result" data-golf-result={ok ? 'ok' : 'error'}>
+          {result.fee !== undefined && (
+            <p className="golf-fee">
+              <span>{t('Green fee paid')}</span>
+              <b>{money(result.fee, cur)}</b>
+            </p>
+          )}
+          {ok && (
+            <p className="golf-fx">
+              <span>{t('{n} hours on the course', { n: result.hours ?? hours })}</span>
+              {effects.map(([k, v]) => (
+                <b key={k} className={(k === t('Stress') ? -v : v) > 0 ? 'up' : 'down'}>
+                  {k} {signed(v)}
+                </b>
+              ))}
+            </p>
+          )}
+          {result.met && (
+            <p data-golf-met="">
+              {t('On the course you got talking with {name} ({role}). They’re in your contacts.', {
+                name: result.met.name,
+                role: tx(result.met.role),
+              })}
+            </p>
+          )}
+          {!ok && result.message && <p>{tx(result.message)}</p>}
+        </div>
+      ) : (
+        <p className="small muted">{t('Handing in your card…')}</p>
+      )}
+      <div className="golf-intro-actions">
+        {!ok && result && (
+          <button type="button" className="btn" disabled={busy} onClick={onHandIn}>
+            {t('Hand in your card')}
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn btn-subtle"
+          data-action="golf-again"
+          disabled={busy || !ok}
+          onClick={onAgain}
+        >
+          {t('Play again')}
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary golf-done"
+          data-action="golf-done"
+          onClick={onDone}
+        >
+          {t('Done')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The hole from above: fairway, hazards, green, the ball, your aim and this hole's shots. */
+function MiniMap({
+  g,
+  ball,
+  aim,
+  shots,
+}: {
+  g: HoleGeo;
+  ball: Pt2;
+  aim: number | null;
+  shots: ShotLog[];
+}) {
   const pts = [...g.line, ...g.bunkers, ...(g.water ? [g.water] : [])];
   const x0 = Math.min(...pts.map((p) => p.x)) - 30;
   const x1 = Math.max(...pts.map((p) => p.x)) + 30;
   const z0 = Math.min(...pts.map((p) => p.z)) - 25;
   const z1 = Math.max(...pts.map((p) => p.z)) + 15;
   const W = 64;
-  const H = 120;
+  const H = 132;
   const k = Math.min(W / (x1 - x0), H / (z1 - z0));
   const X = (x: number) => (x - x0) * k + (W - (x1 - x0) * k) / 2;
   const Y = (z: number) => (z - z0) * k + (H - (z1 - z0) * k) / 2;
@@ -817,8 +1230,13 @@ function MiniMap({ g, ball, aim }: { g: HoleGeo; ball: Pt2; aim: number | null }
   const fair = g.line.slice(t0, Math.round(g.fairway[1] * (g.line.length - 1)) + 1);
   const end = aim !== null ? along(ball, aim, Math.min(250, dist(ball, g.pin) + 10)) : null;
   return (
-    <svg className="golf-map" viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
-      <rect x="0" y="0" width={W} height={H} rx="6" fill="#3f7a26" />
+    <svg
+      className="golf-map"
+      viewBox={`0 0 ${W} ${H}`}
+      aria-hidden="true"
+      data-golf-trace={shots.length}
+    >
+      <rect x="0" y="0" width={W} height={H} fill="#3f7a26" />
       <polyline
         points={fair.map((p) => `${X(p.x)},${Y(p.z)}`).join(' ')}
         fill="none"
@@ -840,6 +1258,41 @@ function MiniMap({ g, ball, aim }: { g: HoleGeo; ball: Pt2; aim: number | null }
       ))}
       <circle cx={X(g.pin.x)} cy={Y(g.pin.z)} r={g.greenR * k} fill="#95d95e" />
       <line
+        x1={X(ball.x)}
+        y1={Y(ball.z)}
+        x2={X(g.pin.x)}
+        y2={Y(g.pin.z)}
+        stroke="#fff"
+        strokeOpacity="0.7"
+        strokeWidth="0.7"
+        strokeDasharray="1.5 2"
+      />
+      {shots.map((s, i) => (
+        <g key={i} className="golf-trace">
+          <line
+            x1={X(s.from.x)}
+            y1={Y(s.from.z)}
+            x2={X(s.land.x)}
+            y2={Y(s.land.z)}
+            stroke="#facc15"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+          />
+          {dist(s.land, s.rest) > 0.5 && (
+            <line
+              x1={X(s.land.x)}
+              y1={Y(s.land.z)}
+              x2={X(s.rest.x)}
+              y2={Y(s.rest.z)}
+              stroke="#facc15"
+              strokeWidth="1"
+              strokeDasharray="1 1.5"
+            />
+          )}
+          <circle cx={X(s.from.x)} cy={Y(s.from.z)} r="1.1" fill="#facc15" />
+        </g>
+      ))}
+      <line
         x1={X(g.pin.x)}
         y1={Y(g.pin.z)}
         x2={X(g.pin.x)}
@@ -858,11 +1311,11 @@ function MiniMap({ g, ball, aim }: { g: HoleGeo; ball: Pt2; aim: number | null }
           x2={X(end.x)}
           y2={Y(end.z)}
           stroke="#fde047"
-          strokeWidth="0.8"
+          strokeWidth="0.9"
           strokeDasharray="2 2"
         />
       )}
-      <circle cx={X(ball.x)} cy={Y(ball.z)} r="2" fill="#fff" stroke="#111" strokeWidth="0.5" />
+      <circle cx={X(ball.x)} cy={Y(ball.z)} r="2.4" fill="#fff" stroke="#111" strokeWidth="0.6" />
     </svg>
   );
 }

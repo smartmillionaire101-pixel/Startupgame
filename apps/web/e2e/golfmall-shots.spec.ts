@@ -42,6 +42,21 @@ async function hold(page: Page, ms: number, mid?: () => Promise<void>, at = ms) 
   await page.mouse.up();
 }
 
+/** On the 3D map a place is an icon badge: tap it, then Go on its card. */
+async function goTo(page: Page, id: string, quality: '3d' | 'lite') {
+  if (quality === 'lite') return tapPlace(page, `[data-place="${id}"]`, 'cycle');
+  await page.locator(`[data-badge="${id}"]`).first().click();
+  await page.locator(`[data-badge-card="${id}"] [data-badge-go]`).click();
+  const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
+  if (
+    await chooser.waitFor({ timeout: 1500 }).then(
+      () => true,
+      () => false,
+    )
+  )
+    await chooser.locator('[data-mode="cycle"]').click();
+}
+
 for (const quality of ['3d', 'lite'] as const)
   test(`golf shots ${quality}`, async ({ page }) => {
     test.skip(!process.env.SHOTS_DIR);
@@ -50,7 +65,7 @@ for (const quality of ['3d', 'lite'] as const)
     const snap = async (name: string) => {
       await page.screenshot({ path: `${DIR}/golf-${quality}-${name}.png` });
     };
-    await tapPlace(page, '[data-place="golf"]', 'cycle');
+    await goTo(page, 'golf', quality);
     const scene = page.locator('.golf-scene');
     await expect(scene).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(2500);
@@ -125,7 +140,7 @@ for (const quality of ['3d', 'lite'] as const)
       await page.waitForTimeout(quality === '3d' ? 2500 : 600);
       await page.screenshot({ path: `${DIR}/mall-${quality}-${name}.png` });
     };
-    await tapPlace(page, '[data-place="mall"]', 'cycle');
+    await goTo(page, 'mall', quality);
     const scene = page.locator('.mall-scene');
     await expect(scene).toBeVisible({ timeout: 30_000 });
     await snap('1-concourse');

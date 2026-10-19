@@ -129,6 +129,8 @@ export interface Place {
   area?: string;
   /** A business's category (colour-coded). */
   category?: BusinessCategory;
+  /** A business's kind (its badge's icon on the map). */
+  bizKind?: string;
   /** Footprint on the ground (grid units). */
   x: number;
   y: number;
@@ -782,6 +784,7 @@ export function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: stri
     district: 'shops',
     area,
     category: b.category,
+    bizKind: b.kind,
     x,
     y,
     w,

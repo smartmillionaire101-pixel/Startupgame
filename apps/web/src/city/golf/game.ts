@@ -387,3 +387,67 @@ export function scoreName(strokes: number, par: number): string {
   if (d === 3) return 'Triple bogey';
   return 'Holed out';
 }
+
+// ---------------------------------------------------------------------------
+// For the HUD and the scorecard (no physics here: they only read shots).
+
+/** Where the power meter is: winding up, the sweet spot (80–100 %), or a lunge. */
+export type PowerZone = 'build' | 'sweet' | 'lunge';
+export const SWEET_FROM = 80;
+export const SWEET_TO = 100;
+export const POWER_MAX = 110;
+export const powerZone = (power: number): PowerZone =>
+  power > SWEET_TO ? 'lunge' : power >= SWEET_FROM ? 'sweet' : 'build';
+
+/** A hole's score as golf marks it on the card. */
+export type ScoreMark = 'eagle' | 'birdie' | 'par' | 'bogey' | 'double';
+export function scoreMark(strokes: number, par: number): ScoreMark {
+  const d = strokes - par;
+  return d <= -2 ? 'eagle' : d === -1 ? 'birdie' : d === 0 ? 'par' : d === 1 ? 'bogey' : 'double';
+}
+
+/** One stroke as the round remembers it (for the mini-map trace and the card's numbers). */
+export interface ShotLog {
+  hole: number;
+  /** The hole's par (a drive is a tee shot on a par 4 or 5). */
+  par: number;
+  club: string;
+  from: Pt2;
+  land: Pt2;
+  rest: Pt2;
+  /** What it came to rest on ('holed' when it dropped). */
+  lie: Lie;
+  /** The lie it was played from. */
+  fromLie: Lie;
+  penalty: boolean;
+}
+
+/** How far a shot went, from where it was played to where it stopped. */
+export const shotLength = (s: Pick<ShotLog, 'from' | 'rest'>) => dist(s.from, s.rest);
+
+export interface RoundStats {
+  putts: number;
+  /** Tee shots on par 4s and 5s that stopped on the fairway, of how many. */
+  fairways: number;
+  fairwayHoles: number;
+  /** The longest tee shot on a par 4 or 5, metres (0 = none). */
+  longest: number;
+}
+
+export function roundStats(log: readonly ShotLog[]): RoundStats {
+  let putts = 0;
+  let fairways = 0;
+  let fairwayHoles = 0;
+  let longest = 0;
+  const teed = new Set<number>();
+  for (const s of log) {
+    if (s.club === PUTTER.id) putts++;
+    if (s.fromLie === 'tee' && s.par >= 4 && !teed.has(s.hole)) {
+      teed.add(s.hole);
+      fairwayHoles++;
+      if (s.lie === 'fairway' && !s.penalty) fairways++;
+      if (!s.penalty) longest = Math.max(longest, shotLength(s));
+    }
+  }
+  return { putts, fairways, fairwayHoles, longest: Math.round(longest) };
+}

@@ -68,11 +68,15 @@ function drawGolfer(
   ctx.closePath();
   ctx.fill();
   if (look.topStyle === 'dress' || look.topStyle === 'kaftan') {
+    // A man's kaftan is a straight tunic to mid-thigh; a dress (or a woman's kaftan) flares.
+    const tunic = look.topStyle === 'kaftan' && look.gender !== 'female';
+    const w = tunic ? 0.17 : 0.26;
+    const len = tunic ? 0.22 : 0.42;
     ctx.beginPath();
     ctx.moveTo(x - 0.16 * m, hipY);
     ctx.lineTo(x + 0.16 * m, hipY);
-    ctx.lineTo(x + 0.26 * m, hipY + 0.42 * m);
-    ctx.lineTo(x - 0.26 * m, hipY + 0.42 * m);
+    ctx.lineTo(x + w * m, hipY + len * m);
+    ctx.lineTo(x - w * m, hipY + len * m);
     ctx.closePath();
     ctx.fill();
   }

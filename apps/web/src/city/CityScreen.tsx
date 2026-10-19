@@ -66,6 +66,7 @@ import type { JourneyGo } from './journey';
 import { runJourneyGo } from './journeyGo';
 import { NextStepCard } from './NextStepCard';
 import { GestureHint } from './GestureHint';
+import { MapKeyIcon, MapKeySheet } from './MapBadges';
 import { useSimple } from '../phone/settings';
 import { WhoIsAround } from './WhoIsHere';
 import { OnlineNowList } from './OnlineNow';
@@ -579,6 +580,7 @@ function CityBodyInner({
   const [inside, setInside] = useState<Place | null>(null);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [skyOpen, setSkyOpen] = useState(false);
+  const [keyOpen, setKeyOpen] = useState(false);
   const [journeyOpen, setJourneyOpen] = useState(false);
   const skyCity = view.here?.id ?? view.market.id;
   const [peopleOpen, setPeopleOpen] = useState(false);
@@ -1037,6 +1039,16 @@ function CityBodyInner({
                 </span>
               )}
             </button>
+            {/* What the map's icons mean (and "Show names"). */}
+            <button
+              type="button"
+              className="hud-round hud-key"
+              aria-label={t('Map key')}
+              data-map-key-open=""
+              onClick={() => setKeyOpen(true)}
+            >
+              <MapKeyIcon />
+            </button>
             {/* Simple mode: the next step is a 💡 button (a red dot when there's
                 something new) that opens a small card. */}
             {simple && !riding && <NextStepCard onMap onGo={journeyGo} />}
@@ -1148,6 +1160,7 @@ function CityBodyInner({
           <JourneyPanel onGo={journeyGo} />
         </Sheet>
       )}
+      {keyOpen && <MapKeySheet onClose={() => setKeyOpen(false)} />}
       {skyOpen && (
         <Sheet title={t('Sky views')} onClose={() => setSkyOpen(false)}>
           <SkyViewsList city={skyCity} onOpen={() => setSkyOpen(false)} />

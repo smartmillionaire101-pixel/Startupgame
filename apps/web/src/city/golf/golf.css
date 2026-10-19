@@ -1,7 +1,7 @@
 /* The golf course (GolfScene.tsx). */
 .golf-scene {
   background: #0f2a17;
-  color: var(--ink);
+  color: var(--text);
 }
 .golf-scene .place-head {
   background: var(--surface);
@@ -28,32 +28,164 @@
   display: block;
   touch-action: none;
 }
-.golf-chip {
+/* The HUD over the course: the hole card, the distance to the pin, the mini-map. */
+.golf-hud {
   position: absolute;
   top: 10px;
-  left: 10px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+.golf-chip {
+  flex: 0 0 auto;
   display: grid;
   gap: 1px;
-  padding: 6px 10px;
-  border-radius: 12px;
-  background: rgb(15 23 42 / 0.66);
+  min-width: 104px;
+  padding: 8px 12px 9px;
+  border-radius: 16px;
+  background: rgb(15 23 42 / 0.78);
   color: #fff;
   font-size: 12px;
-  line-height: 1.3;
-  pointer-events: none;
+  line-height: 1.2;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
 }
-.golf-chip b {
+.golf-kicker {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.golf-chip .golf-kicker {
+  color: #86efac;
+}
+.golf-par {
+  font-family: var(--font-display, inherit);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.05;
+}
+.golf-len {
+  font-weight: 700;
   font-size: 13px;
+  opacity: 0.9;
+}
+.golf-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+  max-width: 120px;
+}
+.golf-dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.25);
+}
+.golf-dots i.on {
+  background: #fff;
+}
+.golf-dots i.par {
+  box-shadow: 0 0 0 1.5px #86efac;
+}
+.golf-pin {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  color: #fff;
+  text-shadow:
+    0 1px 3px rgb(0 0 0 / 0.6),
+    0 0 10px rgb(0 0 0 / 0.35);
+  padding-top: 2px;
+}
+.golf-pin b {
+  font-family: var(--font-display, inherit);
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.golf-pin b small {
+  font-size: 16px;
+}
+.golf-pin span {
+  font-size: 12.5px;
+  font-weight: 700;
 }
 .golf-map {
-  position: absolute;
-  top: 10px;
-  right: 10px;
+  flex: 0 0 auto;
   width: 64px;
-  height: 120px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
+  height: 132px;
+  border-radius: 14px;
+  border: 2px solid rgb(255 255 255 / 0.85);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.3);
+  background: #3f7a26;
+}
+/* After a shot: what it did and what's next. */
+.golf-shot {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 10px 18px 12px;
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
   pointer-events: none;
+}
+.golf-shot .golf-kicker {
+  color: #15803d;
+}
+.golf-shot b {
+  font-family: var(--font-display, inherit);
+  font-size: 22px;
+  line-height: 1.15;
+}
+.golf-shot span:last-child {
+  font-size: 13px;
+  color: var(--muted);
+}
+/* While you hold: the power, live. */
+.golf-power {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  padding: 10px 20px;
+  border-radius: 18px;
+  background: rgb(15 23 42 / 0.82);
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.golf-power[data-zone='sweet'] {
+  background: rgb(21 128 61 / 0.94);
+}
+.golf-power[data-zone='lunge'] {
+  background: rgb(185 28 28 / 0.94);
+}
+.golf-power b {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.golf-power span {
+  font-size: 12.5px;
+  opacity: 0.92;
 }
 .golf-banner {
   position: absolute;
@@ -125,102 +257,412 @@
 }
 .golf-card th,
 .golf-card td {
-  padding: 6px 4px;
+  padding: 5px 2px;
   text-align: center;
   border-bottom: 1px solid var(--line);
+}
+.golf-card thead th {
+  font-size: 11px;
+  color: var(--muted);
 }
 .golf-card th:first-child {
   text-align: left;
 }
-.golf-card tr.par td {
+.golf-card tr.par td,
+.golf-card tr.par th {
   color: var(--muted);
 }
-.golf-card tr.you {
+.golf-card tr.you th,
+.golf-card tr.you td:last-child {
   font-weight: 800;
 }
-.golf-card td.under {
-  color: #b91c1c;
+.golf-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.golf-card td.under::after {
-  content: '';
-}
-.golf-card td.over {
-  color: #1d4ed8;
+.golf-card-head .golf-kicker {
+  color: #15803d;
 }
 .golf-vs {
+  font-family: var(--font-display, inherit);
   font-weight: 800;
-  font-size: 18px;
+  font-size: 26px;
+  line-height: 1.1;
+}
+.golf-trophy {
+  margin-left: auto;
+  font-size: 40px;
+  line-height: 1;
+}
+/* Golf's marks: a circle under par (two for an eagle), a square over (two for a double). */
+.golf-mark {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  font-weight: 800;
+  box-sizing: border-box;
+}
+.golf-mark.birdie,
+.golf-mark.eagle {
+  border: 2px solid #dc2626;
+  border-radius: 50%;
+  color: #dc2626;
+}
+.golf-mark.eagle {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px #dc2626;
+}
+.golf-mark.bogey,
+.golf-mark.double {
+  border: 2px solid #1d4ed8;
+  border-radius: 4px;
+  color: #1d4ed8;
+}
+.golf-mark.double {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px #1d4ed8;
+}
+.golf-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.golf-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.golf-key {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid;
+  box-sizing: border-box;
+}
+.golf-key.birdie {
+  border-color: #dc2626;
+  border-radius: 50%;
+}
+.golf-key.bogey,
+.golf-key.double {
+  border-color: #1d4ed8;
+  border-radius: 2px;
+}
+.golf-key.double {
+  outline: 1.5px solid #1d4ed8;
+  outline-offset: 1px;
+}
+.golf-stats {
+  display: flex;
+  gap: 8px;
+}
+.golf-stats > div {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.golf-stats b {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.golf-stats span {
+  font-size: 11.5px;
+  color: var(--muted);
 }
 .golf-result {
   display: grid;
   gap: 4px;
   font-size: var(--fs-sm);
 }
+.golf-fee {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.golf-fx {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  color: var(--muted);
+}
+.golf-fx span {
+  margin-right: auto;
+}
+.golf-fx b.up {
+  color: #15803d;
+}
+.golf-fx b.down {
+  color: #b91c1c;
+}
+.golf-done {
+  flex-basis: 100% !important;
+}
+/* The scorecard is a sheet over the course. */
+.golf-view.is-card .golf-card {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: calc(100% - 16px);
+  border-radius: 24px 24px 0 0;
+  padding: 16px;
+}
+
+/* The tray: clubs, aim and the round swing button with its power ring. */
 .golf-tray {
+  position: relative;
+  z-index: 1;
   flex: 0 0 auto;
   display: grid;
-  gap: 8px;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  gap: 6px;
+  margin-top: -18px;
+  padding: 12px 16px calc(10px + env(safe-area-inset-bottom));
   background: var(--surface);
-  border-top: 1px solid var(--line);
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -6px 20px rgb(0 0 0 / 0.18);
 }
-.golf-row {
+.golf-clubs {
   display: flex;
-  gap: 8px;
-  align-items: stretch;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -16px;
+  padding: 0 16px 2px;
+  scroll-padding: 0 16px;
 }
-.golf-aim {
-  flex: 0 0 52px;
-  font-size: 18px;
+.golf-clubs::-webkit-scrollbar {
+  display: none;
 }
 .golf-club {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   display: grid;
-  line-height: 1.2;
+  min-height: 44px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: center;
+  line-height: 1.15;
+  cursor: pointer;
+}
+.golf-club b {
+  font-size: 13px;
+}
+.golf-club span {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.golf-club[aria-pressed='true'] {
+  background: #14532d;
+  color: #fff;
+}
+.golf-club[aria-pressed='true'] span {
+  color: #bbf7d0;
+}
+.golf-club:disabled:not([aria-pressed='true']) {
+  opacity: 0.55;
+  cursor: default;
+}
+.golf-swingrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.golf-aim {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.golf-aim small {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.golf-aim:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.golf-swing-wrap {
+  position: relative;
+  width: 124px;
+  height: 124px;
+  display: grid;
+  place-items: center;
 }
 .golf-meter {
   --power: 0%;
-  position: relative;
-  height: 16px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #e2e8f0 0 72.7%, #fecaca 90.9% 100%);
-  overflow: hidden;
-}
-.golf-sweet {
   position: absolute;
-  left: 72.7%;
-  width: 18.2%;
-  top: 0;
-  bottom: 0;
-  background: #bbf7d0;
+  inset: 0;
+  pointer-events: none;
 }
-.golf-fill {
-  position: absolute;
-  left: 0;
-  top: 3px;
-  bottom: 3px;
-  width: var(--power);
-  border-radius: 999px;
-  background: linear-gradient(90deg, #16a34a, #f59e0b 80%, #dc2626);
+.golf-meter svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.golf-meter circle {
+  fill: none;
+  stroke-width: 11;
+}
+.golf-ring-track {
+  stroke: rgb(28 24 20 / 0.12);
+  stroke-linecap: round;
+}
+.golf-ring-sweet {
+  stroke: #86efac;
+}
+.golf-ring-lunge {
+  stroke: #fca5a5;
+}
+.golf-meter .golf-ring-fill {
+  stroke: #eab308;
+  stroke-width: 7;
+}
+/* Round ends only while it fills (an empty ring shows no dot). */
+.golf-scene[data-golf-phase='charging'] .golf-ring-fill {
+  stroke-linecap: round;
+}
+.golf-meter[data-zone='sweet'] .golf-ring-fill {
+  stroke: #16a34a;
+}
+.golf-meter[data-zone='lunge'] .golf-ring-fill {
+  stroke: #dc2626;
+}
+.golf-need {
+  stroke: var(--text);
+  stroke-width: 2.5;
+  stroke-linecap: round;
 }
 .golf-swing {
-  flex: 1 1 auto;
-  min-height: 56px;
-  font-size: 18px;
-  font-weight: 800;
+  position: relative;
+  width: 90px;
+  height: 90px;
+  display: grid;
+  place-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, #22c55e, #15803d 70%);
+  color: #fff;
+  font: inherit;
+  text-align: center;
+  line-height: 1.1;
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.25),
+    0 6px 16px rgb(21 128 61 / 0.45);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: pointer;
+}
+.golf-swing b {
+  font-size: 17px;
+  font-weight: 800;
+}
+.golf-swing small {
+  font-size: 11px;
+  font-weight: 650;
+  opacity: 0.9;
+}
+.golf-swing:disabled {
+  filter: grayscale(0.6);
+  opacity: 0.6;
+  cursor: default;
+}
+.golf-swing:focus-visible,
+.golf-aim:focus-visible,
+.golf-club:focus-visible,
+.golf-pickup:focus-visible {
+  outline: 3px solid var(--accent, #0f766e);
+  outline-offset: 2px;
+}
+.golf-scene[data-golf-phase='charging'] .golf-swing {
+  transform: scale(0.95);
+}
+.golf-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.golf-sub > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.golf-sweet-note {
+  flex: 0 1 auto;
+  text-align: center;
 }
 .golf-pickup {
   flex: 0 0 auto;
+  min-height: 32px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-align: right;
+  cursor: pointer;
 }
-.golf-need {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  margin-left: -1px;
-  background: #0f172a;
-  z-index: 1;
+.golf-pickup:disabled {
+  color: var(--muted);
+  opacity: 0.6;
+  cursor: default;
+}
+@media (max-width: 370px) {
+  .golf-sweet-note {
+    display: none;
+  }
+  .golf-pin b {
+    font-size: 30px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduce-motion]) .golf-shot {
+    animation: golf-rise 0.25s ease-out;
+  }
+  :root:not([data-reduce-motion]) .golf-swing {
+    transition: transform 0.12s ease-out;
+  }
+}
+@keyframes golf-rise {
+  from {
+    transform: translate(-50%, 10px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .golf-banner {
+    animation: none;
+  }
 }
