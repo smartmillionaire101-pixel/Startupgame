@@ -126,6 +126,8 @@ export function RideScene({ ride }: { ride: Ride }) {
   ) : (
     <BusScene {...common} stops={stops} livery={TRANSIT_LIVERY[marketId] ?? '#f59e0b'} />
   );
+  // Driving your own car on the 3D map: its route card and pedals are there.
+  if (ride.hud) return null;
   const how = mode === 'drive' && ride.car ? ride.car : rideLabel(mode, marketId);
   const where = ride.where ? tx(ride.where) : '';
 

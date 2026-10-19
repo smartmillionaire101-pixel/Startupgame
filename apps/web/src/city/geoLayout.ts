@@ -387,20 +387,49 @@ export class WalkGraph {
     const a = this.nearest(fx, fy);
     const b = this.nearest(tx, ty);
     if (a.s === b.s) return [a, b].map(({ x, y }) => ({ x, y }));
+    const at = (v: number) => Math.hypot(this.x[v]! - a.x, this.y[v]! - a.y);
+    const nodes = this.search(
+      [
+        { v: this.segA[a.s]!, c: at(this.segA[a.s]!) },
+        { v: this.segB[a.s]!, c: at(this.segB[a.s]!) },
+      ],
+      b,
+    );
+    return [
+      { x: a.x, y: a.y },
+      ...nodes.map((v) => ({ x: this.x[v]!, y: this.y[v]! })),
+      { x: b.x, y: b.y },
+    ];
+  }
+
+  /**
+   * Driving on from a junction `u` into the street towards its neighbour
+   * `v`: the shortest way from there to a point (metres), not straight back
+   * through `u` at once. The polyline starts at u.
+   */
+  pathVia(u: number, v: number, tx: number, ty: number): { x: number; y: number }[] {
+    const b = this.nearest(tx, ty);
+    const nodes = this.search([{ v, c: 0 }], b, { from: v, to: u });
+    if (nodes[0] !== v) nodes.unshift(v);
+    return [u, ...nodes].map((n) => ({ x: this.x[n]!, y: this.y[n]! })).concat({ x: b.x, y: b.y });
+  }
+
+  /** A* from start nodes to the ends of the segment hit `b` (a step `ban` not taken). */
+  private search(
+    starts: { v: number; c: number }[],
+    b: StreetHit,
+    ban?: { from: number; to: number },
+  ): number[] {
     const n = this.nodes;
     const g = new Float64Array(n).fill(Infinity);
     const prev = new Int32Array(n).fill(-1);
     const heap = new Heap();
     const h = (v: number) => Math.hypot(this.x[v]! - b.x, this.y[v]! - b.y);
-    const start = (v: number) => {
-      const c = Math.hypot(this.x[v]! - a.x, this.y[v]! - a.y);
+    for (const { v, c } of starts)
       if (c < g[v]!) {
         g[v] = c;
         heap.push(v, c + h(v));
       }
-    };
-    start(this.segA[a.s]!);
-    start(this.segB[a.s]!);
     const gc = this.segA[b.s]!;
     const gd = this.segB[b.s]!;
     const extra = (v: number) =>
@@ -418,6 +447,7 @@ export class WalkGraph {
       }
       for (let k = this.off[u]!; k < this.off[u + 1]!; k++) {
         const v = this.nb[k]!;
+        if (ban && u === ban.from && v === ban.to) continue;
         const ng = g[u]! + this.wt[k]!;
         if (ng < g[v]!) {
           g[v] = ng;
@@ -428,12 +458,22 @@ export class WalkGraph {
     }
     const nodes: number[] = [];
     for (let v = bestNode; v >= 0; v = prev[v]!) nodes.push(v);
-    nodes.reverse();
-    return [
-      { x: a.x, y: a.y },
-      ...nodes.map((v) => ({ x: this.x[v]!, y: this.y[v]! })),
-      { x: b.x, y: b.y },
-    ];
+    return nodes.reverse();
+  }
+
+  private byXY: Map<string, number> | null = null;
+  /** The node at a point (whole metres, as nodes are stored), if any. */
+  nodeAt(x: number, y: number): number | undefined {
+    if (!this.byXY) {
+      this.byXY = new Map();
+      for (let i = 0; i < this.nodes; i++) this.byXY.set(`${this.x[i]},${this.y[i]}`, i);
+    }
+    return this.byXY.get(`${Math.round(x)},${Math.round(y)}`);
+  }
+
+  /** The nodes a node joins. */
+  neighbours(u: number): number[] {
+    return Array.from(this.nb.subarray(this.off[u]!, this.off[u + 1]!));
   }
 
   /** nearestStreetPoint, in tiles. */

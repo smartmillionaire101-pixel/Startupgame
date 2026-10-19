@@ -85,11 +85,20 @@ async function open3d(page: Page, name: string) {
 
 /**
  * Wave 10 §B: with a car of your own, the ride chooser offers to drive it;
- * the car takes the road (its own lane, a chase camera) and you arrive.
- * Buses stop at shelters along their routes.
+ * the car takes the road (its own lane, a chase camera) and you drive it:
+ * the route card, GO and BRAKE, and a choice of ways at a junction (another
+ * way re-routes you). Then you arrive. Buses stop at shelters along their routes.
  */
 test('Driving your own car across the 3D city', async ({ page }) => {
-  test.setTimeout(150_000);
+  test.setTimeout(240_000);
+  // The trip plays (the suite skips rides elsewhere): the controls show on the map.
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('runway.skipRides', '0');
+    } catch {
+      /* storage blocked */
+    }
+  });
   const map = await open3d(page, 'Dayo Driver');
   const bought = await page.request.post('/api/commands', {
     headers: { 'x-runway': '1' },
@@ -120,7 +129,49 @@ test('Driving your own car across the 3D city', async ({ page }) => {
   await expect(drive).toContainText('Drive');
   await expect(drive).toContainText(/Fuel|Charged/);
   await drive.click();
-  // On the road, then there: the airport opens.
-  await expect(page.getByRole('dialog', { name: /Airport/ })).toBeVisible({ timeout: 60_000 });
+
+  // On the road: the route card (next turn, where to, minutes and ETA), the pedals.
+  const hud = map.locator('[data-drive-hud]');
+  await expect(hud).toBeVisible({ timeout: 30_000 });
+  const card = hud.locator('[data-drive-card]');
+  await expect(card).toContainText(/Turn (left|right)|Arrive at/);
+  await expect(card).toContainText(/\d+ min/);
+  await expect(card).toContainText(/ETA \d\d:\d\d/);
+  await expect(card.getByRole('button', { name: /Skip/ })).toBeVisible();
+  const go = hud.locator('[data-drive-pedal="go"]');
+  await expect(go).toBeVisible();
+  await expect(hud.locator('[data-drive-pedal="brake"]')).toBeVisible();
+  // Hold GO: the car drives off.
+  await go.dispatchEvent('pointerdown', { pointerId: 3, clientX: 300, clientY: 800 });
+  await expect(go).toHaveAttribute('aria-pressed', 'true');
+  // A junction with a choice: brake there (a software GPU draws a frame a
+  // second, so the moment is caught from the car itself), then take another way.
+  type D = {
+    view(): { ways: unknown[] | null; reroutes: number };
+    hold(w: 'go' | 'brake', on: boolean): void;
+  };
+  await page.waitForFunction(
+    () => {
+      const d = (window as unknown as { __drive?: D }).__drive;
+      if (!d?.view().ways) return false;
+      d.hold('go', false);
+      d.hold('brake', true);
+      return true;
+    },
+    null,
+    { timeout: 90_000, polling: 50 },
+  );
+  const ways = hud.locator('[data-drive-way]');
+  await expect(ways.first()).toBeVisible();
+  await expect(hud.locator('[data-drive-way][data-route]')).toHaveCount(1);
+  const other = hud.locator('[data-drive-way]:not([data-route])').first();
+  await other.click();
+  await expect(hud.getByRole('status').filter({ hasText: 'New route' })).toBeVisible();
+  expect(
+    await page.evaluate(() => (window as unknown as { __drive?: D }).__drive!.view().reroutes),
+  ).toBe(1);
+  await page.evaluate(() => (window as unknown as { __drive?: D }).__drive!.hold('brake', false));
+  // Then there (holding GO, or the car takes you once left alone): the airport opens.
+  await expect(page.getByRole('dialog', { name: /Airport/ })).toBeVisible({ timeout: 120_000 });
   await expect(map).not.toHaveAttribute('data-driving', '1');
 });

@@ -26,9 +26,11 @@ import {
 import { playersByPlace } from '../people';
 import { setRiding } from '../riding';
 import { beginRide } from '../ride/state';
-import { localHour, rideMs, rideVehicle, SHORT_HOP, type RideMode } from '../travel';
+import { localHour, rideMinutes, rideMs, rideVehicle, SHORT_HOP, type RideMode } from '../travel';
 import type { VehicleSpec } from '../flavour';
 import { personScale } from './actors';
+import { Drive } from './drive';
+import { DriveHud } from './DriveHud';
 import { CityScene, type Tier } from './scene';
 import type { PropertyTier } from '../properties';
 
@@ -146,6 +148,13 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   const [vehicle, setVehicle] = useState<VehicleSpec | null>(null);
   const [walking, setWalking] = useState(false);
   const [driving, setDriving] = useState(false);
+  // Driving your own car: its controls (the HUD's), while it's on the road.
+  const [driveCtl, setDriveCtlState] = useState<Drive | null>(null);
+  const driveRef = useRef<Drive | null>(null);
+  const setDriveCtl = useCallback((d: Drive | null) => {
+    driveRef.current = d;
+    setDriveCtlState(d);
+  }, []);
   const [focus, setFocus] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const cb = useRef(props);
@@ -393,11 +402,22 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       // Skipping the trip: no ride scene, you're simply there.
       const scene =
         (len > SHORT_HOP || driving) && !opts.instant
-          ? beginRide({ mode, tiles: len, path, layout, placeId, look, mapMs: rideMs(mode, len) })
+          ? beginRide({
+              mode,
+              tiles: len,
+              path,
+              layout,
+              placeId,
+              look,
+              mapMs: rideMs(mode, len),
+              hud: driving && !reduced && !!sceneRef.current && !!layout.geo,
+            })
           : null;
       const done = () => {
         scene?.end();
         if (driving) {
+          driveRef.current?.end();
+          setDriveCtl(null);
           sceneRef.current?.actors.setDriving(false);
           sceneRef.current?.endChase();
           setDriving(false);
@@ -427,11 +447,21 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       // Driving: metres to go, and the pace that takes about the trip's time.
       const metres = pathLength(street) * GEO_TILE_M;
       const cruise = (metres / Math.max(0.5, ms / 1000)) * 1.15;
+      // Your own car, with its trip on screen: you drive it (GO and BRAKE,
+      // a way at each junction). Skipping rides or reduced motion: it drives
+      // itself, as a taxi does.
+      const drive =
+        driving && s3 && scene && !reduced && layout.geo
+          ? new Drive(s3.actors, layout.geo.graph, path, target, ms)
+          : null;
       if (driving && s3) {
         // Keep to your lane, the camera behind you.
-        s3.actors.setDriving(true, path, cruise);
+        if (!drive) s3.actors.setDriving(true, path, cruise);
         if (!reduced) s3.startChase();
         setDriving(true);
+        setDriveCtl(drive);
+        // For tests, as __city3d is.
+        (window as unknown as { __drive?: Drive | null }).__drive = drive;
       }
       const t0 = performance.now();
       let last = t0;
@@ -441,6 +471,15 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       const step = (now: number) => {
         if (cancelled) return;
         let f: number;
+        if (drive && !scene?.skipped()) {
+          const r = drive.step((now - last) / 1000);
+          last = now;
+          pos.current = r.p;
+          placeAvatar(r.p, r.dx, r.dy);
+          if (!r.done) walk.current!.raf = requestAnimationFrame(step);
+          else done();
+          return;
+        }
         if (driving && !scene?.skipped() && now - t0 < ms * 3) {
           // Your own car: up to speed, easing into the stop at the end, and
           // never into the car in front (it slows and waits behind it). A
@@ -479,6 +518,8 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
           cancelled = true;
           scene?.end();
           if (driving) {
+            driveRef.current?.end();
+            setDriveCtl(null);
             sceneRef.current?.actors.setDriving(false);
             sceneRef.current?.endChase();
             setDriving(false);
@@ -488,7 +529,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         },
       };
     },
-    [layout, reduced, look, placeAvatar, stopWalk],
+    [layout, reduced, look, placeAvatar, stopWalk, setDriveCtl],
   );
 
   const goTo = useCallback(
@@ -948,6 +989,14 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
           </div>
         ))}
       </div>
+      {driveCtl && (
+        <DriveHud
+          drive={driveCtl}
+          marketId={layout.marketId}
+          minutes={(m) => rideMinutes('drive', travelTiles(layout, m / GEO_TILE_M))}
+          yaw={() => sceneRef.current?.rig.yaw ?? 0}
+        />
+      )}
       <div
         ref={tagRef}
         className={`c3-you-tag city-avatar${walking ? (vehicle ? ' is-riding' : ' is-walking') : ''}`}

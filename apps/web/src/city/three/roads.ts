@@ -16,6 +16,8 @@ export interface Seg {
   /** Deck height at a and b (bridges), else 0. */
   ha: number;
   hb: number;
+  /** The street's name (OSM), when it has one. */
+  n?: string;
 }
 
 const CELL = 150;
@@ -43,14 +45,14 @@ export class RoadIndex {
 
   constructor(data: GeoData) {
     ROAD_CLASSES.forEach((c, ci) => {
-      for (const r of data.roads?.[c] ?? []) this.addLine(r.l, ci, null);
+      for (const r of data.roads?.[c] ?? []) this.addLine(r.l, ci, null, r.n);
     });
     this.addBridges(data);
   }
 
   private key = (i: number, j: number) => (i + 5000) * 10000 + (j + 5000);
 
-  private addLine(l: number[], c: number, h: number[] | null) {
+  private addLine(l: number[], c: number, h: number[] | null, name?: string | null) {
     let len = 0;
     for (let i = 0; i + 3 < l.length; i += 2) {
       const s: Seg = {
@@ -61,6 +63,7 @@ export class RoadIndex {
         c,
         ha: h ? h[i / 2]! : 0,
         hb: h ? h[i / 2 + 1]! : 0,
+        ...(name ? { n: name } : {}),
       };
       len += Math.hypot(s.bx - s.ax, s.by - s.ay);
       const n = this.segs.push(s) - 1;
@@ -120,7 +123,7 @@ export class RoadIndex {
         f = Math.max(0, Math.min(1, f));
         return H * (f * f * (3 - 2 * f));
       });
-      this.addLine(l, ci, h);
+      this.addLine(l, ci, h, b.n);
     }
   }
 
@@ -191,14 +194,22 @@ export class RoadIndex {
     y: number,
     r: number,
     maxClass = 5,
-  ): { angle: number; d: number; c: number; x: number; y: number } | null {
-    let best: { angle: number; d: number; c: number; x: number; y: number } | null = null;
+  ): { angle: number; d: number; c: number; x: number; y: number; n?: string } | null {
+    let best: { angle: number; d: number; c: number; x: number; y: number; n?: string } | null =
+      null;
     this.near(this.grid, x, y, r, (n) => {
       const s = this.segs[n]!;
       if (s.c > maxClass) return;
       const h = segDist(x, y, s.ax, s.ay, s.bx, s.by);
       if (h.d < r && (!best || h.d < best.d))
-        best = { angle: Math.atan2(s.by - s.ay, s.bx - s.ax), d: h.d, c: s.c, x: h.x, y: h.y };
+        best = {
+          angle: Math.atan2(s.by - s.ay, s.bx - s.ax),
+          d: h.d,
+          c: s.c,
+          x: h.x,
+          y: h.y,
+          ...(s.n ? { n: s.n } : {}),
+        };
     });
     return best;
   }

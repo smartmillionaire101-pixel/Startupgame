@@ -17,6 +17,7 @@ import { h3 } from './buildings';
 import type { RoadIndex } from './roads';
 import type { Tier } from './scene';
 import { dedupe, KERB, offsetPath, pavementPath, sideOf, type P2 } from './pavement';
+import { RouteLine } from './routeline';
 import {
   buildGraph,
   fleetOf,
@@ -157,6 +158,8 @@ export class Actors {
   private timeScale = 1;
   /** Your vehicle's length (m), for keeping your distance. */
   private rideLen = 4.4;
+  /** Driving: the route ahead, on the road. */
+  private routeLine = new RouteLine();
   /** The game's doors (tile key) → the middle of their building (metres): which side of the road you step out on. */
   private doors = new Map<string, P2>();
   private centre = { x: 0, y: 0 };
@@ -193,6 +196,7 @@ export class Actors {
     this.avatar = makeCharacter(look, { ring: '#f59e0b' });
     this.avatarGroup.add(this.avatar.root);
     scene.add(this.avatarGroup);
+    scene.add(this.routeLine.mesh);
     this.setPlaces(layout.places);
     this.setWalkers(walkers);
 
@@ -578,11 +582,16 @@ export class Actors {
    * junction), or in your lane in a vehicle (out from the kerb and back in to
    * it at the end). Tiles in and out.
    */
-  streetPath(path: readonly Pt[], how: 'walk' | 'lane'): Pt[] {
-    return this.streetPathM(path, how).map(toTile);
+  streetPath(path: readonly Pt[], how: 'walk' | 'lane', fromLane = false): Pt[] {
+    return this.streetPathM(path, how, false, fromLane).map(toTile);
   }
 
-  private streetPathM(path: readonly Pt[], how: 'walk' | 'lane', sameSide = false): P2[] {
+  private streetPathM(
+    path: readonly Pt[],
+    how: 'walk' | 'lane',
+    sameSide = false,
+    fromLane = false,
+  ): P2[] {
     const raw = path.map(toM);
     let m = dedupe(raw);
     if (m.length < 2) return raw;
@@ -638,7 +647,8 @@ export class Actors {
       };
       const n = m.length;
       out = [
-        kerbAt(m[0]!, m[0]!, m[1]!, cls[0]!),
+        // On from your lane (re-routing mid-trip), or out from the kerb.
+        fromLane ? lane[0]! : kerbAt(m[0]!, m[0]!, m[1]!, cls[0]!),
         ...lane.slice(1, -1),
         kerbAt(m[n - 1]!, m[n - 2]!, m[n - 1]!, cls[n - 2]!),
       ];
@@ -694,6 +704,21 @@ export class Actors {
     this.pos.heading = this.wantHeading;
     this.timeScale = on ? Math.max(1, Math.min(80, cruise / TOWN_SPEED)) : 1;
     this.local?.setRoute(on && path && path.length > 1 ? path.map(toM) : null);
+  }
+
+  /** How much faster than life the traffic runs now (your trip's pace). */
+  get pace() {
+    return this.lane ? this.timeScale : 1;
+  }
+
+  /** The road at a point (metres): its class and name. */
+  roadAt(x: number, y: number) {
+    return this.roads.nearest(x, y, 25);
+  }
+
+  /** Driving: the route ahead, laid on the road (map metres); null to take it up. */
+  setRouteLine(pts: readonly P2[] | null) {
+    this.routeLine.set(pts, (x, y) => this.roads.deckAt(x, y));
   }
 
   /**

@@ -235,7 +235,7 @@ export function buildGraph(segs: readonly Seg[]): RoadGraph {
 // The vehicles
 
 /** Cruising speed by road class (m/s): motorway … residential. */
-const VMAX = [24, 19, 14, 12, 10, 8];
+export const VMAX = [24, 19, 14, 12, 10, 8];
 /** How much more often a vehicle is put on each road class (main roads are busier). */
 const DENSITY = [5, 5, 4, 3, 1.6, 0.8];
 /** Lane offset from the centre line (m), by class (your own car keeps to the same lanes). */

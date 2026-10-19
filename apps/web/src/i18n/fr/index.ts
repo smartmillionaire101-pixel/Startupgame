@@ -22,6 +22,7 @@ import { travelWave7 } from './travel-wave7';
 import { friendsWave8 } from './friends-wave8';
 import { uiWave8 } from './ui-wave8';
 import { city3d } from './city3d';
+import { drive } from './drive';
 import { interiorsWave9 } from './interiors-wave9';
 import { wave10 } from './wave10';
 import { homeWave12 } from './home-wave12';
@@ -80,6 +81,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   friendsWave8,
   uiWave8,
   city3d,
+  drive,
   interiorsWave9,
   wave10,
   homeWave12,
