@@ -25,6 +25,8 @@ export interface CharacterLook {
   glasses?: 'none' | 'round' | 'square' | 'shades';
   headwear?: 'none' | 'cap' | 'beanie' | 'headwrap' | 'gele';
   topStyle?: 'tee' | 'shirt' | 'blazer' | 'hoodie' | 'kaftan' | 'dress';
+  /** Trousers, never a skirt (golf clothes). */
+  trousers?: boolean;
 }
 
 const mats = new Map<string, THREE.MeshStandardMaterial>();
@@ -126,7 +128,11 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
   if (topStyle === 'kaftan')
     mesh(look.gender === 'female' ? g.kaftan! : g.tunic!, top, body, 0, hip + 0.05, 0);
   else if (topStyle === 'dress') mesh(g.dress!, top, body, 0, hip + 0.08, 0);
-  else if (look.gender === 'female' && (look.hairStyle === 'long' || look.hairStyle === 'bun'))
+  else if (
+    !look.trousers &&
+    look.gender === 'female' &&
+    (look.hairStyle === 'long' || look.hairStyle === 'bun')
+  )
     mesh(g.skirt!, bottom, body, 0, hip + 0.05, 0);
   mesh(g.torso!, top, body, 0, hip + 0.31, 0);
   const arms: THREE.Group[] = [];

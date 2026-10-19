@@ -19,6 +19,7 @@ import { money } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { avatarLook } from '../art';
+import { golfAttire } from './attire';
 import { genderOf, looseCmd } from '../life';
 import { npcName } from '../people';
 import type { SceneProps } from '../PlaceScene';
@@ -159,14 +160,18 @@ export function GolfScene(props: SceneProps) {
   const cur = course.currency || view.market.currency;
   const pocket = view.accounts.local?.balance ?? 0;
   const hoursLeft = (view.me as { hours?: { left?: number } }).hours?.left ?? 99;
-  const me = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
+  // Dressed for the course: a polo, trousers and a cap (no dress, kaftan or tie).
+  const me = golfAttire(
+    avatarLook(view.me.background?.id, view.me.id, genderOf(view.me)),
+    view.me.id,
+  );
   const month = view.market.month;
   // Two AI playing partners (cheap to work out: no memo).
   const partners = [0, 1].map((k) => {
     const seed = `golf:${market}:${month}:${k}`;
     return {
       name: npcName(market, seed),
-      look: avatarLook(PARTNER_BG[(k + month) % PARTNER_BG.length], seed),
+      look: golfAttire(avatarLook(PARTNER_BG[(k + month) % PARTNER_BG.length], seed), seed),
       card: partnerCard(`${seed}:${view.me.id}`, pars),
     };
   });

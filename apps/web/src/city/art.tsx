@@ -1787,6 +1787,8 @@ export interface AvatarLook {
   glasses?: Glasses;
   headwear?: Headwear;
   topStyle?: TopStyle;
+  /** Trousers, never a skirt (golf clothes). */
+  trousers?: boolean;
 }
 
 const OUTFITS: Record<string, Pick<AvatarLook, 'top' | 'bottom' | 'accessory'>> = {
