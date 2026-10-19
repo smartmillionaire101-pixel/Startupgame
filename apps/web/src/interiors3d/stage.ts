@@ -34,7 +34,7 @@ export interface StageOpts {
 const phone = () =>
   typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 600;
 /** A phone with few cores or little memory. */
-function weakDevice(): boolean {
+export function weakDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
   return phone() && ((navigator.hardwareConcurrency || 4) <= 4 || mem <= 4);
@@ -138,6 +138,8 @@ export class Stage {
     this.maxFps = cpuGl() ? 4 : (o.maxFps ?? 60);
     this.scene.background = new THREE.Color(o.background ?? '#16223d');
     this.scene.fog = null;
+    // (A view may draw its shadows only when they change.)
+    this.renderer.shadowMap.autoUpdate = true;
     this.target.copy(o.target);
     this.azimuth = o.azimuth;
     this.elevation = o.elevation;
@@ -540,6 +542,8 @@ export function gestures(
     zoom: (f: number) => void;
     /** A drag started (close menus). */
     start?: () => void;
+    /** A drag ended (the finger lifted after moving). */
+    end?: () => void;
   },
 ) {
   const pts = new Map<number, { x: number; y: number; x0: number; y0: number }>();
@@ -581,9 +585,12 @@ export function gestures(
     if (!moved && pts.size === 0) {
       const r = rect();
       h.tap(e.clientX - r.left, e.clientY - r.top, e);
-    }
+    } else if (moved && pts.size === 0) h.end?.();
   };
-  const cancel = (e: PointerEvent) => pts.delete(e.pointerId);
+  const cancel = (e: PointerEvent) => {
+    pts.delete(e.pointerId);
+    if (moved && pts.size === 0) h.end?.();
+  };
   const wheel = (e: WheelEvent) => {
     e.preventDefault();
     h.zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1);

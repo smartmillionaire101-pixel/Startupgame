@@ -14,6 +14,7 @@ import {
   onGrid,
   pathLength,
   regionOf,
+  smoothPath,
   walkGrid,
 } from '../src/city/mall/layout';
 
@@ -29,7 +30,17 @@ function walkable(a: { x: number; z: number }, pts: { x: number; z: number }[]) 
     const d = Math.hypot(q.x - p.x, q.z - p.z);
     for (let k = 1; k <= Math.ceil(d / 0.1); k++) {
       const u = k / Math.ceil(d / 0.1);
-      if (!onGrid(grid, p.x + (q.x - p.x) * u, p.z + (q.z - p.z) * u)) return false;
+      const x = p.x + (q.x - p.x) * u;
+      const z = p.z + (q.z - p.z) * u;
+      // (Lines may graze a solid cell's corner by a few centimetres: people keep 32 cm clear.)
+      const near = [
+        [0, 0],
+        [0.06, 0],
+        [-0.06, 0],
+        [0, 0.06],
+        [0, -0.06],
+      ];
+      if (!near.some(([a, b]) => onGrid(grid, x + a!, z + b!))) return false;
     }
     p = q;
   }
@@ -87,6 +98,29 @@ describe('walking the mall', () => {
     expect(path).not.toBeNull();
     expect(grid.free(path!.at(-1)!.x, path!.at(-1)!.z)).toBe(true);
     expect(findPath(grid, START, { x: 40, z: 40 })).toBeNull();
+  });
+
+  it('rounds the corners of a path, still on free floor', () => {
+    for (const s of [...ROOM_SHOPS, 'foodcourt' as const]) {
+      const raw = findPath(grid, START, goal(s))!;
+      const smooth = smoothPath(grid, START, raw);
+      expect(walkable(START, smooth), s).toBe(true);
+      expect(smooth.at(-1)).toEqual(raw.at(-1));
+      // No sharp turn between steps where a corner was rounded.
+      let p: { x: number; z: number } = START;
+      let worst = 0;
+      let prev: number | null = null;
+      for (const q of smooth) {
+        const a = Math.atan2(q.x - p.x, q.z - p.z);
+        if (prev !== null)
+          worst = Math.max(worst, Math.abs(Math.atan2(Math.sin(a - prev), Math.cos(a - prev))));
+        prev = a;
+        p = q;
+      }
+      if (raw.length > 1) expect(worst, s).toBeLessThan(Math.PI / 3);
+      // And hardly longer than the straight-cornered way.
+      expect(pathLength(START, smooth)).toBeLessThanOrEqual(pathLength(START, raw) + 0.01);
+    }
   });
 
   it('names where you face: north is down the hall', () => {
