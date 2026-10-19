@@ -36,6 +36,7 @@ import { costIn, payExact, pay, transfer, valueIn, withTx, account } from './led
 import { clamp } from './math.js';
 import { formatMoney } from './money.js';
 import { deriveRng } from './rng.js';
+import { afterBuy, afterSell, checkBuy, checkSell } from './exchange.js';
 import { applyStarEvent } from './stars.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
 import type { Company, Id, MarketState, Player, SecondaryOffer, World } from './types.js';
@@ -623,7 +624,7 @@ export const SEED_LISTINGS = 2;
  * there is something to buy before any founder gets there. No fees, no
  * lock-up (no human holders), no dice.
  */
-export function seedPublicMarket(world: World, marketId: string) {
+export function seedPublicMarket(world: World, marketId: string, count = SEED_LISTINGS) {
   const m = world.markets[marketId as MarketState['id']];
   if (!m) return 0;
   const listed = Object.values(world.companies).filter(
@@ -640,7 +641,7 @@ export function seedPublicMarket(world: World, marketId: string) {
     )
     .map((c) => ({ c, v: fairValue(world, c) }))
     .sort((a, b) => b.v - a.v || (a.c.id < b.c.id ? -1 : 1))
-    .slice(0, Math.max(0, SEED_LISTINGS - listed));
+    .slice(0, Math.max(0, count - listed));
   for (const { c } of candidates) {
     const ct = c.capTable;
     const fd = fullyDiluted(ct);
@@ -682,7 +683,7 @@ function getListed(world: World, companyId: Id): Company {
 }
 
 /** `shares.sell`: sell part of your holding to the market at today's price. */
-export function sellShares(world: World, me: Player, companyId: Id, bps: number) {
+export function sellShares(world: World, me: Player, companyId: Id, bps: number, now?: number) {
   const c = getListed(world, companyId);
   const m = getMarket(world, c.market);
   const ipo = c.ipo!;
@@ -701,6 +702,7 @@ export function sellShares(world: World, me: Player, companyId: Id, bps: number)
   );
   const shares = Math.floor((holding.shares * bps) / 10_000);
   ensure(shares > 0, 'shares.tiny', 'That is less than one share.');
+  checkSell(world, me, c, now);
   const price = ipo.price!;
   const gross = Math.round(shares * price);
   const fee = Math.round((gross * EXITS.ipo.brokerBps) / 10_000);
@@ -728,6 +730,7 @@ export function sellShares(world: World, me: Player, companyId: Id, bps: number)
     basisSold,
     `Shares sold: ${c.name} (${bps / 100}% of your holding)`,
   );
+  afterSell(world, me, c, basisSold, proceeds - basisSold);
   if (c.founderIds.includes(me.id))
     achieve(world, me, 'founder.public-sale', 'Sold shares on the market', m.month);
   return { shares, gross, fee, ...paid };
@@ -740,7 +743,7 @@ const buyCost = (c: Company, shares: number) => {
 };
 
 /** `shares.buy`: buy about `amount` (company currency) of shares from the public float. */
-export function buyShares(world: World, me: Player, companyId: Id, amount: number) {
+export function buyShares(world: World, me: Player, companyId: Id, amount: number, now?: number) {
   const c = getListed(world, companyId);
   const m = getMarket(world, c.market);
   const ipo = c.ipo!;
@@ -766,6 +769,8 @@ export function buyShares(world: World, me: Player, companyId: Id, amount: numbe
     'shares.funds',
     'Not enough money in your account.',
   );
+  // Investor career: insider blackouts and the monthly depth cap.
+  checkBuy(world, me, c, shares, now);
   payExact(
     world,
     me.accounts.local,
@@ -789,6 +794,7 @@ export function buyShares(world: World, me: Player, companyId: Id, amount: numbe
     writtenOff: false,
   });
   pos.invested += cost;
+  afterBuy(world, me, c, shares, cost);
   achieve(world, me, 'investor.public-shares', 'Bought shares on the stock market', m.month);
   return { shares, cost, price };
 }

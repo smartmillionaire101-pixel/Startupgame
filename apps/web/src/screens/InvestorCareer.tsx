@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { money, pct } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
-import { Button, Card, Pill, Stat } from '../ui';
+import { Button, Card, Pill, Segmented, Stat } from '../ui';
 import { useJourneyGo } from '../city/journeyGo';
 import { stageLabel } from './common';
 import './investor.css';
@@ -486,5 +486,29 @@ export function InvestorFirstSession() {
         </>
       )}
     </Card>
+  );
+}
+
+/** The Portfolio tab's sections; later rungs add theirs as they open. */
+export type InvestorSection = 'overview' | 'markets';
+
+export function InvestorSections({
+  tab,
+  onTab,
+}: {
+  tab: InvestorSection;
+  onTab: (t: InvestorSection) => void;
+}) {
+  const { view } = useView();
+  const career = careerOf(view);
+  if (!career) return null;
+  const options: { value: InvestorSection; label: string }[] = [
+    { value: 'overview', label: t('Overview') },
+    { value: 'markets', label: t('Markets') },
+  ];
+  return (
+    <div className="inv-tabs">
+      <Segmented label={t('Portfolio sections')} value={tab} onChange={onTab} options={options} />
+    </div>
   );
 }

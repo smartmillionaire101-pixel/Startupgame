@@ -56,6 +56,7 @@ import {
   sellShares,
 } from './exits.js';
 import { exitsOn, investorOn, lifeBarsOn } from './releases.js';
+import { buyIndex, cancelOrder, ensureExchange, placeOrder, sellIndex } from './exchange.js';
 import {
   answerInvitation,
   recordCareer,
@@ -339,6 +340,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     const m = openMarket(world, cmd.market, ctx.now);
     // A city opening after the stock market did gets its listings too.
     if (exitsOn(world)) seedPublicMarket(world, m.id);
+    ensureExchange(world, m.id);
     return {
       market: m.id,
       funds: Object.values(world.funds).filter((f) => f.market === m.id).length,
@@ -1184,9 +1186,17 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'ipo.list':
       return listCompany(world, me, touch(cmd.companyId), cmd.pricePerShareHint);
     case 'shares.sell':
-      return sellShares(world, me, cmd.companyId, cmd.pctBps);
+      return sellShares(world, me, cmd.companyId, cmd.pctBps, ctx.now);
     case 'shares.buy':
-      return buyShares(world, me, cmd.companyId, cmd.amount);
+      return buyShares(world, me, cmd.companyId, cmd.amount, ctx.now);
+    case 'shares.order':
+      return placeOrder(world, me, cmd);
+    case 'shares.cancel':
+      return cancelOrder(world, me, cmd.orderId);
+    case 'index.buy':
+      return buyIndex(world, me, cmd.market, cmd.amount);
+    case 'index.sell':
+      return sellIndex(world, me, cmd.market, cmd.pctBps);
     case 'mentor.offer':
       return offerMentoring(world, me, cmd.companyId, cmd.grantBps);
     case 'mentor.answer':
@@ -1638,6 +1648,8 @@ function announce(world: World, cmd: Extract<Command, { type: 'system.announce' 
   // (The note that first switches exits on: the exits note, or a later one in a world without it.)
   if (!hadExits && exitsOn(world))
     for (const id of Object.keys(world.markets)) seedPublicMarket(world, id);
+  // The investor career: every city's exchange opens with its AI listings and an index.
+  for (const id of Object.keys(world.markets)) ensureExchange(world, id);
   let n = 0;
   for (const p of Object.values(world.players)) {
     if (p.ai) continue;

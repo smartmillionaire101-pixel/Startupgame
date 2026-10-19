@@ -1,4 +1,5 @@
 import { careerView } from './career.js';
+import { exchangeView } from './exchange.js';
 import { barEffects, barsOf } from './lifebars.js';
 import { lifeBarsOn } from './releases.js';
 import { pitchQuestionsNow } from './fundraising.js';
@@ -694,6 +695,8 @@ export function playerView(
      * investment tracks, the first session and three prompts.
      */
     investorCareer: careerView(world, p),
+    /** Investor career Phase 2: every city's exchange, the index fund, your holdings and orders. */
+    exchange: exchangeView(world, p, clock?.now),
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */
     recap: p.ai ? null : recapView(world, p.id),
     /** Founder Journey 4a: decision events waiting for you, and the last few answered. */

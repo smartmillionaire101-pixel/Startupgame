@@ -11,6 +11,7 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Bar, Button, Card, Empty, Field, ListRow, Pill, Segmented, Sparkline, Stat } from '../ui';
 import { FoundCompany } from './Me';
+import { Exchange, exchangeOf } from './Exchange';
 import './capital.css';
 
 type Capital = NonNullable<PlayerView['capital']>;
@@ -986,7 +987,7 @@ export function CapitalHub({ open }: { open?: (app: 'invest') => void }) {
         ]}
       />
       {tab === 'exit' && <ExitOptions />}
-      {tab === 'markets' && <PublicMarkets />}
+      {tab === 'markets' && (exchangeOf(view) ? <Exchange /> : <PublicMarkets />)}
       {tab === 'allocate' && <AllocatorHub open={open} />}
     </div>
   );

@@ -4,6 +4,7 @@
  * Shares are never cash: they are marked at the last round (private) or at
  * the market price (listed), and listed shares under lock-up are illiquid.
  */
+import { indexHolderId, indexNav } from './exchange.js';
 import { propertiesOf, priceOf } from './property.js';
 import { getMarket } from './helpers.js';
 import { valueIn } from './ledger.js';
@@ -54,6 +55,22 @@ export function wealthView(world: World, p: Player) {
       price: Math.round(price * 100) / 100,
       currency: m.data.currency,
       lockedUntil: kind === 'locked' ? lockedUntil : null,
+    });
+  }
+  // Investor career: city index fund units, sellable any month.
+  for (const m of Object.values(world.markets)) {
+    const units = m?.exchange?.units[p.id] ?? 0;
+    if (!m || units <= 0) continue;
+    const unit = indexNav(world, m) / Math.max(1e-9, m.exchange!.totalUnits);
+    items.push({
+      companyId: indexHolderId(m.id),
+      name: `${m.data.name} index fund`,
+      kind: 'sellable',
+      shares: Math.round(units * 100) / 100,
+      value: valueIn(world, Math.round(units * unit), m.data.currency, cur),
+      price: Math.round(unit * 100) / 100,
+      currency: m.data.currency,
+      lockedUntil: null,
     });
   }
   const sum = (k: ShareKind) => items.filter((x) => x.kind === k).reduce((a, x) => a + x.value, 0);

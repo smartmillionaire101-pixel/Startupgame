@@ -26,6 +26,7 @@ import { holdDueEvents } from './events.js';
 import { settleEconomy } from './economy.js';
 import { settleFundFees } from './funds.js';
 import { payDividends } from './travel.js';
+import { settleExchange } from './exchange.js';
 import { settleVotes } from './governance.js';
 import { aiBanking, settleBanks } from './banks.js';
 import { settleDisputes } from './arbitration.js';
@@ -46,11 +47,11 @@ import { deriveRng } from './rng.js';
 import { settleStars } from './stars.js';
 import { refreshTalent } from './staff.js';
 import type { Company, Player, World } from './types.js';
-import { journeyEventsOn } from './releases.js';
+import { investorOn, journeyEventsOn } from './releases.js';
 import { rivalPressure, settleRivals } from './rivals.js';
 import { settleDecisions } from './decisions.js';
 import { settleLifeEvents } from './lifeevents.js';
-import { settlePublicMarket } from './exits.js';
+import { buyShares, sellShares, settlePublicMarket } from './exits.js';
 import { settleCareers, settleMentorships } from './allocator.js';
 
 /** Months a shut-down company's name stays reserved for its founder (open question §21). */
@@ -169,6 +170,8 @@ export function settleMarket(
   settleCareers(world, marketId, month);
   settleMentorships(world, marketId, month);
   settlePublicMarket(world, marketId, month);
+  // Investor career (after the note): the exchange's dividends, index, index fund and orders.
+  settleExchange(world, marketId, month, { buy: buyShares, sell: sellShares });
 
   // Banks settle after everyone has repaid what they owe this month (§8). Own RNG stream.
   const bankRng = deriveRng(world.seed, 'banks', marketId, month);
@@ -206,6 +209,8 @@ export function settleMarket(
   }
 
   m.economicNote = economicNote(world, marketId);
+  // Investor career: the month's real length, for insiders' results blackout.
+  if (clock.monthMs && investorOn(world)) m.monthMs = clock.monthMs;
   if (clock.at !== undefined) {
     m.settledAt = clock.at;
     m.lastSettledDate = localDate(clock.at, m.data.timeZone);

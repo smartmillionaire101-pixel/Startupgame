@@ -1801,6 +1801,58 @@ export interface MarketState {
   propertyIndex?: { value: number; prev: number; month: number };
   /** Founder Journey 4a: named rivals per industry, for founders' companies here. */
   rivals?: Partial<Record<Industry, Rival[]>>;
+  /** Investor career Phase 2: the city exchange (index, index fund, benchmarks). Missing = none yet. */
+  exchange?: ExchangeState;
+  /** The real length of a game month (ms), from the last clock settlement (insider blackouts). */
+  monthMs?: number;
+}
+
+/**
+ * A city's stock exchange (investor blueprint §7.2, Phase 2): a cap-weighted
+ * price index with a divisor (continuous when companies list or leave), the
+ * city index fund (a real holder, `idx:<market>`, buying from the public
+ * float), and what each player's share buys would be worth in the index.
+ */
+export interface ExchangeState {
+  /** Index level (100 when the exchange opened) and last month's. */
+  level: number;
+  prevLevel: number;
+  history: number[];
+  /** Sum of market caps ÷ divisor = level. */
+  divisor: number;
+  /** Companies in the index (listed). */
+  constituents: Id[];
+  /** Index fund units per player, total units, and each player's cost basis. */
+  units: Record<Id, number>;
+  totalUnits: number;
+  unitCost: Record<Id, number>;
+  /** What each player's share buys would be worth in the index: index units bought at cost. */
+  bench: Record<Id, { units: number; since: number }>;
+  /** Realised gains and dividends from this exchange, per player (local minor units). */
+  realised: Record<Id, number>;
+  dividends: Record<Id, number>;
+  /** Shares bought this month per player and company (depth caps). */
+  bought: { month: number; by: Record<string, number> };
+  /** The index fund's fee owed in fractions of a share, by company (paid as whole shares). */
+  feeOwed?: Record<Id, number>;
+}
+
+/** A limit order, filled at a settlement if the price crosses (Phase 2). */
+export interface ShareOrder {
+  id: Id;
+  playerId: Id;
+  companyId: Id;
+  market: MarketId;
+  side: 'buy' | 'sell';
+  /** Buy: money to spend (company currency, minor). Sell: share of your holding, bps. */
+  amount: number;
+  /** Price per share (company currency minor units, fractional allowed). */
+  limit: number;
+  month: number;
+  expiresMonth: number;
+  status: 'open' | 'filled' | 'cancelled' | 'expired';
+  fill?: { month: number; price: number; shares: number };
+  reason?: string;
 }
 
 export interface Governor {
@@ -2010,6 +2062,8 @@ export interface World {
   syndicates?: Record<Id, Syndicate>;
   /** Investor career Phase 6: firms. Missing = none. */
   firms?: Record<Id, Firm>;
+  /** Investor career Phase 2: limit orders on the stock market. Missing = none. */
+  orders?: Record<Id, ShareOrder>;
 }
 
 // ---------------------------------------------------------------- Wave 10: a living economy

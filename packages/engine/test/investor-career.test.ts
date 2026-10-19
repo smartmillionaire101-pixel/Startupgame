@@ -6,6 +6,7 @@ import type { World } from '../src/types.js';
 import {
   addFounder,
   addInvestor,
+  careerWorld,
   makeWorld,
   moneyByCurrency,
   negativeInternalAccounts,
@@ -13,15 +14,6 @@ import {
   settle,
   tryRun,
 } from './helpers.js';
-
-/** A world with the investor career switched on. */
-export function careerWorld(seed = 7, markets: Parameters<typeof makeWorld>[1] = ['lagos']): World {
-  return run(makeWorld(seed, markets), null, {
-    type: 'system.announce',
-    id: INVESTOR_NOTE,
-    text: 'The investor career is here.',
-  }).world;
-}
 
 const careerOf = (w: World, id = 'u_investor') => playerView(w, id)!.investorCareer!;
 

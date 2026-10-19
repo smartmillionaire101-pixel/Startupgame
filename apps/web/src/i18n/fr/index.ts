@@ -39,6 +39,7 @@ import { recap } from './recap';
 import { decisions } from './decisions';
 import { capital } from './capital';
 import { investorCareer } from './investor-career';
+import { investorExchange } from './investor-exchange';
 import { tutorial } from './tutorial';
 import { uiFixes } from './ui-fixes';
 import { feedback } from './feedback';
@@ -102,6 +103,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   decisions,
   capital,
   investorCareer,
+  investorExchange,
   tutorial,
   uiFixes,
   feedback,

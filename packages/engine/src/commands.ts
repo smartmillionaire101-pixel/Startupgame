@@ -856,6 +856,19 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   /** Buy about `amount` (the company's currency) of a listed company's shares. */
   z.object({ type: z.literal('shares.buy'), companyId: id, amount: money }),
+  // ---- investor career Phase 2: the city exchange
+  /** A limit order: buy `amount` (money) or sell `amount` bps of your holding at `limit` per share. */
+  z.object({
+    type: z.literal('shares.order'),
+    companyId: id,
+    side: z.enum(['buy', 'sell']),
+    amount: money,
+    limit: z.number().positive().max(1e15),
+  }),
+  z.object({ type: z.literal('shares.cancel'), orderId: id }),
+  /** The city index fund: buy `amount` of the city's currency, or sell bps of your units. */
+  z.object({ type: z.literal('index.buy'), market, amount: money }),
+  z.object({ type: z.literal('index.sell'), market, pctBps: z.number().int().min(1).max(10_000) }),
   z.object({
     type: z.literal('mentor.offer'),
     companyId: id,

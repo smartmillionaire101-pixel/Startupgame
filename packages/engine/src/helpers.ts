@@ -47,6 +47,8 @@ export function externalHolderAccount(m: MarketState, holderId: string): Id {
   if (holderId.startsWith('accel:')) return m.ext.lps;
   // Founder Journey 5: the public float and outside secondary buyers.
   if (holderId.startsWith('pub:') || holderId.startsWith('sec:')) return m.ext.lps;
+  // Investor career: the city index fund trades against the same side of the world.
+  if (holderId.startsWith('idx:')) return m.ext.lps;
   return m.ext.payroll;
 }
 export const NEWS_LIMIT = 120;
