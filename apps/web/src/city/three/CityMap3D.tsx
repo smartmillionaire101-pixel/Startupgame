@@ -274,6 +274,30 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     if (!paused) s.touch(400);
   }, [paused, ready]);
 
+  // Going home (or to your hotel room) is a tap away: its code, and the 3D
+  // home's stage (a WebGL context takes a moment to make), are got ready in
+  // a quiet moment once the city is up.
+  useEffect(() => {
+    if (!ready || paused) return;
+    let idle = 0;
+    const go = () => {
+      void import('../Interiors').catch(() => {});
+      void import('../../interiors3d/Home3D').then(
+        (m) => m.prewarmHome3D(),
+        () => {},
+      );
+    };
+    const t = window.setTimeout(() => {
+      if (typeof requestIdleCallback === 'function')
+        idle = requestIdleCallback(go, { timeout: 4000 });
+      else go();
+    }, 3000);
+    return () => {
+      clearTimeout(t);
+      if (idle) cancelIdleCallback(idle);
+    };
+  }, [ready, paused]);
+
   useEffect(() => {
     sceneRef.current?.actors.setLook(look);
     sceneRef.current?.invalidate();

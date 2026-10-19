@@ -956,12 +956,17 @@ export class CityScene {
         if (g) g.visible = !shown;
         this.invalidate();
       },
+      // The map under a place's scene (going home, say): a tile that arrives
+      // waits for the map to show again, not laid out while the place opens.
       stage: this.opts.sky
         ? (show: () => void) => {
             this.staged.push(show);
             this.invalidate();
           }
-        : undefined,
+        : (show: () => void) => {
+            if (this.paused || covered()) this.staged.push(show);
+            else show();
+          },
     };
   }
 

@@ -58,13 +58,15 @@ export class Stage {
   distance = 60;
   w = 1;
   h = 1;
-  private opts: StageOpts;
+  private opts!: StageOpts;
   private animators = new Set<Animator>();
   private dirty = true;
   private raf = 0;
   private last = 0;
   private t0 = performance.now();
   private disposed = false;
+  /** Put away by `parkStage` (drawing nothing) until a view takes it again. */
+  private parked = false;
   private camListeners = new Set<() => void>();
   private onVis = () => (document.hidden ? cancelAnimationFrame(this.raf) : this.kick());
   /** Called after each drawn frame. */
@@ -77,7 +79,6 @@ export class Stage {
     readonly canvas: HTMLCanvasElement,
     o: StageOpts,
   ) {
-    this.opts = o;
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: !softwareGl(),
@@ -93,17 +94,16 @@ export class Stage {
     this.renderer.setPixelRatio(
       this.soft ? 1 : Math.min(weak ? 1.5 : 2, window.devicePixelRatio || 1),
     );
-    this.maxFps = cpuGl() ? 4 : (o.maxFps ?? 60);
     this.renderer.shadowMap.enabled = !this.soft;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.scene.background = new THREE.Color(o.background ?? '#16223d');
     this.target = o.target.clone();
     this.azimuth = o.azimuth;
     this.elevation = o.elevation;
     this.span = o.span;
+    this.maxFps = 60;
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
 
     this.hemi = new THREE.HemisphereLight('#fff4e0', '#4a3b2c', 1.35);
@@ -112,9 +112,33 @@ export class Stage {
     this.scene.add(this.ambient);
     this.sun = new THREE.DirectionalLight('#fff1d6', 1.9);
     this.sun.castShadow = true;
-    const s = o.shadowSize ?? 10;
     const sm = this.soft ? 512 : Math.min(phone() ? 1024 : 4096, o.shadowMap ?? 2048);
     this.sun.shadow.mapSize.set(sm, sm);
+    this.sun.shadow.bias = -0.0006;
+    this.sun.shadow.normalBias = 0.02;
+    this.sun.shadow.radius = 4;
+    this.scene.add(this.sun, this.sun.target);
+    this.setup(o);
+    document.addEventListener('visibilitychange', this.onVis);
+  }
+
+  /** The view's own settings: the camera, the light, the sky (a new stage, or one taken from `parkStage`). */
+  private setup(o: StageOpts) {
+    this.opts = o;
+    this.maxFps = cpuGl() ? 4 : (o.maxFps ?? 60);
+    this.scene.background = new THREE.Color(o.background ?? '#16223d');
+    this.scene.fog = null;
+    this.target.copy(o.target);
+    this.azimuth = o.azimuth;
+    this.elevation = o.elevation;
+    this.span = o.span;
+    this.camera.far = 200;
+    this.hemi.color.set('#fff4e0');
+    this.hemi.intensity = 1.35;
+    this.ambient.intensity = 0.25;
+    this.sun.color.set('#fff1d6');
+    this.sun.intensity = 1.9;
+    const s = o.shadowSize ?? 10;
     const sc = this.sun.shadow.camera;
     sc.left = -s;
     sc.right = s;
@@ -122,19 +146,26 @@ export class Stage {
     sc.bottom = -s;
     sc.near = 1;
     sc.far = 80;
-    this.sun.shadow.bias = -0.0006;
-    this.sun.shadow.normalBias = 0.02;
-    this.sun.shadow.radius = 4;
+    sc.updateProjectionMatrix();
     this.sun.position.set(this.target.x - 8, 20, this.target.z + 10);
     this.sun.target.position.copy(this.target);
-    this.scene.add(this.sun, this.sun.target);
     this.updateCamera();
-    document.addEventListener('visibilitychange', this.onVis);
   }
 
   /** Size the drawing buffer to the canvas's CSS box. */
   setSize(w: number, h: number) {
     if (w < 2 || h < 2) return;
+    // Sizing the drawing buffer again, even to the size it is, waits for the
+    // GPU: a kept stage (`parkStage`) often fits already.
+    const c = this.canvas;
+    const pr = this.renderer.getPixelRatio();
+    if (
+      w === this.w &&
+      h === this.h &&
+      c.width === Math.floor(w * pr) &&
+      c.height === Math.floor(h * pr)
+    )
+      return this.updateCamera();
     this.w = w;
     this.h = h;
     this.renderer.setSize(w, h, false);
@@ -250,7 +281,13 @@ export class Stage {
   }
 
   private kick() {
-    if (this.disposed || this.raf || (typeof document !== 'undefined' && document.hidden)) return;
+    if (
+      this.disposed ||
+      this.parked ||
+      this.raf ||
+      (typeof document !== 'undefined' && document.hidden)
+    )
+      return;
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.tick);
   }
@@ -258,7 +295,7 @@ export class Stage {
   private lastDraw = 0;
   private tick = (now: number) => {
     this.raf = 0;
-    if (this.disposed) return;
+    if (this.disposed || this.parked) return;
     // Frame cap: skip this frame if the last one was drawn too recently.
     const gap = 1000 / this.maxFps - 4;
     if (now - this.lastDraw < gap && !this.dirty) {
@@ -290,6 +327,8 @@ export class Stage {
 
   private warmed = false;
   private holds = 0;
+  /** Counts the views this stage has served (`unpark`). */
+  private view = 0;
   /** Draw nothing until `release` (what the first frame needs is still being built). */
   hold() {
     this.holds++;
@@ -306,6 +345,8 @@ export class Stage {
   async warm(): Promise<void> {
     if (this.disposed) return;
     this.holds++;
+    // (Parked and taken again meanwhile: the new view's holds start afresh.)
+    const view = this.view;
     try {
       await Promise.race([
         this.renderer.compileAsync(this.scene, this.camera),
@@ -314,7 +355,7 @@ export class Stage {
     } catch {
       /* drawn the ordinary way */
     } finally {
-      this.holds--;
+      if (view === this.view) this.holds--;
       this.invalidate();
     }
   }
@@ -377,6 +418,44 @@ export class Stage {
     return this.ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p);
   }
 
+  /**
+   * Put away for the next view (`parkStage`): nothing drawn; the context,
+   * the shaders it compiled and the textures it holds are kept. So is its
+   * drawing buffer: sizing it again waits for the GPU (seconds without one),
+   * and the next view is the same size on a phone.
+   */
+  park() {
+    this.parked = true;
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    this.animators.clear();
+    this.camListeners.clear();
+    this.onFrame = null;
+    // What the view left on the stage is its own to dispose of; only the lights stay.
+    const own = new Set<THREE.Object3D>([this.hemi, this.ambient, this.sun, this.sun.target]);
+    for (const c of [...this.scene.children]) if (!own.has(c)) this.scene.remove(c);
+    this.canvas.remove();
+  }
+  /** Taken again (`unparkStage`) for a view with these settings. */
+  unpark(o: StageOpts) {
+    this.parked = false;
+    this.view++;
+    this.zoom = 1;
+    this.distance = 60;
+    this.fit = null;
+    this.fitCenter = null;
+    this.fitMargin = 1.08;
+    this.shiftY = 0;
+    this.frames = 0;
+    this.holds = 0;
+    // New things on it compile off the main thread again before the first frame.
+    this.warmed = false;
+    this.dirty = true;
+    this.t0 = performance.now();
+    this.lastDraw = 0;
+    this.setup(o);
+  }
+
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
@@ -392,6 +471,38 @@ export class Stage {
     this.renderer.forceContextLoss();
   }
 }
+
+/**
+ * A stage kept between opens of a view (Home3D's: going home again, or the
+ * one made ahead while you're on the map): making a WebGL context and
+ * compiling its shaders takes a moment on a phone, seconds without a GPU.
+ * One per kind of view at most (a phone's memory).
+ */
+const PARKED = new Map<string, Stage>();
+
+/** Put a view's stage away for the next one of its kind (or dispose of it, if one's kept already). */
+export function parkStage(kind: string, s: Stage) {
+  const ctx = s.renderer.getContext();
+  if (PARKED.has(kind) || ctx.isContextLost()) return s.dispose();
+  s.park();
+  PARKED.set(kind, s);
+}
+
+/** The kept stage of this kind set up for a new view (null when there's none). */
+export function unparkStage(kind: string, o: StageOpts): Stage | null {
+  const s = PARKED.get(kind);
+  if (!s) return null;
+  PARKED.delete(kind);
+  if (s.renderer.getContext().isContextLost()) {
+    s.dispose();
+    return null;
+  }
+  s.unpark(o);
+  return s;
+}
+
+/** Whether a stage of this kind is kept. */
+export const hasParkedStage = (kind: string) => PARKED.has(kind);
 
 /** Pointer gestures on an element: tap, one-finger orbit, pinch and wheel zoom. */
 export function gestures(

@@ -24,7 +24,7 @@ export function SkyViewsList({
   const views = skyViewsIn(city);
   const any = views.length > 0;
   useEffect(() => {
-    if (prewarm && any) prewarmSky(city);
+    if (prewarm && any) return prewarmSky(city);
   }, [prewarm, any, city]);
   if (!views.length) return null;
   return (

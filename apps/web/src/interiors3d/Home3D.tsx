@@ -22,7 +22,7 @@ import { GROUND_Y, STOREY, buildHouse, cutWalls, wallOf, type House } from './ho
 import { buildEstateModel } from './estate-models';
 import { groundsFor } from '../home/grounds';
 import { Kit, disposeTree, mat } from './kit';
-import { Stage, gestures } from './stage';
+import { Stage, gestures, hasParkedStage, parkStage, unparkStage, type StageOpts } from './stage';
 import { cullOccluders } from './surroundings';
 import type { Home3DObject, Home3DPerson, Home3DProps } from './types';
 
@@ -90,8 +90,35 @@ function plusMarker(): THREE.Group {
   return g;
 }
 
+/** The home's stage: looking down on the house from the garden's corner. */
+const stageOpts = (): StageOpts => ({
+  target: new THREE.Vector3(),
+  span: 12,
+  azimuth: -0.3,
+  elevation: 0.9,
+  minElevation: 0.5,
+  maxElevation: 1.4,
+  background: '#cfe6f2',
+});
+
+/** Home views open now (the stage made ahead waits until none is). */
+let open = 0;
+
+/**
+ * Make the home's stage (its WebGL context) in a quiet moment on the map, so
+ * going home doesn't wait for one; it's kept for going home again too.
+ */
+export function prewarmHome3D() {
+  if (open > 0 || hasParkedStage('home')) return;
+  try {
+    parkStage('home', new Stage(document.createElement('canvas'), stageOpts()));
+  } catch {
+    /* made when the home opens */
+  }
+}
+
 export default function Home3D(props: Home3DProps): ReactElement | null {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const anchorRef = useRef<HTMLSpanElement>(null);
   const live = useRef(props);
   useEffect(() => {
     live.current = props;
@@ -119,22 +146,24 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
 
   // ---- The stage (once).
   useEffect(() => {
-    const canvas = canvasRef.current!;
-    const parent = canvas.parentElement!;
+    const anchor = anchorRef.current!;
+    const parent = anchor.parentElement!;
+    // The stage kept from the last time (or made ahead on the map): its
+    // context and shaders are ready, so the home draws sooner.
     let stage: Stage;
     try {
-      stage = new Stage(canvas, {
-        target: new THREE.Vector3(),
-        span: 12,
-        azimuth: -0.3,
-        elevation: 0.9,
-        minElevation: 0.5,
-        maxElevation: 1.4,
-        background: '#cfe6f2',
-      });
+      stage =
+        unparkStage('home', stageOpts()) ??
+        new Stage(document.createElement('canvas'), stageOpts());
     } catch {
       return;
     }
+    const canvas = stage.canvas;
+    canvas.className = 'home-3d';
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.setAttribute('data-home-3d', '');
+    parent.insertBefore(canvas, anchor);
+    open++;
     stageRef.current = stage;
     // The world round the home runs out into the haze (no edge, no sky under it):
     // the camera stands well back so nothing near it is clipped.
@@ -285,7 +314,12 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       offCam();
       live.current.api.current = null;
       if (houseRef.current) disposeTree(houseRef.current.root);
-      stage.dispose();
+      particles.clear();
+      // Kept for the next home (what this one drew is let go by the effects below).
+      for (const k of Object.keys(canvas.dataset)) if (k !== 'home-3d') delete canvas.dataset[k];
+      canvas.remove();
+      open--;
+      parkStage('home', stage);
       stageRef.current = null;
     };
   }, []);
@@ -1024,7 +1058,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     });
     return () => {
       off();
-      for (const c of chars.values()) stage.scene.remove(c.root);
+      // (Their GPU copies too: the stage is kept for the next home.)
+      for (const c of chars.values()) {
+        stage.scene.remove(c.root);
+        disposeTree(c.root);
+      }
       particles.clear();
     };
   }, []);
@@ -1032,7 +1070,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   // Gestures: the 2D hit layer above us forwards them through `api`; we only
   // take the wheel and pinch when the canvas itself gets them (Lite never mounts this).
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = stageRef.current?.canvas;
     if (!canvas) return;
     return gestures(canvas, {
       tap: () => {},
@@ -1041,5 +1079,6 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     });
   }, []);
 
-  return <canvas ref={canvasRef} className="home-3d" aria-hidden="true" data-home-3d="" />;
+  // The stage's canvas goes in just before this (it's kept between opens, so it isn't React's).
+  return <span ref={anchorRef} hidden />;
 }

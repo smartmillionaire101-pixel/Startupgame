@@ -408,7 +408,7 @@ function SkyViews({ ctx, cityId }: { ctx: PhoneCtx; cityId: string }) {
   const views = skyViewsIn(cityId);
   const any = views.length > 0;
   useEffect(() => {
-    if (any && !lite) prewarmSky(cityId);
+    if (any && !lite) return prewarmSky(cityId);
   }, [any, lite, cityId]);
   if (!any) return null;
   return (
