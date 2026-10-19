@@ -312,6 +312,10 @@
   font-size: 0.7rem;
   padding: 0.05rem 0.45rem;
 }
+.going-price {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
 .going-blurb {
   display: -webkit-box;
   -webkit-line-clamp: 2;

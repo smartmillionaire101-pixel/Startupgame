@@ -4,6 +4,9 @@
  *
  * - Golf: the city's golf club, the green fee, your best round; Play a round.
  * - Mall: the mall and its shops; Go to the mall.
+ * - Eat out: the city's restaurants, cafés, bakeries and street food, with
+ *   cuisine, a price hint and whether it's open (../../city/eatout.ts); the
+ *   meal of the hour first (breakfast spots in the morning, dinner at night).
  * - Tonight: the bars, clubs, lounges, beach clubs and live-music venues,
  *   each with its style and music (../../city/nightlife.ts): open ones first,
  *   the busy ones, then the nearest.
@@ -24,6 +27,7 @@ import { locale, t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Segmented } from '../../ui';
 import { businessesOf, type BusinessView } from '../../city/contract';
+import { cuisineOf, FOOD_KINDS, mealAt, openAt, priceHint } from '../../city/eatout';
 import { venueItemsOf, type VenueItemView } from '../../city/life';
 import { golfOf, mallOf, mallSpot } from '../../city/leisure';
 import { SHOP_ICON, SHOP_ORDER, shopName } from '../../city/mall/shops';
@@ -173,6 +177,7 @@ function AroundTown({ ctx }: { ctx: PhoneCtx }) {
     <>
       <GolfCard ctx={ctx} cityId={cityId} layout={layout} />
       <MallCard ctx={ctx} cityId={cityId} layout={layout} />
+      <EatOut ctx={ctx} cityId={cityId} layout={layout} />
       <Tonight ctx={ctx} cityId={cityId} layout={layout} />
       <SkyViews ctx={ctx} cityId={cityId} />
       <EventsCard ctx={ctx} />
@@ -265,6 +270,136 @@ function MallCard({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layo
       >
         {t('Go to the mall')}
       </button>
+    </OutCard>
+  );
+}
+
+// ---------------------------------------------------------------- Eat out
+
+interface Eatery {
+  b: BusinessView;
+  placeId: string;
+  icon: string;
+  line: string;
+  price: 1 | 2 | 3 | null;
+  /** Trading and within its hours. */
+  open: boolean;
+  /** Best for the meal of the hour. */
+  now: boolean;
+  far: number;
+}
+
+const EAT_CAP = 6;
+
+function EatOut({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layout: Layout }) {
+  const { view } = useView();
+  const [all, setAll] = useState(false);
+  const city = cityViewOf(view);
+  const hour = localHour(cityId);
+  const eateries = useMemo(() => {
+    const meal = mealAt(hour);
+    const col = city.market.costOfLiving;
+    const out: Eatery[] = [];
+    for (const b of businessesOf(city)) {
+      const k = FOOD_KINDS[b.kind];
+      if (!k) continue;
+      const placeId = `biz:${b.id}`;
+      const p = layout?.places.find((x) => x.id === placeId);
+      if (layout && !p) continue;
+      const cuisine = cuisineOf(b.kind, b.name, cityId);
+      out.push({
+        b,
+        placeId,
+        icon: k.icon,
+        line: cuisine
+          ? t('{cuisine} · {type}', { cuisine: tx(cuisine), type: tx(k.type) })
+          : tx(k.type),
+        price: priceHint(b.venue?.items, col),
+        open: b.open && openAt(b.kind, hour),
+        now: k.meal === meal,
+        far: p && layout ? tilesTo(layout, p) : Infinity,
+      });
+    }
+    // Open first, then the meal of the hour, then the nearest.
+    return out.sort(
+      (x, y) =>
+        Number(y.open) - Number(x.open) ||
+        Number(y.now) - Number(x.now) ||
+        x.far - y.far ||
+        x.b.name.localeCompare(y.b.name),
+    );
+  }, [city, cityId, layout, hour]);
+  if (!eateries.length) return null;
+  const shown = all ? eateries : eateries.slice(0, EAT_CAP);
+  const meal = mealAt(hour);
+  return (
+    <OutCard
+      id="eat"
+      icon="🍽️"
+      title={t('Eat out')}
+      sub={
+        meal === 'breakfast'
+          ? t('{n} places to eat · breakfast time', { n: eateries.length })
+          : meal === 'lunch'
+            ? t('{n} places to eat · lunchtime', { n: eateries.length })
+            : t('{n} places to eat · dinner time', { n: eateries.length })
+      }
+    >
+      <ul className="going-venues" aria-label={t('Eat out')}>
+        {shown.map((e) => (
+          <li
+            key={e.b.id}
+            className={`going-venue${e.open ? '' : ' is-closed'}`}
+            data-eat={e.placeId}
+            data-kind={e.b.kind}
+            data-open={e.open ? '' : undefined}
+          >
+            <span className="going-venue-icon" aria-hidden="true">
+              {e.icon}
+            </span>
+            <span className="going-main">
+              <span className="going-venue-top">
+                <b className="going-venue-name">{e.b.name}</b>
+                {e.open ? (
+                  <span className="pill pill-good going-status">{t('Open now')}</span>
+                ) : (
+                  <span className="pill pill-bad going-status">{t('Closed now')}</span>
+                )}
+              </span>
+              <span className="small muted">
+                {e.line}
+                {e.price && (
+                  <>
+                    {' · '}
+                    <span className="going-price" data-price={e.price}>
+                      {'$'.repeat(e.price)}
+                    </span>
+                  </>
+                )}
+              </span>
+            </span>
+            <button
+              type="button"
+              className="btn btn-subtle btn-sm going-venue-go"
+              aria-label={t('Go to {place}', { place: e.b.name })}
+              disabled={!e.b.open}
+              onClick={() => ctx.goPlace(e.placeId)}
+            >
+              {t('Go')}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {eateries.length > EAT_CAP && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm going-more"
+          aria-expanded={all}
+          onClick={() => setAll((a) => !a)}
+        >
+          {all ? t('Show fewer') : t('More ({n})', { n: eateries.length - EAT_CAP })}
+        </button>
+      )}
     </OutCard>
   );
 }

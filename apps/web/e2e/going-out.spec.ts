@@ -2,8 +2,9 @@ import { expect, letters, playAsGuest, setupFounder, test, type Page } from './f
 
 /**
  * Going out (player feedback: one app for leisure instead of a crowded map):
- * the phone's Going out app has the city's golf club, mall, tonight's bars
- * and clubs, sky views, events and friends; each Go takes you there.
+ * the phone's Going out app has the city's golf club, mall, places to eat,
+ * tonight's bars and clubs, sky views, events and friends; each Go takes you
+ * there.
  */
 
 async function founderIn(page: Page, market = /Lagos/) {
@@ -53,9 +54,15 @@ test('Going out: golf, the mall, tonight and sky views, and Go to the golf club'
   const mall = phone.locator('[data-going="mall"]');
   await expect(mall).toBeVisible();
   await expect(mall.locator('[data-shop]')).toHaveCount(6);
+  const eat = phone.locator('[data-going="eat"]');
+  await expect(eat).toBeVisible();
+  await expect(eat.locator('[data-eat]').first()).toContainText(/\w · \w/);
+  expect(await eat.locator('[data-eat]').count()).toBeLessThanOrEqual(6);
   const tonight = phone.locator('[data-going="tonight"]');
   await expect(tonight).toBeVisible();
   await expect(tonight.locator('[data-venue]').first()).toContainText('Now playing');
+  // Tonight stays nightlife: no restaurants in it.
+  await expect(tonight.locator('[data-kind="restaurant"], [data-kind="buka"]')).toHaveCount(0);
   expect(await tonight.locator('[data-venue]').count()).toBeLessThanOrEqual(6);
   await expect(phone.locator('[data-going="sky"]')).toBeVisible();
   await expect(phone.locator('[data-going="sky"] [data-sky]').first()).toBeVisible();
@@ -91,6 +98,37 @@ test('Going out: Go to a club from Tonight opens that venue', async ({ page }) =
   await expect(venue).toHaveAttribute('data-genre', genre);
 });
 
+test('Going out: Eat out lists the city’s places to eat, and Go opens one', async ({ page }) => {
+  test.setTimeout(120_000);
+  await founderIn(page);
+  const phone = await openGoingOut(page);
+  const eat = phone.locator('[data-going="eat"]');
+  const rows = eat.locator('[data-eat]');
+  await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+  // Real places from the map: Lagos's buka, bakery, cafés…
+  await expect(eat).toContainText(/\d+ places to eat/);
+  const kinds = await rows.evaluateAll((els) => els.map((e) => e.getAttribute('data-kind')));
+  for (const k of kinds) expect(k).not.toMatch(/nightclub|bar|pub|lounge/);
+  await expect(rows.first().locator('.going-status')).toHaveText(/Open now|Closed now/);
+  // More (n) shows the rest.
+  const more = eat.getByRole('button', { name: /^More \(\d+\)$/ });
+  if (await more.count()) {
+    await more.click();
+    expect(await rows.count()).toBeGreaterThan(6);
+  }
+  // An open one if there is one at this hour, else the first that's trading.
+  const open = rows.and(eat.locator('[data-open]'));
+  const row = (await open.count()) ? open.first() : rows.first();
+  const placeId = (await row.getAttribute('data-eat'))!;
+  const name = (await row.locator('.going-venue-name').textContent())!;
+  await row.getByRole('button', { name: `Go to ${name}` }).click();
+  await expect(phone).toBeHidden();
+  await ride(page);
+  const scene = page.locator(`.place-scene[data-scene="${placeId}"]`);
+  await expect(scene).toBeVisible({ timeout: 30_000 });
+  await expect(scene).toContainText(name);
+});
+
 test('Going out works abroad: in London, London’s golf, mall and nights out', async ({ page }) => {
   test.setTimeout(120_000);
   await founderIn(page);
@@ -112,6 +150,10 @@ test('Going out works abroad: in London, London’s golf, mall and nights out', 
   await expect(phone.locator('[data-going="golf"]')).toBeVisible({ timeout: 15_000 });
   await expect(phone.locator('[data-going="mall"]')).toContainText('Borough Exchange Centre');
   await expect(phone.locator('[data-going="tonight"] [data-venue]').first()).toBeVisible();
+  await expect(phone.locator('[data-going="eat"] [data-eat]').first()).toBeVisible();
+  await expect(phone.locator('[data-going="eat"]')).toContainText(
+    /British · |Indian · |Italian · /,
+  );
   // The lifestyle tiers are one tab away.
   await phone.getByRole('radio', { name: 'By lifestyle' }).click();
   await expect(phone.getByText(/Your standard of living: level/)).toBeVisible();
