@@ -491,7 +491,7 @@ export function InvestorFirstSession() {
 
 /** The Portfolio tab's sections; later rungs add theirs as they open. */
 export type InvestorSection =
-  'overview' | 'markets' | 'syndicates' | 'fund' | 'lp' | 'firm' | 'office';
+  'overview' | 'pipeline' | 'markets' | 'syndicates' | 'fund' | 'lp' | 'firm' | 'office';
 
 export function InvestorSections({
   tab,
@@ -505,6 +505,7 @@ export function InvestorSections({
   if (!career) return null;
   const options: { value: InvestorSection; label: string }[] = [
     { value: 'overview', label: t('Overview') },
+    { value: 'pipeline', label: t('Pipeline') },
     { value: 'markets', label: t('Markets') },
     { value: 'syndicates', label: t('Syndicates') },
     { value: 'fund', label: t('Your funds') },

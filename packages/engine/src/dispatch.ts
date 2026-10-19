@@ -58,6 +58,16 @@ import {
 import { exitsOn, investorOn, lifeBarsOn } from './releases.js';
 import { backSyndicate, cancelSyndicate, closeSyndicate, openSyndicate } from './syndicates.js';
 import {
+  checkClaim,
+  pipelineAdd,
+  pipelinePass,
+  pipelineWatch,
+  references,
+  reviewInvestor,
+  scout,
+  supportCompany,
+} from './dealcraft.js';
+import {
   answerStake,
   fofCommit,
   investorSecondary,
@@ -1227,6 +1237,22 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return sellShares(world, me, cmd.companyId, cmd.pctBps, ctx.now, cmd.fundId);
     case 'shares.buy':
       return buyShares(world, me, cmd.companyId, cmd.amount, ctx.now, cmd.fundId);
+    case 'pipeline.add':
+      return pipelineAdd(world, me, cmd.companyId, !!cmd.watch);
+    case 'pipeline.watch':
+      return pipelineWatch(world, me, cmd.companyId, cmd.on);
+    case 'pipeline.pass':
+      return pipelinePass(world, me, cmd.companyId, cmd.reason);
+    case 'diligence.claim':
+      return checkClaim(world, me, cmd.companyId, cmd.questionId);
+    case 'diligence.references':
+      return references(world, me, cmd.companyId);
+    case 'invest.support':
+      return supportCompany(world, me, cmd.companyId, cmd.kind);
+    case 'invest.scout':
+      return scout(world, me);
+    case 'review.investor':
+      return reviewInvestor(world, me, cmd.investorId, cmd.companyId, cmd.rating, cmd.text);
     case 'fof.commit':
       return fofCommit(world, me, cmd.fundId, cmd.targetFundId, cmd.amount);
     case 'fund.lpac':

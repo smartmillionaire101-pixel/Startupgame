@@ -4,6 +4,7 @@ import { syndicatesView } from './syndicates.js';
 import { lpFundsView } from './lpfunds.js';
 import { firmView } from './firms.js';
 import { familyOfficeView } from './allocation.js';
+import { dealCraftView, redFlags, reviewableView } from './dealcraft.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
 import { investorOn, lifeBarsOn } from './releases.js';
@@ -174,6 +175,8 @@ export function diligenceView(world: World, c: Company, depth: number) {
         status: k.status,
       })),
     bannedFromRaising: c.bannedFromRaising,
+    /** Investor career Phase 8: red flags deep diligence finds in company state. */
+    redFlags: redFlags(world, c),
     complianceGaps: rulesFor(c.market, c.industry)
       .filter((r) => !c.compliance[r.id])
       .map((r) => r.title),
@@ -306,6 +309,8 @@ export function companyDetail(world: World, c: Company) {
     parentName: c.parentId ? (world.companies[c.parentId]?.name ?? null) : null,
     removedFounders: Object.keys(c.removedFounders),
     bannedFromRaising: c.bannedFromRaising,
+    /** Investor career Phase 8: red flags deep diligence finds in company state. */
+    redFlags: redFlags(world, c),
     warnings: c.warnings,
     pivots: c.pivots,
     /** The product roadmap (§6.3): projects, feedback inbox and the feature catalogue. */
@@ -718,6 +723,10 @@ export function playerView(
     firm: firmView(world, p),
     /** Investor career Phase 7: the family office (every track), LP stake offers, LPAC votes, secondaries. */
     familyOffice: familyOfficeView(world, p),
+    /** Investor career Phase 8: the pipeline, reputation, reviews and the monthly recap. */
+    dealCraft: dealCraftView(world, p),
+    /** Investor career Phase 8: for founders, the human investors you can review. */
+    reviewable: reviewableView(world, p),
     /** Investor career Phase 5: pro-rata offers from portfolio companies raising again. */
     prorata: investorOn(world) && !p.ai ? proRataView(world, p) : [],
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */

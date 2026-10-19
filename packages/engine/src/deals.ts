@@ -8,6 +8,7 @@ import { addSafe, closePricedRound, fullyDiluted, waterfall } from './captable.j
 import type { WaterfallLine } from './captable.js';
 import { distributeSyndicate, syndicateInvested } from './syndicates.js';
 import { afterRound, proRataBefore } from './fundops.js';
+import { afterTerms } from './dealcraft.js';
 import { ensure, fail } from './errors.js';
 import { achieve, adjustTrust, holderAccount, getCompany, getMarket, notify } from './helpers.js';
 import { newId } from './ids.js';
@@ -655,6 +656,8 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
               : undefined;
       // Investor career Phase 3: a syndicate's money is in; refund what the round didn't take.
       if (investor.kind === 'syndicate') syndicateInvested(world, investor.id, t.amount, m.month);
+      // Investor career Phase 8: tough terms cost founder trust, fair ones build it.
+      afterTerms(world, investorPlayer, t);
       if (investorPlayer && !investorPlayer.ai) {
         achieve(world, investorPlayer, 'investor.first-check', 'First cheque', m.month);
         if (followOn)

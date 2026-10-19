@@ -12,6 +12,7 @@ import { useView } from '../store';
 import { Bar, Button, Card, Empty, Field, ListRow, Pill, Segmented, Sparkline, Stat } from '../ui';
 import { FoundCompany } from './Me';
 import { Exchange, exchangeOf } from './Exchange';
+import { ReviewInvestors } from './Pipeline';
 import './capital.css';
 
 type Capital = NonNullable<PlayerView['capital']>;
@@ -975,6 +976,7 @@ export function CapitalHub({ open }: { open?: (app: 'invest') => void }) {
   return (
     <div className="stack capital-hub">
       <OffersForYou />
+      <ReviewInvestors />
       <WealthCard compact />
       <Segmented
         label={t('Capital')}

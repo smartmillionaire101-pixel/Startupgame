@@ -8,6 +8,7 @@
 import { barEdgeIn } from './lifebars.js';
 import { checkAngelCheque } from './career.js';
 import { fundCanInvest } from './lpfunds.js';
+import { isHotRound } from './dealcraft.js';
 import { checkFundCheque } from './fundops.js';
 import { ensure, fail } from './errors.js';
 import {
@@ -697,7 +698,20 @@ export function proposeInvestment(
     by: inv.id,
     aiLimit: { minValuation: Math.round(model * 0.85), maxAmount: Math.round(model * 0.3) },
   });
-  // AI founders answer straight away: accept, meet once, or walk.
+  // AI founders answer straight away: accept, meet once, or walk. In a hot round
+  // (investor career) they compare every offer at month end instead.
+  const firstSession =
+    !!inv.career?.tutorial && !inv.career.tutorial.doneMonth && !inv.career.tutorial.skipped;
+  if (c.ai && isHotRound(world, c) && !firstSession) {
+    deal.hot = true;
+    notify(world, inv.id, {
+      month: getMarket(world, c.market).month,
+      kind: 'deal',
+      text: `${c.name}'s round is hot: several investors are interested. They'll pick at month end on price, terms and reputation.`,
+      ref: { kind: 'deal', id: deal.id },
+    });
+    return deal;
+  }
   if (c.ai) {
     aiRespond(world, deal);
     return deal;

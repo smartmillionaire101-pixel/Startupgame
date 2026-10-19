@@ -301,6 +301,10 @@ export interface Player {
    * commitments ends. Missing = none.
    */
   lp?: { diligence?: Record<Id, number>; banUntil?: number };
+  /** Investor career Phase 8: the deal pipeline and watchlist, by company. Missing = none. */
+  pipeline?: Record<Id, PipelineEntry>;
+  /** Investor career Phase 8: the month you last supported each portfolio company. */
+  support?: Record<Id, number>;
   /**
    * Golf (leisure.ts): rounds played at a city's golf club, your best and
    * latest score against par, and rounds this month (for who you meet).
@@ -1511,6 +1515,49 @@ export interface Position {
   marks?: { month: number; value: number; source: 'round' | 'model' | 'listed' | 'exit' }[];
 }
 
+/** The deal pipeline (blueprint §6.2, Phase 8). */
+export const PIPELINE_STAGES = [
+  'sourced',
+  'screened',
+  'first-call',
+  'deep',
+  'term-sheet',
+  'negotiation',
+  'closed',
+  'passed',
+] as const;
+export type PipelineStage = (typeof PIPELINE_STAGES)[number];
+export const PASS_REASONS = ['team', 'market', 'traction', 'price', 'fit', 'timing'] as const;
+export type PassReason = (typeof PASS_REASONS)[number];
+
+export interface PipelineEntry {
+  companyId: Id;
+  stage: PipelineStage;
+  /** Home month it was added. */
+  month: number;
+  watch?: boolean;
+  passReason?: PassReason;
+  /** How it came in: a pitch, scouting, a co-investor, the café. */
+  source?: 'pitch' | 'scouting' | 'referral' | 'cafe' | 'manual';
+  /** Claims checked against game data (question id → result). */
+  claims?: Record<string, 'accurate' | 'slightly-off' | 'false'>;
+  /** Reference calls done (home month) and what they said. */
+  references?: { month: number; signals: string[] };
+  /** For watchlist nudges: the last round month seen. */
+  seenRaise?: number;
+}
+
+/** A founder's review of an investor after a round or an ending (Phase 8). */
+export interface InvestorReview {
+  id: Id;
+  founderId: Id;
+  investorId: Id;
+  companyId: Id;
+  rating: number;
+  text: string;
+  month: number;
+}
+
 /** An LP stake offered to another player (Phase 7), with the GP's consent. */
 export interface StakeOffer {
   id: Id;
@@ -1652,6 +1699,8 @@ export interface DealCard {
   expiresMonth: number;
   /** A board or shareholder vote this deal is waiting on (§9). */
   pendingVoteId?: Id | null;
+  /** Investor career Phase 8: an offer in a hot round, compared with others at month end. */
+  hot?: boolean;
   /** For AI counterparties: the most they will concede (hidden from players in views). */
   aiLimit?: {
     minValuation?: number;
@@ -1703,6 +1752,10 @@ export interface Pitch {
   dealId: Id | null;
   /** Amount the founder is raising, local minor units. */
   ask: number;
+  /** Investor career Phase 8: left unanswered past its month (counted once). */
+  ghosted?: boolean;
+  /** Investor career Phase 8: why the investor passed. */
+  passReason?: PassReason;
 }
 
 // ---------------------------------------------------------------- Media
@@ -2135,6 +2188,8 @@ export interface World {
   prorata?: Record<Id, ProRataOffer>;
   /** Investor career Phase 7: LP stakes offered to other players. Missing = none. */
   stakeOffers?: Record<Id, StakeOffer>;
+  /** Investor career Phase 8: founders' reviews of investors. Missing = none. */
+  reviews?: Record<Id, InvestorReview>;
 }
 
 // ---------------------------------------------------------------- Wave 10: a living economy

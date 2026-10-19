@@ -10,7 +10,7 @@ import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { STARTER_EXPENSE_IDS } from './data/ideas.js';
-import { REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
+import { PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
 import { appearanceSchema } from './appearance.js';
 
 const id = z.string().min(1).max(64);
@@ -895,6 +895,29 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('lp.pay'), callId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('lp.delay'), callId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('lp.autopay'), fundId: id, on: z.boolean() }),
+  // ---- investor career Phase 8: deal craft and reputation
+  z.object({ type: z.literal('pipeline.add'), companyId: id, watch: z.boolean().optional() }),
+  z.object({ type: z.literal('pipeline.watch'), companyId: id, on: z.boolean() }),
+  z.object({ type: z.literal('pipeline.pass'), companyId: id, reason: z.enum(PASS_REASONS) }),
+  z.object({
+    type: z.literal('diligence.claim'),
+    companyId: id,
+    questionId: z.string().min(1).max(32),
+  }),
+  z.object({ type: z.literal('diligence.references'), companyId: id }),
+  z.object({
+    type: z.literal('invest.support'),
+    companyId: id,
+    kind: z.enum(['customers', 'hires', 'investors']),
+  }),
+  z.object({ type: z.literal('invest.scout') }),
+  z.object({
+    type: z.literal('review.investor'),
+    investorId: id,
+    companyId: id,
+    rating: z.number().int().min(1).max(5),
+    text: z.string().max(200),
+  }),
   // ---- investor career Phase 7: allocators
   z.object({ type: z.literal('fof.commit'), fundId: id, targetFundId: id, amount: money }),
   z.object({ type: z.literal('fund.lpac'), fundId: id, companyId: id }),

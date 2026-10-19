@@ -485,6 +485,13 @@ export function tutorialCommand(
       'Pick a startup in your city.',
     );
     t.shortlist = companyId;
+    // The café's pick starts your pipeline (Phase 8).
+    (me.pipeline ??= {})[companyId] ??= {
+      companyId,
+      stage: 'screened',
+      month: homeMonth(world, me),
+      source: 'cafe',
+    };
   } else {
     ensure(
       step === 'investable' || step === 'portfolio' || step === 'ladder',

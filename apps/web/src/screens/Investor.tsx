@@ -19,6 +19,7 @@ import { Syndicates } from './Syndicates';
 import { FundConsole, LpPortfolio, lpFundsOf } from './Funds';
 import { FirmScreen } from './Firm';
 import { FamilyOffice } from './FamilyOffice';
+import { PipelineScreen } from './Pipeline';
 import { ProRataOffers, positionStatusText } from './FundOps';
 import { SimpleLink } from './SimpleLink';
 
@@ -165,6 +166,28 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
   return (
     <Sheet title={c.name} onClose={onClose}>
       <p>{tx(c.idea)}</p>
+      {careerOf(view) && (
+        <div className="row">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              void send({ type: 'pipeline.add', companyId: c.id }, t('Added to your pipeline.'))
+            }
+          >
+            {t('Shortlist')}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              void send({ type: 'pipeline.add', companyId: c.id, watch: true }, t('Watching.'))
+            }
+          >
+            {t('Watch')}
+          </Button>
+        </div>
+      )}
       <p className="small muted">
         {t('{founders} · {age} months old · {n} people', {
           founders: c.founders.map((f) => f.name).join(', '),
@@ -358,6 +381,7 @@ export function Portfolio() {
       <h1>{t('Portfolio')}</h1>
       <InvestorFirstSession />
       <InvestorSections tab={section} onTab={setSection} />
+      {section === 'pipeline' && <PipelineScreen />}
       {section === 'markets' && <Exchange />}
       {section === 'syndicates' && <Syndicates />}
       {section === 'fund' && <FundConsole />}

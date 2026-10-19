@@ -30,6 +30,7 @@ import { settleExchange } from './exchange.js';
 import { settleSyndicates } from './syndicates.js';
 import { settleLpFunds } from './lpfunds.js';
 import { settleFirms } from './firms.js';
+import { settleDealCraft } from './dealcraft.js';
 import { settleFundOps, settlePositionMarks } from './fundops.js';
 import { settleVotes } from './governance.js';
 import { aiBanking, settleBanks } from './banks.js';
@@ -196,6 +197,8 @@ export function settleMarket(
   settleVotes(world, marketId, month);
   settleDisputes(world, marketId, month);
   refreshTalent(world, marketId, rng);
+  // Investor career Phase 8: ghosting, watchlists, inbound pitches by reputation, hot rounds.
+  settleDealCraft(world, marketId, month);
   expireDeals(world, marketId);
   // Wave 10: last month's pitch competitions are judged; this month's is announced.
   resolveCompetitions(world, marketId, month);

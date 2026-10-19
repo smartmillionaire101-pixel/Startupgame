@@ -17,6 +17,7 @@ import { markValue } from './captable.js';
 import { checkPersonalCap } from './career.js';
 import { INVESTOR } from './data/investor.js';
 import { aiRespond, openDeal } from './deals.js';
+import { isHotRound } from './dealcraft.js';
 import { ensure } from './errors.js';
 import { activeAngels } from './angels.js';
 import { recordRealised } from './exits.js';
@@ -339,7 +340,9 @@ function offer(world: World, s: Syndicate) {
   });
   s.status = 'offered';
   s.dealId = deal.id;
-  if (c.ai) aiRespond(world, deal);
+  // A hot round compares every offer at month end (Phase 8).
+  if (c.ai && isHotRound(world, c)) deal.hot = true;
+  else if (c.ai) aiRespond(world, deal);
   // AI founders answer at once: a decline releases everyone's money.
   if (deal.status === 'declined') failSyndicate(world, s, `${c.name} passed`);
   const status = s.status as Syndicate['status'];
