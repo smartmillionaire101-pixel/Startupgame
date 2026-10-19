@@ -185,20 +185,20 @@ export class RoadIndex {
     });
   }
 
-  /** The nearest road segment within r: its direction (radians) and distance. */
+  /** The nearest road segment within r: its direction (radians), distance, class and closest point. */
   nearest(
     x: number,
     y: number,
     r: number,
     maxClass = 5,
-  ): { angle: number; d: number; c: number } | null {
-    let best: { angle: number; d: number; c: number } | null = null;
+  ): { angle: number; d: number; c: number; x: number; y: number } | null {
+    let best: { angle: number; d: number; c: number; x: number; y: number } | null = null;
     this.near(this.grid, x, y, r, (n) => {
       const s = this.segs[n]!;
       if (s.c > maxClass) return;
-      const d = segDist(x, y, s.ax, s.ay, s.bx, s.by).d;
-      if (d < r && (!best || d < best.d))
-        best = { angle: Math.atan2(s.by - s.ay, s.bx - s.ax), d, c: s.c };
+      const h = segDist(x, y, s.ax, s.ay, s.bx, s.by);
+      if (h.d < r && (!best || h.d < best.d))
+        best = { angle: Math.atan2(s.by - s.ay, s.bx - s.ax), d: h.d, c: s.c, x: h.x, y: h.y };
     });
     return best;
   }
@@ -226,5 +226,5 @@ export function segDist(px: number, py: number, ax: number, ay: number, bx: numb
   const t = l2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
   const x = ax + t * dx;
   const y = ay + t * dy;
-  return { d: Math.hypot(px - x, py - y), t };
+  return { d: Math.hypot(px - x, py - y), t, x, y };
 }

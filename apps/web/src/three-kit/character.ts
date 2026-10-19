@@ -237,6 +237,7 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
     // Seen through buildings, so you never lose yourself.
     ring.position.y = 0.04;
     ring.renderOrder = 10;
+    ring.name = 'ring';
     root.add(ring);
   }
   const pose = (walk: number, phase: number) => {

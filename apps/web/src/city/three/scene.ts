@@ -544,6 +544,7 @@ export class CityScene {
     this.layout = layout;
     this.geo = layout.geo;
     this.buildPlaces();
+    this.actors.setPlaces(layout.places);
     this.invalidate();
     return true;
   }

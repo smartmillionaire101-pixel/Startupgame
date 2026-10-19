@@ -13,7 +13,7 @@ import { t } from '../../i18n';
 import { avatarPosIn, placeAvatarAt, useReducedMotion, type CityMapProps } from '../CityMap';
 import { CATEGORY_COLOR } from '../contract';
 import { OSM_CREDIT } from '../geo';
-import { geoTile } from '../geoLayout';
+import { GEO_TILE_M, geoTile } from '../geoLayout';
 import {
   findPath,
   nearestStreetPoint,
@@ -28,6 +28,7 @@ import { setRiding } from '../riding';
 import { beginRide } from '../ride/state';
 import { localHour, rideMs, rideVehicle, SHORT_HOP, type RideMode } from '../travel';
 import type { VehicleSpec } from '../flavour';
+import { personScale } from './actors';
 import { CityScene, type Tier } from './scene';
 import type { PropertyTier } from '../properties';
 
@@ -397,7 +398,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       const done = () => {
         scene?.end();
         if (driving) {
-          sceneRef.current?.actors.setDriving(0);
+          sceneRef.current?.actors.setDriving(false);
           sceneRef.current?.endChase();
           setDriving(false);
         }
@@ -419,23 +420,57 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       const s3 = sceneRef.current;
       s3?.actors.setWalking(true);
       if (s3) s3.following = true;
+      // The path runs along the road centre lines: on foot you take the
+      // pavement, in a vehicle your lane.
+      const street = s3 ? s3.actors.streetPath(path, mode === 'walk' ? 'walk' : 'lane') : path;
+      const ms = scene?.ms ?? rideMs(mode, len);
+      // Driving: metres to go, and the pace that takes about the trip's time.
+      const metres = pathLength(street) * GEO_TILE_M;
+      const cruise = (metres / Math.max(0.5, ms / 1000)) * 1.15;
       if (driving && s3) {
         // Keep to your lane, the camera behind you.
-        s3.actors.setDriving(2.2, path);
+        s3.actors.setDriving(true, path, cruise);
         if (!reduced) s3.startChase();
         setDriving(true);
       }
-      const ms = scene?.ms ?? rideMs(mode, len);
       const t0 = performance.now();
+      let last = t0;
+      let gone = 0;
+      let v = 0;
       let cancelled = false;
       const step = (now: number) => {
         if (cancelled) return;
-        const k = scene?.skipped() ? 1 : Math.min(1, (now - t0) / ms);
-        const eased = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-        const { p, dx, dy } = pointAlong(path, eased);
+        let f: number;
+        if (driving && !scene?.skipped() && now - t0 < ms * 3) {
+          // Your own car: up to speed, easing into the stop at the end, and
+          // never into the car in front (it slows and waits behind it). A
+          // trip held up twice as long as planned goes on regardless (and
+          // at three times, you're simply there). Short steps, so a slow
+          // frame (a software GPU) still keeps to the clock.
+          const lead = reduced || now - t0 > ms * 2 ? null : s3?.actors.leadAhead();
+          let room = lead ? Math.max(0, lead.gap - 2.5) : Infinity;
+          for (let left = Math.min(1, (now - last) / 1000); left > 1e-4; left -= 0.05) {
+            const dt = Math.min(0.05, left);
+            let want = Math.min(cruise, Math.sqrt(2 * (cruise / 1.2) * (metres - gone)) + 1);
+            if (lead) want = Math.min(want, Math.max(0, lead.v + room * 2));
+            v += Math.max(-cruise * 2.5 * dt, Math.min(cruise * 0.9 * dt, want - v));
+            if (v < 0) v = 0;
+            const move = Math.min(v * dt, room, metres - gone);
+            gone += move;
+            // The car in front moves on meanwhile.
+            room += (lead?.v ?? 0) * dt - move;
+          }
+          f = metres > 0 ? gone / metres : 1;
+          if (metres - gone < 0.05) f = 1;
+        } else {
+          const k = scene?.skipped() ? 1 : Math.min(1, (now - t0) / ms);
+          f = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        }
+        last = now;
+        const { p, dx, dy } = pointAlong(street, f);
         pos.current = p;
         placeAvatar(p, dx, dy);
-        if (k < 1) walk.current!.raf = requestAnimationFrame(step);
+        if (f < 1) walk.current!.raf = requestAnimationFrame(step);
         else done();
       };
       walk.current = {
@@ -444,7 +479,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
           cancelled = true;
           scene?.end();
           if (driving) {
-            sceneRef.current?.actors.setDriving(0);
+            sceneRef.current?.actors.setDriving(false);
             sceneRef.current?.endChase();
             setDriving(false);
           }
@@ -751,7 +786,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       const tag = tagRef.current;
       if (tag) {
         const a = s.actors.avatarPos();
-        const grow = Math.max(1, Math.min(9, d / 140));
+        const grow = personScale(d);
         s.project(a.x, a.h + 2.3 * grow, a.y, out);
         tag.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
         tag.hidden = out.z >= 1;
