@@ -93,9 +93,12 @@ test('landing in London with a hotel: a 3D room with a bathroom, no Fly home in 
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/arrived-${pick.tier}.png` });
 
   // Sleep after the flight: you walk to the bed and rest (the home's own act).
+  // (The walk is paced by frames and the clock is fixed here, so each frame is
+  // a fixed 16 ms: under a software renderer on CI that's a minute's walk.
+  // Reduced motion walks and rests at once.)
+  await page.evaluate(() => (document.documentElement.dataset.reduceMotion = '1'));
   await tray.locator('[data-action="hotel-sleep"]').click();
-  // (Walking to the bed is frame-paced: slow under a software renderer on CI.)
-  await expect(room.locator('.home-float').first()).toBeAttached({ timeout: 60_000 });
+  await expect(room.locator('.home-float').first()).toBeAttached({ timeout: 30_000 });
 
   // Flying home is under More.
   await tray.locator('[data-action="more"]').click();
