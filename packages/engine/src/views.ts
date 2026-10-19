@@ -1,6 +1,7 @@
 import { careerView } from './career.js';
 import { exchangeView } from './exchange.js';
 import { syndicatesView } from './syndicates.js';
+import { lpFundsView } from './lpfunds.js';
 import { barEffects, barsOf } from './lifebars.js';
 import { lifeBarsOn } from './releases.js';
 import { pitchQuestionsNow } from './fundraising.js';
@@ -703,6 +704,8 @@ export function playerView(
     exchange: exchangeView(world, p, clock?.now),
     /** Investor career Phase 3: syndicates you lead, backed, or can back. */
     syndicates: syndicatesView(world, p),
+    /** Investor career Phase 4: funds you run (LP book), funds you can join, your calls. */
+    lpFunds: lpFundsView(world, p),
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */
     recap: p.ai ? null : recapView(world, p.id),
     /** Founder Journey 4a: decision events waiting for you, and the last few answered. */

@@ -146,7 +146,9 @@ export interface RungRequirement {
 
 /** Funds this player runs (Fund I, Fund II, strategy funds…). */
 export const managedFunds = (world: World, p: Player): Fund[] =>
-  Object.values(world.funds).filter((f) => f.managerId === p.id && !f.ai);
+  Object.values(world.funds).filter(
+    (f) => f.managerId === p.id && !f.ai && f.lp?.stage !== 'raising' && f.lp?.stage !== 'failed',
+  );
 
 const fundDpi = (world: World, f: Fund) => {
   const paid = paidIn(world, f);

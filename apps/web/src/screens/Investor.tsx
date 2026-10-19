@@ -16,6 +16,7 @@ import {
 } from './InvestorCareer';
 import { Exchange } from './Exchange';
 import { Syndicates } from './Syndicates';
+import { FundConsole, LpPortfolio } from './Funds';
 import { SimpleLink } from './SimpleLink';
 
 const companyStatusLabel = (x: string) =>
@@ -332,6 +333,8 @@ export function Portfolio() {
       <InvestorSections tab={section} onTab={setSection} />
       {section === 'markets' && <Exchange />}
       {section === 'syndicates' && <Syndicates />}
+      {section === 'fund' && <FundConsole />}
+      {section === 'lp' && <LpPortfolio />}
       {section === 'overview' && (
         <>
           <InvestorPrompts />

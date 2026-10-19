@@ -296,6 +296,12 @@ export interface Player {
   /** Investor career (investor blueprint §2–3): the ladder, invitations, first session. Missing = none. */
   career?: InvestorCareer;
   /**
+   * Investor career Phase 4: as a limited partner. LP diligence done per fund
+   * (home month), and the month a missed capital call's ban on new
+   * commitments ends. Missing = none.
+   */
+  lp?: { diligence?: Record<Id, number>; banUntil?: number };
+  /**
    * Golf (leisure.ts): rounds played at a city's golf club, your best and
    * latest score against par, and rounds this month (for who you meet).
    * Missing = never played.
@@ -1362,6 +1368,10 @@ export interface LpCommitment {
   month: number;
   status: 'committed' | 'defaulted' | 'released' | 'sold';
   anchor?: boolean;
+  /** Pay capital calls automatically when they fall due (player LPs). */
+  autopay?: boolean;
+  /** A call delayed once already (player LPs may ask for one short delay per call). */
+  delayed?: Id[];
   /** Catch-up paid by a late LP (to the fund, for earlier LPs). */
   catchUp?: number;
 }

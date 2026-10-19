@@ -31,6 +31,7 @@
  * the new 'programs' RNG label. Money moves only through the ledger
  * (external LP and supplier accounts on the outside), so it is conserved.
  */
+import { aiLpCommit } from './lpfunds.js';
 import {
   ACCELERATORS,
   COHORT_MONTHS,
@@ -796,6 +797,11 @@ export function devPartnersView(world: World, viewer: Player, m: MarketState) {
 // ---------------------------------------------------------------- LPs
 
 function lpBar(world: World, lp: LpSeed, manager: Player, fund: Fund): Fit {
+  // Investor career: pension and sovereign money backs Fund II and later (§8.2).
+  if (fund.lp && fund.lp.number < 2 && (lp.kind === 'pension' || lp.kind === 'sovereign'))
+    return { ok: false, reason: 'They only back a manager’s second fund or later.' };
+  if (fund.lp && (fund.lp.stage === 'failed' || fund.lp.stage === 'wound-down'))
+    return { ok: false, reason: 'That fund is closed.' };
   const record = trackRecord(world, [manager.id, fund.id]);
   if (record.deals < lp.minDeals)
     return {
@@ -807,10 +813,13 @@ function lpBar(world: World, lp: LpSeed, manager: Player, fund: Fund): Fit {
   return { ok: true, reason: '' };
 }
 
-export function pitchLp(world: World, me: Player, lpId: Id) {
+export function pitchLp(world: World, me: Player, lpId: Id, fundId?: Id) {
   const found = findLp(lpId);
   ensure(found, 'lp.missing', 'LP not found.');
-  const fund = managedFund(world, me);
+  // Investor career: pitch for a named fund you run (a fund raising now, Fund II…).
+  const named = fundId ? world.funds[fundId] : undefined;
+  ensure(!fundId || named?.managerId === me.id, 'lp.fund', 'Pitch for a fund you run.');
+  const fund = named ?? managedFund(world, me);
   ensure(fund, 'lp.fund', 'LPs back funds. Raise your Fund I first.');
   const m = getMarket(world, found.market);
   ensure(
@@ -886,15 +895,11 @@ function decideLp(world: World, app: CapitalApplication, m: MarketState, month: 
     );
   const usd = lp.ticketUsd[0] + (lp.ticketUsd[1] - lp.ticketUsd[0]) * clamp01((score - 0.5) / 0.4);
   const commitment = usdToLocal(world, m, usd);
-  const received = pay(
-    world,
-    m.ext.lps,
-    fund.account,
-    commitment,
-    `LP commitment: ${lp.name}`,
-    month,
-  );
-  fund.size += received;
+  // Investor career Phase 4: a fund with an LP book records the commitment (paid at its close).
+  const received = fund.lp
+    ? aiLpCommit(world, fund, lp, commitment, month)
+    : pay(world, m.ext.lps, fund.account, commitment, `LP commitment: ${lp.name}`, month);
+  if (!fund.lp) fund.size += received;
   app.status = 'accepted';
   app.decidedMonth = month;
   app.amount = received;

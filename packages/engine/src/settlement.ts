@@ -28,6 +28,7 @@ import { settleFundFees } from './funds.js';
 import { payDividends } from './travel.js';
 import { settleExchange } from './exchange.js';
 import { settleSyndicates } from './syndicates.js';
+import { settleLpFunds } from './lpfunds.js';
 import { settleVotes } from './governance.js';
 import { aiBanking, settleBanks } from './banks.js';
 import { settleDisputes } from './arbitration.js';
@@ -149,6 +150,8 @@ export function settleMarket(
   settlePrograms(world, marketId, month);
   // Investor career Phase 3: syndicates close, offer, refund or pay out (own RNG stream).
   settleSyndicates(world, marketId, month);
+  // Investor career Phase 4: funds with an LP book: closes, capital calls, defaults.
+  settleLpFunds(world, marketId, month);
   for (const f of Object.values(world.funds)) {
     if (f.market !== marketId) continue;
     updateFundMood(world, f);

@@ -10,6 +10,7 @@ import { achieve, getMarket, notify, usdToLocal } from './helpers.js';
 import { newId } from './ids.js';
 import { account, openAccount, pay, transfer, valueIn } from './ledger.js';
 import { investorOn } from './releases.js';
+import { distributeLpFund, lpFeeRate } from './lpfunds.js';
 import { clamp, roundTo } from './math.js';
 import { formatMoney } from './money.js';
 import { newStars } from './stars.js';
@@ -186,14 +187,18 @@ export function settleFundFees(world: World, f: Fund, month: number) {
   if (f.ai || !f.managerId) return;
   const manager = world.players[f.managerId];
   if (!manager) return;
+  // Investor career: a fund raised the full way pays from its first close, stepping down later.
+  if (f.lp && f.lp.stage !== 'investing' && f.lp.stage !== 'harvest' && f.lp.stage !== 'extended')
+    return;
   const m = getMarket(world, f.market);
-  const fee = Math.round((f.size * f.feeRate) / 12);
+  const fee = Math.round((f.size * lpFeeRate(world, f)) / 12);
   // Tax is withheld where the fund is; the rest reaches the manager (converted if they relocated).
   const paid = Math.min(fee, account(world, f.account).balance);
   const tax = Math.round(paid * m.data.tax.personalIncome);
   transfer(world, f.account, m.ext.tax, tax, 'Personal income tax (withheld)', month);
   pay(world, f.account, manager.accounts.local, paid - tax, 'Management fee', month);
   manager.lastMonth.income += paid;
+  if (f.lp) f.lp.feesPaid += paid;
 }
 
 /**
@@ -201,6 +206,8 @@ export function settleFundFees(world: World, f: Fund, month: number) {
  * money back first, then the manager earns carry on profits.
  */
 export function distributeFund(world: World, f: Fund, proceeds: number, month: number) {
+  // Investor career Phase 4: a fund with an LP book pays every LP pro rata, then carry.
+  if (f.lp) return distributeLpFund(world, f, proceeds, month);
   if (f.ai || !f.managerId) return;
   const m = getMarket(world, f.market);
   const before = f.distributed;

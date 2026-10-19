@@ -760,7 +760,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('accelerator.apply'), acceleratorId: id, companyId: id }),
   z.object({ type: z.literal('grant.apply'), partnerId: id, programId: id, companyId: id }),
   /** A player-run fund pitches an LP in the city you're in. */
-  z.object({ type: z.literal('lp.pitch'), lpId: id }),
+  z.object({ type: z.literal('lp.pitch'), lpId: id, fundId: id.optional() }),
   // ---- the investor career (investor blueprint, Phase 1)
   /** Accept or decline an invitation up the ladder (a co-lead or an anchor LP). */
   z.object({ type: z.literal('career.invitation'), invitationId: id, accept: z.boolean() }),
@@ -867,6 +867,31 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('shares.cancel'), orderId: id }),
   /** The city index fund: buy `amount` of the city's currency, or sell bps of your units. */
+  // ---- investor career Phase 4: raising a fund with player LPs
+  z.object({
+    type: z.literal('fund.launch'),
+    sectors: z.array(industry).min(1).max(INDUSTRIES.length),
+    stages: z.array(z.enum(STAGES)).min(1).max(STAGES.length),
+    checkSize: money,
+    why: z.string().min(10).max(200),
+    strategy: z.enum(['seed', 'growth', 'public', 'impact', 'fof']),
+    target: money,
+    minCommit: money,
+    feeRate: z.number().min(0).max(0.05),
+    carry: z.number().min(0).max(0.5),
+    hurdle: z.number().min(0).max(0.2),
+    gpCommit: z.number().min(0).max(0.1),
+    termMonths: z.number().int().min(1).max(240),
+    investMonths: z.number().int().min(1).max(240),
+    keyPerson: z.boolean(),
+  }),
+  z.object({ type: z.literal('fund.close'), fundId: id }),
+  z.object({ type: z.literal('fund.abandon'), fundId: id }),
+  z.object({ type: z.literal('lp.commit'), fundId: id, amount: money }),
+  z.object({ type: z.literal('lp.diligence'), fundId: id }),
+  z.object({ type: z.literal('lp.pay'), callId: z.string().min(1).max(200) }),
+  z.object({ type: z.literal('lp.delay'), callId: z.string().min(1).max(200) }),
+  z.object({ type: z.literal('lp.autopay'), fundId: id, on: z.boolean() }),
   // ---- investor career Phase 3: syndicates
   z.object({
     type: z.literal('syndicate.open'),

@@ -47,7 +47,11 @@ export const INVESTOR = {
   penalties: {
     /** Missing a capital call: share of paid-in forfeited, credit points lost, months barred. */
     missedCallForfeit: 0.25,
-    missedCallCredit: 50,
+    /**
+     * The blueprint's "−50 points" is on a 300–850 scale; Runway's credit
+     * score is 0–100, where one default on the record costs 18 points.
+     */
+    missedCallCredit: 18,
     missedCallBanMonths: 6,
     /** Founder trust lost for each pitch left unanswered by the end of its month. */
     ghostTrust: 0.05,

@@ -57,6 +57,16 @@ import {
 } from './exits.js';
 import { exitsOn, investorOn, lifeBarsOn } from './releases.js';
 import { backSyndicate, cancelSyndicate, closeSyndicate, openSyndicate } from './syndicates.js';
+import {
+  abandonFund,
+  closeFund,
+  commitToFund,
+  delayCall,
+  launchFund,
+  lpDiligence,
+  payCall,
+  setAutopay,
+} from './lpfunds.js';
 import { buyIndex, cancelOrder, ensureExchange, placeOrder, sellIndex } from './exchange.js';
 import {
   answerInvitation,
@@ -1332,7 +1342,23 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'grant.apply':
       return applyGrant(world, me, cmd.partnerId, cmd.programId, cmd.companyId);
     case 'lp.pitch':
-      return pitchLp(world, me, cmd.lpId);
+      return pitchLp(world, me, cmd.lpId, cmd.fundId);
+    case 'fund.launch':
+      return launchFund(world, me, cmd);
+    case 'fund.close':
+      return closeFund(world, me, cmd.fundId);
+    case 'fund.abandon':
+      return abandonFund(world, me, cmd.fundId);
+    case 'lp.commit':
+      return commitToFund(world, me, cmd.fundId, cmd.amount);
+    case 'lp.diligence':
+      return lpDiligence(world, me, cmd.fundId);
+    case 'lp.pay':
+      return payCall(world, me, cmd.callId);
+    case 'lp.delay':
+      return delayCall(world, me, cmd.callId);
+    case 'lp.autopay':
+      return setAutopay(world, me, cmd.fundId, cmd.on);
     case 'career.invitation':
       return answerInvitation(world, me, cmd.invitationId, cmd.accept);
     case 'investor.tutorial':
