@@ -114,10 +114,11 @@ test('an investor buys shares on the stock market', async ({ page, browser }) =>
   const phone = p.getByRole('dialog', { name: 'Phone' });
   await phone.locator('[data-app="capital"]').click();
   await expect(phone.locator('[data-phone-app="capital"]')).toBeVisible();
-  // Not a founder: the hub opens on the stock market.
-  await expect(phone.getByRole('heading', { name: /Stock market/ })).toBeVisible();
-  const row = phone.locator('[data-listed]').first();
+  // Not a founder: the hub opens on the city's exchange (the investor career).
+  await expect(phone.getByRole('heading', { name: /exchange/ })).toBeVisible();
+  const row = phone.locator('[data-listing]').first();
   await expect(row).toBeVisible();
+  await row.getByRole('button', { name: 'Trade' }).click();
   await row.getByLabel('Amount to invest').fill('100k');
   await row.getByRole('button', { name: /^Buy about/ }).click();
   await expect(p.getByText(/Bought [\d,]+ shares\./)).toBeVisible();
