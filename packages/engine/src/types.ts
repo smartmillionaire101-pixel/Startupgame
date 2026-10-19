@@ -1554,7 +1554,7 @@ export type DealTerms =
 
 export interface PartyRef {
   /** 'bank' is the market's AI bank (id = market); 'playerbank' is a player-owned bank (id = bank id). */
-  kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company' | 'playerbank';
+  kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company' | 'playerbank' | 'syndicate';
   id: Id;
   /** For 'bank': the named AI lender in that market (absent: the market's default bank). */
   lenderId?: Id;

@@ -27,6 +27,7 @@ import { settleEconomy } from './economy.js';
 import { settleFundFees } from './funds.js';
 import { payDividends } from './travel.js';
 import { settleExchange } from './exchange.js';
+import { settleSyndicates } from './syndicates.js';
 import { settleVotes } from './governance.js';
 import { aiBanking, settleBanks } from './banks.js';
 import { settleDisputes } from './arbitration.js';
@@ -146,6 +147,8 @@ export function settleMarket(
   angelsInvest(world, marketId, month);
   // Accelerators, grants and LPs decide; mentoring, demo days, grant reports (Wave 5).
   settlePrograms(world, marketId, month);
+  // Investor career Phase 3: syndicates close, offer, refund or pay out (own RNG stream).
+  settleSyndicates(world, marketId, month);
   for (const f of Object.values(world.funds)) {
     if (f.market !== marketId) continue;
     updateFundMood(world, f);

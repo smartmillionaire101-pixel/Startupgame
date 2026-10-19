@@ -867,6 +867,21 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('shares.cancel'), orderId: id }),
   /** The city index fund: buy `amount` of the city's currency, or sell bps of your units. */
+  // ---- investor career Phase 3: syndicates
+  z.object({
+    type: z.literal('syndicate.open'),
+    companyId: id,
+    leadAmount: money,
+    target: money,
+    carry: z.number().min(0).max(0.5),
+    instrument: z.enum(['safe', 'priced']),
+    valuation: money,
+    proRata: z.boolean(),
+    boardSeat: z.boolean(),
+  }),
+  z.object({ type: z.literal('syndicate.back'), syndicateId: id, amount: money }),
+  z.object({ type: z.literal('syndicate.close'), syndicateId: id }),
+  z.object({ type: z.literal('syndicate.cancel'), syndicateId: id }),
   z.object({ type: z.literal('index.buy'), market, amount: money }),
   z.object({ type: z.literal('index.sell'), market, pctBps: z.number().int().min(1).max(10_000) }),
   z.object({

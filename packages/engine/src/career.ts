@@ -91,6 +91,26 @@ export function angelCap(world: World, p: Player): number {
 export const needsLead = (stage: Stage) => INVESTOR.caps.leadStages.includes(stage);
 
 /**
+ * The cap on any personal cheque (an angel deal, a syndicate allocation),
+ * `amount` in `currency`; investor-career worlds only.
+ */
+export function checkPersonalCap(world: World, p: Player, currency: string, amount: number) {
+  if (!investorOn(world) || p.ai) return;
+  const home = getMarket(world, p.market);
+  const cost = costIn(world, amount, currency as never, home.data.currency);
+  const cap = angelCap(world, p);
+  const t = p.career?.tutorial;
+  const firstSession = !!t && !t.doneMonth && !t.skipped;
+  ensure(
+    cost <= cap,
+    'invest.cap',
+    firstSession
+      ? `Your first cheque is capped at ${formatMoney(cap, home.data.currency)} (a tenth of what you can invest), so one deal can’t sink you.`
+      : `One angel cheque is capped at ${formatMoney(cap, home.data.currency)}, a tenth of your liquid net worth. Bigger cheques need a syndicate or a fund.`,
+  );
+}
+
+/**
  * The angel ceiling, checked on every personal cheque in investor-career
  * worlds: at most a share of liquid net worth (less in the first session),
  * and no lone angel cheque into a Series A or later round.
@@ -109,18 +129,7 @@ export function checkAngelCheque(
     'invest.lead',
     `${c.name} is raising a ${stage.replace('-', ' ')} round: it needs a lead. Lead a syndicate or invest from your fund.`,
   );
-  const home = getMarket(world, p.market);
-  const cost = costIn(world, amount, m.data.currency, home.data.currency);
-  const cap = angelCap(world, p);
-  const t = p.career?.tutorial;
-  const firstSession = !!t && !t.doneMonth && !t.skipped;
-  ensure(
-    cost <= cap,
-    'invest.cap',
-    firstSession
-      ? `Your first cheque is capped at ${formatMoney(cap, home.data.currency)} (a tenth of what you can invest), so one deal can’t sink you.`
-      : `One angel cheque is capped at ${formatMoney(cap, home.data.currency)}, a tenth of your liquid net worth. Bigger cheques need a syndicate or a fund.`,
-  );
+  checkPersonalCap(world, p, m.data.currency, amount);
 }
 
 // ---------------------------------------------------------------- the ladder

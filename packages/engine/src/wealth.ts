@@ -5,6 +5,7 @@
  * the market price (listed), and listed shares under lock-up are illiquid.
  */
 import { indexHolderId, indexNav } from './exchange.js';
+import { syndicateStake } from './syndicates.js';
 import { propertiesOf, priceOf } from './property.js';
 import { getMarket } from './helpers.js';
 import { valueIn } from './ledger.js';
@@ -55,6 +56,23 @@ export function wealthView(world: World, p: Player) {
       price: Math.round(price * 100) / 100,
       currency: m.data.currency,
       lockedUntil: kind === 'locked' ? lockedUntil : null,
+    });
+  }
+  // Investor career: your share of each syndicate you're in, at its mark (private).
+  for (const s of Object.values(world.syndicates ?? {})) {
+    if (s.leadId !== p.id && !s.backers.some((b) => b.playerId === p.id)) continue;
+    const v = syndicateStake(world, s, p.id);
+    if (v <= 0) continue;
+    const sm = getMarket(world, s.market);
+    items.push({
+      companyId: s.id,
+      name: s.name,
+      kind: 'private',
+      shares: 0,
+      value: valueIn(world, v, sm.data.currency, cur),
+      price: 0,
+      currency: sm.data.currency,
+      lockedUntil: null,
     });
   }
   // Investor career: city index fund units, sellable any month.

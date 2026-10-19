@@ -6,6 +6,7 @@
  */
 import { addSafe, closePricedRound, fullyDiluted, waterfall } from './captable.js';
 import type { WaterfallLine } from './captable.js';
+import { distributeSyndicate, syndicateInvested } from './syndicates.js';
 import { ensure, fail } from './errors.js';
 import { achieve, adjustTrust, holderAccount, getCompany, getMarket, notify } from './helpers.js';
 import { newId } from './ids.js';
@@ -142,6 +143,8 @@ export function partyName(world: World, p: PartyRef): string {
       return world.banks[p.id]?.name ?? 'The bank';
     case 'corporate':
       return p.id;
+    case 'syndicate':
+      return world.syndicates?.[p.id]?.name ?? 'A syndicate';
   }
 }
 
@@ -155,6 +158,7 @@ export function humanFor(world: World, p: PartyRef): Id | null {
     return c.founderIds.find((f) => !world.players[f]?.ai) ?? null;
   }
   if (p.kind === 'playerbank') return world.banks[p.id]?.ownerId ?? null;
+  if (p.kind === 'syndicate') return world.syndicates?.[p.id]?.leadId ?? null;
   return null;
 }
 
@@ -163,6 +167,7 @@ export function canAct(world: World, actorId: Id, p: PartyRef): boolean {
   if (p.kind === 'fund') return world.funds[p.id]?.managerId === actorId;
   if (p.kind === 'company') return !!world.companies[p.id]?.founderIds.includes(actorId);
   if (p.kind === 'playerbank') return world.banks[p.id]?.ownerId === actorId;
+  if (p.kind === 'syndicate') return world.syndicates?.[p.id]?.leadId === actorId;
   return false;
 }
 
@@ -504,6 +509,11 @@ export function partyAccount(world: World, p: PartyRef): Id {
       return world.banks[p.id]!.account;
     case 'corporate':
       return fail('deal.party', 'AI corporates pay through the exit waterfall.');
+    case 'syndicate': {
+      const s = world.syndicates?.[p.id];
+      ensure(s, 'syndicate.missing', 'Syndicate not found.');
+      return s.account;
+    }
   }
 }
 
@@ -636,7 +646,11 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
           ? world.players[investor.id]
           : investor.kind === 'fund' && world.funds[investor.id]?.managerId
             ? world.players[world.funds[investor.id]!.managerId!]
-            : undefined;
+            : investor.kind === 'syndicate'
+              ? world.players[world.syndicates?.[investor.id]?.leadId ?? '']
+              : undefined;
+      // Investor career Phase 3: a syndicate's money is in; refund what the round didn't take.
+      if (investor.kind === 'syndicate') syndicateInvested(world, investor.id, t.amount, m.month);
       if (investorPlayer && !investorPlayer.ai) {
         achieve(world, investorPlayer, 'investor.first-check', 'First cheque', m.month);
         if (followOn)
@@ -803,6 +817,9 @@ export function settleExit(
       // Parent companies, banks holding seized shares, staff and other AI holders.
       const to = holderAccount(world, m, line.holderId);
       pay(world, m.ext.lps, to, line.total, `Exit payout: ${c.name}`, m.month);
+      // A syndicate pays its members at once (investor career Phase 3).
+      const syn = world.syndicates?.[line.holderId];
+      if (syn) distributeSyndicate(world, syn, m.month);
     }
   }
   c.status = status;

@@ -56,6 +56,7 @@ import {
   sellShares,
 } from './exits.js';
 import { exitsOn, investorOn, lifeBarsOn } from './releases.js';
+import { backSyndicate, cancelSyndicate, closeSyndicate, openSyndicate } from './syndicates.js';
 import { buyIndex, cancelOrder, ensureExchange, placeOrder, sellIndex } from './exchange.js';
 import {
   answerInvitation,
@@ -1193,6 +1194,14 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return placeOrder(world, me, cmd);
     case 'shares.cancel':
       return cancelOrder(world, me, cmd.orderId);
+    case 'syndicate.open':
+      return openSyndicate(world, me, cmd);
+    case 'syndicate.back':
+      return backSyndicate(world, me, cmd.syndicateId, cmd.amount);
+    case 'syndicate.close':
+      return closeSyndicate(world, me, cmd.syndicateId);
+    case 'syndicate.cancel':
+      return cancelSyndicate(world, me, cmd.syndicateId);
     case 'index.buy':
       return buyIndex(world, me, cmd.market, cmd.amount);
     case 'index.sell':

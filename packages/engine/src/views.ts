@@ -1,5 +1,6 @@
 import { careerView } from './career.js';
 import { exchangeView } from './exchange.js';
+import { syndicatesView } from './syndicates.js';
 import { barEffects, barsOf } from './lifebars.js';
 import { lifeBarsOn } from './releases.js';
 import { pitchQuestionsNow } from './fundraising.js';
@@ -337,12 +338,15 @@ function dealView(world: World, d: DealCard, viewerId: Id) {
             ? ((p.lenderId
                 ? getMarket(world, p.id as MarketId).lenders?.[p.lenderId]?.name
                 : undefined) ?? getMarket(world, p.id as MarketId).bankName)
-            : p.id;
+            : p.kind === 'syndicate'
+              ? world.syndicates?.[p.id]?.name
+              : p.id;
   const mine = (p: DealCard['proposer']) =>
     (p.kind === 'player' && p.id === viewerId) ||
     (p.kind === 'fund' && world.funds[p.id]?.managerId === viewerId) ||
     (p.kind === 'company' && !!world.companies[p.id]?.founderIds.includes(viewerId)) ||
-    (p.kind === 'playerbank' && world.banks[p.id]?.ownerId === viewerId);
+    (p.kind === 'playerbank' && world.banks[p.id]?.ownerId === viewerId) ||
+    (p.kind === 'syndicate' && world.syndicates?.[p.id]?.leadId === viewerId);
   return {
     ...rest,
     companyName: c?.name ?? 'Personal',
@@ -697,6 +701,8 @@ export function playerView(
     investorCareer: careerView(world, p),
     /** Investor career Phase 2: every city's exchange, the index fund, your holdings and orders. */
     exchange: exchangeView(world, p, clock?.now),
+    /** Investor career Phase 3: syndicates you lead, backed, or can back. */
+    syndicates: syndicatesView(world, p),
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */
     recap: p.ai ? null : recapView(world, p.id),
     /** Founder Journey 4a: decision events waiting for you, and the last few answered. */

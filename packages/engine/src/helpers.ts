@@ -32,6 +32,9 @@ export function holderAccount(world: World, m: MarketState, holderId: string): I
   if (f) return f.account;
   const c = world.companies[holderId];
   if (c) return c.account;
+  // Investor career Phase 3: a syndicate's account (distributed to its members).
+  const syn = world.syndicates?.[holderId];
+  if (syn) return syn.account;
   // A player bank holding warrants or seized collateral.
   if (holderId.startsWith('pbank:')) {
     const b = world.banks[holderId.slice(6)];
