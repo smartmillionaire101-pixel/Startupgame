@@ -155,9 +155,29 @@ export async function setupPlayer(page: Page, command: unknown) {
  * opens the ride chooser (Wave 4): go by `mode` (walking, unless told).
  */
 export async function tapPlace(page: Page, selector: string, mode = 'walk') {
-  const el = page.locator(selector).first();
-  await el.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
-  await el.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  // The 3D map draws places as icon badges (data-badge), not data-place
+  // labels: tap the badge, then Go on its card (named ones go at once).
+  const id = /^\[data-place="([^"]+)"\]$/.exec(selector)?.[1];
+  const badge = id ? page.locator(`[data-badge="${id}"]`).first() : null;
+  // (After a reload the map may still be building: wait for either.)
+  if (badge)
+    await page.locator(`${selector}, [data-badge="${id}"]`).first().waitFor({ state: 'attached' });
+  if (badge && (await page.locator(selector).count()) === 0 && (await badge.count()) > 0) {
+    await badge.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+    await badge.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+    const go = page.locator(`[data-badge-card="${id}"] [data-badge-go]`);
+    if (
+      await go.waitFor({ timeout: 1500 }).then(
+        () => true,
+        () => false,
+      )
+    )
+      await go.dispatchEvent('click');
+  } else {
+    const el = page.locator(selector).first();
+    await el.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+    await el.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  }
   const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
   const far = await chooser.waitFor({ timeout: 1500 }).then(
     () => true,
