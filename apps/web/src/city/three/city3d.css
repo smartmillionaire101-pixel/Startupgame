@@ -214,3 +214,13 @@
 .c3-landmark[data-sky]::after {
   content: ' ↑';
 }
+/* The city on its way (it isn't built behind a place's scene). */
+.c3-waking {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--muted, #78716c);
+  pointer-events: none;
+}

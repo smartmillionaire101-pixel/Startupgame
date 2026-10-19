@@ -30,6 +30,16 @@ export interface StageOpts {
   maxFps?: number;
 }
 
+/** A phone-sized screen. */
+const phone = () =>
+  typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 600;
+/** A phone with few cores or little memory. */
+function weakDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
+  return phone() && ((navigator.hardwareConcurrency || 4) <= 4 || mem <= 4);
+}
+
 export type Animator = (t: number, dt: number) => boolean | void;
 
 export class Stage {
@@ -74,9 +84,15 @@ export class Stage {
       alpha: false,
       powerPreference: 'high-performance',
     });
+    // Reading back each shader's log stalls until the GPU has compiled it: only while developing.
+    this.renderer.debug.checkShaderErrors = !import.meta.env.PROD;
     // A software renderer (no GPU) gets a lighter stage: 1× pixels, no shadows, 4 fps.
     this.soft = softwareGl();
-    this.renderer.setPixelRatio(this.soft ? 1 : Math.min(2, window.devicePixelRatio || 1));
+    // A phone with few cores or little memory: fewer pixels and a smaller shadow map.
+    const weak = weakDevice();
+    this.renderer.setPixelRatio(
+      this.soft ? 1 : Math.min(weak ? 1.5 : 2, window.devicePixelRatio || 1),
+    );
     this.maxFps = cpuGl() ? 4 : (o.maxFps ?? 60);
     this.renderer.shadowMap.enabled = !this.soft;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -97,7 +113,7 @@ export class Stage {
     this.sun = new THREE.DirectionalLight('#fff1d6', 1.9);
     this.sun.castShadow = true;
     const s = o.shadowSize ?? 10;
-    const sm = this.soft ? 512 : (o.shadowMap ?? 2048);
+    const sm = this.soft ? 512 : Math.min(phone() ? 1024 : 4096, o.shadowMap ?? 2048);
     this.sun.shadow.mapSize.set(sm, sm);
     const sc = this.sun.shadow.camera;
     sc.left = -s;
@@ -255,6 +271,14 @@ export class Stage {
     const t = (now - this.t0) / 1000;
     let busy = false;
     for (const a of this.animators) if (a(t, dt)) busy = true;
+    // The first frame waits for its shaders, compiled off the main thread
+    // where the GPU can (no stall, no half-drawn first frame).
+    if (this.holds > 0) return;
+    if (!this.warmed) {
+      this.warmed = true;
+      void this.warm();
+      return;
+    }
     if (busy || this.dirty) {
       this.dirty = false;
       this.renderer.render(this.scene, this.camera);
@@ -263,6 +287,37 @@ export class Stage {
     }
     if (busy || this.dirty) this.raf = requestAnimationFrame(this.tick);
   };
+
+  private warmed = false;
+  private holds = 0;
+  /** Draw nothing until `release` (what the first frame needs is still being built). */
+  hold() {
+    this.holds++;
+  }
+  release() {
+    this.holds = Math.max(0, this.holds - 1);
+    this.invalidate();
+  }
+  /**
+   * Compile the scene's shaders without blocking where the GPU allows it
+   * (KHR_parallel_shader_compile); nothing is drawn until they're ready
+   * (2.5 s at most).
+   */
+  async warm(): Promise<void> {
+    if (this.disposed) return;
+    this.holds++;
+    try {
+      await Promise.race([
+        this.renderer.compileAsync(this.scene, this.camera),
+        new Promise((r) => setTimeout(r, 2500)),
+      ]);
+    } catch {
+      /* drawn the ordinary way */
+    } finally {
+      this.holds--;
+      this.invalidate();
+    }
+  }
 
   /** Draw now (the first frame). */
   renderNow() {
@@ -328,6 +383,7 @@ export class Stage {
     document.removeEventListener('visibilitychange', this.onVis);
     this.animators.clear();
     this.camListeners.clear();
+    // (Parts kept for the next open give up their GPU copies too: the context goes.)
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       m.geometry?.dispose();

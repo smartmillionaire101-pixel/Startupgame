@@ -262,8 +262,36 @@ export function PlacesList({
     { id: 'customers', label: t('Customers') },
     ...cats.map((c) => ({ id: c, label: categoryLabel(c), color: CATEGORY_COLOR[c] })),
   ];
+  // The big days out, wherever they stand in town: always one tap away.
+  const outings = (['golf', 'mall'] as const)
+    .map((k) => layout.places.find((p) => p.kind === k))
+    .filter((p): p is Place => !!p);
   return (
     <div className="places">
+      {outings.length > 0 && (
+        <section className="places-outings" aria-label={t('Things to do')}>
+          <h3>{t('Things to do')}</h3>
+          <div className="places-outings-row">
+            {outings.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="places-outing"
+                data-outing={p.kind}
+                onClick={() => onPick(p)}
+              >
+                <span className="places-outing-icon" aria-hidden>
+                  {p.kind === 'golf' ? '⛳' : '🛍️'}
+                </span>
+                <span className="places-outing-name">{labelOf(p)}</span>
+                <span className="small muted">
+                  {p.kind === 'golf' ? t('Play a round of golf') : t('Shops, food court, cinema')}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       {(cats.length > 0 || layout.areas.length > 0) && (
         <div className="places-filter" role="group" aria-label={t('Show')}>
           {filters.map((f) => (

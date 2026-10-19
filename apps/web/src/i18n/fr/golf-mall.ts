@@ -118,4 +118,7 @@ export const golfMall: Record<string, string> = {
   'Burger and fries': 'Burger et frites',
   'Fresh smoothie': 'Smoothie frais',
   'Film in the VIP seats': 'Film en places VIP',
+  'Things to do': 'À faire',
+  'Play a round of golf': 'Jouer un parcours de golf',
+  'Shops, food court, cinema': 'Boutiques, restauration, cinéma',
 };

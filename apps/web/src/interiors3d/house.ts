@@ -23,7 +23,15 @@ import type { HomePlan, RoomId, Spot } from '../home/layout';
 import type { HotelTier } from '../city/travel';
 import { bathDoors, key, wallEdges } from '../home/layout';
 import type { Grounds } from '../home/grounds';
-import { FLOOR_SCALE, Kit, edgeTexture, floorTexture, mat, type FloorKind } from './kit';
+import {
+  FLOOR_SCALE,
+  Kit,
+  disposeTree,
+  edgeTexture,
+  floorTexture,
+  mat,
+  type FloorKind,
+} from './kit';
 import { buildModel } from './furniture';
 import {
   buildEstateModel,
@@ -35,7 +43,14 @@ import {
   showroomGarage,
   tree,
 } from './estate-models';
-import { asphaltTexture, canvasTex, cityBelow, neighbourhood, type Occluder } from './surroundings';
+import {
+  asphaltTexture,
+  canvasTex,
+  cityBelow,
+  neighbourhood,
+  type Occluder,
+  type Surroundings,
+} from './surroundings';
 import { hotelTower, type TowerSide } from './hotel-tower';
 
 export const WALL_H = 2.6;
@@ -81,6 +96,12 @@ export interface House {
   reach: number;
   /** How far Look around zooms out (1: not at all; a hotel room shows its tower). */
   lookZoom: number;
+  /** The world round the home, once it's attached. */
+  world: Surroundings | null;
+  /** Its world was kept from the last time (attaching it costs nothing). */
+  kept: boolean;
+  /** Build (or take from the last time) the world round the home and put it in. */
+  attach(): void;
 }
 
 function floorKind(id: RoomId, tier: number): FloorKind {
@@ -267,6 +288,8 @@ export interface HouseOpts {
   /** Dusk or night: the sconces are lit. */
   lit?: boolean;
   grounds: Grounds;
+  /** Leave the world round the home (the street, the city, the hotel's tower) for `attach`. */
+  later?: boolean;
 }
 
 export function buildHouse(plan: HomePlan, o: HouseOpts): House {
@@ -277,7 +300,6 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const roof = g.style === 'roof';
   // A hotel room: a floor of the hotel's tower round it (the roof is for penthouses).
   const hotel = g.style === 'hotel' && g.hotel ? g.hotel : null;
-  let towerSides: TowerSide[] = [];
   const k = new Kit();
   // Upstairs: the grounds are a storey (or two) below.
   const level = plan.level ?? 0;
@@ -289,50 +311,30 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
 
   // ---- The ground: your plot in its street among the neighbours, out to
   // the haze (or a roof over the city, the building under you down to the street).
-  let around: { group: THREE.Group; occluders: Occluder[]; reach: number };
-  if (hotel) {
-    const t = hotelTower({
-      night: o.night,
-      groundY: GROUND_Y,
-      W,
-      H,
-      doorX: plan.door.x,
-      tier: hotel.tier,
-      name: hotel.name,
-      floor: hotel.floor,
-      room: hotel.room,
-      doors: hotel.doors,
-    });
-    around = t;
-    towerSides = t.sides;
-    yard.add(t.group);
-  } else if (!roof) {
-    around = neighbourhood(g, { night: o.night, groundY: GROUND_Y, W, H });
-    yard.add(around.group);
-  } else {
+  // Built by `world` below: at once, or later (`o.later`) so the room draws first.
+  let slab: { x: number; z: number; w: number; d: number } | null = null;
+  if (roof) {
     // The roof: just round your terrace and the car deck, the building's edge in sight.
     const f = g.focus;
-    const slab = { x: f.x - 2.2, z: f.y - 2.2, w: f.w + 4.4, d: f.h + 4.4 };
-    const sx = slab.x + slab.w / 2;
-    const sz = slab.z + slab.d / 2;
-    gk.box(slab.w, 0.6, slab.d, '#cbd5e1', sx, GROUND_Y - 0.62, sz, { rough: 0.9 });
+    const sl = { x: f.x - 2.2, z: f.y - 2.2, w: f.w + 4.4, d: f.h + 4.4 };
+    slab = sl;
+    const sx = sl.x + sl.w / 2;
+    const sz = sl.z + sl.d / 2;
+    gk.box(sl.w, 0.6, sl.d, '#cbd5e1', sx, GROUND_Y - 0.62, sz, { rough: 0.9 });
     const rt = floorTexture('stone').clone();
     rt.needsUpdate = true;
-    rt.repeat.set(slab.w / 3, slab.d / 3);
-    yard.add(flat(rt, slab.x, slab.z, slab.w, slab.d, GROUND_Y - 0.01));
+    rt.repeat.set(sl.w / 3, sl.d / 3);
+    yard.add(flat(rt, sl.x, sl.z, sl.w, sl.d, GROUND_Y - 0.01));
     // A glass parapet all round the roof.
     for (const [w, d, x, z] of [
-      [slab.w, 0.06, sx, slab.z + slab.d],
-      [slab.w, 0.06, sx, slab.z],
-      [0.06, slab.d, slab.x + slab.w, sz],
-      [0.06, slab.d, slab.x, sz],
+      [sl.w, 0.06, sx, sl.z + sl.d],
+      [sl.w, 0.06, sx, sl.z],
+      [0.06, sl.d, sl.x + sl.w, sz],
+      [0.06, sl.d, sl.x, sz],
     ] as const) {
       gk.box(w, 1.0, d, '#bfe3f0', x, GROUND_Y, z, { opacity: 0.3, noShadow: true, rough: 0.1 });
       gk.box(w + 0.02, 0.05, d + 0.04, '#d9dde3', x, GROUND_Y + 1.0, z, { metal: 0.6, rough: 0.3 });
     }
-    // The city round it and far below: lower blocks round yours, towers rising past it.
-    around = cityBelow({ night: o.night, groundY: GROUND_Y, slab });
-    yard.add(around.group);
     // A glass railing round the terrace: the balcony you look out from.
     if (g.terrace) {
       const t = g.terrace;
@@ -341,6 +343,35 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       railing(gk, 'z', t.y, t.y + t.h, t.x + t.w);
     }
   }
+  /** The world round the home (kept between opens: the same home opens at once). */
+  const spec = ((): { key: string; make: () => World } => {
+    if (hotel) {
+      const ho = {
+        night: o.night,
+        groundY: GROUND_Y,
+        W,
+        H,
+        doorX: plan.door.x,
+        tier: hotel.tier,
+        name: hotel.name,
+        floor: hotel.floor,
+        room: hotel.room,
+        doors: hotel.doors,
+      };
+      return { key: `hotel:${JSON.stringify(ho)}`, make: () => hotelTower(ho) };
+    }
+    if (!roof) {
+      const no = { night: o.night, groundY: GROUND_Y, W, H };
+      return {
+        key: `street:${JSON.stringify([g, no])}`,
+        make: () => ({ ...neighbourhood(g, no), sides: [] }),
+      };
+    }
+    // The city round it and far below: lower blocks round yours, towers rising past it.
+    const co = { night: o.night, groundY: GROUND_Y, slab: slab! };
+    return { key: `roof:${JSON.stringify(co)}`, make: () => ({ ...cityBelow(co), sides: [] }) };
+  })();
+  const world = () => kept(spec.key, spec.make);
 
   // ---- Terrace, pool, drive, path.
   if (g.terrace) {
@@ -535,11 +566,6 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const front = side(new THREE.Vector2(0, 1));
   const left = side(new THREE.Vector2(-1, 0));
   const right = side(new THREE.Vector2(1, 0));
-  // The hotel's corridor, the neighbours' rooms and the floors above cut away like the room's walls.
-  for (const t of towerSides) {
-    sides.push({ n: t.n, slabs: [t.walls], caps: [t.caps], extras: t.extras, cut: false });
-    root.add(t.walls, t.caps, t.extras);
-  }
   const o2 = THICK / 2;
   const addRun = (s: WallSide, along: 'x' | 'z', a: number, b: number, fixed: number) => {
     const len = b - a;
@@ -786,7 +812,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   for (const x of [fx0, fx1])
     for (const z of [f.y + 0.4, f.y + f.h - 0.6])
       for (const y of [0, WALL_H * 0.5]) fitPoints.push(new THREE.Vector3(x, y, z));
-  return {
+  const house: House = {
     root,
     sides,
     centre,
@@ -796,10 +822,65 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     shadow: Math.max(f.w, f.h) * 0.75 + 4,
     lamps,
     drop,
-    occluders: around.occluders,
-    reach: around.reach,
+    occluders: [],
+    reach: 0,
     lookZoom: hotel ? 0.42 : 1,
+    world: null,
+    kept: !!WORLDS.get(spec.key) && !WORLDS.get(spec.key)!.group.parent,
+    attach() {
+      if (house.world) return;
+      const w = world();
+      house.world = w;
+      for (const oc of w.occluders) if (oc.hidden) oc.set(false);
+      yard.add(w.group);
+      // The hotel's corridor, the neighbours' rooms and the floors above cut away like the room's walls.
+      for (const t of w.sides) {
+        t.walls.userData.done = false;
+        sides.push({ n: t.n, slabs: [t.walls], caps: [t.caps], extras: t.extras, cut: false });
+        root.add(t.walls, t.caps, t.extras);
+      }
+      house.occluders = w.occluders;
+      house.reach = w.reach;
+    },
   };
+  if (!o.later) house.attach();
+  return house;
+}
+
+/** The world round a home: the street, the city below, or the hotel's tower. */
+type World = Surroundings & { sides: TowerSide[] };
+const parts = (w: World) => [w.group, ...w.sides.flatMap((t) => [t.walls, t.caps, t.extras])];
+
+/**
+ * The worlds round the last few homes opened, kept (marked `userData.keep`,
+ * so disposing a house leaves them): opening the same home again, or going
+ * back to it, doesn't build its street or tower again.
+ */
+const WORLDS = new Map<string, World>();
+const KEEP_WORLDS = 4;
+function kept(key: string, make: () => World): World {
+  const hit = WORLDS.get(key);
+  if (hit && !hit.group.parent) {
+    WORLDS.delete(key);
+    WORLDS.set(key, hit);
+    return hit;
+  }
+  // In use already (two views of one home): a fresh one, not kept.
+  if (hit) return make();
+  const w = make();
+  for (const p of parts(w)) p.userData.keep = true;
+  WORLDS.set(key, w);
+  // Let go of the oldest that nothing shows.
+  for (const [k, v] of WORLDS) {
+    if (WORLDS.size <= KEEP_WORLDS) break;
+    if (v.group.parent) continue;
+    WORLDS.delete(k);
+    for (const p of parts(v)) {
+      p.userData.keep = false;
+      disposeTree(p);
+    }
+  }
+  return w;
 }
 
 /** Upstairs: the storeys below, a green block with a white band and windows, down to the lawn. */

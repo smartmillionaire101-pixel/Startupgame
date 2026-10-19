@@ -178,8 +178,10 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     };
     const offCam = stage.onCamera(sync);
     let readySent = false;
+    // Shown (the 2D scene steps aside) once a frame has the whole home in it,
+    // the world round it too.
     stage.onFrame = () => {
-      if (!readySent && houseRef.current) {
+      if (!readySent && houseRef.current?.world) {
         readySent = true;
         live.current.onReady();
       }
@@ -293,7 +295,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const h = buildHouse(plan, { tier, night, lit, grounds });
+    // The room first; the world round it (the street, the city below, the
+    // hotel's tower) in an idle slice after, unless it was kept from the last
+    // time this home opened.
+    const h = buildHouse(plan, { tier, night, lit, grounds, later: true });
+    if (h.kept) h.attach();
     houseRef.current = h;
     stage.scene.add(h.root);
     stage.target.copy(h.centre);
@@ -327,7 +333,37 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       fog.far = stage.distance + h.span * 1.5 + 70;
     }
     stage.updateCamera();
+    let gone = false;
+    let timer = 0;
+    let idle = 0;
+    const later = (f: () => void) => {
+      const go = () => !gone && f();
+      if (typeof requestIdleCallback === 'function')
+        idle = requestIdleCallback(go, { timeout: 200 });
+      else timer = window.setTimeout(go, 30);
+    };
+    let held = false;
+    if (h.world) stage.canvas.dataset.world = '1';
+    else {
+      // Built in a slice of its own (the page answers meanwhile, the 2D room
+      // showing); nothing is drawn until it's in, so the first frame on
+      // screen has the whole home.
+      delete stage.canvas.dataset.world;
+      held = true;
+      stage.hold();
+      later(() => {
+        h.attach();
+        stage.canvas.dataset.world = '1';
+        held = false;
+        stage.release();
+        stage.updateCamera();
+      });
+    }
     return () => {
+      gone = true;
+      clearTimeout(timer);
+      if (idle) cancelIdleCallback(idle);
+      if (held) stage.release();
       stage.scene.remove(h.root);
       disposeTree(h.root);
       houseRef.current = null;
@@ -382,35 +418,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       [];
     const mk = new Map<string, THREE.Group>();
     const desk = objects.find((o) => o.slot === 'desk' && o.owned);
-    for (const o of objects) {
-      if (o.slot && !o.owned) {
-        // A "+" where it would go.
-        const m = plusMarker();
-        const s = o.spot;
-        if (s.wall) {
-          const w = wallOf(plan, s);
-          m.rotation.x = Math.PI / 2;
-          if (w === 'back') m.position.set(s.x + s.w / 2, 1.5, 0.06);
-          m.userData.wall = w;
-        } else if (o.slot === 'laptop' && desk) {
-          m.position.set(s.x + 0.5, 0.8, s.y + 0.4);
-        } else {
-          const corner = ['bed', 'kitchen', 'sofa'].includes(o.slot);
-          m.position.set(
-            corner ? s.x + s.w - 0.3 : s.x + s.w / 2,
-            0.03,
-            corner ? s.y + 0.3 : s.y + s.h / 2,
-          );
-        }
-        m.traverse((c) => (c.userData.obj = o.id));
-        m.userData.obj = o.id;
-        m.visible = live.current.buyMode;
-        mk.set(o.id, m);
-        root.add(m);
-        continue;
-      }
+    const first = stage.frames === 0;
+    const queue: Home3DObject[] = [];
+    const place = (o: Home3DObject) => {
       const id = modelIdOf(o);
-      if (!id) continue;
+      if (!id) return;
       const ry = typeof o.ry === 'number' ? o.ry : facingOf(plan, o.slot ?? o.id, o.spot);
       const fr =
         o.ry !== undefined && o.outdoor
@@ -454,47 +466,113 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         p.add(g.position);
         lampsOut.push({ ...l, pos: p });
       }
+    };
+    for (const o of objects) {
+      if (o.slot && !o.owned) {
+        // A "+" where it would go.
+        const m = plusMarker();
+        const s = o.spot;
+        if (s.wall) {
+          const w = wallOf(plan, s);
+          m.rotation.x = Math.PI / 2;
+          if (w === 'back') m.position.set(s.x + s.w / 2, 1.5, 0.06);
+          m.userData.wall = w;
+        } else if (o.slot === 'laptop' && desk) {
+          m.position.set(s.x + 0.5, 0.8, s.y + 0.4);
+        } else {
+          const corner = ['bed', 'kitchen', 'sofa'].includes(o.slot);
+          m.position.set(
+            corner ? s.x + s.w - 0.3 : s.x + s.w / 2,
+            0.03,
+            corner ? s.y + 0.3 : s.y + s.h / 2,
+          );
+        }
+        m.traverse((c) => (c.userData.obj = o.id));
+        m.userData.obj = o.id;
+        m.visible = live.current.buyMode;
+        mk.set(o.id, m);
+        root.add(m);
+        continue;
+      }
+      queue.push(o);
     }
     // Lamps: the ones you own first, then a warm ceiling light per room at night.
     const lamps = new THREE.Group();
-    const lit = night || dusk;
-    const want = [...lampsOut];
-    if (lit)
-      for (const r of plan.rooms)
-        if (
-          !want.some(
-            (l) => l.pos.x >= r.x && l.pos.x < r.x + r.w && l.pos.z >= r.y && l.pos.z < r.y + r.h,
+    const light = () => {
+      const lit = night || dusk;
+      const want = [...lampsOut];
+      if (lit)
+        for (const r of plan.rooms)
+          if (
+            !want.some(
+              (l) => l.pos.x >= r.x && l.pos.x < r.x + r.w && l.pos.z >= r.y && l.pos.z < r.y + r.h,
+            )
           )
-        )
-          want.push({
-            pos: new THREE.Vector3(r.x + r.w / 2, 2.2, r.y + r.h / 2),
-            color: '#ffd9a0',
-            intensity: 1.6,
-            distance: Math.max(r.w, r.h) * 1.1,
-          });
-    for (const l of want.slice(0, Math.max(1, MAX_LAMPS - (houseRef.current?.lamps.length ?? 0)))) {
-      const pl = new THREE.PointLight(
-        l.color,
-        lit ? l.intensity * 1.6 : l.intensity * 0.6,
-        l.distance,
-        1.6,
-      );
-      pl.position.copy(l.pos);
-      lamps.add(pl);
-    }
+            want.push({
+              pos: new THREE.Vector3(r.x + r.w / 2, 2.2, r.y + r.h / 2),
+              color: '#ffd9a0',
+              intensity: 1.6,
+              distance: Math.max(r.w, r.h) * 1.1,
+            });
+      for (const l of want.slice(
+        0,
+        Math.max(1, MAX_LAMPS - (houseRef.current?.lamps.length ?? 0)),
+      )) {
+        const pl = new THREE.PointLight(
+          l.color,
+          lit ? l.intensity * 1.6 : l.intensity * 0.6,
+          l.distance,
+          1.6,
+        );
+        pl.position.copy(l.pos);
+        lamps.add(pl);
+      }
+    };
     root.add(lamps);
     stage.scene.add(root);
     furnRoot.current = root;
     lampRoot.current = lamps;
     placedRef.current = placed;
     markers.current = mk;
-    const cars = [...placed.values()].filter((p) => p.group.userData.car);
-    stage.canvas.dataset.cars = String(cars.length);
-    // How high the parked cars stand under this floor (for tests): on the lawn, whatever floor you're on.
-    if (cars.length) stage.canvas.dataset.carsY = cars[0]!.group.position.y.toFixed(2);
-    else delete stage.canvas.dataset.carsY;
-    stage.updateCamera();
+    const countCars = () => {
+      const cars = [...placed.values()].filter((p) => p.group.userData.car);
+      stage.canvas.dataset.cars = String(cars.length);
+      // How high the parked cars stand under this floor (for tests): on the lawn, whatever floor you're on.
+      if (cars.length) stage.canvas.dataset.carsY = cars[0]!.group.position.y.toFixed(2);
+      else delete stage.canvas.dataset.carsY;
+    };
+    let gone = false;
+    let timer = 0;
+    // Opening the home, the first frame waits for everything in it, built a
+    // few pieces at a time so the page keeps answering (the 2D room shows
+    // meanwhile); later changes (buying, moving things) are built at once.
+    let held = false;
+    const done = () => {
+      light();
+      countCars();
+      stage.updateCamera();
+      if (held) stage.release();
+      held = false;
+    };
+    if (!first) {
+      for (const o of queue) place(o);
+      done();
+    } else {
+      held = true;
+      stage.hold();
+      const slice = () => {
+        if (gone) return;
+        const t0 = performance.now();
+        while (queue.length && performance.now() - t0 < 40) place(queue.shift()!);
+        if (queue.length) timer = window.setTimeout(slice, 0);
+        else done();
+      };
+      slice();
+    }
     return () => {
+      gone = true;
+      clearTimeout(timer);
+      if (held) stage.release();
       stage.scene.remove(root);
       disposeTree(root);
     };

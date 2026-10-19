@@ -1712,3 +1712,32 @@ html[data-simple] .city-hud-bottom .hud-places .hud-count {
     left: calc(50% - 20px);
   }
 }
+
+/* "Where to?": the golf club and the mall, one tap away wherever they stand. */
+.places-outings {
+  margin-bottom: 0.75rem;
+}
+.places-outings-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.5rem;
+}
+.places-outing {
+  display: grid;
+  gap: 0.15rem;
+  justify-items: start;
+  text-align: left;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.places-outing-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.places-outing-name {
+  font-weight: 700;
+}

@@ -158,6 +158,23 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   // context was let go can't draw again) and keeps the camera where it was.
   // Leaving the City tab parks the scene: coming back shows it at once.
   const [gen, setGen] = useState(0);
+  // Under a place's scene from the start (a new session opens at home, or in
+  // your hotel): the city isn't built behind it, where it would hold up the
+  // home's first frames for seconds on a phone. It's built once the cover
+  // goes, after a frame showing that it's on its way (a parked scene is
+  // ready at once).
+  const [awake, setAwake] = useState(() => !paused || parked !== null);
+  useEffect(() => {
+    if (awake || paused) return;
+    let t = 0;
+    const raf = requestAnimationFrame(() => {
+      t = window.setTimeout(() => setAwake(true), 0);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [awake, paused]);
   const layoutRef = useRef(layout);
   const keep = useRef<{ market: string; rig: CityScene['rig']; following: boolean } | null>(null);
   useLayoutEffect(() => {
@@ -173,7 +190,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     const host = canvasHostRef.current;
     const wrap = wrapRef.current;
     const layout = layoutRef.current;
-    if (!host || !wrap) return;
+    if (!host || !wrap || !awake) return;
     let scene: CityScene;
     let canvas: HTMLCanvasElement;
     const old = unpark(layout, reduced);
@@ -247,7 +264,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     // The layout is read from its ref (a new layout of the same city is
     // handled above); the look and walkers are pushed in below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gen, reduced]);
+  }, [gen, reduced, awake]);
 
   // Hidden under a place's scene or a flight: no drawing behind it.
   useEffect(() => {
@@ -812,6 +829,11 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       onContextMenu={(e) => e.preventDefault()}
     >
       <div ref={canvasHostRef} className="c3-canvas-host" aria-hidden="true" />
+      {!awake && !paused && (
+        <p className="c3-waking" role="status">
+          {t('Building the city…')}
+        </p>
+      )}
       <div ref={labelsRef} className="c3-labels" aria-hidden="true">
         {landmarks.map((lm) => (
           <span
