@@ -490,7 +490,8 @@ export function InvestorFirstSession() {
 }
 
 /** The Portfolio tab's sections; later rungs add theirs as they open. */
-export type InvestorSection = 'overview' | 'markets' | 'syndicates' | 'fund' | 'lp' | 'firm';
+export type InvestorSection =
+  'overview' | 'markets' | 'syndicates' | 'fund' | 'lp' | 'firm' | 'office';
 
 export function InvestorSections({
   tab,
@@ -509,6 +510,7 @@ export function InvestorSections({
     { value: 'fund', label: t('Your funds') },
     { value: 'lp', label: t('As an LP') },
     { value: 'firm', label: t('Firm') },
+    { value: 'office', label: t('Family office') },
   ];
   return (
     <div className="inv-tabs">

@@ -28,6 +28,7 @@ import { INVESTOR } from './data/investor.js';
 import { ensure } from './errors.js';
 import { achieve, getCompany, getFund, getMarket, notify, spendHours } from './helpers.js';
 import { checkPersonalCap } from './career.js';
+import { checkConflict, lookThroughNav, resolveLpac } from './allocation.js';
 import { committedTotal, distributeLpFund, fundCanInvest, inHarvest } from './lpfunds.js';
 import { account, costIn, payExact, valueIn as convert } from './ledger.js';
 import { clamp, roundTo } from './math.js';
@@ -64,7 +65,8 @@ const monthsIn = (world: World, f: Fund) =>
 
 /** What the fund holds at its marks (active companies), local minor units. */
 export function holdingsNav(world: World, f: Fund): number {
-  let nav = 0;
+  // Phase 7: a fund of funds holds funds; its value looks through to theirs.
+  let nav = f.lp?.strategy === 'fof' ? lookThroughNav(world, f) : 0;
   for (const p of Object.values(world.positions)) {
     if (p.investorId !== f.id) continue;
     const c = world.companies[p.companyId];
@@ -202,6 +204,8 @@ const icThreshold = (f: Fund) => Math.round(f.size * INVESTOR.fund.icShare);
  */
 export function checkFundCheque(world: World, f: Fund, c: Company, amount: number) {
   if (!investorOn(world) || !f.lp) return;
+  // Phase 7: conflicts need the LP advisory committee; a fund of funds backs funds only.
+  checkConflict(world, f, c);
   const lp = f.lp;
   const followOn = !!world.positions[`${f.id}:${c.id}`];
   const m = getMarket(world, c.market);
@@ -409,6 +413,7 @@ export function settleFundOps(world: World, marketId: string, month: number) {
     const lp = f.lp;
     if (!lp || f.ai || f.market !== marketId || lp.firstCloseMonth === undefined) continue;
     if (lp.stage === 'failed' || lp.stage === 'wound-down') continue;
+    resolveLpac(world, f, true);
     const metrics = fundMetrics(world, f);
     lp.marks.push({ month, nav: metrics.nav });
     if (lp.marks.length > MARKS_KEPT) lp.marks.splice(0, lp.marks.length - MARKS_KEPT);

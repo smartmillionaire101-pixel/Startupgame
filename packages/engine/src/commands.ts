@@ -895,6 +895,22 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('lp.pay'), callId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('lp.delay'), callId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('lp.autopay'), fundId: id, on: z.boolean() }),
+  // ---- investor career Phase 7: allocators
+  z.object({ type: z.literal('fof.commit'), fundId: id, targetFundId: id, amount: money }),
+  z.object({ type: z.literal('fund.lpac'), fundId: id, companyId: id }),
+  z.object({ type: z.literal('lpac.vote'), fundId: id, companyId: id, approve: z.boolean() }),
+  z.object({ type: z.literal('stake.sell'), fundId: id }),
+  z.object({ type: z.literal('stake.offer'), fundId: id, buyerId: id, price: money }),
+  z.object({
+    type: z.literal('stake.answer'),
+    offerId: z.string().min(1).max(200),
+    accept: z.boolean(),
+  }),
+  z.object({
+    type: z.literal('secondary.investorSell'),
+    companyId: id,
+    pctBps: z.number().int().min(1).max(10_000),
+  }),
   // ---- investor career Phase 6: the firm
   z.object({ type: z.literal('firm.found'), name: z.string().min(3).max(40) }),
   z.object({ type: z.literal('firm.hire'), title: z.enum(['associate', 'principal', 'partner']) }),

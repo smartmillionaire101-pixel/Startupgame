@@ -58,6 +58,15 @@ import {
 import { exitsOn, investorOn, lifeBarsOn } from './releases.js';
 import { backSyndicate, cancelSyndicate, closeSyndicate, openSyndicate } from './syndicates.js';
 import {
+  answerStake,
+  fofCommit,
+  investorSecondary,
+  offerStake,
+  requestLpac,
+  sellStakeOutside,
+  voteLpac,
+} from './allocation.js';
+import {
   answerCarryAsk,
   answerPartner,
   foundFirm,
@@ -1218,6 +1227,20 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return sellShares(world, me, cmd.companyId, cmd.pctBps, ctx.now, cmd.fundId);
     case 'shares.buy':
       return buyShares(world, me, cmd.companyId, cmd.amount, ctx.now, cmd.fundId);
+    case 'fof.commit':
+      return fofCommit(world, me, cmd.fundId, cmd.targetFundId, cmd.amount);
+    case 'fund.lpac':
+      return requestLpac(world, me, cmd.fundId, cmd.companyId);
+    case 'lpac.vote':
+      return voteLpac(world, me, cmd.fundId, cmd.companyId, cmd.approve);
+    case 'stake.sell':
+      return sellStakeOutside(world, me, cmd.fundId);
+    case 'stake.offer':
+      return offerStake(world, me, cmd.fundId, cmd.buyerId, cmd.price);
+    case 'stake.answer':
+      return answerStake(world, me, cmd.offerId, cmd.accept);
+    case 'secondary.investorSell':
+      return investorSecondary(world, me, cmd.companyId, cmd.pctBps);
     case 'firm.found':
       return foundFirm(world, me, cmd.name);
     case 'firm.hire':

@@ -1361,7 +1361,18 @@ export interface LpCommitment {
   /** The AI LP (data/programs.ts) or a player fund of funds. */
   lpId?: Id;
   name: string;
-  kind: 'player' | 'pension' | 'family-office' | 'endowment' | 'dfi-fof' | 'sovereign' | 'gp';
+  kind:
+    | 'player'
+    | 'pension'
+    | 'family-office'
+    | 'endowment'
+    | 'dfi-fof'
+    | 'sovereign'
+    | 'gp'
+    | 'fof'
+    | 'secondary';
+  /** A fund of funds that pays this commitment from its own account (Phase 7). */
+  fundId?: Id;
   committed: number;
   paidIn: number;
   distributed: number;
@@ -1436,8 +1447,14 @@ export interface FundLpState {
   }[];
   /** A term extension being voted on by LPs. */
   extension?: { month: number; status: 'open' | 'approved' | 'rejected' };
-  /** Advisory committee approvals for conflicts (Phase 7). */
-  lpac?: { companyId: Id; month: number; status: 'pending' | 'approved' | 'rejected' }[];
+  /** Advisory committee approvals for conflicts (Phase 7): members are commitment ids. */
+  lpac?: {
+    companyId: Id;
+    month: number;
+    status: 'pending' | 'approved' | 'rejected';
+    members: Id[];
+    votes: Record<Id, 'yes' | 'no'>;
+  }[];
   /** Fees paid so far. */
   feesPaid: number;
   carryPaid: number;
@@ -1492,6 +1509,18 @@ export interface Position {
   proRata?: boolean;
   /** Investor career Phase 5: monthly marks (newest last, capped), with what set them. */
   marks?: { month: number; value: number; source: 'round' | 'model' | 'listed' | 'exit' }[];
+}
+
+/** An LP stake offered to another player (Phase 7), with the GP's consent. */
+export interface StakeOffer {
+  id: Id;
+  fundId: Id;
+  sellerId: Id;
+  buyerId: Id;
+  price: number;
+  month: number;
+  expiresMonth: number;
+  status: 'open' | 'accepted' | 'declined' | 'expired';
 }
 
 /** A pro-rata right offered when a company raises again (Phase 5). */
@@ -2104,6 +2133,8 @@ export interface World {
   orders?: Record<Id, ShareOrder>;
   /** Investor career Phase 5: pro-rata offers when a portfolio company raises. Missing = none. */
   prorata?: Record<Id, ProRataOffer>;
+  /** Investor career Phase 7: LP stakes offered to other players. Missing = none. */
+  stakeOffers?: Record<Id, StakeOffer>;
 }
 
 // ---------------------------------------------------------------- Wave 10: a living economy

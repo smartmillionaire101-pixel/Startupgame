@@ -40,6 +40,7 @@ import { monthOfLiving } from './career.js';
 import { investorOn } from './releases.js';
 import { fundOpsView } from './fundops.js';
 import { aiCarry, attachFund, nextFundCap, splitCarry } from './firms.js';
+import { distributeFund } from './funds.js';
 import { newStars } from './stars.js';
 import { wealthView } from './wealth.js';
 import type { Industry } from './data/industries.js';
@@ -134,6 +135,11 @@ export function launchFund(world: World, me: Player, a: LaunchArgs) {
     first
       ? `Fund I opens at rung 3: ${INVESTOR.ladder.fundDeals} deals and an LP panel score of ${INVESTOR.ladder.fundScore}.`
       : `Fund II opens at rung 5: Fund I returned ${INVESTOR.ladder.fund2Dpi}× in cash and ${INVESTOR.ladder.fund2Reups} LPs would re-up.`,
+  );
+  ensure(
+    a.strategy !== 'fof' || me.career?.reached[7] !== undefined,
+    'fund.rung',
+    'A fund of funds is for allocators (rung 7).',
   );
   ensure(
     !Object.values(world.funds).some((f) => f.managerId === me.id && f.lp?.stage === 'raising'),
@@ -559,7 +565,7 @@ function firstClose(world: World, f: Fund, month: number) {
   f.vintageMonth = month;
   for (const c of lp.commitments) {
     if (c.status !== 'committed') continue;
-    if (c.playerId === null) {
+    if (c.playerId === null && !c.fundId) {
       // AI LPs pay in full at the close.
       transfer(world, m.ext.lps, f.account, c.committed, `LP commitment: ${c.name}`, month);
       c.paidIn = c.committed;
@@ -652,19 +658,12 @@ function settleCall(
   f: Fund,
   call: CapitalCall,
   c: LpCommitment,
-  p: Player,
+  p: Player | undefined,
   month: number,
+  from = p!.accounts.local,
 ) {
   const lp = lpOf(f);
-  payExact(
-    world,
-    p.accounts.local,
-    f.account,
-    call.amount,
-    `Capital call: ${f.name}`,
-    month,
-    'invested',
-  );
+  payExact(world, from, f.account, call.amount, `Capital call: ${f.name}`, month, 'invested');
   const fee = Math.min(c.catchUp ?? 0, call.amount);
   const capital = call.amount - fee;
   if (fee) c.catchUp = (c.catchUp ?? 0) - fee;
@@ -672,13 +671,14 @@ function settleCall(
   lp.paidIn += capital;
   lp.flows.push({ month, amount: -capital });
   call.status = 'paid';
-  achieve(
-    world,
-    p,
-    'investor.first-call-paid',
-    'First capital call paid',
-    getMarket(world, p.market).month,
-  );
+  if (p)
+    achieve(
+      world,
+      p,
+      'investor.first-call-paid',
+      'First capital call paid',
+      getMarket(world, p.market).month,
+    );
 }
 
 /** `lp.pay`: pay a capital call now. */
@@ -787,20 +787,23 @@ export function settleLpFunds(world: World, marketId: string, month: number) {
       const k = since / INVESTOR.fund.callEveryMonths;
       if (k < INVESTOR.fund.calls)
         for (const c of lp.commitments)
-          if (c.playerId && c.status === 'committed' && c.paidIn < c.committed)
+          if ((c.playerId || c.fundId) && c.status === 'committed' && c.paidIn < c.committed)
             issueCall(world, f, c, Math.min(callAmount(c, k), c.committed - c.paidIn), month);
     }
     for (const call of lp.calls) {
       if (call.status !== 'due') continue;
       const c = lp.commitments.find((x) => x.id === call.commitmentId);
       const p = c?.playerId ? world.players[c.playerId] : undefined;
-      if (!c || !p) continue;
-      const acc = account(world, p.accounts.local);
+      // Phase 7: a fund of funds pays its calls from its own account, always on time if it can.
+      const payer = c?.fundId ? world.funds[c.fundId] : undefined;
+      if (!c || (!p && !payer)) continue;
+      const from = payer ? payer.account : p!.accounts.local;
+      const acc = account(world, from);
       const affordable =
         acc.balance >=
         costIn(world, call.amount, getMarket(world, f.market).data.currency, acc.currency);
-      if (c.autopay && affordable) {
-        settleCall(world, f, call, c, p, month);
+      if ((c.autopay || payer) && affordable) {
+        settleCall(world, f, call, c, p, month, from);
         continue;
       }
       if (month > call.dueMonth) defaultOn(world, f, call, c, month);
@@ -860,6 +863,12 @@ export function distributeLpFund(world: World, f: Fund, proceeds: number, month:
         Math.max(0, c.distributed + share - c.paidIn) - Math.max(0, c.distributed - c.paidIn);
       if (p) payLp(world, f, c, p, share, gain, rate, month);
       else transfer(world, f.account, m.ext.lps, share, `Distribution: ${f.name}`, month);
+    } else if (c.fundId && world.funds[c.fundId]) {
+      // Phase 7: a fund of funds passes its distribution on to its own LPs.
+      const fof = world.funds[c.fundId]!;
+      const received = pay(world, f.account, fof.account, share, `Distribution: ${f.name}`, month);
+      c.distributed += share;
+      distributeFund(world, fof, received, month);
     } else {
       transfer(world, f.account, m.ext.lps, share, `Distribution to ${c.name}`, month);
       c.distributed += share;

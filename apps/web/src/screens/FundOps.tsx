@@ -264,6 +264,22 @@ export function FundManagement({ fundId }: { fundId: string }) {
         </div>
       ))}
 
+      <div className="row">
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!icCompany}
+          onClick={() =>
+            void send(
+              { type: 'fund.lpac', fundId, companyId: icCompany },
+              (r: { message: string }) => tx(r.message),
+            )
+          }
+        >
+          {t('A conflict? Ask the LP advisory committee')}
+        </Button>
+      </div>
+
       <h3 className="cap-h">{t('Your LPs')}</h3>
       {o.letterDue && (
         <div className="career-invite">

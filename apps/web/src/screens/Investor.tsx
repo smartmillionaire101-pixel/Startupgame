@@ -18,6 +18,7 @@ import { Exchange } from './Exchange';
 import { Syndicates } from './Syndicates';
 import { FundConsole, LpPortfolio, lpFundsOf } from './Funds';
 import { FirmScreen } from './Firm';
+import { FamilyOffice } from './FamilyOffice';
 import { ProRataOffers, positionStatusText } from './FundOps';
 import { SimpleLink } from './SimpleLink';
 
@@ -362,6 +363,7 @@ export function Portfolio() {
       {section === 'fund' && <FundConsole />}
       {section === 'lp' && <LpPortfolio />}
       {section === 'firm' && <FirmScreen />}
+      {section === 'office' && <FamilyOffice />}
       {section === 'overview' && (
         <>
           <InvestorPrompts />

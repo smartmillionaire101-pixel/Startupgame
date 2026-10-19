@@ -342,6 +342,7 @@ function GpFundCard({ f }: { f: GpFund }) {
           </span>
         </div>
       ))}
+      {f.strategy === 'fof' && f.stage === 'investing' && <FofCommits fundId={f.id} />}
       {f.stage !== 'raising' && f.stage !== 'failed' && <FundManagement fundId={f.id} />}
     </Card>
   );
@@ -571,6 +572,53 @@ export function LpPortfolio() {
           lp.raising.map((f) => <JoinRow key={f.id} f={f} />)
         )}
       </Card>
+    </div>
+  );
+}
+
+/** A fund of funds backs other managers' funds (Phase 7). */
+function FofCommits({ fundId }: { fundId: string }) {
+  const { view, send } = useView();
+  const lp = lpFundsOf(view);
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const targets = (lp?.raising ?? []).filter((x) => x.strategy !== 'fof');
+  return (
+    <div className="inv-form">
+      <h3 className="cap-h">{t('Back other managers')}</h3>
+      {targets.length === 0 ? (
+        <p className="small muted">{t('No fund is raising right now.')}</p>
+      ) : (
+        targets.map((x) => (
+          <div key={x.id} className="inv-row">
+            <span className="grow">
+              {x.name} <span className="small muted">{x.managerName}</span>
+            </span>
+            <input
+              aria-label={t('Commitment')}
+              inputMode="decimal"
+              placeholder={t('From {amount}', { amount: money(x.minCommit, x.currency) })}
+              value={amounts[x.id] ?? ''}
+              onChange={(e) => setAmounts((a) => ({ ...a, [x.id]: e.target.value }))}
+            />
+            <Button
+              size="sm"
+              onClick={() =>
+                void send(
+                  {
+                    type: 'fof.commit',
+                    fundId,
+                    targetFundId: x.id,
+                    amount: parseAmount(amounts[x.id] ?? '') ?? 0,
+                  },
+                  (r: { message: string }) => tx(r.message),
+                )
+              }
+            >
+              {t('Commit')}
+            </Button>
+          </div>
+        ))
+      )}
     </div>
   );
 }
