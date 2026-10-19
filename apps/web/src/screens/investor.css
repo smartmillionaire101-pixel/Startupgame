@@ -1,0 +1,166 @@
+/* The investor career: the ladder, the first session, prompts, and the investor consoles. */
+.career-ladder {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.career-rung {
+  position: relative;
+  padding: 0.4rem 0 0.4rem 2rem;
+  border-left: 2px solid var(--line);
+  margin-left: 0.75rem;
+}
+.career-rung.career-reached {
+  border-left-color: var(--good);
+}
+.career-rung.career-locked {
+  opacity: 0.7;
+}
+.career-rung-head {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.career-dot {
+  position: absolute;
+  left: -0.8rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-xs);
+  background: var(--surface);
+  border: 2px solid var(--line-strong);
+}
+.career-reached .career-dot {
+  background: var(--good);
+  border-color: var(--good);
+  color: var(--accent-ink);
+}
+.career-next .career-dot {
+  border-color: var(--info);
+  color: var(--info);
+}
+.career-reqs {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.career-req {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 0.5rem;
+  font-size: var(--fs-sm);
+}
+.career-req.done {
+  color: var(--good);
+}
+.career-track {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.career-track > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.career-req.done .career-track > span {
+  background: var(--good);
+}
+.career-invite {
+  border: 1px solid var(--info);
+  background: var(--info-soft);
+  border-radius: var(--r-sm);
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.career-invite p {
+  margin: 0 0 0.4rem;
+}
+.career-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  font-size: var(--fs-xs);
+}
+.career-steps li {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--muted);
+}
+.career-steps li.done {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.career-steps li.now {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.career-pick {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line);
+}
+.career-pick p {
+  margin: 0.15rem 0 0;
+}
+.career-prompts .row {
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.inv-tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.25rem;
+}
+.inv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+.inv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.inv-row:first-child {
+  border-top: 0;
+}
+.inv-row .grow {
+  flex: 1;
+  min-width: 10rem;
+}
+.inv-form {
+  display: grid;
+  gap: 0.5rem;
+}
+.inv-note {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.table-wrap {
+  overflow-x: auto;
+}

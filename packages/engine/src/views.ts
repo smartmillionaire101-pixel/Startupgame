@@ -1,3 +1,4 @@
+import { careerView } from './career.js';
 import { barEffects, barsOf } from './lifebars.js';
 import { lifeBarsOn } from './releases.js';
 import { pitchQuestionsNow } from './fundraising.js';
@@ -687,6 +688,12 @@ export function playerView(
     worldVersion: world.version,
     /** The founder journey: seven chapters and the objective prompts; null for other roles. */
     journey: journeyView(world, p),
+    /**
+     * The investor career (investor-career worlds; null otherwise): the ladder
+     * with each rung's requirements, invitations, the angel ceiling, the
+     * investment tracks, the first session and three prompts.
+     */
+    investorCareer: careerView(world, p),
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */
     recap: p.ai ? null : recapView(world, p.id),
     /** Founder Journey 4a: decision events waiting for you, and the last few answered. */

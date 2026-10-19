@@ -761,6 +761,15 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('grant.apply'), partnerId: id, programId: id, companyId: id }),
   /** A player-run fund pitches an LP in the city you're in. */
   z.object({ type: z.literal('lp.pitch'), lpId: id }),
+  // ---- the investor career (investor blueprint, Phase 1)
+  /** Accept or decline an invitation up the ladder (a co-lead or an anchor LP). */
+  z.object({ type: z.literal('career.invitation'), invitationId: id, accept: z.boolean() }),
+  /** The investor first session: acknowledge a step, shortlist a café startup, or skip. */
+  z.object({
+    type: z.literal('investor.tutorial'),
+    action: z.enum(['next', 'shortlist', 'skip']),
+    companyId: id.optional(),
+  }),
   /** One-tap investment in a raising company at model terms (SAFE or priced). */
   z.object({ type: z.literal('invest.quick'), companyId: id, amount: money }),
   /**

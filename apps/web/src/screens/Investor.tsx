@@ -6,6 +6,7 @@ import { locale, t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Field, Pill, Segmented, Sheet, Sparkline, Stat } from '../ui';
 import { DealList, stageLabel } from './common';
+import { CareerLadder, InvestorFirstSession, InvestorPrompts, careerOf } from './InvestorCareer';
 import { SimpleLink } from './SimpleLink';
 
 const companyStatusLabel = (x: string) =>
@@ -105,7 +106,12 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
   // Empty means "use the suggestion": defaults follow diligence as it loads.
   const [amount, setAmount] = useState('');
   const [valuation, setValuation] = useState('');
-  const suggestedAmount = view.me.investor?.checkSize ?? 0;
+  // Inside the angel ceiling (investor career): never suggest a cheque the cap would refuse.
+  const ceiling = careerOf(view)?.ceiling;
+  const suggestedAmount =
+    ceiling && ceiling.currency === cur && !view.fund
+      ? Math.min(view.me.investor?.checkSize ?? 0, ceiling.maxCheque)
+      : (view.me.investor?.checkSize ?? 0);
   const suggestedValuation = d
     ? Math.round(d.modelValuation * (instrument === 'safe' ? 1.1 : 1))
     : 0;
@@ -312,6 +318,9 @@ export function Portfolio() {
   return (
     <>
       <h1>{t('Portfolio')}</h1>
+      <InvestorFirstSession />
+      <InvestorPrompts />
+      <CareerLadder compact />
       <SimpleLink
         to="deals"
         emoji="🤝"

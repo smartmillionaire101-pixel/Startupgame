@@ -6,6 +6,7 @@
  * in due diligence.
  */
 import { barEdgeIn } from './lifebars.js';
+import { checkAngelCheque } from './career.js';
 import { ensure, fail } from './errors.js';
 import {
   adjustTrust,
@@ -668,6 +669,8 @@ export function proposeInvestment(
     args.terms.fromFund && inv.investor?.fundId
       ? { kind: 'fund' as const, id: inv.investor.fundId }
       : { kind: 'player' as const, id: inv.id };
+  // The angel ceiling (investor-career worlds): a capped cheque, and a lead for Series A+.
+  if (proposer.kind === 'player') checkAngelCheque(world, inv, c, terms.amount, stage);
   const model = valueCompany(world, c, stage).value;
   const deal = openDeal(world, {
     companyId: c.id,

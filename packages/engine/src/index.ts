@@ -109,6 +109,8 @@ export {
   exitsOn,
   LIFE_BARS_NOTE,
   lifeBarsOn,
+  INVESTOR_NOTE,
+  investorOn,
   RELEASES,
 } from './releases.js';
 // Phase 3: life bars (energy, health, happiness, stress) and what trips cost.
@@ -247,3 +249,5 @@ export {
   type RecapRisk,
   type RecapView,
 } from './recap.js';
+// The investor career (investor blueprint): config, glossary and rungs.
+export { INVESTOR, RUNGS, GLOSSARY, type RungId } from './data/investor.js';

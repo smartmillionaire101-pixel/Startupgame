@@ -61,6 +61,7 @@ import { VisitHome } from './Visit';
 import { activeStep, tutorialApps, tutorialSaw, useTutorial } from '../tutorial/state';
 import { PhoneTip } from '../tutorial/Coach';
 import './phone.css';
+import { careerOf } from '../screens/InvestorCareer';
 
 // Backward-compatible exports (Wave 5/6 callers).
 export { aiPeopleOf, type AiContact } from './apps/Messages';
@@ -791,7 +792,7 @@ function PhoneHome({
     (a) =>
       !DOCK.includes(a.id) &&
       shown(a.id) &&
-      (a.id !== 'journey' || !!view.journey) &&
+      (a.id !== 'journey' || !!view.journey || !!careerOf(view)) &&
       (a.id !== 'sales' || hasCompany),
   );
   const dock = DOCK.filter(shown).map((id) => APPS.find((a) => a.id === id)!);

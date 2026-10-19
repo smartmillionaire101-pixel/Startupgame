@@ -38,6 +38,7 @@ import { founderFinance } from './founder-finance';
 import { recap } from './recap';
 import { decisions } from './decisions';
 import { capital } from './capital';
+import { investorCareer } from './investor-career';
 import { tutorial } from './tutorial';
 import { uiFixes } from './ui-fixes';
 import { feedback } from './feedback';
@@ -100,6 +101,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   recap,
   decisions,
   capital,
+  investorCareer,
   tutorial,
   uiFixes,
   feedback,

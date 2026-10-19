@@ -3,19 +3,18 @@
  * game plays. Bump `id` for each new note; the engine sends each id once.
  *
  * Logging a note is also a switch (see the engine's releases.ts): this one
- * turns on Phase 3 life bars (health, stress and happiness beside energy;
- * walking costs time and energy; how you feel nudges sales and pitches) and
- * Phase 5 life events (choice cards for every player, shipped with it), and,
- * being later, Founder Journey 5 (exits) and 4a (decision events and visible
- * rivals) for new worlds.
+ * turns on the investor career (the ladder, the angel ceiling, syndicates,
+ * LP funds, the exchange and firms) and, being later, Phase 3 life bars and
+ * Phase 5 life events, Founder Journey 5 (exits) and 4a (decision events and
+ * visible rivals) for new worlds.
  */
-import { LIFE_BARS_NOTE } from '@runway/engine';
+import { INVESTOR_NOTE } from '@runway/engine';
 
 export const RELEASE_NOTE = {
-  id: LIFE_BARS_NOTE,
+  id: INVESTOR_NOTE,
   text:
-    'Update: life bars. Energy, Health, Happiness and Stress now show at the top. Walking far ' +
-    'takes time and energy, a taxi saves both but costs money, and how you feel changes how ' +
-    'well you sell and pitch. Now and then, life throws you a choice: a card pops up and you ' +
-    'decide. Refresh to get it; your game is saved.',
+    'Update: the investor career. Investors now climb a ladder from angel to syndicate lead, ' +
+    'Fund I, a firm and beyond, with a guided first session, syndicates, LP commitments, ' +
+    'capital calls, an index fund and limit orders on the stock market. Open Portfolio or the ' +
+    'Journey app to see your next rung. Refresh to get it; your game is saved.',
 } as const;

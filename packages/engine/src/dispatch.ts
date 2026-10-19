@@ -55,7 +55,13 @@ import {
   seedPublicMarket,
   sellShares,
 } from './exits.js';
-import { exitsOn, lifeBarsOn } from './releases.js';
+import { exitsOn, investorOn, lifeBarsOn } from './releases.js';
+import {
+  answerInvitation,
+  recordCareer,
+  startInvestorTutorial,
+  tutorialCommand,
+} from './career.js';
 import { golfRound, mallBuy } from './leisure.js';
 import {
   HOME_ACT_BARS,
@@ -275,6 +281,11 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
         recordChaptersAfterSettle(draft as World, command.market);
       const who = ctx.actorId ? draft.players[ctx.actorId] : undefined;
       if (who) recordChapters(draft as World, who as Player);
+      // The investor career: rungs reached, invitations (investor-career worlds only).
+      if (who) recordCareer(draft as World, who as Player);
+      if (command.type === 'market.settle' && investorOn(draft as World))
+        for (const p of Object.values(draft.players))
+          if (p.market === command.market) recordCareer(draft as World, p as Player);
       // The result is read (sent to the client) after the producer finished, when
       // any draft in it is revoked: copy it out as plain data while drafts still work.
       if (!WHOLE_WORLD.has(command.type)) result = copyDeep(result);
@@ -389,6 +400,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       };
     }
     welcomeNewPlayer(world, p, null);
+    if (p.role === 'investor') startInvestorTutorial(world, p);
     return { playerId: p.id, companyId: null };
   }
 
@@ -1139,6 +1151,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       me.role = 'investor';
       me.investor = { ...cmd.investor, lpCredibility: 0.3, founderTrust: 0.7 };
       achieve(world, me, 'any.role-switch', 'First role switch', month);
+      startInvestorTutorial(world, me);
       return { message: 'You’re an angel investor now. Founders will start pitching you.' };
     }
     // ------------------------------------------------------------ city events (Wave 2)
@@ -1301,6 +1314,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return applyGrant(world, me, cmd.partnerId, cmd.programId, cmd.companyId);
     case 'lp.pitch':
       return pitchLp(world, me, cmd.lpId);
+    case 'career.invitation':
+      return answerInvitation(world, me, cmd.invitationId, cmd.accept);
+    case 'investor.tutorial':
+      return tutorialCommand(world, me, cmd.action, cmd.companyId);
     case 'invest.quick':
       return quickInvest(world, me, cmd.companyId, cmd.amount);
     case 'pitch.angel':
@@ -1524,6 +1541,7 @@ function createFromOnboarding(
     foundBank(world, p, { name: cmd.bank.name, type: cmd.bank.bankType, contribution });
   }
   welcomeNewPlayer(world, p, companyId);
+  if (p.role === 'investor') startInvestorTutorial(world, p);
   return { playerId: p.id, companyId };
 }
 

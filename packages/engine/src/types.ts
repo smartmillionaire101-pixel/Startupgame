@@ -293,6 +293,8 @@ export interface Player {
   realised?: { currency: Currency; proceeds: number; gains: number; tax: number };
   /** Founder Journey 5, chapter 7: gifts, a career at a DFI or bank, a second company. */
   allocator?: PlayerAllocator;
+  /** Investor career (investor blueprint §2–3): the ladder, invitations, first session. Missing = none. */
+  career?: InvestorCareer;
   /**
    * Golf (leisure.ts): rounds played at a city's golf club, your best and
    * latest score against par, and rounds this month (for who you meet).
@@ -404,6 +406,111 @@ export interface PlayerAllocator {
   career?: CareerRole | null;
   /** Market month you started a company again after an exit or a closure. */
   serial?: number;
+}
+
+// ---------------------------------------------------------------- the investor career
+
+/** The investor first session (blueprint §3), step by step. */
+export const INVESTOR_TUTORIAL_STEPS = [
+  'profile',
+  'investable',
+  'shortlist',
+  'first-call',
+  'term-sheet',
+  'portfolio',
+  'ladder',
+] as const;
+export type InvestorTutorialStep = (typeof INVESTOR_TUTORIAL_STEPS)[number];
+
+export interface InvestorTutorial {
+  /** Home month it started. */
+  startedMonth: number;
+  /** Steps acknowledged by the player (the ones nothing else marks done). */
+  seen: InvestorTutorialStep[];
+  /** The startup picked from the café's three. */
+  shortlist?: Id;
+  /** The three startups shown at the café, picked when the tutorial began. */
+  picks: Id[];
+  doneMonth?: number;
+  skipped?: boolean;
+}
+
+/** A qualified investor is invited up the ladder (blueprint §2.3, §10.3). */
+export interface CareerInvitation {
+  id: Id;
+  rung: number;
+  kind: 'co-lead' | 'anchor';
+  /** The AI angel (co-lead) or LP (anchor) making the offer. */
+  fromId: Id;
+  fromName: string;
+  /** Anchor: the commitment (local minor units of `currency`); co-lead: 0. */
+  amount: number;
+  currency: Currency;
+  month: number;
+  expiresMonth: number;
+  status: 'open' | 'accepted' | 'declined' | 'expired';
+}
+
+export interface InvestorCareer {
+  /** Rungs reached (1–8) with the home month each was reached. */
+  reached: Partial<Record<number, number>>;
+  invitations: CareerInvitation[];
+  /** An accepted co-lead: this AI angel backs your next syndicate. */
+  coLead?: { angelId: Id; name: string };
+  /** An accepted anchor: this LP commits to your Fund I. */
+  anchor?: { lpId: Id; name: string; amount: number; currency: Currency };
+  tutorial?: InvestorTutorial;
+  /** The rung pinned as the main objective (end of the first session). */
+  pinned?: number;
+}
+
+/** A backer's allocation in a syndicate: a player, or an AI angel's fund. */
+export interface SyndicateBacker {
+  /** The human backer, or null for an AI angel. */
+  playerId: Id | null;
+  /** The AI angel's fund (AI backers only). */
+  fundId?: Id;
+  name: string;
+  /** Allocation, in the syndicate's (company's) currency, minor units. */
+  amount: number;
+  /** Cash returned so far, after the lead's carry. */
+  returned: number;
+}
+
+/**
+ * A syndicate (SPV) led by an investor for one deal (blueprint §8.1,
+ * Phase 3): the lead and backers pool money in the syndicate's own account,
+ * which invests as one holder; exits pay backers pro rata after the lead's
+ * deal-by-deal carry on profit.
+ */
+export interface Syndicate {
+  id: Id;
+  name: string;
+  leadId: Id;
+  companyId: Id;
+  market: MarketId;
+  account: Id;
+  /** The lead's carry on backers' profits (0.15–0.2). */
+  carry: number;
+  /** The lead's own allocation. */
+  leadAmount: number;
+  /** What the lead wants to raise in total, lead included. */
+  target: number;
+  backers: SyndicateBacker[];
+  /** The terms the syndicate will offer the company. */
+  terms: { instrument: 'safe' | 'priced'; valuation: number; proRata: boolean; boardSeat: boolean };
+  status: 'open' | 'offered' | 'closed' | 'exited' | 'failed' | 'cancelled';
+  month: number;
+  /** Market month the allocation closes (backers can join until then). */
+  closesMonth: number;
+  dealId?: Id;
+  /** Amount invested in the company. */
+  invested: number;
+  /** Proceeds received from the company, and carry paid to the lead. */
+  proceeds: number;
+  carryPaid: number;
+  /** The lead's returned share (their allocation, no carry on it). */
+  leadReturned: number;
 }
 
 // ---------------------------------------------------------------- Friends (Wave 8)
@@ -1208,6 +1315,151 @@ export interface Fund {
   angelId?: Id;
   /** Wave 5: angel, VC, impact or corporate. Missing = derived (see fundInvestorType). */
   investorType?: InvestorType;
+  /**
+   * Investor career (Phases 4–6): terms, closes, LPs, capital calls, letters,
+   * reserves and marks for a fund raised the full way. Missing = an AI-LP
+   * fund paid in at once (Fund I's simple raise and every AI fund).
+   */
+  lp?: FundLpState;
+  /** The firm managing it (Phase 6). Missing = none. */
+  firmId?: Id;
+}
+
+/** The limited partnership agreement (blueprint §8.2, Phase 4). */
+export interface FundTerms {
+  /** Target size, local minor units. */
+  target: number;
+  /** Smallest LP commitment. */
+  minCommit: number;
+  feeRate: number;
+  /** Fee after the investment period. */
+  feeStepDown: number;
+  carry: number;
+  /** A yearly return LPs get before carry (0 = none). */
+  hurdle: number;
+  /** The GP's own commitment, as a share of the fund. */
+  gpCommit: number;
+  termMonths: number;
+  investMonths: number;
+  /** LPs can stop new investments if the GP leaves (key person). */
+  keyPerson: boolean;
+}
+
+export type FundStrategy = 'seed' | 'growth' | 'public' | 'impact' | 'fof';
+
+/** An LP's stake in a fund (players and AI LPs). */
+export interface LpCommitment {
+  id: Id;
+  /** A human LP, or null for an AI LP. */
+  playerId: Id | null;
+  /** The AI LP (data/programs.ts) or a player fund of funds. */
+  lpId?: Id;
+  name: string;
+  kind: 'player' | 'pension' | 'family-office' | 'endowment' | 'dfi-fof' | 'sovereign' | 'gp';
+  committed: number;
+  paidIn: number;
+  distributed: number;
+  month: number;
+  status: 'committed' | 'defaulted' | 'released' | 'sold';
+  anchor?: boolean;
+  /** Catch-up paid by a late LP (to the fund, for earlier LPs). */
+  catchUp?: number;
+}
+
+export interface CapitalCall {
+  id: Id;
+  commitmentId: Id;
+  amount: number;
+  month: number;
+  dueMonth: number;
+  status: 'due' | 'paid' | 'missed';
+}
+
+/** How an LP sees the GP (Phase 5): trust from letters, honesty and returns. */
+export interface LpRelation {
+  trust: number;
+  reup: boolean;
+  letters: number;
+}
+
+export interface FundLetter {
+  month: number;
+  nav: number;
+  tvpi: number;
+  dpi: number;
+  /** The GP wrote it honestly (marks at the model) or talked the book up. */
+  honest: boolean;
+  text: string;
+}
+
+export interface FundLpState {
+  /** Fund I, II… */
+  number: number;
+  strategy: FundStrategy;
+  terms: FundTerms;
+  stage: 'raising' | 'investing' | 'harvest' | 'extended' | 'wound-down' | 'failed';
+  openedMonth: number;
+  firstCloseMonth?: number;
+  finalCloseMonth?: number;
+  commitments: LpCommitment[];
+  calls: CapitalCall[];
+  /** Total paid in by LPs (and the GP). */
+  paidIn: number;
+  relations: Record<Id, LpRelation>;
+  letters: FundLetter[];
+  /** Earmarked for follow-ons, by company. */
+  reserves: Record<Id, number>;
+  /** Monthly NAV (Phase 5), oldest first, capped. */
+  marks: { month: number; nav: number }[];
+  /** Cash flows to LPs for IRR: −paid in, +distributed, by month. */
+  flows: { month: number; amount: number }[];
+  /** Deals waiting for or given investment committee approval. */
+  ic: {
+    dealKey: string;
+    companyId: Id;
+    amount: number;
+    status: 'pending' | 'approved' | 'rejected';
+    month: number;
+    votes: Record<Id, 'yes' | 'no'>;
+  }[];
+  /** A term extension being voted on by LPs. */
+  extension?: { month: number; status: 'open' | 'approved' | 'rejected' };
+  /** Advisory committee approvals for conflicts (Phase 7). */
+  lpac?: { companyId: Id; month: number; status: 'pending' | 'approved' | 'rejected' }[];
+  /** Fees paid so far. */
+  feesPaid: number;
+  carryPaid: number;
+}
+
+/** A partner or associate in a firm (Phase 6). */
+export interface FirmMember {
+  id: Id;
+  name: string;
+  title: 'associate' | 'principal' | 'partner';
+  /** A human player, or null for an AI hire. */
+  playerId: Id | null;
+  /** Share of the firm's carry pool. */
+  carryShare: number;
+  /** Monthly salary, local minor units. */
+  salary: number;
+  hours: number;
+  month: number;
+  status: 'active' | 'left';
+}
+
+/** A firm (management company): fees from every fund, a team and a carry pool (Phase 6). */
+export interface Firm {
+  id: Id;
+  name: string;
+  ownerId: Id;
+  market: MarketId;
+  account: Id;
+  fundIds: Id[];
+  members: FirmMember[];
+  stars: StarState;
+  month: number;
+  /** Phase 9: the GP stepped back; the successor runs it and the founder keeps a carry share. */
+  succession?: { successorId: Id; month: number; founderCarry: number };
 }
 
 /** Cost basis of an investor in a company, for marks, DPI and write-offs. */
@@ -1754,6 +2006,10 @@ export interface World {
   mentorships?: Record<Id, Mentorship>;
   /** Founder Journey 5: each city's giving fund (a real account). Missing = none yet. */
   charity?: Partial<Record<MarketId, Id>>;
+  /** Investor career Phase 3: syndicates. Missing = none. */
+  syndicates?: Record<Id, Syndicate>;
+  /** Investor career Phase 6: firms. Missing = none. */
+  firms?: Record<Id, Firm>;
 }
 
 // ---------------------------------------------------------------- Wave 10: a living economy
