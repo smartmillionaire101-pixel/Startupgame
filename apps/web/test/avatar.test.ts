@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { defaultAppearance, type Appearance } from '@runway/engine';
-import { appearanceOfLook, avatarLook, lookFromAppearance } from '../src/city/art';
+import { appearanceOfLook, avatarLook, drawnGender, lookFromAppearance } from '../src/city/art';
 import { rememberLook, setLookOverride } from '../src/city/acts/look';
 import { portraitShapes } from '../src/avatar/portrait';
 
@@ -55,13 +55,13 @@ describe('portraitShapes', () => {
       'long',
     ] as const;
     const drawn = styles.map((hairStyle) =>
-      JSON.stringify(parts({ ...LOOK, hairStyle }).filter((s) => s.part === 'hair')),
+      JSON.stringify(parts({ ...LOOK, hairStyle }, 'female').filter((s) => s.part === 'hair')),
     );
     expect(new Set(drawn).size).toBe(styles.length);
   });
 
   it('covers the hair with a headwrap or gele, in the top colour', () => {
-    const gele = parts({ ...LOOK, headwear: 'gele' });
+    const gele = parts({ ...LOOK, headwear: 'gele' }, 'female');
     expect(gele.filter((s) => s.part === 'hair')).toEqual([]);
     expect(gele.some((s) => s.part === 'headwear' && s.fill === LOOK.topColor)).toBe(true);
   });
@@ -107,5 +107,49 @@ describe('avatarLook and saved looks', () => {
     // The dropout's orange hoodie colour and cap.
     expect(l.top).toBe('#f97316');
     expect(l.headwear).toBe('cap');
+  });
+
+  it('draws a man as a man: a look saved as a woman (or before he chose) follows his gender', () => {
+    // The look a woman's creator gave him: a dress, a gele, long hair, no beard.
+    const hers: Appearance = {
+      ...LOOK,
+      hairStyle: 'long',
+      facialHair: 'none',
+      headwear: 'gele',
+      topStyle: 'dress',
+    };
+    rememberLook('u_look', hers, 100);
+    const him = avatarLook('f-engineer', 'u_look', 'male');
+    expect(him.gender).toBe('male');
+    expect(him.topStyle).toBe('kaftan');
+    expect(him.headwear).not.toBe('gele');
+    expect(['bun', 'long', 'braids']).not.toContain(him.hairStyle);
+    // His colours and face stay his.
+    expect(him).toMatchObject({ skin: hers.skin, top: hers.topColor, hair: hers.hairColor });
+    // A woman keeps all of it, and loses a beard.
+    const her = avatarLook('f-engineer', 'u_look', 'female');
+    expect(her).toMatchObject({ topStyle: 'dress', headwear: 'gele', hairStyle: 'long' });
+    rememberLook('u_look', { ...LOOK, facialHair: 'beard' }, 200);
+    expect(avatarLook('f-engineer', 'u_look', 'female').facialHair).toBe('none');
+    // A salon cut kept on this device follows a later gender change too.
+    rememberLook('u_look', null);
+    setLookOverride('u_look', { hairStyle: 'bun', at: 300 });
+    expect(avatarLook('f-engineer', 'u_look', 'male').hairStyle).not.toBe('bun');
+  });
+
+  it('never gives a man a dress from his seed, in any background', () => {
+    for (const bg of ['f-engineer', 'f-banker', 'i-exited', 'b-wealthy', undefined])
+      for (let k = 0; k < 200; k++) {
+        const l = avatarLook(bg, `u_seed${k}`, 'male');
+        expect(l.gender).toBe('male');
+        expect(l.topStyle).not.toBe('dress');
+        expect(['bun', 'long', 'braids']).not.toContain(l.hairStyle);
+      }
+  });
+
+  it('agrees on the gender of a player who never chose one (the creator, the portrait, every scene)', () => {
+    const g = drawnGender('f-engineer', 'u_old', null);
+    expect(avatarLook('f-engineer', 'u_old', null).gender).toBe(g);
+    expect(drawnGender('f-engineer', 'u_old', 'male')).toBe('male');
   });
 });

@@ -4,6 +4,8 @@ import {
   SKIN_TONES,
   appearanceSeed,
   defaultAppearance,
+  fitAppearance,
+  GENDER_PARTS,
   type Appearance,
 } from '../src/appearance.js';
 import { commandSchema } from '../src/commands.js';
@@ -135,5 +137,54 @@ describe('defaultAppearance', () => {
 
   it('passes the command schema', () => {
     for (let k = 0; k < 50; k++) expect(parse(defaultAppearance(`x${k}`)).success).toBe(true);
+  });
+});
+
+describe('fitAppearance', () => {
+  const HERS: Appearance = {
+    ...LOOK,
+    hairStyle: 'long',
+    facialHair: 'none',
+    headwear: 'gele',
+    topStyle: 'dress',
+  };
+
+  it('dresses a man as a man, and keeps everything else he picked', () => {
+    const him = fitAppearance(HERS, 'male');
+    expect(him).toEqual({
+      ...HERS,
+      hairStyle: 'short',
+      headwear: 'headwrap',
+      topStyle: 'kaftan',
+    });
+    expect(fitAppearance({ ...HERS, hairStyle: 'bun' }, 'male').hairStyle).toBe('short');
+    expect(fitAppearance({ ...HERS, hairStyle: 'braids' }, 'male').hairStyle).toBe('twists');
+  });
+
+  it('takes a woman’s facial hair off, and nothing else', () => {
+    expect(fitAppearance(LOOK, 'female')).toEqual({ ...LOOK, facialHair: 'none' });
+    expect(fitAppearance(HERS, 'female')).toBe(HERS);
+  });
+
+  it('never changes a seeded look (it already follows its gender)', () => {
+    for (let k = 0; k < 300; k++)
+      for (const g of ['female', 'male'] as const) {
+        const a = defaultAppearance(`fit:${k}`, g);
+        expect(fitAppearance(a, g)).toBe(a);
+      }
+  });
+
+  it('offers each gender only parts that survive the fit', () => {
+    for (const g of ['female', 'male'] as const) {
+      const p = GENDER_PARTS[g];
+      for (const hairStyle of p.hairStyle)
+        expect(fitAppearance({ hairStyle }, g).hairStyle).toBe(hairStyle);
+      for (const topStyle of p.topStyle)
+        expect(fitAppearance({ topStyle }, g).topStyle).toBe(topStyle);
+      for (const headwear of p.headwear)
+        expect(fitAppearance({ headwear }, g).headwear).toBe(headwear);
+    }
+    expect(GENDER_PARTS.male.topStyle).not.toContain('dress');
+    expect(GENDER_PARTS.female.facialHair).toEqual(['none']);
   });
 });

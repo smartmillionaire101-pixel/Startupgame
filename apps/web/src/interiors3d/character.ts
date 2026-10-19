@@ -444,16 +444,20 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     hair.visible =
       look.hairStyle === 'long' || look.hairStyle === 'braids' || look.hairStyle === 'locs';
   }
-  // Long tops: a kaftan to the knee, a dress that flares.
+  // Long tops: a kaftan to the knee, a dress that flares. A man's kaftan is a
+  // straight tunic to mid-thigh over his trousers, so it never reads as a dress.
   if (look.topStyle === 'kaftan' || look.topStyle === 'dress') {
     const dress = look.topStyle === 'dress';
+    const tunic = !dress && !female;
     const skirt = new THREE.Mesh(
       dress
         ? geo('dress', () => new THREE.CylinderGeometry(0.16, 0.3, 0.46, 12))
-        : geo('kaftan', () => new THREE.CylinderGeometry(0.17, 0.22, 0.4, 12)),
+        : tunic
+          ? geo('tunic', () => new THREE.CylinderGeometry(0.165, 0.175, 0.24, 12))
+          : geo('kaftan', () => new THREE.CylinderGeometry(0.17, 0.22, 0.4, 12)),
       mat(top, { rough: 0.85 }),
     );
-    skirt.position.y = dress ? -0.2 : -0.16;
+    skirt.position.y = dress ? -0.2 : tunic ? -0.07 : -0.16;
     skirt.castShadow = true;
     hips.add(skirt);
   }

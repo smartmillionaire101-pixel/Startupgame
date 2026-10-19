@@ -10,15 +10,13 @@
 import { useMemo, useState } from 'react';
 import {
   FACE_SHAPES,
-  FACIAL_HAIR,
   GLASSES,
   HAIR_COLOURS,
-  HAIR_STYLES,
-  HEADWEAR,
   SKIN_TONES,
   TOP_COLOURS,
-  TOP_STYLES,
+  GENDER_PARTS,
   defaultAppearance,
+  fitAppearance,
   type Appearance,
 } from '@runway/engine';
 import { AvatarFigure, lookFromAppearance } from '../city/art';
@@ -216,7 +214,9 @@ export function Creator({
   saveLabel?: string;
   busy?: boolean;
 }) {
-  const [a, setA] = useState<Appearance>(initial);
+  // Only what this gender wears: a man's look from before he chose has no dress.
+  const [a, setA] = useState<Appearance>(() => fitAppearance(initial, gender));
+  const parts = GENDER_PARTS[gender];
   const [tab, setTab] = useState<Tab>('face');
   const look = useMemo(() => lookFromAppearance(a, gender, bottom), [a, gender, bottom]);
   const set =
@@ -285,7 +285,7 @@ export function Creator({
             <Thumbs
               label={t('Hairstyle')}
               part="hairStyle"
-              options={HAIR_STYLES}
+              options={parts.hairStyle}
               names={HAIR_NAME}
               onPick={set('hairStyle')}
               {...thumbs}
@@ -302,14 +302,16 @@ export function Creator({
         )}
         {tab === 'extras' && (
           <>
-            <Thumbs
-              label={t('Facial hair')}
-              part="facialHair"
-              options={FACIAL_HAIR}
-              names={FACIAL_NAME}
-              onPick={set('facialHair')}
-              {...thumbs}
-            />
+            {parts.facialHair.length > 1 && (
+              <Thumbs
+                label={t('Facial hair')}
+                part="facialHair"
+                options={parts.facialHair}
+                names={FACIAL_NAME}
+                onPick={set('facialHair')}
+                {...thumbs}
+              />
+            )}
             <Thumbs
               label={t('Glasses')}
               part="glasses"
@@ -321,7 +323,7 @@ export function Creator({
             <Thumbs
               label={t('Headwear')}
               part="headwear"
-              options={HEADWEAR}
+              options={parts.headwear}
               names={HEADWEAR_NAME}
               onPick={set('headwear')}
               {...thumbs}
@@ -333,7 +335,7 @@ export function Creator({
             <Thumbs
               label={t('Top')}
               part="topStyle"
-              options={TOP_STYLES}
+              options={parts.topStyle}
               names={TOP_NAME}
               onPick={set('topStyle')}
               {...thumbs}

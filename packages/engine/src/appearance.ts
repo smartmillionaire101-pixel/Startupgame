@@ -228,6 +228,76 @@ export function defaultAppearance(
   };
 }
 
+/**
+ * The parts each gender's creator offers. Men get no dress, gele, bun or long
+ * straight hair (their kaftan is drawn as a tunic over trousers); women no
+ * facial hair. Everything else is open to everyone.
+ */
+export const GENDER_PARTS: Record<
+  Gender,
+  {
+    hairStyle: readonly HairStyle[];
+    facialHair: readonly FacialHair[];
+    headwear: readonly Headwear[];
+    topStyle: readonly TopStyle[];
+  }
+> = {
+  female: {
+    hairStyle: HAIR_STYLES,
+    facialHair: ['none'],
+    headwear: HEADWEAR,
+    topStyle: TOP_STYLES,
+  },
+  male: {
+    hairStyle: HAIR_STYLES.filter((h) => h !== 'bun' && h !== 'long' && h !== 'braids'),
+    facialHair: FACIAL_HAIR,
+    headwear: HEADWEAR.filter((h) => h !== 'gele'),
+    topStyle: TOP_STYLES.filter((s) => s !== 'dress'),
+  },
+};
+
+/** What a part the other gender wears becomes (the nearest one this gender has). */
+const SWAP = {
+  hairStyle: { bun: 'short', long: 'short', braids: 'twists' },
+  headwear: { gele: 'headwrap' },
+  topStyle: { dress: 'kaftan' },
+} as const;
+
+/**
+ * A look as this gender wears it: a dress, gele, bun or long straight hair
+ * on a man (a look made before he picked "Man", an old save, a gender changed
+ * in Profile) becomes his nearest part, and a woman loses facial hair. Pure,
+ * and the same object back when nothing changes.
+ */
+export function fitAppearance<
+  A extends {
+    hairStyle?: HairStyle;
+    facialHair?: FacialHair;
+    headwear?: Headwear;
+    topStyle?: TopStyle;
+  },
+>(a: A, gender: Gender): A {
+  const ok = GENDER_PARTS[gender];
+  let out: A = a;
+  const put = <K extends 'hairStyle' | 'facialHair' | 'headwear' | 'topStyle'>(
+    k: K,
+    v: Appearance[K],
+  ) => {
+    if (out === a) out = { ...a };
+    (out as Partial<Appearance>)[k] = v;
+  };
+  if (a.hairStyle && !ok.hairStyle.includes(a.hairStyle))
+    put('hairStyle', (SWAP.hairStyle as Record<string, HairStyle>)[a.hairStyle] ?? 'short');
+  if (a.facialHair && !ok.facialHair.includes(a.facialHair)) put('facialHair', 'none');
+  if (a.headwear && !ok.headwear.includes(a.headwear)) {
+    const swap = (SWAP.headwear as Record<string, Headwear>)[a.headwear] ?? 'none';
+    put('headwear', ok.headwear.includes(swap) ? swap : 'none');
+  }
+  if (a.topStyle && !ok.topStyle.includes(a.topStyle))
+    put('topStyle', (SWAP.topStyle as Record<string, TopStyle>)[a.topStyle] ?? 'shirt');
+  return out;
+}
+
 /** The gender a seed gives a person whose gender isn't known (half and half). */
 export const seedGender = (seed: string): Gender =>
   ((hashString(seed) >>> 3) & 1) === 1 ? 'female' : 'male';

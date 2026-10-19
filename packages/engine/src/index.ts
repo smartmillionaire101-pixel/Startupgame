@@ -76,6 +76,8 @@ export {
   appearanceSchema,
   appearanceSeed,
   defaultAppearance,
+  fitAppearance,
+  GENDER_PARTS,
   seedGender,
 } from './appearance.js';
 export type {

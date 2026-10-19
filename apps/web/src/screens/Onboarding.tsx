@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { BACKGROUNDS, type Appearance, type Background } from '@runway/engine';
+import { BACKGROUNDS, fitAppearance, type Appearance, type Background } from '@runway/engine';
 import { api } from '../api';
 import { t, tx } from '../i18n';
 import { useGame } from '../store';
@@ -78,7 +78,9 @@ export function Onboarding({ embedded = false }: { embedded?: boolean }) {
   const [custom, setCustom] = useState(false);
   const pickGender = (g: Gender) => {
     setGender(g);
+    // A look made before you chose keeps what you picked, as this gender wears it.
     if (!custom) setLook(randomAppearance(g));
+    else setLook((l) => fitAppearance(l, g));
   };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +105,7 @@ export function Onboarding({ embedded = false }: { embedded?: boolean }) {
       const saved = await api
         .command({
           type: 'player.appearance',
-          appearance: outfit ? { ...look, topColor: outfit } : look,
+          appearance: fitAppearance(outfit ? { ...look, topColor: outfit } : look, gender),
         })
         .then(
           () => true,

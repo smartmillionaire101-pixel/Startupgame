@@ -74,6 +74,8 @@ function geoms() {
     knot: new THREE.SphereGeometry(0.06, 8, 5),
     gele: new THREE.SphereGeometry(1, 10, 6).scale(0.3, 0.12, 0.2),
     kaftan: new THREE.CylinderGeometry(0.22, 0.26, 0.42, 8).translate(0, -0.2, 0),
+    // A man's kaftan: a straight tunic to mid-thigh, trousers below.
+    tunic: new THREE.CylinderGeometry(0.22, 0.23, 0.24, 8).translate(0, -0.1, 0),
     dress: new THREE.CylinderGeometry(0.2, 0.33, 0.52, 8).translate(0, -0.25, 0),
   };
   return G;
@@ -121,7 +123,8 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
     legs.push(pivot);
   }
   const topStyle = look.topStyle ?? 'tee';
-  if (topStyle === 'kaftan') mesh(g.kaftan!, top, body, 0, hip + 0.05, 0);
+  if (topStyle === 'kaftan')
+    mesh(look.gender === 'female' ? g.kaftan! : g.tunic!, top, body, 0, hip + 0.05, 0);
   else if (topStyle === 'dress') mesh(g.dress!, top, body, 0, hip + 0.08, 0);
   else if (look.gender === 'female' && (look.hairStyle === 'long' || look.hairStyle === 'bun'))
     mesh(g.skirt!, bottom, body, 0, hip + 0.05, 0);

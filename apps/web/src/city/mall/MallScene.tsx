@@ -9,13 +9,13 @@
  */
 import { Suspense, lazy, useMemo, useState } from 'react';
 import type { MallShopId } from '@runway/engine';
-import { TOP_COLOURS } from '@runway/engine';
+import { GENDER_PARTS, TOP_COLOURS } from '@runway/engine';
 import './mall.css';
 import { use3d } from '../../three-kit/quality';
 import { money } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
-import { AvatarFigure, avatarLook, type AvatarLook } from '../art';
+import { AvatarFigure, avatarLook, drawnGender, type AvatarLook } from '../art';
 import { genderOf, looseCmd } from '../life';
 import { mallOf, type MallItemView } from '../leisure';
 import type { SceneProps } from '../PlaceScene';
@@ -62,7 +62,8 @@ export function MallScene(props: SceneProps) {
   const mall = mallOf(view);
   const cur = mall?.currency ?? view.market.currency;
   const pocket = view.accounts.local?.balance ?? 0;
-  const me = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
+  const gender = drawnGender(view.me.background?.id, view.me.id, genderOf(view.me));
+  const me = avatarLook(view.me.background?.id, view.me.id, gender);
   const [focus, setFocus] = useState<MallShopId | null>(null);
   const [colour, setColour] = useState<string>(TOP_COLOURS[6]);
   const [trying, setTrying] = useState<string | null>(null);
@@ -82,7 +83,14 @@ export function MallScene(props: SceneProps) {
       ),
     [market],
   );
-  const items = (mall?.items ?? []).filter((i) => i.shop === focus);
+  // Clothes for who you are: the fashion shop shows a man no dress or gele.
+  const parts = GENDER_PARTS[gender];
+  const items = (mall?.items ?? []).filter(
+    (i) =>
+      i.shop === focus &&
+      (!i.topStyle || (parts.topStyle as readonly string[]).includes(i.topStyle)) &&
+      (!i.headwear || (parts.headwear as readonly string[]).includes(i.headwear)),
+  );
   const tryItem = items.find((i) => i.id === trying);
   const shown = focus === 'fashion' && tryItem ? wearing(me, tryItem, colour) : me;
 

@@ -11,6 +11,7 @@ import { BridgeTop, BusinessBody, Hill, PlanLandmark, Station } from './art-plac
 import {
   SKIN_TONES,
   defaultAppearance,
+  fitAppearance,
   seedGender,
   type Appearance,
   type FaceShape,
@@ -1819,6 +1820,8 @@ export function lookFromAppearance(
   bottom: string,
   accessory: AvatarLook['accessory'] = 'none',
 ): AvatarLook {
+  // Drawn as this gender wears it: no dress or gele on a man, no beard on a woman.
+  a = fitAppearance(a, gender);
   return {
     skin: a.skin,
     hair: a.hairColor,
@@ -1873,7 +1876,7 @@ export function avatarLook(
   gender?: 'female' | 'male' | null,
 ): AvatarLook {
   const seed = `${playerId}:${backgroundId ?? ''}`;
-  const g = gender ?? seedGender(seed);
+  const g = drawnGender(backgroundId, playerId, gender);
   const outfit = OUTFITS[backgroundId ?? ''];
   const bottom = outfit?.bottom ?? BOTTOMS[hash(seed) % BOTTOMS.length]!;
   const saved = savedLook(playerId);
@@ -1908,8 +1911,20 @@ export function avatarLook(
     void _at;
     look = { ...look, ...rest };
   }
-  return look;
+  // A haircut saved on this device before a gender change follows it too.
+  return fitAppearance(look, g);
 }
+
+/**
+ * The gender a player is drawn as: theirs, or (an old save that never chose)
+ * the one `avatarLook` seeds from their id and background, so the creator,
+ * the portrait and every scene agree.
+ */
+export const drawnGender = (
+  backgroundId: string | undefined,
+  playerId: string,
+  gender?: 'female' | 'male' | null,
+): 'female' | 'male' => gender ?? seedGender(`${playerId}:${backgroundId ?? ''}`);
 
 /**
  * Wave 7 scale on the map: people are drawn at 0.6 (about 25 px tall at
@@ -2071,7 +2086,12 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
         {topStyle === 'dress' && <path d="M -5.5 -14 L 5.5 -14 L 7.4 -4 L -7.4 -4 Z" fill={top} />}
         {topStyle === 'kaftan' && (
           <>
-            <path d="M -5.5 -14 L 5.5 -14 L 6.2 -5.5 L -6.2 -5.5 Z" fill={top} />
+            {/* A man's kaftan stops at mid-thigh (a tunic over trousers); a woman's is long. */}
+            {look.gender === 'female' ? (
+              <path d="M -5.5 -14 L 5.5 -14 L 6.2 -5.5 L -6.2 -5.5 Z" fill={top} />
+            ) : (
+              <path d="M -5.5 -14 L 5.5 -14 L 5.7 -8.5 L -5.7 -8.5 Z" fill={top} />
+            )}
             <path d="M -2.4 -24 L 0 -19.5 L 2.4 -24" stroke="#fbbf24" strokeWidth="1" fill="none" />
           </>
         )}

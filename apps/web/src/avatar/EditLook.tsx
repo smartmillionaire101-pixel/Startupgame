@@ -5,7 +5,7 @@
  */
 import { useMemo, useState } from 'react';
 import type { Appearance } from '@runway/engine';
-import { appearanceOfLook, avatarLook } from '../city/art';
+import { appearanceOfLook, avatarLook, drawnGender } from '../city/art';
 import { setLookOverride, useLookVersion } from '../city/acts/look';
 import { genderOf } from '../city/life';
 import { t } from '../i18n';
@@ -18,7 +18,8 @@ import { Portrait } from './Portrait';
 export function MyLook({ size = 88 }: { size?: number }) {
   const { view, send, busy } = useView();
   const me = view.me;
-  const gender = genderOf(me) ?? 'female';
+  // Never a guess of its own: the gender every scene draws you as.
+  const gender = drawnGender(me.background?.id, me.id, genderOf(me));
   const [open, setOpen] = useState(false);
   const v = useLookVersion();
   const look = useMemo(
