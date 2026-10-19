@@ -162,6 +162,7 @@ test('a pitch competition in San Francisco: enter, settle, see the result', asyn
 test('Going out: a locked activity says when it unlocks', async ({ page }) => {
   await create(page, 'founder', 'lagos');
   const phone = await openApp(page, 'goingout');
+  await phone.getByRole('radio', { name: 'By lifestyle' }).click();
   await expect(phone.getByText(/Your standard of living: level 2/)).toBeVisible();
   const locked = phone.locator('[data-activity][data-locked]').first();
   await expect(locked).toBeVisible();
