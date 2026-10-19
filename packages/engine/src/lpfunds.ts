@@ -38,6 +38,7 @@ import { roundTo } from './math.js';
 import { formatMoney } from './money.js';
 import { monthOfLiving } from './career.js';
 import { investorOn } from './releases.js';
+import { fundOpsView } from './fundops.js';
 import { newStars } from './stars.js';
 import { wealthView } from './wealth.js';
 import type { Industry } from './data/industries.js';
@@ -991,6 +992,7 @@ export function lpFundsView(world: World, p: Player) {
         firstCloseNeed: need,
         canFirstClose: lp.stage === 'raising' && committedTotal(f) >= need,
         canFinalClose: lp.stage === 'investing' && lp.finalCloseMonth === undefined,
+        ops: fundOpsView(world, f),
         monthsLeftToRaise:
           lp.stage === 'raising'
             ? Math.max(

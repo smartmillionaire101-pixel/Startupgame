@@ -42,6 +42,7 @@ import { investorCareer } from './investor-career';
 import { investorExchange } from './investor-exchange';
 import { investorSyndicates } from './investor-syndicates';
 import { investorFunds } from './investor-funds';
+import { investorFundOps } from './investor-fundops';
 import { tutorial } from './tutorial';
 import { uiFixes } from './ui-fixes';
 import { feedback } from './feedback';
@@ -108,6 +109,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   investorExchange,
   investorSyndicates,
   investorFunds,
+  investorFundOps,
   tutorial,
   uiFixes,
   feedback,

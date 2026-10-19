@@ -1399,6 +1399,8 @@ export interface FundLetter {
   dpi: number;
   /** The GP wrote it honestly (marks at the model) or talked the book up. */
   honest: boolean;
+  /** A rosy letter LPs later saw through (counted once). */
+  exposed?: boolean;
   text: string;
 }
 
@@ -1439,6 +1441,10 @@ export interface FundLpState {
   /** Fees paid so far. */
   feesPaid: number;
   carryPaid: number;
+  /** Portfolio construction (Phase 5): companies planned, average first cheque, reserve ratio. */
+  plan?: { companies: number; avgCheque: number; reserveRatio: number };
+  /** Quarters for which a letter is due (home month the quarter ended), and the last one written. */
+  lettersDue?: number[];
 }
 
 /** A partner or associate in a firm (Phase 6). */
@@ -1480,6 +1486,26 @@ export interface Position {
   returned: number;
   month: number;
   writtenOff: boolean;
+  /** Investor career Phase 5: a pro-rata right from the terms. Missing = none. */
+  proRata?: boolean;
+  /** Investor career Phase 5: monthly marks (newest last, capped), with what set them. */
+  marks?: { month: number; value: number; source: 'round' | 'model' | 'listed' | 'exit' }[];
+}
+
+/** A pro-rata right offered when a company raises again (Phase 5). */
+export interface ProRataOffer {
+  id: Id;
+  companyId: Id;
+  /** The holder with the right: a player or a fund. */
+  holderId: Id;
+  amount: number;
+  instrument: 'safe' | 'priced';
+  /** SAFE: the round's cap. Priced: the round's price per share. */
+  cap: number;
+  price: number;
+  month: number;
+  expiresMonth: number;
+  status: 'open' | 'taken' | 'declined' | 'expired';
 }
 
 // ---------------------------------------------------------------- Deal cards
@@ -2074,6 +2100,8 @@ export interface World {
   firms?: Record<Id, Firm>;
   /** Investor career Phase 2: limit orders on the stock market. Missing = none. */
   orders?: Record<Id, ShareOrder>;
+  /** Investor career Phase 5: pro-rata offers when a portfolio company raises. Missing = none. */
+  prorata?: Record<Id, ProRataOffer>;
 }
 
 // ---------------------------------------------------------------- Wave 10: a living economy

@@ -892,6 +892,23 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('lp.pay'), callId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('lp.delay'), callId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('lp.autopay'), fundId: id, on: z.boolean() }),
+  // ---- investor career Phase 5: managing a fund
+  z.object({
+    type: z.literal('fund.plan'),
+    fundId: id,
+    companies: z.number().int().min(1).max(60),
+    avgCheque: money,
+    reserveRatio: z.number().min(0).max(0.7),
+  }),
+  z.object({ type: z.literal('fund.reserve'), fundId: id, companyId: id, amount: money }),
+  z.object({ type: z.literal('fund.ic'), fundId: id, companyId: id, amount: money }),
+  z.object({ type: z.literal('fund.letter'), fundId: id, honest: z.boolean() }),
+  z.object({ type: z.literal('fund.extend'), fundId: id }),
+  z.object({
+    type: z.literal('prorata.answer'),
+    offerId: z.string().min(1).max(200),
+    take: z.boolean(),
+  }),
   // ---- investor career Phase 3: syndicates
   z.object({
     type: z.literal('syndicate.open'),

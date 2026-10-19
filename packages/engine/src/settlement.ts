@@ -29,6 +29,7 @@ import { payDividends } from './travel.js';
 import { settleExchange } from './exchange.js';
 import { settleSyndicates } from './syndicates.js';
 import { settleLpFunds } from './lpfunds.js';
+import { settleFundOps, settlePositionMarks } from './fundops.js';
 import { settleVotes } from './governance.js';
 import { aiBanking, settleBanks } from './banks.js';
 import { settleDisputes } from './arbitration.js';
@@ -178,6 +179,9 @@ export function settleMarket(
   settlePublicMarket(world, marketId, month);
   // Investor career (after the note): the exchange's dividends, index, index fund and orders.
   settleExchange(world, marketId, month, { buy: buyShares, sell: sellShares });
+  // Investor career Phase 5: marks for investors' positions; funds' metrics, letters and life.
+  settlePositionMarks(world, marketId, month);
+  settleFundOps(world, marketId, month);
 
   // Banks settle after everyone has repaid what they owe this month (§8). Own RNG stream.
   const bankRng = deriveRng(world.seed, 'banks', marketId, month);

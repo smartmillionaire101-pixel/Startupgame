@@ -58,6 +58,14 @@ import {
 import { exitsOn, investorOn, lifeBarsOn } from './releases.js';
 import { backSyndicate, cancelSyndicate, closeSyndicate, openSyndicate } from './syndicates.js';
 import {
+  answerProRata,
+  requestExtension,
+  requestIc,
+  setPlan,
+  setReserve,
+  writeLetter,
+} from './fundops.js';
+import {
   abandonFund,
   closeFund,
   commitToFund,
@@ -1343,6 +1351,22 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return applyGrant(world, me, cmd.partnerId, cmd.programId, cmd.companyId);
     case 'lp.pitch':
       return pitchLp(world, me, cmd.lpId, cmd.fundId);
+    case 'fund.plan':
+      return setPlan(world, me, cmd.fundId, {
+        companies: cmd.companies,
+        avgCheque: cmd.avgCheque,
+        reserveRatio: cmd.reserveRatio,
+      });
+    case 'fund.reserve':
+      return setReserve(world, me, cmd.fundId, cmd.companyId, cmd.amount);
+    case 'fund.ic':
+      return requestIc(world, me, cmd.fundId, cmd.companyId, cmd.amount);
+    case 'fund.letter':
+      return writeLetter(world, me, cmd.fundId, cmd.honest);
+    case 'fund.extend':
+      return requestExtension(world, me, cmd.fundId);
+    case 'prorata.answer':
+      return answerProRata(world, me, cmd.offerId, cmd.take);
     case 'fund.launch':
       return launchFund(world, me, cmd);
     case 'fund.close':

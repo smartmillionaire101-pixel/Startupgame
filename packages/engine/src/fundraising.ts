@@ -8,6 +8,7 @@
 import { barEdgeIn } from './lifebars.js';
 import { checkAngelCheque } from './career.js';
 import { fundCanInvest } from './lpfunds.js';
+import { checkFundCheque } from './fundops.js';
 import { ensure, fail } from './errors.js';
 import {
   adjustTrust,
@@ -676,6 +677,8 @@ export function proposeInvestment(
     // A fund raised the full way invests only after its first close.
     const why = fundCanInvest(world, world.funds[proposer.id]!, c.id);
     ensure(!why, 'fund.notInvesting', why ?? '');
+    // Investor career Phase 5: dry powder after reserves, and the investment committee.
+    checkFundCheque(world, world.funds[proposer.id]!, c, terms.amount);
   }
   const model = valueCompany(world, c, stage).value;
   const deal = openDeal(world, {

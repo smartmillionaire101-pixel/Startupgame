@@ -2,8 +2,9 @@ import { careerView } from './career.js';
 import { exchangeView } from './exchange.js';
 import { syndicatesView } from './syndicates.js';
 import { lpFundsView } from './lpfunds.js';
+import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
-import { lifeBarsOn } from './releases.js';
+import { investorOn, lifeBarsOn } from './releases.js';
 import { pitchQuestionsNow } from './fundraising.js';
 import { journeyView } from './journey.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
@@ -432,6 +433,11 @@ export function portfolio(world: World, p: Player) {
         mark,
         ownershipPct: Math.round(ownership(c.capTable, x.investorId) * 1000) / 10,
         writtenOff: x.writtenOff,
+        /** Investor career: (cash back + mark) ÷ invested, the mark history and a status. */
+        moic: x.invested > 0 ? Math.round(((x.returned + mark) / x.invested) * 100) / 100 : 0,
+        history: (x.marks ?? []).map((k) => k.value),
+        statusLabel: positionStatus(world, c.id, x.writtenOff),
+        proRata: !!x.proRata,
         onBoard: c.board.includes(x.investorId),
         founders: c.founderIds.map((id) => ({ id, name: world.players[id]?.name ?? '—' })),
       };
@@ -706,6 +712,8 @@ export function playerView(
     syndicates: syndicatesView(world, p),
     /** Investor career Phase 4: funds you run (LP book), funds you can join, your calls. */
     lpFunds: lpFundsView(world, p),
+    /** Investor career Phase 5: pro-rata offers from portfolio companies raising again. */
+    prorata: investorOn(world) && !p.ai ? proRataView(world, p) : [],
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */
     recap: p.ai ? null : recapView(world, p.id),
     /** Founder Journey 4a: decision events waiting for you, and the last few answered. */

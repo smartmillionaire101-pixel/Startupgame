@@ -7,6 +7,7 @@
 import { addSafe, closePricedRound, fullyDiluted, waterfall } from './captable.js';
 import type { WaterfallLine } from './captable.js';
 import { distributeSyndicate, syndicateInvested } from './syndicates.js';
+import { afterRound, proRataBefore } from './fundops.js';
 import { ensure, fail } from './errors.js';
 import { achieve, adjustTrust, holderAccount, getCompany, getMarket, notify } from './helpers.js';
 import { newId } from './ids.js';
@@ -608,6 +609,8 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
         m.month,
         'invested',
       );
+      // Investor career Phase 5: who holds a pro-rata right before the round.
+      const proRataHolders = proRataBefore(world, c, holderId);
       if (t.instrument === 'safe') {
         addSafe(c.capTable, { holderId, amount: t.amount, cap: t.valuation, month: m.month });
         c.capTable.lastPostMoney = Math.max(c.capTable.lastPostMoney, t.valuation);
@@ -628,6 +631,7 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
       if (t.boardSeat && !c.board.includes(holderId)) c.board.push(holderId);
       if (t.vetoOnSale && !c.vetoes.includes(holderId)) c.vetoes.push(holderId);
       const followOn = recordPosition(world, holderId, c.id, t.amount, m.month);
+      afterRound(world, c, holderId, t, proRataHolders);
       for (const fid of c.founderIds) {
         const f = world.players[fid];
         if (!f) continue;

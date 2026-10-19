@@ -17,6 +17,7 @@ import {
 import { Exchange } from './Exchange';
 import { Syndicates } from './Syndicates';
 import { FundConsole, LpPortfolio } from './Funds';
+import { ProRataOffers, positionStatusText } from './FundOps';
 import { SimpleLink } from './SimpleLink';
 
 const companyStatusLabel = (x: string) =>
@@ -338,6 +339,7 @@ export function Portfolio() {
       {section === 'overview' && (
         <>
           <InvestorPrompts />
+          <ProRataOffers />
           <CareerLadder compact />
           <SimpleLink
             to="deals"
@@ -367,6 +369,10 @@ export function Portfolio() {
                         <span className="small muted">
                           {p.ownershipPct}%
                           {p.status !== 'active' ? ` · ${companyStatusLabel(p.status)}` : ''}
+                          {p.moic ? ` · ${p.moic.toFixed(2)}×` : ''}
+                          {p.statusLabel === 'at-risk'
+                            ? ` · ${positionStatusText(p.statusLabel)}`
+                            : ''}
                         </span>
                       </td>
                       <td className="num">{money(p.invested, p.currency)}</td>
