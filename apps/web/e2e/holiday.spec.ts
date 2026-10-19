@@ -466,6 +466,8 @@ test('hotel: knock on a friend’s door, they open up and come over, goodbye', a
     await expect(room).toBeVisible({ timeout: 60_000 });
     return room;
   };
+  // As on a serverless host: no live stream, B polls (and polls fast in the hotel).
+  await b.route('**/api/events', (r) => r.fulfill({ status: 204 }));
   const ra = await roomOf(a);
   const rb = await roomOf(b);
 

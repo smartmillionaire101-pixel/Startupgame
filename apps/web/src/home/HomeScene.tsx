@@ -259,7 +259,7 @@ export function HomeScene({
   hotel,
   children,
 }: SceneProps & { hostView?: HostView; hotel?: HotelRoom | null }) {
-  const { view, send, busy, cur, toast } = useView();
+  const { view, send, busy, cur, toast, quicken } = useView();
   const hotelTier: HotelTier | null = hotel ? (hotel.tier ?? 'budget') : null;
   const tier = hotelTier
     ? HOTEL_SHELL_TIER[hotelTier]
@@ -1052,6 +1052,9 @@ export function HomeScene({
   const visit = holiday?.visit?.me ? holiday.visit : null;
   /** Who's over: your guest (you host), or the host whose room you're in. */
   const visitor = visit ? (visit.me === 'host' ? visit.guest : visit.host) : null;
+  // Friends' doors down the corridor: a knock (theirs or your answer) shows within seconds.
+  const quickHotel = !!holiday && friendDoors.length > 0;
+  useEffect(() => (quickHotel ? quicken() : undefined), [quickHotel, quicken]);
   const knockedBy = holiday?.knocks[0] ?? null;
   const myKnock = holiday?.myKnock ?? null;
   const [knocking, setKnocking] = useState<string | null>(null);
