@@ -625,7 +625,7 @@ export function proposeInvestment(
     terms: Omit<
       InvestmentTerms,
       'kind' | 'stage' | 'liquidationMultiple' | 'participating' | 'poolTopUpBps'
-    > & { fromFund?: boolean };
+    > & { fromFund?: boolean; fundId?: Id };
   },
 ) {
   const inv = getPlayer(world, args.investorId);
@@ -667,9 +667,17 @@ export function proposeInvestment(
     'deal.terms',
     'Valuation must be well above the amount.',
   );
+  // Investor career Phase 6: invest from a named fund you run (Fund I, Fund II, a strategy fund).
+  if (args.terms.fundId)
+    ensure(
+      world.funds[args.terms.fundId]?.managerId === inv.id,
+      'invest.fund',
+      'Invest from a fund you run.',
+    );
+  const fromId = args.terms.fundId ?? inv.investor?.fundId;
   const proposer =
-    args.terms.fromFund && inv.investor?.fundId
-      ? { kind: 'fund' as const, id: inv.investor.fundId }
+    args.terms.fromFund && fromId
+      ? { kind: 'fund' as const, id: fromId }
       : { kind: 'player' as const, id: inv.id };
   // The angel ceiling (investor-career worlds): a capped cheque, and a lead for Series A+.
   if (proposer.kind === 'player') checkAngelCheque(world, inv, c, terms.amount, stage);

@@ -39,6 +39,7 @@ import { formatMoney } from './money.js';
 import { monthOfLiving } from './career.js';
 import { investorOn } from './releases.js';
 import { fundOpsView } from './fundops.js';
+import { aiCarry, attachFund, nextFundCap, splitCarry } from './firms.js';
 import { newStars } from './stars.js';
 import { wealthView } from './wealth.js';
 import type { Industry } from './data/industries.js';
@@ -171,6 +172,13 @@ export function launchFund(world: World, me: Player, a: LaunchArgs) {
     'fund.terms',
     'Set a smallest commitment under a quarter of the target.',
   );
+  // Phase 6: a later fund's size follows the last one and the firm's stars (§8.4).
+  const cap = first ? null : nextFundCap(world, me);
+  ensure(
+    cap === null || a.target <= cap,
+    'fund.size',
+    `LPs will back up to ${formatMoney(cap ?? 0, m.data.currency)} for your next fund: the last one’s size, scaled by your firm’s stars.`,
+  );
   spendHours(me, INVESTOR.hours.lpPanel, 'Writing the fund’s terms');
   const n = mine.length + 1;
   const id = newId(world, 'fund');
@@ -232,6 +240,7 @@ export function launchFund(world: World, me: Player, a: LaunchArgs) {
   };
   world.funds[id] = fund;
   if (first) me.investor.fundId = id;
+  attachFund(world, fund);
   // The GP's own money, called like any player LP's.
   fund.lp!.commitments.push({
     id: `${id}:gp`,
@@ -895,14 +904,21 @@ function payLp(
 /** Carry to the GP (Phase 6: through the firm's carry pool), taxed as a capital gain. */
 export function payCarry(world: World, f: Fund, manager: Player, carry: number, month: number) {
   const m = getMarket(world, f.market);
-  const tax = Math.round(carry * m.data.tax.capitalGains);
-  transfer(world, f.account, m.ext.tax, tax, 'Capital gains tax on carry (withheld)', month);
-  pay(world, f.account, manager.accounts.local, carry - tax, 'Carried interest', month);
-  notify(world, manager.id, {
-    month,
-    kind: 'deal',
-    text: `Carry paid: ${formatMoney(carry, m.data.currency)}. Tax: ${formatMoney(tax, m.data.currency)}.`,
-  });
+  // Phase 6: a firm's carry pool (partners, a succession share, the head); AI partners are paid out.
+  const ai = aiCarry(world, f, carry);
+  if (ai > 0) transfer(world, f.account, m.ext.payroll, ai, 'Carried interest: AI partners', month);
+  const split = f.firmId ? splitCarry(world, f, carry) : [{ to: manager, amount: carry }];
+  for (const { to, amount } of split) {
+    if (amount <= 0) continue;
+    const tax = Math.round(amount * m.data.tax.capitalGains);
+    transfer(world, f.account, m.ext.tax, tax, 'Capital gains tax on carry (withheld)', month);
+    pay(world, f.account, to.accounts.local, amount - tax, 'Carried interest', month);
+    notify(world, to.id, {
+      month,
+      kind: 'deal',
+      text: `Carry paid from ${f.name}: ${formatMoney(amount, m.data.currency)}. Tax: ${formatMoney(tax, m.data.currency)}.`,
+    });
+  }
 }
 
 /** Management fee on an LP-book fund: the term's rate, stepping down after the investment period. */

@@ -238,6 +238,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     boardSeat: z.boolean(),
     vetoOnSale: z.boolean(),
     fromFund: z.boolean().optional(),
+    /** Investor career: which fund you run pays (default: your first). */
+    fundId: id.optional(),
   }),
   z.object({
     type: z.literal('invest.diligence'),
@@ -853,9 +855,10 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('shares.sell'),
     companyId: id,
     pctBps: z.number().int().min(1).max(10_000),
+    fundId: id.optional(),
   }),
   /** Buy about `amount` (the company's currency) of a listed company's shares. */
-  z.object({ type: z.literal('shares.buy'), companyId: id, amount: money }),
+  z.object({ type: z.literal('shares.buy'), companyId: id, amount: money, fundId: id.optional() }),
   // ---- investor career Phase 2: the city exchange
   /** A limit order: buy `amount` (money) or sell `amount` bps of your holding at `limit` per share. */
   z.object({
@@ -892,6 +895,26 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('lp.pay'), callId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('lp.delay'), callId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('lp.autopay'), fundId: id, on: z.boolean() }),
+  // ---- investor career Phase 6: the firm
+  z.object({ type: z.literal('firm.found'), name: z.string().min(3).max(40) }),
+  z.object({ type: z.literal('firm.hire'), title: z.enum(['associate', 'principal', 'partner']) }),
+  z.object({
+    type: z.literal('firm.invite'),
+    playerId: id,
+    carryShare: z.number().min(0).max(0.5),
+  }),
+  z.object({ type: z.literal('firm.answer'), firmId: id, accept: z.boolean() }),
+  z.object({ type: z.literal('firm.letGo'), memberId: z.string().min(1).max(100) }),
+  z.object({
+    type: z.literal('firm.carryAsk'),
+    memberId: z.string().min(1).max(100),
+    accept: z.boolean(),
+  }),
+  z.object({
+    type: z.literal('firm.succession'),
+    memberId: z.string().min(1).max(100),
+    founderCarry: z.number().min(0).max(0.5),
+  }),
   // ---- investor career Phase 5: managing a fund
   z.object({
     type: z.literal('fund.plan'),

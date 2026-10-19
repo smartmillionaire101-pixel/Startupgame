@@ -144,7 +144,14 @@ export function checkBuy(world: World, me: Player, c: Company, shares: number, n
 }
 
 /** After a buy: price impact, depth used, and the index benchmark. */
-export function afterBuy(world: World, me: Player, c: Company, shares: number, cost: number) {
+export function afterBuy(
+  world: World,
+  me: Player,
+  c: Company,
+  shares: number,
+  cost: number,
+  personal = true,
+) {
   if (!investorOn(world)) return;
   const m = getMarket(world, c.market);
   const ex = exchangeOf(world, m);
@@ -155,6 +162,7 @@ export function afterBuy(world: World, me: Player, c: Company, shares: number, c
   const price = ipo.price!;
   ipo.price = Math.min(price * (1 + (INVESTOR.exchange.impact * shares) / fd), price * 1.1);
   c.capTable.lastPrice = ipo.price;
+  if (!personal) return;
   const b = (ex.bench[me.id] ??= { units: 0, since: m.month });
   b.units += cost / Math.max(0.0001, ex.level);
 }
@@ -558,6 +566,13 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 /** `view.exchange`: every open city's exchange, with the viewer's holdings, units and orders. */
 export function exchangeView(world: World, p: Player, now?: number) {
   if (!investorOn(world) || p.ai) return null;
+  // Crossover (public-equity) funds you run trade here too.
+  const crossover = Object.values(world.funds).filter(
+    (f) =>
+      f.managerId === p.id &&
+      f.lp?.strategy === 'public' &&
+      (f.lp.stage === 'investing' || f.lp.stage === 'harvest' || f.lp.stage === 'extended'),
+  );
   const markets = Object.values(world.markets)
     .filter((m): m is MarketState => !!m && !!m.exchange)
     .map((m) => {
@@ -619,6 +634,12 @@ export function exchangeView(world: World, p: Player, now?: number) {
             lockedUntil: (c.ipo!.lockups?.[p.id] ?? 0) > m.month ? c.ipo!.lockups![p.id]! : null,
             history: (c.ipo!.history ?? []).map(r2),
             floatShares: float,
+            /** Your crossover funds' holdings here (Phase 6). */
+            fundShares: crossover.map((f) => ({
+              fundId: f.id,
+              name: f.name,
+              shares: c.capTable.holdings[f.id]?.shares ?? 0,
+            })),
           };
         }),
         holdings: holdingsSummary(world, p, m),

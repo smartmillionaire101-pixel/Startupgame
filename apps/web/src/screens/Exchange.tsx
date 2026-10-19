@@ -99,6 +99,11 @@ function ListingRow({ x, c, brokerBps }: { x: Listing; c: City; brokerBps: numbe
   const [amount, setAmount] = useState('');
   const [limit, setLimit] = useState('');
   const [bps, setBps] = useState(2500);
+  // Phase 6: trade for yourself or for a crossover fund you run.
+  const [forId, setForId] = useState('me');
+  const fund = x.fundShares.find((f) => f.fundId === forId);
+  const held = fund ? fund.shares : x.yourShares;
+  const fundArg = fund ? { fundId: fund.fundId } : {};
   const cur = c.currency;
   const spend = parseAmount(amount) ?? 0;
   const lim = parseAmount(limit) ?? 0;
@@ -139,6 +144,19 @@ function ListingRow({ x, c, brokerBps }: { x: Listing; c: City; brokerBps: numbe
         <div className="inv-form" style={{ flexBasis: '100%' }}>
           <Sparkline values={x.history} label={t('Share price')} />
           {x.blackout && <p className="warn small">{tx(x.blackout)}</p>}
+          {x.fundShares.length > 0 && (
+            <label className="row small">
+              {t('Trade for')}{' '}
+              <select value={forId} onChange={(e) => setForId(e.target.value)}>
+                <option value="me">{t('Yourself')}</option>
+                {x.fundShares.map((f) => (
+                  <option key={f.fundId} value={f.fundId}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <Segmented
             label={t('Order type')}
             value={mode}
@@ -171,8 +189,8 @@ function ListingRow({ x, c, brokerBps }: { x: Listing; c: City; brokerBps: numbe
                 disabled={spend <= 0 || (mode === 'limit' ? lim <= 0 : est <= 0)}
                 onClick={() =>
                   void send(
-                    mode === 'market'
-                      ? { type: 'shares.buy', companyId: x.companyId, amount: spend }
+                    mode === 'market' || fund
+                      ? { type: 'shares.buy', companyId: x.companyId, amount: spend, ...fundArg }
                       : {
                           type: 'shares.order',
                           companyId: x.companyId,
@@ -198,7 +216,7 @@ function ListingRow({ x, c, brokerBps }: { x: Listing; c: City; brokerBps: numbe
               n: x.maxBuyShares.toLocaleString(),
             })}
           </p>
-          {x.yourShares > 0 && x.lockedUntil === null && (
+          {held > 0 && (fund || x.lockedUntil === null) && (
             <div className="row">
               <Segmented
                 label={t('How much to sell')}
@@ -224,8 +242,8 @@ function ListingRow({ x, c, brokerBps }: { x: Listing; c: City; brokerBps: numbe
                 disabled={mode === 'limit' && lim <= 0}
                 onClick={() =>
                   void send(
-                    mode === 'market'
-                      ? { type: 'shares.sell', companyId: x.companyId, pctBps: bps }
+                    mode === 'market' || fund
+                      ? { type: 'shares.sell', companyId: x.companyId, pctBps: bps, ...fundArg }
                       : {
                           type: 'shares.order',
                           companyId: x.companyId,

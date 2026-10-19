@@ -10,7 +10,8 @@ import { achieve, getMarket, notify, usdToLocal } from './helpers.js';
 import { newId } from './ids.js';
 import { account, openAccount, pay, transfer, valueIn } from './ledger.js';
 import { investorOn } from './releases.js';
-import { distributeLpFund, lpFeeRate } from './lpfunds.js';
+import { distributeLpFund, lpFeeRate, payCarry } from './lpfunds.js';
+import { feeRecipient } from './firms.js';
 import { clamp, roundTo } from './math.js';
 import { formatMoney } from './money.js';
 import { newStars } from './stars.js';
@@ -192,6 +193,14 @@ export function settleFundFees(world: World, f: Fund, month: number) {
     return;
   const m = getMarket(world, f.market);
   const fee = Math.round((f.size * lpFeeRate(world, f)) / 12);
+  // Investor career Phase 6: the fee goes to the firm, which pays the team and then the GP.
+  const firmAccount = feeRecipient(world, f);
+  if (firmAccount) {
+    const toFirm = Math.min(fee, account(world, f.account).balance);
+    transfer(world, f.account, firmAccount, toFirm, 'Management fee', month);
+    if (f.lp) f.lp.feesPaid += toFirm;
+    return;
+  }
   // Tax is withheld where the fund is; the rest reaches the manager (converted if they relocated).
   const paid = Math.min(fee, account(world, f.account).balance);
   const tax = Math.round(paid * m.data.tax.personalIncome);
@@ -216,7 +225,8 @@ export function distributeFund(world: World, f: Fund, proceeds: number, month: n
   const profitAfter = Math.max(0, after - f.size);
   const carry = Math.round((profitAfter - profitBefore) * f.carry);
   const manager = world.players[f.managerId];
-  if (manager && carry > 0) {
+  if (manager && carry > 0 && f.firmId) payCarry(world, f, manager, carry, month);
+  else if (manager && carry > 0) {
     const tax = Math.round(carry * m.data.tax.capitalGains);
     transfer(world, f.account, m.ext.tax, tax, 'Capital gains tax on carry (withheld)', month);
     pay(world, f.account, manager.accounts.local, carry - tax, 'Carried interest', month);

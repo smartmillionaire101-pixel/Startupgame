@@ -58,6 +58,15 @@ import {
 import { exitsOn, investorOn, lifeBarsOn } from './releases.js';
 import { backSyndicate, cancelSyndicate, closeSyndicate, openSyndicate } from './syndicates.js';
 import {
+  answerCarryAsk,
+  answerPartner,
+  foundFirm,
+  hire as hireToFirm,
+  invitePartner,
+  letGo,
+  stepBack,
+} from './firms.js';
+import {
   answerProRata,
   requestExtension,
   requestIc,
@@ -840,6 +849,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
           boardSeat: cmd.boardSeat,
           vetoOnSale: cmd.vetoOnSale,
           fromFund: cmd.fromFund,
+          ...(cmd.fundId ? { fundId: cmd.fundId } : {}),
         },
       });
       me.skills.investing = Math.min(100, me.skills.investing + 0.5);
@@ -1205,9 +1215,23 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'ipo.list':
       return listCompany(world, me, touch(cmd.companyId), cmd.pricePerShareHint);
     case 'shares.sell':
-      return sellShares(world, me, cmd.companyId, cmd.pctBps, ctx.now);
+      return sellShares(world, me, cmd.companyId, cmd.pctBps, ctx.now, cmd.fundId);
     case 'shares.buy':
-      return buyShares(world, me, cmd.companyId, cmd.amount, ctx.now);
+      return buyShares(world, me, cmd.companyId, cmd.amount, ctx.now, cmd.fundId);
+    case 'firm.found':
+      return foundFirm(world, me, cmd.name);
+    case 'firm.hire':
+      return hireToFirm(world, me, cmd.title);
+    case 'firm.invite':
+      return invitePartner(world, me, cmd.playerId, cmd.carryShare);
+    case 'firm.answer':
+      return answerPartner(world, me, cmd.firmId, cmd.accept);
+    case 'firm.letGo':
+      return letGo(world, me, cmd.memberId);
+    case 'firm.carryAsk':
+      return answerCarryAsk(world, me, cmd.memberId, cmd.accept);
+    case 'firm.succession':
+      return stepBack(world, me, cmd.memberId, cmd.founderCarry);
     case 'shares.order':
       return placeOrder(world, me, cmd);
     case 'shares.cancel':

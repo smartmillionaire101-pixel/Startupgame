@@ -2,6 +2,7 @@ import { careerView } from './career.js';
 import { exchangeView } from './exchange.js';
 import { syndicatesView } from './syndicates.js';
 import { lpFundsView } from './lpfunds.js';
+import { firmView } from './firms.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
 import { investorOn, lifeBarsOn } from './releases.js';
@@ -712,6 +713,8 @@ export function playerView(
     syndicates: syndicatesView(world, p),
     /** Investor career Phase 4: funds you run (LP book), funds you can join, your calls. */
     lpFunds: lpFundsView(world, p),
+    /** Investor career Phase 6: your firm (team, carry pool, funds, stars) and invitations. */
+    firm: firmView(world, p),
     /** Investor career Phase 5: pro-rata offers from portfolio companies raising again. */
     prorata: investorOn(world) && !p.ai ? proRataView(world, p) : [],
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */

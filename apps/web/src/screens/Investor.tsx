@@ -16,7 +16,8 @@ import {
 } from './InvestorCareer';
 import { Exchange } from './Exchange';
 import { Syndicates } from './Syndicates';
-import { FundConsole, LpPortfolio } from './Funds';
+import { FundConsole, LpPortfolio, lpFundsOf } from './Funds';
+import { FirmScreen } from './Firm';
 import { ProRataOffers, positionStatusText } from './FundOps';
 import { SimpleLink } from './SimpleLink';
 
@@ -127,7 +128,16 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
     ? Math.round(d.modelValuation * (instrument === 'safe' ? 1.1 : 1))
     : 0;
   const [board, setBoard] = useState(false);
-  const fromFund = !!view.fund;
+  // Investor career Phase 6: pay from yourself or any fund you run that can invest.
+  const funds = [
+    ...(view.fund && !view.fund.lp ? [{ id: view.fund.id, name: view.fund.name }] : []),
+    ...(lpFundsOf(view)?.gp ?? [])
+      .filter((f) => f.stage === 'investing' || f.stage === 'harvest' || f.stage === 'extended')
+      .map((f) => ({ id: f.id, name: f.name })),
+  ];
+  const [payFrom, setPayFrom] = useState<string>(funds[0]?.id ?? 'me');
+  const fromFund = payFrom !== 'me';
+  const payingFund = funds.find((f) => f.id === payFrom);
   const propose = async () => {
     const r = await send<{ status: string; summary: string }>(
       {
@@ -140,6 +150,7 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
         boardSeat: board,
         vetoOnSale: false,
         fromFund,
+        ...(fromFund ? { fundId: payFrom } : {}),
       },
       (x) =>
         x.status === 'accepted'
@@ -301,9 +312,23 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
             {t('Ask for a board seat')}
           </label>
         )}
+        {funds.length > 0 && (
+          <Field label={t('Pay from')}>
+            {(id) => (
+              <select id={id} value={payFrom} onChange={(e) => setPayFrom(e.target.value)}>
+                <option value="me">{t('Your personal savings')}</option>
+                {funds.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        )}
         <p className="small muted">
           {fromFund
-            ? t('Paid from {fund}.', { fund: view.fund?.name ?? '' })
+            ? t('Paid from {fund}.', { fund: payingFund?.name ?? '' })
             : t('Paid from your personal savings.')}{' '}
           {c.ai
             ? t('AI founders answer at once.')
@@ -336,6 +361,7 @@ export function Portfolio() {
       {section === 'syndicates' && <Syndicates />}
       {section === 'fund' && <FundConsole />}
       {section === 'lp' && <LpPortfolio />}
+      {section === 'firm' && <FirmScreen />}
       {section === 'overview' && (
         <>
           <InvestorPrompts />

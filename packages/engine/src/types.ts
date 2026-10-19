@@ -1460,7 +1460,9 @@ export interface FirmMember {
   salary: number;
   hours: number;
   month: number;
-  status: 'active' | 'left';
+  status: 'active' | 'left' | 'invited';
+  /** A partner asking for a bigger share of the carry pool (answer or they leave). */
+  ask?: { carryShare: number; month: number };
 }
 
 /** A firm (management company): fees from every fund, a team and a carry pool (Phase 6). */

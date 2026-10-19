@@ -29,6 +29,7 @@ import { payDividends } from './travel.js';
 import { settleExchange } from './exchange.js';
 import { settleSyndicates } from './syndicates.js';
 import { settleLpFunds } from './lpfunds.js';
+import { settleFirms } from './firms.js';
 import { settleFundOps, settlePositionMarks } from './fundops.js';
 import { settleVotes } from './governance.js';
 import { aiBanking, settleBanks } from './banks.js';
@@ -171,6 +172,8 @@ export function settleMarket(
     settleStars(p.stars, playerPerformance(world, p));
     p.lastMonth = { income: 0, spend: p.lastMonth.spend, tax: 0 };
   }
+  // Investor career Phase 6: firms pay their teams and heads, and add their hours.
+  settleFirms(world, marketId, month);
 
   // Founder Journey 5 (only worlds that used them): institution salaries,
   // mentors' advice, and listed companies' share prices (own stream each).

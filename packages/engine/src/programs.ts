@@ -882,7 +882,9 @@ function decideLp(world: World, app: CapitalApplication, m: MarketState, month: 
     (manager.stars.value / 5) * 0.25 +
     (lp.prefers.includes(type) ? 0.12 : -0.05) +
     (manager.investor?.lpCredibility ?? 0.3) * 0.2 -
-    record.writeOffs * 0.02;
+    record.writeOffs * 0.02 +
+    // Investor career Phase 6: a firm's reputation helps its next raise.
+    (fund.firmId ? ((world.firms?.[fund.firmId]?.stars.value ?? 2.5) - 2.5) * 0.04 : 0);
   if (score + rng.normal(0, 0.05) < 0.5)
     return reject(
       world,
