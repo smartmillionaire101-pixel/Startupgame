@@ -149,6 +149,32 @@ for (const quality of ['3d', 'lite'] as const)
     await goTo(page, 'mall', quality);
     const scene = page.locator('.mall-scene');
     await expect(scene).toBeVisible({ timeout: 30_000 });
+    if (quality === '3d') {
+      // The 3D mall is walked: a shop's sign, its tagged stock, a card, a receipt.
+      await expect(scene.locator('[data-mall-walk="ready"]')).toBeAttached({ timeout: 90_000 });
+      await snap('1-concourse');
+      await scene.locator('[data-shop-sign="fashion"]').click();
+      await snap('2-walking');
+      await expect(scene).toHaveAttribute('data-mall-shop', 'fashion', { timeout: 60_000 });
+      await scene.locator('[data-item-tag="top-hoodie"]').click();
+      await scene.locator('[data-colour="#f59e0b"]').click();
+      await snap('3-fashion-trying-on');
+      await scene.locator('[data-action="buy-now"]').click();
+      await expect(scene.locator('[data-mall-receipt]')).toBeVisible({ timeout: 20_000 });
+      await snap('4-receipt');
+      await scene.locator('[data-action="keep-shopping"]').click();
+      for (const s of ['phones', 'home', 'supermarket', 'foodcourt', 'cinema']) {
+        await scene.locator('[data-action="directory"]').click();
+        await scene.locator(`[data-dir-shop="${s}"]`).click();
+        await expect(scene).toHaveAttribute('data-mall-shop', s, { timeout: 60_000 });
+        await snap(`5-${s}`);
+      }
+      await scene.locator('[data-action="look-around"]').click();
+      await snap('6-look-around');
+      await scene.getByRole('button', { name: 'Close' }).first().click();
+      await snap('7-city-in-new-outfit');
+      return;
+    }
     await snap('1-concourse');
     await scene.locator('[data-shop="fashion"]').click();
     await scene.locator('[data-colour="#f59e0b"]').click();

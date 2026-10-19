@@ -71,6 +71,16 @@ export class Stage {
   private onVis = () => (document.hidden ? cancelAnimationFrame(this.raf) : this.kick());
   /** Called after each drawn frame. */
   onFrame: (() => void) | null = null;
+  /**
+   * A perspective eye for a view you walk through (the mall): drawn, picked
+   * and photographed through it instead of the orbiting camera; the view
+   * places it itself (`eyeMoved` after).
+   */
+  eye: THREE.PerspectiveCamera | null = null;
+  /** The camera frames are drawn through. */
+  get lens(): THREE.Camera {
+    return this.eye ?? this.camera;
+  }
   frames = 0;
   readonly soft: boolean;
   maxFps: number;
@@ -134,6 +144,7 @@ export class Stage {
     this.span = o.span;
     this.camera.far = 200;
     this.hemi.color.set('#fff4e0');
+    this.hemi.groundColor.set('#4a3b2c');
     this.hemi.intensity = 1.35;
     this.ambient.intensity = 0.25;
     this.sun.color.set('#fff1d6');
@@ -170,6 +181,17 @@ export class Stage {
     this.h = h;
     this.renderer.setSize(w, h, false);
     this.updateCamera();
+  }
+
+  /** The eye was moved or its lens changed: draw again, tell who follows the camera. */
+  eyeMoved() {
+    const e = this.eye;
+    if (!e) return this.updateCamera();
+    e.aspect = this.w / this.h;
+    e.updateProjectionMatrix();
+    e.updateMatrixWorld();
+    this.invalidate();
+    for (const f of this.camListeners) f();
   }
 
   /** Points to keep in view at zoom 1 (the span follows them as the camera turns). */
@@ -232,6 +254,10 @@ export class Stage {
     c.lookAt(this.target);
     c.updateProjectionMatrix();
     c.updateMatrixWorld();
+    if (this.eye) {
+      this.eye.aspect = aspect;
+      this.eye.updateProjectionMatrix();
+    }
     this.invalidate();
     for (const f of this.camListeners) f();
   }
@@ -318,7 +344,7 @@ export class Stage {
     }
     if (busy || this.dirty) {
       this.dirty = false;
-      this.renderer.render(this.scene, this.camera);
+      this.renderer.render(this.scene, this.lens);
       this.frames++;
       this.onFrame?.();
     }
@@ -349,7 +375,7 @@ export class Stage {
     const view = this.view;
     try {
       await Promise.race([
-        this.renderer.compileAsync(this.scene, this.camera),
+        this.renderer.compileAsync(this.scene, this.lens),
         new Promise((r) => setTimeout(r, 2500)),
       ]);
     } catch {
@@ -362,7 +388,7 @@ export class Stage {
 
   /** Draw now (the first frame). */
   renderNow() {
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, this.lens);
     this.frames++;
     this.onFrame?.();
   }
@@ -375,7 +401,7 @@ export class Stage {
    */
   snapshot(maxSide = 1080, quality = 0.8): string | null {
     try {
-      this.renderer.render(this.scene, this.camera);
+      this.renderer.render(this.scene, this.lens);
       const src = this.canvas;
       const k = Math.min(1, maxSide / Math.max(src.width, src.height));
       const jpeg = (c: HTMLCanvasElement) => {
@@ -397,7 +423,7 @@ export class Stage {
 
   /** A world point on screen, in CSS pixels from the canvas's top-left. */
   project(v: THREE.Vector3): { x: number; y: number } {
-    const p = v.clone().project(this.camera);
+    const p = v.clone().project(this.lens);
     return { x: ((p.x + 1) / 2) * this.w, y: ((1 - p.y) / 2) * this.h };
   }
 
@@ -405,7 +431,7 @@ export class Stage {
   /** What's under a point (CSS pixels relative to the canvas). */
   pick(x: number, y: number, objects: THREE.Object3D[]): THREE.Intersection | null {
     const ndc = new THREE.Vector2((x / this.w) * 2 - 1, 1 - (y / this.h) * 2);
-    this.ray.setFromCamera(ndc, this.camera);
+    this.ray.setFromCamera(ndc, this.lens);
     const hits = this.ray.intersectObjects(objects, true);
     return hits.find((h) => h.object.visible && (h.object as THREE.Mesh).isMesh) ?? null;
   }
@@ -413,7 +439,7 @@ export class Stage {
   /** Where a screen point meets the floor (y = 0). */
   floorAt(x: number, y: number): THREE.Vector3 | null {
     const ndc = new THREE.Vector2((x / this.w) * 2 - 1, 1 - (y / this.h) * 2);
-    this.ray.setFromCamera(ndc, this.camera);
+    this.ray.setFromCamera(ndc, this.lens);
     const p = new THREE.Vector3();
     return this.ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p);
   }
@@ -440,6 +466,7 @@ export class Stage {
   unpark(o: StageOpts) {
     this.parked = false;
     this.view++;
+    this.eye = null;
     this.zoom = 1;
     this.distance = 60;
     this.fit = null;
