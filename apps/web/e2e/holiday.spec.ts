@@ -457,7 +457,8 @@ test('hotel: knock on a friend’s door, they open up and come over, goodbye', a
   // Both open the app in their hotel room.
   const roomOf = async (page: Page) => {
     await page.addInitScript(() => {
-      localStorage.removeItem('runway.lastSeen');
+      for (const k of Object.keys(localStorage))
+        if (k.startsWith('runway.lastSeen')) localStorage.removeItem(k);
       localStorage.setItem('runway.startAtHome', '1');
       localStorage.setItem('runway.mapQuality', '3d');
     });

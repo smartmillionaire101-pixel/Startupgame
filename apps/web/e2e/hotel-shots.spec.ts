@@ -163,7 +163,8 @@ test('a friend next door on holiday: their door, knock, they come over', async (
     );
     await a.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
     await a.addInitScript(() => {
-      localStorage.removeItem('runway.lastSeen');
+      for (const k of Object.keys(localStorage))
+        if (k.startsWith('runway.lastSeen')) localStorage.removeItem(k);
       localStorage.setItem('runway.startAtHome', '1');
       localStorage.setItem('runway.mapQuality', '3d');
     });
@@ -210,7 +211,8 @@ test('Lite: the flat hotel room by tier', async ({ page }) => {
     expect((await api(page, { type: 'travel.book', to: 'london', hotel: tier })).status).toBe(200);
     expect((await api(page, { type: 'travel.fly', to: 'london' })).status).toBe(200);
     await page.addInitScript(() => {
-      localStorage.removeItem('runway.lastSeen');
+      for (const k of Object.keys(localStorage))
+        if (k.startsWith('runway.lastSeen')) localStorage.removeItem(k);
       localStorage.setItem('runway.startAtHome', '1');
       localStorage.setItem('runway.mapQuality', 'lite');
     });

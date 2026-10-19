@@ -167,22 +167,30 @@ function arrivalsOn(): boolean {
 /**
  * A new session starts at home: the game opens there when you come back
  * after a while (10 minutes or more away, or the first time), not on a
- * quick reload. On a phone a backgrounded tab keeps its page, so coming back
- * to it after a while counts too (CityBodyInner's visibility listener). The
+ * quick reload. Kept per player, so a new player on the same phone (or a
+ * sign-up straight after playing) starts at home too. On a phone a
+ * backgrounded tab keeps its page, so coming back to it after a while counts
+ * too (CityBodyInner's visibility listener). A reload while you're still at
+ * home from that start (the "new version" Refresh) opens at home again. The
  * e2e suite turns it off (`runway.startAtHome` = 0) so specs start on the map.
  */
 const AWAY_MS = 10 * 60_000;
-const LAST_SEEN = 'runway.lastSeen';
-function lastSeen(): number {
+const seenKey = (id: string) => `runway.lastSeen.${id}`;
+/** Set while you're at home from a session start: a reload then opens at home again. */
+const HOLD = 'runway.homeHold';
+/** The player this page is playing as (whose time is kept). */
+let seenId: string | null = null;
+function lastSeen(id: string): number {
   try {
-    return Number(localStorage.getItem(LAST_SEEN)) || 0;
+    return Number(localStorage.getItem(seenKey(id))) || 0;
   } catch {
     return 0;
   }
 }
 function markSeen() {
+  if (!seenId) return;
   try {
-    localStorage.setItem(LAST_SEEN, String(Date.now()));
+    localStorage.setItem(seenKey(seenId), String(Date.now()));
   } catch {
     /* storage blocked */
   }
@@ -195,11 +203,23 @@ const homeOff = () => {
   }
 };
 /** Away long enough that opening the game counts as a new session. */
-const awayLong = () => Date.now() - lastSeen() >= AWAY_MS;
-// Decided as the page loads, before anything marks it seen.
-const awayAtLoad = typeof window !== 'undefined' && awayLong();
+const awayLong = (id: string) => Date.now() - lastSeen(id) >= AWAY_MS;
+function holdHome(on: boolean) {
+  try {
+    if (on) sessionStorage.setItem(HOLD, '1');
+    else sessionStorage.removeItem(HOLD);
+  } catch {
+    /* storage blocked */
+  }
+}
+const homeHeld = () => {
+  try {
+    return sessionStorage.getItem(HOLD) === '1';
+  } catch {
+    return false;
+  }
+};
 if (typeof window !== 'undefined') {
-  markSeen();
   window.addEventListener('pagehide', markSeen);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') markSeen();
@@ -210,16 +230,20 @@ if (typeof window !== 'undefined') {
   }, 60_000);
 }
 
-let startHome: boolean | null = null;
-/** Whether this city should open at home: true at most once per page load. */
-function startAtHome(): boolean {
-  startHome ??= !homeOff() && awayAtLoad;
-  return startHome;
+/** Players this page has already decided for: once per player per page load. */
+const decided = new Set<string>();
+/**
+ * Whether the city should open at home for this player: true at most once per
+ * player per page load. Decided before anything marks them seen.
+ */
+function startAtHome(id: string): boolean {
+  if (decided.has(id)) return false;
+  decided.add(id);
+  const home = !homeOff() && (awayLong(id) || homeHeld());
+  seenId = id;
+  markSeen();
+  return home;
 }
-/** The city opened at home (or went elsewhere first): not again this page load. */
-const startedHome = () => {
-  startHome = false;
-};
 
 export function PlacesList({
   layout,
@@ -612,11 +636,12 @@ function CityBodyInner({
   if (!homeStart) {
     setHomeStart(true);
     const homePlace = layout.places.find((p) => p.id === 'home');
-    if (homePlace && !landing && !peekVisit() && startAtHome()) {
+    const home = startAtHome(meId);
+    if (homePlace && !landing && !peekVisit() && home) {
       placeAvatarAt(layout.marketId, homePlace.door);
       setInside(homePlace);
+      holdHome(true);
     }
-    startedHome();
   }
   // Back to a phone tab left in the background for a while: a new session,
   // so you’re at home again (not mid-trip or landing).
@@ -628,18 +653,23 @@ function CityBodyInner({
       placeAvatarAt(layout.marketId, homeDoor.door);
       setArrival(false);
       setInside(homeDoor);
+      holdHome(true);
     };
   });
   useEffect(() => {
     const onShow = () => {
       if (document.visibilityState !== 'visible') return;
-      const away = awayLong();
+      const away = awayLong(meId);
       markSeen();
       if (away) resumeHome.current();
     };
     document.addEventListener('visibilitychange', onShow);
     return () => document.removeEventListener('visibilitychange', onShow);
-  }, []);
+  }, [meId]);
+  // Out of the house (or never in it): a reload is a quick one again.
+  useEffect(() => {
+    if (inside?.id !== 'home') holdHome(false);
+  }, [inside]);
   // A few anonymous passers-by: deterministic for the city, sized for the screen.
   // Everyone you can talk to is inside a building (Wave 6).
   const [crowdMax] = useState(() =>

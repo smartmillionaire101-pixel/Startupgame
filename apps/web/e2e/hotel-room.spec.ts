@@ -60,7 +60,8 @@ test('landing in London with a hotel: a 3D room with a bathroom, no Fly home in 
   // Set as the page loads: the open page marks itself seen as it unloads.
   await page.addInitScript(() => {
     // Every load counts as coming back after a while (a new session).
-    localStorage.removeItem('runway.lastSeen');
+    for (const k of Object.keys(localStorage))
+      if (k.startsWith('runway.lastSeen')) localStorage.removeItem(k);
     if (sessionStorage.getItem('hotel-room-reset')) return;
     sessionStorage.setItem('hotel-room-reset', '1');
     localStorage.setItem('runway.startAtHome', '1');

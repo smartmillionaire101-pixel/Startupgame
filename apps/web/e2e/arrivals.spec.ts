@@ -25,7 +25,8 @@ test.use({ viewport: { width: 390, height: 844 } });
 test('a brand-new founder starts at home too, with the guided first steps', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('runway.startAtHome', '1');
-    localStorage.removeItem('runway.lastSeen');
+    // Someone else just played on this phone: a new player still starts at home.
+    localStorage.setItem('runway.lastSeen.u_someone_else', String(Date.now()));
   });
   await page.goto('/');
   await page.getByLabel('Username', { exact: true }).fill(`nh_${letters(8)}`);
@@ -51,7 +52,9 @@ test('a new session starts at home, and going out shows the city', async ({ page
   await page.addInitScript(() => {
     localStorage.setItem('runway.startAtHome', '1');
     // Signing up counts as coming back after a while; the quick reload below doesn't.
-    if (!sessionStorage.getItem('arrivals-quick')) localStorage.removeItem('runway.lastSeen');
+    if (!sessionStorage.getItem('arrivals-quick'))
+      for (const k of Object.keys(localStorage))
+        if (k.startsWith('runway.lastSeen')) localStorage.removeItem(k);
   });
   await playAsGuest(page);
   const n = letters(6);
@@ -77,10 +80,15 @@ test('a new session starts at home, and going out shows the city', async ({ page
 
   // Back to a tab left in the background for an hour: at home again.
   await page.evaluate(() => {
-    localStorage.setItem('runway.lastSeen', String(Date.now() - 60 * 60_000));
+    for (const k of Object.keys(localStorage))
+      if (k.startsWith('runway.lastSeen.'))
+        localStorage.setItem(k, String(Date.now() - 60 * 60_000));
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await expect(home).toBeVisible({ timeout: 15_000 });
+  // Refreshing then (the "new version" banner) keeps you at home.
+  await page.reload();
+  await expect(home).toBeVisible({ timeout: 30_000 });
 });
 
 test('landing in London: Arrivals at Heathrow, then the way to your hotel', async ({ page }) => {
