@@ -36,7 +36,7 @@ const open = (w: World) => Object.values(w.markets.lagos!.businesses ?? {}).filt
 
 describe('life bars: the release switch', () => {
   it('is the newest note and turns the earlier switches on too', () => {
-    expect(RELEASES.at(-1)).toBe(LIFE_BARS_NOTE);
+    expect(RELEASES.indexOf(LIFE_BARS_NOTE)).toBe(RELEASES.length - 2);
     const w = { announcements: [LIFE_BARS_NOTE] } as unknown as World;
     expect(lifeBarsOn(w)).toBe(true);
     expect(exitsOn(w)).toBe(true);

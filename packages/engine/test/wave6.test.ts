@@ -356,7 +356,8 @@ describe('shops you walk into (Wave 6 §A3)', () => {
 
 describe('more jobs (Wave 6 §A4)', () => {
   it('every kind has entry, skilled and lead roles; every role pays a living', () => {
-    for (const k of BUSINESS_KINDS) {
+    // Professional employers (the jobs rework) hire through their ladders instead.
+    for (const k of BUSINESS_KINDS.filter((x) => !x.kind.startsWith('employer-'))) {
       expect(k.roles.length, k.kind).toBeGreaterThanOrEqual(3);
       const levels = new Set(k.roles.map((r) => r.level));
       for (const l of ['entry', 'skilled', 'lead'] as const)

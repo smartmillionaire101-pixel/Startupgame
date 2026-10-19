@@ -109,6 +109,8 @@ export {
   exitsOn,
   LIFE_BARS_NOTE,
   lifeBarsOn,
+  JOBS_NOTE,
+  jobsOn,
   RELEASES,
 } from './releases.js';
 // Phase 3: life bars (energy, health, happiness, stress) and what trips cost.
@@ -127,6 +129,20 @@ export type { Bars, BarEffect, WalkMode } from './lifebars.js';
 export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';
+// The jobs rework: professional careers.
+export { WORK, FIELD_LABEL, SKILL_LABEL, whyText, levelGate, workOf } from './work.js';
+export {
+  PROFESSIONS,
+  PROFESSION_IDS,
+  WORK_FIELDS,
+  EMPLOYERS,
+  HEAD_STARTS,
+  LEVEL_MONTHS,
+  LEVEL_HOURS,
+  professionById,
+  professionOfKind,
+} from './data/professions.js';
+export type { ProfessionId, WorkField, Profession } from './data/professions.js';
 export { acceleratorsOf, devPartnersOf, lpsOf } from './programs.js';
 export type { Cause, CareerDecision, CareerOrg } from './allocator.js';
 export { wealthView } from './wealth.js';

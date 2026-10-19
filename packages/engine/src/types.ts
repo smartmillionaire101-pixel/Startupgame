@@ -11,7 +11,8 @@ import type { PlayRoom } from './play.js';
 import type { Currency } from './money.js';
 import type { MarketData, MarketId, Seniority, StaffRole } from './data/markets.js';
 import type { Industry, SegmentKind, NeedWeights } from './data/industries.js';
-import type { Role, Skills } from './data/characters.js';
+import type { Role, Skill, Skills } from './data/characters.js';
+import type { ProfessionId, WorkField } from './data/professions.js';
 import type { OutletType } from './data/fiction.js';
 import type { Command } from './commands.js';
 import type { LenderKind, LenderLook, LenderProductSeed } from './data/capital.js';
@@ -249,6 +250,8 @@ export interface Player {
   appearanceAt?: number;
   /** Wave 5: a part-time job at a local business in the home city. Missing = none. */
   job?: PlayerJob;
+  /** The jobs rework: experience per field and applications. Missing = seeded from the background. */
+  work?: PlayerWork;
   /** Wave 5: furniture in your apartment, one item per slot. Missing = bare. */
   home?: { items: HomeItem[] };
   /** Wave 5: your car. Missing = none. */
@@ -518,10 +521,60 @@ export type Gender = 'female' | 'male';
 
 export interface PlayerJob {
   businessId: Id;
-  /** JobRole.role of the business's kind. */
+  /** JobRole.role of the business's kind (a professional job: its ladder role). */
   role: string;
   /** Home month the job started. */
   since: number;
+  /**
+   * The jobs rework (work.ts): a professional job, paid from payroll. Missing
+   * = a part-time job at a local business, as before.
+   */
+  profession?: ProfessionId;
+  /** Professional jobs: the ladder level (1–4). */
+  level?: number;
+  /** Professional jobs: months worked at this level. */
+  months?: number;
+}
+
+/** An application to a professional employer (work.ts). */
+export interface JobApplication {
+  id: Id;
+  businessId: Id;
+  profession: ProfessionId;
+  level: number;
+  /** Asking your own employer for the next level. */
+  promotion?: boolean;
+  status: 'booked' | 'hired' | 'rejected' | 'expired';
+  /** Home month you applied. */
+  appliedMonth: number;
+  /** Last home month you can go to the interview. */
+  expiresMonth: number;
+  decidedMonth?: number;
+  /** The interview score (0–1) and the bar it had to clear. */
+  score?: number;
+  /** Why: plain English, plus the parts a client needs to say it in its own words. */
+  reason?: string;
+  why?: JobWhy;
+}
+
+export type JobWhy =
+  | { code: 'months'; field: WorkField; need: number; have: number }
+  | { code: 'skill'; skill: Skill; need: number; have: number }
+  | { code: 'tenure'; need: number; have: number }
+  | { code: 'interview'; score: number; need: number; question: string }
+  | { code: 'hired'; role: string; label: string; strong?: boolean }
+  | { code: 'expired' };
+
+/** The jobs rework: experience, applications and cooldowns. Missing = seeded from the background. */
+export interface PlayerWork {
+  /** Months of experience per field. */
+  exp: Partial<Record<WorkField, number>>;
+  /** Newest first (the last few). */
+  applications: JobApplication[];
+  /** Employer business id → the home month you can apply there again. */
+  cooldown?: Record<Id, number>;
+  /** How well you're doing in your professional job, 0–1. Missing = 0.5. */
+  perf?: number;
 }
 
 export interface HomeItem {

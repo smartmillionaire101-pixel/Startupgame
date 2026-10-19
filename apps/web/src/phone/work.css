@@ -1,0 +1,182 @@
+/* The jobs rework: ladders, interviews and decisions (phone/work.tsx). */
+
+.work-employer {
+  display: grid;
+  gap: var(--sp-2);
+}
+.work-employer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+.work-app-icon,
+.work-employer-icon {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
+  background: var(--surface-2);
+}
+.work-ladder {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-1);
+}
+.work-rung {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--line);
+}
+.work-rung:first-child {
+  border-top: 0;
+}
+.work-rung-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+  overflow-wrap: anywhere;
+}
+.work-rung-end {
+  flex: none;
+  display: grid;
+  justify-items: end;
+  gap: var(--sp-1);
+  max-width: 45%;
+}
+.work-rung-end .pill {
+  white-space: normal;
+  text-align: right;
+}
+.work-rung[data-status='current'] .item-title {
+  color: var(--accent);
+}
+.work-why {
+  color: var(--warn);
+}
+.work-note {
+  margin: 0;
+}
+.work-note.is-booked {
+  color: var(--accent);
+  font-weight: 650;
+}
+.work-exp {
+  margin: 0;
+}
+
+.work-app {
+  gap: var(--sp-2);
+}
+.work-app-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.work-app p {
+  margin: 0;
+}
+
+/* The interview sheet. */
+.work-interview {
+  display: grid;
+  gap: var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
+  box-shadow: var(--sh-1);
+}
+.work-interview-head,
+.work-decision-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.work-interview-head > span,
+.work-decision-head > span {
+  font-size: 1.6rem;
+}
+.work-questions {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: var(--sp-3);
+}
+.work-q {
+  margin: 0 0 var(--sp-2);
+  font-weight: 650;
+}
+.work-options {
+  display: grid;
+  gap: var(--sp-1);
+}
+.work-option {
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 2.75rem;
+  cursor: pointer;
+}
+.work-option.is-on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  font-weight: 650;
+}
+
+/* The answer. */
+.work-decision {
+  display: grid;
+  gap: var(--sp-2);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+}
+.work-decision.is-hired {
+  background: var(--good-soft);
+  border-color: color-mix(in srgb, var(--good) 35%, var(--line));
+}
+.work-decision.is-rejected {
+  background: var(--bad-soft);
+  border-color: color-mix(in srgb, var(--bad) 30%, var(--line));
+}
+.work-reason {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* At the employer (the place scene's panel). */
+.work-panel {
+  display: grid;
+  gap: var(--sp-3);
+}
+.work-panel h3 {
+  margin: 0;
+}
+
+/* Long app pages scroll: cards keep their height instead of being squeezed. */
+.phone-card,
+.work-decision,
+.work-interview {
+  flex-shrink: 0;
+}

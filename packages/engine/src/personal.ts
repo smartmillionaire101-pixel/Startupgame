@@ -10,7 +10,8 @@ import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { applyStarEvent } from './stars.js';
 import { settlePersonalLoans } from './credit.js';
-import { ECONOMY, JOB_HOURS, payJob } from './economy.js';
+import { ECONOMY, payJob } from './economy.js';
+import { jobHours, payProJob, settleWork } from './work.js';
 import { comfortEnergy, settleCar } from './shop.js';
 import { decayNeeds, moodHoursFactor } from './needs.js';
 import { livingCostFactor } from './property.js';
@@ -57,6 +58,9 @@ export function settlePerson(world: World, p: Player, month: number) {
   settlePersonalLoans(world, p, month);
   // Wave 5: your wage arrives from the business till, then the car's running costs go out.
   payJob(world, p, month);
+  // The jobs rework: a professional job is paid from payroll; interviews expire.
+  payProJob(world, p, month);
+  settleWork(world, p, month);
   settleCar(world, p, month);
   const cost = lifestyleCost(world, p);
   const paid = transferUpTo(
@@ -104,7 +108,7 @@ export function settlePerson(world: World, p: Player, month: number) {
   if (lifeBars) settleBars(world, p, month, { hoursUsed: p.hours.used, missedLiving: paid < cost });
   p.hours = { available: computeHours(p, lifeBars), used: 0 };
   // A job takes its hours at the start of every month (Wave 5).
-  if (p.job) p.hours.used = Math.min(p.hours.available, JOB_HOURS);
+  if (p.job) p.hours.used = Math.min(p.hours.available, jobHours(p));
   p.gigsThisMonth = 0;
   // Lavish lifestyles at struggling companies attract tabloid attention (§4).
   const tier = tierOf(p);
