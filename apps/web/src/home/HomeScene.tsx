@@ -1052,8 +1052,9 @@ export function HomeScene({
   const visit = holiday?.visit?.me ? holiday.visit : null;
   /** Who's over: your guest (you host), or the host whose room you're in. */
   const visitor = visit ? (visit.me === 'host' ? visit.guest : visit.host) : null;
-  // Friends' doors down the corridor: a knock (theirs or your answer) shows within seconds.
-  const quickHotel = !!holiday && friendDoors.length > 0;
+  // Friends' doors down the corridor, or a visit on (in their room or yours):
+  // a knock, an answer or a goodbye shows within seconds.
+  const quickHotel = !!holiday && (friendDoors.length > 0 || !!holiday.visit?.me);
   useEffect(() => (quickHotel ? quicken() : undefined), [quickHotel, quicken]);
   const knockedBy = holiday?.knocks[0] ?? null;
   const myKnock = holiday?.myKnock ?? null;
