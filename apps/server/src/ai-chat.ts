@@ -20,7 +20,10 @@
 import {
   INDUSTRY_LABEL,
   MARKET_DATA,
+  acceleratorsOf,
   crowdPerson,
+  devPartnersOf,
+  lpsOf,
   parseCrowdId,
   playerView,
   type Company,
@@ -211,6 +214,13 @@ function findLoose(world: World, prefix: keyof typeof LOOSE_KEYS, id: string): L
       if (isObj(hit)) return hit;
     } else if (isObj(pool) && isObj(pool[id])) return pool[id] as Loose;
   }
+  // The engine keeps them as fixed data per city, not in the world: the
+  // phone lists them (from the city view), so they must answer too.
+  const seeds = prefix === 'lp' ? lpsOf : prefix === 'acc' ? acceleratorsOf : devPartnersOf;
+  for (const market of Object.keys(world.markets) as MarketId[]) {
+    const hit = (seeds(market) as unknown as Loose[]).find((x) => x.id === id);
+    if (hit) return { ...hit, market };
+  }
   return null;
 }
 
@@ -223,7 +233,13 @@ const looseManager = (x: Loose): string | null =>
   (isObj(x.owner) ? str(x.owner.name) : null);
 
 const looseFocus = (x: Loose): string | null =>
-  str(x.thesis) ?? str(x.focus) ?? str(x.description) ?? str(x.mandate) ?? str(x.blurb);
+  str(x.thesis) ??
+  str(x.focus) ??
+  str(x.description) ??
+  str(x.mandate) ??
+  str(x.blurb) ??
+  str(x.tagline) ??
+  str(x.pitch);
 
 const loosePrograms = (x: Loose): string[] => {
   const raw = Array.isArray(x.programs) ? x.programs : Array.isArray(x.windows) ? x.windows : [];

@@ -125,6 +125,7 @@ export type { Bars, BarEffect, WalkMode } from './lifebars.js';
 export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';
+export { acceleratorsOf, devPartnersOf, lpsOf } from './programs.js';
 export type { Cause, CareerDecision, CareerOrg } from './allocator.js';
 export { wealthView } from './wealth.js';
 export { DECISION_TEMPLATES, DECISIONS } from './data/decisions.js';

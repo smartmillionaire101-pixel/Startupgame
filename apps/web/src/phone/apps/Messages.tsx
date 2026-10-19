@@ -387,16 +387,22 @@ export function AiThreadView({
   say?: string;
   onClose: () => void;
 }) {
-  const { toast } = useView();
+  const { toast, lite } = useView();
   const [thread, setThread] = useState<AiThread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
   const [typing, setTyping] = useState(false);
   const [missing, setMissing] = useState(false);
   const said = useRef(false);
+  const shown = useRef(messages);
+  useEffect(() => {
+    shown.current = messages;
+  }, [messages]);
 
   const post = useCallback(
     async (body: string) => {
+      const same = (ms: ChatMessage[]) => ms.filter((m) => m.mine && m.id > 0 && m.text === body);
+      const before = same(shown.current).length;
       const mine: ChatMessage = { id: -Date.now(), mine: true, text: body, at: Date.now() };
       setMessages((m) => [...m, mine]);
       setTyping(true);
@@ -407,9 +413,22 @@ export function AiThreadView({
         setMessages((m) => [...m, r.reply]);
         return true;
       } catch (e) {
-        setMessages((m) => m.filter((x) => x !== mine));
-        toast(tx((e as Error).message), 'error');
-        return false;
+        // The request can be cut off after your message was kept (a slow
+        // connection, the host's time limit): show the thread as it really
+        // is. A message that was kept gets its answer (see the poll below).
+        const kept = await api.aiThread(id, getLang()).then(
+          (r) => {
+            setThread(r.thread);
+            setMessages(r.messages);
+            return same(r.messages).length > before;
+          },
+          () => false,
+        );
+        if (!kept) {
+          setMessages((m) => m.filter((x) => x !== mine));
+          toast(tx((e as Error).message), 'error');
+        }
+        return kept;
       } finally {
         setTyping(false);
       }
@@ -419,7 +438,7 @@ export function AiThreadView({
 
   useEffect(() => {
     let live = true;
-    api.aiThread(id).then(
+    api.aiThread(id, getLang()).then(
       (r) => {
         if (!live) return;
         setThread(r.thread);
@@ -435,6 +454,33 @@ export function AiThreadView({
       live = false;
     };
   }, [id, say, post]);
+
+  // Your message without an answer yet (not while it's being sent): look
+  // again every few seconds, so the answer shows when it's there.
+  const last = messages[messages.length - 1];
+  const waiting = !typing && !!last?.mine && last.id > 0;
+  useEffect(() => {
+    if (!waiting) return;
+    let live = true;
+    const timer = setInterval(
+      () => {
+        if (document.visibilityState === 'hidden') return;
+        void api.aiThread(id, getLang()).then(
+          (r) => {
+            if (!live) return;
+            setThread(r.thread);
+            setMessages(r.messages);
+          },
+          () => {},
+        );
+      },
+      lite ? 15_000 : 4_000,
+    );
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [id, waiting, lite]);
 
   if (missing) return <Empty>{t('This person isn’t around any more.')}</Empty>;
   if (!thread) return <p className="muted small">{t('Loading…')}</p>;
@@ -652,6 +698,32 @@ export function PlayerThreadView({
       (e: Error) => toast(tx(e.message), 'error'),
     );
   }, [chatId, markSeen, toast, refresh]);
+
+  // No chat with them in the list you have (it's refreshed every so often):
+  // they may have just written to you. Look it up now, and while you're here.
+  useEffect(() => {
+    if (chatId) return;
+    let live = true;
+    const find = () =>
+      void api.chats().then(
+        (r) => {
+          const c = r.chats.find((x) => x.with.id === playerId);
+          if (live && c) setChatId((cur) => cur ?? c.id);
+        },
+        () => {},
+      );
+    find();
+    const timer = setInterval(
+      () => {
+        if (document.visibilityState !== 'hidden') find();
+      },
+      lite ? 15_000 : 4_000,
+    );
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [chatId, playerId, lite]);
 
   useEffect(() => {
     if (!chatId) return;

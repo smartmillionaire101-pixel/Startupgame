@@ -405,10 +405,11 @@ export const api = {
   report: (chatId: string, reason: 'harassment' | 'scam' | 'spam' | 'other') =>
     request('POST', `/api/chats/${chatId}/report`, { reason }),
   aiThreads: () => request<{ threads: AiThread[] }>('GET', '/api/ai-chat'),
-  aiThread: (characterId: string) =>
+  /** `lang`: the language of an answer the server still owes you (a late one). */
+  aiThread: (characterId: string, lang: 'en' | 'fr' = 'en') =>
     request<{ thread: AiThread; messages: ChatMessage[] }>(
       'GET',
-      `/api/ai-chat/${encodeURIComponent(characterId)}`,
+      `/api/ai-chat/${encodeURIComponent(characterId)}?lang=${lang}`,
     ),
   aiSend: (characterId: string, text: string, lang: 'en' | 'fr') =>
     request<{ reply: ChatMessage; flagged: boolean; thread: AiThread }>('POST', '/api/ai-chat', {

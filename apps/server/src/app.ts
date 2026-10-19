@@ -37,6 +37,7 @@ import {
   recapView,
   STATEMENT_PAGE_MAX,
   type MarketId,
+  type Player,
   BANK_TYPES,
 } from '@runway/engine';
 import {
@@ -56,7 +57,13 @@ import {
   signInEmail,
   type EmailProvider,
 } from './adapters/email.js';
-import type { AccountStore, AiThreadRow, ChatRow, FeedbackRow } from './store/types.js';
+import type {
+  AccountStore,
+  AiMessageRow,
+  AiThreadRow,
+  ChatRow,
+  FeedbackRow,
+} from './store/types.js';
 import {
   CARD_TEXT,
   VOICE_MAX_BYTES,
@@ -81,7 +88,17 @@ import {
   type Character,
 } from './ai-chat.js';
 import { registerAdmin } from './admin.js';
-import { AI_CHAT_HISTORY, claudeReply, createClient, type AiClient } from './ai-claude.js';
+import {
+  AI_CHAT_BUDGET_MS,
+  AI_CHAT_DEADLINE_MS,
+  AI_CHAT_HISTORY,
+  AI_CHAT_MIN_MS,
+  AI_REPLY_LATE_MS,
+  AI_RESEND_MS,
+  claudeReply,
+  createClient,
+  type AiClient,
+} from './ai-claude.js';
 
 /** Avatars not seen for this long drop off the city map. */
 export const PRESENCE_WINDOW_MS = 120_000;
@@ -1189,28 +1206,98 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     };
   });
 
+  /**
+   * The character's answer to the player's newest message, stored in the
+   * thread: the template always (the fallback, and it moves the thread's
+   * memory on), Claude when there's a key, budget and time left. Everything
+   * happens before the response: a serverless host stops the function once
+   * it has answered, so nothing may be left to finish afterwards.
+   */
+  const answerAi = async (
+    me: Player,
+    ch: Character,
+    text: string,
+    opts: { lang: 'en' | 'fr'; view: ReturnType<typeof safeView>; claudeMs: number },
+  ) => {
+    const world = game.current;
+    const count = (await store.aiThread(me.id, ch.id))?.count ?? 0;
+    const memory = count > 1 ? await store.aiMemory(me.id, ch.id) : undefined;
+    const tpl = templateReply(world, me, ch, text, {
+      lang: opts.lang,
+      n: count,
+      memory,
+      view: opts.view,
+    });
+    let out = tpl.text;
+    let nextMemory = tpl.memory;
+    const client = opts.claudeMs >= AI_CHAT_MIN_MS ? claude() : null;
+    if (
+      client &&
+      (await store.takeAiBudget(
+        me.id,
+        new Date(now()).toISOString().slice(0, 10),
+        config.AI_CHAT_DAILY_LIMIT,
+      ))
+    ) {
+      const history = await store.aiMessages(me.id, ch.id, AI_CHAT_HISTORY);
+      const r = await claudeReply(client, {
+        ...(config.AI_CHAT_MODEL ? { model: config.AI_CHAT_MODEL } : {}),
+        characterBlock: characterBlock(world, me, ch, opts.lang, opts.view, memory),
+        history,
+        deadlineMs: Math.min(AI_CHAT_DEADLINE_MS, opts.claudeMs),
+      });
+      if (r.ok) {
+        out = r.text;
+        // The template lines weren't sent, so they stay available later.
+        nextMemory = tpl.memoryWithoutLines;
+      } else app.log.warn({ reason: r.reason }, 'ai chat: using a template reply');
+    }
+    const m = await store.addAiMessage(me.id, ch.id, ch.name, true, out, now());
+    await store.setAiMemory(me.id, ch.id, nextMemory);
+    await store.markAiRead(me.id, ch.id);
+    return m;
+  };
+
+  /** Your newest message in a thread when nobody has answered it yet. */
+  const unanswered = (messages: readonly AiMessageRow[]) => {
+    const last = messages[messages.length - 1];
+    return last && !last.fromAi ? last : null;
+  };
+
   app.get('/api/ai-chat/:characterId', { preHandler: requireUser }, async (req, reply) => {
     const parsed = characterParam.safeParse(req.params);
     if (!parsed.success)
       return reply
         .code(404)
         .send({ error: { code: 'character', message: 'Character not found.' } });
-    const ch = resolveCharacter(
-      game.current,
-      parsed.data.characterId,
-      parsed.data.characterId.startsWith('npc:') ? safeView(game.current, req.userId!) : null,
-    );
+    const { lang } = z
+      .object({ lang: z.enum(['en', 'fr']).default('en') })
+      .catch({ lang: 'en' })
+      .parse(req.query);
+    const world = game.current;
+    const me = world.players[req.userId!];
+    const view = me ? safeView(world, me.id) : null;
+    const ch = resolveCharacter(world, parsed.data.characterId, view);
     // An angel's fund id names the angel: their thread is under their own id.
     const characterId = ch?.id ?? parsed.data.characterId;
-    const thread = await store.aiThread(req.userId!, characterId);
+    let thread = await store.aiThread(req.userId!, characterId);
     if (!ch && !thread)
       return reply
         .code(404)
         .send({ error: { code: 'character', message: 'Character not found.' } });
-    if (thread?.unread) await store.markAiRead(req.userId!, characterId);
+    let messages = await store.aiMessages(req.userId!, characterId);
+    // A message nobody answered (the request that sent it was cut off: the
+    // host's time limit, a lost connection): the character answers it now,
+    // from the template, so a thread is never left hanging.
+    const waiting = unanswered(messages);
+    if (me && ch && waiting && now() - waiting.at >= AI_REPLY_LATE_MS) {
+      await answerAi(me, ch, waiting.text, { lang, view, claudeMs: 0 });
+      thread = await store.aiThread(me.id, characterId);
+      messages = await store.aiMessages(me.id, characterId);
+    } else if (thread?.unread) await store.markAiRead(req.userId!, characterId);
     return {
       thread: { ...aiThreadView(thread, ch, characterId), unread: 0 },
-      messages: (await store.aiMessages(req.userId!, characterId)).map((m) => ({
+      messages: messages.map((m) => ({
         id: m.id,
         mine: !m.fromAi,
         text: m.text,
@@ -1254,42 +1341,17 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const check = checkChatMessage(body.text);
       if (!check.ok)
         return reply.code(400).send({ error: { code: 'filtered', message: check.reason } });
-      const before = (await store.aiThread(me.id, ch.id))?.count ?? 0;
-      const memory = before ? await store.aiMemory(me.id, ch.id) : undefined;
-      await store.addAiMessage(me.id, ch.id, ch.name, false, check.text, now());
-      // The template reply always: it's the fallback, and it moves the thread's memory on.
-      const tpl = templateReply(world, me, ch, check.text, {
+      // The same message again, still unanswered, is the phone sending it a
+      // second time (a retry after a cut-off request): answer it, once.
+      const waiting = unanswered(await store.aiMessages(me.id, ch.id, 1));
+      if (!waiting || waiting.text !== check.text || now() - waiting.at > AI_RESEND_MS)
+        await store.addAiMessage(me.id, ch.id, ch.name, false, check.text, now());
+      const m = await answerAi(me, ch, check.text, {
         lang: body.lang,
-        n: before + 1,
-        memory,
         view,
+        // What's left of the request's time for Claude.
+        claudeMs: AI_CHAT_BUDGET_MS - reply.elapsedTime,
       });
-      let text = tpl.text;
-      let nextMemory = tpl.memory;
-      const client = claude();
-      if (
-        client &&
-        (await store.takeAiBudget(
-          me.id,
-          new Date(now()).toISOString().slice(0, 10),
-          config.AI_CHAT_DAILY_LIMIT,
-        ))
-      ) {
-        const history = await store.aiMessages(me.id, ch.id, AI_CHAT_HISTORY);
-        const r = await claudeReply(client, {
-          ...(config.AI_CHAT_MODEL ? { model: config.AI_CHAT_MODEL } : {}),
-          characterBlock: characterBlock(world, me, ch, body.lang, view, memory),
-          history,
-        });
-        if (r.ok) {
-          text = r.text;
-          // The template lines weren't sent, so they stay available later.
-          nextMemory = tpl.memoryWithoutLines;
-        } else req.log.warn({ reason: r.reason }, 'ai chat: using a template reply');
-      }
-      const m = await store.addAiMessage(me.id, ch.id, ch.name, true, text, now());
-      await store.setAiMemory(me.id, ch.id, nextMemory);
-      await store.markAiRead(me.id, ch.id);
       const thread = await store.aiThread(me.id, ch.id);
       return {
         reply: { id: m.id, mine: false, text: m.text, at: m.at },

@@ -242,6 +242,10 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
     }
   }, []);
 
+  // Nothing pushes a new message to you (a serverless host can't stream):
+  // the phone asks: every few seconds while Messages is on screen, else
+  // every 15 seconds (a minute in lite mode), and at once when you open it.
+  const reading = open && app === 'messages';
   useEffect(() => {
     const first = setTimeout(() => {
       void loadChats();
@@ -249,15 +253,18 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
     }, 0);
     const timer = setInterval(
       () => {
-        if (document.visibilityState !== 'hidden') void loadChats();
+        if (document.visibilityState === 'hidden') return;
+        void loadChats();
+        // AI characters answer as you send, so their list only changes on screen.
+        if (reading) void loadAi();
       },
-      lite ? 60_000 : 15_000,
+      reading ? (lite ? 15_000 : 4_000) : lite ? 60_000 : 15_000,
     );
     return () => {
       clearTimeout(first);
       clearInterval(timer);
     };
-  }, [loadChats, loadAi, lite]);
+  }, [loadChats, loadAi, lite, reading]);
 
   // New alerts slide down as a banner (not the ones already there when the game loaded).
   const known = useRef<Set<number | string> | null>(null);
