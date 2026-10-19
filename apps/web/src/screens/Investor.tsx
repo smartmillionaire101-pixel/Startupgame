@@ -20,6 +20,7 @@ import { FundConsole, LpPortfolio, lpFundsOf } from './Funds';
 import { FirmScreen } from './Firm';
 import { FamilyOffice } from './FamilyOffice';
 import { PipelineScreen } from './Pipeline';
+import { Legacy } from './Legacy';
 import { ProRataOffers, positionStatusText } from './FundOps';
 import { SimpleLink } from './SimpleLink';
 
@@ -388,6 +389,7 @@ export function Portfolio() {
       {section === 'lp' && <LpPortfolio />}
       {section === 'firm' && <FirmScreen />}
       {section === 'office' && <FamilyOffice />}
+      {section === 'legacy' && <Legacy />}
       {section === 'overview' && (
         <>
           <InvestorPrompts />

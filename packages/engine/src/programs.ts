@@ -32,6 +32,7 @@
  * (external LP and supplier accounts on the outside), so it is conserved.
  */
 import { aiLpCommit } from './lpfunds.js';
+import { playerDemoDay } from './institutions.js';
 import {
   ACCELERATORS,
   COHORT_MONTHS,
@@ -420,6 +421,8 @@ function runAccelerators(world: World, m: MarketState, month: number, rng: Rng) 
         });
       demoDayOffer(world, c, rng, seed?.tier ?? 3);
     }
+    // Investor career Phase 9: a player-run accelerator's demo day.
+    playerDemoDay(world, accelId, cohort);
     publish(world, {
       market: m.id,
       month,

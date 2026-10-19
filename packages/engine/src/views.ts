@@ -5,6 +5,7 @@ import { lpFundsView } from './lpfunds.js';
 import { firmView } from './firms.js';
 import { familyOfficeView } from './allocation.js';
 import { dealCraftView, redFlags, reviewableView } from './dealcraft.js';
+import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
 import { investorOn, lifeBarsOn } from './releases.js';
@@ -727,6 +728,9 @@ export function playerView(
     dealCraft: dealCraftView(world, p),
     /** Investor career Phase 8: for founders, the human investors you can review. */
     reviewable: reviewableView(world, p),
+    /** Investor career Phase 9: your accelerator, and the hall of fame across every city. */
+    playerAccelerator: acceleratorView(world, p),
+    hallOfFame: hallOfFame(world),
     /** Investor career Phase 5: pro-rata offers from portfolio companies raising again. */
     prorata: investorOn(world) && !p.ai ? proRataView(world, p) : [],
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */

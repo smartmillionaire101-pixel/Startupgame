@@ -397,7 +397,8 @@ export interface Pledge {
 }
 
 export interface CareerRole {
-  orgKind: 'dfi' | 'bank';
+  /** Investor career Phase 9 adds the sovereign fund. */
+  orgKind: 'dfi' | 'bank' | 'sovereign';
   orgId: Id;
   orgName: string;
   title: string;
@@ -1558,6 +1559,22 @@ export interface InvestorReview {
   month: number;
 }
 
+/** A player-run accelerator (stored on the world). */
+export interface PlayerAccelerator {
+  id: Id;
+  ownerId: Id;
+  /** The fund that writes the cheques, or null for the owner's own money. */
+  fundId: Id | null;
+  name: string;
+  market: MarketId;
+  /** One cheque per company, local minor units, for `equityBps` of the company (SAFE cap). */
+  cheque: number;
+  equityBps: number;
+  month: number;
+  admitted: Id[];
+  demoDays: number;
+}
+
 /** An LP stake offered to another player (Phase 7), with the GP's consent. */
 export interface StakeOffer {
   id: Id;
@@ -1604,6 +1621,8 @@ export interface InvestmentTerms {
   poolTopUpBps: number;
   /** A bridge SAFE offered to existing investors at a discount (rescue plan). */
   bridge?: boolean;
+  /** Investor career Phase 9: a place in a player-run accelerator comes with this SAFE. */
+  accelerator?: Id;
 }
 
 export interface CofounderTerms {
@@ -2190,6 +2209,8 @@ export interface World {
   stakeOffers?: Record<Id, StakeOffer>;
   /** Investor career Phase 8: founders' reviews of investors. Missing = none. */
   reviews?: Record<Id, InvestorReview>;
+  /** Investor career Phase 9: player-run accelerators. Missing = none. */
+  playerAccelerators?: Record<Id, PlayerAccelerator>;
 }
 
 // ---------------------------------------------------------------- Wave 10: a living economy

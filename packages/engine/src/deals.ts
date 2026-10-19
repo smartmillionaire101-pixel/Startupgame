@@ -9,6 +9,7 @@ import type { WaterfallLine } from './captable.js';
 import { distributeSyndicate, syndicateInvested } from './syndicates.js';
 import { afterRound, proRataBefore } from './fundops.js';
 import { afterTerms } from './dealcraft.js';
+import { joinAccelerator } from './institutions.js';
 import { ensure, fail } from './errors.js';
 import { achieve, adjustTrust, holderAccount, getCompany, getMarket, notify } from './helpers.js';
 import { newId } from './ids.js';
@@ -633,6 +634,8 @@ export function executeDeal(world: World, d: DealCard, by: Id, opts: { approved?
       if (t.vetoOnSale && !c.vetoes.includes(holderId)) c.vetoes.push(holderId);
       const followOn = recordPosition(world, holderId, c.id, t.amount, m.month);
       afterRound(world, c, holderId, t, proRataHolders);
+      // Investor career Phase 9: an accelerator's SAFE brings a place in its cohort.
+      if (t.accelerator) joinAccelerator(world, c, t.accelerator);
       for (const fid of c.founderIds) {
         const f = world.players[fid];
         if (!f) continue;

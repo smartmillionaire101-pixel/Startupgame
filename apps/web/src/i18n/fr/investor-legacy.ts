@@ -1,0 +1,31 @@
+/** The investor career, Phase 9: player-run accelerators and the hall of fame. */
+export const investorLegacy: Record<string, string> = {
+  Legacy: 'Héritage',
+  'Run an accelerator': 'Diriger un accélérateur',
+  'Small cheques, a cohort, a demo day each quarter':
+    'De petits tickets, une promotion, un demo day chaque trimestre',
+  'Accelerator name': 'Nom de l’accélérateur',
+  'Cheque per startup': 'Ticket par startup',
+  '{lo}–{hi} a startup': '{lo}–{hi} par startup',
+  'Equity for the cheque': 'Part du capital contre le ticket',
+  'An accelerator comes once you run a fund (rung 4).':
+    'L’accélérateur vient quand vous gérez un fonds (4e échelon).',
+  '{cheque} for {pct} · {n} demo days': '{cheque} contre {pct} · {n} demo days',
+  'Cheques from {fund}.': 'Tickets financés par {fund}.',
+  Cohort: 'Promotion',
+  'No startups yet.': 'Aucune startup pour l’instant.',
+  graduated: 'diplômée',
+  'demo day month {n}': 'demo day au mois {n}',
+  Startup: 'Startup',
+  'Pick a startup to admit': 'Choisir une startup à admettre',
+  'Offer a place': 'Proposer une place',
+  'Nobody yet.': 'Personne pour l’instant.',
+  'Hall of fame': 'Panthéon',
+  'Across every city': 'Dans toutes les villes',
+  'Funds by cash returned': 'Fonds par argent rendu',
+  'Investors by realised gains': 'Investisseurs par plus-values réalisées',
+  'Firms by assets': 'Sociétés de gestion par encours',
+  'Syndicate leads by carry': 'Chefs de file par carried',
+  Accelerators: 'Accélérateurs',
+  '{n} startups · {d} demo days': '{n} startups · {d} demo days',
+};

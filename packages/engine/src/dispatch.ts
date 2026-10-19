@@ -57,6 +57,7 @@ import {
 } from './exits.js';
 import { exitsOn, investorOn, lifeBarsOn } from './releases.js';
 import { backSyndicate, cancelSyndicate, closeSyndicate, openSyndicate } from './syndicates.js';
+import { admitToAccelerator, foundAccelerator } from './institutions.js';
 import {
   checkClaim,
   pipelineAdd,
@@ -1237,6 +1238,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return sellShares(world, me, cmd.companyId, cmd.pctBps, ctx.now, cmd.fundId);
     case 'shares.buy':
       return buyShares(world, me, cmd.companyId, cmd.amount, ctx.now, cmd.fundId);
+    case 'accelerator.found':
+      return foundAccelerator(world, me, cmd);
+    case 'accelerator.admit':
+      return admitToAccelerator(world, me, cmd.companyId);
     case 'pipeline.add':
       return pipelineAdd(world, me, cmd.companyId, !!cmd.watch);
     case 'pipeline.watch':

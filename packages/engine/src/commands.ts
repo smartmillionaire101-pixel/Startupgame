@@ -895,6 +895,15 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('lp.pay'), callId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('lp.delay'), callId: z.string().min(1).max(200) }),
   z.object({ type: z.literal('lp.autopay'), fundId: id, on: z.boolean() }),
+  // ---- investor career Phase 9: institutions and legacy
+  z.object({
+    type: z.literal('accelerator.found'),
+    name: z.string().min(3).max(40),
+    cheque: money,
+    equityBps: z.number().int().min(1).max(10_000),
+    fundId: id.optional(),
+  }),
+  z.object({ type: z.literal('accelerator.admit'), companyId: id }),
   // ---- investor career Phase 8: deal craft and reputation
   z.object({ type: z.literal('pipeline.add'), companyId: id, watch: z.boolean().optional() }),
   z.object({ type: z.literal('pipeline.watch'), companyId: id, on: z.boolean() }),
@@ -1002,7 +1011,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('career.join'),
-    orgKind: z.enum(['dfi', 'bank']),
+    orgKind: z.enum(['dfi', 'bank', 'sovereign']),
     orgId: z.string().min(1).max(80).optional(),
   }),
   z.object({ type: z.literal('career.leave') }),
