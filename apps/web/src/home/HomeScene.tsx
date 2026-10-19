@@ -39,6 +39,7 @@ import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { openPhone, type PhoneOpen } from '../phone/bus';
+import { Icon } from '../ui';
 import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
 import { businessesOf, hash } from '../city/contract';
 import { carOf, genderOf, nearest, sellsOf, storeForSlot } from '../city/life';
@@ -260,6 +261,7 @@ export function HomeScene({
   children,
 }: SceneProps & { hostView?: HostView; hotel?: HotelRoom | null }) {
   const { view, send, busy, cur, toast, quicken } = useView();
+  const unread = view.inbox.filter((i) => !i.read).length;
   const hotelTier: HotelTier | null = hotel ? (hotel.tier ?? 'budget') : null;
   const tier = hotelTier
     ? HOTEL_SHELL_TIER[hotelTier]
@@ -1470,6 +1472,17 @@ export function HomeScene({
           {hotelTier ? <span>{t('Your hotel')}</span> : <b>{homeName}</b>}
           <span>⚡ {view.me.energy}</span>
         </div>
+        {/* This scene covers the top bar: its phone button, here too. */}
+        <button
+          type="button"
+          className="topbar-phone"
+          data-home-phone=""
+          aria-label={unread ? t('Phone, {n} new', { n: unread }) : t('Phone')}
+          onClick={() => openPhone({ app: 'home' })}
+        >
+          <Icon name="phone" size={20} />
+          {unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}
+        </button>
         <button type="button" className="icon-btn" aria-label={t('Close')} onClick={onClose}>
           ✕
         </button>
