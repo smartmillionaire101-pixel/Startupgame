@@ -42,11 +42,17 @@ async function hold(page: Page, ms: number, mid?: () => Promise<void>, at = ms) 
   await page.mouse.up();
 }
 
-/** On the 3D map a place is an icon badge: tap it, then Go on its card. */
-async function goTo(page: Page, id: string, quality: '3d' | 'lite') {
+/**
+ * On the 3D map places are icon badges that may sit off-screen: go by the
+ * Where to? list's Things to do row instead.
+ */
+async function goTo(page: Page, id: 'golf' | 'mall', quality: '3d' | 'lite') {
   if (quality === 'lite') return tapPlace(page, `[data-place="${id}"]`, 'cycle');
-  await page.locator(`[data-badge="${id}"]`).first().click();
-  await page.locator(`[data-badge-card="${id}"] [data-badge-go]`).click();
+  await page
+    .locator('.city-hud-bottom')
+    .getByRole('button', { name: /^(Where to\?|Places)$/ })
+    .click();
+  await page.locator(`[data-outing="${id}"]`).click();
   const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
   if (
     await chooser.waitFor({ timeout: 1500 }).then(
