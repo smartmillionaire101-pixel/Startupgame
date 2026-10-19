@@ -7,7 +7,14 @@ import { t, useLang } from '../i18n';
 import { closePlay, onPlay, playPlace, type PlayPlace } from './play-bus';
 import './experiences.css';
 type Room = PlayerView['playRooms'][number];
-const names = { quiz: 'Quiz night', snooker: 'Snooker', football: 'Football shootout' };
+const names = {
+  quiz: 'Quiz night',
+  snooker: 'Snooker',
+  football: 'Football shootout',
+  golf: 'Golf',
+};
+/** The games hosted here (golf with a friend is played at the golf club). */
+const TABLE_GAMES = ['quiz', 'snooker', 'football'] as const;
 const colors = ['#fff', '#dc3545', '#f6d32d', '#259553', '#985528', '#338ddd', '#fa86b4', '#111'];
 export default function PlayHost() {
   const place = useSyncExternalStore(onPlay, playPlace, () => null);
@@ -130,7 +137,7 @@ function Lobby({ place }: { place: PlayPlace }) {
         {!room ? (
           <>
             <div className="experience-games">
-              {(Object.keys(names) as Room['game'][]).map((g) => (
+              {TABLE_GAMES.map((g) => (
                 <button className={game === g ? 'selected' : ''} key={g} onClick={() => setGame(g)}>
                   <span>{g === 'quiz' ? '?' : g === 'snooker' ? '●' : '⚽'}</span>
                   <strong>{names[g]}</strong>

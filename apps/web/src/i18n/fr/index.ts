@@ -60,6 +60,7 @@ import { golfHud } from './golf-hud';
 import { goingOut } from './going-out';
 import { mapBadges } from './map-badges';
 import { mallWalk } from './mall-walk';
+import { golfMatch } from './golf-match';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -123,6 +124,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   goingOut,
   mapBadges,
   mallWalk,
+  golfMatch,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

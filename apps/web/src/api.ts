@@ -235,7 +235,7 @@ export type ChatCard = { from: string; status: string } & (
     }
 );
 
-export type PlayGame = 'quiz' | 'snooker' | 'football';
+export type PlayGame = 'quiz' | 'snooker' | 'football' | 'golf';
 
 /** A real player online now (`GET /api/online/players`). */
 export interface OnlinePlayer {

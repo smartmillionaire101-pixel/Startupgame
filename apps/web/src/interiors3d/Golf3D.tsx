@@ -13,7 +13,7 @@ import { seeded, hash } from '../city/contract';
 import { along, type HoleGeo } from '../city/golf/game';
 import type { GolfDrawProps, GolfFrame } from '../city/golf/frame';
 import { cpuGl, softwareGl } from '../three-kit/quality';
-import { makeCharacter, pose, type Character } from './character';
+import { makeCharacter, pose } from './character';
 import { golfPose, makeClub, partnerPose, type GolfClub3D } from './golfSwing';
 import { disposeTree, mat } from './kit';
 
@@ -336,24 +336,24 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
     scene.add(hemi, sun, sun.target);
     const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 3000);
 
-    // You and your partners.
-    const me = makeCharacter(live.current.me, 'me');
-    scene.add(me.root);
-    const clubs: Record<'driver' | 'iron' | 'putter', GolfClub3D> = {
-      driver: makeClub('driver'),
-      iron: makeClub('iron'),
-      putter: makeClub('putter'),
+    // You and your partners. Each holds a full bag: in a match the one
+    // whose shot it is (`frame.swinger`) swings, the others stand by.
+    type Bag = Record<'driver' | 'iron' | 'putter', GolfClub3D>;
+    const figure = (look: typeof live.current.me, key: string) => {
+      const c = makeCharacter(look, key);
+      const clubs: Bag = {
+        driver: makeClub('driver'),
+        iron: makeClub('iron'),
+        putter: makeClub('putter'),
+      };
+      for (const k of Object.values(clubs)) c.root.add(k.root);
+      scene.add(c.root);
+      return { c, clubs };
     };
-    for (const c of Object.values(clubs)) me.root.add(c.root);
-    const partners: { c: Character; club: GolfClub3D }[] = live.current.partners
-      .slice(0, 2)
-      .map((look, i) => {
-        const c = makeCharacter(look, `partner:${i}`);
-        const club = makeClub('iron');
-        c.root.add(club.root);
-        scene.add(c.root);
-        return { c, club };
-      });
+    const figs = [
+      figure(live.current.me, 'me'),
+      ...live.current.partners.slice(0, 2).map((look, i) => figure(look, `partner:${i}`)),
+    ];
     // A caddie's bag by the tee.
     const bag = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.9, 10), mat('#1e3a8a'));
     bag.rotation.z = 0.25;
@@ -466,6 +466,10 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
       // Their facing (+z of the figure) is the target line's right.
       const zx = Math.cos(H);
       const zz = Math.sin(H);
+      const swinger = Math.max(0, Math.min(figs.length - 1, f.swinger ?? 0));
+      const me = figs[swinger]!.c;
+      const clubs = figs[swinger]!.clubs;
+      me.root.visible = true;
       me.root.position.set(f.golfer.x, 0, f.golfer.z);
       me.root.rotation.y = Math.atan2(zx, zz);
       for (const [k, c] of Object.entries(clubs)) c.root.visible = k === f.club;
@@ -473,17 +477,20 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
         pose(me, 'cheer', t);
         for (const c of Object.values(clubs)) c.root.visible = false;
       } else golfPose(me, f.swing, f.putting, clubs[f.club], t);
-      partners.forEach((p, i) => {
-        const s = f.partners[i];
-        if (!s) {
-          p.c.root.visible = false;
-          return;
-        }
-        p.c.root.visible = true;
-        p.c.root.position.set(s.x, 0, s.z);
-        p.c.root.rotation.y = s.face;
-        partnerPose(p.c, p.club, t + i * 1.3, s.clap ? 'clap' : 'stand');
-      });
+      figs
+        .filter((_, k) => k !== swinger)
+        .forEach((p, i) => {
+          const s = f.partners[i];
+          if (!s) {
+            p.c.root.visible = false;
+            return;
+          }
+          p.c.root.visible = true;
+          p.c.root.position.set(s.x, 0, s.z);
+          p.c.root.rotation.y = s.face;
+          for (const [k, c] of Object.entries(p.clubs)) c.root.visible = k === 'iron';
+          partnerPose(p.c, p.clubs.iron, t + i * 1.3, s.clap ? 'clap' : 'stand');
+        });
       bag.position.set(f.golfer.x - fx * 2.2 - zx * 1.4, 0.45, f.golfer.z - fz * 2.2 - zz * 1.4);
       bag.visible = !f.putting;
 

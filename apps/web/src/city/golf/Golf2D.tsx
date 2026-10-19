@@ -194,7 +194,8 @@ export default function Golf2D(props: GolfDrawProps): ReactElement {
       const W = canvas.clientWidth;
       const H = canvas.clientHeight;
       if (!W || !H) return;
-      if (canvas.width !== Math.round(W * dpr)) {
+      // Either side: the view grows and shrinks as the tray comes and goes.
+      if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
         canvas.width = Math.round(W * dpr);
         canvas.height = Math.round(H * dpr);
       }

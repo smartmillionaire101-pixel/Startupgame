@@ -54,6 +54,11 @@ function pay(world: World, me: Player, m: MarketState, price: number, to: Id, me
 
 // ---------------------------------------------------------------- Golf
 
+/** The city's golf club (its open till), if it has one: the venue for a golf match. */
+export const golfClubOf = (m: MarketState) => tillOf(m, (k) => k === 'golf-club');
+/** The green fee for the course here (three holes, or any part of them). */
+export const golfFee = (m: MarketState) => scale(col(m), GOLF.feeCol);
+
 /** What a round costs here, and the course. */
 export function golfView(world: World, me: Player) {
   const m = getMarket(world, locationOf(me));

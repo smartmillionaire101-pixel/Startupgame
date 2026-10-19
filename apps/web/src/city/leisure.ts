@@ -135,6 +135,26 @@ export interface GolfView {
   hours: number;
   clubId: string | null;
   you: { rounds: number; best: number } | null;
+  /** Golf with a friend: the stake chips, the cap and the AI friends free here (newer servers). */
+  match?: GolfMatchOptions;
+}
+
+export interface GolfMatchOptions {
+  venue: string;
+  stakes: number[];
+  maxStake: number;
+  shotMs: number;
+  pickupOver: number;
+  hours: number;
+  handicap: number;
+  friends: {
+    id: string;
+    name: string;
+    role: string;
+    backgroundId: string;
+    handicap: number;
+    maxStake: number;
+  }[];
 }
 
 export interface MallItemView {

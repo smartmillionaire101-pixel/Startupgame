@@ -125,3 +125,56 @@ it('sends an invitation to play as a chat card, with your waiting table', async 
     store.close();
   }
 });
+
+it('invites a friend to golf for money from their chat: the stake is escrowed and a card lands', async () => {
+  const { app, store } = await makeApp();
+  try {
+    const join = async (handle: string) => {
+      const s = api(app, await playAsGuest(app));
+      expect((await s.command(founderSetup(handle))).json()).toMatchObject({ ok: true });
+      const view = (await s.get('/api/state')).json().view;
+      return { s, id: view.me.id as string, view };
+    };
+    const a = await join('golf_one');
+    const b = await join('golf_two');
+    const c = await join('golf_six');
+    const match = a.view.me.golf.match;
+    const stake = match.stakes[2] as number;
+    const before = a.view.accounts.local.balance as number;
+    const invite = (to: string) => ({
+      command: {
+        type: 'play.create',
+        game: 'golf',
+        venue: match.venue,
+        title: 'Golf with a friend',
+        stake,
+        invite: to,
+        holes: 1,
+      },
+    });
+    // Only the chat partner can be invited from their chat.
+    expect((await a.s.post(`/api/chats/with/${b.id}/act`, invite(c.id))).statusCode).toBe(400);
+    const r = await a.s.post(`/api/chats/with/${b.id}/act`, invite(b.id));
+    expect(r.statusCode).toBe(200);
+    const roomId = r.json().result.id as string;
+    const after = (await a.s.get('/api/state')).json().view;
+    expect(after.accounts.local.balance).toBe(before - stake);
+    const chatId = r.json().chat.id as string;
+    const messages = (await b.s.get(`/api/chats/${chatId}/messages`)).json().messages;
+    const card = messages.find((m: { kind: string }) => m.kind === 'card').card;
+    expect(card).toMatchObject({ type: 'play', game: 'golf', roomId, status: 'waiting', stake });
+    // The friend sees the invitation in their rooms and accepts: the match starts.
+    const room = (await b.s.get('/api/state'))
+      .json()
+      .view.playRooms.find((x: { id: string }) => x.id === roomId);
+    expect(room.golf.invite).toBe(b.id);
+    expect((await b.s.command({ type: 'play.join', roomId })).json().ok).toBe(true);
+    const live = (await a.s.get('/api/state'))
+      .json()
+      .view.playRooms.find((x: { id: string }) => x.id === roomId);
+    expect(live).toMatchObject({ status: 'playing', pot: 2 * stake });
+  } finally {
+    await app.close();
+    store.close();
+  }
+});

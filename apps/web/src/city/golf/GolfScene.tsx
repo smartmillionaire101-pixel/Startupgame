@@ -12,7 +12,16 @@
  * drawn in 3D (../../interiors3d/Golf3D.tsx) or, in Lite, from the side
  * (./Golf2D.tsx).
  */
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import './golf.css';
 import { use3d } from '../../three-kit/quality';
 import { money } from '../../format';
@@ -25,6 +34,24 @@ import { npcName } from '../people';
 import type { SceneProps } from '../PlaceScene';
 import { golfOf } from '../leisure';
 import Golf2D from './Golf2D';
+import { GolfInviteSheet } from './GolfInvite';
+import { GolfMatch } from './GolfMatch';
+import { clearGolfFriend, pickedGolfFriend } from './invite-bus';
+import { activeMatch } from './match';
+import {
+  LIE_WORD,
+  MiniMap,
+  Mark,
+  RING_C,
+  RING_L,
+  RING_R,
+  powerAt,
+  reachOf,
+  ringDash,
+  ringFill,
+  signed,
+  vsParText,
+} from './parts';
 import type { CamMode, GolfFrame } from './frame';
 import {
   CLUBS,
@@ -34,7 +61,6 @@ import {
   PUTTER,
   SWEET_FROM,
   SWEET_TO,
-  along,
   clubFor,
   defaultAim,
   dist,
@@ -45,7 +71,6 @@ import {
   powerZone,
   rollAt,
   roundStats,
-  scoreMark,
   scoreName,
   shotLength,
   skillOf,
@@ -90,25 +115,6 @@ interface Play {
 }
 
 const PARTNER_BG = ['i-exited', 'b-wealthy', 'i-operator', 'f-second-time'];
-const LIE_WORD: Record<Lie, () => string> = {
-  tee: () => t('Tee'),
-  fairway: () => t('Fairway'),
-  rough: () => t('Rough'),
-  bunker: () => t('Bunker'),
-  water: () => t('Water'),
-  fringe: () => t('Fringe'),
-  green: () => t('On the green'),
-  holed: () => t('In the hole'),
-};
-
-/** Power (0–110) after holding for `ms`: up to 110 and back down, over and over. */
-const powerAt = (ms: number, putt = false) => {
-  // The putter's meter fills half as fast: short putts need a soft touch.
-  const half = putt ? 2600 : 1300;
-  const x = ms % (2 * half);
-  return 110 * (x < half ? x / half : (2 * half - x) / half);
-};
-const reachOf = (p: { club: Club; lie: Lie }) => p.club.carry * LIE_CARRY[p.lie];
 const easeOut = (u: number) => 1 - (1 - Math.max(0, Math.min(1, u))) ** 2;
 const clampAim = (a: number) => Math.max(-0.45, Math.min(0.45, a));
 
@@ -126,21 +132,56 @@ interface RoundResult {
   message?: string;
 }
 
-/** The power ring: 270° of a circle, from the bottom left round to the bottom right. */
-const RING_R = 54;
-const RING_C = 2 * Math.PI * RING_R;
-const RING_L = RING_C * 0.75;
-const ringDash = (from: number, to: number) =>
-  `0 ${(RING_L * from) / POWER_MAX} ${(RING_L * (to - from)) / POWER_MAX} ${RING_C}`;
-const ringFill = (power: number) =>
-  `${(RING_L * Math.max(0, Math.min(POWER_MAX, power))) / POWER_MAX} ${RING_C}`;
-
-/** A signed whole number (+8, −6, 0). */
-const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
-/** A score against par, the golf way (+2, −1, E). */
-const vsParText = (d: number) => (d === 0 ? 'E' : signed(d));
-
+/**
+ * The golf club: a solo round, or a match with a friend for money when you
+ * have one on (GolfMatch.tsx) — sent from here, from their chat, or accepted
+ * from an invitation.
+ */
 export function GolfScene(props: SceneProps) {
+  const { view } = useView();
+  const active = activeMatch(view);
+  // The match on screen: once shown it stays (its result) until you leave it.
+  const [shown, setShown] = useState<string | null>(null);
+  const [left, setLeft] = useState<string[]>([]);
+  const [inviting, setInviting] = useState(pickedGolfFriend);
+  if (active && shown === null && !left.includes(active.id)) setShown(active.id);
+  if (shown)
+    return (
+      <GolfMatch
+        {...props}
+        roomId={shown}
+        onLeave={() => {
+          setLeft((l) => [...l, shown]);
+          setShown(null);
+        }}
+        onRematch={(id) => setShown(id)}
+      />
+    );
+  return (
+    <GolfSolo
+      {...props}
+      onFriend={() => setInviting('')}
+      sheet={
+        inviting !== null ? (
+          <GolfInviteSheet
+            preselect={inviting || null}
+            onClose={() => {
+              clearGolfFriend();
+              setInviting(null);
+            }}
+            onInvited={(id) => {
+              clearGolfFriend();
+              setInviting(null);
+              setShown(id);
+            }}
+          />
+        ) : null
+      }
+    />
+  );
+}
+
+function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }) {
   const { view, send, busy } = useView();
   const want3d = use3d();
   const [fast] = useState(reduceMotion);
@@ -752,6 +793,14 @@ export function GolfScene(props: SceneProps) {
               >
                 {t('Tee off')}
               </button>
+              <button
+                type="button"
+                className="btn btn-subtle"
+                data-action="golf-friend"
+                onClick={props.onFriend}
+              >
+                ⛳ {t('Play with a friend')}
+              </button>
               {course.clubId && (
                 <button
                   type="button"
@@ -776,6 +825,7 @@ export function GolfScene(props: SceneProps) {
             {lunch && <p className="small">{lunch}</p>}
           </div>
         )}
+        {stage === 'intro' && props.sheet}
         {stage === 'card' && (
           <ScoreCard
             card={card}
@@ -991,16 +1041,6 @@ function ShotCard({
   );
 }
 
-/** The marks golf puts round a score: circles under par, squares over. */
-function Mark({ strokes, par }: { strokes: number; par: number }) {
-  const mark = scoreMark(strokes, par);
-  return (
-    <span className={`golf-mark ${mark}`} data-golf-mark={mark}>
-      {strokes}
-    </span>
-  );
-}
-
 function ScoreCard({
   card,
   pars,
@@ -1206,121 +1246,5 @@ function ScoreCard({
         </button>
       </div>
     </div>
-  );
-}
-
-/** The hole from above: fairway, hazards, green, the ball, your aim and this hole's shots. */
-function MiniMap({
-  g,
-  ball,
-  aim,
-  shots,
-}: {
-  g: HoleGeo;
-  ball: Pt2;
-  aim: number | null;
-  shots: ShotLog[];
-}) {
-  const pts = [...g.line, ...g.bunkers, ...(g.water ? [g.water] : [])];
-  const x0 = Math.min(...pts.map((p) => p.x)) - 30;
-  const x1 = Math.max(...pts.map((p) => p.x)) + 30;
-  const z0 = Math.min(...pts.map((p) => p.z)) - 25;
-  const z1 = Math.max(...pts.map((p) => p.z)) + 15;
-  const W = 64;
-  const H = 132;
-  const k = Math.min(W / (x1 - x0), H / (z1 - z0));
-  const X = (x: number) => (x - x0) * k + (W - (x1 - x0) * k) / 2;
-  const Y = (z: number) => (z - z0) * k + (H - (z1 - z0) * k) / 2;
-  const t0 = Math.round(g.fairway[0] * (g.line.length - 1));
-  const fair = g.line.slice(t0, Math.round(g.fairway[1] * (g.line.length - 1)) + 1);
-  const end = aim !== null ? along(ball, aim, Math.min(250, dist(ball, g.pin) + 10)) : null;
-  return (
-    <svg
-      className="golf-map"
-      viewBox={`0 0 ${W} ${H}`}
-      aria-hidden="true"
-      data-golf-trace={shots.length}
-    >
-      <rect x="0" y="0" width={W} height={H} fill="#3f7a26" />
-      <polyline
-        points={fair.map((p) => `${X(p.x)},${Y(p.z)}`).join(' ')}
-        fill="none"
-        stroke="#7cc04a"
-        strokeWidth={g.fairwayHalf * 2 * k}
-        strokeLinecap="round"
-      />
-      {g.water && (
-        <ellipse
-          cx={X(g.water.x)}
-          cy={Y(g.water.z)}
-          rx={g.water.rx * k}
-          ry={g.water.rz * k}
-          fill="#2f86c9"
-        />
-      )}
-      {g.bunkers.map((b, i) => (
-        <ellipse key={i} cx={X(b.x)} cy={Y(b.z)} rx={b.rx * k} ry={b.rz * k} fill="#ecdcab" />
-      ))}
-      <circle cx={X(g.pin.x)} cy={Y(g.pin.z)} r={g.greenR * k} fill="#95d95e" />
-      <line
-        x1={X(ball.x)}
-        y1={Y(ball.z)}
-        x2={X(g.pin.x)}
-        y2={Y(g.pin.z)}
-        stroke="#fff"
-        strokeOpacity="0.7"
-        strokeWidth="0.7"
-        strokeDasharray="1.5 2"
-      />
-      {shots.map((s, i) => (
-        <g key={i} className="golf-trace">
-          <line
-            x1={X(s.from.x)}
-            y1={Y(s.from.z)}
-            x2={X(s.land.x)}
-            y2={Y(s.land.z)}
-            stroke="#facc15"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-          />
-          {dist(s.land, s.rest) > 0.5 && (
-            <line
-              x1={X(s.land.x)}
-              y1={Y(s.land.z)}
-              x2={X(s.rest.x)}
-              y2={Y(s.rest.z)}
-              stroke="#facc15"
-              strokeWidth="1"
-              strokeDasharray="1 1.5"
-            />
-          )}
-          <circle cx={X(s.from.x)} cy={Y(s.from.z)} r="1.1" fill="#facc15" />
-        </g>
-      ))}
-      <line
-        x1={X(g.pin.x)}
-        y1={Y(g.pin.z)}
-        x2={X(g.pin.x)}
-        y2={Y(g.pin.z) - 7}
-        stroke="#fff"
-        strokeWidth="0.8"
-      />
-      <polygon
-        points={`${X(g.pin.x)},${Y(g.pin.z) - 7} ${X(g.pin.x) + 4},${Y(g.pin.z) - 5.5} ${X(g.pin.x)},${Y(g.pin.z) - 4}`}
-        fill="#ef4444"
-      />
-      {end && (
-        <line
-          x1={X(ball.x)}
-          y1={Y(ball.z)}
-          x2={X(end.x)}
-          y2={Y(end.z)}
-          stroke="#fde047"
-          strokeWidth="0.9"
-          strokeDasharray="2 2"
-        />
-      )}
-      <circle cx={X(ball.x)} cy={Y(ball.z)} r="2.4" fill="#fff" stroke="#111" strokeWidth="0.6" />
-    </svg>
   );
 }

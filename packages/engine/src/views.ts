@@ -14,7 +14,7 @@ import { salesView } from './sales.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
-import { playView } from './play.js';
+import { golfMatchOptions, playView } from './play.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
  *  - their own accounts, companies, deals, pitches, stories and inbox in full,
@@ -793,7 +793,7 @@ export function playerView(
       /** Wave 5: your car, or null. */
       car: carView(world, p),
       /** Golf: the course in the city you're in, the green fee and your record. */
-      golf: golfView(world, p),
+      golf: { ...golfView(world, p), match: golfMatchOptions(world, p) },
       /** The mall in the city you're in: its shops' items and prices, your phone. */
       mall: mallView(world, p),
       garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({

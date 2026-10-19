@@ -201,7 +201,14 @@ export {
   QUIZ_AI_AFTER,
   AI_SHOT_AFTER,
   drawQuiz,
+  GOLF_SHOT_MS,
+  GOLF_AI_ACCEPT_AFTER,
+  GOLF_AI_SHOT_AFTER,
+  GOLF_AUTO_POWER,
+  GOLF_PICKUP_OVER,
+  golfHandicap,
 } from './play.js';
+export type { GolfMatch, GolfMatchShot, GolfPlayer } from './play.js';
 export {
   JOURNEY,
   OBJECTIVE_KINDS,

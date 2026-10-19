@@ -869,7 +869,7 @@ export function PlayerThreadView({
       {blocked ? (
         <p className="small muted">{t('This chat is blocked.')}</p>
       ) : (
-        <ChatActions partner={partner} act={act} busy={busy}>
+        <ChatActions partner={partner} act={act} busy={busy} goPlace={ctx?.goPlace}>
           {(plus) => (
             <PlayerComposer
               value={text}
