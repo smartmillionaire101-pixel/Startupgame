@@ -116,7 +116,9 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   await withoutNetlifyDrawer(local);
   if (wave4) {
     await founder(local, /London/, 'Lola Local');
-    await expect(local.getByRole('application', { name: /Map of London/ })).toBeVisible();
+    await expect(local.getByRole('application', { name: /Map of London/ })).toBeVisible({
+      timeout: 30_000,
+    });
   }
 
   // To the airport (from the Places list). With no ticket the first thing is

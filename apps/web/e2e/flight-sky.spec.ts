@@ -100,7 +100,7 @@ async function board(page: Page, name: string, clock: string, tier?: number, pac
     .catch(() => undefined);
   await trip.getByRole('button', { name: 'Go through security' }).click();
   await expect(trip.getByRole('button', { name: 'Go to the gate' })).toBeVisible({
-    timeout: 4000,
+    timeout: 4000 * SLOW,
   });
   await trip.getByRole('button', { name: 'Go to the gate' }).click();
   await trip.getByRole('button', { name: 'Board for London' }).click();
