@@ -477,7 +477,8 @@ function TopBar({
   const mood = (view.me as { mood?: number }).mood;
   const tone = view.me.burnout || energy < 25 ? 'bad' : energy < 40 ? 'warn' : 'good';
   const cash = view.accounts.local?.balance ?? 0;
-  const hoursLeft = view.me.hours.left;
+  // One decimal at most in the top bar (it's tight beside the city's name).
+  const hoursLeft = Math.round(view.me.hours.left * 10) / 10;
   const bump = useBump(cash);
   return (
     <>

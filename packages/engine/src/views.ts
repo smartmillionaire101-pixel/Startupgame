@@ -98,6 +98,8 @@ import { monthlyGrowth, valueCompany } from './valuation.js';
 import type { MarketId } from './data/markets.js';
 import type { Company, DealCard, Id, MarketState, NewsItem, Player, World } from './types.js';
 
+const roundHours = (h: number) => Math.round(h * 100) / 100;
+
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const finite = (x: number) => (Number.isFinite(x) ? Math.round(x * 10) / 10 : null);
 
@@ -727,7 +729,12 @@ export function playerView(
       stars: round1(p.stars.value),
       starHistory: p.stars.history,
       publicWarning: hasPublicWarning(p.stars),
-      hours: { available: p.hours.available, used: p.hours.used, left: hoursLeft(p) },
+      // Rounded for the screen: fractional costs (a 0.2h ride) add up to 73.80000000000001.
+      hours: {
+        available: roundHours(p.hours.available),
+        used: roundHours(p.hours.used),
+        left: roundHours(hoursLeft(p)),
+      },
       energy: Math.round(p.energy),
       burnout: p.burnout,
       /** Wave 7: hunger, hygiene, fun and social, 0–100 each. */
