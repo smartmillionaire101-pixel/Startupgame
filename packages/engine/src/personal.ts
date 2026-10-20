@@ -16,7 +16,7 @@ import { comfortEnergy, settleCar } from './shop.js';
 import { decayNeeds, moodHoursFactor } from './needs.js';
 import { livingCostFactor } from './property.js';
 import { barHoursFactor, settleBars } from './lifebars.js';
-import { lifeBarsOn } from './releases.js';
+import { investorOn, lifeBarsOn } from './releases.js';
 import type { MarketState, Player, World } from './types.js';
 
 /** The agency gig's pay, local minor units (Wave 6: about 30% more). */
@@ -50,7 +50,8 @@ export function computeHours(p: Player, lifeBars = false): number {
 
 /**
  * Month-end for a person: pay for their lifestyle, recover or burn energy,
- * reset hours. Overspending drains savings; missed payments hurt credit.
+ * reset hours. Overspending drains savings (and, before the investor-career
+ * note, counted as a missed payment on the credit record).
  */
 export function settlePerson(world: World, p: Player, month: number) {
   const m = getMarket(world, p.market);
@@ -73,7 +74,9 @@ export function settlePerson(world: World, p: Player, month: number) {
   );
   p.lastMonth.spend = paid;
   if (paid < cost) {
-    p.credit.missedPayments += 1;
+    // Living costs aren't credit: from the investor-career note only loans,
+    // mortgages and capital calls touch the credit record.
+    if (!investorOn(world)) p.credit.missedPayments += 1;
     p.energy = clamp(p.energy - 15, 0, 100);
     if (p.lifestyleTier > 1) {
       p.lifestyleTier -= 1;

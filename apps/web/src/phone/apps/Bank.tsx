@@ -120,6 +120,11 @@ export function Bank({ ctx }: { ctx: PhoneCtx }) {
           tone={credit.missedPayments ? 'bad' : undefined}
         />
         <Line label={t('Debt')} value={money(credit.debt, cur)} />
+        <p className="small muted">
+          {t(
+            'Everyone starts at 60. Loans repaid on time raise it slowly; missed loan payments and defaults lower it. Living costs don’t count.',
+          )}
+        </p>
       </section>
 
       <section className="phone-card" aria-label={t('Loans')}>
@@ -158,7 +163,7 @@ export function Bank({ ctx }: { ctx: PhoneCtx }) {
         <H>{t('Borrow')}</H>
         {limit <= 0 ? (
           <p className="small muted">
-            {t('No unsecured credit yet. Pay bills on time and it grows.')}
+            {t('No unsecured credit yet. Repay loans on time and it grows.')}
           </p>
         ) : (
           <>

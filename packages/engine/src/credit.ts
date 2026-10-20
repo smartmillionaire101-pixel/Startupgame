@@ -4,6 +4,9 @@
  *
  * A player's credit profile is built only from their game history:
  * repayments made on time, missed payments, defaults, assets and stars.
+ * From the investor-career note the score is credit history alone: everyone
+ * starts at STANDARD_CREDIT_SCORE and only loan, mortgage and capital-call
+ * events move it (`creditScore`).
  * Banks lend to individuals, including those restarting after failure;
  * shares can be pledged as collateral and are taken on default.
  */
@@ -16,6 +19,7 @@ import { newId } from './ids.js';
 import { account, transfer, transferUpTo, valueIn } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney } from './money.js';
+import { investorOn } from './releases.js';
 import { applyStarEvent } from './stars.js';
 import type { DealCard, Id, PersonalLoanTerms, Player, World } from './types.js';
 
@@ -49,6 +53,37 @@ function pledged(p: Player, companyId: Id): boolean {
   return p.loans.some((l) => l.collateral?.companyId === companyId);
 }
 
+/**
+ * The score every player starts with (0–100 scale): the bottom of the "fair"
+ * band's upper half, a stranger to the bank with nothing against them.
+ */
+export const STANDARD_CREDIT_SCORE = 60;
+
+/**
+ * Credit score from history alone (investor-career note). On-time loan and
+ * mortgage payments add half a point each (up to +25), a record of repaying
+ * with little debt now adds 5, each missed payment costs 5 and each default
+ * (loan, mortgage, guarantee, company loan or capital call) costs 20. Heavy
+ * debt against savings costs 10. Wealth, stars and unpaid living costs don't
+ * count: no debt means no missed payments.
+ */
+function creditScore(p: Player, savings: number, debt: number, c: number): number {
+  const { onTimePayments, missedPayments, defaults } = p.credit;
+  const lowUse = onTimePayments >= 3 && debt <= savings * 0.3;
+  return Math.round(
+    clamp(
+      STANDARD_CREDIT_SCORE +
+        Math.min(25, onTimePayments * 0.5) +
+        (lowUse ? 5 : 0) -
+        missedPayments * 5 -
+        defaults * 20 -
+        (debt > savings * 2 + c * 6 ? 10 : 0),
+      0,
+      100,
+    ),
+  );
+}
+
 export function creditProfile(world: World, p: Player): CreditProfile {
   const m = getMarket(world, p.market);
   const c = col(m);
@@ -60,19 +95,21 @@ export function creditProfile(world: World, p: Player): CreditProfile {
   const holdings = holdingsValue(world, p);
   const debt = p.loans.reduce((a, l) => a + l.outstanding, 0);
   const net = Math.max(0, savings + holdings * 0.5 - debt);
-  const score = Math.round(
-    clamp(
-      45 +
-        Math.min(20, p.credit.onTimePayments) -
-        p.credit.missedPayments * 4 -
-        p.credit.defaults * 18 +
-        p.stars.value * 4 +
-        Math.log10(1 + net / Math.max(1, c)) * 10 -
-        (debt > savings * 2 + c * 6 ? 10 : 0),
-      0,
-      100,
-    ),
-  );
+  const score = investorOn(world)
+    ? creditScore(p, savings, debt, c)
+    : Math.round(
+        clamp(
+          45 +
+            Math.min(20, p.credit.onTimePayments) -
+            p.credit.missedPayments * 4 -
+            p.credit.defaults * 18 +
+            p.stars.value * 4 +
+            Math.log10(1 + net / Math.max(1, c)) * 10 -
+            (debt > savings * 2 + c * 6 ? 10 : 0),
+          0,
+          100,
+        ),
+      );
   const band =
     score >= 80
       ? 'excellent'
@@ -376,4 +413,21 @@ export function injectCapital(
   );
   ensure(amount > 0, 'inject.amount', 'Enter an amount.');
   transfer(world, p.accounts.local, c.account, amount, 'Founder capital', month, 'capital');
+}
+
+/**
+ * The investor-career note repairs credit records (once, when it applies).
+ * Unpaid living costs used to count as missed payments, and a record can't
+ * tell those from missed loan payments, so only the misses still showing on
+ * open loans and mortgages stay. Defaults and on-time payments are kept.
+ */
+export function repairCreditRecords(world: World) {
+  const mortgageMisses: Record<Id, number> = {};
+  for (const prop of Object.values(world.properties ?? {}))
+    if (prop.ownerId && prop.mortgage)
+      mortgageMisses[prop.ownerId] = (mortgageMisses[prop.ownerId] ?? 0) + prop.mortgage.missed;
+  for (const p of Object.values(world.players)) {
+    const open = p.loans.reduce((a, l) => a + l.missed, 0) + (mortgageMisses[p.id] ?? 0);
+    p.credit.missedPayments = Math.min(p.credit.missedPayments, open);
+  }
 }

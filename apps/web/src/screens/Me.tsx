@@ -540,6 +540,11 @@ export function Credit() {
           debt: money(credit.debt, cur),
         })}
       </p>
+      <p className="small muted">
+        {t(
+          'Everyone starts at 60. Loans repaid on time raise it slowly; missed loan payments and defaults lower it. Living costs don’t count.',
+        )}
+      </p>
       {view.me.loans.length > 0 && (
         <ul className="list small">
           {view.me.loans.map((l) => (
