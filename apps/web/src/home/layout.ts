@@ -594,6 +594,7 @@ export function planFor(tier: number, spec?: HomeSpec): HomePlan {
   if (!p) {
     const core = t === 1 ? sharedRoom() : flat(t);
     p = spec ? extend(core, { kind: spec.kind, wealth }) : core;
+    p = withFittedCounter(p);
     PLANS.set(k, p);
   }
   return p;
@@ -613,6 +614,46 @@ export function homeSpecOf(
   if (kind && kinds.includes(kind))
     return { kind, wealth: typeof residence?.wealth === 'number' ? residence.wealth : 1 };
   return { kind: KIND_OF_TIER[Math.max(1, Math.min(5, lifestyleTier))]!, wealth: 1 };
+}
+
+/**
+ * A fitted kitchen's worktop and sink along the kitchen's back wall, meeting
+ * the hob and the fridge in an L (player feedback: the kitchen "looks weird",
+ * a lone hob by a big empty floor). Homes from an apartment up; only where
+ * the wall is free (never across a doorway or something else).
+ */
+function withFittedCounter(p: HomePlan): HomePlan {
+  if (p.kind === 'room' || p.kind === 'studio') return p;
+  const r = p.rooms.find((x) => x.id === 'kitchen');
+  if (!r || r.w < 5) return p;
+  const x0 = r.x + 3;
+  const w = r.x + r.w - x0;
+  const y = r.y;
+  const taken = (x: number) =>
+    [...Object.values(p.slots), ...Object.values(p.fixtures), ...p.decor.map((d) => d.spot)].some(
+      (s) => !!s && x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h,
+    );
+  const walled = (x: number) => p.walls.some((s) => s.dir === 'h' && s.x === x && s.y === y);
+  for (let x = x0; x < x0 + w; x++) if (taken(x) || !walled(x)) return p;
+  const finish = builtIns(p).get('kitchen') ?? 2;
+  return {
+    ...p,
+    decor: [
+      ...p.decor,
+      {
+        id: 'kitchen-counter',
+        model: 'kitchen-counter',
+        label: 'Kitchen',
+        room: 'kitchen',
+        spot: { x: x0, y, w, h: 1, blocked: true, interact: { x: x0 + 1, y: y + 1 }, rot: 0 },
+        verbs: [
+          { act: 'cook', label: 'Cook' },
+          { act: 'snack', label: 'Snack' },
+        ],
+        tier: finish,
+      },
+    ],
+  };
 }
 
 /**

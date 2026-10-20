@@ -509,6 +509,17 @@ export function DecorArt({ model, w, h }: { model: string; w: number; h: number 
           <rect x={4} y={H * 0.45} width={W - 8} height={H * 0.4} rx={4} fill="#c2410c" />
         </g>
       );
+    case 'kitchen-counter':
+      // A worktop run against the wall: cupboards, a sink with its tap, a chopping board.
+      return (
+        <g>
+          {shadow(W, H)}
+          <Box x={1} y={-6} w={W - 2} top={H - 2} face={8} fill="#e7e5e4" side="#c8b49a" />
+          <rect x={W * 0.18} y={6} width={W * 0.22} height={H - 18} rx={4} fill="#cbd5e1" />
+          <circle cx={W * 0.29} cy={6} r={3} fill="#94a3b8" />
+          <rect x={W * 0.6} y={8} width={W * 0.18} height={H - 22} rx={2} fill="#d6b88a" />
+        </g>
+      );
     case 'island':
     case 'bar-counter':
       return (

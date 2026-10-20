@@ -48,10 +48,14 @@ test('a studio, a villa and a mansion grow with wealth, in 3D', async ({ page })
     const canvas = home.locator('canvas[data-home-3d]');
     await expect(canvas).toHaveAttribute('data-kind', kind);
     sizes[`${kind}${wealth}`] = Number(await home.getAttribute('data-plan-w'));
-    if (kind !== 'studio') {
+    if (kind === 'penthouse') {
+      // Up on the roof: a pool to swim in, and no cars (they're in the building's garage).
+      await expect(canvas).toHaveAttribute('data-cars', '0');
+      await expect(canvas).toHaveAttribute('data-pool', '1');
+    } else if (kind !== 'studio') {
       // Every car in the garage is parked in a bay of its own.
       await expect(canvas).toHaveAttribute('data-cars', /^[1-9]/);
-      await expect(canvas).toHaveAttribute('data-pool', kind === 'penthouse' ? 'hot' : '1');
+      await expect(canvas).toHaveAttribute('data-pool', '1');
     }
     await page.waitForTimeout(1500);
     if (dir) await page.screenshot({ path: `${dir}/home-${kind}-w${wealth}.png` });
