@@ -69,6 +69,16 @@ describe('the investor journey', () => {
     expect((w.inbox[I] ?? []).filter((x) => x.id === 'in_ijourney_1')).toHaveLength(1);
   });
 
+  it('follows the role: an investor who has founded a company still gets the investor journey', () => {
+    let w = addInvestor(careerWorld(11));
+    w = produce(w, (d) => {
+      const c = Object.values(d.companies).find((x) => x.status === 'active')!;
+      d.players[I]!.companyIds.push(c.id);
+    });
+    expect(journey(w)!.kind).toBe('investor');
+    expect(journey(w)!.chapters[0]!.id).toBe('first-cheque');
+  });
+
   it('lets an investor pin and dismiss prompts', () => {
     let w = addInvestor(careerWorld(10));
     w = run(w, I, { type: 'journey.dismiss', kind: 'main', id: 'first-cheque.invest' }).world;

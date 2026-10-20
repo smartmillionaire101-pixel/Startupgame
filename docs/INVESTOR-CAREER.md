@@ -35,7 +35,7 @@ Investors get the same guidance founders get: chapters in the Journey app and on
 | 4 The Firm (any one) | Lead a syndicate; back another fund as an LP; found a firm; raise Fund II (Portfolio) |
 | 5 The Legacy (any one) | Give to a cause; take a senior DFI, bank or sovereign role (Capital app); start an accelerator |
 
-A finished chapter is recorded once as `investor.chapter-N`, with an inbox note. Players who have founded a company keep the founder journey. Pinning and dismissing prompts (`journey.pin`, `journey.dismiss`) work for investors too.
+A finished chapter is recorded once as `investor.chapter-N`, with an inbox note. The journey follows the role you play: investors get the investor journey even if they once started or sold a company; founders keep the founder journey. Pinning and dismissing prompts (`journey.pin`, `journey.dismiss`) work for investors too.
 
 The screens investors already knew come first. Portfolio opens on Deal offers, Positions and the fund card, with the investor career ("Grow as an investor") below. Capital → Markets is the stock market list, and the city exchange is under Portfolio → Markets. Simple mode applies to founders only.
 

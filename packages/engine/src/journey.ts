@@ -96,13 +96,15 @@ export function hasJourney(p: Player): boolean {
 }
 
 /**
- * Investors who haven't founded a company get the investor journey: the
- * same chapters and "What to do now" prompts as founders, pointing at the
- * investing the game already has (deal offers, the Invest and Capital apps,
- * Fund I), then the investor career's later steps. Investor-career worlds only.
+ * Investors get the investor journey: the same chapters and "What to do now"
+ * prompts as founders, pointing at the investing the game already has (deal
+ * offers, the Invest and Capital apps, Fund I), then the investor career's
+ * later steps. It goes by the role you play, so an investor who once started
+ * (or sold) a company still follows the investor journey (player feedback:
+ * "the investor journey is that of a founder"). Investor-career worlds only.
  */
 export function hasInvestorJourney(world: World, p: Player): boolean {
-  return !p.ai && !hasJourney(p) && p.role === 'investor' && investorOn(world);
+  return !p.ai && p.role === 'investor' && investorOn(world);
 }
 
 /** Either journey: the one this player follows. */
@@ -788,9 +790,9 @@ export const INVESTOR_CHAPTERS: ChapterDef[] = [
 
 /** Which chapters this player follows, and how a completed one is recorded. */
 function journeyOf(world: World, p: Player) {
-  return hasJourney(p) || !hasInvestorJourney(world, p)
-    ? { kind: 'founder' as const, defs: CHAPTERS, milestone: chapterMilestone }
-    : { kind: 'investor' as const, defs: INVESTOR_CHAPTERS, milestone: investorChapterMilestone };
+  return hasInvestorJourney(world, p)
+    ? { kind: 'investor' as const, defs: INVESTOR_CHAPTERS, milestone: investorChapterMilestone }
+    : { kind: 'founder' as const, defs: CHAPTERS, milestone: chapterMilestone };
 }
 
 /** A chapter's steps are all there (or, with `need`, enough of them). */
