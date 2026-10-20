@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { Kit, contactShadow, tone } from './kit';
 import { buildModel, chairAt, type Model, type ModelOpts } from './furniture';
+import { HOTEL_BUILDERS } from './hotel-models';
 
 /** Car paint by model (the reference's black SUVs, a blue supercar, a silver saloon). */
 export const CAR_PAINT: Record<string, string> = {
@@ -341,6 +342,19 @@ const showerCabin: Builder = (k, o, m) => {
   k.keep(m.parts.head);
 };
 
+/** Your suitcase by the hotel bed: a hard-shell case on wheels, the handle up, a tag. */
+const suitcase: Builder = (k) => {
+  const shell = '#1e3a5f';
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1])
+      k.cyl(0.03, 0.03, 0.04, BLACK, sx * 0.17, 0, sz * 0.09, { rz: Math.PI / 2 });
+  k.box(0.44, 0.62, 0.26, shell, 0, 0.05, 0, { round: 0.05, rough: 0.35 });
+  for (const sx of [-0.1, 0, 0.1]) k.box(0.025, 0.58, 0.27, tone(shell, 0.1), sx, 0.07, 0);
+  for (const sx of [-1, 1]) k.cyl(0.012, 0.012, 0.32, CHROME, sx * 0.1, 0.67, -0.08, metal);
+  k.box(0.24, 0.03, 0.03, BLACK, 0, 0.98, -0.08, { round: 0.01 });
+  k.box(0.06, 0.09, 0.01, '#f59e0b', 0.16, 0.48, 0.14, { round: 0.01 });
+};
+
 const sconce: Builder = (k) => {
   k.box(0.12, 0.2, 0.05, '#e5e7eb', 0, 0, 0, { round: 0.02, ...metal });
   k.cyl(0.08, 0.06, 0.16, '#fff8e1', 0, 0.03, 0.09, {
@@ -668,6 +682,7 @@ const BUILDERS: Record<string, Builder> = {
   island,
   'shower-cabin': showerCabin,
   sconce,
+  suitcase,
   van,
   box,
   'pool-water': hitBox,
@@ -684,13 +699,15 @@ export const ESTATE_MODELS = new Set([...Object.keys(BUILDERS), 'guest-bed']);
 export function buildEstateModel(id: string, o: ModelOpts): Model {
   if (id === 'guest-bed') return guestBedModel(o);
   const carKind = id.startsWith('car:') ? id.slice(4) : null;
-  const b = carKind ? car(carKind, o.tint ?? CAR_PAINT[carKind] ?? '#64748b') : BUILDERS[id];
+  const b = carKind
+    ? car(carKind, o.tint ?? CAR_PAINT[carKind] ?? '#64748b')
+    : (BUILDERS[id] ?? HOTEL_BUILDERS[id]);
   if (!b) return buildModel(id, o);
   const k = new Kit();
   const m: Model = { group: new THREE.Group(), parts: {}, lamps: [], screens: [], seats: [] };
   b(k, o, m);
   m.group = k.build();
-  if (id !== 'sconce' && id !== 'pool-water' && id !== 'hot-tub') {
+  if (!['sconce', 'pool-water', 'hot-tub', 'hotel-art', 'suite-rug', 'round-rug'].includes(id)) {
     const s = carKind
       ? contactShadow(2.4, 5, 0.65)
       : contactShadow(Math.max(0.5, o.w), Math.max(0.5, o.d), 0.4);

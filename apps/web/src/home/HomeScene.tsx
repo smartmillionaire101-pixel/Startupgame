@@ -36,9 +36,10 @@ import {
 } from '../interiors3d/placement';
 import { BuySheet, PlaceBar } from '../interiors3d/BuyMode';
 import { money } from '../format';
-import { t } from '../i18n';
+import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { openPhone, type PhoneOpen } from '../phone/bus';
+import { Icon } from '../ui';
 import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
 import { businessesOf, hash } from '../city/contract';
 import { carOf, genderOf, nearest, sellsOf, storeForSlot } from '../city/life';
@@ -60,7 +61,21 @@ import {
   type Verb,
 } from './layout';
 import { groundsFor, outdoorThings, type Grounds } from './grounds';
+import {
+  HOTEL_ACTS,
+  HOTEL_MODELS,
+  HOTEL_SHELL_TIER,
+  HOTEL_TIER_LABEL,
+  hotelFurniture,
+  hotelGrounds,
+  hotelPlan,
+  hotelRow,
+  type HotelStay,
+} from './hotel';
+import { HotelKnocked, HotelNeighbours, holidaysOf } from '../phone/apps/Holiday';
+import type { HotelTier } from '../city/travel';
 import { ActFx } from './ActFx';
+import { PhotoSheet, addPhoto } from './HomePhotos';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { balconyView } from './balcony';
 import type PanoramaView from '../experiences/Panorama';
@@ -215,6 +230,17 @@ export interface HostView {
   hood?: string | null;
 }
 
+/**
+ * Your hotel room abroad (./hotel.ts): drawn like your home, furnished by
+ * the hotel. No furniture of yours, no guests, no shopping: sleep, freshen
+ * up, go out, and the stay's details under More.
+ */
+export interface HotelRoom {
+  /** null: no hotel booked (an old save): the budget room. */
+  tier: HotelTier | null;
+  name: string | null;
+}
+
 /** Wave 12: the name of a home by its kind (owners), else by lifestyle tier. */
 const KIND_NAME: Partial<Record<HomeKind, string>> = {
   studio: 'Studio',
@@ -231,12 +257,21 @@ export function HomeScene({
   onVisit,
   places,
   hostView,
-}: SceneProps & { hostView?: HostView }) {
-  const { view, send, busy, cur, toast } = useView();
-  const tier = Math.max(
-    1,
-    Math.min(5, hostView?.tier ?? view.me.residence?.lifestyleTier ?? view.me.lifestyle?.tier ?? 2),
-  );
+  hotel,
+  children,
+}: SceneProps & { hostView?: HostView; hotel?: HotelRoom | null }) {
+  const { view, send, busy, cur, toast, quicken } = useView();
+  const unread = view.inbox.filter((i) => !i.read).length;
+  const hotelTier: HotelTier | null = hotel ? (hotel.tier ?? 'budget') : null;
+  const tier = hotelTier
+    ? HOTEL_SHELL_TIER[hotelTier]
+    : Math.max(
+        1,
+        Math.min(
+          5,
+          hostView?.tier ?? view.me.residence?.lifestyleTier ?? view.me.lifestyle?.tier ?? 2,
+        ),
+      );
   // Wave 12: the house grows with the kind of home and how rich its owner is.
   const residence = hostView ? null : view.me.residence;
   const specKind = hostView
@@ -245,8 +280,9 @@ export function HomeScene({
   const specWealth = hostView ? (hostView.wealth ?? 1) : homeSpecOf(residence, tier).wealth;
   // A house has an upstairs (a mansion a roof terrace too): one floor at a time.
   const floors = useMemo(
-    () => floorsFor(tier, { kind: specKind, wealth: specWealth }),
-    [tier, specKind, specWealth],
+    () =>
+      hotelTier ? [hotelPlan(hotelTier)] : floorsFor(tier, { kind: specKind, wealth: specWealth }),
+    [hotelTier, tier, specKind, specWealth],
   );
   const [floorAt, setFloorAt] = useState(0);
   const floor = Math.min(floorAt, floors.length - 1);
@@ -256,10 +292,13 @@ export function HomeScene({
   useEffect(() => {
     floorRef.current = floor;
   }, [floor]);
-  const garageKey = (hostView ? (hostView.cars ?? []) : view.me.garage.map((c) => c.modelId)).join(
-    ',',
+  const garageKey = hotelTier
+    ? ''
+    : (hostView ? (hostView.cars ?? []) : view.me.garage.map((c) => c.modelId)).join(',');
+  const tiers = useMemo(
+    () => (hotelTier ? hotelFurniture(basePlan, hotelTier) : (hostView?.tiers ?? ownedTiers(view))),
+    [view, hostView, hotelTier, basePlan],
   );
-  const tiers = useMemo(() => hostView?.tiers ?? ownedTiers(view), [view, hostView]);
   const ownedKey = [...tiers.keys()].sort().join(',');
   const owned = useMemo(() => new Set(ownedKey ? ownedKey.split(',') : []), [ownedKey]);
   // Wave 9 §C: where you moved things in Buy mode (this device only).
@@ -267,9 +306,10 @@ export function HomeScene({
   const [placements, setPlacements] = useState<Record<string, Placement>>(() =>
     loadPlacements(placeOwner, MOVABLE),
   );
+  // A hotel room stays as the hotel laid it out.
   const plan = useMemo(
-    () => withPlacements(basePlan, owned, placements),
-    [basePlan, owned, placements],
+    () => (hotelTier ? basePlan : withPlacements(basePlan, owned, placements)),
+    [hotelTier, basePlan, owned, placements],
   );
   // ---- 3D (Wave 9 §C): drawn by three.js under this scene's invisible 2D hit layer.
   const want3d = use3d();
@@ -277,12 +317,17 @@ export function HomeScene({
   const is3d = want3d && ready3d;
   const api3d = useRef<Home3DApi | null>(null);
   const mat3d = useRef<string | null>(null);
+  // Look around: a slow full turn round the house (stopped by any touch).
+  const [looking, setLooking] = useState(false);
+  const lookStop = useRef<(() => void) | null>(null);
+  // Stopping calls lookAround's onEnd, which clears these.
+  const endLook = useCallback(() => lookStop.current?.(), []);
   const grid: Grid = useMemo(
     () => ({ w: plan.w, h: plan.h, blocked: blockedTiles(plan, owned), walls: wallEdges(plan) }),
     [plan, owned],
   );
   const { night, dusk } = useDaylight(view.market.id);
-  const car = hostView ? null : carOf(view);
+  const car = hostView || hotelTier ? null : carOf(view);
   const needs = needsOf(view);
   const mood = moodOf(view);
 
@@ -313,9 +358,28 @@ export function HomeScene({
   // ---- What's in the flat
   // The grounds are the ground floor's (upstairs, they're below you).
   const groundPlan = floors[0]!;
+  // A holiday: your room's number, and friends from the trip in the rooms next door.
+  const stayKey = hotelTier ? hotelStayKey(view) : '';
+  const stay = useMemo(
+    () => (stayKey ? (JSON.parse(stayKey) as Required<Pick<HotelStay, 'room' | 'friends'>>) : null),
+    [stayKey],
+  );
   const grounds = useMemo(
-    () => groundsFor(groundPlan, garageKey ? garageKey.split(',') : []),
-    [groundPlan, garageKey],
+    () =>
+      hotelTier
+        ? hotelGrounds(groundPlan, { tier: hotelTier, name: hotel?.name, ...stay })
+        : groundsFor(groundPlan, garageKey ? garageKey.split(',') : []),
+    [hotelTier, hotel?.name, groundPlan, garageKey, stay],
+  );
+  /** Friends' doors along the corridor (../interiors3d/hotel-tower.ts draws them). */
+  const friendDoors = useMemo(
+    () =>
+      (grounds.hotel?.doors ?? []).flatMap((d) =>
+        d.friend
+          ? [{ ...d.friend, room: d.number, x: hotelRow(groundPlan).rooms[d.slot].door }]
+          : [],
+      ),
+    [grounds, groundPlan],
   );
   const carNames = useMemo(
     () => new Map<string, string>((view.market.shop?.cars ?? []).map((c) => [c.id, c.label])),
@@ -327,15 +391,20 @@ export function HomeScene({
       buildObjects(plan, tiers, night, grounds, (m) => carNames.get(m) ?? m, {
         outside: level === 0,
         host: !guestView,
+        hotel: hotelTier,
       }),
-    [plan, tiers, night, grounds, carNames, level, guestView],
+    [plan, tiers, night, grounds, carNames, level, guestView, hotelTier],
   );
 
   // ---- People
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
   const meStart = { x: plan.door.x, y: plan.door.y - 1 };
   const me = useRef<Person>(newPerson('me', view.me.name, meLook, meStart));
+  const guestKey = hotelTier ? `hotel:${view.me.id}` : view.me.id;
   const [guests, setGuests] = useState<Guest[]>(() => {
+    // Your guests are back home, not in your hotel room: a friend from next door
+    // comes in from the holiday's visit (the server's, below).
+    if (hotel) return [];
     if (!hostView) return GUESTS.get(view.me.id) ?? [];
     seenGuests.add(hostView.id); // The host is already home: seated, not walking in.
     return [{ personId: hostView.id, name: hostView.name }];
@@ -842,6 +911,7 @@ export function HomeScene({
     });
   };
   const onDown = (e: React.PointerEvent) => {
+    if (lookStop.current) endLook();
     pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.current.size === 2) {
       const [a, b] = [...pts.current.values()];
@@ -909,7 +979,7 @@ export function HomeScene({
       const svgObj = (e.target as Element).closest?.('[data-obj]');
       const id = hit?.obj ?? svgObj?.getAttribute('data-obj') ?? undefined;
       const found = id ? objects.find((o) => o.id === id) : undefined;
-      const obj = hostView && !found?.guest ? undefined : found;
+      const obj = (hostView && !found?.guest) || !found?.verbs.length ? undefined : found;
       if (obj) {
         setMenu(menu?.id === obj.id ? null : obj);
         return;
@@ -929,7 +999,7 @@ export function HomeScene({
     const el = (e.target as Element).closest?.('[data-obj]');
     if (el) {
       const obj = objects.find((o) => o.id === el.getAttribute('data-obj'));
-      if (obj && (!hostView || obj.guest)) {
+      if (obj && (!hostView || obj.guest) && obj.verbs.length) {
         setMenu(menu?.id === obj.id ? null : obj);
         return;
       }
@@ -958,11 +1028,161 @@ export function HomeScene({
   const addGuest = (g: Guest) => {
     setGuests((xs) => {
       const next = [...xs.filter((x) => x.personId !== g.personId), g].slice(-MAX_GUESTS);
-      GUESTS.set(view.me.id, next);
+      GUESTS.set(guestKey, next);
       for (const id of guestPeople.current.keys())
         if (!next.some((x) => x.personId === id)) guestPeople.current.delete(id);
       return next;
     });
+  };
+  const dropGuest = (personId: string) => {
+    setGuests((xs) => {
+      const next = xs.filter((x) => x.personId !== personId);
+      GUESTS.set(guestKey, next);
+      guestPeople.current.delete(personId);
+      seenGuests.delete(personId);
+      return next;
+    });
+  };
+
+  // ---- A holiday in the same hotel: your friend's avatar at their door in
+  // the corridor. Knock (`hotel.knock`): they're told, and when they open the
+  // door (`hotel.answer`) they walk over and sit down in your room; on their
+  // screen, they're in your room with you. Say goodbye (`hotel.leave`) ends
+  // it for both. An AI friend answers at once.
+  const corridor = useRef(new Map<string, Home3DPerson & { ry: number }>());
+  const holiday = hotelTier ? hotelHoliday(view) : undefined;
+  const visit = holiday?.visit?.me ? holiday.visit : null;
+  /** Who's over: your guest (you host), or the host whose room you're in. */
+  const visitor = visit ? (visit.me === 'host' ? visit.guest : visit.host) : null;
+  // Friends' doors down the corridor, or a visit on (in their room or yours):
+  // a knock, an answer or a goodbye shows within seconds.
+  const quickHotel = !!holiday && (friendDoors.length > 0 || !!holiday.visit?.me);
+  useEffect(() => (quickHotel ? quicken() : undefined), [quickHotel, quicken]);
+  const knockedBy = holiday?.knocks[0] ?? null;
+  const myKnock = holiday?.myKnock ?? null;
+  const [knocking, setKnocking] = useState<string | null>(null);
+  /** Knocking and waiting for them to answer (yours, or one sent before this screen opened). */
+  const waiting = knocking ?? (myKnock?.status === 'pending' && !visit ? myKnock.to : null);
+  useEffect(() => {
+    const m = corridor.current;
+    m.clear();
+    for (const f of friendDoors)
+      if (!guests.some((g) => g.personId === f.id))
+        m.set(f.id, {
+          id: `corridor:${f.id}`,
+          look: guestLook(f.id),
+          x: f.x - 0.5,
+          y: groundPlan.h + 0.3,
+          pose: 'stand',
+          ry: 0,
+        });
+    api3d.current?.wake();
+  }, [friendDoors, guests, groundPlan]);
+  /** They open up and walk along the corridor to your door, then come in. */
+  const walkOver = (id: string, done: () => void) => {
+    const f = friendDoors.find((x) => x.id === id);
+    const p = corridor.current.get(id);
+    if (!f || !p) return done();
+    const from = p.x;
+    const to = groundPlan.door.x;
+    let t0 = 0;
+    const MS = reduceMotion() ? 300 : 1800;
+    const step = () => {
+      const now = performance.now();
+      t0 ||= now;
+      const u = Math.min(1, (now - t0) / MS);
+      const q = corridor.current.get(id);
+      if (q) q.x = from + (to - from) * u;
+      api3d.current?.wake();
+      if (u < 1) return void requestAnimationFrame(step);
+      corridor.current.delete(id);
+      done();
+    };
+    requestAnimationFrame(step);
+  };
+  const knock = async (f: (typeof friendDoors)[number]) => {
+    if (waiting || visit || !holiday) return;
+    setHotelMore(false);
+    const name = f.name.split(' ')[0]!;
+    setKnocking(f.id);
+    toast(t('You knock on {name}’s door…', { name }));
+    const r = await send<{ answered?: 'yes' | 'no' | null; text?: string }>({
+      type: 'hotel.knock',
+      holidayId: holiday.id,
+      playerId: f.id,
+    });
+    // Waiting for them now shows from the view (`myKnock`); an AI friend answered at
+    // once: "yes" walks over (below, from the visit), "not now" is said.
+    setKnocking(null);
+    if (r?.answered === 'no')
+      toast(t('{name}: “{text}”', { name, text: r.text ? tx(r.text) : '' }));
+  };
+  // Your knock turned down: you're told.
+  const declinedAt = myKnock?.status === 'declined' ? myKnock.at : 0;
+  const seenDecline = useRef(declinedAt);
+  useEffect(() => {
+    if (!declinedAt || declinedAt === seenDecline.current) return;
+    seenDecline.current = declinedAt;
+    // (An AI friend's own words were said as they answered.)
+    if (myKnock && !holiday?.companions.find((c) => c.id === myKnock.to)?.ai)
+      toast(t('{name} can’t come over right now.', { name: myKnock.name.split(' ')[0]! }));
+  }, [declinedAt, myKnock, holiday, toast]);
+  // The visit, as the server has it: your guest walks in (or is already seated), or you're in their room.
+  const visitorId = hotelTier ? (visitor?.id ?? null) : undefined;
+  const lastVisit = useRef<{ id: string; me: 'host' | 'guest'; room: number | null } | null>(null);
+  /** Who you were knocking for as of the last render (the visit clears the knock). */
+  const wasWaiting = useRef(waiting);
+  useEffect(() => {
+    if (visitorId === undefined) return;
+    const was = lastVisit.current;
+    if (was && was.id !== visitorId) {
+      dropGuest(was.id);
+      const name = guests.find((g) => g.personId === was.id)?.name ?? '';
+      toast(
+        was.me === 'host'
+          ? t('{name} went back to room {room}.', {
+              name: name.split(' ')[0]!,
+              room: was.room ?? '',
+            })
+          : t('You’re back in your room.'),
+      );
+      lastVisit.current = null;
+    }
+    if (!visitorId || !visit || !visitor || lastVisit.current) return;
+    lastVisit.current = { id: visitorId, me: visit.me!, room: visit.guest.room };
+    const guest = { personId: visitorId, name: visitor.name };
+    if (visit.me === 'host' && wasWaiting.current === visitorId) {
+      walkOver(visitorId, () => {
+        addGuest(guest);
+        toast(
+          t('{name} came over from room {room}.', {
+            name: visitor.name.split(' ')[0]!,
+            room: visit.guest.room ?? '',
+          }),
+          'ok',
+        );
+      });
+      return;
+    }
+    // Already over (or you came to their room): seated.
+    seenGuests.add(visitorId);
+    addGuest(guest);
+    if (visit.me === 'guest') {
+      // You walk in from their door.
+      const p = me.current;
+      p.x = plan.door.x;
+      p.y = plan.door.y - 1;
+      walk(p, guestSpots[1] ?? guestSpots[0]!);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the visitor changes
+  }, [visitorId]);
+  useEffect(() => {
+    wasWaiting.current = waiting;
+  });
+  const goodbye = async () => {
+    if (!holiday) return;
+    setHotelMore(false);
+    await send({ type: 'hotel.leave', holidayId: holiday.id });
   };
   const invite = async (personId: string, name: string) => {
     const r = await send<{
@@ -1108,6 +1328,7 @@ export function HomeScene({
     const guestsHere = floorRef.current === 0 ? [...guestPeople.current.values()] : [];
     for (const p of [me.current, ...guestsHere])
       out.push({ id: p.id, look: p.look, x: p.x, y: p.y, pose: p.pose });
+    for (const p of corridor.current.values()) out.push({ ...p });
     return out;
   }, []);
   const onCamera3d = useCallback(
@@ -1123,6 +1344,37 @@ export function HomeScene({
     if (!want3d) mat3d.current = null;
   }, [want3d]);
 
+  // ---- Look around and photos of the house.
+  const toggleLook = () => {
+    if (lookStop.current) return endLook();
+    const stop = api3d.current?.lookAround(() => {
+      lookStop.current = null;
+      setLooking(false);
+    });
+    if (!stop) return;
+    lookStop.current = stop;
+    setMenu(null);
+    setLooking(true);
+  };
+  // Stop turning when the 3D view goes away or you start moving furniture.
+  useEffect(() => {
+    if (!is3d || placing) endLook();
+  }, [is3d, placing, endLook]);
+  useEffect(() => endLook, [endLook]);
+  /** The photo sheet: open with the photo just taken (null: couldn't read the view). */
+  const [photo, setPhoto] = useState<{ src: string | null } | null>(null);
+  const [flash, setFlash] = useState(0);
+  const takePhoto = () => {
+    const src = api3d.current?.snapshot() ?? null;
+    endLook();
+    setMenu(null);
+    if (src) {
+      addPhoto(src);
+      if (!reduceMotion()) setFlash((n) => n + 1);
+    } else toast(t('Couldn’t take a photo on this device.'));
+    setPhoto({ src });
+  };
+
   const inviteLeft = actsLeft(view, 'invite');
   // ---- The penthouse balcony: the city it looks out over.
   const city = view.here?.id ?? view.market.id;
@@ -1137,11 +1389,20 @@ export function HomeScene({
   const levelName = (l: number) =>
     l === 2 ? t('Roof terrace') : l === 1 ? t('Upper floor') : t('Ground floor');
   const pocket = view.accounts.local?.balance ?? 0;
-  const homeName = hostView
-    ? t('{name}’s place', { name: hostView.name.split(' ')[0]! })
-    : residence && KIND_NAME[specKind]
-      ? t(KIND_NAME[specKind]!)
-      : t(TIER_HOME[tier - 1]!);
+  const homeName = hotel
+    ? (hotel.name ?? t('Your hotel room'))
+    : hostView
+      ? t('{name}’s place', { name: hostView.name.split(' ')[0]! })
+      : residence && KIND_NAME[specKind]
+        ? t(KIND_NAME[specKind]!)
+        : t(TIER_HOME[tier - 1]!);
+  // ---- The hotel room's tray: what a traveller who just arrived wants.
+  const [hotelMore, setHotelMore] = useState(false);
+  const hotelAct = (ids: string[], act: HomeAct) => {
+    const obj = ids.map((id) => objects.find((o) => o.id === id)).find(Boolean);
+    const v = obj?.verbs.find((x) => 'act' in x && x.act === act);
+    if (obj && v) choose(obj, v);
+  };
 
   return (
     <div
@@ -1149,7 +1410,13 @@ export function HomeScene({
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      data-room="apartment"
+      data-room={hotelTier ? 'hotel' : 'apartment'}
+      data-hotel-room={hotelTier ?? undefined}
+      data-bathroom={
+        hotelTier
+          ? ['shower', 'toilet', 'sink', 'bathtub'].filter((f) => f in plan.fixtures).join(' ')
+          : undefined
+      }
       data-scene={place.id}
       data-tier={tier}
       data-kind={plan.kind}
@@ -1202,13 +1469,77 @@ export function HomeScene({
             ))}
         </div>
         <div className="home-title">
-          <b>{homeName}</b>
+          {hotelTier ? <span>{t('Your hotel')}</span> : <b>{homeName}</b>}
           <span>⚡ {view.me.energy}</span>
         </div>
+        {/* This scene covers the top bar: its phone button, here too. */}
+        <button
+          type="button"
+          className="topbar-phone"
+          data-home-phone=""
+          aria-label={unread ? t('Phone, {n} new', { n: unread }) : t('Phone')}
+          onClick={() => openPhone({ app: 'home' })}
+        >
+          <Icon name="phone" size={20} />
+          {unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}
+        </button>
         <button type="button" className="icon-btn" aria-label={t('Close')} onClick={onClose}>
           ✕
         </button>
       </header>
+      {hotelTier && (
+        <div className="home-hotel-head">
+          <h2>{homeName}</h2>
+          <span data-hotel-tier={hotelTier}>{t(HOTEL_TIER_LABEL[hotelTier])}</span>
+          {visit && visitor ? (
+            <span className="small holiday-neighbours" data-hotel-visit={visit.me}>
+              {visit.me === 'host'
+                ? t('{name} is over from room {room}', {
+                    name: visitor.name.split(' ')[0]!,
+                    room: visit.guest.room ?? '',
+                  })
+                : t('In {name}’s room · {room}', {
+                    name: visitor.name.split(' ')[0]!,
+                    room: visit.host.room ?? '',
+                  })}
+            </span>
+          ) : (
+            <HotelNeighbours />
+          )}
+          {visit && visitor ? (
+            <button
+              type="button"
+              className="home-hotel-knock"
+              data-action="hotel-goodbye"
+              data-friend={visitor.id}
+              disabled={busy}
+              onClick={() => void goodbye()}
+            >
+              <span aria-hidden="true">👋</span>
+              {t('Say goodbye to {name}', { name: visitor.name.split(' ')[0]! })}
+            </button>
+          ) : (
+            !knockedBy &&
+            friendDoors.slice(0, 1).map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                className="home-hotel-knock"
+                data-hotel-knock={f.id}
+                data-knocking={waiting === f.id ? '' : undefined}
+                disabled={!!waiting || busy}
+                onClick={() => void knock(f)}
+              >
+                <span aria-hidden="true">🚪</span>
+                {waiting === f.id
+                  ? t('Knocking on {name}’s door…', { name: f.name.split(' ')[0]! })
+                  : t('Knock on {name}’s door', { name: f.name.split(' ')[0]! })}
+              </button>
+            ))
+          )}
+          <HotelKnocked />
+        </div>
+      )}
       <div className="home-stage">
         {want3d && (
           <Suspense fallback={null}>
@@ -1221,10 +1552,19 @@ export function HomeScene({
               night={night}
               dusk={dusk}
               car={car?.modelId ?? null}
-              cars={hostView ? (hostView.cars ?? []) : view.me.garage.map((c) => c.modelId)}
+              cars={
+                hotelTier
+                  ? []
+                  : hostView
+                    ? (hostView.cars ?? [])
+                    : view.me.garage.map((c) => c.modelId)
+              }
               grounds={grounds}
               delivery={
-                view.living.deliveries.find((d) => d.owner === placeOwner && !d.complete) ?? null
+                hotelTier
+                  ? null
+                  : (view.living.deliveries.find((d) => d.owner === placeOwner && !d.complete) ??
+                    null)
               }
               buyMode={sheet === 'buy' || !!placing}
               sheetOpen={sheet === 'buy'}
@@ -1255,7 +1595,11 @@ export function HomeScene({
             pts.current.delete(e.pointerId);
             drag.current = null;
           }}
-          onWheel={(e) => is3d && api3d.current?.zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1)}
+          onWheel={(e) => {
+            if (!is3d) return;
+            endLook();
+            api3d.current?.zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1);
+          }}
           onKeyDown={onKey}
         >
           <defs>
@@ -1438,6 +1782,36 @@ export function HomeScene({
             </button>
           </div>
         )}
+        {is3d && !placing && (
+          <div className="home-view" role="group" aria-label={t('Look and take photos')}>
+            <button
+              type="button"
+              data-action="turn"
+              onClick={() => {
+                endLook();
+                api3d.current?.turn(1);
+              }}
+            >
+              <span aria-hidden="true">↻</span>
+              {t('Turn')}
+            </button>
+            <button
+              type="button"
+              data-action="look-around"
+              data-looking={looking ? '1' : '0'}
+              aria-pressed={looking}
+              onClick={toggleLook}
+            >
+              <span aria-hidden="true">🔄</span>
+              {t('Look around')}
+            </button>
+            <button type="button" data-action="photo" onClick={takePhoto}>
+              <span aria-hidden="true">📷</span>
+              {t('Photo')}
+            </button>
+          </div>
+        )}
+        {flash > 0 && <div key={flash} className="home-flash" aria-hidden="true" />}
         {placing && ghost && (
           <PlaceBar
             label={placing.label}
@@ -1469,59 +1843,157 @@ export function HomeScene({
           />
         )}
       </div>
-      {view.living.deliveries.some((d) => d.owner === placeOwner && !d.complete) && (
+      {!hotelTier && view.living.deliveries.some((d) => d.owner === placeOwner && !d.complete) && (
         <div className="home-delivery-banner">
           <button onClick={() => openLiving(placeOwner)}>
             {t('🚚 Delivery on its way / at your door · Open')}
           </button>
         </div>
       )}
-      <nav className="home-bar" aria-label={t('Home actions')}>
-        <button className="home-bar-btn" onClick={() => openLiving(placeOwner)}>
-          {t('🚚 Home & friends')}
-        </button>
-        <button
-          className="home-bar-btn"
-          onClick={() => openPlay({ venue: `home:${placeOwner}`, name: homeName })}
-        >
-          {t('🎮 Play together')}
-        </button>
-        {balcony && (
+      {hotelTier ? (
+        <nav className="home-bar is-hotel" aria-label={t('Hotel room actions')}>
           <button
             type="button"
             className="home-bar-btn"
-            data-action="skyline"
-            onClick={() => setSky(true)}
+            data-action="hotel-sleep"
+            disabled={busy || !!acting}
+            onClick={() => hotelAct(['bed'], 'sleep')}
           >
-            {t('🌆 Watch the skyline')}
+            <span aria-hidden="true">🛏</span>
+            {t('Sleep')}
           </button>
-        )}
-        {hostView ? (
-          <button type="button" className="home-bar-btn" onClick={onClose}>
-            <span aria-hidden="true">👋</span>
-            {t('Say goodbye')}
+          <button
+            type="button"
+            className="home-bar-btn"
+            data-action="hotel-freshen"
+            disabled={busy || !!acting}
+            onClick={() => hotelAct(['shower', 'bathtub'], 'shower')}
+          >
+            <span aria-hidden="true">🚿</span>
+            {t('Freshen up')}
           </button>
-        ) : (
-          <>
-            <button type="button" className="home-bar-btn" onClick={() => setSheet('buy')}>
-              <span aria-hidden="true">🛒</span>
-              {t('Buy')}
+          <button type="button" className="home-bar-btn" data-action="go-out" onClick={onClose}>
+            <span aria-hidden="true">🚪</span>
+            {t('Go out')}
+          </button>
+          <button
+            type="button"
+            className="home-bar-btn"
+            data-action="more"
+            onClick={() => setHotelMore(true)}
+          >
+            <span aria-hidden="true">⋯</span>
+            {t('More')}
+          </button>
+        </nav>
+      ) : (
+        <nav className="home-bar" aria-label={t('Home actions')}>
+          <button className="home-bar-btn" onClick={() => openLiving(placeOwner)}>
+            {t('🚚 Home & friends')}
+          </button>
+          <button
+            className="home-bar-btn"
+            onClick={() => openPlay({ venue: `home:${placeOwner}`, name: homeName })}
+          >
+            {t('🎮 Play together')}
+          </button>
+          {balcony && (
+            <button
+              type="button"
+              className="home-bar-btn"
+              data-action="skyline"
+              onClick={() => setSky(true)}
+            >
+              {t('🌆 Watch the skyline')}
             </button>
-            <button type="button" className="home-bar-btn" onClick={() => setSheet('edit')}>
-              <span aria-hidden="true">🛋</span>
-              {t('Edit')}
-            </button>
-            <button type="button" className="home-bar-btn" onClick={() => setSheet('invite')}>
-              <span aria-hidden="true">👋</span>
-              {t('Invite')}
-            </button>
+          )}
+          {hostView ? (
             <button type="button" className="home-bar-btn" onClick={onClose}>
-              <span aria-hidden="true">🚪</span>
-              {t('Go out')}
+              <span aria-hidden="true">👋</span>
+              {t('Say goodbye')}
             </button>
-          </>
-        )}
-      </nav>
+          ) : (
+            <>
+              <button type="button" className="home-bar-btn" onClick={() => setSheet('buy')}>
+                <span aria-hidden="true">🛒</span>
+                {t('Buy')}
+              </button>
+              <button type="button" className="home-bar-btn" onClick={() => setSheet('edit')}>
+                <span aria-hidden="true">🛋</span>
+                {t('Edit')}
+              </button>
+              <button type="button" className="home-bar-btn" onClick={() => setSheet('invite')}>
+                <span aria-hidden="true">👋</span>
+                {t('Invite')}
+              </button>
+              <button type="button" className="home-bar-btn" onClick={onClose}>
+                <span aria-hidden="true">🚪</span>
+                {t('Go out')}
+              </button>
+            </>
+          )}
+        </nav>
+      )}
+      {hotelTier && hotelMore && (
+        <div className="home-sheet-back" onClick={() => setHotelMore(false)}>
+          <section
+            className="home-sheet"
+            role="dialog"
+            aria-label={t('About your stay')}
+            data-hotel-more=""
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header>
+              <h3>{t('About your stay')}</h3>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label={t('Close')}
+                onClick={() => setHotelMore(false)}
+              >
+                ✕
+              </button>
+            </header>
+            {(friendDoors.length > 0 || visitor) && (
+              <div className="home-hotel-friends" data-hotel-friends="">
+                {visitor && (
+                  <button
+                    type="button"
+                    className="home-bar-btn"
+                    data-action="hotel-goodbye"
+                    data-friend={visitor.id}
+                    disabled={busy}
+                    onClick={() => void goodbye()}
+                  >
+                    <span aria-hidden="true">👋</span>
+                    {t('Say goodbye to {name}', { name: visitor.name.split(' ')[0]! })}
+                  </button>
+                )}
+                {friendDoors
+                  .filter((f) => f.id !== visitor?.id)
+                  .map((f) => {
+                    const first = f.name.split(' ')[0]!;
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        className="home-bar-btn"
+                        data-action="hotel-knock"
+                        data-friend={f.id}
+                        disabled={!!waiting || !!visit || busy}
+                        onClick={() => void knock(f)}
+                      >
+                        <span aria-hidden="true">🚪</span>
+                        {t('Knock on {name}’s door · {room}', { name: first, room: f.room })}
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
+            <div className="interior">{children}</div>
+          </section>
+        </div>
+      )}
       {sheet === 'buy' && (
         <BuySheet
           owned={tiers}
@@ -1587,6 +2059,13 @@ export function HomeScene({
           </section>
         </div>
       )}
+      {photo && (
+        <PhotoSheet
+          first={photo.src}
+          city={view.here?.name ?? view.market.name}
+          onClose={() => setPhoto(null)}
+        />
+      )}
       {sky && balcony && (
         <Suspense fallback={null}>
           <Panorama
@@ -1631,8 +2110,14 @@ function buildObjects(
   night: boolean,
   grounds: Grounds,
   carName: (model: string) => string,
-  /** `outside`: the ground floor (the grounds are yours to use); `host`: your own home. */
-  opts: { outside: boolean; host: boolean } = { outside: true, host: true },
+  /**
+   * `outside`: the ground floor (the grounds are yours to use); `host`: your
+   * own home; `hotel`: a hotel room (only what a guest of the hotel can do).
+   */
+  opts: { outside: boolean; host: boolean; hotel?: HotelTier | null } = {
+    outside: true,
+    host: true,
+  },
 ): Obj[] {
   const out: Obj[] = [];
   const has = (s: string) => tiers.has(s);
@@ -1820,6 +2305,20 @@ function buildObjects(
       ry: o.rot,
       outdoor: true,
     });
+  }
+  // A hotel room: the hotel's things, used the way a guest can (no moving, buying or upgrading).
+  if (opts.hotel) {
+    // …drawn as the hotel's own fittings (a suite's freestanding tub, rain shower, double basins).
+    const own = HOTEL_MODELS[opts.hotel];
+    return out
+      .filter((o) => o.owned !== false)
+      .map((o) => ({
+        ...o,
+        ...(own[o.id] ? { model: own[o.id] } : {}),
+        verbs: o.verbs.filter(
+          (v) => ('act' in v && HOTEL_ACTS.has(v.act)) || v.id === 'out' || v.id === 'sit',
+        ),
+      }));
   }
   // Owned slots carry their verbs; the rest get a "+".
   for (const slot of Object.keys(plan.slots)) if (!has(slot)) plus(slot);
@@ -2281,4 +2780,25 @@ function InviteList({
       )}
     </div>
   );
+}
+
+/**
+ * Your stay as the hotel room needs it, as a string that only changes when it
+ * does (the view changes all the time): your holiday's room number and the
+ * friends from the trip in the hotel now, with theirs.
+ */
+/** The holiday whose hotel you're in (you're going, it has a hotel). */
+const hotelHoliday = (view: Parameters<typeof holidaysOf>[0]) =>
+  holidaysOf(view).find((x) => x.myStatus !== 'pending' && x.hotel);
+
+function hotelStayKey(view: Parameters<typeof holidaysOf>[0]): string {
+  const h = hotelHoliday(view);
+  // Over at a friend's: their room, the doors either side of it.
+  const host = h?.visit?.me === 'guest' ? h.visit.host.id : view.me.id;
+  const room = h?.rooms[host];
+  if (!h || !room) return '';
+  const friends = h.companionsHere
+    .filter((c) => h.rooms[c.id] && c.id !== host)
+    .map((c) => ({ id: c.id, name: c.name, room: h.rooms[c.id]! }));
+  return JSON.stringify({ room, friends });
 }

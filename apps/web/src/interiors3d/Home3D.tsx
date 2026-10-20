@@ -22,7 +22,8 @@ import { GROUND_Y, STOREY, buildHouse, cutWalls, wallOf, type House } from './ho
 import { buildEstateModel } from './estate-models';
 import { groundsFor } from '../home/grounds';
 import { Kit, disposeTree, mat } from './kit';
-import { Stage, gestures } from './stage';
+import { Stage, gestures, hasParkedStage, parkStage, unparkStage, type StageOpts } from './stage';
+import { cullOccluders } from './surroundings';
 import type { Home3DObject, Home3DPerson, Home3DProps } from './types';
 
 const MAX_LAMPS = 4;
@@ -89,8 +90,35 @@ function plusMarker(): THREE.Group {
   return g;
 }
 
+/** The home's stage: looking down on the house from the garden's corner. */
+const stageOpts = (): StageOpts => ({
+  target: new THREE.Vector3(),
+  span: 12,
+  azimuth: -0.3,
+  elevation: 0.9,
+  minElevation: 0.5,
+  maxElevation: 1.4,
+  background: '#cfe6f2',
+});
+
+/** Home views open now (the stage made ahead waits until none is). */
+let open = 0;
+
+/**
+ * Make the home's stage (its WebGL context) in a quiet moment on the map, so
+ * going home doesn't wait for one; it's kept for going home again too.
+ */
+export function prewarmHome3D() {
+  if (open > 0 || hasParkedStage('home')) return;
+  try {
+    parkStage('home', new Stage(document.createElement('canvas'), stageOpts()));
+  } catch {
+    /* made when the home opens */
+  }
+}
+
 export default function Home3D(props: Home3DProps): ReactElement | null {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const anchorRef = useRef<HTMLSpanElement>(null);
   const live = useRef(props);
   useEffect(() => {
     live.current = props;
@@ -118,23 +146,30 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
 
   // ---- The stage (once).
   useEffect(() => {
-    const canvas = canvasRef.current!;
-    const parent = canvas.parentElement!;
+    const anchor = anchorRef.current!;
+    const parent = anchor.parentElement!;
+    // The stage kept from the last time (or made ahead on the map): its
+    // context and shaders are ready, so the home draws sooner.
     let stage: Stage;
     try {
-      stage = new Stage(canvas, {
-        target: new THREE.Vector3(),
-        span: 12,
-        azimuth: -0.3,
-        elevation: 0.9,
-        minElevation: 0.5,
-        maxElevation: 1.4,
-        background: '#cfe6f2',
-      });
+      stage =
+        unparkStage('home', stageOpts()) ??
+        new Stage(document.createElement('canvas'), stageOpts());
     } catch {
       return;
     }
+    const canvas = stage.canvas;
+    canvas.className = 'home-3d';
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.setAttribute('data-home-3d', '');
+    parent.insertBefore(canvas, anchor);
+    open++;
     stageRef.current = stage;
+    // The world round the home runs out into the haze (no edge, no sky under it):
+    // the camera stands well back so nothing near it is clipped.
+    stage.distance = 150;
+    stage.camera.far = 600;
+    stage.scene.fog = new THREE.Fog('#cfe6f2', 200, 400);
     const r = parent.getBoundingClientRect();
     stage.setSize(r.width, r.height);
     const ro = new ResizeObserver(() => {
@@ -153,6 +188,9 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       );
       if (houseRef.current) {
         cutWalls(houseRef.current, stage.azimuth);
+        // The neighbours' houses (the city's towers) between you and the home step aside.
+        const h = houseRef.current;
+        cullOccluders(h.occluders, stage.camera, h.fitPoints, -h.drop);
         for (const p of placedRef.current.values())
           if (p.wall)
             p.group.visible =
@@ -169,8 +207,10 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     };
     const offCam = stage.onCamera(sync);
     let readySent = false;
+    // Shown (the 2D scene steps aside) once a frame has the whole home in it,
+    // the world round it too.
     stage.onFrame = () => {
-      if (!readySent && houseRef.current) {
+      if (!readySent && houseRef.current?.world) {
         readySent = true;
         live.current.onReady();
       }
@@ -210,6 +250,61 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
           return u < 1;
         });
       },
+      lookAround: (onEnd) => {
+        const from = stage.azimuth;
+        const t0 = performance.now();
+        // A full turn in 14 s; reduced motion cuts a quarter every 1.5 s instead.
+        const reduced = live.current.reduced;
+        const MS = reduced ? 6000 : 14_000;
+        // Turning round, the camera comes down to a drone's height over the
+        // garden (a lower angle shows the street and the neighbours), and goes
+        // back up when the turn ends.
+        const e0 = stage.elevation;
+        const eLow = Math.min(e0, 0.66);
+        // A hotel room also steps back to show its tower, the floors above and below.
+        const z0 = stage.zoom;
+        const lz = houseRef.current?.lookZoom ?? 1;
+        const zLow = lz < 1 ? Math.min(z0, lz) : z0;
+        const ease = (u: number) => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
+        let done = false;
+        const stop = () => {
+          if (done) return;
+          done = true;
+          off();
+          const eNow = stage.elevation;
+          const zNow = stage.zoom;
+          const t1 = performance.now();
+          const back = stage.add(() => {
+            const u = reduced ? 1 : Math.min(1, (performance.now() - t1) / 600);
+            stage.elevation = eNow + (e0 - eNow) * ease(u);
+            stage.zoom = zNow + (z0 - zNow) * ease(u);
+            stage.updateCamera();
+            if (u >= 1) back();
+            return u < 1;
+          });
+          onEnd();
+        };
+        const off = stage.add(() => {
+          if (done) return false;
+          const now = performance.now();
+          const u = Math.min(1, (now - t0) / MS);
+          const turned = reduced ? Math.min(4, Math.floor(u * 4 + 0.001)) / 4 : u;
+          const az = from + turned * Math.PI * 2;
+          const dip = reduced ? 1 : ease(Math.min(1, (now - t0) / 1200));
+          const el = e0 + (eLow - e0) * dip;
+          const zm = z0 + (zLow - z0) * dip;
+          if (az !== stage.azimuth || el !== stage.elevation || zm !== stage.zoom) {
+            stage.azimuth = az;
+            stage.elevation = el;
+            stage.zoom = zm;
+            stage.updateCamera();
+          }
+          if (u >= 1) stop();
+          return !done;
+        });
+        return stop;
+      },
+      snapshot: () => stage.snapshot(),
     };
     const particles = new Particles();
     stage.scene.add(particles.group);
@@ -219,7 +314,12 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       offCam();
       live.current.api.current = null;
       if (houseRef.current) disposeTree(houseRef.current.root);
-      stage.dispose();
+      particles.clear();
+      // Kept for the next home (what this one drew is let go by the effects below).
+      for (const k of Object.keys(canvas.dataset)) if (k !== 'home-3d') delete canvas.dataset[k];
+      canvas.remove();
+      open--;
+      parkStage('home', stage);
       stageRef.current = null;
     };
   }, []);
@@ -229,7 +329,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const h = buildHouse(plan, { tier, night, lit, grounds });
+    // The room first; the world round it (the street, the city below, the
+    // hotel's tower) in an idle slice after, unless it was kept from the last
+    // time this home opened.
+    const h = buildHouse(plan, { tier, night, lit, grounds, later: true });
+    if (h.kept) h.attach();
     houseRef.current = h;
     stage.scene.add(h.root);
     stage.target.copy(h.centre);
@@ -256,8 +360,44 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     stage.canvas.dataset.bathrooms = String(plan.rooms.filter((r) => r.id === 'bathroom').length);
     stage.canvas.dataset.pool = grounds.pool ? (grounds.pool.hot ? 'hot' : '1') : '0';
     stage.canvas.dataset.bays = String(grounds.bays.length);
+    // The haze: clear over the home, thicker with distance, the far streets fading out.
+    const fog = stage.scene.fog as THREE.Fog | null;
+    if (fog) {
+      fog.near = stage.distance + h.span * 0.45;
+      fog.far = stage.distance + h.span * 1.5 + 70;
+    }
     stage.updateCamera();
+    let gone = false;
+    let timer = 0;
+    let idle = 0;
+    const later = (f: () => void) => {
+      const go = () => !gone && f();
+      if (typeof requestIdleCallback === 'function')
+        idle = requestIdleCallback(go, { timeout: 200 });
+      else timer = window.setTimeout(go, 30);
+    };
+    let held = false;
+    if (h.world) stage.canvas.dataset.world = '1';
+    else {
+      // Built in a slice of its own (the page answers meanwhile, the 2D room
+      // showing); nothing is drawn until it's in, so the first frame on
+      // screen has the whole home.
+      delete stage.canvas.dataset.world;
+      held = true;
+      stage.hold();
+      later(() => {
+        h.attach();
+        stage.canvas.dataset.world = '1';
+        held = false;
+        stage.release();
+        stage.updateCamera();
+      });
+    }
     return () => {
+      gone = true;
+      clearTimeout(timer);
+      if (idle) cancelIdleCallback(idle);
+      if (held) stage.release();
       stage.scene.remove(h.root);
       disposeTree(h.root);
       houseRef.current = null;
@@ -275,6 +415,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       stage.hemi.color.set('#c9c8e8');
       stage.ambient.intensity = 0.3;
       stage.scene.background = new THREE.Color('#0b1328');
+      (stage.scene.fog as THREE.Fog | null)?.color.set('#0b1328');
     } else if (dusk) {
       stage.sun.intensity = 1.4;
       stage.sun.color.set('#ffc58a');
@@ -282,6 +423,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       stage.hemi.color.set('#ffe1c2');
       stage.ambient.intensity = 0.2;
       stage.scene.background = new THREE.Color('#e9c7a8');
+      (stage.scene.fog as THREE.Fog | null)?.color.set('#e9c7a8');
     } else {
       stage.sun.intensity = 1.9;
       stage.sun.color.set('#fff1d6');
@@ -289,6 +431,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       stage.hemi.color.set('#fff4e0');
       stage.ambient.intensity = 0.3;
       stage.scene.background = new THREE.Color('#cfe6f2');
+      (stage.scene.fog as THREE.Fog | null)?.color.set('#cfe6f2');
     }
     stage.invalidate();
   }, [night, dusk]);
@@ -309,35 +452,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       [];
     const mk = new Map<string, THREE.Group>();
     const desk = objects.find((o) => o.slot === 'desk' && o.owned);
-    for (const o of objects) {
-      if (o.slot && !o.owned) {
-        // A "+" where it would go.
-        const m = plusMarker();
-        const s = o.spot;
-        if (s.wall) {
-          const w = wallOf(plan, s);
-          m.rotation.x = Math.PI / 2;
-          if (w === 'back') m.position.set(s.x + s.w / 2, 1.5, 0.06);
-          m.userData.wall = w;
-        } else if (o.slot === 'laptop' && desk) {
-          m.position.set(s.x + 0.5, 0.8, s.y + 0.4);
-        } else {
-          const corner = ['bed', 'kitchen', 'sofa'].includes(o.slot);
-          m.position.set(
-            corner ? s.x + s.w - 0.3 : s.x + s.w / 2,
-            0.03,
-            corner ? s.y + 0.3 : s.y + s.h / 2,
-          );
-        }
-        m.traverse((c) => (c.userData.obj = o.id));
-        m.userData.obj = o.id;
-        m.visible = live.current.buyMode;
-        mk.set(o.id, m);
-        root.add(m);
-        continue;
-      }
+    const first = stage.frames === 0;
+    const queue: Home3DObject[] = [];
+    const place = (o: Home3DObject) => {
       const id = modelIdOf(o);
-      if (!id) continue;
+      if (!id) return;
       const ry = typeof o.ry === 'number' ? o.ry : facingOf(plan, o.slot ?? o.id, o.spot);
       const fr =
         o.ry !== undefined && o.outdoor
@@ -381,47 +500,113 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         p.add(g.position);
         lampsOut.push({ ...l, pos: p });
       }
+    };
+    for (const o of objects) {
+      if (o.slot && !o.owned) {
+        // A "+" where it would go.
+        const m = plusMarker();
+        const s = o.spot;
+        if (s.wall) {
+          const w = wallOf(plan, s);
+          m.rotation.x = Math.PI / 2;
+          if (w === 'back') m.position.set(s.x + s.w / 2, 1.5, 0.06);
+          m.userData.wall = w;
+        } else if (o.slot === 'laptop' && desk) {
+          m.position.set(s.x + 0.5, 0.8, s.y + 0.4);
+        } else {
+          const corner = ['bed', 'kitchen', 'sofa'].includes(o.slot);
+          m.position.set(
+            corner ? s.x + s.w - 0.3 : s.x + s.w / 2,
+            0.03,
+            corner ? s.y + 0.3 : s.y + s.h / 2,
+          );
+        }
+        m.traverse((c) => (c.userData.obj = o.id));
+        m.userData.obj = o.id;
+        m.visible = live.current.buyMode;
+        mk.set(o.id, m);
+        root.add(m);
+        continue;
+      }
+      queue.push(o);
     }
     // Lamps: the ones you own first, then a warm ceiling light per room at night.
     const lamps = new THREE.Group();
-    const lit = night || dusk;
-    const want = [...lampsOut];
-    if (lit)
-      for (const r of plan.rooms)
-        if (
-          !want.some(
-            (l) => l.pos.x >= r.x && l.pos.x < r.x + r.w && l.pos.z >= r.y && l.pos.z < r.y + r.h,
+    const light = () => {
+      const lit = night || dusk;
+      const want = [...lampsOut];
+      if (lit)
+        for (const r of plan.rooms)
+          if (
+            !want.some(
+              (l) => l.pos.x >= r.x && l.pos.x < r.x + r.w && l.pos.z >= r.y && l.pos.z < r.y + r.h,
+            )
           )
-        )
-          want.push({
-            pos: new THREE.Vector3(r.x + r.w / 2, 2.2, r.y + r.h / 2),
-            color: '#ffd9a0',
-            intensity: 1.6,
-            distance: Math.max(r.w, r.h) * 1.1,
-          });
-    for (const l of want.slice(0, Math.max(1, MAX_LAMPS - (houseRef.current?.lamps.length ?? 0)))) {
-      const pl = new THREE.PointLight(
-        l.color,
-        lit ? l.intensity * 1.6 : l.intensity * 0.6,
-        l.distance,
-        1.6,
-      );
-      pl.position.copy(l.pos);
-      lamps.add(pl);
-    }
+            want.push({
+              pos: new THREE.Vector3(r.x + r.w / 2, 2.2, r.y + r.h / 2),
+              color: '#ffd9a0',
+              intensity: 1.6,
+              distance: Math.max(r.w, r.h) * 1.1,
+            });
+      for (const l of want.slice(
+        0,
+        Math.max(1, MAX_LAMPS - (houseRef.current?.lamps.length ?? 0)),
+      )) {
+        const pl = new THREE.PointLight(
+          l.color,
+          lit ? l.intensity * 1.6 : l.intensity * 0.6,
+          l.distance,
+          1.6,
+        );
+        pl.position.copy(l.pos);
+        lamps.add(pl);
+      }
+    };
     root.add(lamps);
     stage.scene.add(root);
     furnRoot.current = root;
     lampRoot.current = lamps;
     placedRef.current = placed;
     markers.current = mk;
-    const cars = [...placed.values()].filter((p) => p.group.userData.car);
-    stage.canvas.dataset.cars = String(cars.length);
-    // How high the parked cars stand under this floor (for tests): on the lawn, whatever floor you're on.
-    if (cars.length) stage.canvas.dataset.carsY = cars[0]!.group.position.y.toFixed(2);
-    else delete stage.canvas.dataset.carsY;
-    stage.updateCamera();
+    const countCars = () => {
+      const cars = [...placed.values()].filter((p) => p.group.userData.car);
+      stage.canvas.dataset.cars = String(cars.length);
+      // How high the parked cars stand under this floor (for tests): on the lawn, whatever floor you're on.
+      if (cars.length) stage.canvas.dataset.carsY = cars[0]!.group.position.y.toFixed(2);
+      else delete stage.canvas.dataset.carsY;
+    };
+    let gone = false;
+    let timer = 0;
+    // Opening the home, the first frame waits for everything in it, built a
+    // few pieces at a time so the page keeps answering (the 2D room shows
+    // meanwhile); later changes (buying, moving things) are built at once.
+    let held = false;
+    const done = () => {
+      light();
+      countCars();
+      stage.updateCamera();
+      if (held) stage.release();
+      held = false;
+    };
+    if (!first) {
+      for (const o of queue) place(o);
+      done();
+    } else {
+      held = true;
+      stage.hold();
+      const slice = () => {
+        if (gone) return;
+        const t0 = performance.now();
+        while (queue.length && performance.now() - t0 < 40) place(queue.shift()!);
+        if (queue.length) timer = window.setTimeout(slice, 0);
+        else done();
+      };
+      slice();
+    }
     return () => {
+      gone = true;
+      clearTimeout(timer);
+      if (held) stage.release();
       stage.scene.remove(root);
       disposeTree(root);
     };
@@ -598,18 +783,21 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
           busy = true;
         }
         const prev = last.get(p.id);
-        if (prev && prev.hair !== `${p.look.hairStyle}${p.look.hair}`) setHair(c, p.look);
+        // The hair group also carries facial hair and headwear (Phase 6a).
+        const hairKey = `${p.look.hairStyle}${p.look.hair}${p.look.facialHair ?? ''}${p.look.headwear ?? ''}`;
+        if (prev && prev.hair !== hairKey) setHair(c, p.look);
         const dx = prev ? p.x - prev.x : 0;
         const dy = prev ? p.y - prev.y : 0;
         const movingNow = Math.hypot(dx, dy) > 1e-4;
-        let ry = prev?.ry ?? Math.PI;
+        let ry = prev?.ry ?? p.ry ?? Math.PI;
         if (movingNow) ry = Math.atan2(dx, dy);
+        else if (p.ry !== undefined && !(prev?.moving ?? 0)) ry = p.ry;
         const st = {
           x: p.x,
           y: p.y,
           ry,
           moving: movingNow ? 0.12 : Math.max(0, (prev?.moving ?? 0) - dt),
-          hair: `${p.look.hairStyle}${p.look.hair}`,
+          hair: hairKey,
         };
         last.set(p.id, st);
         const walking = st.moving > 0;
@@ -870,7 +1058,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     });
     return () => {
       off();
-      for (const c of chars.values()) stage.scene.remove(c.root);
+      // (Their GPU copies too: the stage is kept for the next home.)
+      for (const c of chars.values()) {
+        stage.scene.remove(c.root);
+        disposeTree(c.root);
+      }
       particles.clear();
     };
   }, []);
@@ -878,7 +1070,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   // Gestures: the 2D hit layer above us forwards them through `api`; we only
   // take the wheel and pinch when the canvas itself gets them (Lite never mounts this).
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = stageRef.current?.canvas;
     if (!canvas) return;
     return gestures(canvas, {
       tap: () => {},
@@ -887,5 +1079,6 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     });
   }, []);
 
-  return <canvas ref={canvasRef} className="home-3d" aria-hidden="true" data-home-3d="" />;
+  // The stage's canvas goes in just before this (it's kept between opens, so it isn't React's).
+  return <span ref={anchorRef} hidden />;
 }

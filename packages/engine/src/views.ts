@@ -1,3 +1,7 @@
+import { barEffects, barsOf } from './lifebars.js';
+import { lifeBarsOn } from './releases.js';
+import { anyJobView, workView } from './work.js';
+import { pitchQuestionsNow } from './fundraising.js';
 import { journeyView } from './journey.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
 import { allocatorView } from './allocator.js';
@@ -11,7 +15,7 @@ import { salesView } from './sales.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
-import { playView } from './play.js';
+import { golfMatchOptions, playView } from './play.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
  *  - their own accounts, companies, deals, pitches, stories and inbox in full,
@@ -24,7 +28,7 @@ import { INDUSTRY_LABEL } from './data/industries.js';
 import { rulesFor } from './data/rules.js';
 import { markValue, ownership, waterfall } from './captable.js';
 import { clockView, gameDate } from './clock.js';
-import { companyRunway, defaultAlive } from './company.js';
+import { companyRunway, defaultAlive, monthlyCosts, payrollThisMonth } from './company.js';
 import { rescuePlan } from './rescue.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
@@ -38,7 +42,7 @@ import {
   productAmount,
   productRateBps,
 } from './capital.js';
-import { flightsView, isVisiting, tripCostUsd } from './travel.js';
+import { flightsView, hotelOptions, isVisiting, tripCostUsd } from './travel.js';
 import {
   CONTACTS_LIMIT,
   EVENT_KINDS,
@@ -47,16 +51,12 @@ import {
 } from './data/events.js';
 import { chatIdOf } from './people.js';
 import { contactWarmth, eventCost } from './events.js';
-import {
-  businessCustomersOf,
-  businessesView,
-  economyView,
-  jobsView,
-  myJobView,
-} from './economy.js';
+import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
+import { golfView, mallView } from './leisure.js';
 import { deliveryView, homeActsView, moodOf, needsOf } from './needs.js';
 import { hangoutsView, sendLimits, techEventsView, visitingView, visitsView } from './social.js';
+import { holidaysView } from './holidays.js';
 import { marketRate, playerRevenueShare } from './marketplace.js';
 import { myPropertiesView, netWorth, propertiesView, residenceView } from './property.js';
 import {
@@ -92,6 +92,8 @@ import { statementPreview } from './statement.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
 import type { MarketId } from './data/markets.js';
 import type { Company, DealCard, Id, MarketState, NewsItem, Player, World } from './types.js';
+
+const roundHours = (h: number) => Math.round(h * 100) / 100;
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const finite = (x: number) => (Number.isFinite(x) ? Math.round(x * 10) / 10 : null);
@@ -177,6 +179,22 @@ export function diligenceView(world: World, c: Company, depth: number) {
           .map((p) => world.companies[p.companyId]?.name ?? ''),
       )
       .filter(Boolean),
+  };
+}
+
+/** Next month's bill against today's cash and last month's revenue (see `nextMonth`). */
+function nextMonthOf(world: World, c: Company) {
+  const cash = world.accounts[c.account]!.balance;
+  const costs = monthlyCosts(world, c);
+  const salaries = payrollThisMonth(c) + c.founderSalary * c.founderIds.length;
+  const revenue = lastPnl(c)?.revenue ?? 0;
+  const unpaid = c.finance.unpaidPayroll;
+  return {
+    costs: costs + unpaid,
+    salaries: salaries + unpaid,
+    revenue,
+    cash,
+    short: Math.max(0, costs + unpaid - cash - revenue),
   };
 }
 
@@ -683,6 +701,12 @@ export function playerView(
           offers: secondaryOffersView(world, p),
           allocator: allocatorView(world, p),
         },
+    /**
+     * The jobs rework (after its release note; else null): your experience,
+     * your professional job and its next step, every employer's ladder with
+     * your eligibility, and your applications (interview questions when booked).
+     */
+    work: workView(world, p),
     /** Friends & Family rounds you can see: yours, your city's, your contacts' (chapter 3). */
     friendsRounds: friendsRoundsView(world, p, locationOf(p)),
     playRooms: playView(world, p),
@@ -693,6 +717,8 @@ export function playerView(
     flights: flightsView(world, p),
     me: {
       id: p.id,
+      /** When this player joined (server clock, ms): the client's Simple mode default. */
+      joinedAt: p.joinedAt,
       flightTicket: p.flightTicket ?? null,
       handle: p.handle,
       name: p.name,
@@ -704,7 +730,12 @@ export function playerView(
       stars: round1(p.stars.value),
       starHistory: p.stars.history,
       publicWarning: hasPublicWarning(p.stars),
-      hours: { available: p.hours.available, used: p.hours.used, left: hoursLeft(p) },
+      // Rounded for the screen: fractional costs (a 0.2h ride) add up to 73.80000000000001.
+      hours: {
+        available: roundHours(p.hours.available),
+        used: roundHours(p.hours.used),
+        left: roundHours(hoursLeft(p)),
+      },
       energy: Math.round(p.energy),
       burnout: p.burnout,
       /** Wave 7: hunger, hygiene, fun and social, 0–100 each. */
@@ -713,6 +744,12 @@ export function playerView(
       mood: moodOf(p),
       /** Wave 7: home acts (and 'invite') this month: used, cap and left. */
       homeActs: homeActsView(p, m.month),
+      /**
+       * Phase 3 life bars (only after the release note, so clients can hide them):
+       * energy, health, happiness and stress, 0–100 rounded, and what they're
+       * doing to you right now in plain English.
+       */
+      ...(lifeBarsOn(world) && !p.ai ? { bars: barsOf(p), barEffects: barEffects(p) } : {}),
       lifestyle: { ...tierOf(p), monthlyCost: lifestyleCost(world, p) },
       credit: { ...p.credit, ...creditProfile(world, p) },
       loans: p.loans,
@@ -728,6 +765,8 @@ export function playerView(
             market: p.location.market,
             name: getMarket(world, p.location.market).data.name,
             sinceAt: p.location.since,
+            /** The hotel you're staying in (missing: no hotel booked). */
+            ...(p.location.hotel ? { hotel: p.location.hotel } : {}),
           }
         : null,
       /** Where you can go, and what a trip costs from here (§14). */
@@ -738,17 +777,26 @@ export function playerView(
           name: getMarket(world, id).data.name,
           tripCost: usdToLocal(world, m, tripCostUsd(p.market, id)),
           visitingNow: p.visited[id] === m.month,
+          /** Hotels for a stay there, priced in your home currency, with flight + hotel affordability. */
+          hotels: hotelOptions(world, p, id),
         })),
       lastMonth: p.lastMonth,
       gigsThisMonth: p.gigsThisMonth,
       /** Wave 5: null for saved players who never chose (the client keeps its avatar). */
       gender: p.gender ?? null,
-      /** Wave 5: your part-time job, or null. */
-      job: myJobView(world, p),
+      /** Phase 6a: your look from the creator; null = never chosen (drawn from your seed). */
+      appearance: p.appearance ?? null,
+      appearanceAt: p.appearanceAt ?? null,
+      /** Wave 5: your part-time job (the jobs rework: or professional job), or null. */
+      job: anyJobView(world, p),
       /** Wave 5: your furniture and how comfortable home is (0–100). */
       home: myHomeView(p),
       /** Wave 5: your car, or null. */
       car: carView(world, p),
+      /** Golf: the course in the city you're in, the green fee and your record. */
+      golf: { ...golfView(world, p), match: golfMatchOptions(world, p) },
+      /** The mall in the city you're in: its shops' items and prices, your phone. */
+      mall: mallView(world, p),
       garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({
         ...car,
         active: car.modelId === p.car?.modelId,
@@ -782,6 +830,8 @@ export function playerView(
     visits: visitsView(world, p),
     /** Wave 8: hangouts this month you planned, were asked to or joined. */
     hangouts: hangoutsView(world, p),
+    /** Holiday with friends: this month's holidays you host or were invited on. */
+    holidays: holidaysView(world, p),
     bank: ownBankView(world, p.id),
     market: homeView,
     /** The city you're physically in (Wave 4): same shape as `market`; your home city unless you've flown. */
@@ -800,6 +850,13 @@ export function playerView(
         story: c.story ?? null,
         /** The rescue plan; null when the company isn't in distress. */
         rescue: plan && plan.level ? plan : null,
+        /**
+         * Next payday, so a founder sees a shortfall coming before staff go
+         * unpaid: what next month costs at today's settings (salaries are
+         * part of it), what came in last month, and how much the company is
+         * short if revenue repeats (0 when it can pay).
+         */
+        nextMonth: c.status === 'active' ? nextMonthOf(world, c) : null,
         hibernating: !!c.hibernation,
         officeDownsized: !!c.officeDownsized,
         /** Local businesses buying from this company (Wave 3), with last month's amount. */
@@ -838,6 +895,12 @@ export function playerView(
         role: x.role,
         ai: x.ai,
         backgroundId: x.backgroundId,
+        /** Phase 6a: how they look, so they're drawn the same for everyone. */
+        gender: x.gender ?? null,
+        appearance: x.appearance ?? null,
+        appearanceAt: x.appearanceAt ?? null,
+        /** Their home city: an unchosen look takes its people's skin tones. */
+        home: x.market,
         stars: round1(x.stars.value),
         companies: x.companyIds.map((id) => world.companies[id]?.name).filter(Boolean),
         /** Your trust with them, built only through real interactions (§13). */
@@ -876,7 +939,8 @@ export function playerView(
             ? world.players[x.investorPlayerId]?.name
             : '',
         // Hide the truth behind each option; players only see the labels.
-        questions: x.questions.map((q) => ({
+        // An open pitch shows today's numbers (the life-bars note; as stored before it).
+        questions: pitchQuestionsNow(world, x).map((q) => ({
           ...q,
           options: q.options.map(({ truth: _t, claim: _c, ...o }) => o),
         })),

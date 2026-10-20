@@ -94,7 +94,7 @@ function Listings({ onOpen }: { onOpen: (id: string) => void }) {
           })}
         </div>
       </section>
-      <div className="chip-row" role="group" aria-label={t('Filter by tier')}>
+      <div className="chip-row" role="group" aria-label={t('Filter by type')}>
         {['all', ...tiers].map((x) => (
           <button
             key={x}
@@ -135,7 +135,7 @@ function Listings({ onOpen }: { onOpen: (id: string) => void }) {
                     <span className="small muted">
                       {l.street} ·{' '}
                       {l.bedrooms ? t('{n} bedrooms', { n: l.bedrooms }) : t('Open plan')} ·{' '}
-                      {t('Tier {n}', { n: l.lifestyleTier })}
+                      {t('Standard of living {n}', { n: l.lifestyleTier })}
                     </span>
                     <span className="small">
                       {t('Upkeep {upkeep}/mo · lets for {rent}/mo', {
@@ -255,7 +255,7 @@ function ListingDetail({ id, onBack }: { id: string; onBack: () => void }) {
         </div>
         <Line
           label={t('Living here')}
-          value={t('Lifestyle tier {n} ({name})', {
+          value={t('Standard of living {n} ({name})', {
             n: l.lifestyleTier,
             name: lifestyleName(view, l.lifestyleTier),
           })}

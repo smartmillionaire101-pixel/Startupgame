@@ -11,9 +11,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../../i18n';
 import { avatarPosIn, placeAvatarAt, useReducedMotion, type CityMapProps } from '../CityMap';
-import { CATEGORY_COLOR } from '../contract';
+import { BadgeCard, useMapNames } from '../MapBadges';
+import { ALWAYS_NAMED, placeBadge, type Badge } from '../mapIcons';
 import { OSM_CREDIT } from '../geo';
-import { geoTile } from '../geoLayout';
+import { GEO_TILE_M, geoTile } from '../geoLayout';
 import {
   findPath,
   nearestStreetPoint,
@@ -26,8 +27,11 @@ import {
 import { playersByPlace } from '../people';
 import { setRiding } from '../riding';
 import { beginRide } from '../ride/state';
-import { localHour, rideMs, rideVehicle, SHORT_HOP, type RideMode } from '../travel';
+import { localHour, rideMinutes, rideMs, rideVehicle, SHORT_HOP, type RideMode } from '../travel';
 import type { VehicleSpec } from '../flavour';
+import { personScale } from './actors';
+import { Drive } from './drive';
+import { DriveHud } from './DriveHud';
 import { CityScene, type Tier } from './scene';
 import type { PropertyTier } from '../properties';
 
@@ -46,11 +50,14 @@ import { SKY_VIEWS } from '@runway/engine';
 import { openSky } from '../../experiences/sky-bus';
 
 const NONE: never[] = [];
-const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall'];
+const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall', 'golf', 'mall'];
 
 interface Lbl {
   id: string;
   text: string;
+  /** The full name (the badge's accessible name). */
+  name: string;
+  badge: Badge;
   place: Place | null;
   /** World anchor (metres; y up). */
   x: number;
@@ -58,7 +65,6 @@ interface Lbl {
   z: number;
   rank: number;
   tier: string;
-  color?: string;
   soon?: boolean;
 }
 
@@ -145,7 +151,19 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   const [vehicle, setVehicle] = useState<VehicleSpec | null>(null);
   const [walking, setWalking] = useState(false);
   const [driving, setDriving] = useState(false);
+  // Driving your own car: its controls (the HUD's), while it's on the road.
+  const [driveCtl, setDriveCtlState] = useState<Drive | null>(null);
+  const driveRef = useRef<Drive | null>(null);
+  const setDriveCtl = useCallback((d: Drive | null) => {
+    driveRef.current = d;
+    setDriveCtlState(d);
+  }, []);
   const [focus, setFocus] = useState<string | null>(null);
+  // Where you're going (a trip asked for or under way): named on the map.
+  const [heading, setHeading] = useState<string | null>(null);
+  // A tapped badge: its name and a card (Go); the others dim.
+  const [picked, setPicked] = useState<string | null>(null);
+  const showNames = useMapNames();
   const [ready, setReady] = useState(false);
   const cb = useRef(props);
   useEffect(() => {
@@ -158,6 +176,23 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   // context was let go can't draw again) and keeps the camera where it was.
   // Leaving the City tab parks the scene: coming back shows it at once.
   const [gen, setGen] = useState(0);
+  // Under a place's scene from the start (a new session opens at home, or in
+  // your hotel): the city isn't built behind it, where it would hold up the
+  // home's first frames for seconds on a phone. It's built once the cover
+  // goes, after a frame showing that it's on its way (a parked scene is
+  // ready at once).
+  const [awake, setAwake] = useState(() => !paused || parked !== null);
+  useEffect(() => {
+    if (awake || paused) return;
+    let t = 0;
+    const raf = requestAnimationFrame(() => {
+      t = window.setTimeout(() => setAwake(true), 0);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [awake, paused]);
   const layoutRef = useRef(layout);
   const keep = useRef<{ market: string; rig: CityScene['rig']; following: boolean } | null>(null);
   useLayoutEffect(() => {
@@ -173,7 +208,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     const host = canvasHostRef.current;
     const wrap = wrapRef.current;
     const layout = layoutRef.current;
-    if (!host || !wrap) return;
+    if (!host || !wrap || !awake) return;
     let scene: CityScene;
     let canvas: HTMLCanvasElement;
     const old = unpark(layout, reduced);
@@ -247,7 +282,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     // The layout is read from its ref (a new layout of the same city is
     // handled above); the look and walkers are pushed in below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gen, reduced]);
+  }, [gen, reduced, awake]);
 
   // Hidden under a place's scene or a flight: no drawing behind it.
   useEffect(() => {
@@ -256,6 +291,30 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     s.paused = !!paused;
     if (!paused) s.touch(400);
   }, [paused, ready]);
+
+  // Going home (or to your hotel room) is a tap away: its code, and the 3D
+  // home's stage (a WebGL context takes a moment to make), are got ready in
+  // a quiet moment once the city is up.
+  useEffect(() => {
+    if (!ready || paused) return;
+    let idle = 0;
+    const go = () => {
+      void import('../Interiors').catch(() => {});
+      void import('../../interiors3d/Home3D').then(
+        (m) => m.prewarmHome3D(),
+        () => {},
+      );
+    };
+    const t = window.setTimeout(() => {
+      if (typeof requestIdleCallback === 'function')
+        idle = requestIdleCallback(go, { timeout: 4000 });
+      else go();
+    }, 3000);
+    return () => {
+      clearTimeout(t);
+      if (idle) cancelIdleCallback(idle);
+    };
+  }, [ready, paused]);
 
   useEffect(() => {
     sceneRef.current?.actors.setLook(look);
@@ -334,6 +393,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       stopWalk();
       pending.current = null;
       setFocus(placeId);
+      setHeading(placeId);
       const path = findPath(layout, pos.current, target);
       const len = travelTiles(layout, pathLength(path));
       if (opts.ask && len > SHORT_HOP && cb.current.onFarTrip) {
@@ -351,12 +411,23 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       // Skipping the trip: no ride scene, you're simply there.
       const scene =
         (len > SHORT_HOP || driving) && !opts.instant
-          ? beginRide({ mode, tiles: len, path, layout, placeId, look, mapMs: rideMs(mode, len) })
+          ? beginRide({
+              mode,
+              tiles: len,
+              path,
+              layout,
+              placeId,
+              look,
+              mapMs: rideMs(mode, len),
+              hud: driving && !reduced && !!sceneRef.current && !!layout.geo,
+            })
           : null;
       const done = () => {
         scene?.end();
         if (driving) {
-          sceneRef.current?.actors.setDriving(0);
+          driveRef.current?.end();
+          setDriveCtl(null);
+          sceneRef.current?.actors.setDriving(false);
           sceneRef.current?.endChase();
           setDriving(false);
         }
@@ -365,6 +436,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         placeAvatar(target);
         stopWalk();
         setVehicle(null);
+        setHeading(null);
         cb.current.onArrive?.(target, placeId);
         then?.();
       };
@@ -378,23 +450,76 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       const s3 = sceneRef.current;
       s3?.actors.setWalking(true);
       if (s3) s3.following = true;
+      // The path runs along the road centre lines: on foot you take the
+      // pavement, in a vehicle your lane.
+      const street = s3 ? s3.actors.streetPath(path, mode === 'walk' ? 'walk' : 'lane') : path;
+      const ms = scene?.ms ?? rideMs(mode, len);
+      // Driving: metres to go, and the pace that takes about the trip's time.
+      const metres = pathLength(street) * GEO_TILE_M;
+      const cruise = (metres / Math.max(0.5, ms / 1000)) * 1.15;
+      // Your own car, with its trip on screen: you drive it (GO and BRAKE,
+      // a way at each junction). Skipping rides or reduced motion: it drives
+      // itself, as a taxi does.
+      const drive =
+        driving && s3 && scene && !reduced && layout.geo
+          ? new Drive(s3.actors, layout.geo.graph, path, target, ms)
+          : null;
       if (driving && s3) {
         // Keep to your lane, the camera behind you.
-        s3.actors.setDriving(2.2, path);
+        if (!drive) s3.actors.setDriving(true, path, cruise);
         if (!reduced) s3.startChase();
         setDriving(true);
+        setDriveCtl(drive);
+        // For tests, as __city3d is.
+        (window as unknown as { __drive?: Drive | null }).__drive = drive;
       }
-      const ms = scene?.ms ?? rideMs(mode, len);
       const t0 = performance.now();
+      let last = t0;
+      let gone = 0;
+      let v = 0;
       let cancelled = false;
       const step = (now: number) => {
         if (cancelled) return;
-        const k = scene?.skipped() ? 1 : Math.min(1, (now - t0) / ms);
-        const eased = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-        const { p, dx, dy } = pointAlong(path, eased);
+        let f: number;
+        if (drive && !scene?.skipped()) {
+          const r = drive.step((now - last) / 1000);
+          last = now;
+          pos.current = r.p;
+          placeAvatar(r.p, r.dx, r.dy);
+          if (!r.done) walk.current!.raf = requestAnimationFrame(step);
+          else done();
+          return;
+        }
+        if (driving && !scene?.skipped() && now - t0 < ms * 3) {
+          // Your own car: up to speed, easing into the stop at the end, and
+          // never into the car in front (it slows and waits behind it). A
+          // trip held up twice as long as planned goes on regardless (and
+          // at three times, you're simply there). Short steps, so a slow
+          // frame (a software GPU) still keeps to the clock.
+          const lead = reduced || now - t0 > ms * 2 ? null : s3?.actors.leadAhead();
+          let room = lead ? Math.max(0, lead.gap - 2.5) : Infinity;
+          for (let left = Math.min(1, (now - last) / 1000); left > 1e-4; left -= 0.05) {
+            const dt = Math.min(0.05, left);
+            let want = Math.min(cruise, Math.sqrt(2 * (cruise / 1.2) * (metres - gone)) + 1);
+            if (lead) want = Math.min(want, Math.max(0, lead.v + room * 2));
+            v += Math.max(-cruise * 2.5 * dt, Math.min(cruise * 0.9 * dt, want - v));
+            if (v < 0) v = 0;
+            const move = Math.min(v * dt, room, metres - gone);
+            gone += move;
+            // The car in front moves on meanwhile.
+            room += (lead?.v ?? 0) * dt - move;
+          }
+          f = metres > 0 ? gone / metres : 1;
+          if (metres - gone < 0.05) f = 1;
+        } else {
+          const k = scene?.skipped() ? 1 : Math.min(1, (now - t0) / ms);
+          f = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        }
+        last = now;
+        const { p, dx, dy } = pointAlong(street, f);
         pos.current = p;
         placeAvatar(p, dx, dy);
-        if (k < 1) walk.current!.raf = requestAnimationFrame(step);
+        if (f < 1) walk.current!.raf = requestAnimationFrame(step);
         else done();
       };
       walk.current = {
@@ -403,7 +528,9 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
           cancelled = true;
           scene?.end();
           if (driving) {
-            sceneRef.current?.actors.setDriving(0);
+            driveRef.current?.end();
+            setDriveCtl(null);
+            sceneRef.current?.actors.setDriving(false);
             sceneRef.current?.endChase();
             setDriving(false);
           }
@@ -412,7 +539,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         },
       };
     },
-    [layout, reduced, look, placeAvatar, stopWalk],
+    [layout, reduced, look, placeAvatar, stopWalk, setDriveCtl],
   );
 
   const goTo = useCallback(
@@ -458,6 +585,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       },
       cancelTrip: () => {
         pending.current = null;
+        setHeading(null);
       },
       recentre,
       zoom: (f) => sceneRef.current?.zoomAt(f),
@@ -532,10 +660,14 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       openSky(sky);
       return;
     }
-    const el = (e.target as Element).closest?.('[data-place]');
-    const id = el?.getAttribute('data-place');
-    if (id) {
-      goTo(id, undefined, { ask: true });
+    // A badge: its name and card (tap it again, or anywhere else, to close).
+    const bid = (e.target as Element).closest?.('[data-badge]')?.getAttribute('data-badge');
+    if (bid) {
+      setPicked((was) => (was === bid ? null : bid));
+      return;
+    }
+    if (picked) {
+      setPicked(null);
       return;
     }
     const s = sceneRef.current;
@@ -581,6 +713,11 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
   }, []);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape' && picked) {
+      e.preventDefault();
+      setPicked(null);
+      return;
+    }
     const s = sceneRef.current;
     if (!s) return;
     const step = s.rig.dist * 0.15;
@@ -614,11 +751,13 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     const out: Lbl[] = [];
     for (const p of layout.places) {
       if (p.kind === 'stall') continue;
-      const text = labelOf(p);
-      if (!text) continue;
+      const raw = labelOf(p);
+      if (!raw) continue;
       out.push({
         id: p.id,
-        text: text.length > 26 ? `${text.slice(0, 25)}…` : text,
+        text: raw.length > 26 ? `${raw.slice(0, 25)}…` : raw,
+        name: raw,
+        badge: placeBadge(p),
         place: p,
         x: 0,
         y: 0,
@@ -629,7 +768,6 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
           : p.kind === 'business'
             ? 'lbl-biz'
             : 'lbl-detail',
-        color: p.category ? CATEGORY_COLOR[p.category] : undefined,
         soon: !!p.soon,
       });
     }
@@ -638,6 +776,8 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       out.push({
         id: 'market',
         text: layout.marketName,
+        name: layout.marketName,
+        badge: placeBadge(null),
         place: null,
         x: 0,
         y: 0,
@@ -685,18 +825,23 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     const order = [...labels].sort((a, b) => a.rank - b.rank);
     const shown = new Map<HTMLElement, string>();
     const homesEls = [...host.querySelectorAll<HTMLElement>('[data-property]')];
-    // Pill widths, read once each (a label is a 1 px point; its pill is what
-    // takes room). Reading layout every frame would force a reflow per label.
-    const widths = new Map<HTMLElement, number>();
-    const widthOf = (el: HTMLElement, l: Lbl) => {
-      const w = widths.get(el);
-      if (w) return w;
+    // Badge and pill sizes, read once each (a label is a 1 px point; its
+    // badge is what takes room). Reading layout every frame would force a
+    // reflow per label. A badge opening to its name (or "Show names") runs
+    // this again, so the sizes are measured afresh.
+    const sizes = new Map<HTMLElement, [number, number]>();
+    const sizeOf = (el: HTMLElement, l: Lbl): [number, number] => {
+      const got = sizes.get(el);
+      if (got) return got;
       const pill = el.firstElementChild as HTMLElement | null;
-      const m = !el.hidden && pill ? pill.offsetWidth : 0;
-      if (m > 0) widths.set(el, m + 4);
-      return m > 0 ? m + 4 : l.text.length * 7 + 22;
+      const w = !el.hidden && pill ? pill.offsetWidth : 0;
+      if (w > 0) {
+        const m: [number, number] = [w + 4, pill!.offsetHeight];
+        sizes.set(el, m);
+        return m;
+      }
+      return el.classList.contains('is-badge') ? [34, 30] : [l.text.length * 7 + 40, 24];
     };
-    const PILL_H = 24;
     type Box = [number, number, number, number];
     const hits = (boxes: Box[], b: Box) =>
       boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
@@ -708,7 +853,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       const tag = tagRef.current;
       if (tag) {
         const a = s.actors.avatarPos();
-        const grow = Math.max(1, Math.min(9, d / 140));
+        const grow = personScale(d);
         s.project(a.x, a.h + 2.3 * grow, a.y, out);
         tag.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
         tag.hidden = out.z >= 1;
@@ -718,7 +863,11 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       for (const l of order) {
         const el = els.get(l.id);
         if (!el) continue;
-        const focusOn = el.classList.contains('is-focus') || el.classList.contains('is-marker');
+        const focusOn =
+          el.classList.contains('is-focus') ||
+          el.classList.contains('is-marker') ||
+          el.classList.contains('is-picked') ||
+          el.classList.contains('is-heading');
         const key = l.rank === 0 || focusOn;
         const tierOk = key || (l.rank === 1 ? d < 2600 : d < 1100);
         let vis = false;
@@ -728,7 +877,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
           if (at) s.project(at.x, at.y, at.z, out);
           else out.z = 2;
           if (out.z < 1 && out.x > -60 && out.x < W + 60 && out.y > -20 && out.y < H + 20) {
-            const w = widthOf(el, l);
+            const [w, PILL_H] = sizeOf(el, l);
             // Crowded: a key label rises on a leader line until it is clear;
             // the others step up once, else wait their turn (zoom in).
             const tries = key ? 6 : 2;
@@ -780,7 +929,8 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     return () => {
       off();
     };
-  }, [labels, ready, properties, name]);
+    // picked / showNames / heading: badges change size (measured again).
+  }, [labels, ready, properties, name, picked, showNames, heading]);
 
   // The suggested move pulses; flags (events coming up) show on the label.
   const landmarks = layout.geo?.sprites ?? [];
@@ -791,6 +941,18 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       ...(v.landmark ? [[v.landmark, v.id] as const] : []),
     ]),
   );
+
+  const pickedLabel = picked ? (labels.find((l) => l.id === picked) ?? null) : null;
+  // Go, from a badge's card: what tapping a label did before (the Market's
+  // name goes to one of its stalls).
+  const goPicked = (p: Place | null) => {
+    setPicked(null);
+    const to =
+      p ??
+      layout.places.find((x) => x.kind === 'stall' && !x.dim) ??
+      layout.places.find((x) => x.kind === 'stall');
+    if (to) goTo(to.id, undefined, { ask: true });
+  };
 
   return (
     <div
@@ -810,10 +972,16 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       onContextMenu={(e) => e.preventDefault()}
     >
       <div ref={canvasHostRef} className="c3-canvas-host" aria-hidden="true" />
-      <div ref={labelsRef} className="c3-labels" aria-hidden="true">
+      {!awake && !paused && (
+        <p className="c3-waking" role="status">
+          {t('Building the city…')}
+        </p>
+      )}
+      <div ref={labelsRef} className={`c3-labels${picked ? ' has-pick' : ''}`}>
         {landmarks.map((lm) => (
           <span
             key={lm.name}
+            aria-hidden="true"
             className="c3-landmark"
             data-landmark={lm.name}
             {...(skyByLandmark.get(lm.name) ? { 'data-sky': skyByLandmark.get(lm.name) } : {})}
@@ -827,36 +995,71 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
         ))}
         {labels.map((l) => {
           const n = l.place ? (here.get(l.place.id) ?? 0) : 0;
+          const isPicked = picked === l.id;
+          const isHeading = heading === l.id;
+          const named = showNames || isPicked || isHeading || ALWAYS_NAMED.includes(l.id);
           return (
             <div
               key={l.id}
               data-label={l.id}
-              {...(l.place ? { 'data-place': l.place.id } : {})}
+              data-badge={l.id}
               {...(l.place?.category ? { 'data-category': l.place.category } : {})}
-              className={`c3-label ${l.tier}${l.soon ? ' is-soon' : ''}${focus === l.id ? ' is-focus' : ''}${marker === l.id ? ' is-marker' : ''}`}
+              className={`c3-label ${l.tier} ${named ? 'is-named' : 'is-badge'}${l.badge.money ? ' is-money' : ''}${l.soon ? ' is-soon' : ''}${focus === l.id ? ' is-focus' : ''}${marker === l.id ? ' is-marker' : ''}${isPicked ? ' is-picked' : ''}${isHeading ? ' is-heading' : ''}`}
+              style={{ '--ring': l.badge.ring } as React.CSSProperties}
               hidden
             >
-              <span className="c3-pill">
-                {l.color && <i className="c3-dot" style={{ background: l.color }} />}
-                {l.text}
+              <button
+                type="button"
+                className="c3-pill"
+                aria-label={l.name}
+                aria-expanded={isPicked}
+                // Taps are read by the map (a drag from a badge still pans);
+                // the keyboard's Enter and Space come here.
+                onClick={(e) => {
+                  if (e.detail === 0) setPicked((was) => (was === l.id ? null : l.id));
+                }}
+              >
+                {isHeading && (
+                  <span className="c3-heading" aria-hidden="true">
+                    {t('Heading here')}
+                  </span>
+                )}
+                <span className="c3-ico" aria-hidden="true">
+                  {l.badge.icon}
+                </span>
+                {named && (
+                  <span className="c3-name" aria-hidden="true">
+                    {l.text}
+                  </span>
+                )}
                 {n > 0 && (
-                  <b className="c3-here" data-here={l.id} data-count={n}>
+                  <b className="c3-here" data-here={l.id} data-count={n} aria-hidden="true">
                     {n > 9 ? '9+' : n}
                   </b>
                 )}
                 {freshSet.has(l.id) && (
-                  <b className="c3-new" data-new={l.id}>
+                  <b className="c3-new" data-new={l.id} aria-hidden="true">
                     {t('New')}
                   </b>
                 )}
                 {flagSet.has(l.id) && <i className="c3-flag" aria-hidden="true" />}
-              </span>
-              {marker === l.id && <span className="c3-marker">!</span>}
+              </button>
+              {marker === l.id && (
+                <span className="c3-marker" aria-hidden="true">
+                  !
+                </span>
+              )}
             </div>
           );
         })}
         {properties.map((h) => (
-          <div key={h.id} className="c3-label c3-home" data-property={h.id} hidden>
+          <div
+            key={h.id}
+            className="c3-label c3-home is-named"
+            data-property={h.id}
+            aria-hidden="true"
+            hidden
+          >
             <span className="c3-pill">
               <i className="c3-home-dot" aria-hidden="true" />
               {h.name || tierLabel(h.tier)}
@@ -865,6 +1068,14 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
           </div>
         ))}
       </div>
+      {driveCtl && (
+        <DriveHud
+          drive={driveCtl}
+          marketId={layout.marketId}
+          minutes={(m) => rideMinutes('drive', travelTiles(layout, m / GEO_TILE_M))}
+          yaw={() => sceneRef.current?.rig.yaw ?? 0}
+        />
+      )}
       <div
         ref={tagRef}
         className={`c3-you-tag city-avatar${walking ? (vehicle ? ' is-riding' : ' is-walking') : ''}`}
@@ -872,6 +1083,14 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
       >
         <span>{name}</span>
       </div>
+      {pickedLabel && (
+        <BadgeCard
+          place={pickedLabel.place}
+          name={pickedLabel.name}
+          onGo={() => goPicked(pickedLabel.place)}
+          onClose={() => setPicked(null)}
+        />
+      )}
       {!ready && <div className="c3-loading">{t('Building the city…')}</div>}
       <a
         className="city-osm-credit"

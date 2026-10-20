@@ -25,9 +25,11 @@ test('the overhaul: one-line top bar, small avatar, a What-to-do chip, five tabs
   const bar = page.locator('.topbar');
   const box = (await bar.boundingBox())!;
   expect(box.height).toBeLessThanOrEqual(56);
-  const date = (await page.locator('.topbar-date').boundingBox())!;
-  expect(date.height).toBeLessThan(24);
-  await expect(page.locator('.topbar-date')).toHaveText(/^Y\d+ M\d+$/);
+  // On a phone the game date steps aside for the city's name (it's on the
+  // map's city card and the phone); the name stays readable.
+  await expect(page.locator('.topbar-date')).toBeHidden();
+  const city = (await page.locator('.brand-city').boundingBox())!;
+  expect(city.width).toBeGreaterThan(30);
   await expect(bar.getByRole('button', { name: /^Phone/ })).toBeVisible();
   // Nothing in the bar overflows the screen.
   const right = await bar.evaluate((el) =>
@@ -72,7 +74,7 @@ test('day one reads plainly: pre-revenue, new, investors in town', async ({ page
   const nav = page.getByRole('navigation', { name: 'Main' });
   await nav.getByRole('button', { name: /^Today/ }).click();
   await expect(page.getByText('Pre-revenue')).toBeVisible();
-  await expect(page.getByText('Default dead')).toHaveCount(0);
+  await expect(page.getByText('Runs out before profit')).toHaveCount(0);
   await expect(page.getByText('Public warning')).toHaveCount(0);
   // News lives behind Today now.
   await page.getByRole('button', { name: /^News/ }).click();

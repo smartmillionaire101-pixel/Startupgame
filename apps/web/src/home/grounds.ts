@@ -18,7 +18,9 @@
  * supercar in a glass showroom, an electric car at a charger, the rest in
  * open bays on the drive.
  */
+import type { HotelTier } from '../city/travel';
 import type { HomeAct, HomePlan } from './layout';
+import type { HotelDoor, HotelWindow } from './hotel';
 
 export interface Rect {
   x: number;
@@ -46,7 +48,7 @@ export interface Lounger {
   rot: number;
 }
 
-export type GroundStyle = 'garden' | 'estate' | 'roof';
+export type GroundStyle = 'garden' | 'estate' | 'roof' | 'hotel';
 
 export interface Grounds {
   style: GroundStyle;
@@ -80,6 +82,16 @@ export interface Grounds {
   focus: Rect;
   /** A penthouse: the rail at the terrace's edge where you watch the skyline. */
   view?: Rect | null;
+  /** A hotel room: the hotel (its name on the tower, its tier's finish) and the floor you're on. */
+  hotel?: {
+    tier: HotelTier;
+    name: string;
+    floor: number;
+    /** Your room's number, the neighbours' doors (friends' named), the window wall's windows. */
+    room?: number;
+    doors?: HotelDoor[];
+    windows?: HotelWindow[];
+  } | null;
 }
 
 /** Which garage a car model gets. */

@@ -25,6 +25,22 @@ export const createClient = (apiKey: string): AiClient =>
 /** Hard limit on one reply, retries included. */
 export const AI_CHAT_DEADLINE_MS = 7_000;
 
+/**
+ * The whole send, from the request arriving to the answer stored: Claude gets
+ * what's left of it, so a slow start (a cold function, a busy store) can't push
+ * the request past the host's limit and lose the answer.
+ */
+export const AI_CHAT_BUDGET_MS = 8_000;
+
+/** Less time than this left: the template answers instead. */
+export const AI_CHAT_MIN_MS = 1_500;
+
+/** A message still unanswered this long after it was sent gets its answer when the thread is read. */
+export const AI_REPLY_LATE_MS = 20_000;
+
+/** The same unanswered message sent again within this long is a retry, not a new message. */
+export const AI_RESEND_MS = 2 * 60_000;
+
 /** Turns of the thread sent with each request. */
 export const AI_CHAT_HISTORY = 16;
 

@@ -7,11 +7,12 @@
  * camera, lower inner walls with door gaps, dark-framed windows, wall
  * sconces, soft darkening along every wall and a front door.
  *
- * Round it, on a round lawn under a light sky: a pool terrace (villa,
+ * Round it, on its plot in a street of neighbours (./surroundings.ts): a pool terrace (villa,
  * mansion), a formal garden with a fountain (mansion, the very rich), a
  * gated drive with a bay for every car (a steel carport, a glass showroom,
  * chargers), hedges, palms, potted plants and the street; a penthouse sits
- * on a roof terrace with a hot tub and the city's towers round it.
+ * on a roof terrace with a hot tub and the city's towers round it; a hotel
+ * room is one room on a floor partway up its tower (./hotel-tower.ts).
  *
  * World units: one tile is one metre; tile (x, y) covers x..x+1 on X and
  * y..y+1 on Z, the floor at Y = 0, the lawn just below.
@@ -19,9 +20,18 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { HomePlan, RoomId, Spot } from '../home/layout';
+import type { HotelTier } from '../city/travel';
 import { bathDoors, key, wallEdges } from '../home/layout';
 import type { Grounds } from '../home/grounds';
-import { FLOOR_SCALE, Kit, edgeTexture, floorTexture, mat, type FloorKind } from './kit';
+import {
+  FLOOR_SCALE,
+  Kit,
+  disposeTree,
+  edgeTexture,
+  floorTexture,
+  mat,
+  type FloorKind,
+} from './kit';
 import { buildModel } from './furniture';
 import {
   buildEstateModel,
@@ -33,6 +43,15 @@ import {
   showroomGarage,
   tree,
 } from './estate-models';
+import {
+  asphaltTexture,
+  canvasTex,
+  cityBelow,
+  neighbourhood,
+  type Occluder,
+  type Surroundings,
+} from './surroundings';
+import { hotelTower, type TowerSide } from './hotel-tower';
 
 export const WALL_H = 2.6;
 export const INNER_H = 1.25;
@@ -49,8 +68,8 @@ export const STOREY = 3;
 export interface WallSide {
   /** Outward normal on the floor plane. */
   n: THREE.Vector2;
-  slabs: THREE.Mesh[];
-  caps: THREE.Mesh[];
+  slabs: THREE.Object3D[];
+  caps: THREE.Object3D[];
   extras: THREE.Group;
   cut: boolean;
 }
@@ -71,6 +90,18 @@ export interface House {
   lamps: THREE.PointLight[];
   /** How far below this floor the grounds are (0 on the ground floor). */
   drop: number;
+  /** The neighbours' buildings (and the city's towers) that hide while they'd block the view. */
+  occluders: Occluder[];
+  /** How far the world round the home reaches (metres). */
+  reach: number;
+  /** How far Look around zooms out (1: not at all; a hotel room shows its tower). */
+  lookZoom: number;
+  /** The world round the home, once it's attached. */
+  world: Surroundings | null;
+  /** Its world was kept from the last time (attaching it costs nothing). */
+  kept: boolean;
+  /** Build (or take from the last time) the world round the home and put it in. */
+  attach(): void;
 }
 
 function floorKind(id: RoomId, tier: number): FloorKind {
@@ -109,14 +140,49 @@ const FLOOR_TINT: Partial<Record<FloorKind, string>> = {
   concrete: '#e2dfd9',
 };
 
-function floorMesh(kind: FloorKind, x: number, z: number, w: number, d: number, y = 0.002) {
+/**
+ * A hotel room's floors and walls by tier: a budget room's laminate and
+ * sage walls, a business room's carpet and slate, a suite's walnut, marble
+ * and warm taupe walls.
+ */
+const HOTEL_FLOORS: Record<HotelTier, Partial<Record<RoomId, [FloorKind, string?]>>> = {
+  budget: { bedroom: ['oak', '#efe2cf'], hall: ['tile', '#e5e1da'], bathroom: ['bath'] },
+  business: {
+    bedroom: ['parquet', '#f1e4d4'],
+    hall: ['parquet', '#f3e6d6'],
+    bathroom: ['tile', '#d8d4cc'],
+  },
+  luxury: {
+    living: ['parquet-dark', '#f2dcc4'],
+    bedroom: ['parquet-dark', '#f2dcc4'],
+    hall: ['marble', '#f6efe4'],
+    guest: ['oak', '#e8d2b8'],
+    bathroom: ['marble', '#e0d5c5'],
+  },
+};
+const HOTEL_WALLS: Record<HotelTier, { outer: string; inner: string; cap: string; drape: string }> =
+  {
+    budget: { outer: '#6f948a', inner: '#7da197', cap: WALL_CAP, drape: '#9fb3c8' },
+    business: { outer: '#4b6279', inner: '#587089', cap: '#f1efe9', drape: '#c9c2b4' },
+    luxury: { outer: '#7a5d48', inner: '#8b6d56', cap: '#efe3cc', drape: '#b9935f' },
+  };
+
+function floorMesh(
+  kind: FloorKind,
+  x: number,
+  z: number,
+  w: number,
+  d: number,
+  y = 0.002,
+  tint?: string,
+) {
   const tex = floorTexture(kind).clone();
   tex.needsUpdate = true;
   const s = FLOOR_SCALE[kind];
   tex.repeat.set(w / s, d / s);
   const m = new THREE.Mesh(
     new THREE.PlaneGeometry(w, d),
-    mat(FLOOR_TINT[kind] ?? '#ffffff', {
+    mat(tint ?? FLOOR_TINT[kind] ?? '#ffffff', {
       map: tex,
       rough: kind === 'marble' || kind === 'cream' ? 0.3 : kind === 'bath' ? 0.35 : 0.75,
       own: true,
@@ -158,64 +224,6 @@ function edgeStrips(
   m.renderOrder = 1;
   return m;
 }
-
-// ---------------------------------------------------------------------------
-// Textures for the grounds (cached: one each).
-
-const texCache = new Map<string, THREE.CanvasTexture>();
-function canvasTex(id: string, size: number, draw: (g: CanvasRenderingContext2D) => void) {
-  let t = texCache.get(id);
-  if (!t) {
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    draw(c.getContext('2d')!);
-    t = new THREE.CanvasTexture(c);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.colorSpace = THREE.SRGBColorSpace;
-    texCache.set(id, t);
-  }
-  const out = t.clone();
-  out.needsUpdate = true;
-  return out;
-}
-
-/** A tower's face: rows of windows (sky-blue glass by day, warm and lit at night). */
-const towerTexture = (night: boolean) =>
-  canvasTex(`tower:${night ? 1 : 0}`, 64, (g) => {
-    g.fillStyle = night ? '#1f2937' : '#e5e7eb';
-    g.fillRect(0, 0, 64, 64);
-    for (let y = 0; y < 4; y++)
-      for (let x = 0; x < 4; x++) {
-        const lit = (x * 7 + y * 5) % 3 !== 0;
-        g.fillStyle = night ? (lit ? '#ffe2a0' : '#111827') : '#9fc8dd';
-        g.fillRect(x * 16 + 3, y * 16 + 3, 10, 9);
-      }
-  });
-
-/** A bright mown lawn (stripes and blades). */
-const lawnTexture = () =>
-  canvasTex('lawn', 256, (g) => {
-    for (let i = 0; i < 8; i++) {
-      g.fillStyle = i % 2 ? '#7cc35a' : '#72b951';
-      g.fillRect(0, i * 32, 256, 32);
-    }
-    for (let i = 0; i < 2200; i++) {
-      const a = 0.05 + (i % 5) * 0.025;
-      g.fillStyle = i % 3 ? `rgba(40,95,30,${a})` : `rgba(200,240,160,${a})`;
-      g.fillRect((i * 37) % 256, (i * 91) % 256, 1 + (i % 2), 3);
-    }
-  });
-
-/** Asphalt, a little speckled. */
-const asphaltTexture = () =>
-  canvasTex('asphalt', 128, (g) => {
-    g.fillStyle = '#56595e';
-    g.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 500; i++) {
-      g.fillStyle = `rgba(255,255,255,${0.025 + (i % 5) * 0.012})`;
-      g.fillRect((i * 37) % 128, (i * 71) % 128, 2, 2);
-    }
-  });
 
 /** Pool water with soft caustics. */
 const waterTexture = () =>
@@ -280,6 +288,8 @@ export interface HouseOpts {
   /** Dusk or night: the sconces are lit. */
   lit?: boolean;
   grounds: Grounds;
+  /** Leave the world round the home (the street, the city, the hotel's tower) for `attach`. */
+  later?: boolean;
 }
 
 export function buildHouse(plan: HomePlan, o: HouseOpts): House {
@@ -288,6 +298,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const H = plan.h;
   const g = o.grounds;
   const roof = g.style === 'roof';
+  // A hotel room: a floor of the hotel's tower round it (the roof is for penthouses).
+  const hotel = g.style === 'hotel' && g.hotel ? g.hotel : null;
   const k = new Kit();
   // Upstairs: the grounds are a storey (or two) below.
   const level = plan.level ?? 0;
@@ -297,88 +309,31 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   root.add(yard);
   const gk = new Kit();
 
-  // ---- The ground: a round lawn on the sky (or a roof slab over the city).
-  if (!roof) {
-    const lt = lawnTexture();
-    lt.repeat.set((g.lawn.r * 2) / 5, (g.lawn.r * 2) / 5);
-    const lawn = new THREE.Mesh(
-      new THREE.CircleGeometry(g.lawn.r, 72),
-      mat('#ffffff', { map: lt, rough: 1, own: true }),
-    );
-    lawn.rotation.x = -Math.PI / 2;
-    lawn.position.set(g.lawn.x, GROUND_Y - 0.02, g.lawn.y);
-    lawn.receiveShadow = true;
-    yard.add(lawn);
-    const rim = new THREE.Mesh(
-      new THREE.CylinderGeometry(g.lawn.r, g.lawn.r * 0.985, 0.9, 72, 1, true),
-      mat('#6b5236', { rough: 1, side: THREE.DoubleSide }),
-    );
-    rim.position.set(g.lawn.x, GROUND_Y - 0.47, g.lawn.y);
-    yard.add(rim);
-    // The street, a kerb and a pavement.
-    const s = g.street;
-    const x0 = Math.max(s.x0, g.lawn.x - g.lawn.r);
-    const x1 = Math.min(s.x1, g.lawn.x + g.lawn.r);
-    const sw = 2 * Math.sqrt(Math.max(0, g.lawn.r ** 2 - (s.y - g.lawn.y) ** 2));
-    if (sw > 4) {
-      const sx0 = Math.max(x0, g.lawn.x - sw / 2 + 0.3);
-      const sx1 = Math.min(x1, g.lawn.x + sw / 2 - 0.3);
-      const at = asphaltTexture();
-      at.repeat.set((sx1 - sx0) / 4, 1);
-      yard.add(flat(at, sx0, s.y - 2.2, sx1 - sx0, 4.4, GROUND_Y + 0.005));
-      for (let x = sx0 + 1; x < sx1 - 1; x += 3)
-        gk.box(1.4, 0.012, 0.12, '#f5f5f4', x + 0.7, GROUND_Y + 0.006, s.y, { noShadow: true });
-      gk.box(sx1 - sx0, 0.1, 0.35, '#d6d3d1', (sx0 + sx1) / 2, GROUND_Y, s.y - 2.35);
-    }
-  } else {
-    const r = g.lawn.r;
-    gk.box(r * 2.2, 0.6, r * 1.9, '#cbd5e1', g.lawn.x, GROUND_Y - 0.62, g.lawn.y, { rough: 0.9 });
+  // ---- The ground: your plot in its street among the neighbours, out to
+  // the haze (or a roof over the city, the building under you down to the street).
+  // Built by `world` below: at once, or later (`o.later`) so the room draws first.
+  let slab: { x: number; z: number; w: number; d: number } | null = null;
+  if (roof) {
+    // The roof: just round your terrace and the car deck, the building's edge in sight.
+    const f = g.focus;
+    const sl = { x: f.x - 2.2, z: f.y - 2.2, w: f.w + 4.4, d: f.h + 4.4 };
+    slab = sl;
+    const sx = sl.x + sl.w / 2;
+    const sz = sl.z + sl.d / 2;
+    gk.box(sl.w, 0.6, sl.d, '#cbd5e1', sx, GROUND_Y - 0.62, sz, { rough: 0.9 });
     const rt = floorTexture('stone').clone();
     rt.needsUpdate = true;
-    rt.repeat.set(r / 1.5, r / 1.5);
-    yard.add(flat(rt, g.lawn.x - r * 1.1, g.lawn.y - r * 0.95, r * 2.2, r * 1.9, GROUND_Y - 0.01));
-    // A glass parapet round the roof.
+    rt.repeat.set(sl.w / 3, sl.d / 3);
+    yard.add(flat(rt, sl.x, sl.z, sl.w, sl.d, GROUND_Y - 0.01));
+    // A glass parapet all round the roof.
     for (const [w, d, x, z] of [
-      [r * 2.2, 0.06, g.lawn.x, g.lawn.y + r * 0.95],
-      [0.06, r * 1.9, g.lawn.x + r * 1.1, g.lawn.y],
+      [sl.w, 0.06, sx, sl.z + sl.d],
+      [sl.w, 0.06, sx, sl.z],
+      [0.06, sl.d, sl.x + sl.w, sz],
+      [0.06, sl.d, sl.x, sz],
     ] as const) {
       gk.box(w, 1.0, d, '#bfe3f0', x, GROUND_Y, z, { opacity: 0.3, noShadow: true, rough: 0.1 });
       gk.box(w + 0.02, 0.05, d + 0.04, '#d9dde3', x, GROUND_Y + 1.0, z, { metal: 0.6, rough: 0.3 });
-    }
-    // The city's skyline round it: towers behind and to the sides (none in
-    // front, where you look in from), most of them taller than your roof,
-    // their windows lit at night.
-    const rnd = (n: number) => (((Math.sin(n * 91.7) * 47453.5) % 1) + 1) % 1;
-    const paint = ['#f1f5f9', '#dbe5f0', '#ece5d8', '#c9d7e6', '#e2e8f0', '#d6dee8'];
-    for (let i = 0; i < 34; i++) {
-      const a = Math.PI * (0.92 + (i / 33) * 1.16) + (rnd(i + 11) - 0.5) * 0.08;
-      const rr = r * 1.2 + 3 + rnd(i) * (i % 2 ? 14 : 6);
-      const x = g.lawn.x + Math.cos(a) * rr * 1.1;
-      const z = g.lawn.y + Math.sin(a) * rr * 0.95;
-      const top = (i % 5 === 0 ? 22 : 6) + rnd(i + 7) * (i % 5 === 0 ? 26 : 18);
-      const w = 4 + rnd(i + 3) * 5;
-      const d = 4 + rnd(i + 5) * 5;
-      const hgt = top + 60;
-      const tex = towerTexture(o.night);
-      tex.repeat.set(Math.max(1, Math.round(w / 1.6)), Math.round(hgt / 1.8));
-      const m = new THREE.MeshStandardMaterial({
-        color: paint[i % paint.length]!,
-        map: tex,
-        roughness: 0.45,
-        metalness: 0.25,
-        emissive: new THREE.Color(o.night ? '#ffd27a' : '#000000'),
-        emissiveMap: o.night ? tex : null,
-        emissiveIntensity: o.night ? 0.85 : 0,
-      });
-      const tower = new THREE.Mesh(new THREE.BoxGeometry(w, hgt, d), m);
-      tower.position.set(x, top - hgt / 2, z);
-      yard.add(tower);
-      // A crown and a spire on the tallest.
-      if (i % 5 === 0) {
-        gk.box(w * 0.5, 1.2, d * 0.5, '#d9dde3', x, top, z, { metal: 0.5, rough: 0.3 });
-        gk.cyl(0.08, 0.12, 5, '#d9dde3', x, top + 1.2, z, { metal: 0.6, rough: 0.3 });
-        gk.sphere(0.25, '#ef4444', x, top + 6.3, z, { emissive: '#ef4444', emissiveIntensity: 1 });
-      }
     }
     // A glass railing round the terrace: the balcony you look out from.
     if (g.terrace) {
@@ -388,6 +343,35 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       railing(gk, 'z', t.y, t.y + t.h, t.x + t.w);
     }
   }
+  /** The world round the home (kept between opens: the same home opens at once). */
+  const spec = ((): { key: string; make: () => World } => {
+    if (hotel) {
+      const ho = {
+        night: o.night,
+        groundY: GROUND_Y,
+        W,
+        H,
+        doorX: plan.door.x,
+        tier: hotel.tier,
+        name: hotel.name,
+        floor: hotel.floor,
+        room: hotel.room,
+        doors: hotel.doors,
+      };
+      return { key: `hotel:${JSON.stringify(ho)}`, make: () => hotelTower(ho) };
+    }
+    if (!roof) {
+      const no = { night: o.night, groundY: GROUND_Y, W, H };
+      return {
+        key: `street:${JSON.stringify([g, no])}`,
+        make: () => ({ ...neighbourhood(g, no), sides: [] }),
+      };
+    }
+    // The city round it and far below: lower blocks round yours, towers rising past it.
+    const co = { night: o.night, groundY: GROUND_Y, slab: slab! };
+    return { key: `roof:${JSON.stringify(co)}`, make: () => ({ ...cityBelow(co), sides: [] }) };
+  })();
+  const world = () => kept(spec.key, spec.make);
 
   // ---- Terrace, pool, drive, path.
   if (g.terrace) {
@@ -469,7 +453,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     at.repeat.set(d.w / 4, d.h / 4);
     yard.add(flat(at, d.x, d.y, d.w, d.h, GROUND_Y + 0.015, roof ? 0.9 : 0.95));
   }
-  {
+  if (!hotel) {
     const p = g.path;
     const n = Math.max(1, Math.round(p.h / 0.7));
     for (let i = 0; i < n; i++)
@@ -563,7 +547,13 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     rough: 0.9,
   });
   if (drop) storeys(k, W, H, drop, o.night);
-  for (const r of plan.rooms) root.add(floorMesh(floorKind(r.id, o.tier), r.x, r.y, r.w, r.h));
+  const pal = hotel
+    ? HOTEL_WALLS[hotel.tier]
+    : { outer: WALL_GREEN, inner: WALL_INNER, cap: WALL_CAP, drape: '' };
+  for (const r of plan.rooms) {
+    const hf = hotel ? HOTEL_FLOORS[hotel.tier][r.id] : undefined;
+    root.add(floorMesh(hf?.[0] ?? floorKind(r.id, o.tier), r.x, r.y, r.w, r.h, 0.002, hf?.[1]));
+  }
 
   const sides: WallSide[] = [];
   const side = (n: THREE.Vector2) => {
@@ -581,7 +571,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     const len = b - a;
     const geo = new THREE.BoxGeometry(along === 'x' ? len : THICK, 1, along === 'x' ? THICK : len);
     geo.translate(0, 0.5, 0);
-    const m = new THREE.Mesh(geo, mat(WALL_GREEN, { rough: 0.85 }));
+    const m = new THREE.Mesh(geo, mat(pal.outer, { rough: 0.85 }));
     m.castShadow = true;
     m.receiveShadow = true;
     const c = new THREE.Mesh(
@@ -590,7 +580,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
         0.06,
         (along === 'x' ? THICK : len) + 0.03,
       ),
-      mat(WALL_CAP, { rough: 0.6 }),
+      mat(pal.cap, { rough: 0.6 }),
     );
     if (along === 'x') {
       m.position.set((a + b) / 2, 0, fixed);
@@ -642,16 +632,16 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   k.box(0.025, 0.08, H, '#f5f1e8', W - 0.012, 0, H / 2);
 
   // Windows: big dark-framed panes on the back wall, louvred ones on the sides.
-  const win = (along: 'x' | 'z', c: number, fixed: number, w: number) => {
+  const win = (along: 'x' | 'z', c: number, fixed: number, w: number, tall = false) => {
     const wk = new Kit();
-    const h = 1.35;
-    const y = 0.85;
+    const h = tall ? 2.2 : 1.35;
+    const y = tall ? 0.14 : 0.85;
     const glass = {
       emissive: o.night ? '#ffcf7a' : '#7fbfe0',
       emissiveIntensity: o.night ? 0.45 : 0.22,
       rough: 0.08,
     };
-    const bars = Math.max(2, Math.round(w / 0.45));
+    const bars = Math.max(2, Math.round(w / (tall ? 1.15 : 0.45)));
     if (along === 'x') {
       wk.box(w + 0.12, h + 0.12, THICK + 0.04, '#25272c', c, y - 0.06, fixed, {
         metal: 0.4,
@@ -660,6 +650,22 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       wk.box(w, h, THICK + 0.06, '#9fc8dd', c, y, fixed, glass);
       for (let i = 1; i < bars; i++)
         wk.box(0.03, h, THICK + 0.08, '#25272c', c - w / 2 + (i * w) / bars, y, fixed);
+      // A hotel's curtains, drawn back either side of the window (inside).
+      if (pal.drape)
+        for (const sx of [-1, 1])
+          wk.box(
+            0.32,
+            2.3,
+            0.08,
+            pal.drape,
+            c + sx * (w / 2 + 0.12),
+            0.05,
+            fixed + THICK / 2 + 0.06,
+            {
+              round: 0.03,
+              rough: 0.95,
+            },
+          );
     } else {
       wk.box(THICK + 0.04, h + 0.12, w + 0.12, '#25272c', fixed, y - 0.06, c, {
         metal: 0.4,
@@ -676,20 +682,25 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   for (const r of plan.rooms) {
     if (r.open) continue;
     if (r.y === 0) {
-      if (r.w >= 3 && r.id !== 'bathroom')
+      if (r.w >= 3 && r.id !== 'bathroom' && !hotel?.windows)
         back.extras.add(win('x', r.x + r.w * 0.62, -o2, Math.min(1.6, r.w * 0.35)));
       sconces.push({ x: r.x + r.w * (r.w >= 3 ? 0.25 : 0.5), z: o2 + 0.02, ry: 0, s: back });
     }
+    // (A hotel room's side walls are the neighbours': no windows in them.)
     if (r.x === 0) {
-      if (r.h >= 3) left.extras.add(win('z', r.y + r.h * 0.6, -o2, Math.min(1.8, r.h * 0.4)));
+      if (r.h >= 3 && !hotel)
+        left.extras.add(win('z', r.y + r.h * 0.6, -o2, Math.min(1.8, r.h * 0.4)));
       if (r.h >= 4) sconces.push({ x: o2 + 0.02, z: r.y + r.h * 0.25, ry: Math.PI / 2, s: left });
     }
     if (r.x + r.w === W) {
-      if (r.h >= 3) right.extras.add(win('z', r.y + r.h * 0.55, W + o2, Math.min(2.0, r.h * 0.4)));
+      if (r.h >= 3 && !hotel)
+        right.extras.add(win('z', r.y + r.h * 0.55, W + o2, Math.min(2.0, r.h * 0.4)));
       if (r.h >= 4)
         sconces.push({ x: W - o2 - 0.02, z: r.y + r.h * 0.25, ry: -Math.PI / 2, s: right });
     }
   }
+  // A hotel's windows where its plan puts them (a suite's glass wall onto the balcony).
+  for (const w of hotel?.windows ?? []) back.extras.add(win('x', w.c, -o2, w.w, w.tall));
   const lamps: THREE.PointLight[] = [];
   for (const s of sconces) {
     const m = buildEstateModel('sconce', { w: 0.2, d: 0.2, tier: 2 });
@@ -731,8 +742,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   ];
   for (const [y, xs] of hLines)
     for (const [a, b] of runs(xs)) {
-      k.box(b - a + THICK, INNER_H, THICK, WALL_INNER, (a + b) / 2, 0, y, { rough: 0.85 });
-      k.box(b - a + THICK + 0.03, 0.05, THICK + 0.03, WALL_CAP, (a + b) / 2, INNER_H, y);
+      k.box(b - a + THICK, INNER_H, THICK, pal.inner, (a + b) / 2, 0, y, { rough: 0.85 });
+      k.box(b - a + THICK + 0.03, 0.05, THICK + 0.03, pal.cap, (a + b) / 2, INNER_H, y);
       edgeSegs.push(
         { x0: a, z0: y, x1: b, z1: y, nx: 0, nz: 1 },
         { x0: a, z0: y, x1: b, z1: y, nx: 0, nz: -1 },
@@ -740,8 +751,8 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
   for (const [x, ys] of vLines)
     for (const [a, b] of runs(ys)) {
-      k.box(THICK, INNER_H, b - a + THICK, WALL_INNER, x, 0, (a + b) / 2, { rough: 0.85 });
-      k.box(THICK + 0.03, 0.05, b - a + THICK + 0.03, WALL_CAP, x, INNER_H, (a + b) / 2);
+      k.box(THICK, INNER_H, b - a + THICK, pal.inner, x, 0, (a + b) / 2, { rough: 0.85 });
+      k.box(THICK + 0.03, 0.05, b - a + THICK + 0.03, pal.cap, x, INNER_H, (a + b) / 2);
       edgeSegs.push(
         { x0: x, z0: a, x1: x, z1: b, nx: 1, nz: 0 },
         { x0: x, z0: a, x1: x, z1: b, nx: -1, nz: 0 },
@@ -749,10 +760,11 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
   const edges = edgeStrips(edgeSegs);
   if (edges) root.add(edges);
-  bathrooms(plan, root, sides);
+  bathrooms(plan, root, sides, hotel?.tier === 'luxury' ? 'marble' : 'bath');
 
-  // Potted plants in free room corners (the reference's green, lived-in rooms).
-  {
+  // Potted plants in free room corners (the reference's green, lived-in rooms);
+  // a hotel puts its own where it wants them.
+  if (!hotel) {
     const taken = new Set<string>();
     const mark = (s: Spot) => {
       for (let x = s.x - 1; x <= s.x + s.w; x++)
@@ -800,7 +812,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   for (const x of [fx0, fx1])
     for (const z of [f.y + 0.4, f.y + f.h - 0.6])
       for (const y of [0, WALL_H * 0.5]) fitPoints.push(new THREE.Vector3(x, y, z));
-  return {
+  const house: House = {
     root,
     sides,
     centre,
@@ -810,7 +822,65 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     shadow: Math.max(f.w, f.h) * 0.75 + 4,
     lamps,
     drop,
+    occluders: [],
+    reach: 0,
+    lookZoom: hotel ? 0.42 : 1,
+    world: null,
+    kept: !!WORLDS.get(spec.key) && !WORLDS.get(spec.key)!.group.parent,
+    attach() {
+      if (house.world) return;
+      const w = world();
+      house.world = w;
+      for (const oc of w.occluders) if (oc.hidden) oc.set(false);
+      yard.add(w.group);
+      // The hotel's corridor, the neighbours' rooms and the floors above cut away like the room's walls.
+      for (const t of w.sides) {
+        t.walls.userData.done = false;
+        sides.push({ n: t.n, slabs: [t.walls], caps: [t.caps], extras: t.extras, cut: false });
+        root.add(t.walls, t.caps, t.extras);
+      }
+      house.occluders = w.occluders;
+      house.reach = w.reach;
+    },
   };
+  if (!o.later) house.attach();
+  return house;
+}
+
+/** The world round a home: the street, the city below, or the hotel's tower. */
+type World = Surroundings & { sides: TowerSide[] };
+const parts = (w: World) => [w.group, ...w.sides.flatMap((t) => [t.walls, t.caps, t.extras])];
+
+/**
+ * The worlds round the last few homes opened, kept (marked `userData.keep`,
+ * so disposing a house leaves them): opening the same home again, or going
+ * back to it, doesn't build its street or tower again.
+ */
+const WORLDS = new Map<string, World>();
+const KEEP_WORLDS = 4;
+function kept(key: string, make: () => World): World {
+  const hit = WORLDS.get(key);
+  if (hit && !hit.group.parent) {
+    WORLDS.delete(key);
+    WORLDS.set(key, hit);
+    return hit;
+  }
+  // In use already (two views of one home): a fresh one, not kept.
+  if (hit) return make();
+  const w = make();
+  for (const p of parts(w)) p.userData.keep = true;
+  WORLDS.set(key, w);
+  // Let go of the oldest that nothing shows.
+  for (const [k, v] of WORLDS) {
+    if (WORLDS.size <= KEEP_WORLDS) break;
+    if (v.group.parent) continue;
+    WORLDS.delete(k);
+    for (const p of parts(v)) {
+      p.userData.keep = false;
+      disposeTree(p);
+    }
+  }
+  return w;
 }
 
 /** Upstairs: the storeys below, a green block with a white band and windows, down to the lawn. */
@@ -855,7 +925,12 @@ function railing(k: Kit, along: 'x' | 'z', a: number, b: number, fixed: number) 
  * Bathrooms read as bathrooms: white tiles up the walls round them (on the
  * outer walls' inside too, cut away with them) and a door, ajar, with a sign.
  */
-function bathrooms(plan: HomePlan, root: THREE.Group, sides: WallSide[]) {
+function bathrooms(
+  plan: HomePlan,
+  root: THREE.Group,
+  sides: WallSide[],
+  tiles: FloorKind = 'bath',
+) {
   const walls = wallEdges(plan);
   const [back, front, left, right] = sides as [WallSide, WallSide, WallSide, WallSide];
   const panel = (
@@ -867,12 +942,13 @@ function bathrooms(plan: HomePlan, root: THREE.Group, sides: WallSide[]) {
     into: THREE.Group,
   ) => {
     const len = b - a;
-    const tex = floorTexture('bath').clone();
+    const tex = floorTexture(tiles).clone();
     tex.needsUpdate = true;
-    tex.repeat.set(len / 0.6, h / 0.6);
+    const ts = tiles === 'bath' ? 0.6 : 2;
+    tex.repeat.set(len / ts, h / ts);
     const m = new THREE.Mesh(
       new THREE.PlaneGeometry(len, h),
-      mat('#d4f1f8', { map: tex, rough: 0.25, own: true }),
+      mat(tiles === 'bath' ? '#d4f1f8' : '#f3eee6', { map: tex, rough: 0.25, own: true }),
     );
     m.position.set(along === 'x' ? (a + b) / 2 : fixed, h / 2, along === 'x' ? fixed : (a + b) / 2);
     m.receiveShadow = true;

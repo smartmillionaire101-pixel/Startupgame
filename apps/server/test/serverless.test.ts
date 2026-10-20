@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { gzipSync } from 'node:zlib';
 import { KvAccountStore } from '../src/serverless/kv-accounts.js';
 import { KvGame, SNAPSHOT_EVERY } from '../src/serverless/kv-game.js';
-import { MemoryKv, kvJson } from '../src/serverless/kv.js';
+import { MemoryKv, NetlifyKv, kvJson } from '../src/serverless/kv.js';
 import {
   configFor,
   createRuntime,
@@ -11,7 +11,16 @@ import {
   runClock,
   storeFor,
 } from '../src/serverless/netlify.js';
-import { EXITS_NOTE, autoQuiz, commandSchema, journeyEventsOn } from '@runway/engine';
+import {
+  JOBS_NOTE,
+  jobsOn,
+  autoQuiz,
+  commandSchema,
+  exitsOn,
+  journeyEventsOn,
+  lifeBarsOn,
+} from '@runway/engine';
+import type { Store as BlobStore } from '@netlify/blobs';
 import type { World } from '@runway/engine';
 import { RELEASE_NOTE } from '../src/release.js';
 import { founderSetup, T0 } from './helpers.js';
@@ -71,6 +80,24 @@ describe('serverless key-value store', () => {
     );
     expect((await kvJson.get<number>(kv, 'n'))!.value).toBe(10);
   });
+
+  it('Netlify Blobs: a fresh client (with the current request’s token) for every call', async () => {
+    const tokens: string[] = [];
+    let token = 'first';
+    const kv = new NetlifyKv(() => {
+      const mine = token;
+      return {
+        getWithMetadata: async () => (tokens.push(mine), null),
+        list: async () => (tokens.push(mine), { blobs: [] }),
+      } as unknown as BlobStore;
+    });
+    await kv.get('a');
+    // Hours later, the instance still warm: Netlify gave this request a new token.
+    token = 'second';
+    await kv.get('a');
+    await kv.list('x/');
+    expect(tokens).toEqual(['first', 'second', 'second']);
+  });
 });
 
 describe('the world on a key-value store', () => {
@@ -106,12 +133,15 @@ describe('the world on a key-value store', () => {
     expect(fresh.current.version).toBe(before);
   });
 
-  it('the release note switches on exits and decision events, and keeps quizzes on the bank', () => {
-    expect(RELEASE_NOTE.id).toBe(EXITS_NOTE);
+  it('the release note switches on jobs, life bars, exits and decision events, and keeps quizzes on the bank', () => {
+    expect(RELEASE_NOTE.id).toBe(JOBS_NOTE);
     // A new world's first (and only) note is this one: quizzes still use the built-in bank,
-    // and the earlier journey-events switch is on too.
+    // and the earlier exits and journey-events switches are on too.
     const w = { announcements: [RELEASE_NOTE.id] } as unknown as World;
     expect(autoQuiz(w)).toBe(true);
+    expect(jobsOn(w)).toBe(true);
+    expect(lifeBarsOn(w)).toBe(true);
+    expect(exitsOn(w)).toBe(true);
     expect(journeyEventsOn(w)).toBe(true);
   });
 

@@ -59,7 +59,8 @@ import {
   type Place,
   type Pt,
 } from './layout';
-import { CATEGORY_COLOR } from './contract';
+import { BadgeCard, useMapNames } from './MapBadges';
+import { ALWAYS_NAMED, placeBadge, type Badge } from './mapIcons';
 import { Crowd } from './Crowd';
 import { setRiding } from './riding';
 import { rideMs, rideVehicle, SHORT_HOP, type MyCar, type RideMode } from './travel';
@@ -865,10 +866,20 @@ export interface MapLabel {
   y: number;
   w: number;
   text: string;
+  /** The full name (the badge's accessible name). */
+  name: string;
   /** lbl-main (always), lbl-detail / lbl-biz / lbl-stall (zoomed in only). */
   tier: string;
   soon: boolean;
-  color?: string;
+  badge: Badge;
+  /** A name pill (with its icon), not a round badge. */
+  named: boolean;
+}
+
+/** Which labels show their name: all ("Show names"), or these (and home and office). */
+export interface LabelNames {
+  names?: boolean;
+  named?: readonly (string | null)[];
 }
 
 export interface MapAreaLabel {
@@ -880,35 +891,60 @@ export interface MapAreaLabel {
   key: boolean;
 }
 
-const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall'];
+const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall', 'golf', 'mall'];
 
 export function placeLabels(
   layout: CityLayout,
   labelOf: (p: Place) => string,
   marketName = '',
+  opts: LabelNames = {},
 ): { labels: MapLabel[]; areas: MapAreaLabel[] } {
   const rank = (p: Place) =>
     KEY_KINDS.includes(p.kind) ? 0 : p.kind === 'stall' || p.kind === 'business' ? 2 : 1;
   type Box = { x: number; y: number; w: number };
   const hits = (boxes: Box[], x: number, y: number, w: number) =>
     boxes.some((o) => Math.abs(o.x - x) < (o.w + w) / 2 + 3 && Math.abs(o.y - y) < 19);
-  const widthOf = (text: string) => Math.min(150, text.length * 5.6 + 14);
+  const isNamed = (id: string) =>
+    !!opts.names || ALWAYS_NAMED.includes(id) || !!opts.named?.includes(id);
+  // A name pill (its icon at the left), or a round badge.
+  const widthOf = (text: string, named: boolean) =>
+    named ? Math.min(162, text.length * 5.6 + 26) : 24;
   const clip = (raw: string) => (raw.length > 26 ? `${raw.slice(0, 25)}…` : raw);
 
   // ---- Key places (both sets).
   const labels: MapLabel[] = [];
   const main: Box[] = [];
-  const put = (id: string, raw: string, c: Pt, h: number, extra: Partial<MapLabel> = {}) => {
+  const put = (
+    id: string,
+    raw: string,
+    c: Pt,
+    h: number,
+    place: Place | null,
+    extra: Partial<MapLabel> = {},
+  ) => {
     const text = clip(raw);
-    const w = widthOf(text);
+    const named = isNamed(id);
+    const w = widthOf(text, named);
     let y = c.y - h - 18;
     for (let tries = 0; tries < 3 && hits(main, c.x, y, w); tries++) y -= 19;
     main.push({ x: c.x, y, w });
-    labels.push({ id, x: c.x, y, w, text, tier: 'lbl-main', soon: false, ...extra });
+    labels.push({
+      id,
+      x: c.x,
+      y,
+      w,
+      text,
+      name: raw,
+      tier: 'lbl-main',
+      soon: false,
+      badge: placeBadge(place),
+      named,
+      ...extra,
+    });
   };
   for (const p of layout.places.filter((x) => rank(x) === 0)) {
     const raw = labelOf(p);
-    if (raw) put(p.id, raw, project(p.x + p.w / 2, p.y + p.d / 2), p.h, { soon: !!p.soon });
+    if (raw) put(p.id, raw, project(p.x + p.w / 2, p.y + p.d / 2), p.h, p, { soon: !!p.soon });
   }
   // The Market: one label over its stalls instead of a label per stall.
   const stalls = layout.places.filter((p) => p.kind === 'stall');
@@ -917,12 +953,12 @@ export function placeLabels(
       // A real map's stalls line the streets: the name goes over their middle.
       const cx = stalls.reduce((s, p) => s + p.x + p.w / 2, 0) / stalls.length;
       const cy = stalls.reduce((s, p) => s + p.y + p.d / 2, 0) / stalls.length;
-      put('market', marketName, project(cx, cy), 16);
+      put('market', marketName, project(cx, cy), 16, null);
     } else {
       const first = stalls[0]!;
       const i = Math.floor(first.x / B);
       const j = Math.floor(first.y / B);
-      put('market', marketName, project(i * B + B / 2, j * B + B / 2), 16);
+      put('market', marketName, project(i * B + B / 2, j * B + B / 2), 16, null);
     }
   }
 
@@ -968,7 +1004,8 @@ export function placeLabels(
     const raw = labelOf(p);
     if (!raw) continue;
     const text = clip(raw);
-    const w = widthOf(text);
+    const named = isNamed(p.id);
+    const w = widthOf(text, named);
     const c = project(p.x + p.w / 2, p.y + p.d / 2);
     let y = c.y - p.h - (p.kind === 'stall' ? 12 : 18);
     if (hits(near, c.x, y, w)) y -= 19;
@@ -980,9 +1017,11 @@ export function placeLabels(
       y,
       w,
       text,
+      name: raw,
       tier: p.kind === 'business' ? 'lbl-biz' : p.kind === 'stall' ? 'lbl-stall' : 'lbl-detail',
       soon: !!p.soon,
-      color: p.category ? CATEGORY_COLOR[p.category] : undefined,
+      badge: placeBadge(p),
+      named,
     });
   }
   return { labels, areas };
@@ -991,19 +1030,44 @@ export function placeLabels(
 const Labels = memo(function Labels({
   layout,
   labelOf,
+  names,
+  picked,
+  heading,
 }: {
   layout: CityLayout;
   labelOf: (p: Place) => string;
+  names: boolean;
+  picked: string | null;
+  heading: string | null;
 }) {
-  const { labels, areas } = placeLabels(
-    layout,
-    labelOf,
-    layout.marketName ?? districtLabel('market'),
+  // A badge opening to its name takes more room: placed again.
+  const { labels, areas } = useMemo(
+    () =>
+      placeLabels(layout, labelOf, layout.marketName ?? districtLabel('market'), {
+        names,
+        named: [picked, heading],
+      }),
+    [layout, labelOf, names, picked, heading],
   );
+  // The tapped one is drawn last (on top).
+  const drawn = picked
+    ? [...labels.filter((l) => l.id !== picked), ...labels.filter((l) => l.id === picked)]
+    : labels;
   return (
-    <g className="city-labels" pointerEvents="none">
+    <g className={`city-labels${picked ? ' has-pick' : ''}`} pointerEvents="none">
+      <defs aria-hidden="true">
+        <radialGradient id="mb-gold" cx="0.35" cy="0.3" r="0.8">
+          <stop offset="0" stopColor="#fde68a" />
+          <stop offset="0.7" stopColor="#f59e0b" />
+          <stop offset="1" stopColor="#d97706" />
+        </radialGradient>
+      </defs>
       {areas.map((a) => (
-        <g key={a.id} transform={`translate(${Math.round(a.x)},${Math.round(a.y)})`}>
+        <g
+          key={a.id}
+          aria-hidden="true"
+          transform={`translate(${Math.round(a.x)},${Math.round(a.y)})`}
+        >
           <text
             className={`city-district lbl-s${a.key ? ' is-key' : ''}`}
             textAnchor="middle"
@@ -1031,6 +1095,7 @@ const Labels = memo(function Labels({
           return (
             <g
               key="water"
+              aria-hidden="true"
               data-water={layout.geo ? w.name : undefined}
               transform={`translate(${Math.round(c.x)},${Math.round(c.y + 4)})`}
             >
@@ -1047,6 +1112,7 @@ const Labels = memo(function Labels({
           return (
             <g
               key={`lm${d.name}`}
+              aria-hidden="true"
               transform={`translate(${Math.round(c.x)},${Math.round(c.y + 30)})`}
             >
               <text
@@ -1059,20 +1125,55 @@ const Labels = memo(function Labels({
             </g>
           );
         })}
-      {labels.map((l) => (
+      {drawn.map((l) => (
         <g
           key={l.id}
           data-label={l.id}
-          className={`city-label ${l.tier}${l.soon ? ' is-soon' : ''}`}
+          data-badge={l.id}
+          role="button"
+          tabIndex={0}
+          aria-label={l.name}
+          aria-expanded={picked === l.id}
+          className={`city-label ${l.tier} ${l.named ? 'is-named' : 'is-badge'}${l.badge.money ? ' is-money' : ''}${l.soon ? ' is-soon' : ''}${picked === l.id ? ' is-picked' : ''}${heading === l.id ? ' is-heading' : ''}`}
           transform={`translate(${Math.round(l.x)},${Math.round(l.y)})`}
         >
           {/* Counter-scaled with the zoom, so a label stays 11–13 px on screen. */}
-          <g className="lbl-s">
-            <rect x={-l.w / 2} y={-9} width={l.w} height={17} rx={8.5} />
-            {l.color && <circle cx={-l.w / 2 + 7} cy={-0.5} r={3} fill={l.color} />}
-            <text x={l.color ? 3 : 0} y={3.5} textAnchor="middle">
-              {l.text}
-            </text>
+          <g className="lbl-s" aria-hidden="true">
+            {l.named ? (
+              <>
+                <rect
+                  className="lb-focus"
+                  x={-l.w / 2 - 3}
+                  y={-12}
+                  width={l.w + 6}
+                  height={23}
+                  rx={11.5}
+                />
+                <rect className="lb-pill" x={-l.w / 2} y={-9} width={l.w} height={17} rx={8.5} />
+                <text className="lb-ico" x={-l.w / 2 + 10} y={3.4} textAnchor="middle">
+                  {l.badge.icon}
+                </text>
+                <text x={6} y={3.5} textAnchor="middle">
+                  {l.text}
+                </text>
+                {heading === l.id && (
+                  <g className="lb-heading" transform="translate(0,-15)">
+                    <rect className="lb-hbg" x={-30} y={-5.5} width={60} height={11} rx={5.5} />
+                    <text y={2.4} textAnchor="middle">
+                      {t('Heading here')}
+                    </text>
+                  </g>
+                )}
+              </>
+            ) : (
+              <>
+                <circle className="lb-focus" r={13.5} />
+                <circle className="lb-disc" r={10.5} stroke={l.badge.ring} />
+                <text className="lb-ico" y={3.6} textAnchor="middle">
+                  {l.badge.icon}
+                </text>
+              </>
+            )}
           </g>
         </g>
       ))}
@@ -1171,6 +1272,10 @@ function CityMap2D({
   const rideRef = useRef<SVGGElement>(null);
   const pending = useRef<{ target: Pt; then?: () => void; placeId: string | null } | null>(null);
   const [vehicle, setVehicle] = useState<VehicleSpec | null>(null);
+  // A tapped badge (its name and card), and where you're going (named).
+  const [picked, setPicked] = useState<string | null>(null);
+  const [heading, setHeading] = useState<string | null>(null);
+  const showNames = useMapNames();
   const following = useRef(true);
   const onEnterRef = useRef(onEnter);
   const onArriveRef = useRef(onArrive);
@@ -1427,6 +1532,7 @@ function CityMap2D({
       stopWalk();
       pending.current = null;
       focusLabel(placeId);
+      setHeading(placeId);
       const path = findPath(layout, pos.current, target);
       // Trips count in travel tiles (about 50 m), whatever the map's scale.
       const len = travelTiles(layout, pathLength(path));
@@ -1457,6 +1563,7 @@ function CityMap2D({
         placeAvatar(target);
         stopWalk();
         setVehicle(null);
+        setHeading(null);
         onArriveRef.current?.(target, placeId);
         then?.();
       };
@@ -1537,6 +1644,7 @@ function CityMap2D({
   );
   const cancelTrip = useCallback(() => {
     pending.current = null;
+    setHeading(null);
     targetRef.current?.setAttribute('visibility', 'hidden');
   }, []);
 
@@ -1627,7 +1735,17 @@ function CityMap2D({
     const had = pointers.current.delete(e.pointerId);
     if (!had || pointers.current.size > 0) return;
     if (gesture.current.moved > 6) return;
-    // A tap: on a building (or its badge) or a street. People live inside buildings.
+    // A place's badge: its name and card (tap it again, or anywhere else, to close).
+    const bid = (e.target as Element).closest?.('[data-badge]')?.getAttribute('data-badge');
+    if (bid) {
+      setPicked((was) => (was === bid ? null : bid));
+      return;
+    }
+    if (picked) {
+      setPicked(null);
+      return;
+    }
+    // A tap: on a building (or its people count) or a street. People live inside buildings.
     const el = (e.target as Element).closest?.('[data-place]');
     const id = el?.getAttribute('data-place');
     if (id) {
@@ -1657,6 +1775,18 @@ function CityMap2D({
   }, [zoomAt]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // A badge (Enter or Space): its card. Escape closes it.
+    const bid = (e.target as Element).closest?.('[data-badge]')?.getAttribute('data-badge');
+    if (bid && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      setPicked((was) => (was === bid ? null : bid));
+      return;
+    }
+    if (e.key === 'Escape' && picked) {
+      e.preventDefault();
+      setPicked(null);
+      return;
+    }
     const step = 60 / cam.current.z;
     const moves: Record<string, [number, number]> = {
       ArrowLeft: [-step, 0],
@@ -1683,6 +1813,28 @@ function CityMap2D({
     }
   };
 
+  // The tapped badge's card: Go does what tapping a label did before (the
+  // Market's name goes to one of its stalls).
+  const pickedPlace =
+    picked === 'market'
+      ? null
+      : picked
+        ? (layout.places.find((p) => p.id === picked) ?? null)
+        : null;
+  const pickedName = picked
+    ? pickedPlace
+      ? labelOf(pickedPlace)
+      : (layout.marketName ?? districtLabel('market'))
+    : '';
+  const goPicked = () => {
+    setPicked(null);
+    const to =
+      pickedPlace ??
+      layout.places.find((x) => x.kind === 'stall' && !x.dim) ??
+      layout.places.find((x) => x.kind === 'stall');
+    if (to) goTo(to.id, undefined, { ask: true });
+  };
+
   const markerPlace = marker ? layout.places.find((p) => p.id === marker) : null;
   const mp = markerPlace
     ? project(markerPlace.x + markerPlace.w / 2, markerPlace.y + markerPlace.d / 2)
@@ -1706,7 +1858,6 @@ function CityMap2D({
       <svg
         ref={svgRef}
         className={`city-svg${painter ? ' is-geo' : ''}`}
-        aria-hidden="true"
         viewBox={`${b.minX} ${b.minY} ${b.maxX - b.minX} ${b.maxY - b.minY}`}
         preserveAspectRatio="xMidYMid meet"
         onPointerDown={onPointerDown}
@@ -1714,99 +1865,121 @@ function CityMap2D({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
       >
-        <ArtDefs f={layout.flavour} />
-        {!painter && (
-          <rect
-            x={b.minX - 2000}
-            y={b.minY - 2000}
-            width={b.maxX - b.minX + 4000}
-            height={b.maxY - b.minY + 4000}
-            fill="url(#sky)"
-          />
-        )}
-        {!painter && <Ground layout={layout} />}
-        {md && (
-          <g transform={`translate(${md.x},${md.y})`} className="city-pulse">
-            <ellipse rx="22" ry="11" fill="url(#pulse)" />
-            <ellipse rx="10" ry="5" fill="#f59e0b" opacity="0.6" />
-          </g>
-        )}
-        <Traffic layout={layout} reduced={reduced} />
-        <g ref={targetRef} visibility="hidden" className="city-target">
-          <ellipse rx="9" ry="4.5" fill="none" stroke="#fff" strokeWidth="2" />
-          <ellipse rx="4" ry="2" fill="#fff" opacity="0.8" />
-        </g>
-        <Skyline layout={layout} />
-        {flags.map((id) => {
-          const p = layout.places.find((x) => x.id === id);
-          return p ? <Bunting key={id} p={p} /> : null;
-        })}
-        <Crowd walkers={walkers} reduced={reduced} paused={paused} placeDepth={placeDepth} />
-        {layout.flavour.fog && !painter && <Fog layout={layout} />}
-        <Labels layout={layout} labelOf={labelOf} />
-        <Overlays layout={layout} players={players} fresh={fresh} />
-        {mp && markerPlace && (
-          <g transform={`translate(${mp.x},${mp.y - markerPlace.h - 40})`} className="city-marker">
-            <g className="city-bob">
-              <circle r="11" fill="#f59e0b" stroke="#fff" strokeWidth="2.5" />
-              <text y="4.5" textAnchor="middle" fontSize="13" fontWeight="800" fill="#fff">
-                !
-              </text>
-              <polygon points="-5,10 5,10 0,17" fill="#f59e0b" />
-            </g>
-          </g>
-        )}
-        <g ref={entitiesRef} className="city-entities" pointerEvents="none" />
-        <g
-          ref={tagRef}
-          className="city-you-tag"
-          transform={`translate(${start.x},${start.y})`}
-          pointerEvents="none"
-        >
-          <g transform="translate(0 -30)">
-            <g className="city-you lbl-s">
-              <rect
-                x={-name.length * 3.1 - 7}
-                y="-15"
-                width={name.length * 6.2 + 14}
-                height="15"
-                rx="7.5"
-              />
-              <text y="-4.5" textAnchor="middle">
-                {name}
-              </text>
-            </g>
-          </g>
-        </g>
-        {avatarHost &&
-          createPortal(
-            <g
-              ref={avatarRef}
-              className="city-avatar"
-              transform={`translate(${start.x},${start.y})`}
-            >
-              <ellipse className="city-you-ring" rx="8" ry="4" />
-              <g
-                ref={flipRef}
-                className="city-avatar-fig"
-                transform={`scale(${MAP_FIGURE_SCALE},${MAP_FIGURE_SCALE})`}
-              >
-                <AvatarFigure look={look} />
-              </g>
-              {vehicle && (
-                <g ref={rideRef} className="city-ride" data-axis="x" data-ride={vehicle.id}>
-                  <g className="city-ride-x" transform={`scale(${MAP_RIDE_SCALE})`}>
-                    <VehicleShape spec={vehicle} axis="x" />
-                  </g>
-                  <g className="city-ride-y" transform={`scale(${MAP_RIDE_SCALE})`}>
-                    <VehicleShape spec={vehicle} axis="y" />
-                  </g>
-                </g>
-              )}
-            </g>,
-            avatarHost,
+        {/* The drawing is decorative; the place badges are buttons (Labels). */}
+        <g aria-hidden="true">
+          <ArtDefs f={layout.flavour} />
+          {!painter && (
+            <rect
+              x={b.minX - 2000}
+              y={b.minY - 2000}
+              width={b.maxX - b.minX + 4000}
+              height={b.maxY - b.minY + 4000}
+              fill="url(#sky)"
+            />
           )}
+          {!painter && <Ground layout={layout} />}
+          {md && (
+            <g transform={`translate(${md.x},${md.y})`} className="city-pulse">
+              <ellipse rx="22" ry="11" fill="url(#pulse)" />
+              <ellipse rx="10" ry="5" fill="#f59e0b" opacity="0.6" />
+            </g>
+          )}
+          <Traffic layout={layout} reduced={reduced} />
+          <g ref={targetRef} visibility="hidden" className="city-target">
+            <ellipse rx="9" ry="4.5" fill="none" stroke="#fff" strokeWidth="2" />
+            <ellipse rx="4" ry="2" fill="#fff" opacity="0.8" />
+          </g>
+          <Skyline layout={layout} />
+          {flags.map((id) => {
+            const p = layout.places.find((x) => x.id === id);
+            return p ? <Bunting key={id} p={p} /> : null;
+          })}
+          <Crowd walkers={walkers} reduced={reduced} paused={paused} placeDepth={placeDepth} />
+          {layout.flavour.fog && !painter && <Fog layout={layout} />}
+        </g>
+        <Labels
+          layout={layout}
+          labelOf={labelOf}
+          names={showNames}
+          picked={picked}
+          heading={heading}
+        />
+        <g aria-hidden="true">
+          <Overlays layout={layout} players={players} fresh={fresh} />
+          {mp && markerPlace && (
+            <g
+              transform={`translate(${mp.x},${mp.y - markerPlace.h - 40})`}
+              className="city-marker"
+            >
+              <g className="city-bob">
+                <circle r="11" fill="#f59e0b" stroke="#fff" strokeWidth="2.5" />
+                <text y="4.5" textAnchor="middle" fontSize="13" fontWeight="800" fill="#fff">
+                  !
+                </text>
+                <polygon points="-5,10 5,10 0,17" fill="#f59e0b" />
+              </g>
+            </g>
+          )}
+          <g ref={entitiesRef} className="city-entities" pointerEvents="none" />
+          <g
+            ref={tagRef}
+            className="city-you-tag"
+            transform={`translate(${start.x},${start.y})`}
+            pointerEvents="none"
+          >
+            <g transform="translate(0 -30)">
+              <g className="city-you lbl-s">
+                <rect
+                  x={-name.length * 3.1 - 7}
+                  y="-15"
+                  width={name.length * 6.2 + 14}
+                  height="15"
+                  rx="7.5"
+                />
+                <text y="-4.5" textAnchor="middle">
+                  {name}
+                </text>
+              </g>
+            </g>
+          </g>
+          {avatarHost &&
+            createPortal(
+              <g
+                ref={avatarRef}
+                className="city-avatar"
+                transform={`translate(${start.x},${start.y})`}
+              >
+                <ellipse className="city-you-ring" rx="8" ry="4" />
+                <g
+                  ref={flipRef}
+                  className="city-avatar-fig"
+                  transform={`scale(${MAP_FIGURE_SCALE},${MAP_FIGURE_SCALE})`}
+                >
+                  <AvatarFigure look={look} />
+                </g>
+                {vehicle && (
+                  <g ref={rideRef} className="city-ride" data-axis="x" data-ride={vehicle.id}>
+                    <g className="city-ride-x" transform={`scale(${MAP_RIDE_SCALE})`}>
+                      <VehicleShape spec={vehicle} axis="x" />
+                    </g>
+                    <g className="city-ride-y" transform={`scale(${MAP_RIDE_SCALE})`}>
+                      <VehicleShape spec={vehicle} axis="y" />
+                    </g>
+                  </g>
+                )}
+              </g>,
+              avatarHost,
+            )}
+        </g>
       </svg>
+      {picked && (pickedPlace || picked === 'market') && (
+        <BadgeCard
+          place={pickedPlace}
+          name={pickedName}
+          onGo={goPicked}
+          onClose={() => setPicked(null)}
+        />
+      )}
       {painter && (
         <a
           className="city-osm-credit"

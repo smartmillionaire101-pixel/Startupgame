@@ -65,7 +65,7 @@ export function Contacts({ ctx }: { ctx: PhoneCtx }) {
           return (
             <li key={c.id} className="phone-contact" data-contact={c.chatId ?? c.refId}>
               <div className="phone-row static">
-                <Avatar name={c.name} ai={!(r && 'player' in r)} />
+                <Avatar name={c.name} ai={!(r && 'player' in r)} id={c.chatId ?? c.refId} />
                 <span className="phone-row-main">
                   <span className="item-title">{c.name}</span>
                   <span className="small muted">

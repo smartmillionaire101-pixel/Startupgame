@@ -28,7 +28,7 @@ import { formatMoney, scale } from './money.js';
 import { checkName } from './names.js';
 import type { Rng } from './rng.js';
 import { applyStarEvent, newStars, settleStars } from './stars.js';
-import type { Bank, BankType, Id, Player, World } from './types.js';
+import type { Account, Bank, BankType, Id, Loan, PersonalLoan, Player, World } from './types.js';
 
 export const RESERVE_RATIO = 0.1;
 export const MIN_CAPITAL_RATIO = 0.1;
@@ -115,7 +115,39 @@ export const bankDeposits = (world: World, b: Bank) =>
     0,
   );
 
-export function bankLoansOutstanding(world: World, b: Bank) {
+/**
+ * A bank's book during one settlement: every account it held and every loan
+ * it had made when the settlement began, in world order (company loans, then
+ * personal ones). While banks settle, accounts only ever leave a bank and loans
+ * only ever leave their lender (a run, a wind-down), nothing joins one, so
+ * re-checking each entry against the live world gives exactly what a full scan
+ * would, in the same order, without walking the whole world for every figure.
+ */
+export interface BankBook {
+  accounts: Account[];
+  loans: (Loan | PersonalLoan)[];
+}
+
+/** Books for the given banks, from one pass over the world. */
+export function bankBooks(world: World, banks: readonly Bank[]): Map<Id, BankBook> {
+  const books = new Map<Id, BankBook>();
+  for (const b of banks) books.set(b.id, { accounts: [], loans: [] });
+  if (books.size === 0) return books;
+  for (const acc of Object.values(world.accounts))
+    if (acc.bankId) books.get(acc.bankId)?.accounts.push(acc);
+  for (const c of Object.values(world.companies))
+    for (const l of c.finance.loans) if (l.lenderBankId) books.get(l.lenderBankId)?.loans.push(l);
+  for (const p of Object.values(world.players))
+    for (const l of p.loans) if (l.lenderBankId) books.get(l.lenderBankId)?.loans.push(l);
+  return books;
+}
+
+export function bankLoansOutstanding(world: World, b: Bank, book?: BankBook) {
+  if (book) {
+    let total = 0;
+    for (const l of book.loans) if (l.lenderBankId === b.id) total += l.outstanding;
+    return total;
+  }
   let total = 0;
   for (const c of Object.values(world.companies))
     for (const l of c.finance.loans) if (l.lenderBankId === b.id) total += l.outstanding;
@@ -124,13 +156,21 @@ export function bankLoansOutstanding(world: World, b: Bank) {
   return total;
 }
 
-export function bankFigures(world: World, b: Bank) {
+export function bankFigures(world: World, b: Bank, book?: BankBook) {
   const cash = account(world, b.account).balance;
-  const loans = bankLoansOutstanding(world, b) + b.retail.loans;
+  const loans = bankLoansOutstanding(world, b, book) + b.retail.loans;
   const cb = b.cbLoans.reduce((a, l) => a + l.outstanding, 0);
   const equity = cash + loans - b.retail.deposits - cb;
-  const deposits = bankDeposits(world, b) + b.retail.deposits;
-  const liquidityLimit = Math.round(bankDeposits(world, b) * (1 - RESERVE_RATIO));
+  // One pass over the accounts: the bank's player deposits (as bankDeposits) and how many it holds.
+  let playerDeposits = 0;
+  let accounts = 0;
+  for (const acc of book ? book.accounts : Object.values(world.accounts)) {
+    if (acc.bankId !== b.id) continue;
+    playerDeposits += acc.balance > 0 ? acc.balance : 0;
+    accounts++;
+  }
+  const deposits = playerDeposits + b.retail.deposits;
+  const liquidityLimit = Math.round(playerDeposits * (1 - RESERVE_RATIO));
   return {
     cash,
     loans,
@@ -144,8 +184,7 @@ export function bankFigures(world: World, b: Bank) {
       0,
       Math.min(cash + liquidityLimit, Math.floor(equity / MIN_CAPITAL_RATIO - loans)),
     ),
-    customers:
-      b.retail.customers + Object.values(world.accounts).filter((a) => a.bankId === b.id).length,
+    customers: b.retail.customers + accounts,
   };
 }
 
@@ -388,9 +427,9 @@ function wind(world: World, b: Bank, month: number, reason: string) {
   });
 }
 
-function inspection(world: World, b: Bank, month: number, why: string) {
+function inspection(world: World, b: Bank, month: number, why: string, book?: BankBook) {
   const m = getMarket(world, b.market);
-  const f = bankFigures(world, b);
+  const f = bankFigures(world, b, book);
   if (f.capitalRatio >= MIN_CAPITAL_RATIO) return;
   const fine = Math.max(scale(col(m), 2), Math.round(f.loans * 0.01));
   transferUpTo(world, b.account, m.ext.tax, fine, `Regulatory fine: ${why}`, month);
@@ -418,12 +457,17 @@ function inspection(world: World, b: Bank, month: number, why: string) {
 export function settleBanks(world: World, market: string, rng: Rng, month: number) {
   const m = getMarket(world, market as never);
   const base = m.data.baseRateBps / 10_000;
+  const books = bankBooks(
+    world,
+    Object.values(world.banks).filter((b) => b.market === market),
+  );
   for (const b of Object.values(world.banks)) {
     if (b.market !== market) continue;
+    const book = books.get(b.id)!;
     const owner = world.players[b.ownerId];
     if (b.status === 'applying') {
       if (month - b.appliedMonth < LICENCE_MONTHS) continue;
-      const f = bankFigures(world, b);
+      const f = bankFigures(world, b, book);
       const need = scale(col(m), BANK_TYPES[b.type].minCapitalCol);
       if (f.equity >= need && owner && creditProfile(world, owner).score >= 35) {
         b.status = 'licensed';
@@ -469,7 +513,7 @@ export function settleBanks(world: World, market: string, rng: Rng, month: numbe
     }
     if (b.status !== 'licensed') continue;
     const t = BANK_TYPES[b.type];
-    account(world, b.account).overdraftLimit = bankFigures(world, b).liquidityLimit;
+    account(world, b.account).overdraftLimit = bankFigures(world, b, book).liquidityLimit;
     // Start from what borrowers and clients paid in during the month.
     const lm = {
       interestIncome: b.thisMonth.interest,
@@ -525,7 +569,7 @@ export function settleBanks(world: World, market: string, rng: Rng, month: numbe
       b.retail.loans = Math.max(0, b.retail.loans - repay - defaults);
       lm.interestIncome += interest;
       lm.loanLosses += defaults;
-      const room = bankFigures(world, b).lendingRoom;
+      const room = bankFigures(world, b, book).lendingRoom;
       const lend = Math.round(Math.min(room * 0.3, b.retail.deposits * 0.7));
       if (lend > 0) {
         transfer(world, b.account, m.ext.customers, lend, 'Retail loans', month);
@@ -543,7 +587,7 @@ export function settleBanks(world: World, market: string, rng: Rng, month: numbe
     }
 
     // Player depositors: interest paid, account fees collected.
-    for (const acc of Object.values(world.accounts)) {
+    for (const acc of book.accounts) {
       if (acc.bankId !== b.id) continue;
       if (acc.balance > 0 && b.policy.depositRateBps > 0) {
         const i = transferUpTo(
@@ -608,7 +652,7 @@ export function settleBanks(world: World, market: string, rng: Rng, month: numbe
     b.cbLoans = b.cbLoans.filter((l) => l.outstanding > 0);
 
     // Liquidity: if the bank is overdrawn past what deposits allow, the central bank lends against its loans.
-    let f = bankFigures(world, b);
+    let f = bankFigures(world, b, book);
     if (f.cash < -f.liquidityLimit) {
       const short = -f.liquidityLimit - f.cash;
       const collateral =
@@ -630,13 +674,13 @@ export function settleBanks(world: World, market: string, rng: Rng, month: numbe
             text: `${b.name} borrowed ${formatMoney(short, m.data.currency)} from the central bank above base rate.`,
           });
         if (b.cbBorrowMonths.length >= 3)
-          inspection(world, b, month, 'repeated central bank borrowing');
+          inspection(world, b, month, 'repeated central bank borrowing', book);
       } else {
         wind(world, b, month, 'It ran out of cash and had too little collateral to borrow.');
         continue;
       }
     }
-    f = bankFigures(world, b);
+    f = bankFigures(world, b, book);
     if (f.equity < 0 || (f.loans > 0 && f.capitalRatio < INSOLVENT_RATIO)) {
       wind(world, b, month, 'Loan losses wiped out its capital.');
       continue;

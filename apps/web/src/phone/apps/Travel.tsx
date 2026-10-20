@@ -19,6 +19,10 @@ import {
   scheduleDay,
 } from '../../city/travel';
 import { setTicket, ticketFrom, useTicket } from '../../city/ticket';
+import { HotelPicker } from '../../city/HotelPicker';
+import { HolidayCards } from './Holiday';
+import { FlyingWith } from '../../city/companions';
+import type { Destination, HotelTier } from '../../city/travel';
 import { Icon } from '../icons';
 import { Nothing, type PhoneCtx } from '../shared';
 
@@ -32,14 +36,48 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
     now: localMinutes(here.id),
   }));
   const booked = ticketFrom(useTicket(), here.id, dests);
+  // The destination whose hotels you're choosing from, before booking.
+  const [choosing, setChoosing] = useState<string | null>(null);
+  const balance = view.accounts.local?.balance ?? 0;
   if (dests.length === 0)
     return <Nothing icon="travel">{t('No flights from here right now.')}</Nothing>;
   const schedule = airportSchedule(here.id, day);
   const rows = dests
     .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))
     .sort((a, b) => ((a.f?.time ?? '99') < (b.f?.time ?? '99') ? -1 : 1));
+  const book = async (d: Destination, hotel: HotelTier | null) => {
+    const f = rows.find((r) => r.d.id === d.id)?.f;
+    const cmd = {
+      type: 'travel.book' as const,
+      to: d.id as MarketId,
+      ...(hotel ? { hotel } : {}),
+      // The flight off the board: friends on holiday from this city get the same one.
+      ...(f
+        ? { flight: { airline: f.airline, number: f.flight, time: f.time, gate: f.gate } }
+        : {}),
+    };
+    if (!(await send(cmd))) return;
+    setChoosing(null);
+    const stay = hotel ? d.hotels.find((h) => h.tier === hotel) : undefined;
+    setTicket({
+      from: here.id,
+      to: d.id,
+      toName: d.name,
+      fare: d.fare,
+      currency: cur,
+      hours: d.hours,
+      time: f?.time,
+      airline: f?.airline,
+      flight: f?.flight,
+      gate: f?.gate,
+      ...(stay ? { hotel: { tier: stay.tier, name: stay.name, paid: stay.price } } : {}),
+    });
+    ctx.goPlace('airport');
+  };
   return (
     <div className="phone-stack">
+      {/* Holiday with friends: invitations, your trips with friends, Invite friends. */}
+      <HolidayCards goPlace={ctx.goPlace} />
       {booked && (
         <div className="phone-card phone-ticket" data-ticket={booked.to}>
           <div className="spread">
@@ -53,6 +91,13 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
               <span className="small muted">
                 {[booked.time, booked.airline, booked.flight].filter(Boolean).join(' · ')}
               </span>
+              <FlyingWith to={booked.to} />
+              {booked.hotel && (
+                <span className="small hotel-stay" data-ticket-hotel={booked.hotel.tier}>
+                  {t('Hotel: {name}', { name: booked.hotel.name })} ·{' '}
+                  {money(booked.hotel.paid, cur)}
+                </span>
+              )}
             </span>
             <button className="btn btn-primary" onClick={() => ctx.goPlace('airport')}>
               {t('Go to the airport')}
@@ -98,26 +143,23 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
                 className={`btn ${booked?.to === d.id ? 'btn-primary' : 'btn-subtle'}`}
                 disabled={busy || d.done || !!booked}
                 aria-label={t('Book a flight to {city}', { city: d.name })}
-                onClick={async () => {
-                  if (!(await send({ type: 'travel.book', to: d.id as MarketId }))) return;
-                  setTicket({
-                    from: here.id,
-                    to: d.id,
-                    toName: d.name,
-                    fare: d.fare,
-                    currency: cur,
-                    hours: d.hours,
-                    time: f?.time,
-                    airline: f?.airline,
-                    flight: f?.flight,
-                    gate: f?.gate,
-                  });
-                  ctx.goPlace('airport');
-                }}
+                onClick={() => (d.hotels.length ? setChoosing(d.id) : void book(d, null))}
               >
                 {d.done ? t('Already this month') : booked?.to === d.id ? t('Booked') : t('Book')}
               </button>
             </div>
+            {choosing === d.id && !booked && (
+              <HotelPicker
+                city={d.name}
+                hotels={d.hotels}
+                fare={d.fare}
+                currency={cur}
+                balance={balance}
+                busy={busy}
+                onBook={(hotel) => void book(d, hotel)}
+                onCancel={() => setChoosing(null)}
+              />
+            )}
           </li>
         ))}
       </ul>

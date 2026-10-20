@@ -20,6 +20,8 @@ async function openSales(page: Page) {
 }
 
 test('a founder prospects, works a deal to signature and sees the customer', async ({ page }) => {
+  // Up to three rounds of five steps or more each: slow on a deploy preview.
+  test.slow();
   await playAsGuest(page);
   const handle = `sa_${letters(8)}`;
   await setupFounder(page, {
@@ -43,7 +45,15 @@ test('a founder prospects, works a deal to signature and sees the customer', asy
     await confirm.getByRole('button', { name: 'Confirm' }).click();
     await expect(confirm).toBeHidden();
     // Every step moves the deal on: wait for the board to show it before reading it.
-    await expect(deal).not.toHaveAttribute('data-deal-stage', before ?? '', { timeout: 15_000 });
+    // If it doesn't, say what the game said (an error toast) rather than just timing out.
+    await expect(deal)
+      .not.toHaveAttribute('data-deal-stage', before ?? '', { timeout: 20_000 })
+      .catch(async (e: unknown) => {
+        const toasts = await page.locator('.toast').allTextContents();
+        throw new Error(
+          `${action} left the deal at "${before}"; toasts: ${JSON.stringify(toasts)}\n${String(e)}`,
+        );
+      });
   };
 
   let won = false;

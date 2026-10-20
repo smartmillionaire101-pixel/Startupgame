@@ -30,6 +30,31 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   // The city is spread out: at the default zoom only the key places are labelled.
   await expect(page.locator('[data-label="hub"]')).toBeVisible();
   await expect(page.locator('.city-label.lbl-biz').first()).toBeHidden();
+  // Places are icon badges (buttons named for the place); your company keeps its name.
+  const hub = map.getByRole('button', { name: 'The Hub' });
+  await expect(hub).toBeVisible();
+  await expect(hub).toHaveClass(/is-badge/);
+  await expect(page.locator('[data-label="office"]')).toHaveClass(/is-named/);
+  // Tapping a badge shows its name and a card (Go, or close it).
+  await hub.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+  await hub.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  await expect(hub).toHaveClass(/is-picked/);
+  const card = map.getByRole('group', { name: 'The Hub' });
+  await expect(card).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Go' })).toBeVisible();
+  await card.getByRole('button', { name: 'Close' }).click();
+  await expect(card).toBeHidden();
+  // The Map key explains the icons; "Show names" brings back the name pills.
+  await page.getByRole('button', { name: 'Map key' }).click();
+  const key = page.getByRole('dialog', { name: 'Map key' });
+  await expect(key.getByText('Funds and investors')).toBeVisible();
+  const names = key.getByRole('switch', { name: 'Show names' });
+  await names.check({ force: true });
+  await expect(hub).toHaveClass(/is-named/);
+  await names.uncheck({ force: true });
+  await expect(hub).toHaveClass(/is-badge/);
+  await key.getByRole('button', { name: 'Close' }).click();
+  await expect(key).toBeHidden();
 
   // Tap a bank across the Lagoon: it's far, so you choose how to get there, then walk in.
   await tapPlace(page, '[data-place^="lender:"]', 'walk');

@@ -21,6 +21,12 @@
  * Replay safety: nothing here runs in a world that hasn't logged the
  * journey-events release note (releases.ts). Event ids come from a per-player
  * counter, never the world's id counter.
+ *
+ * Phase 5 life events (lifeevents.ts) are drawn there for every human, but
+ * live in the same list and are answered, defaulted and shown here, with a
+ * few more effects (health, stress, happiness, money in, a loan paid back).
+ * They don't count towards the founder cap below, and a chance in one rolls
+ * on its own stream (`'life', 'choose', …`).
  */
 import { companyRunway } from './company.js';
 import { reliability, segmentFit } from './customers.js';
@@ -47,8 +53,9 @@ import {
 import { account, costIn, transfer, valueIn } from './ledger.js';
 import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale, type Currency } from './money.js';
+import { barsOf, bumpEnergy, bumpHealth, bumpStress } from './lifebars.js';
 import { bumpNeed } from './needs.js';
-import { journeyEventsOn } from './releases.js';
+import { journeyEventsOn, lifeBarsOn } from './releases.js';
 import { deriveRng } from './rng.js';
 import type { Rng } from './rng.js';
 import { RIVALS } from './rivals.js';
@@ -61,6 +68,7 @@ import type {
   DecisionEffect,
   DecisionEvent,
   Id,
+  LifeEventResult,
   MarketState,
   Player,
   PlayerDecisions,
@@ -76,7 +84,9 @@ export const MONEY_VARS = ['budget', 'salary', 'band', 'offer', 'burn', 'receiva
 const ensureDecisions = (p: Player): PlayerDecisions =>
   (p.decisions ??= { seq: 0, events: [], cooldowns: {} });
 
-const openEvents = (p: Player) => (p.decisions?.events ?? []).filter((e) => e.status === 'open');
+/** Open founder decisions (life events have their own cap, in lifeevents.ts). */
+const openEvents = (p: Player) =>
+  (p.decisions?.events ?? []).filter((e) => e.status === 'open' && !e.life);
 
 /** The first human founder answers for a company (co-founders see it too). */
 function leadFounder(world: World, c: Company): Player | undefined {
@@ -737,6 +747,11 @@ function effectBlocker(a: ApplyCtx, e: DecisionEffect): string | null {
     'network',
     'chance',
     'pressure',
+    'income',
+    'repay',
+    'health',
+    'stress',
+    'happiness',
   ].includes(e.kind);
   if (needsCompany && e.kind !== 'cash' && (!c || c.status !== 'active'))
     return 'The company isn’t running any more.';
@@ -797,20 +812,41 @@ function applyEffect(a: ApplyCtx, e: DecisionEffect) {
   const c = a.c!;
   switch (e.kind) {
     case 'cash': {
-      const label = `${
-        decisionTemplate(a.ev.template)
-          ?.title.replace(/\{.*?\}/g, '')
-          .trim() || 'Decision'
-      }`;
       if (e.from === 'company') {
         const m = getMarket(world, c.market);
-        transfer(world, c.account, m.ext[e.to], e.amount, `Decision: ${label}`, month);
+        transfer(world, c.account, m.ext[e.to], e.amount, memoOf(a.ev), month);
       } else {
         const m = getMarket(world, p.market);
-        transfer(world, p.accounts.local, m.ext[e.to], e.amount, `Decision: ${label}`, month);
+        transfer(world, p.accounts.local, m.ext[e.to], e.amount, memoOf(a.ev), month);
       }
       return;
     }
+    case 'income': {
+      const m = getMarket(world, p.market);
+      transfer(world, m.ext[e.from], p.accounts.local, e.amount, memoOf(a.ev), month);
+      return;
+    }
+    case 'repay': {
+      const memo = `${memoOf(a.ev)}: paid back`;
+      (ensureDecisions(p).repayments ??= []).push({
+        due: month + e.months,
+        amount: e.amount,
+        market: p.market,
+        memo,
+      });
+      return;
+    }
+    case 'health':
+      bumpHealth(p, e.n);
+      return;
+    case 'stress':
+      bumpStress(p, e.n);
+      return;
+    case 'happiness':
+      // Happiness is the average of fun and social: move both.
+      bumpNeed(p, 'fun', e.n);
+      bumpNeed(p, 'social', e.n);
+      return;
     case 'hours':
       spendHours(p, e.n, 'This');
       return;
@@ -865,7 +901,7 @@ function applyEffect(a: ApplyCtx, e: DecisionEffect) {
       adjustTrust(world.players[e.playerId], p.id, e.n);
       return;
     case 'energy':
-      p.energy = clamp(p.energy + e.n, 0, 100);
+      bumpEnergy(p, e.n);
       return;
     case 'social':
       bumpNeed(p, 'social', e.n);
@@ -909,9 +945,37 @@ function applyChoice(a: ApplyCtx, ch: DecisionChoice): boolean | undefined {
   }
   for (const e of ch.effects.slice(0, at)) applyEffect(a, e);
   const pct = (ch.effects[at] as { pct: number }).pct;
-  const rng = deriveRng(a.world.seed, 'decisions', 'choose', a.p.id, a.ev.id);
+  const rng = a.ev.life
+    ? deriveRng(a.world.seed, 'life', 'choose', a.p.id, a.ev.id)
+    : deriveRng(a.world.seed, 'decisions', 'choose', a.p.id, a.ev.id);
   const ok = rng.next() * 100 < pct;
   for (const e of ok ? ch.effects.slice(at + 1) : (ch.fail ?? [])) applyEffect(a, e);
+  return ok;
+}
+
+/** The statement line for an event's money: "Decision: …" or "Life: …" (title without names). */
+function memoOf(ev: DecisionEvent) {
+  const label =
+    decisionTemplate(ev.template)
+      ?.title.replace(/\{.*?\}/g, '')
+      .trim() || 'Decision';
+  return `${ev.life ? 'Life' : 'Decision'}: ${label}`;
+}
+
+/**
+ * Apply a choice and, for a life event, record what it changed (the bars
+ * that moved and your cash) on the event, for the card's result.
+ */
+function applyRecorded(a: ApplyCtx, ch: DecisionChoice): boolean | undefined {
+  if (!a.ev.life) return applyChoice(a, ch);
+  const before = barsOf(a.p);
+  const cash = account(a.world, a.p.accounts.local).balance;
+  const ok = applyChoice(a, ch);
+  const after = barsOf(a.p);
+  const bars: LifeEventResult['bars'] = {};
+  for (const k of ['energy', 'health', 'happiness', 'stress'] as const)
+    if (after[k] !== before[k]) bars[k] = after[k] - before[k];
+  a.ev.result = { bars, cash: account(a.world, a.p.accounts.local).balance - cash };
   return ok;
 }
 
@@ -937,7 +1001,7 @@ export function chooseDecision(world: World, me: Player, eventId: Id, choiceId: 
   ensure(ch, 'decision.choice', 'Pick one of the options.');
   const blocker = choiceBlocker(a, ch);
   if (blocker) fail('decision.blocked', blocker);
-  const ok = applyChoice(a, ch);
+  const ok = applyRecorded(a, ch);
   ev.status = 'chosen';
   ev.choiceId = ch.id;
   ev.resolvedMonth = a.month;
@@ -945,11 +1009,14 @@ export function chooseDecision(world: World, me: Player, eventId: Id, choiceId: 
   if (a.c) a.c.lastDecisionMonth = a.month;
   const t = decisionTemplate(ev.template);
   const label = t?.choices.find((x) => x.id === ch.id);
+  const said = label as { outcome: string; win?: string; lose?: string } | undefined;
   return {
     eventId: ev.id,
     choiceId: ch.id,
     ...(ok !== undefined ? { succeeded: ok } : {}),
-    message: label?.outcome ?? 'Done.',
+    message:
+      (ok === true ? said?.win : ok === false ? said?.lose : undefined) ?? said?.outcome ?? 'Done.',
+    ...(ev.life ? { life: true, result: ev.result } : {}),
   };
 }
 
@@ -963,7 +1030,7 @@ function resolveDefault(world: World, p: Player, ev: DecisionEvent) {
   if (!ch) return;
   if (ev.companyId && (!a.c || a.c.status !== 'active')) return;
   if (choiceBlocker(a, ch)) return;
-  const ok = applyChoice(a, ch);
+  const ok = applyRecorded(a, ch);
   if (ok !== undefined) ev.succeeded = ok;
 }
 
@@ -1032,12 +1099,26 @@ function eventView(world: World, p: Player, ev: DecisionEvent) {
     choiceId: ev.choiceId ?? null,
     succeeded: ev.succeeded ?? null,
     resolvedMonth: ev.resolvedMonth ?? null,
+    /** Phase 5: a life event (every player gets them; the client pops it up as a card). */
+    life: !!ev.life,
+    emoji: (t as { emoji?: string } | undefined)?.emoji ?? null,
+    /** The English with its {placeholders}, for the client to translate and fill. */
+    raw: { title: t?.title ?? ev.template, body: t?.body ?? '' },
+    /** A resolved life event: the bars that moved and your cash change. */
+    result: ev.result ?? null,
     choices: ev.choices.map((ch) => {
-      const d = t?.choices.find((x) => x.id === ch.id);
+      const d = t?.choices.find((x) => x.id === ch.id) as
+        { label: string; outcome: string; win?: string; lose?: string } | undefined;
       return {
         id: ch.id,
         label: d ? fill(d.label, ev.vars, cur) : ch.id,
         outcome: d ? fill(d.outcome, ev.vars, cur) : '',
+        raw: {
+          label: d?.label ?? ch.id,
+          outcome: d?.outcome ?? '',
+          win: d?.win ?? null,
+          lose: d?.lose ?? null,
+        },
         effects: ch.effects,
         fail: ch.fail ?? [],
         isDefault: ch.id === ev.defaultChoice,
@@ -1058,7 +1139,13 @@ export function decisionsView(world: World, p: Player) {
     .filter((e) => e.status !== 'open')
     .slice(0, 5)
     .map((e) => eventView(world, p, e));
-  return { on: journeyEventsOn(world), open, recent };
+  return {
+    on: journeyEventsOn(world),
+    /** Phase 5: life events are drawn (they share `open` and `recent`, marked `life`). */
+    lifeOn: lifeBarsOn(world),
+    open,
+    recent,
+  };
 }
 
 export type DecisionsView = ReturnType<typeof decisionsView>;

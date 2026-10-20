@@ -468,12 +468,16 @@ export function pitchStory(
 /** Reporters look for players worth covering (§10 "Reporter outreach"). */
 export function reporterOutreach(world: World, market: string, rng: Rng, month: number) {
   const m = getMarket(world, market as never);
+  // Players with a story under way. Looked up once: an invite made below is for
+  // the player being visited, whom the loop has already passed.
+  const busy = new Set(
+    Object.values(world.media)
+      .filter((x) => ['invited', 'questions', 'preview'].includes(x.status))
+      .map((x) => x.playerId),
+  );
   for (const p of Object.values(world.players)) {
     if (p.ai || p.market !== m.id) continue;
-    const busy = Object.values(world.media).some(
-      (x) => x.playerId === p.id && ['invited', 'questions', 'preview'].includes(x.status),
-    );
-    if (busy) continue;
+    if (busy.has(p.id)) continue;
     const c =
       p.companyIds.map((id) => world.companies[id]).find((x) => x && x.status === 'active') ?? null;
     if (c) {

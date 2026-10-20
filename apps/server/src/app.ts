@@ -37,6 +37,7 @@ import {
   recapView,
   STATEMENT_PAGE_MAX,
   type MarketId,
+  type Player,
   BANK_TYPES,
 } from '@runway/engine';
 import {
@@ -56,7 +57,13 @@ import {
   signInEmail,
   type EmailProvider,
 } from './adapters/email.js';
-import type { AccountStore, AiThreadRow, ChatRow } from './store/types.js';
+import type {
+  AccountStore,
+  AiMessageRow,
+  AiThreadRow,
+  ChatRow,
+  FeedbackRow,
+} from './store/types.js';
 import {
   CARD_TEXT,
   VOICE_MAX_BYTES,
@@ -81,7 +88,17 @@ import {
   type Character,
 } from './ai-chat.js';
 import { registerAdmin } from './admin.js';
-import { AI_CHAT_HISTORY, claudeReply, createClient, type AiClient } from './ai-claude.js';
+import {
+  AI_CHAT_BUDGET_MS,
+  AI_CHAT_DEADLINE_MS,
+  AI_CHAT_HISTORY,
+  AI_CHAT_MIN_MS,
+  AI_REPLY_LATE_MS,
+  AI_RESEND_MS,
+  claudeReply,
+  createClient,
+  type AiClient,
+} from './ai-claude.js';
 
 /** Avatars not seen for this long drop off the city map. */
 export const PRESENCE_WINDOW_MS = 120_000;
@@ -203,6 +220,24 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     }
   };
 
+  /** How many of each kind of note (feedback, error report) are kept. */
+  const NOTES_KEPT = 300;
+  /** Keep a note for the admin dashboard, without ever failing the request it's about. */
+  const note = (
+    kind: FeedbackRow['kind'],
+    userId: string | null,
+    text: string,
+    context: Record<string, string>,
+  ) =>
+    Promise.resolve()
+      .then(() =>
+        store.addFeedback(
+          { id: randomUUID().slice(0, 8), kind, user_id: userId, text, context, created_at: now() },
+          NOTES_KEPT,
+        ),
+      )
+      .catch((e: unknown) => app.log.warn({ err: e }, 'could not keep a note'));
+
   app.setErrorHandler((err: Error & { statusCode?: number; validation?: unknown }, req, reply) => {
     if (err instanceof z.ZodError) {
       return reply.code(400).send({
@@ -210,7 +245,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       });
     }
     const status = err.statusCode ?? 500;
-    if (status >= 500) req.log.error({ err }, 'unhandled error');
+    if (status >= 500) {
+      req.log.error({ err }, 'unhandled error');
+      note('server', req.userId ?? null, err.message || 'Unknown error', {
+        request: `${req.method} ${req.url.split('?')[0]}`,
+        stack: (err.stack ?? '').split('\n').slice(1, 8).join('\n'),
+      });
+    }
     return reply.code(status).send({
       error: {
         code: status === 429 ? 'rate' : 'error',
@@ -681,9 +722,29 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         return reply.code(403).send({ error: { code: 'forbidden', message: 'Not allowed.' } });
       const r = await game.execute(req.userId!, command);
       if (!r.ok) return reply.code(422).send({ error: r.error });
+      if (command.type === 'holiday.invite') await holidayChats(req.userId!, command, r.result);
       return { ok: true, result: r.result, version: r.world.version };
     },
   );
+
+  /**
+   * Holiday with friends: an AI friend answers an invitation at once (the
+   * engine's `replies`); the invitation and their answer go in your chat with
+   * them, like any AI chat thread.
+   */
+  const holidayChats = async (userId: string, command: { hostPays: boolean }, result: unknown) => {
+    const out = result as { replies?: { id: string; name: string; text: string }[]; city?: string };
+    if (!out?.replies?.length) return;
+    const at = now();
+    for (const r of out.replies) {
+      if (!CHARACTER_ID.test(r.id)) continue;
+      const ask = `Fancy a holiday in ${out.city ?? 'the city'} with me this month?${
+        command.hostPays ? ' My treat: flight and hotel.' : ''
+      }`;
+      await store.addAiMessage(userId, r.id, r.name, false, ask, at);
+      await store.addAiMessage(userId, r.id, r.name, true, r.text, at + 1);
+    }
+  };
 
   /** Server-sent events: tells clients to refetch when the world changes. Tiny payloads for low data use. */
   app.get('/api/events', { preHandler: requireUser }, (req, reply) => {
@@ -1011,6 +1072,96 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return { ok: true };
   });
 
+  // ---------------------------------------------------------------- feedback
+
+  const CRASH_REPEAT_MS = 10 * 60_000;
+  const seenCrashes = new Map<string, number>();
+  const escapeHtml = (v: string) => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+  // Where the player was when they wrote (or when a screen crashed): what the
+  // client knows, kept short.
+  const noteContext = z
+    .record(z.string().max(40), z.string().max(500))
+    .refine((c) => Object.keys(c).length <= 12, 'Too much context.')
+    .default({});
+
+  /** Players tell whoever runs the game what they think, from inside the game. */
+  app.post(
+    '/api/feedback',
+    {
+      preHandler: requireUser,
+      config: { rateLimit: { max: 5, timeWindow: '10 minutes', keyGenerator: byPlayer } },
+    },
+    async (req) => {
+      const body = z
+        .object({
+          topic: z.enum(['bug', 'confusing', 'idea', 'love', 'other']),
+          text: z.string().trim().min(3, 'Tell us a little more.').max(2000),
+          context: noteContext,
+        })
+        .parse(req.body);
+      const me = game.current.players[req.userId!];
+      const context = {
+        ...body.context,
+        topic: body.topic,
+        player: me?.name ?? 'Unknown',
+        role: me?.role ?? '',
+        city: me?.market ?? '',
+        browser: String(req.headers['user-agent'] ?? '').slice(0, 200),
+      };
+      await note('player', req.userId!, body.text, context);
+      // An email too, to whoever looks after the game (FEEDBACK_EMAILS, else the admins).
+      const inboxes = config.FEEDBACK_EMAILS.length ? config.FEEDBACK_EMAILS : config.ADMIN_EMAILS;
+      if (emailer.real && inboxes.length) {
+        const lines = Object.entries(context).map(([k, v]) => `${k}: ${v}`);
+        const text = `${body.text}\n\n${lines.join('\n')}`;
+        const html = `<p>${escapeHtml(body.text).replace(/\n/g, '<br>')}</p><p style="color:#666">${lines.map(escapeHtml).join('<br>')}</p>`;
+        void Promise.all(
+          inboxes.map((to) =>
+            emailer.send({
+              to,
+              subject: `Runway feedback (${body.topic}) from ${context.player}`,
+              text,
+              html,
+            }),
+          ),
+        ).catch((err: unknown) => req.log.warn({ err }, 'could not email feedback'));
+      }
+      return { ok: true };
+    },
+  );
+
+  /** A screen that crashed on a player's phone (sent by the game itself, not typed). */
+  app.post(
+    '/api/client-errors',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute', keyGenerator: byPlayer } } },
+    async (req) => {
+      const body = z
+        .object({
+          message: z.string().trim().min(1).max(500),
+          stack: z.string().max(2000).default(''),
+          context: noteContext,
+        })
+        .parse(req.body);
+      // The same crash from the same phone counts once in a while (in memory:
+      // on serverless each instance keeps its own, which is close enough).
+      const who = req.userId ?? req.ip;
+      const key = `${who}:${body.message}`;
+      const t = now();
+      for (const [k, at] of seenCrashes) if (t - at > CRASH_REPEAT_MS) seenCrashes.delete(k);
+      if (seenCrashes.has(key)) return { ok: true };
+      seenCrashes.set(key, t);
+      const me = req.userId ? game.current.players[req.userId] : undefined;
+      await note('client', req.userId ?? null, body.message, {
+        ...body.context,
+        ...(me ? { player: me.name, city: me.market } : {}),
+        stack: body.stack.split('\n').slice(0, 8).join('\n'),
+        browser: String(req.headers['user-agent'] ?? '').slice(0, 200),
+      });
+      return { ok: true };
+    },
+  );
+
   // ---------------------------------------------------------------- AI chat (Wave 5 §C)
 
   // Characters run by the simulation answer from templates filled with live
@@ -1055,28 +1206,98 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     };
   });
 
+  /**
+   * The character's answer to the player's newest message, stored in the
+   * thread: the template always (the fallback, and it moves the thread's
+   * memory on), Claude when there's a key, budget and time left. Everything
+   * happens before the response: a serverless host stops the function once
+   * it has answered, so nothing may be left to finish afterwards.
+   */
+  const answerAi = async (
+    me: Player,
+    ch: Character,
+    text: string,
+    opts: { lang: 'en' | 'fr'; view: ReturnType<typeof safeView>; claudeMs: number },
+  ) => {
+    const world = game.current;
+    const count = (await store.aiThread(me.id, ch.id))?.count ?? 0;
+    const memory = count > 1 ? await store.aiMemory(me.id, ch.id) : undefined;
+    const tpl = templateReply(world, me, ch, text, {
+      lang: opts.lang,
+      n: count,
+      memory,
+      view: opts.view,
+    });
+    let out = tpl.text;
+    let nextMemory = tpl.memory;
+    const client = opts.claudeMs >= AI_CHAT_MIN_MS ? claude() : null;
+    if (
+      client &&
+      (await store.takeAiBudget(
+        me.id,
+        new Date(now()).toISOString().slice(0, 10),
+        config.AI_CHAT_DAILY_LIMIT,
+      ))
+    ) {
+      const history = await store.aiMessages(me.id, ch.id, AI_CHAT_HISTORY);
+      const r = await claudeReply(client, {
+        ...(config.AI_CHAT_MODEL ? { model: config.AI_CHAT_MODEL } : {}),
+        characterBlock: characterBlock(world, me, ch, opts.lang, opts.view, memory),
+        history,
+        deadlineMs: Math.min(AI_CHAT_DEADLINE_MS, opts.claudeMs),
+      });
+      if (r.ok) {
+        out = r.text;
+        // The template lines weren't sent, so they stay available later.
+        nextMemory = tpl.memoryWithoutLines;
+      } else app.log.warn({ reason: r.reason }, 'ai chat: using a template reply');
+    }
+    const m = await store.addAiMessage(me.id, ch.id, ch.name, true, out, now());
+    await store.setAiMemory(me.id, ch.id, nextMemory);
+    await store.markAiRead(me.id, ch.id);
+    return m;
+  };
+
+  /** Your newest message in a thread when nobody has answered it yet. */
+  const unanswered = (messages: readonly AiMessageRow[]) => {
+    const last = messages[messages.length - 1];
+    return last && !last.fromAi ? last : null;
+  };
+
   app.get('/api/ai-chat/:characterId', { preHandler: requireUser }, async (req, reply) => {
     const parsed = characterParam.safeParse(req.params);
     if (!parsed.success)
       return reply
         .code(404)
         .send({ error: { code: 'character', message: 'Character not found.' } });
-    const ch = resolveCharacter(
-      game.current,
-      parsed.data.characterId,
-      parsed.data.characterId.startsWith('npc:') ? safeView(game.current, req.userId!) : null,
-    );
+    const { lang } = z
+      .object({ lang: z.enum(['en', 'fr']).default('en') })
+      .catch({ lang: 'en' })
+      .parse(req.query);
+    const world = game.current;
+    const me = world.players[req.userId!];
+    const view = me ? safeView(world, me.id) : null;
+    const ch = resolveCharacter(world, parsed.data.characterId, view);
     // An angel's fund id names the angel: their thread is under their own id.
     const characterId = ch?.id ?? parsed.data.characterId;
-    const thread = await store.aiThread(req.userId!, characterId);
+    let thread = await store.aiThread(req.userId!, characterId);
     if (!ch && !thread)
       return reply
         .code(404)
         .send({ error: { code: 'character', message: 'Character not found.' } });
-    if (thread?.unread) await store.markAiRead(req.userId!, characterId);
+    let messages = await store.aiMessages(req.userId!, characterId);
+    // A message nobody answered (the request that sent it was cut off: the
+    // host's time limit, a lost connection): the character answers it now,
+    // from the template, so a thread is never left hanging.
+    const waiting = unanswered(messages);
+    if (me && ch && waiting && now() - waiting.at >= AI_REPLY_LATE_MS) {
+      await answerAi(me, ch, waiting.text, { lang, view, claudeMs: 0 });
+      thread = await store.aiThread(me.id, characterId);
+      messages = await store.aiMessages(me.id, characterId);
+    } else if (thread?.unread) await store.markAiRead(req.userId!, characterId);
     return {
       thread: { ...aiThreadView(thread, ch, characterId), unread: 0 },
-      messages: (await store.aiMessages(req.userId!, characterId)).map((m) => ({
+      messages: messages.map((m) => ({
         id: m.id,
         mine: !m.fromAi,
         text: m.text,
@@ -1120,42 +1341,17 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const check = checkChatMessage(body.text);
       if (!check.ok)
         return reply.code(400).send({ error: { code: 'filtered', message: check.reason } });
-      const before = (await store.aiThread(me.id, ch.id))?.count ?? 0;
-      const memory = before ? await store.aiMemory(me.id, ch.id) : undefined;
-      await store.addAiMessage(me.id, ch.id, ch.name, false, check.text, now());
-      // The template reply always: it's the fallback, and it moves the thread's memory on.
-      const tpl = templateReply(world, me, ch, check.text, {
+      // The same message again, still unanswered, is the phone sending it a
+      // second time (a retry after a cut-off request): answer it, once.
+      const waiting = unanswered(await store.aiMessages(me.id, ch.id, 1));
+      if (!waiting || waiting.text !== check.text || now() - waiting.at > AI_RESEND_MS)
+        await store.addAiMessage(me.id, ch.id, ch.name, false, check.text, now());
+      const m = await answerAi(me, ch, check.text, {
         lang: body.lang,
-        n: before + 1,
-        memory,
         view,
+        // What's left of the request's time for Claude.
+        claudeMs: AI_CHAT_BUDGET_MS - reply.elapsedTime,
       });
-      let text = tpl.text;
-      let nextMemory = tpl.memory;
-      const client = claude();
-      if (
-        client &&
-        (await store.takeAiBudget(
-          me.id,
-          new Date(now()).toISOString().slice(0, 10),
-          config.AI_CHAT_DAILY_LIMIT,
-        ))
-      ) {
-        const history = await store.aiMessages(me.id, ch.id, AI_CHAT_HISTORY);
-        const r = await claudeReply(client, {
-          ...(config.AI_CHAT_MODEL ? { model: config.AI_CHAT_MODEL } : {}),
-          characterBlock: characterBlock(world, me, ch, body.lang, view, memory),
-          history,
-        });
-        if (r.ok) {
-          text = r.text;
-          // The template lines weren't sent, so they stay available later.
-          nextMemory = tpl.memoryWithoutLines;
-        } else req.log.warn({ reason: r.reason }, 'ai chat: using a template reply');
-      }
-      const m = await store.addAiMessage(me.id, ch.id, ch.name, true, text, now());
-      await store.setAiMemory(me.id, ch.id, nextMemory);
-      await store.markAiRead(me.id, ch.id);
       const thread = await store.aiThread(me.id, ch.id);
       return {
         reply: { id: m.id, mine: false, text: m.text, at: m.at },
@@ -1274,6 +1470,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
               handle: p.handle,
               role: p.role,
               backgroundId: p.backgroundId,
+              // Phase 6a: how they look, so they're drawn as they made themselves.
+              gender: p.gender ?? null,
+              appearance: p.appearance ?? null,
+              appearanceAt: p.appearanceAt ?? null,
+              // Their home city: an unchosen look takes its people's skin tones.
+              home: p.market,
               stars: p.stars.value,
               company: company?.name ?? null,
               x: r.x,
@@ -1368,6 +1570,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
               handle: p.handle,
               role: p.role,
               backgroundId: p.backgroundId,
+              // Phase 6a: how they look, so they're drawn as they made themselves.
+              gender: p.gender ?? null,
+              appearance: p.appearance ?? null,
+              appearanceAt: p.appearanceAt ?? null,
+              // Their home city: an unchosen look takes its people's skin tones.
+              home: p.market,
               stars: p.stars.value,
               company: company?.name ?? null,
               market,

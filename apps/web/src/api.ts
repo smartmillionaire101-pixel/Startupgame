@@ -19,32 +19,58 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * While a new release goes live, the API can answer for a moment with the
+ * host's own error page (not the game's JSON): the request never reached the
+ * game, so it is safe to send again.
+ */
+const UPDATING = new Set([502, 503, 504]);
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function request<T>(
   method: string,
   url: string,
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  const res = await fetch(url, {
-    method,
-    credentials: 'same-origin',
-    signal,
-    headers: {
-      'x-runway': '1',
-      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const data = (await res.json().catch(() => ({}))) as {
-    error?: { code: string; message: string };
-  };
-  if (!res.ok)
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method,
+        credentials: 'same-origin',
+        signal,
+        headers: {
+          'x-runway': '1',
+          ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      throw new ApiError(
+        0,
+        'offline',
+        'Couldn’t reach the game. Check your connection and try again.',
+      );
+    }
+    const data = (await res.json().catch(() => null)) as {
+      error?: { code: string; message: string };
+    } | null;
+    if (res.ok) return (data ?? {}) as T;
+    if (!data && UPDATING.has(res.status)) {
+      if (attempt < 2) {
+        await pause(1500 * (attempt + 1));
+        continue;
+      }
+      throw new ApiError(res.status, 'updating', 'The game is updating. Try again in a moment.');
+    }
     throw new ApiError(
       res.status,
-      data.error?.code ?? 'error',
-      data.error?.message ?? 'Something went wrong.',
+      data?.error?.code ?? 'error',
+      data?.error?.message ?? 'Something went wrong.',
     );
-  return data as T;
+  }
 }
 
 /**
@@ -209,7 +235,7 @@ export type ChatCard = { from: string; status: string } & (
     }
 );
 
-export type PlayGame = 'quiz' | 'snooker' | 'football';
+export type PlayGame = 'quiz' | 'snooker' | 'football' | 'golf';
 
 /** A real player online now (`GET /api/online/players`). */
 export interface OnlinePlayer {
@@ -379,10 +405,11 @@ export const api = {
   report: (chatId: string, reason: 'harassment' | 'scam' | 'spam' | 'other') =>
     request('POST', `/api/chats/${chatId}/report`, { reason }),
   aiThreads: () => request<{ threads: AiThread[] }>('GET', '/api/ai-chat'),
-  aiThread: (characterId: string) =>
+  /** `lang`: the language of an answer the server still owes you (a late one). */
+  aiThread: (characterId: string, lang: 'en' | 'fr' = 'en') =>
     request<{ thread: AiThread; messages: ChatMessage[] }>(
       'GET',
-      `/api/ai-chat/${encodeURIComponent(characterId)}`,
+      `/api/ai-chat/${encodeURIComponent(characterId)}?lang=${lang}`,
     ),
   aiSend: (characterId: string, text: string, lang: 'en' | 'fr') =>
     request<{ reply: ChatMessage; flagged: boolean; thread: AiThread }>('POST', '/api/ai-chat', {

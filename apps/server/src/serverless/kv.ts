@@ -85,7 +85,18 @@ export class MemoryKv implements Kv {
 }
 
 export class NetlifyKv implements Kv {
-  constructor(private readonly store: BlobStore) {}
+  /**
+   * `open` makes the store client. A client keeps the access token Netlify
+   * gave the request it was made in, and that token expires: a function
+   * instance kept warm for hours would then fail every read and write
+   * ("Token expired"). So each call makes a fresh client (cheap: no
+   * network), with the token of the request being served.
+   */
+  constructor(private readonly open: () => BlobStore) {}
+
+  private get store() {
+    return this.open();
+  }
 
   async get(key: string) {
     const r = await this.store.getWithMetadata(key, { type: 'arrayBuffer' });

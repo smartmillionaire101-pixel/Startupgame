@@ -537,3 +537,79 @@
 .home-row[aria-pressed='true'] {
   border-color: var(--accent, #0ea5e9);
 }
+
+/* Your hotel room abroad (./hotel.ts): the hotel's name over the room, a four-button tray. */
+.home-hotel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  padding: 0.35rem 0.75rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.home-hotel-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.home-hotel-head span {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.home-bar.is-hotel {
+  grid-template-columns: repeat(4, 1fr);
+}
+/* A friend from your holiday next door: knock on their door. */
+.home-hotel-head .home-hotel-knock {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--accent, #0f766e) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #0f766e) 12%, var(--surface));
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.home-hotel-head .home-hotel-knock span {
+  color: inherit;
+  font-size: 0.85rem;
+}
+.home-hotel-knock:disabled {
+  opacity: 0.55;
+}
+.home-hotel-knock[data-knocking] {
+  opacity: 0.8;
+}
+.home-hotel-head .hotel-knocked {
+  flex: 1 0 100%;
+}
+.home-hotel-friends {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.home-hotel-friends .home-bar-btn {
+  justify-content: flex-start;
+  gap: 0.4rem;
+}
+.home-bar.is-hotel .home-bar-btn {
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.78rem;
+}
+.home-bar-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

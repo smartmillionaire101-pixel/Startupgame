@@ -195,6 +195,15 @@ function atHome(p: Player) {
   ensure(locationOf(p) === p.market, 'home.away', 'You’re away from home.');
 }
 
+/** What you can also do in your hotel room abroad: rest, wash, watch TV. */
+export const HOTEL_ACTS: ReadonlySet<HomeActId> = new Set([
+  'sleep',
+  'nap',
+  'shower',
+  'toilet',
+  'tv',
+]);
+
 const owns = (p: Player, slot: string) => (p.home?.items ?? []).some((x) => x.slot === slot);
 
 /** Pay the city's lifestyle sink (groceries, snacks): exactly `amount` in the home currency. */
@@ -213,7 +222,7 @@ function payLiving(world: World, p: Player, m: MarketState, amount: number, memo
 export function homeAct(world: World, me: Player, act: HomeActId) {
   const spec = HOME_ACTS[act];
   ensure(spec, 'home.act', 'You can’t do that at home.');
-  atHome(me);
+  if (!HOTEL_ACTS.has(act)) atHome(me);
   const m = getMarket(world, me.market);
   const month = m.month;
   ensure(actUses(me, act, month) < spec.cap, 'home.cap', 'Done for this month.');

@@ -3,13 +3,32 @@ import type { World, Player, Id } from './types.js';
 import type { MarketId } from './data/markets.js';
 import type { Currency } from './money.js';
 import { ensure } from './errors.js';
-import { getMarket, locationOf } from './helpers.js';
+import { col, getMarket, locationOf, notify } from './helpers.js';
 import { newId } from './ids.js';
-import { account, openAccount, transfer } from './ledger.js';
+import { account, openAccount, payExact, transfer } from './ledger.js';
 import type { Command } from './commands.js';
 import { createRng, deriveRng, hashString } from './rng.js';
 import { QUIZ_BANK, type QuizCategory } from './data/quiz-bank.js';
 import { journeyEventsOn } from './releases.js';
+import { GOLF, golfCourse } from './data/leisure.js';
+import { golfClubOf, golfFee } from './leisure.js';
+import { formatMoney } from './money.js';
+import {
+  CLUBS,
+  LIE_CARRY,
+  PUTTER,
+  clubFor,
+  defaultAim,
+  dist,
+  hit,
+  holeGeo,
+  scoreName,
+  skillOf,
+  strokeRng,
+  type Club,
+  type Lie,
+  type Pt2,
+} from './golf-physics.js';
 
 export interface QuizQuestion {
   text: string;
@@ -63,7 +82,7 @@ export interface PlayRoom {
   market: MarketId;
   venue: string;
   title: string;
-  game: 'quiz' | 'snooker' | 'football';
+  game: 'quiz' | 'snooker' | 'football' | 'golf';
   status: 'waiting' | 'playing' | 'finished' | 'cancelled';
   createdAt: number;
   touchedAt: number;
@@ -87,7 +106,108 @@ export interface PlayRoom {
   penalties: { shooter: Id; shot: number; keeper: number; goal: boolean }[];
   /** Wave 12: AI opponents in this room (world AI players; their stakes are real). */
   ai?: Id[];
+  /** Golf with a friend (game 'golf' only; older rooms never have it). */
+  golf?: GolfMatch;
 }
+
+// ---------------------------------------------------------------- Golf with a friend
+
+/** One player's round in a golf match. */
+export interface GolfPlayer {
+  /** Strokes per finished hole (a pick-up counts par + 3). */
+  card: number[];
+  ball: Pt2;
+  lie: Lie;
+  /** Strokes on the hole being played (penalties included). */
+  strokes: number;
+  /** Holed out (or picked up) on this hole. */
+  done: boolean;
+  /** 0 … 0.5: steadies the aim, as in a solo round (rounds played; an AI's from its seed). */
+  skill: number;
+}
+
+/** One stroke the engine played out: what was asked and where the ball went. */
+export interface GolfMatchShot {
+  by: Id;
+  hole: number;
+  /** The stroke number on the hole before this one (its seed). */
+  stroke: number;
+  club: string;
+  power: number;
+  aim: number;
+  /** Played by the engine: a timed-out shot clock, or an AI friend. */
+  auto: 'timeout' | 'ai' | null;
+  from: Pt2;
+  land: Pt2;
+  rest: Pt2;
+  apex: number;
+  curve: number;
+  heading: number;
+  carry: number;
+  roll: number;
+  lie: Lie;
+  fromLie: Lie;
+  penalty: boolean;
+  holed: boolean;
+  /** This shot ended the hole for them on par + 3 (picked up). */
+  picked: boolean;
+}
+
+export interface GolfMatch {
+  /** Who was asked to play (a member once they accept). */
+  invite: Id;
+  /** The first n holes of the city's course. */
+  holes: number;
+  pars: number[];
+  /** The hole being played (0-based). */
+  hole: number;
+  /** The green fee each player pays the club when the match starts. */
+  fee: number;
+  /** When an invited AI friend answers (ms; 0 for a real player). */
+  aiAcceptAt: number;
+  players: Record<Id, GolfPlayer>;
+  shots: GolfMatchShot[];
+}
+
+/** Time for each golf shot (snooker gives 45 s). */
+export const GOLF_SHOT_MS = 60_000;
+/** An AI friend says yes this long after the invite (on the next sync). */
+export const GOLF_AI_ACCEPT_AFTER = 6_000;
+/** An AI friend takes its shot this long into its turn (the last one plays out first). */
+export const GOLF_AI_SHOT_AFTER = 4_000;
+/** A timed-out shot clock plays a soft stroke for you at this power. */
+export const GOLF_AUTO_POWER = 30;
+/** A hole counts at most par + this (you pick up). */
+export const GOLF_PICKUP_OVER = 3;
+/** Stakes offered per player, as shares of a month's living costs (Lagos: ₦5k, ₦20k, ₦50k). */
+const GOLF_STAKE_COL = [0.011, 0.044, 0.11];
+
+/** A golfer's skill shown the golf way: a handicap (lower is better). */
+export const golfHandicap = (skill: number) => Math.max(0, Math.round(36 - skill * 60));
+/** An AI friend's skill, from its id (the same every match). */
+export const golfAiSkill = (aiId: Id) => 0.1 + (hashString(`golf-skill:${aiId}`) % 36) / 100;
+const skillFor = (w: World, id: Id) => {
+  const p = w.players[id]!;
+  return p.ai ? golfAiSkill(id) : skillOf(p.golf?.rounds ?? 0);
+};
+/** One significant figure in major units: ₦4,950 → ₦5,000. */
+function niceStake(minor: number) {
+  const major = minor / 100;
+  if (major < 1) return 100;
+  const e = 10 ** Math.floor(Math.log10(major));
+  return Math.round(major / e) * e * 100;
+}
+/** The stake chips for this city: free, then small, medium and large (within the cap). */
+export function golfStakes(m: ReturnType<typeof getMarket>) {
+  const cap = m.data.costOfLiving * 100;
+  return [0, ...GOLF_STAKE_COL.map((k) => Math.min(cap, niceStake(col(m) * k)))];
+}
+/** The venue a golf match is played at: the city's golf club (or the course itself). */
+export const golfVenue = (m: ReturnType<typeof getMarket>) => golfClubOf(m)?.id ?? 'golf';
+const golfGeo = (r: PlayRoom, hole: number) => holeGeo(golfCourse(r.market).holes[hole]!);
+const golfer = (r: PlayRoom) => r.members[r.turn % Math.max(1, r.members.length)]?.id;
+const CLUB_IDS = [...CLUBS.map((c) => c.id), PUTTER.id];
+export const GOLF_CLUB_IDS = CLUB_IDS as readonly string[];
 /** The pre-Wave 12 pool (kept so logged rooms replay with their questions). */
 const QUIZ: QuizQuestion[] = [
   {
@@ -237,9 +357,11 @@ function aiCandidates(w: World, r: PlayRoom) {
   return Object.values(w.players)
     .filter((p) => {
       if (!p.ai || busy.has(p.id) || locationOf(p) !== r.market) return false;
-      if (!r.stake) return true;
+      // Golf: the friend pays their own green fee as well.
+      const fee = r.golf?.fee ?? 0;
+      if (!r.stake && !fee) return true;
       const a = w.accounts[p.accounts.local];
-      return !!a && a.currency === r.currency && a.balance >= r.stake * 4;
+      return !!a && a.currency === r.currency && a.balance >= r.stake * 4 + fee;
     })
     .sort((a, b) => hashString(`${r.id}:${a.id}`) - hashString(`${r.id}:${b.id}`));
 }
@@ -401,6 +523,11 @@ function aiAnswers(r: PlayRoom, now: number) {
 
 /** When the next AI answer is due (null: none waiting). */
 function aiDueAt(w: World, r: PlayRoom): number | null {
+  if (r.game === 'golf' && r.golf) {
+    if (r.status === 'waiting') return r.golf.aiAcceptAt || null;
+    if (r.status !== 'playing' || !r.ai?.includes(golfer(r) ?? '')) return null;
+    return r.deadline - GOLF_SHOT_MS + GOLF_AI_SHOT_AFTER;
+  }
   if (r.status !== 'playing' || !r.ai?.length) return null;
   if (r.game === 'snooker')
     return r.ai.includes(r.members[r.turn % r.members.length]!.id)
@@ -450,7 +577,9 @@ function access(w: World, p: Player, r: PlayRoom) {
 }
 function payOut(w: World, r: PlayRoom, refund: boolean) {
   if (!active(r)) return;
-  const max = Math.max(...r.members.map((m) => m.score));
+  // Golf: the lowest total wins. Every other game: the highest score.
+  const scores = r.members.map((m) => m.score);
+  const max = r.game === 'golf' ? Math.min(...scores) : Math.max(...scores);
   r.winners = refund ? [] : r.members.filter((m) => m.score === max).map((m) => m.id);
   // A tied competition returns every entry; a sole winner receives the whole pot.
   const recipients = !refund && r.winners.length === 1 ? r.winners : r.members.map((m) => m.id);
@@ -628,6 +757,7 @@ function shot(r: PlayRoom, angle: number, power: number) {
 }
 function advance(w: World, r: PlayRoom, now: number) {
   if (r.status !== 'playing') return;
+  if (r.game === 'golf') return golfClock(w, r, now);
   aiAnswers(r, now);
   aiMoves(w, r, now);
   if (
@@ -691,6 +821,8 @@ function createRoom(
     venue = cmd.venue;
   if (venue.startsWith('home:'))
     ensure(venue === `home:${p.id}` && market === p.market, 'play.home', 'Host at your own home.');
+  else if (cmd.game === 'golf')
+    ensure(venue === golfVenue(m), 'play.venue', 'Golf is played at the city’s golf club.');
   else ensure(!!m.businesses?.[venue], 'play.venue', 'Choose a venue in your current city.');
   ensure(
     cmd.stake <= m.data.costOfLiving * 100,
@@ -747,6 +879,7 @@ function createRoom(
     'play.questions',
     'Custom questions are only for quizzes.',
   );
+  if (r.game === 'golf') inviteToGolf(w, p, r, cmd, now);
   rooms[id] = r;
   // A custom quiz author (old rooms) is the non-playing quizmaster: they knew the answers.
   if (!r.custom) join(w, p, r);
@@ -806,7 +939,24 @@ export function playCommand(
   access(w, p, r);
   if (cmd.type === 'play.join') {
     join(w, p, r);
+    // Golf: the invited friend's yes starts the match.
+    if (r.golf && r.members.length === 2) startGolf(w, r, now);
     return { id: r.id };
+  }
+  if (cmd.type === 'play.decline') {
+    ensure(
+      r.golf?.invite === p.id && r.status === 'waiting',
+      'play.invite',
+      'There’s no invitation to answer here.',
+    );
+    r.last = `${p.name} can’t play this time. Your stake is back.`;
+    payOut(w, r, true);
+    notify(w, r.host, {
+      month: getMarket(w, r.market).month,
+      kind: 'system',
+      text: `${p.name} declined your golf match. Your ${formatMoney(r.stake, r.currency)} stake is back.`,
+    });
+    return { ok: true };
   }
   if (cmd.type === 'play.cancel') {
     ensure(
@@ -819,6 +969,13 @@ export function playCommand(
   }
   if (cmd.type === 'play.leave') {
     ensure(r.status === 'waiting', 'play.started', 'A started game must be finished.');
+    // Golf: the host leaving a waiting match calls it off (the invitation goes with it).
+    if (r.golf) {
+      ensure(r.host === p.id, 'play.member', 'You are not in this game.');
+      r.last = 'Match called off. Stake refunded.';
+      payOut(w, r, true);
+      return { ok: true };
+    }
     const member = r.members.find((m) => m.id === p.id);
     ensure(member, 'play.member', 'You are not in this game.');
     transfer(
@@ -834,6 +991,7 @@ export function playCommand(
     return { ok: true };
   }
   if (cmd.type === 'play.start') {
+    ensure(!r.golf, 'play.golf', 'A golf match starts when your friend accepts.');
     ensure(
       r.host === p.id && r.status === 'waiting',
       'play.host',
@@ -855,6 +1013,8 @@ export function playCommand(
     'Join this game first.',
   );
   if (cmd.type === 'play.sync') {
+    if (r.golf && r.status === 'waiting' && r.golf.aiAcceptAt && now >= r.golf.aiAcceptAt)
+      aiAcceptsGolf(w, r, now);
     // A host alone at a quiz long enough is matched with AI opponents.
     if (
       autoQuiz(w) &&
@@ -870,6 +1030,7 @@ export function playCommand(
     return { ok: true };
   }
   if (cmd.type === 'play.ai') {
+    ensure(!r.golf, 'play.golf', 'Invite an AI friend to golf by name.');
     // Snooker and football (new): the host alone at the table plays one AI opponent.
     ensure(
       r.host === p.id &&
@@ -922,6 +1083,12 @@ export function playCommand(
     shot(r, cmd.angle, cmd.power);
     r.deadline = now + 45_000;
     advance(w, r, now);
+  } else if (cmd.type === 'play.golf') {
+    ensure(r.golf && golfer(r) === p.id, 'play.turn', 'Wait for your turn.');
+    if (cmd.pickup) golfPickUp(w, r, p.id);
+    else golfStroke(w, r, p.id, { club: cmd.club, aim: cmd.aim, power: cmd.power }, null);
+    r.deadline = now + GOLF_SHOT_MS;
+    advance(w, r, now);
   }
   return { ok: true };
 }
@@ -935,6 +1102,19 @@ function join(w: World, p: Player, r: PlayRoom) {
     'Custom quiz authors host, but do not compete.',
   );
   ensure(r.members.length < (r.game === 'quiz' ? 8 : 2), 'play.full', 'This room is full.');
+  if (r.golf) {
+    ensure(
+      p.id === r.host || p.id === r.golf.invite,
+      'play.invite',
+      'This golf match is by invitation.',
+    );
+    const mine = account(w, p.accounts.local);
+    ensure(
+      mine.currency !== r.currency || mine.balance >= r.stake + r.golf.fee,
+      'golf.funds',
+      `You need ${formatMoney(r.stake + r.golf.fee, r.currency)} for the stake and the green fee.`,
+    );
+  }
   ensure(
     !Object.values(w.playRooms ?? {}).some(
       (x) => x.id !== r.id && active(x) && x.members.some((m) => m.id === p.id),
@@ -1020,5 +1200,408 @@ export function playView(w: World, p: Player) {
       locked: Object.keys(r.moves),
       myMove: r.moves[p.id] ?? null,
       shooter: r.members[r.round % Math.max(1, r.members.length)]?.id,
+      /** Golf with a friend: the match (null for every other game). */
+      golf: r.golf ? golfMatchView(w, r) : null,
     }));
+}
+
+// ---------------------------------------------------------------- Golf with a friend: the match
+
+/**
+ * Set up a golf match on a new room: who's invited, the holes, the green fee.
+ * The host's stake goes into the pot as they send it (join, below); an AI
+ * friend answers after a short pause, a real player with Accept or Decline.
+ */
+function inviteToGolf(
+  w: World,
+  p: Player,
+  r: PlayRoom,
+  cmd: Extract<Command, { type: 'play.create' }>,
+  now: number,
+) {
+  const m = getMarket(w, r.market);
+  const course = golfCourse(r.market);
+  const holes = Math.max(1, Math.min(course.holes.length, cmd.holes ?? course.holes.length));
+  ensure(cmd.invite, 'play.invite', 'Pick who to play with.');
+  const friend = w.players[cmd.invite];
+  ensure(friend && friend.id !== p.id, 'play.invite', 'Pick who to play with.');
+  ensure(
+    locationOf(friend) === r.market,
+    'play.city',
+    `${friend.name} isn’t in ${m.data.name} right now.`,
+  );
+  ensure(
+    !Object.values(w.playRooms ?? {}).some(
+      (x) =>
+        active(x) &&
+        (x.members.some((y) => y.id === friend.id) ||
+          (x.status === 'waiting' && x.golf?.invite === friend.id)),
+    ),
+    'play.busy',
+    `${friend.name} is in another game right now.`,
+  );
+  r.golf = {
+    invite: friend.id,
+    holes,
+    pars: course.holes.slice(0, holes).map((h) => h.par),
+    hole: 0,
+    fee: golfFee(m),
+    aiAcceptAt: friend.ai ? now + GOLF_AI_ACCEPT_AFTER : 0,
+    players: {},
+    shots: [],
+  };
+  if (friend.ai)
+    ensure(
+      aiCandidates(w, r).some((x) => x.id === friend.id),
+      'play.ai',
+      r.stake
+        ? `${friend.name} can’t cover that stake right now. Try a smaller one or a free round.`
+        : `${friend.name} can’t play right now.`,
+    );
+  else {
+    ensure(
+      !r.stake || account(w, friend.accounts.local).currency === r.currency,
+      'play.currency',
+      'Staked games require a personal account in this city’s currency. Free games are open to everyone.',
+    );
+    notify(w, friend.id, {
+      month: m.month,
+      kind: 'system',
+      text: r.stake
+        ? `${p.name} invites you to golf at ${course.name}: ${formatMoney(r.stake, r.currency)} each, winner takes the pot.`
+        : `${p.name} invites you to a round of golf at ${course.name}.`,
+    });
+  }
+  r.last = `${p.name} invited ${friend.name} to golf.`;
+}
+
+/** Both are in: each pays the club their green fee, and the first tee is theirs. */
+function startGolf(w: World, r: PlayRoom, now: number) {
+  const G = r.golf!;
+  const m = getMarket(w, r.market);
+  const club = golfClubOf(m);
+  const course = golfCourse(r.market);
+  for (const { id } of r.members) {
+    const who = w.players[id]!;
+    payExact(
+      w,
+      who.accounts.local,
+      club?.account ?? m.ext.suppliers,
+      G.fee,
+      `Green fee, ${G.holes} ${G.holes === 1 ? 'hole' : 'holes'} at ${club?.name ?? course.name}`,
+      m.month,
+    );
+    G.players[id] = {
+      card: [],
+      ball: { x: 0, z: 0 },
+      lie: 'tee',
+      strokes: 0,
+      done: false,
+      skill: skillFor(w, id),
+    };
+  }
+  r.status = 'playing';
+  r.turn = 0;
+  r.round = 0;
+  r.deadline = now + GOLF_SHOT_MS;
+  r.touchedAt = now;
+  const friend = w.players[G.invite]!;
+  r.last = `${friend.name} accepted. Hole 1, par ${G.pars[0]}.`;
+}
+
+/** The invited AI friend answers: in (its stake into the pot) if it still can, else a polite no. */
+function aiAcceptsGolf(w: World, r: PlayRoom, now: number) {
+  const G = r.golf!;
+  const ai = w.players[G.invite]!;
+  G.aiAcceptAt = 0;
+  if (!aiCandidates(w, r).some((x) => x.id === ai.id)) {
+    r.last = `${ai.name} can’t make it after all. Your stake is back.`;
+    payOut(w, r, true);
+    return;
+  }
+  if (r.stake)
+    transfer(
+      w,
+      ai.accounts.local,
+      r.escrow,
+      r.stake,
+      'Social game entry',
+      getMarket(w, r.market).month,
+      'move',
+    );
+  r.members.push({ id: ai.id, score: 0 });
+  r.ai = [...(r.ai ?? []), ai.id];
+  startGolf(w, r, now);
+}
+
+/** Next to play: whoever is farthest from the hole and still on it (the host first on a tie). */
+function nextGolfer(r: PlayRoom): number {
+  const G = r.golf!;
+  const g = golfGeo(r, G.hole);
+  let best = -1;
+  let far = -1;
+  r.members.forEach((m, i) => {
+    const c = G.players[m.id]!;
+    if (c.done) return;
+    const d = dist(c.ball, g.pin);
+    if (d > far + 1e-9) {
+      far = d;
+      best = i;
+    }
+  });
+  return best;
+}
+
+/** After a stroke: the next player, the next hole, or the end of the match and the pot. */
+function golfAfterShot(w: World, r: PlayRoom) {
+  const G = r.golf!;
+  r.round++;
+  for (const m of r.members) m.score = G.players[m.id]!.card.reduce((a, b) => a + b, 0);
+  let next = nextGolfer(r);
+  if (next < 0) {
+    const holeNo = G.hole + 1;
+    if (holeNo >= G.holes) {
+      const [a, b] = r.members.map((m) => `${w.players[m.id]?.name ?? 'Former player'} ${m.score}`);
+      r.last = `Round complete: ${a}, ${b}.`;
+      payOut(w, r, false);
+      return;
+    }
+    G.hole = holeNo;
+    for (const c of Object.values(G.players)) {
+      c.ball = { x: 0, z: 0 };
+      c.lie = 'tee';
+      c.strokes = 0;
+      c.done = false;
+    }
+    r.last += ` Hole ${holeNo + 1}, par ${G.pars[holeNo]}.`;
+    next = nextGolfer(r);
+  }
+  r.turn = next;
+}
+
+/** The club asked for, if it can be played from here (else the one the course suggests). */
+function clubOf(id: string, lie: Lie, distance: number): Club {
+  if (lie === 'green') return PUTTER;
+  const c = CLUBS.find((x) => x.id === id);
+  return c && (c.id !== 'driver' || lie === 'tee') ? c : clubFor(distance, lie);
+}
+
+/**
+ * One stroke, played out by the engine from the inputs alone (club, aim,
+ * power): the same physics as a solo round, seeded per room, player, hole
+ * and stroke, so it comes out the same on replay and nobody's score is
+ * taken on trust.
+ */
+function golfStroke(
+  w: World,
+  r: PlayRoom,
+  id: Id,
+  input: { club: string; aim: number; power: number },
+  auto: GolfMatchShot['auto'],
+) {
+  const G = r.golf!;
+  const c = G.players[id]!;
+  const g = golfGeo(r, G.hole);
+  const par = G.pars[G.hole]!;
+  const club = clubOf(input.club, c.lie, dist(c.ball, g.pin));
+  const power = Math.max(4, Math.min(110, input.power));
+  const stroke = c.strokes;
+  const s = hit(
+    g,
+    c.ball,
+    c.lie,
+    club,
+    power,
+    input.aim,
+    strokeRng(`${w.seed}:${r.id}:${id}`, G.hole, stroke),
+    c.skill,
+  );
+  c.strokes += 1 + (s.penalty ? 1 : 0);
+  const fromLie = c.lie;
+  c.ball = s.rest;
+  c.lie = s.lie;
+  const max = par + GOLF_PICKUP_OVER;
+  const picked = !s.holed && c.strokes >= max;
+  if (s.holed || picked) {
+    c.done = true;
+    c.card.push(Math.min(c.strokes, max));
+  }
+  G.shots.push({
+    by: id,
+    hole: G.hole,
+    stroke,
+    club: club.id,
+    power,
+    aim: input.aim,
+    auto,
+    from: s.from,
+    land: s.land,
+    rest: s.rest,
+    apex: s.apex,
+    curve: s.curve,
+    heading: s.heading,
+    carry: s.carry,
+    roll: s.roll,
+    lie: s.lie,
+    fromLie,
+    penalty: s.penalty,
+    holed: s.holed,
+    picked,
+  });
+  const name = w.players[id]?.name ?? 'Former player';
+  r.last = s.holed
+    ? `${name}: ${scoreName(c.strokes, par).replace(/!$/, '')} (${c.strokes}) on hole ${G.hole + 1}.`
+    : picked
+      ? `${name} picks up on hole ${G.hole + 1} (${max}).`
+      : auto === 'timeout'
+        ? `${name}’s shot clock ran out: a soft ${club.id === PUTTER.id ? 'putt' : 'shot'} was played.`
+        : `${name}: ${Math.round(dist(s.from, s.rest))} m${s.penalty ? ', in the water (one stroke penalty)' : ''}.`;
+  golfAfterShot(w, r);
+}
+
+/** Pick up: the hole counts par + 3 (never better than playing it out). */
+function golfPickUp(w: World, r: PlayRoom, id: Id) {
+  const G = r.golf!;
+  const c = G.players[id]!;
+  const max = G.pars[G.hole]! + GOLF_PICKUP_OVER;
+  c.strokes = max;
+  c.done = true;
+  c.card.push(max);
+  r.last = `${w.players[id]?.name ?? 'Former player'} picks up on hole ${G.hole + 1} (${max}).`;
+  golfAfterShot(w, r);
+}
+
+/** How an AI friend plays a shot: the suggested club and line, at about the right power. */
+export function aiGolfShot(w: World, r: PlayRoom, aiId: Id) {
+  const G = r.golf!;
+  const c = G.players[aiId]!;
+  const g = golfGeo(r, G.hole);
+  const rng = deriveRng(w.seed, 'golf-ai', r.id, r.round, aiId);
+  const left = dist(c.ball, g.pin);
+  const club = clubFor(left, c.lie);
+  const reach = club.carry * LIE_CARRY[c.lie];
+  const need = ((left + (club === PUTTER ? 0.4 : 0)) / reach) * 100;
+  const shaky = 1 - c.skill;
+  const power = Math.max(5, Math.min(100, Math.min(96, need) * (1 + rng.normal(0, shaky * 0.07))));
+  const aim = defaultAim(g, c.ball, club, c.lie) + rng.normal(0, shaky * 0.02);
+  return { club: club.id, aim, power };
+}
+
+/**
+ * The match's clock, run whenever a command reaches the room: an AI friend
+ * plays once its thinking time is up, and a shot clock that ran out plays a
+ * soft stroke for that player (in order, so it's the same on replay).
+ */
+function golfClock(w: World, r: PlayRoom, now: number) {
+  for (let guard = 0; guard < 400 && r.status === 'playing'; guard++) {
+    const id = golfer(r);
+    if (!id) return;
+    const start = r.deadline - GOLF_SHOT_MS;
+    if (r.ai?.includes(id) && now >= start + GOLF_AI_SHOT_AFTER) {
+      golfStroke(w, r, id, aiGolfShot(w, r, id), 'ai');
+      r.deadline = start + GOLF_AI_SHOT_AFTER + GOLF_SHOT_MS;
+      r.touchedAt = Math.max(r.touchedAt, start + GOLF_AI_SHOT_AFTER);
+    } else if (now >= r.deadline) {
+      const c = r.golf!.players[id]!;
+      const g = golfGeo(r, r.golf!.hole);
+      const club = clubFor(dist(c.ball, g.pin), c.lie);
+      const at = r.deadline;
+      golfStroke(
+        w,
+        r,
+        id,
+        { club: club.id, aim: defaultAim(g, c.ball, club, c.lie), power: GOLF_AUTO_POWER },
+        'timeout',
+      );
+      r.deadline = at + GOLF_SHOT_MS;
+      r.touchedAt = Math.max(r.touchedAt, at);
+    } else return;
+  }
+}
+
+/** The match as a player sees it (every number the engine worked out). */
+function golfMatchView(w: World, r: PlayRoom) {
+  const G = r.golf!;
+  return {
+    invite: G.invite,
+    inviteName: w.players[G.invite]?.name ?? 'Former player',
+    holes: G.holes,
+    pars: G.pars,
+    hole: G.hole,
+    fee: G.fee,
+    shotMs: GOLF_SHOT_MS,
+    aiAcceptAt: G.aiAcceptAt,
+    players: Object.fromEntries(
+      Object.entries(G.players).map(([id, c]) => [id, { ...c, handicap: golfHandicap(c.skill) }]),
+    ),
+    /** Who's in it (the host, the friend): for the invite card and the figures on the course. */
+    people: Object.fromEntries(
+      [r.host, G.invite].map((id) => {
+        const x = w.players[id];
+        const company = x?.companyIds
+          .map((c) => w.companies[c])
+          .reverse()
+          .find((c) => c?.status === 'active');
+        return [
+          id,
+          {
+            name: x?.name ?? 'Former player',
+            role: x?.role ?? null,
+            backgroundId: x?.backgroundId ?? null,
+            gender: x?.gender ?? null,
+            company: company?.name ?? null,
+            ai: !!x?.ai,
+          },
+        ];
+      }),
+    ),
+    /** The invited player's handicap, before they've accepted. */
+    inviteHandicap: w.players[G.invite] ? golfHandicap(skillFor(w, G.invite)) : null,
+    shots: G.shots,
+  };
+}
+
+/**
+ * For the invite sheet: the stake chips here, the cap, and the AI friends in
+ * this city who are free (with their handicap and the most they can stake).
+ */
+export function golfMatchOptions(w: World, p: Player) {
+  const market = locationOf(p);
+  const m = getMarket(w, market);
+  const busy = new Set<Id>();
+  for (const x of Object.values(w.playRooms ?? {}))
+    if (active(x)) {
+      for (const y of x.members) busy.add(y.id);
+      // Already asked to another match: not free until they answer.
+      if (x.status === 'waiting' && x.golf) busy.add(x.golf.invite);
+    }
+  const fee = golfFee(m);
+  const friends = Object.values(w.players)
+    .filter((x) => x.ai && !busy.has(x.id) && locationOf(x) === market)
+    .map((x) => {
+      const a = w.accounts[x.accounts.local];
+      const room = a && a.currency === m.data.currency ? Math.max(0, a.balance - fee) : -1;
+      return {
+        id: x.id,
+        name: x.name,
+        role: x.role,
+        backgroundId: x.backgroundId,
+        handicap: golfHandicap(golfAiSkill(x.id)),
+        /** The largest stake they'd accept (a quarter of what they hold); −1: can't afford the fee. */
+        maxStake: room < 0 ? -1 : Math.floor(room / 4),
+      };
+    })
+    .filter((x) => x.maxStake >= 0)
+    .sort((a, b) => b.maxStake - a.maxStake || (a.id < b.id ? -1 : 1))
+    .slice(0, 6);
+  return {
+    venue: golfVenue(m),
+    stakes: golfStakes(m),
+    maxStake: m.data.costOfLiving * 100,
+    shotMs: GOLF_SHOT_MS,
+    pickupOver: GOLF_PICKUP_OVER,
+    hours: GOLF.hours,
+    friends,
+    handicap: golfHandicap(skillOf(p.golf?.rounds ?? 0)),
+  };
 }

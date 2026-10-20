@@ -72,7 +72,7 @@ export function storeFor(mode: Mode, url?: string): { name: string; perDeploy: b
 export function kvFor(mode: Mode, url?: string): Kv {
   const { name, perDeploy } = storeFor(mode, url);
   const opts = { name, consistency: 'strong' as const };
-  return new NetlifyKv(perDeploy ? getDeployStore(opts) : getStore(opts));
+  return new NetlifyKv(() => (perDeploy ? getDeployStore(opts) : getStore(opts)));
 }
 
 /**

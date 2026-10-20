@@ -3,7 +3,7 @@
  * founder, no lifestyle needed): ride the London cable car over the Thames,
  * skip to the view, find a landmark, change the light, switch to The Shard.
  */
-import { test, expect, letters, playAsGuest, setupFounder } from './fixtures';
+import { test, expect, letters, openTogether, playAsGuest, setupFounder } from './fixtures';
 
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
@@ -31,10 +31,7 @@ test('a new player rides the real London cable car and looks around the skyline'
     market: /London/,
   });
   const home = page.getByRole('dialog', { name: 'Home and social experiences' });
-  await expect(async () => {
-    if (!(await home.isVisible())) await page.getByRole('button', { name: /^Together/ }).click();
-    await expect(home).toBeVisible({ timeout: 2000 });
-  }).toPass({ timeout: 30000 });
+  await openTogether(page);
   // Every one of London's real sky views is offered, with no level required.
   for (const id of ['london-eye', 'london-cable-car', 'the-shard'])
     await expect(home.locator(`[data-sky-view="${id}"]`)).toBeVisible();

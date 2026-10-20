@@ -38,6 +38,7 @@ import { CapitalDetails, InScene, PlaceScene } from './PlaceScene';
 import type { Destination } from './travel';
 
 /** Wave 7: the busy airport scene, loaded when you go in. */
+import type { Arrival } from './airport/AirportScene';
 const AirportScene = lazy(() =>
   import('./airport/AirportScene').then((m) => ({ default: m.AirportScene })),
 );
@@ -897,6 +898,7 @@ export function Interior({
   homeId = null,
   scene = false,
   onPerson,
+  arrival = null,
 }: {
   place: Place;
   layout: CityLayout;
@@ -918,6 +920,8 @@ export function Interior({
   scene?: boolean;
   /** Someone in the scene was tapped. */
   onPerson?: (p: PersonRef) => void;
+  /** Just landed: the airport shows Arrivals and where to go next. */
+  arrival?: Arrival | null;
 }) {
   const body = (() => {
     switch (place.kind) {
@@ -972,6 +976,7 @@ export function Interior({
           desk={desk}
           homeId={homeId}
           onFlyHome={away?.onFlyHome}
+          arrival={arrival}
         >
           {body}
         </AirportScene>

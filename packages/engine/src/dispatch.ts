@@ -1,9 +1,20 @@
 import { livingCommand, orderFurniture, queueDelivery } from './living.js';
+import {
+  acceptHoliday,
+  declineHoliday,
+  doTogether,
+  holidayJoined,
+  inviteHoliday,
+  knockHotel,
+  answerKnock,
+  leaveVisit,
+} from './holidays.js';
 import { expirePlay, playCommand } from './play.js';
 /**
  * The command dispatcher: (world, command, actor, now) → new world + result.
  *
- * Runs each command inside an Immer producer, so a rule violation anywhere
+ * Runs each command inside an Immer producer (a settlement on a private copy
+ * of the world instead, see WHOLE_WORLD), so a rule violation anywhere
  * (GameRuleError) rolls the whole command back: no half-applied deals.
  */
 import { produce } from 'immer';
@@ -12,6 +23,7 @@ import { PUBLIC_MULTIPLES } from './data/markets.js';
 import { rulesFor } from './data/rules.js';
 import type { Command } from './commands.js';
 import { SYSTEM_COMMANDS } from './commands.js';
+import { appearanceSeed, defaultAppearance } from './appearance.js';
 import { payExpense } from './firstsession.js';
 import { comply, pivot, setTargets, shutdownCompany } from './company.js';
 import { actOnDeal, canAct, monthlyPayment, openDeal } from './deals.js';
@@ -43,7 +55,20 @@ import {
   seedPublicMarket,
   sellShares,
 } from './exits.js';
-import { EXITS_NOTE, exitsOn } from './releases.js';
+import { exitsOn, jobsOn, lifeBarsOn } from './releases.js';
+import { applyForJob, attendInterview, ensureEmployers } from './work.js';
+import { golfRound, mallBuy } from './leisure.js';
+import {
+  HOME_ACT_BARS,
+  LIFE_BARS,
+  applyBars,
+  barsOf,
+  foodBars,
+  rideBars,
+  venueBars,
+  walk,
+  workStress,
+} from './lifebars.js';
 import {
   answerMentoring,
   carrySerialFounder,
@@ -55,7 +80,15 @@ import {
   pledge,
   serialEligible,
 } from './allocator.js';
-import { pitchBusiness, quitJob, takeBusinessGig, takeJob, venueBuy } from './economy.js';
+import {
+  getBusiness,
+  pitchBusiness,
+  quitJob,
+  specOf,
+  takeBusinessGig,
+  takeJob,
+  venueBuy,
+} from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
 import { foodOrder, homeAct, homeInvite } from './needs.js';
 import { removeContact, saveContact } from './people.js';
@@ -143,6 +176,7 @@ import {
 } from './rescue.js';
 import { createCompany, createPlayer, openMarket, setCogs, welcomeNewPlayer } from './world.js';
 import type { DealTerms, Id, PartyRef, Player, World } from './types.js';
+import type { MarketId } from './data/markets.js';
 import {
   chooseBootstrap,
   dismissObjective,
@@ -182,26 +216,75 @@ export type DispatchResult =
   | { ok: true; world: World; result: unknown }
   | { ok: false; world: World; error: { code: string; message: string } };
 
+/**
+ * Commands that read and write much of the world (a month-end settlement walks
+ * every company, account, bank and player of a market, many times over). Under
+ * Immer each of those reads makes a proxy, which in a busy world made one
+ * settlement take seconds. These run instead on a private deep copy of the
+ * world, mutated in place: the same code, the same writes in the same order,
+ * so the same resulting world, and a rule error still discards everything.
+ */
+const WHOLE_WORLD = new Set<Command['type']>(['market.settle']);
+
+/** A deep copy of plain data (the world is JSON-shaped: objects, arrays, primitives). */
+function copyDeep<T>(v: T): T {
+  if (v === null || typeof v !== 'object') return v;
+  if (Array.isArray(v)) {
+    const out = new Array(v.length);
+    for (let i = 0; i < v.length; i++) out[i] = copyDeep(v[i]);
+    return out as T;
+  }
+  const out: Record<string, unknown> = {};
+  for (const k in v) if (Object.hasOwn(v, k)) out[k] = copyDeep((v as Record<string, unknown>)[k]);
+  return out as T;
+}
+
+/**
+ * Frozen like Immer's results, so nothing outside dispatch can change a world
+ * by accident. Parts already frozen (shared with earlier worlds) are skipped.
+ */
+function freezeDeep<T>(v: T): T {
+  if (v === null || typeof v !== 'object' || Object.isFrozen(v)) return v;
+  Object.freeze(v);
+  for (const k in v) if (Object.hasOwn(v, k)) freezeDeep((v as Record<string, unknown>)[k]);
+  return v;
+}
+
+function onPrivateCopy(world: World, recipe: (draft: World) => void): World {
+  const draft = copyDeep(world);
+  recipe(draft);
+  return freezeDeep(draft);
+}
+
 export function dispatch(world: World, command: Command, ctx: CommandContext): DispatchResult {
   if (SYSTEM_COMMANDS.has(command.type) !== (ctx.actorId === null)) {
     return { ok: false, world, error: { code: 'command.forbidden', message: 'Not allowed.' } };
   }
   let result: unknown = null;
   try {
-    const next = produce(world, (draft) => {
+    const recipe = (draft: World) => {
       draft.activity ??= { since: ctx.now, at: ctx.now, sequence: 0, totals: {}, recent: [] };
       draft.activity.at = ctx.now;
       const actor = ctx.actorId ? draft.players[ctx.actorId] : undefined;
       if (actor) keepStatement(draft as World, actor);
       expirePlay(draft as World, ctx.now);
       result = apply(draft as World, command, ctx);
+      // Phase 3: what the command did to the actor's life bars (after the release note).
+      if (ctx.actorId && lifeBarsOn(draft as World))
+        result = lifeBarsAfter(draft as World, command, ctx.actorId, result);
       // The founder journey: record chapters this command (or settlement) completed.
       if (command.type === 'market.settle')
         recordChaptersAfterSettle(draft as World, command.market);
       const who = ctx.actorId ? draft.players[ctx.actorId] : undefined;
       if (who) recordChapters(draft as World, who as Player);
+      // The result is read (sent to the client) after the producer finished, when
+      // any draft in it is revoked: copy it out as plain data while drafts still work.
+      if (!WHOLE_WORLD.has(command.type)) result = copyDeep(result);
       draft.version += 1;
-    });
+    };
+    const next = WHOLE_WORLD.has(command.type)
+      ? onPrivateCopy(world, recipe)
+      : produce(world, recipe);
     return { ok: true, world: next, result };
   } catch (e) {
     if (e instanceof GameRuleError)
@@ -247,6 +330,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     const m = openMarket(world, cmd.market, ctx.now);
     // A city opening after the stock market did gets its listings too.
     if (exitsOn(world)) seedPublicMarket(world, m.id);
+    // …and its professional employers, in a jobs world.
+    ensureEmployers(world, m.id, m.month);
     return {
       market: m.id,
       funds: Object.values(world.funds).filter((f) => f.market === m.id).length,
@@ -328,6 +413,17 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     return playCommand(world, me, cmd as Extract<Command, { type: `play.${string}` }>, ctx.now);
 
   switch (cmd.type) {
+    case 'player.appearance': {
+      // Cosmetic: how you're drawn, never a number in the simulation. Parts
+      // left out keep what you had, or the look your seed gave you.
+      const was = me.appearance ?? defaultAppearance(appearanceSeed(me), me.gender);
+      const next = { ...was };
+      for (const [k, v] of Object.entries(cmd.appearance))
+        if (v !== undefined) (next as Record<string, unknown>)[k] = v;
+      me.appearance = next;
+      me.appearanceAt = ctx.now;
+      return { appearance: next };
+    }
     case 'player.profile': {
       const bg = backgroundById(cmd.backgroundId);
       ensure(bg && bg.role === me.role, 'player.background', 'Pick a background for your role.');
@@ -672,7 +768,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return { pitchId: p.id, status: p.status, reason: p.reason };
     }
     case 'pitch.answer': {
-      const p = answerPitch(world, cmd.pitchId, me.id, cmd.answers);
+      const p = answerPitch(world, cmd.pitchId, me.id, cmd.answers, cmd.figures);
       return { pitchId: p.id, status: p.status, reason: p.reason, dealId: p.dealId };
     }
     case 'pitch.partners': {
@@ -1009,13 +1105,17 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'player.travel':
       return travel(world, me, cmd.market);
     case 'travel.book':
-      return bookFlight(world, me, cmd.to, ctx.now);
+      return bookFlight(world, me, cmd.to, ctx.now, cmd.hotel, cmd.flight);
     case 'travel.cancel':
       return cancelFlight(world, me);
     case 'travel.fly':
       return fly(world, me, cmd.to, ctx.now);
     case 'city.ride':
       return ride(world, me, cmd.mode, cmd.distance);
+    case 'city.walk':
+      // Phase 3: unknown until the life-bars release note (clients fall back to a free walk).
+      if (!lifeBarsOn(world)) return fail('command.unknown', 'Unknown command.');
+      return walk(world, me, cmd.mode, cmd.minutes);
     case 'player.seen':
       // lastActiveAt was set above: that's all this does.
       return null;
@@ -1111,6 +1211,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return takeJob(world, me, cmd.businessId, cmd.role);
     case 'job.quit':
       return quitJob(world, me);
+    case 'job.apply':
+      return applyForJob(world, me, cmd.businessId, cmd.level);
+    case 'job.interview':
+      return attendInterview(world, me, cmd.applicationId, cmd.answers);
     case 'home.order':
       return orderFurniture(world, me, cmd.itemId, ctx.now, cmd.businessId);
     case 'home.buy':
@@ -1160,12 +1264,44 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return declineVisit(world, me, cmd.inviteId);
     case 'hangout.plan':
       return planHangout(world, me, cmd.businessId, cmd.inviteeIds, cmd.when);
-    case 'hangout.join':
-      return joinHangout(world, me, cmd.hangoutId);
+    case 'hangout.join': {
+      const joined = joinHangout(world, me, cmd.hangoutId);
+      // Holiday with friends: an outing on the holiday carries the shared bonus.
+      const holiday = holidayJoined(world, me, cmd.hangoutId);
+      return holiday ? { ...joined, holiday } : joined;
+    }
+    case 'holiday.invite':
+      return inviteHoliday(world, me, cmd.inviteeIds, cmd.hostPays, ctx.now);
+    case 'holiday.accept':
+      return acceptHoliday(world, me, cmd.holidayId, cmd.payOwn, ctx.now);
+    case 'holiday.decline':
+      return declineHoliday(world, me, cmd.holidayId);
+    case 'holiday.together': {
+      const r = doTogether(world, me, cmd.holidayId, cmd.businessId);
+      if (r.plan) return r.plan;
+      const joined = joinHangout(world, me, r.join);
+      const holiday = holidayJoined(world, me, r.join);
+      return {
+        ...joined,
+        ...(holiday ? { holiday } : {}),
+        message: holiday?.message ?? joined.message,
+      };
+    }
+    case 'hotel.knock':
+      return knockHotel(world, me, cmd.holidayId, cmd.playerId, ctx.now);
+    case 'hotel.answer':
+      return answerKnock(world, me, cmd.holidayId, cmd.from, cmd.accept, ctx.now);
+    case 'hotel.leave':
+      return leaveVisit(world, me, cmd.holidayId);
     case 'hangout.leave':
       return leaveHangout(world, me, cmd.hangoutId);
     case 'techevent.attend':
       return attendTechEvent(world, me, cmd.eventId);
+    // ------------------------------------------------------------ golf and the mall
+    case 'golf.round':
+      return golfRound(world, me, cmd.strokes);
+    case 'mall.buy':
+      return mallBuy(world, me, cmd.itemId, cmd.colour, ctx.now);
     // ------------------------------------------------------------ capital programmes (Wave 5)
     case 'accelerator.apply':
       return applyAccelerator(world, me, cmd.acceleratorId, cmd.companyId);
@@ -1285,6 +1421,73 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
   }
 }
 
+/** Phase 3: work that adds a little stress (capped per month, lifebars.ts). */
+const WORK_COMMANDS: ReadonlySet<Command['type']> = new Set([
+  'company.build',
+  'player.gig',
+  'gig.take',
+  'sales.advance',
+  'pitch.start',
+  'business.pitch',
+  'pitch.angel',
+  'lp.pitch',
+]);
+
+/**
+ * Phase 3 life bars: a command's immediate effect on the actor's health and
+ * stress (and a ride's time and energy), applied after the command itself
+ * succeeded. Results that are objects gain `barChanges` (what moved) and
+ * `bars` (all four now). Only called when `lifeBarsOn`.
+ */
+function lifeBarsAfter(world: World, cmd: Command, actorId: Id, result: unknown): unknown {
+  const me = world.players[actorId];
+  if (!me || me.ai) return result;
+  if (WORK_COMMANDS.has(cmd.type)) {
+    const stress = workStress(world, me);
+    return result && typeof result === 'object'
+      ? { ...result, barChanges: stress ? { stress } : {}, bars: barsOf(me) }
+      : result;
+  }
+  if (!result || typeof result !== 'object') return result;
+  const out = result as Record<string, unknown>;
+  const changed = (fx: { health?: number; stress?: number }) => ({
+    ...out,
+    barChanges: applyBars(me, fx),
+    bars: barsOf(me),
+  });
+  const social = { stress: LIFE_BARS.socialStress };
+  switch (cmd.type) {
+    case 'city.ride':
+      return { ...out, ...rideBars(me, cmd.mode, cmd.distance) };
+    case 'home.act':
+      return changed(HOME_ACT_BARS[cmd.act] ?? {});
+    case 'home.invite':
+    case 'hangout.plan':
+    case 'hangout.join':
+    case 'holiday.together':
+      return changed(social);
+    case 'visit.accept': {
+      const host = world.players[(out.host as { id: Id } | undefined)?.id ?? ''];
+      if (host && !host.ai) applyBars(host, social);
+      return changed(social);
+    }
+    case 'venue.buy': {
+      const spec = specOf(getBusiness(world, cmd.businessId));
+      const it = spec.venue?.items.find((x) => x.id === cmd.itemId);
+      return it ? changed(venueBars(spec, it)) : out;
+    }
+    case 'food.order':
+      return changed(foodBars(cmd.itemId));
+    case 'golf.round':
+    case 'mall.buy': {
+      const { barsFx, ...rest } = out as { barsFx?: { stress?: number } };
+      return barsFx ? { ...changed(barsFx), barsFx: undefined, ...rest } : out;
+    }
+    default:
+      return result;
+  }
+}
+
 function createFromOnboarding(
   world: World,
   cmd: Extract<Command, { type: 'player.create' }>,
@@ -1345,6 +1548,9 @@ function anonymize(world: World, playerId: Id) {
   p.handle = `former_${p.id.slice(-6)}`;
   p.trust = {};
   p.contacts = [];
+  // A look picked to resemble them goes too (they're drawn from their seed again).
+  delete p.appearance;
+  delete p.appearanceAt;
   // Other players' contact cards stop naming them.
   for (const other of Object.values(world.players))
     for (const c of other.contacts ?? [])
@@ -1416,9 +1622,16 @@ function applyMarketData(world: World, cmd: Extract<Command, { type: 'market.dat
 function announce(world: World, cmd: Extract<Command, { type: 'system.announce' }>) {
   const sent = (world.announcements ??= []);
   if (sent.includes(cmd.id)) return { sent: 0 };
+  const hadExits = exitsOn(world);
+  const hadJobs = jobsOn(world);
   sent.push(cmd.id);
+  // The jobs rework: every open city's professional employers open with the note.
+  if (!hadJobs && jobsOn(world))
+    for (const [id, m] of Object.entries(world.markets))
+      ensureEmployers(world, id as MarketId, m.month);
   // Founder Journey 5: the stock market opens with each city's leading AI companies.
-  if (cmd.id === EXITS_NOTE)
+  // (The note that first switches exits on: the exits note, or a later one in a world without it.)
+  if (!hadExits && exitsOn(world))
     for (const id of Object.keys(world.markets)) seedPublicMarket(world, id);
   let n = 0;
   for (const p of Object.values(world.players)) {

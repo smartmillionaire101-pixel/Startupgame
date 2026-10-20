@@ -14,11 +14,22 @@
  *
  * One requestAnimationFrame loop for the cabin, paused while the tab is
  * hidden. Reduced motion: the cabin alone, still, then you've arrived.
+ *
+ * Phase 6b: where WebGL works (and the player hasn't chosen Lite), the whole
+ * flight is 3D (./flight3d): the climb-out over your city, the cabin at
+ * real size (up the aisle to your window seat), then the full sky outside
+ * (a fifth phase, `sky`: over the wing above the cloud deck, then the whole
+ * plane banking in the sun or under the stars), and the approach down
+ * through the clouds to the destination's runway. The drawings above stay
+ * for Lite and for browsers without WebGL. Reduced motion: the cabin and the
+ * sky, each a still.
  */
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { use3d } from '../three-kit/quality';
 import { t } from '../i18n';
 import { useView } from '../store';
 import { avatarLook } from './art';
+import { flightPartyTo } from './companions';
 import { useReducedMotion } from './CityMap';
 import { Cabin, cabinClassOf } from './acts/Cabin';
 import { PlaneSide, type PlaneKind } from './airport/planes';
@@ -28,8 +39,26 @@ import { useDaylight } from './useDaylight';
 import { AIRPORT_NAMES, CITY_GEO, fmtFlightTime, liveryOf, seeded, fnv } from './travel';
 import './flight.css';
 
-type Phase = 'takeoff' | 'cruise' | 'landing' | 'ferry' | 'arrived';
-const DUR = { takeoff: 3200, cruise: 6500, landing: 2800, ferry: 2600 };
+type Phase = 'takeoff' | 'cruise' | 'sky' | 'landing' | 'ferry' | 'arrived';
+const DUR = { takeoff: 3200, cruise: 6500, sky: 0, landing: 2800, ferry: 2600 };
+/** In 3D: a little longer up, the cabin, the sky (new), the approach. */
+const DUR3D = { takeoff: 3600, cruise: 6000, sky: 4600, landing: 3800, ferry: 2600 };
+const FlightView3D = lazy(() => import('./flight3d/FlightView3D'));
+
+/**
+ * `runway.flightPace` in localStorage (a number, 1–10) slows the 3D flight
+ * down that many times: screenshots on a slow software renderer.
+ */
+function flightPace(): number {
+  try {
+    const n = Number(localStorage.getItem('runway.flightPace'));
+    return Number.isFinite(n) && n >= 1 ? Math.min(10, n) : 1;
+  } catch {
+    return 1;
+  }
+}
+const scaled = <T extends Record<string, number>>(d: T, k: number) =>
+  Object.fromEntries(Object.entries(d).map(([a, v]) => [a, v * k])) as T;
 
 /** Great-circle hours at airliner speed, plus taxi and climb. */
 function flightHours(from: string, to: string, fallback: number): number {
@@ -230,6 +259,10 @@ export function FlightScene({
 }) {
   const reduced = useReducedMotion();
   const { view } = useView();
+  const three = use3d();
+  const [pace] = useState(() => (three ? flightPace() : 1));
+  const [dur3d] = useState(() => scaled(DUR3D, pace));
+  const dur = three ? dur3d : DUR;
   const [phase, setPhase] = useState<Phase>(reduced ? 'cruise' : 'takeoff');
   const nightFrom = useDaylight(from).night;
   const nightTo = useDaylight(to).night;
@@ -239,22 +272,39 @@ export function FlightScene({
   const kind: PlaneKind =
     cabinClassOf(view.me.lifestyle?.tier) === 'private' ? 'bizjet' : 'airliner';
   const livery = kind === 'bizjet' ? '#1e3a8a' : liveryOf(from, airline);
+  // Holiday with friends: the ones on this flight sit next to you.
+  const [party] = useState(() => flightPartyTo(view, to));
+
+  // In 3D the take-off waits for the first frame (a slow phone still sees it),
+  // but never more than a few seconds.
+  const [ready3d, setReady3d] = useState(!three);
+  useEffect(() => {
+    if (ready3d) return;
+    const id = setTimeout(() => setReady3d(true), 8000);
+    return () => clearTimeout(id);
+  }, [ready3d]);
 
   // Each phase hands over to the next on a timer.
   useEffect(() => {
-    if (phase === 'arrived') return;
+    if (phase === 'arrived' || !ready3d) return;
     const next: Phase = reduced
-      ? 'arrived'
+      ? three && phase === 'cruise'
+        ? 'sky'
+        : 'arrived'
       : phase === 'takeoff'
         ? 'cruise'
         : phase === 'cruise'
-          ? 'landing'
-          : phase === 'landing' && ferry
-            ? 'ferry'
-            : 'arrived';
-    const id = setTimeout(() => setPhase(next), reduced ? 1600 : DUR[phase]);
+          ? three
+            ? 'sky'
+            : 'landing'
+          : phase === 'sky'
+            ? 'landing'
+            : phase === 'landing' && ferry
+              ? 'ferry'
+              : 'arrived';
+    const id = setTimeout(() => setPhase(next), reduced ? 1600 * pace : dur[phase]);
     return () => clearTimeout(id);
-  }, [phase, reduced, ferry]);
+  }, [phase, reduced, ferry, three, dur, pace, ready3d]);
 
   // Arrived and confirmed: step out into the city (unless there's a note to read).
   useEffect(() => {
@@ -268,13 +318,15 @@ export function FlightScene({
       ? t('Taking off from {city}', { city: fromName })
       : phase === 'cruise'
         ? t('Flying to {city}', { city: toName })
-        : phase === 'landing'
-          ? t('Landing in {city}', { city: toName })
-          : phase === 'ferry'
-            ? t('Water taxi across the estuary to {city}', { city: toName })
-            : status === 'pending'
-              ? t('Taxiing to the gate…')
-              : t('Welcome to {city}', { city: toName });
+        : phase === 'sky'
+          ? t('Above the clouds, on the way to {city}', { city: toName })
+          : phase === 'landing'
+            ? t('Landing in {city}', { city: toName })
+            : phase === 'ferry'
+              ? t('Water taxi across the estuary to {city}', { city: toName })
+              : status === 'pending'
+                ? t('Taxiing to the gate…')
+                : t('Welcome to {city}', { city: toName });
   const airportFrom = AIRPORT_NAMES[from] ?? fromName;
   const airportTo = AIRPORT_NAMES[to] ?? toName;
 
@@ -287,7 +339,24 @@ export function FlightScene({
       data-flight-phase={phase}
     >
       <div className="fl-stage">
-        {phase === 'takeoff' && (
+        {three && (
+          <Suspense fallback={<div className="f3" data-flight3d="loading" />}>
+            <FlightView3D
+              phase={phase}
+              dur={dur3d}
+              from={from}
+              to={to}
+              hours={realHours}
+              kind={kind}
+              livery={livery}
+              cls={cabinClassOf(view.me.lifestyle?.tier)}
+              still={reduced}
+              onReady={() => setReady3d(true)}
+              party={party}
+            />
+          </Suspense>
+        )}
+        {!three && phase === 'takeoff' && (
           <Airfield marketId={from} name={airportFrom} night={nightFrom} close>
             <g className="fl-plane fl-takeoff">
               <g transform="translate(60 246)">
@@ -298,7 +367,7 @@ export function FlightScene({
             </g>
           </Airfield>
         )}
-        {phase === 'cruise' && (
+        {!three && phase === 'cruise' && (
           <Cabin
             from={from}
             to={to}
@@ -307,9 +376,10 @@ export function FlightScene({
             dur={DUR.cruise}
             tier={view.me.lifestyle?.tier}
             look={avatarLook(view.me.background?.id, view.me.id, genderOf(view.me))}
+            party={party}
           />
         )}
-        {(phase === 'landing' || (phase === 'arrived' && !ferry)) && (
+        {!three && (phase === 'landing' || (phase === 'arrived' && !ferry)) && (
           <Airfield marketId={to} name={airportTo} night={nightTo} arriving>
             <g className={`fl-plane${phase === 'landing' ? ' fl-landing' : ' fl-parked'}`}>
               <g transform="translate(60 246)">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FoundCompany } from './Me';
 import { ScreenBoundary } from '../ScreenBoundary';
 import type { BuildMode, Industry, RevenueModel } from '@runway/engine';
 import { amountInput, money, parseAmount, pct, stars, titleCase } from '../format';
@@ -11,6 +12,8 @@ import { SalesPipeline } from './Sales';
 import { CofounderCard, HiringPipeline, TeamHealth } from './Hiring';
 import { RunwayExplainer } from './FundCompany';
 import { RivalsPanel } from './Decisions';
+import { SimpleLink } from './SimpleLink';
+import { CompanyKpis } from './Home';
 
 type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -109,7 +112,20 @@ export function CompanyScreen() {
     };
   }, []);
   const c = view.companies.find((x) => x.status === 'active');
-  if (!c) return <Empty>{t('No active company. Set up your business in Me → Profile.')}</Empty>;
+  if (!c) {
+    // A founder sets up the company right here, not under Me (player feedback).
+    if (view.me.role !== 'founder')
+      return <Empty>{t('No active company. Set up your business in Me → Profile.')}</Empty>;
+    return (
+      <section className="card" data-company-setup="">
+        <h2>{t('Set up your company')}</h2>
+        <p className="small muted">
+          {t('Name it and say what it does. You can change the details later.')}
+        </p>
+        <FoundCompany />
+      </section>
+    );
+  }
   return (
     <>
       <header className="screen-head">
@@ -122,6 +138,15 @@ export function CompanyScreen() {
         </span>
         <Pill>{c.industryLabel}</Pill>
       </header>
+      {/* The company's bank, spending, how long the money lasts and revenue, up front. */}
+      <CompanyKpis c={c} />
+      <SimpleLink
+        to="money"
+        emoji="💰"
+        label={t('Money and investors')}
+        hint={t('Your bank, loans, deal cards and raising money')}
+        badge={view.deals.filter((d) => d.yourTurn).length}
+      />
       <div className="tabs" role="tablist">
         {(
           [

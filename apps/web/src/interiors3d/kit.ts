@@ -684,7 +684,11 @@ export function contactShadow(w: number, d: number, opacity = 0.55): THREE.Mesh 
 
 /** Free a scene graph's GPU memory (shared cached materials and textures are kept). */
 export function disposeTree(root: THREE.Object3D) {
+  // Parts kept for next time (`userData.keep`, ./house.ts's worlds) give up
+  // their GPU copies with the rest but are only taken out, not thrown away.
+  const keep: THREE.Object3D[] = [];
   root.traverse((o) => {
+    if (o !== root && o.userData.keep) keep.push(o);
     const m = o as THREE.Mesh;
     if (m.geometry) m.geometry.dispose();
     const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
@@ -694,6 +698,7 @@ export function disposeTree(root: THREE.Object3D) {
       if (!cached) x.dispose();
     }
   });
+  for (const k of keep) k.removeFromParent();
 }
 
 export const hexOf = (c: THREE.Color) => `#${c.getHexString()}`;

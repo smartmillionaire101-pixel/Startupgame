@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useNav } from '../phone/bus';
+import { LifeBarsPanel } from '../LifeBars';
 import type { Industry, RevenueModel, Stage } from '@runway/engine';
 import { api } from '../api';
 import { LANGS, setLang, t, tx, useLang } from '../i18n';
@@ -11,11 +13,12 @@ import { contactsOf, type ContactView } from '../city/people';
 import { flightsOf } from '../city/travel';
 import { BankPicker } from './common';
 import { WealthCard } from './Capital';
-import { AvatarFigure, avatarLook } from '../city/art';
-import { genderOf } from '../city/life';
+import { MyLook } from '../avatar/EditLook';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
 import { FoundBank } from './Bank';
+import { setSetting, useSimple } from '../phone/settings';
+import { openLiving } from '../experiences/living-bus';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
 
@@ -115,17 +118,15 @@ const milestoneLabels = (): Record<string, string> => ({
 
 function Profile() {
   const { view } = useView();
+  const nav = useNav();
   const me = view.me;
   const skills = Object.entries(me.skills).sort((a, b) => b[1] - a[1]);
   return (
     <>
       <section className="card profile-card">
         <header className="profile-head">
-          <span className="profile-avatar" aria-hidden="true">
-            <svg viewBox="-16 -46 32 50" width="44" height="70">
-              <AvatarFigure look={avatarLook(me.background?.id, me.id, genderOf(me))} />
-            </svg>
-          </span>
+          {/* Phase 6a: your portrait, and the character creator under it. */}
+          <MyLook />
           <span className="profile-who">
             <h2>{me.name}</h2>
             <span className="small muted">@{me.handle}</span>
@@ -158,11 +159,15 @@ function Profile() {
             <span className="small muted">{view.market.name}</span>
           </div>
         </div>
-        <Bar
-          label={t('Energy')}
-          value={me.energy / 100}
-          tone={me.burnout ? 'bad' : me.energy < 40 ? 'warn' : 'good'}
-        />
+        {me.bars ? (
+          <LifeBarsPanel me={me} />
+        ) : (
+          <Bar
+            label={t('Energy')}
+            value={me.energy / 100}
+            tone={me.burnout ? 'bad' : me.energy < 40 ? 'warn' : 'good'}
+          />
+        )}
         <p className="small muted">
           {t('{left} of {total} hours left this month', {
             left: me.hours.left,
@@ -172,9 +177,23 @@ function Profile() {
         </p>
       </section>
       <ProfileDetails key={me.id + me.role} />
+      <Button block data-open-living="" onClick={() => openLiving(me.id)}>
+        {t('🏠 Home & friends')}
+        {view.living.dates.some((d) => d.status === 'invited' && d.guest === me.id)
+          ? ` · ${t('Invitation')}`
+          : ''}
+      </Button>
       {me.role === 'founder' && !view.companies.some((c) => c.status === 'active') && (
         <Card title={t('Set up your business')}>
-          <FoundCompany />
+          <p className="small muted">{t('Your company is set up on My company.')}</p>
+          <Button
+            variant="primary"
+            block
+            data-go-company=""
+            onClick={() => nav?.go({ kind: 'tab', tab: 'company' })}
+          >
+            {t('Set up my company')}
+          </Button>
         </Card>
       )}
       {me.role === 'banker' &&
@@ -1007,6 +1026,24 @@ function MapVisibility() {
   );
 }
 
+/** Simple mode (Phase 2): the same switch as the phone's Settings app. */
+function SimpleModeCard() {
+  const simple = useSimple();
+  return (
+    <Card title={t('Simple mode')}>
+      <label className="row simple-toggle" data-setting="simple">
+        <input
+          type="checkbox"
+          role="switch"
+          checked={simple}
+          onChange={(e) => setSetting('simple', e.target.checked)}
+        />{' '}
+        {t('Bigger text, words on every button, four tabs and one clear next step.')}
+      </label>
+    </Card>
+  );
+}
+
 function Settings() {
   const { view, lite, setLite, refresh, toast, meta } = useView();
   const lang = useLang();
@@ -1027,6 +1064,7 @@ function Settings() {
           ))}
         </div>
       </Card>
+      <SimpleModeCard />
       <Card title={t('Data saver')}>
         <label className="row">
           <input type="checkbox" checked={lite} onChange={(e) => setLite(e.target.checked)} />{' '}

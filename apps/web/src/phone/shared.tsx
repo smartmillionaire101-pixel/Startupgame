@@ -10,6 +10,7 @@ import { useView } from '../store';
 import { Button } from '../ui';
 import { looseCmd } from '../city/life';
 import type { PhoneApp } from './bus';
+import { Portrait } from '../avatar/Portrait';
 import { Icon, type IconName } from './icons';
 
 export type View = PlayerView;
@@ -114,7 +115,45 @@ const initials = (name: string) =>
     .map((w) => w[0]!.toUpperCase())
     .join('');
 
-export function Avatar({ name, ai }: { name: string; ai?: boolean }) {
+/** A player's background and gender come from the view, so the portrait matches the map. */
+function PortraitAvatar({
+  id,
+  ai,
+  bg,
+  gender,
+}: {
+  id: string;
+  ai?: boolean;
+  bg?: string;
+  gender?: 'female' | 'male' | null;
+}) {
+  const { view } = useView();
+  const p = view.players.find((x) => x.id === id);
+  return (
+    <span className={`phone-avatar has-portrait${ai ? ' ai' : ''}`} aria-hidden="true">
+      <Portrait id={id} bg={bg ?? p?.backgroundId} gender={gender ?? p?.gender} size="100%" />
+    </span>
+  );
+}
+
+/**
+ * A person's round picture: their portrait (Phase 6a) when we know who they
+ * are (`id`: a player or an AI character id), otherwise their initials.
+ */
+export function Avatar({
+  name,
+  ai,
+  id,
+  bg,
+  gender,
+}: {
+  name: string;
+  ai?: boolean;
+  id?: string;
+  bg?: string;
+  gender?: 'female' | 'male' | null;
+}) {
+  if (id) return <PortraitAvatar id={id} ai={ai} bg={bg} gender={gender} />;
   return (
     <span className={`phone-avatar${ai ? ' ai' : ''}`} aria-hidden="true">
       {initials(name) || '•'}

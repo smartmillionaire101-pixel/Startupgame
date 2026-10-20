@@ -87,6 +87,101 @@
 .c3-label.is-focus .c3-pill {
   outline: 2px solid #f59e0b;
 }
+/* Icon badges: a round icon, ringed in its category's colour (--ring); a
+   tapped one, your home, company and where you're heading show their name. */
+button.c3-pill {
+  border: 0;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+  margin: 0;
+}
+.c3-label.is-badge .c3-pill {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    inset 0 0 0 2.5px var(--ring, #475569),
+    0 1px 4px rgb(15 23 42 / 0.3);
+}
+.c3-label.is-badge .c3-pill::after {
+  background: var(--ring, #fff);
+  opacity: 0.85;
+}
+.c3-ico {
+  font-size: 15px;
+  line-height: 1;
+}
+.c3-label.is-named .c3-ico {
+  font-size: 13px;
+}
+.c3-label.is-money .c3-pill {
+  background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 70%, #d97706);
+  color: #451a03;
+}
+.c3-label.is-named.is-money .c3-pill {
+  background: linear-gradient(#fde68a, #fbbf24);
+  box-shadow:
+    inset 0 0 0 2px var(--ring),
+    0 1px 4px rgb(15 23 42 / 0.3);
+}
+.c3-label.is-badge .c3-here {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  box-shadow: 0 0 0 1.5px #fff;
+}
+.c3-label.is-badge .c3-new {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  translate: -50% 0;
+  font-size: 8.5px;
+  line-height: 12px;
+}
+.c3-label.is-badge .c3-flag {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+}
+.c3-label.is-heading .c3-pill,
+.c3-label.is-picked .c3-pill {
+  box-shadow:
+    inset 0 0 0 2px #f59e0b,
+    0 0 0 2px rgb(255 255 255 / 0.9),
+    0 2px 8px rgb(15 23 42 / 0.35);
+  z-index: 1;
+}
+.c3-heading {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  translate: -50% 0;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 14px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.c3-pill:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+.c3-label.is-picked {
+  z-index: 2;
+}
+.c3-labels.has-pick .c3-label:not(.is-picked) {
+  opacity: 0.55;
+}
 .c3-dot {
   width: 7px;
   height: 7px;
@@ -213,4 +308,14 @@
 }
 .c3-landmark[data-sky]::after {
   content: ' ↑';
+}
+/* The city on its way (it isn't built behind a place's scene). */
+.c3-waking {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--muted, #78716c);
+  pointer-events: none;
 }

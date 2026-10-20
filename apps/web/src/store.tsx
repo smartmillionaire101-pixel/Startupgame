@@ -14,7 +14,9 @@ import {
 } from 'react';
 import type { Command, PlayerView } from '@runway/engine';
 import { api, ApiError, type Account, type Meta } from './api';
+import { recordProblem } from './feedback';
 import { t, tx } from './i18n';
+import { rememberViewLooks } from './city/acts/look';
 
 type Status = 'loading' | 'signedOut' | 'onboarding' | 'ready' | 'offline';
 
@@ -40,6 +42,8 @@ interface GameContext {
   toast: (text: string, tone?: Toast['tone']) => void;
   toasts: Toast[];
   busy: boolean;
+  /** A screen that needs news fast (a knock at the door) asks for it; returns the undo. */
+  quicken: () => () => void;
 }
 
 const Ctx = createContext<GameContext | null>(null);
@@ -72,9 +76,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [lite, setLiteState] = useState(readLite);
   const versionRef = useRef(0);
+  /** Screens asking for quick updates, for while the server can't stream them. */
+  const [quick, setQuick] = useState(0);
+  const quicken = useCallback(() => {
+    setQuick((n) => n + 1);
+    let done = false;
+    return () => {
+      if (!done) setQuick((n) => n - 1);
+      done = true;
+    };
+  }, []);
+  const [streaming, setStreaming] = useState(true);
   const toastId = useRef(0);
 
   const toast = useCallback((text: string, tone: Toast['tone'] = 'info') => {
+    if (tone === 'error') recordProblem(text);
     const id = ++toastId.current;
     setToasts((t) => [...t.slice(-2), { id, text, tone }]);
     setTimeout(
@@ -87,6 +103,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setAccount(s.account ?? { guest: false, email: null });
     if (s.onboarded) {
       versionRef.current = s.view.worldVersion;
+      // Phase 6a: everyone's saved look, for every drawing of them.
+      rememberViewLooks(s.view);
       setView(s.view);
       setStatus('ready');
     } else {
@@ -184,13 +202,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
     es.onerror = () => {
       // CLOSED means the server won't stream (no retry coming): fall back to polling.
-      if (es.readyState === EventSource.CLOSED) poll(20_000);
+      if (es.readyState === EventSource.CLOSED) {
+        setStreaming(false);
+        poll(20_000);
+      }
     };
     return () => {
       es.close();
       clearInterval(timer);
     };
   }, [status, lite, refresh]);
+
+  // Polling, and a screen wants news fast: every few seconds while it's open.
+  useEffect(() => {
+    if (status !== 'ready' || !quick || (streaming && !lite)) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'hidden') void refresh();
+    }, 4_000);
+    return () => clearInterval(timer);
+  }, [status, quick, streaming, lite, refresh]);
 
   const send = useCallback(
     async <R,>(
@@ -224,8 +254,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ status, view, account, meta, lite, setLite, refresh, send, toast, toasts, busy }),
-    [status, view, account, meta, lite, setLite, refresh, send, toast, toasts, busy],
+    () => ({
+      status,
+      view,
+      account,
+      meta,
+      lite,
+      setLite,
+      refresh,
+      send,
+      toast,
+      toasts,
+      busy,
+      quicken,
+    }),
+    [status, view, account, meta, lite, setLite, refresh, send, toast, toasts, busy, quicken],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -57,7 +57,8 @@ describe('more to do in town (Wave 5)', () => {
           CITY_BUSINESSES[city]!.some((s) => s.kind === k),
           `${city}: ${k}`,
         ).toBe(true);
-    for (const k of BUSINESS_KINDS) {
+    // Professional employers (the jobs rework) hire through their ladders instead.
+    for (const k of BUSINESS_KINDS.filter((x) => !x.kind.startsWith('employer-'))) {
       expect(k.roles.length, k.kind).toBeGreaterThan(0);
       expect(new Set(k.roles.map((r) => r.role)).size, k.kind).toBe(k.roles.length);
       // Wave 6: a job pays a living (0.9–3 COL take-home).

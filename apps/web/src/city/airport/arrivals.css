@@ -1,0 +1,436 @@
+/* Arrivals: the live hall over the sheet with the way on (./arrivals.tsx). */
+.arr-live {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: #0b1220;
+  overflow: hidden;
+}
+
+/* The terminal's sign: the airport's name, lit. */
+.arr-fascia {
+  position: relative;
+  gap: 0.1rem;
+  padding: 0.45rem 1rem 0.5rem;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.06), transparent 40%),
+    linear-gradient(160deg, #0b1220, #172033 65%, #134e4a);
+  border-bottom: 3px solid #fbbf24;
+}
+.arr-fascia::after {
+  /* A strip of downlights under the sign. */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 3px;
+  background: repeating-linear-gradient(90deg, #fde68a 0 18px, #fbbf24 18px 46px);
+}
+.arr-fascia-top {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+.arr-fascia-top .arrival-city {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.arr-fascia .arrival-airport {
+  margin: 0.1rem 0 0;
+  font-size: clamp(1.5rem, 8vw, 2.2rem);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  text-shadow:
+    0 0 18px rgb(253 230 138 / 0.35),
+    0 2px 0 rgb(0 0 0 / 0.45);
+}
+.arr-fascia .arrival-city {
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+.arr-fascia .arrival-sign {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+}
+
+/* The arrivals board: yours first, lit up. */
+.arr-board {
+  padding: 0.3rem 0.5rem 0.35rem;
+}
+.arr-board td {
+  font-size: 9px;
+  line-height: 1;
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+.arr-board .flap {
+  font-size: 9px;
+}
+.arr-board .arr-board-head th {
+  padding: 0 0.15rem 0.15rem;
+  text-align: left;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fde68a;
+}
+.arr-board .is-mine td {
+  background: rgb(250 204 21 / 0.18);
+}
+.arr-board .is-mine td:first-child {
+  box-shadow: inset 3px 0 0 #facc15;
+}
+.arr-board .is-mine .flap {
+  color: #fde047;
+}
+.arr-board .is-mine .board-status .flap {
+  color: #4ade80;
+}
+
+/* The hall itself. */
+.arr-hall {
+  position: relative;
+  height: clamp(180px, 26vh, 260px);
+  overflow: hidden;
+  cursor: pointer;
+}
+.arr-hall[data-arrival-scene='hall'] {
+  cursor: default;
+}
+.arr-hall svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Moving parts. */
+.arr-taxi {
+  animation: arr-taxi 24s linear infinite;
+  animation-delay: -9s;
+}
+@keyframes arr-taxi {
+  from {
+    transform: translateX(-140px);
+  }
+  to {
+    transform: translateX(540px);
+  }
+}
+.arr-climb {
+  animation: arr-climb 17s linear infinite;
+}
+@keyframes arr-climb {
+  0% {
+    transform: translate(-60px, 52px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  60% {
+    transform: translate(240px, -4px);
+    opacity: 1;
+  }
+  70%,
+  100% {
+    transform: translate(300px, -16px);
+    opacity: 0;
+  }
+}
+.arr-beams {
+  animation: arr-beam 7s ease-in-out infinite alternate;
+}
+@keyframes arr-beam {
+  from {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.arr-walker {
+  animation: arr-walk 16s linear infinite;
+}
+.arr-walker.is-left {
+  animation-direction: reverse;
+}
+@keyframes arr-walk {
+  from {
+    transform: translateX(-60px);
+  }
+  to {
+    transform: translateX(470px);
+  }
+}
+/* The carousel: each bag rides the oval (two eased sways make the ellipse). */
+.arr-bag-x {
+  animation: arr-bag-x 7s cubic-bezier(0.37, 0, 0.63, 1) infinite alternate;
+}
+.arr-bag-y {
+  animation: arr-bag-y 7s cubic-bezier(0.37, 0, 0.63, 1) infinite alternate;
+}
+@keyframes arr-bag-x {
+  from {
+    transform: translateX(-137px);
+  }
+  to {
+    transform: translateX(137px);
+  }
+}
+@keyframes arr-bag-y {
+  from {
+    transform: translateY(-25px);
+  }
+  to {
+    transform: translateY(25px);
+  }
+}
+.arr-plates {
+  animation: arr-plates 1.4s linear infinite;
+}
+@keyframes arr-plates {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+.arr-mine-in {
+  animation: arr-fade-in 0.4s ease-out 1.2s backwards;
+}
+.arr-mine-tag {
+  animation: arr-bob 1.1s ease-in-out infinite alternate;
+}
+@keyframes arr-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes arr-bob {
+  to {
+    transform: translateY(-3px);
+  }
+}
+/* Passport control: the stamp comes down, the light turns green. */
+.arr-stamp {
+  animation: arr-stamp 1.1s ease-in 0.5s backwards;
+}
+@keyframes arr-stamp {
+  0% {
+    transform: translate(0, -14px);
+  }
+  70% {
+    transform: translate(-8px, 8px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+.arr-ok {
+  animation: arr-pop 0.4s ease-out 1.4s backwards;
+}
+@keyframes arr-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.arr-lamp {
+  animation: arr-blink 1.6s steps(1) infinite;
+}
+@keyframes arr-blink {
+  50% {
+    fill: #f8fafc;
+  }
+}
+/* The hall: doors sliding, steam off the coffee, a cab pulling in, your sign. */
+.arr-door-l {
+  animation: arr-door-l 6s ease-in-out infinite;
+}
+.arr-door-r {
+  animation: arr-door-r 6s ease-in-out infinite;
+}
+@keyframes arr-door-l {
+  0%,
+  15%,
+  70%,
+  100% {
+    transform: translateX(0);
+  }
+  30%,
+  55% {
+    transform: translateX(-24px);
+  }
+}
+@keyframes arr-door-r {
+  0%,
+  15%,
+  70%,
+  100% {
+    transform: translateX(0);
+  }
+  30%,
+  55% {
+    transform: translateX(24px);
+  }
+}
+.arr-steam {
+  animation: arr-steam 2.4s ease-out infinite;
+}
+@keyframes arr-steam {
+  from {
+    opacity: 0.9;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+.arr-cab {
+  animation: arr-cab 11s ease-in-out infinite;
+}
+@keyframes arr-cab {
+  0% {
+    transform: translateX(80px);
+  }
+  25%,
+  70% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-90px);
+  }
+}
+.arr-your-sign > rect {
+  animation: arr-glow 1.4s ease-in-out infinite alternate;
+}
+@keyframes arr-glow {
+  to {
+    stroke: #facc15;
+  }
+}
+
+/* Calm (Lite, reduced motion): the same hall, standing still. */
+.arr-live.is-calm *,
+:root[data-reduce-motion='1'] .arr-live * {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .arr-live * {
+    animation: none !important;
+  }
+}
+
+/* The sheet: over the bottom of the hall, the steps first, then the way on. */
+.place-scene.airport-scene:not(.is-more) .arrival-sheet {
+  position: relative;
+  flex: 1 1 auto;
+  margin-top: -10px;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -6px 20px rgb(0 0 0 / 0.18);
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem 1rem;
+}
+.arr-guide {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.45rem 0.55rem;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+.arr-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.arr-step {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.arr-step.is-now {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.arr-step.is-done {
+  color: var(--good);
+}
+.arr-caption {
+  font-size: 0.82rem;
+  line-height: 1.3;
+  color: var(--text);
+}
+.arr-guide-go {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.arr-next {
+  flex: 1;
+  min-height: 40px;
+}
+.arr-skip {
+  min-height: 44px;
+  padding: 0 0.9rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.arr-driver {
+  margin-top: 0.15rem;
+  overflow-wrap: anywhere;
+}
+.place-scene.airport-scene:not(.is-more) .arrival-sheet .arrival-sights button {
+  min-height: 60px;
+}
+.place-scene.airport-scene:not(.is-more) .arrival-sheet .arrival-stay {
+  padding: 0.5rem 0.7rem;
+}
+.place-scene.airport-scene:not(.is-more) .arrival-sheet .arrival-stay-icon {
+  font-size: 1.5rem;
+}
+.place-scene.airport-scene:not(.is-more) .arrival-sheet .arrival-title {
+  font-size: 1.15rem;
+}
+
+/* Holiday with friends: your companions in the hall, and who's with you. */
+.arr-party {
+  margin: 0.15rem 0 0;
+  color: #0f766e;
+  font-weight: 600;
+}
+.arr-friend.is-waiting .city-person {
+  animation: arr-friend-wave 1.6s ease-in-out infinite alternate;
+  transform-origin: 0 0;
+}
+@keyframes arr-friend-wave {
+  to {
+    transform: translateY(-1.5px);
+  }
+}
+.arr-live.is-calm .arr-friend .city-person {
+  animation: none;
+}

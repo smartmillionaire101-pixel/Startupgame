@@ -1,7 +1,15 @@
 /**
  * Messages: chats with players and AI characters (Wave 5 §C).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { api, type AiThread, type ChatMessage, type ChatSummary } from '../../api';
 import { getLang, t, tx } from '../../i18n';
 import { useView } from '../../store';
@@ -126,7 +134,9 @@ export function MessagesList({
       unread: x.unread,
       ai: true,
     })),
-  ].sort((a, b) => b.lastAt - a.lastAt);
+    // Ties (never-messaged threads) keep a fixed order, so the list doesn't
+    // shuffle when a poll brings the same threads back in another order.
+  ].sort((a, b) => b.lastAt - a.lastAt || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   return (
     <>
       <Button onClick={onNew}>{t('New message')}</Button>
@@ -139,7 +149,7 @@ export function MessagesList({
           {convos.map((c) => (
             <li key={c.key}>
               <button className="phone-row" onClick={() => onOpen(c.ref)}>
-                <Avatar name={c.name} ai={c.ai} />
+                <Avatar name={c.name} ai={c.ai} id={'player' in c.ref ? c.ref.player : c.ref.ai} />
                 <span className="phone-row-main">
                   <span className="item-title">{c.name}</span>
                   <span className="small muted">{c.sub}</span>
@@ -189,7 +199,7 @@ export function NewMessage({ onPick }: { onPick: (r: ThreadRef) => void }) {
             {shownPlayers.map((p) => (
               <li key={p.id}>
                 <button className="phone-row" onClick={() => onPick({ player: p.id })}>
-                  <Avatar name={p.name} />
+                  <Avatar name={p.name} id={p.id} />
                   <span className="phone-row-main">
                     <span className="item-title">{p.name}</span>
                     <span className="small muted">{kindName(p.role)}</span>
@@ -216,7 +226,7 @@ export function NewMessage({ onPick }: { onPick: (r: ThreadRef) => void }) {
                     data-character={p.id}
                     onClick={() => onPick({ ai: p.id })}
                   >
-                    <Avatar name={p.name} ai />
+                    <Avatar name={p.name} ai id={p.id} />
                     <span className="phone-row-main">
                       <span className="item-title">{p.name}</span>
                       <span className="small muted">
@@ -246,29 +256,88 @@ const QUICK: Record<string, (() => string)[]> = {
   owner: [() => t('What do you need to buy?'), () => t('Any work going?'), () => t('Can we meet?')],
 };
 
-function ChatLog({ messages, typing }: { messages: ChatMessage[]; typing?: boolean }) {
-  const end = useRef<HTMLDivElement>(null);
+/** How close to the bottom (px) still counts as "reading the newest message". */
+const STICK_PX = 48;
+
+/**
+ * Keeps a chat log on its newest message, the way a messaging app does: a new
+ * message, a card that grows, or the log shrinking when the on-screen keyboard
+ * opens keep you at the bottom, unless you've scrolled up to read, in which
+ * case nothing moves under you. It scrolls the log itself: the old
+ * `scrollIntoView` also scrolled every box around it (the phone, the page
+ * behind it on iOS) and put the newest message under the sticky message box.
+ * Gives the refs for the log (the scroller) and its items (what grows), and
+ * `pin()`, to jump to the bottom after you send something.
+ */
+export function useStickToBottom(dep: unknown) {
+  const log = useRef<HTMLDivElement>(null);
+  const items = useRef<HTMLDivElement>(null);
+  const stuck = useRef(true);
+  const toEnd = useCallback(() => {
+    const el = log.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
   useEffect(() => {
-    end.current?.scrollIntoView?.({ block: 'end' });
-  }, [messages.length, typing]);
+    const el = log.current;
+    if (!el) return;
+    const onScroll = () => {
+      stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_PX;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    // The log resizing (the keyboard) or its content growing (a card's buttons,
+    // a voice note) without a new message: stay at the bottom if you were there.
+    const ro =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => {
+            if (stuck.current) toEnd();
+          });
+    ro?.observe(el);
+    if (items.current) ro?.observe(items.current);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      ro?.disconnect();
+    };
+  }, [toEnd]);
+  // Before paint, so a new message never shows a frame in the wrong place.
+  useLayoutEffect(() => {
+    if (stuck.current) toEnd();
+  }, [dep, toEnd]);
+  const pin = useCallback(() => {
+    stuck.current = true;
+    toEnd();
+  }, [toEnd]);
+  return { log, items, pin };
+}
+
+function ChatLog({ messages, typing }: { messages: ChatMessage[]; typing?: boolean }) {
+  const { log, items } = useStickToBottom(`${messages.length}:${typing ? 1 : 0}`);
   return (
-    <div className="phone-log" aria-live="polite">
-      {messages.map((m) => (
-        <div key={m.id} className={`bubble${m.mine ? ' mine' : ''}`}>
-          {m.text}
-        </div>
-      ))}
-      {typing && (
-        <div className="bubble phone-typing" aria-label={t('Typing…')}>
-          <span />
-          <span />
-          <span />
-        </div>
-      )}
-      <div ref={end} />
+    <div className="phone-log" aria-live="polite" ref={log}>
+      <div className="phone-log-items" ref={items}>
+        {messages.map((m) => (
+          <div key={m.id} className={`bubble${m.mine ? ' mine' : ''}`}>
+            {m.text}
+          </div>
+        ))}
+        {typing && (
+          <div className="bubble phone-typing" aria-label={t('Typing…')}>
+            <span />
+            <span />
+            <span />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+/**
+ * Tapping Send mustn't take focus from the message box: on a phone that
+ * closes the on-screen keyboard, the whole chat jumps down, and the next tap
+ * in the box opens it again and jumps it back up. The tap still sends.
+ */
+const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault();
 
 function Composer({
   value,
@@ -297,7 +366,12 @@ function Composer({
         maxLength={meta?.chatMaxLength ?? 280}
         onChange={(e) => onChange(e.target.value)}
       />
-      <button className="btn btn-primary" type="submit" disabled={!value.trim() || disabled}>
+      <button
+        className="btn btn-primary"
+        type="submit"
+        disabled={!value.trim() || disabled}
+        onMouseDown={keepFocus}
+      >
         {t('Send')}
       </button>
     </form>
@@ -313,16 +387,22 @@ export function AiThreadView({
   say?: string;
   onClose: () => void;
 }) {
-  const { toast } = useView();
+  const { toast, lite } = useView();
   const [thread, setThread] = useState<AiThread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
   const [typing, setTyping] = useState(false);
   const [missing, setMissing] = useState(false);
   const said = useRef(false);
+  const shown = useRef(messages);
+  useEffect(() => {
+    shown.current = messages;
+  }, [messages]);
 
   const post = useCallback(
     async (body: string) => {
+      const same = (ms: ChatMessage[]) => ms.filter((m) => m.mine && m.id > 0 && m.text === body);
+      const before = same(shown.current).length;
       const mine: ChatMessage = { id: -Date.now(), mine: true, text: body, at: Date.now() };
       setMessages((m) => [...m, mine]);
       setTyping(true);
@@ -333,9 +413,22 @@ export function AiThreadView({
         setMessages((m) => [...m, r.reply]);
         return true;
       } catch (e) {
-        setMessages((m) => m.filter((x) => x !== mine));
-        toast(tx((e as Error).message), 'error');
-        return false;
+        // The request can be cut off after your message was kept (a slow
+        // connection, the host's time limit): show the thread as it really
+        // is. A message that was kept gets its answer (see the poll below).
+        const kept = await api.aiThread(id, getLang()).then(
+          (r) => {
+            setThread(r.thread);
+            setMessages(r.messages);
+            return same(r.messages).length > before;
+          },
+          () => false,
+        );
+        if (!kept) {
+          setMessages((m) => m.filter((x) => x !== mine));
+          toast(tx((e as Error).message), 'error');
+        }
+        return kept;
       } finally {
         setTyping(false);
       }
@@ -345,7 +438,7 @@ export function AiThreadView({
 
   useEffect(() => {
     let live = true;
-    api.aiThread(id).then(
+    api.aiThread(id, getLang()).then(
       (r) => {
         if (!live) return;
         setThread(r.thread);
@@ -362,13 +455,40 @@ export function AiThreadView({
     };
   }, [id, say, post]);
 
+  // Your message without an answer yet (not while it's being sent): look
+  // again every few seconds, so the answer shows when it's there.
+  const last = messages[messages.length - 1];
+  const waiting = !typing && !!last?.mine && last.id > 0;
+  useEffect(() => {
+    if (!waiting) return;
+    let live = true;
+    const timer = setInterval(
+      () => {
+        if (document.visibilityState === 'hidden') return;
+        void api.aiThread(id, getLang()).then(
+          (r) => {
+            if (!live) return;
+            setThread(r.thread);
+            setMessages(r.messages);
+          },
+          () => {},
+        );
+      },
+      lite ? 15_000 : 4_000,
+    );
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [id, waiting, lite]);
+
   if (missing) return <Empty>{t('This person isn’t around any more.')}</Empty>;
   if (!thread) return <p className="muted small">{t('Loading…')}</p>;
   const quick = QUICK[thread.kind ?? ''] ?? [() => t('Hello!'), () => t('Any advice?')];
   return (
     <div className="phone-thread" data-thread={thread.characterId}>
       <div className="phone-thread-head">
-        <Avatar name={thread.name} ai />
+        <Avatar name={thread.name} ai id={thread.characterId} />
         <div className="phone-row-main">
           <div className="item-title">{thread.name}</div>
           <div className="small muted">
@@ -491,6 +611,7 @@ function PlayerComposer({
           type="submit"
           aria-label={t('Send')}
           disabled={!value.trim()}
+          onMouseDown={keepFocus}
         >
           <span className="chat-send-text">{t('Send')}</span>
           <span className="chat-send-icon" aria-hidden="true">
@@ -527,12 +648,42 @@ export function PlayerThreadView({
   const [busy, setBusy] = useState(false);
   const other = view.players.find((p) => p.id === playerId);
   const lastSeenId = useRef<number | null>(null);
+  /**
+   * Messages you sent that the server hasn't shown back yet, drawn straight
+   * away. The server's copy takes the place of one in the same render (never
+   * both on screen, never neither): a load that has a message of yours with
+   * the same text, newer than the last one shown when you sent (`since`), or
+   * any load asked for after the send finished (`after`), which must have it.
+   */
+  const [pending, setPending] = useState<
+    { key: number; text: string; since: number; after: number | null }[]
+  >([]);
+  const pendingKey = useRef(0);
+  // Loads asked for, and the newest one shown. The 4 s poll and the reload
+  // after you send overlap: an older answer arriving last used to replace the
+  // newer one, so the message you'd just sent vanished until the next poll.
+  const asked = useRef(0);
+  const shown = useRef(0);
 
   const load = useCallback(() => {
     if (!chatId) return;
+    const n = ++asked.current;
     void api.messages(chatId).then(
       (r) => {
+        if (n < shown.current) return;
+        shown.current = n;
         setData(r);
+        setPending((p) => {
+          if (!p.length) return p;
+          const echoed = r.messages.filter((m) => m.mine);
+          return p.filter((x) => {
+            if (x.after !== null && x.after < n) return false;
+            const i = echoed.findIndex((m) => m.id > x.since && m.text === x.text);
+            if (i < 0) return true;
+            echoed.splice(i, 1);
+            return false;
+          });
+        });
         const last = r.messages[r.messages.length - 1];
         markSeen({ id: chatId, lastAt: last?.at ?? null });
         // Money (or a home) just arrived from them: show it in your balance now.
@@ -547,6 +698,32 @@ export function PlayerThreadView({
       (e: Error) => toast(tx(e.message), 'error'),
     );
   }, [chatId, markSeen, toast, refresh]);
+
+  // No chat with them in the list you have (it's refreshed every so often):
+  // they may have just written to you. Look it up now, and while you're here.
+  useEffect(() => {
+    if (chatId) return;
+    let live = true;
+    const find = () =>
+      void api.chats().then(
+        (r) => {
+          const c = r.chats.find((x) => x.with.id === playerId);
+          if (live && c) setChatId((cur) => cur ?? c.id);
+        },
+        () => {},
+      );
+    find();
+    const timer = setInterval(
+      () => {
+        if (document.visibilityState !== 'hidden') find();
+      },
+      lite ? 15_000 : 4_000,
+    );
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [chatId, playerId, lite]);
 
   useEffect(() => {
     if (!chatId) return;
@@ -567,19 +744,27 @@ export function PlayerThreadView({
 
   const sendMsg = async () => {
     const body = text;
+    const key = --pendingKey.current;
     setText('');
+    setPending((p) => [...p, { key, text: body, since: lastSeenId.current ?? 0, after: null }]);
+    pin();
+    const sent = () =>
+      setPending((p) => p.map((x) => (x.key === key ? { ...x, after: asked.current } : x)));
     try {
       if (!chatId) {
         // The first message you type starts the chat.
         const r = await api.startChat(playerId, body);
         if (r.flagged) toast(t('Careful: that looks like a common scam pattern.'), 'info');
+        sent();
         setChatId(r.chat.id);
         return;
       }
       const r = await api.send(chatId, body);
       if (r.flagged) toast(t('Careful: that looks like a common scam pattern.'), 'info');
+      sent();
       load();
     } catch (e) {
+      setPending((p) => p.filter((x) => x.key !== key));
       setText(body);
       toast(tx((e as Error).message), 'error');
     }
@@ -616,77 +801,86 @@ export function PlayerThreadView({
   };
 
   const messages = data?.messages ?? [];
+  const { log, items, pin } = useStickToBottom(`${messages.length}:${pending.length}`);
   return (
     <div className="phone-thread" data-player-thread={playerId}>
       <div className="phone-thread-head">
-        <Avatar name={name} />
+        <Avatar name={name} id={playerId} />
         <div className="phone-row-main">
           <div className="item-title">{name}</div>
           {other && <div className="small muted">{kindName(other.role)}</div>}
         </div>
       </div>
-      <div className="phone-log" aria-live="polite">
-        {chatId && messages.length === 0 && !data && <p className="small muted">{t('Loading…')}</p>}
-        {!chatId && <p className="small muted chat-empty">{t('No messages yet. Say hello 👋')}</p>}
-        {chatId &&
-          messages.map((m) => (
-            <PlayerMessage
-              key={m.id}
-              m={m}
-              chatId={chatId}
-              partner={partner}
-              ctx={ctx}
-              onChanged={load}
-            />
+      {/* The log is the only thing that scrolls: the head stays on top and the
+          message box at the bottom, and the newest message is never under it. */}
+      <div className="phone-log" aria-live="polite" ref={log}>
+        <div className="phone-log-items" ref={items}>
+          {/* The rules and Block / Report open the chat, above its first message,
+              rather than under the message box, where they pushed it up and down. */}
+          {!blocked && (
+            <div className="chat-intro">
+              <p className="small muted">
+                {t('No links, numbers, emails or handles. Commitments happen on deal cards.')}
+              </p>
+              {chatId && (
+                <div className="row">
+                  <Button variant="ghost" onClick={() => void api.block(chatId).then(load)}>
+                    {t('Block')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() =>
+                      void api.report(chatId, 'scam').then(() => {
+                        toast(t('Reported. A moderator will review.'), 'ok');
+                        load();
+                      })
+                    }
+                  >
+                    {t('Report')}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          {chatId && messages.length === 0 && !data && pending.length === 0 && (
+            <p className="small muted">{t('Loading…')}</p>
+          )}
+          {!chatId && pending.length === 0 && (
+            <p className="small muted chat-empty">{t('No messages yet. Say hello 👋')}</p>
+          )}
+          {chatId &&
+            messages.map((m) => (
+              <PlayerMessage
+                key={m.id}
+                m={m}
+                chatId={chatId}
+                partner={partner}
+                ctx={ctx}
+                onChanged={load}
+              />
+            ))}
+          {pending.map((p) => (
+            <div key={p.key} className="bubble mine chat-pending" data-pending aria-busy="true">
+              {p.text}
+            </div>
           ))}
-        <ScrollEnd dep={messages.length} />
+        </div>
       </div>
       {blocked ? (
         <p className="small muted">{t('This chat is blocked.')}</p>
       ) : (
-        <>
-          <ChatActions partner={partner} act={act} busy={busy}>
-            {(plus) => (
-              <PlayerComposer
-                value={text}
-                onChange={setText}
-                onSend={() => void sendMsg()}
-                onVoice={sendVoice}
-                plus={other?.ai ? undefined : plus}
-              />
-            )}
-          </ChatActions>
-          <p className="small muted">
-            {t('No links, numbers, emails or handles. Commitments happen on deal cards.')}
-          </p>
-          {chatId && (
-            <div className="row">
-              <Button variant="ghost" onClick={() => void api.block(chatId).then(load)}>
-                {t('Block')}
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  void api.report(chatId, 'scam').then(() => {
-                    toast(t('Reported. A moderator will review.'), 'ok');
-                    load();
-                  })
-                }
-              >
-                {t('Report')}
-              </Button>
-            </div>
+        <ChatActions partner={partner} act={act} busy={busy} goPlace={ctx?.goPlace}>
+          {(plus) => (
+            <PlayerComposer
+              value={text}
+              onChange={setText}
+              onSend={() => void sendMsg()}
+              onVoice={sendVoice}
+              plus={other?.ai ? undefined : plus}
+            />
           )}
-        </>
+        </ChatActions>
       )}
     </div>
   );
-}
-
-function ScrollEnd({ dep }: { dep: number }) {
-  const end = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    end.current?.scrollIntoView?.({ block: 'end' });
-  }, [dep]);
-  return <div ref={end} />;
 }

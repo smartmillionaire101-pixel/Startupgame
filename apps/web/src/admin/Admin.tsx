@@ -378,6 +378,7 @@ export default function Admin() {
                 </div>
               </section>
             </div>
+            <Notes />
             <section className="admin-panel admin-section" id="players">
               <div className="admin-section-heading">
                 <div>
@@ -554,5 +555,116 @@ function Breakdown({ name, count, total }: { name: string; count: number; total:
         <div style={{ width: `${total ? (count / total) * 100 : 0}%` }} />
       </div>
     </div>
+  );
+}
+
+interface Note {
+  id: string;
+  kind: 'player' | 'client' | 'server';
+  player: string | null;
+  text: string;
+  context: Record<string, string>;
+  created_at: number;
+}
+const TOPICS: Record<string, string> = {
+  bug: '🐞 Something broke',
+  confusing: '🤔 Confusing',
+  idea: '💡 Idea',
+  love: '❤️ Love it',
+  other: '💬 Other',
+};
+const when = (n: number) =>
+  new Date(n).toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+/** What players wrote from the game's Feedback button, and the errors they hit. */
+function Notes() {
+  const [notes, setNotes] = useState<{ feedback: Note[]; errors: Note[] } | null>(null);
+  const [tab, setTab] = useState<'feedback' | 'errors'>('feedback');
+  useEffect(() => {
+    let stopped = false;
+    const load = async () => {
+      if (document.hidden) return;
+      try {
+        const r = await fetch('/api/admin/feedback', { cache: 'no-store' });
+        if (r.ok && !stopped) setNotes(await r.json());
+      } catch {
+        /* the dashboard above shows connection problems */
+      }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 30_000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, []);
+  if (!notes) return null;
+  const rows = tab === 'feedback' ? notes.feedback : notes.errors;
+  return (
+    <section className="admin-panel admin-section" id="feedback" data-admin-feedback="">
+      <div className="admin-section-heading">
+        <div>
+          <h2>Feedback and errors</h2>
+          <p>Sent from the game’s Feedback button, and errors players ran into. Newest first.</p>
+        </div>
+        <div className="admin-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'feedback'}
+            onClick={() => setTab('feedback')}
+          >
+            Feedback <span className="admin-chip">{number(notes.feedback.length)}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'errors'}
+            onClick={() => setTab('errors')}
+          >
+            Errors <span className="admin-chip">{number(notes.errors.length)}</span>
+          </button>
+        </div>
+      </div>
+      {!rows.length && <p>{tab === 'feedback' ? 'No feedback yet.' : 'No errors recorded. 🎉'}</p>}
+      <ul className="admin-notes">
+        {rows.map((n) => (
+          <li key={n.id} data-note-kind={n.kind}>
+            <div className="admin-note-head">
+              <b>
+                {n.kind === 'player'
+                  ? (TOPICS[n.context.topic ?? ''] ?? 'Feedback')
+                  : n.kind === 'client'
+                    ? 'Crash on a phone'
+                    : 'Server error'}
+              </b>
+              <span>
+                {n.player ?? 'Signed out'}
+                {n.context.city ? ` · ${n.context.city}` : ''} · {when(n.created_at)}
+              </span>
+            </div>
+            <p className="admin-note-text">{n.text}</p>
+            <details>
+              <summary>Details</summary>
+              <dl>
+                {Object.entries(n.context)
+                  .filter(([k]) => k !== 'topic')
+                  .map(([k, v]) => (
+                    <div key={k}>
+                      <dt>{k}</dt>
+                      <dd>{v}</dd>
+                    </div>
+                  ))}
+              </dl>
+            </details>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

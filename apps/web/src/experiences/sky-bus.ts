@@ -22,15 +22,29 @@ export function closeSky() {
 
 /**
  * A city's sky views are on screen: fetch the view's code, map and terrain
- * and make its canvas in a quiet moment, so a tap goes up at once.
+ * and make its canvas in a quiet moment, so a tap goes up at once. Returns a
+ * cancel: the list gone before that moment came (you picked somewhere else,
+ * going home say), the canvas isn't made in the middle of opening it.
  */
-export function prewarmSky(city: string) {
+export function prewarmSky(city: string): () => void {
+  let gone = false;
   const go = () => {
+    if (gone) return;
     import('./Panorama').then(
-      (m) => m.prewarm(city),
+      (m) => !gone && m.prewarm(city),
       () => {},
     );
   };
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 2000 });
-  else setTimeout(go, 300);
+  if (typeof requestIdleCallback === 'function') {
+    const id = requestIdleCallback(go, { timeout: 2000 });
+    return () => {
+      gone = true;
+      cancelIdleCallback(id);
+    };
+  }
+  const t = setTimeout(go, 300);
+  return () => {
+    gone = true;
+    clearTimeout(t);
+  };
 }

@@ -8,8 +8,22 @@ import { hash } from './contract';
 import type { Flavour, LandmarkKind, TreeKind, VehicleSpec } from './flavour';
 import { project, TH, TW, type Decor, type Place, type Pt } from './layout';
 import { BridgeTop, BusinessBody, Hill, PlanLandmark, Station } from './art-places';
-import { lookOverride } from './acts/look';
+import {
+  SKIN_TONES,
+  defaultAppearance,
+  fitAppearance,
+  seedGender,
+  type Appearance,
+  type FaceShape,
+  type FacialHair,
+  type Glasses,
+  type HairStyle,
+  type Headwear,
+  type TopStyle,
+} from '@runway/engine';
+import { homeOf, lookOverride, savedLook } from './acts/look';
 import { PlaneTop } from './airport/planes';
+import { facialHairColour } from '../avatar/tone';
 
 // ---------------------------------------------------------------------------
 // Geometry and colour helpers
@@ -1461,6 +1475,102 @@ function BuildingBody({ p, f }: { p: Place; f: Flavour }) {
           <Box x={x - 0.08} y={y - 0.08} w={w + 0.16} d={d + 0.16} h={3} z={h} color={a} />
         </g>
       );
+    case 'golf': {
+      // The course: mown grass, a fairway to a green with its flag, a bunker
+      // and a pond, trees round the edge, the clubhouse by the road.
+      const g = (u: number, v: number) => project(x + u * w, y + v * d);
+      const ell = (u: number, v: number, rx: number, ry: number, fill: string, k: string) => {
+        const o = g(u, v);
+        return <ellipse key={k} cx={r1(o.x)} cy={r1(o.y)} rx={rx} ry={ry} fill={fill} />;
+      };
+      const flag = g(0.22, 0.25);
+      return (
+        <g data-motif="golf">
+          <polygon
+            points={poly(P(x, y), P(x + w, y), P(x + w, y + d), P(x, y + d))}
+            fill="#4d9a2a"
+          />
+          <polygon
+            points={poly(
+              P(x + w * 0.7, y + d * 0.82),
+              P(x + w * 0.85, y + d * 0.7),
+              P(x + w * 0.3, y + d * 0.15),
+              P(x + w * 0.12, y + d * 0.3),
+            )}
+            fill="#7cc242"
+          />
+          {ell(0.22, 0.25, 16, 8, '#a3e05a', 'green')}
+          {ell(0.42, 0.18, 7, 3.5, '#f3e3a1', 'bunker')}
+          {ell(0.55, 0.6, 9, 4.5, '#38bdf8', 'pond')}
+          {ell(0.78, 0.8, 5, 2.5, '#a3e05a', 'tee')}
+          <line
+            x1={r1(flag.x)}
+            y1={r1(flag.y)}
+            x2={r1(flag.x)}
+            y2={r1(flag.y - 16)}
+            stroke="#f8fafc"
+            strokeWidth="1.2"
+          />
+          <polygon
+            points={`${r1(flag.x)},${r1(flag.y - 16)} ${r1(flag.x + 8)},${r1(flag.y - 13)} ${r1(flag.x)},${r1(flag.y - 10)}`}
+            fill="#ef4444"
+          />
+          {[
+            [0.05, 0.08],
+            [0.92, 0.1],
+            [0.95, 0.45],
+            [0.06, 0.62],
+            [0.35, 0.92],
+          ].map(([u, v], k) => (
+            <Tree key={k} x={x + u! * w} y={y + v! * d} kind={f.tree} leaf={f.leaf} size={0.8} />
+          ))}
+          <Box x={x + w - 1.0} y={y + d - 0.75} w={0.9} d={0.6} h={h} color="#f1ede4" />
+          <Gable x={x + w - 1.05} y={y + d - 0.8} w={1.0} d={0.7} z={h} rise={8} color="#14532d" />
+        </g>
+      );
+    }
+    case 'mall': {
+      // A long glass-fronted mall with a lit sign band and an entrance canopy.
+      return (
+        <g data-motif="mall">
+          <Box
+            x={x}
+            y={y}
+            w={w}
+            d={d}
+            h={h}
+            color={c}
+            left={mix(c, '#7dd3fc', 0.55)}
+            right={mix(c, '#0369a1', 0.3)}
+          />
+          <g transform={leftM(x, y, d, h)}>
+            {Array.from({ length: Math.floor(w / 0.25) }, (_, i) => (
+              <rect
+                key={i}
+                x={0.06 + i * 0.25}
+                y={12}
+                width={0.02}
+                height={h - 12}
+                fill="#fff"
+                opacity="0.55"
+              />
+            ))}
+            <rect x={0} y={2} width={w} height={8} fill={a} />
+            <rect x={w / 2 - 0.4} y={h - 14} width={0.8} height={14} fill="#0f172a" opacity="0.7" />
+          </g>
+          <Box x={x + w / 2 - 0.55} y={y + d} w={1.1} d={0.25} h={2} z={13} color="#f8fafc" />
+          <Box
+            x={x + 0.3}
+            y={y + 0.3}
+            w={w - 0.6}
+            d={d - 0.6}
+            h={6}
+            z={h}
+            color={shade(c, -0.08)}
+          />
+        </g>
+      );
+    }
     case 'hall': {
       const arc = (len: number) => `M 0 0 Q ${len / 2} -22 ${len} 0 Z`;
       return (
@@ -1507,7 +1617,7 @@ export const Building = memo(function Building({ p, f }: { p: Place; f: Flavour 
       data-category={p.category}
       className={`city-building${p.dim ? ' is-dim' : ''}`}
     >
-      {p.motif !== 'stall' && p.motif !== 'b-stall' && (
+      {p.motif !== 'stall' && p.motif !== 'b-stall' && p.motif !== 'golf' && (
         <Shadow x={p.x} y={p.y} w={p.w} d={p.d} h={p.h} />
       )}
       <BuildingBody p={p} f={f} />
@@ -1664,26 +1774,23 @@ export function VehicleShape({ spec, axis }: { spec: VehicleSpec; axis: 'x' | 'y
 export interface AvatarLook {
   skin: string;
   hair: string;
-  hairStyle: 'short' | 'afro' | 'bun' | 'long' | 'braids' | 'buzz';
+  hairStyle: HairStyle;
   top: string;
   bottom: string;
+  /** Worn with the outfit (a background's tie, lanyard or scarf); glasses and caps also have their own parts. */
   accessory: 'glasses' | 'tie' | 'cap' | 'lanyard' | 'scarf' | 'none';
   /** Wave 5: the player's choice (AI characters: from their seed). */
   gender?: 'female' | 'male';
+  /** Phase 6a (the character creator). Missing in hand-made looks: drawn as before. */
+  face?: FaceShape;
+  facialHair?: FacialHair;
+  glasses?: Glasses;
+  headwear?: Headwear;
+  topStyle?: TopStyle;
+  /** Trousers, never a skirt (golf clothes). */
+  trousers?: boolean;
 }
 
-const SKINS = [
-  '#5c3a21',
-  '#7a4a2a',
-  '#8d5524',
-  '#a0673a',
-  '#c68642',
-  '#e0ac69',
-  '#f1c27d',
-  '#ffdbac',
-];
-const HAIRS = ['#120c08', '#2b1b10', '#4a2c17', '#0f0f0f', '#7a4b24', '#3f3f46'];
-const STYLES: AvatarLook['hairStyle'][] = ['short', 'afro', 'bun', 'long', 'braids', 'buzz'];
 const OUTFITS: Record<string, Pick<AvatarLook, 'top' | 'bottom' | 'accessory'>> = {
   'f-engineer': { top: '#0f766e', bottom: '#1e293b', accessory: 'glasses' },
   'f-banker': { top: '#1e3a8a', bottom: '#1e293b', accessory: 'tie' },
@@ -1705,41 +1812,121 @@ const OUTFITS: Record<string, Pick<AvatarLook, 'top' | 'bottom' | 'accessory'>> 
   'b-wealthy': { top: '#a16207', bottom: '#1f2937', accessory: 'scarf' },
 };
 
-const FEMALE_STYLES: AvatarLook['hairStyle'][] = ['bun', 'long', 'braids', 'afro'];
-const MALE_STYLES: AvatarLook['hairStyle'][] = ['short', 'buzz', 'afro', 'short'];
+/** Trousers (or a skirt) under a chosen top: dark, a little different per person. */
+const BOTTOMS = ['#1e293b', '#111827', '#334155', '#1f2937', '#78350f', '#1e3a8a'];
+
+/** An appearance (the engine's vocabulary) as a look to draw, over an outfit's trousers. */
+export function lookFromAppearance(
+  a: Appearance,
+  gender: 'female' | 'male',
+  bottom: string,
+  accessory: AvatarLook['accessory'] = 'none',
+): AvatarLook {
+  // Drawn as this gender wears it: no dress or gele on a man, no beard on a woman.
+  a = fitAppearance(a, gender);
+  return {
+    skin: a.skin,
+    hair: a.hairColor,
+    hairStyle: a.hairStyle,
+    top: a.topColor,
+    bottom,
+    accessory,
+    gender,
+    face: a.face,
+    facialHair: a.facialHair,
+    glasses: a.glasses,
+    headwear: a.headwear,
+    topStyle: a.topStyle,
+  };
+}
+
+/** The other way: what the creator starts from when you edit the look you have. */
+export function appearanceOfLook(l: AvatarLook): Appearance {
+  const skin = (SKIN_TONES as readonly string[]).includes(l.skin)
+    ? (l.skin as Appearance['skin'])
+    : SKIN_TONES[0];
+  const hex = (c: string, d: string) => (/^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : d);
+  return {
+    skin,
+    face: l.face ?? 'oval',
+    hairStyle: l.hairStyle,
+    hairColor: hex(l.hair, '#2b1b10'),
+    facialHair: l.facialHair ?? 'none',
+    glasses: l.glasses ?? (l.accessory === 'glasses' ? 'round' : 'none'),
+    headwear: l.headwear ?? (l.accessory === 'cap' ? 'cap' : 'none'),
+    topStyle: l.topStyle ?? 'tee',
+    topColor: hex(l.top, '#0f766e'),
+  };
+}
 
 /**
- * Appearance from the background (outfit) and the player id (skin, hair).
- * With a gender (Wave 5) the hair and figure follow it; without one (saved
- * players, AI characters) it comes from the seed, as before. A look you
- * changed in town (Wave 8 §B, ./acts/look.ts) wins over the seed.
+ * How someone looks, for every drawing of them (map, rooms, cards, 3D).
+ *
+ * - A look the player saved in the character creator (Phase 6a, from the
+ *   view or presence: ./acts/look.ts) is used as it is, with their
+ *   background's trousers.
+ * - Otherwise the engine's `defaultAppearance` gives skin, face and hair
+ *   from the id and background (the same everywhere: AI people, passers-by,
+ *   players who never opened the creator), dressed in the background's
+ *   outfit when it has one. With a gender (Wave 5) the hair follows it.
+ * - A haircut (or braids) you got in town on this device (Wave 8 §B) wins
+ *   when it is newer than the saved look.
  */
 export function avatarLook(
   backgroundId: string | undefined,
   playerId: string,
   gender?: 'female' | 'male' | null,
 ): AvatarLook {
-  const h = hash(`${playerId}:${backgroundId ?? ''}`);
-  const outfit = OUTFITS[backgroundId ?? ''] ?? {
-    top: '#0f766e',
-    bottom: '#1e293b',
-    accessory: 'none' as const,
-  };
-  const style = STYLES[(h >>> 9) % STYLES.length]!;
-  const g = gender ?? (['bun', 'long', 'braids'].includes(style) ? 'female' : 'male');
-  const styles = g === 'female' ? FEMALE_STYLES : MALE_STYLES;
-  return {
-    skin: SKINS[h % SKINS.length]!,
-    hair: HAIRS[(h >>> 5) % HAIRS.length]!,
-    hairStyle: gender ? styles[(h >>> 9) % styles.length]! : style,
-    ...outfit,
+  const seed = `${playerId}:${backgroundId ?? ''}`;
+  const g = drawnGender(backgroundId, playerId, gender);
+  const outfit = OUTFITS[backgroundId ?? ''];
+  const bottom = outfit?.bottom ?? BOTTOMS[hash(seed) % BOTTOMS.length]!;
+  const saved = savedLook(playerId);
+  let look: AvatarLook;
+  if (saved) look = lookFromAppearance(saved.a, g, bottom);
+  else {
+    // Skin tones as in their own city (or the one on screen).
+    const a = defaultAppearance(seed, g, homeOf(playerId));
     // A tie reads as a man's suit: women wear a scarf instead.
-    ...(g === 'female' && outfit.accessory === 'tie' ? { accessory: 'scarf' as const } : {}),
-    gender: g,
-    // Wave 8: a haircut (or braids) you got in town, saved on this device.
-    ...lookOverride(playerId),
-  };
+    const acc = outfit?.accessory ?? 'none';
+    const accessory = g === 'female' && acc === 'tie' ? 'scarf' : acc;
+    look = lookFromAppearance(
+      outfit
+        ? {
+            ...a,
+            topColor: outfit.top,
+            // Suits for the ties, the background's own glasses and cap.
+            topStyle: acc === 'tie' ? 'blazer' : a.topStyle === 'dress' ? 'dress' : a.topStyle,
+            glasses: acc === 'glasses' ? 'round' : a.glasses,
+            headwear: acc === 'cap' ? 'cap' : a.headwear === 'cap' ? 'none' : a.headwear,
+          }
+        : a,
+      g,
+      bottom,
+      accessory === 'glasses' || accessory === 'cap' ? 'none' : accessory,
+    );
+  }
+  // Wave 8: a haircut (or braids) you got in town, saved on this device.
+  const local = lookOverride(playerId);
+  if (local && (!saved || (local.at ?? 0) > saved.at)) {
+    const { at: _at, ...rest } = local;
+    void _at;
+    look = { ...look, ...rest };
+  }
+  // A haircut saved on this device before a gender change follows it too.
+  return fitAppearance(look, g);
 }
+
+/**
+ * The gender a player is drawn as: theirs, or (an old save that never chose)
+ * the one `avatarLook` seeds from their id and background, so the creator,
+ * the portrait and every scene agree.
+ */
+export const drawnGender = (
+  backgroundId: string | undefined,
+  playerId: string,
+  gender?: 'female' | 'male' | null,
+): 'female' | 'male' => gender ?? seedGender(`${playerId}:${backgroundId ?? ''}`);
 
 /**
  * Wave 7 scale on the map: people are drawn at 0.6 (about 25 px tall at
@@ -1757,11 +1944,129 @@ export const MAP_RIDE_SCALE = 1;
 export const DEPTH_STEP = 0.5;
 export const depthBand = (depth: number) => Math.floor(depth / DEPTH_STEP);
 
+/** Head size by face shape (the head is centred at (0, -31)). */
+const HEAD: Record<FaceShape, { rx: number; ry: number }> = {
+  oval: { rx: 5.7, ry: 6.2 },
+  round: { rx: 6.3, ry: 6 },
+  square: { rx: 6, ry: 6 },
+  long: { rx: 5.3, ry: 6.7 },
+};
+
+/** Hair that hangs behind the shoulders, drawn before the body. */
+function FigureHairBack({ look }: { look: AvatarLook }) {
+  const { hair, hairStyle } = look;
+  if (hairStyle === 'locs')
+    return (
+      <g fill={hair}>
+        {[-6.6, -4.6, 4.6, 6.6].map((x) => (
+          <rect key={x} x={x - 0.9} y="-33" width="1.8" height="13" rx="0.9" />
+        ))}
+      </g>
+    );
+  return null;
+}
+
+/** Hair on top of the head, by style. */
+function FigureHair({ look }: { look: AvatarLook }) {
+  const { hair, hairStyle } = look;
+  switch (hairStyle) {
+    case 'afro':
+      return <circle cx="0" cy="-34" r="7.2" fill={hair} />;
+    case 'short':
+      return <path d="M -6 -31 A 6 6 0 0 1 6 -31 L 6 -33 Q 0 -40 -6 -33 Z" fill={hair} />;
+    case 'buzz':
+      return <path d="M -5.8 -32 A 6 6 0 0 1 5.8 -32 Q 0 -36 -5.8 -32 Z" fill={hair} />;
+    case 'bald':
+      return <ellipse cx="-1.8" cy="-35" rx="1.6" ry="0.9" fill="#fff" opacity="0.25" />;
+    case 'bun':
+      return (
+        <>
+          <path d="M -6 -31 A 6 6 0 0 1 6 -31 Q 0 -39 -6 -31 Z" fill={hair} />
+          <circle cx="0" cy="-38.5" r="3" fill={hair} />
+        </>
+      );
+    case 'long':
+      return (
+        <path
+          d="M -6.5 -24 L -6.5 -32 A 6.5 6.5 0 0 1 6.5 -32 L 6.5 -24 L 4.5 -24 L 4.5 -31 Q 0 -35 -4.5 -31 L -4.5 -24 Z"
+          fill={hair}
+        />
+      );
+    case 'braids':
+      return (
+        <>
+          <path d="M -6 -31 A 6 6 0 0 1 6 -31 Q 0 -38 -6 -31 Z" fill={hair} />
+          <rect x="-7" y="-32" width="2" height="10" rx="1" fill={hair} />
+          <rect x="5" y="-32" width="2" height="10" rx="1" fill={hair} />
+        </>
+      );
+    case 'curly':
+      return (
+        <g fill={hair}>
+          <path d="M -6 -31 A 6 6 0 0 1 6 -31 Q 0 -37 -6 -31 Z" />
+          {[
+            [-5.2, -33.2],
+            [-2.8, -36],
+            [0.4, -37],
+            [3.4, -36],
+            [5.6, -33.4],
+          ].map(([x, y]) => (
+            <circle key={x} cx={x} cy={y} r="2.3" />
+          ))}
+        </g>
+      );
+    case 'twists':
+      return (
+        <g fill={hair}>
+          <path d="M -6 -31 A 6 6 0 0 1 6 -31 Q 0 -37 -6 -31 Z" />
+          {[-4.6, -2.3, 0, 2.3, 4.6].map((x) => (
+            <rect
+              key={x}
+              x={x - 0.9}
+              y={-40.5 + Math.abs(x) * 0.5}
+              width="1.8"
+              height="5"
+              rx="0.9"
+            />
+          ))}
+        </g>
+      );
+    case 'locs':
+      return <path d="M -6.2 -31 A 6.2 6.2 0 0 1 6.2 -31 Q 0 -38 -6.2 -31 Z" fill={hair} />;
+    default:
+      return <path d="M -6 -31 A 6 6 0 0 1 6 -31 L 6 -33 Q 0 -40 -6 -33 Z" fill={hair} />;
+  }
+}
+
 /** A small vector character with feet at (0,0). Legs swing when the parent has .is-walking. */
 export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string }) {
   const { skin, hair, hairStyle, top, bottom, accessory } = look;
+  const topStyle = look.topStyle ?? 'tee';
+  const headwear = look.headwear ?? (accessory === 'cap' ? 'cap' : 'none');
+  const glasses = look.glasses ?? (accessory === 'glasses' ? 'round' : 'none');
+  const facial = look.facialHair ?? 'none';
+  // Darker than the skin, whatever the hair colour (../avatar/tone.ts).
+  const fh = facialHairColour(skin, hair);
+  const head = HEAD[look.face ?? 'oval'];
+  const long = topStyle === 'kaftan' || topStyle === 'dress';
+  // A headwrap or gele covers the hair; a cap or beanie leaves what hangs below it.
+  const covered = headwear === 'headwrap' || headwear === 'gele';
+  const hatted = headwear === 'cap' || headwear === 'beanie';
+  const hangs = hairStyle === 'long' || hairStyle === 'braids' || hairStyle === 'locs';
+  const sleeve = topStyle === 'tee' ? 5 : 11;
+  // A cap in a darker shade of the top (Wave 7's red one when the look predates the creator).
+  const capColour = look.headwear ? shade(top, -0.3) : '#dc2626';
   return (
-    <g className="city-avatar-fig" data-hair={hairStyle}>
+    <g
+      className="city-avatar-fig"
+      data-hair={hairStyle}
+      data-skin={skin}
+      data-top={top}
+      data-top-style={topStyle}
+      data-headwear={headwear}
+      data-glasses={glasses}
+      data-facial-hair={facial}
+    >
       <ellipse cx="0" cy="0" rx="7" ry="3" fill="#0f172a" opacity="0.22" />
       <g className="city-leg city-leg-l">
         <rect x="-3.6" y="-12" width="3.2" height="12" rx="1.5" fill={bottom} />
@@ -1771,29 +2076,56 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
         <rect x="0.4" y="-12" width="3.2" height="12" rx="1.5" fill={shade(bottom, -0.15)} />
         <ellipse cx="2" cy="-0.5" rx="2.4" ry="1.3" fill="#111827" />
       </g>
-      {look.gender === 'female' && (
+      {look.gender === 'female' && !long && (
         <path d="M -5.6 -12.5 L 5.6 -12.5 L 7 -5 L -7 -5 Z" fill={bottom} />
       )}
+      {!covered && <FigureHairBack look={look} />}
       <g className="city-body">
+        {topStyle === 'hoodie' && (
+          <ellipse cx="0" cy="-25" rx="6.6" ry="3.4" fill={shade(top, -0.2)} />
+        )}
         <rect x="-5.5" y="-24" width="11" height="14" rx="4" fill={top} />
-        <rect
-          x="-7.6"
-          y="-23"
-          width="3"
-          height="11"
-          rx="1.5"
-          fill={shade(top, -0.12)}
-          className="city-arm-l"
-        />
-        <rect
-          x="4.6"
-          y="-23"
-          width="3"
-          height="11"
-          rx="1.5"
-          fill={shade(top, -0.18)}
-          className="city-arm-r"
-        />
+        {topStyle === 'dress' && <path d="M -5.5 -14 L 5.5 -14 L 7.4 -4 L -7.4 -4 Z" fill={top} />}
+        {topStyle === 'kaftan' && (
+          <>
+            {/* A man's kaftan stops at mid-thigh (a tunic over trousers); a woman's is long. */}
+            {look.gender === 'female' ? (
+              <path d="M -5.5 -14 L 5.5 -14 L 6.2 -5.5 L -6.2 -5.5 Z" fill={top} />
+            ) : (
+              <path d="M -5.5 -14 L 5.5 -14 L 5.7 -8.5 L -5.7 -8.5 Z" fill={top} />
+            )}
+            <path d="M -2.4 -24 L 0 -19.5 L 2.4 -24" stroke="#fbbf24" strokeWidth="1" fill="none" />
+          </>
+        )}
+        {topStyle === 'blazer' && (
+          <>
+            <polygon points="-2.4,-24 2.4,-24 0,-17.5" fill="#f8fafc" />
+            <path
+              d="M -2.4 -24 L 0 -17.5 L 2.4 -24"
+              stroke={shade(top, -0.3)}
+              strokeWidth="0.9"
+              fill="none"
+            />
+          </>
+        )}
+        {topStyle === 'shirt' && (
+          <>
+            <polygon points="-2.6,-24 0,-22 -0.6,-20.6" fill="#f8fafc" />
+            <polygon points="2.6,-24 0,-22 0.6,-20.6" fill="#f8fafc" />
+            <line x1="0" y1="-21.5" x2="0" y2="-11" stroke={shade(top, -0.25)} strokeWidth="0.5" />
+          </>
+        )}
+        {topStyle === 'hoodie' && (
+          <path d="M -1.4 -23 L -1.6 -19 M 1.4 -23 L 1.6 -19" stroke="#f8fafc" strokeWidth="0.6" />
+        )}
+        <g className="city-arm-l">
+          <rect x="-7.6" y="-23" width="3" height="11" rx="1.5" fill={skin} />
+          <rect x="-7.6" y="-23" width="3" height={sleeve} rx="1.5" fill={shade(top, -0.12)} />
+        </g>
+        <g className="city-arm-r">
+          <rect x="4.6" y="-23" width="3" height="11" rx="1.5" fill={shade(skin, -0.08)} />
+          <rect x="4.6" y="-23" width="3" height={sleeve} rx="1.5" fill={shade(top, -0.18)} />
+        </g>
         {accessory === 'tie' && <polygon points="0,-23 1.5,-20 0,-13 -1.5,-20" fill="#b91c1c" />}
         {accessory === 'lanyard' && (
           <>
@@ -1805,55 +2137,99 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
           <rect x="-5" y="-25" width="10" height="3" rx="1.5" fill="#f59e0b" />
         )}
         <rect x="-1.8" y="-26.5" width="3.6" height="3" fill={shade(skin, -0.1)} />
-        <circle cx="0" cy="-31" r="6" fill={skin} />
-        {hairStyle === 'afro' && <circle cx="0" cy="-34" r="7.2" fill={hair} />}
-        {hairStyle === 'short' && (
-          <path d="M -6 -31 A 6 6 0 0 1 6 -31 L 6 -33 Q 0 -40 -6 -33 Z" fill={hair} />
+        {look.face === 'square' ? (
+          <rect
+            x={-head.rx}
+            y={-31 - head.ry}
+            width={head.rx * 2}
+            height={head.ry * 2}
+            rx="2.6"
+            fill={skin}
+          />
+        ) : (
+          <ellipse cx="0" cy="-31" rx={head.rx} ry={head.ry} fill={skin} />
         )}
-        {hairStyle === 'buzz' && (
-          <path d="M -5.8 -32 A 6 6 0 0 1 5.8 -32 Q 0 -36 -5.8 -32 Z" fill={hair} />
+        {!covered && !(hatted && !hangs) && <FigureHair look={look} />}
+        {!covered && (hairStyle === 'afro' || hairStyle === 'buzz') && !hatted && (
+          <ellipse cx="0" cy="-30" rx={Math.min(5.2, head.rx - 0.6)} ry="5.2" fill={skin} />
         )}
-        {hairStyle === 'bun' && (
-          <>
-            <path d="M -6 -31 A 6 6 0 0 1 6 -31 Q 0 -39 -6 -31 Z" fill={hair} />
-            <circle cx="0" cy="-38.5" r="3" fill={hair} />
-          </>
-        )}
-        {hairStyle === 'long' && (
+        {facial === 'beard' && (
           <path
-            d="M -6.5 -24 L -6.5 -32 A 6.5 6.5 0 0 1 6.5 -32 L 6.5 -24 L 4.5 -24 L 4.5 -31 Q 0 -35 -4.5 -31 L -4.5 -24 Z"
-            fill={hair}
+            d="M -5.4 -31 Q -5.6 -24.4 0 -24 Q 5.6 -24.4 5.4 -31 L 4.4 -29 Q 0 -26.2 -4.4 -29 Z"
+            fill={fh}
           />
         )}
-        {hairStyle === 'braids' && (
-          <>
-            <path d="M -6 -31 A 6 6 0 0 1 6 -31 Q 0 -38 -6 -31 Z" fill={hair} />
-            <rect x="-7" y="-32" width="2" height="10" rx="1" fill={hair} />
-            <rect x="5" y="-32" width="2" height="10" rx="1" fill={hair} />
-          </>
+        {facial === 'stubble' && (
+          <path d="M -5 -29.5 Q 0 -23.6 5 -29.5 Q 0 -25.6 -5 -29.5 Z" fill={fh} opacity="0.35" />
         )}
-        {(hairStyle === 'afro' || hairStyle === 'buzz') && (
-          <circle cx="0" cy="-30" r="5.2" fill={skin} />
+        {facial === 'goatee' && <ellipse cx="0.3" cy="-25.6" rx="1.8" ry="1.3" fill={fh} />}
+        {(facial === 'moustache' || facial === 'goatee' || facial === 'beard') && (
+          <path d="M -1.6 -28.3 Q 0.3 -29.4 2.2 -28.3 Q 0.3 -27.6 -1.6 -28.3 Z" fill={fh} />
         )}
         <circle cx="2" cy="-30.5" r="0.8" fill="#111827" />
         <circle cx="-1.5" cy="-30.5" r="0.8" fill="#111827" />
-        {look.gender === 'female' && (
+        {look.gender === 'female' && !covered && (
           <>
             <circle cx="-5.8" cy="-28.6" r="0.9" fill="#fbbf24" />
             <circle cx="5.8" cy="-28.6" r="0.9" fill="#fbbf24" />
           </>
         )}
         <path d="M -0.8 -27.6 Q 0.6 -26.6 2 -27.6" stroke="#7c2d12" strokeWidth="0.7" fill="none" />
-        {accessory === 'glasses' && (
+        {glasses === 'round' && (
           <g stroke="#111827" strokeWidth="0.7" fill="none">
             <circle cx="-1.5" cy="-30.5" r="1.8" />
             <circle cx="2.2" cy="-30.5" r="1.8" />
           </g>
         )}
-        {accessory === 'cap' && (
+        {glasses === 'square' && (
+          <g stroke="#111827" strokeWidth="0.7" fill="none">
+            <rect x="-3.3" y="-32" width="3.4" height="2.8" rx="0.5" />
+            <rect x="0.5" y="-32" width="3.4" height="2.8" rx="0.5" />
+          </g>
+        )}
+        {glasses === 'shades' && (
+          <g fill="#0f172a">
+            <rect x="-3.4" y="-31.9" width="3.5" height="2.6" rx="1" />
+            <rect x="0.5" y="-31.9" width="3.5" height="2.6" rx="1" />
+            <rect x="-0.2" y="-31.4" width="1" height="0.6" />
+          </g>
+        )}
+        {headwear === 'cap' && (
           <>
-            <path d="M -6 -33 A 6 6 0 0 1 6 -33 Z" fill="#dc2626" />
-            <rect x="2" y="-34" width="6" height="1.8" rx="0.9" fill="#b91c1c" />
+            <path d="M -6 -33 A 6 6 0 0 1 6 -33 Z" fill={capColour} />
+            <rect x="2" y="-34" width="6" height="1.8" rx="0.9" fill={shade(capColour, -0.2)} />
+          </>
+        )}
+        {headwear === 'beanie' && (
+          <>
+            <path d="M -6.2 -32.5 A 6.2 6.6 0 0 1 6.2 -32.5 Z" fill={top} />
+            <rect x="-6.4" y="-33.6" width="12.8" height="2.4" rx="1.2" fill={shade(top, -0.2)} />
+          </>
+        )}
+        {headwear === 'headwrap' && (
+          <>
+            <path
+              d="M -6.6 -30.5 Q -7.4 -40 0 -40 Q 7.4 -40 6.6 -30.5 Q 0 -34 -6.6 -30.5 Z"
+              fill={top}
+            />
+            <circle cx="2.6" cy="-39.6" r="2" fill={shade(top, -0.15)} />
+          </>
+        )}
+        {headwear === 'gele' && (
+          <>
+            <path
+              d="M -6.6 -30.5 Q -7 -36 0 -36.5 Q 7 -36 6.6 -30.5 Q 0 -33.6 -6.6 -30.5 Z"
+              fill={top}
+            />
+            <path
+              d="M -9.5 -37 Q -6 -45.5 0 -44 Q 6 -45.5 9.5 -37 Q 4 -39 0 -35.5 Q -4 -39 -9.5 -37 Z"
+              fill={shade(top, 0.12)}
+            />
+            <path
+              d="M -5 -41 L -2 -36.5 M 5 -41 L 2 -36.5 M 0 -43.6 L 0 -36"
+              stroke={shade(top, -0.2)}
+              strokeWidth="0.5"
+            />
           </>
         )}
       </g>

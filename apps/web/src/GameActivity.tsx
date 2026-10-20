@@ -1,14 +1,12 @@
-import { openLiving } from './experiences/living-bus';
-import { useView } from './store';
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { t } from './i18n';
+import { openFeedback } from './feedback';
 import { useMusic } from './music';
 import { setSetting, useSetting } from './phone/settings';
 import { OnlineNowSheet } from './city/OnlineNow';
 
 export function GameActivity() {
-  const { view } = useView();
   const sound = useSetting('sound');
   useMusic(sound);
   const [count, setCount] = useState<number | null>(null);
@@ -71,12 +69,6 @@ export function GameActivity() {
         </span>
       </button>
       {listOpen && <OnlineNowSheet onClose={() => setListOpen(false)} />}
-      <button type="button" onClick={() => openLiving(view.me.id)}>
-        Together
-        {view.living.dates.some((d) => d.status === 'invited' && d.guest === view.me.id)
-          ? ' • Invitation'
-          : ''}
-      </button>
       <button
         type="button"
         className="music-toggle"
@@ -86,6 +78,14 @@ export function GameActivity() {
       >
         <span aria-hidden="true">♫</span>
         {sound ? t('Music on') : t('Music off')}
+      </button>
+      <button
+        type="button"
+        className="feedback-open"
+        data-feedback-open=""
+        onClick={() => openFeedback()}
+      >
+        <span aria-hidden="true">💬</span> {t('Feedback')}
       </button>
     </div>
   );

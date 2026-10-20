@@ -1,3 +1,4 @@
+import type { Appearance } from './appearance.js';
 import type { Delivery, DateSession } from './living.js';
 import type { PlayRoom } from './play.js';
 /**
@@ -10,7 +11,8 @@ import type { PlayRoom } from './play.js';
 import type { Currency } from './money.js';
 import type { MarketData, MarketId, Seniority, StaffRole } from './data/markets.js';
 import type { Industry, SegmentKind, NeedWeights } from './data/industries.js';
-import type { Role, Skills } from './data/characters.js';
+import type { Role, Skill, Skills } from './data/characters.js';
+import type { ProfessionId, WorkField } from './data/professions.js';
 import type { OutletType } from './data/fiction.js';
 import type { Command } from './commands.js';
 import type { LenderKind, LenderLook, LenderProductSeed } from './data/capital.js';
@@ -157,9 +159,36 @@ export interface InvestorProfile {
   type?: InvestorType;
 }
 
+/** A hotel stay abroad, booked with a flight. `paid` is in home minor units. */
+export interface HotelStay {
+  tier: 'budget' | 'business' | 'luxury';
+  name: string;
+  paid: number;
+}
+
 export interface Player {
   garage?: PlayerCar[];
-  flightTicket?: { from: MarketId; to: MarketId; paid: number; bookedAt: number };
+  flightTicket?: {
+    from: MarketId;
+    to: MarketId;
+    paid: number;
+    bookedAt: number;
+    /** A hotel booked with the flight (amount in home minor units). Missing = none. */
+    hotel?: HotelStay;
+    /**
+     * Holiday with friends: a host who paid for this trip (`amount` in this
+     * player's home minor units). A cancelled ticket refunds them. Missing = you paid.
+     */
+    sponsor?: { playerId: Id; amount: number };
+    /**
+     * The flight as the client showed it when booking (cosmetic: airline,
+     * flight number, departure time, gate). Holiday friends from the same
+     * city are booked on the host's. Missing = derived by the client.
+     */
+    flight?: TicketFlight;
+    /** Holiday with friends: booked on the host's flight for this holiday. */
+    party?: { holidayId: Id };
+  };
   id: Id;
   handle: string;
   name: string;
@@ -203,7 +232,7 @@ export interface Player {
   /** Businesses pitched this month (Wave 3). Missing = none. */
   businessPitches?: { month: number; count: number };
   /** Where the player physically is (Wave 4). Missing = at home (`market`). */
-  location?: { market: MarketId; since: number };
+  location?: { market: MarketId; since: number; hotel?: HotelStay };
   /** Flights taken this (home) month (Wave 4). Missing = none. */
   flights?: { month: number; count: number };
   /** Bus and taxi rides taken this (home) month (Wave 4). Missing = none. */
@@ -212,8 +241,17 @@ export interface Player {
   angel?: { fundId: Id; retiredMonth?: number };
   /** Wave 5: chosen at onboarding. Missing on old saves (the client keeps its avatar). */
   gender?: Gender;
+  /**
+   * Phase 6a: the look picked in the character creator (appearance.ts).
+   * Cosmetic. Missing = never chosen: drawn from `defaultAppearance`.
+   */
+  appearance?: Appearance;
+  /** When `appearance` last changed (ms), so a device's unsaved look knows it's older. */
+  appearanceAt?: number;
   /** Wave 5: a part-time job at a local business in the home city. Missing = none. */
   job?: PlayerJob;
+  /** The jobs rework: experience per field and applications. Missing = seeded from the background. */
+  work?: PlayerWork;
   /** Wave 5: furniture in your apartment, one item per slot. Missing = bare. */
   home?: { items: HomeItem[] };
   /** Wave 5: your car. Missing = none. */
@@ -224,6 +262,16 @@ export interface Player {
   needs?: { hunger: number; hygiene: number; fun: number; social: number };
   /** Wave 7: home acts (and 'invite') used per home month. Missing = none. */
   homeActs?: Record<string, { month: number; n: number }>;
+  /**
+   * Phase 3 life bars (lifebars.ts), 0–100 each. Humans created after the
+   * release note start at 80 and 20; missing (older saves) = 75 and 25.
+   */
+  health?: number;
+  stress?: number;
+  /** Phase 3: stress added by work this home month (capped). Missing = none. */
+  workStress?: { month: number; n: number };
+  /** Phase 3: health gained from long walks this home month (capped). Missing = none. */
+  walkHealth?: { month: number; n: number };
   /** Wave 8: money sent to other players on one real (UTC) day, for the daily limit. Missing = none. */
   moneySent?: { day: number; total: number };
   /** Wave 8: tech events attended in a market month (`te:<market>:<month>:<n>` ids). Missing = none. */
@@ -248,6 +296,20 @@ export interface Player {
   realised?: { currency: Currency; proceeds: number; gains: number; tax: number };
   /** Founder Journey 5, chapter 7: gifts, a career at a DFI or bank, a second company. */
   allocator?: PlayerAllocator;
+  /**
+   * Golf (leisure.ts): rounds played at a city's golf club, your best and
+   * latest score against par, and rounds this month (for who you meet).
+   * Missing = never played.
+   */
+  golf?: {
+    rounds: number;
+    best: number;
+    last: { market: MarketId; strokes: number[]; par: number; month: number };
+    month: number;
+    thisMonth: number;
+  };
+  /** The mall (leisure.ts): the phone you bought there (cosmetic). Missing = the one you came with. */
+  phone?: { tier: 1 | 2 | 3; paid: number; month: number };
 }
 
 // ---------------------------------------------------------------- Founder Journey 5: exits and the capital allocator
@@ -373,16 +435,146 @@ export interface Hangout {
   /** City month planned (it is over when the month ends). */
   month: number;
   status: 'open' | 'cancelled';
+  /** Holiday with friends: a thing to do together on this holiday (shared bonus on joining). */
+  holidayId?: Id;
+}
+
+/** A flight as the airport board shows it (cosmetic, chosen by the client). */
+export interface TicketFlight {
+  airline?: string;
+  /** "SV 123". */
+  number?: string;
+  /** Local departure time, "14:05". */
+  time?: string;
+  gate?: string;
+}
+
+/** Holiday with friends: one guest on a holiday and their answer. */
+export interface HolidayGuest {
+  /** A player id, or for an AI friend their chat id (`npc:<market>:<n>`, `biz:<id>`, an AI founder's id). */
+  id: Id;
+  status: 'pending' | 'accepted' | 'declined';
+  /** The host pays this guest's flight and hotel. */
+  hostPays: boolean;
+  /** What the host paid for them (host home minor units), once accepted. */
+  paid?: number;
+  /**
+   * An AI friend (one of the host's contacts): they answer at once. `answer`:
+   * yes, only if you pay, or can't make it this month; `text` is their chat
+   * reply. An AI friend who says yes is a travel companion (no ticket).
+   */
+  ai?: {
+    name: string;
+    kind: 'founder' | 'local';
+    market: MarketId;
+    gender: Gender;
+    answer: 'yes' | 'pay' | 'busy';
+    text: string;
+  };
+}
+
+/**
+ * Holiday with friends: a host's trip abroad and the friends invited on it.
+ * It lasts the destination city's month it was planned in.
+ */
+export interface Holiday {
+  id: Id;
+  hostId: Id;
+  /** The destination. */
+  market: MarketId;
+  /** Destination city month (the invitations expire when it ends). */
+  month: number;
+  /** The hotel tier the host booked; null = flight only. */
+  tier: HotelStay['tier'] | null;
+  guests: HolidayGuest[];
+  createdAt: number;
+  /** Things done together: the hangout, the venue and who came. */
+  together?: { hangoutId: Id; businessId: Id; name: string; memberIds: Id[] }[];
+  /**
+   * Fly together: the host's flight out of `from` and everyone booked on it
+   * (seat order: the host first, then each friend as they joined), in seats
+   * side by side from row `row`. Missing = nobody shares the host's flight.
+   */
+  flight?: { from: MarketId; row: number; ids: Id[] };
+  /**
+   * Knocks on a friend's door in the hotel (`hotel.knock`): who knocked, on
+   * whose door (`to`, their room), when, and whether it's still waiting or
+   * was turned down. One per knocker: a new knock replaces their last one.
+   */
+  knocks?: HotelKnock[];
+  /** A friend over in someone's room (`hotel.answer` accepted): the guest is in the host's room. */
+  visit?: { host: Id; guest: Id; since: number };
+  /** Pairs (`a|b`, sorted) who already had the visit bonus on this holiday. */
+  visited?: string[];
+}
+
+export interface HotelKnock {
+  from: Id;
+  to: Id;
+  at: number;
+  /** The room knocked on (the friend's), if the holiday has a hotel. */
+  room: number | null;
+  status: 'pending' | 'declined';
 }
 
 export type Gender = 'female' | 'male';
 
 export interface PlayerJob {
   businessId: Id;
-  /** JobRole.role of the business's kind. */
+  /** JobRole.role of the business's kind (a professional job: its ladder role). */
   role: string;
   /** Home month the job started. */
   since: number;
+  /**
+   * The jobs rework (work.ts): a professional job, paid from payroll. Missing
+   * = a part-time job at a local business, as before.
+   */
+  profession?: ProfessionId;
+  /** Professional jobs: the ladder level (1–4). */
+  level?: number;
+  /** Professional jobs: months worked at this level. */
+  months?: number;
+}
+
+/** An application to a professional employer (work.ts). */
+export interface JobApplication {
+  id: Id;
+  businessId: Id;
+  profession: ProfessionId;
+  level: number;
+  /** Asking your own employer for the next level. */
+  promotion?: boolean;
+  status: 'booked' | 'hired' | 'rejected' | 'expired';
+  /** Home month you applied. */
+  appliedMonth: number;
+  /** Last home month you can go to the interview. */
+  expiresMonth: number;
+  decidedMonth?: number;
+  /** The interview score (0–1) and the bar it had to clear. */
+  score?: number;
+  /** Why: plain English, plus the parts a client needs to say it in its own words. */
+  reason?: string;
+  why?: JobWhy;
+}
+
+export type JobWhy =
+  | { code: 'months'; field: WorkField; need: number; have: number }
+  | { code: 'skill'; skill: Skill; need: number; have: number }
+  | { code: 'tenure'; need: number; have: number }
+  | { code: 'interview'; score: number; need: number; question: string }
+  | { code: 'hired'; role: string; label: string; strong?: boolean }
+  | { code: 'expired' };
+
+/** The jobs rework: experience, applications and cooldowns. Missing = seeded from the background. */
+export interface PlayerWork {
+  /** Months of experience per field. */
+  exp: Partial<Record<WorkField, number>>;
+  /** Newest first (the last few). */
+  applications: JobApplication[];
+  /** Employer business id → the home month you can apply there again. */
+  cooldown?: Record<Id, number>;
+  /** How well you're doing in your professional job, 0–1. Missing = 0.5. */
+  perf?: number;
 }
 
 export interface HomeItem {
@@ -1208,9 +1400,17 @@ export interface DealCard {
 
 // ---------------------------------------------------------------- Pitches
 
+/** What a typed pitch answer measures: customers, money (minor units) or months. */
+export type PitchFigure = 'customers' | 'money' | 'months';
+
 export interface PitchQuestion {
   id: string;
   text: string;
+  /**
+   * Set on a numeric question (life-bars note): the founder may type their
+   * own figure instead of picking an option, judged against today's truth.
+   */
+  figure?: PitchFigure;
   options: {
     id: string;
     label: string;
@@ -1230,6 +1430,8 @@ export interface Pitch {
   status: 'questions' | 'partner-meeting' | 'passed' | 'term-sheet' | 'sent';
   questions: PitchQuestion[];
   answers: Record<string, string>;
+  /** Figures the founder typed instead of picking an option, by question id (life-bars note). */
+  figures?: Record<string, number>;
   reason: string;
   month: number;
   dealId: Id | null;
@@ -1317,7 +1519,9 @@ export interface InboxItem {
       | 'techevent'
       | 'player'
       /** Wave 13: a home offered as a gift. */
-      | 'gift';
+      | 'gift'
+      /** Holiday with friends: an invitation or an answer. */
+      | 'holiday';
     id: Id;
   };
   /** The other player this is about (a payment, a gift): their chat is where to act. */
@@ -1587,6 +1791,8 @@ export interface World {
   visits?: Record<Id, Visit>;
   /** Wave 8: hangouts. Missing on old saves = none. */
   hangouts?: Record<Id, Hangout>;
+  /** Holiday with friends: trips abroad friends were invited on. Missing = none. */
+  holidays?: Record<Id, Holiday>;
   /** Wave 10: every city's property market (listed and owned). Missing = seeded at the next settlement. */
   properties?: Record<Id, Property>;
   /** Wave 10: company branches in other neighbourhoods and cities. Missing = none. */
@@ -1822,16 +2028,36 @@ export interface SalesAccount {
 
 // ---------------------------------------------------------------- Decision events & rivals (Journey 4a)
 
-export type DecisionFamily = 'customer' | 'team' | 'competition' | 'finance' | 'social' | 'life';
+/** Founder decisions, plus (Phase 5 life events) health, money, work and city; social is shared. */
+export type DecisionFamily =
+  | 'customer'
+  | 'team'
+  | 'competition'
+  | 'finance'
+  | 'social'
+  | 'life'
+  | 'health'
+  | 'money'
+  | 'work'
+  | 'city';
 
 /** One concrete consequence of a choice, its numbers fixed when the event appears. */
 export type DecisionEffect =
   | {
       kind: 'cash';
       from: 'company' | 'personal';
-      to: 'suppliers' | 'payroll' | 'customers';
+      /** `lifestyle`: someone outside the game (a friend you lend to, a gift). */
+      to: 'suppliers' | 'payroll' | 'customers' | 'lifestyle';
       amount: number;
     }
+  /** Phase 5 life events: money in from someone outside the game (a client, the tax office). */
+  | { kind: 'income'; from: 'gigs' | 'tax' | 'lifestyle'; amount: number }
+  /** Phase 5: money lent out comes back from `lifestyle` this many months later. */
+  | { kind: 'repay'; amount: number; months: number }
+  /** Phase 5 life bars, through the lifebars helpers (happiness: fun and social each by `n`). */
+  | { kind: 'health'; n: number }
+  | { kind: 'stress'; n: number }
+  | { kind: 'happiness'; n: number }
   /** Shown, not applied: a rival's move keeps weighing on win chances by about this much. */
   | { kind: 'pressure'; pct: number }
   | { kind: 'hours'; n: number }
@@ -1889,11 +2115,24 @@ export interface DecisionEvent {
   customer?: SalesCustomer;
   /** An existing deal it's about. */
   dealId?: Id;
+  /** Phase 5: a life event (lifeevents.ts), drawn for every human, not just founders. */
+  life?: boolean;
+  /** Phase 5, once a life event is answered (or defaulted): what actually changed. */
+  result?: LifeEventResult;
+}
+
+/** What a life event's choice changed: the bars (only those that moved) and your cash. */
+export interface LifeEventResult {
+  bars: Partial<Record<'energy' | 'health' | 'happiness' | 'stress', number>>;
+  /** Change in your local account (minor units; negative: spent). */
+  cash: number;
 }
 
 export interface PlayerDecisions {
   seq: number;
   events: DecisionEvent[];
+  /** Phase 5: loans to friends, paid back (from `lifestyle`) at the settlement of month `due`. */
+  repayments?: { due: number; amount: number; market: MarketId; memo: string }[];
   /** Template id (or `family:<f>`) → first month it may fire again. */
   cooldowns: Record<string, number>;
 }

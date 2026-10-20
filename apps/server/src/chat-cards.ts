@@ -90,7 +90,7 @@ export type Card =
       venue: string | null;
       title: string | null;
     };
-export const PLAY_GAMES = ['quiz', 'snooker', 'football'] as const;
+export const PLAY_GAMES = ['quiz', 'snooker', 'football', 'golf'] as const;
 export type PlayGame = (typeof PLAY_GAMES)[number];
 
 /** One-line summaries kept as the message text (chat lists, notifications, older clients). */
@@ -113,6 +113,9 @@ export function chatCommandTarget(c: Command): string | null {
       return c.toPlayerId;
     case 'living.date.invite':
       return c.playerId;
+    case 'play.create':
+      // Golf with a friend, invited from their chat.
+      return c.game === 'golf' ? (c.invite ?? null) : null;
     default:
       return null;
   }
@@ -162,6 +165,19 @@ export function cardFor(world: World, c: Command, result: unknown): Card | null 
         value: n(r.value),
         currency: s(r.currency),
       };
+    case 'play.create': {
+      const room = world.playRooms?.[s(r.id)];
+      if (!room || c.game !== 'golf') return null;
+      return {
+        type: 'play',
+        game: 'golf',
+        market: room.market,
+        city: world.markets[room.market]?.data.name ?? room.market,
+        roomId: room.id,
+        venue: room.venue,
+        title: room.title,
+      };
+    }
     default:
       return null;
   }

@@ -2,7 +2,13 @@ import { skyViewsIn } from '@runway/engine';
 import { useEffect } from 'react';
 import { openSky, prewarmSky } from './sky-bus';
 
-const KIND_ICON = { wheel: '🎡', cable: '🚡', deck: '🏙', tram: '🚋', hill: '⛰' } as const;
+export const SKY_KIND_ICON = {
+  wheel: '🎡',
+  cable: '🚡',
+  deck: '🏙',
+  tram: '🚋',
+  hill: '⛰',
+} as const;
 
 /** This city's sky views as buttons (the Places list, the Sky views sheet). */
 export function SkyViewsList({
@@ -18,7 +24,7 @@ export function SkyViewsList({
   const views = skyViewsIn(city);
   const any = views.length > 0;
   useEffect(() => {
-    if (prewarm && any) prewarmSky(city);
+    if (prewarm && any) return prewarmSky(city);
   }, [prewarm, any, city]);
   if (!views.length) return null;
   return (
@@ -34,7 +40,7 @@ export function SkyViewsList({
               openSky(v.id);
             }}
           >
-            <span aria-hidden>{KIND_ICON[v.kind]}</span> {v.name}
+            <span aria-hidden>{SKY_KIND_ICON[v.kind]}</span> {v.name}
           </button>
         </li>
       ))}

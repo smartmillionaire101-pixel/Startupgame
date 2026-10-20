@@ -90,6 +90,8 @@ export interface RideRequest {
   look: AvatarLook;
   /** The map's own duration for the trip (ms): used for the reduced-motion chase. */
   mapMs: number;
+  /** Your own car with controls on the map (the 3D map's route card and pedals): no card here. */
+  hud?: boolean;
 }
 
 export interface Ride extends RideRequest {
@@ -101,6 +103,8 @@ export interface Ride extends RideRequest {
   currency: string;
   /** Bird's-eye chase on the map, no scene (reduced motion). */
   chase: boolean;
+  /** Your own car, driven on the map: its own controls show (CityMap3D's), not this card. */
+  hud: boolean;
   /** Show the "Always skip rides" toggle. */
   offerSkip: boolean;
   fuel: number;
@@ -198,6 +202,7 @@ export function beginRide(req: RideRequest): RideHandle | null {
     fare: q?.fare ?? 0,
     currency: q?.currency ?? '',
     chase,
+    hud: !!req.hud && !reduceMotion(),
     offerSkip: n >= 2,
     fuel: q?.fuel ?? 0,
     car: q?.car ?? '',

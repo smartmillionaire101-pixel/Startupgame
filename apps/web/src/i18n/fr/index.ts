@@ -22,6 +22,7 @@ import { travelWave7 } from './travel-wave7';
 import { friendsWave8 } from './friends-wave8';
 import { uiWave8 } from './ui-wave8';
 import { city3d } from './city3d';
+import { drive } from './drive';
 import { interiorsWave9 } from './interiors-wave9';
 import { wave10 } from './wave10';
 import { homeWave12 } from './home-wave12';
@@ -39,7 +40,28 @@ import { decisions } from './decisions';
 import { capital } from './capital';
 import { tutorial } from './tutorial';
 import { uiFixes } from './ui-fixes';
+import { feedback } from './feedback';
+import { lifeBars } from './lifebars';
+import { moneyView } from './money-view';
 import { cityAlive } from './city-alive';
+import { simple } from './simple';
+import { pitchFigures } from './pitch-figures';
+import { avatar } from './avatar';
+import { roundTwo } from './round-two';
+import { lifeEvents } from './life-events';
+import { homePhotos } from './home-photos';
+import { hotels } from './hotels';
+import { hotelRoom } from './hotel-room';
+import { arrivalsLive } from './arrivals-live';
+import { nightlife } from './nightlife';
+import { holidays } from './holidays';
+import { golfMall } from './golf-mall';
+import { golfHud } from './golf-hud';
+import { goingOut } from './going-out';
+import { mapBadges } from './map-badges';
+import { mallWalk } from './mall-walk';
+import { golfMatch } from './golf-match';
+import { jobsPro } from './jobs-pro';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -64,6 +86,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   friendsWave8,
   uiWave8,
   city3d,
+  drive,
   interiorsWave9,
   wave10,
   homeWave12,
@@ -81,8 +104,29 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   capital,
   tutorial,
   uiFixes,
+  feedback,
+  lifeBars,
+  moneyView,
   cityAlive,
+  simple,
+  pitchFigures,
   landing,
+  avatar,
+  roundTwo,
+  lifeEvents,
+  homePhotos,
+  hotels,
+  hotelRoom,
+  arrivalsLive,
+  nightlife,
+  holidays,
+  golfMall,
+  golfHud,
+  goingOut,
+  mapBadges,
+  mallWalk,
+  golfMatch,
+  jobsPro,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

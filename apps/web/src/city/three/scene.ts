@@ -544,6 +544,7 @@ export class CityScene {
     this.layout = layout;
     this.geo = layout.geo;
     this.buildPlaces();
+    this.actors.setPlaces(layout.places);
     this.invalidate();
     return true;
   }
@@ -619,6 +620,49 @@ export class CityScene {
           vOff: 0,
           roofType: 1,
         });
+      } else if (p.kind === 'golf') {
+        // The golf course: lawn, a fairway, the green with its flag, a bunker,
+        // the clubhouse by the road (local axes: u along the width, v deep).
+        const at = (u: number, v: number) => ({
+          x: cx + u * w * co - v * d * si,
+          y: cy + u * w * si + v * d * co,
+        });
+        const flat = (
+          u: number,
+          v: number,
+          bw: number,
+          bd: number,
+          h: number,
+          col: string,
+          y0 = 0,
+          style = 7,
+          roofType: 0 | 1 = 0,
+        ) => {
+          const q = at(u, v);
+          boxes.push({
+            x: q.x,
+            y: q.y,
+            w: bw,
+            d: bd,
+            h,
+            y0,
+            rot,
+            style,
+            wall: bytes(col),
+            roof: bytes(col),
+            seed: r,
+            vOff: 0,
+            roofType,
+          });
+        };
+        flat(0, 0, w + 10, d + 10, 0.25, '#3f8a24');
+        flat(0, -0.05, w * 0.3, d * 0.9, 0.32, '#6fb83a');
+        flat(-0.12, -0.32, w * 0.34, d * 0.26, 0.38, '#93d653');
+        flat(0.2, -0.3, w * 0.14, d * 0.1, 0.36, '#ead9a0');
+        flat(-0.3, 0.05, w * 0.16, d * 0.14, 0.34, '#3fa9e0');
+        flat(-0.12, -0.32, 0.25, 0.25, 7, '#f8fafc', 0.38);
+        flat(-0.12 + 0.9 / w, -0.32, 1.8, 0.12, 1.1, '#ef4444', 6.1);
+        flat(0.32, 0.36, 14, 9, 5, '#efe9dc', 0.25, 0, 1);
       } else {
         fps.push({
           p: outline,
@@ -913,12 +957,17 @@ export class CityScene {
         if (g) g.visible = !shown;
         this.invalidate();
       },
+      // The map under a place's scene (going home, say): a tile that arrives
+      // waits for the map to show again, not laid out while the place opens.
       stage: this.opts.sky
         ? (show: () => void) => {
             this.staged.push(show);
             this.invalidate();
           }
-        : undefined,
+        : (show: () => void) => {
+            if (this.paused || covered()) this.staged.push(show);
+            else show();
+          },
     };
   }
 
@@ -1520,6 +1569,10 @@ function placeSpec(p: Place): {
       return { w: W(0.8, 140), d: D(0.6, 60), h: 22, style: 3, wall: '#7f9aab' };
     case 'eventhall':
       return { w: W(0.8, 70), d: D(0.7, 50), h: 16, style: 2 };
+    case 'golf':
+      return { w: W(0.9, 110), d: D(0.9, 90), h: 6, style: 7 };
+    case 'mall':
+      return { w: W(0.85, 80), d: D(0.85, 64), h: 18, style: 3, wall: '#cfd8dc' };
     case 'hub':
       return { w: W(0.75), d: D(0.75), h: 19, style: 2 };
     case 'office': {

@@ -31,6 +31,7 @@ export {
   clockView,
 } from './clock.js';
 export { FLIGHT_HOURS, MAX_FLIGHTS_PER_MONTH, MAX_RIDES_PER_MONTH, locationOf } from './travel.js';
+export type { RideMode, RideDistance } from './travel.js';
 export {
   SEND_DAILY_LIMIT_COL,
   SEND_FEE_MIN_COL,
@@ -61,6 +62,34 @@ export type {
 export { txRef, parseTxRef } from './ledger.js';
 export { crowdId, crowdPerson, parseCrowdId, type CrowdRole } from './crowd.js';
 export { npcPerson, NPC_POOL } from './people.js';
+export {
+  SKIN_TONES,
+  FACE_SHAPES,
+  HAIR_STYLES,
+  HAIR_COLOURS,
+  FACIAL_HAIR,
+  GLASSES,
+  HEADWEAR,
+  TOP_STYLES,
+  TOP_COLOURS,
+  SKIN_MIX,
+  appearanceSchema,
+  appearanceSeed,
+  defaultAppearance,
+  fitAppearance,
+  GENDER_PARTS,
+  seedGender,
+} from './appearance.js';
+export type {
+  Appearance,
+  SkinTone,
+  FaceShape,
+  HairStyle,
+  FacialHair,
+  Glasses,
+  Headwear,
+  TopStyle,
+} from './appearance.js';
 export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';
 export { checkChatMessage, startersFor, CHAT_MAX_LENGTH } from './chat.js';
 export {
@@ -73,15 +102,56 @@ export {
 } from './captable.js';
 export { SLIDES, MAX_SLIDES } from './fundraising.js';
 export { rescuePlan, assessDistress } from './rescue.js';
-export { JOURNEY_EVENTS_NOTE, journeyEventsOn, EXITS_NOTE, exitsOn, RELEASES } from './releases.js';
+export {
+  JOURNEY_EVENTS_NOTE,
+  journeyEventsOn,
+  EXITS_NOTE,
+  exitsOn,
+  LIFE_BARS_NOTE,
+  lifeBarsOn,
+  JOBS_NOTE,
+  jobsOn,
+  RELEASES,
+} from './releases.js';
+// Phase 3: life bars (energy, health, happiness, stress) and what trips cost.
+export {
+  LIFE_BARS,
+  walkCost,
+  rideCost,
+  barEdge,
+  barEffects,
+  barsOf,
+  happinessOf,
+  healthOf,
+  stressOf,
+} from './lifebars.js';
+export type { Bars, BarEffect, WalkMode } from './lifebars.js';
 export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';
+// The jobs rework: professional careers.
+export { WORK, FIELD_LABEL, SKILL_LABEL, whyText, levelGate, workOf } from './work.js';
+export {
+  PROFESSIONS,
+  PROFESSION_IDS,
+  WORK_FIELDS,
+  EMPLOYERS,
+  HEAD_STARTS,
+  LEVEL_MONTHS,
+  LEVEL_HOURS,
+  professionById,
+  professionOfKind,
+} from './data/professions.js';
+export type { ProfessionId, WorkField, Profession } from './data/professions.js';
+export { acceleratorsOf, devPartnersOf, lpsOf } from './programs.js';
 export type { Cause, CareerDecision, CareerOrg } from './allocator.js';
 export { wealthView } from './wealth.js';
 export { DECISION_TEMPLATES, DECISIONS } from './data/decisions.js';
 export { MONEY_VARS } from './decisions.js';
 export type { DecisionsView } from './decisions.js';
+// Phase 5: life events (choice cards for every player, answered with `event.choose`).
+export { LIFE_EVENTS, LIFE_EVENT_TEMPLATES, lifeEventTemplate } from './data/lifeevents.js';
+export type { LifeEventTemplateData, LifeFamily } from './data/lifeevents.js';
 export { RIVALS } from './rivals.js';
 export type { RescuePlan, RescueOption } from './rescue.js';
 export { BANK_TYPES, MIN_CAPITAL_RATIO, RESERVE_RATIO } from './banks.js';
@@ -129,6 +199,9 @@ export type { Neighbourhood } from './data/property.js';
 export { CITY_DISTRICTS } from './data/businesses.js';
 export { LANDMARKS } from './data/landmarks.js';
 export type { LandmarkSeed } from './data/landmarks.js';
+// Golf and the mall.
+export { GOLF, MALL_ITEMS, MALL_SHOPS, PHONE_NAMES, golfCourse, mallItem } from './data/leisure.js';
+export type { GolfCourse, GolfHole, MallItem, MallShopId, PhoneTier } from './data/leisure.js';
 export { BRANCH } from './branches.js';
 export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.js';
 // Wave 12: sky views and the quiz bank.
@@ -144,7 +217,14 @@ export {
   QUIZ_AI_AFTER,
   AI_SHOT_AFTER,
   drawQuiz,
+  GOLF_SHOT_MS,
+  GOLF_AI_ACCEPT_AFTER,
+  GOLF_AI_SHOT_AFTER,
+  GOLF_AUTO_POWER,
+  GOLF_PICKUP_OVER,
+  golfHandicap,
 } from './play.js';
+export type { GolfMatch, GolfMatchShot, GolfPlayer } from './play.js';
 export {
   JOURNEY,
   OBJECTIVE_KINDS,

@@ -26,6 +26,9 @@ export function takeVisit(): string | null {
   return p;
 }
 
+/** Whether a destination is waiting (without taking it). */
+export const peekVisit = (): string | null => pending;
+
 /** How the player booked the pending trip (Rides app), if they did (cleared once taken). */
 export function takeVisitMode(): RideMode | null {
   const m = pendingMode;

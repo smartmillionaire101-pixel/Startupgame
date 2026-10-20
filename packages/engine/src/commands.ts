@@ -11,12 +11,18 @@ import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { STARTER_EXPENSE_IDS } from './data/ideas.js';
 import { REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
+import { appearanceSchema } from './appearance.js';
 
 const id = z.string().min(1).max(64);
 const money = z.number().int().nonnegative().max(1e15);
 const market = z.enum(MARKET_IDS);
 const industry = z.enum(INDUSTRIES);
 const answers = z.record(z.string().max(32), z.string().max(32));
+/**
+ * Typed pitch answers by question id: customers, money (minor units) or
+ * months. The engine checks each against its question's kind and bounds.
+ */
+const figures = z.record(z.string().max(32), z.number().finite().nonnegative().max(1e15));
 
 export const companySetup = z.object({
   name: z.string().min(3).max(32),
@@ -91,6 +97,16 @@ export const commandSchema = z.discriminatedUnion('type', [
     gender: z.enum(['female', 'male']).optional(),
     backgroundId: z.string().max(32),
     investor: investorSetup.optional(),
+  }),
+  /**
+   * Phase 6a: how you look (the character creator, a haircut). Cosmetic only.
+   * Any parts left out keep what you had (or your seeded look).
+   */
+  z.object({
+    type: z.literal('player.appearance'),
+    appearance: appearanceSchema
+      .partial()
+      .refine((a) => Object.values(a).some((v) => v !== undefined), 'Change at least one part.'),
   }),
   z.object({
     type: z.literal('player.create'),
@@ -188,7 +204,13 @@ export const commandSchema = z.discriminatedUnion('type', [
     slides: z.array(z.string().max(16)).min(1).max(5),
     ask: money,
   }),
-  z.object({ type: z.literal('pitch.answer'), pitchId: id, answers }),
+  z.object({
+    type: z.literal('pitch.answer'),
+    pitchId: id,
+    answers,
+    /** Life-bars note: a typed figure instead of a picked option, per numeric question. */
+    figures: figures.optional(),
+  }),
   z.object({ type: z.literal('pitch.partners'), pitchId: id }),
   // ---- deals
   z.object({
@@ -277,10 +299,14 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('car.select'), modelId: id }),
   z.object({
     type: z.literal('play.create'),
-    game: z.enum(['quiz', 'snooker', 'football']),
+    game: z.enum(['quiz', 'snooker', 'football', 'golf']),
     venue: id,
     title: z.string().trim().min(3).max(60),
     stake: z.number().int().min(0).max(100_000_000),
+    /** Golf with a friend: who you invite (a player or an AI friend in your city). */
+    invite: id.optional(),
+    /** Golf: how many of the course's holes to play (default: all three). */
+    holes: z.number().int().min(1).max(3).optional(),
     questions: z
       .array(
         z.object({
@@ -326,6 +352,21 @@ export const commandSchema = z.discriminatedUnion('type', [
     round: z.number().int().min(0),
     lane: z.number().int().min(0).max(4),
   }),
+  /** Golf with a friend: say no to an invitation (the host's stake goes back). */
+  z.object({ type: z.literal('play.decline'), roomId: id }),
+  /**
+   * Golf with a friend: your shot's inputs only. The engine plays the ball
+   * (lie, distance, strokes); `pickup` takes par + 3 for the hole instead.
+   */
+  z.object({
+    type: z.literal('play.golf'),
+    roomId: id,
+    round: z.number().int().min(0),
+    club: z.enum(['driver', 'wood', 'iron5', 'iron7', 'iron9', 'wedge', 'chip', 'putter']),
+    aim: z.number().min(-Math.PI).max(Math.PI),
+    power: z.number().min(0).max(110),
+    pickup: z.boolean().optional(),
+  }),
   z.object({
     type: z.literal('play.shot'),
     roomId: id,
@@ -333,7 +374,21 @@ export const commandSchema = z.discriminatedUnion('type', [
     angle: z.number().min(-Math.PI).max(Math.PI),
     power: z.number().min(5).max(100),
   }),
-  z.object({ type: z.literal('travel.book'), to: market }),
+  /** `hotel` (optional): book a stay abroad with the flight. Missing = no hotel, as before. */
+  z.object({
+    type: z.literal('travel.book'),
+    to: market,
+    hotel: z.enum(['budget', 'business', 'luxury']).optional(),
+    /** The flight the client picked off the board (cosmetic; friends on holiday share it). */
+    flight: z
+      .object({
+        airline: z.string().max(40).optional(),
+        number: z.string().max(12).optional(),
+        time: z.string().max(5).optional(),
+        gate: z.string().max(4).optional(),
+      })
+      .optional(),
+  }),
   z.object({ type: z.literal('travel.cancel') }),
   z.object({ type: z.literal('travel.fly'), to: market }),
   /**
@@ -344,6 +399,15 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('city.ride'),
     mode: z.enum(['bus', 'taxi', 'drive']),
     distance: z.enum(['short', 'medium', 'long']),
+  }),
+  /**
+   * Phase 3: walk or cycle across town. `minutes` is the trip time the player
+   * was shown (the engine clamps it to 1–240). Unknown before the life-bars note.
+   */
+  z.object({
+    type: z.literal('city.walk'),
+    mode: z.enum(['walk', 'cycle']),
+    minutes: z.number().finite(),
   }),
   /** Wave 4: "I'm here" (the server sends it, throttled, on authenticated requests). */
   z.object({ type: z.literal('player.seen') }),
@@ -443,6 +507,8 @@ export const commandSchema = z.discriminatedUnion('type', [
   /**
    * Founder Journey 4a: answer a decision event (view.decisions). Unanswered
    * ones resolve to their default at the settlement after the deadline.
+   * Phase 5 life events (`life: true` in the view) are answered the same
+   * way; the result then carries `result` (the bars that moved, your cash).
    */
   z.object({
     type: z.literal('event.choose'),
@@ -489,6 +555,18 @@ export const commandSchema = z.discriminatedUnion('type', [
   /** A part-time job at a local business in your home city: 40 hours a month, paid monthly. */
   z.object({ type: z.literal('job.take'), businessId: id, role: z.string().min(1).max(32) }),
   z.object({ type: z.literal('job.quit') }),
+  /**
+   * The jobs rework (after its release note): apply for a level at a
+   * professional employer in your home city (your own employer, one level
+   * up: a promotion). Books an interview there.
+   */
+  z.object({ type: z.literal('job.apply'), businessId: id, level: z.number().int().min(1).max(4) }),
+  /** At the employer: answer the interview's questions (an option index each); hired or not at once. */
+  z.object({
+    type: z.literal('job.interview'),
+    applicationId: id,
+    answers: z.array(z.number().int().min(0).max(5)).min(1).max(5),
+  }),
   /** Furniture for your apartment: one per slot; replacing sells the old one back at 40%. */
   /** Wave 6: `businessId` is the showroom you buy in (its till gets the money). */
   z.object({
@@ -555,8 +633,42 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('hangout.join'), hangoutId: id }),
   z.object({ type: z.literal('hangout.leave'), hangoutId: id }),
+  /**
+   * Holiday with friends: invite friends on your trip abroad (a booked ticket,
+   * or where you are). `hostPays`: you pay their flight and hotel when they accept.
+   */
+  z.object({
+    type: z.literal('holiday.invite'),
+    inviteeIds: z.array(id).min(1).max(6),
+    hostPays: z.boolean(),
+  }),
+  /** Accept: books the same city and hotel tier from your own city. `payOwn`: decline the host's offer to pay. */
+  z.object({ type: z.literal('holiday.accept'), holidayId: id, payOwn: z.boolean().optional() }),
+  z.object({ type: z.literal('holiday.decline'), holidayId: id }),
+  /** Do something together on holiday: plan (or join) an outing at a venue in the holiday city. */
+  z.object({ type: z.literal('holiday.together'), holidayId: id, businessId: id }),
+  /** In the holiday's hotel: knock on a friend's door (an AI friend answers at once). */
+  z.object({ type: z.literal('hotel.knock'), holidayId: id, playerId: id }),
+  /** Answer a knock: open the door (you go over to their room) or not now. */
+  z.object({ type: z.literal('hotel.answer'), holidayId: id, from: id, accept: z.boolean() }),
+  /** End the visit: say goodbye (the host), or go back to your room (the guest). */
+  z.object({ type: z.literal('hotel.leave'), holidayId: id }),
   /** Go to one of the city's tech events this month (`here.techEvents`). */
   z.object({ type: z.literal('techevent.attend'), eventId: id }),
+  /** Golf (leisure.ts): hand in your card for the city's three holes (strokes per hole). */
+  z.object({
+    type: z.literal('golf.round'),
+    strokes: z.array(z.number().int().min(1).max(20)).min(1).max(18),
+  }),
+  /** The mall (leisure.ts): buy one thing; clothes take a colour (#rrggbb). */
+  z.object({
+    type: z.literal('mall.buy'),
+    itemId: z.string().min(1).max(32),
+    colour: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .optional(),
+  }),
   // ---- the founder journey: the objective tracker's prompts
   /** Pin a prompt so it stays in its slot; without `id`, unpin that kind. */
   z.object({

@@ -465,10 +465,11 @@ describe('What to do now', () => {
 describe('avatars', () => {
   it('follow the chosen gender, and stay stable without one', () => {
     for (let k = 0; k < 20; k++) {
-      expect(['bun', 'long', 'braids', 'afro']).toContain(
+      // Phase 6a: the engine's seeded looks (defaultAppearance) by gender.
+      expect(['bun', 'long', 'braids', 'afro', 'locs', 'twists', 'curly']).toContain(
         avatarLook('f-engineer', `p${k}`, 'female').hairStyle,
       );
-      expect(['short', 'buzz', 'afro']).toContain(
+      expect(['short', 'buzz', 'afro', 'bald', 'locs', 'twists', 'curly']).toContain(
         avatarLook('f-engineer', `p${k}`, 'male').hairStyle,
       );
       expect(avatarLook('f-banker', `p${k}`, 'female').accessory).not.toBe('tie');

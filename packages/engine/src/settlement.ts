@@ -24,6 +24,7 @@ import { settleSegment } from './customers.js';
 import { expireDeals } from './deals.js';
 import { holdDueEvents } from './events.js';
 import { settleEconomy } from './economy.js';
+import { ensureEmployers } from './work.js';
 import { settleFundFees } from './funds.js';
 import { payDividends } from './travel.js';
 import { settleVotes } from './governance.js';
@@ -49,6 +50,7 @@ import type { Company, Player, World } from './types.js';
 import { journeyEventsOn } from './releases.js';
 import { rivalPressure, settleRivals } from './rivals.js';
 import { settleDecisions } from './decisions.js';
+import { settleLifeEvents } from './lifeevents.js';
 import { settlePublicMarket } from './exits.js';
 import { settleCareers, settleMentorships } from './allocator.js';
 
@@ -56,11 +58,12 @@ import { settleCareers, settleMentorships } from './allocator.js';
 export const NAME_RESERVATION_MONTHS = 12;
 
 function playerPerformance(world: World, p: Player): number {
-  // Bankers are judged by their bank.
-  const bank = Object.values(world.banks).find(
-    (b) => b.ownerId === p.id && b.status === 'licensed',
-  );
-  if (p.role === 'banker' && bank) return bank.stars.value;
+  // Bankers are judged by their bank (only bankers need it looked up).
+  const bank =
+    p.role === 'banker'
+      ? Object.values(world.banks).find((b) => b.ownerId === p.id && b.status === 'licensed')
+      : undefined;
+  if (bank) return bank.stars.value;
   if (p.role === 'investor') {
     const pos = Object.values(world.positions).filter(
       (x) => x.investorId === p.id || x.investorId === p.investor?.fundId,
@@ -127,6 +130,8 @@ export function settleMarket(
   holdDueEvents(world, marketId, month);
   // The city economy (Wave 3): households, local businesses and their trade with
   // startups. Own RNG stream; before companies so purchases count in this month's revenue.
+  // The jobs rework (jobs worlds only): the city's professional employers open first.
+  ensureEmployers(world, marketId, month);
   settleEconomy(world, marketId, month);
   // Wave 10: branches trade (before companies settle, so this city's count this month),
   // and now and then an AI company or a thriving local business expands. Own streams.
@@ -185,6 +190,8 @@ export function settleMarket(
   // Journey 4a (after the release note only): rivals move, then decision events (own streams).
   settleRivals(world, marketId, month);
   settleDecisions(world, marketId, month);
+  // Phase 5 (life-bars worlds only): friends' loans come back, new life events (own streams).
+  settleLifeEvents(world, marketId, month);
   reporterOutreach(world, marketId, rng, month);
   maintainPopulation(world, marketId, rng, now);
   inactivity(world, marketId, now, month, clock.monthMs);

@@ -486,15 +486,15 @@ function CompanyBlock({ c, many }: { c: RecapCompany; many: boolean }) {
     lines.push({
       text:
         c.runwayBefore !== null
-          ? t('Runway: {before} → {after} months', {
+          ? t('Money lasts: {before} → {after} months', {
               before: months1(c.runwayBefore),
               after: months1(c.runwayAfter),
             })
-          : t('Runway: about {after} months', { after: months1(c.runwayAfter) }),
+          : t('Money lasts: about {after} months', { after: months1(c.runwayAfter) }),
       tone: c.runwayAfter < 6 ? 'bad' : undefined,
     });
   else if (c.net !== null && c.net >= 0)
-    lines.push({ text: t('Not burning cash: revenue covered the costs.'), tone: 'good' });
+    lines.push({ text: t('Not losing money: revenue covered the costs.'), tone: 'good' });
   return (
     <div className="recap-company">
       {many && <div className="recap-money-name small">{c.name}</div>}
@@ -587,7 +587,7 @@ function personText(p: RecapPerson): string {
 function riskText(r: RecapRisk): string {
   switch (r.kind) {
     case 'runway':
-      return t('{company} has about {n} months of cash left at this burn.', {
+      return t('{company} has about {n} months of money left at this rate of spending.', {
         company: r.company,
         n: months1(r.months),
       });

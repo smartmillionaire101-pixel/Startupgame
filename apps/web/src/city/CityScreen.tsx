@@ -5,7 +5,7 @@
 /* The build doesn't use the React Compiler; these memos are deliberate (they keep the
    static SVG scene from re-rendering), so its preservation check doesn't apply. */
 /* eslint-disable react-hooks/preserve-manual-memoization */
-import { openPhone } from '../phone/bus';
+import { openPhone, useNav } from '../phone/bus';
 import {
   lazy,
   Suspense,
@@ -22,11 +22,12 @@ import { api, ApiError } from '../api';
 import { money, runway } from '../format';
 import { t, tx, useLang } from '../i18n';
 import { useView, WithView } from '../store';
-import { Button, Icon, Pill, Sheet } from '../ui';
+import { Button, Icon, Pill, Sheet, reduceMotion } from '../ui';
 import { avatarLook } from './art';
 import { CityMap, districtLabel, placeAvatarAt, type CityMapHandle, type FarTrip } from './CityMap';
 import { MonthCountdown, RideChooser, RideIcon } from './Transport';
 import {
+  stayOf,
   cityViewOf,
   clockOf,
   destinationsOf,
@@ -35,6 +36,7 @@ import {
   lastRide,
   rememberRide,
   rideDistance,
+  rideMinutes,
   type Destination,
   type RideMode,
 } from './travel';
@@ -48,7 +50,7 @@ import {
   storyOf,
   type StoryPlace,
 } from './contract';
-import { onVisit, takeVisit } from './goto';
+import { onVisit, peekVisit, takeVisit } from './goto';
 import { getTicket, setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
@@ -59,30 +61,40 @@ import { useRiding } from './riding';
 import { crowdSize, eventsOf, flaggedPlaces, newBusinessIds, passersBy } from './people';
 import { PersonCard, type PersonRef } from './PersonCard';
 import { SkyViewsList } from '../experiences/SkyViewsList';
-import { openSky } from '../experiences/sky-bus';
-import type { PhoneApp } from '../phone/bus';
 import { JourneyCelebration, JourneyChip, JourneyPanel } from './JourneyPanel';
 import type { JourneyGo } from './journey';
+import { runJourneyGo } from './journeyGo';
+import { NextStepCard } from './NextStepCard';
+import { GestureHint } from './GestureHint';
+import { MapKeyIcon, MapKeySheet } from './MapBadges';
+import { useSimple } from '../phone/settings';
 import { WhoIsAround } from './WhoIsHere';
 import { OnlineNowList } from './OnlineNow';
 import { usePresence } from './presence';
+import { HolidayBanner } from '../phone/apps/Holiday';
+import { RideWith } from './companions';
 import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
 import { cachedCityLayout } from './geoLayout';
 import { type CityLayout, type DistrictId, type Place, type Pt } from './layout';
-import { openCompanyTab } from '../screens/Company';
 import { skipRides } from './ride/state';
 
 // Scenes and flights load on demand (Wave 7 §D: a small main bundle).
 const Interior = lazy(() => import('./Interiors').then((m) => ({ default: m.Interior })));
 const FlightScene = lazy(() => import('./Flight').then((m) => ({ default: m.FlightScene })));
 
-const kindLabel = (p: Place, companyName: string | null, abroad: boolean, _lang?: string) =>
+const kindLabel = (
+  p: Place,
+  companyName: string | null,
+  abroad: boolean,
+  _lang?: string,
+  hotel?: string | null,
+) =>
   (
     ({
       // Away from home, your office and home stand in for a coworking desk and a hotel.
       office: abroad ? t('Coworking space') : (companyName ?? t('Your office')),
-      home: abroad ? t('Your hotel') : t('Your home'),
+      home: abroad ? (hotel ?? t('Your hotel')) : t('Your home'),
       hub: t('The Hub'),
       airport: t('Airport'),
       newsstand: t('Newsstand'),
@@ -143,6 +155,97 @@ const matches = (p: Place, f: Filter) =>
  * Every building, grouped by district (a planned city's named districts),
  * with a category filter: for keyboards, screen readers and lite mode.
  */
+
+/** Landing opens Arrivals in the airport (the e2e suite steps straight out: `runway.arrivals` = 0). */
+function arrivalsOn(): boolean {
+  try {
+    return localStorage.getItem('runway.arrivals') !== '0';
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * A new session starts at home: the game opens there when you come back
+ * after a while (10 minutes or more away, or the first time), not on a
+ * quick reload. Kept per player, so a new player on the same phone (or a
+ * sign-up straight after playing) starts at home too. On a phone a
+ * backgrounded tab keeps its page, so coming back to it after a while counts
+ * too (CityBodyInner's visibility listener). A reload while you're still at
+ * home from that start (the "new version" Refresh) opens at home again. The
+ * e2e suite turns it off (`runway.startAtHome` = 0) so specs start on the map.
+ */
+const AWAY_MS = 10 * 60_000;
+const seenKey = (id: string) => `runway.lastSeen.${id}`;
+/** Set while you're at home from a session start: a reload then opens at home again. */
+const HOLD = 'runway.homeHold';
+/** The player this page is playing as (whose time is kept). */
+let seenId: string | null = null;
+function lastSeen(id: string): number {
+  try {
+    return Number(localStorage.getItem(seenKey(id))) || 0;
+  } catch {
+    return 0;
+  }
+}
+function markSeen() {
+  if (!seenId) return;
+  try {
+    localStorage.setItem(seenKey(seenId), String(Date.now()));
+  } catch {
+    /* storage blocked */
+  }
+}
+const homeOff = () => {
+  try {
+    return localStorage.getItem('runway.startAtHome') === '0';
+  } catch {
+    return true;
+  }
+};
+/** Away long enough that opening the game counts as a new session. */
+const awayLong = (id: string) => Date.now() - lastSeen(id) >= AWAY_MS;
+function holdHome(on: boolean) {
+  try {
+    if (on) sessionStorage.setItem(HOLD, '1');
+    else sessionStorage.removeItem(HOLD);
+  } catch {
+    /* storage blocked */
+  }
+}
+const homeHeld = () => {
+  try {
+    return sessionStorage.getItem(HOLD) === '1';
+  } catch {
+    return false;
+  }
+};
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', markSeen);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') markSeen();
+  });
+  // While you play, so a reload an hour in is still a quick reload.
+  setInterval(() => {
+    if (document.visibilityState === 'visible') markSeen();
+  }, 60_000);
+}
+
+/** Players this page has already decided for: once per player per page load. */
+const decided = new Set<string>();
+/**
+ * Whether the city should open at home for this player: true at most once per
+ * player per page load. Decided before anything marks them seen.
+ */
+function startAtHome(id: string): boolean {
+  if (decided.has(id)) return false;
+  decided.add(id);
+  const home = !homeOff() && (awayLong(id) || homeHeld());
+  seenId = id;
+  markSeen();
+  return home;
+}
+
 export function PlacesList({
   layout,
   labelOf,
@@ -184,8 +287,36 @@ export function PlacesList({
     { id: 'customers', label: t('Customers') },
     ...cats.map((c) => ({ id: c, label: categoryLabel(c), color: CATEGORY_COLOR[c] })),
   ];
+  // The big days out, wherever they stand in town: always one tap away.
+  const outings = (['golf', 'mall'] as const)
+    .map((k) => layout.places.find((p) => p.kind === k))
+    .filter((p): p is Place => !!p);
   return (
     <div className="places">
+      {outings.length > 0 && (
+        <section className="places-outings" aria-label={t('Things to do')}>
+          <h3>{t('Things to do')}</h3>
+          <div className="places-outings-row">
+            {outings.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="places-outing"
+                data-outing={p.kind}
+                onClick={() => onPick(p)}
+              >
+                <span className="places-outing-icon" aria-hidden>
+                  {p.kind === 'golf' ? '⛳' : '🛍️'}
+                </span>
+                <span className="places-outing-name">{labelOf(p)}</span>
+                <span className="small muted">
+                  {p.kind === 'golf' ? t('Play a round of golf') : t('Shops, food court, cinema')}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       {(cats.length > 0 || layout.areas.length > 0) && (
         <div className="places-filter" role="group" aria-label={t('Show')}>
           {filters.map((f) => (
@@ -414,6 +545,16 @@ function CityBodyInner({
   onOpenProperty?: (id: string) => void;
 }) {
   const { view, lite, refresh, toast } = useView();
+  const appNav = useNav();
+  const simple = useSimple();
+  // Phase 3 life bars (server release): trips cost game hours and energy.
+  const lifeBars = !!view.me.bars;
+  /**
+   * goTo just asked for a trip that should go at once ("Always skip rides"
+   * with the life bars). A short hop asks for no trip, so this only lasts a
+   * second.
+   */
+  const autoPending = useRef(0);
   const lang = useLang();
   const abroad = view.market.id !== home.id;
   const company = activeCompany(view);
@@ -422,9 +563,11 @@ function CityBodyInner({
   const meId = view.me.id;
 
   // Labels are translated: they are rebuilt when the language changes.
+  // Abroad, your home stands in for the hotel you booked (by its name).
+  const hotelName = stayOf(view)?.name ?? null;
   const labelOf = useCallback(
-    (p: Place) => kindLabel(p, companyName, abroad, lang),
-    [companyName, abroad, lang],
+    (p: Place) => kindLabel(p, companyName, abroad, lang, hotelName),
+    [companyName, abroad, lang, hotelName],
   );
   const gender = genderOf(view.me);
   // Wave 8: a new haircut redraws you on the map.
@@ -437,6 +580,7 @@ function CityBodyInner({
   const [inside, setInside] = useState<Place | null>(null);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [skyOpen, setSkyOpen] = useState(false);
+  const [keyOpen, setKeyOpen] = useState(false);
   const [journeyOpen, setJourneyOpen] = useState(false);
   const skyCity = view.here?.id ?? view.market.id;
   const [peopleOpen, setPeopleOpen] = useState(false);
@@ -467,13 +611,67 @@ function CityBodyInner({
   // Rebuild the layout only when what it depends on changes.
   const key = JSON.stringify(cityInput(view));
   const layout = useMemo(() => cachedCityLayout(key, geo), [key, geo]);
-  // Landed: you step out of the airport.
+  // Landed: you're in the city's airport (Arrivals), with its name and where
+  // to go next: your hotel (or home), or somewhere worth seeing. Leaving it,
+  // you step out of the airport's door.
+  const [arrival, setArrival] = useState(false);
   useLayoutEffect(() => {
     if (!landing || layout.marketId !== landing) return;
     const airport = layout.places.find((p) => p.kind === 'airport');
     if (airport) placeAvatarAt(layout.marketId, airport.door);
     onLanded();
   }, [layout, landing, onLanded]);
+  // (State that follows a prop is adjusted while rendering, not in an effect.)
+  const [landedAt, setLandedAt] = useState<string | null>(null);
+  if (landing !== landedAt && (!landing || layout.marketId === landing)) {
+    setLandedAt(landing);
+    const airport = landing ? layout.places.find((p) => p.kind === 'airport') : undefined;
+    if (airport && arrivalsOn()) {
+      setArrival(true);
+      setInside(airport);
+    }
+  }
+  // A new session starts at home (or your hotel, abroad): you walk out to
+  // explore the city rather than landing straight on the map. Once per
+  // page load, and not when something already asked to go elsewhere.
+  const [homeStart, setHomeStart] = useState(false);
+  if (!homeStart) {
+    setHomeStart(true);
+    const homePlace = layout.places.find((p) => p.id === 'home');
+    const home = startAtHome(meId);
+    if (homePlace && !landing && !peekVisit() && home) {
+      placeAvatarAt(layout.marketId, homePlace.door);
+      setInside(homePlace);
+      holdHome(true);
+    }
+  }
+  // Back to a phone tab left in the background for a while: a new session,
+  // so you’re at home again (not mid-trip or landing).
+  const homeDoor = layout.places.find((p) => p.id === 'home');
+  const resumeHome = useRef<() => void>(() => {});
+  useEffect(() => {
+    resumeHome.current = () => {
+      if (!homeDoor || landing || riding || homeOff()) return;
+      placeAvatarAt(layout.marketId, homeDoor.door);
+      setArrival(false);
+      setInside(homeDoor);
+      holdHome(true);
+    };
+  });
+  useEffect(() => {
+    const onShow = () => {
+      if (document.visibilityState !== 'visible') return;
+      const away = awayLong(meId);
+      markSeen();
+      if (away) resumeHome.current();
+    };
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, [meId]);
+  // Out of the house (or never in it): a reload is a quick one again.
+  useEffect(() => {
+    if (inside?.id !== 'home') holdHome(false);
+  }, [inside]);
   // A few anonymous passers-by: deterministic for the city, sized for the screen.
   // Everyone you can talk to is inside a building (Wave 6).
   const [crowdMax] = useState(() =>
@@ -507,22 +705,51 @@ function CityBodyInner({
       setPlacesOpen(false);
       setTrip(null);
       if (lite || !mapRef.current) setInside(place);
-      // "Always skip rides" (Settings): straight there, no trip.
-      else if (skipRides()) mapRef.current.goTo(place.id, 'walk', { instant: true });
+      // "Always skip rides" (Settings): straight there, no trip. With the life
+      // bars a trip costs time and energy, so you still choose how (the
+      // ride then skips its animation).
+      else if (skipRides() && !lifeBars) mapRef.current.goTo(place.id, 'walk', { instant: true });
       // From a list or a button: somewhere far asks how to get there (walk,
-      // cycle, transit, a taxi or your car, or skip the trip); a short hop walks.
-      else mapRef.current.goTo(place.id, preferred === 'cycle' ? 'cycle' : 'walk', { ask: true });
+      // cycle, transit, a taxi or your car, or skip the trip); a short hop
+      // walks. With "Always skip rides" and the life bars, the trip goes your
+      // usual way at once (paid) instead of asking.
+      else {
+        // The map reports the trip at once (inside goTo), so a ref, not state.
+        autoPending.current = lifeBars && skipRides() ? Date.now() : 0;
+        mapRef.current.goTo(place.id, preferred === 'cycle' ? 'cycle' : 'walk', { ask: true });
+      }
     },
-    [lite, preferred],
+    [lite, preferred, lifeBars],
   );
   const goToStory = useCallback(
     (where: StoryPlace) => {
       const p = placeFor(layout, where);
       setInside(null);
+      setArrival(false);
       if (p) goTo(p);
     },
     [layout, goTo],
   );
+  // Landed and going to your hotel (or home): the hotel's car takes you
+  // straight there, a short ride over the airport, then your room; no map
+  // and no ride to choose in between.
+  const [transfer, setTransfer] = useState<string | null>(null);
+  const transferTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(transferTimer.current), []);
+  const rideToStay = useCallback(() => {
+    const stay = layout.places.find((p) => p.id === 'home');
+    if (!stay) return goToStory('home');
+    setTransfer(hotelName ?? t('Home'));
+    transferTimer.current = window.setTimeout(
+      () => {
+        placeAvatarAt(layout.marketId, stay.door);
+        setArrival(false);
+        setInside(stay);
+        setTransfer(null);
+      },
+      reduceMotion() ? 400 : 2200,
+    );
+  }, [layout, goToStory, hotelName]);
   const office = layout.places.find((p) => p.kind === 'office')!;
   // Going home is a trip like any other: the ticket home is booked, then you
   // go to the airport and check in for it (lite mode, without the airport
@@ -544,6 +771,7 @@ function CityBodyInner({
     }
     setTicket(ticketFor(layout.marketId, d, home.currency, homeMonth));
     setInside(null);
+    setArrival(false);
     goTo(airport);
   }, [
     destinations,
@@ -560,14 +788,18 @@ function CityBodyInner({
   const visit = useCallback(
     (placeId: string) => {
       // 'market' stands for the Market's stalls ("What to do now"); 'investors'
-      // and 'bank' for their quarters (the founder journey).
+      // and 'bank' for their quarters (the founder journey). A building's id
+      // first, then a story place's name ('office', 'home': the rescue plan's
+      // buttons on the payday warning).
       const p =
         placeId === 'market' || placeId === 'investors' || placeId === 'bank'
           ? placeFor(layout, placeId)
-          : layout.places.find((x) => x.id === placeId);
+          : (layout.places.find((x) => x.id === placeId) ??
+            placeFor(layout, placeId as StoryPlace));
       setPerson(null);
       setPeopleOpen(false);
       setInside(null);
+      setArrival(false);
       if (p) goTo(p);
     },
     [layout, goTo],
@@ -588,52 +820,90 @@ function CityBodyInner({
     setTrip(null);
     mapRef.current?.cancelTrip();
   }, []);
-  /** Skip the trip: there at once, free. */
-  const skipTrip = useCallback(() => {
+  /**
+   * Pay for the trip on the server: a fare for transit and taxis, and with
+   * the life bars game hours and energy (walking and cycling too). False when
+   * the server said no (too tired, no hours left), with the reason shown.
+   */
+  const chargeTrip = useCallback(
+    async (mode: RideMode, tiles: number) => {
+      const legs = mode === 'walk' || mode === 'cycle';
+      if (legs && !lifeBars) return true;
+      setRideBusy(true);
+      try {
+        await api.command(
+          (legs
+            ? { type: 'city.walk', mode, minutes: rideMinutes(mode, tiles) }
+            : { type: 'city.ride', mode, distance: rideDistance(tiles) }) as unknown as Command,
+        );
+        void refresh();
+      } catch (e) {
+        // A server without rides (or walks) yet: the trip is free (and just animates).
+        if (!(e instanceof ApiError && e.code === 'command.unknown')) {
+          setRideBusy(false);
+          toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error');
+          return false;
+        }
+      }
+      setRideBusy(false);
+      return true;
+    },
+    [lifeBars, refresh, toast],
+  );
+  /**
+   * Skip the trip: there at once. Free without the life bars; with them it
+   * costs what your usual way of getting about costs, just without the ride.
+   */
+  const skipTrip = useCallback(async () => {
+    if (!trip) return;
+    if (lifeBars && !(await chargeTrip(preferred, trip.tiles))) return;
     setTrip(null);
-    mapRef.current?.ride('walk', true);
-  }, []);
+    mapRef.current?.ride(lifeBars ? preferred : 'walk', true);
+  }, [trip, lifeBars, preferred, chargeTrip]);
   const pickRide = useCallback(
-    async (mode: RideMode) => {
-      if (!trip) return;
+    async (mode: RideMode, instant = false, which: FarTrip | null = trip) => {
+      if (!which) return;
       rememberRide(mode);
       setPreferred(mode);
-      if (mode === 'bus' || mode === 'taxi' || mode === 'drive') {
-        setRideBusy(true);
-        try {
-          await api.command({
-            type: 'city.ride',
-            mode,
-            distance: rideDistance(trip.tiles),
-          } as unknown as Command);
-          void refresh();
-        } catch (e) {
-          // A server without rides yet: the ride is free (and just animates).
-          if (!(e instanceof ApiError && e.code === 'command.unknown')) {
-            setRideBusy(false);
-            toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error');
-            return;
-          }
-        }
-        setRideBusy(false);
-      }
+      if (!(await chargeTrip(mode, which.tiles))) return;
       setTrip(null);
-      mapRef.current?.ride(mode);
+      mapRef.current?.ride(mode, instant);
     },
-    [trip, refresh, toast],
+    [trip, chargeTrip],
   );
+  // "Always skip rides" (Settings) with the life bars, for a trip from a list
+  // or a button: no chooser, go your usual way at once and pay for it. If
+  // that's refused (too tired, no hours left), the chooser stays up with the
+  // reason. Tapping a far building on the map still asks.
+  const [autoTrip, setAutoTrip] = useState<FarTrip | null>(null);
+  const onFarTrip = useCallback(
+    (next: FarTrip | null) => {
+      setTrip(next);
+      if (!next || Date.now() - autoPending.current > 1000) return;
+      autoPending.current = 0;
+      setAutoTrip(next);
+      void pickRide(preferred, true, next).finally(() => setAutoTrip(null));
+    },
+    [preferred, pickRide],
+  );
+  // While that trip is being paid for, the chooser stays hidden (no flash of it).
+  const asking = !!trip && trip !== autoTrip;
   // The founder journey's Go buttons: walk somewhere, open a tab, an app or a view.
   const journeyGo = useCallback(
     (g: JourneyGo) => {
       setJourneyOpen(false);
-      if (g.kind === 'place') visit(g.place);
-      else if (g.kind === 'tab') {
-        if (g.section) openCompanyTab(g.section);
-        onNavigate(g.tab === 'company' || g.tab === 'me' ? g.tab : 'money');
-      } else if (g.kind === 'app') openPhone({ app: g.app as PhoneApp });
-      else openSky(g.id);
+      runJourneyGo(g, {
+        place: visit,
+        app: (app) => openPhone({ app }),
+        // The City only switches between its own few tabs; anything else
+        // (Portfolio, Deal offers) goes through the app's navigation.
+        tab: (tab) =>
+          tab === 'company' || tab === 'me' || tab === 'money'
+            ? onNavigate(tab)
+            : appNav?.go({ kind: 'tab', tab }),
+      });
     },
-    [visit, onNavigate],
+    [visit, onNavigate, appNav],
   );
   const tips = suggestionsFor(view);
   const firstTip = tips[0] ? suggestionText(tips[0], view.market.currency).label : '';
@@ -664,11 +934,14 @@ function CityBodyInner({
           <p className="small muted">
             {t('Lite mode: the city map is off to save data. Pick a place to go in.')}
           </p>
-          <WhatNowCard onGo={visit} />
-          <section className="places-group sky-group">
-            <h3>{t('Sky views')}</h3>
-            <SkyViewsList city={skyCity} prewarm={false} />
-          </section>
+          {simple ? <NextStepCard onGo={journeyGo} /> : <WhatNowCard onGo={visit} />}
+          {!simple && (
+            <section className="places-group sky-group">
+              <h3>{t('Sky views')}</h3>
+              <SkyViewsList city={skyCity} prewarm={false} />
+            </section>
+          )}
+          {simple && <h2 className="section-h">{t('Where to?')}</h2>}
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
           <section className="places-group people-group">
             <h3>{t('People around')}</h3>
@@ -690,7 +963,7 @@ function CityBodyInner({
             flags={flags}
             fresh={fresh}
             onArrive={onArrive}
-            onFarTrip={setTrip}
+            onFarTrip={onFarTrip}
             car={abroad ? null : car}
             properties={myHomes}
             onOpenProperty={onOpenProperty}
@@ -732,33 +1005,58 @@ function CityBodyInner({
           </div>
           <div className="city-hud city-hud-zoom">
             <JourneyChip onOpen={() => setJourneyOpen(true)} />
+            {/* Simple mode: pinch zooms; the buttons that stay say what they do. */}
+            {!simple && (
+              <>
+                <button
+                  type="button"
+                  className="hud-round"
+                  aria-label={t('Zoom in')}
+                  onClick={() => mapRef.current?.zoom(1.3)}
+                >
+                  <Icon name="plus" />
+                </button>
+                <button
+                  type="button"
+                  className="hud-round"
+                  aria-label={t('Zoom out')}
+                  onClick={() => mapRef.current?.zoom(1 / 1.3)}
+                >
+                  <Icon name="minus" />
+                </button>
+              </>
+            )}
             <button
               type="button"
-              className="hud-round"
-              aria-label={t('Zoom in')}
-              onClick={() => mapRef.current?.zoom(1.3)}
-            >
-              <Icon name="plus" />
-            </button>
-            <button
-              type="button"
-              className="hud-round"
-              aria-label={t('Zoom out')}
-              onClick={() => mapRef.current?.zoom(1 / 1.3)}
-            >
-              <Icon name="minus" />
-            </button>
-            <button
-              type="button"
-              className="hud-round"
+              className={simple ? 'hud-places hud-me' : 'hud-round'}
               aria-label={t('Centre on me')}
               onClick={() => mapRef.current?.recentre()}
             >
               <Icon name="locate" />
+              {simple && (
+                <span className="hud-btn-label" aria-hidden="true">
+                  {t('Me')}
+                </span>
+              )}
             </button>
+            {/* What the map's icons mean (and "Show names"). */}
+            <button
+              type="button"
+              className="hud-round hud-key"
+              aria-label={t('Map key')}
+              data-map-key-open=""
+              onClick={() => setKeyOpen(true)}
+            >
+              <MapKeyIcon />
+            </button>
+            {/* Simple mode: the next step is a 💡 button (a red dot when there's
+                something new) that opens a small card. */}
+            {simple && !riding && <NextStepCard onMap onGo={journeyGo} />}
           </div>
+          <GestureHint />
           <div className="city-hud city-hud-bottom">
-            {trip ? (
+            {/* How to get there: a slim strip above the map's buttons, which stay. */}
+            {trip && asking && (
               <RideChooser
                 tiles={trip.tiles}
                 where={tripPlace ? labelOf(tripPlace) : ''}
@@ -768,75 +1066,71 @@ function CityBodyInner({
                 preferred={preferred}
                 busy={rideBusy}
                 onPick={(m) => void pickRide(m)}
-                onSkip={skipTrip}
+                onSkip={() => void skipTrip()}
                 onCancel={cancelTrip}
                 car={car}
                 abroad={abroad}
+                me={lifeBars ? { hoursLeft: view.me.hours.left, energy: view.me.energy } : null}
+                skipAs={lifeBars ? preferred : undefined}
               />
-            ) : (
-              <>
-                {alarm && !abroad && (
-                  <div className={`hud-banner hud-${alarm.level}`} role="status">
-                    <span>
-                      <b>{t('Rescue plan')}</b>
-                      {alarm.deadline ? ` · ${tx(alarm.deadline)}` : ''}
-                    </span>
-                    <Button variant="danger" onClick={() => goTo(office)}>
-                      {t('See the plan')}
-                    </Button>
-                  </div>
-                )}
-                <div className="hud-row-bottom">
-                  {!riding && (
-                    <button
-                      type="button"
-                      className="hud-whatnow-chip"
-                      aria-haspopup="dialog"
-                      onClick={() => setWhatNowSheet(true)}
-                    >
-                      <Icon name="spark" size={18} />
-                      <span className="hud-whatnow-label">{t('What to do now')}</span>
-                      {firstTip && <span className="hud-whatnow-tip">{firstTip}</span>}
-                    </button>
-                  )}
-                  <div className="hud-stack">
-                    <button
-                      type="button"
-                      className="hud-places"
-                      onClick={() => setPeopleOpen(true)}
-                    >
-                      <Icon name="people" size={20} />
-                      <span className="hud-btn-label">{t('Who’s here')}</span>
-                      {players.length > 0 && (
-                        <span className="hud-count">
-                          <span className="sr-only">
-                            {t('{n} players nearby', { n: players.length })}
-                          </span>
-                          <span aria-hidden>{players.length}</span>
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className="hud-places"
-                      onClick={() => setPlacesOpen(true)}
-                    >
-                      <Icon name="list" size={20} />
-                      <span className="hud-btn-label">{t('Places')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="hud-places"
-                      data-testid="sky-views-btn"
-                      onClick={() => setSkyOpen(true)}
-                    >
-                      <span aria-hidden>🎡</span>
-                      <span className="hud-btn-label">{t('Sky views')}</span>
-                    </button>
-                  </div>
-                </div>
-              </>
             )}
+            <>
+              {abroad && <HolidayBanner />}
+              {alarm && !abroad && !(trip && asking) && (
+                <div className={`hud-banner hud-${alarm.level}`} role="status">
+                  <span>
+                    <b>{t('Rescue plan')}</b>
+                    {alarm.deadline ? ` · ${tx(alarm.deadline)}` : ''}
+                  </span>
+                  <Button variant="danger" onClick={() => goTo(office)}>
+                    {t('See the plan')}
+                  </Button>
+                </div>
+              )}
+              <div className="hud-row-bottom">
+                {!riding && !simple && (
+                  <button
+                    type="button"
+                    className="hud-whatnow-chip"
+                    aria-haspopup="dialog"
+                    onClick={() => setWhatNowSheet(true)}
+                  >
+                    <Icon name="spark" size={18} />
+                    <span className="hud-whatnow-label">{t('What to do now')}</span>
+                    {firstTip && <span className="hud-whatnow-tip">{firstTip}</span>}
+                  </button>
+                )}
+                <div className="hud-stack">
+                  <button type="button" className="hud-places" onClick={() => setPeopleOpen(true)}>
+                    <Icon name="people" size={20} />
+                    <span className="hud-btn-label">{t('Who’s here')}</span>
+                    {players.length > 0 && (
+                      <span className="hud-count">
+                        <span className="sr-only">
+                          {t('{n} players nearby', { n: players.length })}
+                        </span>
+                        <span aria-hidden>{players.length}</span>
+                      </span>
+                    )}
+                  </button>
+                  <button type="button" className="hud-places" onClick={() => setPlacesOpen(true)}>
+                    <Icon name="list" size={20} />
+                    <span className="hud-btn-label">{simple ? t('Where to?') : t('Places')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="hud-places hud-sky"
+                    data-testid="sky-views-btn"
+                    onClick={() => setSkyOpen(true)}
+                  >
+                    <span className="hud-sky-icon" aria-hidden>
+                      🎡
+                    </span>
+                    <span className="hud-btn-label">{t('Sky views')}</span>
+                  </button>
+                </div>
+              </div>
+            </>
           </div>
         </div>
       )}
@@ -866,15 +1160,18 @@ function CityBodyInner({
           <JourneyPanel onGo={journeyGo} />
         </Sheet>
       )}
+      {keyOpen && <MapKeySheet onClose={() => setKeyOpen(false)} />}
       {skyOpen && (
         <Sheet title={t('Sky views')} onClose={() => setSkyOpen(false)}>
           <SkyViewsList city={skyCity} onOpen={() => setSkyOpen(false)} />
         </Sheet>
       )}
       {placesOpen && (
-        <Sheet title={t('Places')} onClose={() => setPlacesOpen(false)}>
-          <SkyViewsList city={skyCity} onOpen={() => setPlacesOpen(false)} />
+        <Sheet title={simple ? t('Where to?') : t('Places')} onClose={() => setPlacesOpen(false)}>
+          {/* Simple mode: places first; the sky views (no button of their own) after them. */}
+          {!simple && <SkyViewsList city={skyCity} onOpen={() => setPlacesOpen(false)} />}
           <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
+          {simple && <SkyViewsList city={skyCity} onOpen={() => setPlacesOpen(false)} />}
         </Sheet>
       )}
       {peopleOpen && (
@@ -914,6 +1211,20 @@ function CityBodyInner({
           )}
         </Sheet>
       )}
+      {transfer && (
+        <div className="stay-transfer" role="status" data-transfer>
+          <div className="stay-transfer-road" aria-hidden="true">
+            <span className="stay-transfer-car">🚗</span>
+          </div>
+          <p className="stay-transfer-title">
+            {abroad ? t('On your way to {hotel}', { hotel: transfer }) : t('On your way home')}
+          </p>
+          {abroad && <RideWith market={layout.marketId} />}
+          <p className="stay-transfer-sub">
+            {abroad ? t('Your driver is taking you to the hotel.') : t('Nearly there.')}
+          </p>
+        </div>
+      )}
       {inside && (
         <Suspense
           fallback={<div className="scene-loading" role="status" aria-label={t('Loading…')} />}
@@ -922,8 +1233,24 @@ function CityBodyInner({
             place={inside}
             layout={layout}
             title={labelOf(inside)}
-            onClose={() => setInside(null)}
+            onClose={() => {
+              setInside(null);
+              setArrival(false);
+            }}
             onGo={goToStory}
+            arrival={
+              arrival && inside.kind === 'airport'
+                ? {
+                    home: !abroad,
+                    onGo: (where: StoryPlace) => {
+                      if (where === 'home') return rideToStay();
+                      setArrival(false);
+                      goToStory(where);
+                    },
+                    onStay: () => setArrival(false),
+                  }
+                : null
+            }
             onVisit={visit}
             players={players}
             desk={{
@@ -931,6 +1258,7 @@ function CityBodyInner({
               currency: home.currency,
               onFly: (to) => {
                 setInside(null);
+                setArrival(false);
                 onFly(to);
               },
             }}
@@ -947,6 +1275,7 @@ function CityBodyInner({
             }
             nav={(tab) => {
               setInside(null);
+              setArrival(false);
               onNavigate(tab);
             }}
           />

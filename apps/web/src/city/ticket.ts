@@ -11,6 +11,7 @@
 import { useSyncExternalStore } from 'react';
 import { useView } from '../store';
 import { destinationsOf } from './travel';
+import { flightPartyTo } from './companions';
 import {
   airportSchedule,
   localMinutes,
@@ -33,6 +34,10 @@ export interface Ticket {
   airline?: string;
   flight?: string;
   gate?: string;
+  /** Holiday with friends: your seat on the host's flight, next to theirs (from the server). */
+  seat?: string;
+  /** The hotel booked with the flight (from the server), when there is one. */
+  hotel?: { tier: string; name: string; paid: number };
 }
 
 const KEY = 'runway.ticket';
@@ -53,11 +58,31 @@ let ticket: Ticket | null = typeof window === 'undefined' ? null : load();
 
 export const getTicket = () => ticket;
 
+const LAST_KEY = 'runway.lastFlight';
+let last: Ticket | null = null;
+
+/**
+ * The last ticket put away (flown, or cancelled): Arrivals shows that flight
+ * on its board, from where it came. Check `to` against where you landed.
+ */
+export function lastFlight(): Ticket | null {
+  if (last) return last;
+  try {
+    const raw = sessionStorage.getItem(LAST_KEY);
+    const t = raw ? (JSON.parse(raw) as Ticket) : null;
+    return t && typeof t.from === 'string' && typeof t.to === 'string' ? t : null;
+  } catch {
+    return null;
+  }
+}
+
 export function setTicket(next: Ticket | null) {
+  if (!next && ticket) last = ticket;
   ticket = next;
   try {
     if (next) sessionStorage.setItem(KEY, JSON.stringify(next));
     else sessionStorage.removeItem(KEY);
+    if (!next && last) sessionStorage.setItem(LAST_KEY, JSON.stringify(last));
   } catch {
     // Storage blocked: the ticket lasts for this page.
   }
@@ -82,7 +107,22 @@ export function useTicket(): Ticket | null {
     cached?.from === paid.from && cached.to === paid.to
       ? cached
       : ticketFor(paid.from, dest, view.market.currency, view.market.month);
-  return { ...detail, fare: paid.paid };
+  // The server's ticket is the truth for what was paid, hotel included.
+  const hotel = (paid as { hotel?: Ticket['hotel'] }).hotel;
+  // …and for the flight when it has one: friends on holiday share the host's (./companions).
+  const shown = (
+    paid as { flight?: { airline?: string; number?: string; time?: string; gate?: string } }
+  ).flight;
+  const seat = flightPartyTo(view, paid.to)?.seat;
+  return {
+    ...detail,
+    ...(shown?.number
+      ? { time: shown.time, airline: shown.airline, flight: shown.number, gate: shown.gate }
+      : {}),
+    ...(seat ? { seat } : {}),
+    fare: paid.paid,
+    hotel: hotel ?? undefined,
+  };
 }
 
 /** The ticket if it's for a flight out of this city to one of these destinations. */
@@ -98,6 +138,7 @@ export function ticketFrom(
 
 /** A seat that stays the same for a ticket. */
 export function seatOf(t: Ticket): string {
+  if (t.seat) return t.seat;
   let h = 0;
   for (const c of `${t.from}>${t.to}:${t.flight ?? ''}`) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return `${8 + (h % 24)}${'ACDF'[(h >>> 5) % 4]}`;

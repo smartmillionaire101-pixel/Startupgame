@@ -148,6 +148,8 @@ export function inboxTarget(item: InboxLike, view: ViewLike): Target | null {
       case 'visit':
       case 'hangout':
         return phone({ app: 'events' });
+      case 'holiday':
+        return phone({ app: 'travel' });
       case 'player':
       case 'gift':
         return item.from ? phone({ player: item.from }) : phone({ app: 'messages' });

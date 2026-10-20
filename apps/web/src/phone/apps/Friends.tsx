@@ -125,7 +125,7 @@ export function SendMoney({
                     setStep('amount');
                   }}
                 >
-                  <Avatar name={f.name} />
+                  <Avatar name={f.name} id={f.id} />
                   <span className="phone-row-main">
                     <span className="item-title">{f.name}</span>
                     <span className="small muted">
@@ -140,7 +140,7 @@ export function SendMoney({
       {step === 'amount' && who && (
         <div className="phone-stack">
           <div className="phone-row static">
-            <Avatar name={who.name} />
+            <Avatar name={who.name} id={who.id} />
             <span className="item-title">{t('To {name}', { name: who.name })}</span>
           </div>
           <label className="phone-field">

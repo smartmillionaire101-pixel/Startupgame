@@ -142,3 +142,68 @@ describe('street traffic', () => {
     expect(near).toBeGreaterThan(far);
   });
 });
+
+describe('street traffic keeps its distance', () => {
+  /** One long straight street (x from 0 to 2000, y = 0), a junction every 100 m. */
+  const street = (): Seg[] =>
+    Array.from({ length: 20 }, (_, i) => ({
+      ax: i * 100,
+      ay: 0,
+      bx: (i + 1) * 100,
+      by: 0,
+      c: 4,
+      ha: 0,
+      hb: 0,
+    }));
+
+  it('queues behind the car in front, on into the next street, without overlapping', () => {
+    const kinds: VehicleKind[] = Array.from({ length: 12 }, () => 'car');
+    const sim = new TrafficSim(buildGraph(street()), kinds, 4, false);
+    const f = { x: 1000, y: 0, r: 1500 };
+    sim.fill(f);
+    // Everyone eastbound on the first streets, a car's length apart or less.
+    sim.vehicles.forEach((v, i) => {
+      v.e = Math.floor(i / 4);
+      v.fwd = sim.g.nx[sim.g.ea[v.e]!]! < sim.g.nx[sim.g.eb[v.e]!]!;
+      v.s = (i % 4) * 25 + 1;
+      v.v = 10;
+      v.ne = -1;
+    });
+    // You stand in the road further on: the front one stops, the rest queue.
+    const you = { x: 600, y: sim.laneOf(sim.vehicles[0]!) };
+    let min = Infinity;
+    for (let k = 0; k < 1200; k++) {
+      sim.step(0.05, f, you);
+      const xs = sim.vehicles.map((v) => v.x).sort((a, b) => a - b);
+      for (let i = 1; i < xs.length; i++) min = Math.min(min, xs[i]! - xs[i - 1]!);
+    }
+    // Never closer than a car's length (4.4 m), nose to nose.
+    expect(min).toBeGreaterThan(4.4);
+    expect(sim.vehicles.every((v) => v.v < 1 && v.x < you.x)).toBe(true);
+  });
+
+  it('finds the car in front of you in your lane (and not the one coming the other way)', () => {
+    const sim = new TrafficSim(buildGraph(street()), ['car', 'car'], 2, false);
+    sim.fill({ x: 1000, y: 0, r: 1500 });
+    const [ahead, oncoming] = sim.vehicles;
+    for (const [v, fwd, s] of [
+      [ahead!, true, 50],
+      [oncoming!, false, 40],
+    ] as const) {
+      v.e = 5;
+      v.fwd = sim.g.nx[sim.g.ea[5]!]! < sim.g.nx[sim.g.eb[5]!]! ? fwd : !fwd;
+      v.s = s;
+      v.v = 7;
+    }
+    sim.step(0.001, { x: 1000, y: 0, r: 1500 }, null);
+    // You: eastbound in the right-hand lane at x = 520.
+    const lane = sim.laneOf(ahead!);
+    const lead = sim.leadOf(520, ahead!.y, 1, 0, 4.4)!;
+    expect(lead).not.toBeNull();
+    expect(lead.gap).toBeCloseTo(ahead!.x - 520 - 4.4, 0);
+    expect(lead.v).toBeGreaterThan(0);
+    expect(Math.abs(ahead!.y - lane)).toBeLessThan(0.01);
+    // Nothing ahead once past it.
+    expect(sim.leadOf(ahead!.x + 10, ahead!.y, 1, 0, 4.4)).toBeNull();
+  });
+});

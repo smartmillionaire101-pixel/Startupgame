@@ -22,6 +22,7 @@ import {
   usdToLocal,
 } from './helpers.js';
 import {
+  forgetOwners,
   account,
   convert,
   costIn,
@@ -35,7 +36,7 @@ import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { checkName, normaliseName } from './names.js';
 import { waterfall } from './captable.js';
-import type { Company, Player, World } from './types.js';
+import type { Company, HotelStay, Player, TicketFlight, World } from './types.js';
 
 export const TRIP_HOURS = 40;
 
@@ -98,11 +99,109 @@ export function flightsView(world: World, p: Player) {
   return { fareTo, hours: FLIGHT_HOURS };
 }
 
+// ---------------------------------------------------------------- Hotels
+
+export type HotelTier = HotelStay['tier'];
+export const HOTEL_TIERS: readonly HotelTier[] = ['budget', 'business', 'luxury'];
+
+/** A stay abroad in USD, before the city's cost-of-living factor. */
+export const HOTEL_BASE_USD: Record<HotelTier, number> = {
+  budget: 150,
+  business: 500,
+  luxury: 1_800,
+};
+
+/** Cost-of-living card (1–5) to a hotel price factor: Freetown is cheaper than London. */
+const HOTEL_COL_FACTOR: Record<number, number> = { 1: 0.6, 2: 0.7, 3: 0.85, 4: 1, 5: 1.2 };
+
+/** Hotel names per city: guesthouse, business hotel, five-star. */
+export const HOTEL_NAMES: Record<MarketId, Record<HotelTier, string>> = {
+  lagos: { budget: 'Ikoyi Guesthouse', business: 'Eko Business Hotel', luxury: 'The Lagos Grand' },
+  nairobi: {
+    budget: 'Kilimani Guesthouse',
+    business: 'Westlands Business Hotel',
+    luxury: 'The Nairobi Serena Grand',
+  },
+  london: {
+    budget: 'Camden Guesthouse',
+    business: 'Canary Wharf Business Hotel',
+    luxury: 'The Mayfair Grand',
+  },
+  accra: {
+    budget: 'Osu Guesthouse',
+    business: 'Airport City Business Hotel',
+    luxury: 'The Accra Grand',
+  },
+  freetown: {
+    budget: 'Lumley Guesthouse',
+    business: 'Aberdeen Business Hotel',
+    luxury: 'The Freetown Grand',
+  },
+  kigali: {
+    budget: 'Kimihurura Guesthouse',
+    business: 'Kigali Heights Business Hotel',
+    luxury: 'The Kigali Grand',
+  },
+  johannesburg: {
+    budget: 'Melville Guesthouse',
+    business: 'Sandton Business Hotel',
+    luxury: 'The Johannesburg Grand',
+  },
+  cairo: {
+    budget: 'Zamalek Guesthouse',
+    business: 'Downtown Business Hotel',
+    luxury: 'The Nile Grand',
+  },
+  dubai: {
+    budget: 'Deira Guesthouse',
+    business: 'DIFC Business Hotel',
+    luxury: 'The Marina Grand',
+  },
+  'san-francisco': {
+    budget: 'Mission Guesthouse',
+    business: 'SoMa Business Hotel',
+    luxury: 'The Nob Hill Grand',
+  },
+};
+
+export const hotelName = (to: MarketId, tier: HotelTier) =>
+  HOTEL_NAMES[to]?.[tier] ?? `${to} ${tier}`;
+
+/** A stay in USD in this city: base price times its cost-of-living factor, to the nearest $10. */
+export function hotelPriceUsd(world: World, to: MarketId, tier: HotelTier): number {
+  const card = getMarket(world, to).data.card?.costOfLiving ?? 3;
+  const factor = HOTEL_COL_FACTOR[card] ?? 1;
+  return Math.round((HOTEL_BASE_USD[tier] * factor) / 10) * 10;
+}
+
+/** A stay in this city, in the player's home currency (minor units). */
+export const hotelPrice = (world: World, p: Player, to: MarketId, tier: HotelTier) =>
+  usdToLocal(world, getMarket(world, p.market), hotelPriceUsd(world, to, tier));
+
+/** The three hotels in a city, priced in home currency, with whether flight + hotel is affordable. */
+export function hotelOptions(world: World, p: Player, to: MarketId) {
+  if (to === p.market) return [];
+  const balance = Math.max(0, account(world, p.accounts.local).balance);
+  const fare = to === locationOf(p) ? 0 : flightFare(world, p, to);
+  return HOTEL_TIERS.map((tier) => {
+    const price = hotelPrice(world, p, to, tier);
+    return { tier, name: hotelName(to, tier), price, affordable: balance >= fare + price };
+  });
+}
+
 /**
  * Fly one way to another city and be there. Paid from the personal account
- * to the home market's suppliers; flying home clears the location.
+ * to the home market's suppliers; flying home clears the location. With
+ * `hotel`, a stay abroad is paid for too (none when flying home).
  */
-export function bookFlight(world: World, p: Player, to: MarketId, now: number) {
+export function bookFlight(
+  world: World,
+  p: Player,
+  to: MarketId,
+  now: number,
+  hotel?: HotelTier,
+  flight?: TicketFlight,
+) {
   if (p.flightTicket?.to === to && p.flightTicket.from === locationOf(p)) return p.flightTicket;
   ensure(
     !p.flightTicket,
@@ -123,8 +222,18 @@ export function bookFlight(world: World, p: Player, to: MarketId, now: number) {
   const fare = flightFare(world, p, to);
   const balance = Math.max(0, account(world, p.accounts.local).balance);
   const goingHome = to === p.market;
+  ensure(!(hotel && goingHome), 'travel.hotel', 'You don’t need a hotel at home.');
   // Nobody is stranded abroad: short of the fare home, you fly standby for what you have.
   const cost = goingHome ? Math.min(fare, balance) : fare;
+  const stay: HotelStay | undefined = hotel
+    ? { tier: hotel, name: hotelName(to, hotel), paid: hotelPrice(world, p, to, hotel) }
+    : undefined;
+  if (stay)
+    ensure(
+      balance >= cost + stay.paid,
+      'travel.funds',
+      `The flight and hotel cost ${formatMoney(cost + stay.paid, home.data.currency)}; you don’t have it.`,
+    );
   ensure(
     balance >= cost,
     'travel.funds',
@@ -138,7 +247,29 @@ export function bookFlight(world: World, p: Player, to: MarketId, now: number) {
     `Flight ${getMarket(world, from).data.name} → ${dest.data.name}`,
     home.month,
   );
-  p.flightTicket = { from, to, paid: cost, bookedAt: now };
+  if (stay)
+    transfer(
+      world,
+      p.accounts.local,
+      home.ext.suppliers,
+      stay.paid,
+      `Hotel: ${stay.name}`,
+      home.month,
+    );
+  // Only the parts given (a command's optional fields): replays stay identical.
+  const shown = flight
+    ? (Object.fromEntries(
+        Object.entries(flight).filter(([, v]) => typeof v === 'string' && v),
+      ) as TicketFlight)
+    : undefined;
+  p.flightTicket = {
+    from,
+    to,
+    paid: cost,
+    bookedAt: now,
+    ...(stay ? { hotel: stay } : {}),
+    ...(shown && Object.keys(shown).length ? { flight: shown } : {}),
+  };
   return p.flightTicket;
 }
 
@@ -147,8 +278,33 @@ export function cancelFlight(world: World, p: Player) {
   ensure(ticket, 'travel.ticket', 'You have no booked flight.');
   const home = getMarket(world, p.market);
   transfer(world, home.ext.suppliers, p.accounts.local, ticket.paid, 'Flight refund', home.month);
+  if (ticket.hotel)
+    transfer(
+      world,
+      home.ext.suppliers,
+      p.accounts.local,
+      ticket.hotel.paid,
+      'Hotel refund',
+      home.month,
+    );
   delete p.flightTicket;
-  return { refunded: ticket.paid };
+  const refunded = ticket.paid + (ticket.hotel?.paid ?? 0);
+  // Holiday with friends: a trip a host paid for goes back to the host.
+  const host = ticket.sponsor ? world.players[ticket.sponsor.playerId] : undefined;
+  const back = host
+    ? Math.min(ticket.sponsor!.amount, refunded, account(world, p.accounts.local).balance)
+    : 0;
+  if (host && back > 0)
+    pay(
+      world,
+      p.accounts.local,
+      host.accounts.local,
+      back,
+      `Holiday refund to ${host.name}`,
+      home.month,
+      'sent',
+    );
+  return { refunded, ...(back > 0 ? { returnedToHost: back } : {}) };
 }
 
 export function fly(world: World, p: Player, to: MarketId, now: number) {
@@ -164,11 +320,13 @@ export function fly(world: World, p: Player, to: MarketId, now: number) {
   const dest = getMarket(world, to);
   const used = p.flights?.month === home.month ? p.flights.count : 0;
   const cost = ticket.paid;
+  // A plain copy: the ticket is a draft, and the result outlives it.
+  const hotel = ticket.hotel ? { ...ticket.hotel } : undefined;
   delete p.flightTicket;
   p.flights = { month: home.month, count: used + 1 };
   if (to === p.market) delete p.location;
   else {
-    p.location = { market: to, since: now };
+    p.location = { market: to, since: now, ...(hotel ? { hotel } : {}) };
     p.visited[to] = home.month;
   }
   return {
@@ -178,10 +336,13 @@ export function fly(world: World, p: Player, to: MarketId, now: number) {
     from,
     to,
     location: p.location ? { market: to, name: dest.data.name, sinceAt: now } : null,
+    ...(hotel && to !== p.market ? { hotel } : {}),
     text:
       to === p.market
         ? `Welcome home to ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}.`
-        : `You’ve landed in ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}.`,
+        : hotel
+          ? `You’ve landed in ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}. Hotel: ${hotel.name}.`
+          : `You’ve landed in ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}.`,
   };
 }
 
@@ -353,6 +514,7 @@ export function relocate(world: World, p: Player, to: MarketId, newHandle: strin
     );
   }
   p.accounts.local = newLocal;
+  forgetOwners(world);
   keepStatement(world, p);
 
   // 2. Shares and SAFEs everywhere: half to the old market's central bank.

@@ -44,7 +44,7 @@ export function chapterCopy(id: string): { title: string; story: string } {
     case 'growth':
       return {
         title: t('The Growth Trap'),
-        story: t('Scale up without letting burn and churn sink you.'),
+        story: t('Scale up without letting spending and lost customers sink you.'),
       };
     case 'empire':
       return {
@@ -125,8 +125,8 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
       };
     case 'fundraising.runway':
       return {
-        label: t('Have {n}+ months of runway, or turn a profit', { n: need }),
-        why: t('Cash divided by monthly burn: watch it on the Money tab'),
+        label: t('Have enough money for {n}+ months, or turn a profit', { n: need }),
+        why: t('Cash divided by what you spend each month: see it on the Money screen'),
       };
     case 'growth.revenue':
       return {
@@ -141,7 +141,7 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
     case 'growth.profit':
       return {
         label: t('Have a profitable month'),
-        why: t('Revenue above all costs: the burn trap beaten'),
+        why: t('Revenue above all costs: you earn more than you spend'),
       };
     case 'empire.city':
       return {

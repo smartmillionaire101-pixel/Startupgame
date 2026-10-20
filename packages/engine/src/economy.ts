@@ -17,6 +17,7 @@
  * Players also work gigs at businesses, eat and drink there, and meet people
  * over a meal. Every amount is a ledger transfer, so money is conserved.
  */
+import { barEdgeIn } from './lifebars.js';
 import {
   CITY_BUSINESSES,
   GIG_SKILL_BACKGROUNDS,
@@ -726,7 +727,8 @@ export function settleEconomy(world: World, marketId: MarketId, month: number) {
     b.lastMonth = { takings, costs, trade, profit };
     stats.takings += takings;
     stats.trade += trade;
-    if (b.health <= ECONOMY.closeHealth) {
+    // The jobs rework: professional employers (landmark `employer-*`) never close.
+    if (b.health <= ECONOMY.closeHealth && !b.landmark?.startsWith('employer-')) {
       closeBusiness(world, m, b, month);
       stats.closures += 1;
     }
@@ -857,8 +859,13 @@ export function pitchBusiness(
   const rng = deriveRng(world.seed, 'economy', 'pitch', b.id, c.id, month);
   const budget = sectorBudget(b, c.industry);
   const rel = reliability(c);
+  // Phase 3: how you feel nudges the owner (life bars; zero before that release note).
   const score =
-    supplierScore(b, c, budget) + 0.06 + (me.skills.sales / 100) * 0.08 + rng.normal(0, 0.03);
+    supplierScore(b, c, budget) +
+    0.06 +
+    (me.skills.sales / 100) * 0.08 +
+    rng.normal(0, 0.03) +
+    barEdgeIn(world, me);
   const current = b.suppliers.find((s) => s.sector === c.industry);
   const rival = current ? world.companies[current.companyId] : undefined;
   const rivalScore = rival ? supplierScore(b, rival, budget) + ECONOMY.inertia : 0;
@@ -1034,7 +1041,8 @@ export function quitJob(world: World, me: Player) {
 
 /** Month-end: the business pays your wage from its till (as much as it has), taxed at home. */
 export function payJob(world: World, p: Player, month: number) {
-  if (!p.job) return;
+  // A professional job (the jobs rework) is paid from payroll instead (work.ts).
+  if (!p.job || p.job.profession) return;
   const m = getMarket(world, p.market);
   const b = m.businesses?.[p.job.businessId];
   const role = b ? specOf(b).roles.find((r) => r.role === p.job!.role) : undefined;

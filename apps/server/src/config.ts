@@ -60,6 +60,20 @@ const schema = z.object({
         .map((x) => x.trim().toLowerCase())
         .filter(Boolean),
     ),
+  /**
+   * Comma-separated inboxes that get an email for each player's feedback.
+   * Only notifications: no admin access, and no game account needed. Unset,
+   * feedback is emailed to ADMIN_EMAILS (if any).
+   */
+  FEEDBACK_EMAILS: z
+    .string()
+    .default('')
+    .transform((v) =>
+      v
+        .split(',')
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean),
+    ),
   WEB_DIST: z.string().optional(),
   SNAPSHOT_EVERY: z.coerce.number().int().min(1).default(200),
   /**

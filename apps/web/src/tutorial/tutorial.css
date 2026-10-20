@@ -5,7 +5,8 @@
   left: max(0.75rem, calc((100vw - 560px) / 2 + 0.75rem));
   right: max(4.75rem, calc((100vw - 560px) / 2 + 4.75rem));
   bottom: calc(var(--nav-h, 3.6rem) + 0.75rem);
-  z-index: 18;
+  /* Over a place you're in too (a new founder starts in their flat), under the phone. */
+  z-index: 22;
   max-height: min(60vh, 30rem);
   overflow-y: auto;
   background: var(--surface);
@@ -239,4 +240,10 @@
   box-shadow:
     0 0 0 2px var(--surface),
     0 0 0 4px var(--accent);
+}
+
+/* The coach sits over the bottom of the screen: leave room to scroll a
+   screen's last buttons (say, Start the company) above it. */
+body:has(.coach) main {
+  padding-bottom: min(45vh, 22rem);
 }

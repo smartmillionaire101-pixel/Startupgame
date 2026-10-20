@@ -24,8 +24,30 @@ export const JOURNEY_EVENTS_NOTE = 'release-2026-10-15-journey-events';
  */
 export const EXITS_NOTE = 'release-2026-10-16-exits';
 
+/**
+ * Phase 3: life bars (lifebars.ts). Health and stress join energy, and
+ * happiness is read from fun and social. Walking costs hours and energy
+ * (`city.walk`), rides cost a little time, everyday acts move the bars, the
+ * bars settle each month, and how you feel nudges sales and pitch odds.
+ * Phase 5 life events ship under the same note (lifeevents.ts): choice cards
+ * for every player, drawn at settlement and answered with `event.choose`.
+ * Worlds without this note play exactly as before (`city.walk` is unknown).
+ */
+export const LIFE_BARS_NOTE = 'release-2026-10-17-life-bars';
+
+/**
+ * The jobs rework (work.ts): professional employers in every city (a bank, an
+ * investment firm, a tech company, an engineering firm, a consultancy, a law
+ * firm and a hospital), each with a career ladder you apply for, are
+ * interviewed for in person and are hired or turned down with a reason.
+ * Experience per field, promotion and payroll pay. Worlds without this note
+ * play exactly as before (the employers never open; `job.apply` is refused;
+ * part-time jobs pay as they always did).
+ */
+export const JOBS_NOTE = 'release-2026-10-19-jobs';
+
 /** Every behaviour-switching note, oldest first. */
-export const RELEASES = [JOURNEY_EVENTS_NOTE, EXITS_NOTE] as const;
+export const RELEASES = [JOURNEY_EVENTS_NOTE, EXITS_NOTE, LIFE_BARS_NOTE, JOBS_NOTE] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
 export function releaseOn(w: World, note: (typeof RELEASES)[number]): boolean {
@@ -35,3 +57,5 @@ export function releaseOn(w: World, note: (typeof RELEASES)[number]): boolean {
 
 export const journeyEventsOn = (w: World): boolean => releaseOn(w, JOURNEY_EVENTS_NOTE);
 export const exitsOn = (w: World): boolean => releaseOn(w, EXITS_NOTE);
+export const lifeBarsOn = (w: World): boolean => releaseOn(w, LIFE_BARS_NOTE);
+export const jobsOn = (w: World): boolean => releaseOn(w, JOBS_NOTE);

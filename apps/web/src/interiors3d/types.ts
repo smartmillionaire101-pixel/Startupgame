@@ -14,6 +14,8 @@ export interface Home3DPerson {
   x: number;
   y: number;
   pose: 'stand' | 'sit' | 'lie';
+  /** Which way they face when standing still (radians; 0 = +z), when the scene says. */
+  ry?: number;
 }
 
 export interface Home3DObject {
@@ -45,6 +47,14 @@ export interface Home3DApi {
   zoom(f: number): void;
   /** Turn the camera a quarter (±1). */
   turn(dir: number): void;
+  /**
+   * Turn slowly once all the way round the house ("Look around"); quarter
+   * steps when motion is reduced. The returned function stops it where it
+   * is; `onEnd` hears when it ends either way.
+   */
+  lookAround(onEnd: () => void): () => void;
+  /** A photo of the view (JPEG data URL), or null when it can't be read. */
+  snapshot(): string | null;
   /** Draw again (someone started walking). */
   wake(): void;
 }

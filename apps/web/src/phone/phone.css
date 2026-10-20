@@ -243,6 +243,30 @@ body:has(.app-city) .phone-fab {
   background: rgb(255 255 255 / 0.85);
 }
 
+/* "‹ Back to the game" at the top-left of the phone's home screen. */
+.phone-home-bar {
+  flex: none;
+  display: flex;
+  padding: 0.1rem 0.7rem 0;
+}
+.phone-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.5rem;
+  padding: 0 0.9rem 0 0.55rem;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.2);
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
 /* ---- Home screen -------------------------------------------------------- */
 
 .phone-home {
@@ -1172,23 +1196,42 @@ button.phone-row:active {
 
 /* ---- Messages ------------------------------------------------------------- */
 
+/* A thread fills the screen: head on top, message box at the bottom, and the
+   log between them is the only thing that scrolls. (The whole screen used to
+   scroll, so the sticky message box sat on the newest message and moved up
+   and down with what was under it.) If a "+" panel needs more room than the
+   screen has, the thread grows and the screen scrolls, as before. */
 .phone-thread {
+  flex: 1 0 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-height: 100%;
 }
 .phone-thread-head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 0.6rem;
 }
 .phone-log {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 6rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 0;
+}
+/* Messages sit at the bottom, next to the box, when there are only a few. */
+.phone-log-items {
+  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  padding: 0.25rem 0;
+}
+.phone-thread > :not(.phone-log) {
+  flex: none;
 }
 .phone-quick .chip:disabled {
   opacity: 0.5;
@@ -1273,4 +1316,35 @@ button.phone-row:active {
 }
 .phone-alert.is-static {
   cursor: default;
+}
+
+/* ---- Simple mode (Phase 2) ---------------------------------------------- */
+
+/* Every app shows, as in the normal phone; the dock's icons get their names too. */
+html[data-simple] .phone-dock .phone-app-label {
+  display: block;
+}
+
+/* Back says "Back", top-left, as on every sheet. */
+html[data-simple] .phone-bar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+html[data-simple] .phone-back {
+  width: auto;
+  min-width: 2.75rem;
+  height: 48px;
+  padding: 0 0.7rem 0 0.3rem;
+  border-radius: 999px;
+  grid-auto-flow: column;
+  gap: 0.1rem;
+  font: inherit;
+  font-weight: 700;
+}
+html[data-simple] .phone-x {
+  width: auto;
+  height: 48px;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
 }

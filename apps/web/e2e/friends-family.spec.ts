@@ -85,8 +85,13 @@ test('a founder opens a Friends & Family round, a friend commits, the founder cl
     has: b.getByRole('heading', { name: /Back a friend/ }),
   });
   await expect(back.getByText(`Kin Pay ${tag}`)).toBeVisible();
-  await back.getByLabel(`Amount to commit to Kin Pay ${tag}`).fill('500k');
-  await back.getByRole('button', { name: 'Commit' }).click();
+  // This founder's round: a long-lived world (the deploy preview) lists
+  // other friends' rounds here too.
+  const ours = back
+    .locator('li')
+    .filter({ has: b.getByLabel(`Amount to commit to Kin Pay ${tag}`) });
+  await ours.getByLabel(`Amount to commit to Kin Pay ${tag}`).fill('500k');
+  await ours.getByRole('button', { name: 'Commit' }).click();
   await expect(b.getByText('Committed. The money is held until the founder closes.')).toBeVisible();
   await expect(back.getByText(/You committed ₦500(\.0)?k/)).toBeVisible();
   await ctxB.close();
@@ -109,6 +114,6 @@ test('a founder opens a Friends & Family round, a friend commits, the founder cl
     a.getByText(new RegExp(`${bName}: ₦500(\\.0)?k at a ₦50(\\.0)?m cap`)),
   ).toBeVisible();
   await a.getByRole('tab', { name: 'Finance' }).click();
-  await expect(a.getByLabel('Runway explainer')).toBeVisible();
+  await expect(a.getByLabel('Money lasts explainer')).toBeVisible();
   await expect(a.getByRole('heading', { name: 'Balance sheet' })).toBeVisible();
 });

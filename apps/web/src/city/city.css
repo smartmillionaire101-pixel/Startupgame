@@ -12,10 +12,27 @@
 .app.app-city {
   max-width: 1180px;
 }
+/* The payday warning (MoneyOverview.tsx) sits above the map: one line here,
+   and the map makes room for it so its bottom buttons stay on screen. */
+.app.app-city:has(.payday-warning) {
+  --payday-h: 52px;
+}
+.app-city .payday-warning {
+  height: 44px;
+  padding-block: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.app-city .payday-warning .small {
+  display: none;
+}
 
 .city-stage {
   position: relative;
-  height: calc(100dvh - 48px - 44px - var(--nav-h, 3.6rem) - 1rem - env(safe-area-inset-top));
+  height: calc(
+    100dvh - 48px - 44px - var(--nav-h, 3.6rem) - 1rem - env(safe-area-inset-top) -
+      var(--payday-h, 0px)
+  );
   min-height: 360px;
   border-radius: 22px;
   overflow: hidden;
@@ -498,7 +515,7 @@
 
 @media (min-width: 900px) {
   .city-stage {
-    height: calc(100dvh - 9rem - 44px);
+    height: calc(100dvh - 9rem - 44px - var(--payday-h, 0px));
   }
 }
 
@@ -973,6 +990,25 @@
   font-size: 0.72rem;
   color: #475569;
 }
+/* Life bars: what the trip costs you (time of your month, energy). */
+.ride-cost {
+  grid-column: 2;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #9a3412;
+}
+.ride-cost.is-blocked {
+  color: #b91c1c;
+}
+.ride-opt[data-blocked] {
+  cursor: not-allowed;
+}
+.ride-opt:has(.ride-cost) {
+  grid-template-rows: auto auto auto;
+}
+.ride-opt:has(.ride-cost) .ride-icon {
+  grid-row: span 3;
+}
 
 /* The flight: full screen, over everything. */
 .flight {
@@ -1413,4 +1449,295 @@
 .ride-skip-trip:disabled {
   opacity: 0.6;
   cursor: progress;
+}
+
+/* ---- Simple mode (Phase 2) ----------------------------------------------
+   Every map button keeps its name (even on phones), the buttons that stay
+   (Journey, Me) are pills with words, and the "What should I do now?" card
+   sits at the bottom. */
+html[data-simple] .city-hud-bottom .hud-places {
+  width: auto;
+  height: auto;
+  min-height: 48px;
+  padding: 0.55rem 0.95rem;
+}
+html[data-simple] .city-hud-bottom .hud-btn-label {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+}
+html[data-simple] .city-hud-bottom .hud-places .hud-count {
+  position: static;
+  margin-left: 0.3rem;
+}
+html[data-simple] .city-hud-zoom {
+  justify-items: end;
+}
+html[data-simple] .city-hud-zoom .hud-places {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 48px;
+}
+html[data-simple] .city-hud-top {
+  right: 7.5rem;
+}
+html[data-simple] .city-hud-bottom .hud-row-bottom {
+  justify-content: flex-end;
+}
+
+/* The map's gestures, once (city/GestureHint.tsx). */
+.gesture-hint {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  width: min(20rem, calc(100% - 2rem));
+  display: grid;
+  gap: 0.6rem;
+  justify-items: center;
+  text-align: center;
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgb(15 23 42 / 0.92);
+  color: #fff;
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.3);
+}
+.gesture-hint p {
+  margin: 0;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.gesture-hint-ok {
+  min-width: 8rem;
+}
+/* The phone lives in the top bar now: the big card can use the full width. */
+html[data-simple] .city-hud-bottom {
+  right: 0.7rem !important;
+}
+
+/* ---- "How do you want to get there?": a compact card in the corner ------
+   (player feedback: the chooser covered the map). Small tiles in one row,
+   the notes and Skip in a line each. */
+.ride-chooser {
+  flex: 0 1 auto;
+  width: min(100%, 360px);
+  margin-left: auto;
+  padding: 0.45rem;
+  border-radius: 16px;
+}
+.ride-chooser .ride-head {
+  font-size: 0.78rem;
+  padding: 0 0.1rem 0.35rem;
+}
+.ride-chooser .ride-head .icon-btn {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+.ride-chooser .ride-grid,
+.ride-chooser .ride-grid.has-car {
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 0.3rem;
+}
+.ride-chooser .ride-grid.has-car .ride-opt[data-mode='drive'] {
+  grid-column: auto;
+}
+.ride-chooser .ride-opt {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto;
+  justify-items: center;
+  row-gap: 0.1rem;
+  text-align: center;
+  padding: 0.35rem 0.25rem;
+  border-radius: 12px;
+  min-height: 0;
+}
+.ride-chooser .ride-icon {
+  grid-row: auto;
+}
+.ride-chooser .ride-name {
+  font-size: 0.74rem;
+  line-height: 1.15;
+}
+.ride-chooser .ride-car {
+  display: none;
+}
+.ride-chooser .ride-meta,
+.ride-chooser .ride-cost {
+  grid-column: auto;
+  font-size: 0.64rem;
+  line-height: 1.2;
+}
+.ride-chooser .ride-note {
+  margin: 0.3rem 0.15rem 0;
+  font-size: 0.66rem;
+}
+.ride-chooser .ride-skip-trip {
+  margin-top: 0.3rem;
+  min-height: 36px;
+  border-radius: 10px;
+  font-size: 0.74rem;
+}
+
+/* Slimmer still (player feedback: a small banner over the map's buttons,
+   not over them): icon beside the name, one line each, a one-line note. */
+.ride-chooser {
+  width: min(100%, 420px);
+  margin-left: auto;
+  margin-bottom: 0.45rem;
+}
+.ride-chooser .ride-opt {
+  grid-template-columns: auto 1fr;
+  justify-items: start;
+  column-gap: 0.25rem;
+  row-gap: 0;
+  text-align: left;
+  padding: 0.3rem 0.35rem;
+}
+.ride-chooser .ride-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.ride-chooser .ride-meta,
+.ride-chooser .ride-cost {
+  grid-column: 1 / -1;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ride-chooser .ride-note {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ride-chooser .ride-skip-trip {
+  min-height: 32px;
+}
+
+/* Simple mode keeps the buttons' names on phones: Who's here, Where to? and
+   Sky views are three tiles in a row in the bottom-right corner, each icon
+   above its name (three pills with words don't fit a phone). */
+html[data-simple] .city-hud-bottom .hud-stack {
+  grid-auto-flow: column;
+  gap: 0.4rem;
+}
+html[data-simple] .city-hud-bottom .hud-stack > .hud-places {
+  position: relative;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 84px;
+  min-height: 64px;
+  padding: 0.45rem 0.3rem;
+  border-radius: 18px;
+  font-size: 0.8rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+html[data-simple] .city-hud-bottom .hud-places .hud-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  margin: 0;
+}
+.hud-sky-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* Landed: the hotel's car takes you from Arrivals straight to your room. */
+.stay-transfer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.4rem;
+  padding: 1.5rem;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  color: #f8fafc;
+  text-align: center;
+  animation: stay-transfer-in 0.3s ease-out both;
+}
+.stay-transfer-road {
+  position: relative;
+  width: min(80vw, 320px);
+  height: 64px;
+  margin-bottom: 0.6rem;
+  border-bottom: 4px solid #475569;
+  background: repeating-linear-gradient(90deg, #fbbf24 0 18px, transparent 18px 36px) bottom 10px
+    left / 100% 3px no-repeat;
+  overflow: hidden;
+}
+.stay-transfer-car {
+  position: absolute;
+  bottom: 2px;
+  left: -48px;
+  font-size: 40px;
+  line-height: 1;
+  transform: scaleX(-1);
+  animation: stay-transfer-drive 2.2s ease-in-out both;
+}
+.stay-transfer-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+.stay-transfer-sub {
+  margin: 0;
+  color: #cbd5e1;
+}
+@keyframes stay-transfer-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes stay-transfer-drive {
+  to {
+    left: calc(100% + 8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stay-transfer,
+  .stay-transfer-car {
+    animation: none;
+  }
+  .stay-transfer-car {
+    left: calc(50% - 20px);
+  }
+}
+
+/* "Where to?": the golf club and the mall, one tap away wherever they stand. */
+.places-outings {
+  margin-bottom: 0.75rem;
+}
+.places-outings-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.5rem;
+}
+.places-outing {
+  display: grid;
+  gap: 0.15rem;
+  justify-items: start;
+  text-align: left;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.places-outing-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.places-outing-name {
+  font-weight: 700;
 }

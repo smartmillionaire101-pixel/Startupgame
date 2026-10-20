@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { GameProvider } from './store';
 import { getLang, loadLang, useLang } from './i18n';
+import { reloadForUpdate } from './stale';
+import { watchPageErrors } from './feedback';
 import './styles.css';
 
 const Admin = lazy(() => import('./admin/Admin'));
@@ -32,6 +34,13 @@ function Localised() {
 }
 
 document.documentElement.lang = getLang();
+
+watchPageErrors();
+
+// A code file from before the latest release failed to load: load the new release.
+window.addEventListener('vite:preloadError', (e) => {
+  if (reloadForUpdate()) e.preventDefault();
+});
 
 // Netlify adds a feedback toolbar to deploy previews (addresses with "--").
 // On a phone it sits over the game's bottom tabs and swallows taps, so the

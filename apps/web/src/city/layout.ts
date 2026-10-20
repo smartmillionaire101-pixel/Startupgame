@@ -29,6 +29,7 @@ import {
 import { flavourOf, type Flavour, type LandmarkKind, type VehicleSpec } from './flavour';
 import { planOf, type CityPlan, type DistrictKind, type Host, type Side } from './plans';
 import type { GeoWorld } from './geoLayout';
+import { leisureHosts, putGolf, putMall } from './leisure';
 import type { SpriteKind } from './geo';
 
 /**
@@ -84,7 +85,10 @@ export type PlaceKind =
   | 'eventhall'
   | 'business'
   /** Wave 5: an accelerator, a development partner or an LP's office. */
-  | 'capital';
+  | 'capital'
+  /** The city's golf course and its shopping mall (./leisure.ts). */
+  | 'golf'
+  | 'mall';
 
 export type Motif =
   | 'columns'
@@ -111,7 +115,9 @@ export type Motif =
   | 'b-warehouse'
   | 'b-clinic'
   | 'b-school'
-  | 'b-hotel';
+  | 'b-hotel'
+  | 'golf'
+  | 'mall';
 
 export interface Place {
   id: string;
@@ -123,6 +129,8 @@ export interface Place {
   area?: string;
   /** A business's category (colour-coded). */
   category?: BusinessCategory;
+  /** A business's kind (its badge's icon on the map). */
+  bizKind?: string;
   /** Footprint on the ground (grid units). */
   x: number;
   y: number;
@@ -776,6 +784,7 @@ export function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: stri
     district: 'shops',
     area,
     category: b.category,
+    bizKind: b.kind,
     x,
     y,
     w,
@@ -1099,6 +1108,8 @@ export const HOST_FALLBACK: Record<Host, DistrictKind[]> = {
   home: ['residential'],
   eventhall: ['downtown', 'waterfront', 'nightlife'],
   airport: ['airport', 'industrial'],
+  golf: ['park', 'residential'],
+  mall: ['downtown', 'market'],
 };
 export const CATEGORY_FALLBACK: Record<BusinessCategory, DistrictKind[]> = {
   food: ['nightlife', 'market', 'downtown'],
@@ -1263,6 +1274,7 @@ function tryPlanned(
   D.forEach((x, n) => {
     for (const h of x.d.hosts ?? []) if (!hostOf.has(h)) hostOf.set(h, n);
   });
+  leisureHosts(D, hostOf, input.marketId);
   for (const h of Object.keys(HOST_FALLBACK) as Host[])
     if (!hostOf.has(h)) {
       const n = byKind(HOST_FALLBACK[h]);
@@ -1302,7 +1314,15 @@ function tryPlanned(
     ...bizIn[n]!.map((b) => ({ kind: 'business' as const, biz: b })),
   ];
   const blockHosts = (n: number) =>
-    hosts(n).filter((h) => h === 'hub' || h === 'home' || h === 'eventhall' || h === 'airport');
+    hosts(n).filter(
+      (h) =>
+        h === 'hub' ||
+        h === 'home' ||
+        h === 'eventhall' ||
+        h === 'airport' ||
+        h === 'golf' ||
+        h === 'mall',
+    );
   const need = (n: number) =>
     blockHosts(n).length +
     (hosts(n).includes('market') ? marketBlocks : 0) +
@@ -1382,6 +1402,12 @@ function tryPlanned(
       } else if (h === 'eventhall') {
         blocks.push({ ...cell, district: 'events', area });
         putEventHall(ctx, cell, area);
+      } else if (h === 'golf') {
+        blocks.push({ ...cell, district: 'park', area });
+        putGolf(ctx, cell, area);
+      } else if (h === 'mall') {
+        blocks.push({ ...cell, district: 'shops', area });
+        putMall(ctx, cell, area);
       } else {
         blocks.push({ ...cell, district: 'airport', area });
         putAirport(ctx, cell, area);

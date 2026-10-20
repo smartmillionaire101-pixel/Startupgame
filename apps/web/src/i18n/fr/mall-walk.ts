@@ -1,0 +1,43 @@
+/** Walking the mall in 3D: the HUD, shop tags, item cards, the basket and the receipt. */
+export const mallWalk: Record<string, string> = {
+  'Looking around · drag to turn your head': 'Vous regardez autour · glissez pour tourner la tête',
+  '{colour} · wearing it now': '{colour} · vous le portez',
+  '{colour} · bought': '{colour} · acheté',
+  'Wearing it now': 'Vous le portez',
+  'Way out': 'Sortie',
+  'You’re trying it on': 'Vous l’essayez',
+  'Opening the mall…': 'Ouverture du centre commercial…',
+  'Go in ›': 'Entrer ›',
+  'Walking to {place} · {n} m': 'En route vers {place} · {n} m',
+  '← Concourse': '← Galerie',
+  Looking: 'Regard',
+  Directory: 'Plan',
+  '↶ Back to me': '↶ Revenir à moi',
+  'ahead of you': 'devant vous',
+  'on your right': 'sur votre droite',
+  'on your left': 'sur votre gauche',
+  'Drag to look · double-tap to walk there':
+    'Glissez pour regarder · touchez deux fois pour y aller',
+  'Basket: {n} items': 'Panier : {n} articles',
+  Basket: 'Panier',
+  'Tap a counter to order': 'Touchez un comptoir pour commander',
+  'Tap a tag to see it · ← Concourse to go out':
+    'Touchez une étiquette pour voir · ← Galerie pour sortir',
+  'Tap the floor to walk · tap a shop to go in':
+    'Touchez le sol pour marcher · une boutique pour entrer',
+  'Paid {amount}': 'Payé {amount}',
+  'From your personal account · balance {amount}': 'Depuis votre compte personnel · solde {amount}',
+  'In your basket': 'Dans votre panier',
+  '＋ Add to basket': '＋ Ajouter au panier',
+  'Not enough money': 'Pas assez d’argent',
+  'Buy now {price}': 'Acheter {price}',
+  '{n} items': '{n} articles',
+  'Your basket is empty: tap a tag in a shop to add things.':
+    'Votre panier est vide : touchez une étiquette dans une boutique pour ajouter des articles.',
+  'Remove {item}': 'Retirer {item}',
+  'Pay {amount}': 'Payer {amount}',
+  'You’re here': 'Vous êtes ici',
+  'Receipt · {shop}': 'Reçu · {shop}',
+  Receipt: 'Reçu',
+  'Back to concourse': 'Retour à la galerie',
+};

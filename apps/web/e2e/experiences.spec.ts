@@ -8,6 +8,7 @@ import {
   withoutNetlifyDrawer,
   type Page,
   tapPlace,
+  openTogether,
 } from './fixtures';
 // Software WebGL, so the 3D home (and the sky views) really draw on CI.
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
@@ -30,12 +31,9 @@ async function founder(p: Page, name: string) {
     idea: 'Tools for local businesses',
     market: /London/,
   });
-  await expect(p.getByRole('button', { name: /^Together/ })).toBeVisible({ timeout: 30000 });
+  await expect(p.locator('.topbar')).toBeVisible({ timeout: 30000 });
 }
-const together = async (p: Page) => {
-  await p.getByRole('button', { name: /^Together/ }).click();
-  return p.getByRole('dialog', { name: 'Home and social experiences' });
-};
+const together = (p: Page) => openTogether(p);
 
 test('two players discover a home game, play football and share a consenting skyline date', async ({
   page: a,
@@ -176,13 +174,32 @@ test('quiz night on mobile: questions come from the bank, three players are matc
     await lobby.getByLabel(/Stake per player/).fill('10');
     await lobby.getByRole('button', { name: 'Find an opponent' }).click();
     await expect(lobby.getByText(/Looking for a player in this city/)).toBeVisible();
+    // Each player is in the room before we start (on a slow deploy a Join can
+    // land late, and two players are already enough to start a game).
+    const inRoom = async (id: string) =>
+      ((await state(host)).playRooms ?? []).some(
+        (r: { game: string; members: { id: string }[] }) =>
+          r.game === 'quiz' && r.members.some((m) => m.id === id),
+      );
     for (const p of [alice!, bob!]) {
+      const id = (await state(p)).me.id;
       const home = await together(p);
       await home.getByRole('button', { name: /Quiz night/ }).click();
-      await p
-        .getByRole('dialog', { name: 'Play together' })
-        .getByRole('button', { name: /^Join/ })
-        .click();
+      const join = p.getByRole('dialog', { name: 'Play together' }).getByRole('button', {
+        name: /^Join/,
+      });
+      await join.click();
+      if (
+        !(await expect
+          .poll(() => inRoom(id), { timeout: 15000 })
+          .toBe(true)
+          .then(
+            () => true,
+            () => false,
+          ))
+      )
+        await join.click({ timeout: 5000 }).catch(() => {});
+      await expect.poll(() => inRoom(id), { timeout: 20000 }).toBe(true);
     }
     await expect(lobby.getByRole('button', { name: 'Start game' })).toBeEnabled({ timeout: 10000 });
     await lobby.getByRole('button', { name: 'Start game' }).click();

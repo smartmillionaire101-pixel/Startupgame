@@ -312,7 +312,15 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
+}
+/* "Online count unavailable" is long: it shortens rather than push the row off a phone. */
+.online-count [role='status'] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .online-dot {
   width: 7px;
@@ -324,7 +332,8 @@ textarea {
 .is-unavailable .online-dot {
   background: var(--muted);
 }
-.music-toggle {
+.music-toggle,
+.feedback-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -365,6 +374,10 @@ textarea {
   flex-wrap: nowrap;
 }
 /* Cash in your pocket: the HUD's headline number. */
+button.topbar-cash {
+  font-family: inherit;
+  cursor: pointer;
+}
 .topbar-cash {
   display: inline-flex;
   align-items: center;
@@ -411,6 +424,69 @@ textarea {
     padding: 0 0.55rem;
   }
 }
+/* Phase 3 life bars, under Me (LifeBars.tsx). */
+.lifebars-sheet {
+  white-space: normal;
+  display: grid;
+  gap: var(--sp-3);
+}
+.lifebars-title {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+.lifebar-tips summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.lifebar {
+  --c: var(--good);
+}
+.lifebar.is-warn {
+  --c: var(--warn);
+}
+.lifebar.is-bad {
+  --c: var(--bad);
+}
+.lifebar-head {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+.lifebar-track {
+  height: 12px;
+  margin: var(--sp-1) 0;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.lifebar-track > span {
+  display: block;
+  height: 100%;
+  background: var(--c);
+}
+.lifebar p {
+  margin: 0.15rem 0 0;
+}
+.lifebar-effects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-1);
+}
+.lifebar-effects li {
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.lifebar-effects .is-bad {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+.lifebar-effects .is-good {
+  background: color-mix(in srgb, var(--good) 14%, transparent);
+}
+
 .ring {
   --c: var(--good);
   width: 34px;
@@ -441,8 +517,11 @@ textarea {
 }
 .topbar-phone {
   position: relative;
-  width: var(--tap);
-  height: var(--tap);
+  /* A little smaller than a tap target elsewhere, with room for its badge
+     inside the screen (the bar's own height keeps it easy to hit). */
+  width: 40px;
+  height: 40px;
+  margin-right: 4px;
   border-radius: 50%;
   border: 0;
   background: var(--accent);
@@ -458,8 +537,13 @@ textarea {
   transform: scale(0.94);
 }
 .topbar-phone .badge {
-  top: -2px;
-  right: -2px;
+  top: -3px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 0.68rem;
+  line-height: 18px;
 }
 /* The phone lives in the top bar now: the floating button would cover content. */
 .phone-fab {
@@ -2006,30 +2090,62 @@ body:has(.app-city) .toasts {
   display: block;
 }
 
-/* Chapter 3: the funding chooser (Money → Fund your company). */
-.fund-options .fund-option {
+/* Chapter 3: the funding chooser (Money → Fund your company): one compact
+   card per way to get money, the facts as a tidy label / value list. */
+.fund-options > li.fund-option {
   display: grid;
-  gap: 0.35rem;
-  padding: 0.75rem 0;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 70%, var(--bg));
+}
+.fund-options > li.fund-option:first-child {
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+}
+.fund-option .item-title {
+  font-size: 1rem;
+}
+.fund-what {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--muted);
 }
 .fund-facts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.2rem;
+  margin: 0.1rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+.fund-facts > div {
+  display: grid;
+  grid-template-columns: 6.2rem minmax(0, 1fr);
   gap: 0.5rem;
-  margin: 0;
+  align-items: baseline;
 }
 .fund-facts dt {
-  opacity: 0.7;
-  font-size: 0.75rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 .fund-facts dd {
   margin: 0;
   overflow-wrap: anywhere;
 }
-@media (max-width: 420px) {
-  .fund-facts {
-    grid-template-columns: 1fr;
-  }
+.fund-reason {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.fund-option .fund-go {
+  justify-self: start;
+  margin-top: 0.15rem;
 }
 
 /* Sign-up: back to the landing page. */
@@ -2042,4 +2158,295 @@ body:has(.app-city) .toasts {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* ---------- feedback (feedback.tsx) */
+
+.feedback-form .chips {
+  margin: var(--sp-3) 0 0;
+}
+.feedback-form textarea {
+  width: 100%;
+  resize: vertical;
+}
+.feedback-thanks {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: var(--sp-4) 0;
+  font-weight: var(--fw-semibold);
+}
+.feedback-thanks span {
+  font-size: 1.6rem;
+}
+
+/* ---------- Simple mode (Phase 2): bigger and calmer
+   `data-simple` on <html> (phone/settings.ts). Small text a step up, every
+   button at least 48 px tall, the tab names bigger, Back in words. */
+
+html[data-simple] {
+  --fs-2xs: 0.75rem;
+  --fs-xs: 0.875rem;
+  --fs-sm: 1rem;
+  --tap: 48px;
+}
+html[data-simple] .btn,
+html[data-simple] .btn-sm,
+html[data-simple] .chip {
+  min-height: 48px;
+}
+html[data-simple] .chip {
+  white-space: normal;
+}
+html[data-simple] .icon-btn {
+  width: 48px;
+  height: 48px;
+}
+html[data-simple] .nav button {
+  min-height: 64px;
+  font-size: var(--fs-sm);
+  padding-inline: 0.15rem;
+}
+html[data-simple] .nav-label {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.15;
+}
+/* Long words (French) wrap rather than push the page sideways. */
+html[data-simple] .app {
+  overflow-wrap: anywhere;
+}
+
+/* "‹ Back": top-left on sheets and on screens without a tab (Simple mode). */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-height: 48px;
+  padding: 0 0.85rem 0 0.4rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+  flex: none;
+}
+.back-btn-ico {
+  transform: rotate(90deg);
+}
+main > .back-btn {
+  margin-bottom: var(--sp-3);
+}
+.sheet-head-simple {
+  justify-content: flex-start;
+}
+.sheet-head-simple h2 {
+  min-width: 0;
+}
+
+/* Simple mode's big link to a screen without a tab (Money, Deal offers). */
+.simple-link {
+  min-height: 64px;
+  border: 2px solid var(--accent);
+}
+.simple-link b {
+  font-size: var(--fs-lg);
+}
+.simple-link-emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+/* ---------- "What should I do now?" (city/NextStepCard.tsx) */
+
+.next-step {
+  display: grid;
+  gap: var(--sp-3);
+  border: 2px solid var(--accent);
+}
+.next-step-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--accent);
+}
+.next-step-main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+.next-step-icon {
+  font-size: 1.75rem;
+  line-height: 1.1;
+  flex: none;
+}
+.next-step-text {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.next-step-label {
+  font-size: var(--fs-lg);
+  line-height: 1.3;
+}
+.next-step-why {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.next-step-go {
+  min-height: 52px;
+}
+/* On the City map: a 💡 button with the map's buttons (a red dot while
+   there's a suggestion not yet opened), and the small card it opens. */
+.next-step-pin {
+  position: relative;
+}
+.next-step-bulb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.96);
+  font-size: 1.35rem;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.2);
+  cursor: pointer;
+}
+.next-step-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #dc2626;
+  border: 2px solid #fff;
+}
+.next-step-pop {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 0.5rem);
+  z-index: 3;
+  display: grid;
+  gap: 0.35rem;
+  width: min(240px, 70vw);
+  padding: 0.7rem 0.8rem 0.8rem;
+  border-radius: 16px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.22);
+}
+.next-step-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.next-step-pop .next-step-title {
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.next-step-pop .next-step-label {
+  font-size: var(--fs-md);
+}
+.next-step-pop .next-step-why {
+  color: #475569;
+}
+.next-step-pop .next-step-go {
+  min-height: 44px;
+  margin-top: 0.2rem;
+  border-radius: 999px;
+}
+.next-step-hide {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+/* The top bar keeps the city's name readable on a phone (life bars, the
+   decisions badge and the phone share the line) by leaving out the game
+   date there: it's on the phone, the map and the Today screen. Simple
+   mode's bigger text always leaves it out. */
+html[data-simple] .topbar-date {
+  display: none;
+}
+@media (max-width: 430px) {
+  .topbar-date {
+    display: none;
+  }
+  .brand-city {
+    min-width: 3.5em;
+  }
+}
+
+/* ---------- your money and the payday warning (MoneyOverview.tsx) */
+
+.money-sheet {
+  white-space: normal;
+  display: grid;
+  gap: var(--sp-3);
+}
+.money-block {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg, 14px);
+  background: var(--surface);
+}
+.money-block h3 {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-md);
+}
+.money-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-variant-numeric: tabular-nums;
+}
+.money-row.is-bad b {
+  color: var(--bad);
+}
+.payday-warning {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  margin: 0 0 var(--sp-2);
+  padding: 0.55rem 0.75rem;
+  border: 1.5px solid var(--bad);
+  border-radius: var(--r-lg, 14px);
+  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.payday-warning > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.payday-fix {
+  flex: none;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--r-pill);
+  background: var(--bad);
+  color: #fff;
+  font-weight: var(--fw-semibold);
+}
+.payday-options .row {
+  margin-top: var(--sp-1);
 }

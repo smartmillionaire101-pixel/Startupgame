@@ -5,6 +5,7 @@
  * thesis, stage, recent results and mood. Claims made in answers are checked
  * in due diligence.
  */
+import { barEdgeIn } from './lifebars.js';
 import { ensure, fail } from './errors.js';
 import {
   adjustTrust,
@@ -32,12 +33,14 @@ import { monthlyGrowth, valueCompany } from './valuation.js';
 import { rulesFor } from './data/rules.js';
 import { INCORPORATION } from './world.js';
 import { companyRunway } from './company.js';
+import { lifeBarsOn } from './releases.js';
 import type {
   Company,
   Fund,
   Id,
   InvestmentTerms,
   Pitch,
+  PitchFigure,
   PitchQuestion,
   Stage,
   World,
@@ -93,14 +96,60 @@ export function strengths(world: World, c: Company): Record<Slide, number> {
   };
 }
 
-/** Generate the AI partner's questions from the company's weak spots. */
-function buildQuestions(world: World, c: Company): PitchQuestion[] {
+/**
+ * What a typed answer to each numeric question measures (Phase 3, with the
+ * life-bars note): a whole number of customers, money in the company's
+ * currency (minor units) or months.
+ */
+export const PITCH_FIGURES: Record<string, PitchFigure> = {
+  traction: 'customers',
+  revenue: 'money',
+  runway: 'months',
+};
+
+/**
+ * The most a typed figure may be: past this it's a typo, not a claim. Money
+ * is minor units, the same ceiling as the command schema's `money`.
+ */
+export const FIGURE_MAX: Record<PitchFigure, number> = {
+  customers: 1e9,
+  money: 1e15,
+  months: 1200,
+};
+
+/**
+ * Months of money a profitable company reports (it never runs out). Any
+ * claim at or past this is true, not spin: there is nothing to inflate.
+ */
+export const RUNWAY_CAP = 120;
+
+/**
+ * How far off a typed figure may be and still count as the truth: 10%, or
+ * one customer, one month or one major unit of money for small numbers.
+ */
+function figureSlack(kind: PitchFigure, truth: number): number {
+  return Math.max(Math.abs(truth) * 0.1, kind === 'money' ? 100 : 1);
+}
+
+/**
+ * Generate the AI partner's questions from the company's weak spots.
+ *
+ * With the life-bars note (`plain`), the runway question is in plain words,
+ * each numeric question says what a typed answer measures (`figure`), and a
+ * profitable company's months are capped at RUNWAY_CAP instead of
+ * "Infinity months". Without it the questions are exactly as before.
+ */
+function buildQuestions(world: World, c: Company, plain = lifeBarsOn(world)): PitchQuestion[] {
   const m = getMarket(world, c.market);
   const cur = m.data.currency;
   const customers = totalCustomers(c);
   const pnl = lastPnl(c);
   const revenue = pnl?.revenue ?? 0;
-  const runway = companyRunway(world, c);
+  const rawRunway = companyRunway(world, c);
+  const lasts = plain && !Number.isFinite(rawRunway);
+  const runway = plain ? Math.min(RUNWAY_CAP, Math.round(rawRunway)) : Math.round(rawRunway);
+  const figure = (q: PitchQuestion): PitchQuestion =>
+    plain && PITCH_FIGURES[q.id] ? { ...q, figure: PITCH_FIGURES[q.id] } : q;
   const qs: PitchQuestion[] = [
     {
       id: 'traction',
@@ -146,20 +195,22 @@ function buildQuestions(world: World, c: Company): PitchQuestion[] {
     },
     {
       id: 'runway',
-      text: 'How many months of runway do you have?',
+      text: plain
+        ? 'How many months will your company’s money last?'
+        : 'How many months of runway do you have?',
       options: [
         {
           id: 'honest',
-          label: `${Math.round(runway)} months`,
-          claim: Math.round(runway),
-          truth: Math.round(runway),
+          label: lasts ? 'It won’t run out: we earn more than we spend' : `${runway} months`,
+          claim: runway,
+          truth: runway,
           tone: 'honest',
         },
         {
           id: 'spin',
-          label: `${Math.round(runway) + 9} months`,
-          claim: Math.round(runway) + 9,
-          truth: Math.round(runway),
+          label: `${runway + 9} months`,
+          claim: runway + 9,
+          truth: runway,
           tone: 'spin',
         },
         { id: 'vague', label: 'Enough to hit our next milestones', tone: 'vague' },
@@ -176,7 +227,21 @@ function buildQuestions(world: World, c: Company): PitchQuestion[] {
       ],
     });
   }
-  return qs.slice(0, 3);
+  return qs.slice(0, 3).map(figure);
+}
+
+/**
+ * The pitch's questions with today's numbers (life-bars note): a company
+ * that grew since the pitch began is asked, and judged, on what is true now,
+ * so the honest choice reads "52, and growing", not last month's "4". Each
+ * numeric question is rebuilt from the company; any other question is kept
+ * as it was asked. Before the note the stored questions are returned as is.
+ */
+export function pitchQuestionsNow(world: World, p: Pitch): PitchQuestion[] {
+  const c = world.companies[p.companyId];
+  if (!c || !lifeBarsOn(world) || p.status !== 'questions') return p.questions;
+  const fresh = buildQuestions(world, c, true);
+  return p.questions.map((q) => (PITCH_FIGURES[q.id] && fresh.find((f) => f.id === q.id)) || q);
 }
 
 export function startPitch(
@@ -320,7 +385,10 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
       (c.accelerator?.demoDayDone &&
       (world.markets[c.accelerator.market]?.month ?? m.month) - c.accelerator.demoDayMonth < 3
         ? 0.06
-        : 0),
+        : 0) +
+      // Phase 3: how the founder feels (life bars), on the same scale as the other
+      // nudges here (±0.02–0.06); zero before that release note.
+      barEdgeIn(world, founder),
   );
 }
 
@@ -349,24 +417,73 @@ const PASS_REASONS = [
   'Great team, but the market is crowded.',
 ];
 
-/** Founder answers the partner's questions; the fund decides (or asks for a partner meeting). */
+/**
+ * Founder answers the partner's questions; the fund decides (or asks for a
+ * partner meeting).
+ *
+ * Each question takes a picked option (`answers`). With the life-bars note,
+ * a numeric question may instead take a typed figure (`figures`: customers,
+ * money in minor units, or months), judged against today's truth:
+ *  - within 10% (or one unit for small numbers): honest;
+ *  - above that: spin, caught in diligence 75% of the time like a spun option;
+ *  - below that: honest but modest (half the credit of the exact truth).
+ * Picked options are judged against today's numbers too (pitchQuestionsNow).
+ * Worlds without the note judge `answers` exactly as before and refuse
+ * `figures`.
+ */
 export function answerPitch(
   world: World,
   pitchId: Id,
   founderId: Id,
   answers: Record<string, string>,
+  figures?: Record<string, number>,
 ): Pitch {
   const p = world.pitches[pitchId];
   ensure(p && p.founderId === founderId, 'pitch.missing', 'Pitch not found.');
   ensure(p.status === 'questions', 'pitch.state', 'This pitch is not waiting for answers.');
   ensure(p.fundId, 'pitch.state', 'Only AI funds ask questions.');
+  const typed = figures ?? {};
+  const plain = lifeBarsOn(world);
+  ensure(
+    plain || Object.keys(typed).length === 0,
+    'pitch.figures',
+    'Pick one of the answers for each question.',
+  );
+  if (plain) {
+    for (const [qid, v] of Object.entries(typed)) {
+      const kind = PITCH_FIGURES[qid];
+      ensure(
+        kind && p.questions.some((q) => q.id === qid),
+        'pitch.figures',
+        'That question doesn’t take a number.',
+      );
+      ensure(
+        Number.isFinite(v) && v >= 0 && v <= FIGURE_MAX[kind],
+        'pitch.figures',
+        'Type a number that is zero or more.',
+      );
+      ensure(
+        kind === 'months' || Number.isInteger(v),
+        'pitch.figures',
+        kind === 'customers' ? 'Type a whole number of customers.' : 'Type an amount of money.',
+      );
+      ensure(
+        answers[qid] === undefined,
+        'pitch.figures',
+        'Pick a choice or type your own, not both.',
+      );
+    }
+    // Judge today's numbers, and keep them on the pitch as what was asked.
+    p.questions = pitchQuestionsNow(world, p);
+  }
   for (const q of p.questions)
     ensure(
-      q.options.some((o) => o.id === answers[q.id]),
+      q.options.some((o) => o.id === answers[q.id]) || typed[q.id] !== undefined,
       'pitch.answers',
       'Answer every question.',
     );
   p.answers = answers;
+  if (Object.keys(typed).length > 0) p.figures = typed;
   const c = getCompany(world, p.companyId);
   const fund = getFund(world, p.fundId);
   const m = getMarket(world, c.market);
@@ -376,6 +493,19 @@ export function answerPitch(
   let caught = false;
   let honesty = 0;
   for (const q of p.questions) {
+    const kind = PITCH_FIGURES[q.id];
+    const claim = typed[q.id];
+    if (kind && claim !== undefined) {
+      const truth = q.options.find((o) => o.tone === 'honest')?.truth ?? 0;
+      // A company whose money never runs out can't overstate how long it lasts.
+      const ceiling = kind === 'months' && truth >= RUNWAY_CAP;
+      if (Math.abs(claim - truth) <= figureSlack(kind, truth) || (ceiling && claim > truth))
+        honesty += 0.02;
+      else if (claim < truth) honesty += 0.01;
+      else if (rng.chance(0.75)) caught = true;
+      else honesty += 0.03;
+      continue;
+    }
     const o = q.options.find((x) => x.id === answers[q.id])!;
     if (o.tone === 'honest') honesty += 0.02;
     if (o.tone === 'vague') honesty -= 0.025;

@@ -122,8 +122,20 @@ export interface Slot {
  * A business's room, from its kind and shape. Wave 6 kinds (docs/WAVE6-ALIVE-CITY.md
  * §A2) each have their own room; unknown kinds fall back by shape, then a shop.
  */
+/** The jobs rework: professional employers' rooms. */
+const EMPLOYER_ROOM: Record<string, RoomKind> = {
+  'employer-bank': 'bank',
+  'employer-investment': 'investor',
+  'employer-tech': 'cowork',
+  'employer-engineering': 'office',
+  'employer-consultancy': 'office',
+  'employer-law': 'office',
+  'employer-hospital': 'clinic',
+};
+
 export function businessRoom(kind: string, shape?: string): RoomKind {
   const k = kind.toLowerCase();
+  if (EMPLOYER_ROOM[k]) return EMPLOYER_ROOM[k];
   if (/beach/.test(k)) return 'beach';
   if (/barb|(^|-)salon|hair|kinyozi|braid/.test(k)) return 'salon';
   if (/football|(^|-)pitch|five-a-side|stadium|futsal/.test(k)) return 'pitch';
@@ -617,8 +629,11 @@ export interface Seatable {
  * don't fit become guests and vice versa), at most one person a spot.
  * Returns the slot index per person, or -1 when the room is full.
  */
-export function seat(kind: RoomKind, people: Seatable[]): number[] {
-  const slots = ROOM_SLOTS[kind];
+export function seat(
+  kind: RoomKind,
+  people: Seatable[],
+  slots: Slot[] = ROOM_SLOTS[kind],
+): number[] {
   const free = slots.map(() => true);
   const out = people.map(() => -1);
   const take = (n: number, who: Slot['who'] | null) => {

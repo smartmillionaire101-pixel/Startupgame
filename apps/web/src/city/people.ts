@@ -14,7 +14,7 @@
  *   positions are a pure function of wall-clock time, so every player sees
  *   the same city.
  */
-import type { PlayerView } from '@runway/engine';
+import { appearanceSchema, type Appearance, type PlayerView } from '@runway/engine';
 import { hash, seeded } from './contract';
 import {
   B,
@@ -49,6 +49,17 @@ export interface PresenceView {
   seenAt: number;
   /** Wave 5: the player's chosen gender, when the server sends it. */
   gender?: 'female' | 'male' | null;
+  /** Phase 6a: the look they made in the creator (null: never made one, or an older server). */
+  appearance?: Appearance | null;
+  appearanceAt?: number | null;
+  /** Their home city (an unchosen look follows its skin tones). */
+  home?: string | null;
+}
+
+/** A look from the server, or null when it's missing or malformed. */
+export function normAppearance(raw: unknown): Appearance | null {
+  const r = appearanceSchema.safeParse(raw);
+  return r.success ? r.data : null;
 }
 
 /** Validates a `GET /api/presence` body; anything malformed is dropped. */
@@ -72,6 +83,9 @@ export function normPresence(raw: unknown, selfId?: string): PresenceView[] {
       place: typeof p.place === 'string' ? p.place : null,
       seenAt: num(p.seenAt),
       gender: p.gender === 'female' || p.gender === 'male' ? p.gender : null,
+      appearance: normAppearance(p.appearance),
+      appearanceAt: typeof p.appearanceAt === 'number' ? p.appearanceAt : null,
+      home: typeof p.home === 'string' ? p.home : null,
     });
   }
   return out;

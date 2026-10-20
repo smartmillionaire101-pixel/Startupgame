@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import type { AvatarLook } from '../city/art';
 import { mat, contactShadow } from './kit';
+import { facialHairColour } from '../avatar/tone';
 
 export type PoseId =
   | 'stand'
@@ -78,57 +79,223 @@ function limb(r: number, len: number, color: string) {
   return m;
 }
 
+/**
+ * Geometries for hair and the creator's parts, made once and shared by
+ * everyone who wears them (a room full of people builds no new ones).
+ */
+const GEO = new Map<string, THREE.BufferGeometry>();
+const geo = (key: string, make: () => THREE.BufferGeometry) => {
+  let g = GEO.get(key);
+  if (!g) GEO.set(key, (g = make()));
+  return g;
+};
+const CAP = () =>
+  geo('cap', () => new THREE.SphereGeometry(0.152, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55));
+
+/**
+ * Hair by style, plus what sits on it (Phase 6a: facial hair and headwear),
+ * in one group centred on the skull so `setHair` swaps them together.
+ */
 function buildHair(look: AvatarLook): THREE.Group {
   const g = new THREE.Group();
   const hm = mat(look.hair, { rough: 0.9 });
   const add = (
-    geo: THREE.BufferGeometry,
+    geom: THREE.BufferGeometry,
     x: number,
     y: number,
     z: number,
     sx = 1,
     sy = 1,
     sz = 1,
+    m: THREE.Material = hm,
   ) => {
-    const m = new THREE.Mesh(geo, hm);
-    m.position.set(x, y, z);
-    m.scale.set(sx, sy, sz);
-    m.castShadow = true;
-    g.add(m);
-    return m;
+    const o = new THREE.Mesh(geom, m);
+    o.position.set(x, y, z);
+    o.scale.set(sx, sy, sz);
+    o.castShadow = true;
+    g.add(o);
+    return o;
   };
-  const cap = new THREE.SphereGeometry(0.152, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55);
-  switch (look.hairStyle) {
-    case 'afro':
-      add(new THREE.SphereGeometry(0.2, 12, 10), 0, 0.1, -0.07, 1, 0.9, 1);
-      break;
-    case 'bun':
-      add(cap, 0, 0.005, 0, 1.02, 1.02, 1.05);
-      add(new THREE.SphereGeometry(0.075, 10, 8), 0, 0.16, -0.08);
-      break;
-    case 'long':
-      add(cap, 0, 0.005, 0, 1.04, 1.05, 1.06);
-      add(new THREE.BoxGeometry(0.3, 0.34, 0.12), 0, -0.14, -0.08);
-      break;
-    case 'braids':
-      add(cap, 0, 0.005, 0, 1.03, 1.03, 1.05);
-      for (let i = 0; i < 6; i++) {
-        const a = Math.PI * 0.6 + (i / 5) * Math.PI * 0.8;
+  const headwear = look.headwear ?? 'none';
+  // A headwrap or gele covers the hair; a beanie leaves only what hangs below it.
+  const covered = headwear === 'headwrap' || headwear === 'gele';
+  const hatted = headwear === 'beanie';
+  const strand = (len: number) =>
+    geo(`strand:${len}`, () => new THREE.CylinderGeometry(0.018, 0.014, len, 6));
+  if (!covered)
+    switch (look.hairStyle) {
+      case 'afro':
+        if (!hatted)
+          add(
+            geo('afro', () => new THREE.SphereGeometry(0.2, 12, 10)),
+            0,
+            0.1,
+            -0.07,
+            1,
+            0.9,
+            1,
+          );
+        break;
+      case 'bun':
+        add(CAP(), 0, 0.005, 0, 1.02, 1.02, 1.05);
+        if (!hatted)
+          add(
+            geo('bun', () => new THREE.SphereGeometry(0.075, 10, 8)),
+            0,
+            0.16,
+            -0.08,
+          );
+        break;
+      case 'long':
+        add(CAP(), 0, 0.005, 0, 1.04, 1.05, 1.06);
         add(
-          new THREE.CylinderGeometry(0.018, 0.014, 0.34, 6),
-          Math.cos(a) * 0.13,
-          -0.16,
-          Math.sin(a) * 0.13 - 0.02,
+          geo('long', () => new THREE.BoxGeometry(0.3, 0.34, 0.12)),
+          0,
+          -0.14,
+          -0.08,
         );
+        break;
+      case 'braids':
+      case 'locs': {
+        add(CAP(), 0, 0.005, 0, 1.03, 1.03, 1.05);
+        const n = look.hairStyle === 'locs' ? 9 : 6;
+        const len = look.hairStyle === 'locs' ? 0.4 : 0.34;
+        for (let i = 0; i < n; i++) {
+          const a = Math.PI * 0.6 + (i / (n - 1)) * Math.PI * 0.8;
+          add(strand(len), Math.cos(a) * 0.13, -0.08 - len / 4, Math.sin(a) * 0.13 - 0.02);
+        }
+        break;
       }
-      break;
-    case 'buzz':
-      add(cap, 0, 0.002, 0, 1.0, 0.95, 1.0);
-      break;
-    default:
-      // short
-      add(cap, 0, 0.012, -0.005, 1.04, 1.08, 1.06);
-      add(new THREE.BoxGeometry(0.22, 0.05, 0.08), 0, 0.1, 0.1);
+      case 'twists':
+        add(CAP(), 0, 0.005, 0, 1.03, 1.03, 1.05);
+        if (!hatted)
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2;
+            const t = add(strand(0.12), Math.cos(a) * 0.08, 0.15, Math.sin(a) * 0.08 - 0.02);
+            t.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6);
+          }
+        break;
+      case 'curly':
+        add(CAP(), 0, 0.01, -0.005, 1.04, 1.06, 1.06);
+        if (!hatted)
+          for (let i = 0; i < 9; i++) {
+            const a = (i / 9) * Math.PI * 2;
+            add(
+              geo('curl', () => new THREE.IcosahedronGeometry(0.055, 0)),
+              Math.cos(a) * 0.11,
+              0.11 + (i % 2) * 0.02,
+              Math.sin(a) * 0.11 - 0.02,
+            );
+          }
+        break;
+      case 'bald':
+        break;
+      case 'buzz':
+        add(CAP(), 0, 0.002, 0, 1.0, 0.95, 1.0);
+        break;
+      default:
+        // short
+        add(CAP(), 0, 0.012, -0.005, 1.04, 1.08, 1.06);
+        add(
+          geo('fringe', () => new THREE.BoxGeometry(0.22, 0.05, 0.08)),
+          0,
+          0.1,
+          0.1,
+        );
+    }
+  // Facial hair, darker than the skin whatever the hair colour (../avatar/tone.ts).
+  const facial = look.facialHair ?? 'none';
+  const fc = facialHairColour(look.skin, look.hair);
+  const fm = mat(fc, { rough: 0.9 });
+  if (facial === 'beard')
+    add(
+      geo(
+        'beard',
+        () => new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.55),
+      ),
+      0,
+      -0.02,
+      0.01,
+      0.145,
+      0.15,
+      0.15,
+      fm,
+    );
+  if (facial === 'stubble')
+    add(
+      geo(
+        'beard',
+        () => new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.55),
+      ),
+      0,
+      -0.02,
+      0.005,
+      0.142,
+      0.15,
+      0.146,
+      mat(fc, { rough: 0.9, opacity: 0.4 }),
+    );
+  if (facial === 'goatee')
+    add(
+      geo('goatee', () => new THREE.BoxGeometry(0.06, 0.06, 0.03)),
+      0,
+      -0.11,
+      0.12,
+      1,
+      1,
+      1,
+      fm,
+    );
+  if (facial === 'moustache' || facial === 'goatee' || facial === 'beard')
+    add(
+      geo('moustache', () => new THREE.BoxGeometry(0.08, 0.018, 0.02)),
+      0,
+      -0.035,
+      0.14,
+      1,
+      1,
+      1,
+      fm,
+    );
+  // Headwear, in the top's colour (a matching gele and buba).
+  const wm = mat(look.top, { rough: 0.8 });
+  if (headwear === 'beanie') {
+    add(CAP(), 0, 0.03, 0, 1.1, 1.05, 1.1, wm);
+  } else if (headwear === 'headwrap' || headwear === 'gele') {
+    add(CAP(), 0, 0.01, -0.005, 1.1, 1.18, 1.12, wm);
+    if (headwear === 'gele') {
+      const fan = add(
+        geo('gele', () => new THREE.SphereGeometry(1, 14, 8)),
+        0,
+        0.17,
+        -0.02,
+        0.3,
+        0.11,
+        0.2,
+        wm,
+      );
+      fan.rotation.x = -0.25;
+      add(
+        geo('gele-top', () => new THREE.ConeGeometry(0.1, 0.12, 8)),
+        0,
+        0.25,
+        -0.03,
+        1,
+        1,
+        0.6,
+        wm,
+      );
+    } else
+      add(
+        geo('knot', () => new THREE.SphereGeometry(0.055, 8, 6)),
+        0.05,
+        0.16,
+        0.05,
+        1,
+        1,
+        1,
+        wm,
+      );
   }
   g.userData.style = look.hairStyle;
   return g;
@@ -232,34 +399,70 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
   hair.position.y = 0.2;
   head.add(hair);
 
-  // Accessories.
+  // Glasses (Phase 6a: round, square or shades; older looks: the outfit's).
+  const glasses = look.glasses ?? (look.accessory === 'glasses' ? 'round' : 'none');
+  if (glasses !== 'none') {
+    const gm = mat(glasses === 'shades' ? '#0b1120' : '#111827', { rough: 0.3 });
+    for (const sx of [-1, 1]) {
+      const r =
+        glasses === 'round'
+          ? new THREE.Mesh(
+              geo('lens-round', () => new THREE.TorusGeometry(0.035, 0.007, 5, 12)),
+              gm,
+            )
+          : new THREE.Mesh(
+              glasses === 'shades'
+                ? geo('lens-shade', () => new THREE.BoxGeometry(0.07, 0.04, 0.01))
+                : geo('lens-square', () => new THREE.BoxGeometry(0.07, 0.045, 0.008)),
+              glasses === 'shades' ? gm : mat('#e2e8f0', { rough: 0.2, opacity: 0.35 }),
+            );
+      r.position.set(sx * 0.052, 0.215, 0.14);
+      head.add(r);
+    }
+    const b = new THREE.Mesh(
+      geo('bridge', () => new THREE.BoxGeometry(0.03, 0.006, 0.006)),
+      gm,
+    );
+    b.position.set(0, 0.22, 0.145);
+    head.add(b);
+  }
+  // A cap (Phase 6a headwear, or an outfit's).
+  if (look.headwear === 'cap' || (!look.headwear && look.accessory === 'cap')) {
+    const cm = mat(top, { rough: 0.7 });
+    const c = new THREE.Mesh(
+      geo('capdome', () => new THREE.SphereGeometry(0.158, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2)),
+      cm,
+    );
+    c.position.y = 0.23;
+    head.add(c);
+    const brim = new THREE.Mesh(
+      geo('brim', () => new THREE.BoxGeometry(0.2, 0.015, 0.14)),
+      cm,
+    );
+    brim.position.set(0, 0.24, 0.17);
+    head.add(brim);
+    hair.visible =
+      look.hairStyle === 'long' || look.hairStyle === 'braids' || look.hairStyle === 'locs';
+  }
+  // Long tops: a kaftan to the knee, a dress that flares. A man's kaftan is a
+  // straight tunic to mid-thigh over his trousers, so it never reads as a dress.
+  if (look.topStyle === 'kaftan' || look.topStyle === 'dress') {
+    const dress = look.topStyle === 'dress';
+    const tunic = !dress && !female;
+    const skirt = new THREE.Mesh(
+      dress
+        ? geo('dress', () => new THREE.CylinderGeometry(0.16, 0.3, 0.46, 12))
+        : tunic
+          ? geo('tunic', () => new THREE.CylinderGeometry(0.165, 0.175, 0.24, 12))
+          : geo('kaftan', () => new THREE.CylinderGeometry(0.17, 0.22, 0.4, 12)),
+      mat(top, { rough: 0.85 }),
+    );
+    skirt.position.y = dress ? -0.2 : tunic ? -0.07 : -0.16;
+    skirt.castShadow = true;
+    hips.add(skirt);
+  }
+  // Outfit accessories.
   switch (look.accessory) {
-    case 'glasses': {
-      const gm = mat('#111827', { rough: 0.3 });
-      for (const sx of [-1, 1]) {
-        const r = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.007, 5, 12), gm);
-        r.position.set(sx * 0.052, 0.215, 0.14);
-        head.add(r);
-      }
-      const b = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.006, 0.006), gm);
-      b.position.set(0, 0.22, 0.145);
-      head.add(b);
-      break;
-    }
-    case 'cap': {
-      const cm = mat(top, { rough: 0.7 });
-      const c = new THREE.Mesh(
-        new THREE.SphereGeometry(0.158, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-        cm,
-      );
-      c.position.y = 0.23;
-      head.add(c);
-      const brim = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.015, 0.14), cm);
-      brim.position.set(0, 0.24, 0.17);
-      head.add(brim);
-      hair.visible = look.hairStyle === 'long' || look.hairStyle === 'braids';
-      break;
-    }
     case 'tie': {
       const t = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.24, 0.02), mat('#991b1b'));
       t.position.set(0, 0.3, 0.115);

@@ -7,11 +7,17 @@
  *    if you don't answer) is marked.
  *  - RivalsPanel (Company): your named rivals, what they're like, their
  *    recent moves, and how much they weigh on your deals right now.
+ *  - LifeEventSheet (Phase 5): a life event as a BitLife-style card: a
+ *    picture, what happened, big choice buttons with what each costs, then
+ *    what happened and how your bars moved. Life events sit in the same list
+ *    (marked, after the founder decisions); LifeEventHost pops them up.
  *
  * Text is the client's own copy keyed on template and choice ids (French
- * included); the engine's English is the fallback.
+ * included); the engine's English is the fallback. Life events carry their
+ * English with its {placeholders} (`raw`), translated here through the
+ * catalog (fr/life-events.ts; a test checks every line has French).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PlayerView } from '@runway/engine';
 import { money, pct } from '../format';
 import { t, tx } from '../i18n';
@@ -40,6 +46,10 @@ export const familyLabel = (f: string) =>
     finance: t('Finance'),
     social: t('Social'),
     life: t('Life'),
+    health: t('Health'),
+    money: t('Money'),
+    work: t('Work'),
+    city: t('City life'),
   })[f] ?? f;
 
 const roleWord = (r: string) =>
@@ -79,8 +89,12 @@ function varsOf(ev: Ev): Vars {
   return v;
 }
 
+/** Engine English (a life event's lines) through the catalog, with its {placeholders} filled. */
+const lifeText = (raw: string, v: Vars) => t(raw, v);
+
 export function eventTitle(ev: Ev): string {
   const v = varsOf(ev);
+  if (ev.life) return lifeText(ev.raw.title, v);
   switch (ev.template) {
     case 'big-prospect':
       return t('A big prospect: {customer}', v);
@@ -101,7 +115,7 @@ export function eventTitle(ev: Ev): string {
     case 'rival-courting':
       return t('{rival} is courting {customer}', v);
     case 'runway-low':
-      return t('Runway is short: {months} months', v);
+      return t('Money runs out soon: {months} months left', v);
     case 'slow-payers':
       return t('Customers are paying late');
     case 'friend-invite':
@@ -119,6 +133,7 @@ export function eventTitle(ev: Ev): string {
 
 function eventBody(ev: Ev): string {
   const v = varsOf(ev);
+  if (ev.life) return lifeText(ev.raw.body, v);
   switch (ev.template) {
     case 'big-prospect':
       return t(
@@ -161,7 +176,10 @@ function eventBody(ev: Ev): string {
     case 'rival-courting':
       return t('{rival} has been talking to {customer}, one of your open deals.', v);
     case 'runway-low':
-      return t('{company} has about {months} months of cash at this burn ({burn} a month).', v);
+      return t(
+        '{company} has about {months} months of money left at this rate of spending ({burn} a month).',
+        v,
+      );
     case 'slow-payers':
       return t('{receivables} of invoices are still unpaid, more than your monthly revenue.', v);
     case 'friend-invite':
@@ -183,6 +201,7 @@ function eventBody(ev: Ev): string {
 /** [label, what happens] for each template's choices. */
 function choiceCopy(ev: Ev, ch: Choice): [string, string] {
   const v = varsOf(ev);
+  if (ev.life) return [lifeText(ch.raw.label, v), lifeText(ch.raw.outcome, v)];
   const key = `${ev.template}.${ch.id}`;
   const copy: Record<string, [string, string]> = {
     'big-prospect.discount': [
@@ -267,7 +286,7 @@ function choiceCopy(ev: Ev, ch: Choice): [string, string] {
     'rival-courting.discount': [t('Sweeten your offer'), t('10% more off your deal with them.')],
     'rival-courting.visit': [t('Go and see them'), t('Face time builds their trust in you.')],
     'rival-courting.ride': [t('Let it ride'), t('Free. Their trust in you slips a little.')],
-    'runway-low.cut': [t('Halve marketing'), t('Burn drops; fewer new customers find you.')],
+    'runway-low.cut': [t('Halve marketing'), t('Spending drops; fewer new customers find you.')],
     'runway-low.collect': [
       t('Collect invoices early'),
       t('A finance house pays your invoices now, minus a fee.'),
@@ -373,6 +392,16 @@ export function effectText(e: Effect, cur: string, homeCur: string): string {
       return t('{n}% chance it works out', { n: e.pct });
     case 'pressure':
       return t('Win chances about {n} points lower while it lasts', { n: e.pct });
+    case 'health':
+      return t('Health {n}', { n: signed(e.n) });
+    case 'stress':
+      return t('Stress {n}', { n: signed(e.n) });
+    case 'happiness':
+      return t('Happiness {n}', { n: signed(e.n) });
+    case 'income':
+      return t('You get {amount}', { amount: money(e.amount, homeCur) });
+    case 'repay':
+      return t('Paid back next month: {amount}', { amount: money(e.amount, homeCur) });
     default:
       return '';
   }
@@ -387,7 +416,14 @@ const deadlineText = (ev: Ev) =>
 
 // Another screen (the top bar's badge, a notification) can open a decision's
 // sheet: the card opens it when it mounts, or at once if it is already shown.
+// "The first one" is resolved to an id there and then, so answering it (a
+// life event's card stays open on its result) never jumps to the next one.
 const FIRST = '*';
+/** Founder decisions first, then life events (they pop up on their own). */
+export const sortOpen = (open: Ev[]) =>
+  open.slice().sort((a, b) => Number(a.life) - Number(b.life));
+const resolveWanted = (key: string | null, open: Ev[]) =>
+  key === FIRST ? (sortOpen(open)[0]?.id ?? null) : key;
 let wanted: string | null = null;
 const wantListeners = new Set<(id: string) => void>();
 /** Open this decision (null: the first one waiting) on Today. */
@@ -403,17 +439,25 @@ export function DecisionsCard() {
   const [openId, setOpenId] = useState<string | null>(() => {
     const w = wanted;
     wanted = null;
-    return w;
+    return resolveWanted(w, view.decisions.open);
+  });
+  const openRef = useRef(view.decisions.open);
+  useEffect(() => {
+    openRef.current = view.decisions.open;
   });
   useEffect(() => {
-    wantListeners.add(setOpenId);
+    const l = (key: string) => setOpenId(resolveWanted(key, openRef.current));
+    wantListeners.add(l);
     return () => {
-      wantListeners.delete(setOpenId);
+      wantListeners.delete(l);
     };
   }, []);
   const d = view.decisions;
   if (!d.on || (d.open.length === 0 && d.recent.length === 0)) return null;
-  const current = (openId === FIRST ? d.open[0] : d.open.find((e) => e.id === openId)) ?? null;
+  const open = sortOpen(d.open);
+  // A life event's card stays open on its result once answered (it's in `recent` then).
+  const current =
+    d.open.find((e) => e.id === openId) ?? d.recent.find((e) => e.id === openId && e.life) ?? null;
   return (
     <Card
       title={t('Decisions')}
@@ -422,14 +466,20 @@ export function DecisionsCard() {
     >
       {d.open.length > 0 && (
         <ul className="list decisions-list" data-decisions-open="">
-          {d.open.map((ev) => (
+          {open.map((ev) => (
             <li key={ev.id}>
               <button
                 type="button"
                 className="decision-row"
                 data-event={ev.template}
+                data-life={ev.life ? '' : undefined}
                 onClick={() => setOpenId(ev.id)}
               >
+                {ev.emoji && (
+                  <span className="decision-row-emoji" aria-hidden="true">
+                    {ev.emoji}
+                  </span>
+                )}
                 <span className="decision-row-main">
                   <b>{eventTitle(ev)}</b>
                   <span className="small muted">
@@ -466,7 +516,12 @@ export function DecisionsCard() {
           </ul>
         </details>
       )}
-      {current && <DecisionSheet ev={current} onClose={() => setOpenId(null)} />}
+      {current &&
+        (current.life ? (
+          <LifeEventSheet ev={current} onClose={() => setOpenId(null)} />
+        ) : (
+          <DecisionSheet ev={current} onClose={() => setOpenId(null)} />
+        ))}
     </Card>
   );
 }
@@ -540,6 +595,158 @@ function DecisionSheet({ ev, onClose }: { ev: Ev; onClose: () => void }) {
             );
           })}
         </ul>
+      </div>
+    </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------- Life events (Phase 5)
+
+type BarKey = 'energy' | 'health' | 'happiness' | 'stress';
+const BAR_ORDER: BarKey[] = ['energy', 'health', 'happiness', 'stress'];
+const BAR_EMOJI: Record<BarKey, string> = {
+  energy: '⚡',
+  health: '❤️',
+  happiness: '😊',
+  stress: '😰',
+};
+const barLabel = (k: BarKey) =>
+  ({ energy: t('Energy'), health: t('Health'), happiness: t('Happiness'), stress: t('Stress') })[k];
+/** Up is good for every bar but stress. */
+const barGood = (k: BarKey, n: number) => (k === 'stress' ? n < 0 : n > 0);
+
+/** What a life event's choice led to, in a line: the win or lose line for a gamble. */
+function lifeOutcome(ev: Ev, ch: Choice): string {
+  const v = varsOf(ev);
+  const raw =
+    ev.succeeded === true && ch.raw.win
+      ? ch.raw.win
+      : ev.succeeded === false && ch.raw.lose
+        ? ch.raw.lose
+        : ch.raw.outcome;
+  return lifeText(raw, v);
+}
+
+/**
+ * A life event as a card (a sheet over the screen): the picture, what
+ * happened, and a big button per choice with what it costs and changes
+ * ("could go well or badly" ones say their odds). The default (what happens
+ * if you don't choose this month) is named under the story. Once answered
+ * (by you, or for you at the month's end) it shows what happened, the bars
+ * that moved and the money, and OK.
+ */
+export function LifeEventSheet({ ev, onClose }: { ev: Ev; onClose: () => void }) {
+  const { send, cur, busy } = useView();
+  const title = eventTitle(ev);
+  const def = ev.choices.find((c) => c.isDefault);
+  const done = ev.status !== 'open';
+  const picked = ev.choices.find((c) => c.id === ev.choiceId);
+  return (
+    <Sheet title={title} onClose={onClose}>
+      <div
+        className={`life-card${done ? ' is-done' : ''}`}
+        data-life-event={ev.id}
+        data-life-template={ev.template}
+      >
+        <div className="life-card-pic" aria-hidden="true">
+          {ev.emoji}
+        </div>
+        <div className="row small life-card-tags">
+          <Pill>{familyLabel(ev.family)}</Pill>
+          {ev.companyName && <Pill>{ev.companyName}</Pill>}
+        </div>
+        <p className="life-card-story">{eventBody(ev)}</p>
+        {!done ? (
+          <>
+            <ul className="life-choices">
+              {ev.choices.map((ch) => {
+                const [label, outcome] = choiceCopy(ev, ch);
+                const effects = [...ch.effects]
+                  .filter((e) => e.kind !== 'chance')
+                  .map((e) => effectText(e, ev.currency, cur))
+                  .filter(Boolean);
+                const odds = ch.effects.find((e) => e.kind === 'chance');
+                return (
+                  <li key={ch.id} data-choice={ch.id}>
+                    <button
+                      type="button"
+                      className="life-choice-btn"
+                      disabled={!!ch.blocker || busy}
+                      onClick={() =>
+                        void send({ type: 'event.choose', eventId: ev.id, choiceId: ch.id })
+                      }
+                    >
+                      <b className="life-choice-label">{label}</b>
+                      <span className="life-choice-outcome small">{outcome}</span>
+                      {odds && odds.kind === 'chance' && (
+                        <span className="life-choice-odds small">
+                          {t('Could go well or badly ({n}% chance it goes well)', { n: odds.pct })}
+                        </span>
+                      )}
+                      {effects.length > 0 && (
+                        <span className="life-choice-effects small">{effects.join(' · ')}</span>
+                      )}
+                      {ch.blocker && <span className="small bad">{tx(ch.blocker)}</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {def && (
+              <p className="small muted life-card-default">
+                {t('If you don’t choose by the end of the month: {choice}', {
+                  choice: choiceCopy(ev, def)[0],
+                })}
+              </p>
+            )}
+          </>
+        ) : (
+          <div className="life-result" data-life-result={ev.status}>
+            {picked && (
+              <p className="life-result-choice small muted">
+                {ev.status === 'defaulted'
+                  ? t('Decided for you: {choice}', { choice: choiceCopy(ev, picked)[0] })
+                  : t('You chose: {choice}', { choice: choiceCopy(ev, picked)[0] })}
+              </p>
+            )}
+            {picked && <p className="life-result-text">{lifeOutcome(ev, picked)}</p>}
+            <ul className="life-result-changes">
+              {BAR_ORDER.filter((k) => ev.result?.bars[k]).map((k) => {
+                const n = ev.result!.bars[k]!;
+                return (
+                  <li
+                    key={k}
+                    className={barGood(k, n) ? 'good' : 'bad'}
+                    data-life-change={k}
+                    data-delta={n}
+                  >
+                    <span aria-hidden="true">{BAR_EMOJI[k]}</span> {barLabel(k)} <b>{signed(n)}</b>
+                  </li>
+                );
+              })}
+              {!!ev.result?.cash && (
+                <li className={ev.result.cash > 0 ? 'good' : 'bad'} data-life-change="cash">
+                  <span aria-hidden="true">💰</span>{' '}
+                  {ev.result.cash > 0
+                    ? t('You received {amount}', { amount: money(ev.result.cash, cur) })
+                    : t('You spent {amount}', { amount: money(-ev.result.cash, cur) })}
+                </li>
+              )}
+              {!BAR_ORDER.some((k) => ev.result?.bars[k]) && !ev.result?.cash && (
+                <li className="muted">{t('Nothing else changed.')}</li>
+              )}
+            </ul>
+          </div>
+        )}
+        <Button
+          variant={done ? 'primary' : 'ghost'}
+          size="lg"
+          block
+          data-life-close=""
+          onClick={onClose}
+        >
+          {done ? t('OK') : t('Decide later')}
+        </Button>
       </div>
     </Sheet>
   );

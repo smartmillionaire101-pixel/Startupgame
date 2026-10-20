@@ -10,6 +10,20 @@
   touch-action: none;
 }
 
+/* Until its first frame is drawn the 3D view stays hidden (an empty WebGL
+   canvas is black): the 2D scene shows meanwhile, then fades into it. */
+.home-scene:not(.is-3d) .home-3d {
+  opacity: 0;
+}
+.home-scene .home-3d {
+  transition: opacity 0.25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-scene .home-3d {
+    transition: none;
+  }
+}
+
 /* In 3D the 2D scene stays on top as an invisible hit layer. */
 .home-scene.is-3d .home-shell,
 .home-scene.is-3d .home-tiles,

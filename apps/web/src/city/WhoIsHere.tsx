@@ -23,7 +23,9 @@ import { t, tx } from '../i18n';
 import { openPhone } from '../phone/bus';
 import { useView } from '../store';
 import { Button, Sheet } from '../ui';
-import { AvatarFigure, avatarLook } from './art';
+import { avatarLook } from './art';
+import { useLookVersion } from './acts/look';
+import { PortraitOf } from '../avatar/Portrait';
 import { angelsOf, businessesOf, hash } from './contract';
 import type { CityLayout, Place } from './layout';
 import { angelsAtOf, cityAngelsOf, looseCmd, lunchVenueOf, lunchVenues } from './life';
@@ -267,19 +269,12 @@ function lookOf(p: PersonHere) {
   return avatarLook(bgs[hash(ref) % bgs.length], `ai:${kind}:${ref}`, p.gender);
 }
 
+/** Phase 6a: their portrait (the face the room's figure of them has). */
 function Face({ p, size = 40 }: { p: PersonHere; size?: number }) {
-  const look = useMemo(() => lookOf(p), [p]);
-  return (
-    <svg
-      className={`who-face who-${p.kind}`}
-      viewBox="-14 -48 28 30"
-      width={size}
-      height={size}
-      aria-hidden="true"
-    >
-      <AvatarFigure look={look} />
-    </svg>
-  );
+  const v = useLookVersion();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- v: a saved look changed
+  const look = useMemo(() => lookOf(p), [p, v]);
+  return <PortraitOf look={look} size={size} className={`who-face who-${p.kind}`} />;
 }
 
 /** The id `venue.buy` takes for a guest: a player, a fund, or one of your contacts. */

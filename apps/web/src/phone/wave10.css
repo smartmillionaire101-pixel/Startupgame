@@ -173,6 +173,161 @@
   flex: none;
 }
 
+/* Tonight in town: a header with the city and its time, then a card per thing to do. */
+.phone-hero.going-hero {
+  gap: 0.15rem;
+  padding: var(--sp-3) var(--sp-4);
+  background: linear-gradient(140deg, #e11d48, #6d28d9);
+}
+.going-hero-city {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+.going-hero-when {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  opacity: 0.92;
+}
+.going-card {
+  gap: 0.55rem;
+  padding: 0.75rem 0.85rem;
+  min-width: 0;
+}
+.going-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.going-tile {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
+  background: color-mix(in srgb, var(--going-tone, var(--accent)) 16%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--going-tone, var(--accent)) 30%, transparent);
+}
+.going-card.is-golf {
+  --going-tone: #16a34a;
+}
+.going-card.is-mall {
+  --going-tone: #db2777;
+}
+.going-card.is-tonight {
+  --going-tone: #7c3aed;
+}
+.going-card.is-sky {
+  --going-tone: #0284c7;
+}
+.going-card.is-events {
+  --going-tone: #4f46e5;
+}
+.going-card.is-friends {
+  --going-tone: #ea580c;
+}
+.going-card-title {
+  font-size: var(--fs-md, 1rem);
+}
+.going-card .going-main > .small {
+  overflow-wrap: anywhere;
+}
+.going-facts {
+  display: grid;
+  gap: 0.15rem;
+}
+.going-go {
+  width: 100%;
+}
+.going-more {
+  justify-self: start;
+}
+.going-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.going-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  max-width: 100%;
+}
+.going-venues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.going-venue {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.going-venue:first-child {
+  border-top: 0;
+  padding-top: 0.1rem;
+}
+.going-venue.is-closed {
+  opacity: 0.6;
+}
+.going-venue-icon {
+  flex: none;
+  width: 1.6rem;
+  text-align: center;
+  font-size: 1.15rem;
+}
+.going-venue-name {
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.going-venue-go {
+  flex: none;
+}
+.going-venue-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.4rem;
+  min-width: 0;
+}
+.going-status {
+  flex: none;
+  font-size: 0.7rem;
+  padding: 0.05rem 0.45rem;
+}
+.going-price {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.going-blurb {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.going-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 /* ---- Competitions */
 .comp-facts {
   display: grid;

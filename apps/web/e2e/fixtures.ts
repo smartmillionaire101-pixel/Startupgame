@@ -34,6 +34,23 @@ export async function withoutNetlifyDrawer(page: Page) {
       // Founder Journey 4b: the month recap opens on its own when a month
       // starts; specs about other things skip it (recap.spec.ts turns it on).
       if (!localStorage.getItem('runway.skipRecap')) localStorage.setItem('runway.skipRecap', '1');
+      // Phase 2: new players start in Simple mode (four tabs, big tiles).
+      // Specs about other things play the normal game; simple-mode.spec.ts
+      // turns it on. The map's one-time gesture hint is taken as seen too.
+      if (!localStorage.getItem('runway.simple')) localStorage.setItem('runway.simple', '0');
+      if (!localStorage.getItem('runway.gestureHint'))
+        localStorage.setItem('runway.gestureHint', '1');
+      // Phase 5: life events pop up as cards when a month settles; specs
+      // about other things don't see them open by themselves (the events
+      // still come, in the Decisions list). life-events.spec.ts turns it on.
+      if (!localStorage.getItem('runway.lifeEventsPopup'))
+        localStorage.setItem('runway.lifeEventsPopup', '0');
+      // A new session starts at home, and landing opens Arrivals in the
+      // airport; specs about other things start on the map and step out of
+      // the airport (arrivals.spec.ts turns both on).
+      if (!localStorage.getItem('runway.startAtHome'))
+        localStorage.setItem('runway.startAtHome', '0');
+      if (!localStorage.getItem('runway.arrivals')) localStorage.setItem('runway.arrivals', '0');
     } catch {
       /* storage blocked: rides play */
     }
@@ -138,9 +155,29 @@ export async function setupPlayer(page: Page, command: unknown) {
  * opens the ride chooser (Wave 4): go by `mode` (walking, unless told).
  */
 export async function tapPlace(page: Page, selector: string, mode = 'walk') {
-  const el = page.locator(selector).first();
-  await el.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
-  await el.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  // The 3D map draws places as icon badges (data-badge), not data-place
+  // labels: tap the badge, then Go on its card (named ones go at once).
+  const id = /^\[data-place="([^"]+)"\]$/.exec(selector)?.[1];
+  const badge = id ? page.locator(`[data-badge="${id}"]`).first() : null;
+  // (After a reload the map may still be building: wait for either.)
+  if (badge)
+    await page.locator(`${selector}, [data-badge="${id}"]`).first().waitFor({ state: 'attached' });
+  if (badge && (await page.locator(selector).count()) === 0 && (await badge.count()) > 0) {
+    await badge.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+    await badge.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+    const go = page.locator(`[data-badge-card="${id}"] [data-badge-go]`);
+    if (
+      await go.waitFor({ timeout: 1500 }).then(
+        () => true,
+        () => false,
+      )
+    )
+      await go.dispatchEvent('click');
+  } else {
+    const el = page.locator(selector).first();
+    await el.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+    await el.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  }
   const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
   const far = await chooser.waitFor({ timeout: 1500 }).then(
     () => true,
@@ -169,6 +206,16 @@ export const tab = (page: Page, name: string) =>
     .getByRole('navigation', { name: 'Main' })
     // The name can carry a badge count ("Home 3").
     .getByRole('button', { name: new RegExp(`^${name}(\\s+\\d+)?$`) });
+
+/** Home and social experiences (dates, games, sky views): Me → Home & friends. */
+export async function openTogether(page: Page) {
+  const sheet = page.getByRole('dialog', { name: 'Home and social experiences' });
+  if (await sheet.isVisible()) return sheet;
+  await tab(page, 'Me').click();
+  await page.locator('[data-open-living]').click();
+  await sheet.waitFor();
+  return sheet;
+}
 
 /** Onboarding's who-you-are and where-you-build choices (name, sex, city). */
 export async function pickIdentity(

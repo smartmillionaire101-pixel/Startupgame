@@ -48,6 +48,7 @@ import {
   type Vehicle,
 } from './layout';
 import { planOf, type CityPlan, type DistrictKind, type Host } from './plans';
+import { golfSpot, leisureHosts, mallSpot, putGolf, putMall } from './leisure';
 import {
   fromLatLon,
   GEO_DISTRICTS,
@@ -386,20 +387,49 @@ export class WalkGraph {
     const a = this.nearest(fx, fy);
     const b = this.nearest(tx, ty);
     if (a.s === b.s) return [a, b].map(({ x, y }) => ({ x, y }));
+    const at = (v: number) => Math.hypot(this.x[v]! - a.x, this.y[v]! - a.y);
+    const nodes = this.search(
+      [
+        { v: this.segA[a.s]!, c: at(this.segA[a.s]!) },
+        { v: this.segB[a.s]!, c: at(this.segB[a.s]!) },
+      ],
+      b,
+    );
+    return [
+      { x: a.x, y: a.y },
+      ...nodes.map((v) => ({ x: this.x[v]!, y: this.y[v]! })),
+      { x: b.x, y: b.y },
+    ];
+  }
+
+  /**
+   * Driving on from a junction `u` into the street towards its neighbour
+   * `v`: the shortest way from there to a point (metres), not straight back
+   * through `u` at once. The polyline starts at u.
+   */
+  pathVia(u: number, v: number, tx: number, ty: number): { x: number; y: number }[] {
+    const b = this.nearest(tx, ty);
+    const nodes = this.search([{ v, c: 0 }], b, { from: v, to: u });
+    if (nodes[0] !== v) nodes.unshift(v);
+    return [u, ...nodes].map((n) => ({ x: this.x[n]!, y: this.y[n]! })).concat({ x: b.x, y: b.y });
+  }
+
+  /** A* from start nodes to the ends of the segment hit `b` (a step `ban` not taken). */
+  private search(
+    starts: { v: number; c: number }[],
+    b: StreetHit,
+    ban?: { from: number; to: number },
+  ): number[] {
     const n = this.nodes;
     const g = new Float64Array(n).fill(Infinity);
     const prev = new Int32Array(n).fill(-1);
     const heap = new Heap();
     const h = (v: number) => Math.hypot(this.x[v]! - b.x, this.y[v]! - b.y);
-    const start = (v: number) => {
-      const c = Math.hypot(this.x[v]! - a.x, this.y[v]! - a.y);
+    for (const { v, c } of starts)
       if (c < g[v]!) {
         g[v] = c;
         heap.push(v, c + h(v));
       }
-    };
-    start(this.segA[a.s]!);
-    start(this.segB[a.s]!);
     const gc = this.segA[b.s]!;
     const gd = this.segB[b.s]!;
     const extra = (v: number) =>
@@ -417,6 +447,7 @@ export class WalkGraph {
       }
       for (let k = this.off[u]!; k < this.off[u + 1]!; k++) {
         const v = this.nb[k]!;
+        if (ban && u === ban.from && v === ban.to) continue;
         const ng = g[u]! + this.wt[k]!;
         if (ng < g[v]!) {
           g[v] = ng;
@@ -427,12 +458,22 @@ export class WalkGraph {
     }
     const nodes: number[] = [];
     for (let v = bestNode; v >= 0; v = prev[v]!) nodes.push(v);
-    nodes.reverse();
-    return [
-      { x: a.x, y: a.y },
-      ...nodes.map((v) => ({ x: this.x[v]!, y: this.y[v]! })),
-      { x: b.x, y: b.y },
-    ];
+    return nodes.reverse();
+  }
+
+  private byXY: Map<string, number> | null = null;
+  /** The node at a point (whole metres, as nodes are stored), if any. */
+  nodeAt(x: number, y: number): number | undefined {
+    if (!this.byXY) {
+      this.byXY = new Map();
+      for (let i = 0; i < this.nodes; i++) this.byXY.set(`${this.x[i]},${this.y[i]}`, i);
+    }
+    return this.byXY.get(`${Math.round(x)},${Math.round(y)}`);
+  }
+
+  /** The nodes a node joins. */
+  neighbours(u: number): number[] {
+    return Array.from(this.nb.subarray(this.off[u]!, this.off[u + 1]!));
   }
 
   /** nearestStreetPoint, in tiles. */
@@ -1085,6 +1126,7 @@ export function buildGeoLayout(
   D.forEach((x, n) => {
     for (const h of x.d.hosts ?? []) if (!hostOf.has(h)) hostOf.set(h, n);
   });
+  leisureHosts(D, hostOf, input.marketId);
   for (const h of Object.keys(HOST_FALLBACK) as Host[])
     if (!hostOf.has(h)) {
       const n = byKind(HOST_FALLBACK[h]);
@@ -1105,6 +1147,15 @@ export function buildGeoLayout(
   const fin = financeItems(input);
   const capital = [...(input.capital ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
   const marketBlocks = Math.ceil(input.segments.length / 9);
+  // The golf course and the mall stand at their real spot when the map reaches it.
+  const [gx0, gy0, gx1, gy1] = data.bounds;
+  const realAt = (at?: [number, number]) => {
+    if (!at) return null;
+    const p = fromLatLon(data, at[0], at[1]);
+    return p.x > gx0 + 200 && p.x < gx1 - 200 && p.y > gy0 + 200 && p.y < gy1 - 200
+      ? { e: p.x, s: p.y }
+      : null;
+  };
   // Investors are scattered like a real city's: the investor district takes
   // every other fund, the rest go round the other districts (not the airport).
   const invHome = hostOf.get('investors') ?? 0;
@@ -1143,6 +1194,16 @@ export function buildGeoLayout(
     if (hs.includes('eventhall')) {
       putEventHall(ctx, cell, area);
       take(n, 0);
+    }
+    if (hs.includes('golf')) {
+      const at = realAt(golfSpot(input.marketId).at);
+      putGolf(ctx, cell, area);
+      take(n, 0, at ? 'golf' : `d${n}`, at ?? x.at);
+    }
+    if (hs.includes('mall')) {
+      const at = realAt(mallSpot(input.marketId).at);
+      putMall(ctx, cell, area);
+      take(n, 0, at ? 'mall' : `d${n}`, at ?? x.at);
     }
     if (hs.includes('airport')) {
       const airport = airportAt(data, x.at);
