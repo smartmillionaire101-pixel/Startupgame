@@ -38,20 +38,7 @@ import { GolfInviteSheet } from './GolfInvite';
 import { GolfMatch } from './GolfMatch';
 import { clearGolfFriend, pickedGolfFriend } from './invite-bus';
 import { activeMatch } from './match';
-import {
-  LIE_WORD,
-  MiniMap,
-  Mark,
-  RING_C,
-  RING_L,
-  RING_R,
-  powerAt,
-  reachOf,
-  ringDash,
-  ringFill,
-  signed,
-  vsParText,
-} from './parts';
+import { LIE_WORD, MiniMap, PowerBar, Mark, powerAt, reachOf, signed, vsParText } from './parts';
 import type { CamMode, GolfFrame } from './frame';
 import {
   CLUBS,
@@ -59,8 +46,6 @@ import {
   MAX_STROKES,
   POWER_MAX,
   PUTTER,
-  SWEET_FROM,
-  SWEET_TO,
   clubFor,
   defaultAim,
   dist,
@@ -227,7 +212,6 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
   // Your best here before this round (the card says when you beat it).
   const [bestBefore, setBestBefore] = useState<number | null>(null);
   const meterRef = useRef<HTMLDivElement>(null);
-  const fillRef = useRef<SVGCircleElement>(null);
   const readRef = useRef<HTMLDivElement>(null);
   const carryRef = useRef<HTMLSpanElement>(null);
   const clubsRef = useRef<HTMLDivElement>(null);
@@ -309,7 +293,6 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
           meterRef.current.dataset.power = String(n);
           meterRef.current.dataset.zone = zone;
         }
-        fillRef.current?.setAttribute('stroke-dasharray', ringFill(power));
         const read = readRef.current;
         if (read && read.dataset.power !== String(n)) {
           read.dataset.power = String(n);
@@ -627,13 +610,6 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
   const pool = putting ? [PUTTER] : CLUBS.filter((c) => c.id !== 'driver' || p.lie === 'tee');
   const aimDeg = Math.round((p.aimOff * 180) / Math.PI);
   const dots = Math.max(g.par + 2, p.strokes);
-  const needAngle = ((Math.PI * 1.5 * need) / POWER_MAX) as number;
-  const tick = (r: number) => ({
-    x: 66 + Math.cos(needAngle) * r,
-    y: 66 + Math.sin(needAngle) * r,
-  });
-  const tickA = tick(RING_R - 10);
-  const tickB = tick(RING_R + 10);
 
   return (
     <div
@@ -736,12 +712,6 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
                 lie={p.lie}
                 next={clubFor(left, p.lie)}
               />
-            )}
-            {charging && (
-              <div className="golf-power" ref={readRef} data-zone="build" data-power="0">
-                <b>{t('{n}%', { n: 0 })}</b>
-                <span>{t('Keep holding…')}</span>
-              </div>
             )}
           </>
         )}
@@ -868,6 +838,13 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
               </button>
             ))}
           </div>
+          <PowerBar
+            meterRef={meterRef}
+            readRef={readRef}
+            charging={charging}
+            need={need}
+            hint={t('Let go in the green')}
+          />
           <div className="golf-swingrow">
             <button
               type="button"
@@ -881,55 +858,6 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
               <small>{t('Aim')}</small>
             </button>
             <div className="golf-swing-wrap">
-              <div
-                className="golf-meter"
-                ref={meterRef}
-                data-power="0"
-                data-zone="build"
-                aria-hidden="true"
-              >
-                <svg viewBox="0 0 132 132">
-                  <g transform="rotate(135 66 66)">
-                    <circle
-                      className="golf-ring-track"
-                      cx="66"
-                      cy="66"
-                      r={RING_R}
-                      strokeDasharray={`${RING_L} ${RING_C}`}
-                    />
-                    <circle
-                      className="golf-ring-sweet"
-                      cx="66"
-                      cy="66"
-                      r={RING_R}
-                      strokeDasharray={ringDash(SWEET_FROM, SWEET_TO)}
-                    />
-                    <circle
-                      className="golf-ring-lunge"
-                      cx="66"
-                      cy="66"
-                      r={RING_R}
-                      strokeDasharray={ringDash(SWEET_TO, POWER_MAX)}
-                    />
-                    <circle
-                      className="golf-ring-fill"
-                      ref={fillRef}
-                      cx="66"
-                      cy="66"
-                      r={RING_R}
-                      strokeDasharray={ringFill(p.phase === 'swing' ? p.power : 0)}
-                    />
-                    <line
-                      className="golf-need"
-                      data-golf-need={need}
-                      x1={tickA.x}
-                      y1={tickA.y}
-                      x2={tickB.x}
-                      y2={tickB.y}
-                    />
-                  </g>
-                </svg>
-              </div>
               <button
                 type="button"
                 className="golf-swing"
