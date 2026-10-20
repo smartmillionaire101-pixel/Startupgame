@@ -30,6 +30,7 @@ import { markWebGLBroken } from '../city/three/quality';
 import { softwareGl, webglAvailable } from '../three-kit/quality';
 import { SKY_LABELS, type SkyLabel } from './skyLabels';
 import { SkyRise } from './SkyRise';
+import { PhotoSheet, addPhoto } from '../home/HomePhotos';
 import '../city/three/city3d.css';
 import './experiences.css';
 
@@ -160,6 +161,8 @@ export default function Panorama({
   const [error, setError] = useState('');
   const [focus, setFocus] = useState('');
   const [paused, setPaused] = useState(false);
+  // The camera: a photo of the view, kept with your photos (save or share it).
+  const [photo, setPhoto] = useState<{ src: string | null } | null>(null);
   const [light, setLight] = useState<Light>('now');
   const [state, setState] = useState({ progress: 0, heading: 0, ready: false });
   const [labelsList, setLabelsList] = useState<{ name: string; area: boolean }[]>([]);
@@ -523,9 +526,27 @@ export default function Panorama({
             <span style={{ width: `${Math.round(state.progress * 100)}%` }} />
           </div>
         </div>
-        <button onClick={onClose} aria-label="Close panorama">
-          ×
-        </button>
+        <div className="panorama-actions">
+          {state.ready && !error && (
+            <button
+              type="button"
+              className="panorama-snap"
+              data-action="sky-photo"
+              aria-label={t('Take a photo')}
+              title={t('Take a photo')}
+              onClick={() => {
+                const src = handle.current?.scene.snapshot(spec.name) ?? null;
+                if (src) addPhoto(src);
+                setPhoto({ src });
+              }}
+            >
+              📷
+            </button>
+          )}
+          <button onClick={onClose} aria-label="Close panorama">
+            ×
+          </button>
+        </div>
       </header>
       {(error || geo === null) && (
         <p className="panorama-error" role="alert">
@@ -627,6 +648,16 @@ export default function Panorama({
           {holdingHands ? t('Holding hands ♥') : t('Enjoy the view')}
         </small>
       </footer>
+      {photo && (
+        <PhotoSheet
+          first={photo.src}
+          city={city}
+          title={t('Photo of the view')}
+          file="my-view"
+          floating
+          onClose={() => setPhoto(null)}
+        />
+      )}
     </section>
   );
 }

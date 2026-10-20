@@ -38,6 +38,8 @@ import { GolfInviteSheet } from './GolfInvite';
 import { GolfMatch } from './GolfMatch';
 import { clearGolfFriend, pickedGolfFriend } from './invite-bus';
 import { activeMatch } from './match';
+import { SnapButton } from '../../photos/SnapButton';
+import { resultCard } from '../../photos/snap';
 import { LIE_WORD, MiniMap, PowerBar, Mark, powerAt, reachOf, signed, vsParText } from './parts';
 import type { CamMode, GolfFrame } from './frame';
 import {
@@ -812,6 +814,8 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
             onHandIn={() => void handIn(card)}
             onAgain={() => setStage('intro')}
             onDone={props.onClose}
+            courseName={tx(course.name)}
+            city={view.here?.name ?? view.market.name}
           />
         )}
       </div>
@@ -984,7 +988,11 @@ function ScoreCard({
   onHandIn,
   onAgain,
   onDone,
+  courseName,
+  city,
 }: {
+  courseName: string;
+  city: string;
   card: number[];
   pars: number[];
   holes: number[];
@@ -1155,6 +1163,40 @@ function ScoreCard({
             {t('Hand in your card')}
           </button>
         )}
+        <SnapButton
+          action="golf-photo"
+          label={t('Photo of my round')}
+          title={t('Your round')}
+          file="my-golf-round"
+          city={city}
+          make={() =>
+            resultCard({
+              kicker: courseName,
+              title: t('{vs} · {n} strokes', { vs: vsParText(vs), n: sum }),
+              subtitle: partners.length
+                ? t('{n} holes with {names}', {
+                    n: card.length,
+                    names: partners.map((m) => m.name.split(' ')[0]).join(', '),
+                  })
+                : undefined,
+              stats: [
+                { label: t('Putts'), value: String(stats.putts) },
+                ...(stats.fairwayHoles > 0
+                  ? [{ label: t('Fairways hit'), value: `${stats.fairways}/${stats.fairwayHoles}` }]
+                  : []),
+                ...(stats.longest > 0
+                  ? [{ label: t('Longest drive'), value: t('{m} m', { m: stats.longest }) }]
+                  : []),
+                ...partners.map((m) => ({
+                  label: m.name.split(' ')[0]!,
+                  value: vsParText(total(m.card) - par),
+                })),
+              ],
+              footer: city,
+              tone: 'green',
+            })
+          }
+        />
         <button
           type="button"
           className="btn btn-subtle"

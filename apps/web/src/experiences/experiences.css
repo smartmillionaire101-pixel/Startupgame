@@ -403,6 +403,16 @@
   align-self: flex-start;
   pointer-events: auto;
 }
+/* The camera beside the close button. */
+.panorama-actions {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.panorama header .panorama-snap {
+  font-size: 22px;
+  line-height: 1;
+}
 .panorama header h2 {
   margin: 6px 0;
   text-shadow: 0 1px 6px #000;

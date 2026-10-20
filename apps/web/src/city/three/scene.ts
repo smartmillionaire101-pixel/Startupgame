@@ -16,6 +16,7 @@ import { cityLook, type CityLook } from './cities';
 import { GroundMask } from './mask';
 import { makeShared, facadeMaterial } from './materials';
 import { RoadIndex } from './roads';
+import { canvasJpeg } from '../../photos/snap';
 import {
   boxMeshes,
   bytes,
@@ -1023,6 +1024,16 @@ export class CityScene {
   /** The canvas's size in CSS px (as last measured). */
   get viewSize() {
     return this.size;
+  }
+
+  /** A photo of the view right now, with a caption (the camera, ../../photos/snap.ts). */
+  snapshot(caption?: string): string | null {
+    try {
+      this.renderer.render(this.scene, this.camera);
+    } catch {
+      return null;
+    }
+    return canvasJpeg(this.renderer.domElement, { caption });
   }
 
   resize(w: number, h: number) {
