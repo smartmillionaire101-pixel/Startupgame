@@ -129,7 +129,9 @@ test('landing in London with a hotel: a 3D room with a bathroom, no Fly home in 
   await expect(flat).toBeHidden();
 });
 
-test('the three hotel rooms: budget, business and a luxury suite with a tub', async ({ page }) => {
+test('the three hotel rooms: budget, business and a luxury suite with a tub and a balcony', async ({
+  page,
+}) => {
   test.setTimeout(240_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => localStorage.setItem('runway.mapQuality', '3d'));
@@ -162,6 +164,25 @@ test('the three hotel rooms: budget, business and a luxury suite with a tub', as
       await expect(room.locator('[data-obj="armchair"]')).toBeAttached();
     }
     if (tier === 'luxury') await expect(room.locator('[data-obj="sofa"]')).toBeAttached();
+    // Only the suite has a balcony: sit out and watch the city.
+    const balcony = room.locator('[data-action="hotel-balcony"]');
+    if (tier !== 'luxury') await expect(balcony).toHaveCount(0);
+    else {
+      await balcony.click();
+      const sky = page.getByRole('dialog', { name: 'City panorama' });
+      await expect(sky).toHaveAttribute('data-sky-view', 'penthouse:lagos', { timeout: 60_000 });
+      await expect(sky.getByRole('heading', { name: 'Your balcony' })).toBeVisible();
+      if (SHOTS) {
+        await expect(sky.locator('canvas')).toBeVisible({ timeout: 90_000 });
+        await page.waitForTimeout(3000);
+        await page.screenshot({ path: `${SHOTS}/suite-balcony.png` });
+      }
+      await sky
+        .getByRole('button', { name: /Close|Back/ })
+        .first()
+        .click();
+      await expect(sky).toBeHidden();
+    }
     await page.waitForTimeout(1500);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${tier}.png` });
     await room.getByRole('button', { name: 'Close' }).first().click();

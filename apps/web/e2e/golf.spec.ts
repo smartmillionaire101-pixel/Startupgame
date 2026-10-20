@@ -91,6 +91,13 @@ test('play three holes at the golf course: the scorecard, and the green fee is p
   await expect
     .poll(async () => Number(await pocket.getAttribute('data-pocket')), { timeout: 8000 })
     .toBeLessThan(before);
+  // The camera: a picture of the round to save or share.
+  await card.locator('[data-action="golf-photo"]').click();
+  const photo = page.getByRole('dialog', { name: 'Your round' });
+  await expect(photo.locator('img.home-photo-big')).toHaveAttribute('src', /^data:image\/jpeg/);
+  await expect(photo.locator('[data-action="save-photo"]')).toBeVisible();
+  await photo.getByRole('button', { name: 'Close' }).first().click();
+  await expect(photo).toBeHidden();
   await card.locator('[data-action="golf-done"]').click();
   await expect(scene).toBeHidden();
 });

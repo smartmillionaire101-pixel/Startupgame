@@ -1,5 +1,7 @@
 /**
- * Photos of your home (player feedback: "take pictures of their house").
+ * Photos of your home (player feedback: "take pictures of their house"), and
+ * since the camera (../photos/snap.ts) of sky views, game results and your
+ * company: the same sheet, floating over the screen (`floating`).
  * "📷 Photo" in the home scene reads the 3D view (Home3DApi.snapshot) and
  * opens this sheet: the picture, Save (a download), Share where the phone
  * can share files, and the last few photos you took ("Your photos").
@@ -8,6 +10,7 @@
  * at most MAX_PHOTOS small JPEGs, oldest dropped first when storage is short.
  */
 import { useEffect, useMemo, useState } from 'react';
+import './home.css';
 import './home-photos.css';
 import { t } from '../i18n';
 
@@ -95,17 +98,27 @@ export function PhotoSheet({
   first,
   city,
   onClose,
+  title,
+  file: fileBase = 'my-home',
+  floating = false,
 }: {
   /** The photo just taken (opens on it), if any. */
   first: string | null;
   /** The city, for the file's name (my-home-lagos.jpg). */
   city: string;
   onClose: () => void;
+  /** The sheet's title (default: "Photo of your home"). */
+  title?: string;
+  /** The file's name before the city ("my-golf-round" → my-golf-round-lagos.jpg). */
+  file?: string;
+  /** Over the whole screen (a sky view, a game, a company screen), not inside a scene. */
+  floating?: boolean;
 }) {
   const [photos, setPhotos] = useState(loadPhotos);
   const [shown, setShown] = useState<string | null>(first ?? photos[0]?.src ?? null);
   // Share: only where the phone can share a picture file.
-  const name = `my-home-${slug(city)}.jpg`;
+  const name = `${fileBase}-${slug(city)}.jpg`;
+  const heading = title ?? t('Photo of your home');
   const file = useMemo(() => (shown ? fileOf(shown, name) : null), [shown, name]);
   const canShare =
     !!file && typeof navigator !== 'undefined' && !!navigator.canShare?.({ files: [file] });
@@ -118,7 +131,7 @@ export function PhotoSheet({
   const share = async () => {
     if (!file) return;
     try {
-      await navigator.share({ files: [file], title: t('My home') });
+      await navigator.share({ files: [file], title: title ?? t('My home') });
     } catch {
       /* cancelled */
     }
@@ -130,22 +143,26 @@ export function PhotoSheet({
   };
 
   return (
-    <div className="home-sheet-back" onClick={onClose}>
+    <div className={`home-sheet-back${floating ? ' photo-float' : ''}`} onClick={onClose}>
       <section
         className="home-sheet home-photos"
         role="dialog"
-        aria-label={t('Photo of your home')}
+        aria-label={heading}
         data-home-photos=""
         onClick={(e) => e.stopPropagation()}
       >
         <header>
-          <h3>{t('Photo of your home')}</h3>
+          <h3>{heading}</h3>
           <button type="button" className="icon-btn" aria-label={t('Close')} onClick={onClose}>
             ✕
           </button>
         </header>
         {shown ? (
-          <img className="home-photo-big" src={shown} alt={t('Your home, as you saw it')} />
+          <img
+            className="home-photo-big"
+            src={shown}
+            alt={title ? t('Your photo') : t('Your home, as you saw it')}
+          />
         ) : (
           <p className="small muted">{t('Couldn’t take a photo on this device.')}</p>
         )}

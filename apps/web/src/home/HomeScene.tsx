@@ -1378,13 +1378,20 @@ export function HomeScene({
   const inviteLeft = actsLeft(view, 'invite');
   // ---- The penthouse balcony: the city it looks out over.
   const city = view.here?.id ?? view.market.id;
-  const hood = hostView ? (hostView.hood ?? null) : (residence?.neighbourhood ?? null);
+  // A hotel's balcony looks over the city's heart (your home's neighbourhood is elsewhere).
+  const hood = hotel
+    ? null
+    : hostView
+      ? (hostView.hood ?? null)
+      : (residence?.neighbourhood ?? null);
   const balconyName = hostView
     ? t('{name}’s balcony', { name: hostView.name.split(' ')[0]! })
     : t('Your balcony');
+  // A penthouse's balcony, or a hotel suite's (its loungers look out over the city).
+  const hasBalcony = plan.kind === 'penthouse' || hotelTier === 'luxury';
   const balcony = useMemo(
-    () => (plan.kind === 'penthouse' ? balconyView(city, balconyName, hood) : null),
-    [plan.kind, city, balconyName, hood],
+    () => (hasBalcony ? balconyView(city, balconyName, hood) : null),
+    [hasBalcony, city, balconyName, hood],
   );
   const levelName = (l: number) =>
     l === 2 ? t('Roof terrace') : l === 1 ? t('Upper floor') : t('Ground floor');
@@ -1851,7 +1858,10 @@ export function HomeScene({
         </div>
       )}
       {hotelTier ? (
-        <nav className="home-bar is-hotel" aria-label={t('Hotel room actions')}>
+        <nav
+          className={`home-bar is-hotel${balcony ? ' has-balcony' : ''}`}
+          aria-label={t('Hotel room actions')}
+        >
           <button
             type="button"
             className="home-bar-btn"
@@ -1872,6 +1882,17 @@ export function HomeScene({
             <span aria-hidden="true">🚿</span>
             {t('Freshen up')}
           </button>
+          {balcony && (
+            <button
+              type="button"
+              className="home-bar-btn"
+              data-action="hotel-balcony"
+              onClick={() => setSky(true)}
+            >
+              <span aria-hidden="true">🌇</span>
+              {t('Balcony')}
+            </button>
+          )}
           <button type="button" className="home-bar-btn" data-action="go-out" onClick={onClose}>
             <span aria-hidden="true">🚪</span>
             {t('Go out')}

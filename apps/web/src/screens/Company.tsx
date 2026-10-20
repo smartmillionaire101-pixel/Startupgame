@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { FoundCompany } from './Me';
 import { ScreenBoundary } from '../ScreenBoundary';
 import type { BuildMode, Industry, RevenueModel } from '@runway/engine';
-import { amountInput, money, parseAmount, pct, stars, titleCase } from '../format';
+import { amountInput, money, parseAmount, pct, runway, stars, titleCase } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Segmented, Sheet } from '../ui';
@@ -14,6 +14,8 @@ import { RunwayExplainer } from './FundCompany';
 import { RivalsPanel } from './Decisions';
 import { SimpleLink } from './SimpleLink';
 import { CompanyKpis } from './Home';
+import { SnapButton } from '../photos/SnapButton';
+import { resultCard } from '../photos/snap';
 
 type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -140,6 +142,40 @@ export function CompanyScreen() {
       </header>
       {/* The company's bank, spending, how long the money lasts and revenue, up front. */}
       <CompanyKpis c={c} />
+      {/* The camera: your company's numbers as a card to save or share. */}
+      <div className="row">
+        <SnapButton
+          action="company-photo"
+          className="btn btn-subtle btn-sm"
+          label={t('Share your results')}
+          title={t('Your company’s results')}
+          file={`${c.name}-results`}
+          city={view.market.name}
+          make={() =>
+            resultCard({
+              kicker: `${c.industryLabel} · ${view.market.name}`,
+              title: c.name,
+              subtitle: tx(c.idea),
+              stats: [
+                { label: t('Monthly revenue'), value: money(c.monthlyRevenue, c.currency) },
+                { label: t('Company bank'), value: money(c.cash, c.currency) },
+                {
+                  label: t('Money lasts'),
+                  value:
+                    c.monthlyRevenue <= 0 && c.runwayMonths === null
+                      ? t('Pre-revenue')
+                      : runway(c.runwayMonths),
+                },
+                { label: t('Team'), value: String(c.teamSize) },
+                { label: t('Stars'), value: stars(c.stars) },
+                ...(c.lastRound ? [{ label: t('Last round'), value: titleCase(c.lastRound) }] : []),
+              ],
+              footer: t('Month {n}', { n: view.market.month }),
+              tone: 'teal',
+            })
+          }
+        />
+      </div>
       <SimpleLink
         to="money"
         emoji="💰"

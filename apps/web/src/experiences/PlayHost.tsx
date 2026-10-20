@@ -5,6 +5,8 @@ import { api } from '../api';
 import { money } from '../format';
 import { t, useLang } from '../i18n';
 import { closePlay, onPlay, playPlace, type PlayPlace } from './play-bus';
+import { SnapButton } from '../photos/SnapButton';
+import { resultCard } from '../photos/snap';
 import './experiences.css';
 type Room = PlayerView['playRooms'][number];
 const names = {
@@ -498,6 +500,42 @@ function Lobby({ place }: { place: PlayPlace }) {
                 >
                   Play again
                 </button>
+                {room.status === 'finished' && (
+                  <SnapButton
+                    action="play-photo"
+                    className="experience-secondary"
+                    label={t('Photo of the result')}
+                    title={t('Your result')}
+                    file={`my-${room.game}`}
+                    city={view.market.name}
+                    make={() =>
+                      resultCard({
+                        kicker: `${names[room.game]} · ${place.name ?? view.market.name}`,
+                        title:
+                          room.winners.length === 1
+                            ? room.winners[0] === me
+                              ? t('You won!')
+                              : t('{name} won', {
+                                  name:
+                                    room.members.find((m) => m.id === room.winners[0])?.name ?? '',
+                                })
+                            : t('A tie!'),
+                        subtitle:
+                          room.winners.length === 1 && room.stake > 0
+                            ? t('{amount} to the winner', {
+                                amount: money(room.stake * room.members.length, room.currency),
+                              })
+                            : undefined,
+                        stats: room.members.map((m) => ({
+                          label: m.id === me ? t('You') : m.name,
+                          value: String(m.score),
+                        })),
+                        footer: view.market.name,
+                        tone: 'night',
+                      })
+                    }
+                  />
+                )}
               </div>
             )}
           </>
