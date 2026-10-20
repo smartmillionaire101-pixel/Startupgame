@@ -672,6 +672,9 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     }
     const s = sceneRef.current;
     if (!s) return;
+    // Driving: a stray tap on the road isn't a new trip (it would end the
+    // drive); Skip on the route card, or a badge's Go, goes elsewhere.
+    if (driveRef.current) return;
     const p = local(e);
     // One of your homes (its label or its model).
     const hid =

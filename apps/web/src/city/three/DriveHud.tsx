@@ -178,8 +178,23 @@ export function DriveHud({
   const mins = minutes(view.left);
   const eta = clock(localHour(marketId) + mins / 60);
 
+  // A press on the pedals (or the card, or a way) is the HUD's own: it never
+  // reaches the map behind, where a press and let-go is a tap (a new trip,
+  // ending this one) and a thumb drifting on GO a drag (panning the camera
+  // off the car, and taking the pointer from GO).
+  const own = (e: { stopPropagation: () => void }) => e.stopPropagation();
+
   return (
-    <div className="dh" data-drive-hud="" role="region" aria-label={t('Your route')}>
+    <div
+      className="dh"
+      data-drive-hud=""
+      role="region"
+      aria-label={t('Your route')}
+      onPointerDown={own}
+      onPointerMove={own}
+      onPointerUp={own}
+      onPointerCancel={own}
+    >
       <div className="dh-card" data-drive-card="">
         <div className="dh-turn">
           <Arrow dir={n.dir} />
