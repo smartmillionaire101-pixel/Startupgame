@@ -37,6 +37,7 @@ import {
   findPath,
   pathLength,
   regionOf,
+  smoothPath,
   shopToWorld,
   walkGrid,
   type Display,
@@ -44,7 +45,15 @@ import {
 } from '../city/mall/layout';
 import { makeCharacter, pose, type Character } from './character';
 import { Kit, disposeTree, floorTexture, mat, paintingTexture, screenTexture } from './kit';
-import { Stage, gestures, hasParkedStage, parkStage, unparkStage, type StageOpts } from './stage';
+import {
+  Stage,
+  gestures,
+  hasParkedStage,
+  parkStage,
+  unparkStage,
+  weakDevice,
+  type StageOpts,
+} from './stage';
 
 export interface MallStockItem {
   id: string;
@@ -670,8 +679,6 @@ function buildCourt(mallName: string, ds: Display[]) {
   return { root, picks, diners };
 }
 
-const phone = () =>
-  typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 600;
 const stageOpts = (): StageOpts => ({
   target: new THREE.Vector3(0, 0, -17),
   span: 20,
@@ -679,7 +686,8 @@ const stageOpts = (): StageOpts => ({
   elevation: 0.5,
   background: '#f3efe8',
   shadowSize: 14,
-  maxFps: phone() ? 40 : 60,
+  // An even cadence: every frame, or every other one on a weak phone.
+  maxFps: weakDevice() ? 30 : 60,
 });
 
 export default function Mall3D(props: Mall3DProps): ReactElement | null {
@@ -718,10 +726,11 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
     canvas.setAttribute('aria-hidden', 'true');
     canvas.setAttribute('data-mall-3d', '');
     parent.insertBefore(canvas, anchor);
-    const eye = new THREE.PerspectiveCamera(60, 1, 0.1, 140);
+    // Nothing past the haze is drawn (the far end of the hall fades out first).
+    const eye = new THREE.PerspectiveCamera(60, 1, 0.1, 50);
     stage.eye = eye;
     const scene = stage.scene;
-    scene.fog = new THREE.Fog('#f3efe8', 34, 80);
+    scene.fog = new THREE.Fog('#f3efe8', 26, 48);
     stage.hemi.color.set('#ffffff');
     stage.hemi.groundColor.set('#c9bfae');
     stage.hemi.intensity = 1.6;
@@ -757,16 +766,6 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
     scene.add(world);
     const picks: THREE.Object3D[] = [];
     const fronts = new Map<RoomShop, THREE.Object3D>();
-    let cut: RoomShop | null = null;
-    /** The shop you're in has its front cut away. */
-    const cutFront = () => {
-      const w = regionOf(pos.x, pos.z);
-      const want = w !== 'concourse' && w !== 'foodcourt' ? w : null;
-      if (want === cut) return;
-      if (cut) fronts.get(cut)!.visible = true;
-      cut = want;
-      if (cut) fronts.get(cut)!.visible = false;
-    };
     const chars: Character[] = [];
     type Walker = { c: Character; x: number; z0: number; z1: number; speed: number; phase: number };
     const walkers: Walker[] = [];
@@ -779,12 +778,28 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
     // ---- You.
     const pos = { x: START.x, z: START.z };
     let heading = START.heading;
+    /** Where the camera means to look from behind you (radians), and where it is on the way there. */
     let camYaw = START.heading;
+    let yawS = camYaw;
+    /** A swipe's spin, carried on after the finger lifts (radians a second). */
+    let yawVel = 0;
     let camDist = 5.4;
+    let distS = camDist;
     let looking = false;
     let lookYaw = 0;
     let lookPitch = 0;
+    let lookYawS = 0;
+    let lookPitchS = 0;
+    /** Turn: an eased quarter turn (of the camera, or your head). */
+    let turning: { from: number; to: number; t0: number } | null = null;
+    const TURN_MS = 420;
+    let dragging = false;
+    let dragAt = -1e9;
     let me: Character | null = null;
+    /** Walking's gait (pose time, advanced with the distance walked so feet don't slide). */
+    let gait = 0;
+    /** After arriving, the legs finish their step before standing. */
+    let gaitTo: number | null = null;
     const makeMe = (look: AvatarLook) => {
       if (me) {
         world.remove(me.root);
@@ -800,6 +815,7 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
       me.root.visible = !looking;
       pose(me, 'idle', 0);
       world.add(me.root);
+      shadowsDirty = true;
       stage.invalidate();
     };
     setMe.current = makeMe;
@@ -831,7 +847,8 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
       m.position.y = 0.02;
       ring.add(m);
     }
-    ring.visible = false;
+    // Shown for the first frame (its shaders compiled with the rest, not on your first walk).
+    ring.position.set(START.x, 0, START.z - 3);
     scene.add(ring);
     const MAX_DOTS = 64;
     const dots = new THREE.InstancedMesh(
@@ -844,41 +861,62 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
       }),
       MAX_DOTS,
     );
-    dots.count = 0;
     dots.frustumCulled = false;
-    scene.add(dots);
     const dm = new THREE.Matrix4();
-    const layDots = (path: { x: number; z: number }[]) => {
+    dm.makeTranslation(START.x, 0.018, START.z - 2);
+    dots.setMatrixAt(0, dm);
+    dots.count = 1;
+    scene.add(dots);
+    let dotsAt = { x: NaN, z: NaN };
+    /** Dots along what's left of the way (laid again once you've gone a little further). */
+    const layDots = (path: { x: number; z: number }[], from: number) => {
+      if (Math.hypot(pos.x - dotsAt.x, pos.z - dotsAt.z) < 0.15) return;
+      dotsAt = { x: pos.x, z: pos.z };
       let n = 0;
-      let p = { x: pos.x, z: pos.z };
+      let px = pos.x;
+      let pz = pos.z;
       let carry = 0.7;
-      for (const q of path) {
-        const len = Math.hypot(q.x - p.x, q.z - p.z);
-        for (let d = carry; d < len - 0.5 && n < MAX_DOTS; d += 0.55) {
-          dm.makeTranslation(p.x + ((q.x - p.x) * d) / len, 0.018, p.z + ((q.z - p.z) * d) / len);
+      for (let i = from; i < path.length; i++) {
+        const q = path[i]!;
+        const len = Math.hypot(q.x - px, q.z - pz);
+        let d = carry;
+        for (; d < len && n < MAX_DOTS; d += 0.55) {
+          dm.makeTranslation(px + ((q.x - px) * d) / len, 0.018, pz + ((q.z - pz) * d) / len);
           dots.setMatrixAt(n++, dm);
         }
-        carry = 0.2;
-        p = q;
+        carry = d - len;
+        px = q.x;
+        pz = q.z;
+      }
+      // None right under the ring.
+      while (n > 0) {
+        dots.getMatrixAt(n - 1, dm);
+        const e = dm.elements;
+        if (Math.hypot(e[12]! - ring.position.x, e[14]! - ring.position.z) > 0.6) break;
+        n--;
       }
       dots.count = n;
       dots.instanceMatrix.needsUpdate = true;
     };
 
-    // ---- Walking.
+    // ---- Walking: along a path with rounded corners, easing in and out.
     let walk: {
       path: { x: number; z: number }[];
+      /** The next point. */
+      i: number;
       then?: string;
       left: number;
       told: number;
+      speed: number;
+      t0: number;
     } | null = null;
     const arrive = () => {
       const w = walk;
       walk = null;
       ring.visible = false;
       dots.count = 0;
+      gaitTo = Math.ceil((gait * 7.5) / Math.PI - 1e-6) * (Math.PI / 7.5);
       live.current.onWalk(null);
-      if (me) pose(me, 'idle', 0);
       live.current.onArrive({ x: pos.x, z: pos.z }, w?.then);
       stage.invalidate();
     };
@@ -887,29 +925,31 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
       pos.z = z;
       me?.root.position.set(x, 0, z);
     };
-    // The camera faces into a shop when you go in (and back out to the hall).
+    // The camera turns to face into a shop when you go in.
     const settle = () => {
       const w = regionOf(pos.x, pos.z);
       if (w !== 'concourse' && w !== 'foodcourt') {
         const s = SPOT[w].side;
         camYaw = s > 0 ? Math.PI / 2 : -Math.PI / 2;
-        heading = camYaw;
+        yawVel = 0;
       }
     };
+    const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+    /** Exponential smoothing for a time step: the fraction of the way to go now. */
+    const ease = (k: number, dt: number) => 1 - Math.exp(-k * dt);
 
-    // ---- Lights and camera follow you.
+    // ---- The camera follows you: angles smoothed, then the eye damped (a spring, by time).
     const camPos = new THREE.Vector3();
     const camAt = new THREE.Vector3();
     let camInit = false;
     let lastHeadingSent = NaN;
+    let lastHeadingAt = 0;
     const want = new THREE.Vector3();
     const wantAt = new THREE.Vector3();
-    const inRoom = () => {
-      const w = regionOf(pos.x, pos.z);
-      return w !== 'concourse' && w !== 'foodcourt';
-    };
+    let region = regionOf(pos.x, pos.z);
+    const inRoom = () => region !== 'concourse' && region !== 'foodcourt';
     const clampEye = (v: THREE.Vector3) => {
-      const w = regionOf(pos.x, pos.z);
+      const w = region;
       if (w !== 'concourse' && w !== 'foodcourt') {
         const { side: s, z: z0 } = SPOT[w];
         // In a shop (its front cut away) the camera may stand back in the
@@ -926,29 +966,60 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
         if (Math.abs(v.x) > 3.8) v.y = Math.min(v.y, 4.0);
       }
     };
-    const aim = (snap: boolean, dt: number) => {
+    let cut: RoomShop | null = null;
+    /** The shop you're in has its front cut away. */
+    const cutFront = () => {
+      const want = inRoom() ? (region as RoomShop) : null;
+      if (want === cut) return;
+      if (cut) fronts.get(cut)!.visible = true;
+      cut = want;
+      if (cut) fronts.get(cut)!.visible = false;
+      shadowsDirty = true;
+    };
+    const aim = (snap: boolean, dt: number, now: number) => {
+      region = regionOf(pos.x, pos.z);
+      const reduced = live.current.reduced;
+      // Turn (eased in and out), or a swipe's spin dying away.
+      if (turning) {
+        const u = reduced ? 1 : Math.min(1, (now - turning.t0) / TURN_MS);
+        const e = u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+        const a = turning.from + (turning.to - turning.from) * e;
+        if (looking) lookYaw = lookYawS = a;
+        else camYaw = yawS = a;
+        if (u >= 1) turning = null;
+      } else if (!dragging && yawVel !== 0) {
+        if (looking) lookYaw += yawVel * dt;
+        else camYaw += yawVel * dt;
+        yawVel *= Math.exp(-4.5 * dt);
+        if (Math.abs(yawVel) < 0.03) yawVel = 0;
+      }
       if (looking) {
+        lookYawS += wrap(lookYaw - lookYawS) * (snap ? 1 : ease(18, dt));
+        lookPitchS += (lookPitch - lookPitchS) * (snap ? 1 : ease(18, dt));
         want.set(pos.x, 1.62, pos.z);
-        const cp = Math.cos(lookPitch);
+        const cp = Math.cos(lookPitchS);
         wantAt.set(
-          pos.x + Math.sin(lookYaw) * cp * 4,
-          1.62 + Math.sin(lookPitch) * 4,
-          pos.z + Math.cos(lookYaw) * cp * 4,
+          pos.x + Math.sin(lookYawS) * cp * 4,
+          1.62 + Math.sin(lookPitchS) * 4,
+          pos.z + Math.cos(lookYawS) * cp * 4,
         );
       } else {
+        yawS += wrap(camYaw - yawS) * (snap ? 1 : ease(16, dt));
+        distS += (camDist - distS) * (snap ? 1 : ease(10, dt));
         // Behind and above you, looking past you down the way you face.
-        const d = camDist;
+        const d = distS;
         const ahead = inRoom() ? 3 : 5;
-        want.set(pos.x - Math.sin(camYaw) * d, 1.5 + d * 0.32, pos.z - Math.cos(camYaw) * d);
+        want.set(pos.x - Math.sin(yawS) * d, 1.5 + d * 0.32, pos.z - Math.cos(yawS) * d);
         clampEye(want);
-        wantAt.set(pos.x + Math.sin(camYaw) * ahead, 1.15, pos.z + Math.cos(camYaw) * ahead);
+        wantAt.set(pos.x + Math.sin(yawS) * ahead, 1.15, pos.z + Math.cos(yawS) * ahead);
       }
-      if (snap || !camInit || live.current.reduced) {
+      if (snap || !camInit || reduced) {
         camPos.copy(want);
         camAt.copy(wantAt);
         camInit = true;
       } else {
-        const e = 1 - Math.exp(-dt * (looking ? 14 : 5));
+        // Firm enough to keep up, soft enough to hide the walls' limits.
+        const e = ease(looking ? 12 : 11, dt);
         camPos.lerp(want, e);
         camAt.lerp(wantAt, e);
       }
@@ -960,98 +1031,196 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
       stage.sun.position.set(pos.x - 6, 20, pos.z + 6);
       stage.sun.target.position.set(pos.x, 0, pos.z - 4);
       stage.sun.target.updateMatrixWorld();
-      // The compass (Look around) follows your head.
-      if (looking && !(Math.abs(lookYaw - lastHeadingSent) < 0.04)) {
-        lastHeadingSent = lookYaw;
-        live.current.onHeading(lookYaw, { x: pos.x, z: pos.z });
+      // The compass (Look around) follows your head (a few times a second).
+      if (
+        looking &&
+        (Number.isNaN(lastHeadingSent) ||
+          (Math.abs(wrap(lookYawS - lastHeadingSent)) > 0.08 && now - lastHeadingAt > 140))
+      ) {
+        lastHeadingSent = lookYawS;
+        lastHeadingAt = now;
+        live.current.onHeading(lookYawS, { x: pos.x, z: pos.z });
       }
-      return camPos.distanceToSquared(want) > 1e-4 || camAt.distanceToSquared(wantAt) > 1e-4;
     };
 
-    // ---- The HUD's tags follow what they're over.
+    // ---- The HUD's tags follow what they're over: positions written only
+    // when they change, sizes measured once per text, no layout read per frame.
     const tmpV = new THREE.Vector3();
-    const placeTags = () => {
+    interface TagState {
+      key: string;
+      x: number;
+      y: number;
+      z: number;
+      far: number;
+      text: string;
+      w: number;
+      h: number;
+      tf: string;
+      vis: string;
+    }
+    const tagState = new WeakMap<HTMLElement, TagState>();
+    const SIDE_STEPS = [0, 0.55, -0.55, 1.1, -1.1];
+    const UP_STEPS = [0, -1, 1, -2, 2, -3, 3];
+    type Rect = { l: number; t: number; r: number; b: number };
+    let keep: Rect[] = [];
+    let keepAt = -1e9;
+    const lastMat = new THREE.Matrix4();
+    let lastCount = -1;
+    let lastTagAt = -1e9;
+    const shown: { el: HTMLElement; s: TagState; x: number; y: number; d: number }[] = [];
+    const put: Rect[] = [];
+    const setVis = (el: HTMLElement, s: TagState, v: string) => {
+      if (s.vis !== v) el.style.visibility = s.vis = v;
+    };
+    const placeTags = (now: number, force = false) => {
       const layer = live.current.overlay.current;
       if (!layer) return;
-      const els = layer.querySelectorAll<HTMLElement>('[data-at]');
+      const els = layer.children;
+      // Nothing moved and nothing new: leave them be.
+      if (
+        !force &&
+        els.length === lastCount &&
+        lastMat.equals(eye.matrixWorld) &&
+        now - lastTagAt < 300
+      )
+        return;
+      lastMat.copy(eye.matrixWorld);
+      lastCount = els.length;
+      lastTagAt = now;
+      // The HUD's own buttons and sheets (tags keep off them), every so often.
+      if (force || now - keepAt > 300) {
+        keepAt = now;
+        const box = layer.getBoundingClientRect();
+        keep = [];
+        for (const k of layer.parentElement?.querySelectorAll<HTMLElement>('[data-keepout]') ??
+          []) {
+          const r = k.getBoundingClientRect();
+          keep.push({
+            l: r.left - box.left,
+            t: r.top - box.top,
+            r: r.right - box.left,
+            b: r.bottom - box.top,
+          });
+        }
+      }
       const inv = eye.matrixWorldInverse;
-      const shown: { el: HTMLElement; x: number; y: number; d: number; w: number; h: number }[] =
-        [];
-      for (const el of els) {
-        const at = el.dataset.at!;
-        let x: number;
-        let y: number;
-        let z: number;
-        if (at === 'me') {
-          x = pos.x;
-          y = 2.15;
-          z = pos.z;
-        } else [x, y, z] = at.split(' ').map(Number) as [number, number, number];
-        tmpV.set(x, y, z).applyMatrix4(inv);
-        const far = Number(el.dataset.far ?? 30);
+      shown.length = 0;
+      for (let i = 0; i < els.length; i++) {
+        const el = els[i] as HTMLElement;
+        const at = el.dataset.at;
+        if (!at) continue;
+        let s = tagState.get(el);
+        const text = el.textContent ?? '';
+        if (!s || s.key !== at || s.text !== text) {
+          const [x, y, z] =
+            at === 'me' ? [0, 2.15, 0] : (at.split(' ').map(Number) as [number, number, number]);
+          s = {
+            key: at,
+            x,
+            y,
+            z,
+            far: Number(el.dataset.far ?? 30),
+            text,
+            w: el.offsetWidth,
+            h: el.offsetHeight,
+            tf: s?.tf ?? '',
+            vis: s?.vis ?? '',
+          };
+          tagState.set(el, s);
+        }
+        const x = at === 'me' ? pos.x : s.x;
+        const z = at === 'me' ? pos.z : s.z;
+        tmpV.set(x, s.y, z).applyMatrix4(inv);
         const d = -tmpV.z;
-        if (d < 0.4 || d > far || (at === 'me' && looking)) {
-          el.style.visibility = 'hidden';
+        if (d < 0.4 || d > s.far || (at === 'me' && looking)) {
+          setVis(el, s, 'hidden');
           continue;
         }
-        tmpV.set(x, y, z).project(eye);
+        tmpV.set(x, s.y, z).project(eye);
         const sx = ((tmpV.x + 1) / 2) * stage.w;
         const sy = ((1 - tmpV.y) / 2) * stage.h;
         if (sx < -40 || sx > stage.w + 40 || sy < 0 || sy > stage.h) {
-          el.style.visibility = 'hidden';
+          setVis(el, s, 'hidden');
           continue;
         }
-        shown.push({
-          el,
-          x: sx,
-          y: sy,
-          d: at === 'me' ? 0 : d,
-          w: el.offsetWidth,
-          h: el.offsetHeight,
-        });
+        shown.push({ el, s, x: sx, y: sy, d: at === 'me' ? 0 : d });
       }
-      // The HUD's own buttons and sheets: tags keep off them.
-      const box = layer.getBoundingClientRect();
-      const keep = [
-        ...(layer.parentElement?.querySelectorAll<HTMLElement>('[data-keepout]') ?? []),
-      ].map((k) => {
-        const r = k.getBoundingClientRect();
-        return {
-          l: r.left - box.left,
-          t: r.top - box.top,
-          r: r.right - box.left,
-          b: r.bottom - box.top,
-        };
-      });
-      // Nearer tags first; ones that would cover another move up a little.
+      // Nearer tags first; ones that would cover another step up or down.
       shown.sort((a, b) => a.d - b.d);
-      const put: { l: number; t: number; r: number; b: number }[] = [];
-      for (const s of shown) {
-        const l = Math.max(4, Math.min(stage.w - s.w - 4, s.x - s.w / 2));
-        const hits = (top: number) => (p: { l: number; t: number; r: number; b: number }) =>
-          l < p.r && l + s.w > p.l && top < p.b && top + s.h > p.t;
-        // Where it belongs, or a step up or down from there if another tag is in the way.
-        let top = s.y - s.h;
-        for (const k of [0, -1, 1, -2, 2]) {
-          const t = s.y - s.h + k * (s.h + 3);
-          if (!put.some(hits(t))) {
-            top = t;
-            break;
+      put.length = 0;
+      for (const t of shown) {
+        const { w, h } = t.s;
+        const l0 = t.x - w / 2;
+        const free = (l: number, top: number) => {
+          const hit = (p: Rect) => l < p.r && l + w > p.l && top < p.b && top + h > p.t;
+          return top >= 0 && !put.some(hit) && !keep.some(hit);
+        };
+        // Where it belongs, else a step up or down, else a little to one side.
+        let l = Math.max(4, Math.min(stage.w - w - 4, l0));
+        let top = t.y - h;
+        let ok = false;
+        for (const sx of SIDE_STEPS) {
+          const ll = Math.max(4, Math.min(stage.w - w - 4, l0 + sx * w));
+          for (const k of UP_STEPS) {
+            const tt = t.y - h + k * (h + 3);
+            if (free(ll, tt)) {
+              l = ll;
+              top = tt;
+              ok = true;
+              break;
+            }
           }
+          if (ok) break;
         }
-        const over = put.some(hits(top)) || keep.some(hits(top));
-        if (!over) put.push({ l, t: top, r: l + s.w, b: top + s.h });
-        s.el.style.visibility = top < 0 || over ? 'hidden' : 'visible';
-        s.el.style.transform = `translate(${Math.round(l)}px, ${Math.round(top)}px)`;
+        if (ok) put.push({ l, t: top, r: l + w, b: top + h });
+        setVis(t.el, t.s, ok ? 'visible' : 'hidden');
+        const tf = `translate3d(${Math.round(l)}px, ${Math.round(top)}px, 0)`;
+        if (t.s.tf !== tf) t.el.style.transform = t.s.tf = tf;
       }
     };
 
+    // Shadows are drawn again only when something that casts them moves.
+    let shadowsDirty = true;
+    let shadowTick = 0;
+    stage.renderer.shadowMap.autoUpdate = false;
+
     let readySent = false;
+    // Frame pacing: every frame, or (if they can't keep up) an even every other one,
+    // not an uneven mix of the two.
+    let lastFrame = 0;
+    let slowMs = 0;
+    let fastMs = 0;
+    let tries = 0;
     stage.onFrame = () => {
-      placeTags();
+      const now = performance.now();
+      const gap = lastFrame ? now - lastFrame : 0;
+      lastFrame = now;
+      if (gap > 0 && gap < 500) {
+        if (stage.maxFps > 30) {
+          slowMs = gap > 22 ? slowMs + gap : Math.max(0, slowMs - gap * 2);
+          if (slowMs > 1200) {
+            stage.maxFps = 30;
+            slowMs = fastMs = 0;
+          }
+        } else if (tries < 2) {
+          // Easily kept up at 30 for a while: try every frame again (twice at most).
+          fastMs = gap < 36 ? fastMs + gap : 0;
+          if (fastMs > 8000) {
+            stage.maxFps = 60;
+            tries++;
+            fastMs = 0;
+          }
+        }
+      }
+      placeTags(now);
       if (!readySent && built) {
         readySent = true;
         canvas.dataset.ready = '1';
+        // The ring and dots were only out for their shaders' sake.
+        if (!walk) {
+          ring.visible = false;
+          dots.count = 0;
+        }
         live.current.onReady();
       }
     };
@@ -1162,17 +1331,25 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
       slices[si++]!();
       if (si < slices.length) return later(next);
       built = true;
+      // Only you cast a moving shadow: the crowd has its soft blob on the floor.
+      for (const c of chars)
+        c.root.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) o.castShadow = false;
+        });
       fitLens();
-      aim(true, 0);
+      aim(true, 0, performance.now());
       stage.release();
     };
     later(next);
 
-    // ---- Every frame: people, your walk, the camera.
+    // ---- Every frame: people, your walk, the camera (all by the clock, not by frames).
     let lastNow = performance.now();
-    const off = stage.add((t, dt) => {
+    let cullTick = 0;
+    const off = stage.add((t) => {
       if (!built) return true;
-      let busy = walkers.length + riders.length + eaters.length > 0;
+      const now = performance.now();
+      const dt = Math.min(0.25, Math.max(0.001, (now - lastNow) / 1000));
+      lastNow = now;
       for (const w of walkers) {
         const len = Math.abs(w.z1 - w.z0);
         const u = ((t * w.speed + w.phase) % (len * 2)) / len;
@@ -1188,27 +1365,26 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
         rd.c.root.rotation.y = Math.PI;
         pose(rd.c, 'stand', t);
       }
-      eaters.forEach((c, i) => pose(c, i % 3 ? 'eat' : 'drink', t, { seat: 0.45, phase: i }));
-      browsers.forEach((c, i) => pose(c, 'browse', t, { phase: i }));
-      if (walk && me) {
-        const m = me as Character;
-        let step = WALK_SPEED * Math.min(0.25, Math.max(dt, (performance.now() - lastNow) / 1000));
+      for (let i = 0; i < eaters.length; i++)
+        pose(eaters[i]!, i % 3 ? 'eat' : 'drink', t, { seat: 0.45, phase: i });
+      for (let i = 0; i < browsers.length; i++) pose(browsers[i]!, 'browse', t, { phase: i });
+      const m = me as Character | null;
+      if (walk && m) {
+        // Speed: up to a walk, slowing over the last metre or so.
+        const target = Math.min(WALK_SPEED, 0.35 + Math.sqrt(2 * 3 * walk.left));
+        walk.speed += (target - walk.speed) * ease(9, dt);
+        let step = walk.speed * dt;
+        const moved = step;
         while (walk && step > 0) {
-          const q = walk.path[0]!;
+          const q = walk.path[walk.i]!;
           const dx = q.x - pos.x;
           const dz = q.z - pos.z;
           const d = Math.hypot(dx, dz);
-          if (d > 1e-3) {
-            const want = Math.atan2(dx, dz);
-            let dh = want - heading;
-            dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-            heading += dh * Math.min(1, dt * 10 + 0.15);
-          }
           if (d <= step) {
             place(q.x, q.z);
             step -= d;
-            walk.path.shift();
-            if (!walk.path.length) {
+            walk.i++;
+            if (walk.i >= walk.path.length) {
               arrive();
               settle();
             }
@@ -1217,46 +1393,77 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
             step = 0;
           }
         }
-        m.root.rotation.y = heading;
         if (walk) {
-          pose(m, 'walk', t * 1.4);
-          walk.left = pathLength(pos, walk.path);
+          // Face where the path goes a little ahead (turning smoothly).
+          let ax = pos.x;
+          let az = pos.z;
+          let need = 0.6;
+          for (let i = walk.i; i < walk.path.length && need > 0; i++) {
+            const q = walk.path[i]!;
+            const d = Math.hypot(q.x - ax, q.z - az);
+            const k = Math.min(1, need / Math.max(d, 1e-6));
+            ax += (q.x - ax) * k;
+            az += (q.z - az) * k;
+            need -= d;
+          }
+          if (Math.hypot(ax - pos.x, az - pos.z) > 1e-3)
+            heading += wrap(Math.atan2(ax - pos.x, az - pos.z) - heading) * ease(10, dt);
+          gait += moved * 0.53;
+          pose(m, 'walk', gait);
+          walk.left = Math.max(0, walk.left - moved);
           const left = Math.ceil(walk.left);
           if (left !== walk.told) {
             walk.told = left;
             live.current.onWalk(left);
           }
-          layDots(walk.path);
-          // The camera swings round behind you as you go.
-          if (!looking) {
-            let dy = heading - camYaw;
-            dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-            camYaw += dy * Math.min(1, dt * 1.6);
-          }
+          layDots(walk.path, walk.i);
+          // The camera swings round behind you as you go (not just after you've swiped it).
+          if (!looking && !turning && !dragging && now - dragAt > 1500 && now - walk.t0 > 350)
+            camYaw += wrap(heading - camYaw) * ease(1.3, dt);
           const pulse = 1 + Math.sin(t * 5) * 0.08;
           r2.scale.set(pulse, pulse, 1);
         }
-        busy = true;
-      } else if (me) {
-        const m = me as Character;
-        pose(m, 'idle', t);
-        busy = true;
+        m.root.rotation.y = heading;
+        shadowsDirty = true;
+      } else if (m) {
+        if (gaitTo !== null) {
+          // The last step finishes before you stand.
+          gait = Math.min(gaitTo, gait + dt * 0.9);
+          pose(m, 'walk', gait);
+          if (gait >= gaitTo) gaitTo = null;
+          shadowsDirty = true;
+        } else pose(m, 'idle', t);
+        m.root.rotation.y = heading;
       }
-      lastNow = performance.now();
-      if (aim(false, dt)) busy = true;
-      return busy;
+      aim(false, dt, now);
+      // People far off in the haze aren't drawn (each is a couple of dozen parts).
+      if (++cullTick % 6 === 0)
+        for (const c of chars) {
+          const p = c.root.position;
+          c.root.visible = (p.x - camPos.x) ** 2 + (p.z - camPos.z) ** 2 < 34 * 34;
+        }
+      // Your shadow follows you; the rest of the mall's stand still.
+      if (shadowsDirty || ++shadowTick % 30 === 0) {
+        stage.renderer.shadowMap.needsUpdate = true;
+        shadowsDirty = false;
+      }
+      return true;
     });
 
-    // ---- Taps, drags, pinches.
+    // ---- Taps, swipes, pinches.
     const ray = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
     let lastTap = { at: 0, x: 0, y: 0 };
+    let moveAt = 0;
     const offG = gestures(canvas, {
       tap: (x, y) => {
         if (!built) return;
         const now = performance.now();
         const double = now - lastTap.at < 400 && Math.hypot(x - lastTap.x, y - lastTap.y) < 40;
         lastTap = { at: double ? 0 : now, x, y };
-        const ndc = new THREE.Vector2((x / stage.w) * 2 - 1, 1 - (y / stage.h) * 2);
+        // A tap stops a swipe's spin.
+        yawVel = 0;
+        ndc.set((x / stage.w) * 2 - 1, 1 - (y / stage.h) * 2);
         ray.setFromCamera(ndc, eye);
         const shown = (o: THREE.Object3D | null): boolean => !o || (o.visible && shown(o.parent));
         const h = ray.intersectObjects(picks, false).find((x) => shown(x.object));
@@ -1271,46 +1478,73 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
         const f = stage.floorAt(x, y);
         if (f) live.current.onTap({ floor: { x: f.x, z: f.z } }, double);
       },
+      start: () => {
+        dragging = true;
+        turning = null;
+        yawVel = 0;
+        moveAt = performance.now();
+      },
+      // One finger across: the camera goes round you (in Look around, your head turns).
       orbit: (dx, dy) => {
+        const now = performance.now();
+        const dy0 = -dx * (looking ? 0.006 : 0.008);
         if (looking) {
-          lookYaw -= dx * 0.006;
+          lookYaw += dy0;
           lookPitch = Math.max(-0.7, Math.min(0.7, lookPitch - dy * 0.005));
-        } else camYaw -= dx * 0.008;
-        stage.invalidate();
+        } else camYaw += dy0;
+        const gap = Math.max(8, now - moveAt) / 1000;
+        yawVel = yawVel * 0.5 + (dy0 / gap) * 0.5;
+        moveAt = now;
+        dragAt = now;
+        // (Drawn on the next paced frame: the loop runs anyway.)
+      },
+      // Let go: it spins on and slows (unless the finger had stopped first).
+      end: () => {
+        dragging = false;
+        if (performance.now() - moveAt > 90) yawVel = 0;
+        yawVel = Math.max(-6, Math.min(6, yawVel));
+        dragAt = performance.now();
       },
       zoom: (f) => {
         if (looking) return;
         camDist = Math.max(3.2, Math.min(9, camDist / f));
-        stage.invalidate();
       },
     });
 
     live.current.api.current = {
       walkTo: (to, then) => {
-        const path = findPath(grid, pos, to);
-        if (!path) return null;
-        const len = pathLength(pos, path);
-        const end = path[path.length - 1]!;
+        const raw = findPath(grid, pos, to);
+        if (!raw) return null;
+        const len = pathLength(pos, raw);
+        const end = raw[raw.length - 1]!;
         if (live.current.reduced || len < 0.05) {
           // Reduced motion: there at once.
-          const last = path.length > 1 ? path[path.length - 2]! : pos;
+          const last = raw.length > 1 ? raw[raw.length - 2]! : pos;
           if (len >= 0.05) heading = Math.atan2(end.x - last.x, end.z - last.z);
           camYaw = heading;
           place(end.x, end.z);
           if (me) (me as Character).root.rotation.y = heading;
-          walk = { path: [], then, left: 0, told: 0 };
+          walk = { path: [], i: 0, then, left: 0, told: 0, speed: 0, t0: 0 };
           arrive();
+          gaitTo = null;
           settle();
-          aim(true, 0);
+          aim(true, 0, performance.now());
+          shadowsDirty = true;
           stage.invalidate();
           return len;
         }
-        walk = { path, then, left: len, told: -1 };
+        const path = smoothPath(grid, pos, raw);
+        const plen = pathLength(pos, path);
+        // A walk already under way carries its pace into the new one.
+        const speed = walk ? walk.speed : 0;
+        walk = { path, i: 0, then, left: plen, told: -1, speed, t0: performance.now() };
+        gaitTo = null;
         ring.position.set(end.x, 0, end.z);
         ring.visible = true;
-        layDots(path);
+        dotsAt = { x: NaN, z: NaN };
+        layDots(path, 0);
         stage.invalidate();
-        return len;
+        return plen;
       },
       jump: (to, h) => {
         walk = null;
@@ -1319,52 +1553,44 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
         place(to.x, to.z);
         if (h !== undefined) heading = camYaw = h;
         settle();
-        aim(true, 0);
+        aim(true, 0, performance.now());
+        shadowsDirty = true;
         stage.invalidate();
       },
       turn: (dir = 1) => {
-        if (looking) {
-          lookYaw -= dir * (Math.PI / 2);
-          stage.invalidate();
-          return;
-        }
-        const from = camYaw;
-        const to = camYaw - dir * (Math.PI / 2);
-        if (live.current.reduced) {
-          camYaw = to;
-          aim(true, 0);
-          stage.invalidate();
-          return;
-        }
-        const t0 = performance.now();
-        const offT = stage.add(() => {
-          const u = Math.min(1, (performance.now() - t0) / 500);
-          camYaw = from + (to - from) * (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
-          if (u >= 1) offT();
-          return u < 1;
-        });
+        yawVel = 0;
+        // From where it's turning to already (a second tap adds a quarter).
+        const from = turning ? turning.to : looking ? lookYawS : yawS;
+        const at = turning ? (looking ? lookYaw : camYaw) : from;
+        turning = { from: at, to: from - dir * (Math.PI / 2), t0: performance.now() };
+        if (live.current.reduced) aim(true, 0, performance.now());
+        stage.invalidate();
       },
       look: (on) => {
         looking = on;
+        turning = null;
+        yawVel = 0;
         if (on) {
-          lookYaw = camYaw;
-          lookPitch = 0.04;
+          lookYaw = lookYawS = yawS;
+          lookPitch = lookPitchS = 0.04;
           lastHeadingSent = NaN;
-        } else camYaw = lookYaw;
+        } else camYaw = yawS = lookYawS;
         if (me) (me as Character).root.visible = !on;
-        aim(live.current.reduced, 0);
+        shadowsDirty = true;
+        aim(live.current.reduced, 0, performance.now());
         stage.invalidate();
       },
       face: (x, z) => {
         heading = Math.atan2(x - pos.x, z - pos.z);
         if (me) (me as Character).root.rotation.y = heading;
+        shadowsDirty = true;
         stage.invalidate();
       },
       snapshot: () => {
-        placeTags();
+        placeTags(performance.now(), true);
         return stage.snapshot();
       },
-      where: () => ({ x: pos.x, z: pos.z, heading: looking ? lookYaw : camYaw }),
+      where: () => ({ x: pos.x, z: pos.z, heading: looking ? lookYawS : yawS }),
     };
 
     return () => {
@@ -1384,6 +1610,7 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
       for (const k of Object.keys(canvas.dataset)) delete canvas.dataset[k];
       canvas.remove();
       if (!built) stage.release();
+      stage.renderer.shadowMap.autoUpdate = true;
       // Kept for next time: as the home's if it has none (it's opened more), else the mall's.
       parkStage(hasParkedStage('home') ? 'mall' : 'home', stage);
     };

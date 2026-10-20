@@ -97,6 +97,14 @@ export const BIZ_ICON: Record<string, string> = {
   marina: '⛵',
   'private-terminal': '🛩️',
   'golf-club': '⛳',
+  // The jobs rework: professional employers.
+  'employer-bank': '🏦',
+  'employer-investment': '📈',
+  'employer-tech': '💻',
+  'employer-engineering': '🏗️',
+  'employer-consultancy': '📊',
+  'employer-law': '⚖️',
+  'employer-hospital': '🏥',
 };
 
 /** Places that aren't businesses, by kind. */

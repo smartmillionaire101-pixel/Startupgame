@@ -1070,6 +1070,63 @@ export const BUSINESS_KINDS: BusinessKindSpec[] = [
     awning: '#00bcd4',
     color: '#0097a7',
   }),
+  // The jobs rework: professional employers (data/professions.ts), one of each per
+  // city. Their ladders are applied for (work.ts); no walk-in roles. They open only
+  // in worlds that logged the jobs release note.
+  kind('employer-bank', 'services', 'Bank', 'hotel', [60, 150], {
+    items: [item('coffee', 'Coffee in the lobby', 0.004, 3, true)],
+    buys: { fintech: 0.03, saas: 0.015 },
+    gigs: [gig('temp', 'Temp in the back office', 8, 0.08, 'ops')],
+    roles: [],
+    awning: '#1e3a8a',
+    color: '#1e40af',
+  }),
+  kind('employer-investment', 'services', 'Investment firm', 'hotel', [40, 110], {
+    items: [item('coffee', 'Coffee in the lobby', 0.004, 3, true)],
+    buys: { fintech: 0.02, saas: 0.02 },
+    gigs: [gig('research', 'Market research brief', 10, 0.14, 'ops')],
+    roles: [],
+    awning: '#14532d',
+    color: '#166534',
+  }),
+  kind('employer-tech', 'services', 'Tech company', 'hotel', [50, 140], {
+    items: [item('cafeteria', 'Lunch at the staff café', 0.006, 7, true)],
+    buys: { saas: 0.03, fintech: 0.01 },
+    gigs: [gig('testing', 'Test the new app', 8, 0.1, 'tech')],
+    roles: [],
+    awning: '#0e7490',
+    color: '#0891b2',
+  }),
+  kind('employer-engineering', 'trades', 'Engineering firm', 'warehouse', [40, 110], {
+    buys: { saas: 0.015, logistics: 0.02, fintech: 0.01 },
+    gigs: [gig('drawings', 'Check technical drawings', 10, 0.12, 'tech')],
+    roles: [],
+    awning: '#92400e',
+    color: '#b45309',
+  }),
+  kind('employer-consultancy', 'services', 'Consultancy', 'hotel', [40, 110], {
+    items: [item('coffee', 'Coffee in the lobby', 0.004, 3, true)],
+    buys: { saas: 0.025, fintech: 0.01 },
+    gigs: [gig('slides', 'Make slides for a client', 8, 0.11, 'creative')],
+    roles: [],
+    awning: '#4c1d95',
+    color: '#6d28d9',
+  }),
+  kind('employer-law', 'services', 'Law firm', 'hotel', [30, 90], {
+    buys: { saas: 0.02, fintech: 0.01 },
+    gigs: [gig('filing', 'File court papers', 8, 0.08, 'ops')],
+    roles: [],
+    awning: '#3f3f46',
+    color: '#52525b',
+  }),
+  kind('employer-hospital', 'health', 'Hospital', 'clinic', [50, 140], {
+    items: [item('canteen', 'Hospital canteen meal', 0.008, 6)],
+    buys: { healthtech: 0.04, saas: 0.01, fintech: 0.005 },
+    gigs: [gig('porter', 'Porter shift', 8, 0.06)],
+    roles: [],
+    awning: '#b91c1c',
+    color: '#dc2626',
+  }),
 ];
 
 const BY_KIND = new Map(BUSINESS_KINDS.map((k) => [k.kind, k]));

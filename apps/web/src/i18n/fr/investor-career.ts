@@ -37,6 +37,7 @@ export const investorCareer: Record<string, string> = {
   'A senior role at a DFI or bank': 'Un poste de direction dans une IFD ou une banque',
   // ---- the ladder card
   'Your investor career': 'Votre carrière d’investisseur',
+  'Grow as an investor': 'Progresser comme investisseur',
   'Angel is the first rung, not the last': 'Business angel : le premier échelon, pas le dernier',
   Less: 'Moins',
   'All rungs': 'Tous les échelons',

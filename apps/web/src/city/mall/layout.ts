@@ -521,6 +521,58 @@ export function findPath(
   return out;
 }
 
+/**
+ * A path with its corners rounded (a quadratic curve through each corner,
+ * as far round as the floor allows), as close-spaced points after a: you
+ * walk round a corner instead of zig-zagging at it.
+ */
+export function smoothPath(
+  g: WalkGrid,
+  a: { x: number; z: number },
+  pts: { x: number; z: number }[],
+  round = 1.1,
+): { x: number; z: number }[] {
+  const poly = [a, ...pts];
+  const out: { x: number; z: number }[] = [];
+  let last = a;
+  for (let i = 1; i < poly.length - 1; i++) {
+    const p0 = poly[i - 1]!;
+    const c = poly[i]!;
+    const n = poly[i + 1]!;
+    const l1 = Math.hypot(c.x - p0.x, c.z - p0.z);
+    const l2 = Math.hypot(n.x - c.x, n.z - c.z);
+    let r = Math.min(round, l1 / 2, l2 / 2);
+    let done = false;
+    while (r >= 0.12 && !done) {
+      const e = { x: c.x + ((p0.x - c.x) / l1) * r, z: c.z + ((p0.z - c.z) / l1) * r };
+      const x = { x: c.x + ((n.x - c.x) / l2) * r, z: c.z + ((n.z - c.z) / l2) * r };
+      const curve = [e];
+      const k = Math.max(3, Math.ceil(r / 0.2));
+      for (let j = 1; j <= k; j++) {
+        const u = j / k;
+        const w0 = (1 - u) * (1 - u);
+        const w1 = 2 * u * (1 - u);
+        const w2 = u * u;
+        curve.push({ x: w0 * e.x + w1 * c.x + w2 * x.x, z: w0 * e.z + w1 * c.z + w2 * x.z });
+      }
+      let ok = clear(g, last.x, last.z, e.x, e.z);
+      for (let j = 1; ok && j < curve.length; j++)
+        ok = clear(g, curve[j - 1]!.x, curve[j - 1]!.z, curve[j]!.x, curve[j]!.z);
+      if (ok) {
+        out.push(...curve);
+        last = curve[curve.length - 1]!;
+        done = true;
+      } else r /= 2;
+    }
+    if (!done) {
+      out.push(c);
+      last = c;
+    }
+  }
+  out.push(poly[poly.length - 1]!);
+  return out;
+}
+
 /** The length of a path from a through its points. */
 export function pathLength(a: { x: number; z: number }, pts: { x: number; z: number }[]) {
   let d = 0;

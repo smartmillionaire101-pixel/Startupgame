@@ -28,6 +28,11 @@ export interface GolfFrame {
   partners: { x: number; z: number; face: number; clap: boolean }[];
   /** A cheer: the ball dropped. */
   cheer: boolean;
+  /**
+   * Who swings: 0 is `me`, 1 the first partner… (a match: whoever's shot it
+   * is). Missing: you. The others stand in the `partners` spots, in order.
+   */
+  swinger?: number;
 }
 
 export interface GolfDrawProps {

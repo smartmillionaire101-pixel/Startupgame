@@ -302,10 +302,14 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('car.select'), modelId: id }),
   z.object({
     type: z.literal('play.create'),
-    game: z.enum(['quiz', 'snooker', 'football']),
+    game: z.enum(['quiz', 'snooker', 'football', 'golf']),
     venue: id,
     title: z.string().trim().min(3).max(60),
     stake: z.number().int().min(0).max(100_000_000),
+    /** Golf with a friend: who you invite (a player or an AI friend in your city). */
+    invite: id.optional(),
+    /** Golf: how many of the course's holes to play (default: all three). */
+    holes: z.number().int().min(1).max(3).optional(),
     questions: z
       .array(
         z.object({
@@ -350,6 +354,21 @@ export const commandSchema = z.discriminatedUnion('type', [
     roomId: id,
     round: z.number().int().min(0),
     lane: z.number().int().min(0).max(4),
+  }),
+  /** Golf with a friend: say no to an invitation (the host's stake goes back). */
+  z.object({ type: z.literal('play.decline'), roomId: id }),
+  /**
+   * Golf with a friend: your shot's inputs only. The engine plays the ball
+   * (lie, distance, strokes); `pickup` takes par + 3 for the hole instead.
+   */
+  z.object({
+    type: z.literal('play.golf'),
+    roomId: id,
+    round: z.number().int().min(0),
+    club: z.enum(['driver', 'wood', 'iron5', 'iron7', 'iron9', 'wedge', 'chip', 'putter']),
+    aim: z.number().min(-Math.PI).max(Math.PI),
+    power: z.number().min(0).max(110),
+    pickup: z.boolean().optional(),
   }),
   z.object({
     type: z.literal('play.shot'),
@@ -539,6 +558,18 @@ export const commandSchema = z.discriminatedUnion('type', [
   /** A part-time job at a local business in your home city: 40 hours a month, paid monthly. */
   z.object({ type: z.literal('job.take'), businessId: id, role: z.string().min(1).max(32) }),
   z.object({ type: z.literal('job.quit') }),
+  /**
+   * The jobs rework (after its release note): apply for a level at a
+   * professional employer in your home city (your own employer, one level
+   * up: a promotion). Books an interview there.
+   */
+  z.object({ type: z.literal('job.apply'), businessId: id, level: z.number().int().min(1).max(4) }),
+  /** At the employer: answer the interview's questions (an option index each); hired or not at once. */
+  z.object({
+    type: z.literal('job.interview'),
+    applicationId: id,
+    answers: z.array(z.number().int().min(0).max(5)).min(1).max(5),
+  }),
   /** Furniture for your apartment: one per slot; replacing sells the old one back at 40%. */
   /** Wave 6: `businessId` is the showroom you buy in (its till gets the money). */
   z.object({

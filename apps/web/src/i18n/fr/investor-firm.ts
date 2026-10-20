@@ -2,8 +2,6 @@
 export const investorFirm: Record<string, string> = {
   'Trade for': 'Négocier pour',
   Yourself: 'Vous-même',
-  Principal: 'Directeur d’investissement',
-  Associate: 'Chargé d’affaires',
   Partnerships: 'Associations',
   '{from} invites you to {firm} with {share} of the carry pool.':
     '{from} vous invite chez {firm} avec {share} du pool de carried.',

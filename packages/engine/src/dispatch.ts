@@ -55,7 +55,6 @@ import {
   seedPublicMarket,
   sellShares,
 } from './exits.js';
-import { exitsOn, investorOn, lifeBarsOn } from './releases.js';
 import { backSyndicate, cancelSyndicate, closeSyndicate, openSyndicate } from './syndicates.js';
 import { admitToAccelerator, foundAccelerator } from './institutions.js';
 import {
@@ -113,6 +112,8 @@ import {
   startInvestorTutorial,
   tutorialCommand,
 } from './career.js';
+import { exitsOn, investorOn, jobsOn, lifeBarsOn } from './releases.js';
+import { applyForJob, attendInterview, ensureEmployers } from './work.js';
 import { golfRound, mallBuy } from './leisure.js';
 import {
   HOME_ACT_BARS,
@@ -232,6 +233,7 @@ import {
 } from './rescue.js';
 import { createCompany, createPlayer, openMarket, setCogs, welcomeNewPlayer } from './world.js';
 import type { DealTerms, Id, PartyRef, Player, World } from './types.js';
+import type { MarketId } from './data/markets.js';
 import {
   chooseBootstrap,
   dismissObjective,
@@ -391,6 +393,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     // A city opening after the stock market did gets its listings too.
     if (exitsOn(world)) seedPublicMarket(world, m.id);
     ensureExchange(world, m.id);
+    // …and its professional employers, in a jobs world.
+    ensureEmployers(world, m.id, m.month);
     return {
       market: m.id,
       funds: Object.values(world.funds).filter((f) => f.market === m.id).length,
@@ -1345,6 +1349,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return takeJob(world, me, cmd.businessId, cmd.role);
     case 'job.quit':
       return quitJob(world, me);
+    case 'job.apply':
+      return applyForJob(world, me, cmd.businessId, cmd.level);
+    case 'job.interview':
+      return attendInterview(world, me, cmd.applicationId, cmd.answers);
     case 'home.order':
       return orderFurniture(world, me, cmd.itemId, ctx.now, cmd.businessId);
     case 'home.buy':
@@ -1790,7 +1798,12 @@ function announce(world: World, cmd: Extract<Command, { type: 'system.announce' 
   const sent = (world.announcements ??= []);
   if (sent.includes(cmd.id)) return { sent: 0 };
   const hadExits = exitsOn(world);
+  const hadJobs = jobsOn(world);
   sent.push(cmd.id);
+  // The jobs rework: every open city's professional employers open with the note.
+  if (!hadJobs && jobsOn(world))
+    for (const [id, m] of Object.entries(world.markets))
+      ensureEmployers(world, id as MarketId, m.month);
   // Founder Journey 5: the stock market opens with each city's leading AI companies.
   // (The note that first switches exits on: the exits note, or a later one in a world without it.)
   if (!hadExits && exitsOn(world))

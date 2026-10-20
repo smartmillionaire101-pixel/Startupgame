@@ -666,3 +666,517 @@
     animation: none;
   }
 }
+
+/* ---- Golf with a friend for money (GolfMatch.tsx, GolfInvite.tsx, GolfInviteHost.tsx). */
+.golf-mhud {
+  position: absolute;
+  top: 10px;
+  left: 16px;
+  right: 16px;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+.golf-mp-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.golf-mp {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: rgb(15 23 42 / 0.82);
+  color: #fff;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+  outline: 3px solid transparent;
+  outline-offset: -3px;
+}
+.golf-mp.is-turn {
+  outline-color: #4ade80;
+}
+.golf-mp-face {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #0f766e;
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+}
+.golf-mp-face.ai {
+  background: #1d4ed8;
+}
+.golf-mp-face.big {
+  width: 56px;
+  height: 56px;
+  font-size: 24px;
+}
+.golf-mp-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  line-height: 1.2;
+}
+.golf-mp-text b {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.golf-mp-text small {
+  font-size: 11.5px;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.golf-mp-vs {
+  flex: 0 0 auto;
+  font-family: var(--font-display, inherit);
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.golf-mhud-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.golf-mhud-row .golf-map {
+  margin-left: auto;
+}
+.golf-pot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fde68a, #fbbf24);
+  color: #422006;
+  font-weight: 800;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.2);
+}
+.golf-clock {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.75);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.golf-turn-card {
+  top: auto;
+  bottom: 30px;
+}
+.golf-minicard {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.golf-minicard th,
+.golf-minicard td {
+  padding: 3px 2px;
+  text-align: center;
+  border-top: 1px solid var(--line);
+}
+.golf-minicard thead th {
+  border-top: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.golf-minicard tbody th {
+  text-align: left;
+  font-weight: 600;
+}
+.golf-minicard tr.you th,
+.golf-minicard tr.you td:last-child {
+  font-weight: 800;
+}
+/* The result. */
+.golf-win {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 2px;
+}
+.golf-win-cup {
+  font-size: 48px;
+  line-height: 1;
+}
+.golf-win .golf-kicker {
+  color: #b45309;
+}
+.golf-win-amount {
+  font-family: var(--font-display, inherit);
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.golf-win-amount.up {
+  color: #14532d;
+}
+.golf-ledger {
+  display: grid;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  font-size: 14px;
+}
+.golf-ledger p {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+}
+.golf-ledger b {
+  font-variant-numeric: tabular-nums;
+}
+.golf-ledger .up {
+  color: #15803d;
+}
+.golf-ledger .down {
+  color: #b91c1c;
+}
+.golf-ledger-net {
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-weight: 800;
+}
+.golf-result-note {
+  text-align: center;
+}
+/* The invite sheet. */
+.golf-invite {
+  position: absolute;
+  inset: 12px 0 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 18px 16px calc(16px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  background: var(--surface);
+  box-shadow: 0 -10px 30px rgb(0 0 0 / 0.25);
+  z-index: 2;
+}
+.golf-invite-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.golf-invite h3,
+.golf-invite h4,
+.golf-invite p {
+  margin: 0;
+}
+.golf-invite h4 small {
+  font-weight: 500;
+  color: var(--muted);
+}
+.golf-tabs,
+.golf-holes-pick {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.golf-tab {
+  flex: 1 1 0;
+  min-height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.golf-tab[aria-selected='true'],
+.golf-tab[aria-checked='true'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+.golf-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.golf-people li + li {
+  border-top: 1px solid var(--line);
+}
+.golf-people-empty {
+  padding: 8px 0;
+}
+.golf-person {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.golf-person:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.golf-person-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+}
+.golf-person-text small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.golf-check {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  color: #fff;
+  font-weight: 800;
+}
+.golf-person[aria-pressed='true'] .golf-check {
+  border-color: #0f766e;
+  background: #0f766e;
+}
+.golf-invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.golf-holes-pick .golf-tab {
+  flex: 0 0 auto;
+  padding: 0 10px;
+  min-height: 30px;
+}
+.golf-stakes {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.golf-stake {
+  min-height: 52px;
+  display: grid;
+  place-content: center;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.golf-stake b {
+  font-size: 15px;
+}
+.golf-stake small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.golf-stake[aria-checked='true'] {
+  border-color: #0f766e;
+  background: #d5f0ea;
+  color: #134e4a;
+}
+.golf-stake:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.golf-potline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.golf-invite-send,
+.golf-invite-actions .btn-primary {
+  min-height: 48px;
+  background: #0f766e;
+  border-color: #0f766e;
+}
+.golf-invite-foot {
+  text-align: center;
+}
+.golf-ai-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--surface-2);
+}
+.golf-ai-note > span {
+  font-size: 28px;
+}
+/* The friend's side: the notice and the invitation card. */
+.golf-invite-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgb(15 23 42 / 0.45);
+  backdrop-filter: blur(3px);
+  overflow: auto;
+}
+.golf-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(100%, 420px);
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+}
+.golf-notice > span:last-child {
+  display: grid;
+}
+.golf-notice small {
+  color: var(--muted);
+}
+.golf-notice-small {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(calc(100% - 32px), 420px);
+  z-index: 60;
+  cursor: pointer;
+}
+.golf-notice-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #0f766e;
+  font-size: 20px;
+}
+.golf-invite-card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.3);
+}
+.golf-invite-card h3,
+.golf-invite-card p {
+  margin: 0;
+}
+.golf-invite-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.golf-invite-who .golf-kicker {
+  color: #0f766e;
+}
+.golf-invite-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.golf-invite-tiles > div {
+  display: grid;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.golf-invite-tiles b {
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+}
+.golf-invite-tiles small {
+  color: var(--muted);
+}
+.golf-invite-tiles .pot {
+  background: linear-gradient(180deg, #fef3c7, #fde68a);
+  color: #422006;
+}
+.golf-invite-tiles .pot small {
+  color: #713f12;
+}
+.golf-invite-rules {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  font-size: 13.5px;
+}
+.golf-invite-rules > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.golf-invite-rules dd {
+  margin: 0;
+  color: var(--muted);
+  text-align: right;
+}
+.golf-invite-rules dd.ok {
+  color: #15803d;
+  font-weight: 700;
+}
+.golf-invite-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 8px;
+}
+.golf-invite-actions .btn {
+  min-height: 48px;
+}
+.golf-later {
+  justify-self: center;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}

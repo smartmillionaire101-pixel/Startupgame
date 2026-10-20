@@ -70,6 +70,7 @@ import {
   type VenueItemView,
 } from './life';
 import { Showroom, slotsOwned } from './Showroom';
+import { EmployerPanel } from '../phone/work';
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
 import { crowdAt, crowdHour } from './crowdfill';
 import { aiCharacterId } from '../phone/bus';
@@ -715,7 +716,13 @@ function RoomScene({
   const { view, send, cur, busy } = useView();
   const daylight = useDaylight(view.here?.id ?? view.market.id);
   /** Below the room: the tray, everything else ("More"), or a showroom's catalogue. */
-  const [panel, setPanel] = useState<'tray' | 'more' | 'shop'>('tray');
+  const [panel, setPanel] = useState<'tray' | 'more' | 'shop' | 'work'>(() =>
+    // The jobs rework: arriving at an employer for your interview opens it.
+    place.kind === 'business' &&
+    view.work?.applications.some((a) => a.businessId === place.ref && a.status === 'booked')
+      ? 'work'
+      : 'tray',
+  );
   const more = panel !== 'tray';
   const setMore = (on: boolean) => setPanel(on ? 'more' : 'tray');
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -961,6 +968,39 @@ function RoomScene({
 
   if (business) {
     const b = business;
+    // The jobs rework: a professional employer — its ladder, Apply, and the interview.
+    const employer = view.work?.employers.find((e) => e.businessId === b.id);
+    if (employer) {
+      const booked = view.work!.applications.find(
+        (a) => a.businessId === b.id && a.status === 'booked',
+      );
+      const open = employer.levels.filter((l) => l.status !== 'current' && l.status !== 'below');
+      actions.push(
+        booked
+          ? {
+              id: 'work:interview',
+              label: t('Start the interview'),
+              sub: t('{role} · about {h}h', {
+                role: tx(booked.label),
+                h: view.work!.interviewHours,
+              }),
+              icon: '🤝',
+              run: () => setPanel('work'),
+            }
+          : {
+              id: 'work:ladder',
+              label: t('Careers here: see roles and apply'),
+              sub: open[0]
+                ? t('{n} roles · {pay}/mo and up', {
+                    n: employer.levels.length,
+                    pay: money(open[0].monthlyPay, cur),
+                  })
+                : t('{n} roles', { n: employer.levels.length }),
+              icon: '💼',
+              run: () => setPanel('work'),
+            },
+      );
+    }
     const venue = venueItemsOf(view, b.id);
     // Things to do first (Wave 6 §C2): dance, a film, karaoke, five-a-side…
     // Wave 10: what your lifestyle reaches first; a locked one says when it unlocks.
@@ -1543,6 +1583,8 @@ function RoomScene({
           </button>
           {panel === 'shop' && business ? (
             <Showroom business={business} />
+          ) : panel === 'work' && business ? (
+            <EmployerPanel businessId={business.id} />
           ) : (
             <div className="interior">{children}</div>
           )}

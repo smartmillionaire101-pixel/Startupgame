@@ -11,6 +11,7 @@
  * whose name and job are fixed by their id `npc:<market>:<n>`. Human
  * visitors come from server presence and are merged in by the client.
  */
+import { professionById } from './data/professions.js';
 import { CITY_NAME_PARTS, REGULAR_JOBS, genderOfName } from './data/business-names.js';
 import { MARKET_IDS } from './data/markets.js';
 import type { MarketId } from './data/markets.js';
@@ -128,7 +129,9 @@ export function peopleHere(world: World, m: MarketState): Record<Id, PersonHere[
   for (const p of Object.values(world.players)) {
     if (p.ai || !p.job || !out[p.job.businessId]) continue;
     const b = m.businesses![p.job.businessId]!;
-    const role = specOf(b).roles.find((r) => r.role === p.job!.role);
+    const role = p.job.profession
+      ? professionById(p.job.profession)?.levels[(p.job.level ?? 1) - 1]
+      : specOf(b).roles.find((r) => r.role === p.job!.role);
     out[b.id]!.push({
       id: p.id,
       name: p.name,

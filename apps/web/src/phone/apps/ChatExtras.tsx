@@ -14,6 +14,9 @@ import { useView } from '../../store';
 import { Button } from '../../ui';
 import { openLiving } from '../../experiences/living-bus';
 import { openPlay } from '../../experiences/play-bus';
+import { showGolfInvite } from '../../city/golf/invite-bus';
+import { StakeChips } from '../../city/golf/parts';
+import { golfOf } from '../../city/leisure';
 import { techEventsOf } from '../friends';
 import { openVisit } from '../Visit';
 import type { PhoneCtx } from '../shared';
@@ -432,6 +435,7 @@ const PLAY_GAME: Record<string, () => string> = {
   quiz: () => t('a quiz'),
   snooker: () => t('snooker'),
   football: () => t('a penalty shootout'),
+  golf: () => t('golf'),
 };
 
 function CardShell({
@@ -798,18 +802,24 @@ export function ChatCardView({
           {open && !mine && (
             <div className="row">
               {sameCity ? (
-                <Button
-                  onClick={() =>
-                    openPlay({
-                      venue: card.venue!,
-                      name: card.title ?? card.city,
-                      roomId: card.roomId!,
-                      game: card.game,
-                    })
-                  }
-                >
-                  {t('Go to the table')}
-                </Button>
+                card.game === 'golf' ? (
+                  <Button onClick={() => showGolfInvite(card.roomId!)}>
+                    {t('See the invitation')}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() =>
+                      openPlay({
+                        venue: card.venue!,
+                        name: card.title ?? card.city,
+                        roomId: card.roomId!,
+                        game: card.game === 'golf' ? undefined : card.game,
+                      })
+                    }
+                  >
+                    {t('Go to the table')}
+                  </Button>
+                )
               ) : (
                 <span className="small muted">
                   {t('Travel to {city} to join this table.', { city: card.city })}
@@ -865,7 +875,7 @@ export function PlayerMessage({
 // ---------------------------------------------------------------- Doing things together
 
 export type ActBody = { command: Command } | { techEventId: string };
-type Panel = 'money' | 'date' | 'event' | 'gift' | null;
+type Panel = 'money' | 'date' | 'event' | 'gift' | 'golf' | null;
 
 /**
  * The "+" menu of a player chat: send money, plan a date, invite them over,
@@ -877,10 +887,13 @@ export function ChatActions({
   act,
   busy,
   children,
+  goPlace,
 }: {
   partner: { id: string; name: string };
   act: <R = unknown>(body: ActBody, ok?: string) => Promise<R | null>;
   busy: boolean;
+  /** Go to a place in the city (the phone closes): golf with a friend waits at the club. */
+  goPlace?: (place: string) => void;
   /** The composer, given the "+" button to put first in its row. */
   children: (plus: ReactNode) => ReactNode;
 }) {
@@ -934,6 +947,9 @@ export function ChatActions({
           <button type="button" role="menuitem" onClick={() => pick('gift')}>
             🎁 {t('Give a home')}
           </button>
+          <button type="button" role="menuitem" onClick={() => pick('golf')}>
+            ⛳ {t('Golf for money')}
+          </button>
         </div>
       )}
       {panel === 'money' && (
@@ -950,6 +966,15 @@ export function ChatActions({
       )}
       {panel === 'event' && (
         <EventPanel partner={partner} act={act} busy={busy} onDone={() => setPanel(null)} />
+      )}
+      {panel === 'golf' && (
+        <GolfPanel
+          partner={partner}
+          act={act}
+          busy={busy}
+          onDone={() => setPanel(null)}
+          goPlace={goPlace}
+        />
       )}
       {panel === 'gift' && (
         <GiftPanel partner={partner} act={act} busy={busy} onDone={() => setPanel(null)} />
@@ -1162,5 +1187,94 @@ function GiftPanel({ partner, act, busy, onDone }: PanelProps) {
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Golf with a friend for money, from their chat: the stake per player and
+ * the holes. Your stake goes into the pot as you send it; a card lands in
+ * the chat for both of you, and they answer it (or the notice) with Accept
+ * or Decline. Then you wait for them at the club.
+ */
+function GolfPanel({
+  partner,
+  act,
+  busy,
+  onDone,
+  goPlace,
+}: PanelProps & { goPlace?: (place: string) => void }) {
+  const { view } = useView();
+  const golf = golfOf(view, view.here?.id ?? view.market.id);
+  const opts = golf.match;
+  const cur = golf.currency || view.market.currency;
+  const [stake, setStake] = useState(opts?.stakes[2] ?? 0);
+  const [holes, setHoles] = useState(golf.holes.length);
+  const [sent, setSent] = useState(false);
+  if (!opts) return null;
+  const first = partner.name.split(' ')[0] ?? partner.name;
+  const invite = async () => {
+    const r = await act<{ id: string }>(
+      {
+        command: {
+          type: 'play.create',
+          game: 'golf',
+          venue: opts.venue,
+          title: t('Golf with a friend'),
+          stake,
+          invite: partner.id,
+          holes,
+        },
+      },
+      t('Invitation sent. Your stake is in the pot.'),
+    );
+    if (r) setSent(true);
+  };
+  return (
+    <div className="chat-panel chat-golf" aria-label={t('Golf for money')}>
+      <PanelHead title={t('Golf with {name}', { name: first })} onDone={onDone} />
+      {sent ? (
+        <>
+          <p className="small">
+            {t('Invitation sent. Wait for {name} at {club}.', { name: first, club: golf.name })}
+          </p>
+          {goPlace && <Button onClick={() => goPlace('golf')}>{t('Go to the club')}</Button>}
+        </>
+      ) : (
+        <>
+          <p className="small muted">
+            {t('{n} holes at {club}. Lowest total wins the pot; a tie gets both stakes back.', {
+              n: holes,
+              club: golf.name,
+            })}
+          </p>
+          <div className="row">
+            {[golf.holes.length, 1].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className="chip"
+                aria-pressed={holes === n}
+                onClick={() => setHoles(n)}
+              >
+                {n === 1 ? t('1 hole') : t('{n} holes', { n })}
+              </button>
+            ))}
+          </div>
+          <StakeChips stakes={opts.stakes} value={stake} onChange={setStake} currency={cur} />
+          <p className="small muted">
+            {t('Pot {pot}', { pot: money(stake * 2, cur) })} ·{' '}
+            {t('Green fee {fee} each, paid to the club', { fee: money(golf.fee, cur) })}
+          </p>
+          <Button disabled={busy} onClick={() => void invite()}>
+            {stake
+              ? t('Invite {name} · pay {stake} into the pot', {
+                  name: first,
+                  stake: money(stake, cur),
+                })
+              : t('Invite {name} · free round', { name: first })}
+          </Button>
+        </>
+      )}
+    </div>
   );
 }

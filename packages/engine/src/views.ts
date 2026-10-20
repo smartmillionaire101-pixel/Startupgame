@@ -9,6 +9,7 @@ import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
 import { investorOn, lifeBarsOn } from './releases.js';
+import { anyJobView, workView } from './work.js';
 import { pitchQuestionsNow } from './fundraising.js';
 import { journeyView } from './journey.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
@@ -23,7 +24,7 @@ import { salesView } from './sales.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
-import { playView } from './play.js';
+import { golfMatchOptions, playView } from './play.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
  *  - their own accounts, companies, deals, pitches, stories and inbox in full,
@@ -59,13 +60,7 @@ import {
 } from './data/events.js';
 import { chatIdOf } from './people.js';
 import { contactWarmth, eventCost } from './events.js';
-import {
-  businessCustomersOf,
-  businessesView,
-  economyView,
-  jobsView,
-  myJobView,
-} from './economy.js';
+import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
 import { deliveryView, homeActsView, moodOf, needsOf } from './needs.js';
@@ -754,6 +749,12 @@ export function playerView(
           offers: secondaryOffersView(world, p),
           allocator: allocatorView(world, p),
         },
+    /**
+     * The jobs rework (after its release note; else null): your experience,
+     * your professional job and its next step, every employer's ladder with
+     * your eligibility, and your applications (interview questions when booked).
+     */
+    work: workView(world, p),
     /** Friends & Family rounds you can see: yours, your city's, your contacts' (chapter 3). */
     friendsRounds: friendsRoundsView(world, p, locationOf(p)),
     playRooms: playView(world, p),
@@ -834,14 +835,14 @@ export function playerView(
       /** Phase 6a: your look from the creator; null = never chosen (drawn from your seed). */
       appearance: p.appearance ?? null,
       appearanceAt: p.appearanceAt ?? null,
-      /** Wave 5: your part-time job, or null. */
-      job: myJobView(world, p),
+      /** Wave 5: your part-time job (the jobs rework: or professional job), or null. */
+      job: anyJobView(world, p),
       /** Wave 5: your furniture and how comfortable home is (0–100). */
       home: myHomeView(p),
       /** Wave 5: your car, or null. */
       car: carView(world, p),
       /** Golf: the course in the city you're in, the green fee and your record. */
-      golf: golfView(world, p),
+      golf: { ...golfView(world, p), match: golfMatchOptions(world, p) },
       /** The mall in the city you're in: its shops' items and prices, your phone. */
       mall: mallView(world, p),
       garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({

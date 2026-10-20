@@ -109,6 +109,8 @@ export {
   exitsOn,
   LIFE_BARS_NOTE,
   lifeBarsOn,
+  JOBS_NOTE,
+  jobsOn,
   INVESTOR_NOTE,
   investorOn,
   RELEASES,
@@ -129,6 +131,20 @@ export type { Bars, BarEffect, WalkMode } from './lifebars.js';
 export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';
+// The jobs rework: professional careers.
+export { WORK, FIELD_LABEL, SKILL_LABEL, whyText, levelGate, workOf } from './work.js';
+export {
+  PROFESSIONS,
+  PROFESSION_IDS,
+  WORK_FIELDS,
+  EMPLOYERS,
+  HEAD_STARTS,
+  LEVEL_MONTHS,
+  LEVEL_HOURS,
+  professionById,
+  professionOfKind,
+} from './data/professions.js';
+export type { ProfessionId, WorkField, Profession } from './data/professions.js';
 export { acceleratorsOf, devPartnersOf, lpsOf } from './programs.js';
 export type { Cause, CareerDecision, CareerOrg } from './allocator.js';
 export { wealthView } from './wealth.js';
@@ -203,7 +219,14 @@ export {
   QUIZ_AI_AFTER,
   AI_SHOT_AFTER,
   drawQuiz,
+  GOLF_SHOT_MS,
+  GOLF_AI_ACCEPT_AFTER,
+  GOLF_AI_SHOT_AFTER,
+  GOLF_AUTO_POWER,
+  GOLF_PICKUP_OVER,
+  golfHandicap,
 } from './play.js';
+export type { GolfMatch, GolfMatchShot, GolfPlayer } from './play.js';
 export {
   JOURNEY,
   OBJECTIVE_KINDS,

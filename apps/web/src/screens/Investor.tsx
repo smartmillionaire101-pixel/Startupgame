@@ -552,8 +552,8 @@ export function Portfolio() {
         </Card>
       ) : null}
       {careerOf(view) && (
-        <section className="stack" aria-label={t('Your investor career')}>
-          <h2>{t('Your investor career')}</h2>
+        <section className="stack" aria-label={t('Grow as an investor')}>
+          <h2>{t('Grow as an investor')}</h2>
           <ProRataOffers />
           <StakeConsents />
           <InvestorPrompts />
