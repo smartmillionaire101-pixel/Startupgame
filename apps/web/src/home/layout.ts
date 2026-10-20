@@ -629,12 +629,16 @@ function withFittedCounter(p: HomePlan): HomePlan {
   const x0 = r.x + 3;
   const w = r.x + r.w - x0;
   const y = r.y;
-  const taken = (x: number) =>
+  const taken = (x: number, ty = y) =>
     [...Object.values(p.slots), ...Object.values(p.fixtures), ...p.decor.map((d) => d.spot)].some(
-      (s) => !!s && x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h,
+      (s) => !!s && x >= s.x && x < s.x + s.w && ty >= s.y && ty < s.y + s.h,
     );
   const walled = (x: number) => p.walls.some((s) => s.dir === 'h' && s.x === x && s.y === y);
   for (let x = x0; x < x0 + w; x++) if (taken(x) || !walled(x)) return p;
+  // Where you stand to use it: a free tile in front of the run.
+  let ix = -1;
+  for (let x = x0; x < x0 + w && ix < 0; x++) if (!taken(x, y + 1)) ix = x;
+  if (ix < 0) return p;
   const finish = builtIns(p).get('kitchen') ?? 2;
   return {
     ...p,
@@ -645,7 +649,7 @@ function withFittedCounter(p: HomePlan): HomePlan {
         model: 'kitchen-counter',
         label: 'Kitchen',
         room: 'kitchen',
-        spot: { x: x0, y, w, h: 1, blocked: true, interact: { x: x0 + 1, y: y + 1 }, rot: 0 },
+        spot: { x: x0, y, w, h: 1, blocked: true, interact: { x: ix, y: y + 1 }, rot: 0 },
         verbs: [
           { act: 'cook', label: 'Cook' },
           { act: 'snack', label: 'Snack' },

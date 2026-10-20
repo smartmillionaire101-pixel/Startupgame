@@ -160,7 +160,7 @@ describe('Wave 12: the grounds', () => {
     expect(outdoorThings(g).filter((o) => o.model.startsWith('car:'))).toHaveLength(3);
   });
 
-  it('a mansion has a bigger pool and a formal garden; a penthouse a hot tub on the roof', () => {
+  it('a mansion has a bigger pool and a formal garden; a penthouse a pool on the roof, cars in the garage', () => {
     const villa = groundsFor(planFor(4, { kind: 'villa', wealth: 1 }), []);
     const m = groundsFor(planFor(5, { kind: 'mansion', wealth: 2 }), []);
     expect(m.pool!.w * m.pool!.h).toBeGreaterThan(villa.pool!.w * villa.pool!.h);
@@ -168,8 +168,10 @@ describe('Wave 12: the grounds', () => {
     expect(m.beds.length).toBeGreaterThan(0);
     const p = groundsFor(planFor(4, { kind: 'penthouse', wealth: 1 }), ['electric']);
     expect(p.style).toBe('roof');
-    expect(p.pool?.hot).toBe(true);
-    expect(p.bays.filter((b) => b.car)).toHaveLength(1);
+    expect(p.pool?.hot).toBe(false);
+    // The car is down in the building's garage: no bays on the roof, a lift to it.
+    expect(p.bays).toHaveLength(0);
+    expect(p.lift?.cars).toEqual(['electric']);
     const flat = groundsFor(planFor(2, { kind: 'apartment', wealth: 1 }), []);
     expect(flat.pool).toBeNull();
     expect(flat.gate).toBeNull();
