@@ -39,7 +39,12 @@ import {
   startPitch,
 } from './fundraising.js';
 import { raiseFund } from './funds.js';
-import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
+import {
+  injectCapital,
+  repairCreditRecords,
+  repayPersonalLoan,
+  requestPersonalLoan,
+} from './credit.js';
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
 import { bookFlight, cancelFlight, fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
@@ -1808,7 +1813,10 @@ function announce(world: World, cmd: Extract<Command, { type: 'system.announce' 
   if (sent.includes(cmd.id)) return { sent: 0 };
   const hadExits = exitsOn(world);
   const hadJobs = jobsOn(world);
+  const hadInvestor = investorOn(world);
   sent.push(cmd.id);
+  // The investor career's credit fix: records lose the living-cost "missed payments".
+  if (!hadInvestor && investorOn(world)) repairCreditRecords(world);
   // The jobs rework: every open city's professional employers open with the note.
   if (!hadJobs && jobsOn(world))
     for (const [id, m] of Object.entries(world.markets))

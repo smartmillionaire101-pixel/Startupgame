@@ -27,8 +27,10 @@ export const phoneApps: Record<string, string> = {
   '{payment}/mo · {n} months left': '{payment}/mois · encore {n} mois',
   'Repay {amount}': 'Rembourser {amount}',
   Borrow: 'Emprunter',
-  'No unsecured credit yet. Pay bills on time and it grows.':
-    'Pas encore de crédit sans garantie. Payez à l’heure et il grandira.',
+  'No unsecured credit yet. Repay loans on time and it grows.':
+    'Pas encore de crédit sans garantie. Remboursez vos prêts à l’heure et il grandira.',
+  'Everyone starts at 60. Loans repaid on time raise it slowly; missed loan payments and defaults lower it. Living costs don’t count.':
+    'Tout le monde commence à 60. Des prêts remboursés à l’heure le font monter lentement ; les échéances de prêt manquées et les défauts le font baisser. Les frais de vie ne comptent pas.',
   'You can borrow up to {limit} without collateral.':
     'Vous pouvez emprunter jusqu’à {limit} sans garantie.',
   '{n} months': '{n} mois',
