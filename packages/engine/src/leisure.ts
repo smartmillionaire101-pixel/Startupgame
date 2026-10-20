@@ -12,17 +12,34 @@
  *   electronics go into your home (the lifestyle shop's `buyFurniture`), food
  *   feeds you and a film is fun. Money goes to the till of a matching open
  *   business in the city (the mall's branch of it), else the suppliers.
+ *   The bigger mall (data/mall.ts) adds ten shops and things you keep (in
+ *   your bag), sold once the investor release note is logged; shopping
+ *   with a friend is malltrips.ts.
  *
  * Replay: both commands are new and the fields they write (`golf`, `phone`)
  * are optional, so a logged world without them replays exactly as before.
  */
 import { appearanceSeed, defaultAppearance, type Appearance } from './appearance.js';
-import { GOLF, MALL_ITEMS, MALL_TILLS, PHONE_NAMES, golfCourse, mallItem } from './data/leisure.js';
+import {
+  GOLF,
+  MALL_ITEMS,
+  MALL_SHOPS,
+  MALL_SHOPS_FIRST,
+  MALL_TILLS,
+  MALL_TRIP,
+  PHONE_NAMES,
+  giftable,
+  golfCourse,
+  mallItem,
+  wearable,
+  type MallItem,
+} from './data/leisure.js';
 import { furnitureItem, furnitureLabel } from './data/lifestyle-shop.js';
 import { ensure } from './errors.js';
 import { addContact } from './events.js';
 import { businessesOf, isOpen } from './economy.js';
-import { col, getMarket, hoursLeft, locationOf } from './helpers.js';
+import { col, getMarket, hoursLeft, locationOf, usdToLocal } from './helpers.js';
+import { investorOn } from './releases.js';
 import { account, costIn, payExact } from './ledger.js';
 import { bumpEnergy } from './lifebars.js';
 import { clamp } from './math.js';
@@ -51,6 +68,8 @@ function pay(world: World, me: Player, m: MarketState, price: number, to: Id, me
   );
   payExact(world, me.accounts.local, to, price, memo, m.month);
 }
+/** Pay a mall till from your personal account (refused if you can't cover it). */
+export const payAtMall = pay;
 
 // ---------------------------------------------------------------- Golf
 
@@ -201,26 +220,74 @@ export function golfRound(world: World, me: Player, strokes: readonly number[]) 
 
 // ---------------------------------------------------------------- The mall
 
+/** A price as a shop tags it: two significant figures (₦18,400 → ₦18,000). */
+function tagPrice(minor: number): number {
+  const major = minor / 100;
+  if (major < 10) return Math.max(1, Math.round(minor));
+  const step = 10 ** (Math.floor(Math.log10(major)) - 1);
+  return Math.round(major / step) * step * 100;
+}
+
+/**
+ * What an item costs here. The first shops' items as they always did (the
+ * cost of living); the bigger mall's tagged like a shop would, imported goods
+ * at least their dollar price at the day's rate.
+ */
+export function mallPrice(world: World, m: MarketState, x: MallItem): number {
+  const f = x.furnitureId ? furnitureItem(x.furnitureId) : undefined;
+  const base = scale(col(m), f ? f.priceCol : x.priceCol);
+  if (!x.more) return base;
+  return tagPrice(Math.max(base, x.usd ? usdToLocal(world, m, x.usd) : 0));
+}
+
+/** Whether this world's mall sells it (the bigger mall's items once its note is logged). */
+export const mallSells = (world: World, x: MallItem) => !x.more || investorOn(world);
+
+/** The till a mall shop's sale goes to (its open business here), if any. */
+export function mallTill(m: MarketState, x: MallItem) {
+  return x.shop === 'foodcourt'
+    ? tillOf(m, (k) => FOOD_KINDS.has(k))
+    : x.shop === 'home'
+      ? null
+      : tillOf(m, (k) => MALL_TILLS[x.shop as keyof typeof MALL_TILLS].includes(k));
+}
+
+/** Put a thing in someone's bag (the oldest go when it's full). */
+export function keepThing(p: Player, item: string, month: number, from?: Id) {
+  const bag = (p.belongings ??= []);
+  bag.push({ item, month, ...(from ? { from } : {}) });
+  if (bag.length > MALL_TRIP.bagMax) bag.splice(0, bag.length - MALL_TRIP.bagMax);
+}
+
 /** The mall's shops and prices in the city you're in. */
 export function mallView(world: World, me: Player) {
   const m = getMarket(world, locationOf(me));
+  const on = investorOn(world);
   const items = [];
   for (const x of MALL_ITEMS) {
+    if (!mallSells(world, x)) continue;
     const f = x.furnitureId ? furnitureItem(x.furnitureId) : undefined;
     if (x.furnitureId && !f) continue;
     items.push({
       id: x.id,
       shop: x.shop,
       label: f ? furnitureLabel(f, m.id) : x.label,
-      price: scale(col(m), f ? f.priceCol : x.priceCol),
+      price: mallPrice(world, m, x),
       ...(x.topStyle ? { topStyle: x.topStyle } : {}),
       ...(x.headwear ? { headwear: x.headwear } : {}),
       ...(x.glasses ? { glasses: x.glasses } : {}),
       ...(x.phone ? { phone: x.phone } : {}),
       ...(f ? { furniture: f.id, slot: f.slot, tier: f.tier } : {}),
+      ...(x.keep ? { keep: x.keep } : {}),
       ...(x.hunger ? { hunger: x.hunger } : {}),
       ...(x.fun ? { fun: x.fun } : {}),
+      ...(x.energy ? { energy: x.energy } : {}),
+      ...(x.hygiene ? { hygiene: x.hygiene } : {}),
+      ...(x.health ? { health: x.health } : {}),
+      ...(x.stress ? { stress: x.stress } : {}),
       ...(x.hours ? { hours: x.hours } : {}),
+      ...(x.usd ? { imported: true } : {}),
+      ...(on && giftable(x) ? { gift: true } : {}),
       owned: f
         ? !!me.home?.items.some((h) => h.itemId === f.id)
         : x.phone
@@ -228,18 +295,29 @@ export function mallView(world: World, me: Player) {
           : false,
     });
   }
+  const label = (id: string) => mallItem(id)?.label ?? id;
   return {
     currency: m.data.currency,
+    /** The shops open here (the bigger mall's once its note is logged). */
+    shops: on ? MALL_SHOPS : MALL_SHOPS_FIRST,
     /** Furniture is delivered home: only from a mall in your home city. */
     delivers: locationOf(me) === me.market,
     phone: me.phone ? { ...me.phone, name: PHONE_NAMES[me.phone.tier] } : null,
     items,
+    /** What you keep from the mall (newest first), and who gave it to you. */
+    bag: [...(me.belongings ?? [])].reverse().map((b) => ({
+      item: b.item,
+      label: label(b.item),
+      kind: mallItem(b.item)?.keep ?? null,
+      month: b.month,
+      from: b.from ? { id: b.from, name: world.players[b.from]?.name ?? '' } : null,
+    })),
   };
 }
 
 export function mallBuy(world: World, me: Player, itemId: string, colour?: string, now = 0) {
   const x = mallItem(itemId);
-  ensure(x, 'mall.item', 'The mall doesn’t sell that.');
+  ensure(x && mallSells(world, x), 'mall.item', 'The mall doesn’t sell that.');
   const m = getMarket(world, locationOf(me));
   const fmt = (v: number) => formatMoney(v, m.data.currency);
 
@@ -250,31 +328,13 @@ export function mallBuy(world: World, me: Player, itemId: string, colour?: strin
     return { ...r, item: x.id, shop: x.shop, home: true };
   }
 
-  const till =
-    x.shop === 'foodcourt'
-      ? tillOf(m, (k) => FOOD_KINDS.has(k))
-      : x.shop === 'home'
-        ? null
-        : tillOf(m, (k) => MALL_TILLS[x.shop as keyof typeof MALL_TILLS].includes(k));
-  const price = scale(col(m), x.priceCol);
+  const till = mallTill(m, x);
+  const price = mallPrice(world, m, x);
   const memo = `${x.label} at the mall${till ? ` (${till.name})` : ''}`;
 
   // Clothes and accessories: your look changes (and everyone sees it).
-  if (x.topStyle || x.headwear || x.glasses) {
-    const was: Appearance = me.appearance ?? defaultAppearance(appearanceSeed(me), me.gender);
-    const next: Appearance = { ...was };
-    if (x.topStyle) {
-      ensure(colour && /^#[0-9a-fA-F]{6}$/.test(colour), 'mall.colour', 'Pick a colour.');
-      next.topStyle = x.topStyle;
-      next.topColor = colour.toLowerCase();
-    }
-    if (x.headwear) next.headwear = x.headwear;
-    if (x.glasses) next.glasses = x.glasses;
-    ensure(
-      JSON.stringify(next) !== JSON.stringify(was),
-      'mall.owned',
-      'You’re already wearing that.',
-    );
+  if (wearable(x)) {
+    const next = wearing(me, x, colour);
     pay(world, me, m, price, till?.account ?? m.ext.suppliers, memo);
     me.appearance = next;
     me.appearanceAt = now;
@@ -302,7 +362,7 @@ export function mallBuy(world: World, me: Player, itemId: string, colour?: strin
     };
   }
 
-  // Food, groceries and films.
+  // Food, groceries and films; the bigger mall's things you keep.
   if (x.hours)
     ensure(
       hoursLeft(me) >= x.hours,
@@ -311,18 +371,57 @@ export function mallBuy(world: World, me: Player, itemId: string, colour?: strin
     );
   pay(world, me, m, price, till?.account ?? m.ext.suppliers, memo);
   if (x.hours) me.hours.used += x.hours;
-  const hunger = x.hunger ? bumpNeed(me, 'hunger', x.hunger) : 0;
-  const fun = x.fun ? bumpNeed(me, 'fun', x.fun) : 0;
-  const energy = x.energy ? Math.round(bumpEnergy(me, x.energy)) : 0;
+  const fx = consume(me, x);
+  if (x.keep) keepThing(me, x.id, m.month);
+  const bars = barsOfItem(x);
   return {
     item: x.id,
     shop: x.shop,
     price,
-    effects: { hunger, fun, energy },
+    effects: fx,
     needs: needsOf(me),
-    ...(x.stress ? { barsFx: { stress: x.stress } } : {}),
+    ...(x.keep ? { kept: true } : {}),
+    ...(bars ? { barsFx: bars } : {}),
     message: `${x.label}: ${fmt(price)}.`,
   };
+}
+
+/** What wearing a thing does to someone's look (refused if they wear it already). */
+export function wearing(p: Player, x: MallItem, colour?: string): Appearance {
+  const was: Appearance = p.appearance ?? defaultAppearance(appearanceSeed(p), p.gender);
+  const next: Appearance = { ...was };
+  if (x.topStyle) {
+    ensure(colour && /^#[0-9a-fA-F]{6}$/.test(colour), 'mall.colour', 'Pick a colour.');
+    next.topStyle = x.topStyle;
+    next.topColor = colour.toLowerCase();
+  }
+  if (x.headwear) next.headwear = x.headwear;
+  if (x.glasses) next.glasses = x.glasses;
+  ensure(
+    JSON.stringify(next) !== JSON.stringify(was),
+    'mall.owned',
+    'You’re already wearing that.',
+  );
+  return next;
+}
+
+/** Food, a film, a toothbrush: someone's needs move (hunger, fun, energy, hygiene). */
+export function consume(p: Player, x: MallItem) {
+  const hunger = x.hunger ? bumpNeed(p, 'hunger', x.hunger) : 0;
+  const fun = x.fun ? bumpNeed(p, 'fun', x.fun) : 0;
+  const energy = x.energy ? Math.round(bumpEnergy(p, x.energy)) : 0;
+  return {
+    hunger,
+    fun,
+    energy,
+    ...(x.hygiene ? { hygiene: bumpNeed(p, 'hygiene', x.hygiene) } : {}),
+  };
+}
+
+/** Life bars an item moves (applied with the bars, when they're on). */
+export function barsOfItem(x: MallItem): { stress?: number; health?: number } | null {
+  if (!x.stress && !x.health) return null;
+  return { ...(x.stress ? { stress: x.stress } : {}), ...(x.health ? { health: x.health } : {}) };
 }
 
 const FOOD_KINDS = new Set([

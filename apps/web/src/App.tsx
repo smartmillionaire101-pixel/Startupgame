@@ -108,6 +108,7 @@ const LivingHost = lazy(() => import('./experiences/LivingHost'));
 const SkyHost = lazy(() => import('./experiences/SkyHost'));
 const PlayHost = lazy(() => import('./experiences/PlayHost'));
 const GolfInviteHost = lazy(() => import('./city/golf/GolfInviteHost'));
+const MallInviteHost = lazy(() => import('./city/mall/MallInviteHost'));
 
 type Entry = 'landing' | 'signup' | 'login';
 
@@ -176,6 +177,7 @@ export function App() {
           <Suspense fallback={null}>
             <PlayHost />
             <GolfInviteHost />
+            <MallInviteHost />
             <LivingHost />
             <SkyHost />
           </Suspense>

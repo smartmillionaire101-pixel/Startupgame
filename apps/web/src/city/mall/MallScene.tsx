@@ -1,9 +1,15 @@
 /**
- * The mall (player feedback: "people should go to the malls to shop"). The
- * concourse, busy with shoppers; a directory of its shops; inside each, what
- * it sells at the city's prices. Buying is `mall.buy`: clothes go on your
- * figure at once (and everyone sees them), a phone is yours, furniture and
- * electronics go into your home, food fills you up, a film is fun.
+ * The mall (player feedback: "people should go to the malls to shop", then
+ * "more stores and more items to buy … and that you can invite someone and
+ * take them shopping"). The concourse, busy with shoppers; a directory of
+ * its shops; inside each, what it sells at the city's prices. Buying is
+ * `mall.buy`: clothes go on your figure at once (and everyone sees them), a
+ * phone is yours, furniture and electronics go into your home, food fills
+ * you up, a film is fun, and the bigger mall's things go in your bag.
+ *
+ * Shop with a friend: invite a player or an AI friend (`mall.invite`); while
+ * you're together they walk with you and any card or list can buy them a
+ * gift (`mall.gift`: you pay, it's theirs).
  *
  * Drawn in 3D (../../interiors3d/Mall3D.tsx) or, in Lite, in SVG (./Mall2D.tsx).
  */
@@ -19,9 +25,22 @@ import { AvatarFigure, avatarLook, drawnGender } from '../art';
 import { genderOf, looseCmd } from '../life';
 import { mallOf, type MallItemView } from '../leisure';
 import type { SceneProps } from '../PlaceScene';
+import { isUnit, type UnitShop } from './layout';
 import { Mall2D } from './Mall2D';
+import { MallInviteSheet, personLook } from './MallInvite';
 import { MallWalk } from './MallWalk';
-import { SHOP_COLOUR, SHOP_ICON, SHOP_ORDER, shopBlurb, shopName, wearing } from './shops';
+import {
+  SHOP_COLOUR,
+  SHOP_ICON,
+  SHOP_ORDER,
+  isWearable,
+  itemIcon,
+  itemNote,
+  shopBlurb,
+  shopName,
+  shopsOf,
+  wearing,
+} from './shops';
 
 /** Reduced motion (the system's, or the game's own setting): walking jumps. */
 const reduceMotion = () =>
@@ -48,7 +67,18 @@ interface Bought {
   item: MallItemView;
   price: number;
   message: string;
+  /** A gift: who it's for. */
+  for?: string;
 }
+
+/** Whether a look may wear an item (no dress or gele for a man). */
+const fits = (gender: 'female' | 'male', i: MallItemView) => {
+  const parts = GENDER_PARTS[gender];
+  return (
+    (!i.topStyle || (parts.topStyle as readonly string[]).includes(i.topStyle)) &&
+    (!i.headwear || (parts.headwear as readonly string[]).includes(i.headwear))
+  );
+};
 
 export function MallScene(props: SceneProps) {
   const { view, send, busy } = useView();
@@ -63,10 +93,12 @@ export function MallScene(props: SceneProps) {
   const [colour, setColour] = useState<string>(TOP_COLOURS[6]);
   const [trying, setTrying] = useState<string | null>(null);
   const [bought, setBought] = useState<Bought | null>(null);
+  const [inviting, setInviting] = useState(false);
   // 3D: walking the mall (the 2D directory if WebGL gives out).
   const [failed, setFailed] = useState(false);
   const [looking, setLooking] = useState(false);
   const walk3d = want3d && !failed;
+  const shops = shopsOf(mall);
   const names = useMemo(
     () =>
       Object.fromEntries(SHOP_ORDER.map((s) => [s, shopName(s, market)])) as Record<
@@ -82,16 +114,31 @@ export function MallScene(props: SceneProps) {
       ),
     [market],
   );
-  // Clothes for who you are: the fashion shop shows a man no dress or gele.
-  const parts = GENDER_PARTS[gender];
-  const forYou = (mall?.items ?? []).filter(
-    (i) =>
-      (!i.topStyle || (parts.topStyle as readonly string[]).includes(i.topStyle)) &&
-      (!i.headwear || (parts.headwear as readonly string[]).includes(i.headwear)),
+  // Shopping together: who's with you (walking with you once they're here).
+  const trip = mall?.trip ?? null;
+  const together = trip?.status === 'together' ? trip : null;
+  const friendKey = together ? JSON.stringify(together.friend) : '';
+  const friendLook = useMemo(
+    () => (together ? personLook(together.friend) : null),
+    // The look only changes with the friend (or what they were bought).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [friendKey],
   );
-  const items = forYou.filter((i) => i.shop === focus);
+  const friendGender = together
+    ? drawnGender(together.friend.backgroundId, together.friend.id, together.friend.gender)
+    : null;
+  const friendName = together?.friend.name.split(' ')[0] ?? '';
+  // Clothes for who you are (no dress or gele for a man); with a friend, theirs too (as gifts).
+  const forMe = (i: MallItemView) => fits(gender, i);
+  const shown0 = (mall?.items ?? []).filter(
+    (i) => forMe(i) || (!!friendGender && !!i.gift && fits(friendGender, i)),
+  );
+  const items = shown0.filter((i) => i.shop === focus);
   const tryItem = items.find((i) => i.id === trying);
-  const shown = focus === 'fashion' && tryItem ? wearing(me, tryItem, colour) : me;
+  const shown =
+    tryItem && isWearable(tryItem) && forMe(tryItem) ? wearing(me, tryItem, colour) : me;
+  const units = shops.filter((s): s is UnitShop => isUnit(s));
+  const wears = items.some((i) => i.topStyle);
 
   const buy = async (it: MallItemView) => {
     const r = await send<{ price?: number; message?: string }>(
@@ -105,6 +152,28 @@ export function MallScene(props: SceneProps) {
     setTrying(null);
     setBought({ item: it, price: r.price ?? it.price, message: tx(r.message ?? '') });
   };
+  const gift = async (it: MallItemView) => {
+    if (!together) return;
+    const r = await send<{ price?: number; message?: string }>(
+      looseCmd({
+        type: 'mall.gift',
+        tripId: together.id,
+        itemId: it.id,
+        ...(it.topStyle ? { colour } : {}),
+      }),
+    );
+    if (!r) return;
+    setTrying(null);
+    setBought({
+      item: it,
+      price: r.price ?? it.price,
+      message: tx(r.message ?? ''),
+      for: together.friend.name,
+    });
+  };
+  const leave = async () => {
+    if (trip) await send(looseCmd({ type: 'mall.leave', tripId: trip.id }));
+  };
 
   return (
     <div
@@ -115,6 +184,7 @@ export function MallScene(props: SceneProps) {
       data-room="mall"
       data-mall-shop={focus ?? 'concourse'}
       data-mall-mode={walk3d ? '3d' : '2d'}
+      data-mall-with={together?.friend.id ?? ''}
     >
       <header className="place-head">
         <div className="place-title">
@@ -124,7 +194,9 @@ export function MallScene(props: SceneProps) {
               ? t('Looking around · drag to turn your head')
               : focus
                 ? shopBlurb(focus)
-                : t('{n} shops, a food court and a cinema', { n: 6 })}
+                : shops.length > 6
+                  ? t('{n} shops, a food court, a cinema and an arcade', { n: shops.length - 1 })
+                  : t('{n} shops, a food court and a cinema', { n: 6 })}
           </span>
         </div>
         <span className="golf-pocket" data-pocket={pocket}>
@@ -134,16 +206,78 @@ export function MallScene(props: SceneProps) {
           ✕
         </button>
       </header>
+      {mall?.friends && (
+        <div className="mall-trip" data-mall-trip={trip?.status ?? 'none'}>
+          {together ? (
+            <>
+              <span className="mall-trip-who">
+                <svg viewBox="-24 -48 48 52" width="26" height="28" aria-hidden="true">
+                  {friendLook && <AvatarFigure look={friendLook} />}
+                </svg>
+                <span>
+                  <b>{t('Shopping with {name}', { name: friendName })}</b>
+                  <small>
+                    {together.gifts.length
+                      ? t('Gifts so far: {n} · 🎁 buys one', { n: together.gifts.length })
+                      : t('🎁 on anything buys it for them')}
+                  </small>
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn btn-subtle"
+                data-action="mall-trip-leave"
+                disabled={busy}
+                onClick={() => void leave()}
+              >
+                {t('Say goodbye')}
+              </button>
+            </>
+          ) : trip ? (
+            <>
+              <span className="mall-trip-who">
+                <span>
+                  <b>{t('Waiting for {name}…', { name: trip.friend.name })}</b>
+                  <small>{t('They’ll join you here when they accept.')}</small>
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn btn-subtle"
+                data-action="mall-trip-leave"
+                disabled={busy}
+                onClick={() => void leave()}
+              >
+                {t('Call it off')}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-subtle mall-trip-ask"
+              data-action="mall-invite"
+              onClick={() => setInviting(true)}
+            >
+              👥 {t('Shop with a friend')}
+            </button>
+          )}
+        </div>
+      )}
       <div className="mall-view">
         {walk3d ? (
           <MallWalk
             me={me}
+            friend={friendLook}
+            trip={together}
+            shops={shops}
+            units={units}
+            forMe={forMe}
             shoppers={shoppers}
             names={names}
             mallName={props.title}
             city={view.here?.name ?? view.market.name}
             mall={mall}
-            items={forYou}
+            items={shown0}
             pocket={pocket}
             currency={cur}
             busy={busy}
@@ -156,8 +290,10 @@ export function MallScene(props: SceneProps) {
             placeholder={
               <Mall2D
                 me={me}
+                friend={friendLook}
                 shoppers={shoppers}
                 focus={null}
+                shops={shops}
                 names={names}
                 mallName={props.title}
               />
@@ -166,8 +302,10 @@ export function MallScene(props: SceneProps) {
         ) : (
           <Mall2D
             me={shown}
+            friend={friendLook}
             shoppers={shoppers}
             focus={focus}
+            shops={shops}
             names={names}
             mallName={props.title}
           />
@@ -176,20 +314,33 @@ export function MallScene(props: SceneProps) {
           <div className="mall-bought" role="status" data-mall-bought={bought.item.id}>
             <div className="mall-bought-fig" aria-hidden="true">
               <svg viewBox="-24 -48 48 52" width="64" height="70">
-                <AvatarFigure look={me} />
+                <AvatarFigure look={bought.for && friendLook ? friendLook : me} />
               </svg>
             </div>
             <div className="mall-bought-text">
-              <b>{t('Bought: {item}', { item: tx(bought.item.label) })}</b>
+              <b>
+                {bought.for
+                  ? t('A gift for {name}: {item}', {
+                      name: bought.for,
+                      item: tx(bought.item.label),
+                    })
+                  : t('Bought: {item}', { item: tx(bought.item.label) })}
+              </b>
               <span>{money(bought.price, cur)}</span>
               <span className="small">
-                {bought.item.topStyle || bought.item.headwear || bought.item.glasses
-                  ? t('You’re wearing it.')
-                  : bought.item.furniture
-                    ? t('It’s in your home now.')
-                    : bought.item.phone
-                      ? t('Your new phone is in your pocket.')
-                      : bought.message}
+                {bought.for
+                  ? isWearable(bought.item)
+                    ? t('{name} is wearing it.', { name: bought.for.split(' ')[0] ?? '' })
+                    : t('It’s theirs now. You’re both a little happier.')
+                  : isWearable(bought.item)
+                    ? t('You’re wearing it.')
+                    : bought.item.furniture
+                      ? t('It’s in your home now.')
+                      : bought.item.phone
+                        ? t('Your new phone is in your pocket.')
+                        : bought.item.keep
+                          ? t('It’s in your bag.')
+                          : bought.message}
               </span>
               <button
                 type="button"
@@ -202,12 +353,19 @@ export function MallScene(props: SceneProps) {
             </div>
           </div>
         )}
+        {inviting && mall && (
+          <MallInviteSheet
+            mall={mall}
+            onClose={() => setInviting(false)}
+            onInvited={() => setInviting(false)}
+          />
+        )}
       </div>
       {!walk3d && (
         <div className="mall-tray">
           {!focus ? (
             <div className="mall-shops" role="group" aria-label={t('Shops')}>
-              {SHOP_ORDER.map((s) => (
+              {shops.map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -243,7 +401,7 @@ export function MallScene(props: SceneProps) {
               >
                 {t('← Back to the concourse')}
               </button>
-              {focus === 'fashion' && (
+              {wears && (
                 <div className="mall-colours" role="radiogroup" aria-label={t('Colour')}>
                   {TOP_COLOURS.map((c) => (
                     <button
@@ -277,33 +435,44 @@ export function MallScene(props: SceneProps) {
                       type="button"
                       className="mall-item-name"
                       onClick={() => setTrying(trying === it.id ? null : it.id)}
-                      disabled={focus !== 'fashion'}
+                      disabled={!isWearable(it) || !forMe(it)}
                     >
-                      <b>{tx(it.label)}</b>
+                      <b>
+                        <span aria-hidden="true">{itemIcon(it)} </span>
+                        {tx(it.label)}
+                      </b>
                       <span className="small muted">
-                        {focus === 'fashion'
+                        {isWearable(it) && forMe(it)
                           ? trying === it.id
                             ? t('Trying it on')
                             : t('Tap to try it on')
-                          : it.hours
-                            ? t('{n} hours', { n: it.hours })
-                            : it.hunger
-                              ? t('Fills you up')
-                              : it.slot
-                                ? t('For your home')
-                                : ''}
+                          : itemNote(it)}
                       </span>
                     </button>
                     <span className="mall-price">{money(it.price, cur)}</span>
-                    <button
-                      type="button"
-                      className="btn mall-buy"
-                      data-buy={it.id}
-                      disabled={busy || it.owned || pocket < it.price}
-                      onClick={() => void buy(it)}
-                    >
-                      {it.owned ? t('Yours') : t('Buy')}
-                    </button>
+                    {forMe(it) && (
+                      <button
+                        type="button"
+                        className="btn mall-buy"
+                        data-buy={it.id}
+                        disabled={busy || it.owned || pocket < it.price}
+                        onClick={() => void buy(it)}
+                      >
+                        {it.owned ? t('Yours') : t('Buy')}
+                      </button>
+                    )}
+                    {together && it.gift && (
+                      <button
+                        type="button"
+                        className="btn mall-buy mall-gift"
+                        data-gift={it.id}
+                        aria-label={t('Buy it for {name}', { name: friendName })}
+                        disabled={busy || pocket < it.price}
+                        onClick={() => void gift(it)}
+                      >
+                        🎁
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

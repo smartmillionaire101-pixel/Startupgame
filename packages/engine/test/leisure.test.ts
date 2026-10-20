@@ -171,11 +171,11 @@ describe('mall.buy', () => {
     expect(w2.players[F]!.needs!.fun).toBeGreaterThan(w1.players[F]!.needs!.fun);
   });
 
-  it('every item has a price in the view', () => {
+  it('every item has a price in the view (the first shops’ before the bigger mall’s note)', () => {
     const items = (
       playerView(fresh(), F)!.me as unknown as { mall: { items: { price: number }[] } }
     ).mall.items;
-    expect(items).toHaveLength(MALL_ITEMS.length);
+    expect(items).toHaveLength(MALL_ITEMS.filter((x) => !x.more).length);
     for (const i of items) expect(i.price).toBeGreaterThan(0);
   });
 
