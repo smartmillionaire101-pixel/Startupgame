@@ -9,7 +9,8 @@ import { expect, letters, playAsGuest, setupPlayer, tab, test, type Page } from 
  * City: a picture, the story, big choice buttons with what each costs. They
  * choose, and the card shows what happened and how their bars moved; the
  * top bar's life bars move with it. The event is kept under Recent
- * decisions on Today. In Simple mode the choices are big.
+ * decisions on Today. Simple mode is for founders only, so an investor
+ * always gets the full game.
  *
  * Accra: no other spec waits on its month (banker.spec only moves it on).
  * LIFE_SHOTS=<dir> saves 390×844 screenshots.
@@ -139,15 +140,15 @@ test('a life event pops up, the player chooses, and sees what happened', async (
   await shot(page, 'life-event-today');
 });
 
-test('Simple mode: the choices are big buttons', async ({ page }) => {
-  test.slow();
+test('Simple mode is for founders: an investor who had it on plays the full game', async ({
+  page,
+}) => {
   await newInvestor(page, true);
-  await untilLifeEvent(page);
-  await page.reload();
-  const card = page.locator('[data-life-event]');
-  await expect(card).toBeVisible({ timeout: 15_000 });
-  const box = await card.locator('.life-choice-btn').first().boundingBox();
-  expect(box!.height).toBeGreaterThanOrEqual(64);
-  expect(box!.width).toBeGreaterThan(300);
-  await shot(page, 'life-event-simple');
+  await expect(page.locator('html')).not.toHaveAttribute('data-simple', '1');
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await expect(nav.getByRole('button')).toHaveCount(5);
+  for (const name of ['City', 'Today', 'Portfolio', 'Deal offers', 'Me'])
+    await expect(tab(page, name)).toBeVisible();
+  await tab(page, 'Me').click();
+  await expect(page.locator('[data-setting="simple"]')).toHaveCount(0);
 });

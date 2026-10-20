@@ -17,7 +17,7 @@ import { MyLook } from '../avatar/EditLook';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
 import { FoundBank } from './Bank';
-import { setSetting, useSimple } from '../phone/settings';
+import { setSetting, useSimple, useSimpleAvailable } from '../phone/settings';
 import { openLiving } from '../experiences/living-bus';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
@@ -1029,6 +1029,8 @@ function MapVisibility() {
 /** Simple mode (Phase 2): the same switch as the phone's Settings app. */
 function SimpleModeCard() {
   const simple = useSimple();
+  // Founders only: investors and bankers always play the full game.
+  if (!useSimpleAvailable()) return null;
   return (
     <Card title={t('Simple mode')}>
       <label className="row simple-toggle" data-setting="simple">
