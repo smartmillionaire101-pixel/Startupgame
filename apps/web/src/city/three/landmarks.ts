@@ -702,7 +702,12 @@ export function deckFor(p: LandmarkPlan): number | null {
   return 12;
 }
 
-export function buildLandmarks(plans: LandmarkPlan[], roads: RoadIndex): THREE.Group {
+export function buildLandmarks(
+  plans: LandmarkPlan[],
+  roads: RoadIndex,
+  /** Floodlight colour (the city's NightLook.accent). */
+  accent = '#ffd9a0',
+): THREE.Group {
   const out = new THREE.Group();
   LIGHTS = new LightList();
   for (const p of plans) {
@@ -751,7 +756,7 @@ export function buildLandmarks(plans: LandmarkPlan[], roads: RoadIndex): THREE.G
       g = model(p.kind, p.name);
       if (g) {
         g.position.set(p.e, 0, p.s);
-        floodlight(g, p);
+        floodlight(g, p, accent);
       }
     }
     if (g) {
@@ -768,7 +773,7 @@ export const landmarkLights = (g: THREE.Group): LightList =>
   (g.userData.lights as LightList | undefined) ?? new LightList();
 
 /** Tower floodlights: strings of lights up its corners, a beacon on top, a ring for a wheel. */
-function floodlight(g: THREE.Group, p: LandmarkPlan) {
+function floodlight(g: THREE.Group, p: LandmarkPlan, accent: string) {
   g.updateMatrixWorld(true);
   const b = new THREE.Box3().setFromObject(g);
   if (b.isEmpty()) return;
@@ -787,7 +792,7 @@ function floodlight(g: THREE.Group, p: LandmarkPlan) {
     }
     return;
   }
-  const warm = /burj|shard|salesforce|gherkin|transamerica/.test(p.kind) ? '#eaf2ff' : '#ffd9a0';
+  const warm = /burj|shard|salesforce|gherkin|transamerica/.test(p.kind) ? '#eaf2ff' : accent;
   const step = Math.max(5, H / 28);
   const size = Math.max(5, Math.min(14, H / 40));
   for (let y = step * 0.5; y < H - step * 0.5; y += step)
