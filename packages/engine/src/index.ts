@@ -245,6 +245,47 @@ export {
   golfHandicap,
 } from './play.js';
 export type { GolfMatch, GolfMatchShot, GolfPlayer } from './play.js';
+export { POOL_AI_THINK, poolAiError, keeperSkill } from './play.js';
+export type { PoolCall, PoolShotLog, Penalty } from './play.js';
+export {
+  POOL_W,
+  POOL_H,
+  POOL_R,
+  POOL_CORNER,
+  POOL_SIDE,
+  POOL_HEAD_X,
+  POOL_HEAD,
+  POOL_FOOT,
+  POOL_POCKETS,
+  simulatePool,
+  poolSpeed,
+  poolPlan,
+  poolAim,
+  poolRack,
+  freeSpot,
+  inGroup,
+  groupOf,
+  rollDistance,
+  powerFor,
+} from './pool.js';
+export type { PoolBall, PoolEvent, PoolSim, PoolGroup, PoolPlan } from './pool.js';
+export {
+  GOAL_HALF,
+  GOAL_H,
+  FOOTBALL_R,
+  SPOT,
+  SHOOTOUT_KICKS,
+  SHOOTOUT_MAX_EACH,
+  DIVES,
+  laneOf,
+  keeperAt,
+  kickFlight,
+  resolveKick,
+  aiDive,
+  aiKick,
+  shootoutOver,
+} from './shootout.js';
+export type { Kick, KickOutcome, KickResult } from './shootout.js';
 export {
   JOURNEY,
   OBJECTIVE_KINDS,
