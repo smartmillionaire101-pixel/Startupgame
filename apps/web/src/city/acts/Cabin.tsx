@@ -3,9 +3,11 @@
  * perspective: rows of seats with passengers facing you, overhead bins,
  * windows on the side walls, the crew pushing the trolley down the aisle,
  * your seat highlighted, a window inset with the sky outside, the seatbelt
- * sign and the meal. The cabin class follows your lifestyle tier: economy
- * (3+3), premium (2+2), business (1+1 suites) or, at the top, your own
- * private jet: cream leather, a guest or two.
+ * sign and the meal. The cabin is the one on your ticket (economy, business
+ * or first: walnut suites with a door, a bed and champagne); before cabins
+ * were on sale it followed your lifestyle tier: economy (3+3), premium
+ * (2+2), business (1+1) or, at the top, your own private jet: cream
+ * leather, a guest or two.
  *
  * One requestAnimationFrame loop writes the moving parts through refs; the
  * cabin itself is drawn once. Paused while the tab is hidden; reduced motion
@@ -21,8 +23,9 @@ import './acts.css';
 import { SeatedFigure } from './figure';
 import { layoutTags } from '../flight3d/tags';
 import { ease, fade, lerp, put, seg, text } from './types';
+import { CabinService } from './CabinService';
 
-export type CabinClass = 'economy' | 'premium' | 'business' | 'private';
+export type CabinClass = 'economy' | 'premium' | 'business' | 'first' | 'private';
 export const cabinClassOf = (tier: number | undefined): CabinClass =>
   fliesPrivate(tier)
     ? 'private'
@@ -31,6 +34,23 @@ export const cabinClassOf = (tier: number | undefined): CabinClass =>
       : (tier ?? 2) >= 3
         ? 'premium'
         : 'economy';
+
+/**
+ * The cabin you sit in: the one on your ticket (business or first), your own
+ * jet at the top of the lifestyle ladder, else economy. Without cabins on sale
+ * (`ticketed` missing: an older server) it follows your lifestyle as before.
+ */
+export const cabinFor = (
+  tier: number | undefined,
+  ticketed: 'economy' | 'business' | 'first' | undefined,
+): CabinClass =>
+  ticketed === 'business' || ticketed === 'first'
+    ? ticketed
+    : fliesPrivate(tier)
+      ? 'private'
+      : ticketed === 'economy'
+        ? 'economy'
+        : cabinClassOf(tier);
 
 // ---------------------------------------------------------------------------
 // Perspective: the camera stands in the aisle at the front, eyes at y = 0.
@@ -103,6 +123,17 @@ const CLASSES: Record<CabinClass, ClassSpec> = {
     label: 'Business',
     rowNo: 3,
   },
+  first: {
+    perSide: 1,
+    seatW: 138,
+    aisle: 66,
+    seat: '#e9dcc3',
+    trim: '#c9a227',
+    wall: '#f3eee4',
+    carpet: '#3a2e26',
+    label: 'First class',
+    rowNo: 1,
+  },
   private: {
     perSide: 1,
     seatW: 124,
@@ -149,7 +180,14 @@ function Seat({
   const w = spec.seatW - 6;
   const p = P(x, FLOOR, z);
   const s = p.s;
-  const top = cls === 'business' || cls === 'private' ? -175 : cls === 'premium' ? -162 : -150;
+  const top =
+    cls === 'first'
+      ? -185
+      : cls === 'business' || cls === 'private'
+        ? -175
+        : cls === 'premium'
+          ? -162
+          : -150;
   const fig = 3.4 * s;
   return (
     <g data-seat={you ? 'you' : undefined}>
@@ -168,7 +206,11 @@ function Seat({
         width={(w - 16) * s}
         height={20 * s}
         rx={6 * s}
-        fill={cls === 'business' || cls === 'private' ? '#f8fafc' : shade(spec.seat, 0.25)}
+        fill={
+          cls === 'business' || cls === 'private' || cls === 'first'
+            ? '#f8fafc'
+            : shade(spec.seat, 0.25)
+        }
       />
       {/* The cushion and the base under it. */}
       <rect
@@ -235,6 +277,7 @@ export function Cabin({
   still,
   dur,
   tier,
+  cabin,
   look,
   party,
 }: {
@@ -245,6 +288,8 @@ export function Cabin({
   /** How long the cabin phase lasts (ms). */
   dur: number;
   tier: number | undefined;
+  /** The cabin on your ticket (missing: an older server, the class follows your lifestyle). */
+  cabin?: 'economy' | 'business' | 'first';
   /** You, in your seat. */
   look: AvatarLook;
   /** Holiday with friends: your seat and the friends in the seats beside you. */
@@ -253,7 +298,7 @@ export function Cabin({
     with: { id: string; first: string; look: AvatarLook; seat: string | null }[];
   } | null;
 }) {
-  const cls = cabinClassOf(tier);
+  const cls = cabinFor(tier, cabin);
   const spec = CLASSES[cls];
   const root = useRef<HTMLDivElement>(null);
   const [mood, setMood] = useState<'awake' | 'sleep' | 'work'>('awake');
@@ -297,7 +342,9 @@ export function Cabin({
           const key = `${from}:${to}:${idx}`;
           for (let q = 0; q < key.length; q++) h = (h * 31 + key.charCodeAt(q)) >>> 0;
           // Your own jet: you, and a guest or two.
-          const taken = you || (cls === 'private' ? h % 4 === 0 : h % 4 !== 0);
+          // (First: a quiet cabin, a suite or two taken.)
+          const taken =
+            you || (cls === 'private' ? h % 4 === 0 : cls === 'first' ? h % 3 === 0 : h % 4 !== 0);
           const col = side < 0 ? spec.perSide - 1 - j : spec.perSide + j;
           out.push({
             x,
@@ -632,6 +679,29 @@ export function Cabin({
             who={s.who}
             you={s.you}
           >
+            {cls === 'first' && (
+              // The suite: walnut walls with a gold line, the door on the aisle side.
+              <g>
+                {[-1, 1].map((k) => (
+                  <g key={k}>
+                    <rect
+                      x={P(s.x + k * (spec.seatW / 2 + 2) - (k < 0 ? 12 : 0), FLOOR - 150, s.z).x}
+                      y={P(0, FLOOR - 150, s.z).y}
+                      width={12 * sAt(s.z)}
+                      height={150 * sAt(s.z)}
+                      fill="#5b3a22"
+                    />
+                    <rect
+                      x={P(s.x + k * (spec.seatW / 2 + 2) - (k < 0 ? 12 : 0), FLOOR - 150, s.z).x}
+                      y={P(0, FLOOR - 152, s.z).y}
+                      width={12 * sAt(s.z)}
+                      height={4 * sAt(s.z)}
+                      fill={spec.trim}
+                    />
+                  </g>
+                ))}
+              </g>
+            )}
             {cls === 'business' && (
               <rect
                 x={
@@ -666,7 +736,30 @@ export function Cabin({
             </text>
           </g>
         ))}
-        <g data-n={'meal'} opacity="0" data-meal="">
+        <g data-n={'meal'} opacity="0" data-meal={cls}>
+          {(cls === 'business' || cls === 'first' || cls === 'private') && (
+            // A white cloth and a stemmed glass: wine in business, champagne up front.
+            <g>
+              <rect x="-30" y="-8" width="60" height="10" rx="2" fill="#f8fafc" />
+              <rect x="24" y="-12" width="1.4" height="8" fill="#e0f2fe" />
+              <path
+                d={
+                  cls === 'business'
+                    ? 'M 21 -20 h 8 l -1 7 h -6 Z'
+                    : 'M 22.5 -26 h 5 l -0.6 13 h -3.8 Z'
+                }
+                fill={cls === 'business' ? '#7f1d1d' : '#fde68a'}
+                stroke="#e0f2fe"
+                strokeWidth="0.6"
+              />
+            </g>
+          )}
+          {cls === 'first' && (
+            <g>
+              <ellipse cx="-24" cy="-12" rx="5" ry="2.4" fill="#cbd5e1" />
+              <ellipse cx="-24" cy="-12.6" rx="4" ry="1.6" fill="#111827" />
+            </g>
+          )}
           <rect x="-26" y="-6" width="52" height="8" rx="2" fill="#94a3b8" />
           <rect x="-22" y="-12" width="20" height="7" rx="2" fill="#f8fafc" />
           <ellipse cx="-12" cy="-12" rx="7" ry="2.2" fill="#ea580c" />
@@ -680,6 +773,23 @@ export function Cabin({
             className="cab-steam"
           />
         </g>
+        {(cls === 'business' || cls === 'first') && (
+          // The amenity kit, on your armrest.
+          <g
+            data-amenity-kit={cls}
+            transform={`translate(${(youP.x + (spec.seatW / 2 - 6) * youP.s).toFixed(1)} ${(youP.y - 96 * youP.s).toFixed(1)}) scale(${youP.s.toFixed(3)})`}
+          >
+            <rect
+              x="-12"
+              y="-8"
+              width="24"
+              height="12"
+              rx="5"
+              fill={cls === 'first' ? '#7c2d12' : '#1e3a8a'}
+            />
+            <rect x="-3" y="-9" width="6" height="3" rx="1" fill="#c9a227" />
+          </g>
+        )}
         {mood === 'work' && (
           <g
             transform={`translate(${youP.x.toFixed(1)} ${(youP.y - 70 * youP.s).toFixed(1)}) scale(${youP.s.toFixed(3)})`}
@@ -867,6 +977,7 @@ export function Cabin({
         </text>
       </svg>
 
+      <CabinService cls={cls} />
       <div className="fl-cabin-acts">
         <button
           type="button"

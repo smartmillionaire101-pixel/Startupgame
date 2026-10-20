@@ -43,15 +43,20 @@ export function HotelPicker({
   onBook: (hotel: HotelTier | null) => void;
   onCancel: () => void;
 }) {
+  // Affordable with this fare (business and first cost more than the server's economy check).
+  const options = hotels.map((h) => ({
+    ...h,
+    affordable: h.affordable && balance >= fare + h.price,
+  }));
   const [pick, setPick] = useState<HotelTier | 'none'>(
-    () => suggestHotel(hotels, fare, balance) ?? 'none',
+    () => suggestHotel(options, fare, balance) ?? 'none',
   );
-  const chosen = hotels.find((h) => h.tier === pick);
+  const chosen = options.find((h) => h.tier === pick);
   return (
     <div className="hotel-picker" data-hotel-picker={city}>
       <b className="small">{t('Where will you stay in {city}?', { city })}</b>
       <div className="hotel-options" role="radiogroup" aria-label={t('Hotels')}>
-        {hotels.map((h) => (
+        {options.map((h) => (
           <label
             key={h.tier}
             className={`hotel-option${pick === h.tier ? ' is-picked' : ''}${h.affordable ? '' : ' is-off'}`}

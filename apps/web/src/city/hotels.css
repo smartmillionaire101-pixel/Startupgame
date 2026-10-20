@@ -60,3 +60,112 @@
 .hotel-stay {
   display: block;
 }
+
+/* Choosing the cabin (CabinPicker): economy, business and first side by side. */
+.trip-picker {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0 0.25rem;
+}
+.trip-picker .hotel-picker {
+  padding-top: 0.25rem;
+}
+.cabin-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.cabin-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.45rem 0.45rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm, 10px);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+.cabin-option input {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.4rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.cabin-option.is-picked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.cabin-option.is-off {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.cabin-business {
+  border-top: 3px solid #1e3a8a;
+}
+.cabin-first {
+  border-top: 3px solid #c9a227;
+}
+.cabin-head {
+  padding-right: 1rem;
+  overflow-wrap: anywhere;
+}
+.cabin-price {
+  font-weight: 800;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cabin-perks {
+  margin: 0;
+  padding: 0 0 0 0.9rem;
+  color: var(--muted);
+}
+.cabin-perks li {
+  overflow-wrap: anywhere;
+}
+.cabin-land {
+  font-weight: 650;
+}
+.cabin-off {
+  color: #b91c1c;
+  font-weight: 700;
+}
+.ticket-cabin {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-weight: 750;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.ticket-cabin.is-business {
+  border-color: #1e3a8a;
+  color: #1e3a8a;
+}
+.ticket-cabin.is-first {
+  border-color: #c9a227;
+  color: #92400e;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ticket-cabin.is-business {
+    color: #93c5fd;
+  }
+  :root:not([data-theme='light']) .ticket-cabin.is-first {
+    color: #fcd34d;
+  }
+}
+:root[data-theme='dark'] .ticket-cabin.is-business {
+  color: #93c5fd;
+}
+:root[data-theme='dark'] .ticket-cabin.is-first {
+  color: #fcd34d;
+}

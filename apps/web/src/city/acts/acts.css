@@ -371,3 +371,43 @@
 .cab-steam {
   animation: act8-steam 1.2s ease-out infinite;
 }
+
+/* What your cabin gives you (./CabinService.tsx): over the cabin, above Sleep and Work. */
+.cab-service {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(8.6rem + env(safe-area-inset-bottom));
+  width: min(calc(100vw - 32px), 360px);
+  padding: 0.5rem 0.75rem;
+  border-radius: 14px;
+  background: rgb(15 23 42 / 0.82);
+  color: #f8fafc;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.3);
+  pointer-events: none;
+}
+.cab-service ul {
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cab-service-title {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.cab-service-business .cab-service-title {
+  color: #93c5fd;
+}
+.cab-service-first,
+.cab-service-private {
+  background: linear-gradient(135deg, rgb(41 26 16 / 0.9), rgb(91 58 34 / 0.88));
+  border: 1px solid #c9a227;
+}
+.cab-service-first .cab-service-title,
+.cab-service-private .cab-service-title {
+  color: #fcd34d;
+}

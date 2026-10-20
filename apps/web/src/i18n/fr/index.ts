@@ -73,6 +73,7 @@ import { mallWalk } from './mall-walk';
 import { golfMatch } from './golf-match';
 import { camera } from './camera';
 import { jobsPro } from './jobs-pro';
+import { flightClasses } from './flight-classes';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -149,6 +150,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   golfMatch,
   camera,
   jobsPro,
+  flightClasses,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

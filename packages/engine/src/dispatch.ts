@@ -1177,7 +1177,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'player.travel':
       return travel(world, me, cmd.market);
     case 'travel.book':
-      return bookFlight(world, me, cmd.to, ctx.now, cmd.hotel, cmd.flight);
+      return bookFlight(world, me, cmd.to, ctx.now, cmd.hotel, cmd.flight, cmd.cabin);
     case 'travel.cancel':
       return cancelFlight(world, me);
     case 'travel.fly':
