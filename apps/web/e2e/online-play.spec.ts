@@ -71,23 +71,37 @@ test('Online now lists a real player, and a solo player plays a penalty shootout
     // An AI opponent sits down and the shootout starts at once.
     await expect(lobby.locator('.experience-scores > div')).toHaveCount(2, { timeout: 10000 });
     await expect(lobby.locator('.experience-scores')).toContainText('AI player');
-    await expect(lobby.getByText(/Your penalty|You are in goal/)).toBeVisible();
-    const finished = lobby.getByRole('heading', { name: /wins!$|^It’s a tie!$/ });
-    const kicks = lobby.locator('.experience-penalties span');
-    for (let i = 0; i < 40 && !(await finished.isVisible()); i++) {
-      const taken = await kicks.count();
-      const lane = lobby.locator('.experience-goal button').nth(i % 5);
-      try {
-        await expect(lane).toBeEnabled({ timeout: 8000 });
-        await lane.click({ timeout: 2000 });
-      } catch {
-        // The shootout ended (or moved on) while we aimed.
-      }
-      // The AI answers: another kick is taken (or the shootout is over).
+    // The shootout's pitch, then the kicks and dives through the server (the
+    // swipes and dive buttons themselves are played in table-games.spec.ts).
+    await expect(lobby.locator('.shootout-pitch canvas')).toBeVisible({ timeout: 15000 });
+    const finished = lobby.getByRole('heading', { name: /wins!$|It’s a tie/ });
+    const shootout = async () =>
+      (await state(page)).playRooms.find((r) => r.title === 'Penalties against AI')!;
+    for (let i = 0; i < 60; i++) {
+      const room = await shootout();
+      if (room.status === 'finished') break;
+      const kicks = room.penalties.length;
+      await page.request.post('/api/commands', {
+        headers: { 'x-runway': '1' },
+        data: {
+          command: {
+            type: 'play.penalty',
+            roomId: room.id,
+            round: room.round,
+            lane: i % 5,
+            kick: { x: i % 2 ? 2.6 : -2.6, y: 1.2, power: 0.6, curve: 0 },
+          },
+        },
+      });
+      // The AI answers: the kick is taken (or the shootout is over).
       await expect
-        .poll(async () => (await finished.isVisible()) || (await kicks.count()) > taken, {
-          timeout: 20000,
-        })
+        .poll(
+          async () => {
+            const r = await shootout();
+            return r.status === 'finished' || r.penalties.length > kicks;
+          },
+          { timeout: 20000 },
+        )
         .toBe(true);
     }
     await expect(finished).toBeVisible({ timeout: 10000 });
