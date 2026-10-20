@@ -38,6 +38,7 @@ import { hiring } from './hiring';
 import { founderFinance } from './founder-finance';
 import { recap } from './recap';
 import { decisions } from './decisions';
+import { tableGames } from './table-games';
 import { capital } from './capital';
 import { investorCareer } from './investor-career';
 import { investorExchange } from './investor-exchange';
@@ -149,6 +150,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   golfMatch,
   camera,
   jobsPro,
+  tableGames,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

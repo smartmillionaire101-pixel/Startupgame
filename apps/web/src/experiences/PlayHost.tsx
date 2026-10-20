@@ -7,14 +7,21 @@ import { t, useLang } from '../i18n';
 import { closePlay, onPlay, playPlace, type PlayPlace } from './play-bus';
 import { SnapButton } from '../photos/SnapButton';
 import { resultCard } from '../photos/snap';
+import { PoolGame } from './PoolGame';
+import { Shootout } from './Shootout';
 import './experiences.css';
 type Room = PlayerView['playRooms'][number];
-const names = {
-  quiz: 'Quiz night',
-  snooker: 'Snooker',
-  football: 'Football shootout',
-  golf: 'Golf',
-};
+/** A game's name. Snooker rooms from the investor-career release on play 8-ball pool. */
+const gameName = (game: Room['game'], rules: Room['rules'] = 'pool8') =>
+  game === 'quiz'
+    ? t('Quiz night')
+    : game === 'snooker'
+      ? rules === 'pool8'
+        ? t('8-ball pool')
+        : t('Snooker')
+      : game === 'football'
+        ? t('Football shootout')
+        : t('Golf');
 /** The games hosted here (golf with a friend is played at the golf club). */
 const TABLE_GAMES = ['quiz', 'snooker', 'football'] as const;
 const colors = ['#fff', '#dc3545', '#f6d32d', '#259553', '#985528', '#338ddd', '#fa86b4', '#111'];
@@ -97,7 +104,7 @@ function Lobby({ place }: { place: PlayPlace }) {
         g === 'quiz'
           ? t('Quiz against AI')
           : g === 'snooker'
-            ? t('Snooker against AI')
+            ? t('Pool against AI')
             : t('Penalties against AI'),
       stake: Math.round(Number(stake) * 100),
     });
@@ -125,46 +132,52 @@ function Lobby({ place }: { place: PlayPlace }) {
       >
         <header className="experience-header">
           <div>
-            <small>RUNWAY SOCIAL CLUB · {place.name}</small>
-            <h1>{room ? room.title : 'Make a night of it.'}</h1>
+            <small>
+              {t('RUNWAY SOCIAL CLUB')} · {place.name}
+            </small>
+            <h1>{room ? room.title : t('Make a night of it.')}</h1>
           </div>
           <button className="experience-close" onClick={closePlay} aria-label="Close games">
             ×
           </button>
         </header>
-        <p className="experience-note">
-          Virtual game money only. No purchases or cash payouts. Winners take the pot; ties and
-          cancelled rooms refund entries.
-        </p>
+        {!(room?.status === 'playing' && room.rules) && (
+          <p className="experience-note">
+            {t(
+              'Virtual game money only. No purchases or cash payouts. Winners take the pot; ties and cancelled rooms refund entries.',
+            )}
+          </p>
+        )}
         {!room ? (
           <>
             <div className="experience-games">
               {TABLE_GAMES.map((g) => (
                 <button className={game === g ? 'selected' : ''} key={g} onClick={() => setGame(g)}>
                   <span>{g === 'quiz' ? '?' : g === 'snooker' ? '●' : '⚽'}</span>
-                  <strong>{names[g]}</strong>
+                  <strong>{gameName(g)}</strong>
                   <small>
                     {g === 'quiz'
-                      ? 'Think fast. Play together.'
+                      ? t('Think fast. Play together.')
                       : g === 'snooker'
-                        ? 'Aim, set power, pot the balls.'
-                        : 'Read your opponent. Pick your corner.'}
+                        ? t('Break, pot your group, sink the 8.')
+                        : t('Swipe to shoot. Dive to save.')}
                   </small>
                 </button>
               ))}
             </div>
-            <h2>Open tables</h2>
+            <h2>{t('Open tables')}</h2>
             <div className="experience-rooms">
               {rooms.map((r) => (
                 <button key={r.id} onClick={() => setSelected(r.id)}>
                   <strong>{r.title}</strong>
                   <span>
-                    {names[r.game]} · {r.members.length} players · {r.status}
+                    {gameName(r.game, r.rules)} · {t('{n} players', { n: r.members.length })} ·{' '}
+                    {t(STATUS[r.status])}
                   </span>
-                  <small>{money(r.stake, r.currency)} entry</small>
+                  <small>{t('{amount} entry', { amount: money(r.stake, r.currency) })}</small>
                 </button>
               ))}
-              {!rooms.length && <p>No games here yet. Start the first one.</p>}
+              {!rooms.length && <p>{t('No games here yet. Start the first one.')}</p>}
             </div>
             {game === 'quiz' && (
               <form
@@ -211,7 +224,7 @@ function Lobby({ place }: { place: PlayPlace }) {
                   void create();
                 }}
               >
-                <h2>Host {names[game].toLowerCase()}</h2>
+                <h2>{t('Host: {game}', { game: gameName(game) })}</h2>
                 <label>
                   Room name
                   <input
@@ -274,31 +287,34 @@ function Lobby({ place }: { place: PlayPlace }) {
         ) : (
           <>
             <div className="experience-toolbar">
-              <button onClick={() => setSelected(null)}>← All tables</button>
-              <span>{names[room.game]}</span>
-              <b>Pot {money(room.pot, room.currency)}</b>
+              <button onClick={() => setSelected(null)}>← {t('All tables')}</button>
+              <span>{gameName(room.game, room.rules)}</span>
+              <b>{t('Pot {amount}', { amount: money(room.pot, room.currency) })}</b>
               {room.status === 'playing' && (
                 <strong className="experience-timer">{seconds}s</strong>
               )}
             </div>
-            <div className="experience-scores">
+            <div
+              className={`experience-scores ${room.rules && room.status === 'playing' ? 'compact' : ''}`}
+            >
               {room.members.map((m) => (
                 <div key={m.id} className={m.id === me ? 'you' : ''}>
                   <span>
                     {m.name}
-                    {m.id === me ? ' (you)' : ''}
+                    {m.id === me ? ` ${t('(you)')}` : ''}
                     {room.ai.includes(m.id) ? ` · ${t('AI player')}` : ''}
                   </span>
                   <strong>{m.score}</strong>
-                  {(room.answered.includes(m.id) || room.locked.includes(m.id)) && (
-                    <small>Locked in ✓</small>
+                  {(room.answered.includes(m.id) ||
+                    (room.locked.includes(m.id) && room.rules !== 'shootout')) && (
+                    <small>{t('Locked in ✓')}</small>
                   )}
                 </div>
               ))}
             </div>
             {room.status === 'waiting' && (
               <div className="experience-wait">
-                <h2>Get everyone around the table.</h2>
+                <h2>{t('Get everyone around the table.')}</h2>
                 <p>
                   {room.game === 'quiz'
                     ? t(
@@ -313,10 +329,10 @@ function Lobby({ place }: { place: PlayPlace }) {
                   <QuizWait createdAt={room.createdAt} />
                 )}
                 <p>
-                  Entry: {money(room.stake, room.currency)} ·{' '}
+                  {t('Entry: {amount}', { amount: money(room.stake, room.currency) })} ·{' '}
                   {room.currency !== cur && room.stake > 0
-                    ? 'Staked play needs a matching-currency account.'
-                    : 'Paid into the game pot when you join.'}
+                    ? t('Staked play needs a matching-currency account.')
+                    : t('Paid into the game pot when you join.')}
                 </p>
                 {!member && !(room.custom && room.host === me) && (
                   <button
@@ -413,10 +429,23 @@ function Lobby({ place }: { place: PlayPlace }) {
                 )}
               </div>
             )}
-            {room.status === 'playing' && room.game === 'snooker' && (
+            {room.status !== 'waiting' && room.status !== 'cancelled' && room.rules === 'pool8' && (
+              <PoolGame
+                room={room}
+                me={me}
+                live={room.status === 'playing'}
+                serverNow={() => Date.now() + timeOffset.current}
+              />
+            )}
+            {room.status !== 'waiting' &&
+              room.status !== 'cancelled' &&
+              room.rules === 'shootout' && (
+                <Shootout room={room} me={me} live={room.status === 'playing'} />
+              )}
+            {room.status === 'playing' && room.game === 'snooker' && !room.rules && (
               <Snooker room={room} me={me} />
             )}
-            {room.status === 'playing' && room.game === 'football' && (
+            {room.status === 'playing' && room.game === 'football' && !room.rules && (
               <div className="experience-football">
                 <h2>
                   {room.shooter === me
@@ -472,7 +501,7 @@ function Lobby({ place }: { place: PlayPlace }) {
                 </div>
               </div>
             )}
-            {room.last && (
+            {room.last && !room.rules && (
               <p className="experience-result" role="status">
                 {room.last}
               </p>
@@ -481,15 +510,19 @@ function Lobby({ place }: { place: PlayPlace }) {
               <div className="experience-wait">
                 <h2>
                   {room.status === 'cancelled'
-                    ? 'Entries refunded'
+                    ? t('Entries refunded')
                     : room.winners.length === 1
-                      ? `${room.members.find((m) => m.id === room.winners[0])?.name} wins!`
-                      : 'It’s a tie!'}
+                      ? t('{name} wins!', {
+                          name: room.members.find((m) => m.id === room.winners[0])?.name ?? '',
+                        })
+                      : t('It’s a tie!')}
                 </h2>
                 <p>
                   {room.status === 'finished' && room.winners.length === 1
-                    ? `${money(room.stake * room.members.length, room.currency)} paid to the winner.`
-                    : 'All stakes have been returned.'}
+                    ? t('{amount} paid to the winner.', {
+                        amount: money(room.stake * room.members.length, room.currency),
+                      })
+                    : t('All stakes have been returned.')}
                 </p>
                 <button
                   className="experience-primary"
@@ -498,7 +531,7 @@ function Lobby({ place }: { place: PlayPlace }) {
                     setGame(room.game);
                   }}
                 >
-                  Play again
+                  {t('Play again')}
                 </button>
                 {room.status === 'finished' && (
                   <SnapButton
@@ -510,7 +543,7 @@ function Lobby({ place }: { place: PlayPlace }) {
                     city={view.market.name}
                     make={() =>
                       resultCard({
-                        kicker: `${names[room.game]} · ${place.name ?? view.market.name}`,
+                        kicker: `${gameName(room.game, room.rules)} · ${place.name ?? view.market.name}`,
                         title:
                           room.winners.length === 1
                             ? room.winners[0] === me
@@ -665,6 +698,13 @@ function Snooker({ room, me }: { room: Room; me: string }) {
     </div>
   );
 }
+
+const STATUS: Record<Room['status'], string> = {
+  waiting: 'waiting',
+  playing: 'playing',
+  finished: 'finished',
+  cancelled: 'cancelled',
+};
 
 const CATS: Record<string, string> = {
   general: 'General knowledge',

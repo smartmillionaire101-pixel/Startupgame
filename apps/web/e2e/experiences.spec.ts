@@ -71,9 +71,29 @@ test('two players discover a home game, play football and share a consenting sky
     await gameB.getByRole('button', { name: /^Join/ }).click();
     await expect(gameA.getByRole('button', { name: 'Start game' })).toBeEnabled({ timeout: 10000 });
     await gameA.getByRole('button', { name: 'Start game' }).click();
-    await gameA.getByRole('button', { name: 'Top left', exact: true }).click();
-    await gameB.getByRole('button', { name: 'Bottom right', exact: true }).click();
-    await expect(gameA.getByText('GOAL!', { exact: true })).toBeVisible({ timeout: 10000 });
+    // The host takes the first kick: a swipe from the ball up to the top left corner.
+    const pitch = gameA.locator('.shootout-pitch canvas');
+    await expect(pitch).toHaveAttribute('data-turn', 'shoot', { timeout: 10000 });
+    await pitch.scrollIntoViewIfNeeded();
+    const box = (await pitch.boundingBox())!;
+    const [bx, by] = (await pitch.getAttribute('data-ball'))!.split(',').map(Number);
+    const [gl, gt, gr, gb] = (await pitch.getAttribute('data-goal'))!.split(',').map(Number);
+    const to = { x: box.x + gl! + (gr! - gl!) * 0.15, y: box.y + gt! + (gb! - gt!) * 0.3 };
+    await a.mouse.move(box.x + bx!, box.y + by!);
+    await a.mouse.down();
+    for (let i = 1; i <= 8; i++) {
+      await a.mouse.move(
+        box.x + bx! + (to.x - box.x - bx!) * (i / 8),
+        box.y + by! + (to.y - box.y - by!) * (i / 8),
+      );
+      await a.waitForTimeout(30);
+    }
+    await a.mouse.up();
+    await gameB.getByRole('button', { name: 'Dive bottom right', exact: true }).click();
+    await expect(gameA.locator('.shootout-banner')).toHaveText(
+      /GOAL!|SAVED!|post|crossbar|Wide|Over/,
+      { timeout: 10000 },
+    );
     await a.screenshot({ path: info.outputPath('football.png') });
     await gameA.getByRole('button', { name: 'Close games' }).click();
     await gameB.getByRole('button', { name: 'Close games' }).click();

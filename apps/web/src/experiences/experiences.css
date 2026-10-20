@@ -770,3 +770,263 @@
     ),
     linear-gradient(180deg, rgb(191 227 240 / 0.22), rgb(191 227 240 / 0.38));
 }
+
+/* ---------------------------------------------------------------- 8-ball pool and the shootout */
+.experience-scores.compact {
+  display: none;
+}
+.pool,
+.shootout {
+  display: grid;
+  gap: 8px;
+  padding: 8px 0 4px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.pool-hud {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.pool-player {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid #2f4d38;
+  border-radius: 10px;
+  background: #092017;
+  min-width: 0;
+}
+.pool-player.at-table {
+  border-color: #d4ed99;
+  box-shadow: 0 0 0 1px #d4ed99 inset;
+}
+.pool-player strong {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pool-player small {
+  color: #b8cdb9;
+  font-size: 11px;
+}
+.pool-rack {
+  display: flex;
+  gap: 3px;
+  min-height: 14px;
+}
+.pool-rack i {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--ball);
+  box-shadow: inset -2px -2px 3px rgba(0, 0, 0, 0.35);
+}
+.pool-rack i.stripe {
+  background: linear-gradient(#f7f3e6 0 26%, var(--ball) 26% 74%, #f7f3e6 74%);
+}
+.pool-rack i.down {
+  opacity: 0.2;
+}
+.pool-power {
+  position: relative;
+  height: 22px;
+  border-radius: 11px;
+  background: #0b2219;
+  border: 1px solid #2f4d38;
+  overflow: hidden;
+}
+.pool-power span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #6fcf6a, #f2d24b 60%, #ef5b3a);
+}
+.pool-power b {
+  position: relative;
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  line-height: 20px;
+  text-shadow: 0 1px 2px #000;
+}
+.pool-hint,
+.pool-call,
+.shootout-prompt {
+  margin: 0;
+  min-height: 1.3em;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #d9e8d2;
+}
+/* Room for the longest line of advice, so the table never jumps under a finger. */
+.pool-hint {
+  min-height: 2.7em;
+}
+.shootout-prompt {
+  min-height: 4.05em;
+}
+.pool-call {
+  color: #d4ed99;
+}
+.pool-table {
+  display: flex;
+  justify-content: center;
+}
+.pool-table canvas,
+.shootout-pitch canvas {
+  display: block;
+  touch-action: none;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.pool-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.pool-controls > button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.pool-controls .experience-primary {
+  margin-left: auto;
+}
+.pool-spin {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50% !important;
+  background: radial-gradient(circle at 35% 35%, #fff, #e6e1d2 60%, #a9a497) !important;
+  border: 1px solid #fff4 !important;
+  padding: 0 !important;
+}
+.pool-spin i {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: #d0282c;
+}
+.pool-slider {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  flex: 1 1 90px;
+}
+.shootout-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #0a1a2e;
+  border: 1px solid #23406a;
+}
+.shootout-card > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 28px;
+  align-items: center;
+  gap: 8px;
+}
+.shootout-card > div.up strong::before {
+  content: '▶ ';
+  color: #f2d24b;
+}
+.shootout-card strong {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shootout-card b {
+  font-size: 22px;
+  text-align: right;
+}
+.shootout-card .kicks {
+  display: flex;
+  gap: 4px;
+}
+.shootout-card .kicks i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #5a7398;
+}
+.shootout-card .kicks i.goal {
+  background: #3ccf6e;
+  border-color: #3ccf6e;
+}
+.shootout-card .kicks i.miss {
+  background: #e0473a;
+  border-color: #e0473a;
+}
+.shootout-card .sudden {
+  color: #f2d24b;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+.shootout-pitch {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.shootout-dives {
+  position: absolute;
+  inset: 0;
+  margin: 0 auto;
+  width: 100%;
+  pointer-events: none;
+}
+.shootout-dives button {
+  position: absolute;
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px dashed rgba(255, 255, 255, 0.45) !important;
+  border-radius: 6px !important;
+  padding: 0 !important;
+}
+.shootout-dives button:hover,
+.shootout-dives button:focus-visible {
+  background: rgba(242, 210, 75, 0.3) !important;
+}
+.shootout-banner {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  animation: shootout-pop 0.35s ease-out;
+}
+.shootout-banner.good {
+  background: rgba(24, 120, 60, 0.94);
+}
+.shootout-banner.bad {
+  background: rgba(160, 34, 34, 0.94);
+}
+@keyframes shootout-pop {
+  from {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shootout-banner {
+    animation: none;
+  }
+}
+:root[data-reduce-motion]:not([data-reduce-motion='0']):not([data-reduce-motion='false'])
+  .shootout-banner {
+  animation: none;
+}

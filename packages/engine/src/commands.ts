@@ -354,6 +354,19 @@ export const commandSchema = z.discriminatedUnion('type', [
     roomId: id,
     round: z.number().int().min(0),
     lane: z.number().int().min(0).max(4),
+    /**
+     * Shootout rooms: the swipe that takes the kick (where on the goal line
+     * it's aimed in metres from the middle and up from the ground, how hard,
+     * how much curl). Older clients send the lane alone.
+     */
+    kick: z
+      .object({
+        x: z.number().min(-6).max(6),
+        y: z.number().min(0).max(5),
+        power: z.number().min(0).max(1),
+        curve: z.number().min(-1).max(1),
+      })
+      .optional(),
   }),
   /** Golf with a friend: say no to an invitation (the host's stake goes back). */
   z.object({ type: z.literal('play.decline'), roomId: id }),
@@ -376,6 +389,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     round: z.number().int().min(0),
     angle: z.number().min(-Math.PI).max(Math.PI),
     power: z.number().min(5).max(100),
+    /** 8-ball pool: follow (+) or draw (−), and side (english), −1 … 1. */
+    spin: z.number().min(-1).max(1).optional(),
+    side: z.number().min(-1).max(1).optional(),
+    /** 8-ball pool, ball in hand: where you put the cue ball (cm on the cloth). */
+    cueX: z.number().min(0).max(254).optional(),
+    cueY: z.number().min(0).max(127).optional(),
   }),
   /** `hotel` (optional): book a stay abroad with the flight. Missing = no hotel, as before. */
   z.object({
