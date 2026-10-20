@@ -27,6 +27,7 @@ import { CityScene } from '../city/three/scene';
 import { SkyRide, skyExtras } from '../city/three/skyview';
 import { loadTerrainField, type TerrainField } from '../city/three/terrain';
 import { markWebGLBroken } from '../city/three/quality';
+import { disposeParkedStages } from '../interiors3d/stage';
 import { softwareGl, webglAvailable } from '../three-kit/quality';
 import { SKY_LABELS, type SkyLabel } from './skyLabels';
 import { SkyRise } from './SkyRise';
@@ -226,6 +227,9 @@ export default function Panorama({
       canvas.setAttribute('aria-hidden', 'true');
       const tier = tierOf();
       const soft = softwareGl();
+      // Over a home or a hotel room (a balcony): free the 3D views kept for later
+      // first, or a phone may have no WebGL left for the city (player feedback).
+      if (balcony) disposeParkedStages();
       let scene: CityScene;
       try {
         scene = new CityScene(

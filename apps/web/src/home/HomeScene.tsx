@@ -1553,7 +1553,8 @@ export function HomeScene({
         </div>
       )}
       <div className="home-stage">
-        {want3d && (
+        {/* Out on the balcony, the room's 3D steps aside for the city's (a phone's WebGL). */}
+        {want3d && !sky && (
           <Suspense fallback={null}>
             <Home3D
               plan={plan}
@@ -2320,7 +2321,7 @@ function buildObjects(
           'act' in v
             ? act(v.act, t(v.label))
             : 'model' in v
-              ? { id: 'car', label: t(v.label), model: v.model }
+              ? { id: 'car', label: t(v.label, { car: carName(v.model) }), model: v.model }
               : v.id === 'skyline'
                 ? { id: 'skyline', label: t(v.label) }
                 : { id: 'party', label: t(v.label) },

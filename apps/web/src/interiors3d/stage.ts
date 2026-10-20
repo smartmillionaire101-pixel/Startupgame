@@ -517,6 +517,16 @@ export function parkStage(kind: string, s: Stage) {
   PARKED.set(kind, s);
 }
 
+/**
+ * Let go of every kept stage (their WebGL contexts): before a big 3D view
+ * opens over a scene (a penthouse balcony's skyline), so a phone has the
+ * memory and contexts for it.
+ */
+export function disposeParkedStages() {
+  for (const s of PARKED.values()) s.dispose();
+  PARKED.clear();
+}
+
 /** The kept stage of this kind set up for a new view (null when there's none). */
 export function unparkStage(kind: string, o: StageOpts): Stage | null {
   const s = PARKED.get(kind);
