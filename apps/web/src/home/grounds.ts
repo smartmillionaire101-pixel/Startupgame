@@ -317,9 +317,10 @@ function roof(plan: HomePlan, cars: readonly string[]): Grounds {
   const rich = plan.wealth >= 2;
   const terrace: Rect = { x: 0, y: H + 0.3, w: W, h: rich ? 4.6 : 3.6 };
   // A pool to swim in (player feedback: "the swimming said it's a tub"); bigger for a rich owner.
+  // Beside the loungers, where a phone's view of the terrace shows it.
   const pool = rich
-    ? { x: W - 6, y: H + 0.8, w: 5, h: 2.6, hot: false }
-    : { x: W - 4.5, y: H + 0.9, w: 3.5, h: 2.4, hot: false };
+    ? { x: 6.4, y: H + 0.8, w: 5, h: 2.6, hot: false }
+    : { x: 6.4, y: H + 0.9, w: 3.5, h: 2.4, hot: false };
   const loungers: Lounger[] = [0, 1, 2].slice(0, rich ? 3 : 2).map((i) => ({
     x: 2.6 + i * 1.15,
     y: H + 1.6,

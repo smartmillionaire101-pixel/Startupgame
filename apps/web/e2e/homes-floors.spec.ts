@@ -174,6 +174,8 @@ test('a penthouse balcony: watch the skyline, and a party another player comes t
   await expect(home).toHaveAttribute('data-kind', 'penthouse', { timeout: 20_000 });
   // On the roof: a pool to swim in, and no car (cars are down in the building's garage).
   await expect(home.locator('[data-obj^="car-"]')).toHaveCount(0);
+  await a.waitForTimeout(4000);
+  await shot(a, 'penthouse-home');
   await home.locator('[data-obj="pool-water"]').click();
   const pool = home.getByRole('menu', { name: 'Infinity pool' });
   await expect(pool.locator('[data-verb="workout"]')).toHaveText('Swim');
