@@ -124,7 +124,7 @@ function floor(root: THREE.Group, kind: FloorKind, tint?: string, w = RW, d = RD
 }
 
 /** Group seated slots into tables of two (side by side in 2D) and singles. */
-function pairs(slots: { s: Slot; i: number }[]) {
+export function pairs(slots: { s: Slot; i: number }[]) {
   const left = [...slots].sort((a, b) => a.s.x - b.s.x);
   const used = new Set<number>();
   const out: { a: { s: Slot; i: number }; b?: { s: Slot; i: number } }[] = [];

@@ -28,6 +28,7 @@ import { useView } from '../../store';
 import { Segmented } from '../../ui';
 import { businessesOf, type BusinessView } from '../../city/contract';
 import { cuisineOf, FOOD_KINDS, mealAt, openAt, priceHint } from '../../city/eatout';
+import { foodStyleOf } from '../../city/cuisine';
 import { venueItemsOf, type VenueItemView } from '../../city/life';
 import { golfOf, mallOf, mallSpot } from '../../city/leisure';
 import { SHOP_ICON, SHOP_ORDER, shopName } from '../../city/mall/shops';
@@ -280,6 +281,8 @@ interface Eatery {
   b: BusinessView;
   placeId: string;
   icon: string;
+  /** Its style id (../../city/cuisine.ts). */
+  style: string | null;
   line: string;
   price: 1 | 2 | 3 | null;
   /** Trading and within its hours. */
@@ -306,13 +309,16 @@ function EatOut({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layout
       const placeId = `biz:${b.id}`;
       const p = layout?.places.find((x) => x.id === placeId);
       if (layout && !p) continue;
-      const cuisine = cuisineOf(b.kind, b.name, cityId);
+      // The place's own style (./cuisine.ts): "Nigerian · Pepper soup joint".
+      const style = foodStyleOf({ market: cityId, id: b.id, kind: b.kind, name: b.name });
+      const cuisine = style?.cuisine ?? cuisineOf(b.kind, b.name, cityId);
       out.push({
         b,
         placeId,
         icon: k.icon,
+        style: style?.id ?? null,
         line: cuisine
-          ? t('{cuisine} · {type}', { cuisine: tx(cuisine), type: tx(k.type) })
+          ? t('{cuisine} · {type}', { cuisine: tx(cuisine), type: tx(style?.label ?? k.type) })
           : tx(k.type),
         price: priceHint(b.venue?.items, col),
         open: b.open && openAt(b.kind, hour),
@@ -352,6 +358,7 @@ function EatOut({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layout
             className={`going-venue${e.open ? '' : ' is-closed'}`}
             data-eat={e.placeId}
             data-kind={e.b.kind}
+            data-food-style={e.style ?? undefined}
             data-open={e.open ? '' : undefined}
           >
             <span className="going-venue-icon" aria-hidden="true">
