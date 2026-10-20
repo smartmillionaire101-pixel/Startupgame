@@ -566,6 +566,10 @@
 .home-bar.is-hotel {
   grid-template-columns: repeat(4, 1fr);
 }
+/* A suite: sit out on the balcony too. */
+.home-bar.is-hotel.has-balcony {
+  grid-template-columns: repeat(5, 1fr);
+}
 /* A friend from your holiday next door: knock on their door. */
 .home-hotel-head .home-hotel-knock {
   margin-left: auto;
