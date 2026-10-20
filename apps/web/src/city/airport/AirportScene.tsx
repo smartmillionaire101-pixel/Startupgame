@@ -53,8 +53,8 @@ import {
 } from '../travel';
 import { seatOf, setTicket, ticketFrom, useTicket, type Ticket } from '../ticket';
 import { FlyingWith } from '../companions';
-import { HotelPicker } from '../HotelPicker';
-import type { HotelTier } from '../travel';
+import { CABIN_NAME, TripPicker } from '../CabinPicker';
+import type { CabinTier, HotelTier } from '../travel';
 import { useDaylight } from '../useDaylight';
 import { WhoIsHere } from '../WhoIsHere';
 import { ArrivalScene, type Arrival } from './arrivals';
@@ -414,7 +414,8 @@ interface TripScene {
   ticket: Ticket | null;
 }
 const STEPS: Step[] = ['ticket', 'checkin', 'security', 'lounge', 'board'];
-const STEP_LABEL = (s: Step) =>
+/** In economy (once cabins are on sale) there's no lounge: you wait at the gate. */
+const STEP_LABEL = (s: Step, cabin?: CabinTier) =>
   s === 'ticket'
     ? t('Ticket')
     : s === 'checkin'
@@ -422,8 +423,36 @@ const STEP_LABEL = (s: Step) =>
       : s === 'security'
         ? t('Security')
         : s === 'lounge'
-          ? t('Lounge')
+          ? cabin === 'economy'
+            ? t('Waiting area')
+            : t('Lounge')
           : t('Boarding');
+
+/** What your cabin changes at the airport: check-in, the lounge, boarding. */
+const PERK = {
+  checkin: (c: CabinTier) =>
+    c === 'first'
+      ? t('Private check-in: a host takes your bags, no queue.')
+      : c === 'business'
+        ? t('Priority check-in: the short queue.')
+        : t('Economy check-in: join the queue.'),
+  lounge: (c: CabinTier) =>
+    c === 'first'
+      ? t(
+          'The first class lounge: à la carte dining, champagne and a spa. Investors wait for flights too.',
+        )
+      : c === 'business'
+        ? t(
+            'The business lounge: a hot meal, a quiet desk and a shower. Investors wait for flights too.',
+          )
+        : t('No lounge in economy: a seat by the gate. Investors wait for flights too.'),
+  board: (c: CabinTier) =>
+    c === 'first'
+      ? t('You board first, straight to your suite.')
+      : c === 'business'
+        ? t('Priority boarding: you’re on before the queue.')
+        : t('Economy boards by rows, after everyone else.'),
+};
 
 /** Your ticket in one line: "14:05 · Savanna Air SV 123 · Gate B4". */
 const ticketLine = (k: Ticket) =>
@@ -448,6 +477,11 @@ function BoardingPass({ ticket, from }: { ticket: Ticket; from: string }) {
         {t('Seat {seat}', { seat: seatOf(ticket) })}
       </span>
       <FlyingWith to={ticket.to} />
+      {ticket.cabin && (
+        <span className={`small ticket-cabin is-${ticket.cabin}`} data-pass-cabin={ticket.cabin}>
+          {CABIN_NAME[ticket.cabin]()}
+        </span>
+      )}
       {ticket.hotel && (
         <span className="small" data-pass-hotel={ticket.hotel.tier}>
           {t('Hotel: {name}', { name: ticket.hotel.name })}
@@ -531,7 +565,7 @@ function TripSheet({
     );
   };
   useEffect(() => onScene({ at, playing, ticket }), [at, playing, ticket, onScene]);
-  const book = async (to: string, hotel: HotelTier | null = null) => {
+  const book = async (to: string, hotel: HotelTier | null = null, cabin: CabinTier = 'economy') => {
     const row = flights.find((x) => x.d.id === to);
     if (!row || !desk) return;
     const { d, f } = row;
@@ -539,6 +573,8 @@ function TripSheet({
       type: 'travel.book' as const,
       to: d.id as MarketId,
       ...(hotel ? { hotel } : {}),
+      // Economy is the ticket as it always was: only an upgrade goes on the command.
+      ...(cabin !== 'economy' ? { cabin } : {}),
       // The flight off the board: friends on holiday from this city get the same one.
       ...(f
         ? { flight: { airline: f.airline, number: f.flight, time: f.time, gate: f.gate } }
@@ -547,11 +583,13 @@ function TripSheet({
     if (!(await send(cmd))) return;
     setChoosing(null);
     const stay = hotel ? d.hotels.find((h) => h.tier === hotel) : undefined;
+    const seat = d.cabins.find((c) => c.cabin === cabin);
     setTicket({
       from: marketId,
       to: d.id,
       toName: d.name,
-      fare: d.fare,
+      fare: seat?.price ?? d.fare,
+      ...(d.cabins.length ? { cabin } : {}),
       currency: desk.currency,
       hours: d.hours,
       time: f?.time,
@@ -608,20 +646,23 @@ function TripSheet({
                 className={`btn ${ticket?.to === d.id ? 'btn-primary' : 'btn-ghost'}`}
                 disabled={busy || d.done}
                 aria-label={t('Book a flight to {city}', { city: d.name })}
-                // Abroad (not home): choose a hotel first.
-                onClick={() => (d.hotels.length ? setChoosing(d.id) : void book(d.id))}
+                // Abroad (not home): choose a hotel first; the cabin when it's on sale.
+                onClick={() =>
+                  d.hotels.length || d.cabins.length ? setChoosing(d.id) : void book(d.id)
+                }
               >
                 {d.done ? t('This month') : ticket?.to === d.id ? t('Booked') : t('Book')}
               </button>
               {choosing === d.id && desk && !ticket && (
-                <HotelPicker
+                <TripPicker
                   city={d.name}
+                  cabins={d.cabins}
                   hotels={d.hotels}
                   fare={d.fare}
                   currency={desk.currency}
                   balance={balance}
                   busy={busy}
-                  onBook={(hotel) => void book(d.id, hotel)}
+                  onBook={(hotel, cabin) => void book(d.id, hotel, cabin)}
                   onCancel={() => setChoosing(null)}
                 />
               )}
@@ -646,6 +687,11 @@ function TripSheet({
             </span>
           )}
         </p>
+        {ticket.cabin && (
+          <p className="small trip-perk" data-trip-perk="checkin">
+            {PERK.checkin(ticket.cabin)}
+          </p>
+        )}
         <button type="button" className="btn btn-primary trip-go" onClick={() => play('checkin')}>
           {t('Check in for {city}', { city: ticket.toName })}
         </button>
@@ -677,8 +723,10 @@ function TripSheet({
   else if (ticket && at === 'lounge')
     body = (
       <div className="trip-lounge">
-        <p className="small muted">
-          {t('Investors wait for flights too. See who’s in the lounge.')}
+        <p className="small muted" data-trip-perk={ticket.cabin ? 'lounge' : undefined}>
+          {ticket.cabin
+            ? PERK.lounge(ticket.cabin)
+            : t('Investors wait for flights too. See who’s in the lounge.')}
         </p>
         <WhoIsHere place={place} players={players} />
         <button type="button" className="btn btn-primary trip-go" onClick={() => setStep('board')}>
@@ -690,6 +738,11 @@ function TripSheet({
     body = (
       <div className="trip-lounge">
         <BoardingPass ticket={ticket} from={fromName} />
+        {ticket.cabin && (
+          <p className="small trip-perk" data-trip-perk="board">
+            {PERK.board(ticket.cabin)}
+          </p>
+        )}
         <button
           type="button"
           className="btn btn-primary trip-go"
@@ -731,7 +784,7 @@ function TripSheet({
                 }}
               >
                 <span className="trip-step-n">{done ? '✓' : n + 1}</span>
-                {STEP_LABEL(s)}
+                {STEP_LABEL(s, ticket?.cabin)}
               </button>
             </li>
           );
@@ -796,8 +849,9 @@ export function AirportScene({
     () => avatarLook(view.me.background?.id, view.me.id, genderOf(view.me)),
     [view.me],
   );
-  // Your own jet at the top of the lifestyle ladder.
-  const jet = fliesPrivate(view.me.lifestyle?.tier);
+  // Your own jet at the top of the lifestyle ladder (unless you booked business or first).
+  const booked = view.me.flightTicket?.cabin;
+  const jet = fliesPrivate(view.me.lifestyle?.tier) && !booked;
   const [{ at0, now }] = useState(() => ({ at0: Date.now(), now: localMinutes(marketId) }));
   const day = scheduleDay(view.market.month, at0);
   const schedule = useMemo(() => airportSchedule(marketId, day), [marketId, day]);
@@ -857,6 +911,7 @@ export function AirportScene({
               <Board marketId={marketId} day={day} />
               {scene?.ticket && scene.at !== 'ticket' ? (
                 <TerminalView
+                  cabin={scene.ticket.cabin}
                   step={scene.at}
                   playing={scene.playing === scene.at}
                   look={look}

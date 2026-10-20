@@ -430,3 +430,18 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* First class: the chauffeur waiting for you (arrivals.tsx). */
+.arrival-chauffeur {
+  margin-left: auto;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #c9a227;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+/* What your cabin changes at the airport (AirportScene, the trip sheet). */
+.trip-perk {
+  font-weight: 650;
+}

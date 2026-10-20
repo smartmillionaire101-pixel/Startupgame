@@ -1092,7 +1092,15 @@ export function ArrivalScene({
         .slice(0, 4)
         .join(', ')
     : view.me.name;
-  const sign = stay ? { hotel: stay.name, name } : null;
+  // First class: a chauffeur meets you (the ticket you flew on says so), fast track through.
+  const flown = lastFlight();
+  const cabin = flown?.to === marketId ? flown.cabin : undefined;
+  const chauffeur = cabin === 'first';
+  const sign = chauffeur
+    ? { hotel: t('Your chauffeur'), name }
+    : stay
+      ? { hotel: stay.name, name }
+      : null;
 
   const next = () => setStep((s) => ARR_STEPS[Math.min(2, ARR_STEPS.indexOf(s) + 1)]!);
   const cast: Cast = { city: marketId, look, crowd, night, livery: trip.livery, party };
@@ -1104,26 +1112,38 @@ export function ArrivalScene({
     step === 'passport'
       ? {
           title: t('Passport control'),
-          text: t('The officer checks your passport and stamps it.'),
+          text:
+            cabin === 'first' || cabin === 'business'
+              ? t('Fast track: no queue. The officer stamps your passport.')
+              : t('The officer checks your passport and stamps it.'),
           go: t('On to baggage'),
         }
       : step === 'baggage'
         ? {
             title: t('Baggage reclaim'),
-            text: t('Belt {n}: your suitcase is coming round.', { n: trip.belt }),
+            text:
+              cabin === 'first' || cabin === 'business'
+                ? t('Belt {n}: your bag, tagged priority, comes off first.', { n: trip.belt })
+                : t('Belt {n}: your suitcase is coming round.', { n: trip.belt }),
             go: t('Pick up your bag'),
           }
         : {
             title: t('Arrivals hall'),
-            text: sign
-              ? sameHotel
-                ? t('A driver from {hotel} is holding a sign with all your names.', {
-                    hotel: sign.hotel,
+            text: chauffeur
+              ? stay
+                ? t('Your chauffeur is waiting at the barrier to drive you to {hotel}.', {
+                    hotel: stay.name,
                   })
-                : t('A driver from {hotel} is holding a sign with your name.', {
-                    hotel: sign.hotel,
-                  })
-              : t('Taxis and rides are just outside; there’s a café and SIM cards here.'),
+                : t('Your chauffeur is waiting at the barrier with your name.')
+              : sign
+                ? sameHotel
+                  ? t('A driver from {hotel} is holding a sign with all your names.', {
+                      hotel: sign.hotel,
+                    })
+                  : t('A driver from {hotel} is holding a sign with your name.', {
+                      hotel: sign.hotel,
+                    })
+                : t('Taxis and rides are just outside; there’s a café and SIM cards here.'),
             go: '',
           };
 
@@ -1220,6 +1240,11 @@ export function ArrivalScene({
             <b>{stay?.name ?? (arrival.home ? city : t('A room in town'))}</b>
             {stay && <span className="arrival-stars">{HOTEL_STARS[stay.tier]}</span>}
           </span>
+          {chauffeur && (
+            <span className="arrival-chauffeur small" data-arrival-chauffeur="">
+              <span aria-hidden="true">🚘</span> {t('Chauffeur included')}
+            </span>
+          )}
         </div>
         <button
           type="button"

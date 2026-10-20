@@ -32,6 +32,7 @@ import {
   clockOf,
   destinationsOf,
   flightsOf,
+  sellsCabins,
   hereOf,
   lastRide,
   rememberRide,
@@ -379,6 +380,8 @@ interface FlightState {
   note?: string;
   /** The airline on your ticket: its colours on the plane. */
   airline?: string;
+  /** The cabin on your ticket (missing: an older server, economy only). */
+  cabin?: 'economy' | 'business' | 'first';
 }
 
 /**
@@ -416,6 +419,7 @@ export function CityScreen({
         hours: dest?.hours ?? flights?.hours ?? 4,
         status: 'pending',
         airline: getTicket()?.airline,
+        cabin: view.me.flightTicket?.cabin ?? (sellsCabins(view) ? 'economy' : undefined),
         note: flights
           ? undefined
           : t(
@@ -478,6 +482,7 @@ export function CityScreen({
             toName={flight.toName}
             hours={flight.hours}
             airline={flight.airline}
+            cabin={flight.cabin}
             status={flight.status}
             note={flight.note}
             onDone={done}

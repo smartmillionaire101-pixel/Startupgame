@@ -188,6 +188,8 @@ export interface Player {
     flight?: TicketFlight;
     /** Holiday with friends: booked on the host's flight for this holiday. */
     party?: { holidayId: Id };
+    /** Business or first (investor release). Missing = economy, as every ticket was. */
+    cabin?: 'business' | 'first';
   };
   id: Id;
   handle: string;

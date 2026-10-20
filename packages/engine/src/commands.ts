@@ -382,6 +382,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('travel.book'),
     to: market,
     hotel: z.enum(['budget', 'business', 'luxury']).optional(),
+    /** Investor release: the cabin. Missing = economy, the ticket as it always was. */
+    cabin: z.enum(['economy', 'business', 'first']).optional(),
     /** The flight the client picked off the board (cosmetic; friends on holiday share it). */
     flight: z
       .object({

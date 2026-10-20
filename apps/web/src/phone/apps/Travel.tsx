@@ -19,10 +19,10 @@ import {
   scheduleDay,
 } from '../../city/travel';
 import { setTicket, ticketFrom, useTicket } from '../../city/ticket';
-import { HotelPicker } from '../../city/HotelPicker';
+import { CABIN_NAME, TripPicker } from '../../city/CabinPicker';
 import { HolidayCards } from './Holiday';
 import { FlyingWith } from '../../city/companions';
-import type { Destination, HotelTier } from '../../city/travel';
+import type { CabinTier, Destination, HotelTier } from '../../city/travel';
 import { Icon } from '../icons';
 import { Nothing, type PhoneCtx } from '../shared';
 
@@ -45,12 +45,14 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
   const rows = dests
     .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))
     .sort((a, b) => ((a.f?.time ?? '99') < (b.f?.time ?? '99') ? -1 : 1));
-  const book = async (d: Destination, hotel: HotelTier | null) => {
+  const book = async (d: Destination, hotel: HotelTier | null, cabin: CabinTier = 'economy') => {
     const f = rows.find((r) => r.d.id === d.id)?.f;
     const cmd = {
       type: 'travel.book' as const,
       to: d.id as MarketId,
       ...(hotel ? { hotel } : {}),
+      // Economy is the ticket as it always was: only an upgrade goes on the command.
+      ...(cabin !== 'economy' ? { cabin } : {}),
       // The flight off the board: friends on holiday from this city get the same one.
       ...(f
         ? { flight: { airline: f.airline, number: f.flight, time: f.time, gate: f.gate } }
@@ -59,11 +61,13 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
     if (!(await send(cmd))) return;
     setChoosing(null);
     const stay = hotel ? d.hotels.find((h) => h.tier === hotel) : undefined;
+    const seat = d.cabins.find((c) => c.cabin === cabin);
     setTicket({
       from: here.id,
       to: d.id,
       toName: d.name,
-      fare: d.fare,
+      fare: seat?.price ?? d.fare,
+      ...(d.cabins.length ? { cabin } : {}),
       currency: cur,
       hours: d.hours,
       time: f?.time,
@@ -91,6 +95,14 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
               <span className="small muted">
                 {[booked.time, booked.airline, booked.flight].filter(Boolean).join(' · ')}
               </span>
+              {booked.cabin && (
+                <span
+                  className={`small ticket-cabin is-${booked.cabin}`}
+                  data-ticket-cabin={booked.cabin}
+                >
+                  {CABIN_NAME[booked.cabin]()}
+                </span>
+              )}
               <FlyingWith to={booked.to} />
               {booked.hotel && (
                 <span className="small hotel-stay" data-ticket-hotel={booked.hotel.tier}>
@@ -143,20 +155,24 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
                 className={`btn ${booked?.to === d.id ? 'btn-primary' : 'btn-subtle'}`}
                 disabled={busy || d.done || !!booked}
                 aria-label={t('Book a flight to {city}', { city: d.name })}
-                onClick={() => (d.hotels.length ? setChoosing(d.id) : void book(d, null))}
+                // Abroad: the cabin and the hotel; home: the cabin (when the server sells them).
+                onClick={() =>
+                  d.hotels.length || d.cabins.length ? setChoosing(d.id) : void book(d, null)
+                }
               >
                 {d.done ? t('Already this month') : booked?.to === d.id ? t('Booked') : t('Book')}
               </button>
             </div>
             {choosing === d.id && !booked && (
-              <HotelPicker
+              <TripPicker
                 city={d.name}
+                cabins={d.cabins}
                 hotels={d.hotels}
                 fare={d.fare}
                 currency={cur}
                 balance={balance}
                 busy={busy}
-                onBook={(hotel) => void book(d, hotel)}
+                onBook={(hotel, cabin) => void book(d, hotel, cabin)}
                 onCancel={() => setChoosing(null)}
               />
             )}

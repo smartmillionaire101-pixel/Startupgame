@@ -13,7 +13,9 @@
 import type { MarketId } from './data/markets.js';
 import { ensure } from './errors.js';
 import {
+  achieve,
   col,
+  hoursLeft,
   holderAccount,
   getMarket,
   locationOf,
@@ -32,8 +34,11 @@ import {
   payExact,
   transfer,
 } from './ledger.js';
+import { barsOf, bumpEnergy, bumpStress } from './lifebars.js';
 import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
+import { bumpNeed } from './needs.js';
+import { investorOn } from './releases.js';
 import { checkName, normaliseName } from './names.js';
 import { waterfall } from './captable.js';
 import type { Company, HotelStay, Player, TicketFlight, World } from './types.js';
@@ -96,7 +101,186 @@ export function flightsView(world: World, p: Player) {
   const fareTo: Partial<Record<MarketId, number>> = {};
   for (const id of Object.keys(world.markets) as MarketId[])
     if (id !== here) fareTo[id] = flightFare(world, p, id);
-  return { fareTo, hours: FLIGHT_HOURS };
+  if (!investorOn(world)) return { fareTo, hours: FLIGHT_HOURS };
+  // Cabin classes (the investor release): each fare per class, and what each one does.
+  const balance = Math.max(0, account(world, p.accounts.local).balance);
+  const cabinTo: Partial<Record<MarketId, CabinOption[]>> = {};
+  for (const id of Object.keys(fareTo) as MarketId[])
+    cabinTo[id] = CABIN_CLASSES.map((cabin) => {
+      const price = cabinFare(world, p, id, cabin);
+      const fx = cabinEffects(cabin, here, id);
+      return {
+        cabin,
+        price,
+        // Economy home is never refused (standby for what you have).
+        affordable: balance >= price || (cabin === 'economy' && id === p.market),
+        hours: CABIN[cabin].hours,
+        ...fx,
+        network: CABIN[cabin].network,
+        lounge: CABIN[cabin].lounge,
+        chauffeur: CABIN[cabin].chauffeur,
+      };
+    });
+  return { fareTo, hours: FLIGHT_HOURS, cabinTo };
+}
+
+// ---------------------------------------------------------------- Cabin classes
+
+/**
+ * Economy, business or first (the investor release, `investorOn`). A ticket
+ * without a cabin is economy, and worlds without the note fly exactly as
+ * before: no time lost to the airport and no change to how you feel on landing.
+ *
+ * - Economy: the fare as it always was. Queues and a cramped seat: two hours
+ *   lost to the airport, and you land tired and a little stressed.
+ * - Business: 3.5× the fare. Priority lanes and the lounge (an hour), a
+ *   lie-flat seat: you land nearly fresh, and meet someone up front.
+ * - First: 7× the fare. Private check-in, the lounge, a suite with a bed and
+ *   a chauffeur on arrival: no time lost, you land rested and happy, and the
+ *   people in the lounge are worth knowing. A milestone the first time.
+ *
+ * The effects scale with the flight's length: half on a short regional hop,
+ * three quarters within Africa, in full on a long haul. Fares are set in USD
+ * and charged in your home currency, like every fare.
+ */
+export type CabinClass = 'economy' | 'business' | 'first';
+export const CABIN_CLASSES: readonly CabinClass[] = ['economy', 'business', 'first'];
+
+export interface CabinSpec {
+  /** Times the economy fare. */
+  fare: number;
+  /** Hours the month loses to the airport (queues, boarding). */
+  hours: number;
+  /** On landing, for a long haul (scaled down for shorter flights). */
+  energy: number;
+  stress: number;
+  fun: number;
+  /** Network points from the people in the lounge and up front. */
+  network: number;
+  lounge: boolean;
+  chauffeur: boolean;
+}
+
+export const CABIN: Record<CabinClass, CabinSpec> = {
+  economy: {
+    fare: 1,
+    hours: 2,
+    energy: -10,
+    stress: 5,
+    fun: 0,
+    network: 0,
+    lounge: false,
+    chauffeur: false,
+  },
+  business: {
+    fare: 3.5,
+    hours: 1,
+    energy: -3,
+    stress: 1,
+    fun: 6,
+    network: 1,
+    lounge: true,
+    chauffeur: false,
+  },
+  first: {
+    fare: 7,
+    hours: 0,
+    energy: 6,
+    stress: -6,
+    fun: 14,
+    network: 2,
+    lounge: true,
+    chauffeur: true,
+  },
+};
+
+export interface CabinOption {
+  cabin: CabinClass;
+  /** One way, minor units of the player's home currency. */
+  price: number;
+  affordable: boolean;
+  hours: number;
+  energy: number;
+  stress: number;
+  fun: number;
+  network: number;
+  lounge: boolean;
+  chauffeur: boolean;
+}
+
+/** A one-way fare in this cabin, in the player's home currency (minor units). */
+export function cabinFare(world: World, p: Player, to: MarketId, cabin: CabinClass): number {
+  if (cabin === 'economy') return flightFare(world, p, to);
+  return usdToLocal(
+    world,
+    getMarket(world, p.market),
+    flightFareUsd(locationOf(p), to) * CABIN[cabin].fare,
+  );
+}
+
+/** How long the flight is, as a share of a long haul (short hop, within Africa, long haul). */
+const haulOf = (from: MarketId, to: MarketId) => {
+  const usd = tripCostUsd(from, to);
+  return usd <= 500 ? 0.5 : usd <= 1_200 ? 0.75 : 1;
+};
+
+/** What landing in this cabin does to energy, stress and fun. */
+export function cabinEffects(cabin: CabinClass, from: MarketId, to: MarketId) {
+  const k = haulOf(from, to);
+  const c = CABIN[cabin];
+  return {
+    energy: Math.round(c.energy * k),
+    stress: Math.round(c.stress * k),
+    fun: Math.round(c.fun * k),
+  };
+}
+
+const CABIN_NAME: Record<CabinClass, string> = {
+  economy: 'Economy',
+  business: 'Business',
+  first: 'First class',
+};
+
+/**
+ * On landing (investor release, humans only): the cabin's time, how you feel
+ * and who you met. Never refuses: with too few hours left it uses what's left.
+ */
+function landIn(world: World, p: Player, cabin: CabinClass, from: MarketId, to: MarketId) {
+  const c = CABIN[cabin];
+  const fx = cabinEffects(cabin, from, to);
+  const hours = Math.round(Math.min(c.hours, Math.max(0, hoursLeft(p))) * 100) / 100;
+  p.hours.used += hours;
+  const energy = fx.energy ? Math.round(bumpEnergy(p, fx.energy)) : 0;
+  const stress = fx.stress ? Math.round(bumpStress(p, fx.stress)) : 0;
+  const fun = fx.fun ? bumpNeed(p, 'fun', fx.fun) : 0;
+  if (c.network) p.network = Math.min(100, p.network + c.network);
+  const month = getMarket(world, p.market).month;
+  if (cabin === 'first') achieve(world, p, 'lifestyle.first-class', 'Flew first class', month);
+  if (cabin === 'business')
+    achieve(world, p, 'lifestyle.business-class', 'Flew business class', month);
+  return {
+    cabin,
+    hours,
+    energy,
+    stress,
+    fun,
+    network: c.network,
+    lounge: c.lounge,
+    chauffeur: c.chauffeur,
+    bars: barsOf(p),
+  };
+}
+
+/** One line on how the flight went, for the landing message. */
+function landingLine(l: { cabin: CabinClass; energy: number; chauffeur: boolean }) {
+  const feel =
+    l.cabin === 'first'
+      ? 'You slept in a real bed and step off rested.'
+      : l.cabin === 'business'
+        ? 'You lay flat for most of it and land fairly fresh.'
+        : 'A cramped seat: you land tired.';
+  const energy = l.energy ? ` Energy ${l.energy > 0 ? '+' : ''}${l.energy}.` : '';
+  return `${feel}${energy}${l.chauffeur ? ' Your chauffeur is waiting.' : ''}`;
 }
 
 // ---------------------------------------------------------------- Hotels
@@ -201,8 +385,12 @@ export function bookFlight(
   now: number,
   hotel?: HotelTier,
   flight?: TicketFlight,
+  cabin?: CabinClass,
 ) {
   if (p.flightTicket?.to === to && p.flightTicket.from === locationOf(p)) return p.flightTicket;
+  // Business and first come with the investor release; economy is the ticket as it was.
+  const upgraded = cabin && cabin !== 'economy' ? cabin : undefined;
+  ensure(!upgraded || investorOn(world), 'travel.cabin', 'Only economy is on sale for now.');
   ensure(
     !p.flightTicket,
     'travel.booked',
@@ -219,12 +407,13 @@ export function bookFlight(
     'travel.flights',
     `That’s ${MAX_FLIGHTS_PER_MONTH} flights this month. Stay a while.`,
   );
-  const fare = flightFare(world, p, to);
+  const fare = upgraded ? cabinFare(world, p, to, upgraded) : flightFare(world, p, to);
   const balance = Math.max(0, account(world, p.accounts.local).balance);
   const goingHome = to === p.market;
   ensure(!(hotel && goingHome), 'travel.hotel', 'You don’t need a hotel at home.');
-  // Nobody is stranded abroad: short of the fare home, you fly standby for what you have.
-  const cost = goingHome ? Math.min(fare, balance) : fare;
+  // Nobody is stranded abroad: short of the fare home, you fly standby for what you
+  // have (in economy: there's no standby up front).
+  const cost = goingHome && !upgraded ? Math.min(fare, balance) : fare;
   const stay: HotelStay | undefined = hotel
     ? { tier: hotel, name: hotelName(to, hotel), paid: hotelPrice(world, p, to, hotel) }
     : undefined;
@@ -237,14 +426,18 @@ export function bookFlight(
   ensure(
     balance >= cost,
     'travel.funds',
-    `The flight costs ${formatMoney(cost, home.data.currency)}; you don’t have it.`,
+    upgraded
+      ? `${CABIN_NAME[upgraded]} costs ${formatMoney(cost, home.data.currency)}; you don’t have it.`
+      : `The flight costs ${formatMoney(cost, home.data.currency)}; you don’t have it.`,
   );
   transfer(
     world,
     p.accounts.local,
     home.ext.suppliers,
     cost,
-    `Flight ${getMarket(world, from).data.name} → ${dest.data.name}`,
+    upgraded
+      ? `Flight ${getMarket(world, from).data.name} → ${dest.data.name} (${CABIN_NAME[upgraded]})`
+      : `Flight ${getMarket(world, from).data.name} → ${dest.data.name}`,
     home.month,
   );
   if (stay)
@@ -269,6 +462,7 @@ export function bookFlight(
     bookedAt: now,
     ...(stay ? { hotel: stay } : {}),
     ...(shown && Object.keys(shown).length ? { flight: shown } : {}),
+    ...(upgraded ? { cabin: upgraded } : {}),
   };
   return p.flightTicket;
 }
@@ -322,6 +516,7 @@ export function fly(world: World, p: Player, to: MarketId, now: number) {
   const cost = ticket.paid;
   // A plain copy: the ticket is a draft, and the result outlives it.
   const hotel = ticket.hotel ? { ...ticket.hotel } : undefined;
+  const cabin: CabinClass = ticket.cabin ?? 'economy';
   delete p.flightTicket;
   p.flights = { month: home.month, count: used + 1 };
   if (to === p.market) delete p.location;
@@ -329,20 +524,24 @@ export function fly(world: World, p: Player, to: MarketId, now: number) {
     p.location = { market: to, since: now, ...(hotel ? { hotel } : {}) };
     p.visited[to] = home.month;
   }
+  // The cabin's experience (investor release, humans only): old worlds land as before.
+  const landed = investorOn(world) && !p.ai ? landIn(world, p, cabin, from, to) : null;
+  const base =
+    to === p.market
+      ? `Welcome home to ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}.`
+      : hotel
+        ? `You’ve landed in ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}. Hotel: ${hotel.name}.`
+        : `You’ve landed in ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}.`;
   return {
     cost,
     currency: home.data.currency,
-    hours: FLIGHT_HOURS,
+    hours: landed ? landed.hours : FLIGHT_HOURS,
     from,
     to,
     location: p.location ? { market: to, name: dest.data.name, sinceAt: now } : null,
     ...(hotel && to !== p.market ? { hotel } : {}),
-    text:
-      to === p.market
-        ? `Welcome home to ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}.`
-        : hotel
-          ? `You’ve landed in ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}. Hotel: ${hotel.name}.`
-          : `You’ve landed in ${dest.data.name}. Flight: ${formatMoney(cost, home.data.currency)}.`,
+    ...(landed ? { cabin: landed } : {}),
+    text: landed ? `${base} ${landingLine(landed)}` : base,
   };
 }
 

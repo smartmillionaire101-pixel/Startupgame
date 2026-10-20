@@ -31,7 +31,8 @@ export {
   clockView,
 } from './clock.js';
 export { FLIGHT_HOURS, MAX_FLIGHTS_PER_MONTH, MAX_RIDES_PER_MONTH, locationOf } from './travel.js';
-export type { RideMode, RideDistance } from './travel.js';
+export type { RideMode, RideDistance, CabinClass, CabinOption } from './travel.js';
+export { CABIN, CABIN_CLASSES, cabinFare, cabinEffects } from './travel.js';
 export {
   SEND_DAILY_LIMIT_COL,
   SEND_FEE_MIN_COL,
