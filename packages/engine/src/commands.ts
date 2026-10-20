@@ -213,6 +213,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('pitch.partners'), pitchId: id }),
   // ---- deals
+  z.object({ type: z.literal('deal.choose'), dealId: id }),
   z.object({
     type: z.literal('deal.act'),
     dealId: id,
@@ -937,6 +938,11 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('stake.answer'),
     offerId: z.string().min(1).max(200),
     accept: z.boolean(),
+  }),
+  z.object({
+    type: z.literal('stake.consent'),
+    offerId: z.string().min(1).max(200),
+    approve: z.boolean(),
   }),
   z.object({
     type: z.literal('secondary.investorSell'),

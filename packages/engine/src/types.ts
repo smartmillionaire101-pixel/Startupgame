@@ -1580,11 +1580,13 @@ export interface StakeOffer {
   id: Id;
   fundId: Id;
   sellerId: Id;
-  buyerId: Id;
+  /** The buying player, or null for an outside secondary buyer. */
+  buyerId: Id | null;
   price: number;
   month: number;
   expiresMonth: number;
-  status: 'open' | 'accepted' | 'declined' | 'expired';
+  /** `awaiting-gp`: buyer and seller agree; the fund's GP approves or rejects the transfer. */
+  status: 'open' | 'awaiting-gp' | 'accepted' | 'declined' | 'rejected' | 'expired';
 }
 
 /** A pro-rata right offered when a company raises again (Phase 5). */

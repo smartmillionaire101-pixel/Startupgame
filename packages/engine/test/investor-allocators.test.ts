@@ -189,7 +189,7 @@ describe('the LP advisory committee', () => {
 });
 
 describe('selling LP stakes and startup secondaries', () => {
-  it('to an outside buyer at a discount to NAV; the buyer pays what is left to call', () => {
+  it('to an outside buyer at a discount to NAV, once the GP approves; the buyer pays what is left to call', () => {
     let w = setup(64);
     const t = target(w) * 3;
     const r = run(w, GP, launchCmd(t));
@@ -200,7 +200,23 @@ describe('selling LP stakes and startup secondaries', () => {
     const s = run(w, LP, { type: 'stake.sell', fundId });
     w = s.world;
     expect(s.result.price).toBeGreaterThan(0);
-    expect(w.accounts[w.players[LP]!.accounts.local]!.balance - cash).toBe(s.result.net);
+    // Nothing moves until the GP answers.
+    expect(w.accounts[w.players[LP]!.accounts.local]!.balance).toBe(cash);
+    const ask = playerView(w, GP)!.stakeConsents;
+    expect(ask).toHaveLength(1);
+    expect(ask[0]!.buyerName).toBe('Secondary buyer');
+    expect(playerView(w, LP)!.familyOffice!.mySales[0]!.status).toBe('awaiting-gp');
+    const lpOnly = tryRun(w, LP, {
+      type: 'stake.consent',
+      offerId: s.result.offerId,
+      approve: true,
+    });
+    expect(lpOnly.ok).toBe(false);
+    w = run(w, GP, { type: 'stake.consent', offerId: s.result.offerId, approve: true }).world;
+    expect(playerView(w, GP)!.stakeConsents).toHaveLength(0);
+    const received = w.accounts[w.players[LP]!.accounts.local]!.balance - cash;
+    expect(received).toBeGreaterThan(0);
+    expect(received).toBeLessThanOrEqual(s.result.price);
     const f = w.funds[fundId]!;
     expect(f.lp!.commitments.find((x) => x.id === cm.id)!.status).toBe('sold');
     const buyer = f.lp!.commitments.find((x) => x.kind === 'secondary')!;
@@ -220,11 +236,31 @@ describe('selling LP stakes and startup secondaries', () => {
     w = o.world;
     expect(playerView(w, 'u_buyer')!.familyOffice!.stakeOffers).toHaveLength(1);
     w = run(w, 'u_buyer', { type: 'stake.answer', offerId: o.result.offerId, accept: true }).world;
+    expect(w.funds[fundId]!.lp!.commitments.some((x) => x.playerId === 'u_buyer')).toBe(false);
+    w = run(w, GP, { type: 'stake.consent', offerId: o.result.offerId, approve: true }).world;
     const cm = w.funds[fundId]!.lp!.commitments.find((x) => x.playerId === 'u_buyer')!;
     expect(cm).toBeTruthy();
     expect(
       w.funds[fundId]!.lp!.commitments.some((x) => x.playerId === LP && x.kind === 'player'),
     ).toBe(false);
+  });
+
+  it('the GP can reject a sale; nothing changes hands', () => {
+    let w = setup(67);
+    const t = target(w) * 3;
+    const r = run(w, GP, launchCmd(t));
+    const fundId = r.result.fundId as string;
+    w = closed(r.world, GP, fundId, Math.round(t * 0.4));
+    const before = w.funds[fundId]!.lp!.commitments.map((x) => ({ ...x }));
+    const s = run(w, LP, { type: 'stake.sell', fundId });
+    w = run(s.world, GP, {
+      type: 'stake.consent',
+      offerId: s.result.offerId,
+      approve: false,
+    }).world;
+    expect(w.stakeOffers![s.result.offerId]!.status).toBe('rejected');
+    expect(w.funds[fundId]!.lp!.commitments).toEqual(before);
+    expect(playerView(w, LP)!.familyOffice!.mySales[0]!.status).toBe('rejected');
   });
 
   it('an investor sells part of a private stake to an outside buyer, with the board’s consent', () => {

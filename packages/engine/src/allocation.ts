@@ -407,7 +407,14 @@ function transferTax(world: World, seller: Player, tax: number, f: Fund) {
   );
 }
 
-/** `stake.sell`: sell your LP stake to an outside secondary buyer at a discount to NAV. */
+/** Does a human GP have to approve transfers of LP stakes in this fund? (AI funds consent at once.) */
+const gpApproves = (world: World, f: Fund) =>
+  !!f.managerId && world.players[f.managerId]?.ai === false;
+
+/**
+ * `stake.sell`: sell your LP stake to an outside secondary buyer at a
+ * discount to its share of NAV. The fund's GP approves or rejects it first.
+ */
 export function sellStakeOutside(world: World, me: Player, fundId: Id) {
   const { f, c } = myStake(world, me, fundId);
   const m = getMarket(world, f.market);
@@ -415,13 +422,45 @@ export function sellStakeOutside(world: World, me: Player, fundId: Id) {
     stakeNav(world, f, c) * (1 - EXITS.secondary.discountBps.outside / 10_000),
   );
   ensure(price > 0, 'stake.price', 'Your stake has no value to sell yet.');
+  if (!gpApproves(world, f)) return executeOutside(world, f, me, c, price);
+  const offers = (world.stakeOffers ??= {});
+  const id = `stk:${f.id}:${me.id}:${m.month}:out`;
+  ensure(
+    !offers[id] || offers[id]!.status !== 'awaiting-gp',
+    'stake.open',
+    'This sale is already waiting for the GP.',
+  );
+  offers[id] = {
+    id,
+    fundId: f.id,
+    sellerId: me.id,
+    buyerId: null,
+    price,
+    month: m.month,
+    expiresMonth: m.month + EXITS.secondary.offerMonths,
+    status: 'awaiting-gp',
+  };
+  notify(world, f.managerId!, {
+    month: m.month,
+    kind: 'deal',
+    text: `${me.name} wants to sell their LP stake in ${f.name} to a secondary buyer for ${fmt(world, f, price)}. Approve or reject it in your fund.`,
+  });
+  return {
+    offerId: id,
+    price,
+    message: `A buyer will pay ${fmt(world, f, price)}. Waiting for ${f.name}'s GP to approve.`,
+  };
+}
+
+function executeOutside(world: World, f: Fund, seller: Player, c: LpCommitment, price: number) {
+  const m = getMarket(world, f.market);
   const lp = f.lp!;
   // The buyer takes on what's left to call and pays it in now.
   const unpaid = Math.max(0, c.committed - c.paidIn);
   if (unpaid > 0)
     transfer(world, m.ext.lps, f.account, unpaid, `LP stake bought: ${f.name}`, m.month);
   lp.calls = lp.calls.filter((x) => !(x.commitmentId === c.id && x.status === 'due'));
-  const paid = paySeller(world, f, me, c, price, m.ext.lps);
+  const paid = paySeller(world, f, seller, c, price, m.ext.lps);
   c.status = 'sold';
   lp.commitments.push({
     id: `${c.id}:sec${m.month}`,
@@ -438,12 +477,6 @@ export function sellStakeOutside(world: World, me: Player, fundId: Id) {
   if (unpaid > 0) lp.flows.push({ month: m.month, amount: -unpaid });
   // The seller is out: their paid-in leaves the books with them.
   c.paidIn = 0;
-  if (f.managerId)
-    notify(world, f.managerId, {
-      month: m.month,
-      kind: 'deal',
-      text: `${me.name} sold their LP stake in ${f.name} to a secondary buyer (you consented).`,
-    });
   return {
     price,
     ...paid,
@@ -451,7 +484,6 @@ export function sellStakeOutside(world: World, me: Player, fundId: Id) {
   };
 }
 
-/** `stake.offer`: offer your LP stake to another player at a price. */
 export function offerStake(world: World, me: Player, fundId: Id, buyerId: Id, price: number) {
   const { f } = myStake(world, me, fundId);
   const buyer = world.players[buyerId];
@@ -485,36 +517,69 @@ export function offerStake(world: World, me: Player, fundId: Id, buyerId: Id, pr
   return { offerId: id };
 }
 
-/** `stake.answer`: the buyer accepts (paying the seller) or declines. */
+/** The buyer must qualify as an LP and afford the price. */
+function checkBuyer(world: World, f: Fund, buyer: Player, price: number) {
+  ensure(lpTrackOpen(world, buyer), 'lp.track', 'The buyer has to qualify as an LP.');
+  ensure(
+    (buyer.lp?.banUntil ?? 0) <= getMarket(world, buyer.market).month,
+    'lp.banned',
+    'After a missed call the buyer can’t take on LP stakes yet.',
+  );
+  const m = getMarket(world, f.market);
+  const acc = account(world, buyer.accounts.local);
+  ensure(
+    acc.balance >= costIn(world, price, m.data.currency, acc.currency),
+    'stake.funds',
+    `${buyer.name} doesn’t have the money for this stake.`,
+  );
+}
+
+const sellerStake = (f: Fund, sellerId: Id) =>
+  f.lp?.commitments.find((x) => x.playerId === sellerId && x.status === 'committed');
+
+/**
+ * `stake.answer`: the buyer accepts or declines. An accepted offer goes to
+ * the fund's GP, who approves or rejects the transfer (AI funds consent at once).
+ */
 export function answerStake(world: World, me: Player, offerId: Id, accept: boolean) {
   const o = world.stakeOffers?.[offerId];
   ensure(o && o.buyerId === me.id, 'stake.offer', 'Offer not found.');
   ensure(o.status === 'open', 'stake.offer', 'That offer has closed.');
+  if (getMarket(world, world.funds[o.fundId]!.market).month > o.expiresMonth) {
+    o.status = 'expired';
+    return { status: o.status, message: 'That offer has expired.' };
+  }
   if (!accept) {
     o.status = 'declined';
+    notify(world, o.sellerId, {
+      month: getMarket(world, world.players[o.sellerId]!.market).month,
+      kind: 'deal',
+      text: `${me.name} declined your LP stake.`,
+    });
     return { status: o.status };
   }
   const f = getFund(world, o.fundId);
-  const seller = world.players[o.sellerId]!;
-  const c = f.lp?.commitments.find((x) => x.playerId === seller.id && x.status === 'committed');
-  ensure(c, 'stake.none', 'The stake is no longer there.');
-  // GP consent: buyers must qualify as LPs themselves.
-  ensure(lpTrackOpen(world, me), 'lp.track', 'The GP only consents to buyers who qualify as LPs.');
-  ensure(
-    (me.lp?.banUntil ?? 0) <= getMarket(world, me.market).month,
-    'lp.banned',
-    'After a missed call you can’t take on LP stakes yet.',
-  );
+  ensure(sellerStake(f, o.sellerId), 'stake.none', 'The stake is no longer there.');
+  checkBuyer(world, f, me, o.price);
+  if (!gpApproves(world, f)) return executePlayerSale(world, f, o);
+  o.status = 'awaiting-gp';
   const m = getMarket(world, f.market);
-  const acc = account(world, me.accounts.local);
-  ensure(
-    acc.balance >= costIn(world, o.price, m.data.currency, acc.currency),
-    'stake.funds',
-    'Not enough money in your account.',
-  );
+  notify(world, f.managerId!, {
+    month: m.month,
+    kind: 'deal',
+    text: `${world.players[o.sellerId]?.name ?? 'An LP'} wants to sell their LP stake in ${f.name} to ${me.name} for ${fmt(world, f, o.price)}. Approve or reject it in your fund.`,
+  });
+  return { status: o.status, message: `Agreed. Waiting for ${f.name}'s GP to approve.` };
+}
+
+function executePlayerSale(world: World, f: Fund, o: StakeOffer) {
+  const m = getMarket(world, f.market);
+  const seller = world.players[o.sellerId]!;
+  const buyer = world.players[o.buyerId!]!;
+  const c = sellerStake(f, seller.id)!;
   payExact(
     world,
-    me.accounts.local,
+    buyer.accounts.local,
     seller.accounts.local,
     o.price,
     `LP stake bought: ${f.name}`,
@@ -523,25 +588,81 @@ export function answerStake(world: World, me: Player, offerId: Id, accept: boole
   );
   const basis = Math.max(0, c.paidIn - c.distributed);
   const gain = Math.max(0, o.price - basis);
-  transferTax(world, seller, Math.round(gain * m.data.tax.capitalGains), f);
-  recordRealised(world, seller, m, o.price, gain, Math.round(gain * m.data.tax.capitalGains));
+  const tax = Math.round(gain * m.data.tax.capitalGains);
+  transferTax(world, seller, tax, f);
+  recordRealised(world, seller, m, o.price, gain, tax);
   // The commitment (and its due calls) passes to the buyer.
-  c.playerId = me.id;
-  c.name = me.name;
+  c.playerId = buyer.id;
+  c.name = buyer.name;
   c.autopay = false;
   o.status = 'accepted';
-  if (f.managerId)
-    notify(world, f.managerId, {
-      month: m.month,
-      kind: 'deal',
-      text: `${seller.name}'s LP stake in ${f.name} passed to ${me.name} (you consented).`,
-    });
   notify(world, seller.id, {
     month: getMarket(world, seller.market).month,
     kind: 'deal',
-    text: `${me.name} bought your LP stake in ${f.name} for ${fmt(world, f, o.price)}.`,
+    text: `${buyer.name} bought your LP stake in ${f.name} for ${fmt(world, f, o.price)}.`,
   });
-  return { status: o.status };
+  notify(world, buyer.id, {
+    month: getMarket(world, buyer.market).month,
+    kind: 'deal',
+    text: `You’re an LP in ${f.name} now: ${seller.name}'s stake is yours.`,
+  });
+  return { status: o.status, message: `The stake in ${f.name} passed to ${buyer.name}.` };
+}
+
+/** `stake.consent`: the fund's GP approves or rejects a sale of an LP stake. */
+export function consentStake(world: World, me: Player, offerId: Id, approve: boolean) {
+  const o = world.stakeOffers?.[offerId];
+  ensure(o, 'stake.offer', 'Sale not found.');
+  const f = getFund(world, o.fundId);
+  ensure(f.managerId === me.id, 'stake.gp', 'Only the fund’s GP approves stake sales.');
+  ensure(o.status === 'awaiting-gp', 'stake.offer', 'Nothing to approve.');
+  const m = getMarket(world, f.market);
+  const seller = world.players[o.sellerId]!;
+  const tell = (text: string) => {
+    notify(world, seller.id, { month: getMarket(world, seller.market).month, kind: 'deal', text });
+    const buyer = o.buyerId ? world.players[o.buyerId] : undefined;
+    if (buyer)
+      notify(world, buyer.id, { month: getMarket(world, buyer.market).month, kind: 'deal', text });
+  };
+  if (!approve) {
+    o.status = 'rejected';
+    tell(`${f.name}'s GP rejected the sale of ${seller.name}'s LP stake.`);
+    return { status: o.status };
+  }
+  if (m.month > o.expiresMonth) {
+    o.status = 'expired';
+    tell(`The sale of ${seller.name}'s LP stake in ${f.name} expired before the GP answered.`);
+    return { status: o.status };
+  }
+  const c = sellerStake(f, seller.id);
+  ensure(c, 'stake.none', 'The stake is no longer there.');
+  if (o.buyerId === null) {
+    const r = executeOutside(world, f, seller, c, o.price);
+    o.status = 'accepted';
+    tell(`${f.name}'s GP approved: ${r.message}`);
+    return { status: o.status };
+  }
+  checkBuyer(world, f, world.players[o.buyerId]!, o.price);
+  return executePlayerSale(world, f, o);
+}
+
+/** For a GP: stake sales waiting for your approval, with who and at what price. */
+export function stakeConsentsView(world: World, p: Player) {
+  return Object.values(world.stakeOffers ?? {})
+    .filter((o) => o.status === 'awaiting-gp' && world.funds[o.fundId]?.managerId === p.id)
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map((o) => {
+      const f = world.funds[o.fundId]!;
+      const c = sellerStake(f, o.sellerId);
+      return {
+        ...o,
+        fundName: f.name,
+        sellerName: world.players[o.sellerId]?.name ?? '',
+        buyerName: o.buyerId ? (world.players[o.buyerId]?.name ?? '') : 'Secondary buyer',
+        currency: getMarket(world, f.market).data.currency,
+        navShare: c ? stakeNav(world, f, c) : 0,
+      };
+    });
 }
 
 // ---------------------------------------------------------------- investors' startup secondaries
@@ -681,6 +802,20 @@ export function familyOfficeView(world: World, p: Player) {
         ...o,
         fundName: world.funds[o.fundId]?.name ?? '',
         sellerName: world.players[o.sellerId]?.name ?? '',
+        currency: getMarket(world, world.funds[o.fundId]!.market).data.currency,
+      })),
+    /** Your stake sales and where they are (waiting for a buyer or the GP, done, rejected). */
+    mySales: Object.values(world.stakeOffers ?? {})
+      .filter((o) => o.sellerId === p.id)
+      .sort((a, b) => b.month - a.month)
+      .slice(0, 6)
+      .map((o) => ({
+        id: o.id,
+        fundName: world.funds[o.fundId]?.name ?? '',
+        buyerId: o.buyerId,
+        buyerName: o.buyerId ? (world.players[o.buyerId]?.name ?? '') : 'Secondary buyer',
+        price: o.price,
+        status: o.status,
         currency: getMarket(world, world.funds[o.fundId]!.market).data.currency,
       })),
     lpacVotes: Object.values(world.funds).flatMap((f) =>

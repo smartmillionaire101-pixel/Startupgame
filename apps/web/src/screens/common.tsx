@@ -5,6 +5,7 @@ import { useView, type Deal } from '../store';
 import { Button, Card, Empty, EmptyState, Field, Pill } from '../ui';
 import { useNav } from '../phone/bus';
 import { inboxTarget } from '../phone/navigate';
+import { OfferComparison } from './OfferCompare';
 
 /** Funding stages, in the player's language. */
 export const stageLabel = (s: string) =>
@@ -274,6 +275,7 @@ export function DealList({ filter }: { filter?: (d: Deal) => boolean }) {
   const closed = deals.filter((d) => d.status !== 'open').slice(0, 8);
   return (
     <>
+      {!filter && <OfferComparison />}
       {open.length === 0 && (
         <Empty>{t('No open deal cards. Everything binding happens here.')}</Empty>
       )}

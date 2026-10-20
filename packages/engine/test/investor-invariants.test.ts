@@ -97,7 +97,8 @@ function command(
     .flatMap((f) => f.lp?.calls ?? [])
     .filter((x) => x.status === 'due')[a.pick % 3];
   const offer = Object.values(w.prorata ?? {})[0];
-  switch (a.op % 26) {
+  const sale = Object.values(w.stakeOffers ?? {}).find((x) => x.status === 'awaiting-gp');
+  switch (a.op % 27) {
     case 0:
       return c
         ? [
@@ -226,6 +227,13 @@ function command(
       ];
     case 24:
       return c ? [me, { type: 'accelerator.admit', companyId: c.id }] : null;
+    case 25:
+      return sale
+        ? [
+            w.funds[sale.fundId]!.managerId!,
+            { type: 'stake.consent', offerId: sale.id, approve: a.who },
+          ]
+        : null;
     default:
       return c ? [me, { type: 'invest.support', companyId: c.id, kind: 'customers' }] : null;
   }

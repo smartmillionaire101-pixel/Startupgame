@@ -25,7 +25,7 @@
 import { companyRunway } from './company.js';
 import { contactWarmth } from './events.js';
 import { INVESTOR } from './data/investor.js';
-import { executeDeal } from './deals.js';
+import { actOnDeal, canAct, executeDeal, partyName } from './deals.js';
 import { ensure } from './errors.js';
 import {
   achieve,
@@ -406,6 +406,160 @@ function backer(world: World, d: DealCard): Player | undefined {
   return undefined;
 }
 
+const modelValue = (world: World, c: Company) =>
+  Math.max(1, valueCompany(world, c, nextStage(c.lastRound)).value);
+
+/**
+ * How a founder weighs an investment offer (§6.4): price against the model
+ * valuation, clean terms, the investor's stars and founder trust. AI founders
+ * pick by it in hot rounds; human founders see it side by side.
+ */
+export function offerScore(world: World, d: DealCard, model: number): number {
+  const t = d.terms as InvestmentTerms;
+  const inv = backer(world, d);
+  return (
+    (t.valuation / model) * 0.4 +
+    (harshTerms(t) ? 0 : 0.2) +
+    ((inv?.stars.value ?? 2.5) / 5) * 0.2 +
+    (inv?.investor?.founderTrust ?? 0.5) * 0.2
+  );
+}
+
+/** Why an offer lost to the chosen one, in a founder's words. */
+const whyNot = (t: InvestmentTerms, chosen: InvestmentTerms) =>
+  t.valuation < chosen.valuation
+    ? 'another investor offered a better price'
+    : harshTerms(t) && !harshTerms(chosen)
+      ? 'another investor offered cleaner terms'
+      : 'we went with an investor founders rate more highly';
+
+/** The share of the company an investment buys: pre-money for priced rounds, the post-money cap for SAFEs. */
+export const ownershipOf = (t: InvestmentTerms) =>
+  t.instrument === 'priced'
+    ? t.amount / Math.max(1, t.valuation + t.amount)
+    : t.amount / Math.max(1, t.valuation);
+
+/** Open investment offers a human founder can answer for this company. */
+function openOffers(world: World, founderId: Id, c: Company) {
+  return Object.values(world.deals)
+    .filter(
+      (d) =>
+        d.companyId === c.id &&
+        d.status === 'open' &&
+        d.terms.kind === 'investment' &&
+        canAct(world, founderId, d.awaiting),
+    )
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
+/**
+ * `view.offerComparison`: for a human founder with two or more open
+ * investment offers, each company's offers side by side: price, ownership,
+ * terms and the investor's reputation, with a suggested pick.
+ */
+export function offerComparisonView(world: World, p: Player) {
+  if (!investorOn(world) || p.ai) return [];
+  const out = [];
+  for (const c of Object.values(world.companies)) {
+    if (c.status !== 'active' || !c.founderIds.includes(p.id)) continue;
+    const offers = openOffers(world, p.id, c);
+    if (offers.length < 2) continue;
+    const model = modelValue(world, c);
+    const rows = offers.map((d) => {
+      const t = d.terms as InvestmentTerms;
+      const inv = backer(world, d);
+      const r = inv ? reviewsOf(world, inv.id) : null;
+      return {
+        dealId: d.id,
+        investor: partyName(world, d.proposer),
+        kind: d.proposer.kind,
+        ai: inv?.ai ?? true,
+        instrument: t.instrument,
+        amount: t.amount,
+        valuation: t.valuation,
+        ownership: roundTo(ownershipOf(t), 4),
+        liquidationMultiple: t.liquidationMultiple,
+        participating: t.participating,
+        boardSeat: t.boardSeat,
+        vetoOnSale: t.vetoOnSale,
+        proRata: t.proRata,
+        poolTopUpBps: t.poolTopUpBps,
+        harsh: harshTerms(t),
+        accelerator: t.accelerator
+          ? (world.playerAccelerators?.[t.accelerator]?.name ?? null)
+          : null,
+        stars: inv ? roundTo(inv.stars.value, 1) : null,
+        founderTrust: inv?.investor?.founderTrust ?? null,
+        reviews: r ? { count: r.count, average: r.average } : null,
+        expiresMonth: d.expiresMonth,
+        score: roundTo(offerScore(world, d, model), 3),
+      };
+    });
+    const best = rows.reduce((a, b) => (b.score > a.score ? b : a));
+    out.push({
+      companyId: c.id,
+      companyName: c.name,
+      currency: getMarket(world, c.market).data.currency,
+      modelValuation: model,
+      bestDealId: best.dealId,
+      offers: rows,
+    });
+  }
+  return out;
+}
+
+/**
+ * `deal.choose`: a founder takes one offer and declines the company's other
+ * open offers, telling each investor why (price, terms or reputation).
+ */
+export function chooseOffer(world: World, me: Player, dealId: Id) {
+  const d = world.deals[dealId];
+  ensure(d && d.terms.kind === 'investment' && d.companyId, 'deal.missing', 'Offer not found.');
+  const c = world.companies[d.companyId]!;
+  ensure(c.founderIds.includes(me.id), 'deal.forbidden', 'Only the company’s founders choose.');
+  const offers = openOffers(world, me.id, c);
+  ensure(
+    offers.some((x) => x.id === d.id),
+    'deal.closed',
+    'That offer isn’t waiting for your answer.',
+  );
+  const chosen = d.terms as InvestmentTerms;
+  const out = actOnDeal(world, d.id, d.awaiting, me.id, { action: 'accept' });
+  const m = getMarket(world, c.market);
+  let declined = 0;
+  // Only once the chosen deal has gone through (a board vote may still be pending).
+  if (out.status === 'accepted')
+    for (const x of offers) {
+      if (x.id === d.id || x.status !== 'open') continue;
+      const why = whyNot(x.terms as InvestmentTerms, chosen);
+      x.status = 'declined';
+      x.history.push({
+        month: m.month,
+        by: me.id,
+        action: 'decline',
+        summary: `We chose another offer: ${why}.`,
+      });
+      const inv = backer(world, x);
+      if (inv && !inv.ai)
+        notify(world, inv.id, {
+          month: m.month,
+          kind: 'deal',
+          text: `${c.name} chose another offer: ${why}.`,
+          ref: { kind: 'deal', id: x.id },
+        });
+      declined++;
+    }
+  return {
+    dealId: out.id,
+    status: out.status,
+    declined,
+    message:
+      declined > 0
+        ? `You took ${partyName(world, d.proposer)}’s offer and told the other ${declined === 1 ? 'investor' : `${declined} investors`} why.`
+        : `You took ${partyName(world, d.proposer)}’s offer.`,
+  };
+}
+
 /**
  * Month end: hot rounds pick the best offer (price, terms, reputation, trust)
  * and explain to the others why not (§6.4 competitive rounds).
@@ -423,17 +577,8 @@ export function resolveHotRounds(world: World, marketId: string) {
   for (const [cid, offers] of byCompany) {
     const c = world.companies[cid];
     if (!c || c.status !== 'active') continue;
-    const model = Math.max(1, valueCompany(world, c, nextStage(c.lastRound)).value);
-    const score = (d: DealCard) => {
-      const t = d.terms as InvestmentTerms;
-      const inv = backer(world, d);
-      return (
-        (t.valuation / model) * 0.4 +
-        (harshTerms(t) ? 0 : 0.2) +
-        ((inv?.stars.value ?? 2.5) / 5) * 0.2 +
-        (inv?.investor?.founderTrust ?? 0.5) * 0.2
-      );
-    };
+    const model = modelValue(world, c);
+    const score = (d: DealCard) => offerScore(world, d, model);
     const ranked = offers.slice().sort((a, b) => score(b) - score(a) || (a.id < b.id ? -1 : 1));
     const best = ranked[0]!;
     const bt = best.terms as InvestmentTerms;
@@ -460,15 +605,10 @@ export function resolveHotRounds(world: World, marketId: string) {
           });
         continue;
       }
-      const t = d.terms as InvestmentTerms;
       const why =
         !acceptable && d === best
           ? 'nobody offered a price we could take'
-          : t.valuation < bt.valuation
-            ? 'another investor offered a better price'
-            : harshTerms(t) && !harshTerms(bt)
-              ? 'another investor offered cleaner terms'
-              : 'we went with an investor founders rate more highly';
+          : whyNot(d.terms as InvestmentTerms, bt);
       d.status = 'declined';
       d.history.push({
         month: m.month,

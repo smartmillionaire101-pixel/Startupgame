@@ -42,4 +42,19 @@ export const investorAllocators: Record<string, string> = {
   'A conflict? Ask the LP advisory committee':
     'Un conflit d’intérêts ? Demandez au comité consultatif des LP',
   'Back other managers': 'Soutenir d’autres gérants',
+  'LP stake sales to approve': 'Ventes de parts de LP à approuver',
+  'An LP wants to hand their stake to someone else': 'Un LP veut céder sa part à quelqu’un d’autre',
+  '{seller} → {buyer} for {price} (their share of NAV is {nav})':
+    '{seller} → {buyer} pour {price} (sa part de la valeur liquidative est de {nav})',
+  'Secondary buyer': 'Acheteur secondaire',
+  'Approved.': 'Approuvé.',
+  'Rejected.': 'Rejeté.',
+  'Waiting for the buyer': 'En attente de l’acheteur',
+  'Waiting for the GP to approve': 'En attente de l’approbation du GP',
+  Sold: 'Vendu',
+  'The buyer declined': 'L’acheteur a refusé',
+  'The GP rejected it': 'Le GP l’a rejetée',
+  'Every sale needs the fund’s GP to approve the new LP.':
+    'Chaque vente doit être approuvée par le GP du fonds.',
+  '{fund} → {buyer} for {price}': '{fund} → {buyer} pour {price}',
 };

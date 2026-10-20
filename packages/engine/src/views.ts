@@ -3,8 +3,8 @@ import { exchangeView } from './exchange.js';
 import { syndicatesView } from './syndicates.js';
 import { lpFundsView } from './lpfunds.js';
 import { firmView } from './firms.js';
-import { familyOfficeView } from './allocation.js';
-import { dealCraftView, redFlags, reviewableView } from './dealcraft.js';
+import { familyOfficeView, stakeConsentsView } from './allocation.js';
+import { dealCraftView, offerComparisonView, redFlags, reviewableView } from './dealcraft.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
@@ -724,10 +724,12 @@ export function playerView(
     firm: firmView(world, p),
     /** Investor career Phase 7: the family office (every track), LP stake offers, LPAC votes, secondaries. */
     familyOffice: familyOfficeView(world, p),
+    stakeConsents: investorOn(world) ? stakeConsentsView(world, p) : [],
     /** Investor career Phase 8: the pipeline, reputation, reviews and the monthly recap. */
     dealCraft: dealCraftView(world, p),
     /** Investor career Phase 8: for founders, the human investors you can review. */
     reviewable: reviewableView(world, p),
+    offerComparison: offerComparisonView(world, p),
     /** Investor career Phase 9: your accelerator, and the hall of fame across every city. */
     playerAccelerator: acceleratorView(world, p),
     hallOfFame: hallOfFame(world),

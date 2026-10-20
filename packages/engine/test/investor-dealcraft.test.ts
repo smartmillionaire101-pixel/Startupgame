@@ -281,3 +281,46 @@ describe('terms, support, hot rounds and reviews (§6.4–6.6)', () => {
     expect(typeof r.newPitches).toBe('number');
   });
 });
+
+describe('comparing offers side by side (human founders, §6.4)', () => {
+  it('shows two offers together and choosing one declines the other with a reason', () => {
+    let w = addInvestor(world(78), 'u_inv2');
+    w = run(w, 'u_inv2', { type: 'investor.tutorial', action: 'skip' }).world;
+    const fc = companyOf(w, F);
+    const offer = (id: string, valuation: number, vetoOnSale: boolean) =>
+      run(w, id, {
+        type: 'invest.propose',
+        companyId: fc.id,
+        instrument: 'safe',
+        amount: 1_000_000_00,
+        valuation,
+        proRata: true,
+        boardSeat: false,
+        vetoOnSale,
+      });
+    let r = offer(I, 20_000_000_00, false);
+    w = r.world;
+    const cheap = r.result.dealId as string;
+    r = offer('u_inv2', 15_000_000_00, true);
+    w = r.world;
+    const low = r.result.dealId as string;
+    const cmp = playerView(w, F)!.offerComparison;
+    expect(cmp).toHaveLength(1);
+    expect(cmp[0]!.offers).toHaveLength(2);
+    const a = cmp[0]!.offers.find((x) => x.dealId === cheap)!;
+    const b = cmp[0]!.offers.find((x) => x.dealId === low)!;
+    expect(a.ownership).toBeCloseTo(0.05, 4);
+    expect(b.ownership).toBeGreaterThan(a.ownership);
+    expect(cmp[0]!.bestDealId).toBe(cheap);
+    // Investors don't see it; only one offer is no comparison.
+    expect(playerView(w, I)!.offerComparison).toHaveLength(0);
+    expect(tryRun(w, I, { type: 'deal.choose', dealId: cheap }).ok).toBe(false);
+    const res = run(w, F, { type: 'deal.choose', dealId: cheap });
+    w = res.world;
+    expect(w.deals[cheap]!.status).toBe('accepted');
+    expect(w.deals[low]!.status).toBe('declined');
+    expect(w.deals[low]!.history.at(-1)!.summary).toContain('better price');
+    expect((w.inbox.u_inv2 ?? []).some((x) => x.text.includes('chose another offer'))).toBe(true);
+    expect(playerView(w, F)!.offerComparison).toHaveLength(0);
+  });
+});

@@ -60,6 +60,7 @@ import { backSyndicate, cancelSyndicate, closeSyndicate, openSyndicate } from '.
 import { admitToAccelerator, foundAccelerator } from './institutions.js';
 import {
   checkClaim,
+  chooseOffer,
   pipelineAdd,
   pipelinePass,
   pipelineWatch,
@@ -70,6 +71,7 @@ import {
 } from './dealcraft.js';
 import {
   answerStake,
+  consentStake,
   fofCommit,
   investorSecondary,
   offerStake,
@@ -855,6 +857,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       const out = actOnDeal(world, cmd.dealId, mine, me.id, act);
       return { dealId: out.id, status: out.status, summary: out.summary };
     }
+    case 'deal.choose': {
+      const d = world.deals[cmd.dealId];
+      if (d?.companyId && world.companies[d.companyId]?.founderIds.includes(me.id))
+        world.companies[d.companyId]!.lastDecisionMonth = month;
+      return chooseOffer(world, me, cmd.dealId);
+    }
     // ------------------------------------------------------------ investor
     case 'invest.propose': {
       spendHours(me, 2, 'Writing a term sheet');
@@ -1270,6 +1278,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return offerStake(world, me, cmd.fundId, cmd.buyerId, cmd.price);
     case 'stake.answer':
       return answerStake(world, me, cmd.offerId, cmd.accept);
+    case 'stake.consent':
+      return consentStake(world, me, cmd.offerId, cmd.approve);
     case 'secondary.investorSell':
       return investorSecondary(world, me, cmd.companyId, cmd.pctBps);
     case 'firm.found':

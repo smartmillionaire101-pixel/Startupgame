@@ -36,6 +36,23 @@ function trackText(id: string): string {
   }
 }
 
+function saleStatusText(s: string): string {
+  switch (s) {
+    case 'open':
+      return t('Waiting for the buyer');
+    case 'awaiting-gp':
+      return t('Waiting for the GP to approve');
+    case 'accepted':
+      return t('Sold');
+    case 'declined':
+      return t('The buyer declined');
+    case 'rejected':
+      return t('The GP rejected it');
+    default:
+      return t('Expired');
+  }
+}
+
 function StakeRow({ f, cur }: { f: Office['funds'][number]; cur: string }) {
   const { view, send } = useView();
   const [buyer, setBuyer] = useState('');
@@ -161,7 +178,10 @@ export function FamilyOffice() {
               <Button
                 size="sm"
                 onClick={() =>
-                  void send({ type: 'stake.answer', offerId: s.id, accept: true }, t('Bought.'))
+                  void send(
+                    { type: 'stake.answer', offerId: s.id, accept: true },
+                    (r: { message?: string }) => (r.message ? tx(r.message) : t('Bought.')),
+                  )
                 }
               >
                 {t('Buy')}
@@ -237,6 +257,27 @@ export function FamilyOffice() {
           <Empty>{t('No commitments yet.')}</Empty>
         ) : (
           o.funds.map((f) => <StakeRow key={f.fundId} f={f} cur={cur} />)
+        )}
+        {o.mySales.length > 0 && (
+          <>
+            <p className="small muted">
+              {t('Every sale needs the fund’s GP to approve the new LP.')}
+            </p>
+            <ul className="list">
+              {o.mySales.map((x) => (
+                <li key={x.id} className="inv-row" data-sale={x.status}>
+                  <span className="grow">
+                    {t('{fund} → {buyer} for {price}', {
+                      fund: x.fundName,
+                      buyer: x.buyerId ? x.buyerName : t('Secondary buyer'),
+                      price: money(x.price, x.currency),
+                    })}
+                  </span>
+                  <span className="small muted">{saleStatusText(x.status)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Card>
       <Card

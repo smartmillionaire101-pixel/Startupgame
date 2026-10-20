@@ -21,7 +21,7 @@ import { FirmScreen } from './Firm';
 import { FamilyOffice } from './FamilyOffice';
 import { PipelineScreen } from './Pipeline';
 import { Legacy } from './Legacy';
-import { ProRataOffers, positionStatusText } from './FundOps';
+import { ProRataOffers, StakeConsents, positionStatusText } from './FundOps';
 import { SimpleLink } from './SimpleLink';
 
 const companyStatusLabel = (x: string) =>
@@ -385,7 +385,12 @@ export function Portfolio() {
       {section === 'pipeline' && <PipelineScreen />}
       {section === 'markets' && <Exchange />}
       {section === 'syndicates' && <Syndicates />}
-      {section === 'fund' && <FundConsole />}
+      {section === 'fund' && (
+        <>
+          <StakeConsents />
+          <FundConsole />
+        </>
+      )}
       {section === 'lp' && <LpPortfolio />}
       {section === 'firm' && <FirmScreen />}
       {section === 'office' && <FamilyOffice />}
@@ -394,6 +399,7 @@ export function Portfolio() {
         <>
           <InvestorPrompts />
           <ProRataOffers />
+          <StakeConsents />
           <CareerLadder compact />
           <SimpleLink
             to="deals"

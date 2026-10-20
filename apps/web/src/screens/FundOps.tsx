@@ -393,3 +393,53 @@ export function ProRataOffers() {
     </Card>
   );
 }
+
+/** LP stake sales in your funds, waiting for you as GP to approve or reject (§8.1). */
+export function StakeConsents() {
+  const { view, send } = useView();
+  const asks = (view as { stakeConsents?: typeof view.stakeConsents }).stakeConsents ?? [];
+  if (asks.length === 0) return null;
+  return (
+    <Card
+      title={t('LP stake sales to approve')}
+      sub={t('An LP wants to hand their stake to someone else')}
+      tone="warn"
+    >
+      {asks.map((o) => (
+        <div key={o.id} className="inv-row" data-consent={o.id}>
+          <span className="grow">
+            <strong>{o.fundName}</strong>
+            <div className="small">
+              {t('{seller} → {buyer} for {price} (their share of NAV is {nav})', {
+                seller: o.sellerName,
+                buyer: o.buyerId ? o.buyerName : t('Secondary buyer'),
+                price: money(o.price, o.currency),
+                nav: money(o.navShare, o.currency),
+              })}
+            </div>
+          </span>
+          <Button
+            size="sm"
+            onClick={() =>
+              void send(
+                { type: 'stake.consent', offerId: o.id, approve: true },
+                (r: { message?: string }) => (r.message ? tx(r.message) : t('Approved.')),
+              )
+            }
+          >
+            {t('Approve')}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              void send({ type: 'stake.consent', offerId: o.id, approve: false }, t('Rejected.'))
+            }
+          >
+            {t('Reject')}
+          </Button>
+        </div>
+      ))}
+    </Card>
+  );
+}

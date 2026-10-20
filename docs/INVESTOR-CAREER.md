@@ -21,7 +21,7 @@ Every number in §11.6 lives in one place: `INVESTOR` in `packages/engine/src/da
 | 9 Institutions and legacy | `institutions.ts`, `allocator.ts` (sovereign roles), `firms.ts` (succession) | Legacy | `investor-institutions.test.ts` |
 | 10 Balance and release | `scripts/economy-report.ts` (investor outcomes) | — | `investor-invariants.test.ts` (money conservation under random play) |
 
-The views are on `playerView`: `investorCareer`, `exchange`, `syndicates`, `lpFunds`, `prorata`, `firm`, `familyOffice`, `dealCraft`, `reviewable`, `playerAccelerator` and `hallOfFame`. Each is `null` (or empty) in worlds without the note.
+The views are on `playerView`: `investorCareer`, `exchange`, `syndicates`, `lpFunds`, `prorata`, `firm`, `familyOffice`, `dealCraft`, `reviewable`, `playerAccelerator`, `hallOfFame`, `stakeConsents` and `offerComparison`. Each is `null` (or empty) in worlds without the note.
 
 ## The ladder (§2)
 
@@ -48,8 +48,8 @@ Rungs 2–6 are climbed one at a time. Rungs 7 and 8 open on their own condition
 | Funds and LPs | `fund.launch`, `fund.close`, `fund.abandon`, `lp.commit`, `lp.diligence`, `lp.pay`, `lp.delay`, `lp.autopay`, `lp.pitch` (now with `fundId`) |
 | Fund operations | `fund.plan`, `fund.reserve`, `fund.ic`, `fund.letter`, `fund.extend`, `prorata.answer`, `invest.propose` (now with `fundId`) |
 | Firm | `firm.found`, `firm.hire`, `firm.invite`, `firm.answer`, `firm.letGo`, `firm.carryAsk`, `firm.succession` |
-| Allocators | `fof.commit`, `fund.lpac`, `lpac.vote`, `stake.sell`, `stake.offer`, `stake.answer`, `secondary.investorSell` |
-| Deal craft | `pipeline.add`, `pipeline.watch`, `pipeline.pass`, `diligence.claim`, `diligence.references`, `invest.support`, `invest.scout`, `review.investor` |
+| Allocators | `fof.commit`, `fund.lpac`, `lpac.vote`, `stake.sell`, `stake.offer`, `stake.answer`, `stake.consent`, `secondary.investorSell` |
+| Deal craft | `deal.choose`, `pipeline.add`, `pipeline.watch`, `pipeline.pass`, `diligence.claim`, `diligence.references`, `invest.support`, `invest.scout`, `review.investor` |
 | Institutions | `accelerator.found`, `accelerator.admit`, `career.join` (now with `sovereign`) |
 
 Month-end work runs inside `settleMarket`, each piece on its own RNG label where it draws (`syndicate`, `firm`, `pipeline`):
@@ -89,8 +89,8 @@ These are the places where the blueprint left room, or where Runway's existing r
 
 - **Credit penalty for a missed capital call.** The blueprint's "−50 points" assumes a 300–850 credit scale. Runway's score runs 0–100, so a missed call goes on the record as one default (−18 points). It is configurable in `INVESTOR.penalties`.
 - **Ghosting penalty.** It applies to pitches human founders send to human investors (`pitch.start` with an investor). AI founders' interest shows up as pipeline entries, not pitches.
-- **GP consent for LP stake sales.** Consent is given automatically to qualified buyers: buyers who meet the LP-track threshold and aren't barred after a missed call. A player GP is told about every transfer.
-- **Competitive rounds.** These are AI "hot rounds": strong AI companies that are raising compare every offer made in the month. Human founders already compare deal cards themselves.
+- **GP consent for LP stake sales.** A human GP approves or rejects every sale of an LP stake in their fund (`stake.consent`), whether the buyer is an outside secondary buyer or another player. Nothing changes hands until then. The buyer must still qualify: meet the LP-track threshold and not be barred after a missed call. A sale the GP leaves past its expiry lapses. AI-managed funds consent at once to qualified buyers.
+- **Competitive rounds.** Strong AI companies that are raising run "hot rounds": they compare every offer made in the month. Human founders with two or more open offers see them side by side on the deals screen (`offerComparison`): amount, valuation, the share each investor would own, terms, and the investor's stars, founder trust and reviews. A "best fit" pick uses the same score the AI founders use. `deal.choose` takes one offer and declines the others, telling each investor why.
 - **Insider blackout timing.** The results blackout is the last quarter of each game month. It is known only when the server's clock settles the market (`MarketState.monthMs`). Open votes and open sale offers black out insiders at any time.
 - **First-session protection.** A player still in the first session gets an AI founder's immediate answer even when the round is hot, so the first cheque never depends on luck (§3.1).
 - **Index fund dividends.** These are reinvested by buying more of the paying company from the float. If a listed company is acquired, the index fund's share of the proceeds goes to the outside world, as the public float's does.
