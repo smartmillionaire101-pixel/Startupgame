@@ -86,6 +86,7 @@ import {
   styleStaff,
   type NightStyle,
 } from './nightlife';
+import { clubStyleOf } from './clubLook';
 import { useVenueMusic } from './nightlife-audio';
 import { useSetting } from '../phone/settings';
 import { WhoIsHere } from './WhoIsHere';
@@ -93,7 +94,7 @@ import { VenueParty, VenuePartyLine, venueParty } from './companions';
 import { HomeScene } from '../home/HomeScene';
 import { HotelBack, HotelFront } from '../home/HotelArt';
 import { HotelKnocked } from '../phone/apps/Holiday';
-import { stayOf } from './travel';
+import { localHour, stayOf } from './travel';
 import { TechEventScene } from './TechEventScene';
 import { techEventAt } from './techevent';
 import { useReducedMotion } from './CityMap';
@@ -758,12 +759,23 @@ function RoomScene({
   const nightStyle = useMemo(
     () =>
       business
-        ? nightStyleOf({
-            market: cityId,
-            id: business.id,
-            kind: business.kind,
-            name: business.name,
-          })
+        ? // A club also gets its own look (./clubLook.ts), and fills up late.
+          clubStyleOf(
+            {
+              market: cityId,
+              id: business.id,
+              kind: business.kind,
+              name: business.name,
+              district: business.district,
+            },
+            nightStyleOf({
+              market: cityId,
+              id: business.id,
+              kind: business.kind,
+              name: business.name,
+            }),
+            localHour(cityId),
+          )
         : null,
     [business, cityId],
   );
@@ -1438,6 +1450,10 @@ function RoomScene({
       data-nightlife={nightStyle?.id}
       data-layout={nightStyle?.layout}
       data-genre={genre?.id}
+      data-club-look={nightStyle?.club?.key}
+      data-club-tier={nightStyle?.club?.tier}
+      data-club-theme={nightStyle?.club?.theme}
+      data-club-sign={nightStyle?.club?.sign}
     >
       <header className="place-head">
         <div className="place-title">
@@ -1445,6 +1461,7 @@ function RoomScene({
           {business && (
             <span className="small muted">
               {tx(nightStyle?.label ?? business.kindLabel)}
+              {nightStyle?.club ? ` · ${tx(nightStyle.club.label)}` : ''}
               {business.street ? ` · ${business.street}` : ''}
             </span>
           )}

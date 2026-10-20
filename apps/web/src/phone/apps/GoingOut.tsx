@@ -32,6 +32,7 @@ import { venueItemsOf, type VenueItemView } from '../../city/life';
 import { golfOf, mallOf, mallSpot } from '../../city/leisure';
 import { SHOP_ICON, SHOP_ORDER, shopName } from '../../city/mall/shops';
 import { genreOf, nightStyleOf, type NightStyle } from '../../city/nightlife';
+import { clubStyleOf } from '../../city/clubLook';
 import { outingOf, startOuting } from '../../city/outings';
 import { eventsOf } from '../../city/people';
 import { goToTechEvent } from '../../city/techevent';
@@ -435,7 +436,10 @@ function Tonight({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layou
   const venues = useMemo(() => {
     const out: Venue[] = [];
     for (const b of businessesOf(city)) {
-      const style = nightStyleOf({ market: cityId, id: b.id, kind: b.kind, name: b.name });
+      const style = clubStyleOf(
+        { market: cityId, id: b.id, kind: b.kind, name: b.name, district: b.district },
+        nightStyleOf({ market: cityId, id: b.id, kind: b.kind, name: b.name }),
+      );
       if (!style) continue;
       const placeId = `biz:${b.id}`;
       const p = layout?.places.find((x) => x.id === placeId);
@@ -491,6 +495,7 @@ function Tonight({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layou
                 data-venue={v.placeId}
                 data-kind={v.b.kind}
                 data-genre={genre.id}
+                data-club-look={v.style.club?.key}
               >
                 <span className="going-venue-icon" aria-hidden="true">
                   {VENUE_ICON[v.b.kind] ?? '🍸'}
@@ -505,7 +510,9 @@ function Tonight({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layou
                     ) : null}
                   </span>
                   <span className="small muted">
-                    {tx(v.style.label)} · {t('Now playing · {genre}', { genre: tx(genre.label) })}
+                    {tx(v.style.label)}
+                    {v.style.club ? ` · ${tx(v.style.club.label)}` : ''} ·{' '}
+                    {t('Now playing · {genre}', { genre: tx(genre.label) })}
                   </span>
                 </span>
                 <button
