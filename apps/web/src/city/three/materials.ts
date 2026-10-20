@@ -31,6 +31,11 @@ export interface SharedUniforms {
   uSunDir: { value: THREE.Vector3 };
   /** Detail ring: (x, z) of its centre and its radius; near lots inside, far rows outside. */
   uDetail: { value: THREE.Vector3 };
+  /** The city's lit windows (NightLook): homes' warm light, offices' cool light. */
+  uWarm: { value: THREE.Color };
+  uCool: { value: THREE.Color };
+  /** (cool share at home, cool share at work, how many are lit: 1 an ordinary city). */
+  uLitMix: { value: THREE.Vector3 };
 }
 
 export const makeShared = (): SharedUniforms => ({
@@ -39,7 +44,20 @@ export const makeShared = (): SharedUniforms => ({
   uHour: { value: 12 },
   uSunDir: { value: new THREE.Vector3(0.4, 0.8, 0.3) },
   uDetail: { value: new THREE.Vector3(0, 0, 0) },
+  uWarm: { value: new THREE.Color('#ff9a42') },
+  uCool: { value: new THREE.Color('#bcd6ff') },
+  uLitMix: { value: new THREE.Vector3(0.16, 0.7, 1) },
 });
+
+/** Light a city's windows its own way. */
+export function setNightLook(
+  shared: SharedUniforms,
+  n: { warm: string; cool: string; coolShare: [number, number]; lit: number },
+) {
+  shared.uWarm.value.set(n.warm);
+  shared.uCool.value.set(n.cool);
+  shared.uLitMix.value.set(n.coolShare[0], n.coolShare[1], n.lit);
+}
 
 /** Which side of the detail ring an instanced mesh draws. */
 export type Lod = 'all' | 'near' | 'far';
@@ -48,6 +66,9 @@ const COMMON_FRAG = /* glsl */ `
 uniform float uNight;
 uniform float uTime;
 uniform float uHour;
+uniform vec3 uWarm;
+uniform vec3 uCool;
+uniform vec3 uLitMix;
 varying vec4 vFac;
 varying vec3 vBase;
 varying float vHl;
@@ -135,20 +156,29 @@ const FACADE = /* glsl */ `
     float occWork = 0.06 + 0.6 * (1.0 - smoothstep(17.5, 21.5, hh)) * smoothstep(7.0, 8.5, hh)
       + 0.24 * (1.0 - smoothstep(20.5, 24.5, hh));
     float occ = st == 5.0 ? 0.04 : mix(occHome, occWork, office);
-    float frac = clamp(occ * (0.35 + 1.3 * fs), 0.02, 0.9);
+    // Every building its own: some all but dark (empty, asleep, no power), some
+    // busy; then the city's own share (Dubai's towers lit up, Freetown's dim).
+    float bld = fract(seed * 3.71);
+    float busy = bld < 0.18 ? 0.12 : (bld > 0.85 ? 1.6 : 0.6 + 0.6 * fs);
+    float frac = clamp(occ * busy * uLitMix.z, 0.0, 0.85);
     // Far off, the lit share is averaged (no sparkle).
     // Floors differ (offices dark, a few lit); far off, each floor averages.
     float rowFrac = frac * (0.3 + 1.4 * bh21(vec2(id.y * 7.1, seed * 13.0)));
     float litX = mix(step(r, rowFrac), rowFrac, farK2.x);
-    float lit = mix(litX, frac, farK2.y) * win;
-    // Homes glow warm (lamps, curtains); offices cool (strip lights). Far off, the average.
-    vec3 warmC = vec3(1.0, 0.6, 0.26);
-    vec3 coolC = vec3(0.75, 0.86, 1.0);
-    float coolShare = mix(0.16, 0.7, office);
-    vec3 near = mix(warmC, coolC, step(1.0 - coolShare, fract(r * 9.1)));
-    vec3 warm = mix(near, mix(warmC, coolC, coolShare), farK);
-    fEmis = warm * lit * uNight * mix(2.4, 0.8, farK);
-    if (ground > 0.5 && vFac.y < 4.6) fEmis += vec3(1.0, 0.85, 0.6) * win * uNight * 0.9;
+    // Far off, floors still differ (a lit floor, a dark one): bands, not a grey wall.
+    float lit = mix(litX, mix(rowFrac, frac, 0.35), farK2.y) * win;
+    // Homes glow warm (lamps, curtains); offices cool (strip lights), in the
+    // city's own colours. Some windows dimmer (a lamp at the back, a TV).
+    float coolShare = mix(uLitMix.x, uLitMix.y, office);
+    vec3 near = mix(uWarm, uCool, step(1.0 - coolShare, fract(r * 9.1)));
+    near *= 0.45 + 0.55 * fract(r * 23.7);
+    vec3 warm = mix(near, mix(uWarm, uCool, coolShare * 0.6) * 0.7, farK);
+    // Far off a whole wall glows at its average: kept low (and warmer), or the
+    // towers turn to grey-white slabs and the city to a white haze.
+    fEmis = warm * lit * uNight * mix(2.6, 0.32, farK);
+    // Shopfronts: lit while the street is awake (most shut late), by shop.
+    float shop = step(0.35, fract(seed * 9.7)) * (0.35 + 0.65 * (1.0 - smoothstep(21.0, 24.0, hh)));
+    if (ground > 0.5 && vFac.y < 4.6) fEmis += uWarm * 0.6 * win * uNight * shop;
   } else if (st == 8.0) {
     // Flat roofs: membrane and gravel with patches.
     // Patches of membrane, blended (no blocky squares), fading out far away.
@@ -195,6 +225,9 @@ function patch(
     sh.uniforms.uTime = shared.uTime;
     sh.uniforms.uHour = shared.uHour;
     sh.uniforms.uDetail = shared.uDetail;
+    sh.uniforms.uWarm = shared.uWarm;
+    sh.uniforms.uCool = shared.uCool;
+    sh.uniforms.uLitMix = shared.uLitMix;
     const vHead = instanced
       ? /* glsl */ `
 attribute float aPart;

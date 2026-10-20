@@ -86,10 +86,13 @@ export function glowMaterial(u: GlowUniforms, opts: { day?: number } = {}) {
         float k = 1.0;
         if (aBlink > 0.0) k = step(0.55, fract(uTime * 0.8 + aBlink)) * 1.2;
         else if (aBlink < 0.0) k = 0.55 + 0.45 * sin(uTime * 2.3 + aBlink * 37.0);
-        vK = k * max(uNight, uDay);
+        // Far off, a light stays a few pixels (it doesn't vanish into the haze at
+        // once) but dims: thousands of distant lamps at full strength would add
+        // up to a white haze over the city.
+        float px = aSize * uScale / d;
+        vK = k * max(uNight, uDay) * clamp(px / 5.0, 0.3, 1.0);
         vColor = aColor;
-        // Far off, a light stays a few pixels (it doesn't vanish into the haze at once).
-        gl_PointSize = clamp(aSize * uScale / d, 2.0, 220.0);
+        gl_PointSize = clamp(px, 2.0, 220.0);
         gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
@@ -133,14 +136,24 @@ export function glowPoints(list: LightList, mat: THREE.Material): THREE.Points |
   return p;
 }
 
-/** Lamp colour by road class: sodium orange on the big roads, whiter LEDs in town. */
+/** Lamp colour by road class: sodium orange on the big roads, whiter LEDs in town (a city has its own: NightLook.lamps). */
 const LAMP = ['#ffb35c', '#ffbf6e', '#ffd49a', '#ffe2b8', '#ffe9c9', '#fff0d8'];
 
 /**
  * Street lamps along the roads, alternating sides (both sides on the big
  * roads), spaced by class; on bridges at deck height. Capped for the budget.
+ *
+ * With a `centre` (where the player is), the budget goes to the nearest
+ * streets first, every lamp lit: a big city's map (Lagos is 50 km across)
+ * would otherwise spend it all on whichever roads come first in the data,
+ * and the streets you look at would be dark.
  */
-export function streetLamps(roads: RoadIndex, max = 40000): LightList {
+export function streetLamps(
+  roads: RoadIndex,
+  max = 40000,
+  lamps: readonly string[] = LAMP,
+  centre?: { x: number; y: number },
+): LightList {
   const out = new LightList();
   let n = 0;
   const stepOf = (c: number) => (c <= 1 ? 34 : c <= 3 ? 30 : c === 4 ? 36 : 44);
@@ -152,8 +165,17 @@ export function streetLamps(roads: RoadIndex, max = 40000): LightList {
     if (s.c <= 2) main += 2 * k;
     else side += k;
   }
-  const keep = Math.max(0.05, Math.min(1, (max - main) / Math.max(1, side)));
-  for (const s of roads.segs) {
+  const keep = centre ? 1 : Math.max(0.05, Math.min(1, (max - main) / Math.max(1, side)));
+  const segs = centre
+    ? roads.segs
+        .map((s) => ({
+          s,
+          d: Math.hypot((s.ax + s.bx) / 2 - centre.x, (s.ay + s.by) / 2 - centre.y),
+        }))
+        .sort((a, b) => a.d - b.d)
+        .map((o) => o.s)
+    : roads.segs;
+  for (const s of segs) {
     const L = Math.hypot(s.bx - s.ax, s.by - s.ay);
     if (L < 1) continue;
     const half = [12, 10, 8.5, 7.5, 6.5, 5][s.c] ?? 5;
@@ -168,15 +190,15 @@ export function streetLamps(roads: RoadIndex, max = 40000): LightList {
       const y = s.ay + (s.by - s.ay) * t;
       const size = s.c <= 1 ? 9 : s.c <= 3 ? 7.5 : 6;
       if (both) {
-        out.add(x + nx * half, h, y + ny * half, LAMP[s.c]!, size);
-        out.add(x - nx * half, h, y - ny * half, LAMP[s.c]!, size);
+        out.add(x + nx * half, h, y + ny * half, lamps[s.c] ?? LAMP[s.c]!, size);
+        out.add(x - nx * half, h, y - ny * half, lamps[s.c] ?? LAMP[s.c]!, size);
       } else {
         const sg = (n++ & 1) * 2 - 1;
         if (keep < 1 && hash01(x, y) > keep) continue;
-        out.add(x + nx * half * sg, h, y + ny * half * sg, LAMP[s.c]!, size);
+        out.add(x + nx * half * sg, h, y + ny * half * sg, lamps[s.c] ?? LAMP[s.c]!, size);
       }
     }
-    if (out.length > max * 1.2) break;
+    if (out.length > (centre ? max : max * 1.2)) break;
   }
   return out;
 }
@@ -195,6 +217,48 @@ export function beacons(fps: Fp[]): LightList {
       Math.max(8, f.top / 22),
       0.05 + hash01(x0, y0) * 0.9,
     );
+  }
+  return out;
+}
+
+/**
+ * Crowns on the tall towers: a ring of floodlights round the roof line in the
+ * city's accent (Dubai's gold, London's white), on about half of them, and
+ * more of them the taller the city (`share`). Cheap: a handful of points each.
+ */
+export function towerCrowns(fps: Fp[], accent: string, share = 0.5, minTop = 60): LightList {
+  const out = new LightList();
+  for (const f of fps) {
+    if (f.top < minTop) continue;
+    const [x0, y0, x1, y1] = f.box;
+    if (hash01(x1, y1) > share) continue;
+    const cx = (x0 + x1) / 2;
+    const cz = (y0 + y1) / 2;
+    const hx = (x1 - x0) / 2;
+    const hz = (y1 - y0) / 2;
+    const size = Math.max(5, Math.min(12, f.top / 30));
+    // Round the roof's edge, every ~8 m (at most 24 a tower).
+    const per = Math.max(2, Math.min(6, Math.round(Math.max(hx, hz) / 8)));
+    for (const [ax, az, bx, bz] of [
+      [-hx, -hz, hx, -hz],
+      [hx, -hz, hx, hz],
+      [hx, hz, -hx, hz],
+      [-hx, hz, -hx, -hz],
+    ] as const)
+      for (let k = 0; k < per; k++) {
+        const t = k / per;
+        out.add(cx + ax + (bx - ax) * t, f.top - 1.5, cz + az + (bz - az) * t, accent, size);
+      }
+    // A wash up the corners of the very tall ones.
+    if (f.top >= 150)
+      for (let y = f.top * 0.15; y < f.top - 6; y += Math.max(10, f.top / 18))
+        for (const [ax, az] of [
+          [-hx, -hz],
+          [hx, -hz],
+          [-hx, hz],
+          [hx, hz],
+        ] as const)
+          out.add(cx + ax, y, cz + az, accent, size * 0.7);
   }
   return out;
 }
