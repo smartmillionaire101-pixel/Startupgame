@@ -140,4 +140,12 @@ export const nightlife: Record<string, string> = {
   'Shisha attendant': 'Préposé·e à la chicha',
   'Braai master': 'Maître du braai',
   Bartender: 'Barman·aid',
+  // A club's own look (city/clubLook.ts).
+  'Concrete warehouse': 'Entrepôt en béton',
+  'Techno bunker': 'Bunker techno',
+  'Neon club': 'Club néon',
+  'Velvet lounge': 'Salon de velours',
+  'Tropical club': 'Club tropical',
+  'Gold and champagne': 'Or et champagne',
+  'White marble': 'Marbre blanc',
 };

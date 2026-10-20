@@ -17,6 +17,8 @@ import { buildModel, chairAt } from './furniture';
 import { Kit, floorTexture, FLOOR_SCALE, mat, rugTexture, tone } from './kit';
 import { BACK, RD, RW, WALL_H, vx, vz, type SeatSpot, type VenueRoom } from './venues';
 import type { PoseId } from './character';
+import { buildClubParts, type ClubParts } from './club3d';
+import { softwareGl } from '../three-kit/quality';
 
 export interface NightEnv {
   background: THREE.Color | THREE.Texture;
@@ -250,7 +252,8 @@ export function buildNightVenue(o: NightOpts): NightRoom {
 
   // A sign: the style's neon word (or the venue's first word) on the back wall.
   const word = s.neon ?? o.sign?.split(' ')[0];
-  if (word && !open) {
+  // (A club has its own name in lights: ./club3d.ts.)
+  if (word && !open && !s.club) {
     const nm = new THREE.Mesh(
       new THREE.PlaneGeometry(4.2, 1.05),
       new THREE.MeshBasicMaterial({
@@ -386,6 +389,7 @@ export function buildNightVenue(o: NightOpts): NightRoom {
   }
 
   // ---- The floor plan's own things.
+  const gold = has('gold') || s.club?.tier === 'luxe';
   const counter = (x0: number, x1: number, z: number, c: string, bottlesAt?: number) => {
     const w = x1 - x0;
     const cx = (x0 + x1) / 2;
@@ -397,15 +401,19 @@ export function buildNightVenue(o: NightOpts): NightRoom {
       noShadow: true,
     });
     if (bottlesAt !== undefined)
-      bottles(k, x0, x1, bottlesAt, has('gold') ? '#fbbf24' : g0, s.light === 'dim');
+      bottles(k, x0, x1, bottlesAt, gold ? '#fbbf24' : g0, s.light === 'dim');
+    if (gold) k.box(w + 0.14, 0.03, 0.74, '#ca8a04', cx, 1.11, z, { metal: 0.85, rough: 0.2 });
   };
   const djBooth = (x: number, z: number) => {
     add('dj-booth', x, z, 1.8, 0.8, 0, g0);
   };
   switch (s.layout) {
     case 'dancefloor': {
-      djBooth(vx(180), vz(136) + 0.8);
       counter(3.5, 6, vz(150) + 0.65, tone(accent, -0.2), BACK + 0.2);
+      speakers(k, [vx(112), vx(248)], vz(136) + 0.6, 1.6);
+      // A club's own floor, booth and VIP corner (./club3d.ts).
+      if (s.club) break;
+      djBooth(vx(180), vz(136) + 0.8);
       // An LED floor that pulses to the beat.
       const tiles = [g0, g1, g2].map(
         (c) =>
@@ -444,23 +452,24 @@ export function buildNightVenue(o: NightOpts): NightRoom {
         vipSign.position.set(-4.4, 2.2, BACK + 0.05);
         root.add(vipSign);
       }
-      speakers(k, [vx(112), vx(248)], vz(136) + 0.6, 1.6);
       break;
     }
     case 'warehouse': {
       // The DJ on a low riser, under a truss of lights.
       const riser = 0.3;
-      k.box(7.2, riser, 1.9, '#18181b', 0, 0, BACK + 1.0);
-      k.box(7.2, 0.04, 0.04, g0, 0, riser - 0.04, BACK + 1.96, {
-        emissive: g0,
-        emissiveIntensity: 2,
-        noShadow: true,
-      });
-      const booth = add('dj-booth', 0, BACK + 1.55, 1.8, 0.8, 0, g0);
-      booth.group.position.y = riser;
-      slots.forEach((sl, i) => {
-        if (sl.act === 'dj') lift.set(i, riser);
-      });
+      if (!s.club) {
+        k.box(7.2, riser, 1.9, '#18181b', 0, 0, BACK + 1.0);
+        k.box(7.2, 0.04, 0.04, g0, 0, riser - 0.04, BACK + 1.96, {
+          emissive: g0,
+          emissiveIntensity: 2,
+          noShadow: true,
+        });
+        const booth = add('dj-booth', 0, BACK + 1.55, 1.8, 0.8, 0, g0);
+        booth.group.position.y = riser;
+        slots.forEach((sl, i) => {
+          if (sl.act === 'dj') lift.set(i, riser);
+        });
+      }
       k.box(9, 0.12, 0.12, '#52525b', 0, 2.75, -0.5, { metal: 0.6 });
       k.box(9, 0.12, 0.12, '#52525b', 0, 2.75, 1.2, { metal: 0.6 });
       for (let i = 0; i < 6; i++) k.cyl(0.09, 0.07, 0.2, '#27272a', -3.7 + i * 1.5, 2.55, -0.5, {});
@@ -710,6 +719,20 @@ export function buildNightVenue(o: NightOpts): NightRoom {
       break;
     }
   }
+  let club: ClubParts | null = null;
+  if (s.club)
+    club = buildClubParts({
+      style: s,
+      look: s.club,
+      k,
+      root,
+      slots,
+      lift,
+      pulse,
+      decks,
+      model: (id, x, z, w, d, ry, tint) => add(id, x, z, w, d, ry, tint),
+      lite: softwareGl(),
+    });
   if (has('graffiti') && !open) {
     const gm = new THREE.Mesh(
       new THREE.PlaneGeometry(5.5, 1.6),
@@ -730,8 +753,8 @@ export function buildNightVenue(o: NightOpts): NightRoom {
   }
 
   // ---- Light.
-  const club = s.light === 'neon' || s.light === 'disco' || s.light === 'strobe';
-  if (club) {
+  const lit = s.light === 'neon' || s.light === 'disco' || s.light === 'strobe';
+  if (lit) {
     const cs = [g0, g1, g2];
     const n = s.light === 'strobe' ? 2 : 3;
     for (let i = 0; i < n; i++) movers.push(light(cs[i]!, 6, (i - (n - 1) / 2) * 3.4, 2.6, 0.8));
@@ -750,7 +773,7 @@ export function buildNightVenue(o: NightOpts): NightRoom {
     lamps.push(light(g0, 2.2, -2.5, 2.4, 0.5));
     if (o.night) lamps.push(light(g1, 1.8, 3, 2.4, 1.2));
   }
-  if (has('lasers') || club) {
+  if (club ? club.beams : has('lasers') || lit) {
     const beamMat = new THREE.MeshBasicMaterial({
       color: g0,
       transparent: true,
@@ -799,6 +822,7 @@ export function buildNightVenue(o: NightOpts): NightRoom {
       l.intensity = s.light === 'strobe' ? (ph < 0.12 ? 9 : 2.5) : 5 + 2 * (1 - ph);
     });
     for (const f of flames) f.l.intensity = 2.2 + Math.sin(t * 13) * 0.4 + Math.sin(t * 7.3) * 0.3;
+    club?.animate(t, beat, ph);
   };
 
   return {

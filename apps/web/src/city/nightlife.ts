@@ -15,6 +15,7 @@
  * 3D. Venue types are generic, never real venue names.
  */
 import type { AvatarLook } from './art';
+import type { ClubLook } from './clubLook';
 import { hash } from './contract';
 import type { RoomKind, Slot, Activity } from './rooms';
 
@@ -630,6 +631,8 @@ export interface NightStyle {
   neon?: string;
   /** Tray labels by the engine item id (translated with tx). The command is the same. */
   relabel?: Record<string, string>;
+  /** A club's own look over its city's style (./clubLook.ts), when it has one. */
+  club?: ClubLook;
 }
 
 const S = (o: NightStyle): NightStyle => o;
