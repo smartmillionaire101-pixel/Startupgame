@@ -115,6 +115,8 @@ import {
 import { exitsOn, investorOn, jobsOn, lifeBarsOn } from './releases.js';
 import { applyForJob, attendInterview, ensureEmployers } from './work.js';
 import { golfRound, mallBuy } from './leisure.js';
+import { mallTripCommand } from './malltrips.js';
+import { MALL_TRIP } from './data/leisure.js';
 import {
   HOME_ACT_BARS,
   LIFE_BARS,
@@ -1441,6 +1443,11 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return golfRound(world, me, cmd.strokes);
     case 'mall.buy':
       return mallBuy(world, me, cmd.itemId, cmd.colour, ctx.now);
+    case 'mall.invite':
+    case 'mall.answer':
+    case 'mall.leave':
+    case 'mall.gift':
+      return mallTripCommand(world, me, cmd, ctx.now);
     // ------------------------------------------------------------ capital programmes (Wave 5)
     case 'accelerator.apply':
       return applyAccelerator(world, me, cmd.acceleratorId, cmd.companyId);
@@ -1663,8 +1670,17 @@ function lifeBarsAfter(world: World, cmd: Command, actorId: Id, result: unknown)
       return changed(foodBars(cmd.itemId));
     case 'golf.round':
     case 'mall.buy': {
-      const { barsFx, ...rest } = out as { barsFx?: { stress?: number } };
+      const { barsFx, ...rest } = out as { barsFx?: { stress?: number; health?: number } };
       return barsFx ? { ...changed(barsFx), barsFx: undefined, ...rest } : out;
+    }
+    // Shopping together: meeting at the mall eases you both (an AI friend says yes at once).
+    case 'mall.invite':
+      return out.status === 'together' ? changed({ stress: MALL_TRIP.stress }) : out;
+    case 'mall.answer': {
+      if (out.status !== 'together') return out;
+      const host = world.players[(out.host as { id: Id } | undefined)?.id ?? ''];
+      if (host && !host.ai) applyBars(host, { stress: MALL_TRIP.stress });
+      return changed({ stress: MALL_TRIP.stress });
     }
     default:
       return result;

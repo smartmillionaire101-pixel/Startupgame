@@ -322,6 +322,11 @@ export interface Player {
   };
   /** The mall (leisure.ts): the phone you bought there (cosmetic). Missing = the one you came with. */
   phone?: { tier: 1 | 2 | 3; paid: number; month: number };
+  /**
+   * The bigger mall: things you bought there and keep (shoes, jewellery,
+   * books …), newest last, and who gave it to you. Missing = none.
+   */
+  belongings?: { item: string; month: number; from?: Id }[];
 }
 
 // ---------------------------------------------------------------- Founder Journey 5: exits and the capital allocator
@@ -539,6 +544,23 @@ export interface Visit {
   /** Host city month the invitation was sent (and, once accepted, the visit lasts). */
   month: number;
   status: 'pending' | 'accepted' | 'declined';
+}
+
+/**
+ * Shopping together (malltrips.ts): one player takes another (a player who
+ * says yes, or an AI friend who answers at once) to the mall in the city
+ * they're both in, for the month. Gifts bought there are listed.
+ */
+export interface MallTrip {
+  id: Id;
+  host: Id;
+  guest: Id;
+  market: MarketId;
+  /** The city's month: the outing lasts until it settles (or one of you leaves). */
+  month: number;
+  status: 'invited' | 'together' | 'declined' | 'ended';
+  createdAt: number;
+  gifts: { from: Id; to: Id; item: string; price: number }[];
 }
 
 /** Going out together: a venue in a city, the people asked and the people who came. */
@@ -1914,7 +1936,9 @@ export interface InboxItem {
       /** Wave 13: a home offered as a gift. */
       | 'gift'
       /** Holiday with friends: an invitation or an answer. */
-      | 'holiday';
+      | 'holiday'
+      /** Shopping together: an invitation to the mall, or a gift bought there. */
+      | 'mall';
     id: Id;
   };
   /** The other player this is about (a payment, a gift): their chat is where to act. */
@@ -2236,6 +2260,8 @@ export interface World {
   visits?: Record<Id, Visit>;
   /** Wave 8: hangouts. Missing on old saves = none. */
   hangouts?: Record<Id, Hangout>;
+  /** Shopping together (malltrips.ts). Missing = none. */
+  mallTrips?: Record<Id, MallTrip>;
   /** Holiday with friends: trips abroad friends were invited on. Missing = none. */
   holidays?: Record<Id, Holiday>;
   /** Wave 10: every city's property market (listed and owned). Missing = seeded at the next settlement. */

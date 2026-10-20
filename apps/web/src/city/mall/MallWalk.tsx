@@ -7,6 +7,11 @@
  * its card (colours to try on, Add to basket, Buy now). Paying is the
  * engine's `mall.buy`, once per item (a basket pays them one after another)
  * and a receipt lists what you got.
+ *
+ * The bigger mall's shops are storefronts: walk up to one and its list
+ * opens (every shop has one: "All items"). Shopping with a friend, they
+ * walk a step behind you and every card has 🎁 to buy it for them
+ * (`mall.gift`).
  */
 import {
   Suspense,
@@ -26,27 +31,30 @@ import { PhotoSheet, addPhoto } from '../../home/HomePhotos';
 import type { Mall3DApi, Mall3DHit } from '../../interiors3d/Mall3D';
 import type { AvatarLook } from '../art';
 import { looseCmd } from '../life';
-import type { MallItemView, MallView } from '../leisure';
+import type { MallItemView, MallTripView, MallView } from '../leisure';
 import {
-  COUNTERS,
   backOut,
   bearing,
   compassPoint,
+  counterOf,
   displays,
   goal,
+  isUnit,
   landmarks,
   regionOf,
   shopToWorld,
+  unitPoint,
   type RoomShop,
+  type UnitShop,
   type Where,
 } from './layout';
 import {
   SHOP_COLOUR,
   SHOP_ICON,
-  SHOP_ORDER,
   colourName,
   isWearable,
   itemIcon,
+  itemNote,
   shopBlurb,
   wearing,
 } from './shops';
@@ -61,10 +69,20 @@ interface Receipt {
   lines: (Line & { price: number; note: string })[];
   total: number;
   shop: MallShopId | null;
+  /** A gift: who it's for. */
+  for?: string;
 }
 
 export interface MallWalkProps {
   me: AvatarLook;
+  /** The friend shopping with you (walking a step behind), and the outing. */
+  friend: AvatarLook | null;
+  trip: MallTripView | null;
+  /** The shops open here; the storefronts among them. */
+  shops: readonly MallShopId[];
+  units: UnitShop[];
+  /** Whether an item is for you (clothes for who you are); others are only gifts. */
+  forMe: (it: MallItemView) => boolean;
   shoppers: AvatarLook[];
   names: Record<MallShopId, string>;
   mallName: string;
@@ -99,7 +117,7 @@ export function MallWalk(p: MallWalkProps) {
   const [card, setCard] = useState<string | null>(null);
   const [colour, setColour] = useState<string>(TOP_COLOURS[5]);
   const [basket, setBasket] = useState<Line[]>([]);
-  const [sheet, setSheet] = useState<'basket' | 'directory' | null>(null);
+  const [sheet, setSheet] = useState<'basket' | 'directory' | 'shelf' | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [paid, setPaid] = useState<{ total: number; key: number } | null>(null);
   const [photo, setPhoto] = useState<{ src: string | null } | null>(null);
@@ -141,6 +159,7 @@ export function MallWalk(p: MallWalkProps) {
     live.current = p;
   });
 
+  const friendName = p.trip?.friend.name.split(' ')[0] ?? '';
   const go = useCallback(
     (shop: MallShopId) => {
       setSheet(null);
@@ -247,11 +266,9 @@ export function MallWalk(p: MallWalkProps) {
             ? t('It’s in your home now.')
             : l.item.phone
               ? t('Your new phone is in your pocket.')
-              : l.item.hours
-                ? t('{n} hours', { n: l.item.hours })
-                : l.item.hunger
-                  ? t('Fills you up')
-                  : '';
+              : l.item.keep
+                ? t('It’s in your bag.')
+                : itemNote(l.item);
     const paidIds = new Set(done.map((l) => l.item.id));
     setBasket((b) => b.filter((x) => !paidIds.has(x.item.id)));
     const shops = new Set(done.map((l) => l.item.shop));
@@ -260,6 +277,42 @@ export function MallWalk(p: MallWalkProps) {
     setSheet(null);
     setReceipt({ lines: done, total, shop: shops.size === 1 ? done[0]!.item.shop : null });
     setPaid({ total, key: Date.now() });
+  };
+
+  const giftNow = async (l: Line) => {
+    const trip = p.trip;
+    if (paying || !trip) return;
+    setPaying(true);
+    let r: { price?: number } | null = null;
+    try {
+      r = await p.send<{ price?: number }>(
+        looseCmd({
+          type: 'mall.gift',
+          tripId: trip.id,
+          itemId: l.item.id,
+          ...(l.colour ? { colour: l.colour } : {}),
+        }) as never,
+      );
+    } finally {
+      setPaying(false);
+    }
+    if (!r) return;
+    const price = r.price ?? l.item.price;
+    setCard(null);
+    setSheet(null);
+    setReceipt({
+      lines: [
+        {
+          ...l,
+          price,
+          note: t('A gift for {name}', { name: trip.friend.name }),
+        },
+      ],
+      total: price,
+      shop: l.item.shop,
+      for: trip.friend.name,
+    });
+    setPaid({ total: price, key: Date.now() });
   };
 
   useEffect(() => {
@@ -288,12 +341,16 @@ export function MallWalk(p: MallWalkProps) {
     !p.busy &&
     !paying &&
     !it.owned &&
+    p.forMe(it) &&
     p.pocket >= it.price &&
     !(it.furniture && p.mall && !p.mall.delivers);
-  const retail = (it: MallItemView) => it.shop !== 'foodcourt' && it.shop !== 'cinema';
+  const canGift = (it: MallItemView) =>
+    !!p.trip && !!it.gift && !p.busy && !paying && p.pocket >= it.price;
+  const retail = (it: MallItemView) =>
+    it.shop !== 'foodcourt' && it.shop !== 'cinema' && !it.hours && p.forMe(it);
 
   // Compass (Look around): what's ahead, to the left and right.
-  const marks = useMemo(() => landmarks(), []);
+  const marks = useMemo(() => landmarks(p.shops), [p.shops]);
   const compass = useMemo(() => {
     if (!facing) return null;
     const at = { x: facing.x, z: facing.z };
@@ -323,7 +380,9 @@ export function MallWalk(p: MallWalkProps) {
   const label = (it: MallItemView) => tx(it.label);
   const subtitle = (it: MallItemView) =>
     isWearable(it)
-      ? t('You’re trying it on')
+      ? p.forMe(it)
+        ? t('You’re trying it on')
+        : t('A gift for {name}', { name: friendName })
       : it.furniture
         ? p.mall && !p.mall.delivers
           ? t('Furniture is delivered to your home: buy it in your home city.')
@@ -332,14 +391,12 @@ export function MallWalk(p: MallWalkProps) {
           ? p.mall?.phone
             ? t('Your phone: {name}', { name: tx(p.mall.phone.name) })
             : ''
-          : it.hours
-            ? t('{n} hours', { n: it.hours })
-            : it.hunger
-              ? t('Fills you up')
-              : '';
+          : itemNote(it);
 
   const sheetOpen = !!(card || sheet || receipt);
   const inShop = where !== 'concourse';
+  /** The list of what a shop sells (a storefront's stock; a room's, all of it). */
+  const shelfItems = items.filter((i) => i.shop === where);
 
   return (
     <>
@@ -356,6 +413,8 @@ export function MallWalk(p: MallWalkProps) {
           names={p.names}
           mallName={p.mallName}
           stock={stock}
+          units={p.units}
+          friend={p.friend}
           reduced={p.reduced}
           lift={lift}
           api={api}
@@ -367,6 +426,12 @@ export function MallWalk(p: MallWalkProps) {
             setWalking(null);
             const r = regionOf(at.x, at.z);
             if (r !== live.current.where) live.current.onWhere(r);
+            // At a storefront: its list opens.
+            if (isUnit(r) && r !== live.current.where) {
+              setCard(null);
+              setReceipt(null);
+              setSheet('shelf');
+            }
           }}
           onWalk={(left) => setWalking((w) => (left === null ? null : { to: w?.to ?? null, left }))}
           onHeading={(h, at) => setFacing({ h, ...at })}
@@ -381,11 +446,13 @@ export function MallWalk(p: MallWalkProps) {
         {/* Shops' signs: tap to walk there and go in. */}
         {!looking &&
           !inShop &&
-          SHOP_ORDER.map((s) => {
+          p.shops.map((s) => {
             const at =
               s === 'foodcourt'
                 ? { x: 0, y: 3.4, z: -43 }
-                : { ...shopToWorld(s as RoomShop, -0.2, 0), y: 4.45 };
+                : isUnit(s)
+                  ? { ...unitPoint(s, 0.4), y: 3.3 }
+                  : { ...shopToWorld(s as RoomShop, -0.2, 0), y: 4.45 };
             const target = walking?.to === s;
             return (
               <button
@@ -393,7 +460,7 @@ export function MallWalk(p: MallWalkProps) {
                 type="button"
                 className={`mall-sign${target ? ' is-target' : ''}`}
                 data-at={`${at.x} ${at.y} ${at.z}`}
-                data-far="44"
+                data-far={isUnit(s) ? '30' : '44'}
                 data-shop-sign={s}
                 onClick={() => go(s)}
               >
@@ -409,7 +476,7 @@ export function MallWalk(p: MallWalkProps) {
         {tags.map((d) => {
           const it = shopOfItem(items, d.id);
           if (!it) return null;
-          const counter = COUNTERS.find((c) => c.item === d.id);
+          const counter = counterOf(d.id);
           return (
             <button
               key={d.id}
@@ -421,7 +488,7 @@ export function MallWalk(p: MallWalkProps) {
               aria-label={`${label(it)} ${fmt(it.price)}`}
               onClick={() => (looking ? undefined : openItem(d.id))}
             >
-              <b aria-hidden="true">{counter ? counter.icon : inBasket(d.id) ? '✓' : '+'}</b>
+              <b aria-hidden="true">{counter ? itemIcon(it) : inBasket(d.id) ? '✓' : '+'}</b>
               {label(it)} {fmt(it.price)}
             </button>
           );
@@ -468,6 +535,22 @@ export function MallWalk(p: MallWalkProps) {
               }}
             >
               {t('← Concourse')}
+            </button>
+          )}
+          {inShop && !looking && !sheetOpen && shelfItems.length > 0 && (
+            <button
+              type="button"
+              className="mall-pill is-light mall-shelf-btn"
+              data-keepout=""
+              data-action="mall-shelf"
+              onClick={() => {
+                setCard(null);
+                setReceipt(null);
+                setSheet('shelf');
+              }}
+            >
+              <span aria-hidden="true">{SHOP_ICON[where as MallShopId]}</span>
+              {t('All items ({n})', { n: shelfItems.length })}
             </button>
           )}
           <div
@@ -585,7 +668,9 @@ export function MallWalk(p: MallWalkProps) {
                   {inShop
                     ? where === 'foodcourt'
                       ? t('Tap a counter to order')
-                      : t('Tap a tag to see it · ← Concourse to go out')
+                      : isUnit(where)
+                        ? t('Tap All items to see what they sell')
+                        : t('Tap a tag to see it · ← Concourse to go out')
                     : t('Tap the floor to walk · tap a shop to go in')}
                 </span>
               </>
@@ -670,22 +755,40 @@ export function MallWalk(p: MallWalkProps) {
                     {inBasket(cardItem.id) ? t('In your basket') : t('＋ Add to basket')}
                   </button>
                 )}
+                {p.forMe(cardItem) && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    data-action="buy-now"
+                    disabled={!canBuy(cardItem)}
+                    onClick={() =>
+                      void pay([{ item: cardItem, ...(cardItem.topStyle ? { colour } : {}) }])
+                    }
+                  >
+                    {cardItem.owned
+                      ? t('Yours')
+                      : p.pocket < cardItem.price
+                        ? t('Not enough money')
+                        : t('Buy now {price}', { price: fmt(cardItem.price) })}
+                  </button>
+                )}
+              </div>
+              {p.trip && cardItem.gift && (
                 <button
                   type="button"
-                  className="btn btn-primary"
-                  data-action="buy-now"
-                  disabled={!canBuy(cardItem)}
+                  className="btn btn-subtle mall-wide mall-gift-btn"
+                  data-action="gift-now"
+                  disabled={!canGift(cardItem)}
                   onClick={() =>
-                    void pay([{ item: cardItem, ...(cardItem.topStyle ? { colour } : {}) }])
+                    void giftNow({ item: cardItem, ...(cardItem.topStyle ? { colour } : {}) })
                   }
                 >
-                  {cardItem.owned
-                    ? t('Yours')
-                    : p.pocket < cardItem.price
-                      ? t('Not enough money')
-                      : t('Buy now {price}', { price: fmt(cardItem.price) })}
+                  {t('🎁 Buy it for {name} · {price}', {
+                    name: friendName,
+                    price: fmt(cardItem.price),
+                  })}
                 </button>
-              </div>
+              )}
             </section>
           )}
           {sheet === 'basket' && (
@@ -756,6 +859,65 @@ export function MallWalk(p: MallWalkProps) {
               </button>
             </section>
           )}
+          {sheet === 'shelf' && inShop && (
+            <section
+              ref={sheetRef}
+              data-keepout=""
+              className="mall-sheet mall-shelf"
+              aria-label={tx(p.names[where as MallShopId])}
+              data-mall-shelf={where}
+            >
+              <div className="mall-row">
+                <span
+                  className="mall-thumb"
+                  aria-hidden="true"
+                  style={{ background: `${SHOP_COLOUR[where as MallShopId]}22` }}
+                >
+                  {SHOP_ICON[where as MallShopId]}
+                </span>
+                <span className="mall-grow">
+                  <b className="mall-name">{tx(p.names[where as MallShopId])}</b>
+                  <span className="small muted">{shopBlurb(where as MallShopId)}</span>
+                </span>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label={t('Close')}
+                  onClick={() => setSheet(null)}
+                >
+                  ✕
+                </button>
+              </div>
+              <ul className="mall-lines">
+                {shelfItems.map((it) => (
+                  <li key={it.id}>
+                    <button
+                      type="button"
+                      className="mall-dir"
+                      data-shelf-item={it.id}
+                      onClick={() => {
+                        setSheet(null);
+                        setCard(it.id);
+                      }}
+                    >
+                      <span className="mall-thumb" aria-hidden="true">
+                        {itemIcon(it)}
+                      </span>
+                      <span className="mall-grow">
+                        <b>{label(it)}</b>
+                        <span className="small muted">
+                          {p.forMe(it)
+                            ? itemNote(it)
+                            : t('A gift for {name}', { name: friendName })}
+                        </span>
+                      </span>
+                      <b className="num">{fmt(it.price)}</b>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {sheet === 'directory' && (
             <section
               ref={sheetRef}
@@ -776,7 +938,7 @@ export function MallWalk(p: MallWalkProps) {
                 </button>
               </div>
               <ul className="mall-lines">
-                {SHOP_ORDER.map((s) => {
+                {p.shops.map((s) => {
                   const w = dirFrom;
                   const g = goal(s);
                   const d = w ? Math.round(Math.hypot(g.x - w.x, g.z - w.z)) : 0;
@@ -822,10 +984,11 @@ export function MallWalk(p: MallWalkProps) {
               aria-label={t('Receipt')}
               data-mall-receipt={receipt.lines.length}
               data-total={receipt.total}
+              data-gift-for={receipt.for ?? ''}
             >
               <div className="mall-row">
                 <b className="mall-name mall-grow">
-                  🧾{' '}
+                  {receipt.for ? '🎁 ' : '🧾 '}
                   {receipt.shop
                     ? t('Receipt · {shop}', { shop: tx(p.names[receipt.shop]) })
                     : t('Receipt')}

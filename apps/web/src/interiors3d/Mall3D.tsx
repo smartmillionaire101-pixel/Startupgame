@@ -33,8 +33,12 @@ import {
   SPOT,
   START,
   TABLES,
+  UNITS,
+  UNIT_DEPTH,
+  counterOf,
   displays,
   findPath,
+  isRoom,
   pathLength,
   regionOf,
   smoothPath,
@@ -42,7 +46,9 @@ import {
   walkGrid,
   type Display,
   type RoomShop,
+  type UnitShop,
 } from '../city/mall/layout';
+import { SHOP_COLOUR } from '../city/mall/shops';
 import { makeCharacter, pose, type Character } from './character';
 import { Kit, disposeTree, floorTexture, mat, paintingTexture, screenTexture } from './kit';
 import {
@@ -91,6 +97,10 @@ export interface Mall3DProps {
   names: Record<MallShopId, string>;
   mallName: string;
   stock: MallStockItem[];
+  /** The bigger mall's storefronts open here. */
+  units: UnitShop[];
+  /** The friend shopping with you (they walk a step behind you), or null. */
+  friend: AvatarLook | null;
   reduced: boolean;
   /** Pixels at the bottom a sheet covers: the picture moves up by half of it. */
   lift: number;
@@ -108,14 +118,7 @@ export interface Mall3DProps {
   onHeading: (heading: number, at: { x: number; z: number }) => void;
 }
 
-const COLOUR: Record<MallShopId, string> = {
-  fashion: '#db2777',
-  phones: '#2563eb',
-  home: '#a16207',
-  supermarket: '#16a34a',
-  foodcourt: '#ea580c',
-  cinema: '#7c3aed',
-};
+const COLOUR: Record<MallShopId, string> = SHOP_COLOUR;
 const TOPS = [
   '#0f766e',
   '#2563eb',
@@ -162,7 +165,7 @@ function signMesh(text: string, bg: string, w: number, h: number, fg?: string) {
 }
 
 /** The hall: floor, walls, roof and skylights, the gallery, escalators, columns, planters. */
-function buildHall(mallName: string, names: Record<MallShopId, string>) {
+function buildHall(mallName: string, names: Record<MallShopId, string>, units: UnitShop[]) {
   const root = new THREE.Group();
   const k = new Kit();
   const tex = floorTexture('marble').clone();
@@ -213,21 +216,33 @@ function buildHall(mallName: string, names: Record<MallShopId, string>) {
     k.box(0.04, 1.0, 52, '#bfe3f2', s * 4.02, LEVEL, -19, { opacity: 0.35, noShadow: true });
     k.box(0.08, 0.06, 52, '#94a3b8', s * 4.02, LEVEL + 1.0, -19, { metal: 0.8, rough: 0.3 });
     for (const z of COLUMN_Z) k.cyl(0.32, 0.32, 9.4, '#f8fafc', s * 4.4, 0, z, { seg: 18 });
-    // Wall between the shopfronts (and where there's no shop yet).
-    const fronts = ROOM_SHOPS.filter((sh) => SPOT[sh].side === s).map((sh) => SPOT[sh].z);
+    // Wall between the shopfronts and storefronts (and where there's no shop yet).
+    const fronts: [number, number][] = [
+      ...ROOM_SHOPS.filter((sh) => SPOT[sh].side === s).map(
+        (sh) => [SPOT[sh].z, SHOP_W / 2] as [number, number],
+      ),
+      ...units
+        .filter((u) => UNITS[u].nz === 0 && Math.abs(UNITS[u].x) === HALF && UNITS[u].x * s > 0)
+        .map((u) => [UNITS[u].z, UNITS[u].w / 2] as [number, number]),
+    ];
     let top = FRONT_Z;
-    for (const z of [...fronts.sort((a, b) => b - a), -37.3]) {
-      const a = z + SHOP_W / 2;
+    for (const [z, hw] of [
+      ...fronts.sort((a, b) => b[0] - a[0]),
+      [-37.3, 4.5] as [number, number],
+    ]) {
+      const a = z + hw;
       if (top - a > 0.05)
         k.box(0.25, LEVEL - 0.35, top - a, '#efe9e0', s * (HALF + 0.12), 0, (top + a) / 2);
-      top = z - SHOP_W / 2;
+      top = z - hw;
     }
   }
-  // A hoarding where the right side has no shop yet.
-  const soon = signMesh('Opening soon', '#334155', 6, 0.8);
-  soon.position.set(HALF - 0.06, 2.4, -28);
-  soon.rotation.y = -Math.PI / 2;
-  root.add(soon);
+  // A hoarding where the right side has no shop yet (an older mall).
+  if (!units.includes('jewellery')) {
+    const soon = signMesh('Opening soon', '#334155', 6, 0.8);
+    soon.position.set(HALF - 0.06, 2.4, -28);
+    soon.rotation.y = -Math.PI / 2;
+    root.add(soon);
+  }
   k.box(8, 0.35, 3.2, '#f5f2ec', 0, LEVEL - 0.35, -22.6);
   k.box(8, 1.0, 0.04, '#bfe3f2', 0, LEVEL, -21, { opacity: 0.35, noShadow: true });
   // Escalators up to the bridge.
@@ -612,7 +627,7 @@ function buildRooms(names: Record<MallShopId, string>, stock: MallStockItem[], d
     picks.push(p);
   });
   // Upstairs shopfronts (more of the mall), signed.
-  const upper = ['Sports', 'Books', 'Beauty', 'Kids', 'Jewellery', 'Toys'];
+  const upper = ['Salon', 'Opticians', 'Travel', 'Kids', 'Bank', 'Gym'];
   const ucol = ['#0ea5e9', '#a16207', '#ec4899', '#f59e0b', '#64748b', '#22c55e'];
   upper.forEach((name, i) => {
     const s = i % 2 ? 1 : -1;
@@ -638,6 +653,248 @@ function buildRooms(names: Record<MallShopId, string>, stock: MallStockItem[], d
   return { root, picks, fronts };
 }
 
+/**
+ * The bigger mall's storefronts: glass, a fascia with the lit sign, a
+ * shallow window lit from above and dressed for what the shop sells (all
+ * merged into a few meshes: a dozen colours, no per-item parts).
+ */
+function buildUnits(names: Record<MallShopId, string>, units: UnitShop[]) {
+  const root = new THREE.Group();
+  const k = new Kit();
+  const picks: THREE.Object3D[] = [];
+  const pickMat = new THREE.MeshBasicMaterial({ visible: false });
+  const MERCH = ['#db2777', '#2563eb', '#f59e0b', '#16a34a', '#7c3aed', '#dc2626', '#0f766e'];
+  for (const shop of units) {
+    const u = UNITS[shop];
+    const col = COLOUR[shop];
+    const inHall = u.nz === 0 && Math.abs(u.x) === HALF;
+    const H = inHall ? LEVEL - 0.35 : 3.6;
+    const D = UNIT_DEPTH;
+    const W = u.w;
+    // Unit frame: d out from the glass (negative: inside), l along it.
+    const at = (d: number, l: number) => ({
+      x: u.x + u.nx * d - u.nz * l,
+      z: u.z + u.nz * d + u.nx * l,
+    });
+    const box = (
+      sd: number,
+      h: number,
+      sl: number,
+      c: string,
+      d: number,
+      y: number,
+      l: number,
+      o = {},
+    ) => {
+      const p = at(d, l);
+      if (u.nz === 0) k.box(sd, h, sl, c, p.x, y, p.z, o);
+      else k.box(sl, h, sd, c, p.x, y, p.z, o);
+    };
+    const ball = (r: number, c: string, d: number, y: number, l: number) => {
+      const p = at(d, l);
+      k.sphere(r, c, p.x, y, p.z, { seg: 10 });
+    };
+    const dark = shop === 'arcade';
+    // The room behind the glass: walls, ceiling and its light.
+    box(0.2, H, W, dark ? '#1e1b4b' : '#f4efe6', -D, 0, 0);
+    for (const l of [-W / 2, W / 2]) box(D, H, 0.16, '#efe9e0', -D / 2, 0, l);
+    box(D, 0.18, W, '#ffffff', -D / 2, H - 0.18, 0, { noShadow: true });
+    box(D - 0.6, 0.04, W - 0.8, '#ffffff', -D / 2, H - 0.22, 0, {
+      emissive: dark ? '#c4b5fd' : '#fff7e6',
+      emissiveIntensity: 0.9,
+      noShadow: true,
+    });
+    box(D - 0.1, 0.02, W - 0.2, dark ? '#312e81' : '#e7e2d8', -D / 2, 0.004, 0, { noShadow: true });
+    // The glass, its mullions and the fascia above.
+    box(0.05, H - 1.1, W - 0.2, '#cfe8f5', 0, 0, 0, { opacity: 0.25, rough: 0.05, noShadow: true });
+    for (const l of [-W / 2 + 0.05, -W / 6, W / 6, W / 2 - 0.05])
+      box(0.1, H - 1.1, 0.1, '#94a3b8', 0, 0, l, { metal: 0.7 });
+    box(0.25, 1.1, W, col, 0.05, H - 1.1, 0);
+    // The window: dressed for the shop.
+    const back = -D + 0.35;
+    switch (shop) {
+      case 'outlet':
+      case 'designer': {
+        const n = shop === 'designer' ? 4 : 7;
+        for (const row of shop === 'designer' ? [0] : [-1, 1]) {
+          const d = shop === 'designer' ? -1.4 : -1.2 + row * 0.5;
+          box(0.04, 0.04, W - 1.2, '#9ca3af', d, 1.75, 0, { metal: 0.7 });
+          for (let i = 0; i < n; i++)
+            box(
+              0.35,
+              0.85,
+              0.08,
+              MERCH[(i + row + 3) % MERCH.length]!,
+              d,
+              0.9,
+              -W / 2 + 0.8 + (i * (W - 1.6)) / (n - 1),
+            );
+        }
+        if (shop === 'designer') {
+          box(0.7, 0.3, 0.7, '#111827', -0.8, 0, 0, { metal: 0.4 });
+          box(0.36, 1.4, 0.3, '#fde68a', -0.8, 0.3, 0);
+          box(0.05, 0.05, W - 0.4, '#b8860b', 0.02, H - 1.2, 0, { metal: 0.9, rough: 0.2 });
+        }
+        break;
+      }
+      case 'shoes':
+        for (let r = 0; r < 3; r++) {
+          box(0.35, 0.05, W - 0.6, '#e5e7eb', back, 0.5 + r * 0.6, 0);
+          for (let i = 0; i < 6; i++)
+            box(
+              0.26,
+              0.12,
+              0.3,
+              MERCH[(i + r * 2) % MERCH.length]!,
+              back,
+              0.55 + r * 0.6,
+              -W / 2 + 0.6 + i * ((W - 1.2) / 5),
+            );
+        }
+        box(0.6, 0.45, 1.6, '#f8fafc', -0.9, 0, 0, { round: 0.04 });
+        break;
+      case 'jewellery':
+        for (const l of [-W / 4, W / 4]) {
+          box(0.6, 0.9, 1.5, '#1f2937', -0.9, 0, l);
+          box(0.6, 0.25, 1.5, '#e0f2fe', -0.9, 0.9, l, { opacity: 0.35, noShadow: true });
+          for (let i = 0; i < 4; i++)
+            ball(0.06, i % 2 ? '#fde047' : '#e5e7eb', -0.9, 0.98, l - 0.55 + i * 0.36);
+        }
+        box(0.1, 1.2, W - 0.8, '#111827', back, 1.1, 0);
+        for (let i = 0; i < 5; i++)
+          ball(0.09, '#fbbf24', back + 0.08, 1.6, -W / 2 + 0.9 + i * ((W - 1.8) / 4));
+        break;
+      case 'beauty':
+        for (let r = 0; r < 3; r++) {
+          box(0.35, 0.05, W - 0.6, '#ffffff', back, 0.6 + r * 0.55, 0);
+          for (let i = 0; i < 7; i++) {
+            const p = at(back, -W / 2 + 0.6 + i * ((W - 1.2) / 6));
+            k.cyl(0.06, 0.07, 0.24, i % 2 ? '#f9a8d4' : '#e11d74', p.x, 0.65 + r * 0.55, p.z, {
+              seg: 10,
+            });
+          }
+        }
+        box(0.6, 0.95, 1.4, '#fce7f3', -0.95, 0, 0, { round: 0.05 });
+        break;
+      case 'books':
+        for (let r = 0; r < 4; r++) {
+          box(0.3, 0.04, W - 0.4, '#7c2d12', back, 0.3 + r * 0.6, 0);
+          for (let i = 0; i < 12; i++)
+            box(
+              0.24,
+              0.42,
+              0.11,
+              MERCH[(i * 3 + r) % MERCH.length]!,
+              back,
+              0.34 + r * 0.6,
+              -W / 2 + 0.4 + i * ((W - 0.8) / 11),
+            );
+        }
+        box(0.7, 0.8, 1.2, '#a16207', -0.9, 0, 0);
+        for (let i = 0; i < 3; i++)
+          box(0.24, 0.05, 0.3, MERCH[i]!, -0.9, 0.8 + i * 0.05, -0.3 + i * 0.3);
+        break;
+      case 'sports':
+        for (let i = 0; i < 4; i++)
+          ball(0.16, i % 2 ? '#ffffff' : '#f97316', -0.8, 0.16, -W / 2 + 0.8 + i * 0.5);
+        box(0.08, 1.6, 0.04, '#64748b', back, 0.2, W / 4);
+        for (let i = 0; i < 3; i++)
+          box(0.05, 0.6, 0.3, MERCH[i + 1]!, back + 0.06, 1.0, W / 4 - 0.5 + i * 0.5);
+        for (const l of [-0.45, 0.45]) {
+          const p = at(-1.3, -W / 4 + l);
+          k.cyl(
+            0.33,
+            0.33,
+            0.04,
+            '#111827',
+            p.x,
+            0.33,
+            p.z,
+            u.nz === 0 ? { seg: 16, rx: Math.PI / 2 } : { seg: 16, rz: Math.PI / 2 },
+          );
+        }
+        box(0.06, 0.06, 0.9, '#0284c7', -1.3, 0.55, -W / 4);
+        break;
+      case 'toys':
+        ball(0.32, '#a16207', -1.0, 0.32, -W / 4);
+        ball(0.2, '#a16207', -1.0, 0.82, -W / 4);
+        for (let i = 0; i < 6; i++)
+          box(
+            0.28,
+            0.28,
+            0.28,
+            MERCH[i % MERCH.length]!,
+            -1.0,
+            (i % 2) * 0.28,
+            W / 6 + (i >> 1) * 0.32,
+          );
+        box(0.3, 0.04, W - 0.6, '#ffffff', back, 1.3, 0);
+        for (let i = 0; i < 5; i++)
+          ball(
+            0.12,
+            MERCH[(i + 2) % MERCH.length]!,
+            back,
+            1.46,
+            -W / 2 + 0.7 + i * ((W - 1.4) / 4),
+          );
+        break;
+      case 'pharmacy':
+        for (let r = 0; r < 3; r++) {
+          box(0.35, 0.05, W - 0.6, '#ffffff', back, 0.5 + r * 0.6, 0);
+          for (let i = 0; i < 8; i++)
+            box(
+              0.18,
+              0.22,
+              0.14,
+              i % 3 ? '#e5e7eb' : '#10b981',
+              back,
+              0.55 + r * 0.6,
+              -W / 2 + 0.6 + i * ((W - 1.2) / 7),
+            );
+        }
+        // The green cross, lit.
+        box(0.06, 0.7, 0.22, '#22c55e', 0.2, H - 1.0 + 0.2, W / 2 - 0.5, {
+          emissive: '#22c55e',
+          emissiveIntensity: 0.8,
+        });
+        box(0.06, 0.22, 0.7, '#22c55e', 0.2, H - 1.0 + 0.44, W / 2 - 0.5, {
+          emissive: '#22c55e',
+          emissiveIntensity: 0.8,
+        });
+        break;
+      case 'arcade':
+        for (let i = 0; i < 3; i++) {
+          const l = -W / 2 + 0.9 + i * ((W - 1.8) / 2);
+          box(0.7, 1.7, 0.75, '#111827', back + 0.1, 0, l);
+          box(0.05, 0.5, 0.6, MERCH[(i * 2) % MERCH.length]!, back + 0.47, 1.0, l, {
+            emissive: MERCH[(i * 2) % MERCH.length]!,
+            emissiveIntensity: 1.2,
+            noShadow: true,
+          });
+        }
+        box(0.5, 1.3, 0.8, '#f472b6', -0.7, 0, 0, { opacity: 0.85 });
+        break;
+    }
+    // Its sign, facing out; a tap on the sign or the glass walks you there.
+    const sign = signMesh(names[shop], col, W - 0.4, 0.8);
+    const sp = at(0.19, 0);
+    sign.position.set(sp.x, H - 0.55, sp.z);
+    sign.rotation.y = Math.atan2(u.nx, u.nz);
+    sign.userData.shop = shop;
+    root.add(sign);
+    picks.push(sign);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), pickMat);
+    const hp = at(-0.4, 0);
+    hit.scale.set(u.nz === 0 ? 1 : W, H, u.nz === 0 ? W : 1);
+    hit.position.set(hp.x, H / 2, hp.z);
+    hit.userData.shop = shop;
+    root.add(hit);
+    picks.push(hit);
+  }
+  root.add(k.build());
+  return { root, picks };
+}
+
 /** The food court: counters with signs (one per dish), tables and chairs. */
 function buildCourt(mallName: string, ds: Display[]) {
   const root = new THREE.Group();
@@ -650,7 +907,7 @@ function buildCourt(mallName: string, ds: Display[]) {
     const sg = signMesh(c.name, c.colour, 5, 0.8);
     sg.position.set(c.x, 3.0, -45.9);
     root.add(sg);
-    const d = ds.find((x) => x.shop === 'foodcourt' && x.x === c.x);
+    const d = ds.find((x) => x.shop === 'foodcourt' && counterOf(x.id) === c);
     if (d) {
       for (const p of [sg]) {
         p.userData.item = d.id;
@@ -698,6 +955,11 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
   });
   const lookKey = JSON.stringify(props.me);
   const setMe = useRef<((look: AvatarLook) => void) | null>(null);
+  const friendKey = JSON.stringify(props.friend);
+  const setFriend = useRef<((look: AvatarLook | null) => void) | null>(null);
+  useEffect(() => {
+    setFriend.current?.(live.current.friend);
+  }, [friendKey]);
   useEffect(() => {
     setMe.current?.(live.current.me);
   }, [lookKey]);
@@ -820,6 +1082,104 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
     };
     setMe.current = makeMe;
 
+    // ---- The friend shopping with you: a step behind, along the way you walked.
+    let friend: Character | null = null;
+    const trail: { x: number; z: number }[] = [{ x: pos.x, z: pos.z }];
+    const fpos = { x: pos.x, z: pos.z };
+    let fHeading = heading;
+    let fGait = 0;
+    let fMoving = false;
+    const FOLLOW = 1.3;
+    /** The point `dist` metres back along your trail. */
+    const behind = (dist: number) => {
+      let need = dist;
+      let px = pos.x;
+      let pz = pos.z;
+      for (let i = trail.length - 1; i >= 0; i--) {
+        const q = trail[i]!;
+        const d = Math.hypot(q.x - px, q.z - pz);
+        if (d >= need && d > 1e-6)
+          return { x: px + ((q.x - px) * need) / d, z: pz + ((q.z - pz) * need) / d };
+        need -= d;
+        px = q.x;
+        pz = q.z;
+      }
+      // Not far enough walked yet: a step behind you.
+      return {
+        x: pos.x - Math.sin(heading) * need * 0.8,
+        z: pos.z - Math.cos(heading) * need * 0.8,
+      };
+    };
+    /** Straight to a step behind you (a jump; a new friend). */
+    const snapFriend = () => {
+      trail.length = 0;
+      trail.push({ x: pos.x, z: pos.z });
+      const b = behind(FOLLOW);
+      fpos.x = b.x + Math.cos(heading) * 0.45;
+      fpos.z = b.z - Math.sin(heading) * 0.45;
+      fHeading = heading;
+      friend?.root.position.set(fpos.x, 0, fpos.z);
+      if (friend) friend.root.rotation.y = fHeading;
+    };
+    const makeFriend = (look: AvatarLook | null) => {
+      if (friend) {
+        world.remove(friend.root);
+        disposeTree(friend.root);
+        const i = chars.indexOf(friend);
+        if (i >= 0) chars.splice(i, 1);
+        friend = null;
+      }
+      if (look) {
+        friend = makeCharacter(look, 'friend');
+        const bag = new THREE.Mesh(bagG, mat('#2563eb'));
+        bag.position.set(0, -0.2, 0);
+        friend.handR.add(bag);
+        friend.root.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) o.castShadow = false;
+        });
+        world.add(friend.root);
+        chars.push(friend);
+        pose(friend, 'idle', 0);
+        snapFriend();
+      }
+      shadowsDirty = true;
+      stage.invalidate();
+    };
+    setFriend.current = makeFriend;
+    /** Every frame: the friend keeps a step behind you. */
+    const follow = (t: number, dt: number) => {
+      const last = trail[trail.length - 1]!;
+      if (Math.hypot(pos.x - last.x, pos.z - last.z) > 0.12) {
+        trail.push({ x: pos.x, z: pos.z });
+        if (trail.length > 80) trail.splice(0, trail.length - 80);
+      }
+      const f = friend;
+      if (!f) return;
+      const b = behind(FOLLOW);
+      const dx = b.x - fpos.x;
+      const dz = b.z - fpos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 6) return snapFriend();
+      if (d > 0.06) {
+        const step = Math.min(d, Math.max(0.6, d * 3) * dt, WALK_SPEED * 1.25 * dt);
+        fpos.x += (dx / d) * step;
+        fpos.z += (dz / d) * step;
+        fHeading += wrap(Math.atan2(dx, dz) - fHeading) * ease(8, dt);
+        fGait += step * 0.53;
+        pose(f, 'walk', fGait);
+        fMoving = true;
+      } else {
+        // Standing with you: turned to you.
+        const tx = pos.x - fpos.x;
+        const tz = pos.z - fpos.z;
+        if (Math.hypot(tx, tz) > 0.2) fHeading += wrap(Math.atan2(tx, tz) - fHeading) * ease(4, dt);
+        if (fMoving) fMoving = false;
+        pose(f, 'idle', t + 1.3);
+      }
+      f.root.position.set(fpos.x, 0, fpos.z);
+      f.root.rotation.y = fHeading;
+    };
+
     // ---- Where you're going: a ring, and dots along the way.
     const ring = new THREE.Group();
     const ringMat = new THREE.MeshBasicMaterial({
@@ -928,9 +1288,14 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
     // The camera turns to face into a shop when you go in.
     const settle = () => {
       const w = regionOf(pos.x, pos.z);
-      if (w !== 'concourse' && w !== 'foodcourt') {
+      if (isRoom(w)) {
         const s = SPOT[w].side;
         camYaw = s > 0 ? Math.PI / 2 : -Math.PI / 2;
+        yawVel = 0;
+      } else if (w in UNITS) {
+        // At a storefront: face its window.
+        const u = UNITS[w as UnitShop];
+        camYaw = Math.atan2(-u.nx, -u.nz);
         yawVel = 0;
       }
     };
@@ -947,10 +1312,10 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
     const want = new THREE.Vector3();
     const wantAt = new THREE.Vector3();
     let region = regionOf(pos.x, pos.z);
-    const inRoom = () => region !== 'concourse' && region !== 'foodcourt';
+    const inRoom = () => isRoom(region);
     const clampEye = (v: THREE.Vector3) => {
       const w = region;
-      if (w !== 'concourse' && w !== 'foodcourt') {
+      if (isRoom(w)) {
         const { side: s, z: z0 } = SPOT[w];
         // In a shop (its front cut away) the camera may stand back in the
         // hall, looking in over your shoulder; in the room it stays under the ceiling.
@@ -1242,9 +1607,14 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
     stage.hold();
     const slices: (() => void)[] = [
       () => {
-        const h = buildHall(P.mallName, P.names);
+        const h = buildHall(P.mallName, P.names, P.units);
         world.add(h.root);
         picks.push(...h.picks);
+      },
+      () => {
+        const un = buildUnits(P.names, P.units);
+        world.add(un.root);
+        picks.push(...un.picks);
       },
       () => {
         const rm = buildRooms(P.names, P.stock, ds);
@@ -1324,6 +1694,7 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
           },
         );
         makeMe(live.current.me);
+        makeFriend(live.current.friend);
       },
     ];
     let si = 0;
@@ -1435,6 +1806,7 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
         } else pose(m, 'idle', t);
         m.root.rotation.y = heading;
       }
+      follow(t, dt);
       aim(false, dt, now);
       // People far off in the haze aren't drawn (each is a couple of dozen parts).
       if (++cullTick % 6 === 0)
@@ -1552,6 +1924,7 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
         dots.count = 0;
         place(to.x, to.z);
         if (h !== undefined) heading = camYaw = h;
+        snapFriend();
         settle();
         aim(true, 0, performance.now());
         shadowsDirty = true;
@@ -1602,6 +1975,7 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
       ro.disconnect();
       live.current.api.current = null;
       setMe.current = null;
+      setFriend.current = null;
       refit.current = null;
       scene.remove(world, ring, dots);
       disposeTree(world);

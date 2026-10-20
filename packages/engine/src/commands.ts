@@ -672,6 +672,22 @@ export const commandSchema = z.discriminatedUnion('type', [
       .regex(/^#[0-9a-fA-F]{6}$/)
       .optional(),
   }),
+  /** Shopping together (malltrips.ts): take someone in your city to the mall. */
+  z.object({ type: z.literal('mall.invite'), playerId: id }),
+  /** Say yes or no to an invitation to the mall. */
+  z.object({ type: z.literal('mall.answer'), tripId: id, accept: z.boolean() }),
+  /** Head off (or call off your invitation). */
+  z.object({ type: z.literal('mall.leave'), tripId: id }),
+  /** Buy the friend you're shopping with something (yours to pay, theirs to keep). */
+  z.object({
+    type: z.literal('mall.gift'),
+    tripId: id,
+    itemId: z.string().min(1).max(32),
+    colour: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .optional(),
+  }),
   // ---- the founder journey: the objective tracker's prompts
   /** Pin a prompt so it stays in its slot; without `id`, unpin that kind. */
   z.object({

@@ -52,6 +52,9 @@ export const JOBS_NOTE = 'release-2026-10-19-jobs';
  * later), the investor first session, monthly marks, and the settlement work
  * of syndicates, LP funds, the exchange and firms. New commands only change
  * worlds they're issued in; this note switches on what changes existing play.
+ * The bigger mall ships with it too (data/mall.ts: ten more shops and their
+ * things, sold by `mall.buy` only once this note is logged) and shopping
+ * with a friend (malltrips.ts).
  */
 export const INVESTOR_NOTE = 'release-2026-10-20-investor-career';
 

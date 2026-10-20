@@ -2,12 +2,14 @@
  * The mall in Lite (no WebGL), drawn in SVG: the concourse on two levels
  * (shopfronts with their signs, the escalator, a skylight), shoppers with
  * bags and you; inside a shop, its room with what it sells and you in it,
- * large, wearing what you're trying on.
+ * large, wearing what you're trying on. The bigger mall's shops are
+ * upstairs and drawn as shelves of their goods; a friend shopping with you
+ * stands at your side.
  */
 import type { MallShopId } from '@runway/engine';
 import { AvatarFigure, type AvatarLook } from '../art';
 import { tx } from '../../i18n';
-import { SHOP_COLOUR, SHOP_ORDER } from './shops';
+import { SHOP_COLOUR, SHOP_ICON, SHOP_ORDER } from './shops';
 
 const TOPS = ['#db2777', '#2563eb', '#f59e0b', '#16a34a', '#111827', '#7c3aed'];
 
@@ -144,7 +146,7 @@ function ShopRoom({ shop, colour }: { shop: MallShopId; colour: string }) {
           ))}
         </g>
       );
-    default:
+    case 'cinema':
       return (
         <g>
           <rect x={0} y={0} width={360} height={260} fill="#1e1b4b" />
@@ -163,22 +165,56 @@ function ShopRoom({ shop, colour }: { shop: MallShopId; colour: string }) {
           <rect x={80} y={180} width={200} height={40} fill={colour} />
         </g>
       );
+    default:
+      // The bigger mall's shops: shelves of their goods, a counter, the shop's icon.
+      return (
+        <g>
+          {shop === 'arcade' && <rect x={0} y={22} width={360} height={203} fill="#1e1b4b" />}
+          {[0, 1, 2].map((r) => (
+            <g key={r}>
+              <rect x={20} y={62 + r * 46} width={320} height={5} fill="#cbd5e1" />
+              {Array.from({ length: 12 }, (_, i) => (
+                <rect
+                  key={i}
+                  x={26 + i * 26}
+                  y={40 + r * 46}
+                  width={shop === 'books' ? 9 : 16}
+                  height={22}
+                  rx={shop === 'beauty' || shop === 'pharmacy' ? 5 : 2}
+                  fill={TOPS[(i + r * 2 + shop.length) % TOPS.length]}
+                />
+              ))}
+            </g>
+          ))}
+          <rect x={110} y={185} width={140} height={40} rx={6} fill={colour} />
+          <text x={180} y={212} textAnchor="middle" fontSize="20">
+            {SHOP_ICON[shop]}
+          </text>
+        </g>
+      );
   }
 }
 
 export function Mall2D({
   me,
+  friend = null,
   shoppers,
   focus,
+  shops = SHOP_ORDER.slice(0, 6),
   names,
   mallName,
 }: {
   me: AvatarLook;
+  /** The friend shopping with you (at your side). */
+  friend?: AvatarLook | null;
   shoppers: AvatarLook[];
   focus: MallShopId | null;
+  /** The shops open here. */
+  shops?: readonly MallShopId[];
   names: Record<MallShopId, string>;
   mallName: string;
 }) {
+  const upstairs = shops.filter((s) => !SHOP_ORDER.slice(0, 6).includes(s)).slice(0, 4);
   if (focus)
     return (
       <svg
@@ -194,7 +230,12 @@ export function Mall2D({
           {tx(names[focus])}
         </text>
         <ShopRoom shop={focus} colour={SHOP_COLOUR[focus]} />
-        <g transform="translate(180 252) scale(3.4)" data-mall-me="">
+        {friend && (
+          <g transform="translate(270 252) scale(3.1)" data-mall-friend="">
+            <AvatarFigure look={friend} />
+          </g>
+        )}
+        <g transform={`translate(${friend ? 150 : 180} 252) scale(3.4)`} data-mall-me="">
           <AvatarFigure look={me} />
         </g>
       </svg>
@@ -220,16 +261,27 @@ export function Mall2D({
         {mallName}
       </text>
       {/* Upstairs. */}
-      {['Sports', 'Books', 'Beauty', 'Kids'].map((n, i) => (
-        <Front
-          key={n}
-          x={8 + i * 87}
-          y={30}
-          w={80}
-          name={n}
-          colour={['#0ea5e9', '#a16207', '#ec4899', '#f59e0b'][i]!}
-        />
-      ))}
+      {upstairs.length
+        ? upstairs.map((s, i) => (
+            <Front
+              key={s}
+              x={8 + i * 87}
+              y={30}
+              w={80}
+              name={tx(names[s])}
+              colour={SHOP_COLOUR[s]}
+            />
+          ))
+        : ['Sports', 'Books', 'Beauty', 'Kids'].map((n, i) => (
+            <Front
+              key={n}
+              x={8 + i * 87}
+              y={30}
+              w={80}
+              name={n}
+              colour={['#0ea5e9', '#a16207', '#ec4899', '#f59e0b'][i]!}
+            />
+          ))}
       <rect x={0} y={100} width={360} height={8} fill="#e7e2d8" />
       <rect x={0} y={92} width={360} height={8} fill="#bfe3f2" opacity="0.6" />
       {/* Downstairs. */}
@@ -253,6 +305,11 @@ export function Mall2D({
           <rect x={6} y={-16} width={6} height={7} fill={TOPS[i % TOPS.length]} />
         </g>
       ))}
+      {friend && (
+        <g transform="translate(212 250) scale(1.55)" data-mall-friend="">
+          <AvatarFigure look={friend} />
+        </g>
+      )}
       <g transform="translate(184 250) scale(1.6)" data-mall-me="">
         <AvatarFigure look={me} />
       </g>

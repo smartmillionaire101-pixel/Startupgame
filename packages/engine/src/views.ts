@@ -63,6 +63,7 @@ import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
+import { mallTripView } from './malltrips.js';
 import { deliveryView, homeActsView, moodOf, needsOf } from './needs.js';
 import { hangoutsView, sendLimits, techEventsView, visitingView, visitsView } from './social.js';
 import { holidaysView } from './holidays.js';
@@ -844,7 +845,7 @@ export function playerView(
       /** Golf: the course in the city you're in, the green fee and your record. */
       golf: { ...golfView(world, p), match: golfMatchOptions(world, p) },
       /** The mall in the city you're in: its shops' items and prices, your phone. */
-      mall: mallView(world, p),
+      mall: { ...mallView(world, p), ...mallTripView(world, p) },
       garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({
         ...car,
         active: car.modelId === p.car?.modelId,

@@ -5,6 +5,7 @@ import {
   ROOM_SHOPS,
   SPOT,
   START,
+  UNIT_SHOPS,
   backOut,
   bearing,
   compassPoint,
@@ -17,6 +18,8 @@ import {
   smoothPath,
   walkGrid,
 } from '../src/city/mall/layout';
+import { SHOP_ORDER, shopName } from '../src/city/mall/shops';
+import { FR } from '../src/i18n/fr';
 
 /** The walkable mall: every shop reachable through its door, nothing walked through. */
 const stock = MALL_ITEMS.map((i) => ({ id: i.id, shop: i.shop }));
@@ -48,15 +51,26 @@ function walkable(a: { x: number; z: number }, pts: { x: number; z: number }[]) 
 }
 
 describe('walking the mall', () => {
-  it('shows every item somewhere, each shop its own', () => {
-    expect(ds).toHaveLength(stock.length);
+  it('shows the first shops’ items on displays, each shop its own; storefronts list theirs', () => {
+    // The first shops' own items all have a display (the bigger mall's extras may be on the list).
+    for (const x of MALL_ITEMS.filter((i) => !i.more))
+      expect(
+        ds.some((d) => d.id === x.id),
+        x.id,
+      ).toBe(true);
     for (const d of ds) expect(regionOf(d.x, d.z)).toBe(d.shop);
     const at = new Set(ds.map((d) => `${d.x},${d.z}`));
     expect(at.size).toBe(ds.length);
+    // A storefront's stock is only on its list: no displays.
+    for (const s of UNIT_SHOPS)
+      expect(
+        ds.some((d) => d.shop === s),
+        s,
+      ).toBe(false);
   });
 
   it('reaches every shop and the food court from the entrance, round things and through doors', () => {
-    for (const s of [...ROOM_SHOPS, 'foodcourt' as const]) {
+    for (const s of [...ROOM_SHOPS, 'foodcourt' as const, ...UNIT_SHOPS]) {
       const path = findPath(grid, START, goal(s));
       expect(path, s).not.toBeNull();
       expect(walkable(START, path!), s).toBe(true);
@@ -101,7 +115,7 @@ describe('walking the mall', () => {
   });
 
   it('rounds the corners of a path, still on free floor', () => {
-    for (const s of [...ROOM_SHOPS, 'foodcourt' as const]) {
+    for (const s of [...ROOM_SHOPS, 'foodcourt' as const, ...UNIT_SHOPS]) {
       const raw = findPath(grid, START, goal(s))!;
       const smooth = smoothPath(grid, START, raw);
       expect(walkable(START, smooth), s).toBe(true);
@@ -121,6 +135,14 @@ describe('walking the mall', () => {
       // And hardly longer than the straight-cornered way.
       expect(pathLength(START, smooth)).toBeLessThanOrEqual(pathLength(START, raw) + 0.01);
     }
+  });
+
+  it('has French for every item and every shop', () => {
+    const missing = [
+      ...MALL_ITEMS.map((i) => i.label).filter(Boolean),
+      ...SHOP_ORDER.filter((s) => s !== 'fashion').map((s) => shopName(s, 'lagos')),
+    ].filter((en) => FR[en] === undefined);
+    expect(missing).toEqual([]);
   });
 
   it('names where you face: north is down the hall', () => {

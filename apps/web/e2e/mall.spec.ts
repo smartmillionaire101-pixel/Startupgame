@@ -22,8 +22,8 @@ test('shop at the mall: a new outfit you wear, and a phone', async ({ page }) =>
   await expect(scene).toHaveAttribute('data-room', 'mall');
   const pocket = scene.locator('[data-pocket]');
   const start = Number(await pocket.getAttribute('data-pocket'));
-  // Six shops in the directory.
-  await expect(scene.locator('[data-shop]')).toHaveCount(6);
+  // Sixteen shops in the directory (the bigger mall).
+  await expect(scene.locator('[data-shop]')).toHaveCount(16);
 
   // Fashion: pick a colour, try on a hoodie, buy it: you're wearing it.
   await scene.locator('[data-shop="fashion"]').click();

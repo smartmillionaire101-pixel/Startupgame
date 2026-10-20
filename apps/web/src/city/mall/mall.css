@@ -484,6 +484,56 @@
 .mall-card .mall-colours {
   gap: 8px;
 }
+
+/* Shopping together: who you're with (or asking), under the header. */
+.mall-trip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 12px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.mall-trip-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mall-trip-who > span {
+  display: grid;
+  min-width: 0;
+}
+.mall-trip-who small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.mall-trip-ask {
+  margin-left: auto;
+}
+.mall-trip .btn {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 4px 12px;
+}
+.mall-invite {
+  z-index: 40;
+}
+.mall-gift {
+  min-width: 44px;
+}
+.mall-gift-btn {
+  margin-top: 2px;
+}
+/* A shop's whole list (the storefronts; what doesn't fit on the displays). */
+.mall-shelf-btn {
+  position: absolute;
+  left: 10px;
+  top: 56px;
+}
+.mall-shelf .mall-dir {
+  width: 100%;
+}
 @media (prefers-reduced-motion: reduce) {
   .mall-sheet,
   .mall-paid {

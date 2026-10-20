@@ -24,7 +24,10 @@ export const COUNTER_Z = -44;
 /** How far a person keeps from walls and things (their half-width). */
 const R = 0.32;
 
-export type RoomShop = Exclude<MallShopId, 'foodcourt'>;
+/** The shops with a room to walk into (the first five); the food court is the hall's end. */
+export type RoomShop = 'fashion' | 'phones' | 'home' | 'supermarket' | 'cinema';
+/** The bigger mall's shops: storefronts you walk up to (their stock is on a list). */
+export type UnitShop = Exclude<MallShopId, RoomShop | 'foodcourt'>;
 export type Where = MallShopId | 'concourse';
 
 /** Each shop with a room: its side of the hall (−1 left, 1 right) and its middle (z). */
@@ -36,6 +39,50 @@ export const SPOT: Record<RoomShop, { side: -1 | 1; z: number }> = {
   cinema: { side: 1, z: -17 },
 };
 export const ROOM_SHOPS = Object.keys(SPOT) as RoomShop[];
+export const isRoom = (w: Where): w is RoomShop => w in SPOT;
+
+/**
+ * The bigger mall's storefronts: a glass front with its sign and a shallow
+ * lit window behind it, where the hall had bare wall (by the entrance, the
+ * empty unit opposite home and along the food court's walls). `x, z` is the
+ * middle of the glass, `n` the way it faces (into the hall), `w` its width,
+ * `reach` how far out in front of it counts as being at the shop.
+ */
+export interface Unit {
+  x: number;
+  z: number;
+  nx: number;
+  nz: number;
+  w: number;
+  reach: number;
+}
+/** How deep a storefront's window is, behind its glass. */
+export const UNIT_DEPTH = 2.4;
+const COURT_GLASS = HALF + DEPTH - UNIT_DEPTH;
+export const UNITS: Record<UnitShop, Unit> = {
+  outlet: { x: -HALF, z: 2.6, nx: 1, nz: 0, w: 5.4, reach: 2 },
+  pharmacy: { x: HALF, z: 2.6, nx: -1, nz: 0, w: 5.4, reach: 2 },
+  jewellery: { x: HALF, z: -25.7, nx: -1, nz: 0, w: 4.3, reach: 2 },
+  beauty: { x: HALF, z: -30.2, nx: -1, nz: 0, w: 4.3, reach: 2 },
+  designer: { x: -COURT_GLASS, z: -36.0, nx: 1, nz: 0, w: 4.3, reach: 2 },
+  shoes: { x: -COURT_GLASS, z: -40.5, nx: 1, nz: 0, w: 4.3, reach: 2 },
+  sports: { x: COURT_GLASS, z: -36.0, nx: -1, nz: 0, w: 4.3, reach: 2 },
+  books: { x: COURT_GLASS, z: -40.5, nx: -1, nz: 0, w: 4.3, reach: 2 },
+  toys: { x: -12.3, z: -46.3 + UNIT_DEPTH, nx: 0, nz: 1, w: 4.3, reach: 1.5 },
+  arcade: { x: 12.3, z: -46.3 + UNIT_DEPTH, nx: 0, nz: 1, w: 4.3, reach: 1.5 },
+};
+export const UNIT_SHOPS = Object.keys(UNITS) as UnitShop[];
+export const isUnit = (w: Where): w is UnitShop => w in UNITS;
+/** A storefront's point: `d` out in front of its glass (negative: behind it), `l` along it. */
+export const unitPoint = (shop: UnitShop, d: number, l = 0) => {
+  const u = UNITS[shop];
+  return { x: u.x + u.nx * d - u.nz * l, z: u.z + u.nz * d + u.nx * l };
+};
+/** Where a point is against a storefront: out in front (d) and along (l). */
+const unitLocal = (u: Unit, x: number, z: number) => ({
+  d: (x - u.x) * u.nx + (z - u.z) * u.nz,
+  l: -(x - u.x) * u.nz + (z - u.z) * u.nx,
+});
 
 /** A shop-frame point in the world. */
 export const shopToWorld = (shop: RoomShop, u: number, v: number) => ({
@@ -51,12 +98,38 @@ export const TABLES: { x: number; z: number }[] = [];
 for (let i = 0; i < 4; i++)
   for (let j = 0; j < 2; j++) TABLES.push({ x: -6 + i * 4, z: -38 - j * 3.2 });
 
-/** The food court's counters: which dish each sells. */
-export const COUNTERS: { item: string; name: string; x: number; colour: string; icon: string }[] = [
-  { item: 'local-plate', name: 'Grill', x: -7, colour: '#ea580c', icon: '🍲' },
-  { item: 'burger', name: 'Burgers', x: 0, colour: '#f59e0b', icon: '🍔' },
-  { item: 'smoothie', name: 'Juice', x: 7, colour: '#16a34a', icon: '🧃' },
+/** The food court's counters: the dishes each sells (the first is its own). */
+export const COUNTERS: {
+  items: string[];
+  name: string;
+  x: number;
+  colour: string;
+  icon: string;
+}[] = [
+  {
+    items: ['local-plate', 'fc-chicken', 'fc-shawarma'],
+    name: 'Grill',
+    x: -7,
+    colour: '#ea580c',
+    icon: '🍲',
+  },
+  {
+    items: ['burger', 'fc-pizza', 'fc-noodles'],
+    name: 'Burgers',
+    x: 0,
+    colour: '#f59e0b',
+    icon: '🍔',
+  },
+  {
+    items: ['smoothie', 'fc-icecream', 'fc-coffee'],
+    name: 'Juice',
+    x: 7,
+    colour: '#16a34a',
+    icon: '🧃',
+  },
 ];
+/** The counter that sells a dish (else the one with the fewest). */
+export const counterOf = (item: string) => COUNTERS.find((c) => c.items.includes(item));
 
 /**
  * Where a shop shows its stock (shop frame): three pairs of displays
@@ -199,27 +272,37 @@ export interface Display {
   hz: number;
 }
 
-/** Where each item in the shops is shown. */
+/**
+ * Where each item in the shops is shown: on a display in a shop's room (as
+ * many as its nine spots hold), at a food court counter (three each). The
+ * storefronts' stock, and what doesn't fit, is on the shop's list.
+ */
 export function displays(stock: { id: string; shop: MallShopId }[]): Display[] {
   const out: Display[] = [];
   const used = new Map<RoomShop, Set<number>>();
   const later: { id: string; shop: RoomShop }[] = [];
+  const atCounter = new Map<number, number>();
   for (const it of stock) {
     if (it.shop === 'foodcourt') {
-      const c = COUNTERS.find((k) => k.item === it.id);
-      const x = c ? c.x : COUNTERS[out.filter((d) => d.shop === 'foodcourt').length % 3]!.x;
+      const c =
+        counterOf(it.id) ??
+        [...COUNTERS].sort((a, b) => (atCounter.get(a.x) ?? 0) - (atCounter.get(b.x) ?? 0))[0]!;
+      const k = atCounter.get(c.x) ?? 0;
+      if (k >= 3) continue;
+      atCounter.set(c.x, k + 1);
       out.push({
         id: it.id,
         shop: 'foodcourt',
         kind: 'desk',
-        x,
+        x: c.x + (k - 1) * 1.7,
         z: COUNTER_Z - 0.6,
-        tagY: 2.2,
+        tagY: 2.2 + (k === 1 ? 0 : 0.5),
         hx: 0,
         hz: 0,
       });
       continue;
     }
+    if (!isRoom(it.shop)) continue;
     const shop = it.shop;
     const s = used.get(shop) ?? new Set<number>();
     used.set(shop, s);
@@ -253,14 +336,20 @@ function place(id: string, shop: RoomShop, k: number): Display {
 /** Where you stand inside a shop on coming in, and just outside its door. */
 export const inside = (shop: RoomShop) => shopToWorld(shop, 2.4, 0);
 export const outside = (shop: RoomShop) => shopToWorld(shop, -1.6, 0);
-/** Where you go for a shop (its inside; the food court's middle). */
+/** Where you go for a shop (its inside; at a storefront's window; the food court's middle). */
 export function goal(shop: MallShopId): { x: number; z: number } {
-  return shop === 'foodcourt' ? { x: 0, z: -35.6 } : inside(shop);
+  if (shop === 'foodcourt') return { x: 0, z: -35.6 };
+  if (isUnit(shop)) return unitPoint(shop, UNITS[shop].reach * 0.55);
+  return inside(shop);
 }
 /** Back out in the hall from a shop (or the food court). */
 export function backOut(where: Where): { x: number; z: number } {
   if (where === 'concourse') return { x: 0.9, z: 4.5 };
   if (where === 'foodcourt') return { x: 0, z: -31.5 };
+  // The food court's back corners: out into the court, clear of the side storefronts.
+  if (where === 'toys' || where === 'arcade')
+    return { x: Math.sign(UNITS[where].x) * 9.4, z: -41.2 };
+  if (isUnit(where)) return unitPoint(where, UNITS[where].reach + 1.2);
   return outside(where);
 }
 /** Where you come in. */
@@ -268,6 +357,11 @@ export const START = { x: 1.2, z: 4.4, heading: Math.PI + 0.5 };
 
 /** Which part of the mall a point is in. */
 export function regionOf(x: number, z: number): Where {
+  for (const shop of UNIT_SHOPS) {
+    const u = UNITS[shop];
+    const p = unitLocal(u, x, z);
+    if (p.d > -0.2 && p.d < u.reach && Math.abs(p.l) < u.w / 2) return shop;
+  }
   for (const shop of ROOM_SHOPS) {
     const sp = SPOT[shop];
     const u = sp.side * x - HALF;
@@ -309,6 +403,12 @@ export function makeFree(ds: Display[]) {
       }
     // The escalators.
     if (Math.abs(x) < 2.1 + R && z < -12.8 + R && z > -21.2 - R) return false;
+    // The storefronts' glass (in the food court they stand out from the wall).
+    for (const shop of UNIT_SHOPS) {
+      const u = UNITS[shop];
+      const p = unitLocal(u, x, z);
+      if (p.d < 0.45 && p.d > -UNIT_DEPTH - 1 && Math.abs(p.l) < u.w / 2 + 0.3) return false;
+    }
     // The food court's tables and chairs.
     for (const t of TABLES)
       if (Math.abs(x - t.x) < 0.65 + R && Math.abs(z - t.z) < 1.15 + R) return false;
@@ -587,9 +687,12 @@ export function pathLength(a: { x: number; z: number }, pts: { x: number; z: num
 // ---------------------------------------------------------------- Looking
 
 /** Where things are, for the compass and the "what's ahead" card. */
-export function landmarks(): { id: MallShopId | 'exit'; x: number; z: number }[] {
+export function landmarks(
+  open: readonly MallShopId[] = [...ROOM_SHOPS, ...UNIT_SHOPS],
+): { id: MallShopId | 'exit'; x: number; z: number }[] {
   return [
     ...ROOM_SHOPS.map((s) => ({ id: s, ...shopToWorld(s, 0, 0) })),
+    ...UNIT_SHOPS.filter((s) => open.includes(s)).map((s) => ({ id: s, ...unitPoint(s, 0) })),
     { id: 'foodcourt' as const, x: 0, z: -40 },
     { id: 'exit' as const, x: 0, z: FRONT_Z },
   ];
