@@ -174,36 +174,38 @@ describe('investor career: the angel ceiling (§2.3)', () => {
     w = run(w, 'u_investor', { type: 'investor.tutorial', action: 'skip' }).world;
     return w;
   }
-
-  it('caps one personal cheque at a tenth of liquid net worth', () => {
-    const w = afterTutorial();
-    const c = careerOf(w);
-    expect(c.ceiling.maxCheque).toBe(Math.floor(c.ceiling.liquidNetWorth * 0.1));
+  /** Run with the ceiling switched on (it is off by default: angels invest as before). */
+  function withCeiling<T>(f: () => T): T {
+    const caps = INVESTOR.caps as { angelCeiling: boolean };
+    caps.angelCeiling = true;
+    try {
+      return f();
+    } finally {
+      caps.angelCeiling = false;
+    }
+  }
+  const bigCheque = (w: World, amount: number) => {
     const target = Object.values(w.companies).find(
       (x) => x.ai && x.market === 'lagos' && x.status === 'active' && !x.lastRound,
     )!;
-    const r = tryRun(w, 'u_investor', {
+    return tryRun(w, 'u_investor', {
       type: 'invest.propose',
       companyId: target.id,
       instrument: 'safe',
-      amount: c.ceiling.maxCheque + 1,
-      valuation: (c.ceiling.maxCheque + 1) * 10,
+      amount,
+      valuation: amount * 10,
       proRata: true,
       boardSeat: false,
       vetoOnSale: false,
     });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error.code).toBe('invest.cap');
-  });
-
-  it('a Series A round needs a fund or syndicate lead', () => {
-    const w0 = afterTutorial();
+  };
+  const seriesA = (w0: World) => {
     const w = structuredClone(w0);
     const target = Object.values(w.companies).find(
       (x) => x.ai && x.market === 'lagos' && x.status === 'active',
     )!;
     target.lastRound = 'seed';
-    const r = tryRun(w, 'u_investor', {
+    return tryRun(w, 'u_investor', {
       type: 'invest.propose',
       companyId: target.id,
       instrument: 'priced',
@@ -213,6 +215,29 @@ describe('investor career: the angel ceiling (§2.3)', () => {
       boardSeat: false,
       vetoOnSale: false,
     });
+  };
+
+  it('is off by default: a cheque over a tenth of net worth and a lone Series A cheque go through', () => {
+    const w = afterTutorial();
+    const c = careerOf(w);
+    expect(c.ceiling.on).toBe(false);
+    const r = bigCheque(w, c.ceiling.maxCheque + 1);
+    if (!r.ok) expect(r.error.code).not.toBe('invest.cap');
+    const a = seriesA(w);
+    if (!a.ok) expect(a.error.code).not.toBe('invest.lead');
+  });
+
+  it('switched on, caps one personal cheque at a tenth of liquid net worth', () => {
+    const w = afterTutorial();
+    const c = careerOf(w);
+    expect(c.ceiling.maxCheque).toBe(Math.floor(c.ceiling.liquidNetWorth * 0.1));
+    const r = withCeiling(() => bigCheque(w, c.ceiling.maxCheque + 1));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('invest.cap');
+  });
+
+  it('switched on, a Series A round needs a fund or syndicate lead', () => {
+    const r = withCeiling(() => seriesA(afterTutorial()));
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.error.code).toBe('invest.lead');

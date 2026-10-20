@@ -23,6 +23,22 @@ Every number in §11.6 lives in one place: `INVESTOR` in `packages/engine/src/da
 
 The views are on `playerView`: `investorCareer`, `exchange`, `syndicates`, `lpFunds`, `prorata`, `firm`, `familyOffice`, `dealCraft`, `reviewable`, `playerAccelerator`, `hallOfFame`, `stakeConsents` and `offerComparison`. Each is `null` (or empty) in worlds without the note.
 
+## The investor journey
+
+Investors get the same guidance founders get: chapters in the Journey app and on the map's Journey button, and the main "What to do now" prompt (`journeyView` with `kind: 'investor'`, `packages/engine/src/journey.ts`). The first chapters point at investing that was already in the game. The investor career's new features come later, as optional steps.
+
+| Chapter | Steps (Go opens) |
+| --- | --- |
+| 1 The First Cheque | Invest in a startup (Invest app); back 3 startups (Deal offers) |
+| 2 The Track Record (any one) | Back a company again; take a board seat; mentor a startup; buy listed shares (Capital app) |
+| 3 Fund I | Raise Fund I (Portfolio); invest from your fund; optionally return money to your investors |
+| 4 The Firm (any one) | Lead a syndicate; back another fund as an LP; found a firm; raise Fund II (Portfolio) |
+| 5 The Legacy (any one) | Give to a cause; take a senior DFI, bank or sovereign role (Capital app); start an accelerator |
+
+A finished chapter is recorded once as `investor.chapter-N`, with an inbox note. Players who have founded a company keep the founder journey. Pinning and dismissing prompts (`journey.pin`, `journey.dismiss`) work for investors too.
+
+The screens investors already knew come first. Portfolio opens on Deal offers, Positions and the fund card, with the investor career ("Grow as an investor") below. Capital → Markets is the stock market list, and the city exchange is under Portfolio → Markets. Simple mode applies to founders only.
+
 ## The ladder (§2)
 
 | Rung | Requirements (configurable) | Opens |
@@ -87,6 +103,7 @@ Every requirement has an engine test. FR-I-026 to FR-I-028 and FR-I-002 also hav
 
 These are the places where the blueprint left room, or where Runway's existing rules needed an interpretation.
 
+- **Angel ceiling switched off.** `INVESTOR.caps.angelCeiling` is `false`: angels invest with no per-cheque cap and can back Series A and later rounds alone, as before. Only a new investor's guided first cheque is capped. Set it to `true` to turn on the blueprint's ceiling (a tenth of liquid net worth, and a lead for Series A and later).
 - **Credit penalty for a missed capital call.** The blueprint's "−50 points" assumes a 300–850 credit scale. Runway's score runs 0–100, so a missed call goes on the record as one default (−18 points). It is configurable in `INVESTOR.penalties`.
 - **Ghosting penalty.** It applies to pitches human founders send to human investors (`pitch.start` with an investor). AI founders' interest shows up as pipeline entries, not pitches.
 - **GP consent for LP stake sales.** A human GP approves or rejects every sale of an LP stake in their fund (`stake.consent`), whether the buyer is an outside secondary buyer or another player. Nothing changes hands until then. The buyer must still qualify: meet the LP-track threshold and not be barred after a missed call. A sale the GP leaves past its expiry lapses. AI-managed funds consent at once to qualified buyers.

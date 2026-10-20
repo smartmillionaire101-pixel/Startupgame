@@ -237,6 +237,7 @@ import type { MarketId } from './data/markets.js';
 import {
   chooseBootstrap,
   dismissObjective,
+  hasAnyJourney,
   hasJourney,
   pinObjective,
   recordChapters,
@@ -1522,10 +1523,18 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'competition.score':
       return scoreEntry(world, me, cmd.competitionId, cmd.entryId, cmd.score);
     case 'journey.pin':
-      ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
+      ensure(
+        hasAnyJourney(world, me),
+        'journey.none',
+        'The journey is for founders and investors.',
+      );
       return pinObjective(me, cmd.kind, cmd.id);
     case 'journey.dismiss':
-      ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
+      ensure(
+        hasAnyJourney(world, me),
+        'journey.none',
+        'The journey is for founders and investors.',
+      );
       return dismissObjective(me, cmd.kind, cmd.id, cmd.undo);
     case 'journey.bootstrap':
       ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');

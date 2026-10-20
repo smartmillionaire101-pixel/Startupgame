@@ -13,8 +13,8 @@ import { INVESTOR_NOTE } from '@runway/engine';
 export const RELEASE_NOTE = {
   id: INVESTOR_NOTE,
   text:
-    'Update: the investor career. Your Portfolio, deal offers and stock market work as before; ' +
-    'below them, investors now climb a ladder from angel to syndicate lead, Fund I, a firm ' +
-    'and beyond, with syndicates, LP commitments, capital calls, an index fund and limit ' +
-    'orders. Refresh to get it; your game is saved.',
+    'Update: investors now get a journey like founders: the Journey button and "What to do ' +
+    'now" guide you from your first cheque to Fund I, a firm and beyond. Your Portfolio, ' +
+    'deal offers and stock market work as before, and angel cheques have no cap. Refresh to ' +
+    'get it; your game is saved.',
 } as const;

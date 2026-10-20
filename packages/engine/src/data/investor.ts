@@ -34,6 +34,12 @@ export const INVESTOR = {
   },
   /** The angel ceiling (§2.3) and the first-session cap (§3.1). */
   caps: {
+    /**
+     * The angel ceiling (the per-cheque cap and a lead for Series A and
+     * later). Off: angels invest as they always did; only the guided first
+     * cheque is capped (`tutorialCheque`).
+     */
+    angelCeiling: false as boolean,
     /** One personal cheque: at most this share of liquid net worth. */
     angelCheque: 0.1,
     /** The tutorial cheque: at most this share of investable savings. */

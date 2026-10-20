@@ -1,4 +1,4 @@
-/** The phone's Journey app: the founder journey's objectives and chapters. */
+/** The phone's Journey app: the journey's objectives and chapters (founders' or investors'). */
 import { JourneyPanel } from '../../city/JourneyPanel';
 import type { JourneyGo } from '../../city/journey';
 import { runJourneyGo } from '../../city/journeyGo';
@@ -12,7 +12,7 @@ import { CareerLadder, InvestorPrompts, careerOf } from '../../screens/InvestorC
 export function JourneyApp({ ctx }: { ctx: PhoneCtx }) {
   const nav = useNav();
   const { view } = useView();
-  // Investors climb the career ladder instead of the founder chapters.
+  // A server without the investor journey: the career ladder alone.
   if (careerOf(view) && !journeyOf(view))
     return (
       <div className="phone-stack">
@@ -34,6 +34,8 @@ export function JourneyApp({ ctx }: { ctx: PhoneCtx }) {
     <div className="phone-stack">
       <RecapButton onOpen={ctx.close} />
       <JourneyPanel onGo={go} />
+      {/* Investors: the ladder behind the later chapters. */}
+      {journeyOf(view)?.kind === 'investor' && careerOf(view) && <CareerLadder compact />}
     </div>
   );
 }

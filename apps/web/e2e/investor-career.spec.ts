@@ -4,7 +4,8 @@ import { expect, letters, playAsGuest, tab, test } from './fixtures';
 /**
  * The investor career's main path (blueprint Phase 1–2, Appendix A): a new
  * investor goes through the first session to a real position, sees the
- * career ladder, and puts money in the city index fund.
+ * career ladder, puts money in the city index fund, and the map's Journey
+ * button guides them on like a founder's.
  */
 test('a new investor makes a first cheque in the first session, sees the ladder and buys the index', async ({
   page,
@@ -46,4 +47,12 @@ test('a new investor makes a first cheque in the first session, sees the ladder 
   await page.getByLabel('Amount for the index fund').fill('500000');
   await page.getByRole('button', { name: 'Buy the index' }).click();
   await expect(page.getByText(/of the index fund\./)).toBeVisible();
+
+  // The investor journey: the map's Journey button follows the investor's chapter,
+  // and its sheet says what to do next (back more startups) with a Go button.
+  await tab(page, 'City').click();
+  const chip = page.getByTestId('journey-chip');
+  await expect(chip).toHaveAttribute('aria-label', /The First Cheque/);
+  await chip.click();
+  await expect(page.getByText('Back 3 startups').first()).toBeVisible();
 });

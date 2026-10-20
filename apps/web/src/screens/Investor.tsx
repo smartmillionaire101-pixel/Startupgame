@@ -124,7 +124,7 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
   // Inside the angel ceiling (investor career): never suggest a cheque the cap would refuse.
   const ceiling = careerOf(view)?.ceiling;
   const suggestedAmount =
-    ceiling && ceiling.currency === cur && !view.fund
+    ceiling?.on && ceiling.currency === cur && !view.fund
       ? Math.min(view.me.investor?.checkSize ?? 0, ceiling.maxCheque)
       : (view.me.investor?.checkSize ?? 0);
   const suggestedValuation = d

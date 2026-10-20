@@ -28,7 +28,7 @@ import {
 import { carModel } from './data/lifestyle-shop.js';
 import { featureById } from './data/roadmap.js';
 import { burn, col, getMarket } from './helpers.js';
-import { deriveChapters, hasJourney } from './journey.js';
+import { deriveChapters, hasAnyJourney } from './journey.js';
 import { RECENT_LIMIT } from './ledger.js';
 import { scale, type Currency } from './money.js';
 import { lifestyleCost } from './personal.js';
@@ -430,7 +430,7 @@ export function recapView(world: World, playerId: Id, month?: number): RecapView
 
   // --- Journey.
   let journey: RecapView['journey'] = null;
-  if (hasJourney(me)) {
+  if (hasAnyJourney(world, me)) {
     const chapters = deriveChapters(world, me);
     const cur = chapters.find((c) => c.status === 'current');
     journey = {

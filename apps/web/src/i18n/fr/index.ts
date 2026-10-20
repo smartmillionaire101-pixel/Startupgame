@@ -30,6 +30,7 @@ import { wave12Sky } from './wave12-sky';
 import { chatWave13 } from './chat-wave13';
 import { bankStatement } from './bank-statement';
 import { journey } from './journey';
+import { investorJourney } from './investor-journey';
 import { onlinePlay } from './online-play';
 import { roadmap } from './roadmap';
 import { sales } from './sales';
@@ -103,6 +104,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   chatWave13,
   bankStatement,
   journey,
+  investorJourney,
   onlinePlay,
   roadmap,
   sales,

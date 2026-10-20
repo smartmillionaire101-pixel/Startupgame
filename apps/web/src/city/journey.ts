@@ -61,6 +61,32 @@ export function chapterCopy(id: string): { title: string; story: string } {
         title: t('The Capital Allocator'),
         story: t('Back the next founders: invest, mentor, build a legacy.'),
       };
+    // The investor journey.
+    case 'first-cheque':
+      return {
+        title: t('The First Cheque'),
+        story: t('Find a startup you believe in and back it.'),
+      };
+    case 'track-record':
+      return {
+        title: t('The Track Record'),
+        story: t('Help your companies grow and widen what you own.'),
+      };
+    case 'fund':
+      return {
+        title: t('Fund I'),
+        story: t('Invest other people’s money: fees and carry, and investors who expect returns.'),
+      };
+    case 'firm':
+      return {
+        title: t('The Firm'),
+        story: t('Lead syndicates, back other managers and build a firm that outlasts you.'),
+      };
+    case 'legacy':
+      return {
+        title: t('The Legacy'),
+        story: t('Put your money and experience to work beyond your own returns.'),
+      };
     default:
       return { title: id, story: '' };
   }
@@ -220,6 +246,87 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
       return {
         label: t('Choose your path: invest, mentor, give, lead an institution or found again'),
         why: t('Open the Capital app to compare the paths'),
+      };
+    // The investor journey.
+    case 'first-cheque.invest':
+      return {
+        label: t('Invest in a startup'),
+        why: t('Open the Invest app: pick a deal offer and tap Invest'),
+      };
+    case 'first-cheque.portfolio':
+      return {
+        label: t('Back {n} startups', { n: need }),
+        why: t('Deal offers lists every startup raising money'),
+      };
+    case 'track-record.follow-on':
+      return {
+        label: t('Back a company again'),
+        why: t('Invest in its next round from Deal offers'),
+      };
+    case 'track-record.board':
+      return {
+        label: t('Take a board seat'),
+        why: t('Ask for one when you offer terms'),
+      };
+    case 'track-record.mentor':
+      return {
+        label: t('Mentor a startup'),
+        why: t('Capital app → Allocate: advice for advisor shares'),
+      };
+    case 'track-record.shares':
+      return {
+        label: t('Buy shares on the stock market'),
+        why: t('Capital app → Markets'),
+      };
+    case 'fund.raise':
+      return {
+        label: t('Raise Fund I'),
+        why: t('On Portfolio: meet the LP panel with your track record'),
+      };
+    case 'fund.invest':
+      return {
+        label: t('Invest from your fund'),
+        why: t('Pay from the fund when you offer terms'),
+      };
+    case 'fund.exit':
+      return {
+        label: t('Return money to your investors'),
+        why: t('A company you backed is bought or lists'),
+      };
+    case 'firm.syndicate':
+      return {
+        label: t('Lead a syndicate'),
+        why: t('Portfolio → Syndicates: others invest alongside you'),
+      };
+    case 'firm.lp':
+      return {
+        label: t('Back another fund as an LP'),
+        why: t('Portfolio → As an LP'),
+      };
+    case 'firm.found':
+      return {
+        label: t('Found a firm'),
+        why: t('Portfolio → Firm: partners, a carry pool, more funds'),
+      };
+    case 'firm.fund-2':
+      return {
+        label: t('Raise Fund II'),
+        why: t('Portfolio → Your funds, once Fund I returns money'),
+      };
+    case 'legacy.give':
+      return {
+        label: t('Give to a cause'),
+        why: t('Capital app → Allocate → Philanthropy'),
+      };
+    case 'legacy.role':
+      return {
+        label: t('Take a senior role at a DFI, a bank or a sovereign fund'),
+        why: t('Capital app → Allocate'),
+      };
+    case 'legacy.accelerator':
+      return {
+        label: t('Start an accelerator'),
+        why: t('Portfolio → Legacy: back a cohort and run a demo day'),
       };
     default:
       return { label: s.label, why: '' };

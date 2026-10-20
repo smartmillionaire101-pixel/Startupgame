@@ -101,6 +101,7 @@ export function checkPersonalCap(world: World, p: Player, currency: string, amou
   const cap = angelCap(world, p);
   const t = p.career?.tutorial;
   const firstSession = !!t && !t.doneMonth && !t.skipped;
+  if (!firstSession && !INVESTOR.caps.angelCeiling) return;
   ensure(
     cost <= cap,
     'invest.cap',
@@ -125,7 +126,7 @@ export function checkAngelCheque(
   if (!investorOn(world) || p.ai) return;
   const m = getMarket(world, c.market);
   ensure(
-    !needsLead(stage),
+    !INVESTOR.caps.angelCeiling || !needsLead(stage),
     'invest.lead',
     `${c.name} is raising a ${stage.replace('-', ' ')} round: it needs a lead. Lead a syndicate or invest from your fund.`,
   );
@@ -704,6 +705,8 @@ export function careerView(world: World, p: Player) {
     coLead: career.coLead ?? null,
     anchor: career.anchor ?? null,
     ceiling: {
+      /** False: no cap on angel cheques after the first session (`INVESTOR.caps.angelCeiling`). */
+      on: INVESTOR.caps.angelCeiling,
       currency: home.data.currency,
       /** The largest personal cheque today (home minor units). */
       maxCheque: angelCap(world, p),

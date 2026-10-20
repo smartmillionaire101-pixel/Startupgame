@@ -196,11 +196,13 @@ export function CareerLadder({ compact }: { compact?: boolean }) {
       </ol>
       {!compact && (
         <div className="kpis">
-          <Stat
-            label={t('Largest angel cheque')}
-            value={money(career.ceiling.maxCheque, career.ceiling.currency)}
-            hint={t('{share} of liquid net worth', { share: pct(career.ceiling.share, 0) })}
-          />
+          {career.ceiling.on && (
+            <Stat
+              label={t('Largest angel cheque')}
+              value={money(career.ceiling.maxCheque, career.ceiling.currency)}
+              hint={t('{share} of liquid net worth', { share: pct(career.ceiling.share, 0) })}
+            />
+          )}
           <Stat
             label={t('Investable')}
             value={money(career.ceiling.investable, career.ceiling.currency)}
@@ -210,9 +212,10 @@ export function CareerLadder({ compact }: { compact?: boolean }) {
       )}
       {!compact && (
         <p className="small muted">
-          {t('{stages} rounds need a lead: a syndicate or a fund.', {
-            stages: career.ceiling.leadStages.map(stageLabel).join(', '),
-          })}{' '}
+          {career.ceiling.on &&
+            `${t('{stages} rounds need a lead: a syndicate or a fund.', {
+              stages: career.ceiling.leadStages.map(stageLabel).join(', '),
+            })} `}
           {career.tracks.lp
             ? t('You can commit to other funds as an LP.')
             : t('LP commitments open at {amount} of liquid wealth.', {
