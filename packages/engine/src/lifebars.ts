@@ -124,6 +124,7 @@ export const HOME_ACT_BARS: Partial<Record<HomeActId, { health?: number; stress?
   workout: { health: 4, stress: -2 },
   cook: { health: 1 },
   snack: { health: -1 },
+  laundry: { stress: -1 },
 };
 
 /** Venues where an activity is exercise. */

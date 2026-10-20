@@ -87,7 +87,8 @@ export type HomeAct =
   | 'game'
   | 'read'
   | 'work'
-  | 'workout';
+  | 'workout'
+  | 'laundry';
 
 export type Verb =
   | { id: string; act: HomeAct; label: string }
@@ -612,6 +613,36 @@ export function homeSpecOf(
   if (kind && kinds.includes(kind))
     return { kind, wealth: typeof residence?.wealth === 'number' ? residence.wealth : 1 };
   return { kind: KIND_OF_TIER[Math.max(1, Math.min(5, lifestyleTier))]!, wealth: 1 };
+}
+
+/**
+ * What a home comes with before you furnish it (player feedback: "despite
+ * living in affluence I have no kitchen at all… I need the full kitchen
+ * including utility"): from an apartment up, a fitted kitchen and a fridge;
+ * from a townhouse up, a utility room's washer-dryer too. Better homes come
+ * better fitted (a chef's kitchen in a mansion or a penthouse, or any home
+ * of a rich owner). Furniture you buy can still upgrade them.
+ */
+export function builtIns(plan: Pick<HomePlan, 'kind' | 'wealth'>): Map<string, number> {
+  const out = new Map<string, number>();
+  if (plan.kind === 'room' || plan.kind === 'studio') return out;
+  const grand = plan.kind === 'mansion' || plan.kind === 'penthouse' || plan.wealth >= 3;
+  const finish = grand ? 3 : 2;
+  out.set('kitchen', finish);
+  out.set('fridge', finish);
+  if (plan.kind !== 'apartment') out.set('washer', finish);
+  return out;
+}
+
+/** What you own, with what the home comes with filled in (the better of the two). */
+export function withBuiltIns(
+  plan: Pick<HomePlan, 'kind' | 'wealth' | 'slots'>,
+  owned: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const out = new Map(owned);
+  for (const [slot, tier] of builtIns(plan))
+    if (plan.slots[slot] && (out.get(slot) ?? 0) < tier) out.set(slot, tier);
+  return out;
 }
 
 export const key = (x: number, y: number) => `${x},${y}`;

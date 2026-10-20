@@ -602,6 +602,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       'read',
       'work',
       'workout',
+      'laundry',
     ]),
   }),
   /** Have someone over: a contact chat id, a player id, or a `fund:`/`biz:`/`npc:` id in your city. */

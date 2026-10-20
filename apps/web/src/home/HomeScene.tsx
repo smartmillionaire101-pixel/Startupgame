@@ -51,6 +51,7 @@ import {
   bathDoors,
   blockedTiles,
   floorsFor,
+  withBuiltIns,
   homeSpecOf,
   key,
   wallEdges,
@@ -295,8 +296,12 @@ export function HomeScene({
   const garageKey = hotelTier
     ? ''
     : (hostView ? (hostView.cars ?? []) : view.me.garage.map((c) => c.modelId)).join(',');
+  // A home comes with its kitchen, fridge and utility room (layout.ts builtIns).
   const tiers = useMemo(
-    () => (hotelTier ? hotelFurniture(basePlan, hotelTier) : (hostView?.tiers ?? ownedTiers(view))),
+    () =>
+      hotelTier
+        ? hotelFurniture(basePlan, hotelTier)
+        : withBuiltIns(basePlan, hostView?.tiers ?? ownedTiers(view)),
     [view, hostView, hotelTier, basePlan],
   );
   const ownedKey = [...tiers.keys()].sort().join(',');
@@ -2254,13 +2259,14 @@ function buildObjects(
     'art',
     'lights',
     'sound',
-    'washer',
     'cooling',
     'power',
     'wifi',
     'dining',
   ])
     if (has(slot)) slotObj(slot, [upgrade(slot)]);
+  // The utility room: wash and dry your clothes.
+  if (has('washer')) slotObj('washer', [act('laundry', t('Do laundry')), upgrade('washer')]);
   // Bathroom.
   if (plan.fixtures['shared-bath'])
     fixture('bathroom', 'shared-bath', t('Shared bathroom'), [

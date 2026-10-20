@@ -52,7 +52,8 @@ export type HomeActId =
   | 'game'
   | 'read'
   | 'work'
-  | 'workout';
+  | 'workout'
+  | 'laundry';
 
 interface HomeActSpec {
   /** Uses a (home) month. */
@@ -82,6 +83,8 @@ export const HOME_ACTS: Record<HomeActId, HomeActSpec> = {
   read: { cap: 4, fun: 10, hours: 2, label: 'You read for a while' },
   work: { cap: 4, hours: 4, needs: 'desk', label: 'Four focused hours at your desk' },
   workout: { cap: 4, energy: -5, hygiene: -15, fun: 10, label: 'A home workout' },
+  // Every home from an apartment up has a utility room (player feedback: "the full kitchen including utility").
+  laundry: { cap: 4, hygiene: 15, hours: 1, label: 'Fresh, clean clothes' },
 };
 export const HOME_ACT_IDS = Object.keys(HOME_ACTS) as HomeActId[];
 
