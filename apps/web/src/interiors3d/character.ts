@@ -10,6 +10,16 @@ import * as THREE from 'three';
 import type { AvatarLook } from '../city/art';
 import { mat, contactShadow } from './kit';
 import { facialHairColour } from '../avatar/tone';
+import {
+  BAG_COLOUR,
+  BEADS,
+  BELT_COLOUR,
+  SCARF_COLOUR,
+  SILVER,
+  WATCH_COLOUR,
+  necklaceColour,
+  shoeColour,
+} from '../avatar/worn';
 
 export type PoseId =
   | 'stand'
@@ -310,7 +320,10 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
   const skin = mat(look.skin, { rough: 0.7 });
   const top = look.top;
   const bottom = look.bottom;
-  const shoe = mat('#1f2937', { rough: 0.6 });
+  // Shoes from the wardrobe in their colour (plain dark ones otherwise).
+  const shoe = mat(look.shoes && look.shoes !== 'none' ? shoeColour(look.shoes) : '#1f2937', {
+    rough: 0.6,
+  });
 
   const hips = new THREE.Group();
   hips.position.y = HIP_Y;
@@ -336,6 +349,21 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     foot.position.set(0, -SHIN + 0.0, 0.04);
     foot.castShadow = true;
     shin.add(foot);
+    if (look.shoes === 'boots') {
+      const b = new THREE.Mesh(
+        geo('boot', () => new THREE.CylinderGeometry(0.066, 0.07, 0.16, 8)),
+        shoe,
+      );
+      b.position.y = -SHIN + 0.1;
+      shin.add(b);
+    } else if (look.shoes === 'heels') {
+      const h = new THREE.Mesh(
+        geo('heel', () => new THREE.BoxGeometry(0.025, 0.07, 0.025)),
+        shoe,
+      );
+      h.position.set(0, -SHIN - 0.05, -0.04);
+      shin.add(h);
+    }
     return { thigh, shin };
   };
   const L = leg(1);
@@ -368,6 +396,21 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     const h = new THREE.Mesh(SKIN_GEO, skin);
     h.scale.setScalar(0.05);
     hand.add(h);
+    // A watch on the left wrist, a bracelet on the right (from the wardrobe).
+    const band =
+      side === 1 && look.watch && look.watch !== 'none'
+        ? WATCH_COLOUR[look.watch]
+        : side === -1 && look.bracelet === 'beaded'
+          ? BEADS
+          : null;
+    if (band) {
+      const w = new THREE.Mesh(
+        geo('band', () => new THREE.CylinderGeometry(0.05, 0.05, 0.035, 10)),
+        mat(band, { rough: 0.35 }),
+      );
+      w.position.y = -FORE + 0.05;
+      fore.add(w);
+    }
     a.rotation.z = side * 0.08;
     return { a, fore, hand };
   };
@@ -460,6 +503,63 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     skirt.position.y = dress ? -0.2 : tunic ? -0.07 : -0.16;
     skirt.castShadow = true;
     hips.add(skirt);
+  }
+  // From the wardrobe: a necklace, a silk scarf, a belt, earrings and a bag.
+  if (look.necklace && look.necklace !== 'none') {
+    const n = new THREE.Mesh(
+      geo('necklace', () => new THREE.TorusGeometry(0.075, 0.008, 5, 18)),
+      mat(necklaceColour(look.necklace), { rough: 0.25 }),
+    );
+    n.rotation.x = Math.PI / 2 - 0.5;
+    n.position.set(0, 0.44, 0.03);
+    torso.add(n);
+  }
+  if (look.scarf === 'silk') {
+    const s = new THREE.Mesh(
+      geo('scarf', () => new THREE.TorusGeometry(0.085, 0.035, 6, 14)),
+      mat(SCARF_COLOUR),
+    );
+    s.rotation.x = Math.PI / 2;
+    s.position.y = 0.47;
+    torso.add(s);
+  }
+  if (look.belt === 'leather') {
+    const b = new THREE.Mesh(
+      geo('belt', () => new THREE.CylinderGeometry(0.155, 0.155, 0.035, 14)),
+      mat(BELT_COLOUR, { rough: 0.5 }),
+    );
+    b.scale.set(1, 1, 0.75);
+    b.position.y = 0.05;
+    hips.add(b);
+  }
+  if (look.earrings === 'studs')
+    for (const sx of [-1, 1]) {
+      const e = new THREE.Mesh(SKIN_GEO, mat(SILVER, { rough: 0.2 }));
+      e.scale.setScalar(0.014);
+      e.position.set(sx * 0.14, 0.16, 0.0);
+      head.add(e);
+    }
+  if (look.bag && look.bag !== 'none') {
+    const bm = mat(BAG_COLOUR[look.bag]!, { rough: 0.6 });
+    const bag = new THREE.Mesh(
+      look.bag === 'gymbag'
+        ? geo('gymbag', () => new THREE.BoxGeometry(0.3, 0.16, 0.14))
+        : look.bag === 'tote'
+          ? geo('tote', () => new THREE.BoxGeometry(0.06, 0.26, 0.24))
+          : geo('handbag', () => new THREE.BoxGeometry(0.07, 0.15, 0.2)),
+      bm,
+    );
+    // Hung from the right shoulder, at the hip.
+    bag.position.set(-0.27, look.bag === 'gymbag' ? -0.02 : 0.02, 0);
+    bag.castShadow = true;
+    torso.add(bag);
+    const strap = new THREE.Mesh(
+      geo('strap', () => new THREE.BoxGeometry(0.02, 0.48, 0.02)),
+      bm,
+    );
+    strap.position.set(-0.2, 0.3, 0);
+    strap.rotation.z = -0.3;
+    torso.add(strap);
   }
   // Outfit accessories.
   switch (look.accessory) {

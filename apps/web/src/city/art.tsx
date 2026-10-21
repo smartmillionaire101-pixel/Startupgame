@@ -24,6 +24,20 @@ import {
 import { homeOf, lookOverride, savedLook } from './acts/look';
 import { PlaneTop } from './airport/planes';
 import { facialHairColour } from '../avatar/tone';
+import {
+  BAG_COLOUR,
+  BEADS,
+  BELT_COLOUR,
+  DENIM,
+  DIAMOND,
+  SCARF_COLOUR,
+  SILVER,
+  WATCH_COLOUR,
+  necklaceColour,
+  shoeColour,
+  wornOf,
+  type Worn,
+} from '../avatar/worn';
 
 // ---------------------------------------------------------------------------
 // Geometry and colour helpers
@@ -1771,7 +1785,7 @@ export function VehicleShape({ spec, axis }: { spec: VehicleSpec; axis: 'x' | 'y
 // ---------------------------------------------------------------------------
 // Avatar
 
-export interface AvatarLook {
+export interface AvatarLook extends Worn {
   skin: string;
   hair: string;
   hairStyle: HairStyle;
@@ -1829,7 +1843,8 @@ export function lookFromAppearance(
     hair: a.hairColor,
     hairStyle: a.hairStyle,
     top: a.topColor,
-    bottom,
+    // Jeans from the wardrobe over the outfit's trousers.
+    bottom: a.legs === 'jeans' ? DENIM : bottom,
     accessory,
     gender,
     face: a.face,
@@ -1837,6 +1852,8 @@ export function lookFromAppearance(
     glasses: a.glasses,
     headwear: a.headwear,
     topStyle: a.topStyle,
+    // What's worn from the wardrobe (shoes, a watch, jewellery …).
+    ...wornOf(a),
   };
 }
 
@@ -1856,6 +1873,7 @@ export function appearanceOfLook(l: AvatarLook): Appearance {
     headwear: l.headwear ?? (l.accessory === 'cap' ? 'cap' : 'none'),
     topStyle: l.topStyle ?? 'tee',
     topColor: hex(l.top, '#0f766e'),
+    ...wornOf(l),
   };
 }
 
@@ -2056,6 +2074,21 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
   const sleeve = topStyle === 'tee' ? 5 : 11;
   // A cap in a darker shade of the top (Wave 7's red one when the look predates the creator).
   const capColour = look.headwear ? shade(top, -0.3) : '#dc2626';
+  // From the wardrobe: shoes (boots reach up the leg, heels have one), socks above them.
+  const shoe = shoeColour(look.shoes);
+  const boots = look.shoes === 'boots';
+  const heels = look.shoes === 'heels';
+  const socks = look.socks === 'plain' && !boots && !heels;
+  const foot = (x: number) => (
+    <>
+      {boots && <rect x={x - 1.8} y="-4.2" width="3.4" height="4" rx="1" fill={shoe} />}
+      {socks && <rect x={x - 1.6} y="-3" width="3.2" height="1.6" fill="#f8fafc" />}
+      <ellipse cx={x} cy="-0.5" rx={heels ? 1.9 : 2.4} ry="1.3" fill={shoe} />
+      {heels && <rect x={x - 0.3} y="-0.8" width="0.7" height="1.2" fill={shade(shoe, -0.3)} />}
+    </>
+  );
+  const watch = look.watch && look.watch !== 'none' ? WATCH_COLOUR[look.watch] : null;
+  const bag = look.bag && look.bag !== 'none' ? look.bag : null;
   return (
     <g
       className="city-avatar-fig"
@@ -2066,15 +2099,19 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
       data-headwear={headwear}
       data-glasses={glasses}
       data-facial-hair={facial}
+      data-shoes={look.shoes ?? 'none'}
+      data-watch={look.watch ?? 'none'}
+      data-bag={look.bag ?? 'none'}
+      data-necklace={look.necklace ?? 'none'}
     >
       <ellipse cx="0" cy="0" rx="7" ry="3" fill="#0f172a" opacity="0.22" />
       <g className="city-leg city-leg-l">
         <rect x="-3.6" y="-12" width="3.2" height="12" rx="1.5" fill={bottom} />
-        <ellipse cx="-2" cy="-0.5" rx="2.4" ry="1.3" fill="#111827" />
+        {foot(-2)}
       </g>
       <g className="city-leg city-leg-r">
         <rect x="0.4" y="-12" width="3.2" height="12" rx="1.5" fill={shade(bottom, -0.15)} />
-        <ellipse cx="2" cy="-0.5" rx="2.4" ry="1.3" fill="#111827" />
+        {foot(2)}
       </g>
       {look.gender === 'female' && !long && (
         <path d="M -5.6 -12.5 L 5.6 -12.5 L 7 -5 L -7 -5 Z" fill={bottom} />
@@ -2118,13 +2155,61 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
         {topStyle === 'hoodie' && (
           <path d="M -1.4 -23 L -1.6 -19 M 1.4 -23 L 1.6 -19" stroke="#f8fafc" strokeWidth="0.6" />
         )}
+        {look.belt === 'leather' && (
+          <>
+            <rect x="-5.5" y="-11.6" width="11" height="1.3" fill={BELT_COLOUR} />
+            <rect x="-0.8" y="-11.8" width="1.6" height="1.7" rx="0.3" fill="#fbbf24" />
+          </>
+        )}
         <g className="city-arm-l">
           <rect x="-7.6" y="-23" width="3" height="11" rx="1.5" fill={skin} />
           <rect x="-7.6" y="-23" width="3" height={sleeve} rx="1.5" fill={shade(top, -0.12)} />
+          {watch && (
+            <>
+              <rect x="-7.9" y="-14.6" width="3.6" height="1.5" rx="0.5" fill={watch} />
+              <circle cx="-6.1" cy="-13.85" r="0.7" fill={shade(watch, 0.35)} />
+            </>
+          )}
+          {look.cufflinks === 'silver' && sleeve > 5 && (
+            <circle cx="-6.1" cy={-23 + sleeve - 0.6} r="0.55" fill={SILVER} />
+          )}
         </g>
         <g className="city-arm-r">
+          {bag && (
+            <path
+              d={bag === 'gymbag' ? 'M 6 -23 L 9 -9' : 'M 6 -23 L 9.4 -15'}
+              stroke={shade(BAG_COLOUR[bag]!, -0.25)}
+              strokeWidth="0.6"
+              fill="none"
+            />
+          )}
           <rect x="4.6" y="-23" width="3" height="11" rx="1.5" fill={shade(skin, -0.08)} />
           <rect x="4.6" y="-23" width="3" height={sleeve} rx="1.5" fill={shade(top, -0.18)} />
+          {look.bracelet === 'beaded' && (
+            <rect x="4.4" y="-14.4" width="3.4" height="1.1" rx="0.5" fill={BEADS} />
+          )}
+          {look.cufflinks === 'silver' && sleeve > 5 && (
+            <circle cx="6.1" cy={-23 + sleeve - 0.6} r="0.55" fill={SILVER} />
+          )}
+          {look.ring === 'diamond' && <circle cx="6.9" cy="-12.2" r="0.6" fill={DIAMOND} />}
+          {bag === 'tote' && (
+            <rect x="7.4" y="-16" width="5" height="6" rx="0.6" fill={BAG_COLOUR.tote} />
+          )}
+          {bag === 'handbag' && (
+            <>
+              <path
+                d="M 8.2 -14.6 Q 10 -17.4 11.8 -14.6"
+                stroke={shade(BAG_COLOUR.handbag!, -0.2)}
+                strokeWidth="0.7"
+                fill="none"
+              />
+              <rect x="7.6" y="-14.8" width="4.8" height="3.8" rx="1" fill={BAG_COLOUR.handbag} />
+              <rect x="9.6" y="-13.6" width="0.8" height="0.8" fill="#fbbf24" />
+            </>
+          )}
+          {bag === 'gymbag' && (
+            <rect x="6.6" y="-10.6" width="7" height="4" rx="1.8" fill={BAG_COLOUR.gymbag} />
+          )}
         </g>
         {accessory === 'tie' && <polygon points="0,-23 1.5,-20 0,-13 -1.5,-20" fill="#b91c1c" />}
         {accessory === 'lanyard' && (
@@ -2137,6 +2222,23 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
           <rect x="-5" y="-25" width="10" height="3" rx="1.5" fill="#f59e0b" />
         )}
         <rect x="-1.8" y="-26.5" width="3.6" height="3" fill={shade(skin, -0.1)} />
+        {look.necklace && look.necklace !== 'none' && (
+          <>
+            <path
+              d="M -2.6 -24 Q 0 -20.4 2.6 -24"
+              stroke={necklaceColour(look.necklace)}
+              strokeWidth="0.7"
+              fill="none"
+            />
+            <circle cx="0" cy="-21.6" r="0.8" fill={necklaceColour(look.necklace)} />
+          </>
+        )}
+        {look.scarf === 'silk' && (
+          <>
+            <rect x="-5" y="-25.2" width="10" height="2.8" rx="1.4" fill={SCARF_COLOUR} />
+            <path d="M 2 -23 L 3.4 -17.5 L 1.2 -17.8 Z" fill={shade(SCARF_COLOUR, -0.15)} />
+          </>
+        )}
         {look.face === 'square' ? (
           <rect
             x={-head.rx}
@@ -2168,11 +2270,19 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
         )}
         <circle cx="2" cy="-30.5" r="0.8" fill="#111827" />
         <circle cx="-1.5" cy="-30.5" r="0.8" fill="#111827" />
-        {look.gender === 'female' && !covered && (
+        {look.earrings === 'studs' ? (
           <>
-            <circle cx="-5.8" cy="-28.6" r="0.9" fill="#fbbf24" />
-            <circle cx="5.8" cy="-28.6" r="0.9" fill="#fbbf24" />
+            <circle cx="-5.8" cy="-28.6" r="0.8" fill={SILVER} />
+            <circle cx="5.8" cy="-28.6" r="0.8" fill={SILVER} />
           </>
+        ) : (
+          look.gender === 'female' &&
+          !covered && (
+            <>
+              <circle cx="-5.8" cy="-28.6" r="0.9" fill="#fbbf24" />
+              <circle cx="5.8" cy="-28.6" r="0.9" fill="#fbbf24" />
+            </>
+          )
         )}
         <path d="M -0.8 -27.6 Q 0.6 -26.6 2 -27.6" stroke="#7c2d12" strokeWidth="0.7" fill="none" />
         {glasses === 'round' && (

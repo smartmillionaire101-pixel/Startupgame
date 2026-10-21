@@ -540,3 +540,15 @@
     animation: none;
   }
 }
+
+/* My purchases (../../avatar/Wardrobe.tsx), from the mall's header. */
+.mall-purchases {
+  flex: none;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+@media (max-width: 420px) {
+  .mall-purchases-label {
+    display: none;
+  }
+}

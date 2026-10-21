@@ -75,6 +75,10 @@ export {
   TOP_COLOURS,
   SKIN_MIX,
   appearanceSchema,
+  lookSchema,
+  WORN,
+  WORN_SLOTS,
+  REMOVABLE,
   appearanceSeed,
   defaultAppearance,
   fitAppearance,
@@ -90,6 +94,10 @@ export type {
   Glasses,
   Headwear,
   TopStyle,
+  Shoes,
+  WornSlot,
+  WornPart,
+  Removable,
 } from './appearance.js';
 export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';
 export { checkChatMessage, startersFor, CHAT_MAX_LENGTH } from './chat.js';
@@ -230,9 +238,11 @@ export {
   MALL_SHOPS_FIRST,
   MALL_TRIP,
   PHONE_NAMES,
+  forWardrobe,
   giftable,
   golfCourse,
   mallItem,
+  wearable,
 } from './data/leisure.js';
 export type {
   BelongingKind,

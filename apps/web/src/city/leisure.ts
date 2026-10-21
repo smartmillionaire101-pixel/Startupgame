@@ -178,6 +178,11 @@ export interface MallItemView {
   tier?: number;
   /** The bigger mall: something you keep (in your bag), and what kind. */
   keep?: string;
+  /** Something you keep that you wear (shoes, a watch …): the part of your look. */
+  worn?: { slot: string; style: string };
+  /** In your wardrobe already: wear it free (a top: in `haveColours`). */
+  have?: boolean;
+  haveColours?: string[];
   hunger?: number;
   fun?: number;
   energy?: number;
@@ -218,6 +223,8 @@ export interface MallTripView {
 
 export interface MallView {
   currency: string;
+  /** Your wardrobe is open (newer servers): wear what you own free. */
+  wardrobe?: boolean;
   /** The shops open here (older servers: the first six). */
   shops?: MallShopId[];
   delivers: boolean;
@@ -236,6 +243,35 @@ export interface MallView {
   friends?: MallPerson[];
 }
 
+/** One thing in your wardrobe ("My purchases"). */
+export interface WardrobeItemView {
+  item: string;
+  label: string;
+  shop: MallShopId;
+  kind: string | null;
+  /** The part of your look: topStyle, headwear, glasses, shoes, watch … */
+  slot: string;
+  style: string;
+  /** A top: the colour you own it in. */
+  colour: string | null;
+  month: number;
+  from: { id: string; name: string } | null;
+  wearing: boolean;
+}
+
+/** Your wardrobe and the other things you keep (`me.wardrobe`, newer servers). */
+export interface WardrobeView {
+  on: boolean;
+  items: WardrobeItemView[];
+  things: {
+    item: string;
+    label: string;
+    kind: string | null;
+    month: number;
+    from: { id: string; name: string } | null;
+  }[];
+}
+
 type Loose = { me: Record<string, unknown> };
 
 export function golfOf(view: PlayerView, marketId: string): GolfView {
@@ -247,6 +283,11 @@ export function golfOf(view: PlayerView, marketId: string): GolfView {
 
 export function mallOf(view: PlayerView): MallView | null {
   const raw = (view as unknown as Loose).me.mall as MallView | undefined;
+  return raw && Array.isArray(raw.items) ? raw : null;
+}
+
+export function wardrobeOf(view: PlayerView): WardrobeView | null {
+  const raw = (view as unknown as Loose).me.wardrobe as WardrobeView | undefined;
   return raw && Array.isArray(raw.items) ? raw : null;
 }
 

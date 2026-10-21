@@ -9,6 +9,8 @@
  *   and every client, so the city is diverse and everyone sees the same faces.
  * - The client turns an appearance into its drawings (2D portrait, map
  *   figure, 3D figures); the lists here are the whole vocabulary.
+ * - What you wear from your wardrobe (shoes, a watch, jewellery, a bag …:
+ *   `WORN`, wardrobe.ts) are optional parts, put on with `wardrobe.wear`.
  *
  * Replay: the field is optional and only the new command writes it, so a
  * logged world without that command replays to exactly the same state.
@@ -85,6 +87,61 @@ export const TOP_COLOURS = [
   '#a16207',
 ] as const;
 
+/**
+ * What you wear from the mall's wardrobe (wardrobe.ts): shoes, jeans, a belt,
+ * socks, a scarf, a bag, a watch and jewellery. Each part is optional on a
+ * look (missing = 'none': drawn as before, with plain shoes and the outfit's
+ * trousers), so every look saved before them is still valid.
+ */
+export const WORN = {
+  shoes: [
+    'none',
+    'trainers',
+    'running',
+    'sneakers',
+    'sandals',
+    'flipflops',
+    'loafers',
+    'heels',
+    'boots',
+  ],
+  legs: ['none', 'jeans'],
+  belt: ['none', 'leather'],
+  socks: ['none', 'plain'],
+  scarf: ['none', 'silk'],
+  bag: ['none', 'tote', 'handbag', 'gymbag'],
+  watch: ['none', 'everyday', 'smart', 'dress', 'luxury'],
+  bracelet: ['none', 'beaded'],
+  ring: ['none', 'diamond'],
+  cufflinks: ['none', 'silver'],
+  necklace: ['none', 'silver', 'gold'],
+  earrings: ['none', 'studs'],
+} as const;
+export type WornSlot = keyof typeof WORN;
+export const WORN_SLOTS = Object.keys(WORN) as WornSlot[];
+/** What can be taken off (`wardrobe.remove`): headwear, glasses and every worn part. */
+export const REMOVABLE = [
+  'headwear',
+  'glasses',
+  'shoes',
+  'legs',
+  'belt',
+  'socks',
+  'scarf',
+  'bag',
+  'watch',
+  'bracelet',
+  'ring',
+  'cufflinks',
+  'necklace',
+  'earrings',
+] as const satisfies readonly ('headwear' | 'glasses' | WornSlot)[];
+export type Removable = (typeof REMOVABLE)[number];
+/** One worn part: its slot and style (a mall item's `worn`). */
+export type WornPart = {
+  [K in WornSlot]: { slot: K; style: Exclude<(typeof WORN)[K][number], 'none'> };
+}[WornSlot];
+
 export type SkinTone = (typeof SKIN_TONES)[number];
 export type FaceShape = (typeof FACE_SHAPES)[number];
 export type HairStyle = (typeof HAIR_STYLES)[number];
@@ -92,6 +149,7 @@ export type FacialHair = (typeof FACIAL_HAIR)[number];
 export type Glasses = (typeof GLASSES)[number];
 export type Headwear = (typeof HEADWEAR)[number];
 export type TopStyle = (typeof TOP_STYLES)[number];
+export type Shoes = (typeof WORN.shoes)[number];
 
 export interface Appearance {
   skin: SkinTone;
@@ -105,6 +163,19 @@ export interface Appearance {
   topStyle: TopStyle;
   /** #rrggbb */
   topColor: string;
+  /** What you wear from your wardrobe (WORN); missing = none. */
+  shoes?: Shoes;
+  legs?: (typeof WORN.legs)[number];
+  belt?: (typeof WORN.belt)[number];
+  socks?: (typeof WORN.socks)[number];
+  scarf?: (typeof WORN.scarf)[number];
+  bag?: (typeof WORN.bag)[number];
+  watch?: (typeof WORN.watch)[number];
+  bracelet?: (typeof WORN.bracelet)[number];
+  ring?: (typeof WORN.ring)[number];
+  cufflinks?: (typeof WORN.cufflinks)[number];
+  necklace?: (typeof WORN.necklace)[number];
+  earrings?: (typeof WORN.earrings)[number];
 }
 
 const colour = z
@@ -112,8 +183,11 @@ const colour = z
   .regex(/^#[0-9a-fA-F]{6}$/)
   .transform((s) => s.toLowerCase());
 
-/** One look, every part named (validated at the trust boundary). */
-export const appearanceSchema = z.object({
+/**
+ * The creator's parts (what `player.appearance` may set): what you wear from
+ * the wardrobe is only put on with `wardrobe.wear`, for things you own.
+ */
+export const lookSchema = z.object({
   skin: z.enum(SKIN_TONES),
   face: z.enum(FACE_SHAPES),
   hairStyle: z.enum(HAIR_STYLES),
@@ -123,6 +197,22 @@ export const appearanceSchema = z.object({
   headwear: z.enum(HEADWEAR),
   topStyle: z.enum(TOP_STYLES),
   topColor: colour,
+});
+
+/** One look, every part named, with what's worn from the wardrobe (validated at the trust boundary). */
+export const appearanceSchema = lookSchema.extend({
+  shoes: z.enum(WORN.shoes).optional(),
+  legs: z.enum(WORN.legs).optional(),
+  belt: z.enum(WORN.belt).optional(),
+  socks: z.enum(WORN.socks).optional(),
+  scarf: z.enum(WORN.scarf).optional(),
+  bag: z.enum(WORN.bag).optional(),
+  watch: z.enum(WORN.watch).optional(),
+  bracelet: z.enum(WORN.bracelet).optional(),
+  ring: z.enum(WORN.ring).optional(),
+  cufflinks: z.enum(WORN.cufflinks).optional(),
+  necklace: z.enum(WORN.necklace).optional(),
+  earrings: z.enum(WORN.earrings).optional(),
 });
 
 const FEMALE_HAIR: readonly HairStyle[] = [
@@ -230,8 +320,8 @@ export function defaultAppearance(
 
 /**
  * The parts each gender's creator offers. Men get no dress, gele, bun or long
- * straight hair (their kaftan is drawn as a tunic over trousers); women no
- * facial hair. Everything else is open to everyone.
+ * straight hair (their kaftan is drawn as a tunic over trousers) and no heels
+ * from the wardrobe; women no facial hair. Everything else is open to everyone.
  */
 export const GENDER_PARTS: Record<
   Gender,
@@ -240,6 +330,7 @@ export const GENDER_PARTS: Record<
     facialHair: readonly FacialHair[];
     headwear: readonly Headwear[];
     topStyle: readonly TopStyle[];
+    shoes: readonly Shoes[];
   }
 > = {
   female: {
@@ -247,12 +338,14 @@ export const GENDER_PARTS: Record<
     facialHair: ['none'],
     headwear: HEADWEAR,
     topStyle: TOP_STYLES,
+    shoes: WORN.shoes,
   },
   male: {
     hairStyle: HAIR_STYLES.filter((h) => h !== 'bun' && h !== 'long' && h !== 'braids'),
     facialHair: FACIAL_HAIR,
     headwear: HEADWEAR.filter((h) => h !== 'gele'),
     topStyle: TOP_STYLES.filter((s) => s !== 'dress'),
+    shoes: WORN.shoes.filter((s) => s !== 'heels'),
   },
 };
 
@@ -261,11 +354,12 @@ const SWAP = {
   hairStyle: { bun: 'short', long: 'short', braids: 'twists' },
   headwear: { gele: 'headwrap' },
   topStyle: { dress: 'kaftan' },
+  shoes: { heels: 'loafers' },
 } as const;
 
 /**
- * A look as this gender wears it: a dress, gele, bun or long straight hair
- * on a man (a look made before he picked "Man", an old save, a gender changed
+ * A look as this gender wears it: a dress, gele, heels, bun or long straight
+ * hair on a man (a look made before he picked "Man", an old save, a gender changed
  * in Profile) becomes his nearest part, and a woman loses facial hair. Pure,
  * and the same object back when nothing changes.
  */
@@ -275,11 +369,12 @@ export function fitAppearance<
     facialHair?: FacialHair;
     headwear?: Headwear;
     topStyle?: TopStyle;
+    shoes?: Shoes;
   },
 >(a: A, gender: Gender): A {
   const ok = GENDER_PARTS[gender];
   let out: A = a;
-  const put = <K extends 'hairStyle' | 'facialHair' | 'headwear' | 'topStyle'>(
+  const put = <K extends 'hairStyle' | 'facialHair' | 'headwear' | 'topStyle' | 'shoes'>(
     k: K,
     v: Appearance[K],
   ) => {
@@ -295,6 +390,8 @@ export function fitAppearance<
   }
   if (a.topStyle && !ok.topStyle.includes(a.topStyle))
     put('topStyle', (SWAP.topStyle as Record<string, TopStyle>)[a.topStyle] ?? 'shirt');
+  if (a.shoes && !ok.shoes.includes(a.shoes))
+    put('shoes', (SWAP.shoes as Record<string, Shoes>)[a.shoes] ?? 'none');
   return out;
 }
 

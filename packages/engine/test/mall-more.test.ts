@@ -35,6 +35,9 @@ interface MallViewT {
   invites?: { id: string; from: { id: string; name: string } }[];
   friends?: { id: string; name: string; ai: boolean }[];
 }
+interface WardrobeT {
+  items: { item: string; from: { id: string; name: string } | null }[];
+}
 const mallOf = (w: World, id = F) => (playerView(w, id)!.me as unknown as { mall: MallViewT }).mall;
 const aiFriend = (w: World) => mallOf(w).friends![0]!;
 
@@ -90,12 +93,19 @@ describe('the bigger mall', () => {
     const r = run(w0, F, { type: 'mall.buy', itemId: 'shoe-trainers' });
     expect(cash(w0) - cash(r.world)).toBe(r.result.price);
     expect(allNgn(r.world)).toBe(allNgn(w0));
-    expect(r.world.players[F]!.belongings).toEqual([
+    // Shoes: in your wardrobe (not the bag), and on your feet.
+    expect(r.world.players[F]!.wardrobe).toEqual([
       { item: 'shoe-trainers', month: w0.markets.lagos!.month },
     ]);
-    expect(mallOf(r.world).bag[0]).toMatchObject({ item: 'shoe-trainers', from: null });
+    expect(r.world.players[F]!.belongings ?? []).toHaveLength(0);
+    expect(r.world.players[F]!.appearance?.shoes).toBe('trainers');
+    const r1 = run(r.world, F, { type: 'mall.buy', itemId: 'book-novel' });
+    expect(r1.world.players[F]!.belongings).toEqual([
+      { item: 'book-novel', month: w0.markets.lagos!.month },
+    ]);
+    expect(mallOf(r1.world).bag[0]).toMatchObject({ item: 'book-novel', from: null });
     // The pharmacy: a toothbrush is hygiene, kept nowhere.
-    const w1 = produce(r.world, (d) => {
+    const w1 = produce(r1.world, (d) => {
       d.players[F]!.needs = { hunger: 50, hygiene: 30, fun: 50, social: 50 };
     });
     const r2 = run(w1, F, { type: 'mall.buy', itemId: 'ph-toothcare' });
@@ -180,12 +190,13 @@ describe('shopping together', () => {
     expect(cash(w1) - cash(r.world)).toBe(price);
     expect(cash(r.world, G)).toBe(theirs0);
     expect(allNgn(r.world)).toBe(allNgn(w1));
-    // Theirs to keep, from you; they're happier and closer.
-    expect(r.world.players[G]!.belongings).toEqual([
+    // Theirs to keep (in their wardrobe), from you; they're happier and closer.
+    expect(r.world.players[G]!.wardrobe).toEqual([
       { item: 'jew-necklace', month: w1.markets.lagos!.month, from: F },
     ]);
-    expect(r.world.players[F]!.belongings ?? []).toHaveLength(0);
-    expect(mallOf(r.world, G).bag[0]).toMatchObject({ item: 'jew-necklace', from: { id: F } });
+    expect(r.world.players[F]!.wardrobe ?? []).toHaveLength(0);
+    const theirs = (playerView(r.world, G)!.me as unknown as { wardrobe: WardrobeT }).wardrobe;
+    expect(theirs.items[0]).toMatchObject({ item: 'jew-necklace', from: { id: F } });
     expect(r.world.players[G]!.needs!.fun).toBeGreaterThan(fun0);
     expect(r.world.players[G]!.contacts!.find((c) => c.refId === F)!.warmth).toBeGreaterThan(warm0);
     expect(mallOf(r.world).trip!.gifts).toEqual([

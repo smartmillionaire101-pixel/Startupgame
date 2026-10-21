@@ -14,6 +14,7 @@ import { flightsOf } from '../city/travel';
 import { BankPicker } from './common';
 import { WealthCard } from './Capital';
 import { MyLook } from '../avatar/EditLook';
+import { PurchasesButton } from '../avatar/Wardrobe';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
 import { FoundBank } from './Bank';
@@ -177,6 +178,8 @@ function Profile() {
         </p>
       </section>
       <ProfileDetails key={me.id + me.role} />
+      {/* What you bought at the mall: your wardrobe (wear it) and the things you keep. */}
+      <PurchasesButton />
       <Button block data-open-living="" onClick={() => openLiving(me.id)}>
         {t('🏠 Home & friends')}
         {view.living.dates.some((d) => d.status === 'invited' && d.guest === me.id)

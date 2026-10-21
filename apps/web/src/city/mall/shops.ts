@@ -8,6 +8,7 @@
 import type { MallShopId } from '@runway/engine';
 import { t } from '../../i18n';
 import type { AvatarLook } from '../art';
+import { DENIM } from '../../avatar/worn';
 import type { MallItemView, MallView } from '../leisure';
 
 /** Every shop, the first six then the bigger mall's. */
@@ -148,16 +149,27 @@ const COLOUR_NAME: Record<string, () => string> = {
 };
 export const colourName = (hex: string): string => COLOUR_NAME[hex.toLowerCase()]?.() ?? hex;
 
-/** Whether you wear it (clothes and accessories). */
-export const isWearable = (it: MallItemView) => !!(it.topStyle || it.headwear || it.glasses);
+/** Whether you wear it (clothes and accessories; shoes, watches, jewellery and bags too). */
+export const isWearable = (it: Pick<MallItemView, 'topStyle' | 'headwear' | 'glasses' | 'worn'>) =>
+  !!(it.topStyle || it.headwear || it.glasses || it.worn);
 
-/** What wearing an item looks like (for trying it on). */
-export function wearing(look: AvatarLook, it: MallItemView, colour: string): AvatarLook {
+/** Whether it's in your wardrobe already (a top: in this colour), to wear free. */
+export const ownsIt = (it: MallItemView, colour: string) =>
+  !!it.have && (!it.topStyle || !!it.haveColours?.includes(colour.toLowerCase()));
+
+/** What wearing an item looks like (for trying it on, and the wardrobe's previews). */
+export function wearing(
+  look: AvatarLook,
+  it: Pick<MallItemView, 'topStyle' | 'headwear' | 'glasses' | 'worn'>,
+  colour: string,
+): AvatarLook {
   return {
     ...look,
     ...(it.topStyle ? { topStyle: it.topStyle as AvatarLook['topStyle'], top: colour } : {}),
     ...(it.headwear ? { headwear: it.headwear as AvatarLook['headwear'] } : {}),
     ...(it.glasses ? { glasses: it.glasses as AvatarLook['glasses'] } : {}),
+    ...(it.worn ? { [it.worn.slot]: it.worn.style } : {}),
+    ...(it.worn?.slot === 'legs' ? { bottom: DENIM } : {}),
   };
 }
 
@@ -311,8 +323,10 @@ const ICON: Record<string, string> = {
   'arc-bowling': '🎳',
   'arc-vr': '🥽',
 };
-/** A picture for an item (its card, the receipt). */
-export const itemIcon = (it: MallItemView): string =>
+/** A picture for an item (its card, the receipt, your purchases). */
+export const itemIcon = (
+  it: Pick<MallItemView, 'id' | 'topStyle' | 'headwear' | 'glasses' | 'phone' | 'shop'>,
+): string =>
   ICON[it.id] ??
   ICON[it.topStyle ?? it.headwear ?? it.glasses ?? ''] ??
   (it.phone ? '📱' : SHOP_ICON[it.shop]);

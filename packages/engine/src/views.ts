@@ -64,6 +64,7 @@ import { businessCustomersOf, businessesView, economyView, jobsView } from './ec
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
 import { mallTripView } from './malltrips.js';
+import { wardrobeView } from './wardrobe.js';
 import { deliveryView, homeActsView, moodOf, needsOf } from './needs.js';
 import { hangoutsView, sendLimits, techEventsView, visitingView, visitsView } from './social.js';
 import { holidaysView } from './holidays.js';
@@ -846,6 +847,8 @@ export function playerView(
       golf: { ...golfView(world, p), match: golfMatchOptions(world, p) },
       /** The mall in the city you're in: its shops' items and prices, your phone. */
       mall: { ...mallView(world, p), ...mallTripView(world, p) },
+      /** "My purchases": your wardrobe (what you can wear, free) and the other things you keep. */
+      wardrobe: wardrobeView(world, p),
       garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({
         ...car,
         active: car.modelId === p.car?.modelId,
