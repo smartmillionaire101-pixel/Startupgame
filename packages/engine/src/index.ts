@@ -133,7 +133,15 @@ export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';
 // The jobs rework: professional careers.
-export { WORK, FIELD_LABEL, SKILL_LABEL, whyText, levelGate, workOf } from './work.js';
+export {
+  WORK,
+  FIELD_LABEL,
+  SKILL_LABEL,
+  whyText,
+  levelGate,
+  workOf,
+  missingEmployers,
+} from './work.js';
 export {
   PROFESSIONS,
   PROFESSION_IDS,

@@ -23,6 +23,7 @@ import { loadConfig, monthMsOf, type Config } from '../config.js';
 import { DevSmsProvider } from '../adapters/sms.js';
 import { fetchFxUpdates } from '../adapters/feeds.js';
 import { KvAccountStore } from './kv-accounts.js';
+import { missingEmployers } from '@runway/engine';
 import { RELEASE_NOTE } from '../release.js';
 import { KvGame } from './kv-game.js';
 import { NetlifyKv, kvJson, type Kv } from './kv.js';
@@ -134,7 +135,7 @@ export async function createRuntime(kv: Kv, config: Config): Promise<Runtime> {
     await game.openMarkets(config.OPEN_MARKETS);
   // The release note too, as the node server does at boot: previews have no
   // scheduled clock, and the note is the switch for what it announces.
-  if (!game.current.announcements?.includes(RELEASE_NOTE.id))
+  if (!game.current.announcements?.includes(RELEASE_NOTE.id) || missingEmployers(game.current))
     await game.execute(null, { type: 'system.announce', ...RELEASE_NOTE });
   const app = await buildApp({
     config,
@@ -218,7 +219,10 @@ export const FX_EVERY_MS = 6 * 3_600_000;
 export async function runClock(rt: Runtime, now = Date.now()) {
   await rt.game.openMarkets(rt.config.OPEN_MARKETS);
   // Tell every player about a new release once (a no-op after the first time).
-  if (!rt.game.current.announcements?.includes(RELEASE_NOTE.id))
+  if (
+    !rt.game.current.announcements?.includes(RELEASE_NOTE.id) ||
+    missingEmployers(rt.game.current)
+  )
     await rt.game.execute(null, { type: 'system.announce', ...RELEASE_NOTE });
   const settled = await rt.game.tick();
   let fx = 0;

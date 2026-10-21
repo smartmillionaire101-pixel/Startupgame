@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { INVESTOR } from '../src/data/investor.js';
 import { INVESTOR_NOTE } from '../src/releases.js';
 import { playerView } from '../src/views.js';
+import { missingEmployers } from '../src/work.js';
 import { produce } from 'immer';
 import type { World } from '../src/types.js';
 import {
@@ -192,6 +193,9 @@ describe('investor career: an older city', () => {
         if (b.landmark?.startsWith('employer-')) delete bs[id];
     });
     expect(employers(missing)).toBe(0);
+    // The server's boot check: re-announce only while some are missing.
+    expect(missingEmployers(missing)).toBe(true);
+    expect(missingEmployers(w0)).toBe(false);
     // The server re-announces its note at boot: the city's employers open at once.
     const again = { type: 'system.announce', id: INVESTOR_NOTE, text: 'Update' } as const;
     expect(employers(run(missing, null, again).world)).toBe(employers(w0));

@@ -111,7 +111,8 @@ test('Online now lists a real player, and a solo player plays a penalty shootout
     const room = (await state(page)).playRooms.find((r) => r.title === 'Penalties against AI')!;
     expect(room.status).toBe('finished');
     expect(room.ai).toHaveLength(1);
-    expect(room.penalties.length).toBeGreaterThanOrEqual(10);
+    // Five each, but it ends once a side can't catch up (3-0 after six kicks at the earliest).
+    expect(room.penalties.length).toBeGreaterThanOrEqual(6);
     await page.screenshot({ path: info.outputPath('football-vs-ai-mobile.png') });
     expect(errors).toEqual([]);
   } finally {
