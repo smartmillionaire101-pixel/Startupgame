@@ -22,6 +22,7 @@ interface State {
       bag?: { item: string }[];
       trip?: { status: string; friend: { id: string; name: string }; gifts: { item: string }[] };
     };
+    wardrobe?: { items: { item: string }[] };
   };
 }
 const state = (page: Page) =>
@@ -112,7 +113,9 @@ test('sixteen shops in Lite: buy trainers, a novel and a toothbrush', async ({ p
     const bought = scene.locator(`[data-mall-bought="${item}"]`);
     await expect(bought).toBeVisible({ timeout: 10_000 });
     spent += price;
-    if (shop === 'shoes') await expect(bought).toContainText('in your bag');
+    // Shoes go on you (and in your wardrobe); a novel in your bag.
+    if (shop === 'shoes') await expect(bought).toContainText('wearing it');
+    if (shop === 'books') await expect(bought).toContainText('in your bag');
     await snap(page, `lite-3-bought-${shop}`);
     await bought.locator('[data-action="mall-ok"]').click();
     await scene.locator('[data-action="mall-back"]').click();
@@ -120,8 +123,9 @@ test('sixteen shops in Lite: buy trainers, a novel and a toothbrush', async ({ p
   await expect
     .poll(async () => (await state(page)).accounts.local.balance, { timeout: 10_000 })
     .toBe(start - spent);
-  const bag = (await state(page)).me.mall?.bag?.map((b) => b.item) ?? [];
-  expect(bag).toEqual(expect.arrayContaining(['shoe-trainers', 'book-novel']));
+  const s = await state(page);
+  expect(s.me.mall?.bag?.map((b) => b.item) ?? []).toEqual(['book-novel']);
+  expect(s.me.wardrobe?.items.map((b) => b.item)).toEqual(['shoe-trainers']);
 });
 
 test('take an AI friend shopping and buy them a gift (Lite)', async ({ page }) => {

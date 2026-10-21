@@ -15,13 +15,14 @@
  *   Imported goods (gadgets, gold, watches, designer labels, fragrance) are
  *   priced in US dollars at the day's rate (`usd`) when that is dearer than
  *   their cost-of-living price; the rest by the cost of living.
- * - Things you keep (shoes, jewellery, books, toys …) go in your bag
- *   (`Player.belongings`); clothes you wear change your look; food, the
+ * - Things you keep (books, toys, gadgets …) go in your bag
+ *   (`Player.belongings`); clothes, shoes, jewellery, watches and bags go
+ *   in your wardrobe and on you (`worn`, ../wardrobe.ts); food, the
  *   pharmacy and the beauty counter move your needs and life bars.
  *
  * Names are generic, never real brands.
  */
-import type { TopStyle } from '../appearance.js';
+import type { TopStyle, WornPart } from '../appearance.js';
 
 export type MallShopId =
   | 'fashion'
@@ -125,6 +126,11 @@ export interface MallItem {
   furnitureId?: string;
   /** Something you keep (in your bag): what it is. */
   keep?: BelongingKind;
+  /**
+   * Something you keep that you wear (shoes, a watch, jewellery, a bag, jeans):
+   * the part of your look it is. In your wardrobe, never the bag (wardrobe.ts).
+   */
+  worn?: WornPart;
   /** Food: hunger filled; fun; energy. */
   hunger?: number;
   fun?: number;
@@ -256,13 +262,21 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.025,
     glasses: 'round',
   }),
-  more({ id: 'fash-jeans', shop: 'fashion', label: 'Jeans', priceCol: 0.03, keep: 'clothes' }),
+  more({
+    id: 'fash-jeans',
+    shop: 'fashion',
+    label: 'Jeans',
+    priceCol: 0.03,
+    keep: 'clothes',
+    worn: { slot: 'legs', style: 'jeans' },
+  }),
   more({
     id: 'fash-belt',
     shop: 'fashion',
     label: 'Leather belt',
     priceCol: 0.015,
     keep: 'clothes',
+    worn: { slot: 'belt', style: 'leather' },
   }),
   more({
     id: 'gad-earbuds',
@@ -299,6 +313,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.12,
     usd: 230,
     keep: 'watch',
+    worn: { slot: 'watch', style: 'smart' },
     health: 2,
   }),
   more({
@@ -505,9 +520,24 @@ export const MALL_ITEMS: readonly MallItem[] = [
     label: 'Pack of socks',
     priceCol: 0.003,
     keep: 'clothes',
+    worn: { slot: 'socks', style: 'plain' },
   }),
-  more({ id: 'out-jeans', shop: 'outlet', label: 'Value jeans', priceCol: 0.012, keep: 'clothes' }),
-  more({ id: 'out-tote', shop: 'outlet', label: 'Canvas tote bag', priceCol: 0.004, keep: 'bag' }),
+  more({
+    id: 'out-jeans',
+    shop: 'outlet',
+    label: 'Value jeans',
+    priceCol: 0.012,
+    keep: 'clothes',
+    worn: { slot: 'legs', style: 'jeans' },
+  }),
+  more({
+    id: 'out-tote',
+    shop: 'outlet',
+    label: 'Canvas tote bag',
+    priceCol: 0.004,
+    keep: 'bag',
+    worn: { slot: 'bag', style: 'tote' },
+  }),
 
   // ---- The designer boutique.
   more({
@@ -578,6 +608,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.25,
     usd: 900,
     keep: 'bag',
+    worn: { slot: 'bag', style: 'handbag' },
     fun: 6,
   }),
   more({
@@ -587,6 +618,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.05,
     usd: 150,
     keep: 'clothes',
+    worn: { slot: 'scarf', style: 'silk' },
   }),
 
   // ---- Shoes.
@@ -596,6 +628,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     label: 'Flip-flops',
     priceCol: 0.004,
     keep: 'shoes',
+    worn: { slot: 'shoes', style: 'flipflops' },
   }),
   more({
     id: 'shoe-sandals',
@@ -603,6 +636,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     label: 'Leather sandals',
     priceCol: 0.015,
     keep: 'shoes',
+    worn: { slot: 'shoes', style: 'sandals' },
   }),
   more({
     id: 'shoe-trainers',
@@ -610,6 +644,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     label: 'Trainers',
     priceCol: 0.03,
     keep: 'shoes',
+    worn: { slot: 'shoes', style: 'trainers' },
     fun: 3,
   }),
   more({
@@ -618,6 +653,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     label: 'Running shoes',
     priceCol: 0.045,
     keep: 'shoes',
+    worn: { slot: 'shoes', style: 'running' },
     health: 1,
   }),
   more({
@@ -626,9 +662,24 @@ export const MALL_ITEMS: readonly MallItem[] = [
     label: 'Leather loafers',
     priceCol: 0.05,
     keep: 'shoes',
+    worn: { slot: 'shoes', style: 'loafers' },
   }),
-  more({ id: 'shoe-heels', shop: 'shoes', label: 'Heels', priceCol: 0.045, keep: 'shoes' }),
-  more({ id: 'shoe-boots', shop: 'shoes', label: 'Ankle boots', priceCol: 0.06, keep: 'shoes' }),
+  more({
+    id: 'shoe-heels',
+    shop: 'shoes',
+    label: 'Heels',
+    priceCol: 0.045,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'heels' },
+  }),
+  more({
+    id: 'shoe-boots',
+    shop: 'shoes',
+    label: 'Ankle boots',
+    priceCol: 0.06,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'boots' },
+  }),
   more({
     id: 'shoe-designer',
     shop: 'shoes',
@@ -636,6 +687,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.15,
     usd: 350,
     keep: 'shoes',
+    worn: { slot: 'shoes', style: 'sneakers' },
     fun: 5,
   }),
 
@@ -646,6 +698,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     label: 'Beaded bracelet',
     priceCol: 0.008,
     keep: 'jewellery',
+    worn: { slot: 'bracelet', style: 'beaded' },
   }),
   more({
     id: 'jew-studs',
@@ -654,6 +707,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.02,
     usd: 45,
     keep: 'jewellery',
+    worn: { slot: 'earrings', style: 'studs' },
   }),
   more({
     id: 'jew-necklace',
@@ -662,6 +716,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.04,
     usd: 90,
     keep: 'jewellery',
+    worn: { slot: 'necklace', style: 'silver' },
   }),
   more({
     id: 'jew-cufflinks',
@@ -670,6 +725,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.03,
     usd: 70,
     keep: 'jewellery',
+    worn: { slot: 'cufflinks', style: 'silver' },
   }),
   more({
     id: 'jew-watch',
@@ -678,6 +734,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.04,
     usd: 80,
     keep: 'watch',
+    worn: { slot: 'watch', style: 'everyday' },
   }),
   more({
     id: 'jew-dress-watch',
@@ -686,6 +743,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.3,
     usd: 650,
     keep: 'watch',
+    worn: { slot: 'watch', style: 'dress' },
     fun: 5,
   }),
   more({
@@ -695,6 +753,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 0.4,
     usd: 1200,
     keep: 'jewellery',
+    worn: { slot: 'necklace', style: 'gold' },
     fun: 6,
   }),
   more({
@@ -704,6 +763,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 1.2,
     usd: 3000,
     keep: 'jewellery',
+    worn: { slot: 'ring', style: 'diamond' },
     fun: 8,
   }),
   more({
@@ -713,6 +773,7 @@ export const MALL_ITEMS: readonly MallItem[] = [
     priceCol: 3,
     usd: 9000,
     keep: 'watch',
+    worn: { slot: 'watch', style: 'luxury' },
     fun: 10,
   }),
 
@@ -910,7 +971,14 @@ export const MALL_ITEMS: readonly MallItem[] = [
     keep: 'sports',
     health: 2,
   }),
-  more({ id: 'spt-gymbag', shop: 'sports', label: 'Gym bag', priceCol: 0.02, keep: 'bag' }),
+  more({
+    id: 'spt-gymbag',
+    shop: 'sports',
+    label: 'Gym bag',
+    priceCol: 0.02,
+    keep: 'bag',
+    worn: { slot: 'bag', style: 'gymbag' },
+  }),
   more({
     id: 'spt-racket',
     shop: 'sports',
@@ -1119,6 +1187,9 @@ export const giftable = (x: MallItem) => !x.furnitureId && !x.hours;
 /** Clothes and accessories: what you wear. */
 export const wearable = (x: MallItem) => !!(x.topStyle || x.headwear || x.glasses);
 
+/** Everything that goes in your wardrobe: clothes and accessories, and the things you keep that you wear. */
+export const forWardrobe = (x: MallItem) => wearable(x) || !!x.worn;
+
 /** Shopping together (malltrips.ts): what an outing to the mall with a friend does. */
 export const MALL_TRIP = {
   /** Social and fun for both of you when you meet there. */
@@ -1141,4 +1212,9 @@ export const MALL_TRIP = {
   giftsPerTrip: 12,
   /** Things kept in your bag (the oldest go when it's full). */
   bagMax: 80,
+  /**
+   * Things in your wardrobe (wardrobe.ts): their own list, so a bag full of
+   * sweets never pushes out your shoes. Every item in every colour fits.
+   */
+  wardrobeMax: 400,
 } as const;

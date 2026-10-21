@@ -329,6 +329,12 @@ export interface Player {
    * books …), newest last, and who gave it to you. Missing = none.
    */
   belongings?: { item: string; month: number; from?: Id }[];
+  /**
+   * Your wardrobe (wardrobe.ts): every wearable thing you bought or were
+   * given at the mall (a top in each colour you picked), oldest first, to
+   * put on again free. Missing = none (worlds before the investor release).
+   */
+  wardrobe?: { item: string; month: number; colour?: string; from?: Id }[];
 }
 
 // ---------------------------------------------------------------- Founder Journey 5: exits and the capital allocator

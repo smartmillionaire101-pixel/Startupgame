@@ -7,6 +7,10 @@
  * phone is yours, furniture and electronics go into your home, food fills
  * you up, a film is fun, and the bigger mall's things go in your bag.
  *
+ * My purchases (../../avatar/Wardrobe.tsx), from the header: your wardrobe
+ * to wear again free (`wardrobe.wear`) and the things you keep. Something
+ * you own already (a top: in that colour) is worn free, never bought again.
+ *
  * Shop with a friend: invite a player or an AI friend (`mall.invite`); while
  * you're together they walk with you and any card or list can buy them a
  * gift (`mall.gift`: you pay, it's theirs).
@@ -27,6 +31,7 @@ import { mallOf, type MallItemView } from '../leisure';
 import type { SceneProps } from '../PlaceScene';
 import { isUnit, type UnitShop } from './layout';
 import { Mall2D } from './Mall2D';
+import { PurchasesSheet } from '../../avatar/Wardrobe';
 import { MallInviteSheet, personLook } from './MallInvite';
 import { MallWalk } from './MallWalk';
 import {
@@ -36,6 +41,7 @@ import {
   isWearable,
   itemIcon,
   itemNote,
+  ownsIt,
   shopBlurb,
   shopName,
   shopsOf,
@@ -76,7 +82,8 @@ const fits = (gender: 'female' | 'male', i: MallItemView) => {
   const parts = GENDER_PARTS[gender];
   return (
     (!i.topStyle || (parts.topStyle as readonly string[]).includes(i.topStyle)) &&
-    (!i.headwear || (parts.headwear as readonly string[]).includes(i.headwear))
+    (!i.headwear || (parts.headwear as readonly string[]).includes(i.headwear)) &&
+    (i.worn?.slot !== 'shoes' || (parts.shoes as readonly string[]).includes(i.worn.style))
   );
 };
 
@@ -94,6 +101,7 @@ export function MallScene(props: SceneProps) {
   const [trying, setTrying] = useState<string | null>(null);
   const [bought, setBought] = useState<Bought | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [purchases, setPurchases] = useState(false);
   // 3D: walking the mall (the 2D directory if WebGL gives out).
   const [failed, setFailed] = useState(false);
   const [looking, setLooking] = useState(false);
@@ -152,6 +160,18 @@ export function MallScene(props: SceneProps) {
     setTrying(null);
     setBought({ item: it, price: r.price ?? it.price, message: tx(r.message ?? '') });
   };
+  // Yours already: on, free (from your wardrobe).
+  const wearOwned = async (it: MallItemView) => {
+    const r = await send(
+      looseCmd({
+        type: 'wardrobe.wear',
+        itemId: it.id,
+        ...(it.topStyle ? { colour } : {}),
+      }),
+      t('You put on: {item}.', { item: tx(it.label) }),
+    );
+    if (r) setTrying(null);
+  };
   const gift = async (it: MallItemView) => {
     if (!together) return;
     const r = await send<{ price?: number; message?: string }>(
@@ -199,6 +219,16 @@ export function MallScene(props: SceneProps) {
                   : t('{n} shops, a food court and a cinema', { n: 6 })}
           </span>
         </div>
+        {mall?.wardrobe && (
+          <button
+            type="button"
+            className="btn btn-subtle mall-purchases"
+            data-action="mall-purchases"
+            onClick={() => setPurchases(true)}
+          >
+            👜 <span className="mall-purchases-label">{t('My purchases')}</span>
+          </button>
+        )}
         <span className="golf-pocket" data-pocket={pocket}>
           {money(pocket, view.market.currency)}
         </span>
@@ -353,6 +383,7 @@ export function MallScene(props: SceneProps) {
             </div>
           </div>
         )}
+        {purchases && <PurchasesSheet onClose={() => setPurchases(false)} />}
         {inviting && mall && (
           <MallInviteSheet
             mall={mall}
@@ -450,17 +481,28 @@ export function MallScene(props: SceneProps) {
                       </span>
                     </button>
                     <span className="mall-price">{money(it.price, cur)}</span>
-                    {forMe(it) && (
-                      <button
-                        type="button"
-                        className="btn mall-buy"
-                        data-buy={it.id}
-                        disabled={busy || it.owned || pocket < it.price}
-                        onClick={() => void buy(it)}
-                      >
-                        {it.owned ? t('Yours') : t('Buy')}
-                      </button>
-                    )}
+                    {forMe(it) &&
+                      (ownsIt(it, colour) ? (
+                        <button
+                          type="button"
+                          className="btn btn-subtle mall-buy"
+                          data-wear-owned={it.id}
+                          disabled={busy}
+                          onClick={() => void wearOwned(it)}
+                        >
+                          {t('Yours · wear')}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn mall-buy"
+                          data-buy={it.id}
+                          disabled={busy || it.owned || pocket < it.price}
+                          onClick={() => void buy(it)}
+                        >
+                          {it.owned ? t('Yours') : t('Buy')}
+                        </button>
+                      ))}
                     {together && it.gift && (
                       <button
                         type="button"

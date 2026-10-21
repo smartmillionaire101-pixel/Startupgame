@@ -14,7 +14,9 @@
  *   business in the city (the mall's branch of it), else the suppliers.
  *   The bigger mall (data/mall.ts) adds ten shops and things you keep (in
  *   your bag), sold once the investor release note is logged; shopping
- *   with a friend is malltrips.ts.
+ *   with a friend is malltrips.ts. With that note, everything you wear is
+ *   kept in your wardrobe (wardrobe.ts) to put on again free, and shoes,
+ *   watches, jewellery and bags go on you when you buy them.
  *
  * Replay: both commands are new and the fields they write (`golf`, `phone`)
  * are optional, so a logged world without them replays exactly as before.
@@ -28,6 +30,7 @@ import {
   MALL_TILLS,
   MALL_TRIP,
   PHONE_NAMES,
+  forWardrobe,
   giftable,
   golfCourse,
   mallItem,
@@ -49,6 +52,7 @@ import { NPC_POOL, npcPerson } from './people.js';
 import { deriveRng } from './rng.js';
 import { buyFurniture } from './shop.js';
 import type { Id, MarketState, Player, World } from './types.js';
+import { addToWardrobe, ownedToWear } from './wardrobe.js';
 
 /** The open business of one of these kinds (lowest id first), if any. */
 function tillOf(m: MarketState, pick: (kind: string) => boolean) {
@@ -264,6 +268,8 @@ export function mallView(world: World, me: Player) {
   const m = getMarket(world, locationOf(me));
   const on = investorOn(world);
   const items = [];
+  // What you own to wear (a top: by colour), so the shop offers it free.
+  const mine = on ? ownedToWear(me) : [];
   for (const x of MALL_ITEMS) {
     if (!mallSells(world, x)) continue;
     const f = x.furnitureId ? furnitureItem(x.furnitureId) : undefined;
@@ -279,6 +285,15 @@ export function mallView(world: World, me: Player) {
       ...(x.phone ? { phone: x.phone } : {}),
       ...(f ? { furniture: f.id, slot: f.slot, tier: f.tier } : {}),
       ...(x.keep ? { keep: x.keep } : {}),
+      ...(x.worn ? { worn: x.worn } : {}),
+      ...(on && forWardrobe(x) && mine.some((e) => e.item === x.id) ? { have: true } : {}),
+      ...(on && x.topStyle && mine.some((e) => e.item === x.id)
+        ? {
+            haveColours: mine
+              .filter((e) => e.item === x.id && e.colour)
+              .map((e) => e.colour as string),
+          }
+        : {}),
       ...(x.hunger ? { hunger: x.hunger } : {}),
       ...(x.fun ? { fun: x.fun } : {}),
       ...(x.energy ? { energy: x.energy } : {}),
@@ -297,6 +312,8 @@ export function mallView(world: World, me: Player) {
   }
   const label = (id: string) => mallItem(id)?.label ?? id;
   return {
+    /** The wardrobe is open: wear what you own free (`wardrobe.wear`). */
+    ...(on ? { wardrobe: true } : {}),
     currency: m.data.currency,
     /** The shops open here (the bigger mall's once its note is logged). */
     shops: on ? MALL_SHOPS : MALL_SHOPS_FIRST,
@@ -338,6 +355,8 @@ export function mallBuy(world: World, me: Player, itemId: string, colour?: strin
     pay(world, me, m, price, till?.account ?? m.ext.suppliers, memo);
     me.appearance = next;
     me.appearanceAt = now;
+    // Yours to wear again, free (in this colour).
+    if (investorOn(world)) addToWardrobe(me, x, m.month, colour);
     const fun = bumpNeed(me, 'fun', 3);
     return {
       item: x.id,
@@ -372,7 +391,13 @@ export function mallBuy(world: World, me: Player, itemId: string, colour?: strin
   pay(world, me, m, price, till?.account ?? m.ext.suppliers, memo);
   if (x.hours) me.hours.used += x.hours;
   const fx = consume(me, x);
-  if (x.keep) keepThing(me, x.id, m.month);
+  // Shoes, a watch, jewellery, a bag: into your wardrobe, and on you.
+  const worn = !!x.worn && investorOn(world);
+  if (worn) {
+    addToWardrobe(me, x, m.month);
+    me.appearance = wearing(me, x, undefined, false);
+    me.appearanceAt = now;
+  } else if (x.keep) keepThing(me, x.id, m.month);
   const bars = barsOfItem(x);
   return {
     item: x.id,
@@ -381,13 +406,17 @@ export function mallBuy(world: World, me: Player, itemId: string, colour?: strin
     effects: fx,
     needs: needsOf(me),
     ...(x.keep ? { kept: true } : {}),
+    ...(worn ? { appearance: me.appearance, wardrobe: true } : {}),
     ...(bars ? { barsFx: bars } : {}),
-    message: `${x.label}: ${fmt(price)}.`,
+    message: worn ? `${x.label}: ${fmt(price)}. You’re wearing it.` : `${x.label}: ${fmt(price)}.`,
   };
 }
 
-/** What wearing a thing does to someone's look (refused if they wear it already). */
-export function wearing(p: Player, x: MallItem, colour?: string): Appearance {
+/**
+ * What wearing a thing does to someone's look (refused if they wear it
+ * already, unless `strict` is false: a second pair of the shoes you have on).
+ */
+export function wearing(p: Player, x: MallItem, colour?: string, strict = true): Appearance {
   const was: Appearance = p.appearance ?? defaultAppearance(appearanceSeed(p), p.gender);
   const next: Appearance = { ...was };
   if (x.topStyle) {
@@ -397,8 +426,9 @@ export function wearing(p: Player, x: MallItem, colour?: string): Appearance {
   }
   if (x.headwear) next.headwear = x.headwear;
   if (x.glasses) next.glasses = x.glasses;
+  if (x.worn) (next as unknown as Record<string, string>)[x.worn.slot] = x.worn.style;
   ensure(
-    JSON.stringify(next) !== JSON.stringify(was),
+    !strict || JSON.stringify(next) !== JSON.stringify(was),
     'mall.owned',
     'You’re already wearing that.',
   );

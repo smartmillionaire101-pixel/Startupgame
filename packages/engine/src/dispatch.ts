@@ -23,7 +23,7 @@ import { PUBLIC_MULTIPLES } from './data/markets.js';
 import { rulesFor } from './data/rules.js';
 import type { Command } from './commands.js';
 import { SYSTEM_COMMANDS } from './commands.js';
-import { appearanceSeed, defaultAppearance } from './appearance.js';
+import { appearanceSeed, defaultAppearance, lookSchema } from './appearance.js';
 import { payExpense } from './firstsession.js';
 import { comply, pivot, setTargets, shutdownCompany } from './company.js';
 import { actOnDeal, canAct, monthlyPayment, openDeal } from './deals.js';
@@ -121,6 +121,7 @@ import { exitsOn, investorOn, jobsOn, lifeBarsOn } from './releases.js';
 import { applyForJob, attendInterview, ensureEmployers } from './work.js';
 import { golfRound, mallBuy } from './leisure.js';
 import { mallTripCommand } from './malltrips.js';
+import { wardrobeRemove, wardrobeWear } from './wardrobe.js';
 import { MALL_TRIP } from './data/leisure.js';
 import {
   HOME_ACT_BARS,
@@ -490,8 +491,9 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       // left out keep what you had, or the look your seed gave you.
       const was = me.appearance ?? defaultAppearance(appearanceSeed(me), me.gender);
       const next = { ...was };
+      // Only the creator's parts: what's worn from the wardrobe is `wardrobe.wear`'s.
       for (const [k, v] of Object.entries(cmd.appearance))
-        if (v !== undefined) (next as Record<string, unknown>)[k] = v;
+        if (v !== undefined && k in lookSchema.shape) (next as Record<string, unknown>)[k] = v;
       me.appearance = next;
       me.appearanceAt = ctx.now;
       return { appearance: next };
@@ -1453,6 +1455,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'mall.leave':
     case 'mall.gift':
       return mallTripCommand(world, me, cmd, ctx.now);
+    case 'wardrobe.wear':
+      return wardrobeWear(world, me, cmd.itemId, cmd.colour, ctx.now);
+    case 'wardrobe.remove':
+      return wardrobeRemove(world, me, cmd.slot, ctx.now);
     // ------------------------------------------------------------ capital programmes (Wave 5)
     case 'accelerator.apply':
       return applyAccelerator(world, me, cmd.acceleratorId, cmd.companyId);

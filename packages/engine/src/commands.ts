@@ -11,7 +11,7 @@ import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { STARTER_EXPENSE_IDS } from './data/ideas.js';
 import { PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
-import { appearanceSchema } from './appearance.js';
+import { REMOVABLE, lookSchema } from './appearance.js';
 
 const id = z.string().min(1).max(64);
 const money = z.number().int().nonnegative().max(1e15);
@@ -104,7 +104,7 @@ export const commandSchema = z.discriminatedUnion('type', [
    */
   z.object({
     type: z.literal('player.appearance'),
-    appearance: appearanceSchema
+    appearance: lookSchema
       .partial()
       .refine((a) => Object.values(a).some((v) => v !== undefined), 'Change at least one part.'),
   }),
@@ -709,6 +709,20 @@ export const commandSchema = z.discriminatedUnion('type', [
       .string()
       .regex(/^#[0-9a-fA-F]{6}$/)
       .optional(),
+  }),
+  /** Your wardrobe (wardrobe.ts): put on something you own, free; a top in a colour you own it in. */
+  z.object({
+    type: z.literal('wardrobe.wear'),
+    itemId: z.string().min(1).max(32),
+    colour: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .optional(),
+  }),
+  /** Take off headwear, glasses or something worn from the wardrobe (shoes, a watch …). */
+  z.object({
+    type: z.literal('wardrobe.remove'),
+    slot: z.enum(REMOVABLE),
   }),
   // ---- the founder journey: the objective tracker's prompts
   /** Pin a prompt so it stays in its slot; without `id`, unpin that kind. */

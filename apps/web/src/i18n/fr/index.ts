@@ -77,6 +77,7 @@ import { jobsPro } from './jobs-pro';
 import { mallMore } from './mall-more';
 import { flightClasses } from './flight-classes';
 import { restaurants } from './restaurants';
+import { wardrobe } from './wardrobe';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -157,6 +158,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   flightClasses,
   restaurants,
   tableGames,
+  wardrobe,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

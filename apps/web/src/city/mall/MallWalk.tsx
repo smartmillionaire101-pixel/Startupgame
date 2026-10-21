@@ -55,6 +55,7 @@ import {
   isWearable,
   itemIcon,
   itemNote,
+  ownsIt,
   shopBlurb,
   wearing,
 } from './shops';
@@ -93,7 +94,7 @@ export interface MallWalkProps {
   pocket: number;
   currency: string;
   busy: boolean;
-  send: <R>(cmd: never) => Promise<R | null>;
+  send: <R>(cmd: never, okText?: string) => Promise<R | null>;
   reduced: boolean;
   where: Where;
   onWhere: (w: Where) => void;
@@ -755,22 +756,46 @@ export function MallWalk(p: MallWalkProps) {
                     {inBasket(cardItem.id) ? t('In your basket') : t('＋ Add to basket')}
                   </button>
                 )}
-                {p.forMe(cardItem) && (
+                {p.forMe(cardItem) && ownsIt(cardItem, colour) ? (
+                  // In your wardrobe already (a top: in this colour): on, free.
                   <button
                     type="button"
                     className="btn btn-primary"
-                    data-action="buy-now"
-                    disabled={!canBuy(cardItem)}
+                    data-action="wear-owned"
+                    disabled={p.busy || paying}
                     onClick={() =>
-                      void pay([{ item: cardItem, ...(cardItem.topStyle ? { colour } : {}) }])
+                      void p
+                        .send(
+                          looseCmd({
+                            type: 'wardrobe.wear',
+                            itemId: cardItem.id,
+                            ...(cardItem.topStyle ? { colour } : {}),
+                          }) as never,
+                          t('You put on: {item}.', { item: label(cardItem) }),
+                        )
+                        .then((r) => r && setCard(null))
                     }
                   >
-                    {cardItem.owned
-                      ? t('Yours')
-                      : p.pocket < cardItem.price
-                        ? t('Not enough money')
-                        : t('Buy now {price}', { price: fmt(cardItem.price) })}
+                    {t('Yours · wear it free')}
                   </button>
+                ) : (
+                  p.forMe(cardItem) && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      data-action="buy-now"
+                      disabled={!canBuy(cardItem)}
+                      onClick={() =>
+                        void pay([{ item: cardItem, ...(cardItem.topStyle ? { colour } : {}) }])
+                      }
+                    >
+                      {cardItem.owned
+                        ? t('Yours')
+                        : p.pocket < cardItem.price
+                          ? t('Not enough money')
+                          : t('Buy now {price}', { price: fmt(cardItem.price) })}
+                    </button>
+                  )
                 )}
               </div>
               {p.trip && cardItem.gift && (

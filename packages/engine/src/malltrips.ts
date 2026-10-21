@@ -12,8 +12,9 @@
  * - `mall.gift`: buy them something from any shop. The money moves from your
  *   personal account to the shop's till (the integer ledger, as `mall.buy`);
  *   the thing is theirs: clothes go on them, a phone in their pocket,
- *   things to keep in their bag (from you), food fills them up. They're
- *   happier, you're closer.
+ *   things to keep in their bag (from you), food fills them up. Anything to
+ *   wear (clothes, shoes, jewellery …) goes in their wardrobe (wardrobe.ts),
+ *   from you, to put on when they like. They're happier, you're closer.
  * - `mall.leave` ends the outing (or calls off an invitation).
  *
  * The commands are new, so a logged world that never used them replays as
@@ -22,7 +23,7 @@
  */
 import { appearanceSeed, defaultAppearance } from './appearance.js';
 import type { Command } from './commands.js';
-import { MALL_TRIP, giftable, mallItem, wearable } from './data/leisure.js';
+import { MALL_TRIP, forWardrobe, giftable, mallItem, wearable } from './data/leisure.js';
 import { ensure } from './errors.js';
 import { addContact, warmthWith } from './events.js';
 import { adjustTrust, getMarket, locationOf, notify } from './helpers.js';
@@ -42,6 +43,7 @@ import { formatMoney } from './money.js';
 import { bumpNeed, needsOf } from './needs.js';
 import { investorOn } from './releases.js';
 import type { Id, MallTrip, Player, World } from './types.js';
+import { addToWardrobe } from './wardrobe.js';
 
 const tripsOf = (world: World) => (world.mallTrips ??= {});
 
@@ -260,7 +262,8 @@ function giftAtMall(
   }
   if (x.phone) friend.phone = { tier: x.phone, paid: price, month: m.month };
   const fx = consume(friend, x);
-  if (x.keep || look || x.phone) keepThing(friend, x.id, m.month, me.id);
+  if (forWardrobe(x) && investorOn(world)) addToWardrobe(friend, x, m.month, colour, me.id);
+  else if (x.keep || look || x.phone) keepThing(friend, x.id, m.month, me.id);
   const bars = barsOfItem(x);
   if (bars && barsApply(world, friend)) applyBars(friend, bars);
   // Happier, and closer.

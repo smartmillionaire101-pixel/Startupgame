@@ -126,3 +126,115 @@ html[data-simple] .creator-tabs button {
 .who-face .portrait-bg {
   fill: transparent;
 }
+
+/* My purchases (./Wardrobe.tsx): your outfit, your wardrobe, the things you keep. */
+.purchases {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.purchases-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--line);
+}
+.purchases-hero svg {
+  flex: none;
+}
+.purchases-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.purchases-worn {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.purchases-group h4 {
+  margin: var(--sp-2) 0 var(--sp-1);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.wardrobe-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: var(--sp-2);
+}
+.wardrobe-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+.wardrobe-card.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.wardrobe-fig {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.wardrobe-name {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.2;
+}
+.wardrobe-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.wardrobe-colour i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+}
+.wardrobe-card .btn {
+  margin-top: auto;
+  width: 100%;
+}
+.purchases-things {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.purchases-things li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-2);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.purchases-thing-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-xs);
+}
