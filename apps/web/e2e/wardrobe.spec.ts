@@ -107,8 +107,8 @@ test('buy clothes, see them in My purchases, wear an earlier one free', async ({
   await scene.locator('[data-action="mall-purchases"]').click();
   const sheet = page.getByRole('dialog', { name: 'My purchases' });
   await expect(sheet).toBeVisible();
-  const card = (item: string, colour = '') =>
-    sheet.locator(`[data-wardrobe-item="${item}"][data-colour="${colour}"]`);
+  const card = (item: string, colour = '', within = sheet) =>
+    within.locator(`[data-wardrobe-item="${item}"][data-colour="${colour}"]`);
   await expect(sheet.locator('[data-wardrobe-item]')).toHaveCount(6);
   await expect(card('top-tee', BLUE)).toHaveAttribute('data-wearing', '1');
   await expect(card('top-tee', RED)).toHaveAttribute('data-wearing', '0');
@@ -159,4 +159,19 @@ test('buy clothes, see them in My purchases, wear an earlier one free', async ({
   await expect(again.locator('[data-outfit] .city-avatar-fig')).toHaveAttribute('data-top', RED);
   await noToasts(page);
   await page.screenshot({ path: info.outputPath('wardrobe-4-me.png') });
+  await again.getByRole('button', { name: 'Close' }).click();
+
+  // And on the phone: the My purchases app.
+  await tab(page, 'City').click();
+  await page.getByRole('button', { name: /^Phone/ }).click();
+  const phone = page.getByRole('dialog', { name: 'Phone' });
+  await phone.locator('[data-app="purchases"]').click();
+  await expect(phone.locator('[data-wardrobe-item]')).toHaveCount(6);
+  await expect(phone.locator('[data-outfit] .city-avatar-fig')).toHaveAttribute('data-top', RED);
+  await card('top-tee', BLUE, phone).locator('[data-wear]').click();
+  await expect(phone.locator('[data-outfit] .city-avatar-fig')).toHaveAttribute('data-top', BLUE, {
+    timeout: 10_000,
+  });
+  await noToasts(page);
+  await page.screenshot({ path: info.outputPath('wardrobe-5-phone.png') });
 });
