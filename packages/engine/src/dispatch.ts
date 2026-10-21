@@ -1826,7 +1826,14 @@ function applyMarketData(world: World, cmd: Extract<Command, { type: 'market.dat
 /** Send a one-off message to every human player's inbox, once per announcement id. */
 function announce(world: World, cmd: Extract<Command, { type: 'system.announce' }>) {
   const sent = (world.announcements ??= []);
-  if (sent.includes(cmd.id)) return { sent: 0 };
+  if (sent.includes(cmd.id)) {
+    // Already sent (the server re-announces at every boot): open any professional
+    // employers still missing. Employers never close, so this is a no-op unless the
+    // note was first logged by code that predates the jobs rework (an old preview).
+    for (const [id, m] of Object.entries(world.markets))
+      ensureEmployers(world, id as MarketId, m.month);
+    return { sent: 0 };
+  }
   const hadExits = exitsOn(world);
   const hadJobs = jobsOn(world);
   const hadInvestor = investorOn(world);

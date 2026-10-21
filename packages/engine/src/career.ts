@@ -383,6 +383,9 @@ export function pickTutorialStartups(world: World, p: Player): Id[] {
   const healthy = (c: Company) => {
     return companyRunway(world, c) >= 6;
   };
+  // Early-stage, unlisted startups first (an angel's first cheque); in an older city
+  // where every startup has grown, the rest (the angel ceiling is off).
+  const early = (c: Company) => !needsLead(nextStage(c.lastRound));
   const all = Object.values(world.companies)
     .filter(
       (c) =>
@@ -390,10 +393,12 @@ export function pickTutorialStartups(world: World, p: Player): Id[] {
         c.market === p.market &&
         c.status === 'active' &&
         !c.bannedFromRaising &&
-        !needsLead(nextStage(c.lastRound)),
+        (early(c) || !INVESTOR.caps.angelCeiling),
     )
     .sort(
       (a, b) =>
+        Number(early(b)) - Number(early(a)) ||
+        Number(a.ipo?.status === 'listed') - Number(b.ipo?.status === 'listed') ||
         Number(sectors.includes(b.industry)) - Number(sectors.includes(a.industry)) ||
         Number(healthy(b)) - Number(healthy(a)) ||
         b.stars.value - a.stars.value ||

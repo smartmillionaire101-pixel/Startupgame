@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { INVESTOR } from '../src/data/investor.js';
 import { INVESTOR_NOTE } from '../src/releases.js';
 import { playerView } from '../src/views.js';
+import { produce } from 'immer';
 import type { World } from '../src/types.js';
 import {
   addFounder,
@@ -165,6 +166,37 @@ describe('investor career: first session (§3)', () => {
       investor: { sectors: ['saas'], stages: ['seed'], checkSize: 1_000_000_00 },
     }).world;
     expect(playerView(w, 'u_founder')!.investorCareer!.tutorial!.step).toBe('investable');
+  });
+});
+
+describe('investor career: an older city', () => {
+  it('still has café startups for a first session when every startup has grown', () => {
+    const grown = produce(careerWorld(), (d) => {
+      for (const c of Object.values(d.companies))
+        if (c.market === 'lagos') c.lastRound = 'series-a';
+    });
+    const t = careerOf(addInvestor(grown)).tutorial!;
+    expect(t.picks).toHaveLength(3);
+  });
+
+  it('opens missing employers when the server re-announces its note (an old preview world)', () => {
+    const w0 = careerWorld();
+    const employers = (w: World) =>
+      Object.values(w.markets.lagos!.businesses ?? {}).filter((b) =>
+        b.landmark?.startsWith('employer-'),
+      ).length;
+    expect(employers(w0)).toBeGreaterThan(0);
+    const missing = produce(w0, (d) => {
+      const bs = d.markets.lagos!.businesses!;
+      for (const [id, b] of Object.entries(bs))
+        if (b.landmark?.startsWith('employer-')) delete bs[id];
+    });
+    expect(employers(missing)).toBe(0);
+    // The server re-announces its note at boot: the city's employers open at once.
+    const again = { type: 'system.announce', id: INVESTOR_NOTE, text: 'Update' } as const;
+    expect(employers(run(missing, null, again).world)).toBe(employers(w0));
+    // Where they exist, nothing new opens.
+    expect(employers(run(w0, null, again).world)).toBe(employers(w0));
   });
 });
 

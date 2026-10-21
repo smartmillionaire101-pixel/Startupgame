@@ -70,13 +70,13 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
   });
 
   // The thread shows in the list.
-  await phone.getByRole('button', { name: 'Back' }).click();
+  await phone.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(phone.getByRole('list', { name: 'Conversations' }).getByRole('button')).toHaveCount(
     1,
   );
 
   // Alerts: the reporter's welcome note opens the phone's News app.
-  await phone.getByRole('button', { name: 'Back' }).click();
+  await phone.getByRole('button', { name: 'Back', exact: true }).click();
   await phone.locator('[data-app="alerts"]').click();
   await phone.locator('[data-alert="reporter"]').first().click();
   await expect(phone.locator('[data-phone-app="news"]')).toBeVisible();
