@@ -208,6 +208,18 @@ export {
 } from './data/property.js';
 export type { Neighbourhood } from './data/property.js';
 export { CITY_DISTRICTS } from './data/businesses.js';
+// Places to eat of each city: cuisine, menu, room and price level.
+export {
+  ALL_FOOD_STYLES,
+  FOOD_LEVEL_PRICE,
+  FOOD_STYLES,
+  dishOf,
+  foodLevelOf,
+  foodStyleOf,
+  isDrinkItem,
+  isFoodPlaceKind,
+} from './data/cuisine.js';
+export type { FoodLevel, FoodPlace, FoodStyle, FoodTier } from './data/cuisine.js';
 export { LANDMARKS } from './data/landmarks.js';
 export type { LandmarkSeed } from './data/landmarks.js';
 // Golf and the mall.

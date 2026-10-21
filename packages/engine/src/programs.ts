@@ -48,6 +48,7 @@ import type {
   InvestorType,
   LpSeed,
 } from './data/programs.js';
+import type { VenueItem } from './data/businesses.js';
 import { CAPITAL } from './data/capital.js';
 import { EVENT_KIND_DATA, EVENT_MAX_BUDGET_COL } from './data/events.js';
 import { AI_FIRST_NAMES, AI_LAST_NAMES } from './data/fiction.js';
@@ -58,7 +59,7 @@ import { bankBooks, bankFigures } from './banks.js';
 import { addSafe } from './captable.js';
 import { gameDate } from './clock.js';
 import { openDeal } from './deals.js';
-import { businessesOf, getBusiness, isOpen, specOf } from './economy.js';
+import { businessesOf, getBusiness, isOpen, specOf, venuePrice, venuePriceCol } from './economy.js';
 import { ensure } from './errors.js';
 import { addContact, expectedFill, guestPool } from './events.js';
 import { SLIDES, proposeInvestment, startPitch, strengths } from './fundraising.js';
@@ -1203,9 +1204,10 @@ export function pitchAngel(
     if (args.treat) {
       const b = getBusiness(world, args.businessId);
       const items = (specOf(b).venue?.items ?? []).filter((i) => i.meeting);
-      const item = items.sort((x, y) => x.priceCol - y.priceCol)[0];
+      const cost = (it: VenueItem) => venuePriceCol(world, b, it);
+      const item = items.sort((x, y) => cost(x) - cost(y))[0];
       ensure(item, 'venue.item', `${b.name} has nothing to share.`);
-      spent = scale(col(m), item.priceCol) * 2;
+      spent = venuePrice(world, m, b, item) * 2;
       const mine = account(world, me.accounts.local);
       ensure(
         mine.balance >= costIn(world, spent, m.data.currency, mine.currency),

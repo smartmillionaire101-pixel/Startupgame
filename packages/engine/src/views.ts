@@ -624,7 +624,7 @@ function marketView(
     /** Furniture and cars with prices in this city's currency (Wave 5). */
     shop: shopView(m),
     /** Wave 7: food delivery (the Chop app): open food businesses, cheapest first (up to 20). */
-    delivery: deliveryView(m),
+    delivery: deliveryView(world, m),
     /** Wave 8: the city's tech events: this month's ("on") and next month's ("soon"). */
     techEvents: techEventsView(world, p, m),
     /** The city economy at a glance (Wave 3). */
