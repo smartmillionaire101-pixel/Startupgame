@@ -72,6 +72,7 @@ import {
 } from './life';
 import { Showroom, slotsOwned } from './Showroom';
 import { civicOf, civicTray } from './CivicPlace';
+import { needsBankInterview } from '../screens/BankLicence';
 import { EmployerPanel } from '../phone/work';
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
 import { crowdAt, crowdHour } from './crowdfill';
@@ -1496,6 +1497,14 @@ function RoomScene({
     actions.push({ ...toMore, label: t('Read the papers'), icon: '📰' });
     actions.push(go('news', t('Open the news screen'), '🗞'));
   } else if (civic) {
+    // Bankers: the licence interview at the Central Bank comes first (its card is under More).
+    if (civic.role === 'central-bank' && needsBankInterview(view))
+      actions.push({
+        ...toMore,
+        id: 'bank-interview',
+        label: t('Fit-and-proper interview'),
+        icon: '🏦',
+      });
     actions.push(...civicTray(civic, send, busy, view.here?.currency ?? cur, () => setMore(true)));
     actions.push({ ...toMore, label: t('About this place'), icon: '🏛' });
   }

@@ -159,8 +159,8 @@ describe('bowling: the physics', () => {
 });
 
 describe('more games: the release switch', () => {
-  it('comes after the earlier notes, and an old world never opens the venues or the games', () => {
-    expect(RELEASES.indexOf(MORE_GAMES_NOTE)).toBeGreaterThan(RELEASES.indexOf(INVESTOR_NOTE));
+  it('is the newest note, and an old world never opens the venues or the games', () => {
+    expect(RELEASES.at(-2)).toBe(MORE_GAMES_NOTE);
     expect(moreGamesOn({ announcements: [MORE_GAMES_NOTE] } as unknown as World)).toBe(true);
     expect(moreGamesOn({ announcements: [INVESTOR_NOTE] } as unknown as World)).toBe(false);
     let old = announce(makeWorld(7, ['lagos']), INVESTOR_NOTE);

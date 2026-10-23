@@ -61,6 +61,34 @@ const askLabel = (a: string) =>
     voting: t('Ask them to take non-voting shares'),
   })[a] ?? a;
 
+type Ask = 'price' | 'seat' | 'voting';
+
+/** An ask in the counter menu, with whether that group would likely agree today. */
+const askOption = (f: Forming, id: string, ask: Ask) =>
+  f.counterOdds[id]?.[ask]
+    ? t('{ask} (likely yes)', { ask: askLabel(ask) })
+    : t('{ask} (likely no)', { ask: askLabel(ask) });
+
+/** Your standing in plain words: what you're strong enough to ask for, and what not yet. */
+function counterSummary(f: Forming): string {
+  const odds = Object.values(f.counterOdds);
+  const any = (ask: Ask) => odds.some((o) => o[ask]);
+  const name = (ask: Ask) =>
+    ({ price: t('a better price'), seat: t('a seat fewer'), voting: t('non-voting shares') })[ask];
+  const yes = (['price', 'seat', 'voting'] as const).filter(any).map(name);
+  const no = (['price', 'seat', 'voting'] as const).filter((a) => !any(a)).map(name);
+  const list = (xs: string[]) =>
+    xs.length > 1
+      ? t('{some} and {last}', { some: xs.slice(0, -1).join(', '), last: xs.at(-1)! })
+      : xs.join('');
+  if (!yes.length)
+    return t('Not strong enough yet to ask for {asks}: put in more of your own money first.', {
+      asks: list(no),
+    });
+  if (!no.length) return t('Strong enough to ask for {asks}.', { asks: list(yes) });
+  return t('Strong enough to ask for {yes}; not yet for {no}.', { yes: list(yes), no: list(no) });
+}
+
 const roleLabel = (r: string) =>
   ({
     ceo: t('Chief executive'),
@@ -427,16 +455,8 @@ export function Negotiate({ bank }: { bank: BankerBank }) {
           </table>
         </div>
         <h3 className="small">{t('Counter-offer (once per group)')}</h3>
-        <p className="small muted">
-          {t(
-            'Your standing: {score}. A better price needs {price}, a seat fewer {seat}, non-voting shares {voting} (some groups ask more).',
-            {
-              score: f.counterScore,
-              price: f.counterNeed.price,
-              seat: f.counterNeed.seat,
-              voting: f.counterNeed.voting,
-            },
-          )}
+        <p className="small muted" data-counter-odds="">
+          {counterSummary(f)}
         </p>
         <ul className="list small">
           {f.offers.map((o) => (
@@ -465,9 +485,11 @@ export function Negotiate({ bank }: { bank: BankerBank }) {
                   }
                 >
                   <option value="">{t('Counter…')}</option>
-                  {o.priceBps < 10_000 && <option value="price">{askLabel('price')}</option>}
-                  {o.boardSeats > 0 && <option value="seat">{askLabel('seat')}</option>}
-                  {o.voting && <option value="voting">{askLabel('voting')}</option>}
+                  {o.priceBps < 10_000 && (
+                    <option value="price">{askOption(f, o.id, 'price')}</option>
+                  )}
+                  {o.boardSeats > 0 && <option value="seat">{askOption(f, o.id, 'seat')}</option>}
+                  {o.voting && <option value="voting">{askOption(f, o.id, 'voting')}</option>}
                 </select>
               )}
             </li>
@@ -1166,6 +1188,14 @@ function AddCapital({ bank }: { bank: BankerBank }) {
 }
 
 // ---------------------------------------------------------------- the interview
+
+/** Does your licence application still need the interview? */
+export function needsBankInterview(view: PlayerView): boolean {
+  const b = bankerOf(view)?.bank;
+  const lic = b?.licence;
+  if (!b || !lic || b.status !== 'applying') return false;
+  return !(lic.interview && lic.interview.score >= lic.interviewPass);
+}
 
 /** At the Central Bank: the fit-and-proper interview (when your application needs it). */
 export function BankInterviewCard() {

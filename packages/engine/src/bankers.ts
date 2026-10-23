@@ -589,6 +589,15 @@ export function setTerms(
   return { preview: capTablePreview(world, b) };
 }
 
+/** What a counter-offer takes: the capital group guards its price; the strategic group its seats. */
+export const counterNeed = (style: BankOfferStyle, ask: BankCounterAsk) =>
+  roundTo(
+    BANKERS.counter[ask] +
+      (style === 'capital' && ask === 'price' ? 0.2 : 0) +
+      (style === 'strategic' && ask === 'seat' ? 0.3 : 0),
+    2,
+  );
+
 /** `bank.counter`: one counter-offer per group; they answer at once, by your credibility. */
 export function counterOffer(
   world: World,
@@ -609,11 +618,7 @@ export function counterOffer(
   if (ask === 'price')
     ensure(offer.priceBps < 10_000, 'bank.counter', 'They already pay your price.');
   const score = counterScore(world, p, b);
-  // The capital group guards its price; the strategic group its seats.
-  const need =
-    BANKERS.counter[ask] +
-    (offer.style === 'capital' && ask === 'price' ? 0.2 : 0) +
-    (offer.style === 'strategic' && ask === 'seat' ? 0.3 : 0);
+  const need = counterNeed(offer.style, ask);
   const accepted = score >= need;
   c.counters[groupId] = { ask, accepted };
   c.touched = true;
@@ -1686,7 +1691,20 @@ export function bankerView(world: World, p: Player, now: number) {
         preview: capTablePreview(world, b),
         invites: b.charter.invites,
         counterScore: counterScore(world, p, b),
-        counterNeed: BANKERS.counter,
+        /** Would each counter-offer land today, by group and ask (the same rule as `bank.counter`)? */
+        counterOdds: Object.fromEntries(
+          bankOffers(world, b).map((o) => {
+            const score = counterScore(world, p, b);
+            return [
+              o.id,
+              {
+                price: score >= counterNeed(o.style, 'price'),
+                seat: score >= counterNeed(o.style, 'seat'),
+                voting: score >= counterNeed(o.style, 'voting'),
+              },
+            ];
+          }),
+        ) as Record<string, Record<BankCounterAsk, boolean>>,
         maxPerformanceBps: BANKERS.maxPerformanceBps,
         angels: knownAngels(world, p).map((x) => ({
           playerId: x.angel.id,

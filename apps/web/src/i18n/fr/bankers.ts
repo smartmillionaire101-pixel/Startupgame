@@ -82,8 +82,17 @@ export const bankers: Record<string, string> = {
   Take: 'Prendre',
   Taken: 'Pris',
   'Counter-offer (once per group)': 'Contre-offre (une par groupe)',
-  'Your standing: {score}. A better price needs {price}, a seat fewer {seat}, non-voting shares {voting} (some groups ask more).':
-    'Votre crédibilité : {score}. Un meilleur prix demande {price}, un siège de moins {seat}, des actions sans droit de vote {voting} (certains groupes demandent plus).',
+  '{ask} (likely yes)': '{ask} (probablement oui)',
+  '{ask} (likely no)': '{ask} (probablement non)',
+  'a better price': 'un meilleur prix',
+  'a seat fewer': 'un siège de moins',
+  'non-voting shares': 'des actions sans droit de vote',
+  '{some} and {last}': '{some} et {last}',
+  'Not strong enough yet to ask for {asks}: put in more of your own money first.':
+    'Pas encore assez solide pour demander {asks} : apportez d’abord plus de votre argent.',
+  'Strong enough to ask for {asks}.': 'Assez solide pour demander {asks}.',
+  'Strong enough to ask for {yes}; not yet for {no}.':
+    'Assez solide pour demander {yes} ; pas encore {no}.',
   'Counter accepted': 'Contre-offre acceptée',
   'They held firm': 'Ils n’ont pas cédé',
   'Counter {name}': 'Contre-offre à {name}',

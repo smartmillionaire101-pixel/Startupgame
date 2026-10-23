@@ -1843,7 +1843,9 @@ function createFromOnboarding(
     // First day (§3): an AI shareholder meeting raises starting capital and the licence application is filed.
     // Wave 6: savings doubled (12 months of runway), so the same capital is 40% of them;
     // the rest is there to live on.
-    const contribution = Math.floor(account(world, p.accounts.local).balance * 0.4);
+    // Bankers note: a quarter of savings, so the investor groups' offers matter.
+    const share = bankersOn(world) ? 0.25 : 0.4;
+    const contribution = Math.floor(account(world, p.accounts.local).balance * share);
     const args = { name: cmd.bank.name, type: cmd.bank.bankType, contribution };
     // Bankers note: the shareholders' offers wait to be negotiated.
     if (bankersOn(world)) formBank(world, p, args);
