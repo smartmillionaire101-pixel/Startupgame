@@ -33,7 +33,8 @@
  */
 import { aiLpCommit, committedTotal } from './lpfunds.js';
 import { REASON_TEXT, reviewPitch } from './lpreview.js';
-import { dealflowOn } from './releases.js';
+import { dealflowOn, moreGamesOn } from './releases.js';
+import { fundAnchor } from './firstfund.js';
 import { playerDemoDay } from './institutions.js';
 import {
   ACCELERATORS,
@@ -923,6 +924,10 @@ function decideLpOnStrategy(
 ) {
   const book = fund.lp!;
   const plan = book.plan!;
+  // More-games note: a first fund's rolling close takes LPs up to the target, until the final close.
+  const rolling = !!book.rolling && moreGamesOn(world);
+  if (rolling && book.finalCloseMonth !== undefined)
+    return reject(world, app, month, 'The fund has held its final close.', lp.name);
   const earlier = Object.values(world.funds).filter(
     (f) => f.managerId === manager.id && f.lp && f.lp.number < book.number,
   );
@@ -947,13 +952,22 @@ function decideLpOnStrategy(
       type: fundInvestorType(fund),
       month,
       ...(earlier.length ? { lastSize: Math.max(...earlier.map((f) => f.size)) } : {}),
+      ...(rolling
+        ? {
+            rolling: book.stage === 'investing',
+            committed: committedTotal(fund),
+            ...(fundAnchor(fund) ? { anchor: fundAnchor(fund)! } : {}),
+          }
+        : {}),
     },
     deriveRng(world.seed, 'dealflow', 'lp', app.id),
   );
   app.review = review;
   const v = review.lps[0]!;
-  // Room left before the fund is oversubscribed (one and a half times the target).
-  const room = Math.max(0, Math.round(book.terms.target * 1.5) - committedTotal(fund));
+  // Room left before the fund is oversubscribed (one and a half times the target;
+  // a first fund's rolling close stops at the target).
+  const cap = rolling ? book.terms.target : Math.round(book.terms.target * 1.5);
+  const room = Math.max(0, cap - committedTotal(fund));
   if (!v.commit || room === 0)
     return reject(
       world,

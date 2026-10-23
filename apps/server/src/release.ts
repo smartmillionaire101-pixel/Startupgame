@@ -4,7 +4,8 @@
  *
  * Logging a note is also a switch (see the engine's releases.ts): this one
  * turns on more games (a bowling alley, a skydive centre and a heliport in
- * every city) and, being later, city places (named buildings, members' doors
+ * every city) and realistic first funds (a suggested Fund I size, first-time-
+ * manager LPs, the anchor effect and rolling closes) and, being later, city places (named buildings, members' doors
  * and government appointments), investor deal flow (founders pitch investors
  * at events, investors talk strategy, LPs judge a fund's strategy), the
  * investor career, the jobs rework, Phase 3 life bars and Phase 5 life
@@ -21,6 +22,8 @@ export const RELEASE_NOTE = {
     'offices (Tax Office, Central Bank, Embassy and more) see you by appointment. Investors: ' +
     'founders now pitch you at tech events, demo days and investor breakfasts, other investors ' +
     'share how they build a fund, and LPs judge your fund’s strategy and tell you why they ' +
-    'commit or pass. And more games: every city has a bowling alley, a skydive centre and a ' +
+    'commit or pass. A first fund is realistic now: LPs say what size your record supports, an ' +
+    'emerging-manager programme and angels you met can anchor it, and Fund I starts investing at ' +
+    'half its target. And more games: every city has a bowling alley, a skydive centre and a ' +
     'heliport (find them in Going out). Refresh to get it; your game is saved.',
 } as const;

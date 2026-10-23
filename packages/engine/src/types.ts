@@ -1505,7 +1505,11 @@ export interface LpCommitment {
     | 'sovereign'
     | 'gp'
     | 'fof'
-    | 'secondary';
+    | 'secondary'
+    /** First funds (more-games note, firstfund.ts): an emerging-manager programme, angels you met, friends and family. */
+    | 'emerging'
+    | 'angel'
+    | 'friends';
   /** A fund of funds that pays this commitment from its own account (Phase 7). */
   fundId?: Id;
   committed: number;
@@ -1607,6 +1611,12 @@ export interface FundLpState {
   };
   /** Quarters for which a letter is due (home month the quarter ended), and the last one written. */
   lettersDue?: number[];
+  /**
+   * A first fund raised from the LP panel with rolling closes (more-games
+   * note, firstfund.ts): after the first close, LPs that passed re-review
+   * each month and may join up to the target, until the final close.
+   */
+  rolling?: boolean;
 }
 
 /** A partner or associate in a firm (Phase 6). */
@@ -1771,6 +1781,10 @@ export interface LpVerdict {
   /** Why, as a reason id (lpreview.ts REASONS). */
   reason: string;
   score: number;
+  /** More-games note: this LP anchored the fund (the first commitment, 20–30% of the target). */
+  anchor?: boolean;
+  /** More-games note: figures behind the reason (deals needed and had …). */
+  values?: Record<string, number>;
 }
 
 /** A whole LP pitch review: track record, strategy checks, questions and each LP's answer. */
@@ -1787,6 +1801,8 @@ export interface LpPanelReview {
     tvpi: number;
     dpi: number;
     losses: number;
+    /** More-games note: companies that raised a later round at a higher price. */
+    markups?: number;
   };
   checks: { id: string; level: CheckLevel; values: Record<string, number> }[];
   questions: { id: string; values: Record<string, number> }[];
@@ -1795,6 +1811,14 @@ export interface LpPanelReview {
   committed: number;
   target: number;
   ok: boolean;
+  /** More-games note (firstfund.ts): the first-fund size LPs take seriously from this record. */
+  suggested?: { lo: number; size: number; hi: number };
+  /** More-games note: who anchored the fund, and with how much. */
+  anchor?: { name: string; amount: number };
+  /** More-games note: what a first close needs (half the target). */
+  need?: number;
+  /** More-games note: concrete next steps when LPs pass, computed from the gap. */
+  nextSteps?: { id: string; values: Record<string, number> }[];
 }
 
 /** A founder's review of an investor after a round or an ending (Phase 8). */

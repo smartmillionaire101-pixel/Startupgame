@@ -271,6 +271,12 @@ function kindText(k: string): string {
       return t('Endowment');
     case 'dfi-fof':
       return t('DFI fund-of-funds');
+    case 'emerging':
+      return t('Emerging-manager programme');
+    case 'angel':
+      return t('Angel you met');
+    case 'friends':
+      return t('Friends and family');
     default:
       return t('Sovereign fund');
   }
@@ -341,7 +347,9 @@ function GpFundCard({ f }: { f: GpFund }) {
                   <details className="small df-fold">
                     <summary>
                       {x.status === 'rejected'
-                        ? t('Passed: “{why}”', { why: reasonText(x.review.lps[0]?.reason ?? '') })
+                        ? t('Passed: “{why}”', {
+                            why: reasonText(x.review.lps[0]?.reason ?? '', x.review.lps[0]?.values),
+                          })
                         : t('Their questions and answer')}
                     </summary>
                     <LpReview review={x.review} compact />

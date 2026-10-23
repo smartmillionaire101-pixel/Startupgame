@@ -135,11 +135,15 @@ export {
   strategyChecks,
   coherenceOf,
   typicalPostMoney,
+  fitPlanToSize,
   LIFETIME_FEE_YEARS,
   type StrategyPlan,
   type StrategyCheck,
 } from './lpreview.js';
 export { LESSONS, DEALFLOW } from './data/dealflow.js';
+// A realistic first fund: suggested size, first-time-manager LPs, anchor, rolling closes.
+export { suggestFundSize, type SuggestedSize, type FirstFundRecord } from './firstfund.js';
+export { FIRST_FUND } from './data/investor.js';
 // Phase 3: life bars (energy, health, happiness, stress) and what trips cost.
 export {
   LIFE_BARS,

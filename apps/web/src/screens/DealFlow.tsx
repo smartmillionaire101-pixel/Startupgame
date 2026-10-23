@@ -9,7 +9,12 @@
  * reason (`pipeline.pass`): the ordinary deal flow.
  */
 import type { PlayerView, Stage } from '@runway/engine';
-import { LIFETIME_FEE_YEARS, strategyChecks, type StrategyCheck } from '@runway/engine';
+import {
+  LIFETIME_FEE_YEARS,
+  fitPlanToSize,
+  strategyChecks,
+  type StrategyCheck,
+} from '@runway/engine';
 import { useState } from 'react';
 import { amountInput, money, parseAmount, pct } from '../format';
 import { t, tx } from '../i18n';
@@ -23,6 +28,8 @@ type DealFlowView = NonNullable<PlayerView['investorDealFlow']>;
 export type PitchRow = DealFlowView['pitches'][number];
 export type TalkRow = DealFlowView['talks'][number];
 export type PanelReview = NonNullable<DealFlowView['lastPanel']>;
+type FirstFundView = NonNullable<DealFlowView['firstFund']>;
+type NextStep = NonNullable<PanelReview['nextSteps']>[number];
 
 /** What an event did for an investor (`techevent.attend`, `hangout.*` results). */
 export interface EventDealFlow {
@@ -376,6 +383,22 @@ export function checkText(c: Pick<StrategyCheck, 'id' | 'level' | 'values'>, cur
             s: v.stages ?? 0,
           });
     case 'size':
+      // More-games release: the size LPs take seriously from your record.
+      if (v.upTo !== undefined)
+        return good
+          ? t('{size} fits your record: LPs take you seriously up to about {upTo}.', {
+              size: money(v.size ?? 0, cur),
+              upTo: money(v.upTo, cur),
+            })
+          : t(
+              'LPs take you seriously up to about {upTo} from your record: {size} is {x}× the {suggested} that fits it.',
+              {
+                upTo: money(v.upTo, cur),
+                size: money(v.size ?? 0, cur),
+                x: v.multiple ?? 0,
+                suggested: money(v.suggested ?? 0, cur),
+              },
+            );
       return good
         ? t('The fund size is credible for your record.')
         : v.later
@@ -391,9 +414,16 @@ export function checkText(c: Pick<StrategyCheck, 'id' | 'level' | 'values'>, cur
 }
 
 /** A question an LP asked, and the answer your numbers give. */
-function questionText(q: PanelReview['questions'][number]): [string, string] {
+function questionText(q: PanelReview['questions'][number], cur: string): [string, string] {
   const v = q.values;
   switch (q.id) {
+    case 'q-markups':
+      return [
+        t('Has anyone priced your picks higher yet?'),
+        t('None of your {deals} companies has raised again at a higher price yet.', {
+          deals: v.deals ?? 0,
+        }),
+      ];
     case 'q-deploy':
       return [
         t('How do {n} companies fit in this fund?', { n: v.companies ?? 0 }),
@@ -437,7 +467,12 @@ function questionText(q: PanelReview['questions'][number]): [string, string] {
     case 'q-size':
       return [
         t('Why this much money now?'),
-        t('It is {x}× what you have shown so far.', { x: v.multiple ?? 0 }),
+        v.upTo !== undefined
+          ? t('Your record supports about {suggested}; you ask for {size}.', {
+              suggested: money(v.suggested ?? 0, cur),
+              size: money(v.size ?? 0, cur),
+            })
+          : t('It is {x}× what you have shown so far.', { x: v.multiple ?? 0 }),
       ];
     case 'q-geography':
       return [t('How will you cover that geography?'), t('Most first funds stay close to home.')];
@@ -473,15 +508,48 @@ function questionText(q: PanelReview['questions'][number]): [string, string] {
   }
 }
 
-/** Why an LP committed or passed, in their words. */
-export function reasonText(id: string): string {
+/** Why an LP committed or passed, in their words (with the figures behind a bar). */
+export function reasonText(id: string, v?: Record<string, number>): string {
   switch (id) {
     case 'later-funds':
       return t('We only back a manager’s second fund or later.');
     case 'bar-deals':
-      return t('We want more deals on your record first.');
+      return v
+        ? t('We back managers with {need}+ deals; you have {have}.', {
+            need: v.need ?? 0,
+            have: v.have ?? 0,
+          })
+        : t('We want more deals on your record first.');
     case 'bar-stars':
-      return t('We back managers with a stronger reputation.');
+      return v
+        ? t('We back managers with {need}★ or more; you have {have}★.', {
+            need: v.need ?? 0,
+            have: v.have ?? 0,
+          })
+        : t('We back managers with a stronger reputation.');
+    case 'first-only':
+      return t('We only back a manager’s first fund.');
+    case 'bar-markups':
+      return t(
+        'We want to see a markup first: a company you backed raising again at a higher price.',
+      );
+    case 'circle-record':
+      return t('Do a few more deals and we’ll come in: {have} of {need} so far.', {
+        need: v?.need ?? 0,
+        have: v?.have ?? 0,
+      });
+    case 'pass-relationship':
+      return t('We don’t know you well enough yet.');
+    case 'pass-full':
+      return t('The fund is full.');
+    case 'wait-close':
+      return t('We’ll come in after your first close.');
+    case 'commit-relationship':
+      return t('We know you, and we back you.');
+    case 'commit-anchor':
+      return t('We anchor first funds we believe in.');
+    case 'commit-anchored':
+      return t('With an anchor in, we’re in too.');
     case 'pass-track':
       return t('Your track record is too thin for us yet.');
     case 'pass-dpi':
@@ -533,8 +601,40 @@ function lpKindText(k: string): string {
       return t('Endowment');
     case 'dfi-fof':
       return t('DFI fund-of-funds');
+    case 'emerging':
+      return t('Emerging-manager programme');
+    case 'angel':
+      return t('Angel you met');
+    case 'friends':
+      return t('Friends and family');
     default:
       return t('Sovereign fund');
+  }
+}
+
+/** A next step, from the gap between your record and what LPs want. */
+export function stepText(s: Pick<NextStep, 'id' | 'values'>, cur: string): string {
+  const v = s.values;
+  switch (s.id) {
+    case 'deals':
+      return t('Do {n} more deals: meet founders at events and back the best.', { n: v.n ?? 0 });
+    case 'markup':
+      return t('Get one markup: a company you backed raising again at a higher price.');
+    case 'size':
+      return t('Try {size} instead of {asked}.', {
+        size: money(v.size ?? 0, cur),
+        asked: money(v.asked ?? 0, cur),
+      });
+    case 'strategy':
+      return t('Make the strategy add up: fix the checks marked “doesn’t add up”.');
+    case 'meet':
+      return t('Meet {n} more investors at events: angels you know can commit.', { n: v.n ?? 0 });
+    case 'reputation':
+      return t('Build your reputation past 2★ (you have {stars}★): back founders well.', {
+        stars: v.stars ?? 0,
+      });
+    default:
+      return t('Pitch again next month: LPs look again as your record grows.');
   }
 }
 
@@ -567,6 +667,17 @@ export function LpReview({ review, compact }: { review: PanelReview; compact?: b
           })}
         </span>
       </p>
+      {review.anchor && (
+        <p className="small" data-anchor>
+          <b>
+            {t('{name} anchored the fund with {amount}.', {
+              name: tx(review.anchor.name),
+              amount: money(review.anchor.amount, cur),
+            })}
+          </b>{' '}
+          <span className="muted">{t('With an anchor in, other LPs come in more easily.')}</span>
+        </p>
+      )}
       {!compact && (
         <ul className="list small df-checks">
           {review.checks.map((c) => (
@@ -580,7 +691,7 @@ export function LpReview({ review, compact }: { review: PanelReview; compact?: b
       <h3 className="cap-h">{t('What they asked')}</h3>
       <ul className="list small df-questions">
         {review.questions.map((q) => {
-          const [ask, answer] = questionText(q);
+          const [ask, answer] = questionText(q, cur);
           return (
             <li key={q.id} data-question={q.id}>
               <b>{ask}</b> <span className="muted">{answer}</span>
@@ -592,16 +703,36 @@ export function LpReview({ review, compact }: { review: PanelReview; compact?: b
       {review.lps.map((v) => (
         <div key={v.lpId} className="inv-row" data-lp={v.lpId} data-commit={v.commit ? '1' : '0'}>
           <span className="grow">
-            {v.name} <span className="small muted">{lpKindText(v.kind)}</span>
-            <div className="small">“{reasonText(v.reason)}”</div>
+            {tx(v.name)}{' '}
+            {v.kind !== 'friends' && <span className="small muted">{lpKindText(v.kind)}</span>}{' '}
+            {v.anchor && <Pill tone="info">{t('Anchor')}</Pill>}
+            <div className="small">“{reasonText(v.reason, v.values)}”</div>
           </span>
           {v.commit ? (
             <Pill tone="good">{t('Commits {amount}', { amount: money(v.amount, cur) })}</Pill>
+          ) : v.reason === 'wait-close' ? (
+            <Pill tone="info">
+              {t('After the first close: about {amount}', {
+                amount: money(v.values?.amount ?? 0, cur),
+              })}
+            </Pill>
           ) : (
             <Pill tone="bad">{t('Passes')}</Pill>
           )}
         </div>
       ))}
+      {review.nextSteps && review.nextSteps.length > 0 && (
+        <>
+          <h3 className="cap-h">{t('Your next steps')}</h3>
+          <ul className="list small df-steps" data-next-steps>
+            {review.nextSteps.map((s) => (
+              <li key={s.id} data-step={s.id}>
+                {stepText(s, cur)}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
@@ -732,6 +863,74 @@ function startingDraft(d: DealFlowView): { draft: StrategyDraft; size: number } 
   };
 }
 
+/** A strategy sized to a fund (the engine's own arithmetic), as form fields. */
+function fittedDraft(
+  size: number,
+  stages: Stage[],
+  typicalPost: Record<Stage, number>,
+  feeRate: number,
+): StrategyDraft {
+  const fit = fitPlanToSize(size, stages, typicalPost, feeRate);
+  return {
+    geography: 'city',
+    avgCheque: amountInput(fit.avgCheque),
+    companies: String(fit.companies),
+    reserveRatio: String(fit.reserveRatio),
+    targetOwnership: String(+(fit.targetOwnership * 100).toFixed(2)),
+  };
+}
+
+/** More-games release: the Fund I size LPs take seriously from your record, and how to get there. */
+function SuggestedSize({ ff, cur, onUse }: { ff: FirstFundView; cur: string; onUse: () => void }) {
+  const r = ff.record;
+  return (
+    <div className="df-suggest" data-suggested>
+      <p className="small">
+        <b>
+          {t('LPs will take you seriously up to about {amount}.', {
+            amount: money(ff.suggested.hi, cur),
+          })}
+        </b>{' '}
+        {t(
+          'For your record ({deals} deals, {markups} markups, {met} investors met) a first fund of about {size} is credible.',
+          {
+            deals: r.deals,
+            markups: r.markups,
+            met: r.investorsMet,
+            size: money(ff.suggested.size, cur),
+          },
+        )}
+      </p>
+      <div className="row">
+        <Button size="sm" variant="secondary" data-use-size onClick={onUse}>
+          {t('Use this size ({amount})', { amount: money(ff.suggested.size, cur) })}
+        </Button>
+      </div>
+      {ff.steps.length > 0 && (
+        <>
+          <p className="small muted">{t('To raise it more easily:')}</p>
+          <ul className="list small df-steps" data-ready-steps>
+            {ff.steps.map((s) => (
+              <li key={s.id} data-step={s.id}>
+                {stepText(s, cur)}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="inv-note">
+        {t(
+          '{name} backs first funds from managers with {deals}+ deals and a markup. Angels you met and friends and family commit small tickets. The first LP to commit 20–30% anchors the fund and the others follow more easily; at half the target you hold a first close and start investing.',
+          {
+            name: tx(ff.programme.name),
+            deals: ff.programme.minDeals,
+          },
+        )}
+      </p>
+    </div>
+  );
+}
+
 /** Fund I pitched to the city's AI LPs as a strategy (`fund.raise` with a plan). */
 export function FundPitch() {
   const { view, send, meta, busy } = useView();
@@ -739,16 +938,21 @@ export function FundPitch() {
   const start = d ? startingDraft(d) : null;
   const [sectors, setSectors] = useState<string[]>(view?.me.investor?.sectors ?? []);
   const [stages, setStages] = useState<string[]>(['pre-seed']);
+  // More-games release: start from the size LPs take seriously, with a strategy that fits it.
+  const ff = d?.firstFund ?? null;
   const [draft, setDraft] = useState<StrategyDraft>(
-    start?.draft ?? {
-      geography: 'city',
-      avgCheque: '',
-      companies: '25',
-      reserveRatio: '0.5',
-      targetOwnership: '4',
-    },
+    (ff && d && fittedDraft(ff.suggested.size, ['pre-seed'], d.typicalPost, 0.02)) ||
+      start?.draft || {
+        geography: 'city',
+        avgCheque: '',
+        companies: '25',
+        reserveRatio: '0.5',
+        targetOwnership: '4',
+      },
   );
-  const [size, setSize] = useState(start ? amountInput(start.size) : '');
+  const [size, setSize] = useState(
+    ff ? amountInput(ff.suggested.size) : start ? amountInput(start.size) : '',
+  );
   const [fee, setFee] = useState('0.02');
   const [carry, setCarry] = useState('0.2');
   const [why, setWhy] = useState('');
@@ -766,17 +970,33 @@ export function FundPitch() {
   };
   const toggle = (list: string[], v: string) =>
     list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+  const applySize = (f: FirstFundView) => {
+    setSize(amountInput(f.suggested.size));
+    setDraft({
+      ...fittedDraft(
+        f.suggested.size,
+        (stages.length ? stages : ['pre-seed']) as Stage[],
+        d.typicalPost,
+        Number(fee),
+      ),
+      geography: draft.geography,
+    });
+  };
   return (
     <Card title={t('Pitch Fund I to LPs')} sub={t('LPs judge your strategy and your record')}>
-      <p className="small muted">
-        {t(
-          'Track record: {deals} deals · DPI {dpi}x · {writeOffs} write-offs. LPs want at least 3 angel deals.',
-          { deals: record.deals, dpi: record.dpi, writeOffs: record.writeOffs },
-        )}{' '}
-        {t('LPs in this city can put up to about {amount} into a first fund.', {
-          amount: money(d.panelCapacity, cur),
-        })}
-      </p>
+      {ff ? (
+        <SuggestedSize ff={ff} cur={cur} onUse={() => applySize(ff)} />
+      ) : (
+        <p className="small muted">
+          {t(
+            'Track record: {deals} deals · DPI {dpi}x · {writeOffs} write-offs. LPs want at least 3 angel deals.',
+            { deals: record.deals, dpi: record.dpi, writeOffs: record.writeOffs },
+          )}{' '}
+          {t('LPs in this city can put up to about {amount} into a first fund.', {
+            amount: money(d.panelCapacity, cur),
+          })}
+        </p>
+      )}
       <div className="inv-form" data-fund-pitch>
         <Field label={t('Sectors')}>
           {() => (
@@ -876,10 +1096,14 @@ export function FundPitch() {
                   carry: plan.carry,
                 },
               },
-              (r: { ok: boolean; review?: { committed: number } }) =>
+              (r: { ok: boolean; review?: { committed: number; need?: number } }) =>
                 r.ok
-                  ? t('Fund I is closed!')
-                  : t('Not enough LPs committed yet: read their answers below.'),
+                  ? r.review?.need !== undefined
+                    ? t('First close held: Fund I is investing.')
+                    : t('Fund I is closed!')
+                  : r.review?.need !== undefined
+                    ? t('Not enough LPs committed yet: see their answers and your next steps.')
+                    : t('Not enough LPs committed yet: read their answers below.'),
             )
           }
         >
@@ -900,7 +1124,7 @@ function PanelVerdict({ review }: { review: PanelReview }) {
           ? t('LPs committed {amount}', { amount: money(review.committed, cur) })
           : t('LPs committed {amount} of the {need} a first close needs', {
               amount: money(review.committed, cur),
-              need: money(Math.round(review.target / 2), cur),
+              need: money(review.need ?? Math.round(review.target / 2), cur),
             })}
       </h3>
       <LpReview review={review} />
@@ -911,11 +1135,59 @@ function PanelVerdict({ review }: { review: PanelReview }) {
 /** After Fund I closes: what the LP panel said (their questions and why they committed). */
 export function LastPanel() {
   const { view } = useView();
-  const review = view ? dealflowOf(view)?.lastPanel : null;
+  const d = view ? dealflowOf(view) : null;
+  const review = d?.lastPanel;
   if (!review?.ok) return null;
+  const fund = d?.firstFund?.fund;
   return (
     <Card title={t('What your LPs said')} sub={t('Their questions, and why they committed')}>
+      {fund && <FirstClose fund={fund} cur={review.currency} />}
       <PanelVerdict review={review} />
     </Card>
+  );
+}
+
+/** More-games release: Fund I's rolling close: the first close, LPs who joined since, the final close. */
+function FirstClose({ fund, cur }: { fund: NonNullable<FirstFundView['fund']>; cur: string }) {
+  const final = fund.finalCloseMonth !== null;
+  return (
+    <div className="df-close" data-first-close={final ? 'final' : 'first'}>
+      <p className="small">
+        <b>
+          {final
+            ? t('Final close held: {committed} committed to {name}.', {
+                committed: money(fund.committed, cur),
+                name: fund.name,
+              })
+            : t('First close held: {committed} of the {target} target. {name} is investing.', {
+                committed: money(fund.committed, cur),
+                target: money(fund.target, cur),
+                name: fund.name,
+              })}
+        </b>
+      </p>
+      {!final && (
+        <p className="inv-note">
+          {t(
+            'LPs who waited can still join, one a month, until the final close (month {month} at the latest). Late LPs pay a catch-up.',
+            { month: fund.closesBy },
+          )}
+        </p>
+      )}
+      {fund.joined.map((j) => (
+        <div key={j.name + j.month} className="inv-row" data-joined>
+          <span className="grow">
+            {tx(j.name)}{' '}
+            {j.kind !== 'friends' && <span className="small muted">{lpKindText(j.kind)}</span>}
+          </span>
+          <Pill tone="good">
+            {t('Joined in month {month}: {amount}', {
+              month: j.month,
+              amount: money(j.amount, cur),
+            })}
+          </Pill>
+        </div>
+      ))}
+    </div>
   );
 }

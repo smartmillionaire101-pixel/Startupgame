@@ -41,6 +41,7 @@ import { dealflowOn, investorOn } from './releases.js';
 import { fundOpsView } from './fundops.js';
 import { aiCarry, attachFund, nextFundCap, splitCarry } from './firms.js';
 import { distributeFund } from './funds.js';
+import { rollingClose } from './firstfund.js';
 import { newStars } from './stars.js';
 import { wealthView } from './wealth.js';
 import type { Industry } from './data/industries.js';
@@ -129,6 +130,33 @@ export interface LaunchArgs {
     companies: number;
     reserveRatio: number;
     targetOwnership: number;
+  };
+}
+
+/** A fund's LP book before any commitment: raising, nothing called or paid. */
+export function newLpBook(
+  number: number,
+  strategy: FundStrategy,
+  terms: FundTerms,
+  month: number,
+): FundLpState {
+  return {
+    number,
+    strategy,
+    terms,
+    stage: 'raising',
+    openedMonth: month,
+    commitments: [],
+    calls: [],
+    paidIn: 0,
+    relations: {},
+    letters: [],
+    reserves: {},
+    marks: [],
+    flows: [],
+    ic: [],
+    feesPaid: 0,
+    carryPaid: 0,
   };
 }
 
@@ -235,22 +263,7 @@ export function launchFund(world: World, me: Player, a: LaunchArgs) {
     stars: newStars(me.stars.value),
     investorType: a.strategy === 'impact' ? 'impact' : 'vc',
     lp: {
-      number: n,
-      strategy: a.strategy,
-      terms,
-      stage: 'raising',
-      openedMonth: m.month,
-      commitments: [],
-      calls: [],
-      paidIn: 0,
-      relations: {},
-      letters: [],
-      reserves: {},
-      marks: [],
-      flows: [],
-      ic: [],
-      feesPaid: 0,
-      carryPaid: 0,
+      ...newLpBook(n, a.strategy, terms, m.month),
       // Deal-flow note: the strategy LPs judge the pitch on (and the fund's plan after).
       ...(a.plan && dealflowOn(world) ? { plan: { ...a.plan } } : {}),
     },
@@ -568,7 +581,7 @@ export function closeFund(world: World, me: Player, fundId: Id) {
   };
 }
 
-function firstClose(world: World, f: Fund, month: number) {
+export function firstClose(world: World, f: Fund, month: number) {
   const lp = lpOf(f);
   const m = getMarket(world, f.market);
   lp.stage = 'investing';
@@ -602,7 +615,7 @@ function firstClose(world: World, f: Fund, month: number) {
       });
 }
 
-function finalClose(world: World, f: Fund, month: number) {
+export function finalClose(world: World, f: Fund, month: number) {
   const lp = lpOf(f);
   lp.finalCloseMonth = month;
   f.size = committedTotal(f);
@@ -791,6 +804,8 @@ export function settleLpFunds(world: World, marketId: string, month: number) {
     if (lp.stage === 'failed' || lp.stage === 'wound-down' || lp.firstCloseMonth === undefined)
       continue;
     const since = month - lp.firstCloseMonth;
+    // More-games note: a first fund's rolling close: LPs re-review, and may join up to the target.
+    if (lp.rolling && lp.finalCloseMonth === undefined && since >= 1) rollingClose(world, f, month);
     if (lp.finalCloseMonth === undefined && since >= INVESTOR.fund.finalCloseMonths)
       finalClose(world, f, month);
     // Next calls, one a quarter, for player LPs and the GP.

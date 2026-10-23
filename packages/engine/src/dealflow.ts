@@ -31,7 +31,8 @@ import { getMarket, lastPnl, nextStage, notify, usdToLocal } from './helpers.js'
 import { lpsOf } from './programs.js';
 import { typicalPostMoney } from './lpreview.js';
 import { clamp, roundTo } from './math.js';
-import { dealflowOn } from './releases.js';
+import { dealflowOn, moreGamesOn } from './releases.js';
+import { firstFundView } from './firstfund.js';
 import { deriveRng } from './rng.js';
 import type { Rng } from './rng.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
@@ -456,5 +457,7 @@ export function investorDealFlowView(world: World, p: Player) {
       .reduce((a, lp) => a + usdToLocal(world, m, lp.ticketUsd[1]), 0),
     lps: lpsOf(m.id).map((lp) => ({ id: lp.id, name: lp.name, kind: lp.kind })),
     currency: m.data.currency,
+    /** More-games note: the suggested Fund I size, your next steps and the rolling close. */
+    firstFund: moreGamesOn(world) ? firstFundView(world, p) : null,
   };
 }

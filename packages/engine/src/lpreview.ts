@@ -31,6 +31,16 @@ import type { InvestorType, LpSeed } from './data/programs.js';
 import type { MarketId } from './data/markets.js';
 import { getMarket, usdToLocal } from './helpers.js';
 import { valueIn } from './ledger.js';
+import { FIRST_FUND, INVESTOR } from './data/investor.js';
+import {
+  firstFundRecord,
+  investorsMet,
+  isCircle,
+  nextStepsFor,
+  suggestFundSize,
+} from './firstfund.js';
+import type { Prospect, SuggestedSize } from './firstfund.js';
+import { moreGamesOn } from './releases.js';
 import { clamp, clamp01, roundTo } from './math.js';
 import type { Rng } from './rng.js';
 import { STAGE_FLOOR_USD } from './valuation.js';
@@ -189,7 +199,7 @@ export const coherenceOf = (checks: readonly { level: CheckLevel }[]): number =>
 // ---------------------------------------------------------------- the track record
 
 /** A listed share bought on the market isn't a deal (as in funds.ts). */
-function publicOnly(world: World, investorId: string, companyId: string, invested: number) {
+export function publicOnly(world: World, investorId: string, companyId: string, invested: number) {
   const basis = world.companies[companyId]?.ipo?.basis?.[investorId] ?? 0;
   return basis > 0 && basis >= invested;
 }
@@ -242,6 +252,8 @@ const LENS: Record<string, { track: number; strategy: number; team: number; mark
   endowment: { track: 0.3, strategy: 0.45, team: 0.15, market: 0.1 },
   pension: { track: 0.55, strategy: 0.25, team: 0.1, market: 0.1 },
   sovereign: { track: 0.6, strategy: 0.2, team: 0.1, market: 0.1 },
+  // More-games note: the emerging-manager programme weighs the strategy and the person.
+  emerging: { track: 0.2, strategy: 0.4, team: 0.25, market: 0.15 },
 };
 
 /** What each reason id means, as an LP says it (inbox notes; the client words its own). */
@@ -268,6 +280,16 @@ export const REASON_TEXT: Record<string, string> = {
   'commit-team': 'We back the team.',
   'commit-market': 'The market is deep and the timing is right.',
   'commit-emerging': 'We back emerging local managers, and your strategy adds up.',
+  // More-games note (firstfund.ts): first-time-manager LPs and the anchor.
+  'first-only': 'We only back a manager’s first fund.',
+  'bar-markups': 'We want to see a markup: a company you backed raising again at a higher price.',
+  'circle-record': 'Do a few more deals and we’ll come in.',
+  'pass-relationship': 'We don’t know you well enough yet.',
+  'pass-full': 'The fund is full.',
+  'wait-close': 'We’ll come in after your first close.',
+  'commit-relationship': 'We know you, and we back you.',
+  'commit-anchor': 'We anchor first funds we believe in.',
+  'commit-anchored': 'With an anchor in, we’re in too.',
 };
 
 /** Checks that make a strategy unfundable when they fail: the deploy maths, or two of these. */
@@ -284,6 +306,38 @@ export interface PitchContext {
   /** The previous fund's size, for a later fund (fund currency). */
   lastSize?: number;
   month: number;
+  /** More-games note: an anchor already in (a career anchor, or the fund's after its first close). */
+  anchor?: { name: string; amount: number; lpId?: string };
+  /** More-games note: already committed (a rolling close): commitments stop at the target. */
+  committed?: number;
+  /** More-games note: a re-review after the first close (the close lifts LPs a little). */
+  rolling?: boolean;
+}
+
+/**
+ * Size a strategy to a fund (pure, the client's "Use this size" too): the
+ * stage's smallest sensible portfolio, mid-range reserves, the cheque that
+ * fills what is left after fees, and the ownership that cheque buys.
+ */
+export function fitPlanToSize(
+  size: number,
+  stages: readonly Stage[],
+  typicalPost: Record<Stage, number>,
+  feeRate = 0.02,
+): Pick<StrategyPlan, 'avgCheque' | 'companies' | 'reserveRatio' | 'targetOwnership'> {
+  const stage = earliest(stages);
+  const companies = PORTFOLIO[stage][0];
+  const reserveRatio = roundTo((RESERVES[stage][0] + RESERVES[stage][1]) / 2, 2);
+  const room = size * (1 - clamp01(feeRate * LIFETIME_FEE_YEARS)) * (1 - reserveRatio);
+  const raw = Math.max(1, Math.floor(room / companies));
+  // A round cheque, never more than the room allows.
+  const step = Math.pow(10, Math.max(0, Math.floor(Math.log10(raw)) - 1));
+  const avgCheque = Math.max(1, Math.floor(raw / step) * step);
+  const targetOwnership = Math.min(
+    0.5,
+    Math.max(0.001, roundTo(avgCheque / Math.max(1, typicalPost[stage]), 4)),
+  );
+  return { avgCheque, companies, reserveRatio, targetOwnership };
 }
 
 /**
@@ -301,16 +355,34 @@ export function reviewPitch(
   const m = getMarket(world, manager.market);
   const track = trackOf(world, manager);
   const checks = strategyChecks(plan, typicalPostMoney(world, m.id));
-  // Size against what this manager has shown: a first fund against what they invested
-  // themselves, a later one against the last fund.
-  const multiple = ctx.lastSize
-    ? plan.size / Math.max(1, ctx.lastSize)
-    : plan.size / Math.max(1, track.invested);
-  checks.push({
-    id: 'size',
-    level: ctx.lastSize ? band(multiple, [0, 2.5], [0, 4]) : band(multiple, [0, 20], [0, 40]),
-    values: { multiple: roundTo(multiple, multiple >= 10 ? 0 : 1), later: ctx.lastSize ? 1 : 0 },
-  });
+  // More-games note: a first fund is sized against what LPs take seriously from the record.
+  const record = moreGamesOn(world) ? firstFundRecord(world, manager) : null;
+  const suggested = record && !ctx.lastSize ? suggestFundSize(record) : null;
+  if (suggested) {
+    const over = plan.size / Math.max(1, suggested.hi);
+    checks.push({
+      id: 'size',
+      level: over <= 1 ? 'good' : over <= FIRST_FUND.breakAt ? 'warn' : 'bad',
+      values: {
+        multiple: roundTo(plan.size / Math.max(1, suggested.size), 1),
+        suggested: suggested.size,
+        upTo: suggested.hi,
+        size: plan.size,
+        later: 0,
+      },
+    });
+  } else {
+    // Size against what this manager has shown: a first fund against what they invested
+    // themselves, a later one against the last fund.
+    const multiple = ctx.lastSize
+      ? plan.size / Math.max(1, ctx.lastSize)
+      : plan.size / Math.max(1, track.invested);
+    checks.push({
+      id: 'size',
+      level: ctx.lastSize ? band(multiple, [0, 2.5], [0, 4]) : band(multiple, [0, 20], [0, 40]),
+      values: { multiple: roundTo(multiple, multiple >= 10 ? 0 : 1), later: ctx.lastSize ? 1 : 0 },
+    });
+  }
   // A first fund across the region needs people on the ground.
   checks.push({
     id: 'geography',
@@ -337,7 +409,9 @@ export function reviewPitch(
     (Math.min(track.deals, 12) / 12) * 0.35 +
       (clamp(track.tvpi - 0.5, 0, 2) / 2) * 0.3 +
       (Math.min(track.dpi, 1.5) / 1.5) * 0.35 -
-      track.losses * 0.04,
+      track.losses * 0.04 +
+      // More-games note: a markup is proof others priced your picks higher.
+      (record ? Math.min(record.markups, 2) * 0.06 : 0),
   );
   // Market: the city's capital depth and enough companies in the thesis to back.
   const reach = plan.geography === 'city' ? 1 : plan.geography === 'country' ? 2 : 4;
@@ -375,11 +449,28 @@ export function reviewPitch(
     },
   });
   questions.push({ id: 'q-edge', values: { lessons, deals: track.deals } });
+  if (record && record.markups === 0 && track.deals > 0)
+    questions.splice(Math.max(0, questions.length - 2), 0, {
+      id: 'q-markups',
+      values: { deals: track.deals },
+    });
 
   // Each LP's answer, through its own lens.
   const cur = m.data.currency;
   const core = checks.filter((c) => CORE.includes(c.id) && c.level === 'bad');
   const broken = core.find((c) => c.id === 'deploy') ?? (core.length >= 2 ? core[0] : undefined);
+  if (record && suggested)
+    return firstFundVerdicts(world, manager, plan, lps, ctx, rng, {
+      track,
+      checks,
+      parts,
+      score,
+      questions,
+      record,
+      suggested,
+      // Far above what the record supports, nobody takes the pitch seriously.
+      broken: broken ?? checks.find((c) => c.id === 'size' && c.level === 'bad'),
+    });
   const verdicts: LpVerdict[] = [];
   let committed = 0;
   for (const lp of lps) {
@@ -458,5 +549,220 @@ export function reviewPitch(
     committed,
     target: plan.size,
     ok: committed > 0,
+  };
+}
+
+/** An LP's commitment range for this fund (local minor units). */
+function ticketOf(
+  world: World,
+  lp: Prospect,
+  size: number,
+  m: ReturnType<typeof getMarket>,
+): readonly [number, number] {
+  if (lp.ticketShare) return [size * lp.ticketShare[0], size * lp.ticketShare[1]];
+  if (lp.ticketLocal) return lp.ticketLocal;
+  return [usdToLocal(world, m, lp.ticketUsd[0]), usdToLocal(world, m, lp.ticketUsd[1])];
+}
+
+const PARTS = ['track', 'strategy', 'team', 'market'] as const;
+
+/**
+ * More-games note: the LPs' answers on a first fund (firstfund.ts). The
+ * city's LPs keep their bars and lenses; the emerging-manager programme has
+ * a lower bar but wants five deals and a markup; angels and friends commit
+ * on relationship and reputation. The first LP that commits 20–30% of the
+ * target anchors the fund and lifts everyone else a little. When the fund
+ * can't close, the review says what to do next.
+ */
+function firstFundVerdicts(
+  world: World,
+  manager: Player,
+  plan: StrategyPlan,
+  lps: readonly Prospect[],
+  ctx: PitchContext,
+  rng: Rng,
+  r: {
+    track: LpPanelReview['track'];
+    checks: StrategyCheck[];
+    parts: LpPanelReview['parts'];
+    score: number;
+    questions: LpPanelReview['questions'];
+    record: ReturnType<typeof firstFundRecord>;
+    suggested: SuggestedSize;
+    broken: StrategyCheck | undefined;
+  },
+): LpPanelReview {
+  const F = FIRST_FUND;
+  const m = getMarket(world, manager.market);
+  const { track, parts, record, broken } = r;
+  const stars = manager.stars.value;
+  const size = plan.size;
+  // Pass 1: bars and scores, in the pool's order (one draw each).
+  const judged = lps.map((lp) => {
+    let bar: string | null = null;
+    let values: Record<string, number> | undefined;
+    if (lp.firstOnly && ctx.number >= 2) bar = 'first-only';
+    else if (ctx.number < 2 && (lp.kind === 'pension' || lp.kind === 'sovereign'))
+      bar = 'later-funds';
+    else if (isCircle(lp.kind) && track.deals < F.circle.minDeals) {
+      bar = 'circle-record';
+      values = { need: F.circle.minDeals, have: track.deals };
+    } else if (track.deals < lp.minDeals) {
+      bar = 'bar-deals';
+      values = { need: lp.minDeals, have: track.deals };
+    } else if (record.markups < (lp.minMarkups ?? 0)) {
+      bar = 'bar-markups';
+      values = { need: lp.minMarkups ?? 0, have: record.markups };
+    } else if (stars < lp.minStars) {
+      bar = 'bar-stars';
+      values = { need: lp.minStars, have: roundTo(stars, 1) };
+    }
+    let score: number;
+    let at: number;
+    if (isCircle(lp.kind)) {
+      score =
+        0.25 +
+        (lp.warmth ?? 0) * 0.4 +
+        (stars / 5) * 0.2 +
+        (Math.min(track.deals, 5) / 5) * 0.15 +
+        rng.normal(0, 0.03);
+      at = F.circle.score;
+    } else {
+      const w = LENS[lp.kind] ?? LENS.endowment!;
+      score =
+        w.track * parts.track +
+        w.strategy * parts.strategy +
+        w.team * parts.team +
+        w.market * parts.market +
+        (lp.prefers.includes(ctx.type) ? 0.05 : -0.05) +
+        rng.normal(0, 0.03);
+      at = lp.kind === 'emerging' ? F.emerging.score : COMMIT_SCORE;
+    }
+    if (ctx.rolling) score += F.rollingLift;
+    const [lo, hi] = ticketOf(world, lp, size, m);
+    return { lp, bar, values, score, at, lo, hi };
+  });
+  type Judged = (typeof judged)[number];
+  const willing = (j: Judged, lift = 0) => !j.bar && !broken && j.score + lift >= j.at;
+  // The anchor: one already in, or the first LP willing to put in 20–30% of the target.
+  const career = ctx.anchor && !ctx.rolling ? ctx.anchor : undefined;
+  const anchorJ = ctx.anchor
+    ? undefined
+    : judged.find((j) => willing(j) && j.hi >= size * F.anchorShare[0]);
+  const lift = ctx.anchor || anchorJ ? F.anchorLift : 0;
+  // Room: never past the target (a rolling close counts what is already in).
+  let room = Math.max(0, size - (ctx.committed ?? 0) - (career?.amount ?? 0));
+  const amountOf = (j: Judged, s: number) => j.lo + (j.hi - j.lo) * clamp01((s - j.at) / 0.35);
+  const amounts = new Map<string, number>();
+  // Once a first close is covered, the other willing LPs wait for it and join after (rolling).
+  const need = Math.round(size * INVESTOR.fund.firstCloseShare);
+  const waiting = new Map<string, number>();
+  let total = career?.amount ?? 0;
+  if (anchorJ) {
+    const want = Math.min(amountOf(anchorJ, anchorJ.score), size * F.anchorShare[1], anchorJ.hi);
+    const a = Math.round(Math.min(room, Math.max(size * F.anchorShare[0], want)));
+    amounts.set(anchorJ.lp.id, a);
+    room -= a;
+    total += a;
+  }
+  for (const j of judged) {
+    if (j === anchorJ || !willing(j, lift)) continue;
+    const a = Math.round(Math.min(amountOf(j, j.score + lift), size * 0.4, room));
+    if (!ctx.rolling && total >= need) {
+      waiting.set(j.lp.id, a);
+      continue;
+    }
+    amounts.set(j.lp.id, a);
+    room -= a;
+    total += a;
+  }
+  const verdicts: LpVerdict[] = [];
+  if (career)
+    verdicts.push({
+      lpId: career.lpId ?? 'anchor',
+      name: career.name,
+      kind: 'dfi-fof',
+      commit: true,
+      amount: career.amount,
+      reason: 'commit-anchor',
+      score: 1,
+      anchor: true,
+    });
+  for (const j of judged) {
+    const amount = amounts.get(j.lp.id) ?? 0;
+    const commit = amount > 0;
+    const isAnchor = j === anchorJ;
+    const w = LENS[j.lp.kind] ?? LENS.endowment!;
+    let reason: string;
+    if (j.bar) reason = j.bar;
+    else if (broken) reason = `pass-${broken.id}`;
+    else if (commit) {
+      const best = PARTS.reduce((a, b) => (w[b] * parts[b] > w[a] * parts[a] ? b : a));
+      reason =
+        !isAnchor && j.score < j.at
+          ? 'commit-anchored'
+          : isCircle(j.lp.kind)
+            ? 'commit-relationship'
+            : isAnchor && j.lp.kind !== 'emerging'
+              ? 'commit-anchor'
+              : j.lp.kind === 'emerging' || (j.lp.kind === 'dfi-fof' && ctx.number < 2)
+                ? 'commit-emerging'
+                : `commit-${best}`;
+    } else if (waiting.has(j.lp.id)) reason = 'wait-close';
+    else if (willing(j, lift)) reason = 'pass-full';
+    else if (isCircle(j.lp.kind)) reason = 'pass-relationship';
+    else {
+      const worst = PARTS.reduce((a, b) => (w[b] * (1 - parts[b]) > w[a] * (1 - parts[a]) ? b : a));
+      if (worst === 'strategy') {
+        const weak =
+          r.checks.find((c) => c.level === 'bad') ?? r.checks.find((c) => c.level === 'warn');
+        reason = weak ? `pass-${weak.id}` : 'pass-strategy';
+      } else if (worst === 'track') reason = track.dpi === 0 ? 'pass-dpi' : 'pass-track';
+      else reason = `pass-${worst}`;
+    }
+    verdicts.push({
+      lpId: j.lp.id,
+      name: j.lp.name,
+      kind: j.lp.kind,
+      commit,
+      amount,
+      reason,
+      score: roundTo(j.score, 3),
+      ...(isAnchor ? { anchor: true } : {}),
+      ...(j.values ? { values: j.values } : {}),
+      ...(waiting.has(j.lp.id) ? { values: { amount: waiting.get(j.lp.id)! } } : {}),
+    });
+  }
+  const committed = verdicts.reduce((a, v) => a + v.amount, 0);
+  const ok = ctx.rolling ? committed > 0 : committed >= need;
+  const anchor =
+    career ??
+    (anchorJ ? { name: anchorJ.lp.name, amount: amounts.get(anchorJ.lp.id) ?? 0 } : ctx.anchor);
+  const strategyBroken = r.checks.some((c) => CORE.includes(c.id) && c.level === 'bad');
+  return {
+    month: ctx.month,
+    currency: m.data.currency,
+    score: r.score,
+    parts,
+    track: { ...track, markups: record.markups },
+    checks: r.checks.map((c) => ({ id: c.id, level: c.level, values: c.values })),
+    questions: r.questions.slice(0, 4),
+    lps: verdicts,
+    committed,
+    target: size,
+    ok,
+    suggested: { lo: r.suggested.lo, size: r.suggested.size, hi: r.suggested.hi },
+    need,
+    ...(anchor && committed > 0 ? { anchor: { name: anchor.name, amount: anchor.amount } } : {}),
+    ...(!ok && !ctx.rolling
+      ? {
+          nextSteps: nextStepsFor(record, r.suggested, {
+            asked: size,
+            strategy: strategyBroken,
+            met: investorsMet(manager),
+            ...(verdicts.some((v) => v.reason === 'bar-stars') && stars < 2 ? { stars } : {}),
+          }),
+        }
+      : {}),
   };
 }
