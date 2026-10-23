@@ -66,11 +66,14 @@ export class RoadIndex {
         ...(name ? { n: name } : {}),
       };
       len += Math.hypot(s.bx - s.ax, s.by - s.ay);
-      const n = this.segs.push(s) - 1;
-      this.insert(this.grid, s, n);
-      if (h) this.insert(this.deckGrid, s, this.decks.push(s) - 1);
+      this.addSeg(s, !!h);
     }
     if (c <= 3 && len > 200) this.lines.push({ l, c, len });
+  }
+
+  private addSeg(s: Seg, deck: boolean) {
+    this.insert(this.grid, s, this.segs.push(s) - 1);
+    if (deck) this.insert(this.deckGrid, s, this.decks.push(s) - 1);
   }
 
   private insert(grid: Map<number, number[]>, s: Seg, n: number) {
@@ -140,14 +143,51 @@ export class RoadIndex {
       return H * f * f * (3 - 2 * f);
     };
     const tOf = (x: number, y: number) => ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (L * L);
+    const off = (x: number, y: number) => Math.abs((x - ax) * (by - ay) - (y - ay) * (bx - ax)) / L;
     let hits = 0;
-    for (const s of this.decks) {
+    for (const s of this.decks.slice()) {
       const da = segDist(s.ax, s.ay, ax, ay, bx, by).d;
       const db = segDist(s.bx, s.by, ax, ay, bx, by).d;
-      if (da > 45 || db > 45) continue;
-      s.ha = prof(tOf(s.ax, s.ay));
-      s.hb = prof(tOf(s.bx, s.by));
+      const sl = Math.hypot(s.bx - s.ax, s.by - s.ay);
+      const ta = tOf(s.ax, s.ay);
+      const tb = tOf(s.bx, s.by);
+      // Or the file's own deck of it, running on past its ends (onto a viaduct
+      // over land): its stretch along the bridge rises, the rest stays.
+      const inLine =
+        sl > 30 &&
+        off(s.ax, s.ay) < 90 &&
+        off(s.bx, s.by) < 90 &&
+        Math.max(ta, tb) > -0.02 &&
+        Math.min(ta, tb) < 1.02 &&
+        Math.abs((s.bx - s.ax) * (bx - ax) + (s.by - s.ay) * (by - ay)) / (sl * L) > 0.95;
+      if ((da > 45 || db > 45) && !inLine) continue;
       hits++;
+      // In pieces (a single long way would only slope from end to end).
+      const n = Math.max(1, Math.ceil(sl / 60));
+      const { ax: x0, ay: y0, bx: x1, by: y1, ha, hb } = s;
+      const hAt = (k: number) => {
+        const x = x0 + ((x1 - x0) * k) / n;
+        const y = y0 + ((y1 - y0) * k) / n;
+        return Math.max(prof(tOf(x, y)), ha + ((hb - ha) * k) / n);
+      };
+      s.bx = x0 + (x1 - x0) / n;
+      s.by = y0 + (y1 - y0) / n;
+      s.ha = hAt(0);
+      s.hb = hAt(1);
+      for (let k = 1; k < n; k++)
+        this.addSeg(
+          {
+            ax: x0 + ((x1 - x0) * k) / n,
+            ay: y0 + ((y1 - y0) * k) / n,
+            bx: x0 + ((x1 - x0) * (k + 1)) / n,
+            by: y0 + ((y1 - y0) * (k + 1)) / n,
+            c: s.c,
+            ha: hAt(k),
+            hb: hAt(k + 1),
+            ...(s.n ? { n: s.n } : {}),
+          },
+          true,
+        );
     }
     if (hits) return;
     const l: number[] = [];

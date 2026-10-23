@@ -404,8 +404,16 @@ export class CityScene {
     this.scene.add(this.placesGroup);
     this.buildPlaces();
     // The landmarks' ground: no real outline or lot may stand there.
+    // A bridge's: its line out from the shores (the file maps its towers as
+    // tall outlines, which stood as black blocks beside the model's own).
     for (const p of plans)
       if (p.e2 === undefined) this.blocked.add(makeFp(discPoly(p.e, p.s, landmarkRadius(p.kind))));
+      else if (p.s2 !== undefined) {
+        const L = Math.hypot(p.e2 - p.e, p.s2 - p.s);
+        const rot = Math.atan2(p.s2 - p.s, p.e2 - p.e);
+        const mid = { x: (p.e + p.e2) / 2, y: (p.s + p.s2) / 2 };
+        this.blocked.add(makeFp(rectPoly(mid.x, mid.y, L * 0.8, 30, rot)));
+      }
 
     // OSM outlines, thinned (no two in one space), merged per 1 km tile: a
     // full-density tile, when it stands, takes over its square.

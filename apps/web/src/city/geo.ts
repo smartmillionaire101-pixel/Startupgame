@@ -277,6 +277,8 @@ export interface LandmarkSpec {
   match?: RegExp;
   /** A bridge's name in the file: its longest stretch gives the real ends. */
   bridge?: RegExp;
+  /** The file's way runs on past the bridge over land (a viaduct): keep only `at`–`to` of it. */
+  clip?: boolean;
   color?: string;
 }
 
@@ -295,7 +297,9 @@ export const GEO_LANDMARKS: Record<string, LandmarkSpec[]> = {
       name: 'Bay Bridge',
       at: [37.7885, -122.3885],
       to: [37.8075, -122.3665],
-      bridge: /Bay Bridge/i,
+      // OSM names its deck for I-80, and the way starts up on Rincon Hill.
+      bridge: /Bay Bridge|Eisenhower/i,
+      clip: true,
       color: '#9ca3af',
     },
     { kind: 'transamerica', name: 'Transamerica Pyramid', at: [37.7952, -122.4028] },
