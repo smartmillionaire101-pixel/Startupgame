@@ -25,6 +25,7 @@ import { expireDeals } from './deals.js';
 import { holdDueEvents } from './events.js';
 import { settleEconomy } from './economy.js';
 import { ensureEmployers } from './work.js';
+import { ensureGameVenues } from './games.js';
 import { settleFundFees } from './funds.js';
 import { payDividends } from './travel.js';
 import { settleExchange } from './exchange.js';
@@ -138,6 +139,8 @@ export function settleMarket(
   // startups. Own RNG stream; before companies so purchases count in this month's revenue.
   // The jobs rework (jobs worlds only): the city's professional employers open first.
   ensureEmployers(world, marketId, month);
+  // More games (more-games worlds only): the bowling alley, skydive centre and heliport.
+  ensureGameVenues(world, marketId, month);
   settleEconomy(world, marketId, month);
   // Wave 10: branches trade (before companies settle, so this city's count this month),
   // and now and then an AI company or a thriving local business expands. Own streams.

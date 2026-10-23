@@ -101,6 +101,18 @@ export const sfx = {
   glove(at = 0) {
     noise(at, 0.08, 600, 1.2, 0.5);
   },
+  /** A bowling ball rolling down the lane (seconds). */
+  roll(dur: number) {
+    noise(0, dur, 160, 0.5, 0.2);
+    knock(0, 70, Math.min(1.2, dur), 0.2);
+  },
+  /** Pins scattering (how many fell), at `at` seconds. */
+  pins(n: number, at = 0) {
+    if (n <= 0) return;
+    for (let k = 0; k < Math.min(n, 7); k++)
+      knock(at + k * 0.035, 640 + ((k * 137) % 400), 0.14, 0.18, 'triangle');
+    noise(at, 0.45, 1500, 0.7, 0.1 + 0.03 * n);
+  },
   /** The crowd: a roar for a goal, a groan for a miss. */
   crowd(cheer: boolean, at = 0) {
     noise(at, cheer ? 1.6 : 0.9, cheer ? 900 : 380, 0.4, cheer ? 0.35 : 0.22);

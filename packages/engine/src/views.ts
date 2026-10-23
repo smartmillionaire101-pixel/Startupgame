@@ -26,7 +26,8 @@ import { salesView } from './sales.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
-import { golfMatchOptions, playView } from './play.js';
+import { bowlingOptions, golfMatchOptions, playView } from './play.js';
+import { gamesView } from './games.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
  *  - their own accounts, companies, deals, pitches, stories and inbox in full,
@@ -855,6 +856,15 @@ export function playerView(
       car: carView(world, p),
       /** Golf: the course in the city you're in, the green fee and your record. */
       golf: { ...golfView(world, p), match: golfMatchOptions(world, p) },
+      /**
+       * More games (null before the more-games release): the city's bowling
+       * alley (and its lane fee and stakes), skydive centre and heliport, and
+       * your record.
+       */
+      games: (() => {
+        const g = gamesView(world, p);
+        return g ? { ...g, lanes: bowlingOptions(world, p) } : null;
+      })(),
       /** The mall in the city you're in: its shops' items and prices, your phone. */
       mall: { ...mallView(world, p), ...mallTripView(world, p) },
       /** "My purchases": your wardrobe (what you can wear, free) and the other things you keep. */

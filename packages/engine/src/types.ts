@@ -166,6 +166,19 @@ export interface HotelStay {
   paid: number;
 }
 
+/** More games (games.ts): a player's record at the lanes and in the air. */
+export interface PlayerGames {
+  bowling?: { games: number; best: number; last: number; strikes: number; month: number };
+  /** Skydives and helicopter flights taken. */
+  jumps: number;
+  flights: number;
+  /** The best jump's score (0–1100), and the last one. */
+  bestJump: number;
+  lastJump?: { score: number; miss: number; deployAt: number; style: number; month: number };
+  /** A jump or flight paid for and not yet flown (its experience plays on the client). */
+  booked: { id: Id; item: string; businessId: Id; month: number } | null;
+}
+
 export interface Player {
   garage?: PlayerCar[];
   flightTicket?: {
@@ -328,6 +341,8 @@ export interface Player {
     month: number;
     thisMonth: number;
   };
+  /** More games (games.ts): bowling, skydives and helicopter flights. Missing = never played. */
+  games?: PlayerGames;
   /** The mall (leisure.ts): the phone you bought there (cosmetic). Missing = the one you came with. */
   phone?: { tier: 1 | 2 | 3; paid: number; month: number };
   /**

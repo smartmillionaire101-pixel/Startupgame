@@ -106,6 +106,7 @@ try {
 
 const LivingHost = lazy(() => import('./experiences/LivingHost'));
 const SkyHost = lazy(() => import('./experiences/SkyHost'));
+const AirHost = lazy(() => import('./experiences/air/AirHost'));
 const PlayHost = lazy(() => import('./experiences/PlayHost'));
 const GolfInviteHost = lazy(() => import('./city/golf/GolfInviteHost'));
 const MallInviteHost = lazy(() => import('./city/mall/MallInviteHost'));
@@ -180,6 +181,7 @@ export function App() {
             <MallInviteHost />
             <LivingHost />
             <SkyHost />
+            <AirHost />
           </Suspense>
         </>
       )}

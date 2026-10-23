@@ -323,7 +323,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('car.select'), modelId: id }),
   z.object({
     type: z.literal('play.create'),
-    game: z.enum(['quiz', 'snooker', 'football', 'golf']),
+    game: z.enum(['quiz', 'snooker', 'football', 'golf', 'bowling']),
     venue: id,
     title: z.string().trim().min(3).max(60),
     stake: z.number().int().min(0).max(100_000_000),
@@ -403,6 +403,19 @@ export const commandSchema = z.discriminatedUnion('type', [
     aim: z.number().min(-Math.PI).max(Math.PI),
     power: z.number().min(0).max(110),
     pickup: z.boolean().optional(),
+  }),
+  /**
+   * Bowling (more-games release): your ball's inputs only (where you let go,
+   * the line, how hard, the hook). The engine rolls it and scores the frame.
+   */
+  z.object({
+    type: z.literal('play.bowl'),
+    roomId: id,
+    round: z.number().int().min(0),
+    x: z.number().min(-0.5).max(0.5),
+    aim: z.number().min(-0.25).max(0.25),
+    power: z.number().min(0).max(1),
+    spin: z.number().min(-1).max(1),
   }),
   z.object({
     type: z.literal('play.shot'),
@@ -724,6 +737,21 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('golf.round'),
     strokes: z.array(z.number().int().min(1).max(20)).min(1).max(18),
   }),
+  /**
+   * More games (games.ts): book a skydive or a helicopter flight at the city's
+   * skydive centre or heliport (the venue item: its price and lifestyle tier).
+   */
+  z.object({ type: z.literal('games.book'), businessId: id, itemId: z.string().min(1).max(32) }),
+  /** Hand in the skydive you booked: the pull height, how far from the target, the style. */
+  z.object({
+    type: z.literal('games.land'),
+    bookingId: id,
+    deployAt: z.number().min(0).max(5000),
+    miss: z.number().min(0).max(20000),
+    style: z.number().min(0).max(100),
+  }),
+  /** A booked flight is over (a helicopter ride, or a jump not handed in). */
+  z.object({ type: z.literal('games.end'), bookingId: id }),
   /** The mall (leisure.ts): buy one thing; clothes take a colour (#rrggbb). */
   z.object({
     type: z.literal('mall.buy'),

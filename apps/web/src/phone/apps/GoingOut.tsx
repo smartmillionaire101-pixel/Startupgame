@@ -3,6 +3,8 @@
  * map"). Everything to do tonight in the city you're in, at home or abroad:
  *
  * - Golf: the city's golf club, the green fee, your best round; Play a round.
+ * - Games (the more-games release): the bowling alley (Go bowl), a skydive
+ *   and a helicopter ride over the city (Book: price and standard of living).
  * - Mall: the mall and its shops; Go to the mall.
  * - Eat out: the city's restaurants, cafés, bakeries and street food, with
  *   cuisine, a price hint and whether it's open (../../city/eatout.ts); the
@@ -41,6 +43,7 @@ import { CITY_GEO, cityViewOf, hereOf, isAbroad, isNight, localHour } from '../.
 import { lifestyleName, myLifestyleTier } from '../../city/wave10';
 import { useOnlinePlayers } from '../../city/OnlineNow';
 import { SKY_KIND_ICON } from '../../experiences/SkyViewsList';
+import { airOf, openAir } from '../../experiences/air/air-bus';
 import { openSky, prewarmSky } from '../../experiences/sky-bus';
 import { friendsOf, techEventsOf } from '../friends';
 import { H, Nothing, type PhoneCtx } from '../shared';
@@ -178,6 +181,7 @@ function AroundTown({ ctx }: { ctx: PhoneCtx }) {
   return (
     <>
       <GolfCard ctx={ctx} cityId={cityId} layout={layout} />
+      <GamesCard ctx={ctx} />
       <MallCard ctx={ctx} cityId={cityId} layout={layout} />
       <EatOut ctx={ctx} cityId={cityId} layout={layout} />
       <Tonight ctx={ctx} cityId={cityId} layout={layout} />
@@ -237,6 +241,104 @@ function GolfCard({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layo
       >
         {t('Play a round')}
       </button>
+    </OutCard>
+  );
+}
+
+// ---------------------------------------------------------------- Games (more games)
+
+function GamesCard({ ctx }: { ctx: PhoneCtx }) {
+  const { view } = useView();
+  const g = view.me.games;
+  if (!g || (!g.bowling && !g.skydive && !g.heli)) return null;
+  const cur = g.currency;
+  const from = (items: { price: number; locked: boolean }[]) =>
+    items.length ? Math.min(...items.map((i) => i.price)) : 0;
+  const rows = [
+    g.bowling && {
+      id: 'bowling',
+      icon: '🎳',
+      title: t('Bowling'),
+      name: g.bowling.name,
+      line: g.you.bowling
+        ? t('Lane fee {fee} · your best {n}', {
+            fee: money(from(g.bowling.items), cur),
+            n: g.you.bowling.best,
+          })
+        : t('Lane fee {fee} · solo, against AI or friends', {
+            fee: money(from(g.bowling.items), cur),
+          }),
+      go: t('Go bowling'),
+      run: () => ctx.goPlace(`biz:${g.bowling!.businessId}`),
+      locked: false,
+    },
+    g.skydive && {
+      id: 'skydive',
+      icon: '🪂',
+      title: t('Skydiving'),
+      name: g.skydive.name,
+      line: g.you.bestJump
+        ? t('From {price} · your best jump {n}', {
+            price: money(from(g.skydive.items), cur),
+            n: g.you.bestJump,
+          })
+        : t('Tandem or solo, from {price}', { price: money(from(g.skydive.items), cur) }),
+      go: t('Book a jump'),
+      run: () => {
+        ctx.close();
+        openAir({ kind: 'skydive' });
+      },
+      locked: g.skydive.items.every((i) => i.locked),
+    },
+    g.heli && {
+      id: 'heli',
+      icon: '🚁',
+      title: t('Helicopter ride'),
+      name: g.heli.name,
+      line: t('A tour past the landmarks, from {price}', {
+        price: money(from(g.heli.items), cur),
+      }),
+      go: t('Book a ride'),
+      run: () => {
+        ctx.close();
+        openAir({ kind: 'heli' });
+      },
+      locked: g.heli.items.every((i) => i.locked),
+    },
+  ].filter((r): r is Exclude<typeof r, null | undefined | false> => !!r);
+  return (
+    <OutCard
+      id="games"
+      icon="🎳"
+      title={t('Games')}
+      sub={t('Bowling, skydiving and helicopter rides')}
+    >
+      <ul className="going-venues" aria-label={t('Games')}>
+        {rows.map((r) => (
+          <li key={r.id} className="going-venue" data-game={r.id}>
+            <span className="going-venue-icon" aria-hidden="true">
+              {r.icon}
+            </span>
+            <span className="going-main">
+              <b className="going-venue-name">
+                {r.title} · {r.name}
+              </b>
+              <span className="small muted">
+                {r.locked ? t('Needs a higher standard of living') : r.line}
+              </span>
+            </span>
+            <button
+              type="button"
+              className="btn btn-subtle btn-sm going-venue-go"
+              data-go={r.id}
+              aria-label={r.go}
+              onClick={r.run}
+            >
+              {r.go}
+            </button>
+          </li>
+        ))}
+      </ul>
     </OutCard>
   );
 }
@@ -839,6 +941,17 @@ function ByLifestyle({ ctx }: { ctx: PhoneCtx }) {
     byTier.set(a.it.requiresTier, list);
   }
   const book = (a: Activity) => {
+    // More games: a skydive or a helicopter ride is booked and flown; bowling is at the lanes.
+    const air = airOf(a.it);
+    if (air) {
+      ctx.close();
+      openAir({ kind: air, itemId: a.it.id });
+      return;
+    }
+    if (a.b.kind === 'bowling-alley' && a.it.id === 'bowling') {
+      ctx.goPlace(`biz:${a.b.id}`);
+      return;
+    }
     if (outingOf(a.it)) {
       ctx.close();
       startOuting({

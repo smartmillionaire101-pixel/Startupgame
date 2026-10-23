@@ -280,8 +280,8 @@ describe('city places: government offices by appointment', () => {
 });
 
 describe('city places: the release switch', () => {
-  it('is the newest note and implies the investor career', () => {
-    expect(RELEASES.at(-1)).toBe(PLACES_NOTE);
+  it('comes after the investor career note and implies it', () => {
+    expect(RELEASES.indexOf(PLACES_NOTE)).toBeGreaterThan(RELEASES.indexOf(INVESTOR_NOTE));
     const w = { announcements: [PLACES_NOTE] } as unknown as World;
     expect(placesOn(w)).toBe(true);
     expect(investorOn(w)).toBe(true);

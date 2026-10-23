@@ -97,6 +97,10 @@ export const BIZ_ICON: Record<string, string> = {
   marina: '⛵',
   'private-terminal': '🛩️',
   'golf-club': '⛳',
+  // More games: the lanes, the drop zone, the helipad.
+  'bowling-alley': '🎳',
+  'skydive-centre': '🪂',
+  heliport: '🚁',
   // The jobs rework: professional employers.
   'employer-bank': '🏦',
   'employer-investment': '📈',
