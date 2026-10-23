@@ -9,6 +9,7 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Field, Pill, Stat } from '../ui';
 import { DealList } from './common';
+import { BankWork } from './BankWork';
 
 export function BankScreen() {
   const { view } = useView();
@@ -27,11 +28,13 @@ export function BankScreen() {
           </Card>
         )}
         <FoundBank />
+        <BankWork />
       </>
     );
   return (
     <>
       <Overview />
+      <BankWork />
       {b.status === 'licensed' && (
         <>
           <section className="stack">

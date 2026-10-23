@@ -1,0 +1,78 @@
+/* Banker work: the advisory desk, a mandate's calls, and meetings at banks and institutions. */
+.bw-offers,
+.bw-topics {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+.bw-offer,
+.bw-topic {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--line);
+}
+.bw-offer:first-child,
+.bw-topic:first-child {
+  border-top: 0;
+}
+.bw-offer .grow,
+.bw-topic .grow {
+  flex: 1;
+  min-width: 0;
+}
+.bw-icon {
+  font-size: 1.3rem;
+  line-height: 1.4;
+}
+.bw-question {
+  font-weight: 600;
+  margin: 0.6rem 0 0.4rem;
+}
+.bw-options {
+  display: grid;
+  gap: 0.4rem;
+}
+.bw-option {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.bw-option.is-on {
+  border-color: var(--info);
+  box-shadow: inset 0 0 0 1px var(--info);
+}
+.bw-nav {
+  margin-top: 0.6rem;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.bw-picks li {
+  padding: 0.3rem 0;
+}
+.bw-lessons li {
+  padding: 0.25rem 0;
+  font-style: italic;
+}
+.bw-line,
+.bw-listing {
+  margin-top: 0.6rem;
+}
+.bw-outcome {
+  position: relative;
+  padding: 0.6rem 2rem 0.6rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.bw-outcome .df-quote {
+  font-style: italic;
+  margin: 0.2rem 0;
+}
