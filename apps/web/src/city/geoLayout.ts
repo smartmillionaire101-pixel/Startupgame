@@ -24,6 +24,7 @@ import {
   B,
   buildLayout,
   CATEGORY_FALLBACK,
+  civicByDistrict,
   financeItems,
   HOST_FALLBACK,
   lot,
@@ -55,6 +56,7 @@ import {
   GEO_LANDMARKS,
   ROAD_CLASSES,
   type GeoData,
+  type LandmarkSpec,
   type SpriteKind,
 } from './geo';
 
@@ -725,6 +727,101 @@ export function buildGraph(data: GeoData): WalkGraph {
 // ---------------------------------------------------------------------------
 // Landmarks
 
+/**
+ * Where a landmark bridge really stands, from the file: the longest stretch of
+ * the named bridge (its two ends or, for a curving one, its longest straight
+ * run, where the towers stand), taken only from the ways along the spec's own
+ * ends (not another bridge of the name: the Bay Bridge's eastern span),
+ * lengthened over the ways in line with it (a bridge mapped as its two
+ * approaches: Tower Bridge), and cut to the spec's ends when the way runs on
+ * over land (`clip`: the Bay Bridge's way starts up on Rincon Hill). It faces
+ * the spec's way. Null when the file has none of it there.
+ */
+export function bridgeEnds(
+  data: Pick<GeoData, 'origin' | 'bridges'>,
+  spec: Pick<LandmarkSpec, 'at' | 'to' | 'bridge' | 'clip'>,
+): { at: { x: number; y: number }; to: { x: number; y: number } } | null {
+  if (!spec.bridge) return null;
+  const a = fromLatLon(data, spec.at[0], spec.at[1]);
+  const b = spec.to ? fromLatLon(data, spec.to[0], spec.to[1]) : null;
+  const SL = b ? Math.hypot(b.x - a.x, b.y - a.y) || 1 : 1;
+  const ux = b ? (b.x - a.x) / SL : 1;
+  const uy = b ? (b.y - a.y) / SL : 0;
+  // In the spec's corridor: near its line, about its length, running its way.
+  const along = (l: number[]) => {
+    if (!b) return true;
+    for (let i = 0; i + 1 < l.length; i += 2) {
+      const dx = l[i]! - a.x;
+      const dy = l[i + 1]! - a.y;
+      const t = dx * ux + dy * uy;
+      if (Math.abs(dx * uy - dy * ux) > 250 || t < -0.35 * SL || t > 1.35 * SL) return false;
+    }
+    const cx = l[l.length - 2]! - l[0]!;
+    const cy = l[l.length - 1]! - l[1]!;
+    const c = Math.hypot(cx, cy);
+    return c < 30 || Math.abs(cx * uy - cy * ux) / c < 0.5;
+  };
+  const named = (data.bridges ?? []).filter(
+    (br) => br.n && spec.bridge!.test(br.n) && br.l.length >= 4,
+  );
+  // (A spec's ends that are well off the file's: its ways all the same.)
+  const near = named.filter((br) => along(br.l));
+  const ways = near.length ? near : named;
+  let best: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  let bestLen = 0;
+  for (const br of ways) {
+    const l = br.l;
+    const chord = Math.hypot(l[l.length - 2]! - l[0]!, l[l.length - 1]! - l[1]!);
+    let len = 0;
+    let seg = { i: 0, len: 0 };
+    for (let i = 0; i + 3 < l.length; i += 2) {
+      const d = Math.hypot(l[i + 2]! - l[i]!, l[i + 3]! - l[i + 1]!);
+      len += d;
+      if (d > seg.len) seg = { i, len: d };
+    }
+    const straight = chord >= len * 0.97;
+    const use = straight ? chord : seg.len;
+    if (use > bestLen) {
+      bestLen = use;
+      const i0 = straight ? 0 : seg.i;
+      const i1 = straight ? l.length - 2 : seg.i + 2;
+      best = { x0: l[i0]!, y0: l[i0 + 1]!, x1: l[i1]!, y1: l[i1 + 1]! };
+    }
+  }
+  if (!best || bestLen < 1) return null;
+  // Its line, facing the spec's way.
+  let dx = (best.x1 - best.x0) / bestLen;
+  let dy = (best.y1 - best.y0) / bestLen;
+  let s0 = 0;
+  let s1 = bestLen;
+  if (dx * ux + dy * uy < 0) {
+    dx = -dx;
+    dy = -dy;
+    s0 = -bestLen;
+    s1 = 0;
+  }
+  const { x0, y0 } = best;
+  const sOf = (x: number, y: number) => (x - x0) * dx + (y - y0) * dy;
+  // The ways in line with it (a carriageway or two across) lengthen it.
+  for (const br of ways)
+    for (let i = 0; i + 1 < br.l.length; i += 2) {
+      const px = br.l[i]! - x0;
+      const py = br.l[i + 1]! - y0;
+      if (Math.abs(px * dy - py * dx) > 25) continue;
+      s0 = Math.min(s0, px * dx + py * dy);
+      s1 = Math.max(s1, px * dx + py * dy);
+    }
+  if (spec.clip && b) {
+    s0 = Math.max(s0, sOf(a.x, a.y));
+    s1 = Math.min(s1, sOf(b.x, b.y));
+    if (s1 - s0 < 1) return null;
+  }
+  return {
+    at: { x: x0 + dx * s0, y: y0 + dy * s0 },
+    to: { x: x0 + dx * s1, y: y0 + dy * s1 },
+  };
+}
+
 function spritesOf(data: GeoData, marketId: string): GeoSprite[] {
   const [bx0, by0, bx1, by1] = data.bounds;
   const inside = (x: number, y: number) => x >= bx0 && x <= bx1 && y >= by0 && y <= by1;
@@ -739,32 +836,8 @@ function spritesOf(data: GeoData, marketId: string): GeoSprite[] {
       if (hit && 'x' in hit) at = { x: hit.x, y: hit.y };
       else if (hit && 'p' in hit) at = centroidOf(hit.p);
     }
-    if (spec.bridge) {
-      // The longest stretch of the named bridge: its two ends (or, for a
-      // curving one, its longest straight run, where the towers stand).
-      let bestLen = 0;
-      for (const br of data.bridges ?? []) {
-        if (!br.n || !spec.bridge.test(br.n)) continue;
-        const l = br.l;
-        const chord = Math.hypot(l[l.length - 2]! - l[0]!, l[l.length - 1]! - l[1]!);
-        let len = 0;
-        let seg = { i: 0, len: 0 };
-        for (let i = 0; i + 3 < l.length; i += 2) {
-          const d = Math.hypot(l[i + 2]! - l[i]!, l[i + 3]! - l[i + 1]!);
-          len += d;
-          if (d > seg.len) seg = { i, len: d };
-        }
-        const straight = chord >= len * 0.97;
-        const use = straight ? chord : seg.len;
-        if (use > bestLen) {
-          bestLen = use;
-          const i0 = straight ? 0 : seg.i;
-          const i1 = straight ? l.length - 2 : seg.i + 2;
-          at = { x: l[i0]!, y: l[i0 + 1]! };
-          to = { x: l[i1]!, y: l[i1 + 1]! };
-        }
-      }
-    }
+    const ends = bridgeEnds(data, spec);
+    if (ends) ({ at, to } = ends);
     if (!inside(at.x, at.y)) continue;
     out.push({
       kind: spec.kind,
@@ -1170,6 +1243,8 @@ export function buildGeoLayout(
   ];
   const invIn = D.map(() => [] as LotItem[]);
   invItems.forEach((it, i) => invIn[spread[i % spread.length]!]!.push(it));
+  // City places stand in the district they name (else with the banks).
+  const civicIn = civicByDistrict(input, (id) => idx.get(id) ?? -1, hostOf.get('finance') ?? 0);
 
   // ---- Make each district's buildings (the shared builders), then stand
   // each one on real ground near the district's heart.
@@ -1226,6 +1301,7 @@ export function buildGeoLayout(
             .map((c) => ({ kind: 'capital' as const, cap: c }))
         : []),
       ...invIn[n]!,
+      ...(civicIn.get(n) ?? []),
     ];
     for (const it of items) putLotItem(ctx, it, lot(0, 0, 1, 1), cell, area);
     take(n, 1);

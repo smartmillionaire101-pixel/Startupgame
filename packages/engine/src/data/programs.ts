@@ -819,7 +819,16 @@ export const DEV_PARTNERS: Record<MarketId, DevPartnerSeed[]> = {
 
 // ---------------------------------------------------------------- Limited partners
 
-export type LpKind = 'pension' | 'family-office' | 'endowment' | 'dfi-fof' | 'sovereign';
+export type LpKind =
+  | 'pension'
+  | 'family-office'
+  | 'endowment'
+  | 'dfi-fof'
+  | 'sovereign'
+  /** More-games note (firstfund.ts): first-time-manager LPs, never in the city's LP list. */
+  | 'emerging'
+  | 'angel'
+  | 'friends';
 
 export interface LpSeed {
   id: string;
@@ -842,6 +851,9 @@ export const LP_KIND_LABEL: Record<LpKind, string> = {
   endowment: 'Endowment',
   'dfi-fof': 'DFI fund-of-funds',
   sovereign: 'Sovereign fund',
+  emerging: 'Emerging-manager programme',
+  angel: 'Angel',
+  friends: 'Friends and family',
 };
 
 const lp = (
@@ -867,6 +879,9 @@ const lp = (
     endowment: 'Long horizon, likes focused theses and cash returned.',
     'dfi-fof': 'Backs local managers with an impact mandate.',
     sovereign: 'Big cheques for managers who already return cash.',
+    emerging: 'Backs first funds only: a lower bar, but a real record of deals and a markup.',
+    angel: 'An investor you met: backs people they know with a small cheque.',
+    friends: 'People who know you best: small cheques on trust.',
   }[kind],
   look: { color, accent: '#ffffff' },
 });

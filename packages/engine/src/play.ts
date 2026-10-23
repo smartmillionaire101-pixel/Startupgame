@@ -9,7 +9,21 @@ import { account, openAccount, payExact, transfer } from './ledger.js';
 import type { Command } from './commands.js';
 import { createRng, deriveRng, hashString } from './rng.js';
 import { QUIZ_BANK, type QuizCategory } from './data/quiz-bank.js';
-import { investorOn, journeyEventsOn } from './releases.js';
+import { investorOn, journeyEventsOn, lifeBarsOn, moreGamesOn } from './releases.js';
+import {
+  FULL_RACK,
+  aiBowl,
+  bowlingGame,
+  simulateBowl,
+  wobble,
+  type BowlInput,
+  type BowlLaunch,
+} from './bowling.js';
+import { BOWLING, gameVenueKey } from './data/games.js';
+import { gamesRecordOf } from './games.js';
+import { isOpen, specOf, venuePrice } from './economy.js';
+import { applyBars, bumpEnergy } from './lifebars.js';
+import { bumpNeed } from './needs.js';
 import {
   POOL_FOOT,
   POOL_HEAD,
@@ -103,7 +117,7 @@ export interface PlayRoom {
   market: MarketId;
   venue: string;
   title: string;
-  game: 'quiz' | 'snooker' | 'football' | 'golf';
+  game: 'quiz' | 'snooker' | 'football' | 'golf' | 'bowling';
   status: 'waiting' | 'playing' | 'finished' | 'cancelled';
   createdAt: number;
   touchedAt: number;
@@ -139,6 +153,49 @@ export interface PlayRoom {
   ai?: Id[];
   /** Golf with a friend (game 'golf' only; older rooms never have it). */
   golf?: GolfMatch;
+  /** Ten-pin bowling (game 'bowling' only: the more-games release). */
+  bowling?: BowlingMatch;
+}
+
+// ---------------------------------------------------------------- Bowling
+
+/** One bowler's game. */
+export interface Bowler {
+  /** Pins down per ball, in order. */
+  rolls: number[];
+  /** Pin numbers standing for their next ball. */
+  standing: number[];
+  /** 0 … 1: how steady their release is (a human's from games bowled, an AI's from its id). */
+  skill: number;
+}
+
+/** A ball the engine rolled: what was asked, how it left the hand, what fell. */
+export interface BowlRollLog {
+  by: Id;
+  /** The ball's number in the game (its seed). */
+  n: number;
+  frame: number;
+  ball: number;
+  input: BowlInput;
+  launch: BowlLaunch;
+  /** The pins standing as it was rolled, and the ones it knocked down. */
+  standing: number[];
+  knocked: number[];
+  gutter: boolean;
+  /** Played by the engine: a timed-out clock, or an AI bowler. */
+  auto: 'timeout' | 'ai' | null;
+  /** Seconds it took (the ball to the pit, the pins settled). */
+  time: number;
+}
+
+export interface BowlingMatch {
+  /** The lane fee each bowler pays the alley when the game starts. */
+  fee: number;
+  players: Record<Id, Bowler>;
+  /** When the last ball's pins settle (the next bowler's clock starts then). */
+  readyAt: number;
+  balls: number;
+  last: BowlRollLog | null;
 }
 
 /** One kick of a shootout. The details (kick on) are for shootout rooms. */
@@ -260,6 +317,17 @@ export interface GolfMatch {
   players: Record<Id, GolfPlayer>;
   shots: GolfMatchShot[];
 }
+
+/** Time for each ball at bowling, from when the last one's pins settle. */
+export const BOWL_MS = 45_000;
+/** An AI bowler steps up this long after the pins settle. */
+export const BOWL_AI_THINK = 2_500;
+/** What the clock rolls for you when it runs out: a gentle ball down the middle. */
+const BOWL_TIMEOUT: BowlInput = { x: 0, aim: 0, power: 0.25, spin: 0 };
+/** A human bowler's steadiness from games bowled (the swipe is theirs; this is the release). */
+export const bowlerSkill = (games: number) => Math.min(0.92, 0.8 + games * 0.01);
+/** An AI bowler's steadiness, from its id (the same every game). */
+export const bowlAiSkill = (aiId: Id) => 0.35 + (hashString(`bowl-skill:${aiId}`) % 46) / 100;
 
 /** Time for each golf shot (snooker gives 45 s). */
 export const GOLF_SHOT_MS = 60_000;
@@ -450,7 +518,7 @@ function aiCandidates(w: World, r: PlayRoom) {
     .filter((p) => {
       if (!p.ai || busy.has(p.id) || locationOf(p) !== r.market) return false;
       // Golf: the friend pays their own green fee as well.
-      const fee = r.golf?.fee ?? 0;
+      const fee = r.golf?.fee ?? r.bowling?.fee ?? 0;
       if (!r.stake && !fee) return true;
       const a = w.accounts[p.accounts.local];
       return !!a && a.currency === r.currency && a.balance >= r.stake * 4 + fee;
@@ -461,7 +529,12 @@ function aiCandidates(w: World, r: PlayRoom) {
 /** Seat AI opponents and start the quiz (a host alone at the table). */
 function fillWithAi(w: World, r: PlayRoom, now: number, count: number) {
   // Snooker and football are one against one: a single AI opponent.
-  const seats = r.game === 'quiz' ? Math.max(1, Math.min(3, count, 8 - r.members.length)) : 1;
+  const seats =
+    r.game === 'quiz'
+      ? Math.max(1, Math.min(3, count, 8 - r.members.length))
+      : r.game === 'bowling'
+        ? Math.max(1, Math.min(3, count, 4 - r.members.length))
+        : 1;
   const picks = aiCandidates(w, r).slice(0, seats);
   ensure(
     picks.length > 0,
@@ -490,6 +563,7 @@ function fillWithAi(w: World, r: PlayRoom, now: number, count: number) {
   r.touchedAt = now;
   if (r.pool) r.pool.readyAt = now;
   r.last = `${picks.map((p) => p.name).join(', ')} joined the ${r.game === 'quiz' ? 'quiz' : 'game'}.`;
+  if (r.bowling) startBowling(w, r, now);
 }
 
 const POCKETS: [number, number][] = [
@@ -883,6 +957,10 @@ function aiAnswers(r: PlayRoom, now: number) {
 
 /** When the next AI answer is due (null: none waiting). */
 function aiDueAt(w: World, r: PlayRoom): number | null {
+  if (r.bowling) {
+    if (r.status !== 'playing' || !r.ai?.includes(bowlerOf(r) ?? '')) return null;
+    return r.bowling.readyAt + BOWL_AI_THINK;
+  }
   if (r.game === 'golf' && r.golf) {
     if (r.status === 'waiting') return r.golf.aiAcceptAt || null;
     if (r.status !== 'playing' || !r.ai?.includes(golfer(r) ?? '')) return null;
@@ -1126,6 +1204,7 @@ function shot(r: PlayRoom, angle: number, power: number) {
 function advance(w: World, r: PlayRoom, now: number) {
   if (r.status !== 'playing') return;
   if (r.game === 'golf') return golfClock(w, r, now);
+  if (r.bowling) return bowlingClock(w, r, now);
   aiAnswers(r, now);
   aiMoves(w, r, now);
   if (
@@ -1200,7 +1279,16 @@ function createRoom(
     ensure(venue === `home:${p.id}` && market === p.market, 'play.home', 'Host at your own home.');
   else if (cmd.game === 'golf')
     ensure(venue === golfVenue(m), 'play.venue', 'Golf is played at the city’s golf club.');
-  else ensure(!!m.businesses?.[venue], 'play.venue', 'Choose a venue in your current city.');
+  else if (cmd.game === 'bowling') {
+    // More games: bowling is played at a bowling alley (worlds with the note only).
+    ensure(moreGamesOn(w), 'play.game', 'Bowling isn’t open yet.');
+    const b = m.businesses?.[venue];
+    ensure(
+      b && isOpen(b) && b.kind === 'bowling-alley',
+      'play.venue',
+      'Bowling is played at a bowling alley.',
+    );
+  } else ensure(!!m.businesses?.[venue], 'play.venue', 'Choose a venue in your current city.');
   ensure(
     cmd.stake <= m.data.costOfLiving * 100,
     'play.stake',
@@ -1267,6 +1355,17 @@ function createRoom(
     'Custom questions are only for quizzes.',
   );
   if (r.game === 'golf') inviteToGolf(w, p, r, cmd, now);
+  if (r.game === 'bowling') {
+    const b = m.businesses![venue]!;
+    const it = specOf(b).venue?.items.find((x) => x.id === BOWLING.item);
+    r.bowling = {
+      fee: it ? venuePrice(w, m, b, it) : 0,
+      players: {},
+      readyAt: 0,
+      balls: 0,
+      last: null,
+    };
+  }
   rooms[id] = r;
   // A custom quiz author (old rooms) is the non-playing quizmaster: they knew the answers.
   if (!r.custom) join(w, p, r);
@@ -1385,10 +1484,15 @@ export function playCommand(
       'Only the host can start this room.',
     );
     ensure(
-      r.members.length >= (r.game === 'quiz' && r.stake === 0 ? 1 : 2),
+      r.members.length >= ((r.game === 'quiz' || r.game === 'bowling') && r.stake === 0 ? 1 : 2),
       'play.players',
       'Wait for another player.',
     );
+    // Bowling: the lane fees, the first bowler up.
+    if (r.bowling) {
+      startBowling(w, r, now);
+      return { ok: true };
+    }
     r.status = 'playing';
     r.deadline = now + (r.game === 'snooker' ? 45_000 : 20_000);
     r.touchedAt = now;
@@ -1430,7 +1534,7 @@ export function playCommand(
         ? 'Only the host of a waiting quiz can call in AI opponents.'
         : 'Only the host, alone at a waiting table, can play an AI opponent.',
     );
-    fillWithAi(w, r, now, cmd.count ?? 2);
+    fillWithAi(w, r, now, cmd.count ?? (r.game === 'bowling' ? 1 : 2));
     return { ok: true };
   }
   ensure(r.status === 'playing', 'play.status', 'This game is not in progress.');
@@ -1485,6 +1589,11 @@ export function playCommand(
       r.deadline = now + 45_000;
     }
     advance(w, r, now);
+  } else if (cmd.type === 'play.bowl') {
+    ensure(r.bowling && bowlerOf(r) === p.id, 'play.turn', 'Wait for your turn.');
+    ensure(now >= r.bowling.readyAt, 'play.rolling', 'Wait for the pins to settle.');
+    bowlRoll(w, r, p.id, { x: cmd.x, aim: cmd.aim, power: cmd.power, spin: cmd.spin }, null, now);
+    advance(w, r, now);
   } else if (cmd.type === 'play.golf') {
     ensure(r.golf && golfer(r) === p.id, 'play.turn', 'Wait for your turn.');
     if (cmd.pickup) golfPickUp(w, r, p.id);
@@ -1503,7 +1612,19 @@ function join(w: World, p: Player, r: PlayRoom) {
     'play.author',
     'Custom quiz authors host, but do not compete.',
   );
-  ensure(r.members.length < (r.game === 'quiz' ? 8 : 2), 'play.full', 'This room is full.');
+  ensure(
+    r.members.length < (r.game === 'quiz' ? 8 : r.game === 'bowling' ? 4 : 2),
+    'play.full',
+    'This room is full.',
+  );
+  if (r.bowling) {
+    const mine = account(w, p.accounts.local);
+    ensure(
+      mine.currency !== r.currency || mine.balance >= r.stake + r.bowling.fee,
+      'bowling.funds',
+      `You need ${formatMoney(r.stake + r.bowling.fee, r.currency)} for the stake and the lane.`,
+    );
+  }
   if (r.golf) {
     ensure(
       p.id === r.host || p.id === r.golf.invite,
@@ -1617,6 +1738,8 @@ export function playView(w: World, p: Player) {
       shooter: r.members[r.round % Math.max(1, r.members.length)]?.id,
       /** Golf with a friend: the match (null for every other game). */
       golf: r.golf ? golfMatchView(w, r) : null,
+      /** Bowling: every bowler's frames, the pins up, the last ball (null for other games). */
+      bowling: r.bowling ? bowlingView(r) : null,
     }));
 }
 
@@ -2018,5 +2141,213 @@ export function golfMatchOptions(w: World, p: Player) {
     hours: GOLF.hours,
     friends,
     handicap: golfHandicap(skillOf(p.golf?.rounds ?? 0)),
+  };
+}
+
+// ---------------------------------------------------------------- Bowling: the game
+
+const bowlerOf = (r: PlayRoom) => r.members[r.turn % Math.max(1, r.members.length)]?.id;
+
+/** Everyone's in: each pays the alley the lane fee, and the first bowler steps up. */
+function startBowling(w: World, r: PlayRoom, now: number) {
+  const B = r.bowling!;
+  const m = getMarket(w, r.market);
+  const b = m.businesses?.[r.venue];
+  for (const { id } of r.members) {
+    const who = w.players[id]!;
+    if (B.fee > 0)
+      payExact(
+        w,
+        who.accounts.local,
+        b?.account ?? m.ext.suppliers,
+        B.fee,
+        `Lane fee at ${b?.name ?? 'the bowling alley'}`,
+        m.month,
+      );
+    B.players[id] = {
+      rolls: [],
+      standing: [...FULL_RACK],
+      skill: who.ai ? bowlAiSkill(id) : bowlerSkill(who.games?.bowling?.games ?? 0),
+    };
+  }
+  r.status = 'playing';
+  r.turn = 0;
+  r.round = 0;
+  B.readyAt = now;
+  r.deadline = now + BOWL_MS;
+  r.touchedAt = now;
+  r.last =
+    r.members.length === 1
+      ? 'Your lane is ready: ten frames.'
+      : `Ten frames each. ${nameOf(w, r.members[0]!.id)} bowls first.`;
+}
+
+/**
+ * One ball, rolled by the engine from the inputs alone: the bowler's release
+ * wobble is seeded per room and ball, the pins fall as the physics says, and
+ * the frame is scored. The same on replay; nobody's pins are taken on trust.
+ */
+function bowlRoll(
+  w: World,
+  r: PlayRoom,
+  id: Id,
+  input: BowlInput,
+  auto: BowlRollLog['auto'],
+  now: number,
+) {
+  const B = r.bowling!;
+  const me = B.players[id]!;
+  const before = bowlingGame(me.rolls);
+  const launch = wobble(deriveRng(w.seed, 'bowl', r.id, B.balls), input, me.skill);
+  const sim = simulateBowl(me.standing, launch);
+  const down = sim.knocked.length;
+  B.last = {
+    by: id,
+    n: B.balls,
+    frame: before.frame,
+    ball: before.ball,
+    input,
+    launch,
+    standing: [...me.standing],
+    knocked: sim.knocked,
+    gutter: sim.gutter,
+    auto,
+    time: sim.time,
+  };
+  B.balls++;
+  r.round++;
+  me.rolls.push(down);
+  const after = bowlingGame(me.rolls);
+  me.standing = after.fresh ? [...FULL_RACK] : me.standing.filter((n) => !sim.knocked.includes(n));
+  for (const m of r.members) m.score = bowlingGame(B.players[m.id]!.rolls).score;
+  const name = nameOf(w, id);
+  const up = before.pinsUp;
+  r.last =
+    down === up && up === 10
+      ? `${name}: STRIKE!`
+      : down === up
+        ? `${name}: spare!`
+        : sim.gutter && down === 0
+          ? `${name}: in the gutter.`
+          : auto === 'timeout'
+            ? `${name}’s clock ran out: a gentle ball rolled for ${down}.`
+            : `${name}: ${down} ${down === 1 ? 'pin' : 'pins'}.`;
+  // The roll plays out on every screen before the next ball.
+  B.readyAt = now + Math.ceil(Math.min(6, sim.time) * 1000) + 1_000;
+  r.deadline = B.readyAt + BOWL_MS;
+  r.touchedAt = Math.max(r.touchedAt, now);
+  // Their frame is done (or their game): the next bowler still bowling, in seat order.
+  if (after.done || after.frame !== before.frame) {
+    const n = r.members.length;
+    const still = (k: number) => !bowlingGame(B.players[r.members[k]!.id]!.rolls).done;
+    let next = -1;
+    for (let step = 1; step <= n && next < 0; step++) {
+      const k = (r.turn + step) % n;
+      if (still(k)) next = k;
+    }
+    if (next < 0) return bowlingFinish(w, r);
+    r.turn = next;
+  }
+}
+
+/** The game's over: everyone who bowled feels it, records are kept, the pot is paid. */
+function bowlingFinish(w: World, r: PlayRoom) {
+  const B = r.bowling!;
+  const month = getMarket(w, r.market).month;
+  r.last = `Game over: ${r.members.map((m) => `${nameOf(w, m.id)} ${m.score}`).join(', ')}.`;
+  for (const { id, score } of r.members) {
+    const p = w.players[id];
+    if (!p || p.ai) continue;
+    const good = score >= BOWLING.goodGame;
+    bumpNeed(p, 'fun', BOWLING.fun + (good ? 4 : 0));
+    if (r.members.length > 1) bumpNeed(p, 'social', BOWLING.social);
+    bumpEnergy(p, BOWLING.energy);
+    if (lifeBarsOn(w)) applyBars(p, { stress: BOWLING.stress - (good ? 2 : 0) });
+    const rec = gamesRecordOf(p);
+    const was = rec.bowling;
+    rec.bowling = {
+      games: (was?.games ?? 0) + 1,
+      best: Math.max(was?.best ?? 0, score),
+      last: score,
+      strikes: (was?.strikes ?? 0) + strikesIn(B.players[id]!.rolls),
+      month,
+    };
+  }
+  payOut(w, r, false);
+}
+
+/** Strikes in a game (a 10 on a fresh rack, not a spare's second ball). */
+export function strikesIn(rolls: readonly number[]) {
+  let n = 0;
+  for (let k = 0; k < rolls.length; k++)
+    if (rolls[k] === 10 && bowlingGame(rolls.slice(0, k)).fresh) n++;
+  return n;
+}
+
+/**
+ * The lane's clock, run whenever a command reaches the room: an AI bowler
+ * steps up once the pins have settled and it's thought, and a clock that ran
+ * out rolls a gentle ball for that bowler (in order, so it's the same on replay).
+ */
+function bowlingClock(w: World, r: PlayRoom, now: number) {
+  const B = r.bowling!;
+  for (let guard = 0; guard < 200 && r.status === 'playing'; guard++) {
+    const id = bowlerOf(r);
+    if (!id) return;
+    const at = B.readyAt;
+    if (r.ai?.includes(id) && now >= at + BOWL_AI_THINK) {
+      const rng = deriveRng(w.seed, 'bowl-ai', r.id, B.balls);
+      bowlRoll(w, r, id, aiBowl(rng, B.players[id]!.standing), 'ai', at + BOWL_AI_THINK);
+    } else if (now >= r.deadline) {
+      bowlRoll(w, r, id, BOWL_TIMEOUT, 'timeout', r.deadline);
+    } else return;
+  }
+}
+
+/** The game as a player sees it (every number the engine worked out). */
+function bowlingView(r: PlayRoom) {
+  const B = r.bowling!;
+  return {
+    fee: B.fee,
+    shotMs: BOWL_MS,
+    readyAt: B.readyAt,
+    balls: B.balls,
+    bowler: r.status === 'playing' ? (bowlerOf(r) ?? null) : null,
+    last: B.last,
+    players: Object.fromEntries(
+      Object.entries(B.players).map(([id, x]) => {
+        const g = bowlingGame(x.rolls);
+        return [
+          id,
+          {
+            rolls: x.rolls,
+            standing: x.standing,
+            frames: g.frames,
+            score: g.score,
+            done: g.done,
+            frame: g.frame,
+            ball: g.ball,
+          },
+        ];
+      }),
+    ),
+  };
+}
+
+/** For the lobby: the city's bowling alley, the lane fee and the stake chips (as golf's). */
+export function bowlingOptions(w: World, p: Player) {
+  if (!moreGamesOn(w)) return null;
+  const m = getMarket(w, locationOf(p));
+  const b = Object.values(m.businesses ?? {}).find(
+    (x) => isOpen(x) && x.landmark === gameVenueKey('bowling-alley'),
+  );
+  const it = b ? specOf(b).venue?.items.find((x) => x.id === BOWLING.item) : undefined;
+  return {
+    venue: b?.id ?? null,
+    name: b?.name ?? null,
+    fee: b && it ? venuePrice(w, m, b, it) : 0,
+    stakes: golfStakes(m),
+    maxStake: m.data.costOfLiving * 100,
+    shotMs: BOWL_MS,
   };
 }

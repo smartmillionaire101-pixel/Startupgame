@@ -37,10 +37,11 @@ import { account, costIn, openAccount, pay, payExact, transfer, withTx } from '.
 import { roundTo } from './math.js';
 import { formatMoney } from './money.js';
 import { monthOfLiving } from './career.js';
-import { investorOn } from './releases.js';
+import { dealflowOn, investorOn } from './releases.js';
 import { fundOpsView } from './fundops.js';
 import { aiCarry, attachFund, nextFundCap, splitCarry } from './firms.js';
 import { distributeFund } from './funds.js';
+import { rollingClose } from './firstfund.js';
 import { newStars } from './stars.js';
 import { wealthView } from './wealth.js';
 import type { Industry } from './data/industries.js';
@@ -49,6 +50,7 @@ import type {
   Fund,
   FundLpState,
   FundStrategy,
+  FundGeography,
   FundTerms,
   Id,
   LpCommitment,
@@ -121,6 +123,41 @@ export interface LaunchArgs {
   termMonths: number;
   investMonths: number;
   keyPerson: boolean;
+  /** Deal-flow note: portfolio construction and geography, pitched to LPs (lpreview.ts). */
+  plan?: {
+    geography: FundGeography;
+    avgCheque: number;
+    companies: number;
+    reserveRatio: number;
+    targetOwnership: number;
+  };
+}
+
+/** A fund's LP book before any commitment: raising, nothing called or paid. */
+export function newLpBook(
+  number: number,
+  strategy: FundStrategy,
+  terms: FundTerms,
+  month: number,
+): FundLpState {
+  return {
+    number,
+    strategy,
+    terms,
+    stage: 'raising',
+    openedMonth: month,
+    commitments: [],
+    calls: [],
+    paidIn: 0,
+    relations: {},
+    letters: [],
+    reserves: {},
+    marks: [],
+    flows: [],
+    ic: [],
+    feesPaid: 0,
+    carryPaid: 0,
+  };
 }
 
 /** `fund.launch`: write the thesis and the terms, and start raising. */
@@ -226,22 +263,9 @@ export function launchFund(world: World, me: Player, a: LaunchArgs) {
     stars: newStars(me.stars.value),
     investorType: a.strategy === 'impact' ? 'impact' : 'vc',
     lp: {
-      number: n,
-      strategy: a.strategy,
-      terms,
-      stage: 'raising',
-      openedMonth: m.month,
-      commitments: [],
-      calls: [],
-      paidIn: 0,
-      relations: {},
-      letters: [],
-      reserves: {},
-      marks: [],
-      flows: [],
-      ic: [],
-      feesPaid: 0,
-      carryPaid: 0,
+      ...newLpBook(n, a.strategy, terms, m.month),
+      // Deal-flow note: the strategy LPs judge the pitch on (and the fund's plan after).
+      ...(a.plan && dealflowOn(world) ? { plan: { ...a.plan } } : {}),
     },
   };
   world.funds[id] = fund;
@@ -557,7 +581,7 @@ export function closeFund(world: World, me: Player, fundId: Id) {
   };
 }
 
-function firstClose(world: World, f: Fund, month: number) {
+export function firstClose(world: World, f: Fund, month: number) {
   const lp = lpOf(f);
   const m = getMarket(world, f.market);
   lp.stage = 'investing';
@@ -591,7 +615,7 @@ function firstClose(world: World, f: Fund, month: number) {
       });
 }
 
-function finalClose(world: World, f: Fund, month: number) {
+export function finalClose(world: World, f: Fund, month: number) {
   const lp = lpOf(f);
   lp.finalCloseMonth = month;
   f.size = committedTotal(f);
@@ -780,6 +804,8 @@ export function settleLpFunds(world: World, marketId: string, month: number) {
     if (lp.stage === 'failed' || lp.stage === 'wound-down' || lp.firstCloseMonth === undefined)
       continue;
     const since = month - lp.firstCloseMonth;
+    // More-games note: a first fund's rolling close: LPs re-review, and may join up to the target.
+    if (lp.rolling && lp.finalCloseMonth === undefined && since >= 1) rollingClose(world, f, month);
     if (lp.finalCloseMonth === undefined && since >= INVESTOR.fund.finalCloseMonths)
       finalClose(world, f, month);
     // Next calls, one a quarter, for player LPs and the GP.
@@ -1036,12 +1062,24 @@ export function lpFundsView(world: World, p: Player) {
           status: c.status,
           anchor: !!c.anchor,
         })),
-        lpPipeline: lpsOf(f.market).map((x) => ({
-          id: x.id,
-          name: x.name,
-          kind: x.kind,
-          laterFundsOnly: (x.kind === 'pension' || x.kind === 'sovereign') && lp.number < 2,
-        })),
+        lpPipeline: lpsOf(f.market).map((x) => {
+          // The latest pitch to this LP for this fund: its answer, and (deal-flow note) the review.
+          const app = Object.values(world.applications ?? {})
+            .filter((a) => a.kind === 'lp' && a.targetId === x.id && a.fundId === f.id)
+            .sort((a, b) => b.month - a.month || (a.id < b.id ? 1 : -1))[0];
+          return {
+            id: x.id,
+            name: x.name,
+            kind: x.kind,
+            laterFundsOnly: (x.kind === 'pension' || x.kind === 'sovereign') && lp.number < 2,
+            status: app?.status ?? null,
+            amount: app?.amount ?? 0,
+            reason: app?.reason ?? '',
+            review: app?.review ?? null,
+          };
+        }),
+        /** Deal-flow note: the strategy pitched to LPs. */
+        plan: lp.plan ?? null,
       };
     });
   const myCalls: {

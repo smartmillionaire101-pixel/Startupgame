@@ -164,3 +164,61 @@
 .table-wrap {
   overflow-x: auto;
 }
+
+/* Deal flow: pitches heard at events, investors met, and the LP panel's review. */
+.df-pitch .df-quote,
+.df-talk .df-quote {
+  margin: 0.2rem 0;
+  font-style: italic;
+}
+.df-facts {
+  gap: 0.35rem 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.df-actions {
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.df-talk {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line);
+}
+.df-talk:first-child {
+  border-top: 0;
+}
+.df-result {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.25rem;
+}
+.df-review {
+  display: grid;
+  gap: 0.4rem;
+}
+.df-checks,
+.df-questions,
+.df-lessons {
+  display: grid;
+  gap: 0.3rem;
+}
+/* A first fund (more-games release): the suggested size, next steps and the rolling close. */
+.df-suggest,
+.df-close {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.df-steps {
+  display: grid;
+  gap: 0.25rem;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+.df-fold summary {
+  cursor: pointer;
+  color: var(--muted);
+}

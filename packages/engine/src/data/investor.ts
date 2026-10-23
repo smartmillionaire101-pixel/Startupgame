@@ -206,3 +206,58 @@ export const GLOSSARY: Record<string, string> = {
   'valuation-cap': 'The highest valuation a SAFE converts at.',
   dilution: 'Your share shrinks when new shares are issued.',
 };
+
+/**
+ * A realistic first fund (more-games note, firstfund.ts): the size LPs take
+ * seriously from an emerging manager's record, the first-time-manager LPs
+ * (an emerging-manager programme, angels you met, friends and family), the
+ * anchor effect and rolling closes. Money in months of the city's cost of
+ * living or as shares of the target, so every city scales by itself.
+ */
+export const FIRST_FUND = {
+  /** Credible multiple of personal capital deployed: 10× a bare record, up to 50×. */
+  multiple: { base: 10, perDeal: 2, perMarkup: 4, perDpi: 6, knowledge: 4, reputation: 4, max: 50 },
+  /** Size floor, in months of the city's cost of living (Lagos ≈ ₦450k a month). */
+  floorMonths: {
+    base: 50,
+    perDeal: 35,
+    perMarkup: 60,
+    perDpi: 100,
+    knowledge: 40,
+    reputation: 40,
+  },
+  /** Deals, markups and DPI counted (beyond these the record speaks through the multiple). */
+  dealsCap: 12,
+  markupsCap: 4,
+  dpiCap: 2,
+  /** The suggested size's range: LPs take you seriously up to `hi` × the size. */
+  lo: 0.6,
+  hi: 1.5,
+  /** A pitch above this many times the top of the range is not taken seriously: every LP passes. */
+  breakAt: 2,
+  /** The smallest Fund I the panel looks at, months of the city's cost of living. */
+  smallestMonths: 40,
+  /** The emerging-manager programme: Fund I only, a lower bar, the natural anchor. */
+  emerging: { minDeals: 5, minMarkups: 1, minStars: 0, share: [0.2, 0.3] as const, score: 0.38 },
+  /** The anchor: the first commitment of 20–30% of the target lifts every other LP's score. */
+  anchorShare: [0.2, 0.3] as const,
+  anchorLift: 0.05,
+  /** Angels you met and friends and family: tickets in months of the city's cost of living. */
+  circle: {
+    angels: 5,
+    angelMonths: [15, 45] as const,
+    friendsMonths: [5, 15] as const,
+    friendsWarmth: 0.7,
+    minWarmth: 0.2,
+    score: 0.5,
+    /** Below this many deals they wait to see more. */
+    minDeals: 3,
+  },
+  /** After the first close: LPs re-review each month (the close itself lifts them), one joins a month. */
+  rollingLift: 0.05,
+  rollingJoinsPerMonth: 1,
+  /** What "ready for Fund I" means in next steps. */
+  readyDeals: 5,
+  readyMarkups: 1,
+  readyInvestors: 3,
+} as const;

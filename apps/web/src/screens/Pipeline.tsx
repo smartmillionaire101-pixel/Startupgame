@@ -11,6 +11,7 @@ import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Pill, Stat } from '../ui';
+import { EventPitches } from './DealFlow';
 import './investor.css';
 
 type DealCraft = NonNullable<PlayerView['dealCraft']>;
@@ -344,6 +345,7 @@ export function PipelineScreen() {
           <p className="inv-note">{t('Or open them in Deal offers to send terms.')}</p>
         </Card>
       )}
+      <EventPitches />
       <Card
         title={t('Pipeline')}
         sub={t('From sourced to closed or passed')}

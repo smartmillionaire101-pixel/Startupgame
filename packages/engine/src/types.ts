@@ -166,6 +166,19 @@ export interface HotelStay {
   paid: number;
 }
 
+/** More games (games.ts): a player's record at the lanes and in the air. */
+export interface PlayerGames {
+  bowling?: { games: number; best: number; last: number; strikes: number; month: number };
+  /** Skydives and helicopter flights taken. */
+  jumps: number;
+  flights: number;
+  /** The best jump's score (0–1100), and the last one. */
+  bestJump: number;
+  lastJump?: { score: number; miss: number; deployAt: number; style: number; month: number };
+  /** A jump or flight paid for and not yet flown (its experience plays on the client). */
+  booked: { id: Id; item: string; businessId: Id; month: number } | null;
+}
+
 export interface Player {
   garage?: PlayerCar[];
   flightTicket?: {
@@ -311,6 +324,12 @@ export interface Player {
   /** Investor career Phase 8: the month you last supported each portfolio company. */
   support?: Record<Id, number>;
   /**
+   * Investor deal flow (dealflow.ts): strategy lessons learned from AI
+   * investors met at events, the latest conversations, and the AI LP
+   * panel's last verdict on your fund pitch. Missing = none yet.
+   */
+  dealflow?: InvestorLearning;
+  /**
    * Golf (leisure.ts): rounds played at a city's golf club, your best and
    * latest score against par, and rounds this month (for who you meet).
    * Missing = never played.
@@ -322,6 +341,8 @@ export interface Player {
     month: number;
     thisMonth: number;
   };
+  /** More games (games.ts): bowling, skydives and helicopter flights. Missing = never played. */
+  games?: PlayerGames;
   /** The mall (leisure.ts): the phone you bought there (cosmetic). Missing = the one you came with. */
   phone?: { tier: 1 | 2 | 3; paid: number; month: number };
   /**
@@ -335,6 +356,32 @@ export interface Player {
    * put on again free. Missing = none (worlds before the investor release).
    */
   wardrobe?: { item: string; month: number; colour?: string; from?: Id }[];
+  /** City places (places.ts): appointments, services used, visas and licences. Missing = none. */
+  places?: PlayerPlaces;
+}
+
+/** A government appointment: the place (`<market>:<role>`) and its time on the game clock. */
+export interface PlaceAppointment {
+  placeId: string;
+  market: MarketId;
+  /** Game minute (places.ts `gameMinute`) the appointment starts. */
+  at: number;
+  /** Game minute it was booked. */
+  bookedAt: number;
+  /** Went in and used a service. */
+  attended?: boolean;
+}
+
+/** What a player has done at the city's places (the city places release). */
+export interface PlayerPlaces {
+  /** Appointments, newest first (kept short). */
+  appointments: PlaceAppointment[];
+  /** Appointments ever booked (seeds the time drawn for the next). */
+  booked: number;
+  /** `<place>:<service>` (or `<place>:<service>:<company>`) → home month it was last used. */
+  used: Record<string, number>;
+  /** Business visas: destination → home month issued. */
+  visas?: Partial<Record<MarketId, number>>;
 }
 
 // ---------------------------------------------------------------- Founder Journey 5: exits and the capital allocator
@@ -1458,7 +1505,11 @@ export interface LpCommitment {
     | 'sovereign'
     | 'gp'
     | 'fof'
-    | 'secondary';
+    | 'secondary'
+    /** First funds (more-games note, firstfund.ts): an emerging-manager programme, angels you met, friends and family. */
+    | 'emerging'
+    | 'angel'
+    | 'friends';
   /** A fund of funds that pays this commitment from its own account (Phase 7). */
   fundId?: Id;
   committed: number;
@@ -1546,10 +1597,26 @@ export interface FundLpState {
   /** Fees paid so far. */
   feesPaid: number;
   carryPaid: number;
-  /** Portfolio construction (Phase 5): companies planned, average first cheque, reserve ratio. */
-  plan?: { companies: number; avgCheque: number; reserveRatio: number };
+  /**
+   * Portfolio construction (Phase 5): companies planned, average first
+   * cheque, reserve ratio. With the deal-flow note the LP pitch adds the
+   * ownership target and the geography (lpreview.ts).
+   */
+  plan?: {
+    companies: number;
+    avgCheque: number;
+    reserveRatio: number;
+    targetOwnership?: number;
+    geography?: FundGeography;
+  };
   /** Quarters for which a letter is due (home month the quarter ended), and the last one written. */
   lettersDue?: number[];
+  /**
+   * A first fund raised from the LP panel with rolling closes (more-games
+   * note, firstfund.ts): after the first close, LPs that passed re-review
+   * each month and may join up to the target, until the final close.
+   */
+  rolling?: boolean;
 }
 
 /** A partner or associate in a firm (Phase 6). */
@@ -1621,14 +1688,137 @@ export interface PipelineEntry {
   month: number;
   watch?: boolean;
   passReason?: PassReason;
-  /** How it came in: a pitch, scouting, a co-investor, the café. */
-  source?: 'pitch' | 'scouting' | 'referral' | 'cafe' | 'manual';
+  /** How it came in: a pitch, scouting, a co-investor, the café, an event (deal-flow note). */
+  source?: 'pitch' | 'scouting' | 'referral' | 'cafe' | 'manual' | 'event';
+  /** The founder's pitch when you met (deal-flow note): a snapshot of the company then. */
+  pitch?: EventPitch;
   /** Claims checked against game data (question id → result). */
   claims?: Record<string, 'accurate' | 'slightly-off' | 'false'>;
   /** Reference calls done (home month) and what they said. */
   references?: { month: number; signals: string[] };
   /** For watchlist nudges: the last round month seen. */
   seenRaise?: number;
+}
+
+/** Where a fund invests (deal-flow note): its home city, its country, or the region. */
+export type FundGeography = 'city' | 'country' | 'region';
+
+/**
+ * A founder's pitch to an investor at an event, a hangout or through an
+ * investor's referral (dealflow.ts). Money in the company's currency.
+ */
+export interface EventPitch {
+  /** Where you met: the event's title, or the venue of a hangout. */
+  where: string;
+  whereKind: 'tech' | 'hosted' | 'hangout' | 'referral';
+  /** The event kind (a tech or hosted event's), or 'hangout' / 'referral'. */
+  eventKind: string;
+  founderId: Id;
+  founderName: string;
+  /** A human founder pitched in person. */
+  human: boolean;
+  stage: Stage;
+  industry: Industry;
+  /** Monthly revenue, paying customers, monthly growth (fraction) and team size then. */
+  revenue: number;
+  customers: number;
+  growth: number;
+  team: number;
+  /** What they raise and at what valuation (a SAFE cap, or the pre-money of a priced round). */
+  ask: number;
+  valuation: number;
+  instrument: 'safe' | 'priced';
+  month: number;
+  /** An AI investor who referred it; `coinvest` when they're in it and offer you room. */
+  via?: { name: string; fundId: Id; coinvest: boolean };
+}
+
+/** A conversation with an AI investor at an event (dealflow.ts). */
+export interface InvestorTalk {
+  fundId: Id;
+  name: string;
+  org: string;
+  angel: boolean;
+  where: string;
+  month: number;
+  /** The lesson they shared (data/dealflow.ts), and whether it was new to you. */
+  lessonId: string;
+  learned: boolean;
+  /** Their strategy, in the fund's currency. */
+  sectors: Industry[] | 'any';
+  stages: Stage[];
+  cheque: [number, number];
+  size: number;
+  currency: Currency;
+  companies: number;
+  reserveRatio: number;
+  ownership: number;
+  /** A company they referred to you, if any. */
+  referredId: Id | null;
+  coinvest: boolean;
+}
+
+export interface InvestorLearning {
+  /** Lesson ids learned, oldest first. */
+  lessons: string[];
+  /** Conversations, newest first (kept short). */
+  talks: InvestorTalk[];
+  /** The AI LP panel's last verdict on a Fund I pitch (`fund.raise` with a plan). */
+  lastPanel?: LpPanelReview;
+}
+
+/** How a strategy check came out (lpreview.ts). */
+export type CheckLevel = 'good' | 'warn' | 'bad';
+
+/** An LP's answer to a fund pitch (lpreview.ts): ids and figures the client puts in words. */
+export interface LpVerdict {
+  lpId: string;
+  name: string;
+  kind: string;
+  commit: boolean;
+  /** Commitment, in the fund's currency (0 on a pass). */
+  amount: number;
+  /** Why, as a reason id (lpreview.ts REASONS). */
+  reason: string;
+  score: number;
+  /** More-games note: this LP anchored the fund (the first commitment, 20–30% of the target). */
+  anchor?: boolean;
+  /** More-games note: figures behind the reason (deals needed and had …). */
+  values?: Record<string, number>;
+}
+
+/** A whole LP pitch review: track record, strategy checks, questions and each LP's answer. */
+export interface LpPanelReview {
+  month: number;
+  currency: Currency;
+  score: number;
+  parts: { track: number; strategy: number; team: number; market: number };
+  track: {
+    deals: number;
+    invested: number;
+    returned: number;
+    unrealised: number;
+    tvpi: number;
+    dpi: number;
+    losses: number;
+    /** More-games note: companies that raised a later round at a higher price. */
+    markups?: number;
+  };
+  checks: { id: string; level: CheckLevel; values: Record<string, number> }[];
+  questions: { id: string; values: Record<string, number> }[];
+  lps: LpVerdict[];
+  /** Committed in total, and the target pitched. */
+  committed: number;
+  target: number;
+  ok: boolean;
+  /** More-games note (firstfund.ts): the first-fund size LPs take seriously from this record. */
+  suggested?: { lo: number; size: number; hi: number };
+  /** More-games note: who anchored the fund, and with how much. */
+  anchor?: { name: string; amount: number };
+  /** More-games note: what a first close needs (half the target). */
+  need?: number;
+  /** More-games note: concrete next steps when LPs pass, computed from the gap. */
+  nextSteps?: { id: string; values: Record<string, number> }[];
 }
 
 /** A founder's review of an investor after a round or an ending (Phase 8). */
@@ -2122,6 +2312,8 @@ export interface CapitalApplication {
   };
   /** Pitched over a meal / met at their office. */
   warm?: boolean;
+  /** An LP's verdict on a fund pitched with a strategy (deal-flow note): reasons and questions. */
+  review?: LpPanelReview;
 }
 
 /** A local business run by an AI owner (Wave 3, data/businesses.ts). */

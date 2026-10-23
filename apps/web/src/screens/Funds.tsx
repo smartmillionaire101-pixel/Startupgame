@@ -13,6 +13,15 @@ import { useView } from '../store';
 import { Button, Card, Empty, Field, Pill, Segmented, Stat } from '../ui';
 import { stageLabel } from './common';
 import { FundManagement } from './FundOps';
+import {
+  LpReview,
+  StrategyChecks,
+  StrategyFields,
+  dealflowOf,
+  draftOf,
+  reasonText,
+  type StrategyDraft,
+} from './DealFlow';
 import './investor.css';
 
 type LpFunds = NonNullable<PlayerView['lpFunds']>;
@@ -69,6 +78,16 @@ function LaunchForm({ lp }: { lp: LpFunds }) {
   const [gp, setGp] = useState('0.02');
   const targetAmount = parseAmount(target) ?? d.minTarget * 2;
   const minAmount = parseAmount(min) ?? Math.round(targetAmount / 50);
+  // Deal-flow release: LPs judge the strategy, so the pitch carries it.
+  const df = dealflowOf(view);
+  const [draft, setDraft] = useState<StrategyDraft>({
+    geography: 'city',
+    avgCheque: '',
+    companies: '25',
+    reserveRatio: '0.5',
+    targetOwnership: '5',
+  });
+  const plan = draftOf(draft, view.me.investor?.checkSize ?? 0);
   const toggle = (list: string[], v: string) =>
     list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
   return (
@@ -171,6 +190,30 @@ function LaunchForm({ lp }: { lp: LpFunds }) {
         onChange={setGp}
         options={['0.01', '0.02'].map((v) => ({ value: v, label: pct(Number(v), 0) }))}
       />
+      {df && (
+        <>
+          <StrategyFields
+            draft={draft}
+            onChange={setDraft}
+            currency={d.currency}
+            chequeHint={view.me.investor?.checkSize ?? 0}
+          />
+          {stages.length > 0 && (
+            <StrategyChecks
+              plan={{
+                ...plan,
+                sectors,
+                stages: stages as never,
+                size: targetAmount,
+                feeRate: Number(fee),
+                carry: Number(carry),
+              }}
+              typicalPost={df.typicalPost}
+              currency={d.currency}
+            />
+          )}
+        </>
+      )}
       <p className="inv-note">
         {t(
           'Fund life {term} months: {invest} investing, then harvest. The fee steps down to {step} after the investment period. You commit {gp} of the fund from your own savings, called like everyone else’s.',
@@ -190,7 +233,7 @@ function LaunchForm({ lp }: { lp: LpFunds }) {
               type: 'fund.launch',
               sectors: sectors as never,
               stages: stages as never,
-              checkSize: view.me.investor?.checkSize ?? 0,
+              checkSize: df ? plan.avgCheque : (view.me.investor?.checkSize ?? 0),
               why,
               strategy,
               target: targetAmount,
@@ -202,6 +245,7 @@ function LaunchForm({ lp }: { lp: LpFunds }) {
               termMonths: d.termMonths,
               investMonths: d.investMonths,
               keyPerson: true,
+              ...(df ? { plan } : {}),
             },
             (r: { message: string }) => tx(r.message),
           )
@@ -227,6 +271,12 @@ function kindText(k: string): string {
       return t('Endowment');
     case 'dfi-fof':
       return t('DFI fund-of-funds');
+    case 'emerging':
+      return t('Emerging-manager programme');
+    case 'angel':
+      return t('Angel you met');
+    case 'friends':
+      return t('Friends and family');
     default:
       return t('Sovereign fund');
   }
@@ -290,11 +340,31 @@ function GpFundCard({ f }: { f: GpFund }) {
             )}
           </p>
           {f.lpPipeline.map((x) => (
-            <div key={x.id} className="inv-row">
+            <div key={x.id} className="inv-row" data-lp-row={x.id}>
               <span className="grow">
                 {x.name} <span className="small muted">{kindText(x.kind)}</span>
+                {x.review ? (
+                  <details className="small df-fold">
+                    <summary>
+                      {x.status === 'rejected'
+                        ? t('Passed: “{why}”', {
+                            why: reasonText(x.review.lps[0]?.reason ?? '', x.review.lps[0]?.values),
+                          })
+                        : t('Their questions and answer')}
+                    </summary>
+                    <LpReview review={x.review} compact />
+                  </details>
+                ) : x.status === 'rejected' && x.reason ? (
+                  <div className="small muted">“{tx(x.reason)}”</div>
+                ) : null}
               </span>
-              {x.laterFundsOnly ? (
+              {x.status === 'accepted' ? (
+                <Pill tone="good">
+                  {t('Committed {amount}', { amount: money(x.amount, f.currency) })}
+                </Pill>
+              ) : x.status === 'pending' ? (
+                <Pill tone="info">{t('Deciding at month end')}</Pill>
+              ) : x.laterFundsOnly ? (
                 <Pill>{t('Fund II and later')}</Pill>
               ) : (
                 <Button

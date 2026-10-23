@@ -404,8 +404,16 @@ export class CityScene {
     this.scene.add(this.placesGroup);
     this.buildPlaces();
     // The landmarks' ground: no real outline or lot may stand there.
+    // A bridge's: its line out from the shores (the file maps its towers as
+    // tall outlines, which stood as black blocks beside the model's own).
     for (const p of plans)
       if (p.e2 === undefined) this.blocked.add(makeFp(discPoly(p.e, p.s, landmarkRadius(p.kind))));
+      else if (p.s2 !== undefined) {
+        const L = Math.hypot(p.e2 - p.e, p.s2 - p.s);
+        const rot = Math.atan2(p.s2 - p.s, p.e2 - p.e);
+        const mid = { x: (p.e + p.e2) / 2, y: (p.s + p.s2) / 2 };
+        this.blocked.add(makeFp(rectPoly(mid.x, mid.y, L * 0.8, 30, rot)));
+      }
 
     // OSM outlines, thinned (no two in one space), merged per 1 km tile: a
     // full-density tile, when it stands, takes over its square.
@@ -1663,6 +1671,15 @@ function placeSpec(p: Place): {
     }
     case 'business':
       return { w: W(0.55, 18), d: D(0.55, 16), h: 8, style: 0 };
+    // City places: prominent buildings (stone columns for the state, glass and towers for money).
+    case 'civic': {
+      const m = p.motif;
+      if (m === 'tower') return { w: W(0.75), d: D(0.75), h: 95, style: 3 };
+      if (m === 'glass') return { w: W(0.75), d: D(0.75), h: 55, style: 3 };
+      if (m === 'columns')
+        return { w: W(0.8), d: D(0.8), h: Math.max(18, p.h * 0.5), style: 4, wall: p.color };
+      return { w: W(0.8), d: D(0.8), h: Math.max(16, p.h * 0.45), style: 2 };
+    }
     default:
       return { w: W(0.6), d: D(0.6), h: 12, style: 0 };
   }

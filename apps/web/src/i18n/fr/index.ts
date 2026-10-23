@@ -48,6 +48,7 @@ import { investorFundOps } from './investor-fundops';
 import { investorFirm } from './investor-firm';
 import { investorAllocators } from './investor-allocators';
 import { investorDealcraft } from './investor-dealcraft';
+import { investorDealflow } from './investor-dealflow';
 import { investorLegacy } from './investor-legacy';
 import { tutorial } from './tutorial';
 import { uiFixes } from './ui-fixes';
@@ -78,6 +79,10 @@ import { mallMore } from './mall-more';
 import { flightClasses } from './flight-classes';
 import { restaurants } from './restaurants';
 import { wardrobe } from './wardrobe';
+import { cityPlaces } from './city-places';
+import { moreGames } from './more-games';
+import { capitalExit } from './capital-exit';
+import { firstFund } from './first-fund';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -127,6 +132,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   investorFirm,
   investorAllocators,
   investorDealcraft,
+  investorDealflow,
   investorLegacy,
   tutorial,
   uiFixes,
@@ -159,6 +165,10 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   restaurants,
   tableGames,
   wardrobe,
+  cityPlaces,
+  moreGames,
+  capitalExit,
+  firstFund,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

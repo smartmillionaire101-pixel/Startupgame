@@ -13,8 +13,11 @@ import {
 } from '../src/serverless/netlify.js';
 import {
   jobsOn,
-  INVESTOR_NOTE,
+  dealflowOn,
+  placesOn,
+  MORE_GAMES_NOTE,
   investorOn,
+  moreGamesOn,
   autoQuiz,
   commandSchema,
   exitsOn,
@@ -134,15 +137,18 @@ describe('the world on a key-value store', () => {
     expect(fresh.current.version).toBe(before);
   });
 
-  it('the release note switches on the investor career, jobs, life bars, exits and decision events, and keeps quizzes on the bank', () => {
-    expect(RELEASE_NOTE.id).toBe(INVESTOR_NOTE);
+  it('the release note switches on more games, city places, investor deal flow, the investor career, jobs, life bars, exits and decision events, and keeps quizzes on the bank', () => {
+    expect(RELEASE_NOTE.id).toBe(MORE_GAMES_NOTE);
     // A new world's first (and only) note is this one: quizzes still use the built-in bank,
     // and the earlier exits and journey-events switches are on too.
     const w = { announcements: [RELEASE_NOTE.id] } as unknown as World;
     expect(autoQuiz(w)).toBe(true);
     expect(jobsOn(w)).toBe(true);
     expect(lifeBarsOn(w)).toBe(true);
+    expect(moreGamesOn(w)).toBe(true);
     expect(investorOn(w)).toBe(true);
+    expect(placesOn(w)).toBe(true);
+    expect(dealflowOn(w)).toBe(true);
     expect(exitsOn(w)).toBe(true);
     expect(journeyEventsOn(w)).toBe(true);
   });

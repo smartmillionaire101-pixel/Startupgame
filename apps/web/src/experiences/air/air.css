@@ -1,0 +1,276 @@
+/* ---------------------------------------------------------------- Skydives and helicopter rides */
+.air {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: #0b1a2b;
+  color: #fff;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.air-canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.air-map {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.air .panorama-loading {
+  position: absolute;
+  top: 45%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-weight: 700;
+  text-shadow: 0 1px 6px #000;
+}
+.air .panorama-error {
+  position: absolute;
+  top: 35%;
+  left: 10%;
+  right: 10%;
+  padding: 12px;
+  border-radius: 10px;
+  background: #7f1d1dd9;
+}
+.air-head {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 18px 16px;
+  background: linear-gradient(#000a, transparent);
+  pointer-events: none;
+}
+.air-head h2 {
+  margin: 4px 0 0;
+  font-size: 24px;
+  text-shadow: 0 1px 6px #000;
+}
+.air-head small {
+  letter-spacing: 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.air-head button {
+  pointer-events: auto;
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 20px;
+  border-radius: 50%;
+  background: #0f172acc;
+  color: #fff;
+  border: 1px solid #fff4;
+}
+/* The plane's open door, the canopy overhead, the helicopter's cockpit. */
+.air-door {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: solid #1f2937;
+  border-width: 9vh 13vw 22vh 13vw;
+  border-radius: 28px;
+  box-shadow: inset 0 0 40px #000c;
+}
+.air-canopy {
+  position: absolute;
+  top: -6vh;
+  left: -8vw;
+  right: -8vw;
+  height: 22vh;
+  pointer-events: none;
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  background: repeating-linear-gradient(90deg, #ef4444 0 12%, #f8fafc 12% 24%, #2563eb 24% 36%);
+  box-shadow: 0 6px 18px #0008;
+}
+.air-canopy::after {
+  content: '';
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 100%;
+  height: 50vh;
+  background:
+    linear-gradient(80deg, transparent 49.6%, #fff6 50%, transparent 50.4%),
+    linear-gradient(100deg, transparent 49.6%, #fff6 50%, transparent 50.4%);
+}
+.air-cockpit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(#0000 78%, #111827 78%),
+    linear-gradient(100deg, #111827 0 4%, #0000 4% 96%, #111827 96%);
+  box-shadow: inset 0 40px 60px -30px #000c;
+}
+.air-hud {
+  position: absolute;
+  top: 92px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  pointer-events: none;
+}
+.air-hud > span {
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #0f172acc;
+  font-size: 13px;
+}
+.air-alt {
+  display: grid;
+}
+.air-alt small {
+  font-size: 10px;
+  opacity: 0.8;
+}
+.air-alt b {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.air-target i {
+  display: inline-block;
+  margin-right: 6px;
+  font-style: normal;
+  color: #fbbf24;
+}
+.air-body {
+  position: relative;
+  width: 120px;
+  height: 14px;
+  background: linear-gradient(90deg, #ef4444 0 32%, #22c55e 32% 68%, #ef4444 68%) !important;
+  padding: 0 !important;
+}
+.air-body i {
+  position: absolute;
+  top: 1px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 4px #000;
+}
+.air-say {
+  position: absolute;
+  top: 92px;
+  left: 16px;
+  right: 16px;
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #0f172ad9;
+  font-size: 13px;
+  pointer-events: none;
+}
+.air-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  background: linear-gradient(transparent, #020617f2);
+  text-shadow: 0 1px 4px #000;
+}
+.air-controls p {
+  margin: 0;
+}
+.air-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.air-row button {
+  min-width: 52px;
+  min-height: 48px;
+  border-radius: 12px;
+  background: #1e293bd9;
+  color: #fff;
+  border: 1px solid #fff3;
+  font-weight: 700;
+  touch-action: none;
+}
+.air-row button[aria-pressed='true'] {
+  background: #2563eb;
+}
+.air-result {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #0f172af2;
+}
+.air-result h3 {
+  margin: 0;
+  font-size: 22px;
+}
+.air-result p {
+  margin: 0;
+}
+.air-record {
+  color: #fbbf24;
+  font-weight: 700;
+}
+.air-credit {
+  font-size: 9px;
+  opacity: 0.7;
+}
+/* The booking: the options at the centre or the heliport. */
+.air-options {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+.air-options li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ffffff12;
+}
+.air-options li.is-locked {
+  opacity: 0.6;
+}
+.air-options .going-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.air .experience-primary,
+.air .experience-secondary {
+  min-height: 48px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 16px;
+  text-shadow: none;
+}
+.air .experience-primary {
+  background: #f97316;
+  color: #fff;
+  border: 1px solid #fdba74;
+}
+.air .experience-primary:disabled {
+  opacity: 0.5;
+}
+.air .experience-secondary {
+  background: #1e293b;
+  color: #fff;
+  border: 1px solid #fff4;
+}

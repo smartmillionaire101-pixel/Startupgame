@@ -1030,3 +1030,166 @@
   .shootout-banner {
   animation: none;
 }
+
+/* ---------------------------------------------------------------- Bowling */
+.bowling {
+  display: grid;
+  gap: 8px;
+  padding: 8px 0 4px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.bowling-prompt {
+  margin: 0;
+  min-height: 2.7em;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #e9defa;
+}
+.bowling-lane {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.bowling-lane canvas {
+  display: block;
+  touch-action: none;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.bowling-trail {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.bowling-trail polyline {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The pin display: which pins stand, top right of the lane. */
+.bowling-deck {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 64px;
+  height: 46px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(15, 10, 30, 0.75);
+  pointer-events: none;
+}
+.bowling-deck circle.up {
+  fill: #fff;
+}
+.bowling-deck circle.down {
+  fill: rgba(255, 255, 255, 0.15);
+}
+.bowling-banner {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 26px;
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  animation: shootout-pop 0.35s ease-out;
+}
+.bowling-banner.good {
+  background: rgba(109, 40, 217, 0.94);
+}
+.bowling-banner.bad {
+  background: rgba(71, 85, 105, 0.94);
+}
+.bowling-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  align-items: end;
+}
+.bowling-controls .experience-primary {
+  grid-column: 1 / -1;
+  min-height: 44px;
+}
+.bowling-sheet {
+  display: grid;
+  gap: 4px;
+  overflow-x: auto;
+}
+.bowling-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 36px;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: #1a1030;
+  border: 1px solid #3b2a5c;
+}
+.bowling-row.up {
+  border-color: #c4b5fd;
+}
+.bowling-row strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bowling-row ol {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr) 1.4fr;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bowling-row li {
+  display: grid;
+  min-width: 0;
+  background: #0f0a1e;
+  border-radius: 3px;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.25;
+}
+.bowling-row .marks {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1px;
+  min-height: 12px;
+  padding: 0 2px;
+  color: #cbd5e1;
+}
+.bowling-row .marks i {
+  font-style: normal;
+}
+.bowling-row .marks i.x {
+  color: #f0abfc;
+  font-weight: 800;
+}
+.bowling-row .marks i.sp {
+  color: #93c5fd;
+  font-weight: 800;
+}
+.bowling-row li b {
+  min-height: 12px;
+  font-size: 11px;
+}
+.bowling-total {
+  font-size: 18px;
+  text-align: right;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bowling-banner {
+    animation: none;
+  }
+}

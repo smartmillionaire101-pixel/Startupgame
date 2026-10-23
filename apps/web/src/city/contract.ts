@@ -298,8 +298,16 @@ export function cityInput(view: PlayerView): CityInput {
     ...devPartnersOf(view).map((d) => ({ id: d.id, name: d.name, kind: 'devpartner' as const })),
     ...lpsOf(view).map((l) => ({ id: l.id, name: l.name, kind: 'lp' as const })),
   ];
+  // City places: the city's named buildings (after their release note).
+  const civic = (view.market.cityPlaces?.places ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    role: p.role,
+    district: p.district,
+  }));
   return {
     ...(capital.length ? { capital } : {}),
+    ...(civic.length ? { civic } : {}),
     marketId: view.market.id,
     lenders: lendersOf(view).map((l) => ({ id: l.id, name: l.name, look: l.look })),
     playerBanks: view.market.banks.map((b) => ({ id: b.id, name: b.name })),

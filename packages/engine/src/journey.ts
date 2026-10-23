@@ -15,7 +15,7 @@
  * command log reaches the same world (plus the new milestones).
  */
 import { companyRunway } from './company.js';
-import { investorOn } from './releases.js';
+import { dealflowOn, investorOn } from './releases.js';
 import { getMarket, lastPnl, totalCustomers, INBOX_LIMIT } from './helpers.js';
 import type { Currency } from './money.js';
 import type { Branch, Company, Id, Player, World } from './types.js';
@@ -674,10 +674,13 @@ function ownsListedShares(world: World, p: Player): boolean {
 const portfolio = { kind: 'tab', tab: 'portfolio' } as JourneyGo;
 const deals = { kind: 'tab', tab: 'deals' } as JourneyGo;
 const invest = { kind: 'app', app: 'invest' } as JourneyGo;
+const events = { kind: 'app', app: 'events' } as JourneyGo;
 const ms = (p: Player, id: string) => p.milestones[id] !== undefined;
 
 export const INVESTOR_JOURNEY = {
   angel: { deals: 3 },
+  /** Deal-flow note: strategy lessons from other investors before Fund I. */
+  learn: { lessons: 3 },
 } as const;
 
 /** The investor's chapters: what's already in the game first, the investor career after. */
@@ -697,6 +700,18 @@ export const INVESTOR_CHAPTERS: ChapterDef[] = [
           deals,
           { progress: count(b.personal + b.fund, INVESTOR_JOURNEY.angel.deals) },
         ),
+        // Deal-flow note: events are where a new investor meets founders (optional tip).
+        ...(dealflowOn(world)
+          ? [
+              step(
+                'first-cheque.events',
+                'Meet founders at a tech event or demo day',
+                Object.values(p.pipeline ?? {}).some((e) => e.source === 'event'),
+                events,
+                { optional: true },
+              ),
+            ]
+          : []),
       ];
     },
   },
@@ -747,6 +762,21 @@ export const INVESTOR_CHAPTERS: ChapterDef[] = [
       step('fund.exit', 'Return money to your investors', ms(p, 'investor.first-exit'), portfolio, {
         optional: true,
       }),
+      // Deal-flow note: learn how other investors build a fund before pitching LPs (optional tip).
+      ...(dealflowOn(world)
+        ? [
+            step(
+              'fund.learn',
+              `Talk strategy with ${INVESTOR_JOURNEY.learn.lessons} investors`,
+              (p.dealflow?.lessons.length ?? 0) >= INVESTOR_JOURNEY.learn.lessons,
+              events,
+              {
+                optional: true,
+                progress: count(p.dealflow?.lessons.length ?? 0, INVESTOR_JOURNEY.learn.lessons),
+              },
+            ),
+          ]
+        : []),
     ],
   },
   {

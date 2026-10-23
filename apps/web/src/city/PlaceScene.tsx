@@ -1,5 +1,6 @@
 import { useDaylight } from './useDaylight';
 import { openPlay } from '../experiences/play-bus';
+import { airOf, openAir } from '../experiences/air/air-bus';
 /**
  * Places you walk into (docs/WAVE5-FUN-LIFE-AND-CAPITAL.md §D): going into
  * any place opens a full-screen scene, not a card. An illustrated room for
@@ -70,6 +71,7 @@ import {
   type VenueItemView,
 } from './life';
 import { Showroom, slotsOwned } from './Showroom';
+import { civicOf, civicTray } from './CivicPlace';
 import { EmployerPanel } from '../phone/work';
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
 import { crowdAt, crowdHour } from './crowdfill';
@@ -407,6 +409,12 @@ function occupantsOf(
       );
       break;
     }
+    case 'civic': {
+      // Someone at the desk: an official in a government office, a host elsewhere.
+      const gov = civicOf(view, place)?.access === 'appointment';
+      out.push(staffMember('desk', gov ? t('Official') : t('Host')));
+      break;
+    }
     default:
       if ((place.kind as string) === 'capital') out.push(staffMember('lead', t('Programme lead')));
   }
@@ -736,6 +744,8 @@ function RoomScene({
     name: string;
     check: [number, number];
   } | null>(null);
+  // City places: the named building's view (its services and who may use them).
+  const civic = useMemo(() => civicOf(view, place), [view, place]);
   const company = activeCompany(view);
   const business =
     place.kind === 'business' ? businessesOf(view).find((b) => b.id === place.ref) : undefined;
@@ -974,6 +984,16 @@ function RoomScene({
     setAct((a) => (a?.n === n ? { ...a, result: r ?? {}, met: metOf(r) } : a));
   };
   const doFun = (b: BusinessView, it: VenueItemView) => {
+    // More games: bowling in a play room; a skydive or a helicopter ride is booked, then flown.
+    if (b.kind === 'bowling-alley' && it.id === 'bowling') {
+      openPlay({ venue: b.id, name: b.name, game: 'bowling' });
+      return;
+    }
+    const air = airOf(it);
+    if (air) {
+      openAir({ kind: air, itemId: it.id });
+      return;
+    }
     if (/quiz|snooker|pool|video.game|football/i.test(`${it.id} ${it.label}`)) {
       openPlay({
         venue: b.id,
@@ -1475,6 +1495,9 @@ function RoomScene({
   } else if (place.kind === 'newsstand') {
     actions.push({ ...toMore, label: t('Read the papers'), icon: '📰' });
     actions.push(go('news', t('Open the news screen'), '🗞'));
+  } else if (civic) {
+    actions.push(...civicTray(civic, send, busy, view.here?.currency ?? cur, () => setMore(true)));
+    actions.push({ ...toMore, label: t('About this place'), icon: '🏛' });
   }
   const primary = actions.slice(0, 4);
 
@@ -1505,6 +1528,12 @@ function RoomScene({
       <header className="place-head">
         <div className="place-title">
           <h2>{title}</h2>
+          {civic && (
+            <span className="small muted">
+              {tx(civic.label)}
+              {civic.street ? ` · ${civic.street}` : ''}
+            </span>
+          )}
           {business && (
             <span className="small muted">
               {foodStyle
@@ -1529,7 +1558,7 @@ function RoomScene({
             <Venue3D
               room={room}
               tint={business?.look.color ?? place.color}
-              sign={sign?.toUpperCase().slice(0, 22)}
+              sign={sign?.toUpperCase().slice(0, 32)}
               night={daylight.night}
               slots={slots}
               people={people3d}
@@ -1554,7 +1583,7 @@ function RoomScene({
           {nightStyle ? (
             <NightBack
               s={nightStyle}
-              sign={sign?.toUpperCase().slice(0, 22)}
+              sign={sign?.toUpperCase().slice(0, 32)}
               night={daylight.night}
             />
           ) : room === 'hotel' ? (
@@ -1563,7 +1592,7 @@ function RoomScene({
             <RoomBack
               kind={room}
               tint={foodStyle?.sign[0] ?? business?.look.color ?? place.color}
-              sign={sign?.toUpperCase().slice(0, 22)}
+              sign={sign?.toUpperCase().slice(0, 32)}
               home={home?.items ?? null}
               car={home ? (carOf(view)?.label ?? null) : null}
             />

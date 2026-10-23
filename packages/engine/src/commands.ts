@@ -10,6 +10,7 @@ import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { STARTER_EXPENSE_IDS } from './data/ideas.js';
+import { PLACE_SERVICES } from './data/places.js';
 import { PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
 import { REMOVABLE, lookSchema } from './appearance.js';
 
@@ -23,6 +24,18 @@ const answers = z.record(z.string().max(32), z.string().max(32));
  * months. The engine checks each against its question's kind and bounds.
  */
 const figures = z.record(z.string().max(32), z.number().finite().nonnegative().max(1e15));
+
+/**
+ * Deal-flow note: a fund's strategy as pitched to LPs (lpreview.ts). The
+ * thesis's sectors and stages travel with the command; this is the rest.
+ */
+const fundStrategy = z.object({
+  geography: z.enum(['city', 'country', 'region']),
+  avgCheque: money,
+  companies: z.number().int().min(1).max(100),
+  reserveRatio: z.number().min(0).max(0.8),
+  targetOwnership: z.number().min(0.001).max(0.5),
+});
 
 export const companySetup = z.object({
   name: z.string().min(3).max(32),
@@ -255,6 +268,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     why: z.string().min(10).max(200),
     /** Wave 5: the fund's investor type (default VC). */
     investorType: z.enum(INVESTOR_TYPES).optional(),
+    /** Deal-flow note: the strategy, target size and terms the LP panel judges. */
+    plan: fundStrategy
+      .extend({
+        size: money,
+        feeRate: z.number().min(0.01).max(0.03),
+        carry: z.number().min(0.1).max(0.3),
+      })
+      .optional(),
   }),
   // ---- media
   z.object({ type: z.literal('media.accept'), inviteId: id, angle: z.string().max(40) }),
@@ -302,7 +323,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('car.select'), modelId: id }),
   z.object({
     type: z.literal('play.create'),
-    game: z.enum(['quiz', 'snooker', 'football', 'golf']),
+    game: z.enum(['quiz', 'snooker', 'football', 'golf', 'bowling']),
     venue: id,
     title: z.string().trim().min(3).max(60),
     stake: z.number().int().min(0).max(100_000_000),
@@ -382,6 +403,19 @@ export const commandSchema = z.discriminatedUnion('type', [
     aim: z.number().min(-Math.PI).max(Math.PI),
     power: z.number().min(0).max(110),
     pickup: z.boolean().optional(),
+  }),
+  /**
+   * Bowling (more-games release): your ball's inputs only (where you let go,
+   * the line, how hard, the hook). The engine rolls it and scores the frame.
+   */
+  z.object({
+    type: z.literal('play.bowl'),
+    roomId: id,
+    round: z.number().int().min(0),
+    x: z.number().min(-0.5).max(0.5),
+    aim: z.number().min(-0.25).max(0.25),
+    power: z.number().min(0).max(1),
+    spin: z.number().min(-1).max(1),
   }),
   z.object({
     type: z.literal('play.shot'),
@@ -680,11 +714,44 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('hotel.leave'), holidayId: id }),
   /** Go to one of the city's tech events this month (`here.techEvents`). */
   z.object({ type: z.literal('techevent.attend'), eventId: id }),
+  /**
+   * City places (after their release note): book an appointment at a
+   * government office in your home city (`<market>:<role>`); the time comes
+   * back and lands in your inbox.
+   */
+  z.object({ type: z.literal('place.book'), placeId: z.string().min(1).max(64) }),
+  /**
+   * Inside a city place (in person; a government office at your appointment):
+   * do one of its services. `companyId` picks the company a filing or an
+   * incentive is for; `to` the city a business visa is for.
+   */
+  z.object({
+    type: z.literal('place.use'),
+    placeId: z.string().min(1).max(64),
+    service: z.enum(PLACE_SERVICES),
+    companyId: id.optional(),
+    to: market.optional(),
+  }),
   /** Golf (leisure.ts): hand in your card for the city's three holes (strokes per hole). */
   z.object({
     type: z.literal('golf.round'),
     strokes: z.array(z.number().int().min(1).max(20)).min(1).max(18),
   }),
+  /**
+   * More games (games.ts): book a skydive or a helicopter flight at the city's
+   * skydive centre or heliport (the venue item: its price and lifestyle tier).
+   */
+  z.object({ type: z.literal('games.book'), businessId: id, itemId: z.string().min(1).max(32) }),
+  /** Hand in the skydive you booked: the pull height, how far from the target, the style. */
+  z.object({
+    type: z.literal('games.land'),
+    bookingId: id,
+    deployAt: z.number().min(0).max(5000),
+    miss: z.number().min(0).max(20000),
+    style: z.number().min(0).max(100),
+  }),
+  /** A booked flight is over (a helicopter ride, or a jump not handed in). */
+  z.object({ type: z.literal('games.end'), bookingId: id }),
   /** The mall (leisure.ts): buy one thing; clothes take a colour (#rrggbb). */
   z.object({
     type: z.literal('mall.buy'),
@@ -971,6 +1038,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     termMonths: z.number().int().min(1).max(240),
     investMonths: z.number().int().min(1).max(240),
     keyPerson: z.boolean(),
+    /** Deal-flow note: portfolio construction and geography LPs judge the pitch on. */
+    plan: fundStrategy.optional(),
   }),
   z.object({ type: z.literal('fund.close'), fundId: id }),
   z.object({ type: z.literal('fund.abandon'), fundId: id }),
@@ -1031,6 +1100,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('secondary.investorSell'),
     companyId: id,
     pctBps: z.number().int().min(1).max(10_000),
+    /** An AI fund or angel already on the cap table; omit for an outside secondary buyer. */
+    buyerId: id.optional(),
   }),
   // ---- investor career Phase 6: the firm
   z.object({ type: z.literal('firm.found'), name: z.string().min(3).max(40) }),

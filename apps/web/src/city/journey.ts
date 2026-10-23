@@ -258,6 +258,11 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
         label: t('Back {n} startups', { n: need }),
         why: t('Deal offers lists every startup raising money'),
       };
+    case 'first-cheque.events':
+      return {
+        label: t('Meet founders at a tech event or demo day'),
+        why: t('Events app: founders pitch investors, and their deals join your pipeline'),
+      };
     case 'track-record.follow-on':
       return {
         label: t('Back a company again'),
@@ -292,6 +297,11 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
       return {
         label: t('Return money to your investors'),
         why: t('A company you backed is bought or lists'),
+      };
+    case 'fund.learn':
+      return {
+        label: t('Talk strategy with {n} investors', { n: need }),
+        why: t('At events, other investors share how they build a fund'),
       };
     case 'firm.syndicate':
       return {

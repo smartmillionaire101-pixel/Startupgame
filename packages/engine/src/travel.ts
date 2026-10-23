@@ -42,6 +42,7 @@ import { investorOn } from './releases.js';
 import { checkName, normaliseName } from './names.js';
 import { waterfall } from './captable.js';
 import type { Company, HotelStay, Player, TicketFlight, World } from './types.js';
+import { hasVisa } from './places.js';
 
 export const TRIP_HOURS = 40;
 
@@ -403,7 +404,7 @@ export function bookFlight(
   ensure(to !== from, 'travel.here', `You’re already in ${dest.data.name}.`);
   const used = p.flights?.month === home.month ? p.flights.count : 0;
   ensure(
-    used < MAX_FLIGHTS_PER_MONTH || to === p.market,
+    used < MAX_FLIGHTS_PER_MONTH || to === p.market || hasVisa(world, p, to),
     'travel.flights',
     `That’s ${MAX_FLIGHTS_PER_MONTH} flights this month. Stay a while.`,
   );
@@ -518,7 +519,8 @@ export function fly(world: World, p: Player, to: MarketId, now: number) {
   const hotel = ticket.hotel ? { ...ticket.hotel } : undefined;
   const cabin: CabinClass = ticket.cabin ?? 'economy';
   delete p.flightTicket;
-  p.flights = { month: home.month, count: used + 1 };
+  // City places: a business visa's flights don't count against the monthly limit.
+  p.flights = { month: home.month, count: hasVisa(world, p, to) ? used : used + 1 };
   if (to === p.market) delete p.location;
   else {
     p.location = { market: to, since: now, ...(hotel ? { hotel } : {}) };

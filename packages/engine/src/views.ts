@@ -3,12 +3,14 @@ import { exchangeView } from './exchange.js';
 import { syndicatesView } from './syndicates.js';
 import { lpFundsView } from './lpfunds.js';
 import { firmView } from './firms.js';
-import { familyOfficeView, stakeConsentsView } from './allocation.js';
+import { familyOfficeView, investorStakesView, stakeConsentsView } from './allocation.js';
 import { dealCraftView, offerComparisonView, redFlags, reviewableView } from './dealcraft.js';
+import { investorDealFlowView } from './dealflow.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
-import { investorOn, lifeBarsOn } from './releases.js';
+import { investorOn, lifeBarsOn, placesOn } from './releases.js';
+import { cityPlacesView } from './places.js';
 import { anyJobView, workView } from './work.js';
 import { pitchQuestionsNow } from './fundraising.js';
 import { journeyView } from './journey.js';
@@ -24,7 +26,8 @@ import { salesView } from './sales.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
-import { golfMatchOptions, playView } from './play.js';
+import { bowlingOptions, golfMatchOptions, playView } from './play.js';
+import { gamesView } from './games.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
  *  - their own accounts, companies, deals, pitches, stories and inbox in full,
@@ -643,6 +646,12 @@ function marketView(
      * (businessId → AI angel ids there this period), angels, centralBank.
      */
     ...capitalProgramsView(world, p, m),
+    /**
+     * City places (after their release note): the city's named buildings,
+     * whether you may go in (and why not), your appointment, and what you
+     * can do inside. Null in worlds without the note.
+     */
+    cityPlaces: placesOn(world) ? cityPlacesView(world, p, m, clock?.now ?? p.lastActiveAt) : null,
     eventKinds: EVENT_KINDS.map((kind) => {
       const k = EVENT_KIND_DATA[kind];
       return {
@@ -724,6 +733,8 @@ export function playerView(
     stakeConsents: investorOn(world) ? stakeConsentsView(world, p) : [],
     /** Investor career Phase 8: the pipeline, reputation, reviews and the monthly recap. */
     dealCraft: dealCraftView(world, p),
+    /** Deal-flow note: pitches heard at events, investors met, lessons, LP panel feedback. */
+    investorDealFlow: investorDealFlowView(world, p),
     /** Investor career Phase 8: for founders, the human investors you can review. */
     reviewable: reviewableView(world, p),
     offerComparison: offerComparisonView(world, p),
@@ -749,6 +760,8 @@ export function playerView(
           exits: exitOptionsView(world, p),
           market: publicMarketView(world, p),
           offers: secondaryOffersView(world, p),
+          /** Private stakes you hold as an investor: what selling pays, or why you can't yet. */
+          stakes: investorStakesView(world, p),
           allocator: allocatorView(world, p),
         },
     /**
@@ -845,6 +858,15 @@ export function playerView(
       car: carView(world, p),
       /** Golf: the course in the city you're in, the green fee and your record. */
       golf: { ...golfView(world, p), match: golfMatchOptions(world, p) },
+      /**
+       * More games (null before the more-games release): the city's bowling
+       * alley (and its lane fee and stakes), skydive centre and heliport, and
+       * your record.
+       */
+      games: (() => {
+        const g = gamesView(world, p);
+        return g ? { ...g, lanes: bowlingOptions(world, p) } : null;
+      })(),
       /** The mall in the city you're in: its shops' items and prices, your phone. */
       mall: { ...mallView(world, p), ...mallTripView(world, p) },
       /** "My purchases": your wardrobe (what you can wear, free) and the other things you keep. */

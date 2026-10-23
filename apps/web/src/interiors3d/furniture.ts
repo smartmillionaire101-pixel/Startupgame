@@ -5,7 +5,16 @@
  * that move (a screen, a door, a pan) stay separate and are returned by name.
  */
 import * as THREE from 'three';
-import { Kit, mat, paintingTexture, rugTexture, screenTexture, contactShadow, tone } from './kit';
+import {
+  Kit,
+  RUG_Y,
+  mat,
+  paintingTexture,
+  rugTexture,
+  screenTexture,
+  contactShadow,
+  tone,
+} from './kit';
 
 export interface ModelOpts {
   w: number;
@@ -613,7 +622,7 @@ const rug: Builder = (k, o) => {
   const geo = new THREE.PlaneGeometry(w, d);
   const mesh = new THREE.Mesh(geo, mat('#ffffff', { map: rugTexture(o.tier, col) }));
   mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = 0.012 + (o.tier - 1) * 0.004;
+  mesh.position.y = RUG_Y;
   mesh.receiveShadow = true;
   k.keep(mesh);
 };

@@ -91,6 +91,8 @@ function suspension(
     towerH: number;
     towers: number[];
     anchors?: number[];
+    /** A concrete anchorage mid-bridge (the Bay Bridge's, between its two suspension bridges). */
+    anchorage?: number;
     legs: number;
     portals: number;
     /** Light colour (cables and floodlights), and the Bay Lights on the suspenders. */
@@ -133,6 +135,11 @@ function suspension(
     // A plinth in the water.
     add(tower, box(o.legs * 3, 8, half * 2 + 14), mat('#9d9a92'), 0, -3, 0);
     g.add(tower);
+  }
+  if (o.anchorage !== undefined) {
+    const p = at(s, o.anchorage);
+    const block = add(g, box(36, o.deck + 14, half * 2 + 18), mat('#9d9a92'), p.x, -3, p.y);
+    block.rotation.y = yaw;
   }
   // Cables: towers' tops sag to the deck mid-span; the side spans run down to the anchors.
   const ts = [...o.towers].sort((a, b) => a - b);
@@ -238,7 +245,8 @@ function towerBridge(s: Span) {
   const stone = mat('#cdbf9f');
   const slate = mat('#4f5d6e');
   const blue = mat('#7da3c8', { rough: 0.5 });
-  const spanT = Math.min(0.32, 35 / L);
+  // Its towers 80 m apart, centre to centre (a 61 m bascule span between them).
+  const spanT = Math.min(0.32, 40 / L);
   for (const t of [0.5 - spanT, 0.5 + spanT]) {
     const p = at(s, t);
     const tw = new THREE.Group();
@@ -693,6 +701,13 @@ export interface LandmarkPlan {
   color?: string;
 }
 
+/**
+ * The Bay Bridge's real towers and centre anchorage, along its western span
+ * (the file's way from the shore to Yerba Buena: geoLayout bridgeEnds).
+ */
+export const BAY_TOWERS = [0.12, 0.366, 0.631, 0.877];
+export const BAY_ANCHORAGE = 0.498;
+
 /** Deck heights to give bridges a landmark model stands on (applied to the road index). */
 export function deckFor(p: LandmarkPlan): number | null {
   if (p.e2 === undefined) return null;
@@ -725,18 +740,20 @@ export function buildLandmarks(
           portals: 4,
           light: '#ffbf66',
         });
-      else if (p.kind === 'suspension')
+      else if (p.kind === 'suspension') {
+        const bay = /Bay Bridge|Oakland/i.test(p.name);
         g = suspension(s, {
           color: p.color ?? '#9ca3af',
           deck,
           towerH: 110,
-          towers: [0.18, 0.4, 0.6, 0.82],
+          towers: bay ? BAY_TOWERS : [0.18, 0.4, 0.6, 0.82],
+          ...(bay ? { anchorage: BAY_ANCHORAGE } : {}),
           legs: 8,
           portals: 3,
           light: '#eef4ff',
-          bayLights: /Bay Bridge|Oakland/i.test(p.name),
+          bayLights: bay,
         });
-      else if (p.kind === 'cable-stayed')
+      } else if (p.kind === 'cable-stayed')
         g = cableStayed(s, {
           color: p.color ?? '#f1f5f9',
           deck,

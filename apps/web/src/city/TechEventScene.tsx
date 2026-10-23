@@ -22,6 +22,7 @@ import { genderOf } from './life';
 import { leaveTechEvent, techKindLabel } from './techevent';
 import { hereOf } from './travel';
 import type { SceneProps } from './PlaceScene';
+import type { EventDealFlow } from '../screens/DealFlow';
 
 type Phase = 'intro' | 'talk' | 'network' | 'pitch' | 'done';
 
@@ -35,6 +36,8 @@ interface AttendResult {
   effects?: { network?: number; social?: number; fun?: number };
   contacts?: { name: string; kind: string }[];
   pitch?: { onStage: boolean; interest: { name: string; fund: string } | null } | null;
+  /** Deal-flow release: founders who pitched an investor, investors met. */
+  dealflow?: EventDealFlow;
 }
 
 const PHASE_MS: Record<'talk' | 'network' | 'pitch', number> = {
@@ -174,6 +177,8 @@ function EventStage({
   const mingling = phase === 'network';
   const onStage = phase === 'pitch';
   const met = result?.contacts ?? [];
+  const pitches = result?.dealflow?.pitches ?? [];
+  const talks = result?.dealflow?.investors ?? [];
   const live = phase === 'talk' || phase === 'network' || phase === 'pitch';
   const want3d = use3d();
   const [ready3d, setReady3d] = useState(false);
@@ -293,6 +298,19 @@ function EventStage({
                   + {c.name}
                 </li>
               ))}
+              {pitches.slice(0, 4).map((p, i) => (
+                <li
+                  key={p.companyId}
+                  data-pitched={p.companyId}
+                  style={{ animationDelay: `${(i + Math.min(5, met.length)) * 0.35}s` }}
+                >
+                  🎤{' '}
+                  {t('{founder} pitches {company}', {
+                    founder: p.pitch.founderName,
+                    company: p.name,
+                  })}
+                </li>
+              ))}
             </ul>
           </div>
         )}
@@ -376,6 +394,27 @@ function EventStage({
                   names: met.map((c) => c.name.split(' ')[0]).join(', '),
                 })}
               </li>
+              {pitches.length > 0 && (
+                <li className="good" data-pitches={pitches.length}>
+                  {t('{n} founders pitched you: {names}', {
+                    n: pitches.length,
+                    names: pitches.map((p) => p.name).join(', '),
+                  })}
+                </li>
+              )}
+              {talks.length > 0 && (
+                <li className="good" data-talks={talks.length}>
+                  {t('You talked strategy with {names}', {
+                    names: talks.map((x) => x.name).join(', '),
+                  })}
+                  {result?.dealflow?.lessonsLearned
+                    ? ` · ${t('{n} new lessons', { n: result.dealflow.lessonsLearned })}`
+                    : ''}
+                </li>
+              )}
+              {(pitches.length > 0 || talks.length > 0) && (
+                <li className="small muted">{t('Everything is in Portfolio → Pipeline.')}</li>
+              )}
               {result?.pitch?.interest && (
                 <li className="good">
                   {t('{name} ({fund}) liked your pitch: a warm intro is waiting.', {

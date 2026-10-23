@@ -17,6 +17,7 @@ import { H, Nothing, type PhoneCtx } from '../shared';
 import { Invitations, PlanHangout } from './Friends';
 import { Competitions } from './Competitions';
 import { competitionsHere } from '../../city/wave10';
+import { EventDealFlowResult, dealflowOf, type EventDealFlow } from '../../screens/DealFlow';
 
 /** Wave 10: the Events app has two tabs, tech events and pitch competitions. */
 export function Events({ ctx }: { ctx: PhoneCtx }) {
@@ -62,10 +63,17 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
     goToTechEvent(e.id, e.venue.placeId);
     ctx.goPlace(e.venue.placeId);
   };
-  const attend = (e: TechEventView) =>
-    void send<{ message?: string }>({ type: 'techevent.attend', eventId: e.id }, (r) =>
-      r?.message ? tx(r.message) : t('You went to {event}.', { event: tx(e.title) }),
+  // Deal-flow release: what an investor got out of an event (pitches, investors met).
+  const [results, setResults] = useState<Record<string, EventDealFlow>>({});
+  const attend = async (e: TechEventView) => {
+    const r = await send<{ message?: string; dealflow?: EventDealFlow }>(
+      { type: 'techevent.attend', eventId: e.id },
+      (x) => (x?.message ? tx(x.message) : t('You went to {event}.', { event: tx(e.title) })),
     );
+    const df = r?.dealflow;
+    if (df) setResults((x) => ({ ...x, [e.id]: df }));
+  };
+  const investor = !!dealflowOf(view);
   const on = (events ?? []).filter((e) => e.status === 'on');
   const soon = (events ?? []).filter((e) => e.status === 'soon');
 
@@ -93,6 +101,11 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
         </ul>
       )}
       {e.pitchChance && <p className="small">{t('Founders may get a slot to pitch on stage.')}</p>}
+      {investor && e.status === 'on' && !e.attended && (
+        <p className="small">
+          {t('Founders here will pitch you, and you’ll meet other investors.')}
+        </p>
+      )}
       <div className="row">
         {e.status === 'on' ? (
           e.attended ? (
@@ -106,7 +119,7 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
             </>
           ) : (
             <>
-              <Button disabled={busy} onClick={() => attend(e)}>
+              <Button disabled={busy} onClick={() => void attend(e)}>
                 {t('Attend')}
               </Button>
               <Button variant="subtle" onClick={() => go(e)}>
@@ -124,6 +137,7 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
           </Button>
         )}
       </div>
+      {results[e.id] && <EventDealFlowResult result={results[e.id]!} />}
     </li>
   );
 

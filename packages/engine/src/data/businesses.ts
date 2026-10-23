@@ -1070,6 +1070,65 @@ export const BUSINESS_KINDS: BusinessKindSpec[] = [
     awning: '#00bcd4',
     color: '#0097a7',
   }),
+  // More games (../games.ts): a bowling alley, a skydive centre and a heliport in
+  // every city. They open only in worlds that logged the more-games release note.
+  kind('bowling-alley', 'hospitality', 'Bowling alley', 'warehouse', [8, 22], {
+    items: [
+      act('bowling', 'Bowling (a game of ten frames)', 0.008, 8, 0.2, { meeting: true }),
+      item('shake', 'Fries and a milkshake', 0.006, 6, true),
+      item('drink', 'A drink at the lanes', 0.004, 2, true),
+    ],
+    buys: { fintech: 0.012, saas: 0.012, agritech: 0.01 },
+    gigs: [
+      gig('lanes', 'Lane attendant shift', 6, 0.05),
+      gig('leagues', 'Sign up company leagues', 8, 0.11, 'sales'),
+    ],
+    roles: [
+      entry('attendant', 'Lane attendant'),
+      skilled('mechanic', 'Pinsetter mechanic', 1.4, 'ops'),
+      lead('manager', 'Alley manager', 2.2),
+    ],
+    awning: '#7c3aed',
+    color: '#5b21b6',
+  }),
+  kind('skydive-centre', 'hospitality', 'Skydive centre', 'warehouse', [12, 35], {
+    items: [
+      luxe('skydive-tandem', 'Tandem skydive', 0.09, 10, 0.2, 3),
+      luxe('skydive-solo', 'Solo skydive (with two instructors)', 0.15, 10, 0.25, 4),
+      item('coffee', 'Coffee in the hangar', 0.004, 3, true),
+    ],
+    buys: { fintech: 0.012, saas: 0.015, logistics: 0.012 },
+    gigs: [
+      gig('packing', 'Pack parachutes', 6, 0.07),
+      gig('bookings', 'Sell jumps to companies', 8, 0.13, 'sales'),
+    ],
+    roles: [
+      entry('ground', 'Ground crew', 0.95),
+      skilled('instructor', 'Skydiving instructor', 1.9),
+      lead('manager', 'Drop zone manager', 2.6),
+    ],
+    awning: '#ea580c',
+    color: '#c2410c',
+  }),
+  kind('heliport', 'hospitality', 'Heliport', 'warehouse', [20, 50], {
+    items: [
+      luxe('heli-tour', 'Helicopter city tour', 0.07, 9, 0.25, 3, { meeting: true }),
+      luxe('heli-charter', 'Private helicopter charter', 0.3, 10, 0.45, 4, { meeting: true }),
+      item('lounge', 'Coffee in the terminal', 0.006, 3, true),
+    ],
+    buys: { fintech: 0.015, saas: 0.015, logistics: 0.02 },
+    gigs: [
+      gig('ground', 'Ground handling shift', 8, 0.08),
+      gig('charters', 'Sell charter flights', 10, 0.16, 'sales'),
+    ],
+    roles: [
+      entry('ground', 'Ground handler', 0.95),
+      skilled('pilot', 'Helicopter pilot', 2),
+      lead('manager', 'Heliport manager', 2.8),
+    ],
+    awning: '#0f172a',
+    color: '#1e293b',
+  }),
   // The jobs rework: professional employers (data/professions.ts), one of each per
   // city. Their ladders are applied for (work.ts); no walk-in roles. They open only
   // in worlds that logged the jobs release note.

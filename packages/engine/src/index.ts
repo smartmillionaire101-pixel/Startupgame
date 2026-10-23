@@ -122,8 +122,28 @@ export {
   jobsOn,
   INVESTOR_NOTE,
   investorOn,
+  DEALFLOW_NOTE,
+  dealflowOn,
+  PLACES_NOTE,
+  placesOn,
+  MORE_GAMES_NOTE,
+  moreGamesOn,
   RELEASES,
 } from './releases.js';
+// Investor deal flow: event pitches, investor talks and realistic LP pitches.
+export {
+  strategyChecks,
+  coherenceOf,
+  typicalPostMoney,
+  fitPlanToSize,
+  LIFETIME_FEE_YEARS,
+  type StrategyPlan,
+  type StrategyCheck,
+} from './lpreview.js';
+export { LESSONS, DEALFLOW } from './data/dealflow.js';
+// A realistic first fund: suggested size, first-time-manager LPs, anchor, rolling closes.
+export { suggestFundSize, type SuggestedSize, type FirstFundRecord } from './firstfund.js';
+export { FIRST_FUND } from './data/investor.js';
 // Phase 3: life bars (energy, health, happiness, stress) and what trips cost.
 export {
   LIFE_BARS,
@@ -316,6 +336,45 @@ export {
   shootoutOver,
 } from './shootout.js';
 export type { Kick, KickOutcome, KickResult } from './shootout.js';
+// More games: ten-pin bowling (a play room), skydives and helicopter flights.
+export {
+  LANE_LEN,
+  LANE_HALF,
+  GUTTER_W,
+  KICKBACK,
+  OIL_END,
+  BALL_R,
+  PIN_R,
+  PIN_DOWN_R,
+  PIN_SPACE,
+  PIN_ROW,
+  PIT_Z,
+  PIN_SPOTS,
+  FULL_RACK,
+  bowlSpeed,
+  launchOf,
+  wobble,
+  ballLineAt,
+  simulateBowl,
+  bowlingGame,
+  aimFor,
+  spareTarget,
+  aiBowl,
+} from './bowling.js';
+export type {
+  BowlInput,
+  BowlLaunch,
+  BowlSim,
+  BowlFrame,
+  BowlFrameScore,
+  BowlGameState,
+  PinState,
+} from './bowling.js';
+export { BOWL_MS, BOWL_AI_THINK, bowlerSkill, bowlAiSkill, strikesIn } from './play.js';
+export type { Bowler, BowlRollLog, BowlingMatch } from './play.js';
+export { GAME_VENUES, AIR_ACTIVITIES, SKYDIVE, BOWLING, gameVenueKey } from './data/games.js';
+export type { GameVenueKind, GameVenueSeed, AirActivity } from './data/games.js';
+export { skydiveScore, gameVenueOf } from './games.js';
 export {
   JOURNEY,
   OBJECTIVE_KINDS,
@@ -367,3 +426,14 @@ export {
 } from './recap.js';
 // The investor career (investor blueprint): config, glossary and rungs.
 export { INVESTOR, RUNGS, GLOSSARY, type RungId } from './data/investor.js';
+// City places: each city's named buildings, who may go in, appointments and services.
+export {
+  CITY_PLACES,
+  PLACE_ROLES,
+  PLACE_SERVICES,
+  PLACE_SPECS,
+  PLACES,
+  SERVICE_SPECS,
+} from './data/places.js';
+export type { PlaceRole, PlaceService, PlaceGate, PlaceAccess } from './data/places.js';
+export { cityPlaces, findPlace, gameMinute, whenOf, placeAccess } from './places.js';

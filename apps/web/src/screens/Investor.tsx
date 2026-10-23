@@ -20,6 +20,7 @@ import { FundConsole, LpPortfolio, lpFundsOf } from './Funds';
 import { FirmScreen } from './Firm';
 import { FamilyOffice } from './FamilyOffice';
 import { PipelineScreen } from './Pipeline';
+import { FundPitch, LastPanel, dealflowOf } from './DealFlow';
 import { Legacy } from './Legacy';
 import { ProRataOffers, StakeConsents, positionStatusText } from './FundOps';
 import { SimpleLink } from './SimpleLink';
@@ -453,27 +454,33 @@ export function Portfolio() {
         <p className="small muted">
           {t(
             'Paper gains come when companies raise at higher prices; real gains only at exits. AI LPs judge you on cash returned.',
-          )}
+          )}{' '}
+          {t('To sell a stake before the company exits, open Capital → Exit.')}
         </p>
       </Card>
       {view.fund ? (
-        <Card title={view.fund.name} tone="good">
-          <div className="grid2">
-            <Stat label={t('Fund size')} value={money(view.fund.size, cur)} />
-            <Stat label={t('Dry powder')} value={money(view.fund.cash, cur)} />
-            <Stat
-              label={t('Distributed')}
-              value={money(view.fund.distributed, cur)}
-              hint={t('DPI {n}x', {
-                n: (view.fund.distributed / Math.max(1, view.fund.size)).toFixed(2),
-              })}
-            />
-            <Stat label={t('Deals')} value={view.fund.record.deals} />
-          </div>
-          <p className="small muted">
-            {t('2% a year pays your salary. 20% carry only after LPs get their money back.')}
-          </p>
-        </Card>
+        <>
+          <Card title={view.fund.name} tone="good">
+            <div className="grid2">
+              <Stat label={t('Fund size')} value={money(view.fund.size, cur)} />
+              <Stat label={t('Dry powder')} value={money(view.fund.cash, cur)} />
+              <Stat
+                label={t('Distributed')}
+                value={money(view.fund.distributed, cur)}
+                hint={t('DPI {n}x', {
+                  n: (view.fund.distributed / Math.max(1, view.fund.size)).toFixed(2),
+                })}
+              />
+              <Stat label={t('Deals')} value={view.fund.record.deals} />
+            </div>
+            <p className="small muted">
+              {t('2% a year pays your salary. 20% carry only after LPs get their money back.')}
+            </p>
+          </Card>
+          <LastPanel />
+        </>
+      ) : view.me.role === 'investor' && dealflowOf(view) ? (
+        <FundPitch />
       ) : view.me.role === 'investor' ? (
         <Card title={t('Raise Fund I from AI LPs')}>
           <p className="small muted">

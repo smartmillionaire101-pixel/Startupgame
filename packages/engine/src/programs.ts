@@ -31,7 +31,10 @@
  * the new 'programs' RNG label. Money moves only through the ledger
  * (external LP and supplier accounts on the outside), so it is conserved.
  */
-import { aiLpCommit } from './lpfunds.js';
+import { aiLpCommit, committedTotal } from './lpfunds.js';
+import { REASON_TEXT, reviewPitch } from './lpreview.js';
+import { dealflowOn, moreGamesOn } from './releases.js';
+import { fundAnchor } from './firstfund.js';
 import { playerDemoDay } from './institutions.js';
 import {
   ACCELERATORS,
@@ -875,6 +878,9 @@ function decideLp(world: World, app: CapitalApplication, m: MarketState, month: 
   const manager = world.players[app.playerId];
   if (!lp || !fund || !manager || fund.managerId !== manager.id)
     return reject(world, app, month, 'The pitch lapsed.');
+  // Deal-flow note: a fund launched with a strategy is judged on it (lpreview.ts).
+  if (dealflowOn(world) && fund.lp?.plan?.targetOwnership !== undefined)
+    return decideLpOnStrategy(world, app, lp, fund, manager, month);
   const bar = lpBar(world, lp, manager, fund);
   if (!bar.ok) return reject(world, app, month, bar.reason, lp.name);
   const record = trackRecord(world, [manager.id, fund.id]);
@@ -900,7 +906,90 @@ function decideLp(world: World, app: CapitalApplication, m: MarketState, month: 
       lp.name,
     );
   const usd = lp.ticketUsd[0] + (lp.ticketUsd[1] - lp.ticketUsd[0]) * clamp01((score - 0.5) / 0.4);
-  const commitment = usdToLocal(world, m, usd);
+  acceptLp(world, app, lp, fund, manager, usdToLocal(world, m, usd), month);
+}
+
+/**
+ * Deal-flow note: an LP judges a fund pitched with a strategy on the
+ * strategy's arithmetic, the track record, the team and the market, through
+ * its own lens; the review (questions, reason, amount) stays on the pitch.
+ */
+function decideLpOnStrategy(
+  world: World,
+  app: CapitalApplication,
+  lp: LpSeed,
+  fund: Fund,
+  manager: Player,
+  month: number,
+) {
+  const book = fund.lp!;
+  const plan = book.plan!;
+  // More-games note: a first fund's rolling close takes LPs up to the target, until the final close.
+  const rolling = !!book.rolling && moreGamesOn(world);
+  if (rolling && book.finalCloseMonth !== undefined)
+    return reject(world, app, month, 'The fund has held its final close.', lp.name);
+  const earlier = Object.values(world.funds).filter(
+    (f) => f.managerId === manager.id && f.lp && f.lp.number < book.number,
+  );
+  const review = reviewPitch(
+    world,
+    manager,
+    {
+      sectors: fund.sectors === 'any' ? [] : fund.sectors,
+      stages: fund.stages,
+      geography: plan.geography ?? 'city',
+      size: book.terms.target,
+      avgCheque: plan.avgCheque,
+      companies: plan.companies,
+      reserveRatio: plan.reserveRatio,
+      targetOwnership: plan.targetOwnership ?? 0.1,
+      feeRate: book.terms.feeRate,
+      carry: book.terms.carry,
+    },
+    [lp],
+    {
+      number: book.number,
+      type: fundInvestorType(fund),
+      month,
+      ...(earlier.length ? { lastSize: Math.max(...earlier.map((f) => f.size)) } : {}),
+      ...(rolling
+        ? {
+            rolling: book.stage === 'investing',
+            committed: committedTotal(fund),
+            ...(fundAnchor(fund) ? { anchor: fundAnchor(fund)! } : {}),
+          }
+        : {}),
+    },
+    deriveRng(world.seed, 'dealflow', 'lp', app.id),
+  );
+  app.review = review;
+  const v = review.lps[0]!;
+  // Room left before the fund is oversubscribed (one and a half times the target;
+  // a first fund's rolling close stops at the target).
+  const cap = rolling ? book.terms.target : Math.round(book.terms.target * 1.5);
+  const room = Math.max(0, cap - committedTotal(fund));
+  if (!v.commit || room === 0)
+    return reject(
+      world,
+      app,
+      month,
+      room === 0 ? 'The fund is full.' : (REASON_TEXT[v.reason] ?? ''),
+      lp.name,
+    );
+  acceptLp(world, app, lp, fund, manager, Math.min(v.amount, room), month);
+}
+
+/** An LP commits: recorded on a fund with an LP book (paid at its close), paid at once otherwise. */
+function acceptLp(
+  world: World,
+  app: CapitalApplication,
+  lp: LpSeed,
+  fund: Fund,
+  manager: Player,
+  commitment: number,
+  month: number,
+) {
+  const m = getMarket(world, app.market);
   // Investor career Phase 4: a fund with an LP book records the commitment (paid at its close).
   const received = fund.lp
     ? aiLpCommit(world, fund, lp, commitment, month)

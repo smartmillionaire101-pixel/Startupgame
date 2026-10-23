@@ -6,16 +6,33 @@
 import type { Industry } from './data/industries.js';
 import { backgroundById } from './data/characters.js';
 import { ensure } from './errors.js';
-import { achieve, getMarket, notify, usdToLocal } from './helpers.js';
+import { achieve, col, getMarket, notify, usdToLocal } from './helpers.js';
 import { newId } from './ids.js';
 import { account, openAccount, pay, transfer, valueIn } from './ledger.js';
-import { investorOn } from './releases.js';
+import { dealflowOn, investorOn, moreGamesOn } from './releases.js';
+import { learningOf } from './dealflow.js';
+import { FIRST_FUND, INVESTOR } from './data/investor.js';
+import { firstFundPool, niceAmount } from './firstfund.js';
+import { firstClose, newLpBook } from './lpfunds.js';
+import type { InvestorType } from './data/programs.js';
+import { reviewPitch } from './lpreview.js';
+import type { StrategyPlan } from './lpreview.js';
+import { lpsOf } from './programs.js';
+import { deriveRng } from './rng.js';
 import { distributeLpFund, lpFeeRate, payCarry } from './lpfunds.js';
-import { feeRecipient } from './firms.js';
+import { attachFund, feeRecipient } from './firms.js';
 import { clamp, roundTo } from './math.js';
 import { formatMoney } from './money.js';
 import { newStars } from './stars.js';
-import type { Fund, Player, Stage, World } from './types.js';
+import type {
+  Fund,
+  FundGeography,
+  FundTerms,
+  LpCommitment,
+  Player,
+  Stage,
+  World,
+} from './types.js';
 
 export const MIN_ANGEL_DEALS_FOR_FUND = 3;
 /** An anchor LP's commitment adds this to the panel's score. */
@@ -99,11 +116,30 @@ export interface FundThesis {
   why: string;
 }
 
+/** Deal-flow note: the strategy pitched with Fund I (lpreview.ts). Money in local minor units. */
+export interface FundPitchPlan {
+  geography: FundGeography;
+  size: number;
+  avgCheque: number;
+  companies: number;
+  reserveRatio: number;
+  targetOwnership: number;
+  feeRate: number;
+  carry: number;
+}
+
 /**
  * The AI LP panel tests the thesis and the track record. Narrower commitments
- * raise more but lock the investor in (§7).
+ * raise more but lock the investor in (§7). With the deal-flow note and a
+ * strategy, the panel's LPs judge the strategy itself (`raiseWithPanel`).
  */
-export function raiseFund(world: World, p: Player, thesis: FundThesis, month: number) {
+export function raiseFund(
+  world: World,
+  p: Player,
+  thesis: FundThesis,
+  month: number,
+  opts: { plan?: FundPitchPlan; investorType?: InvestorType } = {},
+) {
   ensure(p.role === 'investor' && p.investor, 'fund.role', 'Only investors raise funds.');
   ensure(!p.investor.fundId, 'fund.exists', 'You already manage a fund. Fund II comes in phase 3.');
   ensure(
@@ -118,11 +154,15 @@ export function raiseFund(world: World, p: Player, thesis: FundThesis, month: nu
   );
   // The investor career: buying listed shares isn't a deal, syndicates you led are.
   const record = investorOn(world) ? angelRecord(world, p) : trackRecord(world, [p.id]);
+  // More-games note: a first fund with a strategy is always heard; a thin record gets next steps.
+  if (opts.plan && moreGamesOn(world)) return raiseFirstFund(world, p, thesis, opts.plan, opts);
   ensure(
     record.deals >= MIN_ANGEL_DEALS_FOR_FUND,
     'fund.record',
     `AI LPs want at least ${MIN_ANGEL_DEALS_FOR_FUND} angel deals first. You have ${record.deals}.`,
   );
+  if (opts.plan && dealflowOn(world))
+    return raiseWithPanel(world, p, thesis, month, opts.plan, opts);
   const m = getMarket(world, p.market);
   const anchor = investorOn(world) ? p.career?.anchor : undefined;
   const panel = lpPanelScore(p, record, thesis);
@@ -181,6 +221,235 @@ export function raiseFund(world: World, p: Player, thesis: FundThesis, month: nu
     text: `AI LPs committed ${formatMoney(total, m.data.currency)} to ${name}.`,
   });
   return { ok: true as const, score: roundTo(score, 2), fund };
+}
+
+/**
+ * Deal-flow note: Fund I pitched as a strategy to the city's LPs. Each LP
+ * asks its questions and commits or passes with a reason (lpreview.ts); the
+ * fund closes if commitments (and any anchor) reach half the target, the
+ * size of a first close. Every commitment is its own ledger transfer.
+ */
+function raiseWithPanel(
+  world: World,
+  p: Player,
+  thesis: FundThesis,
+  month: number,
+  pitch: FundPitchPlan,
+  opts: { investorType?: InvestorType },
+) {
+  const m = getMarket(world, p.market);
+  const smallest = usdToLocal(world, m, 250_000);
+  ensure(
+    pitch.size >= smallest,
+    'fund.size',
+    `The smallest fund LPs look at is ${formatMoney(smallest, m.data.currency)}.`,
+  );
+  const plan: StrategyPlan = { sectors: thesis.sectors, stages: thesis.stages, ...pitch };
+  const rng = deriveRng(world.seed, 'dealflow', 'panel', p.id, month);
+  const review = reviewPitch(
+    world,
+    p,
+    plan,
+    lpsOf(m.id),
+    { number: 1, type: opts.investorType ?? 'vc', month },
+    rng,
+  );
+  const anchor = p.career?.anchor;
+  const anchorAmount = anchor ? valueIn(world, anchor.amount, anchor.currency, m.data.currency) : 0;
+  const need = Math.round(pitch.size * INVESTOR.fund.firstCloseShare);
+  review.committed += anchorAmount;
+  review.ok = review.committed >= need;
+  learningOf(p).lastPanel = review;
+  const fmt = (v: number) => formatMoney(v, m.data.currency);
+  if (!review.ok) {
+    notify(world, p.id, {
+      month,
+      kind: 'system',
+      text: `AI LP panel: ${fmt(review.committed)} committed of the ${fmt(need)} a first close needs. Read their questions and reasons, then pitch again.`,
+    });
+    return { ok: false as const, score: review.score, review };
+  }
+  const id = newId(world, 'fund');
+  const name = `${p.name.split(' ')[0]} Capital Fund I`;
+  const accountId = openAccount(world, { currency: m.data.currency, market: m.id, label: name });
+  for (const v of review.lps)
+    if (v.commit && v.amount > 0)
+      transfer(world, m.ext.lps, accountId, v.amount, `LP commitment: ${v.name}`, month);
+  if (anchor) {
+    transfer(world, m.ext.lps, accountId, anchorAmount, `Anchor commitment: ${anchor.name}`, month);
+    delete p.career!.anchor;
+  }
+  const fund: Fund = {
+    id,
+    name,
+    market: m.id,
+    ai: false,
+    managerId: p.id,
+    partner: p.name,
+    sectors: thesis.sectors,
+    stages: thesis.stages,
+    check: [Math.round(pitch.avgCheque * 0.5), Math.round(pitch.avgCheque * 2)],
+    minStars: 0,
+    mood: 1,
+    account: accountId,
+    size: review.committed,
+    vintageMonth: month,
+    feeRate: pitch.feeRate,
+    carry: pitch.carry,
+    distributed: 0,
+    thesis: thesis.why.trim().slice(0, 200),
+    stars: newStars(p.stars.value),
+  };
+  world.funds[id] = fund;
+  p.investor!.fundId = id;
+  achieve(world, p, 'investor.fund-1', 'Fund I', month);
+  notify(world, p.id, {
+    month,
+    kind: 'system',
+    text: `${review.lps.filter((v) => v.commit).length} LPs committed ${fmt(review.committed)} to ${name}.`,
+  });
+  return { ok: true as const, score: review.score, fund, review };
+}
+
+/**
+ * More-games note (firstfund.ts): Fund I pitched as a strategy to the city's
+ * LPs and the first-time-manager pool (an emerging-manager programme, angels
+ * you met, friends and family). With half the target committed the fund
+ * opens an LP book and holds its first close (lpfunds.ts: AI LPs pay in, the
+ * GP's own commitment is called); it invests from then on, and LPs can still
+ * join with a catch-up until the final close (rolling closes).
+ */
+function raiseFirstFund(
+  world: World,
+  p: Player,
+  thesis: FundThesis,
+  pitch: FundPitchPlan,
+  opts: { investorType?: InvestorType },
+) {
+  const m = getMarket(world, p.market);
+  const fmt = (v: number) => formatMoney(v, m.data.currency);
+  const smallest = niceAmount(col(m) * FIRST_FUND.smallestMonths);
+  ensure(pitch.size >= smallest, 'fund.size', `The smallest fund LPs look at is ${fmt(smallest)}.`);
+  const month = m.month;
+  const plan: StrategyPlan = { sectors: thesis.sectors, stages: thesis.stages, ...pitch };
+  const anchor = p.career?.anchor;
+  const review = reviewPitch(
+    world,
+    p,
+    plan,
+    firstFundPool(world, p, m.id),
+    {
+      number: 1,
+      type: opts.investorType ?? 'vc',
+      month,
+      ...(anchor
+        ? {
+            anchor: {
+              name: anchor.name,
+              amount: valueIn(world, anchor.amount, anchor.currency, m.data.currency),
+              lpId: anchor.lpId,
+            },
+          }
+        : {}),
+    },
+    deriveRng(world.seed, 'dealflow', 'panel', p.id, month),
+  );
+  learningOf(p).lastPanel = review;
+  if (!review.ok) {
+    notify(world, p.id, {
+      month,
+      kind: 'system',
+      text: `LP panel: ${fmt(review.committed)} committed of the ${fmt(review.need ?? 0)} a first close needs. Read their answers and your next steps, then pitch again.`,
+    });
+    return { ok: false as const, score: review.score, review };
+  }
+  const id = newId(world, 'fund');
+  const name = `${p.name.split(' ')[0]} Capital Fund I`;
+  const accountId = openAccount(world, { currency: m.data.currency, market: m.id, label: name });
+  const terms: FundTerms = {
+    target: pitch.size,
+    minCommit: Math.round(pitch.size / 50),
+    feeRate: pitch.feeRate,
+    feeStepDown: Math.min(pitch.feeRate, INVESTOR.fund.feeStepDown),
+    carry: pitch.carry,
+    hurdle: 0,
+    gpCommit: INVESTOR.fund.gpCommit[0],
+    termMonths: INVESTOR.fund.termMonths,
+    investMonths: INVESTOR.fund.investMonths,
+    keyPerson: true,
+  };
+  const fund: Fund = {
+    id,
+    name,
+    market: m.id,
+    ai: false,
+    managerId: p.id,
+    partner: p.name,
+    sectors: thesis.sectors,
+    stages: thesis.stages,
+    check: [Math.round(pitch.avgCheque * 0.5), Math.round(pitch.avgCheque * 2)],
+    minStars: 0,
+    mood: 1,
+    account: accountId,
+    size: 0,
+    vintageMonth: month,
+    feeRate: pitch.feeRate,
+    carry: pitch.carry,
+    distributed: 0,
+    thesis: thesis.why.trim().slice(0, 200),
+    stars: newStars(p.stars.value),
+    lp: {
+      ...newLpBook(1, 'seed', terms, month),
+      rolling: true,
+      plan: {
+        geography: pitch.geography,
+        avgCheque: pitch.avgCheque,
+        companies: pitch.companies,
+        reserveRatio: pitch.reserveRatio,
+        targetOwnership: pitch.targetOwnership,
+      },
+    },
+  };
+  world.funds[id] = fund;
+  p.investor!.fundId = id;
+  attachFund(world, fund);
+  // The GP's own money, called like any player LP's; then each LP's commitment.
+  const book = fund.lp!;
+  book.commitments.push({
+    id: `${id}:gp`,
+    playerId: p.id,
+    name: p.name,
+    kind: 'gp',
+    committed: Math.round(pitch.size * terms.gpCommit),
+    paidIn: 0,
+    distributed: 0,
+    month,
+    status: 'committed',
+    autopay: true,
+  });
+  for (const v of review.lps)
+    if (v.commit && v.amount > 0)
+      book.commitments.push({
+        id: `${id}:${v.lpId}`,
+        playerId: null,
+        lpId: v.lpId,
+        name: v.name,
+        kind: v.kind as LpCommitment['kind'],
+        committed: v.amount,
+        paidIn: 0,
+        distributed: 0,
+        month,
+        status: 'committed',
+        ...(v.anchor ? { anchor: true } : {}),
+      });
+  if (anchor) delete p.career!.anchor;
+  firstClose(world, fund, month);
+  notify(world, p.id, {
+    month,
+    kind: 'system',
+    text: `${review.lps.filter((v) => v.commit).length} LPs committed ${fmt(review.committed)} to ${name}${review.anchor ? `, anchored by ${review.anchor.name}` : ''}. First close held: it can invest now, and LPs can still join until the final close.`,
+  });
+  return { ok: true as const, score: review.score, fund, review };
 }
 
 /** Monthly management fee: 2%/year of fund size, paid to the manager as salary (taxed). */

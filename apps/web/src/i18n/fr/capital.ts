@@ -85,8 +85,6 @@ export const capital: Record<string, string> = {
   'Waiting for {name}': 'En attente de {name}',
   '{pct} for {price}': '{pct} pour {price}',
   'Exit options': 'Options de sortie',
-  'Exit options appear for companies you founded and still run.':
-    'Les options de sortie apparaissent pour les entreprises que vous avez fondées et dirigez encore.',
   'Exit options: {name}': 'Options de sortie : {name}',
   'You own {pct}, worth {value} on paper': 'Vous détenez {pct}, soit {value} sur le papier',
   'Acquisition offers': 'Offres de rachat',
