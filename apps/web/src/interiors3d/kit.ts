@@ -667,6 +667,13 @@ export class Kit {
   }
 }
 
+/**
+ * A rug's height in its room: flush on the floor (a room's floor is at y 0
+ * or a hair above it), just over the floor's baked edge shading and under
+ * the contact shadows (0.012) of what stands on it.
+ */
+export const RUG_Y = 0.008;
+
 /** A flat soft shadow under something (w × d metres). */
 export function contactShadow(w: number, d: number, opacity = 0.55): THREE.Mesh {
   const m = new THREE.MeshBasicMaterial({

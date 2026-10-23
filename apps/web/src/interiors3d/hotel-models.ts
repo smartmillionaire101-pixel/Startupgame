@@ -13,7 +13,7 @@
  */
 import * as THREE from 'three';
 import { BUILDERS as FURNITURE, type Builder, type Model } from './furniture';
-import { Kit, mat, paintingTexture, rugTexture, screenTexture, tone } from './kit';
+import { Kit, RUG_Y, mat, paintingTexture, rugTexture, screenTexture, tone } from './kit';
 
 const metal = { metal: 0.6, rough: 0.35 };
 const brass = { metal: 0.75, rough: 0.3 };
@@ -302,7 +302,7 @@ const suiteRug: Builder = (k, o) => {
     new THREE.PlaneGeometry(o.w - 0.1, o.d - 0.1),
     mat('#ffffff', { map: tex, rough: 1 }),
     0,
-    0.012,
+    RUG_Y,
     0,
     { rx: -Math.PI / 2, noShadow: true },
   );

@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import type { Activity, Slot } from '../city/rooms';
 import { GENRES, isOpenAir, type NightStyle } from '../city/nightlife';
 import { buildModel, chairAt } from './furniture';
-import { Kit, floorTexture, FLOOR_SCALE, mat, rugTexture, tone } from './kit';
+import { Kit, floorTexture, FLOOR_SCALE, RUG_Y, mat, rugTexture, tone } from './kit';
 import { BACK, RD, RW, WALL_H, vx, vz, type SeatSpot, type VenueRoom } from './venues';
 import type { PoseId } from './character';
 import { buildClubParts, type ClubParts } from './club3d';
@@ -601,7 +601,7 @@ export function buildNightVenue(o: NightOpts): NightRoom {
         mat('#ffffff', { map: rugTexture(3, accent), own: true }),
       );
       rug.rotation.x = -Math.PI / 2;
-      rug.position.set(-0.6, 0.012, 1.1);
+      rug.position.set(-0.6, RUG_Y, 1.1);
       rug.receiveShadow = true;
       root.add(rug);
       for (const [x, c] of [

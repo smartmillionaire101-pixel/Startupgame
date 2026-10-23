@@ -24,8 +24,11 @@
   }
 }
 
-/* In 3D the 2D scene stays on top as an invisible hit layer. */
+/* In 3D the 2D scene stays on top as an invisible hit layer: all of it,
+   or its flat drawing floats over the 3D room (the rug did). */
 .home-scene.is-3d .home-shell,
+.home-scene.is-3d .home-rugs,
+.home-scene.is-3d .home-obj,
 .home-scene.is-3d .home-tiles,
 .home-scene.is-3d .home-wallitems,
 .home-scene.is-3d .home-objects,
