@@ -28,6 +28,8 @@ export function BankScreen() {
       <>
         <BankerFirstSession />
         <Negotiate bank={nb} />
+        {/* Advisory work and meetings don't wait for the shareholders' signatures. */}
+        <BankWork />
       </>
     );
   if (!b || b.status === 'failed' || b.status === 'rejected')
