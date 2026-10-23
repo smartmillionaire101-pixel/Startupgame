@@ -1,4 +1,12 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+} from 'react';
 import { QUIZ_AI_AFTER, type PlayerView } from '@runway/engine';
 import { useView } from '../store';
 import { api } from '../api';
@@ -10,6 +18,8 @@ import { resultCard } from '../photos/snap';
 import { PoolGame } from './PoolGame';
 import { Shootout } from './Shootout';
 import './experiences.css';
+/** Bowling's lane is 3D: loaded when a bowling room opens. */
+const Bowling = lazy(() => import('./Bowling'));
 type Room = PlayerView['playRooms'][number];
 /** A game's name. Snooker rooms from the investor-career release on play 8-ball pool. */
 const gameName = (game: Room['game'], rules: Room['rules'] = 'pool8') =>
@@ -21,9 +31,13 @@ const gameName = (game: Room['game'], rules: Room['rules'] = 'pool8') =>
         : t('Snooker')
       : game === 'football'
         ? t('Football shootout')
-        : t('Golf');
+        : game === 'bowling'
+          ? t('Bowling')
+          : t('Golf');
 /** The games hosted here (golf with a friend is played at the golf club). */
 const TABLE_GAMES = ['quiz', 'snooker', 'football'] as const;
+/** At a bowling alley: the lanes. */
+const ALLEY_GAMES = ['bowling'] as const;
 const colors = ['#fff', '#dc3545', '#f6d32d', '#259553', '#985528', '#338ddd', '#fa86b4', '#111'];
 export default function PlayHost() {
   const place = useSyncExternalStore(onPlay, playPlace, () => null);
@@ -33,6 +47,9 @@ function Lobby({ place }: { place: PlayPlace }) {
   const { view, send, busy, cur, refresh } = useView();
   const [selected, setSelected] = useState<string | null>(place.roomId ?? null);
   const [game, setGame] = useState<Room['game']>(place.game ?? 'quiz');
+  const alley = place.game === 'bowling';
+  const games: readonly Room['game'][] = alley ? ALLEY_GAMES : TABLE_GAMES;
+  const lanes = view.me.games?.lanes;
   const [title, setTitle] = useState('Game night');
   const [stake, setStake] = useState('0');
   const lang = useLang();
@@ -105,12 +122,27 @@ function Lobby({ place }: { place: PlayPlace }) {
           ? t('Quiz against AI')
           : g === 'snooker'
             ? t('Pool against AI')
-            : t('Penalties against AI'),
+            : g === 'bowling'
+              ? t('Bowling against AI')
+              : t('Penalties against AI'),
       stake: Math.round(Number(stake) * 100),
     });
     if (!made) return;
     setSelected(made.id);
     await send({ type: 'play.ai', roomId: made.id, ...(g === 'quiz' ? { count: 2 } : {}) });
+  }
+  /** Bowling on your own: a free lane, ten frames, just you. */
+  async function bowlSolo() {
+    const made = await send<{ id: string }>({
+      type: 'play.create',
+      game: 'bowling',
+      venue: place.venue,
+      title: t('A game on my own'),
+      stake: 0,
+    });
+    if (!made) return;
+    setSelected(made.id);
+    await send({ type: 'play.start', roomId: made.id });
   }
   /** Quiz quick play: join the next quiz waiting here with this stake, or open one. */
   async function match() {
@@ -141,7 +173,7 @@ function Lobby({ place }: { place: PlayPlace }) {
             ×
           </button>
         </header>
-        {!(room?.status === 'playing' && room.rules) && (
+        {!(room?.status === 'playing' && (room.rules || room.bowling)) && (
           <p className="experience-note">
             {t(
               'Virtual game money only. No purchases or cash payouts. Winners take the pot; ties and cancelled rooms refund entries.',
@@ -151,16 +183,20 @@ function Lobby({ place }: { place: PlayPlace }) {
         {!room ? (
           <>
             <div className="experience-games">
-              {TABLE_GAMES.map((g) => (
+              {games.map((g) => (
                 <button className={game === g ? 'selected' : ''} key={g} onClick={() => setGame(g)}>
-                  <span>{g === 'quiz' ? '?' : g === 'snooker' ? '●' : '⚽'}</span>
+                  <span>
+                    {g === 'quiz' ? '?' : g === 'snooker' ? '●' : g === 'bowling' ? '🎳' : '⚽'}
+                  </span>
                   <strong>{gameName(g)}</strong>
                   <small>
                     {g === 'quiz'
                       ? t('Think fast. Play together.')
                       : g === 'snooker'
                         ? t('Break, pot your group, sink the 8.')
-                        : t('Swipe to shoot. Dive to save.')}
+                        : g === 'bowling'
+                          ? t('Ten frames. Swipe to bowl, bend it to hook.')
+                          : t('Swipe to shoot. Dive to save.')}
                   </small>
                 </button>
               ))}
@@ -256,6 +292,28 @@ function Lobby({ place }: { place: PlayPlace }) {
                 </button>
               </form>
             )}
+            {alley && (
+              <div className="experience-create experience-solo" aria-label={t('Bowl on your own')}>
+                <h2>{t('Bowl on your own')}</h2>
+                <p className="small">
+                  {lanes && lanes.fee > 0
+                    ? t(
+                        'A lane to yourself: ten frames. The lane fee is {fee}, paid to the alley.',
+                        {
+                          fee: money(lanes.fee, view.here?.currency ?? cur),
+                        },
+                      )
+                    : t('A lane to yourself: ten frames.')}
+                </p>
+                <button
+                  className="experience-primary"
+                  disabled={busy}
+                  onClick={() => void bowlSolo()}
+                >
+                  {t('Bowl solo')}
+                </button>
+              </div>
+            )}
             {mayHost && (
               <div className="experience-create experience-solo" aria-label={t('Play vs AI')}>
                 <h2>{t('Nobody around? Play vs AI')}</h2>
@@ -328,6 +386,13 @@ function Lobby({ place }: { place: PlayPlace }) {
                 {room.game === 'quiz' && room.host === me && room.members.length === 1 && (
                   <QuizWait createdAt={room.createdAt} />
                 )}
+                {room.bowling && room.bowling.fee > 0 && (
+                  <p>
+                    {t('Lane fee {fee} each, paid to the alley when the game starts.', {
+                      fee: money(room.bowling.fee, room.currency),
+                    })}
+                  </p>
+                )}
                 <p>
                   {t('Entry: {amount}', { amount: money(room.stake, room.currency) })} ·{' '}
                   {room.currency !== cur && room.stake > 0
@@ -376,7 +441,10 @@ function Lobby({ place }: { place: PlayPlace }) {
                       className="experience-primary"
                       disabled={
                         busy ||
-                        room.members.length < (room.game === 'quiz' && room.stake === 0 ? 1 : 2)
+                        room.members.length <
+                          ((room.game === 'quiz' || room.game === 'bowling') && room.stake === 0
+                            ? 1
+                            : 2)
                       }
                       onClick={() => void send({ type: 'play.start', roomId: room.id })}
                     >
@@ -442,6 +510,11 @@ function Lobby({ place }: { place: PlayPlace }) {
               room.rules === 'shootout' && (
                 <Shootout room={room} me={me} live={room.status === 'playing'} />
               )}
+            {room.status !== 'waiting' && room.status !== 'cancelled' && room.bowling && (
+              <Suspense fallback={<p className="experience-match">{t('Setting up the lane…')}</p>}>
+                <Bowling room={room} me={me} live={room.status === 'playing'} />
+              </Suspense>
+            )}
             {room.status === 'playing' && room.game === 'snooker' && !room.rules && (
               <Snooker room={room} me={me} />
             )}
@@ -501,7 +574,7 @@ function Lobby({ place }: { place: PlayPlace }) {
                 </div>
               </div>
             )}
-            {room.last && !room.rules && (
+            {room.last && !room.rules && !room.bowling && (
               <p className="experience-result" role="status">
                 {room.last}
               </p>

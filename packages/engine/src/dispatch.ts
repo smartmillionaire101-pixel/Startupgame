@@ -117,7 +117,8 @@ import {
   startInvestorTutorial,
   tutorialCommand,
 } from './career.js';
-import { exitsOn, investorOn, jobsOn, lifeBarsOn } from './releases.js';
+import { exitsOn, investorOn, jobsOn, lifeBarsOn, moreGamesOn } from './releases.js';
+import { bookAir, endFlight, ensureGameVenues, landJump } from './games.js';
 import { applyForJob, attendInterview, ensureEmployers } from './work.js';
 import { golfRound, mallBuy } from './leisure.js';
 import { mallTripCommand } from './malltrips.js';
@@ -404,6 +405,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     ensureExchange(world, m.id);
     // …and its professional employers, in a jobs world.
     ensureEmployers(world, m.id, m.month);
+    // …and its bowling alley, skydive centre and heliport, in a more-games world.
+    ensureGameVenues(world, m.id, m.month);
     return {
       market: m.id,
       funds: Object.values(world.funds).filter((f) => f.market === m.id).length,
@@ -1450,6 +1453,14 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return golfRound(world, me, cmd.strokes);
     case 'mall.buy':
       return mallBuy(world, me, cmd.itemId, cmd.colour, ctx.now);
+    // ------------------------------------------------------------ more games
+    case 'games.book':
+      return bookAir(world, me, cmd.businessId, cmd.itemId);
+    case 'games.land':
+      return landJump(world, me, cmd);
+    case 'games.end':
+      if (!moreGamesOn(world)) return fail('command.unknown', 'Unknown command.');
+      return endFlight(me, cmd.bookingId);
     case 'mall.invite':
     case 'mall.answer':
     case 'mall.leave':
@@ -1680,6 +1691,8 @@ function lifeBarsAfter(world: World, cmd: Command, actorId: Id, result: unknown)
     case 'food.order':
       return changed(foodBars(cmd.itemId));
     case 'golf.round':
+    case 'games.book':
+    case 'games.land':
     case 'mall.buy': {
       const { barsFx, ...rest } = out as { barsFx?: { stress?: number; health?: number } };
       return barsFx ? { ...changed(barsFx), barsFx: undefined, ...rest } : out;
@@ -1836,14 +1849,21 @@ function announce(world: World, cmd: Extract<Command, { type: 'system.announce' 
     // Already sent (the server re-announces at every boot): open any professional
     // employers still missing. Employers never close, so this is a no-op unless the
     // note was first logged by code that predates the jobs rework (an old preview).
-    for (const [id, m] of Object.entries(world.markets))
+    for (const [id, m] of Object.entries(world.markets)) {
       ensureEmployers(world, id as MarketId, m.month);
+      ensureGameVenues(world, id as MarketId, m.month);
+    }
     return { sent: 0 };
   }
   const hadExits = exitsOn(world);
   const hadJobs = jobsOn(world);
   const hadInvestor = investorOn(world);
+  const hadGames = moreGamesOn(world);
   sent.push(cmd.id);
+  // More games: every open city's bowling alley, skydive centre and heliport open with the note.
+  if (!hadGames && moreGamesOn(world))
+    for (const [id, m] of Object.entries(world.markets))
+      ensureGameVenues(world, id as MarketId, m.month);
   // The investor career's credit fix: records lose the living-cost "missed payments".
   if (!hadInvestor && investorOn(world)) repairCreditRecords(world);
   // The jobs rework: every open city's professional employers open with the note.

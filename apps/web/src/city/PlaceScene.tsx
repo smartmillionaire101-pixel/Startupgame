@@ -1,5 +1,6 @@
 import { useDaylight } from './useDaylight';
 import { openPlay } from '../experiences/play-bus';
+import { airOf, openAir } from '../experiences/air/air-bus';
 /**
  * Places you walk into (docs/WAVE5-FUN-LIFE-AND-CAPITAL.md §D): going into
  * any place opens a full-screen scene, not a card. An illustrated room for
@@ -974,6 +975,16 @@ function RoomScene({
     setAct((a) => (a?.n === n ? { ...a, result: r ?? {}, met: metOf(r) } : a));
   };
   const doFun = (b: BusinessView, it: VenueItemView) => {
+    // More games: bowling in a play room; a skydive or a helicopter ride is booked, then flown.
+    if (b.kind === 'bowling-alley' && it.id === 'bowling') {
+      openPlay({ venue: b.id, name: b.name, game: 'bowling' });
+      return;
+    }
+    const air = airOf(it);
+    if (air) {
+      openAir({ kind: air, itemId: it.id });
+      return;
+    }
     if (/quiz|snooker|pool|video.game|football/i.test(`${it.id} ${it.label}`)) {
       openPlay({
         venue: b.id,

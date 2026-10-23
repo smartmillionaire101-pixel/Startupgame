@@ -58,6 +58,15 @@ export const JOBS_NOTE = 'release-2026-10-19-jobs';
  */
 export const INVESTOR_NOTE = 'release-2026-10-20-investor-career';
 
+/**
+ * More games (games.ts, bowling.ts): a bowling alley, a skydive centre and a
+ * heliport open in every city; ten-pin bowling in a play room (solo, against
+ * AI or other players, the engine rolling every ball), and skydives and
+ * helicopter tours to book. Worlds without this note play exactly as before
+ * (the venues never open; bowling rooms and `games.*` are refused).
+ */
+export const MORE_GAMES_NOTE = 'release-2026-10-23-more-games';
+
 /** Every behaviour-switching note, oldest first. */
 export const RELEASES = [
   JOURNEY_EVENTS_NOTE,
@@ -65,6 +74,7 @@ export const RELEASES = [
   LIFE_BARS_NOTE,
   JOBS_NOTE,
   INVESTOR_NOTE,
+  MORE_GAMES_NOTE,
 ] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
@@ -78,3 +88,4 @@ export const exitsOn = (w: World): boolean => releaseOn(w, EXITS_NOTE);
 export const lifeBarsOn = (w: World): boolean => releaseOn(w, LIFE_BARS_NOTE);
 export const jobsOn = (w: World): boolean => releaseOn(w, JOBS_NOTE);
 export const investorOn = (w: World): boolean => releaseOn(w, INVESTOR_NOTE);
+export const moreGamesOn = (w: World): boolean => releaseOn(w, MORE_GAMES_NOTE);

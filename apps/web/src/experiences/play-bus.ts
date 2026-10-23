@@ -2,7 +2,7 @@ export interface PlayPlace {
   roomId?: string;
   venue: string;
   name: string;
-  game?: 'quiz' | 'snooker' | 'football';
+  game?: 'quiz' | 'snooker' | 'football' | 'bowling';
 }
 let place: PlayPlace | null = null;
 const listeners = new Set<() => void>();

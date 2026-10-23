@@ -29,6 +29,7 @@ import { LIFESTYLE_TIERS } from './data/characters.js';
 import { FOOD_LEVEL_PRICE, foodLevelOf, isDrinkItem } from './data/cuisine.js';
 import { CITY_NAME_PARTS, KIND_NAME_SUFFIXES } from './data/business-names.js';
 import { LANDMARKS } from './data/landmarks.js';
+import { AIR_ACTIVITIES } from './data/games.js';
 import { shopSells } from './data/lifestyle-shop.js';
 import { INDUSTRY_LABEL } from './data/industries.js';
 import type { Industry } from './data/industries.js';
@@ -747,8 +748,13 @@ export function settleEconomy(world: World, marketId: MarketId, month: number) {
     b.lastMonth = { takings, costs, trade, profit };
     stats.takings += takings;
     stats.trade += trade;
-    // The jobs rework: professional employers (landmark `employer-*`) never close.
-    if (b.health <= ECONOMY.closeHealth && !b.landmark?.startsWith('employer-')) {
+    // The jobs rework: professional employers (landmark `employer-*`) never close,
+    // and nor do the more-games venues (landmark `games-*`).
+    if (
+      b.health <= ECONOMY.closeHealth &&
+      !b.landmark?.startsWith('employer-') &&
+      !b.landmark?.startsWith('games-')
+    ) {
       closeBusiness(world, m, b, month);
       stats.closures += 1;
     }
@@ -1221,6 +1227,8 @@ export function venueBuy(
   const month = m.month;
   const it = specOf(b).venue?.items.find((x) => x.id === itemId);
   ensure(it, 'venue.item', `${b.name} doesn’t sell that.`);
+  // More games: a skydive or a helicopter flight is booked (`games.book`), then flown.
+  ensure(!AIR_ACTIVITIES[it.id], 'venue.book', `Book ${it.label.toLowerCase()} at ${b.name}.`);
   // Wave 10: some things to do need a lifestyle tier.
   const locked = tierLock(me, it);
   ensure(!locked, 'venue.tier', locked ?? '');
