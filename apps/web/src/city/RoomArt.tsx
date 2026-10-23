@@ -343,6 +343,8 @@ function Sign({
   c: string;
   fg?: string;
 }) {
+  // A long name (an institution's) squeezes to the board instead of spilling off it.
+  const fit = text.length * 6.4 > w - 10 ? w - 10 : undefined;
   return (
     <g>
       <rect x={x - w / 2} y={y} width={w} height="18" rx="4" fill={c} />
@@ -354,6 +356,8 @@ function Sign({
         fontWeight="800"
         fill={fg}
         letterSpacing="0.06em"
+        textLength={fit}
+        lengthAdjust={fit ? 'spacingAndGlyphs' : undefined}
       >
         {text}
       </text>

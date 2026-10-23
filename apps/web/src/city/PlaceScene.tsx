@@ -1547,7 +1547,7 @@ function RoomScene({
             <Venue3D
               room={room}
               tint={business?.look.color ?? place.color}
-              sign={sign?.toUpperCase().slice(0, 22)}
+              sign={sign?.toUpperCase().slice(0, 32)}
               night={daylight.night}
               slots={slots}
               people={people3d}
@@ -1572,7 +1572,7 @@ function RoomScene({
           {nightStyle ? (
             <NightBack
               s={nightStyle}
-              sign={sign?.toUpperCase().slice(0, 22)}
+              sign={sign?.toUpperCase().slice(0, 32)}
               night={daylight.night}
             />
           ) : room === 'hotel' ? (
@@ -1581,7 +1581,7 @@ function RoomScene({
             <RoomBack
               kind={room}
               tint={foodStyle?.sign[0] ?? business?.look.color ?? place.color}
-              sign={sign?.toUpperCase().slice(0, 22)}
+              sign={sign?.toUpperCase().slice(0, 32)}
               home={home?.items ?? null}
               car={home ? (carOf(view)?.label ?? null) : null}
             />
