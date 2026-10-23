@@ -81,6 +81,7 @@ import { restaurants } from './restaurants';
 import { wardrobe } from './wardrobe';
 import { cityPlaces } from './city-places';
 import { moreGames } from './more-games';
+import { capitalExit } from './capital-exit';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -165,6 +166,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   wardrobe,
   cityPlaces,
   moreGames,
+  capitalExit,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

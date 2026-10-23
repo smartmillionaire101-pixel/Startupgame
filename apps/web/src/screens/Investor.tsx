@@ -454,7 +454,8 @@ export function Portfolio() {
         <p className="small muted">
           {t(
             'Paper gains come when companies raise at higher prices; real gains only at exits. AI LPs judge you on cash returned.',
-          )}
+          )}{' '}
+          {t('To sell a stake before the company exits, open Capital → Exit.')}
         </p>
       </Card>
       {view.fund ? (

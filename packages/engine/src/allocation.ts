@@ -22,7 +22,7 @@
  */
 import { fullyDiluted, markValue, sharesOf } from './captable.js';
 import { INVESTOR } from './data/investor.js';
-import { ensure } from './errors.js';
+import { ensure, fail } from './errors.js';
 import {
   EXITS,
   boardConsents,
@@ -38,7 +38,7 @@ import { indexHolderId, indexNav } from './exchange.js';
 import { account, costIn, pay, payExact, transfer, valueIn, withTx } from './ledger.js';
 import { roundTo } from './math.js';
 import { formatMoney } from './money.js';
-import { investorOn } from './releases.js';
+import { investorOn, moreGamesOn } from './releases.js';
 import { syndicateStake } from './syndicates.js';
 import { recordRealised } from './exits.js';
 import { wealthView } from './wealth.js';
@@ -49,6 +49,7 @@ import type {
   Id,
   LpCommitment,
   Player,
+  Safe,
   StakeOffer,
   World,
 } from './types.js';
@@ -667,52 +668,186 @@ export function stakeConsentsView(world: World, p: Player) {
 
 // ---------------------------------------------------------------- investors' startup secondaries
 
-/** `secondary.investorSell`: sell part of a private stake to an outside buyer (§6.7). */
-export function investorSecondary(world: World, me: Player, companyId: Id, bps: number) {
+/** Your SAFEs in this company (a SAFE is a promise of shares at the next priced round). */
+const safesOf = (c: Company, holderId: Id) =>
+  c.capTable.safes.filter((s) => s.holderId === holderId);
+
+/**
+ * Why `me` can't sell their private stake in `c` right now (null: they can).
+ * The same checks the command runs, in the same order, so the Capital screen
+ * says exactly why instead of showing a button that does nothing.
+ */
+export function investorSecondaryBlocker(
+  world: World,
+  me: Player,
+  c: Company,
+): { code: string; message: string } | null {
+  if (!investorOn(world)) return { code: 'secondary.off', message: 'Not available yet.' };
+  const after = moreGamesOn(world);
+  // After the more-games release every investor can sell a private stake,
+  // SAFEs included; before it, secondaries opened at rung 2 or as an
+  // allocator, for converted shares only.
+  if (!after && me.career?.reached[2] === undefined && me.career?.reached[7] === undefined)
+    return {
+      code: 'secondary.rung',
+      message: 'Secondaries open at rung 2 (syndicate lead) or as an allocator.',
+    };
+  if (!(c.status === 'active' && !isListed(c)))
+    return { code: 'secondary.listed', message: 'Sell listed shares on the exchange.' };
+  if (c.founderIds.includes(me.id))
+    return { code: 'secondary.founder', message: 'Founders sell through Capital → Exit.' };
+  if (sharesOf(c.capTable, me.id) <= 0 && !(after && safesOf(c, me.id).length))
+    return {
+      code: 'secondary.shares',
+      message: 'You hold no converted shares here (a SAFE converts at the next priced round).',
+    };
+  if (referencePrice(c) <= 0)
+    return { code: 'secondary.price', message: 'There is no share price yet.' };
+  if (!boardConsents(world, c).ok)
+    return {
+      code: 'secondary.board',
+      message: 'The board won’t consent while the company is short of runway.',
+    };
+  return null;
+}
+
+/** AI-run funds and angels already on the cap table: they buy at the insider discount. */
+function insiderBuyers(world: World, c: Company, me: Player) {
+  return Object.keys(c.capTable.holdings)
+    .filter((h) => {
+      const f = world.funds[h];
+      if (!f || h === me.id || (c.capTable.holdings[h]?.shares ?? 0) <= 0) return false;
+      const manager = f.managerId ? world.players[f.managerId] : undefined;
+      return !manager || manager.ai;
+    })
+    .sort()
+    .map((h) => world.funds[h]!);
+}
+
+/**
+ * What selling `bps` of a private stake pays: `bps` of the converted shares
+ * at the buyer's discount to the last round price and (after the more-games
+ * release) `bps` of each SAFE, marked as converted at the newest SAFE's cap,
+ * at the same discount. The cost basis is what was paid for what is sold.
+ */
+function saleQuote(world: World, me: Player, c: Company, bps: number, fund?: Fund) {
+  const kind = fund ? 'investor' : 'outside';
+  const held = sharesOf(c.capTable, me.id);
+  const shares = Math.floor((held * bps) / 10_000);
+  let price = Math.round(shares * secondaryPrice(c, kind));
+  const pos = world.positions[`${me.id}:${c.id}`];
+  if (!moreGamesOn(world)) {
+    const basis = pos ? Math.round((pos.invested * shares) / held) : 0;
+    return { shares, safes: [], safeAmount: 0, price, basis };
+  }
+  const mine = safesOf(c, me.id);
+  const latest = c.capTable.safes.reduce<Safe | null>(
+    (a, x) => (!a || x.month >= a.month ? x : a),
+    null,
+  );
+  const keep = 1 - EXITS.secondary.discountBps[kind] / 10_000;
+  const safes = mine
+    .map((s) => ({ s, part: bps >= 10_000 ? s.amount : Math.floor((s.amount * bps) / 10_000) }))
+    .filter((x) => x.part > 0);
+  for (const { s, part } of safes)
+    price += Math.round(((part * (latest?.cap ?? s.cap)) / s.cap) * keep);
+  const safeAmount = safes.reduce((a, x) => a + x.part, 0);
+  // A SAFE's cost is its amount; the rest of what you paid in bought the shares.
+  const shareCost = Math.max(0, (pos?.invested ?? 0) - mine.reduce((a, s) => a + s.amount, 0));
+  const basis = (held > 0 ? Math.round((shareCost * shares) / held) : 0) + safeAmount;
+  return { shares, safes, safeAmount, price, basis };
+}
+
+/**
+ * `secondary.investorSell`: sell part of a private stake (§6.7). Without
+ * `buyerId` an outside secondary buyer pays at once (the steeper discount);
+ * after the more-games release an AI fund or angel already on the cap table
+ * can buy instead, at the insider discount, paying from its own account, and
+ * SAFEs can be sold too (the buyer takes over the SAFE).
+ */
+export function investorSecondary(
+  world: World,
+  me: Player,
+  companyId: Id,
+  bps: number,
+  buyerId?: Id,
+) {
   ensure(investorOn(world), 'secondary.off', 'Not available yet.');
-  ensure(
-    me.career?.reached[2] !== undefined || me.career?.reached[7] !== undefined,
-    'secondary.rung',
-    'Secondaries open at rung 2 (syndicate lead) or as an allocator.',
-  );
   const c = getCompany(world, companyId);
-  ensure(
-    c.status === 'active' && !isListed(c),
-    'secondary.listed',
-    'Sell listed shares on the exchange.',
-  );
-  ensure(
-    !c.founderIds.includes(me.id),
-    'secondary.founder',
-    'Founders sell through Capital → Exit.',
-  );
+  const why = investorSecondaryBlocker(world, me, c);
+  if (why) fail(why.code, why.message);
   ensure(
     Number.isInteger(bps) && bps >= 1 && bps <= 10_000,
     'secondary.pct',
     'Pick how much to sell.',
   );
-  const held = sharesOf(c.capTable, me.id);
-  ensure(
-    held > 0,
-    'secondary.shares',
-    'You hold no converted shares here (a SAFE converts at the next priced round).',
-  );
-  ensure(referencePrice(c) > 0, 'secondary.price', 'There is no share price yet.');
-  ensure(
-    boardConsents(world, c).ok,
-    'secondary.board',
-    'The board won’t consent while the company is short of runway.',
-  );
-  const shares = Math.floor((held * bps) / 10_000);
-  ensure(shares > 0, 'secondary.shares', 'That is less than one share.');
-  const price = Math.round(shares * secondaryPrice(c, 'outside'));
-  const pos = world.positions[`${me.id}:${c.id}`];
-  const basis = pos ? Math.round((pos.invested * shares) / held) : 0;
-  c.capTable.holdings[me.id]!.shares -= shares;
-  const sec = (c.capTable.holdings[`sec:${c.id}`] ??= { shares: 0, kind: 'investor' });
-  sec.shares += shares;
+  const after = moreGamesOn(world);
   const m = getMarket(world, c.market);
-  const paid = payShareSale(world, c, me, price, basis, `Secondary sale: ${c.name}`);
+  const insider = buyerId !== undefined && after;
+  const fund = insider ? world.funds[buyerId] : undefined;
+  if (insider)
+    ensure(
+      fund && insiderBuyers(world, c, me).some((f) => f.id === fund.id),
+      'secondary.buyer',
+      'Only an AI fund or angel already on the cap table buys this way.',
+    );
+  const q = saleQuote(world, me, c, bps, fund);
+  ensure(q.shares > 0 || q.safeAmount > 0, 'secondary.shares', 'That is less than one share.');
+  if (after) ensure(q.price > 0, 'secondary.price', 'Too small to sell.');
+  const { shares, price, basis } = q;
+  if (fund) {
+    const acc = account(world, fund.account);
+    ensure(
+      acc.balance >= costIn(world, price, m.data.currency, acc.currency),
+      'secondary.funds',
+      `${fund.name} can’t pay for these shares right now.`,
+    );
+    payExact(
+      world,
+      fund.account,
+      m.ext.lps,
+      price,
+      `Secondary: ${c.name} shares`,
+      m.month,
+      'invested',
+    );
+  }
+  const holderId = fund ? fund.id : `sec:${c.id}`;
+  // The shares change hands: no new shares, so nobody else is diluted.
+  if (shares > 0) {
+    c.capTable.holdings[me.id]!.shares -= shares;
+    const to = (c.capTable.holdings[holderId] ??= { shares: 0, kind: 'investor' });
+    to.shares += shares;
+  }
+  // A SAFE changes hands whole, or splits (same cap and discount).
+  for (const { s, part } of q.safes) {
+    if (part >= s.amount) s.holderId = holderId;
+    else {
+      s.amount -= part;
+      c.capTable.safes.push({ ...s, holderId, amount: part });
+    }
+  }
+  if (fund) {
+    const fp = (world.positions[`${fund.id}:${c.id}`] ??= {
+      investorId: fund.id,
+      companyId: c.id,
+      invested: 0,
+      returned: 0,
+      month: m.month,
+      writtenOff: false,
+    });
+    fp.invested += price;
+  }
+  const buyerName = fund ? fund.name : `${m.data.name} Secondaries`;
+  const paid = payShareSale(
+    world,
+    c,
+    me,
+    price,
+    basis,
+    after ? `Secondary sale: ${c.name} stake to ${buyerName}` : `Secondary sale: ${c.name}`,
+  );
+  const pos = world.positions[`${me.id}:${c.id}`];
   if (pos) pos.returned += price;
   achieve(
     world,
@@ -721,12 +856,126 @@ export function investorSecondary(world: World, me: Player, companyId: Id, bps: 
     'First secondary sale',
     getMarket(world, me.market).month,
   );
+  if (after) {
+    (c.secondaries ??= []).push({
+      sellerId: me.id,
+      buyerId: holderId,
+      month: m.month,
+      shares,
+      bps,
+      price,
+    });
+    const f = (v: number) => formatMoney(v, m.data.currency);
+    notify(world, me.id, {
+      month: m.month,
+      kind: 'deal',
+      text: `You sold ${bps / 100}% of your ${c.name} stake to ${buyerName} for ${f(price)}. It cost you ${f(basis)}; tax ${f(paid.tax)}. ${f(paid.net)} is in your personal account.`,
+    });
+  }
+  const discount = EXITS.secondary.discountBps[fund ? 'investor' : 'outside'] / 100;
   return {
     shares,
+    safeAmount: q.safeAmount,
     price,
+    basis,
+    buyer: buyerName,
     ...paid,
-    message: `Sold ${shares.toLocaleString()} ${c.name} shares for ${formatMoney(price, m.data.currency)} (${EXITS.secondary.discountBps.outside / 100}% under the last round).`,
+    message: `Sold ${shares.toLocaleString()} ${c.name} shares for ${formatMoney(price, m.data.currency)} (${discount}% under the last round).`,
   };
+}
+
+/** The sizes the Capital screen offers, bps of the stake. */
+export const STAKE_SALE_BPS = [1_000, 2_500, 5_000, 10_000] as const;
+
+/**
+ * `view.capital.stakes`: every private company you hold a stake in but didn't
+ * found, what each sale size pays each buyer, and (when you can't sell yet)
+ * exactly why.
+ */
+export function investorStakesView(world: World, p: Player) {
+  return Object.values(world.companies)
+    .filter(
+      (c) =>
+        c.status === 'active' &&
+        !isListed(c) &&
+        !c.founderIds.includes(p.id) &&
+        (sharesOf(c.capTable, p.id) > 0 || safesOf(c, p.id).length > 0),
+    )
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map((c) => {
+      const m = getMarket(world, c.market);
+      const shares = sharesOf(c.capTable, p.id);
+      const pos = world.positions[`${p.id}:${c.id}`];
+      const blocked = investorSecondaryBlocker(world, p, c);
+      const rate = m.data.tax.capitalGains;
+      const quotes = (fund?: Fund) =>
+        blocked
+          ? []
+          : STAKE_SALE_BPS.map((bps) => {
+              const q = saleQuote(world, p, c, bps, fund);
+              const gain = Math.max(0, q.price - q.basis);
+              const tax = Math.round(gain * rate);
+              return {
+                bps,
+                shares: q.shares,
+                safeAmount: q.safeAmount,
+                price: q.price,
+                basis: q.basis,
+                tax,
+                net: q.price - tax,
+              };
+            });
+      const buyers: {
+        id: string | null;
+        name: string;
+        kind: 'outside' | 'insider';
+        discountBps: number;
+        /** Most it can pay right now, the company's currency (null: no limit). */
+        cash: number | null;
+        quotes: ReturnType<typeof quotes>;
+      }[] = [
+        {
+          id: null,
+          name: `${m.data.name} Secondaries`,
+          kind: 'outside',
+          discountBps: EXITS.secondary.discountBps.outside,
+          cash: null,
+          quotes: quotes(),
+        },
+        ...(moreGamesOn(world) ? insiderBuyers(world, c, p) : []).map((f) => {
+          const acc = account(world, f.account);
+          return {
+            id: f.id,
+            name: f.name,
+            kind: 'insider' as const,
+            discountBps: EXITS.secondary.discountBps.investor,
+            cash: valueIn(world, Math.max(0, acc.balance), acc.currency, m.data.currency),
+            quotes: quotes(f),
+          };
+        }),
+      ];
+      return {
+        companyId: c.id,
+        name: c.name,
+        market: c.market,
+        currency: m.data.currency,
+        aiFounded: c.ai,
+        shares,
+        /** Your SAFEs here (money in, not yet shares). */
+        safe: safesOf(c, p.id).reduce((a, s) => a + s.amount, 0),
+        pct: roundTo((shares / Math.max(1, fullyDiluted(c.capTable))) * 100, 2),
+        lastPrice: roundTo(referencePrice(c), 2),
+        /** Shares at the last round price, SAFEs at cost: paper value, not cash. */
+        paperValue: markValue(c.capTable, p.id),
+        invested: pos?.invested ?? 0,
+        returned: pos?.returned ?? 0,
+        capitalGainsRate: rate,
+        boardRunwayMonths: EXITS.secondary.boardRunwayMonths,
+        /** Why you can't sell yet (null: you can). */
+        blocked,
+        buyers,
+      };
+    });
 }
 
 // ---------------------------------------------------------------- the family office

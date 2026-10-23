@@ -16,6 +16,7 @@ import './capital.css';
 
 type Capital = NonNullable<PlayerView['capital']>;
 type ExitOpt = Capital['exits'][number];
+type Stake = Capital['stakes'][number];
 type Listed = Capital['market'][number];
 type Alloc = Capital['allocator'];
 type Wealth = PlayerView['me']['wealth'];
@@ -33,6 +34,9 @@ export function WealthCard({ compact }: { compact?: boolean }) {
   const { view, cur } = useView();
   const w: Wealth = view.me.wealth;
   const c = w.currency || cur;
+  const secondary = new Set(
+    (view.capital?.stakes ?? []).filter((s) => !s.blocked).map((s) => s.companyId),
+  );
   return (
     <Card
       title={t('Your wealth')}
@@ -80,7 +84,9 @@ export function WealthCard({ compact }: { compact?: boolean }) {
                     ? t('You can sell')
                     : x.kind === 'locked'
                       ? t('Locked until month {n}', { n: x.lockedUntil ?? 0 })
-                      : t('Private: no buyer yet')}
+                      : secondary.has(x.companyId)
+                        ? t('Private: sell in Capital → Exit')
+                        : t('Private: no buyer yet')}
                 </Pill>
               </span>
               <strong>{money(x.value, c)}</strong>
@@ -346,13 +352,283 @@ function SecondarySale({ e }: { e: ExitOpt }) {
   );
 }
 
+// ---------------------------------------------------------------- an investor's stakes
+
+/** Why a stake can't be sold yet, and when it can be, in the player's words. */
+function stakeBlockedText(s: Stake): string {
+  const b = s.blocked!;
+  switch (b.code) {
+    case 'secondary.off':
+      return t('Selling private stakes isn’t open in this world yet.');
+    case 'secondary.shares':
+      return s.safe > 0
+        ? t(
+            'Your {amount} SAFE isn’t shares yet. It turns into shares at {name}’s next priced round; you can sell then.',
+            { amount: money(s.safe, s.currency), name: s.name },
+          )
+        : t('You hold no shares in this company.');
+    case 'secondary.price':
+      return t('There is no share price yet. You can sell after {name} raises a priced round.', {
+        name: s.name,
+      });
+    case 'secondary.board':
+      return t(
+        'The board won’t consent while {name} is short of runway. You can sell once it has {n} months of runway or a profitable month.',
+        { name: s.name, n: s.boardRunwayMonths },
+      );
+    default:
+      return tx(b.message);
+  }
+}
+
+interface SaleResult {
+  /** What was sold, in words. */
+  what: string;
+  name: string;
+  shares: number;
+  price: number;
+  basis: number;
+  gain: number;
+  tax: number;
+  net: number;
+  currency: string;
+}
+
+function StakeExit({ s, onSold }: { s: Stake; onSold: (r: SaleResult) => void }) {
+  const { send } = useView();
+  const [bps, setBps] = useState(2500);
+  const [buyerKey, setBuyerKey] = useState('outside');
+  const [confirming, setConfirming] = useState(false);
+  const buyer = s.buyers.find((b) => (b.id ?? 'outside') === buyerKey) ?? s.buyers[0]!;
+  const cur = s.currency;
+  // The engine's own quote for this size and buyer: what the sale will pay, exactly.
+  const q = buyer.quotes.find((x) => x.bps === bps);
+  const shares = q?.shares ?? 0;
+  const gross = q?.price ?? 0;
+  const basis = q?.basis ?? 0;
+  const gain = gross - basis;
+  const tax = q?.tax ?? 0;
+  const net = q?.net ?? 0;
+  const canPay = buyer.cash === null || buyer.cash >= gross;
+  const what =
+    shares > 0 && q?.safeAmount
+      ? t('{n} shares and {safe} of SAFE', {
+          n: shares.toLocaleString(),
+          safe: money(q.safeAmount, cur),
+        })
+      : q?.safeAmount
+        ? t('{safe} of SAFE', { safe: money(q.safeAmount, cur) })
+        : t('{n} shares', { n: shares.toLocaleString() });
+  const pick = (fn: () => void) => () => {
+    fn();
+    setConfirming(false);
+  };
+  return (
+    <div className="stack stake-exit" data-stake={s.companyId}>
+      <div className="row">
+        <strong className="grow">{s.name}</strong>
+        {s.blocked ? (
+          <Pill tone="warn">{t('Can’t sell yet')}</Pill>
+        ) : (
+          <Pill tone="good">{t('You can sell')}</Pill>
+        )}
+      </div>
+      <p className="small muted">
+        {s.shares > 0
+          ? t('You own {pct} ({n} shares), worth {value} on paper. You put in {cost}.', {
+              pct: pct(s.pct / 100, 2),
+              n: s.shares.toLocaleString(),
+              value: money(s.paperValue, cur),
+              cost: money(s.invested, cur),
+            })
+          : t('You put in {cost}.', { cost: money(s.invested, cur) })}{' '}
+        {s.safe > 0 &&
+          t('{amount} of it is a SAFE: it becomes shares at the next priced round.', {
+            amount: money(s.safe, cur),
+          })}
+      </p>
+      {s.blocked ? (
+        <p className="small bad" data-blocked={s.blocked.code}>
+          {stakeBlockedText(s)}
+        </p>
+      ) : (
+        <>
+          <Segmented
+            label={t('How much to sell')}
+            value={String(bps)}
+            onChange={(v) => pick(() => setBps(Number(v)))()}
+            options={[1000, 2500, 5000, 10_000].map((b) => ({
+              value: String(b),
+              label: b === 10_000 ? t('All') : bpsText(b),
+            }))}
+          />
+          <Field
+            label={t('Who buys')}
+            hint={
+              buyer.kind === 'outside'
+                ? t('A secondary fund: always there, {d} under the last round price.', {
+                    d: bpsText(buyer.discountBps),
+                  })
+                : t('Already on the cap table: pays {d} under the last round price.', {
+                    d: bpsText(buyer.discountBps),
+                  })
+            }
+          >
+            {(id) => (
+              <select
+                id={id}
+                value={buyerKey}
+                onChange={(ev) => pick(() => setBuyerKey(ev.target.value))()}
+              >
+                {s.buyers.map((b) => (
+                  <option key={b.id ?? 'outside'} value={b.id ?? 'outside'}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <dl className="cap-terms">
+            <dt>{t('You sell')}</dt>
+            <dd>{what}</dd>
+            <dt>{t('Buyer pays')}</dt>
+            <dd>{money(gross, cur)}</dd>
+            <dt>{t('What it cost you')}</dt>
+            <dd>{money(basis, cur)}</dd>
+            <dt>{gain >= 0 ? t('Gain') : t('Loss')}</dt>
+            <dd className={gain >= 0 ? 'good' : 'bad'}>{money(Math.abs(gain), cur)}</dd>
+            <dt>{t('Capital gains tax')}</dt>
+            <dd>
+              {money(tax, cur)} ({pct(s.capitalGainsRate)})
+            </dd>
+            <dt>{t('Into your personal account')}</dt>
+            <dd>
+              <strong>{money(net, cur)}</strong>
+            </dd>
+          </dl>
+          {!canPay && (
+            <p className="small bad">
+              {t('{name} can’t pay that much right now. Sell less, or pick another buyer.', {
+                name: buyer.name,
+              })}
+            </p>
+          )}
+          {gross <= 0 && <p className="small bad">{t('Too small to sell.')}</p>}
+          {confirming ? (
+            <div className="stack stake-confirm" role="alert">
+              <p className="small">
+                {t(
+                  'Sell {what} of {name} to {buyer} for {gross}? You get {net} after tax. This can’t be undone.',
+                  {
+                    what,
+                    name: s.name,
+                    buyer: buyer.name,
+                    gross: money(gross, cur),
+                    net: money(net, cur),
+                  },
+                )}
+              </p>
+              <div className="row">
+                <Button
+                  onClick={() =>
+                    void send(
+                      {
+                        type: 'secondary.investorSell',
+                        companyId: s.companyId,
+                        pctBps: bps,
+                        ...(buyer.id ? { buyerId: buyer.id } : {}),
+                      },
+                      (r: SaleResult | null) => {
+                        setConfirming(false);
+                        if (!r) return null;
+                        onSold({ ...r, what, name: s.name, currency: cur });
+                        return t('Sold {what} of {name}: {net} is in your account.', {
+                          what,
+                          name: s.name,
+                          net: money(r.net, cur),
+                        });
+                      },
+                    )
+                  }
+                >
+                  {t('Confirm sale')}
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirming(false)}>
+                  {t('Cancel')}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="secondary"
+              disabled={gross <= 0 || !canPay}
+              onClick={() => setConfirming(true)}
+            >
+              {bps === 10_000
+                ? t('Sell all of my stake…')
+                : t('Sell {pct} of my stake…', { pct: bpsText(bps) })}
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Private companies you backed as an investor: sell a stake, or see why you can't yet. */
+export function InvestorStakes() {
+  const { view } = useView();
+  const stakes = view.capital?.stakes ?? [];
+  const [last, setLast] = useState<SaleResult | null>(null);
+  if (!stakes.length && !last) return null;
+  return (
+    <Card
+      title={t('Your stakes in private companies')}
+      sub={t('Sell some or all of a stake to a secondary buyer')}
+    >
+      <p className="small muted">
+        {t(
+          'Private shares have no market price. A secondary buyer pays below the last round price; the company gets nothing and nobody is diluted. A gain over what you paid is taxed.',
+        )}
+      </p>
+      {last && (
+        <div className="stake-result" data-exit-result>
+          <strong>{t('Realised')}</strong>{' '}
+          {t(
+            'You sold {what} of {name} for {price}. It cost you {cost}: {result}. Tax {tax}; {net} is in your account.',
+            {
+              what: last.what,
+              name: last.name,
+              price: money(last.price, last.currency),
+              cost: money(last.basis, last.currency),
+              result:
+                last.price >= last.basis
+                  ? t('a gain of {n}', { n: money(last.price - last.basis, last.currency) })
+                  : t('a loss of {n}', { n: money(last.basis - last.price, last.currency) }),
+              tax: money(last.tax, last.currency),
+              net: money(last.net, last.currency),
+            },
+          )}
+        </div>
+      )}
+      {stakes.map((s) => (
+        <StakeExit key={s.companyId} s={s} onSold={setLast} />
+      ))}
+    </Card>
+  );
+}
+
 export function ExitOptions() {
   const { view } = useView();
   const exits = view.capital?.exits ?? [];
   if (!exits.length)
-    return (
+    return (view.capital?.stakes.length ?? 0) > 0 ? null : (
       <Card title={t('Exit options')}>
-        <Empty>{t('Exit options appear for companies you founded and still run.')}</Empty>
+        <Empty>
+          {t(
+            'Nothing to sell yet. Companies you found, and private companies you back as an investor, show here.',
+          )}
+        </Empty>
       </Card>
     );
   return (
@@ -971,7 +1247,8 @@ export type CapitalTab = 'exit' | 'markets' | 'allocate';
 export function CapitalHub({ open }: { open?: (app: 'invest') => void }) {
   const { view } = useView();
   const founder = (view.capital?.exits.length ?? 0) > 0;
-  const [tab, setTab] = useState<CapitalTab>(founder ? 'exit' : 'markets');
+  const backer = (view.capital?.stakes.length ?? 0) > 0;
+  const [tab, setTab] = useState<CapitalTab>(founder || backer ? 'exit' : 'markets');
   return (
     <div className="stack capital-hub">
       <OffersForYou />
@@ -987,7 +1264,12 @@ export function CapitalHub({ open }: { open?: (app: 'invest') => void }) {
           { value: 'allocate', label: t('Allocate') },
         ]}
       />
-      {tab === 'exit' && <ExitOptions />}
+      {tab === 'exit' && (
+        <>
+          <ExitOptions />
+          <InvestorStakes />
+        </>
+      )}
       {tab === 'markets' && <PublicMarkets />}
       {tab === 'allocate' && <AllocatorHub open={open} />}
     </div>
