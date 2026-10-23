@@ -103,7 +103,8 @@ function pitchOf(
     human: !founder.ai,
     stage,
     industry: c.industry,
-    revenue: lastPnl(c)?.revenue ?? 0,
+    // B2B invoices and a company with no month booked yet still bill their paying customers.
+    revenue: Math.max(lastPnl(c)?.revenue ?? 0, customersOf(c) * c.price),
     customers: customersOf(c),
     growth: roundTo(monthlyGrowth(c), 3),
     team: c.staff.length + c.founderIds.length,

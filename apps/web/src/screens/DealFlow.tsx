@@ -92,7 +92,7 @@ export function PitchCard({ p: given }: { p: PitchRow }) {
           <span>{t('Revenue {amount}/mo', { amount: money(pitch.revenue, cur) })}</span>
           <span>{t('{n} paying customers', { n: pitch.customers })}</span>
           {pitch.growth !== 0 && <span>{t('{pct} a month', { pct: pct(pitch.growth, 0) })}</span>}
-          <span>{t('{n} people', { n: pitch.team })}</span>
+          <span>{pitch.team === 1 ? t('A solo founder') : t('{n} people', { n: pitch.team })}</span>
         </div>
         <div className="small">
           {pitch.instrument === 'safe'
