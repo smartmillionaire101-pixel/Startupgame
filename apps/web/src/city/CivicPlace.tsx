@@ -15,6 +15,7 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Pill } from '../ui';
 import { CIVIC_ICON } from './mapIcons';
+import { BankInterviewCard } from '../screens/BankLicence';
 import type { Place } from './layout';
 
 type View = PlayerView;
@@ -260,6 +261,8 @@ export function CivicInterior({ place }: { place: Place }) {
     <div className="civic" data-civic={e.role}>
       <PlaceHead e={e} />
       <Appointment e={e} />
+      {/* Bankers: the fit-and-proper interview for your licence. */}
+      {e.role === 'central-bank' && <BankInterviewCard />}
       {e.services.map((s) => {
         const visa = s.id === 'visa' ? (s.options ?? []) : null;
         return (

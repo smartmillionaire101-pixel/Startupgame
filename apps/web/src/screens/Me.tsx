@@ -18,6 +18,7 @@ import { PurchasesButton } from '../avatar/Wardrobe';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
 import { FoundBank } from './Bank';
+import { BankInvitations } from './BankLicence';
 import { setSetting, useSimple, useSimpleAvailable } from '../phone/settings';
 import { openLiving } from '../experiences/living-bus';
 
@@ -201,6 +202,8 @@ function Profile() {
       )}
       {me.role === 'banker' &&
         (!view.bank || ['failed', 'rejected'].includes(view.bank.status)) && <FoundBank />}
+      {/* Bankers note: someone invited you to co-found their bank. */}
+      {me.role !== 'banker' && <BankInvitations />}
       <details className="card">
         <summary>{t('City and career')}</summary>
         <Travel trips={false} />
