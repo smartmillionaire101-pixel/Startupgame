@@ -58,6 +58,17 @@ export const JOBS_NOTE = 'release-2026-10-19-jobs';
  */
 export const INVESTOR_NOTE = 'release-2026-10-20-investor-career';
 
+/**
+ * Investor deal flow (dealflow.ts, lpreview.ts): founders pitch investors at
+ * tech events, hosted events and hangouts (each pitch joins the pipeline),
+ * AI investors talk strategy and refer deals (lessons learned, skill and LP
+ * credibility), and LP pitches are judged on the fund's strategy (size,
+ * cheque, companies, reserves, ownership, terms) and its track record, with
+ * questions, reasons and commitment sizes. Worlds without this note play
+ * exactly as before.
+ */
+export const DEALFLOW_NOTE = 'release-2026-10-23-investor-dealflow';
+
 /** Every behaviour-switching note, oldest first. */
 export const RELEASES = [
   JOURNEY_EVENTS_NOTE,
@@ -65,6 +76,7 @@ export const RELEASES = [
   LIFE_BARS_NOTE,
   JOBS_NOTE,
   INVESTOR_NOTE,
+  DEALFLOW_NOTE,
 ] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
@@ -78,3 +90,4 @@ export const exitsOn = (w: World): boolean => releaseOn(w, EXITS_NOTE);
 export const lifeBarsOn = (w: World): boolean => releaseOn(w, LIFE_BARS_NOTE);
 export const jobsOn = (w: World): boolean => releaseOn(w, JOBS_NOTE);
 export const investorOn = (w: World): boolean => releaseOn(w, INVESTOR_NOTE);
+export const dealflowOn = (w: World): boolean => releaseOn(w, DEALFLOW_NOTE);

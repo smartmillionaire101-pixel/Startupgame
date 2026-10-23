@@ -24,6 +24,18 @@ const answers = z.record(z.string().max(32), z.string().max(32));
  */
 const figures = z.record(z.string().max(32), z.number().finite().nonnegative().max(1e15));
 
+/**
+ * Deal-flow note: a fund's strategy as pitched to LPs (lpreview.ts). The
+ * thesis's sectors and stages travel with the command; this is the rest.
+ */
+const fundStrategy = z.object({
+  geography: z.enum(['city', 'country', 'region']),
+  avgCheque: money,
+  companies: z.number().int().min(1).max(100),
+  reserveRatio: z.number().min(0).max(0.8),
+  targetOwnership: z.number().min(0.001).max(0.5),
+});
+
 export const companySetup = z.object({
   name: z.string().min(3).max(32),
   industry,
@@ -255,6 +267,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     why: z.string().min(10).max(200),
     /** Wave 5: the fund's investor type (default VC). */
     investorType: z.enum(INVESTOR_TYPES).optional(),
+    /** Deal-flow note: the strategy, target size and terms the LP panel judges. */
+    plan: fundStrategy
+      .extend({
+        size: money,
+        feeRate: z.number().min(0.01).max(0.03),
+        carry: z.number().min(0.1).max(0.3),
+      })
+      .optional(),
   }),
   // ---- media
   z.object({ type: z.literal('media.accept'), inviteId: id, angle: z.string().max(40) }),
@@ -971,6 +991,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     termMonths: z.number().int().min(1).max(240),
     investMonths: z.number().int().min(1).max(240),
     keyPerson: z.boolean(),
+    /** Deal-flow note: portfolio construction and geography LPs judge the pitch on. */
+    plan: fundStrategy.optional(),
   }),
   z.object({ type: z.literal('fund.close'), fundId: id }),
   z.object({ type: z.literal('fund.abandon'), fundId: id }),

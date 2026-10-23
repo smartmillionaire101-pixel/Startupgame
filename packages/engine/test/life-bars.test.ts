@@ -14,7 +14,14 @@ import {
   walkCost,
 } from '../src/lifebars.js';
 import { computeHours } from '../src/personal.js';
-import { LIFE_BARS_NOTE, RELEASES, exitsOn, journeyEventsOn, lifeBarsOn } from '../src/releases.js';
+import {
+  JOBS_NOTE,
+  LIFE_BARS_NOTE,
+  RELEASES,
+  exitsOn,
+  journeyEventsOn,
+  lifeBarsOn,
+} from '../src/releases.js';
 import { winChance } from '../src/sales.js';
 import { playerView } from '../src/views.js';
 import type { Command } from '../src/commands.js';
@@ -36,7 +43,7 @@ const open = (w: World) => Object.values(w.markets.lagos!.businesses ?? {}).filt
 
 describe('life bars: the release switch', () => {
   it('turns the earlier switches on too (jobs and the investor career follow it)', () => {
-    expect(RELEASES.indexOf(LIFE_BARS_NOTE)).toBe(RELEASES.length - 3);
+    expect(RELEASES.indexOf(LIFE_BARS_NOTE)).toBe(RELEASES.indexOf(JOBS_NOTE) - 1);
     const w = { announcements: [LIFE_BARS_NOTE] } as unknown as World;
     expect(lifeBarsOn(w)).toBe(true);
     expect(exitsOn(w)).toBe(true);

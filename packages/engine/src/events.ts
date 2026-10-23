@@ -24,6 +24,7 @@ import type { EventKind, EventVenue } from './data/events.js';
 import { CAPITAL } from './data/capital.js';
 import type { MarketId } from './data/markets.js';
 import { emptyPosition } from './customers.js';
+import { eventDealFlow } from './dealflow.js';
 import { ensure } from './errors.js';
 import { adjustTrust, col, getMarket, locationOf, notify, spendHours } from './helpers.js';
 import { newId } from './ids.js';
@@ -539,6 +540,17 @@ function holdEvent(world: World, e: CityEvent, month: number) {
     aiNames: pool.slice(0, Math.min(aiGuests, 40)).map((g) => ({ name: g.name, kind: g.kind })),
   };
   e.status = 'held';
+
+  // Deal-flow note: investors there are pitched and meet other investors (own RNG stream).
+  if (aiGuests > 0 || humans.length > 1)
+    for (const p of humans)
+      eventDealFlow(
+        world,
+        p,
+        { id: e.id, title: e.title, kind: e.kind, where: 'hosted', market: e.market },
+        month,
+        humans,
+      );
 
   for (const p of humans) {
     const isHost = p.id === e.hostId;

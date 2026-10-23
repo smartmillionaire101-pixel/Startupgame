@@ -48,6 +48,7 @@ import { investorFundOps } from './investor-fundops';
 import { investorFirm } from './investor-firm';
 import { investorAllocators } from './investor-allocators';
 import { investorDealcraft } from './investor-dealcraft';
+import { investorDealflow } from './investor-dealflow';
 import { investorLegacy } from './investor-legacy';
 import { tutorial } from './tutorial';
 import { uiFixes } from './ui-fixes';
@@ -127,6 +128,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   investorFirm,
   investorAllocators,
   investorDealcraft,
+  investorDealflow,
   investorLegacy,
   tutorial,
   uiFixes,

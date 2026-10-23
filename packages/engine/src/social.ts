@@ -18,6 +18,7 @@
 import { checkChatMessage } from './chat.js';
 import { ensure, fail } from './errors.js';
 import { addContact } from './events.js';
+import { eventDealFlow } from './dealflow.js';
 import { adjustTrust, col, getMarket, getPlayer, locationOf, notify } from './helpers.js';
 import { newId } from './ids.js';
 import { account, costIn, pay, payExact, valueIn, withTx } from './ledger.js';
@@ -488,6 +489,7 @@ export function planHangout(
     status: 'open',
   };
   const effects = boost(me);
+  const dealflow = hangoutDealFlow(world, me, hangoutsOf(world)[id]!, b);
   for (const q of invitees)
     notify(world, q.id, {
       month: getMarket(world, q.market).month,
@@ -498,6 +500,7 @@ export function planHangout(
   return {
     hangoutId: id,
     effects,
+    ...(dealflow ? { dealflow } : {}),
     message: `Plans made: ${b.name}, ${when === 'now' ? 'now' : 'tonight'}.`,
   };
 }
@@ -530,6 +533,7 @@ export function joinHangout(world: World, me: Player, hangoutId: Id) {
   }
   h.memberIds.push(me.id);
   const effects = boost(me);
+  const dealflow = hangoutDealFlow(world, me, h, b);
   if (h.hostId !== me.id)
     notify(world, h.hostId, {
       month,
@@ -542,10 +546,25 @@ export function joinHangout(world: World, me: Player, hangoutId: Id) {
     businessId: b.id,
     effects,
     with: h.memberIds.filter((x) => x !== me.id).map((x) => world.players[x]?.name ?? ''),
+    ...(dealflow ? { dealflow } : {}),
     needs: needsOf(me),
     mood: moodOf(me),
     message: `You’re at ${b.name}.`,
   };
+}
+
+/** Deal-flow note: at a hangout, a founder at the next table may pitch an investor. */
+function hangoutDealFlow(world: World, me: Player, h: Hangout, b: LocalBusiness) {
+  const present = h.memberIds
+    .map((id) => world.players[id])
+    .filter((q): q is Player => !!q && q.id !== me.id);
+  return eventDealFlow(
+    world,
+    me,
+    { id: h.id, title: b.name, kind: 'hangout', where: 'hangout', market: h.market },
+    getMarket(world, h.market).month,
+    present,
+  );
 }
 
 export function leaveHangout(world: World, me: Player, hangoutId: Id) {
@@ -836,6 +855,18 @@ export function attendTechEvent(world: World, me: Player, eventId: string) {
     }
   }
 
+  // Deal-flow note: founders pitch an investor, and other investors talk strategy.
+  const present = Object.values(world.players).filter(
+    (q) => q.id !== me.id && !q.ai && attendedIds(q, e.month).includes(e.id),
+  );
+  const dealflow = eventDealFlow(
+    world,
+    me,
+    { id: e.id, title: e.title, kind: e.kind, where: 'tech', market: e.market },
+    m.month,
+    present,
+  );
+
   me.techEvents = { month: e.month, ids: [...attendedIds(me, e.month), e.id] };
   return {
     eventId: e.id,
@@ -843,6 +874,7 @@ export function attendTechEvent(world: World, me: Player, eventId: string) {
     effects: { network, social, fun },
     contacts,
     pitch,
+    ...(dealflow ? { dealflow } : {}),
     needs: needsOf(me),
     mood: moodOf(me),
     message: `You went to ${e.title}${e.ticket ? ` (${fmt(e.ticket)})` : ''} and met ${contacts.length} people.`,

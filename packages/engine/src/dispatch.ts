@@ -930,6 +930,9 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         me,
         { sectors: cmd.sectors, stages: cmd.stages, checkSize: cmd.checkSize, why: cmd.why },
         month,
+        cmd.plan
+          ? { plan: cmd.plan, ...(cmd.investorType ? { investorType: cmd.investorType } : {}) }
+          : {},
       );
       if (raised.ok && cmd.investorType) raised.fund.investorType = cmd.investorType;
       return raised;

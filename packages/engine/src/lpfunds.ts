@@ -37,7 +37,7 @@ import { account, costIn, openAccount, pay, payExact, transfer, withTx } from '.
 import { roundTo } from './math.js';
 import { formatMoney } from './money.js';
 import { monthOfLiving } from './career.js';
-import { investorOn } from './releases.js';
+import { dealflowOn, investorOn } from './releases.js';
 import { fundOpsView } from './fundops.js';
 import { aiCarry, attachFund, nextFundCap, splitCarry } from './firms.js';
 import { distributeFund } from './funds.js';
@@ -49,6 +49,7 @@ import type {
   Fund,
   FundLpState,
   FundStrategy,
+  FundGeography,
   FundTerms,
   Id,
   LpCommitment,
@@ -121,6 +122,14 @@ export interface LaunchArgs {
   termMonths: number;
   investMonths: number;
   keyPerson: boolean;
+  /** Deal-flow note: portfolio construction and geography, pitched to LPs (lpreview.ts). */
+  plan?: {
+    geography: FundGeography;
+    avgCheque: number;
+    companies: number;
+    reserveRatio: number;
+    targetOwnership: number;
+  };
 }
 
 /** `fund.launch`: write the thesis and the terms, and start raising. */
@@ -242,6 +251,8 @@ export function launchFund(world: World, me: Player, a: LaunchArgs) {
       ic: [],
       feesPaid: 0,
       carryPaid: 0,
+      // Deal-flow note: the strategy LPs judge the pitch on (and the fund's plan after).
+      ...(a.plan && dealflowOn(world) ? { plan: { ...a.plan } } : {}),
     },
   };
   world.funds[id] = fund;
@@ -1036,12 +1047,24 @@ export function lpFundsView(world: World, p: Player) {
           status: c.status,
           anchor: !!c.anchor,
         })),
-        lpPipeline: lpsOf(f.market).map((x) => ({
-          id: x.id,
-          name: x.name,
-          kind: x.kind,
-          laterFundsOnly: (x.kind === 'pension' || x.kind === 'sovereign') && lp.number < 2,
-        })),
+        lpPipeline: lpsOf(f.market).map((x) => {
+          // The latest pitch to this LP for this fund: its answer, and (deal-flow note) the review.
+          const app = Object.values(world.applications ?? {})
+            .filter((a) => a.kind === 'lp' && a.targetId === x.id && a.fundId === f.id)
+            .sort((a, b) => b.month - a.month || (a.id < b.id ? 1 : -1))[0];
+          return {
+            id: x.id,
+            name: x.name,
+            kind: x.kind,
+            laterFundsOnly: (x.kind === 'pension' || x.kind === 'sovereign') && lp.number < 2,
+            status: app?.status ?? null,
+            amount: app?.amount ?? 0,
+            reason: app?.reason ?? '',
+            review: app?.review ?? null,
+          };
+        }),
+        /** Deal-flow note: the strategy pitched to LPs. */
+        plan: lp.plan ?? null,
       };
     });
   const myCalls: {

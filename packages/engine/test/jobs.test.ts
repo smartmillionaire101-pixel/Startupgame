@@ -17,7 +17,14 @@ import {
 } from '../src/data/professions.js';
 import { dispatch } from '../src/dispatch.js';
 import { businessesOf, isOpen } from '../src/economy.js';
-import { JOBS_NOTE, LIFE_BARS_NOTE, RELEASES, jobsOn, lifeBarsOn } from '../src/releases.js';
+import {
+  INVESTOR_NOTE,
+  JOBS_NOTE,
+  LIFE_BARS_NOTE,
+  RELEASES,
+  jobsOn,
+  lifeBarsOn,
+} from '../src/releases.js';
 import { playerView } from '../src/views.js';
 import { WORK, jobHours, levelGate, workOf } from '../src/work.js';
 import type { Player, World } from '../src/types.js';
@@ -73,7 +80,7 @@ function interview(w: World, appId: string, answers: number[], id = F) {
 
 describe('jobs: the release switch', () => {
   it('comes before the investor career note and implies every earlier one', () => {
-    expect(RELEASES.at(-2)).toBe(JOBS_NOTE);
+    expect(RELEASES.indexOf(JOBS_NOTE)).toBe(RELEASES.indexOf(INVESTOR_NOTE) - 1);
     const w = { announcements: [JOBS_NOTE] } as unknown as World;
     expect(jobsOn(w)).toBe(true);
     expect(lifeBarsOn(w)).toBe(true);
