@@ -35,6 +35,7 @@ import { project, type CityLayout, type Place } from './layout';
 import { npcName, type PresenceView } from './people';
 import type { PersonRef } from './PersonCard';
 import { CapitalDetails, InScene, PlaceScene } from './PlaceScene';
+import { CivicDoor, CivicInterior, civicOf } from './CivicPlace';
 import type { Destination } from './travel';
 
 /** Wave 7: the busy airport scene, loaded when you go in. */
@@ -923,6 +924,16 @@ export function Interior({
   /** Just landed: the airport shows Arrivals and where to go next. */
   arrival?: Arrival | null;
 }) {
+  const { view } = useView();
+  // City places: a door you can't go through (members only, or not your
+  // appointment yet) shows why and what opens it, instead of the room.
+  const civic = view ? civicOf(view, place) : null;
+  if (civic && !civic.open)
+    return (
+      <InteriorSheet title={title} onClose={onClose}>
+        <CivicDoor e={civic} onClose={onClose} />
+      </InteriorSheet>
+    );
   const body = (() => {
     switch (place.kind) {
       case 'lender':
@@ -960,6 +971,8 @@ export function Interior({
         return <EventHallInterior place={place} layout={layout} />;
       case 'capital':
         return <CapitalDetails place={place} />;
+      case 'civic':
+        return <CivicInterior place={place} />;
     }
   })();
   // Wave 7: the busy airport (departures board, apron, your trip).

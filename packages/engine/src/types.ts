@@ -335,6 +335,32 @@ export interface Player {
    * put on again free. Missing = none (worlds before the investor release).
    */
   wardrobe?: { item: string; month: number; colour?: string; from?: Id }[];
+  /** City places (places.ts): appointments, services used, visas and licences. Missing = none. */
+  places?: PlayerPlaces;
+}
+
+/** A government appointment: the place (`<market>:<role>`) and its time on the game clock. */
+export interface PlaceAppointment {
+  placeId: string;
+  market: MarketId;
+  /** Game minute (places.ts `gameMinute`) the appointment starts. */
+  at: number;
+  /** Game minute it was booked. */
+  bookedAt: number;
+  /** Went in and used a service. */
+  attended?: boolean;
+}
+
+/** What a player has done at the city's places (the city places release). */
+export interface PlayerPlaces {
+  /** Appointments, newest first (kept short). */
+  appointments: PlaceAppointment[];
+  /** Appointments ever booked (seeds the time drawn for the next). */
+  booked: number;
+  /** `<place>:<service>` (or `<place>:<service>:<company>`) → home month it was last used. */
+  used: Record<string, number>;
+  /** Business visas: destination → home month issued. */
+  visas?: Partial<Record<MarketId, number>>;
 }
 
 // ---------------------------------------------------------------- Founder Journey 5: exits and the capital allocator

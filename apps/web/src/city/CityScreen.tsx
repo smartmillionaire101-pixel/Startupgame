@@ -16,7 +16,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { Command, PlayerView } from '@runway/engine';
+import { PLACE_SPECS, type Command, type PlaceRole, type PlayerView } from '@runway/engine';
 import './city.css';
 import { api, ApiError } from '../api';
 import { money, runway } from '../format';
@@ -77,12 +77,21 @@ import { RideWith } from './companions';
 import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
 import { cachedCityLayout } from './geoLayout';
-import { type CityLayout, type DistrictId, type Place, type Pt } from './layout';
+import { civicRole, type CityLayout, type DistrictId, type Place, type Pt } from './layout';
 import { skipRides } from './ride/state';
 
 // Scenes and flights load on demand (Wave 7 §D: a small main bundle).
 const Interior = lazy(() => import('./Interiors').then((m) => ({ default: m.Interior })));
 const FlightScene = lazy(() => import('./Flight').then((m) => ({ default: m.FlightScene })));
+
+/** Appointments already announced as due (this page load). */
+const dueSeen = new Set<string>();
+
+/** A city place's role, in words ("Tax Office"). */
+const civicLabel = (p: Place) => {
+  const spec = PLACE_SPECS[civicRole(p) as PlaceRole];
+  return spec ? tx(spec.label) : '';
+};
 
 const kindLabel = (
   p: Place,
@@ -140,7 +149,7 @@ const DISTRICT_ORDER: DistrictId[] = [
   'events',
 ];
 
-type Filter = 'all' | 'capital' | 'customers' | (typeof BUSINESS_CATEGORIES)[number];
+type Filter = 'all' | 'capital' | 'customers' | 'civic' | (typeof BUSINESS_CATEGORIES)[number];
 
 const matches = (p: Place, f: Filter) =>
   f === 'all' ||
@@ -150,6 +159,7 @@ const matches = (p: Place, f: Filter) =>
       p.kind === 'fund' ||
       p.kind === 'capital')) ||
   (f === 'customers' && p.kind === 'stall') ||
+  (f === 'civic' && p.kind === 'civic') ||
   p.category === f;
 
 /**
@@ -286,6 +296,10 @@ export function PlacesList({
     { id: 'all', label: t('All') },
     { id: 'capital', label: t('Money') },
     { id: 'customers', label: t('Customers') },
+    // City places: the named buildings (ministries, the exchange, clubs…), once the city has them.
+    ...(layout.places.some((p) => p.kind === 'civic')
+      ? [{ id: 'civic' as const, label: t('Institutions') }]
+      : []),
     ...cats.map((c) => ({ id: c, label: categoryLabel(c), color: CATEGORY_COLOR[c] })),
   ];
   // The big days out, wherever they stand in town: always one tap away.
@@ -356,6 +370,7 @@ export function PlacesList({
                     />
                     <span>{labelOf(p)}</span>
                     {p.category && <span className="small muted">{categoryLabel(p.category)}</span>}
+                    {p.kind === 'civic' && <span className="small muted">{civicLabel(p)}</span>}
                     {p.soon && <Pill>{t('Opening soon')}</Pill>}
                     {p.siren && <Pill tone="bad">{t('Rescue')}</Pill>}
                   </button>
@@ -400,6 +415,24 @@ export function CityScreen({
   const { view, lite, refresh, toast } = useView();
   const cityView = useMemo(() => cityViewOf(view), [view]);
   const abroad = cityView.market.id !== view.market.id;
+  // City places: when a government appointment comes due, say so (once each).
+  const due = (view.market.cityPlaces?.places ?? [])
+    .filter((p) => p.appointment?.status === 'due' && !p.appointment.attended)
+    .map(
+      (p) =>
+        `${p.id}@${p.appointment!.at.month}:${p.appointment!.at.day}:${p.appointment!.at.hour}`,
+    )
+    .join('|');
+  useEffect(() => {
+    for (const key of due ? due.split('|') : []) {
+      if (dueSeen.has(key)) continue;
+      dueSeen.add(key);
+      const place = view.market.cityPlaces?.places.find((p) => key.startsWith(`${p.id}@`));
+      if (place) toast(t('It’s time for your appointment at {name}.', { name: place.name }), 'ok');
+    }
+    // Only a newly due appointment speaks; the view itself changes all the time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [due]);
   const [flight, setFlight] = useState<FlightState | null>(null);
   const [landing, setLanding] = useState<string | null>(null);
 

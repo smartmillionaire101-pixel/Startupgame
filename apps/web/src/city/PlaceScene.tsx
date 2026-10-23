@@ -70,6 +70,7 @@ import {
   type VenueItemView,
 } from './life';
 import { Showroom, slotsOwned } from './Showroom';
+import { civicOf, civicTray } from './CivicPlace';
 import { EmployerPanel } from '../phone/work';
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
 import { crowdAt, crowdHour } from './crowdfill';
@@ -407,6 +408,12 @@ function occupantsOf(
       );
       break;
     }
+    case 'civic': {
+      // Someone at the desk: an official in a government office, a host elsewhere.
+      const gov = civicOf(view, place)?.access === 'appointment';
+      out.push(staffMember('desk', gov ? t('Official') : t('Host')));
+      break;
+    }
     default:
       if ((place.kind as string) === 'capital') out.push(staffMember('lead', t('Programme lead')));
   }
@@ -736,6 +743,8 @@ function RoomScene({
     name: string;
     check: [number, number];
   } | null>(null);
+  // City places: the named building's view (its services and who may use them).
+  const civic = useMemo(() => civicOf(view, place), [view, place]);
   const company = activeCompany(view);
   const business =
     place.kind === 'business' ? businessesOf(view).find((b) => b.id === place.ref) : undefined;
@@ -1475,6 +1484,9 @@ function RoomScene({
   } else if (place.kind === 'newsstand') {
     actions.push({ ...toMore, label: t('Read the papers'), icon: '📰' });
     actions.push(go('news', t('Open the news screen'), '🗞'));
+  } else if (civic) {
+    actions.push(...civicTray(civic, send, busy, view.here?.currency ?? cur, () => setMore(true)));
+    actions.push({ ...toMore, label: t('About this place'), icon: '🏛' });
   }
   const primary = actions.slice(0, 4);
 
@@ -1505,6 +1517,12 @@ function RoomScene({
       <header className="place-head">
         <div className="place-title">
           <h2>{title}</h2>
+          {civic && (
+            <span className="small muted">
+              {tx(civic.label)}
+              {civic.street ? ` · ${civic.street}` : ''}
+            </span>
+          )}
           {business && (
             <span className="small muted">
               {foodStyle

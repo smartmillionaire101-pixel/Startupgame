@@ -8,7 +8,8 @@ import { dealCraftView, offerComparisonView, redFlags, reviewableView } from './
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
-import { investorOn, lifeBarsOn } from './releases.js';
+import { investorOn, lifeBarsOn, placesOn } from './releases.js';
+import { cityPlacesView } from './places.js';
 import { anyJobView, workView } from './work.js';
 import { pitchQuestionsNow } from './fundraising.js';
 import { journeyView } from './journey.js';
@@ -643,6 +644,12 @@ function marketView(
      * (businessId → AI angel ids there this period), angels, centralBank.
      */
     ...capitalProgramsView(world, p, m),
+    /**
+     * City places (after their release note): the city's named buildings,
+     * whether you may go in (and why not), your appointment, and what you
+     * can do inside. Null in worlds without the note.
+     */
+    cityPlaces: placesOn(world) ? cityPlacesView(world, p, m, clock?.now ?? p.lastActiveAt) : null,
     eventKinds: EVENT_KINDS.map((kind) => {
       const k = EVENT_KIND_DATA[kind];
       return {

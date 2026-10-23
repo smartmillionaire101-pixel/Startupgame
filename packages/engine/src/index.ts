@@ -122,6 +122,8 @@ export {
   jobsOn,
   INVESTOR_NOTE,
   investorOn,
+  PLACES_NOTE,
+  placesOn,
   RELEASES,
 } from './releases.js';
 // Phase 3: life bars (energy, health, happiness, stress) and what trips cost.
@@ -367,3 +369,14 @@ export {
 } from './recap.js';
 // The investor career (investor blueprint): config, glossary and rungs.
 export { INVESTOR, RUNGS, GLOSSARY, type RungId } from './data/investor.js';
+// City places: each city's named buildings, who may go in, appointments and services.
+export {
+  CITY_PLACES,
+  PLACE_ROLES,
+  PLACE_SERVICES,
+  PLACE_SPECS,
+  PLACES,
+  SERVICE_SPECS,
+} from './data/places.js';
+export type { PlaceRole, PlaceService, PlaceGate, PlaceAccess } from './data/places.js';
+export { cityPlaces, findPlace, gameMinute, whenOf, placeAccess } from './places.js';

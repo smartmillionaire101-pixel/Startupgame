@@ -1671,6 +1671,15 @@ function placeSpec(p: Place): {
     }
     case 'business':
       return { w: W(0.55, 18), d: D(0.55, 16), h: 8, style: 0 };
+    // City places: prominent buildings (stone columns for the state, glass and towers for money).
+    case 'civic': {
+      const m = p.motif;
+      if (m === 'tower') return { w: W(0.75), d: D(0.75), h: 95, style: 3 };
+      if (m === 'glass') return { w: W(0.75), d: D(0.75), h: 55, style: 3 };
+      if (m === 'columns')
+        return { w: W(0.8), d: D(0.8), h: Math.max(18, p.h * 0.5), style: 4, wall: p.color };
+      return { w: W(0.8), d: D(0.8), h: Math.max(16, p.h * 0.45), style: 2 };
+    }
     default:
       return { w: W(0.6), d: D(0.6), h: 12, style: 0 };
   }

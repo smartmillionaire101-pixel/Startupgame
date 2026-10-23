@@ -390,9 +390,9 @@ describe('investor career: the ladder (§2.1)', () => {
 });
 
 describe('investor career: the release switch', () => {
-  it('is the newest note and turns every earlier switch on', async () => {
+  it('comes after the jobs note and turns every earlier switch on', async () => {
     const r = await import('../src/releases.js');
-    expect(r.RELEASES.at(-1)).toBe(INVESTOR_NOTE);
+    expect(r.RELEASES.indexOf(INVESTOR_NOTE)).toBe(r.RELEASES.indexOf(r.JOBS_NOTE) + 1);
     const w = { announcements: [INVESTOR_NOTE] } as unknown as World;
     expect(r.investorOn(w)).toBe(true);
     expect(r.lifeBarsOn(w)).toBe(true);

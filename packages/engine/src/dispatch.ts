@@ -117,7 +117,8 @@ import {
   startInvestorTutorial,
   tutorialCommand,
 } from './career.js';
-import { exitsOn, investorOn, jobsOn, lifeBarsOn } from './releases.js';
+import { exitsOn, investorOn, jobsOn, lifeBarsOn, placesOn } from './releases.js';
+import { bookAppointment, useService } from './places.js';
 import { applyForJob, attendInterview, ensureEmployers } from './work.js';
 import { golfRound, mallBuy } from './leisure.js';
 import { mallTripCommand } from './malltrips.js';
@@ -1445,6 +1446,21 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return leaveHangout(world, me, cmd.hangoutId);
     case 'techevent.attend':
       return attendTechEvent(world, me, cmd.eventId);
+    // ------------------------------------------------------------ city places
+    // Unknown until the city places release note: old worlds replay as before.
+    case 'place.book':
+      if (!placesOn(world)) return fail('command.unknown', 'Unknown command.');
+      return bookAppointment(world, me, cmd.placeId, ctx.now);
+    case 'place.use':
+      if (!placesOn(world)) return fail('command.unknown', 'Unknown command.');
+      return useService(
+        world,
+        me,
+        cmd.placeId,
+        cmd.service,
+        { companyId: cmd.companyId, to: cmd.to },
+        ctx.now,
+      );
     // ------------------------------------------------------------ golf and the mall
     case 'golf.round':
       return golfRound(world, me, cmd.strokes);

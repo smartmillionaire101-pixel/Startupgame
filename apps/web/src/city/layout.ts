@@ -88,7 +88,9 @@ export type PlaceKind =
   | 'capital'
   /** The city's golf course and its shopping mall (./leisure.ts). */
   | 'golf'
-  | 'mall';
+  | 'mall'
+  /** City places: a named building (a ministry, the exchange, a club…), `ref` its id. */
+  | 'civic';
 
 export type Motif =
   | 'columns'
@@ -325,7 +327,42 @@ export interface CityInput {
   businesses?: BizInput[];
   /** Wave 5: accelerators (near the Hub), development partners and LPs (with the investors). */
   capital?: CapitalInput[];
+  /** City places: the city's named buildings, each in the district it names. */
+  civic?: CivicInput[];
 }
+
+export interface CivicInput {
+  /** `<market>:<role>`. */
+  id: string;
+  name: string;
+  role: string;
+  district: string;
+}
+
+/** The role of a city place, from its map id (`civic:<market>:<role>`) or its ref. */
+export const civicRole = (p: Pick<Place, 'id' | 'kind'>): string | null =>
+  p.kind === 'civic' ? (p.id.split(':')[2] ?? null) : null;
+
+/** How each city place stands: government in columns, towers for money, halls for the rest. */
+const CIVIC_LOOK: Record<
+  string,
+  { motif: Motif; color: string; accent: string; w: number; h: number }
+> = {
+  'ministry-finance': { motif: 'columns', color: '#e7e0cf', accent: '#1e3a8a', w: 1.35, h: 54 },
+  'central-bank': { motif: 'columns', color: '#d6cfbf', accent: '#a16207', w: 1.35, h: 58 },
+  'stock-exchange': { motif: 'columns', color: '#f1ece0', accent: '#0f766e', w: 1.35, h: 50 },
+  chamber: { motif: 'hall', color: '#cbd5e1', accent: '#7c3aed', w: 1.3, h: 40 },
+  'high-court': { motif: 'columns', color: '#ece6d6', accent: '#7f1d1d', w: 1.35, h: 48 },
+  'tax-office': { motif: 'office', color: '#94a3b8', accent: '#1e293b', w: 1.2, h: 46 },
+  embassy: { motif: 'columns', color: '#f5f5f4', accent: '#15803d', w: 1.2, h: 38 },
+  ipa: { motif: 'glass', color: '#0e7490', accent: '#a5f3fc', w: 1.25, h: 62 },
+  'tech-hub': { motif: 'loft', color: '#7e22ce', accent: '#f0abfc', w: 1.3, h: 44 },
+  'members-club': { motif: 'columns', color: '#1f2937', accent: '#fbbf24', w: 1.2, h: 36 },
+  'family-office': { motif: 'tower', color: '#334155', accent: '#fde68a', w: 1.2, h: 104 },
+  hospital: { motif: 'b-clinic', color: '#f8fafc', accent: '#dc2626', w: 1.35, h: 52 },
+  university: { motif: 'b-school', color: '#b45309', accent: '#fef3c7', w: 1.35, h: 44 },
+};
+const CIVIC_FALLBACK = CIVIC_LOOK['tax-office']!;
 
 export type CapitalKind = 'accelerator' | 'devpartner' | 'lp';
 export interface CapitalInput {
@@ -669,6 +706,7 @@ export type LotItem =
   | { kind: 'lender' | 'playerbank'; id: string; name: string; look: LenderLook }
   | { kind: 'fund'; id: string; name: string; office: FundOffice }
   | { kind: 'capital'; cap: CapitalInput }
+  | { kind: 'civic'; place: CivicInput }
   | { kind: 'business'; biz: BizInput };
 
 export function financeItems(input: CityInput): LotItem[] {
@@ -764,6 +802,30 @@ export function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: stri
     });
     return;
   }
+  if (it.kind === 'civic') {
+    const look = CIVIC_LOOK[it.place.role] ?? CIVIC_FALLBACK;
+    const w = Math.min(LOT_SIZE, look.w);
+    const x = l.x + (LOT_SIZE - w) * (l.a ? 1 : 0);
+    const y = l.y + (LOT_SIZE - w) * (l.b ? 1 : 0);
+    ctx.places.push({
+      id: `civic:${it.place.id}`,
+      kind: 'civic',
+      ref: it.place.id,
+      name: it.place.name,
+      district: 'finance',
+      area,
+      x,
+      y,
+      w,
+      d: w,
+      h: look.h,
+      motif: look.motif,
+      color: look.color,
+      accent: look.accent,
+      ...doorFor(blk.i, blk.j, l.a, l.b, x, y, w, w),
+    });
+    return;
+  }
   const b = (it as Extract<LotItem, { kind: 'business' }>).biz;
   const sz = BIZ_SIZE[b.shape] ?? BIZ_SIZE.shopfront;
   const cafe = b.shape === 'restaurant' && isCafe(b.kind);
@@ -795,6 +857,24 @@ export function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: stri
     accent: b.awning ?? AWNINGS[hash(b.id) % AWNINGS.length]!,
     ...doorFor(blk.i, blk.j, l.a, l.b, x, y, w, d),
   });
+}
+
+/**
+ * City places by district index (`indexOf` a plan id; -1 when the plan has
+ * no such district: the finance district takes it).
+ */
+export function civicByDistrict(
+  input: CityInput,
+  indexOf: (district: string) => number,
+  fallback: number,
+): Map<number, LotItem[]> {
+  const out = new Map<number, LotItem[]>();
+  for (const c of input.civic ?? []) {
+    const n = indexOf(c.district);
+    const k = n >= 0 ? n : fallback;
+    out.set(k, [...(out.get(k) ?? []), { kind: 'civic', place: c }]);
+  }
+  return out;
 }
 
 type FillStyle = 'park' | 'houses' | 'towers' | 'warehouses' | 'low' | 'plaza';
@@ -873,7 +953,11 @@ function buildGeneric(input: CityInput): CityLayout {
   const biz = [...(input.businesses ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
   const nF = Math.max(1, Math.ceil(fin.length / 4));
   const capital = [...(input.capital ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
-  const nI = Math.max(1, Math.ceil((input.funds.length + capital.length) / 4));
+  const civic = input.civic ?? [];
+  const nI = Math.max(
+    1,
+    Math.ceil((input.funds.length + capital.length) / 4) + Math.ceil(civic.length / 4),
+  );
   const nM = Math.max(1, Math.ceil(input.segments.length / 9));
   const nS = Math.ceil(biz.length / 4);
   const core = 3 + nF + nI + nM + nS + 2;
@@ -921,6 +1005,7 @@ function buildGeneric(input: CityInput): CityLayout {
     [
       ...input.funds.map((f) => ({ kind: 'fund' as const, ...f })),
       ...capital.map((c) => ({ kind: 'capital' as const, cap: c })),
+      ...civic.map((c) => ({ kind: 'civic' as const, place: c })),
     ],
     undefined,
     tree,
@@ -1295,8 +1380,14 @@ function tryPlanned(
   const fin = financeItems(input);
   const marketBlocks = Math.ceil(input.segments.length / 9);
   const capital = [...(input.capital ?? [])].sort((a, b) => (a.id < b.id ? -1 : 1));
+  const civicIn = civicByDistrict(
+    input,
+    (id) => D.findIndex((x) => x.d.id === id),
+    hostOf.get('finance') ?? 0,
+  );
   const lotItemsOf = (n: number): LotItem[] => [
     ...(hosts(n).includes('finance') ? fin : []),
+    ...(civicIn.get(n) ?? []),
     ...(hosts(n).includes('investors')
       ? input.funds.map((f) => ({ kind: 'fund' as const, ...f }))
       : []),

@@ -58,6 +58,16 @@ export const JOBS_NOTE = 'release-2026-10-19-jobs';
  */
 export const INVESTOR_NOTE = 'release-2026-10-20-investor-career';
 
+/**
+ * City places (places.ts, data/places.ts): each city's prominent buildings
+ * as named places with a purpose. Government offices see residents by
+ * appointment (`place.book`, then go in at the booked time), members' places
+ * open by player type, and inside each one there is something to do
+ * (`place.use`). Worlds without this note play exactly as before (both
+ * commands are unknown and the views list no places).
+ */
+export const PLACES_NOTE = 'release-2026-10-23-city-places';
+
 /** Every behaviour-switching note, oldest first. */
 export const RELEASES = [
   JOURNEY_EVENTS_NOTE,
@@ -65,6 +75,7 @@ export const RELEASES = [
   LIFE_BARS_NOTE,
   JOBS_NOTE,
   INVESTOR_NOTE,
+  PLACES_NOTE,
 ] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
@@ -78,3 +89,4 @@ export const exitsOn = (w: World): boolean => releaseOn(w, EXITS_NOTE);
 export const lifeBarsOn = (w: World): boolean => releaseOn(w, LIFE_BARS_NOTE);
 export const jobsOn = (w: World): boolean => releaseOn(w, JOBS_NOTE);
 export const investorOn = (w: World): boolean => releaseOn(w, INVESTOR_NOTE);
+export const placesOn = (w: World): boolean => releaseOn(w, PLACES_NOTE);
