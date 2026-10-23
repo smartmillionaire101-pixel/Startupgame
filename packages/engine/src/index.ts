@@ -459,3 +459,23 @@ export {
 } from './data/places.js';
 export type { PlaceRole, PlaceService, PlaceGate, PlaceAccess } from './data/places.js';
 export { cityPlaces, findPlace, gameMinute, whenOf, placeAccess } from './places.js';
+// Banker work: the advisory desk, conversations at banks and institutions, the track record.
+export {
+  BANKWORK,
+  BANK_LESSONS,
+  FIT,
+  LENDER_FIT,
+  MANDATES,
+  MANDATE_KINDS,
+  STEPS,
+  TALKS,
+  TALK_TOPICS,
+} from './data/bankwork.js';
+export type { MandateKind, TalkTopic, ClientBand, ClientShape } from './data/bankwork.js';
+export {
+  advisoryRecord,
+  bankWorkView,
+  isBankerWorker,
+  mandateOffers,
+  talkCheck,
+} from './bankwork.js';

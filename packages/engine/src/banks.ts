@@ -160,7 +160,10 @@ export function bankFigures(world: World, b: Bank, book?: BankBook) {
   const cash = account(world, b.account).balance;
   const loans = bankLoansOutstanding(world, b, book) + b.retail.loans;
   const cb = b.cbLoans.reduce((a, l) => a + l.outstanding, 0);
-  const equity = cash + loans - b.retail.deposits - cb;
+  // Bankers note: what the bank drew on its interbank credit line (bankwork.ts) is owed.
+  const line = world.players[b.ownerId]?.bankwork?.line;
+  const interbank = line && line.bankId === b.id ? line.outstanding : 0;
+  const equity = cash + loans - b.retail.deposits - cb - interbank;
   // One pass over the accounts: the bank's player deposits (as bankDeposits) and how many it holds.
   let playerDeposits = 0;
   let accounts = 0;
@@ -176,6 +179,7 @@ export function bankFigures(world: World, b: Bank, book?: BankBook) {
     loans,
     deposits,
     cbBorrowing: cb,
+    interbank,
     equity,
     capitalRatio: loans > 0 ? roundTo(equity / loans, 3) : equity > 0 ? 1 : 0,
     liquidityLimit,

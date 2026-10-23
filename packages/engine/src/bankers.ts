@@ -25,6 +25,7 @@
  * through the ledger, and every command refused unless the note is logged.
  */
 import { BANK_TYPES, MIN_CAPITAL_RATIO, RESERVE_RATIO, bankFigures, getBank } from './banks.js';
+import { advisoryRecord } from './bankwork.js';
 import { backgroundById } from './data/characters.js';
 import { CITY_DISTRICTS } from './data/businesses.js';
 import { AI_FIRST_NAMES, AI_LAST_NAMES } from './data/fiction.js';
@@ -242,14 +243,20 @@ const sizeOf = (type: BankType) => Math.sqrt(BANK_TYPES[type].minCapitalCol / 30
 export const minCapitalOf = (world: World, b: Pick<Bank, 'market' | 'type'>) =>
   scale(col(getMarket(world, b.market)), BANK_TYPES[b.type].minCapitalCol);
 
-/** How the regulator and investors see you (0.5–2): reputation, banking background, credit. */
+/**
+ * How the regulator and investors see you (0.5–2): reputation, banking
+ * background, credit, and advisory deals closed while you wait (bankwork.ts;
+ * up to +0.3 for a good track record).
+ */
 export function bankerCredibility(world: World, p: Player): number {
   const bg = backgroundById(p.backgroundId);
+  const advisory = advisoryRecord(world, p);
   return clamp(
     0.4 +
       p.stars.value / 5 +
       (bg?.role === 'banker' ? 0.3 : 0) +
-      creditProfile(world, p).score / 200,
+      creditProfile(world, p).score / 200 +
+      Math.min(0.3, advisory.deals * 0.06 * (0.5 + advisory.avgQuality)),
     0.5,
     2,
   );

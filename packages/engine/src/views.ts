@@ -7,6 +7,7 @@ import { firmView } from './firms.js';
 import { familyOfficeView, investorStakesView, stakeConsentsView } from './allocation.js';
 import { dealCraftView, offerComparisonView, redFlags, reviewableView } from './dealcraft.js';
 import { investorDealFlowView } from './dealflow.js';
+import { bankWorkView } from './bankwork.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
@@ -910,6 +911,8 @@ export function playerView(
     /** Holiday with friends: this month's holidays you host or were invited on. */
     holidays: holidaysView(world, p),
     bank: ownBankView(world, p.id),
+    /** Bankers note: the advisory desk, conversations at banks and institutions, your record. */
+    bankWork: bankWorkView(world, p, clock?.now ?? p.lastActiveAt),
     market: homeView,
     /** The city you're physically in (Wave 4): same shape as `market`; your home city unless you've flown. */
     // Only when away: at home the client uses `market`, so the city isn't sent twice.

@@ -16,6 +16,7 @@ import {
   Negotiate,
   bankerOf,
 } from './BankLicence';
+import { BankWork } from './BankWork';
 
 export function BankScreen() {
   const { view } = useView();
@@ -45,6 +46,7 @@ export function BankScreen() {
           </Card>
         )}
         <FoundBank />
+        <BankWork />
       </>
     );
   return (
@@ -52,6 +54,7 @@ export function BankScreen() {
       <BankerFirstSession />
       <Overview />
       {nb?.status === 'applying' && nb.licence && <LicenceTracker bank={nb} />}
+      <BankWork />
       {b.status === 'licensed' && (
         <>
           <section className="stack">

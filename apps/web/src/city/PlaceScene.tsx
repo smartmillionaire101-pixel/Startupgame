@@ -73,6 +73,7 @@ import {
 import { Showroom, slotsOwned } from './Showroom';
 import { civicOf, civicTray } from './CivicPlace';
 import { needsBankInterview } from '../screens/BankLicence';
+import { bankerTray } from '../screens/BankWork';
 import { EmployerPanel } from '../phone/work';
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
 import { crowdAt, crowdHour } from './crowdfill';
@@ -1253,6 +1254,9 @@ function RoomScene({
           ),
       });
   } else if (place.kind === 'lender' || place.kind === 'playerbank') {
+    // Bankers note: a banker meets the bank's people (the cards under More).
+    if (place.kind === 'lender')
+      actions.push(...bankerTray(view, `lender:${place.ref}`, () => setMore(true)));
     const lender = lendersOf(view).find((l) => l.id === place.ref);
     const products = lender?.products.filter((p) => p.you?.eligible) ?? [];
     actions.push({
@@ -1505,6 +1509,7 @@ function RoomScene({
         label: t('Fit-and-proper interview'),
         icon: '🏦',
       });
+    actions.push(...bankerTray(view, `place:${civic.id}`, () => setMore(true)));
     actions.push(...civicTray(civic, send, busy, view.here?.currency ?? cur, () => setMore(true)));
     actions.push({ ...toMore, label: t('About this place'), icon: '🏛' });
   }

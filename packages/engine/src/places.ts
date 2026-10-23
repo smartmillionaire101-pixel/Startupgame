@@ -46,6 +46,7 @@ import { account, payExact, transfer } from './ledger.js';
 import { applyBars, barsApply } from './lifebars.js';
 import { scale } from './money.js';
 import { bumpNeed } from './needs.js';
+import { bankersOn } from './releases.js';
 import { deriveRng } from './rng.js';
 import { WORK } from './work.js';
 import type {
@@ -183,7 +184,12 @@ export function placeAccess(world: World, p: Player, place: CityPlace, now: numb
   const m = getMarket(world, place.market);
   const nowMin = gameMinute(m, now);
   if (locationOf(p) !== place.market) return { ok: false, why: 'away' as const };
-  if (spec.access === 'members' && !(spec.gates ?? []).some((g) => gateHolds(world, p, g)))
+  if (
+    spec.access === 'members' &&
+    !(spec.gates ?? []).some((g) => gateHolds(world, p, g)) &&
+    // Bankers note: bankers go to the Founders' Hub to meet founders (bankwork.ts).
+    !(place.role === 'tech-hub' && p.role === 'banker' && bankersOn(world))
+  )
     return { ok: false, why: 'members' as const };
   if (spec.access === 'appointment') {
     if (p.market !== place.market) return { ok: false, why: 'resident' as const };

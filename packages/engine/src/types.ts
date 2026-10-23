@@ -17,6 +17,7 @@ import type { OutletType } from './data/fiction.js';
 import type { Command } from './commands.js';
 import type { LenderKind, LenderLook, LenderProductSeed } from './data/capital.js';
 import type { EventKind, EventVenue } from './data/events.js';
+import type { ClientBand, ClientShape, MandateKind, TalkTopic } from './data/bankwork.js';
 import type { GrantCondition, InvestorType } from './data/programs.js';
 
 export type Id = string;
@@ -360,6 +361,13 @@ export interface Player {
   places?: PlayerPlaces;
   /** Bankers note: the banker's first session. */
   bankerTutorial?: BankerTutorial;
+  /**
+   * Banker work (bankwork.ts, bankers note): advisory mandates and the track
+   * record, conversations at banks and institutions (lessons, recruits,
+   * clients waiting to bank with you, an interbank credit line), and a
+   * founder's requests for an adviser. Missing = none yet.
+   */
+  bankwork?: BankerWork;
 }
 
 /** A government appointment: the place (`<market>:<role>`) and its time on the game clock. */
@@ -384,6 +392,151 @@ export interface PlayerPlaces {
   used: Record<string, number>;
   /** Business visas: destination → home month issued. */
   visas?: Partial<Record<MarketId, number>>;
+}
+
+// ---------------------------------------------------------------- Banker work (bankwork.ts)
+
+/** Who an advisory mandate is for. */
+export interface MandateClient {
+  /** `c:<company>`, `b:<business>` or `k:<corporate index>`. */
+  key: string;
+  name: string;
+  kind: 'company' | 'business' | 'corporate';
+  /** The company or business id (null for a corporate). */
+  refId: Id | null;
+  sector: string;
+  /** A human founder asked for this (their request id). */
+  requestId?: string;
+  requesterId?: Id;
+}
+
+/** An advisory mandate you hold (taken from the desk, not yet handed in). */
+export interface AdvisoryMandate {
+  /** `md:<month>:<client key>:<kind>` (or `rq:<request id>` for a founder's request). */
+  id: string;
+  kind: MandateKind;
+  month: number;
+  client: MandateClient;
+  band: ClientBand;
+  shape: ClientShape;
+  /** Monthly revenue the deal is sized from, and what the business is worth (local minor). */
+  revenue: number;
+  value: number;
+  /** Debt mandates: the lenders you can take it to. */
+  lenders?: { id: string; name: string; kind: string }[];
+}
+
+/** A mandate handed in: how each call scored and what it paid. */
+export interface AdvisoryDeal {
+  id: string;
+  kind: MandateKind;
+  month: number;
+  client: string;
+  clientKind: MandateClient['kind'];
+  quality: number;
+  closed: boolean;
+  dealValue: number;
+  fee: number;
+  /** Where the fee went. */
+  paidTo: 'bank' | 'personal' | 'none';
+  /** Each call; the lender step keeps the names (lenders are ids). */
+  picks: {
+    step: string;
+    option: string;
+    score: number;
+    best: string;
+    optionName?: string;
+    bestName?: string;
+    bestKind?: string;
+  }[];
+}
+
+/** A conversation at a bank or an institution. */
+export interface BankerTalk {
+  at: string;
+  where: string;
+  topic: TalkTopic;
+  person: string;
+  month: number;
+  lessonId: string | null;
+  learned: boolean;
+}
+
+/** Someone good you met at another bank, who might join yours. */
+export interface BankRecruit {
+  id: string;
+  name: string;
+  role: string;
+  from: string;
+  skill: number;
+  /** Monthly salary they'd want, local minor. */
+  salary: number;
+  month: number;
+}
+
+/** A business owner or founder who'll bank with you once you're licensed. */
+export interface BankClientLead {
+  key: string;
+  name: string;
+  kind: 'business' | 'company';
+  refId: Id;
+  wants: 'deposit' | 'loan';
+  amount: number;
+  month: number;
+  /** Home month they joined your bank. */
+  joined?: number;
+}
+
+/** A standby facility from an AI bank your bank can draw on. */
+export interface InterbankLine {
+  lenderId: Id;
+  lender: string;
+  market: MarketId;
+  bankId: Id;
+  limit: number;
+  spreadBps: number;
+  outstanding: number;
+  /** Home month interest was last paid up to. */
+  paidMonth: number;
+  month: number;
+}
+
+/** A founder's request for an adviser. */
+export interface AdvisoryRequest {
+  id: string;
+  companyId: Id;
+  kind: MandateKind;
+  month: number;
+  status: 'open' | 'taken' | 'done' | 'withdrawn';
+  bankerId?: Id;
+}
+
+export interface BankerWork {
+  active: AdvisoryMandate[];
+  /** Mandate ids taken (this month and last), so they leave the desk. */
+  taken: string[];
+  record: {
+    deals: number;
+    lost: number;
+    fees: number;
+    qualitySum: number;
+    byKind: Partial<Record<MandateKind, number>>;
+  };
+  history: AdvisoryDeal[];
+  lessons: string[];
+  talks: BankerTalk[];
+  /** `<at>:<topic>` → home month last held. */
+  talked: Record<string, number>;
+  talkMonth: { month: number; n: number };
+  recruits: BankRecruit[];
+  clients: BankClientLead[];
+  /** Advisory leads from people you met: they come to your desk. */
+  leads: { key: string; kind: MandateKind; month: number }[];
+  line?: InterbankLine;
+  /** The listing desk set you a goal. */
+  objective?: { kind: 'list-bank'; month: number };
+  /** As a founder: advisers you asked for. */
+  requests?: AdvisoryRequest[];
 }
 
 // ---------------------------------------------------------------- Founder Journey 5: exits and the capital allocator

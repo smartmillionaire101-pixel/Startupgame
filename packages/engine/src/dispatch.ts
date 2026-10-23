@@ -147,6 +147,15 @@ import {
   withdrawBank,
 } from './bankers.js';
 import { bookAppointment, useService } from './places.js';
+import {
+  bankerTalk,
+  completeMandate,
+  dropMandate,
+  requestAdviser,
+  takeMandate,
+  useLine,
+  withdrawRequest,
+} from './bankwork.js';
 import { bookAir, endFlight, ensureGameVenues, landJump } from './games.js';
 import { applyForJob, attendInterview, ensureEmployers } from './work.js';
 import { golfRound, mallBuy } from './leisure.js';
@@ -1540,6 +1549,24 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         { companyId: cmd.companyId, to: cmd.to },
         ctx.now,
       );
+    // ------------------------------------------------------------ banker work
+    // Unknown until the bankers release note: old worlds replay as before.
+    case 'banker.mandate':
+      if (!bankersOn(world)) return fail('command.unknown', 'Unknown command.');
+      if (cmd.action === 'take') return takeMandate(world, me, cmd.mandateId);
+      if (cmd.action === 'drop') return dropMandate(world, me, cmd.mandateId);
+      return completeMandate(world, me, cmd.mandateId, cmd.choices ?? {});
+    case 'banker.request':
+      if (!bankersOn(world)) return fail('command.unknown', 'Unknown command.');
+      return cmd.withdraw
+        ? withdrawRequest(me, cmd.companyId)
+        : requestAdviser(world, me, cmd.companyId, cmd.kind);
+    case 'banker.talk':
+      if (!bankersOn(world)) return fail('command.unknown', 'Unknown command.');
+      return bankerTalk(world, me, cmd.at, cmd.topic, ctx.now);
+    case 'banker.line':
+      if (!bankersOn(world)) return fail('command.unknown', 'Unknown command.');
+      return useLine(world, me, cmd.action, cmd.amount);
     // ------------------------------------------------------------ golf and the mall
     case 'golf.round':
       return golfRound(world, me, cmd.strokes);

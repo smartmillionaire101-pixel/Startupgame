@@ -36,6 +36,7 @@ import { npcName, type PresenceView } from './people';
 import type { PersonRef } from './PersonCard';
 import { CapitalDetails, InScene, PlaceScene } from './PlaceScene';
 import { CivicDoor, CivicInterior, civicOf } from './CivicPlace';
+import { BankerTalks } from '../screens/BankWork';
 import type { Destination } from './travel';
 
 /** Wave 7: the busy airport scene, loaded when you go in. */
@@ -937,7 +938,12 @@ export function Interior({
   const body = (() => {
     switch (place.kind) {
       case 'lender':
-        return <BankInterior place={place} layout={layout} />;
+        return (
+          <>
+            <BankInterior place={place} layout={layout} />
+            <BankerTalks at={`lender:${place.ref}`} />
+          </>
+        );
       case 'playerbank':
         return <PlayerBankInterior place={place} layout={layout} />;
       case 'fund':
@@ -972,7 +978,12 @@ export function Interior({
       case 'capital':
         return <CapitalDetails place={place} />;
       case 'civic':
-        return <CivicInterior place={place} />;
+        return (
+          <>
+            <CivicInterior place={place} />
+            <BankerTalks at={`place:${place.ref}`} />
+          </>
+        );
     }
   })();
   // Wave 7: the busy airport (departures board, apron, your trip).
