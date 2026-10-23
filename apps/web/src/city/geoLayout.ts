@@ -24,6 +24,7 @@ import {
   B,
   buildLayout,
   CATEGORY_FALLBACK,
+  civicByDistrict,
   financeItems,
   HOST_FALLBACK,
   lot,
@@ -1170,6 +1171,8 @@ export function buildGeoLayout(
   ];
   const invIn = D.map(() => [] as LotItem[]);
   invItems.forEach((it, i) => invIn[spread[i % spread.length]!]!.push(it));
+  // City places stand in the district they name (else with the banks).
+  const civicIn = civicByDistrict(input, (id) => idx.get(id) ?? -1, hostOf.get('finance') ?? 0);
 
   // ---- Make each district's buildings (the shared builders), then stand
   // each one on real ground near the district's heart.
@@ -1226,6 +1229,7 @@ export function buildGeoLayout(
             .map((c) => ({ kind: 'capital' as const, cap: c }))
         : []),
       ...invIn[n]!,
+      ...(civicIn.get(n) ?? []),
     ];
     for (const it of items) putLotItem(ctx, it, lot(0, 0, 1, 1), cell, area);
     take(n, 1);

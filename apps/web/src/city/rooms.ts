@@ -195,6 +195,23 @@ export const SHOWROOMS: ReadonlySet<RoomKind> = new Set<RoomKind>([
   'appliance',
 ]);
 
+/** City places: the room each role opens into (counters for the state, lounges for the club). */
+export const CIVIC_ROOM: Record<string, RoomKind> = {
+  'ministry-finance': 'office',
+  'central-bank': 'bank',
+  'stock-exchange': 'investor',
+  chamber: 'eventhall',
+  'high-court': 'office',
+  'tax-office': 'bank',
+  embassy: 'bank',
+  ipa: 'devpartner',
+  'tech-hub': 'accelerator',
+  'members-club': 'lounge',
+  'family-office': 'investor',
+  hospital: 'clinic',
+  university: 'school',
+};
+
 /** The room you walk into at a place. Away from home, your office is a co-working desk and home a hotel room. */
 export function roomOf(
   place: Pick<Place, 'kind' | 'ref' | 'motif'>,
@@ -224,6 +241,7 @@ export function roomOf(
       return 'shop';
     default: {
       const k = (place as { kind: string }).kind;
+      if (k === 'civic') return CIVIC_ROOM[place.ref?.split(':')[1] ?? ''] ?? 'office';
       if (k === 'capital')
         return opts.capital === 'accelerator'
           ? 'accelerator'

@@ -10,6 +10,7 @@ import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { STARTER_EXPENSE_IDS } from './data/ideas.js';
+import { PLACE_SERVICES } from './data/places.js';
 import { PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
 import { REMOVABLE, lookSchema } from './appearance.js';
 
@@ -680,6 +681,24 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('hotel.leave'), holidayId: id }),
   /** Go to one of the city's tech events this month (`here.techEvents`). */
   z.object({ type: z.literal('techevent.attend'), eventId: id }),
+  /**
+   * City places (after their release note): book an appointment at a
+   * government office in your home city (`<market>:<role>`); the time comes
+   * back and lands in your inbox.
+   */
+  z.object({ type: z.literal('place.book'), placeId: z.string().min(1).max(64) }),
+  /**
+   * Inside a city place (in person; a government office at your appointment):
+   * do one of its services. `companyId` picks the company a filing or an
+   * incentive is for; `to` the city a business visa is for.
+   */
+  z.object({
+    type: z.literal('place.use'),
+    placeId: z.string().min(1).max(64),
+    service: z.enum(PLACE_SERVICES),
+    companyId: id.optional(),
+    to: market.optional(),
+  }),
   /** Golf (leisure.ts): hand in your card for the city's three holes (strokes per hole). */
   z.object({
     type: z.literal('golf.round'),

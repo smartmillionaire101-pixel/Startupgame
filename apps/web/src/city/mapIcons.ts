@@ -124,6 +124,32 @@ const KIND_ICON: Partial<Record<Place['kind'], string>> = {
   playerbank: '🏦',
 };
 
+/** City places, by role (the map id is `civic:<market>:<role>`). */
+export const CIVIC_ICON: Record<string, string> = {
+  'ministry-finance': '🏛️',
+  'central-bank': '🏛️',
+  'stock-exchange': '📈',
+  chamber: '🤝',
+  'high-court': '⚖️',
+  'tax-office': '🧾',
+  embassy: '🛂',
+  ipa: '🌐',
+  'tech-hub': '🚀',
+  'members-club': '🥂',
+  'family-office': '🏙️',
+  hospital: '🏥',
+  university: '🎓',
+};
+/** Government offices (by appointment) wear a navy ring; the rest a slate one. */
+const GOVERNMENT = new Set([
+  'ministry-finance',
+  'central-bank',
+  'high-court',
+  'tax-office',
+  'embassy',
+  'ipa',
+]);
+
 /** Ring colours for places that aren't businesses. */
 const KIND_RING: Partial<Record<Place['kind'], string>> = {
   hub: '#0f766e',
@@ -164,10 +190,15 @@ export function placeBadge(p: BadgePlace | null): Badge {
     p.kind === 'lender' ||
     p.kind === 'playerbank' ||
     p.bizKind === 'mobile-money-agent';
+  const role = p.kind === 'civic' ? (p.id.split(':')[2] ?? '') : '';
   const icon =
     p.kind === 'business'
       ? bizIcon(p.bizKind)
-      : (KIND_ICON[p.kind] ?? (p.id.startsWith('stall:') ? '🧺' : FALLBACK_ICON));
+      : p.kind === 'civic'
+        ? (CIVIC_ICON[role] ?? FALLBACK_ICON)
+        : (KIND_ICON[p.kind] ?? (p.id.startsWith('stall:') ? '🧺' : FALLBACK_ICON));
+  if (p.kind === 'civic')
+    return { icon, ring: GOVERNMENT.has(role) ? '#1e3a8a' : '#334155', money: false };
   const ring = money
     ? MONEY_RING
     : p.category

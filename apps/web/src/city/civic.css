@@ -1,0 +1,49 @@
+/* City places: a named building's door and its cards (CivicPlace.tsx). */
+.civic {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.civic-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.civic-icon {
+  font-size: 30px;
+  line-height: 1;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm, 10px);
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.civic-role {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+.civic-head p {
+  margin: 0 0 2px;
+}
+.civic-appt {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm, 10px);
+  border: 1px solid var(--line);
+  background: var(--accent-soft);
+}
+.civic-appt[data-appointment='due'] {
+  border-color: var(--accent);
+}
+.civic-book {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.civic .field select {
+  width: 100%;
+  margin: 4px 0 8px;
+}
