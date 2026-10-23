@@ -1302,7 +1302,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'stake.consent':
       return consentStake(world, me, cmd.offerId, cmd.approve);
     case 'secondary.investorSell':
-      return investorSecondary(world, me, cmd.companyId, cmd.pctBps);
+      return investorSecondary(world, me, cmd.companyId, cmd.pctBps, cmd.buyerId);
     case 'firm.found':
       return foundFirm(world, me, cmd.name);
     case 'firm.hire':

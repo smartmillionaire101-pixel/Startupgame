@@ -3,7 +3,7 @@ import { exchangeView } from './exchange.js';
 import { syndicatesView } from './syndicates.js';
 import { lpFundsView } from './lpfunds.js';
 import { firmView } from './firms.js';
-import { familyOfficeView, stakeConsentsView } from './allocation.js';
+import { familyOfficeView, investorStakesView, stakeConsentsView } from './allocation.js';
 import { dealCraftView, offerComparisonView, redFlags, reviewableView } from './dealcraft.js';
 import { investorDealFlowView } from './dealflow.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
@@ -760,6 +760,8 @@ export function playerView(
           exits: exitOptionsView(world, p),
           market: publicMarketView(world, p),
           offers: secondaryOffersView(world, p),
+          /** Private stakes you hold as an investor: what selling pays, or why you can't yet. */
+          stakes: investorStakesView(world, p),
           allocator: allocatorView(world, p),
         },
     /**

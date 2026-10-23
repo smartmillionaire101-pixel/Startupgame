@@ -1100,6 +1100,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('secondary.investorSell'),
     companyId: id,
     pctBps: z.number().int().min(1).max(10_000),
+    /** An AI fund or angel already on the cap table; omit for an outside secondary buyer. */
+    buyerId: id.optional(),
   }),
   // ---- investor career Phase 6: the firm
   z.object({ type: z.literal('firm.found'), name: z.string().min(3).max(40) }),

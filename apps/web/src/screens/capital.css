@@ -78,3 +78,14 @@
 .path-card .stack {
   gap: 0.5rem;
 }
+/* An investor's private stakes: one block per company, the last sale's result on top. */
+.stake-exit + .stake-exit {
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+  padding-top: 0.75rem;
+}
+.stake-result {
+  font-size: 0.9rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--good-bg, rgba(22, 163, 74, 0.08));
+}
