@@ -64,6 +64,8 @@ const WALL_CAP = '#f4f1ea';
 export const GROUND_Y = -0.14;
 /** Floor to floor, upstairs. */
 export const STOREY = 3;
+/** A room's floor, on every storey (what stands in the room stands at y 0). */
+export const FLOOR_Y = 0.002;
 
 export interface WallSide {
   /** Outward normal on the floor plane. */
@@ -173,7 +175,7 @@ function floorMesh(
   z: number,
   w: number,
   d: number,
-  y = 0.002,
+  y = FLOOR_Y,
   tint?: string,
 ) {
   const tex = floorTexture(kind).clone();
@@ -552,7 +554,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     : { outer: WALL_GREEN, inner: WALL_INNER, cap: WALL_CAP, drape: '' };
   for (const r of plan.rooms) {
     const hf = hotel ? HOTEL_FLOORS[hotel.tier][r.id] : undefined;
-    root.add(floorMesh(hf?.[0] ?? floorKind(r.id, o.tier), r.x, r.y, r.w, r.h, 0.002, hf?.[1]));
+    root.add(floorMesh(hf?.[0] ?? floorKind(r.id, o.tier), r.x, r.y, r.w, r.h, FLOOR_Y, hf?.[1]));
   }
 
   const sides: WallSide[] = [];

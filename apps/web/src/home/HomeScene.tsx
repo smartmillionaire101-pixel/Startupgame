@@ -1646,11 +1646,14 @@ export function HomeScene({
           </defs>
           <g ref={worldRef}>
             <Shell plan={plan} night={night} />
-            {objects
-              .filter((o) => o.id === 'rug')
-              .map((o) => (
-                <ObjNode key={o.id} o={o} />
-              ))}
+            {/* The rug lies under the tiles in 2D; in 3D it's hidden like the rest. */}
+            <g className="home-rugs">
+              {objects
+                .filter((o) => o.id === 'rug')
+                .map((o) => (
+                  <ObjNode key={o.id} o={o} />
+                ))}
+            </g>
             <g className="home-tiles">
               {Array.from({ length: plan.w * plan.h }, (_, n) => {
                 const x = n % plan.w;
