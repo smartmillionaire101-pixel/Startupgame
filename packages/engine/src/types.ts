@@ -311,6 +311,12 @@ export interface Player {
   /** Investor career Phase 8: the month you last supported each portfolio company. */
   support?: Record<Id, number>;
   /**
+   * Investor deal flow (dealflow.ts): strategy lessons learned from AI
+   * investors met at events, the latest conversations, and the AI LP
+   * panel's last verdict on your fund pitch. Missing = none yet.
+   */
+  dealflow?: InvestorLearning;
+  /**
    * Golf (leisure.ts): rounds played at a city's golf club, your best and
    * latest score against par, and rounds this month (for who you meet).
    * Missing = never played.
@@ -1572,8 +1578,18 @@ export interface FundLpState {
   /** Fees paid so far. */
   feesPaid: number;
   carryPaid: number;
-  /** Portfolio construction (Phase 5): companies planned, average first cheque, reserve ratio. */
-  plan?: { companies: number; avgCheque: number; reserveRatio: number };
+  /**
+   * Portfolio construction (Phase 5): companies planned, average first
+   * cheque, reserve ratio. With the deal-flow note the LP pitch adds the
+   * ownership target and the geography (lpreview.ts).
+   */
+  plan?: {
+    companies: number;
+    avgCheque: number;
+    reserveRatio: number;
+    targetOwnership?: number;
+    geography?: FundGeography;
+  };
   /** Quarters for which a letter is due (home month the quarter ended), and the last one written. */
   lettersDue?: number[];
 }
@@ -1647,14 +1663,123 @@ export interface PipelineEntry {
   month: number;
   watch?: boolean;
   passReason?: PassReason;
-  /** How it came in: a pitch, scouting, a co-investor, the café. */
-  source?: 'pitch' | 'scouting' | 'referral' | 'cafe' | 'manual';
+  /** How it came in: a pitch, scouting, a co-investor, the café, an event (deal-flow note). */
+  source?: 'pitch' | 'scouting' | 'referral' | 'cafe' | 'manual' | 'event';
+  /** The founder's pitch when you met (deal-flow note): a snapshot of the company then. */
+  pitch?: EventPitch;
   /** Claims checked against game data (question id → result). */
   claims?: Record<string, 'accurate' | 'slightly-off' | 'false'>;
   /** Reference calls done (home month) and what they said. */
   references?: { month: number; signals: string[] };
   /** For watchlist nudges: the last round month seen. */
   seenRaise?: number;
+}
+
+/** Where a fund invests (deal-flow note): its home city, its country, or the region. */
+export type FundGeography = 'city' | 'country' | 'region';
+
+/**
+ * A founder's pitch to an investor at an event, a hangout or through an
+ * investor's referral (dealflow.ts). Money in the company's currency.
+ */
+export interface EventPitch {
+  /** Where you met: the event's title, or the venue of a hangout. */
+  where: string;
+  whereKind: 'tech' | 'hosted' | 'hangout' | 'referral';
+  /** The event kind (a tech or hosted event's), or 'hangout' / 'referral'. */
+  eventKind: string;
+  founderId: Id;
+  founderName: string;
+  /** A human founder pitched in person. */
+  human: boolean;
+  stage: Stage;
+  industry: Industry;
+  /** Monthly revenue, paying customers, monthly growth (fraction) and team size then. */
+  revenue: number;
+  customers: number;
+  growth: number;
+  team: number;
+  /** What they raise and at what valuation (a SAFE cap, or the pre-money of a priced round). */
+  ask: number;
+  valuation: number;
+  instrument: 'safe' | 'priced';
+  month: number;
+  /** An AI investor who referred it; `coinvest` when they're in it and offer you room. */
+  via?: { name: string; fundId: Id; coinvest: boolean };
+}
+
+/** A conversation with an AI investor at an event (dealflow.ts). */
+export interface InvestorTalk {
+  fundId: Id;
+  name: string;
+  org: string;
+  angel: boolean;
+  where: string;
+  month: number;
+  /** The lesson they shared (data/dealflow.ts), and whether it was new to you. */
+  lessonId: string;
+  learned: boolean;
+  /** Their strategy, in the fund's currency. */
+  sectors: Industry[] | 'any';
+  stages: Stage[];
+  cheque: [number, number];
+  size: number;
+  currency: Currency;
+  companies: number;
+  reserveRatio: number;
+  ownership: number;
+  /** A company they referred to you, if any. */
+  referredId: Id | null;
+  coinvest: boolean;
+}
+
+export interface InvestorLearning {
+  /** Lesson ids learned, oldest first. */
+  lessons: string[];
+  /** Conversations, newest first (kept short). */
+  talks: InvestorTalk[];
+  /** The AI LP panel's last verdict on a Fund I pitch (`fund.raise` with a plan). */
+  lastPanel?: LpPanelReview;
+}
+
+/** How a strategy check came out (lpreview.ts). */
+export type CheckLevel = 'good' | 'warn' | 'bad';
+
+/** An LP's answer to a fund pitch (lpreview.ts): ids and figures the client puts in words. */
+export interface LpVerdict {
+  lpId: string;
+  name: string;
+  kind: string;
+  commit: boolean;
+  /** Commitment, in the fund's currency (0 on a pass). */
+  amount: number;
+  /** Why, as a reason id (lpreview.ts REASONS). */
+  reason: string;
+  score: number;
+}
+
+/** A whole LP pitch review: track record, strategy checks, questions and each LP's answer. */
+export interface LpPanelReview {
+  month: number;
+  currency: Currency;
+  score: number;
+  parts: { track: number; strategy: number; team: number; market: number };
+  track: {
+    deals: number;
+    invested: number;
+    returned: number;
+    unrealised: number;
+    tvpi: number;
+    dpi: number;
+    losses: number;
+  };
+  checks: { id: string; level: CheckLevel; values: Record<string, number> }[];
+  questions: { id: string; values: Record<string, number> }[];
+  lps: LpVerdict[];
+  /** Committed in total, and the target pitched. */
+  committed: number;
+  target: number;
+  ok: boolean;
 }
 
 /** A founder's review of an investor after a round or an ending (Phase 8). */
@@ -2148,6 +2273,8 @@ export interface CapitalApplication {
   };
   /** Pitched over a meal / met at their office. */
   warm?: boolean;
+  /** An LP's verdict on a fund pitched with a strategy (deal-flow note): reasons and questions. */
+  review?: LpPanelReview;
 }
 
 /** A local business run by an AI owner (Wave 3, data/businesses.ts). */

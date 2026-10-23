@@ -17,7 +17,13 @@ import {
 } from '../src/data/professions.js';
 import { dispatch } from '../src/dispatch.js';
 import { businessesOf, isOpen } from '../src/economy.js';
-import { JOBS_NOTE, LIFE_BARS_NOTE, RELEASES, jobsOn, lifeBarsOn } from '../src/releases.js';
+import {
+  JOBS_NOTE,
+  LIFE_BARS_NOTE,
+  RELEASES,
+  jobsOn,
+  lifeBarsOn,
+} from '../src/releases.js';
 import { playerView } from '../src/views.js';
 import { WORK, jobHours, levelGate, workOf } from '../src/work.js';
 import type { Player, World } from '../src/types.js';

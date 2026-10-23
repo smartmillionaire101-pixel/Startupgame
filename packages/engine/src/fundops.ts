@@ -155,7 +155,9 @@ export function setPlan(
     'Reserves: 0–70% of the fund.',
   );
   ensure(plan.avgCheque > 0, 'fund.plan', 'Set an average first cheque.');
-  lpOf(f).plan = plan;
+  // Keep what the LP pitch set (ownership target, geography) alongside the new numbers.
+  const lp = lpOf(f);
+  lp.plan = { ...lp.plan, ...plan };
   const need = plan.companies * plan.avgCheque;
   const room = Math.round(f.size * (1 - plan.reserveRatio));
   return {

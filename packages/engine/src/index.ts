@@ -122,10 +122,22 @@ export {
   jobsOn,
   INVESTOR_NOTE,
   investorOn,
+  DEALFLOW_NOTE,
+  dealflowOn,
   PLACES_NOTE,
   placesOn,
   RELEASES,
 } from './releases.js';
+// Investor deal flow: event pitches, investor talks and realistic LP pitches.
+export {
+  strategyChecks,
+  coherenceOf,
+  typicalPostMoney,
+  LIFETIME_FEE_YEARS,
+  type StrategyPlan,
+  type StrategyCheck,
+} from './lpreview.js';
+export { LESSONS, DEALFLOW } from './data/dealflow.js';
 // Phase 3: life bars (energy, health, happiness, stress) and what trips cost.
 export {
   LIFE_BARS,

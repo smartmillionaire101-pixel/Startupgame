@@ -5,6 +5,7 @@ import { lpFundsView } from './lpfunds.js';
 import { firmView } from './firms.js';
 import { familyOfficeView, stakeConsentsView } from './allocation.js';
 import { dealCraftView, offerComparisonView, redFlags, reviewableView } from './dealcraft.js';
+import { investorDealFlowView } from './dealflow.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
@@ -731,6 +732,8 @@ export function playerView(
     stakeConsents: investorOn(world) ? stakeConsentsView(world, p) : [],
     /** Investor career Phase 8: the pipeline, reputation, reviews and the monthly recap. */
     dealCraft: dealCraftView(world, p),
+    /** Deal-flow note: pitches heard at events, investors met, lessons, LP panel feedback. */
+    investorDealFlow: investorDealFlowView(world, p),
     /** Investor career Phase 8: for founders, the human investors you can review. */
     reviewable: reviewableView(world, p),
     offerComparison: offerComparisonView(world, p),
