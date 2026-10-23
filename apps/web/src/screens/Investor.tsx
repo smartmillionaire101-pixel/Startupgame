@@ -6,6 +6,22 @@ import { locale, t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Field, Pill, Segmented, Sheet, Sparkline, Stat } from '../ui';
 import { DealList, stageLabel } from './common';
+import {
+  CareerLadder,
+  InvestorFirstSession,
+  InvestorPrompts,
+  InvestorSections,
+  careerOf,
+  type InvestorSection,
+} from './InvestorCareer';
+import { Exchange } from './Exchange';
+import { Syndicates } from './Syndicates';
+import { FundConsole, LpPortfolio, lpFundsOf } from './Funds';
+import { FirmScreen } from './Firm';
+import { FamilyOffice } from './FamilyOffice';
+import { PipelineScreen } from './Pipeline';
+import { Legacy } from './Legacy';
+import { ProRataOffers, StakeConsents, positionStatusText } from './FundOps';
 import { SimpleLink } from './SimpleLink';
 
 const companyStatusLabel = (x: string) =>
@@ -105,12 +121,26 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
   // Empty means "use the suggestion": defaults follow diligence as it loads.
   const [amount, setAmount] = useState('');
   const [valuation, setValuation] = useState('');
-  const suggestedAmount = view.me.investor?.checkSize ?? 0;
+  // Inside the angel ceiling (investor career): never suggest a cheque the cap would refuse.
+  const ceiling = careerOf(view)?.ceiling;
+  const suggestedAmount =
+    ceiling?.on && ceiling.currency === cur && !view.fund
+      ? Math.min(view.me.investor?.checkSize ?? 0, ceiling.maxCheque)
+      : (view.me.investor?.checkSize ?? 0);
   const suggestedValuation = d
     ? Math.round(d.modelValuation * (instrument === 'safe' ? 1.1 : 1))
     : 0;
   const [board, setBoard] = useState(false);
-  const fromFund = !!view.fund;
+  // Investor career Phase 6: pay from yourself or any fund you run that can invest.
+  const funds = [
+    ...(view.fund && !view.fund.lp ? [{ id: view.fund.id, name: view.fund.name }] : []),
+    ...(lpFundsOf(view)?.gp ?? [])
+      .filter((f) => f.stage === 'investing' || f.stage === 'harvest' || f.stage === 'extended')
+      .map((f) => ({ id: f.id, name: f.name })),
+  ];
+  const [payFrom, setPayFrom] = useState<string>(funds[0]?.id ?? 'me');
+  const fromFund = payFrom !== 'me';
+  const payingFund = funds.find((f) => f.id === payFrom);
   const propose = async () => {
     const r = await send<{ status: string; summary: string }>(
       {
@@ -123,6 +153,7 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
         boardSeat: board,
         vetoOnSale: false,
         fromFund,
+        ...(fromFund ? { fundId: payFrom } : {}),
       },
       (x) =>
         x.status === 'accepted'
@@ -136,6 +167,28 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
   return (
     <Sheet title={c.name} onClose={onClose}>
       <p>{tx(c.idea)}</p>
+      {careerOf(view) && (
+        <div className="row">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              void send({ type: 'pipeline.add', companyId: c.id }, t('Added to your pipeline.'))
+            }
+          >
+            {t('Shortlist')}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              void send({ type: 'pipeline.add', companyId: c.id, watch: true }, t('Watching.'))
+            }
+          >
+            {t('Watch')}
+          </Button>
+        </div>
+      )}
       <p className="small muted">
         {t('{founders} · {age} months old · {n} people', {
           founders: c.founders.map((f) => f.name).join(', '),
@@ -284,9 +337,23 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
             {t('Ask for a board seat')}
           </label>
         )}
+        {funds.length > 0 && (
+          <Field label={t('Pay from')}>
+            {(id) => (
+              <select id={id} value={payFrom} onChange={(e) => setPayFrom(e.target.value)}>
+                <option value="me">{t('Your personal savings')}</option>
+                {funds.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        )}
         <p className="small muted">
           {fromFund
-            ? t('Paid from {fund}.', { fund: view.fund?.name ?? '' })
+            ? t('Paid from {fund}.', { fund: payingFund?.name ?? '' })
             : t('Paid from your personal savings.')}{' '}
           {c.ai
             ? t('AI founders answer at once.')
@@ -309,9 +376,11 @@ export function Portfolio() {
   const [stages, setStages] = useState<Stage[]>(view.me.investor?.stages ?? ['seed']);
   const [why, setWhy] = useState('');
   const record = view.record;
+  const [section, setSection] = useState<InvestorSection>('overview');
   return (
     <>
       <h1>{t('Portfolio')}</h1>
+      <InvestorFirstSession />
       <SimpleLink
         to="deals"
         emoji="🤝"
@@ -340,6 +409,8 @@ export function Portfolio() {
                     <span className="small muted">
                       {p.ownershipPct}%
                       {p.status !== 'active' ? ` · ${companyStatusLabel(p.status)}` : ''}
+                      {p.moic ? ` · ${p.moic.toFixed(2)}×` : ''}
+                      {p.statusLabel === 'at-risk' ? ` · ${positionStatusText(p.statusLabel)}` : ''}
                     </span>
                   </td>
                   <td className="num">{money(p.invested, p.currency)}</td>
@@ -480,6 +551,24 @@ export function Portfolio() {
           </Button>
         </Card>
       ) : null}
+      {careerOf(view) && (
+        <section className="stack" aria-label={t('Grow as an investor')}>
+          <h2>{t('Grow as an investor')}</h2>
+          <ProRataOffers />
+          <StakeConsents />
+          <InvestorPrompts />
+          <InvestorSections tab={section} onTab={setSection} />
+          {section === 'overview' && <CareerLadder compact />}
+          {section === 'pipeline' && <PipelineScreen />}
+          {section === 'markets' && <Exchange />}
+          {section === 'syndicates' && <Syndicates />}
+          {section === 'fund' && <FundConsole />}
+          {section === 'lp' && <LpPortfolio />}
+          {section === 'firm' && <FirmScreen />}
+          {section === 'office' && <FamilyOffice />}
+          {section === 'legacy' && <Legacy />}
+        </section>
+      )}
     </>
   );
 }

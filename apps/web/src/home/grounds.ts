@@ -11,7 +11,7 @@
  * - A villa adds a pool terrace with loungers and a parasol, and a steel
  *   carport for SUVs; a mansion a bigger pool and a formal garden with a
  *   fountain behind the house. Richer owners get bigger pools and gardens.
- * - A penthouse is a roof terrace with a hot tub, the city's towers round it
+ * - A penthouse is a roof terrace with an infinity pool, the city's towers round it
  *   and the residents' car deck alongside.
  *
  * Every car you own has a bay of its own: an SUV under the carport, a
@@ -82,6 +82,11 @@ export interface Grounds {
   focus: Rect;
   /** A penthouse: the rail at the terrace's edge where you watch the skyline. */
   view?: Rect | null;
+  /**
+   * A penthouse: the lift down to the building's garage, where your cars are
+   * (player feedback: the car shouldn't be parked on the roof).
+   */
+  lift?: (Rect & { cars: string[] }) | null;
   /** A hotel room: the hotel (its name on the tower, its tier's finish) and the floor you're on. */
   hotel?: {
     tier: HotelTier;
@@ -301,36 +306,27 @@ export function groundsFor(plan: HomePlan, cars: readonly string[]): Grounds {
   };
 }
 
-/** A penthouse: the roof terrace with a hot tub, and the residents' car deck. */
+/**
+ * A penthouse: the roof terrace with an infinity pool (bigger for a rich
+ * owner) and the lift down to the building's garage. Your cars are parked down
+ * there, not on the roof: you take the lift and drive out.
+ */
 function roof(plan: HomePlan, cars: readonly string[]): Grounds {
   const W = plan.w;
   const H = plan.h;
   const rich = plan.wealth >= 2;
   const terrace: Rect = { x: 0, y: H + 0.3, w: W, h: rich ? 4.6 : 3.6 };
-  const pool = { x: W - (rich ? 5 : 4), y: H + 0.9, w: rich ? 4 : 3, h: 2.4, hot: true };
+  // A pool to swim in (player feedback: "the swimming said it's a tub"); bigger for a rich owner.
+  // Beside the loungers, where a phone's view of the terrace shows it.
+  const pool = rich
+    ? { x: 6.4, y: H + 0.8, w: 5, h: 2.6, hot: false }
+    : { x: 6.4, y: H + 0.9, w: 3.5, h: 2.4, hot: false };
   const loungers: Lounger[] = [0, 1, 2].slice(0, rich ? 3 : 2).map((i) => ({
     x: 2.6 + i * 1.15,
     y: H + 1.6,
     rot: 0,
   }));
-  const n = Math.max(2, cars.length);
-  const dx = W + 1.6;
-  const bays: Bay[] = [];
-  for (let i = 0; i < n; i++) {
-    const c = cars[i];
-    bays.push({
-      x: dx,
-      y: 0.4 + i * 3,
-      w: 5.2,
-      h: 2.8,
-      kind: 'deck',
-      car: c ?? null,
-      index: c ? i : -1,
-      rot: Math.PI / 2,
-    });
-  }
-  const drive: Rect = { x: dx - 0.5, y: 0, w: 6.2, h: Math.max(H, n * 3 + 0.8) };
-  const focus: Rect = { x: 0, y: 0, w: dx + 5.8, h: Math.max(terrace.y + terrace.h, drive.h) };
+  const focus: Rect = { x: 0, y: 0, w: W + 1, h: terrace.y + terrace.h };
   const r = Math.hypot(focus.w, focus.h) / 2 + 2;
   return {
     style: 'roof',
@@ -339,8 +335,8 @@ function roof(plan: HomePlan, cars: readonly string[]): Grounds {
     terrace,
     loungers,
     parasol: { x: 2.0, y: H + 3.0 },
-    drive,
-    bays,
+    drive: null,
+    bays: [],
     carport: null,
     hedges: [],
     gate: null,
@@ -348,16 +344,16 @@ function roof(plan: HomePlan, cars: readonly string[]): Grounds {
     path: { x: plan.door.x, y: H, w: 1, h: 0.3 },
     trees: [],
     pots: [
-      { x: 0.6, y: H + 0.8 },
       { x: 0.6, y: terrace.y + terrace.h - 0.6 },
       { x: W - 0.6, y: terrace.y + terrace.h - 0.6 },
     ],
     fountain: null,
     beds: [],
-    van: { x: dx + 2.6, y: drive.y + drive.h + 1.5 },
+    van: { x: W + 4, y: focus.h + 3 },
     focus,
     // At the front of the terrace, past the loungers: the whole city ahead.
     view: { x: 3.4, y: terrace.y + terrace.h - 1.1, w: 3.2, h: 1 },
+    lift: cars.length ? { x: 0.15, y: H + 0.5, w: 1, h: 0.6, cars: [...cars] } : null,
   };
 }
 
@@ -387,7 +383,7 @@ export function outdoorThings(g: Grounds): OutdoorThing[] {
   if (g.pool)
     out.push({
       id: 'pool-water',
-      label: g.pool.hot ? 'Hot tub' : 'Pool',
+      label: g.pool.hot ? 'Hot tub' : g.style === 'roof' ? 'Infinity pool' : 'Pool',
       model: g.pool.hot ? 'hot-tub' : 'pool-water',
       x: g.pool.x,
       y: g.pool.y,
@@ -425,6 +421,18 @@ export function outdoorThings(g: Grounds): OutdoorThing[] {
         { id: 'skyline', label: 'Watch the skyline' },
         { id: 'party', label: 'Host a party' },
       ],
+    });
+  if (g.lift)
+    out.push({
+      id: 'garage-lift',
+      label: 'Lift to the garage',
+      model: 'door',
+      x: g.lift.x,
+      y: g.lift.y,
+      w: g.lift.w,
+      h: g.lift.h,
+      rot: 0,
+      verbs: g.lift.cars.map((model) => ({ id: 'car', label: 'Drive the {car}', model })),
     });
   for (const b of g.bays)
     if (b.car)

@@ -677,9 +677,43 @@ const skylineRail: Builder = (k, o, m) => {
   k.cyl(0.03, 0.03, 0.18, '#fde68a', tx, 1.09, 0, { emissive: '#f59e0b', emissiveIntensity: 1 });
 };
 
+/**
+ * A fitted kitchen's worktop run against the wall (home/layout.ts): base
+ * cupboards with handles, a stone worktop, a sink with its tap, wall
+ * cupboards over it, and a chopping board. A chef's kitchen (finish 3) is
+ * dark stone over white doors.
+ */
+const kitchenCounter: Builder = (k, o, m) => {
+  const w = o.w - 0.04;
+  const dd = 0.62;
+  const z = -o.d / 2 + dd / 2 + 0.02;
+  const body = o.tier >= 3 ? '#f2eee6' : '#e7dfd2';
+  const top = o.tier >= 3 ? '#1f2024' : '#b9b2a6';
+  k.box(w, 0.82, dd, body, 0, 0.06, z, {});
+  k.box(w, 0.06, dd, '#2b2b2f', 0, 0, z + 0.02);
+  k.box(w + 0.02, 0.05, dd + 0.03, top, 0, 0.88, z, { rough: 0.2 });
+  const n = Math.max(2, Math.round(w / 0.5));
+  for (let i = 0; i < n; i++) {
+    const x = -w / 2 + (w / n) * (i + 0.5);
+    k.box(w / n - 0.03, 0.7, 0.02, '#d9d1c4', x, 0.12, z + dd / 2);
+    k.box(0.12, 0.015, 0.02, '#c0c0c8', x, 0.74, z + dd / 2 + 0.02, { metal: 0.8, rough: 0.3 });
+  }
+  // The sink and its tap, a third of the way along.
+  const sx = -w / 2 + w * 0.3;
+  k.box(0.5, 0.02, 0.38, '#cbd5e1', sx, 0.93, z, { metal: 0.6, rough: 0.25 });
+  k.cyl(0.015, 0.015, 0.28, '#c0c0c8', sx, 0.93, z - 0.2, { metal: 0.9, rough: 0.2 });
+  // A chopping board and a bowl.
+  k.box(0.36, 0.02, 0.24, '#c08a4a', -w / 2 + w * 0.7, 0.93, z + 0.05, {});
+  k.cyl(0.11, 0.08, 0.07, '#f5f5f4', -w / 2 + w * 0.85, 0.93, z, { rough: 0.4 });
+  // Wall cupboards.
+  k.box(w, 0.6, 0.34, body, 0, 1.5, -o.d / 2 + 0.19, {});
+  m.top = 0.93;
+};
+
 const BUILDERS: Record<string, Builder> = {
   nightstand,
   island,
+  'kitchen-counter': kitchenCounter,
   'shower-cabin': showerCabin,
   sconce,
   suitcase,

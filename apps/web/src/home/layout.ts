@@ -87,7 +87,8 @@ export type HomeAct =
   | 'game'
   | 'read'
   | 'work'
-  | 'workout';
+  | 'workout'
+  | 'laundry';
 
 export type Verb =
   | { id: string; act: HomeAct; label: string }
@@ -593,6 +594,7 @@ export function planFor(tier: number, spec?: HomeSpec): HomePlan {
   if (!p) {
     const core = t === 1 ? sharedRoom() : flat(t);
     p = spec ? extend(core, { kind: spec.kind, wealth }) : core;
+    p = withFittedCounter(p);
     PLANS.set(k, p);
   }
   return p;
@@ -612,6 +614,80 @@ export function homeSpecOf(
   if (kind && kinds.includes(kind))
     return { kind, wealth: typeof residence?.wealth === 'number' ? residence.wealth : 1 };
   return { kind: KIND_OF_TIER[Math.max(1, Math.min(5, lifestyleTier))]!, wealth: 1 };
+}
+
+/**
+ * A fitted kitchen's worktop and sink along the kitchen's back wall, meeting
+ * the hob and the fridge in an L (player feedback: the kitchen "looks weird",
+ * a lone hob by a big empty floor). Homes from an apartment up; only where
+ * the wall is free (never across a doorway or something else).
+ */
+function withFittedCounter(p: HomePlan): HomePlan {
+  if (p.kind === 'room' || p.kind === 'studio') return p;
+  const r = p.rooms.find((x) => x.id === 'kitchen');
+  if (!r || r.w < 5) return p;
+  const x0 = r.x + 3;
+  const w = r.x + r.w - x0;
+  const y = r.y;
+  const taken = (x: number, ty = y) =>
+    [...Object.values(p.slots), ...Object.values(p.fixtures), ...p.decor.map((d) => d.spot)].some(
+      (s) => !!s && x >= s.x && x < s.x + s.w && ty >= s.y && ty < s.y + s.h,
+    );
+  const walled = (x: number) => p.walls.some((s) => s.dir === 'h' && s.x === x && s.y === y);
+  for (let x = x0; x < x0 + w; x++) if (taken(x) || !walled(x)) return p;
+  // Where you stand to use it: a free tile in front of the run.
+  let ix = -1;
+  for (let x = x0; x < x0 + w && ix < 0; x++) if (!taken(x, y + 1)) ix = x;
+  if (ix < 0) return p;
+  const finish = builtIns(p).get('kitchen') ?? 2;
+  return {
+    ...p,
+    decor: [
+      ...p.decor,
+      {
+        id: 'kitchen-counter',
+        model: 'kitchen-counter',
+        label: 'Kitchen',
+        room: 'kitchen',
+        spot: { x: x0, y, w, h: 1, blocked: true, interact: { x: ix, y: y + 1 }, rot: 0 },
+        verbs: [
+          { act: 'cook', label: 'Cook' },
+          { act: 'snack', label: 'Snack' },
+        ],
+        tier: finish,
+      },
+    ],
+  };
+}
+
+/**
+ * What a home comes with before you furnish it (player feedback: "despite
+ * living in affluence I have no kitchen at all… I need the full kitchen
+ * including utility"): from an apartment up, a fitted kitchen and a fridge;
+ * from a townhouse up, a utility room's washer-dryer too. Better homes come
+ * better fitted (a chef's kitchen in a mansion or a penthouse, or any home
+ * of a rich owner). Furniture you buy can still upgrade them.
+ */
+export function builtIns(plan: Pick<HomePlan, 'kind' | 'wealth'>): Map<string, number> {
+  const out = new Map<string, number>();
+  if (plan.kind === 'room' || plan.kind === 'studio') return out;
+  const grand = plan.kind === 'mansion' || plan.kind === 'penthouse' || plan.wealth >= 3;
+  const finish = grand ? 3 : 2;
+  out.set('kitchen', finish);
+  out.set('fridge', finish);
+  if (plan.kind !== 'apartment') out.set('washer', finish);
+  return out;
+}
+
+/** What you own, with what the home comes with filled in (the better of the two). */
+export function withBuiltIns(
+  plan: Pick<HomePlan, 'kind' | 'wealth' | 'slots'>,
+  owned: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const out = new Map(owned);
+  for (const [slot, tier] of builtIns(plan))
+    if (plan.slots[slot] && (out.get(slot) ?? 0) < tier) out.set(slot, tier);
+  return out;
 }
 
 export const key = (x: number, y: number) => `${x},${y}`;

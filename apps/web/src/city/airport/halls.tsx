@@ -2,7 +2,9 @@
  * The terminal, one view per step of your trip, over the trip sheet: the
  * check-in hall (desks under the airline's signs, your bag onto the belt),
  * security (the bag through the scanner, you through the arch), the lounge
- * (planes taking off past the glass) and the gate, where your plane waits
+ * (planes taking off past the glass: the business lounge's buffet, the first
+ * class lounge's champagne bar, or in economy the plastic seats at the gate)
+ * and the gate, where your plane waits
  * outside the windows at the jet bridge, or on the tarmac with its airstairs
  * if it's your own jet. Boarding walks you up the bridge or the stairs.
  *
@@ -233,9 +235,86 @@ function Security({ look, night }: { look: AvatarLook; night: boolean }) {
   );
 }
 
-function Lounge({ night, livery }: { night: boolean; livery: string }) {
+/** Economy: no lounge, a row of plastic seats by the gate, a vending machine. */
+function WaitingArea({ night, livery }: { night: boolean; livery: string }) {
+  const crowd = ['f-engineer', 'b-commercial', 'f-dropout', 'i-operator', 'b-fintech'];
   return (
-    <>
+    <g data-lounge="economy">
+      <rect x="-200" y="0" width="800" height="236" fill="#e2e8f0" />
+      <Windows top={12} bottom={150} night={night}>
+        <g transform="translate(196 132) scale(1.1)">
+          <PlaneSide livery={livery} />
+        </g>
+      </Windows>
+      <rect x="-200" y="150" width="800" height="90" fill="#94a3b8" />
+      <rect x="20" y="96" width="34" height="80" rx="3" fill="#dc2626" />
+      <rect x="25" y="104" width="24" height="40" fill="#fecaca" />
+      <g fill="#1e3a8a">
+        {Array.from({ length: 9 }, (_, k) => (
+          <g key={k}>
+            <rect x={70 + k * 36} y="196" width="30" height="14" rx="3" />
+            <rect x={70 + k * 36} y="184" width="30" height="12" rx="3" opacity="0.85" />
+          </g>
+        ))}
+      </g>
+      {crowd.map((bg, n) => (
+        <g key={bg} transform={`translate(${86 + n * 72} 200) scale(1.1)`}>
+          <AvatarFigure look={avatarLook(bg, `gate-wait:${n}`)} />
+        </g>
+      ))}
+    </g>
+  );
+}
+
+/** First class: walnut and gold, a champagne bar, white cloths. */
+function FirstLounge({ night, livery }: { night: boolean; livery: string }) {
+  return (
+    <g data-lounge="first">
+      <rect x="-200" y="0" width="800" height="236" fill="#1c1410" />
+      <Windows top={12} bottom={150} night={night}>
+        <g transform="translate(196 132) scale(1.1)">
+          <PlaneSide livery={livery} />
+        </g>
+      </Windows>
+      <rect x="-200" y="150" width="800" height="90" fill="#3a2e26" />
+      <rect x="-200" y="150" width="800" height="3" fill="#c9a227" />
+      <rect x="120" y="20" width="160" height="20" rx="3" fill="#0f0a07" />
+      <text x="200" y="34" textAnchor="middle" fontSize="10" fontWeight="800" fill="#fcd34d">
+        {t('First class lounge')}
+      </text>
+      {/* The champagne bar. */}
+      <rect x="20" y="168" width="110" height="40" rx="4" fill="#5b3a22" />
+      <rect x="20" y="166" width="110" height="5" rx="2" fill="#c9a227" />
+      {[34, 50, 66, 82, 98].map((x) => (
+        <g key={x}>
+          <rect x={x} y="152" width="3" height="14" fill="#fde68a" />
+          <rect x={x + 1} y="160" width="1" height="6" fill="#e0f2fe" />
+        </g>
+      ))}
+      <rect x="112" y="144" width="7" height="22" rx="2" fill="#14532d" />
+      {/* A table laid with a white cloth, two leather chairs. */}
+      <rect x="250" y="186" width="70" height="8" rx="3" fill="#f8fafc" />
+      <rect x="282" y="194" width="6" height="22" fill="#5b3a22" />
+      {[232, 330].map((x) => (
+        <rect key={x} x={x - 14} y="180" width="30" height="36" rx="8" fill="#e9dcc3" />
+      ))}
+    </g>
+  );
+}
+
+function Lounge({
+  night,
+  livery,
+  cabin,
+}: {
+  night: boolean;
+  livery: string;
+  cabin?: 'economy' | 'business' | 'first';
+}) {
+  if (cabin === 'economy') return <WaitingArea night={night} livery={livery} />;
+  if (cabin === 'first') return <FirstLounge night={night} livery={livery} />;
+  return (
+    <g data-lounge={cabin ?? 'lounge'}>
       <rect x="-200" y="0" width="800" height="236" fill="#292524" />
       <Windows top={12} bottom={150} night={night}>
         <g transform="translate(196 132) scale(1.1)">
@@ -274,7 +353,27 @@ function Lounge({ night, livery }: { night: boolean; livery: string }) {
       <rect x="198" y="202" width="8" height="18" fill="#78350f" />
       <rect x="196" y="186" width="5" height="10" rx="1" fill="#f8fafc" />
       <rect x="206" y="188" width="6" height="8" rx="1" fill="#fde68a" />
-    </>
+      {cabin === 'business' && (
+        <g>
+          <rect x="120" y="20" width="160" height="20" rx="3" fill="#0f172a" />
+          <text x="200" y="34" textAnchor="middle" fontSize="10" fontWeight="800" fill="#93c5fd">
+            {t('Business lounge')}
+          </text>
+          {/* The buffet. */}
+          <rect x="280" y="160" width="110" height="14" rx="3" fill="#e7e5e4" />
+          {[292, 314, 336, 358, 378].map((x, n) => (
+            <ellipse
+              key={x}
+              cx={x}
+              cy="159"
+              rx="8"
+              ry="3"
+              fill={['#ea580c', '#16a34a', '#facc15', '#b91c1c', '#f8fafc'][n]}
+            />
+          ))}
+        </g>
+      )}
+    </g>
   );
 }
 
@@ -363,6 +462,7 @@ function Gate({
 }
 
 export function TerminalView({
+  cabin,
   step,
   playing,
   look,
@@ -373,6 +473,8 @@ export function TerminalView({
   toName,
   night,
 }: {
+  /** The cabin on your ticket: the lounge you wait in (missing: an older server). */
+  cabin?: 'economy' | 'business' | 'first';
   step: HallStep;
   playing: boolean;
   look: AvatarLook;
@@ -391,7 +493,7 @@ export function TerminalView({
         ) : step === 'security' ? (
           <Security look={look} night={night} />
         ) : step === 'lounge' ? (
-          <Lounge night={night} livery={livery} />
+          <Lounge night={night} livery={livery} cabin={cabin} />
         ) : (
           <Gate look={look} kind={kind} livery={livery} gate={gate} toName={toName} night={night} />
         )}

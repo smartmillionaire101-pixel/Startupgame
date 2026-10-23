@@ -35,8 +35,8 @@ const walk = (mode: 'walk' | 'cycle', minutes: number) =>
 const open = (w: World) => Object.values(w.markets.lagos!.businesses ?? {}).filter(isOpen);
 
 describe('life bars: the release switch', () => {
-  it('is the newest note and turns the earlier switches on too', () => {
-    expect(RELEASES.indexOf(LIFE_BARS_NOTE)).toBe(RELEASES.length - 2);
+  it('turns the earlier switches on too (jobs and the investor career follow it)', () => {
+    expect(RELEASES.indexOf(LIFE_BARS_NOTE)).toBe(RELEASES.length - 3);
     const w = { announcements: [LIFE_BARS_NOTE] } as unknown as World;
     expect(lifeBarsOn(w)).toBe(true);
     expect(exitsOn(w)).toBe(true);

@@ -14,10 +14,11 @@ import { flightsOf } from '../city/travel';
 import { BankPicker } from './common';
 import { WealthCard } from './Capital';
 import { MyLook } from '../avatar/EditLook';
+import { PurchasesButton } from '../avatar/Wardrobe';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
 import { FoundBank } from './Bank';
-import { setSetting, useSimple } from '../phone/settings';
+import { setSetting, useSimple, useSimpleAvailable } from '../phone/settings';
 import { openLiving } from '../experiences/living-bus';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
@@ -177,6 +178,8 @@ function Profile() {
         </p>
       </section>
       <ProfileDetails key={me.id + me.role} />
+      {/* What you bought at the mall: your wardrobe (wear it) and the things you keep. */}
+      <PurchasesButton />
       <Button block data-open-living="" onClick={() => openLiving(me.id)}>
         {t('🏠 Home & friends')}
         {view.living.dates.some((d) => d.status === 'invited' && d.guest === me.id)
@@ -539,6 +542,11 @@ export function Credit() {
           defaults: credit.defaults,
           debt: money(credit.debt, cur),
         })}
+      </p>
+      <p className="small muted">
+        {t(
+          'Everyone starts at 60. Loans repaid on time raise it slowly; missed loan payments and defaults lower it. Living costs don’t count.',
+        )}
       </p>
       {view.me.loans.length > 0 && (
         <ul className="list small">
@@ -1029,6 +1037,8 @@ function MapVisibility() {
 /** Simple mode (Phase 2): the same switch as the phone's Settings app. */
 function SimpleModeCard() {
   const simple = useSimple();
+  // Founders only: investors and bankers always play the full game.
+  if (!useSimpleAvailable()) return null;
   return (
     <Card title={t('Simple mode')}>
       <label className="row simple-toggle" data-setting="simple">

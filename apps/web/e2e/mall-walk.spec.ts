@@ -125,7 +125,7 @@ test('a basket of two pays in one go, one receipt; the food court still sells fo
 
   // The Directory takes you to a shop.
   await scene.locator('[data-action="directory"]').click();
-  await expect(scene.locator('[data-mall-directory] [data-dir-shop]')).toHaveCount(6);
+  await expect(scene.locator('[data-mall-directory] [data-dir-shop]')).toHaveCount(16);
   await scene.locator('[data-dir-shop="fashion"]').click();
   await expect(scene).toHaveAttribute('data-mall-shop', 'fashion', { timeout: 20_000 });
 
@@ -197,7 +197,7 @@ test('Lite keeps the 2D mall and its directory', async ({ page }) => {
   await expect(scene).toHaveAttribute('data-mall-mode', '2d');
   await expect(scene.locator('canvas')).toHaveCount(0);
   await expect(scene.locator('.mall-2d')).toBeVisible();
-  await expect(scene.locator('.mall-tray [data-shop]')).toHaveCount(6);
+  await expect(scene.locator('.mall-tray [data-shop]')).toHaveCount(16);
   await scene.locator('[data-shop="foodcourt"]').click();
   await expect(scene).toHaveAttribute('data-mall-shop', 'foodcourt');
   await expect(scene.locator('[data-buy="burger"]')).toBeVisible();

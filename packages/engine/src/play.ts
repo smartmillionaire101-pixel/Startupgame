@@ -9,7 +9,28 @@ import { account, openAccount, payExact, transfer } from './ledger.js';
 import type { Command } from './commands.js';
 import { createRng, deriveRng, hashString } from './rng.js';
 import { QUIZ_BANK, type QuizCategory } from './data/quiz-bank.js';
-import { journeyEventsOn } from './releases.js';
+import { investorOn, journeyEventsOn } from './releases.js';
+import {
+  POOL_FOOT,
+  POOL_HEAD,
+  freeSpot,
+  groupOf,
+  inGroup,
+  poolPlan,
+  poolRack,
+  poolSpeed,
+  simulatePool,
+  type PoolGroup,
+} from './pool.js';
+import {
+  aiDive,
+  aiKick,
+  laneOf,
+  resolveKick,
+  shootoutOver,
+  type Kick,
+  type KickOutcome,
+} from './shootout.js';
 import { GOLF, golfCourse } from './data/leisure.js';
 import { golfClubOf, golfFee } from './leisure.js';
 import { formatMoney } from './money.js';
@@ -103,12 +124,83 @@ export interface PlayRoom {
   colorFree: boolean;
   frames: Ball[][];
   moves: Record<Id, number>;
-  penalties: { shooter: Id; shot: number; keeper: number; goal: boolean }[];
+  penalties: Penalty[];
+  /**
+   * The rules this room plays (rooms made before the investor-career note
+   * have none: the old short snooker frame and the five-corner penalties).
+   * 'pool8': 8-ball pool, played out ball by ball (r.pool). 'shootout': a
+   * real penalty shootout, each kick played out (r.kicks).
+   */
+  rules?: 'pool8' | 'shootout';
+  pool?: PoolMatch;
+  /** Shootout: the kick the shooter has locked in this round (never shown until played). */
+  kicks?: Record<Id, Kick>;
   /** Wave 12: AI opponents in this room (world AI players; their stakes are real). */
   ai?: Id[];
   /** Golf with a friend (game 'golf' only; older rooms never have it). */
   golf?: GolfMatch;
 }
+
+/** One kick of a shootout. The details (kick on) are for shootout rooms. */
+export interface Penalty {
+  shooter: Id;
+  /** The lane the kick went for (−1: no kick). */
+  shot: number;
+  /** The keeper's dive (−1: none). */
+  keeper: number;
+  goal: boolean;
+  kick?: Kick;
+  /** Where the ball crossed the goal line (m). */
+  end?: { x: number; y: number };
+  outcome?: KickOutcome;
+  speed?: number;
+  time?: number;
+}
+
+/** 8-ball pool: the frame's state beyond the balls. */
+export interface PoolMatch {
+  /** Each player's group, once the table is no longer open. */
+  groups: Record<Id, PoolGroup>;
+  /** Ball in hand for the player at the table: behind the head string, or anywhere. */
+  inHand: 'kitchen' | 'table' | null;
+  broken: boolean;
+  shots: number;
+  /** When the last shot's balls stop rolling (the next player's clock starts then). */
+  readyAt: number;
+  /** The last shot, so every client can replay it exactly. */
+  last: PoolShotLog | null;
+}
+export type PoolCall =
+  | 'break'
+  | 'pot'
+  | 'miss'
+  | 'safe'
+  | 'foul-scratch'
+  | 'foul-no-hit'
+  | 'foul-wrong-ball'
+  | 'foul-no-rail'
+  | 'timeout'
+  | 'win'
+  | 'lose-eight'
+  | 'groups';
+export interface PoolShotLog {
+  by: Id;
+  /** The shot's number in the frame. */
+  n: number;
+  call: PoolCall;
+  /** The balls as the shot was struck (after ball in hand was placed). */
+  before?: PoolBallState[];
+  vx?: number;
+  vy?: number;
+  spin?: number;
+  side?: number;
+  /** Seconds the balls rolled. */
+  time: number;
+  pots: number[];
+  /** The group the shooter took on this shot. */
+  took?: PoolGroup;
+}
+type PoolBallState = Ball;
 
 // ---------------------------------------------------------------- Golf with a friend
 
@@ -396,6 +488,7 @@ function fillWithAi(w: World, r: PlayRoom, now: number, count: number) {
   r.status = 'playing';
   r.deadline = now + (r.game === 'snooker' ? SHOT_MS : QUESTION_MS);
   r.touchedAt = now;
+  if (r.pool) r.pool.readyAt = now;
   r.last = `${picks.map((p) => p.name).join(', ')} joined the ${r.game === 'quiz' ? 'quiz' : 'game'}.`;
 }
 
@@ -485,6 +578,251 @@ export function aiPenalty(w: World, r: PlayRoom, aiId: Id) {
   return { lane: rng.int(0, 4), after: rng.int(1_500, 4_500) };
 }
 
+// ---------------------------------------------------------------- 8-ball pool
+
+/** An AI player at pool thinks this long once the balls stop. */
+export const POOL_AI_THINK = 2_500;
+/** A frame that somehow runs this many shots is settled on balls potted. */
+export const POOL_MAX_SHOTS = 200;
+/** How steady an AI player's cue is at pool (radians, one standard deviation). */
+export const poolAiError = (aiId: Id) => 0.0025 + (hashString(`pool-cue:${aiId}`) % 9) / 1000;
+/** An AI keeper's knack for reading a kick (0 … 0.29), from its id. */
+export const keeperSkill = (aiId: Id) => (hashString(`keeper:${aiId}`) % 30) / 100;
+
+const other = (r: PlayRoom, id: Id) => r.members.find((m) => m.id !== id)?.id ?? id;
+const atTable = (r: PlayRoom) => r.members[r.turn % Math.max(1, r.members.length)]!.id;
+
+/** The balls a player may hit first: their group, the 8 once it's cleared, any (not the 8) while open. */
+export function poolTargets(r: PlayRoom, id: Id): number[] {
+  const pm = r.pool!;
+  const up = r.balls.filter((b) => !b.potted && b.id !== 0);
+  if (!pm.broken) return up.map((b) => b.id);
+  const g = pm.groups[id];
+  const open = up.filter((b) => b.id !== 8);
+  if (!g) return open.length ? open.map((b) => b.id) : [8];
+  const own = up.filter((b) => inGroup(b.id, g));
+  return own.length ? own.map((b) => b.id) : [8];
+}
+
+function poolScores(r: PlayRoom) {
+  for (const m of r.members) {
+    const g = r.pool!.groups[m.id];
+    m.score = g ? r.balls.filter((b) => b.potted && inGroup(b.id, g)).length : 0;
+  }
+}
+
+function poolFinish(w: World, r: PlayRoom, winner: Id, text: string) {
+  poolScores(r);
+  for (const m of r.members) m.score = m.id === winner ? 8 : Math.min(7, m.score);
+  r.last = text;
+  payOut(w, r, false);
+}
+
+const nameOf = (w: World, id: Id) => w.players[id]?.name ?? 'Player';
+
+/**
+ * One pool shot, played out and refereed (WPA-style 8-ball, simplified): the
+ * break (balls potted keep the table, a scratch gives ball in hand, the 8 on
+ * the break is spotted), the open table (the first ball potted after the
+ * break gives the shooter that group), fouls (no contact, the wrong ball
+ * first, no cushion after contact, a scratch) give the opponent ball in hand
+ * anywhere, and the 8: pot it last and cleanly to win; early or with a foul
+ * it loses the frame.
+ */
+function poolShot(
+  w: World,
+  r: PlayRoom,
+  by: Id,
+  s: { angle: number; power: number; spin?: number; side?: number; cueX?: number; cueY?: number },
+  now: number,
+) {
+  const pm = r.pool!;
+  const opp = other(r, by);
+  const targets = poolTargets(r, by);
+  const onEight = pm.broken && !!pm.groups[by] && targets.length === 1 && targets[0] === 8;
+  if (pm.inHand && s.cueX !== undefined && s.cueY !== undefined) {
+    const [x, y] = freeSpot(r.balls, 0, s.cueX, s.cueY, pm.inHand === 'kitchen');
+    r.balls = r.balls.map((b) => (b.id === 0 ? { ...b, x, y, potted: false } : b));
+  }
+  const spin = Math.max(-1, Math.min(1, s.spin ?? 0)),
+    side = Math.max(-1, Math.min(1, s.side ?? 0));
+  const speed = poolSpeed(s.power);
+  const vx = Math.cos(s.angle) * speed,
+    vy = Math.sin(s.angle) * speed;
+  const before = r.balls.map((b) => ({ ...b }));
+  const sim = simulatePool(before, vx, vy, spin, side);
+  r.balls = sim.balls.map((b) => ({ ...b }));
+  r.frames = [];
+  const breakShot = !pm.broken;
+  pm.broken = true;
+  pm.shots++;
+  r.round++;
+  pm.readyAt = now + Math.ceil(sim.time * 1000);
+  r.deadline = pm.readyAt + SHOT_MS;
+  const scratch = sim.pots.includes(0);
+  const objPots = sim.pots.filter((id) => id !== 0);
+  let call: PoolCall = 'miss';
+  if (scratch) call = 'foul-scratch';
+  else if (sim.first < 0) call = 'foul-no-hit';
+  else if (!breakShot && !targets.includes(sim.first)) call = 'foul-wrong-ball';
+  else if (!breakShot && objPots.length === 0 && !sim.rail) call = 'foul-no-rail';
+  const foul = call.startsWith('foul');
+  const log: PoolShotLog = {
+    by,
+    n: pm.shots,
+    call,
+    before,
+    vx,
+    vy,
+    spin,
+    side,
+    time: sim.time,
+    pots: sim.pots,
+  };
+  pm.last = log;
+  if (objPots.includes(8)) {
+    if (!breakShot) {
+      const won = onEight && !foul;
+      log.call = won ? 'win' : 'lose-eight';
+      return poolFinish(
+        w,
+        r,
+        won ? by : opp,
+        won
+          ? `${nameOf(w, by)} pots the 8 and wins the frame.`
+          : `${nameOf(w, by)} pots the 8 ${foul ? 'with a foul' : 'too early'} and loses the frame.`,
+      );
+    }
+    // The 8 on the break comes back to the foot spot.
+    const [x, y] = freeSpot(r.balls, 8, POOL_FOOT[0], POOL_FOOT[1]);
+    r.balls = r.balls.map((b) => (b.id === 8 ? { ...b, x, y, potted: false } : b));
+  }
+  if (scratch) {
+    const [x, y] = freeSpot(r.balls, 0, POOL_HEAD[0], POOL_HEAD[1]);
+    r.balls = r.balls.map((b) => (b.id === 0 ? { ...b, x, y, potted: false } : b));
+  }
+  // The open table: the first group ball potted (cleanly, after the break) decides.
+  if (!foul && !breakShot && !pm.groups[by]) {
+    const g = objPots.map(groupOf).find((x): x is PoolGroup => !!x);
+    if (g) {
+      pm.groups[by] = g;
+      pm.groups[opp] = g === 'solids' ? 'stripes' : 'solids';
+      log.took = g;
+    }
+  }
+  const g = pm.groups[by];
+  const scored =
+    !foul && objPots.some((id) => id !== 8 && (breakShot || !g ? true : inGroup(id, g)));
+  poolScores(r);
+  if (foul) {
+    r.turn++;
+    pm.inHand = 'table';
+    r.last = `Foul by ${nameOf(w, by)}: ${nameOf(w, opp)} has ball in hand.`;
+  } else if (scored) {
+    pm.inHand = null;
+    log.call = breakShot ? 'break' : log.took ? 'groups' : 'pot';
+    r.last = log.took
+      ? `${nameOf(w, by)} takes the ${log.took} and plays on.`
+      : `${nameOf(w, by)} pots and plays on.`;
+  } else {
+    pm.inHand = null;
+    r.turn++;
+    log.call = breakShot ? 'break' : objPots.length ? 'safe' : 'miss';
+    r.last = `${nameOf(w, opp)} to the table.`;
+  }
+  if (pm.shots >= POOL_MAX_SHOTS) {
+    r.last = 'The frame went the distance: decided on balls potted.';
+    payOut(w, r, false);
+  }
+}
+
+/** The shot clock ran out: the turn passes, with ball in hand. */
+function poolTimeout(w: World, r: PlayRoom, now: number) {
+  const pm = r.pool!;
+  const by = atTable(r);
+  r.turn++;
+  r.round++;
+  pm.shots++;
+  pm.inHand = pm.broken ? 'table' : 'kitchen';
+  pm.readyAt = now;
+  pm.last = { by, n: pm.shots, call: 'timeout', time: 0, pots: [] };
+  r.deadline = now + SHOT_MS;
+  r.last = `${nameOf(w, by)} ran out of time: ball in hand.`;
+  if (pm.shots >= POOL_MAX_SHOTS) payOut(w, r, false);
+}
+
+/** The AI's pool shot: a planned pot (or safety), struck with a seeded wobble. */
+export function aiPoolShot(w: World, r: PlayRoom, aiId: Id, error = poolAiError(aiId)) {
+  const pm = r.pool!;
+  const plan = poolPlan(r.balls, poolTargets(r, aiId), pm.inHand, !pm.broken);
+  const rng = deriveRng(w.seed, 'pool-ai', r.id, r.round, aiId);
+  let angle = plan.angle + rng.normal(0, pm.broken ? error : error * 2);
+  if (angle > Math.PI) angle -= 2 * Math.PI;
+  if (angle < -Math.PI) angle += 2 * Math.PI;
+  const power = Math.min(100, Math.max(5, Math.round(plan.power * rng.range(0.95, 1.06))));
+  return {
+    angle,
+    power,
+    spin: plan.spin,
+    side: plan.side,
+    ...(plan.cue ? { cueX: plan.cue.x, cueY: plan.cue.y } : {}),
+  };
+}
+
+// ---------------------------------------------------------------- The shootout
+
+/** A lane pick from an older client, as a kick: the middle of that part of the goal. */
+function laneKick(lane: number): Kick {
+  const [x, y] = [
+    [-2.6, 1.7],
+    [2.6, 1.7],
+    [0, 1.2],
+    [-2.6, 0.4],
+    [2.6, 0.4],
+  ][lane] ?? [0, 1.2];
+  return { x: x!, y: y!, power: 0.65, curve: 0 };
+}
+
+const KICK_TEXT: Record<KickOutcome, string> = {
+  goal: 'GOAL!',
+  'post-in': 'GOAL! In off the post.',
+  'bar-in': 'GOAL! In off the bar.',
+  saved: 'Saved by the goalkeeper!',
+  post: 'Off the post!',
+  bar: 'Off the crossbar!',
+  wide: 'Wide of the post.',
+  over: 'Over the bar.',
+  none: 'Shot timed out.',
+};
+
+/** Play this round's kick out and see whether the shootout is over. */
+function shootoutKick(w: World, r: PlayRoom, now: number) {
+  const shooter = r.members[r.round % r.members.length]!;
+  const keeper = r.members[(r.round + 1) % r.members.length]!;
+  const lane = r.moves[shooter.id];
+  const kick = r.kicks?.[shooter.id] ?? (lane !== undefined ? laneKick(lane) : null);
+  const dive = r.moves[keeper.id] ?? 2;
+  const res = resolveKick(deriveRng(w.seed, 'shootout', r.id, r.round), kick, dive);
+  if (res.goal) shooter.score++;
+  r.penalties.push({
+    shooter: shooter.id,
+    shot: kick ? laneOf(kick.x, kick.y) : -1,
+    keeper: dive,
+    goal: res.goal,
+    ...(kick ? { kick } : {}),
+    end: { x: res.x, y: res.y },
+    outcome: res.outcome,
+    speed: res.speed,
+    time: res.time,
+  });
+  r.last = KICK_TEXT[res.outcome];
+  r.moves = {};
+  r.kicks = {};
+  r.round++;
+  r.deadline = now + PENALTY_MS;
+  if (shootoutOver(r.penalties.map((p) => p.goal))) payOut(w, r, false);
+}
+
 /**
  * Snooker and football against AI: the AI locks in its penalty once its
  * thinking time is up (or as soon as every human has), and takes its snooker
@@ -492,7 +830,24 @@ export function aiPenalty(w: World, r: PlayRoom, aiId: Id) {
  */
 function aiMoves(w: World, r: PlayRoom, now: number) {
   if (r.status !== 'playing' || !r.ai?.length) return;
-  if (r.game === 'football') {
+  if (r.game === 'football' && r.rules === 'shootout') {
+    // The AI takes its kick after a moment; in goal it reads the kick as it comes.
+    const start = r.deadline - PENALTY_MS;
+    const shooter = r.members[r.round % r.members.length]!.id;
+    for (const id of r.ai) {
+      if (r.moves[id] !== undefined) continue;
+      const rng = deriveRng(w.seed, 'play-ai', r.id, r.round, id);
+      if (id === shooter) {
+        const keeperIn = r.members.some((m) => m.id !== id && r.moves[m.id] !== undefined);
+        if (!keeperIn && now < start + aiPenalty(w, r, id).after) continue;
+        const k = aiKick(rng, keeperSkill(id));
+        (r.kicks ??= {})[id] = k;
+        r.moves[id] = laneOf(k.x, k.y);
+      } else if (r.moves[shooter] !== undefined) {
+        r.moves[id] = aiDive(rng, r.kicks?.[shooter] ?? null, keeperSkill(id));
+      }
+    }
+  } else if (r.game === 'football') {
     const start = r.deadline - PENALTY_MS;
     const humansDone = r.members.every((m) => r.ai!.includes(m.id) || r.moves[m.id] !== undefined);
     for (const id of r.ai) {
@@ -500,6 +855,11 @@ function aiMoves(w: World, r: PlayRoom, now: number) {
       const a = aiPenalty(w, r, id);
       if (humansDone || now >= start + a.after) r.moves[id] = a.lane;
     }
+  } else if (r.game === 'snooker' && r.pool) {
+    const turn = atTable(r);
+    if (!r.ai.includes(turn) || now < r.pool.readyAt + POOL_AI_THINK) return;
+    poolShot(w, r, turn, aiPoolShot(w, r, turn), now);
+    r.touchedAt = now;
   } else if (r.game === 'snooker') {
     const turn = r.members[r.turn % r.members.length]!.id;
     if (!r.ai.includes(turn) || now < r.deadline - SHOT_MS + AI_SHOT_AFTER) return;
@@ -529,6 +889,14 @@ function aiDueAt(w: World, r: PlayRoom): number | null {
     return r.deadline - GOLF_SHOT_MS + GOLF_AI_SHOT_AFTER;
   }
   if (r.status !== 'playing' || !r.ai?.length) return null;
+  if (r.game === 'snooker' && r.pool)
+    return r.ai.includes(atTable(r)) ? r.pool.readyAt + POOL_AI_THINK : null;
+  if (r.game === 'football' && r.rules === 'shootout') {
+    const shooter = r.members[r.round % r.members.length]!.id;
+    return r.ai.includes(shooter) && r.moves[shooter] === undefined
+      ? r.deadline - PENALTY_MS + aiPenalty(w, r, shooter).after
+      : null;
+  }
   if (r.game === 'snooker')
     return r.ai.includes(r.members[r.turn % r.members.length]!.id)
       ? r.deadline - SHOT_MS + AI_SHOT_AFTER
@@ -774,6 +1142,13 @@ function advance(w: World, r: PlayRoom, now: number) {
     else aiAnswers(r, now);
   } else if (
     r.game === 'football' &&
+    r.rules === 'shootout' &&
+    (r.members.every((m) => r.moves[m.id] !== undefined) || now >= r.deadline)
+  ) {
+    shootoutKick(w, r, now);
+  } else if (
+    r.game === 'football' &&
+    r.rules !== 'shootout' &&
     (r.members.every((m) => r.moves[m.id] !== undefined) || now >= r.deadline)
   ) {
     const shooter = r.members[r.round % r.members.length]!;
@@ -793,6 +1168,8 @@ function advance(w: World, r: PlayRoom, now: number) {
       (r.members[0]!.score !== r.members[1]!.score || r.round >= 20)
     )
       payOut(w, r, false);
+  } else if (r.game === 'snooker' && r.pool) {
+    if (now >= r.deadline) poolTimeout(w, r, now);
   } else if (r.game === 'snooker' && now >= r.deadline) {
     r.turn++;
     r.round++;
@@ -801,7 +1178,7 @@ function advance(w: World, r: PlayRoom, now: number) {
     r.red = r.balls.some((b) => b.value === 1 && !b.potted);
     r.colorFree = false;
   }
-  if (r.game === 'snooker' && (r.round >= 60 || r.balls.slice(1).every((b) => b.potted)))
+  if (r.game === 'snooker' && !r.pool && (r.round >= 60 || r.balls.slice(1).every((b) => b.potted)))
     payOut(w, r, false);
 }
 function createRoom(
@@ -874,6 +1251,16 @@ function createRoom(
     moves: {},
     penalties: [],
   };
+  // The investor-career release plays real 8-ball pool and a real shootout
+  // (rooms made before it replay with the old rules).
+  if (investorOn(w) && r.game === 'snooker') {
+    r.rules = 'pool8';
+    r.balls = poolRack(deriveRng(w.seed, 'pool-rack', id));
+    r.pool = { groups: {}, inHand: 'kitchen', broken: false, shots: 0, readyAt: 0, last: null };
+  } else if (investorOn(w) && r.game === 'football') {
+    r.rules = 'shootout';
+    r.kicks = {};
+  }
   ensure(
     !r.custom || r.game === 'quiz',
     'play.questions',
@@ -1005,6 +1392,7 @@ export function playCommand(
     r.status = 'playing';
     r.deadline = now + (r.game === 'snooker' ? 45_000 : 20_000);
     r.touchedAt = now;
+    if (r.pool) r.pool.readyAt = now;
     return { ok: true };
   }
   ensure(
@@ -1072,7 +1460,16 @@ export function playCommand(
       'play.move',
       'Your choice is already locked in.',
     );
-    r.moves[p.id] = cmd.lane;
+    if (r.rules === 'shootout') {
+      const shooter = r.members[r.round % r.members.length]!.id === p.id;
+      // A shooter's swipe (or, from an older client, the lane as a kick).
+      if (shooter) {
+        const k = cmd.kick ?? laneKick(cmd.lane);
+        (r.kicks ??= {})[p.id] = k;
+        r.moves[p.id] = laneOf(k.x, k.y);
+      } else r.moves[p.id] = cmd.lane;
+      aiMoves(w, r, now);
+    } else r.moves[p.id] = cmd.lane;
     advance(w, r, now);
   } else if (cmd.type === 'play.shot') {
     ensure(
@@ -1080,8 +1477,13 @@ export function playCommand(
       'play.turn',
       'Wait for your turn.',
     );
-    shot(r, cmd.angle, cmd.power);
-    r.deadline = now + 45_000;
+    if (r.pool) {
+      ensure(now >= r.pool.readyAt, 'play.rolling', 'Wait for the balls to stop.');
+      poolShot(w, r, p.id, cmd, now);
+    } else {
+      shot(r, cmd.angle, cmd.power);
+      r.deadline = now + 45_000;
+    }
     advance(w, r, now);
   } else if (cmd.type === 'play.golf') {
     ensure(r.golf && golfer(r) === p.id, 'play.turn', 'Wait for your turn.');
@@ -1197,6 +1599,19 @@ export function playView(w: World, p: Player) {
       frames: r.frames,
       red: r.red,
       penalties: r.penalties,
+      /** The investor-career rules ('pool8', 'shootout'), or null for the old games. */
+      rules: r.rules ?? null,
+      pool: r.pool
+        ? {
+            groups: r.pool.groups,
+            inHand: r.pool.inHand,
+            broken: r.pool.broken,
+            shots: r.pool.shots,
+            readyAt: r.pool.readyAt,
+            last: r.pool.last,
+            targets: r.status === 'playing' ? poolTargets(r, atTable(r)) : [],
+          }
+        : null,
       locked: Object.keys(r.moves),
       myMove: r.moves[p.id] ?? null,
       shooter: r.members[r.round % Math.max(1, r.members.length)]?.id,

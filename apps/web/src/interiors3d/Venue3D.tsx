@@ -21,6 +21,8 @@ import { makeRig, type Rig } from './acts3d';
 import { BACK, RD, ROOM_STYLE, RW, buildVenue, vx, vz, type VenueRoom } from './venues';
 import { buildNightVenue, type NightRoom } from './nightlife3d';
 import type { NightStyle } from '../city/nightlife';
+import type { FoodPlace } from '../city/cuisine';
+import { buildFoodVenue } from './food3d';
 import { Stage, gestures } from './stage';
 
 export interface VenuePerson {
@@ -55,6 +57,10 @@ export interface Venue3DProps {
   reduced: boolean;
   /** A bar, club or lounge's own style (../city/nightlife.ts): its plan, look and light. */
   nightStyle?: NightStyle | null;
+  /** A restaurant, café or street-food place's own style (../city/cuisine.ts). */
+  foodStyle?: FoodPlace | null;
+  /** Its menu board's lines. */
+  menu?: string[];
 }
 
 const POSE: Record<Activity, PoseId> = {
@@ -100,7 +106,8 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
   const partyRef = useRef<Character[]>([]);
   const rigRef = useRef<{ rig: Rig; n: number; t0: number; ended: boolean } | null>(null);
 
-  const { room, tint, sign, night, slots, people, me, act, nightStyle } = props;
+  const { room, tint, sign, night, slots, people, me, act, nightStyle, foodStyle } = props;
+  const menuKey = (props.menu ?? []).join('|');
 
   // ---- Stage and room.
   useEffect(() => {
@@ -189,7 +196,9 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
     if (!stage) return;
     const v: VenueRoom & Partial<NightRoom> = nightStyle
       ? buildNightVenue({ style: nightStyle, tint, sign, slots, night })
-      : buildVenue({ kind: room, tint, sign, slots, night });
+      : foodStyle
+        ? buildFoodVenue({ style: foodStyle, sign, slots, night, menu: live.current.menu })
+        : buildVenue({ kind: room, tint, sign, slots, night });
     roomRef.current = v;
     stage.scene.add(v.root);
     if (v.env) {
@@ -222,7 +231,8 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
       disposeTree(v.root);
       roomRef.current = null;
     };
-  }, [room, tint, sign, slots, night, nightStyle]);
+    // menuKey stands for `menu` (read from live).
+  }, [room, tint, sign, slots, night, nightStyle, foodStyle, menuKey]);
 
   // ---- People.
   const peopleKey = people.map((p) => `${p.id}:${p.slot}:${p.act}`).join('|');

@@ -10,8 +10,9 @@
  */
 import * as THREE from 'three';
 import { facialHairColour } from '../avatar/tone';
+import { BAG_COLOUR, necklaceColour, shoeColour, type Worn } from '../avatar/worn';
 
-export interface CharacterLook {
+export interface CharacterLook extends Worn {
   skin: string;
   hair: string;
   hairStyle:
@@ -62,6 +63,9 @@ function geoms() {
     cap: new THREE.CylinderGeometry(0.15, 0.15, 0.07, 10),
     brim: box(0.2, 0.02, 0.14, 0),
     glasses: box(0.24, 0.04, 0.02, 0),
+    // From the wardrobe: a bag at the hip, a chain at the neck.
+    bag: box(0.08, 0.2, 0.22, 0),
+    necklace: new THREE.TorusGeometry(0.08, 0.012, 4, 14).rotateX(Math.PI / 2 - 0.45),
     tie: box(0.06, 0.34, 0.02, -0.17),
     ring: new THREE.RingGeometry(0.42, 0.55, 28).rotateX(-Math.PI / 2),
     // Phase 6a: the creator's styles and parts, one geometry each for the whole crowd.
@@ -99,7 +103,10 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
   const hair = charMaterial(look.hair, 0.9);
   const top = charMaterial(look.top, 0.85);
   const bottom = charMaterial(look.bottom, 0.85);
-  const shoe = charMaterial('#26221f', 0.6);
+  const shoe = charMaterial(
+    look.shoes && look.shoes !== 'none' ? shoeColour(look.shoes) : '#26221f',
+    0.6,
+  );
   const mesh = (
     geo: THREE.BufferGeometry,
     m: THREE.Material,
@@ -145,6 +152,10 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
     arms.push(pivot);
   }
   mesh(g.neck!, skin, body, 0, hip + 0.66, 0);
+  if (look.necklace && look.necklace !== 'none')
+    mesh(g.necklace!, charMaterial(necklaceColour(look.necklace), 0.25), body, 0, hip + 0.6, 0.03);
+  if (look.bag && look.bag !== 'none')
+    mesh(g.bag!, charMaterial(BAG_COLOUR[look.bag]!, 0.6), body, -0.34, hip + 0.02, 0);
   const headY = hip + 0.81;
   mesh(g.head!, skin, body, 0, headY, 0);
   const headwear = look.headwear ?? (look.accessory === 'cap' ? 'cap' : 'none');

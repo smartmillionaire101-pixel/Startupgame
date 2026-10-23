@@ -30,6 +30,7 @@ import { wave12Sky } from './wave12-sky';
 import { chatWave13 } from './chat-wave13';
 import { bankStatement } from './bank-statement';
 import { journey } from './journey';
+import { investorJourney } from './investor-journey';
 import { onlinePlay } from './online-play';
 import { roadmap } from './roadmap';
 import { sales } from './sales';
@@ -37,7 +38,17 @@ import { hiring } from './hiring';
 import { founderFinance } from './founder-finance';
 import { recap } from './recap';
 import { decisions } from './decisions';
+import { tableGames } from './table-games';
 import { capital } from './capital';
+import { investorCareer } from './investor-career';
+import { investorExchange } from './investor-exchange';
+import { investorSyndicates } from './investor-syndicates';
+import { investorFunds } from './investor-funds';
+import { investorFundOps } from './investor-fundops';
+import { investorFirm } from './investor-firm';
+import { investorAllocators } from './investor-allocators';
+import { investorDealcraft } from './investor-dealcraft';
+import { investorLegacy } from './investor-legacy';
 import { tutorial } from './tutorial';
 import { uiFixes } from './ui-fixes';
 import { feedback } from './feedback';
@@ -61,7 +72,12 @@ import { goingOut } from './going-out';
 import { mapBadges } from './map-badges';
 import { mallWalk } from './mall-walk';
 import { golfMatch } from './golf-match';
+import { camera } from './camera';
 import { jobsPro } from './jobs-pro';
+import { mallMore } from './mall-more';
+import { flightClasses } from './flight-classes';
+import { restaurants } from './restaurants';
+import { wardrobe } from './wardrobe';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -94,6 +110,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   chatWave13,
   bankStatement,
   journey,
+  investorJourney,
   onlinePlay,
   roadmap,
   sales,
@@ -102,6 +119,15 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   recap,
   decisions,
   capital,
+  investorCareer,
+  investorExchange,
+  investorSyndicates,
+  investorFunds,
+  investorFundOps,
+  investorFirm,
+  investorAllocators,
+  investorDealcraft,
+  investorLegacy,
   tutorial,
   uiFixes,
   feedback,
@@ -126,7 +152,13 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   mapBadges,
   mallWalk,
   golfMatch,
+  camera,
   jobsPro,
+  mallMore,
+  flightClasses,
+  restaurants,
+  tableGames,
+  wardrobe,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

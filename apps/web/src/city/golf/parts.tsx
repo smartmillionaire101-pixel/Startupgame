@@ -1,13 +1,16 @@
 /**
  * Golf: pieces the solo round (GolfScene.tsx) and a match with a friend
- * (GolfMatch.tsx) share: the power ring's numbers, the words for a lie, the
+ * (GolfMatch.tsx) share: the power bar, the words for a lie, the
  * scorecard's marks and the mini-map.
  */
+import type { RefObject } from 'react';
 import { money } from '../../format';
 import { t } from '../../i18n';
 import {
   LIE_CARRY,
   POWER_MAX,
+  SWEET_FROM,
+  SWEET_TO,
   along,
   dist,
   scoreMark,
@@ -37,14 +40,69 @@ export const powerAt = (ms: number, putt = false) => {
   return 110 * (x < half ? x / half : (2 * half - x) / half);
 };
 export const reachOf = (p: { club: Club; lie: Lie }) => p.club.carry * LIE_CARRY[p.lie];
-/** The power ring: 270° of a circle, from the bottom left round to the bottom right. */
-export const RING_R = 54;
-export const RING_C = 2 * Math.PI * RING_R;
-export const RING_L = RING_C * 0.75;
-export const ringDash = (from: number, to: number) =>
-  `0 ${(RING_L * from) / POWER_MAX} ${(RING_L * (to - from)) / POWER_MAX} ${RING_C}`;
-export const ringFill = (power: number) =>
-  `${(RING_L * Math.max(0, Math.min(POWER_MAX, power))) / POWER_MAX} ${RING_C}`;
+/**
+ * The power bar above the swing button (player feedback: the ring sat behind
+ * the button and hid the power): the sweet spot in green, a lunge in red, a
+ * tick where this shot needs to be, and the live reading while you hold. The
+ * shot's loop writes `--power`, `data-zone` and the reading straight to the
+ * DOM (no re-render per frame), through `meterRef` and `readRef`.
+ */
+export function PowerBar({
+  meterRef,
+  readRef,
+  charging,
+  need,
+  lie,
+  hint,
+}: {
+  meterRef: RefObject<HTMLDivElement | null>;
+  readRef: RefObject<HTMLDivElement | null>;
+  charging: boolean;
+  /** Where this shot needs the power (0–110), or null when it isn't your shot. */
+  need: number | null;
+  lie?: Lie;
+  /** The line under the bar when you aren't holding. */
+  hint: string;
+}) {
+  const pct = (v: number) => `${(Math.max(0, Math.min(POWER_MAX, v)) / POWER_MAX) * 100}%`;
+  return (
+    <div className="golf-powerbar" ref={meterRef} data-power="0" data-zone="build">
+      <div className="golf-bar" aria-hidden="true">
+        <i
+          className="golf-bar-sweet"
+          style={{ left: pct(SWEET_FROM), width: pct(SWEET_TO - SWEET_FROM) }}
+        />
+        <i className="golf-bar-lunge" style={{ left: pct(SWEET_TO), right: 0 }} />
+        <i className="golf-bar-fill" />
+        {need !== null && (
+          <i
+            className="golf-need"
+            data-golf-need={need}
+            data-golf-lie={lie}
+            style={{ left: pct(need) }}
+          />
+        )}
+      </div>
+      {charging ? (
+        <div
+          className="golf-bar-read"
+          ref={readRef}
+          data-zone="build"
+          data-power="0"
+          aria-live="polite"
+        >
+          <b>{t('{n}%', { n: 0 })}</b>
+          <span>{t('Keep holding…')}</span>
+        </div>
+      ) : (
+        <div className="golf-bar-read">
+          <b>{t('Power')}</b>
+          <span>{hint}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** A signed whole number (+8, −6, 0). */
 export const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');

@@ -21,7 +21,7 @@ import { account, costIn, payExact } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { npcPerson, parseNpcId, chatIdOf } from './people.js';
-import { getBusiness, isOpen, specOf } from './economy.js';
+import { getBusiness, isOpen, specOf, venuePrice } from './economy.js';
 import type { ContactKind, Id, MarketState, Player, World } from './types.js';
 
 export const NEED_KEYS = ['hunger', 'hygiene', 'fun', 'social'] as const;
@@ -52,7 +52,8 @@ export type HomeActId =
   | 'game'
   | 'read'
   | 'work'
-  | 'workout';
+  | 'workout'
+  | 'laundry';
 
 interface HomeActSpec {
   /** Uses a (home) month. */
@@ -82,6 +83,8 @@ export const HOME_ACTS: Record<HomeActId, HomeActSpec> = {
   read: { cap: 4, fun: 10, hours: 2, label: 'You read for a while' },
   work: { cap: 4, hours: 4, needs: 'desk', label: 'Four focused hours at your desk' },
   workout: { cap: 4, energy: -5, hygiene: -15, fun: 10, label: 'A home workout' },
+  // Every home from an apartment up has a utility room (player feedback: "the full kitchen including utility").
+  laundry: { cap: 4, hygiene: 15, hours: 1, label: 'Fresh, clean clothes' },
 };
 export const HOME_ACT_IDS = Object.keys(HOME_ACTS) as HomeActId[];
 
@@ -390,7 +393,7 @@ export function foodOrder(world: World, me: Player, businessId: Id, itemId: stri
   ensure(it, 'venue.item', `${b.name} doesn’t sell that.`);
   ensure(deliverable(it), 'food.item', `${it.label} isn’t something they can deliver.`);
   const m = getMarket(world, b.market);
-  const price = scale(col(m), it.priceCol);
+  const price = venuePrice(world, m, b, it);
   const fee = Math.round(price * DELIVERY_FEE);
   const total = price + fee;
   const fmt = (v: number) => formatMoney(v, m.data.currency);
@@ -424,13 +427,13 @@ export function foodOrder(world: World, me: Player, businessId: Id, itemId: stri
 // ---------------------------------------------------------------- Views
 
 /** `market.delivery`: open food businesses that deliver, cheapest first (up to 20). */
-export function deliveryView(m: MarketState) {
+export function deliveryView(world: World, m: MarketState) {
   return Object.values(m.businesses ?? {})
     .filter((b) => isOpen(b) && specOf(b).category === 'food')
     .map((b) => {
       const items = (specOf(b).venue?.items ?? [])
         .filter(deliverable)
-        .map((it) => ({ id: it.id, label: it.label, price: scale(col(m), it.priceCol) }))
+        .map((it) => ({ id: it.id, label: it.label, price: venuePrice(world, m, b, it) }))
         .sort((a, z) => a.price - z.price || (a.id < z.id ? -1 : a.id > z.id ? 1 : 0));
       return { businessId: b.id, name: b.name, items };
     })

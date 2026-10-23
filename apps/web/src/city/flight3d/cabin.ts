@@ -12,6 +12,10 @@
  * 2+2 business up front, and the front bulkhead: the lavatory, the galley,
  * the exit sign. Passengers are the backs of heads over the headrests.
  *
+ * First class (a ticket for it): two rows of private suites, one each side
+ * of the aisle, walnut walls with a gold line, a big screen, an ottoman and
+ * a seat that folds into a bed; the meal is carried to you on a tray.
+ *
  * Your own jet (the top of the lifestyle ladder) is a different room: a
  * narrower, lower cabin with no bins, cream leather club chairs facing over
  * walnut tables, a divan, big oval windows and gold light in the coves.
@@ -46,7 +50,7 @@ const ease = (x: number) => x * x * (3 - 2 * x);
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const DEG = Math.PI / 180;
 
-type SeatKind = 'economy' | 'business' | 'club';
+type SeatKind = 'economy' | 'business' | 'club' | 'suite';
 
 interface SeatAt {
   x: number;
@@ -82,6 +86,7 @@ interface Layout {
     economy: string;
     business: string;
     club: string;
+    suite: string;
     trim: string;
   };
 }
@@ -131,25 +136,39 @@ function layoutOf(cls: CabinClass): Layout {
         economy: '#e9dcc3',
         business: '#e9dcc3',
         club: '#eadcc2',
+        suite: '#eadcc2',
         trim: '#c9a227',
       },
     };
   }
   const seats: SeatAt[] = [];
-  // Business 2+2 up front, rows 1–3.
-  for (let r = 0; r < 3; r++)
-    for (const side of [-1, 1])
-      for (let j = 0; j < 2; j++) {
-        const x = side * (0.34 + 0.31 + j * 0.62);
-        const col = side < 0 ? 1 - j : 2 + j;
+  const first = cls === 'first';
+  // First: suites 1+1 up front, rows 1–2 (A and K, on the walls).
+  if (first)
+    for (let r = 0; r < 2; r++)
+      for (const side of [-1, 1])
         seats.push({
-          x,
-          z: -11.0 + r * 1.0,
-          kind: 'business',
+          x: side * 0.92,
+          z: -10.75 + r * 1.5,
+          kind: 'suite',
           row: r + 1,
-          label: `${r + 1}${LETTERS[col]}`,
+          label: `${r + 1}${side < 0 ? 'A' : 'K'}`,
         });
-      }
+  // Business 2+2 up front, rows 1–3.
+  else
+    for (let r = 0; r < 3; r++)
+      for (const side of [-1, 1])
+        for (let j = 0; j < 2; j++) {
+          const x = side * (0.34 + 0.31 + j * 0.62);
+          const col = side < 0 ? 1 - j : 2 + j;
+          seats.push({
+            x,
+            z: -11.0 + r * 1.0,
+            kind: 'business',
+            row: r + 1,
+            label: `${r + 1}${LETTERS[col]}`,
+          });
+        }
   // Economy 3+3, rows 10–24.
   for (let r = 0; r < 15; r++)
     for (const side of [-1, 1])
@@ -185,12 +204,13 @@ function layoutOf(cls: CabinClass): Layout {
       bin: '#f4f3ef',
       psu: '#d7d8d6',
       ceiling: '#f7f7f4',
-      carpet: eco ? '#3b4a63' : '#3f3a4a',
-      runner: eco ? '#2b3850' : '#332d3d',
+      carpet: eco ? '#3b4a63' : first ? '#3a2e26' : '#3f3a4a',
+      runner: eco ? '#2b3850' : first ? '#2a211b' : '#332d3d',
       economy: cls === 'premium' ? '#3a4556' : '#1f3d7a',
       business: cls === 'premium' ? '#334155' : '#2b2f3a',
       club: '#e7d8b8',
-      trim: '#38bdf8',
+      suite: '#e9dcc3',
+      trim: first ? '#c9a227' : '#38bdf8',
     },
   };
 }
@@ -325,7 +345,9 @@ function seatGeometry(kind: SeatKind, cover: string) {
       ? { w: 0.46, pan: 0.44, back: 0.5, head: 0.15, arm: 0.05, armH: 0.62, tilt: 11 }
       : kind === 'business'
         ? { w: 0.62, pan: 0.46, back: 0.6, head: 0.2, arm: 0.1, armH: 0.64, tilt: 13 }
-        : { w: 0.66, pan: 0.42, back: 0.52, head: 0.18, arm: 0.14, armH: 0.66, tilt: 9 };
+        : kind === 'suite'
+          ? { w: 0.78, pan: 0.46, back: 0.64, head: 0.22, arm: 0.14, armH: 0.6, tilt: 20 }
+          : { w: 0.66, pan: 0.42, back: 0.52, head: 0.18, arm: 0.14, armH: 0.66, tilt: 9 };
   const w = S.w - S.arm - 0.02;
   fabric.push(piece(RB(w, 0.12, 0.48, 0.04), M(0, S.pan, 0)));
   // The back pivots on its foot, tilted back.
@@ -346,7 +368,25 @@ function seatGeometry(kind: SeatKind, cover: string) {
       cover,
     ),
   );
-  if (kind !== 'club') {
+  if (kind === 'suite') {
+    // The suite: walnut walls each side and behind, a gold line along their top, the
+    // console in front with a big screen, and the ottoman the seat folds flat onto.
+    const walnut = '#5b3a22';
+    const gold = '#c9a227';
+    // (The window side low, under the windows; the aisle side taller: the suite's door.)
+    for (const [sx, h] of [
+      [-1, 0.78],
+      [1, 1.05],
+    ] as const) {
+      hard.push(piece(RB(0.05, h, 1.5, 0.015), M(sx * 0.5, h / 2, -0.18), walnut));
+      hard.push(piece(new THREE.BoxGeometry(0.06, 0.025, 1.5), M(sx * 0.5, h + 0.01, -0.18), gold));
+    }
+    hard.push(piece(RB(1.05, 1.18, 0.05, 0.015), M(0, 0.59, 0.58), walnut));
+    hard.push(piece(new THREE.BoxGeometry(1.05, 0.025, 0.06), M(0, 1.19, 0.58), gold));
+    hard.push(piece(RB(0.96, 0.95, 0.06, 0.015), M(0, 0.475, -0.95), walnut));
+    hard.push(piece(new THREE.BoxGeometry(0.62, 0.38, 0.012), M(0, 0.92, -0.915), '#111827'));
+    hard.push(piece(RB(0.5, 0.36, 0.42, 0.04), M(0, 0.18, -0.68), '#e9dcc3'));
+  } else if (kind !== 'club') {
     hard.push(
       piece(RB(w + 0.01, S.back - 0.04, 0.03, 0.012), at(0, S.back / 2 - 0.01, 0.07), shell),
     );
@@ -365,7 +405,7 @@ function seatGeometry(kind: SeatKind, cover: string) {
         piece(
           RB(S.arm, 0.05, 0.44, 0.015),
           M(x, S.armH, 0.02),
-          kind === 'business' ? '#3b3f48' : '#3a3f47',
+          kind === 'business' ? '#3b3f48' : kind === 'suite' ? '#5b3a22' : '#3a3f47',
         ),
       );
       hard.push(
@@ -388,7 +428,7 @@ function seatGeometry(kind: SeatKind, cover: string) {
     hard.push(piece(new THREE.CylinderGeometry(0.16, 0.22, 0.38, 14), M(0, 0.19, 0), '#8a7a5c'));
   else hard.push(piece(new THREE.BoxGeometry(w * 0.9, 0.035, 0.035), M(0, 0.1, -0.12), metal));
   const screen =
-    kind === 'club'
+    kind === 'club' || kind === 'suite'
       ? null
       : (() => {
           const g = new THREE.PlaneGeometry(
@@ -462,6 +502,9 @@ export class CabinWorld {
   meal = 0;
   belt = true;
   private trolley = new THREE.Group();
+  /** The meal comes on a tray (your jet, first class), not on the trolley. */
+  private served: boolean;
+  private kit: THREE.Mesh | null = null;
   private crew: THREE.Group;
   private mealGroup = new THREE.Group();
   private laptop = new THREE.Group();
@@ -481,6 +524,7 @@ export class CabinWorld {
 
   constructor(o: CabinOpts) {
     const L = (this.layout = layoutOf(o.cls));
+    this.served = L.jet || o.cls === 'first';
     this.night = o.night;
     const s = this.scene;
     const c = L.colors;
@@ -741,7 +785,7 @@ export class CabinWorld {
       .filter((x) => Math.sign(x.x) !== Math.sign(this.you.x))
       .sort((a, b) => Math.abs(a.x) - Math.abs(b.x));
     const partySeats = [...mySide, ...across].slice(0, party.length);
-    const kinds: SeatKind[] = ['economy', 'business', 'club'];
+    const kinds: SeatKind[] = ['economy', 'business', 'club', 'suite'];
     const cover = L.jet ? '#f6f0e4' : '#e9eef5';
     const scr = screenTexture();
     let eye = 1.16;
@@ -757,7 +801,14 @@ export class CabinWorld {
       const fab = new THREE.InstancedMesh(
         g.fabric,
         new THREE.MeshLambertMaterial({
-          color: kind === 'economy' ? c.economy : kind === 'business' ? c.business : c.club,
+          color:
+            kind === 'economy'
+              ? c.economy
+              : kind === 'business'
+                ? c.business
+                : kind === 'suite'
+                  ? c.suite
+                  : c.club,
         }),
         list.length,
       );
@@ -891,8 +942,8 @@ export class CabinWorld {
       s.add(divan, divanBack, cred, flowers);
     }
 
-    // The trolley (or, in your jet, a tray carried to you) and the crew member.
-    if (!L.jet) {
+    // The trolley (or, in your jet and in first, a tray carried to you) and the crew member.
+    if (!this.served) {
       const side = new THREE.MeshLambertMaterial({ map: trolleyTexture() });
       const top = new THREE.MeshLambertMaterial({ color: '#aeb4bc' });
       const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.8), [
@@ -942,8 +993,8 @@ export class CabinWorld {
     this.crew = crewFigure(
       '#8d5524',
       '#1c1917',
-      L.jet ? '#1e3a8a' : '#1e293b',
-      L.jet ? '#c9a227' : '#dc2626',
+      this.served ? '#1e3a8a' : '#1e293b',
+      this.served ? '#c9a227' : '#dc2626',
     );
     s.add(this.crew);
 
@@ -953,9 +1004,11 @@ export class CabinWorld {
       new THREE.MeshLambertMaterial({ color: '#9ca3af' }),
     );
     this.mealGroup.add(tt);
+    // Economy: a plastic tray. Business and first: a white cloth, a glass of wine or champagne.
+    const cloth = o.cls === 'business' || o.cls === 'first' || o.cls === 'private';
     const tray = new THREE.Mesh(
       new THREE.BoxGeometry(0.34, 0.012, 0.22),
-      new THREE.MeshLambertMaterial({ color: '#475569' }),
+      new THREE.MeshLambertMaterial({ color: cloth ? '#f8fafc' : '#475569' }),
     );
     tray.position.y = 0.012;
     const plate = new THREE.Mesh(
@@ -979,6 +1032,50 @@ export class CabinWorld {
     );
     roll.position.set(0.09, 0.035, 0.06);
     this.mealGroup.add(tray, plate, food, cup, roll);
+    if (cloth) {
+      // A stemmed glass: a flute of champagne in first, red wine in business.
+      const flute = o.cls === 'first' || o.cls === 'private';
+      const glass = new THREE.MeshLambertMaterial({
+        color: '#e0f2fe',
+        transparent: true,
+        opacity: 0.55,
+      });
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.07, 6), glass);
+      stem.position.set(0.13, 0.05, 0.06);
+      const bowl = new THREE.Mesh(
+        flute
+          ? new THREE.CylinderGeometry(0.02, 0.014, 0.1, 10)
+          : new THREE.CylinderGeometry(0.03, 0.02, 0.06, 12),
+        new THREE.MeshLambertMaterial({ color: flute ? '#fde68a' : '#7f1d1d' }),
+      );
+      bowl.position.set(0.13, flute ? 0.13 : 0.11, 0.06);
+      this.mealGroup.add(stem, bowl);
+      roll.visible = false;
+    }
+    if (o.cls === 'first') {
+      // Caviar in its tin, with the mother-of-pearl spoon.
+      const tin = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03, 0.03, 0.02, 16),
+        new THREE.MeshLambertMaterial({ color: '#cbd5e1' }),
+      );
+      tin.position.set(0.05, 0.025, 0.07);
+      const roe = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.026, 0.026, 0.004, 16),
+        new THREE.MeshLambertMaterial({ color: '#111827' }),
+      );
+      roe.position.set(0.05, 0.036, 0.07);
+      this.mealGroup.add(tin, roe);
+    }
+    // Business and first: the amenity kit waiting on your seat's side.
+    if (o.cls === 'business' || o.cls === 'first') {
+      const kit = new THREE.Mesh(
+        RB(0.18, 0.06, 0.11, 0.02),
+        new THREE.MeshLambertMaterial({ color: o.cls === 'first' ? '#7c2d12' : '#1e3a8a' }),
+      );
+      kit.name = 'amenity-kit';
+      this.kit = kit;
+      s.add(kit);
+    }
     const lb = new THREE.Mesh(
       new THREE.BoxGeometry(0.3, 0.015, 0.21),
       new THREE.MeshLambertMaterial({ color: '#334155' }),
@@ -1000,8 +1097,14 @@ export class CabinWorld {
     s.add(this.mealGroup, this.laptop);
     const y0 = this.you;
     const dir = y0.aft ? 1 : -1;
-    const tz = y0.z + dir * (L.jet ? 0.62 : 0.43);
+    const tz = y0.z + dir * (L.jet ? 0.62 : y0.kind === 'suite' ? 0.5 : 0.43);
     this.mealGroup.position.set(y0.x, L.jet ? 0.74 : 0.72, tz);
+    // The kit on the armrest by the aisle (in a suite, on its side table).
+    this.kit?.position.set(
+      y0.x + (y0.kind === 'suite' ? 0.33 : 0.27) * Math.sign(-y0.x || 1),
+      y0.kind === 'suite' ? 0.72 : 0.7,
+      y0.z + dir * 0.15,
+    );
     this.laptop.position.set(y0.x + 0.04, L.jet ? 0.74 : 0.735, tz + (L.jet ? 0.1 : 0));
     this.mealGroup.visible = false;
     // Your window: the one nearest your row.
@@ -1045,7 +1148,7 @@ export class CabinWorld {
     const L = this.layout;
     const h = fnv(`${seed}:yours`);
     if (cls === 'private') return L.seats.findIndex((s) => s.label === (friends ? '2B' : '2A'));
-    const want = cls === 'economy' ? 'economy' : 'business';
+    const want: SeatKind = cls === 'economy' ? 'economy' : cls === 'first' ? 'suite' : 'business';
     const left = L.seats
       .filter((s) => s.kind === want && s.x < 0)
       .sort((a, b) => a.row - b.row || a.x - b.x);
@@ -1055,7 +1158,9 @@ export class CabinWorld {
       ? asked
       : want === 'economy'
         ? rowNos[4 + (h % 6)]!
-        : rowNos[1 + (h % 2)]!;
+        : want === 'suite'
+          ? rowNos[h % rowNos.length]!
+          : rowNos[1 + (h % 2)]!;
     const inRow = left.filter((s) => s.row === rowNo);
     const pick = inRow[Math.min(friends, inRow.length - 1)]!;
     return L.seats.indexOf(pick);
@@ -1149,11 +1254,11 @@ export class CabinWorld {
     const come = ease(seg(k, 0.48, 0.62));
     const on = ease(seg(k, 0.72, 0.98));
     const tz = k < 0.72 ? lerp(from, stop, come) : lerp(stop, stop + go * 1.8, on);
-    const lane = L.jet ? 0.12 : 0;
+    const lane = this.served ? 0.12 : 0;
     this.trolley.position.set(lane, 0, tz);
     this.trolley.rotation.y = go > 0 ? 0 : Math.PI;
     // The crew walks behind it (in your jet, carrying the tray).
-    this.crew.position.set(lane, 0, L.jet ? tz : tz - go * 0.62);
+    this.crew.position.set(lane, 0, this.served ? tz : tz - go * 0.62);
     this.crew.rotation.y = go > 0 ? 0 : Math.PI;
     // A small sway as it rolls.
     this.crew.position.y = Math.abs(Math.sin(t * 5)) * 0.015 * (come > 0 && come < 1 ? 1 : 0);

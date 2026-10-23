@@ -76,7 +76,8 @@ function hourOf(marketId: string) {
   } catch {
     /* no storage */
   }
-  return localHour(marketId) + new Date().getMinutes() / 60;
+  // localHour already counts the minutes.
+  return localHour(marketId);
 }
 
 function tierOf(): Tier {
@@ -340,11 +341,19 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     sceneRef.current?.setProperties(properties);
   }, [properties, ready]);
 
-  // The sky follows the city's clock.
+  // The sky follows the city's clock; the map says how dark it is (`data-night`, for tests).
   useEffect(() => {
-    const id = setInterval(() => sceneRef.current?.setHour(hourOf(layout.marketId)), 60_000);
+    const tick = () => {
+      const s = sceneRef.current;
+      if (!s) return;
+      s.setHour(hourOf(layout.marketId));
+      s.refreshLamps();
+      wrapRef.current?.setAttribute('data-night', String(Math.round(s.night * 100) / 100));
+    };
+    tick();
+    const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
-  }, [layout.marketId]);
+  }, [layout.marketId, ready]);
 
   // Size.
   useEffect(() => {
@@ -672,6 +681,9 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     }
     const s = sceneRef.current;
     if (!s) return;
+    // Driving: a stray tap on the road isn't a new trip (it would end the
+    // drive); Skip on the route card, or a badge's Go, goes elsewhere.
+    if (driveRef.current) return;
     const p = local(e);
     // One of your homes (its label or its model).
     const hid =

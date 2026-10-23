@@ -43,4 +43,6 @@ export const golfHud: Record<string, string> = {
   'Longest drive': 'Plus long drive',
   'Green fee paid': 'Green fee payé',
   '{n} hours on the course': '{n} heures sur le parcours',
+  Power: 'Puissance',
+  'Let go in the green': 'Lâchez dans le vert',
 };

@@ -15,6 +15,7 @@
  */
 import { mix, shade, type AvatarLook } from '../city/art';
 import { facialHairColour as darkOn } from './tone';
+import { SCARF_COLOUR, SILVER, necklaceColour } from './worn';
 
 export type Shape =
   | { el: 'path'; part: string; d: string; fill: string; stroke?: string; sw?: number; o?: number }
@@ -247,10 +248,21 @@ export function portraitShapes(look: AvatarLook): Shape[] {
   out.push(path('neck', 'M43,64 L57,64 L57,80 C54,83 46,83 43,80 Z', skinDk));
   out.push(ellipse('ear', r1(L + 0.5), 51, 3.5, 5, skinDk));
   out.push(ellipse('ear', r1(R - 0.5), 51, 3.5, 5, skinDk));
-  if (female && !covered) {
+  if (look.earrings === 'studs') {
+    out.push(ellipse('earring', r1(L + 0.5), 57, 1.5, 1.5, SILVER));
+    out.push(ellipse('earring', r1(R - 0.5), 57, 1.5, 1.5, SILVER));
+  } else if (female && !covered) {
     out.push(ellipse('earring', r1(L + 0.5), 57, 1.6, 1.6, '#fbbf24'));
     out.push(ellipse('earring', r1(R - 0.5), 57, 1.6, 1.6, '#fbbf24'));
   }
+  // From the wardrobe: a necklace on the neck, a silk scarf round it.
+  if (look.necklace && look.necklace !== 'none') {
+    const c = necklaceColour(look.necklace);
+    out.push(path('necklace', 'M42,74 Q50,88 58,74', 'none', { stroke: c, sw: 1.4 }));
+    out.push(ellipse('necklace', 50, 84, 2, 2.2, c));
+  }
+  if (look.scarf === 'silk')
+    out.push(path('scarf', 'M36,78 Q50,90 64,78 L62,85 Q50,95 38,85 Z', SCARF_COLOUR));
   const crown = 26;
   out.push(
     path(

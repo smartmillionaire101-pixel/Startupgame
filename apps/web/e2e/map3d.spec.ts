@@ -183,3 +183,108 @@ test('Driving your own car across the 3D city', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: /Airport/ })).toBeVisible({ timeout: 120_000 });
   await expect(map).not.toHaveAttribute('data-driving', '1');
 });
+
+/**
+ * Player feedback: "Driving my car is broken… it keeps breaking up and then
+ * glitching and then taking me out of the car." A thumb on the pedals presses
+ * and lets go, over and over, and drifts a little: none of that is a tap or a
+ * drag on the map behind them (which panned the camera off the car, let go of
+ * GO, and started a new trip, ending the drive). DRIVE_SHOTS=<dir> saves a
+ * picture after each press.
+ */
+test('A long drive with real pedal presses keeps you in the car', async ({ page }) => {
+  test.setTimeout(240_000);
+  const shots = process.env.DRIVE_SHOTS;
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('runway.skipRides', '0');
+    } catch {
+      /* storage blocked */
+    }
+  });
+  const map = await open3d(page, 'Kemi Cruise');
+  const bought = await page.request.post('/api/commands', {
+    headers: { 'x-runway': '1' },
+    data: { command: { type: 'car.buy', modelId: 'motorbike' } },
+  });
+  expect(bought.ok(), await bought.text()).toBe(true);
+  await page.reload();
+  await expect(map).toHaveAttribute('data-map3d', 'ready', { timeout: 60_000 });
+  const far = map.locator('[data-label="airport"]');
+  await expect(far).toBeAttached({ timeout: 30_000 });
+  await far.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+  await far.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  await map.locator('[data-badge-card="airport"]').getByRole('button', { name: 'Go' }).click();
+  const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
+  await expect(chooser).toBeVisible({ timeout: 15_000 });
+  await chooser.locator('[data-mode="drive"]').click();
+  await expect(chooser).toBeHidden();
+
+  const hud = map.locator('[data-drive-hud]');
+  await expect(hud).toBeVisible({ timeout: 30_000 });
+  await expect(map).toHaveAttribute('data-driving', '1');
+  type D = { view(): { left: number } };
+  type W = { __drive?: D | null; __drive0?: D | null };
+  const left = () => page.evaluate(() => (window as unknown as W).__drive?.view().left ?? -1);
+  const same = () =>
+    page.evaluate(() => {
+      const w = window as unknown as W;
+      return !!w.__drive && w.__drive === w.__drive0;
+    });
+  await page.evaluate(() => {
+    const w = window as unknown as W;
+    w.__drive0 = w.__drive;
+  });
+  const start = await left();
+  expect(start).toBeGreaterThan(0);
+
+  const go = hud.locator('[data-drive-pedal="go"]');
+  const brake = hud.locator('[data-drive-pedal="brake"]');
+  const centre = async (l: typeof go) => {
+    const b = (await l.boundingBox())!;
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  };
+  // At least 25 s and eight presses of driving (a software GPU is slow): hold
+  // GO (the thumb drifts), let go, a dab of BRAKE.
+  const t0 = Date.now();
+  let presses = 0;
+  let lastLeft = start;
+  let moved = 0;
+  let arrived = false;
+  while (Date.now() - t0 < 25_000 || presses < 8) {
+    presses++;
+    const g = await centre(go);
+    await page.mouse.move(g.x, g.y);
+    await page.mouse.down();
+    await page.mouse.move(g.x + 12, g.y - 10, { steps: 4 });
+    await page.waitForTimeout(1500);
+    await page.mouse.up();
+    // A junction's ways: the route's, tapped for real.
+    const way = hud.locator('[data-drive-way][data-route]');
+    if (await way.isVisible().catch(() => false))
+      await way.click({ timeout: 2000 }).catch(() => {});
+    if (await brake.isVisible().catch(() => false)) {
+      const b = await centre(brake);
+      await page.mouse.click(b.x, b.y, { delay: 100 });
+    }
+    if (shots) await page.screenshot({ path: `${shots}/drive-${presses}.png` });
+    const l = await left();
+    // Genuinely there: the trip may end on its own (and the airport opens).
+    if (l < 1) {
+      arrived = true;
+      break;
+    }
+    // Still the same drive: the map didn't ask for another trip.
+    await expect(chooser).toBeHidden();
+    expect(await same(), 'still driving the same car').toBe(true);
+    await expect(map).toHaveAttribute('data-driving', '1');
+    if (l < lastLeft) moved++;
+    lastLeft = l;
+  }
+  // Each press of GO moves the car on (a junction or a car in front may hold it up once or twice).
+  expect(moved, 'the car keeps moving').toBeGreaterThanOrEqual(Math.min(4, presses - 2));
+  if (!arrived) expect(lastLeft).toBeLessThan(start);
+  expect(errors).toEqual([]);
+});

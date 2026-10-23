@@ -36,6 +36,8 @@ import { Events } from './apps/Events';
 import { Fit } from './apps/Fit';
 import { Founder } from './apps/Founder';
 import { GoingOut } from './apps/GoingOut';
+import { Purchases } from '../avatar/Wardrobe';
+import { wardrobeOf } from '../city/leisure';
 import { Homes } from './apps/Homes';
 import { OutingHost } from '../city/OutingScene';
 import { HomeApp } from './apps/HomeApp';
@@ -61,6 +63,7 @@ import { VisitHome } from './Visit';
 import { activeStep, tutorialApps, tutorialSaw, useTutorial } from '../tutorial/state';
 import { PhoneTip } from '../tutorial/Coach';
 import './phone.css';
+import { careerOf } from '../screens/InvestorCareer';
 
 // Backward-compatible exports (Wave 5/6 callers).
 export { aiPeopleOf, type AiContact } from './apps/Messages';
@@ -101,6 +104,7 @@ export const APPS: AppDef[] = [
   { id: 'events', icon: 'events', label: () => t('Events'), bg: ['#818cf8', '#4338ca'] },
   { id: 'homes', icon: 'key', label: () => t('Homes'), bg: ['#fcd34d', '#b45309'] },
   { id: 'goingout', icon: 'cocktail', label: () => t('Going out'), bg: ['#fb7185', '#be123c'] },
+  { id: 'purchases', icon: 'bag', label: () => t('My purchases'), bg: ['#fda4af', '#9f1239'] },
   { id: 'settings', icon: 'settings', label: () => t('Settings'), bg: ['#9ca3af', '#4b5563'] },
 ];
 const DOCK: AppId[] = ['messages', 'map', 'bank', 'founder'];
@@ -680,6 +684,9 @@ function PhoneScreen(props: {
     case 'goingout':
       body = <GoingOut ctx={ctx} />;
       break;
+    case 'purchases':
+      body = <Purchases />;
+      break;
   }
 
   const home = app === 'home' && !thread;
@@ -791,8 +798,10 @@ function PhoneHome({
     (a) =>
       !DOCK.includes(a.id) &&
       shown(a.id) &&
-      (a.id !== 'journey' || !!view.journey) &&
-      (a.id !== 'sales' || hasCompany),
+      (a.id !== 'journey' || !!view.journey || !!careerOf(view)) &&
+      (a.id !== 'sales' || hasCompany) &&
+      // My purchases: once the wardrobe is open (the investor release).
+      (a.id !== 'purchases' || !!wardrobeOf(view)),
   );
   const dock = DOCK.filter(shown).map((id) => APPS.find((a) => a.id === id)!);
   return (

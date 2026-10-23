@@ -6,6 +6,7 @@ import {
   resolveSimple,
   setSetting,
   setSimpleDefault,
+  setSimpleRole,
   SIMPLE_MODE_SINCE,
   simpleByDefault,
 } from '../src/phone/settings';
@@ -17,7 +18,21 @@ const DAY = 24 * 3600 * 1000;
 describe('Simple mode (Phase 2): who gets it by default', () => {
   afterEach(() => {
     localStorage.clear();
+    setSimpleRole('founder');
     setSimpleDefault(null);
+  });
+
+  it('is for founders only: investors and bankers get the full game whatever is saved', () => {
+    localStorage.setItem('runway.simple', '1');
+    setSimpleRole('investor');
+    expect(getSetting('simple')).toBe(false);
+    expect(document.documentElement.dataset.simple).toBeUndefined();
+    setSimpleRole('banker');
+    expect(getSetting('simple')).toBe(false);
+    // Founding a company brings the saved choice back.
+    setSimpleRole('founder');
+    expect(getSetting('simple')).toBe(true);
+    expect(document.documentElement.dataset.simple).toBe('1');
   });
 
   it('starts on 18 October 2026 (UTC), in milliseconds', () => {

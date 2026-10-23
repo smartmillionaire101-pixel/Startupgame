@@ -26,6 +26,7 @@ import {
 } from './data/businesses.js';
 import type { BusinessCategory, BusinessKindSpec, JobRole, VenueItem } from './data/businesses.js';
 import { LIFESTYLE_TIERS } from './data/characters.js';
+import { FOOD_LEVEL_PRICE, foodLevelOf, isDrinkItem } from './data/cuisine.js';
 import { CITY_NAME_PARTS, KIND_NAME_SUFFIXES } from './data/business-names.js';
 import { LANDMARKS } from './data/landmarks.js';
 import { shopSells } from './data/lifestyle-shop.js';
@@ -61,6 +62,7 @@ import { metAtVenue, peopleHere } from './people.js';
 import { deriveRng } from './rng.js';
 import { randomDistrict } from './districts.js';
 import { venueNeeds } from './needs.js';
+import { investorOn } from './releases.js';
 import type { Rng } from './rng.js';
 import type {
   BusinessNews,
@@ -172,6 +174,24 @@ export function specOf(b: LocalBusiness): BusinessKindSpec {
   if (!spec) fail('business.kind', `Unknown business kind ${b.kind}`);
   return spec;
 }
+
+/**
+ * What an item costs at this business, in cost-of-living units. Player
+ * feedback: "Restaurant prices: each level should have its own price." With
+ * the investor note, a place to eat charges by its level (`foodLevelOf`: a
+ * street stall, a casual place, an upscale room, fine dining); before it,
+ * and at any other venue, the kind's own price.
+ */
+export function venuePriceCol(world: World, b: LocalBusiness, it: VenueItem): number {
+  const level = investorOn(world) && !it.activity ? foodLevelOf(b) : null;
+  if (!level) return it.priceCol;
+  const f = FOOD_LEVEL_PRICE[level];
+  return it.priceCol * (isDrinkItem(it) ? f.drink : f.meal);
+}
+
+/** What an item costs at this business, local minor (see `venuePriceCol`). */
+export const venuePrice = (world: World, m: MarketState, b: LocalBusiness, it: VenueItem) =>
+  scale(col(m), venuePriceCol(world, b, it));
 
 /** Wave 6: what a business was opened as: its roster seed, or its generated identity. */
 export function seedOf(
@@ -844,9 +864,10 @@ export function pitchBusiness(
   };
   // Buy something while you're there, if they sell anything and you can afford it.
   let coffee = 0;
-  const cheapest = spec.venue?.items.slice().sort((a, z) => a.priceCol - z.priceCol)[0];
+  const cost = (it: VenueItem) => venuePriceCol(world, b, it);
+  const cheapest = spec.venue?.items.slice().sort((a, z) => cost(a) - cost(z))[0];
   if (cheapest) {
-    const price = scale(col(m), cheapest.priceCol);
+    const price = venuePrice(world, m, b, cheapest);
     const mine = account(world, me.accounts.local);
     if (mine.balance >= costIn(world, price, m.data.currency, mine.currency)) {
       payExact(world, me.accounts.local, b.account, price, `${cheapest.label} at ${b.name}`, month);
@@ -1208,7 +1229,7 @@ export function venueBuy(
     ensure(world.markets[to], 'venue.travel', 'That city isn’t open yet.');
     ensure(to !== b.market, 'venue.travel', 'Pick another city.');
   }
-  const price = scale(col(m), it.priceCol);
+  const price = venuePrice(world, m, b, it);
   const fmt = (v: number) => formatMoney(v, m.data.currency);
   let guest: Guest | null = null;
   if (withId) {
@@ -1353,7 +1374,7 @@ export function businessesView(world: World, viewer: Player, m: MarketState) {
               items: spec.venue.items.map((it) => ({
                 id: it.id,
                 label: it.label,
-                price: scale(col(m), it.priceCol),
+                price: venuePrice(world, m, b, it),
                 ...(it.energy ? { energy: it.energy } : {}),
                 ...(it.meeting ? { meeting: true } : {}),
                 ...(it.fun ? { fun: it.fun } : {}),

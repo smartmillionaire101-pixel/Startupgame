@@ -47,6 +47,7 @@ export const home: Record<string, string> = {
   'Use the toilet': 'Aller aux toilettes',
   'Watch TV': 'Regarder la télé',
   'Work out': 'Faire du sport',
+  'Do laundry': 'Faire la lessive',
   'Your home. Tap the floor to walk, tap things to use them.':
     'Votre logement. Touchez le sol pour marcher, touchez les objets pour les utiliser.',
   '{n} energy': '{n} énergie',

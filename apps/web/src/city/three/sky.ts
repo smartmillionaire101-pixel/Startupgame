@@ -7,6 +7,7 @@
  */
 import * as THREE from 'three';
 import { SKY_FN, type SkyUniforms } from './ground';
+import { nightExposure, nightFactor } from './night';
 
 export interface SkyState {
   sunDir: THREE.Vector3;
@@ -37,6 +38,8 @@ export function skyAt(
   solar?: { altitude: number; azimuth: number },
   /** The haze's own colour on the horizon (CityLook.hazeTint). */
   tint = '#e3e3dc',
+  /** The city's glow on the low night sky (NightLook.skyGlow). */
+  glow = '#2c2436',
 ): SkyState {
   // Day arc: sunrise ~6, noon 12.5, sunset ~19.
   const dayT = (hour - 6.2) / 12.6; // 0..1 across the day
@@ -58,34 +61,47 @@ export function skyAt(
   const sunUp = Math.sin(el);
   const day = smooth(-0.08, 0.12, sunUp);
   const golden = day * (1 - smooth(0.08, 0.38, sunUp));
-  const night = 1 - smooth(-0.12, 0.04, sunUp);
+  // Civil twilight: dark once the sun is ~7° down (night.ts), so dusk fades.
+  const night = nightFactor(hour, el);
 
   const zenithDay = mixC(C('#3f7fcf'), C('#7aa6d6'), haze * 0.4);
   const horizonDay = mixC(C('#c6dbea'), C(tint), haze * 0.6);
   const zenithGold = C('#5a7bb0');
   const horizonGold = C('#f0b27a');
-  // A deep blue night; the horizon a little warmer, lit from below by the city.
-  const zenithNight = C('#030918');
-  const horizonNight = mixC(C('#141c36'), C('#3a2f3c'), 0.35 + haze * 0.25);
+  // Night is near black overhead, a deep blue lower down, and the horizon
+  // tinged by the city's own glow (sodium orange over Lagos, white over London).
+  const zenithNight = C('#020610');
+  const horizonNight = mixC(C('#0b1226'), C(glow), 0.45 + haze * 0.2);
+  // Blue hour: between the gold and the dark the sky goes a deep blue first.
+  const blue = night * (1 - night) * 4;
   let zenith = mixC(zenithDay, zenithGold, golden * 0.6);
   let horizon = mixC(horizonDay, horizonGold, golden * 0.85);
-  zenith = mixC(zenith, zenithNight, night);
-  horizon = mixC(horizon, horizonNight, night);
+  zenith = mixC(zenith, C('#1b2f63'), blue * 0.6);
+  horizon = mixC(horizon, C('#4a4f7a'), blue * 0.45);
+  zenith = mixC(zenith, zenithNight, smooth(0.35, 1, night));
+  horizon = mixC(horizon, horizonNight, smooth(0.25, 1, night));
 
   const sunColor = mixC(C('#fff3e0'), C('#ffb066'), golden);
-  const moon = C('#9fb6e0');
-  const lightDir = night > 0.5 ? new THREE.Vector3(-0.3, 0.8, 0.4).normalize() : sunDir;
+  // Moonlight: faint and blue, from high up. The sun has faded out by the
+  // time the moon takes over (night 0.5), and the moon fades in, so the light
+  // never jumps.
+  const moon = C('#8fa8d8');
+  const isMoon = night > 0.5;
+  const sunFade = smooth(-0.04, 0.16, sunUp);
+  const lightDir = isMoon ? new THREE.Vector3(-0.3, 0.8, 0.4).normalize() : sunDir;
   return {
     sunDir: lightDir,
-    sunColor: night > 0.5 ? moon : sunColor,
-    sunIntensity: night > 0.5 ? 0.12 : 3.4 * day + 0.2,
-    hemiSky: mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#2a3a63'), night),
-    hemiGround: mixC(C('#8c8476'), C('#2a2522'), night),
-    hemiIntensity: 0.6 + 0.15 * (1 - night) - 0.25 * night,
+    sunColor: isMoon ? moon : sunColor,
+    sunIntensity: isMoon
+      ? 0.22 * smooth(0.5, 0.9, night)
+      : 3.4 * Math.min(day, sunFade) + 0.2 * smooth(0.5, 0, night),
+    hemiSky: mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#1a2850'), night),
+    hemiGround: mixC(C('#8c8476'), C('#0d0c12'), night),
+    hemiIntensity: 0.75 - 0.55 * night,
     zenith,
     horizon,
     night,
-    exposure: 1.0 + night * 0.1,
+    exposure: nightExposure(night),
   };
 }
 

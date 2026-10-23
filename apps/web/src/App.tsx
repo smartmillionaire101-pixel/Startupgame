@@ -38,7 +38,13 @@ import { openRecap, RecapHost } from './recap/Recap';
 import { TutorialHost } from './tutorial/Coach';
 import { openDecisions, requestDecision } from './screens/Decisions';
 import { LifeEventHost } from './LifeEventHost';
-import { applySavedSettings, joinedAtOf, setSimpleDefault, useSimple } from './phone/settings';
+import {
+  applySavedSettings,
+  joinedAtOf,
+  setSimpleDefault,
+  setSimpleRole,
+  useSimple,
+} from './phone/settings';
 
 // Reduced motion is decided once, before anything animates (Wave 7 §D), and
 // a saved Simple mode choice is on <html> before the first paint.
@@ -102,6 +108,7 @@ const LivingHost = lazy(() => import('./experiences/LivingHost'));
 const SkyHost = lazy(() => import('./experiences/SkyHost'));
 const PlayHost = lazy(() => import('./experiences/PlayHost'));
 const GolfInviteHost = lazy(() => import('./city/golf/GolfInviteHost'));
+const MallInviteHost = lazy(() => import('./city/mall/MallInviteHost'));
 
 type Entry = 'landing' | 'signup' | 'login';
 
@@ -170,6 +177,7 @@ export function App() {
           <Suspense fallback={null}>
             <PlayHost />
             <GolfInviteHost />
+            <MallInviteHost />
             <LivingHost />
             <SkyHost />
           </Suspense>
@@ -274,8 +282,11 @@ function Game() {
   const simple = useSimple();
   // Simple mode's default follows when this player joined (before the first paint).
   const joinedAt = joinedAtOf(view.me as { joinedAt?: number | null });
-  useLayoutEffect(() => setSimpleDefault(joinedAt), [joinedAt]);
   const role = banker ? 'banker' : founder ? 'founder' : 'investor';
+  useLayoutEffect(() => {
+    setSimpleRole(role);
+    setSimpleDefault(joinedAt);
+  }, [joinedAt, role]);
   const tabs = tabsOf(role, { unread, myTurn, bankRequests }, simple);
   // Your company's screen opens from the office (and notifications) even when
   // it has no tab of its own (a banker who also founded a company).

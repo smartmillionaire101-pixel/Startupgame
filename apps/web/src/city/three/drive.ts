@@ -309,9 +309,10 @@ export class Drive {
       if (lead) room += lead.v * h - move;
     }
     // Stuck behind a car that doesn't move (it's waiting for you, say): after
-    // a few seconds, on past it.
-    if (lead && room < 0.5 && (this.go || this.auto)) this.blocked += dt;
-    else this.blocked = 0;
+    // a few seconds, on past it. The seconds count while you ask to go: let
+    // go of GO and press it again (a thumb does) and they keep counting.
+    if (!lead || room >= 0.5) this.blocked = 0;
+    else if (this.go || this.auto) this.blocked += Math.min(dt, 0.25);
     if (this.blocked > 5) {
       this.ghost = 2;
       this.blocked = 0;

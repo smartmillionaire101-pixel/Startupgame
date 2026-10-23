@@ -39,7 +39,9 @@ export type PhoneApp =
   /** Founder Journey 2a: the sales pipeline (founders with a company). */
   | 'sales'
   /** Founder Journey 5: exits, the stock market, wealth and the capital allocator paths. */
-  | 'capital';
+  | 'capital'
+  /** My purchases: your wardrobe and the things you keep (../avatar/Wardrobe.tsx). */
+  | 'purchases';
 
 export interface PhoneOpen {
   app?: PhoneApp;

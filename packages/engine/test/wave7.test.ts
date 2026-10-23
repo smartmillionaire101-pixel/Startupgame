@@ -159,6 +159,7 @@ describe('home.act (Wave 7 §A)', () => {
       read: 4,
       work: 4,
       workout: 4,
+      laundry: 4,
     });
   });
 

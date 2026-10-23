@@ -10,8 +10,8 @@ import { ROLES } from './data/characters.js';
 import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { STARTER_EXPENSE_IDS } from './data/ideas.js';
-import { REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
-import { appearanceSchema } from './appearance.js';
+import { PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
+import { REMOVABLE, lookSchema } from './appearance.js';
 
 const id = z.string().min(1).max(64);
 const money = z.number().int().nonnegative().max(1e15);
@@ -104,7 +104,7 @@ export const commandSchema = z.discriminatedUnion('type', [
    */
   z.object({
     type: z.literal('player.appearance'),
-    appearance: appearanceSchema
+    appearance: lookSchema
       .partial()
       .refine((a) => Object.values(a).some((v) => v !== undefined), 'Change at least one part.'),
   }),
@@ -213,6 +213,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('pitch.partners'), pitchId: id }),
   // ---- deals
+  z.object({ type: z.literal('deal.choose'), dealId: id }),
   z.object({
     type: z.literal('deal.act'),
     dealId: id,
@@ -238,6 +239,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     boardSeat: z.boolean(),
     vetoOnSale: z.boolean(),
     fromFund: z.boolean().optional(),
+    /** Investor career: which fund you run pays (default: your first). */
+    fundId: id.optional(),
   }),
   z.object({
     type: z.literal('invest.diligence'),
@@ -351,6 +354,19 @@ export const commandSchema = z.discriminatedUnion('type', [
     roomId: id,
     round: z.number().int().min(0),
     lane: z.number().int().min(0).max(4),
+    /**
+     * Shootout rooms: the swipe that takes the kick (where on the goal line
+     * it's aimed in metres from the middle and up from the ground, how hard,
+     * how much curl). Older clients send the lane alone.
+     */
+    kick: z
+      .object({
+        x: z.number().min(-6).max(6),
+        y: z.number().min(0).max(5),
+        power: z.number().min(0).max(1),
+        curve: z.number().min(-1).max(1),
+      })
+      .optional(),
   }),
   /** Golf with a friend: say no to an invitation (the host's stake goes back). */
   z.object({ type: z.literal('play.decline'), roomId: id }),
@@ -373,12 +389,20 @@ export const commandSchema = z.discriminatedUnion('type', [
     round: z.number().int().min(0),
     angle: z.number().min(-Math.PI).max(Math.PI),
     power: z.number().min(5).max(100),
+    /** 8-ball pool: follow (+) or draw (−), and side (english), −1 … 1. */
+    spin: z.number().min(-1).max(1).optional(),
+    side: z.number().min(-1).max(1).optional(),
+    /** 8-ball pool, ball in hand: where you put the cue ball (cm on the cloth). */
+    cueX: z.number().min(0).max(254).optional(),
+    cueY: z.number().min(0).max(127).optional(),
   }),
   /** `hotel` (optional): book a stay abroad with the flight. Missing = no hotel, as before. */
   z.object({
     type: z.literal('travel.book'),
     to: market,
     hotel: z.enum(['budget', 'business', 'luxury']).optional(),
+    /** Investor release: the cabin. Missing = economy, the ticket as it always was. */
+    cabin: z.enum(['economy', 'business', 'first']).optional(),
     /** The flight the client picked off the board (cosmetic; friends on holiday share it). */
     flight: z
       .object({
@@ -599,6 +623,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       'read',
       'work',
       'workout',
+      'laundry',
     ]),
   }),
   /** Have someone over: a contact chat id, a player id, or a `fund:`/`biz:`/`npc:` id in your city. */
@@ -668,6 +693,36 @@ export const commandSchema = z.discriminatedUnion('type', [
       .string()
       .regex(/^#[0-9a-fA-F]{6}$/)
       .optional(),
+  }),
+  /** Shopping together (malltrips.ts): take someone in your city to the mall. */
+  z.object({ type: z.literal('mall.invite'), playerId: id }),
+  /** Say yes or no to an invitation to the mall. */
+  z.object({ type: z.literal('mall.answer'), tripId: id, accept: z.boolean() }),
+  /** Head off (or call off your invitation). */
+  z.object({ type: z.literal('mall.leave'), tripId: id }),
+  /** Buy the friend you're shopping with something (yours to pay, theirs to keep). */
+  z.object({
+    type: z.literal('mall.gift'),
+    tripId: id,
+    itemId: z.string().min(1).max(32),
+    colour: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .optional(),
+  }),
+  /** Your wardrobe (wardrobe.ts): put on something you own, free; a top in a colour you own it in. */
+  z.object({
+    type: z.literal('wardrobe.wear'),
+    itemId: z.string().min(1).max(32),
+    colour: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .optional(),
+  }),
+  /** Take off headwear, glasses or something worn from the wardrobe (shoes, a watch …). */
+  z.object({
+    type: z.literal('wardrobe.remove'),
+    slot: z.enum(REMOVABLE),
   }),
   // ---- the founder journey: the objective tracker's prompts
   /** Pin a prompt so it stays in its slot; without `id`, unpin that kind. */
@@ -791,7 +846,16 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('accelerator.apply'), acceleratorId: id, companyId: id }),
   z.object({ type: z.literal('grant.apply'), partnerId: id, programId: id, companyId: id }),
   /** A player-run fund pitches an LP in the city you're in. */
-  z.object({ type: z.literal('lp.pitch'), lpId: id }),
+  z.object({ type: z.literal('lp.pitch'), lpId: id, fundId: id.optional() }),
+  // ---- the investor career (investor blueprint, Phase 1)
+  /** Accept or decline an invitation up the ladder (a co-lead or an anchor LP). */
+  z.object({ type: z.literal('career.invitation'), invitationId: id, accept: z.boolean() }),
+  /** The investor first session: acknowledge a step, shortlist a café startup, or skip. */
+  z.object({
+    type: z.literal('investor.tutorial'),
+    action: z.enum(['next', 'shortlist', 'skip']),
+    companyId: id.optional(),
+  }),
   /** One-tap investment in a raising company at model terms (SAFE or priced). */
   z.object({ type: z.literal('invest.quick'), companyId: id, amount: money }),
   /**
@@ -875,9 +939,153 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('shares.sell'),
     companyId: id,
     pctBps: z.number().int().min(1).max(10_000),
+    fundId: id.optional(),
   }),
   /** Buy about `amount` (the company's currency) of a listed company's shares. */
-  z.object({ type: z.literal('shares.buy'), companyId: id, amount: money }),
+  z.object({ type: z.literal('shares.buy'), companyId: id, amount: money, fundId: id.optional() }),
+  // ---- investor career Phase 2: the city exchange
+  /** A limit order: buy `amount` (money) or sell `amount` bps of your holding at `limit` per share. */
+  z.object({
+    type: z.literal('shares.order'),
+    companyId: id,
+    side: z.enum(['buy', 'sell']),
+    amount: money,
+    limit: z.number().positive().max(1e15),
+  }),
+  z.object({ type: z.literal('shares.cancel'), orderId: id }),
+  /** The city index fund: buy `amount` of the city's currency, or sell bps of your units. */
+  // ---- investor career Phase 4: raising a fund with player LPs
+  z.object({
+    type: z.literal('fund.launch'),
+    sectors: z.array(industry).min(1).max(INDUSTRIES.length),
+    stages: z.array(z.enum(STAGES)).min(1).max(STAGES.length),
+    checkSize: money,
+    why: z.string().min(10).max(200),
+    strategy: z.enum(['seed', 'growth', 'public', 'impact', 'fof']),
+    target: money,
+    minCommit: money,
+    feeRate: z.number().min(0).max(0.05),
+    carry: z.number().min(0).max(0.5),
+    hurdle: z.number().min(0).max(0.2),
+    gpCommit: z.number().min(0).max(0.1),
+    termMonths: z.number().int().min(1).max(240),
+    investMonths: z.number().int().min(1).max(240),
+    keyPerson: z.boolean(),
+  }),
+  z.object({ type: z.literal('fund.close'), fundId: id }),
+  z.object({ type: z.literal('fund.abandon'), fundId: id }),
+  z.object({ type: z.literal('lp.commit'), fundId: id, amount: money }),
+  z.object({ type: z.literal('lp.diligence'), fundId: id }),
+  z.object({ type: z.literal('lp.pay'), callId: z.string().min(1).max(200) }),
+  z.object({ type: z.literal('lp.delay'), callId: z.string().min(1).max(200) }),
+  z.object({ type: z.literal('lp.autopay'), fundId: id, on: z.boolean() }),
+  // ---- investor career Phase 9: institutions and legacy
+  z.object({
+    type: z.literal('accelerator.found'),
+    name: z.string().min(3).max(40),
+    cheque: money,
+    equityBps: z.number().int().min(1).max(10_000),
+    fundId: id.optional(),
+  }),
+  z.object({ type: z.literal('accelerator.admit'), companyId: id }),
+  // ---- investor career Phase 8: deal craft and reputation
+  z.object({ type: z.literal('pipeline.add'), companyId: id, watch: z.boolean().optional() }),
+  z.object({ type: z.literal('pipeline.watch'), companyId: id, on: z.boolean() }),
+  z.object({ type: z.literal('pipeline.pass'), companyId: id, reason: z.enum(PASS_REASONS) }),
+  z.object({
+    type: z.literal('diligence.claim'),
+    companyId: id,
+    questionId: z.string().min(1).max(32),
+  }),
+  z.object({ type: z.literal('diligence.references'), companyId: id }),
+  z.object({
+    type: z.literal('invest.support'),
+    companyId: id,
+    kind: z.enum(['customers', 'hires', 'investors']),
+  }),
+  z.object({ type: z.literal('invest.scout') }),
+  z.object({
+    type: z.literal('review.investor'),
+    investorId: id,
+    companyId: id,
+    rating: z.number().int().min(1).max(5),
+    text: z.string().max(200),
+  }),
+  // ---- investor career Phase 7: allocators
+  z.object({ type: z.literal('fof.commit'), fundId: id, targetFundId: id, amount: money }),
+  z.object({ type: z.literal('fund.lpac'), fundId: id, companyId: id }),
+  z.object({ type: z.literal('lpac.vote'), fundId: id, companyId: id, approve: z.boolean() }),
+  z.object({ type: z.literal('stake.sell'), fundId: id }),
+  z.object({ type: z.literal('stake.offer'), fundId: id, buyerId: id, price: money }),
+  z.object({
+    type: z.literal('stake.answer'),
+    offerId: z.string().min(1).max(200),
+    accept: z.boolean(),
+  }),
+  z.object({
+    type: z.literal('stake.consent'),
+    offerId: z.string().min(1).max(200),
+    approve: z.boolean(),
+  }),
+  z.object({
+    type: z.literal('secondary.investorSell'),
+    companyId: id,
+    pctBps: z.number().int().min(1).max(10_000),
+  }),
+  // ---- investor career Phase 6: the firm
+  z.object({ type: z.literal('firm.found'), name: z.string().min(3).max(40) }),
+  z.object({ type: z.literal('firm.hire'), title: z.enum(['associate', 'principal', 'partner']) }),
+  z.object({
+    type: z.literal('firm.invite'),
+    playerId: id,
+    carryShare: z.number().min(0).max(0.5),
+  }),
+  z.object({ type: z.literal('firm.answer'), firmId: id, accept: z.boolean() }),
+  z.object({ type: z.literal('firm.letGo'), memberId: z.string().min(1).max(100) }),
+  z.object({
+    type: z.literal('firm.carryAsk'),
+    memberId: z.string().min(1).max(100),
+    accept: z.boolean(),
+  }),
+  z.object({
+    type: z.literal('firm.succession'),
+    memberId: z.string().min(1).max(100),
+    founderCarry: z.number().min(0).max(0.5),
+  }),
+  // ---- investor career Phase 5: managing a fund
+  z.object({
+    type: z.literal('fund.plan'),
+    fundId: id,
+    companies: z.number().int().min(1).max(60),
+    avgCheque: money,
+    reserveRatio: z.number().min(0).max(0.7),
+  }),
+  z.object({ type: z.literal('fund.reserve'), fundId: id, companyId: id, amount: money }),
+  z.object({ type: z.literal('fund.ic'), fundId: id, companyId: id, amount: money }),
+  z.object({ type: z.literal('fund.letter'), fundId: id, honest: z.boolean() }),
+  z.object({ type: z.literal('fund.extend'), fundId: id }),
+  z.object({
+    type: z.literal('prorata.answer'),
+    offerId: z.string().min(1).max(200),
+    take: z.boolean(),
+  }),
+  // ---- investor career Phase 3: syndicates
+  z.object({
+    type: z.literal('syndicate.open'),
+    companyId: id,
+    leadAmount: money,
+    target: money,
+    carry: z.number().min(0).max(0.5),
+    instrument: z.enum(['safe', 'priced']),
+    valuation: money,
+    proRata: z.boolean(),
+    boardSeat: z.boolean(),
+  }),
+  z.object({ type: z.literal('syndicate.back'), syndicateId: id, amount: money }),
+  z.object({ type: z.literal('syndicate.close'), syndicateId: id }),
+  z.object({ type: z.literal('syndicate.cancel'), syndicateId: id }),
+  z.object({ type: z.literal('index.buy'), market, amount: money }),
+  z.object({ type: z.literal('index.sell'), market, pctBps: z.number().int().min(1).max(10_000) }),
   z.object({
     type: z.literal('mentor.offer'),
     companyId: id,
@@ -892,7 +1100,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('career.join'),
-    orgKind: z.enum(['dfi', 'bank']),
+    orgKind: z.enum(['dfi', 'bank', 'sovereign']),
     orgId: z.string().min(1).max(80).optional(),
   }),
   z.object({ type: z.literal('career.leave') }),

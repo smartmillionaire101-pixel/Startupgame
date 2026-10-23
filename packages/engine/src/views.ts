@@ -1,5 +1,14 @@
+import { careerView } from './career.js';
+import { exchangeView } from './exchange.js';
+import { syndicatesView } from './syndicates.js';
+import { lpFundsView } from './lpfunds.js';
+import { firmView } from './firms.js';
+import { familyOfficeView, stakeConsentsView } from './allocation.js';
+import { dealCraftView, offerComparisonView, redFlags, reviewableView } from './dealcraft.js';
+import { acceleratorView, hallOfFame } from './institutions.js';
+import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
-import { lifeBarsOn } from './releases.js';
+import { investorOn, lifeBarsOn } from './releases.js';
 import { anyJobView, workView } from './work.js';
 import { pitchQuestionsNow } from './fundraising.js';
 import { journeyView } from './journey.js';
@@ -54,6 +63,8 @@ import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
+import { mallTripView } from './malltrips.js';
+import { wardrobeView } from './wardrobe.js';
 import { deliveryView, homeActsView, moodOf, needsOf } from './needs.js';
 import { hangoutsView, sendLimits, techEventsView, visitingView, visitsView } from './social.js';
 import { holidaysView } from './holidays.js';
@@ -162,6 +173,8 @@ export function diligenceView(world: World, c: Company, depth: number) {
         status: k.status,
       })),
     bannedFromRaising: c.bannedFromRaising,
+    /** Investor career Phase 8: red flags deep diligence finds in company state. */
+    redFlags: redFlags(world, c),
     complianceGaps: rulesFor(c.market, c.industry)
       .filter((r) => !c.compliance[r.id])
       .map((r) => r.title),
@@ -294,6 +307,8 @@ export function companyDetail(world: World, c: Company) {
     parentName: c.parentId ? (world.companies[c.parentId]?.name ?? null) : null,
     removedFounders: Object.keys(c.removedFounders),
     bannedFromRaising: c.bannedFromRaising,
+    /** Investor career Phase 8: red flags deep diligence finds in company state. */
+    redFlags: redFlags(world, c),
     warnings: c.warnings,
     pivots: c.pivots,
     /** The product roadmap (§6.3): projects, feedback inbox and the feature catalogue. */
@@ -330,12 +345,15 @@ function dealView(world: World, d: DealCard, viewerId: Id) {
             ? ((p.lenderId
                 ? getMarket(world, p.id as MarketId).lenders?.[p.lenderId]?.name
                 : undefined) ?? getMarket(world, p.id as MarketId).bankName)
-            : p.id;
+            : p.kind === 'syndicate'
+              ? world.syndicates?.[p.id]?.name
+              : p.id;
   const mine = (p: DealCard['proposer']) =>
     (p.kind === 'player' && p.id === viewerId) ||
     (p.kind === 'fund' && world.funds[p.id]?.managerId === viewerId) ||
     (p.kind === 'company' && !!world.companies[p.id]?.founderIds.includes(viewerId)) ||
-    (p.kind === 'playerbank' && world.banks[p.id]?.ownerId === viewerId);
+    (p.kind === 'playerbank' && world.banks[p.id]?.ownerId === viewerId) ||
+    (p.kind === 'syndicate' && world.syndicates?.[p.id]?.leadId === viewerId);
   return {
     ...rest,
     companyName: c?.name ?? 'Personal',
@@ -420,6 +438,11 @@ export function portfolio(world: World, p: Player) {
         mark,
         ownershipPct: Math.round(ownership(c.capTable, x.investorId) * 1000) / 10,
         writtenOff: x.writtenOff,
+        /** Investor career: (cash back + mark) ÷ invested, the mark history and a status. */
+        moic: x.invested > 0 ? Math.round(((x.returned + mark) / x.invested) * 100) / 100 : 0,
+        history: (x.marks ?? []).map((k) => k.value),
+        statusLabel: positionStatus(world, c.id, x.writtenOff),
+        proRata: !!x.proRata,
         onBoard: c.board.includes(x.investorId),
         founders: c.founderIds.map((id) => ({ id, name: world.players[id]?.name ?? '—' })),
       };
@@ -602,7 +625,7 @@ function marketView(
     /** Furniture and cars with prices in this city's currency (Wave 5). */
     shop: shopView(m),
     /** Wave 7: food delivery (the Chop app): open food businesses, cheapest first (up to 20). */
-    delivery: deliveryView(m),
+    delivery: deliveryView(world, m),
     /** Wave 8: the city's tech events: this month's ("on") and next month's ("soon"). */
     techEvents: techEventsView(world, p, m),
     /** The city economy at a glance (Wave 3). */
@@ -682,6 +705,33 @@ export function playerView(
     worldVersion: world.version,
     /** The founder journey: seven chapters and the objective prompts; null for other roles. */
     journey: journeyView(world, p),
+    /**
+     * The investor career (investor-career worlds; null otherwise): the ladder
+     * with each rung's requirements, invitations, the angel ceiling, the
+     * investment tracks, the first session and three prompts.
+     */
+    investorCareer: careerView(world, p),
+    /** Investor career Phase 2: every city's exchange, the index fund, your holdings and orders. */
+    exchange: exchangeView(world, p, clock?.now),
+    /** Investor career Phase 3: syndicates you lead, backed, or can back. */
+    syndicates: syndicatesView(world, p),
+    /** Investor career Phase 4: funds you run (LP book), funds you can join, your calls. */
+    lpFunds: lpFundsView(world, p),
+    /** Investor career Phase 6: your firm (team, carry pool, funds, stars) and invitations. */
+    firm: firmView(world, p),
+    /** Investor career Phase 7: the family office (every track), LP stake offers, LPAC votes, secondaries. */
+    familyOffice: familyOfficeView(world, p),
+    stakeConsents: investorOn(world) ? stakeConsentsView(world, p) : [],
+    /** Investor career Phase 8: the pipeline, reputation, reviews and the monthly recap. */
+    dealCraft: dealCraftView(world, p),
+    /** Investor career Phase 8: for founders, the human investors you can review. */
+    reviewable: reviewableView(world, p),
+    offerComparison: offerComparisonView(world, p),
+    /** Investor career Phase 9: your accelerator, and the hall of fame across every city. */
+    playerAccelerator: acceleratorView(world, p),
+    hallOfFame: hallOfFame(world),
+    /** Investor career Phase 5: pro-rata offers from portfolio companies raising again. */
+    prorata: investorOn(world) && !p.ai ? proRataView(world, p) : [],
     /** The month recap (Founder Journey 4b): this month's money, company, people and what's next. */
     recap: p.ai ? null : recapView(world, p.id),
     /** Founder Journey 4a: decision events waiting for you, and the last few answered. */
@@ -796,7 +846,9 @@ export function playerView(
       /** Golf: the course in the city you're in, the green fee and your record. */
       golf: { ...golfView(world, p), match: golfMatchOptions(world, p) },
       /** The mall in the city you're in: its shops' items and prices, your phone. */
-      mall: mallView(world, p),
+      mall: { ...mallView(world, p), ...mallTripView(world, p) },
+      /** "My purchases": your wardrobe (what you can wear, free) and the other things you keep. */
+      wardrobe: wardrobeView(world, p),
       garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({
         ...car,
         active: car.modelId === p.car?.modelId,

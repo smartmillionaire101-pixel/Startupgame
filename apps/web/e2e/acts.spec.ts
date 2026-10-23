@@ -159,7 +159,8 @@ test('eat at a restaurant: seated, the waiter brings the plate, a result card', 
     '[data-action^="buy:"]',
     'meal',
     'restaurant',
-    /plate|lunch|dinner|suya|grill|meat/i,
+    // Dishes are named now (jollof rice, pepper soup…): a meal, not a drink.
+    /plate|lunch|dinner|suya|grill|meat|rice|soup|stew|chicken/i,
   );
   await expect(scene).toHaveAttribute('data-room', 'restaurant');
   await expect(stage.locator('[data-n="waiter"]')).toBeAttached();

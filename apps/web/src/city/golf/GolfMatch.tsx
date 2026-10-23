@@ -30,8 +30,6 @@ import {
   LIE_CARRY,
   POWER_MAX,
   PUTTER,
-  SWEET_FROM,
-  SWEET_TO,
   clubFor,
   defaultAim,
   dist,
@@ -45,18 +43,7 @@ import {
   type Pt2,
 } from './game';
 import { isMatch, shotOf, shotTiming, vsParOf, type MatchRoom, type MatchShot } from './match';
-import {
-  LIE_WORD,
-  Mark,
-  MiniMap,
-  RING_C,
-  RING_L,
-  RING_R,
-  powerAt,
-  ringDash,
-  ringFill,
-  vsParText,
-} from './parts';
+import { LIE_WORD, Mark, MiniMap, PowerBar, powerAt, vsParText } from './parts';
 
 const Golf3D = lazy(() =>
   import('../../interiors3d/Golf3D').catch(() => ({ default: () => null })),
@@ -200,7 +187,6 @@ function Match(props: Props & { room: MatchRoom }) {
     club: PUTTER,
   });
   const meterRef = useRef<HTMLDivElement>(null);
-  const fillRef = useRef<SVGCircleElement>(null);
   const readRef = useRef<HTMLDivElement>(null);
 
   const mine = G.players[me];
@@ -253,10 +239,10 @@ function Match(props: Props & { room: MatchRoom }) {
         const zone = powerZone(power);
         const n = Math.round(power);
         if (meterRef.current) {
+          meterRef.current.style.setProperty('--power', `${(power / POWER_MAX) * 100}%`);
           meterRef.current.dataset.power = String(n);
           meterRef.current.dataset.zone = zone;
         }
-        fillRef.current?.setAttribute('stroke-dasharray', ringFill(power));
         const read = readRef.current;
         if (read && read.dataset.power !== String(n)) {
           read.dataset.power = String(n);
@@ -267,6 +253,12 @@ function Match(props: Props & { room: MatchRoom }) {
               : zone === 'lunge'
                 ? t('{n}% · Lunge!', { n })
                 : t('{n}%', { n });
+          read.lastElementChild!.textContent =
+            zone === 'sweet'
+              ? t('Let go now')
+              : zone === 'lunge'
+                ? t('Too much: it’ll fly wild')
+                : t('Keep holding…');
         }
       }
     };
@@ -482,13 +474,6 @@ function Match(props: Props & { room: MatchRoom }) {
       ((dist(ball, g.pin) + (club === PUTTER ? 0.4 : 0)) / (club.carry * LIE_CARRY[lie])) * 100,
     ),
   );
-  const needAngle = (Math.PI * 1.5 * need) / POWER_MAX;
-  const tick = (r: number) => ({
-    x: 66 + Math.cos(needAngle) * r,
-    y: 66 + Math.sin(needAngle) * r,
-  });
-  const tickA = tick(RING_R - 10);
-  const tickB = tick(RING_R + 10);
   const pool = club === PUTTER ? [PUTTER] : CLUBS.filter((c) => c.id !== 'driver' || lie === 'tee');
   const holeShots = G.shots.filter((s) => s.hole === hole && s.by === me);
 
@@ -648,12 +633,6 @@ function Match(props: Props & { room: MatchRoom }) {
                 </span>
               </div>
             )}
-            {phase === 'charging' && (
-              <div className="golf-power" ref={readRef} data-zone="build" data-power="0">
-                <b>{t('{n}%', { n: 0 })}</b>
-                <span>{t('Let go to hit')}</span>
-              </div>
-            )}
           </>
         )}
         {room.status === 'waiting' && (
@@ -750,6 +729,14 @@ function Match(props: Props & { room: MatchRoom }) {
               ))}
             </div>
           )}
+          <PowerBar
+            meterRef={meterRef}
+            readRef={readRef}
+            charging={phase === 'charging'}
+            need={myTurn ? need : null}
+            lie={lie}
+            hint={t('Let go in the green')}
+          />
           <div className="golf-swingrow">
             <button
               type="button"
@@ -763,58 +750,6 @@ function Match(props: Props & { room: MatchRoom }) {
               <small>{t('Aim')}</small>
             </button>
             <div className="golf-swing-wrap">
-              <div
-                className="golf-meter"
-                ref={meterRef}
-                data-power="0"
-                data-zone="build"
-                aria-hidden="true"
-              >
-                <svg viewBox="0 0 132 132">
-                  <g transform="rotate(135 66 66)">
-                    <circle
-                      className="golf-ring-track"
-                      cx="66"
-                      cy="66"
-                      r={RING_R}
-                      strokeDasharray={`${RING_L} ${RING_C}`}
-                    />
-                    <circle
-                      className="golf-ring-sweet"
-                      cx="66"
-                      cy="66"
-                      r={RING_R}
-                      strokeDasharray={ringDash(SWEET_FROM, SWEET_TO)}
-                    />
-                    <circle
-                      className="golf-ring-lunge"
-                      cx="66"
-                      cy="66"
-                      r={RING_R}
-                      strokeDasharray={ringDash(SWEET_TO, POWER_MAX)}
-                    />
-                    <circle
-                      className="golf-ring-fill"
-                      ref={fillRef}
-                      cx="66"
-                      cy="66"
-                      r={RING_R}
-                      strokeDasharray={ringFill(0)}
-                    />
-                    {myTurn && (
-                      <line
-                        className="golf-need"
-                        data-golf-need={need}
-                        data-golf-lie={lie}
-                        x1={tickA.x}
-                        y1={tickA.y}
-                        x2={tickB.x}
-                        y2={tickB.y}
-                      />
-                    )}
-                  </g>
-                </svg>
-              </div>
               <button
                 type="button"
                 className="golf-swing"

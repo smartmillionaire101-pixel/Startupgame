@@ -27,6 +27,12 @@ import { settleEconomy } from './economy.js';
 import { ensureEmployers } from './work.js';
 import { settleFundFees } from './funds.js';
 import { payDividends } from './travel.js';
+import { settleExchange } from './exchange.js';
+import { settleSyndicates } from './syndicates.js';
+import { settleLpFunds } from './lpfunds.js';
+import { settleFirms } from './firms.js';
+import { settleDealCraft } from './dealcraft.js';
+import { settleFundOps, settlePositionMarks } from './fundops.js';
 import { settleVotes } from './governance.js';
 import { aiBanking, settleBanks } from './banks.js';
 import { settleDisputes } from './arbitration.js';
@@ -47,11 +53,11 @@ import { deriveRng } from './rng.js';
 import { settleStars } from './stars.js';
 import { refreshTalent } from './staff.js';
 import type { Company, Player, World } from './types.js';
-import { journeyEventsOn } from './releases.js';
+import { investorOn, journeyEventsOn } from './releases.js';
 import { rivalPressure, settleRivals } from './rivals.js';
 import { settleDecisions } from './decisions.js';
 import { settleLifeEvents } from './lifeevents.js';
-import { settlePublicMarket } from './exits.js';
+import { buyShares, sellShares, settlePublicMarket } from './exits.js';
 import { settleCareers, settleMentorships } from './allocator.js';
 
 /** Months a shut-down company's name stays reserved for its founder (open question §21). */
@@ -148,6 +154,10 @@ export function settleMarket(
   angelsInvest(world, marketId, month);
   // Accelerators, grants and LPs decide; mentoring, demo days, grant reports (Wave 5).
   settlePrograms(world, marketId, month);
+  // Investor career Phase 3: syndicates close, offer, refund or pay out (own RNG stream).
+  settleSyndicates(world, marketId, month);
+  // Investor career Phase 4: funds with an LP book: closes, capital calls, defaults.
+  settleLpFunds(world, marketId, month);
   for (const f of Object.values(world.funds)) {
     if (f.market !== marketId) continue;
     updateFundMood(world, f);
@@ -166,12 +176,19 @@ export function settleMarket(
     settleStars(p.stars, playerPerformance(world, p));
     p.lastMonth = { income: 0, spend: p.lastMonth.spend, tax: 0 };
   }
+  // Investor career Phase 6: firms pay their teams and heads, and add their hours.
+  settleFirms(world, marketId, month);
 
   // Founder Journey 5 (only worlds that used them): institution salaries,
   // mentors' advice, and listed companies' share prices (own stream each).
   settleCareers(world, marketId, month);
   settleMentorships(world, marketId, month);
   settlePublicMarket(world, marketId, month);
+  // Investor career (after the note): the exchange's dividends, index, index fund and orders.
+  settleExchange(world, marketId, month, { buy: buyShares, sell: sellShares });
+  // Investor career Phase 5: marks for investors' positions; funds' metrics, letters and life.
+  settlePositionMarks(world, marketId, month);
+  settleFundOps(world, marketId, month);
 
   // Banks settle after everyone has repaid what they owe this month (§8). Own RNG stream.
   const bankRng = deriveRng(world.seed, 'banks', marketId, month);
@@ -183,6 +200,8 @@ export function settleMarket(
   settleVotes(world, marketId, month);
   settleDisputes(world, marketId, month);
   refreshTalent(world, marketId, rng);
+  // Investor career Phase 8: ghosting, watchlists, inbound pitches by reputation, hot rounds.
+  settleDealCraft(world, marketId, month);
   expireDeals(world, marketId);
   // Wave 10: last month's pitch competitions are judged; this month's is announced.
   resolveCompetitions(world, marketId, month);
@@ -209,6 +228,8 @@ export function settleMarket(
   }
 
   m.economicNote = economicNote(world, marketId);
+  // Investor career: the month's real length, for insiders' results blackout.
+  if (clock.monthMs && investorOn(world)) m.monthMs = clock.monthMs;
   if (clock.at !== undefined) {
     m.settledAt = clock.at;
     m.lastSettledDate = localDate(clock.at, m.data.timeZone);

@@ -51,6 +51,7 @@ import {
   bathDoors,
   blockedTiles,
   floorsFor,
+  withBuiltIns,
   homeSpecOf,
   key,
   wallEdges,
@@ -295,8 +296,12 @@ export function HomeScene({
   const garageKey = hotelTier
     ? ''
     : (hostView ? (hostView.cars ?? []) : view.me.garage.map((c) => c.modelId)).join(',');
+  // A home comes with its kitchen, fridge and utility room (layout.ts builtIns).
   const tiers = useMemo(
-    () => (hotelTier ? hotelFurniture(basePlan, hotelTier) : (hostView?.tiers ?? ownedTiers(view))),
+    () =>
+      hotelTier
+        ? hotelFurniture(basePlan, hotelTier)
+        : withBuiltIns(basePlan, hostView?.tiers ?? ownedTiers(view)),
     [view, hostView, hotelTier, basePlan],
   );
   const ownedKey = [...tiers.keys()].sort().join(',');
@@ -1378,13 +1383,20 @@ export function HomeScene({
   const inviteLeft = actsLeft(view, 'invite');
   // ---- The penthouse balcony: the city it looks out over.
   const city = view.here?.id ?? view.market.id;
-  const hood = hostView ? (hostView.hood ?? null) : (residence?.neighbourhood ?? null);
+  // A hotel's balcony looks over the city's heart (your home's neighbourhood is elsewhere).
+  const hood = hotel
+    ? null
+    : hostView
+      ? (hostView.hood ?? null)
+      : (residence?.neighbourhood ?? null);
   const balconyName = hostView
     ? t('{name}’s balcony', { name: hostView.name.split(' ')[0]! })
     : t('Your balcony');
+  // A penthouse's balcony, or a hotel suite's (its loungers look out over the city).
+  const hasBalcony = plan.kind === 'penthouse' || hotelTier === 'luxury';
   const balcony = useMemo(
-    () => (plan.kind === 'penthouse' ? balconyView(city, balconyName, hood) : null),
-    [plan.kind, city, balconyName, hood],
+    () => (hasBalcony ? balconyView(city, balconyName, hood) : null),
+    [hasBalcony, city, balconyName, hood],
   );
   const levelName = (l: number) =>
     l === 2 ? t('Roof terrace') : l === 1 ? t('Upper floor') : t('Ground floor');
@@ -1541,7 +1553,8 @@ export function HomeScene({
         </div>
       )}
       <div className="home-stage">
-        {want3d && (
+        {/* Out on the balcony, the room's 3D steps aside for the city's (a phone's WebGL). */}
+        {want3d && !sky && (
           <Suspense fallback={null}>
             <Home3D
               plan={plan}
@@ -1851,7 +1864,10 @@ export function HomeScene({
         </div>
       )}
       {hotelTier ? (
-        <nav className="home-bar is-hotel" aria-label={t('Hotel room actions')}>
+        <nav
+          className={`home-bar is-hotel${balcony ? ' has-balcony' : ''}`}
+          aria-label={t('Hotel room actions')}
+        >
           <button
             type="button"
             className="home-bar-btn"
@@ -1872,6 +1888,17 @@ export function HomeScene({
             <span aria-hidden="true">🚿</span>
             {t('Freshen up')}
           </button>
+          {balcony && (
+            <button
+              type="button"
+              className="home-bar-btn"
+              data-action="hotel-balcony"
+              onClick={() => setSky(true)}
+            >
+              <span aria-hidden="true">🌇</span>
+              {t('Balcony')}
+            </button>
+          )}
           <button type="button" className="home-bar-btn" data-action="go-out" onClick={onClose}>
             <span aria-hidden="true">🚪</span>
             {t('Go out')}
@@ -2233,13 +2260,14 @@ function buildObjects(
     'art',
     'lights',
     'sound',
-    'washer',
     'cooling',
     'power',
     'wifi',
     'dining',
   ])
     if (has(slot)) slotObj(slot, [upgrade(slot)]);
+  // The utility room: wash and dry your clothes.
+  if (has('washer')) slotObj('washer', [act('laundry', t('Do laundry')), upgrade('washer')]);
   // Bathroom.
   if (plan.fixtures['shared-bath'])
     fixture('bathroom', 'shared-bath', t('Shared bathroom'), [
@@ -2293,7 +2321,7 @@ function buildObjects(
           'act' in v
             ? act(v.act, t(v.label))
             : 'model' in v
-              ? { id: 'car', label: t(v.label), model: v.model }
+              ? { id: 'car', label: t(v.label, { car: carName(v.model) }), model: v.model }
               : v.id === 'skyline'
                 ? { id: 'skyline', label: t(v.label) }
                 : { id: 'party', label: t(v.label) },

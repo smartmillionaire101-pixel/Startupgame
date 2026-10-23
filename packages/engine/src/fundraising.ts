@@ -6,6 +6,10 @@
  * in due diligence.
  */
 import { barEdgeIn } from './lifebars.js';
+import { checkAngelCheque } from './career.js';
+import { fundCanInvest } from './lpfunds.js';
+import { isHotRound } from './dealcraft.js';
+import { checkFundCheque } from './fundops.js';
 import { ensure, fail } from './errors.js';
 import {
   adjustTrust,
@@ -622,7 +626,7 @@ export function proposeInvestment(
     terms: Omit<
       InvestmentTerms,
       'kind' | 'stage' | 'liquidationMultiple' | 'participating' | 'poolTopUpBps'
-    > & { fromFund?: boolean };
+    > & { fromFund?: boolean; fundId?: Id };
   },
 ) {
   const inv = getPlayer(world, args.investorId);
@@ -664,10 +668,27 @@ export function proposeInvestment(
     'deal.terms',
     'Valuation must be well above the amount.',
   );
+  // Investor career Phase 6: invest from a named fund you run (Fund I, Fund II, a strategy fund).
+  if (args.terms.fundId)
+    ensure(
+      world.funds[args.terms.fundId]?.managerId === inv.id,
+      'invest.fund',
+      'Invest from a fund you run.',
+    );
+  const fromId = args.terms.fundId ?? inv.investor?.fundId;
   const proposer =
-    args.terms.fromFund && inv.investor?.fundId
-      ? { kind: 'fund' as const, id: inv.investor.fundId }
+    args.terms.fromFund && fromId
+      ? { kind: 'fund' as const, id: fromId }
       : { kind: 'player' as const, id: inv.id };
+  // The angel ceiling (investor-career worlds): a capped cheque, and a lead for Series A+.
+  if (proposer.kind === 'player') checkAngelCheque(world, inv, c, terms.amount, stage);
+  else {
+    // A fund raised the full way invests only after its first close.
+    const why = fundCanInvest(world, world.funds[proposer.id]!, c.id);
+    ensure(!why, 'fund.notInvesting', why ?? '');
+    // Investor career Phase 5: dry powder after reserves, and the investment committee.
+    checkFundCheque(world, world.funds[proposer.id]!, c, terms.amount);
+  }
   const model = valueCompany(world, c, stage).value;
   const deal = openDeal(world, {
     companyId: c.id,
@@ -677,7 +698,20 @@ export function proposeInvestment(
     by: inv.id,
     aiLimit: { minValuation: Math.round(model * 0.85), maxAmount: Math.round(model * 0.3) },
   });
-  // AI founders answer straight away: accept, meet once, or walk.
+  // AI founders answer straight away: accept, meet once, or walk. In a hot round
+  // (investor career) they compare every offer at month end instead.
+  const firstSession =
+    !!inv.career?.tutorial && !inv.career.tutorial.doneMonth && !inv.career.tutorial.skipped;
+  if (c.ai && isHotRound(world, c) && !firstSession) {
+    deal.hot = true;
+    notify(world, inv.id, {
+      month: getMarket(world, c.market).month,
+      kind: 'deal',
+      text: `${c.name}'s round is hot: several investors are interested. They'll pick at month end on price, terms and reputation.`,
+      ref: { kind: 'deal', id: deal.id },
+    });
+    return deal;
+  }
   if (c.ai) {
     aiRespond(world, deal);
     return deal;

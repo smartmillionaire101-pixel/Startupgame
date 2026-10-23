@@ -32,6 +32,9 @@ export function holderAccount(world: World, m: MarketState, holderId: string): I
   if (f) return f.account;
   const c = world.companies[holderId];
   if (c) return c.account;
+  // Investor career Phase 3: a syndicate's account (distributed to its members).
+  const syn = world.syndicates?.[holderId];
+  if (syn) return syn.account;
   // A player bank holding warrants or seized collateral.
   if (holderId.startsWith('pbank:')) {
     const b = world.banks[holderId.slice(6)];
@@ -47,6 +50,8 @@ export function externalHolderAccount(m: MarketState, holderId: string): Id {
   if (holderId.startsWith('accel:')) return m.ext.lps;
   // Founder Journey 5: the public float and outside secondary buyers.
   if (holderId.startsWith('pub:') || holderId.startsWith('sec:')) return m.ext.lps;
+  // Investor career: the city index fund trades against the same side of the world.
+  if (holderId.startsWith('idx:')) return m.ext.lps;
   return m.ext.payroll;
 }
 export const NEWS_LIMIT = 120;

@@ -115,4 +115,25 @@ describe('driving your own car', () => {
     expect(gap).toBeGreaterThanOrEqual(2.5 - 1e-6);
     expect(d.view().kmh).toBe(0);
   });
+
+  it('goes on past a car that never moves, GO pressed in short dabs', () => {
+    let gap = 15;
+    const d = new Drive(
+      world(() => ({ gap, v: 0 })),
+      grid(),
+      east,
+      east.at(-1)!,
+      100_000,
+    );
+    const start = d.view().left;
+    // A thumb on GO: a second held, a moment off, over and over.
+    for (let k = 0; k < 400; k++) {
+      d.hold('go', k % 25 < 20);
+      const s0 = d.view().left;
+      d.step(0.05);
+      gap -= s0 - d.view().left;
+    }
+    // Up to it (12.5 m), then on past it.
+    expect(start - d.view().left).toBeGreaterThan(20);
+  });
 });

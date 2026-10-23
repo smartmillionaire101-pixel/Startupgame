@@ -50,7 +50,9 @@ export type IconName =
   /** The founder journey (a flag on a pole). */
   | 'flag'
   /** Founder Journey 5: Capital (a rising chart over a coin). */
-  | 'capital';
+  | 'capital'
+  /** My purchases (a shopping bag). */
+  | 'bag';
 
 const PATHS: Record<IconName, ReactNode> = {
   messages: <path d="M4 5.5h16v10H9l-4 3.5v-3.5H4z" />,
@@ -206,6 +208,12 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="8" cy="12" r="3.6" />
       <path d="M11.6 12H20M17 12v3M14.5 12v2.2" />
+    </>
+  ),
+  bag: (
+    <>
+      <path d="M5 8h14l-1 12.5H6z" />
+      <path d="M9 10.5V7a3 3 0 016 0v3.5" />
     </>
   ),
   cocktail: (

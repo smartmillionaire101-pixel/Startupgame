@@ -23,7 +23,7 @@ import { PUBLIC_MULTIPLES } from './data/markets.js';
 import { rulesFor } from './data/rules.js';
 import type { Command } from './commands.js';
 import { SYSTEM_COMMANDS } from './commands.js';
-import { appearanceSeed, defaultAppearance } from './appearance.js';
+import { appearanceSeed, defaultAppearance, lookSchema } from './appearance.js';
 import { payExpense } from './firstsession.js';
 import { comply, pivot, setTargets, shutdownCompany } from './company.js';
 import { actOnDeal, canAct, monthlyPayment, openDeal } from './deals.js';
@@ -39,7 +39,12 @@ import {
   startPitch,
 } from './fundraising.js';
 import { raiseFund } from './funds.js';
-import { injectCapital, repayPersonalLoan, requestPersonalLoan } from './credit.js';
+import {
+  injectCapital,
+  repairCreditRecords,
+  repayPersonalLoan,
+  requestPersonalLoan,
+} from './credit.js';
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
 import { bookFlight, cancelFlight, fly, hasVisited, relocate, ride, travel } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
@@ -55,9 +60,69 @@ import {
   seedPublicMarket,
   sellShares,
 } from './exits.js';
-import { exitsOn, jobsOn, lifeBarsOn } from './releases.js';
+import { backSyndicate, cancelSyndicate, closeSyndicate, openSyndicate } from './syndicates.js';
+import { admitToAccelerator, foundAccelerator } from './institutions.js';
+import {
+  checkClaim,
+  chooseOffer,
+  pipelineAdd,
+  pipelinePass,
+  pipelineWatch,
+  references,
+  reviewInvestor,
+  scout,
+  supportCompany,
+} from './dealcraft.js';
+import {
+  answerStake,
+  consentStake,
+  fofCommit,
+  investorSecondary,
+  offerStake,
+  requestLpac,
+  sellStakeOutside,
+  voteLpac,
+} from './allocation.js';
+import {
+  answerCarryAsk,
+  answerPartner,
+  foundFirm,
+  hire as hireToFirm,
+  invitePartner,
+  letGo,
+  stepBack,
+} from './firms.js';
+import {
+  answerProRata,
+  requestExtension,
+  requestIc,
+  setPlan,
+  setReserve,
+  writeLetter,
+} from './fundops.js';
+import {
+  abandonFund,
+  closeFund,
+  commitToFund,
+  delayCall,
+  launchFund,
+  lpDiligence,
+  payCall,
+  setAutopay,
+} from './lpfunds.js';
+import { buyIndex, cancelOrder, ensureExchange, placeOrder, sellIndex } from './exchange.js';
+import {
+  answerInvitation,
+  recordCareer,
+  startInvestorTutorial,
+  tutorialCommand,
+} from './career.js';
+import { exitsOn, investorOn, jobsOn, lifeBarsOn } from './releases.js';
 import { applyForJob, attendInterview, ensureEmployers } from './work.js';
 import { golfRound, mallBuy } from './leisure.js';
+import { mallTripCommand } from './malltrips.js';
+import { wardrobeRemove, wardrobeWear } from './wardrobe.js';
+import { MALL_TRIP } from './data/leisure.js';
 import {
   HOME_ACT_BARS,
   LIFE_BARS,
@@ -180,6 +245,7 @@ import type { MarketId } from './data/markets.js';
 import {
   chooseBootstrap,
   dismissObjective,
+  hasAnyJourney,
   hasJourney,
   pinObjective,
   recordChapters,
@@ -277,6 +343,11 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
         recordChaptersAfterSettle(draft as World, command.market);
       const who = ctx.actorId ? draft.players[ctx.actorId] : undefined;
       if (who) recordChapters(draft as World, who as Player);
+      // The investor career: rungs reached, invitations (investor-career worlds only).
+      if (who) recordCareer(draft as World, who as Player);
+      if (command.type === 'market.settle' && investorOn(draft as World))
+        for (const p of Object.values(draft.players))
+          if (p.market === command.market) recordCareer(draft as World, p as Player);
       // The result is read (sent to the client) after the producer finished, when
       // any draft in it is revoked: copy it out as plain data while drafts still work.
       if (!WHOLE_WORLD.has(command.type)) result = copyDeep(result);
@@ -330,6 +401,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     const m = openMarket(world, cmd.market, ctx.now);
     // A city opening after the stock market did gets its listings too.
     if (exitsOn(world)) seedPublicMarket(world, m.id);
+    ensureExchange(world, m.id);
     // …and its professional employers, in a jobs world.
     ensureEmployers(world, m.id, m.month);
     return {
@@ -393,6 +465,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       };
     }
     welcomeNewPlayer(world, p, null);
+    if (p.role === 'investor') startInvestorTutorial(world, p);
     return { playerId: p.id, companyId: null };
   }
 
@@ -418,8 +491,9 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       // left out keep what you had, or the look your seed gave you.
       const was = me.appearance ?? defaultAppearance(appearanceSeed(me), me.gender);
       const next = { ...was };
+      // Only the creator's parts: what's worn from the wardrobe is `wardrobe.wear`'s.
       for (const [k, v] of Object.entries(cmd.appearance))
-        if (v !== undefined) (next as Record<string, unknown>)[k] = v;
+        if (v !== undefined && k in lookSchema.shape) (next as Record<string, unknown>)[k] = v;
       me.appearance = next;
       me.appearanceAt = ctx.now;
       return { appearance: next };
@@ -797,6 +871,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       const out = actOnDeal(world, cmd.dealId, mine, me.id, act);
       return { dealId: out.id, status: out.status, summary: out.summary };
     }
+    case 'deal.choose': {
+      const d = world.deals[cmd.dealId];
+      if (d?.companyId && world.companies[d.companyId]?.founderIds.includes(me.id))
+        world.companies[d.companyId]!.lastDecisionMonth = month;
+      return chooseOffer(world, me, cmd.dealId);
+    }
     // ------------------------------------------------------------ investor
     case 'invest.propose': {
       spendHours(me, 2, 'Writing a term sheet');
@@ -811,6 +891,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
           boardSeat: cmd.boardSeat,
           vetoOnSale: cmd.vetoOnSale,
           fromFund: cmd.fromFund,
+          ...(cmd.fundId ? { fundId: cmd.fundId } : {}),
         },
       });
       me.skills.investing = Math.min(100, me.skills.investing + 0.5);
@@ -1105,7 +1186,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'player.travel':
       return travel(world, me, cmd.market);
     case 'travel.book':
-      return bookFlight(world, me, cmd.to, ctx.now, cmd.hotel, cmd.flight);
+      return bookFlight(world, me, cmd.to, ctx.now, cmd.hotel, cmd.flight, cmd.cabin);
     case 'travel.cancel':
       return cancelFlight(world, me);
     case 'travel.fly':
@@ -1143,6 +1224,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       me.role = 'investor';
       me.investor = { ...cmd.investor, lpCredibility: 0.3, founderTrust: 0.7 };
       achieve(world, me, 'any.role-switch', 'First role switch', month);
+      startInvestorTutorial(world, me);
       return { message: 'You’re an angel investor now. Founders will start pitching you.' };
     }
     // ------------------------------------------------------------ city events (Wave 2)
@@ -1175,9 +1257,75 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'ipo.list':
       return listCompany(world, me, touch(cmd.companyId), cmd.pricePerShareHint);
     case 'shares.sell':
-      return sellShares(world, me, cmd.companyId, cmd.pctBps);
+      return sellShares(world, me, cmd.companyId, cmd.pctBps, ctx.now, cmd.fundId);
     case 'shares.buy':
-      return buyShares(world, me, cmd.companyId, cmd.amount);
+      return buyShares(world, me, cmd.companyId, cmd.amount, ctx.now, cmd.fundId);
+    case 'accelerator.found':
+      return foundAccelerator(world, me, cmd);
+    case 'accelerator.admit':
+      return admitToAccelerator(world, me, cmd.companyId);
+    case 'pipeline.add':
+      return pipelineAdd(world, me, cmd.companyId, !!cmd.watch);
+    case 'pipeline.watch':
+      return pipelineWatch(world, me, cmd.companyId, cmd.on);
+    case 'pipeline.pass':
+      return pipelinePass(world, me, cmd.companyId, cmd.reason);
+    case 'diligence.claim':
+      return checkClaim(world, me, cmd.companyId, cmd.questionId);
+    case 'diligence.references':
+      return references(world, me, cmd.companyId);
+    case 'invest.support':
+      return supportCompany(world, me, cmd.companyId, cmd.kind);
+    case 'invest.scout':
+      return scout(world, me);
+    case 'review.investor':
+      return reviewInvestor(world, me, cmd.investorId, cmd.companyId, cmd.rating, cmd.text);
+    case 'fof.commit':
+      return fofCommit(world, me, cmd.fundId, cmd.targetFundId, cmd.amount);
+    case 'fund.lpac':
+      return requestLpac(world, me, cmd.fundId, cmd.companyId);
+    case 'lpac.vote':
+      return voteLpac(world, me, cmd.fundId, cmd.companyId, cmd.approve);
+    case 'stake.sell':
+      return sellStakeOutside(world, me, cmd.fundId);
+    case 'stake.offer':
+      return offerStake(world, me, cmd.fundId, cmd.buyerId, cmd.price);
+    case 'stake.answer':
+      return answerStake(world, me, cmd.offerId, cmd.accept);
+    case 'stake.consent':
+      return consentStake(world, me, cmd.offerId, cmd.approve);
+    case 'secondary.investorSell':
+      return investorSecondary(world, me, cmd.companyId, cmd.pctBps);
+    case 'firm.found':
+      return foundFirm(world, me, cmd.name);
+    case 'firm.hire':
+      return hireToFirm(world, me, cmd.title);
+    case 'firm.invite':
+      return invitePartner(world, me, cmd.playerId, cmd.carryShare);
+    case 'firm.answer':
+      return answerPartner(world, me, cmd.firmId, cmd.accept);
+    case 'firm.letGo':
+      return letGo(world, me, cmd.memberId);
+    case 'firm.carryAsk':
+      return answerCarryAsk(world, me, cmd.memberId, cmd.accept);
+    case 'firm.succession':
+      return stepBack(world, me, cmd.memberId, cmd.founderCarry);
+    case 'shares.order':
+      return placeOrder(world, me, cmd);
+    case 'shares.cancel':
+      return cancelOrder(world, me, cmd.orderId);
+    case 'syndicate.open':
+      return openSyndicate(world, me, cmd);
+    case 'syndicate.back':
+      return backSyndicate(world, me, cmd.syndicateId, cmd.amount);
+    case 'syndicate.close':
+      return closeSyndicate(world, me, cmd.syndicateId);
+    case 'syndicate.cancel':
+      return cancelSyndicate(world, me, cmd.syndicateId);
+    case 'index.buy':
+      return buyIndex(world, me, cmd.market, cmd.amount);
+    case 'index.sell':
+      return sellIndex(world, me, cmd.market, cmd.pctBps);
     case 'mentor.offer':
       return offerMentoring(world, me, cmd.companyId, cmd.grantBps);
     case 'mentor.answer':
@@ -1302,13 +1450,58 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return golfRound(world, me, cmd.strokes);
     case 'mall.buy':
       return mallBuy(world, me, cmd.itemId, cmd.colour, ctx.now);
+    case 'mall.invite':
+    case 'mall.answer':
+    case 'mall.leave':
+    case 'mall.gift':
+      return mallTripCommand(world, me, cmd, ctx.now);
+    case 'wardrobe.wear':
+      return wardrobeWear(world, me, cmd.itemId, cmd.colour, ctx.now);
+    case 'wardrobe.remove':
+      return wardrobeRemove(world, me, cmd.slot, ctx.now);
     // ------------------------------------------------------------ capital programmes (Wave 5)
     case 'accelerator.apply':
       return applyAccelerator(world, me, cmd.acceleratorId, cmd.companyId);
     case 'grant.apply':
       return applyGrant(world, me, cmd.partnerId, cmd.programId, cmd.companyId);
     case 'lp.pitch':
-      return pitchLp(world, me, cmd.lpId);
+      return pitchLp(world, me, cmd.lpId, cmd.fundId);
+    case 'fund.plan':
+      return setPlan(world, me, cmd.fundId, {
+        companies: cmd.companies,
+        avgCheque: cmd.avgCheque,
+        reserveRatio: cmd.reserveRatio,
+      });
+    case 'fund.reserve':
+      return setReserve(world, me, cmd.fundId, cmd.companyId, cmd.amount);
+    case 'fund.ic':
+      return requestIc(world, me, cmd.fundId, cmd.companyId, cmd.amount);
+    case 'fund.letter':
+      return writeLetter(world, me, cmd.fundId, cmd.honest);
+    case 'fund.extend':
+      return requestExtension(world, me, cmd.fundId);
+    case 'prorata.answer':
+      return answerProRata(world, me, cmd.offerId, cmd.take);
+    case 'fund.launch':
+      return launchFund(world, me, cmd);
+    case 'fund.close':
+      return closeFund(world, me, cmd.fundId);
+    case 'fund.abandon':
+      return abandonFund(world, me, cmd.fundId);
+    case 'lp.commit':
+      return commitToFund(world, me, cmd.fundId, cmd.amount);
+    case 'lp.diligence':
+      return lpDiligence(world, me, cmd.fundId);
+    case 'lp.pay':
+      return payCall(world, me, cmd.callId);
+    case 'lp.delay':
+      return delayCall(world, me, cmd.callId);
+    case 'lp.autopay':
+      return setAutopay(world, me, cmd.fundId, cmd.on);
+    case 'career.invitation':
+      return answerInvitation(world, me, cmd.invitationId, cmd.accept);
+    case 'investor.tutorial':
+      return tutorialCommand(world, me, cmd.action, cmd.companyId);
     case 'invest.quick':
       return quickInvest(world, me, cmd.companyId, cmd.amount);
     case 'pitch.angel':
@@ -1348,10 +1541,18 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'competition.score':
       return scoreEntry(world, me, cmd.competitionId, cmd.entryId, cmd.score);
     case 'journey.pin':
-      ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
+      ensure(
+        hasAnyJourney(world, me),
+        'journey.none',
+        'The journey is for founders and investors.',
+      );
       return pinObjective(me, cmd.kind, cmd.id);
     case 'journey.dismiss':
-      ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
+      ensure(
+        hasAnyJourney(world, me),
+        'journey.none',
+        'The journey is for founders and investors.',
+      );
       return dismissObjective(me, cmd.kind, cmd.id, cmd.undo);
     case 'journey.bootstrap':
       ensure(hasJourney(me), 'journey.none', 'The journey is for founders.');
@@ -1480,8 +1681,17 @@ function lifeBarsAfter(world: World, cmd: Command, actorId: Id, result: unknown)
       return changed(foodBars(cmd.itemId));
     case 'golf.round':
     case 'mall.buy': {
-      const { barsFx, ...rest } = out as { barsFx?: { stress?: number } };
+      const { barsFx, ...rest } = out as { barsFx?: { stress?: number; health?: number } };
       return barsFx ? { ...changed(barsFx), barsFx: undefined, ...rest } : out;
+    }
+    // Shopping together: meeting at the mall eases you both (an AI friend says yes at once).
+    case 'mall.invite':
+      return out.status === 'together' ? changed({ stress: MALL_TRIP.stress }) : out;
+    case 'mall.answer': {
+      if (out.status !== 'together') return out;
+      const host = world.players[(out.host as { id: Id } | undefined)?.id ?? ''];
+      if (host && !host.ai) applyBars(host, { stress: MALL_TRIP.stress });
+      return changed({ stress: MALL_TRIP.stress });
     }
     default:
       return result;
@@ -1532,6 +1742,7 @@ function createFromOnboarding(
     foundBank(world, p, { name: cmd.bank.name, type: cmd.bank.bankType, contribution });
   }
   welcomeNewPlayer(world, p, companyId);
+  if (p.role === 'investor') startInvestorTutorial(world, p);
   return { playerId: p.id, companyId };
 }
 
@@ -1621,10 +1832,20 @@ function applyMarketData(world: World, cmd: Extract<Command, { type: 'market.dat
 /** Send a one-off message to every human player's inbox, once per announcement id. */
 function announce(world: World, cmd: Extract<Command, { type: 'system.announce' }>) {
   const sent = (world.announcements ??= []);
-  if (sent.includes(cmd.id)) return { sent: 0 };
+  if (sent.includes(cmd.id)) {
+    // Already sent (the server re-announces at every boot): open any professional
+    // employers still missing. Employers never close, so this is a no-op unless the
+    // note was first logged by code that predates the jobs rework (an old preview).
+    for (const [id, m] of Object.entries(world.markets))
+      ensureEmployers(world, id as MarketId, m.month);
+    return { sent: 0 };
+  }
   const hadExits = exitsOn(world);
   const hadJobs = jobsOn(world);
+  const hadInvestor = investorOn(world);
   sent.push(cmd.id);
+  // The investor career's credit fix: records lose the living-cost "missed payments".
+  if (!hadInvestor && investorOn(world)) repairCreditRecords(world);
   // The jobs rework: every open city's professional employers open with the note.
   if (!hadJobs && jobsOn(world))
     for (const [id, m] of Object.entries(world.markets))
@@ -1633,6 +1854,8 @@ function announce(world: World, cmd: Extract<Command, { type: 'system.announce' 
   // (The note that first switches exits on: the exits note, or a later one in a world without it.)
   if (!hadExits && exitsOn(world))
     for (const id of Object.keys(world.markets)) seedPublicMarket(world, id);
+  // The investor career: every city's exchange opens with its AI listings and an index.
+  for (const id of Object.keys(world.markets)) ensureExchange(world, id);
   let n = 0;
   for (const p of Object.values(world.players)) {
     if (p.ai) continue;

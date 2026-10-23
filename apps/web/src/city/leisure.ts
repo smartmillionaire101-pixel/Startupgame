@@ -11,7 +11,14 @@
  * The engine sends the course, the green fee and the mall's prices in the
  * view (`me.golf`, `me.mall`); `golfOf` / `mallOf` read them loosely.
  */
-import { golfCourse, type GolfHole, type MarketId, type PlayerView } from '@runway/engine';
+import {
+  golfCourse,
+  type Appearance,
+  type GolfHole,
+  type MallShopId,
+  type MarketId,
+  type PlayerView,
+} from '@runway/engine';
 import { B, SW, type Cell, type Ctx, type Place } from './layout';
 import type { Host } from './plans';
 
@@ -159,7 +166,7 @@ export interface GolfMatchOptions {
 
 export interface MallItemView {
   id: string;
-  shop: 'fashion' | 'phones' | 'home' | 'supermarket' | 'foodcourt' | 'cinema';
+  shop: MallShopId;
   label: string;
   price: number;
   topStyle?: string;
@@ -169,17 +176,100 @@ export interface MallItemView {
   furniture?: string;
   slot?: string;
   tier?: number;
+  /** The bigger mall: something you keep (in your bag), and what kind. */
+  keep?: string;
+  /** Something you keep that you wear (shoes, a watch …): the part of your look. */
+  worn?: { slot: string; style: string };
+  /** In your wardrobe already: wear it free (a top: in `haveColours`). */
+  have?: boolean;
+  haveColours?: string[];
   hunger?: number;
   fun?: number;
+  energy?: number;
+  hygiene?: number;
+  health?: number;
+  stress?: number;
   hours?: number;
+  /** Priced in dollars at the day's rate. */
+  imported?: boolean;
+  /** Can be bought for the friend you're shopping with. */
+  gift?: boolean;
   owned: boolean;
+}
+
+/** Someone you shop with (how they look, for the figure walking with you). */
+export interface MallPerson {
+  id: string;
+  name: string;
+  ai: boolean;
+  role?: string;
+  backgroundId?: string;
+  gender: 'female' | 'male' | null;
+  appearance?: Appearance;
+  /** They chose their look (else they're dressed by their background). */
+  styled?: boolean;
+  company?: string | null;
+}
+
+export interface MallTripView {
+  id: string;
+  status: 'invited' | 'together';
+  /** You asked them. */
+  mine: boolean;
+  market: string;
+  friend: MallPerson;
+  gifts: { from: string; to: string; item: string; label: string; price: number }[];
 }
 
 export interface MallView {
   currency: string;
+  /** Your wardrobe is open (newer servers): wear what you own free. */
+  wardrobe?: boolean;
+  /** The shops open here (older servers: the first six). */
+  shops?: MallShopId[];
   delivers: boolean;
   phone: { tier: 1 | 2 | 3; name: string } | null;
   items: MallItemView[];
+  /** What you keep from the mall, newest first. */
+  bag?: {
+    item: string;
+    label: string;
+    kind: string | null;
+    from: { id: string; name: string } | null;
+  }[];
+  /** Shopping together (newer servers). */
+  trip?: MallTripView | null;
+  invites?: { id: string; from: { id: string; name: string }; market: string; city: string }[];
+  friends?: MallPerson[];
+}
+
+/** One thing in your wardrobe ("My purchases"). */
+export interface WardrobeItemView {
+  item: string;
+  label: string;
+  shop: MallShopId;
+  kind: string | null;
+  /** The part of your look: topStyle, headwear, glasses, shoes, watch … */
+  slot: string;
+  style: string;
+  /** A top: the colour you own it in. */
+  colour: string | null;
+  month: number;
+  from: { id: string; name: string } | null;
+  wearing: boolean;
+}
+
+/** Your wardrobe and the other things you keep (`me.wardrobe`, newer servers). */
+export interface WardrobeView {
+  on: boolean;
+  items: WardrobeItemView[];
+  things: {
+    item: string;
+    label: string;
+    kind: string | null;
+    month: number;
+    from: { id: string; name: string } | null;
+  }[];
 }
 
 type Loose = { me: Record<string, unknown> };
@@ -193,6 +283,11 @@ export function golfOf(view: PlayerView, marketId: string): GolfView {
 
 export function mallOf(view: PlayerView): MallView | null {
   const raw = (view as unknown as Loose).me.mall as MallView | undefined;
+  return raw && Array.isArray(raw.items) ? raw : null;
+}
+
+export function wardrobeOf(view: PlayerView): WardrobeView | null {
+  const raw = (view as unknown as Loose).me.wardrobe as WardrobeView | undefined;
   return raw && Array.isArray(raw.items) ? raw : null;
 }
 

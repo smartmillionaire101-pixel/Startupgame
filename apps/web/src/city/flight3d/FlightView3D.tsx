@@ -32,6 +32,7 @@ import type { AvatarLook } from '../art';
 import type { Plane3DKind } from '../../three-kit/plane';
 import { CITY_GEO, fmtFlightTime } from '../travel';
 import { layoutTags } from './tags';
+import { CabinService } from '../acts/CabinService';
 import { CabinWorld } from './cabin';
 import { SkyWorld, overCity, skyOver, type Over, type WorldShot } from './world';
 import './flight3d.css';
@@ -56,6 +57,7 @@ const CLASS_LABEL: Record<CabinClass, string> = {
   economy: 'Economy',
   premium: 'Premium economy',
   business: 'Business',
+  first: 'First class',
   private: 'Private jet',
 };
 
@@ -417,6 +419,7 @@ export default function FlightView3D({
               <circle r="4.5" fill="#ea580c" />
             </g>
           </svg>
+          <CabinService cls={cls} />
           <div className="fl-cabin-acts">
             <button
               type="button"

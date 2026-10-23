@@ -45,8 +45,8 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
   await page.getByRole('button', { name: /^Phone/ }).click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await expect(phone).toBeVisible();
-  // Wave 7: every app on the home screen (17 in the grid with Wave 10’s Homes and Going out, the founder Journey and Capital, 4 in the dock).
-  await expect(phone.locator('[data-app]')).toHaveCount(22);
+  // Wave 7: every app on the home screen (17 in the grid with Wave 10’s Homes and Going out, the founder Journey, Capital and My purchases, 4 in the dock).
+  await expect(phone.locator('[data-app]')).toHaveCount(23);
   await expect(phone.locator('.phone-dock [data-app]')).toHaveCount(4);
   await expect(phone.getByRole('meter', { name: 'Energy' })).toBeVisible();
 
@@ -70,13 +70,13 @@ test('the phone: chat with an AI character, then follow an alert', async ({ page
   });
 
   // The thread shows in the list.
-  await phone.getByRole('button', { name: 'Back' }).click();
+  await phone.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(phone.getByRole('list', { name: 'Conversations' }).getByRole('button')).toHaveCount(
     1,
   );
 
   // Alerts: the reporter's welcome note opens the phone's News app.
-  await phone.getByRole('button', { name: 'Back' }).click();
+  await phone.getByRole('button', { name: 'Back', exact: true }).click();
   await phone.locator('[data-app="alerts"]').click();
   await phone.locator('[data-alert="reporter"]').first().click();
   await expect(phone.locator('[data-phone-app="news"]')).toBeVisible();

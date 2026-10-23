@@ -12,6 +12,8 @@
  *    <html> so CSS can make things bigger. Unset, it follows `simpleByDefault`:
  *    on for players who joined from `SIMPLE_MODE_SINCE`, off for everyone who
  *    already knows the game. An explicit choice in Settings always wins.
+ *    Simple mode is for founders only: investors and bankers always play
+ *    the full game, whatever is saved (`setSimpleRole`).
  */
 import { useSyncExternalStore } from 'react';
 
@@ -83,8 +85,11 @@ export function joinedAtOf(me: { joinedAt?: number | null }): number | null {
 const listeners = new Set<() => void>();
 const memory: Partial<Record<SettingKey, boolean>> = {};
 let simpleDefault = DEFAULTS.simple;
+/** Founders (or nobody known yet) can have Simple mode; investors and bankers can't. */
+let simpleAllowed = true;
 
 function read(key: SettingKey): boolean {
+  if (key === 'simple' && !simpleAllowed) return false;
   if (memory[key] !== undefined) return memory[key]!;
   try {
     const v = localStorage.getItem(KEYS[key]);
@@ -142,6 +147,30 @@ export function setSimpleDefault(joinedAt: number | null | undefined) {
   applySimple(read('simple'));
   for (const l of listeners) l();
 }
+
+/**
+ * Who's playing is known: Simple mode only applies to founders. Investors
+ * and bankers get the full game (all five tabs); their saved choice is kept
+ * for if they found a company.
+ */
+export function setSimpleRole(role: 'founder' | 'investor' | 'banker') {
+  const allowed = role === 'founder';
+  if (allowed === simpleAllowed) return;
+  simpleAllowed = allowed;
+  applySimple(read('simple'));
+  for (const l of listeners) l();
+}
+
+/** Whether Simple mode can be switched on for this player (founders only). */
+export const useSimpleAvailable = () =>
+  useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    () => simpleAllowed,
+    () => true,
+  );
 
 export function useSetting(key: SettingKey): boolean {
   return useSyncExternalStore(

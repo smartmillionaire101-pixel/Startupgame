@@ -59,4 +59,5 @@ export const hotelRoom: Record<string, string> = {
   'That’s your own door.': 'C’est votre propre porte.',
   'Someone’s already visiting. Try again in a bit.':
     'Quelqu’un est déjà en visite. Réessayez dans un moment.',
+  Balcony: 'Balcon',
 };

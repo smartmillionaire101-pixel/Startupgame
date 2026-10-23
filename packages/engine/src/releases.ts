@@ -46,8 +46,26 @@ export const LIFE_BARS_NOTE = 'release-2026-10-17-life-bars';
  */
 export const JOBS_NOTE = 'release-2026-10-19-jobs';
 
+/**
+ * The investor career (investor blueprint): the career ladder and its
+ * invitations, the angel ceiling (a cheque cap and a lead for Series A and
+ * later), the investor first session, monthly marks, and the settlement work
+ * of syndicates, LP funds, the exchange and firms. New commands only change
+ * worlds they're issued in; this note switches on what changes existing play.
+ * The bigger mall ships with it too (data/mall.ts: ten more shops and their
+ * things, sold by `mall.buy` only once this note is logged) and shopping
+ * with a friend (malltrips.ts).
+ */
+export const INVESTOR_NOTE = 'release-2026-10-20-investor-career';
+
 /** Every behaviour-switching note, oldest first. */
-export const RELEASES = [JOURNEY_EVENTS_NOTE, EXITS_NOTE, LIFE_BARS_NOTE, JOBS_NOTE] as const;
+export const RELEASES = [
+  JOURNEY_EVENTS_NOTE,
+  EXITS_NOTE,
+  LIFE_BARS_NOTE,
+  JOBS_NOTE,
+  INVESTOR_NOTE,
+] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
 export function releaseOn(w: World, note: (typeof RELEASES)[number]): boolean {
@@ -59,3 +77,4 @@ export const journeyEventsOn = (w: World): boolean => releaseOn(w, JOURNEY_EVENT
 export const exitsOn = (w: World): boolean => releaseOn(w, EXITS_NOTE);
 export const lifeBarsOn = (w: World): boolean => releaseOn(w, LIFE_BARS_NOTE);
 export const jobsOn = (w: World): boolean => releaseOn(w, JOBS_NOTE);
+export const investorOn = (w: World): boolean => releaseOn(w, INVESTOR_NOTE);

@@ -86,14 +86,16 @@ import {
   styleStaff,
   type NightStyle,
 } from './nightlife';
+import { clubStyleOf } from './clubLook';
 import { useVenueMusic } from './nightlife-audio';
+import { dishOf, foodStyleOf } from './cuisine';
 import { useSetting } from '../phone/settings';
 import { WhoIsHere } from './WhoIsHere';
 import { VenueParty, VenuePartyLine, venueParty } from './companions';
 import { HomeScene } from '../home/HomeScene';
 import { HotelBack, HotelFront } from '../home/HotelArt';
 import { HotelKnocked } from '../phone/apps/Holiday';
-import { stayOf } from './travel';
+import { localHour, stayOf } from './travel';
 import { TechEventScene } from './TechEventScene';
 import { techEventAt } from './techevent';
 import { useReducedMotion } from './CityMap';
@@ -758,16 +760,53 @@ function RoomScene({
   const nightStyle = useMemo(
     () =>
       business
-        ? nightStyleOf({
+        ? // A club also gets its own look (./clubLook.ts), and fills up late.
+          clubStyleOf(
+            {
+              market: cityId,
+              id: business.id,
+              kind: business.kind,
+              name: business.name,
+              district: business.district,
+            },
+            nightStyleOf({
+              market: cityId,
+              id: business.id,
+              kind: business.kind,
+              name: business.name,
+            }),
+            localHour(cityId),
+          )
+        : null,
+    [business, cityId],
+  );
+  const genre = nightStyle ? genreOf(nightStyle) : null;
+  // A restaurant, café or street-food place of its city: its cuisine, menu and room (./cuisine.ts).
+  const foodStyle = useMemo(
+    () =>
+      business && !nightStyle
+        ? foodStyleOf({
             market: cityId,
             id: business.id,
             kind: business.kind,
             name: business.name,
           })
         : null,
-    [business, cityId],
+    [business, cityId, nightStyle],
   );
-  const genre = nightStyle ? genreOf(nightStyle) : null;
+  /** The house dishes with their prices, for the tray and the menu board. */
+  const menu = useMemo(() => {
+    const items = business?.venue?.items ?? [];
+    if (!foodStyle) return [];
+    return items
+      .map((it) => ({ it, dish: dishOf(foodStyle, it, items) }))
+      .filter((x): x is { it: (typeof items)[number]; dish: string } => !!x.dish)
+      .sort((x, y) => (y.it.energy ?? 0) - (x.it.energy ?? 0));
+  }, [business, foodStyle]);
+  const menuLines = useMemo(
+    () => menu.map((m) => `${tx(m.dish)} — ${money(m.it.price, cur)}`),
+    [menu, cur],
+  );
   const sound = useSetting('sound');
   useVenueMusic(genre?.id ?? null, sound);
 
@@ -885,6 +924,7 @@ function RoomScene({
     b: BusinessView,
     it: { id: string; label: string; price?: number; travel?: boolean },
     icon: string,
+    title?: string,
   ) => {
     // Wave 10: a yacht, golf, a gala, the jet, a rooftop party: their own act, full screen.
     if (outingOf(it)) {
@@ -903,7 +943,16 @@ function RoomScene({
         ? nextLook(meLook, pick.variant === 'barber' ? 'barber' : 'salon')
         : null;
     setOutcome(null);
-    setAct({ n, pick, script, title: tx(it.label), icon, ended: false, look, saved: false });
+    setAct({
+      n,
+      pick,
+      script,
+      title: title ?? tx(it.label),
+      icon,
+      ended: false,
+      look,
+      saved: false,
+    });
     const r = await send<(ActResult & Loose & { met?: unknown }) | null>(
       looseCmd({ type: 'venue.buy', businessId: b.id, itemId: it.id }),
     );
@@ -1055,10 +1104,16 @@ function RoomScene({
         run: () => setPanel('shop'),
       });
     // Eat, drink, buy: one tap.
+    // At a place to eat, the house dish first.
     const items = [...(b.venue?.items ?? [])]
       .filter((i) => !fun.some((f) => f.id === i.id))
-      .sort((x, y) => Number(!!y.energy) - Number(!!x.energy) || x.price - y.price);
+      .sort((x, y) =>
+        foodStyle
+          ? (y.energy ?? 0) - (x.energy ?? 0) || x.price - y.price
+          : Number(!!y.energy) - Number(!!x.energy) || x.price - y.price,
+      );
     for (const it of items.slice(0, fun.length ? 1 : 2)) {
+      const dish = foodStyle ? dishOf(foodStyle, it, b.venue?.items ?? []) : null;
       const icon =
         room === 'salon'
           ? '💈'
@@ -1071,8 +1126,9 @@ function RoomScene({
                 : '🛍';
       actions.push({
         id: `buy:${it.id}`,
-        label:
-          room === 'salon'
+        label: dish
+          ? t('Order {dish}', { dish: tx(dish) })
+          : room === 'salon'
             ? tx(it.label)
             : nightStyle?.relabel?.[it.id]
               ? tx(nightStyle.relabel[it.id]!)
@@ -1082,7 +1138,7 @@ function RoomScene({
           : money(it.price, cur),
         icon,
         disabled: pocket < it.price || busy,
-        run: () => playAct(b, it, icon),
+        run: () => playAct(b, it, icon, dish ? tx(dish) : undefined),
       });
     }
     // A job here (section A), else a shift.
@@ -1438,13 +1494,26 @@ function RoomScene({
       data-nightlife={nightStyle?.id}
       data-layout={nightStyle?.layout}
       data-genre={genre?.id}
+      data-club-look={nightStyle?.club?.key}
+      data-club-tier={nightStyle?.club?.tier}
+      data-club-theme={nightStyle?.club?.theme}
+      data-club-sign={nightStyle?.club?.sign}
+      data-food-style={foodStyle?.id}
+      data-cuisine={foodStyle?.cuisine}
+      data-food-tier={foodStyle?.tier}
     >
       <header className="place-head">
         <div className="place-title">
           <h2>{title}</h2>
           {business && (
             <span className="small muted">
-              {tx(nightStyle?.label ?? business.kindLabel)}
+              {foodStyle
+                ? t('{cuisine} · {type}', {
+                    cuisine: tx(foodStyle.cuisine),
+                    type: tx(foodStyle.label),
+                  })
+                : tx(nightStyle?.label ?? business.kindLabel)}
+              {nightStyle?.club ? ` · ${tx(nightStyle.club.label)}` : ''}
               {business.street ? ` · ${business.street}` : ''}
             </span>
           )}
@@ -1471,6 +1540,8 @@ function RoomScene({
               onReady={onReady3d}
               reduced={reduced}
               nightStyle={nightStyle}
+              foodStyle={foodStyle}
+              menu={menuLines}
             />
           </Suspense>
         )}
@@ -1491,7 +1562,7 @@ function RoomScene({
           ) : (
             <RoomBack
               kind={room}
-              tint={business?.look.color ?? place.color}
+              tint={foodStyle?.sign[0] ?? business?.look.color ?? place.color}
               sign={sign?.toUpperCase().slice(0, 22)}
               home={home?.items ?? null}
               car={home ? (carOf(view)?.label ?? null) : null}
@@ -1509,7 +1580,7 @@ function RoomScene({
           ) : (
             <RoomFront
               kind={room}
-              tint={business?.look.color ?? place.color}
+              tint={foodStyle?.sign[0] ?? business?.look.color ?? place.color}
               home={home?.items ?? null}
             />
           )}
@@ -1630,6 +1701,13 @@ function RoomScene({
           {(business?.venue || (business && sellsOf(view, business))) && (
             <p className="small muted tray-pocket" data-pocket={pocket}>
               {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
+            </p>
+          )}
+          {foodStyle && menu.length > 0 && (
+            <p className="small muted tray-menu" data-menu={foodStyle.id}>
+              <b>{t('On the menu')}</b>
+              {': '}
+              {menuLines.join(' · ')}
             </p>
           )}
           {home && (

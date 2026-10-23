@@ -13,6 +13,8 @@
  * Replay safety: all state is new and optional; settlement only touches
  * mentorships and careers that exist.
  */
+import { investorOn } from './releases.js';
+import { LPS } from './data/programs.js';
 import { fullyDiluted } from './captable.js';
 import { DEV_PARTNERS } from './data/programs.js';
 import type { MarketId } from './data/markets.js';
@@ -54,7 +56,7 @@ export const ALLOCATOR = {
   },
   career: {
     /** Monthly salary as multiples of the city's cost of living. */
-    salaryCol: { dfi: 5, bank: 6 } as Record<'dfi' | 'bank', number>,
+    salaryCol: { dfi: 5, bank: 6, sovereign: 8 } as Record<'dfi' | 'bank' | 'sovereign', number>,
     hours: 60,
     /** Players need this many stars to be hired without an exit or an investor/banker past. */
     minStars: 3,
@@ -345,7 +347,7 @@ export function pledge(world: World, me: Player, causeId: string, amount: number
 // ---------------------------------------------------------------- careers
 
 export interface CareerOrg {
-  orgKind: 'dfi' | 'bank';
+  orgKind: 'dfi' | 'bank' | 'sovereign';
   orgId: Id;
   name: string;
   title: string;
@@ -355,7 +357,7 @@ export interface CareerOrg {
 /** Institutions hiring in your home city: development partners and lenders. */
 export function careerOrgs(world: World, p: Player): CareerOrg[] {
   const m = getMarket(world, p.market);
-  const pay = (k: 'dfi' | 'bank') => scale(col(m), ALLOCATOR.career.salaryCol[k]);
+  const pay = (k: 'dfi' | 'bank' | 'sovereign') => scale(col(m), ALLOCATOR.career.salaryCol[k]);
   const dfis = (DEV_PARTNERS[m.id] ?? [])
     .filter((d) => d.kind === 'dfi' || d.kind === 'foundation')
     .map((d) => ({
@@ -374,7 +376,20 @@ export function careerOrgs(world: World, p: Player): CareerOrg[] {
       title: 'Head of SME Banking',
       salary: pay('bank'),
     }));
-  return [...dfis.slice(0, 3), ...banks];
+  // Investor career Phase 9: the city's sovereign fund hires a managing director.
+  const sovereign = investorOn(world)
+    ? (LPS[m.id] ?? [])
+        .filter((l) => l.kind === 'sovereign')
+        .slice(0, 1)
+        .map((l) => ({
+          orgKind: 'sovereign' as const,
+          orgId: l.id,
+          name: l.name,
+          title: 'Managing Director',
+          salary: pay('sovereign'),
+        }))
+    : [];
+  return [...dfis.slice(0, 3), ...banks, ...sovereign];
 }
 
 /** Why you can't be hired yet (null: you can). */
@@ -392,7 +407,12 @@ export function careerBlocker(p: Player): string | null {
 }
 
 /** `career.join`: take an executive role at a DFI or bank in your city. */
-export function joinCareer(world: World, me: Player, orgKind: 'dfi' | 'bank', orgId?: Id) {
+export function joinCareer(
+  world: World,
+  me: Player,
+  orgKind: 'dfi' | 'bank' | 'sovereign',
+  orgId?: Id,
+) {
   const blocker = careerBlocker(me);
   if (blocker) fail('career.blocked', blocker);
   const orgs = careerOrgs(world, me).filter((o) => o.orgKind === orgKind);
@@ -439,7 +459,37 @@ export interface CareerDecision {
   choices: { id: 'impact' | 'safe'; label: string; effect: string }[];
 }
 
-const DECISIONS: Record<'dfi' | 'bank', CareerDecision[]> = {
+const DECISIONS: Record<'dfi' | 'bank' | 'sovereign', CareerDecision[]> = {
+  sovereign: [
+    {
+      id: 'swf-local',
+      text: 'The mandate allows a slice for local venture funds. They are young and unproven.',
+      choices: [
+        {
+          id: 'impact',
+          label: 'Back local managers',
+          effect: 'Better name and more contacts; no bonus.',
+        },
+        {
+          id: 'safe',
+          label: 'Stay in global funds',
+          effect: 'A performance bonus; no reputation gain.',
+        },
+      ],
+    },
+    {
+      id: 'swf-infra',
+      text: 'A port upgrade needs patient capital: low returns, many jobs.',
+      choices: [
+        {
+          id: 'impact',
+          label: 'Fund the port',
+          effect: 'Better name and more contacts; no bonus.',
+        },
+        { id: 'safe', label: 'Keep it liquid', effect: 'A performance bonus; no reputation gain.' },
+      ],
+    },
+  ],
   dfi: [
     {
       id: 'dfi-grant',

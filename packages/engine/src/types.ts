@@ -188,6 +188,8 @@ export interface Player {
     flight?: TicketFlight;
     /** Holiday with friends: booked on the host's flight for this holiday. */
     party?: { holidayId: Id };
+    /** Business or first (investor release). Missing = economy, as every ticket was. */
+    cabin?: 'business' | 'first';
   };
   id: Id;
   handle: string;
@@ -296,6 +298,18 @@ export interface Player {
   realised?: { currency: Currency; proceeds: number; gains: number; tax: number };
   /** Founder Journey 5, chapter 7: gifts, a career at a DFI or bank, a second company. */
   allocator?: PlayerAllocator;
+  /** Investor career (investor blueprint §2–3): the ladder, invitations, first session. Missing = none. */
+  career?: InvestorCareer;
+  /**
+   * Investor career Phase 4: as a limited partner. LP diligence done per fund
+   * (home month), and the month a missed capital call's ban on new
+   * commitments ends. Missing = none.
+   */
+  lp?: { diligence?: Record<Id, number>; banUntil?: number };
+  /** Investor career Phase 8: the deal pipeline and watchlist, by company. Missing = none. */
+  pipeline?: Record<Id, PipelineEntry>;
+  /** Investor career Phase 8: the month you last supported each portfolio company. */
+  support?: Record<Id, number>;
   /**
    * Golf (leisure.ts): rounds played at a city's golf club, your best and
    * latest score against par, and rounds this month (for who you meet).
@@ -310,6 +324,17 @@ export interface Player {
   };
   /** The mall (leisure.ts): the phone you bought there (cosmetic). Missing = the one you came with. */
   phone?: { tier: 1 | 2 | 3; paid: number; month: number };
+  /**
+   * The bigger mall: things you bought there and keep (shoes, jewellery,
+   * books …), newest last, and who gave it to you. Missing = none.
+   */
+  belongings?: { item: string; month: number; from?: Id }[];
+  /**
+   * Your wardrobe (wardrobe.ts): every wearable thing you bought or were
+   * given at the mall (a top in each colour you picked), oldest first, to
+   * put on again free. Missing = none (worlds before the investor release).
+   */
+  wardrobe?: { item: string; month: number; colour?: string; from?: Id }[];
 }
 
 // ---------------------------------------------------------------- Founder Journey 5: exits and the capital allocator
@@ -388,7 +413,8 @@ export interface Pledge {
 }
 
 export interface CareerRole {
-  orgKind: 'dfi' | 'bank';
+  /** Investor career Phase 9 adds the sovereign fund. */
+  orgKind: 'dfi' | 'bank' | 'sovereign';
   orgId: Id;
   orgName: string;
   title: string;
@@ -409,6 +435,111 @@ export interface PlayerAllocator {
   serial?: number;
 }
 
+// ---------------------------------------------------------------- the investor career
+
+/** The investor first session (blueprint §3), step by step. */
+export const INVESTOR_TUTORIAL_STEPS = [
+  'profile',
+  'investable',
+  'shortlist',
+  'first-call',
+  'term-sheet',
+  'portfolio',
+  'ladder',
+] as const;
+export type InvestorTutorialStep = (typeof INVESTOR_TUTORIAL_STEPS)[number];
+
+export interface InvestorTutorial {
+  /** Home month it started. */
+  startedMonth: number;
+  /** Steps acknowledged by the player (the ones nothing else marks done). */
+  seen: InvestorTutorialStep[];
+  /** The startup picked from the café's three. */
+  shortlist?: Id;
+  /** The three startups shown at the café, picked when the tutorial began. */
+  picks: Id[];
+  doneMonth?: number;
+  skipped?: boolean;
+}
+
+/** A qualified investor is invited up the ladder (blueprint §2.3, §10.3). */
+export interface CareerInvitation {
+  id: Id;
+  rung: number;
+  kind: 'co-lead' | 'anchor';
+  /** The AI angel (co-lead) or LP (anchor) making the offer. */
+  fromId: Id;
+  fromName: string;
+  /** Anchor: the commitment (local minor units of `currency`); co-lead: 0. */
+  amount: number;
+  currency: Currency;
+  month: number;
+  expiresMonth: number;
+  status: 'open' | 'accepted' | 'declined' | 'expired';
+}
+
+export interface InvestorCareer {
+  /** Rungs reached (1–8) with the home month each was reached. */
+  reached: Partial<Record<number, number>>;
+  invitations: CareerInvitation[];
+  /** An accepted co-lead: this AI angel backs your next syndicate. */
+  coLead?: { angelId: Id; name: string };
+  /** An accepted anchor: this LP commits to your Fund I. */
+  anchor?: { lpId: Id; name: string; amount: number; currency: Currency };
+  tutorial?: InvestorTutorial;
+  /** The rung pinned as the main objective (end of the first session). */
+  pinned?: number;
+}
+
+/** A backer's allocation in a syndicate: a player, or an AI angel's fund. */
+export interface SyndicateBacker {
+  /** The human backer, or null for an AI angel. */
+  playerId: Id | null;
+  /** The AI angel's fund (AI backers only). */
+  fundId?: Id;
+  name: string;
+  /** Allocation, in the syndicate's (company's) currency, minor units. */
+  amount: number;
+  /** Cash returned so far, after the lead's carry. */
+  returned: number;
+}
+
+/**
+ * A syndicate (SPV) led by an investor for one deal (blueprint §8.1,
+ * Phase 3): the lead and backers pool money in the syndicate's own account,
+ * which invests as one holder; exits pay backers pro rata after the lead's
+ * deal-by-deal carry on profit.
+ */
+export interface Syndicate {
+  id: Id;
+  name: string;
+  leadId: Id;
+  companyId: Id;
+  market: MarketId;
+  account: Id;
+  /** The lead's carry on backers' profits (0.15–0.2). */
+  carry: number;
+  /** The lead's own allocation. */
+  leadAmount: number;
+  /** What the lead wants to raise in total, lead included. */
+  target: number;
+  backers: SyndicateBacker[];
+  /** The terms the syndicate will offer the company. */
+  terms: { instrument: 'safe' | 'priced'; valuation: number; proRata: boolean; boardSeat: boolean };
+  status: 'open' | 'offered' | 'closed' | 'exited' | 'failed' | 'cancelled';
+  month: number;
+  /** Market month the allocation closes (backers can join until then). */
+  closesMonth: number;
+  dealId?: Id;
+  /** Amount invested in the company. */
+  invested: number;
+  /** Proceeds received from the company, and carry paid to the lead. */
+  proceeds: number;
+  carryPaid: number;
+  /** The lead's returned share (their allocation, no carry on it). */
+  leadReturned: number;
+}
+
 // ---------------------------------------------------------------- Friends (Wave 8)
 
 /** An invitation to visit a player's home: it lasts the host city's month it was sent in. */
@@ -421,6 +552,23 @@ export interface Visit {
   /** Host city month the invitation was sent (and, once accepted, the visit lasts). */
   month: number;
   status: 'pending' | 'accepted' | 'declined';
+}
+
+/**
+ * Shopping together (malltrips.ts): one player takes another (a player who
+ * says yes, or an AI friend who answers at once) to the mall in the city
+ * they're both in, for the month. Gifts bought there are listed.
+ */
+export interface MallTrip {
+  id: Id;
+  host: Id;
+  guest: Id;
+  market: MarketId;
+  /** The city's month: the outing lasts until it settles (or one of you leaves). */
+  month: number;
+  status: 'invited' | 'together' | 'declined' | 'ended';
+  createdAt: number;
+  gifts: { from: Id; to: Id; item: string; price: number }[];
 }
 
 /** Going out together: a venue in a city, the people asked and the people who came. */
@@ -1261,6 +1409,180 @@ export interface Fund {
   angelId?: Id;
   /** Wave 5: angel, VC, impact or corporate. Missing = derived (see fundInvestorType). */
   investorType?: InvestorType;
+  /**
+   * Investor career (Phases 4–6): terms, closes, LPs, capital calls, letters,
+   * reserves and marks for a fund raised the full way. Missing = an AI-LP
+   * fund paid in at once (Fund I's simple raise and every AI fund).
+   */
+  lp?: FundLpState;
+  /** The firm managing it (Phase 6). Missing = none. */
+  firmId?: Id;
+}
+
+/** The limited partnership agreement (blueprint §8.2, Phase 4). */
+export interface FundTerms {
+  /** Target size, local minor units. */
+  target: number;
+  /** Smallest LP commitment. */
+  minCommit: number;
+  feeRate: number;
+  /** Fee after the investment period. */
+  feeStepDown: number;
+  carry: number;
+  /** A yearly return LPs get before carry (0 = none). */
+  hurdle: number;
+  /** The GP's own commitment, as a share of the fund. */
+  gpCommit: number;
+  termMonths: number;
+  investMonths: number;
+  /** LPs can stop new investments if the GP leaves (key person). */
+  keyPerson: boolean;
+}
+
+export type FundStrategy = 'seed' | 'growth' | 'public' | 'impact' | 'fof';
+
+/** An LP's stake in a fund (players and AI LPs). */
+export interface LpCommitment {
+  id: Id;
+  /** A human LP, or null for an AI LP. */
+  playerId: Id | null;
+  /** The AI LP (data/programs.ts) or a player fund of funds. */
+  lpId?: Id;
+  name: string;
+  kind:
+    | 'player'
+    | 'pension'
+    | 'family-office'
+    | 'endowment'
+    | 'dfi-fof'
+    | 'sovereign'
+    | 'gp'
+    | 'fof'
+    | 'secondary';
+  /** A fund of funds that pays this commitment from its own account (Phase 7). */
+  fundId?: Id;
+  committed: number;
+  paidIn: number;
+  distributed: number;
+  month: number;
+  status: 'committed' | 'defaulted' | 'released' | 'sold';
+  anchor?: boolean;
+  /** Pay capital calls automatically when they fall due (player LPs). */
+  autopay?: boolean;
+  /** A call delayed once already (player LPs may ask for one short delay per call). */
+  delayed?: Id[];
+  /** Catch-up paid by a late LP (to the fund, for earlier LPs). */
+  catchUp?: number;
+}
+
+export interface CapitalCall {
+  id: Id;
+  commitmentId: Id;
+  amount: number;
+  month: number;
+  dueMonth: number;
+  status: 'due' | 'paid' | 'missed';
+}
+
+/** How an LP sees the GP (Phase 5): trust from letters, honesty and returns. */
+export interface LpRelation {
+  trust: number;
+  reup: boolean;
+  letters: number;
+}
+
+export interface FundLetter {
+  month: number;
+  nav: number;
+  tvpi: number;
+  dpi: number;
+  /** The GP wrote it honestly (marks at the model) or talked the book up. */
+  honest: boolean;
+  /** A rosy letter LPs later saw through (counted once). */
+  exposed?: boolean;
+  text: string;
+}
+
+export interface FundLpState {
+  /** Fund I, II… */
+  number: number;
+  strategy: FundStrategy;
+  terms: FundTerms;
+  stage: 'raising' | 'investing' | 'harvest' | 'extended' | 'wound-down' | 'failed';
+  openedMonth: number;
+  firstCloseMonth?: number;
+  finalCloseMonth?: number;
+  commitments: LpCommitment[];
+  calls: CapitalCall[];
+  /** Total paid in by LPs (and the GP). */
+  paidIn: number;
+  relations: Record<Id, LpRelation>;
+  letters: FundLetter[];
+  /** Earmarked for follow-ons, by company. */
+  reserves: Record<Id, number>;
+  /** Monthly NAV (Phase 5), oldest first, capped. */
+  marks: { month: number; nav: number }[];
+  /** Cash flows to LPs for IRR: −paid in, +distributed, by month. */
+  flows: { month: number; amount: number }[];
+  /** Deals waiting for or given investment committee approval. */
+  ic: {
+    dealKey: string;
+    companyId: Id;
+    amount: number;
+    status: 'pending' | 'approved' | 'rejected';
+    month: number;
+    votes: Record<Id, 'yes' | 'no'>;
+  }[];
+  /** A term extension being voted on by LPs. */
+  extension?: { month: number; status: 'open' | 'approved' | 'rejected' };
+  /** Advisory committee approvals for conflicts (Phase 7): members are commitment ids. */
+  lpac?: {
+    companyId: Id;
+    month: number;
+    status: 'pending' | 'approved' | 'rejected';
+    members: Id[];
+    votes: Record<Id, 'yes' | 'no'>;
+  }[];
+  /** Fees paid so far. */
+  feesPaid: number;
+  carryPaid: number;
+  /** Portfolio construction (Phase 5): companies planned, average first cheque, reserve ratio. */
+  plan?: { companies: number; avgCheque: number; reserveRatio: number };
+  /** Quarters for which a letter is due (home month the quarter ended), and the last one written. */
+  lettersDue?: number[];
+}
+
+/** A partner or associate in a firm (Phase 6). */
+export interface FirmMember {
+  id: Id;
+  name: string;
+  title: 'associate' | 'principal' | 'partner';
+  /** A human player, or null for an AI hire. */
+  playerId: Id | null;
+  /** Share of the firm's carry pool. */
+  carryShare: number;
+  /** Monthly salary, local minor units. */
+  salary: number;
+  hours: number;
+  month: number;
+  status: 'active' | 'left' | 'invited';
+  /** A partner asking for a bigger share of the carry pool (answer or they leave). */
+  ask?: { carryShare: number; month: number };
+}
+
+/** A firm (management company): fees from every fund, a team and a carry pool (Phase 6). */
+export interface Firm {
+  id: Id;
+  name: string;
+  ownerId: Id;
+  market: MarketId;
+  account: Id;
+  fundIds: Id[];
+  members: FirmMember[];
+  stars: StarState;
+  month: number;
+  /** Phase 9: the GP stepped back; the successor runs it and the founder keeps a carry share. */
+  succession?: { successorId: Id; month: number; founderCarry: number };
 }
 
 /** Cost basis of an investor in a company, for marks, DPI and write-offs. */
@@ -1271,6 +1593,99 @@ export interface Position {
   returned: number;
   month: number;
   writtenOff: boolean;
+  /** Investor career Phase 5: a pro-rata right from the terms. Missing = none. */
+  proRata?: boolean;
+  /** Investor career Phase 5: monthly marks (newest last, capped), with what set them. */
+  marks?: { month: number; value: number; source: 'round' | 'model' | 'listed' | 'exit' }[];
+}
+
+/** The deal pipeline (blueprint §6.2, Phase 8). */
+export const PIPELINE_STAGES = [
+  'sourced',
+  'screened',
+  'first-call',
+  'deep',
+  'term-sheet',
+  'negotiation',
+  'closed',
+  'passed',
+] as const;
+export type PipelineStage = (typeof PIPELINE_STAGES)[number];
+export const PASS_REASONS = ['team', 'market', 'traction', 'price', 'fit', 'timing'] as const;
+export type PassReason = (typeof PASS_REASONS)[number];
+
+export interface PipelineEntry {
+  companyId: Id;
+  stage: PipelineStage;
+  /** Home month it was added. */
+  month: number;
+  watch?: boolean;
+  passReason?: PassReason;
+  /** How it came in: a pitch, scouting, a co-investor, the café. */
+  source?: 'pitch' | 'scouting' | 'referral' | 'cafe' | 'manual';
+  /** Claims checked against game data (question id → result). */
+  claims?: Record<string, 'accurate' | 'slightly-off' | 'false'>;
+  /** Reference calls done (home month) and what they said. */
+  references?: { month: number; signals: string[] };
+  /** For watchlist nudges: the last round month seen. */
+  seenRaise?: number;
+}
+
+/** A founder's review of an investor after a round or an ending (Phase 8). */
+export interface InvestorReview {
+  id: Id;
+  founderId: Id;
+  investorId: Id;
+  companyId: Id;
+  rating: number;
+  text: string;
+  month: number;
+}
+
+/** A player-run accelerator (stored on the world). */
+export interface PlayerAccelerator {
+  id: Id;
+  ownerId: Id;
+  /** The fund that writes the cheques, or null for the owner's own money. */
+  fundId: Id | null;
+  name: string;
+  market: MarketId;
+  /** One cheque per company, local minor units, for `equityBps` of the company (SAFE cap). */
+  cheque: number;
+  equityBps: number;
+  month: number;
+  admitted: Id[];
+  demoDays: number;
+}
+
+/** An LP stake offered to another player (Phase 7), with the GP's consent. */
+export interface StakeOffer {
+  id: Id;
+  fundId: Id;
+  sellerId: Id;
+  /** The buying player, or null for an outside secondary buyer. */
+  buyerId: Id | null;
+  price: number;
+  month: number;
+  expiresMonth: number;
+  /** `awaiting-gp`: buyer and seller agree; the fund's GP approves or rejects the transfer. */
+  status: 'open' | 'awaiting-gp' | 'accepted' | 'declined' | 'rejected' | 'expired';
+}
+
+/** A pro-rata right offered when a company raises again (Phase 5). */
+export interface ProRataOffer {
+  id: Id;
+  companyId: Id;
+  /** The holder with the right: a player or a fund. */
+  holderId: Id;
+  amount: number;
+  instrument: 'safe' | 'priced';
+  /** SAFE: the round's cap. Priced: the round's price per share. */
+  cap: number;
+  price: number;
+  month: number;
+  expiresMonth: number;
+  status: 'open' | 'taken' | 'declined' | 'expired';
 }
 
 // ---------------------------------------------------------------- Deal cards
@@ -1291,6 +1706,8 @@ export interface InvestmentTerms {
   poolTopUpBps: number;
   /** A bridge SAFE offered to existing investors at a discount (rescue plan). */
   bridge?: boolean;
+  /** Investor career Phase 9: a place in a player-run accelerator comes with this SAFE. */
+  accelerator?: Id;
 }
 
 export interface CofounderTerms {
@@ -1355,7 +1772,7 @@ export type DealTerms =
 
 export interface PartyRef {
   /** 'bank' is the market's AI bank (id = market); 'playerbank' is a player-owned bank (id = bank id). */
-  kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company' | 'playerbank';
+  kind: 'player' | 'fund' | 'bank' | 'corporate' | 'company' | 'playerbank' | 'syndicate';
   id: Id;
   /** For 'bank': the named AI lender in that market (absent: the market's default bank). */
   lenderId?: Id;
@@ -1386,6 +1803,8 @@ export interface DealCard {
   expiresMonth: number;
   /** A board or shareholder vote this deal is waiting on (§9). */
   pendingVoteId?: Id | null;
+  /** Investor career Phase 8: an offer in a hot round, compared with others at month end. */
+  hot?: boolean;
   /** For AI counterparties: the most they will concede (hidden from players in views). */
   aiLimit?: {
     minValuation?: number;
@@ -1437,6 +1856,10 @@ export interface Pitch {
   dealId: Id | null;
   /** Amount the founder is raising, local minor units. */
   ask: number;
+  /** Investor career Phase 8: left unanswered past its month (counted once). */
+  ghosted?: boolean;
+  /** Investor career Phase 8: why the investor passed. */
+  passReason?: PassReason;
 }
 
 // ---------------------------------------------------------------- Media
@@ -1521,7 +1944,9 @@ export interface InboxItem {
       /** Wave 13: a home offered as a gift. */
       | 'gift'
       /** Holiday with friends: an invitation or an answer. */
-      | 'holiday';
+      | 'holiday'
+      /** Shopping together: an invitation to the mall, or a gift bought there. */
+      | 'mall';
     id: Id;
   };
   /** The other player this is about (a payment, a gift): their chat is where to act. */
@@ -1602,6 +2027,58 @@ export interface MarketState {
   propertyIndex?: { value: number; prev: number; month: number };
   /** Founder Journey 4a: named rivals per industry, for founders' companies here. */
   rivals?: Partial<Record<Industry, Rival[]>>;
+  /** Investor career Phase 2: the city exchange (index, index fund, benchmarks). Missing = none yet. */
+  exchange?: ExchangeState;
+  /** The real length of a game month (ms), from the last clock settlement (insider blackouts). */
+  monthMs?: number;
+}
+
+/**
+ * A city's stock exchange (investor blueprint §7.2, Phase 2): a cap-weighted
+ * price index with a divisor (continuous when companies list or leave), the
+ * city index fund (a real holder, `idx:<market>`, buying from the public
+ * float), and what each player's share buys would be worth in the index.
+ */
+export interface ExchangeState {
+  /** Index level (100 when the exchange opened) and last month's. */
+  level: number;
+  prevLevel: number;
+  history: number[];
+  /** Sum of market caps ÷ divisor = level. */
+  divisor: number;
+  /** Companies in the index (listed). */
+  constituents: Id[];
+  /** Index fund units per player, total units, and each player's cost basis. */
+  units: Record<Id, number>;
+  totalUnits: number;
+  unitCost: Record<Id, number>;
+  /** What each player's share buys would be worth in the index: index units bought at cost. */
+  bench: Record<Id, { units: number; since: number }>;
+  /** Realised gains and dividends from this exchange, per player (local minor units). */
+  realised: Record<Id, number>;
+  dividends: Record<Id, number>;
+  /** Shares bought this month per player and company (depth caps). */
+  bought: { month: number; by: Record<string, number> };
+  /** The index fund's fee owed in fractions of a share, by company (paid as whole shares). */
+  feeOwed?: Record<Id, number>;
+}
+
+/** A limit order, filled at a settlement if the price crosses (Phase 2). */
+export interface ShareOrder {
+  id: Id;
+  playerId: Id;
+  companyId: Id;
+  market: MarketId;
+  side: 'buy' | 'sell';
+  /** Buy: money to spend (company currency, minor). Sell: share of your holding, bps. */
+  amount: number;
+  /** Price per share (company currency minor units, fractional allowed). */
+  limit: number;
+  month: number;
+  expiresMonth: number;
+  status: 'open' | 'filled' | 'cancelled' | 'expired';
+  fill?: { month: number; price: number; shares: number };
+  reason?: string;
 }
 
 export interface Governor {
@@ -1791,6 +2268,8 @@ export interface World {
   visits?: Record<Id, Visit>;
   /** Wave 8: hangouts. Missing on old saves = none. */
   hangouts?: Record<Id, Hangout>;
+  /** Shopping together (malltrips.ts). Missing = none. */
+  mallTrips?: Record<Id, MallTrip>;
   /** Holiday with friends: trips abroad friends were invited on. Missing = none. */
   holidays?: Record<Id, Holiday>;
   /** Wave 10: every city's property market (listed and owned). Missing = seeded at the next settlement. */
@@ -1807,6 +2286,20 @@ export interface World {
   mentorships?: Record<Id, Mentorship>;
   /** Founder Journey 5: each city's giving fund (a real account). Missing = none yet. */
   charity?: Partial<Record<MarketId, Id>>;
+  /** Investor career Phase 3: syndicates. Missing = none. */
+  syndicates?: Record<Id, Syndicate>;
+  /** Investor career Phase 6: firms. Missing = none. */
+  firms?: Record<Id, Firm>;
+  /** Investor career Phase 2: limit orders on the stock market. Missing = none. */
+  orders?: Record<Id, ShareOrder>;
+  /** Investor career Phase 5: pro-rata offers when a portfolio company raises. Missing = none. */
+  prorata?: Record<Id, ProRataOffer>;
+  /** Investor career Phase 7: LP stakes offered to other players. Missing = none. */
+  stakeOffers?: Record<Id, StakeOffer>;
+  /** Investor career Phase 8: founders' reviews of investors. Missing = none. */
+  reviews?: Record<Id, InvestorReview>;
+  /** Investor career Phase 9: player-run accelerators. Missing = none. */
+  playerAccelerators?: Record<Id, PlayerAccelerator>;
 }
 
 // ---------------------------------------------------------------- Wave 10: a living economy

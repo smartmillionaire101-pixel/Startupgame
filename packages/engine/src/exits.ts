@@ -36,9 +36,12 @@ import { costIn, payExact, pay, transfer, valueIn, withTx, account } from './led
 import { clamp } from './math.js';
 import { formatMoney } from './money.js';
 import { deriveRng } from './rng.js';
+import { afterBuy, afterSell, checkBuy, checkSell } from './exchange.js';
+import { fundCanInvest } from './lpfunds.js';
+import { distributeFund } from './funds.js';
 import { applyStarEvent } from './stars.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
-import type { Company, Id, MarketState, Player, SecondaryOffer, World } from './types.js';
+import type { Company, Fund, Id, MarketState, Player, SecondaryOffer, World } from './types.js';
 
 /** Every exit threshold in one place (money in US dollars, converted per city). */
 export const EXITS = {
@@ -623,7 +626,7 @@ export const SEED_LISTINGS = 2;
  * there is something to buy before any founder gets there. No fees, no
  * lock-up (no human holders), no dice.
  */
-export function seedPublicMarket(world: World, marketId: string) {
+export function seedPublicMarket(world: World, marketId: string, count = SEED_LISTINGS) {
   const m = world.markets[marketId as MarketState['id']];
   if (!m) return 0;
   const listed = Object.values(world.companies).filter(
@@ -640,7 +643,7 @@ export function seedPublicMarket(world: World, marketId: string) {
     )
     .map((c) => ({ c, v: fairValue(world, c) }))
     .sort((a, b) => b.v - a.v || (a.c.id < b.c.id ? -1 : 1))
-    .slice(0, Math.max(0, SEED_LISTINGS - listed));
+    .slice(0, Math.max(0, count - listed));
   for (const { c } of candidates) {
     const ct = c.capTable;
     const fd = fullyDiluted(ct);
@@ -682,7 +685,14 @@ function getListed(world: World, companyId: Id): Company {
 }
 
 /** `shares.sell`: sell part of your holding to the market at today's price. */
-export function sellShares(world: World, me: Player, companyId: Id, bps: number) {
+export function sellShares(
+  world: World,
+  me: Player,
+  companyId: Id,
+  bps: number,
+  now?: number,
+  fundId?: Id,
+) {
   const c = getListed(world, companyId);
   const m = getMarket(world, c.market);
   const ipo = c.ipo!;
@@ -691,9 +701,13 @@ export function sellShares(world: World, me: Player, companyId: Id, bps: number)
     'shares.pct',
     'Pick how much to sell.',
   );
-  const holding = c.capTable.holdings[me.id];
+  // Investor career Phase 6: a crossover fund sells for its LPs.
+  const fund = fundId ? world.funds[fundId] : undefined;
+  ensure(!fundId || fund?.managerId === me.id, 'shares.fund', 'Trade for a fund you run.');
+  const holderId = fund?.id ?? me.id;
+  const holding = c.capTable.holdings[holderId];
   ensure(holding && holding.shares > 0, 'shares.none', 'You hold no shares in this company.');
-  const until = ipo.lockups?.[me.id] ?? 0;
+  const until = ipo.lockups?.[holderId] ?? 0;
   ensure(
     m.month >= until,
     'shares.locked',
@@ -701,25 +715,34 @@ export function sellShares(world: World, me: Player, companyId: Id, bps: number)
   );
   const shares = Math.floor((holding.shares * bps) / 10_000);
   ensure(shares > 0, 'shares.tiny', 'That is less than one share.');
+  checkSell(world, me, c, now);
   const price = ipo.price!;
   const gross = Math.round(shares * price);
   const fee = Math.round((gross * EXITS.ipo.brokerBps) / 10_000);
   const proceeds = gross - fee;
   ensure(proceeds > 0, 'shares.tiny', 'Too small to sell.');
-  const basisAll = ipo.basis?.[me.id] ?? 0;
+  const basisAll = ipo.basis?.[holderId] ?? 0;
   const basisSold = Math.round((basisAll * shares) / holding.shares);
   holding.shares -= shares;
   const pubId = `pub:${c.id}`;
   const pub = c.capTable.holdings[pubId];
   if (pub) pub.shares += shares;
   else c.capTable.holdings[pubId] = { shares, kind: 'investor' };
-  if (ipo.basis) ipo.basis[me.id] = basisAll - basisSold;
-  const pos = world.positions[`${me.id}:${c.id}`];
+  if (ipo.basis) ipo.basis[holderId] = basisAll - basisSold;
+  const pos = world.positions[`${holderId}:${c.id}`];
   if (pos) pos.returned += proceeds;
   // A big sale nudges the price down a little.
   const fd = fullyDiluted(c.capTable);
   ipo.price = Math.max(price * (1 - (0.5 * shares) / fd), price * 0.9);
   c.capTable.lastPrice = ipo.price;
+  if (fund) {
+    // The fund's cash goes to its LPs (then carry), like any exit.
+    withTx(world, { kind: 'sale' }, () =>
+      transfer(world, m.ext.lps, fund.account, proceeds, `Shares sold: ${c.name}`, m.month),
+    );
+    distributeFund(world, fund, proceeds, m.month);
+    return { shares, gross, fee, tax: 0, net: proceeds, gain: proceeds - basisSold };
+  }
   const paid = payShareSale(
     world,
     c,
@@ -728,6 +751,7 @@ export function sellShares(world: World, me: Player, companyId: Id, bps: number)
     basisSold,
     `Shares sold: ${c.name} (${bps / 100}% of your holding)`,
   );
+  afterSell(world, me, c, basisSold, proceeds - basisSold);
   if (c.founderIds.includes(me.id))
     achieve(world, me, 'founder.public-sale', 'Sold shares on the market', m.month);
   return { shares, gross, fee, ...paid };
@@ -740,7 +764,14 @@ const buyCost = (c: Company, shares: number) => {
 };
 
 /** `shares.buy`: buy about `amount` (company currency) of shares from the public float. */
-export function buyShares(world: World, me: Player, companyId: Id, amount: number) {
+export function buyShares(
+  world: World,
+  me: Player,
+  companyId: Id,
+  amount: number,
+  now?: number,
+  fundId?: Id,
+) {
   const c = getListed(world, companyId);
   const m = getMarket(world, c.market);
   const ipo = c.ipo!;
@@ -749,6 +780,10 @@ export function buyShares(world: World, me: Player, companyId: Id, amount: numbe
     'shares.insider',
     'Founders can’t trade their own company’s shares this way.',
   );
+  // Investor career Phase 6: a crossover fund buys listed shares for its LPs.
+  const fund = fundId ? crossoverFund(world, me, fundId, c.id) : undefined;
+  const holderId = fund?.id ?? me.id;
+  const from = fund?.account ?? me.accounts.local;
   const price = ipo.price!;
   const perShare = price * (1 + EXITS.ipo.brokerBps / 10_000);
   const pubId = `pub:${c.id}`;
@@ -760,28 +795,22 @@ export function buyShares(world: World, me: Player, companyId: Id, amount: numbe
     float > 0 ? 'Not enough for one share.' : 'No shares for sale right now.',
   );
   const cost = buyCost(c, shares);
-  const acc = account(world, me.accounts.local);
+  const acc = account(world, from);
   ensure(
     acc.balance >= costIn(world, cost, m.data.currency, acc.currency),
     'shares.funds',
-    'Not enough money in your account.',
+    fund ? `${fund.name} doesn’t have the money.` : 'Not enough money in your account.',
   );
-  payExact(
-    world,
-    me.accounts.local,
-    m.ext.lps,
-    cost,
-    `Shares bought: ${c.name}`,
-    m.month,
-    'invested',
-  );
+  // Investor career: insider blackouts and the monthly depth cap.
+  checkBuy(world, me, c, shares, now);
+  payExact(world, from, m.ext.lps, cost, `Shares bought: ${c.name}`, m.month, 'invested');
   c.capTable.holdings[pubId]!.shares -= shares;
-  const mine = c.capTable.holdings[me.id];
+  const mine = c.capTable.holdings[holderId];
   if (mine) mine.shares += shares;
-  else c.capTable.holdings[me.id] = { shares, kind: 'investor' };
-  (ipo.basis ??= {})[me.id] = (ipo.basis[me.id] ?? 0) + cost;
-  const pos = (world.positions[`${me.id}:${c.id}`] ??= {
-    investorId: me.id,
+  else c.capTable.holdings[holderId] = { shares, kind: 'investor' };
+  (ipo.basis ??= {})[holderId] = (ipo.basis[holderId] ?? 0) + cost;
+  const pos = (world.positions[`${holderId}:${c.id}`] ??= {
+    investorId: holderId,
     companyId: c.id,
     invested: 0,
     returned: 0,
@@ -789,8 +818,23 @@ export function buyShares(world: World, me: Player, companyId: Id, amount: numbe
     writtenOff: false,
   });
   pos.invested += cost;
+  afterBuy(world, me, c, shares, cost, !fund);
   achieve(world, me, 'investor.public-shares', 'Bought shares on the stock market', m.month);
   return { shares, cost, price };
+}
+
+/** A crossover (public-equity) fund the player runs, able to invest now. */
+function crossoverFund(world: World, me: Player, fundId: Id, companyId: Id): Fund {
+  const f = world.funds[fundId];
+  ensure(f && f.managerId === me.id, 'shares.fund', 'Trade for a fund you run.');
+  ensure(
+    f.lp?.strategy === 'public',
+    'shares.fund',
+    'Only a public-equity or crossover fund buys listed shares.',
+  );
+  const why = fundCanInvest(world, f, companyId);
+  ensure(!why || world.positions[`${f.id}:${companyId}`], 'fund.notInvesting', why ?? '');
+  return f;
 }
 
 /**

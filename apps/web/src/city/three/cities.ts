@@ -5,6 +5,7 @@
  * its trees, and the hills on its horizon. Real-world colours, not the 2D
  * map's cartoon ones.
  */
+import { nightLook, type NightLook } from './night';
 
 export interface CityLook {
   /** Low-rise walls: stucco, paint, brick. */
@@ -59,9 +60,12 @@ export interface CityLook {
   canopy?: [dark: string, light: string];
   /** What colour the haze is on the horizon (a humid coast's is warm and milky). */
   hazeTint?: string;
+  /** How it lights its night: lamps, windows, towers, the glow on the sky (night.ts). */
+  night: NightLook;
 }
 
 const BASE: CityLook = {
+  night: nightLook(''),
   walls: ['#ece6da', '#e3dccb', '#d8cfbd', '#efe9de', '#d9d4ca'],
   brick: ['#9a5a42', '#8a4b36'],
   stone: ['#c9c3b8', '#b8b2a7', '#d6d0c4', '#a9a49b'],
@@ -430,5 +434,8 @@ export const CITY_LOOKS: Record<string, CityLook> = {
     lat: -26.2,
   },
 };
+
+// Each city's night (the lamps, windows and towers it is known for).
+for (const [id, look] of Object.entries(CITY_LOOKS)) look.night = nightLook(id);
 
 export const cityLook = (marketId: string): CityLook => CITY_LOOKS[marketId] ?? BASE;

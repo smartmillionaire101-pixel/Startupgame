@@ -97,6 +97,39 @@ export interface FlightsView {
   /** One-way fare per destination, minor units of your home currency. */
   fareTo: Record<string, number>;
   hours: number;
+  /** Economy, business and first per destination (empty: the server sells economy only). */
+  cabinTo: Record<string, CabinOption[]>;
+}
+
+export type CabinTier = 'economy' | 'business' | 'first';
+export const CABIN_TIERS: readonly CabinTier[] = ['economy', 'business', 'first'];
+
+/** A cabin on a flight, as the server prices it for you. */
+export interface CabinOption {
+  cabin: CabinTier;
+  /** One way, minor units of your home currency. */
+  price: number;
+  affordable: boolean;
+  /** Hours the month loses to the airport. */
+  hours: number;
+  /** What landing does to you (energy, stress, fun). */
+  energy: number;
+  stress: number;
+  fun: number;
+  network: number;
+  lounge: boolean;
+  chauffeur: boolean;
+}
+
+function cabinsOf(x: unknown): CabinOption[] {
+  if (!Array.isArray(x)) return [];
+  return x.filter(
+    (c): c is CabinOption =>
+      isObj(c) &&
+      CABIN_TIERS.includes(c.cabin as CabinTier) &&
+      fin(c.price) &&
+      typeof c.affordable === 'boolean',
+  );
 }
 
 /** `view.flights` when the server has one-way flights (`travel.fly`). */
@@ -105,8 +138,18 @@ export function flightsOf(view: PlayerView): FlightsView | null {
   if (!isObj(f) || !isObj(f.fareTo)) return null;
   const fareTo: Record<string, number> = {};
   for (const [k, v] of Object.entries(f.fareTo)) if (fin(v)) fareTo[k] = v;
-  return { fareTo, hours: fin(f.hours) ? f.hours : 4 };
+  const cabinTo: Record<string, CabinOption[]> = {};
+  if (isObj(f.cabinTo))
+    for (const [k, v] of Object.entries(f.cabinTo)) {
+      const list = cabinsOf(v);
+      if (list.length === CABIN_TIERS.length) cabinTo[k] = list;
+    }
+  return { fareTo, hours: fin(f.hours) ? f.hours : 4, cabinTo };
 }
+
+/** Does the server sell business and first (the cabin goes on the ticket)? */
+export const sellsCabins = (view: PlayerView) =>
+  Object.keys(flightsOf(view)?.cabinTo ?? {}).length > 0;
 
 export interface Destination {
   id: string;
@@ -118,6 +161,8 @@ export interface Destination {
   done: boolean;
   /** Hotels for a stay there (none flying home, or from an older server). */
   hotels: HotelOption[];
+  /** Economy, business and first (none from an older server: economy only). */
+  cabins: CabinOption[];
 }
 
 export type HotelTier = 'budget' | 'business' | 'luxury';
@@ -187,6 +232,7 @@ export function destinationsOf(view: PlayerView): Destination[] {
       hours: 40,
       done: d.visitingNow,
       hotels: [],
+      cabins: [],
     }));
   const ids = [...names.keys()].filter((id) => id !== here);
   // Home first when you're away, then the rest as the server lists them.
@@ -198,6 +244,7 @@ export function destinationsOf(view: PlayerView): Destination[] {
     hours: flights.hours,
     done: false,
     hotels: id === homeId ? [] : hotelsOf(view, id),
+    cabins: flights.cabinTo[id] ?? [],
   }));
 }
 

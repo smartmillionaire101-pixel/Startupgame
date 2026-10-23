@@ -14,8 +14,9 @@ import { geoMetres, type GeoWorld } from '../geoLayout';
 import type { CityLayout, Place, Pt } from '../layout';
 import { cityLook, type CityLook } from './cities';
 import { GroundMask } from './mask';
-import { makeShared, facadeMaterial } from './materials';
+import { makeShared, facadeMaterial, setNightLook } from './materials';
 import { RoadIndex } from './roads';
+import { canvasJpeg } from '../../photos/snap';
 import {
   boxMeshes,
   bytes,
@@ -39,7 +40,14 @@ import { covered } from '../../three-kit/cover';
 import { applySky, skyAt, skyDome, skyEnvironment, skyUniforms, type SkyState } from './sky';
 import { canopyMeshes, forestSpots, treeMeshes, treeSpots, type TreeSpot } from './trees';
 import { buildLandmarks, EXTRA_3D, landmarkLights, type LandmarkPlan } from './landmarks';
-import { beacons, glowMaterial, glowPoints, glowUniforms, streetLamps } from './lights';
+import {
+  beacons,
+  glowMaterial,
+  glowPoints,
+  glowUniforms,
+  streetLamps,
+  towerCrowns,
+} from './lights';
 import { Actors } from './actors';
 import { loadTiles, type TileSet } from './tiles';
 import {
@@ -289,12 +297,14 @@ export class CityScene {
     this.scene.add(this.sun, this.sun.target, this.hemi);
     this.dome = skyDome(this.sky, 1);
     this.scene.add(this.dome);
+    setNightLook(this.shared, this.look.night);
     this.skyState = skyAt(
       this.hour,
       this.look.lat,
       this.look.haze,
       citySun(this.layout.marketId),
       this.look.hazeTint,
+      this.look.night.skyGlow,
     );
     this.applySky();
     this.dome.userData.noTerrain = true;
@@ -309,7 +319,7 @@ export class CityScene {
     this.mergedMat = facadeMaterial(this.shared, false);
 
     const plans = this.landmarkPlans();
-    const landmarks = buildLandmarks(plans, this.roads);
+    const landmarks = buildLandmarks(plans, this.roads, this.look.night.accent);
     const ground = buildGround(
       data,
       this.look,
@@ -469,9 +479,21 @@ export class CityScene {
       this.scene.add(canopyMeshes(forest, this.look.canopy));
     }
 
-    // Street lamps (night).
-    this.addNight(glowPoints(streetLamps(this.roads, high ? 40000 : 18000), this.glowMat));
+    // Street lamps (night): the streets around you first (a sky view: round the
+    // city's centre). They follow you across the city (refreshLamps).
+    const night = this.look.night;
+    const at = opts.sky ? { e: 0, s: 0 } : toMetres(layout.start);
+    this.lampsAt = { x: at.e, y: at.s };
+    this.lamps = glowPoints(
+      streetLamps(this.roads, high ? 40000 : 18000, night.lamps, this.lampsAt),
+      this.glowMat,
+    );
+    this.addNight(this.lamps);
     this.addNight(glowPoints(beacons(osm.fps), this.glowMat));
+    // Lit crowns on the towers, in the city's own accent (Dubai's gold).
+    this.addNight(
+      glowPoints(towerCrowns(osm.fps, night.accent, night.crowns, high ? 60 : 90), this.glowMat),
+    );
 
     // People and traffic.
     this.actors = new Actors(
@@ -984,6 +1006,7 @@ export class CityScene {
       this.look.haze,
       citySun(this.layout.marketId, this.sunTime ?? Date.now()),
       this.look.hazeTint,
+      this.look.night.skyGlow,
     );
     this.applySky();
     this.invalidate();
@@ -997,6 +1020,42 @@ export class CityScene {
     this.sunTime = at;
     this.hour = Number.NaN;
     this.setHour(hour);
+  }
+
+  /** How dark it is: 0 day … 1 night (for the map's `data-night`). */
+  get night() {
+    return this.skyState.night;
+  }
+
+  private lamps: THREE.Points | null = null;
+  private lampsAt = { x: 0, y: 0 };
+
+  /**
+   * The street lamps' budget goes to the streets round where you are: when
+   * the view has moved far from them (a ride across the city), relay them.
+   * Only at night, and at most once per few kilometres.
+   */
+  refreshLamps() {
+    if (this.opts.sky || this.skyState.night < 0.02 || !this.lamps) return;
+    const d = Math.hypot(this.rig.x - this.lampsAt.x, this.rig.y - this.lampsAt.y);
+    if (d < 2500) return;
+    this.lampsAt = { x: this.rig.x, y: this.rig.y };
+    const list = streetLamps(
+      this.roads,
+      this.opts.tier === 'high' ? 40000 : 18000,
+      this.look.night.lamps,
+      this.lampsAt,
+    );
+    const next = glowPoints(list, this.glowMat);
+    if (!next) return;
+    const old = this.lamps;
+    next.visible = old.visible;
+    old.parent?.add(next);
+    old.removeFromParent();
+    old.geometry.dispose();
+    this.nightSets[this.nightSets.indexOf(old)] = next;
+    this.lamps = next;
+    this.invalidate();
   }
 
   private applySky() {
@@ -1023,6 +1082,16 @@ export class CityScene {
   /** The canvas's size in CSS px (as last measured). */
   get viewSize() {
     return this.size;
+  }
+
+  /** A photo of the view right now, with a caption (the camera, ../../photos/snap.ts). */
+  snapshot(caption?: string): string | null {
+    try {
+      this.renderer.render(this.scene, this.camera);
+    } catch {
+      return null;
+    }
+    return canvasJpeg(this.renderer.domElement, { caption });
   }
 
   resize(w: number, h: number) {

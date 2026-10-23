@@ -8,13 +8,53 @@ import { backgroundById } from './data/characters.js';
 import { ensure } from './errors.js';
 import { achieve, getMarket, notify, usdToLocal } from './helpers.js';
 import { newId } from './ids.js';
-import { account, openAccount, pay, transfer } from './ledger.js';
+import { account, openAccount, pay, transfer, valueIn } from './ledger.js';
+import { investorOn } from './releases.js';
+import { distributeLpFund, lpFeeRate, payCarry } from './lpfunds.js';
+import { feeRecipient } from './firms.js';
 import { clamp, roundTo } from './math.js';
 import { formatMoney } from './money.js';
 import { newStars } from './stars.js';
 import type { Fund, Player, Stage, World } from './types.js';
 
 export const MIN_ANGEL_DEALS_FOR_FUND = 3;
+/** An anchor LP's commitment adds this to the panel's score. */
+export const ANCHOR_SCORE = 0.05;
+
+/** A public-market buy (no deal card behind it): the cost basis is all on the listing. */
+function publicOnly(world: World, investorId: string, companyId: string, invested: number) {
+  const basis = world.companies[companyId]?.ipo?.basis?.[investorId] ?? 0;
+  return basis > 0 && basis >= invested;
+}
+
+/**
+ * The investor career's track record: private deals you made personally (a
+ * listed share bought on the market isn't a deal) plus syndicates you led.
+ */
+export function angelRecord(world: World, p: Player) {
+  const pos = Object.values(world.positions).filter(
+    (x) => x.investorId === p.id && !publicOnly(world, x.investorId, x.companyId, x.invested),
+  );
+  const invested = pos.reduce((a, x) => a + x.invested, 0);
+  const returned = pos.reduce((a, x) => a + x.returned, 0);
+  const led = syndicatesLed(world, p.id);
+  return {
+    deals: pos.length + led.length,
+    invested,
+    returned,
+    dpi: invested > 0 ? roundTo(returned / invested, 2) : 0,
+    exits: pos.filter((x) => x.returned > 0 && !x.writtenOff).length,
+    writeOffs: pos.filter((x) => x.writtenOff).length,
+    syndicates: led.length,
+  };
+}
+
+/** Syndicates this player led that closed (Phase 3). */
+export function syndicatesLed(world: World, playerId: string) {
+  return Object.values(world.syndicates ?? {}).filter(
+    (s) => s.leadId === playerId && (s.status === 'closed' || s.status === 'exited'),
+  );
+}
 
 export function trackRecord(world: World, investorIds: string[]) {
   const pos = Object.values(world.positions).filter((p) => investorIds.includes(p.investorId));
@@ -28,6 +68,27 @@ export function trackRecord(world: World, investorIds: string[]) {
     exits: pos.filter((p) => p.returned > 0 && !p.writtenOff).length,
     writeOffs: pos.filter((p) => p.writtenOff).length,
   };
+}
+
+/**
+ * The AI LP panel's score (§7): background credibility, deals, cash
+ * returned, stars and a focused thesis, less write-offs. 0.42 raises Fund I.
+ */
+export function lpPanelScore(
+  p: Player,
+  record: { deals: number; dpi: number; writeOffs: number },
+  thesis: { sectors: unknown[]; stages: unknown[] },
+) {
+  const bg = backgroundById(p.backgroundId);
+  const focus = (thesis.sectors.length <= 2 ? 0.1 : 0) + (thesis.stages.length === 1 ? 0.05 : 0);
+  const score =
+    (bg?.lpCredibility ?? 0.3) * 0.35 +
+    Math.min(record.deals, 10) * 0.025 +
+    Math.min(record.dpi, 3) * 0.12 +
+    (p.stars.value / 5) * 0.2 +
+    focus -
+    record.writeOffs * 0.02;
+  return { score, focus };
 }
 
 export interface FundThesis {
@@ -55,22 +116,19 @@ export function raiseFund(world: World, p: Player, thesis: FundThesis, month: nu
     'fund.thesis',
     'Say why now and why you’ll win, in a line.',
   );
-  const record = trackRecord(world, [p.id]);
+  // The investor career: buying listed shares isn't a deal, syndicates you led are.
+  const record = investorOn(world) ? angelRecord(world, p) : trackRecord(world, [p.id]);
   ensure(
     record.deals >= MIN_ANGEL_DEALS_FOR_FUND,
     'fund.record',
     `AI LPs want at least ${MIN_ANGEL_DEALS_FOR_FUND} angel deals first. You have ${record.deals}.`,
   );
   const m = getMarket(world, p.market);
-  const bg = backgroundById(p.backgroundId);
-  const focus = (thesis.sectors.length <= 2 ? 0.1 : 0) + (thesis.stages.length === 1 ? 0.05 : 0);
-  const score =
-    (bg?.lpCredibility ?? 0.3) * 0.35 +
-    Math.min(record.deals, 10) * 0.025 +
-    Math.min(record.dpi, 3) * 0.12 +
-    (p.stars.value / 5) * 0.2 +
-    focus -
-    record.writeOffs * 0.02;
+  const anchor = investorOn(world) ? p.career?.anchor : undefined;
+  const panel = lpPanelScore(p, record, thesis);
+  const focus = panel.focus;
+  // An anchor LP makes the rest of the panel more willing (§8.2).
+  const score = panel.score + (anchor ? ANCHOR_SCORE : 0);
   if (score < 0.42) {
     notify(world, p.id, {
       month,
@@ -86,6 +144,13 @@ export function raiseFund(world: World, p: Player, thesis: FundThesis, month: nu
   const name = `${p.name.split(' ')[0]} Capital Fund I`;
   const accountId = openAccount(world, { currency: m.data.currency, market: m.id, label: name });
   transfer(world, m.ext.lps, accountId, size, 'LP commitments (Fund I)', month);
+  let total = size;
+  if (anchor) {
+    const amount = valueIn(world, anchor.amount, anchor.currency, m.data.currency);
+    transfer(world, m.ext.lps, accountId, amount, `Anchor commitment: ${anchor.name}`, month);
+    total += amount;
+    delete p.career!.anchor;
+  }
   const fund: Fund = {
     id,
     name,
@@ -99,7 +164,7 @@ export function raiseFund(world: World, p: Player, thesis: FundThesis, month: nu
     minStars: 0,
     mood: 1,
     account: accountId,
-    size,
+    size: total,
     vintageMonth: month,
     feeRate: 0.02,
     carry: 0.2,
@@ -113,7 +178,7 @@ export function raiseFund(world: World, p: Player, thesis: FundThesis, month: nu
   notify(world, p.id, {
     month,
     kind: 'system',
-    text: `AI LPs committed ${formatMoney(size, m.data.currency)} to ${name}.`,
+    text: `AI LPs committed ${formatMoney(total, m.data.currency)} to ${name}.`,
   });
   return { ok: true as const, score: roundTo(score, 2), fund };
 }
@@ -123,14 +188,26 @@ export function settleFundFees(world: World, f: Fund, month: number) {
   if (f.ai || !f.managerId) return;
   const manager = world.players[f.managerId];
   if (!manager) return;
+  // Investor career: a fund raised the full way pays from its first close, stepping down later.
+  if (f.lp && f.lp.stage !== 'investing' && f.lp.stage !== 'harvest' && f.lp.stage !== 'extended')
+    return;
   const m = getMarket(world, f.market);
-  const fee = Math.round((f.size * f.feeRate) / 12);
+  const fee = Math.round((f.size * lpFeeRate(world, f)) / 12);
+  // Investor career Phase 6: the fee goes to the firm, which pays the team and then the GP.
+  const firmAccount = feeRecipient(world, f);
+  if (firmAccount) {
+    const toFirm = Math.min(fee, account(world, f.account).balance);
+    transfer(world, f.account, firmAccount, toFirm, 'Management fee', month);
+    if (f.lp) f.lp.feesPaid += toFirm;
+    return;
+  }
   // Tax is withheld where the fund is; the rest reaches the manager (converted if they relocated).
   const paid = Math.min(fee, account(world, f.account).balance);
   const tax = Math.round(paid * m.data.tax.personalIncome);
   transfer(world, f.account, m.ext.tax, tax, 'Personal income tax (withheld)', month);
   pay(world, f.account, manager.accounts.local, paid - tax, 'Management fee', month);
   manager.lastMonth.income += paid;
+  if (f.lp) f.lp.feesPaid += paid;
 }
 
 /**
@@ -138,6 +215,8 @@ export function settleFundFees(world: World, f: Fund, month: number) {
  * money back first, then the manager earns carry on profits.
  */
 export function distributeFund(world: World, f: Fund, proceeds: number, month: number) {
+  // Investor career Phase 4: a fund with an LP book pays every LP pro rata, then carry.
+  if (f.lp) return distributeLpFund(world, f, proceeds, month);
   if (f.ai || !f.managerId) return;
   const m = getMarket(world, f.market);
   const before = f.distributed;
@@ -146,7 +225,8 @@ export function distributeFund(world: World, f: Fund, proceeds: number, month: n
   const profitAfter = Math.max(0, after - f.size);
   const carry = Math.round((profitAfter - profitBefore) * f.carry);
   const manager = world.players[f.managerId];
-  if (manager && carry > 0) {
+  if (manager && carry > 0 && f.firmId) payCarry(world, f, manager, carry, month);
+  else if (manager && carry > 0) {
     const tax = Math.round(carry * m.data.tax.capitalGains);
     transfer(world, f.account, m.ext.tax, tax, 'Capital gains tax on carry (withheld)', month);
     pay(world, f.account, manager.accounts.local, carry - tax, 'Carried interest', month);

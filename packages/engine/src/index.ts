@@ -31,7 +31,8 @@ export {
   clockView,
 } from './clock.js';
 export { FLIGHT_HOURS, MAX_FLIGHTS_PER_MONTH, MAX_RIDES_PER_MONTH, locationOf } from './travel.js';
-export type { RideMode, RideDistance } from './travel.js';
+export type { RideMode, RideDistance, CabinClass, CabinOption } from './travel.js';
+export { CABIN, CABIN_CLASSES, cabinFare, cabinEffects } from './travel.js';
 export {
   SEND_DAILY_LIMIT_COL,
   SEND_FEE_MIN_COL,
@@ -74,6 +75,10 @@ export {
   TOP_COLOURS,
   SKIN_MIX,
   appearanceSchema,
+  lookSchema,
+  WORN,
+  WORN_SLOTS,
+  REMOVABLE,
   appearanceSeed,
   defaultAppearance,
   fitAppearance,
@@ -89,6 +94,10 @@ export type {
   Glasses,
   Headwear,
   TopStyle,
+  Shoes,
+  WornSlot,
+  WornPart,
+  Removable,
 } from './appearance.js';
 export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';
 export { checkChatMessage, startersFor, CHAT_MAX_LENGTH } from './chat.js';
@@ -111,6 +120,8 @@ export {
   lifeBarsOn,
   JOBS_NOTE,
   jobsOn,
+  INVESTOR_NOTE,
+  investorOn,
   RELEASES,
 } from './releases.js';
 // Phase 3: life bars (energy, health, happiness, stress) and what trips cost.
@@ -130,7 +141,15 @@ export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';
 // The jobs rework: professional careers.
-export { WORK, FIELD_LABEL, SKILL_LABEL, whyText, levelGate, workOf } from './work.js';
+export {
+  WORK,
+  FIELD_LABEL,
+  SKILL_LABEL,
+  whyText,
+  levelGate,
+  workOf,
+  missingEmployers,
+} from './work.js';
 export {
   PROFESSIONS,
   PROFESSION_IDS,
@@ -197,11 +216,42 @@ export {
 } from './data/property.js';
 export type { Neighbourhood } from './data/property.js';
 export { CITY_DISTRICTS } from './data/businesses.js';
+// Places to eat of each city: cuisine, menu, room and price level.
+export {
+  ALL_FOOD_STYLES,
+  FOOD_LEVEL_PRICE,
+  FOOD_STYLES,
+  dishOf,
+  foodLevelOf,
+  foodStyleOf,
+  isDrinkItem,
+  isFoodPlaceKind,
+} from './data/cuisine.js';
+export type { FoodLevel, FoodPlace, FoodStyle, FoodTier } from './data/cuisine.js';
 export { LANDMARKS } from './data/landmarks.js';
 export type { LandmarkSeed } from './data/landmarks.js';
 // Golf and the mall.
-export { GOLF, MALL_ITEMS, MALL_SHOPS, PHONE_NAMES, golfCourse, mallItem } from './data/leisure.js';
-export type { GolfCourse, GolfHole, MallItem, MallShopId, PhoneTier } from './data/leisure.js';
+export {
+  GOLF,
+  MALL_ITEMS,
+  MALL_SHOPS,
+  MALL_SHOPS_FIRST,
+  MALL_TRIP,
+  PHONE_NAMES,
+  forWardrobe,
+  giftable,
+  golfCourse,
+  mallItem,
+  wearable,
+} from './data/leisure.js';
+export type {
+  BelongingKind,
+  GolfCourse,
+  GolfHole,
+  MallItem,
+  MallShopId,
+  PhoneTier,
+} from './data/leisure.js';
 export { BRANCH } from './branches.js';
 export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.js';
 // Wave 12: sky views and the quiz bank.
@@ -225,6 +275,47 @@ export {
   golfHandicap,
 } from './play.js';
 export type { GolfMatch, GolfMatchShot, GolfPlayer } from './play.js';
+export { POOL_AI_THINK, poolAiError, keeperSkill } from './play.js';
+export type { PoolCall, PoolShotLog, Penalty } from './play.js';
+export {
+  POOL_W,
+  POOL_H,
+  POOL_R,
+  POOL_CORNER,
+  POOL_SIDE,
+  POOL_HEAD_X,
+  POOL_HEAD,
+  POOL_FOOT,
+  POOL_POCKETS,
+  simulatePool,
+  poolSpeed,
+  poolPlan,
+  poolAim,
+  poolRack,
+  freeSpot,
+  inGroup,
+  groupOf,
+  rollDistance,
+  powerFor,
+} from './pool.js';
+export type { PoolBall, PoolEvent, PoolSim, PoolGroup, PoolPlan } from './pool.js';
+export {
+  GOAL_HALF,
+  GOAL_H,
+  FOOTBALL_R,
+  SPOT,
+  SHOOTOUT_KICKS,
+  SHOOTOUT_MAX_EACH,
+  DIVES,
+  laneOf,
+  keeperAt,
+  kickFlight,
+  resolveKick,
+  aiDive,
+  aiKick,
+  shootoutOver,
+} from './shootout.js';
+export type { Kick, KickOutcome, KickResult } from './shootout.js';
 export {
   JOURNEY,
   OBJECTIVE_KINDS,
@@ -233,6 +324,10 @@ export {
   deriveChapters,
   fundingSources,
   hasJourney,
+  hasAnyJourney,
+  hasInvestorJourney,
+  INVESTOR_CHAPTERS,
+  investorChapterMilestone,
   journeyView,
   pickObjective,
   type JourneyChapter,
@@ -270,3 +365,5 @@ export {
   type RecapRisk,
   type RecapView,
 } from './recap.js';
+// The investor career (investor blueprint): config, glossary and rungs.
+export { INVESTOR, RUNGS, GLOSSARY, type RungId } from './data/investor.js';

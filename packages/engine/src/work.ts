@@ -235,6 +235,18 @@ export function ensureEmployers(world: World, marketId: MarketId, month: number)
   }
 }
 
+/** True when a jobs world has a city whose professional employers aren't all open (an old world). */
+export function missingEmployers(world: World): boolean {
+  if (!jobsOn(world)) return false;
+  return Object.entries(world.markets).some(([id, m]) => {
+    const all = Object.values(businessesOf(m));
+    return (EMPLOYERS[id as MarketId] ?? []).some((seed) => {
+      const prof = professionById(seed.profession);
+      return prof && !all.some((b) => b.landmark === employerKey(prof) && isOpen(b));
+    });
+  });
+}
+
 function employerOf(world: World, me: Player, businessId: Id) {
   const m = getMarket(world, me.market);
   const b = m.businesses?.[businessId];

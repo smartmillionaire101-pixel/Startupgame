@@ -10,7 +10,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { useView } from '../store';
-import { destinationsOf } from './travel';
+import { destinationsOf, sellsCabins, type CabinTier } from './travel';
 import { flightPartyTo } from './companions';
 import {
   airportSchedule,
@@ -38,6 +38,11 @@ export interface Ticket {
   seat?: string;
   /** The hotel booked with the flight (from the server), when there is one. */
   hotel?: { tier: string; name: string; paid: number };
+  /**
+   * The cabin (from the server): business or first, or economy when the
+   * server sells cabins. Missing: an older server, economy only.
+   */
+  cabin?: CabinTier;
 }
 
 const KEY = 'runway.ticket';
@@ -114,6 +119,7 @@ export function useTicket(): Ticket | null {
     paid as { flight?: { airline?: string; number?: string; time?: string; gate?: string } }
   ).flight;
   const seat = flightPartyTo(view, paid.to)?.seat;
+  const cabin = paid.cabin ?? (sellsCabins(view) ? 'economy' : undefined);
   return {
     ...detail,
     ...(shown?.number
@@ -122,6 +128,7 @@ export function useTicket(): Ticket | null {
     ...(seat ? { seat } : {}),
     fare: paid.paid,
     hotel: hotel ?? undefined,
+    cabin,
   };
 }
 

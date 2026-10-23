@@ -3,6 +3,7 @@ import type { Command } from '../src/commands.js';
 import { createWorld } from '../src/world.js';
 import type { MarketId } from '../src/data/markets.js';
 import type { World } from '../src/types.js';
+import { INVESTOR_NOTE } from '../src/releases.js';
 
 export const T0 = Date.UTC(2026, 9, 3, 12, 0, 0);
 export const DAY = 86_400_000;
@@ -92,3 +93,12 @@ export function negativeInternalAccounts(world: World) {
 
 export const companyOf = (world: World, playerId: string) =>
   world.companies[world.players[playerId]!.companyIds[0]!]!;
+
+/** A world with the investor career switched on (the release note logged). */
+export function careerWorld(seed = 7, markets: MarketId[] = ['lagos']): World {
+  return run(makeWorld(seed, markets), null, {
+    type: 'system.announce',
+    id: INVESTOR_NOTE,
+    text: 'The investor career is here.',
+  }).world;
+}

@@ -28,10 +28,12 @@ import { useView } from '../../store';
 import { Segmented } from '../../ui';
 import { businessesOf, type BusinessView } from '../../city/contract';
 import { cuisineOf, FOOD_KINDS, mealAt, openAt, priceHint } from '../../city/eatout';
+import { foodStyleOf } from '../../city/cuisine';
 import { venueItemsOf, type VenueItemView } from '../../city/life';
 import { golfOf, mallOf, mallSpot } from '../../city/leisure';
 import { SHOP_ICON, SHOP_ORDER, shopName } from '../../city/mall/shops';
 import { genreOf, nightStyleOf, type NightStyle } from '../../city/nightlife';
+import { clubStyleOf } from '../../city/clubLook';
 import { outingOf, startOuting } from '../../city/outings';
 import { eventsOf } from '../../city/people';
 import { goToTechEvent } from '../../city/techevent';
@@ -280,6 +282,8 @@ interface Eatery {
   b: BusinessView;
   placeId: string;
   icon: string;
+  /** Its style id (../../city/cuisine.ts). */
+  style: string | null;
   line: string;
   price: 1 | 2 | 3 | null;
   /** Trading and within its hours. */
@@ -306,13 +310,16 @@ function EatOut({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layout
       const placeId = `biz:${b.id}`;
       const p = layout?.places.find((x) => x.id === placeId);
       if (layout && !p) continue;
-      const cuisine = cuisineOf(b.kind, b.name, cityId);
+      // The place's own style (./cuisine.ts): "Nigerian · Pepper soup joint".
+      const style = foodStyleOf({ market: cityId, id: b.id, kind: b.kind, name: b.name });
+      const cuisine = style?.cuisine ?? cuisineOf(b.kind, b.name, cityId);
       out.push({
         b,
         placeId,
         icon: k.icon,
+        style: style?.id ?? null,
         line: cuisine
-          ? t('{cuisine} · {type}', { cuisine: tx(cuisine), type: tx(k.type) })
+          ? t('{cuisine} · {type}', { cuisine: tx(cuisine), type: tx(style?.label ?? k.type) })
           : tx(k.type),
         price: priceHint(b.venue?.items, col),
         open: b.open && openAt(b.kind, hour),
@@ -352,6 +359,7 @@ function EatOut({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layout
             className={`going-venue${e.open ? '' : ' is-closed'}`}
             data-eat={e.placeId}
             data-kind={e.b.kind}
+            data-food-style={e.style ?? undefined}
             data-open={e.open ? '' : undefined}
           >
             <span className="going-venue-icon" aria-hidden="true">
@@ -435,7 +443,10 @@ function Tonight({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layou
   const venues = useMemo(() => {
     const out: Venue[] = [];
     for (const b of businessesOf(city)) {
-      const style = nightStyleOf({ market: cityId, id: b.id, kind: b.kind, name: b.name });
+      const style = clubStyleOf(
+        { market: cityId, id: b.id, kind: b.kind, name: b.name, district: b.district },
+        nightStyleOf({ market: cityId, id: b.id, kind: b.kind, name: b.name }),
+      );
       if (!style) continue;
       const placeId = `biz:${b.id}`;
       const p = layout?.places.find((x) => x.id === placeId);
@@ -491,6 +502,7 @@ function Tonight({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layou
                 data-venue={v.placeId}
                 data-kind={v.b.kind}
                 data-genre={genre.id}
+                data-club-look={v.style.club?.key}
               >
                 <span className="going-venue-icon" aria-hidden="true">
                   {VENUE_ICON[v.b.kind] ?? '🍸'}
@@ -505,7 +517,9 @@ function Tonight({ ctx, cityId, layout }: { ctx: PhoneCtx; cityId: string; layou
                     ) : null}
                   </span>
                   <span className="small muted">
-                    {tx(v.style.label)} · {t('Now playing · {genre}', { genre: tx(genre.label) })}
+                    {tx(v.style.label)}
+                    {v.style.club ? ` · ${tx(v.style.club.label)}` : ''} ·{' '}
+                    {t('Now playing · {genre}', { genre: tx(genre.label) })}
                   </span>
                 </span>
                 <button

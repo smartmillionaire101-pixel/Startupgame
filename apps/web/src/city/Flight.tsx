@@ -31,7 +31,7 @@ import { useView } from '../store';
 import { avatarLook } from './art';
 import { flightPartyTo } from './companions';
 import { useReducedMotion } from './CityMap';
-import { Cabin, cabinClassOf } from './acts/Cabin';
+import { Cabin, cabinFor } from './acts/Cabin';
 import { PlaneSide, type PlaneKind } from './airport/planes';
 import { genderOf } from './life';
 import { flavourOf } from './flavour';
@@ -240,6 +240,7 @@ export function FlightScene({
   toName,
   hours,
   airline,
+  cabin,
   status,
   note,
   onDone,
@@ -251,6 +252,8 @@ export function FlightScene({
   hours: number;
   /** The airline flying you, for the plane's colours. */
   airline?: string;
+  /** The cabin on your ticket (missing: an older server; the class follows your lifestyle). */
+  cabin?: 'economy' | 'business' | 'first';
   /** The server's answer: 'pending' keeps you at the gate until it comes. */
   status: 'pending' | 'ok';
   /** Shown on arrival with a Continue button (the fallback trip). */
@@ -268,9 +271,10 @@ export function FlightScene({
   const nightTo = useDaylight(to).night;
   const ferry = to === 'freetown';
   const realHours = flightHours(from, to, hours);
-  // Your own jet at the top of the lifestyle ladder; an airliner in the airline's colours otherwise.
-  const kind: PlaneKind =
-    cabinClassOf(view.me.lifestyle?.tier) === 'private' ? 'bizjet' : 'airliner';
+  // The cabin on your ticket; your own jet at the top of the lifestyle ladder; an
+  // airliner in the airline's colours otherwise.
+  const cls = cabinFor(view.me.lifestyle?.tier, cabin);
+  const kind: PlaneKind = cls === 'private' ? 'bizjet' : 'airliner';
   const livery = kind === 'bizjet' ? '#1e3a8a' : liveryOf(from, airline);
   // Holiday with friends: the ones on this flight sit next to you.
   const [party] = useState(() => flightPartyTo(view, to));
@@ -349,7 +353,7 @@ export function FlightScene({
               hours={realHours}
               kind={kind}
               livery={livery}
-              cls={cabinClassOf(view.me.lifestyle?.tier)}
+              cls={cls}
               still={reduced}
               onReady={() => setReady3d(true)}
               party={party}
@@ -375,6 +379,7 @@ export function FlightScene({
             still={reduced}
             dur={DUR.cruise}
             tier={view.me.lifestyle?.tier}
+            cabin={cabin}
             look={avatarLook(view.me.background?.id, view.me.id, genderOf(view.me))}
             party={party}
           />

@@ -72,8 +72,8 @@ function interview(w: World, appId: string, answers: number[], id = F) {
 }
 
 describe('jobs: the release switch', () => {
-  it('is the newest note and implies every earlier one', () => {
-    expect(RELEASES.at(-1)).toBe(JOBS_NOTE);
+  it('comes before the investor career note and implies every earlier one', () => {
+    expect(RELEASES.at(-2)).toBe(JOBS_NOTE);
     const w = { announcements: [JOBS_NOTE] } as unknown as World;
     expect(jobsOn(w)).toBe(true);
     expect(lifeBarsOn(w)).toBe(true);

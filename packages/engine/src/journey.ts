@@ -15,6 +15,7 @@
  * command log reaches the same world (plus the new milestones).
  */
 import { companyRunway } from './company.js';
+import { investorOn } from './releases.js';
 import { getMarket, lastPnl, totalCustomers, INBOX_LIMIT } from './helpers.js';
 import type { Currency } from './money.js';
 import type { Branch, Company, Id, Player, World } from './types.js';
@@ -74,6 +75,8 @@ export interface JourneyChapter {
 }
 
 export interface JourneyView {
+  /** Whose journey: a founder's seven chapters, or an investor's five. */
+  kind: 'founder' | 'investor';
   /** The current chapter's number (8 when all seven are done). */
   current: number;
   chapters: JourneyChapter[];
@@ -91,6 +94,24 @@ export const chapterMilestone = (n: number) => `founder.chapter-${n}`;
 export function hasJourney(p: Player): boolean {
   return !p.ai && (p.role === 'founder' || p.companyIds.length > 0);
 }
+
+/**
+ * Investors get the investor journey: the same chapters and "What to do now"
+ * prompts as founders, pointing at the investing the game already has (deal
+ * offers, the Invest and Capital apps, Fund I), then the investor career's
+ * later steps. It goes by the role you play, so an investor who once started
+ * (or sold) a company still follows the investor journey (player feedback:
+ * "the investor journey is that of a founder"). Investor-career worlds only.
+ */
+export function hasInvestorJourney(world: World, p: Player): boolean {
+  return !p.ai && p.role === 'investor' && investorOn(world);
+}
+
+/** Either journey: the one this player follows. */
+export const hasAnyJourney = (world: World, p: Player): boolean =>
+  hasJourney(p) || hasInvestorJourney(world, p);
+
+export const investorChapterMilestone = (n: number) => `investor.chapter-${n}`;
 
 // ---------------------------------------------------------------- facts
 
@@ -622,6 +643,158 @@ export const CHAPTERS: ChapterDef[] = [
   },
 ];
 
+// ---------------------------------------------------------------- the investor journey
+
+/** Companies backed with your own money, and from funds you manage. */
+function backed(world: World, p: Player): { personal: number; fund: number } {
+  const funds = new Set(
+    Object.values(world.funds)
+      .filter((f) => f.managerId === p.id)
+      .map((f) => f.id),
+  );
+  if (p.investor?.fundId) funds.add(p.investor.fundId);
+  const mine = new Set<Id>();
+  const viaFund = new Set<Id>();
+  for (const x of Object.values(world.positions)) {
+    if (x.investorId === p.id) mine.add(x.companyId);
+    else if (funds.has(x.investorId)) viaFund.add(x.companyId);
+  }
+  return { personal: mine.size, fund: viaFund.size };
+}
+
+function ownsListedShares(world: World, p: Player): boolean {
+  return (
+    p.milestones['investor.public-shares'] !== undefined ||
+    Object.values(world.companies).some(
+      (c) => c.ipo?.status === 'listed' && (c.capTable.holdings[p.id]?.shares ?? 0) > 0,
+    )
+  );
+}
+
+const portfolio = { kind: 'tab', tab: 'portfolio' } as JourneyGo;
+const deals = { kind: 'tab', tab: 'deals' } as JourneyGo;
+const invest = { kind: 'app', app: 'invest' } as JourneyGo;
+const ms = (p: Player, id: string) => p.milestones[id] !== undefined;
+
+export const INVESTOR_JOURNEY = {
+  angel: { deals: 3 },
+} as const;
+
+/** The investor's chapters: what's already in the game first, the investor career after. */
+export const INVESTOR_CHAPTERS: ChapterDef[] = [
+  {
+    id: 'first-cheque',
+    title: 'The First Cheque',
+    story: 'Find a startup you believe in and back it.',
+    steps: (world, p) => {
+      const b = backed(world, p);
+      return [
+        step('first-cheque.invest', 'Invest in a startup', invested(world, p), invest),
+        step(
+          'first-cheque.portfolio',
+          `Back ${INVESTOR_JOURNEY.angel.deals} startups`,
+          b.personal + b.fund >= INVESTOR_JOURNEY.angel.deals,
+          deals,
+          { progress: count(b.personal + b.fund, INVESTOR_JOURNEY.angel.deals) },
+        ),
+      ];
+    },
+  },
+  {
+    id: 'track-record',
+    title: 'The Track Record',
+    story: 'Help your companies grow and widen what you own.',
+    need: 1,
+    steps: (world, p) => [
+      step(
+        'track-record.follow-on',
+        'Back a company again',
+        ms(p, 'investor.first-follow-on'),
+        deals,
+        {
+          optional: true,
+        },
+      ),
+      step('track-record.board', 'Take a board seat', ms(p, 'investor.first-board-seat'), deals, {
+        optional: true,
+      }),
+      step('track-record.mentor', 'Mentor a startup', mentored(world, p), go.capital, {
+        optional: true,
+      }),
+      step(
+        'track-record.shares',
+        'Buy shares on the stock market',
+        ownsListedShares(world, p),
+        go.capital,
+        {
+          optional: true,
+        },
+      ),
+    ],
+  },
+  {
+    id: 'fund',
+    title: 'Fund I',
+    story: 'Invest other people’s money: fees and carry, and investors who expect returns.',
+    steps: (world, p) => [
+      step(
+        'fund.raise',
+        'Raise Fund I',
+        ms(p, 'investor.fund-1') || !!p.investor?.fundId,
+        portfolio,
+      ),
+      step('fund.invest', 'Invest from your fund', backed(world, p).fund > 0, deals),
+      step('fund.exit', 'Return money to your investors', ms(p, 'investor.first-exit'), portfolio, {
+        optional: true,
+      }),
+    ],
+  },
+  {
+    id: 'firm',
+    title: 'The Firm',
+    story: 'Lead syndicates, back other managers and build a firm that outlasts you.',
+    need: 1,
+    steps: (_world, p) => [
+      step('firm.syndicate', 'Lead a syndicate', ms(p, 'investor.first-syndicate'), portfolio, {
+        optional: true,
+      }),
+      step('firm.lp', 'Back another fund as an LP', ms(p, 'investor.first-lp'), portfolio, {
+        optional: true,
+      }),
+      step('firm.found', 'Found a firm', ms(p, 'investor.firm'), portfolio, { optional: true }),
+      step('firm.fund-2', 'Raise Fund II', ms(p, 'investor.fund-2'), portfolio, { optional: true }),
+    ],
+  },
+  {
+    id: 'legacy',
+    title: 'The Legacy',
+    story: 'Put your money and experience to work beyond your own returns.',
+    need: 1,
+    steps: (_world, p) => [
+      step('legacy.give', 'Give to a cause', (p.allocator?.pledges?.length ?? 0) > 0, go.capital, {
+        optional: true,
+      }),
+      step(
+        'legacy.role',
+        'Take a senior role at a DFI, a bank or a sovereign fund',
+        !!p.allocator?.career,
+        go.capital,
+        { optional: true },
+      ),
+      step('legacy.accelerator', 'Start an accelerator', ms(p, 'investor.accelerator'), portfolio, {
+        optional: true,
+      }),
+    ],
+  },
+];
+
+/** Which chapters this player follows, and how a completed one is recorded. */
+function journeyOf(world: World, p: Player) {
+  return hasInvestorJourney(world, p)
+    ? { kind: 'investor' as const, defs: INVESTOR_CHAPTERS, milestone: investorChapterMilestone }
+    : { kind: 'founder' as const, defs: CHAPTERS, milestone: chapterMilestone };
+}
+
 /** A chapter's steps are all there (or, with `need`, enough of them). */
 function complete(def: ChapterDef, steps: JourneyStep[]): boolean {
   if (def.need !== undefined) return steps.filter((s) => s.done).length >= def.need;
@@ -631,9 +804,10 @@ function complete(def: ChapterDef, steps: JourneyStep[]): boolean {
 /** The seven chapters for this player right now (without the stored prompts). */
 export function deriveChapters(world: World, p: Player, shared?: SharedFacts): JourneyChapter[] {
   const f = factsOf(world, p, shared);
-  const chapters = CHAPTERS.map((def, i): JourneyChapter => {
+  const { defs, milestone } = journeyOf(world, p);
+  const chapters = defs.map((def, i): JourneyChapter => {
     const n = i + 1;
-    const recorded = p.milestones[chapterMilestone(n)];
+    const recorded = p.milestones[milestone(n)];
     let steps = def.steps(world, p, f);
     const finished = recorded !== undefined || complete(def, steps);
     // Once a chapter is recorded, its needed steps stay ticked (revenue can dip).
@@ -656,7 +830,7 @@ export function deriveChapters(world: World, p: Player, shared?: SharedFacts): J
 }
 
 export function journeyView(world: World, p: Player): JourneyView | null {
-  if (!hasJourney(p)) return null;
+  if (!hasAnyJourney(world, p)) return null;
   const chapters = deriveChapters(world, p);
   const cur = chapters.find((c) => c.status === 'current');
   const main = chapters
@@ -668,6 +842,7 @@ export function journeyView(world: World, p: Player): JourneyView | null {
         .map((s) => ({ ...s, chapter: c.n })),
     );
   return {
+    kind: journeyOf(world, p).kind,
     current: cur?.n ?? chapters.length + 1,
     chapters,
     main,
@@ -738,20 +913,21 @@ export function chooseBootstrap(p: Player, on: boolean, month: number) {
  * no money, so it can't change how any other command plays out.
  */
 export function recordChapters(world: World, p: Player, shared?: SharedFacts): number[] {
-  if (!hasJourney(p)) return [];
+  if (!hasAnyJourney(world, p)) return [];
   const month = getMarket(world, p.market).month;
+  const { kind, milestone } = journeyOf(world, p);
   const chapters = deriveChapters(world, p, shared);
   const fresh = chapters.filter(
-    (c) => c.status === 'done' && p.milestones[chapterMilestone(c.n)] === undefined,
+    (c) => c.status === 'done' && p.milestones[milestone(c.n)] === undefined,
   );
   if (!fresh.length) return [];
   const list = (world.inbox[p.id] ??= []);
   for (const c of fresh) {
-    p.milestones[chapterMilestone(c.n)] = month;
+    p.milestones[milestone(c.n)] = month;
     const next = chapters.find((x) => x.status !== 'done');
     list.unshift({
       // A fixed id per chapter: the world's id counter is left alone.
-      id: `in_journey_${c.n}` as Id,
+      id: (kind === 'investor' ? `in_ijourney_${c.n}` : `in_journey_${c.n}`) as Id,
       month,
       kind: 'milestone',
       text: next
@@ -768,7 +944,7 @@ export function recordChapters(world: World, p: Player, shared?: SharedFacts): n
 export function recordChaptersAfterSettle(world: World, market: string) {
   const shared: SharedFacts = {};
   for (const p of Object.values(world.players)) {
-    if (!hasJourney(p)) continue;
+    if (!hasAnyJourney(world, p)) continue;
     const here =
       p.market === market || p.companyIds.some((id) => world.companies[id]?.market === market);
     if (here) recordChapters(world, p, shared);

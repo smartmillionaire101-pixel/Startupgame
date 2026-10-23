@@ -2,7 +2,7 @@
  * Settings: Simple mode (Phase 2), Reduce motion, Always skip rides, Sound and Language.
  */
 import { LANGS, setLang, t, useLang } from '../../i18n';
-import { setSetting, useSetting, type SettingKey } from '../settings';
+import { setSetting, useSetting, useSimpleAvailable, type SettingKey } from '../settings';
 import { setMapQuality, useMapQuality } from '../../city/three/quality';
 import { H, type PhoneCtx } from '../shared';
 
@@ -57,15 +57,19 @@ function MapQuality() {
 
 export function Settings(_: { ctx: PhoneCtx }) {
   const lang = useLang();
+  // Simple mode is for founders; investors and bankers always play the full game.
+  const simpleAvailable = useSimpleAvailable();
   return (
     <div className="phone-stack">
-      <section className="phone-card">
-        <Toggle
-          k="simple"
-          label={t('Simple mode')}
-          hint={t('Bigger text, words on every button, four tabs and one clear next step.')}
-        />
-      </section>
+      {simpleAvailable && (
+        <section className="phone-card">
+          <Toggle
+            k="simple"
+            label={t('Simple mode')}
+            hint={t('Bigger text, words on every button, four tabs and one clear next step.')}
+          />
+        </section>
+      )}
       <section className="phone-card">
         <Toggle
           k="reduceMotion"

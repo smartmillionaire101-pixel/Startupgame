@@ -73,7 +73,8 @@ describe('Wave 4 contracts, with fallbacks', () => {
       ['nairobi', 500_000, 40, true],
     ]);
     const flights = { fareTo: { london: 450_000, nairobi: 250_000 }, hours: 4 };
-    expect(flightsOf(viewOf({ flights }))).toEqual(flights);
+    // No cabins on sale from this server: economy only.
+    expect(flightsOf(viewOf({ flights }))).toEqual({ ...flights, cabinTo: {} });
     const atHome = destinationsOf(viewOf({ flights }));
     expect(atHome.map((d) => [d.id, d.fare, d.hours])).toEqual([
       ['london', 450_000, 4],
