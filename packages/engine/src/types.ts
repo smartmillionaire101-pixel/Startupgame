@@ -358,6 +358,8 @@ export interface Player {
   wardrobe?: { item: string; month: number; colour?: string; from?: Id }[];
   /** City places (places.ts): appointments, services used, visas and licences. Missing = none. */
   places?: PlayerPlaces;
+  /** Bankers note: the banker's first session. */
+  bankerTutorial?: BankerTutorial;
 }
 
 /** A government appointment: the place (`<market>:<role>`) and its time on the game clock. */
@@ -1398,7 +1400,8 @@ export interface Bank {
   market: MarketId;
   type: BankType;
   ownerId: Id;
-  status: 'applying' | 'licensed' | 'rejected' | 'failed';
+  /** `forming`: the bankers note's negotiation with shareholders, before signing. */
+  status: 'forming' | 'applying' | 'licensed' | 'rejected' | 'failed';
   /** Operating account; may run negative down to the liquidity limit. */
   account: Id;
   appliedMonth: number;
@@ -1424,6 +1427,121 @@ export interface Bank {
   thisMonth: { interest: number; fees: number; losses: number };
   /** Deals advised (investment banks' league table). */
   advised: number;
+  /** Bankers note (bankers.ts): the negotiation before signing (status `forming`). */
+  charter?: BankCharter;
+  /** Bankers note: who owns the bank and who controls it, once signed. */
+  shareholders?: BankShareholder[];
+  /** The founder's voting control (founder plus co-founders), basis points. */
+  controlBps?: number;
+  /** Board seats: the founder's side, and everyone (an independent chair included). */
+  board?: { founderSide: number; total: number };
+  /** Management performance shares that vest on milestones. */
+  vesting?: BankVesting[];
+  /** Bankers note: the licence process (approval in principle, then the final licence). */
+  licence?: BankLicence;
+  /** Conditions attached to an approval (lifted after `untilMonth`). */
+  conditions?: { lendingCap?: number; minCapitalRatio?: number; untilMonth: number };
+}
+
+export type BankOfferStyle = 'capital' | 'control' | 'strategic';
+export type BankCounterAsk = 'price' | 'seat' | 'voting';
+
+export interface BankCharter {
+  /** Your own capital, and the levers on the table. */
+  contribution: number;
+  /** Your shares carry three votes each. */
+  dualClass: boolean;
+  /** Performance shares for management, basis points of the bank if all vest (0–1500). */
+  performanceBps: number;
+  /** Offers (group ids) you've chosen to take. */
+  chosen: string[];
+  /** One counter-offer per group, and its answer. */
+  counters: Record<string, { ask: BankCounterAsk; accepted: boolean }>;
+  /** Co-investors invited as co-founders (players, or AI angels you know). */
+  invites: BankInvite[];
+  /** You changed a lever or countered (the tutorial's negotiate step). */
+  touched?: boolean;
+}
+
+export interface BankInvite {
+  playerId: Id;
+  name: string;
+  amount: number;
+  status: 'open' | 'accepted' | 'declined';
+  /** An AI angel answers at once. */
+  ai?: boolean;
+}
+
+export interface BankShareholder {
+  /** A player id, or `ai:<group>` for an investor group. */
+  id: string;
+  name: string;
+  kind: 'founder' | 'cofounder' | 'ai';
+  /** A player (founder or co-founder) is paid into their account; AI to the outside world. */
+  playerId?: Id;
+  /** Where an AI co-founder's dividends go (an AI angel's fund). */
+  account?: Id;
+  capital: number;
+  shares: number;
+  votes: number;
+  boardSeats: number;
+}
+
+export interface BankVesting {
+  milestone: 'licence' | 'profit' | 'size';
+  shares: number;
+  vestedMonth?: number;
+}
+
+export type BankKeyRole = 'ceo' | 'cro' | 'compliance' | 'aml';
+export type BankSystemId = 'basic' | 'standard' | 'premium';
+
+export interface BankHire {
+  /** A candidate id (`c0`…), or `self` (you run the bank as CEO). */
+  id: string;
+  name: string;
+  /** 0–100: how strong they look to the regulator. */
+  quality: number;
+  /** Monthly, local minor units, paid from the bank's account. */
+  salary: number;
+}
+
+export interface BankPlan {
+  segments: string[];
+  products: string[];
+  branches: number;
+  /** Loan book at the end of years 1–3 (local minor units). */
+  lending: [number, number, number];
+}
+
+export interface BankLicence {
+  /** Home month the review clock started (filing, or a re-application). */
+  filedMonth: number;
+  /** Game minute it was filed (the tracker's "day N of 60"). */
+  filedMin: number;
+  attempt: number;
+  interview?: { score: number; month: number; at: number; weakest: string | null };
+  plan?: BankPlan;
+  hires: Partial<Record<BankKeyRole, BankHire>>;
+  system?: BankSystemId;
+  branch?: { district: string; rent: number };
+  /** Approval in principle (home month). */
+  aip?: number;
+  /** AI companies signed up before opening. */
+  clients: Id[];
+  decision?: {
+    month: number;
+    outcome: 'approved' | 'conditions' | 'refused';
+    score: number;
+    reasons: string[];
+  };
+}
+
+/** The banker's first session (bankers note). */
+export interface BankerTutorial {
+  startedMonth: number;
+  doneMonth?: number;
+  skipped?: boolean;
 }
 
 // ---------------------------------------------------------------- Investors & funds

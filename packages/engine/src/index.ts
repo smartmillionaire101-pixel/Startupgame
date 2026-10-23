@@ -128,8 +128,28 @@ export {
   placesOn,
   MORE_GAMES_NOTE,
   moreGamesOn,
+  BANKERS_NOTE,
+  bankersOn,
   RELEASES,
 } from './releases.js';
+// Bankers: negotiating with shareholders, the licence process, the first session.
+export {
+  BANKERS,
+  BANK_INTERVIEW,
+  BANK_KEY_ROLES,
+  BANK_PRODUCTS,
+  BANK_SEGMENTS,
+  BANK_SYSTEMS,
+  BANKER_TUTORIAL_STEPS,
+  TYPE_FIT,
+  bankPlanChecks,
+  suggestedPlan,
+  type BankOffer,
+  type BankPlanInput,
+  type CapTablePreview,
+  type PlanCheck,
+  type PlanLevel,
+} from './bankers.js';
 // Investor deal flow: event pitches, investor talks and realistic LP pitches.
 export {
   strategyChecks,
@@ -385,6 +405,8 @@ export {
   hasJourney,
   hasAnyJourney,
   hasInvestorJourney,
+  hasBankerJourney,
+  BANKER_CHAPTERS,
   INVESTOR_CHAPTERS,
   investorChapterMilestone,
   journeyView,

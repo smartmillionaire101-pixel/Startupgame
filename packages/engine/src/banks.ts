@@ -345,6 +345,20 @@ export function assertCanLend(
     'bank.room',
     `${b.name} can’t lend that much right now (capital and reserve rules).`,
   );
+  // Bankers note: an approval with conditions caps lending, or asks for more capital, for a while.
+  const cond = b.conditions;
+  if (cond) {
+    ensure(
+      cond.lendingCap === undefined || f.loans + amount <= cond.lendingCap,
+      'bank.condition',
+      `${b.name}'s licence conditions cap its lending for now.`,
+    );
+    ensure(
+      cond.minCapitalRatio === undefined || f.equity >= (f.loans + amount) * cond.minCapitalRatio,
+      'bank.condition',
+      `${b.name}'s licence conditions ask for more capital behind its loans.`,
+    );
+  }
   // Lending out of deposits: allow the operating account to go negative within the reserve rule.
   account(world, b.account).overdraftLimit = f.liquidityLimit;
 }
@@ -466,6 +480,8 @@ export function settleBanks(world: World, market: string, rng: Rng, month: numbe
     const book = books.get(b.id)!;
     const owner = world.players[b.ownerId];
     if (b.status === 'applying') {
+      // Bankers note: the licence process decides (bankers.ts settleBankers).
+      if (b.licence) continue;
       if (month - b.appliedMonth < LICENCE_MONTHS) continue;
       const f = bankFigures(world, b, book);
       const need = scale(col(m), BANK_TYPES[b.type].minCapitalCol);

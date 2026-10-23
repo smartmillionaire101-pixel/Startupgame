@@ -88,6 +88,14 @@ export const PLACES_NOTE = 'release-2026-10-23-city-places';
  */
 export const MORE_GAMES_NOTE = 'release-2026-10-23-more-games';
 
+/**
+ * Bankers (banks.ts, bankers.ts): negotiating with shareholders, the licence
+ * process (fit-and-proper interview, business plan, key hires, systems and a
+ * branch), advisory work, conversations at banks and institutions, and the
+ * banker tutorial and journey. Worlds without this note play exactly as before.
+ */
+export const BANKERS_NOTE = 'release-2026-10-24-bankers';
+
 /** Every behaviour-switching note, oldest first. */
 export const RELEASES = [
   JOURNEY_EVENTS_NOTE,
@@ -98,6 +106,7 @@ export const RELEASES = [
   DEALFLOW_NOTE,
   PLACES_NOTE,
   MORE_GAMES_NOTE,
+  BANKERS_NOTE,
 ] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
@@ -114,3 +123,4 @@ export const investorOn = (w: World): boolean => releaseOn(w, INVESTOR_NOTE);
 export const dealflowOn = (w: World): boolean => releaseOn(w, DEALFLOW_NOTE);
 export const placesOn = (w: World): boolean => releaseOn(w, PLACES_NOTE);
 export const moreGamesOn = (w: World): boolean => releaseOn(w, MORE_GAMES_NOTE);
+export const bankersOn = (w: World): boolean => releaseOn(w, BANKERS_NOTE);

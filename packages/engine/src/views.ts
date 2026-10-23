@@ -1,4 +1,5 @@
 import { careerView } from './career.js';
+import { bankerView } from './bankers.js';
 import { exchangeView } from './exchange.js';
 import { syndicatesView } from './syndicates.js';
 import { lpFundsView } from './lpfunds.js';
@@ -720,6 +721,8 @@ export function playerView(
      * investment tracks, the first session and three prompts.
      */
     investorCareer: careerView(world, p),
+    /** Bankers note: the negotiation, the licence tracker and checklist, and the first session. */
+    banker: bankerView(world, p, clock?.now ?? p.lastActiveAt),
     /** Investor career Phase 2: every city's exchange, the index fund, your holdings and orders. */
     exchange: exchangeView(world, p, clock?.now),
     /** Investor career Phase 3: syndicates you lead, backed, or can back. */

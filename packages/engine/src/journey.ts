@@ -15,8 +15,11 @@
  * command log reaches the same world (plus the new milestones).
  */
 import { companyRunway } from './company.js';
-import { dealflowOn, investorOn } from './releases.js';
-import { getMarket, lastPnl, totalCustomers, INBOX_LIMIT } from './helpers.js';
+import { bankersOn, dealflowOn, investorOn } from './releases.js';
+import { BANK_TYPES, bankFigures } from './banks.js';
+import { BANKERS, currentBank, licenceMissing } from './bankers.js';
+import { placeId } from './places.js';
+import { col, getMarket, lastPnl, totalCustomers, INBOX_LIMIT } from './helpers.js';
 import type { Currency } from './money.js';
 import type { Branch, Company, Id, Player, World } from './types.js';
 import { STAGES } from './types.js';
@@ -42,7 +45,7 @@ export type JourneyGo =
   | { kind: 'place'; place: string }
   | {
       kind: 'tab';
-      tab: 'company' | 'money' | 'me' | 'portfolio' | 'deals';
+      tab: 'company' | 'money' | 'me' | 'portfolio' | 'deals' | 'bank';
       /** A section of that tab (the Company tab's Team, say). */
       section?: 'team' | 'roadmap';
     }
@@ -76,7 +79,7 @@ export interface JourneyChapter {
 
 export interface JourneyView {
   /** Whose journey: a founder's seven chapters, or an investor's five. */
-  kind: 'founder' | 'investor';
+  kind: 'founder' | 'investor' | 'banker';
   /** The current chapter's number (8 when all seven are done). */
   current: number;
   chapters: JourneyChapter[];
@@ -107,9 +110,20 @@ export function hasInvestorJourney(world: World, p: Player): boolean {
   return !p.ai && p.role === 'investor' && investorOn(world);
 }
 
-/** Either journey: the one this player follows. */
+/**
+ * Bankers get the banker journey (bankers note): the licence, opening,
+ * lending, trust and a banking group. It goes by the role you play, like the
+ * investor journey.
+ */
+export function hasBankerJourney(world: World, p: Player): boolean {
+  return !p.ai && p.role === 'banker' && bankersOn(world);
+}
+
+/** Any journey: the one this player follows. */
 export const hasAnyJourney = (world: World, p: Player): boolean =>
-  hasJourney(p) || hasInvestorJourney(world, p);
+  hasJourney(p) || hasInvestorJourney(world, p) || hasBankerJourney(world, p);
+
+export const bankerChapterMilestone = (n: number) => `banker.chapter-${n}`;
 
 export const investorChapterMilestone = (n: number) => `investor.chapter-${n}`;
 
@@ -818,11 +832,204 @@ export const INVESTOR_CHAPTERS: ChapterDef[] = [
   },
 ];
 
+// ---------------------------------------------------------------- the banker journey
+
+const bankTab = { kind: 'tab', tab: 'bank' } as JourneyGo;
+
+export const BANKER_JOURNEY = {
+  open: { customers: 100 },
+  loans: { bookCol: 10 },
+  trusted: { stars: 3.5, customers: BANKERS.sizeCustomers },
+  group: { capitalTimes: 3 },
+} as const;
+
+/** The bank a banker's journey talks about (the current one, else their latest licensed one). */
+function journeyBank(world: World, p: Player) {
+  return (
+    currentBank(world, p) ??
+    Object.values(world.banks)
+      .filter((b) => b.ownerId === p.id && b.licensedMonth !== null)
+      .sort((a, b) => b.appliedMonth - a.appliedMonth || (a.id < b.id ? 1 : -1))[0]
+  );
+}
+
+/** The banker's chapters (bankers note). */
+export const BANKER_CHAPTERS: ChapterDef[] = [
+  {
+    id: 'licence',
+    title: 'The Licence',
+    story: 'Raise the capital, convince the regulator and get your banking licence.',
+    steps: (world, p) => {
+      const b = journeyBank(world, p);
+      const licensed = !!b && b.licensedMonth !== null;
+      const missing = b ? licenceMissing(b) : [];
+      const applying = !!b && b.status !== 'forming';
+      return [
+        step('licence.found', 'Choose your bank’s name and licence', !!b, bankTab),
+        step('licence.sign', 'Negotiate with shareholders and sign', applying, bankTab),
+        step(
+          'licence.interview',
+          'Pass the fit-and-proper interview at the Central Bank',
+          licensed || (applying && !missing.includes('interview')),
+          { kind: 'place', place: `civic:${placeId(p.market, 'central-bank')}` },
+        ),
+        step(
+          'licence.plan',
+          'File your business plan',
+          licensed || (applying && !missing.includes('plan')),
+          bankTab,
+        ),
+        step(
+          'licence.team',
+          'Hire your key people',
+          licensed || (applying && !missing.some((x) => x.startsWith('hire.'))),
+          bankTab,
+        ),
+        step(
+          'licence.setup',
+          'Choose a core banking system and lease a branch',
+          licensed || (applying && !missing.includes('system') && !missing.includes('branch')),
+          bankTab,
+        ),
+        step('licence.granted', 'Get your licence', licensed, bankTab),
+      ];
+    },
+  },
+  {
+    id: 'open',
+    title: 'Open for Business',
+    story: 'Win depositors and price your bank.',
+    steps: (world, p) => {
+      const b = journeyBank(world, p);
+      const f = b && b.licensedMonth !== null ? bankFigures(world, b) : null;
+      return [
+        step('open.pricing', 'Set your pricing', ms(p, 'banker.pricing'), bankTab),
+        step(
+          'open.customers',
+          `Win ${BANKER_JOURNEY.open.customers} customers`,
+          (f?.customers ?? 0) >= BANKER_JOURNEY.open.customers,
+          bankTab,
+          { progress: count(f?.customers ?? 0, BANKER_JOURNEY.open.customers) },
+        ),
+      ];
+    },
+  },
+  {
+    id: 'loans',
+    title: 'First Loans',
+    story: 'Lend carefully and turn a profit.',
+    steps: (world, p) => {
+      const b = journeyBank(world, p);
+      const f = b && b.licensedMonth !== null ? bankFigures(world, b) : null;
+      const book = b
+        ? Math.round(col(getMarket(world, b.market)) * BANKER_JOURNEY.loans.bookCol)
+        : 0;
+      const currency = b ? getMarket(world, b.market).data.currency : undefined;
+      return [
+        step('loans.first', 'Make your first loans', (f?.loans ?? 0) > 0, bankTab),
+        step(
+          'loans.profit',
+          'Have a profitable month',
+          !!b && b.licensedMonth !== null && b.lastMonth.net > 0,
+          bankTab,
+        ),
+        step('loans.book', 'Grow the loan book', (f?.loans ?? 0) >= book && book > 0, bankTab, {
+          progress: {
+            have: Math.min(f?.loans ?? 0, book),
+            need: book,
+            ...(currency ? { currency } : {}),
+          },
+        }),
+      ];
+    },
+  },
+  {
+    id: 'trusted',
+    title: 'A Trusted Bank',
+    story: 'Earn the trust of customers and the regulator.',
+    steps: (world, p) => {
+      const b = journeyBank(world, p);
+      const f = b && b.licensedMonth !== null ? bankFigures(world, b) : null;
+      return [
+        step(
+          'trusted.stars',
+          `Reach a ${BANKER_JOURNEY.trusted.stars}★ rating`,
+          !!b && b.licensedMonth !== null && b.stars.value >= BANKER_JOURNEY.trusted.stars,
+          bankTab,
+        ),
+        step(
+          'trusted.customers',
+          `Serve ${BANKER_JOURNEY.trusted.customers} customers`,
+          ms(p, 'banker.1000-customers') || (f?.customers ?? 0) >= BANKER_JOURNEY.trusted.customers,
+          bankTab,
+          { progress: count(f?.customers ?? 0, BANKER_JOURNEY.trusted.customers) },
+        ),
+        step(
+          'trusted.dividend',
+          'Pay your shareholders a dividend',
+          ms(p, 'banker.first-dividend'),
+          bankTab,
+        ),
+        step(
+          'trusted.conditions',
+          'Run the bank with no licence conditions',
+          !!b && b.licensedMonth !== null && !b.conditions,
+          bankTab,
+          { optional: true },
+        ),
+      ];
+    },
+  },
+  {
+    id: 'group',
+    title: 'Banking Group',
+    story: 'Build a bank that matters: capital, reputation and a voice in the city.',
+    need: 1,
+    steps: (world, p) => {
+      const b = journeyBank(world, p);
+      const f = b && b.licensedMonth !== null ? bankFigures(world, b) : null;
+      const m = getMarket(world, p.market);
+      const need = b
+        ? Math.round(
+            col(getMarket(world, b.market)) *
+              BANK_TYPES[b.type].minCapitalCol *
+              BANKER_JOURNEY.group.capitalTimes,
+          )
+        : 0;
+      return [
+        step(
+          'group.capital',
+          `Grow capital to ${BANKER_JOURNEY.group.capitalTimes}× the minimum`,
+          !!f && need > 0 && f.equity >= need,
+          bankTab,
+          { optional: true },
+        ),
+        step('group.five-star', 'Earn a five-star rating', ms(p, 'banker.five-star'), bankTab, {
+          optional: true,
+        }),
+        step(
+          'group.governor',
+          'Become central bank governor',
+          m.governor?.playerId === p.id,
+          bankTab,
+          { optional: true },
+        ),
+      ];
+    },
+  },
+];
+
 /** Which chapters this player follows, and how a completed one is recorded. */
 function journeyOf(world: World, p: Player) {
-  return hasInvestorJourney(world, p)
-    ? { kind: 'investor' as const, defs: INVESTOR_CHAPTERS, milestone: investorChapterMilestone }
-    : { kind: 'founder' as const, defs: CHAPTERS, milestone: chapterMilestone };
+  if (hasInvestorJourney(world, p))
+    return {
+      kind: 'investor' as const,
+      defs: INVESTOR_CHAPTERS,
+      milestone: investorChapterMilestone,
+    };
+  if (hasBankerJourney(world, p))
+    return { kind: 'banker' as const, defs: BANKER_CHAPTERS, milestone: bankerChapterMilestone };
+  return { kind: 'founder' as const, defs: CHAPTERS, milestone: chapterMilestone };
 }
 
 /** A chapter's steps are all there (or, with `need`, enough of them). */
@@ -957,7 +1164,11 @@ export function recordChapters(world: World, p: Player, shared?: SharedFacts): n
     const next = chapters.find((x) => x.status !== 'done');
     list.unshift({
       // A fixed id per chapter: the world's id counter is left alone.
-      id: (kind === 'investor' ? `in_ijourney_${c.n}` : `in_journey_${c.n}`) as Id,
+      id: (kind === 'investor'
+        ? `in_ijourney_${c.n}`
+        : kind === 'banker'
+          ? `in_bjourney_${c.n}`
+          : `in_journey_${c.n}`) as Id,
       month,
       kind: 'milestone',
       text: next

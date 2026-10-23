@@ -117,7 +117,35 @@ import {
   startInvestorTutorial,
   tutorialCommand,
 } from './career.js';
-import { exitsOn, investorOn, jobsOn, lifeBarsOn, moreGamesOn, placesOn } from './releases.js';
+import {
+  bankersOn,
+  exitsOn,
+  investorOn,
+  jobsOn,
+  lifeBarsOn,
+  moreGamesOn,
+  placesOn,
+} from './releases.js';
+import {
+  addCapital,
+  answerCofounder,
+  bankInterview,
+  bankerTutorialCommand,
+  boardVeto,
+  counterOffer,
+  filePlan,
+  formBank,
+  hireKeyPerson,
+  inviteCofounder,
+  payBankDividend,
+  recordBankerTutorial,
+  setTerms,
+  setupBank,
+  signBank,
+  signClient,
+  startBankerTutorial,
+  withdrawBank,
+} from './bankers.js';
 import { bookAppointment, useService } from './places.js';
 import { bookAir, endFlight, ensureGameVenues, landJump } from './games.js';
 import { applyForJob, attendInterview, ensureEmployers } from './work.js';
@@ -347,6 +375,8 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
       if (who) recordChapters(draft as World, who as Player);
       // The investor career: rungs reached, invitations (investor-career worlds only).
       if (who) recordCareer(draft as World, who as Player);
+      // The banker's first session finishes on real acts (bankers worlds only).
+      if (who && bankersOn(draft as World)) recordBankerTutorial(draft as World, who as Player);
       if (command.type === 'market.settle' && investorOn(draft as World))
         for (const p of Object.values(draft.players))
           if (p.market === command.market) recordCareer(draft as World, p as Player);
@@ -470,6 +500,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     }
     welcomeNewPlayer(world, p, null);
     if (p.role === 'investor') startInvestorTutorial(world, p);
+    if (p.role === 'banker') startBankerTutorial(world, p);
     return { playerId: p.id, companyId: null };
   }
 
@@ -996,16 +1027,19 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return { dealId: deal.id, summary: deal.summary };
     }
     case 'bank.found': {
-      const bank = foundBank(world, me, {
-        name: cmd.name,
-        type: cmd.bankType,
-        contribution: cmd.contribution,
-      });
+      const args = { name: cmd.name, type: cmd.bankType, contribution: cmd.contribution };
+      // Bankers note: a bank is formed (negotiation first), not founded at once.
+      const bank = bankersOn(world) ? formBank(world, me, args) : foundBank(world, me, args);
+      if (bankersOn(world)) startBankerTutorial(world, me);
       if (me.role !== 'banker') achieve(world, me, 'any.role-switch', 'First role switch', month);
       return { bankId: bank.id };
     }
     case 'bank.policy': {
       const b = ownBank(world, me, cmd.bankId);
+      // Bankers note: without control, the AI board vetoes risky policy.
+      const veto = boardVeto(world, b, cmd);
+      if (veto) fail('bank.board', veto);
+      if (b.licence) achieve(world, me, 'banker.pricing', 'Set your pricing', month);
       if (cmd.loanSpreadPp !== undefined) b.policy.loanSpreadPp = cmd.loanSpreadPp;
       if (cmd.depositRateBps !== undefined) b.policy.depositRateBps = cmd.depositRateBps;
       if (cmd.accountFee !== undefined) b.policy.accountFee = cmd.accountFee;
@@ -1036,6 +1070,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         'bank.dividend',
         'Not enough surplus capital to pay that.',
       );
+      // Bankers note: paid by economic ownership to every shareholder.
+      if (b.shareholders) return payBankDividend(world, me, b, cmd.amount, month);
       const mine = Math.round((cmd.amount * b.ownerShareBps) / 10_000);
       transfer(world, b.account, me.accounts.local, mine, `${b.name} dividend`, month);
       transfer(
@@ -1052,6 +1088,43 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         message: `Dividend paid. Your share: ${formatMoney(mine - tax, m.data.currency)} after tax.`,
       };
     }
+    case 'bank.terms':
+      return setTerms(world, me, cmd.bankId, {
+        contribution: cmd.contribution,
+        bankType: cmd.bankType,
+        dualClass: cmd.dualClass,
+        performanceBps: cmd.performanceBps,
+        chosen: cmd.chosen,
+      });
+    case 'bank.counter':
+      return counterOffer(world, me, cmd.bankId, cmd.groupId, cmd.ask);
+    case 'bank.invite':
+      return inviteCofounder(world, me, cmd.bankId, cmd.playerId, cmd.amount);
+    case 'bank.join':
+      return answerCofounder(world, me, cmd.bankId, cmd.accept);
+    case 'bank.sign':
+      return signBank(world, me, cmd.bankId, ctx.now);
+    case 'bank.withdraw':
+      return withdrawBank(world, me, cmd.bankId);
+    case 'bank.capital':
+      return addCapital(world, me, cmd.bankId, cmd.amount);
+    case 'bank.interview':
+      return bankInterview(world, me, cmd.bankId, cmd.answers, ctx.now);
+    case 'bank.plan':
+      return filePlan(world, me, cmd.bankId, {
+        segments: cmd.segments,
+        products: cmd.products,
+        branches: cmd.branches,
+        lending: cmd.lending,
+      });
+    case 'bank.hire':
+      return hireKeyPerson(world, me, cmd.bankId, cmd.role, cmd.candidateId);
+    case 'bank.setup':
+      return setupBank(world, me, cmd.bankId, { system: cmd.system, district: cmd.district });
+    case 'bank.client':
+      return signClient(world, me, cmd.bankId, cmd.companyId);
+    case 'banker.tutorial':
+      return bankerTutorialCommand(world, me, cmd.action);
     case 'bank.review': {
       const b = getBank(world, cmd.bankId);
       ensure(b.ownerId !== me.id, 'bank.review', 'You can’t review your own bank.');
@@ -1771,8 +1844,12 @@ function createFromOnboarding(
     // Wave 6: savings doubled (12 months of runway), so the same capital is 40% of them;
     // the rest is there to live on.
     const contribution = Math.floor(account(world, p.accounts.local).balance * 0.4);
-    foundBank(world, p, { name: cmd.bank.name, type: cmd.bank.bankType, contribution });
+    const args = { name: cmd.bank.name, type: cmd.bank.bankType, contribution };
+    // Bankers note: the shareholders' offers wait to be negotiated.
+    if (bankersOn(world)) formBank(world, p, args);
+    else foundBank(world, p, args);
   }
+  if (p.role === 'banker') startBankerTutorial(world, p);
   welcomeNewPlayer(world, p, companyId);
   if (p.role === 'investor') startInvestorTutorial(world, p);
   return { playerId: p.id, companyId };

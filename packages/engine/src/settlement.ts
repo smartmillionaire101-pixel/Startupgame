@@ -36,6 +36,7 @@ import { settleDealCraft } from './dealcraft.js';
 import { settleFundOps, settlePositionMarks } from './fundops.js';
 import { settleVotes } from './governance.js';
 import { aiBanking, settleBanks } from './banks.js';
+import { settleBankers } from './bankers.js';
 import { settleDisputes } from './arbitration.js';
 import {
   aiProcurement,
@@ -197,6 +198,8 @@ export function settleMarket(
   const bankRng = deriveRng(world.seed, 'banks', marketId, month);
   aiBanking(world, marketId, bankRng);
   settleBanks(world, marketId, bankRng, month);
+  // Bankers note: key staff, branches, licence decisions and vesting (no dice).
+  settleBankers(world, marketId, month);
   // Each quarter the best human banker may become central bank governor (Wave 5).
   appointGovernor(world, marketId, month);
 
