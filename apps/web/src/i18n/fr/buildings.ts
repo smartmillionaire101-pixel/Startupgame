@@ -34,6 +34,7 @@ export const buildings: Record<string, string> = {
   'The board lights up when the market opens.': 'Le tableau s’allume à l’ouverture du marché.',
   Index: 'Indice',
   'No companies listed yet.': 'Aucune entreprise cotée pour l’instant.',
+  'Trade on the Markets screen': 'Passer des ordres dans l’écran Marchés',
   'Food for the week: +{n} hunger.': 'Des courses pour la semaine : +{n} faim.',
   'New {item}: in your wardrobe, and on you.':
     'Nouveau : {item}, dans votre garde-robe et sur vous.',

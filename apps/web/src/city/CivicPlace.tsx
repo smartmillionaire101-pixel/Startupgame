@@ -21,6 +21,7 @@ import { Button, Card, Pill } from '../ui';
 import { CIVIC_ICON } from './mapIcons';
 import { BankInterviewCard } from '../screens/BankLicence';
 import type { Place } from './layout';
+import { useNav } from '../phone/bus';
 
 type View = PlayerView;
 export type CivicView = NonNullable<View['market']['cityPlaces']>['places'][number];
@@ -421,6 +422,7 @@ function Consultation({ e, s }: { e: CivicView; s: Service }) {
 /** The Stock Exchange's price board: the index and the listed companies, live. */
 function PriceBoard() {
   const { view } = useView();
+  const nav = useNav();
   const city = view?.here?.id ?? view?.market.id;
   const ex = (view?.exchange?.markets ?? []).find((x) => x.market === city);
   const pct = (v: number) => `${v > 0 ? '▲' : v < 0 ? '▼' : '•'} ${Math.abs(v).toFixed(2)}%`;
@@ -443,6 +445,16 @@ function PriceBoard() {
           ))}
           {!ex.listings.length && <li className="muted">{t('No companies listed yet.')}</li>}
         </ul>
+      )}
+      {/* Investors trade on the Markets screen (under Portfolio). */}
+      {view?.me.role === 'investor' && nav && (
+        <Button
+          variant="secondary"
+          data-markets-link=""
+          onClick={() => nav.go({ kind: 'tab', tab: 'portfolio' })}
+        >
+          {t('Trade on the Markets screen')}
+        </Button>
       )}
     </Card>
   );
