@@ -405,13 +405,17 @@ function pick(
     if (s && out.length < max && !out.some((x) => x.placeId === s.placeId)) out.push(s);
   };
   const pocket = view.accounts.local?.balance ?? 0;
+  const has = opts.has ?? (() => true);
   const c: Ctx = {
     view,
-    biz: businessesOf(view).filter((b) => b.open),
+    // Only businesses the map has a door for: the golf club is the city's
+    // golf course (its own place, `golf`; see cityInput), so a `biz:` id
+    // for it would lead nowhere when tapped.
+    biz: businessesOf(view).filter((b) => b.open && b.kind !== 'golf-club' && has(`biz:${b.id}`)),
     pocket,
     seed: opts.seed ?? 0,
     recent: new Set(opts.recent ?? []),
-    has: opts.has ?? (() => true),
+    has,
   };
   const col = view.market.costOfLiving || 1;
   const broke = pocket < col * 0.5;
@@ -425,7 +429,7 @@ function pick(
 
   // 1. Low on money: a job (section A), else the best-paid shift.
   if (urgent && low && !myJobOf(view)) {
-    const job = jobsOf(view)[0];
+    const job = jobsOf(view).find((j) => c.biz.some((b) => b.id === j.businessId));
     if (job)
       add({
         kind: 'job',

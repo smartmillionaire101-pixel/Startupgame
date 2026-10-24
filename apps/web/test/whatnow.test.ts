@@ -294,4 +294,25 @@ describe('What to do now: variety and real places', () => {
     const s = suggestionsFor(view({}, {}, 10), 4, 19);
     expect(kinds(s)).not.toEqual(expect.arrayContaining(['dinner', 'cinema', 'drinks', 'fun']));
   });
+
+  it('only suggests businesses with a door on the map (the golf club is the golf course)', () => {
+    // Player-facing bug: a tap on "Tonight: Ikoyi Golf and Polo Club" went nowhere,
+    // since the golf club is the `golf` place, not a `biz:` building.
+    const polo = biz(
+      'golf1',
+      'golf-club',
+      [item('polo', 'Polo match', { fun: 10, meetChance: 1 })],
+      'hotel',
+    );
+    const v = view({}, { market: { ...view().market, businesses: [...CITY, polo] } });
+    const ids = (h: number, opts = {}) =>
+      [0, 1, 2, 3].flatMap((seed) =>
+        suggestionsFor(v, 6, h, { seed, ...opts }).map((x) => x.placeId),
+      );
+    for (const h of [8, 13, 19, 23]) expect(ids(h)).not.toContain('biz:golf1');
+    // On the City, a business the map left out is never suggested either.
+    const has = (id: string) => id !== 'biz:club1';
+    expect(ids(23, { has })).not.toContain('biz:club1');
+    expect(ids(23)).toContain('biz:club1');
+  });
 });

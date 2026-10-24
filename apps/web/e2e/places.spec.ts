@@ -73,6 +73,12 @@ test('walk into a restaurant: a full scene with people, and buy a meal from the 
 });
 
 test('"What to do now" taps through, on the City and on Today', async ({ page }) => {
+  // What comes up follows the city's local time of day (morning breakfast, day
+  // work, evening events and dinner, a night out at night), and some picks open
+  // something other than a building (home, a sky view, the Event Hall). Pin the
+  // clock to 22:00 in Lagos: a night out at a venue comes first, which you walk
+  // into, on the City and again on Today.
+  await page.clock.setFixedTime(new Date('2026-10-20T21:00:00Z'));
   await founder(page, 'Bisi Nowish');
   // Wave 7: a one-line chip on the map; tapping it opens the suggestions as a sheet.
   const chip = page.locator('.hud-whatnow-chip');
@@ -83,6 +89,8 @@ test('"What to do now" taps through, on the City and on Today', async ({ page })
   await expect(card).toBeVisible();
   const items = card.locator('.whatnow-btn');
   expect(await items.count()).toBe(3);
+  await expect(card.locator('.whatnow-list')).toHaveAttribute('data-daypart', 'night');
+  await expect(items.first()).toHaveAttribute('data-suggestion', 'fun');
   await items.first().click();
   await expect(card).toBeHidden();
   // You walk (or cycle) there and go in.
@@ -102,7 +110,10 @@ test('"What to do now" taps through, on the City and on Today', async ({ page })
   await nav.getByRole('button', { name: /^Today/ }).click();
   const home = page.locator('section.card').filter({ hasText: 'What to do now' });
   await expect(home).toBeVisible();
-  await home.locator('.whatnow-btn').first().click();
+  // A night out again (the venue you just went to steps back), with a door on the map.
+  const tonight = home.locator('.whatnow-btn').first();
+  await expect(tonight).toHaveAttribute('data-suggestion', 'fun');
+  await tonight.click();
   await expect(nav.getByRole('button', { name: 'City', exact: true })).toHaveAttribute(
     'aria-current',
     'page',
