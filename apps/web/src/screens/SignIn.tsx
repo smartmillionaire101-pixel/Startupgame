@@ -3,14 +3,17 @@ import { LANGS, setLang, t, tx, useLang } from '../i18n';
 import { useGame } from '../store';
 import { Button } from '../ui';
 import { EmailLinkForm } from './Account';
-import { Onboarding } from './Onboarding';
+import { Onboarding, type JoinRole } from './Onboarding';
 
 /** Quick registration or an email link to an existing game. */
 export function SignIn({
   startLogin = false,
+  joinAs,
   onBack,
 }: {
   startLogin?: boolean;
+  /** The role picked on the landing page (Join as starts on it). */
+  joinAs?: JoinRole;
   /** Back to the landing page (when there is one). */
   onBack?: () => void;
 }) {
@@ -56,7 +59,7 @@ export function SignIn({
         <h1>{t('Build, invest and grow.')}</h1>
         <p>{t('Real startup lessons. No real-world losses.')}</p>
       </div>
-      {!login && <Onboarding embedded />}
+      {!login && <Onboarding embedded joinAs={joinAs} />}
       <section className="card">
         {login ? (
           <>

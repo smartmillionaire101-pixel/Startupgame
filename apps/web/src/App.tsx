@@ -14,7 +14,7 @@ import { money, moneyExact } from './format';
 import { t } from './i18n';
 import { SignIn } from './screens/SignIn';
 import { shouldShowLanding } from './landing/seen';
-import { Onboarding } from './screens/Onboarding';
+import { Onboarding, type JoinRole } from './screens/Onboarding';
 import { Home } from './screens/Home';
 import { CompanyScreen, openCompanyTab } from './screens/Company';
 import { MoneyScreen } from './screens/Money';
@@ -118,16 +118,22 @@ export function App() {
   const { status, view } = useGame();
   // Signed out: the landing page first (once), then sign-up or log in.
   const [entry, setEntry] = useState<Entry>(() => (shouldShowLanding() ? 'landing' : 'signup'));
+  // A role card on the landing page opens sign-up with that role chosen.
+  const [joinAs, setJoinAs] = useState<JoinRole | undefined>();
   // Each step past the landing page is a history entry: Back (the browser's,
   // or sign-up's own) comes back to the landing page.
-  const goEntry = (to: Entry) => {
-    window.history.pushState({ runwayEntry: to }, '');
+  const goEntry = (to: Entry, role?: JoinRole) => {
+    window.history.pushState({ runwayEntry: to, runwayRole: role }, '');
     setEntry(to);
+    setJoinAs(role);
   };
   useEffect(() => {
     if (!shouldShowLanding()) return;
-    const onPop = (e: PopStateEvent) =>
-      setEntry((e.state as { runwayEntry?: Entry } | null)?.runwayEntry ?? 'landing');
+    const onPop = (e: PopStateEvent) => {
+      const st = e.state as { runwayEntry?: Entry; runwayRole?: JoinRole } | null;
+      setEntry(st?.runwayEntry ?? 'landing');
+      setJoinAs(st?.runwayRole);
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
@@ -162,12 +168,13 @@ export function App() {
       {status === 'signedOut' &&
         (entry === 'landing' ? (
           <Suspense fallback={null}>
-            <Landing onPlay={() => goEntry('signup')} onLogIn={() => goEntry('login')} />
+            <Landing onPlay={(role) => goEntry('signup', role)} onLogIn={() => goEntry('login')} />
           </Suspense>
         ) : (
           <SignIn
-            key={entry}
+            key={`${entry}-${joinAs ?? ''}`}
             startLogin={entry === 'login'}
+            joinAs={joinAs}
             onBack={shouldShowLanding() ? () => window.history.back() : undefined}
           />
         ))}

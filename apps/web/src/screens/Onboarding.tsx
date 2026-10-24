@@ -12,6 +12,8 @@ import { markNewPlayer } from '../tutorial/state';
 import '../tutorial/tutorial.css';
 
 type Gender = 'female' | 'male';
+/** The three careers you can join as. */
+export type JoinRole = 'founder' | 'investor' | 'banker';
 
 /** Founder Journey 6: the founder backgrounds offered on the entry screen. */
 const FOUNDER_CHOICES = ['f-engineer', 'f-consultant', 'f-dropout', 'f-banker'];
@@ -62,14 +64,21 @@ function backgroundModifiers(b: Background): string[] {
  * Who you are (name, sex), where you build (the city) and how you play, on one
  * screen: everything else lives in Me → Profile.
  */
-export function Onboarding({ embedded = false }: { embedded?: boolean }) {
+export function Onboarding({
+  embedded = false,
+  joinAs = 'founder',
+}: {
+  embedded?: boolean;
+  /** The role Join as starts on (a role card on the landing page picks it). */
+  joinAs?: JoinRole;
+}) {
   const { account, meta, refresh, toast } = useGame();
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender | null>(null);
   const [market, setMarket] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState(account?.email ?? account?.pendingEmail ?? '');
-  const [role, setRole] = useState<'founder' | 'investor' | 'banker'>('founder');
+  const [role, setRole] = useState<JoinRole>(joinAs);
   const [background, setBackground] = useState('f-engineer');
   const [outfit, setOutfit] = useState<string | null>(null);
   // Phase 6a: a random look to start from (the creator is optional); once you

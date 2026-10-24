@@ -6,9 +6,17 @@
   --ld-teal: #0f766e;
   --ld-coral: #ff6b5b;
   --ld-cream: #fff8ec;
+  /* What changes in dark mode: the page, cards, text and outlines. */
+  --ld-bg: var(--ld-cream);
+  --ld-bar: rgb(255 248 236 / 0.9);
+  --ld-surface: #fff;
+  --ld-text: var(--ld-ink);
+  --ld-muted: #3d5552;
+  --ld-line: var(--ld-ink);
+  --ld-link: var(--ld-teal);
   min-height: 100vh;
-  background: var(--ld-cream);
-  color: var(--ld-ink);
+  background: var(--ld-bg);
+  color: var(--ld-text);
   font-family: 'Space Grotesk', system-ui, sans-serif;
   overflow-x: hidden;
 }
@@ -29,7 +37,7 @@
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: rgb(255 248 236 / 0.9);
+  background: var(--ld-bar);
   backdrop-filter: blur(10px);
 }
 .ld-brand {
@@ -46,7 +54,7 @@
 }
 .ld-langs {
   display: flex;
-  border: 2px solid var(--ld-ink);
+  border: 2px solid var(--ld-line);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -55,23 +63,23 @@
   min-height: 36px;
   border: 0;
   background: transparent;
-  color: var(--ld-ink);
+  color: var(--ld-text);
   font: inherit;
   font-weight: 700;
   font-size: 0.8rem;
   cursor: pointer;
 }
 .ld-langs button[aria-pressed='true'] {
-  background: var(--ld-ink);
-  color: #fff;
+  background: var(--ld-text);
+  color: var(--ld-bg);
 }
 .ld-login {
   min-height: 40px;
   padding: 0 1rem;
-  border: 2px solid var(--ld-ink);
+  border: 2px solid var(--ld-line);
   border-radius: 999px;
-  background: #fff;
-  color: var(--ld-ink);
+  background: var(--ld-surface);
+  color: var(--ld-text);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -106,8 +114,11 @@
   font-size: clamp(2.4rem, 11vw, 4.4rem);
   font-weight: 800;
 }
-.ld-hero h1 span {
+.ld-hero h1 .ld-sun {
   color: var(--ld-sun);
+}
+.ld-hero h1 .ld-whole {
+  white-space: nowrap;
 }
 .ld-hero-text > p {
   margin: 1rem 0 1.4rem;
@@ -193,7 +204,7 @@
 .ld-cities {
   overflow: hidden;
   padding: 1rem 0;
-  border-block: 3px solid var(--ld-ink);
+  border-block: 3px solid var(--ld-line);
   margin: 2rem 0 0;
   background: var(--ld-coral);
 }
@@ -249,11 +260,11 @@
   place-items: center;
   width: 56px;
   height: 56px;
-  border: 3px solid var(--ld-ink);
+  border: 3px solid var(--ld-line);
   border-radius: 18px;
-  background: #fff;
+  background: var(--ld-surface);
   font-size: 1.8rem;
-  box-shadow: 0 4px 0 var(--ld-ink);
+  box-shadow: 0 4px 0 var(--ld-line);
   transform: rotate(-4deg);
 }
 .ld-feature h2 {
@@ -266,17 +277,17 @@
   max-width: 28rem;
   font-size: 1.05rem;
   line-height: 1.5;
-  color: #3d5552;
+  color: var(--ld-muted);
 }
 
 /* ---- How it works */
 .ld-steps {
   margin: 0 1rem;
   padding: 2rem 1.25rem;
-  border: 3px solid var(--ld-ink);
+  border: 3px solid var(--ld-line);
   border-radius: 28px;
-  background: #fff;
-  box-shadow: 0 8px 0 var(--ld-ink);
+  background: var(--ld-surface);
+  box-shadow: 0 8px 0 var(--ld-line);
   max-width: 760px;
 }
 .ld-steps h2 {
@@ -319,11 +330,11 @@
   gap: 0.15rem;
   font-size: 1rem;
   line-height: 1.4;
-  color: #3d5552;
+  color: var(--ld-muted);
 }
 .ld-steps li strong {
   font-size: 1.15rem;
-  color: var(--ld-ink);
+  color: var(--ld-text);
 }
 
 /* ---- The last call */
@@ -352,14 +363,14 @@
   align-items: center;
   gap: 0.75rem;
   padding: 2rem 1rem 2.5rem;
-  color: #3d5552;
+  color: var(--ld-muted);
   font-size: 0.95rem;
 }
 .ld-link {
   min-height: 44px;
   border: 0;
   background: none;
-  color: var(--ld-teal);
+  color: var(--ld-link);
   font: inherit;
   font-weight: 700;
   text-decoration: underline;
@@ -494,4 +505,200 @@
   .ld-feature.is-flip .ld-turn {
     order: 2;
   }
+}
+
+/* ---- Three careers: cards you swipe on a phone, three across on a wide screen */
+.ld-roles {
+  padding: 2.5rem 0 0.5rem;
+  text-align: center;
+}
+.ld-roles > h2 {
+  padding: 0 1rem;
+  font-size: clamp(1.9rem, 8vw, 2.8rem);
+  font-weight: 800;
+}
+.ld-roles > p {
+  margin: 0.6rem auto 0;
+  padding: 0 1rem;
+  max-width: 30rem;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  color: var(--ld-muted);
+}
+.ld-roles-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(78%, 300px);
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding: 0.25rem 1rem 1.25rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 0 1rem;
+  scrollbar-width: none;
+}
+.ld-roles-row::-webkit-scrollbar {
+  display: none;
+}
+.ld-role {
+  --ld-role: var(--ld-coral);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 3px solid var(--ld-line);
+  border-radius: 24px;
+  overflow: hidden;
+  background: var(--ld-surface);
+  color: var(--ld-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  scroll-snap-align: start;
+  box-shadow: 0 6px 0 var(--ld-line);
+  transition:
+    transform 0.1s,
+    box-shadow 0.1s;
+}
+.ld-role.is-investor {
+  --ld-role: var(--ld-sun);
+}
+.ld-role.is-banker {
+  --ld-role: #14958a;
+}
+.ld-role:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 var(--ld-line);
+}
+.ld-role:focus-visible {
+  outline: 3px solid var(--ld-coral);
+  outline-offset: 3px;
+}
+.ld-role-shot {
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-bottom: 3px solid var(--ld-line);
+  background: var(--ld-role);
+}
+.ld-role-shot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+.ld-role-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.1rem 1.2rem;
+}
+.ld-role-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+.ld-role-text {
+  flex: 1;
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--ld-muted);
+}
+.ld-role-cta {
+  align-self: flex-start;
+  margin-top: 0.3rem;
+  padding: 0.55rem 1rem;
+  border: 2px solid var(--ld-ink);
+  border-radius: 14px;
+  background: var(--ld-role);
+  color: var(--ld-ink);
+  font-weight: 800;
+}
+.ld-role.is-banker .ld-role-cta {
+  color: #fff;
+}
+
+/* ---- Two phones in one picture */
+.ld-duo {
+  position: relative;
+  width: min(310px, 84vw);
+  aspect-ratio: 310 / 430;
+}
+.ld-feature .ld-duo .ld-phone {
+  position: absolute;
+}
+.ld-feature .ld-duo .ld-duo-front {
+  left: 0;
+  top: 0;
+  width: 60%;
+  transform: rotate(-4deg);
+  z-index: 1;
+}
+.ld-feature .ld-duo .ld-duo-back {
+  right: 0;
+  top: 9%;
+  width: 54%;
+  transform: rotate(6deg);
+}
+.ld-feature.is-flip .ld-duo .ld-duo-front {
+  left: auto;
+  right: 0;
+  transform: rotate(4deg);
+}
+.ld-feature.is-flip .ld-duo .ld-duo-back {
+  right: auto;
+  left: 0;
+  transform: rotate(-6deg);
+}
+.ld-steps li:nth-child(4) b {
+  background: var(--ld-ink);
+}
+
+@media (min-width: 760px) {
+  .ld-roles-row {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, 1fr);
+    max-width: 1000px;
+    margin-left: auto;
+    margin-right: auto;
+    overflow: visible;
+  }
+  .ld-feature .ld-duo {
+    justify-self: center;
+    width: 360px;
+  }
+  .ld-feature.is-flip .ld-duo {
+    order: 2;
+  }
+}
+
+/* ---- Dark mode: the page at night, with the same chunky shapes */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .landing {
+    --ld-bg: #0d1716;
+    --ld-bar: rgb(13 23 22 / 0.88);
+    --ld-surface: #16231f;
+    --ld-text: #f3ede4;
+    --ld-muted: #a9bdb8;
+    --ld-line: #3d5f59;
+    --ld-link: #5eead4;
+  }
+  :root:not([data-theme='light']) .ld-hero,
+  :root:not([data-theme='light']) .ld-final {
+    background:
+      radial-gradient(circle at 15% 10%, rgb(255 176 32 / 0.28), transparent 45%),
+      linear-gradient(160deg, #0f766e 0%, #0b5f59 50%, #072f2c 100%);
+  }
+  :root:not([data-theme='light']) .ld-steps li:nth-child(4) b {
+    background: #5eead4;
+    color: var(--ld-ink);
+  }
+}
+:root[data-theme='dark'] .landing {
+  --ld-bg: #0d1716;
+  --ld-bar: rgb(13 23 22 / 0.88);
+  --ld-surface: #16231f;
+  --ld-text: #f3ede4;
+  --ld-muted: #a9bdb8;
+  --ld-line: #3d5f59;
+  --ld-link: #5eead4;
 }

@@ -236,11 +236,14 @@ test('a lifestyle your savings can’t cover is greyed and asks before you switc
   // Put nearly all your savings into the company: Lavish no longer fits a month.
   const v = await state(page);
   const keep = 1_500_000_00;
-  await command(page, {
+  const r = await command(page, {
     type: 'company.inject',
     companyId: v.companies[0].id,
     amount: Math.max(0, (v.accounts.local.balance as number) - keep),
   });
+  expect(r.status, r.body).toBe(200);
+  // The deployed site has no live push: reload so the picker sees the new savings.
+  await page.reload();
   const phone = await openApp(page, 'settings');
   await phone.locator('[data-open-lifestyle]').click();
   const picker = page.getByRole('dialog', { name: 'Lifestyle' });
