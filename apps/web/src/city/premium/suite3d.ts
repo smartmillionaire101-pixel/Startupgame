@@ -1121,8 +1121,9 @@ export class SuiteWorld {
           c.root.rotation.y = Math.PI;
           pose(c, 'drink', t, { seat: 0.46, phase: 1 });
         } else {
-          c.root.position.set(-1.25, 0, p.bulkhead - 1.3);
-          c.root.rotation.y = Math.PI * 0.85;
+          // At the bar's far end (the eye looks along it from the near end).
+          c.root.position.set(0.4, 0, p.bulkhead - 1.3);
+          c.root.rotation.y = -Math.PI * 0.8;
           pose(c, 'chat', t, { phase: 2 });
         }
       } else {
@@ -1164,9 +1165,9 @@ export class SuiteWorld {
     const want = walking
       ? { yaw: you.heading + Math.PI, pitch: 0.42, dist: 2.2 }
       : you.goal === 'bar'
-        ? { yaw: 0.5, pitch: 0.45, dist: 1.6 }
+        ? { yaw: -1.15, pitch: 0.4, dist: 1.9 }
         : you.goal === 'spa'
-          ? { yaw: -0.35, pitch: 0.45, dist: 1.5 }
+          ? { yaw: -0.6, pitch: 0.85, dist: 2.0 }
           : this.seatView();
     const k = clamp(dt * 2.2);
     this.cam.yaw = turn(this.cam.yaw, want.yaw, k);
