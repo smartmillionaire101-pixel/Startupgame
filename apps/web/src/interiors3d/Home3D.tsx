@@ -354,6 +354,8 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     stage.sun.position.set(h.centre.x - 14, 30, h.centre.z + 8);
     stage.sun.target.position.copy(h.centre);
     stage.canvas.dataset.kind = plan.kind;
+    // A flat: the block it's in (walk-up, block, modern tower).
+    stage.canvas.dataset.block = grounds.block?.tier ?? '';
     stage.canvas.dataset.wealth = String(plan.wealth);
     stage.canvas.dataset.rooms = String(plan.rooms.length);
     stage.canvas.dataset.floor = String(plan.level ?? 0);
@@ -713,7 +715,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         Math.max(0, (Date.now() - delivery.orderedAt) / (delivery.arrivesAt - delivery.orderedAt)),
       );
       const e = live.current.reduced ? 1 : 1 - (1 - u) ** 2;
-      van.position.set(h.van.x + (1 - e) * 26, GROUND_Y + 0.02 - h.drop, h.van.z);
+      van.position.set(h.van.x + (1 - e) * 26, h.vanY, h.van.z);
       van.rotation.y = Math.PI / 2;
       boxes.visible = u >= 1;
       if (u >= 1) stage.canvas.dataset.van = 'here';

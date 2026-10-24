@@ -51,7 +51,8 @@ import {
   type Occluder,
   type Surroundings,
 } from './surroundings';
-import { hotelTower, type TowerSide } from './hotel-tower';
+import { HOTEL_STOREY, hotelTower, type TowerSide } from './hotel-tower';
+import type { BlockTier } from '../home/grounds';
 
 const WALL_H = 2.6;
 const INNER_H = 1.25;
@@ -92,6 +93,8 @@ export interface House {
   lamps: THREE.PointLight[];
   /** How far below this floor the grounds are (0 on the ground floor). */
   drop: number;
+  /** Where the delivery van drives (y): the street, a storey or ten below a flat. */
+  vanY: number;
   /** The neighbours' buildings (and the city's towers) that hide while they'd block the view. */
   occluders: Occluder[];
   /** How far the world round the home reaches (metres). */
@@ -162,6 +165,34 @@ const HOTEL_FLOORS: Record<HotelTier, Partial<Record<RoomId, [FloorKind, string?
     bathroom: ['marble', '#e0d5c5'],
   },
 };
+/**
+ * A flat's floors by its block (player feedback: Modest looked the same as
+ * Lean): a shared flat's worn concrete and cheap tiles, a small flat's warm
+ * tiles and honey oak (the default), a good flat's parquet and marble.
+ */
+const BLOCK_FLOORS: Record<BlockTier, Partial<Record<RoomId, [FloorKind, string?]>>> = {
+  walkup: {
+    bedroom: ['concrete', '#cfc8ba'],
+    living: ['tile', '#d6cfc1'],
+    kitchen: ['concrete', '#c9c2b4'],
+    bathroom: ['tile', '#c9d2cf'],
+  },
+  block: {},
+  modern: {
+    living: ['parquet', '#f3e5d2'],
+    dining: ['parquet', '#f3e5d2'],
+    kitchen: ['marble', '#f4efe6'],
+    bathroom: ['marble', '#e8e0d4'],
+    guest: ['oak'],
+  },
+};
+/** A flat's walls by its block: tired grey-green paint, a fresh blue, a modern slate. */
+const BLOCK_WALLS: Record<BlockTier, { outer: string; inner: string; cap: string; drape: string }> =
+  {
+    walkup: { outer: '#9aa79f', inner: '#a9b5ad', cap: '#e4ddcf', drape: '#c9a978' },
+    block: { outer: '#4f86a8', inner: '#5d93b4', cap: '#f6f3ec', drape: '#e9dcc3' },
+    modern: { outer: '#46505c', inner: '#55606d', cap: '#f1efe9', drape: '#d8d2c8' },
+  };
 const HOTEL_WALLS: Record<HotelTier, { outer: string; inner: string; cap: string; drape: string }> =
   {
     budget: { outer: '#6f948a', inner: '#7da197', cap: WALL_CAP, drape: '#9fb3c8' },
@@ -302,6 +333,9 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   const roof = g.style === 'roof';
   // A hotel room: a floor of the hotel's tower round it (the roof is for penthouses).
   const hotel = g.style === 'hotel' && g.hotel ? g.hotel : null;
+  // A flat: a floor of its block of flats round it, drawn like a hotel's.
+  const block = g.style === 'block' && g.block ? g.block : null;
+  const tower = !!hotel || !!block;
   const k = new Kit();
   // Upstairs: the grounds are a storey (or two) below.
   const level = plan.level ?? 0;
@@ -361,6 +395,21 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
         doors: hotel.doors,
       };
       return { key: `hotel:${JSON.stringify(ho)}`, make: () => hotelTower(ho) };
+    }
+    if (block) {
+      const bo = {
+        night: o.night,
+        groundY: GROUND_Y,
+        W,
+        H,
+        doorX: plan.door.x,
+        tier: block.tier,
+        name: '',
+        floor: block.floor,
+        room: block.flat,
+        doors: block.doors,
+      };
+      return { key: `block:${JSON.stringify(bo)}`, make: () => hotelTower(bo) };
     }
     if (!roof) {
       const no = { night: o.night, groundY: GROUND_Y, W, H };
@@ -455,7 +504,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     at.repeat.set(d.w / 4, d.h / 4);
     yard.add(flat(at, d.x, d.y, d.w, d.h, GROUND_Y + 0.015, roof ? 0.9 : 0.95));
   }
-  if (!hotel) {
+  if (!tower) {
     const p = g.path;
     const n = Math.max(1, Math.round(p.h / 0.7));
     for (let i = 0; i < n; i++)
@@ -551,9 +600,15 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   if (drop) storeys(k, W, H, drop, o.night);
   const pal = hotel
     ? HOTEL_WALLS[hotel.tier]
-    : { outer: WALL_GREEN, inner: WALL_INNER, cap: WALL_CAP, drape: '' };
+    : block
+      ? BLOCK_WALLS[block.tier]
+      : { outer: WALL_GREEN, inner: WALL_INNER, cap: WALL_CAP, drape: '' };
   for (const r of plan.rooms) {
-    const hf = hotel ? HOTEL_FLOORS[hotel.tier][r.id] : undefined;
+    const hf = hotel
+      ? HOTEL_FLOORS[hotel.tier][r.id]
+      : block
+        ? BLOCK_FLOORS[block.tier][r.id]
+        : undefined;
     root.add(floorMesh(hf?.[0] ?? floorKind(r.id, o.tier), r.x, r.y, r.w, r.h, FLOOR_Y, hf?.[1]));
   }
 
@@ -690,12 +745,12 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
     // (A hotel room's side walls are the neighbours': no windows in them.)
     if (r.x === 0) {
-      if (r.h >= 3 && !hotel)
+      if (r.h >= 3 && !tower)
         left.extras.add(win('z', r.y + r.h * 0.6, -o2, Math.min(1.8, r.h * 0.4)));
       if (r.h >= 4) sconces.push({ x: o2 + 0.02, z: r.y + r.h * 0.25, ry: Math.PI / 2, s: left });
     }
     if (r.x + r.w === W) {
-      if (r.h >= 3 && !hotel)
+      if (r.h >= 3 && !tower)
         right.extras.add(win('z', r.y + r.h * 0.55, W + o2, Math.min(2.0, r.h * 0.4)));
       if (r.h >= 4)
         sconces.push({ x: W - o2 - 0.02, z: r.y + r.h * 0.25, ry: -Math.PI / 2, s: right });
@@ -762,7 +817,16 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
   const edges = edgeStrips(edgeSegs);
   if (edges) root.add(edges);
-  bathrooms(plan, root, sides, hotel?.tier === 'luxury' ? 'marble' : 'bath');
+  bathrooms(
+    plan,
+    root,
+    sides,
+    hotel?.tier === 'luxury' || block?.tier === 'modern'
+      ? 'marble'
+      : block?.tier === 'walkup'
+        ? 'tile'
+        : 'bath',
+  );
 
   // Potted plants in free room corners (the reference's green, lived-in rooms);
   // a hotel puts its own where it wants them.
@@ -824,9 +888,10 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     shadow: Math.max(f.w, f.h) * 0.75 + 4,
     lamps,
     drop,
+    vanY: GROUND_Y + 0.02 - (block ? block.floor * HOTEL_STOREY : drop),
     occluders: [],
     reach: 0,
-    lookZoom: hotel ? 0.42 : 1,
+    lookZoom: tower ? 0.42 : 1,
     world: null,
     kept: !!WORLDS.get(spec.key) && !WORLDS.get(spec.key)!.group.parent,
     attach() {

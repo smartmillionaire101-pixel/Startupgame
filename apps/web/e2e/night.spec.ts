@@ -112,6 +112,20 @@ test('By day the map stays day', async ({ page }) => {
   await expect(map).toHaveAttribute('data-night', '0');
 });
 
+for (const c of [
+  // Lagos, 20 October: the sun sets about 17:25 UTC and rises about 05:32 UTC.
+  { id: 'dusk', at: new Date('2026-10-20T17:38:00Z') },
+  { id: 'dawn', at: new Date('2026-10-20T05:24:00Z') },
+])
+  test(`Lagos at ${c.id} is half-lit, between day and night`, async ({ page }) => {
+    test.setTimeout(240_000);
+    const map = await openMap(page, /Lagos/, 'Lagos', c.at);
+    await shot(page, `map-lagos-${c.id}`);
+    const n = Number(await map.getAttribute('data-night'));
+    expect(n).toBeGreaterThan(0.05);
+    expect(n).toBeLessThan(0.98);
+  });
+
 test('A sky view at night', async ({ page }) => {
   test.setTimeout(420_000);
   await openMap(page, /Dubai/, 'Dubai', NIGHT);

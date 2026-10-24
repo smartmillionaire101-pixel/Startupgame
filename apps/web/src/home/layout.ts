@@ -165,7 +165,7 @@ export const TIER_GRID: Record<number, { w: number; h: number }> = {
 };
 
 /** Home names by tier (translated by the caller). */
-export const TIER_HOME = ['Shared room', 'Flat', 'Good flat', 'House', 'Penthouse'] as const;
+export const TIER_HOME = ['Shared room', 'Small flat', 'Good flat', 'House', 'Penthouse'] as const;
 
 const spot = (
   x: number,
@@ -613,7 +613,10 @@ export function homeSpecOf(
   const kind = residence?.tier as HomeKind | undefined;
   if (kind && kinds.includes(kind))
     return { kind, wealth: typeof residence?.wealth === 'number' ? residence.wealth : 1 };
-  return { kind: KIND_OF_TIER[Math.max(1, Math.min(5, lifestyleTier))]!, wealth: 1 };
+  // A renter's band follows the tier: Comfortable's good flat is roomier and
+  // better fitted than Modest's small flat (a guest room and a dining room).
+  const t = Math.max(1, Math.min(5, lifestyleTier));
+  return { kind: KIND_OF_TIER[t]!, wealth: t === 3 ? 2 : 1 };
 }
 
 /**
@@ -667,21 +670,35 @@ function withFittedCounter(p: HomePlan): HomePlan {
  * from a townhouse up, a utility room's washer-dryer too. Better homes come
  * better fitted (a chef's kitchen in a mansion or a penthouse, or any home
  * of a rich owner). Furniture you buy can still upgrade them.
+ *
+ * Player feedback: a Modest flat looked no better than Lean's room. A room
+ * in a shared flat comes bare; a small flat with its kitchen, fridge and a
+ * ceiling light; a good flat (Comfortable, or a rich owner's apartment) also
+ * with air conditioning, a washer-dryer and better lights.
  */
-function builtIns(plan: Pick<HomePlan, 'kind' | 'wealth'>): Map<string, number> {
+function builtIns(plan: Pick<HomePlan, 'kind' | 'wealth' | 'tier'>): Map<string, number> {
   const out = new Map<string, number>();
   if (plan.kind === 'room' || plan.kind === 'studio') return out;
   const grand = plan.kind === 'mansion' || plan.kind === 'penthouse' || plan.wealth >= 3;
   const finish = grand ? 3 : 2;
   out.set('kitchen', finish);
   out.set('fridge', finish);
-  if (plan.kind !== 'apartment') out.set('washer', finish);
+  if (plan.kind !== 'apartment') {
+    out.set('washer', finish);
+    return out;
+  }
+  const good = plan.tier >= 3 || plan.wealth >= 2;
+  out.set('lights', good ? 2 : 1);
+  if (good) {
+    out.set('washer', 2);
+    out.set('cooling', 2);
+  }
   return out;
 }
 
 /** What you own, with what the home comes with filled in (the better of the two). */
 export function withBuiltIns(
-  plan: Pick<HomePlan, 'kind' | 'wealth' | 'slots'>,
+  plan: Pick<HomePlan, 'kind' | 'wealth' | 'tier' | 'slots'>,
   owned: ReadonlyMap<string, number>,
 ): Map<string, number> {
   const out = new Map(owned);

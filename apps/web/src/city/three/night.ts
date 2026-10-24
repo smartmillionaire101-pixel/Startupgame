@@ -32,12 +32,13 @@ export function nightFactor(hour: number, altitude?: number): number {
 }
 
 /**
- * The renderer's exposure multiplier: a little under 1 by day, well down at
- * night (the eye adapted to the dark sees lights, not a grey-lit city).
+ * The renderer's exposure multiplier: 1 by day, down at night (the eye
+ * adapted to the dark sees the lights first), but not so far that the city's
+ * outline goes: roughly a night-time city photograph.
  */
 export function nightExposure(night: number): number {
   const n = Math.max(0, Math.min(1, night));
-  return 1 - 0.42 * n;
+  return 1 - 0.26 * n;
 }
 
 /** A city's night: the colours and how much of it is lit. */

@@ -248,7 +248,8 @@ function waterMesh(sky: SkyUniforms, look: CityLook, size: number) {
         R.y = abs(R.y);
         float fr = 0.03 + 0.97 * pow(1.0 - max(dot(n, V), 0.0), 5.0);
         vec3 deep = mix(uDeep, uShallow, 0.25 + 0.25 * vn(p * 0.004));
-        deep *= mix(1.0, 0.22, uNight);
+        // Night water: dark blue, not black (the bank stays readable).
+        deep *= mix(1.0, 0.45, uNight);
         vec3 col = mix(deep, skyColor(R), clamp(fr * 0.85, 0.0, 1.0));
         float sun = pow(max(dot(R, uSunDir), 0.0), 220.0);
         col += uSunColor * sun * 2.5 * (1.0 - uNight);

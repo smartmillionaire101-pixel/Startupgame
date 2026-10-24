@@ -568,7 +568,8 @@ export function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
     y,
     w,
     d: w,
-    h: tier === 1 ? 50 : tier === 2 ? 24 : tier === 3 ? 30 : tier === 4 ? 34 : 28,
+    // A walk-up, a five-storey block, a tower; a house; the penthouse's tower.
+    h: tier === 1 ? 26 : tier === 2 ? 40 : tier === 3 ? 62 : tier === 4 ? 34 : 28,
     motif: 'home',
     color: pickColor(ctx, flavour.walls),
     accent: pickColor(ctx, flavour.roofs),

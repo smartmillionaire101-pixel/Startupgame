@@ -42,18 +42,33 @@ describe('nightFactor', () => {
 describe('the night sky', () => {
   it('turns the exposure down at night, not up', () => {
     expect(nightExposure(0)).toBe(1);
-    expect(nightExposure(1)).toBeLessThan(0.65);
+    expect(nightExposure(1)).toBeLessThan(0.8);
+    // …but not so far that the city goes black (player feedback).
+    expect(nightExposure(1)).toBeGreaterThan(0.7);
     expect(skyAt(23, 6.5, 0.7).exposure).toBeLessThan(skyAt(12, 6.5, 0.7).exposure);
   });
 
-  it('is dark: near-black sky, faint blue moonlight, little ambient', () => {
+  it('is a city night: a dark blue sky, blue moonlight, the outline still readable', () => {
     const s = skyAt(23.5, 51.5, 0.65);
+    const day = skyAt(12.5, 51.5, 0.65);
     expect(s.night).toBe(1);
-    expect(s.zenith.getHSL({ h: 0, s: 0, l: 0 }).l).toBeLessThan(0.03);
-    expect(s.horizon.getHSL({ h: 0, s: 0, l: 0 }).l).toBeLessThan(0.12);
+    const hsl = (c: typeof s.zenith) => c.getHSL({ h: 0, s: 0, l: 0 });
+    // Dark and blue overhead, not black; lighter towards the horizon (linear
+    // colour: the old near-black sky was under 0.005).
+    expect(hsl(s.zenith).l).toBeLessThan(0.06);
+    expect(hsl(s.zenith).l).toBeGreaterThan(0.012);
+    expect(s.zenith.b).toBeGreaterThan(s.zenith.r * 2);
+    expect(hsl(s.horizon).l).toBeGreaterThan(hsl(s.zenith).l);
+    expect(hsl(s.horizon).l).toBeLessThan(0.25);
+    // Moonlight: cool, a fraction of the sun, enough to model the buildings.
     expect(s.sunColor.b).toBeGreaterThan(s.sunColor.r);
-    expect(s.sunIntensity).toBeLessThan(0.3);
-    expect(s.hemiIntensity).toBeLessThan(0.3);
+    expect(s.sunIntensity).toBeGreaterThan(0.5);
+    expect(s.sunIntensity).toBeLessThan(day.sunIntensity * 0.3);
+    // The sky's fill: dimmer and bluer than by day, never off.
+    expect(s.hemiIntensity).toBeGreaterThan(0.35);
+    expect(s.hemiIntensity).toBeLessThan(day.hemiIntensity);
+    expect(hsl(s.hemiSky).l).toBeGreaterThan(0.1);
+    expect(s.hemiSky.b).toBeGreaterThan(s.hemiSky.r);
   });
 
   it('dims the light smoothly through dusk (no jump when the moon takes over)', () => {

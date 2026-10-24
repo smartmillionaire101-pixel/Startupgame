@@ -26,6 +26,14 @@
  * windows and the floors above hide with them. Low poly and merged (a few
  * meshes per side), like the rest of the surroundings. World units as in
  * ./house.ts: the room's floor at y = 0, tile (x, y) at x..x+1, z..z+1.
+ *
+ * Player feedback: "This house is no different from the poor house (Lean),
+ * and I selected Modest." A rented flat is a flat in a block, drawn the same
+ * way (`BlockTier`): a room in a shared flat on the first floor of a worn
+ * walk-up (a bare stairwell, the flatmates' doors, water tanks on the roof),
+ * a small flat on the third floor of a tidy block (a lift, a small balcony),
+ * a good flat high in a modern tower (a big balcony over the city). Blocks of
+ * flats carry no hotel signs.
  */
 import * as THREE from 'three';
 import type { HotelTier } from '../city/travel';
@@ -37,14 +45,13 @@ import {
   type HotelDoor,
   type NeighbourSlot,
 } from '../home/hotel';
+import type { BlockTier } from '../home/grounds';
 import { buildModel } from './furniture';
 import { Kit, mat, tone, type PartOpts } from './kit';
 import { canvasTex, cityBelow, towerTexture, type Surroundings } from './surroundings';
 
 /** Floor to floor in the hotel's tower (metres). */
-const HOTEL_STOREY = 3.2;
-/** Floors above yours, up to the roof. */
-const FLOORS_ABOVE = 4;
+export const HOTEL_STOREY = 3.2;
 const T = 0.16;
 const O2 = T / 2;
 const WALL_H = 2.6;
@@ -65,9 +72,24 @@ interface Style {
   door: string;
   curtain: string;
   sign: { bg: string; fg: string; font: string };
+  /** Floors above yours, up to the roof. */
+  above: number;
+  /** A block of flats: no hotel signs, no "Do not disturb". */
+  flats?: boolean;
+  /** The corridor floor: tiles with this grout (else a carpet runner). */
+  tiles?: string;
+  /** Stairs (a walk-up) instead of lifts. */
+  stairs?: boolean;
+  /** Your balcony: none, a small one (two chairs), a big one (loungers). */
+  balcony: 0 | 1 | 2;
+  /** The walls below: punched windows (flats), else the hotel's glass. */
+  punched?: boolean;
 }
 
-const STYLE: Record<HotelTier, Style> = {
+/** A hotel's tower, or a block of flats (../home/grounds.ts `blockOf`). */
+export type TowerTier = HotelTier | BlockTier;
+
+const STYLE: Record<TowerTier, Style> = {
   budget: {
     facade: '#e6dfd2',
     trim: '#b8b0a2',
@@ -77,6 +99,8 @@ const STYLE: Record<HotelTier, Style> = {
     door: '#8a6a4a',
     curtain: '#c9cfd6',
     sign: { bg: '#c62828', fg: '#ffffff', font: '800 150px system-ui, sans-serif' },
+    above: 4,
+    balcony: 0,
   },
   business: {
     facade: '#cdd6df',
@@ -87,6 +111,8 @@ const STYLE: Record<HotelTier, Style> = {
     door: '#5a4030',
     curtain: '#d8cfc0',
     sign: { bg: '#16324f', fg: '#ffffff', font: '600 140px system-ui, sans-serif' },
+    above: 4,
+    balcony: 0,
   },
   luxury: {
     facade: '#d8caab',
@@ -97,6 +123,55 @@ const STYLE: Record<HotelTier, Style> = {
     door: '#3b2618',
     curtain: '#d9c3a0',
     sign: { bg: '#141414', fg: '#e0bd62', font: 'italic 600 140px Georgia, serif' },
+    above: 4,
+    balcony: 2,
+  },
+  // Lean: an old walk-up, faded render, a bare concrete stairwell.
+  walkup: {
+    facade: '#d6c39e',
+    trim: '#a8977a',
+    carpet: '#a29d93',
+    pattern: '#8d887f',
+    corridor: '#cfc6b4',
+    door: '#6b5a48',
+    curtain: '#b7a58a',
+    sign: { bg: '#5b5048', fg: '#f1e9da', font: '600 120px system-ui, sans-serif' },
+    above: 1,
+    flats: true,
+    tiles: '#7d786f',
+    stairs: true,
+    balcony: 0,
+    punched: true,
+  },
+  // Modest: a tidy painted block, a tiled landing and a lift.
+  block: {
+    facade: '#f0e4cf',
+    trim: '#c29a6b',
+    carpet: '#e2d9c8',
+    pattern: '#cfc4ae',
+    corridor: '#f3ede2',
+    door: '#7c5434',
+    curtain: '#d8c9ae',
+    sign: { bg: '#7c5434', fg: '#fdf6e9', font: '600 120px system-ui, sans-serif' },
+    above: 2,
+    flats: true,
+    tiles: '#b9ae98',
+    balcony: 1,
+    punched: true,
+  },
+  // Comfortable: a modern tower, stone and glass, a carpeted lift lobby.
+  modern: {
+    facade: '#d3d9de',
+    trim: '#7d8a96',
+    carpet: '#4a5560',
+    pattern: '#6c7884',
+    corridor: '#ece9e3',
+    door: '#3f3a36',
+    curtain: '#d6d0c6',
+    sign: { bg: '#2e3a46', fg: '#ffffff', font: '600 120px system-ui, sans-serif' },
+    above: 5,
+    flats: true,
+    balcony: 2,
   },
 };
 
@@ -115,7 +190,18 @@ export interface HotelTower extends Surroundings {
 
 /** The corridor's carpet: a border and a repeating motif. */
 const carpetTexture = (s: Style) =>
-  canvasTex(`hotel-carpet:${s.carpet}`, 128, (g) => {
+  canvasTex(`hotel-carpet:${s.carpet}:${s.tiles ?? ''}`, 128, (g) => {
+    if (s.tiles) {
+      // Square floor tiles and their grout (a block of flats' landing).
+      g.fillStyle = s.tiles;
+      g.fillRect(0, 0, 128, 128);
+      for (let y = 0; y < 2; y++)
+        for (let x = 0; x < 2; x++) {
+          g.fillStyle = (x + y) % 2 ? s.carpet : s.pattern;
+          g.fillRect(x * 64 + 2, y * 64 + 2, 60, 60);
+        }
+      return;
+    }
     g.fillStyle = s.carpet;
     g.fillRect(0, 0, 128, 128);
     g.strokeStyle = s.pattern;
@@ -182,6 +268,24 @@ function nameplateTexture(name: string, n: number) {
   return t;
 }
 
+/**
+ * A block of flats' walls: punched windows two to a bay, a balcony ledge
+ * under some (lit warm at night, a few dark).
+ */
+const blockTexture = (night: boolean) =>
+  canvasTex(`block-face:${night ? 1 : 0}`, 64, (g) => {
+    g.fillStyle = night ? '#3a3a40' : '#ffffff';
+    g.fillRect(0, 0, 64, 64);
+    for (let y = 0; y < 4; y++)
+      for (let x = 0; x < 2; x++) {
+        const lit = (x * 5 + y * 3) % 4 !== 0;
+        g.fillStyle = night ? (lit ? '#ffcf86' : '#15171c') : '#5f7d90';
+        g.fillRect(x * 32 + 8, y * 16 + 4, 16, 8);
+        g.fillStyle = night ? '#55545a' : '#b9b2a6';
+        if ((x + y) % 2 === 0) g.fillRect(x * 32 + 5, y * 16 + 12, 22, 2);
+      }
+  });
+
 const signCache = new Map<string, THREE.CanvasTexture>();
 /** The hotel's name in its tier's style, `vertical` stacked letters for a blade sign. */
 function nameTexture(name: string, s: Style, vertical: boolean) {
@@ -231,7 +335,7 @@ export function hotelTower(o: {
   W: number;
   H: number;
   doorX: number;
-  tier: HotelTier;
+  tier: TowerTier;
   name: string;
   floor: number;
   /** Your room's number, and the doors either side (friends' named). */
@@ -249,9 +353,15 @@ export function hotelTower(o: {
   const X1 = row.x1;
   const Z1 = H + CORR + ACROSS;
   const S = HOTEL_STOREY;
+  const FLOORS_ABOVE = st.above;
+  const flats = !!st.flats;
+  // The walls between rooms: the hotel's green, a block's own (darker) render.
+  const partition = flats ? tone(st.facade, -0.18) : ROOM_GREEN;
   const top = (FLOORS_ABOVE + 1) * S;
   const ours = o.room ?? o.floor * 100 + 16;
-  const doors = new Map((o.doors ?? hotelDoors(ours)).map((d) => [d.slot, d] as const));
+  const doors = new Map(
+    (o.doors ?? hotelDoors(ours)).map((d) => [d.slot, flats ? { ...d, dnd: false } : d] as const),
+  );
   const glass = {
     emissive: night ? '#ffcf7a' : '#7fbfe0',
     emissiveIntensity: night ? 0.5 : 0.22,
@@ -332,7 +442,7 @@ export function hotelTower(o: {
     f: 1 | -1,
     list: { x: number; n: number; friend?: string; dnd?: boolean }[],
   ) => {
-    wallX(sd, x0, x1, z, ROOM_GREEN);
+    wallX(sd, x0, x1, z, partition);
     wk[sd]!.box(x1 - x0, 1, 0.04, st.corridor, (x0 + x1) / 2, 0, z + f * (O2 + 0.02), {
       rough: 0.9,
     });
@@ -427,20 +537,40 @@ export function hotelTower(o: {
   const { L1, L2, R1, R2 } = row.rooms;
   closed(LEFT, L2.x0, L2.x1, 0, H);
   closed(LEFT, L1.x0, L1.x1, 0, H);
-  wallZ(LEFT, 0, H, L1.x0, ROOM_GREEN);
+  wallZ(LEFT, 0, H, L1.x0, partition);
   corridorWall(LEFT, X0, -O2, H + O2, 1, [door('L2'), door('L1')]);
   closed(RIGHT, R1.x0, R1.x1, 0, H);
-  wallZ(RIGHT, 0, H + O2, R1.x1, ROOM_GREEN);
+  wallZ(RIGHT, 0, H + O2, R1.x1, partition);
   corridorWall(RIGHT, W + O2, R1.x1, H + O2, 1, [door('R1')]);
   // The lift lobby: open to the corridor, the lifts on its back wall, a
   // service room (closed) behind it.
   const LB = row.lobby;
   const LZ = H - 2.6;
   closed(RIGHT, LB.x0, LB.x1, 0, LZ);
-  wallX(RIGHT, LB.x0, LB.x1, LZ, ROOM_GREEN);
+  wallX(RIGHT, LB.x0, LB.x1, LZ, partition);
   wk[RIGHT]!.box(LOBBY, 1, 0.04, st.corridor, LB.x0 + LOBBY / 2, 0, LZ + O2 + 0.02, { rough: 0.9 });
-  wallZ(RIGHT, 0, H + O2, LB.x1, ROOM_GREEN);
-  {
+  wallZ(RIGHT, 0, H + O2, LB.x1, partition);
+  if (st.stairs) {
+    // A walk-up: the stairwell, concrete steps going down from the landing,
+    // a steel handrail and a bare bulb over them.
+    for (let i = 0; i < 6; i++)
+      fk.box(
+        LOBBY - 0.7,
+        0.14,
+        0.32,
+        i % 2 ? '#a8a298' : '#b5afa4',
+        LB.x0 + LOBBY / 2,
+        -0.16 * (i + 1),
+        LZ + 0.3 + i * 0.32,
+        { rough: 0.95 },
+      );
+    fk.box(0.05, 0.05, 2.0, '#4b4f55', LB.x0 + 0.3, 0.95, LZ + 1.0, { metal: 0.5, rough: 0.5 });
+    ek[RIGHT]!.sphere(0.08, '#fff4d0', LB.x0 + LOBBY / 2, 2.3, LZ + 0.2, {
+      emissive: '#ffe9a8',
+      emissiveIntensity: night ? 1.4 : 0.6,
+      seg: 8,
+    });
+  } else {
     const e = ek[RIGHT]!;
     const fz = LZ + O2 + 0.05;
     for (const lx of [LB.x0 + LOBBY * 0.28, LB.x0 + LOBBY * 0.72]) {
@@ -467,7 +597,15 @@ export function hotelTower(o: {
       { noShadow: true },
     );
   }
-  if (o.tier === 'budget') {
+  if (o.tier === 'walkup') {
+    // A shared flat's landing: a bicycle against the wall, a gas bottle, a bin.
+    const x = LB.x1 - 0.5;
+    fk.box(0.06, 0.06, 1.3, '#1f2937', x, 0.62, LZ + 1.3, { metal: 0.4 });
+    for (const z of [LZ + 0.65, LZ + 1.95])
+      fk.cyl(0.33, 0.33, 0.05, '#111827', x, 0.33, z, { rz: Math.PI / 2, seg: 14 });
+    fk.cyl(0.18, 0.18, 0.62, '#2563eb', x - 0.6, 0, LZ + 2.3, { seg: 12 });
+    fk.cyl(0.24, 0.2, 0.7, '#3f6212', x - 1.1, 0, LZ + 2.3, { seg: 12 });
+  } else if (o.tier === 'budget') {
     // An ice machine and a drinks machine by the lifts.
     const x = LB.x1 - 0.5;
     fk.box(0.7, 1.1, 0.65, '#e5e7eb', x, 0, LZ + 0.5, { metal: 0.3, rough: 0.4 });
@@ -535,10 +673,10 @@ export function hotelTower(o: {
     const list: { x: number; n: number; dnd: boolean }[] = [];
     for (let i = 0; i < across; i++) {
       const x = X0 + i * aw;
-      if (i > 0) wallZ(FRONT, H + CORR, Z1, x, ROOM_GREEN);
+      if (i > 0) wallZ(FRONT, H + CORR, Z1, x, partition);
       closed(FRONT, x, x + aw, H + CORR + O2, Z1);
       const n = o.floor * 100 + 50 + i * 2;
-      list.push({ x: x + aw * 0.22, n, dnd: i % 3 === 1 });
+      list.push({ x: x + aw * 0.22, n, dnd: !flats && i % 3 === 1 });
     }
     corridorWall(FRONT, X0, X1, H + CORR, -1, list);
   }
@@ -571,7 +709,44 @@ export function hotelTower(o: {
     win(sd, 'z', H + CORR / 2, x, 1.2, true);
     win(sd, 'z', H + CORR + ACROSS / 2, x, 1.6);
   }
-  if (o.tier === 'luxury') {
+  if (st.balcony === 1) {
+    // A small flat's balcony: a tiled slab, a painted railing, two chairs and
+    // a pot plant.
+    const bx0 = 0.4;
+    const bx1 = Math.min(W - 0.4, 4.4);
+    const bw = bx1 - bx0;
+    const bc = (bx0 + bx1) / 2;
+    const BD = 1.5;
+    const bz = -BD / 2 - T;
+    fk.box(bw, 0.3, BD, st.trim, bc, -0.33, bz, { rough: 0.8 });
+    fk.box(bw, 0.02, BD, '#d8cbb4', bc, -0.03, bz, { rough: 0.85 });
+    for (const [w, d, x, z] of [
+      [bw, 0.05, bc, -BD - T],
+      [0.05, BD, bx0, bz],
+      [0.05, BD, bx1, bz],
+    ] as const)
+      for (const y of [0.1, 0.95])
+        fk.box(w, 0.06, d, '#3f3a36', x, y, z, { metal: 0.5, rough: 0.4 });
+    for (let x = bx0 + 0.15; x < bx1; x += 0.15)
+      fk.box(0.02, 0.85, 0.02, '#3f3a36', x, 0.12, -BD - T, { noShadow: true });
+    // Two bistro chairs and a little round table.
+    for (const x of [bc - 0.75, bc + 0.35]) {
+      fk.box(0.42, 0.04, 0.42, '#2f5d50', x, 0.45, bz, { metal: 0.4, rough: 0.5 });
+      fk.box(0.42, 0.45, 0.04, '#2f5d50', x, 0.47, bz + 0.2, { metal: 0.4, rough: 0.5 });
+      for (const [dx, dz] of [
+        [-0.18, -0.18],
+        [0.18, -0.18],
+        [-0.18, 0.18],
+        [0.18, 0.18],
+      ] as const)
+        fk.box(0.03, 0.45, 0.03, '#2f5d50', x + dx, 0, bz + dz, { metal: 0.4, noShadow: true });
+    }
+    fk.cyl(0.25, 0.25, 0.03, '#2f5d50', bc - 0.2, 0.62, bz - 0.15, { seg: 16, metal: 0.4 });
+    fk.cyl(0.025, 0.025, 0.62, '#2f5d50', bc - 0.2, 0, bz - 0.15, { metal: 0.4 });
+    fk.box(0.45, 0.45, 0.45, '#b45309', bx1 - 0.4, 0, bz - 0.35, { round: 0.04 });
+    fk.sphere(0.35, '#4d7c0f', bx1 - 0.4, 0.75, bz - 0.35, { seg: 8 });
+  }
+  if (st.balcony === 2) {
     // The suite's balcony: decking, a glass railing, two loungers and a
     // table looking out over the city, planters at the ends.
     const bx0 = 0.3;
@@ -604,6 +779,11 @@ export function hotelTower(o: {
       fk.box(0.6, 0.55, 0.6, '#3b3f46', x, 0, bz - 0.7, { round: 0.04 });
       fk.sphere(0.42, '#3f7d45', x, 0.9, bz - 0.7, { seg: 8, sy: 0.9 });
     }
+  }
+  if (o.tier === 'walkup') {
+    // Water tanks on the walk-up's roof.
+    for (const x of [X0 + 2, X0 + 3.6, X1 - 3])
+      fk.cyl(0.65, 0.65, 1.5, '#111827', x, top + 0.9, Z1 - 2, { seg: 14 });
   }
 
   // ---- The floors above: the tower's walls rise on, cut away like a doll's
@@ -656,9 +836,10 @@ export function hotelTower(o: {
     // The rooms' partitions behind the windows (fins of wall inside).
     for (const t of fins)
       if (t > a + 0.5 && t < b - 0.5)
-        box(T, top - S - 0.3, 0.9, ROOM_GREEN, t, S, inward * (O2 + 0.45), { noShadow: true });
+        box(T, top - S - 0.3, 0.9, partition, t, S, inward * (O2 + 0.45), { noShadow: true });
     // The parapet's coping and the hotel's name on the roof, readable both ways.
     box(len + 0.3, 0.12, T + 0.2, st.trim, c, top + 0.9, 0, { noShadow: true });
+    if (flats) return;
     const sw = Math.min(len * 0.55, 14);
     const sh = sw / 4;
     const sy = top + 1.6 + sh / 2;
@@ -683,8 +864,8 @@ export function hotelTower(o: {
   {
     const hgt = -0.43 - street;
     const faceMat = (len: number) => {
-      const tex = towerTexture(night);
-      tex.repeat.set(Math.max(1, Math.round(len / 9.6)), Math.round(hgt / 12.8));
+      const tex = st.punched ? blockTexture(night) : towerTexture(night);
+      tex.repeat.set(Math.max(1, Math.round(len / 9.6)), Math.max(1, Math.round(hgt / 12.8)));
       return new THREE.MeshStandardMaterial({
         color: st.facade,
         map: tex,
@@ -709,8 +890,21 @@ export function hotelTower(o: {
     body.position.set((X0 + X1) / 2, street + hgt / 2, Z1 / 2);
     body.receiveShadow = true;
     group.add(body);
-    // A canopy over the entrance at the street, the name on it.
-    fk.box(10, 0.5, 3.5, st.sign.bg, (X0 + X1) / 2, street + 4, Z1 + 1.9, { rough: 0.5 });
+    // A canopy over the entrance at the street (the hotel's name on its signs).
+    fk.box(
+      flats ? 5 : 10,
+      0.5,
+      flats ? 2.2 : 3.5,
+      st.sign.bg,
+      (X0 + X1) / 2,
+      street + 4,
+      Z1 + (flats ? 1.2 : 1.9),
+      {
+        rough: 0.5,
+      },
+    );
+  }
+  if (!flats) {
     // Blade signs on two corners, from the floor under yours down.
     const blade = mat('#ffffff', {
       map: nameTexture(o.name || 'HOTEL', st, true),
