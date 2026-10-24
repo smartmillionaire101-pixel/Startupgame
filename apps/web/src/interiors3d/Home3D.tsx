@@ -20,6 +20,7 @@ import { buildModel, type Model } from './furniture';
 import { Particles, fx } from './fx';
 import { GROUND_Y, STOREY, buildHouse, cutWalls, wallOf, type House } from './house';
 import { buildEstateModel } from './estate-models';
+import { buildDivider, refinish } from './dividers';
 import { groundsFor } from '../home/grounds';
 import { Kit, disposeTree, mat } from './kit';
 import { Stage, gestures, hasParkedStage, parkStage, unparkStage, type StageOpts } from './stage';
@@ -440,7 +441,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   const objKey = objects
     .map(
       (o) =>
-        `${o.id}:${o.model ?? ''}:${o.owned ? 1 : 0}:${o.tier ?? 1}:${o.spot.x},${o.spot.y},${o.spot.w},${o.spot.h},${o.spot.rot ?? ''}:${o.ry ?? ''}`,
+        `${o.id}:${o.model ?? ''}:${o.owned ? 1 : 0}:${o.tier ?? 1}:${o.spot.x},${o.spot.y},${o.spot.w},${o.spot.h},${o.spot.rot ?? ''}:${o.ry ?? ''}:${o.finish ?? ''}`,
     )
     .join('|');
   useEffect(() => {
@@ -472,6 +473,8 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         ...(o.slot === 'sofa' && (o.tier ?? 1) >= 2 ? { tint: '#1f6e52' } : {}),
       });
       const g = model.group;
+      // Shop note: the finish you bought (its wood or fabric takes the colour).
+      if (o.finish && o.owned) refinish(g, o.finish);
       // Outdoors (the cars, the loungers) is down on the lawn, a storey or two below you upstairs.
       g.position.set(fr.x, o.outdoor ? GROUND_Y + 0.03 - (plan.level ?? 0) * STOREY : 0, fr.z);
       g.rotation.y = ry;
@@ -613,6 +616,37 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     // objKey stands for `objects`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objKey, plan, night, dusk, grounds]);
+
+  // ---- Shop note: the walls and dividers you put up on this floor.
+  const dividers = props.dividers;
+  const divKey = (dividers ?? [])
+    .map((d) => `${d.id}:${d.kind}:${d.len}:${d.x},${d.y},${d.dir}:${d.swatch}`)
+    .join('|');
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !dividers?.length) {
+      if (stage) delete stage.canvas.dataset.dividers;
+      return;
+    }
+    const root = new THREE.Group();
+    for (const d of dividers) {
+      const g = buildDivider(d.kind, d.len, d.swatch);
+      g.position.set(d.x, 0, d.y);
+      if (d.dir === 'v') g.rotation.y = -Math.PI / 2;
+      g.userData.dividerId = d.id;
+      root.add(g);
+    }
+    stage.scene.add(root);
+    stage.canvas.dataset.dividers = String(dividers.length);
+    stage.invalidate();
+    return () => {
+      stage.scene.remove(root);
+      disposeTree(root);
+      stage.invalidate();
+    };
+    // divKey stands for `dividers`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [divKey, plan]);
 
   // ---- Buy mode: markers pulse; the thing being moved is a ghost.
   useEffect(() => {

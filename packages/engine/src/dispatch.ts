@@ -1,5 +1,15 @@
 import { livingCommand, orderFurniture, queueDelivery } from './living.js';
 import {
+  buyWall,
+  labelRoom,
+  orderCarOnline,
+  orderFurnitureOnline,
+  orderMallOnline,
+  placeWall,
+  removeWall,
+} from './catalog.js';
+import type { ChosenOptions } from './data/catalog.js';
+import {
   acceptHoliday,
   declineHoliday,
   doTogether,
@@ -135,6 +145,7 @@ import {
   lifeBarsOn,
   moreGamesOn,
   placesOn,
+  shopOn,
 } from './releases.js';
 import {
   addCapital,
@@ -1478,12 +1489,49 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return applyForJob(world, me, cmd.businessId, cmd.level);
     case 'job.interview':
       return attendInterview(world, me, cmd.applicationId, cmd.answers);
-    case 'home.order':
-      return orderFurniture(world, me, cmd.itemId, ctx.now, cmd.businessId);
+    case 'home.order': {
+      // Shop note: catalogue options, and ordering online (a fee, a wait).
+      if ((cmd.options || cmd.delivery) && !shopOn(world))
+        return fail('command.unknown', 'Unknown command.');
+      const options = cmd.options as ChosenOptions | undefined;
+      return cmd.delivery
+        ? orderFurnitureOnline(world, me, cmd.itemId, cmd.delivery, ctx.now, options)
+        : orderFurniture(world, me, cmd.itemId, ctx.now, cmd.businessId, options);
+    }
     case 'home.buy':
-      return buyFurniture(world, me, cmd.itemId, cmd.businessId);
-    case 'car.buy':
-      return buyCar(world, me, cmd.modelId, cmd.businessId, cmd.keepCurrent);
+      if (cmd.options && !shopOn(world)) return fail('command.unknown', 'Unknown command.');
+      return buyFurniture(
+        world,
+        me,
+        cmd.itemId,
+        cmd.businessId,
+        cmd.options ? { options: cmd.options as ChosenOptions } : {},
+      );
+    case 'car.buy': {
+      if ((cmd.options || cmd.delivery) && !shopOn(world))
+        return fail('command.unknown', 'Unknown command.');
+      const options = cmd.options as ChosenOptions | undefined;
+      return cmd.delivery
+        ? orderCarOnline(world, me, cmd.modelId, cmd.delivery, ctx.now, options)
+        : buyCar(world, me, cmd.modelId, cmd.businessId, cmd.keepCurrent, options);
+    }
+    // ------------------------------------------------------------ walls and rooms (shop note)
+    case 'home.wall.buy':
+      if (!shopOn(world)) return fail('command.unknown', 'Unknown command.');
+      return buyWall(world, me, cmd.kind, cmd.length, ctx.now, {
+        ...(cmd.options ? { options: cmd.options as ChosenOptions } : {}),
+        ...(cmd.businessId ? { businessId: cmd.businessId } : {}),
+        ...(cmd.delivery ? { speed: cmd.delivery } : {}),
+      });
+    case 'home.wall.place':
+      if (!shopOn(world)) return fail('command.unknown', 'Unknown command.');
+      return placeWall(me, cmd.wallId, cmd.floor, cmd.x, cmd.y, cmd.dir);
+    case 'home.wall.remove':
+      if (!shopOn(world)) return fail('command.unknown', 'Unknown command.');
+      return removeWall(world, me, cmd.wallId, !!cmd.sell);
+    case 'home.room.label':
+      if (!shopOn(world)) return fail('command.unknown', 'Unknown command.');
+      return labelRoom(me, cmd.floor, cmd.x, cmd.y, cmd.label);
     // ------------------------------------------------------------ Who's here (Wave 6)
     case 'contact.save':
       return saveContact(world, me, cmd.personId, cmd.name);
@@ -1596,8 +1644,15 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     // ------------------------------------------------------------ golf and the mall
     case 'golf.round':
       return golfRound(world, me, cmd.strokes);
-    case 'mall.buy':
-      return mallBuy(world, me, cmd.itemId, cmd.colour, ctx.now);
+    case 'mall.buy': {
+      if ((cmd.options || cmd.delivery) && !shopOn(world))
+        return fail('command.unknown', 'Unknown command.');
+      const options = cmd.options as ChosenOptions | undefined;
+      return cmd.delivery
+        ? orderMallOnline(world, me, cmd.itemId, cmd.delivery, ctx.now, cmd.colour, options)
+        : mallBuy(world, me, cmd.itemId, cmd.colour, ctx.now, options);
+    }
+
     // ------------------------------------------------------------ more games
     case 'games.book':
       return bookAir(world, me, cmd.businessId, cmd.itemId);

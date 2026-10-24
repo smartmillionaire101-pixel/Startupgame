@@ -31,6 +31,7 @@ import { moodOf, type PhoneCtx, type ThreadRef } from './shared';
 import { Alerts, KIND_ICON } from './apps/Alerts';
 import { Bank } from './apps/Bank';
 import { Chop } from './apps/Chop';
+import { ShopApp } from './apps/ShopApp';
 import { Contacts } from './apps/Contacts';
 import { Events } from './apps/Events';
 import { Fit } from './apps/Fit';
@@ -88,6 +89,7 @@ const APPS: AppDef[] = [
   { id: 'alerts', icon: 'alerts', label: () => t('Alerts'), bg: ['#f87171', '#dc2626'] },
   { id: 'rides', icon: 'rides', label: () => t('Rides'), bg: ['#34d399', '#047857'] },
   { id: 'chop', icon: 'chop', label: () => t('Chop'), bg: ['#fbbf24', '#d97706'] },
+  { id: 'shop', icon: 'cart', label: () => t('Shop'), bg: ['#f9a8d4', '#be185d'] },
   { id: 'invest', icon: 'invest', label: () => t('Invest'), bg: ['#a78bfa', '#6d28d9'] },
   { id: 'capital', icon: 'capital', label: () => t('Capital'), bg: ['#fde68a', '#b45309'] },
   { id: 'fit', icon: 'fit', label: () => t('Fit'), bg: ['#f472b6', '#db2777'] },
@@ -637,6 +639,9 @@ function PhoneScreen(props: {
     case 'chop':
       body = <Chop ctx={ctx} />;
       break;
+    case 'shop':
+      body = <ShopApp ctx={ctx} />;
+      break;
     case 'invest':
       body = <Invest ctx={ctx} />;
       break;
@@ -796,7 +801,9 @@ function PhoneHome({
       (a.id !== 'journey' || !!view.journey || !!careerOf(view)) &&
       (a.id !== 'sales' || hasCompany) &&
       // My purchases: once the wardrobe is open (the investor release).
-      (a.id !== 'purchases' || !!wardrobeOf(view)),
+      (a.id !== 'purchases' || !!wardrobeOf(view)) &&
+      // Shop: once shopping online is open (the shop release).
+      (a.id !== 'shop' || !!view.me.shop),
   );
   const dock = DOCK.filter(shown).map((id) => APPS.find((a) => a.id === id)!);
   return (

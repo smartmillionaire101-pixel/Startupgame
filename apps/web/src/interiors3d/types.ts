@@ -31,6 +31,19 @@ export interface Home3DObject {
   ry?: number;
   /** Wave 12: outside the house, on the grounds. */
   outdoor?: boolean;
+  /** Shop note: the finish bought for it (a colour its wood or fabric takes). */
+  finish?: string;
+}
+
+/** Shop note: a wall or divider you put up (../home/dividers.ts). */
+export interface Home3DDivider {
+  id: string;
+  kind: 'full' | 'half' | 'glass' | 'sliding' | 'bookshelf';
+  len: number;
+  x: number;
+  y: number;
+  dir: 'h' | 'v';
+  swatch: string;
 }
 
 interface PickResult {
@@ -92,4 +105,6 @@ export interface Home3DProps {
   estate?: 'villa' | 'mansion' | 'penthouse' | null;
   /** Wave 12: the grounds (pool, drive, garages); worked out from the plan when absent. */
   grounds?: Grounds;
+  /** Shop note: walls and dividers you put up on this floor. */
+  dividers?: Home3DDivider[];
 }
