@@ -7,9 +7,12 @@ export const moreGames: Record<string, string> = {
   'Bowling (a game of ten frames)': 'Bowling (une partie de dix frames)',
   'Fries and a milkshake': 'Frites et milk-shake',
   'A drink at the lanes': 'Un verre au bord des pistes',
+  'First jump (tandem, open to all)': 'Premier saut (tandem, ouvert à tous)',
   'Tandem skydive': 'Saut en tandem',
   'Solo skydive (with two instructors)': 'Saut en solo (avec deux moniteurs)',
   'Coffee in the hangar': 'Café dans le hangar',
+  'Helicopter hop (15 minutes, open to all)':
+    'Saut de puce en hélicoptère (15 minutes, ouvert à tous)',
   'Helicopter city tour': 'Survol de la ville en hélicoptère',
   'Private helicopter charter': 'Hélicoptère privé',
   'Coffee in the terminal': 'Café au terminal',

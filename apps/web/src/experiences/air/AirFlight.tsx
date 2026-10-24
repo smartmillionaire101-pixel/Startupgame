@@ -196,8 +196,11 @@ export default function AirFlight({
     return { x: at.e, z: at.s, marks };
   }, [layout, booking.businessId, city]);
   const route = useMemo(
-    () => (where && !skydive ? heliRoute(where, where.marks, charter ? 8 : 5) : []),
-    [where, skydive, charter],
+    () =>
+      where && !skydive
+        ? heliRoute(where, where.marks, charter ? 8 : booking.item === 'heli-hop' ? 3 : 5)
+        : [],
+    [where, skydive, charter, booking.item],
   );
 
   // The flight's state (stepped each frame) and what the screen shows of it.
