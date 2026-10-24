@@ -17,6 +17,7 @@ import { MyLook } from '../avatar/EditLook';
 import { PurchasesButton } from '../avatar/Wardrobe';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
+import { LifestyleCard } from './Lifestyle';
 import { FoundBank } from './Bank';
 import { BankInvitations } from './BankLicence';
 import { setSetting, useSimple, useSimpleAvailable } from '../phone/settings';
@@ -282,37 +283,7 @@ export function PersonalMoney({ travel = true }: { travel?: boolean } = {}) {
           hint={usd ? `${cur}/USD ${view.market.unitsPerUsd}` : t('Not opened')}
         />
       </div>
-      <Card title={t('Lifestyle')}>
-        <p className="small muted">
-          {t(
-            'Costs money every month; changes your energy, hours and how investors and tabloids see you. Fixed costs are hard to cut later.',
-          )}
-        </p>
-        <div className="choice-grid">
-          {view.lifestyleTiers.map((tier) => (
-            <button
-              key={tier.tier}
-              className="choice"
-              aria-pressed={view.me.lifestyle.tier === tier.tier}
-              onClick={() =>
-                void send(
-                  { type: 'player.lifestyle', tier: tier.tier },
-                  t('Lifestyle: {name}.', { name: tx(tier.name) }),
-                )
-              }
-            >
-              <div className="spread">
-                <span className="item-title">{tx(tier.name)}</span>
-                <span>{t('{amount}/mo', { amount: money(tier.monthlyCost, cur) })}</span>
-              </div>
-              <div className="small muted">
-                {tx(tier.housing)} · {tx(tier.transport)} ·{' '}
-                {t('{n}h', { n: `${tier.hours >= 0 ? '+' : ''}${tier.hours}` })}
-              </div>
-            </button>
-          ))}
-        </div>
-      </Card>
+      <LifestyleCard />
       <Card title={t('Dollar account')}>
         {!usd ? (
           <Button

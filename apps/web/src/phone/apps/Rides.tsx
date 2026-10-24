@@ -1,7 +1,10 @@
 /**
  * Rides (Bolt style): pick where to, see walk / bike / transit / taxi with
- * time, fare and effort, and Book. A bus or taxi is paid with `city.ride`;
- * then the City takes you there by that mode (`visitPlace(place, mode)`).
+ * time, fare and effort, and Book. The trip is paid here, as the City's
+ * chooser would (`tripCommand`: a fare for a bus or taxi; hours and energy
+ * with the life bars); then the City takes you there by that mode
+ * (`visitPlace(place, mode)`) straight away, picking you up wherever you are
+ * (at home too), without asking how again.
  */
 import { useMemo, useState } from 'react';
 import type { Command } from '@runway/engine';
@@ -15,12 +18,13 @@ import {
   cityViewOf,
   rememberRide,
   RIDE_MODES,
-  rideDistance,
   rideFare,
   rideMinutes,
+  tripCommand,
   type RideMode,
 } from '../../city/travel';
 import { visitPlace } from '../../city/goto';
+import { quoteRide } from '../../city/ride/state';
 import type { Place } from '../../city/layout';
 import { Icon, type IconName } from '../icons';
 import { H, Nothing, RowIcon, type PhoneCtx } from '../shared';
@@ -98,17 +102,14 @@ export function Rides({ ctx }: { ctx: PhoneCtx }) {
   const tiles = tilesTo(layout, to);
   const fare = (m: RideMode) => rideFare(m, tiles, city.costOfLiving);
   const book = async () => {
-    if (mode === 'bus' || mode === 'taxi') {
+    const cmd = tripCommand(mode, tiles, !!view.me.bars);
+    if (cmd) {
       setBusy(true);
       try {
-        await api.command({
-          type: 'city.ride',
-          mode,
-          distance: rideDistance(tiles),
-        } as unknown as Command);
+        await api.command(cmd as unknown as Command);
         void refresh();
       } catch (e) {
-        // A server without rides yet: the ride is free.
+        // A server without rides (or walks) yet: the trip is free.
         if (!(e instanceof ApiError && e.code === 'command.unknown')) {
           setBusy(false);
           toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error');
@@ -118,6 +119,8 @@ export function Rides({ ctx }: { ctx: PhoneCtx }) {
       setBusy(false);
     }
     rememberRide(mode);
+    // The ride scene's card shows where you're going and what it cost.
+    quoteRide({ mode, fare: fare(mode), currency: city.currency, where: placeName(to, view) });
     visitPlace(to.id, mode);
     ctx.close();
   };

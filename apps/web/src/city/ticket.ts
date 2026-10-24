@@ -43,6 +43,13 @@ export interface Ticket {
    * server sells cabins. Missing: an older server, economy only.
    */
   cabin?: CabinTier;
+  /**
+   * First-class release: the way home booked with this ticket (from the
+   * server): its cabin and fare, charged as its own leg. Missing: one way.
+   */
+  back?: { cabin: CabinTier; fare: number };
+  /** This is the flight home on a return ticket, paid when the trip was booked. */
+  prepaid?: boolean;
 }
 
 const KEY = 'runway.ticket';
@@ -120,6 +127,15 @@ export function useTicket(): Ticket | null {
   ).flight;
   const seat = flightPartyTo(view, paid.to)?.seat;
   const cabin = paid.cabin ?? (sellsCabins(view) ? 'economy' : undefined);
+  // The return leg and the prepaid flight home (first-class release).
+  const ret = (paid as { return?: { cabin?: string; paid?: number } }).return;
+  const back =
+    ret &&
+    typeof ret.paid === 'number' &&
+    ['economy', 'business', 'first'].includes(String(ret.cabin))
+      ? { cabin: ret.cabin as CabinTier, fare: ret.paid }
+      : undefined;
+  const prepaid = (paid as { prepaid?: boolean }).prepaid === true;
   return {
     ...detail,
     ...(shown?.number
@@ -129,6 +145,8 @@ export function useTicket(): Ticket | null {
     fare: paid.paid,
     hotel: hotel ?? undefined,
     cabin,
+    back,
+    ...(prepaid ? { prepaid } : {}),
   };
 }
 

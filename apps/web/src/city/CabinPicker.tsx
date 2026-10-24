@@ -3,12 +3,16 @@
  * choose which class I want: economy, business and first class, because
  * remember we have lifestyle in the game"). The three side by side, each with
  * its fare, what you get and how you'll land; one you can't afford is greyed
- * out. Then, abroad, the hotel (./HotelPicker); flying home, just the flight.
+ * out. Then (first-class release, player feedback: "When I book first class
+ * travel the return is always economy") the way home: a return booked now,
+ * in the same cabin unless you choose another. Then, abroad, the hotel
+ * (./HotelPicker); flying home, just the flight, on the return you hold.
  */
 import { useState } from 'react';
 import { money } from '../format';
 import { t } from '../i18n';
 import { HotelPicker } from './HotelPicker';
+import type { Ticket } from './ticket';
 import type { CabinOption, CabinTier, HotelOption, HotelTier } from './travel';
 import './hotels.css';
 
@@ -55,6 +59,8 @@ function CabinPicker({
   pick,
   onPick,
   name,
+  leg = 'out',
+  paid,
 }: {
   cabins: CabinOption[];
   currency: string;
@@ -62,46 +68,115 @@ function CabinPicker({
   onPick: (c: CabinTier) => void;
   /** The radio group's name (unique per destination). */
   name: string;
+  /** The way out (or one way), or the way home of a return. */
+  leg?: 'out' | 'return';
+  /** The cabin of the return ticket you hold: already paid. */
+  paid?: CabinTier;
 }) {
   return (
-    <div className="cabin-options" role="radiogroup" aria-label={t('Cabin class')}>
-      {cabins.map((c) => (
-        <label
-          key={c.cabin}
-          className={`cabin-option cabin-${c.cabin}${pick === c.cabin ? ' is-picked' : ''}${c.affordable ? '' : ' is-off'}`}
-          data-cabin-option={c.cabin}
-        >
-          <input
-            type="radio"
-            name={name}
-            value={c.cabin}
-            checked={pick === c.cabin}
-            disabled={!c.affordable}
-            onChange={() => onPick(c.cabin)}
-          />
-          <span className="cabin-head">
-            <span aria-hidden="true">{CABIN_ICON[c.cabin]}</span> <b>{CABIN_NAME[c.cabin]()}</b>
-          </span>
-          <span className="cabin-price">{money(c.price, currency)}</span>
-          <ul className="cabin-perks">
-            {PERKS[c.cabin]().map((x) => (
-              <li key={x}>{x}</li>
-            ))}
-          </ul>
-          <span className="cabin-land small">{landing(c)}</span>
-          {c.hours > 0 && (
-            <span className="cabin-hours small muted">
-              {t('{h}h lost at the airport', { h: c.hours })}
+    <div
+      className={`cabin-options${leg === 'return' ? ' is-return' : ''}`}
+      role="radiogroup"
+      aria-label={leg === 'return' ? t('Cabin home') : t('Cabin class')}
+    >
+      {cabins.map((c) => {
+        const held = paid === c.cabin;
+        const ok = c.affordable || held;
+        return (
+          <label
+            key={c.cabin}
+            className={`cabin-option cabin-${c.cabin}${pick === c.cabin ? ' is-picked' : ''}${ok ? '' : ' is-off'}`}
+            {...(leg === 'return'
+              ? { 'data-return-option': c.cabin }
+              : { 'data-cabin-option': c.cabin })}
+            {...(held ? { 'data-cabin-paid': '' } : {})}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={c.cabin}
+              checked={pick === c.cabin}
+              disabled={!ok}
+              onChange={() => onPick(c.cabin)}
+            />
+            <span className="cabin-head">
+              <span aria-hidden="true">{CABIN_ICON[c.cabin]}</span> <b>{CABIN_NAME[c.cabin]()}</b>
             </span>
-          )}
-          {!c.affordable && <span className="cabin-off small">{t('Can’t afford')}</span>}
-        </label>
-      ))}
+            <span className="cabin-price">
+              {held ? t('Your return ticket · paid') : money(c.price, currency)}
+            </span>
+            <ul className="cabin-perks">
+              {PERKS[c.cabin]().map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ul>
+            <span className="cabin-land small">{landing(c)}</span>
+            {c.hours > 0 && (
+              <span className="cabin-hours small muted">
+                {t('{h}h lost at the airport', { h: c.hours })}
+              </span>
+            )}
+            {!ok && <span className="cabin-off small">{t('Can’t afford')}</span>}
+          </label>
+        );
+      })}
     </div>
   );
 }
 
-/** The cabin, then (abroad) the hotel, then one button that books them. */
+/**
+ * Both legs of your ticket (first-class release): the way out and the way
+ * home, each with its cabin (and fare), or the flight home on a return you
+ * hold. Nothing for a one-way ticket.
+ */
+export function TicketLegs({
+  ticket,
+  fromName,
+  homeName,
+  prices,
+}: {
+  ticket: Ticket;
+  fromName: string;
+  homeName: string;
+  /** Show each leg's fare. */
+  prices?: boolean;
+}) {
+  if (!ticket.back && !ticket.prepaid) return null;
+  const out = ticket.cabin ?? 'economy';
+  return (
+    <span className="ticket-legs small" data-ticket-legs="">
+      {ticket.prepaid ? (
+        <span data-ticket-leg="home" data-leg-cabin={out}>
+          <span aria-hidden="true">↩ </span>
+          {t('Return: {from} → {to}', { from: fromName, to: ticket.toName })} ·{' '}
+          <b>{CABIN_NAME[out]()}</b> · {t('paid when you booked')}
+        </span>
+      ) : (
+        <span data-ticket-leg="out" data-leg-cabin={out}>
+          <span aria-hidden="true">✈ </span>
+          {t('Outbound: {from} → {to}', { from: fromName, to: ticket.toName })} ·{' '}
+          <b>{CABIN_NAME[out]()}</b>
+          {prices ? ` · ${money(ticket.fare, ticket.currency)}` : ''}
+        </span>
+      )}
+      {ticket.back && (
+        <span data-ticket-leg="return" data-leg-cabin={ticket.back.cabin}>
+          <span aria-hidden="true">↩ </span>
+          {t('Return: {from} → {to}', { from: ticket.toName, to: homeName })} ·{' '}
+          <b>{CABIN_NAME[ticket.back.cabin]()}</b>
+          {prices ? ` · ${money(ticket.back.fare, ticket.currency)}` : ''}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * The cabin, then (first-class release) the way home in its own cabin (the
+ * same as the way out unless you change it), then abroad the hotel, then one
+ * button that books them. Flying home on a return you hold, its cabin comes
+ * first, already paid.
+ */
 export function TripPicker({
   city,
   cabins,
@@ -110,6 +185,10 @@ export function TripPicker({
   currency,
   balance,
   busy,
+  returnCabins = [],
+  homeName = '',
+  held = null,
+  initial,
   onBook,
   onCancel,
 }: {
@@ -122,14 +201,47 @@ export function TripPicker({
   currency: string;
   balance: number;
   busy: boolean;
-  onBook: (hotel: HotelTier | null, cabin: CabinTier) => void;
+  /** The way home from there per cabin (empty: one way only). */
+  returnCabins?: CabinOption[];
+  homeName?: string;
+  /** Flying home: the return ticket you hold. */
+  held?: { cabin: CabinTier; paid: number } | null;
+  /** The cabin to start on (flying home: the one you flew out in). */
+  initial?: CabinTier;
+  onBook: (hotel: HotelTier | null, cabin: CabinTier, back: CabinTier | null) => void;
   onCancel: () => void;
 }) {
-  const [cabin, setCabin] = useState<CabinTier>('economy');
+  const [cabin, setCabin] = useState<CabinTier>(held?.cabin ?? initial ?? 'economy');
+  const canReturn = cabins.length > 0 && returnCabins.length > 0;
+  // A return, unless even the dearest cabin both ways would be more than you have.
+  const [roundTrip, setRoundTrip] = useState(
+    () =>
+      canReturn &&
+      balance >=
+        Math.max(0, ...cabins.map((c) => c.price)) +
+          Math.max(0, ...returnCabins.map((c) => c.price)),
+  );
+  // The way home follows the way out until you choose it yourself.
+  const [backPick, setBackPick] = useState<CabinTier | null>(null);
+  const back = backPick ?? cabin;
   const chosen = cabins.find((c) => c.cabin === cabin);
-  const price = chosen?.price ?? fare;
+  const usingHeld = !!held && held.cabin === cabin;
+  const out = usingHeld ? 0 : (chosen?.price ?? fare);
+  const backPrice = roundTrip ? (returnCabins.find((c) => c.cabin === back)?.price ?? 0) : 0;
+  const price = out + backPrice;
+  const short = !usingHeld && balance < price;
+  const returns = returnCabins.map((c) => ({ ...c, affordable: balance >= out + c.price }));
+  const blocked = busy || (!usingHeld && !!chosen && !chosen.affordable) || short;
   return (
     <div className="trip-picker" data-trip-picker={city}>
+      {held && (
+        <p className="small trip-held" data-held-return={held.cabin}>
+          <span aria-hidden="true">🎫 </span>
+          {t('You hold a return ticket home in {cabin}, already paid.', {
+            cabin: CABIN_NAME[held.cabin](),
+          })}
+        </p>
+      )}
       {cabins.length > 0 && (
         <>
           <b className="small">{t('How do you want to fly to {city}?', { city })}</b>
@@ -139,20 +251,67 @@ export function TripPicker({
             pick={cabin}
             onPick={setCabin}
             name={`cabin-${city}`}
+            paid={held?.cabin}
           />
         </>
       )}
+      {held && !usingHeld && (
+        <p className="small muted" data-held-refund="">
+          {t('Your {cabin} return is refunded, and this one charged.', {
+            cabin: CABIN_NAME[held.cabin](),
+          })}
+        </p>
+      )}
+      {canReturn && (
+        <div className="trip-kind" role="radiogroup" aria-label={t('Trip')}>
+          <label className={roundTrip ? 'is-picked' : ''} data-trip-kind="return">
+            <input
+              type="radio"
+              name={`trip-${city}`}
+              checked={roundTrip}
+              onChange={() => setRoundTrip(true)}
+            />
+            {t('Return')}
+          </label>
+          <label className={roundTrip ? '' : 'is-picked'} data-trip-kind="oneway">
+            <input
+              type="radio"
+              name={`trip-${city}`}
+              checked={!roundTrip}
+              onChange={() => setRoundTrip(false)}
+            />
+            {t('One way')}
+          </label>
+        </div>
+      )}
+      {canReturn && roundTrip && (
+        <div className="trip-back" data-trip-back={back}>
+          <b className="small">{t('And home to {city}?', { city: homeName })}</b>
+          <CabinPicker
+            cabins={returns}
+            currency={currency}
+            pick={back}
+            onPick={setBackPick}
+            name={`back-${city}`}
+            leg="return"
+          />
+          <p className="small muted">
+            {t('Both legs are charged now; the way home is on your ticket.')}
+          </p>
+        </div>
+      )}
+      {short && <p className="small cabin-off">{t('Can’t afford')}</p>}
       {hotels.length > 0 ? (
-        // A new suggestion for each cabin: what's left after the fare changes.
+        // A new suggestion for each choice: what's left after the fares change.
         <HotelPicker
-          key={cabin}
+          key={`${cabin}:${roundTrip ? back : '-'}`}
           city={city}
           hotels={hotels}
           fare={price}
           currency={currency}
           balance={balance}
-          busy={busy || (!!chosen && !chosen.affordable)}
-          onBook={(hotel) => onBook(hotel, cabin)}
+          busy={blocked}
+          onBook={(hotel) => onBook(hotel, cabin, roundTrip ? back : null)}
           onCancel={onCancel}
         />
       ) : (
@@ -160,11 +319,13 @@ export function TripPicker({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={busy || (!!chosen && !chosen.affordable)}
+            disabled={blocked}
             data-cabin-book
-            onClick={() => onBook(null, cabin)}
+            onClick={() => onBook(null, cabin, roundTrip ? back : null)}
           >
-            {t('Book flight · {total}', { total: money(price, currency) })}
+            {usingHeld
+              ? t('Use my return ticket')
+              : t('Book flight · {total}', { total: money(price, currency) })}
           </button>
           <button type="button" className="btn btn-ghost" onClick={onCancel}>
             {t('Back')}

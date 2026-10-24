@@ -1,0 +1,327 @@
+/* First class, properly: the lounge at the airport and the suite in flight. */
+
+/* ---------------------------------------------------------------- The lounge */
+.lounge-scene {
+  position: relative;
+  flex: 1 1 260px;
+  min-height: 220px;
+  overflow: hidden;
+  background: #0b1020;
+  color: #f8fafc;
+}
+.lounge-first {
+  background: #1c1410;
+}
+.lounge-scene .lounge-3d,
+.lounge-scene .lounge-drawn {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+.lounge-loading,
+.suite-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  opacity: 0.7;
+}
+.lounge-sign {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  display: grid;
+  padding: 0.3rem 0.65rem;
+  border-radius: 10px;
+  background: rgb(5 5 5 / 0.72);
+  line-height: 1.2;
+  pointer-events: none;
+}
+.lounge-first .lounge-sign b {
+  color: #fcd34d;
+}
+.lounge-business .lounge-sign b {
+  color: #93c5fd;
+}
+.lounge-snap,
+.suite-snap {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  min-height: 36px;
+}
+.lounge-call {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  background: #050505;
+  color: #fbbf24;
+  font-weight: 800;
+  font-size: 0.85rem;
+  border: 1px solid #fbbf24;
+  animation: lounge-blink 1.6s ease-in-out infinite;
+}
+@keyframes lounge-blink {
+  50% {
+    border-color: transparent;
+  }
+}
+:root[data-reduce-motion='1'] .lounge-call {
+  animation: none;
+}
+.lounge-you {
+  transition: transform 1.2s ease-in-out;
+}
+:root[data-reduce-motion='1'] .lounge-you {
+  transition: none;
+}
+.lounge-climb {
+  animation: lounge-climb 9s linear infinite;
+}
+@keyframes lounge-climb {
+  from {
+    transform: translate(-60px, 30px);
+  }
+  to {
+    transform: translate(460px, -60px);
+  }
+}
+:root[data-reduce-motion='1'] .lounge-climb {
+  animation: none;
+}
+.lounge-panel {
+  display: grid;
+  gap: 0.5rem;
+}
+.lounge-panel p {
+  margin: 0;
+}
+.lounge-acts,
+.lounge-people ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lounge-acts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.lounge-act,
+.suite-act {
+  display: grid;
+  gap: 0.1rem;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.lounge-act b,
+.suite-act b {
+  font-size: 0.85rem;
+}
+.lounge-act span[aria-hidden],
+.suite-act span[aria-hidden] {
+  font-size: 1.1rem;
+}
+.lounge-act.is-done,
+.suite-act.is-done {
+  opacity: 0.6;
+}
+.suite-act.is-on {
+  border-color: #c9a227;
+  box-shadow: 0 0 0 2px rgb(201 162 39 / 0.35);
+}
+.lounge-act:disabled {
+  cursor: default;
+}
+.lounge-result,
+.suite-result {
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  background: rgb(201 162 39 / 0.14);
+}
+.lounge-people ul {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+}
+.lounge-people li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* ---------------------------------------------------------------- The ticket */
+.ticket-legs {
+  display: grid;
+  gap: 0.1rem;
+  margin-top: 0.2rem;
+}
+.trip-kind {
+  display: flex;
+  gap: 0.4rem;
+}
+.trip-kind label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.trip-kind label.is-picked {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgb(15 118 110 / 0.25);
+}
+.trip-back {
+  display: grid;
+  gap: 0.35rem;
+}
+.trip-held {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  background: rgb(201 162 39 / 0.16);
+}
+
+/* ---------------------------------------------------------------- The suite in flight */
+.flight.is-suite .fl-bottom {
+  display: none;
+}
+/* In the suite, Skip moves up beside the camera (the panel's buttons own the bottom). */
+.flight.is-suite .fl7-skip {
+  top: calc(5.6rem + env(safe-area-inset-top));
+  bottom: auto;
+  left: 10px;
+  right: auto;
+  min-height: 36px;
+}
+.suite-flight {
+  display: flex;
+  flex-direction: column;
+  background: #111827;
+  color: #f8fafc;
+}
+.suite-scene {
+  position: relative;
+  flex: 1 1 50%;
+  min-height: 200px;
+  overflow: hidden;
+}
+.suite-scene .suite-3d,
+.suite-scene .suite-drawn {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+.suite-drawn.is-dark {
+  filter: saturate(0.8);
+}
+.suite-timeline {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: calc(3.4rem + env(safe-area-inset-top));
+  display: flex;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+.suite-timeline li {
+  flex: 1;
+  padding: 0.25rem 0.3rem;
+  border-radius: 8px;
+  background: rgb(15 23 42 / 0.7);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  color: #cbd5e1;
+}
+.suite-timeline li.is-done {
+  color: #94a3b8;
+}
+.suite-timeline li.is-now {
+  background: #c9a227;
+  color: #1c1410;
+}
+.cab-business .suite-timeline li.is-now {
+  background: #38bdf8;
+  color: #0f172a;
+}
+.suite-crew {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border-radius: 12px;
+  background: rgb(15 23 42 / 0.82);
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+.suite-snap {
+  top: calc(5.6rem + env(safe-area-inset-top));
+}
+.suite-panel {
+  flex: 0 1 auto;
+  max-height: 50%;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.6rem 16px calc(1rem + env(safe-area-inset-bottom));
+  background: var(--surface, #fff);
+  color: var(--text, #1c1814);
+}
+.suite-panel p {
+  margin: 0;
+}
+.suite-acts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.suite-menu ol {
+  margin: 0.25rem 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+}
+.suite-menu li.is-served {
+  color: #0f766e;
+  font-weight: 700;
+}
+.suite-service .cab-service {
+  position: static;
+  transform: none;
+  width: auto;
+  margin-top: 0.3rem;
+}
+.suite-summary {
+  font-weight: 700;
+}

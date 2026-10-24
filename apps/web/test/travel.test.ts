@@ -19,6 +19,7 @@ import {
   routeOf,
   SHORT_HOP,
   transitName,
+  tripCommand,
   airportSchedule,
   boardRows,
   CITY_NAMES,
@@ -74,7 +75,13 @@ describe('Wave 4 contracts, with fallbacks', () => {
     ]);
     const flights = { fareTo: { london: 450_000, nairobi: 250_000 }, hours: 4 };
     // No cabins on sale from this server: economy only.
-    expect(flightsOf(viewOf({ flights }))).toEqual({ ...flights, cabinTo: {} });
+    expect(flightsOf(viewOf({ flights }))).toEqual({
+      ...flights,
+      cabinTo: {},
+      returnTo: {},
+      heldReturn: null,
+      lastCabin: null,
+    });
     const atHome = destinationsOf(viewOf({ flights }));
     expect(atHome.map((d) => [d.id, d.fare, d.hours])).toEqual([
       ['london', 450_000, 4],
@@ -205,5 +212,24 @@ describe('Wave 7: rides and the busy airport', () => {
   it('formats flight times', () => {
     expect(fmtFlightTime(6 + 20 / 60)).toBe('6h 20m');
     expect(fmtFlightTime(0.5)).toBe('30m');
+  });
+
+  it('pays for a trip the same way from the chooser and the Rides app', () => {
+    // Walking and cycling are free without the life bars; with them they cost time.
+    expect(tripCommand('walk', 30, false)).toBeNull();
+    expect(tripCommand('cycle', 30, false)).toBeNull();
+    expect(tripCommand('cycle', 30, true)).toEqual({
+      type: 'city.walk',
+      mode: 'cycle',
+      minutes: rideMinutes('cycle', 30),
+    });
+    // A bus, a taxi or your car always has a fare.
+    for (const bars of [false, true])
+      expect(tripCommand('taxi', 30, bars)).toEqual({
+        type: 'city.ride',
+        mode: 'taxi',
+        distance: rideDistance(30),
+      });
+    expect(tripCommand('bus', 5, false)?.type).toBe('city.ride');
   });
 });

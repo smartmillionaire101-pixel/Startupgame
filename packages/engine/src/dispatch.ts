@@ -46,7 +46,17 @@ import {
   requestPersonalLoan,
 } from './credit.js';
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
-import { bookFlight, cancelFlight, fly, hasVisited, relocate, ride, travel } from './travel.js';
+import {
+  bookFlight,
+  cancelFlight,
+  fly,
+  hasVisited,
+  inflightAct,
+  loungeAct,
+  relocate,
+  ride,
+  travel,
+} from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { advanceDeal, dropDeal, prospect } from './sales.js';
 import { chooseDecision } from './decisions.js';
@@ -1275,11 +1285,27 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'player.travel':
       return travel(world, me, cmd.market);
     case 'travel.book':
-      return bookFlight(world, me, cmd.to, ctx.now, cmd.hotel, cmd.flight, cmd.cabin);
+      return bookFlight(
+        world,
+        me,
+        cmd.to,
+        ctx.now,
+        cmd.hotel,
+        cmd.flight,
+        cmd.cabin,
+        cmd.returnCabin,
+      );
     case 'travel.cancel':
       return cancelFlight(world, me);
     case 'travel.fly':
       return fly(world, me, cmd.to, ctx.now);
+    case 'travel.lounge':
+      // The first-class release: unknown before the note (the lounge was a picture).
+      if (!bankersOn(world)) return fail('command.unknown', 'Unknown command.');
+      return loungeAct(world, me, cmd.act, cmd.with);
+    case 'travel.inflight':
+      if (!bankersOn(world)) return fail('command.unknown', 'Unknown command.');
+      return inflightAct(world, me, cmd.act);
     case 'city.ride':
       return ride(world, me, cmd.mode, cmd.distance);
     case 'city.walk':

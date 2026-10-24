@@ -36,8 +36,7 @@ import {
   hereOf,
   lastRide,
   rememberRide,
-  rideDistance,
-  rideMinutes,
+  tripCommand,
   type Destination,
   type RideMode,
 } from './travel';
@@ -51,7 +50,7 @@ import {
   storyOf,
   type StoryPlace,
 } from './contract';
-import { onVisit, peekVisit, takeVisit } from './goto';
+import { onVisit, peekVisit, takeVisit, takeVisitMode } from './goto';
 import { getTicket, setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
@@ -452,7 +451,18 @@ export function CityScreen({
         hours: dest?.hours ?? flights?.hours ?? 4,
         status: 'pending',
         airline: getTicket()?.airline,
-        cabin: view.me.flightTicket?.cabin ?? (sellsCabins(view) ? 'economy' : undefined),
+        // No ticket yet (flying home at once): the return you hold, else economy.
+        cabin:
+          view.me.flightTicket?.cabin ??
+          (view.me.flightTicket
+            ? sellsCabins(view)
+              ? 'economy'
+              : undefined
+            : to === view.me.market
+              ? (flights?.heldReturn?.cabin ?? (sellsCabins(view) ? 'economy' : undefined))
+              : sellsCabins(view)
+                ? 'economy'
+                : undefined),
         note: flights
           ? undefined
           : t(
@@ -741,10 +751,16 @@ function CityBodyInner({
   const markerPlace = next ? placeFor(layout, next.place) : undefined;
 
   const goTo = useCallback(
-    (place: Place) => {
+    (place: Place, booked?: RideMode) => {
       setPlacesOpen(false);
       setTrip(null);
       if (lite || !mapRef.current) setInside(place);
+      // Booked (and paid for) in the phone's Rides app: that ride picks you
+      // up where you are (at home too) and takes you there; nothing to ask.
+      else if (booked) {
+        setPreferred(booked);
+        mapRef.current.goTo(place.id, booked, { instant: skipRides() });
+      }
       // "Always skip rides" (Settings): straight there, no trip. With the life
       // bars a trip costs time and energy, so you still choose how (the
       // ride then skips its animation).
@@ -826,7 +842,7 @@ function CityBodyInner({
     toast,
   ]);
   const visit = useCallback(
-    (placeId: string) => {
+    (placeId: string, booked?: RideMode) => {
       // 'market' stands for the Market's stalls ("What to do now"); 'investors'
       // and 'bank' for their quarters (the founder journey). A building's id
       // first, then a story place's name ('office', 'home': the rescue plan's
@@ -840,16 +856,18 @@ function CityBodyInner({
       setPeopleOpen(false);
       setInside(null);
       setArrival(false);
-      if (p) goTo(p);
+      if (p) goTo(p, booked);
     },
     [layout, goTo],
   );
 
-  // "Take me there" from elsewhere in the app (Me → Contacts).
+  // "Take me there" from elsewhere in the app (Me → Contacts), or a ride
+  // booked in the phone's Rides app (with how you're going).
   useEffect(() => {
     const go = () => {
       const id = takeVisit();
-      if (id) visit(id);
+      const booked = takeVisitMode() ?? undefined;
+      if (id) visit(id, booked);
     };
     go();
     return onVisit(go);
@@ -867,15 +885,11 @@ function CityBodyInner({
    */
   const chargeTrip = useCallback(
     async (mode: RideMode, tiles: number) => {
-      const legs = mode === 'walk' || mode === 'cycle';
-      if (legs && !lifeBars) return true;
+      const cmd = tripCommand(mode, tiles, lifeBars);
+      if (!cmd) return true;
       setRideBusy(true);
       try {
-        await api.command(
-          (legs
-            ? { type: 'city.walk', mode, minutes: rideMinutes(mode, tiles) }
-            : { type: 'city.ride', mode, distance: rideDistance(tiles) }) as unknown as Command,
-        );
+        await api.command(cmd as unknown as Command);
         void refresh();
       } catch (e) {
         // A server without rides (or walks) yet: the trip is free (and just animates).

@@ -1414,6 +1414,26 @@ input[type='range'] {
   cursor: not-allowed;
 }
 
+/* A lifestyle tier your savings can't cover a month of: greyed, still pickable (with a confirm). */
+.choice.is-short {
+  opacity: 0.55;
+  background: var(--surface-2);
+  box-shadow: none;
+}
+.lifestyle-short {
+  color: var(--warn);
+  font-weight: 600;
+}
+.lifestyle-confirm {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1.5px solid var(--warn);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  display: grid;
+  gap: var(--sp-2);
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

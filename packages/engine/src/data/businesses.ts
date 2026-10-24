@@ -1081,6 +1081,8 @@ export const BUSINESS_KINDS: BusinessKindSpec[] = [
   }),
   kind('skydive-centre', 'hospitality', 'Skydive centre', 'warehouse', [12, 35], {
     items: [
+      // Open to every lifestyle: a first tandem jump (the higher jumps need a tier).
+      act('skydive-first', 'First jump (tandem, open to all)', 0.05, 9, 0.15),
       luxe('skydive-tandem', 'Tandem skydive', 0.09, 10, 0.2, 3),
       luxe('skydive-solo', 'Solo skydive (with two instructors)', 0.15, 10, 0.25, 4),
       item('coffee', 'Coffee in the hangar', 0.004, 3, true),
@@ -1100,6 +1102,8 @@ export const BUSINESS_KINDS: BusinessKindSpec[] = [
   }),
   kind('heliport', 'hospitality', 'Heliport', 'warehouse', [20, 50], {
     items: [
+      // Open to every lifestyle: a short hop past a few landmarks (not a meeting place).
+      act('heli-hop', 'Helicopter hop (15 minutes, open to all)', 0.035, 8, 0.15),
       luxe('heli-tour', 'Helicopter city tour', 0.07, 9, 0.25, 3, { meeting: true }),
       luxe('heli-charter', 'Private helicopter charter', 0.3, 10, 0.45, 4, { meeting: true }),
       item('lounge', 'Coffee in the terminal', 0.006, 3, true),

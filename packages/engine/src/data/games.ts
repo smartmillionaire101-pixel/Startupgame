@@ -95,6 +95,9 @@ export interface AirActivity {
 }
 
 export const AIR_ACTIVITIES: Record<string, AirActivity> = {
+  // Entry level, open to every lifestyle tier.
+  'skydive-first': { kind: 'skydive', hours: 3, energy: -8, fun: 12, social: 4, stress: -8 },
+  'heli-hop': { kind: 'heli', hours: 1, energy: -1, fun: 9, social: 2, stress: -6 },
   'skydive-tandem': { kind: 'skydive', hours: 3, energy: -8, fun: 14, social: 4, stress: -10 },
   'skydive-solo': { kind: 'skydive', hours: 4, energy: -10, fun: 16, social: 4, stress: -12 },
   'heli-tour': { kind: 'heli', hours: 1, energy: -2, fun: 12, social: 4, stress: -8 },

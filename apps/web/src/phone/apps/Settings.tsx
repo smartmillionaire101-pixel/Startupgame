@@ -1,7 +1,9 @@
 /**
  * Settings: Simple mode (Phase 2), Reduce motion, Always skip rides, Sound and Language.
  */
-import { LANGS, setLang, t, useLang } from '../../i18n';
+import { LANGS, setLang, t, tx, useLang } from '../../i18n';
+import { useView } from '../../store';
+import { LifestyleButton } from '../../screens/Lifestyle';
 import { setSetting, useSetting, useSimpleAvailable, type SettingKey } from '../settings';
 import { setMapQuality, useMapQuality } from '../../city/three/quality';
 import { H, type PhoneCtx } from '../shared';
@@ -57,10 +59,20 @@ function MapQuality() {
 
 export function Settings(_: { ctx: PhoneCtx }) {
   const lang = useLang();
+  const { view } = useView();
   // Simple mode is for founders; investors and bankers always play the full game.
   const simpleAvailable = useSimpleAvailable();
   return (
     <div className="phone-stack">
+      <section className="phone-card">
+        <div className="spread">
+          <span>
+            <b>{t('Lifestyle')}</b>{' '}
+            <span className="small muted">{tx(String(view.me.lifestyle.name ?? ''))}</span>
+          </span>
+          <LifestyleButton size="sm" />
+        </div>
+      </section>
       {simpleAvailable && (
         <section className="phone-card">
           <Toggle

@@ -216,8 +216,15 @@ describe('more games: the release switch', () => {
     const g = playerView(w, 'host')!.me.games!;
     expect(g.bowling?.name).toBe('Lekki Strike Lanes');
     expect(g.lanes?.venue).toBe(alley(w).id);
-    expect(g.skydive?.items.map((i) => i.id)).toEqual(['skydive-tandem', 'skydive-solo']);
-    expect(g.heli?.items.map((i) => i.requiresTier)).toEqual([3, 4]);
+    // An entry-level jump and hop open to every lifestyle; the rest need a tier.
+    expect(g.skydive?.items.map((i) => i.id)).toEqual([
+      'skydive-first',
+      'skydive-tandem',
+      'skydive-solo',
+    ]);
+    expect(g.skydive?.items.map((i) => i.requiresTier)).toEqual([1, 3, 4]);
+    expect(g.heli?.items.map((i) => i.id)).toEqual(['heli-hop', 'heli-tour', 'heli-charter']);
+    expect(g.heli?.items.map((i) => i.requiresTier)).toEqual([1, 3, 4]);
     expect(gameVenueKey('heliport')).toBe('games-heliport');
   });
 });
@@ -363,6 +370,27 @@ describe('skydives and helicopter flights', () => {
       itemId: 'skydive-tandem',
     });
     expect(locked.ok).toBe(false);
+    // The entry-level jump and hop are open to every lifestyle (Lean here).
+    const lean = run(w, 'host', { type: 'player.lifestyle', tier: 1 }).world;
+    const first = run(lean, 'host', {
+      type: 'games.book',
+      businessId: c.id,
+      itemId: 'skydive-first',
+    });
+    expect(first.result.price).toBeLessThan(
+      run(run(w, 'host', { type: 'player.lifestyle', tier: 3 }).world, 'host', {
+        type: 'games.book',
+        businessId: c.id,
+        itemId: 'skydive-tandem',
+      }).result.price,
+    );
+    const port = Object.values(lean.markets.lagos!.businesses!).find((b) => b.kind === 'heliport')!;
+    expect(
+      tryRun(lean, 'host', { type: 'games.book', businessId: port.id, itemId: 'heli-hop' }).ok,
+    ).toBe(true);
+    expect(
+      tryRun(lean, 'host', { type: 'games.book', businessId: port.id, itemId: 'heli-tour' }).ok,
+    ).toBe(false);
     w = run(w, 'host', { type: 'player.lifestyle', tier: 3 }).world;
     const money0 = moneyByCurrency(w);
     const host0 = balance(w, 'host');

@@ -6,6 +6,13 @@ import { expect, letters, playAsGuest, tab, test, type Page } from './fixtures';
  * unlocks; open a branch from the Company screen.
  */
 
+async function state(page: Page) {
+  return page.evaluate(async () => {
+    const r = await fetch('/api/state', { headers: { 'x-runway': '1' }, cache: 'no-store' });
+    return (await r.json()).view;
+  });
+}
+
 async function command(page: Page, command: Record<string, unknown>) {
   return page.evaluate(async (c) => {
     const r = await fetch('/api/commands', {
@@ -174,6 +181,79 @@ test('Going out: a locked activity says when it unlocks', async ({ page }) => {
   const open = phone.locator('[data-activity]:not([data-locked])').first();
   await expect(open.getByRole('button', { name: /^Book / })).toBeVisible();
   await expect(open.getByRole('button', { name: /^Go to / })).toBeVisible();
+});
+
+test('change lifestyle from a locked activity and from the phone’s Settings', async ({
+  page,
+}, info) => {
+  await create(page, 'founder', 'lagos');
+  const phone = await openApp(page, 'goingout');
+  await phone.getByRole('radio', { name: 'By lifestyle' }).click();
+  const locked = phone.locator('[data-activity][data-locked]').first();
+  const id = await locked.getAttribute('data-activity');
+  const lock = (await locked.locator('[data-lock]').innerText()).match(/living (\d)/)![1]!;
+  // The lock has its own way to change your lifestyle.
+  await locked.locator('[data-open-lifestyle]').click();
+  const sheet = page.getByRole('dialog', { name: 'Lifestyle' });
+  await expect(sheet.locator('[data-lifestyle-tier]')).toHaveCount(5);
+  await page.screenshot({ path: info.outputPath('lifestyle-sheet.png') });
+  await sheet.locator(`[data-lifestyle-tier="${lock}"]`).click();
+  // The activity unlocks (and its lock, with the sheet it opened, goes).
+  await expect(sheet).toBeHidden();
+  await expect(phone.locator(`[data-activity="${id}"]`).first()).not.toHaveAttribute(
+    'data-locked',
+    '',
+  );
+  // Settings has it too.
+  await phone.getByRole('button', { name: 'Back' }).first().click();
+  await phone.locator('[data-app="settings"]').click();
+  await phone.locator('[data-open-lifestyle]').click();
+  const picker = page.getByRole('dialog', { name: 'Lifestyle' });
+  await expect(picker).toBeVisible();
+  // Each tier says how many months your savings cover; dearer tiers cover fewer.
+  const covers = async (n: number) =>
+    Number(
+      await picker
+        .locator(`[data-lifestyle-tier="${n}"] [data-covers]`)
+        .getAttribute('data-covers'),
+    );
+  expect(await covers(1)).toBeGreaterThan(await covers(5));
+  await page.screenshot({ path: info.outputPath('lifestyle-settings.png') });
+  // A tier the savings can't cover a month of is greyed and asks first.
+  const short = picker.locator('[data-lifestyle-tier][data-short]').first();
+  if (await short.count()) {
+    await short.click();
+    await expect(picker.locator('[data-lifestyle-confirm]')).toBeVisible();
+    await picker.getByRole('button', { name: 'Cancel' }).click();
+    await expect(picker.locator('[data-lifestyle-confirm]')).toHaveCount(0);
+  }
+});
+
+test('a lifestyle your savings can’t cover is greyed and asks before you switch', async ({
+  page,
+}, info) => {
+  await create(page, 'founder', 'lagos');
+  // Put nearly all your savings into the company: Lavish no longer fits a month.
+  const v = await state(page);
+  const keep = 1_500_000_00;
+  await command(page, {
+    type: 'company.inject',
+    companyId: v.companies[0].id,
+    amount: Math.max(0, (v.accounts.local.balance as number) - keep),
+  });
+  const phone = await openApp(page, 'settings');
+  await phone.locator('[data-open-lifestyle]').click();
+  const picker = page.getByRole('dialog', { name: 'Lifestyle' });
+  const lavish = picker.locator('[data-lifestyle-tier="5"]');
+  await expect(lavish).toHaveAttribute('data-short', '');
+  await expect(lavish).toContainText('don’t cover a month');
+  await lavish.click();
+  const confirm = picker.locator('[data-lifestyle-confirm]');
+  await expect(confirm).toBeVisible();
+  await page.screenshot({ path: info.outputPath('lifestyle-short.png') });
+  await confirm.getByRole('button', { name: 'Switch anyway' }).click();
+  await expect(lavish).toHaveAttribute('aria-pressed', 'true');
+  await expect(confirm).toHaveCount(0);
 });
 
 test('open a branch from the Company screen', async ({ page }) => {

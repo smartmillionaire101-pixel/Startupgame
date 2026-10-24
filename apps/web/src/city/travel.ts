@@ -82,6 +82,15 @@ export interface FlightsView {
   hours: number;
   /** Economy, business and first per destination (empty: the server sells economy only). */
   cabinTo: Record<string, CabinOption[]>;
+  /**
+   * First-class release: the way home per cabin from each city, to book a
+   * return with the flight out (empty: an older server, one way only).
+   */
+  returnTo: Record<string, CabinOption[]>;
+  /** The return home you hold (paid when you booked), or null. */
+  heldReturn: { cabin: CabinTier; paid: number } | null;
+  /** The cabin you flew out in (the way home is offered in it), or null. */
+  lastCabin: CabinTier | null;
 }
 
 export type CabinTier = 'economy' | 'business' | 'first';
@@ -127,8 +136,99 @@ export function flightsOf(view: PlayerView): FlightsView | null {
       const list = cabinsOf(v);
       if (list.length === CABIN_TIERS.length) cabinTo[k] = list;
     }
-  return { fareTo, hours: fin(f.hours) ? f.hours : 4, cabinTo };
+  const returnTo: Record<string, CabinOption[]> = {};
+  if (isObj(f.returnTo))
+    for (const [k, v] of Object.entries(f.returnTo)) {
+      const list = cabinsOf(v);
+      if (list.length === CABIN_TIERS.length) returnTo[k] = list;
+    }
+  const held = isObj(f.heldReturn) ? f.heldReturn : null;
+  const heldReturn =
+    held && CABIN_TIERS.includes(held.cabin as CabinTier) && fin(held.paid)
+      ? { cabin: held.cabin as CabinTier, paid: held.paid }
+      : null;
+  const lastCabin = CABIN_TIERS.includes(f.lastCabin as CabinTier)
+    ? (f.lastCabin as CabinTier)
+    : null;
+  return { fareTo, hours: fin(f.hours) ? f.hours : 4, cabinTo, returnTo, heldReturn, lastCabin };
 }
+
+/** First-class release: a moment's effects as the server lists them. */
+export interface ActOption {
+  act: string;
+  energy?: number;
+  stress?: number;
+  health?: number;
+  hunger?: number;
+  hygiene?: number;
+  fun?: number;
+  social?: number;
+  network?: number;
+  hours?: number;
+}
+
+const actsOf = (x: unknown): ActOption[] =>
+  Array.isArray(x) ? x.filter((a): a is ActOption => isObj(a) && typeof a.act === 'string') : [];
+const strings = (x: unknown): string[] =>
+  Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string') : [];
+
+export interface LoungeGuest {
+  id: string;
+  name: string;
+  cabin: 'business' | 'first';
+  to: string;
+  toName: string;
+}
+
+/** The lounge while you hold a business or first ticket (null: none, or an older server). */
+export interface LoungeInfo {
+  cabin: 'business' | 'first';
+  done: string[];
+  acts: ActOption[];
+  guests: LoungeGuest[];
+}
+
+export function loungeOf(view: PlayerView): LoungeInfo | null {
+  const f = (view as PlayerView & { flights?: unknown }).flights;
+  const l = isObj(f) ? f.lounge : null;
+  if (!isObj(l) || (l.cabin !== 'business' && l.cabin !== 'first')) return null;
+  const guests = Array.isArray(l.guests)
+    ? (l.guests as unknown[]).filter(
+        (g): g is LoungeGuest => isObj(g) && typeof g.id === 'string' && typeof g.name === 'string',
+      )
+    : [];
+  return { cabin: l.cabin, done: strings(l.done), acts: actsOf(l.acts), guests };
+}
+
+/** The business or first flight you just took, while its acts are open (null otherwise). */
+export interface InflightInfo {
+  cabin: 'business' | 'first';
+  from: string;
+  to: string;
+  longHaul: boolean;
+  done: string[];
+  acts: ActOption[];
+}
+
+export function inflightOf(view: PlayerView): InflightInfo | null {
+  const f = (view as PlayerView & { flights?: unknown }).flights;
+  const l = isObj(f) ? f.inflight : null;
+  if (!isObj(l) || (l.cabin !== 'business' && l.cabin !== 'first')) return null;
+  return {
+    cabin: l.cabin,
+    from: String(l.from ?? ''),
+    to: String(l.to ?? ''),
+    longHaul: l.longHaul === true,
+    done: strings(l.done),
+    acts: actsOf(l.acts),
+  };
+}
+
+/** Does the server run the lounge and the flight as things to do (`travel.lounge`)? */
+export const premiumActs = (view: PlayerView) => {
+  const f = (view as PlayerView & { flights?: unknown }).flights;
+  return isObj(f) && 'lounge' in f;
+};
 
 /** Does the server sell business and first (the cabin goes on the ticket)? */
 export const sellsCabins = (view: PlayerView) =>
@@ -146,6 +246,8 @@ export interface Destination {
   hotels: HotelOption[];
   /** Economy, business and first (none from an older server: economy only). */
   cabins: CabinOption[];
+  /** The way home from there per cabin, for a return (none flying home, or from an older server). */
+  returnCabins: CabinOption[];
 }
 
 export type HotelTier = 'budget' | 'business' | 'luxury';
@@ -216,6 +318,7 @@ export function destinationsOf(view: PlayerView): Destination[] {
       done: d.visitingNow,
       hotels: [],
       cabins: [],
+      returnCabins: [],
     }));
   const ids = [...names.keys()].filter((id) => id !== here);
   // Home first when you're away, then the rest as the server lists them.
@@ -228,6 +331,7 @@ export function destinationsOf(view: PlayerView): Destination[] {
     done: false,
     hotels: id === homeId ? [] : hotelsOf(view, id),
     cabins: flights.cabinTo[id] ?? [],
+    returnCabins: id === homeId ? [] : (flights.returnTo[id] ?? []),
   }));
 }
 
@@ -434,6 +538,31 @@ export function rememberRide(mode: RideMode) {
   } catch {
     /* storage unavailable: the choice lasts for this visit */
   }
+}
+
+/**
+ * What a trip costs on the server, as a command: a fare for transit, taxis and
+ * your car, and with the life bars game hours and energy for walking and
+ * cycling too. Null when the trip is free (walking or cycling without the
+ * life bars). The City's chooser and the phone's Rides app both pay this way.
+ */
+export function tripCommand(
+  mode: RideMode,
+  tiles: number,
+  lifeBars: boolean,
+):
+  | { type: 'city.walk'; mode: RideMode; minutes: number }
+  | {
+      type: 'city.ride';
+      mode: RideMode;
+      distance: RideDistance;
+    }
+  | null {
+  const legs = mode === 'walk' || mode === 'cycle';
+  if (legs && !lifeBars) return null;
+  return legs
+    ? { type: 'city.walk', mode, minutes: rideMinutes(mode, tiles) }
+    : { type: 'city.ride', mode, distance: rideDistance(tiles) };
 }
 
 // ---------------------------------------------------------------------------
