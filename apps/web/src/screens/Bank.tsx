@@ -9,13 +9,34 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Field, Pill, Stat } from '../ui';
 import { DealList } from './common';
+import {
+  BankInvitations,
+  BankerFirstSession,
+  LicenceTracker,
+  Negotiate,
+  bankerOf,
+} from './BankLicence';
+import { BankWork } from './BankWork';
 
 export function BankScreen() {
   const { view } = useView();
   const b = view.bank;
+  // Bankers note: negotiation before signing, then the licence process.
+  const nb = bankerOf(view)?.bank ?? null;
+  if (nb?.status === 'forming' && nb.forming)
+    return (
+      <>
+        <BankerFirstSession />
+        <Negotiate bank={nb} />
+        {/* Advisory work and meetings don't wait for the shareholders' signatures. */}
+        <BankWork />
+      </>
+    );
   if (!b || b.status === 'failed' || b.status === 'rejected')
     return (
       <>
+        <BankerFirstSession />
+        <BankInvitations />
         {b && (
           <Card tone="warn" title={b.name}>
             <p className="small">
@@ -27,11 +48,15 @@ export function BankScreen() {
           </Card>
         )}
         <FoundBank />
+        <BankWork />
       </>
     );
   return (
     <>
+      <BankerFirstSession />
       <Overview />
+      {nb?.status === 'applying' && nb.licence && <LicenceTracker bank={nb} />}
+      <BankWork />
       {b.status === 'licensed' && (
         <>
           <section className="stack">
@@ -52,6 +77,7 @@ export function BankScreen() {
 function Overview() {
   const { view, cur } = useView();
   const b = view.bank!;
+  const nb = bankerOf(view)?.bank ?? null;
   const f = b.figures;
   const capitalOk = f.capitalRatio >= b.minCapitalRatio;
   return (
@@ -68,11 +94,33 @@ function Overview() {
       >
         <p className="small muted">
           {tx(b.typeLabel)} ·{' '}
-          {t('you own {pct}; AI shareholders hold the rest.', {
-            pct: pct(b.ownerShareBps / 10_000),
-          })}
+          {nb
+            ? t('you own {own} · voting control {control} · {seats} of {total} board seats.', {
+                own: pct(b.ownerShareBps / 10_000, 1),
+                control: pct((nb.controlBps ?? 0) / 10_000, 1),
+                seats: nb.board?.founderSide ?? 1,
+                total: nb.board?.total ?? 1,
+              })
+            : t('you own {pct}; AI shareholders hold the rest.', {
+                pct: pct(b.ownerShareBps / 10_000),
+              })}
         </p>
-        {b.status === 'applying' && (
+        {nb && !nb.policyRights && (
+          <p className="small" data-policy-rights="no">
+            {t(
+              'The AI board can veto risky policy (a very thin loan spread, deposit rates above base, a large salary): you hold neither voting control nor a board majority.',
+            )}
+          </p>
+        )}
+        {nb?.conditions && (
+          <p className="small">
+            {t('Licence conditions until month {month}: lending capped at {cap}.', {
+              month: nb.conditions.untilMonth,
+              cap: money(nb.conditions.lendingCap ?? 0, cur),
+            })}
+          </p>
+        )}
+        {b.status === 'applying' && !nb?.licence && (
           <p className="small">
             {t(
               'The central bank decides in month {month}. It needs at least {min} of capital; you have {have}.',
@@ -286,14 +334,19 @@ export function FoundBank() {
   const [name, setName] = useState('');
   const [type, setType] = useState('microfinance');
   const [contribution, setContribution] = useState(
-    amountInput(Math.round((view.accounts.local?.balance ?? 0) * 0.8)),
+    // Bankers note: keep money to live on; investor groups put in the rest.
+    amountInput(Math.round((view.accounts.local?.balance ?? 0) * (bankerOf(view) ? 0.3 : 0.8))),
   );
   return (
     <Card title={t('Start a bank')}>
       <p className="small muted">
-        {t(
-          'AI shareholders add two to five times your capital, depending on your credibility. The central bank decides on the licence in two months.',
-        )}
+        {bankerOf(view)
+          ? t(
+              'Investor groups will offer the rest of the capital on different terms: you negotiate before you sign. The regulator wants a minimum of capital for each kind of bank.',
+            )
+          : t(
+              'AI shareholders add two to five times your capital, depending on your credibility. The central bank decides on the licence in two months.',
+            )}
       </p>
       <Field label={t('Bank name')}>
         {(id) => (
@@ -329,11 +382,13 @@ export function FoundBank() {
               bankType: type as 'microfinance',
               contribution: parseAmount(contribution) ?? 0,
             },
-            t('Application filed.'),
+            bankerOf(view)
+              ? t('Offers are in: negotiate before you sign.')
+              : t('Application filed.'),
           )
         }
       >
-        {t('Apply for a licence')}
+        {bankerOf(view) ? t('Start negotiating') : t('Apply for a licence')}
       </Button>
     </Card>
   );

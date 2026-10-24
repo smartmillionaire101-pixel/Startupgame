@@ -11,6 +11,7 @@ import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { STARTER_EXPENSE_IDS } from './data/ideas.js';
 import { PLACE_SERVICES } from './data/places.js';
+import { MANDATE_KINDS, TALK_TOPICS } from './data/bankwork.js';
 import { PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
 import { REMOVABLE, lookSchema } from './appearance.js';
 
@@ -495,6 +496,87 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('bank.dividend'), bankId: id, amount: money }),
   z.object({ type: z.literal('bank.review'), bankId: id, rating: z.number().int().min(1).max(5) }),
+  // ---- bankers note (bankers.ts): negotiation, the licence process, the first session
+  z.object({
+    type: z.literal('bank.terms'),
+    bankId: id,
+    contribution: money.optional(),
+    bankType: z.enum(['commercial', 'investment', 'venture-debt', 'microfinance']).optional(),
+    dualClass: z.boolean().optional(),
+    performanceBps: z.number().int().min(0).max(1500).optional(),
+    chosen: z.array(z.string().max(8)).max(3).optional(),
+  }),
+  z.object({
+    type: z.literal('bank.counter'),
+    bankId: id,
+    groupId: z.string().min(1).max(8),
+    ask: z.enum(['price', 'seat', 'voting']),
+  }),
+  z.object({ type: z.literal('bank.invite'), bankId: id, playerId: id, amount: money }),
+  z.object({ type: z.literal('bank.join'), bankId: id, accept: z.boolean() }),
+  z.object({ type: z.literal('bank.sign'), bankId: id }),
+  z.object({ type: z.literal('bank.withdraw'), bankId: id }),
+  z.object({ type: z.literal('bank.capital'), bankId: id, amount: money }),
+  z.object({
+    type: z.literal('bank.interview'),
+    bankId: id,
+    answers: z.array(z.number().int().min(0).max(5)).min(1).max(8),
+  }),
+  z.object({
+    type: z.literal('bank.plan'),
+    bankId: id,
+    segments: z.array(z.string().max(32)).min(1).max(5),
+    products: z.array(z.string().max(32)).min(1).max(9),
+    branches: z.number().int().min(0).max(50),
+    lending: z.tuple([money, money, money]),
+  }),
+  z.object({
+    type: z.literal('bank.hire'),
+    bankId: id,
+    role: z.enum(['ceo', 'cro', 'compliance', 'aml']),
+    candidateId: z.string().min(1).max(8),
+  }),
+  z.object({
+    type: z.literal('bank.setup'),
+    bankId: id,
+    system: z.enum(['basic', 'standard', 'premium']).optional(),
+    district: z.string().min(1).max(40).optional(),
+  }),
+  z.object({ type: z.literal('bank.client'), bankId: id, companyId: id }),
+  z.object({ type: z.literal('banker.tutorial'), action: z.literal('skip') }),
+  // ---- banker work (bankwork.ts; bankers note worlds only)
+  /**
+   * The advisory desk: take a mandate from your desk, hand it in with your
+   * call at each step (`choices`: step id → option id), or step back from it.
+   */
+  z.object({
+    type: z.literal('banker.mandate'),
+    action: z.enum(['take', 'complete', 'drop']),
+    mandateId: z.string().min(1).max(160),
+    choices: z.record(z.string().max(32), z.string().max(96)).optional(),
+  }),
+  /** A founder asks the city's bankers for an adviser (or withdraws the request). */
+  z.object({
+    type: z.literal('banker.request'),
+    companyId: id,
+    kind: z.enum(MANDATE_KINDS),
+    withdraw: z.boolean().optional(),
+  }),
+  /**
+   * Meet someone at an AI bank (`lender:<id>`) or a city place
+   * (`place:<market>:<role>`), in person: lessons, recruits, clients, a credit line.
+   */
+  z.object({
+    type: z.literal('banker.talk'),
+    at: z.string().min(1).max(96),
+    topic: z.enum(TALK_TOPICS),
+  }),
+  /** Draw on or repay your bank's interbank credit line. */
+  z.object({
+    type: z.literal('banker.line'),
+    action: z.enum(['draw', 'repay']),
+    amount: money,
+  }),
   z.object({
     type: z.literal('account.move'),
     account: z.union([z.literal('personal'), z.literal('usd'), id]),

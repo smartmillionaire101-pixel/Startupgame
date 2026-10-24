@@ -1,4 +1,5 @@
 import { careerView } from './career.js';
+import { bankerView } from './bankers.js';
 import { exchangeView } from './exchange.js';
 import { syndicatesView } from './syndicates.js';
 import { lpFundsView } from './lpfunds.js';
@@ -6,6 +7,7 @@ import { firmView } from './firms.js';
 import { familyOfficeView, investorStakesView, stakeConsentsView } from './allocation.js';
 import { dealCraftView, offerComparisonView, redFlags, reviewableView } from './dealcraft.js';
 import { investorDealFlowView } from './dealflow.js';
+import { bankWorkView } from './bankwork.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
@@ -720,6 +722,8 @@ export function playerView(
      * investment tracks, the first session and three prompts.
      */
     investorCareer: careerView(world, p),
+    /** Bankers note: the negotiation, the licence tracker and checklist, and the first session. */
+    banker: bankerView(world, p, clock?.now ?? p.lastActiveAt),
     /** Investor career Phase 2: every city's exchange, the index fund, your holdings and orders. */
     exchange: exchangeView(world, p, clock?.now),
     /** Investor career Phase 3: syndicates you lead, backed, or can back. */
@@ -907,6 +911,8 @@ export function playerView(
     /** Holiday with friends: this month's holidays you host or were invited on. */
     holidays: holidaysView(world, p),
     bank: ownBankView(world, p.id),
+    /** Bankers note: the advisory desk, conversations at banks and institutions, your record. */
+    bankWork: bankWorkView(world, p, clock?.now ?? p.lastActiveAt),
     market: homeView,
     /** The city you're physically in (Wave 4): same shape as `market`; your home city unless you've flown. */
     // Only when away: at home the client uses `market`, so the city isn't sent twice.

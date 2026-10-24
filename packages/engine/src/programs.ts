@@ -33,7 +33,8 @@
  */
 import { aiLpCommit, committedTotal } from './lpfunds.js';
 import { REASON_TEXT, reviewPitch } from './lpreview.js';
-import { dealflowOn, moreGamesOn } from './releases.js';
+import { bankersOn, dealflowOn, moreGamesOn } from './releases.js';
+import { isListed } from './exits.js';
 import { fundAnchor } from './firstfund.js';
 import { playerDemoDay } from './institutions.js';
 import {
@@ -1100,6 +1101,8 @@ export function dealFlowView(world: World, viewer: Player, m: MarketState) {
         c.status === 'active' &&
         !c.bannedFromRaising &&
         !c.founderIds.includes(viewer.id) &&
+        // Listed companies trade on the stock market (Capital → Markets).
+        !(bankersOn(world) && isListed(c)) &&
         raisingNow(world, c, pitched),
     )
     .sort((a, b) => b.stars.value - a.stars.value || (a.id < b.id ? -1 : 1))
@@ -1157,6 +1160,13 @@ export function quickInvest(world: World, me: Player, companyId: Id, amount: num
   ensure(me.role === 'investor', 'invest.role', 'Become an investor to back companies.');
   const c = getCompany(world, companyId);
   ensure(c.status === 'active', 'company.closed', 'Company is not operating.');
+  // A listed company's shares trade on the stock market, not as private SAFEs.
+  if (bankersOn(world))
+    ensure(
+      !isListed(c),
+      'invest.listed',
+      `${c.name} is listed: buy its shares on the stock market (Capital → Markets).`,
+    );
   ensure(amount > 0, 'invest.amount', 'Say how much.');
   const m = getMarket(world, c.market);
   const t = quickTerms(world, c);

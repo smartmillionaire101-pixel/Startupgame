@@ -62,8 +62,8 @@ import { useRiding } from './riding';
 import { crowdSize, eventsOf, flaggedPlaces, newBusinessIds, passersBy } from './people';
 import { PersonCard, type PersonRef } from './PersonCard';
 import { SkyViewsList } from '../experiences/SkyViewsList';
-import { JourneyCelebration, JourneyChip, JourneyPanel } from './JourneyPanel';
-import type { JourneyGo } from './journey';
+import { JourneyCelebration, JourneyChip, JourneyPanel, Objectives } from './JourneyPanel';
+import { journeyOf, type JourneyGo } from './journey';
 import { runJourneyGo } from './journeyGo';
 import { NextStepCard } from './NextStepCard';
 import { GestureHint } from './GestureHint';
@@ -643,6 +643,8 @@ function CityBodyInner({
   // "What to do now" is a one-line chip until you open it (Wave 7), and it
   // stays out of the way during a ride.
   const [whatNowSheet, setWhatNowSheet] = useState(false);
+  const journey = journeyOf(view);
+  const bankerJourney = journey?.kind === 'banker' ? journey : null;
   const riding = useRiding();
   const mapRef = useRef<CityMapHandle | null>(null);
 
@@ -1175,6 +1177,16 @@ function CityBodyInner({
       {whatNowSheet && (
         <Sheet title={t('What to do now')} onClose={() => setWhatNowSheet(false)}>
           <div className="hud-whatnow">
+            {/* Bankers: the banker journey's three prompts come first. */}
+            {bankerJourney && (
+              <Objectives
+                j={bankerJourney}
+                onGo={(g) => {
+                  setWhatNowSheet(false);
+                  journeyGo(g);
+                }}
+              />
+            )}
             <WhatNowList
               onGo={(id) => {
                 setWhatNowSheet(false);

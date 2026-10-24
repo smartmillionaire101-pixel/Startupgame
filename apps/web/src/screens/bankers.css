@@ -1,0 +1,156 @@
+/* Bankers: the negotiation table, the licence tracker and the interview. */
+.offer-table-wrap {
+  overflow-x: auto;
+  margin: 0 calc(-1 * var(--sp-2));
+  padding: 0 var(--sp-2);
+}
+.offer-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-xs);
+  table-layout: fixed;
+}
+.offer-table th,
+.offer-table td {
+  padding: 0.35rem 0.3rem;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.offer-table thead th {
+  border-top: 0;
+}
+.offer-table tbody th {
+  color: var(--muted);
+  font-weight: 500;
+  width: 22%;
+}
+.offer-name {
+  display: block;
+  font-weight: 600;
+}
+.offer-style {
+  display: block;
+  color: var(--muted);
+  font-weight: 400;
+}
+.offer-take {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+.check-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: var(--sp-2) 0;
+}
+.licence-day {
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+.licence-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+.licence-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.licence-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  font-size: var(--fs-sm);
+}
+.licence-checklist li {
+  padding: 0.2rem 0;
+  color: var(--muted);
+}
+.licence-checklist li.done {
+  color: var(--good);
+}
+.plan-pick {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--sp-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  font-size: var(--fs-sm);
+}
+.plan-pick legend {
+  width: 100%;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+.plan-pick label {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+.plan-pick label.misfit {
+  color: var(--muted);
+}
+.plan-checks {
+  list-style: none;
+  padding: 0;
+  margin: var(--sp-2) 0;
+}
+.plan-check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.3rem 0;
+  border-top: 1px solid var(--line);
+}
+.plan-check-icon {
+  flex: none;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+.plan-good .plan-check-icon {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.plan-warn .plan-check-icon {
+  background: var(--warn-soft, var(--line));
+  color: var(--warn, var(--ink));
+}
+.plan-bad .plan-check-icon {
+  background: var(--bad-soft, var(--line));
+  color: var(--bad);
+}
+.hire-role + .hire-role {
+  margin-top: var(--sp-2);
+}
+.hire-role h3 {
+  margin: 0 0 0.25rem;
+}
+.interview-q {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--sp-3);
+  display: grid;
+  gap: 0.35rem;
+}
+.interview-q legend {
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+.interview-q label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: var(--fs-sm);
+}

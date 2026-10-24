@@ -160,7 +160,10 @@ export function bankFigures(world: World, b: Bank, book?: BankBook) {
   const cash = account(world, b.account).balance;
   const loans = bankLoansOutstanding(world, b, book) + b.retail.loans;
   const cb = b.cbLoans.reduce((a, l) => a + l.outstanding, 0);
-  const equity = cash + loans - b.retail.deposits - cb;
+  // Bankers note: what the bank drew on its interbank credit line (bankwork.ts) is owed.
+  const line = world.players[b.ownerId]?.bankwork?.line;
+  const interbank = line && line.bankId === b.id ? line.outstanding : 0;
+  const equity = cash + loans - b.retail.deposits - cb - interbank;
   // One pass over the accounts: the bank's player deposits (as bankDeposits) and how many it holds.
   let playerDeposits = 0;
   let accounts = 0;
@@ -176,6 +179,7 @@ export function bankFigures(world: World, b: Bank, book?: BankBook) {
     loans,
     deposits,
     cbBorrowing: cb,
+    interbank,
     equity,
     capitalRatio: loans > 0 ? roundTo(equity / loans, 3) : equity > 0 ? 1 : 0,
     liquidityLimit,
@@ -345,6 +349,20 @@ export function assertCanLend(
     'bank.room',
     `${b.name} can’t lend that much right now (capital and reserve rules).`,
   );
+  // Bankers note: an approval with conditions caps lending, or asks for more capital, for a while.
+  const cond = b.conditions;
+  if (cond) {
+    ensure(
+      cond.lendingCap === undefined || f.loans + amount <= cond.lendingCap,
+      'bank.condition',
+      `${b.name}'s licence conditions cap its lending for now.`,
+    );
+    ensure(
+      cond.minCapitalRatio === undefined || f.equity >= (f.loans + amount) * cond.minCapitalRatio,
+      'bank.condition',
+      `${b.name}'s licence conditions ask for more capital behind its loans.`,
+    );
+  }
   // Lending out of deposits: allow the operating account to go negative within the reserve rule.
   account(world, b.account).overdraftLimit = f.liquidityLimit;
 }
@@ -466,6 +484,8 @@ export function settleBanks(world: World, market: string, rng: Rng, month: numbe
     const book = books.get(b.id)!;
     const owner = world.players[b.ownerId];
     if (b.status === 'applying') {
+      // Bankers note: the licence process decides (bankers.ts settleBankers).
+      if (b.licence) continue;
       if (month - b.appliedMonth < LICENCE_MONTHS) continue;
       const f = bankFigures(world, b, book);
       const need = scale(col(m), BANK_TYPES[b.type].minCapitalCol);

@@ -87,6 +87,32 @@ export function chapterCopy(id: string): { title: string; story: string } {
         title: t('The Legacy'),
         story: t('Put your money and experience to work beyond your own returns.'),
       };
+    // The banker journey.
+    case 'licence':
+      return {
+        title: t('The Licence'),
+        story: t('Raise the capital, convince the regulator and get your banking licence.'),
+      };
+    case 'open':
+      return {
+        title: t('Open for Business'),
+        story: t('Win depositors and price your bank.'),
+      };
+    case 'loans':
+      return {
+        title: t('First Loans'),
+        story: t('Lend carefully and turn a profit.'),
+      };
+    case 'trusted':
+      return {
+        title: t('A Trusted Bank'),
+        story: t('Earn the trust of customers and the regulator.'),
+      };
+    case 'group':
+      return {
+        title: t('Banking Group'),
+        story: t('Build a bank that matters: capital, reputation and a voice in the city.'),
+      };
     default:
       return { title: id, story: '' };
   }
@@ -337,6 +363,102 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
       return {
         label: t('Start an accelerator'),
         why: t('Portfolio → Legacy: back a cohort and run a demo day'),
+      };
+    // The banker journey.
+    case 'licence.found':
+      return {
+        label: t('Choose your bank’s name and licence'),
+        why: t('Bank tab: a name, the kind of bank and your own capital'),
+      };
+    case 'licence.sign':
+      return {
+        label: t('Negotiate with shareholders and sign'),
+        why: t('Compare the offers, counter once each, keep control'),
+      };
+    case 'licence.interview':
+      return {
+        label: t('Pass the fit-and-proper interview at the Central Bank'),
+        why: t('Book an appointment there, then answer in person'),
+      };
+    case 'licence.plan':
+      return {
+        label: t('File your business plan'),
+        why: t('Bank tab: customers, products, branches and lending'),
+      };
+    case 'licence.team':
+      return {
+        label: t('Hire your key people'),
+        why: t('A chief executive, risk, compliance and AML officers'),
+      };
+    case 'licence.setup':
+      return {
+        label: t('Choose a core banking system and lease a branch'),
+        why: t('Reliability impresses the regulator'),
+      };
+    case 'licence.granted':
+      return {
+        label: t('Get your licence'),
+        why: t('The regulator decides once the checklist is done'),
+      };
+    case 'open.pricing':
+      return {
+        label: t('Set your pricing'),
+        why: t('Bank tab: loan spread, deposit rate and fees'),
+      };
+    case 'open.customers':
+      return {
+        label: t('Win {n} customers', { n: need }),
+        why: t('A good deposit rate and stars bring them in'),
+      };
+    case 'loans.first':
+      return {
+        label: t('Make your first loans'),
+        why: t('Answer loan requests on the Bank tab'),
+      };
+    case 'loans.profit':
+      return {
+        label: t('Have a profitable month'),
+        why: t('Interest and fees above costs and losses'),
+      };
+    case 'loans.book':
+      return {
+        label: t('Grow the loan book'),
+        why: t('Lend within the capital and reserve rules'),
+      };
+    case 'trusted.stars':
+      return {
+        label: t('Reach a 3.5★ rating'),
+        why: t('Strong capital, happy customers'),
+      };
+    case 'trusted.customers':
+      return {
+        label: t('Serve {n} customers', { n: need }),
+        why: t('Households and businesses banking with you'),
+      };
+    case 'trusted.dividend':
+      return {
+        label: t('Pay your shareholders a dividend'),
+        why: t('From capital above the regulator’s minimum'),
+      };
+    case 'trusted.conditions':
+      return {
+        label: t('Run the bank with no licence conditions'),
+        why: t('Conditions lift after a clean year'),
+      };
+    case 'group.capital':
+      return {
+        label: t('Grow capital to 3× the minimum'),
+        why: t('Keep profits in the bank'),
+      };
+    case 'group.five-star':
+      return {
+        label: t('Earn a five-star rating'),
+        why: t('The best-run bank in the city'),
+      };
+    case 'group.governor':
+      return {
+        label: t('Become central bank governor'),
+        why: t('Each quarter the best banker may be appointed'),
       };
     default:
       return { label: s.label, why: '' };
