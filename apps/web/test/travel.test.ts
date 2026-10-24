@@ -19,6 +19,7 @@ import {
   routeOf,
   SHORT_HOP,
   transitName,
+  tripCommand,
   airportSchedule,
   boardRows,
   CITY_NAMES,
@@ -205,5 +206,24 @@ describe('Wave 7: rides and the busy airport', () => {
   it('formats flight times', () => {
     expect(fmtFlightTime(6 + 20 / 60)).toBe('6h 20m');
     expect(fmtFlightTime(0.5)).toBe('30m');
+  });
+
+  it('pays for a trip the same way from the chooser and the Rides app', () => {
+    // Walking and cycling are free without the life bars; with them they cost time.
+    expect(tripCommand('walk', 30, false)).toBeNull();
+    expect(tripCommand('cycle', 30, false)).toBeNull();
+    expect(tripCommand('cycle', 30, true)).toEqual({
+      type: 'city.walk',
+      mode: 'cycle',
+      minutes: rideMinutes('cycle', 30),
+    });
+    // A bus, a taxi or your car always has a fare.
+    for (const bars of [false, true])
+      expect(tripCommand('taxi', 30, bars)).toEqual({
+        type: 'city.ride',
+        mode: 'taxi',
+        distance: rideDistance(30),
+      });
+    expect(tripCommand('bus', 5, false)?.type).toBe('city.ride');
   });
 });

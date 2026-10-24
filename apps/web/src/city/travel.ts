@@ -453,6 +453,31 @@ export function rememberRide(mode: RideMode) {
   }
 }
 
+/**
+ * What a trip costs on the server, as a command: a fare for transit, taxis and
+ * your car, and with the life bars game hours and energy for walking and
+ * cycling too. Null when the trip is free (walking or cycling without the
+ * life bars). The City's chooser and the phone's Rides app both pay this way.
+ */
+export function tripCommand(
+  mode: RideMode,
+  tiles: number,
+  lifeBars: boolean,
+):
+  | { type: 'city.walk'; mode: RideMode; minutes: number }
+  | {
+      type: 'city.ride';
+      mode: RideMode;
+      distance: RideDistance;
+    }
+  | null {
+  const legs = mode === 'walk' || mode === 'cycle';
+  if (legs && !lifeBars) return null;
+  return legs
+    ? { type: 'city.walk', mode, minutes: rideMinutes(mode, tiles) }
+    : { type: 'city.ride', mode, distance: rideDistance(tiles) };
+}
+
 // ---------------------------------------------------------------------------
 // Flights
 
