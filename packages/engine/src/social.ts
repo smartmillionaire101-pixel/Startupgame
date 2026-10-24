@@ -14,11 +14,24 @@
  * `deriveRng(seed, 'tech-events', market, month)`; venues and speakers come
  * from what existed before the month began, so the calendar doesn't shift
  * during the month.
+ *
+ * Events by role (FEEDBACK_NOTE; player feedback: "As a banker, I want to
+ * attend more banking and finance events. Lots of startup events"): beside
+ * the startup calendar, each month has banking and finance events (a policy
+ * briefing, a banking dinner, a fintech summit, a lending forum...) and
+ * investor events (an investor dinner, an LP forum...), drawn from their
+ * own stream (`'role-events'`) so the startup calendar is unchanged. Anyone
+ * can go to any of them. The people there fit the event (bankers at banking
+ * events), and a banker meets a client who wants an adviser (`eventLead`).
+ * Without the note the calendar is the startup one, as before.
  */
 import { checkChatMessage } from './chat.js';
 import { ensure, fail } from './errors.js';
 import { addContact } from './events.js';
 import { eventDealFlow } from './dealflow.js';
+import { eventLead } from './bankwork.js';
+import { BANKER_NAMES } from './data/bankwork.js';
+import { feedbackOn } from './releases.js';
 import { adjustTrust, col, getMarket, getPlayer, locationOf, notify } from './helpers.js';
 import { newId } from './ids.js';
 import { account, costIn, pay, payExact, valueIn, withTx } from './ledger.js';
@@ -27,7 +40,7 @@ import { formatMoney, scale } from './money.js';
 import { bumpNeed, moodOf, needsOf } from './needs.js';
 import { NPC_POOL, npcPerson } from './people.js';
 import { getBusiness, isOpen, specOf } from './economy.js';
-import { deriveRng } from './rng.js';
+import { deriveRng, hashString } from './rng.js';
 import { TECH_CAPITAL_EVENTS, TECH_CAPITAL_TOPICS } from './data/tech-capital.js';
 import { residenceView } from './property.js';
 import { homeView } from './shop.js';
@@ -62,9 +75,35 @@ export const TECH_EVENT_KINDS = [
   'conference',
   'workshop',
 ] as const;
-type TechEventKind = (typeof TECH_EVENT_KINDS)[number];
+
+/** Feedback note: banking and finance events, and investor events (their own stream). */
+export const BANKER_EVENT_KINDS = [
+  'policy-briefing',
+  'banking-dinner',
+  'fintech-summit',
+  'sme-lending',
+  'capital-markets',
+  'risk-seminar',
+] as const;
+export const INVESTOR_EVENT_KINDS = [
+  'investor-dinner',
+  'lp-forum',
+  'investor-demo-day',
+  'family-office',
+] as const;
+type TechEventKind =
+  | (typeof TECH_EVENT_KINDS)[number]
+  | (typeof BANKER_EVENT_KINDS)[number]
+  | (typeof INVESTOR_EVENT_KINDS)[number];
+
+/** Who an event is for: the role it fits best (anyone can go). */
+export type EventAudience = 'founder' | 'banker' | 'investor';
 
 interface TechKindSpec {
+  /** Who it's for (the startup calendar is for founders). */
+  audience?: EventAudience;
+  /** Why it's worth it for them, in a line (role events). */
+  why?: string;
   label: string;
   capacity: [number, number];
   /** Chance the event is free. */
@@ -144,6 +183,159 @@ const TECH_EVENT_KIND_DATA: Record<TechEventKind, TechKindSpec> = {
       'Growth marketing bootcamp',
     ],
   },
+  // Feedback note: banking and finance events.
+  'policy-briefing': {
+    audience: 'banker',
+    why: 'Rules that hit your capital ratio',
+    label: 'Briefing',
+    capacity: [40, 120],
+    free: 1,
+    ticketCol: [0, 0],
+    speakers: [1, 2],
+    network: 2,
+    fun: 3,
+    topics: ['Central Bank policy briefing'],
+  },
+  'banking-dinner': {
+    audience: 'banker',
+    why: 'Meet the people who run the city’s banks',
+    label: 'Dinner',
+    capacity: [60, 160],
+    free: 0,
+    ticketCol: [0.05, 0.12],
+    speakers: [1, 1],
+    network: 4,
+    fun: 12,
+    topics: ['Banking association dinner'],
+  },
+  'fintech-summit': {
+    audience: 'banker',
+    why: 'Meet fintechs who need a bank',
+    label: 'Summit',
+    capacity: [150, 500],
+    free: 0.2,
+    ticketCol: [0.06, 0.15],
+    speakers: [2, 3],
+    network: 4,
+    fun: 8,
+    topics: ['Fintech & payments summit'],
+  },
+  'sme-lending': {
+    audience: 'banker',
+    why: 'Owners looking for loans',
+    label: 'Forum',
+    capacity: [40, 120],
+    free: 0.7,
+    ticketCol: [0.01, 0.03],
+    speakers: [1, 2],
+    network: 3,
+    fun: 4,
+    topics: ['SME lending forum'],
+  },
+  'capital-markets': {
+    audience: 'banker',
+    why: 'Mandates for your advisory desk',
+    label: 'Breakfast',
+    capacity: [30, 80],
+    free: 0.3,
+    ticketCol: [0.03, 0.08],
+    speakers: [1, 2],
+    network: 3,
+    fun: 5,
+    topics: ['Capital markets breakfast'],
+  },
+  'risk-seminar': {
+    audience: 'banker',
+    why: 'What the supervisor checks next',
+    label: 'Seminar',
+    capacity: [20, 60],
+    free: 0.5,
+    ticketCol: [0.02, 0.05],
+    speakers: [1, 2],
+    network: 2,
+    fun: 3,
+    topics: ['Risk & regulation seminar'],
+  },
+  // Feedback note: investor events.
+  'investor-dinner': {
+    audience: 'investor',
+    why: 'Co-investors and the deals they share',
+    label: 'Dinner',
+    capacity: [20, 60],
+    free: 0,
+    ticketCol: [0.05, 0.12],
+    speakers: [1, 1],
+    network: 4,
+    fun: 12,
+    topics: ['Investor dinner'],
+  },
+  'lp-forum': {
+    audience: 'investor',
+    why: 'Meet the people who back funds',
+    label: 'Forum',
+    capacity: [40, 120],
+    free: 0.3,
+    ticketCol: [0.05, 0.1],
+    speakers: [2, 3],
+    network: 3,
+    fun: 5,
+    topics: ['LP forum'],
+  },
+  'investor-demo-day': {
+    audience: 'investor',
+    why: 'Founders pitch the room',
+    label: 'Demo day',
+    capacity: [60, 200],
+    free: 0.5,
+    ticketCol: [0.03, 0.08],
+    speakers: [2, 3],
+    network: 3,
+    fun: 10,
+    topics: ['Demo day: the investor side'],
+  },
+  'family-office': {
+    audience: 'investor',
+    why: 'Family offices looking for deals',
+    label: 'Meetup',
+    capacity: [15, 40],
+    free: 0.6,
+    ticketCol: [0.02, 0.05],
+    speakers: [1, 1],
+    network: 3,
+    fun: 6,
+    topics: ['Family office meetup'],
+  },
+};
+
+/** What bankers talk about at banking events (fixed strings, so the client can translate them). */
+export const BANKING_TALK_TITLES = [
+  'Where rates go next',
+  'Lending to small firms that grow',
+  'Capital rules in plain words',
+  'Payments rails for everyone',
+  'Pricing risk without guessing',
+  'What a good adviser does',
+] as const;
+
+/** What investors talk about at investor events. */
+export const INVESTING_TALK_TITLES = [
+  'How we build a portfolio',
+  'What LPs ask first',
+  'Reserves: the money for round two',
+  'The one company that returns the fund',
+] as const;
+
+/** Who you meet in the crowd at a role event (fictional names, roles that fit). */
+const CROWD_ROLES: Record<'banker' | 'investor', readonly string[]> = {
+  banker: [
+    'Treasurer',
+    'Credit officer',
+    'Head of risk',
+    'Relationship manager',
+    'Business owner',
+    'Finance director',
+  ],
+  investor: ['Fund partner', 'Family office principal', 'LP', 'Angel investor'],
 };
 
 /** What speakers talk about (fixed strings, so the client can translate them). */
@@ -612,14 +804,14 @@ export function hangoutsView(world: World, p: Player) {
 // ---------------------------------------------------------------- Tech events
 
 interface TechSpeaker {
-  /** Player id (AI founder or angel) or `fund:<id>` (a fund partner). */
+  /** Player id (AI founder or angel), `fund:<id>` (a fund partner) or `banker:<lender id>`. */
   id: string;
   name: string;
-  role: 'founder' | 'investor';
-  /** Company or fund name. */
+  role: 'founder' | 'investor' | 'banker';
+  /** Company, fund or bank name. */
   org: string;
   talk: string;
-  contact: { kind: 'founder' | 'fund'; refId: Id; name: string };
+  contact: { kind: 'founder' | 'fund' | 'local'; refId: Id; name: string };
 }
 
 export interface TechEvent {
@@ -628,6 +820,8 @@ export interface TechEvent {
   month: number;
   n: number;
   kind: TechEventKind;
+  /** Who it's for (founder for the startup calendar). */
+  audience: EventAudience;
   title: string;
   /** Day of the month it is on (1–28), for display. */
   day: number;
@@ -745,6 +939,7 @@ export function techEventsFor(world: World, m: MarketState, month: number): Tech
       month,
       n,
       kind,
+      audience: 'founder',
       title,
       day,
       venue,
@@ -753,7 +948,81 @@ export function techEventsFor(world: World, m: MarketState, month: number): Tech
       ticket,
     });
   }
+  if (feedbackOn(world)) out.push(...roleEventsFor(world, m, month, count, venues));
   return out.sort((a, b) => a.day - b.day || a.n - b.n);
+}
+
+/** The people who speak at banking events: one from each of the city's AI banks. */
+function bankerSpeakers(world: World, m: MarketState): Omit<TechSpeaker, 'talk'>[] {
+  return Object.values(m.lenders ?? {})
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map((l) => {
+      const name = BANKER_NAMES[hashString(`${world.seed}:${l.id}:speaker`) % BANKER_NAMES.length]!;
+      return {
+        id: `banker:${l.id}`,
+        name,
+        role: 'banker' as const,
+        org: l.name,
+        contact: { kind: 'local' as const, refId: `banker:${l.id}`, name: `${name}, ${l.name}` },
+      };
+    });
+}
+
+/**
+ * Feedback note: the month's banking and finance events (3–4) and investor
+ * events (2–3), numbered after the startup calendar's `count` so their ids
+ * never collide, from their own stream, at the Event Hall or a hotel, venue
+ * or school (the Hub is the founders').
+ */
+function roleEventsFor(
+  world: World,
+  m: MarketState,
+  month: number,
+  count: number,
+  venues: TechEvent['venue'][],
+): TechEvent[] {
+  const rng = deriveRng(world.seed, 'role-events', m.id, month);
+  const kinds: TechEventKind[] = [
+    ...rng.shuffle(BANKER_EVENT_KINDS).slice(0, rng.int(3, 4)),
+    ...rng.shuffle(INVESTOR_EVENT_KINDS).slice(0, rng.int(2, 3)),
+  ];
+  const rooms = venues.filter((v) => v.kind !== 'hub');
+  const bankers = bankerSpeakers(world, m);
+  const pool = speakerPool(world, m);
+  const investors = pool.filter((s) => s.role === 'investor');
+  const founders = pool.filter((s) => s.role === 'founder');
+  return kinds.map((kind, i) => {
+    const n = count + i;
+    const r = deriveRng(world.seed, 'role-events', m.id, month, n);
+    const spec = TECH_EVENT_KIND_DATA[kind];
+    const audience = spec.audience ?? 'founder';
+    const venue = rooms[Math.floor(r.next() * rooms.length)]!;
+    const ticket = r.chance(spec.free)
+      ? 0
+      : Math.max(1, scale(col(m), r.range(spec.ticketCol[0], spec.ticketCol[1])));
+    const want = r.int(spec.speakers[0], spec.speakers[1]);
+    // Bankers speak at banking events (a fintech founder too at the summit); investors at theirs.
+    const order =
+      audience === 'banker'
+        ? [...r.shuffle(bankers), ...(kind === 'fintech-summit' ? r.shuffle(founders) : [])]
+        : [...r.shuffle(investors), ...r.shuffle(founders)];
+    const titles = audience === 'banker' ? BANKING_TALK_TITLES : INVESTING_TALK_TITLES;
+    const talks = r.shuffle(titles);
+    return {
+      id: techEventId(m.id, month, n),
+      market: m.id,
+      month,
+      n,
+      kind,
+      audience,
+      title: spec.topics[0]!,
+      day: 1 + Math.floor(r.next() * 28),
+      venue,
+      speakers: order.slice(0, want).map((s, j) => ({ ...s, talk: talks[j % talks.length]! })),
+      capacity: r.int(spec.capacity[0], spec.capacity[1]),
+      ticket,
+    };
+  });
 }
 
 const attendedIds = (p: Player, month: number) =>
@@ -803,7 +1072,15 @@ export function attendTechEvent(world: World, me: Player, eventId: string) {
   const r = deriveRng(world.seed, 'tech-events', 'crowd', e.id, me.id);
   const crowd = r.int(1, 2);
   for (let i = 0; i < crowd; i++) {
-    const p = npcPerson(e.market, r.int(0, NPC_POOL - 1));
+    // At a role event (feedback note) the crowd fits it: bankers at banking events.
+    const roles = e.audience === 'founder' ? null : CROWD_ROLES[e.audience];
+    const p = roles
+      ? {
+          id: `crowd:${e.id}:${i}`,
+          name: r.pick(BANKER_NAMES),
+          role: r.pick(roles),
+        }
+      : npcPerson(e.market, r.int(0, NPC_POOL - 1));
     addContact(
       me,
       { kind: 'local', refId: p.id, name: `${p.name}, ${p.role}`, warmth: TECH_EVENT_CROWD_WARMTH },
@@ -811,6 +1088,8 @@ export function attendTechEvent(world: World, me: Player, eventId: string) {
     );
     contacts.push({ name: p.name, kind: 'local', refId: p.id });
   }
+  // A banker at a banking event meets a client who wants an adviser (feedback note).
+  const lead = e.audience === 'banker' ? eventLead(world, me, e.title, e.id) : null;
   // Other players who came: you meet them too.
   for (const q of Object.values(world.players))
     if (q.id !== me.id && !q.ai && attendedIds(q, e.month).includes(e.id))
@@ -874,9 +1153,12 @@ export function attendTechEvent(world: World, me: Player, eventId: string) {
     contacts,
     pitch,
     ...(dealflow ? { dealflow } : {}),
+    ...(lead ? { lead } : {}),
     needs: needsOf(me),
     mood: moodOf(me),
-    message: `You went to ${e.title}${e.ticket ? ` (${fmt(e.ticket)})` : ''} and met ${contacts.length} people.`,
+    message:
+      `You went to ${e.title}${e.ticket ? ` (${fmt(e.ticket)})` : ''} and met ${contacts.length} people.` +
+      (lead ? ` ${lead.client} wants an adviser: it’s on your advisory desk.` : ''),
   };
 }
 
@@ -886,6 +1168,9 @@ export function techEventsView(world: World, p: Player, m: MarketState) {
     id: e.id,
     kind: e.kind,
     label: TECH_EVENT_KIND_DATA[e.kind].label,
+    /** Who it's for, and why it's worth it for them (role events, feedback note). */
+    audience: e.audience,
+    why: TECH_EVENT_KIND_DATA[e.kind].why ?? null,
     title: e.title,
     day: e.day,
     month: e.month,

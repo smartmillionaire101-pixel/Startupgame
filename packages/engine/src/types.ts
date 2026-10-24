@@ -561,7 +561,15 @@ export interface BankerWork {
   recruits: BankRecruit[];
   clients: BankClientLead[];
   /** Advisory leads from people you met: they come to your desk. */
-  leads: { key: string; kind: MandateKind; month: number }[];
+  leads: {
+    key: string;
+    kind: MandateKind;
+    month: number;
+    /** A referral (FEEDBACK_NOTE): the client whose deal they heard about. */
+    from?: string;
+    /** Met at a city event (FEEDBACK_NOTE): its title. */
+    at?: string;
+  }[];
   line?: InterbankLine;
   /** The listing desk set you a goal. */
   objective?: { kind: 'list-bank'; month: number };

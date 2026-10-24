@@ -38,6 +38,10 @@ export {
   SEND_FEE_MIN_COL,
   SEND_FEE_RATE,
   TECH_EVENT_KINDS,
+  BANKER_EVENT_KINDS,
+  INVESTOR_EVENT_KINDS,
+  BANKING_TALK_TITLES,
+  INVESTING_TALK_TITLES,
   TALK_TITLES,
   parseTechEventId,
   techEventsFor,
@@ -469,13 +473,21 @@ export {
   LENDER_FIT,
   MANDATES,
   MANDATE_KINDS,
+  REPUTATION,
   STEPS,
   TALKS,
   TALK_TOPICS,
 } from './data/bankwork.js';
-export type { MandateKind, TalkTopic, ClientBand, ClientShape } from './data/bankwork.js';
+export type {
+  MandateKind,
+  TalkTopic,
+  ClientBand,
+  ClientShape,
+  ClientTier,
+} from './data/bankwork.js';
 export {
   advisoryRecord,
+  advisoryReputation,
   bankWorkView,
   isBankerWorker,
   mandateOffers,
