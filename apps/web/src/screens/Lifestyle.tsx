@@ -14,6 +14,15 @@ import { Button, Card, Sheet } from '../ui';
 /** The five tiers to pick from (the current one pressed). */
 export function LifestylePicker() {
   const { view, send, cur } = useView();
+  /** A tier your savings can't cover a month of, waiting for you to confirm it. */
+  const [pending, setPending] = useState<number | null>(null);
+  const savings = view.accounts.local?.balance ?? 0;
+  const pick = (tier: { tier: number; name: string }) =>
+    void send(
+      { type: 'player.lifestyle', tier: tier.tier },
+      t('Lifestyle: {name}.', { name: tx(tier.name) }),
+    ).then(() => setPending(null));
+  const confirming = view.lifestyleTiers.find((x) => x.tier === pending);
   return (
     <>
       <p className="small muted">
@@ -22,30 +31,63 @@ export function LifestylePicker() {
         )}
       </p>
       <div className="choice-grid">
-        {view.lifestyleTiers.map((tier) => (
-          <button
-            key={tier.tier}
-            className="choice"
-            data-lifestyle-tier={tier.tier}
-            aria-pressed={view.me.lifestyle.tier === tier.tier}
-            onClick={() =>
-              void send(
-                { type: 'player.lifestyle', tier: tier.tier },
-                t('Lifestyle: {name}.', { name: tx(tier.name) }),
-              )
-            }
-          >
-            <div className="spread">
-              <span className="item-title">{tx(tier.name)}</span>
-              <span>{t('{amount}/mo', { amount: money(tier.monthlyCost, cur) })}</span>
-            </div>
-            <div className="small muted">
-              {tx(tier.housing)} · {tx(tier.transport)} ·{' '}
-              {t('{n}h', { n: `${tier.hours >= 0 ? '+' : ''}${tier.hours}` })}
-            </div>
-          </button>
-        ))}
+        {view.lifestyleTiers.map((tier) => {
+          const current = view.me.lifestyle.tier === tier.tier;
+          // Months your savings cover at this tier (income may still arrive before month end).
+          const months = Math.floor(savings / Math.max(1, tier.monthlyCost));
+          const short = months < 1 && !current;
+          return (
+            <button
+              key={tier.tier}
+              className={`choice${short ? ' is-short' : ''}`}
+              data-lifestyle-tier={tier.tier}
+              data-short={short ? '' : undefined}
+              aria-pressed={current}
+              onClick={() => (short ? setPending(tier.tier) : pick(tier))}
+            >
+              <div className="spread">
+                <span className="item-title">{tx(tier.name)}</span>
+                <span>{t('{amount}/mo', { amount: money(tier.monthlyCost, cur) })}</span>
+              </div>
+              <div className="small muted">
+                {tx(tier.housing)} · {tx(tier.transport)} ·{' '}
+                {t('{n}h', { n: `${tier.hours >= 0 ? '+' : ''}${tier.hours}` })}
+              </div>
+              <div className={`small ${short ? 'lifestyle-short' : 'muted'}`} data-covers={months}>
+                {months < 1
+                  ? t('⚠ Your savings don’t cover a month')
+                  : months >= 12
+                    ? t('Your savings cover 12+ months')
+                    : months === 1
+                      ? t('Your savings cover 1 month')
+                      : t('Your savings cover {n} months', { n: months })}
+              </div>
+            </button>
+          );
+        })}
       </div>
+      {confirming && (
+        <div className="lifestyle-confirm" role="alertdialog" data-lifestyle-confirm="">
+          <p className="small">
+            {t(
+              '{name} costs {amount} a month and you have {savings}. Unless money comes in before month end, you’ll be moved down a tier then.',
+              {
+                name: tx(confirming.name),
+                amount: money(confirming.monthlyCost, cur),
+                savings: money(savings, cur),
+              },
+            )}
+          </p>
+          <div className="row">
+            <Button variant="danger" size="sm" onClick={() => pick(confirming)}>
+              {t('Switch anyway')}
+            </Button>
+            <Button variant="subtle" size="sm" onClick={() => setPending(null)}>
+              {t('Cancel')}
+            </Button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

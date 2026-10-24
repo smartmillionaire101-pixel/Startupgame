@@ -6,6 +6,13 @@ import { expect, letters, playAsGuest, tab, test, type Page } from './fixtures';
  * unlocks; open a branch from the Company screen.
  */
 
+async function state(page: Page) {
+  return page.evaluate(async () => {
+    const r = await fetch('/api/state', { headers: { 'x-runway': '1' }, cache: 'no-store' });
+    return (await r.json()).view;
+  });
+}
+
 async function command(page: Page, command: Record<string, unknown>) {
   return page.evaluate(async (c) => {
     const r = await fetch('/api/commands', {
@@ -201,8 +208,52 @@ test('change lifestyle from a locked activity and from the phone’s Settings', 
   await phone.getByRole('button', { name: 'Back' }).first().click();
   await phone.locator('[data-app="settings"]').click();
   await phone.locator('[data-open-lifestyle]').click();
-  await expect(page.getByRole('dialog', { name: 'Lifestyle' })).toBeVisible();
+  const picker = page.getByRole('dialog', { name: 'Lifestyle' });
+  await expect(picker).toBeVisible();
+  // Each tier says how many months your savings cover; dearer tiers cover fewer.
+  const covers = async (n: number) =>
+    Number(
+      await picker
+        .locator(`[data-lifestyle-tier="${n}"] [data-covers]`)
+        .getAttribute('data-covers'),
+    );
+  expect(await covers(1)).toBeGreaterThan(await covers(5));
   await page.screenshot({ path: info.outputPath('lifestyle-settings.png') });
+  // A tier the savings can't cover a month of is greyed and asks first.
+  const short = picker.locator('[data-lifestyle-tier][data-short]').first();
+  if (await short.count()) {
+    await short.click();
+    await expect(picker.locator('[data-lifestyle-confirm]')).toBeVisible();
+    await picker.getByRole('button', { name: 'Cancel' }).click();
+    await expect(picker.locator('[data-lifestyle-confirm]')).toHaveCount(0);
+  }
+});
+
+test('a lifestyle your savings can’t cover is greyed and asks before you switch', async ({
+  page,
+}, info) => {
+  await create(page, 'founder', 'lagos');
+  // Put nearly all your savings into the company: Lavish no longer fits a month.
+  const v = await state(page);
+  const keep = 1_500_000_00;
+  await command(page, {
+    type: 'company.inject',
+    companyId: v.companies[0].id,
+    amount: Math.max(0, (v.accounts.local.balance as number) - keep),
+  });
+  const phone = await openApp(page, 'settings');
+  await phone.locator('[data-open-lifestyle]').click();
+  const picker = page.getByRole('dialog', { name: 'Lifestyle' });
+  const lavish = picker.locator('[data-lifestyle-tier="5"]');
+  await expect(lavish).toHaveAttribute('data-short', '');
+  await expect(lavish).toContainText('don’t cover a month');
+  await lavish.click();
+  const confirm = picker.locator('[data-lifestyle-confirm]');
+  await expect(confirm).toBeVisible();
+  await page.screenshot({ path: info.outputPath('lifestyle-short.png') });
+  await confirm.getByRole('button', { name: 'Switch anyway' }).click();
+  await expect(lavish).toHaveAttribute('aria-pressed', 'true');
+  await expect(confirm).toHaveCount(0);
 });
 
 test('open a branch from the Company screen', async ({ page }) => {

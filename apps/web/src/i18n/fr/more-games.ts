@@ -171,4 +171,11 @@ export const moreGames: Record<string, string> = {
   'There’s no jump booked to land.': 'Aucun saut réservé à terminer.',
   // The lifestyle shortcut (screens/Lifestyle.tsx).
   'Change lifestyle': 'Changer de train de vie',
+  '⚠ Your savings don’t cover a month': '⚠ Votre épargne ne couvre pas un mois',
+  'Your savings cover 12+ months': 'Votre épargne couvre plus de 12 mois',
+  'Your savings cover 1 month': 'Votre épargne couvre 1 mois',
+  'Your savings cover {n} months': 'Votre épargne couvre {n} mois',
+  '{name} costs {amount} a month and you have {savings}. Unless money comes in before month end, you’ll be moved down a tier then.':
+    '{name} coûte {amount} par mois et vous avez {savings}. Sauf rentrée d’argent avant la fin du mois, vous descendrez alors d’un niveau.',
+  'Switch anyway': 'Changer quand même',
 };
