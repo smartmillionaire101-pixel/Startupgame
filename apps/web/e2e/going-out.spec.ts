@@ -53,7 +53,7 @@ test('Going out: golf, the mall, tonight and sky views, and Go to the golf club'
   await expect(golf.locator('[data-golf-fee]')).toContainText('Green fee');
   const mall = phone.locator('[data-going="mall"]');
   await expect(mall).toBeVisible();
-  await expect(mall.locator('[data-shop]')).toHaveCount(16);
+  await expect(mall.locator('[data-shop]')).toHaveCount(17);
   const eat = phone.locator('[data-going="eat"]');
   await expect(eat).toBeVisible();
   await expect(eat.locator('[data-eat]').first()).toContainText(/\w · \w/);

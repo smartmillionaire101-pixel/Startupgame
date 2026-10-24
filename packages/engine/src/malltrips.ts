@@ -237,9 +237,9 @@ function giftAtMall(
   );
   const friend = world.players[t.host === me.id ? t.guest : t.host]!;
   const x = mallItem(itemId);
-  ensure(x && mallSells(world, x), 'mall.item', 'The mall doesn’t sell that.');
-  ensure(giftable(x), 'mall.giftable', 'That isn’t something you can give.');
   const m = getMarket(world, t.market);
+  ensure(x && mallSells(world, x, m.id), 'mall.item', 'The mall doesn’t sell that.');
+  ensure(giftable(x), 'mall.giftable', 'That isn’t something you can give.');
   const fmt = (v: number) => formatMoney(v, m.data.currency);
   const price = mallPrice(world, m, x);
   const till = mallTill(m, x);

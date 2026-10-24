@@ -89,6 +89,7 @@ import { bankers } from './bankers';
 import { bankwork } from './bankwork';
 import { jobTasks } from './job-tasks';
 import { stocks } from './stocks';
+import { outfits } from './outfits';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -181,6 +182,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   jobTasks,
   todayWhatnow,
   stocks,
+  outfits,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

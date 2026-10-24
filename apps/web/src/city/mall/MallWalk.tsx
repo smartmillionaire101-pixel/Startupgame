@@ -48,16 +48,21 @@ import {
   type UnitShop,
   type Where,
 } from './layout';
+import { SuitAisles } from './SuitAisles';
 import {
   SHOP_COLOUR,
   SHOP_ICON,
+  aisleOf,
+  colourFor,
   colourName,
+  coloursOf,
   isWearable,
   itemIcon,
   itemNote,
   ownsIt,
   shopBlurb,
   wearing,
+  type SuitAisle,
 } from './shops';
 
 const Mall3D = lazy(() => import('../../interiors3d/Mall3D'));
@@ -117,6 +122,7 @@ export function MallWalk(p: MallWalkProps) {
   const [facing, setFacing] = useState<{ h: number; x: number; z: number } | null>(null);
   const [card, setCard] = useState<string | null>(null);
   const [colour, setColour] = useState<string>(TOP_COLOURS[5]);
+  const [aisle, setAisle] = useState<SuitAisle>('all');
   const [basket, setBasket] = useState<Line[]>([]);
   const [sheet, setSheet] = useState<'basket' | 'directory' | 'shelf' | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -154,7 +160,9 @@ export function MallWalk(p: MallWalkProps) {
   );
   const cardItem = card ? shopOfItem(items, card) : undefined;
   // What you're trying on shows on you.
-  const shown = cardItem && isWearable(cardItem) ? wearing(p.me, cardItem, colour) : p.me;
+  // The colour it'd be in (a suit: one of its cloths).
+  const cardColour = cardItem ? colourFor(cardItem, colour) : colour;
+  const shown = cardItem && isWearable(cardItem) ? wearing(p.me, cardItem, cardColour) : p.me;
   const live = useRef(p);
   useEffect(() => {
     live.current = p;
@@ -183,7 +191,7 @@ export function MallWalk(p: MallWalkProps) {
     const a = api.current;
     if (!a) return;
     setCard(null);
-    const r = regionOf(x, z);
+    const r = regionOf(x, z, p.shops);
     const to = r === 'concourse' || r === where ? null : r;
     const left = a.walkTo({ x, z });
     if (left !== null && left >= 0.5 && !p.reduced) setWalking({ to, left: Math.ceil(left) });
@@ -397,7 +405,12 @@ export function MallWalk(p: MallWalkProps) {
   const sheetOpen = !!(card || sheet || receipt);
   const inShop = where !== 'concourse';
   /** The list of what a shop sells (a storefront's stock; a room's, all of it). */
-  const shelfItems = items.filter((i) => i.shop === where);
+  const shopItems = items.filter((i) => i.shop === where);
+  // The Suit Shop's aisles (suits, shirts and blouses, ties …).
+  const shelfItems =
+    where === 'suits' && aisle !== 'all'
+      ? shopItems.filter((i) => aisleOf(i) === aisle)
+      : shopItems;
 
   return (
     <>
@@ -425,7 +438,7 @@ export function MallWalk(p: MallWalkProps) {
           onTap={onTap}
           onArrive={(at) => {
             setWalking(null);
-            const r = regionOf(at.x, at.z);
+            const r = regionOf(at.x, at.z, live.current.shops);
             if (r !== live.current.where) live.current.onWhere(r);
             // At a storefront: its list opens.
             if (isUnit(r) && r !== live.current.where) {
@@ -538,7 +551,7 @@ export function MallWalk(p: MallWalkProps) {
               {t('← Concourse')}
             </button>
           )}
-          {inShop && !looking && !sheetOpen && shelfItems.length > 0 && (
+          {inShop && !looking && !sheetOpen && shopItems.length > 0 && (
             <button
               type="button"
               className="mall-pill is-light mall-shelf-btn"
@@ -551,7 +564,7 @@ export function MallWalk(p: MallWalkProps) {
               }}
             >
               <span aria-hidden="true">{SHOP_ICON[where as MallShopId]}</span>
-              {t('All items ({n})', { n: shelfItems.length })}
+              {t('All items ({n})', { n: shopItems.length })}
             </button>
           )}
           <div
@@ -719,15 +732,15 @@ export function MallWalk(p: MallWalkProps) {
               </div>
               {cardItem.topStyle && (
                 <div className="mall-colours" role="radiogroup" aria-label={t('Colour')}>
-                  {TOP_COLOURS.map((c) => (
+                  {coloursOf(cardItem).map((c) => (
                     <button
                       key={c}
                       type="button"
                       role="radio"
-                      aria-checked={c === colour}
+                      aria-checked={c === cardColour}
                       aria-label={colourName(c)}
                       data-colour={c}
-                      className={`mall-swatch${c === colour ? ' is-on' : ''}`}
+                      className={`mall-swatch${c === cardColour ? ' is-on' : ''}`}
                       style={{ background: c }}
                       onClick={() => setColour(c)}
                     />
@@ -748,7 +761,7 @@ export function MallWalk(p: MallWalkProps) {
                     onClick={() => {
                       setBasket((b) => [
                         ...b,
-                        { item: cardItem, ...(cardItem.topStyle ? { colour } : {}) },
+                        { item: cardItem, ...(cardItem.topStyle ? { colour: cardColour } : {}) },
                       ]);
                       setCard(null);
                     }}
@@ -756,7 +769,7 @@ export function MallWalk(p: MallWalkProps) {
                     {inBasket(cardItem.id) ? t('In your basket') : t('＋ Add to basket')}
                   </button>
                 )}
-                {p.forMe(cardItem) && ownsIt(cardItem, colour) ? (
+                {p.forMe(cardItem) && ownsIt(cardItem, cardColour) ? (
                   // In your wardrobe already (a top: in this colour): on, free.
                   <button
                     type="button"
@@ -769,7 +782,7 @@ export function MallWalk(p: MallWalkProps) {
                           looseCmd({
                             type: 'wardrobe.wear',
                             itemId: cardItem.id,
-                            ...(cardItem.topStyle ? { colour } : {}),
+                            ...(cardItem.topStyle ? { colour: cardColour } : {}),
                           }) as never,
                           t('You put on: {item}.', { item: label(cardItem) }),
                         )
@@ -786,7 +799,9 @@ export function MallWalk(p: MallWalkProps) {
                       data-action="buy-now"
                       disabled={!canBuy(cardItem)}
                       onClick={() =>
-                        void pay([{ item: cardItem, ...(cardItem.topStyle ? { colour } : {}) }])
+                        void pay([
+                          { item: cardItem, ...(cardItem.topStyle ? { colour: cardColour } : {}) },
+                        ])
                       }
                     >
                       {cardItem.owned
@@ -805,7 +820,10 @@ export function MallWalk(p: MallWalkProps) {
                   data-action="gift-now"
                   disabled={!canGift(cardItem)}
                   onClick={() =>
-                    void giftNow({ item: cardItem, ...(cardItem.topStyle ? { colour } : {}) })
+                    void giftNow({
+                      item: cardItem,
+                      ...(cardItem.topStyle ? { colour: cardColour } : {}),
+                    })
                   }
                 >
                   {t('🎁 Buy it for {name} · {price}', {
@@ -913,6 +931,9 @@ export function MallWalk(p: MallWalkProps) {
                   ✕
                 </button>
               </div>
+              {where === 'suits' && (
+                <SuitAisles items={shopItems} aisle={aisle} onAisle={setAisle} />
+              )}
               <ul className="mall-lines">
                 {shelfItems.map((it) => (
                   <li key={it.id}>

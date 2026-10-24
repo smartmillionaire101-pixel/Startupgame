@@ -17,6 +17,8 @@
  *   with a friend is malltrips.ts. With that note, everything you wear is
  *   kept in your wardrobe (wardrobe.ts) to put on again free, and shoes,
  *   watches, jewellery and bags go on you when you buy them.
+ *   The game-feedback note opens The Suit Shop and more clothes (data/mall.ts:
+ *   `feedback` items, a city's own traditional styles only in its mall).
  *
  * Replay: both commands are new and the fields they write (`golf`, `phone`)
  * are optional, so a logged world without them replays exactly as before.
@@ -27,6 +29,7 @@ import {
   MALL_ITEMS,
   MALL_SHOPS,
   MALL_SHOPS_FIRST,
+  MALL_SHOPS_FEEDBACK,
   MALL_TILLS,
   MALL_TRIP,
   PHONE_NAMES,
@@ -42,7 +45,7 @@ import { ensure } from './errors.js';
 import { addContact } from './events.js';
 import { businessesOf, isOpen } from './economy.js';
 import { col, getMarket, hoursLeft, locationOf, usdToLocal } from './helpers.js';
-import { investorOn } from './releases.js';
+import { feedbackOn, investorOn } from './releases.js';
 import { account, costIn, payExact } from './ledger.js';
 import { bumpEnergy } from './lifebars.js';
 import { clamp } from './math.js';
@@ -244,8 +247,15 @@ export function mallPrice(world: World, m: MarketState, x: MallItem): number {
   return tagPrice(Math.max(base, x.usd ? usdToLocal(world, m, x.usd) : 0));
 }
 
-/** Whether this world's mall sells it (the bigger mall's items once its note is logged). */
-export const mallSells = (world: World, x: MallItem) => !x.more || investorOn(world);
+/**
+ * Whether this world's mall (in this city) sells it: the bigger mall's items
+ * once its note is logged, the feedback round's once the game-feedback note
+ * is, and a city's own traditional clothes only in that city.
+ */
+export const mallSells = (world: World, x: MallItem, market: MarketState['id']) =>
+  (!x.more || investorOn(world)) &&
+  (!x.feedback || feedbackOn(world)) &&
+  (!x.cities || x.cities.includes(market));
 
 /** The till a mall shop's sale goes to (its open business here), if any. */
 export function mallTill(m: MarketState, x: MallItem) {
@@ -271,7 +281,7 @@ export function mallView(world: World, me: Player) {
   // What you own to wear (a top: by colour), so the shop offers it free.
   const mine = on ? ownedToWear(me) : [];
   for (const x of MALL_ITEMS) {
-    if (!mallSells(world, x)) continue;
+    if (!mallSells(world, x, m.id)) continue;
     const f = x.furnitureId ? furnitureItem(x.furnitureId) : undefined;
     if (x.furnitureId && !f) continue;
     items.push({
@@ -280,6 +290,8 @@ export function mallView(world: World, me: Player) {
       label: f ? furnitureLabel(f, m.id) : x.label,
       price: mallPrice(world, m, x),
       ...(x.topStyle ? { topStyle: x.topStyle } : {}),
+      ...(x.colours ? { colours: x.colours } : {}),
+      ...(x.cities ? { local: true } : {}),
       ...(x.headwear ? { headwear: x.headwear } : {}),
       ...(x.glasses ? { glasses: x.glasses } : {}),
       ...(x.phone ? { phone: x.phone } : {}),
@@ -315,8 +327,8 @@ export function mallView(world: World, me: Player) {
     /** The wardrobe is open: wear what you own free (`wardrobe.wear`). */
     ...(on ? { wardrobe: true } : {}),
     currency: m.data.currency,
-    /** The shops open here (the bigger mall's once its note is logged). */
-    shops: on ? MALL_SHOPS : MALL_SHOPS_FIRST,
+    /** The shops open here (the bigger mall's once its note is logged; then The Suit Shop). */
+    shops: feedbackOn(world) ? MALL_SHOPS_FEEDBACK : on ? MALL_SHOPS : MALL_SHOPS_FIRST,
     /** Furniture is delivered home: only from a mall in your home city. */
     delivers: locationOf(me) === me.market,
     phone: me.phone ? { ...me.phone, name: PHONE_NAMES[me.phone.tier] } : null,
@@ -334,8 +346,8 @@ export function mallView(world: World, me: Player) {
 
 export function mallBuy(world: World, me: Player, itemId: string, colour?: string, now = 0) {
   const x = mallItem(itemId);
-  ensure(x && mallSells(world, x), 'mall.item', 'The mall doesn’t sell that.');
   const m = getMarket(world, locationOf(me));
+  ensure(x && mallSells(world, x, m.id), 'mall.item', 'The mall doesn’t sell that.');
   const fmt = (v: number) => formatMoney(v, m.data.currency);
 
   // Furniture and electronics for your home: the lifestyle shop does it (a
@@ -421,6 +433,12 @@ export function wearing(p: Player, x: MallItem, colour?: string, strict = true):
   const next: Appearance = { ...was };
   if (x.topStyle) {
     ensure(colour && /^#[0-9a-fA-F]{6}$/.test(colour), 'mall.colour', 'Pick a colour.');
+    // A suit (or a shirt) comes in its own cloths.
+    ensure(
+      !x.colours || x.colours.includes(colour.toLowerCase()),
+      'mall.colour',
+      'It doesn’t come in that colour.',
+    );
     next.topStyle = x.topStyle;
     next.topColor = colour.toLowerCase();
   }

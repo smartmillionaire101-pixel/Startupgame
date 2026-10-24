@@ -2,7 +2,7 @@ import { expect, letters, playAsGuest, setupFounder, tapPlace, test, type Page }
 
 /**
  * The bigger mall (player feedback: "more stores and more items to buy … and
- * that you can invite someone and take them shopping"): sixteen shops; in
+ * that you can invite someone and take them shopping"): seventeen shops (The Suit Shop with the feedback round); in
  * Lite, buy in a few of the new ones (shoes, books, the pharmacy); in 3D,
  * walk up to a storefront and buy from its list; take an AI friend shopping
  * (they say yes at once and walk with you) and buy them a gift: you pay, it's
@@ -76,16 +76,17 @@ async function toMall(page: Page, quality: '3d' | 'lite') {
   return scene;
 }
 
-test('sixteen shops in Lite: buy trainers, a novel and a toothbrush', async ({ page }) => {
+test('seventeen shops in Lite: buy running shoes, a novel and a toothbrush', async ({ page }) => {
   test.setTimeout(180_000);
   const scene = await toMall(page, 'lite');
   await expect(scene).toHaveAttribute('data-mall-mode', '2d');
-  await expect(scene.locator('[data-shop]')).toHaveCount(16);
+  await expect(scene.locator('[data-shop]')).toHaveCount(17);
   await snap(page, 'lite-1-directory');
   const start = (await state(page)).accounts.local.balance;
   let spent = 0;
   for (const [shop, item] of [
-    ['shoes', 'shoe-trainers'],
+    // (A new founder starts in trainers: theirs already.)
+    ['shoes', 'shoe-running'],
     ['books', 'book-novel'],
     ['pharmacy', 'ph-toothcare'],
   ] as const) {
@@ -125,7 +126,10 @@ test('sixteen shops in Lite: buy trainers, a novel and a toothbrush', async ({ p
     .toBe(start - spent);
   const s = await state(page);
   expect(s.me.mall?.bag?.map((b) => b.item) ?? []).toEqual(['book-novel']);
-  expect(s.me.wardrobe?.items.map((b) => b.item)).toEqual(['shoe-trainers']);
+  // The running shoes, after the hoodie, jeans and trainers a founder starts in.
+  expect(s.me.wardrobe?.items.map((b) => b.item).sort()).toEqual(
+    ['fash-jeans', 'shoe-running', 'shoe-trainers', 'top-hoodie'].sort(),
+  );
 });
 
 test('take an AI friend shopping and buy them a gift (Lite)', async ({ page }) => {

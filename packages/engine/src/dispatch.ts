@@ -172,6 +172,7 @@ import { answerTask } from './jobtasks.js';
 import { golfRound, mallBuy } from './leisure.js';
 import { mallTripCommand } from './malltrips.js';
 import { wardrobeRemove, wardrobeWear } from './wardrobe.js';
+import { dressForRole } from './outfits.js';
 import { MALL_TRIP } from './data/leisure.js';
 import {
   HOME_ACT_BARS,
@@ -508,6 +509,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       now: ctx.now,
     });
     if (cmd.gender) p.gender = cmd.gender;
+    // The feedback round: a new player starts dressed for their role.
+    dressForRole(world, p, getMarket(world, market).month, ctx.now);
     if (cmd.role === 'investor') {
       const bg = backgroundById(backgroundId)!;
       p.investor = {
@@ -1883,6 +1886,8 @@ function createFromOnboarding(
     now,
     ...(cmd.gender ? { gender: cmd.gender } : {}),
   });
+  // The feedback round: a new player starts dressed for their role.
+  dressForRole(world, p, getMarket(world, p.market).month, now);
   let companyId: Id | null = null;
   if (cmd.role === 'founder' && cmd.company) {
     companyId = createCompany(world, { founderId: p.id, ...cmd.company }).id;
