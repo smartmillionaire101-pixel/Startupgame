@@ -96,6 +96,14 @@ export const MORE_GAMES_NOTE = 'release-2026-10-23-more-games';
  */
 export const BANKERS_NOTE = 'release-2026-10-24-bankers';
 
+/**
+ * The game-feedback round (fix-game-feedback): changes to existing play from
+ * the players' feedback. A banking licence review takes 30 days and one month
+ * end instead of 60 days and two. Worlds without this note play exactly as
+ * before.
+ */
+export const FEEDBACK_NOTE = 'release-2026-10-25-game-feedback';
+
 /** Every behaviour-switching note, oldest first. */
 export const RELEASES = [
   JOURNEY_EVENTS_NOTE,
@@ -107,6 +115,7 @@ export const RELEASES = [
   PLACES_NOTE,
   MORE_GAMES_NOTE,
   BANKERS_NOTE,
+  FEEDBACK_NOTE,
 ] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
@@ -124,3 +133,4 @@ export const dealflowOn = (w: World): boolean => releaseOn(w, DEALFLOW_NOTE);
 export const placesOn = (w: World): boolean => releaseOn(w, PLACES_NOTE);
 export const moreGamesOn = (w: World): boolean => releaseOn(w, MORE_GAMES_NOTE);
 export const bankersOn = (w: World): boolean => releaseOn(w, BANKERS_NOTE);
+export const feedbackOn = (w: World): boolean => releaseOn(w, FEEDBACK_NOTE);

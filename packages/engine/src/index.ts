@@ -129,7 +129,9 @@ export {
   MORE_GAMES_NOTE,
   moreGamesOn,
   BANKERS_NOTE,
+  FEEDBACK_NOTE,
   bankersOn,
+  feedbackOn,
   RELEASES,
 } from './releases.js';
 // Bankers: negotiating with shareholders, the licence process, the first session.

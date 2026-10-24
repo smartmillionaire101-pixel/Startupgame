@@ -96,7 +96,7 @@ test('a new banker negotiates, files, passes the Central Bank interview and gets
   // B. The licence is the work: tracker and checklist.
   const lic = page.locator('[data-banker="licence"]');
   await expect(lic).toBeVisible();
-  await expect(lic.locator('[data-review-day]')).toContainText(/Review: day \d+ of 60/);
+  await expect(lic.locator('[data-review-day]')).toContainText(/Review: day \d+ of 30/);
   await expect(page.locator('[data-banker-step="book"]')).toBeVisible();
   await shot(page, 'banker-A-3-tracker');
 

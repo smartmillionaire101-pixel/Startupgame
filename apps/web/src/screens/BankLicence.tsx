@@ -4,7 +4,7 @@
  * - Negotiate: the investor groups' offers side by side, the levers (your
  *   capital, a smaller bank, voting shares, performance shares, co-founders)
  *   and what you'd own and control if you signed now.
- * - The licence: a tracker ("Review: day N of 60") and a checklist (the
+ * - The licence: a tracker ("Review: day N of 30") and a checklist (the
  *   Central Bank interview, a business plan with live checks, key hires, a
  *   core banking system and a branch), then pre-opening clients after
  *   approval in principle, and the regulator's decision with its reasons.
