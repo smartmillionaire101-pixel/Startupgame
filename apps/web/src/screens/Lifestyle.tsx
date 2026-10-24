@@ -5,6 +5,7 @@
  * tier locks (player feedback: "I don't see where to change my tier").
  */
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { t, tx } from '../i18n';
 import { money } from '../format';
 import { useView } from '../store';
@@ -76,7 +77,7 @@ export function LifestyleButton({
   size?: 'sm';
   variant?: 'subtle' | 'secondary';
 }) {
-  const [open, setOpen] = useState(false);
+  const [host, setHost] = useState<Element | null>(null);
   return (
     <>
       <Button
@@ -85,12 +86,13 @@ export function LifestyleButton({
         data-open-lifestyle=""
         onClick={(e) => {
           e.stopPropagation();
-          setOpen(true);
+          // Open over the phone (or the page), not inside a faded locked row.
+          setHost(e.currentTarget.closest('.phone-frame') ?? document.body);
         }}
       >
         {label ?? t('Change lifestyle')}
       </Button>
-      {open && <LifestyleSheet onClose={() => setOpen(false)} />}
+      {host && createPortal(<LifestyleSheet onClose={() => setHost(null)} />, host)}
     </>
   );
 }
