@@ -480,8 +480,8 @@ describe('bankers: first session and journey', () => {
 });
 
 describe('bankers: the release switch', () => {
-  it('is the newest note', () => {
-    expect(RELEASES.at(-1)).toBe(BANKERS_NOTE);
+  it('comes right after more games', () => {
+    expect(RELEASES.indexOf(BANKERS_NOTE)).toBe(RELEASES.indexOf(MORE_GAMES_NOTE) + 1);
     expect(bankersOn({ announcements: [BANKERS_NOTE] } as unknown as World)).toBe(true);
     expect(bankersOn({ announcements: [MORE_GAMES_NOTE] } as unknown as World)).toBe(false);
   });

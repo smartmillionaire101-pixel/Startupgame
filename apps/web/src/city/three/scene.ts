@@ -33,7 +33,7 @@ import {
 } from './buildings';
 import { buildGround, canopyLand, mixHex } from './ground';
 import { discPoly, FootprintGrid, makeFp, rectPoly, segRectDist, type Fp } from './footprints';
-import { homeModel, PLOT, setHomesNight } from './homes3d';
+import { homeModel, lifestyleHome, PLOT, setHomesNight } from './homes3d';
 import { ROAD_HALF, COVER } from './mask';
 import { hoodAt, type OwnedProperty } from '../properties';
 import { covered } from '../../three-kit/cover';
@@ -616,6 +616,7 @@ export class CityScene {
       ] as const)
         pts.push(cx + a * co - b * si, cy + a * si + b * co);
       const outline = cleanOutline(pts)!;
+      let homeH: number | null = null;
       const wall = bytes(mixHex(spec.wall ?? p.color, '#e8e4dc', spec.wall ? 0 : 0.55));
       const roof = bytes(spec.roof ?? '#bdb9b1');
       if (p.kind === 'stall') {
@@ -693,6 +694,14 @@ export class CityScene {
         flat(-0.12, -0.32, 0.25, 0.25, 7, '#f8fafc', 0.38);
         flat(-0.12 + 0.9 / w, -0.32, 1.8, 0.12, 1.1, '#ef4444', 6.1);
         flat(0.32, 0.36, 14, 9, 5, '#efe9dc', 0.25, 0, 1);
+      } else if (p.kind === 'home') {
+        // Your home: the building its lifestyle tier lives in (a walk-up, a
+        // block of flats, a modern tower, a house, a penthouse's tower).
+        const m = lifestyleHome(p.level ?? 2, w, d, r);
+        m.group.position.set(cx, this.groundAt(cx, cy), cy);
+        m.group.rotation.y = -rot;
+        this.placesGroup.add(m.group);
+        homeH = m.h;
       } else {
         fps.push({
           p: outline,
@@ -718,7 +727,7 @@ export class CityScene {
           hl: 1,
         });
       }
-      this.places.push({ place: p, x: cx, y: cy, w, d, h: spec.h + 1.4, rot });
+      this.places.push({ place: p, x: cx, y: cy, w, d, h: homeH ?? spec.h + 1.4, rot });
       // The airport: airliners parked nose-in on the airside, behind the terminal.
       if (p.kind === 'airport') {
         const len = Math.hypot(door.e - c.e, door.s - c.s) || 1;
@@ -1081,7 +1090,7 @@ export class CityScene {
     this.env?.dispose();
     this.env = skyEnvironment(this.renderer, this.sky);
     this.scene.environment = this.env.texture;
-    this.scene.environmentIntensity = 0.55 - this.skyState.night * 0.4;
+    this.scene.environmentIntensity = 0.55 - this.skyState.night * 0.3;
   }
 
   // ---------------------------------------------------------------------------

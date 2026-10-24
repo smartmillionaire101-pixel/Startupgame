@@ -130,6 +130,8 @@ export {
   moreGamesOn,
   BANKERS_NOTE,
   bankersOn,
+  SHOP_NOTE,
+  shopOn,
   RELEASES,
 } from './releases.js';
 // Bankers: negotiating with shareholders, the licence process, the first session.
@@ -292,6 +294,10 @@ export type {
   MallShopId,
   PhoneTier,
 } from './data/leisure.js';
+// The catalogue, shopping online, walls and dividers (shop note).
+export * from './data/catalog.js';
+export { wallEdgesOf } from './catalog.js';
+export type { OnlineOrder } from './catalog.js';
 export { BRANCH } from './branches.js';
 export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.js';
 // Wave 12: sky views and the quiz bank.

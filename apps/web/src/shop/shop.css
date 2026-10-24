@@ -1,0 +1,369 @@
+/* The catalogue (./Catalogue.tsx) and the Shop app (../phone/apps/ShopApp.tsx). */
+.cat {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.cat-tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cat-search {
+  flex: 1;
+  min-width: 0;
+}
+.cat-sort {
+  flex: none;
+  max-width: 46%;
+  font: inherit;
+  font-size: var(--fs-sm);
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+.cat-chips,
+.shop-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.cat-chips::-webkit-scrollbar {
+  display: none;
+}
+.cat-chip {
+  flex: none;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+.cat-chip.is-on {
+  background: var(--inverse);
+  color: var(--inverse-ink);
+  border-color: var(--inverse);
+}
+.cat-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.cat-card {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 6px 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 14px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  box-shadow: var(--sh-1);
+}
+.cat-card:active {
+  transform: scale(0.98);
+}
+.cat-card-name {
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+  line-height: 1.2;
+  margin-top: 4px;
+}
+.cat-card-price {
+  font-weight: var(--fw-bold);
+  color: var(--money);
+}
+.cat-card-opts {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.cat-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.cat-thumb.is-big {
+  aspect-ratio: 4 / 3;
+  max-height: 34vh;
+  border-radius: var(--r-lg, 18px);
+}
+.cat-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.cat-thumb.is-big img {
+  width: auto;
+  max-width: 100%;
+}
+.cat-thumb-icon {
+  font-size: 2.6rem;
+  filter: drop-shadow(0 3px 4px rgb(0 0 0 / 0.18));
+}
+.cat-thumb.is-big .cat-thumb-icon {
+  font-size: 4.5rem;
+}
+.cat-thumb-look {
+  height: 92%;
+}
+.cat-thumb-swatch {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+.cat-back {
+  justify-self: start;
+}
+.cat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cat-head h3,
+.cat-checkout h3,
+.cat-placed h3 {
+  margin: 0;
+  font-size: var(--fs-lg);
+}
+.cat-price {
+  font-size: var(--fs-lg);
+  color: var(--money);
+}
+.cat-group {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 14px);
+  padding: 6px 10px 8px;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  background: var(--surface);
+}
+.cat-group legend {
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+  padding: 0 4px;
+}
+.cat-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.cat-opt.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.cat-opt input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+.cat-opt-name {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  font-size: var(--fs-sm);
+}
+.cat-opt-name small {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.cat-opt b {
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+.cat-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.2);
+  flex: none;
+}
+.cat-colours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 2px;
+}
+.cat-colour {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgb(0 0 0 / 0.15);
+  padding: 0;
+}
+.cat-colour.is-on {
+  outline: 3px solid var(--text);
+  outline-offset: 1px;
+}
+.cat-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  position: sticky;
+  bottom: 0;
+  padding: 8px 0 2px;
+  background: linear-gradient(transparent, var(--bg) 30%);
+}
+.cat-go {
+  flex: 1;
+  min-height: 46px;
+}
+.cat-owned {
+  flex: 1;
+  text-align: center;
+  font-weight: var(--fw-semibold);
+  color: var(--good);
+  padding: 12px;
+}
+.cat-line {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.cat-line .cat-thumb {
+  width: 64px;
+}
+.cat-line-text {
+  display: grid;
+  min-width: 0;
+}
+.cat-sum {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md, 14px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.cat-sum dt {
+  color: var(--muted);
+}
+.cat-sum dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cat-sum .cat-total {
+  font-weight: var(--fw-bold);
+  color: var(--text);
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+.cat-short {
+  color: var(--bad);
+  margin: 0;
+}
+.cat-placed {
+  text-align: center;
+  justify-items: center;
+}
+.cat-placed .cat-thumb {
+  max-width: 260px;
+}
+.cat-empty {
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* The Shop app's orders. */
+.shop-orders {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.shop-order {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+}
+.shop-order-icon {
+  font-size: 1.6rem;
+}
+.shop-order-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.shop-track {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.shop-track i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 1s linear;
+}
+.shop-order[data-state='arrived'] .shop-track i {
+  background: var(--good);
+}
+
+/* A shop's "Browse the catalogue" sheet. */
+.cat-sheet-back {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--scrim);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.cat-sheet {
+  width: min(560px, 100%);
+  max-height: 92dvh;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: 20px 20px 0 0;
+  padding: 12px 16px 16px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.cat-sheet header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cat-sheet header h3 {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-lg);
+}
+.cat-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

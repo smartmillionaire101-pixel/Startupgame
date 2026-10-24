@@ -4,8 +4,13 @@
  * wealth"). Pure data in tile units (a tile is a metre; the house covers 0..w × 0..h, the street is towards +y), drawn by
  * the 3D home (../interiors3d/house.ts) and the Lite home (./HomeScene.tsx).
  *
- * - A flat (a room, a studio, an apartment) sits in a small garden with a
- *   parking strip in front.
+ * - A flat (a room, a studio, an apartment) is a flat in a block, partway up
+ *   it (player feedback: "This house is no different from the poor house
+ *   (Lean), and I selected Modest"): the landing, the neighbours' doors and
+ *   the city round it (../interiors3d/hotel-tower.ts draws it, as it draws a
+ *   hotel's floor). A room in a shared flat is up one flight of a worn
+ *   walk-up, a small flat three floors up a tidy block with a balcony, a good
+ *   flat high in a modern tower with a big balcony (`blockOf`).
  * - A townhouse or a rented house gets a garden on the side, a gated drive
  *   with open bays and a hedge round the plot.
  * - A villa adds a pool terrace with loungers and a parasol, and a steel
@@ -21,6 +26,7 @@
 import type { HotelTier } from '../city/travel';
 import type { HomeAct, HomePlan } from './layout';
 import type { HotelDoor, HotelWindow } from './hotel';
+import { HOTEL_CORRIDOR, HOTEL_LOBBY, hotelDoors, hotelRow } from './hotel';
 
 interface Rect {
   x: number;
@@ -48,7 +54,10 @@ interface Lounger {
   rot: number;
 }
 
-type GroundStyle = 'garden' | 'estate' | 'roof' | 'hotel';
+type GroundStyle = 'garden' | 'estate' | 'roof' | 'hotel' | 'block';
+
+/** The block a flat is in: a worn walk-up, a tidy block, a modern tower. */
+export type BlockTier = 'walkup' | 'block' | 'modern';
 
 export interface Grounds {
   style: GroundStyle;
@@ -88,6 +97,8 @@ export interface Grounds {
    */
   lift?: (Rect & { cars: string[] }) | null;
   /** A hotel room: the hotel (its name on the tower, its tier's finish) and the floor you're on. */
+  /** A flat: the block it's in, your floor and your flat's number on the door. */
+  block?: { tier: BlockTier; floor: number; flat: number; doors: HotelDoor[] } | null;
   hotel?: {
     tier: HotelTier;
     name: string;
@@ -119,6 +130,8 @@ export function groundsFor(plan: HomePlan, cars: readonly string[]): Grounds {
   const doorX = plan.door.x + 0.5;
   const list = cars.slice(0, 8);
   if (plan.kind === 'penthouse') return roof(plan, list);
+  const block = blockOf(plan);
+  if (block) return flatInBlock(plan, block, list);
   const house = HOUSES.has(plan.kind);
   const pools = plan.kind === 'villa' || plan.kind === 'mansion';
   const big = plan.kind === 'mansion' ? 1 : 0;
@@ -449,4 +462,62 @@ export function outdoorThings(g: Grounds): OutdoorThing[] {
         verbs: [{ id: 'car', label: 'Drive out', model: b.car }],
       });
   return out;
+}
+
+/**
+ * The block a flat is in, or null for a house (a renter's lifestyle tier, or
+ * an owner's kind of home): Lean's room in a shared flat up a worn walk-up,
+ * Modest's small flat (and a studio) in a tidy block, Comfortable's good flat
+ * (or a rich owner's apartment) in a modern tower.
+ */
+export function blockOf(plan: Pick<HomePlan, 'kind' | 'tier' | 'wealth'>): BlockTier | null {
+  if (plan.kind === 'room') return 'walkup';
+  if (plan.kind === 'studio') return 'block';
+  if (plan.kind === 'apartment') return plan.tier >= 3 || plan.wealth >= 2 ? 'modern' : 'block';
+  return null;
+}
+
+/** Your floor of the block: up one flight, three floors up, high in the tower. */
+export const BLOCK_FLOOR: Record<BlockTier, number> = { walkup: 1, block: 3, modern: 9 };
+
+/** The balcony's depth off the back wall (the camera keeps it in view). */
+const BALCONY: Record<BlockTier, number> = { walkup: 0, block: 1.8, modern: 2.9 };
+
+function flatInBlock(plan: HomePlan, tier: BlockTier, cars: readonly string[]): Grounds {
+  const W = plan.w;
+  const H = plan.h;
+  const floor = BLOCK_FLOOR[tier];
+  const flat = floor * 100 + 4;
+  const b = BALCONY[tier];
+  const focus = { x: 0, y: -b, w: W, h: H + 0.6 + b };
+  const r = Math.hypot(W, H + b) / 2 + 2;
+  const lobby = hotelRow(plan).lobby;
+  return {
+    style: 'block',
+    lawn: { x: W / 2, y: H / 2, r },
+    pool: null,
+    terrace: null,
+    loungers: [],
+    parasol: null,
+    drive: null,
+    bays: [],
+    carport: null,
+    hedges: [],
+    gate: null,
+    street: { y: H + HOTEL_CORRIDOR + 10, x0: -20, x1: W + 20 },
+    path: { x: plan.door.x, y: H, w: 1, h: 0.3 },
+    trees: [],
+    pots: [],
+    fountain: null,
+    beds: [],
+    van: { x: W + 3, y: H + HOTEL_CORRIDOR + 10 },
+    focus,
+    view: null,
+    // Your cars are down in the street (or the block's car park): the lift
+    // (a walk-up: the stairs) takes you down to them.
+    lift: cars.length
+      ? { x: lobby.x0 + HOTEL_LOBBY / 2 - 0.5, y: H - 2.2, w: 1, h: 0.6, cars: [...cars] }
+      : null,
+    block: { tier, floor, flat, doors: hotelDoors(flat) },
+  };
 }

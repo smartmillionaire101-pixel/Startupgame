@@ -114,6 +114,24 @@ function windows(
   }
 }
 
+/** Punched windows on a box's two long faces (they glow at night, like the bands). */
+function punched(g: THREE.Object3D, w: number, d: number, floors: number, fh: number, bay = 3) {
+  const n = Math.max(2, Math.floor(w / bay));
+  for (let f = 0; f < floors; f++)
+    for (let i = 0; i < n; i++)
+      for (const sz of [-1, 1])
+        box(
+          g,
+          1.3,
+          1.4,
+          0.12,
+          WINDOW(),
+          -w / 2 + (i + 0.5) * (w / n),
+          f * fh + fh * 0.32,
+          sz * (d / 2 + 0.03),
+        );
+}
+
 /** Plot size (metres) of each kind of home: [width along the street, depth]. */
 export const PLOT: Record<PropertyTier, [number, number]> = {
   mansion: [52, 40],
@@ -221,4 +239,144 @@ export function homeModel(tier: PropertyTier, seed: number): { group: THREE.Grou
 /** Windows light up as night falls. */
 export function setHomesNight(n: number) {
   WINDOW().emissiveIntensity = n * 1.6;
+}
+
+/**
+ * Player feedback: "This house is no different from the poor house (Lean),
+ * and I selected Modest." Your rented home on the map, by lifestyle tier and
+ * matching its housing label (and the home inside, ../../interiors3d/
+ * hotel-tower.ts): a worn three-storey walk-up with water tanks on the roof
+ * (a room in a shared flat), a tidy five-storey block with balconies (a
+ * small flat), a modern tower with glass balconies (a good flat), a detached
+ * house on its own plot (a house), a glass tower with a lit crown (a
+ * penthouse). Your flat is lit gold. Origin at the plot's centre, the
+ * entrance towards −z (the street); `w` × `d` is the plot.
+ */
+export function lifestyleHome(
+  tier: number,
+  w: number,
+  d: number,
+  seed = 0.5,
+): { group: THREE.Group; h: number } {
+  const t = Math.max(1, Math.min(5, Math.round(tier) || 2));
+  if (t === 5) {
+    const p = homeModel('penthouse', seed);
+    p.group.getObjectByName('marker')?.removeFromParent();
+    const s = Math.min(1, Math.min(w, d) / 22);
+    p.group.scale.set(s, 1, s);
+    return p;
+  }
+  const g = new THREE.Group();
+  let h: number;
+  if (t === 1) {
+    // A walk-up: faded render, a damp band at its foot, a rusty stair hut and
+    // black water tanks on the flat roof, a bare yard behind a low wall.
+    const bw = Math.min(w * 0.85, 16);
+    const bd = Math.min(d * 0.7, 11);
+    const F = 3.1;
+    h = 3 * F;
+    box(g, w * 0.95, 0.08, d * 0.95, mat('#b59f7c', { rough: 1 }));
+    box(g, w * 0.9, 1.0, 0.3, mat('#c9b48e'), 0, 0, -d / 2 + 0.6);
+    box(g, bw, h, bd, mat(seed < 0.5 ? '#d6c39e' : '#cdb894', { rough: 0.95 }));
+    box(g, bw + 0.06, 1.1, bd + 0.06, mat('#9c8b6c', { rough: 1 }));
+    punched(g, bw, bd, 3, F, 2.6);
+    // Your window, on the first floor (front and back).
+    for (const sz of [-1, 1])
+      box(g, 1.5, 1.5, 0.2, GOLD(), -bw * 0.22, F + 0.9, sz * (bd / 2 + 0.06));
+    box(g, bw + 0.3, 0.3, bd + 0.3, mat('#a8977a'), 0, h);
+    box(g, 3.2, 2.4, 3, mat('#8a4b2a', { rough: 0.9, metal: 0.3 }), bw / 2 - 2.4, h, bd / 2 - 2);
+    for (const x of [-bw / 2 + 2, -bw / 2 + 4.2]) {
+      const tank = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.9, 0.9, 1.9, 10).translate(0, 0.95, 0),
+        mat('#15171c', { rough: 0.6 }),
+      );
+      tank.position.set(x, h + 0.3, bd / 2 - 2);
+      tank.castShadow = true;
+      g.add(tank);
+    }
+  } else if (t === 2) {
+    // A tidy painted block: five storeys, two balconies a floor on the street
+    // side, terracotta bands at each floor, the lift's housing on the roof.
+    const bw = Math.min(w * 0.88, 18);
+    const bd = Math.min(d * 0.72, 12);
+    const F = 3.1;
+    const floors = 5;
+    h = floors * F;
+    const wall = mat(seed < 0.5 ? '#f0e4cf' : '#ece2d0', { rough: 0.85 });
+    const trim = mat('#c29a6b');
+    const rail = mat('#3f3a36', { metal: 0.5, rough: 0.4 });
+    box(g, w * 0.95, 0.08, d * 0.95, mat('#d6cfc2', { rough: 0.95 }));
+    box(g, bw, h, bd, wall);
+    punched(g, bw, bd, floors, F);
+    for (let f = 1; f <= floors; f++) box(g, bw + 0.2, 0.25, bd + 0.2, trim, 0, f * F - 0.25);
+    for (const sz of [-1, 1]) {
+      for (let f = 1; f < floors; f++)
+        for (const x of [-bw / 4, bw / 4]) {
+          box(g, bw * 0.32, 0.2, 1.4, trim, x, f * F, sz * (bd / 2 + 0.7));
+          box(g, bw * 0.32, 1.0, 0.08, rail, x, f * F + 0.2, sz * (bd / 2 + 1.35));
+        }
+      // Your flat, three floors up: its balconies lit gold.
+      box(g, bw * 0.32, 1.0, 0.12, GOLD(), -bw / 4, 3 * F + 0.2, sz * (bd / 2 + 1.42));
+    }
+    box(g, 4, 2.6, 4, wall, bw / 2 - 3, h, 0);
+    box(g, 4.4, 0.4, 1.8, mat('#7c5434'), 0, 2.6, -bd / 2 - 0.9);
+    tree(g, -w * 0.4, -d * 0.4, 0.55);
+    tree(g, w * 0.4, -d * 0.4, 0.55);
+  } else if (t === 3) {
+    // A modern tower: stone piers, glass, a glass-railed balcony on every
+    // floor, a lit crown; your floor high up, lit gold.
+    const bw = Math.min(w * 0.8, 17);
+    const bd = Math.min(d * 0.7, 13);
+    const F = 3.3;
+    const floors = 11;
+    h = floors * F;
+    const stone = mat('#d3d9de', { rough: 0.6 });
+    const glass = mat('#bfe3f0', { rough: 0.05, metal: 0.3 });
+    box(g, w * 0.95, 0.08, d * 0.95, mat('#6aa24e'));
+    box(g, 6, 0.1, d * 0.3, mat('#cfc6b4'), 0, 0, -d * 0.33);
+    box(g, bw, h, bd, mat('#5d7a8c', { rough: 0.15, metal: 0.8 }));
+    windows(g, bw, bd, floors, F);
+    for (const sx of [-1, 1]) box(g, 1.2, h, bd + 0.2, stone, (sx * (bw - 1.2)) / 2, 0);
+    for (const sz of [-1, 1]) {
+      for (let f = 1; f <= floors; f++) {
+        box(g, bw, 0.3, 2.2, stone, 0, f * F - 0.3, sz * (bd / 2 + 1.1));
+        if (f < floors) box(g, bw, 1.0, 0.08, glass, 0, f * F, sz * (bd / 2 + 2.15));
+      }
+      box(g, bw + 0.4, 0.3, 0.12, GOLD(), 0, 9 * F + 0.9, sz * (bd / 2 + 2.25));
+    }
+    box(
+      g,
+      bw - 3,
+      2.4,
+      bd - 3,
+      mat('#dfe8ee', { rough: 0.1, metal: 0.5, emissive: '#ffcf7a', ei: 0.3 }),
+      0,
+      h,
+    );
+    box(g, 6, 0.4, 3, mat('#2e3a46'), 0, 3.6, -bd / 2 - 1.6);
+    for (const x of [-w * 0.4, w * 0.4]) tree(g, x, -d * 0.36, 0.7);
+  } else {
+    // A house of your own: two storeys under a hipped roof, a garage and its
+    // drive, a lawn behind a hedge, trees.
+    box(g, w * 0.95, 0.12, d * 0.95, mat('#5f9a45'));
+    const walls = mat(seed < 0.5 ? '#f1ece2' : '#ece1cf');
+    const hw = Math.min(w * 0.5, 13);
+    const hd = Math.min(d * 0.42, 10);
+    const hx = -w * 0.08;
+    box(g, hw, 6.4, hd, walls, hx, 0, d * 0.05);
+    windows(g, hw, hd, 2, 3.2, hx, d * 0.05);
+    hipRoof(g, hw, hd, 3.6, mat('#6d4a3a'), 6.4, hx, d * 0.05);
+    box(g, 5.5, 3, 6, walls, hx + hw / 2 + 2.8, 0, d * 0.08);
+    box(g, 5.8, 0.3, 6.3, mat('#59616b'), hx + hw / 2 + 2.8, 3, d * 0.08);
+    box(g, 4, 0.14, d * 0.45, mat('#cfc6b4'), hx + hw / 2 + 2.8, 0, -d * 0.25);
+    const hedge = mat('#3f6f34', { rough: 1 });
+    box(g, w * 0.95, 1.3, 0.9, hedge, 0, 0, -d * 0.47);
+    box(g, 0.9, 1.3, d * 0.95, hedge, -w * 0.47, 0, 0);
+    box(g, 0.9, 1.3, d * 0.95, hedge, w * 0.47, 0, 0);
+    tree(g, -w * 0.35, -d * 0.3, 0.8);
+    tree(g, w * 0.35, d * 0.3, 0.9);
+    h = 10;
+  }
+  g.userData.h = h;
+  return { group: g, h };
 }

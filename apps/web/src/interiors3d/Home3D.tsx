@@ -20,6 +20,7 @@ import { buildModel, type Model } from './furniture';
 import { Particles, fx } from './fx';
 import { GROUND_Y, STOREY, buildHouse, cutWalls, wallOf, type House } from './house';
 import { buildEstateModel } from './estate-models';
+import { buildDivider, refinish, upholstered } from './dividers';
 import { groundsFor } from '../home/grounds';
 import { Kit, disposeTree, mat } from './kit';
 import { Stage, gestures, hasParkedStage, parkStage, unparkStage, type StageOpts } from './stage';
@@ -354,6 +355,8 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     stage.sun.position.set(h.centre.x - 14, 30, h.centre.z + 8);
     stage.sun.target.position.copy(h.centre);
     stage.canvas.dataset.kind = plan.kind;
+    // A flat: the block it's in (walk-up, block, modern tower).
+    stage.canvas.dataset.block = grounds.block?.tier ?? '';
     stage.canvas.dataset.wealth = String(plan.wealth);
     stage.canvas.dataset.rooms = String(plan.rooms.length);
     stage.canvas.dataset.floor = String(plan.level ?? 0);
@@ -440,7 +443,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   const objKey = objects
     .map(
       (o) =>
-        `${o.id}:${o.model ?? ''}:${o.owned ? 1 : 0}:${o.tier ?? 1}:${o.spot.x},${o.spot.y},${o.spot.w},${o.spot.h},${o.spot.rot ?? ''}:${o.ry ?? ''}`,
+        `${o.id}:${o.model ?? ''}:${o.owned ? 1 : 0}:${o.tier ?? 1}:${o.spot.x},${o.spot.y},${o.spot.w},${o.spot.h},${o.spot.rot ?? ''}:${o.ry ?? ''}:${o.finish ?? ''}`,
     )
     .join('|');
   useEffect(() => {
@@ -468,10 +471,17 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         d: fr.d,
         tier: o.tier ?? 1,
         seed: Math.round(o.spot.x * 7 + o.spot.y),
-        // Wave 12: the reference's deep green velvet sofa in a well-off home.
-        ...(o.slot === 'sofa' && (o.tier ?? 1) >= 2 ? { tint: '#1f6e52' } : {}),
+        // Shop note: a sofa's finish is its upholstery (a forest velvet, a walnut brown).
+        ...(o.finish && o.owned && upholstered(o.slot ?? id)
+          ? { tint: o.finish }
+          : // Wave 12: the reference's deep green velvet sofa in a well-off home.
+            o.slot === 'sofa' && (o.tier ?? 1) >= 2
+            ? { tint: '#1f6e52' }
+            : {}),
       });
       const g = model.group;
+      // Shop note: the finish you bought (its wood, or its biggest part, takes the colour).
+      if (o.finish && o.owned && !upholstered(o.slot ?? id)) refinish(g, o.finish);
       // Outdoors (the cars, the loungers) is down on the lawn, a storey or two below you upstairs.
       g.position.set(fr.x, o.outdoor ? GROUND_Y + 0.03 - (plan.level ?? 0) * STOREY : 0, fr.z);
       g.rotation.y = ry;
@@ -614,6 +624,37 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objKey, plan, night, dusk, grounds]);
 
+  // ---- Shop note: the walls and dividers you put up on this floor.
+  const dividers = props.dividers;
+  const divKey = (dividers ?? [])
+    .map((d) => `${d.id}:${d.kind}:${d.len}:${d.x},${d.y},${d.dir}:${d.swatch}`)
+    .join('|');
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !dividers?.length) {
+      if (stage) delete stage.canvas.dataset.dividers;
+      return;
+    }
+    const root = new THREE.Group();
+    for (const d of dividers) {
+      const g = buildDivider(d.kind, d.len, d.swatch);
+      g.position.set(d.x, 0, d.y);
+      if (d.dir === 'v') g.rotation.y = -Math.PI / 2;
+      g.userData.dividerId = d.id;
+      root.add(g);
+    }
+    stage.scene.add(root);
+    stage.canvas.dataset.dividers = String(dividers.length);
+    stage.invalidate();
+    return () => {
+      stage.scene.remove(root);
+      disposeTree(root);
+      stage.invalidate();
+    };
+    // divKey stands for `dividers`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [divKey, plan]);
+
   // ---- Buy mode: markers pulse; the thing being moved is a ghost.
   useEffect(() => {
     for (const m of markers.current.values()) {
@@ -706,25 +747,53 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     }
     van.add(boxes);
     stage.scene.add(van);
+    // A flat: the van is down in the street, out of sight; the courier brings
+    // the parcels up to your door on the landing.
+    const block = grounds.block;
+    const landing = new THREE.Group();
+    if (block) {
+      for (let i = 0; i < 3; i++) {
+        const b = buildEstateModel('box', { w: 0.5, d: 0.5, tier: 1 }).group;
+        b.position.set((i % 2) * 0.55, Math.floor(i / 2) * 0.44, 0);
+        b.rotation.y = i * 0.35;
+        landing.add(b);
+      }
+      landing.position.set(plan.door.x + 1.35, 0, plan.h + 0.55);
+      landing.visible = false;
+      landing.userData.parcels = 'landing';
+      stage.scene.add(landing);
+    }
     stage.canvas.dataset.van = 'coming';
+    let drawn = false;
     const off = stage.add(() => {
       const u = Math.min(
         1,
         Math.max(0, (Date.now() - delivery.orderedAt) / (delivery.arrivesAt - delivery.orderedAt)),
       );
       const e = live.current.reduced ? 1 : 1 - (1 - u) ** 2;
-      van.position.set(h.van.x + (1 - e) * 26, GROUND_Y + 0.02 - h.drop, h.van.z);
+      van.position.set(h.van.x + (1 - e) * 26, h.vanY, h.van.z);
       van.rotation.y = Math.PI / 2;
       boxes.visible = u >= 1;
-      if (u >= 1) stage.canvas.dataset.van = 'here';
+      landing.visible = u >= 1;
+      if (u >= 1) {
+        stage.canvas.dataset.van = 'here';
+        if (block) stage.canvas.dataset.parcels = 'landing';
+      }
+      // One more frame on arrival, so the parcels are drawn.
+      if (u >= 1 && !drawn) {
+        drawn = true;
+        return true;
+      }
       return u < 1;
     });
     stage.invalidate();
     return () => {
       off();
-      stage.scene.remove(van);
+      stage.scene.remove(van, landing);
       disposeTree(van);
+      disposeTree(landing);
       delete stage.canvas.dataset.van;
+      delete stage.canvas.dataset.parcels;
     };
   }, [delivery, plan, grounds]);
 

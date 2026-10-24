@@ -41,7 +41,9 @@ export type PhoneApp =
   /** Founder Journey 5: exits, the stock market, wealth and the capital allocator paths. */
   | 'capital'
   /** My purchases: your wardrobe and the things you keep (../avatar/Wardrobe.tsx). */
-  | 'purchases';
+  | 'purchases'
+  /** Shop note: the catalogue, ordered online for delivery, and your orders. */
+  | 'shop';
 
 export interface PhoneOpen {
   app?: PhoneApp;

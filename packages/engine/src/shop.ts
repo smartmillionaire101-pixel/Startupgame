@@ -21,6 +21,7 @@ import {
   furnitureLabel,
 } from './data/lifestyle-shop.js';
 import type { MarketId } from './data/markets.js';
+import { groupsFor, priceWithOptions, type ChosenOptions } from './data/catalog.js';
 import { ensure } from './errors.js';
 import { getBusiness, isOpen } from './economy.js';
 import { col, getMarket, locationOf, notify } from './helpers.js';
@@ -33,7 +34,7 @@ import type { Id, MarketState, Player, World } from './types.js';
 export const MAX_COMFORT_ENERGY = 8;
 
 /** The open business of one of these kinds that sells to you (lowest id first), if any. */
-function storeAccount(
+export function storeAccount(
   m: MarketState,
   kinds: readonly string[],
 ): { account: Id; name: string } | null {
@@ -47,7 +48,7 @@ function storeAccount(
  * Wave 6: the showroom you're buying in. It must be open, in the city you're
  * in, and of a kind that sells this (`shop.kind`). Its till gets the money.
  */
-function showroom(
+export function showroom(
   world: World,
   me: Player,
   businessId: Id,
@@ -61,7 +62,7 @@ function showroom(
   return { account: b.account, name: b.name };
 }
 
-function atHome(p: Player) {
+export function atHome(p: Player) {
   ensure(
     locationOf(p) === p.market,
     'shop.away',
@@ -69,19 +70,45 @@ function atHome(p: Player) {
   );
 }
 
+/**
+ * Shop note: the catalogue's options (a finish, a warranty) priced in; and
+ * `online` (catalog.ts orders it for delivery): bought from anywhere, the
+ * nearest store's till, delivered to your home.
+ */
+export interface BuyExtra {
+  options?: ChosenOptions;
+  online?: boolean;
+}
+
 /** Buy a piece of furniture; the old one in that slot is sold back at 40%. */
-export function buyFurniture(world: World, me: Player, itemId: string, businessId?: Id) {
+export function buyFurniture(
+  world: World,
+  me: Player,
+  itemId: string,
+  businessId?: Id,
+  extra: BuyExtra = {},
+) {
   const item = furnitureItem(itemId);
   ensure(item, 'home.item', 'That isn’t in the catalogue.');
   const kinds = SHOP_KINDS_FOR_SLOT[item.slot];
   const chosen = businessId
     ? showroom(world, me, businessId, kinds, furnitureLabel(item, me.market).toLowerCase())
     : null;
-  atHome(me);
+  if (!extra.online) atHome(me);
   const m = getMarket(world, me.market);
   const label = furnitureLabel(item, m.id);
   const fmt = (v: number) => formatMoney(v, m.data.currency);
-  const price = scale(col(m), item.priceCol);
+  const base = scale(col(m), item.priceCol);
+  const opts = extra.options
+    ? priceWithOptions(base, groupsFor('furniture', item.id), extra.options)
+    : null;
+  const price = opts ? opts.price : base;
+  const picked = opts
+    ? {
+        ...(opts.chosen.finish ? { finish: opts.chosen.finish } : {}),
+        ...(opts.chosen.warranty ? { warranty: opts.chosen.warranty } : {}),
+      }
+    : {};
   const items = (me.home ??= { items: [] }).items;
   const old = items.find((x) => x.slot === item.slot);
   ensure(old?.itemId !== item.id, 'home.owned', 'You already have that.');
@@ -107,7 +134,10 @@ export function buyFurniture(world: World, me: Player, itemId: string, businessI
   if (old) {
     old.itemId = item.id;
     old.paid = price;
-  } else items.push({ slot: item.slot, itemId: item.id, paid: price });
+    delete old.finish;
+    delete old.warranty;
+    Object.assign(old, picked);
+  } else items.push({ slot: item.slot, itemId: item.id, paid: price, ...picked });
   return {
     price,
     refund,
@@ -125,6 +155,7 @@ export function buyCar(
   modelId: string,
   businessId?: Id,
   keepCurrent = false,
+  options?: ChosenOptions,
 ) {
   const chosen = businessId ? showroom(world, me, businessId, CAR_SHOP_KINDS, 'cars') : null;
   atHome(me);
@@ -139,7 +170,9 @@ export function buyCar(
   );
   ensure(!keepCurrent || garage.length < 8, 'car.capacity', 'Your garage holds up to eight cars.');
   const fmt = (v: number) => formatMoney(v, m.data.currency);
-  const price = scale(col(m), model.priceCol);
+  const base = scale(col(m), model.priceCol);
+  const opts = options ? priceWithOptions(base, groupsFor('car', model.id), options) : null;
+  const price = opts ? opts.price : base;
   const refund = me.car && !keepCurrent ? Math.round(me.car.paid * SELL_BACK.car) : 0;
   const oldLabel = me.car ? (carModel(m.id, me.car.modelId)?.label ?? 'your old car') : null;
   if (refund > 0)
@@ -159,7 +192,13 @@ export function buyCar(
     m.month,
   );
   if (!keepCurrent && me.car) me.garage = garage.filter((c) => c.modelId !== me.car!.modelId);
-  me.car = { modelId: model.id, paid: price, since: m.month };
+  me.car = {
+    modelId: model.id,
+    paid: price,
+    since: m.month,
+    ...(opts?.chosen.paint ? { paint: opts.chosen.paint } : {}),
+    ...(opts?.chosen.trim ? { trim: opts.chosen.trim } : {}),
+  };
   me.garage!.push({ ...me.car });
   return {
     price,
@@ -243,10 +282,21 @@ export function homeView(p: Player) {
     items: (p.home?.items ?? []).flatMap((x) => {
       const f = furnitureItem(x.itemId);
       return f
-        ? [{ slot: f.slot, itemId: f.id, label: furnitureLabel(f, p.market), tier: f.tier }]
+        ? [
+            {
+              slot: f.slot,
+              itemId: f.id,
+              label: furnitureLabel(f, p.market),
+              tier: f.tier,
+              ...(x.finish ? { finish: x.finish } : {}),
+            },
+          ]
         : [];
     }),
     comfort: comfortOf(p),
+    /** Shop note: walls and dividers (placed, or in storage without x), and room names. */
+    ...(p.walls?.length ? { walls: p.walls.map((v) => ({ ...v })) } : {}),
+    ...(p.roomLabels?.length ? { rooms: p.roomLabels.map((r) => ({ ...r })) } : {}),
   };
 }
 

@@ -34,6 +34,8 @@ import { Mall2D } from './Mall2D';
 import { PurchasesSheet } from '../../avatar/Wardrobe';
 import { MallInviteSheet, personLook } from './MallInvite';
 import { MallWalk } from './MallWalk';
+import { CatalogueSheet } from '../../shop/CatalogueSheet';
+import { mallCatalog } from '../../shop/catalog';
 import {
   SHOP_COLOUR,
   SHOP_ICON,
@@ -102,6 +104,8 @@ export function MallScene(props: SceneProps) {
   const [bought, setBought] = useState<Bought | null>(null);
   const [inviting, setInviting] = useState(false);
   const [purchases, setPurchases] = useState(false);
+  // Shop note: this shop's catalogue (pictures, options and their prices).
+  const [browsing, setBrowsing] = useState(false);
   // 3D: walking the mall (the 2D directory if WebGL gives out).
   const [failed, setFailed] = useState(false);
   const [looking, setLooking] = useState(false);
@@ -146,6 +150,7 @@ export function MallScene(props: SceneProps) {
   const shown =
     tryItem && isWearable(tryItem) && forMe(tryItem) ? wearing(me, tryItem, colour) : me;
   const units = shops.filter((s): s is UnitShop => isUnit(s));
+  const catalogue = focus && view.me.shop ? mallCatalog(view, focus) : [];
   const wears = items.some((i) => i.topStyle);
 
   const buy = async (it: MallItemView) => {
@@ -227,6 +232,16 @@ export function MallScene(props: SceneProps) {
             onClick={() => setPurchases(true)}
           >
             👜 <span className="mall-purchases-label">{t('My purchases')}</span>
+          </button>
+        )}
+        {catalogue.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-subtle mall-purchases"
+            data-action="open-catalogue"
+            onClick={() => setBrowsing(true)}
+          >
+            📖 <span className="mall-purchases-label">{t('Catalogue')}</span>
           </button>
         )}
         <span className="golf-pocket" data-pocket={pocket}>
@@ -384,6 +399,15 @@ export function MallScene(props: SceneProps) {
           </div>
         )}
         {purchases && <PurchasesSheet onClose={() => setPurchases(false)} />}
+        {browsing && focus && (
+          <CatalogueSheet
+            title={tx(names[focus])}
+            entries={catalogue}
+            currency={cur}
+            inMall
+            onClose={() => setBrowsing(false)}
+          />
+        )}
         {inviting && mall && (
           <MallInviteSheet
             mall={mall}

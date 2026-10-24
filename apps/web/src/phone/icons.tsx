@@ -52,7 +52,9 @@ export type IconName =
   /** Founder Journey 5: Capital (a rising chart over a coin). */
   | 'capital'
   /** My purchases (a shopping bag). */
-  | 'bag';
+  | 'bag'
+  /** Shop: online shopping (a trolley). */
+  | 'cart';
 
 const PATHS: Record<IconName, ReactNode> = {
   messages: <path d="M4 5.5h16v10H9l-4 3.5v-3.5H4z" />,
@@ -208,6 +210,13 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="8" cy="12" r="3.6" />
       <path d="M11.6 12H20M17 12v3M14.5 12v2.2" />
+    </>
+  ),
+  cart: (
+    <>
+      <path d="M3 4.5h2.5l2.2 10.5h10.3l2-7.5H6.6" />
+      <circle cx="9.5" cy="19" r="1.4" />
+      <circle cx="16.5" cy="19" r="1.4" />
     </>
   ),
   bag: (

@@ -1,0 +1,91 @@
+/* Shop note: walls and dividers at home, and room names (./dividers.ts). */
+
+/* Putting up a wall: a bar along the tile edge, drawn over 2D and 3D alike. */
+.home-wall-ghost {
+  fill: rgb(34 197 94 / 0.75);
+  stroke: #15803d;
+  stroke-width: 2;
+  pointer-events: none;
+}
+.home-wall-ghost[data-ok='0'] {
+  fill: rgb(239 68 68 / 0.75);
+  stroke: #b91c1c;
+}
+.home-scene.is-3d .home-divider {
+  opacity: 0;
+}
+/* Room names, painted on the floor (they follow the floor in 3D too). */
+.home-room-names text {
+  font-size: 13px;
+  font-weight: 800;
+  fill: #fff;
+  stroke: rgb(15 23 42 / 0.75);
+  stroke-width: 3px;
+  paint-order: stroke;
+  pointer-events: none;
+  letter-spacing: 0.02em;
+}
+.home-room-pin {
+  fill: rgb(37 99 235 / 0.35);
+  stroke: #2563eb;
+  stroke-width: 2;
+  pointer-events: none;
+}
+.home-naming-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong, #ccc);
+}
+/* Buy mode's walls tab. */
+.buy-walls {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.2rem 0.1rem 0.6rem;
+  overflow-y: auto;
+}
+.buy-walls p {
+  margin: 0;
+}
+.buy-walls-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.buy-wall-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.buy-wall-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--line, #e5e5e5);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.buy-wall-list .btn {
+  padding: 0.35rem 0.7rem;
+  min-height: 36px;
+}
+.buy-wall-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid rgb(0 0 0 / 0.2);
+  flex: none;
+}
+.buy-wall-name {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.buy-wall-name small {
+  color: var(--muted, #666);
+}

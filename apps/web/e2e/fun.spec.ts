@@ -118,7 +118,8 @@ test('a car dealer lists cars; buy one and it’s parked at home', async ({ page
 
   await scene.getByRole('button', { name: 'Close' }).click();
   const home = await enter(page, 'home');
-  await expect(home.locator('[data-car]')).toBeAttached();
+  // A house parks it outside; a flat in a block keeps it in the building's garage, down the lift.
+  await expect(home.locator('[data-car], [data-obj="garage-lift"]').first()).toBeAttached();
 });
 
 test('an appliance shop sells a TV, and it shows in your flat', async ({ page }) => {
