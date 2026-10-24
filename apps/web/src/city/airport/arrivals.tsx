@@ -39,6 +39,7 @@ import {
   localMinutes,
   nextFlightTo,
   scheduleDay,
+  stayHotelIn,
   stayOf,
   type FlightStatus,
 } from '../travel';
@@ -1026,6 +1027,8 @@ export function ArrivalScene({
   const calm = lite || reduceMotion();
   const city = CITY_NAMES[marketId] ?? marketId;
   const stay = arrival.home ? null : stayOf(view);
+  // The feedback round: the named hotel, and where in town it stands.
+  const named = stay ? stayHotelIn(view, marketId) : null;
   const [step, setStep] = useState<ArrStep>('passport');
   const [{ now, at0 }] = useState(() => ({ now: localMinutes(marketId), at0: Date.now() }));
 
@@ -1238,7 +1241,16 @@ export function ArrivalScene({
           <span className="arrival-stay-text">
             <span className="small">{arrival.home ? t('Your home') : t('Your hotel')}</span>
             <b>{stay?.name ?? (arrival.home ? city : t('A room in town'))}</b>
-            {stay && <span className="arrival-stars">{HOTEL_STARS[stay.tier]}</span>}
+            {stay && (
+              <span className="arrival-stars">
+                {named ? '★'.repeat(named.stars) : HOTEL_STARS[stay.tier]}
+              </span>
+            )}
+            {named && (
+              <span className="small" data-arrival-hotel={named.id}>
+                {t('{area} · {km} km from the centre', { area: named.area, km: named.km })}
+              </span>
+            )}
           </span>
           {chauffeur && (
             <span className="arrival-chauffeur small" data-arrival-chauffeur="">

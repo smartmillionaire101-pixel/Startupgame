@@ -244,6 +244,11 @@ export interface Destination {
   done: boolean;
   /** Hotels for a stay there (none flying home, or from an older server). */
   hotels: HotelOption[];
+  /**
+   * The city's named hotels across its districts (the feedback round; none
+   * flying home, in an older world or from an older server: then `hotels`).
+   */
+  hotelList: NamedHotel[];
   /** Economy, business and first (none from an older server: economy only). */
   cabins: CabinOption[];
   /** The way home from there per cabin, for a return (none flying home, or from an older server). */
@@ -263,6 +268,49 @@ export interface HotelOption {
 
 const TIERS: readonly string[] = ['budget', 'business', 'luxury'];
 
+/** A named hotel in a city (the feedback round), priced in your home currency. */
+export interface NamedHotel {
+  id: string;
+  name: string;
+  /** The city-plan district it stands in, and its name. */
+  district: string;
+  area: string;
+  stars: number;
+  /** Which of the three hotel rooms you sleep in. */
+  tier: HotelTier;
+  /** What the room is like ("Studio · workspace"). */
+  room: string;
+  /** From the city centre. */
+  km: number;
+  /** A night, and the stay (`nights` of them) you book. Minor units. */
+  night: number;
+  nights: number;
+  price: number;
+  /** Flight + stay fit in your personal account (the hotel list for a trip only). */
+  affordable?: boolean;
+}
+
+const isNamedHotel = (h: unknown): h is NamedHotel =>
+  isObj(h) &&
+  typeof h.id === 'string' &&
+  typeof h.name === 'string' &&
+  typeof h.district === 'string' &&
+  TIERS.includes(String(h.tier)) &&
+  fin(h.night) &&
+  fin(h.price);
+
+/** The named hotels the server offers for a trip to a city (none from an older world or server). */
+function hotelListOf(view: PlayerView, id: string): NamedHotel[] {
+  const d = view.me.destinations.find((x) => x.id === id) as { hotelList?: unknown } | undefined;
+  return Array.isArray(d?.hotelList) ? d.hotelList.filter(isNamedHotel) : [];
+}
+
+/** The named hotels of the city on the map (none from an older world or server). */
+export function cityHotelsOf(view: PlayerView): NamedHotel[] {
+  const raw = (view.market as { hotels?: unknown }).hotels;
+  return Array.isArray(raw) ? raw.filter(isNamedHotel) : [];
+}
+
 /** The hotels the server offers in a city (none from an older server). */
 function hotelsOf(view: PlayerView, id: string): HotelOption[] {
   const d = view.me.destinations.find((x) => x.id === id) as { hotels?: unknown } | undefined;
@@ -273,13 +321,47 @@ function hotelsOf(view: PlayerView, id: string): HotelOption[] {
   );
 }
 
-/** The hotel you're staying in abroad, or null. */
-export function stayOf(view: PlayerView): { tier: HotelTier; name: string } | null {
+/**
+ * The hotel you're staying in abroad, or null. `id` is the named hotel
+ * (feedback round); a stay booked by tier has none.
+ */
+export function stayOf(
+  view: PlayerView,
+): { tier: HotelTier; name: string; id?: string; stars?: number } | null {
   const l = (view.me as { location?: unknown }).location;
   const h = isObj(l) ? l.hotel : null;
   return isObj(h) && typeof h.name === 'string' && TIERS.includes(String(h.tier))
-    ? { tier: h.tier as HotelTier, name: h.name }
+    ? {
+        tier: h.tier as HotelTier,
+        name: h.name,
+        ...(typeof h.id === 'string' ? { id: h.id } : {}),
+        ...(fin(h.stars) ? { stars: h.stars } : {}),
+      }
     : null;
+}
+
+/**
+ * The named hotel you're staying in, in `marketId` (from the full view: the
+ * city you're in is `view.here`), or null: Arrivals says where it stands.
+ */
+export function stayHotelIn(view: PlayerView, marketId: string): NamedHotel | null {
+  const here = (view as { here?: unknown }).here;
+  const city = isObj(here) && here.id === marketId ? (here as PlayerView['market']) : view.market;
+  if (city.id !== marketId) return null;
+  return stayHotelOf({ ...view, market: city });
+}
+
+/**
+ * The named hotel on this city's map you're staying in (by id, else by the
+ * name of a stay booked by tier), or null: your room stands there.
+ */
+export function stayHotelOf(view: PlayerView): NamedHotel | null {
+  const l = (view.me as { location?: unknown }).location;
+  if (!isObj(l) || l.market !== view.market.id) return null;
+  const stay = stayOf(view);
+  if (!stay) return null;
+  const all = cityHotelsOf(view);
+  return all.find((h) => h.id === stay.id) ?? all.find((h) => h.name === stay.name) ?? null;
 }
 
 /**
@@ -294,6 +376,17 @@ export function suggestHotel(
   const ok = hotels.filter((h) => h.affordable).sort((a, b) => a.price - b.price);
   const comfy = ok.filter((h) => balance - fare - h.price >= 0.3 * balance);
   return (comfy.at(-1) ?? ok[0])?.tier ?? null;
+}
+
+/** The named hotel to suggest, by the same rule as `suggestHotel` (its id). */
+export function suggestNamedHotel(
+  hotels: NamedHotel[],
+  fare: number,
+  balance: number,
+): string | null {
+  const ok = hotels.filter((h) => balance >= fare + h.price).sort((a, b) => a.price - b.price);
+  const comfy = ok.filter((h) => balance - fare - h.price >= 0.3 * balance);
+  return (comfy.at(-1) ?? ok[0])?.id ?? null;
 }
 
 /**
@@ -317,6 +410,7 @@ export function destinationsOf(view: PlayerView): Destination[] {
       hours: 40,
       done: d.visitingNow,
       hotels: [],
+      hotelList: [],
       cabins: [],
       returnCabins: [],
     }));
@@ -330,6 +424,7 @@ export function destinationsOf(view: PlayerView): Destination[] {
     hours: flights.hours,
     done: false,
     hotels: id === homeId ? [] : hotelsOf(view, id),
+    hotelList: id === homeId ? [] : hotelListOf(view, id),
     cabins: flights.cabinTo[id] ?? [],
     returnCabins: id === homeId ? [] : (flights.returnTo[id] ?? []),
   }));

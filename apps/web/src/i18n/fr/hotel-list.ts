@@ -1,0 +1,46 @@
+/** The feedback round: every city's named hotels by district (Travel app, map, lobby, Arrivals). */
+export const hotelList: Record<string, string> = {
+  '{n} stars': '{n} étoiles',
+  'Map of the hotels': 'Carte des hôtels',
+  '{city} · {n} nights': '{city} · {n} nuits',
+  '{n} hotels': '{n} hôtels',
+  Area: 'Quartier',
+  'All areas': 'Tous les quartiers',
+  'Price a night': 'Prix par nuit',
+  'Any price': 'Tous les prix',
+  'Under {price}': 'Moins de {price}',
+  '{low}–{high}': '{low}–{high}',
+  '{price}+': '{price} et plus',
+  'Sort: nearest': 'Tri : les plus proches',
+  'Sort: cheapest': 'Tri : les moins chers',
+  'No hotels match. Try another area or price.':
+    'Aucun hôtel ne correspond. Essayez un autre quartier ou un autre prix.',
+  'Hotels in {city}': 'Hôtels à {city}',
+  'a night': 'la nuit',
+  '{price} a night': '{price} la nuit',
+  '{area} · {km} km from the centre': '{area} · à {km} km du centre',
+  'Book {name}': 'Réserver {name}',
+  Choose: 'Choisir',
+  Chosen: 'Choisi',
+  'Choose {name}': 'Choisir {name}',
+  '{n} nights {stay} · with the flight {total}': '{n} nuits {stay} · avec le vol {total}',
+  '{n} nights {stay}': '{n} nuits {stay}',
+  'Booking a hotel books the economy flight there with it.':
+    'Réserver un hôtel réserve aussi le vol en classe économique pour y aller.',
+  Reception: 'Réception',
+  // The rooms (from the server, tx).
+  'Pod · shared bathroom': 'Capsule · salle de bain partagée',
+  'Small double': 'Petite chambre double',
+  'Twin · garden view': 'Lits jumeaux · vue sur le jardin',
+  'Double room': 'Chambre double',
+  'Business double': 'Double affaires',
+  'Studio · workspace': 'Studio · espace de travail',
+  'River view double': 'Double vue sur le fleuve',
+  'Sea view double': 'Double vue sur la mer',
+  'Deluxe king · breakfast': 'King deluxe · petit-déjeuner',
+  'Suite · city view': 'Suite · vue sur la ville',
+  'Suite · sea view': 'Suite · vue sur la mer',
+  // Server messages (travel.book).
+  'Named hotels aren’t on sale yet. Pick a hotel type.':
+    'Les hôtels nommés ne sont pas encore en vente. Choisissez un type d’hôtel.',
+};

@@ -165,6 +165,14 @@ export interface HotelStay {
   tier: 'budget' | 'business' | 'luxury';
   name: string;
   paid: number;
+  /**
+   * Feedback round: the named hotel (data/hotels.ts), its district, stars and
+   * the nights paid for. Missing = booked by tier, as before.
+   */
+  id?: string;
+  district?: string;
+  stars?: number;
+  nights?: number;
 }
 
 /** More games (games.ts): a player's record at the lanes and in the air. */
@@ -866,6 +874,8 @@ export interface Holiday {
   month: number;
   /** The hotel tier the host booked; null = flight only. */
   tier: HotelStay['tier'] | null;
+  /** Feedback round: the named hotel the host booked (friends book the same one). */
+  hotelId?: string;
   guests: HolidayGuest[];
   createdAt: number;
   /** Things done together: the hangout, the venue and who came. */

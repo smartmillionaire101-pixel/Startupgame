@@ -1298,6 +1298,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         cmd.flight,
         cmd.cabin,
         cmd.returnCabin,
+        cmd.hotelId,
       );
     case 'travel.cancel':
       return cancelFlight(world, me);

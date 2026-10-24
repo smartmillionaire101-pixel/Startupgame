@@ -83,6 +83,7 @@ import { cabins } from './cabins';
 import { restaurants } from './restaurants';
 import { wardrobe } from './wardrobe';
 import { cityPlaces } from './city-places';
+import { hotelList } from './hotel-list';
 import { moreGames } from './more-games';
 import { capitalExit } from './capital-exit';
 import { firstFund } from './first-fund';
@@ -185,6 +186,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   stocks,
   outfits,
   cabins,
+  hotelList,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

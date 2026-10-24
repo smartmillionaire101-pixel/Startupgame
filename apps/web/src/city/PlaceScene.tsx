@@ -99,7 +99,8 @@ import { VenueParty, VenuePartyLine, venueParty } from './companions';
 import { HomeScene } from '../home/HomeScene';
 import { HotelBack, HotelFront } from '../home/HotelArt';
 import { HotelKnocked } from '../phone/apps/Holiday';
-import { localHour, stayOf } from './travel';
+import { cityHotelsOf, localHour, stayOf } from './travel';
+import { Stars } from './HotelList';
 import { TechEventScene } from './TechEventScene';
 import { techEventAt } from './techevent';
 import { useReducedMotion } from './CityMap';
@@ -414,6 +415,9 @@ function occupantsOf(
       out.push(staffMember('desk', gov ? t('Official') : t('Host')));
       break;
     }
+    case 'hotel':
+      out.push(staffMember('desk', t('Reception')));
+      break;
     default:
       if ((place.kind as string) === 'capital') out.push(staffMember('lead', t('Programme lead')));
   }
@@ -745,6 +749,9 @@ function RoomScene({
   } | null>(null);
   // City places: the named building's view (its services and who may use them).
   const civic = useMemo(() => civicOf(view, place), [view, place]);
+  // The feedback round: one of the city's named hotels (not yours: that's your room).
+  const hotel =
+    place.kind === 'hotel' ? cityHotelsOf(view).find((h) => h.id === place.ref) : undefined;
   const company = activeCompany(view);
   const business =
     place.kind === 'business' ? businessesOf(view).find((b) => b.id === place.ref) : undefined;
@@ -1539,6 +1546,12 @@ function RoomScene({
       <header className="place-head">
         <div className="place-title">
           <h2>{title}</h2>
+          {hotel && (
+            <span className="small muted" data-hotel-lobby={hotel.id}>
+              <Stars n={hotel.stars} /> · {hotel.area} ·{' '}
+              {t('{price} a night', { price: money(hotel.night, cur) })}
+            </span>
+          )}
           {civic && (
             <span className="small muted">
               {tx(civic.label)}

@@ -436,6 +436,11 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('travel.book'),
     to: market,
     hotel: z.enum(['budget', 'business', 'luxury']).optional(),
+    /**
+     * Feedback round: a named hotel in `to` (its id from the hotel list). The
+     * room tier comes from the hotel. Missing = the tier alone, as before.
+     */
+    hotelId: z.string().min(1).max(64).optional(),
     /** Investor release: the cabin. Missing = economy, the ticket as it always was. */
     cabin: z.enum(['economy', 'business', 'first']).optional(),
     /**

@@ -325,7 +325,7 @@ test('first class from Dubai: the lounge, then the bed at turndown', async ({ pa
   await row.getByRole('button', { name: 'Book a flight to London' }).click();
   const picker = row.locator('[data-trip-picker]');
   await picker.locator('[data-cabin-option="first"]').click();
-  await picker.locator('[data-hotel="business"]').click();
+  await picker.getByRole('button', { name: 'Choose Soho Townhouse' }).click();
   await picker.locator('[data-hotel-book]').click();
   await arrive(page, 'skip');
   const trip = page.getByRole('region', { name: 'Your trip' });
