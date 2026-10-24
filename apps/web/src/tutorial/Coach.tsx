@@ -324,6 +324,11 @@ function StepBody({ step, onCafe }: { step: TutorialStep; onCafe: () => void }) 
               })}
             </p>
           )}
+          <p className="small muted" data-coach-stages>
+            {t(
+              'From here your Company screen guides you stage by stage: Idea, First customers, Product fit, Seed, Growth and Series A, each with a checklist. Your mentor at the Hub explains each one.',
+            )}
+          </p>
           {j && <Objectives j={j} onGo={go} />}
           <Button size="sm" data-coach-action onClick={() => finishTutorial(id)}>
             {t('Finish tutorial')}

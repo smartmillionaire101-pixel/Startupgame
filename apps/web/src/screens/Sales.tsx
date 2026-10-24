@@ -13,6 +13,7 @@ import { useView, type Company } from '../store';
 import { Button, Card, Confirm, Empty, Field } from '../ui';
 import { activeStep, setTutorial, useTutorial } from '../tutorial/state';
 import { useSpotlight } from '../tutorial/spotlight';
+import { DemoBreakdown } from './FounderGuide';
 import './sales.css';
 
 type Sales = NonNullable<Company['sales']>;
@@ -335,9 +336,12 @@ function DealCard({
           <span className="sales-meter-n">{p}%</span>
         </div>
       )}
-      {d.demoScore !== null && (
-        <p className="small muted">{t('Demo went {score}', { score: pct(d.demoScore) })}</p>
-      )}
+      {d.demoScore !== null &&
+        (d.demoParts ? (
+          <DemoBreakdown parts={d.demoParts} score={d.demoScore} />
+        ) : (
+          <p className="small muted">{t('Demo went {score}', { score: pct(d.demoScore) })}</p>
+        ))}
       {d.stage === 'won' && <p className="good small">{t('Signed: a paying customer.')}</p>}
       {d.stage === 'lost' && d.lossReason && (
         <div className="sales-loss" role="status">

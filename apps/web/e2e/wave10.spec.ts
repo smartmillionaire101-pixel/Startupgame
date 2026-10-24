@@ -274,6 +274,8 @@ test('open a branch from the Company screen', async ({ page }) => {
   expect(r.status, r.body).toBe(200);
   await page.reload();
   await tab(page, 'Company').click();
+  // A new company is at the Idea stage: expansion waits, folded, under Later stages.
+  await page.locator('[data-fold="later-expansion"] > summary').click();
   const card = page.locator('.expansion');
   await expect(card.getByText(/Head office:/)).toBeVisible();
   const hood = card.getByRole('radiogroup', { name: 'Neighbourhood' }).getByRole('radio');

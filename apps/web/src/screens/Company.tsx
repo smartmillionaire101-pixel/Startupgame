@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { FoundCompany } from './Me';
 import { ScreenBoundary } from '../ScreenBoundary';
-import type { BuildMode, Industry, RevenueModel } from '@runway/engine';
+import { FOUNDER_STAGES } from '@runway/engine';
+import type { BuildMode, FounderStageId, Industry, RevenueModel } from '@runway/engine';
 import { amountInput, money, parseAmount, pct, runway, stars, titleCase } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView, type Company as CompanyT } from '../store';
-import { Bar, Button, Card, Confirm, Empty, Field, Pill, Segmented, Sheet } from '../ui';
+import { Bar, Button, Card, Confirm, Empty, Field, Fold, Pill, Segmented, Sheet } from '../ui';
 import { ExpansionCard } from './Expansion';
 import { Roadmap } from './Roadmap';
 import { SalesPipeline } from './Sales';
@@ -16,6 +17,13 @@ import { SimpleLink } from './SimpleLink';
 import { CompanyKpis } from './Home';
 import { SnapButton } from '../photos/SnapButton';
 import { resultCard } from '../photos/snap';
+import {
+  CheckHeadline,
+  PlanChecks,
+  StageTracker,
+  livePlanChecks,
+  stageTitle,
+} from './FounderGuide';
 
 type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -30,6 +38,38 @@ const tabLabel = (tab: Tab) =>
     board: t('Board'),
     rules: t('Rules'),
   })[tab];
+
+/**
+ * The founder stage each tab belongs to (founder guidance): the current
+ * stage's tabs come first, and later stages' tabs are dimmed until then.
+ */
+const stageAt = (id: FounderStageId) => FOUNDER_STAGES.indexOf(id);
+const TAB_STAGE: Record<Tab, number> = {
+  product: stageAt('idea'),
+  sales: stageAt('idea'),
+  customers: stageAt('first-customers'),
+  rules: stageAt('first-customers'),
+  team: stageAt('product-fit'),
+  roadmap: stageAt('product-fit'),
+  board: stageAt('seed'),
+  suppliers: stageAt('growth'),
+};
+const TABS: Tab[] = [
+  'product',
+  'roadmap',
+  'sales',
+  'customers',
+  'team',
+  'suppliers',
+  'board',
+  'rules',
+];
+
+/** Tabs for the stage a company is at: this stage's first, then earlier ones, then later. */
+export function tabsForStage(stage: number): Tab[] {
+  const rank = (tab: Tab) => (TAB_STAGE[tab] === stage ? 0 : TAB_STAGE[tab] < stage ? 1 : 2);
+  return [...TABS].sort((a, b) => rank(a) - rank(b));
+}
 
 const seniorityLabel = (s: string) =>
   ({ junior: t('Junior'), mid: t('Mid'), senior: t('Senior'), head: t('Head') })[s] ?? titleCase(s);
@@ -139,6 +179,8 @@ export function CompanyScreen() {
         </span>
         <Pill>{c.industryLabel}</Pill>
       </header>
+      {/* Founder guidance: the stage, its checklist and the next step, first. */}
+      <StageTracker c={c} />
       {/* The company's bank, spending, how long the money lasts and revenue, up front. */}
       <CompanyKpis c={c} />
       {/* The camera: your company's numbers as a card to save or share. */}
@@ -183,19 +225,21 @@ export function CompanyScreen() {
         badge={view.deals.filter((d) => d.yourTurn).length}
       />
       <div className="tabs" role="tablist">
-        {(
-          [
-            'product',
-            'roadmap',
-            'sales',
-            'customers',
-            'team',
-            'suppliers',
-            'board',
-            'rules',
-          ] as Tab[]
-        ).map((id) => (
-          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+        {tabsForStage(c.guide.index).map((id) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={TAB_STAGE[id] > c.guide.index ? 'tab-later' : undefined}
+            title={
+              TAB_STAGE[id] > c.guide.index
+                ? t('Matters from the {stage} stage', {
+                    stage: stageTitle(c.guide.stages[TAB_STAGE[id]]!.id),
+                  })
+                : undefined
+            }
+          >
             {tabLabel(id)}
           </button>
         ))}
@@ -206,7 +250,18 @@ export function CompanyScreen() {
             <RunwayExplainer c={c} />
             <Product c={c} />
             <RivalsPanel c={c} />
-            <ExpansionCard c={c} />
+            {/* A second city is a Growth-stage move: folded away until then. */}
+            {c.guide.index >= stageAt('growth') ? (
+              <ExpansionCard c={c} />
+            ) : (
+              <Fold
+                title={t('Later stages')}
+                sub={t('Later: the {stage} stage', { stage: stageTitle('growth') })}
+                id="later-expansion"
+              >
+                <ExpansionCard c={c} />
+              </Fold>
+            )}
           </>
         )}
         {tab === 'roadmap' && <Roadmap c={c} />}
@@ -417,6 +472,12 @@ function Customers({ c }: { c: CompanyT }) {
   const [mkt, setMkt] = useState(amountInput(c.marketingBudget));
   const [salary, setSalary] = useState(amountInput(c.founderSalary));
   const segs = view.market.segments.filter((s) => s.industry === c.industry);
+  // Live checks on what's typed (an amount that doesn't parse yet keeps today's).
+  const checks = livePlanChecks(c, {
+    price: parseAmount(price) ?? c.price,
+    marketing: parseAmount(mkt) ?? c.marketingBudget,
+    founderSalary: parseAmount(salary) ?? c.founderSalary,
+  });
   const save = () =>
     send(
       {
@@ -452,6 +513,7 @@ function Customers({ c }: { c: CompanyT }) {
         )}
       </Card>
       <Card title={t('Pricing and spend')}>
+        <CheckHeadline checks={checks} cur={cur} />
         <Field
           label={t('Price per customer per month ({cur})', { cur })}
           hint={t('Segment budgets: {budgets}', {
@@ -469,6 +531,10 @@ function Customers({ c }: { c: CompanyT }) {
         >
           {(id) => <input id={id} value={salary} onChange={(e) => setSalary(e.target.value)} />}
         </Field>
+        <PlanChecks checks={checks} cur={cur} />
+        <p className="small muted">
+          {t('The checks update as you type, like a bank’s business-plan checks.')}
+        </p>
         <Button onClick={() => void save()}>{t('Save')}</Button>
       </Card>
     </>

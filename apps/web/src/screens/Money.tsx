@@ -15,6 +15,7 @@ import {
   FundingChooser,
   RunwayExplainer,
 } from './FundCompany';
+import { PitchResult, passWhyCopy } from './FounderGuide';
 
 type Tab = 'fund' | 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire' | 'exit';
 
@@ -130,6 +131,10 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
   } | null>(null);
   const pitches = view.pitches.filter((p) => p.companyId === c.id);
   const openPitch = pitches.find((p) => p.status === 'questions' || p.status === 'partner-meeting');
+  // Feedback note: the latest answered pitch, scored (the newest of the latest month).
+  const scored = pitches
+    .filter((p) => p.scores?.length && p.status !== 'questions')
+    .reduce<(typeof pitches)[number] | null>((a, b) => (!a || b.month >= a.month ? b : a), null);
   const funds = view.market.funds.filter((f) => f.ai);
   const fits = (f: (typeof funds)[number]) =>
     (f.sectors === 'any' || f.sectors.includes(c.industry)) && f.stages.includes(c.nextStage);
@@ -188,6 +193,7 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
         </Button>
       </div>
       {openPitch && <PitchFlow pitchId={openPitch.id} />}
+      {scored && <PitchResult p={scored} cur={c.currency} />}
       <Card title={t('Investors in town')}>
         <ul className="list">{shown.map(fundRow)}</ul>
         {more.length > 0 && (
@@ -243,7 +249,11 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
                     {pitchStatusLabel(p.status)}
                   </Pill>
                 </div>
-                {p.reason && <div className="small muted">{tx(p.reason)}</div>}
+                {p.passWhy ? (
+                  <div className="small muted">{passWhyCopy(p.passWhy, c.currency).why}</div>
+                ) : (
+                  p.reason && <div className="small muted">{tx(p.reason)}</div>
+                )}
               </li>
             ))}
           </ul>

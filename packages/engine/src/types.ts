@@ -2402,6 +2402,50 @@ export interface Pitch {
   ghosted?: boolean;
   /** Investor career Phase 8: why the investor passed. */
   passReason?: PassReason;
+  /** Feedback note: each answer scored, with the best answer and why. */
+  scores?: PitchAnswerScore[];
+  /** Feedback note: the real reason an AI fund passed, from the company's numbers. */
+  passWhy?: PitchPassWhy;
+}
+
+/** One founder pitch answer, scored 0–100 (feedback note, founderguide.ts). */
+export interface PitchAnswerScore {
+  questionId: string;
+  score: number;
+  /** How the founder answered: an option's tone, a typed figure, or spin found out. */
+  tone: 'honest' | 'modest' | 'spin' | 'vague' | 'caught';
+  /** The option id that scores best (the honest one). */
+  best: string;
+  /** What moved the score, in points. */
+  factors: { id: string; points: number; values?: Record<string, number> }[];
+}
+
+/** Why an AI fund passed, with the figures behind it (feedback note). */
+export interface PitchPassWhy {
+  id:
+    | 'traction'
+    | 'revenue'
+    | 'growth'
+    | 'product'
+    | 'team'
+    | 'runway'
+    | 'answers'
+    | 'compliance'
+    | 'deck'
+    | 'timing';
+  values: Record<string, number>;
+  /** The weak slide shown (`deck`). */
+  slide?: string;
+}
+
+/** A demo's ingredients (feedback note): raw 0–1 values, not weighted. */
+export interface DemoParts {
+  fit: number;
+  quality: number;
+  reliability: number;
+  discovery: boolean;
+  /** The day's luck, added to the weighted score. */
+  luck: number;
 }
 
 // ---------------------------------------------------------------- Media
@@ -3040,6 +3084,12 @@ export interface SalesDeal {
   revealed: boolean;
   /** How the demo went, 0–1. */
   demoScore?: number;
+  /**
+   * What the demo score was made of (feedback note): the product's fit for
+   * their segment, quality and reliability (0–1 each, weighted by
+   * DEMO_WEIGHTS), whether discovery came first, and the day's luck.
+   */
+  demoParts?: DemoParts;
   /** Proposed monthly price (before discount). */
   price?: number;
   discountPct?: number;

@@ -437,7 +437,25 @@ export {
 export { FEATURES, featuresFor, featureById, BUG_BASH } from './data/roadmap.js';
 export type { FeatureDef, FeatureEffectKind, FeatureSkill } from './data/roadmap.js';
 export { ROADMAP, FIRST_RELEASE } from './roadmap.js';
-export { SALES, ACTION_FROM as SALES_ACTION_FROM, winChance, type SalesView } from './sales.js';
+export {
+  SALES,
+  ACTION_FROM as SALES_ACTION_FROM,
+  DEMO_WEIGHTS,
+  winChance,
+  type SalesView,
+} from './sales.js';
+export {
+  FOUNDER_GUIDE,
+  FOUNDER_STAGES,
+  bestCandidate,
+  founderPlanChecks,
+  type FounderCheck,
+  type FounderGuideView,
+  type FounderPlanBase,
+  type FounderPlanInput,
+  type FounderStageId,
+  type FounderTask,
+} from './founderguide.js';
 export { HIRING, AI_COFOUNDER_PROFILES, trialFee } from './hiring.js';
 export type { AiCofounderOffer, RetentionRisk } from './hiring.js';
 export {
