@@ -37,7 +37,7 @@ export interface Ticket {
   /** Holiday with friends: your seat on the host's flight, next to theirs (from the server). */
   seat?: string;
   /** The hotel booked with the flight (from the server), when there is one. */
-  hotel?: { tier: string; name: string; paid: number };
+  hotel?: { tier: string; name: string; paid: number; id?: string };
   /**
    * The cabin (from the server): business or first, or economy when the
    * server sells cabins. Missing: an older server, economy only.

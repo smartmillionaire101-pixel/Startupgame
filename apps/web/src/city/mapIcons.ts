@@ -113,6 +113,7 @@ export const BIZ_ICON: Record<string, string> = {
 
 /** Places that aren't businesses, by kind. */
 const KIND_ICON: Partial<Record<Place['kind'], string>> = {
+  hotel: '🛏️',
   hub: '🚀',
   newsstand: '📰',
   eventhall: '🎤',

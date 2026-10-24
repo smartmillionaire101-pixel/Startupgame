@@ -25,6 +25,7 @@ import {
   buildLayout,
   CATEGORY_FALLBACK,
   civicByDistrict,
+  homeAtStay,
   financeItems,
   HOST_FALLBACK,
   lot,
@@ -1206,6 +1207,7 @@ function buildGeoLayout(
       hostOf.set(h, n >= 0 ? n : 0);
     }
   const idx = new Map(D.map((x, n) => [x.d.id, n]));
+  homeAtStay(input, hostOf, (id) => idx.get(id) ?? -1);
   const bizIn = D.map(() => [] as BizInput[]);
   for (const b of [...(input.businesses ?? [])].sort((a, c) => (a.id < c.id ? -1 : 1))) {
     let n = idx.get(b.district);
@@ -1321,7 +1323,9 @@ function buildGeoLayout(
   if (before)
     for (const j of jobs) {
       const old = before.get(j.p.id);
-      if (old && placer.keep(j.p, old)) kept.add(j.p);
+      // Your room moved district (into the hotel you booked abroad): it finds new ground.
+      if (old && (j.p.id !== 'home' || old.area === j.p.area) && placer.keep(j.p, old))
+        kept.add(j.p);
     }
   const places: Place[] = [];
   for (const j of jobs) {

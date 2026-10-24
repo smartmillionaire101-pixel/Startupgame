@@ -13,7 +13,7 @@ import { money } from '../format';
 import { t } from '../i18n';
 import { HotelPicker } from './HotelPicker';
 import type { Ticket } from './ticket';
-import type { CabinOption, CabinTier, HotelOption, HotelTier } from './travel';
+import type { CabinOption, CabinTier, HotelOption, HotelTier, NamedHotel } from './travel';
 import './hotels.css';
 
 export const CABIN_NAME: Record<CabinTier, () => string> = {
@@ -179,8 +179,10 @@ export function TicketLegs({
  */
 export function TripPicker({
   city,
+  marketId = '',
   cabins,
   hotels,
+  hotelList = [],
   fare,
   currency,
   balance,
@@ -193,9 +195,13 @@ export function TripPicker({
   onCancel,
 }: {
   city: string;
+  /** The destination (for the named hotels' map). */
+  marketId?: string;
   /** Empty from an older server: economy only, the fare as it is. */
   cabins: CabinOption[];
   hotels: HotelOption[];
+  /** The city's named hotels (the feedback round; empty: the three tiers). */
+  hotelList?: NamedHotel[];
   /** The economy fare, minor units of your home currency. */
   fare: number;
   currency: string;
@@ -208,7 +214,12 @@ export function TripPicker({
   held?: { cabin: CabinTier; paid: number } | null;
   /** The cabin to start on (flying home: the one you flew out in). */
   initial?: CabinTier;
-  onBook: (hotel: HotelTier | null, cabin: CabinTier, back: CabinTier | null) => void;
+  onBook: (
+    hotel: HotelTier | null,
+    cabin: CabinTier,
+    back: CabinTier | null,
+    hotelId?: string,
+  ) => void;
   onCancel: () => void;
 }) {
   const [cabin, setCabin] = useState<CabinTier>(held?.cabin ?? initial ?? 'economy');
@@ -301,17 +312,19 @@ export function TripPicker({
         </div>
       )}
       {short && <p className="small cabin-off">{t('Can’t afford')}</p>}
-      {hotels.length > 0 ? (
+      {hotels.length > 0 || hotelList.length > 0 ? (
         // A new suggestion for each choice: what's left after the fares change.
         <HotelPicker
           key={`${cabin}:${roundTrip ? back : '-'}`}
           city={city}
+          marketId={marketId}
           hotels={hotels}
+          named={hotelList}
           fare={price}
           currency={currency}
           balance={balance}
           busy={blocked}
-          onBook={(hotel) => onBook(hotel, cabin, roundTrip ? back : null)}
+          onBook={(hotel, hotelId) => onBook(hotel, cabin, roundTrip ? back : null, hotelId)}
           onCancel={onCancel}
         />
       ) : (

@@ -1657,7 +1657,18 @@ function placeSpec(p: Place): {
       return { w: W(0.7), d: D(0.7), h: Math.min(90, 12 + lvl * 9), style: lvl >= 3 ? 3 : 2 };
     }
     case 'home':
+      // Abroad in a named hotel, your room is in its tower.
+      if (p.motif === 'b-hotel')
+        return { w: W(0.65), d: D(0.65), h: 12 + (p.level ?? 3) * 9, style: 3 };
       return { w: W(0.6, 26), d: D(0.6, 26), h: 9 + (p.level ?? 1) * 6, style: 0 };
+    // The feedback round's named hotels: taller with more stars.
+    case 'hotel':
+      return {
+        w: W(0.65),
+        d: D(0.65),
+        h: 12 + (p.level ?? 3) * 9,
+        style: (p.level ?? 3) >= 4 ? 3 : 2,
+      };
     case 'fund':
     case 'capital':
       return { w: W(0.7), d: D(0.7), h: Math.max(30, Math.min(110, p.h * 0.7)), style: 3 };

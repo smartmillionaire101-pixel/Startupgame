@@ -169,3 +169,114 @@
 :root[data-theme='dark'] .ticket-cabin.is-first {
   color: #fcd34d;
 }
+
+/* The named hotels of a city (HotelList): a map with price pins, filters, a card each. */
+.hotel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.hotel-map {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-md, 12px);
+}
+.hotel-map [data-hotel-pin] rect,
+.hotel-map [data-hotel-pin] path {
+  fill: #0f172a;
+}
+.hotel-map [data-hotel-pin] text {
+  fill: #fff;
+}
+.hotel-map [data-hotel-pin].is-picked rect,
+.hotel-map [data-hotel-pin].is-picked path {
+  fill: var(--accent);
+}
+.hotel-filters {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.hotel-filters::-webkit-scrollbar {
+  display: none;
+}
+.hotel-filters .chip {
+  min-height: 32px;
+  flex: 0 0 auto;
+}
+.hotel-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.hotel-card {
+  display: grid;
+  grid-template-columns: 4.6rem minmax(0, 1fr);
+  gap: 0.6rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 12px);
+  background: var(--surface);
+}
+.hotel-card.is-picked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.hotel-tile {
+  position: relative;
+  min-height: 4.6rem;
+  border-radius: var(--r-sm, 10px);
+}
+.hotel-tile i {
+  position: absolute;
+  left: 0.3rem;
+  right: 0.3rem;
+  bottom: 0.3rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 45%);
+  color: #fff;
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.hotel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.hotel-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.hotel-top .hotel-name {
+  white-space: normal;
+}
+.hotel-top .hotel-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.1;
+}
+.hotel-top .hotel-price small {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.7rem;
+}
+.hotel-stars {
+  color: #d97706;
+  letter-spacing: 0.05em;
+}
+.hotel-stars-off {
+  color: var(--line-strong);
+}

@@ -71,8 +71,12 @@ interface Holiday {
 interface State {
   me: {
     id: string;
-    flightTicket: { to: string; hotel?: { tier: string }; sponsor?: { playerId: string } } | null;
-    location: { market: string; hotel?: { name: string } } | null;
+    flightTicket: {
+      to: string;
+      hotel?: { tier: string; id?: string };
+      sponsor?: { playerId: string };
+    } | null;
+    location: { market: string; hotel?: { name: string; id?: string } } | null;
   };
   accounts: { local: { balance: number } };
   holidays?: Holiday[];
@@ -129,8 +133,13 @@ test('holiday with friends: invite, accept, the same hotel, something together',
   let phone = await openTravel(a);
   const london = phone.locator('[data-flight="london"]');
   await london.getByRole('button', { name: 'Book a flight to London' }).click();
+  // The city's named hotels: A chooses Camden Guesthouse (a budget room).
   const picker = london.locator('[data-hotel-picker]');
-  await picker.locator('[data-hotel="budget"]').click();
+  await picker.getByRole('button', { name: 'Choose Camden Guesthouse' }).click();
+  await expect(picker.locator('[data-hotel-book]')).toHaveAttribute(
+    'data-hotel-book',
+    'london-camden',
+  );
   await picker.locator('[data-hotel-book]').click();
   await a
     .getByRole('dialog', { name: 'How do you want to get there?' })
@@ -169,7 +178,8 @@ test('holiday with friends: invite, accept, the same hotel, something together',
   await card.getByRole('button', { name: 'Accept', exact: true }).click();
   await expect.poll(async () => (await state(b)).me.flightTicket?.to).toBe('london');
   const sb = await state(b);
-  expect(sb.me.flightTicket?.hotel?.tier).toBe('budget');
+  // The same named hotel as the host (its room tier with it).
+  expect(sb.me.flightTicket?.hotel).toMatchObject({ tier: 'budget', id: 'london-camden' });
   expect(sb.me.flightTicket?.sponsor?.playerId).toBe(aId);
   // A paid: B's money is where it was.
   expect(sb.accounts.local.balance).toBe(bBalance);
@@ -188,6 +198,7 @@ test('holiday with friends: invite, accept, the same hotel, something together',
   expect((await command(b, { type: 'travel.fly', to: 'london' })).status).toBe(200);
   const [la, lb] = [await state(a), await state(b)];
   expect(la.me.location?.hotel?.name).toBe(lb.me.location?.hotel?.name);
+  expect(lb.me.location?.hotel?.id).toBe('london-camden');
   const h = la.holidays![0]!;
   expect(h.together).toBe(true);
   expect(Math.abs(h.rooms[bId]! - h.rooms[aId]!)).toBe(1);
@@ -260,7 +271,10 @@ test('fly together with a friend and an AI friend: cabin, arrivals, the ride, an
   let phone = await openTravel(a);
   const london = phone.locator('[data-flight="london"]');
   await london.getByRole('button', { name: 'Book a flight to London' }).click();
-  await london.locator('[data-hotel-picker] [data-hotel="budget"]').click();
+  await london
+    .locator('[data-hotel-picker]')
+    .getByRole('button', { name: 'Choose Camden Guesthouse' })
+    .click();
   await london.locator('[data-hotel-picker] [data-hotel-book]').click();
   await a
     .getByRole('dialog', { name: 'How do you want to get there?' })
