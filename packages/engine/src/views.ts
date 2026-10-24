@@ -17,6 +17,7 @@ import { anyJobView, workView } from './work.js';
 import { pitchQuestionsNow } from './fundraising.js';
 import { journeyView } from './journey.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
+import { stockExchangesView } from './stocks.js';
 import { allocatorView } from './allocator.js';
 import { wealthView } from './wealth.js';
 import { firstSessionView } from './firstsession.js';
@@ -763,6 +764,8 @@ export function playerView(
       : {
           exits: exitOptionsView(world, p),
           market: publicMarketView(world, p),
+          /** Cities with a stock market, the player's own first (stock analysis). */
+          exchanges: stockExchangesView(world, p),
           offers: secondaryOffersView(world, p),
           /** Private stakes you hold as an investor: what selling pays, or why you can't yet. */
           stakes: investorStakesView(world, p),

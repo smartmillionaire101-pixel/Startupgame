@@ -29,6 +29,13 @@ import { newId } from './ids.js';
 import { account, costIn, pay, payExact, transfer, withTx } from './ledger.js';
 import { formatMoney } from './money.js';
 import { investorOn } from './releases.js';
+import {
+  buyLimitShares,
+  cityMultiplesOnce,
+  homeFirst,
+  homeMarketOf,
+  stockAnalysis,
+} from './stocks.js';
 import type {
   Company,
   ExchangeState,
@@ -563,7 +570,10 @@ function holdingsSummary(world: World, p: Player, m: MarketState) {
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
-/** `view.exchange`: every open city's exchange, with the viewer's holdings, units and orders. */
+/**
+ * `view.exchange`: every open city's exchange, the viewer's own city first,
+ * with the viewer's holdings, units and orders, and an analysis per listing.
+ */
 export function exchangeView(world: World, p: Player, now?: number) {
   if (!investorOn(world) || p.ai) return null;
   // Crossover (public-equity) funds you run trade here too.
@@ -573,6 +583,7 @@ export function exchangeView(world: World, p: Player, now?: number) {
       f.lp?.strategy === 'public' &&
       (f.lp.stage === 'investing' || f.lp.stage === 'harvest' || f.lp.stage === 'extended'),
   );
+  const multiples = cityMultiplesOnce(world);
   const markets = Object.values(world.markets)
     .filter((m): m is MarketState => !!m && !!m.exchange)
     .map((m) => {
@@ -583,6 +594,8 @@ export function exchangeView(world: World, p: Player, now?: number) {
       return {
         market: m.id,
         city: m.data.name,
+        country: m.data.country,
+        home: m.id === homeMarketOf(p),
         currency: m.data.currency,
         level: r2(ex.level),
         changePct: ex.prevLevel ? r2(((ex.level - ex.prevLevel) / ex.prevLevel) * 100) : 0,
@@ -600,11 +613,7 @@ export function exchangeView(world: World, p: Player, now?: number) {
           const revenue = last?.revenue ?? 0;
           const cap = Math.round(mcap(c));
           const float = c.capTable.holdings[`pub:${c.id}`]?.shares ?? 0;
-          const used = ex.bought.month === m.month ? (ex.bought.by[`${p.id}:${c.id}`] ?? 0) : 0;
-          const maxShares = Math.max(
-            0,
-            Math.floor(INVESTOR.exchange.depthShare * (float + used)) - used,
-          );
+          const maxShares = buyLimitShares(world, p, c);
           return {
             companyId: c.id,
             name: c.name,
@@ -640,11 +649,13 @@ export function exchangeView(world: World, p: Player, now?: number) {
               name: f.name,
               shares: c.capTable.holdings[f.id]?.shares ?? 0,
             })),
+            analysis: stockAnalysis(world, p, c, multiples),
           };
         }),
         holdings: holdingsSummary(world, p, m),
       };
-    });
+    })
+    .sort((a, b) => homeFirst(p, a, b));
   const orders = Object.values(world.orders ?? {})
     .filter((o) => o.playerId === p.id)
     .sort((a, b) => b.month - a.month || (a.id < b.id ? 1 : -1))

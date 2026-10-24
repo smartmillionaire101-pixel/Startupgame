@@ -181,6 +181,8 @@ export {
 export type { Bars, BarEffect, WalkMode } from './lifebars.js';
 export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
+export { STOCKS } from './stocks.js';
+export type { RiskReason, RiskReasonKind, StockAnalysis } from './stocks.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';
 // The jobs rework: professional careers.
 export {

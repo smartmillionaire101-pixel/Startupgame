@@ -116,12 +116,15 @@ test('an investor buys shares on the stock market', async ({ page, browser }) =>
   await expect(phone.locator('[data-phone-app="capital"]')).toBeVisible();
   // Not a founder: the hub opens on the stock market.
   await expect(phone.getByRole('heading', { name: /Stock market/ })).toBeVisible();
-  const row = phone.locator('[data-listed]').first();
+  // A company opens its analysis first; the Buy box is at the end of it.
+  const row = phone.locator('[data-stock]').first();
   await expect(row).toBeVisible();
-  await row.getByLabel('Amount to invest').fill('100k');
-  await row.getByRole('button', { name: /^Buy about/ }).click();
+  await row.click();
+  const analysis = phone.locator('[data-analysis]');
+  await analysis.getByLabel('Amount to invest').fill('100k');
+  await analysis.getByRole('button', { name: /^Buy at/ }).click();
   await expect(p.getByText(/Bought [\d,]+ shares\./)).toBeVisible();
-  await expect(row.locator('[data-holding]')).toContainText('You hold');
+  await expect(analysis.locator('[data-holding]')).toContainText('You hold');
   const view = await state(p);
   const held = (view.capital.market as { yourShares: number }[]).filter((x) => x.yourShares > 0);
   expect(held.length).toBe(1);
