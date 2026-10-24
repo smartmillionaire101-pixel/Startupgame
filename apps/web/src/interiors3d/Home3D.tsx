@@ -747,7 +747,24 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     }
     van.add(boxes);
     stage.scene.add(van);
+    // A flat: the van is down in the street, out of sight; the courier brings
+    // the parcels up to your door on the landing.
+    const block = grounds.block;
+    const landing = new THREE.Group();
+    if (block) {
+      for (let i = 0; i < 3; i++) {
+        const b = buildEstateModel('box', { w: 0.5, d: 0.5, tier: 1 }).group;
+        b.position.set((i % 2) * 0.55, Math.floor(i / 2) * 0.44, 0);
+        b.rotation.y = i * 0.35;
+        landing.add(b);
+      }
+      landing.position.set(plan.door.x + 1.35, 0, plan.h + 0.55);
+      landing.visible = false;
+      landing.userData.parcels = 'landing';
+      stage.scene.add(landing);
+    }
     stage.canvas.dataset.van = 'coming';
+    let drawn = false;
     const off = stage.add(() => {
       const u = Math.min(
         1,
@@ -757,15 +774,26 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       van.position.set(h.van.x + (1 - e) * 26, h.vanY, h.van.z);
       van.rotation.y = Math.PI / 2;
       boxes.visible = u >= 1;
-      if (u >= 1) stage.canvas.dataset.van = 'here';
+      landing.visible = u >= 1;
+      if (u >= 1) {
+        stage.canvas.dataset.van = 'here';
+        if (block) stage.canvas.dataset.parcels = 'landing';
+      }
+      // One more frame on arrival, so the parcels are drawn.
+      if (u >= 1 && !drawn) {
+        drawn = true;
+        return true;
+      }
       return u < 1;
     });
     stage.invalidate();
     return () => {
       off();
-      stage.scene.remove(van);
+      stage.scene.remove(van, landing);
       disposeTree(van);
+      disposeTree(landing);
       delete stage.canvas.dataset.van;
+      delete stage.canvas.dataset.parcels;
     };
   }, [delivery, plan, grounds]);
 
