@@ -38,7 +38,9 @@ import { barsOf, bumpEnergy, bumpHealth, bumpStress } from './lifebars.js';
 import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { bumpNeed, needsOf } from './needs.js';
-import { bankersOn, investorOn } from './releases.js';
+import { bankersOn, feedbackOn, investorOn } from './releases.js';
+import { CITY_HOTELS, HOTEL_BY_ID, type HotelSpec } from './data/hotels.js';
+import { hashString } from './rng.js';
 import { addContact } from './events.js';
 import { checkName, normaliseName } from './names.js';
 import { waterfall } from './captable.js';
@@ -695,6 +697,105 @@ export function hotelPriceUsd(world: World, to: MarketId, tier: HotelTier): numb
 export const hotelPrice = (world: World, p: Player, to: MarketId, tier: HotelTier) =>
   usdToLocal(world, getMarket(world, p.market), hotelPriceUsd(world, to, tier));
 
+// ---------------------------------------------------------------- Named hotels (feedback round)
+
+/** Nights a stay abroad is priced for: a named hotel is listed by the night, booked for the trip. */
+export const HOTEL_NIGHTS = 3;
+
+/** A night in USD by stars, before the city's cost-of-living factor. */
+const HOTEL_NIGHT_USD: Record<HotelSpec['stars'], number> = {
+  1: 30,
+  2: 50,
+  3: 90,
+  4: 170,
+  5: 560,
+};
+
+/** A city's named hotels (data/hotels.ts), in list order. */
+export const cityHotels = (market: MarketId): readonly HotelSpec[] => CITY_HOTELS[market] ?? [];
+
+/**
+ * A night at this hotel in USD: its stars' price times the city's
+ * cost-of-living factor, give or take 15% for the hotel itself (a hash of its
+ * id, so always the same), to the nearest $5.
+ */
+export function hotelNightUsd(world: World, market: MarketId, h: HotelSpec): number {
+  const card = getMarket(world, market).data.card?.costOfLiving ?? 3;
+  const factor = HOTEL_COL_FACTOR[card] ?? 1;
+  const spread = 0.85 + (hashString(`hotel:${h.id}`) % 31) / 100;
+  return Math.max(5, Math.round((HOTEL_NIGHT_USD[h.stars] * factor * spread) / 5) * 5);
+}
+
+/** A night at a named hotel, in the player's home currency (minor units). */
+export const hotelNight = (world: World, p: Player, market: MarketId, h: HotelSpec) =>
+  usdToLocal(world, getMarket(world, p.market), hotelNightUsd(world, market, h));
+
+/** The stay a named hotel is booked for: HOTEL_NIGHTS nights (home minor units). */
+export const hotelStayPrice = (world: World, p: Player, market: MarketId, h: HotelSpec) =>
+  HOTEL_NIGHTS * hotelNight(world, p, market, h);
+
+/** A named hotel in this city, or a refusal. Named hotels come with the feedback round. */
+export function namedHotel(world: World, to: MarketId, id: string): HotelSpec {
+  ensure(feedbackOn(world), 'travel.hotel', 'Named hotels aren’t on sale yet. Pick a hotel type.');
+  const h = HOTEL_BY_ID.get(id);
+  ensure(
+    h && h.market === to,
+    'travel.hotel',
+    `That hotel isn’t in ${getMarket(world, to).data.name}.`,
+  );
+  return h;
+}
+
+/** A named hotel as a stay: its room tier, name, district, stars, and the price paid. */
+export const namedStay = (world: World, p: Player, to: MarketId, h: HotelSpec): HotelStay => ({
+  tier: h.tier,
+  name: h.name,
+  paid: hotelStayPrice(world, p, to, h),
+  id: h.id,
+  district: h.district,
+  stars: h.stars,
+  nights: HOTEL_NIGHTS,
+});
+
+/** One named hotel as the player sees it: where, how good, what a night and the stay cost. */
+function hotelRow(world: World, p: Player, market: MarketId, h: HotelSpec) {
+  const night = hotelNight(world, p, market, h);
+  return {
+    id: h.id,
+    name: h.name,
+    district: h.district,
+    area: h.area,
+    stars: h.stars,
+    tier: h.tier,
+    room: h.room,
+    km: h.km,
+    night,
+    nights: HOTEL_NIGHTS,
+    price: HOTEL_NIGHTS * night,
+  };
+}
+
+/**
+ * The named hotels in a city you could fly to (feedback round; empty
+ * without it, flying home, or for a city with none), priced in your home
+ * currency, with whether the flight and the stay fit what you have.
+ */
+export function hotelList(world: World, p: Player, to: MarketId) {
+  if (!feedbackOn(world) || to === p.market) return [];
+  const balance = Math.max(0, account(world, p.accounts.local).balance);
+  const fare = to === locationOf(p) ? 0 : flightFare(world, p, to);
+  return cityHotels(to).map((h) => {
+    const row = hotelRow(world, p, to, h);
+    return { ...row, affordable: balance >= fare + row.price };
+  });
+}
+
+/** The named hotels of the city on the map (feedback round; null without it), priced for you. */
+export function cityHotelsView(world: World, p: Player, market: MarketId) {
+  if (!feedbackOn(world)) return null;
+  return cityHotels(market).map((h) => hotelRow(world, p, market, h));
+}
+
 /** The three hotels in a city, priced in home currency, with whether flight + hotel is affordable. */
 export function hotelOptions(world: World, p: Player, to: MarketId) {
   if (to === p.market) return [];
@@ -720,6 +821,8 @@ export function bookFlight(
   flight?: TicketFlight,
   cabin?: CabinClass,
   returnCabin?: CabinClass,
+  /** Feedback round: a named hotel in `to` (data/hotels.ts). Its room tier wins over `hotel`. */
+  hotelId?: string,
 ) {
   if (p.flightTicket?.to === to && p.flightTicket.from === locationOf(p)) return p.flightTicket;
   // The first-class release (bankers note): return tickets, and the way home
@@ -804,13 +907,16 @@ export function bookFlight(
     );
     back = { cabin: returnCabin, paid: legFare(world, p, to, p.market, returnCabin) };
   }
-  ensure(!(hotel && goingHome), 'travel.hotel', 'You don’t need a hotel at home.');
+  ensure(!((hotel || hotelId) && goingHome), 'travel.hotel', 'You don’t need a hotel at home.');
+  const named = hotelId ? namedHotel(world, to, hotelId) : undefined;
   // Nobody is stranded abroad: short of the fare home, you fly standby for what you
   // have (in economy: there's no standby up front).
   const cost = goingHome && !upgraded ? Math.min(fare, balance) : fare;
-  const stay: HotelStay | undefined = hotel
-    ? { tier: hotel, name: hotelName(to, hotel), paid: hotelPrice(world, p, to, hotel) }
-    : undefined;
+  const stay: HotelStay | undefined = named
+    ? namedStay(world, p, to, named)
+    : hotel
+      ? { tier: hotel, name: hotelName(to, hotel), paid: hotelPrice(world, p, to, hotel) }
+      : undefined;
   if (stay)
     ensure(
       balance >= cost + stay.paid,

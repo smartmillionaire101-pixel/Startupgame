@@ -33,6 +33,9 @@ export {
 export { FLIGHT_HOURS, MAX_FLIGHTS_PER_MONTH, MAX_RIDES_PER_MONTH, locationOf } from './travel.js';
 export type { RideMode, RideDistance, CabinClass, CabinOption } from './travel.js';
 export { CABIN, CABIN_CLASSES, cabinFare, cabinEffects } from './travel.js';
+export { HOTEL_NIGHTS } from './travel.js';
+export { CITY_HOTELS, HOTEL_ROOMS } from './data/hotels.js';
+export type { HotelSpec, HotelRoom } from './data/hotels.js';
 export {
   SEND_DAILY_LIMIT_COL,
   SEND_FEE_MIN_COL,

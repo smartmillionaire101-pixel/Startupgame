@@ -56,7 +56,14 @@ import {
   productAmount,
   productRateBps,
 } from './capital.js';
-import { flightsView, hotelOptions, isVisiting, tripCostUsd } from './travel.js';
+import {
+  cityHotelsView,
+  flightsView,
+  hotelList,
+  hotelOptions,
+  isVisiting,
+  tripCostUsd,
+} from './travel.js';
 import {
   CONTACTS_LIMIT,
   EVENT_KINDS,
@@ -654,6 +661,11 @@ function marketView(
      * can do inside. Null in worlds without the note.
      */
     cityPlaces: placesOn(world) ? cityPlacesView(world, p, m, clock?.now ?? p.lastActiveAt) : null,
+    /**
+     * Feedback round: the city's named hotels, each in its district (for the
+     * map), priced by the night in your home currency. Null without the note.
+     */
+    hotels: cityHotelsView(world, p, m.id),
     eventKinds: EVENT_KINDS.map((kind) => {
       const k = EVENT_KIND_DATA[kind];
       return {
@@ -846,6 +858,12 @@ export function playerView(
           visitingNow: p.visited[id] === m.month,
           /** Hotels for a stay there, priced in your home currency, with flight + hotel affordability. */
           hotels: hotelOptions(world, p, id),
+          /**
+           * Feedback round: the city's named hotels across its districts (stars,
+           * room, km from the centre, a night and the stay in your currency).
+           * Empty without the note: book by `hotels` tier as before.
+           */
+          hotelList: hotelList(world, p, id),
         })),
       lastMonth: p.lastMonth,
       gigsThisMonth: p.gigsThisMonth,
