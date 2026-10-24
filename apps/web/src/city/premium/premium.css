@@ -325,3 +325,31 @@
 .suite-summary {
   font-weight: 700;
 }
+
+/* Cabins: Inside | Outside, between Skip and Photo. */
+.suite-views {
+  position: absolute;
+  top: calc(5.6rem + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.72);
+}
+.suite-view {
+  min-height: 36px;
+  padding: 0 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.suite-view.is-on {
+  background: #f8fafc;
+  color: #0f172a;
+}

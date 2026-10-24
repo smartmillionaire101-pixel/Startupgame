@@ -79,6 +79,7 @@ import { mallMore } from './mall-more';
 import { flightClasses } from './flight-classes';
 import { firstClass } from './first-class';
 import { todayWhatnow } from './today-whatnow';
+import { cabins } from './cabins';
 import { restaurants } from './restaurants';
 import { wardrobe } from './wardrobe';
 import { cityPlaces } from './city-places';
@@ -183,6 +184,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   todayWhatnow,
   stocks,
   outfits,
+  cabins,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));
