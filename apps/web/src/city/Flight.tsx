@@ -36,7 +36,17 @@ import { PlaneSide, type PlaneKind } from './airport/planes';
 import { genderOf } from './life';
 import { flavourOf } from './flavour';
 import { useDaylight } from './useDaylight';
-import { AIRPORT_NAMES, CITY_GEO, fmtFlightTime, liveryOf, seeded, fnv } from './travel';
+import {
+  AIRPORT_NAMES,
+  CITY_GEO,
+  fmtFlightTime,
+  liveryOf,
+  premiumActs,
+  seeded,
+  fnv,
+} from './travel';
+import { SuiteFlight } from './premium/Suite';
+import { isPremium } from './premium/premium';
 import './flight.css';
 
 type Phase = 'takeoff' | 'cruise' | 'sky' | 'landing' | 'ferry' | 'arrived';
@@ -278,6 +288,9 @@ export function FlightScene({
   const livery = kind === 'bizjet' ? '#1e3a8a' : liveryOf(from, airline);
   // Holiday with friends: the ones on this flight sit next to you.
   const [party] = useState(() => flightPartyTo(view, to));
+  // First-class release: business and first are lived, not watched (./premium/Suite):
+  // the cabin waits for you instead of a timer.
+  const [suite] = useState(() => isPremium(cls) && premiumActs(view));
 
   // In 3D the take-off waits for the first frame (a slow phone still sees it),
   // but never more than a few seconds.
@@ -291,6 +304,7 @@ export function FlightScene({
   // Each phase hands over to the next on a timer.
   useEffect(() => {
     if (phase === 'arrived' || !ready3d) return;
+    if (suite && phase === 'cruise') return;
     const next: Phase = reduced
       ? three && phase === 'cruise'
         ? 'sky'
@@ -308,7 +322,7 @@ export function FlightScene({
               : 'arrived';
     const id = setTimeout(() => setPhase(next), reduced ? 1600 * pace : dur[phase]);
     return () => clearTimeout(id);
-  }, [phase, reduced, ferry, three, dur, pace, ready3d]);
+  }, [phase, reduced, ferry, three, dur, pace, ready3d, suite]);
 
   // Arrived and confirmed: step out into the city (unless there's a note to read).
   useEffect(() => {
@@ -336,7 +350,7 @@ export function FlightScene({
 
   return (
     <div
-      className={`flight${reduced ? ' is-reduced' : ''}`}
+      className={`flight${reduced ? ' is-reduced' : ''}${suite && phase === 'cruise' ? ' is-suite' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label={t('Flight to {city}', { city: toName })}
@@ -357,6 +371,7 @@ export function FlightScene({
               still={reduced}
               onReady={() => setReady3d(true)}
               party={party}
+              suite={suite}
             />
           </Suspense>
         )}
@@ -371,7 +386,16 @@ export function FlightScene({
             </g>
           </Airfield>
         )}
-        {!three && phase === 'cruise' && (
+        {suite && phase === 'cruise' && isPremium(cls) && (
+          <SuiteFlight
+            cabin={cls}
+            from={from}
+            to={to}
+            hours={realHours}
+            onLand={() => setPhase(three && !reduced ? 'sky' : 'landing')}
+          />
+        )}
+        {!three && !suite && phase === 'cruise' && (
           <Cabin
             from={from}
             to={to}

@@ -9,8 +9,10 @@ import { money } from '../../format';
 import { t } from '../../i18n';
 import { useView } from '../../store';
 import {
+  CITY_NAMES,
   airportSchedule,
   destinationsOf,
+  flightsOf,
   fmtFlightTime,
   hereOf,
   isAbroad,
@@ -19,7 +21,7 @@ import {
   scheduleDay,
 } from '../../city/travel';
 import { setTicket, ticketFrom, useTicket } from '../../city/ticket';
-import { CABIN_NAME, TripPicker } from '../../city/CabinPicker';
+import { CABIN_NAME, TicketLegs, TripPicker } from '../../city/CabinPicker';
 import { HolidayCards } from './Holiday';
 import { FlyingWith } from '../../city/companions';
 import type { CabinTier, Destination, HotelTier } from '../../city/travel';
@@ -39,20 +41,32 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
   // The destination whose hotels you're choosing from, before booking.
   const [choosing, setChoosing] = useState<string | null>(null);
   const balance = view.accounts.local?.balance ?? 0;
+  const flights = flightsOf(view);
+  const homeId = view.me.market;
+  const homeName = CITY_NAMES[homeId] ?? view.market.name;
   if (dests.length === 0)
     return <Nothing icon="travel">{t('No flights from here right now.')}</Nothing>;
   const schedule = airportSchedule(here.id, day);
   const rows = dests
     .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))
     .sort((a, b) => ((a.f?.time ?? '99') < (b.f?.time ?? '99') ? -1 : 1));
-  const book = async (d: Destination, hotel: HotelTier | null, cabin: CabinTier = 'economy') => {
+  const book = async (
+    d: Destination,
+    hotel: HotelTier | null,
+    cabin: CabinTier = 'economy',
+    back: CabinTier | null = null,
+  ) => {
     const f = rows.find((r) => r.d.id === d.id)?.f;
+    const home = d.id === homeId;
     const cmd = {
       type: 'travel.book' as const,
       to: d.id as MarketId,
       ...(hotel ? { hotel } : {}),
       // Economy is the ticket as it always was: only an upgrade goes on the command.
-      ...(cabin !== 'economy' ? { cabin } : {}),
+      // Flying home, the cabin always goes (no cabin means the return you hold).
+      ...(cabin !== 'economy' || (home && d.cabins.length) ? { cabin } : {}),
+      // A return booked with the flight out, in its own cabin.
+      ...(back ? { returnCabin: back } : {}),
       // The flight off the board: friends on holiday from this city get the same one.
       ...(f
         ? { flight: { airline: f.airline, number: f.flight, time: f.time, gate: f.gate } }
@@ -62,12 +76,15 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
     setChoosing(null);
     const stay = hotel ? d.hotels.find((h) => h.tier === hotel) : undefined;
     const seat = d.cabins.find((c) => c.cabin === cabin);
+    const ret = back ? d.returnCabins.find((c) => c.cabin === back) : undefined;
+    const held = home ? flights?.heldReturn : null;
     setTicket({
       from: here.id,
       to: d.id,
       toName: d.name,
-      fare: seat?.price ?? d.fare,
+      fare: held && held.cabin === cabin ? held.paid : (seat?.price ?? d.fare),
       ...(d.cabins.length ? { cabin } : {}),
+      ...(back && ret ? { back: { cabin: back, fare: ret.price } } : {}),
       currency: cur,
       hours: d.hours,
       time: f?.time,
@@ -110,6 +127,7 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
                   {money(booked.hotel.paid, cur)}
                 </span>
               )}
+              <TicketLegs ticket={booked} fromName={here.name} homeName={homeName} prices />
             </span>
             <button className="btn btn-primary" onClick={() => ctx.goPlace('airport')}>
               {t('Go to the airport')}
@@ -172,7 +190,11 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
                 currency={cur}
                 balance={balance}
                 busy={busy}
-                onBook={(hotel, cabin) => void book(d, hotel, cabin)}
+                returnCabins={d.returnCabins}
+                homeName={homeName}
+                held={d.id === homeId ? (flights?.heldReturn ?? null) : null}
+                initial={d.id === homeId ? (flights?.lastCabin ?? undefined) : undefined}
+                onBook={(hotel, cabin, back) => void book(d, hotel, cabin, back)}
                 onCancel={() => setChoosing(null)}
               />
             )}
