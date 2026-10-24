@@ -285,8 +285,10 @@ test.describe('the 3D home', () => {
     await expect(home).toHaveClass(/is-3d/, { timeout: 45_000 });
     const canvas = home.locator('canvas[data-home-3d]');
     await expect(canvas).toBeVisible();
-    // Both cars parked in bays of their own, and the van coming down the street.
-    await expect(canvas).toHaveAttribute('data-cars', '2', { timeout: 15_000 });
+    // A flat in a block keeps both cars in the building's garage, down the lift; the van
+    // comes down the street.
+    await expect(canvas).toHaveAttribute('data-block', /.+/, { timeout: 15_000 });
+    await expect(home.locator('[data-obj="garage-lift"]')).toBeAttached();
     await expect(canvas).toHaveAttribute('data-van', /coming|here/, { timeout: 15_000 });
     // It arrives 30 seconds after the order.
     await expect(canvas).toHaveAttribute('data-van', 'here', { timeout: 45_000 });
