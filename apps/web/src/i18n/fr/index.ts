@@ -77,6 +77,7 @@ import { camera } from './camera';
 import { jobsPro } from './jobs-pro';
 import { mallMore } from './mall-more';
 import { flightClasses } from './flight-classes';
+import { firstClass } from './first-class';
 import { restaurants } from './restaurants';
 import { wardrobe } from './wardrobe';
 import { cityPlaces } from './city-places';
@@ -173,6 +174,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   firstFund,
   bankers,
   bankwork,
+  firstClass,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

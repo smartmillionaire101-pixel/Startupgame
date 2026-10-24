@@ -53,8 +53,11 @@ import {
 } from '../travel';
 import { seatOf, setTicket, ticketFrom, useTicket, type Ticket } from '../ticket';
 import { FlyingWith } from '../companions';
-import { CABIN_NAME, TripPicker } from '../CabinPicker';
-import type { CabinTier, HotelTier } from '../travel';
+import { CABIN_NAME, TicketLegs, TripPicker } from '../CabinPicker';
+import { flightsOf, loungeOf, type CabinTier, type HotelTier } from '../travel';
+import { LoungePanel, LoungeScene } from '../premium/Lounge';
+import type { LoungeSpot } from '../premium/lounge3d';
+import { isPremium, loungeCrowd, type Traveller } from '../premium/premium';
 import { useDaylight } from '../useDaylight';
 import { WhoIsHere } from '../WhoIsHere';
 import { ArrivalScene, type Arrival } from './arrivals';
@@ -412,7 +415,13 @@ interface TripScene {
   at: Step;
   playing: Step | null;
   ticket: Ticket | null;
+  /** In the business or first lounge: where you are, and whether your flight is called. */
+  spot: LoungeSpot;
+  called: boolean;
 }
+
+/** The flight is called after this long in the lounge (or three things done). */
+const CALL_MS = 45_000;
 const STEPS: Step[] = ['ticket', 'checkin', 'security', 'lounge', 'board'];
 /** In economy (once cabins are on sale) there's no lounge: you wait at the gate. */
 const STEP_LABEL = (s: Step, cabin?: CabinTier) =>
@@ -466,6 +475,8 @@ const ticketLine = (k: Ticket) =>
 
 function BoardingPass({ ticket, from }: { ticket: Ticket; from: string }) {
   const line = ticketLine(ticket);
+  const { view } = useView();
+  const homeName = CITY_NAMES[view.me.market] ?? view.me.market;
   return (
     <div className="trip-pass" data-boarding-pass={ticket.to}>
       <b>{t('Boarding pass')}</b>
@@ -487,6 +498,7 @@ function BoardingPass({ ticket, from }: { ticket: Ticket; from: string }) {
           {t('Hotel: {name}', { name: ticket.hotel.name })}
         </span>
       )}
+      <TicketLegs ticket={ticket} fromName={from} homeName={homeName} />
     </div>
   );
 }
@@ -500,6 +512,7 @@ function TripSheet({
   schedule,
   now,
   abroad,
+  crowd,
   onMore,
   onScene,
 }: {
@@ -511,11 +524,15 @@ function TripSheet({
   schedule: ScheduledFlight[];
   now: number;
   abroad: boolean;
+  /** The travellers in the business or first lounge today. */
+  crowd: Traveller[];
   onMore: () => void;
   /** Where you are in the terminal, for the view above the sheet. */
   onScene: (s: TripScene) => void;
 }) {
   const { busy, send, view } = useView();
+  const lounge = loungeOf(view);
+  const flightsInfo = flightsOf(view);
   const balance = view.accounts.local?.balance ?? 0;
   // The destination whose hotels you're choosing from, before booking.
   const [choosing, setChoosing] = useState<string | null>(null);
@@ -529,6 +546,9 @@ function TripSheet({
   // No ticket yet: the first thing is the ticket desk, where you choose where to go.
   const [step, setStep] = useState<Step>(() => (ticket ? 'checkin' : 'ticket'));
   const [playing, setPlaying] = useState<Step | null>(null);
+  // The lounge (business and first): where you are in it, and when you came in.
+  const [spot, setSpot] = useState<LoungeSpot>('wait');
+  const [late, setLate] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -564,17 +584,37 @@ function TripSheet({
       s === 'checkin' ? 1500 : s === 'board' ? 1300 : 1700,
     );
   };
-  useEffect(() => onScene({ at, playing, ticket }), [at, playing, ticket, onScene]);
-  const book = async (to: string, hotel: HotelTier | null = null, cabin: CabinTier = 'economy') => {
+  const inLounge = at === 'lounge' && !!lounge && isPremium(ticket?.cabin);
+  // In the lounge: the flight is called after a while, or once you've done three things.
+  useEffect(() => {
+    if (!inLounge) return;
+    const id = setTimeout(() => setLate(true), CALL_MS);
+    return () => clearTimeout(id);
+  }, [inLounge]);
+  const called = inLounge && (late || (lounge?.done.length ?? 0) >= 3);
+  useEffect(
+    () => onScene({ at, playing, ticket, spot: inLounge ? spot : 'wait', called }),
+    [at, playing, ticket, onScene, spot, inLounge, called],
+  );
+  const book = async (
+    to: string,
+    hotel: HotelTier | null = null,
+    cabin: CabinTier = 'economy',
+    back: CabinTier | null = null,
+  ) => {
     const row = flights.find((x) => x.d.id === to);
     if (!row || !desk) return;
     const { d, f } = row;
+    const home = d.id === homeId;
     const cmd = {
       type: 'travel.book' as const,
       to: d.id as MarketId,
       ...(hotel ? { hotel } : {}),
       // Economy is the ticket as it always was: only an upgrade goes on the command.
-      ...(cabin !== 'economy' ? { cabin } : {}),
+      // Flying home, the cabin always goes (no cabin means the return you hold).
+      ...(cabin !== 'economy' || (home && d.cabins.length) ? { cabin } : {}),
+      // A return booked with the flight out, in its own cabin.
+      ...(back ? { returnCabin: back } : {}),
       // The flight off the board: friends on holiday from this city get the same one.
       ...(f
         ? { flight: { airline: f.airline, number: f.flight, time: f.time, gate: f.gate } }
@@ -584,12 +624,15 @@ function TripSheet({
     setChoosing(null);
     const stay = hotel ? d.hotels.find((h) => h.tier === hotel) : undefined;
     const seat = d.cabins.find((c) => c.cabin === cabin);
+    const ret = back ? d.returnCabins.find((c) => c.cabin === back) : undefined;
+    const held = home ? flightsInfo?.heldReturn : null;
     setTicket({
       from: marketId,
       to: d.id,
       toName: d.name,
-      fare: seat?.price ?? d.fare,
+      fare: held && held.cabin === cabin ? held.paid : (seat?.price ?? d.fare),
       ...(d.cabins.length ? { cabin } : {}),
+      ...(back && ret ? { back: { cabin: back, fare: ret.price } } : {}),
       currency: desk.currency,
       hours: d.hours,
       time: f?.time,
@@ -662,7 +705,11 @@ function TripSheet({
                   currency={desk.currency}
                   balance={balance}
                   busy={busy}
-                  onBook={(hotel, cabin) => void book(d.id, hotel, cabin)}
+                  returnCabins={d.returnCabins}
+                  homeName={homeId ? (CITY_NAMES[homeId] ?? homeId) : ''}
+                  held={d.id === homeId ? (flightsInfo?.heldReturn ?? null) : null}
+                  initial={d.id === homeId ? (flightsInfo?.lastCabin ?? undefined) : undefined}
+                  onBook={(hotel, cabin, back) => void book(d.id, hotel, cabin, back)}
                   onCancel={() => setChoosing(null)}
                 />
               )}
@@ -687,6 +734,12 @@ function TripSheet({
             </span>
           )}
         </p>
+        <TicketLegs
+          ticket={ticket}
+          fromName={fromName}
+          homeName={homeId ? (CITY_NAMES[homeId] ?? homeId) : fromName}
+          prices
+        />
         {ticket.cabin && (
           <p className="small trip-perk" data-trip-perk="checkin">
             {PERK.checkin(ticket.cabin)}
@@ -707,7 +760,7 @@ function TripSheet({
             }
           }}
         >
-          {t('Cancel ticket · full refund')}
+          {ticket.prepaid ? t('Cancel · keep my return ticket') : t('Cancel ticket · full refund')}
         </button>
       </div>
     );
@@ -718,6 +771,25 @@ function TripSheet({
         <button type="button" className="btn btn-primary trip-go" onClick={() => play('security')}>
           {t('Go through security')}
         </button>
+      </div>
+    );
+  else if (ticket && inLounge && lounge)
+    body = (
+      <div className="trip-lounge">
+        <p className="small muted" data-trip-perk="lounge">
+          {PERK.lounge(lounge.cabin)}
+        </p>
+        <LoungePanel
+          info={lounge}
+          crowd={crowd}
+          called={called}
+          onSpot={setSpot}
+          toName={ticket.toName}
+          onBoard={() => {
+            setSpot('board');
+            setStep('board');
+          }}
+        />
       </div>
     );
   else if (ticket && at === 'lounge')
@@ -761,8 +833,21 @@ function TripSheet({
       <div className="trip-head">
         <b>{t('Your trip')}</b>
         {canFlyHome && ticket?.to !== homeId && (
-          // Going home: book the flight home, then check in for it.
-          <button type="button" className="btn btn-subtle" onClick={() => book(homeId!)}>
+          // Going home: choose the cabin (the return you hold, or the class you flew
+          // out in, comes first), book, then check in for it.
+          <button
+            type="button"
+            className="btn btn-subtle"
+            data-fly-home=""
+            onClick={() => {
+              const d = flights.find((x) => x.d.id === homeId)?.d;
+              if (d?.cabins.length) {
+                stop();
+                setStep('ticket');
+                setChoosing(homeId);
+              } else void book(homeId!);
+            }}
+          >
             {t('Fly home')}
           </button>
         )}
@@ -838,6 +923,8 @@ export function AirportScene({
         p &&
         p.at === s.at &&
         p.playing === s.playing &&
+        p.spot === s.spot &&
+        p.called === s.called &&
         JSON.stringify(p.ticket) === JSON.stringify(s.ticket)
           ? p
           : s,
@@ -855,6 +942,26 @@ export function AirportScene({
   const [{ at0, now }] = useState(() => ({ at0: Date.now(), now: localMinutes(marketId) }));
   const day = scheduleDay(view.market.month, at0);
   const schedule = useMemo(() => airportSchedule(marketId, day), [marketId, day]);
+  // The business or first lounge: made-up premium travellers, and the players flying up front.
+  const lounge = loungeOf(view);
+  const guestKey = (lounge?.guests ?? []).map((g) => g.id).join(',');
+  const crowd = useMemo<Traveller[]>(() => {
+    if (!lounge) return [];
+    const players = lounge.guests.map((g) => ({
+      id: g.id,
+      name: g.name,
+      role: t('Flying {cabin} to {city}', {
+        cabin: g.cabin === 'first' ? t('First class') : t('Business'),
+        city: g.toName,
+      }),
+      look: avatarLook('f-engineer', g.id),
+      player: true,
+      to: g.to,
+    }));
+    return [...players, ...loungeCrowd(marketId, day, lounge.cabin)];
+    // The guests' ids stand for the list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lounge?.cabin, guestKey, marketId, day]);
   const walkers = useMemo(() => {
     const bgs = [
       'f-engineer',
@@ -908,8 +1015,32 @@ export function AirportScene({
             <ArrivalScene marketId={marketId} arrival={landed} look={look} night={night} />
           ) : (
             <div className="airport-view">
-              <Board marketId={marketId} day={day} />
-              {scene?.ticket && scene.at !== 'ticket' ? (
+              {scene?.ticket && scene.at === 'lounge' && lounge && isPremium(scene.ticket.cabin) ? (
+                <LoungeScene
+                  cabin={lounge.cabin}
+                  marketId={marketId}
+                  night={night}
+                  livery={liveryOf(marketId, scene.ticket.airline)}
+                  me={look}
+                  crowd={crowd}
+                  spot={scene.spot}
+                  called={scene.called}
+                  boardLine={
+                    scene.called
+                      ? t('{flight} to {city} is now boarding', {
+                          flight: scene.ticket.flight ?? t('Your flight'),
+                          city: scene.ticket.toName,
+                        })
+                      : null
+                  }
+                />
+              ) : (
+                <Board marketId={marketId} day={day} />
+              )}
+              {scene?.ticket &&
+              scene.at === 'lounge' &&
+              lounge &&
+              isPremium(scene.ticket.cabin) ? null : scene?.ticket && scene.at !== 'ticket' ? (
                 <TerminalView
                   cabin={scene.ticket.cabin}
                   step={scene.at}
@@ -937,6 +1068,7 @@ export function AirportScene({
               schedule={schedule}
               now={now}
               abroad={!!onFlyHome}
+              crowd={crowd}
               onMore={() => setMore(true)}
               onScene={onScene}
             />

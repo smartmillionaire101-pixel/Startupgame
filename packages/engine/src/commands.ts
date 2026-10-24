@@ -438,6 +438,11 @@ export const commandSchema = z.discriminatedUnion('type', [
     hotel: z.enum(['budget', 'business', 'luxury']).optional(),
     /** Investor release: the cabin. Missing = economy, the ticket as it always was. */
     cabin: z.enum(['economy', 'business', 'first']).optional(),
+    /**
+     * First-class release (bankers note): book the way home too, in this cabin,
+     * charged now as its own leg. Missing = one way, as before.
+     */
+    returnCabin: z.enum(['economy', 'business', 'first']).optional(),
     /** The flight the client picked off the board (cosmetic; friends on holiday share it). */
     flight: z
       .object({
@@ -450,6 +455,18 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('travel.cancel') }),
   z.object({ type: z.literal('travel.fly'), to: market }),
+  /** First-class release: something to do in the business or first class lounge before boarding. */
+  z.object({
+    type: z.literal('travel.lounge'),
+    act: z.enum(['dine', 'drink', 'shower', 'rest', 'mingle']),
+    /** Mingling: another player waiting in the lounge (missing: whoever's there). */
+    with: id.optional(),
+  }),
+  /** First-class release: how you spend a business or first class flight (on arrival, its effects). */
+  z.object({
+    type: z.literal('travel.inflight'),
+    act: z.enum(['dine', 'sleep', 'watch', 'work', 'bar', 'spa']),
+  }),
   /**
    * Wave 4: a bus or taxi across the city you're in. Walking and cycling are free,
    * and so is driving your own car in your home city (Wave 5; fuel is in its running cost).

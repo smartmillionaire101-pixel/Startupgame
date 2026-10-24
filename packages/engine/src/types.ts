@@ -204,6 +204,28 @@ export interface Player {
     party?: { holidayId: Id };
     /** Business or first (investor release). Missing = economy, as every ticket was. */
     cabin?: 'business' | 'first';
+    /**
+     * First-class release (bankers note): the way home, booked and paid with
+     * this ticket (`paid` in home minor units, charged as its own leg).
+     * Missing = one way, as every ticket was.
+     */
+    return?: { cabin: 'economy' | 'business' | 'first'; paid: number };
+    /** The flight home on a return ticket already paid for (cancelling keeps it). */
+    prepaid?: true;
+    /** Lounge acts done while holding this ticket (business and first). */
+    lounge?: string[];
+  };
+  /**
+   * First-class release: the last business or first flight, while its
+   * in-flight acts (dine, sleep, watch, work…) can still be taken. Cleared by
+   * the next booking. Missing = none.
+   */
+  lastFlight?: {
+    cabin: 'business' | 'first';
+    from: MarketId;
+    to: MarketId;
+    month: number;
+    acts: string[];
   };
   id: Id;
   handle: string;
@@ -248,7 +270,15 @@ export interface Player {
   /** Businesses pitched this month (Wave 3). Missing = none. */
   businessPitches?: { month: number; count: number };
   /** Where the player physically is (Wave 4). Missing = at home (`market`). */
-  location?: { market: MarketId; since: number; hotel?: HotelStay };
+  location?: {
+    market: MarketId;
+    since: number;
+    hotel?: HotelStay;
+    /** First-class release: the return leg home, already paid (home minor units). */
+    returnLeg?: { cabin: 'economy' | 'business' | 'first'; paid: number };
+    /** First-class release: the cabin you flew out in (remembered for the way home). */
+    cabin?: 'business' | 'first';
+  };
   /** Flights taken this (home) month (Wave 4). Missing = none. */
   flights?: { month: number; count: number };
   /** Bus and taxi rides taken this (home) month (Wave 4). Missing = none. */

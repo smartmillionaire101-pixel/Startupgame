@@ -452,7 +452,18 @@ export function CityScreen({
         hours: dest?.hours ?? flights?.hours ?? 4,
         status: 'pending',
         airline: getTicket()?.airline,
-        cabin: view.me.flightTicket?.cabin ?? (sellsCabins(view) ? 'economy' : undefined),
+        // No ticket yet (flying home at once): the return you hold, else economy.
+        cabin:
+          view.me.flightTicket?.cabin ??
+          (view.me.flightTicket
+            ? sellsCabins(view)
+              ? 'economy'
+              : undefined
+            : to === view.me.market
+              ? (flights?.heldReturn?.cabin ?? (sellsCabins(view) ? 'economy' : undefined))
+              : sellsCabins(view)
+                ? 'economy'
+                : undefined),
         note: flights
           ? undefined
           : t(

@@ -84,6 +84,7 @@ export default function FlightView3D({
   still,
   onReady,
   party,
+  suite = false,
 }: {
   phase: FlightPhase3D;
   dur: Record<'takeoff' | 'cruise' | 'sky' | 'landing', number>;
@@ -103,6 +104,8 @@ export default function FlightView3D({
     seat: string;
     with: { id: string; first: string; look: AvatarLook; seat: string | null }[];
   } | null;
+  /** Business or first, lived in its own scene (../premium/Suite): nothing drawn at cruise. */
+  suite?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -270,6 +273,8 @@ export default function FlightView3D({
     const frame = (nowMs: number) => {
       const { phase: ph, at } = phaseRef.current;
       if (ph === 'ferry') return;
+      // The suite has its own scene over this one: nothing to draw meanwhile.
+      if (ph === 'cruise' && suite) return;
       const elapsed = (nowMs - at) / 1000;
       const tt = nowMs / 1000;
       const aspect = w / h;
@@ -317,6 +322,7 @@ export default function FlightView3D({
     else raf = requestAnimationFrame(loop);
     // Build the cabin while the plane climbs, so the cut to it is instant.
     const pre = window.setTimeout(() => {
+      if (suite) return;
       const c = makeCabin();
       // The seats you and your friends are sat in (your ticket's row, side by side).
       setInfo((i) => ({ ...i, seat: c.seatLabel, seats: c.companions.map((x) => x.at.label) }));
@@ -342,7 +348,7 @@ export default function FlightView3D({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const inCabin = phase === 'cruise';
+  const inCabin = phase === 'cruise' && !suite;
   return (
     <div
       className={`f3${phase === 'ferry' ? ' is-hidden' : ''}`}
