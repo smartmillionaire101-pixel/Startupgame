@@ -8,8 +8,19 @@
  * [French answers]]. Proper names stay the same in both languages.
  */
 
+import { MORE_ROWS } from './quiz-more.js';
+
 export type QuizCategory =
-  'general' | 'business' | 'tech' | 'sport' | 'music' | 'cities' | 'science' | 'geography';
+  | 'general'
+  | 'business'
+  | 'tech'
+  | 'sport'
+  | 'music'
+  | 'cities'
+  | 'science'
+  | 'geography'
+  /** Real-life events (FEEDBACK_NOTE): things that happened, with the year in the question. */
+  | 'events';
 
 export interface BankQuestion {
   cat: QuizCategory;
@@ -19,7 +30,7 @@ export interface BankQuestion {
   fr: { text: string; options: string[] };
 }
 
-type Row = [QuizCategory, string, string[], number, string, string[]];
+export type Row = [QuizCategory, string, string[], number, string, string[]];
 
 // prettier-ignore
 const ROWS: Row[] = [
@@ -241,12 +252,16 @@ const ROWS: Row[] = [
   ['geography', 'In which country is Victoria Falls, on the border with Zimbabwe?', ['Zambia', 'Botswana', 'Mozambique', 'Malawi'], 0, 'Les chutes Victoria se trouvent à la frontière du Zimbabwe et de quel pays ?', ['La Zambie', 'Le Botswana', 'Le Mozambique', 'Le Malawi']],
 ];
 
-export const QUIZ_BANK: readonly BankQuestion[] = ROWS.map(
-  ([cat, text, options, answer, fr, fro]) => ({
-    cat,
-    text,
-    options,
-    answer,
-    fr: { text: fr, options: fro },
-  }),
-);
+const toQuestion = ([cat, text, options, answer, fr, fro]: Row): BankQuestion => ({
+  cat,
+  text,
+  options,
+  answer,
+  fr: { text: fr, options: fro },
+});
+
+/** The first bank, unchanged: worlds without FEEDBACK_NOTE draw from it as they always did. */
+export const QUIZ_BANK: readonly BankQuestion[] = ROWS.map(toQuestion);
+
+/** The full bank (FEEDBACK_NOTE): the first bank, then the feedback round's questions. */
+export const QUIZ_BANK_FULL: readonly BankQuestion[] = [...QUIZ_BANK, ...MORE_ROWS.map(toQuestion)];

@@ -299,7 +299,7 @@ export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.j
 // Wave 12: sky views and the quiz bank.
 export { SKY_VIEWS, skyViewById, skyViewsIn } from './data/sky-views.js';
 export type { SkyViewSpec, SkyViewKind } from './data/sky-views.js';
-export { QUIZ_BANK } from './data/quiz-bank.js';
+export { QUIZ_BANK, QUIZ_BANK_FULL } from './data/quiz-bank.js';
 export type { BankQuestion, QuizCategory } from './data/quiz-bank.js';
 export {
   AUTO_QUIZ_FROM,

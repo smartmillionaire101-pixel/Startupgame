@@ -788,6 +788,7 @@ const CATS: Record<string, string> = {
   cities: 'The cities',
   science: 'Science',
   geography: 'Geography',
+  events: 'Real-life events',
 };
 
 /** A host waiting alone: when AI opponents will take the other seats. */

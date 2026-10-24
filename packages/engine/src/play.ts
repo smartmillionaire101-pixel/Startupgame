@@ -8,8 +8,13 @@ import { newId } from './ids.js';
 import { account, openAccount, payExact, transfer } from './ledger.js';
 import type { Command } from './commands.js';
 import { createRng, deriveRng, hashString } from './rng.js';
-import { QUIZ_BANK, type QuizCategory } from './data/quiz-bank.js';
-import { investorOn, journeyEventsOn, lifeBarsOn, moreGamesOn } from './releases.js';
+import {
+  QUIZ_BANK,
+  QUIZ_BANK_FULL,
+  type BankQuestion,
+  type QuizCategory,
+} from './data/quiz-bank.js';
+import { feedbackOn, investorOn, journeyEventsOn, lifeBarsOn, moreGamesOn } from './releases.js';
 import {
   FULL_RACK,
   aiBowl,
@@ -475,10 +480,14 @@ const active = (r: PlayRoom) => r.status === 'waiting' || r.status === 'playing'
  * knowledge, business and tech, sport, music, science, geography and the
  * game's own cities.
  */
-export function drawQuiz(seed: string, n = QUIZ_LENGTH): QuizQuestion[] {
+export function drawQuiz(
+  seed: string,
+  n = QUIZ_LENGTH,
+  bank: readonly BankQuestion[] = QUIZ_BANK,
+): QuizQuestion[] {
   const rng = createRng(hashString(`quiz:${seed}`));
   const byCat = new Map<QuizCategory, QuizQuestion[]>();
-  for (const q of rng.shuffle(QUIZ_BANK)) {
+  for (const q of rng.shuffle(bank)) {
     const list = byCat.get(q.cat) ?? [];
     list.push({
       text: q.text,
@@ -1308,7 +1317,12 @@ function createRoom(
       [pool[i], pool[j]] = [pool[j]!, pool[i]!];
     }
     questions = pool.slice(0, 8);
-  } else questions = drawQuiz(`${w.seed}:${id}:${now}`);
+  } else
+    questions = drawQuiz(
+      `${w.seed}:${id}:${now}`,
+      QUIZ_LENGTH,
+      feedbackOn(w) ? QUIZ_BANK_FULL : QUIZ_BANK,
+    );
   const r: PlayRoom = {
     id,
     host: p.id,
