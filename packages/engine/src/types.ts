@@ -300,6 +300,10 @@ export interface Player {
   work?: PlayerWork;
   /** Wave 5: furniture in your apartment, one item per slot. Missing = bare. */
   home?: { items: HomeItem[] };
+  /** Shop note: walls and dividers you own (placed or in storage). Missing = none. */
+  walls?: HomeWall[];
+  /** Shop note: the names you gave the rooms of your home. Missing = none. */
+  roomLabels?: RoomLabel[];
   /** Wave 5: your car. Missing = none. */
   car?: PlayerCar;
   /** Wave 6: venue buys this month (seeds the "who you meet" roll). Missing = none. */
@@ -962,6 +966,9 @@ export interface HomeItem {
   itemId: string;
   /** What you paid (home currency, minor units): sell-back is a share of it. */
   paid: number;
+  /** Shop note: the finish or warranty picked in the catalogue (option id). Missing = the default. */
+  finish?: string;
+  warranty?: string;
 }
 
 export interface PlayerCar {
@@ -969,6 +976,35 @@ export interface PlayerCar {
   paid: number;
   /** Home month it was bought. */
   since: number;
+  /** Shop note: the paint and trim picked in the catalogue (option ids). Missing = the default. */
+  paint?: string;
+  trim?: string;
+}
+
+/**
+ * Shop note: a wall or divider you own (data/catalog.ts WALLS). Placed when
+ * `x` is set: on floor `floor`, along the tile edge at (x, y) for `len` tiles,
+ * 'h' running along x (between rows y-1 and y), 'v' along y (between columns
+ * x-1 and x), like the floor plan's own walls. Unplaced = in storage.
+ */
+export interface HomeWall {
+  id: Id;
+  kind: 'full' | 'half' | 'glass' | 'sliding' | 'bookshelf';
+  len: number;
+  finish: string;
+  paid: number;
+  floor?: number;
+  x?: number;
+  y?: number;
+  dir?: 'h' | 'v';
+}
+
+/** Shop note: a name you gave a room, at a tile on a floor of your home. */
+export interface RoomLabel {
+  floor: number;
+  x: number;
+  y: number;
+  label: string;
 }
 
 // ---------------------------------------------------------------- Events & contacts (Wave 2)

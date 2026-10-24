@@ -90,8 +90,8 @@ const complete = (w: World, mandateId: string, choices: Record<string, string>, 
   run(w, id, { type: 'banker.mandate', action: 'complete', mandateId, choices });
 
 describe('banker work: the release switch', () => {
-  it('logs the bankers note last, and old worlds play exactly as before', () => {
-    expect(RELEASES[RELEASES.length - 1]).toBe(BANKERS_NOTE);
+  it('logs the bankers note after more games, and old worlds play exactly as before', () => {
+    expect(RELEASES.indexOf(BANKERS_NOTE)).toBe(RELEASES.indexOf(MORE_GAMES_NOTE) + 1);
     const old = addBanker(announce(makeWorld(11, ['lagos']), MORE_GAMES_NOTE));
     expect(bankersOn(old)).toBe(false);
     expect(view(old).bankWork).toBeNull();

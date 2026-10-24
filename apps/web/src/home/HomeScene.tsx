@@ -23,6 +23,7 @@ import {
   type ReactNode,
 } from 'react';
 import './home.css';
+import './dividers.css';
 import { use3d } from '../three-kit/quality';
 import type { Ghost, Home3DApi, Home3DPerson } from '../interiors3d/types';
 import {
@@ -81,6 +82,22 @@ import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { balconyView } from './balcony';
 import type PanoramaView from '../experiences/Panorama';
 import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
+import { OPTION_GROUPS, WALLS } from '@runway/engine';
+import {
+  canPlaceDivider,
+  dividerAt,
+  dividersOn,
+  homeExtrasOf,
+  nudgeDivider,
+  turnDivider,
+  wallSwatch,
+  withDividers,
+  type Divider,
+  type RoomName,
+  type WallView,
+} from './dividers';
+import { CatalogueSheet } from '../shop/CatalogueSheet';
+import { onlineCatalog } from '../shop/catalog';
 
 /** Wave 9 §C: the 3D home, loaded on demand (three.js is its own chunk). */
 // A chunk that fails to load (offline) leaves the 2D home in place.
@@ -229,6 +246,10 @@ export interface HostView {
   wealth?: number;
   /** The neighbourhood their home is in (a penthouse's view). */
   hood?: string | null;
+  /** Shop note: their walls and dividers, room names and furniture finishes. */
+  walls?: WallView[];
+  rooms?: RoomName[];
+  finishes?: Map<string, string>;
 }
 
 /**
@@ -311,11 +332,42 @@ export function HomeScene({
   const [placements, setPlacements] = useState<Record<string, Placement>>(() =>
     loadPlacements(placeOwner, MOVABLE),
   );
+  // Shop note: the walls and dividers put up here, the rooms named, the finishes bought.
+  const myHome = view.me.home;
+  const extras = useMemo(
+    () =>
+      hostView
+        ? {
+            walls: hostView.walls ?? [],
+            rooms: hostView.rooms ?? [],
+            finishes: hostView.finishes ?? new Map<string, string>(),
+          }
+        : homeExtrasOf(myHome),
+    [hostView, myHome],
+  );
+  const [wallPlacing, setWallPlacing] = useState<(Divider & { label: string }) | null>(null);
+  const movingWall = wallPlacing?.id ?? null;
+  const dividers = useMemo(
+    () =>
+      hotelTier ? [] : dividersOn(extras.walls, floor, basePlan).filter((d) => d.id !== movingWall),
+    [hotelTier, extras.walls, floor, basePlan, movingWall],
+  );
   // A hotel room stays as the hotel laid it out.
   const plan = useMemo(
-    () => (hotelTier ? basePlan : withPlacements(basePlan, owned, placements)),
-    [hotelTier, basePlan, owned, placements],
+    () =>
+      hotelTier ? basePlan : withPlacements(withDividers(basePlan, dividers), owned, placements),
+    [hotelTier, basePlan, owned, placements, dividers],
   );
+  /** What's drawn as the house: its own walls (dividers are drawn as themselves). */
+  const drawPlan = useMemo(
+    () => (plan.walls === basePlan.walls ? plan : { ...plan, walls: basePlan.walls }),
+    [plan, basePlan],
+  );
+  const dividers3d = useMemo(
+    () => dividers.map((d) => ({ ...d, swatch: wallSwatch(d.kind, d.finish) })),
+    [dividers],
+  );
+  const roomNames = extras.rooms.filter((r) => r.floor === floor);
   // ---- 3D (Wave 9 §C): drawn by three.js under this scene's invisible 2D hit layer.
   const want3d = use3d();
   const [ready3d, setReady3d] = useState(false);
@@ -732,6 +784,79 @@ export function HomeScene({
     });
     setPlacing(null);
   };
+  // ---- Shop note: putting up a wall or divider, and naming rooms.
+  const [naming, setNaming] = useState<{ x: number; y: number; label: string } | 'pick' | null>(
+    null,
+  );
+  const [shopWalls, setShopWalls] = useState(false);
+  const wallGhost = useMemo(
+    () =>
+      wallPlacing
+        ? { ...wallPlacing, ok: canPlaceDivider(plan, owned, dividers, wallPlacing) }
+        : null,
+    [wallPlacing, plan, owned, dividers],
+  );
+  const startWall = (w: WallView) => {
+    const dir = w.dir ?? 'h';
+    const at =
+      w.x !== undefined && w.y !== undefined && (w.floor ?? 0) === floor
+        ? { x: w.x, y: w.y }
+        : dividerAt(plan, w.len, dir, Math.floor(plan.w / 2), Math.floor(plan.h / 2));
+    setSheet(null);
+    setMenuState(null);
+    setPlacing(null);
+    setNaming(null);
+    setWallPlacing({
+      id: w.id,
+      kind: w.kind,
+      len: w.len,
+      finish: w.finish,
+      dir,
+      ...at,
+      label: tx(WALLS[w.kind].label),
+    });
+  };
+  const finishWall = async () => {
+    if (!wallPlacing || !wallGhost?.ok) return;
+    const w = wallPlacing;
+    const r = await send(
+      { type: 'home.wall.place', wallId: w.id, floor, x: w.x, y: w.y, dir: w.dir },
+      t('It’s up.'),
+    );
+    if (r !== null) setWallPlacing(null);
+  };
+  const saveName = async () => {
+    if (!naming || naming === 'pick') return;
+    const r = await send({
+      type: 'home.room.label',
+      floor,
+      x: naming.x,
+      y: naming.y,
+      label: naming.label.trim(),
+    });
+    if (r !== null) setNaming('pick');
+  };
+  /** A tap on a tile while putting up a wall or naming a room. */
+  const tapWall = (tile: { x: number; y: number } | null | undefined): boolean => {
+    if (wallPlacing) {
+      if (tile)
+        setWallPlacing({
+          ...wallPlacing,
+          ...dividerAt(plan, wallPlacing.len, wallPlacing.dir, tile.x, tile.y),
+        });
+      return true;
+    }
+    if (naming) {
+      if (tile) {
+        const had = roomNames.find((r) => Math.abs(r.x - tile.x) + Math.abs(r.y - tile.y) <= 1);
+        setNaming(
+          had ? { x: had.x, y: had.y, label: had.label } : { x: tile.x, y: tile.y, label: '' },
+        );
+      }
+      return true;
+    }
+    return false;
+  };
   const floatId = useRef(0);
   const actTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(actTimer.current), []);
@@ -975,6 +1100,7 @@ export function HomeScene({
     if (is3d && api3d.current) {
       const r = svgRef.current!.getBoundingClientRect();
       const hit = api3d.current.pick(e.clientX - r.left, e.clientY - r.top);
+      if (tapWall(hit?.tile)) return;
       if (placing) {
         if (hit?.tile) placeAt(hit.tile.x, hit.tile.y);
         return;
@@ -994,6 +1120,11 @@ export function HomeScene({
       const path = walk(me.current, hit.tile);
       setWalkPath(reduceMotion() ? null : path);
       setRing({ x: (hit.tile.x + 0.5) * TILE, y: (hit.tile.y + 0.5) * TILE, n: ++rings.current });
+      return;
+    }
+    if (wallPlacing || naming) {
+      const w = toWorld(e.clientX, e.clientY);
+      tapWall({ x: Math.floor(w.x / TILE), y: Math.floor(w.y / TILE) });
       return;
     }
     if (placing) {
@@ -1239,7 +1370,76 @@ export function HomeScene({
     for (const o of objects)
       if (!o.spot.wall && o.spot.blocked === false && o.id !== 'rug')
         items.push({ k: o.id, base: o.base - 0.5, node: <ObjNode key={o.id} o={o} /> });
-    plan.walls.forEach((s, n) => {
+    // Shop note: walls and dividers you put up, each in its own look.
+    for (const d of dividers) {
+      const sw = wallSwatch(d.kind, d.finish);
+      const len = d.len * TILE;
+      const x = d.x * TILE;
+      const y = d.y * TILE;
+      const glass = d.kind === 'glass';
+      const tall = d.kind === 'half' ? 6 : 10;
+      items.push({
+        k: `div-${d.id}`,
+        base: d.dir === 'h' ? d.y + 0.06 : d.y + d.len,
+        node: (
+          <g
+            key={`div-${d.id}`}
+            className="home-divider"
+            data-divider={d.id}
+            data-kind={d.kind}
+            opacity={glass ? 0.7 : 1}
+          >
+            {d.dir === 'h' ? (
+              <>
+                <rect
+                  x={x}
+                  y={y - 2 - tall}
+                  width={len}
+                  height={tall}
+                  fill={glass ? '#cfe8f0' : sw}
+                />
+                <rect
+                  x={x}
+                  y={y - 5 - tall}
+                  width={len}
+                  height={5}
+                  fill={glass ? '#9aa3a8' : '#f4f1ea'}
+                />
+                {d.kind === 'sliding' && (
+                  <path
+                    d={`M${x + len / 2} ${y - 2 - tall} V${y - 2}`}
+                    stroke="#3f3a35"
+                    strokeWidth="2"
+                  />
+                )}
+                {d.kind === 'bookshelf' &&
+                  Array.from({ length: d.len * 5 }, (_, i) => (
+                    <rect
+                      key={i}
+                      x={x + 3 + i * (TILE / 5)}
+                      y={y - tall}
+                      width={3}
+                      height={tall - 3}
+                      fill={['#b91c1c', '#1d4ed8', '#15803d', '#ca8a04'][i % 4]}
+                    />
+                  ))}
+              </>
+            ) : (
+              <rect
+                x={x - 3}
+                y={y - 15}
+                width={6}
+                height={len + 3}
+                fill={glass ? '#9fd3e3' : sw}
+                strokeDasharray={d.kind === 'sliding' ? '6 4' : undefined}
+                stroke={d.kind === 'sliding' ? '#3f3a35' : undefined}
+              />
+            )}
+          </g>
+        ),
+      });
+    }
+    drawPlan.walls.forEach((s, n) => {
       const x = s.x * TILE;
       const y = s.y * TILE;
       items.push({
@@ -1265,7 +1465,7 @@ export function HomeScene({
       });
     });
     return items;
-  }, [objects, plan]);
+  }, [objects, drawPlan, dividers]);
   const drawn = [...sorted];
   for (const p of people)
     drawn.push({
@@ -1325,8 +1525,16 @@ export function HomeScene({
         ...(o.model ? { model: o.model } : {}),
         ...(o.ry !== undefined ? { ry: o.ry } : {}),
         ...(o.outdoor ? { outdoor: true } : {}),
+        // Shop note: the finish you bought it in.
+        ...(o.slot && extras.finishes.get(o.slot)
+          ? {
+              finish:
+                OPTION_GROUPS.woodFinish.options.find((x) => x.id === extras.finishes.get(o.slot!))
+                  ?.swatch ?? undefined,
+            }
+          : {}),
       })),
-    [objects, tiers],
+    [objects, tiers, extras.finishes],
   );
   const people3d = useCallback((): Home3DPerson[] => {
     const out: Home3DPerson[] = [];
@@ -1418,7 +1626,8 @@ export function HomeScene({
 
   return (
     <div
-      className={`place-scene home-scene${is3d ? ' is-3d' : ''}${placing ? ' is-placing' : ''}`}
+      className={`place-scene home-scene${is3d ? ' is-3d' : ''}${placing || wallPlacing || naming ? ' is-placing' : ''}`}
+      data-dividers={dividers.length}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -1557,9 +1766,11 @@ export function HomeScene({
         {want3d && !sky && (
           <Suspense fallback={null}>
             <Home3D
-              plan={plan}
+              plan={drawPlan}
+              dividers={dividers3d}
               tier={tier}
               objects={objects3d}
+
               people={people3d}
               acting={acting3d}
               night={night}
@@ -1699,6 +1910,40 @@ export function HomeScene({
                 height={ghost.spot.h * TILE}
                 rx={4}
               />
+            )}
+            {wallGhost && (
+              <rect
+                className="home-wall-ghost"
+                data-ok={wallGhost.ok ? '1' : '0'}
+                x={wallGhost.dir === 'h' ? wallGhost.x * TILE : wallGhost.x * TILE - 5}
+                y={wallGhost.dir === 'h' ? wallGhost.y * TILE - 5 : wallGhost.y * TILE}
+                width={wallGhost.dir === 'h' ? wallGhost.len * TILE : 10}
+                height={wallGhost.dir === 'h' ? 10 : wallGhost.len * TILE}
+                rx={3}
+              />
+            )}
+            {(roomNames.length > 0 || (naming && naming !== 'pick')) && (
+              <g className="home-room-names" data-rooms={roomNames.length}>
+                {roomNames.map((r) => (
+                  <text
+                    key={`${r.x},${r.y}`}
+                    data-room-name={r.label}
+                    x={(r.x + 0.5) * TILE}
+                    y={(r.y + 0.6) * TILE}
+                    textAnchor="middle"
+                  >
+                    {r.label}
+                  </text>
+                ))}
+                {naming && naming !== 'pick' && (
+                  <circle
+                    className="home-room-pin"
+                    cx={(naming.x + 0.5) * TILE}
+                    cy={(naming.y + 0.5) * TILE}
+                    r={9}
+                  />
+                )}
+              </g>
             )}
             {objects
               .filter((o) => !hostView && o.slot && !o.owned)
@@ -1846,6 +2091,50 @@ export function HomeScene({
             onReset={resetPlacing}
             onCancel={() => setPlacing(null)}
           />
+        )}
+        {wallPlacing && wallGhost && (
+          <PlaceBar
+            label={wallPlacing.label}
+            ok={wallGhost.ok}
+            moved={false}
+            onRotate={() => setWallPlacing(turnDivider(plan, wallPlacing))}
+            onNudge={(dx, dy) => setWallPlacing(nudgeDivider(plan, wallPlacing, dx, dy))}
+            onDone={() => void finishWall()}
+            onReset={() => {}}
+            onCancel={() => setWallPlacing(null)}
+          />
+        )}
+        {naming && (
+          <div className="place-bar home-naming" role="toolbar" aria-label={t('Name a room')}>
+            {naming === 'pick' ? (
+              <p className="place-hint">{t('Tap a room to name it.')}</p>
+            ) : (
+              <form
+                className="place-row"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void saveName();
+                }}
+              >
+                <input
+                  className="home-naming-input"
+                  aria-label={t('Room name')}
+                  maxLength={24}
+                  placeholder={t('Office, nursery, gym…')}
+                  value={naming.label}
+                  onChange={(e) => setNaming({ ...naming, label: e.target.value })}
+                />
+                <button type="submit" className="place-done" disabled={busy}>
+                  {naming.label.trim() ? t('Save') : t('Clear')}
+                </button>
+              </form>
+            )}
+            <div className="place-row">
+              <button type="button" className="place-cancel" onClick={() => setNaming(null)}>
+                {t('Done')}
+              </button>
+            </div>
+          </div>
         )}
         {menu && menuAt && (
           <PieMenu
@@ -2030,8 +2319,30 @@ export function HomeScene({
           placed={placements}
           onClose={() => setSheet(null)}
           onPlace={startPlacing}
+          walls={extras.walls}
+          floor={floor}
+          onPlaceWall={startWall}
+          onShopWalls={() => {
+            setSheet(null);
+            setShopWalls(true);
+          }}
+          onNameRooms={() => {
+            setSheet(null);
+            setNaming('pick');
+          }}
         />
       )}
+      {shopWalls && view.me.shop && (
+        <CatalogueSheet
+          mode="online"
+          title={t('Walls & dividers')}
+          entries={onlineCatalog(view)}
+          currency={view.me.shop.currency}
+          category="walls"
+          onClose={() => setShopWalls(false)}
+        />
+      )}
+
       {sheet && sheet !== 'buy' && (
         <div className="home-sheet-back" onClick={() => setSheet(null)}>
           <section

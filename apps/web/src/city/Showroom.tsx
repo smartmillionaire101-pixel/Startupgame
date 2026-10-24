@@ -12,6 +12,8 @@ import { useView } from '../store';
 import { Card, Empty, Pill } from '../ui';
 import type { BusinessView } from './contract';
 import { HOME_SLOTS, carOf, homeOf, looseCmd, sellsOf, shopOf, type HomeItemView } from './life';
+import { CatalogueButton, CatalogueSheet } from '../shop/CatalogueSheet';
+import { showroomCatalog } from '../shop/catalog';
 
 /** A slot's name, translated; a slot the client doesn't know shows as written. */
 export function slotLabel(slot: string): string {
@@ -80,10 +82,30 @@ export function Showroom({ business: b }: { business: BusinessView }) {
   const sells = sellsOf(view, b);
   const shop = shopOf(view);
   const pocket = view.accounts.local?.balance ?? 0;
+  // Shop note: the catalogue of this floor (pictures, options and their prices).
+  const [browsing, setBrowsing] = useState(false);
+  const catalogue =
+    sells && view.me.shop ? (
+      <>
+        <CatalogueButton onClick={() => setBrowsing(true)} />
+        {browsing && (
+          <CatalogueSheet
+            title={b.name}
+            entries={showroomCatalog(view, sells, shop, b.kind === 'furniture-store')}
+            currency={cur}
+            businessId={b.id}
+            onClose={() => setBrowsing(false)}
+          />
+        )}
+      </>
+    ) : null;
   const pocketLine = (
-    <p className="small muted" data-pocket={pocket}>
-      {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
-    </p>
+    <>
+      <p className="small muted" data-pocket={pocket}>
+        {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
+      </p>
+      {catalogue}
+    </>
   );
 
   if (!sells) return <Empty>{t('Nothing for your home on sale here.')}</Empty>;

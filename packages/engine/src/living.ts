@@ -8,17 +8,22 @@ import { canVisitHome } from './play.js';
 import { bumpNeed } from './needs.js';
 import type { Command } from './commands.js';
 import { skyViewById } from './data/sky-views.js';
+import { unpackOrder, type OnlineOrder } from './catalog.js';
+import type { ChosenOptions } from './data/catalog.js';
 export interface Delivery {
   id: Id;
   owner: Id;
   market: MarketId;
   label: string;
-  kind: 'food' | 'furniture';
+  /** Shop note: online orders add parcels, cars and walls. */
+  kind: 'food' | 'furniture' | 'parcel' | 'car' | 'wall';
   orderedAt: number;
   arrivesAt: number;
   unpackedBy: Id[];
   complete: boolean;
-  item?: { slot: string; itemId: string; paid: number };
+  item?: { slot: string; itemId: string; paid: number; finish?: string; warranty?: string };
+  /** Shop note: an online order (catalog.ts): what's in it, the delivery fee and speed. */
+  order?: OnlineOrder;
 }
 export interface DateSession {
   id: Id;
@@ -68,9 +73,17 @@ export function queueDelivery(
   };
   return id;
 }
-export function orderFurniture(w: World, p: Player, itemId: string, now: number, businessId?: Id) {
+export function orderFurniture(
+  w: World,
+  p: Player,
+  itemId: string,
+  now: number,
+  businessId?: Id,
+  /** Shop note: the catalogue's options (a finish, a warranty), priced in. */
+  options?: ChosenOptions,
+) {
   const prior = p.home?.items.map((i) => ({ ...i })) ?? [];
-  const result = buyFurniture(w, p, itemId, businessId);
+  const result = buyFurniture(w, p, itemId, businessId, options ? { options } : {});
   const item = p.home!.items.find((i) => i.itemId === itemId)!;
   ensure(
     !Object.values(w.deliveries ?? {}).some(
@@ -117,11 +130,15 @@ export function livingCommand(
       home.items.push({ ...d.item } as (typeof home.items)[number]);
     }
     if (d.kind === 'food') bumpNeed(owner, 'hunger', 35);
+    const unpacked = d.order ? unpackOrder(w, owner, d) : null;
     bumpNeed(p, 'social', 8);
     d.complete = true;
     return {
+      ...(unpacked ?? {}),
       message:
-        p.id === d.owner ? 'Delivered and unpacked.' : 'You helped your friend unpack. Thank you!',
+        p.id === d.owner
+          ? (unpacked?.message ?? 'Delivered and unpacked.')
+          : 'You helped your friend unpack. Thank you!',
     };
   }
   if (c.type === 'living.date.invite') {

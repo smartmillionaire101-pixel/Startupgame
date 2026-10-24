@@ -38,6 +38,7 @@ import {
   type MallItem,
 } from './data/leisure.js';
 import { furnitureItem, furnitureLabel } from './data/lifestyle-shop.js';
+import { mallGroups, priceWithOptions, type ChosenOptions } from './data/catalog.js';
 import { ensure } from './errors.js';
 import { addContact } from './events.js';
 import { businessesOf, isOpen } from './economy.js';
@@ -332,7 +333,15 @@ export function mallView(world: World, me: Player) {
   };
 }
 
-export function mallBuy(world: World, me: Player, itemId: string, colour?: string, now = 0) {
+export function mallBuy(
+  world: World,
+  me: Player,
+  itemId: string,
+  colour?: string,
+  now = 0,
+  /** Shop note: the catalogue's options (a fabric, a brand …), priced in. */
+  options?: ChosenOptions,
+) {
   const x = mallItem(itemId);
   ensure(x && mallSells(world, x), 'mall.item', 'The mall doesn’t sell that.');
   const m = getMarket(world, locationOf(me));
@@ -341,12 +350,13 @@ export function mallBuy(world: World, me: Player, itemId: string, colour?: strin
   // Furniture and electronics for your home: the lifestyle shop does it (a
   // furniture or electronics store's till, the old item sold back).
   if (x.furnitureId) {
-    const r = buyFurniture(world, me, x.furnitureId);
+    const r = buyFurniture(world, me, x.furnitureId, undefined, options ? { options } : {});
     return { ...r, item: x.id, shop: x.shop, home: true };
   }
 
   const till = mallTill(m, x);
-  const price = mallPrice(world, m, x);
+  const base = mallPrice(world, m, x);
+  const price = options ? priceWithOptions(base, mallGroups(x), options).price : base;
   const memo = `${x.label} at the mall${till ? ` (${till.name})` : ''}`;
 
   // Clothes and accessories: your look changes (and everyone sees it).

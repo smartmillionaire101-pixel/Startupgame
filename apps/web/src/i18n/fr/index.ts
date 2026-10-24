@@ -86,6 +86,7 @@ import { capitalExit } from './capital-exit';
 import { firstFund } from './first-fund';
 import { bankers } from './bankers';
 import { bankwork } from './bankwork';
+import { shop } from './shop';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -174,6 +175,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   firstFund,
   bankers,
   bankwork,
+  shop,
   firstClass,
 };
 
