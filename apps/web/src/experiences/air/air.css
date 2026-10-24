@@ -68,6 +68,44 @@
   color: #fff;
   border: 1px solid #fff4;
 }
+/* Inside | Outside: where the camera is. */
+.air-cam {
+  position: absolute;
+  top: 86px;
+  right: 16px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #0f172acc;
+  border: 1px solid #fff3;
+}
+.air-cam button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #cbd5e1;
+  font-weight: 700;
+  font-size: 14px;
+}
+.air-cam button[aria-pressed='true'] {
+  background: #2563eb;
+  color: #fff;
+}
+/* Freefall from inside: the goggles' rim round the view. */
+.air-goggles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 68% 60% at 50% 46%,
+    transparent 62%,
+    #0b1220aa 80%,
+    #0b1220 96%
+  );
+}
 /* The plane's open door, the canopy overhead, the helicopter's cockpit. */
 .air-door {
   position: absolute;
@@ -111,7 +149,7 @@
 }
 .air-hud {
   position: absolute;
-  top: 92px;
+  top: 136px;
   left: 16px;
   right: 16px;
   display: flex;
@@ -162,7 +200,7 @@
 }
 .air-say {
   position: absolute;
-  top: 92px;
+  top: 136px;
   left: 16px;
   right: 16px;
   display: grid;

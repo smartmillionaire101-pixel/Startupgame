@@ -1096,6 +1096,8 @@ export class CityScene {
   snapshot(caption?: string): string | null {
     try {
       this.renderer.render(this.scene, this.camera);
+      // What a view draws over the city (an aircraft) is in the photo too.
+      for (const cb of this.onFrameCbs) cb();
     } catch {
       return null;
     }
