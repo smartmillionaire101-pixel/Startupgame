@@ -7,13 +7,16 @@
  * bigger quiz bank, tasks at work, named hotels, outfits by role and the Suit
  * Shop, errands in every building, events by role, the banker's reputation,
  * the stock market's analysis and the founder and investor guides) and,
- * being later, the banker update (negotiating with shareholders, the licence
- * process at the Central Bank, the banker's first session and journey) and,
- * being later, more games (a bowling alley, a skydive centre and a heliport in
- * every city) and realistic first funds (a suggested Fund I size, first-time-
- * manager LPs, the anchor effect and rolling closes) and, being later, city places (named buildings, members' doors
- * and government appointments), investor deal flow (founders pitch investors
- * at events, investors talk strategy, LPs judge a fund's strategy), the
+ * being later, shopping online and the catalogue (a Shop app on the phone,
+ * every shop's things with pictures, options and prices, delivery with a fee
+ * and a wait) and walls and dividers for your home, the banker
+ * update (negotiating with shareholders, the licence process at the Central
+ * Bank, the banker's first session and journey), more games (a bowling
+ * alley, a skydive centre and a heliport in every city), realistic first
+ * funds (a suggested Fund I size, first-time-manager LPs, the anchor effect
+ * and rolling closes), city places (named buildings, members' doors and
+ * government appointments), investor deal flow (founders pitch investors at
+ * events, investors talk strategy, LPs judge a fund's strategy), the
  * investor career, the jobs rework, Phase 3 life bars and Phase 5 life
  * events, Founder Journey 5 (exits) and 4a (decision events and visible
  * rivals) for new worlds.

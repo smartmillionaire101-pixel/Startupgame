@@ -598,14 +598,15 @@ export function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
     y,
     w,
     d: w,
+    // A walk-up, a five-storey block, a tower; a house; the penthouse's tower.
     h: stay
       ? hotelHeight(stay.stars)
       : tier === 1
-        ? 50
+        ? 26
         : tier === 2
-          ? 24
+          ? 40
           : tier === 3
-            ? 30
+            ? 62
             : tier === 4
               ? 34
               : 28,

@@ -17,6 +17,8 @@ import {
   placesOn,
   FEEDBACK_NOTE,
   feedbackOn,
+  SHOP_NOTE,
+  shopOn,
   bankersOn,
   investorOn,
   moreGamesOn,
@@ -150,6 +152,7 @@ describe('the world on a key-value store', () => {
     expect(moreGamesOn(w)).toBe(true);
     expect(feedbackOn(w)).toBe(true);
     expect(bankersOn(w)).toBe(true);
+    expect(shopOn(w)).toBe(true);
     expect(investorOn(w)).toBe(true);
     expect(placesOn(w)).toBe(true);
     expect(dealflowOn(w)).toBe(true);

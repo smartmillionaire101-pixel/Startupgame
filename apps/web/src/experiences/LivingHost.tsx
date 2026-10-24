@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react';
 import { skyViewsIn } from '@runway/engine';
-import { t } from '../i18n';
+import { t, tx } from '../i18n';
+import { deliveryLabel } from '../shop/catalog';
 import { useView } from '../store';
 import { openPhone } from '../phone/bus';
 import { closeLiving, livingPlace, onLiving } from './living-bus';
@@ -125,7 +126,7 @@ function LivingRoom({ host }: { host: string }) {
                 🚚
               </div>
               <div>
-                <strong>{d.label.replaceAll('-', ' ')}</strong>
+                <strong>{tx(deliveryLabel(d))}</strong>
                 <p>
                   {now < d.arrivesAt
                     ? `Van arriving in ${Math.ceil((d.arrivesAt - now) / 1000)}s`

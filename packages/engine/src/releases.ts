@@ -97,6 +97,19 @@ export const MORE_GAMES_NOTE = 'release-2026-10-23-more-games';
 export const BANKERS_NOTE = 'release-2026-10-24-bankers';
 
 /**
+ * Shopping online and the catalogue (catalog.ts, data/catalog.ts): every
+ * shop's things in one catalogue with pictures, options (a finish, a fabric,
+ * a warranty, a brand, a paint …) each priced in the engine's data, and a
+ * Shop app that orders them online for delivery to your home (a delivery
+ * fee and a wait; in person stays instant and free, and trying clothes on
+ * or shopping with a friend stays an in-person thing). Walls and dividers
+ * to split your home into rooms (`home.wall.*`), and room names
+ * (`home.room.label`). Worlds without this note play exactly as before
+ * (options, delivery and the wall commands are refused).
+ */
+export const SHOP_NOTE = 'release-2026-10-25-online-shop';
+
+/**
  * The game-feedback round (fix-game-feedback): changes to existing play from
  * the players' feedback. A banking licence review takes 30 days and one month
  * end instead of 60 days and two. Worlds without this note play exactly as
@@ -115,6 +128,7 @@ export const RELEASES = [
   PLACES_NOTE,
   MORE_GAMES_NOTE,
   BANKERS_NOTE,
+  SHOP_NOTE,
   FEEDBACK_NOTE,
 ] as const;
 
@@ -133,4 +147,5 @@ export const dealflowOn = (w: World): boolean => releaseOn(w, DEALFLOW_NOTE);
 export const placesOn = (w: World): boolean => releaseOn(w, PLACES_NOTE);
 export const moreGamesOn = (w: World): boolean => releaseOn(w, MORE_GAMES_NOTE);
 export const bankersOn = (w: World): boolean => releaseOn(w, BANKERS_NOTE);
+export const shopOn = (w: World): boolean => releaseOn(w, SHOP_NOTE);
 export const feedbackOn = (w: World): boolean => releaseOn(w, FEEDBACK_NOTE);

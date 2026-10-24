@@ -1328,10 +1328,23 @@ function BuildingBody({ p, f }: { p: Place; f: Flavour }) {
     }
     case 'home': {
       const tier = p.level ?? 2;
-      if (tier === 1)
+      // Player feedback: Modest's home looked like Lean's. A flat is in a
+      // block that matches it: a worn walk-up with water tanks (a shared
+      // flat), a tidy block with balconies (a small flat), a modern tower with
+      // glass (a good flat); a house (4) and a penthouse (5) below.
+      if (tier <= 3) {
+        const wall = tier === 1 ? '#d6c39e' : tier === 2 ? '#f0e4cf' : '#d3d9de';
         return (
           <g>
-            <Box x={x} y={y} w={w} d={d} h={h} color={c} />
+            <Box
+              x={x}
+              y={y}
+              w={w}
+              d={d}
+              h={h}
+              color={wall}
+              left={tier === 3 ? mix(wall, '#7dd3fc', 0.45) : undefined}
+            />
             <Windows
               x={x}
               y={y}
@@ -1339,14 +1352,44 @@ function BuildingBody({ p, f }: { p: Place; f: Flavour }) {
               d={d}
               zt={h}
               h={h}
-              color={shade(c, -0.45)}
-              seed="flat"
-              row={9}
-              gap={0.21}
+              color={tier === 3 ? '#1e3a5f' : shade(wall, -0.5)}
+              seed={'flat' + tier}
+              row={tier === 1 ? 8 : 7}
+              gap={tier === 1 ? 0.3 : 0.21}
             />
-            <Box x={x + 0.2} y={y + 0.2} w={0.3} d={0.3} h={5} z={h} color="#94a3b8" />
+            {tier === 1 &&
+              [0.15, 0.5].map((u) => (
+                <Box
+                  key={u}
+                  x={x + w * u}
+                  y={y + 0.15}
+                  w={0.22}
+                  d={0.22}
+                  h={4}
+                  z={h}
+                  color="#1f2937"
+                />
+              ))}
+            {tier === 2 &&
+              [0.3, 0.55, 0.8].map((f) => (
+                <Box
+                  key={f}
+                  x={x}
+                  y={y + d}
+                  w={w}
+                  d={0.12}
+                  h={1.2}
+                  z={h * f}
+                  color="#c29a6b"
+                  edge={false}
+                />
+              ))}
+            {tier === 3 && (
+              <Box x={x + 0.15} y={y + 0.15} w={w - 0.3} d={d - 0.3} h={3} z={h} color="#fde68a" />
+            )}
           </g>
         );
+      }
       if (tier === 5) {
         const pool = poly(
           P(x - 0.05, y + d + 0.05),
@@ -1393,21 +1436,11 @@ function BuildingBody({ p, f }: { p: Place; f: Flavour }) {
               edge={false}
             />
           )}
-          {tier === 3 && (
-            <Box
-              x={x + w * 0.62}
-              y={y + d * 0.1}
-              w={w * 0.38}
-              d={d * 0.45}
-              h={12}
-              color={shade(c, -0.05)}
-            />
-          )}
-          <Box x={x} y={y} w={tier === 3 ? w * 0.62 : w} d={d} h={h} color={c} />
+          <Box x={x} y={y} w={w} d={d} h={h} color={c} />
           <Windows
             x={x}
             y={y}
-            w={tier === 3 ? w * 0.62 : w}
+            w={w}
             d={d}
             zt={h}
             h={h}
@@ -1420,7 +1453,7 @@ function BuildingBody({ p, f }: { p: Place; f: Flavour }) {
           <Gable
             x={x - 0.05}
             y={y - 0.05}
-            w={(tier === 3 ? w * 0.62 : w) + 0.1}
+            w={w + 0.1}
             d={d + 0.1}
             z={h}
             rise={tier === 4 ? 14 : 11}

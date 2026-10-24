@@ -139,6 +139,8 @@ export {
   FEEDBACK_NOTE,
   bankersOn,
   feedbackOn,
+  SHOP_NOTE,
+  shopOn,
   RELEASES,
 } from './releases.js';
 // Bankers: negotiating with shareholders, the licence process, the first session.
@@ -323,6 +325,10 @@ export type {
 // The feedback round: dressed for the role.
 export { inRoleOutfit, roleOutfit } from './outfits.js';
 export type { RoleOutfit } from './outfits.js';
+// The catalogue, shopping online, walls and dividers (shop note).
+export * from './data/catalog.js';
+export { wallEdgesOf } from './catalog.js';
+export type { OnlineOrder } from './catalog.js';
 export { BRANCH } from './branches.js';
 export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.js';
 // Wave 12: sky views and the quiz bank.

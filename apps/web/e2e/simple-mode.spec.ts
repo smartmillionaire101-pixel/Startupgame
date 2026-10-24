@@ -127,7 +127,7 @@ test('Simple mode: four tabs, a money link, big phone tiles and a calm map', asy
   // The phone: every app, as in the normal phone, with names under the dock's icons too.
   await page.getByRole('button', { name: /^Phone/ }).click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
-  await expect(phone.locator('[data-app]')).toHaveCount(23);
+  await expect(phone.locator('[data-app]')).toHaveCount(24);
   await expect(phone.locator('.phone-dock .phone-app-label').first()).toBeVisible();
   await shot(page, 'phone');
   // Back says "Back".

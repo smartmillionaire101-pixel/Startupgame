@@ -68,10 +68,12 @@ export function skyAt(
   const horizonDay = mixC(C('#c6dbea'), C(tint), haze * 0.6);
   const zenithGold = C('#5a7bb0');
   const horizonGold = C('#f0b27a');
-  // Night is near black overhead, a deep blue lower down, and the horizon
-  // tinged by the city's own glow (sodium orange over Lagos, white over London).
-  const zenithNight = C('#020610');
-  const horizonNight = mixC(C('#0b1226'), C(glow), 0.45 + haze * 0.2);
+  // Night is a deep navy overhead (player feedback: "can't even see the
+  // outline of the city anymore"; a city's night sky is never black), a
+  // lighter blue lower down, and the horizon tinged by the city's own glow
+  // (sodium orange over Lagos, white over London), so the skyline stands out.
+  const zenithNight = C('#0a1838');
+  const horizonNight = mixC(C('#22325e'), C(glow), 0.4 + haze * 0.2);
   // Blue hour: between the gold and the dark the sky goes a deep blue first.
   const blue = night * (1 - night) * 4;
   let zenith = mixC(zenithDay, zenithGold, golden * 0.6);
@@ -82,22 +84,25 @@ export function skyAt(
   horizon = mixC(horizon, horizonNight, smooth(0.25, 1, night));
 
   const sunColor = mixC(C('#fff3e0'), C('#ffb066'), golden);
-  // Moonlight: faint and blue, from high up. The sun has faded out by the
-  // time the moon takes over (night 0.5), and the moon fades in, so the light
-  // never jumps.
-  const moon = C('#8fa8d8');
-  const isMoon = night > 0.5;
+  // Moonlight: cool blue from high up, strong enough to model the buildings
+  // (a night-time city photograph, not a black screen). The sun has faded out
+  // by the time the moon takes over (night 0.35: early, so dusk is not darker
+  // than the night after it), and the moon fades in, so the light never jumps.
+  const moon = C('#a9bde6');
+  const isMoon = night > 0.35;
   const sunFade = smooth(-0.04, 0.16, sunUp);
   const lightDir = isMoon ? new THREE.Vector3(-0.3, 0.8, 0.4).normalize() : sunDir;
   return {
     sunDir: lightDir,
     sunColor: isMoon ? moon : sunColor,
     sunIntensity: isMoon
-      ? 0.22 * smooth(0.5, 0.9, night)
+      ? 0.95 * smooth(0.35, 0.8, night)
       : 3.4 * Math.min(day, sunFade) + 0.2 * smooth(0.5, 0, night),
-    hemiSky: mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#1a2850'), night),
-    hemiGround: mixC(C('#8c8476'), C('#0d0c12'), night),
-    hemiIntensity: 0.75 - 0.55 * night,
+    // The night sky's own light: a blue fill that keeps walls, roads, water
+    // and parks readable, with the lamps and windows still the brightest things.
+    hemiSky: mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#5d74b4'), night),
+    hemiGround: mixC(C('#8c8476'), C('#2c3144'), night),
+    hemiIntensity: 0.75 - 0.22 * night,
     zenith,
     horizon,
     night,

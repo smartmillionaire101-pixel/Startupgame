@@ -12,7 +12,8 @@ import { bankWorkView } from './bankwork.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
-import { investorOn, lifeBarsOn, placesOn } from './releases.js';
+import { investorOn, lifeBarsOn, placesOn, shopOn } from './releases.js';
+import { shopCatalogView } from './catalog.js';
 import { cityPlacesView } from './places.js';
 import { errandsView } from './errands.js';
 import { anyJobView, workView } from './work.js';
@@ -904,6 +905,8 @@ export function playerView(
       })(),
       /** The mall in the city you're in: its shops' items and prices, your phone. */
       mall: { ...mallView(world, p), ...mallTripView(world, p) },
+      /** Shop note (null before): the catalogue's prices at home, the cars sold there, delivery terms. */
+      shop: shopOn(world) ? shopCatalogView(world, p) : null,
       /** "My purchases": your wardrobe (what you can wear, free) and the other things you keep. */
       wardrobe: wardrobeView(world, p),
       garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({

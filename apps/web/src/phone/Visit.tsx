@@ -56,7 +56,7 @@ export function VisitHome() {
   const isOpen = useOpen();
   const visiting = visitingOf(view);
   const key = visiting
-    ? `${visiting.host.id}:${visiting.tier}:${visiting.kind}:${visiting.wealth}:${visiting.cars.join()}:${visiting.estate}:${visiting.items.map((i) => `${i.slot}${i.tier}`).join()}`
+    ? `${visiting.host.id}:${visiting.tier}:${visiting.kind}:${visiting.wealth}:${visiting.cars.join()}:${visiting.estate}:${visiting.items.map((i) => `${i.slot}${i.tier}`).join()}:${JSON.stringify(visiting.extras.walls)}:${JSON.stringify(visiting.extras.rooms)}:${[...visiting.extras.finishes].join()}`
     : '';
   const host: HostView | null = useMemo(
     () =>
@@ -73,6 +73,9 @@ export function VisitHome() {
             ),
             tiers: new Map(visiting.items.map((i) => [i.slot, i.tier])),
             hood: visiting.neighbourhood,
+            walls: visiting.extras.walls,
+            rooms: visiting.extras.rooms,
+            finishes: visiting.extras.finishes,
           }
         : null,
     // The key captures everything the scene reads.

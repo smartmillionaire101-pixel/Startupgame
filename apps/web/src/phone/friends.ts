@@ -7,6 +7,7 @@ import type { PlayerView } from '@runway/engine';
 import { hereField } from '../city/life';
 import { contactsOf } from '../city/people';
 import { isObj, list, num, str } from './shared';
+import { homeExtrasOf } from '../home/dividers';
 
 type View = PlayerView;
 const field = (view: View, key: string): unknown =>
@@ -118,6 +119,8 @@ export interface Visiting {
   wealth: number;
   /** Where their home is (a penthouse's view). */
   neighbourhood: string | null;
+  /** Shop note: their walls and dividers, room names and furniture finishes. */
+  extras: ReturnType<typeof homeExtrasOf>;
 }
 
 /** `view.visiting`: the friend's home you're in, or null. */
@@ -148,6 +151,7 @@ export function visitingOf(view: View): Visiting | null {
     items: list(home.items)
       .filter((i) => typeof i.slot === 'string')
       .map((i) => ({ slot: i.slot as string, tier: Math.max(1, Math.min(3, num(i.tier, 1))) })),
+    extras: homeExtrasOf(home),
   };
 }
 

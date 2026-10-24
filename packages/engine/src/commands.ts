@@ -21,6 +21,12 @@ const money = z.number().int().nonnegative().max(1e15);
 const market = z.enum(MARKET_IDS);
 const industry = z.enum(INDUSTRIES);
 const answers = z.record(z.string().max(32), z.string().max(32));
+/** Shop note: catalogue options (group id → option id), and an online order's delivery. */
+const shopOptions = z
+  .record(z.string().min(1).max(12), z.string().min(1).max(20))
+  .refine((r) => Object.keys(r).length <= 4)
+  .optional();
+const delivery = z.enum(['standard', 'express']).optional();
 /**
  * Typed pitch answers by question id: customers, money (minor units) or
  * months. The engine checks each against its question's kind and bounds.
@@ -307,7 +313,14 @@ export const commandSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('player.travel'), market }),
   /** Wave 4: fly one way to another city and be there (or fly home). */
-  z.object({ type: z.literal('home.order'), itemId: id, businessId: id.optional() }),
+  z.object({
+    type: z.literal('home.order'),
+    itemId: id,
+    businessId: id.optional(),
+    /** Shop note: catalogue options; `delivery` orders it online (a fee, a wait). */
+    options: shopOptions,
+    delivery,
+  }),
   z.object({ type: z.literal('living.collect'), deliveryId: id }),
   z.object({
     type: z.literal('living.date.invite'),
@@ -744,6 +757,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('home.buy'),
     itemId: z.string().min(1).max(32),
     businessId: id.optional(),
+    options: shopOptions,
   }),
   /** A car: replacing sells the old one back at 50%; running costs are paid monthly. */
   z.object({
@@ -751,6 +765,37 @@ export const commandSchema = z.discriminatedUnion('type', [
     keepCurrent: z.boolean().optional(),
     modelId: z.string().min(1).max(32),
     businessId: id.optional(),
+    /** Shop note: paint and trim; `delivery` orders it online (kept with your others). */
+    options: shopOptions,
+    delivery,
+  }),
+  /** Shop note: a wall or divider, at a furniture store (`businessId`) or online (`delivery`). */
+  z.object({
+    type: z.literal('home.wall.buy'),
+    kind: z.enum(['full', 'half', 'glass', 'sliding', 'bookshelf']),
+    length: z.number().int().min(1).max(4),
+    options: shopOptions,
+    businessId: id.optional(),
+    delivery,
+  }),
+  /** Put a wall up along the tile edge at (x, y) on a floor of your home, or move it there. */
+  z.object({
+    type: z.literal('home.wall.place'),
+    wallId: id,
+    floor: z.number().int().min(0).max(3),
+    x: z.number().int().min(0).max(64),
+    y: z.number().int().min(0).max(64),
+    dir: z.enum(['h', 'v']),
+  }),
+  /** Take a wall down into storage, or sell it back. */
+  z.object({ type: z.literal('home.wall.remove'), wallId: id, sell: z.boolean().optional() }),
+  /** Name the room at a tile (an empty name clears it). */
+  z.object({
+    type: z.literal('home.room.label'),
+    floor: z.number().int().min(0).max(3),
+    x: z.number().int().min(0).max(64),
+    y: z.number().int().min(0).max(64),
+    label: z.string().max(24).optional(),
   }),
   /** Sell your car back at 50% of what you paid. */
   z.object({ type: z.literal('car.sell') }),
@@ -888,7 +933,11 @@ export const commandSchema = z.discriminatedUnion('type', [
       .string()
       .regex(/^#[0-9a-fA-F]{6}$/)
       .optional(),
+    /** Shop note: catalogue options; `delivery` orders it online (a fee, a wait). */
+    options: shopOptions,
+    delivery,
   }),
+
   /** Shopping together (malltrips.ts): take someone in your city to the mall. */
   z.object({ type: z.literal('mall.invite'), playerId: id }),
   /** Say yes or no to an invitation to the mall. */
