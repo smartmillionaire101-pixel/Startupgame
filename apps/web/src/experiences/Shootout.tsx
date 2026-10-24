@@ -46,7 +46,7 @@ const DIVE_LABELS = [
   'Dive bottom right',
 ];
 
-export function outcomeText(o: KickOutcome | undefined, goal: boolean) {
+function outcomeText(o: KickOutcome | undefined, goal: boolean) {
   switch (o) {
     case 'goal':
       return t('GOAL!');

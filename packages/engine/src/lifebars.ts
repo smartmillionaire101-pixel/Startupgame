@@ -135,10 +135,10 @@ export const SPORT_KINDS: readonly string[] = [
   'football-pitch',
 ];
 /** Exercise at a sport venue. */
-export const SPORT_BARS = { health: 4, stress: -2 };
+const SPORT_BARS = { health: 4, stress: -2 };
 /** Junk and snack food, at a venue or delivered (item ids at food businesses). */
-export const JUNK_FOOD_ITEMS: readonly string[] = ['pastry', 'bread', 'food', 'snack'];
-export const JUNK_FOOD_HEALTH = -1;
+const JUNK_FOOD_ITEMS: readonly string[] = ['pastry', 'bread', 'food', 'snack'];
+const JUNK_FOOD_HEALTH = -1;
 
 // ---------------------------------------------------------------- Reading and changing the bars
 
@@ -310,8 +310,8 @@ export function workStress(world: World, p: Player): number {
 
 // ---------------------------------------------------------------- Month end
 
-export const isUnwell = (p: Player) => healthOf(p) < LIFE_BARS.unwellHealth;
-export const isStressedOut = (p: Player) => stressOf(p) > LIFE_BARS.stressedOutStress;
+const isUnwell = (p: Player) => healthOf(p) < LIFE_BARS.unwellHealth;
+const isStressedOut = (p: Player) => stressOf(p) > LIFE_BARS.stressedOutStress;
 
 /** Next month's hours multiplier from health and stress (1 for players without bars). */
 export function barHoursFactor(p: Player): number {

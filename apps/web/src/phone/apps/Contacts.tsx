@@ -27,8 +27,7 @@ const contactKind = (k: ContactView['kind']) =>
   })[k];
 
 /** The id `home.invite` takes for a contact: their chat id, a fund, or their ref. */
-export const inviteId = (c: ContactView) =>
-  c.chatId ?? (c.kind === 'fund' ? `fund:${c.refId}` : c.refId);
+const inviteId = (c: ContactView) => c.chatId ?? (c.kind === 'fund' ? `fund:${c.refId}` : c.refId);
 
 export function Contacts({ ctx }: { ctx: PhoneCtx }) {
   const { view, send } = useView();

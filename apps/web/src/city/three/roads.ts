@@ -270,7 +270,7 @@ export class RoadIndex {
   }
 }
 
-export function segDist(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
+function segDist(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
   const dx = bx - ax;
   const dy = by - ay;
   const l2 = dx * dx + dy * dy;

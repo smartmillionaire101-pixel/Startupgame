@@ -1939,7 +1939,7 @@ const generic: ActScript = {
 // ---------------------------------------------------------------------------
 // The table: which script for which item.
 
-export const SCRIPTS: Record<ActId, ActScript> = {
+const SCRIPTS: Record<ActId, ActScript> = {
   haircut,
   meal,
   drink,

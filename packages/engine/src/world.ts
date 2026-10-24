@@ -41,7 +41,7 @@ import {
 import type { Role, Skills } from './data/characters.js';
 import { founderFit, ideaById } from './data/ideas.js';
 import { ensure } from './errors.js';
-import { col, getMarket, notify, usdToLocal } from './helpers.js';
+import { col, getMarket, notify } from './helpers.js';
 import { newId } from './ids.js';
 import { forgetOwners, keepStatement, openAccount, transfer } from './ledger.js';
 import { major, scale } from './money.js';
@@ -63,7 +63,6 @@ import type {
   Player,
   RevenueModel,
   SegmentState,
-  Stage,
   World,
 } from './types.js';
 
@@ -82,7 +81,7 @@ const EXTERNAL: ExternalPurpose[] = [
 
 export const AI_STARTUPS_PER_MARKET = 10;
 
-export function buildSegments(marketId: MarketId): Record<string, SegmentState> {
+function buildSegments(marketId: MarketId): Record<string, SegmentState> {
   const d = MARKET_DATA[marketId];
   const out: Record<string, SegmentState> = {};
   for (const t of SEGMENT_TEMPLATES) {
@@ -171,13 +170,13 @@ export interface NewPlayerInput {
 }
 
 /** Wave 5: new human players start with twice the savings, so nobody is stuck early. */
-export const HUMAN_SAVINGS_MULTIPLIER = 2;
+const HUMAN_SAVINGS_MULTIPLIER = 2;
 
 /**
  * Wave 6: a new human's savings last at least this many months at the Modest
  * lifestyle with no income, whatever their background.
  */
-export const HUMAN_MIN_RUNWAY_MONTHS = 24;
+const HUMAN_MIN_RUNWAY_MONTHS = 24;
 
 export function createPlayer(world: World, input: NewPlayerInput): Player {
   ensure(!world.players[input.playerId], 'player.exists', 'Player already exists.');
@@ -371,7 +370,7 @@ export function createCompany(world: World, input: NewCompanyInput): Company {
 }
 
 /** Cost-to-serve ratio by revenue model; the dollar-priced share of each customer's price. */
-export const COGS_RATIO: Record<RevenueModel, number> = {
+const COGS_RATIO: Record<RevenueModel, number> = {
   subscription: 0.12,
   transaction: 0.3,
   usage: 0.22,
@@ -607,9 +606,3 @@ export function welcomeNewPlayer(world: World, player: Player, companyId: Id | n
     });
   }
 }
-
-export const defaultCheckSize = (world: World, market: MarketId, stage: Stage): number => {
-  const m = getMarket(world, market);
-  const usd = stage === 'pre-seed' ? 25_000 : stage === 'seed' ? 100_000 : 500_000;
-  return usdToLocal(world, m, usd * (m.data.multipleDiscount / 0.9));
-};

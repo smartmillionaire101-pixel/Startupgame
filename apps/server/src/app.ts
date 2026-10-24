@@ -103,9 +103,9 @@ import {
 /** Avatars not seen for this long drop off the city map. */
 export const PRESENCE_WINDOW_MS = 120_000;
 /** "Online now" lists players whose game sent a heartbeat this recently. */
-export const ONLINE_LIST_WINDOW_MS = 120_000;
+const ONLINE_LIST_WINDOW_MS = 120_000;
 
-export const DISCLAIMER = 'This is a game. Nothing here is financial, legal, or tax advice.';
+const DISCLAIMER = 'This is a game. Nothing here is financial, legal, or tax advice.';
 
 declare module 'fastify' {
   interface FastifyRequest {

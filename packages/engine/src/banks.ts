@@ -33,7 +33,7 @@ import type { Account, Bank, BankType, Id, Loan, PersonalLoan, Player, World } f
 export const RESERVE_RATIO = 0.1;
 export const MIN_CAPITAL_RATIO = 0.1;
 /** Below this the central bank winds the bank down. */
-export const INSOLVENT_RATIO = 0.03;
+const INSOLVENT_RATIO = 0.03;
 export const LICENCE_MONTHS = 2;
 
 export const BANK_TYPES: Record<
@@ -108,13 +108,6 @@ export const BANK_TYPES: Record<
 
 /** Holder id a player bank uses on cap tables (warrants, seized collateral). */
 export const playerBankHolderId = (bankId: Id) => `pbank:${bankId}`;
-
-export const bankDeposits = (world: World, b: Bank) =>
-  Object.values(world.accounts).reduce(
-    (a, acc) => a + (acc.bankId === b.id && acc.balance > 0 ? acc.balance : 0),
-    0,
-  );
-
 /**
  * A bank's book during one settlement: every account it held and every loan
  * it had made when the settlement began, in world order (company loans, then
@@ -142,7 +135,7 @@ export function bankBooks(world: World, banks: readonly Bank[]): Map<Id, BankBoo
   return books;
 }
 
-export function bankLoansOutstanding(world: World, b: Bank, book?: BankBook) {
+function bankLoansOutstanding(world: World, b: Bank, book?: BankBook) {
   if (book) {
     let total = 0;
     for (const l of book.loans) if (l.lenderBankId === b.id) total += l.outstanding;
@@ -306,7 +299,7 @@ export function ownBank(world: World, p: Player, id: Id): Bank {
   return b;
 }
 
-export const isLicensed = (b: Bank | undefined) => !!b && b.status === 'licensed';
+const isLicensed = (b: Bank | undefined) => !!b && b.status === 'licensed';
 
 /** A depositor moves an account to a licensed player bank, or back to the default AI bank. */
 export function moveAccount(world: World, accountId: Id, bankId: Id | null) {
@@ -757,7 +750,7 @@ export function aiBanking(world: World, market: string, rng: Rng) {
 }
 
 /** Investment bank advisory fee on a deal it advised (§8). */
-export const ADVISORY_FEE = 0.02;
+const ADVISORY_FEE = 0.02;
 
 export function chargeAdvisory(
   world: World,

@@ -42,7 +42,7 @@ export const RECAP_RUNWAY_RISK = 6;
 /** Biggest movements listed per account. */
 export const RECAP_TOP = 3;
 /** Relationship highlights listed at most. */
-export const RECAP_PEOPLE = 6;
+const RECAP_PEOPLE = 6;
 
 export interface RecapItem {
   ref: string | null;

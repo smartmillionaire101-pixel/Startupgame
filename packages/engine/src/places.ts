@@ -129,7 +129,7 @@ function placesOf(p: Player): PlayerPlaces {
 }
 
 /** The highest investor career level reached (0 = none). */
-export const careerLevel = (p: Player): number =>
+const careerLevel = (p: Player): number =>
   Math.max(0, ...Object.keys(p.career?.reached ?? {}).map(Number));
 
 /** Your active companies (as a founder), in this city. */
@@ -161,7 +161,7 @@ function gateHolds(world: World, p: Player, g: PlaceGate): boolean {
 
 export type AppointmentStatus = 'booked' | 'due' | 'lapsed';
 
-export function appointmentStatus(a: PlaceAppointment, nowMin: number): AppointmentStatus {
+function appointmentStatus(a: PlaceAppointment, nowMin: number): AppointmentStatus {
   if (nowMin < a.at) return 'booked';
   return nowMin < a.at + MONTH_MIN ? 'due' : 'lapsed';
 }
@@ -297,7 +297,7 @@ export interface ServiceArgs {
 }
 
 /** What a service would do for you here and now, or why it can't (no side effects). */
-export function serviceCheck(
+function serviceCheck(
   world: World,
   p: Player,
   place: CityPlace,

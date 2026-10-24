@@ -198,10 +198,7 @@ const aiPerson = (
 const pickBg = (xs: string[], seed: string) => xs[hash(seed) % xs.length]!;
 
 /** The AI angels sitting in this business: `view.here.angelsAt`, else where the map walks them. */
-export function angelsIn(
-  view: View,
-  businessId: string,
-): (AngelHere & { fundId: string | null })[] {
+function angelsIn(view: View, businessId: string): (AngelHere & { fundId: string | null })[] {
   const engine = cityAngelsOf(view);
   const all: AngelRef[] = engine.length ? engine : angelsOf(view);
   const byId = new Map<string, AngelRef>(all.map((a) => [a.id, a]));
@@ -522,7 +519,7 @@ function occupantsOf(
 // ---------------------------------------------------------------------------
 // The tray
 
-export interface TrayAction {
+interface TrayAction {
   id: string;
   label: string;
   sub?: string;
@@ -538,7 +535,7 @@ const said = (r: Loose, fallback: string) =>
   r?.message ? tx(r.message) : r?.text ? tx(r.text) : fallback;
 
 /** An icon for a thing to do, from its name (the engine names them; §A2). */
-export function funIcon(label: string, room: RoomKind): string {
+function funIcon(label: string, room: RoomKind): string {
   const l = label.toLowerCase();
   const by: [RegExp, string][] = [
     [/danc/, '💃'],

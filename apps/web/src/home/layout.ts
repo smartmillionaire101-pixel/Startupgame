@@ -63,7 +63,7 @@ export interface Decor {
   tier: number;
 }
 
-export interface Rect {
+interface Rect {
   x: number;
   y: number;
   w: number;
@@ -409,7 +409,7 @@ function wingOf(kind: HomeKind, wealth: number): Wing | null {
 }
 
 /** Finish of what a home comes with (1–3), from its kind and the owner's wealth. */
-export function finishOf(kind: HomeKind, wealth: number): number {
+function finishOf(kind: HomeKind, wealth: number): number {
   const base = kind === 'villa' || kind === 'mansion' || kind === 'penthouse' ? 2 : 1;
   return Math.max(1, Math.min(3, base + (wealth >= 2 ? 1 : 0)));
 }
@@ -668,7 +668,7 @@ function withFittedCounter(p: HomePlan): HomePlan {
  * better fitted (a chef's kitchen in a mansion or a penthouse, or any home
  * of a rich owner). Furniture you buy can still upgrade them.
  */
-export function builtIns(plan: Pick<HomePlan, 'kind' | 'wealth'>): Map<string, number> {
+function builtIns(plan: Pick<HomePlan, 'kind' | 'wealth'>): Map<string, number> {
   const out = new Map<string, number>();
   if (plan.kind === 'room' || plan.kind === 'studio') return out;
   const grand = plan.kind === 'mansion' || plan.kind === 'penthouse' || plan.wealth >= 3;
@@ -734,14 +734,6 @@ const STOREYS: Partial<Record<HomeKind, number>> = {
   villa: 2,
   mansion: 3,
 };
-
-/** A floor's name by its level (translated by the caller). */
-export const LEVEL_NAME: Record<number, string> = {
-  0: 'Ground floor',
-  1: 'Upper floor',
-  2: 'Roof terrace',
-};
-
 /** The bedroom things that move upstairs (the AC and the art stay in the hall). */
 const UPSTAIRS = ['bed', 'desk', 'laptop', 'wardrobe', 'lights'] as const;
 

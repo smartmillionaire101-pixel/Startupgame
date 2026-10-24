@@ -29,7 +29,7 @@ export type ActId =
   | 'showroom'
   | 'generic';
 
-export type Pose = 'stand' | 'sit' | 'lie';
+type Pose = 'stand' | 'sit' | 'lie';
 
 /** Named nodes a script animates: drawn with `data-n="plate"`, found once the stage mounts. */
 export type Nodes = (name: string) => SVGElement | undefined;
@@ -105,11 +105,7 @@ export function put(el: SVGElement | undefined, x: number, y: number, s = 1, rot
 }
 export function fade(el: SVGElement | undefined, o: number) {
   el?.setAttribute('opacity', o.toFixed(2));
-}
-export function show(el: SVGElement | undefined, on: boolean) {
-  if (el && (el.style.display === 'none') === on) el.style.display = on ? '' : 'none';
-}
-/** Set text only when it changes. */
+} /** Set text only when it changes. */
 export function text(el: SVGElement | undefined, s: string) {
   if (el && el.textContent !== s) el.textContent = s;
 }

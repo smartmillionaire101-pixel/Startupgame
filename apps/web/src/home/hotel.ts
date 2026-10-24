@@ -31,7 +31,7 @@ import type { Decor, FixtureId, HomeAct, HomePlan, Room, Spot } from './layout';
 export const HOTEL_ACTS: ReadonlySet<HomeAct> = new Set(['sleep', 'nap', 'shower', 'toilet', 'tv']);
 
 /** The room's finish by tier (the furniture's tier, 1–3). */
-export const HOTEL_FINISH: Record<HotelTier, number> = { budget: 1, business: 2, luxury: 3 };
+const HOTEL_FINISH: Record<HotelTier, number> = { budget: 1, business: 2, luxury: 3 };
 
 /** The tier the 3D shell is drawn at (a suite's living room is marble). */
 export const HOTEL_SHELL_TIER: Record<HotelTier, number> = { budget: 2, business: 3, luxury: 5 };
@@ -403,7 +403,7 @@ export function hotelContents(tier: HotelTier | null | undefined): string[] {
  * Which floor of its tower the hotel puts you on (player feedback: "the
  * hotel room is now on top of the building"): partway up, never the roof.
  */
-export const HOTEL_FLOOR: Record<HotelTier, number> = { budget: 8, business: 11, luxury: 14 };
+const HOTEL_FLOOR: Record<HotelTier, number> = { budget: 8, business: 11, luxury: 14 };
 
 /** Windows in the room's window wall: centre and width (tiles); `tall`: floor to ceiling. */
 export interface HotelWindow {
@@ -501,7 +501,7 @@ export function hotelDoors(
 }
 
 /** Your room's number when no holiday gave you one: on the tier's floor. */
-export const hotelRoomNumber = (tier: HotelTier | null | undefined) =>
+const hotelRoomNumber = (tier: HotelTier | null | undefined) =>
   HOTEL_FLOOR[tierOf(tier)] * 100 + 16;
 
 export interface HotelStay {

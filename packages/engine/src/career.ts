@@ -48,7 +48,7 @@ import { wealthView } from './wealth.js';
 import { nextStage } from './helpers.js';
 
 /** Invitations stay open this many months. */
-export const INVITATION_MONTHS = 3;
+const INVITATION_MONTHS = 3;
 
 /** Investors and anyone who has invested from an investor profile get a career. */
 export const hasCareer = (p: Player): boolean => !p.ai && (p.role === 'investor' || !!p.investor);
@@ -68,19 +68,19 @@ export const monthOfLiving = (world: World, p: Player) => lifestyleCost(world, p
  * Investable money (§3, §8.8): personal cash less a reserve of living costs.
  * "Never invest the rent."
  */
-export function investable(world: World, p: Player): number {
+function investable(world: World, p: Player): number {
   const liquid = wealthView(world, p).liquid;
   return Math.max(0, liquid - INVESTOR.caps.reserveMonths * monthOfLiving(world, p));
 }
 
 /** Liquid net worth for the angel cap: cash plus listed shares you can sell today. */
-export function liquidNetWorth(world: World, p: Player): number {
+function liquidNetWorth(world: World, p: Player): number {
   const w = wealthView(world, p);
   return Math.max(0, w.liquid + w.shares.sellable);
 }
 
 /** The largest personal cheque, home minor units (§2.3). */
-export function angelCap(world: World, p: Player): number {
+function angelCap(world: World, p: Player): number {
   const cap = Math.floor(liquidNetWorth(world, p) * INVESTOR.caps.angelCheque);
   const t = p.career?.tutorial;
   if (t && !t.doneMonth && !t.skipped)
@@ -88,7 +88,7 @@ export function angelCap(world: World, p: Player): number {
   return cap;
 }
 
-export const needsLead = (stage: Stage) => INVESTOR.caps.leadStages.includes(stage);
+const needsLead = (stage: Stage) => INVESTOR.caps.leadStages.includes(stage);
 
 /**
  * The cap on any personal cheque (an angel deal, a syndicate allocation),
@@ -157,23 +157,23 @@ const fundDpi = (world: World, f: Fund) => {
 };
 
 /** What LPs have paid into a fund so far (the whole size when AI LPs paid at once). */
-export function paidIn(_world: World, f: Fund): number {
+function paidIn(_world: World, f: Fund): number {
   const lp = f.lp;
   return lp ? lp.paidIn : f.size;
 }
 
 /** LPs who said they would re-up into the next fund (Phase 5 LP relations). */
-export const reupIntents = (f: Fund): number =>
+const reupIntents = (f: Fund): number =>
   Object.values(f.lp?.relations ?? {}).filter((r) => r.reup).length;
 
 /** People hired by the player's firm (Phase 6). */
-export const firmHires = (world: World, p: Player): number => {
+const firmHires = (world: World, p: Player): number => {
   const firm = Object.values(world.firms ?? {}).find((x) => x.ownerId === p.id);
   return firm ? firm.members.filter((m) => m.status === 'active').length : 0;
 };
 
 /** Each rung's requirements, as progress bars (§5.3 "Career ladder"). */
-export function rungRequirements(world: World, p: Player, n: number): RungRequirement[] {
+function rungRequirements(world: World, p: Player, n: number): RungRequirement[] {
   const L = INVESTOR.ladder;
   const req = (
     id: string,
@@ -245,7 +245,7 @@ export function rungRequirements(world: World, p: Player, n: number): RungRequir
 const met = (reqs: RungRequirement[]) => reqs.every((r) => r.done);
 
 /** What each rung unlocks (§2.1, §5.2). */
-export const RUNG_UNLOCKS: Record<number, string> = {
+const RUNG_UNLOCKS: Record<number, string> = {
   1: 'Angel cheques, deal flow, diligence and the stock market.',
   2: 'Lead syndicates: bring backers into your deals and earn deal-by-deal carry.',
   3: 'Raise Fund I from AI and player LPs.',
@@ -377,7 +377,7 @@ export function answerInvitation(_world: World, me: Player, invitationId: Id, ac
  * healthy AI companies in the city, those fitting the thesis first. They're
  * marked raising so the first cheque never depends on luck.
  */
-export function pickTutorialStartups(world: World, p: Player): Id[] {
+function pickTutorialStartups(world: World, p: Player): Id[] {
   const sectors = p.investor?.sectors ?? [];
   const month = homeMonth(world, p);
   const healthy = (c: Company) => {
@@ -448,7 +448,7 @@ const publicBuy = (world: World, companyId: Id, id: Id) =>
   (world.companies[companyId]?.ipo?.basis?.[id] ?? 0) > 0;
 
 /** The step the player is on, or null when finished or skipped. */
-export function tutorialStep(world: World, p: Player): InvestorTutorialStep | null {
+function tutorialStep(world: World, p: Player): InvestorTutorialStep | null {
   const t = p.career?.tutorial;
   if (!t || t.doneMonth !== undefined || t.skipped) return null;
   return INVESTOR_TUTORIAL_STEPS.find((s) => !tutorialDone(world, p, s)) ?? null;
@@ -520,13 +520,13 @@ export function tutorialCommand(
 }
 
 /** The lowest rung of the climb not reached yet (2–6), or null at the top. */
-export function nextRung(p: Player): number | null {
+function nextRung(p: Player): number | null {
   for (let n = 2; n <= 6; n++) if (p.career?.reached[n] === undefined) return n;
   return null;
 }
 
 /** The tutorial for the client: steps, the café's startups, a suggested cheque, and a recovery. */
-export function tutorialView(world: World, p: Player) {
+function tutorialView(world: World, p: Player) {
   const t = p.career?.tutorial;
   if (!t) return null;
   const home = getMarket(world, p.market);
@@ -597,7 +597,7 @@ export function tutorialView(world: World, p: Player) {
 
 // ---------------------------------------------------------------- three prompts
 
-export interface InvestorPrompt {
+interface InvestorPrompt {
   id: string;
   label: string;
   /** The name in the label (an event, a competition, a contact), for translated copy. */
@@ -606,7 +606,7 @@ export interface InvestorPrompt {
 }
 
 /** Main, opportunity and personal prompts for an investor (§10.2). */
-export function investorPrompts(world: World, p: Player) {
+function investorPrompts(world: World, p: Player) {
   const m = getMarket(world, locationOf(p));
   const step = tutorialStep(world, p);
   const next = nextRung(p);

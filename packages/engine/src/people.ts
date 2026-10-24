@@ -47,10 +47,10 @@ export interface PersonHere {
 /** Regulars are drawn from this many NPCs per city (`npc:<market>:0` … `npc:<market>:499`). */
 export const NPC_POOL = 500;
 /** Warmth when you meet someone at a venue. */
-export const MET_WARMTH = 0.12;
+const MET_WARMTH = 0.12;
 /** Warmth when you save someone as a contact (more if you'd already met). */
-export const SAVE_WARMTH = 0.15;
-export const SAVE_WARMTH_MET = 0.3;
+const SAVE_WARMTH = 0.15;
+const SAVE_WARMTH_MET = 0.3;
 
 const FITS: Record<'founder' | 'angel' | 'partner', readonly string[]> = {
   angel: ['cafe', 'coffee-roaster', 'coffee-chain', 'bakery', 'lounge', 'lounge-bar', 'hotel'],

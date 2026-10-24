@@ -38,7 +38,7 @@ function Arrow({ dir, size = 40 }: { dir: Way | 'arrive'; size?: number }) {
 }
 
 /** A distance as a driver reads it: 540 m, 2.1 km. */
-export function distLabel(m: number): string {
+function distLabel(m: number): string {
   if (m < 950) return t('{n} m', { n: Math.max(10, Math.round(m / 10) * 10) });
   return t('{n} km', {
     n: (m / 1000).toLocaleString(locale(), { maximumFractionDigits: m < 9950 ? 1 : 0 }),

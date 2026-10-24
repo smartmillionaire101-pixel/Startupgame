@@ -779,7 +779,7 @@ interface SkyItem {
 const UNCULLED: Decor['kind'][] = ['runway', 'hill', 'landmark', 'bridge', 'station'];
 
 /** Buildings and decor with their depth and on-screen box (shared with culling). */
-export function skylineItems(layout: CityLayout): SkyItem[] {
+function skylineItems(layout: CityLayout): SkyItem[] {
   const f = layout.flavour;
   const items: SkyItem[] = [];
   for (const p of layout.places) {

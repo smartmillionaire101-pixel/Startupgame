@@ -34,9 +34,9 @@ import type {
   World,
 } from './types.js';
 
-export const MIN_ANGEL_DEALS_FOR_FUND = 3;
+const MIN_ANGEL_DEALS_FOR_FUND = 3;
 /** An anchor LP's commitment adds this to the panel's score. */
-export const ANCHOR_SCORE = 0.05;
+const ANCHOR_SCORE = 0.05;
 
 /** A public-market buy (no deal card behind it): the cost basis is all on the listing. */
 function publicOnly(world: World, investorId: string, companyId: string, invested: number) {
@@ -67,7 +67,7 @@ export function angelRecord(world: World, p: Player) {
 }
 
 /** Syndicates this player led that closed (Phase 3). */
-export function syndicatesLed(world: World, playerId: string) {
+function syndicatesLed(world: World, playerId: string) {
   return Object.values(world.syndicates ?? {}).filter(
     (s) => s.leadId === playerId && (s.status === 'closed' || s.status === 'exited'),
   );

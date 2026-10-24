@@ -23,7 +23,7 @@ import { getProperty, priceOf } from './property.js';
 import type { Id, Player, Property, PropertyGift, World } from './types.js';
 
 /** Offers a player may have waiting at once. */
-export const GIFTS_PENDING_MAX = 5;
+const GIFTS_PENDING_MAX = 5;
 
 const label = (p: Property) => `${TIER_LABEL[p.tier]} on ${p.street}, ${p.neighbourhood}`;
 

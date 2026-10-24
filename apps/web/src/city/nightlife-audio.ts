@@ -219,7 +219,7 @@ export function renderGroove(gr: Groove): Float32Array {
   return out;
 }
 
-export function genreSamples(id: GenreId): Float32Array {
+function genreSamples(id: GenreId): Float32Array {
   let s = cache.get(id);
   if (!s) {
     s = renderGroove(GENRES[id].groove);
@@ -230,8 +230,6 @@ export function genreSamples(id: GenreId): Float32Array {
 
 /** What's playing now (for tests and the "Now playing" chip). */
 let playing: GenreId | null = null;
-export const venueMusicNow = () => playing;
-
 /**
  * Play a venue's genre while the scene is open (Music on). Browsers need a
  * gesture first: walking in usually was one; otherwise the next tap starts it.

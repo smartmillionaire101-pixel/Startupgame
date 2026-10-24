@@ -25,8 +25,8 @@ export const floorGigPay = (m: MarketState) =>
 
 /** Gigs a month (Wave 5: up from 2), shared with gigs at businesses. */
 export const GIGS_PER_MONTH = 8;
-export const BURNOUT_ENERGY = 25;
-export const OVERWORK_HOURS = 170;
+const BURNOUT_ENERGY = 25;
+const OVERWORK_HOURS = 170;
 
 export const tierOf = (p: Player) => LIFESTYLE_TIERS[clamp(p.lifestyleTier, 1, 5) - 1]!;
 
@@ -144,7 +144,7 @@ export function setLifestyle(world: World, p: Player, tier: number) {
  * home and nothing in a dollar account. Broke founders can always take the
  * agency gig (no monthly cap, and whatever hours they have left).
  */
-export function isBroke(world: World, p: Player): boolean {
+function isBroke(world: World, p: Player): boolean {
   const m = getMarket(world, p.market);
   const local = account(world, p.accounts.local).balance;
   const usd = p.accounts.usd ? account(world, p.accounts.usd).balance : 0;

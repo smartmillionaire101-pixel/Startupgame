@@ -31,7 +31,7 @@ export interface CharacterLook extends Worn {
 }
 
 const mats = new Map<string, THREE.MeshStandardMaterial>();
-export function charMaterial(color: string, rough = 0.8) {
+function charMaterial(color: string, rough = 0.8) {
   const k = `${color}:${rough}`;
   let m = mats.get(k);
   if (!m) mats.set(k, (m = new THREE.MeshStandardMaterial({ color, roughness: rough })));

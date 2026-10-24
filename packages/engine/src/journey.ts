@@ -123,7 +123,7 @@ export function hasBankerJourney(world: World, p: Player): boolean {
 export const hasAnyJourney = (world: World, p: Player): boolean =>
   hasJourney(p) || hasInvestorJourney(world, p) || hasBankerJourney(world, p);
 
-export const bankerChapterMilestone = (n: number) => `banker.chapter-${n}`;
+const bankerChapterMilestone = (n: number) => `banker.chapter-${n}`;
 
 export const investorChapterMilestone = (n: number) => `investor.chapter-${n}`;
 
@@ -691,7 +691,7 @@ const invest = { kind: 'app', app: 'invest' } as JourneyGo;
 const events = { kind: 'app', app: 'events' } as JourneyGo;
 const ms = (p: Player, id: string) => p.milestones[id] !== undefined;
 
-export const INVESTOR_JOURNEY = {
+const INVESTOR_JOURNEY = {
   angel: { deals: 3 },
   /** Deal-flow note: strategy lessons from other investors before Fund I. */
   learn: { lessons: 3 },
@@ -836,7 +836,7 @@ export const INVESTOR_CHAPTERS: ChapterDef[] = [
 
 const bankTab = { kind: 'tab', tab: 'bank' } as JourneyGo;
 
-export const BANKER_JOURNEY = {
+const BANKER_JOURNEY = {
   open: { customers: 100 },
   loans: { bookCol: 10 },
   trusted: { stars: 3.5, customers: BANKERS.sizeCustomers },

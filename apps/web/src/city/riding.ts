@@ -8,7 +8,7 @@
  */
 import { useSyncExternalStore } from 'react';
 
-export const RIDING_EVENT = 'runway:riding';
+const RIDING_EVENT = 'runway:riding';
 
 let riding = false;
 const listeners = new Set<() => void>();
@@ -28,7 +28,7 @@ export function setRiding(on: boolean) {
     window.dispatchEvent(new CustomEvent(RIDING_EVENT, { detail: on }));
 }
 
-export const isRiding = () => riding;
+const isRiding = () => riding;
 
 export function useRiding(): boolean {
   return useSyncExternalStore(

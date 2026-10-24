@@ -14,7 +14,7 @@ import { PersonCard, roleName } from './PersonCard';
 import type { PresenceView } from './people';
 import './online-now.css';
 
-export const ONLINE_POLL_MS = 15_000;
+const ONLINE_POLL_MS = 15_000;
 
 const GAMES: { game: PlayGame; label: () => string }[] = [
   { game: 'quiz', label: () => t('Quiz') },

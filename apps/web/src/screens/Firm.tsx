@@ -14,7 +14,7 @@ import './investor.css';
 
 type FirmView = NonNullable<PlayerView['firm']>;
 
-export const firmOf = (view: PlayerView): FirmView | null =>
+const firmOf = (view: PlayerView): FirmView | null =>
   (view as { firm?: FirmView | null }).firm ?? null;
 
 function titleText(x: string): string {

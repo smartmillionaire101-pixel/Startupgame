@@ -37,14 +37,7 @@ import { bankersOn, dealflowOn, moreGamesOn } from './releases.js';
 import { isListed } from './exits.js';
 import { fundAnchor } from './firstfund.js';
 import { playerDemoDay } from './institutions.js';
-import {
-  ACCELERATORS,
-  COHORT_MONTHS,
-  DEV_PARTNERS,
-  INVESTOR_TYPES,
-  LPS,
-  LP_KIND_LABEL,
-} from './data/programs.js';
+import { ACCELERATORS, COHORT_MONTHS, DEV_PARTNERS, LPS, LP_KIND_LABEL } from './data/programs.js';
 import type {
   AcceleratorSeed,
   DevPartnerSeed,
@@ -168,10 +161,6 @@ export function playerInvestorType(world: World, p: Player): InvestorType | null
   const f = p.investor.fundId ? world.funds[p.investor.fundId] : undefined;
   return f ? fundInvestorType(f) : 'angel';
 }
-
-export const isInvestorType = (v: unknown): v is InvestorType =>
-  (INVESTOR_TYPES as readonly unknown[]).includes(v);
-
 /** The fund a human manages, if any. */
 function managedFund(world: World, p: Player): Fund | null {
   const f = p.investor?.fundId ? world.funds[p.investor.fundId] : undefined;
@@ -200,7 +189,7 @@ export function demoDayFor(month: number): number {
 }
 
 /** Recently through demo day (three months): funds and angels lean in. */
-export const demoDayGlow = (world: World, c: Company): boolean =>
+const demoDayGlow = (world: World, c: Company): boolean =>
   !!c.accelerator?.demoDayDone &&
   (world.markets[c.accelerator.market]?.month ?? 0) - c.accelerator.demoDayMonth < 3;
 
@@ -482,7 +471,7 @@ function demoDayOffer(world: World, c: Company, rng: Rng, tier: number) {
   });
 }
 
-export function acceleratorsView(world: World, viewer: Player, m: MarketState) {
+function acceleratorsView(world: World, viewer: Player, m: MarketState) {
   const companies = viewer.companyIds
     .map((id) => world.companies[id])
     .filter((c): c is Company => !!c && c.status === 'active' && c.founderIds.includes(viewer.id));
@@ -742,7 +731,7 @@ function grantReports(world: World, m: MarketState, month: number) {
   }
 }
 
-export function devPartnersView(world: World, viewer: Player, m: MarketState) {
+function devPartnersView(world: World, viewer: Player, m: MarketState) {
   const companies = viewer.companyIds
     .map((id) => world.companies[id])
     .filter((c): c is Company => !!c && c.status === 'active' && c.founderIds.includes(viewer.id));
@@ -1016,7 +1005,7 @@ function acceptLp(
   });
 }
 
-export function lpsView(world: World, viewer: Player, m: MarketState) {
+function lpsView(world: World, viewer: Player, m: MarketState) {
   const fund = managedFund(world, viewer);
   return lpsOf(m.id).map((lp) => {
     const app = fund
@@ -1087,7 +1076,7 @@ function quickTerms(world: World, c: Company) {
   return { stage, model, pre, priced, maxCheck };
 }
 
-export function dealFlowView(world: World, viewer: Player, m: MarketState) {
+function dealFlowView(world: World, viewer: Player, m: MarketState) {
   const pitched = new Map<Id, number>();
   for (const p of Object.values(world.pitches))
     if (p.month >= m.month - 3 && (pitched.get(p.companyId) ?? 0) < p.ask)
@@ -1247,7 +1236,7 @@ export function angelsAt(world: World, market: MarketId): Record<Id, Id[]> {
   return out;
 }
 
-export function angelsView(world: World, m: MarketState) {
+function angelsView(world: World, m: MarketState) {
   return activeAngels(world, m.id).map((a) => {
     const f = world.funds[a.angel!.fundId];
     return {
@@ -1346,7 +1335,7 @@ export function pitchAngel(
 // ---------------------------------------------------------------- Events
 
 /** Most a host can spend broadcasting one event, in cost-of-living units. */
-export const EVENT_MAX_BROADCAST_COL = EVENT_MAX_BUDGET_COL;
+const EVENT_MAX_BROADCAST_COL = EVENT_MAX_BUDGET_COL;
 
 export function broadcastEvent(world: World, me: Player, eventId: Id, spend: number) {
   const e = world.events?.[eventId];
@@ -1506,7 +1495,7 @@ function announceGovernor(world: World, m: MarketState, month: number, text: str
       notify(world, p.id, { month, kind: 'system', text });
 }
 
-export function centralBankView(m: MarketState) {
+function centralBankView(m: MarketState) {
   const g = m.governor;
   return {
     name: `Central bank of ${m.data.country}`,

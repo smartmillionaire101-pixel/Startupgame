@@ -24,7 +24,7 @@ type Tutorial = NonNullable<Career['tutorial']>;
 export const careerOf = (view: PlayerView): Career | null =>
   (view as { investorCareer?: Career | null }).investorCareer ?? null;
 
-export function rungTitle(id: string): string {
+function rungTitle(id: string): string {
   switch (id) {
     case 'angel':
       return t('Angel');

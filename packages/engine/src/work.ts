@@ -115,9 +115,9 @@ export const SKILL_LABEL: Record<Skill, string> = {
 
 // ---------------------------------------------------------------- Accessors
 
-export const employerKey = (p: Profession) => `employer-${p.id}`;
-export const professionOf = (b: Pick<LocalBusiness, 'kind'>) => professionOfKind(b.kind);
-export const isEmployer = (b: Pick<LocalBusiness, 'kind'>) => !!professionOfKind(b.kind);
+const employerKey = (p: Profession) => `employer-${p.id}`;
+const professionOf = (b: Pick<LocalBusiness, 'kind'>) => professionOfKind(b.kind);
+const isEmployer = (b: Pick<LocalBusiness, 'kind'>) => !!professionOfKind(b.kind);
 
 /** Your experience and applications (seeded from your background when never stored). */
 export function workOf(p: Player): PlayerWork {
@@ -129,9 +129,9 @@ function ensureWork(p: Player): PlayerWork {
 }
 
 /** Experience gained per month worked (a dropout learns faster). */
-export const learnRate = (p: Player) => headStartOf(p.backgroundId).learn ?? 1;
+const learnRate = (p: Player) => headStartOf(p.backgroundId).learn ?? 1;
 
-export const proHours = (level: number) =>
+const proHours = (level: number) =>
   LEVEL_HOURS[clamp(Math.round(level), 1, LEVEL_HOURS.length) - 1]!;
 
 /** Hours your job takes each month (a part-time job: 40). */
@@ -139,14 +139,14 @@ export const jobHours = (p: Player): number =>
   p.job?.profession ? proHours(p.job.level ?? 1) : JOB_HOURS;
 
 /** Monthly gross pay for a level (take-home `payCol`, grossed up for the city's income tax). */
-export function proPay(m: MarketState, prof: Profession, level: number): number {
+function proPay(m: MarketState, prof: Profession, level: number): number {
   const l = prof.levels[level - 1];
   if (!l) return 0;
   return scale(col(m), l.payCol / Math.max(0.2, 1 - m.data.tax.personalIncome));
 }
 
 /** Your best skill among the ones the profession hires on. */
-export function bestSkill(p: Player, prof: Profession): { skill: Skill; value: number } {
+function bestSkill(p: Player, prof: Profession): { skill: Skill; value: number } {
   let best = { skill: prof.skills[0]!, value: -1 };
   for (const s of prof.skills) {
     const v = Math.round(p.skills[s] ?? 0);

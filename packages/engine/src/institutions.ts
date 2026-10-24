@@ -30,7 +30,7 @@ import type { MarketId } from './data/markets.js';
 import type { Company, Id, InvestmentTerms, Player, PlayerAccelerator, World } from './types.js';
 
 /** Cheques and equity a player-run accelerator may set. */
-export const PLAYER_ACCELERATOR = {
+const PLAYER_ACCELERATOR = {
   equityBps: [500, 1000] as const,
   chequeUsd: [10_000, 150_000] as const,
   cohortSize: 6,
@@ -40,7 +40,7 @@ const accelOf = (world: World): Record<Id, PlayerAccelerator> => (world.playerAc
 /** Read-only (views): never creates the map. */
 const accels = (world: World): Record<Id, PlayerAccelerator> => world.playerAccelerators ?? {};
 
-export const playerAccelId = (id: Id) => `pacc:${id}`;
+const playerAccelId = (id: Id) => `pacc:${id}`;
 
 /** `accelerator.found`: start a programme (rung 4: you run a fund). */
 export function foundAccelerator(

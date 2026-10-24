@@ -70,9 +70,6 @@ function write(id: string, s: TutorialState) {
   }
   changed();
 }
-
-export const tutorialOf = (id: string): TutorialState | null => read(id);
-
 /** The step you're on, or null when there's no tutorial running (finished, skipped, never). */
 export function activeStep(id: string): TutorialStep | null {
   const s = read(id);

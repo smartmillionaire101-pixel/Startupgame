@@ -52,7 +52,7 @@ export interface PlanDistrict {
   hosts?: Host[];
 }
 
-export type Transit =
+type Transit =
   | 'bus'
   | 'danfo'
   | 'matatu'
@@ -66,7 +66,7 @@ export type Transit =
   | 'ferry'
   | 'abra';
 
-export interface PlanBridge {
+interface PlanBridge {
   name: string;
   from: [number, number];
   to: [number, number];

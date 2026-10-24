@@ -24,7 +24,7 @@ export const list = (x: unknown): Record<string, unknown>[] =>
   Array.isArray(x) ? x.filter(isObj) : [];
 
 /** A field on `view.me` the engine may not send yet. */
-export const meField = (view: View, key: string): unknown =>
+const meField = (view: View, key: string): unknown =>
   (view.me as unknown as Record<string, unknown>)[key];
 
 // ---------------------------------------------------------------------------
@@ -243,23 +243,5 @@ export function QuitJob({ place }: { place: string }) {
     >
       {armed ? t('Tap again to quit') : t('Quit job')}
     </Button>
-  );
-}
-
-/** A tap target that's a whole row. */
-export function Row({
-  onClick,
-  children,
-  className,
-  ...rest
-}: {
-  onClick?: () => void;
-  children: ReactNode;
-  className?: string;
-} & Record<`data-${string}`, string | undefined>) {
-  return (
-    <button className={`phone-row${className ? ` ${className}` : ''}`} onClick={onClick} {...rest}>
-      {children}
-    </button>
   );
 }

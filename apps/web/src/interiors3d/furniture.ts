@@ -26,7 +26,7 @@ export interface ModelOpts {
   seed?: number;
 }
 
-export interface Lamp {
+interface Lamp {
   pos: THREE.Vector3;
   color: string;
   intensity: number;
@@ -50,14 +50,14 @@ export type Builder = (k: Kit, o: ModelOpts, m: Model) => void;
 // ---------------------------------------------------------------------------
 // Palette
 
-export const WOOD = '#9a6a3f';
-export const WOOD_DARK = '#5b3a22';
-export const WOOD_LIGHT = '#c99a66';
-export const WHITE = '#f4f1ea';
-export const STEEL = '#b8bec6';
-export const BLACK = '#1d1d22';
-export const CHROME = '#d9dde3';
-export const GLASS = '#bfe3f0';
+const WOOD = '#9a6a3f';
+const WOOD_DARK = '#5b3a22';
+const WOOD_LIGHT = '#c99a66';
+const WHITE = '#f4f1ea';
+const STEEL = '#b8bec6';
+const BLACK = '#1d1d22';
+const CHROME = '#d9dde3';
+const GLASS = '#bfe3f0';
 
 const metal = { metal: 0.6, rough: 0.35 };
 const shiny = { rough: 0.3 };
@@ -1053,7 +1053,7 @@ const garageCar =
   };
 
 /** A car, about 4 m long along z, front at +z. */
-export function carModel(k: Kit, paint: string, kind: string, m?: Model) {
+function carModel(k: Kit, paint: string, kind: string, m?: Model) {
   if (kind === 'motorbike') {
     k.torus(0.3, 0.07, BLACK, 0, 0.32, 0.65, { ry: Math.PI / 2 });
     k.torus(0.3, 0.07, BLACK, 0, 0.32, -0.65, { ry: Math.PI / 2 });

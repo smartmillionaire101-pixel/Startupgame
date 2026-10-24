@@ -100,7 +100,7 @@ export function shopSells(kind: string): { slots: FurnitureSlot[] } | { cars: tr
   return slots.length ? { slots } : null;
 }
 
-export type Tier = 1 | 2 | 3;
+type Tier = 1 | 2 | 3;
 
 export interface FurnitureItem {
   /** `${slot}-${tier}`, e.g. 'sofa-2'. */

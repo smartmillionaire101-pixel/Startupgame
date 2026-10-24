@@ -28,14 +28,9 @@ import { chargeAdvisory } from './banks.js';
 import type { AcquisitionTerms, Company, DealCard, Id, World } from './types.js';
 
 /** Fair-value band around the model valuation (§12 "Fair-value checks"). */
-export const FAIR_VALUE = { low: 0.4, high: 2.5 } as const;
+const FAIR_VALUE = { low: 0.4, high: 2.5 } as const;
 
-export function acquisitionFlags(
-  world: World,
-  buyer: Company,
-  target: Company,
-  price: number,
-): string[] {
+function acquisitionFlags(world: World, buyer: Company, target: Company, price: number): string[] {
   const value = valueCompany(world, target, nextStage(target.lastRound)).value;
   const flags: string[] = [];
   if (price < value * FAIR_VALUE.low || price > value * FAIR_VALUE.high) flags.push('fair-value');

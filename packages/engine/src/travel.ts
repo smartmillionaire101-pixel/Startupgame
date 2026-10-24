@@ -44,7 +44,7 @@ import { waterfall } from './captable.js';
 import type { Company, HotelStay, Player, TicketFlight, World } from './types.js';
 import { hasVisa } from './places.js';
 
-export const TRIP_HOURS = 40;
+const TRIP_HOURS = 40;
 
 const REGION: Record<MarketId, string> = {
   lagos: 'west-africa',
@@ -290,7 +290,7 @@ export type HotelTier = HotelStay['tier'];
 export const HOTEL_TIERS: readonly HotelTier[] = ['budget', 'business', 'luxury'];
 
 /** A stay abroad in USD, before the city's cost-of-living factor. */
-export const HOTEL_BASE_USD: Record<HotelTier, number> = {
+const HOTEL_BASE_USD: Record<HotelTier, number> = {
   budget: 150,
   business: 500,
   luxury: 1_800,
@@ -300,7 +300,7 @@ export const HOTEL_BASE_USD: Record<HotelTier, number> = {
 const HOTEL_COL_FACTOR: Record<number, number> = { 1: 0.6, 2: 0.7, 3: 0.85, 4: 1, 5: 1.2 };
 
 /** Hotel names per city: guesthouse, business hotel, five-star. */
-export const HOTEL_NAMES: Record<MarketId, Record<HotelTier, string>> = {
+const HOTEL_NAMES: Record<MarketId, Record<HotelTier, string>> = {
   lagos: { budget: 'Ikoyi Guesthouse', business: 'Eko Business Hotel', luxury: 'The Lagos Grand' },
   nairobi: {
     budget: 'Kilimani Guesthouse',
@@ -556,13 +556,13 @@ export type RideDistance = 'short' | 'medium' | 'long';
 export const MAX_RIDES_PER_MONTH = 30;
 
 /** Fares as a share of the city's monthly cost of living. */
-export const RIDE_FARE_COL: Record<FareMode, Record<RideDistance, number>> = {
+const RIDE_FARE_COL: Record<FareMode, Record<RideDistance, number>> = {
   bus: { short: 0.002, medium: 0.0035, long: 0.005 },
   taxi: { short: 0.01, medium: 0.02, long: 0.035 },
 };
 
 /** A fare in the local currency of the city the player is in (minor units). */
-export const rideFare = (world: World, market: MarketId, mode: FareMode, distance: RideDistance) =>
+const rideFare = (world: World, market: MarketId, mode: FareMode, distance: RideDistance) =>
   Math.max(1, scale(col(getMarket(world, market)), RIDE_FARE_COL[mode][distance]));
 
 /** Take a bus or a taxi across the city you're in, paid to its suppliers (converted if abroad). */
@@ -644,7 +644,7 @@ export function travel(world: World, p: Player, to: MarketId) {
 }
 
 /** Holder id for shares lost to a market's central bank on relocation. */
-export const centralBankHolderId = (market: MarketId) => `cb:${market}`;
+const centralBankHolderId = (market: MarketId) => `cb:${market}`;
 
 /**
  * Relocate permanently. Requires clean books: no personal loans and no
@@ -806,7 +806,7 @@ export function relocate(world: World, p: Player, to: MarketId, newHandle: strin
  * Companies run by an AI CEO pay out part of their profit as dividends, only
  * while profitable (§14 "pay dividends only while it is profitable").
  */
-export const DIVIDEND_SHARE = 0.25;
+const DIVIDEND_SHARE = 0.25;
 
 export function payDividends(world: World, c: Company, month: number) {
   if (!c.aiCeo || c.status !== 'active') return;

@@ -114,7 +114,7 @@ const roundHours = (h: number) => Math.round(h * 100) / 100;
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const finite = (x: number) => (Number.isFinite(x) ? Math.round(x * 10) / 10 : null);
 
-export function publicCompany(world: World, c: Company) {
+function publicCompany(world: World, c: Company) {
   return {
     id: c.id,
     name: c.name,
@@ -145,7 +145,7 @@ export function publicCompany(world: World, c: Company) {
 }
 
 /** What an investor can see after diligence (depth 1: numbers; depth 2: the skeletons). */
-export function diligenceView(world: World, c: Company, depth: number) {
+function diligenceView(world: World, c: Company, depth: number) {
   if (depth <= 0) return null;
   const pnl = lastPnl(c);
   const base = {
@@ -424,7 +424,7 @@ export function leaderboards(world: World, market: MarketId) {
   };
 }
 
-export function portfolio(world: World, p: Player) {
+function portfolio(world: World, p: Player) {
   const holders = [p.id, ...(p.investor?.fundId ? [p.investor.fundId] : [])];
   return Object.values(world.positions)
     .filter((x) => holders.includes(x.investorId))
@@ -1158,7 +1158,7 @@ function eventsView(
 export type PlayerView = NonNullable<ReturnType<typeof playerView>>;
 
 /** The bank a player runs, with its regulatory figures (§8). */
-export function ownBankView(world: World, playerId: Id) {
+function ownBankView(world: World, playerId: Id) {
   const b = Object.values(world.banks)
     .filter((x) => x.ownerId === playerId)
     .sort((a, c) => c.appliedMonth - a.appliedMonth)[0];

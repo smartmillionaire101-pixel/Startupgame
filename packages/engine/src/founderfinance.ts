@@ -56,7 +56,7 @@ export const FF = {
 export const reserveBalance = (world: World, c: Company): number =>
   c.reserve ? (world.accounts[c.reserve]?.balance ?? 0) : 0;
 
-export const founderLoanTotal = (c: Company): number =>
+const founderLoanTotal = (c: Company): number =>
   Object.values(c.founderLoans ?? {}).reduce((a, b) => a + b, 0);
 
 /** Price per share for new founder shares: the last round's, else the model valuation's. */
@@ -311,7 +311,7 @@ export function getRound(world: World, id: Id): FriendsRound {
 
 export const committed = (r: FriendsRound) => r.commitments.reduce((a, x) => a + x.amount, 0);
 
-export const openRoundOf = (world: World, companyId: Id): FriendsRound | undefined =>
+const openRoundOf = (world: World, companyId: Id): FriendsRound | undefined =>
   Object.values(world.ffRounds ?? {}).find((r) => r.companyId === companyId && r.status === 'open');
 
 export function openFriendsRound(

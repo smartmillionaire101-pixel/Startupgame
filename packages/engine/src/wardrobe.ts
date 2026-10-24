@@ -34,7 +34,7 @@ import type { Id, Player, World } from './types.js';
 export type WardrobeEntry = NonNullable<Player['wardrobe']>[number];
 
 /** The part of your look an item is (its slot) and the style it puts there. */
-export function partOf(x: MallItem): { slot: 'topStyle' | Removable; style: string } | null {
+function partOf(x: MallItem): { slot: 'topStyle' | Removable; style: string } | null {
   if (x.topStyle) return { slot: 'topStyle', style: x.topStyle };
   if (x.headwear) return { slot: 'headwear', style: x.headwear };
   if (x.glasses) return { slot: 'glasses', style: x.glasses };

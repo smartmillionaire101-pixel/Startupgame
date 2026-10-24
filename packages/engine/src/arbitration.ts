@@ -21,8 +21,8 @@ import { applyStarEvent } from './stars.js';
 import type { Dispute, Id, Player, World } from './types.js';
 
 /** Share of the remaining contract value owed when a buyer walks without cause. */
-export const BREAK_FEE = 0.25;
-export const REMOVAL_WINDOW_MONTHS = 3;
+const BREAK_FEE = 0.25;
+const REMOVAL_WINDOW_MONTHS = 3;
 
 export function fileDispute(world: World, p: Player, kind: Dispute['kind'], refId: Id): Dispute {
   ensure(

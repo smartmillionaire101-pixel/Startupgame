@@ -18,7 +18,7 @@ import { areaOf, centroid, hash01, pointInRing, rings, signedArea, simplifyRing 
 
 export const LEVEL_HEIGHT = 3.2;
 /** Footprint simplification tolerance (metres): corners stay, near-collinear points go. */
-export const SIMPLIFY_TOLERANCE = 0.5;
+const SIMPLIFY_TOLERANCE = 0.5;
 
 /**
  * Levels by type when nothing is tagged: [lo, hi] for a small footprint and
@@ -111,7 +111,7 @@ export function heightOf(tags, type, area, core, h) {
 }
 
 /** The outer rings ([[x, y], …], projected) of a way or multipolygon relation. */
-export function outerRings(el, proj) {
+function outerRings(el, proj) {
   if (el.type === 'way' && el.geometry) return [el.geometry.map((g) => proj.p(g.lon, g.lat))];
   if (el.type === 'relation' && el.members) {
     const outer = el.members.filter((m) => m.role !== 'inner' && m.geometry).map((m) => m.geometry);
@@ -127,7 +127,7 @@ const inBox = (x, y, [x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= 
  * simplified, oriented, with its centroid inside `bounds` ([minX, minY,
  * maxX, maxY] in local metres) and its height resolved.
  */
-export function addFootprint(out, t, raw, isPart, bounds, core) {
+function addFootprint(out, t, raw, isPart, bounds, core) {
   const ring = simplifyRing(raw, SIMPLIFY_TOLERANCE);
   if (!ring) return;
   if (signedArea(ring) < 0) ring.reverse();
@@ -224,7 +224,7 @@ export function overtureTags(row) {
 }
 
 /** The outer rings of a GeoJSON Polygon / MultiPolygon in lon/lat, projected. */
-export function geojsonOuterRings(geom, proj) {
+function geojsonOuterRings(geom, proj) {
   const g = typeof geom === 'string' ? JSON.parse(geom) : geom;
   const polys =
     g?.type === 'Polygon' ? [g.coordinates] : g?.type === 'MultiPolygon' ? g.coordinates : [];

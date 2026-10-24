@@ -214,7 +214,7 @@ export function settleCar(world: World, p: Player, month: number) {
 // ---------------------------------------------------------------- Comfort and status
 
 /** 0–100: furniture quality across all the slots (the best home is 100 however many there are). */
-export function comfortOf(p: Player): number {
+function comfortOf(p: Player): number {
   const points = (p.home?.items ?? []).reduce(
     (a, x) => a + (furnitureItem(x.itemId)?.comfort ?? 0),
     0,

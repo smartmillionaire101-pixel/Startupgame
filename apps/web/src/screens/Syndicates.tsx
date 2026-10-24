@@ -15,7 +15,7 @@ import './investor.css';
 type SyndicatesView = NonNullable<PlayerView['syndicates']>;
 type Row = SyndicatesView['led'][number];
 
-export const syndicatesOf = (view: PlayerView): SyndicatesView | null =>
+const syndicatesOf = (view: PlayerView): SyndicatesView | null =>
   (view as { syndicates?: SyndicatesView | null }).syndicates ?? null;
 
 function statusText(s: Row['status']): string {

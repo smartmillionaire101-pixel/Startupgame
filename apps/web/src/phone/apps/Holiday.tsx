@@ -262,11 +262,11 @@ const roomer = (x: Record<string, unknown>) => ({
 const first = (name: string) => name.split(' ')[0] ?? name;
 
 /** The game date of a holiday's month ("This month · Year 1, Month 3"; months count from 0). */
-export const holidayDate = (month: number) =>
+const holidayDate = (month: number) =>
   `${t('This month')} · ${t('Year {y}, Month {m}', { y: Math.floor(month / 12) + 1, m: (month % 12) + 1 })}`;
 
 /** AI people in your contacts you could take on holiday: AI founders, owners, the city's regulars. */
-export function aiFriendsOf(view: PlayerView): { id: string; name: string; role: string }[] {
+function aiFriendsOf(view: PlayerView): { id: string; name: string; role: string }[] {
   const ais = new Set(view.players.filter((p) => p.ai).map((p) => p.id));
   const seen = new Set<string>();
   return contactsOf(view)
@@ -286,7 +286,7 @@ export function aiFriendsOf(view: PlayerView): { id: string; name: string; role:
 const names = (xs: { name: string }[]) => xs.map((x) => first(x.name)).join(', ');
 
 /** The trip abroad you could invite friends on: a booked ticket, or where you are. */
-export function tripOf(view: PlayerView): { market: string; city: string } | null {
+function tripOf(view: PlayerView): { market: string; city: string } | null {
   const me = view.me as unknown as Record<string, unknown>;
   const home = str(me.market, view.market.id);
   const ticket = isObj(me.flightTicket) ? me.flightTicket : null;

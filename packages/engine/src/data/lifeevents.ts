@@ -26,7 +26,7 @@ import type { DecisionChoiceData, DecisionTemplateData } from './decisions.js';
 
 export type LifeFamily = 'health' | 'money' | 'social' | 'work' | 'city';
 
-export interface LifeChoiceData extends DecisionChoiceData {
+interface LifeChoiceData extends DecisionChoiceData {
   /** A chance choice: what happened when it went well, and when it didn't. */
   win?: string;
   lose?: string;

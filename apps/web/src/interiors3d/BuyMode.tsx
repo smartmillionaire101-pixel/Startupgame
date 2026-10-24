@@ -14,7 +14,7 @@ import { looseCmd, shopOf } from '../city/life';
 import { slotLabel } from '../city/Showroom';
 import { MOVABLE, type Placement } from './placement';
 
-export const BUY_ROOMS: { id: string; label: string; slots: string[] }[] = [
+const BUY_ROOMS: { id: string; label: string; slots: string[] }[] = [
   {
     id: 'living',
     label: 'Living room',

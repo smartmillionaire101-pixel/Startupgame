@@ -147,7 +147,7 @@ export interface Account {
   pendingEmail?: string;
 }
 
-export type StateResponse = { account?: Account } & (
+type StateResponse = { account?: Account } & (
   { onboarded: false } | { onboarded: true; view: PlayerView }
 );
 

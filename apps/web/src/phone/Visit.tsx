@@ -21,7 +21,7 @@ const set = (v: boolean) => {
 
 /** Go into the friend's home you're visiting. */
 export const openVisit = () => set(true);
-export const closeVisit = () => set(false);
+const closeVisit = () => set(false);
 
 const useOpen = () =>
   useSyncExternalStore(

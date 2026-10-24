@@ -74,7 +74,7 @@ export const geoMetres = (p: Pt) => ({ e: (p.x - p.y) / (2 * K), s: (p.x + p.y) 
 export const GEO_KX = 2 * K * TW;
 export const GEO_KY = 2 * K * TH;
 
-export interface GeoSprite {
+interface GeoSprite {
   kind: SpriteKind;
   name: string;
   /** Metres. */
@@ -1167,7 +1167,7 @@ function trafficOf(data: GeoData, flavour: Flavour, near: { e: number; s: number
   return vehicles;
 }
 
-export function buildGeoLayout(
+function buildGeoLayout(
   input: CityInput,
   data: GeoData,
   plan: CityPlan,

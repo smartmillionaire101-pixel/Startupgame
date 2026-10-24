@@ -442,39 +442,3 @@ export function Invitations({ ctx }: { ctx: PhoneCtx }) {
     </section>
   );
 }
-
-// ---------------------------------------------------------------- A friend's quick actions
-
-/** Send money, Invite over, Plan a hangout: for one friend (a player). */
-export function FriendActions({ playerId, name }: { playerId: string; name?: string }) {
-  const { send, busy } = useView();
-  const [panel, setPanel] = useState<'send' | 'hangout' | null>(null);
-  return (
-    <div className="phone-friend-actions" data-friend-actions={playerId}>
-      <div className="row">
-        <Button variant="subtle" onClick={() => setPanel(panel === 'send' ? null : 'send')}>
-          {t('Send money')}
-        </Button>
-        <Button
-          variant="subtle"
-          disabled={busy}
-          onClick={() =>
-            void send(
-              { type: 'visit.invite', toPlayerId: playerId },
-              t('Invitation sent. They’ll see it in their phone.'),
-            )
-          }
-        >
-          {t('Invite over')}
-        </Button>
-        <Button variant="subtle" onClick={() => setPanel(panel === 'hangout' ? null : 'hangout')}>
-          {t('Plan a hangout')}
-        </Button>
-      </div>
-      {panel === 'send' && (
-        <SendMoney key={playerId} to={playerId} toName={name} onDone={() => setPanel(null)} />
-      )}
-      {panel === 'hangout' && <PlanHangout invitee={playerId} onDone={() => setPanel(null)} />}
-    </div>
-  );
-}

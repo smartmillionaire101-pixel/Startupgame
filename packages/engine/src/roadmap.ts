@@ -55,7 +55,7 @@ const released = (c: Company, featureId: string) =>
 const isReady = (p: ProductProject) => p.status !== 'released' && p.progress >= def(p).effortWeeks;
 
 /** The feature this project waits for, if its dependency isn't released yet. */
-export function blockedBy(c: Company, p: ProductProject): FeatureDef | null {
+function blockedBy(c: Company, p: ProductProject): FeatureDef | null {
   const req = def(p).requires;
   return req && !released(c, req) ? (featureById(req) ?? null) : null;
 }
@@ -73,7 +73,7 @@ export function roadmapShare(c: Company): number {
 }
 
 /** How fast this team does work needing a skill. */
-export function skillMult(c: Company, f: FeatureDef): number {
+function skillMult(c: Company, f: FeatureDef): number {
   if (f.skill === 'design')
     return c.staff.some((s) => s.role === 'product') ? 1 : ROADMAP.missingSkill;
   if (f.skill === 'data')
@@ -204,18 +204,18 @@ function projectOf(c: Company, projectId: string): ProductProject {
 }
 
 /** Up-front cost of a feature (tools and licences), local minor units. */
-export function featureCost(world: World, c: Company, f: FeatureDef): number {
+function featureCost(world: World, c: Company, f: FeatureDef): number {
   return scale(col(getMarket(world, c.market)), f.costCol);
 }
 
 /** What contractors charge per person-week here: a mid-level engineer's week, plus a premium. */
-export function contractorWeekRate(world: World, c: Company): number {
+function contractorWeekRate(world: World, c: Company): number {
   const monthly = bandSalary(world, c.market, 'engineer', 'mid');
   return Math.round(((monthly / ROADMAP.weeksPerOutput) * ROADMAP.contractorPremium) / 100) * 100;
 }
 
 /** Cost to hand a project's remaining work to contractors. */
-export function contractFee(world: World, c: Company, p: ProductProject): number {
+function contractFee(world: World, c: Company, p: ProductProject): number {
   const left = Math.max(0, def(p).effortWeeks - p.progress - (p.contractorWeeks ?? 0));
   return Math.round(Math.ceil(left) * contractorWeekRate(world, c));
 }
@@ -395,7 +395,7 @@ export function releaseProject(world: World, c: Company, projectId: string, mont
 // ---------------------------------------------------------------- view
 
 /** Person-weeks the team would put into the roadmap this month at today's settings. */
-export function monthlyCapacityWeeks(world: World, c: Company): number {
+function monthlyCapacityWeeks(world: World, c: Company): number {
   const founder = world.players[c.founderIds[0]!];
   const founderBuild = founder ? (c.buildHours / 160) * (founder.skills.product / 60) : 0;
   const output = outputOf(c, ['engineer']) + outputOf(c, ['product']) * 0.6 + founderBuild;

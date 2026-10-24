@@ -219,6 +219,3 @@ export function hoodAt(data: GeoData, marketId: string, hood: string): { x: numb
   const r = 600 + hash(`${hood}!`) * 900;
   return { x: (c0 + c2) / 2 + Math.cos(a) * r, y: (c1 + c3) / 2 + Math.sin(a) * r };
 }
-
-/** "Mansion", "Penthouse"… for a label. */
-export const tierName = (t: PropertyTier) => t.charAt(0).toUpperCase() + t.slice(1);

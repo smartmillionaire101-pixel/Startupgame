@@ -296,7 +296,7 @@ export const REASON_TEXT: Record<string, string> = {
 const CORE: readonly StrategyCheck['id'][] = ['deploy', 'portfolio', 'reserves', 'ownership'];
 
 /** An LP commits at or above this score. */
-export const COMMIT_SCORE = 0.45;
+const COMMIT_SCORE = 0.45;
 
 export interface PitchContext {
   /** Fund number: 1 for a first fund. */

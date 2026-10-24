@@ -4,7 +4,7 @@
  */
 
 export type TreeKind = 'round' | 'palm' | 'jacaranda' | 'acacia' | 'cypress';
-export type EdgeKind = 'water' | 'hills' | 'dunes' | 'mine-dumps';
+type EdgeKind = 'water' | 'hills' | 'dunes' | 'mine-dumps';
 export type LandmarkKind =
   | 'clocktower'
   | 'theatre'
@@ -97,7 +97,7 @@ const BASE: Flavour = {
   streets: ['Main Street', 'Market Road', 'High Street', 'Station Road', 'Park Avenue'],
 };
 
-export const FLAVOURS: Record<string, Flavour> = {
+const FLAVOURS: Record<string, Flavour> = {
   lagos: {
     ...BASE,
     sky: ['#fde68a', '#fef3c7'],

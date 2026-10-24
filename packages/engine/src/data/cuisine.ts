@@ -30,7 +30,7 @@ import { hashString as hash } from '../rng.js';
 export type FoodTier = 1 | 2 | 3;
 
 /** The kitchen you see from the door. */
-export type Kitchen =
+type Kitchen =
   | 'pots' // big pots on a counter (a buka, a chop bar, a koshary shop)
   | 'grill' // a charcoal drum grill with skewers (suya, brochettes, kofta)
   | 'fire' // an open fire pit / braai (nyama choma, shisa nyama)
@@ -43,7 +43,7 @@ export type Kitchen =
   | 'spit'; // a vertical spit (shawarma, al pastor)
 
 /** How people sit. */
-export type Seating =
+type Seating =
   | 'plastic' // plastic chairs and covered tables
   | 'bench' // long wooden tables and benches
   | 'bistro' // small wooden tables
@@ -51,7 +51,7 @@ export type Seating =
   | 'booth' // banquettes along the wall
   | 'floor'; // a majlis: low cushions round a low table
 
-export type Decor =
+type Decor =
   | 'string-lights'
   | 'lanterns'
   | 'paper-lanterns'
@@ -74,9 +74,9 @@ export type Decor =
   | 'mirrors';
 
 /** What the window looks out on. */
-export type View = 'skyline' | 'nile' | 'sea' | 'bay' | 'hills' | 'street';
+type View = 'skyline' | 'nile' | 'sea' | 'bay' | 'hills' | 'street';
 
-export type FoodFloor =
+type FoodFloor =
   | 'parquet'
   | 'parquet-dark'
   | 'tile'

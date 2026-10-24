@@ -328,7 +328,7 @@ export function PitchSheet({
  * minor units (the box takes major units, "12k" too), or months. Null when
  * the box is empty or isn't a number.
  */
-export function figureValue(kind: PitchFigure, input: string): number | null {
+function figureValue(kind: PitchFigure, input: string): number | null {
   if (!input.trim()) return null;
   if (kind === 'money') return parseAmount(input);
   const n = Number(input.trim().replace(',', '.'));

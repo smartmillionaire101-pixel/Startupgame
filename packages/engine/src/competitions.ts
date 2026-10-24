@@ -78,15 +78,15 @@ export const isCompetitionMonth = (market: MarketId, month: number): boolean =>
   market === 'san-francisco' || (month + (hashString(`comp:${market}`) % 3)) % 3 === 0;
 
 /** The next month (from `from`, inclusive) a city holds a competition. */
-export function nextCompetitionMonth(market: MarketId, from: number): number {
+function nextCompetitionMonth(market: MarketId, from: number): number {
   let m = from;
   while (!isCompetitionMonth(market, m)) m++;
   return m;
 }
 
-export const competitionsOf = (world: World): Record<Id, Competition> => world.competitions ?? {};
+const competitionsOf = (world: World): Record<Id, Competition> => world.competitions ?? {};
 
-export function getCompetition(world: World, id: Id): Competition {
+function getCompetition(world: World, id: Id): Competition {
   const c = competitionsOf(world)[id];
   if (!c) fail('competition.missing', 'That competition isn’t on.');
   return c;
@@ -207,12 +207,7 @@ const isFounderIn = (world: World, comp: Competition, playerId: Id) =>
 // ---------------------------------------------------------------- Commands
 
 /** Why a founder can't enter (null when they can). */
-export function enterBlocker(
-  world: World,
-  me: Player,
-  comp: Competition,
-  companyId?: Id,
-): string | null {
+function enterBlocker(world: World, me: Player, comp: Competition, companyId?: Id): string | null {
   const m = getMarket(world, comp.market);
   if (comp.status !== 'open' || comp.month !== m.month) return 'Entries are closed.';
   const mine = me.companyIds
@@ -246,7 +241,7 @@ export function enterCompetition(world: World, me: Player, competitionId: Id, co
 }
 
 /** Why a player can't judge (null when they can). */
-export function judgeBlocker(world: World, me: Player, comp: Competition): string | null {
+function judgeBlocker(world: World, me: Player, comp: Competition): string | null {
   const m = getMarket(world, comp.market);
   if (comp.status !== 'open' || comp.month !== m.month) return 'Judging is over.';
   if (!me.investor) return 'Judges are investors.';

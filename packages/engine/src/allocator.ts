@@ -107,12 +107,12 @@ export const CAUSES: Cause[] = [
   },
 ];
 
-export const causeById = (id: string) => CAUSES.find((c) => c.id === id);
+const causeById = (id: string) => CAUSES.find((c) => c.id === id);
 
 // ---------------------------------------------------------------- liquidity
 
 /** Has this player turned shares into cash (or listed)? */
-export function hadLiquidity(p: Player): boolean {
+function hadLiquidity(p: Player): boolean {
   return ['founder.exit', 'investor.first-exit', 'founder.secondary', 'founder.ipo'].some(
     (k) => p.milestones[k] !== undefined,
   );
@@ -393,7 +393,7 @@ export function careerOrgs(world: World, p: Player): CareerOrg[] {
 }
 
 /** Why you can't be hired yet (null: you can). */
-export function careerBlocker(p: Player): string | null {
+function careerBlocker(p: Player): string | null {
   if (p.allocator?.career) return 'You already have a job at an institution.';
   if (p.job) return 'Quit your part-time job first.';
   const ok =
@@ -540,7 +540,7 @@ const DECISIONS: Record<'dfi' | 'bank' | 'sovereign', CareerDecision[]> = {
   ],
 };
 
-export function careerDecision(world: World, p: Player): CareerDecision | null {
+function careerDecision(world: World, p: Player): CareerDecision | null {
   const role = p.allocator?.career;
   if (!role) return null;
   const month = getMarket(world, role.market).month;

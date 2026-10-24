@@ -20,19 +20,7 @@ export type BusinessCategory =
   | 'health' // clinic, dentist, gym
   | 'education' // tutoring centre, private school, coding bootcamp
   | 'logistics' // courier depot, warehouse
-  | 'hospitality'; // hotel, event venue, co-living
-
-export const BUSINESS_CATEGORIES: readonly BusinessCategory[] = [
-  'food',
-  'retail',
-  'services',
-  'trades',
-  'health',
-  'education',
-  'logistics',
-  'hospitality',
-];
-
+  | 'hospitality';
 export type GigSkill = 'tech' | 'sales' | 'ops' | 'creative';
 
 export interface VenueItem {
@@ -59,7 +47,7 @@ export interface VenueItem {
   travel?: boolean;
 }
 
-export interface BusinessGig {
+interface BusinessGig {
   id: string;
   label: string;
   hours: number;
@@ -85,9 +73,9 @@ export interface JobRole {
   skill?: GigSkill | null;
 }
 
-export type JobLevel = 'entry' | 'skilled' | 'lead';
+type JobLevel = 'entry' | 'skilled' | 'lead';
 
-export type BusinessShape =
+type BusinessShape =
   | 'shopfront'
   | 'stall'
   | 'kiosk'

@@ -39,7 +39,7 @@ export function civicOf(view: View, place: Pick<Place, 'kind' | 'ref'>): CivicVi
 }
 
 /** "Day 12, 10:00" (or "next month"), on the game clock. */
-export function whenLabel(w: When, now?: When | null): string {
+function whenLabel(w: When, now?: When | null): string {
   const time = `${String(w.hour).padStart(2, '0')}:${String(w.minute).padStart(2, '0')}`;
   if (now && w.month > now.month) return t('Day {day} next month, {time}', { day: w.day, time });
   return t('Day {day}, {time}', { day: w.day, time });
@@ -144,7 +144,7 @@ type Send = ReturnType<typeof useView>['send'];
 const runService = (send: Send, e: CivicView, s: Service, extra: Record<string, unknown> = {}) =>
   send(cmd({ type: 'place.use', placeId: e.id, service: s.id, ...extra }), () => doneText(s.id));
 
-export function useCivic() {
+function useCivic() {
   const { view, send, busy } = useView();
   const book = (e: CivicView) =>
     send(cmd({ type: 'place.book', placeId: e.id }), (r: { appointment?: { when: When } }) =>

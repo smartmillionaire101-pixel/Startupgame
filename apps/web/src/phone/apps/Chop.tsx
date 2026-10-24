@@ -25,7 +25,7 @@ export interface DeliveryPlace {
 }
 
 /** Open food places that deliver, or null when the engine doesn't send them yet. */
-export function deliveryOf(view: Parameters<typeof hereField>[0]): DeliveryPlace[] | null {
+function deliveryOf(view: Parameters<typeof hereField>[0]): DeliveryPlace[] | null {
   const raw = hereField(view, 'delivery');
   if (!Array.isArray(raw)) return null;
   return raw
@@ -46,7 +46,7 @@ export function deliveryOf(view: Parameters<typeof hereField>[0]): DeliveryPlace
 }
 
 /** Delivery adds 15% (paid to the business). */
-export const withDelivery = (price: number) => Math.round(price * 1.15);
+const withDelivery = (price: number) => Math.round(price * 1.15);
 
 export function Chop(_: { ctx: PhoneCtx }) {
   const { view, send, toast } = useView();

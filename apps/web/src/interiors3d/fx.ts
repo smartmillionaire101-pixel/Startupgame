@@ -16,7 +16,7 @@ function rand() {
 }
 
 const GLYPHS = new Map<string, THREE.Texture>();
-export function glyphTexture(ch: string, color: string): THREE.Texture {
+function glyphTexture(ch: string, color: string): THREE.Texture {
   const key = `${ch}|${color}`;
   const hit = GLYPHS.get(key);
   if (hit) return hit;
