@@ -169,4 +169,6 @@ export const moreGames: Record<string, string> = {
   'Bowling isn’t open yet.': 'Le bowling n’est pas encore ouvert.',
   'Wait for the pins to settle.': 'Attendez que les quilles se stabilisent.',
   'There’s no jump booked to land.': 'Aucun saut réservé à terminer.',
+  // The lifestyle shortcut (screens/Lifestyle.tsx).
+  'Change lifestyle': 'Changer de train de vie',
 };

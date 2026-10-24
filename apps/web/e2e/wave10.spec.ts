@@ -176,6 +176,35 @@ test('Going out: a locked activity says when it unlocks', async ({ page }) => {
   await expect(open.getByRole('button', { name: /^Go to / })).toBeVisible();
 });
 
+test('change lifestyle from a locked activity and from the phone’s Settings', async ({
+  page,
+}, info) => {
+  await create(page, 'founder', 'lagos');
+  const phone = await openApp(page, 'goingout');
+  await phone.getByRole('radio', { name: 'By lifestyle' }).click();
+  const locked = phone.locator('[data-activity][data-locked]').first();
+  const id = await locked.getAttribute('data-activity');
+  const lock = (await locked.locator('[data-lock]').innerText()).match(/living (\d)/)![1]!;
+  // The lock has its own way to change your lifestyle.
+  await locked.locator('[data-open-lifestyle]').click();
+  const sheet = page.getByRole('dialog', { name: 'Lifestyle' });
+  await expect(sheet.locator('[data-lifestyle-tier]')).toHaveCount(5);
+  await page.screenshot({ path: info.outputPath('lifestyle-sheet.png') });
+  await sheet.locator(`[data-lifestyle-tier="${lock}"]`).click();
+  // The activity unlocks (and its lock, with the sheet it opened, goes).
+  await expect(sheet).toBeHidden();
+  await expect(phone.locator(`[data-activity="${id}"]`).first()).not.toHaveAttribute(
+    'data-locked',
+    '',
+  );
+  // Settings has it too.
+  await phone.getByRole('button', { name: 'Back' }).first().click();
+  await phone.locator('[data-app="settings"]').click();
+  await phone.locator('[data-open-lifestyle]').click();
+  await expect(page.getByRole('dialog', { name: 'Lifestyle' })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('lifestyle-settings.png') });
+});
+
 test('open a branch from the Company screen', async ({ page }) => {
   await create(page, 'founder', 'lagos');
   // Put some savings into the company to pay for the fit-out.

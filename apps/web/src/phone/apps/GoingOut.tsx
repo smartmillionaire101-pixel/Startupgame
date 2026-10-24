@@ -51,6 +51,7 @@ import { placeName, tilesTo, useCityLayout } from './city';
 import { PlanHangout } from './Friends';
 import { HolidayInvite, holidayHere, type HolidayView } from './Holiday';
 import '../wave10.css';
+import { LifestyleButton } from '../../screens/Lifestyle';
 
 type Tab = 'out' | 'levels';
 
@@ -326,6 +327,7 @@ function GamesCard({ ctx }: { ctx: PhoneCtx }) {
               <span className="small muted">
                 {r.locked ? t('Needs a higher standard of living') : r.line}
               </span>
+              {r.locked && <LifestyleButton size="sm" />}
             </span>
             <button
               type="button"
@@ -1037,7 +1039,8 @@ function ByLifestyle({ ctx }: { ctx: PhoneCtx }) {
                           {t('Unlocks at standard of living {n} ({name})', {
                             n: a.it.requiresTier,
                             name: lifestyleName(view, a.it.requiresTier),
-                          })}
+                          })}{' '}
+                          <LifestyleButton size="sm" />
                         </span>
                       )}
                     </span>

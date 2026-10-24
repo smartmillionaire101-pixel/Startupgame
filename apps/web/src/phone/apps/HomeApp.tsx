@@ -10,6 +10,7 @@ import { homeOf, sellsOf } from '../../city/life';
 import { slotLabel, slotsOwned } from '../../city/Showroom';
 import { cityViewOf, isAbroad, stayOf } from '../../city/travel';
 import { Icon } from '../icons';
+import { LifestyleButton } from '../../screens/Lifestyle';
 import {
   H,
   Line,
@@ -70,6 +71,7 @@ export function HomeApp({ ctx }: { ctx: PhoneCtx }) {
         <Button variant="subtle" onClick={ctx.pickGuest}>
           <Icon name="people" size={18} /> {t('Invite')}
         </Button>
+        <LifestyleButton label={t('Lifestyle')} />
       </div>
       <section className="phone-card">
         <H>{t('Needs')}</H>
