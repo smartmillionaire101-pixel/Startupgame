@@ -39,21 +39,21 @@ import type { Hangout, Id, LocalBusiness, MarketState, Player, Visit, World } fr
 export const SEND_FEE_RATE = 0.01;
 export const SEND_FEE_MIN_COL = 0.0001;
 export const SEND_DAILY_LIMIT_COL = 2;
-export const SEND_NOTE_MAX = 80;
+const SEND_NOTE_MAX = 80;
 const DAY_MS = 86_400_000;
 
 export const VISIT_SOCIAL = 30;
-export const VISIT_TRUST = 0.05;
-export const VISIT_WARMTH = 0.15;
+const VISIT_TRUST = 0.05;
+const VISIT_WARMTH = 0.15;
 /** Invitations a host can send in a month. */
-export const VISIT_INVITES_PER_MONTH = 6;
+const VISIT_INVITES_PER_MONTH = 6;
 
 export const HANGOUT_SOCIAL = 20;
 export const HANGOUT_FUN = 15;
-export const HANGOUT_WARMTH = 0.12;
-export const HANGOUT_TRUST = 0.03;
-export const HANGOUT_MAX_INVITEES = 8;
-export const HANGOUTS_PER_MONTH = 3;
+const HANGOUT_WARMTH = 0.12;
+const HANGOUT_TRUST = 0.03;
+const HANGOUT_MAX_INVITEES = 8;
+const HANGOUTS_PER_MONTH = 3;
 
 export const TECH_EVENT_KINDS = [
   'meetup',
@@ -62,7 +62,7 @@ export const TECH_EVENT_KINDS = [
   'conference',
   'workshop',
 ] as const;
-export type TechEventKind = (typeof TECH_EVENT_KINDS)[number];
+type TechEventKind = (typeof TECH_EVENT_KINDS)[number];
 
 interface TechKindSpec {
   label: string;
@@ -77,7 +77,7 @@ interface TechKindSpec {
   topics: readonly string[];
 }
 
-export const TECH_EVENT_KIND_DATA: Record<TechEventKind, TechKindSpec> = {
+const TECH_EVENT_KIND_DATA: Record<TechEventKind, TechKindSpec> = {
   meetup: {
     label: 'Meetup',
     capacity: [30, 80],
@@ -162,12 +162,12 @@ export const TALK_TITLES = [
   'Distribution beats product',
 ] as const;
 
-export const TECH_EVENT_SOCIAL = 15;
-export const TECH_EVENT_SPEAKER_WARMTH = 0.15;
-export const TECH_EVENT_CROWD_WARMTH = 0.12;
+const TECH_EVENT_SOCIAL = 15;
+const TECH_EVENT_SPEAKER_WARMTH = 0.15;
+const TECH_EVENT_CROWD_WARMTH = 0.12;
 /** Demo day: the chance you get a slot to pitch on stage (more with stars). */
-export const PITCH_SLOT_BASE = 0.45;
-export const PITCH_INTEREST_WARMTH = 0.35;
+const PITCH_SLOT_BASE = 0.45;
+const PITCH_INTEREST_WARMTH = 0.35;
 
 /** Where tech events are held, besides the Hub and the Event Hall. */
 const TECH_VENUE_KINDS = new Set(['hotel', 'event-venue', 'co-working', 'bootcamp', 'school']);
@@ -181,7 +181,7 @@ const human = (world: World, id: Id, what: string): Player => {
 };
 
 /** Notes go to another player: the chat filters apply (no links, emails, phone numbers). */
-export function cleanNote(note: string | undefined): string {
+function cleanNote(note: string | undefined): string {
   const raw = (note ?? '').replace(/\s+/g, ' ').trim();
   if (!raw) return '';
   const check = checkChatMessage(raw.slice(0, SEND_NOTE_MAX));
@@ -218,7 +218,7 @@ export function sendLimits(world: World, me: Player, now: number) {
   };
 }
 
-export const sendFee = (amount: number, minFee: number) =>
+const sendFee = (amount: number, minFee: number) =>
   Math.max(Math.round(amount * SEND_FEE_RATE), minFee);
 
 export function sendMoney(
@@ -611,7 +611,7 @@ export function hangoutsView(world: World, p: Player) {
 
 // ---------------------------------------------------------------- Tech events
 
-export interface TechSpeaker {
+interface TechSpeaker {
   /** Player id (AI founder or angel) or `fund:<id>` (a fund partner). */
   id: string;
   name: string;
@@ -644,8 +644,7 @@ export interface TechEvent {
   ticket: number;
 }
 
-export const techEventId = (market: MarketId, month: number, n: number) =>
-  `te:${market}:${month}:${n}`;
+const techEventId = (market: MarketId, month: number, n: number) => `te:${market}:${month}:${n}`;
 
 export function parseTechEventId(
   id: string,

@@ -25,7 +25,6 @@ import { formatMoney } from './money.js';
 import type { Rng } from './rng.js';
 import { applyStarEvent } from './stars.js';
 import { monthlyGrowth } from './valuation.js';
-import { companyRunway } from './company.js';
 import type {
   Company,
   FactCheckResult,
@@ -38,19 +37,16 @@ import type {
   World,
 } from './types.js';
 
-export const STORY_PITCH_COOLDOWN = 3;
-export const ALERT_MAX_WORDS = 12;
-export const ARTICLE_MAX_WORDS = 60;
-
-export const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
-
+const STORY_PITCH_COOLDOWN = 3;
+const ALERT_MAX_WORDS = 12;
+const ARTICLE_MAX_WORDS = 60;
 function truncateWords(s: string, max: number) {
   const words = s.trim().split(/\s+/);
   return words.length <= max ? s.trim() : `${words.slice(0, max).join(' ')}…`;
 }
 
 /** Truth for each metric a reporter can ask about. */
-export function truthFor(
+function truthFor(
   world: World,
   c: Company | null,
   p: Player,
@@ -77,7 +73,7 @@ export function truthFor(
 }
 
 /** Accurate within ~10% (tighter for high-star players: closer fact-checking). */
-export function factCheck(
+function factCheck(
   claim: number | null,
   truth: number,
   stars: number,
@@ -168,7 +164,7 @@ function pickOutlet(m: { outlets: Outlet[] }, rng: Rng, prefer: OutletType[]): O
   return rng.pick(list.length ? list : m.outlets);
 }
 
-export function invite(
+function invite(
   world: World,
   args: {
     player: Player;
@@ -535,5 +531,3 @@ export function economicNote(world: World, market: string): string {
         : 'Funding is steady.';
   return `Policy rate ${rate}%.${fx} ${mood}`;
 }
-
-export const runwayFor = companyRunway;

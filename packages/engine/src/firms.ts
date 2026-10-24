@@ -38,7 +38,7 @@ import type { Firm, FirmMember, Fund, Id, Player, World } from './types.js';
 const firmsOf = (world: World): Record<Id, Firm> => (world.firms ??= {});
 
 /** The firm this player owns (or runs after a succession), if any. */
-export function firmOf(world: World, p: Player): Firm | undefined {
+function firmOf(world: World, p: Player): Firm | undefined {
   return Object.values(world.firms ?? {}).find(
     (f) => f.ownerId === p.id || f.succession?.successorId === p.id,
   );

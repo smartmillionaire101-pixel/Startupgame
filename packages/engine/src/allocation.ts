@@ -226,7 +226,7 @@ export function lookThroughNav(world: World, fof: Fund): number {
 // ---------------------------------------------------------------- conflicts and the LP advisory committee
 
 /** Why a fund cheque into this company is a conflict for its GP (§8.6), or null. */
-export function conflictOf(world: World, f: Fund, c: Company): string | null {
+function conflictOf(world: World, f: Fund, c: Company): string | null {
   const gp = f.managerId;
   if (!gp) return null;
   if (world.positions[`${gp}:${c.id}`] && !world.positions[`${gp}:${c.id}`]!.writtenOff)
@@ -338,7 +338,7 @@ export function checkConflict(world: World, f: Fund, c: Company) {
 // ---------------------------------------------------------------- selling an LP stake
 
 /** A commitment's share of the fund's NAV, the fund's currency. */
-export function stakeNav(world: World, f: Fund, c: LpCommitment): number {
+function stakeNav(world: World, f: Fund, c: LpCommitment): number {
   const paid = f.lp?.paidIn ?? f.size;
   return paid > 0 ? Math.round((fundNav(world, f) * c.paidIn) / paid) : 0;
 }
@@ -677,7 +677,7 @@ const safesOf = (c: Company, holderId: Id) =>
  * The same checks the command runs, in the same order, so the Capital screen
  * says exactly why instead of showing a button that does nothing.
  */
-export function investorSecondaryBlocker(
+function investorSecondaryBlocker(
   world: World,
   me: Player,
   c: Company,
@@ -885,7 +885,7 @@ export function investorSecondary(
 }
 
 /** The sizes the Capital screen offers, bps of the stake. */
-export const STAKE_SALE_BPS = [1_000, 2_500, 5_000, 10_000] as const;
+const STAKE_SALE_BPS = [1_000, 2_500, 5_000, 10_000] as const;
 
 /**
  * `view.capital.stakes`: every private company you hold a stake in but didn't

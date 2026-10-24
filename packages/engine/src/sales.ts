@@ -116,12 +116,12 @@ const NEXT: Partial<Record<SalesAction, SalesStage>> = {
 // ---------------------------------------------------------------- Helpers
 
 const salesOutput = (c: Company) => outputOf(c, ['sales']);
-export const prospectLimit = (c: Company) => SALES.prospectsPerMonth + Math.floor(salesOutput(c));
-export const openDealLimit = (c: Company) => SALES.openDeals + Math.floor(salesOutput(c) * 3);
-export const prospectsUsed = (c: Company, month: number) =>
+const prospectLimit = (c: Company) => SALES.prospectsPerMonth + Math.floor(salesOutput(c));
+const openDealLimit = (c: Company) => SALES.openDeals + Math.floor(salesOutput(c) * 3);
+const prospectsUsed = (c: Company, month: number) =>
   c.salesProspects?.month === month ? c.salesProspects.count : 0;
 
-export const actionCost = (m: MarketState, action: SalesAction): number =>
+const actionCost = (m: MarketState, action: SalesAction): number =>
   scale(col(m), SALES.costCol[action] ?? 0);
 
 /** The price the customer would pay after any discount. */
@@ -757,7 +757,7 @@ export const salesBilling = (c: Company): number =>
 
 // ---------------------------------------------------------------- View
 
-export interface SalesNextAction {
+interface SalesNextAction {
   action: SalesAction;
   hours: number;
   cost: number;

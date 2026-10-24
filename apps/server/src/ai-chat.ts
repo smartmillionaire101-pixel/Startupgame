@@ -37,7 +37,7 @@ import {
 
 export type Lang = 'en' | 'fr';
 
-export type CharacterKind =
+type CharacterKind =
   | 'founder'
   | 'angel'
   | 'partner'
@@ -72,7 +72,7 @@ type View = ReturnType<typeof playerView>;
 // ---------------------------------------------------------------- helpers
 
 /** FNV-1a: small, stable, good enough for picking a template. */
-export function hash(s: string): number {
+function hash(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
@@ -628,7 +628,7 @@ const INTENT_LIST: readonly Intent[] = [
   'other',
 ];
 
-export const emptyMemory = (): AiMemory => ({
+const emptyMemory = (): AiMemory => ({
   v: 1,
   lastIntent: null,
   topic: null,
@@ -1492,7 +1492,7 @@ const COMPANY_FR =
   /(?:^|\s)(?:[Mm]a (?:société|startup|boîte|entreprise) (?:s(?:'|’)appelle |est )?|[Jj]e dirige |[Jj](?:'|’)ai fondé |[Nn]ous construisons )([A-Z0-9][\w&'’-]*(?: [A-Z0-9][\w&'’-]*){0,3})/;
 
 /** Company names, amounts and places in the player's message. */
-export function heard(world: World, me: Player, market: MarketId | null, text: string) {
+function heard(world: World, me: Player, market: MarketId | null, text: string) {
   const out: AiMemory['said'] = {};
   const mine = activeCompanyOf(world, me);
   if (mine && text.toLowerCase().includes(mine.name.toLowerCase())) out.company = mine.name;

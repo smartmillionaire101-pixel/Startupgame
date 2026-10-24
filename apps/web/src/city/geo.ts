@@ -94,7 +94,7 @@ export function loadGeo(marketId: string): Promise<GeoData | null> {
 }
 
 /** The map if loaded; null when the market has none; 'loading' while it loads. */
-export function geoState(marketId: string): GeoData | null | 'loading' {
+function geoState(marketId: string): GeoData | null | 'loading' {
   const hit = cache.get(marketId);
   if (hit) return hit;
   return loaderOf(marketId) && !failed.has(marketId) ? 'loading' : null;
@@ -117,13 +117,6 @@ export function useGeo(marketId: string): GeoData | null | 'loading' {
   }, [marketId, state]);
   return state;
 }
-
-/** Test hook: put a map in the cache directly. */
-export function primeGeo(marketId: string, g: GeoData) {
-  cache.set(marketId, g);
-  emit();
-}
-
 // ---------------------------------------------------------------------------
 // Real places
 

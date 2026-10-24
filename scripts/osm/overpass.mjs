@@ -2,7 +2,7 @@
  * The Overpass API, with mirrors and retries (used by build.mjs and tiles.mjs).
  * Only GitHub's runners reach it; the game never fetches map data at runtime.
  */
-export const MIRRORS = [
+const MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',

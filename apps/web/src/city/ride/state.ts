@@ -18,9 +18,9 @@ import type { AvatarLook } from '../art';
 import type { CityLayout, Pt } from '../layout';
 import type { RideMode } from '../travel';
 
-export const SKIP_RIDES_KEY = 'runway.skipRides';
+const SKIP_RIDES_KEY = 'runway.skipRides';
 const COUNT_KEY = 'runway.rideCount';
-export const RIDING_EVENT = 'runway:riding';
+const RIDING_EVENT = 'runway:riding';
 
 const read = (k: string): string | null => {
   try {
@@ -57,7 +57,7 @@ export function reduceMotion(): boolean {
 }
 
 /** Rides seen so far (the "Always skip rides" toggle shows from the second). */
-export const rideCount = () => Number(read(COUNT_KEY)) || 0;
+const rideCount = () => Number(read(COUNT_KEY)) || 0;
 
 // ---------------------------------------------------------------------------
 // The quote from the ride chooser (fare and where to), used by the next ride.
@@ -145,14 +145,11 @@ function announce(on: boolean) {
   }
 }
 
-export const subscribeRide = (cb: () => void) => {
+const subscribeRide = (cb: () => void) => {
   listeners.add(cb);
   return () => listeners.delete(cb);
 };
 export const currentRide = () => current;
-export const isRiding = () => current !== null;
-/** Whether a ride scene is playing (re-renders when one starts or ends). */
-export const useRiding = () => useSyncExternalStore(subscribeRide, isRiding, () => false);
 export const useRide = () => useSyncExternalStore(subscribeRide, currentRide, () => null);
 
 /** Skip ›: jump straight to the arrival. */

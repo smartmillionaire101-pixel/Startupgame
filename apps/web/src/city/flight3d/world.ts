@@ -47,7 +47,7 @@ const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const DEG = Math.PI / 180;
 
 /** The sun's local hour over a longitude at a moment (solar time, what the sky shows). */
-export function solarHour(lon: number, at: number): number {
+function solarHour(lon: number, at: number): number {
   const d = new Date(at);
   const utc = d.getUTCHours() + d.getUTCMinutes() / 60;
   return (((utc + lon / 15) % 24) + 24) % 24;

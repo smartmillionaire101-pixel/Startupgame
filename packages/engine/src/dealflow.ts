@@ -60,7 +60,7 @@ export interface DealflowEvent {
 }
 
 /** A human investor in a deal-flow world. */
-export const isDealflowInvestor = (world: World, p: Player | undefined): p is Player =>
+const isDealflowInvestor = (world: World, p: Player | undefined): p is Player =>
   !!p && !p.ai && p.role === 'investor' && !!p.investor && dealflowOn(world);
 
 /** The investor's learning record, created on first use. */
@@ -389,7 +389,7 @@ export function eventDealFlow(
 // ---------------------------------------------------------------- views
 
 /** One pitch in your pipeline, with where it stands now. */
-export function pitchView(world: World, p: Player, e: PipelineEntry) {
+function pitchView(world: World, p: Player, e: PipelineEntry) {
   const c = world.companies[e.companyId];
   if (!c || !e.pitch) return null;
   const contact = (p.contacts ?? []).find((x) => x.refId === e.pitch!.founderId);
@@ -410,7 +410,7 @@ export function pitchView(world: World, p: Player, e: PipelineEntry) {
 }
 
 /** A conversation with an AI investor, with the lesson in words. */
-export function talkView(world: World, t: InvestorTalk) {
+function talkView(world: World, t: InvestorTalk) {
   const lesson = lessonById(t.lessonId);
   const c = t.referredId ? world.companies[t.referredId] : undefined;
   return {

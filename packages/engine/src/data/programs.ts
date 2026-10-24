@@ -16,7 +16,7 @@ import type { MarketId } from './markets.js';
 export const INVESTOR_TYPES = ['angel', 'vc', 'impact', 'corporate'] as const;
 export type InvestorType = (typeof INVESTOR_TYPES)[number];
 
-export interface ProgramLook {
+interface ProgramLook {
   color: string;
   accent: string;
 }
@@ -484,7 +484,7 @@ export const ACCELERATORS: Record<MarketId, AcceleratorSeed[]> = {
 
 // ---------------------------------------------------------------- Development partners
 
-export type GrantKind =
+type GrantKind =
   | 'grant-window'
   | 'women-founders'
   | 'climate'
@@ -515,7 +515,7 @@ export interface GrantProgramSeed {
   selectivity: number;
 }
 
-export type DevPartnerKind = 'dfi' | 'donor' | 'foundation' | 'government';
+type DevPartnerKind = 'dfi' | 'donor' | 'foundation' | 'government';
 
 export interface DevPartnerSeed {
   id: string;

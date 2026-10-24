@@ -19,9 +19,9 @@ import type { NightStyle } from './nightlife';
 
 export type ClubTier = 'street' | 'mid' | 'luxe';
 export type ClubTheme = 'warehouse' | 'techno' | 'neon' | 'velvet' | 'tropical' | 'gold' | 'marble';
-export type FloorShape = 'grid' | 'wide' | 'round' | 'raised';
-export type BoothStyle = 'deck' | 'riser' | 'pod' | 'throne';
-export type Rig = 'beams' | 'lasers' | 'strobes' | 'ledwall' | 'chandeliers';
+type FloorShape = 'grid' | 'wide' | 'round' | 'raised';
+type BoothStyle = 'deck' | 'riser' | 'pod' | 'throne';
+type Rig = 'beams' | 'lasers' | 'strobes' | 'ledwall' | 'chandeliers';
 export type SignFont = 'sans' | 'serif' | 'mono' | 'script';
 
 export interface ClubLook {

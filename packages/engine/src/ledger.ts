@@ -101,9 +101,6 @@ export function account(world: World, id: Id): Account {
   if (!acc) fail('account.missing', `Unknown account ${id}`);
   return acc;
 }
-
-export const balance = (world: World, id: Id): number => account(world, id).balance;
-
 /**
  * A human player's own accounts keep a long statement. Set when they open;
  * saves from before statements pick it up at the player's next command.
@@ -243,7 +240,7 @@ export function fxRate(world: World, from: Currency, to: Currency): number {
   return unitsPerUsd(to) / unitsPerUsd(from);
 }
 
-export function fxFeeBps(world: World, a: Currency, b: Currency): number {
+function fxFeeBps(world: World, a: Currency, b: Currency): number {
   const fee = (c: Currency) =>
     Object.values(world.markets).find((m) => m.data.currency === c)?.data.fxFeeBps ?? 0;
   return Math.max(fee(a), fee(b));

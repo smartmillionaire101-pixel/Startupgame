@@ -43,9 +43,9 @@ function mat(color: string, o: { emissive?: string; metal?: number; rough?: numb
 }
 
 /** How far the view loads the city (metres) by device tier. */
-export const skyReach = (tier: 'high' | 'low') => (tier === 'high' ? 11_000 : 6_500);
+const skyReach = (tier: 'high' | 'low') => (tier === 'high' ? 11_000 : 6_500);
 /** How far a software renderer (no GPU) loads the city. */
-export const SOFT_REACH = 2_500;
+const SOFT_REACH = 2_500;
 /** The longest step a ride takes between two frames (a hidden tab comes back where it was). */
 const MAX_STEP_MS = 2_000;
 

@@ -895,7 +895,7 @@ const contactKindLabel = (k: ContactView['kind']) =>
   })[k];
 
 /** People you've met at events, warmest first within each month (Wave 2). */
-export function Contacts() {
+function Contacts() {
   const { view } = useView();
   const contacts = contactsOf(view);
   const funds = new Set(view.market.funds.map((f) => f.id));

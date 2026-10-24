@@ -20,7 +20,7 @@ export type LenderKind =
   | 'microfinance'
   | 'fintech'; // revenue-based / inventory finance, BNPL-for-business
 
-export type ProductKind =
+type ProductKind =
   | 'startup-loan' // personal loan for founders, pre-revenue allowed
   | 'working-capital'
   | 'revenue-based' // repay a % of monthly revenue
@@ -63,7 +63,7 @@ export interface LenderLook {
   motif: 'columns' | 'glass' | 'kiosk' | 'tower' | 'shopfront';
 }
 
-export interface LenderSeed {
+interface LenderSeed {
   id: string;
   /** Fictional, like the rest of the AI population. */
   name: string;
@@ -76,7 +76,7 @@ export interface LenderSeed {
 }
 
 /** Extra AI funds and angel networks beyond the six every market starts with. */
-export interface ExtraFundSeed {
+interface ExtraFundSeed {
   name: string;
   partner: string;
   /** 'vc' cheques scale with vcDepth, 'angels' with angelDepth. */
@@ -1626,7 +1626,7 @@ export const CAPITAL: Record<MarketId, CapitalProfile> = {
 };
 
 /** Base cheque (USD, at depth 1), stages and bar for each extra-fund kind. */
-export const EXTRA_FUND_KINDS: Record<
+const EXTRA_FUND_KINDS: Record<
   ExtraFundSeed['kind'],
   {
     check: [number, number];

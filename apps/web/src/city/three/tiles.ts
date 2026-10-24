@@ -25,9 +25,14 @@ import type { CityLook } from './cities';
 import { boxMeshes, mergedMesh, osmFootprints, type RealBuilding } from './buildings';
 import { FootprintGrid, type Fp } from './footprints';
 import { beacons, glowPoints } from './lights';
+import * as geoTiles from '../geo3d/tiles';
 
 type Decoder = (buf: ArrayBuffer, index?: unknown) => unknown;
-const DECODERS = import.meta.glob<{ decodeTile?: Decoder; decode?: Decoder }>('../geo3d/tiles.ts');
+// A plain import: terrain.ts already loads geo3d/tiles.ts with the map, so a
+// lazy one split nothing off (the build warned about it).
+const DECODERS: Record<string, () => Promise<{ decodeTile?: Decoder; decode?: Decoder }>> = {
+  tiles: () => Promise.resolve(geoTiles),
+};
 
 interface RawBuilding {
   p: ArrayLike<number>;
@@ -38,7 +43,7 @@ interface RawBuilding {
   type?: number;
 }
 
-export interface TileContext {
+interface TileContext {
   scene: THREE.Scene;
   mat: THREE.Material;
   /** For the instanced boxes (spires, roof plant). */

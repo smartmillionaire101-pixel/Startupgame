@@ -396,7 +396,7 @@ export function paintingTexture(seed: number): THREE.Texture {
 }
 
 /** A soft round shadow (contact shadows under furniture and people). */
-export function blobTexture(): THREE.Texture {
+function blobTexture(): THREE.Texture {
   return canvasTex(
     'blob',
     128,
@@ -707,9 +707,6 @@ export function disposeTree(root: THREE.Object3D) {
   });
   for (const k of keep) k.removeFromParent();
 }
-
-export const hexOf = (c: THREE.Color) => `#${c.getHexString()}`;
-
 /** Lighten (amt > 0) or darken a hex colour. */
 export function tone(hex: string, amt: number): string {
   const c = new THREE.Color(hex);

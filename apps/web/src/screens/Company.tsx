@@ -81,7 +81,6 @@ const buildModeLabel = (m: string) =>
 /** Another screen (the phone's Founder app) can ask for a tab once: `openCompanyTab('roadmap')`. */
 const TAB_KEY = 'rw.companyTab';
 const tabListeners = new Set<(tab: Tab) => void>();
-export type CompanyTab = Tab;
 export function openCompanyTab(tab: Tab) {
   // A Company screen already open switches at once.
   if (tabListeners.size) {

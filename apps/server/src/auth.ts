@@ -25,8 +25,8 @@ import {
 } from 'node:crypto';
 import type { AccountStore } from './store/types.js';
 
-export const OTP_TTL_MS = 10 * 60_000;
-export const OTP_MAX_ATTEMPTS = 5;
+const OTP_TTL_MS = 10 * 60_000;
+const OTP_MAX_ATTEMPTS = 5;
 export const SESSION_TTL_MS = 30 * 86_400_000;
 export const SESSION_COOKIE = 'rw_session';
 
@@ -42,7 +42,7 @@ export function isAdult(dob: { year: number; month: number; day: number }, now: 
   return eighteenth.getTime() <= now.getTime();
 }
 
-export const EMAIL_TOKEN_TTL_MS = 15 * 60_000;
+const EMAIL_TOKEN_TTL_MS = 15 * 60_000;
 
 /** Trim + lowercase, then a basic shape check. Returns null when it isn't an email. */
 export function normaliseEmail(raw: string): string | null {
@@ -59,7 +59,7 @@ export type LinkResult =
   | { ok: true; userId: string; token: string; intent: EmailIntent; email: string; isNew: boolean }
   | { ok: false; code: 'link.bad' | 'email.taken' | 'auth'; message: string };
 
-export const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 export class AuthService {
   constructor(

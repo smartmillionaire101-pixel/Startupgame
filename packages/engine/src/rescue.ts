@@ -44,21 +44,21 @@ import type {
 } from './types.js';
 
 /** Bridge SAFEs are capped this far below the last round's post-money. */
-export const BRIDGE_DISCOUNT = 0.2;
+const BRIDGE_DISCOUNT = 0.2;
 /** A distressed buyer pays this share of the model valuation. */
-export const FIRE_SALE_RANGE: [number, number] = [0.25, 0.45];
+const FIRE_SALE_RANGE: [number, number] = [0.25, 0.45];
 export const HIBERNATE_HOURS = 2;
 export const BRIDGE_HOURS = 3;
 export const FIRE_SALE_HOURS = 2;
 /** Morale hits. */
-export const DOWNSIZE_MORALE = 8;
-export const HIBERNATE_MORALE = 10;
+const DOWNSIZE_MORALE = 8;
+const HIBERNATE_MORALE = 10;
 
 const RANK: Record<DistressLevel, number> = { watch: 1, danger: 2, critical: 3 };
 const rank = (l: DistressLevel | null | undefined) => (l ? RANK[l] : 0);
 
 /** Founder pay on a survival budget: half the local cost of living. */
-export const survivalSalary = (world: World, c: Company) =>
+const survivalSalary = (world: World, c: Company) =>
   Math.round(col(getMarket(world, c.market)) * 0.5);
 
 export interface DistressAssessment {
@@ -96,7 +96,7 @@ export function assessDistress(world: World, c: Company): DistressAssessment | n
 export const NEW_COMPANY_GRACE_MONTHS = 3;
 
 /** Plain-language deadline for the rescue plan. Critical always says what ends the company. */
-export function distressDeadline(c: Company, level: DistressLevel, monthsLeft: number): string {
+function distressDeadline(c: Company, level: DistressLevel, monthsLeft: number): string {
   if (level === 'critical')
     return `Payroll is due at month end and the cash won’t cover it. One more missed payroll ends ${c.name}.`;
   if (level === 'danger' && c.finance.unpaidPayroll > 0)
@@ -221,7 +221,7 @@ export function setHibernation(world: World, c: Company, on: boolean, month: num
 }
 
 /** Existing outside investors who can be asked for a bridge, weighted by what they put in. */
-export function bridgeInvestors(world: World, c: Company): { party: PartyRef; weight: number }[] {
+function bridgeInvestors(world: World, c: Company): { party: PartyRef; weight: number }[] {
   const ids = new Set<string>();
   for (const [h, holding] of Object.entries(c.capTable.holdings))
     if (holding.kind === 'investor' || holding.kind === 'safe-converted') ids.add(h);
@@ -251,7 +251,7 @@ const openAcquisition = (world: World, c: Company) =>
   );
 
 /** Bridge cap: the last post-money (or the model value) less the discount. */
-export function bridgeCap(world: World, c: Company): number {
+function bridgeCap(world: World, c: Company): number {
   const base =
     c.capTable.lastPostMoney > 0
       ? c.capTable.lastPostMoney

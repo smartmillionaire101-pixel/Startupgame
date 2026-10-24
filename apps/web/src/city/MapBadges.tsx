@@ -26,7 +26,7 @@ function readNames(): boolean {
   return names;
 }
 
-export function setMapNames(on: boolean) {
+function setMapNames(on: boolean) {
   names = on;
   try {
     localStorage.setItem(NAMES_KEY, on ? '1' : '0');
@@ -62,7 +62,7 @@ const categoryName = (c: string) =>
     }) as Record<string, string>
   )[c] ?? c;
 
-export function placeType(p: Place | null): string {
+function placeType(p: Place | null): string {
   if (!p) return t('Market');
   if (p.category) return categoryName(p.category);
   return (
@@ -87,7 +87,7 @@ export function placeType(p: Place | null): string {
 }
 
 /** The badge's disc (for the card and the key). */
-export function BadgeDisc({ badge, big = false }: { badge: Badge; big?: boolean }) {
+function BadgeDisc({ badge, big = false }: { badge: Badge; big?: boolean }) {
   return (
     <span
       className={`mb-disc${badge.money ? ' is-money' : ''}${big ? ' is-big' : ''}`}

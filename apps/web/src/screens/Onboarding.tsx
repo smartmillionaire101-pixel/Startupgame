@@ -39,7 +39,7 @@ const SKILL_LABEL: Record<string, () => string> = {
 };
 
 /** Plain-language starting modifiers of a background. */
-export function backgroundModifiers(b: Background): string[] {
+function backgroundModifiers(b: Background): string[] {
   const out: string[] = [];
   for (const [k, v] of Object.entries(b.skills)) {
     const name = SKILL_LABEL[k]?.() ?? k;

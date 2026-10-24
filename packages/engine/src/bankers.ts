@@ -240,7 +240,7 @@ const homeMonth = (world: World, p: Player) => getMarket(world, p.market).month;
 /** Bigger banks: bigger systems and branches (√ of minimum capital vs microfinance). */
 const sizeOf = (type: BankType) => Math.sqrt(BANK_TYPES[type].minCapitalCol / 30);
 
-export const minCapitalOf = (world: World, b: Pick<Bank, 'market' | 'type'>) =>
+const minCapitalOf = (world: World, b: Pick<Bank, 'market' | 'type'>) =>
   scale(col(getMarket(world, b.market)), BANK_TYPES[b.type].minCapitalCol);
 
 /**
@@ -597,7 +597,7 @@ export function setTerms(
 }
 
 /** What a counter-offer takes: the capital group guards its price; the strategic group its seats. */
-export const counterNeed = (style: BankOfferStyle, ask: BankCounterAsk) =>
+const counterNeed = (style: BankOfferStyle, ask: BankCounterAsk) =>
   roundTo(
     BANKERS.counter[ask] +
       (style === 'capital' && ask === 'price' ? 0.2 : 0) +
@@ -646,7 +646,7 @@ export function counterOffer(
 }
 
 /** AI angels you know (a warm contact) in your city, who could co-invest. */
-export function knownAngels(world: World, p: Player) {
+function knownAngels(world: World, p: Player) {
   const month = homeMonth(world, p);
   return Object.values(world.players)
     .filter((x) => x.ai && x.angel && x.angel.retiredMonth === undefined && x.market === p.market)
@@ -1167,10 +1167,10 @@ export function suggestedPlan(type: BankType, capital: number, cl: number): Bank
   return plan;
 }
 
-export const staffCostOf = (b: Bank) =>
+const staffCostOf = (b: Bank) =>
   Object.values(b.licence?.hires ?? {}).reduce((a, h) => a + (h?.salary ?? 0), 0);
 
-export function planInput(world: World, b: Bank, plan: BankPlan): BankPlanInput {
+function planInput(world: World, b: Bank, plan: BankPlan): BankPlanInput {
   return {
     type: b.type,
     capital: Math.max(0, bankFigures(world, b).equity),
@@ -1219,7 +1219,7 @@ function checkAip(world: World, p: Player, b: Bank): boolean {
 }
 
 /** Three candidates for a key role (the same three for this application). */
-export function bankCandidates(world: World, b: Bank, role: BankKeyRole): BankHire[] {
+function bankCandidates(world: World, b: Bank, role: BankKeyRole): BankHire[] {
   const m = getMarket(world, b.market);
   const rng = deriveRng(world.seed, 'bankers', 'candidates', b.id, role, b.licence?.attempt ?? 1);
   const first = AI_FIRST_NAMES[b.market] ?? ['Alex'];
@@ -1236,7 +1236,7 @@ export function bankCandidates(world: World, b: Bank, role: BankKeyRole): BankHi
 }
 
 /** You as the bank's CEO: how the regulator rates you (no salary beyond your policy). */
-export function selfAsCeo(p: Player): BankHire {
+function selfAsCeo(p: Player): BankHire {
   const bg = backgroundById(p.backgroundId);
   return {
     id: 'self',
@@ -1278,12 +1278,12 @@ export function hireKeyPerson(
 }
 
 /** Rent a branch in this district costs a month (and the fit-out, once). */
-export function branchRent(world: World, b: Pick<Bank, 'market' | 'type'>, district: string) {
+function branchRent(world: World, b: Pick<Bank, 'market' | 'type'>, district: string) {
   const w = districtWeights(b.market).find((d) => d.district === district)?.w ?? 1;
   return scale(col(getMarket(world, b.market)), roundTo((0.25 + w * 0.1) * sizeOf(b.type), 2));
 }
 
-export const systemCost = (world: World, b: Pick<Bank, 'market' | 'type'>, s: BankSystemId) =>
+const systemCost = (world: World, b: Pick<Bank, 'market' | 'type'>, s: BankSystemId) =>
   scale(col(getMarket(world, b.market)), roundTo(BANK_SYSTEMS[s].costCol * sizeOf(b.type), 2));
 
 /** `bank.setup`: the core banking system (cost vs reliability) and the first branch. */
@@ -1347,7 +1347,7 @@ export function setupBank(
 }
 
 /** AI businesses in the city that would bank with you before you open (the same ones each time). */
-export function preopeningProspects(world: World, b: Bank) {
+function preopeningProspects(world: World, b: Bank) {
   const strategic = (b.shareholders ?? []).some((s) => s.id === 'ai:g3');
   const n = BANKERS.prospects + (strategic ? BANKERS.strategicProspects : 0);
   return Object.values(world.companies)
@@ -1387,7 +1387,7 @@ export function licenceMissing(b: Bank): string[] {
 }
 
 /** The decision's parts (0–1 each) and the score (0–100), for the regulator and the tracker. */
-export function licenceScore(world: World, b: Bank) {
+function licenceScore(world: World, b: Bank) {
   const lic = b.licence!;
   const owner = world.players[b.ownerId];
   const f = bankFigures(world, b);
@@ -1625,7 +1625,7 @@ export function startBankerTutorial(world: World, p: Player) {
   p.bankerTutorial = { startedMonth: homeMonth(world, p) };
 }
 
-export function bankerTutorialStep(world: World, p: Player): BankerTutorialStep | null {
+function bankerTutorialStep(world: World, p: Player): BankerTutorialStep | null {
   const t = p.bankerTutorial;
   if (!t || t.doneMonth !== undefined || t.skipped) return null;
   return BANKER_TUTORIAL_STEPS.find((s) => !bankerStepDone(world, p, s)) ?? null;

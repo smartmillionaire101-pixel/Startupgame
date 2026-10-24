@@ -104,7 +104,7 @@ const SHOT_MS = 45_000;
 const PENALTY_MS = 20_000;
 /** An AI opponent at snooker waits this long into its turn (the last shot plays out first). */
 export const AI_SHOT_AFTER = 4_000;
-export interface Ball {
+interface Ball {
   id: number;
   x: number;
   y: number;
@@ -215,7 +215,7 @@ export interface Penalty {
 }
 
 /** 8-ball pool: the frame's state beyond the balls. */
-export interface PoolMatch {
+interface PoolMatch {
   /** Each player's group, once the table is no longer open. */
   groups: Record<Id, PoolGroup>;
   /** Ball in hand for the player at the table: behind the head string, or anywhere. */
@@ -345,7 +345,7 @@ const GOLF_STAKE_COL = [0.011, 0.044, 0.11];
 /** A golfer's skill shown the golf way: a handicap (lower is better). */
 export const golfHandicap = (skill: number) => Math.max(0, Math.round(36 - skill * 60));
 /** An AI friend's skill, from its id (the same every match). */
-export const golfAiSkill = (aiId: Id) => 0.1 + (hashString(`golf-skill:${aiId}`) % 36) / 100;
+const golfAiSkill = (aiId: Id) => 0.1 + (hashString(`golf-skill:${aiId}`) % 36) / 100;
 const skillFor = (w: World, id: Id) => {
   const p = w.players[id]!;
   return p.ai ? golfAiSkill(id) : skillOf(p.golf?.rounds ?? 0);
@@ -358,17 +358,16 @@ function niceStake(minor: number) {
   return Math.round(major / e) * e * 100;
 }
 /** The stake chips for this city: free, then small, medium and large (within the cap). */
-export function golfStakes(m: ReturnType<typeof getMarket>) {
+function golfStakes(m: ReturnType<typeof getMarket>) {
   const cap = m.data.costOfLiving * 100;
   return [0, ...GOLF_STAKE_COL.map((k) => Math.min(cap, niceStake(col(m) * k)))];
 }
 /** The venue a golf match is played at: the city's golf club (or the course itself). */
-export const golfVenue = (m: ReturnType<typeof getMarket>) => golfClubOf(m)?.id ?? 'golf';
+const golfVenue = (m: ReturnType<typeof getMarket>) => golfClubOf(m)?.id ?? 'golf';
 const golfGeo = (r: PlayRoom, hole: number) => holeGeo(golfCourse(r.market).holes[hole]!);
-const golfer = (r: PlayRoom) => r.members[r.turn % Math.max(1, r.members.length)]?.id;
-const CLUB_IDS = [...CLUBS.map((c) => c.id), PUTTER.id];
-export const GOLF_CLUB_IDS = CLUB_IDS as readonly string[];
-/** The pre-Wave 12 pool (kept so logged rooms replay with their questions). */
+const golfer = (r: PlayRoom) =>
+  r.members[r.turn % Math.max(1, r.members.length)]
+    ?.id; /** The pre-Wave 12 pool (kept so logged rooms replay with their questions). */
 const QUIZ: QuizQuestion[] = [
   {
     text: 'Which planet is closest to the Sun?',
@@ -500,7 +499,7 @@ export function drawQuiz(seed: string, n = QUIZ_LENGTH): QuizQuestion[] {
 }
 
 /** How an AI opponent answers: when (ms into the question) and what. Deterministic. */
-export function aiAnswer(r: PlayRoom, aiId: Id, round: number) {
+function aiAnswer(r: PlayRoom, aiId: Id, round: number) {
   const h = hashString(`${r.id}:${aiId}:${round}`);
   const skill = 52 + (hashString(aiId) % 30); // 52–81% right
   const q = r.questions[round];
@@ -647,7 +646,7 @@ export function aiShot(
 }
 
 /** The AI's penalty: a corner drawn from the room's seed, never from the other player's choice. */
-export function aiPenalty(w: World, r: PlayRoom, aiId: Id) {
+function aiPenalty(w: World, r: PlayRoom, aiId: Id) {
   const rng = deriveRng(w.seed, 'play-ai', r.id, r.round, aiId);
   return { lane: rng.int(0, 4), after: rng.int(1_500, 4_500) };
 }
@@ -657,7 +656,7 @@ export function aiPenalty(w: World, r: PlayRoom, aiId: Id) {
 /** An AI player at pool thinks this long once the balls stop. */
 export const POOL_AI_THINK = 2_500;
 /** A frame that somehow runs this many shots is settled on balls potted. */
-export const POOL_MAX_SHOTS = 200;
+const POOL_MAX_SHOTS = 200;
 /** How steady an AI player's cue is at pool (radians, one standard deviation). */
 export const poolAiError = (aiId: Id) => 0.0025 + (hashString(`pool-cue:${aiId}`) % 9) / 1000;
 /** An AI keeper's knack for reading a kick (0 … 0.29), from its id. */

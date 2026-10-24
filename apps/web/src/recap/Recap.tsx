@@ -105,7 +105,7 @@ function dateOf(month: number) {
   return t('Year {y}, Month {m}', { y: Math.floor(month / 12) + 1, m: (month % 12) + 1 });
 }
 
-export function RecapSheet({ start, onClose }: { start: number | null; onClose: () => void }) {
+function RecapSheet({ start, onClose }: { start: number | null; onClose: () => void }) {
   const { view } = useView();
   const nav = useNav();
   const latest = view.recap!;

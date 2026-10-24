@@ -33,7 +33,7 @@ export interface Home3DObject {
   outdoor?: boolean;
 }
 
-export interface PickResult {
+interface PickResult {
   obj?: string;
   tile?: { x: number; y: number };
   person?: string;

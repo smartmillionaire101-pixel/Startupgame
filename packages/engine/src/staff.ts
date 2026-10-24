@@ -15,7 +15,7 @@ import type { Rng } from './rng.js';
 import { applyStarEvent, starMultiplier } from './stars.js';
 import type { Candidate, Company, Personality, Player, Staff, World } from './types.js';
 
-export const TALENT_POOL_SIZE = 36;
+const TALENT_POOL_SIZE = 36;
 const PERSONALITIES: Personality[] = ['steady', 'ambitious', 'anxious', 'maverick'];
 
 export const SENIORITY_OUTPUT: Record<Seniority, number> = {
@@ -162,7 +162,7 @@ export const managementCapacity = (c: Company): number =>
 
 export const isOverloaded = (c: Company): boolean => c.staff.length > managementCapacity(c);
 
-export const staffOutput = (s: Staff): number =>
+const staffOutput = (s: Staff): number =>
   s.skill * SENIORITY_OUTPUT[s.seniority] * (0.5 + s.morale / 200);
 
 export function outputOf(c: Company, roles: StaffRole[]): number {

@@ -60,7 +60,7 @@ import type {
 } from './types.js';
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
-export const fundNumeral = (n: number) => ROMAN[n - 1] ?? String(n);
+const fundNumeral = (n: number) => ROMAN[n - 1] ?? String(n);
 
 const STRATEGY_NAME: Record<FundStrategy, string> = {
   seed: 'Fund',
@@ -83,9 +83,6 @@ export const committedTotal = (f: Fund) =>
   (f.lp?.commitments ?? [])
     .filter((c) => c.status === 'committed' || c.status === 'defaulted')
     .reduce((a, c) => a + c.committed, 0);
-
-export const paidTotal = (f: Fund) => (f.lp?.commitments ?? []).reduce((a, c) => a + c.paidIn, 0);
-
 /** Months since the first close (0 before it). */
 const monthsIn = (world: World, f: Fund) =>
   f.lp?.firstCloseMonth === undefined ? 0 : getMarket(world, f.market).month - f.lp.firstCloseMonth;
@@ -967,7 +964,7 @@ export function lpFeeRate(world: World, f: Fund): number {
 const round2 = (x: number) => roundTo(x, 2);
 
 /** One fund as an LP or a GP sees it. */
-export function fundCard(world: World, f: Fund, viewer: Player) {
+function fundCard(world: World, f: Fund, viewer: Player) {
   const lp = f.lp;
   const m = getMarket(world, f.market);
   const manager = f.managerId ? world.players[f.managerId] : undefined;

@@ -365,7 +365,7 @@ export function settleRivals(world: World, market: MarketId, month: number) {
 }
 
 /** This city's active rivals for a company's industry. */
-export const rivalsOf = (world: World, c: Company): Rival[] =>
+const rivalsOf = (world: World, c: Company): Rival[] =>
   (world.markets[c.market]?.rivals?.[c.industry] ?? []).filter((r) => r.status === 'active');
 
 export interface RivalPressure {
@@ -380,7 +380,7 @@ export interface RivalPressure {
  * force, and products clearly ahead of yours. Zero for AI companies, in
  * worlds without the journey-events note, and while an edge holds.
  */
-export function rivalPressureOf(world: World, c: Company): RivalPressure {
+function rivalPressureOf(world: World, c: Company): RivalPressure {
   const none = { value: 0, reasons: [] };
   if (c.ai || !journeyEventsOn(world)) return none;
   const m = world.markets[c.market];

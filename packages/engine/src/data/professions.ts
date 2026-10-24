@@ -34,7 +34,7 @@ export const PROFESSION_IDS = [
 ] as const;
 export type ProfessionId = (typeof PROFESSION_IDS)[number];
 
-export interface ProfessionLevel {
+interface ProfessionLevel {
   /** 1 (first rung) … 4. */
   level: number;
   /** Stable id (saved on the job). */
@@ -45,7 +45,7 @@ export interface ProfessionLevel {
   payCol: number;
 }
 
-export interface InterviewOption {
+interface InterviewOption {
   /** Translatable. */
   text: string;
   /** The skill this answer leans on. */
@@ -54,7 +54,7 @@ export interface InterviewOption {
   fit: number;
 }
 
-export interface InterviewQuestion {
+interface InterviewQuestion {
   id: string;
   /** Translatable. */
   text: string;

@@ -33,7 +33,7 @@ export interface Fp {
   tag?: unknown;
 }
 
-export function polyArea(p: Poly): number {
+function polyArea(p: Poly): number {
   let a = 0;
   const n = p.length >> 1;
   for (let i = 0, j = n - 1; i < n; j = i++)
@@ -185,13 +185,6 @@ export function overlapArea(a: Fp, b: Fp): number {
   }
   return sum;
 }
-
-/** Whether two footprints share space: in plan by more than `tol` m², and in height. */
-export function clash(a: Fp, b: Fp, tol = 0.5): boolean {
-  if (a.top <= b.base + 0.05 || b.top <= a.base + 0.05) return false;
-  return overlapArea(a, b) > tol;
-}
-
 /** Separating axes: whether two convex polygons overlap (touching is not overlapping). */
 export function convexOverlap(a: Poly, b: Poly, eps = 1e-6): boolean {
   for (const P of [a, b]) {

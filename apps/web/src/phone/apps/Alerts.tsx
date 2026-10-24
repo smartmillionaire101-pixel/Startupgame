@@ -26,7 +26,7 @@ export const KIND_ICON: Record<string, [IconName, string]> = {
 type InboxItem = PlayerView['inbox'][number];
 
 /** Open an inbox item: stories in the phone's News app, the rest where it matters. */
-export function useOpenItem(ctx: PhoneCtx) {
+function useOpenItem(ctx: PhoneCtx) {
   const { view, send } = useView();
   const nav = useNav();
   return (i: InboxItem) => {

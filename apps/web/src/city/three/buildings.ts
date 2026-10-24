@@ -25,7 +25,7 @@ import {
   type Fp,
 } from './footprints';
 import { COVER, ROAD_HALF, type GroundMask } from './mask';
-import { rgbBytes, type SharedUniforms, facadeMaterial } from './materials';
+import { rgbBytes } from './materials';
 import type { RoadIndex } from './roads';
 
 // ---------------------------------------------------------------------------
@@ -1044,12 +1044,4 @@ export class LotMaker {
     return { main: b, boxes };
   }
 }
-
-// ---------------------------------------------------------------------------
-// Materials, shared by every building mesh.
-
-export function buildingMaterials(shared: SharedUniforms) {
-  return { merged: facadeMaterial(shared, false), instanced: facadeMaterial(shared, true) };
-}
-
-export { centroid, inPoly };
+export { centroid };

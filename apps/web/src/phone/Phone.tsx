@@ -65,11 +65,6 @@ import { PhoneTip } from '../tutorial/Coach';
 import './phone.css';
 import { careerOf } from '../screens/InvestorCareer';
 
-// Backward-compatible exports (Wave 5/6 callers).
-export { aiPeopleOf, type AiContact } from './apps/Messages';
-export { QuitJob } from './shared';
-export { jobsOf, myJobOf, type JobView } from '../city/life';
-
 applySavedSettings();
 
 type AppId = Exclude<PhoneApp, 'home' | 'wallet'>;
@@ -82,7 +77,7 @@ interface AppDef {
   bg: [string, string];
 }
 
-export const APPS: AppDef[] = [
+const APPS: AppDef[] = [
   { id: 'messages', icon: 'messages', label: () => t('Messages'), bg: ['#4ade80', '#16a34a'] },
   { id: 'journey', icon: 'flag', label: () => t('Journey'), bg: ['#5eead4', '#0f766e'] },
   { id: 'map', icon: 'map', label: () => t('Map'), bg: ['#60a5fa', '#2563eb'] },

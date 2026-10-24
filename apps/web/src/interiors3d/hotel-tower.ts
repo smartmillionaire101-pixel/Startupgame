@@ -42,7 +42,7 @@ import { Kit, mat, tone, type PartOpts } from './kit';
 import { canvasTex, cityBelow, towerTexture, type Surroundings } from './surroundings';
 
 /** Floor to floor in the hotel's tower (metres). */
-export const HOTEL_STOREY = 3.2;
+const HOTEL_STOREY = 3.2;
 /** Floors above yours, up to the roof. */
 const FLOORS_ABOVE = 4;
 const T = 0.16;

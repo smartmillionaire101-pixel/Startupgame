@@ -152,7 +152,7 @@ export function referencePrice(c: Company): number {
 }
 
 /** Bps of their holding this seller has sold in the last 12 months. */
-export function soldThisYear(c: Company, sellerId: Id, month: number): number {
+function soldThisYear(c: Company, sellerId: Id, month: number): number {
   return (c.secondaries ?? [])
     .filter((s) => s.sellerId === sellerId && s.month > month - 12)
     .reduce((a, s) => a + s.bps, 0);
@@ -175,7 +175,7 @@ export function secondaryPrice(c: Company, kind: SecondaryBuyer): number {
 }
 
 /** Why a founder can't sell `bps` of their shares right now (null: they can). */
-export function secondaryBlocker(world: World, c: Company, seller: Player, bps: number) {
+function secondaryBlocker(world: World, c: Company, seller: Player, bps: number) {
   const m = getMarket(world, c.market);
   if (c.status !== 'active') return 'This company is no longer operating.';
   if (c.ipo?.status === 'listed') return 'Your company is listed: sell on the market instead.';
@@ -493,9 +493,9 @@ export function ipoChecks(world: World, c: Company): IpoCheck[] {
   ];
 }
 
-export const ipoReady = (world: World, c: Company) => ipoChecks(world, c).every((x) => x.ok);
+const ipoReady = (world: World, c: Company) => ipoChecks(world, c).every((x) => x.ok);
 
-export const bankerFee = (world: World, c: Company) =>
+const bankerFee = (world: World, c: Company) =>
   usd(getMarket(world, c.market), EXITS.ipo.bankerFeeUsd);
 
 /** `ipo.prepare`: hire the bankers (fee now), list in a few months. */
@@ -537,12 +537,12 @@ export function prepareIpo(world: World, me: Player, c: Company) {
 }
 
 /** What the model says the whole company is worth (local minor). */
-export function fairValue(world: World, c: Company): number {
+function fairValue(world: World, c: Company): number {
   return Math.max(1, valueCompany(world, c, nextStage(c.lastRound)).value);
 }
 
 /** The bankers' price per share for a listing (before any hint). */
-export function listingPrice(world: World, c: Company): number {
+function listingPrice(world: World, c: Company): number {
   const fd = fullyDiluted(c.capTable);
   return fd > 0 ? fairValue(world, c) / fd : 0;
 }
@@ -618,7 +618,7 @@ export function listCompany(world: World, me: Player, c: Company, hint?: number)
 // ---------------------------------------------------------------- a stock market from day one
 
 /** Established AI companies listed in each city when the stock market opens. */
-export const SEED_LISTINGS = 2;
+const SEED_LISTINGS = 2;
 
 /**
  * The stock market opens (the exits release note, or a city opening after

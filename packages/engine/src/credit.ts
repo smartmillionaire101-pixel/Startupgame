@@ -24,7 +24,7 @@ import { applyStarEvent } from './stars.js';
 import type { DealCard, Id, PersonalLoanTerms, Player, World } from './types.js';
 
 /** Holder id a bank uses on cap tables when it takes pledged shares. */
-export const bankHolderId = (market: string) => `bank:${market}`;
+const bankHolderId = (market: string) => `bank:${market}`;
 
 export interface CreditProfile {
   score: number;
@@ -40,7 +40,7 @@ export interface CreditProfile {
 }
 
 /** Paper value of the player's shares in active companies (at last round price). */
-export function holdingsValue(world: World, p: Player): number {
+function holdingsValue(world: World, p: Player): number {
   let total = 0;
   for (const c of Object.values(world.companies)) {
     if (c.status !== 'active' || c.market !== p.market) continue;

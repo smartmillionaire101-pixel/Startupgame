@@ -112,7 +112,7 @@ export function EmailLinkForm({
   );
 }
 
-export function SaveProgressSheet({ onClose }: { onClose: () => void }) {
+function SaveProgressSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet title={t('Save progress')} onClose={onClose}>
       <p>

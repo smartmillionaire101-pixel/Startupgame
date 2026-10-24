@@ -17,7 +17,7 @@
 import type { AvatarLook } from './art';
 import type { ClubLook } from './clubLook';
 import { hash } from './contract';
-import type { RoomKind, Slot, Activity } from './rooms';
+import type { Slot, Activity } from './rooms';
 
 // ---------------------------------------------------------------------------
 // Music
@@ -544,7 +544,7 @@ export type Layout =
   | 'boat'
   | 'band';
 
-export type Light = 'neon' | 'disco' | 'strobe' | 'warm' | 'dim' | 'lantern' | 'sunset';
+type Light = 'neon' | 'disco' | 'strobe' | 'warm' | 'dim' | 'lantern' | 'sunset';
 
 /** What's outside an open-air venue. */
 export type Backdrop =
@@ -559,7 +559,7 @@ export type Backdrop =
   | 'lagoon'
   | 'wall';
 
-export type Prop =
+type Prop =
   | 'vip'
   | 'mirrorball'
   | 'lasers'
@@ -590,8 +590,7 @@ export type Prop =
   | 'plants'
   | 'chalkboard';
 
-export type Dress =
-  'glam' | 'aso-ebi' | 'smart' | 'casual' | 'beach' | 'street' | 'tech' | 'kaftan';
+type Dress = 'glam' | 'aso-ebi' | 'smart' | 'casual' | 'beach' | 'street' | 'tech' | 'kaftan';
 
 export interface NightStyle {
   id: string;
@@ -2055,12 +2054,3 @@ export function dressFor(s: NightStyle, look: AvatarLook, id: string): AvatarLoo
   if (d.shades && ((h >>> 12) % 100) / 100 < d.shades) out.glasses = 'shades';
   return out;
 }
-
-/** The room kinds a style can stand in for (the venue's own room, for scripts and the crowd). */
-export const NIGHT_ROOMS: ReadonlySet<RoomKind> = new Set<RoomKind>([
-  'club',
-  'bar',
-  'lounge',
-  'beach',
-  'stage',
-]);

@@ -29,7 +29,7 @@ export interface DealFlowItem {
 }
 
 /** `view.here.dealFlow`, or null when the engine doesn't send it. */
-export function dealFlowOf(view: View): DealFlowItem[] | null {
+function dealFlowOf(view: View): DealFlowItem[] | null {
   const raw = hereField(view, 'dealFlow');
   if (!Array.isArray(raw)) return null;
   return raw
@@ -62,7 +62,7 @@ export interface Ticker {
 }
 
 /** City "stock" tickers: a price from the company's valuation, moved by the news. */
-export function tickersOf(view: View): Ticker[] {
+function tickersOf(view: View): Ticker[] {
   const city = cityViewOf(view).market;
   const flow = new Map((dealFlowOf(view) ?? []).map((d) => [d.companyId, d.valuation]));
   const mine = new Map(

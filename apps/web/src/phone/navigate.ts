@@ -12,7 +12,7 @@ export type TabId =
   'city' | 'home' | 'company' | 'money' | 'deals' | 'portfolio' | 'bank' | 'news' | 'me';
 
 /** The Company screen's tabs (screens/Company.tsx). */
-export type CompanySection =
+type CompanySection =
   'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
 export type Target =

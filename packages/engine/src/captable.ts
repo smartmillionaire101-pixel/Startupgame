@@ -10,7 +10,7 @@ import { ensure } from './errors.js';
 import type { CapTable, Id, Preference, Safe } from './types.js';
 
 export const POOL_ID = 'pool';
-export const FOUNDER_SHARES = 10_000_000;
+const FOUNDER_SHARES = 10_000_000;
 
 export function newCapTable(founders: { id: Id; bps: number }[]): CapTable {
   const total = founders.reduce((a, f) => a + f.bps, 0);

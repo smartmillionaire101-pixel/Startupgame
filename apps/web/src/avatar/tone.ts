@@ -16,13 +16,13 @@ const channels = (c: string): [number, number, number] => {
 };
 
 /** Relative brightness of a #rgb, #rrggbb or rgb(...) colour, 0–1. */
-export function lum(c: string): number {
+function lum(c: string): number {
   const [r, g, b] = channels(c);
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 }
 
 /** A colour darkened by `amt` (0–1), as #rrggbb. */
-export function darker(c: string, amt: number): string {
+function darker(c: string, amt: number): string {
   const hex = (n: number) =>
     Math.round(Math.max(0, Math.min(255, n * (1 - amt))))
       .toString(16)

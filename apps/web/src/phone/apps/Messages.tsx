@@ -24,7 +24,7 @@ import { ChatActions, EmojiPicker, PlayerMessage, VoiceRecorder, type ActBody } 
 // People you can message
 
 /** Wave 5 capital places in the city you're in, if the engine sends them. */
-export function capitalOf(view: View) {
+function capitalOf(view: View) {
   const city = hereOf(view) as unknown as Record<string, unknown>;
   const out: { id: string; place: string; name: string; manager: string; kind: string }[] = [];
   const add = (key: string, prefix: string, kind: string) => {
@@ -57,7 +57,7 @@ export interface AiContact {
 }
 
 /** AI characters in the city you're in, for "New message". */
-export function aiPeopleOf(view: View): AiContact[] {
+function aiPeopleOf(view: View): AiContact[] {
   const city = hereOf(view);
   const out: AiContact[] = [];
   for (const f of city.funds) {
@@ -269,7 +269,7 @@ const STICK_PX = 48;
  * Gives the refs for the log (the scroller) and its items (what grows), and
  * `pin()`, to jump to the bottom after you send something.
  */
-export function useStickToBottom(dep: unknown) {
+function useStickToBottom(dep: unknown) {
   const log = useRef<HTMLDivElement>(null);
   const items = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);

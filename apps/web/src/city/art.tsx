@@ -333,7 +333,7 @@ export function Shadow({
 // ---------------------------------------------------------------------------
 // Trees and small decor
 
-export function Tree({
+function Tree({
   x,
   y,
   kind,
@@ -423,7 +423,7 @@ function House({ d: dc }: { d: Decor }) {
   );
 }
 
-export function Fountain({ x, y, size = 0.6 }: { x: number; y: number; size?: number }) {
+function Fountain({ x, y, size = 0.6 }: { x: number; y: number; size?: number }) {
   return (
     <g>
       <Cylinder cx={x} cy={y} r={size * 0.7} h={3} color="#cbd5e1" top="#7dd3fc" />
@@ -1959,7 +1959,7 @@ export const MAP_RIDE_SCALE = 1;
  * The skyline is cut into bands this many tiles deep, with an empty slot after
  * each band that moving people and vehicles are put into.
  */
-export const DEPTH_STEP = 0.5;
+const DEPTH_STEP = 0.5;
 export const depthBand = (depth: number) => Math.floor(depth / DEPTH_STEP);
 
 /** Head size by face shape (the head is centred at (0, -31)). */

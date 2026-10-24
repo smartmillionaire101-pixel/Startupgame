@@ -16,7 +16,7 @@ import type { MarketId } from './data/markets.js';
 import { reliability } from './customers.js';
 import { districtWeights, randomDistrict, stableDistrict } from './districts.js';
 import { businessesOf, districtLabel, isOpen, openBusiness } from './economy.js';
-import { ensure, fail } from './errors.js';
+import { ensure } from './errors.js';
 import { col, getMarket, notify, ownCompany, spendHours } from './helpers.js';
 import { newId } from './ids.js';
 import { account, costIn, pay, payExact } from './ledger.js';
@@ -46,7 +46,7 @@ export const BRANCH = {
   localCap: 12,
 } as const;
 
-export const branchesOf = (world: World): Record<Id, Branch> => world.branches ?? {};
+const branchesOf = (world: World): Record<Id, Branch> => world.branches ?? {};
 
 export const companyBranches = (world: World, companyId: Id): Branch[] =>
   Object.values(branchesOf(world)).filter((b) => b.companyId === companyId);
@@ -67,7 +67,7 @@ function districtPull(market: MarketId, district: string): number {
   return clamp(w / avg, 0.6, 1.5);
 }
 
-export function branchCosts(world: World, c: Company, market: MarketId) {
+function branchCosts(world: World, c: Company, market: MarketId) {
   const m = getMarket(world, market);
   return {
     setup: scale(col(m), BRANCH.setupCol * (market === c.market ? 1 : BRANCH.abroadSetup)),
@@ -76,7 +76,7 @@ export function branchCosts(world: World, c: Company, market: MarketId) {
 }
 
 /** Why this company can't open a branch there (null when it can). */
-export function branchBlocker(
+function branchBlocker(
   world: World,
   c: Company,
   market: MarketId,
@@ -182,12 +182,7 @@ export function closeBranch(world: World, me: Player, branchId: Id) {
  * What a branch takes in a month at full ramp (before noise), branch-city
  * minor units. Without a district: a typical one.
  */
-export function branchDemand(
-  world: World,
-  c: Company,
-  market: MarketId,
-  district?: string,
-): number {
+function branchDemand(world: World, c: Company, market: MarketId, district?: string): number {
   const m = getMarket(world, market);
   const quality = 0.25 + 0.35 * c.product.fit + 0.25 * reliability(c) + 0.15 * (c.stars.value / 5);
   const climate = 0.85 + 0.15 * clamp(m.climate, 0.5, 1.6);
@@ -406,10 +401,4 @@ export function cityOfficesView(world: World, m: MarketState) {
   return Object.values(world.companies)
     .filter((c) => c.market === m.id && c.status === 'active')
     .map((c) => ({ companyId: c.id, name: c.name, ai: c.ai, district: companyDistrict(c) }));
-}
-
-export function getBranch(world: World, id: Id): Branch {
-  const b = branchesOf(world)[id];
-  if (!b) fail('branch.missing', 'Branch not found.');
-  return b;
 }

@@ -10,7 +10,7 @@
 import { useSyncExternalStore } from 'react';
 
 export type MapQuality = '3d' | 'lite';
-export const MAP_QUALITY_KEY = 'runway.mapQuality';
+const MAP_QUALITY_KEY = 'runway.mapQuality';
 
 const listeners = new Set<() => void>();
 let memory: MapQuality | null = null;

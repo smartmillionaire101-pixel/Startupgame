@@ -13,7 +13,7 @@ import { buildModel, chairAt, type Model, type ModelOpts } from './furniture';
 import { HOTEL_BUILDERS } from './hotel-models';
 
 /** Car paint by model (the reference's black SUVs, a blue supercar, a silver saloon). */
-export const CAR_PAINT: Record<string, string> = {
+const CAR_PAINT: Record<string, string> = {
   motorbike: '#b91c1c',
   hatchback: '#c9ced6',
   'ride-hail-sedan': '#16181d',
@@ -407,21 +407,6 @@ export function carport(w: number, d: number): THREE.Group {
   k.box(w, 0.02, d, '#d7eef8', 0, H + 0.13, 0, { opacity: 0.25, rough: 0.05, noShadow: true });
   return k.build();
 }
-
-/** A classic-car bay: a little brick garage with the roller door up and a warm light. */
-export function classicBay(w: number, d: number): THREE.Group {
-  const k = new Kit();
-  k.box(w, 0.06, d, '#9a9a96', 0, 0, 0, { rough: 0.9 });
-  const brick = '#9b4a32';
-  k.box(w, 2.6, 0.2, brick, 0, 0, -d / 2, { rough: 0.95 });
-  for (const sx of [-1, 1]) k.box(0.2, 2.6, d, brick, (sx * (w - 0.2)) / 2, 0, 0, { rough: 0.95 });
-  k.box(w + 0.1, 0.2, d + 0.2, '#3f3f46', 0, 2.6, 0, { rough: 0.8 });
-  k.box(w - 0.4, 0.5, 0.18, '#d1d5db', 0, 2.1, d / 2 - 0.08, metal);
-  k.cyl(0.1, 0.14, 0.12, '#fff1c2', 0, 2.45, 0, { emissive: '#ffd27a', emissiveIntensity: 1.6 });
-  k.box(1.0, 0.8, 0.4, '#475569', w / 2 - 0.8, 0.06, -d / 2 + 0.35, { round: 0.02 });
-  return k.build();
-}
-
 /** Two gate leaves of dark slats between green pillars with lamps. */
 export function gate(w: number): THREE.Group {
   const k = new Kit();
@@ -725,10 +710,6 @@ const BUILDERS: Record<string, Builder> = {
   stairwell,
   'skyline-rail': skylineRail,
 };
-
-/** Models drawn here (the rest come from the furniture library). */
-export const ESTATE_MODELS = new Set([...Object.keys(BUILDERS), 'guest-bed']);
-
 /** Build an estate model, or a furniture-library model for anything else. */
 export function buildEstateModel(id: string, o: ModelOpts): Model {
   if (id === 'guest-bed') return guestBedModel(o);

@@ -175,9 +175,9 @@ export function shopOf(view: View): { furniture: ShopFurniture[]; cars: ShopCar[
 }
 
 /** Which business kinds sell furniture or cars (by kind, for engines without `sells`). */
-export const sellsCars = (kind: string) => /car-|dealer|motor|showroom|auto/i.test(kind);
-export const sellsFurniture = (kind: string) => /furnit|interior|homeware|decor/i.test(kind);
-export const sellsAppliances = (kind: string) => /applian|electronic/i.test(kind);
+const sellsCars = (kind: string) => /car-|dealer|motor|showroom|auto/i.test(kind);
+const sellsFurniture = (kind: string) => /furnit|interior|homeware|decor/i.test(kind);
+const sellsAppliances = (kind: string) => /applian|electronic/i.test(kind);
 
 /**
  * Every home slot, in the order the flat and the showrooms show them
@@ -417,7 +417,7 @@ export function acceleratorsOf(view: View): AcceleratorView[] {
     });
 }
 
-export interface ProgramView {
+interface ProgramView {
   id: string;
   label: string;
   /** The most it gives, minor units. */

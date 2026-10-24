@@ -38,7 +38,7 @@ type Vars = Record<string, string | number>;
 /** Amount vars, formatted as money in the event's currency. */
 const MONEY_KEYS = ['budget', 'salary', 'band', 'offer', 'burn', 'receivables', 'amount'];
 
-export const familyLabel = (f: string) =>
+const familyLabel = (f: string) =>
   ({
     customer: t('Customer'),
     team: t('Team'),
@@ -92,7 +92,7 @@ function varsOf(ev: Ev): Vars {
 /** Engine English (a life event's lines) through the catalog, with its {placeholders} filled. */
 const lifeText = (raw: string, v: Vars) => t(raw, v);
 
-export function eventTitle(ev: Ev): string {
+function eventTitle(ev: Ev): string {
   const v = varsOf(ev);
   if (ev.life) return lifeText(ev.raw.title, v);
   switch (ev.template) {
@@ -319,7 +319,7 @@ function choiceCopy(ev: Ev, ch: Choice): [string, string] {
 const signed = (n: number, digits = 0) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(digits)}`;
 
 /** One consequence in plain words, with its number. */
-export function effectText(e: Effect, cur: string, homeCur: string): string {
+function effectText(e: Effect, cur: string, homeCur: string): string {
   switch (e.kind) {
     case 'cash':
       return e.from === 'company'
@@ -420,8 +420,7 @@ const deadlineText = (ev: Ev) =>
 // life event's card stays open on its result) never jumps to the next one.
 const FIRST = '*';
 /** Founder decisions first, then life events (they pop up on their own). */
-export const sortOpen = (open: Ev[]) =>
-  open.slice().sort((a, b) => Number(a.life) - Number(b.life));
+const sortOpen = (open: Ev[]) => open.slice().sort((a, b) => Number(a.life) - Number(b.life));
 const resolveWanted = (key: string | null, open: Ev[]) =>
   key === FIRST ? (sortOpen(open)[0]?.id ?? null) : key;
 let wanted: string | null = null;

@@ -59,7 +59,7 @@ export interface StatementQuery {
 export const STATEMENT_PAGE = 30;
 export const STATEMENT_PAGE_MAX = 100;
 /** Lines of each account sent with the player view (the Bank app's first screen). */
-export const STATEMENT_IN_VIEW = 12;
+const STATEMENT_IN_VIEW = 12;
 
 // ---------------------------------------------------------------- Who is on the other side
 

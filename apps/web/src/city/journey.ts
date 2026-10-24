@@ -14,7 +14,7 @@ import { suggestionsFor } from './whatnow';
 import { suggestionText } from './WhatNowCards';
 
 export type Journey = NonNullable<PlayerView['journey']>;
-export type JourneyChapterView = Journey['chapters'][number];
+type JourneyChapterView = Journey['chapters'][number];
 export type JourneyStepView = JourneyChapterView['steps'][number];
 
 /** Where a Go button takes you. `sky`: a sky view (the Sky views scene). */
@@ -493,7 +493,7 @@ const OPP_ICON: Record<string, string> = {
 };
 
 /** Time-sensitive things worth a look, best first. */
-export function opportunityCandidates(view: PlayerView): Objective[] {
+function opportunityCandidates(view: PlayerView): Objective[] {
   const out: Objective[] = [];
   const cur = view.market.currency;
   for (const d of view.deals)
@@ -545,7 +545,7 @@ interface CompetitionLike {
 }
 
 /** Life outside work: rest, a night out, a quiz, a view, friends, a date, home. */
-export function personalCandidates(view: PlayerView): Objective[] {
+function personalCandidates(view: PlayerView): Objective[] {
   const out: Objective[] = [];
   const pocket = view.accounts.local?.balance ?? 0;
   const cur = view.market.currency;

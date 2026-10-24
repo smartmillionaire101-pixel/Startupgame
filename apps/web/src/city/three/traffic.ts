@@ -14,7 +14,7 @@ import type { Seg } from './roads';
 
 /** What drives here: cars (and taxis), buses (danfo, matatu, red buses), motorbikes (okada, boda), tricycles (keke, tuk-tuk). */
 export type VehicleKind = 'car' | 'bus' | 'moto' | 'keke';
-export const VEHICLE_KINDS: readonly VehicleKind[] = ['car', 'bus', 'moto', 'keke'];
+const VEHICLE_KINDS: readonly VehicleKind[] = ['car', 'bus', 'moto', 'keke'];
 
 export interface CityFleet {
   /** Share of each kind (sums to about 1). */
@@ -241,7 +241,7 @@ const DENSITY = [5, 5, 4, 3, 1.6, 0.8];
 /** Lane offset from the centre line (m), by class (your own car keeps to the same lanes). */
 export const LANE = [5.5, 5.5, 3.6, 3.2, 2.2, 1.9];
 /** Body length (m) by kind: how close the next one queues. */
-export const LENGTH: Record<VehicleKind, number> = { car: 4.4, bus: 11, moto: 2, keke: 2.7 };
+const LENGTH: Record<VehicleKind, number> = { car: 4.4, bus: 11, moto: 2, keke: 2.7 };
 
 export interface Vehicle {
   kind: VehicleKind;

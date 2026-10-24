@@ -10,7 +10,7 @@
 import { clamp, roundTo } from './math.js';
 import type { StarState } from './types.js';
 
-export const STAR_TUNING = {
+const STAR_TUNING = {
   goodFade: 0.75,
   badFade: 0.94,
   badWeight: 1.5,

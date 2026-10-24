@@ -22,7 +22,7 @@ import type { HotelTier } from '../city/travel';
 import type { HomeAct, HomePlan } from './layout';
 import type { HotelDoor, HotelWindow } from './hotel';
 
-export interface Rect {
+interface Rect {
   x: number;
   y: number;
   w: number;
@@ -31,7 +31,7 @@ export interface Rect {
 
 export type BayKind = 'open' | 'charger' | 'carport' | 'showroom' | 'deck';
 
-export interface Bay extends Rect {
+interface Bay extends Rect {
   kind: BayKind;
   /** The car parked here (a model id), or none. */
   car: string | null;
@@ -41,14 +41,14 @@ export interface Bay extends Rect {
   rot: number;
 }
 
-export interface Lounger {
+interface Lounger {
   x: number;
   y: number;
   /** Facing (radians, 0 = +y). */
   rot: number;
 }
 
-export type GroundStyle = 'garden' | 'estate' | 'roof' | 'hotel';
+type GroundStyle = 'garden' | 'estate' | 'roof' | 'hotel';
 
 export interface Grounds {
   style: GroundStyle;

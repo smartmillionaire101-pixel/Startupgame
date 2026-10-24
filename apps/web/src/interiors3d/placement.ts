@@ -4,7 +4,7 @@
  * `{ x, y, rot }` (tiles; rot in quarter turns). The engine doesn't know;
  * the floor plan is adjusted here before anything is drawn or walked.
  */
-import { blockedTiles, key, planFor, wallEdges, type HomePlan, type Spot } from '../home/layout';
+import { blockedTiles, key, wallEdges, type HomePlan, type Spot } from '../home/layout';
 import { findPath } from '../home/path';
 
 export interface Placement {
@@ -104,7 +104,7 @@ export function canPlace(
  * The spot this slot takes at `p` (with the tile you use it from), or null
  * when it can't go there.
  */
-export function fitted(
+function fitted(
   plan: HomePlan,
   owned: ReadonlySet<string>,
   slot: string,
@@ -192,6 +192,3 @@ export function withPlacements(
   }
   return out;
 }
-
-/** The default spot of a slot (for "put it back"). */
-export const defaultSpot = (tier: number, slot: string) => planFor(tier).slots[slot];

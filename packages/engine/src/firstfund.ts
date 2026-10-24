@@ -155,10 +155,6 @@ export function suggestFundSize(r: FirstFundRecord): SuggestedSize {
     multiple: roundTo(multiple, 1),
   };
 }
-
-export const suggestedFundSize = (world: World, p: Player): SuggestedSize =>
-  suggestFundSize(firstFundRecord(world, p));
-
 // ---------------------------------------------------------------- the first-time-manager LPs
 
 /** An LP judging a first fund: a city LP, or one of the first-time-manager pool. */
@@ -197,7 +193,7 @@ export function emergingProgramme(world: World, market: MarketId): Prospect {
 }
 
 /** Angels and fund partners you talked to at events, newest first, and friends and family. */
-export function circleOf(world: World, p: Player, market: MarketId): Prospect[] {
+function circleOf(world: World, p: Player, market: MarketId): Prospect[] {
   const C = FIRST_FUND.circle;
   const cost = col(getMarket(world, market));
   const month = getMarket(world, p.market).month;
@@ -283,7 +279,7 @@ export function nextStepsFor(
 // ---------------------------------------------------------------- rolling closes
 
 /** The strategy a fund was pitched on, from its LP book. */
-export function fundPlan(f: Fund): StrategyPlan {
+function fundPlan(f: Fund): StrategyPlan {
   const book = f.lp!;
   const plan = book.plan!;
   return {
@@ -356,7 +352,7 @@ export function rollingClose(world: World, f: Fund, month: number) {
 }
 
 /** Months a first fund keeps its doors open after the first close. */
-export const ROLLING_MONTHS = INVESTOR.fund.finalCloseMonths;
+const ROLLING_MONTHS = INVESTOR.fund.finalCloseMonths;
 
 // ---------------------------------------------------------------- the view
 

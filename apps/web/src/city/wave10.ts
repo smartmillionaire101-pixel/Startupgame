@@ -12,8 +12,7 @@ export type Listing = PropertiesView['listings'][number];
 export type CompetitionView = Market['competitions']['list'][number];
 export type CompetitionEntryView = CompetitionView['entries'][number];
 export type MyProperty = PlayerView['me']['properties'][number];
-export type NetWorthView = PlayerView['me']['netWorth'];
-export type ExpansionView = PlayerView['companies'][number]['expansion'];
+type ExpansionView = PlayerView['companies'][number]['expansion'];
 export type BranchRow = ExpansionView['branches'][number];
 
 /** The property market of the city you're in (null on an older server). */
@@ -88,7 +87,7 @@ export function lifestyleName(view: PlayerView, tier: number): string {
   return row ? lifestyleLabel(row.name) : String(tier);
 }
 
-export const lifestyleLabel = (name: string) =>
+const lifestyleLabel = (name: string) =>
   (
     ({
       Lean: t('Lean'),

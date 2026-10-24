@@ -110,7 +110,7 @@ export const RELEASES = [
 ] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
-export function releaseOn(w: World, note: (typeof RELEASES)[number]): boolean {
+function releaseOn(w: World, note: (typeof RELEASES)[number]): boolean {
   const notes = w.announcements ?? [];
   return RELEASES.slice(RELEASES.indexOf(note)).some((n) => notes.includes(n));
 }

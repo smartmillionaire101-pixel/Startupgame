@@ -20,7 +20,7 @@ import { eventsOf } from './people';
 import { businessRoom, FUN_ROOMS } from './rooms';
 import { isNight, localHour } from './travel';
 
-export type SuggestionKind =
+type SuggestionKind =
   | 'fun'
   | 'job'
   | 'gig'

@@ -23,6 +23,3 @@ export const pickedGolfFriend = () => pickedFriend;
 export const clearGolfFriend = () => {
   pickedFriend = null;
 };
-export const pickGolfFriend = (id: string) => {
-  pickedFriend = id;
-};

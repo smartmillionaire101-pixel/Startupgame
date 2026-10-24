@@ -27,19 +27,16 @@ import type { ContactKind, Id, MarketState, Player, World } from './types.js';
 export const NEED_KEYS = ['hunger', 'hygiene', 'fun', 'social'] as const;
 export type NeedKey = (typeof NEED_KEYS)[number];
 export type Needs = Record<NeedKey, number>;
-
-/** New players start here; saves from before Wave 7 are backfilled with `NEEDS_BACKFILL`. */
-export const NEEDS_START = 80;
 export const NEEDS_BACKFILL = 70;
 /** Monthly fall at each personal settlement. */
-export const NEEDS_DECAY: Needs = { hunger: 35, hygiene: 30, fun: 25, social: 20 };
+const NEEDS_DECAY: Needs = { hunger: 35, hygiene: 30, fun: 25, social: 20 };
 /** A need under this gets a notification when it drops there. */
-export const NEED_LOW = 25;
+const NEED_LOW = 25;
 /** Mood thresholds and their effect on next month's hours. */
 export const MOOD_LOW = 30;
 export const MOOD_HIGH = 75;
-export const MOOD_LOW_HOURS = 0.9;
-export const MOOD_HIGH_HOURS = 1.05;
+const MOOD_LOW_HOURS = 0.9;
+const MOOD_HIGH_HOURS = 1.05;
 
 export type HomeActId =
   | 'sleep'
@@ -92,14 +89,14 @@ export const HOME_ACT_IDS = Object.keys(HOME_ACTS) as HomeActId[];
 const TV_FUN_WITH_SET = 25;
 
 export const INVITE_CAP = 3;
-export const INVITE_COST_COL = 0.03;
-export const INVITE_SOCIAL = 30;
-export const INVITE_FUN = 10;
-export const INVITE_WARMTH = 0.1;
+const INVITE_COST_COL = 0.03;
+const INVITE_SOCIAL = 30;
+const INVITE_FUN = 10;
+const INVITE_WARMTH = 0.1;
 
 export const DELIVERY_FEE = 0.15;
-export const DELIVERY_HUNGER = 35;
-export const DELIVERY_LIST_LIMIT = 20;
+const DELIVERY_HUNGER = 35;
+const DELIVERY_LIST_LIMIT = 20;
 
 // ---------------------------------------------------------------- Needs and mood
 
@@ -115,7 +112,7 @@ export function needsOf(p: Player): Needs {
 }
 
 /** Backfill an old save's needs before changing them. */
-export function ensureNeeds(p: Player): Needs {
+function ensureNeeds(p: Player): Needs {
   if (!p.needs) p.needs = needsOf(p);
   return p.needs;
 }
@@ -184,7 +181,7 @@ export function venueNeeds(
 // ---------------------------------------------------------------- Caps
 
 /** Uses of an act (or 'invite') this home month. */
-export function actUses(p: Player, act: string, month: number): number {
+function actUses(p: Player, act: string, month: number): number {
   const u = p.homeActs?.[act];
   return u && u.month === month ? u.n : 0;
 }
@@ -199,13 +196,7 @@ function atHome(p: Player) {
 }
 
 /** What you can also do in your hotel room abroad: rest, wash, watch TV. */
-export const HOTEL_ACTS: ReadonlySet<HomeActId> = new Set([
-  'sleep',
-  'nap',
-  'shower',
-  'toilet',
-  'tv',
-]);
+const HOTEL_ACTS: ReadonlySet<HomeActId> = new Set(['sleep', 'nap', 'shower', 'toilet', 'tv']);
 
 const owns = (p: Player, slot: string) => (p.home?.items ?? []).some((x) => x.slot === slot);
 

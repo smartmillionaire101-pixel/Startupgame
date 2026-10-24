@@ -72,7 +72,7 @@ export type DistrictId =
   | 'houses'
   | 'shops';
 
-export type PlaceKind =
+type PlaceKind =
   | 'lender'
   | 'playerbank'
   | 'fund'
@@ -92,7 +92,7 @@ export type PlaceKind =
   /** City places: a named building (a ministry, the exchange, a club…), `ref` its id. */
   | 'civic';
 
-export type Motif =
+type Motif =
   | 'columns'
   | 'glass'
   | 'kiosk'
@@ -201,7 +201,7 @@ export interface Vehicle {
   path?: Pt[];
 }
 
-export interface Block {
+interface Block {
   i: number;
   j: number;
   district: DistrictId;
@@ -209,7 +209,7 @@ export interface Block {
   area?: string;
 }
 
-export interface StreetName {
+interface StreetName {
   name: string;
   axis: 'x' | 'y';
   /** The street line: x = k·B for axis 'y', y = k·B for axis 'x'. */
@@ -294,7 +294,7 @@ export interface CityLayout {
 }
 
 /** Metres in a tile of the generated city (the travel maths counts in these). */
-export const TILE_METRES = 50;
+const TILE_METRES = 50;
 
 /** A path's length in travel tiles (about 50 m each), whatever the map's scale. */
 export const travelTiles = (layout: { geo?: GeoWorld }, len: number) =>
@@ -331,7 +331,7 @@ export interface CityInput {
   civic?: CivicInput[];
 }
 
-export interface CivicInput {
+interface CivicInput {
   /** `<market>:<role>`. */
   id: string;
   name: string;
@@ -364,7 +364,7 @@ const CIVIC_LOOK: Record<
 };
 const CIVIC_FALLBACK = CIVIC_LOOK['tax-office']!;
 
-export type CapitalKind = 'accelerator' | 'devpartner' | 'lp';
+type CapitalKind = 'accelerator' | 'devpartner' | 'lp';
 export interface CapitalInput {
   id: string;
   name: string;
@@ -1221,7 +1221,7 @@ const FILL_FOR: Record<DistrictKind, FillStyle> = {
 };
 
 /** The grid a plan was drawn on (it grows when a world needs more blocks). */
-export function planSize(plan: CityPlan): number {
+function planSize(plan: CityPlan): number {
   let n = 5;
   for (const d of plan.districts) n = Math.max(n, d.at[0] + d.size[0], d.at[1] + d.size[1]);
   for (const l of plan.landmarks) n = Math.max(n, l.at[0] + 1, l.at[1] + 1);
@@ -2000,7 +2000,7 @@ export function findPath(
 }
 
 /** Drop duplicate and collinear points. */
-export function simplify(pts: Pt[]): Pt[] {
+function simplify(pts: Pt[]): Pt[] {
   const out: Pt[] = [];
   for (const p of pts) {
     const last = out[out.length - 1];

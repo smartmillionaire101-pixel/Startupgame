@@ -53,7 +53,7 @@ function landing(c: CabinOption): string {
   return bits.join(' · ');
 }
 
-export function CabinPicker({
+function CabinPicker({
   cabins,
   currency,
   pick,

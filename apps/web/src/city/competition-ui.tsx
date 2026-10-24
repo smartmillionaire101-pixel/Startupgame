@@ -11,7 +11,7 @@ import { useView } from '../store';
 import { Button } from '../ui';
 import type { CompetitionEntryView, CompetitionView } from './wave10';
 
-export const sponsorKind = (k: string) =>
+const sponsorKind = (k: string) =>
   ({ fund: t('a fund'), bank: t('a bank'), corporate: t('a company') })[k] ?? k;
 
 /** Sponsor, prize, date, venue. */

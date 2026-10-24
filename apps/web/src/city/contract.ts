@@ -11,13 +11,13 @@ import type { Command, PlayerView } from '@runway/engine';
 import type { CapitalInput, CityInput } from './layout';
 import { acceleratorsOf, devPartnersOf, lpsOf } from './life';
 
-export type LenderKind =
+type LenderKind =
   'high-street' | 'challenger' | 'government' | 'development' | 'microfinance' | 'fintech';
 
-export type ProductKind =
+type ProductKind =
   'startup-loan' | 'working-capital' | 'revenue-based' | 'asset-finance' | 'overdraft';
 
-export type LenderMotif = 'columns' | 'glass' | 'kiosk' | 'tower' | 'shopfront';
+type LenderMotif = 'columns' | 'glass' | 'kiosk' | 'tower' | 'shopfront';
 
 export interface LenderLook {
   color: string;
@@ -50,7 +50,7 @@ export interface LenderView {
   fallback?: boolean;
 }
 
-export type OfficeStyle = 'loft' | 'tower' | 'garden' | 'shophouse' | 'glass';
+type OfficeStyle = 'loft' | 'tower' | 'garden' | 'shophouse' | 'glass';
 export interface FundOffice {
   style: OfficeStyle;
   color: string;
@@ -66,7 +66,7 @@ export interface CapitalView {
 
 export type StoryPlace = 'bank' | 'investors' | 'market' | 'hub' | 'office' | 'home' | 'airport';
 
-export interface StoryAction {
+interface StoryAction {
   label: string;
   why: string;
   place: StoryPlace;
@@ -145,7 +145,7 @@ const LENDER_ACCENTS = ['#fbbf24', '#5eead4', '#fdba74', '#c4b5fd', '#67e8f9', '
 const MOTIFS: readonly LenderMotif[] = ['columns', 'glass', 'tower', 'shopfront', 'kiosk'];
 
 /** A stable look for a lender the engine did not style. */
-export function lookFor(id: string, kind?: LenderKind): LenderLook {
+function lookFor(id: string, kind?: LenderKind): LenderLook {
   const h = hash(id);
   const motif: LenderMotif =
     kind === 'high-street'
@@ -392,7 +392,7 @@ export const CATEGORY_COLOR: Record<BusinessCategory, string> = {
   hospitality: '#ca8a04',
 };
 
-export interface BusinessItemView {
+interface BusinessItemView {
   id: string;
   label: string;
   /** Minor units. */
@@ -401,7 +401,7 @@ export interface BusinessItemView {
   meeting?: boolean;
 }
 
-export interface BusinessGigView {
+interface BusinessGigView {
   id: string;
   label: string;
   hours: number;
@@ -410,7 +410,7 @@ export interface BusinessGigView {
   skillMatch: boolean;
 }
 
-export interface BusinessBuyView {
+interface BusinessBuyView {
   sector: string;
   label: string;
   /** Minor units a month, approximate. */
@@ -518,11 +518,6 @@ export function businessesOf(view: Pick<PlayerView, 'market'>): BusinessView[] {
   if (!Array.isArray(raw)) return [];
   return raw.map(normBusiness).filter((b): b is BusinessView => b !== null);
 }
-
-/** Whether this build's engine sends businesses at all. */
-export const hasBusinesses = (view: Pick<PlayerView, 'market'>) =>
-  Array.isArray((view.market as Market & { businesses?: unknown }).businesses);
-
 export interface AngelRef {
   id: string;
   name: string;

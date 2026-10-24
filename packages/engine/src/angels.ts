@@ -32,7 +32,7 @@ import { deriveRng } from './rng.js';
 import { newStars } from './stars.js';
 import { valueCompany } from './valuation.js';
 import { createPlayer } from './world.js';
-import type { Company, Fund, Id, Player, Stage, World } from './types.js';
+import type { Company, Id, Player, Stage, World } from './types.js';
 
 /**
  * How many AI angels a market keeps: round(4 × angelDepth), at least 2. As
@@ -48,7 +48,7 @@ export const angelTarget = (market: MarketId, humanInvestors = 0): number =>
   );
 
 /** Human investors living in a market (for the AI phase-out). */
-export const humanInvestorsIn = (world: World, market: MarketId): number =>
+const humanInvestorsIn = (world: World, market: MarketId): number =>
   Object.values(world.players).filter((p) => !p.ai && p.market === market && p.role === 'investor')
     .length;
 
@@ -62,17 +62,12 @@ const ANGEL_CHECK_USD: [number, number] = [10_000, 50_000];
 const ANGEL_STAGES: Stage[] = ['pre-seed', 'seed'];
 
 /** Every angel (active or retired) in a market, oldest first. */
-export const marketAngels = (world: World, market: MarketId): Player[] =>
+const marketAngels = (world: World, market: MarketId): Player[] =>
   Object.values(world.players).filter((p) => p.ai && p.angel && p.market === market);
 
 /** Angels still writing cheques. */
 export const activeAngels = (world: World, market: MarketId): Player[] =>
   marketAngels(world, market).filter((p) => p.angel!.retiredMonth === undefined);
-
-/** The angel behind a fund, if it is an AI angel's fund. */
-export const fundAngel = (world: World, f: Fund): Player | null =>
-  f.angelId ? (world.players[f.angelId] ?? null) : null;
-
 function createAngel(world: World, market: MarketId, n: number, now: number): Player {
   const rng = deriveRng(world.seed, 'angels', market, 'person', n);
   const taken = new Set(marketAngels(world, market).map((p) => p.name));

@@ -19,7 +19,7 @@ import { outputOf } from './staff.js';
 import { SEGMENT_TEMPLATES } from './data/industries.js';
 import type { Company, SegmentPosition, SegmentState } from './types.js';
 
-export const CUSTOMER_TUNING = {
+const CUSTOMER_TUNING = {
   temperature: 0.1,
   noBuyScore: 0.42,
   inMarketRate: { b2c: 0.06, b2b: 0.03 },
@@ -45,7 +45,7 @@ export const CUSTOMER_TUNING = {
   hibernationChurn: 0.03,
 } as const;
 
-export const isHibernating = (c: Company): boolean => !!c.hibernation;
+const isHibernating = (c: Company): boolean => !!c.hibernation;
 
 export const emptyPosition = (): SegmentPosition => ({
   awareness: 0,
@@ -62,7 +62,7 @@ export function priceScore(price: number, budget: number): number {
 }
 
 /** How many customers the team can serve well. Beyond it, service degrades and churn rises. */
-export function serviceCapacity(c: Company): number {
+function serviceCapacity(c: Company): number {
   const k = CUSTOMER_TUNING.serviceCapacity;
   return (
     c.founderIds.length * k.founder +
@@ -72,7 +72,7 @@ export function serviceCapacity(c: Company): number {
   );
 }
 
-export function serviceLoad(c: Company): number {
+function serviceLoad(c: Company): number {
   return Object.entries(c.segments).reduce(
     (a, [key, s]) =>
       a + s.paying * (key.includes('.') && isB2bKey(key) ? CUSTOMER_TUNING.b2bLoadWeight : 1),

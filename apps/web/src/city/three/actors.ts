@@ -105,7 +105,7 @@ const LIGHT_AT: Record<VehicleKind, { half: number; side: number; h: number; siz
 };
 
 /** While you drive: how far around your car the traffic lives (metres). */
-export const DRIVE_TRAFFIC_R = 180;
+const DRIVE_TRAFFIC_R = 180;
 /**
  * While you drive, the trip runs faster than life (kilometres in a few
  * seconds): the traffic around you runs that much faster too, so it keeps
@@ -115,7 +115,7 @@ export const DRIVE_TRAFFIC_R = 180;
 const TOWN_SPEED = 8;
 
 /** How much larger than life vehicles are drawn as the camera pulls back (still to be seen from the air). */
-export const vehicleScale = (dist: number) => Math.max(1, Math.min(2.6, dist / 300));
+const vehicleScale = (dist: number) => Math.max(1, Math.min(2.6, dist / 300));
 /**
  * People, to the same scale as the vehicles: a person stands about as high
  * as a car's roof and a car is well over twice as long as a person is tall

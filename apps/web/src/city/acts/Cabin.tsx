@@ -26,7 +26,7 @@ import { ease, fade, lerp, put, seg, text } from './types';
 import { CabinService } from './CabinService';
 
 export type CabinClass = 'economy' | 'premium' | 'business' | 'first' | 'private';
-export const cabinClassOf = (tier: number | undefined): CabinClass =>
+const cabinClassOf = (tier: number | undefined): CabinClass =>
   fliesPrivate(tier)
     ? 'private'
     : (tier ?? 2) >= 4

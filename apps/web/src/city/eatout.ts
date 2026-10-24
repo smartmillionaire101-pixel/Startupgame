@@ -62,9 +62,6 @@ export const FOOD_KINDS: Record<string, FoodKind> = {
   'grill-house': { icon: '🍖', type: 'grill house', meal: 'dinner', hours: [12, 24] },
   'suya-spot': { icon: '🍢', type: 'suya spot', meal: 'dinner', hours: [16, 26] },
 };
-
-export const isFoodKind = (kind: string) => kind in FOOD_KINDS;
-
 /** Translatable: the city's own cooking. */
 const CITY_CUISINE: Record<string, string> = {
   lagos: 'Nigerian',

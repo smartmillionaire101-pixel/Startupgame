@@ -334,7 +334,7 @@ function StepBody({ step, onCafe }: { step: TutorialStep; onCafe: () => void }) 
   }
 }
 
-export const expenseLabel = (item: 'cards' | 'domain' | 'coffee') =>
+const expenseLabel = (item: 'cards' | 'domain' | 'coffee') =>
   ({
     cards: t('Business cards'),
     domain: t('A website domain'),

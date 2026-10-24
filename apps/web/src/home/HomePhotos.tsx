@@ -23,11 +23,11 @@ export interface HomePhoto {
 }
 
 const KEY = 'runway.homePhotos';
-export const MAX_PHOTOS = 6;
+const MAX_PHOTOS = 6;
 /** Characters of storage the photos may use together (~2.5 MB). */
 const MAX_CHARS = 2_500_000;
 
-export function loadPhotos(): HomePhoto[] {
+function loadPhotos(): HomePhoto[] {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '[]') as unknown;
     if (!Array.isArray(raw)) return [];
@@ -71,7 +71,7 @@ export function addPhoto(src: string): HomePhoto[] {
   return store([{ id, at, src }, ...old]);
 }
 
-export function removePhoto(id: string): HomePhoto[] {
+function removePhoto(id: string): HomePhoto[] {
   return store(loadPhotos().filter((p) => p.id !== id));
 }
 

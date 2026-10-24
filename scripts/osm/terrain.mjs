@@ -8,7 +8,7 @@
 import { PNG } from 'pngjs';
 import { sleep } from './overpass.mjs';
 
-export const TERRARIUM = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium';
+const TERRARIUM = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium';
 
 /** Metres of one Terrarium RGB pixel. */
 export const terrariumElevation = (r, g, b) => r * 256 + g + b / 256 - 32768;
@@ -92,7 +92,7 @@ export function sampleGrid({ cols, rows, bounds, zoom, inv, getTile }) {
  * grid's sample points: 1 where a sample is inside any polygon (even–odd per
  * polygon). Scanline, so it stays fast for big grids and many polygons.
  */
-export function rasterize(polys, cols, rows, bounds) {
+function rasterize(polys, cols, rows, bounds) {
   const [x0, y0, x1, y1] = bounds;
   const dx = (x1 - x0) / (cols - 1);
   const dy = (y1 - y0) / (rows - 1);
@@ -133,7 +133,7 @@ export function rasterize(polys, cols, rows, bounds) {
 }
 
 /** OR of masks made one polygon at a time (so overlapping polygons don't cancel). */
-export function unionMask(polys, cols, rows, bounds) {
+function unionMask(polys, cols, rows, bounds) {
   const out = new Uint8Array(cols * rows);
   for (const p of polys) {
     const m = rasterize([p], cols, rows, bounds);

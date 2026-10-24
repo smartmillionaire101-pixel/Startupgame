@@ -57,7 +57,7 @@ export interface PresenceView {
 }
 
 /** A look from the server, or null when it's missing or malformed. */
-export function normAppearance(raw: unknown): Appearance | null {
+function normAppearance(raw: unknown): Appearance | null {
   const r = appearanceSchema.safeParse(raw);
   return r.success ? r.data : null;
 }
@@ -90,12 +90,6 @@ export function normPresence(raw: unknown, selfId?: string): PresenceView[] {
   }
   return out;
 }
-
-// ---------------------------------------------------------------------------
-// Events, event kinds, contacts (§B views)
-
-export type EventKind =
-  'founder-meetup' | 'investor-breakfast' | 'demo-day' | 'customer-mixer' | 'talent-night';
 export type Venue = 'hall' | 'hub' | 'office';
 
 export interface EventKindView {
@@ -239,7 +233,7 @@ export function flaggedPlaces(events: CityEventView[] | null): string[] {
 // ---------------------------------------------------------------------------
 // Ambient AI characters
 
-export type PersonKind =
+type PersonKind =
   | 'player'
   | 'partner'
   | 'founder'

@@ -153,7 +153,7 @@ export function warmIntro(world: World, founder: Player, fundId: Id, nowMonth?: 
 }
 
 /** Network above the typical starting 30 slightly raises AI investors' first-meeting odds (max +0.03). */
-export const networkBonus = (p: Player): number => (clamp(p.network, 30, 100) - 30) * (0.03 / 70);
+const networkBonus = (p: Player): number => (clamp(p.network, 30, 100) - 30) * (0.03 / 70);
 
 // ---------------------------------------------------------------- Costs
 
@@ -161,7 +161,7 @@ export function eventCost(m: MarketState, kind: EventKind, venue: EventVenue): n
   return scale(col(m), EVENT_KIND_DATA[kind].costCol * VENUE_DATA[venue].costMult);
 }
 
-export function eventCapacity(kind: EventKind, venue: EventVenue): number {
+function eventCapacity(kind: EventKind, venue: EventVenue): number {
   const [lo, hi] = EVENT_KIND_DATA[kind].capacity;
   return Math.round(lo + (hi - lo) * VENUE_DATA[venue].size);
 }

@@ -34,7 +34,7 @@ export interface Traveller {
 export const firstOf = (name: string) => name.split(' ')[0] || name;
 
 /** How a companion is drawn: a player as they look everywhere, an AI friend from the engine's look. */
-export function companionLook(c: Companion): AvatarLook {
+function companionLook(c: Companion): AvatarLook {
   if (!c.ai) return avatarLook(c.backgroundId ?? undefined, c.id, c.gender);
   const a = c.appearance ?? defaultAppearance(c.id, c.gender, (c.from || null) as MarketId | null);
   return lookFromAppearance(a, c.gender, BOTTOMS[hash(c.id) % BOTTOMS.length]!);
@@ -83,7 +83,7 @@ export function arrivalParty(
 }
 
 /** Everyone sharing your hotel transfer: the companions in the city with you. */
-export function rideParty(view: PlayerView, market: string): Traveller[] {
+function rideParty(view: PlayerView, market: string): Traveller[] {
   const h = holidayIn(view, market);
   if (!h) return [];
   return h.companions.filter((c) => c.sameFlight || c.here).map(traveller);

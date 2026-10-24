@@ -58,7 +58,7 @@ export function fmtCountdown(ms: number): string {
 }
 
 /** Whether the server sends where you are (`view.here`). */
-export function hasHere(view: PlayerView): boolean {
+function hasHere(view: PlayerView): boolean {
   const h = (view as PlayerView & { here?: unknown }).here;
   return isObj(h) && typeof h.id === 'string' && Array.isArray(h.segments);
 }
@@ -76,23 +76,6 @@ export function cityViewOf(view: PlayerView): PlayerView {
   const here = hereOf(view);
   return here === view.market ? view : { ...view, market: here };
 }
-
-export interface LocationView {
-  market: string;
-  name: string;
-  sinceAt: number;
-}
-
-export function locationOf(view: PlayerView): LocationView | null {
-  const l = (view.me as PlayerView['me'] & { location?: unknown }).location;
-  if (!isObj(l) || typeof l.market !== 'string') return null;
-  return {
-    market: l.market,
-    name: typeof l.name === 'string' ? l.name : l.market,
-    sinceAt: fin(l.sinceAt) ? l.sinceAt : 0,
-  };
-}
-
 export interface FlightsView {
   /** One-way fare per destination, minor units of your home currency. */
   fareTo: Record<string, number>;
@@ -111,7 +94,7 @@ export interface FlightsView {
 }
 
 export type CabinTier = 'economy' | 'business' | 'first';
-export const CABIN_TIERS: readonly CabinTier[] = ['economy', 'business', 'first'];
+const CABIN_TIERS: readonly CabinTier[] = ['economy', 'business', 'first'];
 
 /** A cabin on a flight, as the server prices it for you. */
 export interface CabinOption {
@@ -281,7 +264,7 @@ export interface HotelOption {
 const TIERS: readonly string[] = ['budget', 'business', 'luxury'];
 
 /** The hotels the server offers in a city (none from an older server). */
-export function hotelsOf(view: PlayerView, id: string): HotelOption[] {
+function hotelsOf(view: PlayerView, id: string): HotelOption[] {
   const d = view.me.destinations.find((x) => x.id === id) as { hotels?: unknown } | undefined;
   if (!Array.isArray(d?.hotels)) return [];
   return d.hotels.filter(
@@ -509,7 +492,7 @@ const MY_CAR: Record<string, Partial<VehicleSpec>> = {
   luxury: { body: '#111827', accent: '#d4af37', len: 0.58 },
 };
 
-export function myCarSpec(modelId: string | undefined): VehicleSpec {
+function myCarSpec(modelId: string | undefined): VehicleSpec {
   return {
     id: `my-car-${modelId ?? 'car'}`,
     body: '#2563eb',
@@ -607,7 +590,7 @@ export function localHour(marketId: string, now = Date.now()): number {
 export const isNight = (hour: number) => hour < 6 || hour >= 19;
 
 /** Plain equirectangular map coordinates (x: 0–360, y: 0–180, north up). */
-export const geoXY = (marketId: string) => {
+const geoXY = (marketId: string) => {
   const g = CITY_GEO[marketId] ?? { lat: 0, lon: 0 };
   return { x: g.lon + 180, y: 90 - g.lat };
 };
@@ -680,9 +663,6 @@ export const driveOnLeft = (marketId: string) =>
 
 /** Light at a local hour (for skies). */
 export type DayPart = 'night' | 'dusk' | 'day';
-export const dayPart = (hour: number): DayPart =>
-  isNight(hour) ? 'night' : hour < 8 || hour >= 17 ? 'dusk' : 'day';
-
 /**
  * Named districts along a route, in order (the bus's stop ticker): the
  * nearest named district every few tiles, topped up with the city's street

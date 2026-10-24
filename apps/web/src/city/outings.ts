@@ -34,8 +34,7 @@ export function outingOf(item: { id: string; label?: string }): {
   return null;
 }
 
-export type HostRequest =
-  { kind: 'outing'; req: OutingRequest } | { kind: 'competition'; id: string };
+type HostRequest = { kind: 'outing'; req: OutingRequest } | { kind: 'competition'; id: string };
 
 let current: HostRequest | null = null;
 const listeners = new Set<() => void>();

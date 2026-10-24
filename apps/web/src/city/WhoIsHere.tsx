@@ -175,14 +175,14 @@ const CROWD_KIND: Record<CrowdRole, HereKind> = {
 };
 
 /** The room a place is, for its crowd. */
-export function roomFor(view: View, place: Place): RoomKind {
+function roomFor(view: View, place: Place): RoomKind {
   const b =
     place.kind === 'business' ? businessesOf(view).find((x) => x.id === place.ref) : undefined;
   return roomOf(place, { businessKind: b?.kind, businessShape: b?.look.shape });
 }
 
 /** The city's crowd in a place as Who's here people (./crowdfill.ts). */
-export function crowdHere(
+function crowdHere(
   view: View,
   place: Place,
   real: number,
@@ -210,7 +210,7 @@ export function crowdHere(
 }
 
 /** Everyone in a place: the AI people the view knows of, then players from presence. */
-export function peopleAt(
+function peopleAt(
   view: View,
   place: Place,
   players: PresenceView[],
@@ -384,7 +384,7 @@ function PersonRow({
 }
 
 /** Open the chat for someone: a player thread for people, the AI chat for characters. */
-export const chatWith = (p: Pick<PersonHere, 'id' | 'human'>) =>
+const chatWith = (p: Pick<PersonHere, 'id' | 'human'>) =>
   openPhone(p.human ? { player: p.id } : { ai: p.id });
 
 /** The "Who's here" strip in a scene, and its list. */
@@ -447,7 +447,7 @@ interface Around {
 }
 
 /** Players in town (by building) and the notable AI people, for the map's list. */
-export function whoIsAround(view: View, layout: CityLayout, players: PresenceView[]): Around[] {
+function whoIsAround(view: View, layout: CityLayout, players: PresenceView[]): Around[] {
   const out: Around[] = [];
   const seen = new Set<string>();
   const add = (p: PersonHere, place: Place) => {

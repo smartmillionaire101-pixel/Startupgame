@@ -56,7 +56,7 @@ export const towerTexture = (night: boolean) =>
   });
 
 /** A bright mown lawn (stripes and blades). */
-export const lawnTexture = () =>
+const lawnTexture = () =>
   canvasTex('lawn', 256, (g) => {
     for (let i = 0; i < 8; i++) {
       g.fillStyle = i % 2 ? '#7cc35a' : '#72b951';
@@ -556,7 +556,7 @@ export function neighbourhood(
 // A roof (a penthouse, a hotel): the building under you, the city below.
 
 /** How far below the roof the street is (metres). */
-export const ROOF_HEIGHT = 42;
+const ROOF_HEIGHT = 42;
 
 export function cityBelow(o: {
   night: boolean;
