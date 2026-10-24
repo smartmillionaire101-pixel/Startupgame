@@ -96,6 +96,7 @@ import { stocks } from './stocks';
 import { outfits } from './outfits';
 import { buildings } from './buildings';
 import { investorGuide } from './investor-guide';
+import { bankerRepEvents } from './banker-rep-events';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -185,6 +186,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   bankers,
   bankwork,
   investorGuide,
+  bankerRepEvents,
   firstClass,
   jobTasks,
   todayWhatnow,

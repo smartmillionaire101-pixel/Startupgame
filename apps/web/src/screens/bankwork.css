@@ -76,3 +76,77 @@
   font-style: italic;
   margin: 0.2rem 0;
 }
+
+/* Feedback note: reputation, referrals and client sizes. */
+.bw-rating {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.bw-rating strong {
+  font-size: 2.4rem;
+  line-height: 1.1;
+}
+.bw-stars {
+  display: inline-flex;
+  gap: 0.15rem;
+  font-size: 1.3rem;
+  color: var(--line-strong);
+  margin: 0.2rem 0 0.4rem;
+}
+.bw-stars .is-on {
+  color: var(--warn);
+}
+.bw-scores li {
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--line);
+}
+.bw-score {
+  display: inline-block;
+  min-width: 2rem;
+  text-align: center;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.05rem 0.35rem;
+  background: var(--surface);
+}
+.bw-score.is-great {
+  color: var(--good);
+}
+.bw-score.is-low {
+  color: var(--warn);
+}
+.bw-tiers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.bw-tier {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--line);
+}
+.bw-tier:first-child {
+  border-top: 0;
+}
+.bw-tier .grow {
+  flex: 1;
+  min-width: 0;
+}
+.bw-tier.is-locked strong {
+  color: var(--muted, inherit);
+}
+.bw-progress {
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+  margin: 0.3rem 0 0.2rem;
+}
+.bw-progress span {
+  display: block;
+  height: 100%;
+  background: var(--info);
+}

@@ -12,6 +12,17 @@ const KIND_LABEL: Record<string, string> = {
   'demo-day': 'Demo day',
   conference: 'Conference',
   workshop: 'Workshop',
+  // Feedback note: banking and investor events.
+  'policy-briefing': 'Briefing',
+  'banking-dinner': 'Dinner',
+  'fintech-summit': 'Summit',
+  'sme-lending': 'Forum',
+  'capital-markets': 'Breakfast',
+  'risk-seminar': 'Seminar',
+  'investor-dinner': 'Dinner',
+  'lp-forum': 'Forum',
+  'investor-demo-day': 'Demo day',
+  'family-office': 'Meetup',
 };
 /** A tech event's kind, in words. */
 export const techKindLabel = (k: string) => t(KIND_LABEL[k] ?? 'Meetup');

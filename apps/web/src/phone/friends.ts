@@ -216,6 +216,10 @@ export interface TechEventView {
   ticket: number;
   attended: boolean;
   pitchChance: boolean;
+  /** Who it's for (feedback note: banking and investor events beside the startup ones). */
+  audience: 'founder' | 'banker' | 'investor';
+  /** Why it's worth it for them, in a line (role events), or null. */
+  why: string | null;
 }
 
 /** `here.techEvents` (the city you're in), or null from an older server. */
@@ -251,6 +255,11 @@ export function techEventsOf(view: View): TechEventView[] | null {
         ticket: num(e.ticket),
         attended: !!e.attended,
         pitchChance: !!e.pitchChance,
+        audience:
+          e.audience === 'banker' || e.audience === 'investor'
+            ? (e.audience as 'banker' | 'investor')
+            : 'founder',
+        why: typeof e.why === 'string' ? e.why : null,
       };
     });
 }
