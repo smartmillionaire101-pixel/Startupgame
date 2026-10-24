@@ -955,6 +955,47 @@ export interface PlayerWork {
   cooldown?: Record<Id, number>;
   /** How well you're doing in your professional job, 0–1. Missing = 0.5. */
   perf?: number;
+  /** FEEDBACK_NOTE (jobtasks.ts): this month's work tasks and your strikes. Missing = none. */
+  tasks?: JobTasks;
+  /** FEEDBACK_NOTE: jobs you were let go from, newest first. Missing = none. */
+  record?: JobRecord[];
+}
+
+/** On-the-job tasks (jobtasks.ts): the month's queue at your employer. */
+export interface JobTasks {
+  /** The employer they come from (a new employer starts a clean sheet). */
+  businessId: Id;
+  /** Home month they were handed out. */
+  month: number;
+  /** Task ids (data/job-tasks.ts), in the order they come. */
+  ids: string[];
+  /** One per task done (answered or missed), in order. */
+  results: JobTaskResult[];
+  /** 1: manager warning, 2: final warning, 3: let go. */
+  strikes: number;
+}
+
+export interface JobTaskResult {
+  id: string;
+  /** Your option, or null: the month ended before you answered. */
+  choice: number | null;
+  best: number;
+  right: boolean;
+  /** The performance change (0–1 scale). */
+  delta: number;
+  month: number;
+}
+
+export interface JobRecord {
+  month: number;
+  businessId: Id;
+  employer: string;
+  profession: ProfessionId;
+  /** The role's label when you left. */
+  label: string;
+  reason: 'performance';
+  /** Notice pay before tax (minor units). */
+  notice: number;
 }
 
 export interface HomeItem {

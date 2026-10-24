@@ -168,6 +168,7 @@ import {
 } from './bankwork.js';
 import { bookAir, endFlight, ensureGameVenues, landJump } from './games.js';
 import { applyForJob, attendInterview, ensureEmployers } from './work.js';
+import { answerTask } from './jobtasks.js';
 import { golfRound, mallBuy } from './leisure.js';
 import { mallTripCommand } from './malltrips.js';
 import { wardrobeRemove, wardrobeWear } from './wardrobe.js';
@@ -1478,6 +1479,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return applyForJob(world, me, cmd.businessId, cmd.level);
     case 'job.interview':
       return attendInterview(world, me, cmd.applicationId, cmd.answers);
+    case 'job.task':
+      return answerTask(world, me, cmd.taskId, cmd.answer);
     case 'home.order':
       return orderFurniture(world, me, cmd.itemId, ctx.now, cmd.businessId);
     case 'home.buy':

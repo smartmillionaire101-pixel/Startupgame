@@ -1,4 +1,4 @@
-import { PROFESSIONS } from '@runway/engine';
+import { JOB_TASKS, PROFESSIONS } from '@runway/engine';
 import { expect, letters, playAsGuest, setupPlayer, test, type Page } from './fixtures';
 
 /**
@@ -194,4 +194,84 @@ test('a founder with a company takes a full-time tech job', async ({ page }) => 
   await expect(hero.getByRole('button', { name: 'Request promotion' })).toBeVisible();
   await expect(hero.locator('[data-promotion="blocked"]')).toContainText('Needs 48 months in tech');
   await shot(page, '6-your-job');
+});
+
+/** Answer the task in hand from the Jobs app: the best option, or a wrong one. */
+async function answerTask(phone: ReturnType<Page['locator']>, right: boolean) {
+  const card = phone.locator('[data-job-tasks] [data-task]');
+  await expect(card).toBeVisible({ timeout: 10_000 });
+  const id = await card.getAttribute('data-task');
+  const best = JOB_TASKS.find((x) => x.id === id)!.best;
+  await card
+    .getByRole('radio')
+    .nth(right ? best : (best + 1) % 4)
+    .click();
+  await card.getByRole('button', { name: 'Send answer' }).click();
+  await expect(phone.locator(`[data-job-tasks] [data-task="${id}"]`)).toHaveCount(0, {
+    timeout: 10_000,
+  });
+}
+
+test('a hired engineer answers work tasks, sees the best answer and why, and three wrong calls end the job', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await player(page, 'f-engineer', 'Tia Tasker');
+  const { go } = await applyAndGo(page, 'tech', 'tech-engineer');
+  const { scene, interview } = await goToInterview(page, go);
+  await answer(interview, 'tech', true);
+  await interview.getByRole('button', { name: 'Finish the interview' }).click();
+  await expect(scene.locator('[data-decision="hired"]')).toBeVisible({ timeout: 10_000 });
+  await scene.getByRole('button', { name: 'Close' }).click();
+
+  const phone = await jobsApp(page);
+  const tasks = phone.locator('[data-job-tasks]');
+  await expect(tasks).toContainText('Performance this month');
+  await expect(tasks.locator('[data-task]')).toContainText('from ');
+  await tasks.locator('[data-task]').scrollIntoViewIfNeeded();
+  await shot(page, '7-task');
+
+  // A right call: the result card with the best answer and why.
+  await answerTask(phone, true);
+  const result = tasks.locator('[data-task-result="right"]');
+  await expect(result).toBeVisible();
+  await expect(result).toContainText('Good call');
+  await expect(result).toContainText('+5 performance');
+  await expect(result).toContainText('Why:');
+  await shot(page, '8-task-right');
+
+  // Wrong calls: a manager warning, a final warning, then let go.
+  await answerTask(phone, false);
+  const wrong = tasks.locator('[data-task-result="wrong"]');
+  await expect(wrong).toContainText('Not quite');
+  await expect(wrong).toContainText('You said:');
+  await expect(wrong).toContainText('Best:');
+  await expect(tasks.locator('[data-warning="manager"]')).toContainText('Manager warning');
+  await answerTask(phone, false);
+  await expect(tasks.locator('[data-warning="final"]')).toContainText('Final warning');
+  await tasks.locator('[data-warning="final"]').scrollIntoViewIfNeeded();
+  await shot(page, '9-final-warning');
+  const card = tasks.locator('[data-task]');
+  const id = await card.getAttribute('data-task');
+  const best = JOB_TASKS.find((x) => x.id === id)!.best;
+  await card
+    .getByRole('radio')
+    .nth((best + 1) % 4)
+    .click();
+  await card.getByRole('button', { name: 'Send answer' }).click();
+
+  const letGo = phone.locator('[data-let-go]');
+  await expect(letGo).toBeVisible({ timeout: 10_000 });
+  await expect(letGo).toContainText('You’ve been let go');
+  await expect(letGo).toContainText('after three strikes');
+  await expect(letGo).toContainText('“Let go: performance”');
+  await expect(phone.locator('[data-pro-job]')).toHaveCount(0);
+  await letGo.scrollIntoViewIfNeeded();
+  await shot(page, '10-let-go');
+  const v = await state(page);
+  expect(v.me.job).toBeNull();
+  expect(v.work.letGo).toMatchObject({ reason: 'performance' });
+  expect(v.work.letGo.notice).toBeGreaterThan(0);
+  const lines = v.accounts.local.recent as { memo: string; amount: number }[];
+  expect(lines.some((l) => l.memo.startsWith('Notice pay: ') && l.amount > 0)).toBe(true);
 });

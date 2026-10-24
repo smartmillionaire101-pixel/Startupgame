@@ -724,6 +724,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     applicationId: id,
     answers: z.array(z.number().int().min(0).max(5)).min(1).max(5),
   }),
+  /** The feedback round: answer the work task in hand (an option index); the result comes at once. */
+  z.object({
+    type: z.literal('job.task'),
+    taskId: z.string().min(1).max(32),
+    answer: z.number().int().min(0).max(3),
+  }),
   /** Furniture for your apartment: one per slot; replacing sells the old one back at 40%. */
   /** Wave 6: `businessId` is the showroom you buy in (its till gets the money). */
   z.object({

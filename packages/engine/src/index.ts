@@ -204,6 +204,10 @@ export {
   professionOfKind,
 } from './data/professions.js';
 export type { ProfessionId, WorkField, Profession } from './data/professions.js';
+// The feedback round: on-the-job tasks, warnings and being let go.
+export { TASKS } from './jobtasks.js';
+export { JOB_TASKS, jobTaskById, jobTasksOf } from './data/job-tasks.js';
+export type { JobTask } from './data/job-tasks.js';
 export { acceleratorsOf, devPartnersOf, lpsOf } from './programs.js';
 export type { Cause, CareerDecision, CareerOrg } from './allocator.js';
 export { wealthView } from './wealth.js';

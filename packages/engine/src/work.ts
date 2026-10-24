@@ -49,6 +49,7 @@ import { newId } from './ids.js';
 import { transfer, withTx } from './ledger.js';
 import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
+import { jobTasksView, letGoView, settleJobTasks, startJobTasks } from './jobtasks.js';
 import { jobsOn } from './releases.js';
 import { deriveRng } from './rng.js';
 import type {
@@ -139,7 +140,7 @@ export const jobHours = (p: Player): number =>
   p.job?.profession ? proHours(p.job.level ?? 1) : JOB_HOURS;
 
 /** Monthly gross pay for a level (take-home `payCol`, grossed up for the city's income tax). */
-function proPay(m: MarketState, prof: Profession, level: number): number {
+export function proPay(m: MarketState, prof: Profession, level: number): number {
   const l = prof.levels[level - 1];
   if (!l) return 0;
   return scale(col(m), l.payCol / Math.max(0.2, 1 - m.data.tax.personalIncome));
@@ -429,7 +430,11 @@ export function attendInterview(
     level: a.level,
     months: 0,
   };
-  if (!a.promotion) work.perf = 0.5;
+  if (!a.promotion) {
+    work.perf = 0.5;
+    // The feedback round: the manager's tasks start with the job (jobtasks.ts).
+    startJobTasks(world, me, work, month);
+  }
   // This month: the extra hours the new role takes on top of what's already been given.
   me.hours.used = Math.min(
     me.hours.available,
@@ -514,6 +519,8 @@ export function settleWork(world: World, p: Player, month: number) {
     const work = ensureWork(p);
     work.exp.service = Math.round(((work.exp.service ?? 0) + learnRate(p)) * 10) / 10;
   }
+  // The feedback round: missed work tasks, strikes, and next month's tasks.
+  settleJobTasks(world, p, month);
   const work = p.work;
   if (!work) return;
   for (const a of work.applications) {
@@ -648,6 +655,7 @@ export function workView(world: World, p: Player) {
             monthlyPay: proPay(m, prof, job.level ?? 1),
             hours: proHours(job.level ?? 1),
             perf: work.perf ?? 0.5,
+            tasks: jobTasksView(world, p),
             next: nextRung
               ? {
                   level: nextRung.level,
@@ -661,6 +669,7 @@ export function workView(world: World, p: Player) {
               : null,
           }
         : null,
+    letGo: letGoView(world, p),
     employers: views,
     applications: work.applications.map((a) => {
       const pr = professionById(a.profession);

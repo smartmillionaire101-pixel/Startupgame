@@ -1,0 +1,135 @@
+/* On-the-job tasks: performance, the task, the result, warnings, let go (phone/jobtasks.tsx). */
+
+.job-tasks {
+  display: grid;
+  gap: var(--sp-3);
+}
+.job-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.job-card-head .phone-h {
+  margin: 0;
+}
+.job-task-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.job-strikes,
+.job-task-q,
+.job-why,
+.job-warning-line,
+.job-result p,
+.job-warning p,
+.job-letgo p {
+  margin: 0;
+}
+.job-task-q {
+  font-weight: 600;
+}
+.job-task-code {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+.job-task-options {
+  display: grid;
+  gap: var(--sp-1);
+}
+.job-task-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 2.75rem;
+  overflow-wrap: anywhere;
+}
+button.job-task-option {
+  cursor: pointer;
+}
+.job-task-option.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+.job-task-option.is-right {
+  border-color: color-mix(in srgb, var(--good) 45%, var(--line));
+  background: var(--good-soft);
+}
+.job-task-option.is-wrong {
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+  background: var(--bad-soft);
+}
+.job-task-letter {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--surface-2);
+}
+.job-result.is-wrong,
+.job-letgo {
+  background: var(--bad-soft);
+  border-color: color-mix(in srgb, var(--bad) 30%, var(--line));
+}
+.job-result.is-right {
+  background: var(--good-soft);
+  border-color: color-mix(in srgb, var(--good) 35%, var(--line));
+}
+.job-warning {
+  background: color-mix(in srgb, var(--warn) 18%, var(--surface));
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--line));
+}
+.job-warning-line {
+  font-weight: 650;
+}
+.job-letgo {
+  text-align: center;
+}
+.job-letgo-big {
+  font-size: 2.2rem;
+}
+.job-letgo-kv {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0;
+  text-align: left;
+}
+.job-letgo-kv dt {
+  color: var(--muted);
+}
+.job-letgo-kv dd {
+  margin: 0;
+  font-weight: 650;
+  text-align: right;
+}
+.job-perf,
+.job-task,
+.job-result,
+.job-warning,
+.job-letgo {
+  flex-shrink: 0;
+}
