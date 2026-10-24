@@ -393,6 +393,7 @@ export function FlightScene({
             to={to}
             hours={realHours}
             onLand={() => setPhase(three && !reduced ? 'sky' : 'landing')}
+            livery={livery}
           />
         )}
         {!three && !suite && phase === 'cruise' && (

@@ -19,6 +19,14 @@
  * with you. The scene is 3D (./Suite3D, lazy) or drawn (Lite). A camera
  * button keeps a photo. The cabin's service card (../acts/CabinService)
  * stays for what each class gives you.
+ *
+ * Cabins (player feedback: "Interior should look more like a plane… we can
+ * walk through the wall… cannot see outside the plane"): the 3D cabin is a
+ * real widebody's with windows onto the sky of each moment (the hour over
+ * the route: take-off over your city, the night midway, the arrival over
+ * the destination); the walk to the bar or the spa follows the aisle and
+ * the doorways (./cabinplan; `data-suite-path` names the places it goes
+ * through); "Inside | Outside" shows the plane in the sky.
  */
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { t, tx } from '../../i18n';
@@ -31,7 +39,9 @@ import { CabinService } from '../acts/CabinService';
 import { genderOf } from '../life';
 import { CITY_GEO, CITY_NAMES, fmtFlightTime, inflightOf } from '../travel';
 import { skyOver } from '../flight3d/world';
-import type { SuiteState } from './suite3d';
+import { cabinPlan, outsideAt, pathClear, placeFor, walkPath } from './cabinplan';
+import type { SkyColours } from './outside';
+import type { SuiteState, SuiteStatus } from './suite3d';
 import {
   FLIGHT_STAGES,
   INFLIGHT_ICON,
@@ -100,12 +110,15 @@ function SuiteDrawn({
   crew,
   state,
   night,
+  low,
 }: {
   cabin: Premium;
   me: AvatarLook;
   crew: AvatarLook;
   state: SuiteState;
   night: boolean;
+  /** Climbing out or coming in to land: the ground shows in the windows. */
+  low: boolean;
 }) {
   const first = cabin === 'first';
   const wood = first ? '#5b3a22' : '#334155';
@@ -127,6 +140,17 @@ function SuiteDrawn({
         <g key={x}>
           <rect x={x} y="30" width="44" height="60" rx="20" fill={night ? '#1e1b4b' : '#7dd3fc'} />
           <rect x={x} y="62" width="44" height="12" fill="#f8fafc" opacity="0.8" />
+          {low && (
+            <rect
+              x={x + 2}
+              y="70"
+              width="40"
+              height="16"
+              rx="6"
+              fill={night ? '#0b1020' : '#6b8e4e'}
+              data-suite-ground=""
+            />
+          )}
           <rect
             x={x}
             y="30"
@@ -241,12 +265,15 @@ export function SuiteFlight({
   to,
   hours,
   onLand,
+  livery,
 }: {
   cabin: Premium;
   from: string;
   to: string;
   /** The flight's real length (hours). */
   hours: number;
+  /** The airline's colour (the plane, seen from outside). */
+  livery?: string;
   /** "Prepare for landing": on to the landing. */
   onLand: () => void;
 }) {
@@ -279,19 +306,27 @@ export function SuiteFlight({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  // The sky over the route's midpoint, halfway through the flight (the windows).
-  const [sky] = useState(() => {
+  // The sky outside at each moment: the hour over that part of the route
+  // (take-off over your city, the meal and the night on the way, the arrival
+  // over the destination).
+  const [skies] = useState<Record<FlightStage, SkyColours>>(() => {
     const a = CITY_GEO[from];
     const b = CITY_GEO[to];
-    const lat = ((a?.lat ?? 0) + (b?.lat ?? 0)) / 2;
-    const lon = ((a?.lon ?? 0) + (b?.lon ?? 0)) / 2;
-    const s = skyOver(lat, lon, flightNow() + (hours * 3_600_000) / 2).state;
-    return {
-      zenith: `#${s.zenith.getHexString()}`,
-      horizon: `#${s.horizon.getHexString()}`,
-      night: s.night > 0.5,
+    const now = flightNow();
+    const at = (k: number): SkyColours => {
+      const lat = (a?.lat ?? 0) + ((b?.lat ?? 0) - (a?.lat ?? 0)) * k;
+      const lon = (a?.lon ?? 0) + ((b?.lon ?? 0) - (a?.lon ?? 0)) * k;
+      const s = skyOver(lat, lon, now + hours * 3_600_000 * k).state;
+      return {
+        zenith: `#${s.zenith.getHexString()}`,
+        horizon: `#${s.horizon.getHexString()}`,
+        night: s.night > 0.5,
+      };
     };
+    return { boarding: at(0.05), meal: at(0.3), night: at(0.55), arrival: at(0.95) };
   });
+  const [eye, setEye] = useState<'inside' | 'outside'>('inside');
+  const [status, setStatus] = useState<SuiteStatus | null>(null);
   const state = useMemo<SuiteState>(
     () => ({
       stage,
@@ -299,9 +334,24 @@ export function SuiteFlight({
       course,
       plate: course > 0 ? menu[Math.min(course, menu.length) - 1]!.colors : null,
       doors,
+      view: eye,
     }),
-    [stage, act, course, doors, menu],
+    [stage, act, course, doors, menu, eye],
   );
+  // The way to where your act is (the bar, the spa), through the doors and the aisle.
+  const walk = useMemo(() => {
+    const plan = cabinPlan(cabin);
+    const ids = walkPath(plan, 'seat', placeFor(act, cabin)) ?? ['seat'];
+    // Getting up out of the seat is the one step that starts inside furniture.
+    const clear = pathClear(
+      plan,
+      ids.slice(1).map((id) => plan.places[id]!),
+    );
+    return { ids, clear };
+  }, [cabin, act]);
+  // Lite (or before the first 3D frame): you're already there; the windows follow the moment.
+  const where = status?.at ?? placeFor(act, cabin);
+  const outside = status?.outside ?? outsideAt(stage, 0).phase;
   const offered = (a: InflightActId) =>
     info ? info.acts.some((x) => x.act === a) : a !== 'bar' && a !== 'spa';
   const done = (a: InflightActId) => !!info?.done.includes(a);
@@ -347,6 +397,13 @@ export function SuiteFlight({
       data-suite-act={act ?? 'none'}
       data-suite-doors={doors}
       data-suite-ready={ready ? 'yes' : 'no'}
+      data-suite-path={walk.ids.join(' ')}
+      data-suite-path-clear={walk.clear ? 'yes' : 'no'}
+      data-suite-walker={where}
+      data-suite-outside={outside}
+      data-suite-sky={skies[stage].night ? 'night' : 'day'}
+      data-suite-windows={status?.windows ?? 6}
+      data-suite-view={eye}
     >
       <div className="suite-scene">
         {three ? (
@@ -356,11 +413,11 @@ export function SuiteFlight({
               me={looks.me}
               crew={looks.crew}
               others={looks.others}
-              zenith={sky.zenith}
-              horizon={sky.horizon}
-              night={sky.night}
+              skies={skies}
+              livery={livery}
               state={state}
               onReady={() => setReady(true)}
+              onStatus={setStatus}
               onCamera={(f) => {
                 snap.current = f;
               }}
@@ -372,7 +429,8 @@ export function SuiteFlight({
             me={looks.me}
             crew={looks.crew}
             state={state}
-            night={sky.night}
+            night={skies[stage].night}
+            low={outside !== 'cruise'}
           />
         )}
         <ol className="suite-timeline" aria-label={t('Your flight')}>
@@ -388,8 +446,28 @@ export function SuiteFlight({
           ))}
         </ol>
         <p className="suite-crew" data-suite-crew="">
-          {crewLine(stage, cabin, crew, toName)}
+          {where === 'walking'
+            ? placeFor(act, cabin) === 'seat'
+              ? t('Back down the aisle to your seat…')
+              : t('Down the aisle and through the doorway…')
+            : crewLine(stage, cabin, crew, toName)}
         </p>
+        {three && (
+          <div className="suite-views" role="group" aria-label={t('Inside or outside the plane')}>
+            {(['inside', 'outside'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                className={`suite-view${eye === v ? ' is-on' : ''}`}
+                aria-pressed={eye === v}
+                data-suite-view-pick={v}
+                onClick={() => setEye(v)}
+              >
+                {v === 'inside' ? t('Inside') : t('Outside')}
+              </button>
+            ))}
+          </div>
+        )}
         <SnapButton
           action="suite-photo"
           className="btn btn-subtle suite-snap"
@@ -455,6 +533,17 @@ export function SuiteFlight({
                 <span className="small muted">{done(a) ? t('Done') : fxOf(a)}</span>
               </button>
             ))}
+          {(act === 'bar' || act === 'spa') && (
+            <button
+              type="button"
+              className="suite-act"
+              data-suite-back=""
+              onClick={() => setAct(null)}
+            >
+              <span aria-hidden="true">💺</span>
+              <b>{t('Back to my seat')}</b>
+            </button>
+          )}
           {cabin === 'first' && (
             <button
               type="button"

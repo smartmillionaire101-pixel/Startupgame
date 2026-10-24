@@ -1,24 +1,27 @@
 /**
- * The suite in 3D (lazy-loaded): ./suite3d.ts on a Stage you can orbit and
- * zoom; the camera follows you (to the bar and the spa and back). The
- * flight's own sky colours the windows.
+ * The cabin in 3D (lazy-loaded): ./suite3d.ts seen through a perspective
+ * eye inside the plane. Drag to look round, pinch to come closer; the eye
+ * follows you (down the aisle to the bar and the spa and back). Outside,
+ * the same gestures orbit the plane.
  */
 import { useEffect, useRef, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { Stage, gestures } from '../../interiors3d/stage';
 import type { AvatarLook } from '../art';
-import { SuiteWorld, type SuiteState } from './suite3d';
+import type { SkyColours } from './outside';
+import type { FlightStage } from './premium';
+import { SuiteWorld, type SuiteState, type SuiteStatus } from './suite3d';
 
 export interface Suite3DProps {
   cabin: 'business' | 'first';
   me: AvatarLook;
   crew: AvatarLook;
   others: AvatarLook[];
-  zenith: string;
-  horizon: string;
-  night: boolean;
+  skies: Record<FlightStage, SkyColours>;
+  livery?: string;
   state: SuiteState;
   onReady?: () => void;
+  onStatus?: (s: SuiteStatus) => void;
   onCamera?: (snap: (() => string | null) | null) => void;
 }
 
@@ -35,17 +38,13 @@ export default function Suite3D(props: Suite3DProps): ReactElement {
     let stage: Stage;
     try {
       stage = new Stage(canvas, {
-        target: new THREE.Vector3(0.1, 0.5, 0),
+        target: new THREE.Vector3(0, 0.8, 0),
         span: 4,
         azimuth: 0.9,
-        elevation: 0.72,
-        minAzimuth: 0.2,
-        maxAzimuth: 1.9,
-        minElevation: 0.4,
-        maxElevation: 1.3,
-        background: '#111827',
+        elevation: 0.7,
+        background: '#1a1a1a',
         shadowSize: 6,
-        shadowMap: 1024,
+        shadowMap: 512,
         maxFps: 30,
       });
     } catch {
@@ -57,14 +56,11 @@ export default function Suite3D(props: Suite3DProps): ReactElement {
       me: P.me,
       crew: P.crew,
       others: P.others,
-      zenith: P.zenith,
-      horizon: P.horizon,
-      night: P.night,
+      skies: P.skies,
+      livery: P.livery,
     });
+    world.onStatus = (s) => live.current.onStatus?.(s);
     world.set(P.state);
-    stage.fit = world.fitPoints();
-    stage.fitCenter = new THREE.Vector3(0.2, 0.6, 0);
-    stage.fitMargin = 1.25;
     const size = () => {
       const r = parent.getBoundingClientRect();
       stage.setSize(r.width, r.height);
@@ -85,15 +81,12 @@ export default function Suite3D(props: Suite3DProps): ReactElement {
         last = s;
         world.set(s);
       }
-      const busy = world.update(t, dt);
-      const f = world.focus();
-      stage.lookAt(f.x * 0.8 + 0.1, f.z * 0.85, Math.min(1, dt * 2.5));
-      return busy;
+      return world.update(t, dt);
     });
     const offG = gestures(canvas, {
       tap: () => {},
-      orbit: (dx, dy) => stage.orbit(dx, dy),
-      zoom: (f) => stage.zoomBy(f),
+      orbit: (dx, dy) => world.orbit(dx, dy),
+      zoom: (f) => world.zoom(f),
     });
     live.current.onCamera?.(() => stage.snapshot());
     return () => {
