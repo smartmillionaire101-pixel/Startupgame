@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { produce } from 'immer';
 import { sharesOf } from '../src/captable.js';
-import { MORE_GAMES_NOTE } from '../src/releases.js';
+import { BANKERS_NOTE, MORE_GAMES_NOTE } from '../src/releases.js';
 import { playerView } from '../src/views.js';
 import type { World } from '../src/types.js';
 import {
@@ -204,5 +204,29 @@ describe('an investor exits a private stake', () => {
     const r = tryRun(w, I, { type: 'secondary.investorSell', companyId: id, pctBps: 5_000 });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.code).toBe('secondary.rung');
+  });
+});
+
+describe('listed companies are not private deals (bankers note)', () => {
+  const bankersWorld = (seed: number) =>
+    investorWorld(
+      run(makeWorld(seed, ['lagos']), null, {
+        type: 'system.announce',
+        id: BANKERS_NOTE,
+        text: 'Bankers.',
+      }).world,
+    );
+
+  it('leaves listed companies out of deal flow and refuses a one-tap SAFE in them', () => {
+    const w = bankersWorld(4);
+    const listed = Object.values(w.companies).find(
+      (c) => c.market === 'lagos' && c.status === 'active' && c.ipo?.status === 'listed',
+    )!;
+    expect(listed).toBeDefined();
+    const flow = playerView(w, I)!.market.dealFlow as { companyId: string }[];
+    expect(flow.some((d) => d.companyId === listed.id)).toBe(false);
+    const r = tryRun(w, I, { type: 'invest.quick', companyId: listed.id, amount: 1_000_00 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('invest.listed');
   });
 });
