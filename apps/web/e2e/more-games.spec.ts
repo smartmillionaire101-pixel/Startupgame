@@ -28,6 +28,11 @@ const shown = (p: Page) =>
     () =>
       (window as unknown as { __air3d?: { rig: { shown: string } } }).__air3d?.rig.shown ?? null,
   );
+/** The rig's frames drawn so far (to wait for the view on screen to catch up). */
+const drawn = (p: Page) =>
+  p.evaluate(
+    () => (window as unknown as { __air3d?: { rig: { frames: number } } }).__air3d?.rig.frames ?? 0,
+  );
 /** Pick Inside or Outside on the camera chip, and wait for the view to change. */
 async function camera(p: Page, mode: 'inside' | 'outside', model: string) {
   const chip = p.locator('[data-air-cam]');
@@ -38,6 +43,9 @@ async function camera(p: Page, mode: 'inside' | 'outside', model: string) {
     'true',
   );
   await expect.poll(() => shown(p), { timeout: STEP_3D }).toBe(model);
+  // A frame or two drawn in the new view (software WebGL is slow).
+  const at = await drawn(p);
+  if (model) await expect.poll(() => drawn(p), { timeout: STEP_3D }).toBeGreaterThan(at + 1);
 }
 
 async function founder(p: Page, name: string, market = /Lagos/) {
@@ -201,6 +209,8 @@ test('a tandem skydive over the real city: jump, pull, steer to the target, the 
   await air.locator('[data-action="jump"]').click();
   await expect(air).toHaveAttribute('data-air-phase', 'freefall', { timeout: 15_000 });
   await air.locator('[data-action="arch"]').click();
+  // A slower fall while the camera changes (software WebGL draws the chase view slowly).
+  await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 0.4));
   // Inside: first person, your arms and the wrist altimeter, the goggles.
   await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('arms');
   await expect(air.locator('.air-goggles')).toBeVisible();
@@ -216,7 +226,7 @@ test('a tandem skydive over the real city: jump, pull, steer to the target, the 
       intervals: [200],
     })
     .toBeLessThan(1700);
-  await air.locator('[data-action="pull"]').click({ timeout: 5_000 });
+  await air.locator('[data-action="pull"]').click({ timeout: 12_000 });
   await expect(air).toHaveAttribute('data-air-phase', 'canopy', { timeout: 10_000 });
   await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('canopy');
   await page.waitForTimeout(800);

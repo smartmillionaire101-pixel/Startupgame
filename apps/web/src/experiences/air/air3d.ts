@@ -99,6 +99,8 @@ export class AirRig {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(60, 1, 0.05, 800);
   shown: Shown = '';
+  /** Frames drawn (tests wait for one after a change). */
+  frames = 0;
   private crafts: Craft[] = [];
   private heli?: Craft;
   private cabin?: Craft;
@@ -222,8 +224,8 @@ export class AirRig {
   /**
    * The skydive: `base` is the ground at the target. Places the camera
    * (Inside or Outside) and you, the plane or the canopy. `track`: you're
-   * tracking (arms back). Returns whether the inside frames (the door, the
-   * goggles, the canopy overhead) are the ones to draw over the view.
+   * tracking (arms back). Inside, the page draws the door's frame, the
+   * goggles or the canopy overhead (./AirFlight.tsx).
    */
   placeJump(
     j: Jump,
@@ -354,6 +356,7 @@ export class AirRig {
     renderer.clearDepth();
     renderer.render(this.scene, c);
     renderer.autoClear = auto;
+    this.frames++;
   }
 
   /**
