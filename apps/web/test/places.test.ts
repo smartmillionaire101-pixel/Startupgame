@@ -445,15 +445,19 @@ describe('What to do now', () => {
   });
 
   it('sends a tired player to eat, and a founder to an angel at a café', () => {
-    const v = view({ angelsAt: { b2: [{ id: 'ang1', name: 'Dolores' }] } }, { energy: 20 });
-    const s = suggestionsFor(v);
+    // Tired, not exhausted, in the day (exhausted or at night: sleep comes first).
+    const v = view({ angelsAt: { b2: [{ id: 'ang1', name: 'Dolores' }] } }, { energy: 30 });
+    const s = suggestionsFor(v, 3, 13);
     expect(s[0]!.kind).toBe('eat');
     expect(s.find((x) => x.kind === 'angel')).toMatchObject({ placeId: 'biz:b2', name: 'Dolores' });
   });
 
   it('points at an accelerator to apply to', () => {
     const v = view({ accelerators: [{ id: 'acc1', name: 'Yaba Demo Days' }] });
-    expect(suggestionsFor(v).find((x) => x.kind === 'accelerator')?.placeId).toBe('cap:acc1');
+    // In the day: work for a founder (at night it's a night out or sleep).
+    expect(suggestionsFor(v, 3, 13).find((x) => x.kind === 'accelerator')?.placeId).toBe(
+      'cap:acc1',
+    );
   });
 
   it('always has something to do', () => {

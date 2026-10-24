@@ -97,7 +97,7 @@ const roleLabel = (r: string) =>
     aml: t('Anti-money-laundering officer'),
   })[r] ?? r;
 
-const missingLabel = (id: string) =>
+export const missingLabel = (id: string) =>
   id.startsWith('hire.')
     ? t('Hire: {role}', { role: roleLabel(id.slice(5)) })
     : ({
