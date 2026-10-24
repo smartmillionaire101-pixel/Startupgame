@@ -11,7 +11,9 @@
  *   Take the controls to fly it yourself for a while (`games.end` at the pad).
  *
  * The flight is stepped here (./flight.ts) and the camera flown by an
- * `AirCam`; without WebGL a map from above shows the same flight.
+ * `AirCam`, placed Inside or Outside the aircraft by the rig (./air3d.ts,
+ * which draws the helicopter, its cabin, the jump plane and you); without
+ * WebGL a map from above shows the same flight.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as THREE from 'three';
@@ -52,6 +54,7 @@ import {
   type Jump,
   type Waypoint,
 } from './flight';
+import { AirRig, saveCamMode, savedCamMode, type AirCamMode } from './air3d';
 import '../../city/three/city3d.css';
 
 export interface AirBooking {
@@ -160,12 +163,28 @@ export default function AirFlight({
   const labelsRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<CityScene | null>(null);
   const camRef = useRef<AirCam | null>(null);
+  const rigRef = useRef<AirRig | null>(null);
   const gl = webglAvailable();
   const skydive = booking.kind === 'skydive';
   const charter = booking.item === 'heli-charter';
   const cityView = cityViewOf(view);
   const layoutKey = JSON.stringify(cityInput(cityView));
   const layoutKeyRef = useRef(layoutKey);
+  const reduced = useMemo(
+    () =>
+      typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  );
+  // Inside or Outside: remembered for the player.
+  const [camMode, setCamMode] = useState<AirCamMode>(() => savedCamMode(view.me.id));
+  const camModeRef = useRef(camMode);
+  useEffect(() => {
+    camModeRef.current = camMode;
+  }, [camMode]);
+  const pickCam = (m: AirCamMode) => {
+    setCamMode(m);
+    saveCamMode(view.me.id, m);
+  };
   useEffect(() => {
     if (!geo || geo === 'loading') return;
     const id = setTimeout(() => setLayout(cachedCityLayout(layoutKeyRef.current, geo)), 30);
@@ -268,6 +287,13 @@ export default function AirFlight({
     const cam = new AirCam(soft ? 2_500 : tier === 'high' ? 9_000 : 5_500);
     camRef.current = cam;
     scene.view = cam;
+    const hour = localHour(city);
+    const look = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
+    const rig = new AirRig(booking.kind, look, { reduced, night: hour < 6 || hour >= 20 });
+    rigRef.current = rig;
+    void rig.warm(scene.renderer);
+    // The aircraft go over the city, each frame and in photos.
+    const offRig = scene.onFrame(() => rig.draw(scene.renderer, scene.camera));
     if (skydive) {
       const target = targetMesh();
       target.position.set(
@@ -285,7 +311,7 @@ export default function AirFlight({
     const ro = new ResizeObserver(size);
     ro.observe(el);
     sceneRef.current = scene;
-    (window as unknown as { __air3d?: unknown }).__air3d = { scene, cam };
+    (window as unknown as { __air3d?: unknown }).__air3d = { scene, cam, rig };
     const lost = (e: Event) => {
       e.preventDefault();
       markWebGLBroken();
@@ -298,11 +324,14 @@ export default function AirFlight({
       canvas.removeEventListener('webglcontextlost', lost);
       ro.disconnect();
       cam.running = false;
+      offRig();
       scene.view = null;
       scene.dispose();
+      rig.dispose();
       canvas.remove();
       sceneRef.current = null;
       camRef.current = null;
+      rigRef.current = null;
       delete (window as unknown as { __air3d?: unknown }).__air3d;
     };
     // The view is built once per city layout.
@@ -361,28 +390,12 @@ export default function AirFlight({
           jumpRef.current = j;
           if (j.phase === 'landed') onLand(j);
         }
-        if (cam) {
-          const y = base + j.alt + 1.7;
-          cam.pos.set(j.x, y, j.z);
-          const tt = toTarget(j);
-          if (j.phase === 'climb' || j.phase === 'door') {
-            cam.yaw = tt.bearing + 0.9;
-            cam.pitch = -0.42;
-            cam.fov = 62;
-          } else if (j.phase === 'freefall') {
-            cam.yaw = j.heading;
-            cam.pitch = -1.12 + Math.sin(now / 900) * 0.02 + j.body * 0.08;
-            cam.fov = 66;
-          } else if (j.phase === 'canopy') {
-            cam.yaw = j.heading;
-            cam.pitch = -0.5 + Math.min(0.3, Math.max(0, (200 - j.alt) / 600));
-            cam.fov = 64;
-          } else {
-            cam.yaw = tt.bearing;
-            cam.pitch = -0.08;
-            cam.fov = 60;
-          }
-        }
+        const rig = rigRef.current;
+        if (cam && rig)
+          rig.placeJump(j, base, camModeRef.current, cam, dt, now, {
+            track: input.current.track,
+            turn: input.current.turn,
+          });
         if (now - hudAt > 120) {
           hudAt = now;
           const tt = toTarget(j);
@@ -403,12 +416,15 @@ export default function AirFlight({
           heliRef.current = h;
           if (h.leg > route.length) onHome(h);
         }
-        if (cam) {
-          cam.pos.set(h.x, groundAt(h.x, h.z) * 0.2 + base * 0.8 + h.alt + 2.5, h.z);
-          cam.yaw = h.heading;
-          cam.pitch = h.alt < 40 ? -0.05 : -0.22;
-          cam.fov = 62;
-        }
+        const rig = rigRef.current;
+        if (cam && rig)
+          rig.placeHeli(
+            h,
+            groundAt(h.x, h.z) * 0.2 + base * 0.8 + h.alt,
+            camModeRef.current,
+            cam,
+            dt,
+          );
         if (now - hudAt > 150) {
           hudAt = now;
           const goal = route[h.leg];
@@ -547,11 +563,19 @@ export default function AirFlight({
             </span>
           ))}
         </div>
-        {skydive && (hud.phase === 'climb' || hud.phase === 'door') && (
-          <div className="air-door" aria-hidden="true" />
+        {/* Inside (or on the map): the door's frame, the canopy overhead, the goggles. */}
+        {skydive &&
+          (!gl || camMode === 'inside') &&
+          (hud.phase === 'climb' || hud.phase === 'door') && (
+            <div className="air-door" aria-hidden="true" />
+          )}
+        {skydive && (!gl || camMode === 'inside') && hud.phase === 'canopy' && (
+          <div className="air-canopy" aria-hidden="true" />
         )}
-        {skydive && hud.phase === 'canopy' && <div className="air-canopy" aria-hidden="true" />}
-        {!skydive && !done && <div className="air-cockpit" aria-hidden="true" />}
+        {skydive && gl && camMode === 'inside' && hud.phase === 'freefall' && (
+          <div className="air-goggles" aria-hidden="true" />
+        )}
+        {!skydive && !gl && !done && <div className="air-cockpit" aria-hidden="true" />}
       </div>
       {!ready && !error && (
         <p className="panorama-loading">{skydive ? t('To the plane…') : t('To the heliport…')}</p>
@@ -597,6 +621,22 @@ export default function AirFlight({
           </button>
         </div>
       </header>
+      {gl && ready && !error && (
+        <div className="air-cam" role="group" aria-label={t('Camera')} data-air-cam={camMode}>
+          {(['inside', 'outside'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              data-action={`air-cam-${m}`}
+              aria-pressed={camMode === m}
+              onClick={() => pickCam(m)}
+            >
+              <span aria-hidden="true">{m === 'inside' ? '💺' : '🎥'}</span>{' '}
+              {m === 'inside' ? t('Inside') : t('Outside')}
+            </button>
+          ))}
+        </div>
+      )}
       {error && (
         <p className="panorama-error" role="alert">
           {error}

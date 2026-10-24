@@ -22,6 +22,23 @@ const command = (p: Page, command: unknown) =>
   p.request.post('/api/commands', { headers: { 'x-runway': '1' }, data: { command } });
 /** Software WebGL draws the real city slowly: every 3D step gets this long. */
 const STEP_3D = 60_000;
+/** Which model the flight's rig draws over the city (./air3d.ts `Shown`). */
+const shown = (p: Page) =>
+  p.evaluate(
+    () =>
+      (window as unknown as { __air3d?: { rig: { shown: string } } }).__air3d?.rig.shown ?? null,
+  );
+/** Pick Inside or Outside on the camera chip, and wait for the view to change. */
+async function camera(p: Page, mode: 'inside' | 'outside', model: string) {
+  const chip = p.locator('[data-air-cam]');
+  await chip.locator(`[data-action="air-cam-${mode}"]`).click();
+  await expect(chip).toHaveAttribute('data-air-cam', mode);
+  await expect(chip.locator(`[data-action="air-cam-${mode}"]`)).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect.poll(() => shown(p), { timeout: STEP_3D }).toBe(model);
+}
 
 async function founder(p: Page, name: string, market = /Lagos/) {
   await p.setViewportSize({ width: 390, height: 844 });
@@ -170,13 +187,27 @@ test('a tandem skydive over the real city: jump, pull, steer to the target, the 
   await expect(air).toBeVisible({ timeout: STEP_3D });
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 3));
   await expect(air).toHaveAttribute('data-air-phase', 'door', { timeout: STEP_3D });
+  // Outside first: the jump plane with you in its open door.
+  await expect(air.locator('[data-air-cam]')).toHaveAttribute('data-air-cam', 'outside');
+  await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('plane');
   await page.waitForTimeout(1500);
   await snap(page, 'skydive-door', info);
+  // Inside: the door's frame from where you sit.
+  await camera(page, 'inside', '');
+  await expect(air.locator('.air-door')).toBeVisible();
+  await snap(page, 'skydive-door-inside', info);
   // Freefall at real speed (a minute compressed to about twenty seconds).
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 1));
   await air.locator('[data-action="jump"]').click();
   await expect(air).toHaveAttribute('data-air-phase', 'freefall', { timeout: 15_000 });
   await air.locator('[data-action="arch"]').click();
+  // Inside: first person, your arms and the wrist altimeter, the goggles.
+  await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('arms');
+  await expect(air.locator('.air-goggles')).toBeVisible();
+  await snap(page, 'skydive-freefall-inside', info);
+  // Outside: the chase camera on you in the box position.
+  await camera(page, 'outside', 'jumper');
+  await expect(air.locator('.air-goggles')).toHaveCount(0);
   await snap(page, 'skydive-freefall', info);
   // Pull in the band (by the altimeter).
   await expect
@@ -187,6 +218,7 @@ test('a tandem skydive over the real city: jump, pull, steer to the target, the 
     .toBeLessThan(1700);
   await air.locator('[data-action="pull"]').click({ timeout: 5_000 });
   await expect(air).toHaveAttribute('data-air-phase', 'canopy', { timeout: 10_000 });
+  await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('canopy');
   await page.waitForTimeout(800);
   await snap(page, 'skydive-canopy', info);
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 6));
@@ -230,8 +262,20 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 3));
   await expect(air.locator('[data-air-say]')).toBeVisible({ timeout: 120_000 });
   await expect(air.locator('[data-air-say]')).toContainText(/On your (left|right):/);
+  // Outside first: the helicopter from the chase camera.
+  await expect(air.locator('[data-air-cam]')).toHaveAttribute('data-air-cam', 'outside');
+  await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('heli');
   await page.waitForTimeout(1000);
   await snap(page, 'heli-tour', info);
+  // Inside: the cabin, the pilot and the panel; the choice is remembered.
+  await camera(page, 'inside', 'cockpit');
+  await page.waitForTimeout(1000);
+  await snap(page, 'heli-tour-inside', info);
+  const me = (await state(page)).me.id;
+  expect(await page.evaluate((id) => localStorage.getItem(`runway.airCam.${id}`), me)).toBe(
+    'inside',
+  );
+  await camera(page, 'outside', 'heli');
   // Take the controls for a moment, then hand back.
   await air.locator('[data-action="heli-controls"]').click();
   await expect(air.getByRole('button', { name: 'Climb' })).toBeVisible();
