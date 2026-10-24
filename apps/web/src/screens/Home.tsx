@@ -16,12 +16,15 @@ import { DecisionsCard } from './Decisions';
 import { NextStepCard } from '../city/NextStepCard';
 import { useSimple } from '../phone/settings';
 import { HolidayCards } from '../phone/apps/Holiday';
+import { BankerToday } from './BankerToday';
 
 /** Today (was "Home"): the dashboard and inbox. `onNews` opens the city's news. */
 export function Home({ onNews }: { onNews?: () => void } = {}) {
   const { view, cur, meta } = useView();
   const stories = view.media.filter((m) => m.status === 'invited' || m.status === 'preview').length;
   const isInvestor = view.me.role === 'investor';
+  // Bankers start (or run) a bank, never the founder's company form.
+  const isBanker = view.me.role === 'banker';
   const active = view.companies.filter((c) => c.status === 'active');
   const [idx, setIdx] = useState(0);
   const c = active[Math.min(idx, active.length - 1)];
@@ -55,6 +58,8 @@ export function Home({ onNews }: { onNews?: () => void } = {}) {
         </>
       ) : isInvestor ? (
         <InvestorKpis />
+      ) : isBanker ? (
+        <BankerToday />
       ) : (
         <Card title={t('Start again')} tone="good">
           <p>{t('Failure is part of a career. Your skills, network and lessons carry over.')}</p>
@@ -62,6 +67,7 @@ export function Home({ onNews }: { onNews?: () => void } = {}) {
         </Card>
       )}
       {isInvestor && c && <InvestorKpis />}
+      {isBanker && c && <BankerToday />}
       <DecisionsCard />
       <WhatNowCard onGo={visitPlace} />
       <RecapButton />

@@ -1174,6 +1174,8 @@ function ownBankView(world: World, playerId: Id) {
           outstanding: l.outstanding,
           rateBps: l.rateBps,
           monthsLeft: l.monthsLeft,
+          /** Missed payments in a row (a company's repayments come out of its account). */
+          missed: 0,
         })),
     ),
     ...Object.values(world.players).flatMap((p) =>
@@ -1184,6 +1186,8 @@ function ownBankView(world: World, playerId: Id) {
           outstanding: l.outstanding,
           rateBps: l.rateBps,
           monthsLeft: l.monthsLeft,
+          /** Missed payments in a row: a late borrower (Today's "waiting for you"). */
+          missed: l.missed,
         })),
     ),
   ];

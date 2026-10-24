@@ -54,7 +54,7 @@ import { onVisit, peekVisit, takeVisit, takeVisitMode } from './goto';
 import { getTicket, setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
-import { suggestionText, WhatNowCard, WhatNowList } from './WhatNowCards';
+import { suggestionText, WhatNowCard, WhatNowList, whatNowOptions } from './WhatNowCards';
 import { suggestionsFor } from './whatnow';
 import type { Nav } from './Interiors';
 import { useRiding } from './riding';
@@ -959,8 +959,12 @@ function CityBodyInner({
     },
     [visit, onNavigate, appNav],
   );
-  const tips = suggestionsFor(view);
-  const firstTip = tips[0] ? suggestionText(tips[0], view.market.currency).label : '';
+  // Only places this map has (the same picks as the sheet's list).
+  const hasPlace = (id: string) => layout.places.some((p) => p.id === id);
+  const tips = suggestionsFor(view, 3, undefined, whatNowOptions(hasPlace));
+  const firstTip = tips[0]
+    ? suggestionText(tips[0], view.market.currency, view.market.id).label
+    : '';
   const tripPlace = trip?.placeId ? layout.places.find((p) => p.id === trip.placeId) : undefined;
 
   const clock = clockOf(view);
@@ -988,7 +992,7 @@ function CityBodyInner({
           <p className="small muted">
             {t('Lite mode: the city map is off to save data. Pick a place to go in.')}
           </p>
-          {simple ? <NextStepCard onGo={journeyGo} /> : <WhatNowCard onGo={visit} />}
+          {simple ? <NextStepCard onGo={journeyGo} /> : <WhatNowCard onGo={visit} has={hasPlace} />}
           {!simple && (
             <section className="places-group sky-group">
               <h3>{t('Sky views')}</h3>
@@ -1206,6 +1210,8 @@ function CityBodyInner({
                 setWhatNowSheet(false);
                 visit(id);
               }}
+              has={hasPlace}
+              beforeSky={() => setWhatNowSheet(false)}
             />
             {next && markerPlace && (
               <p className="small muted">
