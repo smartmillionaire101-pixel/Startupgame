@@ -17,7 +17,6 @@ import {
   placesOn,
   FEEDBACK_NOTE,
   feedbackOn,
-  SHOP_NOTE,
   shopOn,
   bankersOn,
   investorOn,
