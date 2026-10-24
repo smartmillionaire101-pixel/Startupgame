@@ -110,7 +110,7 @@ export const isBankerWorker = (world: World, p: Player | undefined): p is Player
   !!p && !p.ai && bankersOn(world) && (p.role === 'banker' || !!bankOf(world, p));
 
 /** The banker's work record, created on first use. */
-export const workOf = (p: Player): BankerWork =>
+const workOf = (p: Player): BankerWork =>
   (p.bankwork ??= {
     active: [],
     taken: [],
@@ -1162,7 +1162,7 @@ function meetClients(
  * account to it; borrowers join its loan book (lent like its retail loans,
  * within its lending room).
  */
-export function convertClients(world: World, p: Player, month: number) {
+function convertClients(world: World, p: Player, month: number) {
   const b = bankOf(world, p);
   const w = p.bankwork;
   if (!w || !b || b.status !== 'licensed') return 0;
@@ -1254,7 +1254,7 @@ export function useLine(world: World, p: Player, action: 'draw' | 'repay', amoun
   };
 }
 
-export function lineView(world: World, p: Player) {
+function lineView(world: World, p: Player) {
   const line = p.bankwork?.line;
   if (!line) return null;
   return {
@@ -1314,7 +1314,7 @@ const stepView = (md: AdvisoryMandate, step: StepId) => ({
       : STEPS[step].options.map((o) => ({ id: o.id, label: o.label, kind: null })),
 });
 
-export function mandateView(world: World, p: Player, md: AdvisoryMandate) {
+function mandateView(world: World, p: Player, md: AdvisoryMandate) {
   const m = getMarket(world, p.market);
   return {
     id: md.id,
@@ -1336,7 +1336,7 @@ const optionOf = (step: string, id: string) =>
   STEPS[step as StepId]?.options.find((o) => o.id === id);
 
 /** A handed-in mandate, with each call and the best one in words. */
-export function dealView(d: AdvisoryDeal) {
+function dealView(d: AdvisoryDeal) {
   return {
     ...d,
     label: MANDATES[d.kind].label,

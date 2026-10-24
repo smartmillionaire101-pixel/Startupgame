@@ -11,7 +11,7 @@ import { nairobi } from './nairobi';
 import { sanFrancisco } from './san-francisco';
 import type { CityPlan } from './types';
 
-export type { CityPlan, DistrictKind, Host, PlanDistrict, Side, Transit } from './types';
+export type { CityPlan, DistrictKind, Host, PlanDistrict, Side } from './types';
 
 export const PLANS: Record<string, CityPlan> = {
   lagos,

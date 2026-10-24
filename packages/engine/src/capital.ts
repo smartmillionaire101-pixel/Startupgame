@@ -70,7 +70,7 @@ export function updateLenderAppetite(m: MarketState) {
 export const appetiteLabel = (a: number): 'tight' | 'normal' | 'loose' =>
   a < 0.85 ? 'tight' : a > 1.15 ? 'loose' : 'normal';
 
-export function findProduct(m: MarketState, lenderId: Id, productId: string) {
+function findProduct(m: MarketState, lenderId: Id, productId: string) {
   const lender = m.lenders?.[lenderId];
   const product = lender?.products.find((p) => p.id === productId);
   if (!lender || !product) fail('loan.lender', 'That lender doesn’t offer that loan here.');
@@ -78,7 +78,7 @@ export function findProduct(m: MarketState, lenderId: Id, productId: string) {
 }
 
 /** The bank side of a deal card with a named AI lender. */
-export const lenderParty = (m: MarketState, lenderId: Id): PartyRef => ({
+const lenderParty = (m: MarketState, lenderId: Id): PartyRef => ({
   kind: 'bank',
   id: m.id,
   lenderId,
@@ -488,7 +488,7 @@ export function createAiFund(
 }
 
 /** Stable id for a depth fund, so adding them never shifts other ids (replays stay exact). */
-export const extraFundId = (market: MarketId, name: string) =>
+const extraFundId = (market: MarketId, name: string) =>
   `fund_${market}_${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
 /** Add the depth-scaled funds and angel networks a market is missing. */

@@ -48,7 +48,7 @@ import { addToWardrobe } from './wardrobe.js';
 const tripsOf = (world: World) => (world.mallTrips ??= {});
 
 /** Still on: an invitation or an outing in the city's month it was made (and, together, both in town). */
-export function tripLive(world: World, t: MallTrip): boolean {
+function tripLive(world: World, t: MallTrip): boolean {
   if (t.status !== 'invited' && t.status !== 'together') return false;
   if (world.markets[t.market]?.month !== t.month) return false;
   if (t.status === 'invited') return true;
@@ -58,7 +58,7 @@ export function tripLive(world: World, t: MallTrip): boolean {
 }
 
 /** Someone's live invitation or outing, if any (the newest). */
-export function tripOf(world: World, playerId: Id): MallTrip | null {
+function tripOf(world: World, playerId: Id): MallTrip | null {
   return (
     Object.values(world.mallTrips ?? {})
       .filter((t) => (t.host === playerId || t.guest === playerId) && tripLive(world, t))

@@ -105,7 +105,7 @@ export function strengths(world: World, c: Company): Record<Slide, number> {
  * life-bars note): a whole number of customers, money in the company's
  * currency (minor units) or months.
  */
-export const PITCH_FIGURES: Record<string, PitchFigure> = {
+const PITCH_FIGURES: Record<string, PitchFigure> = {
   traction: 'customers',
   revenue: 'money',
   runway: 'months',
@@ -115,7 +115,7 @@ export const PITCH_FIGURES: Record<string, PitchFigure> = {
  * The most a typed figure may be: past this it's a typo, not a claim. Money
  * is minor units, the same ceiling as the command schema's `money`.
  */
-export const FIGURE_MAX: Record<PitchFigure, number> = {
+const FIGURE_MAX: Record<PitchFigure, number> = {
   customers: 1e9,
   money: 1e15,
   months: 1200,
@@ -125,7 +125,7 @@ export const FIGURE_MAX: Record<PitchFigure, number> = {
  * Months of money a profitable company reports (it never runs out). Any
  * claim at or past this is true, not spin: there is nothing to inflate.
  */
-export const RUNWAY_CAP = 120;
+const RUNWAY_CAP = 120;
 
 /**
  * How far off a typed figure may be and still count as the truth: 10%, or

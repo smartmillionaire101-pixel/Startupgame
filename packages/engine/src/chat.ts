@@ -50,7 +50,7 @@ export function checkChatMessage(raw: string): ChatCheck {
 
 type Pair = `${Role}->${Role}` | 'founder->cofounder';
 
-export const CONVERSATION_STARTERS: Partial<Record<Pair, string[]>> = {
+const CONVERSATION_STARTERS: Partial<Record<Pair, string[]>> = {
   'founder->investor': [
     'I’m raising a seed round. Can I pitch you?',
     'Would value your view on our numbers.',

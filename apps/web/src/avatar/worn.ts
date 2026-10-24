@@ -20,9 +20,9 @@ export function wornOf(a: Worn): Worn {
 }
 
 /** Plain shoes (nothing from the wardrobe on). */
-export const PLAIN_SHOES = '#111827';
+const PLAIN_SHOES = '#111827';
 
-export const SHOE_COLOUR: Record<string, string> = {
+const SHOE_COLOUR: Record<string, string> = {
   trainers: '#e2e8f0',
   running: '#2563eb',
   sneakers: '#f8fafc',
@@ -51,7 +51,7 @@ export const BAG_COLOUR: Record<string, string> = {
 };
 
 export const SILVER = '#d1d5db';
-export const GOLD = '#f5b301';
+const GOLD = '#f5b301';
 export const necklaceColour = (s?: string) => (s === 'gold' ? GOLD : SILVER);
 export const SCARF_COLOUR = '#c026d3';
 export const BELT_COLOUR = '#3f2a14';

@@ -196,7 +196,7 @@ export function canopyLand(m: THREE.Material, colors: [string, string]) {
 // ---------------------------------------------------------------------------
 // Water
 
-export function waterMesh(sky: SkyUniforms, look: CityLook, size: number) {
+function waterMesh(sky: SkyUniforms, look: CityLook, size: number) {
   const g = new THREE.PlaneGeometry(size, size, 1, 1);
   g.rotateX(-Math.PI / 2);
   const mat = new THREE.ShaderMaterial({

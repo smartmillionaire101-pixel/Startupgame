@@ -188,12 +188,8 @@ export function corporateOffers(world: World, market: MarketId, rng: Rng, month:
     });
   }
 }
-
-/** Fewest AI startups a market keeps, so the economy stays liquid whoever joins. */
-export const AI_STARTUPS_MIN = 4;
-
 /** Wave 6: at most this many extra AI startups as humans arrive. */
-export const AI_STARTUPS_GROWTH_CAP = 20;
+const AI_STARTUPS_GROWTH_CAP = 20;
 
 /**
  * AI startups a market keeps (Wave 6): the city grows with its people, so
@@ -247,9 +243,9 @@ export function maintainPopulation(world: World, market: MarketId, rng: Rng, now
 }
 
 /** Months of absence (game months) before each inactivity rule (§2, Wave 4). */
-export const AWAY_MONTHS = 2;
-export const WARN_MONTHS = 6;
-export const FOR_SALE_MONTHS = 12;
+const AWAY_MONTHS = 2;
+const WARN_MONTHS = 6;
+const FOR_SALE_MONTHS = 12;
 
 /**
  * Inactive players (§2), counted in game months of absence when the clock

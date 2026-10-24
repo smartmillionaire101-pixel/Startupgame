@@ -8,7 +8,7 @@ import { starMultiplier } from './stars.js';
 import type { Company, RevenueModel, Stage, World } from './types.js';
 
 /** Investors value revenue models differently: subscription highest, services lowest (§6). */
-export const MODEL_MULTIPLE: Record<RevenueModel, number> = {
+const MODEL_MULTIPLE: Record<RevenueModel, number> = {
   subscription: 1,
   usage: 0.9,
   transaction: 0.8,

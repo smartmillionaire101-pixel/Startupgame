@@ -97,7 +97,7 @@ export function cloudAtlas(seed: string): THREE.Texture {
 }
 
 /** A periodic value-noise fbm (0–1), `n` pixels square, tiling seamlessly. */
-export function noiseField(n: number, seed: string, octaves = 5): Float32Array {
+function noiseField(n: number, seed: string, octaves = 5): Float32Array {
   const rnd = seeded(fnv(`${seed}:noise`));
   const out = new Float32Array(n * n);
   let amp = 1;

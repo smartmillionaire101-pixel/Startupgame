@@ -23,7 +23,7 @@ const DIRS = [
   [0, -1],
 ] as const;
 
-export const inside = (g: Grid, x: number, y: number) => x >= 0 && y >= 0 && x < g.w && y < g.h;
+const inside = (g: Grid, x: number, y: number) => x >= 0 && y >= 0 && x < g.w && y < g.h;
 export const walkable = (g: Grid, x: number, y: number) =>
   inside(g, x, y) && !g.blocked.has(key(x, y));
 

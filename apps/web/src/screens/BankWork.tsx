@@ -24,7 +24,7 @@ type Venue = BankerWorkView['venues'][number];
 const cmd = (c: Record<string, unknown> & { type: string }) => c as unknown as Command;
 
 /** The banker's work view (null for founders and before the release). */
-export function bankerWork(view: PlayerView | null): BankerWorkView | null {
+function bankerWork(view: PlayerView | null): BankerWorkView | null {
   const bw = view?.bankWork;
   return bw && bw.banker ? bw : null;
 }
@@ -559,7 +559,7 @@ interface TalkResult {
 }
 
 /** The venue (an AI bank or a city place) at `at`, in the city you're in. */
-export function venueAt(view: PlayerView | null, at: string): Venue | null {
+function venueAt(view: PlayerView | null, at: string): Venue | null {
   return bankerWork(view)?.venues.find((v) => v.at === at) ?? null;
 }
 

@@ -64,7 +64,7 @@ import { buyShares, sellShares, settlePublicMarket } from './exits.js';
 import { settleCareers, settleMentorships } from './allocator.js';
 
 /** Months a shut-down company's name stays reserved for its founder (open question §21). */
-export const NAME_RESERVATION_MONTHS = 12;
+const NAME_RESERVATION_MONTHS = 12;
 
 function playerPerformance(world: World, p: Player): number {
   // Bankers are judged by their bank (only bankers need it looked up).

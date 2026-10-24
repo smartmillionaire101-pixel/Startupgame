@@ -44,7 +44,7 @@ import { valueCompany } from './valuation.js';
 
 const syndicatesOf = (world: World): Record<Id, Syndicate> => (world.syndicates ??= {});
 
-export function getSyndicate(world: World, id: Id): Syndicate {
+function getSyndicate(world: World, id: Id): Syndicate {
   const s = world.syndicates?.[id];
   ensure(s, 'syndicate.missing', 'Syndicate not found.');
   return s;
@@ -54,7 +54,7 @@ const raised = (s: Syndicate) => s.leadAmount + s.backers.reduce((a, b) => a + b
 const fmt = (world: World, s: Syndicate, v: number) =>
   formatMoney(v, getMarket(world, s.market).data.currency);
 
-export const minBack = (world: World, market: MarketId) =>
+const minBack = (world: World, market: MarketId) =>
   usdToLocal(world, getMarket(world, market), INVESTOR.syndicate.minBackUsd);
 
 /** `syndicate.open`: lead a deal, putting in your own cheque first. */

@@ -13,7 +13,7 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
 // ---------------------------------------------------------------- The skydive
 
-export type JumpPhase = 'climb' | 'door' | 'freefall' | 'canopy' | 'landed';
+type JumpPhase = 'climb' | 'door' | 'freefall' | 'canopy' | 'landed';
 
 /**
  * Time runs faster than real (a jump's minute of freefall and few minutes
@@ -226,7 +226,7 @@ export interface Heli {
   seen: string[];
 }
 
-export const HELI = {
+const HELI = {
   cruise: 220,
   /** On-screen ground speed (the tour in a minute or two). */
   speed: 75,

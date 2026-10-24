@@ -167,9 +167,6 @@ const MIX: Partial<Record<RoomKind, Partial<Record<CrowdRole, number>>>> = {
   investor: { founder: 5, investor: 1 },
   gym: { founder: 2, employee: 4, owner: 1, banker: 1 },
 };
-
-export const hasCrowd = (room: RoomKind) => MIX[room] !== undefined;
-
 /**
  * Everyone in the city who can be out and about, by role, from the world:
  * AI founders (their companies), AI fund partners, business owners, bankers

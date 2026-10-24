@@ -59,7 +59,7 @@ const homeMonth = (world: World, p: Player) => getMarket(world, p.market).month;
 const book = (p: Player) => (p.pipeline ??= {});
 
 /** Founder trust moves (−1..1 stored as 0..1 on the profile). */
-export function nudgeFounderTrust(p: Player | undefined, delta: number) {
+function nudgeFounderTrust(p: Player | undefined, delta: number) {
   if (!p?.investor) return;
   p.investor.founderTrust = roundTo(clamp(p.investor.founderTrust + delta, 0, 1), 3);
 }
@@ -166,7 +166,7 @@ export function pipelinePass(world: World, me: Player, companyId: Id, reason: Pa
 // ---------------------------------------------------------------- diligence: claims, references, red flags
 
 /** The claims a company made in its latest pitch with answers: what it said, and the truth. */
-export function claimsOf(world: World, c: Company) {
+function claimsOf(world: World, c: Company) {
   const pitch = Object.values(world.pitches)
     .filter(
       (p) =>
@@ -379,7 +379,7 @@ export function supportCompany(
 // ---------------------------------------------------------------- terms, trust and hot rounds
 
 /** Tough terms (§6.4 founder-friendliness): participating, more than 1×, a veto on sale. */
-export const harshTerms = (t: InvestmentTerms) =>
+const harshTerms = (t: InvestmentTerms) =>
   t.participating || t.liquidationMultiple > 1 || t.vetoOnSale;
 
 /** After an investment executes (deals.ts): the investor's founder trust moves with the terms. */
@@ -414,7 +414,7 @@ const modelValue = (world: World, c: Company) =>
  * valuation, clean terms, the investor's stars and founder trust. AI founders
  * pick by it in hot rounds; human founders see it side by side.
  */
-export function offerScore(world: World, d: DealCard, model: number): number {
+function offerScore(world: World, d: DealCard, model: number): number {
   const t = d.terms as InvestmentTerms;
   const inv = backer(world, d);
   return (
@@ -434,7 +434,7 @@ const whyNot = (t: InvestmentTerms, chosen: InvestmentTerms) =>
       : 'we went with an investor founders rate more highly';
 
 /** The share of the company an investment buys: pre-money for priced rounds, the post-money cap for SAFEs. */
-export const ownershipOf = (t: InvestmentTerms) =>
+const ownershipOf = (t: InvestmentTerms) =>
   t.instrument === 'priced'
     ? t.amount / Math.max(1, t.valuation + t.amount)
     : t.amount / Math.max(1, t.valuation);
@@ -564,7 +564,7 @@ export function chooseOffer(world: World, me: Player, dealId: Id) {
  * Month end: hot rounds pick the best offer (price, terms, reputation, trust)
  * and explain to the others why not (§6.4 competitive rounds).
  */
-export function resolveHotRounds(world: World, marketId: string) {
+function resolveHotRounds(world: World, marketId: string) {
   if (!investorOn(world)) return;
   const byCompany = new Map<Id, DealCard[]>();
   for (const d of Object.values(world.deals)) {
@@ -681,7 +681,7 @@ export function reviewInvestor(
   return { message: 'Review posted.' };
 }
 
-export function reviewsOf(world: World, investorId: Id) {
+function reviewsOf(world: World, investorId: Id) {
   const list = Object.values(world.reviews ?? {}).filter((r) => r.investorId === investorId);
   return {
     count: list.length,
@@ -877,7 +877,7 @@ export function dealCraftView(world: World, p: Player) {
 }
 
 /** The monthly investor recap (§10.6): money, marks, decisions due, what's new. */
-export function investorRecap(world: World, p: Player) {
+function investorRecap(world: World, p: Player) {
   const month = homeMonth(world, p);
   const fundIds = Object.values(world.funds)
     .filter((f) => f.managerId === p.id)

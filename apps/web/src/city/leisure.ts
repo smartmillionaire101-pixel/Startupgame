@@ -19,7 +19,7 @@ import {
   type MarketId,
   type PlayerView,
 } from '@runway/engine';
-import { B, SW, type Cell, type Ctx, type Place } from './layout';
+import { B, SW, type Cell, type Ctx } from './layout';
 import type { Host } from './plans';
 
 interface Spot {
@@ -43,7 +43,7 @@ const golfAt: Record<string, Omit<Spot, 'name'>> = {
   'san-francisco': { district: 'presidio', at: [37.7905, -122.459] },
 };
 
-export const MALLS: Record<string, Spot> = {
+const MALLS: Record<string, Spot> = {
   lagos: { name: 'Lekki Lagoon Mall', district: 'lekki', at: [6.4365, 3.4705] },
   nairobi: { name: 'Westlands Grove Mall', district: 'westlands', at: [-1.2615, 36.8035] },
   london: { name: 'Borough Exchange Centre', district: 'borough' },
@@ -290,5 +290,3 @@ export function wardrobeOf(view: PlayerView): WardrobeView | null {
   const raw = (view as unknown as Loose).me.wardrobe as WardrobeView | undefined;
   return raw && Array.isArray(raw.items) ? raw : null;
 }
-
-export const isLeisure = (p: Place) => p.kind === 'golf' || p.kind === 'mall';

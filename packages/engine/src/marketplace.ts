@@ -44,10 +44,10 @@ const BASE_PRICE_COL: Record<Industry, number> = {
 };
 
 /** Prices above this multiple of market rate are flagged. */
-export const ABOVE_MARKET = 2;
+const ABOVE_MARKET = 2;
 /** Flagged revenue share that, sustained, is treated as fraud. */
-export const FRAUD_SHARE = 0.25;
-export const FRAUD_MONTHS = 3;
+const FRAUD_SHARE = 0.25;
+const FRAUD_MONTHS = 3;
 
 export const marketRate = (world: World, c: Company, industry: Industry = c.industry) =>
   scale(col(getMarket(world, c.market)), BASE_PRICE_COL[industry]);

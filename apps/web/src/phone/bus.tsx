@@ -2,7 +2,7 @@
  * Opening the phone from anywhere (a person card's "Chat", a contact), and
  * the navigation the phone and the Home inbox share.
  */
-import { createContext, useContext, useSyncExternalStore } from 'react';
+import { createContext, useContext } from 'react';
 import type { PlayerView } from '@runway/engine';
 import type { Target } from './navigate';
 
@@ -94,23 +94,7 @@ export function setPhoneBadge(n: number) {
   if (n === badge) return;
   badge = n;
   for (const l of badgeListeners) l();
-}
-
-export const getPhoneBadge = () => badge;
-
-/** Unread messages and alerts, live. */
-export function usePhoneBadge(): number {
-  return useSyncExternalStore(
-    (cb) => {
-      badgeListeners.add(cb);
-      return () => badgeListeners.delete(cb);
-    },
-    getPhoneBadge,
-    getPhoneBadge,
-  );
-}
-
-/** The AI chat id for a city character (fund partners, AI founders, owners and angels). */
+} /** The AI chat id for a city character (fund partners, AI founders, owners and angels). */
 export function aiCharacterId(a: { kind: string; ref: string; chat?: string }): string | null {
   if (a.chat) return a.chat;
   switch (a.kind) {

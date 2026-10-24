@@ -130,7 +130,7 @@ const GUEST_BG = [
 
 type Phase = 'pick' | 'play' | 'done';
 
-export function OutingScene({ req, onClose }: { req: OutingRequest; onClose: () => void }) {
+function OutingScene({ req, onClose }: { req: OutingRequest; onClose: () => void }) {
   const { view, send, cur, busy } = useView();
   const which = outingOf(req.item) ?? { kind: 'rooftop' as OutingKind, variant: '' };
   const key = `${which.kind}:${which.variant}`;

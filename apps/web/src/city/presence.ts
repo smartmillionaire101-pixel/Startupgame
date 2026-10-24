@@ -21,8 +21,8 @@ function remember(players: PresenceView[]) {
   return players;
 }
 
-export const POLL_MS = 5_000;
-export const HEARTBEAT_MS = 30_000;
+const POLL_MS = 5_000;
+const HEARTBEAT_MS = 30_000;
 
 /** Set once the server answers 404: presence isn't deployed. */
 let missing = false;
@@ -113,7 +113,7 @@ export function usePresence({ enabled, selfId }: { enabled: boolean; selfId: str
  * and sends everyone, so the answer is filtered by `place` here as well.
  */
 /** How long a player who was just in a place stays listed when a poll misses them. */
-export const STICKY_MS = 30_000;
+const STICKY_MS = 30_000;
 
 export function usePlacePresence({
   place,
@@ -167,6 +167,3 @@ export function usePlacePresence({
   }, [place, enabled, selfId]);
   return enabled ? players : [];
 }
-
-/** Test hook: whether the server answered 404 for presence. */
-export const presenceMissing = () => missing;

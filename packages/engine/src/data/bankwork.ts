@@ -75,7 +75,7 @@ export type StepId =
   | 'timing'
   | 'pricing';
 
-export interface StepOption {
+interface StepOption {
   id: string;
   label: string;
   /** Why this is (or isn't) the right call, shown after the deal. */
@@ -631,7 +631,7 @@ export const PLACE_TALKS: Record<string, readonly TalkTopic[]> = {
 export const BANK_TALKS: readonly TalkTopic[] = ['ceo', 'treasurer', 'risk', 'poach', 'line'];
 
 /** What a banking conversation is about. */
-export type BankLessonTopic =
+type BankLessonTopic =
   | 'capital'
   | 'deposits'
   | 'credit'

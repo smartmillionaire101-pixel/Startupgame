@@ -17,7 +17,7 @@ type View = PlayerView;
 export type Work = NonNullable<View['work']>;
 export type Employer = Work['employers'][number];
 export type Rung = Employer['levels'][number];
-export type Application = Work['applications'][number];
+type Application = Work['applications'][number];
 export type Why = NonNullable<Rung['why']>;
 
 export const workOf = (view: View): Work | null => view.work ?? null;
@@ -62,7 +62,7 @@ function fieldIn(f: string): string {
   );
 }
 
-export function skillName(s: string): string {
+function skillName(s: string): string {
   return (
     {
       product: t('Product'),
@@ -133,7 +133,7 @@ function rungChip(r: Rung): { label: string; tone: 'good' | 'warn' | 'bad' | 'in
 }
 
 /** When a booked interview has to happen by. */
-export function interviewBy(view: View, a: Application): string {
+function interviewBy(view: View, a: Application): string {
   return a.expiresMonth <= view.market.month
     ? t('Go there before the month ends')
     : t('Go there this month or next');
@@ -220,7 +220,7 @@ export function EmployerNote({ e }: { e: Employer }) {
 }
 
 /** The interview: three questions, one answer each; the decision comes straight after. */
-export function Interview({ a }: { a: Application }) {
+function Interview({ a }: { a: Application }) {
   const { view, send, busy } = useView();
   const work = workOf(view);
   const [answers, setAnswers] = useState<(number | null)[]>(() => a.questions.map(() => null));
@@ -288,7 +288,7 @@ export function Interview({ a }: { a: Application }) {
 }
 
 /** The answer: hired or turned down, with the reason. */
-export function Decision({ a }: { a: Application }) {
+function Decision({ a }: { a: Application }) {
   const hired = a.status === 'hired';
   return (
     <section

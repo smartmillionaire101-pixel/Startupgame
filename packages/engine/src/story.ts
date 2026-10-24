@@ -32,11 +32,11 @@ import type {
   World,
 } from './types.js';
 
-export const STORY_MIN_ITEMS = 3;
-export const STORY_MAX_ITEMS = 6;
-export const STORY_MAX_NEXT = 3;
+const STORY_MIN_ITEMS = 3;
+const STORY_MAX_ITEMS = 6;
+const STORY_MAX_NEXT = 3;
 /** A new (or lost) customer is weighed as this many months of revenue when ranking. */
-export const CUSTOMER_MONTHS = 6;
+const CUSTOMER_MONTHS = 6;
 
 /** End-of-month snapshot the next story compares against. */
 export function storySnapshot(world: World, c: Company): StoryBase {

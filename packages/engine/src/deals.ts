@@ -42,7 +42,7 @@ import { exitFounderFinance } from './founderfinance.js';
 import { exitsOn } from './releases.js';
 import { recordRealised } from './exits.js';
 
-export const DEAL_LIFETIME_MONTHS = 2;
+const DEAL_LIFETIME_MONTHS = 2;
 
 /** What a deal is about: a company, or (for personal loans) just a market. */
 interface DealContext {
@@ -73,12 +73,7 @@ function contractFlagsFor(world: World, t: SupplyTerms, sellerId: Id): string[] 
 }
 
 /** Plain-language one-liner shown on the deal card (§9 "Term sheets"). */
-export function summarise(
-  world: World,
-  c: DealContext,
-  terms: DealTerms,
-  partyName: string,
-): string {
+function summarise(world: World, c: DealContext, terms: DealTerms, partyName: string): string {
   switch (terms.kind) {
     case 'investment': {
       const owns =

@@ -19,7 +19,7 @@ import type { MessageRow } from './store/types.js';
 export const VOICE_MAX_MS = 60_000;
 export const VOICE_MAX_BYTES = 512 * 1024;
 /** What browsers' MediaRecorder makes: Opus in WebM or Ogg (Chrome, Firefox), AAC in MP4 (Safari). */
-export const VOICE_TYPES = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/aac'] as const;
+const VOICE_TYPES = ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/aac'] as const;
 export type VoiceType = (typeof VOICE_TYPES)[number];
 
 /** The media type without parameters, if it is one we take. */
@@ -226,7 +226,7 @@ export function playInviteCard(world: World, fromId: string, game: PlayGame): Ca
 const DATE_MS = 3_600_000;
 
 /** What has happened since: read from the world each time (never stored). */
-export function cardState(world: World, card: Card, members: [string, string], now: number) {
+function cardState(world: World, card: Card, members: [string, string], now: number) {
   switch (card.type) {
     case 'payment':
       return { status: 'done' };

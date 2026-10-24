@@ -16,7 +16,7 @@ type ExchangeView = NonNullable<PlayerView['exchange']>;
 type City = ExchangeView['markets'][number];
 type Listing = City['listings'][number];
 
-export const exchangeOf = (view: PlayerView): ExchangeView | null =>
+const exchangeOf = (view: PlayerView): ExchangeView | null =>
   (view as { exchange?: ExchangeView | null }).exchange ?? null;
 
 /** Share prices can be fractions of a minor unit. */

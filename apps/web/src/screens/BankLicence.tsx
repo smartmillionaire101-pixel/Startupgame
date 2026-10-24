@@ -39,7 +39,7 @@ const bps = (x: number) => pct(x / 10_000, 1);
 
 // ---------------------------------------------------------------- copy
 
-export const typeLabel = (id: string) =>
+const typeLabel = (id: string) =>
   ({
     commercial: t('Commercial bank'),
     investment: t('Investment bank'),
@@ -133,7 +133,7 @@ const systemLabel = (id: string) =>
   ({ basic: t('Basic'), standard: t('Standard'), premium: t('Premium') })[id] ?? id;
 
 /** Why the regulator refused or attached conditions, and what fixes it. */
-export const reasonText = (id: string) =>
+const reasonText = (id: string) =>
   ({
     capital: t('Capital is below the minimum: add capital.'),
     credit: t('Your credit record is weak: clear defaults and debts.'),

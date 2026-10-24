@@ -91,7 +91,7 @@ export function RideIcon({ mode }: { mode: RideMode | 'clock' | 'plane' }) {
 }
 
 /** The city's transit by its own name ("Danfo", "Matatu", "Muni"…); plain "Bus" is translated. */
-export function transitLabel(marketId: string) {
+function transitLabel(marketId: string) {
   const name = transitName(marketId);
   return name === 'Bus' ? t('Bus') : name === 'Minibus taxi' ? t('Minibus taxi') : name;
 }

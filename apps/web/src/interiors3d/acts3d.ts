@@ -23,7 +23,7 @@ export interface RigCtx {
   variant: string;
 }
 
-export interface RigFrame {
+interface RigFrame {
   pose?: PoseId;
   /** Offsets from the station (metres). */
   dx?: number;
@@ -784,22 +784,3 @@ export function makeRig(id: ActId, station2d: { x: number; y: number }, ctx: Rig
     }
   }
 }
-
-/** A mirror check needs a mirror: the reveal looks at your face from the front. */
-export const RIG_IDS: ActId[] = [
-  'haircut',
-  'meal',
-  'drink',
-  'dance',
-  'workout',
-  'cinema',
-  'karaoke',
-  'spa',
-  'football',
-  'arcade',
-  'gallery',
-  'gig',
-  'beach',
-  'showroom',
-  'generic',
-];

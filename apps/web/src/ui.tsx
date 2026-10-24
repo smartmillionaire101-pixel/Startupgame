@@ -74,9 +74,6 @@ export function Stat({
     </div>
   );
 }
-/** The kit's name for a stat tile. */
-export const StatTile = Stat;
-
 export function Button({
   variant = 'primary',
   size,
@@ -305,27 +302,7 @@ export function ListRow({
   ) : (
     <div className={cls}>{body}</div>
   );
-}
-
-/** A chip: a small toggle or filter. */
-export function Chip({
-  on,
-  children,
-  ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { on?: boolean }) {
-  return (
-    <button type="button" className="chip" aria-pressed={on} {...rest}>
-      {children}
-    </button>
-  );
-}
-
-/** A quiet heading between cards. */
-export function SectionHeader({ children }: { children: ReactNode }) {
-  return <h2 className="section-h">{children}</h2>;
-}
-
-/**
+} /**
  * Bottom sheet for focused flows (offers, pitches, deal cards). Escape closes it.
  * Simple mode (Phase 2): "‹ Back" at the top-left closes it instead of the ×,
  * the same word in the same spot as the phone's Back.

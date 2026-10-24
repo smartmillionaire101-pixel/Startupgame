@@ -25,7 +25,7 @@ import {
 } from '@runway/engine';
 
 export type HairStyle = EngineHairStyle;
-export const HAIR_STYLES: readonly HairStyle[] = ALL_STYLES;
+const HAIR_STYLES: readonly HairStyle[] = ALL_STYLES;
 
 export interface LookOverride {
   hairStyle?: HairStyle;

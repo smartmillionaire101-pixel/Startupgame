@@ -21,8 +21,7 @@ import {
   type PhoneCtx,
 } from '../shared';
 
-export const isGym = (kind: string) =>
-  /gym|fitness|yoga|pilates|swim|boxing|dance|sport/i.test(kind);
+const isGym = (kind: string) => /gym|fitness|yoga|pilates|swim|boxing|dance|sport/i.test(kind);
 
 export function Fit({ ctx }: { ctx: PhoneCtx }) {
   const { view } = useView();

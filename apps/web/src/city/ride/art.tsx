@@ -10,7 +10,7 @@ import { seeded, type DayPart } from '../travel';
 
 /** A scene's frameRef callback: ms since the ride began and progress 0–1. */
 export type Frame = (ms: number, k: number) => void;
-export type FrameRef = RefObject<Frame | null>;
+type FrameRef = RefObject<Frame | null>;
 
 export interface SceneProps {
   /** Unique per ride: SVG ids. */

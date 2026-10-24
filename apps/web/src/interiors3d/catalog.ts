@@ -46,14 +46,7 @@ export const FIXTURE_MODEL: Record<string, string> = {
   piano: 'piano',
 };
 
-export const CAR_MODELS = [
-  'motorbike',
-  'hatchback',
-  'ride-hail-sedan',
-  'city-suv',
-  'electric',
-  'luxury',
-];
+const CAR_MODELS = ['motorbike', 'hatchback', 'ride-hail-sedan', 'city-suv', 'electric', 'luxury'];
 
 /** The model for a catalogue item id ('sofa-2'), a slot, a fixture or a car ('car:luxury'). */
 export function modelFor(id: string): { model: string; tier: number } {

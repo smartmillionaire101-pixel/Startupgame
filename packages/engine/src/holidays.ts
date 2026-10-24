@@ -65,14 +65,14 @@ import type {
 
 // ---------------------------------------------------------------- Tuning
 
-export const HOLIDAY_MAX_GUESTS = 6;
+const HOLIDAY_MAX_GUESTS = 6;
 /** Things to do together a holiday can plan in its month. */
-export const HOLIDAY_ACTIVITIES = 6;
+const HOLIDAY_ACTIVITIES = 6;
 /** The shared bonus, for each person, when you do something together. */
-export const HOLIDAY_FUN = 10;
-export const HOLIDAY_STRESS = -8;
+const HOLIDAY_FUN = 10;
+const HOLIDAY_STRESS = -8;
 export const HOLIDAY_TRUST = 0.05;
-export const HOLIDAY_WARMTH = 0.15;
+const HOLIDAY_WARMTH = 0.15;
 const HANGOUT_SOCIAL = 20;
 /** What a holiday lists to do together: bars and hotels first, then food, then wellness. */
 const OUTING_RANK: Record<string, number> = { hospitality: 0, food: 1, health: 2 };
@@ -108,8 +108,7 @@ const firstName = (name: string) => name.split(' ')[0] ?? name;
 // ---------------------------------------------------------------- Flying together
 
 /** The seat for the i-th person on the holiday's flight: side by side across a row, then the next row. */
-export const holidaySeat = (row: number, i: number) =>
-  `${row + Math.floor(i / 6)}${'ABCDEF'[i % 6]}`;
+const holidaySeat = (row: number, i: number) => `${row + Math.floor(i / 6)}${'ABCDEF'[i % 6]}`;
 
 /**
  * Put someone flying from `from` on the host's flight, if the host still
@@ -211,7 +210,7 @@ function aiFriendOf(world: World, me: Player, id: Id): AiFriend | null {
 export type AiAnswer = 'yes' | 'pay' | 'busy';
 
 /** What AI friends say (short; translated on the client as they are). */
-export const AI_REPLIES: Record<AiAnswer, readonly string[]> = {
+const AI_REPLIES: Record<AiAnswer, readonly string[]> = {
   yes: [
     'I’m in! Can’t wait. Save me the window seat.',
     'Yes! Count me in. This is going to be fun.',
@@ -251,7 +250,7 @@ function meansOf(world: World, f: AiFriend, h: Holiday): 'tight' | 'ok' | 'comfo
  * you are (warmth, trust) the likelier they're free; if you don't pay, the
  * less well off ask you to.
  */
-export function aiAnswer(
+function aiAnswer(
   world: World,
   me: Player,
   f: AiFriend,
@@ -287,7 +286,7 @@ function tripOf(p: Player): { market: MarketId; tier: Holiday['tier'] } | null {
 }
 
 /** What the guest's trip costs them (home minor units): the fare from where they are and the hotel. */
-export function guestCost(world: World, guest: Player, h: Holiday) {
+function guestCost(world: World, guest: Player, h: Holiday) {
   if (guest.market === h.market || locationOf(guest) === h.market)
     return { fare: 0, hotel: 0, total: 0, needed: false };
   const fare = flightFare(world, guest, h.market);
@@ -783,9 +782,9 @@ export function holidayJoined(world: World, me: Player, hangoutId: Id) {
 // ---------------------------------------------------------------- hotel.knock / answer / leave
 
 /** How often an AI friend next door opens up when you knock (the rest: not right now). */
-export const KNOCK_AI_YES = 0.85;
+const KNOCK_AI_YES = 0.85;
 /** Company when a friend comes over to your room (on top of the shared bonus). */
-export const VISIT_SOCIAL = 15;
+const VISIT_SOCIAL = 15;
 
 const AI_NOT_NOW = [
   'Just out of the shower! Give me a bit.',

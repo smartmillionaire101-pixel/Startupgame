@@ -53,9 +53,9 @@ import {
 } from './surroundings';
 import { hotelTower, type TowerSide } from './hotel-tower';
 
-export const WALL_H = 2.6;
-export const INNER_H = 1.25;
-export const CUT_H = 0.34;
+const WALL_H = 2.6;
+const INNER_H = 1.25;
+const CUT_H = 0.34;
 const THICK = 0.16;
 const WALL_GREEN = '#1d8a65';
 const WALL_INNER = '#23946e';
@@ -67,7 +67,7 @@ export const STOREY = 3;
 /** A room's floor, on every storey (what stands in the room stands at y 0). */
 export const FLOOR_Y = 0.002;
 
-export interface WallSide {
+interface WallSide {
   /** Outward normal on the floor plane. */
   n: THREE.Vector2;
   slabs: THREE.Object3D[];

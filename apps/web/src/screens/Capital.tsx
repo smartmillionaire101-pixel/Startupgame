@@ -576,7 +576,7 @@ function StakeExit({ s, onSold }: { s: Stake; onSold: (r: SaleResult) => void })
 }
 
 /** Private companies you backed as an investor: sell a stake, or see why you can't yet. */
-export function InvestorStakes() {
+function InvestorStakes() {
   const { view } = useView();
   const stakes = view.capital?.stakes ?? [];
   const [last, setLast] = useState<SaleResult | null>(null);
@@ -812,7 +812,7 @@ function ListedRow({ x }: { x: Listed }) {
   );
 }
 
-export function PublicMarkets() {
+function PublicMarkets() {
   const { view } = useView();
   const list = view.capital?.market ?? [];
   return (
@@ -1142,7 +1142,7 @@ function PathCard({
   );
 }
 
-export function AllocatorHub({ open }: { open?: (app: 'invest') => void }) {
+function AllocatorHub({ open }: { open?: (app: 'invest') => void }) {
   const { view } = useView();
   const a = view.capital?.allocator;
   if (!a) return null;

@@ -6,7 +6,7 @@
 import { TREE_KINDS } from './format.mjs';
 import { hash01, pointInRing } from './geom.mjs';
 
-export const TREE_CAP = 40_000;
+const TREE_CAP = 40_000;
 const K = Object.fromEntries(TREE_KINDS.map((k, i) => [k, i]));
 
 const bboxOf = (p) => {
@@ -24,7 +24,7 @@ const bboxOf = (p) => {
 };
 
 /** A point test against many flat polygons, with a bbox prefilter. */
-export function polygonIndex(polys) {
+function polygonIndex(polys) {
   const items = polys.filter((p) => p.length >= 6).map((p) => ({ p, b: bboxOf(p) }));
   return (x, y) =>
     items.some(
@@ -37,7 +37,7 @@ export function polygonIndex(polys) {
  * cell, moved by up to 40% of a cell, kept when inside the polygon and when
  * a smooth-ish hash noise says so (`density` in [0, 1]), giving clumps.
  */
-export function sampleArea(polys, spacing, density, kind, [hLo, hHi]) {
+function sampleArea(polys, spacing, density, kind, [hLo, hHi]) {
   const out = [];
   const seen = new Set();
   for (const p of polys) {
@@ -100,7 +100,7 @@ export function sampleStreets(lines, spacing = 15, offset = 6, keep = 0.75) {
 }
 
 /** Deterministic thinning of a list to at most `n` items (by position hash). */
-export function thin(list, n) {
+function thin(list, n) {
   if (list.length <= n) return list;
   return list
     .map((t) => ({ t, h: hash01(t.x * 10, t.y * 10, 99) }))

@@ -11,7 +11,7 @@ import type { MarketId } from './data/markets.js';
 import { capitalNames } from './data/capital.js';
 
 /** Well-known brands players may not imitate. Extend via server config. */
-export const PROTECTED_BRANDS = [
+const PROTECTED_BRANDS = [
   'google',
   'apple',
   'amazon',

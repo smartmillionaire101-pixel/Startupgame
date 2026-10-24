@@ -7,7 +7,7 @@ import type { PlayerView } from '@runway/engine';
 import { CLUBS, PUTTER, type Shot } from './game';
 
 export type Room = PlayerView['playRooms'][number];
-export type Match = NonNullable<Room['golf']>;
+type Match = NonNullable<Room['golf']>;
 export type MatchShot = Match['shots'][number];
 export type MatchRoom = Room & { golf: Match };
 

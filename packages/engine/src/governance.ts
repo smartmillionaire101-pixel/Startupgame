@@ -22,7 +22,7 @@ import { nextStage } from './helpers.js';
 import { executeDeal } from './deals.js';
 import type { Company, DealCard, Id, Vote, World } from './types.js';
 
-export const VOTE_THRESHOLD = 0.5;
+const VOTE_THRESHOLD = 0.5;
 
 /** Who votes as a person: players and funds. Staff, pool and institutions abstain. */
 function isVoter(world: World, holderId: string) {
@@ -162,7 +162,7 @@ export function castVote(world: World, voteId: Id, playerId: Id, ballot: 'yes' |
  * Decide if the outcome is certain (or the deadline passed). On a pass, the
  * underlying action executes; on a fail, the deal is declined.
  */
-export function resolveVote(world: World, v: Vote, deadline: boolean) {
+function resolveVote(world: World, v: Vote, deadline: boolean) {
   if (v.status !== 'open') return;
   const total = Object.values(v.weights).reduce((a, b) => a + b, 0);
   const yes = Object.entries(v.ballots)
@@ -220,7 +220,7 @@ function onVoteResolved(world: World, v: Vote) {
 }
 
 /** Board removes a founder CEO (§9). They keep their shares. */
-export function removeFounder(world: World, companyId: Id, founderId: Id) {
+function removeFounder(world: World, companyId: Id, founderId: Id) {
   const c = getCompany(world, companyId);
   const m = getMarket(world, c.market);
   const f = world.players[founderId];

@@ -43,7 +43,7 @@ export function holderAccount(world: World, m: MarketState, holderId: string): I
   return externalHolderAccount(m, holderId);
 }
 
-export function externalHolderAccount(m: MarketState, holderId: string): Id {
+function externalHolderAccount(m: MarketState, holderId: string): Id {
   if (holderId.startsWith('bank:')) return m.ext.bank;
   if (holderId.startsWith('cb:')) return m.ext.tax;
   // Accelerators (Wave 5) invest from, and are repaid to, the LP side of the world.
@@ -54,7 +54,7 @@ export function externalHolderAccount(m: MarketState, holderId: string): Id {
   if (holderId.startsWith('idx:')) return m.ext.lps;
   return m.ext.payroll;
 }
-export const NEWS_LIMIT = 120;
+const NEWS_LIMIT = 120;
 
 export function getPlayer(world: World, id: Id): Player {
   const p = world.players[id];
@@ -138,11 +138,6 @@ export function nextStage(last: Stage | null): Stage {
   const i = STAGES.indexOf(last);
   return STAGES[Math.min(i + 1, STAGES.length - 1)] as Stage;
 }
-
-export function marketMonth(world: World, market: MarketId): number {
-  return getMarket(world, market).month;
-}
-
 export function adjustTrust(a: Player | undefined, otherId: Id, delta: number) {
   if (!a) return;
   a.trust[otherId] = Math.max(-1, Math.min(1, (a.trust[otherId] ?? 0) + delta));

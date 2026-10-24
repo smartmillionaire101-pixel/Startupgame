@@ -18,7 +18,7 @@ export const LEVEL = 4.6;
 /** The entrance's glass wall. */
 export const FRONT_Z = 7;
 /** Where the hall widens into the food court. */
-export const COURT_Z = -32.8;
+const COURT_Z = -32.8;
 /** The food court's counters (their fronts). */
 export const COUNTER_Z = -44;
 /** How far a person keeps from walls and things (their half-width). */
@@ -136,7 +136,7 @@ export const counterOf = (item: string) => COUNTERS.find((c) => c.items.includes
  * staggered back from the door either side of a clear aisle, and three
  * along the back. `h` is how high its tag floats.
  */
-export const SLOTS: { u: number; v: number; h: number }[] = [
+const SLOTS: { u: number; v: number; h: number }[] = [
   { u: 3.3, v: -2.4, h: 1.9 },
   { u: 3.3, v: 2.4, h: 1.9 },
   { u: 4.5, v: -1.6, h: 2.0 },
@@ -179,7 +179,7 @@ const SLOT_OF: Record<string, number> = {
 };
 
 /** What a display is, for its shape (and how much floor it takes). */
-export type DisplayKind =
+type DisplayKind =
   | 'rail'
   | 'plinth'
   | 'table'
@@ -197,7 +197,7 @@ export type DisplayKind =
   | 'desk'
   | 'booth';
 
-export function displayKind(id: string, shop: MallShopId): DisplayKind {
+function displayKind(id: string, shop: MallShopId): DisplayKind {
   if (id.startsWith('top-')) return 'rail';
   if (id.startsWith('acc-') || id.startsWith('phone-')) return 'plinth';
   const by: Record<string, DisplayKind> = {
@@ -334,8 +334,8 @@ function place(id: string, shop: RoomShop, k: number): Display {
 }
 
 /** Where you stand inside a shop on coming in, and just outside its door. */
-export const inside = (shop: RoomShop) => shopToWorld(shop, 2.4, 0);
-export const outside = (shop: RoomShop) => shopToWorld(shop, -1.6, 0);
+const inside = (shop: RoomShop) => shopToWorld(shop, 2.4, 0);
+const outside = (shop: RoomShop) => shopToWorld(shop, -1.6, 0);
 /** Where you go for a shop (its inside; at a storefront's window; the food court's middle). */
 export function goal(shop: MallShopId): { x: number; z: number } {
   if (shop === 'foodcourt') return { x: 0, z: -35.6 };
@@ -371,7 +371,7 @@ export function regionOf(x: number, z: number): Where {
 }
 
 /** Whether a person can stand here (walls, glass and things in the way). */
-export function makeFree(ds: Display[]) {
+function makeFree(ds: Display[]) {
   return (x: number, z: number): boolean => {
     // Shops' rooms, through their doors.
     for (const shop of ROOM_SHOPS) {
@@ -466,7 +466,7 @@ const centre = (i: number, j: number) => ({ x: X0 + (i + 0.5) * CELL, z: Z0 + (j
 const inGrid = (i: number, j: number) => i >= 0 && j >= 0 && i < NX && j < NZ;
 
 /** The nearest free cell to a point (within `reach` metres), or null. */
-export function nearestFree(
+function nearestFree(
   g: WalkGrid,
   x: number,
   z: number,

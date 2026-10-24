@@ -3,7 +3,7 @@
  */
 import { CITY_GEO } from './coordinates';
 const rad = Math.PI / 180;
-export function solarPosition(lat: number, lon: number, now: number) {
+function solarPosition(lat: number, lon: number, now: number) {
   const d = new Date(now),
     year = d.getUTCFullYear();
   const day = (now - Date.UTC(year, 0, 1)) / 86400000;

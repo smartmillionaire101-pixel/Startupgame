@@ -54,7 +54,7 @@ export const DEALFLOW = {
 } as const;
 
 /** What a strategy conversation is about. */
-export type LessonTopic =
+type LessonTopic =
   | 'thesis'
   | 'cheque'
   | 'portfolio'

@@ -19,7 +19,7 @@ import '../bank.css';
 type Which = 'local' | 'usd';
 type Dir = 'all' | 'in' | 'out';
 
-export const kindLabel = (k: string) =>
+const kindLabel = (k: string) =>
   ({
     transfer: t('Transfer'),
     purchase: t('Purchase'),

@@ -64,7 +64,7 @@ const monthsIn = (world: World, f: Fund) =>
 // ---------------------------------------------------------------- metrics
 
 /** What the fund holds at its marks (active companies), local minor units. */
-export function holdingsNav(world: World, f: Fund): number {
+function holdingsNav(world: World, f: Fund): number {
   // Phase 7: a fund of funds holds funds; its value looks through to theirs.
   let nav = f.lp?.strategy === 'fof' ? lookThroughNav(world, f) : 0;
   for (const p of Object.values(world.positions)) {
@@ -233,7 +233,7 @@ export function checkFundCheque(world: World, f: Fund, c: Company, amount: numbe
 }
 
 /** After a fund cheque: use the company's reserve first, and the IC approval. */
-export function fundInvested(_world: World, f: Fund, companyId: Id, amount: number) {
+function fundInvested(_world: World, f: Fund, companyId: Id, amount: number) {
   const lp = f.lp;
   if (!lp) return;
   const r = lp.reserves[companyId];

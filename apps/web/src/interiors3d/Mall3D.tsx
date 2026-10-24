@@ -61,7 +61,7 @@ import {
   type StageOpts,
 } from './stage';
 
-export interface MallStockItem {
+interface MallStockItem {
   id: string;
   shop: MallShopId;
   topStyle?: string;

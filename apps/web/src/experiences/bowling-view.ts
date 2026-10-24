@@ -3,14 +3,7 @@
  * guide line, what a roll's result reads as, and a pin's pose as it falls.
  * Pure: the unit tests check every helper.
  */
-import {
-  LANE_HALF,
-  OIL_END,
-  ballLineAt,
-  launchOf,
-  type BowlFrame,
-  type BowlInput,
-} from '@runway/engine';
+import { OIL_END, ballLineAt, launchOf, type BowlFrame, type BowlInput } from '@runway/engine';
 
 export interface SwipePoint {
   x: number;
@@ -132,7 +125,3 @@ export function isSplit(left: readonly number[]) {
  */
 export const pinTilt = (since: number) =>
   since <= 0 ? 0 : Math.min(Math.PI / 2, (Math.PI / 2) * Math.min(1, (since / 0.32) ** 1.6));
-
-/** Where the ball can be let go across the foul line, for the release marker. */
-export const RELEASE_MAX = 0.45;
-export const laneFits = (x: number) => Math.abs(x) <= LANE_HALF;

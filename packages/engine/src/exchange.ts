@@ -42,9 +42,9 @@ import type {
 /** AI-listed companies per exchange in investor-career worlds. */
 export const EXCHANGE_LISTINGS = 5;
 /** Open limit orders per player. */
-export const MAX_OPEN_ORDERS = 10;
+const MAX_OPEN_ORDERS = 10;
 /** Index fund units start at this price (major units of the city's currency). */
-export const INDEX_UNIT_START = 100;
+const INDEX_UNIT_START = 100;
 
 export const indexHolderId = (market: MarketId | string) => `idx:${market}`;
 
@@ -56,7 +56,7 @@ export const listedIn = (world: World, marketId: string): Company[] =>
 const mcap = (c: Company, price = c.ipo?.price ?? 0) => price * fullyDiluted(c.capTable);
 
 /** The exchange of a market, created (level 100) on first use. */
-export function exchangeOf(world: World, m: MarketState): ExchangeState {
+function exchangeOf(world: World, m: MarketState): ExchangeState {
   if (m.exchange) return m.exchange;
   const listed = listedIn(world, m.id);
   const total = listed.reduce((a, c) => a + mcap(c), 0);
@@ -89,7 +89,7 @@ export function ensureExchange(world: World, marketId: string) {
 // ---------------------------------------------------------------- insiders
 
 /** Founders, board members (themselves or a fund they run), mentors. */
-export function isInsider(world: World, p: Player, c: Company): boolean {
+function isInsider(world: World, p: Player, c: Company): boolean {
   if (c.founderIds.includes(p.id)) return true;
   const mine = (h: Id) => h === p.id || world.funds[h]?.managerId === p.id;
   if (c.board.some(mine)) return true;
@@ -103,7 +103,7 @@ export function isInsider(world: World, p: Player, c: Company): boolean {
  * vote or a sale offer is open, or results are due within the last quarter
  * of the month (known only when the clock settles the market).
  */
-export function blackoutReason(world: World, p: Player, c: Company, now?: number): string | null {
+function blackoutReason(world: World, p: Player, c: Company, now?: number): string | null {
   if (!investorOn(world) || !isInsider(world, p, c)) return null;
   if (Object.values(world.votes).some((v) => v.companyId === c.id && v.status === 'open'))
     return `A vote on ${c.name} is open: insiders can’t trade until it closes.`;
@@ -534,7 +534,7 @@ export function settleExchange(
 }
 
 /** A player's listed shares on one exchange: value, cost, gains and the index benchmark. */
-export function holdingsSummary(world: World, p: Player, m: MarketState) {
+function holdingsSummary(world: World, p: Player, m: MarketState) {
   const ex = m.exchange;
   let value = 0;
   let cost = 0;

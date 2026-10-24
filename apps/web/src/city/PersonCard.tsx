@@ -49,7 +49,7 @@ export const roleName = (r: string) =>
 type View = ReturnType<typeof useView>['view'];
 
 /** A line of talk from an AI character, with a tip drawn from the live world. */
-export function tipFor(a: AiPerson, view: View, cur: string): string {
+function tipFor(a: AiPerson, view: View, cur: string): string {
   const m = view.market;
   const pickN = (n: number) => hash(`${a.id}:${m.month}`) % n;
   switch (a.kind) {

@@ -53,7 +53,7 @@ const CALL_TEXT: Record<RollCall, string> = {
   miss: 'Missed them all',
 };
 
-export function callText(call: RollCall, n: number) {
+function callText(call: RollCall, n: number) {
   return call === 'pins' ? (n === 1 ? t('1 pin') : t('{n} pins', { n })) : t(CALL_TEXT[call]);
 }
 
@@ -378,7 +378,7 @@ function PinDeck({ standing }: { standing: readonly number[] }) {
 }
 
 /** The score sheet: every bowler's ten frames, their marks and running totals. */
-export function BowlingSheet({ room, me }: { room: Room; me: string }) {
+function BowlingSheet({ room, me }: { room: Room; me: string }) {
   const g = room.bowling!;
   return (
     <div className="bowling-sheet" aria-label={t('Score sheet')}>

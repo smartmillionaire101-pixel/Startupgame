@@ -46,7 +46,7 @@ import type {
   World,
 } from './types.js';
 
-export const PNL_HISTORY = 36;
+const PNL_HISTORY = 36;
 
 /** Months of cash left at the current burn; Infinity when profitable. */
 export function companyRunway(world: World, c: Company): number {
@@ -182,7 +182,7 @@ interface CostLine {
  * Money side of the month. Order of payment when cash is short mirrors the
  * shutdown waterfall: staff first, then lenders, then everything else.
  */
-export function settleFinances(world: World, c: Company, rng: Rng, month: number): MonthlyPnl {
+function settleFinances(world: World, c: Company, rng: Rng, month: number): MonthlyPnl {
   const m = getMarket(world, c.market);
   // Revenue.
   let revenue = 0;
@@ -431,7 +431,7 @@ function defaultOnLoans(world: World, c: Company, month: number) {
 }
 
 /** What real performance says a company's stars should be (0–5). */
-export function companyPerformanceRating(world: World, c: Company): number {
+function companyPerformanceRating(world: World, c: Company): number {
   const pnl = lastPnl(c);
   const growth = monthlyGrowth(c);
   const customers = totalCustomers(c);
@@ -450,7 +450,7 @@ export function companyPerformanceRating(world: World, c: Company): number {
 }
 
 /** Warning signs (§13): runway under six months, retention falls, a key customer leaves, a raise fails. */
-export function computeWarnings(world: World, c: Company): string[] {
+function computeWarnings(world: World, c: Company): string[] {
   const w: string[] = [];
   const runway = companyRunway(world, c);
   if (runway < 6)
@@ -468,7 +468,7 @@ export function computeWarnings(world: World, c: Company): string[] {
 }
 
 /** Regulator inspections: higher stars and size bring closer attention (§11). */
-export function inspections(world: World, c: Company, rng: Rng, month: number) {
+function inspections(world: World, c: Company, rng: Rng, month: number) {
   const m = getMarket(world, c.market);
   const size = c.staff.length / 10 + totalCustomers(c) / 5000;
   for (const rule of rulesFor(c.market, c.industry)) {

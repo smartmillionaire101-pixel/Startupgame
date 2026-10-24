@@ -160,9 +160,9 @@ export const GROWTH = {
 /** Wave 5: a part-time job takes this many hours a month. */
 export const JOB_HOURS = 40;
 /** A job matching your background pays this much more. */
-export const JOB_SKILL_PREMIUM = 1.25;
+const JOB_SKILL_PREMIUM = 1.25;
 
-export const BUSINESS_RECENT_MONTHS = 3;
+const BUSINESS_RECENT_MONTHS = 3;
 
 // ---------------------------------------------------------------- Accessors
 
@@ -195,7 +195,7 @@ export const venuePrice = (world: World, m: MarketState, b: LocalBusiness, it: V
   scale(col(m), venuePriceCol(world, b, it));
 
 /** Wave 6: what a business was opened as: its roster seed, or its generated identity. */
-export function seedOf(
+function seedOf(
   b: LocalBusiness,
 ): { name: string; kind: string; district: string; owner: string; street: string | null } | null {
   const seed = b.seed >= 0 ? CITY_BUSINESSES[b.market]?.[b.seed] : undefined;
@@ -224,7 +224,7 @@ function openBusinessOf(world: World, me: Player, id: Id): LocalBusiness {
 const rentShare = (cat: BusinessCategory) => ECONOMY.rentShare[cat] ?? ECONOMY.defaultRentShare;
 
 /** Share of takings spent on stock and supplies: whatever leaves the target margin. */
-export function goodsShare(spec: BusinessKindSpec): number {
+function goodsShare(spec: BusinessKindSpec): number {
   const buys = Object.values(spec.buys).reduce((a, b) => a + (b ?? 0), 0);
   return Math.max(
     0.05,
@@ -268,7 +268,7 @@ export function ensureBusinesses(world: World, marketId: MarketId) {
  * Places that have ever been open keep their history; ids stay as they are.
  * Own RNG stream, so nothing else shifts. A no-op for new worlds.
  */
-export function ensureRoster(world: World, marketId: MarketId, month: number) {
+function ensureRoster(world: World, marketId: MarketId, month: number) {
   const m = getMarket(world, marketId);
   const roster = CITY_BUSINESSES[marketId] ?? [];
   const all = Object.values(businessesOf(m));
@@ -287,7 +287,7 @@ export function ensureRoster(world: World, marketId: MarketId, month: number) {
  * worlds and saved ones alike; a closed one reopens under new owners after
  * a while. Own RNG stream, so nothing else shifts.
  */
-export function ensureLandmarks(world: World, marketId: MarketId, month: number) {
+function ensureLandmarks(world: World, marketId: MarketId, month: number) {
   const m = getMarket(world, marketId);
   const all = Object.values(businessesOf(m));
   const rng = deriveRng(world.seed, 'economy', 'landmarks', marketId, month);
@@ -438,7 +438,7 @@ function closeBusiness(world: World, m: MarketState, b: LocalBusiness, month: nu
 // ---------------------------------------------------------------- Growth (Wave 6)
 
 /** Human players who ever joined this market (old saves: counted from the players there). */
-export function humansJoined(world: World, m: MarketState): number {
+function humansJoined(world: World, m: MarketState): number {
   return (
     m.humansJoined ?? Object.values(world.players).filter((p) => !p.ai && p.market === m.id).length
   );
@@ -483,7 +483,7 @@ function growthKinds(marketId: MarketId): { kind: string; w: number }[] {
   return out;
 }
 
-export function weightedPick<T extends { w: number }>(rng: Rng, items: readonly T[]): T {
+function weightedPick<T extends { w: number }>(rng: Rng, items: readonly T[]): T {
   const total = items.reduce((a, x) => a + x.w, 0);
   let r = rng.next() * total;
   for (const x of items) {
@@ -586,7 +586,7 @@ const rapportWith = (b: LocalBusiness, c: Company) =>
   Math.max(0, ...c.founderIds.map((id) => b.rapport[id] ?? 0));
 
 /** How much the owner likes a startup as a supplier (about 0–1). */
-export function supplierScore(b: LocalBusiness, c: Company, budget: number): number {
+function supplierScore(b: LocalBusiness, c: Company, budget: number): number {
   const known = Math.min(
     1,
     Math.max(0, ...Object.values(c.segments).map((s) => s.awareness)) * 5 + c.stars.value / 10,
@@ -810,12 +810,7 @@ export interface PitchAnswer {
 }
 
 /** Why a founder can't pitch a business right now (null when they can). */
-export function pitchBlocker(
-  world: World,
-  me: Player,
-  b: LocalBusiness,
-  companyId?: Id,
-): string | null {
+function pitchBlocker(world: World, me: Player, b: LocalBusiness, companyId?: Id): string | null {
   if (!isOpen(b)) return `${b.name} has closed.`;
   if (locationOf(me) !== b.market) return 'This business is in another city.';
   const m = getMarket(world, b.market);
@@ -947,17 +942,13 @@ export function pitchBusiness(
 
 // ---------------------------------------------------------------- Gigs
 
-export const gigSkillMatch = (p: Player, skill: string | null | undefined): boolean =>
+const gigSkillMatch = (p: Player, skill: string | null | undefined): boolean =>
   !!skill &&
   (GIG_SKILL_BACKGROUNDS[skill as keyof typeof GIG_SKILL_BACKGROUNDS] ?? []).includes(
     p.backgroundId,
   );
 
-export function gigPay(
-  m: MarketState,
-  p: Player | null,
-  g: { payCol: number; skill?: string | null },
-) {
+function gigPay(m: MarketState, p: Player | null, g: { payCol: number; skill?: string | null }) {
   return scale(
     col(m),
     g.payCol * ECONOMY.gigPayBoost * (p && gigSkillMatch(p, g.skill) ? ECONOMY.skillPremium : 1),
@@ -1020,11 +1011,6 @@ export function takeBusinessGig(world: World, me: Player, businessId: Id, gigId:
       : `${g.label} done: ${fmt(pay)}${skillMatch ? ' (your background paid off)' : ''}. Tax: ${fmtHome(tax)}.`,
   };
 }
-
-// ---------------------------------------------------------------- Jobs (Wave 5)
-
-export const jobSkillMatch = gigSkillMatch;
-
 /**
  * Monthly pay for a role at a business in this city (gross, local minor
  * units). Wave 6: `payCol` is take-home, so the gross is grossed up for the
@@ -1331,7 +1317,7 @@ export function venueBuy(
 // ---------------------------------------------------------------- Events at businesses
 
 /** Businesses that can host an event (hotels, event venues and the like). */
-export function canHostEvents(b: LocalBusiness): boolean {
+function canHostEvents(b: LocalBusiness): boolean {
   const spec = businessKind(b.kind);
   return !!spec && spec.category === 'hospitality';
 }

@@ -8,7 +8,7 @@ import { useSyncExternalStore } from 'react';
 export type Quality = '3d' | 'lite';
 
 /** The same key as the map's (city/three/quality.ts): one Settings switch for every 3D view. */
-export const QUALITY_KEY = 'runway.mapQuality';
+const QUALITY_KEY = 'runway.mapQuality';
 
 const listeners = new Set<() => void>();
 let memory: Quality | null = null;
@@ -70,18 +70,7 @@ export function webglAvailable(): boolean {
 }
 
 /** The player's choice, else 3D. */
-export const getQuality = (): Quality => saved() ?? '3d';
-
-export function setQuality(q: Quality) {
-  memory = q;
-  try {
-    localStorage.setItem(QUALITY_KEY, q);
-  } catch {
-    /* lasts this session */
-  }
-  for (const l of listeners) l();
-}
-
+const getQuality = (): Quality => saved() ?? '3d';
 /** The quality setting, live. */
 export function useQuality(): Quality {
   return useSyncExternalStore(

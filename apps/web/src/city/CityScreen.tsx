@@ -257,7 +257,7 @@ function startAtHome(id: string): boolean {
   return home;
 }
 
-export function PlacesList({
+function PlacesList({
   layout,
   labelOf,
   onPick,

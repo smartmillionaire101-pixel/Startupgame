@@ -849,11 +849,3 @@ export function pose(
       c.armR.rotation.x = -S(tt * 1.1) * 0.03;
   }
 }
-
-/** Every person's meshes, for picking. */
-export const characterMeshes = (cs: Iterable<Character>) => {
-  const out: THREE.Object3D[] = [];
-  for (const c of cs)
-    c.root.traverse((o) => (o as THREE.Mesh).isMesh && o !== c.shadow && out.push(o));
-  return out;
-};

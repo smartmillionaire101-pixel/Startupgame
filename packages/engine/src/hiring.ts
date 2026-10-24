@@ -76,7 +76,7 @@ function ensureHiring(c: Company): Hiring {
   return (c.hiring ??= { roles: [], candidates: [], nextId: 1 });
 }
 
-export const postingCost = (world: World, c: Company): number =>
+const postingCost = (world: World, c: Company): number =>
   scale(col(getMarket(world, c.market)), HIRING.postingCol);
 
 /** A work trial's fee: a week of the candidate's asking salary. */
@@ -211,9 +211,9 @@ export function pipelineCandidate(c: Company, candidateId: string): PipelineCand
 
 // ---------------------------------------------------------------- interviews
 
-export const revealsSkill = (cand: PipelineCandidate) =>
+const revealsSkill = (cand: PipelineCandidate) =>
   cand.interviews.includes('technical') || cand.interviews.includes('work_trial');
-export const revealsFit = (cand: PipelineCandidate) =>
+const revealsFit = (cand: PipelineCandidate) =>
   cand.interviews.includes('culture') || cand.interviews.includes('work_trial');
 
 export function interview(
@@ -254,7 +254,7 @@ export function interview(
   };
 }
 
-export const fitWord = (fit: number) => (fit >= 0.7 ? 'great' : fit >= 0.4 ? 'decent' : 'poor');
+const fitWord = (fit: number) => (fit >= 0.7 ? 'great' : fit >= 0.4 ? 'decent' : 'poor');
 
 /** A pipeline candidate accepted an offer: close the loop on the role and the new hire. */
 export function onPipelineHire(world: World, c: Company, cand: PipelineCandidate, s: Staff) {
@@ -307,7 +307,7 @@ function trackWorkload(_world: World, c: Company) {
 }
 
 export type RetentionRisk = 'low' | 'medium' | 'high';
-export function retentionRisk(s: Staff, workload: number): RetentionRisk {
+function retentionRisk(s: Staff, workload: number): RetentionRisk {
   if (s.cofounder) return s.morale < 20 ? 'high' : 'low';
   if (s.morale < 35 || workload > 140) return 'high';
   if (s.morale < 50 || workload > 115) return 'medium';
@@ -427,7 +427,7 @@ export function aiCofounderOffers(world: World, c: Company): AiCofounderOffer[] 
   }));
 }
 
-export const aiCofounderOf = (c: Company): Staff | undefined => c.staff.find((s) => s.cofounder);
+const aiCofounderOf = (c: Company): Staff | undefined => c.staff.find((s) => s.cofounder);
 
 /**
  * An AI co-founder joins: new founder shares so they own exactly their ask
@@ -481,7 +481,7 @@ export function hireAiCofounder(
 }
 
 /** Months of an AI co-founder's shares vested so far (0 before the cliff). */
-export function vestedMonths(rec: AiCofounderRecord, month: number): number {
+function vestedMonths(rec: AiCofounderRecord, month: number): number {
   const served = month - rec.since;
   return served < rec.cliffMonths ? 0 : Math.min(rec.vestingMonths, served);
 }

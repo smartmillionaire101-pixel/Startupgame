@@ -82,7 +82,7 @@ export function ensureProperties(world: World, marketId: MarketId) {
   }
 }
 
-export const propertyIndex = (m: MarketState): number => m.propertyIndex?.value ?? 1;
+const propertyIndex = (m: MarketState): number => m.propertyIndex?.value ?? 1;
 
 export function priceOf(world: World, p: Property): number {
   return Math.round(p.basePrice * propertyIndex(getMarket(world, p.market)));
@@ -91,10 +91,10 @@ export function priceOf(world: World, p: Property): number {
 export const upkeepOf = (world: World, p: Property) =>
   Math.round(priceOf(world, p) * TIER_UPKEEP[p.tier]);
 
-export const rentOf = (world: World, p: Property) =>
+const rentOf = (world: World, p: Property) =>
   Math.round((priceOf(world, p) * RENT_YIELD[p.market]) / 12);
 
-export const mortgageRateBps = (m: MarketState) => m.data.baseRateBps + MORTGAGE.spreadBps;
+const mortgageRateBps = (m: MarketState) => m.data.baseRateBps + MORTGAGE.spreadBps;
 
 export function getProperty(world: World, id: Id): Property {
   const p = world.properties?.[id];
@@ -111,7 +111,7 @@ function ownProperty(world: World, me: Player, id: Id): Property {
 const label = (p: Property) => `${TIER_LABEL[p.tier]} on ${p.street}, ${p.neighbourhood}`;
 
 /** The home a player lives in, when it is still theirs and in their home city. */
-export function residenceOf(world: World, p: Player): Property | null {
+function residenceOf(world: World, p: Player): Property | null {
   const id = p.residence?.propertyId;
   const prop = id ? world.properties?.[id] : undefined;
   return prop && prop.ownerId === p.id && prop.market === p.market ? prop : null;
@@ -142,7 +142,7 @@ export interface BuyQuote {
   reserve: number;
 }
 
-export function quote(world: World, p: Property, mortgage?: MortgageRequest | null): BuyQuote {
+function quote(world: World, p: Property, mortgage?: MortgageRequest | null): BuyQuote {
   const m = getMarket(world, p.market);
   const price = priceOf(world, p);
   const closingCosts = Math.round(price * BUY_COSTS);
@@ -176,7 +176,7 @@ export function quote(world: World, p: Property, mortgage?: MortgageRequest | nu
 }
 
 /** Why a player can't buy this property (null when they can). */
-export function buyBlocker(
+function buyBlocker(
   world: World,
   me: Player,
   p: Property,
@@ -646,7 +646,7 @@ export function residenceView(world: World, p: Player) {
  * 2 rich (under 4×), 3 very rich. The home view grows with it: more and
  * bigger rooms, a gym and a cinema, a bigger pool and garden. View only.
  */
-export function homeWealth(world: World, p: Player, home: Property): number {
+function homeWealth(world: World, p: Player, home: Property): number {
   const nw = netWorth(world, p);
   const value = valueIn(
     world,

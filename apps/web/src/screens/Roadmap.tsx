@@ -15,7 +15,7 @@ type ProjectT = RoadmapT['projects'][number];
 type FeatureT = RoadmapT['catalogue'][number];
 type EffectKind = FeatureT['effect']['kind'];
 
-export const effectLabel = (k: EffectKind) =>
+const effectLabel = (k: EffectKind) =>
   ({
     fit: t('Better fit'),
     quality: t('Higher quality'),

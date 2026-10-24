@@ -25,8 +25,8 @@ import { stageText } from './Pipeline';
 import './investor.css';
 
 type DealFlowView = NonNullable<PlayerView['investorDealFlow']>;
-export type PitchRow = DealFlowView['pitches'][number];
-export type TalkRow = DealFlowView['talks'][number];
+type PitchRow = DealFlowView['pitches'][number];
+type TalkRow = DealFlowView['talks'][number];
 export type PanelReview = NonNullable<DealFlowView['lastPanel']>;
 type FirstFundView = NonNullable<DealFlowView['firstFund']>;
 type NextStep = NonNullable<PanelReview['nextSteps']>[number];
@@ -52,7 +52,7 @@ const stagesText = (stages: readonly string[]) => stages.map(stageLabel).join(',
 // ---------------------------------------------------------------- pitches
 
 /** One founder's pitch, with the follow-up, invest and pass actions. */
-export function PitchCard({ p: given }: { p: PitchRow }) {
+function PitchCard({ p: given }: { p: PitchRow }) {
   const { view, send, meta, busy } = useView();
   // The live row (its stage moves with diligence and deals), else the one we were given.
   const p =
@@ -166,7 +166,7 @@ export function PitchCard({ p: given }: { p: PitchRow }) {
 // ---------------------------------------------------------------- investors
 
 /** A conversation with an AI investor: their strategy, a lesson, maybe a referral. */
-export function TalkCard({ talk }: { talk: TalkRow }) {
+function TalkCard({ talk }: { talk: TalkRow }) {
   const { meta } = useView();
   const sectors =
     talk.sectors === 'any'
@@ -308,7 +308,7 @@ const levelText = (l: string) =>
   l === 'good' ? t('fine') : l === 'warn' ? t('a stretch') : t('doesn’t add up');
 
 /** A strategy check, in words. */
-export function checkText(c: Pick<StrategyCheck, 'id' | 'level' | 'values'>, cur: string): string {
+function checkText(c: Pick<StrategyCheck, 'id' | 'level' | 'values'>, cur: string): string {
   const v = c.values;
   const good = c.level === 'good';
   switch (c.id) {
@@ -613,7 +613,7 @@ function lpKindText(k: string): string {
 }
 
 /** A next step, from the gap between your record and what LPs want. */
-export function stepText(s: Pick<NextStep, 'id' | 'values'>, cur: string): string {
+function stepText(s: Pick<NextStep, 'id' | 'values'>, cur: string): string {
   const v = s.values;
   switch (s.id) {
     case 'deals':

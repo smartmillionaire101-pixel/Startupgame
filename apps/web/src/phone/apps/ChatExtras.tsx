@@ -26,7 +26,7 @@ import './chat.css';
 // ---------------------------------------------------------------- Emoji
 
 /** Common emoji by category. No keycaps or digits (the chat filters count digits). */
-export const EMOJI: { id: string; label: () => string; icon: string; list: string[] }[] = [
+const EMOJI: { id: string; label: () => string; icon: string; list: string[] }[] = [
   {
     id: 'smileys',
     label: () => t('Smileys'),
@@ -154,16 +154,16 @@ export function EmojiPicker({
 
 // ---------------------------------------------------------------- Voice notes
 
-export const VOICE_MAX_MS = 60_000;
-export const VOICE_MAX_BYTES = 512 * 1024;
+const VOICE_MAX_MS = 60_000;
+const VOICE_MAX_BYTES = 512 * 1024;
 const VOICE_MIMES = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/aac'];
 
-export const clock = (ms: number) => {
+const clock = (ms: number) => {
   const s = Math.max(0, Math.round(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
-export const canRecord = () =>
+const canRecord = () =>
   typeof window !== 'undefined' &&
   typeof window.MediaRecorder !== 'undefined' &&
   !!navigator.mediaDevices?.getUserMedia;
@@ -343,7 +343,7 @@ export function VoiceRecorder({
 }
 
 /** A voice note in the chat: play or pause, a progress bar, its length. */
-export function VoiceNote({ src, ms, mine }: { src: string; ms: number; mine: boolean }) {
+function VoiceNote({ src, ms, mine }: { src: string; ms: number; mine: boolean }) {
   const { toast } = useView();
   const audio = useRef<HTMLAudioElement | null>(null);
   const [state, setState] = useState<'idle' | 'playing' | 'paused' | 'ended'>('idle');
@@ -467,7 +467,7 @@ function CardShell({
   );
 }
 
-export function ChatCardView({
+function ChatCardView({
   card,
   mine,
   partner,

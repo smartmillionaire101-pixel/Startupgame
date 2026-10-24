@@ -194,7 +194,7 @@ export function hangoutsOf(view: View): HangoutRow[] {
 
 // ---------------------------------------------------------------- Tech events
 
-export interface TechSpeakerView {
+interface TechSpeakerView {
   id: string;
   name: string;
   role: 'founder' | 'investor';

@@ -62,7 +62,7 @@ async function fetchTerrainField(city: string): Promise<TerrainField | null> {
  * level; inland (a lake 1,600 m up) those cells take their neighbours' height
  * instead of becoming pits.
  */
-export function terrainField(t: Terrain): TerrainField {
+function terrainField(t: Terrain): TerrainField {
   const { cols, rows } = t;
   const e = Float32Array.from(t.elev);
   const nz: number[] = [];
