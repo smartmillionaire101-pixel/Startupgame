@@ -31,9 +31,17 @@ env:
   SITE: ${{ vars.NETLIFY_SITE_NAME || 'runwaystartup' }}
 
 jobs:
-  deployed:
+  # Pull requests run the full suite split over three machines at once (more
+  # would load the preview's functions too hard); anything else runs on one.
+  # The "deployed" job below reports them as one check.
+  deployed-shard:
+    name: deployed (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[1, 2, 3]' || '[1]') }}
     steps:
       - uses: actions/checkout@v4
       - name: Pick target
@@ -91,12 +99,13 @@ jobs:
           node-version: 22
           cache: npm
       - name: Probe sign-in on ${{ steps.target.outputs.url }}
+        if: matrix.shard == 1
         run: node scripts/probe-deploy.mjs "${{ steps.target.outputs.url }}"
       - run: npx -y npm@11 ci
       - run: npx playwright install --with-deps chromium
         working-directory: apps/web
       - name: End-to-end against ${{ steps.target.outputs.url }}
-        run: npx playwright test --reporter=github,list
+        run: npx playwright test ${{ github.event_name == 'pull_request' && format('--shard={0}/3', matrix.shard) || '' }} --reporter=github,list
         working-directory: apps/web
         env:
           CI: '1'
@@ -105,5 +114,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: deployed-playwright-report
+          name: deployed-playwright-report-${{ matrix.shard }}
           path: apps/web/test-results
+
+  deployed:
+    runs-on: ubuntu-latest
+    needs: deployed-shard
+    if: always()
+    steps:
+      - run: test "${{ needs.deployed-shard.result }}" = success
