@@ -208,4 +208,13 @@ test('a wall: ordered, unpacked, put up in Buy mode at home', async ({ page }) =
   expect(placed).toMatchObject({ dir: 'v', floor: 0 });
   expect(placed.x).toBeGreaterThan(0);
   await expect(scene.locator(`[data-divider="${wall.id}"]`)).toBeAttached();
+
+  // Room names show only while editing (Buy or Edit), not when you're just at home.
+  await command(page, { type: 'home.room.label', floor: 0, x: 3, y: 3, label: 'Lounge' });
+  await page.reload();
+  await tapPlace(page, '[data-place="home"]', 'cycle');
+  await expect(scene).toBeVisible({ timeout: 20_000 });
+  await expect(scene.locator('[data-room-name="Lounge"]')).toHaveCount(0);
+  await scene.getByRole('button', { name: 'Buy' }).click();
+  await expect(scene.locator('[data-room-name="Lounge"]')).toBeAttached();
 });

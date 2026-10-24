@@ -1922,29 +1922,31 @@ export function HomeScene({
                 rx={3}
               />
             )}
-            {(roomNames.length > 0 || (naming && naming !== 'pick')) && (
-              <g className="home-room-names" data-rooms={roomNames.length}>
-                {roomNames.map((r) => (
-                  <text
-                    key={`${r.x},${r.y}`}
-                    data-room-name={r.label}
-                    x={(r.x + 0.5) * TILE}
-                    y={(r.y + 0.6) * TILE}
-                    textAnchor="middle"
-                  >
-                    {r.label}
-                  </text>
-                ))}
-                {naming && naming !== 'pick' && (
-                  <circle
-                    className="home-room-pin"
-                    cx={(naming.x + 0.5) * TILE}
-                    cy={(naming.y + 0.5) * TILE}
-                    r={9}
-                  />
-                )}
-              </g>
-            )}
+            {/* Room names are a planning aid: shown while editing, hidden the rest of the time. */}
+            {(sheet === 'buy' || sheet === 'edit' || !!placing || !!wallPlacing || !!naming) &&
+              (roomNames.length > 0 || (naming && naming !== 'pick')) && (
+                <g className="home-room-names" data-rooms={roomNames.length}>
+                  {roomNames.map((r) => (
+                    <text
+                      key={`${r.x},${r.y}`}
+                      data-room-name={r.label}
+                      x={(r.x + 0.5) * TILE}
+                      y={(r.y + 0.6) * TILE}
+                      textAnchor="middle"
+                    >
+                      {r.label}
+                    </text>
+                  ))}
+                  {naming && naming !== 'pick' && (
+                    <circle
+                      className="home-room-pin"
+                      cx={(naming.x + 0.5) * TILE}
+                      cy={(naming.y + 0.5) * TILE}
+                      r={9}
+                    />
+                  )}
+                </g>
+              )}
             {objects
               .filter((o) => !hostView && o.slot && !o.owned)
               .map((o) => (
