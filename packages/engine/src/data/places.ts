@@ -63,6 +63,21 @@ export const PLACE_SERVICES = [
   'floor-briefing',
   'check-up',
   'evening-class',
+  // The feedback round (FEEDBACK_NOTE): more to do in each place (`PlaceSpec.more`).
+  'consultation',
+  'rate-briefing',
+  'directory',
+  'watch-case',
+  'filing-check',
+  'tax-clinic',
+  'trade-attache',
+  'delegation',
+  'peer-feedback',
+  'meet-members',
+  'lp-meetings',
+  'sick-care',
+  'careers-fair',
+  'guest-lecture',
 ] as const;
 export type PlaceService = (typeof PLACE_SERVICES)[number];
 
@@ -78,6 +93,8 @@ export interface PlaceSpec {
   refusal?: string;
   unlock?: string;
   services: readonly PlaceService[];
+  /** More to do here once the feedback note is logged (places.ts `servicesOf`). */
+  more?: readonly PlaceService[];
 }
 
 export const PLACE_SPECS: Record<PlaceRole, PlaceSpec> = {
@@ -86,12 +103,14 @@ export const PLACE_SPECS: Record<PlaceRole, PlaceSpec> = {
     purpose: 'Economic policy and the budget. Founders and investors are heard at roundtables.',
     access: 'appointment',
     services: ['roundtable'],
+    more: ['consultation'],
   },
   'central-bank': {
     label: 'Central Bank',
     purpose: 'The money regulator: payments licences and fund manager licences.',
     access: 'appointment',
     services: ['payments-licence', 'fund-licence'],
+    more: ['rate-briefing'],
   },
   'stock-exchange': {
     label: 'Stock Exchange',
@@ -110,30 +129,35 @@ export const PLACE_SPECS: Record<PlaceRole, PlaceSpec> = {
     purpose: 'The city’s business association: mixers, members and introductions.',
     access: 'public',
     services: ['mixer'],
+    more: ['directory'],
   },
   'high-court': {
     label: 'High Court',
     purpose: 'Commercial disputes, and a commissioner for oaths for company papers.',
     access: 'appointment',
     services: ['notarise'],
+    more: ['watch-case'],
   },
   'tax-office': {
     label: 'Tax Office',
     purpose: 'Company tax registration and filing.',
     access: 'appointment',
     services: ['tax-registration'],
+    more: ['filing-check', 'tax-clinic'],
   },
   embassy: {
     label: 'Embassy',
     purpose: 'Business visas for the cities you fly to.',
     access: 'appointment',
     services: ['visa'],
+    more: ['trade-attache'],
   },
   ipa: {
     label: 'Investment Promotion Agency',
     purpose: 'A one-stop shop for company registrations, and incentives for new companies.',
     access: 'appointment',
     services: ['one-stop', 'incentive'],
+    more: ['delegation'],
   },
   'tech-hub': {
     label: 'Founders’ Hub',
@@ -143,6 +167,7 @@ export const PLACE_SPECS: Record<PlaceRole, PlaceSpec> = {
     refusal: 'The Founders’ Hub is for founders.',
     unlock: 'Start a company to get a desk here.',
     services: ['mentor', 'demo-night'],
+    more: ['peer-feedback'],
   },
   'members-club': {
     label: 'Private members’ club',
@@ -155,6 +180,7 @@ export const PLACE_SPECS: Record<PlaceRole, PlaceSpec> = {
     refusal: 'Members only.',
     unlock: 'Live an Affluent lifestyle or better, or build a 4★ reputation.',
     services: ['club-dinner'],
+    more: ['meet-members'],
   },
   'family-office': {
     label: 'Family office tower',
@@ -164,18 +190,21 @@ export const PLACE_SPECS: Record<PlaceRole, PlaceSpec> = {
     refusal: 'The family offices see investors with a track record.',
     unlock: 'Reach level 3 of the investor career (ready to raise a Fund I).',
     services: ['principals'],
+    more: ['lp-meetings'],
   },
   hospital: {
     label: 'Hospital',
     purpose: 'Check-ups and care, open to everyone.',
     access: 'public',
     services: ['check-up'],
+    more: ['sick-care'],
   },
   university: {
     label: 'University',
     purpose: 'Evening classes for working people.',
     access: 'public',
     services: ['evening-class'],
+    more: ['careers-fair', 'guest-lecture'],
   },
 };
 
@@ -206,6 +235,30 @@ export const SERVICE_SPECS: Record<PlaceService, ServiceSpec> = {
   'floor-briefing': { label: 'Trading floor briefing', hours: 2, feeCol: 0, once: 'month' },
   'check-up': { label: 'Health check-up', hours: 1, feeCol: 0.1, once: 'month' },
   'evening-class': { label: 'Evening class', hours: 6, feeCol: 0.2, once: 'month' },
+  consultation: {
+    label: 'Public consultation: vote on a tax change',
+    hours: 1,
+    feeCol: 0,
+    once: 'month',
+  },
+  'rate-briefing': { label: 'Policy-rate briefing', hours: 2, feeCol: 0, once: 'month' },
+  directory: { label: 'Members’ directory: SME sales leads', hours: 2, feeCol: 0, once: 'month' },
+  'watch-case': { label: 'Watch a case', hours: 3, feeCol: 0, once: 'month' },
+  'filing-check': { label: 'Monthly filing check', hours: 1, feeCol: 0, once: 'month' },
+  'tax-clinic': { label: 'Tax clinic: ask a question', hours: 2, feeCol: 0, once: 'month' },
+  'trade-attache': { label: 'Trade attaché: export leads', hours: 2, feeCol: 0, once: 'month' },
+  delegation: { label: 'Meet a visiting investor delegation', hours: 2, feeCol: 0, once: 'month' },
+  'peer-feedback': {
+    label: 'Peer feedback from other founders',
+    hours: 2,
+    feeCol: 0,
+    once: 'month',
+  },
+  'meet-members': { label: 'Meet the members', hours: 2, feeCol: 0.1, once: 'month' },
+  'lp-meetings': { label: 'LP meetings', hours: 2, feeCol: 0, once: 'month' },
+  'sick-care': { label: 'See a doctor', hours: 4, feeCol: 0.1, once: 'month' },
+  'careers-fair': { label: 'Careers fair: meet graduates', hours: 0, feeCol: 0, once: 'month' },
+  'guest-lecture': { label: 'Guest lecture', hours: 2, feeCol: 0, once: 'month' },
 };
 
 /** Every number in one place. */
@@ -230,6 +283,26 @@ export const PLACES = {
   leadHours: [3, 20] as readonly [number, number],
   /** Appointments booked at once. */
   maxBooked: 3,
+  /** The feedback round's services. */
+  more: {
+    /** Network from a consultation, a delegation, the directory, the attaché, a lecture. */
+    network: 1,
+    /** Sales leads from the directory; the attaché's export lead is this much bigger. */
+    directoryLeads: [1, 2] as readonly [number, number],
+    exportBudget: 1.6,
+    /** A filing check: one worry less. */
+    checkStress: -3,
+    /** Discovery from peer feedback (share of what's left to learn). */
+    peerDiscovery: 0.08,
+    /** People you meet (delegation investors, members) and how warm. */
+    meet: 2,
+    warmth: 0.35,
+    /** LP credibility from a round of LP meetings (0–1). */
+    lpCredibility: 0.05,
+    /** A doctor: when your health is under this, and what the care does. */
+    unwell: 60,
+    care: { health: 20, stress: -5, energy: 10 },
+  },
 } as const;
 
 /** A city's places: name, plan district and (optionally) street, per role. */

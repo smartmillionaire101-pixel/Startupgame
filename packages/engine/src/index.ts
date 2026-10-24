@@ -461,6 +461,22 @@ export {
 } from './data/places.js';
 export type { PlaceRole, PlaceService, PlaceGate, PlaceAccess } from './data/places.js';
 export { cityPlaces, findPlace, gameMinute, whenOf, placeAccess } from './places.js';
+// Errands: something to do in every building (feedback note).
+export {
+  CLOTHES,
+  COURT_CASES,
+  CONSULTATIONS,
+  ERRAND_IDS,
+  ERRAND_SPECS,
+  ERRANDS,
+  KIND_ERRANDS,
+  PAPER_TIPS,
+  SPOT_ERRANDS,
+  STANDUP_FOCUS,
+  TAX_QA,
+} from './data/errands.js';
+export type { ErrandId, StandupFocus } from './data/errands.js';
+export { doErrand, errandsView } from './errands.js';
 // Banker work: the advisory desk, conversations at banks and institutions, the track record.
 export {
   BANKWORK,

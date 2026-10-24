@@ -11,6 +11,7 @@ import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { STARTER_EXPENSE_IDS } from './data/ideas.js';
 import { PLACE_SERVICES } from './data/places.js';
+import { ERRAND_IDS, STANDUP_FOCUS } from './data/errands.js';
 import { MANDATE_KINDS, TALK_TOPICS } from './data/bankwork.js';
 import { PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
 import { REMOVABLE, lookSchema } from './appearance.js';
@@ -830,6 +831,21 @@ export const commandSchema = z.discriminatedUnion('type', [
     service: z.enum(PLACE_SERVICES),
     companyId: id.optional(),
     to: market.optional(),
+    /** A public consultation (feedback note): your vote on the proposal. */
+    vote: z.enum(['for', 'against']).optional(),
+  }),
+  /**
+   * Errands (errands.ts, feedback note): do something where you are, at a
+   * business (`biz:<id>`), a capital programme's office (`cap:<id>`) or a
+   * city spot (`newsstand`, `airport`, `office`). `item` is the clothes to
+   * buy; `focus` the morning stand-up's.
+   */
+  z.object({
+    type: z.literal('errand.do'),
+    at: z.string().min(1).max(80),
+    errand: z.enum(ERRAND_IDS),
+    item: z.string().min(1).max(48).optional(),
+    focus: z.enum(STANDUP_FOCUS).optional(),
   }),
   /** Golf (leisure.ts): hand in your card for the city's three holes (strokes per hole). */
   z.object({

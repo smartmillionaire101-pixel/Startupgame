@@ -12,6 +12,12 @@
  * banks in office hours. Everything is pure and deterministic for the world,
  * the place and the city's hour: every player sees the same people, and it
  * costs the server nothing (bankers and team members chat as `crowd:` ids).
+ *
+ * Who goes where is a crowd profile (`CrowdKey`): a room kind, or, for places
+ * a room is shared by (a skydive centre and a workshop are both a workshop
+ * room), the place's own: people out for fun, customers waiting their turn,
+ * shoppers, traders on the exchange floor, the members' club, founders at
+ * the Founders' Hub, an accelerator's cohort and travellers at the airport.
  */
 import {
   MARKET_IDS,
@@ -79,7 +85,69 @@ const DESKS: Busy = [
   [7, 9, 5],
   [0, 24, 2],
 ];
-const BUSY: Partial<Record<RoomKind, Busy>> = {
+/**
+ * A crowd profile: a room kind, or a place's own (activity venues, one-item
+ * services, showrooms, the city's institutions). Targets stay within the
+ * room's guest spots.
+ */
+export type CrowdKey =
+  | RoomKind
+  | 'fun'
+  | 'waiting'
+  | 'shoppers'
+  | 'trading'
+  | 'members'
+  | 'founders'
+  | 'cohort'
+  | 'travellers';
+
+/** Business kinds with a crowd of their own (the rest follow their room). */
+const KIND_CROWD: Record<string, CrowdKey> = {
+  'skydive-centre': 'fun',
+  heliport: 'fun',
+  ballroom: 'fun',
+  marina: 'fun',
+  'private-terminal': 'travellers',
+  'tech-campus': 'cowork',
+  salon: 'waiting',
+  barber: 'waiting',
+  laundry: 'waiting',
+  tailor: 'waiting',
+  'print-shop': 'waiting',
+  'phone-repair': 'waiting',
+  'bike-shop': 'waiting',
+  'corner-shop': 'waiting',
+  clinic: 'waiting',
+  dentist: 'waiting',
+  bootcamp: 'waiting',
+  'car-dealer': 'shoppers',
+  'car-dealership': 'shoppers',
+  'furniture-store': 'shoppers',
+  'appliance-store': 'shoppers',
+  electronics: 'shoppers',
+};
+
+/** City places (`civic:<market>:<role>`) with a crowd of their own. */
+const CIVIC_CROWD: Record<string, CrowdKey> = {
+  'stock-exchange': 'trading',
+  'members-club': 'members',
+  'tech-hub': 'founders',
+  'family-office': 'members',
+};
+
+/**
+ * The crowd profile of a place: by its id (the airport, a player's bank, a
+ * capital programme, a city place) or its business kind, else its room.
+ */
+export function crowdKeyOf(placeId: string, room: CrowdKey, kind?: string): CrowdKey {
+  if (placeId === 'airport') return 'travellers';
+  if (placeId.startsWith('playerbank:')) return 'bank';
+  if (placeId.startsWith('cap:')) return 'cohort';
+  if (placeId.startsWith('civic:')) return CIVIC_CROWD[placeId.split(':')[2] ?? ''] ?? room;
+  return (kind && KIND_CROWD[kind]) || room;
+}
+
+const BUSY: Partial<Record<CrowdKey, Busy>> = {
   club: [
     [22, 4, 16],
     [19, 22, 11],
@@ -136,13 +204,77 @@ const BUSY: Partial<Record<RoomKind, Busy>> = {
     [0, 5, 2],
     [0, 24, 4],
   ],
+  // Things to do: evenings and weekends' crowd, a few by day.
+  cinema: [
+    [18, 24, 6],
+    [12, 18, 4],
+    [0, 24, 2],
+  ],
+  arcade: [
+    [17, 23, 5],
+    [12, 17, 4],
+    [0, 24, 2],
+  ],
+  spa: [
+    [10, 19, 3],
+    [0, 24, 1],
+  ],
+  beach: [
+    [11, 19, 5],
+    [19, 23, 4],
+    [0, 24, 2],
+  ],
+  pitch: [
+    [17, 21, 5],
+    [8, 17, 3],
+    [0, 24, 1],
+  ],
+  gallery: [
+    [10, 21, 2],
+    [0, 24, 1],
+  ],
+  fun: [
+    [9, 19, 2],
+    [0, 24, 1],
+  ],
+  // Customers waiting their turn, shoppers in a showroom.
+  waiting: [
+    [9, 19, 2],
+    [0, 24, 1],
+  ],
+  shoppers: [
+    [10, 19, 2],
+    [0, 24, 1],
+  ],
+  // The city's institutions: the trading floor, the members' club, the founders' desks.
+  trading: [
+    [9, 17, 7],
+    [0, 24, 2],
+  ],
+  members: [
+    [18, 24, 8],
+    [12, 18, 5],
+    [0, 24, 2],
+  ],
+  founders: [
+    [9, 22, 4],
+    [0, 24, 2],
+  ],
+  cohort: [
+    [9, 19, 3],
+    [0, 24, 1],
+  ],
+  travellers: [
+    [6, 22, 3],
+    [0, 24, 2],
+  ],
 };
 
 /**
  * How many people a room holds at an hour (players and AI people together).
  * `hour` is the city's local hour, 0–24.
  */
-export function venueTarget(room: RoomKind, hour: number): number {
+export function venueTarget(room: CrowdKey, hour: number): number {
   const h = ((Math.floor(hour) % 24) + 24) % 24;
   const between = (a: number, b: number) => (a <= b ? h >= a && h < b : h >= a || h < b);
   return BUSY[room]?.find(([a, b]) => between(a, b))?.[2] ?? 0;
@@ -152,7 +284,7 @@ export function venueTarget(room: RoomKind, hour: number): number {
 export const aiFill = (target: number, real: number) => Math.max(0, target - Math.max(0, real));
 
 /** Rooms that get a named crowd, and who goes there (weights by role). */
-const MIX: Partial<Record<RoomKind, Partial<Record<CrowdRole, number>>>> = {
+const MIX: Partial<Record<CrowdKey, Partial<Record<CrowdRole, number>>>> = {
   club: { founder: 3, employee: 4, owner: 2, investor: 1.5, banker: 1 },
   bar: { founder: 3, employee: 3, owner: 2, investor: 2, banker: 1.5 },
   lounge: { founder: 2, employee: 2, owner: 2, investor: 3, banker: 2 },
@@ -166,6 +298,20 @@ const MIX: Partial<Record<RoomKind, Partial<Record<CrowdRole, number>>>> = {
   bank: { banker: 3, owner: 4, founder: 2 },
   investor: { founder: 5, investor: 1 },
   gym: { founder: 2, employee: 4, owner: 1, banker: 1 },
+  cinema: { employee: 4, founder: 2, owner: 1, investor: 1 },
+  arcade: { employee: 4, founder: 2, owner: 1 },
+  spa: { investor: 2, owner: 2, banker: 1, founder: 1, employee: 1 },
+  beach: { employee: 3, founder: 2, investor: 2, owner: 2 },
+  pitch: { employee: 5, founder: 2, banker: 1 },
+  gallery: { investor: 2, founder: 2, owner: 2 },
+  fun: { employee: 3, founder: 2, investor: 2, owner: 1 },
+  waiting: { employee: 3, owner: 1, founder: 1 },
+  shoppers: { employee: 2, owner: 2, founder: 1, banker: 1 },
+  trading: { banker: 4, investor: 4 },
+  members: { investor: 4, owner: 3, banker: 2, founder: 1 },
+  founders: { founder: 6, employee: 2 },
+  cohort: { founder: 6, employee: 1, investor: 1 },
+  travellers: { investor: 3, founder: 3, banker: 2, owner: 1 },
 };
 /**
  * Everyone in the city who can be out and about, by role, from the world:
@@ -230,7 +376,7 @@ export function crowdPool(view: View): CrowdPerson[] {
 
 export interface CrowdVenue {
   id: string;
-  room: RoomKind;
+  room: CrowdKey;
 }
 
 /**
@@ -265,7 +411,8 @@ export function whereIs(
 export interface CrowdQuery {
   /** The place id (`biz:<id>`, `hub`, `lender:<id>`, `fund:<id>`, `eventhall`…). */
   placeId: string;
-  room: RoomKind;
+  /** The room (or a crowd profile); a place with its own profile uses that (`crowdKeyOf`). */
+  room: CrowdKey;
   /** The city's local hour (0–24). */
   hour: number;
   /** Real players here now. */
@@ -281,13 +428,26 @@ export function crowdVenues(view: View): CrowdVenue[] {
     { id: 'eventhall', room: 'eventhall' },
     ...businessesOf(view)
       .filter((b) => b.open)
-      .map((b) => ({ id: `biz:${b.id}`, room: businessRoom(b.kind, b.look.shape) })),
+      .map((b) => ({
+        id: `biz:${b.id}`,
+        room: crowdKeyOf(`biz:${b.id}`, businessRoom(b.kind, b.look.shape), b.kind),
+      })),
     ...lendersOf(view)
       .filter((l) => !l.fallback)
       .map((l) => ({ id: `lender:${l.id}`, room: 'bank' as RoomKind })),
     ...view.market.funds
       .filter((f) => f.market === view.market.id)
-      .map((f) => ({ id: `fund:${f.id}`, room: 'investor' as RoomKind })),
+      .map((f) => ({ id: `fund:${f.id}`, room: 'investor' as CrowdKey })),
+    // The airport, players' banks, the capital programmes and the city places with a crowd.
+    { id: 'airport', room: 'travellers' },
+    ...(view.market.banks ?? []).map((b) => ({
+      id: `playerbank:${b.id}`,
+      room: 'bank' as CrowdKey,
+    })),
+    ...capitalIds(view).map((id) => ({ id: `cap:${id}`, room: 'cohort' as CrowdKey })),
+    ...(view.market.cityPlaces?.places ?? [])
+      .filter((p) => CIVIC_CROWD[p.role])
+      .map((p) => ({ id: `civic:${p.id}`, room: CIVIC_CROWD[p.role]! })),
   ];
   return out.sort((a, b) => (a.id < b.id ? -1 : 1));
 }
@@ -296,7 +456,11 @@ export function crowdVenues(view: View): CrowdVenue[] {
  * The named AI people in a place now. Deterministic for the world, the
  * place and the hour; shrinks as real players come in.
  */
-export function crowdAt(view: View, q: CrowdQuery, pool = crowdPool(view)): CrowdPerson[] {
+export function crowdAt(view: View, q0: CrowdQuery, pool = crowdPool(view)): CrowdPerson[] {
+  const kind = q0.placeId.startsWith('biz:')
+    ? businessesOf(view).find((b) => `biz:${b.id}` === q0.placeId)?.kind
+    : undefined;
+  const q = { ...q0, room: crowdKeyOf(q0.placeId, q0.room, kind) };
   const mix = MIX[q.room];
   if (!mix) return [];
   const want = aiFill(venueTarget(q.room, q.hour), q.real);
@@ -375,6 +539,16 @@ function regularsAt(
     });
   }
   return out;
+}
+
+/** The accelerators, development partners and LPs in the view's city (their ids). */
+function capitalIds(view: View): string[] {
+  const m = view.market as unknown as Record<string, unknown>;
+  return ['accelerators', 'devPartners', 'lps'].flatMap((k) =>
+    Array.isArray(m[k])
+      ? (m[k] as { id?: unknown }[]).flatMap((x) => (typeof x.id === 'string' ? [x.id] : []))
+      : [],
+  );
 }
 
 /** How many regulars each venue has to itself in the pool. */

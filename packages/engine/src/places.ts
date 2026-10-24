@@ -20,6 +20,14 @@
  * to that city stop counting against the monthly limit), network, skills,
  * health and needs. Fees go to the city's tax or supplier accounts.
  *
+ * The feedback round (`feedbackOn`) adds more to each place (`PlaceSpec.more`):
+ * a public consultation, a policy-rate briefing, the Chamber's members'
+ * directory and the Embassy's trade attaché (sales leads), watching a case
+ * at the High Court, the Tax Office's filing check and clinic, visiting
+ * investor delegations, peer feedback, the members' club's angels, LP
+ * meetings, a doctor when you're unwell, a careers fair (graduates for an
+ * open role) and a guest lecture. Worlds without the note see none of them.
+ *
  * The game clock: a market's month is `m.month`, and the time inside it is
  * how far the real clock is through the current period (`m.settledAt`,
  * `m.monthMs`), as 30 days of 24 hours. An extra month from the dev tools
@@ -43,10 +51,21 @@ import { LIFESTYLE_TIERS, SKILLS, type Skill } from './data/characters.js';
 import { ensure, fail } from './errors.js';
 import { col, getMarket, locationOf, notify, spendHours } from './helpers.js';
 import { account, payExact, transfer } from './ledger.js';
-import { applyBars, barsApply } from './lifebars.js';
+import { applyBars, barsApply, healthOf } from './lifebars.js';
 import { scale } from './money.js';
 import { bumpNeed } from './needs.js';
-import { bankersOn } from './releases.js';
+import { COURT_CASES, CONSULTATIONS, TAX_QA } from './data/errands.js';
+import {
+  addNetwork,
+  addSkill,
+  foundedIn,
+  investorsToMeet,
+  learnFromCustomers,
+  meetInvestors,
+  salesLeadsFor,
+} from './errands.js';
+import { HIRING, sourceCandidates } from './hiring.js';
+import { bankersOn, feedbackOn } from './releases.js';
 import { deriveRng } from './rng.js';
 import { WORK } from './work.js';
 import type {
@@ -282,6 +301,20 @@ const FILINGS: ReadonlySet<PlaceService> = new Set([
   'one-stop',
 ]);
 
+/** What a place does: its services, and from the feedback note what `more` it has. */
+export const servicesOf = (world: World, role: PlaceRole): readonly PlaceService[] => {
+  const spec = PLACE_SPECS[role];
+  return feedbackOn(world) && spec.more ? [...spec.services, ...spec.more] : spec.services;
+};
+
+/** The open role a careers fair fills: your company's first with CVs still to read. */
+function fairRole(c: Company) {
+  return (
+    (c.hiring?.roles ?? []).find((r) => r.status === 'open' && r.sourced < HIRING.maxSources) ??
+    null
+  );
+}
+
 const usedKey = (place: CityPlace, s: PlaceService, extra?: string) =>
   `${place.id}:${s}${extra ? `:${extra}` : ''}`;
 
@@ -294,6 +327,8 @@ export function hasVisa(world: World, p: Player, to: MarketId): boolean {
 export interface ServiceArgs {
   companyId?: string;
   to?: MarketId;
+  /** A public consultation: your vote. */
+  vote?: 'for' | 'against';
 }
 
 /** What a service would do for you here and now, or why it can't (no side effects). */
@@ -322,7 +357,7 @@ function serviceCheck(
   let rule: RuleCard | null = null;
   const out = (reason: string | null) => ({ ok: !reason, reason, hours, fee, company, rule });
 
-  if (FILINGS.has(service) || service === 'incentive') {
+  if (FILINGS.has(service) || service === 'incentive' || service === 'careers-fair') {
     const list = companiesIn(world, p, place.market);
     company = (args.companyId ? list.find((c) => c.id === args.companyId) : list[0]) ?? null;
     if (!company) return out('You need a company in this city.');
@@ -346,6 +381,11 @@ function serviceCheck(
   }
   if (service === 'incentive' && mine?.used[usedKey(place, service, company!.id)] !== undefined)
     return out('Your company has had its incentive.');
+  if (service === 'careers-fair' && !fairRole(company!))
+    return out('Open a role on the Hiring screen first.');
+  if (service === 'lp-meetings' && !p.investor) return out('For investors who manage money.');
+  if (service === 'sick-care' && healthOf(p) >= PLACES.more.unwell)
+    return out('You’re well. Come in when you’re unwell.');
   if (service === 'visa') {
     if (!args.to) return out('Pick where you want a visa for.');
     if (args.to === p.market || !world.markets[args.to]) return out('Pick another open city.');
@@ -380,7 +420,11 @@ export function useService(
   const place = findPlace(id);
   ensure(place, 'place.missing', 'That place isn’t in town.');
   const spec = PLACE_SPECS[place.role];
-  ensure(spec.services.includes(service), 'place.service', 'They don’t do that here.');
+  ensure(
+    servicesOf(world, place.role).includes(service),
+    'place.service',
+    'They don’t do that here.',
+  );
   const access = placeAccess(world, p, place, now);
   if (!access.ok)
     switch (access.why) {
@@ -404,7 +448,13 @@ export function useService(
   const home = getMarket(world, p.market);
   const sspec = SERVICE_SPECS[service];
   if (check.hours) spendHours(p, check.hours, sspec.label);
-  const ext = service === 'club-dinner' || service === 'check-up' ? 'suppliers' : 'tax';
+  const ext =
+    service === 'club-dinner' ||
+    service === 'check-up' ||
+    service === 'meet-members' ||
+    service === 'sick-care'
+      ? 'suppliers'
+      : 'tax';
   if (check.fee && !FILINGS.has(service))
     payExact(
       world,
@@ -421,6 +471,7 @@ export function useService(
   const appt = liveAppointment(p, place, nowMin);
   if (appt) appt.attended = true;
   const fx: Record<string, number> = {};
+  const extra: Record<string, unknown> = {};
   let message: string;
   switch (service) {
     case 'tax-registration':
@@ -485,8 +536,168 @@ export function useService(
       message = 'A clean bill of health.';
       break;
     }
+    default: {
+      const more = moreService(world, p, place, service, args);
+      Object.assign(fx, more.fx);
+      Object.assign(extra, more.out);
+      message = more.message;
+    }
   }
-  return { message, service, placeId: place.id, effects: fx, hours: check.hours, fee: check.fee };
+  return {
+    message,
+    service,
+    placeId: place.id,
+    effects: fx,
+    hours: check.hours,
+    fee: check.fee,
+    ...extra,
+  };
+}
+
+/**
+ * The feedback round's services (`PlaceSpec.more`). Draws come from the
+ * 'places' RNG label keyed by the service, the player and the month, so
+ * nothing else's draws shift.
+ */
+function moreService(
+  world: World,
+  p: Player,
+  place: CityPlace,
+  service: PlaceService,
+  args: ServiceArgs,
+): { fx: Record<string, number>; out: Record<string, unknown>; message: string } {
+  const m = getMarket(world, place.market);
+  const month = m.month;
+  const rng = deriveRng(world.seed, 'places', service, p.id, place.id, month);
+  const company = foundedIn(world, p, place.market)[0];
+  const fx: Record<string, number> = {};
+  const out: Record<string, unknown> = {};
+  const M = PLACES.more;
+  switch (service) {
+    case 'consultation': {
+      const c = CONSULTATIONS[month % CONSULTATIONS.length]!;
+      const vote = args.vote ?? 'for';
+      // How the city's other voices split (seeded), and where your vote leaves it.
+      const forPct = Math.round(rng.range(30, 70));
+      fx.network = addNetwork(p, M.network);
+      out.consultation = { id: c.id, proposal: c.proposal, vote, forPct };
+      return { fx, out, message: `You voted ${vote} the proposal: ${c.proposal}` };
+    }
+    case 'rate-briefing': {
+      fx.finance = addSkill(p, 'finance', PLACES.skill);
+      out.rateBps = m.data.baseRateBps;
+      return { fx, out, message: `The policy rate is ${(m.data.baseRateBps / 100).toFixed(2)}%.` };
+    }
+    case 'directory':
+    case 'trade-attache': {
+      const leads = company
+        ? salesLeadsFor(
+            world,
+            company,
+            rng,
+            service === 'directory' ? rng.int(...M.directoryLeads) : 1,
+            service === 'trade-attache' ? M.exportBudget : 1,
+          )
+        : [];
+      fx.network = addNetwork(p, M.network);
+      out.leads = leads;
+      return {
+        fx,
+        out,
+        message: leads.length
+          ? `New leads: ${leads.map((l) => l.name).join(', ')}.`
+          : 'You met people worth knowing.',
+      };
+    }
+    case 'watch-case': {
+      const c = rng.pick(COURT_CASES);
+      fx.negotiation = addSkill(p, 'negotiation', PLACES.skill);
+      out.case = c;
+      return { fx, out, message: `${c.title}. ${c.ruling}` };
+    }
+    case 'filing-check': {
+      const registered = company
+        ? rulesFor(company.market, company.industry)
+            .filter((r) => r.id.endsWith('.tax-registration'))
+            .every((r) => company.compliance[r.id])
+        : null;
+      const last = company?.finance.history[company.finance.history.length - 1];
+      out.check = {
+        company: company?.name ?? null,
+        registered,
+        taxPaid: last?.tax ?? null,
+        rate: m.data.tax.corporate,
+      };
+      if (barsApply(world, p)) Object.assign(fx, applyBars(p, { stress: M.checkStress }));
+      return { fx, out, message: 'Your filings are checked.' };
+    }
+    case 'tax-clinic': {
+      const qa = rng.pick(TAX_QA);
+      fx.finance = addSkill(p, 'finance', PLACES.skill);
+      out.qa = qa;
+      return { fx, out, message: `${qa.q} ${qa.a}` };
+    }
+    case 'delegation':
+    case 'meet-members': {
+      const met = meetInvestors(
+        world,
+        p,
+        investorsToMeet(world, place.market, {
+          angels: service === 'meet-members',
+          visiting: service === 'delegation',
+        }),
+        M.meet,
+        M.warmth,
+        month,
+        rng,
+      );
+      fx.network = addNetwork(p, M.network);
+      out.met = met;
+      return {
+        fx,
+        out,
+        message: met.length
+          ? `You met ${met.map((x) => `${x.name} (${x.org})`).join(' and ')}.`
+          : 'Nobody new this time.',
+      };
+    }
+    case 'peer-feedback': {
+      const learned = company ? learnFromCustomers(world, company, M.peerDiscovery) : null;
+      fx.product = addSkill(p, 'product', 1);
+      out.learned = learned ? { company: company!.name, ...learned } : null;
+      return { fx, out, message: 'Other founders went through what you’re building.' };
+    }
+    case 'lp-meetings': {
+      const inv = p.investor!;
+      const before = inv.lpCredibility;
+      inv.lpCredibility = Math.min(1, before + M.lpCredibility);
+      fx.lpCredibility = Math.round((inv.lpCredibility - before) * 1000) / 1000;
+      fx.network = addNetwork(p, 2);
+      return { fx, out, message: 'You met the family offices’ LPs.' };
+    }
+    case 'sick-care': {
+      if (barsApply(world, p))
+        Object.assign(fx, applyBars(p, { health: M.care.health, stress: M.care.stress }));
+      const e = p.energy;
+      p.energy = Math.min(100, e + M.care.energy);
+      fx.energy = Math.round(p.energy - e);
+      return { fx, out, message: 'The doctor saw you: rest, and you’ll be fine.' };
+    }
+    case 'careers-fair': {
+      const c = foundedIn(world, p, place.market)[0]!;
+      const role = fairRole(c)!;
+      const r = sourceCandidates(world, c, p, role.id, month);
+      out.candidates = r.candidateIds.length;
+      out.role = role.role;
+      return { fx, out, message: `${r.candidateIds.length} graduates applied.` };
+    }
+    case 'guest-lecture':
+    default: {
+      fx.leadership = addSkill(p, 'leadership', PLACES.skill);
+      fx.network = addNetwork(p, M.network);
+      return { fx, out, message: 'A guest lecture by a founder who built something big.' };
+    }
+  }
 }
 
 // ---------------------------------------------------------------- The view
@@ -531,7 +742,7 @@ export function cityPlacesView(world: World, p: Player, m: MarketState, now: num
             }
           : null,
         book: booking,
-        services: spec.services.map((s) => {
+        services: servicesOf(world, place.role).map((s) => {
           const c = serviceCheck(world, p, place, s);
           return {
             id: s,

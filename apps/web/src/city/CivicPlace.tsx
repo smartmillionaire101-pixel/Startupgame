@@ -6,10 +6,14 @@
  * opens it (a members' gate), or its appointment (government offices see
  * residents by appointment: book one here, come back at the time). Inside,
  * the tray and the cards offer what the place does (`place.use`).
+ *
+ * The feedback round adds more to do in each (a public consultation to vote
+ * in, a case to watch, a tax clinic, SME and export leads, investors to
+ * meet…), and the Stock Exchange's live price board.
  */
 import { useState } from 'react';
 import './civic.css';
-import type { Command, PlayerView } from '@runway/engine';
+import { CONSULTATIONS, type Command, type PlayerView } from '@runway/engine';
 import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
@@ -83,9 +87,75 @@ function closedText(e: CivicView, now: When | null): { why: string; unlock: stri
   }
 }
 
+/** What a feedback-round service did, from its result's fields. */
+type MoreResult = {
+  consultation?: { forPct: number; vote: string };
+  rateBps?: number;
+  leads?: { name: string }[];
+  case?: { title: string; ruling: string; lesson: string };
+  check?: { company: string | null; registered: boolean | null };
+  qa?: { q: string; a: string };
+  met?: { name: string; org: string }[];
+  candidates?: number;
+} | null;
+
+function moreText(id: string, r: MoreResult): string | null {
+  switch (id) {
+    case 'consultation':
+      return t('Your vote is in: {pct}% of responses so far back the proposal.', {
+        pct: r?.consultation?.forPct ?? 50,
+      });
+    case 'rate-briefing':
+      return t('The policy rate is {rate}%. You read the money markets better.', {
+        rate: ((r?.rateBps ?? 0) / 100).toFixed(2),
+      });
+    case 'directory':
+    case 'trade-attache':
+      return r?.leads?.length
+        ? t('New leads in your pipeline: {names}.', {
+            names: r.leads.map((l) => l.name).join(', '),
+          })
+        : t('You met people worth knowing.');
+    case 'watch-case':
+      return r?.case
+        ? `${tx(r.case.title)}. ${tx(r.case.ruling)} ${t('Lesson: {lesson}', { lesson: tx(r.case.lesson) })}`
+        : null;
+    case 'filing-check':
+      return !r?.check?.company
+        ? t('Your personal filings are in order.')
+        : r.check.registered
+          ? t('{company} is registered for tax and its filings are up to date.', {
+              company: r.check.company,
+            })
+          : t('{company} isn’t registered for tax yet: register here first.', {
+              company: r.check.company,
+            });
+    case 'tax-clinic':
+      return r?.qa ? `${tx(r.qa.q)} ${tx(r.qa.a)}` : null;
+    case 'delegation':
+    case 'meet-members':
+      return r?.met?.length
+        ? t('You met {names}.', { names: r.met.map((m) => `${m.name} (${m.org})`).join(', ') })
+        : t('Nobody new this time.');
+    case 'peer-feedback':
+      return t('Other founders went through what you’re building.');
+    case 'lp-meetings':
+      return t('You met the family offices’ LPs: they’ll remember your fund.');
+    case 'sick-care':
+      return t('The doctor saw you: rest, and you’ll be fine.');
+    case 'careers-fair':
+      return t('{n} graduates applied for your open role.', { n: r?.candidates ?? 0 });
+    case 'guest-lecture':
+      return t('A guest lecture by a founder who built something big.');
+    default:
+      return null;
+  }
+}
+
 /** What each service did, in words (the engine's own line is English). */
-const doneText = (id: string) =>
-  ({
+const doneText = (id: string, r: MoreResult = null) =>
+  moreText(id, r) ??
+  {
     roundtable: t('You spoke at the policy roundtable and met people worth knowing.'),
     'payments-licence': t('Your payments licence is filed.'),
     'fund-licence': t('You are a licensed fund manager now.'),
@@ -102,7 +172,8 @@ const doneText = (id: string) =>
     'floor-briefing': t('A morning on the trading floor: you read the market better.'),
     'check-up': t('A clean bill of health.'),
     'evening-class': t('An evening class: your weakest skill is a little stronger.'),
-  })[id] ?? t('Done.');
+  }[id] ??
+  t('Done.');
 
 const serviceIcon = (id: string) =>
   ({
@@ -122,6 +193,20 @@ const serviceIcon = (id: string) =>
     'floor-briefing': '📈',
     'check-up': '🩺',
     'evening-class': '🎓',
+    consultation: '🗳',
+    'rate-briefing': '📉',
+    directory: '📇',
+    'watch-case': '⚖️',
+    'filing-check': '🧾',
+    'tax-clinic': '❓',
+    'trade-attache': '🌍',
+    delegation: '🤝',
+    'peer-feedback': '💬',
+    'meet-members': '🥂',
+    'lp-meetings': '🏛',
+    'sick-care': '🩺',
+    'careers-fair': '🎓',
+    'guest-lecture': '🎙',
   })[id] ?? '✨';
 
 /** One line under a service: hours, fee (yours or the company's) and the filing. */
@@ -142,7 +227,9 @@ type Send = ReturnType<typeof useView>['send'];
 
 /** Do one of a place's services (`place.use`); the toast says what it did. */
 const runService = (send: Send, e: CivicView, s: Service, extra: Record<string, unknown> = {}) =>
-  send(cmd({ type: 'place.use', placeId: e.id, service: s.id, ...extra }), () => doneText(s.id));
+  send(cmd({ type: 'place.use', placeId: e.id, service: s.id, ...extra }), (r: MoreResult) =>
+    doneText(s.id, r),
+  );
 
 function useCivic() {
   const { view, send, busy } = useView();
@@ -174,7 +261,8 @@ export function civicTray(
     sub: s.ok ? serviceSub(s, cur) : tx(s.reason ?? '') || serviceSub(s, cur),
     icon: serviceIcon(s.id),
     disabled: busy || (!s.ok && s.id !== 'visa'),
-    run: () => (s.id === 'visa' ? openMore() : runService(send, e, s)),
+    // A visa needs a city, a consultation your vote: both under More.
+    run: () => (s.id === 'visa' || s.id === 'consultation' ? openMore() : runService(send, e, s)),
   }));
 }
 
@@ -263,6 +351,8 @@ export function CivicInterior({ place }: { place: Place }) {
       <Appointment e={e} />
       {/* Bankers: the fit-and-proper interview for your licence. */}
       {e.role === 'central-bank' && <BankInterviewCard />}
+      {/* The feedback round: the floor's live price board. */}
+      {e.role === 'stock-exchange' && c.view.market.errands && <PriceBoard />}
       {e.services.map((s) => {
         const visa = s.id === 'visa' ? (s.options ?? []) : null;
         return (
@@ -281,16 +371,79 @@ export function CivicInterior({ place }: { place: Place }) {
               </label>
             )}
             {!s.ok && s.reason && <p className="small muted">{tx(s.reason)}</p>}
-            <Button
-              data-service={s.id}
-              disabled={c.busy || !s.ok || (!!visa && !to)}
-              onClick={() => void c.use(e, s, visa ? { to } : {})}
-            >
-              {tx(s.label)}
-            </Button>
+            {s.id === 'consultation' ? (
+              <Consultation e={e} s={s} />
+            ) : (
+              <Button
+                data-service={s.id}
+                disabled={c.busy || !s.ok || (!!visa && !to)}
+                onClick={() => void c.use(e, s, visa ? { to } : {})}
+              >
+                {tx(s.label)}
+              </Button>
+            )}
           </Card>
         );
       })}
     </div>
+  );
+}
+
+/** A public consultation: this month's proposal, and your vote. */
+function Consultation({ e, s }: { e: CivicView; s: Service }) {
+  const c = useCivic();
+  const month = c.now(e)?.month ?? 0;
+  const p = CONSULTATIONS[month % CONSULTATIONS.length]!;
+  return (
+    <div className="civic-vote">
+      <p data-proposal={p.id}>
+        <strong>{t('The proposal:')}</strong> {tx(p.proposal)}
+      </p>
+      <Button
+        data-vote="for"
+        disabled={c.busy || !s.ok}
+        onClick={() => void c.use(e, s, { vote: 'for' })}
+      >
+        {t('Vote for')}
+      </Button>
+      <Button
+        variant="secondary"
+        data-vote="against"
+        disabled={c.busy || !s.ok}
+        onClick={() => void c.use(e, s, { vote: 'against' })}
+      >
+        {t('Vote against')}
+      </Button>
+    </div>
+  );
+}
+
+/** The Stock Exchange's price board: the index and the listed companies, live. */
+function PriceBoard() {
+  const { view } = useView();
+  const city = view?.here?.id ?? view?.market.id;
+  const ex = (view?.exchange?.markets ?? []).find((x) => x.market === city);
+  const pct = (v: number) => `${v > 0 ? '▲' : v < 0 ? '▼' : '•'} ${Math.abs(v).toFixed(2)}%`;
+  return (
+    <Card
+      title={`📈 ${t('Live price board')}`}
+      sub={t('Traders on the floor watch these all day.')}
+    >
+      {!ex ? (
+        <p className="small muted">{t('The board lights up when the market opens.')}</p>
+      ) : (
+        <ul className="civic-board" data-price-board="">
+          <li>
+            <strong>{t('Index')}</strong> {ex.level.toFixed(2)} {pct(ex.changePct)}
+          </li>
+          {ex.listings.slice(0, 8).map((l) => (
+            <li key={l.companyId}>
+              {l.name} {money(Math.round(l.price), ex.currency)} {pct(l.changePct)}
+            </li>
+          ))}
+          {!ex.listings.length && <li className="muted">{t('No companies listed yet.')}</li>}
+        </ul>
+      )}
+    </Card>
   );
 }
