@@ -1,9 +1,10 @@
 /**
  * Invest: your holdings (stakes as an investor, the cap table as a founder),
  * deal flow in this city with one-tap `invest.quick`, and a ticker of the
- * city's companies whose moves follow the news.
+ * city's companies: real share prices where the city has a stock market,
+ * else moves that follow the news.
  */
-import { money, pct } from '../../format';
+import { money, moneyExact, pct } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button } from '../../ui';
@@ -59,11 +60,34 @@ export interface Ticker {
   price: number;
   change: number;
   news: boolean;
+  /** A real share price (fractions of a minor unit): shown to the penny. */
+  exact?: boolean;
 }
 
-/** City "stock" tickers: a price from the company's valuation, moved by the news. */
+const symbolOf = (name: string) =>
+  name
+    .replace(/[^A-Za-z]/g, '')
+    .slice(0, 4)
+    .toUpperCase();
+
+/**
+ * City tickers: the city's listed companies at their real share price and
+ * month's move; without a stock market, a price from the company's
+ * valuation, moved by the news.
+ */
 function tickersOf(view: View): Ticker[] {
   const city = cityViewOf(view).market;
+  const listed = (view.capital?.market ?? []).filter((x) => x.market === city.id);
+  if (listed.length > 0)
+    return listed.slice(0, 10).map((x) => ({
+      id: x.companyId,
+      symbol: symbolOf(x.name),
+      name: x.name,
+      price: x.price,
+      change: x.changePct,
+      news: x.analysis.news.some((n) => n.month >= x.analysis.historyEndMonth - 1),
+      exact: true,
+    }));
   const flow = new Map((dealFlowOf(view) ?? []).map((d) => [d.companyId, d.valuation]));
   const mine = new Map(
     view.companies.map((c) => [c.id, num((c.valuation as { value?: number } | null)?.value)]),
@@ -94,10 +118,7 @@ function tickersOf(view: View): Ticker[] {
       const change = Math.round(((h % 121) / 10 - 6 + buzz * 4.5) * 10) / 10;
       return {
         id: c.id,
-        symbol: c.name
-          .replace(/[^A-Za-z]/g, '')
-          .slice(0, 4)
-          .toUpperCase(),
+        symbol: symbolOf(c.name),
         name: c.name,
         // One share in a thousand-share float, as a readable price.
         price: Math.max(100, Math.round(value / 1000)),
@@ -121,7 +142,12 @@ export function Invest(_: { ctx: PhoneCtx }) {
             {tickers.map((x) => (
               <li key={x.id} title={x.name}>
                 <span className="phone-ticker-sym">{x.symbol || '—'}</span>
-                <span>{money(x.price, cityViewOf(view).market.currency)}</span>
+                <span>
+                  {(x.exact ? moneyExact : money)(
+                    Math.round(x.price),
+                    cityViewOf(view).market.currency,
+                  )}
+                </span>
                 <span className={x.change >= 0 ? 'good' : 'bad'}>
                   {x.change >= 0 ? '▲' : '▼'} {Math.abs(x.change).toFixed(1)}%
                 </span>

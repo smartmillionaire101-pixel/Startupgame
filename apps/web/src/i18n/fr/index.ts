@@ -86,6 +86,7 @@ import { capitalExit } from './capital-exit';
 import { firstFund } from './first-fund';
 import { bankers } from './bankers';
 import { bankwork } from './bankwork';
+import { stocks } from './stocks';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -175,6 +176,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   bankers,
   bankwork,
   firstClass,
+  stocks,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));
