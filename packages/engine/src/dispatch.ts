@@ -293,6 +293,7 @@ import {
   setHibernation,
 } from './rescue.js';
 import { createCompany, createPlayer, openMarket, setCogs, welcomeNewPlayer } from './world.js';
+import { scoreFirstCall, scoreScreen, scoreTerms } from './investorguide.js';
 import type { DealTerms, Id, PartyRef, Player, World } from './types.js';
 import type { MarketId } from './data/markets.js';
 import {
@@ -940,6 +941,15 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     // ------------------------------------------------------------ investor
     case 'invest.propose': {
       spendHours(me, 2, 'Writing a term sheet');
+      // Feedback round: the price and the cheque scored before the founder answers.
+      const calls = scoreTerms(
+        world,
+        me,
+        getCompany(world, cmd.companyId),
+        cmd.amount,
+        cmd.valuation,
+        !(cmd.fromFund && (cmd.fundId ?? me.investor?.fundId)),
+      );
       const deal = proposeInvestment(world, {
         investorId: me.id,
         companyId: cmd.companyId,
@@ -955,7 +965,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         },
       });
       me.skills.investing = Math.min(100, me.skills.investing + 0.5);
-      return { dealId: deal.id, status: deal.status, summary: deal.summary };
+      return {
+        dealId: deal.id,
+        status: deal.status,
+        summary: deal.summary,
+        ...(calls.length ? { calls } : {}),
+      };
     }
     case 'invest.diligence': {
       const c = getCompany(world, cmd.companyId);
@@ -976,7 +991,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       me.diligence[c.id] = cmd.depth;
       me.skills.investing = Math.min(100, me.skills.investing + 1);
       me.skills.risk = Math.min(100, me.skills.risk + 0.5);
+      // Feedback round: taking the call is a screening decision, and what you ask first is scored.
+      const screen = cmd.depth === 1 ? scoreScreen(world, me, c, 'call') : null;
+      const call = cmd.depth === 1 && cmd.ask ? scoreFirstCall(world, me, c, cmd.ask) : null;
       return {
+        ...(screen ? { screen } : {}),
+        ...(call ? { call } : {}),
         message:
           cmd.depth === 1
             ? 'First call done: revenue, customers and burn unlocked.'
@@ -1390,8 +1410,14 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return pipelineAdd(world, me, cmd.companyId, !!cmd.watch);
     case 'pipeline.watch':
       return pipelineWatch(world, me, cmd.companyId, cmd.on);
-    case 'pipeline.pass':
-      return pipelinePass(world, me, cmd.companyId, cmd.reason);
+    case 'pipeline.pass': {
+      // Feedback round: the pass and its reason scored against the company's numbers.
+      const screen = scoreScreen(world, me, getCompany(world, cmd.companyId), cmd.reason);
+      return {
+        ...pipelinePass(world, me, cmd.companyId, cmd.reason),
+        ...(screen ? { screen } : {}),
+      };
+    }
     case 'diligence.claim':
       return checkClaim(world, me, cmd.companyId, cmd.questionId);
     case 'diligence.references':

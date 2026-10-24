@@ -13,7 +13,7 @@ import { STARTER_EXPENSE_IDS } from './data/ideas.js';
 import { PLACE_SERVICES } from './data/places.js';
 import { ERRAND_IDS, STANDUP_FOCUS } from './data/errands.js';
 import { MANDATE_KINDS, TALK_TOPICS } from './data/bankwork.js';
-import { PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
+import { FIRST_CALL_ASKS, PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
 import { REMOVABLE, lookSchema } from './appearance.js';
 
 const id = z.string().min(1).max(64);
@@ -261,6 +261,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('invest.diligence'),
     companyId: id,
     depth: z.union([z.literal(1), z.literal(2)]),
+    /** Feedback round: on a first call, what you ask first (scored, investorguide.ts). */
+    ask: z.enum(FIRST_CALL_ASKS).optional(),
   }),
   z.object({
     type: z.literal('fund.raise'),

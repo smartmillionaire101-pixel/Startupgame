@@ -30,7 +30,7 @@ test('a new investor makes a first cheque in the first session, sees the ladder 
 
   // The café's three startups: shortlist one, a first call, a small SAFE.
   await page.locator('[data-pick]').first().getByRole('button', { name: 'Shortlist' }).click();
-  await page.getByRole('button', { name: /First call with/ }).click();
+  await page.getByRole('button', { name: 'How fast are you growing?' }).click();
   await page.getByRole('button', { name: 'Send the SAFE (2h)' }).click();
   await expect(page.getByText(/Accepted. You’re in./)).toBeVisible();
 

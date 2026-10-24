@@ -22,9 +22,15 @@ test('an investor screens an AI startup, does diligence and writes a first chequ
   await expect(page.getByText(/wants to pitch you/).first()).toBeVisible();
   await page.getByRole('button', { name: 'Deal offers' }).click();
   await page.getByRole('button', { name: 'Open' }).first().click();
-  await page.getByRole('button', { name: 'First call (4h)' }).click();
+  // The first call is a decision: what you ask first (scored against their numbers).
+  await page.getByRole('button', { name: 'How long does your money last?' }).click();
   await expect(page.getByText('Diligence · level 1')).toBeVisible();
-  await page.getByRole('button', { name: 'Send term sheet (2h)' }).click();
+  await expect(page.locator('.ig-scored [data-decision="first-call"]')).toBeVisible();
+  // A cheque over a tenth of your money asks first: invest anyway.
+  await page
+    .getByRole('button', { name: 'Send term sheet (2h)' })
+    .or(page.getByRole('button', { name: 'Invest anyway' }))
+    .click();
   await expect(
     page.getByText(/Accepted. You’re in.|Term sheet sent.|They walked away./),
   ).toBeVisible();

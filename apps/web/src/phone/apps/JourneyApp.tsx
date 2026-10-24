@@ -8,6 +8,7 @@ import { RecapButton } from '../../recap/Recap';
 import { useView } from '../../store';
 import { journeyOf } from '../../city/journey';
 import { CareerLadder, InvestorPrompts, careerOf } from '../../screens/InvestorCareer';
+import { InvestorStageCard } from '../../screens/InvestorGuide';
 
 export function JourneyApp({ ctx }: { ctx: PhoneCtx }) {
   const nav = useNav();
@@ -34,7 +35,8 @@ export function JourneyApp({ ctx }: { ctx: PhoneCtx }) {
     <div className="phone-stack">
       <RecapButton onOpen={ctx.close} />
       <JourneyPanel onGo={go} />
-      {/* Investors: the ladder behind the later chapters. */}
+      {/* Investors: the stage tracker, and the ladder behind the later chapters. */}
+      {journeyOf(view)?.kind === 'investor' && <InvestorStageCard onGo={go} />}
       {journeyOf(view)?.kind === 'investor' && careerOf(view) && <CareerLadder compact />}
     </div>
   );

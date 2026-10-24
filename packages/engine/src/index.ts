@@ -166,6 +166,16 @@ export {
   type StrategyCheck,
 } from './lpreview.js';
 export { LESSONS, DEALFLOW } from './data/dealflow.js';
+// The investor guide: stages, live cheque checks and scored decisions (feedback round).
+export {
+  GUIDE,
+  INVESTOR_STAGES,
+  investChecks,
+  chequeGuide,
+  type InvestCheck,
+  type InvestCheckInput,
+  type InvestorStage,
+} from './investorguide.js';
 // A realistic first fund: suggested size, first-time-manager LPs, anchor, rolling closes.
 export { suggestFundSize, type SuggestedSize, type FirstFundRecord } from './firstfund.js';
 export { FIRST_FUND } from './data/investor.js';

@@ -12,6 +12,7 @@ import { businessesOf } from './contract';
 import { homeOf, venueItemsOf } from './life';
 import { suggestionsFor } from './whatnow';
 import { suggestionText } from './WhatNowCards';
+import { guideObjective } from '../screens/investorGuideCopy';
 
 export type Journey = NonNullable<PlayerView['journey']>;
 type JourneyChapterView = Journey['chapters'][number];
@@ -648,14 +649,19 @@ function personalCandidates(view: PlayerView): Objective[] {
 /** The three prompts (any may be null when nothing fits or all were dismissed). */
 export function objectivesFor(view: PlayerView): Record<ObjectiveKind, Objective | null> {
   const j = journeyOf(view);
-  const main: Objective[] = (j?.main ?? []).map((s) => ({
-    kind: 'main',
-    id: s.id,
-    icon: '🚩',
-    ...stepCopy(s),
-    go: s.go,
-    chapter: s.chapter,
-  }));
+  // Investors: the stage tracker's next step comes first (one "what to do now", investor guide).
+  const guide = guideObjective(view);
+  const main: Objective[] = [
+    ...(guide ? [guide] : []),
+    ...(j?.main ?? []).map((s): Objective => ({
+      kind: 'main',
+      id: s.id,
+      icon: '🚩',
+      ...stepCopy(s),
+      go: s.go,
+      chapter: s.chapter,
+    })),
+  ];
   const pinned = j?.pinned ?? {};
   const dismissed = j?.dismissed ?? {};
   return {

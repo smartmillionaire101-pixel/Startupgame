@@ -2039,6 +2039,25 @@ export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 export const PASS_REASONS = ['team', 'market', 'traction', 'price', 'fit', 'timing'] as const;
 export type PassReason = (typeof PASS_REASONS)[number];
 
+/** What an investor asks first on a first call (feedback round, investorguide.ts). */
+export const FIRST_CALL_ASKS = ['growth', 'burn', 'customers', 'team'] as const;
+export type FirstCallAsk = (typeof FIRST_CALL_ASKS)[number];
+
+/**
+ * One scored investing decision (feedback round, investorguide.ts): the
+ * player's choice against the best call for the company's real numbers.
+ * `values` are the numbers behind the best call, for the client's "why".
+ */
+export interface DecisionCall {
+  step: 'screen' | 'first-call' | 'valuation' | 'cheque';
+  choice: string;
+  best: string;
+  /** 1 the best call, ½ defensible, 0 a mistake. */
+  score: number;
+  month: number;
+  values: Record<string, number>;
+}
+
 export interface PipelineEntry {
   companyId: Id;
   stage: PipelineStage;
@@ -2056,6 +2075,8 @@ export interface PipelineEntry {
   references?: { month: number; signals: string[] };
   /** For watchlist nudges: the last round month seen. */
   seenRaise?: number;
+  /** Feedback round: scored decisions on this company, one per step (investorguide.ts). */
+  calls?: DecisionCall[];
 }
 
 /** Where a fund invests (deal-flow note): its home city, its country, or the region. */

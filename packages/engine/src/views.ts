@@ -7,6 +7,7 @@ import { firmView } from './firms.js';
 import { familyOfficeView, investorStakesView, stakeConsentsView } from './allocation.js';
 import { dealCraftView, offerComparisonView, redFlags, reviewableView } from './dealcraft.js';
 import { investorDealFlowView } from './dealflow.js';
+import { investorGuideView } from './investorguide.js';
 import { bankWorkView } from './bankwork.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
@@ -742,6 +743,8 @@ export function playerView(
      * investment tracks, the first session and three prompts.
      */
     investorCareer: careerView(world, p),
+    /** The investor guide: stage tracker, checklist and next step, mentor and scored decisions. */
+    investorGuide: investorGuideView(world, p),
     /** Bankers note: the negotiation, the licence tracker and checklist, and the first session. */
     banker: bankerView(world, p, clock?.now ?? p.lastActiveAt),
     /** Investor career Phase 2: every city's exchange, the index fund, your holdings and orders. */
