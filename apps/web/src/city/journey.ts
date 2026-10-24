@@ -128,82 +128,100 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
     case 'hustle.company':
       return {
         label: t('Start your company'),
-        why: t('Pick an idea, a name and how you’ll charge'),
+        why: t('Pick an idea, a name and how you’ll charge: a company is what customers pay'),
       };
     case 'hustle.discovery':
       return {
         label: t('Talk to customers about their problem'),
-        why: t('At the Market: interviews show what they’d pay for'),
+        why: t('So you build what people need: interviews at the Market show what they’d pay for'),
       };
     case 'hustle.first-customer':
       return {
         label: t('Win your first paying customer'),
-        why: t('Find leads in your Sales pipeline and close a deal'),
+        why: t('One payment proves someone wants this: find a lead in Sales and close it'),
       };
     case 'hustle.customers':
       return {
         label: t('Reach {n} paying customers', { n: need }),
-        why: t('Keep selling: each one proves the idea'),
+        why: t('A few customers show it wasn’t luck: keep selling at the Market'),
       };
     case 'team.hire':
       return {
         label: t('Make your first hire or bring in a co-founder'),
-        why: t('On the Team screen: post a role, or choose a co-founder'),
+        why: t('You can’t sell, build and support alone: post a role on the Team screen'),
       };
     case 'team.interview':
       return {
         label: t('Interview a candidate before you hire'),
-        why: t('Interviews show true skill and fit before you commit'),
+        why: t('CVs flatter: an interview shows true skill and fit before you pay a salary'),
       };
     case 'team.customers':
       return {
         label: t('Reach {n} paying customers', { n: need }),
-        why: t('Marketing, outreach and word of mouth'),
+        why: t('More customers spread your costs: marketing, outreach and word of mouth'),
       };
     case 'team.revenue':
       return {
         label: t('Earn your first steady monthly revenue'),
-        why: t('Set your price and grow customers on the Company tab'),
+        why: t(
+          'Steady revenue pays the bills and is what investors ask first: price and customers on the Company tab',
+        ),
       };
     case 'fundraising.pitch':
       return {
         label: t('Pitch an investor, an accelerator, a grant or a competition'),
-        why: t('The Investor Quarter, angels at cafés, the Events app'),
+        why: t(
+          'Investors decide on your numbers, so pitch once you have customers: the Investor Quarter or the Events app',
+        ),
       };
     case 'fundraising.funding':
       return {
         label: t('Get funded, or choose to bootstrap'),
-        why: t('Equity, a loan, a grant, an accelerator or a prize all count'),
+        why: t(
+          'Money buys time to grow: equity, a loan, a grant, an accelerator or a prize all count',
+        ),
       };
     case 'fundraising.runway':
       return {
         label: t('Have enough money for {n}+ months, or turn a profit', { n: need }),
-        why: t('Cash divided by what you spend each month: see it on the Money screen'),
+        why: t(
+          'Raising takes months, so never let the money run short: see it on the Money screen',
+        ),
       };
     case 'growth.revenue':
       return {
         label: t('Grow monthly revenue'),
-        why: t('More customers, better pricing, local business deals'),
+        why: t(
+          'Growth is what makes the company worth more: more customers, better pricing, local deals',
+        ),
       };
     case 'growth.team':
       return {
         label: t('Build a team of {n}', { n: need }),
-        why: t('Hire at the Hub; mind the payroll'),
+        why: t('A team does more than you can, but salaries must pay back: hire at the Hub'),
       };
     case 'growth.profit':
       return {
         label: t('Have a profitable month'),
-        why: t('Revenue above all costs: you earn more than you spend'),
+        why: t('Earning more than you spend means you choose when to raise'),
       };
     case 'empire.city':
       return {
         label: t('Open in a second city'),
-        why: t('Open a branch from the Company tab'),
+        why: t('A second city proves the business travels: open a branch from the Company tab'),
       };
     case 'empire.acquire':
-      return { label: t('Buy another company'), why: t('Make an offer to a rival') };
+      return {
+        label: t('Buy another company'),
+        why: t('Buying a rival gets you its customers at once: make an offer'),
+      };
     case 'empire.series-a':
-      return { label: t('Raise a Series A'), why: t('Pitch the funds with real traction') };
+      return {
+        label: t('Raise a Series A'),
+        why: t(
+          'The big round pays for a bigger team and new cities: pitch funds with real traction',
+        ),
+      };
     case 'empire.board':
       return {
         label: t('Have an investor on your board'),

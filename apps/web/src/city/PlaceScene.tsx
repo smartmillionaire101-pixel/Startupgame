@@ -1357,6 +1357,15 @@ function RoomScene({
       });
     actions.push(toMore);
   } else if (place.kind === 'hub') {
+    // Founder guidance: the accelerator mentor talks you through your stage (under More).
+    if (view.me.role === 'founder' && view.companies.some((c) => c.status === 'active'))
+      actions.push({
+        id: 'mentor',
+        label: t('Talk to your mentor'),
+        sub: t('What your stage needs, and what to do next'),
+        icon: '🧭',
+        run: () => setMore(true),
+      });
     const job = jobsOf(view)[0];
     if (job && !myJobOf(view))
       actions.push({

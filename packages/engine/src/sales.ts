@@ -37,6 +37,7 @@ import { outputOf } from './staff.js';
 import { barEdgeIn } from './lifebars.js';
 import { rivalPressure } from './rivals.js';
 import { firstPayment, starterIdeaEdge } from './firstsession.js';
+import { feedbackOn } from './releases.js';
 import type {
   Company,
   Id,
@@ -54,6 +55,16 @@ import type {
 } from './types.js';
 
 // ---------------------------------------------------------------- Tuning
+
+/** What a demo is scored on: fit for their segment, quality, reliability, and discovery first. */
+export const DEMO_WEIGHTS = {
+  fit: 0.45,
+  quality: 0.35,
+  reliability: 0.2,
+  discovery: 0.08,
+} as const;
+
+const round2 = (x: number) => Math.round(x * 100) / 100;
 
 export const SALES = {
   /** Founder hours per action. */
@@ -538,13 +549,24 @@ export function advanceDeal(world: World, me: Player, cmd: SalesAdvanceInput) {
       spendHours(me, hours, label);
       const rng = deriveRng(world.seed, 'sales', 'demo', d.id, d.recovered ? 2 : 1);
       const fit = segmentFit(c, d.customer.segmentKey);
+      const rel = reliability(c);
+      const luck = rng.normal(0, 0.06);
       const score =
-        0.45 * fit +
-        0.35 * c.product.quality +
-        0.2 * reliability(c) +
-        (d.revealed ? 0.08 : 0) +
-        rng.normal(0, 0.06);
+        DEMO_WEIGHTS.fit * fit +
+        DEMO_WEIGHTS.quality * c.product.quality +
+        DEMO_WEIGHTS.reliability * rel +
+        (d.revealed ? DEMO_WEIGHTS.discovery : 0) +
+        luck;
       d.demoScore = Math.round(clamp01(score) * 100) / 100;
+      // Feedback note: keep what the score was made of, to explain it.
+      if (feedbackOn(world))
+        d.demoParts = {
+          fit: round2(fit),
+          quality: round2(c.product.quality),
+          reliability: round2(rel),
+          discovery: d.revealed,
+          luck: round2(luck),
+        };
       trustUp(d, (d.demoScore - 0.4) * 0.3);
       break;
     }
@@ -806,6 +828,8 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       probability: open ? winChance(world, c, d, { founder }) : d.stage === 'won' ? 1 : 0,
       estimate: open && !known,
       demoScore: d.demoScore ?? null,
+      /** Feedback note: what the demo score was made of (null before it). */
+      demoParts: d.demoParts ?? null,
       negotiationsLeft: SALES.maxNegotiations - (d.negotiations ?? 0),
       actions,
       next: actions.find((x) => x.action === 'close') ?? actions[0] ?? null,

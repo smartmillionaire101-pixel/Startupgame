@@ -37,13 +37,15 @@ import { monthlyGrowth, valueCompany } from './valuation.js';
 import { rulesFor } from './data/rules.js';
 import { INCORPORATION } from './world.js';
 import { companyRunway } from './company.js';
-import { lifeBarsOn } from './releases.js';
+import { feedbackOn, lifeBarsOn } from './releases.js';
+import { passWhyText, pitchPassWhy, scorePitch } from './founderguide.js';
 import type {
   Company,
   Fund,
   Id,
   InvestmentTerms,
   Pitch,
+  PitchAnswerScore,
   PitchFigure,
   PitchQuestion,
   Stage,
@@ -496,6 +498,8 @@ export function answerPitch(
   // Due diligence on claims: spin is usually caught. Depth grows with the round.
   let caught = false;
   let honesty = 0;
+  /** How each answer was judged, for the feedback note's scores (no effect on the outcome). */
+  const tones: Record<string, PitchAnswerScore['tone']> = {};
   for (const q of p.questions) {
     const kind = PITCH_FIGURES[q.id];
     const claim = typed[q.id];
@@ -503,22 +507,36 @@ export function answerPitch(
       const truth = q.options.find((o) => o.tone === 'honest')?.truth ?? 0;
       // A company whose money never runs out can't overstate how long it lasts.
       const ceiling = kind === 'months' && truth >= RUNWAY_CAP;
-      if (Math.abs(claim - truth) <= figureSlack(kind, truth) || (ceiling && claim > truth))
+      if (Math.abs(claim - truth) <= figureSlack(kind, truth) || (ceiling && claim > truth)) {
         honesty += 0.02;
-      else if (claim < truth) honesty += 0.01;
-      else if (rng.chance(0.75)) caught = true;
-      else honesty += 0.03;
+        tones[q.id] = 'honest';
+      } else if (claim < truth) {
+        honesty += 0.01;
+        tones[q.id] = 'modest';
+      } else if (rng.chance(0.75)) {
+        caught = true;
+        tones[q.id] = 'caught';
+      } else {
+        honesty += 0.03;
+        tones[q.id] = 'spin';
+      }
       continue;
     }
     const o = q.options.find((x) => x.id === answers[q.id])!;
+    tones[q.id] = o.tone;
     if (o.tone === 'honest') honesty += 0.02;
     if (o.tone === 'vague') honesty -= 0.025;
     if (o.tone === 'spin' && o.claim !== undefined && o.truth !== undefined) {
       const off = Math.abs(o.claim - o.truth) / Math.max(1, Math.abs(o.truth));
-      if (off > 0.1 && rng.chance(0.75)) caught = true;
-      else honesty += 0.03;
+      if (off > 0.1 && rng.chance(0.75)) {
+        caught = true;
+        tones[q.id] = 'caught';
+      } else honesty += 0.03;
     }
   }
+  // Feedback note: each answer scored, with the best answer and why.
+  const feedback = feedbackOn(world);
+  if (feedback) p.scores = scorePitch(world, c, p, tones);
   if (caught) {
     p.status = 'passed';
     p.reason = `${fund.partner}: “Your numbers didn’t match what we found in diligence.”`;
@@ -537,7 +555,12 @@ export function answerPitch(
   const passP = 1 - firstMeetingOdds(score);
   if (rng.chance(passP)) {
     p.status = 'passed';
-    p.reason = `${fund.partner}: “${rng.pick(PASS_REASONS)}”`;
+    if (feedback) {
+      // Feedback note: the real reason, from the company's numbers, with how to fix it.
+      const vague = Object.values(tones).filter((x) => x === 'vague').length;
+      p.passWhy = pitchPassWhy(world, fund, c, p, vague);
+      p.reason = `${fund.partner}: “${passWhyText(p.passWhy, m.data.currency)}”`;
+    } else p.reason = `${fund.partner}: “${rng.pick(PASS_REASONS)}”`;
     return p;
   }
   if (big) {
@@ -563,6 +586,12 @@ export function partnerMeeting(world: World, pitchId: Id, founderId: Id): Pitch 
   if (rng.chance(1 - logistic((score - 0.52) / 0.06))) {
     p.status = 'passed';
     p.reason = `${fund.partner}: “The partnership didn’t get there this time.”`;
+    // Feedback note: what held the partners back, from the company's numbers.
+    if (feedbackOn(world)) {
+      const vague = (p.scores ?? []).filter((x) => x.tone === 'vague').length;
+      p.passWhy = pitchPassWhy(world, fund, c, p, vague);
+      p.reason = `${fund.partner}: “The partnership didn’t get there this time. ${passWhyText(p.passWhy, getMarket(world, c.market).data.currency)}”`;
+    }
     return p;
   }
   offerTermSheet(world, p, fund, c, score);
