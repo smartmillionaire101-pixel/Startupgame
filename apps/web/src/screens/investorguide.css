@@ -1,0 +1,257 @@
+/* The investor guide: the stage tracker, the mentor, live cheque checks and scored calls. */
+.ig-stage {
+  background: linear-gradient(180deg, var(--good-soft), var(--surface) 55%);
+}
+.ig-track {
+  list-style: none;
+  margin: 0.25rem 0 0.75rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  position: relative;
+}
+.ig-track::before {
+  content: '';
+  position: absolute;
+  top: 0.6rem;
+  left: 8%;
+  right: 8%;
+  height: 3px;
+  background: var(--line);
+}
+.ig-track li {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  text-align: center;
+}
+.ig-dot {
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-xs);
+  color: var(--accent-ink);
+}
+.ig-done .ig-dot {
+  background: var(--good);
+  border-color: var(--good);
+}
+.ig-now .ig-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--good-soft);
+}
+.ig-name {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.ig-now .ig-name {
+  color: var(--good);
+  font-weight: 700;
+}
+.ig-goal {
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+.ig-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+.ig-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.ig-items {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.ig-items li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.ig-items li.done {
+  color: var(--good);
+}
+.ig-items li.now {
+  color: var(--text);
+  font-weight: 600;
+}
+.ig-mark {
+  flex: none;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  background: var(--line);
+}
+.ig-items li.done .ig-mark {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.ig-items li.now .ig-mark {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.ig-mentor {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.ig-mentor-face {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.ig-mentor p {
+  margin: 0.2rem 0 0;
+  font-style: italic;
+}
+.ig-check {
+  margin: 0.5rem 0;
+}
+.ig-check-warn,
+.ig-check-bad {
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--line-strong);
+}
+.ig-check-bad {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+}
+.ig-check-warn {
+  background: var(--warn-soft);
+}
+.ig-check h3 {
+  margin: 0 0 0.35rem;
+}
+.ig-check-lead {
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+.ig-bar {
+  position: relative;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--line);
+}
+.ig-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--bad);
+}
+.ig-check-warn .ig-bar span {
+  background: var(--warn);
+}
+.ig-bar i {
+  position: absolute;
+  top: -0.2rem;
+  bottom: -0.2rem;
+  width: 2px;
+  background: var(--text);
+}
+.ig-bar-scale {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.2rem 0 0.4rem;
+}
+.ig-checks {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+.ig-check-line {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.3rem 0;
+  border-top: 1px solid var(--line);
+}
+.ig-check-icon {
+  flex: none;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+.ig-good .ig-check-icon {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.ig-warn .ig-check-icon {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.ig-bad .ig-check-icon {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+.ig-check-actions {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.ig-question {
+  font-weight: 600;
+  margin: 0.4rem 0 0.25rem;
+}
+.ig-options {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.ig-option {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ig-decisions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ig-decisions li {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line);
+}
+.ig-decisions li:first-child {
+  border-top: 0;
+}
+.ig-decisions p {
+  margin: 0.2rem 0 0;
+}
+.ig-more {
+  margin-top: 0.4rem;
+}

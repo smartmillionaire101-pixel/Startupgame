@@ -13,6 +13,8 @@ import { useView } from '../store';
 import { Button, Card, Pill, Segmented, Stat } from '../ui';
 import { useJourneyGo } from '../city/journeyGo';
 import { stageLabel } from './common';
+import { guideOf } from './investorGuideCopy';
+import { CompanyDecisions, FirstCallQuestions } from './InvestorGuide';
 import './investor.css';
 
 export type Career = NonNullable<PlayerView['investorCareer']>;
@@ -391,20 +393,26 @@ export function InvestorFirstSession() {
             )}
           </p>
           {tut.recovery && <p className="warn small">{tx(tut.recovery.message)}</p>}
-          <Button
-            onClick={() =>
-              void send(
-                { type: 'invest.diligence', companyId: pick.companyId, depth: 1 },
-                (r: { message: string }) => tx(r.message),
-              )
-            }
-          >
-            {t('First call with {name} (4h)', { name: pick.name })}
-          </Button>
+          {/* Feedback round: the first call is a scored question (investor guide). */}
+          {guideOf(view)?.scoring ? (
+            <FirstCallQuestions companyId={pick.companyId} />
+          ) : (
+            <Button
+              onClick={() =>
+                void send(
+                  { type: 'invest.diligence', companyId: pick.companyId, depth: 1 },
+                  (r: { message: string }) => tx(r.message),
+                )
+              }
+            >
+              {t('First call with {name} (4h)', { name: pick.name })}
+            </Button>
+          )}
         </>
       )}
       {tut.step === 'term-sheet' && pick && (
         <>
+          <CompanyDecisions companyId={pick.companyId} />
           <p className="small">
             {t(
               'A SAFE turns into shares at the next priced round, at most at its valuation cap. Your ownership is about the amount divided by the cap.',
@@ -496,6 +504,16 @@ export function InvestorFirstSession() {
 export type InvestorSection =
   'overview' | 'pipeline' | 'markets' | 'syndicates' | 'fund' | 'lp' | 'firm' | 'office' | 'legacy';
 
+/** The sections that matter at each investor stage (the rest wait behind "More"). */
+const STAGE_SECTIONS: Record<string, InvestorSection[]> = {
+  angel: ['overview', 'pipeline', 'markets'],
+  syndicate: ['overview', 'pipeline', 'markets', 'syndicates'],
+  'first-exit': ['overview', 'pipeline', 'syndicates', 'fund', 'markets'],
+  'fund-1': ['overview', 'pipeline', 'fund', 'syndicates', 'markets'],
+  'fund-2': ['overview', 'pipeline', 'fund', 'syndicates', 'lp', 'firm'],
+  'family-office': ['overview', 'fund', 'lp', 'firm', 'office', 'legacy'],
+};
+
 export function InvestorSections({
   tab,
   onTab,
@@ -504,6 +522,7 @@ export function InvestorSections({
   onTab: (t: InvestorSection) => void;
 }) {
   const { view } = useView();
+  const [more, setMore] = useState(false);
   const career = careerOf(view);
   if (!career) return null;
   const options: { value: InvestorSection; label: string }[] = [
@@ -517,9 +536,21 @@ export function InvestorSections({
     { value: 'office', label: t('Family office') },
     { value: 'legacy', label: t('Legacy') },
   ];
+  // Grouped by stage (investor guide): fewer places at once, every one still a tap away.
+  const stage = guideOf(view)?.stage;
+  const primary = stage ? STAGE_SECTIONS[stage] : undefined;
+  const shown =
+    primary && !more
+      ? options.filter((o) => primary.includes(o.value) || o.value === tab)
+      : options;
   return (
     <div className="inv-tabs">
-      <Segmented label={t('Portfolio sections')} value={tab} onChange={onTab} options={options} />
+      <Segmented label={t('Portfolio sections')} value={tab} onChange={onTab} options={shown} />
+      {primary && (more || shown.length < options.length) && (
+        <Button variant="ghost" size="sm" className="ig-more" onClick={() => setMore((x) => !x)}>
+          {more ? t('Fewer sections') : t('More sections')}
+        </Button>
+      )}
     </div>
   );
 }

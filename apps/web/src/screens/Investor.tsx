@@ -9,11 +9,20 @@ import { DealList, stageLabel } from './common';
 import {
   CareerLadder,
   InvestorFirstSession,
-  InvestorPrompts,
   InvestorSections,
   careerOf,
   type InvestorSection,
 } from './InvestorCareer';
+import {
+  ChequeCheck,
+  CompanyDecisions,
+  isChequeTooBig,
+  FirstCallQuestions,
+  InvestorNextSteps,
+  InvestorStageCard,
+  RecentDecisions,
+} from './InvestorGuide';
+import { guideOf } from './investorGuideCopy';
 import { Exchange } from './Exchange';
 import { Syndicates } from './Syndicates';
 import { FundConsole, LpPortfolio, lpFundsOf } from './Funds';
@@ -142,13 +151,17 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
   const [payFrom, setPayFrom] = useState<string>(funds[0]?.id ?? 'me');
   const fromFund = payFrom !== 'me';
   const payingFund = funds.find((f) => f.id === payFrom);
-  const propose = async () => {
+  const scored = !!guideOf(view)?.scoring;
+  const cheque = parseAmount(amount) ?? suggestedAmount;
+  // Over a tenth of your money: the cheque check offers a smaller one or to invest anyway.
+  const chequeTooBig = isChequeTooBig(view, cheque, cur, !fromFund);
+  const propose = async (amountNow = cheque) => {
     const r = await send<{ status: string; summary: string }>(
       {
         type: 'invest.propose',
         companyId: c.id,
         instrument,
-        amount: parseAmount(amount) ?? suggestedAmount,
+        amount: amountNow,
         valuation: parseAmount(valuation) ?? suggestedValuation,
         proRata: true,
         boardSeat: board,
@@ -200,16 +213,21 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
       {!d ? (
         <Card title={t('Due diligence')}>
           <p className="small muted">{t('Depth depends on hours spent.')}</p>
-          <Button
-            onClick={() =>
-              void send(
-                { type: 'invest.diligence', companyId: c.id, depth: 1 },
-                (r: { message: string }) => tx(r.message),
-              )
-            }
-          >
-            {t('First call (4h)')}
-          </Button>
+          {/* Feedback round: the first call is a scored question; otherwise a plain button. */}
+          {scored ? (
+            <FirstCallQuestions companyId={c.id} />
+          ) : (
+            <Button
+              onClick={() =>
+                void send(
+                  { type: 'invest.diligence', companyId: c.id, depth: 1 },
+                  (r: { message: string }) => tx(r.message),
+                )
+              }
+            >
+              {t('First call (4h)')}
+            </Button>
+          )}
         </Card>
       ) : (
         <Card title={t('Diligence · level {n}', { n: d.depth })}>
@@ -297,6 +315,7 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
           )}
         </Card>
       )}
+      <CompanyDecisions companyId={c.id} />
       <Card title={t('Term sheet')}>
         <Segmented
           label={t('Instrument')}
@@ -360,12 +379,25 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
             ? t('AI founders answer at once.')
             : t('The founder sees the same card and can counter.')}
         </p>
-        <Button
-          disabled={!(parseAmount(valuation) ?? suggestedValuation)}
-          onClick={() => void propose()}
-        >
-          {t('Send term sheet (2h)')}
-        </Button>
+        <ChequeCheck
+          amount={cheque}
+          valuation={parseAmount(valuation) ?? suggestedValuation}
+          currency={cur}
+          industry={c.industry}
+          sector={tx(c.industryLabel)}
+          diligence={d?.depth ?? 0}
+          model={d?.modelValuation ?? 0}
+          personal={!fromFund}
+          onInvest={(x) => void propose(x)}
+        />
+        {!chequeTooBig && (
+          <Button
+            disabled={!(parseAmount(valuation) ?? suggestedValuation)}
+            onClick={() => void propose()}
+          >
+            {t('Send term sheet (2h)')}
+          </Button>
+        )}
       </Card>
     </Sheet>
   );
@@ -381,6 +413,7 @@ export function Portfolio() {
   return (
     <>
       <h1>{t('Portfolio')}</h1>
+      <InvestorStageCard />
       <InvestorFirstSession />
       <SimpleLink
         to="deals"
@@ -563,7 +596,8 @@ export function Portfolio() {
           <h2>{t('Grow as an investor')}</h2>
           <ProRataOffers />
           <StakeConsents />
-          <InvestorPrompts />
+          <InvestorNextSteps />
+          <RecentDecisions />
           <InvestorSections tab={section} onTab={setSection} />
           {section === 'overview' && <CareerLadder compact />}
           {section === 'pipeline' && <PipelineScreen />}
