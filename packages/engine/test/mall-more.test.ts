@@ -52,7 +52,8 @@ describe('the bigger mall', () => {
     const v = mallOf(w);
     expect(v.shops).toEqual(MALL_SHOPS);
     expect(v.shops.length).toBeGreaterThanOrEqual(16);
-    expect(v.items).toHaveLength(MALL_ITEMS.length);
+    // (The feedback round's things wait for their own note: outfits.test.ts.)
+    expect(v.items).toHaveLength(MALL_ITEMS.filter((x) => !x.feedback).length);
     // Every shop has a good range, each item a price.
     for (const s of MALL_SHOPS)
       expect(v.items.filter((i) => i.shop === s).length, s).toBeGreaterThanOrEqual(5);

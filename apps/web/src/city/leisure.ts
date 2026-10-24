@@ -170,6 +170,10 @@ export interface MallItemView {
   label: string;
   price: number;
   topStyle?: string;
+  /** The colours it comes in (a suit's cloths; newer servers). Missing: any of the creator's. */
+  colours?: string[];
+  /** One of this city's own traditional styles (newer servers). */
+  local?: boolean;
   headwear?: string;
   glasses?: string;
   phone?: 1 | 2 | 3;

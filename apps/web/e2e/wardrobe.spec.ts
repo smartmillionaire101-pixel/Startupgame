@@ -3,6 +3,7 @@ import {
   letters,
   playAsGuest,
   setupFounder,
+  setupPlayer,
   tab,
   tapPlace,
   test,
@@ -17,6 +18,12 @@ import {
  * header and from Me; put the first T-shirt back on free, take the watch off.
  * Screenshots of the wardrobe and the figure wearing things go to the test's
  * output folder.
+ *
+ * Dressed for the role (the feedback round: "a banker should be in a suit and
+ * should be able to buy suits for a banker from the mall"): a new founder
+ * starts in a hoodie, jeans and trainers (in the wardrobe too); a new banker
+ * in a suit and tie, who buys a navy suit and a bow tie at The Suit Shop,
+ * wears them, and goes back into the work outfit from My purchases.
  */
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -74,6 +81,17 @@ test('buy clothes, see them in My purchases, wear an earlier one free', async ({
   const scene = page.locator('.mall-scene');
   await expect(scene).toBeVisible({ timeout: 30_000 });
 
+  // A new founder starts casual: a hoodie, jeans and trainers, kept in the wardrobe.
+  const start = await state(page);
+  expect(start.me.appearance).toMatchObject({
+    topStyle: 'hoodie',
+    legs: 'jeans',
+    shoes: 'trainers',
+  });
+  expect(start.me.wardrobe!.items.map((e) => e.item).sort()).toEqual(
+    ['fash-jeans', 'shoe-trainers', 'top-hoodie'].sort(),
+  );
+
   // A T-shirt in red, then the same T-shirt in blue: both are yours.
   await buy(page, 'fashion', 'top-tee', RED);
   await buy(page, 'fashion', 'top-tee', BLUE);
@@ -92,7 +110,8 @@ test('buy clothes, see them in My purchases, wear an earlier one free', async ({
     necklace: 'silver',
     bag: 'tote',
   });
-  expect(s0.me.wardrobe!.items).toHaveLength(6);
+  // Six bought, and the three you started in.
+  expect(s0.me.wardrobe!.items).toHaveLength(9);
   expect(s0.me.mall!.bag!.map((b) => b.item)).toEqual(['book-novel']);
 
   // The red T-shirt is yours already: the shop offers it free.
@@ -109,7 +128,7 @@ test('buy clothes, see them in My purchases, wear an earlier one free', async ({
   await expect(sheet).toBeVisible();
   const card = (item: string, colour = '', within = sheet) =>
     within.locator(`[data-wardrobe-item="${item}"][data-colour="${colour}"]`);
-  await expect(sheet.locator('[data-wardrobe-item]')).toHaveCount(6);
+  await expect(sheet.locator('[data-wardrobe-item]')).toHaveCount(9);
   await expect(card('top-tee', BLUE)).toHaveAttribute('data-wearing', '1');
   await expect(card('top-tee', RED)).toHaveAttribute('data-wearing', '0');
   await expect(card('shoe-boots')).toHaveAttribute('data-wearing', '1');
@@ -155,7 +174,7 @@ test('buy clothes, see them in My purchases, wear an earlier one free', async ({
   await tab(page, 'Me').click();
   await page.locator('[data-open-purchases]').click();
   const again = page.getByRole('dialog', { name: 'My purchases' });
-  await expect(again.locator('[data-wardrobe-item]')).toHaveCount(6);
+  await expect(again.locator('[data-wardrobe-item]')).toHaveCount(9);
   await expect(again.locator('[data-outfit] .city-avatar-fig')).toHaveAttribute('data-top', RED);
   await noToasts(page);
   await page.screenshot({ path: info.outputPath('wardrobe-4-me.png') });
@@ -166,7 +185,7 @@ test('buy clothes, see them in My purchases, wear an earlier one free', async ({
   await page.getByRole('button', { name: /^Phone/ }).click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await phone.locator('[data-app="purchases"]').click();
-  await expect(phone.locator('[data-wardrobe-item]')).toHaveCount(6);
+  await expect(phone.locator('[data-wardrobe-item]')).toHaveCount(9);
   await expect(phone.locator('[data-outfit] .city-avatar-fig')).toHaveAttribute('data-top', RED);
   await card('top-tee', BLUE, phone).locator('[data-wear]').click();
   await expect(phone.locator('[data-outfit] .city-avatar-fig')).toHaveAttribute('data-top', BLUE, {
@@ -174,4 +193,107 @@ test('buy clothes, see them in My purchases, wear an earlier one free', async ({
   });
   await noToasts(page);
   await page.screenshot({ path: info.outputPath('wardrobe-5-phone.png') });
+});
+
+test('a banker starts in a suit, buys a navy suit and a bow tie at The Suit Shop, and wears them', async ({
+  page,
+}, info) => {
+  test.setTimeout(240_000);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('runway.mapQuality', 'lite');
+    } catch {
+      /* storage blocked */
+    }
+  });
+  await playAsGuest(page);
+  const meta = await page.request.get('/api/meta').then((r) => r.json());
+  const lagos = meta.markets.find((m: { name: string }) => /Lagos/.test(m.name));
+  await setupPlayer(page, {
+    type: 'player.create',
+    name: 'Bola Suit',
+    handle: `suit_${letters(6)}`,
+    role: 'banker',
+    backgroundId: 'b-commercial',
+    market: lagos.id,
+    gender: 'male',
+    bank: { name: `Tailor Trust ${letters(5)}`, bankType: 'commercial' },
+  });
+  // Dressed for the role: a charcoal suit, a silk tie, Oxfords, a dress watch and a briefcase.
+  const s0 = await state(page);
+  expect(s0.me.appearance).toMatchObject({
+    topStyle: 'suit',
+    topColor: '#1f2633',
+    tie: 'silk',
+    shoes: 'oxfords',
+    bag: 'briefcase',
+  });
+  await tab(page, 'City').click();
+  await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-place="mall"]').first()).toBeAttached({ timeout: 20_000 });
+  await tapPlace(page, '[data-place="mall"]', 'cycle');
+  const scene = page.locator('.mall-scene');
+  await expect(scene).toBeVisible({ timeout: 30_000 });
+
+  // The Suit Shop: its aisles, and suits in their own cloths.
+  await scene.locator('[data-shop="suits"]').click();
+  await expect(scene).toHaveAttribute('data-mall-shop', 'suits');
+  await expect(scene.locator('h2')).toContainText('The Suit Shop');
+  await scene.locator('[data-aisle="suits"]').click();
+  await expect(scene.locator('[data-buy="sui-slim"]')).toBeVisible();
+  await expect(scene.locator('[data-buy="sui-tie-silk"]')).toHaveCount(0);
+  await scene.locator('.mall-item-name', { hasText: 'Slim-fit suit' }).click();
+  const NAVY = '#1e2a44';
+  await scene.locator(`.mall-colours [data-colour="${NAVY}"]`).click();
+  await expect(scene.locator(`.mall-colours [data-colour="${NAVY}"]`)).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: info.outputPath('suit-1-shop.png') });
+  const before = (await state(page)).accounts.local.balance;
+  await scene.locator('[data-buy="sui-slim"]').click();
+  const bought = scene.locator('[data-mall-bought="sui-slim"]');
+  await expect(bought).toBeVisible({ timeout: 10_000 });
+  await expect(bought.locator('[data-top-style="suit"]')).toBeAttached();
+  await bought.locator('[data-action="mall-ok"]').click();
+  // A bow tie, from the ties aisle.
+  await scene.locator('[data-aisle="ties"]').click();
+  await scene.locator('[data-buy="sui-tie-bow"]').click();
+  await expect(scene.locator('[data-mall-bought="sui-tie-bow"]')).toBeVisible({
+    timeout: 10_000,
+  });
+  await scene.locator('[data-action="mall-ok"]').click();
+  const s1 = await state(page);
+  expect(s1.me.appearance).toMatchObject({ topStyle: 'suit', topColor: NAVY, tie: 'bow' });
+  expect(s1.accounts.local.balance).toBeLessThan(before);
+  const fig = scene.locator('.city-avatar-fig[data-top-style="suit"][data-tie="bow"]').first();
+  await expect(fig).toBeAttached({ timeout: 10_000 });
+  await expect(fig).toHaveAttribute('data-top', NAVY);
+
+  // My purchases: the new suit and tie are on; Wear for work puts the starting outfit back, free.
+  await scene.locator('[data-action="mall-purchases"]').click();
+  const sheet = page.getByRole('dialog', { name: 'My purchases' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('[data-wardrobe-item="sui-slim"]')).toHaveAttribute(
+    'data-wearing',
+    '1',
+  );
+  await expect(sheet.locator('[data-wardrobe-item="sui-classic"]')).toHaveAttribute(
+    'data-wearing',
+    '0',
+  );
+  await noToasts(page);
+  await page.screenshot({ path: info.outputPath('suit-2-wardrobe.png') });
+  const b1 = (await state(page)).accounts.local.balance;
+  await sheet.locator('[data-role-outfit="suit"] [data-wear-role]').click();
+  const outfit = sheet.locator('[data-outfit] .city-avatar-fig');
+  await expect(outfit).toHaveAttribute('data-top', '#1f2633', { timeout: 15_000 });
+  await expect(outfit).toHaveAttribute('data-tie', 'silk', { timeout: 15_000 });
+  await expect(sheet.locator('[data-role-outfit="suit"]')).toContainText('Wearing');
+  const s2 = await state(page);
+  expect(s2.accounts.local.balance).toBe(b1);
+  expect(s2.me.appearance).toMatchObject({ topStyle: 'suit', topColor: '#1f2633', tie: 'silk' });
+  await noToasts(page);
+  await page.screenshot({ path: info.outputPath('suit-3-work-outfit.png') });
 });

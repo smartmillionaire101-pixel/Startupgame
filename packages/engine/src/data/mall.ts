@@ -19,10 +19,20 @@
  *   (`Player.belongings`); clothes, shoes, jewellery, watches and bags go
  *   in your wardrobe and on you (`worn`, ../wardrobe.ts); food, the
  *   pharmacy and the beauty counter move your needs and life bars.
+ * - The feedback round (player feedback: "a banker should be in a suit and
+ *   should be able to buy suits for a banker from the mall, and when we go to
+ *   the mall we should have more options"): The Suit Shop (suits in several
+ *   cloths and fits, shirts, blouses, ties, formal shoes, watches and work
+ *   bags, cheap to designer) and more in the clothes shops (chinos, blouses,
+ *   dresses, sportswear, and each city's own traditional styles in its own
+ *   fashion shop: `cities`). Their items are `feedback`: sold only once the
+ *   game-feedback note is logged (releases.ts), so older worlds' shops are
+ *   unchanged.
  *
  * Names are generic, never real brands.
  */
 import type { TopStyle, WornPart } from '../appearance.js';
+import type { MarketId } from './markets.js';
 
 export type MallShopId =
   | 'fashion'
@@ -41,7 +51,9 @@ export type MallShopId =
   | 'sports'
   | 'toys'
   | 'pharmacy'
-  | 'arcade';
+  | 'arcade'
+  // The feedback round.
+  | 'suits';
 
 /** The first six shops (every world). */
 export const MALL_SHOPS_FIRST: readonly MallShopId[] = [
@@ -68,6 +80,9 @@ export const MALL_SHOPS: readonly MallShopId[] = [
   'arcade',
 ];
 
+/** Every shop once the game-feedback note is logged: the bigger mall's, then The Suit Shop. */
+export const MALL_SHOPS_FEEDBACK: readonly MallShopId[] = [...MALL_SHOPS, 'suits'];
+
 /** Business kinds whose till takes a mall shop's sales (the mall's branch of them). */
 export const MALL_TILLS: Record<Exclude<MallShopId, 'home' | 'foodcourt'>, readonly string[]> = {
   fashion: ['boutique', 'tailor', 'fabric-stall'],
@@ -84,6 +99,7 @@ export const MALL_TILLS: Record<Exclude<MallShopId, 'home' | 'foodcourt'>, reado
   toys: ['corner-shop', 'market-stall'],
   pharmacy: ['pharmacy', 'clinic'],
   arcade: ['arcade', 'karaoke'],
+  suits: ['tailor', 'boutique'],
 };
 
 export type PhoneTier = 1 | 2 | 3;
@@ -115,8 +131,14 @@ export interface MallItem {
   usd?: number;
   /** The bigger mall: sold once the investor release note is logged. */
   more?: true;
+  /** The feedback round's things: sold once the game-feedback note is logged. */
+  feedback?: true;
+  /** Sold only in these cities' malls (a city's own traditional clothes). */
+  cities?: readonly MarketId[];
   /** Clothes: the top it puts you in (a colour is picked at the till). */
   topStyle?: TopStyle;
+  /** The colours it comes in (a suit's cloths); any of the creator's otherwise. */
+  colours?: readonly string[];
   /** Accessories. */
   headwear?: 'cap' | 'beanie' | 'headwrap' | 'gele';
   glasses?: 'shades' | 'round' | 'square';
@@ -147,6 +169,56 @@ export interface MallItem {
 const it = (x: MallItem) => x;
 /** An item of the bigger mall. */
 const more = (x: Omit<MallItem, 'more'>): MallItem => ({ ...x, more: true });
+/**
+ * An item of the feedback round: priced like the bigger mall's (`more`) and
+ * sold once the game-feedback note is logged (which comes after the investor
+ * note, so the bigger mall is open too).
+ */
+const fresh = (x: Omit<MallItem, 'more' | 'feedback'>): MallItem => ({
+  ...x,
+  more: true,
+  feedback: true,
+});
+/** A city's own traditional top, in its own fashion shop (a feedback-round item). */
+const local = (
+  cities: readonly MarketId[],
+  id: string,
+  label: string,
+  priceCol: number,
+  topStyle: TopStyle,
+): MallItem => fresh({ id, shop: 'fashion', label, priceCol, topStyle, cities });
+
+/** Suit cloths: charcoal, navy, black, mid grey, stone, camel, burgundy and forest. */
+export const SUIT_COLOURS = [
+  '#1f2633',
+  '#1e2a44',
+  '#0f1115',
+  '#4b5563',
+  '#a8a29e',
+  '#a07a52',
+  '#5b1a2a',
+  '#1f3b2d',
+] as const;
+/** A suit at The Suit Shop (in any of its cloths; imported ones at a dollar price). */
+const suit = (id: string, label: string, priceCol: number, usd?: number): MallItem =>
+  fresh({
+    id,
+    shop: 'suits',
+    label,
+    priceCol,
+    ...(usd ? { usd } : {}),
+    topStyle: 'suit',
+    colours: SUIT_COLOURS,
+  });
+/** Shirts and blouses: white, sky blue, pale pink, ivory, lilac and black. */
+export const SHIRT_COLOURS = [
+  '#f8fafc',
+  '#bfdbfe',
+  '#fbcfe8',
+  '#f5efe4',
+  '#ddd6fe',
+  '#111827',
+] as const;
 
 export const PHONE_NAMES: Record<PhoneTier, string> = {
   1: 'Everyday smartphone',
@@ -1176,6 +1248,309 @@ export const MALL_ITEMS: readonly MallItem[] = [
     stress: -2,
     hours: 0.5,
   }),
+
+  // ---- The feedback round: The Suit Shop, cheap to designer.
+  suit('sui-value', 'Everyday suit', 0.07),
+  suit('sui-classic', 'Classic two-piece suit', 0.17),
+  suit('sui-slim', 'Slim-fit suit', 0.18),
+  suit('sui-trouser', 'Tailored trouser suit', 0.18),
+  suit('sui-double', 'Double-breasted suit', 0.24),
+  suit('sui-three', 'Three-piece suit', 0.28),
+  suit('sui-bespoke', 'Made-to-measure suit', 0.6, 1500),
+  suit('sui-designer', 'Designer suit', 1, 3000),
+  fresh({
+    id: 'sui-shirt',
+    shop: 'suits',
+    label: 'Poplin shirt',
+    priceCol: 0.018,
+    topStyle: 'shirt',
+    colours: SHIRT_COLOURS,
+  }),
+  fresh({
+    id: 'sui-shirt-cuff',
+    shop: 'suits',
+    label: 'Double-cuff shirt',
+    priceCol: 0.03,
+    topStyle: 'shirt',
+    colours: SHIRT_COLOURS,
+  }),
+  fresh({
+    id: 'sui-blouse',
+    shop: 'suits',
+    label: 'Silk blouse',
+    priceCol: 0.025,
+    topStyle: 'blouse',
+    colours: SHIRT_COLOURS,
+  }),
+  fresh({
+    id: 'sui-blouse-bow',
+    shop: 'suits',
+    label: 'Bow-neck blouse',
+    priceCol: 0.03,
+    topStyle: 'blouse',
+    colours: SHIRT_COLOURS,
+  }),
+  fresh({
+    id: 'sui-tie-silk',
+    shop: 'suits',
+    label: 'Silk tie',
+    priceCol: 0.014,
+    keep: 'clothes',
+    worn: { slot: 'tie', style: 'silk' },
+  }),
+  fresh({
+    id: 'sui-tie-knit',
+    shop: 'suits',
+    label: 'Navy knit tie',
+    priceCol: 0.012,
+    keep: 'clothes',
+    worn: { slot: 'tie', style: 'navy' },
+  }),
+  fresh({
+    id: 'sui-tie-bow',
+    shop: 'suits',
+    label: 'Bow tie',
+    priceCol: 0.016,
+    keep: 'clothes',
+    worn: { slot: 'tie', style: 'bow' },
+  }),
+  fresh({
+    id: 'sui-oxfords',
+    shop: 'suits',
+    label: 'Oxford shoes',
+    priceCol: 0.056,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'oxfords' },
+  }),
+  fresh({
+    id: 'sui-courts',
+    shop: 'suits',
+    label: 'Block-heel courts',
+    priceCol: 0.048,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'courts' },
+  }),
+  fresh({
+    id: 'sui-loafers',
+    shop: 'suits',
+    label: 'Suede loafers',
+    priceCol: 0.05,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'loafers' },
+  }),
+  fresh({
+    id: 'sui-oxfords-handmade',
+    shop: 'suits',
+    label: 'Handmade Oxfords',
+    priceCol: 0.2,
+    usd: 600,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'oxfords' },
+    fun: 4,
+  }),
+  fresh({
+    id: 'sui-watch',
+    shop: 'suits',
+    label: 'Dress watch',
+    priceCol: 0.15,
+    usd: 380,
+    keep: 'watch',
+    worn: { slot: 'watch', style: 'dress' },
+    fun: 4,
+  }),
+  fresh({
+    id: 'sui-briefcase',
+    shop: 'suits',
+    label: 'Leather briefcase',
+    priceCol: 0.084,
+    usd: 210,
+    keep: 'bag',
+    worn: { slot: 'bag', style: 'briefcase' },
+  }),
+  fresh({
+    id: 'sui-folio',
+    shop: 'suits',
+    label: 'Leather folio',
+    priceCol: 0.03,
+    keep: 'bag',
+    worn: { slot: 'bag', style: 'folio' },
+  }),
+  fresh({
+    id: 'sui-tote',
+    shop: 'suits',
+    label: 'Work tote',
+    priceCol: 0.076,
+    usd: 190,
+    keep: 'bag',
+    worn: { slot: 'bag', style: 'worktote' },
+  }),
+
+  // ---- The feedback round: more in the other clothes shops.
+  fresh({
+    id: 'fash-chinos',
+    shop: 'fashion',
+    label: 'Chinos',
+    priceCol: 0.03,
+    keep: 'clothes',
+    worn: { slot: 'legs', style: 'chinos' },
+  }),
+  fresh({
+    id: 'fash-blouse',
+    shop: 'fashion',
+    label: 'Blouse',
+    priceCol: 0.03,
+    topStyle: 'blouse',
+  }),
+  fresh({
+    id: 'fash-linen',
+    shop: 'fashion',
+    label: 'Linen shirt',
+    priceCol: 0.035,
+    topStyle: 'shirt',
+  }),
+  fresh({
+    id: 'fash-maxi',
+    shop: 'fashion',
+    label: 'Maxi dress',
+    priceCol: 0.05,
+    topStyle: 'dress',
+  }),
+  fresh({
+    id: 'fash-wrap',
+    shop: 'fashion',
+    label: 'Wrap dress',
+    priceCol: 0.045,
+    topStyle: 'dress',
+  }),
+  fresh({
+    id: 'fash-blazer',
+    shop: 'fashion',
+    label: 'Smart-casual blazer',
+    priceCol: 0.07,
+    topStyle: 'blazer',
+  }),
+  fresh({
+    id: 'fash-zip-hoodie',
+    shop: 'fashion',
+    label: 'Zip-up hoodie',
+    priceCol: 0.04,
+    topStyle: 'hoodie',
+  }),
+  fresh({
+    id: 'out-chinos',
+    shop: 'outlet',
+    label: 'Value chinos',
+    priceCol: 0.012,
+    keep: 'clothes',
+    worn: { slot: 'legs', style: 'chinos' },
+  }),
+  fresh({
+    id: 'out-blouse',
+    shop: 'outlet',
+    label: 'Everyday blouse',
+    priceCol: 0.01,
+    topStyle: 'blouse',
+  }),
+  fresh({
+    id: 'out-suit',
+    shop: 'outlet',
+    label: 'Budget suit',
+    priceCol: 0.04,
+    topStyle: 'suit',
+    colours: SUIT_COLOURS,
+  }),
+  fresh({
+    id: 'out-trainers',
+    shop: 'outlet',
+    label: 'Canvas trainers',
+    priceCol: 0.012,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'trainers' },
+  }),
+  fresh({
+    id: 'des-blouse',
+    shop: 'designer',
+    label: 'Designer silk blouse',
+    priceCol: 0.1,
+    usd: 220,
+    topStyle: 'blouse',
+  }),
+  fresh({
+    id: 'des-loafers',
+    shop: 'designer',
+    label: 'Designer loafers',
+    priceCol: 0.2,
+    usd: 550,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'loafers' },
+    fun: 4,
+  }),
+  fresh({
+    id: 'shoe-courts',
+    shop: 'shoes',
+    label: 'Court shoes',
+    priceCol: 0.04,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'courts' },
+  }),
+  fresh({
+    id: 'shoe-oxfords',
+    shop: 'shoes',
+    label: 'Oxford brogues',
+    priceCol: 0.05,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'oxfords' },
+  }),
+  fresh({
+    id: 'spt-joggers',
+    shop: 'sports',
+    label: 'Joggers',
+    priceCol: 0.02,
+    keep: 'clothes',
+    worn: { slot: 'legs', style: 'joggers' },
+  }),
+  fresh({
+    id: 'spt-hoodie',
+    shop: 'sports',
+    label: 'Training hoodie',
+    priceCol: 0.03,
+    topStyle: 'hoodie',
+  }),
+  fresh({
+    id: 'spt-trainers',
+    shop: 'sports',
+    label: 'Cross-trainers',
+    priceCol: 0.05,
+    keep: 'shoes',
+    worn: { slot: 'shoes', style: 'running' },
+    health: 1,
+  }),
+  fresh({ id: 'spt-cap', shop: 'sports', label: 'Running cap', priceCol: 0.01, headwear: 'cap' }),
+  // Each city's own traditional styles, in its own fashion shop.
+  local(['lagos'], 'loc-agbada', 'Agbada', 0.12, 'kaftan'),
+  local(['lagos'], 'loc-ankara', 'Ankara dress', 0.04, 'dress'),
+  local(['lagos'], 'loc-buba', 'Buba and sokoto', 0.05, 'kaftan'),
+  local(['accra'], 'loc-kente', 'Kente cloth', 0.12, 'kaftan'),
+  local(['accra'], 'loc-kaba', 'Kaba and slit', 0.05, 'dress'),
+  local(['accra'], 'loc-fugu', 'Fugu smock', 0.05, 'kaftan'),
+  local(['freetown'], 'loc-lappa', 'Lappa dress', 0.04, 'dress'),
+  local(['freetown'], 'loc-ronko', 'Ronko smock', 0.05, 'kaftan'),
+  local(['freetown'], 'loc-gara', 'Gara tie-dye shirt', 0.03, 'shirt'),
+  local(['nairobi'], 'loc-kitenge', 'Kitenge shirt', 0.03, 'shirt'),
+  local(['nairobi'], 'loc-kanga', 'Kanga dress', 0.035, 'dress'),
+  local(['nairobi'], 'loc-kikoi', 'Kikoi kaftan', 0.04, 'kaftan'),
+  local(['kigali'], 'loc-mushanana', 'Mushanana', 0.08, 'dress'),
+  local(['kigali'], 'loc-imigongo', 'Imigongo-print shirt', 0.03, 'shirt'),
+  local(['johannesburg'], 'loc-shweshwe', 'Shweshwe dress', 0.045, 'dress'),
+  local(['johannesburg'], 'loc-madiba', 'Madiba shirt', 0.035, 'shirt'),
+  local(['cairo'], 'loc-galabeya', 'Galabeya', 0.04, 'kaftan'),
+  local(['cairo'], 'loc-embroidered', 'Embroidered kaftan dress', 0.06, 'dress'),
+  local(['dubai'], 'loc-kandura', 'Kandura', 0.06, 'kaftan'),
+  local(['dubai'], 'loc-abaya', 'Abaya', 0.07, 'dress'),
+  local(['london'], 'loc-tweed', 'Tweed blazer', 0.08, 'blazer'),
+  local(['london'], 'loc-breton', 'Breton top', 0.025, 'tee'),
+  local(['san-francisco'], 'loc-fleece', 'Tech fleece hoodie', 0.045, 'hoodie'),
+  local(['san-francisco'], 'loc-denim', 'Denim shirt', 0.035, 'shirt'),
 ];
 
 const MALL_BY_ID = new Map(MALL_ITEMS.map((x) => [x.id, x]));
@@ -1214,7 +1589,9 @@ export const MALL_TRIP = {
   bagMax: 80,
   /**
    * Things in your wardrobe (wardrobe.ts): their own list, so a bag full of
-   * sweets never pushes out your shoes. Every item in every colour fits.
+   * sweets never pushes out your shoes. Every item in every colour fits
+   * (the feedback round's clothes raised it from 400: every item before them
+   * in every colour fit in 400, so no older wardrobe was ever trimmed).
    */
-  wardrobeMax: 400,
+  wardrobeMax: 1000,
 } as const;

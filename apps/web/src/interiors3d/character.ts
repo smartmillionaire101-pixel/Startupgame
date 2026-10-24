@@ -4,18 +4,28 @@
  * shoulders, elbows, neck) so one function, `pose`, can put them in any
  * stance for a moment in time: walking, sitting, lying, dancing, eating…
  *
+ * Clothes are layered garments (the feedback round: "a banker should be in a
+ * suit"), not only a tint: a suit's jacket with lapels over a shirt's V and a
+ * tie, its skirt below the waist and sleeves to the wrist with shirt cuffs; a
+ * blazer open over a tee; a hoodie's hood, drawstrings, pocket and ribbed hem;
+ * a shirt's collar and placket; a blouse's soft neck; proper shoes (Oxfords,
+ * loafers, courts, trainers with their soles) and a briefcase or a folio.
+ *
  * The root sits at the feet and faces +z; turn it with `root.rotation.y`.
  */
 import * as THREE from 'three';
-import type { AvatarLook } from '../city/art';
+import { shade, type AvatarLook } from '../city/art';
 import { mat, contactShadow } from './kit';
 import { facialHairColour } from '../avatar/tone';
 import {
   BAG_COLOUR,
   BEADS,
   BELT_COLOUR,
+  BLOUSE_IVORY,
   SCARF_COLOUR,
+  SHIRT_WHITE,
   SILVER,
+  TIE_COLOUR,
   WATCH_COLOUR,
   necklaceColour,
   shoeColour,
@@ -349,6 +359,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     foot.position.set(0, -SHIN + 0.0, 0.04);
     foot.castShadow = true;
     shin.add(foot);
+    shoeShape(foot, look.shoes, shoe);
     if (look.shoes === 'boots') {
       const b = new THREE.Mesh(
         geo('boot', () => new THREE.CylinderGeometry(0.066, 0.07, 0.16, 8)),
@@ -356,7 +367,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       );
       b.position.y = -SHIN + 0.1;
       shin.add(b);
-    } else if (look.shoes === 'heels') {
+    } else if (look.shoes === 'heels' || look.shoes === 'courts') {
       const h = new THREE.Mesh(
         geo('heel', () => new THREE.BoxGeometry(0.025, 0.07, 0.025)),
         shoe,
@@ -539,12 +550,13 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       e.position.set(sx * 0.14, 0.16, 0.0);
       head.add(e);
     }
-  if (look.bag && look.bag !== 'none') {
+  // A bag on the shoulder (a briefcase is carried and a folio held: ./dressBody).
+  if (look.bag && look.bag !== 'none' && look.bag !== 'briefcase' && look.bag !== 'folio') {
     const bm = mat(BAG_COLOUR[look.bag]!, { rough: 0.6 });
     const bag = new THREE.Mesh(
       look.bag === 'gymbag'
         ? geo('gymbag', () => new THREE.BoxGeometry(0.3, 0.16, 0.14))
-        : look.bag === 'tote'
+        : look.bag === 'tote' || look.bag === 'worktote'
           ? geo('tote', () => new THREE.BoxGeometry(0.06, 0.26, 0.24))
           : geo('handbag', () => new THREE.BoxGeometry(0.07, 0.15, 0.2)),
       bm,
@@ -562,7 +574,8 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     torso.add(strap);
   }
   // Outfit accessories.
-  switch (look.accessory) {
+  // An outfit's tie (an old look), unless one from the wardrobe is on.
+  switch (wearsTie(look) ? 'none' : look.accessory) {
     case 'tie': {
       const t = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.24, 0.02), mat('#991b1b'));
       t.position.set(0, 0.3, 0.115);
@@ -594,6 +607,9 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     }
   }
 
+  // Garments over the body (the feedback round): sleeves, jackets, a hood, a tie, a bag in hand.
+  dressBody(look, { torso, female, foreL: AL.fore, foreR: AR.fore, handR: AR.hand });
+
   const shadow = contactShadow(0.6, 0.6, 0.5);
   root.add(shadow);
 
@@ -621,6 +637,377 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
   root.userData.character = id;
   root.traverse((o) => (o.userData.character = id));
   return c;
+}
+
+// ---------------------------------------------------------------- Garments
+
+/** Shoes by style: a toe cap on leather shoes, a sole and a stripe on trainers. */
+function shoeShape(foot: THREE.Mesh, style: AvatarLook['shoes'], m: THREE.Material) {
+  if (style === 'oxfords' || style === 'loafers' || style === 'courts' || style === 'heels') {
+    const toe = new THREE.Mesh(
+      geo('toe', () => new THREE.SphereGeometry(0.05, 12, 8)),
+      style === 'oxfords' ? mat(shoeColour(style), { rough: 0.2 }) : m,
+    );
+    toe.scale.set(1, 0.7, 1.1);
+    toe.position.set(0, -0.005, 0.08);
+    foot.add(toe);
+  } else if (style === 'trainers' || style === 'running' || style === 'sneakers') {
+    const sole = new THREE.Mesh(
+      geo('sole', () => new THREE.BoxGeometry(0.108, 0.025, 0.24)),
+      mat('#e5e7eb', { rough: 0.8 }),
+    );
+    sole.position.set(0, -0.035, 0.015);
+    foot.add(sole);
+    const stripe = new THREE.Mesh(
+      geo('stripe', () => new THREE.BoxGeometry(0.104, 0.012, 0.12)),
+      mat(style === 'running' ? '#f97316' : '#0f766e'),
+    );
+    stripe.position.set(0, 0, -0.02);
+    foot.add(stripe);
+  }
+}
+
+/** Whether a look wears a tie from the wardrobe (over a collar: a suit, a shirt or a blazer). */
+const wearsTie = (look: AvatarLook) =>
+  !!look.tie &&
+  look.tie !== 'none' &&
+  (look.topStyle === 'suit' || look.topStyle === 'shirt' || look.topStyle === 'blazer');
+
+/** A flat shape (a shirt's V, a lapel, a tie's blade), made once. */
+const flat = (key: string, pts: readonly (readonly [number, number])[]) =>
+  geo(`flat:${key}`, () => {
+    const sh = new THREE.Shape();
+    sh.moveTo(pts[0]![0], pts[0]![1]);
+    for (const p of pts.slice(1)) sh.lineTo(p[0], p[1]);
+    return new THREE.ShapeGeometry(sh);
+  });
+
+/** The parts of a person clothes hang on. */
+interface Body {
+  torso: THREE.Group;
+  female: boolean;
+  foreL: THREE.Group;
+  foreR: THREE.Group;
+  handR: THREE.Group;
+}
+
+/** The chest's front, where flat pieces lie (it is a capsule squashed front to back). */
+const chestZ = (female: boolean) => (female ? 0.14 : 0.155) * 0.72 + 0.002;
+
+/** Put a flat piece on the chest, leaned back with the top of it. */
+function onChest(b: Body, mesh: THREE.Object3D, dz = 0, lean = -0.19) {
+  const g = new THREE.Group();
+  g.position.set(0, 0.27, chestZ(b.female) + dz);
+  g.rotation.x = lean;
+  mesh.position.y -= 0.27;
+  g.add(mesh);
+  b.torso.add(g);
+}
+
+/** Sleeves down to the wrist, with a cuff at the end in its own colour (if it has one). */
+function sleeves(b: Body, colour: string, cuff: string | null) {
+  for (const f of [b.foreL, b.foreR]) {
+    const s = new THREE.Mesh(
+      geo('sleeve', () => new THREE.CapsuleGeometry(0.052, 0.15, 4, 10)),
+      mat(colour, { rough: 0.8 }),
+    );
+    s.position.y = -0.1;
+    s.castShadow = true;
+    f.add(s);
+    if (cuff) {
+      const k = new THREE.Mesh(
+        geo('cuff', () => new THREE.CylinderGeometry(0.047, 0.047, 0.035, 12)),
+        mat(cuff, { rough: 0.6 }),
+      );
+      k.position.y = -0.215;
+      f.add(k);
+    }
+  }
+}
+
+/** A jacket's skirt below the waist (so it reads as a jacket, not a jumper): open or done up. */
+function jacketSkirt(b: Body, colour: string, open: boolean) {
+  const h = open ? 0.18 : 0.2;
+  const k = b.female ? 0.92 : 1;
+  const sk = new THREE.Mesh(
+    geo(
+      `skirt:${open}:${k}`,
+      () =>
+        new THREE.CylinderGeometry(
+          0.162 * k,
+          0.175 * k,
+          h,
+          20,
+          1,
+          true,
+          open ? 0.35 : 0,
+          open ? Math.PI * 2 - 0.7 : Math.PI * 2,
+        ),
+    ),
+    mat(colour, { rough: 0.8, side: THREE.DoubleSide }),
+  );
+  sk.scale.z = 0.76;
+  // The opening (if any) faces the front.
+  sk.rotation.y = Math.PI;
+  sk.position.y = 0.06 - h / 2;
+  sk.castShadow = true;
+  b.torso.add(sk);
+}
+
+/** Lapels either side of the V. */
+function lapels(b: Body, colour: string, depth: number) {
+  for (const sx of [-1, 1]) {
+    const l = new THREE.Mesh(
+      flat(`lapel:${sx}:${depth}`, [
+        [sx * 0.02, 0.5],
+        [sx * 0.085, 0.5],
+        [sx * 0.105, 0.43],
+        [sx * 0.012, 0.5 - depth],
+      ]),
+      mat(colour, { rough: 0.5, side: THREE.DoubleSide }),
+    );
+    l.position.z = 0.004;
+    onChest(b, l);
+  }
+}
+
+/** A tie: its knot and blade, or a bow tie at the collar. */
+function tieOn(b: Body, style: string) {
+  const c = TIE_COLOUR[style] ?? TIE_COLOUR.silk!;
+  if (style === 'bow') {
+    for (const sx of [-1, 1]) {
+      const w = new THREE.Mesh(
+        geo('bow', () => new THREE.ConeGeometry(0.022, 0.05, 6)),
+        mat(c, { rough: 0.4 }),
+      );
+      w.rotation.z = (sx * Math.PI) / 2;
+      w.position.set(sx * 0.022, 0.475, 0.008);
+      onChest(b, w);
+    }
+    return;
+  }
+  const knot = new THREE.Mesh(
+    geo('tie-knot', () => new THREE.BoxGeometry(0.04, 0.035, 0.03)),
+    mat(shade(c, -0.12), { rough: 0.4 }),
+  );
+  knot.position.set(0, 0.475, 0);
+  onChest(b, knot);
+  const blade = new THREE.Mesh(
+    flat('tie', [
+      [-0.016, 0.46],
+      [0.016, 0.46],
+      [0.026, 0.3],
+      [0, 0.27],
+      [-0.026, 0.3],
+    ]),
+    mat(c, { rough: 0.4, side: THREE.DoubleSide }),
+  );
+  onChest(b, blade, 0.006);
+}
+
+/** A button on the front. */
+function button(b: Body, y: number, colour: string) {
+  const m = new THREE.Mesh(
+    geo('button', () => new THREE.SphereGeometry(0.011, 8, 6)),
+    mat(colour, { rough: 0.4 }),
+  );
+  m.position.set(0, y, chestZ(b.female) - 0.001);
+  b.torso.add(m);
+}
+
+/** A pocket square on the left breast. */
+function pocketSquare(b: Body, colour: string) {
+  const sq = new THREE.Mesh(
+    geo('pocket-square', () => new THREE.BoxGeometry(0.04, 0.02, 0.01)),
+    mat(colour),
+  );
+  sq.position.set(0.075, 0.36, chestZ(b.female) - 0.005);
+  b.torso.add(sq);
+}
+
+/** The top's layers by style, the tie, and a bag carried in the hand or under the arm. */
+function dressBody(look: AvatarLook, b: Body) {
+  const top = look.top;
+  const tie = wearsTie(look) ? look.tie! : null;
+  switch (look.topStyle ?? 'tee') {
+    case 'suit': {
+      // Under a woman's suit with no tie, an ivory blouse with a soft neck; else a white shirt.
+      const blouse = b.female && !tie;
+      const under = blouse ? BLOUSE_IVORY : SHIRT_WHITE;
+      onChest(
+        b,
+        new THREE.Mesh(
+          blouse
+            ? flat('blouse-v', [
+                [-0.075, 0.5],
+                [0.075, 0.5],
+                [0.03, 0.28],
+                [0, 0.25],
+                [-0.03, 0.28],
+              ])
+            : flat('shirt-v', [
+                [-0.07, 0.5],
+                [0.07, 0.5],
+                [0, 0.25],
+              ]),
+          mat(under, { rough: 0.5, side: THREE.DoubleSide }),
+        ),
+        -0.002,
+      );
+      if (tie) tieOn(b, tie);
+      lapels(b, shade(top, -0.25), b.female ? 0.27 : 0.24);
+      for (const y of b.female ? [0.17] : [0.2, 0.12]) button(b, y, shade(top, -0.45));
+      pocketSquare(b, '#f8fafc');
+      jacketSkirt(b, top, false);
+      sleeves(b, top, under);
+      break;
+    }
+    case 'blazer': {
+      // Open over a white tee (or a shirt and tie): a wide front, lapels, a pocket square.
+      onChest(
+        b,
+        new THREE.Mesh(
+          flat('tee-front', [
+            [-0.075, 0.5],
+            [0.075, 0.5],
+            [0.05, 0.05],
+            [-0.05, 0.05],
+          ]),
+          mat(SHIRT_WHITE, { rough: 0.85, side: THREE.DoubleSide }),
+        ),
+        -0.002,
+        -0.1,
+      );
+      if (tie) tieOn(b, tie);
+      lapels(b, shade(top, -0.2), 0.3);
+      pocketSquare(b, '#d97706');
+      jacketSkirt(b, top, true);
+      sleeves(b, top, null);
+      break;
+    }
+    case 'hoodie': {
+      const rib = shade(top, -0.15);
+      const hm = mat(top, { rough: 0.9 });
+      // The hood, bunched behind the neck.
+      const ring = new THREE.Mesh(
+        geo('hood-ring', () => new THREE.TorusGeometry(0.09, 0.045, 8, 20)),
+        hm,
+      );
+      ring.rotation.x = Math.PI / 2 - 0.35;
+      ring.position.set(0, 0.5, -0.03);
+      b.torso.add(ring);
+      const hood = new THREE.Mesh(
+        geo('hood', () => new THREE.SphereGeometry(0.1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2)),
+        hm,
+      );
+      hood.scale.set(1.2, 0.8, 0.7);
+      hood.rotation.x = -1.4;
+      hood.position.set(0, 0.47, -0.11);
+      b.torso.add(hood);
+      // Drawstrings with their tips.
+      for (const sx of [-1, 1]) {
+        const d = new THREE.Mesh(
+          geo('string', () => new THREE.CylinderGeometry(0.005, 0.005, 0.14, 5)),
+          mat('#f8fafc'),
+        );
+        d.position.set(sx * 0.03, 0.4, 0);
+        onChest(b, d, 0.006);
+        const tip = new THREE.Mesh(
+          geo('string-tip', () => new THREE.SphereGeometry(0.009, 6, 4)),
+          mat('#f8fafc'),
+        );
+        tip.position.set(sx * 0.03, 0.33, 0);
+        onChest(b, tip, 0.006);
+      }
+      // The kangaroo pocket and the ribbed hem.
+      const pk = new THREE.Mesh(
+        geo('pocket', () => new THREE.BoxGeometry(0.22, 0.1, 0.02)),
+        mat(rib, { rough: 0.95 }),
+      );
+      pk.position.set(0, 0.07, chestZ(b.female) - 0.002);
+      b.torso.add(pk);
+      const hem = new THREE.Mesh(
+        geo('hem', () => new THREE.CylinderGeometry(0.162, 0.165, 0.05, 20)),
+        mat(rib, { rough: 0.95 }),
+      );
+      hem.scale.z = 0.76;
+      hem.position.y = -0.03;
+      b.torso.add(hem);
+      sleeves(b, top, rib);
+      break;
+    }
+    case 'shirt': {
+      // A collar, the placket and its buttons (or a tie), sleeves with cuffs.
+      const cm = mat(shade(top, 0.08), { rough: 0.6, side: THREE.DoubleSide });
+      for (const sx of [-1, 1])
+        onChest(
+          b,
+          new THREE.Mesh(
+            flat(`collar:${sx}`, [
+              [sx * 0.012, 0.5],
+              [sx * 0.075, 0.5],
+              [sx * 0.05, 0.44],
+              [sx * 0.008, 0.46],
+            ]),
+            cm,
+          ),
+          0.004,
+        );
+      const pl = new THREE.Mesh(
+        geo('placket', () => new THREE.BoxGeometry(0.012, 0.32, 0.004)),
+        mat(shade(top, -0.12), { rough: 0.7 }),
+      );
+      pl.position.set(0, 0.29, 0);
+      onChest(b, pl, 0.001);
+      if (tie) tieOn(b, tie);
+      else for (const y of [0.34, 0.24, 0.14]) button(b, y, shade(top, -0.3));
+      sleeves(b, top, shade(top, -0.06));
+      break;
+    }
+    case 'blouse': {
+      // A soft gathered neck and sleeves to the wrist.
+      const n = new THREE.Mesh(
+        geo('blouse-neck', () => new THREE.TorusGeometry(0.075, 0.016, 6, 18, Math.PI)),
+        mat(shade(top, 0.12), { rough: 0.5 }),
+      );
+      n.rotation.set(Math.PI / 2 + 0.35, 0, Math.PI);
+      n.position.set(0, 0.47, 0.02);
+      b.torso.add(n);
+      sleeves(b, top, null);
+      break;
+    }
+  }
+  // A briefcase in the right hand; a folio under the left arm.
+  if (look.bag === 'briefcase') {
+    const bc = new THREE.Mesh(
+      geo('briefcase', () => new THREE.BoxGeometry(0.08, 0.28, 0.38)),
+      mat(BAG_COLOUR.briefcase!, { rough: 0.4 }),
+    );
+    bc.position.set(0, -0.18, 0);
+    bc.castShadow = true;
+    b.handR.add(bc);
+    const handle = new THREE.Mesh(
+      geo('briefcase-handle', () => new THREE.TorusGeometry(0.04, 0.008, 6, 12, Math.PI)),
+      mat('#111111'),
+    );
+    handle.rotation.y = Math.PI / 2;
+    handle.position.set(0, -0.04, 0);
+    b.handR.add(handle);
+    const clasp = new THREE.Mesh(
+      geo('clasp', () => new THREE.BoxGeometry(0.085, 0.02, 0.03)),
+      mat('#c8a25a', { metal: 0.8, rough: 0.3 }),
+    );
+    clasp.position.set(0, -0.08, 0);
+    b.handR.add(clasp);
+  } else if (look.bag === 'folio') {
+    const f = new THREE.Mesh(
+      geo('folio', () => new THREE.BoxGeometry(0.03, 0.3, 0.22)),
+      mat(BAG_COLOUR.folio!, { rough: 0.4 }),
+    );
+    f.position.set(0.06, -0.12, 0.04);
+    f.castShadow = true;
+    b.foreL.add(f);
+  }
 }
 
 /** Swap a person's hair (a haircut). */

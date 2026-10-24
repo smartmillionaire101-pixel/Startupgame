@@ -3,15 +3,17 @@
  * shop", then "more stores and more items to buy"): their names on the
  * signs, colours and icons. What they sell and the prices come from the
  * engine (`me.mall`, ../leisure.ts); which shops are open here too (`shops`:
- * the first six on an older server).
+ * the first six on an older server). The feedback round adds The Suit Shop
+ * ("a banker should be able to buy suits for a banker from the mall").
  */
 import type { MallShopId } from '@runway/engine';
+import { TOP_COLOURS } from '@runway/engine';
 import { t } from '../../i18n';
 import type { AvatarLook } from '../art';
-import { DENIM } from '../../avatar/worn';
+import { legsColour } from '../../avatar/worn';
 import type { MallItemView, MallView } from '../leisure';
 
-/** Every shop, the first six then the bigger mall's. */
+/** Every shop, the first six then the bigger mall's (The Suit Shop by the designer boutique). */
 export const SHOP_ORDER: readonly MallShopId[] = [
   'fashion',
   'phones',
@@ -21,6 +23,7 @@ export const SHOP_ORDER: readonly MallShopId[] = [
   'cinema',
   'outlet',
   'designer',
+  'suits',
   'shoes',
   'jewellery',
   'beauty',
@@ -69,6 +72,7 @@ const NAMES: Record<Exclude<MallShopId, 'fashion'>, string> = {
   toys: 'Wonder Toys & Gifts',
   pharmacy: 'CarePlus Pharmacy',
   arcade: 'Pixel Arcade',
+  suits: 'The Suit Shop',
 };
 
 export const shopName = (shop: MallShopId, market: string): string =>
@@ -91,6 +95,7 @@ export const SHOP_COLOUR: Record<MallShopId, string> = {
   toys: '#f59e0b',
   pharmacy: '#059669',
   arcade: '#9333ea',
+  suits: '#14213d',
 };
 
 export const SHOP_ICON: Record<MallShopId, string> = {
@@ -110,6 +115,7 @@ export const SHOP_ICON: Record<MallShopId, string> = {
   toys: '🧸',
   pharmacy: '💊',
   arcade: '🕹️',
+  suits: '🤵',
 };
 
 export const shopBlurb = (shop: MallShopId): string =>
@@ -130,6 +136,7 @@ export const shopBlurb = (shop: MallShopId): string =>
     toys: () => t('Toys, flowers and gifts'),
     pharmacy: () => t('Health and hygiene'),
     arcade: () => t('Games, VR and bowling'),
+    suits: () => t('Tailoring and formal wear'),
   })[shop]();
 
 /** The tops' colours by name (the avatar creator's names). */
@@ -146,6 +153,21 @@ const COLOUR_NAME: Record<string, () => string> = {
   '#111827': () => t('Black'),
   '#e2e8f0': () => t('White'),
   '#a16207': () => t('Gold'),
+  // Suit cloths (the engine's SUIT_COLOURS).
+  '#1f2633': () => t('Charcoal'),
+  '#1e2a44': () => t('Navy'),
+  '#0f1115': () => t('Black'),
+  '#4b5563': () => t('Grey'),
+  '#a8a29e': () => t('Stone'),
+  '#a07a52': () => t('Camel'),
+  '#5b1a2a': () => t('Burgundy'),
+  '#1f3b2d': () => t('Forest green'),
+  // Shirts and blouses (SHIRT_COLOURS).
+  '#f8fafc': () => t('White'),
+  '#bfdbfe': () => t('Sky blue'),
+  '#fbcfe8': () => t('Pale pink'),
+  '#f5efe4': () => t('Ivory'),
+  '#ddd6fe': () => t('Lilac'),
 };
 export const colourName = (hex: string): string => COLOUR_NAME[hex.toLowerCase()]?.() ?? hex;
 
@@ -169,12 +191,61 @@ export function wearing(
     ...(it.headwear ? { headwear: it.headwear as AvatarLook['headwear'] } : {}),
     ...(it.glasses ? { glasses: it.glasses as AvatarLook['glasses'] } : {}),
     ...(it.worn ? { [it.worn.slot]: it.worn.style } : {}),
-    ...(it.worn?.slot === 'legs' ? { bottom: DENIM } : {}),
+    ...(it.worn?.slot === 'legs' ? { bottom: legsColour(it.worn.style) ?? look.bottom } : {}),
+    // A suit's trousers match its jacket (unless you wear jeans or chinos with it).
+    ...(it.topStyle === 'suit' && !legsColour(look.legs) ? { bottom: colour } : {}),
   };
+}
+
+/** The colours an item comes in (a suit's cloths), or the creator's. */
+export const coloursOf = (it: Pick<MallItemView, 'colours'>): readonly string[] =>
+  it.colours?.length ? it.colours : TOP_COLOURS;
+
+/** The colour you get an item in: the one you picked if it comes in it, else its first. */
+export const colourFor = (it: Pick<MallItemView, 'colours'>, colour: string): string => {
+  const cs = coloursOf(it);
+  return cs.includes(colour.toLowerCase()) ? colour : cs[0]!;
+};
+
+/**
+ * The Suit Shop's catalogue, by what each thing is (the chips over its list:
+ * suits, shirts and blouses, ties, shoes, watches and bags).
+ */
+export type SuitAisle = 'all' | 'suits' | 'shirts' | 'ties' | 'shoes' | 'watches' | 'bags';
+export const SUIT_AISLES: readonly SuitAisle[] = [
+  'all',
+  'suits',
+  'shirts',
+  'ties',
+  'shoes',
+  'watches',
+  'bags',
+];
+export const aisleLabel = (a: SuitAisle): string =>
+  ({
+    all: () => t('All'),
+    suits: () => t('Suits'),
+    shirts: () => t('Shirts & blouses'),
+    ties: () => t('Ties'),
+    shoes: () => t('Shoes'),
+    watches: () => t('Watches'),
+    bags: () => t('Bags'),
+  })[a]();
+/** The aisle an item is in. */
+export function aisleOf(it: Pick<MallItemView, 'topStyle' | 'worn'>): SuitAisle {
+  if (it.topStyle === 'suit') return 'suits';
+  if (it.topStyle) return 'shirts';
+  const slot = it.worn?.slot;
+  if (slot === 'tie') return 'ties';
+  if (slot === 'shoes') return 'shoes';
+  if (slot === 'watch') return 'watches';
+  if (slot === 'bag') return 'bags';
+  return 'all';
 }
 
 /** What an item does, in a few words (its card, the shop's list). */
 export function itemNote(it: MallItemView): string {
+  if (it.local) return t('A local style');
   if (isWearable(it)) return t('You wear it');
   if (it.furniture) return t('For your home');
   if (it.hours) return t('{n} hours', { n: it.hours });
@@ -322,6 +393,28 @@ const ICON: Record<string, string> = {
   'arc-karaoke': '🎤',
   'arc-bowling': '🎳',
   'arc-vr': '🥽',
+  // The feedback round.
+  suit: '🤵',
+  blouse: '👚',
+  'sui-tie-silk': '👔',
+  'sui-tie-knit': '👔',
+  'sui-tie-bow': '🎀',
+  'sui-oxfords': '👞',
+  'sui-oxfords-handmade': '👞',
+  'shoe-oxfords': '👞',
+  'sui-loafers': '👞',
+  'des-loafers': '👞',
+  'sui-courts': '👠',
+  'shoe-courts': '👠',
+  'sui-watch': '⌚',
+  'sui-briefcase': '💼',
+  'sui-folio': '📁',
+  'sui-tote': '👜',
+  'fash-chinos': '👖',
+  'out-chinos': '👖',
+  'spt-joggers': '👖',
+  'out-trainers': '👟',
+  'spt-trainers': '👟',
 };
 /** A picture for an item (its card, the receipt, your purchases). */
 export const itemIcon = (

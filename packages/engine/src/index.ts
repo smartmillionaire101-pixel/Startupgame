@@ -278,7 +278,10 @@ export {
   MALL_ITEMS,
   MALL_SHOPS,
   MALL_SHOPS_FIRST,
+  MALL_SHOPS_FEEDBACK,
   MALL_TRIP,
+  SHIRT_COLOURS,
+  SUIT_COLOURS,
   PHONE_NAMES,
   forWardrobe,
   giftable,
@@ -294,6 +297,9 @@ export type {
   MallShopId,
   PhoneTier,
 } from './data/leisure.js';
+// The feedback round: dressed for the role.
+export { inRoleOutfit, roleOutfit } from './outfits.js';
+export type { RoleOutfit } from './outfits.js';
 export { BRANCH } from './branches.js';
 export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.js';
 // Wave 12: sky views and the quiz bank.

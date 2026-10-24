@@ -1,5 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { BACKGROUNDS, fitAppearance, type Appearance, type Background } from '@runway/engine';
+import {
+  BACKGROUNDS,
+  fitAppearance,
+  inRoleOutfit,
+  type Appearance,
+  type Background,
+} from '@runway/engine';
 import { api } from '../api';
 import { t, tx } from '../i18n';
 import { useGame } from '../store';
@@ -91,6 +97,9 @@ export function Onboarding({
     if (!custom) setLook(randomAppearance(g));
     else setLook((l) => fitAppearance(l, g));
   };
+  // The feedback round: a look you didn't make yourself is dressed for your
+  // role (a banker in a suit, an investor smart-casual, a founder in a hoodie).
+  const dressed = custom ? look : inRoleOutfit(look, role, gender ?? 'female');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submit = async (event: FormEvent) => {
@@ -114,7 +123,7 @@ export function Onboarding({
       const saved = await api
         .command({
           type: 'player.appearance',
-          appearance: fitAppearance(outfit ? { ...look, topColor: outfit } : look, gender),
+          appearance: fitAppearance(outfit ? { ...dressed, topColor: outfit } : dressed, gender),
         })
         .then(
           () => true,
@@ -188,7 +197,7 @@ export function Onboarding({
         <LookChoice
           background={role === 'founder' ? background : undefined}
           gender={gender}
-          look={look}
+          look={dressed}
           setLook={(a) => {
             setLook(a);
             setCustom(true);

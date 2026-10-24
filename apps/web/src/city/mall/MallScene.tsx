@@ -15,6 +15,10 @@
  * you're together they walk with you and any card or list can buy them a
  * gift (`mall.gift`: you pay, it's theirs).
  *
+ * The Suit Shop (the feedback round): suits in their own cloths (an item's
+ * `colours`), shirts and blouses, ties, formal shoes, watches and bags, with
+ * aisles to pick from (./SuitAisles.tsx).
+ *
  * Drawn in 3D (../../interiors3d/Mall3D.tsx) or, in Lite, in SVG (./Mall2D.tsx).
  */
 import { useMemo, useState } from 'react';
@@ -34,10 +38,14 @@ import { Mall2D } from './Mall2D';
 import { PurchasesSheet } from '../../avatar/Wardrobe';
 import { MallInviteSheet, personLook } from './MallInvite';
 import { MallWalk } from './MallWalk';
+import { SuitAisles } from './SuitAisles';
 import {
   SHOP_COLOUR,
   SHOP_ICON,
   SHOP_ORDER,
+  aisleOf,
+  colourFor,
+  coloursOf,
   isWearable,
   itemIcon,
   itemNote,
@@ -45,7 +53,9 @@ import {
   shopBlurb,
   shopName,
   shopsOf,
+  colourName,
   wearing,
+  type SuitAisle,
 } from './shops';
 
 /** Reduced motion (the system's, or the game's own setting): walking jumps. */
@@ -99,6 +109,7 @@ export function MallScene(props: SceneProps) {
   const [focus, setFocus] = useState<MallShopId | null>(null);
   const [colour, setColour] = useState<string>(TOP_COLOURS[6]);
   const [trying, setTrying] = useState<string | null>(null);
+  const [aisle, setAisle] = useState<SuitAisle>('all');
   const [bought, setBought] = useState<Bought | null>(null);
   const [inviting, setInviting] = useState(false);
   const [purchases, setPurchases] = useState(false);
@@ -141,10 +152,20 @@ export function MallScene(props: SceneProps) {
   const shown0 = (mall?.items ?? []).filter(
     (i) => forMe(i) || (!!friendGender && !!i.gift && fits(friendGender, i)),
   );
-  const items = shown0.filter((i) => i.shop === focus);
+  const inShop = shown0.filter((i) => i.shop === focus);
+  // The Suit Shop's aisles (suits, shirts and blouses, ties …).
+  const items =
+    focus === 'suits' && aisle !== 'all' ? inShop.filter((i) => aisleOf(i) === aisle) : inShop;
   const tryItem = items.find((i) => i.id === trying);
+  // The colours on offer: what you're trying on comes in (a suit: its cloths), else the shop's tops'.
+  const palette = coloursOf(
+    (tryItem?.topStyle ? tryItem : null) ?? items.find((i) => i.topStyle) ?? {},
+  );
+  const picked = colourFor({ colours: [...palette] }, colour);
   const shown =
-    tryItem && isWearable(tryItem) && forMe(tryItem) ? wearing(me, tryItem, colour) : me;
+    tryItem && isWearable(tryItem) && forMe(tryItem)
+      ? wearing(me, tryItem, colourFor(tryItem, colour))
+      : me;
   const units = shops.filter((s): s is UnitShop => isUnit(s));
   const wears = items.some((i) => i.topStyle);
 
@@ -153,7 +174,7 @@ export function MallScene(props: SceneProps) {
       looseCmd({
         type: 'mall.buy',
         itemId: it.id,
-        ...(it.topStyle ? { colour } : {}),
+        ...(it.topStyle ? { colour: colourFor(it, colour) } : {}),
       }),
     );
     if (!r) return;
@@ -166,7 +187,7 @@ export function MallScene(props: SceneProps) {
       looseCmd({
         type: 'wardrobe.wear',
         itemId: it.id,
-        ...(it.topStyle ? { colour } : {}),
+        ...(it.topStyle ? { colour: colourFor(it, colour) } : {}),
       }),
       t('You put on: {item}.', { item: tx(it.label) }),
     );
@@ -179,7 +200,7 @@ export function MallScene(props: SceneProps) {
         type: 'mall.gift',
         tripId: together.id,
         itemId: it.id,
-        ...(it.topStyle ? { colour } : {}),
+        ...(it.topStyle ? { colour: colourFor(it, colour) } : {}),
       }),
     );
     if (!r) return;
@@ -407,6 +428,7 @@ export function MallScene(props: SceneProps) {
                     setFocus(s);
                     setTrying(null);
                     setBought(null);
+                    setAisle('all');
                   }}
                 >
                   <span className="tray-icon" aria-hidden="true">
@@ -432,17 +454,27 @@ export function MallScene(props: SceneProps) {
               >
                 {t('← Back to the concourse')}
               </button>
+              {focus === 'suits' && (
+                <SuitAisles
+                  items={inShop}
+                  aisle={aisle}
+                  onAisle={(a) => {
+                    setAisle(a);
+                    setTrying(null);
+                  }}
+                />
+              )}
               {wears && (
                 <div className="mall-colours" role="radiogroup" aria-label={t('Colour')}>
-                  {TOP_COLOURS.map((c) => (
+                  {palette.map((c) => (
                     <button
                       key={c}
                       type="button"
                       role="radio"
-                      aria-checked={c === colour}
-                      aria-label={c}
+                      aria-checked={c === picked}
+                      aria-label={colourName(c)}
                       data-colour={c}
-                      className={`mall-swatch${c === colour ? ' is-on' : ''}`}
+                      className={`mall-swatch${c === picked ? ' is-on' : ''}`}
                       style={{ background: c }}
                       onClick={() => setColour(c)}
                     />
@@ -482,7 +514,7 @@ export function MallScene(props: SceneProps) {
                     </button>
                     <span className="mall-price">{money(it.price, cur)}</span>
                     {forMe(it) &&
-                      (ownsIt(it, colour) ? (
+                      (ownsIt(it, colourFor(it, colour)) ? (
                         <button
                           type="button"
                           className="btn btn-subtle mall-buy"

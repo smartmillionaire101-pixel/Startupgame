@@ -16,6 +16,7 @@
 import { useEffect, useRef, type MutableRefObject, type ReactElement, type RefObject } from 'react';
 import * as THREE from 'three';
 import type { MallShopId } from '@runway/engine';
+import { SUIT_COLOURS } from '@runway/engine';
 import type { AvatarLook } from '../city/art';
 import { hash, seeded } from '../city/contract';
 import {
@@ -874,6 +875,41 @@ function buildUnits(names: Record<MallShopId, string>, units: UnitShop[]) {
         }
         box(0.5, 1.3, 0.8, '#f472b6', -0.7, 0, 0, { opacity: 0.85 });
         break;
+      case 'suits': {
+        // The Suit Shop (the feedback round): a brass rail of jackets in their
+        // cloths, shirts folded on a table, and two mannequins in the window,
+        // one in a suit and tie with a briefcase, one in a trouser suit.
+        const cloth = SUIT_CLOTHS;
+        box(0.04, 0.04, W - 0.9, '#c8a25a', back + 0.12, 2.0, 0, { metal: 0.8, rough: 0.3 });
+        for (let i = 0; i < cloth.length; i++)
+          box(0.34, 0.85, 0.07, cloth[i]!, back + 0.12, 1.1, -W / 2 + 0.55 + i * ((W - 1.1) / 7));
+        box(0.55, 0.72, 0.9, '#7a5135', -0.75, 0, 0);
+        for (let i = 0; i < 4; i++)
+          box(
+            0.26,
+            0.06,
+            0.18,
+            ['#f8fafc', '#bfdbfe', '#fbcfe8', '#f5efe4'][i]!,
+            -0.75,
+            0.72,
+            -0.3 + i * 0.2,
+          );
+        box(0.05, 0.05, W - 0.4, '#c8a25a', 0.02, H - 1.2, 0, { metal: 0.9, rough: 0.2 });
+        for (const [l, look] of [
+          [-W / 3, MANNEQUIN_SUIT],
+          [W / 3, MANNEQUIN_TROUSER_SUIT],
+        ] as const) {
+          const p = at(-1.0, l);
+          k.cyl(0.32, 0.34, 0.14, '#f5efe4', p.x, 0, p.z, { seg: 20 });
+          const m = makeCharacter(look);
+          pose(m, 'stand', 0);
+          m.shadow.visible = false;
+          m.root.position.set(p.x, 0.14, p.z);
+          m.root.rotation.y = Math.atan2(u.nx, u.nz) + (l < 0 ? 0.25 : -0.25);
+          root.add(m.root);
+        }
+        break;
+      }
     }
     // Its sign, facing out; a tap on the sign or the glass walks you there.
     const sign = signMesh(names[shop], col, W - 0.4, 0.8);
@@ -894,6 +930,34 @@ function buildUnits(names: Record<MallShopId, string>, units: UnitShop[]) {
   root.add(k.build());
   return { root, picks };
 }
+
+/** The Suit Shop's rail: its cloths (the engine's SUIT_COLOURS). */
+const SUIT_CLOTHS = SUIT_COLOURS;
+/** Its window's mannequins: pale, bald and dressed in the shop's suits. */
+const MANNEQUIN = {
+  skin: '#e7e2d8',
+  hair: '#e7e2d8',
+  hairStyle: 'bald',
+  accessory: 'none',
+} as const;
+const MANNEQUIN_SUIT: AvatarLook = {
+  ...MANNEQUIN,
+  top: '#1f2633',
+  bottom: '#1f2633',
+  gender: 'male',
+  topStyle: 'suit',
+  tie: 'silk',
+  shoes: 'oxfords',
+  bag: 'briefcase',
+};
+const MANNEQUIN_TROUSER_SUIT: AvatarLook = {
+  ...MANNEQUIN,
+  top: '#1e2a44',
+  bottom: '#1e2a44',
+  gender: 'female',
+  topStyle: 'suit',
+  shoes: 'courts',
+};
 
 /** The food court: counters with signs (one per dish), tables and chairs. */
 function buildCourt(mallName: string, ds: Display[]) {

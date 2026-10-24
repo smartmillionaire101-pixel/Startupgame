@@ -15,7 +15,14 @@
  */
 import { mix, shade, type AvatarLook } from '../city/art';
 import { facialHairColour as darkOn } from './tone';
-import { SCARF_COLOUR, SILVER, necklaceColour } from './worn';
+import {
+  BLOUSE_IVORY,
+  SCARF_COLOUR,
+  SHIRT_WHITE,
+  SILVER,
+  TIE_COLOUR,
+  necklaceColour,
+} from './worn';
 
 export type Shape =
   | { el: 'path'; part: string; d: string; fill: string; stroke?: string; sw?: number; o?: number }
@@ -238,7 +245,35 @@ export function portraitShapes(look: AvatarLook): Shape[] {
     out.push(path('neckline', 'M42,78 L50,90 L58,78 Z', skinDk));
     out.push(path('embroidery', 'M40,78 L50,93 L60,78', 'none', { stroke: '#fbbf24', sw: 2.2 }));
   }
-  if (look.accessory === 'tie') out.push(path('tie', 'M50,86 L53,90 L50,100 L47,90 Z', '#b91c1c'));
+  // A suit (the feedback round): the jacket's lapels over a shirt (a woman's
+  // with no tie: an ivory blouse), and a tie from the wardrobe on a collar.
+  const tie =
+    (topStyle === 'suit' || topStyle === 'shirt' || topStyle === 'blazer') &&
+    look.tie &&
+    look.tie !== 'none'
+      ? look.tie
+      : null;
+  if (topStyle === 'suit') {
+    const under = female && !tie ? BLOUSE_IVORY : SHIRT_WHITE;
+    out.push(path('shirt', 'M42,78 L58,78 L50,97 Z', under));
+    out.push(path('lapel', 'M39,78 L50,98 L45,100 L34,83 Z', shade(top, -0.22)));
+    out.push(path('lapel', 'M61,78 L50,98 L55,100 L66,83 Z', shade(top, -0.22)));
+    out.push(path('pocket', 'M64,90 L71,89 L71,91 L64,92 Z', '#f8fafc'));
+  }
+  if (topStyle === 'blouse') {
+    out.push(path('neckline', 'M42,78 C45,87 55,87 58,78 Z', skinDk));
+    out.push(
+      path('collar', 'M40,78 C44,90 56,90 60,78', 'none', { stroke: shade(top, 0.2), sw: 2.4 }),
+    );
+  }
+  if (tie === 'bow')
+    out.push(path('tie', 'M43,82 L50,85.5 L57,82 L57,89 L50,85.5 L43,89 Z', TIE_COLOUR.bow!));
+  else if (tie) {
+    out.push(path('tie', 'M47.5,82 L52.5,82 L51.6,87 L48.4,87 Z', shade(TIE_COLOUR[tie]!, -0.15)));
+    out.push(path('tie', 'M48.4,87 L51.6,87 L53.4,99 L50,100 L46.6,99 Z', TIE_COLOUR[tie]!));
+  }
+  if (look.accessory === 'tie' && !tie)
+    out.push(path('tie', 'M50,86 L53,90 L50,100 L47,90 Z', '#b91c1c'));
   if (look.accessory === 'scarf')
     out.push(path('scarf', 'M37,78 Q50,88 63,78 L61,84 Q50,92 39,84 Z', '#f59e0b'));
   if (look.accessory === 'lanyard')

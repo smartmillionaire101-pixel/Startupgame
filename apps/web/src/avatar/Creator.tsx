@@ -78,6 +78,8 @@ const TOP_NAME: Record<Appearance['topStyle'], () => string> = {
   hoodie: () => t('Hoodie'),
   kaftan: () => t('Kaftan'),
   dress: () => t('Dress'),
+  suit: () => t('Suit'),
+  blouse: () => t('Blouse'),
 };
 const HAIR_COLOUR_NAME: (() => string)[] = [
   () => t('Black'),

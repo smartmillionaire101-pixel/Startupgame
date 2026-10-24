@@ -5,12 +5,21 @@
  * the arms and legs. Shared geometries; materials cached by colour.
  * Phase 6a adds the creator's parts: ten hairstyles, facial hair, glasses,
  * headwear (a cap, beanie, headwrap or gele) and long tops (kaftan, dress).
+ * The feedback round: a suit shows its shirt front and a tie from the
+ * wardrobe, and a jacket's skirt below the waist.
  *
  * Self-contained: only three.js and a plain look object.
  */
 import * as THREE from 'three';
 import { facialHairColour } from '../avatar/tone';
-import { BAG_COLOUR, necklaceColour, shoeColour, type Worn } from '../avatar/worn';
+import {
+  BAG_COLOUR,
+  SHIRT_WHITE,
+  TIE_COLOUR,
+  necklaceColour,
+  shoeColour,
+  type Worn,
+} from '../avatar/worn';
 
 export interface CharacterLook extends Worn {
   skin: string;
@@ -25,7 +34,7 @@ export interface CharacterLook extends Worn {
   facialHair?: 'none' | 'stubble' | 'moustache' | 'goatee' | 'beard';
   glasses?: 'none' | 'round' | 'square' | 'shades';
   headwear?: 'none' | 'cap' | 'beanie' | 'headwrap' | 'gele';
-  topStyle?: 'tee' | 'shirt' | 'blazer' | 'hoodie' | 'kaftan' | 'dress';
+  topStyle?: 'tee' | 'shirt' | 'blazer' | 'hoodie' | 'kaftan' | 'dress' | 'suit' | 'blouse';
   /** Trousers, never a skirt (golf clothes). */
   trousers?: boolean;
 }
@@ -67,6 +76,9 @@ function geoms() {
     bag: box(0.08, 0.2, 0.22, 0),
     necklace: new THREE.TorusGeometry(0.08, 0.012, 4, 14).rotateX(Math.PI / 2 - 0.45),
     tie: box(0.06, 0.34, 0.02, -0.17),
+    // A suit: the shirt's front and the jacket's skirt.
+    front: box(0.12, 0.26, 0.02, -0.13),
+    jacket: new THREE.CylinderGeometry(0.235, 0.25, 0.2, 8).translate(0, -0.1, 0),
     ring: new THREE.RingGeometry(0.42, 0.55, 28).rotateX(-Math.PI / 2),
     // Phase 6a: the creator's styles and parts, one geometry each for the whole crowd.
     curl: new THREE.IcosahedronGeometry(0.06, 0),
@@ -135,7 +147,10 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
   if (topStyle === 'kaftan')
     mesh(look.gender === 'female' ? g.kaftan! : g.tunic!, top, body, 0, hip + 0.05, 0);
   else if (topStyle === 'dress') mesh(g.dress!, top, body, 0, hip + 0.08, 0);
-  else if (
+  else if (topStyle === 'suit') {
+    mesh(g.jacket!, top, body, 0, hip + 0.06, 0);
+    mesh(g.front!, charMaterial(SHIRT_WHITE, 0.6), body, 0, hip + 0.6, 0.122);
+  } else if (
     !look.trousers &&
     look.gender === 'female' &&
     (look.hairStyle === 'long' || look.hairStyle === 'bun')
@@ -240,9 +255,16 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
     mesh(g.wrap!, wear, body, 0, headY - 0.01, -0.01);
     mesh(g.gele!, wear, body, 0, headY + 0.17, -0.02).rotation.x = -0.25;
   }
-  if (look.accessory === 'tie') {
-    mesh(g.tie!, charMaterial('#7f1d1d'), body, 0, hip + 0.58, 0.125);
-  }
+  // A tie from the wardrobe over a collar, or an outfit's.
+  const tie =
+    look.tie &&
+    look.tie !== 'none' &&
+    (topStyle === 'suit' || topStyle === 'shirt' || topStyle === 'blazer')
+      ? TIE_COLOUR[look.tie]!
+      : look.accessory === 'tie'
+        ? '#7f1d1d'
+        : null;
+  if (tie) mesh(g.tie!, charMaterial(tie), body, 0, hip + 0.58, 0.128);
   if (opts.ring) {
     const ring = new THREE.Mesh(
       g.ring!,

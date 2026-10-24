@@ -68,8 +68,22 @@ export const FACIAL_HAIR = ['none', 'stubble', 'moustache', 'goatee', 'beard'] a
 export const GLASSES = ['none', 'round', 'square', 'shades'] as const;
 /** A gele is the tall Yoruba head tie; a headwrap covers the hair. */
 export const HEADWEAR = ['none', 'cap', 'beanie', 'headwrap', 'gele'] as const;
-/** A kaftan is a long top (a buba, a dashiki, an agbada); a dress reaches the knee. */
-export const TOP_STYLES = ['tee', 'shirt', 'blazer', 'hoodie', 'kaftan', 'dress'] as const;
+/**
+ * A kaftan is a long top (a buba, a dashiki, an agbada); a dress reaches the
+ * knee. A suit (the feedback round: "a banker should be in a suit") is a
+ * tailored jacket over a shirt (a woman's: a blouse) with trousers to match;
+ * a blouse has a soft neck. Old looks never name the last two.
+ */
+export const TOP_STYLES = [
+  'tee',
+  'shirt',
+  'blazer',
+  'hoodie',
+  'kaftan',
+  'dress',
+  'suit',
+  'blouse',
+] as const;
 
 /** The creator's swatches. Any #rrggbb is valid (onboarding's outfit colours, dyes). */
 export const TOP_COLOURS = [
@@ -91,7 +105,9 @@ export const TOP_COLOURS = [
  * What you wear from the mall's wardrobe (wardrobe.ts): shoes, jeans, a belt,
  * socks, a scarf, a bag, a watch and jewellery. Each part is optional on a
  * look (missing = 'none': drawn as before, with plain shoes and the outfit's
- * trousers), so every look saved before them is still valid.
+ * trousers), so every look saved before them is still valid. The feedback
+ * round's suit shop adds Oxfords and courts, chinos and joggers, a tie, and a
+ * briefcase, a folio and a work tote (the end of each list, never earlier).
  */
 export const WORN = {
   shoes: [
@@ -104,18 +120,22 @@ export const WORN = {
     'loafers',
     'heels',
     'boots',
+    'oxfords',
+    'courts',
   ],
-  legs: ['none', 'jeans'],
+  legs: ['none', 'jeans', 'chinos', 'joggers'],
   belt: ['none', 'leather'],
   socks: ['none', 'plain'],
   scarf: ['none', 'silk'],
-  bag: ['none', 'tote', 'handbag', 'gymbag'],
+  bag: ['none', 'tote', 'handbag', 'gymbag', 'briefcase', 'folio', 'worktote'],
   watch: ['none', 'everyday', 'smart', 'dress', 'luxury'],
   bracelet: ['none', 'beaded'],
   ring: ['none', 'diamond'],
   cufflinks: ['none', 'silver'],
   necklace: ['none', 'silver', 'gold'],
   earrings: ['none', 'studs'],
+  /** Worn with a suit, a shirt or a blazer (drawn only over those). */
+  tie: ['none', 'silk', 'navy', 'bow'],
 } as const;
 export type WornSlot = keyof typeof WORN;
 export const WORN_SLOTS = Object.keys(WORN) as WornSlot[];
@@ -135,6 +155,7 @@ export const REMOVABLE = [
   'cufflinks',
   'necklace',
   'earrings',
+  'tie',
 ] as const satisfies readonly ('headwear' | 'glasses' | WornSlot)[];
 export type Removable = (typeof REMOVABLE)[number];
 /** One worn part: its slot and style (a mall item's `worn`). */
@@ -176,6 +197,7 @@ export interface Appearance {
   cufflinks?: (typeof WORN.cufflinks)[number];
   necklace?: (typeof WORN.necklace)[number];
   earrings?: (typeof WORN.earrings)[number];
+  tie?: (typeof WORN.tie)[number];
 }
 
 const colour = z
@@ -213,6 +235,7 @@ export const appearanceSchema = lookSchema.extend({
   cufflinks: z.enum(WORN.cufflinks).optional(),
   necklace: z.enum(WORN.necklace).optional(),
   earrings: z.enum(WORN.earrings).optional(),
+  tie: z.enum(WORN.tie).optional(),
 });
 
 const FEMALE_HAIR: readonly HairStyle[] = [
@@ -319,9 +342,10 @@ export function defaultAppearance(
 }
 
 /**
- * The parts each gender's creator offers. Men get no dress, gele, bun or long
- * straight hair (their kaftan is drawn as a tunic over trousers) and no heels
- * from the wardrobe; women no facial hair. Everything else is open to everyone.
+ * The parts each gender's creator offers. Men get no dress, blouse, gele, bun
+ * or long straight hair (their kaftan is drawn as a tunic over trousers) and
+ * no heels or courts from the wardrobe; women no facial hair. Everything else
+ * is open to everyone.
  */
 export const GENDER_PARTS: Record<
   Gender,
@@ -344,8 +368,8 @@ export const GENDER_PARTS: Record<
     hairStyle: HAIR_STYLES.filter((h) => h !== 'bun' && h !== 'long' && h !== 'braids'),
     facialHair: FACIAL_HAIR,
     headwear: HEADWEAR.filter((h) => h !== 'gele'),
-    topStyle: TOP_STYLES.filter((s) => s !== 'dress'),
-    shoes: WORN.shoes.filter((s) => s !== 'heels'),
+    topStyle: TOP_STYLES.filter((s) => s !== 'dress' && s !== 'blouse'),
+    shoes: WORN.shoes.filter((s) => s !== 'heels' && s !== 'courts'),
   },
 };
 
@@ -353,8 +377,8 @@ export const GENDER_PARTS: Record<
 const SWAP = {
   hairStyle: { bun: 'short', long: 'short', braids: 'twists' },
   headwear: { gele: 'headwrap' },
-  topStyle: { dress: 'kaftan' },
-  shoes: { heels: 'loafers' },
+  topStyle: { dress: 'kaftan', blouse: 'shirt' },
+  shoes: { heels: 'loafers', courts: 'oxfords' },
 } as const;
 
 /**
