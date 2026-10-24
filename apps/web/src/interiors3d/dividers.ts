@@ -121,6 +121,13 @@ export function buildDivider(kind: DividerKind, len: number, swatch: string): TH
   return g;
 }
 
+/**
+ * Upholstered things: a bought finish is their fabric (the forest velvet
+ * among the finishes), given to the model as its colour, not a tint over
+ * its wooden feet.
+ */
+export const upholstered = (id: string) => id === 'sofa';
+
 const isWoody = (c: THREE.Color) => {
   const hsl = { h: 0, s: 0, l: 0 };
   c.getHSL(hsl);

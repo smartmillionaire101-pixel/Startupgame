@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { buildModel } from '../interiors3d/furniture';
-import { buildDivider, refinish, type DividerKind } from '../interiors3d/dividers';
+import { buildDivider, refinish, upholstered, type DividerKind } from '../interiors3d/dividers';
 import { planFor } from '../home/layout';
 
 export interface ThumbSpec {
@@ -80,8 +80,9 @@ function model(s: ThumbSpec): THREE.Object3D {
   const spot = planFor(5).slots[s.id] ?? planFor(3).slots[s.id];
   const w = spot && !spot.wall ? spot.w : 1;
   const d = spot && !spot.wall ? spot.h : 1;
-  const m = buildModel(s.id, { w, d, tier: s.tier ?? 1 });
-  if (s.swatch) refinish(m.group, s.swatch);
+  const fabric = !!s.swatch && upholstered(s.id);
+  const m = buildModel(s.id, { w, d, tier: s.tier ?? 1, ...(fabric ? { tint: s.swatch! } : {}) });
+  if (s.swatch && !fabric) refinish(m.group, s.swatch);
   return m.group;
 }
 

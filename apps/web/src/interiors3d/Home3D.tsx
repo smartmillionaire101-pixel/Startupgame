@@ -20,7 +20,7 @@ import { buildModel, type Model } from './furniture';
 import { Particles, fx } from './fx';
 import { GROUND_Y, STOREY, buildHouse, cutWalls, wallOf, type House } from './house';
 import { buildEstateModel } from './estate-models';
-import { buildDivider, refinish } from './dividers';
+import { buildDivider, refinish, upholstered } from './dividers';
 import { groundsFor } from '../home/grounds';
 import { Kit, disposeTree, mat } from './kit';
 import { Stage, gestures, hasParkedStage, parkStage, unparkStage, type StageOpts } from './stage';
@@ -471,12 +471,17 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         d: fr.d,
         tier: o.tier ?? 1,
         seed: Math.round(o.spot.x * 7 + o.spot.y),
-        // Wave 12: the reference's deep green velvet sofa in a well-off home.
-        ...(o.slot === 'sofa' && (o.tier ?? 1) >= 2 ? { tint: '#1f6e52' } : {}),
+        // Shop note: a sofa's finish is its upholstery (a forest velvet, a walnut brown).
+        ...(o.finish && o.owned && upholstered(o.slot ?? id)
+          ? { tint: o.finish }
+          : // Wave 12: the reference's deep green velvet sofa in a well-off home.
+            o.slot === 'sofa' && (o.tier ?? 1) >= 2
+            ? { tint: '#1f6e52' }
+            : {}),
       });
       const g = model.group;
-      // Shop note: the finish you bought (its wood or fabric takes the colour).
-      if (o.finish && o.owned) refinish(g, o.finish);
+      // Shop note: the finish you bought (its wood, or its biggest part, takes the colour).
+      if (o.finish && o.owned && !upholstered(o.slot ?? id)) refinish(g, o.finish);
       // Outdoors (the cars, the loungers) is down on the lawn, a storey or two below you upstairs.
       g.position.set(fr.x, o.outdoor ? GROUND_Y + 0.03 - (plan.level ?? 0) * STOREY : 0, fr.z);
       g.rotation.y = ry;
