@@ -13,6 +13,7 @@ import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
 import { investorOn, lifeBarsOn, placesOn } from './releases.js';
 import { cityPlacesView } from './places.js';
+import { errandsView } from './errands.js';
 import { anyJobView, workView } from './work.js';
 import { pitchQuestionsNow } from './fundraising.js';
 import { journeyView } from './journey.js';
@@ -671,6 +672,8 @@ function marketView(
      * map), priced by the night in your home currency. Null without the note.
      */
     hotels: cityHotelsView(world, p, m.id),
+    /** Errands (feedback note): what you can do at businesses and spots here. Null before it. */
+    errands: errandsView(world, p, m, clock?.now ?? p.lastActiveAt),
     eventKinds: EVENT_KINDS.map((kind) => {
       const k = EVENT_KIND_DATA[kind];
       return {

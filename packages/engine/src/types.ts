@@ -397,6 +397,12 @@ export interface Player {
   wardrobe?: { item: string; month: number; colour?: string; from?: Id }[];
   /** City places (places.ts): appointments, services used, visas and licences. Missing = none. */
   places?: PlayerPlaces;
+  /**
+   * Errands (errands.ts, feedback note): `<market>:<errand>` → the game day
+   * (places.ts `gameMinute` / DAY_MIN, on that city's clock) it was last done.
+   * Missing = never.
+   */
+  errands?: Record<string, number>;
   /** Bankers note: the banker's first session. */
   bankerTutorial?: BankerTutorial;
   /**

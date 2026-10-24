@@ -77,7 +77,8 @@ import { bankerTray } from '../screens/BankWork';
 import { EmployerPanel } from '../phone/work';
 import { eventsOf, npcName, type AiPerson, type PresenceView } from './people';
 import { crowdAt, crowdHour } from './crowdfill';
-import { aiCharacterId } from '../phone/bus';
+import { aiCharacterId, openPhone, useNav } from '../phone/bus';
+import { ErrandsCards, errandAt, errandIdsAt, errandTray, errandsOf } from './Errands';
 import type { PersonRef } from './PersonCard';
 import { RoomBack, RoomFront } from './RoomArt';
 import { NightBack, NightFront } from './NightArt';
@@ -266,6 +267,9 @@ function occupantsOf(
         );
         // A nightlife style's own staff: the DJ, the band, the braai master.
         if (style) for (const x of styleStaff(style)) out.push(staffMember(x.seed, tx(x.role)));
+        // The feedback round: a showroom's salesperson.
+        if (SHOWROOMS.has(room) && errandsOf(view))
+          out.push(staffMember('sales', t('Salesperson')));
         for (const a of angelsIn(view, business.id).slice(0, 2))
           out.push(
             ai(
@@ -322,6 +326,8 @@ function occupantsOf(
     case 'playerbank': {
       const b = m.banks.find((x) => x.id === place.ref);
       if (b) out.push(staffMember('owner', t('Owner')));
+      // The feedback round: tellers at the counter (customers come with the crowd).
+      if (b && errandsOf(view)) out.push(staffMember('teller', t('Teller')));
       break;
     }
     case 'hub': {
@@ -393,6 +399,10 @@ function occupantsOf(
     }
     case 'airport':
       out.push(staffMember('checkin', t('Check-in')));
+      break;
+    case 'newsstand':
+      // The feedback round: a vendor with the day's papers (and a rumour).
+      if (errandsOf(view)) out.push(staffMember('vendor', t('Newsstand vendor')));
       break;
     case 'eventhall': {
       out.push(staffMember('host', t('Events manager'), 'presenting'));
@@ -727,6 +737,7 @@ function RoomScene({
   children,
 }: SceneProps) {
   const { view, send, cur, busy } = useView();
+  const appNav = useNav();
   const daylight = useDaylight(view.here?.id ?? view.market.id);
   /** Below the room: the tray, everything else ("More"), or a showroom's catalogue. */
   const [panel, setPanel] = useState<'tray' | 'more' | 'shop' | 'work'>(() =>
@@ -1040,6 +1051,26 @@ function RoomScene({
     icon,
     run: () => nav(tab),
   });
+  // The feedback round: something to do in every building (./Errands.tsx).
+  const errandView = errandsOf(view);
+  const hereCur = view.here?.currency ?? cur;
+  const errandSpot = errandView ? errandAt(place, abroad) : null;
+  const errandIds =
+    errandView && errandSpot
+      ? errandIdsAt(errandView, place, { kind: business?.kind, capital: capitalKind })
+      : [];
+  const errands: TrayAction[] = errandSpot
+    ? errandTray({
+        view,
+        at: errandSpot,
+        ids: errandIds,
+        kind: business?.kind,
+        send,
+        busy,
+        cur: hereCur,
+        openMore: () => setMore(true),
+      })
+    : [];
 
   if (business) {
     const b = business;
@@ -1167,6 +1198,45 @@ function RoomScene({
         run: () => playAct(b, it, icon, dish ? tx(dish) : undefined),
       });
     }
+    // The feedback round: errands here (food, clothes, medicine, a prototype…).
+    actions.push(...errands);
+    if (errandView && b.gigs.some((g) => g.id === 'tutor') && b.category === 'education') {
+      const g = b.gigs.find((x) => x.id === 'tutor')!;
+      actions.push({
+        id: 'gig:tutor',
+        label: t('Tutor for pay'),
+        sub: t('{h}h · {pay}', { h: g.hours, pay: money(g.pay, cur) }),
+        icon: '🧑‍🏫',
+        disabled: view.me.hours.left < g.hours || busy,
+        run: () =>
+          send(looseCmd({ type: 'gig.take', businessId: b.id, gigId: g.id }), (r: Loose) =>
+            said(r, t('Shift done at {name}.', { name: b.name })),
+          ),
+      });
+    }
+    if (errandView && b.kind === 'mobile-money-agent') {
+      actions.push({
+        id: 'momo:send',
+        label: t('Send money'),
+        sub: t('To a friend, from your wallet'),
+        icon: '📲',
+        run: () => openPhone({ send: '' }),
+      });
+      const usd = view.accounts.usd?.balance ?? 0;
+      if (usd > 0)
+        actions.push({
+          id: 'momo:cash-out',
+          label: t('Cash out your dollars'),
+          sub: money(usd, 'USD'),
+          icon: '💵',
+          disabled: busy,
+          run: () =>
+            send(
+              looseCmd({ type: 'player.convert', direction: 'toLocal', amount: usd }),
+              t('Cashed out: your dollars are in your wallet.'),
+            ),
+        });
+    }
     // A job here (section A), else a shift.
     const job = jobsOf(view).find((j) => j.businessId === b.id);
     const myJob = myJobOf(view);
@@ -1239,7 +1309,13 @@ function RoomScene({
     )
       actions.push({
         id: 'sell',
-        label: t('Pitch {company}', { company: company.name }),
+        // The feedback round: a fintech signs up mobile-money agents; logistics signs delivery deals.
+        label:
+          errandView && b.kind === 'mobile-money-agent' && company.industry === 'fintech'
+            ? t('Sign up this agent')
+            : errandView && b.category === 'logistics' && company.industry === 'logistics'
+              ? t('Sign a delivery deal')
+              : t('Pitch {company}', { company: company.name }),
         sub: t('Sell to {owner}', { owner: b.owner.name }),
         icon: '📣',
         disabled: busy,
@@ -1272,6 +1348,33 @@ function RoomScene({
       run: () => setMore(true),
     });
     actions.push(go('money', t('Your money and credit'), '💳'));
+    // The feedback round: open your account at a player's bank, or bank your company there.
+    if (place.kind === 'playerbank' && errandView && place.ref) {
+      actions.unshift({
+        id: 'bank:account',
+        label: t('Open an account here'),
+        sub: t('Move your personal account to this bank'),
+        icon: '🏧',
+        disabled: busy,
+        run: () =>
+          send(
+            looseCmd({ type: 'account.move', account: 'personal', bankId: place.ref }),
+            t('Your account is with this bank now.'),
+          ),
+      });
+      if (company)
+        actions.splice(1, 0, {
+          id: 'bank:client',
+          label: t('Bank {company} here', { company: company.name }),
+          icon: '🏦',
+          disabled: busy,
+          run: () =>
+            send(
+              looseCmd({ type: 'bank.client', bankId: place.ref, companyId: company.id }),
+              t('{company} banks here now.', { company: company.name }),
+            ),
+        });
+    }
   } else if (place.kind === 'fund') {
     const f = view.market.funds.find((x) => x.id === place.ref);
     if (f && company)
@@ -1524,8 +1627,41 @@ function RoomScene({
       });
     actions.push(...bankerTray(view, `place:${civic.id}`, () => setMore(true)));
     actions.push(...civicTray(civic, send, busy, view.here?.currency ?? cur, () => setMore(true)));
+    // The feedback round: the exchange's live price board, and the hospital's doctor jobs.
+    if (errandView && civic.role === 'stock-exchange')
+      actions.splice(0, 0, {
+        ...toMore,
+        id: 'price-board',
+        label: t('Live price board'),
+        sub: t('Today’s prices on the floor'),
+        icon: '📈',
+      });
+    const hospital =
+      errandView && civic.role === 'hospital'
+        ? businessesOf(view).find((x) => x.kind === 'employer-hospital' && x.open)
+        : undefined;
+    if (hospital)
+      actions.push({
+        id: 'doctor-jobs',
+        label: t('Doctor jobs'),
+        sub: hospital.name,
+        icon: '🩺',
+        run: () => onVisit?.(`biz:${hospital.id}`),
+      });
     actions.push({ ...toMore, label: t('About this place'), icon: '🏛' });
   }
+  // Errands at a spot: first (after a capital programme's own button, or flying home).
+  if (!business && errands.length)
+    actions.splice(capitalKind || (abroad && actions[0]?.id === 'fly-home') ? 1 : 0, 0, ...errands);
+  // Your office: the interview room (hiring).
+  if (errandView && place.kind === 'office' && !abroad && company && appNav)
+    actions.splice(2, 0, {
+      id: 'interview-room',
+      label: t('Interview room'),
+      sub: t('Candidates for your open roles'),
+      icon: '🪑',
+      run: () => appNav.go({ kind: 'tab', tab: 'company', section: 'team' }),
+    });
   const primary = actions.slice(0, 4);
 
   const sign =
@@ -1719,7 +1855,12 @@ function RoomScene({
           ) : panel === 'work' && business ? (
             <EmployerPanel businessId={business.id} />
           ) : (
-            <div className="interior">{children}</div>
+            <div className="interior">
+              {errandSpot && errandIds.length > 0 && (
+                <ErrandsCards at={errandSpot} ids={errandIds} kind={business?.kind} />
+              )}
+              {children}
+            </div>
           )}
         </div>
       ) : act ? (

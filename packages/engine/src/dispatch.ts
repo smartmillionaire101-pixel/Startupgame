@@ -130,6 +130,7 @@ import {
 import {
   bankersOn,
   exitsOn,
+  feedbackOn,
   investorOn,
   jobsOn,
   lifeBarsOn,
@@ -157,6 +158,7 @@ import {
   withdrawBank,
 } from './bankers.js';
 import { bookAppointment, useService } from './places.js';
+import { doErrand } from './errands.js';
 import {
   bankerTalk,
   completeMandate,
@@ -1579,9 +1581,13 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         me,
         cmd.placeId,
         cmd.service,
-        { companyId: cmd.companyId, to: cmd.to },
+        { companyId: cmd.companyId, to: cmd.to, vote: cmd.vote },
         ctx.now,
       );
+    // Unknown until the feedback note: old worlds replay as before.
+    case 'errand.do':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return doErrand(world, me, cmd.at, cmd.errand, { item: cmd.item, focus: cmd.focus }, ctx.now);
     // ------------------------------------------------------------ banker work
     // Unknown until the bankers release note: old worlds replay as before.
     case 'banker.mandate':
