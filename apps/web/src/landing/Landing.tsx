@@ -1,11 +1,16 @@
 /**
  * The front page for visitors who aren't signed in: what the game is, in
  * pictures from the game itself, and one big "Play free" that opens sign-up.
+ * The three careers each have a card that opens sign-up as that role.
  * Signed-in players never see it; neither does anyone arriving by a sign-in
  * link. Back (the browser's or sign-up's own) returns to it.
+ *
+ * The pictures in public/landing are screenshots of the game:
+ * e2e/landing-shots.spec.ts takes them (LANDING_ASSETS=<dir>).
  */
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { LANGS, setLang, t, useLang } from '../i18n';
+import type { JoinRole } from '../screens/Onboarding';
 import './landing.css';
 
 const CITIES = [
@@ -21,8 +26,51 @@ const CITIES = [
   'Freetown',
 ];
 
+/** A career you can play, and the role its card picks at sign-up. */
+interface Role {
+  id: JoinRole;
+  img: string;
+  tag: string;
+  title: string;
+  text: string;
+  cta: string;
+}
+
+const roles = (): Role[] => [
+  {
+    id: 'founder',
+    img: 'role-founder',
+    tag: '🚀',
+    title: t('Founder'),
+    text: t('Build a company from an idea, sell to customers, raise rounds and go for the exit.'),
+    cta: t('Play as a founder'),
+  },
+  {
+    id: 'investor',
+    img: 'role-investor',
+    tag: '💼',
+    title: t('Investor'),
+    text: t(
+      'Get pitched at events, back the startups you believe in, then raise your own fund from LPs.',
+    ),
+    cta: t('Play as an investor'),
+  },
+  {
+    id: 'banker',
+    img: 'role-banker',
+    tag: '🏦',
+    title: t('Banker'),
+    text: t(
+      'Negotiate with shareholders, win your licence at the Central Bank and advise on deals.',
+    ),
+    cta: t('Play as a banker'),
+  },
+];
+
 interface Feature {
   img: string;
+  /** A second phone, tucked in behind the first. */
+  img2?: string;
   /** A phone screenshot (the default), a looping clip, or a house you can turn. */
   media?: 'video' | 'turntable';
   tag: string;
@@ -40,12 +88,48 @@ const features = (): Feature[] => [
     ),
   },
   {
+    img: 'central-bank',
+    img2: 'exchange',
+    tag: '🏛️',
+    title: t('A city that works'),
+    text: t(
+      'Named buildings you can walk into: the Central Bank by appointment, the stock exchange, members’ clubs that check who you are.',
+    ),
+  },
+  {
     img: 'club',
     media: 'video',
     tag: '🎉',
     title: t('The city never sleeps'),
     text: t(
       'Clubs, bars and restaurants full of founders, investors and bankers. Meet them, make deals, make friends.',
+    ),
+  },
+  {
+    img: 'bowling',
+    img2: 'skydive',
+    tag: '🎳',
+    title: t('Play for real'),
+    text: t(
+      'Bowling, pool, penalties and golf, skydiving and helicopter tours over real cities. With friends or against the AI.',
+    ),
+  },
+  {
+    img: 'first-lounge',
+    img2: 'first-suite',
+    tag: '✈️',
+    title: t('Fly first class'),
+    text: t(
+      'Wait in the premium lounge, board, and settle into your private suite. The crew makes up your bed at turndown.',
+    ),
+  },
+  {
+    img: 'mall',
+    img2: 'lifestyle',
+    tag: '🛍️',
+    title: t('Live your style'),
+    text: t(
+      'Sixteen shops at the mall, a wardrobe of everything you bought, restaurants from every country and a lifestyle to match your money.',
     ),
   },
   {
@@ -57,27 +141,18 @@ const features = (): Feature[] => [
       'Start small. Grow your company, buy the house, the cars, the mansion with a pool, or the penthouse over the skyline.',
     ),
   },
-  {
-    img: 'takeoff',
-    tag: '✈️',
-    title: t('Fly the world'),
-    text: t(
-      'Check in, board and take off to another city. Do it in a private jet once you’ve made it.',
-    ),
-  },
-  {
-    img: 'skyline',
-    tag: '🌆',
-    title: t('Watch your city from the top'),
-    text: t(
-      'Ride up to the best views in every city, or throw a party on your own balcony and invite your friends.',
-    ),
-  },
 ];
 
-export default function Landing({ onPlay, onLogIn }: { onPlay: () => void; onLogIn: () => void }) {
+export default function Landing({
+  onPlay,
+  onLogIn,
+}: {
+  /** Opens sign-up; a role card passes the role Join as starts on. */
+  onPlay: (role?: JoinRole) => void;
+  onLogIn: () => void;
+}) {
   const lang = useLang();
-  const play = onPlay;
+  const play = () => onPlay();
   const logIn = onLogIn;
   return (
     <div className="landing" data-landing="">
@@ -109,13 +184,21 @@ export default function Landing({ onPlay, onLogIn }: { onPlay: () => void; onLog
         <div className="ld-hero-text">
           <span className="ld-sticker">{t('Free to play · No download')}</span>
           <h1>
-            {t('Start a company.')}
+            {/* Each short sentence stays on one line ("Fund / it." reads badly). */}
+            {t('Found it. Fund it. Bank it.')
+              .split(/(?<=\.) /)
+              .map((s, i) => [
+                i > 0 && ' ',
+                <span key={i} className="ld-whole">
+                  {s}
+                </span>,
+              ])}
             <br />
-            <span>{t('Live the life.')}</span>
+            <span className="ld-sun">{t('Live the life.')}</span>
           </h1>
           <p>
             {t(
-              'The startup game set in real cities. Build a business from nothing, make your first million, then spend it.',
+              'The business game set in real cities. Build a startup, back one or run the bank, then spend what you make.',
             )}
           </p>
           <button type="button" className="ld-play" data-landing-play="" onClick={play}>
@@ -139,6 +222,36 @@ export default function Landing({ onPlay, onLogIn }: { onPlay: () => void; onLog
         </div>
       </section>
 
+      <section className="ld-roles" aria-labelledby="ld-roles-title">
+        <h2 id="ld-roles-title">{t('Three careers. One city.')}</h2>
+        <p>{t('Pick the one you want to play. You’ll meet the other two at every party.')}</p>
+        {/* A row you swipe on a phone; three across on a wide screen. */}
+        <div className="ld-roles-row">
+          {roles().map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              className={`ld-role is-${r.id}`}
+              data-landing-role={r.id}
+              onClick={() => onPlay(r.id)}
+            >
+              <span className="ld-role-shot">
+                <img src={`/landing/${r.img}.jpg`} alt="" loading="lazy" width={420} height={315} />
+              </span>
+              <span className="ld-role-body">
+                <span className="ld-role-title">
+                  <span aria-hidden="true">{r.tag}</span> {r.title}
+                </span>
+                <span className="ld-role-text">{r.text}</span>
+                <span className="ld-role-cta">
+                  {r.cta} <span aria-hidden="true">▶</span>
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="ld-features">
         {features().map((f, i) => (
           <article key={f.img} className={`ld-feature${i % 2 ? ' is-flip' : ''}`}>
@@ -146,6 +259,11 @@ export default function Landing({ onPlay, onLogIn }: { onPlay: () => void; onLog
               <Clip img={f.img} />
             ) : f.media === 'turntable' ? (
               <Turntable />
+            ) : f.img2 ? (
+              <div className="ld-duo">
+                <Phone img={f.img2} className="ld-duo-back" />
+                <Phone img={f.img} className="ld-duo-front" />
+              </div>
             ) : (
               <Phone img={f.img} />
             )}
@@ -173,12 +291,21 @@ export default function Landing({ onPlay, onLogIn }: { onPlay: () => void; onLog
           <li>
             <b>2</b>
             <span>
-              <strong>{t('Start your company')}</strong>
-              {t('Choose an idea, find customers, hire, raise money.')}
+              <strong>{t('Pick your path')}</strong>
+              {t('Founder, investor or banker: each one plays its own way.')}
             </span>
           </li>
           <li>
             <b>3</b>
+            <span>
+              <strong>{t('Follow your Journey')}</strong>
+              {t(
+                '“What to do now” always shows your next step, from first customer to first fund.',
+              )}
+            </span>
+          </li>
+          <li>
+            <b>4</b>
             <span>
               <strong>{t('Grow and enjoy it')}</strong>
               {t('Buy homes and cars, travel, go out with friends.')}
