@@ -216,6 +216,8 @@ export interface TechEventView {
   ticket: number;
   attended: boolean;
   pitchChance: boolean;
+  /** Founders pitch investors at it (false at some banking events; true from an older server). */
+  founderPitches: boolean;
   /** Who it's for (feedback note: banking and investor events beside the startup ones). */
   audience: 'founder' | 'banker' | 'investor';
   /** Why it's worth it for them, in a line (role events), or null. */
@@ -255,6 +257,7 @@ export function techEventsOf(view: View): TechEventView[] | null {
         ticket: num(e.ticket),
         attended: !!e.attended,
         pitchChance: !!e.pitchChance,
+        founderPitches: e.founderPitches !== false,
         audience:
           e.audience === 'banker' || e.audience === 'investor'
             ? (e.audience as 'banker' | 'investor')

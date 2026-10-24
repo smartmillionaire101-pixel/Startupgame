@@ -163,7 +163,7 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
         </ul>
       )}
       {e.pitchChance && <p className="small">{t('Founders may get a slot to pitch on stage.')}</p>}
-      {investor && e.status === 'on' && !e.attended && (
+      {investor && e.founderPitches && e.status === 'on' && !e.attended && (
         <p className="small">
           {t('Founders here will pitch you, and you’ll meet other investors.')}
         </p>

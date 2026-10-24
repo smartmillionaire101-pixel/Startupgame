@@ -31,6 +31,7 @@ import { addContact } from './events.js';
 import { eventDealFlow } from './dealflow.js';
 import { eventLead } from './bankwork.js';
 import { BANKER_NAMES } from './data/bankwork.js';
+import { DEALFLOW } from './data/dealflow.js';
 import { feedbackOn } from './releases.js';
 import { adjustTrust, col, getMarket, getPlayer, locationOf, notify } from './helpers.js';
 import { newId } from './ids.js';
@@ -1184,6 +1185,8 @@ export function techEventsView(world: World, p: Player, m: MarketState) {
     attended: attendedIds(p, e.month).includes(e.id),
     /** Demo days give founders a chance to pitch on stage. */
     pitchChance: e.kind === 'demo-day',
+    /** Founders pitch investors here (not at every banking event, feedback note). */
+    founderPitches: (DEALFLOW.pitches[e.kind]?.[1] ?? 1) >= 1,
   });
   return [
     ...techEventsFor(world, m, m.month).map((e) => row(e, 'on')),
