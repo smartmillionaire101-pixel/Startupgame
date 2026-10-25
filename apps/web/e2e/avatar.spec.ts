@@ -2,7 +2,8 @@ import { devices } from '@playwright/test';
 import {
   expect,
   letters,
-  pickIdentity,
+  fillAboutYou,
+  pickPath,
   playAsGuest,
   setupFounder,
   test,
@@ -55,30 +56,53 @@ test('make a look, edit it from Me, and see it on the map and from another playe
   browser,
 }) => {
   test.slow();
-  // ---- Join: the creator is on the entry screen, and skippable.
+  // ---- Join: the look is step 2 of sign-up, with the full creator behind
+  // "More options" (skippable: a random look is already picked).
   await page.goto('/');
   const name = `Ada Look ${letters(4)}`;
-  await page.getByLabel('Username', { exact: true }).fill(`av_${letters(8)}`);
-  await page.getByLabel('Email', { exact: true }).fill(`av-${letters()}@example.com`);
-  await page.getByLabel('Join as').selectOption('investor');
-  await pickIdentity(page, { name, city: CITY });
-  await page.getByRole('button', { name: 'Make my look' }).click();
+  await pickPath(page, 'investor');
+  await page
+    .getByRole('radiogroup', { name: 'I am' })
+    .getByRole('radio', { name: 'Woman' })
+    .check();
+  // The live preview follows the quick controls.
+  const live = page.locator('.su-stage-big [data-preview]');
+  await page.getByRole('radio', { name: 'Skin tone 2' }).check();
+  await expect(live).toHaveAttribute('data-skin', '#7a4a2a');
+  await page.getByRole('radio', { name: 'Purple' }).check();
+  await expect(live).toHaveAttribute('data-top', '#7c3aed');
+  await noSideScroll(page);
+  await page.getByRole('button', { name: /^More options/ }).click();
   const make = page.getByRole('dialog', { name: 'Make my look' });
   await expect(make.locator('[data-preview] svg.portrait')).toBeVisible();
   await noSideScroll(page);
   await shot(page, 'onboarding-creator');
   await make.getByRole('button', { name: 'Skip for now' }).click();
   await expect(make).toBeHidden();
-  await page.getByRole('button', { name: 'Play now' }).click();
+  await page.getByRole('button', { name: /^Next/ }).click();
+  await fillAboutYou(page, {
+    name,
+    city: CITY,
+    username: `av_${letters(8)}`,
+    email: `av-${letters()}@example.com`,
+  });
+  await noSideScroll(page);
+  await page.getByRole('button', { name: /^Play/ }).click();
   await expect(map(page)).toBeVisible({ timeout: 30_000 });
 
-  // The random look from the entry screen is saved: the map draws it.
+  // The look from sign-up is saved: the map draws it.
   const state = async (p: Page) =>
     (await p.request.get('/api/state').then((r) => r.json())) as {
       view: { me: { id: string; appearance: Record<string, string> | null } };
     };
   const first = (await state(page)).view.me;
   expect(first.appearance).not.toBeNull();
+  // What was picked on step 2, in the investor's outfit (a blazer).
+  expect(first.appearance).toMatchObject({
+    skin: '#7a4a2a',
+    topColor: '#7c3aed',
+    topStyle: 'blazer',
+  });
   await expect(fig(page)).toHaveAttribute('data-hair', first.appearance!.hairStyle!);
   await expect(fig(page)).toHaveAttribute('data-skin', first.appearance!.skin!);
   await shot(page, 'map-before');

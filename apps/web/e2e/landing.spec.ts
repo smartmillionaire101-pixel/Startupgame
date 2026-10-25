@@ -66,13 +66,13 @@ test('a new visitor sees the landing page, then Play free opens sign-up', async 
 
   await landing.locator('[data-landing-play]').click();
   await expect(landing).toBeHidden();
-  await expect(page.getByLabel('Username', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pick your path' })).toBeVisible();
   // Back (the browser's) returns to the landing page…
   await page.goBack();
   await expect(landing).toBeVisible();
   // …and so does sign-up's own Back.
   await landing.locator('[data-landing-play]').click();
-  await expect(page.getByLabel('Username', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pick your path' })).toBeVisible();
   await page.locator('[data-signin-back]').click();
   await expect(landing).toBeVisible();
 });
@@ -96,22 +96,31 @@ test('a career card opens sign-up with that role chosen; Play free stays a found
     await expect(card).toContainText(name);
     await card.click();
     await expect(landing).toBeHidden();
-    await expect(page.getByLabel('Join as')).toHaveValue(role);
+    // The card picked the path: sign-up opens on the look, in that role's outfit.
+    await expect(page.getByRole('heading', { name: 'Your look' })).toBeVisible();
+    await expect(page.locator('[data-signup]')).toHaveAttribute('data-signup-role', role);
     // Back to the landing page, by sign-up's own Back.
     await page.locator('[data-signin-back]').click();
     await expect(landing).toBeVisible();
   }
   // The browser's Back and Forward keep the role.
   await landing.locator('[data-landing-role="banker"]').click();
-  await expect(page.getByLabel('Join as')).toHaveValue('banker');
+  await expect(page.locator('[data-signup]')).toHaveAttribute('data-signup-role', 'banker');
+  await expect(page.locator('.su-stage-big').getByText(/^Banker · Suit/)).toBeVisible();
+  // "Change" on the look goes back to the paths, the banker still picked.
+  await page.locator('.su-stage-big').getByRole('button', { name: 'Change', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Pick your path' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Banker', exact: true })).toBeChecked();
   await page.goBack();
   await expect(landing).toBeVisible();
   await page.goForward();
-  await expect(page.getByLabel('Join as')).toHaveValue('banker');
+  await expect(page.locator('[data-signup]')).toHaveAttribute('data-signup-role', 'banker');
+  await expect(page.getByRole('heading', { name: 'Your look' })).toBeVisible();
   await page.goBack();
-  // Play free: sign-up as it always was (a founder unless you choose).
+  // Play free: the paths first (a founder unless you choose).
   await landing.locator('[data-landing-play]').click();
-  await expect(page.getByLabel('Join as')).toHaveValue('founder');
+  await expect(page.getByRole('heading', { name: 'Pick your path' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Founder', exact: true })).toBeChecked();
 });
 
 test('Log in on the landing page opens the email log-in; wide screens get it side by side', async ({

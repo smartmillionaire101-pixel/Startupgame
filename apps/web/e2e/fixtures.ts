@@ -1,4 +1,4 @@
-import { test as base, type Page } from '@playwright/test';
+import { expect, test as base, type Page } from '@playwright/test';
 import { checkName } from '@runway/engine';
 
 /**
@@ -217,22 +217,70 @@ export async function openTogether(page: Page) {
   return sheet;
 }
 
-/** Onboarding's who-you-are and where-you-build choices (name, sex, city). */
-export async function pickIdentity(
+/** Sign-up's careers, as their cards are named. */
+const ROLE_NAME = { founder: 'Founder', investor: 'Investor', banker: 'Banker' } as const;
+export type Role = keyof typeof ROLE_NAME;
+
+/** Sign-up, step 1 "Pick your path": a career, then Continue. */
+export async function pickPath(page: Page, role: Role = 'founder') {
+  await page
+    .getByRole('radiogroup', { name: 'Pick your path' })
+    .getByRole('radio', { name: ROLE_NAME[role], exact: true })
+    .check();
+  await page.getByRole('button', { name: /^Continue/ }).click();
+}
+
+/** Sign-up, step 2 "Your look": sex (and an outfit colour), then Next. */
+export async function pickLook(
   page: Page,
-  {
-    name = 'E2E Player',
-    gender = 'Woman',
-    city = 'Lagos',
-  }: { name?: string; gender?: 'Woman' | 'Man'; city?: string } = {},
+  { gender = 'Woman', outfit }: { gender?: 'Woman' | 'Man'; outfit?: string } = {},
 ) {
+  await expect(page.getByRole('heading', { name: 'Your look' })).toBeVisible();
+  await page
+    .getByRole('radiogroup', { name: 'I am' })
+    .getByRole('radio', { name: gender, exact: true })
+    .check();
+  if (outfit)
+    await page
+      .getByRole('radiogroup', { name: 'Outfit colour' })
+      .getByRole('radio', { name: outfit, exact: true })
+      .check();
+  await page.getByRole('button', { name: /^Next/ }).click();
+}
+
+export interface AboutYou {
+  name?: string;
+  city?: string;
+  username?: string;
+  email?: string;
+  /** A founder's background, by id (f-engineer, f-consultant …). */
+  background?: string;
+}
+
+/** Sign-up, step 3 "About you": name, city, username, email (and background), 18+; not Play yet. */
+export async function fillAboutYou(
+  page: Page,
+  { name = 'E2E Player', city = 'Lagos', username, email, background }: AboutYou = {},
+) {
+  await expect(page.getByRole('heading', { name: 'About you' })).toBeVisible();
   await page.getByLabel('Your name', { exact: true }).fill(name);
   await page
-    .getByRole('group', { name: 'I am' })
-    .getByRole('button', { name: gender, exact: true })
-    .click();
-  await page
-    .getByRole('group', { name: 'Your city' })
-    .getByRole('button', { name: new RegExp(`^${city}`) })
-    .click();
+    .getByRole('radiogroup', { name: 'Your city' })
+    .getByRole('radio', { name: city, exact: true })
+    .check();
+  await page.getByLabel('Username', { exact: true }).fill(username ?? `e2e_${letters(8)}`);
+  await page.getByLabel('Email', { exact: true }).fill(email ?? randomEmail());
+  if (background) await page.getByLabel('Before this you were').selectOption(background);
+  await page.getByRole('checkbox', { name: 'I’m 18 or older' }).check();
+}
+
+/** Sign up through the three steps and press Play (from the first step, Pick your path). */
+export async function signUp(
+  page: Page,
+  opts: AboutYou & { role?: Role; gender?: 'Woman' | 'Man'; outfit?: string } = {},
+) {
+  await pickPath(page, opts.role);
+  await pickLook(page, opts);
+  await fillAboutYou(page, opts);
+  await page.getByRole('button', { name: /^Play/ }).click();
 }

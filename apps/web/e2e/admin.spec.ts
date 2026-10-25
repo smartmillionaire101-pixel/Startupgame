@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { pickIdentity, withoutNetlifyDrawer } from './fixtures';
+import { signUp, withoutNetlifyDrawer } from './fixtures';
 
 test('protected live dashboard shows visits, players and money on desktop and mobile', async ({
   page,
@@ -18,11 +18,12 @@ test('protected live dashboard shows visits, players and money on desktop and mo
   // A player like the other specs' (the Lite map: this spec is about the dashboard).
   await withoutNetlifyDrawer(visitor);
   await visitor.goto('/');
-  await visitor.getByLabel('Username', { exact: true }).fill('admin_browser_player');
-  await visitor.getByLabel('Email', { exact: true }).fill('admin-browser@example.com');
-  await visitor.getByLabel('Join as').selectOption('founder');
-  await pickIdentity(visitor, { name: 'admin_browser_player' });
-  await visitor.getByRole('button', { name: 'Play now' }).click();
+  await signUp(visitor, {
+    role: 'founder',
+    name: 'admin_browser_player',
+    username: 'admin_browser_player',
+    email: 'admin-browser@example.com',
+  });
   await expect(visitor.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
   await page.bringToFront();
   await expect

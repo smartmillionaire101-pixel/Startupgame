@@ -95,6 +95,7 @@ import { jobTasks } from './job-tasks';
 import { stocks } from './stocks';
 import { outfits } from './outfits';
 import { buildings } from './buildings';
+import { signup } from './signup';
 import { investorGuide } from './investor-guide';
 import { bankerRepEvents } from './banker-rep-events';
 import { shop } from './shop';
@@ -199,6 +200,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   founderGuidance,
   heliSkydive,
   buildings,
+  signup,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

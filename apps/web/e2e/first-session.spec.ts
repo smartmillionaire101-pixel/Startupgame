@@ -1,4 +1,4 @@
-import { expect, letters, pickIdentity, test, type Page } from './fixtures';
+import { expect, fillAboutYou, letters, pickLook, pickPath, test, type Page } from './fixtures';
 
 /**
  * Founder Journey 6: the guided first session. A brand-new founder picks a
@@ -24,24 +24,28 @@ const shot = async (page: Page, name: string) => {
  */
 async function enter(page: Page, background: string, city = 'Nairobi') {
   await page.goto('/');
-  await page.getByLabel('Username', { exact: true }).fill(`fs_${letters(8)}`);
-  await page.getByLabel('Email', { exact: true }).fill(`fs-${letters()}@example.com`);
-  await page.getByLabel('Join as').selectOption('founder');
-  await pickIdentity(page, { name: 'Ada First', city });
-  await page
-    .getByRole('group', { name: 'Your background' })
-    .getByRole('button', { name: new RegExp(`^${background}`) })
-    .click();
-  await page
-    .getByRole('group', { name: 'Outfit colour' })
-    .getByRole('button', { name: 'Blue' })
-    .click();
+  await pickPath(page, 'founder');
+  await pickLook(page, { outfit: 'Blue' });
+  await fillAboutYou(page, {
+    name: 'Ada First',
+    city,
+    username: `fs_${letters(8)}`,
+    email: `fs-${letters()}@example.com`,
+    background: BACKGROUND_ID[background],
+  });
   await shot(page, `entry-${background}`);
-  await page.getByRole('button', { name: 'Play now' }).click();
+  await page.getByRole('button', { name: /^Play/ }).click();
   await expect(page.getByRole('application', { name: new RegExp(`Map of ${city}`) })).toBeVisible();
 }
 
 const coach = (page: Page) => page.locator('.coach');
+/** Founder backgrounds by the name the specs use. */
+const BACKGROUND_ID: Record<string, string> = {
+  'Ex-engineer': 'f-engineer',
+  Consultant: 'f-consultant',
+  Dropout: 'f-dropout',
+  'Ex-banker': 'f-banker',
+};
 
 test('a new founder is guided from the flat to a first sale and the next objectives', async ({
   page,

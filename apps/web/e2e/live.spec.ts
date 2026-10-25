@@ -23,16 +23,16 @@ test('the live site serves the app, the API and sign-in, and cleans up after its
   expect(await deep.text()).toContain('<div id="root">');
 
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Play now' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pick your path' })).toBeVisible();
   // Language switch works before sign-in.
   await page.getByRole('button', { name: 'Français' }).click();
-  await expect(page.getByRole('button', { name: 'Jouer maintenant' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choisissez votre voie' })).toBeVisible();
   await page.getByRole('button', { name: 'English' }).click();
 
   // Exercise an unconfigured session, without creating a player in the live world.
   await playAsGuest(page);
-  await expect(page.getByLabel('Username', { exact: true })).toBeVisible();
-  await expect(page.getByLabel('Join as')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pick your path' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Investor', exact: true })).toBeVisible();
 
   // Clean up: delete the test account.
   const del = await page.evaluate(async () => {

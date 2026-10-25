@@ -112,14 +112,23 @@ const GolfInviteHost = lazy(() => import('./city/golf/GolfInviteHost'));
 const MallInviteHost = lazy(() => import('./city/mall/MallInviteHost'));
 
 type Entry = 'landing' | 'signup' | 'login';
+/** The sign-up screen this history entry is on (set by goEntry below). */
+const historyEntry = () =>
+  (typeof window === 'undefined' ? null : window.history.state) as {
+    runwayEntry?: Entry;
+    runwayRole?: JoinRole;
+  } | null;
 
 export function App() {
   useVisits();
   const { status, view } = useGame();
   // Signed out: the landing page first (once), then sign-up or log in.
-  const [entry, setEntry] = useState<Entry>(() => (shouldShowLanding() ? 'landing' : 'signup'));
+  // (A change of language redraws the app: it stays on the screen in history.)
+  const [entry, setEntry] = useState<Entry>(
+    () => historyEntry()?.runwayEntry ?? (shouldShowLanding() ? 'landing' : 'signup'),
+  );
   // A role card on the landing page opens sign-up with that role chosen.
-  const [joinAs, setJoinAs] = useState<JoinRole | undefined>();
+  const [joinAs, setJoinAs] = useState<JoinRole | undefined>(() => historyEntry()?.runwayRole);
   // Each step past the landing page is a history entry: Back (the browser's,
   // or sign-up's own) comes back to the landing page.
   const goEntry = (to: Entry, role?: JoinRole) => {

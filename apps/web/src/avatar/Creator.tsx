@@ -33,7 +33,7 @@ export function randomAppearance(gender?: Gender | null): Appearance {
   return defaultAppearance(`random:${n}`, gender);
 }
 
-const HAIR_NAME: Record<Appearance['hairStyle'], () => string> = {
+export const HAIR_NAME: Record<Appearance['hairStyle'], () => string> = {
   bald: () => t('Shaved'),
   buzz: () => t('Buzz cut'),
   short: () => t('Short'),
@@ -71,7 +71,7 @@ const HEADWEAR_NAME: Record<Appearance['headwear'], () => string> = {
   headwrap: () => t('Headwrap'),
   gele: () => t('Gele'),
 };
-const TOP_NAME: Record<Appearance['topStyle'], () => string> = {
+export const TOP_NAME: Record<Appearance['topStyle'], () => string> = {
   tee: () => t('T-shirt'),
   shirt: () => t('Shirt'),
   blazer: () => t('Blazer'),
@@ -81,7 +81,7 @@ const TOP_NAME: Record<Appearance['topStyle'], () => string> = {
   suit: () => t('Suit'),
   blouse: () => t('Blouse'),
 };
-const HAIR_COLOUR_NAME: (() => string)[] = [
+export const HAIR_COLOUR_NAME: (() => string)[] = [
   () => t('Black'),
   () => t('Dark brown'),
   () => t('Brown'),
