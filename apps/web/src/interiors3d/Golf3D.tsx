@@ -602,7 +602,11 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
         }
       }
       // A cut when the mode changes (except into the follow), then easing.
-      if (lastCam !== f.cam && f.cam !== 'follow' && f.cam !== 'swing') {
+      // Into the swing too: gliding round from behind the ball to beside it,
+      // in a straight line while looking down the fairway, swept the ball off
+      // the left of the screen and under the clubs, for as long as the glide
+      // took (a second or more on a slow phone's software WebGL).
+      if (lastCam !== f.cam && f.cam !== 'follow') {
         camPos.copy(want);
         camLook.copy(look);
       }
