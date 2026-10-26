@@ -67,7 +67,16 @@ import {
   winChance,
 } from './sales.js';
 import { feedbackOn } from './releases.js';
-import type { Company, Id, Player, SalesCustomer, SalesDeal, SalesNeed, World } from './types.js';
+import type {
+  Company,
+  Id,
+  Player,
+  SalesCustomer,
+  SalesDeal,
+  SalesNeed,
+  SalesTalk,
+  World,
+} from './types.js';
 
 export const TALK = {
   /** The meeting itself, and asking for the deal. */
@@ -85,6 +94,8 @@ export const TALK = {
 /** Stages a conversation can start from: after the first call, before a close. */
 export const TALK_FROM = ['contacted', 'discovery', 'demo', 'proposal', 'negotiation'] as const;
 const canTalkAt = (d: SalesDeal) => (TALK_FROM as readonly string[]).includes(d.stage);
+/** Sat down and not yet asked (a recovered deal keeps only the count of talks held). */
+const underWay = (t: SalesTalk) => !t.result && t.leadOptions.length > 0;
 
 const NEEDS: SalesNeed[] = ['fit', 'price', 'stars', 'reliability'];
 const round2 = (x: number) => Math.round(x * 100) / 100;
@@ -252,7 +263,7 @@ export function salesTalk(world: World, me: Player, cmd: TalkInput) {
   const { c, d } = findTalkDeal(world, me, cmd);
   if (cmd.action === 'start') return startTalk(world, me, c, d);
   const t = d.talk;
-  ensure(t && !t.result, 'sales.talk.none', 'Start the conversation first.');
+  ensure(t && underWay(t), 'sales.talk.none', 'Start the conversation first.');
   ensure(canTalkAt(d), 'sales.stage', 'That step isn’t possible at this stage of the deal.');
   const month = getMarket(world, c.market).month;
   ensure(month <= d.deadline, 'sales.deadline', 'This deal has run out of time.');
@@ -311,7 +322,7 @@ function startTalk(world: World, me: Player, c: Company, d: SalesDeal) {
   );
   ensure(month <= d.deadline, 'sales.deadline', 'This deal has run out of time.');
   // A conversation under way picks up where you left it.
-  if (d.talk && !d.talk.result)
+  if (d.talk && underWay(d.talk))
     return { dealId: d.id, resumed: true, chance: talkChance(world, c, d, me) };
   spendHours(me, TALK.hours, `Sales conversation: ${d.customer.name}`);
   const n = (d.talk?.n ?? 0) + 1;
@@ -374,7 +385,7 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
     ? TERMS_REACTIONS[fit3(termsScore(d.customer, t.terms as TermsKind))]
     : null;
   const step =
-    !t || t.result ? null : !t.lead ? 'lead' : !t.price ? 'price' : !t.terms ? 'terms' : 'ask';
+    !t || !underWay(t) ? null : !t.lead ? 'lead' : !t.price ? 'price' : !t.terms ? 'terms' : 'ask';
   const w = needWeights(world, c, d);
   const res = t?.result;
   return {

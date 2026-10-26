@@ -688,8 +688,10 @@ export function closeDeal(
 function recoverDeal(d: SalesDeal, month: number) {
   const reason = d.lossReason ?? 'price';
   d.recovered = true;
-  // A new conversation once you're back at the table (only feedback-note deals have one).
-  if (d.talk) delete d.talk.result;
+  // A new conversation once you're back at the table (only feedback-note deals
+  // have one): the last one's turns are over, and sitting down again draws new
+  // openings (salestalk.ts keeps only the count).
+  if (d.talk) d.talk = { n: d.talk.n, month: d.talk.month, leadOptions: [] };
   delete d.closedMonth;
   d.deadline = Math.max(d.deadline, month + 1);
   d.negotiations = Math.min(d.negotiations ?? 0, SALES.maxNegotiations - 1);

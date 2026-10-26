@@ -163,6 +163,21 @@ describe('a sales conversation', () => {
     // The pipeline's one recovery attempt opens a fresh conversation.
     const back = run(lost!.world, F, { type: 'sales.advance', dealId, action: 'recover' }).world;
     expect(deal(back, dealId).talk!.result).toBeUndefined();
+    // None of the last one's turns carry over: you sit down again (new openings, the hours).
+    const v = view(back, dealId);
+    expect(v.step).toBeNull();
+    expect(v.lead).toBeNull();
+    expect(v.price).toBeNull();
+    expect(v.terms).toBeNull();
+    const early = tryRun(back, F, { type: 'sales.talk', dealId, action: 'lead', option: 'tour' });
+    expect(early.ok || early.error.code).toBe('sales.talk.none');
+    expect(v.canStart).toBe(true);
+    const used = back.players[F]!.hours.used;
+    const again = talk(back, dealId, 'start');
+    expect(again.result.started).toBe(true);
+    expect(deal(again.world, dealId).talk!.n).toBe(2);
+    expect(view(again.world, dealId).step).toBe('lead');
+    expect(again.world.players[F]!.hours.used).toBe(used + TALK.hours);
   });
 
   it('walks into a local business: it joins the pipeline as a conversation', () => {
