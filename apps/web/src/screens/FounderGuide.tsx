@@ -103,12 +103,9 @@ export function taskCopy(x: FounderTask, cur: string): { label: string; why: str
   switch (x.id) {
     case 'idea.discovery':
       return {
-        label: t('Talk to customers about their problem ({have}% of {need}% known)', {
-          have,
-          need,
-        }),
+        label: t('Learn what customers need: {have} of {need} points', { have, need }),
         why: t(
-          'Interviews at the Market show what customers need and would pay for, so you build the right thing.',
+          'Interview customers at the Market, hold a discovery meeting in Sales or win a customer: each one shows what people need and would pay for.',
         ),
       };
     case 'idea.price':

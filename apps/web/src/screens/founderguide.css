@@ -68,7 +68,10 @@
   color: var(--good);
 }
 .fg-step-name {
-  overflow-wrap: anywhere;
+  /* "First customers" breaks between words (or hyphenates), never as "customer s". */
+  max-width: 100%;
+  overflow-wrap: break-word;
+  hyphens: auto;
   line-height: 1.2;
 }
 .fg-count {

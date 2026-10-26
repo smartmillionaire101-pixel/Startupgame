@@ -476,6 +476,8 @@ export {
   type FounderStageId,
   type FounderTask,
 } from './founderguide.js';
+export { TRACTION, customerFacts } from './traction.js';
+export type { CustomerFacts } from './traction.js';
 export { HIRING, AI_COFOUNDER_PROFILES, trialFee } from './hiring.js';
 export type { AiCofounderOffer, RetentionRisk } from './hiring.js';
 export {

@@ -2,7 +2,7 @@ import { expect, letters, playAsGuest, setupFounder, test, type Page } from './f
 
 /**
  * Your money, findable: the top bar's cash opens your own account and the
- * company's (bank, revenue, spending), My company shows them up front, a
+ * company's (bank, revenue, spending), Company shows them up front, a
  * warning sits under the top bar when next payday won't be covered, and
  * the phone's home screen has a way back to the game. MONEY_SHOTS=<dir>
  * saves 390×844 screenshots.
@@ -53,7 +53,7 @@ test('the top bar’s cash shows your money and your company’s', async ({ page
   await expect(company.getByText('Revenue last month')).toBeVisible();
   await expect(company.getByText('Spending per month')).toBeVisible();
   await shot(page, 'money-sheet');
-  await company.getByRole('button', { name: 'Open My company' }).click();
+  await company.getByRole('button', { name: 'Open Company' }).click();
   await expect(page.locator('.kpis').getByText('Company bank')).toBeVisible();
   await shot(page, 'company-kpis');
 });

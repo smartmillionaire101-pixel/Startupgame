@@ -25,6 +25,8 @@ import { getMarket, lastPnl, nextStage, totalCustomers } from './helpers.js';
 import type { JourneyGo } from './journey.js';
 import { formatMoney } from './money.js';
 import { rulesFor } from './data/rules.js';
+import { feedbackOn } from './releases.js';
+import { customerFacts, TRACTION, type CustomerFacts } from './traction.js';
 import { monthlyGrowth } from './valuation.js';
 import type {
   Company,
@@ -39,7 +41,8 @@ import { STAGES } from './types.js';
 
 /** Every threshold in one place (money in US dollars a month, converted per city). */
 export const FOUNDER_GUIDE = {
-  idea: { discovery: 0.2 },
+  /** How well you know the customer (traction.ts: interviews, meetings and every customer). */
+  idea: { discovery: TRACTION.knowNeed },
   first: { customers: 5, revenueUsd: 500, keepPct: 90 },
   fit: { productFit: 0.6, customers: 50, growthMonths: 3, team: 3 },
   seed: { runwayMonths: 12 },
@@ -164,9 +167,14 @@ const profitableMonth = (c: Company) => c.finance.history.some((h) => h.net > 0 
 const raisedRound = (c: Company, stage: Stage) =>
   c.lastRound !== null && STAGES.indexOf(c.lastRound) >= STAGES.indexOf(stage);
 
-function stageTasks(world: World, c: Company): Record<FounderStageId, FounderTask[]> {
+function stageTasks(
+  world: World,
+  c: Company,
+  facts: CustomerFacts,
+): Record<FounderStageId, FounderTask[]> {
   const G = FOUNDER_GUIDE;
-  const customers = totalCustomers(c);
+  // One count of real customers for all guidance (traction.ts).
+  const customers = facts.total;
   const revenue = revenueOf(c);
   const checks = founderPlanChecks({
     ...founderPlanBase(world, c),
@@ -175,11 +183,7 @@ function stageTasks(world: World, c: Company): Record<FounderStageId, FounderTas
     founderSalary: c.founderSalary,
   });
   const level = (id: FounderCheck['id']) => checks.find((x) => x.id === id)!.level;
-  const discovery = Math.max(
-    0,
-    ...c.targetSegments.map((k) => c.product.discovery[k] ?? 0),
-    ...Object.values(c.product.discovery),
-  );
+  const discovery = facts.known;
   const money = (have: number, usd: number) => ({
     ...counted(have, usdIn(world, c, usd)),
     money: true,
@@ -193,7 +197,7 @@ function stageTasks(world: World, c: Company): Record<FounderStageId, FounderTas
     idea: [
       {
         id: 'idea.discovery',
-        done: discovery >= G.idea.discovery,
+        done: facts.knows,
         have: Math.round(Math.min(discovery, G.idea.discovery) * 100),
         need: Math.round(G.idea.discovery * 100),
         go: { kind: 'place', place: 'market' },
@@ -304,15 +308,21 @@ function stageTasks(world: World, c: Company): Record<FounderStageId, FounderTas
 
 /**
  * Where a company stands: the first stage with an unfinished task, but never
- * before what its funding already shows (a seed round means it is past Seed).
+ * before what its funding already shows (a seed round means it is past Seed)
+ * or what its customers show (a customer won means it is past Idea).
  */
 export function founderGuide(world: World, c: Company): FounderGuideView {
-  const tasks = stageTasks(world, c);
+  const facts = customerFacts(world, c);
+  const tasks = stageTasks(world, c, facts);
+  // Real paying customers mean the Idea stage is behind you (feedback note).
+  const selling = feedbackOn(world) && facts.earned > 0;
   const floor = raisedRound(c, 'series-a')
     ? FOUNDER_STAGES.indexOf('series-a')
     : raisedRound(c, 'seed')
       ? FOUNDER_STAGES.indexOf('growth')
-      : 0;
+      : selling
+        ? FOUNDER_STAGES.indexOf('first-customers')
+        : 0;
   const open = FOUNDER_STAGES.findIndex((s, i) => i >= floor && tasks[s].some((x) => !x.done));
   const complete = open < 0;
   const index = complete ? FOUNDER_STAGES.length - 1 : open;

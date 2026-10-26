@@ -250,7 +250,7 @@ function tabsOf(
       city,
       today,
       role === 'founder'
-        ? { id: 'company', label: t('My company'), icon: 'company', badge: b.myTurn }
+        ? { id: 'company', label: t('Company'), icon: 'company', badge: b.myTurn }
         : { id: 'portfolio', label: t('My investments'), icon: 'portfolio', badge: b.myTurn },
       me,
     ];
@@ -494,7 +494,7 @@ function TopBar({
 }: {
   alerts: number;
   onDecisions: () => void;
-  /** Open My company (from "Your money"), for a founder. */
+  /** Open Company (from "Your money"), for a founder. */
   onCompany?: () => void;
 }) {
   const [moneyOpen, setMoneyOpen] = useState(false);

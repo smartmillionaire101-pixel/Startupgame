@@ -190,7 +190,7 @@ function Profile() {
       </Button>
       {me.role === 'founder' && !view.companies.some((c) => c.status === 'active') && (
         <Card title={t('Set up your business')}>
-          <p className="small muted">{t('Your company is set up on My company.')}</p>
+          <p className="small muted">{t('Your company is set up on the Company tab.')}</p>
           <Button
             variant="primary"
             block

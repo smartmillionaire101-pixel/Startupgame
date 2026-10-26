@@ -78,6 +78,7 @@ import {
 import { chatIdOf } from './people.js';
 import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
+import { customerFacts } from './traction.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
 import { mallTripView } from './malltrips.js';
@@ -301,6 +302,8 @@ export function companyDetail(world: World, c: Company) {
     /** Founder guidance: the stage tracker, and what the live pricing checks stand on. */
     guide: founderGuide(world, c),
     planBase: founderPlanBase(world, c),
+    /** Real paying customers and how well the founder knows them (traction.ts). */
+    traction: customerFacts(world, c),
     /** Founder Journey 6: the café idea, the first up-front payment and small expenses. */
     ...firstSessionView(world, c),
     rules: rulesFor(c.market, c.industry).map((r) => ({ ...r, done: !!c.compliance[r.id] })),

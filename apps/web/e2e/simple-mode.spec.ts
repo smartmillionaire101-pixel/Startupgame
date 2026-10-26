@@ -1,6 +1,6 @@
 /**
  * Phase 2: Simple mode, for players who aren't tech-savvy. Four tabs (City,
- * Today, My company, Me) with Money one big link away, the phone with
+ * Today, Company, Me) with Money one big link away, the phone with
  * every app (names under the dock's icons too), a map whose buttons all
  * say what they do, one "What should I do now?" card that goes straight
  * there, the map's gestures shown once, and Settings to switch it off.
@@ -57,7 +57,7 @@ test('Simple mode: four tabs, a money link, big phone tiles and a calm map', asy
 
   // Four tabs, each with its name.
   await expect(nav.getByRole('button')).toHaveCount(4);
-  for (const name of ['City', 'Today', 'My company', 'Me'])
+  for (const name of ['City', 'Today', 'Company', 'Me'])
     await expect(tab(page, name)).toBeVisible();
   await expect(tab(page, 'Money')).toHaveCount(0);
 
@@ -104,8 +104,8 @@ test('Simple mode: four tabs, a money link, big phone tiles and a calm map', asy
   await noSideScroll(page);
   await shot(page, 'today');
 
-  // My company: Money and investors is one big link away, and Back returns.
-  await tab(page, 'My company').click();
+  // Company: Money and investors is one big link away, and Back returns.
+  await tab(page, 'Company').click();
   await noSideScroll(page);
   await shot(page, 'company');
   await page.getByRole('button', { name: /Money and investors/ }).click();
@@ -147,7 +147,7 @@ test('the next-step card goes straight there', async ({ page }) => {
   // A new founder's next step: talk to customers, at the Market.
   await page.getByRole('button', { name: 'What should I do now?' }).click();
   const card = page.locator('.next-step-pop');
-  await expect(card).toContainText('Talk to customers about their problem', { timeout: 15_000 });
+  await expect(card).toContainText('Learn what customers need', { timeout: 15_000 });
   await card.getByRole('button', { name: 'Go there' }).click();
   // Somewhere far asks how to get there (the ride chooser): walk.
   const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });

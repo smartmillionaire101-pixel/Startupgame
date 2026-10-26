@@ -102,7 +102,7 @@ export function MoneySheet({
                   onCompany();
                 }}
               >
-                {t('Open My company')}
+                {t('Open Company')}
               </Button>
             )}
           </section>
@@ -207,7 +207,7 @@ function PaydaySheet({ c, next, onClose }: { c: CompanyV; next: NextMonth; onClo
             <li>
               <div className="item-title">{t('Raise money, cut costs or sell more')}</div>
               <div className="small muted">
-                {t('Open My company → Money and investors to see your options.')}
+                {t('Open Company → Money and investors to see your options.')}
               </div>
             </li>
           )}

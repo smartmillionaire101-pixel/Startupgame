@@ -133,8 +133,10 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
       };
     case 'hustle.discovery':
       return {
-        label: t('Talk to customers about their problem'),
-        why: t('So you build what people need: interviews at the Market show what they’d pay for'),
+        label: t('Learn what customers need'),
+        why: t(
+          'So you build what people need: interview customers at the Market, or win a customer and learn from them',
+        ),
       };
     case 'hustle.first-customer':
       return {
