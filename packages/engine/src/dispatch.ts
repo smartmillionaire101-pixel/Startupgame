@@ -69,6 +69,8 @@ import {
 } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { advanceDeal, dropDeal, prospect } from './sales.js';
+import { salesTalk } from './salestalk.js';
+import { askInterview, leaveInterview, startInterview } from './interviews.js';
 import { chooseDecision } from './decisions.js';
 import {
   acceptSecondary,
@@ -637,6 +639,13 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         discovery: c.product.discovery[seg.key],
       };
     }
+    // Unknown until the feedback note: old worlds keep the one-click discovery.
+    case 'company.interview':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      if (cmd.action === 'start')
+        return startInterview(world, me, cmd.companyId, cmd.segmentKey ?? '');
+      if (cmd.action === 'leave') return leaveInterview(world, me, cmd.companyId);
+      return askInterview(world, me, cmd.companyId, cmd.questionId ?? '');
     case 'company.build': {
       const c = touch(cmd.companyId);
       ensure(!c.hibernation, 'build.hibernating', 'The product is frozen while you hibernate.');
@@ -1505,6 +1514,9 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return advanceDeal(world, me, cmd);
     case 'sales.drop':
       return dropDeal(world, me, cmd.dealId, cmd.companyId);
+    case 'sales.talk':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return salesTalk(world, me, cmd);
     case 'company.expense':
       return payExpense(world, me, cmd.companyId, cmd.item);
     case 'business.pitch':
@@ -1878,6 +1890,8 @@ const WORK_COMMANDS: ReadonlySet<Command['type']> = new Set([
   'player.gig',
   'gig.take',
   'sales.advance',
+  'sales.talk',
+  'company.interview',
   'pitch.start',
   'business.pitch',
   'pitch.angel',

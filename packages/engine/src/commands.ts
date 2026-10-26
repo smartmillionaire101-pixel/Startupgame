@@ -158,6 +158,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     targetSegments: z.array(z.string().max(48)).min(1).max(2).optional(),
   }),
   z.object({ type: z.literal('company.discovery'), companyId: id, segmentKey: z.string().max(48) }),
+  /** Feedback note: a customer interview at the Market (interviews.ts): start, ask × 3, or leave. */
+  z.object({
+    type: z.literal('company.interview'),
+    companyId: id,
+    action: z.enum(['start', 'ask', 'leave']),
+    segmentKey: z.string().max(48).optional(),
+    questionId: z.string().max(24).optional(),
+  }),
   z.object({
     type: z.literal('company.build'),
     companyId: id,
@@ -713,6 +721,20 @@ export const commandSchema = z.discriminatedUnion('type', [
     discountPct: z.number().int().min(0).max(100).optional(),
   }),
   z.object({ type: z.literal('sales.drop'), companyId: id.optional(), dealId: id }),
+  /**
+   * Feedback note: a sales conversation with a deal (`dealId`) or a business
+   * you walk into (`businessId`): start, then lead / price (`discountPct`) /
+   * terms with an `option` each, then ask for the deal (salestalk.ts).
+   */
+  z.object({
+    type: z.literal('sales.talk'),
+    companyId: id.optional(),
+    dealId: id.optional(),
+    businessId: id.optional(),
+    action: z.enum(['start', 'lead', 'price', 'terms', 'ask']),
+    option: z.string().max(24).optional(),
+    discountPct: z.number().int().min(0).max(100).optional(),
+  }),
   /** Founder Journey 6: a small one-off business expense, paid from the company account. */
   z.object({
     type: z.literal('company.expense'),

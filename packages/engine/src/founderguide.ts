@@ -86,6 +86,8 @@ export interface FounderTask {
   money?: boolean;
   /** Where to do it (the journey's Go targets). */
   go: JourneyGo | null;
+  /** Feedback note, the discovery task: customer interviews done so far (interviews.ts). */
+  interviews?: number;
 }
 
 export interface FounderStage {
@@ -201,6 +203,7 @@ function stageTasks(
         have: Math.round(Math.min(discovery, G.idea.discovery) * 100),
         need: Math.round(G.idea.discovery * 100),
         go: { kind: 'place', place: 'market' },
+        ...(feedbackOn(world) ? { interviews: c.interviews?.n ?? 0 } : {}),
       },
       { id: 'idea.price', done: level('budget') === 'good', go: company },
       {

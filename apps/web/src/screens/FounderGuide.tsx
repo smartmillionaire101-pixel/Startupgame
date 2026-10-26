@@ -209,6 +209,13 @@ function taskGap(x: FounderTask, cur: string): string | null {
   if (x.have === undefined || x.need === undefined || x.have >= x.need) return null;
   const left = x.need - x.have;
   if (x.money) return t('{amount} more revenue a month closes this', { amount: money(left, cur) });
+  // Feedback note: a good interview at the Market adds about 8 points.
+  if (x.id === 'idea.discovery' && x.interviews !== undefined)
+    return t('{n} points to go · about {k} good interviews at the Market ({done} done)', {
+      n: left,
+      k: Math.max(1, Math.ceil(left / 8)),
+      done: x.interviews,
+    });
   if (x.id === 'fit.product' || x.id === 'first.retention' || x.id === 'idea.discovery')
     return t('{n} points to go', { n: left });
   return t('{n} more to go', { n: left });

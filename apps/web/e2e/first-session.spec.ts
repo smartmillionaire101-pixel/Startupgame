@@ -1,4 +1,13 @@
-import { expect, fillAboutYou, letters, pickLook, pickPath, test, type Page } from './fixtures';
+import {
+  expect,
+  fillAboutYou,
+  letters,
+  pickLook,
+  pickPath,
+  salesConversation,
+  test,
+  type Page,
+} from './fixtures';
 
 /**
  * Founder Journey 6: the guided first session. A brand-new founder picks a
@@ -107,9 +116,10 @@ test('a new founder is guided from the flat to a first sale and the next objecti
     lead: 'contact',
     contacted: 'discover',
     discovery: 'demo',
-    demo: 'propose',
-    proposal: 'close',
-    negotiation: 'close',
+    // Round two: from the demo on, a sales conversation proposes and closes.
+    demo: 'talk',
+    proposal: 'talk',
+    negotiation: 'talk',
   };
   let won = false;
   let sawObjection = false;
@@ -122,7 +132,7 @@ test('a new founder is guided from the flat to a first sale and the next objecti
     for (const id of ids) {
       const deal = sales.locator(`[data-deal="${id}"]`);
       await expect(tip).toContainText('Call');
-      // The longest path is nine steps: lead to close, a loss, recovery to discovery, then demo, propose and close again.
+      // The longest path is seven steps: lead to the conversation, a loss, recovery to discovery, then demo and a conversation again.
       for (let k = 0; k < 12; k++) {
         const stage = (await deal.getAttribute('data-deal-stage')) ?? '';
         if (stage === 'won') break;
@@ -134,7 +144,10 @@ test('a new founder is guided from the flat to a first sale and the next objecti
           await step(deal, 'recover');
           continue;
         }
-        await step(deal, next[stage]!);
+        if (next[stage] === 'talk') {
+          await expect(tip).toContainText('Sit down with');
+          await salesConversation(page, deal);
+        } else await step(deal, next[stage]!);
       }
       if ((await deal.getAttribute('data-deal-stage')) === 'won') {
         won = true;

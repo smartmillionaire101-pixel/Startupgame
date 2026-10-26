@@ -148,7 +148,7 @@ const segmentsOf = (m: MarketState, c: Company): SegmentState[] => {
 };
 
 /** What a founder would assume about a customer before discovery. */
-function assumed(m: MarketState, d: SalesDeal): SalesCustomer {
+export function assumed(m: MarketState, d: SalesDeal): SalesCustomer {
   const seg = m.segments[d.customer.segmentKey];
   const mid = (d.customer.budgetMin + d.customer.budgetMax) / 2;
   // You guess roughly right on budget (what such buyers usually spend), and average on the rest.
@@ -361,7 +361,7 @@ function strongestNeed(seg: SegmentState | undefined, rng: Rng): SalesNeed {
   return NEEDS.slice().sort((a, b) => seg.needs[b] - seg.needs[a])[0]!;
 }
 
-function makeLead(
+export function makeLead(
   world: World,
   c: Company,
   m: MarketState,
@@ -625,10 +625,21 @@ export function advanceDeal(world: World, me: Player, cmd: SalesAdvanceInput) {
   };
 }
 
-function closeDeal(world: World, me: Player, c: Company, d: SalesDeal, month: number) {
-  const chance = winChance(world, c, d, { known: true, founder: me });
+/**
+ * Ask for the deal. A sales conversation (salestalk.ts) passes the chance its
+ * turns earned and its own RNG label; the pipeline's close uses the plain one.
+ */
+export function closeDeal(
+  world: World,
+  me: Player,
+  c: Company,
+  d: SalesDeal,
+  month: number,
+  opts: { chance?: number; label?: string } = {},
+) {
+  const chance = opts.chance ?? winChance(world, c, d, { known: true, founder: me });
   const attempt = d.recovered ? 2 : 1;
-  const rng = deriveRng(world.seed, 'sales', 'close', d.id, attempt);
+  const rng = deriveRng(world.seed, 'sales', opts.label ?? 'close', d.id, attempt);
   const won = rng.next() < chance;
   d.closedMonth = month;
   if (won) {
@@ -677,6 +688,8 @@ function closeDeal(world: World, me: Player, c: Company, d: SalesDeal, month: nu
 function recoverDeal(d: SalesDeal, month: number) {
   const reason = d.lossReason ?? 'price';
   d.recovered = true;
+  // A new conversation once you're back at the table (only feedback-note deals have one).
+  if (d.talk) delete d.talk.result;
   delete d.closedMonth;
   d.deadline = Math.max(d.deadline, month + 1);
   d.negotiations = Math.min(d.negotiations ?? 0, SALES.maxNegotiations - 1);

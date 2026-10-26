@@ -24,6 +24,7 @@ import type { CityLayout, Place } from './layout';
 import { sellsOf, venueItemsOf } from './life';
 import { contactsOf, type PresenceView } from './people';
 import { Showroom } from './Showroom';
+import { SalesTalkSheet } from '../screens/SalesTalk';
 
 /** What the economy commands answer (engine §B). */
 type PitchResult = {
@@ -247,8 +248,14 @@ function SellToThem({ b }: { b: BusinessView }) {
     null,
   );
   const wants = company ? b.buys.find((x) => x.sector === company.industry) : undefined;
+  // The feedback round, two: a pitch is a sales conversation, not one click.
+  const [talking, setTalking] = useState(false);
   const pitch = async () => {
     if (!company) return;
+    if (company.sales?.talks) {
+      setTalking(true);
+      return;
+    }
     const r = await send<PitchResult>(
       cmd({ type: 'business.pitch', companyId: company.id, businessId: b.id }),
     );
@@ -315,6 +322,14 @@ function SellToThem({ b }: { b: BusinessView }) {
           <Button disabled={!b.you.canPitch || b.you.customer} onClick={() => void pitch()}>
             {t('Pitch {company}', { company: company.name })}
           </Button>
+          {talking && (
+            <SalesTalkSheet
+              companyId={company.id}
+              businessId={b.id}
+              business={{ name: b.name, owner: b.owner.name }}
+              onClose={() => setTalking(false)}
+            />
+          )}
           {answer && (
             <div className={`card card-deal deal-${answer.tone}`} role="status">
               <p className={answer.tone === 'good' ? 'good' : answer.tone === 'bad' ? 'bad' : ''}>

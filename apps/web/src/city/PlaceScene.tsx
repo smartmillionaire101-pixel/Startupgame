@@ -34,6 +34,8 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Card, Empty, Pill } from '../ui';
 import { PitchSheet } from '../screens/Money';
+import { InterviewSheet } from '../screens/Interview';
+import { SalesTalkSheet } from '../screens/SalesTalk';
 import { AvatarFigure, appearanceOfLook, avatarLook, type AvatarLook } from './art';
 import { api } from '../api';
 import {
@@ -758,6 +760,11 @@ function RoomScene({
     name: string;
     check: [number, number];
   } | null>(null);
+  // The feedback round, two: a real customer interview, and a sales conversation at a business.
+  const [interviewing, setInterviewing] = useState(false);
+  const [talkTo, setTalkTo] = useState<{ businessId: string; name: string; owner: string } | null>(
+    null,
+  );
   // City places: the named building's view (its services and who may use them).
   const civic = useMemo(() => civicOf(view, place), [view, place]);
   // The feedback round: one of the city's named hotels (not yours: that's your room).
@@ -1320,18 +1327,20 @@ function RoomScene({
         icon: '📣',
         disabled: busy,
         run: () =>
-          send(
-            looseCmd({ type: 'business.pitch', companyId: company.id, businessId: b.id }),
-            (r: Loose) =>
-              r?.answer === 'yes'
-                ? t('Yes! {owner} is giving {company} a try.', {
-                    owner: b.owner.name,
-                    company: company.name,
-                  })
-                : r?.reason
-                  ? t('Not now: {reason}', { reason: tx(r.reason) })
-                  : said(r, t('Not now.')),
-          ),
+          company.sales?.talks
+            ? setTalkTo({ businessId: b.id, name: b.name, owner: b.owner.name })
+            : send(
+                looseCmd({ type: 'business.pitch', companyId: company.id, businessId: b.id }),
+                (r: Loose) =>
+                  r?.answer === 'yes'
+                    ? t('Yes! {owner} is giving {company} a try.', {
+                        owner: b.owner.name,
+                        company: company.name,
+                      })
+                    : r?.reason
+                      ? t('Not now: {reason}', { reason: tx(r.reason) })
+                      : said(r, t('Not now.')),
+              ),
       });
   } else if (place.kind === 'lender' || place.kind === 'playerbank') {
     // Bankers note: a banker meets the bank's people (the cards under More).
@@ -1495,7 +1504,15 @@ function RoomScene({
         run: () => onVisit?.(`cap:${acc.id}`),
       });
   } else if (place.kind === 'stall') {
-    actions.push({ ...toMore, id: 'interview', label: t('Interview customers'), icon: '🗣' });
+    if (company?.interviews)
+      actions.push({
+        id: 'interview',
+        label: t('Interview a customer'),
+        sub: t('{h}h · three rounds of questions', { h: company.interviews.hours }),
+        icon: '🗣',
+        run: () => setInterviewing(true),
+      });
+    else actions.push({ ...toMore, id: 'interview', label: t('Interview customers'), icon: '🗣' });
     actions.push({ ...toMore, id: 'who-buys', label: t('Who buys what'), icon: '🧺' });
   } else if (place.kind === 'office') {
     if (abroad) {
@@ -1942,6 +1959,24 @@ function RoomScene({
         </div>
       )}
       {pitch && company && <PitchSheet c={company} target={pitch} onClose={() => setPitch(null)} />}
+      {interviewing && company && (
+        <InterviewSheet
+          companyId={company.id}
+          segmentKey={
+            view.market.segments.find((x) => x.key === place.ref && x.industry === company.industry)
+              ?.key ?? company.targetSegments[0]
+          }
+          onClose={() => setInterviewing(false)}
+        />
+      )}
+      {talkTo && company && (
+        <SalesTalkSheet
+          companyId={company.id}
+          businessId={talkTo.businessId}
+          business={{ name: talkTo.name, owner: talkTo.owner }}
+          onClose={() => setTalkTo(null)}
+        />
+      )}
     </div>
   );
 }

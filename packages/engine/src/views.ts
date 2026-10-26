@@ -12,7 +12,7 @@ import { bankWorkView } from './bankwork.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
-import { investorOn, lifeBarsOn, placesOn, shopOn } from './releases.js';
+import { feedbackOn, investorOn, lifeBarsOn, placesOn, shopOn } from './releases.js';
 import { shopCatalogView } from './catalog.js';
 import { cityPlacesView } from './places.js';
 import { errandsView } from './errands.js';
@@ -28,7 +28,8 @@ import { recapView } from './recap.js';
 import { decisionsView } from './decisions.js';
 import { rivalsView } from './rivals.js';
 import { roadmapView } from './roadmap.js';
-import { salesView } from './sales.js';
+import { salesWithTalk } from './salestalk.js';
+import { interviewsView } from './interviews.js';
 import { founderGuide, founderPlanBase } from './founderguide.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
@@ -299,7 +300,9 @@ export function companyDetail(world: World, c: Company) {
       unpaidPayroll: c.finance.unpaidPayroll,
     },
     /** Founder Journey 2a: the per-deal sales pipeline (view.company.sales). */
-    sales: salesView(world, c),
+    sales: salesWithTalk(world, c),
+    /** Feedback note: customer interviews at the Market (null before it). */
+    interviews: feedbackOn(world) ? interviewsView(world, c) : null,
     /** Founder guidance: the stage tracker, and what the live pricing checks stand on. */
     guide: founderGuide(world, c),
     planBase: founderPlanBase(world, c),
