@@ -362,6 +362,7 @@ export async function expectGolfControlsClear(page: Page, what = 'address') {
       false,
     );
   }
+}
 
 /**
  * The sales conversation (round two): open it from a deal card's "Sales
