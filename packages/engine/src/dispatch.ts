@@ -221,7 +221,8 @@ import {
   venueBuy,
 } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
-import { foodOrder, homeAct, homeInvite } from './needs.js';
+import { foodOrder, homeAct, homeInvite, moodOf, needsOf } from './needs.js';
+import { actBoost, homeFinish } from './homestyle.js';
 import { removeContact, saveContact } from './people.js';
 import {
   acceptVisit,
@@ -1580,6 +1581,9 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'home.wall.remove':
       if (!shopOn(world)) return fail('command.unknown', 'Unknown command.');
       return removeWall(world, me, cmd.wallId, !!cmd.sell);
+    case 'home.finish':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return homeFinish(world, me, cmd.surface, cmd.finish, cmd.floor, cmd.room);
     case 'home.room.label':
       if (!shopOn(world)) return fail('command.unknown', 'Unknown command.');
       return labelRoom(me, cmd.floor, cmd.x, cmd.y, cmd.label);
@@ -1597,10 +1601,25 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'car.sell':
       return sellCar(world, me);
     // ------------------------------------------------------------ life at home (Wave 7)
-    case 'home.act':
-      return homeAct(world, me, cmd.act);
-    case 'home.invite':
-      return homeInvite(world, me, cmd.personId);
+    case 'home.act': {
+      const done = homeAct(world, me, cmd.act);
+      if (!feedbackOn(world)) return done;
+      // The feedback round: what you own makes the act count for more.
+      const boost = actBoost(world, me, cmd.act);
+      return {
+        ...done,
+        boost,
+        needs: needsOf(me),
+        mood: moodOf(me),
+        energy: Math.round(me.energy),
+      };
+    }
+    case 'home.invite': {
+      const done = homeInvite(world, me, cmd.personId);
+      if (!feedbackOn(world)) return done;
+      const boost = actBoost(world, me, 'invite');
+      return { ...done, boost, needs: needsOf(me), mood: moodOf(me) };
+    }
     case 'food.order': {
       const before = me.needs?.hunger ?? 70;
       const result = foodOrder(world, me, cmd.businessId, cmd.itemId);

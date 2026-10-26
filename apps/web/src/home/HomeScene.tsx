@@ -36,6 +36,7 @@ import {
   type Placement,
 } from '../interiors3d/placement';
 import { BuySheet, PlaceBar } from '../interiors3d/BuyMode';
+import type { HomeFinish } from '../interiors3d/finishes';
 import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
@@ -369,6 +370,14 @@ export function HomeScene({
   );
   const roomNames = extras.rooms.filter((r) => r.floor === floor);
   // ---- 3D (Wave 9 §C): drawn by three.js under this scene's invisible 2D hit layer.
+  // Buy mode: a house's floors that have things on them.
+  const buyFloors = useMemo(
+    () =>
+      floors
+        .map((f, index) => ({ index, slots: Object.keys(f.slots) }))
+        .filter((f) => f.slots.length > 0),
+    [floors],
+  );
   const want3d = use3d();
   const [ready3d, setReady3d] = useState(false);
   const is3d = want3d && ready3d;
@@ -744,28 +753,49 @@ export function HomeScene({
     { id: number; text: string; x: number; y: number; tone: string; sx: number; sy: number }[]
   >([]);
   // ---- Buy mode: the thing you're placing.
-  const [placing, setPlacing] = useState<{ slot: string; label: string; p: Placement } | null>(
-    null,
-  );
+  const [placing, setPlacing] = useState<{
+    slot: string;
+    label: string;
+    p: Placement;
+    /** Bought and on its way: its tier (what you own there is what's shown otherwise). */
+    tier?: number;
+  } | null>(null);
+  // Buy all: the things bought, placed in turn once each is put down.
+  const [placeQueue, setPlaceQueue] = useState<{ slot: string; label: string; tier: number }[]>([]);
+  // Buy mode's Design tab: a floor or paint you're trying on.
+  const [tryFinish, setTryFinish] = useState<HomeFinish | null>(null);
+  const finish3d: HomeFinish | null =
+    hotelTier || hostView ? null : (tryFinish ?? view.me.homeStyle?.chosen ?? null);
   const ghost: Ghost | null = useMemo(() => {
     if (!placing) return null;
     const base = basePlan.slots[placing.slot];
     if (!base) return null;
     return {
       slot: placing.slot,
-      tier: tiers.get(placing.slot) ?? 1,
+      tier: placing.tier ?? tiers.get(placing.slot) ?? 1,
       spot: placedSpot(base, placing.p),
       ok: canPlace(plan, owned, placing.slot, placing.p),
     };
   }, [placing, basePlan, plan, owned, tiers]);
-  const startPlacing = (slot: string, label: string) => {
-    if (!MOVABLE.has(slot)) return;
+  const startPlacing = (slot: string, label: string, tier?: number) => {
+    if (!MOVABLE.has(slot)) return false;
     const s = plan.slots[slot];
-    if (!s) return;
+    if (!s) return false;
     const rot = (s as { rot?: number }).rot ?? 0;
     setSheet(null);
     setMenuState(null);
-    setPlacing({ slot, label, p: { x: s.x, y: s.y, rot } });
+    setPlacing({ slot, label, p: { x: s.x, y: s.y, rot }, ...(tier ? { tier } : {}) });
+    return true;
+  };
+  /** The next thing from Buy all that stands on this floor (the rest keep their places). */
+  const placeNext = (queue: { slot: string; label: string; tier: number }[]) => {
+    let rest = queue;
+    while (rest.length) {
+      const [next, ...more] = rest;
+      rest = more;
+      if (startPlacing(next!.slot, next!.label, next!.tier)) break;
+    }
+    setPlaceQueue(rest);
   };
   const finishPlacing = () => {
     if (!placing || !ghost?.ok) return;
@@ -773,6 +803,7 @@ export function HomeScene({
     savePlacement(placeOwner, placing.slot, p);
     setPlacements((xs) => ({ ...xs, [placing.slot]: p }));
     setPlacing(null);
+    if (placeQueue.length) placeNext(placeQueue);
   };
   const resetPlacing = () => {
     if (!placing) return;
@@ -783,6 +814,7 @@ export function HomeScene({
       return next;
     });
     setPlacing(null);
+    if (placeQueue.length) placeNext(placeQueue);
   };
   // ---- Shop note: putting up a wall or divider, and naming rooms.
   const [naming, setNaming] = useState<{ x: number; y: number; label: string } | 'pick' | null>(
@@ -1774,6 +1806,7 @@ export function HomeScene({
             <Home3D
               plan={drawPlan}
               dividers={dividers3d}
+              finish={finish3d}
               tier={tier}
               objects={objects3d}
 
@@ -2097,7 +2130,10 @@ export function HomeScene({
             }
             onDone={finishPlacing}
             onReset={resetPlacing}
-            onCancel={() => setPlacing(null)}
+            onCancel={() => {
+              setPlacing(null);
+              if (placeQueue.length) placeNext(placeQueue);
+            }}
           />
         )}
         {wallPlacing && wallGhost && (
@@ -2325,8 +2361,17 @@ export function HomeScene({
         <BuySheet
           owned={tiers}
           placed={placements}
-          onClose={() => setSheet(null)}
-          onPlace={startPlacing}
+          onClose={() => {
+            setSheet(null);
+            setTryFinish(null);
+          }}
+          onPlace={(slot, label) => void startPlacing(slot, label)}
+          onPlaceAll={placeNext}
+          plan={basePlan}
+          floors={buyFloors}
+          onFloor={goFloor}
+          onTurn={is3d ? (dir) => api3d.current?.turn(dir) : undefined}
+          onPreview={setTryFinish}
           walls={extras.walls}
           floor={floor}
           onPlaceWall={startWall}

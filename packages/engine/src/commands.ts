@@ -821,6 +821,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     y: z.number().int().min(0).max(64),
     label: z.string().max(24).optional(),
   }),
+  /** Buy mode (the feedback round): a floor finish for a room, or paint for the walls. */
+  z.object({
+    type: z.literal('home.finish'),
+    surface: z.enum(['floor', 'wall']),
+    finish: z.string().min(2).max(24),
+    floor: z.number().int().min(0).max(3),
+    room: z.string().min(2).max(24).optional(),
+  }),
   /** Sell your car back at 50% of what you paid. */
   z.object({ type: z.literal('car.sell') }),
   // ---- Life at home (Wave 7)

@@ -255,6 +255,14 @@
   padding: 0.35rem 0;
   border-bottom: 1px solid var(--line);
 }
+.shop-thumb {
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
 .shop-main {
   display: flex;
   flex-direction: column;

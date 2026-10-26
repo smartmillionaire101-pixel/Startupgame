@@ -16,7 +16,8 @@ import { comfortEnergy, settleCar } from './shop.js';
 import { decayNeeds, moodHoursFactor } from './needs.js';
 import { livingCostFactor } from './property.js';
 import { barHoursFactor, settleBars } from './lifebars.js';
-import { investorOn, lifeBarsOn } from './releases.js';
+import { feedbackOn, investorOn, lifeBarsOn } from './releases.js';
+import { settleHomeBoosts } from './homestyle.js';
 import type { MarketState, Player, World } from './types.js';
 
 /** The agency gig's pay, local minor units (Wave 6: about 30% more). */
@@ -106,6 +107,8 @@ export function settlePerson(world: World, p: Player, month: number) {
     });
   // Wave 7: needs fall each month (mood then shapes next month's hours).
   decayNeeds(world, p, month);
+  // The feedback round: what you own at home gives some of it back.
+  if (!p.ai && feedbackOn(world)) settleHomeBoosts(world, p);
   // Phase 3: health and stress settle after energy and needs, before hours.
   const lifeBars = !p.ai && lifeBarsOn(world);
   if (lifeBars) settleBars(world, p, month, { hoursUsed: p.hours.used, missedLiving: paid < cost });

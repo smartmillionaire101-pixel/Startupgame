@@ -1,6 +1,7 @@
 /** The French catalog, merged from one file per screen. */
 import { account } from './account';
 import { landing } from './landing';
+import { buyMode } from './buy-mode';
 import { acts } from './acts';
 import { app } from './app';
 import { city } from './city';
@@ -211,6 +212,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   r2Ui,
   r2Jobs,
   convo,
+  buyMode,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

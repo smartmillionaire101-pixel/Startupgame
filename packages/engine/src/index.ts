@@ -330,6 +330,10 @@ export { inRoleOutfit, roleOutfit } from './outfits.js';
 export type { RoleOutfit } from './outfits.js';
 // The catalogue, shopping online, walls and dividers (shop note).
 export * from './data/catalog.js';
+// Buy mode (the feedback round): what things do for you, floors and wall paint.
+export * from './data/home-style.js';
+export { boostsOf, roomKey } from './homestyle.js';
+export type { Boosts } from './homestyle.js';
 export { wallEdgesOf } from './catalog.js';
 export type { OnlineOrder } from './catalog.js';
 export { BRANCH } from './branches.js';
