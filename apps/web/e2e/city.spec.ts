@@ -83,7 +83,7 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await more(page);
   await expect(market.getByText(/Every stall is a customer segment/)).toBeVisible();
   await expect(
-    market.getByRole('button', { name: 'Customer discovery (20h)' }).first(),
+    market.getByRole('button', { name: 'Interview a customer (1h)' }).first(),
   ).toBeVisible();
 
   // The bottom tabs work even with a panel open: tapping one leaves the city.

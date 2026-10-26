@@ -1,4 +1,4 @@
-import { expect, test as base, type Page } from '@playwright/test';
+import { expect, test as base, type Locator, type Page } from '@playwright/test';
 import { checkName } from '@runway/engine';
 
 /**
@@ -362,4 +362,43 @@ export async function expectGolfControlsClear(page: Page, what = 'address') {
       false,
     );
   }
+
+/**
+ * The sales conversation (round two): open it from a deal card's "Sales
+ * conversation" (or from an open sheet), sit down, lead with their need when
+ * discovery revealed it, name the middle of their band, offer a paid pilot
+ * and ask for the deal. Returns how it ended; the sheet is closed after.
+ */
+export async function salesConversation(
+  page: Page,
+  deal?: Locator,
+): Promise<{ result: 'won' | 'lost'; score: number }> {
+  if (deal) await deal.locator('button[data-action="talk"]').click();
+  const sheet = page.getByRole('dialog', { name: /^Sales conversation/ });
+  await expect(sheet).toBeVisible();
+  const sit = sheet.locator('[data-talk-start]');
+  if (await sit.isVisible()) await sit.click();
+  await expect(sheet.locator('[data-turn="lead"]')).toBeVisible({ timeout: 15_000 });
+  const need = await sheet.locator('[data-known-need]').getAttribute('data-known-need');
+  const theirs = sheet.locator(`[data-lead="${need}"]`);
+  await (
+    need !== '?' && (await theirs.count()) ? theirs : sheet.locator('[data-lead]').first()
+  ).click();
+  await expect(sheet.locator('[data-reaction="lead"]')).toBeVisible({ timeout: 15_000 });
+  await sheet.locator('[data-price="mid"]').click();
+  await sheet.getByRole('button', { name: 'Name this price' }).click();
+  await expect(sheet.locator('[data-reaction="price"]')).toBeVisible({ timeout: 15_000 });
+  await expect(sheet.getByRole('meter', { name: 'Win chance now' })).toBeVisible();
+  await sheet.locator('[data-terms="pilot"]').click();
+  await expect(sheet.locator('[data-reaction="terms"]')).toBeVisible({ timeout: 15_000 });
+  await sheet.locator('[data-talk-ask]').click();
+  const done = sheet.locator('[data-talk-result]');
+  await expect(done).toBeVisible({ timeout: 15_000 });
+  const result = (await done.getAttribute('data-talk-result')) as 'won' | 'lost';
+  const score = Number(await done.getAttribute('data-talk-score'));
+  // Scored like a banker's call: a mark and a why for each turn.
+  await expect(sheet.locator('[data-turn-mark]')).toHaveCount(3);
+  await sheet.getByRole('button', { name: 'Close', exact: true }).first().click();
+  await expect(sheet).toBeHidden();
+  return { result, score };
 }

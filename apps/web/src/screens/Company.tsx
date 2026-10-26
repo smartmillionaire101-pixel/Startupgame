@@ -10,6 +10,7 @@ import { Bar, Button, Card, Confirm, Empty, Field, Fold, Pill, Segmented, Sheet 
 import { ExpansionCard } from './Expansion';
 import { Roadmap } from './Roadmap';
 import { SalesPipeline } from './Sales';
+import { InterviewSheet } from './Interview';
 import { CofounderCard, HiringPipeline, TeamHealth } from './Hiring';
 import { RunwayExplainer } from './FundCompany';
 import { RivalsPanel } from './Decisions';
@@ -546,6 +547,7 @@ export type Segment = ReturnType<typeof useView>['view']['market']['segments'][n
 /** One customer segment: who they are, your funnel there, and customer discovery. */
 export function SegmentCard({ c, s }: { c: CompanyT; s: Segment }) {
   const { send, cur } = useView();
+  const [interview, setInterview] = useState(false);
   const toggleTarget = (key: string) => {
     const next = c.targetSegments.includes(key)
       ? c.targetSegments.filter((k) => k !== key)
@@ -614,17 +616,27 @@ export function SegmentCard({ c, s }: { c: CompanyT; s: Segment }) {
           <Bar label={t('Fit for this segment')} value={pos.fit} />
         </>
       )}
-      <Button
-        variant="subtle"
-        onClick={() =>
-          void send(
-            { type: 'company.discovery', companyId: c.id, segmentKey: s.key },
-            (r: { message: string }) => tx(r.message),
-          )
-        }
-      >
-        {t('Customer discovery (20h)')}
-      </Button>
+      {c.interviews ? (
+        // Feedback note: a real interview, three rounds of questions.
+        <Button variant="subtle" data-interview-segment={s.key} onClick={() => setInterview(true)}>
+          {t('Interview a customer ({h}h)', { h: c.interviews.hours })}
+        </Button>
+      ) : (
+        <Button
+          variant="subtle"
+          onClick={() =>
+            void send(
+              { type: 'company.discovery', companyId: c.id, segmentKey: s.key },
+              (r: { message: string }) => tx(r.message),
+            )
+          }
+        >
+          {t('Customer discovery (20h)')}
+        </Button>
+      )}
+      {interview && (
+        <InterviewSheet companyId={c.id} segmentKey={s.key} onClose={() => setInterview(false)} />
+      )}
     </Card>
   );
 }

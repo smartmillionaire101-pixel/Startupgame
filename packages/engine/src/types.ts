@@ -1445,6 +1445,8 @@ export interface Company {
   expenses?: { item: string; month: number; amount: number }[];
   /** Prospecting done this month (limited by founder hours and sales staff). */
   salesProspects?: { month: number; count: number };
+  /** Customer interviews at the Market (feedback note, interviews.ts). Missing = never interviewed. */
+  interviews?: CompanyInterviews;
   /** In (or graduated from) an accelerator (Wave 5). Missing = never joined one. */
   accelerator?: CompanyAccelerator | null;
   /** The product roadmap (§6.3). Missing = never opened: product work runs as before. */
@@ -3208,6 +3210,68 @@ export interface SalesDeal {
   /** Lost because the deadline passed. */
   expired?: boolean;
   closedMonth?: number;
+  /** The sales conversation (feedback note, salestalk.ts). Missing = none started. */
+  talk?: SalesTalk;
+}
+
+/** A sales conversation's turns so far (salestalk.ts). Option ids are fixed when it starts. */
+export interface SalesTalk {
+  /** Conversations held on this deal (each draws its own options). */
+  n: number;
+  /** The month it started. */
+  month: number;
+  leadOptions: string[];
+  lead?: string;
+  /** Price option picked ('below' | 'mid' | 'top') and its amount, before any discount. */
+  priceOption?: string;
+  price?: number;
+  discountPct?: number;
+  terms?: string;
+  /** Set once you asked for the deal. */
+  result?: SalesTalkResult;
+}
+
+export interface SalesTalkResult {
+  score: number;
+  won: boolean;
+  chance: number;
+  monthly: number;
+  turns: { turn: 'lead' | 'price' | 'terms'; option: string; score: number; best: string }[];
+}
+
+/** One interview in progress (interviews.ts): who, and the questions on offer each round. */
+export interface InterviewState {
+  /** The company's interview number (0-based): seeds who you meet and what you can ask. */
+  n: number;
+  segmentKey: string;
+  persona: number;
+  name: string;
+  gender: 'female' | 'male';
+  place: string;
+  month: number;
+  /** Question ids offered in each of the three rounds. */
+  offers: string[][];
+  /** Question ids asked so far. */
+  picks: string[];
+}
+
+export interface InterviewRecord extends InterviewState {
+  score: number;
+  before: number;
+  after: number;
+}
+
+export interface CompanyInterviews {
+  /** Interviews started, ever. */
+  n: number;
+  /** Interviews started this month. */
+  month: number;
+  count: number;
+  active?: InterviewState | null;
+  /** The last one finished. */
+  last?: InterviewRecord | null;
+  /** What people told you (the pain notes), for the sales conversation's hints; newest first. */
+  hints?: { segmentKey: string; name: string; place: string; persona: number; n: number }[];
 }
 
 export interface SalesAccount {

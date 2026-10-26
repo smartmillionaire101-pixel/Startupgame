@@ -1,11 +1,21 @@
-import { expect, letters, playAsGuest, setupFounder, test, type Page } from './fixtures';
+import {
+  expect,
+  letters,
+  playAsGuest,
+  salesConversation,
+  setupFounder,
+  test,
+  type Page,
+} from './fixtures';
 
 /**
  * Founder Journey 2a: the sales pipeline. A founder opens the phone's Sales
- * app, finds leads, works one deal from the first call to "Ask for the deal"
- * (seeing the time and cost of each step before confirming, and the customer's
- * hidden budget once discovered) and, after a loss, tries again. The signed
- * deal shows up as a customer from the pipeline.
+ * app, finds leads, works one deal from the first call through discovery and
+ * a demo (seeing the time and cost of each step before confirming, and the
+ * customer's hidden budget once discovered), then sits down for the sales
+ * conversation (round two: lead, price, terms, "Ask for the deal", a scored
+ * result) and, after a loss, tries again. The signed deal shows up as a
+ * customer from the pipeline.
  */
 
 async function openSales(page: Page) {
@@ -71,27 +81,15 @@ test('a founder prospects, works a deal to signature and sees the customer', asy
       await step(deal, 'discover');
       await expect(deal.locator('[data-known="budget"]')).not.toHaveText('?');
       await step(deal, 'demo');
-      await step(deal, 'propose');
-      await step(deal, 'close');
+      // The proposal and the close are a conversation now (no one-click close).
+      await expect(deal.locator('button[data-action="close"]')).toHaveCount(0);
+      await salesConversation(page, deal);
       await expect(deal).toHaveAttribute('data-deal-stage', /won|lost/);
       if ((await deal.getAttribute('data-deal-stage')) === 'lost') {
-        // The objection is named, with one more try.
+        // The objection is named, with one more try: a fresh conversation.
         await expect(deal.getByText(/^Lost: /)).toBeVisible();
         await step(deal, 'recover');
-        // Recovery reopens the deal a stage or two back: work forward to the close again.
-        const next: Record<string, string> = {
-          contacted: 'demo',
-          discovery: 'demo',
-          demo: 'propose',
-          proposal: 'close',
-          negotiation: 'close',
-        };
-        for (let k = 0; k < 4; k++) {
-          const action = next[(await deal.getAttribute('data-deal-stage')) ?? ''];
-          if (!action) break;
-          await step(deal, action);
-          if (action === 'close') break;
-        }
+        await salesConversation(page, deal);
         await expect(deal).toHaveAttribute('data-deal-stage', /won|lost/);
       }
       if ((await deal.getAttribute('data-deal-stage')) === 'won') {

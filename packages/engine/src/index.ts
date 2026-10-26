@@ -467,6 +467,13 @@ export {
   winChance,
   type SalesView,
 } from './sales.js';
+export { TALK, salesWithTalk, talkView, type TalkView } from './salestalk.js';
+export {
+  INTERVIEW,
+  interviewsView,
+  meet as meetInterviewee,
+  type InterviewsView,
+} from './customer-interviews.js';
 export {
   FOUNDER_GUIDE,
   FOUNDER_STAGES,

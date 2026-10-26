@@ -1,4 +1,4 @@
-import { setupFounder } from './fixtures';
+import { salesConversation, setupFounder } from './fixtures';
 import { expect, letters, more, test, playAsGuest, tapPlace } from './fixtures';
 import type { Page } from '@playwright/test';
 
@@ -64,7 +64,7 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
   await hub.getByRole('button', { name: 'Close' }).click();
 
   // Sell to them: walk into businesses until one will hear a pitch, and pitch.
-  // The owner answers on a result card (yes, come back when…, or no).
+  // Round two: the pitch is a sales conversation (lead, price, terms) with a scored result.
   let pitched = false;
   for (let n = 0; n < 12 && !pitched; n++) {
     await page.getByRole('button', { name: /Places/ }).click();
@@ -80,7 +80,8 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
     const pitch = shop.getByRole('button', { name: /^Pitch Till / });
     if (await pitch.isEnabled()) {
       await pitch.click();
-      await expect(shop.locator('.card-deal[role="status"]')).toBeVisible({ timeout: 8000 });
+      const talk = await salesConversation(page);
+      expect(talk.score).toBeGreaterThanOrEqual(0);
       pitched = true;
     }
     await shop.getByRole('button', { name: 'Close' }).click();

@@ -14,6 +14,7 @@ import { Button, Card, Confirm, Empty, Field } from '../ui';
 import { activeStep, setTutorial, useTutorial } from '../tutorial/state';
 import { useSpotlight } from '../tutorial/spotlight';
 import { DemoBreakdown } from './FounderGuide';
+import { SalesTalkSheet } from './SalesTalk';
 import './sales.css';
 
 type Sales = NonNullable<Company['sales']>;
@@ -100,6 +101,8 @@ const currentLabel = (k: DealV['known']) =>
 
 export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean }) {
   const { send, view } = useView();
+  // The conversation sheet lives here: a deal changes column (and remounts) when it closes.
+  const [talkDeal, setTalkDeal] = useState<string | null>(null);
   const sales = c.sales;
   if (!sales) return <Empty>{t('The sales pipeline isn’t available yet.')}</Empty>;
   const cur = c.currency;
@@ -127,6 +130,9 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
   return (
     <div className={`sales${compact ? ' sales-compact' : ''}`} data-sales>
       <SalesCoach sales={sales} blocked={!!blocker} />
+      {talkDeal && (
+        <SalesTalkSheet companyId={c.id} dealId={talkDeal} onClose={() => setTalkDeal(null)} />
+      )}
       <Card
         title={t('Sales pipeline')}
         sub={t('Win customers one deal at a time')}
@@ -190,7 +196,14 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
                   {stageLabel(st)} <span className="muted">{here.length}</span>
                 </h3>
                 {here.map((d) => (
-                  <DealCard key={d.id} d={d} cur={cur} companyId={c.id} hoursLeft={hoursLeft} />
+                  <DealCard
+                    key={d.id}
+                    d={d}
+                    cur={cur}
+                    companyId={c.id}
+                    hoursLeft={hoursLeft}
+                    onTalk={setTalkDeal}
+                  />
                 ))}
               </section>
             );
@@ -204,7 +217,14 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
                 .slice()
                 .reverse()
                 .map((d) => (
-                  <DealCard key={d.id} d={d} cur={cur} companyId={c.id} hoursLeft={hoursLeft} />
+                  <DealCard
+                    key={d.id}
+                    d={d}
+                    cur={cur}
+                    companyId={c.id}
+                    hoursLeft={hoursLeft}
+                    onTalk={setTalkDeal}
+                  />
                 ))}
             </section>
           )}
@@ -235,11 +255,13 @@ function DealCard({
   cur,
   companyId,
   hoursLeft,
+  onTalk,
 }: {
   d: DealV;
   cur: string;
   companyId: string;
   hoursLeft: number;
+  onTalk: (dealId: string) => void;
 }) {
   const { send } = useView();
   const [pending, setPending] = useState<Action | null>(null);
@@ -248,8 +270,16 @@ function DealCard({
   const k = d.known;
   const p = Math.round(d.probability * 100);
   const tone = p >= 60 ? 'good' : p >= 35 ? 'warn' : 'bad';
-  const primary = d.next;
-  const others = d.actions.filter((a) => a.action !== primary?.action);
+  // Feedback note: the price, the discount and the close happen in a sales conversation.
+  const talk = d.talk;
+  const actions = talk ? d.actions.filter((a) => !TALK_STEPS.includes(a.action)) : d.actions;
+  const talkFirst = !!talk?.canStart && (TALK_FIRST.includes(d.stage) || !!talk.step);
+  const primary = talkFirst
+    ? null
+    : d.next && actions.some((a) => a.action === d.next!.action)
+      ? d.next
+      : (actions[0] ?? null);
+  const others = actions.filter((a) => a.action !== primary?.action);
   const run = (a: Action) => {
     const cmd: Command = {
       type: 'sales.advance',
@@ -424,8 +454,28 @@ function DealCard({
           )}
         </div>
       ) : (
-        d.actions.length > 0 && (
+        (actions.length > 0 || talk?.canStart || talk?.result) && (
           <div className="sales-actions">
+            {talk?.canStart && (
+              <Button
+                size="sm"
+                variant={talkFirst ? 'primary' : 'subtle'}
+                data-action="talk"
+                onClick={() => onTalk(d.id)}
+              >
+                {talk.step ? t('Continue the conversation') : t('Sales conversation')}
+              </Button>
+            )}
+            {talk?.result && (
+              <Button
+                size="sm"
+                variant="subtle"
+                data-action="talk-result"
+                onClick={() => onTalk(d.id)}
+              >
+                {t('How the conversation went ({n}/100)', { n: talk.result.score })}
+              </Button>
+            )}
             {primary && (
               <Button
                 size="sm"
@@ -463,6 +513,10 @@ function DealCard({
     </article>
   );
 }
+
+/** Feedback note: steps a sales conversation replaces, and stages where it is the next step. */
+const TALK_STEPS: Action[] = ['propose', 'negotiate', 'close'];
+const TALK_FIRST: Stage[] = ['demo', 'proposal', 'negotiation'];
 
 const STAGE_ORDER: Stage[] = ['lead', 'contacted', 'discovery', 'demo', 'proposal', 'negotiation'];
 /** The step the tutorial suggests at each stage (contact → discover → demo → propose → close). */
@@ -506,7 +560,10 @@ function SalesCoach({ sales, blocked }: { sales: Sales; blocked: boolean }) {
       .sort((a, b) => STAGE_ORDER.indexOf(b.stage) - STAGE_ORDER.indexOf(a.stage));
     const lost = sales.deals.filter((d) => d.stage === 'lost');
     const retry = lost.find((d) => d.canRecover);
+    // Feedback note: from the demo on, the next step is the sales conversation.
+    const talkNext = (d: DealV) => !!d.talk?.canStart && TALK_FIRST.includes(d.stage);
     const best = open.find((d) => {
+      if (talkNext(d)) return true;
       const a = COACH_ACTION[d.stage];
       return a && d.actions.some((x) => x.action === a);
     });
@@ -520,6 +577,14 @@ function SalesCoach({ sales, blocked }: { sales: Sales; blocked: boolean }) {
       });
       const base = `[data-deal="${retry.id}"]`;
       target = `${base} [data-confirm] button, ${base} button[data-action="recover"]`;
+    } else if (best && talkNext(best)) {
+      text = t(
+        'Sit down with {name}: lead with what they need, name a price in their budget, and ask for the deal.',
+        {
+          name: best.name,
+        },
+      );
+      target = `[data-deal="${best.id}"] button[data-action="talk"]`;
     } else if (best) {
       const a = COACH_ACTION[best.stage]!;
       text = coachText(a, best.name);
