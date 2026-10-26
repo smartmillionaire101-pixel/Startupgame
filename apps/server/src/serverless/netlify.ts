@@ -19,6 +19,7 @@ import type { Context } from '@netlify/functions';
 import type { FastifyInstance } from 'fastify';
 import type { MarketId } from '@runway/engine';
 import { buildApp } from '../app.js';
+import { STARTED_HEADER } from '../ai-claude.js';
 import { loadConfig, monthMsOf, type Config } from '../config.js';
 import { DevSmsProvider } from '../adapters/sms.js';
 import { fetchFxUpdates } from '../adapters/feeds.js';
@@ -179,8 +180,18 @@ export async function kvSelfTest(rt: Runtime) {
   };
 }
 
-/** Pass a Fetch API request through the Fastify app and back. */
-export async function handle(rt: Runtime, req: Request, ip?: string): Promise<Response> {
+/**
+ * Pass a Fetch API request through the Fastify app and back. `startedAt`:
+ * when the function got the request (a cold start and loading the world come
+ * before the app sees it); the app hears it as `x-runway-started`, so an AI
+ * chat answer knows how much of the host's 10 seconds is really left.
+ */
+export async function handle(
+  rt: Runtime,
+  req: Request,
+  ip?: string,
+  startedAt = Date.now(),
+): Promise<Response> {
   await rt.game.refresh();
   const url = new URL(req.url);
   if (url.pathname === '/api/dev/kv-selftest' && rt.config.DEV_TOOLS)
@@ -197,6 +208,7 @@ export async function handle(rt: Runtime, req: Request, ip?: string): Promise<Re
       ...Object.fromEntries(req.headers),
       host: url.host,
       'x-forwarded-proto': url.protocol.replace(':', ''),
+      [STARTED_HEADER]: String(startedAt),
     },
     ...(body?.length ? { payload: body } : {}),
     ...(ip ? { remoteAddress: ip } : {}),

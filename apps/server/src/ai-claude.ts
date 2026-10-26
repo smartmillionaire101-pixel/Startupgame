@@ -35,8 +35,21 @@ export const AI_CHAT_BUDGET_MS = 8_000;
 /** Less time than this left: the template answers instead. */
 export const AI_CHAT_MIN_MS = 1_500;
 
-/** A message still unanswered this long after it was sent gets its answer when the thread is read. */
-export const AI_REPLY_LATE_MS = 20_000;
+/**
+ * A message still unanswered this long after it was sent gets its answer when
+ * the thread is read. The request that sent it is over by then (the send has
+ * AI_CHAT_BUDGET_MS, and Netlify stops a function at 10 s): sooner than the
+ * 20 s it was, so a reply cut off on a slow start shows within a poll or two
+ * (player feedback: "I kept sending messages but nobody replies").
+ */
+export const AI_REPLY_LATE_MS = 12_000;
+
+/**
+ * When the host got the request (ms since the epoch), set by the serverless
+ * handler: a cold start and loading the world come before the app's own clock
+ * starts, and they count against the host's limit too.
+ */
+export const STARTED_HEADER = 'x-runway-started';
 
 /** The same unanswered message sent again within this long is a retry, not a new message. */
 export const AI_RESEND_MS = 2 * 60_000;

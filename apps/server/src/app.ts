@@ -94,6 +94,7 @@ import {
   AI_CHAT_HISTORY,
   AI_CHAT_MIN_MS,
   AI_REPLY_LATE_MS,
+  STARTED_HEADER,
   AI_RESEND_MS,
   claudeReply,
   createClient,
@@ -1258,6 +1259,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return m;
   };
 
+  /** Time the request has used: the app's own, or since the host got it when that's longer. */
+  const spentMs = (req: FastifyRequest, elapsed: number) => {
+    const at = Number(req.headers[STARTED_HEADER]);
+    const since = Number.isFinite(at) ? Date.now() - at : 0;
+    return Math.max(elapsed, since >= 0 && since < 120_000 ? since : 0);
+  };
+
   /** Your newest message in a thread when nobody has answered it yet. */
   const unanswered = (messages: readonly AiMessageRow[]) => {
     const last = messages[messages.length - 1];
@@ -1349,8 +1357,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       const m = await answerAi(me, ch, check.text, {
         lang: body.lang,
         view,
-        // What's left of the request's time for Claude.
-        claudeMs: AI_CHAT_BUDGET_MS - reply.elapsedTime,
+        // What's left of the request's time for Claude: counted from when the
+        // host got it (a serverless cold start and the world's load come first;
+        // Claude taking a full budget after them got the function stopped at
+        // 10 s, the answer lost, and the player heard nothing).
+        claudeMs: AI_CHAT_BUDGET_MS - spentMs(req, reply.elapsedTime),
       });
       const thread = await store.aiThread(me.id, ch.id);
       return {

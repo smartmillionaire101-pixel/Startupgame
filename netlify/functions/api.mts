@@ -14,6 +14,8 @@ import {
 const runtimes = new Map<string, Promise<Runtime>>();
 
 export default async (req: Request, context: Context) => {
+  // The host's time limit counts from here: a cold start and the world's load included.
+  const startedAt = Date.now();
   const mode = modeFor(context.deploy, req.url);
   const key = `${mode}:${storeFor(mode, req.url).name}`;
   let runtime = runtimes.get(key);
@@ -25,7 +27,7 @@ export default async (req: Request, context: Context) => {
     runtimes.set(key, runtime);
   }
   try {
-    const res = await handle(await runtime, req, context.ip);
+    const res = await handle(await runtime, req, context.ip, startedAt);
     // Which world served this, for deploy checks (no secrets).
     res.headers.set('x-runway-mode', mode);
     res.headers.set(

@@ -25,7 +25,13 @@ import {
   type Character,
   type Lang,
 } from '../src/ai-chat.js';
-import { FROZEN_RULES, claudeReply, toMessages, type AiClient } from '../src/ai-claude.js';
+import {
+  FROZEN_RULES,
+  STARTED_HEADER,
+  claudeReply,
+  toMessages,
+  type AiClient,
+} from '../src/ai-claude.js';
 import { T0, api, founderSetup, makeApp, playAsGuest } from './helpers.js';
 
 const sentences = (s: string) =>
@@ -349,12 +355,13 @@ async function claudeApp(
     createAiClient: fake.make,
     ...(now ? { now } : {}),
   });
-  const s = api(ctx.app, await playAsGuest(ctx.app));
+  const cookie = await playAsGuest(ctx.app);
+  const s = api(ctx.app, cookie);
   await s.command(founderSetup('claude_user'));
   const fund = Object.values(ctx.game.current.funds).find(
     (f) => f.ai && !f.angelId && f.market === 'lagos',
   )!;
-  return { ...ctx, ...fake, s, characterId: `fund:${fund.id}`, fund };
+  return { ...ctx, ...fake, s, cookie, characterId: `fund:${fund.id}`, fund };
 }
 
 describe('the Claude path (client mocked)', () => {
@@ -439,6 +446,29 @@ describe('the Claude path (client mocked)', () => {
     const r = await s.post('/api/ai-chat', { characterId, text: 'What do you invest in?' });
     expect(r.statusCode).toBe(200);
     expect(r.json().reply.text).toMatch(/cheques of/);
+    expect(calls).toHaveLength(1);
+  });
+
+  // Player feedback: "I kept sending messages but nobody replies". On Netlify a cold
+  // start and the world's load come before the app sees the request; Claude given
+  // a full budget after them ran past the host's 10 s and the answer was lost.
+  it('answers from the template when the host got the request long ago', async () => {
+    const { app, cookie, calls, characterId } = await claudeApp(async () =>
+      message('From Claude.'),
+    );
+    const send = (startedAgo: number) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/ai-chat',
+        headers: { cookie, 'x-runway': '1', [STARTED_HEADER]: String(Date.now() - startedAgo) },
+        payload: { characterId, text: `What do you invest in? ${startedAgo}` },
+      });
+    const late = await send(7_000);
+    expect(late.statusCode).toBe(200);
+    expect(late.json().reply.text).toMatch(/cheques of/);
+    expect(calls).toHaveLength(0);
+    // Just in: Claude has its time.
+    expect((await send(50)).json().reply.text).toBe('From Claude.');
     expect(calls).toHaveLength(1);
   });
 
