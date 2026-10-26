@@ -9,7 +9,7 @@ export const roundTwo: Record<string, string> = {
   'Your company is set up on My company.': 'Votre entreprise se crée dans Mon entreprise.',
   'Set up my company': 'Créer mon entreprise',
   // Life bars under Me.
-  'How to change it': 'Comment la faire bouger',
+  'How to change': 'Comment la faire bouger',
   // Arrivals at the airport.
   Arrivals: 'Arrivées',
   Departures: 'Départs',

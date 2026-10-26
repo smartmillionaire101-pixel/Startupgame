@@ -398,7 +398,6 @@ function Game() {
           onDecisions={() => goTarget({ kind: 'decision' })}
           onCompany={hasCompany ? () => go('company') : undefined}
         />
-        <GameActivity />
         <PaydayWarning />
         <main>
           {/* Simple mode: a screen without a tab has Back, top-left, to where it came from. */}
@@ -525,6 +524,7 @@ function TopBar({
           </span>
         </div>
         <div className="topbar-meta">
+          <GameActivity />
           {/* Tap for your money and your company's (bank, revenue, spending). */}
           <button
             type="button"

@@ -221,18 +221,18 @@ export const setup: Record<string, string> = {
 
   // Done.
   '{company} is open': '{company} est ouverte',
-  'Setup: 5 of 5 done': 'Création : 5 sur 5 faites',
-  'Idea: {idea}': 'Idée : {idea}',
-  'Registered: {company} ({type})': 'Immatriculée : {company} ({type})',
-  'Funded: your {own} + loans {loans}': 'Financée : vos {own} + prêts {loans}',
-  'Funded: your {own}': 'Financée : vos {own}',
+  'All 5 steps done': 'Les 5 étapes faites',
+  'Registered · {type}': 'Immatriculée · {type}',
+  'Funded · {own} yours + {loans} loans': 'Financée · {own} à vous + {loans} de prêts',
+  'Funded · {own} yours': 'Financée · {own} à vous',
   'Plan sent': 'Plan envoyé',
-  'Working from home': 'Travail depuis chez soi',
+  'From home': 'Depuis chez soi',
   '{desks} desks, {district}': '{desks} postes, {district}',
   '{rent}/mo': '{rent}/mois',
-  '{n} months · goal {goal}': '{n} mois · objectif {goal}',
-  'Next: customer interviews, first sales and hiring. Your stage tracker below shows what to do first.':
-    'Ensuite : entretiens clients, premières ventes et embauches. Le suivi d’étape ci-dessous montre par quoi commencer.',
+  '{n} mo · goal {goal}': '{n} mois · objectif {goal}',
+  'No costs yet': 'Pas encore de coûts',
+  'Next: interviews, first sales, hiring. See Your stage.':
+    'Ensuite : entretiens, premières ventes, embauches. Voir Votre étape.',
 
   // The banker's desk.
   'Startup loan applications': 'Demandes de prêt de création',

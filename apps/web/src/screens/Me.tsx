@@ -147,7 +147,7 @@ function Profile() {
             {me.starHistory.length < 2 ? (
               <>
                 <b className="profile-stat">{t('New')}</b>
-                <span className="small muted">{t('Rated after your first month')}</span>
+                <span className="small muted">{t('After month 1')}</span>
               </>
             ) : (
               <>
@@ -173,7 +173,7 @@ function Profile() {
           />
         )}
         <p className="small muted">
-          {t('{left} of {total} hours left this month', {
+          {t('{left}/{total} h left this month', {
             left: me.hours.left,
             total: me.hours.available,
           })}

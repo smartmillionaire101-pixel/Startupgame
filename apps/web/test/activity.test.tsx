@@ -84,17 +84,20 @@ it('opens Online now from the count, grouped by city, polling only while open', 
   expect(list).toHaveBeenCalledTimes(2);
 });
 
-it('saves mute and stays synchronized with phone settings', async () => {
-  vi.spyOn(api, 'online').mockResolvedValue({ count: 1 });
+it('shows just the number, a dash when unavailable, and no music or feedback buttons', async () => {
+  vi.useFakeTimers();
+  const heartbeat = vi.spyOn(api, 'online').mockResolvedValue({ count: 7 });
   setSetting('sound', true);
-  render(<GameActivity />);
+  const { container } = render(<GameActivity />);
   await act(async () => {});
-  const button = screen.getByRole('button', { name: 'Game music' });
-  fireEvent.click(button);
-  expect(button.getAttribute('aria-pressed')).toBe('false');
-  expect(localStorage.getItem('runway.sound')).toBe('0');
-  act(() => setSetting('sound', true));
-  expect(button.getAttribute('aria-pressed')).toBe('true');
+  const count = container.querySelector('.online-count')!;
+  expect(count.classList.contains('topbar-online')).toBe(true);
+  expect(count.querySelector('.sr-only')!.textContent).toBe(' online');
+  expect(screen.queryByRole('button', { name: 'Game music' })).toBeNull();
+  expect(container.querySelector('[data-feedback-open]')).toBeNull();
+  heartbeat.mockRejectedValue(new Error('offline'));
+  await act(() => vi.advanceTimersByTimeAsync(15_000));
+  expect(count.classList.contains('is-unavailable')).toBe(true);
 });
 
 // Renders the whole loop sample by sample: slow on a busy machine, hence the longer limit.

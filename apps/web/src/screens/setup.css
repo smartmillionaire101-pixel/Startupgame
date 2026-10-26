@@ -8,14 +8,14 @@
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.25rem;
   padding: 0;
-  margin: 0.4rem 0 0.6rem;
+  margin: 0.2rem 0 0.4rem;
 }
 .fsu-chip {
-  padding: 0.2rem 0.65rem;
+  padding: 0.1rem 0.5rem;
   border-radius: var(--r-pill);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-2xs);
   background: var(--line);
   color: var(--muted);
 }
@@ -276,14 +276,29 @@
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 0.35rem;
+  gap: 0.2rem;
 }
+/* Label … value: the label ends in "…" before the value wraps. */
 .fsu-summary li {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.6rem;
   color: var(--good);
   font-size: var(--fs-sm);
+}
+.fsu-summary li > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fsu-summary li > b {
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.fsu-done .spread b {
+  white-space: nowrap;
 }
 
 /* The banker's desk. */

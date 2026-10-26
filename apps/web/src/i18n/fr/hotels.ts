@@ -1,6 +1,6 @@
 /** Hotels booked with a flight abroad (player feedback): the picker, the ticket, your stay. */
 export const hotels: Record<string, string> = {
-  'Where will you stay in {city}?': 'Où logerez-vous à {city} ?',
+  'Stay in {city}': 'Logement à {city}',
   Hotels: 'Hôtels',
   'Clean and simple': 'Propre et simple',
   'Near the business district': 'Près du quartier d’affaires',

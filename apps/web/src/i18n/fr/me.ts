@@ -57,7 +57,7 @@ export const me: Record<string, string> = {
   'Stars over time': 'Étoiles dans le temps',
   'network {n}': 'réseau {n}',
   Energy: 'Énergie',
-  '{left} of {total} hours left this month': '{left} heures restantes sur {total} ce mois-ci',
+  '{left}/{total} h left this month': '{left}/{total} h restantes ce mois-ci',
   'burnout cuts your hours': 'l’épuisement réduit vos heures',
   Skills: 'Compétences',
   Milestones: 'Étapes',

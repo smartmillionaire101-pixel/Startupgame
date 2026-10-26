@@ -37,10 +37,20 @@ test('live total and music work across screens and remember mute', async ({ page
   });
   expect((await created.json()).ok).toBe(true);
   await page.reload();
-  const count = page.locator('.online-count');
+  // The count sits in the top bar: a dot and the number.
+  const count = page.locator('.topbar .online-count');
   await expect(count).toHaveText(/\d+ online/);
-  const music = page.getByRole('button', { name: 'Game music' });
-  await expect(music).toHaveAttribute('aria-pressed', 'true');
+  // Music on/off is in the phone's Settings app.
+  const phone = page.getByRole('dialog', { name: 'Phone' });
+  const music = phone.getByRole('switch', { name: 'Music' });
+  const settings = async () => {
+    await page.getByRole('button', { name: /^Phone/ }).click();
+    await phone.locator('[data-app="settings"]').click();
+  };
+  const closePhone = () => phone.getByRole('button', { name: 'Close phone' }).first().click();
+  await settings();
+  await expect(music).toBeChecked();
+  await closePhone();
   await tab(page, 'Today').click();
   const state = () =>
     page.evaluate(() => {
@@ -49,16 +59,23 @@ test('live total and music work across screens and remember mute', async ({ page
     });
   await expect.poll(state).toBe('running');
   await expect(count).toBeVisible();
-  await music.click();
+  await settings();
+  await music.uncheck({ force: true });
   await expect.poll(state).toBe('closed');
-  await expect(music).toHaveText('♫Music off');
   await page.reload();
-  await expect(music).toHaveAttribute('aria-pressed', 'false');
-  await music.click();
+  await settings();
+  await expect(music).not.toBeChecked();
+  await music.check({ force: true });
   await expect.poll(state).toBe('running');
-  expect(
-    await page.locator('.game-activity').evaluate((el) => el.getBoundingClientRect().right),
-  ).toBeLessThanOrEqual(360);
+  await closePhone();
+  // The top bar, count included, fits the phone.
+  const bar = await page.locator('.topbar').evaluate((el) => ({
+    scroll: el.scrollWidth,
+    client: el.clientWidth,
+    right: el.querySelector('.online-count')!.getBoundingClientRect().right,
+  }));
+  expect(bar.scroll).toBeLessThanOrEqual(bar.client + 1);
+  expect(bar.right).toBeLessThanOrEqual(360);
   const mapBox = (await page.locator('.city-stage').boundingBox())!;
   const navBox = (await page.getByRole('navigation', { name: 'Main' }).boundingBox())!;
   expect(mapBox.y + mapBox.height).toBeLessThanOrEqual(navBox.y);

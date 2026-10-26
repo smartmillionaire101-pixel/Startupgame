@@ -1,7 +1,9 @@
 /**
- * Settings: Simple mode (Phase 2), Reduce motion, Always skip rides, Sound and Language.
+ * Settings: Simple mode (Phase 2), Reduce motion, Always skip rides, Music,
+ * Language, and Feedback to the Runway team.
  */
 import { LANGS, setLang, t, tx, useLang } from '../../i18n';
+import { openFeedback } from '../../feedback';
 import { useView } from '../../store';
 import { LifestyleButton } from '../../screens/Lifestyle';
 import { setSetting, useSetting, useSimpleAvailable, type SettingKey } from '../settings';
@@ -57,7 +59,7 @@ function MapQuality() {
   );
 }
 
-export function Settings(_: { ctx: PhoneCtx }) {
+export function Settings({ ctx }: { ctx: PhoneCtx }) {
   const lang = useLang();
   const { view } = useView();
   // Simple mode is for founders; investors and bankers always play the full game.
@@ -93,7 +95,7 @@ export function Settings(_: { ctx: PhoneCtx }) {
           label={t('Always skip rides')}
           hint={t('Arrive straight away, without the ride scene.')}
         />
-        <Toggle k="sound" label={t('Sound')} hint={t('Background game music.')} />
+        <Toggle k="sound" label={t('Music')} hint={t('Background game music.')} />
       </section>
       <MapQuality />
       <section className="phone-card">
@@ -110,6 +112,26 @@ export function Settings(_: { ctx: PhoneCtx }) {
               {l.label}
             </button>
           ))}
+        </div>
+      </section>
+      <section className="phone-card">
+        <div className="spread">
+          <span>
+            <b>{t('Feedback')}</b>{' '}
+            <span className="small muted">{t('Tell the Runway team what you think.')}</span>
+          </span>
+          <button
+            type="button"
+            className="btn btn-sm"
+            data-feedback-open=""
+            onClick={() => {
+              // The form opens over the game, so the phone steps aside.
+              ctx.close();
+              openFeedback();
+            }}
+          >
+            {t('Send feedback')}
+          </button>
         </div>
       </section>
     </div>

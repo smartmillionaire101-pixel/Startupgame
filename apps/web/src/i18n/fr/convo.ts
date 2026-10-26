@@ -84,10 +84,10 @@ export const convo: Record<string, string> = {
   'From discovery': 'D’après la découverte',
   'Needs most': 'Besoin principal',
   'Budget hint': 'Indice de budget',
-  'A discovery meeting in Sales tells you what they need and can spend.':
-    'Une réunion de découverte dans Ventes vous dit ce dont ils ont besoin et ce qu’ils peuvent dépenser.',
+  'A discovery meeting tells you their need and budget.':
+    'Une réunion de découverte vous dit leur besoin et leur budget.',
   'From your interviews': 'D’après vos entretiens',
-  'Turn 1 · What do you lead with?': 'Tour 1 · Par quoi commencez-vous ?',
+  '1 · Lead with': '1 · Accroche',
   'Turn 2 · Your price': 'Tour 2 · Votre prix',
   'Their band: {min}–{max} a month': 'Leur fourchette : {min}–{max} par mois',
   'A guess: {min}–{max} a month (discovery tells you theirs)':
@@ -97,8 +97,7 @@ export const convo: Record<string, string> = {
   'Name this price': 'Proposer ce prix',
   'Discount: {n}% · they’d pay {amount}/mo': 'Remise : {n} % · ils paieraient {amount}/mois',
   'Turn 3 · Terms': 'Tour 3 · Conditions',
-  'Trust grows with each good answer. Their real need, price band and situation decide it.':
-    'La confiance grandit à chaque bonne réponse. Leur vrai besoin, leur budget et leur situation décident.',
+  'Good answers build trust.': 'Les bonnes réponses créent la confiance.',
   'Ask for the deal ({h}h)': 'Demander la signature ({h} h)',
   'Deal won: {name}': 'Affaire gagnée : {name}',
   'Deal lost: {name}': 'Affaire perdue : {name}',

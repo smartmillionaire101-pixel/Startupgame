@@ -782,14 +782,14 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  min-height: 2rem;
-  padding: 0.2rem 0.65rem;
+  min-height: 2.1rem;
+  padding: 0.15rem 0.65rem;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--surface);
   color: inherit;
   font: inherit;
-  font-size: 0.82rem;
+  font-size: var(--fs-xs);
   cursor: pointer;
 }
 .chip[aria-pressed='true'] {

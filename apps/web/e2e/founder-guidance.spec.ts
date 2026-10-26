@@ -21,7 +21,7 @@ test('a founder sees the stage tracker, a pricing warning and a scored pitch', a
   const stage = page.locator('[data-founder-stage]');
   await expect(stage).toBeVisible();
   await expect(stage).toHaveAttribute('data-founder-stage', 'idea');
-  await expect(stage.getByText(/^Idea · \d of 3 done$/)).toBeVisible();
+  await expect(stage.getByText(/^Idea · \d\/3$/)).toBeVisible();
   await expect(stage.locator('[data-task="idea.discovery"]')).toBeVisible();
   // The figures the engine gives, on the right of the row.
   await expect(stage.locator('[data-task="idea.discovery"] .fg-task-meta')).toHaveText(
@@ -60,8 +60,10 @@ test('a founder sees the stage tracker, a pricing warning and a scored pitch', a
   // The next step's label is whole, not cut with "…".
   const go = stage.locator('.fg-go-label');
   expect(await go.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
-  const fc = names.find((n) => n.text === 'First customers')!;
-  expect(fc.rows).toBe(2);
+  // The stepper's short names, each on one line.
+  const fc = names.find((n) => n.text === 'Customers')!;
+  expect(fc.rows).toBe(1);
+  expect(names.find((n) => n.text === 'Fit')!.rows).toBe(1);
 
   // A price far above what customers pay: a red check, with the figures, as you type.
   await page.getByRole('tab', { name: 'Customers' }).click();

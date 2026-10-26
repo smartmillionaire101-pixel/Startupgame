@@ -25,7 +25,7 @@ import {
 } from '@runway/engine';
 import { useState } from 'react';
 import { money, pct } from '../format';
-import { t, tx } from '../i18n';
+import { getLang, t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import { Button, Card, Pill } from '../ui';
 import { useJourneyGo } from '../city/journeyGo';
@@ -45,6 +45,17 @@ export const stageTitle = (id: FounderStageId) =>
     growth: t('Growth'),
     'series-a': t('Series A'),
   })[id];
+
+/**
+ * The stepper's one-line labels: the long names shortened. "Fit" alone is
+ * the Fit app's word in French (Forme), so French keeps the full name.
+ */
+const stageShort = (id: FounderStageId) =>
+  id === 'first-customers'
+    ? t('Customers')
+    : id === 'product-fit' && getLang() !== 'fr'
+      ? 'Fit'
+      : stageTitle(id);
 
 const stageIcon = (id: FounderStageId) =>
   ({
@@ -320,7 +331,12 @@ export function StageTracker({ c }: { c: Company }) {
         }
         action={
           <Pill tone="good">
-            {t('Stage {n} of {total}', { n: g.index + 1, total: g.stages.length })}
+            <span aria-hidden="true">
+              {t('{n} / {total}', { n: g.index + 1, total: g.stages.length })}
+            </span>
+            <span className="sr-only">
+              {t('Stage {n} of {total}', { n: g.index + 1, total: g.stages.length })}
+            </span>
           </Pill>
         }
       >
@@ -336,7 +352,9 @@ export function StageTracker({ c }: { c: Company }) {
                 <span className="fg-dot" aria-hidden="true">
                   {s.status === 'done' ? '✓' : s.status === 'current' ? i + 1 : ''}
                 </span>
-                <span className="fg-step-name">{stageTitle(s.id)}</span>
+                <span className="fg-step-name" title={stageTitle(s.id)}>
+                  {stageShort(s.id)}
+                </span>
               </li>
             ))}
           </ol>
@@ -344,7 +362,7 @@ export function StageTracker({ c }: { c: Company }) {
             <h3>
               {g.complete
                 ? t('Every stage done')
-                : t('{stage} · {done} of {total} done', {
+                : t('{stage} · {done}/{total}', {
                     stage: stageTitle(current.id),
                     done,
                     total,
@@ -352,7 +370,7 @@ export function StageTracker({ c }: { c: Company }) {
             </h3>
             {next && !g.complete && (
               <span className="small muted">
-                {t('next: {stage}', { stage: stageTitle(next.id) })}
+                {t('then {stage}', { stage: stageShort(next.id) })}
               </span>
             )}
           </div>

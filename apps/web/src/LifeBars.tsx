@@ -95,7 +95,7 @@ export function LifeBarsPanel({ me }: { me: PlayerView['me'] }) {
               <span style={{ width: `${v}%` }} />
             </div>
             <details className="lifebar-tips">
-              <summary className="small">{t('How to change it')}</summary>
+              <summary className="small">{t('How to change')}</summary>
               <p className="small">
                 <b>{b.high ? t('Raise it:') : t('Raised by:')}</b> {b.up()}
               </p>
@@ -107,9 +107,7 @@ export function LifeBarsPanel({ me }: { me: PlayerView['me'] }) {
         );
       })}
       <p className="small muted">
-        {t(
-          'Tired, unwell or stressed makes sales and pitches harder; feeling great helps a little. Very unwell or stressed out means fewer hours next month.',
-        )}
+        {t('Low bars make sales and pitches harder; very low ones cost hours next month.')}
       </p>
     </section>
   );

@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { t } from './i18n';
-import { openFeedback } from './feedback';
 import { useMusic } from './music';
-import { setSetting, useSetting } from './phone/settings';
+import { useSetting } from './phone/settings';
 import { OnlineNowSheet } from './city/OnlineNow';
 
+/**
+ * The live player count, compact in the top bar (a dot and the number; tap
+ * for who's online), and the game music. Music on/off and Feedback live in
+ * the phone's Settings app.
+ */
 export function GameActivity() {
   const sound = useSetting('sound');
   useMusic(sound);
@@ -55,38 +59,29 @@ export function GameActivity() {
   }, []);
 
   return (
-    <div className="game-activity">
+    <>
       <button
         type="button"
-        className={`online-count${count === null ? ' is-unavailable' : ''}`}
+        className={`online-count topbar-online${count === null ? ' is-unavailable' : ''}`}
         aria-haspopup="dialog"
+        aria-label={count === null ? t('Online count unavailable') : t('{n} online', { n: count })}
         title={t('Players across all cities, including you. Tap to see who’s online.')}
         onClick={() => setListOpen(true)}
       >
         <span className="online-dot" aria-hidden="true" />
+        {/* The number shows; the words are for screen readers. */}
         <span role="status">
-          {count === null ? t('Online count unavailable') : t('{n} online', { n: count })}
+          {count === null ? (
+            <span className="sr-only">{t('Online count unavailable')}</span>
+          ) : (
+            <>
+              {count}
+              <span className="sr-only"> {t('online')}</span>
+            </>
+          )}
         </span>
       </button>
       {listOpen && <OnlineNowSheet onClose={() => setListOpen(false)} />}
-      <button
-        type="button"
-        className="music-toggle"
-        aria-pressed={sound}
-        aria-label={t('Game music')}
-        onClick={() => setSetting('sound', !sound)}
-      >
-        <span aria-hidden="true">♫</span>
-        {sound ? t('Music on') : t('Music off')}
-      </button>
-      <button
-        type="button"
-        className="feedback-open"
-        data-feedback-open=""
-        onClick={() => openFeedback()}
-      >
-        <span aria-hidden="true">💬</span> {t('Feedback')}
-      </button>
-    </div>
+    </>
   );
 }

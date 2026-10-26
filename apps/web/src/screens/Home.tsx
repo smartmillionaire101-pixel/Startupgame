@@ -139,7 +139,7 @@ export function CompanyKpis({ c }: { c: Company }) {
         tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
         hint={
           preRevenue
-            ? t('No monthly costs yet')
+            ? t('No costs yet')
             : c.defaultAlive
               ? t('On track to profit')
               : t('Runs out before profit')
@@ -162,7 +162,7 @@ export function CompanyKpis({ c }: { c: Company }) {
         value={fresh ? t('New') : stars(c.stars)}
         hint={
           fresh ? (
-            t('Rated after your first month')
+            t('After month 1')
           ) : c.publicWarning ? (
             <span className="bad">{t('Public warning')}</span>
           ) : (

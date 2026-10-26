@@ -41,8 +41,9 @@ export const travelWave7: Record<string, string> = {
   'Ticket desk: where do you want to go? Choose a flight and book it.':
     'Billetterie : où voulez-vous aller ? Choisissez un vol et réservez-le.',
   'Where do you want to go?': 'Où voulez-vous aller ?',
-  'Where do you want to go? Choose a flight and book it, then check in at the airport.':
-    'Où voulez-vous aller ? Choisissez un vol et réservez-le, puis enregistrez-vous à l’aéroport.',
+  'Book a flight, then check in at the airport.':
+    'Réservez un vol, puis enregistrez-vous à l’aéroport.',
+  'Paid when booked, not at boarding.': 'Payé à la réservation, pas à l’embarquement.',
   'Book a flight to {city}': 'Réserver un vol pour {city}',
   Booked: 'Réservé',
   'Your ticket': 'Votre billet',
