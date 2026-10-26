@@ -89,3 +89,56 @@
   border-radius: 0.5rem;
   background: var(--good-bg, rgba(22, 163, 74, 0.08));
 }
+
+/* The IPO's "Hire bankers" button: one line; locked reads as locked (not grey on grey). */
+.ipo-hire {
+  display: grid;
+  gap: 0.4rem;
+}
+.ipo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 1rem;
+  border-radius: var(--r-pill);
+  border: 0;
+  font: inherit;
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.ipo-btn.is-ready {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.ipo-btn.is-locked,
+.ipo-btn:disabled {
+  background: var(--surface-2);
+  color: color-mix(in srgb, var(--text) 72%, var(--surface-2));
+  border: 1.5px dashed var(--line-strong);
+  cursor: not-allowed;
+  opacity: 1;
+}
+.ipo-help {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: 1.35;
+}
+.ipo-fee {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  text-align: center;
+}

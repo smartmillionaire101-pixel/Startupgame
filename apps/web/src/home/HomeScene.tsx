@@ -1665,10 +1665,20 @@ export function HomeScene({
               r="16"
               className="home-mood-fill"
               strokeDasharray={`${(mood / 100) * 100.5} 100.5`}
-              data-low={mood < 30 ? '1' : undefined}
+              data-low={mood < 40 ? '1' : undefined}
             />
           </svg>
           <b>{mood}</b>
+          <span
+            className="home-energy"
+            data-home-energy={view.me.energy}
+            data-low={view.me.energy < 30 ? '1' : undefined}
+            title={t('Energy {n}', { n: view.me.energy })}
+            aria-label={t('Energy {n}', { n: view.me.energy })}
+          >
+            <span aria-hidden="true">⚡</span>
+            {view.me.energy}
+          </span>
         </div>
         <div className="home-needs" role="list" aria-label={t('Needs')}>
           {needs &&
@@ -1688,10 +1698,6 @@ export function HomeScene({
                 </i>
               </span>
             ))}
-        </div>
-        <div className="home-title">
-          {hotelTier ? <span>{t('Your hotel')}</span> : <b>{homeName}</b>}
-          <span>⚡ {view.me.energy}</span>
         </div>
         {/* This scene covers the top bar: its phone button, here too. */}
         <button

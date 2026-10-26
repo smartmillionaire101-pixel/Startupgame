@@ -102,3 +102,38 @@ test('home: walk around, sleep, cook and have a friend over', async ({ page }) =
   await scene.getByRole('button', { name: 'Go out', exact: true }).click();
   await expect(scene).toBeHidden();
 });
+
+test('home header: one row on a 412px phone, energy on the mood ring, no home name', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  await founder(page);
+  await tapPlace(page, '[data-place="home"]', 'cycle');
+  const scene = page.locator('.home-scene');
+  await expect(scene).toBeVisible({ timeout: 20_000 });
+  const hud = scene.locator('.home-hud');
+  await expect(hud).toBeVisible();
+  // Mood ring with the energy badge on it; four needs; the phone; ✕. No home name.
+  const energy = await scene.getAttribute('data-energy');
+  await expect(hud.locator('.home-mood [data-home-energy]')).toHaveText(`⚡${energy}`);
+  await expect(hud.locator('[data-need]')).toHaveCount(4);
+  await expect(hud.locator('[data-home-phone]')).toBeVisible();
+  await expect(hud.getByRole('button', { name: 'Close' })).toBeVisible();
+  await expect(hud).not.toContainText('Small flat');
+  // One row, the same height as before, inside 412px.
+  const box = (await hud.boundingBox())!;
+  expect(box.width).toBeLessThanOrEqual(412);
+  expect(box.height).toBeLessThanOrEqual(64);
+  const tops = await hud
+    .locator(':scope > *')
+    .evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
+  for (const r of tops) {
+    expect(r.right).toBeLessThanOrEqual(412.5);
+    expect(r.bottom).toBeLessThanOrEqual(box.y + box.height + 0.5);
+  }
+  // Each need bar sits under its icon and has room to read.
+  const bar = (await hud.locator('[data-need="hunger"] > i').boundingBox())!;
+  const icon = (await hud.locator('[data-need="hunger"] > span').boundingBox())!;
+  expect(bar.y).toBeGreaterThan(icon.y + icon.height - 1);
+  expect(bar.width).toBeGreaterThan(40);
+});

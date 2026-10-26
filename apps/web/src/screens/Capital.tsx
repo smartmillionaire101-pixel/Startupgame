@@ -129,6 +129,8 @@ function IpoChecklist({ e }: { e: ExitOpt }) {
   const { send } = useView();
   const ipo = e.ipo;
   const cur = e.currency;
+  const missing = ipo.checks.filter((c) => !c.ok).length;
+  const readyShare = (ipo.checks.length - missing) / Math.max(1, ipo.checks.length);
   return (
     <div className="stack" data-ipo={ipo.status ?? 'private'}>
       <h3 className="cap-h">{t('Stock market (IPO)')}</h3>
@@ -160,21 +162,53 @@ function IpoChecklist({ e }: { e: ExitOpt }) {
           </li>
         ))}
       </ul>
-      <Bar
-        value={ipo.checks.filter((c) => c.ok).length / ipo.checks.length}
-        label={t('Ready to list')}
-        tone={ipo.ready ? 'good' : undefined}
-      />
+      <Bar value={readyShare} label={t('Ready to list')} tone={ipo.ready ? 'good' : undefined} />
       {ipo.status === null || ipo.status === 'delisted' ? (
-        <Button
-          variant="secondary"
-          disabled={!ipo.ready}
-          onClick={() =>
-            void send({ type: 'ipo.prepare', companyId: e.companyId }, t('The bankers are on it.'))
-          }
-        >
-          {t('Hire the bankers ({fee} from the company)', { fee: money(ipo.bankerFee, cur) })}
-        </Button>
+        <div className="ipo-hire">
+          <button
+            type="button"
+            className={`ipo-btn ${ipo.ready ? 'is-ready' : 'is-locked'}`}
+            data-ipo-hire={ipo.ready ? 'ready' : 'locked'}
+            disabled={!ipo.ready}
+            aria-describedby={ipo.ready ? undefined : `ipo-help-${e.companyId}`}
+            onClick={() =>
+              void send(
+                { type: 'ipo.prepare', companyId: e.companyId },
+                t('The bankers are on it.'),
+              )
+            }
+          >
+            <span aria-hidden="true">{ipo.ready ? '🔔' : '🔒'}</span>
+            {t('Hire bankers · {fee}', { fee: money(ipo.bankerFee, cur) })}
+          </button>
+          {!ipo.ready && (
+            <p className="ipo-help" id={`ipo-help-${e.companyId}`} data-ipo-help="">
+              <span aria-hidden="true">⚠</span>
+              {missing === 1
+                ? t('Locked: tick the last one above to list ({ready} of 100 ready)', {
+                    ready: Math.round(readyShare * 100),
+                  })
+                : t('Locked: tick all {n} above to list ({ready} of 100 ready)', {
+                    n: missing,
+                    ready: Math.round(readyShare * 100),
+                  })}
+            </p>
+          )}
+          <p className="ipo-fee">
+            {ipo.ready
+              ? t(
+                  'Fee paid from the company bank · listing takes {months} months · then a {lock}-month lock-up on your shares',
+                  { months: ipo.prepMonths, lock: ipo.lockupMonths },
+                )
+              : t(
+                  '{fee} comes from the company bank, not your pocket · bankers take {months} months',
+                  {
+                    fee: money(ipo.bankerFee, cur),
+                    months: ipo.prepMonths,
+                  },
+                )}
+          </p>
+        </div>
       ) : ipo.status === 'preparing' ? (
         ipo.month >= (ipo.readyMonth ?? 0) ? (
           <Button

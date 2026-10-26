@@ -1,9 +1,11 @@
 /**
  * The "What to do now" cards (Wave 5 §D), on the City and on Home: three
  * suggestions, each one tap to walk there. They follow the city's time of
- * day (player feedback): on Today, a strip shows the morning, day, evening
- * and night picks side by side, the part you're in marked "now".
+ * day (player feedback): on Today, a slim day bar (morning, day, evening,
+ * night, with a "now" marker) picks the part whose ideas the list shows;
+ * the later parts are chips (on a phone) or a side column (on a desktop).
  */
+import { useState } from 'react';
 import './scenes.css';
 import { openSky } from '../experiences/sky-bus';
 import { money } from '../format';
@@ -14,6 +16,7 @@ import { golfSpot, mallSpot } from './leisure';
 import { localHour } from './travel';
 import {
   DAY_PARTS,
+  PART_HOUR,
   dayPartOf,
   dayPlanFor,
   suggestionsFor,
@@ -218,6 +221,54 @@ const PART_HOURS: Record<DayPart, string> = {
   evening: '17–21',
   night: '21–6',
 };
+/** Where each part starts and ends (local hours; the night runs past midnight). */
+const PART_SPAN: Record<DayPart, [number, number]> = {
+  morning: [6, 10],
+  day: [10, 17],
+  evening: [17, 21],
+  night: [21, 30],
+};
+
+/** How far through its part of the day `hour` is, 0–1. */
+export function partProgress(hour: number): number {
+  const p = dayPartOf(hour);
+  const [from, to] = PART_SPAN[p];
+  const h = p === 'night' && hour < 6 ? hour + 24 : hour;
+  return Math.min(1, Math.max(0, (h - from) / (to - from)));
+}
+
+/** "08:43" from a fractional local hour. */
+export function clockText(hour: number): string {
+  const m = Math.floor((((hour % 24) + 24) % 24) * 60);
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+/** Hours and minutes until a part of the day starts (0 when you're in it). */
+export function minutesUntil(part: DayPart, hour: number): number {
+  if (dayPartOf(hour) === part) return 0;
+  const start = PART_SPAN[part][0] % 24;
+  return Math.round(((((start - hour) % 24) + 24) % 24) * 60);
+}
+
+/** What a pick costs, as a pill: its price, "free", or nothing (a job pays you). */
+const PRICED: ReadonlySet<Suggestion['kind']> = new Set([
+  'fun',
+  'eat',
+  'breakfast',
+  'lunch',
+  'dinner',
+  'gym',
+  'cinema',
+  'drinks',
+  'spa',
+]);
+const FREE: ReadonlySet<Suggestion['kind']> = new Set(['work', 'hub', 'customers', 'sleep']);
+function pricePill(s: Suggestion, cur: string): string | null {
+  if (PRICED.has(s.kind) && s.amount !== undefined)
+    return s.amount > 0 ? money(s.amount, cur) : t('free');
+  if (FREE.has(s.kind)) return t('free');
+  return null;
+}
 
 // ---------------------------------------------------------------- variety
 
@@ -256,98 +307,113 @@ function go(s: Suggestion, onGo: (placeId: string) => void, beforeSky?: () => vo
   } else onGo(s.placeId);
 }
 
+/** One idea: a one-line title, its why, a price pill and ›. */
+function WhatNowItem({
+  s,
+  onGo,
+  beforeSky,
+}: {
+  s: Suggestion;
+  onGo: (placeId: string) => void;
+  beforeSky?: () => void;
+}) {
+  const { view, cur } = useView();
+  const { label, why } = suggestionText(s, cur, view.market.id);
+  const price = pricePill(s, cur);
+  return (
+    <li>
+      <button
+        type="button"
+        className="whatnow-btn"
+        data-suggestion={s.kind}
+        title={label}
+        onClick={() => go(s, onGo, beforeSky)}
+      >
+        <span className="tray-icon" aria-hidden="true">
+          {suggestionIcon(s)}
+        </span>
+        <span className="whatnow-text">
+          <b>{label}</b>
+          <span className="whatnow-why">{why}</span>
+        </span>
+        <span className="whatnow-end">
+          {price && <span className="whatnow-price">{price}</span>}
+          <span className="whatnow-go" aria-hidden="true">
+            ›
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
 export function WhatNowList({
   onGo,
   has,
   beforeSky,
+  part,
 }: {
   onGo: (placeId: string) => void;
   /** Which place ids the city's map has (on the City); by default every city place. */
   has?: (placeId: string) => boolean;
   /** Before a sky view opens (close whatever is in front). */
   beforeSky?: () => void;
+  /** A part of the day other than now (Today's day bar): its ideas. */
+  part?: DayPart;
 }) {
-  const { view, cur } = useView();
-  const hour = localHour(view.market.id);
+  const { view } = useView();
+  const now = localHour(view.market.id);
+  const shown = part ?? dayPartOf(now);
+  const hour = shown === dayPartOf(now) ? now : PART_HOUR[shown];
   const list = suggestionsFor(view, 3, hour, whatNowOptions(has));
   return (
-    <ul className="whatnow-list" data-daypart={dayPartOf(hour)}>
-      {list.map((s) => {
-        const { label, why } = suggestionText(s, cur, view.market.id);
-        return (
-          <li key={s.placeId}>
-            <button
-              type="button"
-              className="whatnow-btn"
-              data-suggestion={s.kind}
-              onClick={() => go(s, onGo, beforeSky)}
-            >
-              <span className="tray-icon" aria-hidden="true">
-                {suggestionIcon(s)}
-              </span>
-              <span>
-                <b>{label}</b>
-                <span className="whatnow-why">{why}</span>
-              </span>
-              <span className="whatnow-go" aria-hidden="true">
-                ›
-              </span>
-            </button>
-          </li>
-        );
-      })}
+    <ul className="whatnow-list" data-daypart={shown}>
+      {list.map((s) => (
+        <WhatNowItem key={s.placeId} s={s} onGo={onGo} beforeSky={beforeSky} />
+      ))}
     </ul>
   );
 }
 
-/** The day at a glance: a pick for each part of the day, the part you're in marked. */
+/** The slim day bar: four parts with their hours, the part shown framed, a "now" marker. */
 export function WhatNowDay({
-  onGo,
-  has,
+  hour,
+  shown,
+  onPick,
 }: {
-  onGo: (placeId: string) => void;
-  has?: (placeId: string) => boolean;
+  hour: number;
+  shown: DayPart;
+  onPick: (p: DayPart) => void;
 }) {
-  const { view, cur } = useView();
-  const now = dayPartOf(localHour(view.market.id));
-  const plan = dayPlanFor(view, whatNowOptions(has));
+  const now = dayPartOf(hour);
+  const at = ((DAY_PARTS.indexOf(now) + partProgress(hour)) / DAY_PARTS.length) * 100;
   return (
-    <ol className="whatnow-day" aria-label={t('By time of day')}>
-      {DAY_PARTS.map((p) => {
-        const s = plan[p];
-        const text = s ? suggestionText(s, cur, view.market.id) : null;
-        return (
+    <div className="whatnow-bar">
+      <ol className="whatnow-day" aria-label={t('By time of day')}>
+        {DAY_PARTS.map((p) => (
           <li key={p} data-part={p} aria-current={p === now ? 'time' : undefined}>
             <button
               type="button"
-              className="whatnow-slot"
-              disabled={!s}
-              data-suggestion={s?.kind}
-              onClick={() => s && go(s, onGo)}
+              className="whatnow-seg"
+              aria-pressed={p === shown}
+              onClick={() => onPick(p)}
             >
-              <span className="whatnow-slot-part">
+              <span className="whatnow-seg-part">
                 <span aria-hidden="true">{PART_ICON[p]}</span> {partLabel(p)}
               </span>
-              <span className="whatnow-slot-hours">
-                {p === now ? t('{hours} · now', { hours: PART_HOURS[p] }) : PART_HOURS[p]}
-              </span>
-              {s && text && (
-                <>
-                  <span className="whatnow-slot-icon" aria-hidden="true">
-                    {suggestionIcon(s)}
-                  </span>
-                  <b>{text.label}</b>
-                </>
-              )}
+              <span className="whatnow-seg-hours">{PART_HOURS[p]}</span>
             </button>
           </li>
-        );
-      })}
-    </ol>
+        ))}
+      </ol>
+      <span className="whatnow-nowmark" data-now={clockText(hour)} style={{ left: `${at}%` }}>
+        <span>{t('now {time}', { time: clockText(hour) })}</span>
+      </span>
+    </div>
   );
 }
 
-/** On Home: the card, opening the City at the place (a sky view opens where you are). */
+/** On Today (and the Lite city): the day bar, one list for the part shown, then later. */
 export function WhatNowCard({
   onGo,
   has,
@@ -355,20 +421,134 @@ export function WhatNowCard({
   onGo: (placeId: string) => void;
   has?: (placeId: string) => boolean;
 }) {
-  const { view } = useView();
-  const now = dayPartOf(localHour(view.market.id));
-  const rightNow = {
-    morning: t('Right now (morning):'),
-    day: t('Right now (day):'),
-    evening: t('Right now (evening):'),
-    night: t('Right now (night):'),
-  }[now];
+  const { view, cur } = useView();
+  const hour = localHour(view.market.id);
+  const now = dayPartOf(hour);
+  const [picked, setPicked] = useState<DayPart | null>(null);
+  const shown = picked ?? now;
+  const opts = whatNowOptions(has);
+  const list = suggestionsFor(view, 3, shown === now ? hour : PART_HOUR[shown], opts);
+  const ids = new Set(list.map((s) => s.placeId));
+  // The parts after the one shown, each with a pick the list doesn't already show.
+  const from = DAY_PARTS.indexOf(shown);
+  const laterParts = [1, 2, 3].map((i) => DAY_PARTS[(from + i) % DAY_PARTS.length]!);
+  const plan = dayPlanFor(view, opts);
+  const later = laterParts
+    .map((p) => {
+      const first = plan[p];
+      const s =
+        first && !ids.has(first.placeId)
+          ? first
+          : suggestionsFor(view, 3, PART_HOUR[p], opts).find((x) => !ids.has(x.placeId));
+      if (s) ids.add(s.placeId);
+      return s ? { p, s } : null;
+    })
+    .filter((x): x is { p: DayPart; s: Suggestion } => !!x);
+  const away = minutesUntil(shown, hour);
+  const tomorrow = shown !== now && PART_SPAN[shown][0] % 24 < hour && away > 0;
+  const headWhen = shown === now ? t('right now') : tomorrow ? t('tomorrow') : t('later today');
+  const city = view.market.name;
   return (
-    <Card title={t('What to do now')} sub={t('by time of day')}>
-      <div className="whatnow">
-        <WhatNowDay onGo={onGo} has={has} />
-        <p className="small muted whatnow-now">{rightNow}</p>
-        <WhatNowList onGo={onGo} has={has} />
+    <Card
+      title={t('What to do now')}
+      className="whatnow-card"
+      action={
+        <span className="small muted whatnow-where">
+          {city} · {clockText(hour)} · {partLabel(now)}
+        </span>
+      }
+    >
+      <div className="whatnow" data-shown={shown} data-now-part={now}>
+        <WhatNowDay hour={hour} shown={shown} onPick={(p) => setPicked(p === now ? null : p)} />
+        <div className="whatnow-cols">
+          <div className="whatnow-main">
+            <div className="whatnow-head">
+              <b>
+                {partLabel(shown)} · {headWhen}
+              </b>
+              <span className="small muted">
+                {shown === now
+                  ? t('{n} ideas', { n: list.length })
+                  : t('from {time} · {wait} away', {
+                      time: `${String(PART_SPAN[shown][0] % 24).padStart(2, '0')}:00`,
+                      wait: t('{h}h {m}m', { h: Math.floor(away / 60), m: away % 60 }),
+                    })}
+              </span>
+            </div>
+            <ul className="whatnow-list" data-daypart={shown}>
+              {list.map((s) => (
+                <WhatNowItem key={s.placeId} s={s} onGo={onGo} />
+              ))}
+            </ul>
+            {shown !== now ? (
+              <button
+                type="button"
+                className="whatnow-back"
+                data-whatnow-back=""
+                onClick={() => setPicked(null)}
+              >
+                ‹ {t('Back to now ({part})', { part: partLabel(now).toLowerCase() })}
+              </button>
+            ) : (
+              later.length > 0 && (
+                <div className="whatnow-later" aria-label={t('Later')}>
+                  <span className="small muted">{t('Later:')}</span>
+                  {later.map(({ p, s }) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className="whatnow-chip"
+                      data-later={p}
+                      data-suggestion={s.kind}
+                      onClick={() => setPicked(p)}
+                    >
+                      <span aria-hidden="true">{PART_ICON[p]}</span>
+                      {suggestionText(s, cur, view.market.id).label}
+                    </button>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+          {later.length > 0 && (
+            <div className="whatnow-side">
+              <div className="whatnow-head">
+                <b>{shown === now ? t('Later today') : t('After that')}</b>
+                <span className="small muted">{t('tap to plan')}</span>
+              </div>
+              <ul className="whatnow-side-list">
+                {later.map(({ p, s }) => {
+                  const text = suggestionText(s, cur, view.market.id);
+                  return (
+                    <li key={p}>
+                      <button
+                        type="button"
+                        className="whatnow-btn whatnow-later-card"
+                        data-later-card={p}
+                        data-suggestion={s.kind}
+                        title={text.label}
+                        onClick={() => setPicked(p === now ? null : p)}
+                      >
+                        <span className="tray-icon" aria-hidden="true">
+                          {suggestionIcon(s)}
+                        </span>
+                        <span className="whatnow-text">
+                          <b>{text.label}</b>
+                          <span className="whatnow-why">
+                            {partLabel(p)} · {PART_HOURS[p]} · {text.why}
+                          </span>
+                        </span>
+                        <span className="whatnow-go" aria-hidden="true">
+                          ›
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
     </Card>
   );

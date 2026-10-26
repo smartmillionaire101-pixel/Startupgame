@@ -1,0 +1,55 @@
+/** Feedback round two (r2), the UI pass: the home header, "Your stage", "What to do now" and the IPO button. */
+export const r2Ui: Record<string, string> = {
+  // "Your stage": one compact card.
+  '{have} of {need}': '{have} sur {need}',
+  '{have} of {need} points': '{have} points sur {need}',
+  'Reach {need} paying customers': 'Atteindre {need} clients payants',
+  'Reach {need} revenue in a month': 'Atteindre {need} de chiffre d’affaires en un mois',
+  'now {have}': 'aujourd’hui {have}',
+  'Keep {need}% of your customers each month': 'Garder {need} % de vos clients chaque mois',
+  '{have}% now': '{have} % aujourd’hui',
+  'Product fit of {need}%': 'Adéquation produit de {need} %',
+  'Grow revenue {need} months in a row': 'Faire croître le chiffre d’affaires {need} mois de suite',
+  'Build a team of {need}': 'Former une équipe de {need}',
+  'Have {need} months of money': 'Avoir {need} mois de trésorerie',
+  'Interview at the Market': 'Interroger au Marché',
+  'Find customers at the Market': 'Trouver des clients au Marché',
+  'Meet investors': 'Rencontrer des investisseurs',
+  'Go to the Hub': 'Aller au Hub',
+  'Open the Roadmap': 'Ouvrir la feuille de route',
+  'Open your team': 'Ouvrir votre équipe',
+  'Open Money': 'Ouvrir Argent',
+  'Do it now': 'Le faire maintenant',
+  '{stage} · {done} of {total} done': '{stage} · {done} sur {total} faits',
+  'next: {stage}': 'ensuite : {stage}',
+  done: 'fait',
+  'Why this stage?': 'Pourquoi cette étape ?',
+  'Hide why': 'Masquer le pourquoi',
+  'Why this matters:': 'Pourquoi c’est important :',
+  'See all': 'Tout voir',
+  // "What to do now": the day bar.
+  free: 'gratuit',
+  'now {time}': 'maintenant {time}',
+  'right now': 'en ce moment',
+  tomorrow: 'demain',
+  'later today': 'plus tard aujourd’hui',
+  '{n} ideas': '{n} idées',
+  'from {time} · {wait} away': 'dès {time} · dans {wait}',
+  '{h}h {m}m': '{h} h {m} min',
+  'Back to now ({part})': 'Retour à maintenant ({part})',
+  Later: 'Plus tard',
+  'Later:': 'Plus tard :',
+  'Later today': 'Plus tard aujourd’hui',
+  'After that': 'Ensuite',
+  'tap to plan': 'touchez pour prévoir',
+  // The IPO's "Hire bankers" button.
+  'Hire bankers · {fee}': 'Engager les banquiers · {fee}',
+  'Locked: tick the last one above to list ({ready} of 100 ready)':
+    'Verrouillé : cochez le dernier point ci-dessus pour entrer en Bourse ({ready} sur 100 prêts)',
+  'Locked: tick all {n} above to list ({ready} of 100 ready)':
+    'Verrouillé : cochez les {n} points ci-dessus pour entrer en Bourse ({ready} sur 100 prêts)',
+  'Fee paid from the company bank · listing takes {months} months · then a {lock}-month lock-up on your shares':
+    'Frais payés par le compte de l’entreprise · l’introduction prend {months} mois · puis {lock} mois de blocage sur vos actions',
+  '{fee} comes from the company bank, not your pocket · bankers take {months} months':
+    '{fee} sont payés par le compte de l’entreprise, pas par vous · les banquiers prennent {months} mois',
+};

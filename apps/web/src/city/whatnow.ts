@@ -89,7 +89,7 @@ export function dayPartOf(hour: number): DayPart {
 }
 
 /** A typical hour in each part (the day strip's picks). */
-const PART_HOUR: Record<DayPart, number> = { morning: 8, day: 13, evening: 19, night: 22 };
+export const PART_HOUR: Record<DayPart, number> = { morning: 8, day: 13, evening: 19, night: 22 };
 
 export interface PickOptions {
   /** Turns the choice among equally good places (the card uses the hour, so it changes). */

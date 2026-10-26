@@ -21,10 +21,47 @@ test('a founder sees the stage tracker, a pricing warning and a scored pitch', a
   const stage = page.locator('[data-founder-stage]');
   await expect(stage).toBeVisible();
   await expect(stage).toHaveAttribute('data-founder-stage', 'idea');
-  await expect(stage.getByText(/^Idea: \d of 3 done$/)).toBeVisible();
+  await expect(stage.getByText(/^Idea · \d of 3 done$/)).toBeVisible();
   await expect(stage.locator('[data-task="idea.discovery"]')).toBeVisible();
-  await expect(page.locator('[data-next-task]')).toBeVisible();
+  // The figures the engine gives, on the right of the row.
+  await expect(stage.locator('[data-task="idea.discovery"] .fg-task-meta')).toHaveText(
+    /^\d+ of \d+ points$/,
+  );
+  // The next step's button sits inside the card (no separate "Next step" card).
+  await expect(stage.locator('[data-next-task]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Next step' })).toHaveCount(0);
   await expect(page.locator('[data-coming="first-customers"]')).toBeVisible();
+  // "Why this stage?" is closed until tapped.
+  await expect(stage.locator('[data-stage-why-text]')).toHaveCount(0);
+  await stage.getByRole('button', { name: 'Why this stage?' }).click();
+  await expect(stage.locator('[data-stage-why-text]')).toContainText('Finish all 3');
+  await stage.getByRole('button', { name: 'Hide why' }).click();
+  await expect(stage.locator('[data-stage-why-text]')).toHaveCount(0);
+
+  // On the phone (412px): the card fits one screen, each stage name on at most two lines,
+  // never broken inside a word ("customer / s").
+  const tracker = page.locator('.fg-tracker');
+  const h = (await tracker.boundingBox())!.height;
+  expect(h).toBeLessThan(600);
+  const names = await stage.locator('.fg-step-name').evaluateAll((els) =>
+    els.map((e) => {
+      const line = parseFloat(getComputedStyle(e).lineHeight);
+      const range = document.createRange();
+      range.selectNodeContents(e);
+      const rows = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+      return { text: e.textContent, lines: e.scrollHeight / line, rows: rows.size };
+    }),
+  );
+  for (const n of names) {
+    expect(n.lines, n.text ?? '').toBeLessThanOrEqual(2.05);
+    // A word never splits: rows never outnumber the words.
+    expect(n.rows, n.text ?? '').toBeLessThanOrEqual((n.text ?? '').split(' ').length);
+  }
+  // The next step's label is whole, not cut with "…".
+  const go = stage.locator('.fg-go-label');
+  expect(await go.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+  const fc = names.find((n) => n.text === 'First customers')!;
+  expect(fc.rows).toBe(2);
 
   // A price far above what customers pay: a red check, with the figures, as you type.
   await page.getByRole('tab', { name: 'Customers' }).click();
