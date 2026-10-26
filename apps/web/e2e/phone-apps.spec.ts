@@ -196,6 +196,53 @@ for (const simple of [false, true])
     await fitsTheWidth(page, 'capital markets, last city');
   });
 
+/**
+ * Player feedback (a phone screenshot): booking a flight in Travel, the
+ * three cabins sat side by side wider than the phone, pushing the whole app
+ * left and cutting off "How do you want to fly to Dubai?". Both legs' cabins
+ * and the hotels fit at 390 px, and at 360 px with iOS's larger text.
+ * TRAVEL_SHOTS=<dir> saves the booking at 390 px.
+ */
+for (const { width, font } of [
+  { width: 390, font: 0 },
+  { width: 360, font: 20 },
+])
+  test(`booking a flight fits a ${width} px phone${font ? ` with ${font} px text` : ''}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    if (font)
+      await page.addInitScript((px) => {
+        document.addEventListener('DOMContentLoaded', () => {
+          document.documentElement.style.fontSize = `${px}px`;
+        });
+      }, font);
+    await founder(page);
+    const phone = await openApp(page, 'travel');
+    const row = phone.locator('[data-flight]').filter({ hasText: 'Dubai' });
+    await row.getByRole('button', { name: 'Book a flight to Dubai' }).click();
+    const picker = row.locator('[data-trip-picker]');
+    await expect(picker.locator('[data-cabin-option="first"]')).toBeVisible();
+    // A return: the way home's cabins too.
+    const back = picker.locator('[data-trip-kind="return"]');
+    if (await back.isVisible()) await back.click();
+    await expect(picker.locator('[data-return-option="first"]')).toBeVisible();
+    await page.waitForTimeout(250);
+    await fitsTheWidth(page, `travel booking at ${width}px`);
+    // The question over the cabins is all on screen.
+    const q = picker.getByText('How do you want to fly to Dubai?');
+    const box = (await q.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    const dir = process.env.TRAVEL_SHOTS;
+    if (dir && !font) {
+      await q.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      await page.screenshot({ path: `${dir}/travel-booking-${width}.png` });
+      await picker.getByText('And home to').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      await page.screenshot({ path: `${dir}/travel-booking-${width}-return.png` });
+    }
+  });
+
 test('screenshots of the phone (PHONE_SHOTS)', async ({ page }) => {
   const dir = process.env.PHONE_SHOTS;
   test.skip(!dir, 'Set PHONE_SHOTS to save screenshots.');

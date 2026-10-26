@@ -1011,6 +1011,9 @@ button.phone-row:active {
 /* Travel */
 .phone-flight {
   gap: 0.3rem;
+  /* A grid card: its booking (the hotels' map, the filter chips) mustn't widen
+     it past the phone (player screenshot: the Travel app pushed off screen). */
+  grid-template-columns: minmax(0, 1fr);
 }
 .phone-flight-top {
   display: flex;

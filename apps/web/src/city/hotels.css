@@ -61,41 +61,38 @@
   display: block;
 }
 
-/* Choosing the cabin (CabinPicker): economy, business and first side by side. */
+/* Choosing the cabin (CabinPicker): economy, business and first, a row each. */
 .trip-picker {
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  min-width: 0;
   padding: 0.5rem 0 0.25rem;
 }
 .trip-picker .hotel-picker {
+  min-width: 0;
   padding-top: 0.25rem;
 }
 .cabin-options {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.35rem;
-}
-.cabin-option {
-  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-  padding: 0.45rem 0.45rem 0.5rem;
+  gap: 0.3rem;
+}
+.cabin-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: start;
+  padding: 0.4rem 0.55rem;
   border: 1px solid var(--line);
   border-radius: var(--r-sm, 10px);
   background: var(--surface);
   cursor: pointer;
-  font-size: 0.78rem;
   line-height: 1.25;
 }
 .cabin-option input {
-  position: absolute;
-  top: 0.45rem;
-  right: 0.4rem;
-  margin: 0;
+  margin: 0.15rem 0 0;
   accent-color: var(--accent);
 }
 .cabin-option.is-picked {
@@ -107,32 +104,36 @@
   cursor: not-allowed;
 }
 .cabin-business {
-  border-top: 3px solid #1e3a8a;
+  border-left: 3px solid #1e3a8a;
 }
 .cabin-first {
-  border-top: 3px solid #c9a227;
+  border-left: 3px solid #c9a227;
 }
-.cabin-head {
-  padding-right: 1rem;
+.cabin-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.cabin-main > span {
   overflow-wrap: anywhere;
 }
 .cabin-price {
   font-weight: 800;
-  font-size: 0.9rem;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.cabin-perks {
-  margin: 0;
-  padding: 0 0 0 0.9rem;
-  color: var(--muted);
-}
-.cabin-perks li {
-  overflow-wrap: anywhere;
+/* "Your return ticket · paid": wraps, kept narrow beside the cabin. */
+.cabin-price.is-held {
+  max-width: 7.5em;
+  white-space: normal;
+  text-align: right;
+  font-size: 0.85em;
 }
 .cabin-land {
   font-weight: 650;
+}
+.cabin-hours {
+  font-weight: 400;
 }
 .cabin-off {
   color: #b91c1c;

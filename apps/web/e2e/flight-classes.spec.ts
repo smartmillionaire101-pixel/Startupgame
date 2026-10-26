@@ -4,7 +4,7 @@ import { expect, letters, playAsGuest, setupFounder, setupPlayer, tab, test } fr
 /**
  * Player feedback: "I should choose which class I want: economy, business
  * and first class… and each one has to have different experiences." Book
- * from the Travel app: the three cabins side by side with their fares, what
+ * from the Travel app: the three cabins, a row each with their fares, what
  * you get and whether you can afford them; the ticket and the boarding pass
  * name the cabin; the airport's lounge and the plane's cabin are the class
  * you paid for (lie-flat business seats, first class suites with champagne
@@ -106,7 +106,7 @@ async function book(page: Page, to: string, city: string, cabin: Cabin) {
   await row.getByRole('button', { name: `Book a flight to ${city}` }).click();
   const picker = row.locator('[data-trip-picker]');
   await expect(picker).toBeVisible();
-  // Three cabins side by side, each with a fare and what you get.
+  // The three cabins, a row each with a fare and what you get.
   for (const c of ['economy', 'business', 'first'])
     await expect(picker.locator(`[data-cabin-option="${c}"]`)).toContainText(/\d/);
   await expect(picker.locator('[data-cabin-option="first"]')).toContainText('Chauffeur on arrival');
