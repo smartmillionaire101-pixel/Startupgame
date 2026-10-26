@@ -214,8 +214,9 @@ export function CompanyScreen() {
         </span>
         <Pill>{c.industryLabel}</Pill>
       </header>
-      {/* Founder setup: the done card hands over to the stage tracker. */}
-      <FounderSetup c={c} />
+      {/* Founder setup: the done card hands over to the stage tracker (companies
+          founded before the setup, or seeded, have none). */}
+      {c.setup && <FounderSetup c={c} />}
       {/* Founder guidance: the stage, its checklist and the next step, first. */}
       <StageTracker c={c} />
       {/* The company's bank, spending, how long the money lasts and revenue, up front. */}
