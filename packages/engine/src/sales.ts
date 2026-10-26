@@ -354,6 +354,42 @@ const trustUp = (d: SalesDeal, by: number) => {
 // ---------------------------------------------------------------- Leads
 
 const B2B_SUFFIX = ['Traders', 'Logistics', 'Group', 'Supplies', 'Ventures', 'Partners', 'Stores'];
+/**
+ * Feedback note: a made-up lead's name fits its segment ("Ikoyi Distributors"
+ * for a distributor, not "Ikoyi Logistics"). Households take the contact's surname.
+ */
+const SEGMENT_SUFFIX: Record<string, string[]> = {
+  'fintech.traders': ['Traders', 'Provisions', 'Market Stall', 'Stores'],
+  'fintech.online-sellers': ['Online Store', 'Shop', 'Ventures', 'Enterprises'],
+  'fintech.distributors': ['Distributors', 'Wholesale', 'Supplies', 'Group'],
+  'ecommerce.urban': ['household', 'family'],
+  'ecommerce.retailers': ['Mini Mart', 'Stores', 'Provisions', 'Shop'],
+  'ecommerce.brands': ['Brands', 'Foods', 'Beverages', 'Cosmetics'],
+  'logistics.sellers': ['Online Store', 'Shop', 'Ventures', 'Enterprises'],
+  'logistics.retailers': ['Mini Mart', 'Stores', 'Provisions', 'Shop'],
+  'logistics.shippers': ['Distributors', 'Wholesale', 'Freight', 'Supplies'],
+  'healthtech.families': ['family', 'household'],
+  'healthtech.clinics': ['Clinic', 'Medical Centre', 'Pharmacy', 'Health Centre'],
+  'healthtech.employers': ['Group', 'Industries', 'Holdings', 'Manufacturing'],
+  'edtech.parents': ['family', 'household'],
+  'edtech.schools': ['Academy', 'College', 'School', 'Learning Centre'],
+  'edtech.corporate': ['Group', 'Holdings', 'Industries', 'Bank'],
+  'saas.solo': ['Studio', 'Consulting', 'Designs', 'Services'],
+  'saas.smes': ['Ventures', 'Enterprises', 'Services', 'Agency'],
+  'saas.midmarket': ['Group', 'Holdings', 'Industries', 'Partners'],
+  'agritech.farmers': ['Farms', 'Growers', 'Farm', 'Agro'],
+  'agritech.food-retail': ['Foods', 'Mini Mart', 'Grocers', 'Kitchen'],
+  'agritech.processors': ['Mills', 'Processing', 'Agro-Allied', 'Foods'],
+};
+
+function leadName(world: World, seg: SegmentState, place: string, person: string, rng: Rng) {
+  const own = feedbackOn(world) ? SEGMENT_SUFFIX[seg.key] : undefined;
+  if (!own) return `${place} ${rng.pick(B2B_SUFFIX)}`;
+  const suffix = rng.pick(own);
+  // A household is the contact's: "the Okafor household".
+  if (suffix === suffix.toLowerCase()) return `The ${person.split(' ').at(-1)} ${suffix}`;
+  return `${place} ${suffix}`;
+}
 const NEEDS: SalesNeed[] = ['fit', 'price', 'stars', 'reliability'];
 
 function strongestNeed(seg: SegmentState | undefined, rng: Rng): SalesNeed {
@@ -390,7 +426,7 @@ export function makeLead(
         ? 'spreadsheet'
         : 'nothing';
   return {
-    name: b ? b.name : `${rng.pick(parts.places)} ${rng.pick(B2B_SUFFIX)}`,
+    name: b ? b.name : leadName(world, seg, rng.pick(parts.places), person, rng),
     contact: b ? b.owner.name : person,
     ...(b ? { businessId: b.id } : {}),
     segmentKey: seg.key,
@@ -808,6 +844,7 @@ export function salesView(world: World, c: Company, viewer?: Player) {
   const view = deals.map((d) => {
     const known = d.revealed;
     const seg = m.segments[d.customer.segmentKey];
+    const biz = d.customer.businessId ? businessesOf(m)[d.customer.businessId] : undefined;
     const actions: SalesNextAction[] = (Object.keys(ACTION_FROM) as SalesAction[])
       .filter((a) => ACTION_FROM[a].includes(d.stage))
       .filter((a) => (a === 'recover' ? !d.recovered && !d.expired : month <= d.deadline))
@@ -821,6 +858,8 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       contact: d.customer.contact,
       businessId: d.customer.businessId ?? null,
       segment: seg?.name ?? '',
+      /** What kind of business a local business is ("Spa"); null for a made-up lead. */
+      businessKind: biz ? specOf(biz).label : null,
       createdMonth: d.createdMonth,
       deadline: d.deadline,
       monthsLeft: open ? Math.max(0, d.deadline - month) : null,

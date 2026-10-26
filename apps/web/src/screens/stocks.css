@@ -60,14 +60,28 @@ html[data-simple] .chips.stock-chips .chip {
   display: grid;
   min-width: 0;
 }
+/* A long company name takes a second line, not "Yaba Insuran…". */
 .stock-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
 }
 .stock-spark .spark {
   width: 72px;
   height: 24px;
+}
+/* Phones: a shorter sparkline leaves the name the room. */
+@media (max-width: 480px) {
+  .stock-row {
+    grid-template-columns: minmax(0, 1fr) 44px auto;
+    gap: 0.5rem;
+  }
+  .stock-spark .spark {
+    width: 44px;
+  }
 }
 .stock-end {
   display: grid;

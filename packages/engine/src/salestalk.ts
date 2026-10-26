@@ -292,6 +292,7 @@ export function salesTalk(world: World, me: Player, cmd: TalkInput) {
       t.priceOption = opt.id;
       t.price = opt.amount;
       t.discountPct = pct;
+      if (!d.revealed) t.guessed = true;
       break;
     }
     case 'terms': {
@@ -406,6 +407,8 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
           discountPct: t.discountPct ?? 0,
           monthly,
           reaction: reactPrice,
+          /** Named against your guess at their band, not theirs. */
+          guessed: !!t.guessed,
         }
       : null,
     termsOptions: TERMS_KINDS.map((id) => ({ id, text: TERMS_LINES[id] })),

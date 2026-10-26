@@ -103,6 +103,9 @@ describe('a sales conversation', () => {
     w = talk(w, id, 'price', { option: 'mid', discountPct: 10 }).world;
     expect(view(w, id).price!.monthly).toBe(Math.round(view(w, id).price!.amount * 0.9));
     expect(view(w, id).step).toBe('terms');
+    // No discovery yet: the price was named against a guess, and the view says so.
+    expect(view(w, id).band.known).toBe(false);
+    expect(view(w, id).price!.guessed).toBe(true);
   });
 
   it('a won conversation is a paying account through the pipeline, scored with the best calls', () => {
@@ -190,6 +193,9 @@ describe('a sales conversation', () => {
     const d = deal(r.world, r.result.dealId);
     expect(d.customer.businessId).toBe(b.id);
     expect(d.stage).toBe('contacted');
+    // The card says what the business is ("Spa"), not a segment it may not fit.
+    const row = salesWithTalk(r.world, companyOf(r.world, F)).deals.find((x) => x.id === d.id)!;
+    expect(row.businessKind).toBe(specOf(b).label);
     expect(d.talk!.leadOptions).toHaveLength(4);
     expect(r.world.players[F]!.businessPitches!.count).toBe(1);
     // Walking in again resumes the same deal.

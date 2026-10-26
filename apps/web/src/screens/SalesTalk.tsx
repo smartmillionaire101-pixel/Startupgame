@@ -57,12 +57,25 @@ const lossText = (r: string) =>
     no_budget: t('No budget for it'),
   })[r] ?? r;
 
-const priceLabel = (id: string) =>
-  ({
-    below: t('below their band'),
-    mid: t('middle of their band'),
-    top: t('top of their band'),
-  })[id] ?? id;
+/** Where an option sits: against their band after discovery, against your guess before it. */
+const priceLabel = (id: string, known: boolean) =>
+  (known
+    ? {
+        below: t('below their band'),
+        mid: t('middle of their band'),
+        top: t('top of their band'),
+      }
+    : {
+        below: t('below your guess'),
+        mid: t('middle of your guess'),
+        top: t('top of your guess'),
+      })[id] ?? id;
+
+/** "Best call: “…in town.”." reads as a typo: no second full stop after a quote that ends one. */
+const oneStop = (s: string) => s.replace(/([.!?…][”"»’]?)\s*\.$/u, '$1');
+
+/** A deal at a local business says what it is ("Spa"); a made-up lead, its segment. */
+const whoKind = (d: DealV) => tx(d.businessKind ?? d.segment);
 
 const turnLabel = (k: string) =>
   ({ lead: t('Lead with'), price: t('Price'), terms: t('Terms') })[k] ?? k;
@@ -201,7 +214,7 @@ function Prospect({
   const k = d?.known;
   const hints = d?.talk?.hints ?? [];
   return (
-    <Card title={d?.name ?? business?.name} sub={d ? tx(d.segment) : undefined}>
+    <Card title={d?.name ?? business?.name} sub={d ? whoKind(d) : undefined}>
       <div className="convo-person">
         <Portrait
           id={`deal:${d?.businessId ?? d?.id ?? business?.name ?? ''}`}
@@ -379,7 +392,7 @@ function Turns({
                       <span className="convo-amt">
                         {t('{amount} a month', { amount: money(o.amount, cur) })}
                       </span>{' '}
-                      <span className="small muted">· {priceLabel(o.id)}</span>
+                      <span className="small muted">· {priceLabel(o.id, talk.band.known)}</span>
                     </span>
                   </button>
                 </li>
@@ -551,19 +564,28 @@ function ResultView({
               {(x.best || x.bestAmount !== null) && (
                 <span className="muted">
                   {' '}
-                  {t('Best call: {best}.', {
-                    best: x.best
-                      ? ln(x.best)
-                      : t('about {amount} a month', { amount: money(x.bestAmount ?? 0, cur) }),
-                  })}
+                  {oneStop(
+                    t('Best call: {best}.', {
+                      best: x.best
+                        ? ln(x.best)
+                        : t('about {amount} a month', { amount: money(x.bestAmount ?? 0, cur) }),
+                    }),
+                  )}
                 </span>
               )}
               <span className="why">💡 {ln(x.why)}</span>
+              {x.turn === 'price' && talk.price?.guessed && x.score < 1 && (
+                <span className="why" data-priced-guess>
+                  {t(
+                    'You priced against a guess at their band. A discovery meeting first shows the real one.',
+                  )}
+                </span>
+              )}
             </li>
           ))}
         </ul>
       </Card>
-      <Card title={t('What {name} cared about', { name: first })} sub={tx(d.segment)}>
+      <Card title={t('What {name} cared about', { name: first })} sub={whoKind(d)}>
         <div className="weights" data-cared>
           {r.cared.map((w) => (
             <div key={w.need} className={`w${w.theirs ? ' theirs' : ''}`}>

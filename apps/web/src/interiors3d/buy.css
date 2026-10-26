@@ -27,7 +27,8 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.5rem 0.7rem;
-  background: linear-gradient(rgb(15 23 42 / 0.92), rgb(15 23 42 / 0.75));
+  /* Solid: it covers the home's own header (the needs bars), not shows it faintly. */
+  background: var(--buy-bg);
 }
 .buy-top-gap {
   flex: 1 1 auto;
@@ -280,11 +281,14 @@
 .buy-card.is-picked {
   border-color: var(--buy-teal);
 }
+/* A light tile, so a black TV or a dark sofa stands out from the dark panel. */
 .buy-pic {
   position: relative;
   display: block;
-  aspect-ratio: 4 / 3;
-  background: radial-gradient(circle at 50% 40%, var(--buy-card-2), var(--buy-card));
+  aspect-ratio: 3 / 2;
+  margin: 3px 3px 0;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 40%, #f1f5f9, #c3cedd);
 }
 .buy-pic img {
   position: absolute;
@@ -347,14 +351,17 @@
   background: var(--buy-teal);
   color: #042f2e;
 }
+/* Two lines for a long name ("Second-hand sofa"), not "Second-han…". */
 .buy-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   padding: 0.25rem 0.55rem 0;
   font-size: 0.82rem;
   font-weight: 800;
   line-height: 1.2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .buy-price {
   padding: 0 0.55rem;
@@ -393,7 +400,7 @@
   height: 34px;
   border-radius: 8px;
   object-fit: contain;
-  background: var(--buy-card-2);
+  background: #dbe3ee;
 }
 .buy-basket-text {
   flex: 1 1 auto;

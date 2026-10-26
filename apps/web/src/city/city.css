@@ -1343,6 +1343,18 @@
     max-width: none;
     flex: 0 1 auto;
   }
+  /* Short of room (390px), "What to do now" takes two lines rather than "What to do n";
+     the tip only gets what's left over. */
+  .hud-whatnow-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.15;
+    text-align: left;
+  }
+  .hud-whatnow-tip {
+    flex: 1 1 0;
+  }
 }
 .hud-round .icon {
   width: 20px;

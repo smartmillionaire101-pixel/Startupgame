@@ -94,21 +94,20 @@ export function InterviewBrief({ a, onGo }: { a: Application; onGo?: () => void 
   return (
     <section className="work-brief" data-brief={a.id} aria-label={t('Interview brief')}>
       <div className="work-brief-card">
+        {/* The title and the pill on one row; the level and its shape underneath, full width. */}
         <div className="work-brief-head">
-          <div>
-            <h3 className="phone-h">{t('What they test')}</h3>
-            <p className="small muted">
-              {t('Level {n} of {of} · {shape}', {
-                n: lv.level,
-                of: lv.levels.length,
-                shape: shape(lv),
-              })}
-            </p>
-          </div>
+          <h3 className="phone-h">{t('What they test')}</h3>
           <Pill tone={lv.studied ? 'good' : 'warn'}>
             {lv.studied ? t('Studied: +{n} points', { n: lv.bonus }) : t('Not studied yet')}
           </Pill>
         </div>
+        <p className="small muted work-brief-shape">
+          {t('Level {n} of {of} · {shape}', {
+            n: lv.level,
+            of: lv.levels.length,
+            shape: shape(lv),
+          })}
+        </p>
         <ol className="work-ladder-chips" aria-label={t('The ladder')}>
           {lv.levels.map((l, i) => (
             <li

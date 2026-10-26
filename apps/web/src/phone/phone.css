@@ -47,12 +47,8 @@ body:has(.app-city) .phone-fab {
   }
 }
 
-/* City HUD buttons bottom-right make room for the phone button on phones. */
-@media (max-width: 560px) {
-  .city-hud-bottom {
-    right: 4.4rem !important;
-  }
-}
+/* The City HUD used to stop short of a floating phone button on phones; the
+   phone lives in the top bar now, so "What to do now" has that room. */
 
 /* ---- The phone and its frame ------------------------------------------ */
 
@@ -96,6 +92,11 @@ body:has(.app-city) .phone-fab {
     height: min(860px, 100%);
     max-width: 400px;
   }
+}
+/* A panel opened from an app: the phone covers the bottom bar, so the panel
+   reaches the bottom too (no strip of the app, its "Drop" buttons, below it). */
+.phone .sheet-backdrop {
+  inset: 0;
 }
 @keyframes phone-in {
   from {

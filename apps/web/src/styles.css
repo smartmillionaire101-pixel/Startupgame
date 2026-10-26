@@ -273,9 +273,8 @@ textarea {
   position: sticky;
   top: 0;
   z-index: 5;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(10px) saturate(1.2);
-  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  /* Solid: a heading scrolled under it never shows through behind "Lagos". */
+  background: var(--bg);
   padding-top: env(safe-area-inset-top);
   height: calc(52px + env(safe-area-inset-top));
   display: flex;
@@ -556,9 +555,8 @@ button.topbar-cash {
   right: 0;
   bottom: 0;
   z-index: 6;
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* Solid: the screen's own tabs scrolled under it never show through. */
+  background: var(--surface);
   border-top: 1px solid var(--line);
   display: flex;
   justify-content: center;
@@ -1553,10 +1551,12 @@ input[type='range'] {
   padding: var(--sp-5) var(--sp-4) var(--sp-3);
 }
 
+/* The panel ends above the bottom bar, with room after its last row: scrolled
+   to the end, the last line ("Interviews left this month") sits clear of the bar. */
 .sheet-body {
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom));
+  padding: 0 var(--sp-4) calc(var(--sp-6) + env(safe-area-inset-bottom));
 }
 
 .toasts {

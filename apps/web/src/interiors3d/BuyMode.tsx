@@ -84,9 +84,12 @@ export interface BuyFloor {
   slots: string[];
 }
 
-/** Panel heights (share of the screen): the usual, and dragged up. */
-const LOW = 0.5;
-const TALL = 0.8;
+/**
+ * Panel heights (share of the screen above the bottom bar): the usual, two
+ * rows of cards on a 390×844 phone, and dragged up.
+ */
+const LOW = 0.7;
+const TALL = 0.88;
 
 export function BuySheet({
   owned,

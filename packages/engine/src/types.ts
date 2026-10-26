@@ -3238,6 +3238,8 @@ export interface SalesTalk {
   priceOption?: string;
   price?: number;
   discountPct?: number;
+  /** The price was named against your guess at their band (before discovery). */
+  guessed?: boolean;
   terms?: string;
   /** Set once you asked for the deal. */
   result?: SalesTalkResult;

@@ -142,10 +142,10 @@ export const setup: Record<string, string> = {
     'Votre argent plus la demande tient {real} mois ; vous annoncez {claimed}.',
   'Your money plus the ask lasts {real} months, not {claimed}. Say {say}, or ask {ask}.':
     'Votre argent plus la demande tient {real} mois, pas {claimed}. Annoncez {say}, ou demandez {ask}.',
-  'You know what your customers need ({have}%).':
-    'Vous savez ce dont vos clients ont besoin ({have} %).',
-  'You have spoken to few customers. Lenders like {need}%+ before lending.':
-    'Vous avez parlé à peu de clients. Les prêteurs aiment {need} % ou plus avant de prêter.',
+  'You know what your customers need ({have} points).':
+    'Vous savez ce dont vos clients ont besoin ({have} points).',
+  'You have spoken to few customers. Lenders like {need} points or more before lending.':
+    'Vous avez parlé à peu de clients. Les prêteurs aiment {need} points ou plus avant de prêter.',
   'No loan repayments.': 'Aucun remboursement de prêt.',
   'Loan repayments are {pay} a month: {pct}% of monthly costs.':
     'Les remboursements font {pay} par mois : {pct} % des dépenses mensuelles.',

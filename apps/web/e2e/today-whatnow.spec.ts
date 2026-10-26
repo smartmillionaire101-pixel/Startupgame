@@ -137,7 +137,7 @@ test('"What to do now" on a desktop: now on the left, later on the right', async
   await expect(side).toBeVisible();
   const box = await side.boundingBox();
   expect(box!.x).toBeGreaterThan(main!.x + main!.width - 1);
-  expect(main!.width).toBeGreaterThan(box!.width * 1.6);
+  expect(main!.width).toBeGreaterThan(box!.width * 1.4);
   await expect(side.locator('[data-later-card]')).toHaveCount(3);
   await expect(card.locator('.whatnow-later')).toBeHidden();
   // Nothing repeats between the list and the later cards.

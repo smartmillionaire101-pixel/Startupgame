@@ -28,9 +28,13 @@
 }
 .work-brief-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
+}
+/* "Level 4 of 4 · 2 questions and a case in 3 steps": one line under the title, not four beside the pill. */
+.work-brief-card .work-brief-shape {
+  margin-top: calc(2px - var(--sp-2));
 }
 
 .work-ladder-chips {

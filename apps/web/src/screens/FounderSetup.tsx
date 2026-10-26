@@ -130,10 +130,13 @@ export function setupCheckText(c: SetupCheck, cur: string): string {
             );
     case 'understanding':
       return c.level === 'good'
-        ? t('You know what your customers need ({have}%).', { have: v.have ?? 0 })
-        : t('You have spoken to few customers. Lenders like {need}%+ before lending.', {
-            need: v.need ?? 0,
-          });
+        ? t('You know what your customers need ({have} points).', { have: v.have ?? 0 })
+        : t(
+            'You have spoken to few customers. Lenders like {need} points or more before lending.',
+            {
+              need: v.need ?? 0,
+            },
+          );
     case 'repayment':
       return (v.pay ?? 0) <= 0
         ? t('No loan repayments.')
@@ -156,7 +159,7 @@ const checkFigure = (c: SetupCheck): string => {
     case 'runway':
       return t('{n} mo', { n: months1(v.real ?? 0) });
     case 'understanding':
-      return `${v.have ?? 0}%/${v.need ?? 0}%`;
+      return t('{have} of {need} points', { have: v.have ?? 0, need: v.need ?? 0 });
   }
 };
 
@@ -205,9 +208,9 @@ export function SetupChecks({ checks, cur }: { checks: SetupCheck[]; cur: string
 
 // ---------------------------------------------------------------- the tracker
 
-const nextLine = (s: Setup, cur: string) => {
+const nextLine = (s: Setup, cur: string, at: Setup['step'] = s.step) => {
   const fee = s.types.find((x) => x.id === 'local')?.fee ?? 0;
-  switch (s.step) {
+  switch (at) {
     case 'register':
       return t('Next: pick the company type and pay the registry fee ({fee}). Takes {h}h.', {
         fee: money(fee, cur),
@@ -228,20 +231,33 @@ export function SetupTracker({
   c,
   setup,
   idea,
+  planning,
 }: {
   c?: Company;
   setup?: Setup;
   /** No company yet: step 1 is current. */
   idea?: boolean;
+  /** Writing the plan for a loan from the funding step: "Plan & pitch" is where you are. */
+  planning?: boolean;
 }) {
   const { view } = useView();
-  const steps: { id: StepId; status: string }[] = setup?.steps ?? [
-    { id: 'idea', status: 'current' },
-    { id: 'register', status: 'upcoming' },
-    { id: 'fund', status: 'upcoming' },
-    { id: 'plan', status: 'upcoming' },
-    { id: 'office', status: 'upcoming' },
-  ];
+  const steps: { id: StepId; status: string }[] = (
+    setup?.steps ?? [
+      { id: 'idea', status: 'current' },
+      { id: 'register', status: 'upcoming' },
+      { id: 'fund', status: 'upcoming' },
+      { id: 'plan', status: 'upcoming' },
+      { id: 'office', status: 'upcoming' },
+    ]
+  ).map((x) =>
+    !planning || x.status === 'done' || x.status === 'skipped'
+      ? x
+      : x.id === 'plan'
+        ? { ...x, status: 'current' }
+        : x.status === 'current'
+          ? { ...x, status: 'upcoming' }
+          : x,
+  );
   const done =
     setup?.step === 'done'
       ? 5
@@ -299,7 +315,8 @@ export function SetupTracker({
         <p className="small muted">
           {idea
             ? t('Next: pick an idea at the café, or name your company below.')
-            : setup && nextLine(setup, c?.currency ?? view.market.currency)}
+            : setup &&
+              nextLine(setup, c?.currency ?? view.market.currency, planning ? 'plan' : setup.step)}
         </p>
       </div>
     </Card>
@@ -1566,7 +1583,7 @@ export function FounderSetup({ c }: { c: Company }) {
   else if (s.step === 'office') body = <OfficeStep c={c} s={s} />;
   return (
     <>
-      <SetupTracker c={c} setup={s} />
+      <SetupTracker c={c} setup={s} planning={writing && s.step === 'fund'} />
       {body}
     </>
   );

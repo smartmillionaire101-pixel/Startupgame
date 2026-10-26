@@ -317,7 +317,7 @@ function DealCard({
       <header className="sales-deal-head">
         <strong>{d.name}</strong>
         <span className="small muted">
-          {d.contact} · {tx(d.segment)}
+          {d.contact} · {tx(d.businessKind ?? d.segment)}
         </span>
       </header>
       <div className="sales-deal-line small">

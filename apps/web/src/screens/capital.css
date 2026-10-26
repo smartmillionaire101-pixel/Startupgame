@@ -39,6 +39,12 @@
   flex: 1;
   min-width: 0;
 }
+/* Two tiles a row on a phone: an odd one out (net worth) takes the whole row, not half of it. */
+@media (max-width: 899px) {
+  .wealth-card .kpis > .stat:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
 .wealth-lines {
   list-style: none;
   margin: 0.5rem 0;

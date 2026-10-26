@@ -67,6 +67,11 @@ export const convo: Record<string, string> = {
   'below their band': 'sous leur fourchette',
   'middle of their band': 'milieu de leur fourchette',
   'top of their band': 'haut de leur fourchette',
+  'below your guess': 'sous votre estimation',
+  'middle of your guess': 'milieu de votre estimation',
+  'top of your guess': 'haut de votre estimation',
+  'You priced against a guess at their band. A discovery meeting first shows the real one.':
+    'Vous avez fixé le prix sur une estimation de leur fourchette. Un rendez-vous découverte d’abord montre la vraie.',
   'Lead with': 'Accroche',
   'Win chance now': 'Chances de signer maintenant',
   'Sales conversation · result': 'Conversation commerciale · résultat',
