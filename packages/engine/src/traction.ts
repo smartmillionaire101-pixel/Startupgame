@@ -130,7 +130,7 @@ export function customerFacts(world: World, c: Company): CustomerFacts {
     interviews,
     meetings,
     known,
-    // Rounded like the tracker shows it, so "20% of 20%" is always done.
+    // Rounded like the tracker shows it, so "20 of 20 points" is always done.
     knows: Math.round(known * 100) >= Math.round(TRACTION.knowNeed * 100),
   };
 }
