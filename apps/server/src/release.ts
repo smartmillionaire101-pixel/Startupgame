@@ -26,13 +26,15 @@ import { FEEDBACK_NOTE } from '@runway/engine';
 export const RELEASE_NOTE = {
   id: FEEDBACK_NOTE,
   text:
-    'Update from your feedback. Founders and investors get a stage tracker, live checks on their ' +
-    'numbers, scored decisions with the best answer and why, and a mentor. Bankers: the licence ' +
-    'review takes 30 days, good advisory work earns a reputation, referrals and bigger clients, ' +
-    'and the Events app has banking and finance events. Jobs come with tasks from your manager ' +
-    '(answer badly and you can be let go). The stock market shows your city first, with a ' +
-    'company analysis before you buy. Every city has named hotels in its districts, the mall has ' +
-    'a Suit Shop and more clothes, new players dress for their role, and shops, offices and ' +
-    'public buildings have more to do. Over 1,100 quiz questions, including real events. ' +
-    'Refresh to get it; your game is saved.',
+    'Update from your feedback. Founders now set up properly: register, fund the company with ' +
+    'your own money, a scheme or a startup loan (banker players can lend), make a plan, then ' +
+    'lease an office. Customer interviews and sales are real conversations, scored with the ' +
+    'best answer and why. Founders and investors get a stage tracker, live checks and a mentor. ' +
+    'Job interviews get harder with the level, with a brief to study, and jobs come with tasks ' +
+    'from your manager. Bankers: a 30-day licence review, a reputation that brings bigger ' +
+    'clients, and banking events. The stock market shows your city first, 15 to 20 companies ' +
+    'each, with an analysis before you buy. Buy mode at home has pictures, a basket, floors and ' +
+    'paint, and your things lift your needs. Named hotels, a Suit Shop, outfits by role, golf ' +
+    'controls off the aim, a new sign-up and over 1,100 quiz questions. Refresh to get it; your ' +
+    'game is saved.',
 } as const;
