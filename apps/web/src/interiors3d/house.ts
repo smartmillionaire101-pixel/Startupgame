@@ -34,6 +34,14 @@ import {
 } from './kit';
 import { buildModel } from './furniture';
 import {
+  WALL_CAP,
+  WALL_GREEN,
+  floorKind,
+  roomFloor,
+  wallPalette,
+  type HomeFinish,
+} from './finishes';
+import {
   buildEstateModel,
   carport,
   gate,
@@ -52,15 +60,11 @@ import {
   type Surroundings,
 } from './surroundings';
 import { HOTEL_STOREY, hotelTower, type TowerSide } from './hotel-tower';
-import type { BlockTier } from '../home/grounds';
 
 const WALL_H = 2.6;
 const INNER_H = 1.25;
 const CUT_H = 0.34;
 const THICK = 0.16;
-const WALL_GREEN = '#1d8a65';
-const WALL_INNER = '#23946e';
-const WALL_CAP = '#f4f1ea';
 /** The lawn's top (the house slab and floors sit a little above it). */
 export const GROUND_Y = -0.14;
 /** Floor to floor, upstairs. */
@@ -109,34 +113,6 @@ export interface House {
   attach(): void;
 }
 
-function floorKind(id: RoomId, tier: number): FloorKind {
-  switch (id) {
-    case 'kitchen':
-    case 'living':
-    case 'dining':
-      return tier >= 5 ? 'marble' : 'cream';
-    case 'bathroom':
-      return 'bath';
-    case 'study':
-      return 'parquet-dark';
-    case 'cinema':
-      return 'carpet';
-    case 'gym':
-      return 'concrete';
-    case 'bedroom':
-    case 'guest':
-    case 'landing':
-      return 'oak';
-    case 'hall':
-      return 'marble';
-    case 'office':
-      return 'parquet-dark';
-    case 'balcony':
-    case 'terrace':
-      return 'stone';
-  }
-}
-
 /** Warm tints over the floor textures (cream tiles, honey oak). */
 const FLOOR_TINT: Partial<Record<FloorKind, string>> = {
   marble: '#fbf4ea',
@@ -165,34 +141,6 @@ const HOTEL_FLOORS: Record<HotelTier, Partial<Record<RoomId, [FloorKind, string?
     bathroom: ['marble', '#e0d5c5'],
   },
 };
-/**
- * A flat's floors by its block (player feedback: Modest looked the same as
- * Lean): a shared flat's worn concrete and cheap tiles, a small flat's warm
- * tiles and honey oak (the default), a good flat's parquet and marble.
- */
-const BLOCK_FLOORS: Record<BlockTier, Partial<Record<RoomId, [FloorKind, string?]>>> = {
-  walkup: {
-    bedroom: ['concrete', '#cfc8ba'],
-    living: ['tile', '#d6cfc1'],
-    kitchen: ['concrete', '#c9c2b4'],
-    bathroom: ['tile', '#c9d2cf'],
-  },
-  block: {},
-  modern: {
-    living: ['parquet', '#f3e5d2'],
-    dining: ['parquet', '#f3e5d2'],
-    kitchen: ['marble', '#f4efe6'],
-    bathroom: ['marble', '#e8e0d4'],
-    guest: ['oak'],
-  },
-};
-/** A flat's walls by its block: tired grey-green paint, a fresh blue, a modern slate. */
-const BLOCK_WALLS: Record<BlockTier, { outer: string; inner: string; cap: string; drape: string }> =
-  {
-    walkup: { outer: '#9aa79f', inner: '#a9b5ad', cap: '#e4ddcf', drape: '#c9a978' },
-    block: { outer: '#4f86a8', inner: '#5d93b4', cap: '#f6f3ec', drape: '#e9dcc3' },
-    modern: { outer: '#46505c', inner: '#55606d', cap: '#f1efe9', drape: '#d8d2c8' },
-  };
 const HOTEL_WALLS: Record<HotelTier, { outer: string; inner: string; cap: string; drape: string }> =
   {
     budget: { outer: '#6f948a', inner: '#7da197', cap: WALL_CAP, drape: '#9fb3c8' },
@@ -323,6 +271,8 @@ export interface HouseOpts {
   grounds: Grounds;
   /** Leave the world round the home (the street, the city, the hotel's tower) for `attach`. */
   later?: boolean;
+  /** Buy mode: the floors and wall paint you chose (or are trying on). */
+  finish?: HomeFinish | null;
 }
 
 export function buildHouse(plan: HomePlan, o: HouseOpts): House {
@@ -598,18 +548,13 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     rough: 0.9,
   });
   if (drop) storeys(k, W, H, drop, o.night);
-  const pal = hotel
-    ? HOTEL_WALLS[hotel.tier]
-    : block
-      ? BLOCK_WALLS[block.tier]
-      : { outer: WALL_GREEN, inner: WALL_INNER, cap: WALL_CAP, drape: '' };
+  // Buy mode's Design tab: the floors and paint you chose (a hotel room is the hotel's).
+  const pal = hotel ? HOTEL_WALLS[hotel.tier] : wallPalette(block?.tier ?? null, o.finish?.wall);
   for (const r of plan.rooms) {
     const hf = hotel
-      ? HOTEL_FLOORS[hotel.tier][r.id]
-      : block
-        ? BLOCK_FLOORS[block.tier][r.id]
-        : undefined;
-    root.add(floorMesh(hf?.[0] ?? floorKind(r.id, o.tier), r.x, r.y, r.w, r.h, FLOOR_Y, hf?.[1]));
+      ? (HOTEL_FLOORS[hotel.tier][r.id] ?? [floorKind(r.id, o.tier)])
+      : roomFloor(r.id, level, o.tier, block?.tier ?? null, o.finish);
+    root.add(floorMesh(hf[0], r.x, r.y, r.w, r.h, FLOOR_Y, hf[1]));
   }
 
   const sides: WallSide[] = [];

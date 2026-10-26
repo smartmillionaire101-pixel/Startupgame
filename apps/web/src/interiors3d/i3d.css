@@ -128,124 +128,6 @@
   min-width: 0;
 }
 
-/* Buy mode: the catalogue. */
-.buy-sheet {
-  max-height: 62%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.buy-sheet > header {
-  gap: 0.5rem;
-}
-.buy-sheet > header h3 {
-  flex: 1;
-}
-.buy-pocket {
-  font-weight: 700;
-}
-.buy-tabs {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 0.35rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.buy-tab {
-  flex: 0 0 auto;
-  min-height: 36px;
-  padding: 0 0.85rem;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface-2, var(--surface));
-  color: var(--text);
-  font: inherit;
-  font-weight: 700;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.buy-tab.is-on {
-  background: var(--text);
-  color: var(--surface);
-}
-.buy-grid {
-  display: grid;
-  gap: 0.7rem;
-  overflow: auto;
-}
-.buy-slot-head {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.3rem;
-}
-.buy-slot-head b {
-  flex: 1;
-}
-.buy-move {
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--accent, #2563eb);
-  border-radius: 999px;
-  padding: 0.2rem 0.7rem;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.buy-items {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.4rem;
-}
-.buy-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.15rem;
-  min-height: 68px;
-  padding: 0.4rem 0.45rem;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--surface-2, var(--surface));
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.buy-item.tier-2 {
-  border-color: #93c5fd;
-}
-.buy-item.tier-3 {
-  border-color: #fbbf24;
-}
-.buy-item.is-mine {
-  background: rgb(34 197 94 / 0.12);
-  border-color: #22c55e;
-}
-.buy-item.is-armed {
-  background: var(--text);
-  color: var(--surface);
-}
-.buy-item:disabled:not(.is-mine) {
-  opacity: 0.5;
-}
-.buy-stars {
-  color: #f59e0b;
-  font-size: 0.7rem;
-  letter-spacing: 1px;
-}
-.buy-name {
-  font-size: 0.78rem;
-  font-weight: 600;
-  line-height: 1.15;
-  flex: 1;
-}
-.buy-price {
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
 /* Placing something. */
 .place-bar {
   position: absolute;
@@ -312,19 +194,10 @@
   background: #111827;
 }
 
-@media (max-width: 360px) {
-  .buy-items {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .home-float-3d {
     animation: home-fade 2.2s linear forwards;
   }
-}
-
-.buy-back {
-  background: rgb(0 0 0 / 0.12);
 }
 
 .tech-hall.is-3d > svg {

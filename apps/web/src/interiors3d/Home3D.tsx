@@ -23,6 +23,7 @@ import { buildEstateModel } from './estate-models';
 import { buildDivider, refinish, upholstered } from './dividers';
 import { groundsFor } from '../home/grounds';
 import { Kit, disposeTree, mat } from './kit';
+import type { HomeFinish } from './finishes';
 import { Stage, gestures, hasParkedStage, parkStage, unparkStage, type StageOpts } from './stage';
 import { cullOccluders } from './surroundings';
 import type { Home3DObject, Home3DPerson, Home3DProps } from './types';
@@ -327,13 +328,16 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
 
   // ---- The house shell and its grounds (plan, tier, cars, night).
   const lit = night || dusk;
+  // Buy mode's Design tab: the floors and paint you chose, or are trying on.
+  const finishKey = JSON.stringify(props.finish ?? null);
+  const finish = useMemo(() => JSON.parse(finishKey) as HomeFinish | null, [finishKey]);
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
     // The room first; the world round it (the street, the city below, the
     // hotel's tower) in an idle slice after, unless it was kept from the last
     // time this home opened.
-    const h = buildHouse(plan, { tier, night, lit, grounds, later: true });
+    const h = buildHouse(plan, { tier, night, lit, grounds, later: true, finish });
     if (h.kept) h.attach();
     houseRef.current = h;
     stage.scene.add(h.root);
@@ -405,7 +409,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       disposeTree(h.root);
       houseRef.current = null;
     };
-  }, [plan, tier, night, lit, grounds]);
+  }, [plan, tier, night, lit, grounds, finish]);
 
   // ---- Light: day, dusk or night.
   useEffect(() => {

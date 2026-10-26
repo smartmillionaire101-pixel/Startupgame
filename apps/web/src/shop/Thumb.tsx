@@ -1,7 +1,8 @@
 /**
  * A catalogue picture. Furniture, appliances, cars and walls are rendered
- * from the game's own 3D models (./thumbs3d.ts, in the finish or paint you
- * picked); clothes show you wearing them, in the colour you picked; the
+ * from the game's own 3D models: furniture as it comes is the picture
+ * rendered ahead (./thumbs.ts, public/thumbs/), anything in a finish or paint
+ * you picked is drawn live (./thumbs3d.ts); clothes show you wearing them, in the colour you picked; the
  * rest are illustrated (the mall's own icons on the shop's colour). While a
  * 3D picture renders (or where WebGL isn't there) the illustration shows.
  */
@@ -10,6 +11,7 @@ import { SHOP_COLOUR, itemIcon, wearing } from '../city/mall/shops';
 import { AvatarFigure, type AvatarLook } from '../city/art';
 import type { CatEntry, CatVariant } from './catalog';
 import type { ThumbSpec } from './thumbs3d';
+import { furnitureThumb } from './thumbs';
 
 const SLOT_ICON: Record<string, string> = {
   sofa: '🛋️',
@@ -95,8 +97,14 @@ export function Thumb({
   look?: AvatarLook | null;
   size?: 'card' | 'big';
 }) {
-  const spec: ThumbSpec | null =
-    entry.source === 'furniture'
+  // Furniture as it comes: the picture rendered ahead, shown at once.
+  const ready =
+    entry.source === 'furniture' && !swatch
+      ? furnitureThumb(`${entry.slot!}-${variant.tier ?? 1}`)
+      : null;
+  const spec: ThumbSpec | null = ready
+    ? null
+    : entry.source === 'furniture'
       ? { kind: 'furniture', id: entry.slot!, tier: variant.tier ?? 1, swatch: swatch ?? null }
       : entry.source === 'car'
         ? { kind: 'car', id: variant.ref, swatch: swatch ?? null }
@@ -127,7 +135,7 @@ export function Thumb({
     (entry.mall.topStyle || entry.mall.headwear || entry.mall.glasses || entry.mall.worn)
       ? wearing(look, entry.mall, colour ?? '#2563eb')
       : null;
-  const shown = url && url.key === key ? url.url : null;
+  const shown = ready ?? (url && url.key === key ? url.url : null);
   return (
     <span
       className={`cat-thumb is-${size}`}

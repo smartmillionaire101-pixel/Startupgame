@@ -14,6 +14,7 @@ import type { BusinessView } from './contract';
 import { HOME_SLOTS, carOf, homeOf, looseCmd, sellsOf, shopOf, type HomeItemView } from './life';
 import { CatalogueButton, CatalogueSheet } from '../shop/CatalogueSheet';
 import { showroomCatalog } from '../shop/catalog';
+import { furnitureThumb } from '../shop/thumbs';
 
 /** A slot's name, translated; a slot the client doesn't know shows as written. */
 export function slotLabel(slot: string): string {
@@ -192,6 +193,13 @@ export function Showroom({ business: b }: { business: BusinessView }) {
                 );
                 return (
                   <li key={f.id} data-shop-item={f.id} data-owned={mine ? '1' : '0'}>
+                    <img
+                      className="shop-thumb"
+                      src={furnitureThumb(f.id)}
+                      alt=""
+                      loading="lazy"
+                      draggable={false}
+                    />
                     <span className="shop-main">
                       <span className="item-title">{tx(f.label)}</span>
                       {f.comfort > 0 && (

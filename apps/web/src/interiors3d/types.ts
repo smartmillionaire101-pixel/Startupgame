@@ -6,6 +6,7 @@ import type { MutableRefObject } from 'react';
 import type { AvatarLook } from '../city/art';
 import type { HomeAct, HomePlan, Spot } from '../home/layout';
 import type { Grounds } from '../home/grounds';
+import type { HomeFinish } from './finishes';
 
 export interface Home3DPerson {
   id: string;
@@ -107,4 +108,6 @@ export interface Home3DProps {
   grounds?: Grounds;
   /** Shop note: walls and dividers you put up on this floor. */
   dividers?: Home3DDivider[];
+  /** Buy mode: the floors and wall paint you chose (or are trying on). */
+  finish?: HomeFinish | null;
 }
