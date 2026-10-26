@@ -13,6 +13,9 @@ test('a new founder opens the Journey on Chapter 1 and follows a step', async ({
     handle: `jour_${letters(8)}`,
     company: `Hustle ${letters(6)}`,
     idea: 'Invoices for market traders',
+    // Nairobi: no other spec advances its month, so Chapter 1 stays as a new founder's
+    // while parallel specs settle Lagos (customers won there finish the chapter).
+    market: /Nairobi/,
   });
 
   const chip = page.getByTestId('journey-chip');
