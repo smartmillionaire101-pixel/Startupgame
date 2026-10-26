@@ -20,6 +20,15 @@
  *
  * Experience is seeded lazily from your background (`HEAD_STARTS`). Worlds
  * without the jobs note never reach any of this.
+ *
+ * The feedback round (FEEDBACK_NOTE) asks by level (data/interviews.ts):
+ * an Analyst answers three questions, a Director two and a case in three
+ * steps, against a pass mark that rises with the level. Each set has an
+ * interview brief you can read once the interview is booked; studying it
+ * (`job.study`, a couple of hours) adds a small, capped bonus. The answer
+ * comes with a review: your score against the pass mark, each step with
+ * the best answer and why, the hard checks, and what to re-read. Worlds
+ * without the note keep the three questions and the single bar.
  */
 import type { Skill } from './data/characters.js';
 import {
@@ -50,11 +59,19 @@ import { transfer, withTx } from './ledger.js';
 import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { jobTasksView, letGoView, settleJobTasks, startJobTasks } from './jobtasks.js';
-import { jobsOn } from './releases.js';
+import { feedbackOn, jobsOn } from './releases.js';
+import {
+  bestOf,
+  interviewSetOf,
+  stepsOf,
+  type InterviewSet,
+  type LevelStep,
+} from './data/interviews.js';
 import { deriveRng } from './rng.js';
 import type {
   Id,
   JobApplication,
+  JobReview,
   JobWhy,
   LocalBusiness,
   MarketState,
@@ -89,6 +106,17 @@ export const WORK = {
   keep: 12,
   /** Skills grow with the job up to here. */
   skillCap: 85,
+  /** FEEDBACK_NOTE, interviews by level: hours a study of the brief takes. */
+  studyHours: 2,
+  /** Times a brief can usefully be studied, and the score each adds (0–1). */
+  studyCap: 2,
+  studyBonus: 0.03,
+  /** The answers' share of the score, and the luck on it (entry roles: a little more). */
+  levelAnswers: 0.4,
+  levelJitter: 0.05,
+  levelEntryJitter: 0.06,
+  /** Average answer quality below lo counts 0, at hi in full (a near-perfect interview). */
+  levelBand: [0.3, 0.95] as readonly [number, number],
 } as const;
 
 export const FIELD_LABEL: Record<WorkField, string> = {
@@ -342,23 +370,27 @@ export function attendInterview(
     a.reason = whyText(a.why);
     fail('job.expired', 'That interview slot has passed. Apply again.');
   }
+  // The feedback round: the questions of this level (a case in steps at the top).
+  const set = levelSetOf(world, a.profession, a.level);
+  const asked: { options: readonly unknown[] }[] = set ? stepsOf(set) : prof.questions;
   ensure(
-    answers.length === prof.questions.length &&
-      answers.every(
-        (n, i) => Number.isInteger(n) && n >= 0 && n < prof.questions[i]!.options.length,
-      ),
+    answers.length === asked.length &&
+      answers.every((n, i) => Number.isInteger(n) && n >= 0 && n < asked[i]!.options.length),
     'job.answers',
     'Answer each question.',
   );
   spendHours(me, WORK.interviewHours, 'The interview');
   const rung = prof.levels[a.level - 1]!;
   const month = m.month;
+  const levelled = set ? scoreLevelled(world, me, work, a, prof, set, answers) : null;
+  const passMark = set ? set.passMark : WORK.hireBar;
 
   // Hard checks first: the months and the skill, then (a promotion) time in the role.
-  let why: JobWhy | null = levelGate(me, prof, a.level);
-  if (!why && a.promotion) why = promotionGate(me);
-  let score = 0;
-  if (!why) {
+  let why: JobWhy | null = levelled ? levelled.why : levelGate(me, prof, a.level);
+  if (!levelled && !why && a.promotion) why = promotionGate(me);
+  let score = levelled?.score ?? 0;
+  if (levelled) a.review = levelled.review;
+  else if (!why) {
     const need = LEVEL_MONTHS[a.level - 1] ?? 0;
     const have = workOf(me).exp[prof.field] ?? 0;
     // The skill they look for at this level (entry: the old bar, now only scored).
@@ -445,7 +477,7 @@ export function attendInterview(
     code: 'hired',
     role: rung.role,
     label: rung.label,
-    strong: score >= WORK.hireBar + 0.08,
+    strong: score >= passMark + 0.08,
   };
   a.reason = whyText(a.why);
   const pay = proPay(m, prof, a.level);
@@ -463,6 +495,257 @@ export function attendInterview(
     reason: a.reason,
     job: anyJobView(world, me),
     message: `${a.reason} ${a.promotion ? 'You’re promoted' : `You start at ${b.name}`}: ${fmt(pay)} a month before tax, ${proHours(a.level)}h a month.${left ? ` You left ${left}.` : ''}`,
+  };
+}
+
+// ---------------------------------------------------------------- Interviews by level
+
+/** The interview set a level asks (feedback worlds only; old worlds keep the three questions). */
+function levelSetOf(world: World, profession: string, level: number): InterviewSet | undefined {
+  return feedbackOn(world) ? interviewSetOf(profession, level) : undefined;
+}
+
+const studyKey = (profession: string, level: number) => `${profession}:${level}`;
+
+/** Times you've studied a level's brief (capped: past the cap it adds nothing). */
+function studiedOf(work: PlayerWork, profession: string, level: number): number {
+  return Math.min(WORK.studyCap, work.study?.[studyKey(profession, level)] ?? 0);
+}
+
+/**
+ * A levelled interview's score and review: the same parts as before
+ * (months beyond the bar, skill against the level's minimum, reputation),
+ * the answers weighing more, the brief you studied, and the level's pass
+ * mark. The hard checks still decide first; the review is kept either way,
+ * so a turn-down shows which answers let you down too.
+ */
+function scoreLevelled(
+  world: World,
+  me: Player,
+  work: PlayerWork,
+  a: JobApplication,
+  prof: Profession,
+  set: InterviewSet,
+  answers: readonly number[],
+): { why: JobWhy | null; score: number; review: JobReview } {
+  const steps = stepsOf(set);
+  const checks: JobWhy[] = [];
+  const gate = levelGate(me, prof, a.level);
+  if (gate) checks.push(gate);
+  const tenure = a.promotion ? promotionGate(me) : null;
+  if (tenure) checks.push(tenure);
+  const need = LEVEL_MONTHS[a.level - 1] ?? 0;
+  const have = workOf(me).exp[prof.field] ?? 0;
+  const min = prof.skillMin[a.level - 1] ?? 0;
+  const best = bestSkill(me, prof);
+  const entry = a.level === 1;
+  const scores = steps.map((s, i) => {
+    const opt = s.options[answers[i]!]!;
+    return answerScore(me, opt.weight, opt.skill);
+  });
+  const answered = scores.reduce((x, y) => x + y, 0) / scores.length;
+  const [lo, hi] = WORK.levelBand;
+  const studied = studiedOf(work, a.profession, a.level);
+  const bonus = studied * WORK.studyBonus;
+  const perf = a.promotion ? (work.perf ?? 0.5) : 0.5;
+  const rng = deriveRng(world.seed, 'work.interview', a.id);
+  const jitter = entry ? WORK.levelEntryJitter : WORK.levelJitter;
+  let score =
+    0.12 +
+    0.1 * clamp01((have - need) / 24) +
+    0.15 * clamp01(0.5 + (best.value - min) / 40) +
+    0.06 * clamp01(me.stars.value / 3) +
+    WORK.levelAnswers * clamp01((answered - lo) / (hi - lo)) +
+    (a.promotion ? 0.1 * (perf - 0.5) : 0) +
+    (entry ? WORK.entryBonus : 0) +
+    bonus +
+    rng.range(-jitter, jitter);
+  score = Math.round(clamp01(score) * 100) / 100;
+  const marks = steps.map((s, i) => ({ id: s.id, choice: answers[i]!, best: bestOf(s) }));
+  const study: string[] = [];
+  steps.forEach((s, i) => {
+    if (marks[i]!.choice !== marks[i]!.best && !study.includes(s.concept)) study.push(s.concept);
+  });
+  let why: JobWhy | null = checks[0] ?? null;
+  if (!why && score < set.passMark) {
+    const weakest = scores.indexOf(Math.min(...scores));
+    why = {
+      code: 'interview',
+      score: Math.round(score * 100),
+      need: Math.round(set.passMark * 100),
+      question: steps[weakest]!.text,
+    };
+  }
+  return {
+    why,
+    score,
+    review: {
+      score: Math.round(score * 100),
+      passMark: Math.round(set.passMark * 100),
+      bonus: Math.round(bonus * 100),
+      studied,
+      steps: marks,
+      checks,
+      study,
+    },
+  };
+}
+
+/**
+ * `job.study` (feedback worlds): study the brief of an interview you have
+ * booked, or one you were just turned down at. A couple of hours; each
+ * time adds a little to that level's interview score, up to the cap.
+ */
+export function studyBrief(world: World, me: Player, applicationId: Id) {
+  ensure(feedbackOn(world), 'job.study.release', 'There are no interview briefs yet.');
+  const work = ensureWork(me);
+  const a = work.applications.find((x) => x.id === applicationId);
+  ensure(a, 'job.application', 'No such application.');
+  ensure(
+    a.status === 'booked' || a.status === 'rejected',
+    'job.study.over',
+    'There is no interview to study for.',
+  );
+  const set = interviewSetOf(a.profession, a.level);
+  ensure(set, 'job.study.none', 'There is no brief for that role.');
+  const done = studiedOf(work, a.profession, a.level);
+  ensure(
+    done < WORK.studyCap,
+    'job.study.cap',
+    'You know this brief well already: more study won’t add to it.',
+  );
+  spendHours(me, WORK.studyHours, 'Studying the brief');
+  (work.study ??= {})[studyKey(a.profession, a.level)] = done + 1;
+  const label = professionById(a.profession)?.levels[a.level - 1]?.label ?? '';
+  const points = Math.round((done + 1) * WORK.studyBonus * 100);
+  return {
+    studied: done + 1,
+    bonus: points,
+    message: `You studied the ${label} brief: +${points} points at the interview.`,
+  };
+}
+
+/** What a levelled interview looks like to the player (no weights until it's over). */
+function stepView(s: LevelStep) {
+  return {
+    id: s.id,
+    text: s.text,
+    options: s.options.map((o) => o.text),
+    fr: { text: s.fr.text, options: s.options.map((o) => o.fr.text) },
+  };
+}
+
+/** The brief, the interview and the review of one application (feedback worlds). */
+function levelView(p: Player, work: PlayerWork, a: JobApplication, month: number) {
+  const set = interviewSetOf(a.profession, a.level);
+  const prof = professionById(a.profession);
+  if (!set || !prof) return null;
+  const open = a.status === 'booked' || (a.status === 'rejected' && !!a.review);
+  const recent = (a.decidedMonth ?? month) >= month - 1;
+  const studied = studiedOf(work, a.profession, a.level);
+  const level = a.level;
+  const main = prof.skills[0]!;
+  const head = headStartOf(p.backgroundId).levels[prof.id] ?? 0;
+  const skillNeed = prof.skillMin[level - 1] ?? 0;
+  const skillHave = Math.round(p.skills[main] ?? 0);
+  const monthsNeed = LEVEL_MONTHS[level - 1] ?? 0;
+  const monthsHave = floorMonths(workOf(p).exp[prof.field]);
+  // Each step's place: question 2, or step 3 of the case.
+  const stepById = new Map<
+    string,
+    { step: LevelStep; at: number; title: string | null; fr: string | null }
+  >();
+  let q = 0;
+  for (const it of set.items) {
+    if (it.kind === 'question') q += 1;
+    it.steps.forEach((s, k) =>
+      stepById.set(s.id, {
+        step: s,
+        at: it.kind === 'case' ? k + 1 : q,
+        title: it.title ?? null,
+        fr: it.fr?.title ?? null,
+      }),
+    );
+  }
+  const conceptById = new Map(set.concepts.map((c) => [c.id, c]));
+  const review = a.review;
+  return {
+    passMark: Math.round(set.passMark * 100),
+    level,
+    levels: prof.levels.map((l) => l.label),
+    questions: set.items.filter((i) => i.kind === 'question').length,
+    cases: set.items
+      .filter((i) => i.kind === 'case')
+      .map((i) => ({ id: i.id, steps: i.steps.length })),
+    steps: stepsOf(set).length,
+    studied,
+    studyCap: WORK.studyCap,
+    studyHours: WORK.studyHours,
+    studyPoints: Math.round(WORK.studyBonus * 100),
+    bonus: Math.round(studied * WORK.studyBonus * 100),
+    checks: {
+      field: prof.field,
+      monthsNeed,
+      monthsHave,
+      skill: main,
+      skillNeed,
+      skillHave,
+      /** Level 1 has no hard skill bar (it is only scored); a background's head start counts. */
+      skillBar: level > 1 && head < level,
+    },
+    concepts: open && recent ? set.concepts : [],
+    items:
+      a.status === 'booked'
+        ? set.items.map((i) => ({
+            id: i.id,
+            kind: i.kind,
+            title: i.title ?? null,
+            setup: i.setup ?? null,
+            fr: i.fr ?? null,
+            steps: i.steps.map(stepView),
+          }))
+        : [],
+    review:
+      review && recent
+        ? {
+            score: review.score,
+            passMark: review.passMark,
+            bonus: review.bonus,
+            studied: review.studied,
+            checks: review.checks.map((w) => ({ ...w, reason: whyText(w) })),
+            steps: review.steps.map((r, i) => {
+              const x = stepById.get(r.id);
+              const s = x?.step;
+              const pick = s?.options[r.choice];
+              const top = s?.options[r.best];
+              return {
+                n: i + 1,
+                /** Question number, or the step within the case. */
+                at: x?.at ?? i + 1,
+                id: r.id,
+                right: r.choice === r.best,
+                case: x?.title ?? null,
+                text: s?.text ?? '',
+                choice: pick?.text ?? '',
+                best: top?.text ?? '',
+                why: top?.why ?? '',
+                choiceWhy: pick?.why ?? '',
+                fr: {
+                  case: x?.fr ?? null,
+                  text: s?.fr.text ?? '',
+                  choice: pick?.fr.text ?? '',
+                  best: top?.fr.text ?? '',
+                  why: top?.fr.why ?? '',
+                  choiceWhy: pick?.fr.why ?? '',
+                },
+              };
+            }),
+            study: review.study.map((id) => {
+              const c = conceptById.get(id);
+              return { id, title: c?.title ?? id, fr: c?.fr.title ?? id };
+            }),
+          }
+        : null,
   };
 }
 
@@ -627,6 +910,7 @@ export function workView(world: World, p: Player) {
   });
   const byId = new Map(employers.map((b) => [b.id, b]));
   const prof = job ? professionById(job.profession!) : undefined;
+  const levels = feedbackOn(world);
   const nextRung = job && prof ? prof.levels[job.level ?? 1] : undefined;
   const nextGate =
     job && prof && nextRung ? (levelGate(p, prof, nextRung.level) ?? promotionGate(p)) : null;
@@ -673,6 +957,7 @@ export function workView(world: World, p: Player) {
     employers: views,
     applications: work.applications.map((a) => {
       const pr = professionById(a.profession);
+      const lset = levels ? interviewSetOf(a.profession, a.level) : undefined;
       const b = world.markets[p.market]?.businesses?.[a.businessId];
       return {
         ...a,
@@ -681,13 +966,21 @@ export function workView(world: World, p: Player) {
         professionLabel: pr?.label ?? '',
         canAttend: a.status === 'booked' && month <= a.expiresMonth,
         questions:
-          a.status === 'booked' && pr
-            ? pr.questions.map((qq) => ({
-                id: qq.id,
-                text: qq.text,
-                options: qq.options.map((op) => op.text),
+          a.status === 'booked' && lset
+            ? stepsOf(lset).map((st) => ({
+                id: st.id,
+                text: st.text,
+                options: st.options.map((op) => op.text),
               }))
-            : [],
+            : a.status === 'booked' && pr
+              ? pr.questions.map((qq) => ({
+                  id: qq.id,
+                  text: qq.text,
+                  options: qq.options.map((op) => op.text),
+                }))
+              : [],
+        // The feedback round: the brief, the interview by level and the review (null: old worlds).
+        level: levels ? levelView(p, work, a, month) : null,
       };
     }),
   };

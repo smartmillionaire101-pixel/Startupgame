@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { JOB_TASKS, jobTaskById } from '../src/data/job-tasks.js';
+import { bestAnswers } from '../src/data/interviews.js';
 import { PROFESSIONS, professionById, type ProfessionId } from '../src/data/professions.js';
 import { businessesOf, isOpen } from '../src/economy.js';
 import { TASKS } from '../src/jobtasks.js';
@@ -56,9 +57,13 @@ function hired(note: string = FEEDBACK_NOTE) {
   const b = employer(w, 'tech');
   const a = run(w, F, { type: 'job.apply', businessId: b.id, level: 2 });
   w = a.world;
-  const answers = professionById('tech')!.questions.map((q) =>
-    q.options.reduce((bi, o, i, xs) => (o.fit > xs[bi]!.fit ? i : bi), 0),
-  );
+  // The feedback round asks by level (data/interviews.ts); old worlds the three questions.
+  const answers =
+    note === FEEDBACK_NOTE
+      ? bestAnswers('tech', 2)
+      : professionById('tech')!.questions.map((q) =>
+          q.options.reduce((bi, o, i, xs) => (o.fit > xs[bi]!.fit ? i : bi), 0),
+        );
   const r = run(w, F, { type: 'job.interview', applicationId: a.result.application.id, answers });
   expect(r.result.hired).toBe(true);
   return { w: r.world, b };

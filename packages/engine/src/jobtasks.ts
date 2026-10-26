@@ -68,21 +68,28 @@ function currentId(p: Player, month: number): string | null {
   return t.ids[t.results.length] ?? null;
 }
 
+/** How far a task's difficulty is from what your level should draw (senior tasks top out at 3). */
+const distance = (task: JobTask, level: number) => Math.abs(task.level - Math.min(level, 3));
+
 /**
  * Hand out a month's tasks: a seeded draw from the profession's bank, the
- * tasks you didn't see last month first. Strikes carry over at the same
- * employer; a new employer is a clean sheet.
+ * tasks you didn't see last month first. Your level decides the pool: the
+ * tasks within one step of it (an Analyst draws entry and skilled tasks, a
+ * Director skilled and senior ones), the nearest first. Strikes carry over
+ * at the same employer; a new employer is a clean sheet.
  */
 function handOut(world: World, p: Player, work: PlayerWork, month: number) {
   const job = p.job;
   if (!job?.profession) return;
-  const bank = jobTasksOf(job.profession);
+  const level = job.level ?? 1;
+  const bank = jobTasksOf(job.profession).filter((x) => distance(x, level) <= 1);
   if (!bank.length) return;
   const prev = work.tasks?.businessId === job.businessId ? work.tasks : undefined;
   const seen = new Set(prev?.ids ?? []);
   const rng = deriveRng(world.seed, 'work.tasks', p.id, job.businessId, month);
-  const fresh = rng.shuffle(bank.filter((x) => !seen.has(x.id)));
-  const again = rng.shuffle(bank.filter((x) => seen.has(x.id)));
+  const near = (xs: JobTask[]) => [...xs].sort((x, y) => distance(x, level) - distance(y, level));
+  const fresh = near(rng.shuffle(bank.filter((x) => !seen.has(x.id))));
+  const again = near(rng.shuffle(bank.filter((x) => seen.has(x.id))));
   work.tasks = {
     businessId: job.businessId,
     month,

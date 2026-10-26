@@ -229,6 +229,9 @@ export type { ProfessionId, WorkField, Profession } from './data/professions.js'
 export { TASKS } from './jobtasks.js';
 export { JOB_TASKS, jobTaskById, jobTasksOf } from './data/job-tasks.js';
 export type { JobTask } from './data/job-tasks.js';
+// Round two: interviews by level, with a brief to study.
+export { INTERVIEW_SETS, interviewSetOf, bestAnswers, worstAnswers } from './data/interviews.js';
+export type { InterviewSet } from './data/interviews.js';
 export { acceleratorsOf, devPartnersOf, lpsOf } from './programs.js';
 export type { Cause, CareerDecision, CareerOrg } from './allocator.js';
 export { wealthView } from './wealth.js';
