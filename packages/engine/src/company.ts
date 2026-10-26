@@ -36,6 +36,7 @@ import { releaseReserveIfShort, windDownFounderFinance } from './founderfinance.
 import { updateDistress } from './rescue.js';
 import { buildStory, storySnapshot } from './story.js';
 import { salesBilling, settleSales } from './sales.js';
+import { inSetup, leaseRent, settleSetup } from './setup.js';
 import type {
   BuildMode,
   Company,
@@ -118,8 +119,11 @@ export function payrollThisMonth(c: Company): number {
 }
 
 export function officeRent(m: MarketState, c: Company): number {
+  // Founder setup: nothing to pay before the office is chosen, then the lease.
+  if (inSetup(c)) return 0;
+  const lease = leaseRent(m, c);
   const seats = c.staff.length + c.founderIds.length;
-  const rent = Math.round(scale(m.data.officeSeat * 100, seats) * c.supply.overheadMult);
+  const rent = Math.round((lease ?? scale(m.data.officeSeat * 100, seats)) * c.supply.overheadMult);
   return c.officeDownsized ? Math.round(rent * DOWNSIZED_OFFICE) : rent;
 }
 
@@ -129,6 +133,8 @@ export function marketingSpend(c: Company): number {
 }
 
 export function cloudCost(m: MarketState, c: Company, customers = totalCustomers(c)): number {
+  // Founder setup: nothing runs (and nothing is billed) until the company is open.
+  if (inSetup(c)) return 0;
   return Math.round(
     (Math.round(c.cogsUsdPerCustomer * customers * m.data.unitsPerUsd) + scale(col(m), 0.05)) *
       c.supply.cogsMult,
@@ -515,6 +521,8 @@ export function settleCompany(world: World, c: Company, rng: Rng, month: number)
   roadmapFeedback(world, c, month);
   settleSales(world, c, month);
   settleHiring(world, c, month);
+  // Founder setup: a loan condition met releases the rest (set-up companies only).
+  if (c.setup) settleSetup(world, c, month);
   // A business reserve covers a month the main account can't (companies with one only).
   releaseReserveIfShort(world, c, month);
   const pnl = settleFinances(world, c, rng, month);

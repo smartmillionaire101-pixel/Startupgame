@@ -1470,6 +1470,11 @@ export interface Company {
   ipo?: IpoState;
   /** Founder Journey 5: secondary sales of founders' shares. Missing = none. */
   secondaries?: SecondarySale[];
+  /**
+   * Founder setup (setup.ts, feedback note): register, fund, plan and lease
+   * an office before the company starts spending. Missing = founded the old way.
+   */
+  setup?: FounderSetup;
 }
 
 export type InterviewStyle = 'technical' | 'culture' | 'work_trial';
@@ -2472,6 +2477,8 @@ export interface DealCard {
     /** AI lenders: the lowest rate they will take. */
     minRateBps?: number;
   };
+  /** Founder setup: a startup loan application to a player bank carries the plan. */
+  application?: StartupApplication;
 }
 
 // ---------------------------------------------------------------- Pitches
@@ -3441,4 +3448,89 @@ export interface Rival {
   nextMoveMonth: number;
   status: 'active' | 'failed';
   moves: RivalMove[];
+}
+
+// ---------------------------------------------------------------- Founder setup
+
+export type SetupStepId = 'idea' | 'register' | 'fund' | 'plan' | 'office';
+export type SetupCheckLevel = 'good' | 'warn' | 'bad';
+export interface SetupCheck {
+  id: 'price' | 'margin' | 'breakEven' | 'runway' | 'understanding' | 'repayment';
+  level: SetupCheckLevel;
+  values: Record<string, number>;
+}
+
+/** The business plan and pitch lenders and banks read (setup.ts). Money in minor units. */
+export interface SetupPlanFields {
+  sell: string;
+  /** The customer segment it is for. */
+  segment: string;
+  price: number;
+  costToServe: number;
+  monthlyCosts: number;
+  customersMonth6: number;
+  /** What it asks lenders for in total. */
+  ask: number;
+  /** How many months the founder says the money lasts. */
+  months: number;
+}
+
+export interface SetupPlan extends SetupPlanFields {
+  month: number;
+  checks: SetupCheck[];
+  /** 0–100: the checks, with the founder's credit. */
+  score: number;
+}
+
+/** A city lender's answer to a startup loan (decided when asked, like a licence decision). */
+export interface SetupDecision {
+  lenderId: Id;
+  productId: string;
+  month: number;
+  outcome: 'approved' | 'conditions' | 'declined';
+  score: number;
+  /** Approved in total; paid now; the rest after `restAfterCustomers` paying customers. */
+  amount: number;
+  now: number;
+  rest: number;
+  restAfterCustomers: number;
+  rateBps: number;
+  months: number;
+  /** The checks behind a condition or a decline (each with a fix in the client's copy). */
+  reasons: SetupCheck[];
+  /** The lender's own reason for a decline (eligibility), or null. */
+  lenderReason: string | null;
+  dealId: Id | null;
+  restDealId?: Id;
+}
+
+export interface SetupOffice {
+  id: 'home' | 'cowork' | 'small' | 'shop' | 'serviced';
+  district: string;
+  desks: number;
+  rent: number;
+  leaseMonths: number;
+  month: number;
+}
+
+export interface FounderSetup {
+  step: 'register' | 'fund' | 'plan' | 'office' | 'done';
+  startedMonth: number;
+  registered?: { month: number; fee: number; incorporation: Incorporation };
+  plan?: SetupPlan;
+  decisions: SetupDecision[];
+  office?: SetupOffice;
+  doneMonth?: number;
+}
+
+/** What a banker reads on a startup loan application (a snapshot of the plan when sent). */
+export interface StartupApplication {
+  plan: SetupPlan;
+  /** The founder's own money in the company when the application was sent. */
+  ownMoney: number;
+  creditScore: number;
+  defaults: number;
+  /** City lenders that approved too (names). */
+  alsoApproved: string[];
+  declineReason?: string;
 }

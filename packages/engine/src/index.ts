@@ -245,6 +245,9 @@ export { RIVALS } from './rivals.js';
 export type { RescuePlan, RescueOption } from './rescue.js';
 export { BANK_TYPES, MIN_CAPITAL_RATIO, RESERVE_RATIO } from './banks.js';
 export { INCORPORATION } from './world.js';
+// Founder setup: register, fund, plan and office, one step at a time.
+export { SETUP, planScore, setupPlanChecks } from './setup.js';
+export type { SetupPlanBase, OfficeOption } from './setup.js';
 export * from './data/markets.js';
 export * from './data/industries.js';
 export * from './data/characters.js';

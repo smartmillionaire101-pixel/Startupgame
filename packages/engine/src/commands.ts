@@ -55,6 +55,27 @@ export const companySetup = z.object({
   ideaId: z.string().max(32).optional(),
 });
 
+/** Founder setup: the business plan lenders and banks read (money in minor units). */
+const setupPlan = z.object({
+  sell: z.string().min(3).max(160),
+  segment: z.string().min(1).max(40),
+  price: money,
+  costToServe: money,
+  monthlyCosts: money,
+  customersMonth6: z.number().int().min(0).max(1_000_000),
+  ask: money,
+  months: z.number().int().min(1).max(60),
+});
+
+/** Founder setup: why a banker declined a startup loan. */
+export const DECLINE_REASONS = [
+  'no-customers',
+  'repayment',
+  'thin-plan',
+  'credit',
+  'capital',
+] as const;
+
 export const investorSetup = z.object({
   sectors: z.array(industry).min(1).max(INDUSTRIES.length),
   stages: z.array(z.enum(STAGES)).min(1).max(STAGES.length),
@@ -207,6 +228,18 @@ export const commandSchema = z.discriminatedUnion('type', [
     personalGuarantee: z.boolean(),
   }),
   z.object({ type: z.literal('company.found'), company: companySetup }),
+  /**
+   * Founder setup (setup.ts): register (company type and fee), file the
+   * business plan, move on to the office (or back to funding), lease one.
+   */
+  z.object({
+    type: z.literal('company.setup'),
+    companyId: id,
+    action: z.enum(['register', 'plan', 'next', 'back', 'office']),
+    incorporation: z.enum(['local', 'uk', 'us']).optional(),
+    plan: setupPlan.optional(),
+    officeId: z.enum(['home', 'cowork', 'small', 'shop', 'serviced']).optional(),
+  }),
   // ---- rescue plan (Wave 1)
   z.object({
     type: z.literal('company.cutCosts'),
@@ -254,8 +287,13 @@ export const commandSchema = z.discriminatedUnion('type', [
         price: money.optional(),
         equityBps: z.number().int().min(100).max(5000).optional(),
         months: z.number().int().min(3).max(60).optional(),
+        /** Founder setup: a banker's counter on a startup loan (rate and guarantee). */
+        rateBps: z.number().int().min(0).max(20_000).optional(),
+        personalGuarantee: z.boolean().optional(),
       })
       .optional(),
+    /** Founder setup: why a banker declined a startup loan application. */
+    reason: z.enum(DECLINE_REASONS).optional(),
   }),
   // ---- investor
   z.object({

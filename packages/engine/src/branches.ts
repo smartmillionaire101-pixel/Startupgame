@@ -56,6 +56,9 @@ const openBranches = (world: World, companyId: Id) =>
 
 /** Where a company's head office is: stored, or a stable district from its id (scattered). */
 export function companyDistrict(c: Company): string {
+  // Founder setup: a leased office is the head office.
+  const office = c.setup?.office;
+  if (office && office.id !== 'home') return office.district;
   return stableDistrict(c.market, 'company', c.id) ?? CITY_DISTRICTS[c.market]?.[0] ?? 'centre';
 }
 

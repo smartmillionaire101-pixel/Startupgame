@@ -197,6 +197,28 @@ function StepBody({ step, onCafe }: { step: TutorialStep; onCafe: () => void }) 
         </>
       );
     case 'sale':
+      // Founder setup: meetings and demos cost the company money, so fund it first.
+      if (c?.setup && c.setup.step !== 'done' && c.cash <= 0)
+        return (
+          <>
+            <h2 id="coach-title" className="coach-title">
+              {t('Fund your company')}
+            </h2>
+            <p id="coach-text" className="coach-text" data-coach-unfunded="">
+              {t(
+                'Before the first customer: register {company} and put money in. Sales meetings and demos are paid from the business account.',
+                { company: c.name },
+              )}
+            </p>
+            <Button
+              size="sm"
+              data-coach-action
+              onClick={() => nav?.go({ kind: 'tab', tab: 'company' })}
+            >
+              {t('Open Company')}
+            </Button>
+          </>
+        );
       return (
         <>
           <h2 id="coach-title" className="coach-title">
@@ -287,7 +309,15 @@ function StepBody({ step, onCafe }: { step: TutorialStep; onCafe: () => void }) 
               </div>
             </>
           )}
-          {!c && (
+          {/* Founder setup: a company not yet funded has nothing to pay a cost with. */}
+          {c && costs && c.setup && c.cash < Math.min(...Object.values(costs)) && (
+            <p className="small" data-coach-unfunded="">
+              {t('{company} has no money in it yet: register and fund it on the Company screen.', {
+                company: c.name,
+              })}
+            </p>
+          )}
+          {(!c || (c.setup && costs && c.cash < Math.min(...Object.values(costs)))) && (
             <Button size="sm" onClick={() => setTutorial(id, { step: 'end' })}>
               {t('Next')}
             </Button>

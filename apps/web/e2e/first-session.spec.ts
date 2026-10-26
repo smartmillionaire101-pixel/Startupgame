@@ -94,8 +94,25 @@ test('a new founder is guided from the flat to a first sale and the next objecti
   await cafe.getByRole('button', { name: `Start ${company}` }).click();
   await expect(cafe).toBeHidden();
 
-  // (c) The first customer, with coaching at each step.
+  // (c) Founder setup first: the café reserved the name; register and put money in
+  // (meetings and demos are paid from the business account).
   await expect(card).toHaveAttribute('data-tutorial-step', 'sale');
+  await expect(card.locator('[data-coach-unfunded]')).toBeVisible();
+  await card.getByRole('button', { name: 'Open Company' }).click();
+  const register = page.getByRole('button', { name: /^Register / });
+  await register.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await register.click();
+  const slider = page.getByLabel('Your own money');
+  // A value on the slider's steps (the browser snaps anything else).
+  const grid = Number(await slider.getAttribute('step'));
+  await slider.fill(String(Math.round(Number(await slider.getAttribute('max')) / 3 / grid) * grid));
+  const put = page.getByRole('button', { name: /^Put / });
+  await put.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await put.click();
+  await expect(page.locator('[data-own-in]')).toBeVisible();
+
+  // The first customer, with coaching at each step.
+  await expect(card.locator('[data-coach-unfunded]')).toHaveCount(0);
   await card.getByRole('button', { name: 'Open Sales' }).click();
   await expect(phone.locator('[data-phone-app="sales"]')).toBeVisible();
   const sales = phone.locator('[data-sales]');
@@ -169,7 +186,15 @@ test('a new founder is guided from the flat to a first sale and the next objecti
   const business = card.locator('[data-account-kind="business"] strong');
   const before = await business.textContent();
   await shot(page, 'payment');
-  await card.locator('[data-expense="cards"]').click();
+  // Founder setup: the café only reserves the name, so the business account holds just what
+  // customers paid. Without a sale there is nothing to pay a cost with yet: the coach moves on.
+  const cards = card.locator('[data-expense="cards"]');
+  const expensed = await cards.isEnabled();
+  if (expensed) await cards.click();
+  else {
+    await expect(card.locator('[data-coach-unfunded]')).toBeVisible();
+    await card.getByRole('button', { name: 'Next' }).click();
+  }
 
   // (e) What's next: the three objectives.
   await expect(card).toHaveAttribute('data-tutorial-step', 'end');
@@ -184,7 +209,9 @@ test('a new founder is guided from the flat to a first sale and the next objecti
   const c = state.view.companies[0];
   expect(c.starterIdea.id).toBe('tutor-match');
   expect(c.industry).toBe('edtech');
-  expect(c.expenses).toHaveLength(1);
+  expect(c.expenses ?? []).toHaveLength(expensed ? 1 : 0);
+  // The company is set up step by step on the Company screen.
+  expect(c.setup.step).toBe('fund');
   if (won) expect(c.starterIdea.paid.amount).toBeGreaterThan(0);
   expect(before).toBeTruthy();
   await card.getByRole('button', { name: 'Finish tutorial' }).click();

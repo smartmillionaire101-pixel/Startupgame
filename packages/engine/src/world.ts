@@ -46,6 +46,7 @@ import { newId } from './ids.js';
 import { forgetOwners, keepStatement, openAccount, transfer } from './ledger.js';
 import { major, scale } from './money.js';
 import { checkName, normaliseName, reservedAiNames } from './names.js';
+import { newSetup } from './setup.js';
 import { localDate } from './clock.js';
 import { deriveRng } from './rng.js';
 import type { Rng } from './rng.js';
@@ -267,6 +268,11 @@ export interface NewCompanyInput {
   ai?: boolean;
   /** Founder Journey 6: a starting idea (data/ideas.ts); sets industry and model. */
   ideaId?: string;
+  /**
+   * Founder setup (setup.ts): only the name is reserved; registration, the
+   * founder's capital, loans and the office come step by step afterwards.
+   */
+  setup?: boolean;
 }
 
 /** Incorporation costs (one-off, multiples of cost of living) and investor appeal. */
@@ -353,6 +359,11 @@ export function createCompany(world: World, input: NewCompanyInput): Company {
   world.companies[id] = company;
   world.names[m.id]![check.normalised] = id;
   founder.companyIds.push(id);
+  // Founder setup: no money moves until the founder registers and funds it.
+  if (input.setup) {
+    company.setup = newSetup(m.month);
+    return company;
+  }
   // Founder seeds the company with a little personal money for incorporation.
   const incCost = scale(col(m), INCORPORATION[input.incorporation].costCol);
   const personal = world.accounts[founder.accounts.local]!;

@@ -79,7 +79,10 @@ export default function IdeaScene({ onClose }: { onClose: () => void }) {
           ideaId: pick.id,
         },
       },
-      t('{name} is open for business.', { name: name.trim() }),
+      // Founder setup: the café picks the idea and the name; registering and funding follow.
+      view.setupOn
+        ? t('{name}: the name is yours. Next, register it.', { name: name.trim() })
+        : t('{name} is open for business.', { name: name.trim() }),
     );
     if (r) onClose();
   };

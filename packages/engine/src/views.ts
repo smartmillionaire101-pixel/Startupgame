@@ -1,3 +1,4 @@
+import { applicationView, inSetup, setupView } from './setup.js';
 import { careerView } from './career.js';
 import { bankerView } from './bankers.js';
 import { exchangeView } from './exchange.js';
@@ -390,6 +391,8 @@ function dealView(world: World, d: DealCard, viewerId: Id) {
     counterpartyName: name(d.counterparty) ?? '',
     yourTurn: d.status === 'open' && mine(d.awaiting),
     youProposed: mine(d.proposer),
+    /** Founder setup: a startup loan application's plan and the bank-side checks. */
+    application: applicationView(world, d),
     waterfall:
       d.terms.kind === 'acquisition' && c
         ? waterfall(c.capTable, d.terms.price).map((l) => ({
@@ -970,6 +973,8 @@ export function playerView(
       ...t,
       monthlyCost: Math.round(m.data.costOfLiving * 100 * t.costCol),
     })),
+    /** Founder setup (feedback note): a company started now is set up step by step. */
+    setupOn: feedbackOn(world),
     companies: myCompanies.map((c) => {
       const plan = c.status === 'active' ? rescuePlan(world, c, playerId) : null;
       return {
@@ -984,7 +989,10 @@ export function playerView(
          * part of it), what came in last month, and how much the company is
          * short if revenue repeats (0 when it can pay).
          */
-        nextMonth: c.status === 'active' ? nextMonthOf(world, c) : null,
+        // Founder setup: nothing is due before the office is chosen, so no payday yet.
+        nextMonth: c.status === 'active' && !inSetup(c) ? nextMonthOf(world, c) : null,
+        /** Founder setup (feedback note): the tracker's steps, money, plan, answers and offices. */
+        setup: c.status === 'active' ? setupView(world, c, p) : null,
         hibernating: !!c.hibernation,
         officeDownsized: !!c.officeDownsized,
         /** Local businesses buying from this company (Wave 3), with last month's amount. */
