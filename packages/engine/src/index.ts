@@ -470,7 +470,7 @@ export {
   interviewsView,
   meet as meetInterviewee,
   type InterviewsView,
-} from './interviews.js';
+} from './customer-interviews.js';
 export {
   FOUNDER_GUIDE,
   FOUNDER_STAGES,

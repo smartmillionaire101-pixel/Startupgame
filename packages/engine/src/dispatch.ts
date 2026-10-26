@@ -70,7 +70,7 @@ import {
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { advanceDeal, dropDeal, prospect } from './sales.js';
 import { salesTalk } from './salestalk.js';
-import { askInterview, leaveInterview, startInterview } from './interviews.js';
+import { askInterview, leaveInterview, startInterview } from './customer-interviews.js';
 import { chooseDecision } from './decisions.js';
 import {
   acceptSecondary,

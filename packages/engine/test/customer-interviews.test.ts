@@ -5,8 +5,8 @@
  * understanding scaled by it. Feedback-note worlds only.
  */
 import { describe, expect, it } from 'vitest';
-import { INTERVIEW, interviewsView, meet } from '../src/interviews.js';
-import { QUESTION_SCORE, SEGMENT_INTERVIEWS } from '../src/data/interviews.js';
+import { INTERVIEW, interviewsView, meet } from '../src/customer-interviews.js';
+import { QUESTION_SCORE, SEGMENT_INTERVIEWS } from '../src/data/customer-interviews.js';
 import { SEGMENT_TEMPLATES } from '../src/data/industries.js';
 import { founderGuide } from '../src/founderguide.js';
 import { FEEDBACK_NOTE } from '../src/releases.js';

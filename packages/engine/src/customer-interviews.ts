@@ -37,7 +37,7 @@ import {
   type NoteKey,
   type QuestionKind,
   type SegmentInterview,
-} from './data/interviews.js';
+} from './data/customer-interviews.js';
 import { ensure, fail } from './errors.js';
 import { col, getMarket, ownCompany, spendHours } from './helpers.js';
 import { account, transfer } from './ledger.js';

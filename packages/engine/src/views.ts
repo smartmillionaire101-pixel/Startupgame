@@ -29,7 +29,7 @@ import { decisionsView } from './decisions.js';
 import { rivalsView } from './rivals.js';
 import { roadmapView } from './roadmap.js';
 import { salesWithTalk } from './salestalk.js';
-import { interviewsView } from './interviews.js';
+import { interviewsView } from './customer-interviews.js';
 import { founderGuide, founderPlanBase } from './founderguide.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';

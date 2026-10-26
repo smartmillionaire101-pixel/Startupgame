@@ -48,11 +48,11 @@ import {
   type Line,
   type PriceBand,
   type TermsKind,
-} from './data/interviews.js';
+} from './data/customer-interviews.js';
 import { getBusiness, isOpen, pitchBlocker } from './economy.js';
 import { ensure, fail } from './errors.js';
 import { getMarket, ownCompany, spendHours } from './helpers.js';
-import { interviewHints } from './interviews.js';
+import { interviewHints } from './customer-interviews.js';
 import { clamp } from './math.js';
 import { formatMoney } from './money.js';
 import { deriveRng } from './rng.js';
