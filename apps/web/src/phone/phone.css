@@ -208,6 +208,8 @@ body:has(.app-city) .phone-fab {
 .phone-screen {
   flex: 1;
   overflow-y: auto;
+  /* Long words and amounts wrap rather than push the app sideways. */
+  overflow-wrap: break-word;
   overscroll-behavior: contain;
   padding: 0.8rem 0.85rem calc(1rem + env(safe-area-inset-bottom));
   display: flex;
@@ -454,13 +456,21 @@ body:has(.app-city) .phone-fab {
 }
 .phone-stack {
   display: grid;
+  /* One column the phone's width: a wide child (a row of chips) scrolls or wraps
+     inside it instead of stretching the app sideways. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.65rem;
+}
+.phone-stack > * {
+  min-width: 0;
 }
 .phone-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
+  /* One column the phone's width (a long line ellipsises instead of widening it). */
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.4rem;
 }
 .phone-row {

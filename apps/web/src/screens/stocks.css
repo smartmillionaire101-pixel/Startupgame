@@ -2,8 +2,22 @@
 .chips.stock-chips {
   flex-wrap: nowrap;
   overflow-x: auto;
+  /* Scrolls inside its card: never wider than it, whatever holds it. */
+  min-width: 0;
+  max-width: 100%;
   padding-bottom: 2px;
+  padding-inline-end: 1.5rem;
   scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  /* A subtle fade at the right edge says there are more cities. */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+}
+/* Each city on one line ("San Francisco"), Simple mode too. */
+.chips.stock-chips .chip,
+html[data-simple] .chips.stock-chips .chip {
+  flex: none;
+  white-space: nowrap;
 }
 .stock-chips::-webkit-scrollbar {
   display: none;

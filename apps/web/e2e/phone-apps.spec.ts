@@ -129,6 +129,70 @@ test('Chop: order food and money goes down', async ({ page }) => {
   await expect.poll(async () => (await state(page)).accounts.local.balance).toBeLessThan(before);
 });
 
+/** Nothing in the app is wider than the phone: no dragging the page or the app sideways. */
+async function fitsTheWidth(page: Page, what: string) {
+  const w = await page.evaluate(() => {
+    const doc = document.documentElement;
+    const screen = document.querySelector('.phone-screen');
+    return {
+      doc: doc.scrollWidth - doc.clientWidth,
+      phone: screen ? screen.scrollWidth - screen.clientWidth : 0,
+    };
+  });
+  expect(w, what).toEqual({ doc: 0, phone: 0 });
+}
+
+for (const simple of [false, true])
+  test(`every phone app fits a 412 px phone${simple ? ' (Simple mode)' : ''}: nothing pushes it sideways`, async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    if (simple)
+      await page.addInitScript(() => {
+        try {
+          localStorage.setItem('runway.simple', '1');
+        } catch {
+          /* storage blocked */
+        }
+      });
+    await founder(page);
+    await page.getByRole('button', { name: /^Phone/ }).click();
+    const phone = page.getByRole('dialog', { name: 'Phone' });
+    const apps = await phone
+      .locator('[data-app]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('data-app')!));
+    expect(apps.length).toBeGreaterThan(10);
+    const home = phone.locator('[data-phone-app="home"]');
+    for (const app of apps) {
+      // Home first (an app's own screens can be a few levels deep).
+      for (let i = 0; i < 4 && !(await home.isVisible()); i++)
+        await phone.locator('.phone-bar .phone-back').click();
+      await phone.locator(`[data-app="${app}"]`).click();
+      await expect(phone.locator(`[data-phone-app="${app}"]`)).toBeVisible();
+      await page.waitForTimeout(250);
+      await fitsTheWidth(page, app);
+    }
+    for (let i = 0; i < 4 && !(await home.isVisible()); i++)
+      await phone.locator('.phone-bar .phone-back').click();
+    // Capital → Markets: the row of cities scrolls inside its card, each city on one line.
+    await openApp(page, 'capital');
+    await phone.getByRole('radio', { name: 'Markets' }).click();
+    const chips = phone.getByRole('radiogroup', { name: 'Stock exchanges' });
+    await expect(chips).toBeVisible();
+    const last = chips.getByRole('radio').last();
+    await last.scrollIntoViewIfNeeded();
+    await last.click();
+    await expect(last).toHaveAttribute('aria-checked', 'true');
+    const sizes = await chips.evaluate((el) => ({
+      tall: Math.max(...[...el.children].map((c) => c.getBoundingClientRect().height)),
+      short: Math.min(...[...el.children].map((c) => c.getBoundingClientRect().height)),
+    }));
+    // One line each: every chip the same height ("San Francisco" doesn't wrap).
+    expect(sizes.tall).toBe(sizes.short);
+    await fitsTheWidth(page, 'capital markets, last city');
+  });
+
 test('screenshots of the phone (PHONE_SHOTS)', async ({ page }) => {
   const dir = process.env.PHONE_SHOTS;
   test.skip(!dir, 'Set PHONE_SHOTS to save screenshots.');
