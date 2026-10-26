@@ -21,7 +21,7 @@ function dry(on: boolean): World {
   }).world;
   return produce(w0, (d) => {
     for (const c of Object.values(d.companies))
-      if (c.ai && (c.industry === 'fintech' || c.industry === 'saas')) c.status = 'dead';
+      if (c.ai && (c.industry === 'fintech' || c.industry === 'saas')) c.status = 'shutdown';
   });
 }
 
