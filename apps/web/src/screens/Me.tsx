@@ -904,6 +904,7 @@ export function FoundCompany({ serial, setup }: { serial?: boolean; setup?: bool
       <Button
         disabled={!check?.ok || idea.trim().length < 5 || !industry}
         onClick={() =>
+          industry &&
           void send(
             {
               type: serial ? 'company.start' : 'company.found',
