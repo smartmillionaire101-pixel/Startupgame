@@ -80,6 +80,10 @@ test('play three holes at the golf course: the scorecard, and the green fee is p
   await expect(scene.locator('[data-golf-intro]')).toContainText('Par');
   await scene.locator('[data-action="golf-start"]').click();
   await expect(scene).toHaveAttribute('data-golf-stage', 'play');
+  // The course fills the screen; the clubs, the meter and the swing button sit over it.
+  await expect(scene).toHaveClass(/is-play/);
+  await expect(scene.locator('.golf-view .golf-tray .golf-clubs')).toBeVisible();
+  await expect(scene.locator('.golf-view .golf-meter [data-golf-need]')).toBeAttached();
   await playRound(page);
   const card = scene.locator('[data-golf-scorecard]');
   await expect(card).toBeVisible();

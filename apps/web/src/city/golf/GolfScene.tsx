@@ -40,13 +40,24 @@ import { clearGolfFriend, pickedGolfFriend } from './invite-bus';
 import { activeMatch } from './match';
 import { SnapButton } from '../../photos/SnapButton';
 import { resultCard } from '../../photos/snap';
-import { LIE_WORD, MiniMap, PowerBar, Mark, powerAt, reachOf, signed, vsParText } from './parts';
+import {
+  ClubColumn,
+  LIE_WORD,
+  MiniMap,
+  Mark,
+  PowerMeter,
+  PowerRead,
+  ShotControls,
+  paintPower,
+  powerAt,
+  reachOf,
+  signed,
+  vsParText,
+} from './parts';
 import type { CamMode, GolfFrame } from './frame';
 import {
   CLUBS,
-  LIE_CARRY,
   MAX_STROKES,
-  POWER_MAX,
   PUTTER,
   clubFor,
   defaultAim,
@@ -55,7 +66,6 @@ import {
   hit,
   holeGeo,
   partnerCard,
-  powerZone,
   rollAt,
   roundStats,
   scoreName,
@@ -288,30 +298,7 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
         bump();
       } else if (p.phase === 'charging') {
         const power = powerAt(e, p.club === PUTTER);
-        const zone = powerZone(power);
-        const n = Math.round(power);
-        if (meterRef.current) {
-          meterRef.current.style.setProperty('--power', `${(power / POWER_MAX) * 100}%`);
-          meterRef.current.dataset.power = String(n);
-          meterRef.current.dataset.zone = zone;
-        }
-        const read = readRef.current;
-        if (read && read.dataset.power !== String(n)) {
-          read.dataset.power = String(n);
-          read.dataset.zone = zone;
-          read.firstElementChild!.textContent =
-            zone === 'sweet'
-              ? t('{n}% · Sweet!', { n })
-              : zone === 'lunge'
-                ? t('{n}% · Lunge!', { n })
-                : t('{n}%', { n });
-          read.lastElementChild!.textContent =
-            zone === 'sweet'
-              ? t('Let go now')
-              : zone === 'lunge'
-                ? t('Too much: it’ll fly wild')
-                : t('Keep holding…');
-        }
+        paintPower(meterRef.current, readRef.current, power);
         if (carryRef.current)
           carryRef.current.textContent =
             p.club === PUTTER
@@ -575,14 +562,14 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geos, partners, sp]);
 
-  // The chip for the club in your hand stays in sight (a suggested club can be off to the side).
+  // The club in your hand stays in sight (on a short phone the column scrolls).
   useEffect(() => {
     const on = clubsRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
-    const row = clubsRef.current;
-    if (!on || !row) return;
-    const x = on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2;
-    if (typeof row.scrollTo === 'function')
-      row.scrollTo({ left: x, behavior: fast ? 'auto' : 'smooth' });
+    const col = clubsRef.current;
+    if (!on || !col || col.scrollHeight <= col.clientHeight) return;
+    const y = on.offsetTop - (col.clientHeight - on.offsetHeight) / 2;
+    if (typeof col.scrollTo === 'function')
+      col.scrollTo({ top: y, behavior: fast ? 'auto' : 'smooth' });
   }, [play.club.id, play.hole, stage, fast]);
 
   const p = play;
@@ -615,7 +602,7 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
 
   return (
     <div
-      className="place-scene golf-scene"
+      className={`place-scene golf-scene${stage === 'play' ? ' is-play' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label={props.title}
@@ -672,8 +659,10 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
                 <span className="golf-kicker">
                   {t('Hole {n}/{of}', { n: p.hole + 1, of: geos.length })}
                 </span>
-                <b className="golf-par">{t('Par {par}', { par: g.par })}</b>
-                <span className="golf-len">{t('{m} m', { m: g.length })}</span>
+                <b className="golf-par">
+                  {t('Par {par}', { par: g.par })}
+                  <span className="golf-len"> · {t('{m} m', { m: g.length })}</span>
+                </b>
                 <span
                   className="golf-dots"
                   role="img"
@@ -715,6 +704,73 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
                 next={clubFor(left, p.lie)}
               />
             )}
+            <div className="golf-tray" role="group" aria-label={t('Your shot')}>
+              <ClubColumn
+                columnRef={clubsRef}
+                pool={pool}
+                club={p.club}
+                lie={p.lie}
+                disabled={p.phase !== 'address' || putting}
+                onPick={pickClub}
+              />
+              <ShotControls
+                canAim={p.phase === 'address'}
+                onAim={nudge}
+                meter={
+                  <PowerMeter key={`${p.hole}:${p.strokes}`} meterRef={meterRef} need={need} />
+                }
+                swing={{
+                  disabled: p.phase !== 'address' && p.phase !== 'charging',
+                  label: charging
+                    ? t('Let go to hit')
+                    : putting
+                      ? t('Hold to putt')
+                      : t('Hold to swing'),
+                  big: charging ? t('Let go') : t('Hold'),
+                  small: charging ? t('to hit') : putting ? t('to putt') : t('to swing'),
+                  onDown: startSwing,
+                  onUp: release,
+                  onCancel: abort,
+                }}
+                mid={
+                  charging ? (
+                    <>
+                      <PowerRead readRef={readRef} />
+                      <span className="golf-carry" ref={carryRef} />
+                    </>
+                  ) : (
+                    <>
+                      <b className="golf-mid-club">
+                        {putting
+                          ? t('Putter · {m} m', { m: Math.max(0, Math.round(left * 10) / 10) })
+                          : t('{club} · {m} m', {
+                              club: tx(p.club.label),
+                              m: Math.round(reachOf(p)),
+                            })}
+                      </b>
+                      <span data-golf-aim={aimDeg}>
+                        {aimDeg === 0
+                          ? putting
+                            ? t('Aim ◀ ▶ · hold to putt')
+                            : t('Aim ◀ ▶ · hold to swing')
+                          : aimDeg > 0
+                            ? t('Aim {n}° right', { n: aimDeg })
+                            : t('Aim {n}° left', { n: -aimDeg })}
+                      </span>
+                      <button
+                        type="button"
+                        className="golf-pickup"
+                        data-action="golf-pickup"
+                        disabled={p.phase !== 'address' || p.strokes === 0}
+                        onClick={pickUp}
+                      >
+                        {t('Pick up')} ›
+                      </button>
+                    </>
+                  )
+                }
+              />
+            </div>
           </>
         )}
         {banner && (
@@ -819,109 +875,6 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
           />
         )}
       </div>
-      {stage === 'play' && (
-        <div className="golf-tray" role="group" aria-label={t('Your shot')}>
-          <div className="golf-clubs" ref={clubsRef} role="group" aria-label={t('Clubs')}>
-            {pool.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                className="golf-club"
-                data-action="golf-club"
-                data-club={c.id}
-                aria-pressed={c.id === p.club.id}
-                disabled={p.phase !== 'address' || putting}
-                onClick={() => pickClub(c)}
-              >
-                <b>{tx(c.label)}</b>
-                <span>
-                  {c === PUTTER
-                    ? t('On the green')
-                    : t('{m} m', { m: Math.round(c.carry * LIE_CARRY[p.lie]) })}
-                </span>
-              </button>
-            ))}
-          </div>
-          <PowerBar
-            meterRef={meterRef}
-            readRef={readRef}
-            charging={charging}
-            need={need}
-            hint={t('Let go in the green')}
-          />
-          <div className="golf-swingrow">
-            <button
-              type="button"
-              className="golf-aim"
-              aria-label={t('Aim left')}
-              data-action="golf-left"
-              disabled={p.phase !== 'address'}
-              onClick={() => nudge(-1)}
-            >
-              <span aria-hidden="true">◀</span>
-              <small>{t('Aim')}</small>
-            </button>
-            <div className="golf-swing-wrap">
-              <button
-                type="button"
-                className="golf-swing"
-                data-action="golf-swing"
-                aria-label={
-                  charging ? t('Let go to hit') : putting ? t('Hold to putt') : t('Hold to swing')
-                }
-                disabled={p.phase !== 'address' && p.phase !== 'charging'}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-                  startSwing();
-                }}
-                onPointerUp={release}
-                onPointerCancel={abort}
-                onContextMenu={(e) => e.preventDefault()}
-              >
-                <b>{charging ? t('Let go') : t('Hold')}</b>
-                <small>{charging ? t('to hit') : putting ? t('to putt') : t('to swing')}</small>
-              </button>
-            </div>
-            <button
-              type="button"
-              className="golf-aim"
-              aria-label={t('Aim right')}
-              data-action="golf-right"
-              disabled={p.phase !== 'address'}
-              onClick={() => nudge(1)}
-            >
-              <span aria-hidden="true">▶</span>
-              <small>{t('Aim')}</small>
-            </button>
-          </div>
-          <div className="golf-sub">
-            {charging ? (
-              <span ref={carryRef} />
-            ) : (
-              <span data-golf-aim={aimDeg}>
-                {aimDeg === 0
-                  ? t('Aim: straight at it')
-                  : aimDeg > 0
-                    ? t('Aim {n}° right', { n: aimDeg })
-                    : t('Aim {n}° left', { n: -aimDeg })}
-              </span>
-            )}
-            <span className="golf-sweet-note">
-              {charging ? t('Over 100 % is a lunge') : t('Sweet spot 80–100 %')}
-            </span>
-            <button
-              type="button"
-              className="golf-pickup"
-              data-action="golf-pickup"
-              disabled={p.phase !== 'address' || p.strokes === 0}
-              onClick={pickUp}
-            >
-              {t('Pick up')}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

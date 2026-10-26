@@ -284,3 +284,82 @@ export async function signUp(
   await fillAboutYou(page, opts);
   await page.getByRole('button', { name: /^Play/ }).click();
 }
+
+type Box = { x: number; y: number; width: number; height: number };
+const inBox = (p: { x: number; y: number }, b: Box, pad = 0) =>
+  p.x > b.x - pad && p.x < b.x + b.width + pad && p.y > b.y - pad && p.y < b.y + b.height + pad;
+
+/**
+ * Golf: the controls at the edges leave the course clear (player feedback:
+ * the tray and a centred swing button hid the ball and the aim). Reads where
+ * the drawing put the ball, the aim's end and the flag (`data-golf-ball`…, as
+ * fractions of the canvas) and checks no control sits on them, and that the
+ * swing button and its meter keep out of the strip from the ball to the aim.
+ */
+export async function expectGolfControlsClear(page: Page, what = 'address') {
+  const scene = page.locator('.golf-scene');
+  const canvas = scene.locator('canvas[data-golf-ball]').first();
+  await expect.poll(async () => canvas.getAttribute('data-golf-ball')).toMatch(/^\d/);
+  const c = (await canvas.boundingBox())!;
+  const spot = async (attr: string) => {
+    const v = (await canvas.getAttribute(attr)) ?? '';
+    if (!v) return null;
+    const [fx, fy] = v.split(',').map(Number) as [number, number];
+    return { x: c.x + fx * c.width, y: c.y + fy * c.height };
+  };
+  const ball = (await spot('data-golf-ball'))!;
+  // No aim drawn (a putt in Lite): the aim runs from the ball up the middle.
+  const end = (await spot('data-golf-aim-end')) ?? { x: c.x + c.width / 2, y: c.y + c.height / 2 };
+  const flag = await spot('data-golf-flag');
+  const boxes: [string, Box][] = [];
+  for (const [name, sel] of [
+    ['swing', '[data-action="golf-swing"]'],
+    ['meter', '.golf-meter'],
+    ['aim left', '[data-action="golf-left"]'],
+    ['aim right', '[data-action="golf-right"]'],
+    ['middle', '.golf-mid'],
+    ['club', '.golf-club'],
+  ] as const)
+    for (const b of await scene.locator(sel).all()) {
+      const box = await b.boundingBox();
+      if (box && box.width > 0) boxes.push([name, box]);
+    }
+  expect(boxes.map(([n]) => n)).toEqual(expect.arrayContaining(['swing', 'meter', 'aim left']));
+  const at = (p: { x: number; y: number }) => `${Math.round(p.x)},${Math.round(p.y)}`;
+  for (const [name, b] of boxes) {
+    expect(inBox(ball, b, 10), `${what}: the ${name} control covers the ball at ${at(ball)}`).toBe(
+      false,
+    );
+    if (flag)
+      expect(inBox(flag, b), `${what}: the ${name} control covers the flag at ${at(flag)}`).toBe(
+        false,
+      );
+    // Along the aim line, ball to its end.
+    for (let i = 0; i <= 20; i++) {
+      const p = {
+        x: ball.x + ((end.x - ball.x) * i) / 20,
+        y: ball.y + ((end.y - ball.y) * i) / 20,
+      };
+      expect(inBox(p, b), `${what}: the ${name} control covers the aim line at ${at(p)}`).toBe(
+        false,
+      );
+    }
+  }
+  // The swing button and its meter keep out of the whole strip between the ball and the aim.
+  const zone = {
+    x: Math.min(ball.x, end.x) - 16,
+    y: Math.min(ball.y, end.y) - 16,
+    width: Math.abs(end.x - ball.x) + 32,
+    height: Math.abs(end.y - ball.y) + 32,
+  };
+  for (const [name, b] of boxes.filter(([n]) => n === 'swing' || n === 'meter')) {
+    const overlaps =
+      b.x < zone.x + zone.width &&
+      b.x + b.width > zone.x &&
+      b.y < zone.y + zone.height &&
+      b.y + b.height > zone.y;
+    expect(overlaps, `${what}: the ${name} overlaps the aim area ${JSON.stringify(zone)}`).toBe(
+      false,
+    );
+  }
+}

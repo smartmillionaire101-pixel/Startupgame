@@ -9,7 +9,7 @@
 import { useEffect, useRef, type ReactElement } from 'react';
 import type { AvatarLook } from '../art';
 import { along, dist, lieAt, type Lie } from './game';
-import type { GolfDrawProps, GolfFrame } from './frame';
+import { markScreen, type GolfDrawProps, type GolfFrame } from './frame';
 
 const LIE_COLOUR: Record<Lie, string> = {
   tee: '#86cc52',
@@ -218,7 +218,8 @@ export default function Golf2D(props: GolfDrawProps): ReactElement {
       const wantScale =
         flying || f.putting ? (W * 0.86) / span : Math.min(W / 4.5, (H * 0.4) / 1.9);
       scale = lerp(scale, wantScale, 0.12);
-      const wantCam = flying ? Math.max(0, ballA / 2) : f.putting ? Math.min(pinA, 30) / 2 : 1.2;
+      // At address the golfer stands left of centre, clear of the clubs down the left.
+      const wantCam = flying ? Math.max(0, ballA / 2) : f.putting ? Math.min(pinA, 30) / 2 : 0.8;
       camX = lerp(camX, wantCam, 0.12);
       const gy = H * 0.66;
       const sxOf = (a: number) => W / 2 + (a - camX) * scale;
@@ -327,8 +328,10 @@ export default function Golf2D(props: GolfDrawProps): ReactElement {
       ctx.arc(bx, by, Math.max(3.5, 0.05 * scale), 0, Math.PI * 2);
       ctx.fill();
       // The aim's carry, a marker on the ground.
+      let aimEnd: { x: number; y: number } | null = null;
       if (f.aim && !flying && !f.putting) {
         const ax = sxOf(alongOf(along(f.ball, f.aim.heading, f.aim.carry)));
+        aimEnd = { x: Math.min(W, ax) / W, y: (gy + 6) / H };
         ctx.strokeStyle = '#fde047';
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
@@ -337,6 +340,10 @@ export default function Golf2D(props: GolfDrawProps): ReactElement {
         ctx.stroke();
         ctx.setLineDash([]);
       }
+      // Where the ball, the aim's end and the flag are on screen (tests).
+      markScreen(canvas, 'ball', { x: bx / W, y: by / H });
+      markScreen(canvas, 'aim-end', aimEnd);
+      markScreen(canvas, 'flag', { x: pinX / W, y: (gy - Math.max(30, 2.4 * scale)) / H });
       if (!ready) {
         ready = true;
         live.current.onReady?.();
