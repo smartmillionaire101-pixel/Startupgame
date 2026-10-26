@@ -17,6 +17,7 @@ import { MyLook } from '../avatar/EditLook';
 import { PurchasesButton } from '../avatar/Wardrobe';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
+import { industryFromIdea } from './industryGuess';
 import { LifestyleCard } from './Lifestyle';
 import { FoundBank } from './Bank';
 import { BankInvitations } from './BankLicence';
@@ -787,7 +788,10 @@ export function FoundCompany({ serial, setup }: { serial?: boolean; setup?: bool
   const { view, send, meta } = useView();
   const [name, setName] = useState('');
   const [idea, setIdea] = useState('');
-  const [industry, setIndustry] = useState<Industry>('saas');
+  // No industry until you pick one, or your idea suggests one (it used to
+  // start on Business software, which a health-care idea then kept).
+  const [industry, setIndustry] = useState<Industry | ''>('');
+  const [picked, setPicked] = useState(false);
   const [model, setModel] = useState<RevenueModel>('subscription');
   const [incorporation, setIncorporation] = useState<'local' | 'uk' | 'us'>('local');
   const [check, setCheck] = useState<{ ok: boolean; reason?: string } | null>(null);
@@ -813,17 +817,41 @@ export function FoundCompany({ serial, setup }: { serial?: boolean; setup?: bool
       </Field>
       <Field label={t('Idea in one line')}>
         {(id) => (
-          <input id={id} value={idea} maxLength={120} onChange={(e) => setIdea(e.target.value)} />
+          <input
+            id={id}
+            value={idea}
+            maxLength={120}
+            onChange={(e) => {
+              setIdea(e.target.value);
+              if (!picked) setIndustry(industryFromIdea(e.target.value) ?? '');
+            }}
+          />
         )}
       </Field>
       <div className="grid2">
-        <Field label={t('Industry')}>
+        <Field
+          label={t('Industry')}
+          hint={
+            industry && !picked
+              ? t('Suggested from your idea: change it if it isn’t right.')
+              : !industry
+                ? t('Your customers, interviews and sales follow it.')
+                : undefined
+          }
+        >
           {(id) => (
             <select
               id={id}
               value={industry}
-              onChange={(e) => setIndustry(e.target.value as Industry)}
+              data-industry-pick={industry}
+              onChange={(e) => {
+                setIndustry(e.target.value as Industry | '');
+                setPicked(!!e.target.value);
+              }}
             >
+              <option value="" disabled>
+                {t('Choose your industry')}
+              </option>
               {meta?.industries.map((i) => (
                 <option key={i.id} value={i.id}>
                   {tx(i.label)}
@@ -874,7 +902,7 @@ export function FoundCompany({ serial, setup }: { serial?: boolean; setup?: bool
         </Field>
       )}
       <Button
-        disabled={!check?.ok || idea.trim().length < 5}
+        disabled={!check?.ok || idea.trim().length < 5 || !industry}
         onClick={() =>
           void send(
             {

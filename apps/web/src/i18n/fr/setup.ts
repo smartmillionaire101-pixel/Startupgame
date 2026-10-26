@@ -298,4 +298,10 @@ export const setup: Record<string, string> = {
     'Financez d’abord l’entreprise, puis choisissez un bureau.',
   'Pick one of the offices on offer.': 'Choisissez un des bureaux proposés.',
   'Pick who the plan is for.': 'Choisissez à qui s’adresse le plan.',
+  // The industry picker (Me.tsx FoundCompany).
+  'Choose your industry': 'Choisissez votre secteur',
+  'Suggested from your idea: change it if it isn’t right.':
+    'Suggéré d’après votre idée : changez-le s’il ne convient pas.',
+  'Your customers, interviews and sales follow it.':
+    'Vos clients, vos entretiens et vos ventes en dépendent.',
 };

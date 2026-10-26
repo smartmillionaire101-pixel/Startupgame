@@ -58,8 +58,17 @@ async function reserveName(page: Page, name: string) {
     'current',
   );
   await form.getByLabel('Company name').fill(name);
+  // No industry until there's an idea; then the one it sounds like (player feedback: a
+  // health-care idea was founded as Business software, the old default).
+  const industry = form.getByLabel('Industry', { exact: true });
+  await expect(industry).toHaveValue('');
+  await form.getByLabel('Idea in one line').fill('Health tech providing access to quality care');
+  await expect(industry).toHaveValue('healthtech');
+  await form.getByLabel('Idea in one line').fill('Deliveries and parcel tracking for shops');
+  await expect(industry).toHaveValue('logistics');
   await form.getByLabel('Idea in one line').fill('A phone ledger for market traders');
-  await form.getByLabel('Industry', { exact: true }).selectOption('fintech');
+  await expect(industry).toHaveValue('fintech');
+  await industry.selectOption('fintech');
   // The company type and its fee come at registration, not here.
   await expect(form.getByLabel('Incorporation')).toHaveCount(0);
   const go = form.getByRole('button', { name: 'Reserve the name and continue' });
