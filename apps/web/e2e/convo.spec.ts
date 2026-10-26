@@ -39,10 +39,10 @@ test('a founder interviews a customer, then wins or loses a scored sales convers
   await sheet.getByRole('button', { name: 'Start the interview' }).click();
   await expect(iv).toHaveAttribute('data-interview', 'round', { timeout: 15_000 });
 
-  // Three rounds: four questions each; the answer comes back in character and the notes fill in.
+  // Three rounds: three questions each; the answer comes back in character and the notes fill in.
   for (let round = 0; round < 3; round++) {
     const options = sheet.locator('button[data-question]');
-    await expect(options).toHaveCount(4);
+    await expect(options).toHaveCount(3);
     // Ask the open question about a real past event where there is one (its id says so).
     const ids = await options.evaluateAll((els) =>
       els.map((e) => e.getAttribute('data-question')!),
@@ -54,7 +54,7 @@ test('a founder interviews a customer, then wins or loses a scored sales convers
         timeout: 15_000,
       });
       // Once asked, the round shows what kind each question was.
-      await expect(sheet.locator(`[data-round-review="${round}"] [data-kind]`)).toHaveCount(4);
+      await expect(sheet.locator(`[data-round-review="${round}"] [data-kind]`)).toHaveCount(3);
       await expect(sheet.locator('[data-answer]')).toBeVisible();
       if (round === 0) {
         await expect(sheet.locator('[data-note="pain"] dd')).not.toHaveText('not yet asked…');
@@ -122,3 +122,75 @@ test('a founder interviews a customer, then wins or loses a scored sales convers
       sales.getByRole('list', { name: 'Customers from your pipeline' }).locator('[data-account]'),
     ).toHaveCount(1);
 });
+
+/**
+ * Player feedback: "when I select health tech it just give me the same
+ * questions… If I select a health tech my client base needs have to be
+ * different same if I select logistics". A health-tech founder is asked about
+ * patients and clinics, a logistics founder about deliveries and drivers, and
+ * neither hears a payments question. CONVO_SHOTS saves round 2 of each.
+ */
+for (const { industry, idea, own } of [
+  {
+    industry: 'healthtech',
+    idea: 'Health tech providing access to quality care',
+    own: /doctor|clinic|patient|care|health/i,
+  },
+  {
+    industry: 'logistics',
+    idea: 'Same-day deliveries for shops',
+    own: /deliver|parcel|courier|driver|pickup/i,
+  },
+])
+  test(`a ${industry} founder's interview asks about ${industry}`, async ({ page }) => {
+    await playAsGuest(page);
+    const handle = `iv_${letters(8)}`;
+    await setupFounder(page, {
+      name: 'Ada Mmna',
+      handle,
+      company: `Mmna ${handle.slice(3)}`,
+      idea,
+      industry,
+    });
+    await page.getByRole('button', { name: /Places/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Places' })
+      .locator('[data-kind="stall"]')
+      .first()
+      .click();
+    await expect(page.getByRole('dialog').first()).toHaveAttribute('data-room', 'market', {
+      timeout: 10_000,
+    });
+    await page.locator('.tray-card[data-action="interview"]').click();
+    const sheet = page.getByRole('dialog', { name: /^Customer interview/ });
+    await sheet.getByRole('button', { name: 'Start the interview' }).click();
+    const options = sheet.locator('button[data-question]');
+    await expect(options).toHaveCount(3, { timeout: 15_000 });
+    const fintech = /\b(payments?|payouts?|transfers?|owes?|ledger|loans?|bank)\b/i;
+    const asked: string[] = [];
+    for (let round = 0; round < 2; round++) {
+      const texts = await options.allTextContents();
+      asked.push(...texts);
+      for (const q of texts) expect(q, `round ${round + 1}`).not.toMatch(fintech);
+      const ids = await options.evaluateAll((els) =>
+        els.map((e) => e.getAttribute('data-question')!),
+      );
+      await sheet
+        .locator(`button[data-question="${ids.find((id) => id.includes('.best.'))}"]`)
+        .click();
+      await expect(sheet.locator(`[data-round-review="${round}"]`)).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(sheet.locator('[data-answer]').last()).not.toHaveText(fintech);
+      await sheet.getByRole('button', { name: `Round ${round + 2}` }).click();
+      if (round === 0) {
+        await expect(options).toHaveCount(3);
+        await options.last().scrollIntoViewIfNeeded();
+        if (process.env.CONVO_SHOTS)
+          await page.screenshot({
+            path: `${process.env.CONVO_SHOTS}/interview-${industry}-round2.png`,
+          });
+      }
+    }
+    expect(asked.join(' ')).toMatch(own);
+  });

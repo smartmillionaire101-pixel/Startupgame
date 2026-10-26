@@ -6,9 +6,12 @@
  *
  * A founder meets one person from a segment of their industry, in their city:
  * a name, a portrait, their business and where it is (data/interviews.ts).
- * Three rounds: each offers four questions (the best one, open and about a
- * real past event, among broad, yes/no, leading and too-early ones), the
- * interviewee answers in character, and a good answer fills a line of notes:
+ * Three rounds: each offers three questions (the best one, open and about a
+ * real past event, and two of broad, yes/no, leading and too-early ones, in
+ * the industry's words: a clinic is asked about patients and waiting rooms, a
+ * courier about drivers and parcels; player feedback: "when I select health
+ * tech it just give me the same questions"), the interviewee answers in
+ * character, and a good answer fills a line of notes:
  * Pain, Pays now, Would switch if. The summary scores the interview 0–100
  * (each question ✓ / ≈ / ✗ with why, the best question when you missed it,
  * and the question to ask next time) and the score feeds the company's
@@ -25,19 +28,19 @@
 import { CITY_NAME_PARTS } from './data/business-names.js';
 import {
   INTERVIEW_GRADES,
-  QUESTIONS,
   QUESTION_KINDS,
   QUESTION_SCORE,
   QUESTION_WHY,
   ROUND_NOTE,
   SEGMENT_INTERVIEWS,
-  WEAK_ANSWERS,
   WEAK_NOTES,
   type Line,
   type NoteKey,
   type QuestionKind,
   type SegmentInterview,
 } from './data/customer-interviews.js';
+import type { Industry } from './data/industries.js';
+import { INDUSTRY_INTERVIEWS, type IndustryInterview } from './data/interview-industries.js';
 import { ensure, fail } from './errors.js';
 import { col, getMarket, ownCompany, spendHours } from './helpers.js';
 import { account, transfer } from './ledger.js';
@@ -87,10 +90,14 @@ function parseQ(id: string): { round: number; kind: QuestionKind; v: number } | 
   return { round, kind, v: n };
 }
 
+/** The questions and weak answers of a segment's industry ("healthtech.clinics": healthtech). */
+const industryOf = (segmentKey: string): IndustryInterview =>
+  INDUSTRY_INTERVIEWS[segmentKey.split('.')[0] as Industry] ?? INDUSTRY_INTERVIEWS.fintech;
+
 /** The wordings a round has for a kind (round 0's best: the segment's own first). */
-function wordings(seg: SegmentInterview, round: number, kind: QuestionKind): Line[] {
-  const generic = QUESTIONS[round]![kind];
-  return round === 0 && kind === 'best' ? [seg.ask, ...generic] : generic;
+function wordings(seg: SegmentKit, round: number, kind: QuestionKind): Line[] {
+  const own = seg.industry.questions[round]![kind];
+  return round === 0 && kind === 'best' ? [seg.ask, ...own] : own;
 }
 
 interface Vars {
@@ -129,10 +136,13 @@ function fill(line: Line, v: Vars): Line {
   return { en: one(line.en, 'en'), fr: one(line.fr, 'fr') };
 }
 
-const segInterview = (key: string): SegmentInterview => {
+/** A segment's people, with their industry's questions. */
+type SegmentKit = SegmentInterview & { industry: IndustryInterview };
+
+const segInterview = (key: string): SegmentKit => {
   const s = SEGMENT_INTERVIEWS[key];
   if (!s) return fail('interview.segment', 'Nobody to interview in that segment yet.');
-  return s;
+  return { ...s, industry: industryOf(key) };
 };
 
 interface Answer {
@@ -140,7 +150,7 @@ interface Answer {
   note: { key: NoteKey; line: Line } | null;
 }
 
-function answerTo(seg: SegmentInterview, persona: number, id: string, v: Vars): Answer {
+function answerTo(seg: SegmentKit, persona: number, id: string, v: Vars): Answer {
   const q = parseQ(id)!;
   const p = seg.personas[persona % seg.personas.length]!;
   if (q.kind === 'best') {
@@ -152,9 +162,8 @@ function answerTo(seg: SegmentInterview, persona: number, id: string, v: Vars): 
       note: { key: ROUND_NOTE[q.round]!, line: fill(pair[1], v) },
     };
   }
-  const answers = WEAK_ANSWERS[q.round]![q.kind];
-  const answer = fill(answers[(persona + q.v) % answers.length]!, v);
-  const notes = WEAK_NOTES[q.kind] ?? {};
+  const answer = fill(seg.industry.weak[q.round]![q.kind], v);
+  const notes = q.kind === 'broad' ? { pain: seg.industry.vague } : (WEAK_NOTES[q.kind] ?? {});
   // A broad question in round 1 hints at the pain; a price asked too early gets a polite yes.
   const key: NoteKey | null =
     q.kind === 'broad' && q.round === 0
@@ -181,8 +190,8 @@ export function meet(world: World, c: Company, segmentKey: string, n: number) {
   const offers: string[][] = [];
   for (let r = 0; r < INTERVIEW.rounds; r++) {
     const best = wordings(seg, r, 'best');
-    const weak: QuestionKind[] = ['broad', 'yesno', 'leading', 'early'];
-    weak.splice(rng.int(0, weak.length - 1), 1);
+    // The best question and two weak ones (player feedback: "Maybe we reduce the questions").
+    const weak = rng.shuffle<QuestionKind>(['broad', 'yesno', 'leading', 'early']).slice(0, 2);
     const ids = [
       qid(r, 'best', rng.int(0, best.length - 1)),
       ...weak.map((k) => qid(r, k, rng.int(0, wordings(seg, r, k).length - 1))),
@@ -309,7 +318,7 @@ function personView(m: MarketState, c: Company, who: Omit<InterviewState, 'month
   };
 }
 
-const questionText = (seg: SegmentInterview, id: string, v: Vars): Line => {
+const questionText = (seg: SegmentKit, id: string, v: Vars): Line => {
   const q = parseQ(id)!;
   return fill(wordings(seg, q.round, q.kind)[q.v] ?? wordings(seg, q.round, q.kind)[0]!, v);
 };

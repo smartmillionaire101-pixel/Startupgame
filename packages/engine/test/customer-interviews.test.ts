@@ -7,7 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import { INTERVIEW, interviewsView, meet } from '../src/customer-interviews.js';
 import { QUESTION_SCORE, SEGMENT_INTERVIEWS } from '../src/data/customer-interviews.js';
-import { SEGMENT_TEMPLATES } from '../src/data/industries.js';
+import { INDUSTRIES, SEGMENT_TEMPLATES, type Industry } from '../src/data/industries.js';
+import { INDUSTRY_INTERVIEWS } from '../src/data/interview-industries.js';
 import { founderGuide } from '../src/founderguide.js';
 import { FEEDBACK_NOTE } from '../src/releases.js';
 import type { World } from '../src/types.js';
@@ -67,10 +68,117 @@ describe('interview content', () => {
     const b = world();
     const c = companyOf(a, F);
     expect(meet(a, c, SEG, 0)).toEqual(meet(b, companyOf(b, F), SEG, 0));
-    // Four questions a round, always including the best one.
+    // Three questions a round, always including the best one.
     for (const offer of meet(a, c, SEG, 0).offers) {
-      expect(offer).toHaveLength(4);
+      expect(offer).toHaveLength(3);
       expect(offer.filter((i) => kindOf(i) === 'best')).toHaveLength(1);
+    }
+  });
+});
+
+/**
+ * Player feedback: "questions submitted for interviewing clients are just
+ * focus on fintech so when I select health tech it just give me the same
+ * questions". Each industry asks in its own words, and none borrows another's.
+ */
+describe('interviews in each industry’s words', () => {
+  /** Words only one industry's interviews should use. */
+  const OWN: Partial<Record<Industry, RegExp>> = {
+    fintech: /\b(payments?|payouts?|transfers?|owes?|owed|ledger|loans?|bank\w*|credit)\b/i,
+    logistics: /\b(parcels?|couriers?|dispatch|pickups?|drivers?|fuel|deliver\w*)\b/i,
+    healthtech: /\b(doctors?|clinics?|patients?|care|health\w*)\b/i,
+    edtech: /\b(exams?|lessons?|tutors?|grades)\b/i,
+    agritech: /\b(harvest|farm\w*|middlem[ae]n|produce|co-op|season)\b/i,
+    saas: /\b(software|spreadsheets?|cloud|admin)\b/i,
+  };
+  /** An industry's own lines: every question but the price ones, and what people say to them. */
+  const lines = (i: Industry) => {
+    const kit = INDUSTRY_INTERVIEWS[i];
+    return [
+      ...kit.questions.flatMap((r) =>
+        (['best', 'broad', 'yesno', 'leading'] as const).flatMap((k) => r[k]),
+      ),
+      ...kit.weak.flatMap((r) => Object.values(r)),
+      kit.vague,
+    ];
+  };
+
+  it('has every round’s questions and answers in English and French', () => {
+    for (const i of INDUSTRIES) {
+      const kit = INDUSTRY_INTERVIEWS[i];
+      expect(kit.questions).toHaveLength(INTERVIEW.rounds);
+      expect(kit.weak).toHaveLength(INTERVIEW.rounds);
+      for (const r of kit.questions)
+        for (const k of ['best', 'broad', 'yesno', 'leading', 'early'] as const)
+          expect(r[k].length, `${i} ${k}`).toBeGreaterThan(0);
+      for (const l of [...lines(i), ...kit.questions.flatMap((r) => r.early)])
+        expect(l.en.length > 0 && l.fr.length > 0, `${i} ${l.en}`).toBe(true);
+    }
+  });
+
+  it('asks each industry different questions, and no other industry’s', () => {
+    const clash: string[] = [];
+    for (const i of INDUSTRIES) {
+      for (const j of INDUSTRIES) {
+        if (j === i) continue;
+        // Rounds 2 and 3's best questions are the industry's own.
+        const theirs = new Set(
+          INDUSTRY_INTERVIEWS[j].questions.slice(1).flatMap((r) => r.best.map((l) => l.en)),
+        );
+        for (const r of INDUSTRY_INTERVIEWS[i].questions.slice(1))
+          for (const l of r.best) if (theirs.has(l.en)) clash.push(`${i} and ${j}: ${l.en}`);
+        const words = OWN[j];
+        for (const l of words ? lines(i) : [])
+          if (words!.test(l.en)) clash.push(`${i} uses ${j}’s words: ${l.en}`);
+      }
+    }
+    expect(clash).toEqual([]);
+  });
+
+  it('shows a health clinic and a courier their own questions and answers', () => {
+    const at = (industry: Industry, idea: string) => {
+      let w = run(makeWorld(), F, {
+        type: 'player.create',
+        handle: 'h_iv',
+        name: 'Ada Founder',
+        role: 'founder',
+        backgroundId: 'f-engineer',
+        market: 'lagos',
+        company: {
+          name: 'Mmna',
+          industry,
+          revenueModel: 'subscription',
+          idea,
+          incorporation: 'local',
+        },
+      }).world;
+      w = announce(w);
+      const seg = SEGMENT_TEMPLATES.find((s) => s.industry === industry)!.key;
+      w = start(w, seg).world;
+      w = ask(w, best(active(w).offers[0]!)).world;
+      const v = interviewsView(w, companyOf(w, F)).active!;
+      return { seg, text: [...v.options.map((o) => o.text.en), v.rounds[0]!.answer.en].join(' ') };
+    };
+    const health = at('healthtech', 'Health tech providing access to quality care');
+    expect(health.seg).toMatch(/^healthtech\./);
+    expect(health.text).not.toMatch(OWN.fintech!);
+    expect(health.text).not.toMatch(OWN.logistics!);
+    const parcels = at('logistics', 'Same-day deliveries for online sellers');
+    expect(parcels.seg).toMatch(/^logistics\./);
+    expect(parcels.text).not.toMatch(OWN.fintech!);
+    expect(parcels.text).not.toMatch(OWN.healthtech!);
+    expect(parcels.text).not.toEqual(health.text);
+  });
+
+  it('gives health and logistics people their own answers to rounds 2 and 3, not payments', () => {
+    for (const s of SEGMENT_TEMPLATES.filter((x) => /^(healthtech|logistics)\./.test(x.key))) {
+      const seg = SEGMENT_INTERVIEWS[s.key]!;
+      for (const [answer, note] of [...seg.tried, ...seg.switchIf])
+        for (const l of [answer, note])
+          expect(
+            /\b(payments?|payouts?|transfers?|ledger|loans?)\b/i.test(l.en),
+            `${s.key}: ${l.en}`,
+          ).toBe(false);
     }
   });
 });
