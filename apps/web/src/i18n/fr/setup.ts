@@ -278,6 +278,10 @@ export const setup: Record<string, string> = {
   'Before the first customer: register {company} and put money in. Sales meetings and demos are paid from the business account.':
     'Avant le premier client : immatriculez {company} et apportez de l’argent. Les rendez-vous et démos se paient depuis le compte de l’entreprise.',
 
+  // The journey's first step while the company is being set up.
+  'Register it, put money in and choose where you work, one step at a time on the Company screen':
+    'Immatriculez-la, apportez de l’argent et choisissez où travailler, étape par étape sur l’écran Entreprise',
+
   // Engine messages (exact text).
   'Plan ready: lenders and banks read it when you ask.':
     'Plan prêt : prêteurs et banques le lisent quand vous demandez.',

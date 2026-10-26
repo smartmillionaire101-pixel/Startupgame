@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { produce } from 'immer';
 import { monthlyCosts, officeRent } from '../src/company.js';
+import { journeyView } from '../src/journey.js';
 import { FEEDBACK_NOTE } from '../src/releases.js';
 import { planScore, setupPlanChecks, type SetupPlanBase } from '../src/setup.js';
 import { playerView } from '../src/views.js';
@@ -166,6 +167,34 @@ describe('founder setup', () => {
     expect(pnl.office).toBe(cowork.rent);
     expect(w.accounts[co(w).account]!.balance).toBeLessThan(cash);
     expect(moneyByCurrency(w)).toEqual(total);
+  });
+
+  it('the journey leads a founder in setup back to it until the office is chosen', () => {
+    let w = founder(announce(makeWorld(83, ['lagos'])));
+    const first = (x: World) =>
+      journeyView(x, x.players[F]!)!.chapters[0]!.steps.find((s) => s.id === 'hustle.company')!;
+    expect(first(w)).toMatchObject({
+      done: false,
+      go: { kind: 'tab', tab: 'company' },
+      progress: { have: 1, need: 5 },
+    });
+    w = registered(w);
+    w = run(w, F, {
+      type: 'company.contribute',
+      companyId: co(w).id,
+      amount: Math.round(w.accounts[w.players[F]!.accounts.local]!.balance / 2),
+      as: 'equity',
+    }).world;
+    expect(first(w)).toMatchObject({ done: false, progress: { have: 2, need: 5 } });
+    w = run(w, F, { type: 'company.setup', companyId: co(w).id, action: 'next' }).world;
+    w = run(w, F, {
+      type: 'company.setup',
+      companyId: co(w).id,
+      action: 'office',
+      officeId: 'home',
+    }).world;
+    expect(first(w).done).toBe(true);
+    expect(first(w).progress).toBeUndefined();
   });
 
   it('checks the plan live, blocks a red check, and a city lender decides on it', () => {

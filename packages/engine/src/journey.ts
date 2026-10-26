@@ -17,6 +17,7 @@
 import { companyRunway } from './company.js';
 import { bankersOn, dealflowOn, feedbackOn, investorOn } from './releases.js';
 import { customerFacts } from './traction.js';
+import { inSetup, setupStepsDone } from './setup.js';
 import { BANK_TYPES, bankFigures } from './banks.js';
 import { BANKERS, currentBank, licenceMissing } from './bankers.js';
 import { placeId } from './places.js';
@@ -349,6 +350,8 @@ export const CHAPTERS: ChapterDef[] = [
       // Founder Journey 6: a company started from a café idea counts its first
       // customer from the pipeline (the guided first sale), not the welcome one.
       const guided = f.main?.starterIdea !== undefined;
+      // Only companies founded in feedback-note worlds carry a setup.
+      const setting = f.companies.some((c) => !inSetup(c)) ? undefined : f.companies[0];
       const first = guided
         ? f.companies.some((c) => (c.salesAccounts?.length ?? 0) > 0) ||
           f.ms['founder.first-customer'] !== undefined ||
@@ -356,10 +359,15 @@ export const CHAPTERS: ChapterDef[] = [
         : customers > 0 || f.ms['founder.first-customer'] !== undefined;
       const n = JOURNEY.hustle.customers;
       return [
-        step('hustle.company', 'Start your company', f.companies.length > 0, {
-          kind: 'tab',
-          tab: 'company',
-        }),
+        // Founder setup: a company is started once it is registered, funded and
+        // has somewhere to work; until then this step leads back to the setup.
+        step(
+          'hustle.company',
+          'Start your company',
+          f.companies.length > 0 && !setting,
+          { kind: 'tab', tab: 'company' },
+          setting?.setup ? { progress: count(setupStepsDone(setting.setup), 5) } : {},
+        ),
         step('hustle.discovery', 'Learn what customers need', discovered, {
           kind: 'place',
           place: 'market',

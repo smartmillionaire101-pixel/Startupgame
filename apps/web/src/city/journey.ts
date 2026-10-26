@@ -127,6 +127,14 @@ export function stepCopy(s: Pick<JourneyStepView, 'id' | 'label' | 'progress'>):
   const need = s.progress?.need ?? 0;
   switch (s.id) {
     case 'hustle.company':
+      // Founder setup: the name is reserved, the company isn't open yet.
+      if (s.progress)
+        return {
+          label: t('Set up your company'),
+          why: t(
+            'Register it, put money in and choose where you work, one step at a time on the Company screen',
+          ),
+        };
       return {
         label: t('Start your company'),
         why: t('Pick an idea, a name and how you’ll charge: a company is what customers pay'),

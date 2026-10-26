@@ -95,6 +95,11 @@ export const DECLINE_REASON_TEXT: Record<(typeof DECLINE_REASONS)[number], strin
 /** Is this company still setting up (no costs yet)? */
 export const inSetup = (c: Company): boolean => !!c.setup && c.setup.step !== 'done';
 
+const SETUP_ORDER = ['register', 'fund', 'plan', 'office', 'done'] as const;
+/** The tracker's steps behind a company (the idea is the first; 5 once set up). */
+export const setupStepsDone = (s: FounderSetup): number =>
+  s.step === 'done' ? 5 : 1 + SETUP_ORDER.indexOf(s.step);
+
 export function newSetup(month: number): FounderSetup {
   return { step: 'register', startedMonth: month, decisions: [] };
 }
@@ -626,8 +631,7 @@ export function setupView(world: World, c: Company, viewer: Player) {
   const rent = s.office ? s.office.rent : (cheapestLease?.rent ?? 0);
   const baseline = monthlyOnceOpen(world, c, rent);
   const monthly = Math.max(s.plan?.monthlyCosts ?? 0, baseline);
-  const order = ['register', 'fund', 'plan', 'office', 'done'] as const;
-  const at = order.indexOf(s.step);
+  const at = SETUP_ORDER.indexOf(s.step);
   const status = (i: number, skipped = false) =>
     at > i ? (skipped ? 'skipped' : 'done') : at === i ? 'current' : 'upcoming';
   const ownEquity = c.founderEquity?.[viewer.id] ?? 0;
@@ -648,7 +652,7 @@ export function setupView(world: World, c: Company, viewer: Player) {
       { id: 'plan' as const, status: status(2, !s.plan) },
       { id: 'office' as const, status: status(3) },
     ],
-    done: s.step === 'done' ? 5 : 1 + at,
+    done: setupStepsDone(s),
     registered: s.registered ?? null,
     types: (Object.keys(INCORPORATION) as Incorporation[]).map((id) => ({
       id,
