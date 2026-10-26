@@ -23,6 +23,7 @@ import {
   type FounderTask,
   type PlayerView,
 } from '@runway/engine';
+import { useState } from 'react';
 import { money, pct } from '../format';
 import { t, tx } from '../i18n';
 import { useView, type Company } from '../store';
@@ -216,16 +217,91 @@ function taskGap(x: FounderTask, cur: string): string | null {
 
 // ---------------------------------------------------------------- the stage tracker
 
-/** "Your stage": the stepper, the checklist and its bar, the next step and the stages to come. */
+/**
+ * A checklist row in two parts: a short name and its figures ("0 of 20 points"),
+ * so the row stays on one line. Tasks without figures show their label.
+ */
+export function taskRow(x: FounderTask, cur: string): { title: string; meta: string | null } {
+  const have = fmt(x, cur, x.have);
+  const need = fmt(x, cur, x.need);
+  const of = () => t('{have} of {need}', { have, need });
+  switch (x.id) {
+    case 'idea.discovery':
+      return {
+        title: t('Learn what customers need'),
+        meta: t('{have} of {need} points', { have, need }),
+      };
+    case 'first.customers':
+    case 'fit.customers':
+      return { title: t('Reach {need} paying customers', { need }), meta: of() };
+    case 'first.revenue':
+    case 'growth.revenue':
+    case 'a.revenue':
+      return {
+        title: t('Reach {need} revenue in a month', { need }),
+        meta: t('now {have}', { have }),
+      };
+    case 'first.retention':
+      return {
+        title: t('Keep {need}% of your customers each month', { need }),
+        meta: t('{have}% now', { have }),
+      };
+    case 'fit.product':
+      return { title: t('Product fit of {need}%', { need }), meta: t('{have}% now', { have }) };
+    case 'fit.growth':
+      return { title: t('Grow revenue {need} months in a row', { need }), meta: of() };
+    case 'fit.team':
+    case 'growth.team':
+      return { title: t('Build a team of {need}', { need }), meta: of() };
+    case 'seed.runway':
+      return { title: t('Have {need} months of money', { need }), meta: of() };
+    default:
+      return { title: taskCopy(x, cur).label, meta: null };
+  }
+}
+
+/** The next step's button: what you do there, in a few words. */
+function goAction(x: FounderTask): { icon: string; label: string } | null {
+  const g = x.go;
+  if (!g) return null;
+  if (g.kind === 'place') {
+    if (g.place === 'market')
+      return x.id === 'idea.discovery'
+        ? { icon: '🗣', label: t('Interview at the Market') }
+        : { icon: '🧺', label: t('Find customers at the Market') };
+    if (g.place === 'investors') return { icon: '💼', label: t('Meet investors') };
+    if (g.place === 'hub') return { icon: '🎓', label: t('Go to the Hub') };
+    return { icon: '📍', label: t('Go there') };
+  }
+  if (g.kind === 'app') {
+    return g.app === 'sales'
+      ? { icon: '📇', label: t('Open Sales') }
+      : { icon: '📱', label: t('Open it') };
+  }
+  if (g.section === 'roadmap') return { icon: '🧭', label: t('Open the Roadmap') };
+  if (g.section === 'team') return { icon: '👥', label: t('Open your team') };
+  if (g.tab === 'money') return { icon: '💷', label: t('Open Money') };
+  return { icon: '✏️', label: t('Do it now') };
+}
+
+/**
+ * "Your stage": one compact card that fits a phone screen. The stepper, the
+ * checklist (one line a task, figures on the right), a collapsed "Why this
+ * stage?" and the next step's button; then the stages to come in one line.
+ */
 export function StageTracker({ c }: { c: Company }) {
   const g = c.guide;
   const goTo = useJourneyGo();
+  const [why, setWhy] = useState(false);
+  const [allComing, setAllComing] = useState(false);
   const cur = c.currency;
   const current = g.stages[g.index]!;
   const done = current.tasks.filter((x) => x.done).length;
   const total = current.tasks.length;
   const next = g.stages[g.index + 1];
   const upcoming = g.stages.filter((s) => s.status === 'upcoming');
+  const action = g.next ? goAction(g.next) : null;
+  const nextWhy = g.next ? taskCopy(g.next, cur).why : '';
   return (
     <>
       <Card
@@ -243,28 +319,36 @@ export function StageTracker({ c }: { c: Company }) {
       >
         <div data-founder-stage={g.stage}>
           <ol className="fg-steps" aria-label={t('Founder stages')}>
-            {g.stages.map((s) => (
+            {g.stages.map((s, i) => (
               <li
                 key={s.id}
                 className={`fg-step fg-${s.status}`}
+                data-step={s.id}
                 aria-current={s.status === 'current' ? 'step' : undefined}
               >
                 <span className="fg-dot" aria-hidden="true">
-                  {s.status === 'done' ? '✓' : ''}
+                  {s.status === 'done' ? '✓' : s.status === 'current' ? i + 1 : ''}
                 </span>
                 <span className="fg-step-name">{stageTitle(s.id)}</span>
               </li>
             ))}
           </ol>
-          <h3 className="fg-count">
-            {g.complete
-              ? t('Every stage done')
-              : t('{stage}: {done} of {total} done', {
-                  stage: stageTitle(current.id),
-                  done,
-                  total,
-                })}
-          </h3>
+          <div className="fg-count">
+            <h3>
+              {g.complete
+                ? t('Every stage done')
+                : t('{stage} · {done} of {total} done', {
+                    stage: stageTitle(current.id),
+                    done,
+                    total,
+                  })}
+            </h3>
+            {next && !g.complete && (
+              <span className="small muted">
+                {t('next: {stage}', { stage: stageTitle(next.id) })}
+              </span>
+            )}
+          </div>
           <div
             className="fg-bar"
             role="progressbar"
@@ -277,83 +361,121 @@ export function StageTracker({ c }: { c: Company }) {
           </div>
           <ul className="fg-tasks">
             {current.tasks.map((x, i) => {
-              const copy = taskCopy(x, cur);
+              const row = taskRow(x, cur);
               const isNext = g.next?.id === x.id;
+              const part =
+                isNext && x.have !== undefined && x.need
+                  ? Math.min(100, Math.round((x.have / x.need) * 100))
+                  : null;
               return (
                 <li
                   key={x.id}
                   className={`fg-task${x.done ? ' fg-task-done' : ''}${isNext ? ' fg-task-next' : ''}`}
                   data-task={x.id}
                   data-done={x.done ? '' : undefined}
+                  title={taskCopy(x, cur).label}
                 >
                   <span className="fg-task-mark" aria-hidden="true">
                     {x.done ? '✓' : i + 1}
                   </span>
-                  <span>
-                    {copy.label}
-                    {isNext && <span className="fg-task-why small muted">{copy.why}</span>}
+                  <span className="fg-task-main">
+                    <span className="fg-task-title">{row.title}</span>
+                    {part !== null && (
+                      <span className="fg-task-mini" aria-hidden="true">
+                        <span style={{ width: `${Math.max(3, part)}%` }} />
+                      </span>
+                    )}
                   </span>
+                  <span className="fg-task-meta">{x.done ? t('done') : row.meta}</span>
                 </li>
               );
             })}
           </ul>
-          {next && !g.complete && (
-            <p className="small fg-unlock">
-              {t('Finish all {n} to move to {stage}: {why}', {
-                n: total,
-                stage: stageTitle(next.id),
-                why: stageWhy(current.id),
-              })}
-            </p>
+          <div className="fg-foot">
+            <button
+              type="button"
+              className="fg-why-toggle"
+              aria-expanded={why}
+              data-stage-why={why ? 'open' : 'closed'}
+              onClick={() => setWhy((v) => !v)}
+            >
+              <span aria-hidden="true">{why ? '▾' : '▸'}</span>
+              {why ? t('Hide why') : t('Why this stage?')}
+            </button>
+            {g.next && (
+              <button
+                type="button"
+                className="fg-go"
+                data-next-task={g.next.id}
+                onClick={() => g.next?.go && goTo(g.next.go)}
+                disabled={!g.next.go}
+                title={taskGap(g.next, cur) ?? undefined}
+              >
+                {action && <span aria-hidden="true">{action.icon}</span>}
+                <span className="fg-go-label">{action?.label ?? taskRow(g.next, cur).title}</span>
+                {g.next.go && <span aria-hidden="true">›</span>}
+              </button>
+            )}
+          </div>
+          {why && (
+            <div className="fg-whybox" data-stage-why-text="">
+              {nextWhy && (
+                <p>
+                  <b>{t('Why this matters:')}</b> {nextWhy}
+                </p>
+              )}
+              {next && !g.complete && (
+                <p className="fg-unlock">
+                  {t('Finish all {n} to move to {stage}: {why}', {
+                    n: total,
+                    stage: stageTitle(next.id),
+                    why: stageWhy(current.id),
+                  })}
+                </p>
+              )}
+              <p className="muted">
+                {t('Your mentor at the Hub explains this stage and what to do first.')}
+              </p>
+            </div>
           )}
-          <p className="small muted">
-            {t('Your mentor at the Hub explains this stage and what to do first.')}
-          </p>
         </div>
       </Card>
-      {g.next && (
-        <Card title={t('Next step')} className="fg-next">
-          <button
-            type="button"
-            className="fg-next-btn"
-            data-next-task={g.next.id}
-            onClick={() => g.next?.go && goTo(g.next.go)}
-            disabled={!g.next.go}
-          >
-            <span className="fg-next-icon" aria-hidden="true">
-              {stageIcon(g.stage)}
-            </span>
-            <span className="fg-next-text">
-              <b>{taskCopy(g.next, cur).label}</b>
-              <span className="small muted">
-                {taskGap(g.next, cur) ?? taskCopy(g.next, cur).why}
-              </span>
-            </span>
-            {g.next.go && (
-              <span className="fg-next-go" aria-hidden="true">
-                ›
-              </span>
-            )}
-          </button>
-        </Card>
-      )}
       {upcoming.length > 0 && (
         <Card title={t('Coming stages')} className="fg-coming">
-          <ul className="fg-coming-list">
-            {upcoming.map((s, i) => (
-              <li key={s.id} className={i === 0 ? '' : 'fg-later'} data-coming={s.id}>
-                <span className="fg-coming-icon" aria-hidden="true">
-                  {stageIcon(s.id)}
-                </span>
-                <span>
-                  <b>{stageTitle(s.id)}</b>
-                  <span className="small muted">
-                    {s.tasks.map((x) => taskCopy(x, cur).label).join(' · ')}
+          {allComing ? (
+            <ul className="fg-coming-list">
+              {upcoming.map((s, i) => (
+                <li key={s.id} className={i === 0 ? '' : 'fg-later'} data-coming={s.id}>
+                  <span className="fg-coming-icon" aria-hidden="true">
+                    {stageIcon(s.id)}
                   </span>
+                  <span>
+                    <b>{stageTitle(s.id)}</b>
+                    <span className="small muted">
+                      {s.tasks.map((x) => taskCopy(x, cur).label).join(' · ')}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="small muted fg-coming-line">
+              {upcoming.map((s, i) => (
+                <span key={s.id} data-coming={s.id}>
+                  {i > 0 && ' · '}
+                  {stageTitle(s.id)}
                 </span>
-              </li>
-            ))}
-          </ul>
+              ))}{' '}
+              <button
+                type="button"
+                className="fg-link"
+                data-coming-all=""
+                onClick={() => setAllComing(true)}
+              >
+                {t('See all')} ›
+              </button>
+            </p>
+          )}
         </Card>
       )}
     </>

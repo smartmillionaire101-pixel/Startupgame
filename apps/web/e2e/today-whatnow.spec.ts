@@ -71,13 +71,16 @@ test('"What to do now" suggests the morning in the morning', async ({ page }) =>
   await tab(page, 'Today').click();
   const card = page.locator('section.card').filter({ hasText: 'What to do now' });
   await expect(card).toBeVisible({ timeout: 15_000 });
-  // The day at a glance, the morning marked now.
+  // The slim day bar, the morning marked now with a "now 08:00" marker.
   await expect(card.locator('.whatnow-day > li')).toHaveCount(4);
   await expect(card.locator('.whatnow-day > li[aria-current]')).toHaveAttribute(
     'data-part',
     'morning',
   );
-  await expect(card.getByText('Right now (morning):')).toBeVisible();
+  await expect(card.locator('.whatnow-nowmark')).toHaveText('now 08:00');
+  await expect(card.getByText('Morning · right now')).toBeVisible();
+  // One list (no duplicate morning list), one-line title cards.
+  await expect(card.locator('.whatnow-list')).toHaveCount(1);
   const list = card.locator('.whatnow-list');
   await expect(list).toHaveAttribute('data-daypart', 'morning');
   const kinds = await list
@@ -86,4 +89,60 @@ test('"What to do now" suggests the morning in the morning', async ({ page }) =>
   expect(kinds.length).toBe(3);
   expect(kinds.some((k) => ['breakfast', 'gym', 'cook', 'work'].includes(k ?? ''))).toBe(true);
   expect(kinds).not.toContain('fun');
+  const lines = await list
+    .locator('.whatnow-text > b')
+    .evaluateAll((els) =>
+      els.map((e) => e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)),
+    );
+  for (const n of lines) expect(n).toBeLessThan(1.5);
+  // Later: a chip per later part, none repeating the list.
+  const later = card.locator('.whatnow-later [data-later]');
+  await expect(later.first()).toBeVisible();
+  const laterKinds = await card
+    .locator('.whatnow-later [data-later]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('data-later')));
+  expect(laterKinds[0]).toBe('day');
+
+  // Tap Evening: its ideas, when it starts, and back to now.
+  await card.locator('.whatnow-day > li[data-part="evening"] button').click();
+  await expect(list).toHaveAttribute('data-daypart', 'evening');
+  await expect(card.getByText('Evening · later today')).toBeVisible();
+  await expect(card.getByText(/from 17:00 · 9h 0m away/)).toBeVisible();
+  await expect(card.locator('.whatnow-day > li[aria-current]')).toHaveAttribute(
+    'data-part',
+    'morning',
+  );
+  await card.locator('[data-whatnow-back]').click();
+  await expect(list).toHaveAttribute('data-daypart', 'morning');
+  // The card fits the phone: nothing wider than the screen.
+  const wide = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(wide).toBeLessThanOrEqual(390);
+});
+
+test('"What to do now" on a desktop: now on the left, later on the right', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.clock.setFixedTime(new Date('2026-10-20T07:00:00Z'));
+  await playAsGuest(page);
+  await setupFounder(page, {
+    name: 'Bisi Desk',
+    handle: `desk_${letters(8)}`,
+    company: `Desktop ${letters(6)}`,
+    idea: 'Payments for market traders',
+  });
+  await tab(page, 'Today').click();
+  const card = page.locator('section.card').filter({ hasText: 'What to do now' });
+  await expect(card).toBeVisible({ timeout: 15_000 });
+  const main = await card.locator('.whatnow-main').boundingBox();
+  const side = card.locator('.whatnow-side');
+  await expect(side).toBeVisible();
+  const box = await side.boundingBox();
+  expect(box!.x).toBeGreaterThan(main!.x + main!.width - 1);
+  expect(main!.width).toBeGreaterThan(box!.width * 1.6);
+  await expect(side.locator('[data-later-card]')).toHaveCount(3);
+  await expect(card.locator('.whatnow-later')).toBeHidden();
+  // Nothing repeats between the list and the later cards.
+  const ids = await card
+    .locator('.whatnow-list .whatnow-btn, .whatnow-side .whatnow-btn')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('title')));
+  expect(new Set(ids).size).toBe(ids.length);
 });
