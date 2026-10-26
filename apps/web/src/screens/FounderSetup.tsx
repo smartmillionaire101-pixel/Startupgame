@@ -60,14 +60,14 @@ function CheckRow({
   id: string;
 }) {
   return (
-    <li className={`fg-check fg-check-${level} su-check`} data-setup-check={id} data-level={level}>
+    <li className={`fg-check fg-check-${level} fsu-check`} data-setup-check={id} data-level={level}>
       <span className="fg-check-icon" aria-hidden="true">
         {levelIcon(level)}
       </span>
-      <span className="su-check-main">
+      <span className="fsu-check-main">
         <b>{title}</b> <span className="small">{text}</span>
       </span>
-      {figure && <span className={`su-check-fig su-${level}`}>{figure}</span>}
+      {figure && <span className={`fsu-check-fig fsu-${level}`}>{figure}</span>}
     </li>
   );
 }
@@ -249,7 +249,7 @@ export function SetupTracker({
   const current = steps.findIndex((x) => x.status === 'current');
   return (
     <Card
-      className="su-tracker"
+      className="fsu-tracker"
       title={
         <>
           <span aria-hidden="true">🚀</span> {t('Start your company')}
@@ -271,11 +271,11 @@ export function SetupTracker({
       }
     >
       <div data-setup-step={setup?.step ?? 'idea'}>
-        <ol className="su-chips" aria-label={t('Setup steps')}>
+        <ol className="fsu-chips" aria-label={t('Setup steps')}>
           {steps.map((x) => (
             <li
               key={x.id}
-              className={`su-chip su-chip-${x.status}`}
+              className={`fsu-chip fsu-chip-${x.status}`}
               data-step={x.id}
               data-status={x.status}
               aria-current={x.status === 'current' ? 'step' : undefined}
@@ -325,26 +325,26 @@ function RegisterStep({ c, s }: { c: Company; s: Setup }) {
   return (
     <Card title={t('2 · Register the company')} action={<Pill>{t('Not filed')}</Pill>}>
       <div className="stack" data-setup-register="">
-        <div className="su-label">{t('Company name')}</div>
-        <div className="su-name">
+        <div className="fsu-label">{t('Company name')}</div>
+        <div className="fsu-name">
           <b>{c.name}</b>
           <span className="good small">
             ✓ {t('Reserved in {city}', { city: view.market.name })}
           </span>
         </div>
-        <div className="su-label">{t('Company type')}</div>
-        <div className="su-options" role="radiogroup" aria-label={t('Company type')}>
+        <div className="fsu-label">{t('Company type')}</div>
+        <div className="fsu-options" role="radiogroup" aria-label={t('Company type')}>
           {s.types.map((x) => (
             <button
               key={x.id}
               type="button"
               role="radio"
               aria-checked={type === x.id}
-              className={`su-option${type === x.id ? ' is-on' : ''}`}
+              className={`fsu-option${type === x.id ? ' is-on' : ''}`}
               data-type={x.id}
               onClick={() => setType(x.id as typeof type)}
             >
-              <span className="su-option-main">
+              <span className="fsu-option-main">
                 <b>{label(x.id)}</b>
                 <span className="small muted">{blurb(x.id)}</span>
                 {x.investorAppeal > 0 && (
@@ -353,7 +353,7 @@ function RegisterStep({ c, s }: { c: Company; s: Setup }) {
                   </span>
                 )}
               </span>
-              <span className="su-option-side">
+              <span className="fsu-option-side">
                 <b>{money(x.fee, cur)}</b>
                 <span className="small muted">{t('one-off')}</span>
               </span>
@@ -430,7 +430,7 @@ function OwnMoney({
     <Card title={t('3a · Your own money')} action={<Pill tone="good">{t('Founder capital')}</Pill>}>
       <div className="stack" data-setup-own="">
         <div className="spread">
-          <b className="su-big" data-own-amount={amount}>
+          <b className="fsu-big" data-own-amount={amount}>
             {money(amount, cur)}
           </b>
           <span className="small muted">
@@ -449,7 +449,7 @@ function OwnMoney({
           value={amount}
           onChange={(e) => setAmount(Number(e.target.value))}
         />
-        <div className="su-scale small muted">
+        <div className="fsu-scale small muted">
           <span>{money(0, cur)}</span>
           <span className="warn">{t('½ of savings')}</span>
           <span>{money(max, cur)}</span>
@@ -520,17 +520,17 @@ function Schemes({ c }: { c: Company }) {
       title={t('3b · Startup schemes')}
       sub={t('{city} · decided at month end', { city: view.market.name })}
     >
-      <ul className="su-list" data-setup-schemes="">
+      <ul className="fsu-list" data-setup-schemes="">
         {accelerators.map((a) => {
           const you = a.you.find((y) => y.companyId === c.id);
           const status = you?.status ?? 'ineligible';
           return (
             <li
               key={a.id}
-              className={`su-row${status === 'ineligible' ? ' is-off' : ''}`}
+              className={`fsu-row${status === 'ineligible' ? ' is-off' : ''}`}
               data-scheme={a.id}
             >
-              <span className="su-row-main">
+              <span className="fsu-row-main">
                 <b>{a.name}</b>
                 <span className="small muted">
                   {t('Accelerator · {seats} seats', { seats: a.cohort.seats })}
@@ -545,7 +545,7 @@ function Schemes({ c }: { c: Company }) {
                   <span className="small good">✓ {t('You can apply now.')}</span>
                 )}
               </span>
-              <span className="su-row-side">
+              <span className="fsu-row-side">
                 <b>{money(a.check, cur)}</b>
                 <span className="small muted">
                   {t('for {pct}% (SAFE)', { pct: a.equityBps / 100 })}
@@ -571,10 +571,10 @@ function Schemes({ c }: { c: Company }) {
           return (
             <li
               key={`${partner.id}:${g.id}`}
-              className={`su-row${status === 'ineligible' ? ' is-off' : ''}`}
+              className={`fsu-row${status === 'ineligible' ? ' is-off' : ''}`}
               data-scheme={g.id}
             >
-              <span className="su-row-main">
+              <span className="fsu-row-main">
                 <b>{tx(g.label)}</b>
                 <span className="small muted">
                   {t('{partner} · no equity', { partner: partner.name })}
@@ -589,7 +589,7 @@ function Schemes({ c }: { c: Company }) {
                   <span className="small good">✓ {t('You can apply now.')}</span>
                 )}
               </span>
-              <span className="su-row-side">
+              <span className="fsu-row-side">
                 <b>
                   {money(g.amount[0], cur)}–{money(g.amount[1], cur)}
                 </b>
@@ -678,8 +678,8 @@ function StartupLoans({
       })}
     >
       <div className="stack" data-setup-loans="">
-        <h3 className="su-h">{t('City banks')}</h3>
-        <ul className="su-list">
+        <h3 className="fsu-h">{t('City banks')}</h3>
+        <ul className="fsu-list">
           {lenders.map((l) => {
             const p: LoanPick = {
               kind: 'lender',
@@ -694,10 +694,10 @@ function StartupLoans({
             return (
               <li
                 key={`${l.lenderId}:${l.productId}`}
-                className={`su-row${l.eligible ? '' : ' is-off'}${isPick(p) ? ' is-on' : ''}`}
+                className={`fsu-row${l.eligible ? '' : ' is-off'}${isPick(p) ? ' is-on' : ''}`}
                 data-loan={`${l.lenderId}:${l.productId}`}
               >
-                <span className="su-row-main">
+                <span className="fsu-row-main">
                   <b>{tx(l.label)}</b>
                   <span className="small muted">{l.lenderName}</span>
                   {l.eligible ? (
@@ -706,7 +706,7 @@ function StartupLoans({
                     <span className="small bad">✕ “{tx(l.reason ?? '')}”</span>
                   )}
                 </span>
-                <span className="su-row-side">
+                <span className="fsu-row-side">
                   <b>{(l.rateBps / 100).toFixed(1).replace(/\.0$/, '')}%</b>
                   <span className="small muted">
                     {t('up to {amount}', { amount: money(l.maxMinor || l.amount[1], cur) })}
@@ -728,8 +728,8 @@ function StartupLoans({
         </ul>
         {banks.length > 0 && (
           <>
-            <h3 className="su-h">{t('Banks run by players')}</h3>
-            <ul className="su-list">
+            <h3 className="fsu-h">{t('Banks run by players')}</h3>
+            <ul className="fsu-list">
               {banks.map((b) => {
                 const p: LoanPick = {
                   kind: 'bank',
@@ -738,8 +738,8 @@ function StartupLoans({
                   months: 18,
                 };
                 return (
-                  <li key={b.id} className={`su-row${isPick(p) ? ' is-on' : ''}`} data-bank={b.id}>
-                    <span className="su-row-main">
+                  <li key={b.id} className={`fsu-row${isPick(p) ? ' is-on' : ''}`} data-bank={b.id}>
+                    <span className="fsu-row-main">
                       <b>{t('Startup loan')}</b>
                       <span className="small">
                         <Pill tone="info">{t('Player bank')}</Pill>
@@ -753,7 +753,7 @@ function StartupLoans({
                         })}
                       </span>
                     </span>
-                    <span className="su-row-side">
+                    <span className="fsu-row-side">
                       <b>{Math.round(view.market.baseRateBps / 100 + b.loanSpreadPp)}%</b>
                       <Button
                         size="sm"
@@ -854,13 +854,13 @@ function RunwayEstimate({
       }
     >
       <div className="stack" data-setup-runway={months}>
-        <div className="su-runway">
-          <span className={`su-runway-fill su-${level}`} style={{ width: `${width}%` }} />
-          <span className="su-runway-goal" style={{ left: `${(goal / 18) * 100}%` }}>
+        <div className="fsu-runway">
+          <span className={`fsu-runway-fill fsu-${level}`} style={{ width: `${width}%` }} />
+          <span className="fsu-runway-goal" style={{ left: `${(goal / 18) * 100}%` }}>
             <span className="small">{t('{n} mo goal', { n: goal })}</span>
           </span>
         </div>
-        <div className="su-scale small muted">
+        <div className="fsu-scale small muted">
           <span>0</span>
           <span>6</span>
           <span>12</span>
@@ -986,7 +986,7 @@ function PlanEditor({
           id={id}
           value={value}
           inputMode="decimal"
-          className={warn && warn !== 'good' ? `su-input-${warn}` : undefined}
+          className={warn && warn !== 'good' ? `fsu-input-${warn}` : undefined}
           onChange={(e) => set(e.target.value)}
         />
       )}
@@ -1083,7 +1083,7 @@ function Decisions({ c, s }: { c: Company; s: Setup }) {
       {s.decisions.map((d) => (
         <Card
           key={`${d.lenderId}:${d.productId}`}
-          className={`su-decision su-decision-${d.outcome}`}
+          className={`fsu-decision fsu-decision-${d.outcome}`}
           title={outcomeTitle(d.outcome)}
           sub={t('{lender} · {product}', { lender: d.lenderName, product: tx(d.productLabel) })}
           action={
@@ -1096,18 +1096,18 @@ function Decisions({ c, s }: { c: Company; s: Setup }) {
         >
           <div className="stack" data-decision={d.outcome} data-lender={d.lenderId}>
             {d.outcome !== 'declined' && (
-              <div className="su-tiles">
-                <div className="su-tile">
-                  <span className="su-label">{t('Approved')}</span>
-                  <b className="su-big">{money(d.amount, cur)}</b>
+              <div className="fsu-tiles">
+                <div className="fsu-tile">
+                  <span className="fsu-label">{t('Approved')}</span>
+                  <b className="fsu-big">{money(d.amount, cur)}</b>
                   <span className="small muted">
                     {t('{rate}% · {n} months', { rate: d.rateBps / 100, n: d.months })}
                   </span>
                 </div>
                 {d.rest > 0 && (
-                  <div className="su-tile">
-                    <span className="su-label">{t('Now')}</span>
-                    <b className="su-big">{money(d.now, cur)}</b>
+                  <div className="fsu-tile">
+                    <span className="fsu-label">{t('Now')}</span>
+                    <b className="fsu-big">{money(d.now, cur)}</b>
                     <span className="small muted">
                       {t('{rest} after {n} customers', {
                         rest: money(d.rest, cur),
@@ -1120,9 +1120,9 @@ function Decisions({ c, s }: { c: Company; s: Setup }) {
             )}
             {d.lenderReason && <p className="small bad">✕ “{tx(d.lenderReason)}”</p>}
             {d.reasons.length > 0 && (
-              <ul className="su-reasons">
+              <ul className="fsu-reasons">
                 {d.reasons.map((r) => (
-                  <li key={r.id} className={`su-${r.level}`}>
+                  <li key={r.id} className={`fsu-${r.level}`}>
                     <span>
                       {levelIcon(r.level)} {setupCheckText(r, cur)}
                     </span>
@@ -1177,7 +1177,7 @@ function BankAnswer({
   const tone = d.status === 'accepted' ? 'good' : d.status === 'open' ? 'info' : 'bad';
   return (
     <Card
-      className="su-decision"
+      className="fsu-decision"
       title={
         d.status === 'accepted'
           ? t('Approved')
@@ -1274,21 +1274,21 @@ function OfficeStep({ c, s }: { c: Company; s: Setup }) {
   return (
     <Card title={t('5 · Where will you work?')}>
       <div className="stack" data-setup-office="">
-        <ul className="su-offices" role="radiogroup" aria-label={t('Offices')}>
+        <ul className="fsu-offices" role="radiogroup" aria-label={t('Offices')}>
           {s.offices.map((x) => (
             <li key={x.id}>
               <button
                 type="button"
                 role="radio"
                 aria-checked={x.id === id}
-                className={`su-office${x.id === id ? ' is-on' : ''}`}
+                className={`fsu-office${x.id === id ? ' is-on' : ''}`}
                 data-office={x.id}
                 onClick={() => setId(x.id)}
               >
-                <span className="su-office-art" aria-hidden="true">
+                <span className="fsu-office-art" aria-hidden="true">
                   {officeIcon(x.id)}
                 </span>
-                <span className="su-office-main">
+                <span className="fsu-office-main">
                   <span className="spread">
                     <b>{officeName(x.id)}</b>
                     <b>{money(x.rent, cur)}</b>
@@ -1306,10 +1306,10 @@ function OfficeStep({ c, s }: { c: Company; s: Setup }) {
                         })}
                   </span>
                   <span className="small">{districtName(x.district)}</span>
-                  <span className="su-tags">
-                    <span className="su-tag">{t('{n} min', { n: x.commute })}</span>
+                  <span className="fsu-tags">
+                    <span className="fsu-tag">{t('{n} min', { n: x.commute })}</span>
                     {x.tags.map((tag) => (
-                      <span key={tag} className="su-tag">
+                      <span key={tag} className="fsu-tag">
                         {tagText(tag)}
                       </span>
                     ))}
@@ -1437,19 +1437,19 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
   ];
   return (
     <Card
-      className="su-done"
+      className="fsu-done"
       title={<>🎉 {t('{company} is open', { company: c.name })}</>}
       sub={t('Setup: 5 of 5 done')}
     >
       <div className="stack" data-setup-done="">
-        <ol className="su-chips">
+        <ol className="fsu-chips">
           {s.steps.map((x) => (
-            <li key={x.id} className="su-chip su-chip-done">
+            <li key={x.id} className="fsu-chip fsu-chip-done">
               ✓ {stepName(x.id)}
             </li>
           ))}
         </ol>
-        <ul className="su-summary">
+        <ul className="fsu-summary">
           {rows.map((r) => (
             <li key={r.label}>
               <span>✓ {r.label}</span>
@@ -1668,7 +1668,7 @@ function ApplicationCard({ d }: { d: Deal }) {
     );
   return (
     <Card
-      className="su-application"
+      className="fsu-application"
       title={d.companyName}
       sub={t('Startup loan · arrived month {n} · answer by month {due}', {
         n: d.createdMonth,
@@ -1689,7 +1689,7 @@ function ApplicationCard({ d }: { d: Deal }) {
             </span>
           </p>
         )}
-        <div className="su-facts small">
+        <div className="fsu-facts small">
           <span className="muted">{t('Asks')}</span>
           <b>{money(terms.amount, cur)}</b>
           <span className="muted">{t('Term')}</span>
@@ -1737,7 +1737,7 @@ function ApplicationCard({ d }: { d: Deal }) {
         </p>
         {d.yourTurn ? (
           <>
-            <h3 className="su-h">{t('Your counter')}</h3>
+            <h3 className="fsu-h">{t('Your counter')}</h3>
             <div className="grid2">
               <Field label={t('Amount')}>
                 {(id) => (
@@ -1786,12 +1786,12 @@ function ApplicationCard({ d }: { d: Deal }) {
               />
             </ul>
             <p className="small muted">{t('Decline reasons, if you decline:')}</p>
-            <div className="su-tags" role="group" aria-label={t('Decline reason')}>
+            <div className="fsu-tags" role="group" aria-label={t('Decline reason')}>
               {DECLINE_REASONS.map((r) => (
                 <button
                   key={r}
                   type="button"
-                  className={`su-tag su-tag-btn${reason === r ? ' is-on' : ''}`}
+                  className={`fsu-tag fsu-tag-btn${reason === r ? ' is-on' : ''}`}
                   aria-pressed={reason === r}
                   data-reason={r}
                   onClick={() => setReason(reason === r ? null : r)}

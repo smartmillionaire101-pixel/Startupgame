@@ -1,10 +1,10 @@
 /* Founder setup: the five-step tracker, the funding and plan cards, the offices, the banker's desk. */
 
-.su-tracker {
+.fsu-tracker {
   background: color-mix(in srgb, var(--accent) 7%, var(--surface));
   border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
 }
-.su-chips {
+.fsu-chips {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
@@ -12,40 +12,40 @@
   padding: 0;
   margin: 0.4rem 0 0.6rem;
 }
-.su-chip {
+.fsu-chip {
   padding: 0.2rem 0.65rem;
   border-radius: var(--r-pill);
   font-size: var(--fs-xs);
   background: var(--line);
   color: var(--muted);
 }
-.su-chip-done,
-.su-chip-skipped {
+.fsu-chip-done,
+.fsu-chip-skipped {
   background: var(--good-soft);
   color: var(--good);
 }
-.su-chip-current {
+.fsu-chip-current {
   background: var(--accent);
   color: var(--accent-ink);
   font-weight: var(--fw-semibold);
 }
 
-.su-label {
+.fsu-label {
   font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
   font-weight: var(--fw-semibold);
 }
-.su-h {
+.fsu-h {
   margin: 0.25rem 0 0;
   font-size: var(--fs-md);
 }
-.su-big {
+.fsu-big {
   font-size: 1.6rem;
   line-height: 1.1;
 }
-.su-name {
+.fsu-name {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
@@ -56,16 +56,16 @@
 }
 
 /* Radio-like cards: company types, offices. */
-.su-options,
-.su-offices {
+.fsu-options,
+.fsu-offices {
   list-style: none;
   display: grid;
   gap: 0.5rem;
   padding: 0;
   margin: 0;
 }
-.su-option,
-.su-office {
+.fsu-option,
+.fsu-office {
   display: flex;
   gap: 0.6rem;
   width: 100%;
@@ -78,22 +78,22 @@
   font: inherit;
   cursor: pointer;
 }
-.su-option.is-on,
-.su-office.is-on {
+.fsu-option.is-on,
+.fsu-office.is-on {
   border: 2px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
-.su-option-main,
-.su-office-main,
-.su-row-main {
+.fsu-option-main,
+.fsu-office-main,
+.fsu-row-main {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
   flex: 1;
   min-width: 0;
 }
-.su-option-side,
-.su-row-side {
+.fsu-option-side,
+.fsu-row-side {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -101,7 +101,7 @@
   text-align: right;
   flex: none;
 }
-.su-office-art {
+.fsu-office-art {
   flex: none;
   width: 3rem;
   height: 3rem;
@@ -113,40 +113,40 @@
 }
 
 /* Lists of schemes and loans. */
-.su-list {
+.fsu-list {
   list-style: none;
   display: grid;
   gap: 0.5rem;
   padding: 0;
   margin: 0;
 }
-.su-row {
+.fsu-row {
   display: flex;
   gap: 0.6rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
 }
-.su-row.is-on {
+.fsu-row.is-on {
   border: 2px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
-.su-row.is-off {
+.fsu-row.is-off {
   opacity: 0.7;
 }
 
-.su-tags {
+.fsu-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
 }
-.su-tag {
+.fsu-tag {
   padding: 0.1rem 0.5rem;
   border-radius: var(--r-pill);
   font-size: var(--fs-xs);
   background: var(--line);
 }
-.su-tag-btn {
+.fsu-tag-btn {
   border: 1px solid var(--line-strong);
   background: var(--surface);
   color: inherit;
@@ -154,64 +154,64 @@
   font-size: var(--fs-xs);
   cursor: pointer;
 }
-.su-tag-btn.is-on {
+.fsu-tag-btn.is-on {
   border-color: var(--bad);
   background: var(--bad-soft);
   color: var(--bad);
 }
 
-.su-scale {
+.fsu-scale {
   display: flex;
   justify-content: space-between;
 }
 
 /* Check rows with the figure on the right. */
-.su-check-main {
+.fsu-check-main {
   flex: 1;
   min-width: 0;
 }
-.su-check-fig {
+.fsu-check-fig {
   flex: none;
   font-size: var(--fs-xs);
   font-weight: var(--fw-bold);
 }
-.su-good {
+.fsu-good {
   color: var(--good);
 }
-.su-warn {
+.fsu-warn {
   color: var(--warn);
 }
-.su-bad {
+.fsu-bad {
   color: var(--bad);
 }
-.su-input-warn {
+.fsu-input-warn {
   border-color: var(--warn) !important;
 }
-.su-input-bad {
+.fsu-input-bad {
   border-color: var(--bad) !important;
 }
 
 /* The runway estimate. */
-.su-runway {
+.fsu-runway {
   position: relative;
   height: 10px;
   border-radius: var(--r-pill);
   background: var(--line);
   margin-top: 1.2rem;
 }
-.su-runway-fill {
+.fsu-runway-fill {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
   background: currentColor;
 }
-.su-runway-goal {
+.fsu-runway-goal {
   position: absolute;
   top: -1.1rem;
   bottom: -4px;
   border-left: 2px solid var(--text);
 }
-.su-runway-goal span {
+.fsu-runway-goal span {
   position: absolute;
   top: -0.2rem;
   left: 0;
@@ -221,24 +221,24 @@
 }
 
 /* Decisions. */
-.su-decision-approved {
+.fsu-decision-approved {
   border-color: var(--good);
   background: color-mix(in srgb, var(--good) 6%, var(--surface));
 }
-.su-decision-conditions {
+.fsu-decision-conditions {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 6%, var(--surface));
 }
-.su-decision-declined {
+.fsu-decision-declined {
   border-color: var(--bad);
   background: color-mix(in srgb, var(--bad) 5%, var(--surface));
 }
-.su-tiles {
+.fsu-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: 0.5rem;
 }
-.su-tile {
+.fsu-tile {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
@@ -247,14 +247,14 @@
   background: var(--surface);
   border: 1px solid var(--line);
 }
-.su-reasons {
+.fsu-reasons {
   list-style: none;
   padding: 0;
   margin: 0;
   display: grid;
   gap: 0.4rem;
 }
-.su-reasons li {
+.fsu-reasons li {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
@@ -262,23 +262,23 @@
   border-top: 1px solid var(--line);
   font-size: var(--fs-sm);
 }
-.su-reasons b {
+.fsu-reasons b {
   color: var(--accent-strong);
 }
 
 /* Done. */
-.su-done {
+.fsu-done {
   border-color: var(--good);
   background: color-mix(in srgb, var(--good) 6%, var(--surface));
 }
-.su-summary {
+.fsu-summary {
   list-style: none;
   padding: 0;
   margin: 0;
   display: grid;
   gap: 0.35rem;
 }
-.su-summary li {
+.fsu-summary li {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
@@ -287,11 +287,11 @@
 }
 
 /* The banker's desk. */
-.su-facts {
+.fsu-facts {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.2rem 0.75rem;
 }
-.su-facts b {
+.fsu-facts b {
   text-align: right;
 }

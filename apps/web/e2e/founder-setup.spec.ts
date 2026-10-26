@@ -53,7 +53,7 @@ async function reserveName(page: Page, name: string) {
   await tab(page, 'Company').click();
   const form = page.locator('[data-company-setup]');
   await expect(form).toBeVisible();
-  await expect(page.locator('.su-tracker [data-step="idea"]')).toHaveAttribute(
+  await expect(page.locator('.fsu-tracker [data-step="idea"]')).toHaveAttribute(
     'data-status',
     'current',
   );
@@ -97,7 +97,7 @@ test('a new founder registers, funds the company with their own money, leases an
   await reserveName(page, name);
   // Nothing to pay yet: no payday warning, ever, before the office.
   await expect(page.locator('[data-payday-warning]')).toHaveCount(0);
-  await expect(page.locator('.su-tracker [data-step="register"]')).toHaveAttribute(
+  await expect(page.locator('.fsu-tracker [data-step="register"]')).toHaveAttribute(
     'data-status',
     'current',
   );
