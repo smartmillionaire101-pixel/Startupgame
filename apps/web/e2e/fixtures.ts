@@ -127,6 +127,7 @@ export async function setupFounder(
     idea: string;
     market?: RegExp;
     gender?: 'female' | 'male';
+    industry?: string;
   },
 ) {
   const meta = await page.request.get('/api/meta').then((r) => r.json());
@@ -144,7 +145,7 @@ export async function setupFounder(
     gender: input.gender ?? 'female',
     company: {
       name: input.company,
-      industry: 'fintech',
+      industry: input.industry ?? 'fintech',
       revenueModel: 'subscription',
       idea: input.idea,
       incorporation: 'local',
@@ -417,7 +418,7 @@ export async function expectGolfControlsClear(page: Page, what = 'address') {
 /**
  * The sales conversation (round two): open it from a deal card's "Sales
  * conversation" (or from an open sheet), sit down, lead with their need when
- * discovery revealed it, name the middle of their band, offer a paid pilot
+ * discovery revealed it, name the middle of their band, offer a paid pilot (if on offer)
  * and ask for the deal. Returns how it ended; the sheet is closed after.
  */
 export async function salesConversation(
@@ -440,7 +441,9 @@ export async function salesConversation(
   await sheet.getByRole('button', { name: 'Name this price' }).click();
   await expect(sheet.locator('[data-reaction="price"]')).toBeVisible({ timeout: 15_000 });
   await expect(sheet.getByRole('meter', { name: 'Win chance now' })).toBeVisible();
-  await sheet.locator('[data-terms="pilot"]').click();
+  // Three terms on offer: a paid pilot when it's one of them.
+  const pilot = sheet.locator('[data-terms="pilot"]');
+  await ((await pilot.count()) ? pilot : sheet.locator('[data-terms]').first()).click();
   await expect(sheet.locator('[data-reaction="terms"]')).toBeVisible({ timeout: 15_000 });
   await sheet.locator('[data-talk-ask]').click();
   const done = sheet.locator('[data-talk-result]');

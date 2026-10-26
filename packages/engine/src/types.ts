@@ -3240,6 +3240,8 @@ export interface SalesTalk {
   discountPct?: number;
   /** The price was named against your guess at their band (before discovery). */
   guessed?: boolean;
+  /** The terms on offer: the best for them and two others (missing: all four). */
+  termsOptions?: string[];
   terms?: string;
   /** Set once you asked for the deal. */
   result?: SalesTalkResult;

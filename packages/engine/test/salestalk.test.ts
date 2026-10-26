@@ -53,12 +53,12 @@ function converse(w: World, id: string, good: boolean) {
   const lead = good ? deal(w, id).customer.need : 'tour';
   w = talk(w, id, 'lead', { option: lead }).world;
   w = talk(w, id, 'price', { option: good ? 'mid' : 'top', discountPct: 0 }).world;
-  // The best terms are the ones that raise the chance most.
-  const terms = good
-    ? v.termsOptions
-        .map((o) => ({ id: o.id, p: talk(w, id, 'terms', { option: o.id }).result.chance }))
-        .sort((x, y) => y.p - x.p)[0]!.id
-    : 'annual';
+  // The best terms on offer are the ones that raise the chance most (the worst, least).
+  const byChance = v.termsOptions
+    .map((o) => ({ id: o.id, p: talk(w, id, 'terms', { option: o.id }).result.chance }))
+    .sort((x, y) => y.p - x.p);
+  const annual = byChance.find((o) => o.id === 'annual');
+  const terms = (good ? byChance[0] : (annual ?? byChance[byChance.length - 1]))!.id;
   w = talk(w, id, 'terms', { option: terms }).world;
   return talk(w, id, 'ask');
 }
@@ -71,9 +71,12 @@ describe('a sales conversation', () => {
     const rb = talk(b.w, b.id, 'start');
     expect(deal(ra.world, a.id).talk).toEqual(deal(rb.world, b.id).talk);
     const t = deal(ra.world, a.id).talk!;
-    expect(t.leadOptions).toHaveLength(4);
+    // Three choices a turn (player feedback: "Maybe we reduce the questions").
+    expect(t.leadOptions).toHaveLength(3);
     expect(t.leadOptions).toContain(deal(ra.world, a.id).customer.need);
     expect(t.leadOptions).toContain('tour');
+    expect(t.termsOptions).toHaveLength(3);
+    expect(view(ra.world, a.id).termsOptions).toHaveLength(3);
     expect(ra.world.players[F]!.hours.used - a.w.players[F]!.hours.used).toBe(TALK.hours);
     // Starting again resumes it, without the hours.
     const again = talk(ra.world, a.id, 'start');
@@ -146,7 +149,9 @@ describe('a sales conversation', () => {
       const hard = tune(w, id, (d) => {
         d.customer.trust = 0.05;
         d.customer.authority = 0.1;
-        d.customer.urgency = 0.1;
+        // Neither price-minded nor idle: of the three terms on offer, two fit badly.
+        d.customer.urgency = 0.5;
+        d.customer.need = 'stars';
       });
       const r = converse(hard, id, false);
       if (!r.result.won) {
@@ -196,7 +201,7 @@ describe('a sales conversation', () => {
     // The card says what the business is ("Spa"), not a segment it may not fit.
     const row = salesWithTalk(r.world, companyOf(r.world, F)).deals.find((x) => x.id === d.id)!;
     expect(row.businessKind).toBe(specOf(b).label);
-    expect(d.talk!.leadOptions).toHaveLength(4);
+    expect(d.talk!.leadOptions).toHaveLength(3);
     expect(r.world.players[F]!.businessPitches!.count).toBe(1);
     // Walking in again resumes the same deal.
     const again = run(r.world, F, { type: 'sales.talk', businessId: b.id, action: 'start' });

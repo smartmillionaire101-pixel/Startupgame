@@ -9,15 +9,18 @@
  * A deal in the pipeline (sales.ts), or a local business you walk into, is a
  * conversation of three turns before you ask for the deal:
  *
- *   1. What you lead with: four openings, one per need (sales.ts SalesNeed:
- *      fit, price, a known brand, reliability) or a feature tour. Their real
- *      need (revealed by a discovery meeting, hinted by your interviews and
- *      the segment's needs) scores best.
+ *   1. What you lead with: three openings, their real need (sales.ts
+ *      SalesNeed: fit, price, a known brand, reliability; revealed by a
+ *      discovery meeting, hinted by your interviews and the segment's needs),
+ *      which scores best, another need and a feature tour.
  *   2. Price: three prices against the budget band you know (theirs after
  *      discovery, a guess before it), and a discount up to the pipeline's
  *      40% cap.
- *   3. Terms: a paid pilot, month-to-month, annual up front, or pay per use,
- *      each right for a different customer (trust, authority, urgency, need).
+ *   3. Terms: three of a paid pilot, month-to-month, annual up front, or pay
+ *      per use, each right for a different customer (trust, authority,
+ *      urgency, need); the one that suits them is always among them.
+ *
+ * Three choices a turn (player feedback: "Maybe we reduce the questions").
  *
  * The win chance is the pipeline's own (`winChance`, at the price you named),
  * moved by how well the opening and the terms fit them, and shown live after
@@ -156,6 +159,8 @@ function termsScore(who: SalesCustomer, t: TermsKind): number {
       return who.need === 'price' ? 0.85 : 0.45;
   }
 }
+/** The terms on offer in a conversation (one begun before there were three: all four). */
+const termsOf = (t: SalesTalk): readonly string[] => t.termsOptions ?? TERMS_KINDS;
 const bestTerms = (who: SalesCustomer): TermsKind =>
   TERMS_KINDS.slice().sort((a, b) => termsScore(who, b) - termsScore(who, a))[0]!;
 
@@ -298,7 +303,7 @@ export function salesTalk(world: World, me: Player, cmd: TalkInput) {
     case 'terms': {
       ensure(t.price && !t.terms, 'sales.talk.order', 'Name your price first.');
       ensure(
-        cmd.option && (TERMS_KINDS as readonly string[]).includes(cmd.option),
+        cmd.option && termsOf(t).includes(cmd.option),
         'sales.talk.option',
         'That isn’t one of the options.',
       );
@@ -328,9 +333,17 @@ function startTalk(world: World, me: Player, c: Company, d: SalesDeal) {
   spendHours(me, TALK.hours, `Sales conversation: ${d.customer.name}`);
   const n = (d.talk?.n ?? 0) + 1;
   const rng = deriveRng(world.seed, 'sales', 'talk', d.id, n);
-  // Their real need is always on offer, with a feature tour and two other openings.
-  const others = rng.shuffle(NEEDS.filter((k) => k !== d.customer.need)).slice(0, 2);
-  d.talk = { n, month, leadOptions: rng.shuffle([d.customer.need, 'tour', ...others]) };
+  // Their real need is always on offer, with a feature tour and one other opening;
+  // the terms that suit them best, with two others.
+  const other = rng.pick(NEEDS.filter((k) => k !== d.customer.need));
+  const best = bestTerms(d.customer);
+  const terms = rng.shuffle(TERMS_KINDS.filter((k) => k !== best)).slice(0, 2);
+  d.talk = {
+    n,
+    month,
+    leadOptions: rng.shuffle([d.customer.need, 'tour', other]),
+    termsOptions: rng.shuffle([best, ...terms]),
+  };
   c.lastDecisionMonth = month;
   return { dealId: d.id, started: true, chance: talkChance(world, c, d, me) };
 }
@@ -411,7 +424,10 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
           guessed: !!t.guessed,
         }
       : null,
-    termsOptions: TERMS_KINDS.map((id) => ({ id, text: TERMS_LINES[id] })),
+    termsOptions: (t ? termsOf(t) : TERMS_KINDS).map((id) => ({
+      id,
+      text: TERMS_LINES[id as TermsKind],
+    })),
     terms: t?.terms ? { id: t.terms, reaction: reactTerms } : null,
     hints: interviewHints(world, c, d.customer.segmentKey),
     result: res
