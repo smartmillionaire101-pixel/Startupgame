@@ -312,6 +312,11 @@ export interface Player {
   walls?: HomeWall[];
   /** Shop note: the names you gave the rooms of your home. Missing = none. */
   roomLabels?: RoomLabel[];
+  /**
+   * Buy mode (the feedback round): your rooms' floors ('0:living' → a floor
+   * finish), your walls' paint, and the paid finishes you own. Missing = as built.
+   */
+  homeStyle?: { floors?: Record<string, string>; wall?: string; owned?: string[] };
   /** Wave 5: your car. Missing = none. */
   car?: PlayerCar;
   /** Wave 6: venue buys this month (seeds the "who you meet" roll). Missing = none. */
