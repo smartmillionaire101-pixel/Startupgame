@@ -254,7 +254,8 @@ export function stockAnalysis(
     customers: last?.customers ?? 0,
     /** Price per customer a month (company currency, minor units). */
     pricePerCustomer: c.price,
-    staff: c.staff.length,
+    // An established company (established.ts) has its headcount on its profile.
+    staff: c.established?.employees ?? c.staff.length,
     foundedMonth: c.foundedMonth,
     revenueMonth: last?.revenue ?? 0,
     profitMonth: last?.net ?? 0,

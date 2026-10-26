@@ -1294,6 +1294,21 @@ export interface CapTable {
 
 export type CompanyStatus = 'active' | 'shutdown' | 'acquired';
 
+/**
+ * An established company of a city's exchange (established.ts, feedback
+ * note): run by the game from this profile, not by a founder.
+ */
+export interface EstablishedProfile {
+  kind: 'blue-chip' | 'steady' | 'grower' | 'turnaround' | 'small';
+  /** Its place in the city's roster (fixes its id). */
+  slot: number;
+  /** Mean monthly sales growth, net profit margin and monthly swing (0–1 shares). */
+  growth: number;
+  margin: number;
+  swing: number;
+  employees: number;
+}
+
 export interface Company {
   id: Id;
   name: string;
@@ -1392,6 +1407,8 @@ export interface Company {
   storyBase?: StoryBase | null;
   /** Local business customers won and lost since the last story (Wave 3). Internal. */
   businessNews?: BusinessNews | null;
+  /** An established listed company run by the game (feedback note). Missing = a startup. */
+  established?: EstablishedProfile;
   /** Founder Journey 2a: the per-deal sales pipeline (only once `sales.*` is used). */
   deals?: SalesDeal[];
   /** Customers won through the pipeline, billed monthly on B2B terms. */

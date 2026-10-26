@@ -44,7 +44,7 @@ import { eventDealFlow } from './dealflow.js';
 import { ensure } from './errors.js';
 import { addContact } from './events.js';
 import { businessesOf, isOpen } from './economy.js';
-import { col, getMarket, locationOf, spendHours } from './helpers.js';
+import { col, getMarket, locationOf, spendHours, isEstablished } from './helpers.js';
 import { account, costIn, payExact, transfer } from './ledger.js';
 import { wearing } from './leisure.js';
 import { applyBars, barsApply, bumpEnergy, healthOf } from './lifebars.js';
@@ -539,7 +539,7 @@ export function doErrand(
     }
     case 'cohort': {
       const founders = Object.values(world.companies)
-        .filter((x) => x.ai && x.status === 'active' && x.market === m.id)
+        .filter((x) => x.ai && x.status === 'active' && x.market === m.id && !isEstablished(x))
         .sort((a, b) => (a.id < b.id ? -1 : 1));
       const met = rng.shuffle(founders).slice(0, 2);
       out.met = met.flatMap((x) => {

@@ -14,4 +14,16 @@ export const r2: Record<string, string> = {
   'Learn what customers need': 'Comprendre ce dont vos clients ont besoin',
   'So you build what people need: interview customers at the Market, or win a customer and learn from them':
     'Pour construire ce dont les gens ont besoin : interrogez des clients au Marché, ou gagnez un client et apprenez de lui',
+  // More listed companies: the city's established companies on its exchange.
+  'Established company': 'Entreprise établie',
+  // What an established company does (engine copy, shown through tx()).
+  'Banking, payments and insurance for the city.': 'Banque, paiements et assurance pour la ville.',
+  'Shops and online retail across the city.': 'Magasins et vente en ligne dans toute la ville.',
+  'Freight, warehousing and deliveries in and out of the city.':
+    'Fret, entrepôts et livraisons vers et depuis la ville.',
+  'Clinics, pharmacies and health services.': 'Cliniques, pharmacies et services de santé.',
+  'Schools, courses and learning.': 'Écoles, cours et formation.',
+  'Business software and data for the city’s companies.':
+    'Logiciels et données pour les entreprises de la ville.',
+  'Food, farming and processing.': 'Alimentation, agriculture et transformation.',
 };

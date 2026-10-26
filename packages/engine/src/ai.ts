@@ -7,7 +7,16 @@
 import { closePricedRound, addSafe } from './captable.js';
 import { companyRunway, setTargets, shutdownCompany } from './company.js';
 import { openDeal, settleExit } from './deals.js';
-import { col, getMarket, lastPnl, nextStage, notify, publish, totalCustomers } from './helpers.js';
+import {
+  col,
+  getMarket,
+  lastPnl,
+  nextStage,
+  notify,
+  publish,
+  totalCustomers,
+  isEstablished,
+} from './helpers.js';
 import { account, transfer } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
@@ -208,8 +217,9 @@ export function aiStartupTarget(world: World, market: MarketId): number {
 /** Keep markets populated; AI founders step back as real players arrive (AI incumbents stay forever). */
 export function maintainPopulation(world: World, market: MarketId, rng: Rng, now: number) {
   const target = aiStartupTarget(world, market);
+  // Established listed companies (feedback note) aren't startups: they don't fill the city.
   const active = Object.values(world.companies).filter(
-    (c) => c.ai && c.market === market && c.status === 'active',
+    (c) => c.ai && c.market === market && c.status === 'active' && !isEstablished(c),
   ).length;
   // Population upkeep must never block a settlement; a failed spawn simply waits a month.
   if (active < target && rng.chance(0.5)) {

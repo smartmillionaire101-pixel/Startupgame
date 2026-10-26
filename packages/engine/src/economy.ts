@@ -46,6 +46,7 @@ import {
   notify,
   ownCompany,
   spendHours,
+  isEstablished,
 } from './helpers.js';
 import {
   account,
@@ -603,7 +604,7 @@ function supplierScore(b: LocalBusiness, c: Company, budget: number): number {
 
 const sectorRivals = (world: World, m: MarketState, sector: Industry) =>
   Object.values(world.companies).filter(
-    (c) => c.market === m.id && c.status === 'active' && c.industry === sector,
+    (c) => c.market === m.id && c.status === 'active' && c.industry === sector && !isEstablished(c),
   );
 
 function raiseRapport(b: LocalBusiness, playerId: Id, by: number) {

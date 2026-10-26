@@ -113,6 +113,7 @@ import {
   locationOf,
   nextStage,
   totalCustomers,
+  isEstablished,
 } from './helpers.js';
 import { floorGigPay, lifestyleCost, tierOf } from './personal.js';
 import { hasPublicWarning } from './stars.js';
@@ -406,8 +407,9 @@ export function digest(world: World, market: MarketId): NewsItem[] {
 }
 
 export function leaderboards(world: World, market: MarketId) {
+  // Startups only: the city's established listed companies are on the exchange.
   const companies = Object.values(world.companies).filter(
-    (c) => c.market === market && c.status === 'active',
+    (c) => c.market === market && c.status === 'active' && !isEstablished(c),
   );
   const players = Object.values(world.players).filter((p) => p.market === market);
   return {
@@ -734,8 +736,11 @@ export function playerView(
   const fund = p.investor?.fundId ? world.funds[p.investor.fundId] : undefined;
   const others = Object.values(world.companies).filter(
     // Your market, plus any market you've travelled to (§14).
+    // (Startups: the city's established listed companies are on the exchange.)
     (c) =>
-      (c.market === p.market || p.visited[c.market] !== undefined) && !c.founderIds.includes(p.id),
+      (c.market === p.market || p.visited[c.market] !== undefined) &&
+      !c.founderIds.includes(p.id) &&
+      !isEstablished(c),
   );
   return {
     worldVersion: world.version,

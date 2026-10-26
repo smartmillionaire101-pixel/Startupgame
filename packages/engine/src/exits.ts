@@ -633,8 +633,9 @@ const SEED_LISTINGS = 2;
 export function seedPublicMarket(world: World, marketId: string, count = SEED_LISTINGS) {
   const m = world.markets[marketId as MarketState['id']];
   if (!m) return 0;
+  // The city's established companies (established.ts) list on their own.
   const listed = Object.values(world.companies).filter(
-    (c) => c.market === marketId && c.ipo?.status === 'listed',
+    (c) => c.market === marketId && c.ipo?.status === 'listed' && !c.established,
   ).length;
   const candidates = Object.values(world.companies)
     .filter(
@@ -648,34 +649,40 @@ export function seedPublicMarket(world: World, marketId: string, count = SEED_LI
     .map((c) => ({ c, v: fairValue(world, c) }))
     .sort((a, b) => b.v - a.v || (a.c.id < b.c.id ? -1 : 1))
     .slice(0, Math.max(0, count - listed));
-  for (const { c } of candidates) {
-    const ct = c.capTable;
-    const fd = fullyDiluted(ct);
-    if (fd <= 0) continue;
-    const price = listingPrice(world, c);
-    const newShares = Math.round((fd * EXITS.ipo.floatBps) / (10_000 - EXITS.ipo.floatBps));
-    const raised = Math.round(newShares * price);
-    withTx(world, { kind: 'investment' }, () =>
-      transfer(world, m.ext.lps, c.account, raised, `IPO: new shares sold to the public`, m.month),
-    );
-    ct.holdings[`pub:${c.id}`] = { shares: newShares, kind: 'investor' };
-    ct.lastPrice = price;
-    ct.lastPostMoney = Math.round(price * (fd + newShares));
-    c.ipo = {
-      status: 'listed',
-      preparedMonth: m.month,
-      readyMonth: m.month,
-      bankerFee: 0,
-      listedMonth: m.month,
-      price,
-      prevPrice: price,
-      history: [price],
-      lockups: {},
-      basis: {},
-      raised,
-    };
-  }
+  for (const { c } of candidates) listAtModelPrice(world, m, c);
   return candidates.length;
+}
+
+/**
+ * List a company at the model's price: new shares (the float) sold to the
+ * public from the LP side of the world, no fees, no lock-up, no dice.
+ */
+export function listAtModelPrice(world: World, m: MarketState, c: Company) {
+  const ct = c.capTable;
+  const fd = fullyDiluted(ct);
+  if (fd <= 0) return;
+  const price = listingPrice(world, c);
+  const newShares = Math.round((fd * EXITS.ipo.floatBps) / (10_000 - EXITS.ipo.floatBps));
+  const raised = Math.round(newShares * price);
+  withTx(world, { kind: 'investment' }, () =>
+    transfer(world, m.ext.lps, c.account, raised, `IPO: new shares sold to the public`, m.month),
+  );
+  ct.holdings[`pub:${c.id}`] = { shares: newShares, kind: 'investor' };
+  ct.lastPrice = price;
+  ct.lastPostMoney = Math.round(price * (fd + newShares));
+  c.ipo = {
+    status: 'listed',
+    preparedMonth: m.month,
+    readyMonth: m.month,
+    bankerFee: 0,
+    listedMonth: m.month,
+    price,
+    prevPrice: price,
+    history: [price],
+    lockups: {},
+    basis: {},
+    raised,
+  };
 }
 
 // ---------------------------------------------------------------- the public market

@@ -41,7 +41,7 @@ import {
 import type { Role, Skills } from './data/characters.js';
 import { founderFit, ideaById } from './data/ideas.js';
 import { ensure } from './errors.js';
-import { col, getMarket, notify } from './helpers.js';
+import { col, getMarket, notify, isEstablished } from './helpers.js';
 import { newId } from './ids.js';
 import { forgetOwners, keepStatement, openAccount, transfer } from './ledger.js';
 import { major, scale } from './money.js';
@@ -587,6 +587,7 @@ export function welcomeNewPlayer(world: World, player: Player, companyId: Id | n
           c.ai &&
           c.market === m.id &&
           c.status === 'active' &&
+          !isEstablished(c) &&
           (!player.investor?.sectors.length || player.investor.sectors.includes(c.industry)),
       )
       .slice(0, 3);

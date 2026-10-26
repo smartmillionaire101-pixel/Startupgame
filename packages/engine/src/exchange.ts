@@ -23,8 +23,9 @@ import { fullyDiluted, waterfall } from './captable.js';
 import { INVESTOR } from './data/investor.js';
 import type { MarketId } from './data/markets.js';
 import { ensure, GameRuleError } from './errors.js';
+import { ensureEstablished } from './established.js';
 import { EXITS, isListed, recordRealised, seedPublicMarket } from './exits.js';
-import { achieve, getCompany, getMarket, holderAccount, notify } from './helpers.js';
+import { achieve, getCompany, getMarket, holderAccount, isEstablished, notify } from './helpers.js';
 import { newId } from './ids.js';
 import { account, costIn, pay, payExact, transfer, withTx } from './ledger.js';
 import { formatMoney } from './money.js';
@@ -46,7 +47,7 @@ import type {
   World,
 } from './types.js';
 
-/** AI-listed companies per exchange in investor-career worlds. */
+/** AI startups listed per exchange in investor-career worlds (plus, with the feedback note, the city's established companies). */
 export const EXCHANGE_LISTINGS = 5;
 /** Open limit orders per player. */
 const MAX_OPEN_ORDERS = 10;
@@ -90,6 +91,8 @@ export function ensureExchange(world: World, marketId: string) {
   const m = world.markets[marketId as MarketId];
   if (!m) return;
   seedPublicMarket(world, marketId, EXCHANGE_LISTINGS);
+  // Feedback note: the city's established companies list too (15–20 listings a city).
+  ensureEstablished(world, marketId);
   exchangeOf(world, m);
 }
 
@@ -618,6 +621,8 @@ export function exchangeView(world: World, p: Player, now?: number) {
             companyId: c.id,
             name: c.name,
             ai: c.ai,
+            /** One of the city's established companies (established.ts), not a startup. */
+            established: isEstablished(c),
             industry: c.industry,
             price: r2(c.ipo!.price ?? 0),
             changePct: c.ipo!.prevPrice

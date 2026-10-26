@@ -125,7 +125,12 @@ function ListingRow({
   return (
     <div className="inv-row" data-listing={x.companyId}>
       <div className="grow">
-        <strong>{x.name}</strong> {x.ai && <span className="small muted">{t('AI-run')}</span>}{' '}
+        <strong>{x.name}</strong>{' '}
+        {x.established ? (
+          <span className="small muted">{t('Established company')}</span>
+        ) : (
+          x.ai && <span className="small muted">{t('AI-run')}</span>
+        )}{' '}
         {x.insider && <Pill tone="warn">{t('Insider')}</Pill>}
         <div className="small muted">
           {t('Value {cap} · sales ×{ps} · {weight} of the index', {

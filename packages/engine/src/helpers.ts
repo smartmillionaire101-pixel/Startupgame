@@ -149,6 +149,13 @@ export function achieve(world: World, player: Player, key: string, label: string
   notify(world, player.id, { month, kind: 'milestone', text: `Milestone: ${label}` });
 }
 
+/**
+ * An established listed company run by the game (established.ts, feedback
+ * note), not a startup: startup systems (AI founders, fundraising, rivals,
+ * the Hub, local trade) leave it out.
+ */
+export const isEstablished = (c: Company): boolean => !!c.established;
+
 /** Paying customers: the segment funnel plus accounts won in the sales pipeline. */
 export const totalCustomers = (c: Company): number =>
   Object.values(c.segments).reduce((a, s) => a + s.paying, 0) + (c.salesAccounts?.length ?? 0);

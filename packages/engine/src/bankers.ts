@@ -34,7 +34,15 @@ import { districtWeights } from './districts.js';
 import { districtLabel } from './economy.js';
 import { ensure, fail } from './errors.js';
 import { contactWarmth } from './events.js';
-import { achieve, col, getMarket, locationOf, notify, spendHours } from './helpers.js';
+import {
+  achieve,
+  col,
+  getMarket,
+  locationOf,
+  notify,
+  spendHours,
+  isEstablished,
+} from './helpers.js';
 import { newId } from './ids.js';
 import { account, openAccount, transfer, transferUpTo } from './ledger.js';
 import { clamp, clamp01, roundTo } from './math.js';
@@ -1351,7 +1359,7 @@ function preopeningProspects(world: World, b: Bank) {
   const strategic = (b.shareholders ?? []).some((s) => s.id === 'ai:g3');
   const n = BANKERS.prospects + (strategic ? BANKERS.strategicProspects : 0);
   return Object.values(world.companies)
-    .filter((c) => c.ai && c.market === b.market && c.status === 'active')
+    .filter((c) => c.ai && c.market === b.market && c.status === 'active' && !isEstablished(c))
     .map((c) => ({ c, k: hashString(`${b.id}:${c.id}`) }))
     .sort((x, y) => x.k - y.k || (x.c.id < y.c.id ? -1 : 1))
     .slice(0, n)

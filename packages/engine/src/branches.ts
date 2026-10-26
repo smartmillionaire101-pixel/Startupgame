@@ -17,7 +17,7 @@ import { reliability } from './customers.js';
 import { districtWeights, randomDistrict, stableDistrict } from './districts.js';
 import { businessesOf, districtLabel, isOpen, openBusiness } from './economy.js';
 import { ensure } from './errors.js';
-import { col, getMarket, notify, ownCompany, spendHours } from './helpers.js';
+import { col, getMarket, notify, ownCompany, spendHours, isEstablished } from './helpers.js';
 import { newId } from './ids.js';
 import { account, costIn, pay, payExact } from './ledger.js';
 import { clamp } from './math.js';
@@ -273,6 +273,7 @@ export function aiExpansion(world: World, marketId: MarketId, month: number) {
   const rng = deriveRng(world.seed, 'branches', 'ai', marketId, month);
   for (const c of Object.values(world.companies)) {
     if (!c.ai || c.market !== marketId || c.status !== 'active' || c.hibernation) continue;
+    if (isEstablished(c)) continue;
     if (c.stars.value < 2.5 || openBranches(world, c.id).length >= BRANCH.aiMaxOpen) continue;
     if (!rng.chance(BRANCH.aiChance)) continue;
     const taken = openBranches(world, c.id)
@@ -399,6 +400,6 @@ export function cityBranchesView(world: World, viewer: Player, m: MarketState) {
 /** `market.offices`: where each active company has its head office (scattered, for the map). */
 export function cityOfficesView(world: World, m: MarketState) {
   return Object.values(world.companies)
-    .filter((c) => c.market === m.id && c.status === 'active')
+    .filter((c) => c.market === m.id && c.status === 'active' && !isEstablished(c))
     .map((c) => ({ companyId: c.id, name: c.name, ai: c.ai, district: companyDistrict(c) }));
 }

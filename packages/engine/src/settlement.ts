@@ -48,7 +48,8 @@ import {
 } from './marketplace.js';
 import type { MarketId } from './data/markets.js';
 import { localDate } from './clock.js';
-import { getMarket } from './helpers.js';
+import { getMarket, isEstablished } from './helpers.js';
+import { settleEstablished } from './established.js';
 import { clamp } from './math.js';
 import { economicNote, reporterOutreach } from './media.js';
 import { settlePerson } from './personal.js';
@@ -110,7 +111,9 @@ export function settleMarket(
   const active = () =>
     Object.values(world.companies).filter((c) => c.market === marketId && c.status === 'active');
 
-  for (const c of active()) if (c.ai || c.aiCeo) aiFounderPolicy(world, c, rng, month);
+  // Established companies (feedback note) are run by their profile, not an AI founder.
+  for (const c of active())
+    if ((c.ai || c.aiCeo) && !isEstablished(c)) aiFounderPolicy(world, c, rng, month);
 
   // B2B marketplace (§6): its own RNG stream so it never shifts other systems' draws.
   const b2bRng = deriveRng(world.seed, 'b2b', marketId, month);
@@ -149,6 +152,10 @@ export function settleMarket(
   settleBranches(world, marketId, month);
   aiExpansion(world, marketId, month);
   for (const c of active()) {
+    if (isEstablished(c)) {
+      settleEstablished(world, c, month);
+      continue;
+    }
     settleCompany(world, c, rng, month);
     payDividends(world, c, month);
     if (c.status === 'active') detectFakeRevenue(world, c, month);

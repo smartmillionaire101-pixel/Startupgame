@@ -78,7 +78,15 @@ import {
   bankFigures,
 } from './banks.js';
 import { ensure, fail } from './errors.js';
-import { col, getMarket, lastPnl, locationOf, notify, spendHours } from './helpers.js';
+import {
+  col,
+  getMarket,
+  lastPnl,
+  locationOf,
+  notify,
+  spendHours,
+  isEstablished,
+} from './helpers.js';
 import { account, transfer, transferUpTo } from './ledger.js';
 import { clamp, roundTo } from './math.js';
 import { formatMoney, scale } from './money.js';
@@ -286,7 +294,7 @@ function candidateFor(world: World, m: MarketState, key: string): Candidate | nu
 function candidates(world: World, p: Player, m: MarketState): Candidate[] {
   const out: Candidate[] = [];
   for (const c of Object.values(world.companies)) {
-    if (!c.ai || c.market !== m.id || c.status !== 'active') continue;
+    if (!c.ai || c.market !== m.id || c.status !== 'active' || isEstablished(c)) continue;
     if (c.founderIds.includes(p.id)) continue;
     const x = companyCandidate(world, c);
     if (x) out.push(x);
@@ -1276,7 +1284,14 @@ function meetClients(
       size: b.monthlyTakings,
     }));
   const founders: Met[] = Object.values(world.companies)
-    .filter((c) => c.ai && c.market === market && c.status === 'active' && !known.has(`c:${c.id}`))
+    .filter(
+      (c) =>
+        c.ai &&
+        c.market === market &&
+        c.status === 'active' &&
+        !isEstablished(c) &&
+        !known.has(`c:${c.id}`),
+    )
     .sort((a, b) => (a.id < b.id ? -1 : 1))
     .map((c) => ({
       key: `c:${c.id}`,

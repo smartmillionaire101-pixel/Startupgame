@@ -31,6 +31,7 @@ import {
   publish,
   spendHours,
   totalCustomers,
+  isEstablished,
 } from './helpers.js';
 import { account, openAccount, pay, transfer } from './ledger.js';
 import { clamp, clamp01 } from './math.js';
@@ -181,7 +182,7 @@ export function ensureCompetition(world: World, marketId: MarketId, month: numbe
   };
   // A few AI startups line up to pitch.
   const ai = Object.values(world.companies)
-    .filter((c) => c.ai && c.market === marketId && c.status === 'active')
+    .filter((c) => c.ai && c.market === marketId && c.status === 'active' && !isEstablished(c))
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   const n = rng.int(COMPETITION.aiEntrants[0], COMPETITION.aiEntrants[1]);
   for (const c of rng.shuffle(ai).slice(0, n)) addEntry(comp, c, c.founderIds[0] ?? c.id, true);
