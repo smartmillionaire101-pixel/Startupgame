@@ -57,6 +57,16 @@ import {
 } from './credit.js';
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
 import {
+  DECLINE_REASON_TEXT,
+  attachApplication,
+  decideStartupLoan,
+  filePlan as fileSetupPlan,
+  isStartupProduct,
+  leaseOffice,
+  registerCompany,
+  setupNext,
+} from './setup.js';
+import {
   bookFlight,
   cancelFlight,
   fly,
@@ -444,7 +454,12 @@ function foundCompany(
     'company.limit',
     'Two ventures at once is the limit; your hours are already split.',
   );
-  const c = createCompany(world, { founderId: me.id, ...setup });
+  // Feedback note: the founder setup (register, fund, plan, office) before any money moves.
+  const c = createCompany(world, {
+    founderId: me.id,
+    ...setup,
+    ...(feedbackOn(world) ? { setup: true } : {}),
+  });
   if (me.failures > 0) achieve(world, me, 'any.comeback', 'First comeback after failure', month);
   if (me.role === 'investor') achieve(world, me, 'any.role-switch', 'First role switch', month);
   welcomeNewPlayer(world, me, c.id);
@@ -747,8 +762,9 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
           'loan.bank',
           'Pick a licensed bank in your market.',
         );
+        // Founder setup: a startup loan application, with its plan, to any bank that lends to companies.
         ensure(
-          bank.type !== 'venture-debt' || c.lastRound !== null,
+          bank.type !== 'venture-debt' || c.lastRound !== null || !!c.setup,
           'loan.bank',
           'Venture debt is for startups that have raised equity.',
         );
@@ -765,6 +781,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
           },
           by: me.id,
         });
+        if (c.setup) attachApplication(world, me, c, deal);
         return { dealId: deal.id, message: `Request sent to ${bank.name}.` };
       }
       if (cmd.lenderId || cmd.productId) {
@@ -773,6 +790,16 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
           'loan.product',
           'Pick a lender and one of its loans.',
         );
+        // Founder setup: a startup loan to the company, decided on the plan.
+        const product = m.lenders?.[cmd.lenderId!]?.products.find((x) => x.id === cmd.productId);
+        if (c.setup && product && isStartupProduct(product))
+          return decideStartupLoan(world, me, c, {
+            lenderId: cmd.lenderId!,
+            productId: cmd.productId!,
+            amount: cmd.amount,
+            months: cmd.months,
+            personalGuarantee: cmd.personalGuarantee,
+          });
         return requestCompanyProductLoan(world, c, me, {
           lenderId: cmd.lenderId!,
           productId: cmd.productId!,
@@ -865,6 +892,22 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     }
     case 'company.found':
       return foundCompany(world, me, cmd.company, month);
+    case 'company.setup': {
+      const c = touch(cmd.companyId);
+      if (cmd.action === 'register') {
+        ensure(cmd.incorporation, 'setup.type', 'Pick a company type.');
+        return registerCompany(world, me, c, cmd.incorporation);
+      }
+      if (cmd.action === 'plan') {
+        ensure(cmd.plan, 'setup.plan', 'Fill in the plan.');
+        return fileSetupPlan(world, me, c, cmd.plan);
+      }
+      if (cmd.action === 'office') {
+        ensure(cmd.officeId, 'setup.office', 'Pick an office.');
+        return leaseOffice(world, me, c, cmd.officeId);
+      }
+      return setupNext(world, c, cmd.action === 'next' ? 'office' : 'fund');
+    }
     case 'company.start': {
       ensure(
         serialEligible(world, me),
@@ -941,6 +984,11 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       if (d.companyId && world.companies[d.companyId]?.founderIds.includes(me.id))
         world.companies[d.companyId]!.lastDecisionMonth = month;
       const out = actOnDeal(world, cmd.dealId, mine, me.id, act);
+      // Founder setup: a banker says why a startup loan application was declined.
+      if (cmd.reason && out.application && out.status === 'declined') {
+        out.application.declineReason = cmd.reason;
+        out.history.at(-1)!.summary = `Declined: ${DECLINE_REASON_TEXT[cmd.reason]}.`;
+      }
       return { dealId: out.id, status: out.status, summary: out.summary };
     }
     case 'deal.choose': {

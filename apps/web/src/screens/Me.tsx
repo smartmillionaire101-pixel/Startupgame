@@ -782,7 +782,8 @@ function CareerMoves() {
 }
 
 /** `serial`: start again as a serial founder (`company.start`: skills and contacts carry). */
-export function FoundCompany({ serial }: { serial?: boolean } = {}) {
+/** `setup`: the founder setup's step 1 (the company type and its fee come at registration). */
+export function FoundCompany({ serial, setup }: { serial?: boolean; setup?: boolean } = {}) {
   const { view, send, meta } = useView();
   const [name, setName] = useState('');
   const [idea, setIdea] = useState('');
@@ -847,25 +848,31 @@ export function FoundCompany({ serial }: { serial?: boolean } = {}) {
           )}
         </Field>
       </div>
-      <Field
-        label={t('Incorporation')}
-        hint={t('Foreign holding companies cost more but some investors prefer them.')}
-      >
-        {(id) => (
-          <select
-            id={id}
-            value={incorporation}
-            onChange={(e) => setIncorporation(e.target.value as typeof incorporation)}
-          >
-            {Object.entries(meta?.incorporation ?? {}).map(([key, value]) => (
-              <option key={key} value={key}>
-                {tx(value.label)} (
-                {money(Math.round(view.market.costOfLiving * value.costCol), view.market.currency)})
-              </option>
-            ))}
-          </select>
-        )}
-      </Field>
+      {!setup && (
+        <Field
+          label={t('Incorporation')}
+          hint={t('Foreign holding companies cost more but some investors prefer them.')}
+        >
+          {(id) => (
+            <select
+              id={id}
+              value={incorporation}
+              onChange={(e) => setIncorporation(e.target.value as typeof incorporation)}
+            >
+              {Object.entries(meta?.incorporation ?? {}).map(([key, value]) => (
+                <option key={key} value={key}>
+                  {tx(value.label)} (
+                  {money(
+                    Math.round(view.market.costOfLiving * value.costCol),
+                    view.market.currency,
+                  )}
+                  )
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+      )}
       <Button
         disabled={!check?.ok || idea.trim().length < 5}
         onClick={() =>
@@ -874,11 +881,13 @@ export function FoundCompany({ serial }: { serial?: boolean } = {}) {
               type: serial ? 'company.start' : 'company.found',
               company: { name, idea, industry, revenueModel: model, incorporation },
             },
-            t('{name} is open for business.', { name }),
+            setup
+              ? t('{name}: the name is yours. Next, register it.', { name })
+              : t('{name} is open for business.', { name }),
           )
         }
       >
-        {t('Start the company')}
+        {setup ? t('Reserve the name and continue') : t('Start the company')}
       </Button>
     </div>
   );

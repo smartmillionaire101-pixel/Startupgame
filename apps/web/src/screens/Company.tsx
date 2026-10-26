@@ -13,6 +13,7 @@ import { SalesPipeline } from './Sales';
 import { CofounderCard, HiringPipeline, TeamHealth } from './Hiring';
 import { RunwayExplainer } from './FundCompany';
 import { RivalsPanel } from './Decisions';
+import { FounderSetup, SetupTracker, setupOpen } from './FounderSetup';
 import { SimpleLink } from './SimpleLink';
 import { CompanyKpis } from './Home';
 import { SnapButton } from '../photos/SnapButton';
@@ -157,6 +158,22 @@ export function CompanyScreen() {
     // A founder sets up the company right here, not under Me (player feedback).
     if (view.me.role !== 'founder')
       return <Empty>{t('No active company. Set up your business in Me → Profile.')}</Empty>;
+    // Founder setup: step 1 of the tracker is the idea and its name.
+    if (view.setupOn)
+      return (
+        <>
+          <SetupTracker idea />
+          <section className="card" data-company-setup="">
+            <h2>{t('1 · Idea & industry')}</h2>
+            <p className="small muted">
+              {t(
+                'Name it and say what it does. Registering and funding come next, one step at a time.',
+              )}
+            </p>
+            <FoundCompany setup />
+          </section>
+        </>
+      );
     return (
       <section className="card" data-company-setup="">
         <h2>{t('Set up your company')}</h2>
@@ -167,6 +184,23 @@ export function CompanyScreen() {
       </section>
     );
   }
+  // Founder setup: register, fund, plan and office before the company opens.
+  if (setupOpen(c))
+    return (
+      <>
+        <header className="screen-head">
+          <span className="screen-logo" aria-hidden="true">
+            {c.name.trim().charAt(0).toUpperCase()}
+          </span>
+          <span className="screen-head-main">
+            <h1>{c.name}</h1>
+            <span className="muted small">{c.idea}</span>
+          </span>
+          <Pill>{c.industryLabel}</Pill>
+        </header>
+        <FounderSetup c={c} />
+      </>
+    );
   return (
     <>
       <header className="screen-head">
@@ -179,6 +213,8 @@ export function CompanyScreen() {
         </span>
         <Pill>{c.industryLabel}</Pill>
       </header>
+      {/* Founder setup: the done card hands over to the stage tracker. */}
+      <FounderSetup c={c} />
       {/* Founder guidance: the stage, its checklist and the next step, first. */}
       <StageTracker c={c} />
       {/* The company's bank, spending, how long the money lasts and revenue, up front. */}

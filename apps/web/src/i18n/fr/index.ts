@@ -100,6 +100,7 @@ import { investorGuide } from './investor-guide';
 import { bankerRepEvents } from './banker-rep-events';
 import { shop } from './shop';
 import { r2 } from './r2';
+import { setup } from './setup';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -203,6 +204,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   buildings,
   signup,
   r2,
+  setup,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));
