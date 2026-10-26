@@ -159,6 +159,9 @@ for (const simple of [false, true])
     await founder(page);
     await page.getByRole('button', { name: /^Phone/ }).click();
     const phone = page.getByRole('dialog', { name: 'Phone' });
+    // The home screen draws after the dialog opens: wait for it before listing its apps.
+    await expect(phone.locator('[data-phone-app="home"]')).toBeVisible();
+    await expect(phone.locator('[data-app]').first()).toBeVisible();
     const apps = await phone
       .locator('[data-app]')
       .evaluateAll((els) => els.map((e) => e.getAttribute('data-app')!));
