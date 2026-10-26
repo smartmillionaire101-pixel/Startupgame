@@ -48,6 +48,7 @@ import {
   newJump,
   sideOf,
   stepHeli,
+  type RoofAt,
   stepJump,
   toTarget,
   type Heli,
@@ -369,6 +370,25 @@ export default function AirFlight({
       return s ? s.groundAt(x, z) + s.terrainAt(x, z) : 0;
     };
     const base = groundAt(where.x, where.z);
+    // How tall the city stands under the helicopter and ahead of it (its height is
+    // drawn over `base`): the roofs straight down, 40 m cells cached, a few new rays
+    // a frame (one not yet looked at counts as the last one found), and the landmarks.
+    const roofs = new Map<string, number>();
+    let rays = 0;
+    let lastRoof = 0;
+    const roof: RoofAt = (x, z) => {
+      const k = `${Math.floor(x / 40)}_${Math.floor(z / 40)}`;
+      let r = roofs.get(k);
+      const s = sceneRef.current;
+      if (r === undefined && s && rays < 4) {
+        rays++;
+        r = s.roofAt(x, z) + 0.8 * (groundAt(x, z) - base);
+        for (const m of where.marks) if (Math.hypot(m.x - x, m.z - z) < 120) r = Math.max(r, m.h);
+        roofs.set(k, r);
+      }
+      if (r !== undefined) lastRoof = r;
+      return r ?? lastRoof;
+    };
     // The air's gusts: seeded by the booking (the same jump draws the same sky).
     const air = createRng(hashString(booking.bookingId));
     const frame = () => {
@@ -412,7 +432,8 @@ export default function AirFlight({
       } else if (heliRef.current) {
         let h = heliRef.current;
         if (h.leg <= route.length) {
-          h = stepHeli(h, dt, route, where, input.current);
+          rays = 0;
+          h = stepHeli(h, dt, route, where, input.current, roof);
           heliRef.current = h;
           if (h.leg > route.length) onHome(h);
         }

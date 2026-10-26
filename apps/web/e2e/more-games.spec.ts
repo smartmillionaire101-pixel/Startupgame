@@ -295,6 +295,23 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 8));
   await expect(air).toHaveAttribute('data-air-phase', 'landed', { timeout: 180_000 });
   await expect(air.locator('[data-air-result]')).toContainText('What a view!');
+  // Landed, it stays on the pad (player feedback: "when we landed it didn't stop").
+  const at = () =>
+    page.evaluate(() => {
+      const air = (
+        window as unknown as {
+          __air3d?: {
+            rig: { heli?: { group: { position: { x: number; y: number; z: number } } } };
+          };
+        }
+      ).__air3d;
+      const p = air?.rig.heli?.group.position;
+      return p ? [Math.round(p.x * 10), Math.round(p.y * 10), Math.round(p.z * 10)] : null;
+    });
+  const landedAt = await at();
+  expect(landedAt).not.toBeNull();
+  await page.waitForTimeout(1500);
+  expect(await at()).toEqual(landedAt);
   await snap(page, 'heli-landed', info);
   const v = await state(page);
   expect(v.me.games!.you.flights).toBe(1);

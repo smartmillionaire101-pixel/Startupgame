@@ -138,6 +138,12 @@ const _rc = new THREE.Raycaster();
 
 export const toMetres = (p: Pt) => geoMetres(p);
 
+/** Low things roofAt looks past (trees: and a ray through 26 000 of them is slow). */
+const noRoof = <T extends THREE.Object3D>(o: T): T => {
+  o.userData.noRoof = true;
+  return o;
+};
+
 export class CityScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -329,6 +335,8 @@ export class CityScene {
       this.sky,
       this.instMat,
     );
+    // Not a roof (roofAt): the ground under the buildings.
+    ground.group.userData.noRoof = true;
     this.scene.add(ground.group, landmarks);
     this.waterMaterial = ground.water.material as THREE.Material;
     this.addNight(glowPoints(landmarkLights(landmarks), this.glowMat));
@@ -470,21 +478,25 @@ export class CityScene {
       // Palms among the city's own trees (Freetown's mangoes and palms).
       const isPalm = (t: TreeSpot) => h3(Math.round(t.x * 5), Math.round(t.y * 5), 81) < palms;
       this.scene.add(
-        treeMeshes(
-          spots.filter((t) => !isPalm(t)),
-          this.look,
-          high,
+        noRoof(
+          treeMeshes(
+            spots.filter((t) => !isPalm(t)),
+            this.look,
+            high,
+          ),
         ),
       );
-      this.scene.add(treeMeshes(spots.filter(isPalm), { ...this.look, tree: 'palm' }, high));
-    } else this.scene.add(treeMeshes(spots, this.look, high));
+      this.scene.add(
+        noRoof(treeMeshes(spots.filter(isPalm), { ...this.look, tree: 'palm' }, high)),
+      );
+    } else this.scene.add(noRoof(treeMeshes(spots, this.look, high)));
     // Wave 12: a sky view over forested hills sees the forest.
     if (this.terrain && this.look.canopy) {
       const tf = this.terrain;
       const n = opts.soft ? 4000 : high ? 24000 : 12000;
       const forest = forestSpots(data, this.look, this.mask, (x, y) => heightAt(tf, x, y), n);
       this.stats.trees += forest.length;
-      this.scene.add(canopyMeshes(forest, this.look.canopy));
+      this.scene.add(noRoof(canopyMeshes(forest, this.look.canopy)));
     }
 
     // Street lamps (night): the streets around you first (a sky view: round the
@@ -1207,6 +1219,25 @@ export class CityScene {
 
   groundAt(x: number, y: number) {
     return this.roads.deckAt(x, y);
+  }
+
+  /**
+   * How tall the city stands at (x, y): the highest roof (or tower, or
+   * landmark) straight down from the sky, in metres above the ground; 0 on
+   * open ground. A ray each call: callers cache it (the helicopter, by cell).
+   */
+  roofAt(x: number, y: number): number {
+    const targets = this.scene.children.filter(
+      (o) => o.visible && o !== this.dome && !o.userData.noRoof && !(o as THREE.Light).isLight,
+    );
+    _rc.set(_v.set(x, 6000, y), _v2.set(0, -1, 0));
+    _rc.far = 7000;
+    const hit = _rc
+      .intersectObjects(targets, true)
+      .find((i) => (i.object as THREE.Mesh).isMesh && i.object.visible);
+    _rc.far = Infinity;
+    const ground = this.groundAt(x, y) + this.terrainAt(x, y);
+    return hit ? Math.max(0, hit.point.y - ground) : 0;
   }
 
   /** Full-density tiles standing now. */

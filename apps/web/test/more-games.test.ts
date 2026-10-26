@@ -170,6 +170,74 @@ describe('a helicopter tour', () => {
     expect(Math.hypot(h.x, h.z)).toBeLessThan(40);
   });
 
+  // Player feedback: "when we landed it didn't stop, it kept passing through buildings".
+  it('comes home from any heading, lands on the pad and stays there', () => {
+    const route = heliRoute({ x: 0, z: 0 }, marks, 1);
+    for (const heading of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      // Heading back (as after "Head back"), 300 m out, flying away from the pad.
+      let h = {
+        ...newHeli(0, 0),
+        x: 300,
+        z: 0,
+        alt: 220,
+        speed: 75,
+        heading,
+        leg: route.length,
+        t: 60,
+      };
+      let low = Infinity;
+      for (let k = 0; k < 20000 && h.leg <= route.length; k++) {
+        h = stepHeli(h, 0.05, route, { x: 0, z: 0 });
+        // Never low until it's over the pad.
+        if (Math.hypot(h.x, h.z) > 60) low = Math.min(low, h.alt);
+      }
+      expect(h.leg, `heading ${heading}`).toBe(route.length + 1);
+      expect(low).toBeGreaterThan(50);
+      expect(h.alt).toBe(0);
+      expect(h.speed).toBe(0);
+      expect(Math.hypot(h.x, h.z)).toBeLessThan(1);
+      // Landed: more steps change nothing.
+      const after = stepHeli(stepHeli(h, 0.5, route, { x: 0, z: 0 }), 0.5, route, { x: 0, z: 0 });
+      expect([after.x, after.z, after.alt, after.speed]).toEqual([h.x, h.z, 0, 0]);
+    }
+  });
+
+  it('flies over the buildings on the way, never through them', () => {
+    // A 300 m tower block between the pad and the landmark, one by the landmark, and
+    // 20 m roofs everywhere else but the heliport.
+    const roof = (x: number, z: number) =>
+      (x > 600 && x < 900 && Math.abs(z) < 300) || Math.hypot(x - 2000, z) < 150
+        ? 300
+        : Math.hypot(x, z) < 100
+          ? 0
+          : 20;
+    const route = [{ name: 'Tower', x: 2000, z: 0, h: 300 }];
+    let h = { ...newHeli(0, 0), heading: Math.PI / 2 };
+    let through = 0;
+    for (let k = 0; k < 40000 && h.leg <= route.length; k++) {
+      h = stepHeli(h, 0.05, route, { x: 0, z: 0 }, { turn: 0, climb: 0 }, roof);
+      // Off the heliport, always above the roofs.
+      if (Math.hypot(h.x, h.z) > 100 && h.alt < roof(h.x, h.z) + 10) through++;
+    }
+    expect(h.seen).toEqual(['Tower']);
+    expect(h.leg).toBe(route.length + 1);
+    expect(through).toBe(0);
+    // You at the controls can't fly it into one either.
+    let m = {
+      ...newHeli(0, 0),
+      x: 400,
+      alt: 100,
+      speed: 60,
+      heading: Math.PI / 2,
+      manual: true,
+      t: 30,
+    };
+    for (let k = 0; k < 400; k++) {
+      m = stepHeli(m, 0.05, route, { x: 0, z: 0 }, { turn: 0, climb: -1 }, roof);
+      expect(m.alt).toBeGreaterThanOrEqual(roof(m.x, m.z) + 10);
+    }
+  });
+
   it('lets you take the controls, and knows left from right', () => {
     let h = { ...newHeli(0, 0), manual: true, alt: 200, speed: 50 };
     const before = h.heading;
