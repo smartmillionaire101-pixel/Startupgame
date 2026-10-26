@@ -3,7 +3,7 @@
  * founders, investors, a bank, incumbents and a newsroom so it never feels empty.
  */
 import { LIFE_BARS } from './lifebars.js';
-import { lifeBarsOn } from './releases.js';
+import { feedbackOn, lifeBarsOn } from './releases.js';
 import {
   AI_FIRST_NAMES,
   AI_FUNDS,
@@ -592,16 +592,19 @@ export function welcomeNewPlayer(world: World, player: Player, companyId: Id | n
       text: `Welcome note from ${reporter.reporter} (${reporter.name}): “Good luck with ${c.name}. Tell us when you have news.”`,
     });
   } else if (player.role === 'investor') {
-    const pitches = Object.values(world.companies)
-      .filter(
-        (c) =>
-          c.ai &&
-          c.market === m.id &&
-          c.status === 'active' &&
-          !isEstablished(c) &&
-          (!player.investor?.sectors.length || player.investor.sectors.includes(c.industry)),
-      )
-      .slice(0, 3);
+    const open = Object.values(world.companies).filter(
+      (c) => c.ai && c.market === m.id && c.status === 'active' && !isEstablished(c),
+    );
+    const inFocus = (c: Company) =>
+      !player.investor?.sectors.length || player.investor.sectors.includes(c.industry);
+    // Feedback round: when the focus sectors have fewer than three startups
+    // left in a city (a long-running world), the rest of the city's pitch too,
+    // so a new investor never starts with an empty deal flow.
+    const pitches = (
+      feedbackOn(world)
+        ? [...open.filter(inFocus), ...open.filter((c) => !inFocus(c))]
+        : open.filter(inFocus)
+    ).slice(0, 3);
     for (const c of pitches) {
       c.raising = true;
       notify(world, player.id, {
