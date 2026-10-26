@@ -126,7 +126,7 @@ export const setup: Record<string, string> = {
   'Price vs what they pay': 'Prix et budget des clients',
   Margin: 'Marge',
   'Break-even': 'Point mort',
-  'Customer understanding': 'Connaissance des clients',
+  'Customer understanding': 'Connaissance du client',
   Repayment: 'Remboursement',
   'Customers spend up to {budget} a month on tools like this; {price} is well over it.':
     'Les clients dépensent jusqu’à {budget} par mois pour ce genre d’outil ; {price}, c’est bien au-dessus.',
