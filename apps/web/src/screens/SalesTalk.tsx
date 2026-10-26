@@ -266,7 +266,7 @@ function Prospect({
           </dl>
           {!d.revealed && (
             <p className="small muted">
-              {t('A discovery meeting in Sales tells you what they need and can spend.')}
+              {t('A discovery meeting tells you their need and budget.')}
             </p>
           )}
         </>
@@ -329,7 +329,7 @@ function Turns({
   const after = picked ? Math.round(picked.amount * (1 - discount / 100)) : null;
   return (
     <>
-      <Card title={t('Turn 1 · What do you lead with?')} action={dots(step === 'lead' ? 0 : 1)}>
+      <Card title={t('1 · Lead with')} action={dots(step === 'lead' ? 0 : 1)}>
         <ul className="convo-opts" data-turn="lead">
           {talk.leadOptions.map((o, i) => (
             <li key={o.id}>
@@ -475,11 +475,7 @@ function Turns({
       )}
       <Card>
         {talk.chance !== null && <Chance p={talk.chance} />}
-        <p className="small muted">
-          {t(
-            'Trust grows with each good answer. Their real need, price band and situation decide it.',
-          )}
-        </p>
+        <p className="small muted">{t('Good answers build trust.')}</p>
         {step === 'ask' && (
           <Button
             disabled={busy || hoursLeft < talk.askHours}

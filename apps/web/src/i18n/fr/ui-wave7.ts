@@ -14,7 +14,7 @@ export const uiWave7: Record<string, string> = {
   'Headlines, the daily digest and reporters':
     'Les gros titres, le résumé du jour et les journalistes',
   'No monthly costs yet': 'Pas encore de coûts mensuels',
-  'Rated after your first month': 'Noté après votre premier mois',
+  'After month 1': 'Après le 1er mois',
   'Investors in town': 'Investisseurs en ville',
   '{n} more investors': '{n} autres investisseurs',
   '{n} in {market}': '{n} à {market}',

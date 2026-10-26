@@ -399,7 +399,10 @@ export function WhatNowDay({
               onClick={() => onPick(p)}
             >
               <span className="whatnow-seg-part">
-                <span aria-hidden="true">{PART_ICON[p]}</span> {partLabel(p)}
+                <span className="whatnow-seg-ico" aria-hidden="true">
+                  {PART_ICON[p]}{' '}
+                </span>
+                {partLabel(p)}
               </span>
               <span className="whatnow-seg-hours">{PART_HOURS[p]}</span>
             </button>

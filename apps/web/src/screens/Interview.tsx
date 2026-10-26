@@ -340,7 +340,7 @@ function Rounds({
           </>
         ) : (
           <>
-            <h3 className="small">{t('Your next question')}</h3>
+            <h3 className="small">{t('Ask')}</h3>
             <ul className="convo-opts" aria-label={t('Your next question')}>
               {a.options.map((o, i) => (
                 <li key={o.id}>

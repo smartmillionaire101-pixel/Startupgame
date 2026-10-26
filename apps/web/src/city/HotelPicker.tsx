@@ -100,7 +100,7 @@ function NamedPicker({
   const chosen = options.find((h) => h.id === pick && h.affordable);
   return (
     <div className="hotel-picker" data-hotel-picker={city}>
-      <b className="small">{t('Where will you stay in {city}?', { city })}</b>
+      <b className="small">{t('Stay in {city}', { city })}</b>
       <HotelList
         city={city}
         marketId={marketId}
@@ -173,7 +173,7 @@ function TierPicker({
   const chosen = options.find((h) => h.tier === pick);
   return (
     <div className="hotel-picker" data-hotel-picker={city}>
-      <b className="small">{t('Where will you stay in {city}?', { city })}</b>
+      <b className="small">{t('Stay in {city}', { city })}</b>
       <div className="hotel-options" role="radiogroup" aria-label={t('Hotels')}>
         {options.map((h) => (
           <label

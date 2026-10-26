@@ -23,8 +23,8 @@ export const lifeBars: Record<string, string> = {
     'Beaucoup de travail dans le mois, des factures impayées, et une entreprise presque à court d’argent.',
   'Sleep, fun, friends, the gym, a film or a game at home.':
     'Le sommeil, les loisirs, les amis, la salle de sport, un film ou un jeu chez vous.',
-  'Tired, unwell or stressed makes sales and pitches harder; feeling great helps a little. Very unwell or stressed out means fewer hours next month.':
-    'Fatigué, malade ou stressé, vendre et pitcher devient plus difficile ; en pleine forme, cela aide un peu. Très malade ou à bout de stress, vous aurez moins d’heures le mois suivant.',
+  'Low bars make sales and pitches harder; very low ones cost hours next month.':
+    'Des barres basses rendent ventes et pitchs plus difficiles ; très basses, elles coûtent des heures le mois suivant.',
   // The ride chooser
   'Not enough hours left': 'Plus assez d’heures',
   'Too tired': 'Trop fatigué',
@@ -55,8 +55,6 @@ export const lifeBars: Record<string, string> = {
   'Stressed out: fewer hours and weaker pitches':
     'À bout : moins d’heures et des pitchs moins bons',
   'Stressed: sales and pitches are harder': 'Stressé : vendre et pitcher est plus difficile',
-  'Happy: a small boost to sales and pitches':
-    'Heureux : un petit coup de pouce pour vendre et pitcher',
-  'Feeling great: a small boost to sales and pitches':
-    'En pleine forme : un petit coup de pouce pour vendre et pitcher',
+  'Happy: +sales, +pitches': 'Heureux : +ventes, +pitchs',
+  'Feeling great: +sales, +pitches': 'En pleine forme : +ventes, +pitchs',
 };

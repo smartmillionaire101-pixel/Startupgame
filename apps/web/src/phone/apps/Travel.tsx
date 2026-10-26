@@ -225,10 +225,8 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
     return (
       <>
         <p className="small muted">
-          Flights are charged when booked. Boarding does not charge again.
-        </p>
-        <p className="small muted">
-          {t('Where do you want to go? Choose a flight and book it, then check in at the airport.')}
+          {t('Book a flight, then check in at the airport.')}{' '}
+          {t('Paid when booked, not at boarding.')}
         </p>
         <ul className="phone-list" aria-label={t('Flights')}>
           {rows.map(({ d, f }) => (

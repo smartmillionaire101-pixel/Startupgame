@@ -1,15 +1,15 @@
 import { expect, letters, playAsGuest, setupFounder, test } from './fixtures';
 
 /**
- * Feedback from inside the game: the button in the top row opens a short
- * form, and what the player writes is sent with the screen they were on.
+ * Feedback from inside the game: Feedback in the phone's Settings app opens
+ * a short form, and what the player writes is sent with the screen they were on.
  * FEEDBACK_SHOTS=<dir> saves 390×844 screenshots.
  */
 const SHOTS = process.env.FEEDBACK_SHOTS;
 
-test('a player sends feedback from the top row', async ({ page }) => {
+test('a player sends feedback from the phone’s Settings', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  // The longest the row gets: the online count can't be fetched.
+  // The online count can't be fetched: the top bar shows a dash.
   await page.route('**/api/online', (route) => route.abort());
   await playAsGuest(page);
   const n = letters(6);
@@ -20,19 +20,25 @@ test('a player sends feedback from the top row', async ({ page }) => {
     idea: 'Payroll for market traders',
     market: /San Francisco/,
   });
-  const open = page.locator('[data-feedback-open]');
-  await expect(open).toBeVisible({ timeout: 30_000 });
-  // The top row still fits a phone with the extra button.
-  await expect(page.locator('.online-count')).toContainText('unavailable');
-  const row = await page.locator('.game-activity').evaluate((el) => ({
+  await expect(page.locator('.topbar .online-count')).toContainText('unavailable', {
+    timeout: 30_000,
+  });
+  const bar = await page.locator('.topbar').evaluate((el) => ({
     scroll: el.scrollWidth,
     client: el.clientWidth,
   }));
-  expect(row.scroll).toBeLessThanOrEqual(row.client + 1);
+  expect(bar.scroll).toBeLessThanOrEqual(bar.client + 1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/feedback-row.png` });
 
+  await page.getByRole('button', { name: /^Phone/ }).click();
+  const phone = page.getByRole('dialog', { name: 'Phone' });
+  await phone.locator('[data-app="settings"]').click();
+  const open = phone.locator('[data-feedback-open]');
+  await open.scrollIntoViewIfNeeded();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/feedback-settings.png` });
   await open.click();
+  // The phone steps aside for the form.
+  await expect(phone).toBeHidden();
   const form = page.locator('[data-feedback-form]');
   await expect(form).toBeVisible();
   await form.getByRole('radio', { name: /Confusing/ }).click();

@@ -23,6 +23,7 @@ import { t, tx } from '../i18n';
 import { useNav } from '../phone/bus';
 import { useView } from '../store';
 import { Button, Card, Field, Pill, Stat } from '../ui';
+import './investor.css';
 
 export type BankerView = NonNullable<PlayerView['banker']>;
 type BankerBank = NonNullable<BankerView['bank']>;
@@ -194,18 +195,18 @@ const levelIcon = (l: string) => (l === 'good' ? '✓' : l === 'warn' ? '!' : '�
 
 const tutorialStepLabel = (id: string) =>
   ({
-    name: t('Name your bank and pick a licence'),
-    negotiate: t('Negotiate with the shareholders'),
-    sign: t('Sign and file for your licence'),
-    book: t('Book the Central Bank interview'),
-    interview: t('Attend the interview'),
+    name: t('Name & licence'),
+    negotiate: t('Shareholders'),
+    sign: t('File'),
+    book: t('Book interview'),
+    interview: t('Interview'),
   })[id] ?? id;
 
 const tutorialHint = (id: string) =>
   ({
     name: t('Below: a name, the kind of bank, and how much of your own money you put in.'),
     negotiate: t(
-      'Compare the offers side by side: more capital, more control, or a board seat and help. Take the ones you want, counter once each, or pull a lever.',
+      'Compare offers: capital, control or a board seat. Accept, counter once, or pull a lever.',
     ),
     sign: t(
       'When you raise at least the regulator’s minimum, sign: the money moves and your licence application is filed.',
@@ -226,7 +227,7 @@ export function BankerFirstSession() {
   const n = tut.steps.findIndex((s) => s.id === tut.step) + 1;
   return (
     <Card
-      title={t('First session · step {n} of {total}', { n, total: tut.steps.length })}
+      title={t('Getting started · {n}/{total}', { n, total: tut.steps.length })}
       sub={tutorialStepLabel(tut.step)}
       className="career-tutorial banker-tutorial"
       action={
@@ -346,7 +347,7 @@ export function Negotiate({ bank }: { bank: BankerBank }) {
             value={money(pv.capital, cur)}
             hint={
               pv.short > 0
-                ? t('{amount} short of the minimum', { amount: money(pv.short, cur) })
+                ? t('{amount} short', { amount: money(pv.short, cur) })
                 : t('Minimum {amount}: covered', { amount: money(pv.minCapital, cur) })
             }
             tone={pv.short > 0 ? 'bad' : 'good'}
@@ -354,7 +355,7 @@ export function Negotiate({ bank }: { bank: BankerBank }) {
           <Stat
             label={t('You would own')}
             value={<span data-ownership="">{bps(pv.ownershipBps)}</span>}
-            hint={t('Your share of dividends and value')}
+            hint={t('Of dividends and value')}
           />
           <Stat
             label={t('Voting control')}

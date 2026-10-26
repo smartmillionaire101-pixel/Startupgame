@@ -1414,14 +1414,11 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
   const typeLabel = (id: string) =>
     ({ local: t('local'), uk: t('UK Ltd'), us: t('US holding') })[id] ?? id;
   const rows: { label: string; value: string }[] = [
-    { label: t('Idea: {idea}', { idea: tx(c.idea) }), value: tx(c.industryLabel) },
+    { label: t('Idea'), value: tx(c.industryLabel) },
     ...(s.registered
       ? [
           {
-            label: t('Registered: {company} ({type})', {
-              company: c.name,
-              type: typeLabel(s.registered.incorporation),
-            }),
+            label: t('Registered · {type}', { type: typeLabel(s.registered.incorporation) }),
             value: money(s.registered.fee, cur),
           },
         ]
@@ -1429,11 +1426,11 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
     {
       label:
         loans > 0
-          ? t('Funded: your {own} + loans {loans}', {
+          ? t('Funded · {own} yours + {loans} loans', {
               own: money(own, cur),
               loans: money(loans, cur),
             })
-          : t('Funded: your {own}', { own: money(own, cur) }),
+          : t('Funded · {own} yours', { own: money(own, cur) }),
       value: money(c.cash, cur),
     },
     ...(s.plan ? [{ label: t('Plan sent'), value: t('{n}/100', { n: s.plan.score }) }] : []),
@@ -1442,7 +1439,7 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
           {
             label:
               s.office.id === 'home'
-                ? t('Working from home')
+                ? t('From home')
                 : t('{desks} desks, {district}', {
                     desks: s.office.desks,
                     district: districtName(s.office.district),
@@ -1456,7 +1453,7 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
     <Card
       className="fsu-done"
       title={<>🎉 {t('{company} is open', { company: c.name })}</>}
-      sub={t('Setup: 5 of 5 done')}
+      sub={t('All 5 steps done')}
     >
       <div className="stack" data-setup-done="">
         <ol className="fsu-chips">
@@ -1478,15 +1475,11 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
           <span className="muted">{t('Runway')}</span>
           <b>
             {s.runway.months < 0
-              ? t('No monthly costs yet')
-              : t('{n} months · goal {goal}', { n: months1(s.runway.months), goal: s.runway.goal })}
+              ? t('No costs yet')
+              : t('{n} mo · goal {goal}', { n: months1(s.runway.months), goal: s.runway.goal })}
           </b>
         </p>
-        <p className="small muted">
-          {t(
-            'Next: customer interviews, first sales and hiring. Your stage tracker below shows what to do first.',
-          )}
-        </p>
+        <p className="small muted">{t('Next: interviews, first sales, hiring. See Your stage.')}</p>
       </div>
     </Card>
   );

@@ -526,9 +526,9 @@
 .whatnow-btn {
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   width: 100%;
-  min-height: 60px;
+  min-height: 3.2rem;
   text-align: left;
   font: inherit;
   font-weight: var(--fw-bold);
@@ -536,7 +536,7 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+  padding: 0.35rem 0.6rem 0.35rem 0.4rem;
   cursor: pointer;
   box-shadow: var(--sh-1);
   transition:
@@ -557,7 +557,7 @@
   background: var(--surface);
 }
 .whatnow-btn .tray-icon {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
 }
 .whatnow-why {
   display: block;
@@ -589,6 +589,7 @@
 }
 .whatnow-text > b {
   display: block;
+  font-size: var(--fs-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -632,7 +633,7 @@
 }
 .whatnow-bar {
   position: relative;
-  margin: 0 0 1.6rem;
+  margin: 0 0 1.3rem;
 }
 .whatnow-day {
   list-style: none;
@@ -643,6 +644,15 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
+  font-size: var(--fs-xs);
+  /* The parts' icons go when the bar is narrow for its text (a small phone,
+     a larger text size), so each reads "Morning", never "Mor…". */
+  container-type: inline-size;
+}
+@container (max-width: 27em) {
+  .whatnow-seg-ico {
+    display: none;
+  }
 }
 .whatnow-day > li + li {
   border-left: 1px solid rgb(0 0 0 / 0.06);
@@ -654,7 +664,7 @@
   justify-items: center;
   gap: 0.15rem;
   width: 100%;
-  height: 50px;
+  height: 2.8rem;
   padding: 0 0.2rem;
   border: 0;
   font: inherit;
@@ -702,7 +712,7 @@
   border-bottom-color: var(--surface);
 }
 .whatnow-seg-part {
-  font-size: 0.8rem;
+  font-size: inherit;
   letter-spacing: -0.01em;
   font-weight: var(--fw-bold);
   max-width: 100%;
@@ -710,13 +720,13 @@
   text-overflow: ellipsis;
 }
 .whatnow-seg-hours {
-  font-size: 0.68rem;
+  font-size: var(--fs-2xs);
   color: var(--muted);
 }
 /* The marker hangs from the strip's bottom edge, clear of the hours ("6–10", not "6●10"). */
 .whatnow-nowmark {
   position: absolute;
-  top: 46px;
+  top: calc(2.8rem - 4px);
   height: 12px;
   width: 2px;
   margin-left: -1px;

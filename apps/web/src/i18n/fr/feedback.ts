@@ -4,6 +4,7 @@ export const feedback: Record<string, string> = {
   'Send feedback': 'Envoyer un avis',
   'Tell the Runway team what you think. We’ll see which screen you were on.':
     'Dites à l’équipe Runway ce que vous en pensez. Nous verrons sur quel écran vous étiez.',
+  'Tell the Runway team what you think.': 'Dites à l’équipe Runway ce que vous en pensez.',
   'What is it about?': 'De quoi s’agit-il ?',
   'Something broke': 'Quelque chose ne marche pas',
   Confusing: 'Pas clair',
