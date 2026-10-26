@@ -1,4 +1,13 @@
-import { expect, fillAboutYou, letters, pickLook, pickPath, tab, test } from './fixtures';
+import {
+  expect,
+  fillAboutYou,
+  finishSetup,
+  letters,
+  pickLook,
+  pickPath,
+  tab,
+  test,
+} from './fixtures';
 
 test('a founder signs up, onboards in under two minutes, and plays a month', async ({ page }) => {
   await page.goto('/');
@@ -34,24 +43,8 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await start.evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await start.click();
   await expect(page.locator('[data-company-setup]')).toHaveCount(0);
-  // The founder setup (founder-setup.spec.ts covers it in full): register, own money, office.
-  const reg = page.getByRole('button', { name: /^Register / });
-  await reg.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-  await reg.click();
-  const slider = page.getByLabel('Your own money');
-  // A value on the slider's steps (the browser snaps anything else).
-  const step = Number(await slider.getAttribute('step'));
-  await slider.fill(String(Math.round(Number(await slider.getAttribute('max')) / 2 / step) * step));
-  const put = page.getByRole('button', { name: /^Put / });
-  await put.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-  await put.click();
-  await expect(page.locator('[data-own-in]')).toBeVisible();
-  await page.getByRole('button', { name: 'Next: choose an office' }).first().click();
-  const home = page.getByRole('button', { name: 'Work from home for now' });
-  await page.locator('[data-office="home"]').click();
-  await home.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-  await home.click();
-  await expect(page.locator('[data-setup-done]')).toBeVisible();
+  // The founder setup (founder-setup.spec.ts covers it in full): register, own money, home.
+  await finishSetup(page);
 
   // The City opens first; the dashboard is the Home tab.
   await tab(page, 'Today').click();

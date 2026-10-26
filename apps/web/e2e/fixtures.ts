@@ -1,5 +1,5 @@
 import { expect, test as base, type Locator, type Page } from '@playwright/test';
-import { checkName } from '@runway/engine';
+import { checkName, OFFENSIVE_ROOTS } from '@runway/engine';
 
 /**
  * Shared fixture for all E2E tests.
@@ -86,11 +86,22 @@ const pick = (alphabet: string, n: number) =>
   Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => alphabet[b % alphabet.length]).join(
     '',
   );
+/**
+ * Could these letters spell a refused word with the text around them? Specs
+ * glue them to a word ("Floors " + "lutq…" is "floorslutq…" to the name
+ * filter, which ignores spaces), so neither end may start or finish one.
+ */
+const joinsRefused = (s: string) =>
+  OFFENSIVE_ROOTS.some((root) => {
+    for (let k = 2; k < root.length; k++)
+      if (s.startsWith(root.slice(root.length - k)) || s.endsWith(root.slice(0, k))) return true;
+    return false;
+  });
 /** Random letters the game's name filter accepts (a random run can spell a refused word). */
 export function letters(n = 6): string {
   for (;;) {
     const s = pick('abcdefghijklmnopqrstuvwxyz', n);
-    if (n < 3 || checkName(s, { taken: {}, kind: 'handle' }).ok) return s;
+    if (n < 3 || (checkName(s, { taken: {}, kind: 'handle' }).ok && !joinsRefused(s))) return s;
   }
 }
 export const digits = (n = 7) => pick('0123456789', n);
@@ -283,6 +294,45 @@ export async function signUp(
   await pickLook(page, opts);
   await fillAboutYou(page, opts);
   await page.getByRole('button', { name: /^Play/ }).click();
+}
+
+/** Click a button the coach card may cover: scrolled to the middle first. */
+async function press(button: Locator) {
+  await button.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await button.click();
+}
+
+/**
+ * Founder setup, steps 2 and 3 on the Company screen (founder-setup.spec.ts
+ * covers the journey in full): register a local company, then put `share`
+ * of the founder's savings in as shares. The company is funded, not open.
+ */
+export async function registerAndFund(page: Page, share = 1 / 2) {
+  const register = page.locator('[data-setup-register]');
+  await register.locator('[data-type="local"]').click();
+  await press(register.getByRole('button', { name: /^Register / }));
+  const own = page.locator('[data-setup-own]');
+  const slider = own.getByLabel('Your own money');
+  // A value on the slider's steps (the browser snaps anything else).
+  const step = Number(await slider.getAttribute('step'));
+  const max = Number(await slider.getAttribute('max'));
+  await slider.fill(String(Math.round((max * share) / step) * step));
+  await press(own.getByRole('button', { name: /^Put / }));
+  await expect(own.locator('[data-own-in]')).toBeVisible();
+}
+
+/**
+ * The whole founder setup after the name is reserved, the quick way a player
+ * would: register, own money, work from home. Ends on the done card, the
+ * company open with its stage tracker.
+ */
+export async function finishSetup(page: Page, share = 1 / 2) {
+  await expect(page.locator('[data-setup-register]')).toBeVisible();
+  await registerAndFund(page, share);
+  await page.getByRole('button', { name: 'Next: choose an office' }).first().click();
+  await page.locator('[data-office="home"]').click();
+  await press(page.getByRole('button', { name: 'Work from home for now' }));
+  await expect(page.locator('[data-setup-done]')).toBeVisible();
 }
 
 type Box = { x: number; y: number; width: number; height: number };

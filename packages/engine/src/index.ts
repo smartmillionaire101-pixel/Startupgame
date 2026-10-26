@@ -106,7 +106,7 @@ export type {
   WornPart,
   Removable,
 } from './appearance.js';
-export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';
+export { checkName, normaliseName, editDistance, isNearCopy, OFFENSIVE_ROOTS } from './names.js';
 export { checkChatMessage, startersFor, CHAT_MAX_LENGTH } from './chat.js';
 export {
   waterfall,

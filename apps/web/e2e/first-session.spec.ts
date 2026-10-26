@@ -4,6 +4,7 @@ import {
   letters,
   pickLook,
   pickPath,
+  registerAndFund,
   salesConversation,
   test,
   type Page,
@@ -99,17 +100,7 @@ test('a new founder is guided from the flat to a first sale and the next objecti
   await expect(card).toHaveAttribute('data-tutorial-step', 'sale');
   await expect(card.locator('[data-coach-unfunded]')).toBeVisible();
   await card.getByRole('button', { name: 'Open Company' }).click();
-  const register = page.getByRole('button', { name: /^Register / });
-  await register.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-  await register.click();
-  const slider = page.getByLabel('Your own money');
-  // A value on the slider's steps (the browser snaps anything else).
-  const grid = Number(await slider.getAttribute('step'));
-  await slider.fill(String(Math.round(Number(await slider.getAttribute('max')) / 3 / grid) * grid));
-  const put = page.getByRole('button', { name: /^Put / });
-  await put.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-  await put.click();
-  await expect(page.locator('[data-own-in]')).toBeVisible();
+  await registerAndFund(page, 1 / 3);
 
   // The first customer, with coaching at each step.
   await expect(card.locator('[data-coach-unfunded]')).toHaveCount(0);
