@@ -745,6 +745,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     applicationId: id,
     answers: z.array(z.number().int().min(0).max(5)).min(1).max(5),
   }),
+  /** The feedback round: study the brief of a booked (or just failed) interview; a capped bonus. */
+  z.object({ type: z.literal('job.study'), applicationId: id }),
   /** The feedback round: answer the work task in hand (an option index); the result comes at once. */
   z.object({
     type: z.literal('job.task'),

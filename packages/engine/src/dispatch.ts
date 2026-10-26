@@ -180,7 +180,7 @@ import {
   withdrawRequest,
 } from './bankwork.js';
 import { bookAir, endFlight, ensureGameVenues, landJump } from './games.js';
-import { applyForJob, attendInterview, ensureEmployers } from './work.js';
+import { applyForJob, attendInterview, ensureEmployers, studyBrief } from './work.js';
 import { answerTask } from './jobtasks.js';
 import { golfRound, mallBuy } from './leisure.js';
 import { mallTripCommand } from './malltrips.js';
@@ -1522,6 +1522,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return applyForJob(world, me, cmd.businessId, cmd.level);
     case 'job.interview':
       return attendInterview(world, me, cmd.applicationId, cmd.answers);
+    // Unknown until the feedback note: old worlds replay as before.
+    case 'job.study':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return studyBrief(world, me, cmd.applicationId);
     case 'job.task':
       return answerTask(world, me, cmd.taskId, cmd.answer);
     case 'home.order': {

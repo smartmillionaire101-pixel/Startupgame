@@ -11,6 +11,7 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Pill } from '../ui';
 import { looseCmd } from '../city/life';
+import { BriefToggle, LevelInterview, LevelReview } from './interview';
 import './work.css';
 
 type View = PlayerView;
@@ -48,7 +49,7 @@ export function fieldTitle(f: string): string {
 }
 
 /** A field inside a sentence ("12 months in finance"). */
-function fieldIn(f: string): string {
+export function fieldIn(f: string): string {
   return (
     {
       finance: t('in finance'),
@@ -62,7 +63,7 @@ function fieldIn(f: string): string {
   );
 }
 
-function skillName(s: string): string {
+export function skillName(s: string): string {
   return (
     {
       product: t('Product'),
@@ -221,6 +222,12 @@ export function EmployerNote({ e }: { e: Employer }) {
 
 /** The interview: three questions, one answer each; the decision comes straight after. */
 function Interview({ a }: { a: Application }) {
+  // The feedback round: the questions of this level, a case step by step.
+  if (a.level) return <LevelInterview a={a} />;
+  return <ClassicInterview a={a} />;
+}
+
+function ClassicInterview({ a }: { a: Application }) {
   const { view, send, busy } = useView();
   const work = workOf(view);
   const [answers, setAnswers] = useState<(number | null)[]>(() => a.questions.map(() => null));
@@ -287,8 +294,9 @@ function Interview({ a }: { a: Application }) {
   );
 }
 
-/** The answer: hired or turned down, with the reason. */
+/** The answer: hired or turned down, with the reason (by level: the full review). */
 function Decision({ a }: { a: Application }) {
+  if (a.level?.review) return <LevelReview a={a} />;
   const hired = a.status === 'hired';
   return (
     <section
@@ -341,6 +349,7 @@ export function Applications({ onGo }: { onGo: (businessId: string) => void }) {
           <Button size="sm" data-go-interview={a.businessId} onClick={() => onGo(a.businessId)}>
             {t('Go to interview')}
           </Button>
+          <BriefToggle a={a} onGo={() => onGo(a.businessId)} />
         </li>
       ))}
       {done.map((a) => (
@@ -386,6 +395,7 @@ export function EmployerPanel({ businessId }: { businessId: string }) {
   return (
     <div className="work-panel" data-employer={businessId}>
       {last && <Decision a={last} />}
+      {booked?.level && <BriefToggle a={booked} />}
       {booked && <Interview key={booked.id} a={booked} />}
       <h3 className="phone-h">
         {PROFESSION_ICON[e.profession]} {t('Careers at {place}', { place: e.name })}

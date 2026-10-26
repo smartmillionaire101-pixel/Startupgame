@@ -1,6 +1,7 @@
 /**
  * On-the-job tasks (FEEDBACK_NOTE, work.ts): the work your manager hands you
- * once you hold a professional job. Eight per profession, each with four
+ * once you hold a professional job. Eight per profession (and three or four
+ * harder ones for senior roles), each with four
  * options, the best one, and a one-line why for every option, in English
  * and French (like the quiz bank: proper names and code stay the same).
  *
@@ -13,6 +14,8 @@ import type { ProfessionId } from './professions.js';
 export interface JobTask {
   id: string;
   profession: ProfessionId;
+  /** How hard it is: 1 entry, 2 skilled, 3 senior (higher levels draw harder tasks). */
+  level: number;
   /** What kind of work it is ("Code review"). */
   title: string;
   text: string;
@@ -519,6 +522,234 @@ const ROWS: Row[] = [
 ];
 
 /**
+ * The feedback round, round two: harder tasks for senior roles (level 3
+ * and up draw these first), written the same way.
+ */
+// prettier-ignore
+const SENIOR_ROWS: Row[] = [
+  ['bank', 'bank-t-limit', 'Credit committee', 'Comité de crédit',
+    'A client’s total borrowing would reach 25% of the bank’s capital; the limit is 20%. The deal is profitable. You…',
+    ['Approve it: the margin is good', 'Cut the deal to fit the limit, or share the rest with other banks', 'Split it between two companies of the same group', 'Ask the client to wait a year'],
+    1,
+    ['The limit exists for exactly this: one default would hurt the whole bank.', 'Stay inside the limit and keep the client: other banks can take the rest.', 'Companies of one group count as one borrower: it breaks the rule in disguise.', 'It loses the client when a smaller deal works now.'],
+    'L’endettement total d’un client atteindrait 25 % du capital de la banque ; la limite est de 20 %. L’affaire est rentable. Vous…',
+    ['Acceptez : la marge est bonne', 'Réduisez l’opération à la limite, ou partagez le reste avec d’autres banques', 'La répartissez entre deux sociétés du même groupe', 'Demandez au client d’attendre un an'],
+    ['La limite existe pour ça : un seul défaut toucherait toute la banque.', 'Restez dans la limite et gardez le client : d’autres banques prennent le reste.', 'Les sociétés d’un même groupe comptent comme un seul emprunteur : c’est contourner la règle.', 'Vous perdez le client alors qu’une opération plus petite marche maintenant.']],
+  ['bank', 'bank-t-provision', 'Provisioning', 'Provisionnement',
+    'A 40m loan is 100 days unpaid and you expect to recover 60% of it. What do you book?',
+    ['Nothing until it’s written off', 'A 16m provision', 'A 24m provision', 'A 40m write-off'],
+    1,
+    ['It hides a loss you already expect.', '40m × the 40% you expect to lose = 16m.', 'That’s the 60% you expect to recover, not the loss.', 'Too much: you still expect 24m back.'],
+    'Un prêt de 40m est impayé depuis 100 jours et vous comptez en récupérer 60 %. Que comptabilisez-vous ?',
+    ['Rien tant qu’il n’est pas passé en perte', 'Une provision de 16m', 'Une provision de 24m', 'Une perte de 40m'],
+    ['Cela cache une perte déjà attendue.', '40m × les 40 % que vous comptez perdre = 16m.', 'Ce sont les 60 % que vous comptez récupérer, pas la perte.', 'Trop : vous attendez encore 24m.']],
+  ['bank', 'bank-t-stress', 'Stress test', 'Test de résistance',
+    'Rates may rise 5 points. Which borrowers do you review first?',
+    ['The biggest loans', 'Floating-rate borrowers with thin cover', 'Those who once paid late years ago', 'Every borrower equally'],
+    1,
+    ['Size matters, but fixed-rate loans don’t feel the rise.', 'Their payments rise at once, and they have the least room.', 'Old history says little about this shock.', 'It spreads the team thin when time matters.'],
+    'Les taux pourraient monter de 5 points. Quels emprunteurs examinez-vous d’abord ?',
+    ['Les plus gros prêts', 'Les emprunteurs à taux variable avec une couverture faible', 'Ceux qui ont payé en retard une fois il y a des années', 'Tous de la même façon'],
+    ['La taille compte, mais les prêts à taux fixe ne sentent pas la hausse.', 'Leurs échéances montent tout de suite, et ils ont le moins de marge.', 'Un vieil historique dit peu de ce choc.', 'Cela disperse l’équipe quand le temps presse.']],
+
+  ['investment', 'inv-t-waterfall', 'Exit waterfall', 'Cascade de sortie',
+    'You hold a 10m 1× non-participating preference for 20% of a company. It sells for 30m. You take…',
+    ['10m, the preference', '6m, your 20% of 30m', '16m, both', 'All 30m'],
+    0,
+    ['10m beats 6m: non-participating takes the bigger of the two.', 'You can take the preference instead, and it’s more.', 'Only a participating preference takes both.', 'The preference is capped at your 10m.'],
+    'Vous détenez une préférence 1× non participative de 10m pour 20 % d’une entreprise. Elle est vendue 30m. Vous prenez…',
+    ['10m, la préférence', '6m, vos 20 % de 30m', '16m, les deux', 'Les 30m'],
+    ['10m bat 6m : non participative, on prend le plus grand des deux.', 'Vous pouvez prendre la préférence à la place, et c’est plus.', 'Seule une préférence participative prend les deux.', 'La préférence est plafonnée à vos 10m.']],
+  ['investment', 'inv-t-markdown', 'Valuation mark', 'Valorisation',
+    'A company raised at 50m; its biggest customer, 40% of revenue, just left. The quarter’s mark…',
+    ['Stays at 50m until a new round', 'Goes down, with the reason in the investor letter', 'Goes to zero', 'Goes up: the team is strong'],
+    1,
+    ['Something clearly changed since the round: holding the mark misleads investors.', 'Marks follow clear changes, and investors hear why.', 'Too far: it still has 60% of its revenue.', 'Nothing supports a higher mark.'],
+    'Une entreprise a levé à 50m ; son plus gros client, 40 % des revenus, vient de partir. La valorisation du trimestre…',
+    ['Reste à 50m jusqu’au prochain tour', 'Baisse, avec la raison dans la lettre aux investisseurs', 'Passe à zéro', 'Monte : l’équipe est solide'],
+    ['Quelque chose a clairement changé depuis le tour : garder la valeur trompe les investisseurs.', 'La valeur suit les changements nets, et les investisseurs savent pourquoi.', 'Trop : il lui reste 60 % de ses revenus.', 'Rien ne justifie une hausse.']],
+  ['investment', 'inv-t-letter', 'Investor letter', 'Lettre aux investisseurs',
+    'One of the fund’s companies has failed. The quarterly letter is due. You…',
+    ['Leave it out: it’s small', 'Report it plainly, with what you learned', 'Mention it only if asked', 'Delay the letter'],
+    1,
+    ['Investors find out, and trust goes.', 'Reporting losses plainly is what earns the next fund.', 'Waiting to be asked looks like hiding it.', 'A late letter worries investors more.'],
+    'Une participation du fonds a fait faillite. La lettre trimestrielle est due. Vous…',
+    ['N’en parlez pas : c’est petit', 'L’annoncez clairement, avec ce que vous en avez appris', 'En parlez seulement si on demande', 'Retardez la lettre'],
+    ['Les investisseurs l’apprennent, et la confiance part.', 'Annoncer clairement les pertes, c’est ce qui fait lever le fonds suivant.', 'Attendre qu’on demande ressemble à cacher.', 'Une lettre en retard inquiète plus.']],
+
+  ['tech', 'tech-t-migration', 'Database migration', 'Migration de base de données',
+    'You must rename a column on a 50-million-row table the live app uses. Your plan?',
+    ['Rename it in one migration at night', 'Add the new column, write to both, backfill, switch reads, then drop the old one', 'Copy the table and swap it', 'Rename it and fix errors as they come'],
+    1,
+    ['A long lock or broken queries take the app down, night or not.', 'Each step is safe and can be undone while the app keeps running.', 'Writes made during the copy are lost.', 'Errors in production are users failing.'],
+    'Vous devez renommer une colonne d’une table de 50 millions de lignes utilisée par l’appli en production. Votre plan ?',
+    ['La renommer en une migration la nuit', 'Ajouter la nouvelle colonne, écrire dans les deux, remplir, basculer les lectures, puis supprimer l’ancienne', 'Copier la table et l’échanger', 'La renommer et corriger les erreurs au fil de l’eau'],
+    ['Un long verrou ou des requêtes cassées font tomber l’appli, de nuit comme de jour.', 'Chaque étape est sûre et réversible pendant que l’appli tourne.', 'Les écritures faites pendant la copie sont perdues.', 'Une erreur en production, ce sont des utilisateurs en échec.']],
+  ['tech', 'tech-t-ratelimit', 'API design', 'Conception d’API',
+    'One partner sends 5,000 requests a second and slows the API for everyone. You…',
+    ['Block the partner', 'Add per-client rate limits with a clear error and a retry time', 'Buy more servers', 'Ask them nicely to slow down'],
+    1,
+    ['It breaks their product without warning.', 'Fair to every client, and the partner knows how to back off.', 'Costs grow and the next spike does it again.', 'Polite, but nothing stops it happening again.'],
+    'Un partenaire envoie 5 000 requêtes par seconde et ralentit l’API pour tous. Vous…',
+    ['Bloquez le partenaire', 'Ajoutez des limites par client, avec une erreur claire et un délai de nouvel essai', 'Achetez plus de serveurs', 'Lui demandez gentiment de ralentir'],
+    ['Cela casse son produit sans prévenir.', 'Juste pour tous les clients, et le partenaire sait comment ralentir.', 'Les coûts grimpent et le prochain pic recommence.', 'Poli, mais rien n’empêche que ça recommence.']],
+  ['tech', 'tech-t-hire', 'Hiring', 'Recrutement',
+    'A candidate aced the coding test but was rude to the junior interviewer. You…',
+    ['Hire: talent is rare', 'Don’t hire: how they treat people matters', 'Hire them on a trial', 'Ask them to redo the interview'],
+    1,
+    ['One brilliant, rude engineer can drive good people away.', 'Teams only work when people respect each other.', 'A trial still puts the team through it.', 'They already showed how they treat juniors.'],
+    'Un candidat a brillé au test technique mais a été désagréable avec le recruteur junior. Vous…',
+    ['L’embauchez : le talent est rare', 'Ne l’embauchez pas : la façon de traiter les gens compte', 'L’embauchez à l’essai', 'Lui faites repasser l’entretien'],
+    ['Un ingénieur brillant mais désagréable peut faire fuir les bons.', 'Une équipe ne marche que si chacun respecte les autres.', 'Un essai fait quand même subir ça à l’équipe.', 'Il a déjà montré comment il traite les juniors.']],
+
+  ['engineering', 'eng-t-settlement', 'Foundations', 'Fondations',
+    'Monitoring shows a column footing has settled 25 mm; the design allows 10 mm. You…',
+    ['Note it and keep building', 'Stop adding load above it and call in the geotechnical engineer', 'Add a shim to level it', 'Wait for the next reading'],
+    1,
+    ['Settlement beyond the design can crack the frame above.', 'Find out why before adding more load.', 'It hides the movement; the cause goes on.', 'More load in the meantime makes it worse.'],
+    'Le suivi montre qu’une semelle de poteau s’est tassée de 25 mm ; le calcul en admet 10. Vous…',
+    ['Le notez et continuez', 'Arrêtez de charger au-dessus et faites venir le géotechnicien', 'Ajoutez une cale pour mettre à niveau', 'Attendez la prochaine mesure'],
+    ['Un tassement hors calcul peut fissurer la structure au-dessus.', 'Comprenez pourquoi avant d’ajouter de la charge.', 'Cela cache le mouvement ; la cause continue.', 'Plus de charge entre-temps aggrave les choses.']],
+  ['engineering', 'eng-t-claim', 'Contract claim', 'Réclamation contractuelle',
+    'The client’s late drawings delayed the job 4 weeks. You…',
+    ['Absorb it to keep the client happy', 'Submit a claim with the dated records', 'Add it to the bill without notice', 'Speed up at your own cost and say nothing'],
+    1,
+    ['You carry a cost that wasn’t yours.', 'Their delay, documented: the contract allows a fair claim.', 'A surprise bill breaks trust and the contract’s notice rules.', 'You pay for their delay twice.'],
+    'Les plans en retard du client ont retardé le chantier de 4 semaines. Vous…',
+    ['L’absorbez pour garder le client content', 'Déposez une réclamation avec les preuves datées', 'L’ajoutez à la facture sans prévenir', 'Accélérez à vos frais sans rien dire'],
+    ['Vous supportez un coût qui n’était pas le vôtre.', 'Leur retard, documenté : le contrat permet une réclamation juste.', 'Une facture surprise casse la confiance et les règles de préavis du contrat.', 'Vous payez leur retard deux fois.']],
+  ['engineering', 'eng-t-signoff', 'Sign-off', 'Visa',
+    'You’re asked to sign a design you haven’t seen checked, so work can start today. You…',
+    ['Sign: the team is good', 'Refuse until an independent check is done', 'Sign with a note', 'Ask the client to sign instead'],
+    1,
+    ['Your signature says it’s safe.', 'Nothing is signed as safe without a check.', 'A note doesn’t make it safe.', 'The client isn’t the engineer.'],
+    'On vous demande de signer un calcul que vous n’avez pas vu vérifié, pour démarrer aujourd’hui. Vous…',
+    ['Signez : l’équipe est bonne', 'Refusez tant qu’une vérification indépendante n’est pas faite', 'Signez avec une réserve', 'Demandez au client de signer'],
+    ['Votre signature dit que c’est sûr.', 'Rien n’est signé comme sûr sans vérification.', 'Une réserve ne rend pas l’ouvrage sûr.', 'Le client n’est pas l’ingénieur.']],
+
+  ['consultancy', 'con-t-summary', 'Executive summary', 'Synthèse',
+    'The CEO has two minutes for your findings. You start with…',
+    ['The method you used', 'The answer and what it’s worth', 'The data sources', 'Thanks to the team'],
+    1,
+    ['The method comes later, if asked.', 'Lead with the answer: the rest supports it.', 'Sources belong in the appendix.', 'Polite, but it uses up the two minutes.'],
+    'Le PDG a deux minutes pour vos conclusions. Vous commencez par…',
+    ['La méthode utilisée', 'La réponse et ce qu’elle vaut', 'Les sources de données', 'Remercier l’équipe'],
+    ['La méthode vient après, si on la demande.', 'Commencez par la réponse : le reste l’étaye.', 'Les sources vont en annexe.', 'Poli, mais ça mange les deux minutes.']],
+  ['consultancy', 'con-t-conflict', 'Independence', 'Indépendance',
+    'Your firm advises a competitor of your client on the same question. You…',
+    ['Say nothing', 'Disclose it and separate the teams, or step back', 'Share what you learn with both', 'Drop the smaller client'],
+    1,
+    ['If it comes out, you lose both.', 'A client must trust the advice is theirs alone.', 'It breaks both clients’ confidence.', 'Drastic, and the conflict still wasn’t disclosed.'],
+    'Votre cabinet conseille un concurrent de votre client sur la même question. Vous…',
+    ['Ne dites rien', 'Le déclarez et séparez les équipes, ou vous retirez', 'Partagez ce que vous apprenez avec les deux', 'Laissez tomber le plus petit client'],
+    ['Si ça se sait, vous perdez les deux.', 'Un client doit pouvoir croire que le conseil n’est que pour lui.', 'Cela trahit la confiance des deux clients.', 'Radical, et le conflit n’a toujours pas été déclaré.']],
+  ['consultancy', 'con-t-overrun', 'Project economics', 'Économie de la mission',
+    'The project will take 30% more days than you sold. You…',
+    ['Hide it and cut the analysis', 'Tell the client early, with options', 'Bill the extra days at the end', 'Make the team work weekends'],
+    1,
+    ['Quality drops and the client notices.', 'Early, with options: trust and the relationship survive.', 'A surprise bill ends the relationship.', 'It burns the team out and hides the problem.'],
+    'La mission prendra 30 % de jours de plus que vendu. Vous…',
+    ['Le cachez et réduisez l’analyse', 'Prévenez le client tôt, avec des options', 'Facturez les jours en plus à la fin', 'Faites travailler l’équipe le week-end'],
+    ['La qualité baisse et le client le voit.', 'Tôt, avec des options : la confiance et la relation tiennent.', 'Une facture surprise met fin à la relation.', 'Cela épuise l’équipe et cache le problème.']],
+
+  ['law', 'law-t-privilege', 'Privilege', 'Secret professionnel',
+    'The client forwarded your legal advice to a supplier. You…',
+    ['Ignore it', 'Warn them it may have lost its protection, and limit the damage', 'Ask the supplier to delete it, without telling the client', 'Rewrite the advice'],
+    1,
+    ['The protection may already be lost.', 'Explain the risk and act fast.', 'You act for the client: tell them first.', 'The original is already out.'],
+    'Le client a transféré votre consultation à un fournisseur. Vous…',
+    ['L’ignorez', 'Le prévenez qu’elle a peut-être perdu sa protection, et limitez les dégâts', 'Demandez au fournisseur de l’effacer, sans le dire au client', 'Réécrivez la consultation'],
+    ['La protection est peut-être déjà perdue.', 'Expliquez le risque et agissez vite.', 'Vous agissez pour le client : prévenez-le d’abord.', 'L’original est déjà parti.']],
+  ['law', 'law-t-regulator', 'Regulatory', 'Réglementaire',
+    'A client’s data leak must be reported within 72 hours. They want to wait. You…',
+    ['Agree', 'Advise reporting on time, in writing', 'Report it yourself without telling them', 'Resign at once'],
+    1,
+    ['Missing the deadline is a second breach.', 'Clear written advice protects the client and you.', 'Advise them; don’t go around them.', 'Too soon: advise first.'],
+    'La fuite de données d’un client doit être déclarée sous 72 heures. Il veut attendre. Vous…',
+    ['Acceptez', 'Conseillez de déclarer à temps, par écrit', 'La déclarez vous-même sans le prévenir', 'Démissionnez sur-le-champ'],
+    ['Rater le délai est une seconde infraction.', 'Un conseil écrit et clair protège le client et vous.', 'Conseillez-le ; ne le contournez pas.', 'Trop tôt : conseillez d’abord.']],
+  ['law', 'law-t-success', 'Fees', 'Honoraires',
+    'A client wants no-win, no-fee on a case with a 30% chance. You…',
+    ['Accept at a 30% success fee', 'Propose a fixed fee for the first stage', 'Refuse', 'Promise you’ll win'],
+    1,
+    ['A lot of work for an expected fee of 9%.', 'It shares the risk until the case is clearer.', 'Maybe, but a structure might work.', 'No lawyer can promise that.'],
+    'Un client veut un accord « pas de gain, pas d’honoraires » sur un dossier à 30 % de chances. Vous…',
+    ['Acceptez à 30 % d’honoraire de résultat', 'Proposez un forfait pour la première étape', 'Refusez', 'Promettez de gagner'],
+    ['Beaucoup de travail pour 9 % d’honoraires attendus.', 'Cela partage le risque jusqu’à ce que le dossier s’éclaircisse.', 'Peut-être, mais un montage pourrait marcher.', 'Aucun avocat ne peut promettre ça.']],
+
+  ['hospital', 'hos-t-sepsis', 'Sepsis', 'Sepsis',
+    'After surgery: fever, confusion and blood pressure 85/50. The first hour?',
+    ['A scan first', 'Blood tests, antibiotics and fluids now', 'Wait an hour and check again', 'Give painkillers'],
+    1,
+    ['Antibiotics can’t wait for the scan.', 'In sepsis the first hour matters most.', 'Sepsis gets worse fast.', 'It misses the cause.'],
+    'Après une opération : fièvre, confusion et tension 8,5/5. La première heure ?',
+    ['Le scanner d’abord', 'Prises de sang, antibiotiques et remplissage maintenant', 'Attendre une heure et revérifier', 'Donner des antalgiques'],
+    ['Les antibiotiques ne peuvent pas attendre le scanner.', 'Dans un sepsis, la première heure compte le plus.', 'Un sepsis s’aggrave vite.', 'Cela rate la cause.']],
+  ['hospital', 'hos-t-trend', 'Deterioration', 'Aggravation',
+    'Heart rate 90 → 110 → 125 over 3 hours; each reading was “in range” for the ward. You…',
+    ['Nothing: each one was in range', 'See the patient now: the trend is the warning', 'Ask for readings every 4 hours', 'Call the family'],
+    1,
+    ['The trend matters more than one number.', 'A rising trend is the earliest warning.', 'Less often, when it’s getting worse?', 'Not before you’ve seen the patient.'],
+    'Pouls 90 → 110 → 125 en 3 heures ; chaque mesure était « dans les normes » du service. Vous…',
+    ['Rien : chaque mesure était normale', 'Allez voir le patient maintenant : la tendance est l’alerte', 'Demandez des mesures toutes les 4 heures', 'Appelez la famille'],
+    ['La tendance compte plus qu’un chiffre.', 'Une tendance qui monte est l’alerte la plus précoce.', 'Moins souvent, alors que ça s’aggrave ?', 'Pas avant d’avoir vu le patient.']],
+  ['hospital', 'hos-t-candour', 'Duty of candour', 'Devoir de transparence',
+    'A patient was given a wrong dose; no harm was done. You…',
+    ['Say nothing', 'Tell the patient, apologise and report it', 'Report it only', 'Blame the pharmacy'],
+    1,
+    ['They have a right to know.', 'Honest and reported, so it doesn’t happen again.', 'The patient must be told too.', 'Blame doesn’t fix the check that failed.'],
+    'Un patient a reçu une mauvaise dose ; sans conséquence. Vous…',
+    ['Ne dites rien', 'Prévenez le patient, excusez-vous et déclarez l’erreur', 'Déclarez seulement', 'Accusez la pharmacie'],
+    ['Il a le droit de savoir.', 'Honnête et déclaré, pour que ça ne se reproduise pas.', 'Le patient doit aussi être informé.', 'Accuser ne répare pas le contrôle qui a échoué.']],
+  ['hospital', 'hos-t-flow', 'Bed flow', 'Gestion des lits',
+    'The ward is full and three patients are ready to go home. A sick patient waits in A&E. You…',
+    ['Send the three home early in the day', 'Wait for the evening round', 'Keep them a day to be safe', 'Put the new patient in a corridor'],
+    0,
+    ['Beds free up when they’re needed.', 'A&E waits all day.', 'It blocks a bed someone needs.', 'Unsafe care.'],
+    'Le service est plein et trois patients sont prêts à sortir. Un patient grave attend aux urgences. Vous…',
+    ['Faites sortir les trois tôt dans la journée', 'Attendez la visite du soir', 'Les gardez un jour par prudence', 'Mettez le nouveau patient dans un couloir'],
+    ['Les lits se libèrent quand on en a besoin.', 'Les urgences attendent toute la journée.', 'Cela bloque un lit dont quelqu’un a besoin.', 'Des soins dangereux.']],
+];
+
+/**
+ * How hard each task is: 1 (entry), 2 (skilled), 3 (senior). Your level
+ * draws the tasks nearest it first (jobtasks.ts): an Analyst never gets a
+ * senior task, a Director never an entry one.
+ */
+const LEVEL_TWO = new Set([
+  'bank-t-aml',
+  'bank-t-rate',
+  'bank-t-collateral',
+  'bank-t-fx',
+  'inv-t-valuation',
+  'inv-t-concentration',
+  'inv-t-terms',
+  'inv-t-reserves',
+  'tech-t-sql',
+  'tech-t-design',
+  'tech-t-incident',
+  'tech-t-secret',
+  'eng-t-load',
+  'eng-t-drainage',
+  'eng-t-tender',
+  'eng-t-calc',
+  'con-t-scope',
+  'con-t-estimate',
+  'con-t-confidential',
+  'con-t-pilot',
+  'law-t-conflict',
+  'law-t-evidence',
+  'law-t-settle',
+  'law-t-gift',
+  'hos-t-dose',
+  'hos-t-consent',
+  'hos-t-news',
+  'hos-t-fall',
+]);
+const SENIOR = new Set(SENIOR_ROWS.map((r) => r[1]));
+const levelOfTask = (id: string) => (SENIOR.has(id) ? 3 : LEVEL_TWO.has(id) ? 2 : 1);
+
+/**
  * Where the best option sits: the rows are written with it anywhere, and
  * each task's four options are rotated (all four lists together) so the best
  * one lands on A, B, C or D in turn.
@@ -527,7 +758,7 @@ const slotOf = (i: number) => (i * 3 + 1) % 4;
 const rotate = <T>(xs: T[], shift: number): T[] =>
   xs.map((_, k) => xs[(k - shift + xs.length * 2) % xs.length]!);
 
-export const JOB_TASKS: readonly JobTask[] = ROWS.map(
+export const JOB_TASKS: readonly JobTask[] = [...ROWS, ...SENIOR_ROWS].map(
   (
     [profession, id, title, frTitle, text, options, best, why, frText, frOptions, frWhy, code],
     i,
@@ -536,6 +767,7 @@ export const JOB_TASKS: readonly JobTask[] = ROWS.map(
     return {
       id,
       profession,
+      level: levelOfTask(id),
       title,
       text,
       options: rotate(options, shift),

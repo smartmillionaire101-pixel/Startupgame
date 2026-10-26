@@ -963,6 +963,24 @@ export interface JobApplication {
   /** Why: plain English, plus the parts a client needs to say it in its own words. */
   reason?: string;
   why?: JobWhy;
+  /** FEEDBACK_NOTE: the interview by level, step by step (work.ts). Missing = an old interview. */
+  review?: JobReview;
+}
+
+/** FEEDBACK_NOTE: how a levelled interview went (data/interviews.ts holds the words). */
+export interface JobReview {
+  /** Your score and the pass mark, 0–100. */
+  score: number;
+  passMark: number;
+  /** Points the brief you studied added, and how many times you studied it. */
+  bonus: number;
+  studied: number;
+  /** One per step, in the order answered. */
+  steps: { id: string; choice: number; best: number }[];
+  /** The hard checks you didn't meet (months, skill, time in the role). */
+  checks: JobWhy[];
+  /** Brief concepts to re-read: the ones behind the answers that let you down. */
+  study: string[];
 }
 
 export type JobWhy =
@@ -987,6 +1005,8 @@ export interface PlayerWork {
   tasks?: JobTasks;
   /** FEEDBACK_NOTE: jobs you were let go from, newest first. Missing = none. */
   record?: JobRecord[];
+  /** FEEDBACK_NOTE: interview briefs studied, `profession:level` → times (capped). Missing = none. */
+  study?: Record<string, number>;
 }
 
 /** On-the-job tasks (jobtasks.ts): the month's queue at your employer. */
