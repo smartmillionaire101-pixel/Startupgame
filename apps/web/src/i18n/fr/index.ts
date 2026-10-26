@@ -73,6 +73,7 @@ import { goingOut } from './going-out';
 import { mapBadges } from './map-badges';
 import { mallWalk } from './mall-walk';
 import { golfMatch } from './golf-match';
+import { r2Golf } from './r2-golf';
 import { camera } from './camera';
 import { jobsPro } from './jobs-pro';
 import { mallMore } from './mall-more';
@@ -176,6 +177,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   mapBadges,
   mallWalk,
   golfMatch,
+  r2Golf,
   camera,
   jobsPro,
   mallMore,

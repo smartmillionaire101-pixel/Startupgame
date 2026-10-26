@@ -1,5 +1,14 @@
 import type { PlayerView } from '@runway/engine';
-import { expect, letters, playAsGuest, setupFounder, tapPlace, test, type Page } from './fixtures';
+import {
+  expect,
+  expectGolfControlsClear,
+  letters,
+  playAsGuest,
+  setupFounder,
+  tapPlace,
+  test,
+  type Page,
+} from './fixtures';
 
 /**
  * Golf with a friend for money: the host invites a player in their city and
@@ -224,6 +233,19 @@ test('golf against an AI friend: it accepts, pays in and plays its shots on the 
     'data-golf-pot',
     String(stake * 2),
   );
+  // On your turn the controls keep to the edges: the scorecard is up in the
+  // HUD with the pot, the clubs down the left, the swing button bottom-right.
+  await expect
+    .poll(
+      async () =>
+        `${await match.getAttribute('data-golf-turn')}:${await match.getAttribute('data-golf-phase')}`,
+      { timeout: 60_000 },
+    )
+    .toBe('me:address');
+  await expect(match.locator('.golf-mhud .golf-minicard')).toBeVisible();
+  await expect(match.locator('.golf-mid [data-golf-turn-card]')).toContainText('Your shot');
+  await expect(match.locator('.golf-clubs .golf-club').first()).toBeVisible();
+  await expectGolfControlsClear(page, 'match');
   await playOut([page]);
   const view = await state(page);
   const room = view.playRooms.find((r) => r.game === 'golf' && r.host === view.me.id)!;

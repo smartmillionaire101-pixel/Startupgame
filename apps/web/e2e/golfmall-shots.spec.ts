@@ -83,8 +83,13 @@ for (const quality of ['3d', 'lite'] as const)
     await page.waitForTimeout(1500);
     await snap('2-address');
     // Lite draws a beat behind on a busy machine: catch the top a little later there.
-    if (quality === 'lite') await hold(page, 1300, () => snap('3-top-of-backswing'), 1250);
-    else await hold(page, 1150, () => snap('3-top-of-backswing'), 1100);
+    // While you hold, the meter beside the swing button fills and the reading shows in the middle.
+    const top = async () => {
+      await expect(scene.locator('.golf-mid .golf-read')).toBeVisible();
+      await snap('3-top-of-backswing');
+    };
+    if (quality === 'lite') await hold(page, 1300, top, 1250);
+    else await hold(page, 1150, top, 1100);
     await page.waitForTimeout(1900);
     await snap('4-follow-through');
     await page.waitForTimeout(3500);

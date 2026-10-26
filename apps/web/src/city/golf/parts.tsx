@@ -1,11 +1,11 @@
 /**
  * Golf: pieces the solo round (GolfScene.tsx) and a match with a friend
- * (GolfMatch.tsx) share: the power bar, the words for a lie, the
+ * (GolfMatch.tsx) share: the shot controls and power meter, the words for a lie, the
  * scorecard's marks and the mini-map.
  */
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { money } from '../../format';
-import { t } from '../../i18n';
+import { t, tx } from '../../i18n';
 import {
   LIE_CARRY,
   POWER_MAX,
@@ -13,6 +13,7 @@ import {
   SWEET_TO,
   along,
   dist,
+  powerZone,
   scoreMark,
   type Club,
   type HoleGeo,
@@ -40,66 +41,224 @@ export const powerAt = (ms: number, putt = false) => {
   return 110 * (x < half ? x / half : (2 * half - x) / half);
 };
 export const reachOf = (p: { club: Club; lie: Lie }) => p.club.carry * LIE_CARRY[p.lie];
+/** What the reading says at a power: "83% · Sweet!" and what to do about it. */
+export function powerWords(power: number): {
+  n: number;
+  zone: ReturnType<typeof powerZone>;
+  head: string;
+  hint: string;
+} {
+  const zone = powerZone(power);
+  const n = Math.round(power);
+  return {
+    n,
+    zone,
+    head:
+      zone === 'sweet'
+        ? t('{n}% · Sweet!', { n })
+        : zone === 'lunge'
+          ? t('{n}% · Lunge!', { n })
+          : t('{n}%', { n }),
+    hint:
+      zone === 'sweet'
+        ? t('Let go now')
+        : zone === 'lunge'
+          ? t('Too much: it’ll fly wild')
+          : t('Keep holding…'),
+  };
+}
+
 /**
- * The power bar above the swing button (player feedback: the ring sat behind
- * the button and hid the power): the sweet spot in green, a lunge in red, a
- * tick where this shot needs to be, and the live reading while you hold. The
- * shot's loop writes `--power`, `data-zone` and the reading straight to the
- * DOM (no re-render per frame), through `meterRef` and `readRef`.
+ * The shot's loop paints the power straight onto the DOM (no re-render per
+ * frame): the meter's fill, zone and number, and the reading in the middle.
  */
-export function PowerBar({
+export function paintPower(
+  meter: HTMLElement | null,
+  read: HTMLElement | null,
+  power: number,
+): void {
+  const w = powerWords(power);
+  const n = String(w.n);
+  if (meter && meter.dataset.power !== n) {
+    meter.style.setProperty('--power', `${(Math.min(POWER_MAX, power) / POWER_MAX) * 100}%`);
+    meter.dataset.power = n;
+    meter.dataset.zone = w.zone;
+    const label = meter.firstElementChild;
+    if (label) label.textContent = t('{n}%', { n: w.n });
+  }
+  if (read && read.dataset.power !== n) {
+    read.dataset.power = n;
+    read.dataset.zone = w.zone;
+    read.firstElementChild!.textContent = w.head;
+    read.lastElementChild!.textContent = w.hint;
+  }
+}
+
+/**
+ * The power meter, upright beside the swing button (player feedback: the
+ * tray and a centred button hid the ball and the aim): the sweet spot in
+ * green, a lunge in red at the top, a tick at the power that reaches the
+ * pin, and the fill while you hold. `paintPower` fills it.
+ */
+export function PowerMeter({
   meterRef,
-  readRef,
-  charging,
   need,
   lie,
-  hint,
 }: {
   meterRef: RefObject<HTMLDivElement | null>;
-  readRef: RefObject<HTMLDivElement | null>;
-  charging: boolean;
   /** Where this shot needs the power (0–110), or null when it isn't your shot. */
   need: number | null;
   lie?: Lie;
-  /** The line under the bar when you aren't holding. */
-  hint: string;
 }) {
   const pct = (v: number) => `${(Math.max(0, Math.min(POWER_MAX, v)) / POWER_MAX) * 100}%`;
   return (
-    <div className="golf-powerbar" ref={meterRef} data-power="0" data-zone="build">
-      <div className="golf-bar" aria-hidden="true">
+    <div className="golf-meter" ref={meterRef} data-power="0" data-zone="build" aria-hidden="true">
+      <span className="golf-meter-pct">{t('{n}%', { n: 0 })}</span>
+      <div className="golf-bar">
         <i
           className="golf-bar-sweet"
-          style={{ left: pct(SWEET_FROM), width: pct(SWEET_TO - SWEET_FROM) }}
+          style={{ bottom: pct(SWEET_FROM), height: pct(SWEET_TO - SWEET_FROM) }}
         />
-        <i className="golf-bar-lunge" style={{ left: pct(SWEET_TO), right: 0 }} />
+        <i className="golf-bar-lunge" style={{ bottom: pct(SWEET_TO), top: 0 }} />
         <i className="golf-bar-fill" />
         {need !== null && (
           <i
             className="golf-need"
             data-golf-need={need}
             data-golf-lie={lie}
-            style={{ left: pct(need) }}
+            style={{ bottom: pct(need) }}
           />
         )}
       </div>
-      {charging ? (
-        <div
-          className="golf-bar-read"
-          ref={readRef}
-          data-zone="build"
-          data-power="0"
-          aria-live="polite"
+    </div>
+  );
+}
+
+/** The live reading while you hold ("83% · Sweet!" / "Let go now"), painted by `paintPower`. */
+export function PowerRead({ readRef }: { readRef: RefObject<HTMLDivElement | null> }) {
+  return (
+    <div className="golf-read" ref={readRef} data-zone="build" data-power="0" aria-live="polite">
+      <b>{t('{n}%', { n: 0 })}</b>
+      <span>{t('Keep holding…')}</span>
+    </div>
+  );
+}
+
+/** The clubs, a column down the left of the course. */
+export function ClubColumn({
+  pool,
+  club,
+  lie,
+  disabled,
+  onPick,
+  columnRef,
+}: {
+  pool: readonly Club[];
+  club: Club;
+  lie: Lie;
+  disabled: boolean;
+  onPick: (club: Club) => void;
+  columnRef?: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div className="golf-clubs" ref={columnRef} role="group" aria-label={t('Clubs')}>
+      {pool.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          className="golf-club"
+          data-action="golf-club"
+          data-club={c.id}
+          aria-pressed={c.id === club.id}
+          disabled={disabled}
+          onClick={() => onPick(c)}
         >
-          <b>{t('{n}%', { n: 0 })}</b>
-          <span>{t('Keep holding…')}</span>
-        </div>
-      ) : (
-        <div className="golf-bar-read">
-          <b>{t('Power')}</b>
-          <span>{hint}</span>
-        </div>
-      )}
+          <b>{tx(c.label)}</b>
+          <span>
+            {c.id === 'putter'
+              ? t('On the green')
+              : t('{m} m', { m: Math.round(c.carry * LIE_CARRY[lie]) })}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The controls at the bottom corners, clear of the ball and the aim line:
+ * aim ◀ ▶ bottom-left, a word in the middle, the meter and the swing button
+ * (hold, let go) bottom-right under your thumb.
+ */
+export function ShotControls({
+  canAim,
+  onAim,
+  mid,
+  meter,
+  swing,
+}: {
+  canAim: boolean;
+  onAim: (d: number) => void;
+  mid: ReactNode;
+  meter: ReactNode;
+  swing: {
+    disabled: boolean;
+    label: string;
+    big: string;
+    small: string;
+    onDown: () => void;
+    onUp: () => void;
+    onCancel: () => void;
+  };
+}) {
+  return (
+    <div className="golf-controls">
+      <div className="golf-aims">
+        <button
+          type="button"
+          className="golf-aim"
+          aria-label={t('Aim left')}
+          data-action="golf-left"
+          disabled={!canAim}
+          onClick={() => onAim(-1)}
+        >
+          <span aria-hidden="true">◀</span>
+          <small>{t('Aim')}</small>
+        </button>
+        <button
+          type="button"
+          className="golf-aim"
+          aria-label={t('Aim right')}
+          data-action="golf-right"
+          disabled={!canAim}
+          onClick={() => onAim(1)}
+        >
+          <span aria-hidden="true">▶</span>
+          <small>{t('Aim')}</small>
+        </button>
+      </div>
+      <div className="golf-mid">{mid}</div>
+      <div className="golf-swing-side">
+        {meter}
+        <button
+          type="button"
+          className="golf-swing"
+          data-action="golf-swing"
+          aria-label={swing.label}
+          disabled={swing.disabled}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+            swing.onDown();
+          }}
+          onPointerUp={swing.onUp}
+          onPointerCancel={swing.onCancel}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <b>{swing.big}</b>
+          <small>{swing.small}</small>
+        </button>
+      </div>
     </div>
   );
 }
