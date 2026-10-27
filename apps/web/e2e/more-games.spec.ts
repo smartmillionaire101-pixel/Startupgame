@@ -172,6 +172,115 @@ test('bowling against the AI at the alley: a swipe down the lane, ten frames, th
   expect(errors).toEqual([]);
 });
 
+/** Where the 3D lane draws the ball (−1 … 1 across and up the canvas) and whether the guide shows. */
+const onLane = (p: Page) =>
+  p.evaluate(() => {
+    const l = (
+      window as unknown as {
+        __bowl3d?: {
+          onScreen(): { ball: { x: number; y: number; visible: boolean }; guide: boolean };
+        };
+      }
+    ).__bowl3d;
+    return l ? l.onScreen() : null;
+  });
+
+/** A finger swipe (real touch events, as on a phone): up `dy` px, bowing out `bow` px on the way. */
+async function touchSwipe(p: Page, from: { x: number; y: number }, dy: number, bow = 12) {
+  const cdp = await p.context().newCDPSession(p);
+  const at = (x: number, y: number) => [{ x, y, id: 1, radiusX: 6, radiusY: 6, force: 1 }];
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: at(from.x, from.y),
+  });
+  for (let i = 1; i <= 10; i++) {
+    const q = i / 10;
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: at(from.x + Math.sin(Math.PI * q) * bow, from.y - dy * q),
+    });
+    await p.waitForTimeout(12);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+test('bowling on your own on a phone: the ball waits on screen, a finger swipe bowls it, pins fall', async ({
+  page,
+}, info) => {
+  test.setTimeout(300_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem('runway.mapQuality', '3d'));
+  await founder(page, 'Solo Bowler');
+  const me = (await state(page)).me.id;
+  const { phone, games } = await goingOut(page);
+  await games.locator('[data-go="bowling"]').click();
+  await expect(phone).toBeHidden();
+  const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
+  if (
+    await chooser.waitFor({ timeout: 3000 }).then(
+      () => true,
+      () => false,
+    )
+  )
+    await chooser.locator('[data-mode="cycle"]').click();
+  const scene = page.locator('.place-scene');
+  await expect(scene).toBeVisible({ timeout: 30_000 });
+  await scene.locator('[data-action="fun:bowling"]').click();
+  const dialog = page.getByRole('dialog', { name: 'Play together' });
+  await dialog.getByRole('button', { name: 'Bowl solo' }).click();
+  const lane = dialog.locator('.bowling-lane canvas');
+  await expect(lane).toHaveAttribute('data-gl', '1', { timeout: STEP_3D });
+  await expect(lane).toHaveAttribute('data-mine', '1', { timeout: 15_000 });
+  // Your ball: the lane is brought fully on screen, the ball waits at the foul line in the
+  // lower part of the picture (where the swipe starts), and the guide is drawn.
+  await expect
+    .poll(
+      async () => {
+        const b = (await lane.boundingBox())!;
+        return b.y >= 0 && b.y + b.height <= page.viewportSize()!.height + 1;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+  await expect.poll(() => onLane(page).then((v) => v?.guide)).toBe(true);
+  const view = (await onLane(page))!;
+  expect(view.ball.visible).toBe(true);
+  expect(Math.abs(view.ball.x)).toBeLessThan(0.9);
+  expect(view.ball.y).toBeGreaterThan(-0.9);
+  expect(view.ball.y).toBeLessThan(-0.2);
+  await snap(page, 'bowling-solo-ready', info);
+  // A finger swipe from the ball straight up the lane, a touch right of centre (the pocket).
+  const box = (await lane.boundingBox())!;
+  const from = {
+    x: box.x + box.width * 0.54,
+    y: box.y + box.height * (0.5 - view.ball.y / 2),
+  };
+  await touchSwipe(page, from, box.height * 0.5);
+  await expect(lane).toHaveAttribute('data-rolling', '1', { timeout: 15_000 });
+  await expect(lane).toHaveAttribute('data-balls', '1');
+  const room = (await state(page)).playRooms.find(
+    (r) => r.game === 'bowling' && r.members.some((m) => m.id === me),
+  )!;
+  const last = room.bowling!.last!;
+  // It was the swipe that bowled (not the clock), and it knocked pins down.
+  expect(last.by).toBe(me);
+  expect(last.auto).toBeNull();
+  expect(last.knocked.length).toBeGreaterThan(0);
+  await page.waitForTimeout(1500);
+  await snap(page, 'bowling-solo-roll', info);
+  // Once the pins settle: the mark on the sheet, and the next ball (or frame) is yours again.
+  const row = dialog.locator(`.bowling-sheet [data-bowler="${me}"]`);
+  await expect(row.locator('li').first().locator('.marks i').first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(lane).toHaveAttribute('data-rolling', '0', { timeout: 20_000 });
+  await expect(lane).toHaveAttribute('data-mine', '1', { timeout: 20_000 });
+  await expect.poll(() => onLane(page).then((v) => v?.ball.visible && v.ball.y < -0.2)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test('a tandem skydive over the real city: jump, pull, steer to the target, the score', async ({
   page,
 }, info) => {

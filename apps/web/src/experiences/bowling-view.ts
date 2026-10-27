@@ -58,6 +58,59 @@ export function guideLine(i: BowlInput, to = OIL_END, step = 0.5): [number, numb
   return out;
 }
 
+/**
+ * A line on the lane ([x, z] points) as dashes `on` metres long with `off`
+ * gaps, each a strip `width` wide: two triangles per piece, as [x, z]
+ * corners (a dash that spans a bend is cut at the points in between).
+ */
+export function dashQuads(
+  line: readonly (readonly [number, number])[],
+  on = 0.35,
+  off = 0.25,
+  width = 0.04,
+): [number, number][] {
+  const half = width / 2;
+  const at: number[] = [0];
+  for (let i = 1; i < line.length; i++)
+    at.push(at[i - 1]! + Math.hypot(line[i]![0] - line[i - 1]![0], line[i]![1] - line[i - 1]![1]));
+  const total = at[at.length - 1] ?? 0;
+  const pointAt = (d: number): [number, number] => {
+    let i = 1;
+    while (i < at.length - 1 && at[i]! < d) i++;
+    const a = line[i - 1]!,
+      b = line[i]!;
+    const k = (d - at[i - 1]!) / Math.max(1e-9, at[i]! - at[i - 1]!);
+    return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+  };
+  const out: [number, number][] = [];
+  const piece = (p: [number, number], q: [number, number]) => {
+    const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (len < 1e-6) return;
+    const nx = (-(q[1] - p[1]) / len) * half,
+      nz = ((q[0] - p[0]) / len) * half;
+    const c: [number, number][] = [
+      [p[0] - nx, p[1] - nz],
+      [p[0] + nx, p[1] + nz],
+      [q[0] + nx, q[1] + nz],
+      [q[0] - nx, q[1] - nz],
+    ];
+    for (const k of [0, 1, 2, 0, 2, 3]) out.push(c[k]!);
+  };
+  if (line.length < 2 || on <= 0) return out;
+  for (let d0 = 0; d0 < total; d0 += on + Math.max(0, off)) {
+    const d1 = Math.min(total, d0 + on);
+    let p = pointAt(d0);
+    for (let i = 1; i < at.length - 1; i++)
+      if (at[i]! > d0 && at[i]! < d1) {
+        const q: [number, number] = [line[i]![0], line[i]![1]];
+        piece(p, q);
+        p = q;
+      }
+    piece(p, pointAt(d1));
+  }
+  return out;
+}
+
 /** The frame of a recorded roll at `t` seconds (the last one past the end). */
 export function frameAt(frames: readonly BowlFrame[], t: number): BowlFrame | null {
   if (!frames.length) return null;
