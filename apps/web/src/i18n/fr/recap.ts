@@ -66,6 +66,8 @@ export const recap: Record<string, string> = {
   'Living costs': 'Frais de vie',
   Mortgage: 'Crédit immobilier',
   'Car running costs': 'Frais de voiture',
+  'Key staff salaries': 'Salaires des dirigeants clés',
+  'Branch rent': 'Loyer de l’agence',
   '{bill} ({who})': '{bill} ({who})',
   '(estimate)': '(estimation)',
   'Nothing scheduled.': 'Rien de prévu.',
@@ -99,6 +101,16 @@ export const recap: Record<string, string> = {
   '{name} is judged: enter this month.': '{name} rend son verdict : inscrivez-vous ce mois-ci.',
   'Demo day at {accelerator} for {company}.': 'Demo day chez {accelerator} pour {company}.',
   'Your last repayment to {lender}.': 'Votre dernier remboursement à {lender}.',
+  'The regulator decides on {bank}’s licence.':
+    'Le régulateur se prononce sur l’agrément de {bank}.',
+  // Your bank (bankers).
+  'Your bank': 'Votre banque',
+  'The regulator refused {bank}’s licence (score {score}).':
+    'Le régulateur a refusé l’agrément de {bank} (note {score}).',
+  '{bank} is licensed, with conditions (score {score}).':
+    '{bank} a son agrément, sous conditions (note {score}).',
+  '{bank} is licensed (score {score}).': '{bank} a son agrément (note {score}).',
+  'Licence refused for {bank}.': 'Agrément refusé pour {bank}.',
   // Entry points.
   'Last month’s recap': 'Le bilan du mois dernier',
   'Money, company, people and what’s due next month':

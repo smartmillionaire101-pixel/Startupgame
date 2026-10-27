@@ -1428,6 +1428,16 @@ function licenceScore(world: World, b: Bank) {
   return { parts, score, equity: f.equity, need };
 }
 
+/** The licence's capital check: now, the minimum, this month's costs and any shortfall. */
+function licenceCapital(world: World, b: Bank) {
+  const equity = bankFigures(world, b).equity;
+  const need = minCapitalOf(world, b);
+  const costs = staffCostOf(b) + (b.licence?.branch?.rent ?? 0);
+  const decidedAfterCosts = !feedbackOn(world);
+  const counted = decidedAfterCosts ? equity - costs : equity;
+  return { equity, need, costs, decidedAfterCosts, short: Math.max(0, need - counted) };
+}
+
 /** Reasons a weak part gives (ids the client words; English for the inbox). */
 const REASONS: Record<string, string> = {
   capital: 'Capital is below the minimum: add capital.',
@@ -1446,6 +1456,10 @@ export function settleBankers(world: World, market: string, month: number) {
     if (b.status !== 'applying' && b.status !== 'licensed') continue;
     const m = getMarket(world, b.market);
     const owner = world.players[b.ownerId];
+    // Play-test (FEEDBACK_NOTE): the regulator decides on the capital the
+    // checklist showed, before this month's salaries and rent are taken.
+    const early = b.status === 'applying' && feedbackOn(world);
+    if (early) decide(world, b, month);
     // Key people and the branch are paid from the bank's account.
     const staff = staffCostOf(b);
     let paid = 0;
@@ -1475,7 +1489,7 @@ export function settleBankers(world: World, market: string, month: number) {
       }
       continue;
     }
-    decide(world, b, month);
+    if (!early) decide(world, b, month);
   }
 }
 
@@ -1801,6 +1815,12 @@ export function bankerView(world: World, p: Player, now: number) {
           signed: lic.clients.includes(c.id),
         })),
         decision: lic.decision ?? null,
+        /**
+         * Capital against the minimum (play-test: say it before month end).
+         * From the feedback round the regulator decides before this month's
+         * costs; before it, on what is left after them (`decidedAfterCosts`).
+         */
+        capital: licenceCapital(world, b),
         score: licenceScore(world, b).score,
         approveAt: BANKERS.approve,
         conditionsAt: BANKERS.conditions,

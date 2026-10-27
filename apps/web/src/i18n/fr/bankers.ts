@@ -147,6 +147,12 @@ export const bankers: Record<string, string> = {
   'Checklist complete. The regulator decides at the end of month {month}.':
     'Liste complète. Le régulateur décide à la fin du mois {month}.',
   Checklist: 'Liste de contrôle',
+  'Capital is {short} short of the {need} minimum. Add capital before month end or the licence is refused.':
+    'Il manque {short} de capital pour atteindre le minimum de {need}. Ajoutez du capital avant la fin du mois, sinon l’agrément sera refusé.',
+  'Capital {capital} (minimum {need}). The regulator counts it after this month’s salaries and rent ({costs}).':
+    'Capital {capital} (minimum {need}). Le régulateur le compte après les salaires et le loyer du mois ({costs}).',
+  'Capital {capital} (minimum {need}). This month’s salaries and rent ({costs}) are paid after the regulator decides.':
+    'Capital {capital} (minimum {need}). Les salaires et le loyer du mois ({costs}) sont payés après la décision du régulateur.',
   'Hire: {role}': 'Recruter : {role}',
   'Fit-and-proper interview at the Central Bank': 'Entretien d’honorabilité à la Banque centrale',
   'Business plan': 'Business plan',

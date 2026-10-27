@@ -259,6 +259,37 @@ function RecapBody({ recap, details }: { recap: RecapView; details: Details }) {
         </Section>
       )}
 
+      {recap.banks.some((b) => b.decision) && (
+        <Section id="bank" title={t('Your bank')}>
+          <ul className="recap-list">
+            {recap.banks.map((b) =>
+              b.decision ? (
+                <li
+                  key={b.id}
+                  data-licence-decision={b.decision.outcome}
+                  className={b.decision.outcome === 'refused' ? 'recap-bad' : 'recap-good'}
+                >
+                  {b.decision.outcome === 'refused'
+                    ? t('The regulator refused {bank}’s licence (score {score}).', {
+                        bank: b.name,
+                        score: b.decision.score,
+                      })
+                    : b.decision.outcome === 'conditions'
+                      ? t('{bank} is licensed, with conditions (score {score}).', {
+                          bank: b.name,
+                          score: b.decision.score,
+                        })
+                      : t('{bank} is licensed (score {score}).', {
+                          bank: b.name,
+                          score: b.decision.score,
+                        })}
+                </li>
+              ) : null,
+            )}
+          </ul>
+        </Section>
+      )}
+
       <Section id="people" title={t('People')}>
         {recap.people.length ? (
           <ul className="recap-list">
@@ -525,7 +556,21 @@ const BILL: Record<RecapBill['kind'], string> = {
   mortgage: 'Mortgage',
   upkeep: 'Home running costs',
   car: 'Car running costs',
+  bankStaff: 'Key staff salaries',
+  branchRent: 'Branch rent',
 };
+
+/** Why the regulator refused (the same words as the licence screen). */
+const licenceReason = (id: string) =>
+  ({
+    capital: t('Capital is below the minimum: add capital.'),
+    credit: t('Your credit record is weak: clear defaults and debts.'),
+    interview: t('The fit-and-proper interview was weak: book another and answer again.'),
+    plan: t('The business plan has weak spots: revise it.'),
+    people: t('The key people are not strong enough: hire stronger candidates.'),
+    systems: t('The core banking system is not reliable enough: choose a better one.'),
+    lapsed: t('The checklist wasn’t finished in time: finish it and the review runs again.'),
+  })[id] ?? id;
 
 function billLabel(b: RecapBill) {
   const base = t(BILL[b.kind]);
@@ -617,6 +662,12 @@ function riskText(r: RecapRisk): string {
       return t('Your cash won’t cover next month’s personal bills: {amount} short.', {
         amount: money(r.short, r.currency),
       });
+    case 'licence':
+      return [
+        t('Licence refused for {bank}.', { bank: r.bank }),
+        ...r.reasons.map(licenceReason),
+        t('Fix these and the regulator reviews the application again.'),
+      ].join(' ');
   }
 }
 
@@ -641,6 +692,8 @@ function dateText(d: RecapDate): string {
       });
     case 'loanEnds':
       return t('Your last repayment to {lender}.', { lender: d.lender });
+    case 'licenceDecision':
+      return t('The regulator decides on {bank}’s licence.', { bank: d.bank });
   }
 }
 

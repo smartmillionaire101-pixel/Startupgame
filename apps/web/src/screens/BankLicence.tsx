@@ -746,6 +746,8 @@ export function LicenceTracker({ bank }: { bank: BankerBank }) {
     { id: 'branch', done: !lic.missing.includes('branch') },
   ];
   const d = lic.decision;
+  const cap = lic.capital;
+  const cur = view.market.currency;
   return (
     <div className="stack banker-licence" data-banker="licence">
       <Card
@@ -778,6 +780,34 @@ export function LicenceTracker({ bank }: { bank: BankerBank }) {
                 month: lic.decisionMonth,
               })}
         </p>
+        {cap.short > 0 ? (
+          <p className="small bad" data-capital-short={cap.short}>
+            {t(
+              'Capital is {short} short of the {need} minimum. Add capital before month end or the licence is refused.',
+              { short: money(cap.short, cur), need: money(cap.need, cur) },
+            )}
+          </p>
+        ) : (
+          <p className="small muted" data-capital-ok="">
+            {cap.decidedAfterCosts
+              ? t(
+                  'Capital {capital} (minimum {need}). The regulator counts it after this month’s salaries and rent ({costs}).',
+                  {
+                    capital: money(cap.equity, cur),
+                    need: money(cap.need, cur),
+                    costs: money(cap.costs, cur),
+                  },
+                )
+              : t(
+                  'Capital {capital} (minimum {need}). This month’s salaries and rent ({costs}) are paid after the regulator decides.',
+                  {
+                    capital: money(cap.equity, cur),
+                    need: money(cap.need, cur),
+                    costs: money(cap.costs, cur),
+                  },
+                )}
+          </p>
+        )}
         <ul className="licence-checklist" aria-label={t('Checklist')}>
           {steps.map((s) => (
             <li key={s.id} className={s.done ? 'done' : ''} data-check={s.id}>
