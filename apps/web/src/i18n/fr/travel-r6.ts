@@ -43,4 +43,9 @@ export const travelR6: Record<string, string> = {
   'A landmark from the air: {name}': 'Un monument vu du ciel : {name}',
   // Hotels (HotelList).
   '1 star': '1 étoile',
+  // The suite in flight (Suite).
+  '{name}: Good afternoon. We land in {city} shortly.':
+    '{name} : Bon après-midi. Nous atterrissons bientôt à {city}.',
+  '{name}: Good evening. We land in {city} shortly.':
+    '{name} : Bonsoir. Nous atterrissons bientôt à {city}.',
 };

@@ -1018,6 +1018,34 @@ export function nextFlightTo(
   return { ...deps[0], at, time: hhmm(at % (24 * 60)), late: 0 };
 }
 
+/** Great-circle hours at airliner speed, plus taxi and climb. */
+export function flightHours(from: string, to: string, fallback: number): number {
+  const a = CITY_GEO[from];
+  const b = CITY_GEO[to];
+  if (!a || !b) return fallback;
+  const r = Math.PI / 180;
+  const h =
+    Math.sin(((b.lat - a.lat) * r) / 2) ** 2 +
+    Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lon - a.lon) * r) / 2) ** 2;
+  const km = 2 * 6371 * Math.asin(Math.sqrt(h));
+  return km / 820 + 0.5;
+}
+
+/**
+ * When a flight leaving `from` at `time` ("18:45", local there) is due in at
+ * `to`, in minutes after midnight there (playtest round 6: the arrivals board
+ * said your flight landed at 17:20, before its 17:45 UTC departure).
+ */
+export function dueIn(from: string, to: string, time: string, now = Date.now()): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time);
+  if (!m) return null;
+  const dep = Number(m[1]) * 60 + Number(m[2]);
+  // The two cities' clocks apart (minutes), now.
+  const apart = ((localMinutes(to, now) - localMinutes(from, now) + 720 + 1440 * 2) % 1440) - 720;
+  const mins = dep + Math.round(flightHours(from, to, 0) * 60) + apart;
+  return ((mins % 1440) + 1440) % 1440;
+}
+
 /** "6h 20m" for a flight time in hours. */
 export const fmtFlightTime = (hours: number) => {
   const m = Math.max(1, Math.round(hours * 60));

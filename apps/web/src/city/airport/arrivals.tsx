@@ -34,6 +34,7 @@ import {
   AIRPORT_NAMES,
   airportSchedule,
   CITY_NAMES,
+  dueIn,
   flightStatus,
   liveryOf,
   localMinutes,
@@ -1042,9 +1043,13 @@ export function ArrivalScene({
     const flight =
       (last?.to === marketId ? last.flight : undefined) ?? scheduled?.flight ?? 'RW 101';
     const airline = (last?.to === marketId ? last.airline : undefined) ?? scheduled?.airline;
+    // When your flight was due in (its departure there, its length, the clocks apart).
+    const due =
+      from && last?.to === marketId && last.time ? dueIn(from, marketId, last.time, at0) : null;
     return {
       from,
       fromName: from ? (CITY_NAMES[from] ?? from) : '',
+      due,
       flight,
       livery: liveryOf(from ?? marketId, airline),
       belt: 1 + (hash(flight) % 6),
@@ -1065,8 +1070,9 @@ export function ArrivalScene({
       belt: flightStatus(f, now) === 'Landed' ? String(1 + (hash(f.flight) % 6)) : '',
       status: STATUS(flightStatus(f, now)),
     }));
+    // An arrivals board's time is the time it was due; the status says it's in.
     const mine: BoardRow = {
-      time: hhmm(now - 6),
+      time: hhmm(trip.due ?? now - 6),
       flight: trip.flight,
       from: trip.fromName || city,
       belt: String(trip.belt),
