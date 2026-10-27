@@ -28,6 +28,7 @@ import { TOP_COLOURS } from '@runway/engine';
 import { money, moneyExact } from '../../format';
 import { t, tx } from '../../i18n';
 import { PhotoSheet, addPhoto } from '../../home/HomePhotos';
+import { HudButton, HudRail } from '../../ui';
 import type { Mall3DApi, Mall3DHit } from '../../interiors3d/Mall3D';
 import type { AvatarLook } from '../art';
 import { looseCmd } from '../life';
@@ -567,53 +568,18 @@ export function MallWalk(p: MallWalkProps) {
               {t('All items ({n})', { n: shopItems.length })}
             </button>
           )}
-          <div
+          {/* Round icons down the right, the photo behind ⋯ (the floating HUD's rail). */}
+          <HudRail
             className="mall-side"
             data-keepout=""
-            role="group"
-            aria-label={t('Look and take photos')}
+            label={t('Look and take photos')}
+            extras={
+              <HudButton icon="camera" label={t('Photo')} data-action="photo" onClick={takePhoto} />
+            }
           >
-            {looking && (
-              <button
-                type="button"
-                className="mall-pill is-on"
-                data-action="look-around"
-                aria-pressed="true"
-                onClick={toggleLook}
-              >
-                <span aria-hidden="true">👀</span>
-                {t('Looking')}
-              </button>
-            )}
-            <button
-              type="button"
-              className="mall-pill"
-              data-action="turn"
-              onClick={() => api.current?.turn(1)}
-            >
-              <span aria-hidden="true">↻</span>
-              {t('Turn')}
-            </button>
             {!looking && (
-              <button
-                type="button"
-                className="mall-pill"
-                data-action="look-around"
-                aria-pressed="false"
-                onClick={toggleLook}
-              >
-                <span aria-hidden="true">👀</span>
-                {t('Look around')}
-              </button>
-            )}
-            <button type="button" className="mall-pill" data-action="photo" onClick={takePhoto}>
-              <span aria-hidden="true">📷</span>
-              {t('Photo')}
-            </button>
-            {!looking && (
-              <button
-                type="button"
-                className="mall-pill"
+              <HudButton
+                label={t('Directory')}
                 data-action="directory"
                 aria-expanded={sheet === 'directory'}
                 onClick={() => {
@@ -624,10 +590,22 @@ export function MallWalk(p: MallWalkProps) {
                 }}
               >
                 <span aria-hidden="true">🗺️</span>
-                {t('Directory')}
-              </button>
+              </HudButton>
             )}
-          </div>
+            <HudButton
+              icon="rotate"
+              label={t('Turn')}
+              data-action="turn"
+              onClick={() => api.current?.turn(1)}
+            />
+            <HudButton
+              icon="eye"
+              label={looking ? t('Looking') : t('Look around')}
+              data-action="look-around"
+              aria-pressed={looking}
+              onClick={toggleLook}
+            />
+          </HudRail>
           {looking ? (
             <>
               <button

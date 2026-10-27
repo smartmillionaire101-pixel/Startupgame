@@ -4,6 +4,19 @@
 .comp-scene {
   z-index: 40;
 }
+/* Over the floating HUD (an outing starts in a place): their own head at the
+   top, and nothing painted under the nav pill. */
+.place-scene.outing-scene,
+.place-scene.comp-scene {
+  padding-top: env(safe-area-inset-top);
+  box-shadow: none;
+}
+@media (min-width: 600px) {
+  .place-scene.outing-scene,
+  .place-scene.comp-scene {
+    box-shadow: var(--sh-3);
+  }
+}
 .outing-room,
 .comp-room {
   flex: 1 1 0;

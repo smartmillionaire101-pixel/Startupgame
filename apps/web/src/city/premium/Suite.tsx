@@ -33,6 +33,7 @@ import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { use3d } from '../../three-kit/quality';
 import { SnapButton } from '../../photos/SnapButton';
+import { HudButton, HudRail } from '../../ui';
 import { resultCard } from '../../photos/snap';
 import { AvatarFigure, avatarLook, type AvatarLook } from '../art';
 import { CabinService } from '../acts/CabinService';
@@ -452,41 +453,42 @@ export function SuiteFlight({
               : t('Down the aisle and through the doorway…')
             : crewLine(stage, cabin, crew, toName)}
         </p>
-        {three && (
-          <div className="suite-views" role="group" aria-label={t('Inside or outside the plane')}>
-            {(['inside', 'outside'] as const).map((v) => (
-              <button
+        {/* Photo, Inside, Outside: round icons down the right (the floating HUD's rail). */}
+        <HudRail className="suite-rail" label={t('Inside or outside the plane')}>
+          <SnapButton
+            action="suite-photo"
+            className="suite-snap"
+            hud
+            label={t('Photo')}
+            title={title}
+            file="my-suite"
+            city={city}
+            make={() =>
+              snap.current?.() ??
+              resultCard({
+                kicker: `${title} · ${city} → ${toName}`,
+                title: cabin === 'first' ? t('Flying first class') : t('Flying business class'),
+                subtitle: fmtFlightTime(hours),
+                stats: [],
+                footer: toName,
+                tone: 'night',
+              })
+            }
+          />
+          {three &&
+            (['inside', 'outside'] as const).map((v) => (
+              <HudButton
                 key={v}
-                type="button"
                 className={`suite-view${eye === v ? ' is-on' : ''}`}
                 aria-pressed={eye === v}
                 data-suite-view-pick={v}
+                label={v === 'inside' ? t('Inside') : t('Outside')}
                 onClick={() => setEye(v)}
               >
-                {v === 'inside' ? t('Inside') : t('Outside')}
-              </button>
+                <span aria-hidden="true">{v === 'inside' ? '💺' : '🌤️'}</span>
+              </HudButton>
             ))}
-          </div>
-        )}
-        <SnapButton
-          action="suite-photo"
-          className="btn btn-subtle suite-snap"
-          label={t('Photo')}
-          title={title}
-          file="my-suite"
-          city={city}
-          make={() =>
-            snap.current?.() ??
-            resultCard({
-              kicker: `${title} · ${city} → ${toName}`,
-              title: cabin === 'first' ? t('Flying first class') : t('Flying business class'),
-              subtitle: fmtFlightTime(hours),
-              stats: [],
-              footer: toName,
-              tone: 'night',
-            })
-          }
-        />
+        </HudRail>
       </div>
       <div className="suite-panel">
         {stage === 'meal' && (

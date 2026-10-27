@@ -69,30 +69,11 @@
   border: 1px solid #fff4;
 }
 /* Inside | Outside: where the camera is. */
-.air-cam {
-  position: absolute;
+/* Photo, Inside, Outside: the HUD's round icons down the right. */
+.air .air-cam.hud-rail {
   top: 86px;
   right: 16px;
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
-  background: #0f172acc;
-  border: 1px solid #fff3;
-}
-.air-cam button {
-  min-height: 36px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: #cbd5e1;
-  font-weight: 700;
-  font-size: 14px;
-}
-.air-cam button[aria-pressed='true'] {
-  background: #2563eb;
-  color: #fff;
+  bottom: auto;
 }
 /* Freefall from inside: the goggles' rim round the view. */
 .air-goggles {

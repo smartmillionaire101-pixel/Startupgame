@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import * as THREE from 'three';
 import { useView } from '../../store';
 import { t } from '../../i18n';
+import { HudButton, HudRail } from '../../ui';
 import { money } from '../../format';
 import { OSM_CREDIT, fromLatLon, useGeo } from '../../city/geo';
 import { cachedCityLayout } from '../../city/geoLayout';
@@ -680,38 +681,33 @@ export default function AirFlight({
           </h2>
         </div>
         <div className="panorama-actions">
-          {ready && !error && gl && (
-            <button
-              type="button"
-              className="panorama-snap"
-              data-action="air-photo"
-              aria-label={t('Take a photo')}
-              title={t('Take a photo')}
-              onClick={snap}
-            >
-              📷
-            </button>
-          )}
           <button type="button" onClick={onClose} aria-label={t('Close')}>
             ×
           </button>
         </div>
       </header>
       {gl && ready && !error && (
-        <div className="air-cam" role="group" aria-label={t('Camera')} data-air-cam={camMode}>
+        // The camera's round buttons down the right (the floating HUD's rail).
+        <HudRail className="air-cam" label={t('Camera')} data-air-cam={camMode}>
+          <HudButton
+            icon="camera"
+            className="panorama-snap"
+            data-action="air-photo"
+            label={t('Take a photo')}
+            onClick={snap}
+          />
           {(['inside', 'outside'] as const).map((m) => (
-            <button
+            <HudButton
               key={m}
-              type="button"
               data-action={`air-cam-${m}`}
               aria-pressed={camMode === m}
+              label={m === 'inside' ? t('Inside') : t('Outside')}
               onClick={() => pickCam(m)}
             >
-              <span aria-hidden="true">{m === 'inside' ? '💺' : '🎥'}</span>{' '}
-              {m === 'inside' ? t('Inside') : t('Outside')}
-            </button>
+              <span aria-hidden="true">{m === 'inside' ? '💺' : '🎥'}</span>
+            </HudButton>
           ))}
-        </div>
+        </HudRail>
       )}
       {error && (
         <p className="panorama-error" role="alert">

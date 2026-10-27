@@ -242,14 +242,14 @@
 .mall-ui > * {
   pointer-events: auto;
 }
-.mall-side {
-  position: absolute;
+/* The walk's own buttons: the HUD's rail of round icons, top right of the
+   view (the basket and the hints sit along the bottom). */
+.mall-ui .mall-side.hud-rail {
   right: 10px;
   top: 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 7px;
+  bottom: auto;
+  /* Under the walk's own sheets (the shelf, the basket, the directory). */
+  z-index: auto;
 }
 .mall-pill {
   display: inline-flex;
