@@ -125,7 +125,11 @@ test('a new banker negotiates, files, passes the Central Bank interview and gets
   await interview.getByLabel(/An independent board/).check();
   await shot(page, 'banker-B-2-interview');
   await interview.locator('[data-answer-interview]').click();
-  await expect(page.getByText(/Interview passed: \d+\/100\./)).toBeVisible();
+  await expect(page.getByText(/Interview passed: \d+\/100\./).first()).toBeVisible();
+  // Play-test #13: the result stays on the card once the questions are answered.
+  await expect(interview.locator('[data-interview-result="passed"]')).toContainText(
+    /Interview passed: \d+\/100\./,
+  );
   await page.getByRole('button', { name: 'Close' }).first().click();
 
   // The rest of the checklist on the Bank tab.
@@ -168,6 +172,22 @@ test('a new banker negotiates, files, passes the Central Bank interview and gets
   await page.getByLabel('Deposit rate (%)').fill('8');
   await page.getByRole('button', { name: 'Save pricing' }).click();
   await expect(page.getByText('Pricing updated.')).toBeVisible();
+  // Play-test #16: the city's companies ask the new bank for loans.
+  await expect(page.locator('[data-loan-requests-hint]')).toBeVisible();
+  const bankId = (await state(page)).view.bank.id as string;
+  await expect(page.getByText('Your move').first()).toBeVisible();
+
+  // Play-test #15: in your own bank you get the owner's desk, not the customer counter.
+  await tab(page, 'City').click();
+  await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
+  await tapPlace(page, `[data-place="playerbank:${bankId}"]`);
+  const desk = page.locator('[data-action="bank:desk"]');
+  await expect(desk).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-action="bank:account"]')).toHaveCount(0);
+  await desk.click();
+  await expect(page.getByRole('heading', { name: 'Loan requests' })).toBeVisible();
+  await shot(page, 'banker-B-5-own-bank');
+  await page.getByRole('button', { name: 'Close' }).first().click();
 
   // C. The banker journey: chapter 1 done, the next one current.
   await tab(page, 'City').click();

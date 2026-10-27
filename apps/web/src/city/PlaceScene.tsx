@@ -201,6 +201,10 @@ const aiPerson = (
 
 const pickBg = (xs: string[], seed: string) => xs[hash(seed) % xs.length]!;
 
+/** Is this your own bank (play-test: its owner gets the desk, not the customer counter)? */
+export const isOwnBank = (view: View, place: Pick<Place, 'kind' | 'ref'>) =>
+  place.kind === 'playerbank' && !!place.ref && view.bank?.id === place.ref;
+
 /** The AI angels sitting in this business: `view.here.angelsAt`, else where the map walks them. */
 function angelsIn(view: View, businessId: string): (AngelHere & { fundId: string | null })[] {
   const engine = cityAngelsOf(view);
@@ -1342,6 +1346,24 @@ function RoomScene({
                       : said(r, t('Not now.')),
               ),
       });
+  } else if (isOwnBank(view, place)) {
+    // Play-test: the owner comes in to the bank's desk, not as a customer.
+    const requests = view.deals.filter(
+      (d) =>
+        d.status === 'open' &&
+        d.awaiting.kind === 'playerbank' &&
+        d.awaiting.id === place.ref &&
+        d.counterparty.id === place.ref,
+    ).length;
+    actions.push({
+      id: 'bank:desk',
+      label: requests
+        ? t('Your desk · loan requests waiting: {n}', { n: requests })
+        : t('Your desk'),
+      sub: t('Loan requests, clients and the bank’s numbers'),
+      icon: '🗂️',
+      run: () => setMore(true),
+    });
   } else if (place.kind === 'lender' || place.kind === 'playerbank') {
     // Bankers note: a banker meets the bank's people (the cards under More).
     if (place.kind === 'lender')

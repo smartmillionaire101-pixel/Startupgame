@@ -34,7 +34,7 @@ import { EventHall } from './Events';
 import { project, type CityLayout, type Place } from './layout';
 import { npcName, type PresenceView } from './people';
 import type { PersonRef } from './PersonCard';
-import { CapitalDetails, InScene, PlaceScene } from './PlaceScene';
+import { CapitalDetails, InScene, PlaceScene, isOwnBank } from './PlaceScene';
 import { CivicDoor, CivicInterior, civicOf } from './CivicPlace';
 import { BankerTalks } from '../screens/BankWork';
 import { FounderMentor } from '../screens/FounderGuide';
@@ -361,6 +361,14 @@ function PlayerBankInterior({ place, layout }: { place: Place; layout: CityLayou
   const bank = view.market.banks.find((b) => b.id === place.ref);
   const company = activeCompany(view);
   if (!bank) return null;
+  // Play-test: in your own bank you sit at the owner's desk (requests, clients, numbers).
+  if (isOwnBank(view, place))
+    return (
+      <>
+        <Scene place={place} layout={layout} who={bank.owner} role={t('Owner')} />
+        <BankScreen />
+      </>
+    );
   return (
     <>
       <Scene place={place} layout={layout} who={bank.owner} role={t('Owner')} />
