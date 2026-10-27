@@ -126,139 +126,146 @@ function Profile() {
   const me = view.me;
   const skills = Object.entries(me.skills).sort((a, b) => b[1] - a[1]);
   return (
-    <>
-      <section className="card profile-card">
-        <header className="profile-head">
-          {/* Phase 6a: your portrait, and the character creator under it. */}
-          <MyLook />
-          <span className="profile-who">
-            <h2>{me.name}</h2>
-            <span className="small muted">@{me.handle}</span>
-            <span className="row profile-tags">
-              <Pill tone="info">{roleLabel(me.role)}</Pill>
-              {me.background?.name && <Pill>{tx(me.background.name)}</Pill>}
+    // A wide screen: columns (one after the other on a phone).
+    <div className="screen-cols">
+      <div className="screen-col">
+        <section className="card profile-card">
+          <header className="profile-head">
+            {/* Phase 6a: your portrait, and the character creator under it. */}
+            <MyLook />
+            <span className="profile-who">
+              <h2>{me.name}</h2>
+              <span className="small muted">@{me.handle}</span>
+              <span className="row profile-tags">
+                <Pill tone="info">{roleLabel(me.role)}</Pill>
+                {me.background?.name && <Pill>{tx(me.background.name)}</Pill>}
+              </span>
             </span>
-          </span>
-        </header>
-        <div className="profile-stats">
-          <div>
-            <span className="stat-label">{t('Stars')}</span>
-            {/* Day one: no track record yet, so no rating (and no warning) to show. */}
-            {me.starHistory.length < 2 ? (
-              <>
-                <b className="profile-stat">{t('New')}</b>
-                <span className="small muted">{t('After month 1')}</span>
-              </>
-            ) : (
-              <>
-                <b className="profile-stat">{stars(me.stars)}</b>
-                {me.publicWarning && <Pill tone="bad">{t('Public warning')}</Pill>}
-                <Sparkline values={me.starHistory} label={t('Stars over time')} />
-              </>
-            )}
+          </header>
+          <div className="profile-stats">
+            <div>
+              <span className="stat-label">{t('Stars')}</span>
+              {/* Day one: no track record yet, so no rating (and no warning) to show. */}
+              {me.starHistory.length < 2 ? (
+                <>
+                  <b className="profile-stat">{t('New')}</b>
+                  <span className="small muted">{t('After month 1')}</span>
+                </>
+              ) : (
+                <>
+                  <b className="profile-stat">{stars(me.stars)}</b>
+                  {me.publicWarning && <Pill tone="bad">{t('Public warning')}</Pill>}
+                  <Sparkline values={me.starHistory} label={t('Stars over time')} />
+                </>
+              )}
+            </div>
+            <div>
+              <span className="stat-label">{t('Network')}</span>
+              <b className="profile-stat">{me.network}</b>
+              <span className="small muted">{view.market.name}</span>
+            </div>
           </div>
-          <div>
-            <span className="stat-label">{t('Network')}</span>
-            <b className="profile-stat">{me.network}</b>
-            <span className="small muted">{view.market.name}</span>
-          </div>
-        </div>
-        {me.bars ? (
-          <LifeBarsPanel me={me} />
-        ) : (
-          <Bar
-            label={t('Energy')}
-            value={me.energy / 100}
-            tone={me.burnout ? 'bad' : me.energy < 40 ? 'warn' : 'good'}
-          />
+          {me.bars ? (
+            <LifeBarsPanel me={me} />
+          ) : (
+            <Bar
+              label={t('Energy')}
+              value={me.energy / 100}
+              tone={me.burnout ? 'bad' : me.energy < 40 ? 'warn' : 'good'}
+            />
+          )}
+          <p className="small muted">
+            {t('{left}/{total} h left this month', {
+              left: me.hours.left,
+              total: me.hours.available,
+            })}
+            {me.burnout ? ` · ${t('burnout cuts your hours')}` : ''}
+          </p>
+        </section>
+        <ProfileDetails key={me.id + me.role} />
+        {/* What you bought at the mall: your wardrobe (wear it) and the things you keep. */}
+        <PurchasesButton />
+        <Button block data-open-living="" onClick={() => openLiving(me.id)}>
+          {t('🏠 Home & friends')}
+          {view.living.dates.some((d) => d.status === 'invited' && d.guest === me.id)
+            ? ` · ${t('Invitation')}`
+            : ''}
+        </Button>
+        {me.role === 'founder' && !view.companies.some((c) => c.status === 'active') && (
+          <Card title={t('Set up your business')}>
+            <p className="small muted">{t('Your company is set up on the Company tab.')}</p>
+            <Button
+              variant="primary"
+              block
+              data-go-company=""
+              onClick={() => nav?.go({ kind: 'tab', tab: 'company' })}
+            >
+              {t('Set up my company')}
+            </Button>
+          </Card>
         )}
-        <p className="small muted">
-          {t('{left}/{total} h left this month', {
-            left: me.hours.left,
-            total: me.hours.available,
-          })}
-          {me.burnout ? ` · ${t('burnout cuts your hours')}` : ''}
-        </p>
-      </section>
-      <ProfileDetails key={me.id + me.role} />
-      {/* What you bought at the mall: your wardrobe (wear it) and the things you keep. */}
-      <PurchasesButton />
-      <Button block data-open-living="" onClick={() => openLiving(me.id)}>
-        {t('🏠 Home & friends')}
-        {view.living.dates.some((d) => d.status === 'invited' && d.guest === me.id)
-          ? ` · ${t('Invitation')}`
-          : ''}
-      </Button>
-      {me.role === 'founder' && !view.companies.some((c) => c.status === 'active') && (
-        <Card title={t('Set up your business')}>
-          <p className="small muted">{t('Your company is set up on the Company tab.')}</p>
-          <Button
-            variant="primary"
-            block
-            data-go-company=""
-            onClick={() => nav?.go({ kind: 'tab', tab: 'company' })}
-          >
-            {t('Set up my company')}
-          </Button>
-        </Card>
-      )}
-      {me.role === 'banker' &&
-        (!view.bank || ['failed', 'rejected'].includes(view.bank.status)) && <FoundBank />}
-      {/* Bankers note: someone invited you to co-found their bank. */}
-      {me.role !== 'banker' && <BankInvitations />}
-      <details className="card">
-        <summary>{t('City and career')}</summary>
-        <Travel trips={false} />
-        <CareerMoves />
-      </details>
-      <Card title={t('Skills')}>
-        <div className="skills-grid">
-          {skills.map(([k, v]) => (
-            <Bar key={k} label={skillLabel(k)} value={v / 100} />
-          ))}
-        </div>
-      </Card>
-      <Card title={t('Milestones')}>
-        {Object.keys(me.milestones).length === 0 ? (
-          <Empty>{t('None yet. Your first customer is close.')}</Empty>
-        ) : (
-          <div className="chips">
-            {Object.entries(me.milestones).map(([k, m]) => (
-              <Pill key={k} tone="good">
-                {milestoneLabels()[k] ?? k} · {t('m{n}', { n: m })}
-              </Pill>
+        {me.role === 'banker' &&
+          (!view.bank || ['failed', 'rejected'].includes(view.bank.status)) && <FoundBank />}
+        {/* Bankers note: someone invited you to co-found their bank. */}
+        {me.role !== 'banker' && <BankInvitations />}
+      </div>
+      <div className="screen-col">
+        <details className="card">
+          <summary>{t('City and career')}</summary>
+          <Travel trips={false} />
+          <CareerMoves />
+        </details>
+        <Card title={t('Skills')}>
+          <div className="skills-grid">
+            {skills.map(([k, v]) => (
+              <Bar key={k} label={skillLabel(k)} value={v / 100} />
             ))}
           </div>
-        )}
-      </Card>
-      <Card title={t('{market} leaderboards', { market: view.market.name })}>
-        <h3 className="section-h">{t('Highest stars')}</h3>
-        <ol className="board">
-          {view.leaderboards.highestStars.slice(0, 5).map((r) => (
-            <li key={r.id}>
-              <span className="board-name">
-                {r.name}
-                {r.ai ? '' : ` ${t('(player)')}`}
-              </span>
-              <b>{r.value.toFixed(1)}★</b>
-            </li>
-          ))}
-        </ol>
-        <h3 className="section-h">{t('Fastest growing')}</h3>
-        {view.leaderboards.fastestGrowing.length ? (
+        </Card>
+      </div>
+      <div className="screen-col">
+        <Card title={t('Milestones')}>
+          {Object.keys(me.milestones).length === 0 ? (
+            <Empty>{t('None yet. Your first customer is close.')}</Empty>
+          ) : (
+            <div className="chips">
+              {Object.entries(me.milestones).map(([k, m]) => (
+                <Pill key={k} tone="good">
+                  {milestoneLabels()[k] ?? k} · {t('m{n}', { n: m })}
+                </Pill>
+              ))}
+            </div>
+          )}
+        </Card>
+        <Card title={t('{market} leaderboards', { market: view.market.name })}>
+          <h3 className="section-h">{t('Highest stars')}</h3>
           <ol className="board">
-            {view.leaderboards.fastestGrowing.slice(0, 5).map((r) => (
+            {view.leaderboards.highestStars.slice(0, 5).map((r) => (
               <li key={r.id}>
-                <span className="board-name">{r.name}</span>
-                <b>{t('{n}%/mo', { n: r.value })}</b>
+                <span className="board-name">
+                  {r.name}
+                  {r.ai ? '' : ` ${t('(player)')}`}
+                </span>
+                <b>{r.value.toFixed(1)}★</b>
               </li>
             ))}
           </ol>
-        ) : (
-          <Empty>{t('Needs three months of revenue.')}</Empty>
-        )}
-      </Card>
-    </>
+          <h3 className="section-h">{t('Fastest growing')}</h3>
+          {view.leaderboards.fastestGrowing.length ? (
+            <ol className="board">
+              {view.leaderboards.fastestGrowing.slice(0, 5).map((r) => (
+                <li key={r.id}>
+                  <span className="board-name">{r.name}</span>
+                  <b>{t('{n}%/mo', { n: r.value })}</b>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <Empty>{t('Needs three months of revenue.')}</Empty>
+          )}
+        </Card>
+      </div>
+    </div>
   );
 }
 

@@ -413,184 +413,200 @@ export function Portfolio() {
   return (
     <>
       <h1>{t('Portfolio')}</h1>
-      <InvestorStageCard />
-      <InvestorFirstSession />
-      <SimpleLink
-        to="deals"
-        emoji="🤝"
-        label={t('Deal offers')}
-        hint={t('Startups raising money, pitches and your deal cards')}
-        badge={view.deals.filter((d) => d.yourTurn).length}
-      />
-      <Card title={t('Positions')}>
-        {view.portfolio.length === 0 ? (
-          <Empty>{t('No investments yet. Start with a small cheque from Deal offers.')}</Empty>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>{t('Company')}</th>
-                <th className="num">{t('In')}</th>
-                <th className="num">{t('Mark')}</th>
-                <th className="num">{t('Out')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {view.portfolio.map((p) => (
-                <tr key={p.companyId + p.via}>
-                  <td>
-                    {p.name}{' '}
-                    <span className="small muted">
-                      {p.ownershipPct}%
-                      {p.status !== 'active' ? ` · ${companyStatusLabel(p.status)}` : ''}
-                      {p.moic ? ` · ${p.moic.toFixed(2)}×` : ''}
-                      {p.statusLabel === 'at-risk' ? ` · ${positionStatusText(p.statusLabel)}` : ''}
-                    </span>
-                  </td>
-                  <td className="num">{money(p.invested, p.currency)}</td>
-                  <td className="num">
-                    {p.writtenOff ? (
-                      <span className="bad">{t('written off')}</span>
-                    ) : (
-                      money(p.mark, p.currency)
-                    )}
-                  </td>
-                  <td className="num">
-                    {money(p.returned, p.currency)}
-                    {p.onBoard &&
-                      p.status === 'active' &&
-                      p.founders.map((f) => (
-                        <div key={f.id}>
-                          <Button
-                            variant="ghost"
-                            onClick={() =>
-                              void send(
-                                {
-                                  type: 'governance.removeCeo',
-                                  companyId: p.companyId,
-                                  founderId: f.id,
-                                },
-                                t('Vote called. The board decides by month-end.'),
-                              )
-                            }
-                          >
-                            {t('Remove {name}', { name: f.name })}
-                          </Button>
-                        </div>
-                      ))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <p className="small muted">
-          {t(
-            'Paper gains come when companies raise at higher prices; real gains only at exits. AI LPs judge you on cash returned.',
-          )}{' '}
-          {t('To sell a stake before the company exits, open Capital → Exit.')}
-        </p>
-      </Card>
-      {view.fund ? (
-        <>
-          <Card title={view.fund.name} tone="good">
-            <div className="grid2">
-              <Stat label={t('Fund size')} value={money(view.fund.size, cur)} />
-              <Stat label={t('Dry powder')} value={money(view.fund.cash, cur)} />
-              <Stat
-                label={t('Distributed')}
-                value={money(view.fund.distributed, cur)}
-                hint={t('DPI {n}x', {
-                  n: (view.fund.distributed / Math.max(1, view.fund.size)).toFixed(2),
-                })}
-              />
-              <Stat label={t('Deals')} value={view.fund.record.deals} />
-            </div>
+      {/* A wide screen: columns (one after the other on a phone). */}
+      <div className="screen-cols">
+        <div className="screen-col">
+          <InvestorStageCard />
+          <InvestorFirstSession />
+        </div>
+        <div className="screen-col">
+          <SimpleLink
+            to="deals"
+            emoji="🤝"
+            label={t('Deal offers')}
+            hint={t('Startups raising money, pitches and your deal cards')}
+            badge={view.deals.filter((d) => d.yourTurn).length}
+          />
+          <Card title={t('Positions')}>
+            {view.portfolio.length === 0 ? (
+              <Empty>{t('No investments yet. Start with a small cheque from Deal offers.')}</Empty>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>{t('Company')}</th>
+                    <th className="num">{t('In')}</th>
+                    <th className="num">{t('Mark')}</th>
+                    <th className="num">{t('Out')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.portfolio.map((p) => (
+                    <tr key={p.companyId + p.via}>
+                      <td>
+                        {p.name}{' '}
+                        <span className="small muted">
+                          {p.ownershipPct}%
+                          {p.status !== 'active' ? ` · ${companyStatusLabel(p.status)}` : ''}
+                          {p.moic ? ` · ${p.moic.toFixed(2)}×` : ''}
+                          {p.statusLabel === 'at-risk'
+                            ? ` · ${positionStatusText(p.statusLabel)}`
+                            : ''}
+                        </span>
+                      </td>
+                      <td className="num">{money(p.invested, p.currency)}</td>
+                      <td className="num">
+                        {p.writtenOff ? (
+                          <span className="bad">{t('written off')}</span>
+                        ) : (
+                          money(p.mark, p.currency)
+                        )}
+                      </td>
+                      <td className="num">
+                        {money(p.returned, p.currency)}
+                        {p.onBoard &&
+                          p.status === 'active' &&
+                          p.founders.map((f) => (
+                            <div key={f.id}>
+                              <Button
+                                variant="ghost"
+                                onClick={() =>
+                                  void send(
+                                    {
+                                      type: 'governance.removeCeo',
+                                      companyId: p.companyId,
+                                      founderId: f.id,
+                                    },
+                                    t('Vote called. The board decides by month-end.'),
+                                  )
+                                }
+                              >
+                                {t('Remove {name}', { name: f.name })}
+                              </Button>
+                            </div>
+                          ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             <p className="small muted">
-              {t('2% a year pays your salary. 20% carry only after LPs get their money back.')}
+              {t(
+                'Paper gains come when companies raise at higher prices; real gains only at exits. AI LPs judge you on cash returned.',
+              )}{' '}
+              {t('To sell a stake before the company exits, open Capital → Exit.')}
             </p>
           </Card>
-          <LastPanel />
-        </>
-      ) : view.me.role === 'investor' && dealflowOf(view) ? (
-        <FundPitch />
-      ) : view.me.role === 'investor' ? (
-        <Card title={t('Raise Fund I from AI LPs')}>
-          <p className="small muted">
-            {t(
-              'Track record: {deals} deals · DPI {dpi}x · {writeOffs} write-offs. LPs want at least 3 angel deals. Narrow theses raise more but lock you in.',
-              { deals: record.deals, dpi: record.dpi, writeOffs: record.writeOffs },
-            )}
-          </p>
-          <Field label={t('Sectors')}>
-            {() => (
-              <div className="chips">
-                {meta?.industries.map((i) => (
-                  <button
-                    key={i.id}
-                    className="chip"
-                    aria-pressed={sectors.includes(i.id as Industry)}
-                    onClick={() =>
-                      setSectors((s) =>
-                        s.includes(i.id as Industry)
-                          ? s.filter((x) => x !== i.id)
-                          : [...s, i.id as Industry],
-                      )
-                    }
-                  >
-                    {tx(i.label)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Field>
-          <Field label={t('Stages')}>
-            {() => (
-              <div className="chips">
-                {['pre-seed', 'seed', 'series-a'].map((s) => (
-                  <button
-                    key={s}
-                    className="chip"
-                    aria-pressed={stages.includes(s as Stage)}
-                    onClick={() =>
-                      setStages((x) =>
-                        x.includes(s as Stage) ? x.filter((y) => y !== s) : [...x, s as Stage],
-                      )
-                    }
-                  >
-                    {stageLabel(s)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Field>
-          <Field label={t('Why now, and why you’ll win (one line)')}>
-            {(id) => (
-              <input id={id} value={why} maxLength={200} onChange={(e) => setWhy(e.target.value)} />
-            )}
-          </Field>
-          <Button
-            disabled={!sectors.length || !stages.length || why.trim().length < 10}
-            onClick={() =>
-              void send(
-                {
-                  type: 'fund.raise',
-                  sectors,
-                  stages,
-                  checkSize: view.me.investor?.checkSize ?? 0,
-                  why,
-                },
-                (r: { ok: boolean; score: number }) =>
-                  r.ok
-                    ? t('Fund I is closed!')
-                    : t('LPs passed (score {score}).', { score: r.score }),
-              )
-            }
-          >
-            {t('Meet the LP panel (15h)')}
-          </Button>
-        </Card>
-      ) : null}
+        </div>
+        <div className="screen-col">
+          {view.fund ? (
+            <>
+              <Card title={view.fund.name} tone="good">
+                <div className="grid2">
+                  <Stat label={t('Fund size')} value={money(view.fund.size, cur)} />
+                  <Stat label={t('Dry powder')} value={money(view.fund.cash, cur)} />
+                  <Stat
+                    label={t('Distributed')}
+                    value={money(view.fund.distributed, cur)}
+                    hint={t('DPI {n}x', {
+                      n: (view.fund.distributed / Math.max(1, view.fund.size)).toFixed(2),
+                    })}
+                  />
+                  <Stat label={t('Deals')} value={view.fund.record.deals} />
+                </div>
+                <p className="small muted">
+                  {t('2% a year pays your salary. 20% carry only after LPs get their money back.')}
+                </p>
+              </Card>
+              <LastPanel />
+            </>
+          ) : view.me.role === 'investor' && dealflowOf(view) ? (
+            <FundPitch />
+          ) : view.me.role === 'investor' ? (
+            <Card title={t('Raise Fund I from AI LPs')}>
+              <p className="small muted">
+                {t(
+                  'Track record: {deals} deals · DPI {dpi}x · {writeOffs} write-offs. LPs want at least 3 angel deals. Narrow theses raise more but lock you in.',
+                  { deals: record.deals, dpi: record.dpi, writeOffs: record.writeOffs },
+                )}
+              </p>
+              <Field label={t('Sectors')}>
+                {() => (
+                  <div className="chips">
+                    {meta?.industries.map((i) => (
+                      <button
+                        key={i.id}
+                        className="chip"
+                        aria-pressed={sectors.includes(i.id as Industry)}
+                        onClick={() =>
+                          setSectors((s) =>
+                            s.includes(i.id as Industry)
+                              ? s.filter((x) => x !== i.id)
+                              : [...s, i.id as Industry],
+                          )
+                        }
+                      >
+                        {tx(i.label)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </Field>
+              <Field label={t('Stages')}>
+                {() => (
+                  <div className="chips">
+                    {['pre-seed', 'seed', 'series-a'].map((s) => (
+                      <button
+                        key={s}
+                        className="chip"
+                        aria-pressed={stages.includes(s as Stage)}
+                        onClick={() =>
+                          setStages((x) =>
+                            x.includes(s as Stage) ? x.filter((y) => y !== s) : [...x, s as Stage],
+                          )
+                        }
+                      >
+                        {stageLabel(s)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </Field>
+              <Field label={t('Why now, and why you’ll win (one line)')}>
+                {(id) => (
+                  <input
+                    id={id}
+                    value={why}
+                    maxLength={200}
+                    onChange={(e) => setWhy(e.target.value)}
+                  />
+                )}
+              </Field>
+              <Button
+                disabled={!sectors.length || !stages.length || why.trim().length < 10}
+                onClick={() =>
+                  void send(
+                    {
+                      type: 'fund.raise',
+                      sectors,
+                      stages,
+                      checkSize: view.me.investor?.checkSize ?? 0,
+                      why,
+                    },
+                    (r: { ok: boolean; score: number }) =>
+                      r.ok
+                        ? t('Fund I is closed!')
+                        : t('LPs passed (score {score}).', { score: r.score }),
+                  )
+                }
+              >
+                {t('Meet the LP panel (15h)')}
+              </Button>
+            </Card>
+          ) : null}
+        </div>
+      </div>
       {careerOf(view) && (
         <section className="stack" aria-label={t('Grow as an investor')}>
           <h2>{t('Grow as an investor')}</h2>

@@ -70,48 +70,61 @@ export function Home({ onNews }: { onNews?: () => void } = {}) {
       {isBanker && c && <BankerToday />}
       <DecisionsCard />
       <WhatNowCard onGo={visitPlace} />
-      <RecapButton />
-      <FriendsBacking />
-      <HolidayCards prompt={false} />
-      <SaveNudge />
-      <Votes />
-      <Inbox />
-      {onNews && (
-        <button
-          type="button"
-          className="card link-card"
-          onClick={onNews}
-          data-news-link=""
-          aria-label={stories ? t('News, {n} new', { n: stories }) : t('News')}
-        >
-          <Icon name="news" />
-          <span className="link-card-main">
-            <b>{t('News')}</b>
-            <span className="small muted">{t('Headlines, the daily digest and reporters')}</span>
-          </span>
-          {stories > 0 && <span className="badge-inline">{stories}</span>}
-          <Icon name="chevron" className="link-card-go" />
-        </button>
-      )}
-      <Card title={t('{market} today', { market: view.market.name })}>
-        <p>{tx(view.market.economicNote)}</p>
-        <div className="row small">
-          <Pill>{t('Rate {rate}%', { rate: (view.market.baseRateBps / 100).toFixed(2) })}</Pill>
-          {cur !== 'USD' && (
-            <Pill>
-              {cur}/USD {view.market.unitsPerUsd.toLocaleString('en-GB')}
-            </Pill>
-          )}
-          <Pill
-            tone={
-              view.market.climate > 1.05 ? 'good' : view.market.climate < 0.95 ? 'warn' : undefined
-            }
-          >
-            {t('Climate {value}', { value: view.market.climate.toFixed(2) })}
-          </Pill>
+      {/* A wide screen: the rest in columns (one after the other on a phone). */}
+      <div className="screen-cols">
+        <div className="screen-col">
+          <RecapButton />
+          <FriendsBacking />
+          <HolidayCards prompt={false} />
+          <SaveNudge />
+          <Votes />
+          <Inbox />
         </div>
-      </Card>
-      {meta?.devTools && <DevTools />}
+        <div className="screen-col">
+          {onNews && (
+            <button
+              type="button"
+              className="card link-card"
+              onClick={onNews}
+              data-news-link=""
+              aria-label={stories ? t('News, {n} new', { n: stories }) : t('News')}
+            >
+              <Icon name="news" />
+              <span className="link-card-main">
+                <b>{t('News')}</b>
+                <span className="small muted">
+                  {t('Headlines, the daily digest and reporters')}
+                </span>
+              </span>
+              {stories > 0 && <span className="badge-inline">{stories}</span>}
+              <Icon name="chevron" className="link-card-go" />
+            </button>
+          )}
+          <Card title={t('{market} today', { market: view.market.name })}>
+            <p>{tx(view.market.economicNote)}</p>
+            <div className="row small">
+              <Pill>{t('Rate {rate}%', { rate: (view.market.baseRateBps / 100).toFixed(2) })}</Pill>
+              {cur !== 'USD' && (
+                <Pill>
+                  {cur}/USD {view.market.unitsPerUsd.toLocaleString('en-GB')}
+                </Pill>
+              )}
+              <Pill
+                tone={
+                  view.market.climate > 1.05
+                    ? 'good'
+                    : view.market.climate < 0.95
+                      ? 'warn'
+                      : undefined
+                }
+              >
+                {t('Climate {value}', { value: view.market.climate.toFixed(2) })}
+              </Pill>
+            </div>
+          </Card>
+        </div>
+        <div className="screen-col">{meta?.devTools && <DevTools />}</div>
+      </div>
     </>
   );
 }

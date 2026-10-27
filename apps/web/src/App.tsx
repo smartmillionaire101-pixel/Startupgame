@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react';
 import { useGame, useView } from './store';
 import { CountUp, Icon, initReduceMotion, reduceMotion, Sheet, Toasts, type IconName } from './ui';
@@ -375,12 +376,17 @@ function Game() {
 
   // Panels (sheets) open above the bottom bar, never over it, so the tabs keep
   // working while one is open: tapping a tab leaves the screen and closes it.
+  // On a wide screen the bar is a sidebar down the left: nothing to keep clear below.
   const navRef = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     const nav = navRef.current;
     if (!nav) return;
     const root = document.documentElement;
-    const set = () => root.style.setProperty('--nav-h', `${nav.offsetHeight}px`);
+    const set = () =>
+      root.style.setProperty(
+        '--nav-h',
+        `${nav.offsetWidth > nav.offsetHeight ? nav.offsetHeight : 0}px`,
+      );
     set();
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(set);
     ro?.observe(nav);
@@ -392,7 +398,7 @@ function Game() {
 
   return (
     <NavContext.Provider value={nav}>
-      <div className={`app${current === 'city' ? ' app-city' : ''}`}>
+      <div className={`app app-game${current === 'city' ? ' app-city' : ''}`}>
         <TopBar
           alerts={unread}
           onDecisions={() => goTarget({ kind: 'decision' })}
@@ -425,7 +431,7 @@ function Game() {
         </main>
       </div>
       <nav className="nav" ref={navRef} aria-label={t('Main')} data-tabs={tabs.length}>
-        <div className="nav-inner" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+        <div className="nav-inner" style={{ '--nav-cols': tabs.length } as CSSProperties}>
           {tabs.map((x) => (
             <button
               key={x.id}

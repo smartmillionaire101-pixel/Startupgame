@@ -284,23 +284,31 @@ export function CompanyScreen() {
       </div>
       <ScreenBoundary resetKey={tab} name={`company:${tab}`}>
         {tab === 'product' && (
-          <>
-            <RunwayExplainer c={c} />
-            <Product c={c} />
-            <RivalsPanel c={c} />
-            {/* A second city is a Growth-stage move: folded away until then. */}
-            {c.guide.index >= stageAt('growth') ? (
-              <ExpansionCard c={c} />
-            ) : (
-              <Fold
-                title={t('Later stages')}
-                sub={t('Later: the {stage} stage', { stage: stageTitle('growth') })}
-                id="later-expansion"
-              >
+          // A wide screen: columns (one after the other on a phone).
+          <div className="screen-cols">
+            <div className="screen-col">
+              <RunwayExplainer c={c} />
+              <Product c={c} />
+            </div>
+            <div className="screen-col">
+              <Pivot c={c} />
+              <RivalsPanel c={c} />
+            </div>
+            <div className="screen-col">
+              {/* A second city is a Growth-stage move: folded away until then. */}
+              {c.guide.index >= stageAt('growth') ? (
                 <ExpansionCard c={c} />
-              </Fold>
-            )}
-          </>
+              ) : (
+                <Fold
+                  title={t('Later stages')}
+                  sub={t('Later: the {stage} stage', { stage: stageTitle('growth') })}
+                  id="later-expansion"
+                >
+                  <ExpansionCard c={c} />
+                </Fold>
+              )}
+            </div>
+          </div>
         )}
         {tab === 'roadmap' && <Roadmap c={c} />}
         {tab === 'sales' && <SalesPipeline c={c} />}
@@ -316,66 +324,69 @@ export function CompanyScreen() {
 
 function Product({ c }: { c: CompanyT }) {
   const { send, view } = useView();
+  return (
+    <Card title={t('Product')}>
+      <Bar label={t('Product fit')} value={c.product.fit} />
+      <Bar
+        label={t('Reliability')}
+        value={c.product.reliability}
+        tone={c.product.reliability < 0.35 ? 'bad' : undefined}
+      />
+      <Bar label={t('Quality')} value={c.product.quality} />
+      <Bar
+        label={t('Tech debt')}
+        value={c.product.techDebt}
+        tone={c.product.techDebt > 0.5 ? 'bad' : 'warn'}
+      />
+      <Field
+        label={t('Build mode')}
+        hint={t('Fast ships fit sooner but piles up tech debt. Quality pays it down.')}
+      >
+        {() => (
+          <Segmented<BuildMode>
+            label={t('Build mode')}
+            value={c.product.buildMode}
+            options={[
+              { value: 'fast', label: t('Fast') },
+              { value: 'balanced', label: t('Balanced') },
+              { value: 'quality', label: t('Quality') },
+            ]}
+            onChange={(v) =>
+              void send(
+                { type: 'company.strategy', companyId: c.id, buildMode: v },
+                t('Build mode: {mode}.', { mode: buildModeLabel(v).toLowerCase() }),
+              )
+            }
+          />
+        )}
+      </Field>
+      <div className="row">
+        <Button
+          onClick={() =>
+            void send(
+              { type: 'company.build', companyId: c.id, hours: 40 },
+              (r: { message: string }) => tx(r.message),
+            )
+          }
+          disabled={view.me.hours.left < 40}
+        >
+          {t('Build yourself (40h)')}
+        </Button>
+        <span className="small muted">{t('{n}h left this month', { n: view.me.hours.left })}</span>
+      </div>
+      <p className="small muted">
+        {t(
+          'Engineers and product staff build every month. Customer discovery makes building count.',
+        )}
+      </p>
+    </Card>
+  );
+}
+
+function Pivot({ c }: { c: CompanyT }) {
   const [pivot, setPivot] = useState(false);
   return (
     <>
-      <Card title={t('Product')}>
-        <Bar label={t('Product fit')} value={c.product.fit} />
-        <Bar
-          label={t('Reliability')}
-          value={c.product.reliability}
-          tone={c.product.reliability < 0.35 ? 'bad' : undefined}
-        />
-        <Bar label={t('Quality')} value={c.product.quality} />
-        <Bar
-          label={t('Tech debt')}
-          value={c.product.techDebt}
-          tone={c.product.techDebt > 0.5 ? 'bad' : 'warn'}
-        />
-        <Field
-          label={t('Build mode')}
-          hint={t('Fast ships fit sooner but piles up tech debt. Quality pays it down.')}
-        >
-          {() => (
-            <Segmented<BuildMode>
-              label={t('Build mode')}
-              value={c.product.buildMode}
-              options={[
-                { value: 'fast', label: t('Fast') },
-                { value: 'balanced', label: t('Balanced') },
-                { value: 'quality', label: t('Quality') },
-              ]}
-              onChange={(v) =>
-                void send(
-                  { type: 'company.strategy', companyId: c.id, buildMode: v },
-                  t('Build mode: {mode}.', { mode: buildModeLabel(v).toLowerCase() }),
-                )
-              }
-            />
-          )}
-        </Field>
-        <div className="row">
-          <Button
-            onClick={() =>
-              void send(
-                { type: 'company.build', companyId: c.id, hours: 40 },
-                (r: { message: string }) => tx(r.message),
-              )
-            }
-            disabled={view.me.hours.left < 40}
-          >
-            {t('Build yourself (40h)')}
-          </Button>
-          <span className="small muted">
-            {t('{n}h left this month', { n: view.me.hours.left })}
-          </span>
-        </div>
-        <p className="small muted">
-          {t(
-            'Engineers and product staff build every month. Customer discovery makes building count.',
-          )}
-        </p>
-      </Card>
       <Card
         title={t('Pivot')}
         action={
