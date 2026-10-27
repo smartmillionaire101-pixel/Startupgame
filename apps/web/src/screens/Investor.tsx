@@ -1,7 +1,7 @@
 import { FriendsBacking } from './FundCompany';
 import { useState } from 'react';
 import type { Industry, Stage } from '@runway/engine';
-import { amountInput, money, parseAmount } from '../format';
+import { amountInput, money, parseAmount, stakeText } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Field, Pill, Segmented, Sheet, Sparkline, Stat } from '../ui';
@@ -446,7 +446,7 @@ export function Portfolio() {
                       <td>
                         {p.name}{' '}
                         <span className="small muted">
-                          {p.ownershipPct}%
+                          {stakeText(p)}
                           {p.status !== 'active' ? ` · ${companyStatusLabel(p.status)}` : ''}
                           {p.moic ? ` · ${p.moic.toFixed(2)}×` : ''}
                           {p.statusLabel === 'at-risk'

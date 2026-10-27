@@ -88,3 +88,39 @@ describe('play-test #7: a new investor starts as an angel, on chapter 1', () => 
     expect(step.done).toBe(false);
   });
 });
+
+describe('play-test #8: a SAFE’s amount and stake', () => {
+  it('suggests a round amount, takes exactly that, and shows the stake at the cap', () => {
+    let w = newInvestor();
+    w = run(w, I, { type: 'investor.tutorial', action: 'next' }).world;
+    const pick = playerView(w, I)!.investorCareer!.tutorial!.picks[0]!;
+    // Two significant figures: "₦3m" is ₦3,000,000, not ₦3,037,500.
+    const digits = String(pick.suggestedAmount).replace(/0+$/, '');
+    expect(digits.length).toBeLessThanOrEqual(2);
+    w = run(w, I, {
+      type: 'investor.tutorial',
+      action: 'shortlist',
+      companyId: pick.companyId,
+    }).world;
+    w = run(w, I, { type: 'invest.diligence', companyId: pick.companyId, depth: 1 }).world;
+    const cash = () => w.accounts[w.players[I]!.accounts.local]!.balance;
+    const before = cash();
+    const r = run(w, I, {
+      type: 'invest.propose',
+      companyId: pick.companyId,
+      instrument: 'safe',
+      amount: pick.suggestedAmount,
+      valuation: pick.suggestedCap,
+      proRata: true,
+      boardSeat: false,
+      vetoOnSale: false,
+    });
+    expect(r.result.status).toBe('accepted');
+    w = r.world;
+    expect(before - cash()).toBe(pick.suggestedAmount);
+    const pos = playerView(w, I)!.portfolio.find((x) => x.companyId === pick.companyId)!;
+    expect(pos.ownershipPct).toBe(0);
+    expect(pos.safePct).toBeCloseTo((100 * pick.suggestedAmount) / pick.suggestedCap, 1);
+    expect(pos.safePct).toBeGreaterThan(0);
+  });
+});

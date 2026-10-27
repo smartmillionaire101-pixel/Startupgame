@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { amountInput, moneyExact, parseAmount, runway, titleCase } from '../src/format';
+import { amountInput, moneyExact, parseAmount, runway, stakeText, titleCase } from '../src/format';
 
 describe('format', () => {
   it('parses human amounts into minor units', () => {
@@ -23,5 +23,10 @@ describe('format', () => {
     expect(runway(null)).toBe('Profitable');
     expect(runway(5.7)).toBe('5 mo');
     expect(titleCase('series-a')).toBe('Series A');
+  });
+  it('shows a SAFE’s stake at its cap, not 0% (play-test #8)', () => {
+    expect(stakeText({ ownershipPct: 2.5 })).toBe('2.5%');
+    expect(stakeText({ ownershipPct: 0, safePct: 0.4 })).toBe('up to 0.4% on a SAFE');
+    expect(stakeText({ ownershipPct: 1, safePct: 0.4 })).toBe('1.0% + up to 0.4% on a SAFE');
   });
 });

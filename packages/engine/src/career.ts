@@ -531,6 +531,13 @@ function nextRung(p: Player): number | null {
   return null;
 }
 
+/** Down to two significant figures (3,037,500 → 3,000,000), so the amount shown is the amount sent. */
+const roundDown2 = (x: number) => {
+  if (x < 100) return Math.floor(x);
+  const step = 10 ** (Math.floor(Math.log10(x)) - 1);
+  return Math.floor(x / step) * step;
+};
+
 /** The tutorial for the client: steps, the café's startups, a suggested cheque, and a recovery. */
 function tutorialView(world: World, p: Player) {
   const t = p.career?.tutorial;
@@ -548,6 +555,9 @@ function tutorialView(world: World, p: Player) {
       const maxCheck = Math.max(0, Math.round(model * 0.3));
       const m = getMarket(world, c.market);
       const capIn = valueIn(world, cap, home.data.currency, m.data.currency);
+      const raw = Math.max(0, Math.min(capIn, maxCheck));
+      // Play-test (FEEDBACK_NOTE): "₦3m" sent ₦3,037,500; suggest a round figure instead.
+      const amount = feedbackOn(world) ? roundDown2(raw) : raw;
       return {
         companyId: c.id,
         name: c.name,
@@ -558,9 +568,9 @@ function tutorialView(world: World, p: Player) {
         fits: (p.investor?.sectors ?? []).includes(c.industry),
         currency: m.data.currency,
         /** A suggested first cheque: small, inside the cap and what they'd take. */
-        suggestedAmount: Math.max(0, Math.min(capIn, maxCheck)),
+        suggestedAmount: amount,
         /** A cap they'd accept today (the model's value; SAFE post-money). */
-        suggestedCap: model + Math.min(capIn, maxCheck),
+        suggestedCap: model + amount,
       };
     });
   // A founder said no to your term sheet: why, and the way back (§3.1).

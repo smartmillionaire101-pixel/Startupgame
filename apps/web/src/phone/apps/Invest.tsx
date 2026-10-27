@@ -4,7 +4,7 @@
  * city's companies: real share prices where the city has a stock market,
  * else moves that follow the news.
  */
-import { money, moneyExact, pct } from '../../format';
+import { money, moneyExact, stakeText } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button } from '../../ui';
@@ -173,7 +173,7 @@ export function Invest(_: { ctx: PhoneCtx }) {
                       {s.name}{' '}
                       <span className="small muted">
                         {t('{pct} · put in {amount}', {
-                          pct: pct(s.ownershipPct / 100, 1),
+                          pct: stakeText(s),
                           amount: money(s.invested, s.currency),
                         })}
                       </span>
