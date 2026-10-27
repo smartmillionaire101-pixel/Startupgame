@@ -26,4 +26,6 @@ export const travelR6: Record<string, string> = {
   'Leave that game (forfeit)': 'Quitter cette partie (abandon)',
   'Leave that game': 'Quitter cette partie',
   'The pot is shared between them.': 'La cagnotte est partagée entre eux.',
+  // Bowling: the score with bonus balls still to come.
+  '{n}+': '{n}+',
 };

@@ -21,6 +21,7 @@ import {
   bowlingGame,
   simulateBowl,
   wobble,
+  type BowlDeck,
   type BowlInput,
   type BowlLaunch,
 } from './bowling.js';
@@ -1827,7 +1828,7 @@ export function playView(w: World, p: Player) {
       /** Golf with a friend: the match (null for every other game). */
       golf: r.golf ? golfMatchView(w, r) : null,
       /** Bowling: every bowler's frames, the pins up, the last ball (null for other games). */
-      bowling: r.bowling ? bowlingView(r) : null,
+      bowling: r.bowling ? bowlingView(w, r) : null,
     }));
 }
 
@@ -2287,7 +2288,7 @@ function bowlRoll(
   const me = B.players[id]!;
   const before = bowlingGame(me.rolls);
   const launch = wobble(deriveRng(w.seed, 'bowl', r.id, B.balls), input, me.skill);
-  const sim = simulateBowl(me.standing, launch);
+  const sim = simulateBowl(me.standing, launch, false, bowlDeck(w));
   const down = sim.knocked.length;
   B.last = {
     by: id,
@@ -2392,10 +2393,15 @@ function bowlingClock(w: World, r: PlayRoom, now: number) {
   }
 }
 
+/** The pin deck the engine rolls on (the feedback round's carries less: a straight ball strikes less). */
+const bowlDeck = (w: World): BowlDeck => (feedbackOn(w) ? 'true' : 'lively');
+
 /** The game as a player sees it (every number the engine worked out). */
-function bowlingView(r: PlayRoom) {
+function bowlingView(w: World, r: PlayRoom) {
   const B = r.bowling!;
   return {
+    /** The pin deck the balls are rolled on (the client replays them on it). */
+    deck: bowlDeck(w),
     fee: B.fee,
     shotMs: BOWL_MS,
     readyAt: B.readyAt,
@@ -2412,6 +2418,7 @@ function bowlingView(r: PlayRoom) {
             standing: x.standing,
             frames: g.frames,
             score: g.score,
+            soFar: g.soFar,
             done: g.done,
             frame: g.frame,
             ball: g.ball,

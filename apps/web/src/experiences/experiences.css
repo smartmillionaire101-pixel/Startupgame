@@ -1190,6 +1190,9 @@
 .bowling-row .marks i.x {
   color: #f0abfc;
   font-weight: 800;
+  /* A strike reads at a glance (playtest round 6: the X was tiny). */
+  font-size: 13px;
+  line-height: 1;
 }
 .bowling-row .marks i.sp {
   color: #93c5fd;
