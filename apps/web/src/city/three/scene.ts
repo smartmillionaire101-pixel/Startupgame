@@ -10,7 +10,7 @@ import { citySun } from '../solar';
  */
 import * as THREE from 'three';
 import { fromLatLon } from '../geo';
-import { geoMetres, type GeoWorld } from '../geoLayout';
+import { geoMetres, HELIPAD_CLEAR, type GeoWorld } from '../geoLayout';
 import type { CityLayout, Place, Pt } from '../layout';
 import { cityLook, type CityLook } from './cities';
 import { GroundMask } from './mask';
@@ -714,6 +714,40 @@ export class CityScene {
         m.group.rotation.y = -rot;
         this.placesGroup.add(m.group);
         homeH = m.h;
+      } else if (p.bizKind === 'heliport') {
+        // A heliport: the pad on open ground (its clear ground kept below), a
+        // concrete slab with a yellow edge and a white H, the helicopter's home.
+        const pad = Math.max(w, d);
+        const mark = (u: number, v: number, bw: number, bd: number, col: string, y0: number) => {
+          boxes.push({
+            x: cx + u * co - v * si,
+            y: cy + u * si + v * co,
+            w: bw,
+            d: bd,
+            h: 0.06,
+            y0,
+            rot,
+            style: 7,
+            wall: bytes(col),
+            roof: bytes(col),
+            seed: r,
+            vOff: 0,
+            roofType: 0,
+          });
+        };
+        mark(0, 0, pad, pad, '#5b6066', 0);
+        for (const [u, v, bw, bd] of [
+          [0, -pad / 2 + 0.5, pad, 1],
+          [0, pad / 2 - 0.5, pad, 1],
+          [-pad / 2 + 0.5, 0, 1, pad],
+          [pad / 2 - 0.5, 0, 1, pad],
+        ] as const)
+          mark(u, v, bw, bd, '#facc15', 0.06);
+        const hh = pad * 0.42;
+        mark(-hh * 0.32, 0, 1.4, hh, '#f8fafc', 0.06);
+        mark(hh * 0.32, 0, 1.4, hh, '#f8fafc', 0.06);
+        mark(0, 0, hh * 0.64, 1.4, '#f8fafc', 0.06);
+        homeH = 0.12;
       } else {
         fps.push({
           p: outline,
@@ -759,9 +793,14 @@ export class CityScene {
     const m = mergedMesh(fps, this.mergedMat);
     if (m) this.placesGroup.add(m);
     for (const b of boxMeshes(boxes, this.instMat)) this.placesGroup.add(b);
-    // Their plots: no real outline or lot may stand there.
+    // Their plots: no real outline or lot may stand there (round a pad, none
+    // within its clear ground).
     for (const b of this.places) {
-      const f = makeFp(rectPoly(b.x, b.y, b.w + 6, b.d + 6, b.rot));
+      const f = makeFp(
+        b.place.bizKind === 'heliport'
+          ? discPoly(b.x, b.y, HELIPAD_CLEAR)
+          : rectPoly(b.x, b.y, b.w + 6, b.d + 6, b.rot),
+      );
       this.blocked.add(f);
       this.placeFps.push(f);
     }
@@ -1236,8 +1275,13 @@ export class CityScene {
       .intersectObjects(targets, true)
       .find((i) => (i.object as THREE.Mesh).isMesh && i.object.visible);
     _rc.far = Infinity;
-    const ground = this.groundAt(x, y) + this.terrainAt(x, y);
-    return hit ? Math.max(0, hit.point.y - ground) : 0;
+    if (!hit) return 0;
+    // What stands on the terrain is lifted onto it in its shader (its geometry
+    // stays on the flat city): its height is over the deck alone.
+    const m = (hit.object as THREE.Mesh).material;
+    const lifted = (Array.isArray(m) ? m : [m]).some((x) => x?.userData?.terrainCopy);
+    const ground = this.groundAt(x, y) + (lifted ? 0 : this.terrainAt(x, y));
+    return Math.max(0, hit.point.y - ground);
   }
 
   /** Full-density tiles standing now. */

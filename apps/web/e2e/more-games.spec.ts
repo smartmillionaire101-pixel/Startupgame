@@ -318,3 +318,82 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
   expect(v.me.games!.you.booked).toBeNull();
   expect(errors).toEqual([]);
 });
+
+/**
+ * The pad stands on open ground (player feedback: back on the pad the
+ * helicopter sat among walls and windows): nothing built within `PAD_CLEAR`
+ * of it, and landed, the Outside camera is not inside a building.
+ */
+const PAD_CLEAR = 30;
+for (const [city, market] of [
+  ['London', /London/],
+  ['Lagos', /Lagos/],
+] as const)
+  test(`${city}: the heliport's pad is clear, and landed the Outside camera is in the open`, async ({
+    page,
+  }, info) => {
+    test.setTimeout(300_000);
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await founder(page, `Pad ${city}`, market);
+    expect((await command(page, { type: 'player.lifestyle', tier: 3 })).ok()).toBe(true);
+    await page.reload();
+    await expect(page.locator('.topbar')).toBeVisible({ timeout: 30_000 });
+    const { games } = await goingOut(page);
+    await games.locator('[data-go="heli"]').click();
+    const book = page.getByRole('dialog', { name: 'Book a helicopter ride' });
+    await book.locator('[data-air-item="heli-hop"] [data-action="air-book"]').click();
+    const air = page.locator('[data-air="heli"]');
+    await expect(air).toBeVisible({ timeout: STEP_3D });
+    await expect(air.locator('[data-air-cam]')).toHaveAttribute('data-air-cam', 'outside');
+    await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('heli');
+    // Up and away for a moment, then home.
+    await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 4));
+    await page.waitForTimeout(4000);
+    await air.locator('[data-action="heli-home"]').click();
+    await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 8));
+    await expect(air).toHaveAttribute('data-air-phase', 'landed', { timeout: 180_000 });
+    // The city around the pad stands by now (its tiles load around the camera).
+    await page.waitForTimeout(4000);
+    const probe = () =>
+      page.evaluate((R) => {
+        type V = { x: number; y: number; z: number };
+        const a = (
+          window as unknown as {
+            __air3d: {
+              scene: {
+                roofAt(x: number, z: number): number;
+                groundAt(x: number, z: number): number;
+                terrainAt(x: number, z: number): number;
+              };
+              cam: { pos: V };
+              pad: { x: number; z: number };
+            };
+          }
+        ).__air3d;
+        const { scene, cam, pad } = a;
+        // The tallest thing standing within R of the pad (a ring every 3 m).
+        let worst = { h: 0, r: 0 };
+        for (let r = 0; r <= R; r += 3)
+          for (let k = 0; k < (r ? 24 : 1); k++) {
+            const t = (k / 24) * Math.PI * 2;
+            const h = scene.roofAt(pad.x + Math.cos(t) * r, pad.z + Math.sin(t) * r);
+            if (h > worst.h) worst = { h: Math.round(h * 10) / 10, r };
+          }
+        const ground = scene.groundAt(cam.pos.x, cam.pos.z) + scene.terrainAt(cam.pos.x, cam.pos.z);
+        const top = ground + scene.roofAt(cam.pos.x, cam.pos.z);
+        return {
+          worst,
+          camAbove: Math.round((cam.pos.y - top) * 10) / 10,
+          camOff: Math.round(Math.hypot(cam.pos.x - pad.x, cam.pos.z - pad.z)),
+        };
+      }, PAD_CLEAR);
+    const p = await probe();
+    console.log(`${city} pad:`, JSON.stringify(p));
+    await snap(page, `heli-pad-${city.toLowerCase()}`, info);
+    // Only the pad itself (a slab under a metre) within PAD_CLEAR of its centre.
+    expect(p.worst.h).toBeLessThan(1);
+    // The chase camera is above whatever stands under it.
+    expect(p.camAbove).toBeGreaterThan(1);
+    expect(errors).toEqual([]);
+  });

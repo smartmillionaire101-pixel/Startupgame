@@ -312,7 +312,12 @@ export default function AirFlight({
     const ro = new ResizeObserver(size);
     ro.observe(el);
     sceneRef.current = scene;
-    (window as unknown as { __air3d?: unknown }).__air3d = { scene, cam, rig };
+    (window as unknown as { __air3d?: unknown }).__air3d = {
+      scene,
+      cam,
+      rig,
+      pad: { x: where.x, z: where.z },
+    };
     const lost = (e: Event) => {
       e.preventDefault();
       markWebGLBroken();
@@ -389,6 +394,22 @@ export default function AirFlight({
       if (r !== undefined) lastRoof = r;
       return r ?? lastRoof;
     };
+    // Low over the city and on the pad, the Outside camera keeps above what
+    // stands under it: the ground and roofs there (world y), 8 m cells cached,
+    // two new rays a frame.
+    const tops = new Map<string, number>();
+    let topRays = 0;
+    const top = (x: number, z: number) => {
+      const k = `${Math.floor(x / 8)}_${Math.floor(z / 8)}`;
+      let r = tops.get(k);
+      const s = sceneRef.current;
+      if (r === undefined && s && topRays < 2) {
+        topRays++;
+        r = groundAt(x, z) + s.roofAt(x, z);
+        tops.set(k, r);
+      }
+      return r ?? groundAt(x, z);
+    };
     // The air's gusts: seeded by the booking (the same jump draws the same sky).
     const air = createRng(hashString(booking.bookingId));
     const frame = () => {
@@ -438,6 +459,7 @@ export default function AirFlight({
           if (h.leg > route.length) onHome(h);
         }
         const rig = rigRef.current;
+        topRays = 0;
         if (cam && rig)
           rig.placeHeli(
             h,
@@ -445,6 +467,7 @@ export default function AirFlight({
             camModeRef.current,
             cam,
             dt,
+            h.alt < 90 ? top : undefined,
           );
         if (now - hudAt > 150) {
           hudAt = now;

@@ -80,6 +80,27 @@ function aim(cam: CamPose, from: THREE.Vector3, to: THREE.Vector3) {
   cam.pitch = Math.atan2(to.y - from.y, Math.hypot(dx, dz));
 }
 
+/**
+ * How far to raise a chase camera at `from`, looking at `at`, so it and its
+ * line of sight back to the craft stay `gap` m above whatever stands under
+ * them (`top`: world y of the ground or roof at a point).
+ */
+export function chaseLift(
+  at: { x: number; y: number; z: number },
+  from: { x: number; y: number; z: number },
+  top: (x: number, z: number) => number,
+  gap = 2,
+) {
+  let lift = 0;
+  for (const t of [0.4, 0.7, 1]) {
+    const y = at.y + (from.y - at.y) * t;
+    const need = top(at.x + (from.x - at.x) * t, at.z + (from.z - at.z) * t) + gap - y;
+    // Raised by `need / t` at the camera, the line is raised by `need` here.
+    lift = Math.max(lift, need / t);
+  }
+  return lift;
+}
+
 /** A point in a craft's frame (heading `h`, nose towards −z) out in the world. */
 function toWorld(
   out: THREE.Vector3,
@@ -176,9 +197,18 @@ export class AirRig {
 
   /**
    * The helicopter: `y` is the height of its skids. Places the camera
-   * (Inside or Outside) and the model.
+   * (Inside or Outside) and the model. `top` (world y of the highest thing
+   * standing at a point, the ground or a roof): the Outside camera keeps
+   * above it, never inside a building (low over the city, on the pad).
    */
-  placeHeli(h: Heli, y: number, mode: AirCamMode, cam: CamPose, dt: number) {
+  placeHeli(
+    h: Heli,
+    y: number,
+    mode: AirCamMode,
+    cam: CamPose,
+    dt: number,
+    top?: (x: number, z: number) => number,
+  ) {
     // Bank into turns, from how fast the heading changes (smoothed).
     const d =
       this.lastHeading === null
@@ -196,6 +226,7 @@ export class AirRig {
     if (mode === 'outside') {
       // Behind, above and a little to the left, looking down past the cabin.
       const from = toWorld(_b, at, h.heading, -4.5, 6.5, 17);
+      if (top) from.y += chaseLift(at, from, top);
       const to = toWorld(_c, at, h.heading, 0, flying ? -2.5 : 0.5, -2);
       aim(cam, from, to);
       cam.fov = 58;

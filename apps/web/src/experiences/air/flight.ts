@@ -272,7 +272,8 @@ function floorAt(s: Heli, roof: RoofAt | undefined, speed: number) {
   const fz = -Math.cos(s.heading);
   let top = roof(s.x, s.z);
   for (const t of HELI.ahead) top = Math.max(top, roof(s.x + fx * speed * t, s.z + fz * speed * t));
-  return top > 0 ? top + HELI.clearance : 0;
+  // Under a metre is the ground (the pad's slab, a kerb): nothing to climb over.
+  return top > 1 ? top + HELI.clearance : 0;
 }
 
 /**
