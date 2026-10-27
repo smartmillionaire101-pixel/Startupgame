@@ -28,7 +28,7 @@
  * the doorways (./cabinplan; `data-suite-path` names the places it goes
  * through); "Inside | Outside" shows the plane in the sky.
  */
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { use3d } from '../../three-kit/quality';
@@ -38,7 +38,7 @@ import { resultCard } from '../../photos/snap';
 import { AvatarFigure, avatarLook, type AvatarLook } from '../art';
 import { CabinService } from '../acts/CabinService';
 import { genderOf } from '../life';
-import { CITY_GEO, CITY_NAMES, fmtFlightTime, inflightOf } from '../travel';
+import { CITY_GEO, CITY_NAMES, fmtFlightTime, inflightOf, localHour } from '../travel';
 import { skyOver } from '../flight3d/world';
 import { cabinPlan, outsideAt, pathClear, placeFor, walkPath } from './cabinplan';
 import type { SkyColours } from './outside';
@@ -82,8 +82,40 @@ const OFFER: Record<FlightStage, InflightActId[]> = {
   arrival: ['spa', 'bar'],
 };
 
-/** The crew's line at each moment. */
-function crewLine(stage: FlightStage, cabin: Premium, name: string, city: string): string {
+/**
+ * Good morning, afternoon or evening at an hour of the day (0–24) where you
+ * land (playtest round 6: "Good morning" on an evening flight).
+ */
+export function arrivalGreeting(hour: number, name: string, city: string): string {
+  const h = ((hour % 24) + 24) % 24;
+  return h >= 5 && h < 12
+    ? t('{name}: Good morning. We land in {city} shortly.', { name, city })
+    : h >= 12 && h < 18
+      ? t('{name}: Good afternoon. We land in {city} shortly.', { name, city })
+      : t('{name}: Good evening. We land in {city} shortly.', { name, city });
+}
+
+/** How long a moment of the flight lasts with nothing done in it before the next (ms). */
+export const SUITE_STAGE_MS = 25_000;
+
+/** `runway.flightPace` (1–10): the 3D flight slowed down that many times, its moments too. */
+function suitePace(): number {
+  try {
+    const n = Number(localStorage.getItem('runway.flightPace'));
+    return Number.isFinite(n) && n >= 1 ? Math.min(10, n) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** The crew's line at each moment (`landsAt`: the hour where you land). */
+function crewLine(
+  stage: FlightStage,
+  cabin: Premium,
+  name: string,
+  city: string,
+  landsAt: number,
+): string {
   if (stage === 'boarding')
     return cabin === 'first'
       ? t(
@@ -101,7 +133,7 @@ function crewLine(stage: FlightStage, cabin: Premium, name: string, city: string
     return cabin === 'first'
       ? t('{name}: Shall I make up your bed? I’ll close the doors for you.', { name })
       : t('{name}: Your seat goes fully flat. Sleep well.', { name });
-  return t('{name}: Good morning. We land in {city} shortly.', { name, city });
+  return arrivalGreeting(landsAt, name, city);
 }
 
 /** The suite drawn (Lite): the window, the seat or the bed, the screen, the table, the crew. */
@@ -326,6 +358,8 @@ export function SuiteFlight({
     };
     return { boarding: at(0.05), meal: at(0.3), night: at(0.55), arrival: at(0.95) };
   });
+  // The hour where you land, for the crew's greeting.
+  const [landsAt] = useState(() => localHour(to, flightNow() + hours * 3_600_000));
   const [eye, setEye] = useState<'inside' | 'outside'>('inside');
   const [status, setStatus] = useState<SuiteStatus | null>(null);
   const state = useMemo<SuiteState>(
@@ -387,6 +421,21 @@ export function SuiteFlight({
     } else if (n === 'night') setAct(null);
     else if (n === 'meal') setAct(null);
   };
+
+  // Nothing done for a while: the flight moves on by itself to the next moment
+  // (playtest round 6: it stayed on Take-off until you tapped Next); the arrival
+  // waits for "Prepare for landing".
+  const nextRef = useRef(next);
+  useEffect(() => {
+    nextRef.current = next;
+  });
+  // The wait starts once the cabin is drawn, and is as slow as the flight
+  // (`runway.flightPace`, for screenshots on a slow software renderer).
+  useEffect(() => {
+    if (stage === 'arrival' || !ready) return;
+    const id = window.setTimeout(() => nextRef.current(), SUITE_STAGE_MS * suitePace());
+    return () => window.clearTimeout(id);
+  }, [stage, act, course, ready, eye]);
 
   const city = CITY_NAMES[from] ?? from;
   const title = cabin === 'first' ? t('First class suite') : t('Business class seat');
@@ -451,7 +500,7 @@ export function SuiteFlight({
             ? placeFor(act, cabin) === 'seat'
               ? t('Back down the aisle to your seat…')
               : t('Down the aisle and through the doorway…')
-            : crewLine(stage, cabin, crew, toName)}
+            : crewLine(stage, cabin, crew, toName, landsAt)}
         </p>
         {/* Photo, Inside, Outside: round icons down the right (the floating HUD's rail). */}
         <HudRail className="suite-rail" label={t('Inside or outside the plane')}>

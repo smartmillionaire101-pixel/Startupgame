@@ -122,7 +122,9 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
   const roles = (events ?? []).some((e) => e.audience !== 'founder');
   const forYou = roles && filter === 'you';
   const mine = (e: TechEventView) => e.audience === role;
-  const on = (events ?? []).filter((e) => e.status === 'on');
+  // This month's still to come; those on a day already gone are over (playtest round 6).
+  const on = (events ?? []).filter((e) => e.status === 'on' && !e.past);
+  const earlier = (events ?? []).filter((e) => e.status === 'on' && e.past);
   const onMine = forYou ? on.filter(mine) : on;
   const onOther = forYou ? on.filter((e) => !mine(e)) : [];
   const soonAll = (events ?? []).filter((e) => e.status === 'soon');
@@ -169,7 +171,17 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
         </p>
       )}
       <div className="row">
-        {e.status === 'on' ? (
+        {e.past ? (
+          e.attended ? (
+            <span className="small good" data-attended>
+              {t('You went ✓')}
+            </span>
+          ) : (
+            <span className="small muted" data-event-over>
+              {t('Over')}
+            </span>
+          )
+        ) : e.status === 'on' ? (
           e.attended ? (
             <>
               <span className="small good" data-attended>
@@ -233,7 +245,9 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
           )}
           <H>{t('This month')}</H>
           {on.length === 0 ? (
-            <Nothing>{t('Nothing on this month.')}</Nothing>
+            <Nothing>
+              {earlier.length ? t('Nothing more on this month.') : t('Nothing on this month.')}
+            </Nothing>
           ) : (
             <>
               {onMine.length > 0 && (
@@ -258,6 +272,16 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
                 </>
               )}
             </>
+          )}
+          {earlier.length > 0 && (
+            <details className="phone-events-earlier" data-events="earlier">
+              <summary className="small muted">
+                {t('Earlier this month ({n})', { n: earlier.length })}
+              </summary>
+              <ul className="phone-list phone-events" aria-label={t('Earlier this month')}>
+                {earlier.map(card)}
+              </ul>
+            </details>
           )}
           {soon.length > 0 && (
             <>

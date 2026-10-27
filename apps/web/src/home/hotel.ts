@@ -23,6 +23,7 @@
  * the hotel's tower, the corridor and the neighbours' closed rooms round it,
  * the city far below) and your suitcase. Pure data in tiles, like ./layout.ts.
  */
+import { CITY_HOTELS } from '@runway/engine';
 import type { HotelTier } from '../city/travel';
 import type { Grounds } from './grounds';
 import type { Decor, FixtureId, HomeAct, HomePlan, Room, Spot } from './layout';
@@ -144,6 +145,29 @@ function budget(f: number): Shape {
     ],
     decor: [
       decor('nightstand-1', 'nightstand', 'Bedside table', 'bedroom', [0, 0, 1, 1, 1, 3], 0, f),
+      decor('suitcase', 'suitcase', 'Your suitcase', 'bedroom', [0, 5, 1, 1, 1, 4], 0, f),
+    ],
+  };
+}
+
+/**
+ * A pod (a one-star hotel's "Pod · shared bathroom", playtest round 6: it was
+ * drawn as the budget double with a desk and a TV): the budget room's shell
+ * with a single bed in its alcove, a locker for your things and a shelf, no
+ * desk and no TV. The shower room stands for the shared bathroom across the
+ * corridor (you still shower and use the toilet there).
+ */
+function pod(f: number): Shape {
+  const b = budget(f);
+  return {
+    ...b,
+    slots: {
+      bed: spot(0, 0, 1, 3, 1, 1),
+      wardrobe: b.slots.wardrobe!,
+      lights: spot(1, 0, 1, 1, 2, 0),
+    },
+    decor: [
+      decor('locker', 'nightstand', 'Your locker', 'bedroom', [3, 0, 1, 1, 3, 1], 0, f),
       decor('suitcase', 'suitcase', 'Your suitcase', 'bedroom', [0, 5, 1, 1, 1, 4], 0, f),
     ],
   };
@@ -334,15 +358,36 @@ function luxury(f: number): Shape {
   };
 }
 
-const PLANS = new Map<HotelTier, HomePlan>();
+const PLANS = new Map<string, HomePlan>();
 
-/** The room for a hotel tier (anything unknown: the budget room). */
-export function hotelPlan(tier: HotelTier | null | undefined): HomePlan {
+/** Each named hotel's room ("Pod · shared bathroom"), by id (the engine's data/hotels.ts). */
+const ROOM_OF = new Map(
+  Object.values(CITY_HOTELS).flatMap((list) => (list ?? []).map((h) => [h.id, h.room] as const)),
+);
+
+/** What the room at a named hotel is ("Pod · shared bathroom"), or null for a stay booked by tier. */
+export const hotelRoomOf = (stay: { id?: string } | null | undefined): string | null =>
+  (stay?.id && ROOM_OF.get(stay.id)) || null;
+
+/** A stay in a pod (a one-star hotel's pod with a shared bathroom). */
+export const isPodStay = (stay: { id?: string } | null | undefined) =>
+  hotelRoomOf(stay)?.startsWith('Pod') ?? false;
+
+/** The room for a hotel tier (anything unknown: the budget room); a budget `pod` is a pod. */
+export function hotelPlan(tier: HotelTier | null | undefined, isPod = false): HomePlan {
   const t = tierOf(tier);
-  let p = PLANS.get(t);
+  const podRoom = isPod && t === 'budget';
+  const key = podRoom ? 'pod' : t;
+  let p = PLANS.get(key);
   if (!p) {
     const f = HOTEL_FINISH[t];
-    const s = t === 'luxury' ? luxury(f) : t === 'business' ? business(f) : budget(f);
+    const s = podRoom
+      ? pod(f)
+      : t === 'luxury'
+        ? luxury(f)
+        : t === 'business'
+          ? business(f)
+          : budget(f);
     p = {
       tier: f,
       w: s.w,
@@ -358,7 +403,7 @@ export function hotelPlan(tier: HotelTier | null | undefined): HomePlan {
       coreW: s.w,
       decor: s.decor,
     };
-    PLANS.set(t, p);
+    PLANS.set(key, p);
   }
   return p;
 }
@@ -394,8 +439,8 @@ export const HOTEL_MODELS: Record<HotelTier, Record<string, string>> = {
 };
 
 /** What the room has, for the flat view and tests (the ids of what's in it). */
-export function hotelContents(tier: HotelTier | null | undefined): string[] {
-  const p = hotelPlan(tier);
+export function hotelContents(tier: HotelTier | null | undefined, isPod = false): string[] {
+  const p = hotelPlan(tier, isPod);
   return [...Object.keys(p.slots), ...Object.keys(p.fixtures), ...p.decor.map((d) => d.id)];
 }
 

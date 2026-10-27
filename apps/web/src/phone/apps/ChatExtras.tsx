@@ -1072,7 +1072,7 @@ function DatePanel({ partner, act, busy, onDone }: PanelProps) {
 
 function EventPanel({ partner, act, busy, onDone }: PanelProps) {
   const { view } = useView();
-  const events = (techEventsOf(view) ?? []).filter((e) => e.status === 'on');
+  const events = (techEventsOf(view) ?? []).filter((e) => e.status === 'on' && !e.past);
   const [pick, setPick] = useState(events[0]?.id ?? '');
   const cur = view.here?.currency ?? view.market.currency;
   const send = async () => {

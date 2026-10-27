@@ -87,7 +87,8 @@ export function TechEventScene(props: SceneProps & { eventId: string }) {
     leaveTechEvent();
     props.onClose();
   };
-  if (!event)
+  // An event on a day already gone is over (unless you went: the scene shows how it went).
+  if (!event || (event.past && !event.attended))
     return (
       <div
         className="place-scene tech-scene"

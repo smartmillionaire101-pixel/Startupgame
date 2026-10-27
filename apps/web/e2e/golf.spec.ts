@@ -75,13 +75,23 @@ test('play three holes at the golf course: the scorecard, and the green fee is p
   const scene = page.locator('.golf-scene');
   await expect(scene).toBeVisible({ timeout: 20_000 });
   await expect(scene).toHaveAttribute('data-room', 'golf');
-  const pocket = scene.locator('[data-pocket]');
-  const before = Number(await pocket.getAttribute('data-pocket'));
+  // Your money (the floating HUD's pill shows it; the scene no longer repeats it).
+  const pocket = () =>
+    page.evaluate(async () => {
+      const r = await fetch('/api/state', { headers: { 'x-runway': '1' } });
+      const s = (await r.json()) as { view: { accounts: { local: { balance: number } | null } } };
+      return s.view.accounts.local?.balance ?? 0;
+    });
+  const before = await pocket();
+  await expect(scene.locator('[data-pocket]')).toHaveCount(0);
   await expect(scene.locator('[data-golf-intro]')).toContainText('Par');
   await scene.locator('[data-action="golf-start"]').click();
   await expect(scene).toHaveAttribute('data-golf-stage', 'play');
   // The course fills the screen; the clubs, the meter and the swing button sit over it.
   await expect(scene).toHaveClass(/is-play/);
+  // On the tee the hole's length and the distance to the pin are one number.
+  const length = (await scene.locator('.golf-len').textContent())!.match(/\d+/)![0];
+  await expect(scene.locator('.golf-pin b')).toHaveText(new RegExp(`^${length}\\s*m$`));
   await expect(scene.locator('.golf-view .golf-tray .golf-clubs')).toBeVisible();
   await expect(scene.locator('.golf-view .golf-meter [data-golf-need]')).toBeAttached();
   await playRound(page);
@@ -92,9 +102,7 @@ test('play three holes at the golf course: the scorecard, and the green fee is p
   await expect(card.locator('tr.you td')).toHaveCount(4);
   await expect(card.locator('[data-golf-result="ok"]')).toBeVisible({ timeout: 15_000 });
   await expect(card).toContainText('Green fee');
-  await expect
-    .poll(async () => Number(await pocket.getAttribute('data-pocket')), { timeout: 8000 })
-    .toBeLessThan(before);
+  await expect.poll(pocket, { timeout: 8000 }).toBeLessThan(before);
   // The camera: a picture of the round to save or share.
   await card.locator('[data-action="golf-photo"]').click();
   const photo = page.getByRole('dialog', { name: 'Your round' });

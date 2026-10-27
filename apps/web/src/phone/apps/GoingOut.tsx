@@ -708,7 +708,7 @@ const EVENT_PLACE: Record<string, string> = { hall: 'eventhall', hub: 'hub' };
 
 function EventsCard({ ctx }: { ctx: PhoneCtx }) {
   const { view } = useView();
-  const tech = (techEventsOf(view) ?? []).filter((e) => e.status === 'on');
+  const tech = (techEventsOf(view) ?? []).filter((e) => e.status === 'on' && !e.past);
   const social = (eventsOf(view) ?? []).filter(
     (e) => e.status === 'upcoming' && e.month === view.market.month && EVENT_PLACE[e.venue],
   );

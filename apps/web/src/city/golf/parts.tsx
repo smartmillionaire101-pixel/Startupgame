@@ -33,13 +33,18 @@ export const LIE_WORD: Record<Lie, () => string> = {
   holed: () => t('In the hole'),
 };
 
-/** Power (0–110) after holding for `ms`: up to 110 and back down, over and over. */
+/**
+ * Power (0–110) after holding for `ms`: it fills to 110 and stays there, so
+ * holding on too long is a lunge (playtest round 6: the meter used to swing
+ * back down, and a swing held for 30 seconds was as good as a timed one).
+ */
 export const powerAt = (ms: number, putt = false) => {
   // The putter's meter fills half as fast: short putts need a soft touch.
-  const half = putt ? 2600 : 1300;
-  const x = ms % (2 * half);
-  return 110 * (x < half ? x / half : (2 * half - x) / half);
+  const fill = putt ? 2600 : 1300;
+  return POWER_MAX * Math.min(1, Math.max(0, ms) / fill);
 };
+/** A hole's length as the player reads it: from the tee to the pin, as the HUD measures it. */
+export const holeMetres = (g: HoleGeo) => Math.round(dist(g.tee, g.pin));
 export const reachOf = (p: { club: Club; lie: Lie }) => p.club.carry * LIE_CARRY[p.lie];
 /** What the reading says at a power: "83% · Sweet!" and what to do about it. */
 export function powerWords(power: number): {

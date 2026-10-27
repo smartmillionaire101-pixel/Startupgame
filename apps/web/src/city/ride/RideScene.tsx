@@ -13,7 +13,7 @@ import { useDaylight } from '../useDaylight';
 import { t, tx } from '../../i18n';
 import { flavourOf } from '../flavour';
 import { rideLabel, RideIcon } from '../Transport';
-import { fnv, rideMinutes, stopsAlong } from '../travel';
+import { fnv, stopsAlong } from '../travel';
 import type { Frame } from './art';
 import { BusScene } from './BusScene';
 import { CycleScene } from './CycleScene';
@@ -47,7 +47,8 @@ export function RideScene({ ride }: { ride: Ride }) {
   const sunlight = useDaylight(marketId);
   const part: 'night' | 'dusk' | 'day' = sunlight.night ? 'night' : sunlight.dusk ? 'dusk' : 'day';
   const uid = `ride${ride.id}`;
-  const minutes = rideMinutes(mode, ride.tiles);
+  // The chooser's minutes (with the life bars, the time the trip costs you).
+  const minutes = ride.minutes;
   const stops = useMemo(
     () => stopsAlong(layout.areas, flavour.streets, ride.path),
     [layout.areas, flavour.streets, ride.path],

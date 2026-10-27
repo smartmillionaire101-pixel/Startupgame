@@ -101,6 +101,7 @@ import { WhoIsHere } from './WhoIsHere';
 import { VenueParty, VenuePartyLine, venueParty } from './companions';
 import { HomeScene } from '../home/HomeScene';
 import { HotelBack, HotelFront } from '../home/HotelArt';
+import { hotelRoomOf, isPodStay } from '../home/hotel';
 import { HotelKnocked } from '../phone/apps/Holiday';
 import { cityHotelsOf, localHour, stayOf } from './travel';
 import { Stars } from './HotelList';
@@ -722,7 +723,13 @@ export function PlaceScene(props: SceneProps) {
       <HomeScene
         {...props}
         title={stay?.name ?? props.title}
-        hotel={{ tier: stay?.tier ?? null, name: stay?.name ?? null }}
+        hotel={{
+          tier: stay?.tier ?? null,
+          name: stay?.name ?? null,
+          pod: isPodStay(stay),
+          stars: stay?.stars,
+          room: hotelRoomOf(stay),
+        }}
       />
     );
   }
@@ -1795,7 +1802,11 @@ function RoomScene({
               night={daylight.night}
             />
           ) : room === 'hotel' ? (
-            <HotelBack tier={stayOf(view)?.tier ?? null} night={daylight.night} />
+            <HotelBack
+              tier={stayOf(view)?.tier ?? null}
+              pod={isPodStay(stayOf(view))}
+              night={daylight.night}
+            />
           ) : (
             <RoomBack
               kind={room}
@@ -1813,7 +1824,11 @@ function RoomScene({
           {nightStyle ? (
             <NightFront s={nightStyle} />
           ) : room === 'hotel' ? (
-            <HotelFront tier={stayOf(view)?.tier ?? null} night={daylight.night} />
+            <HotelFront
+              tier={stayOf(view)?.tier ?? null}
+              pod={isPodStay(stayOf(view))}
+              night={daylight.night}
+            />
           ) : (
             <RoomFront
               kind={room}

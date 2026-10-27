@@ -53,7 +53,7 @@ import {
   type StoryPlace,
 } from './contract';
 import { onVisit, peekVisit, takeVisit, takeVisitMode } from './goto';
-import { getTicket, setTicket, ticketFor } from './ticket';
+import { chooseAtDesk, getTicket, setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
 import { suggestionText, WhatNowCard, WhatNowList, whatNowOptions } from './WhatNowCards';
@@ -825,18 +825,25 @@ function CityBodyInner({
       onFlyHome();
       return;
     }
-    try {
-      await api.command({ type: 'travel.book', to: home.id } as Command);
-      await refresh();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Booking failed.', 'error');
-      return;
-    }
-    setTicket(ticketFor(layout.marketId, d, home.currency, homeMonth));
+    // A return ticket you hold is already paid: it's booked at once. Without one,
+    // the ticket desk opens on the flight home, its cabins and fares shown before
+    // anything is charged (playtest: the way home was charged in the cabin you flew
+    // out in, with no price shown, after a trip booked one way).
+    if (flightsOf(view)?.heldReturn) {
+      try {
+        await api.command({ type: 'travel.book', to: home.id } as Command);
+        await refresh();
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'Booking failed.', 'error');
+        return;
+      }
+      setTicket(ticketFor(layout.marketId, d, home.currency, homeMonth));
+    } else chooseAtDesk(home.id);
     setInside(null);
     setArrival(false);
     goTo(airport);
   }, [
+    view,
     destinations,
     home.id,
     home.currency,
@@ -915,12 +922,15 @@ function CityBodyInner({
    * Skip the trip: there at once. Free without the life bars; with them it
    * costs what your usual way of getting about costs, just without the ride.
    */
-  const skipTrip = useCallback(async () => {
-    if (!trip) return;
-    if (lifeBars && !(await chargeTrip(preferred, trip.tiles))) return;
-    setTrip(null);
-    mapRef.current?.ride(lifeBars ? preferred : 'walk', true);
-  }, [trip, lifeBars, preferred, chargeTrip]);
+  const skipTrip = useCallback(
+    async (as: RideMode = preferred) => {
+      if (!trip) return;
+      if (lifeBars && !(await chargeTrip(as, trip.tiles))) return;
+      setTrip(null);
+      mapRef.current?.ride(lifeBars ? as : 'walk', true);
+    },
+    [trip, lifeBars, preferred, chargeTrip],
+  );
   const pickRide = useCallback(
     async (mode: RideMode, instant = false, which: FarTrip | null = trip) => {
       if (!which) return;
@@ -1193,7 +1203,7 @@ function CityBodyInner({
                 preferred={preferred}
                 busy={rideBusy}
                 onPick={(m) => void pickRide(m)}
-                onSkip={() => void skipTrip()}
+                onSkip={(m) => void skipTrip(m)}
                 onCancel={cancelTrip}
                 car={car}
                 abroad={abroad}

@@ -8,10 +8,11 @@
 import { describe, expect, it } from 'vitest';
 import { advisoryReputation, mandateOffers } from '../src/bankwork.js';
 import { BANKWORK, FIT, MANDATES, REPUTATION, STEPS } from '../src/data/bankwork.js';
+import { gameMinute, whenOf } from '../src/places.js';
 import { BANKERS_NOTE, FEEDBACK_NOTE } from '../src/releases.js';
 import { BANKER_EVENT_KINDS, INVESTOR_EVENT_KINDS, techEventsFor } from '../src/social.js';
 import { playerView } from '../src/views.js';
-import type { AdvisoryDeal, World } from '../src/types.js';
+import type { AdvisoryDeal, MarketState, World } from '../src/types.js';
 import { DAY, T0, makeWorld, moneyByCurrency, run } from './helpers.js';
 
 const B = 'u_banker';
@@ -51,6 +52,8 @@ const addFounder = (w: World, id = F) =>
 const world = (on: boolean, seed = 11) =>
   addBanker(announce(makeWorld(seed, ['lagos']), on ? FEEDBACK_NOTE : BANKERS_NOTE));
 const me = (w: World, id = B) => w.players[id]!;
+/** The game day of the month at T0, the tests' clock. */
+const today = (m: MarketState) => whenOf(gameMinute(m, T0)).day;
 const view = (w: World, id = B) => playerView(w, id, { now: T0, monthMs: DAY })!;
 const desk = (w: World) => {
   const v = view(w).bankWork!;
@@ -272,7 +275,10 @@ describe('events by role', () => {
   it('a banker at a banking event meets bankers and a client who wants an adviser', () => {
     let w = world(true);
     const m = w.markets.lagos!;
-    const e = techEventsFor(w, m, m.month).find((x) => x.audience === 'banker')!;
+    // One still to come (an event on a day already gone is over: the feedback round).
+    const e = techEventsFor(w, m, m.month).find(
+      (x) => x.audience === 'banker' && x.day >= today(m),
+    )!;
     const contacts0 = me(w).contacts?.length ?? 0;
     const r = run(w, B, { type: 'techevent.attend', eventId: e.id });
     w = r.world;
@@ -291,7 +297,10 @@ describe('events by role', () => {
   it('anyone can go to any event; only bankers come away with an advisory lead', () => {
     let w = addFounder(world(true));
     const m = w.markets.lagos!;
-    const e = techEventsFor(w, m, m.month).find((x) => x.audience === 'banker')!;
+    // One still to come (an event on a day already gone is over: the feedback round).
+    const e = techEventsFor(w, m, m.month).find(
+      (x) => x.audience === 'banker' && x.day >= today(m),
+    )!;
     const r = run(w, F, { type: 'techevent.attend', eventId: e.id });
     w = r.world;
     expect(r.result.lead).toBeUndefined();

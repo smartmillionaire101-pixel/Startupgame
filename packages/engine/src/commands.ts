@@ -557,6 +557,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('city.ride'),
     mode: z.enum(['bus', 'taxi', 'drive']),
     distance: z.enum(['short', 'medium', 'long']),
+    /**
+     * Playtest round 6: the ride's length as the player was shown it; with the
+     * life bars it's the time the ride costs (lifebars.ts `rideCost`). Missing:
+     * the distance band's time, as before.
+     */
+    minutes: z.number().finite().optional(),
   }),
   /**
    * Phase 3: walk or cycle across town. `minutes` is the trip time the player

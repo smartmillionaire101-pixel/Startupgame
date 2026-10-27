@@ -213,6 +213,8 @@ export interface TechEventView {
   title: string;
   day: number;
   status: 'on' | 'soon';
+  /** This month's, on a day already gone: over (playtest round 6). */
+  past: boolean;
   venue: { kind: string; businessId: string | null; name: string; placeId: string };
   speakers: TechSpeakerView[];
   capacity: number;
@@ -243,6 +245,7 @@ export function techEventsOf(view: View): TechEventView[] | null {
         title: str(e.title, '—'),
         day: num(e.day, 1),
         status: e.status === 'soon' ? 'soon' : 'on',
+        past: e.past === true,
         venue: {
           kind: str(v.kind, 'hub'),
           businessId: typeof v.businessId === 'string' ? v.businessId : null,

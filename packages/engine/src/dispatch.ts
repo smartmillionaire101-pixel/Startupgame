@@ -2097,7 +2097,7 @@ function lifeBarsAfter(world: World, cmd: Command, actorId: Id, result: unknown)
   const social = { stress: LIFE_BARS.socialStress };
   switch (cmd.type) {
     case 'city.ride':
-      return { ...out, ...rideBars(me, cmd.mode, cmd.distance) };
+      return { ...out, ...rideBars(me, cmd.mode, cmd.distance, cmd.minutes) };
     case 'home.act':
       return changed(HOME_ACT_BARS[cmd.act] ?? {});
     case 'home.invite':

@@ -429,6 +429,7 @@ export {
   aiBowl,
 } from './bowling.js';
 export type {
+  BowlDeck,
   BowlInput,
   BowlLaunch,
   BowlSim,

@@ -51,7 +51,15 @@ import {
   type FlightStatus,
   type ScheduledFlight,
 } from '../travel';
-import { seatOf, setTicket, ticketFrom, useTicket, type Ticket } from '../ticket';
+import {
+  chooseAtDesk,
+  deskPicked,
+  seatOf,
+  setTicket,
+  ticketFrom,
+  useTicket,
+  type Ticket,
+} from '../ticket';
 import { FlyingWith } from '../companions';
 import { CABIN_NAME, TicketLegs, TripPicker } from '../CabinPicker';
 import { flightsOf, loungeOf, type CabinTier, type HotelTier } from '../travel';
@@ -534,8 +542,10 @@ function TripSheet({
   const lounge = loungeOf(view);
   const flightsInfo = flightsOf(view);
   const balance = view.accounts.local?.balance ?? 0;
-  // The destination whose hotels you're choosing from, before booking.
-  const [choosing, setChoosing] = useState<string | null>(null);
+  // The destination whose hotels you're choosing from, before booking ("Fly home"
+  // opens the desk on the flight home).
+  const [choosing, setChoosing] = useState<string | null>(deskPicked);
+  useEffect(() => chooseAtDesk(null), []);
   const fromName = CITY_NAMES[marketId] ?? marketId;
   const flights = (desk?.destinations ?? [])
     .map((d) => ({ d, f: nextFlightTo(schedule, d.id, now) }))

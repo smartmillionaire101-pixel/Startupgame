@@ -150,6 +150,15 @@ export function useTicket(): Ticket | null {
   };
 }
 
+// The flight to choose at the ticket desk when you get to the airport ("Fly home"
+// without a return ticket: the cabins and their fares are shown before anything is paid).
+let deskPick: string | null = null;
+export function chooseAtDesk(to: string | null) {
+  deskPick = to;
+}
+/** The destination to open at the desk (the desk forgets it once it has opened). */
+export const deskPicked = (): string | null => deskPick;
+
 /** The ticket if it's for a flight out of this city to one of these destinations. */
 export function ticketFrom(
   t: Ticket | null,

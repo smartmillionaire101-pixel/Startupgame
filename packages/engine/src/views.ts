@@ -36,7 +36,7 @@ import { founderGuide, founderPlanBase } from './founderguide.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
-import { bowlingOptions, golfMatchOptions, playView } from './play.js';
+import { bowlingOptions, golfMatchOptions, myPlayRoom, playView } from './play.js';
 import { gamesView } from './games.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
@@ -682,7 +682,7 @@ function marketView(
     /** Wave 7: food delivery (the Chop app): open food businesses, cheapest first (up to 20). */
     delivery: deliveryView(world, m),
     /** Wave 8: the city's tech events: this month's ("on") and next month's ("soon"). */
-    techEvents: techEventsView(world, p, m),
+    techEvents: techEventsView(world, p, m, clock?.now),
     /** The city economy at a glance (Wave 3). */
     economy: economyView(m),
     /** Wave 10: the property market: price index, and every home (for sale or owned). */
@@ -841,6 +841,8 @@ export function playerView(
     /** Friends & Family rounds you can see: yours, your city's, your contacts' (chapter 3). */
     friendsRounds: friendsRoundsView(world, p, locationOf(p)),
     playRooms: playView(world, p),
+    /** The game you're in (open or under way), wherever it is: leave it from anywhere. */
+    myPlayRoom: myPlayRoom(world, p),
     living: livingView(world, p),
     /** The month clock (Wave 4): when the next settlement is due, for a countdown. */
     clock: clock ? clockView(clock.now, clock.monthMs) : null,
