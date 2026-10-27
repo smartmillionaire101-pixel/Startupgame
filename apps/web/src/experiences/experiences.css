@@ -1208,3 +1208,22 @@
     animation: none;
   }
 }
+/* Leaving a game (playtest round 6): × asks first; a game still open elsewhere can be left. */
+.experience-leave {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.experience-leave h2 {
+  margin: 0 0 6px;
+}
+.experience-leave p {
+  margin: 0 0 10px;
+}
+.experience-leave-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

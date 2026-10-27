@@ -11,7 +11,7 @@ import { QUIZ_AI_AFTER, type PlayerView } from '@runway/engine';
 import { useView } from '../store';
 import { api } from '../api';
 import { money } from '../format';
-import { t, useLang } from '../i18n';
+import { t, tx, useLang } from '../i18n';
 import { closePlay, onPlay, playPlace, type PlayPlace } from './play-bus';
 import { SnapButton } from '../photos/SnapButton';
 import { resultCard } from '../photos/snap';
@@ -153,6 +153,25 @@ function Lobby({ place }: { place: PlayPlace }) {
     });
     if (result) setSelected(result.id);
   }
+  // The game you're in anywhere (playtest round 6: a room left open at another
+  // venue refused every other game, with no way to leave it from here).
+  const open = view.myPlayRoom ?? null;
+  const elsewhere = open && open.id !== room?.id ? open : null;
+  const inRoom =
+    !!room &&
+    (room.status === 'waiting' || room.status === 'playing') &&
+    (room.host === me || room.members.some((m) => m.id === me));
+  const [leaving, setLeaving] = useState(false);
+  /** Leave a game: a table nobody's started is called off (your own) or left; one under way is forfeited. */
+  async function leaveRoom(r: { id: string; status: string; host: boolean }) {
+    return send(
+      r.status === 'waiting' && r.host
+        ? { type: 'play.cancel', roomId: r.id }
+        : { type: 'play.leave', roomId: r.id },
+    );
+  }
+  /** ×: in a game, ask first (leaving it forfeits it); else just close. */
+  const close = () => (inRoom ? setLeaving(true) : closePlay());
   const fr = lang === 'fr';
   return (
     <div className="experience-backdrop">
@@ -169,10 +188,70 @@ function Lobby({ place }: { place: PlayPlace }) {
             </small>
             <h1>{room ? room.title : t('Make a night of it.')}</h1>
           </div>
-          <button className="experience-close" onClick={closePlay} aria-label="Close games">
+          <button className="experience-close" onClick={close} aria-label="Close games">
             ×
           </button>
         </header>
+        {leaving && room && (
+          <div className="experience-leave" role="alertdialog" aria-label={t('Leave the game?')}>
+            <h2>{t('Leave the game?')}</h2>
+            <p>
+              {room.status === 'playing'
+                ? room.members.length > 1
+                  ? t('You forfeit it: the others win, and the pot goes to them.')
+                  : t('Your game ends here.')
+                : room.host === me
+                  ? t('The table is called off and every entry refunded.')
+                  : t('You leave the table and your entry is refunded.')}
+            </p>
+            <div className="experience-leave-actions">
+              <button
+                className="experience-primary"
+                disabled={busy}
+                data-action="leave-game"
+                onClick={async () => {
+                  if (await leaveRoom({ ...room, host: room.host === me })) {
+                    setLeaving(false);
+                    closePlay();
+                  }
+                }}
+              >
+                {t('Leave the game')}
+              </button>
+              <button disabled={busy} onClick={() => setLeaving(false)}>
+                {room.status === 'playing' ? t('Keep playing') : t('Stay at the table')}
+              </button>
+            </div>
+          </div>
+        )}
+        {!room && elsewhere && (
+          <div className="experience-leave" data-open-room={elsewhere.id}>
+            <p>
+              {elsewhere.venueName
+                ? t('You’re still in “{title}” at {venue}. Leave it to start another game.', {
+                    title: elsewhere.title,
+                    venue: tx(elsewhere.venueName),
+                  })
+                : t('You’re still in “{title}”. Leave it to start another game.', {
+                    title: elsewhere.title,
+                  })}
+            </p>
+            <div className="experience-leave-actions">
+              {elsewhere.venue === place.venue && (
+                <button onClick={() => setSelected(elsewhere.id)}>{t('Back to that game')}</button>
+              )}
+              <button
+                disabled={busy}
+                data-action="leave-open-room"
+                onClick={() => void leaveRoom(elsewhere)}
+              >
+                {elsewhere.status === 'playing'
+                  ? t('Leave that game (forfeit)')
+                  : t('Leave that game')}
+              </button>
+            </div>
+          </div>
+        )}
         {!(room?.status === 'playing' && (room.rules || room.bowling)) && (
           <p className="experience-note">
             {t(
@@ -595,12 +674,15 @@ function Lobby({ place }: { place: PlayPlace }) {
                         })
                       : t('It’s a tie!')}
                 </h2>
+                {room.forfeitBy && <p data-forfeit={room.forfeitBy}>{room.last}</p>}
                 <p>
                   {room.status === 'finished' && room.winners.length === 1
                     ? t('{amount} paid to the winner.', {
                         amount: money(room.stake * room.members.length, room.currency),
                       })
-                    : t('All stakes have been returned.')}
+                    : room.forfeitBy && room.status === 'finished'
+                      ? t('The pot is shared between them.')
+                      : t('All stakes have been returned.')}
                 </p>
                 <button
                   className="experience-primary"

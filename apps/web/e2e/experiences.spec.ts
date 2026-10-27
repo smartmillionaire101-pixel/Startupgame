@@ -96,8 +96,16 @@ test('two players discover a home game, play football and share a consenting sky
       { timeout: 10000 },
     );
     await a.screenshot({ path: info.outputPath('football.png') });
+    // Closing a game under way asks first: leaving forfeits it (the other side wins).
     await gameA.getByRole('button', { name: 'Close games' }).click();
+    await gameA
+      .getByRole('alertdialog', { name: 'Leave the game?' })
+      .getByRole('button', { name: 'Leave the game' })
+      .click();
+    await expect(gameA).toBeHidden();
+    await expect(gameB.locator('[data-forfeit]')).toBeVisible({ timeout: 10000 });
     await gameB.getByRole('button', { name: 'Close games' }).click();
+    await expect(gameB).toBeHidden();
     home = await together(a);
     await home.getByLabel('Invite a player').selectOption(bId);
     await home.getByLabel('Where shall we go?').selectOption('london-eye');

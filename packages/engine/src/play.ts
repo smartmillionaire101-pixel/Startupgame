@@ -160,6 +160,8 @@ export interface PlayRoom {
   golf?: GolfMatch;
   /** Ten-pin bowling (game 'bowling' only: the more-games release). */
   bowling?: BowlingMatch;
+  /** The player who left this game while it was under way (it ended there). */
+  forfeitBy?: Id;
 }
 
 // ---------------------------------------------------------------- Bowling
@@ -1053,6 +1055,46 @@ function payOut(w: World, r: PlayRoom, refund: boolean) {
   if (!refund)
     r.last += r.winners.length > 1 ? ' Tied game: all stakes refunded.' : ' Winner takes the pot.';
 }
+/**
+ * You leave a game under way: you forfeit. On your own the game just ends
+ * (your entry, if any, comes back); with others, the best of them win the pot
+ * (your stake included), shared if they're tied, as if you'd lost.
+ */
+function forfeit(w: World, r: PlayRoom, p: Player) {
+  ensure(
+    r.members.some((m) => m.id === p.id),
+    'play.member',
+    'You are not in this game.',
+  );
+  const others = r.members.filter((m) => m.id !== p.id);
+  if (!others.length) {
+    r.last = `${p.name} left the game.`;
+    payOut(w, r, true);
+    return { ok: true, forfeited: true };
+  }
+  const scores = others.map((m) => m.score);
+  const best = r.game === 'golf' ? Math.min(...scores) : Math.max(...scores);
+  r.winners = others.filter((m) => m.score === best).map((m) => m.id);
+  const pot = account(w, r.escrow).balance;
+  const month = getMarket(w, r.market).month;
+  r.winners.forEach((id, i) =>
+    transfer(
+      w,
+      r.escrow,
+      w.players[id]!.accounts.local,
+      Math.floor(pot / r.winners.length) + (i < pot % r.winners.length ? 1 : 0),
+      'Social game winnings',
+      month,
+      'move',
+    ),
+  );
+  r.status = 'finished';
+  r.forfeitBy = p.id;
+  r.last = `${p.name} left the game: ${r.winners.map((id) => nameOf(w, id)).join(' and ')} ${
+    r.winners.length === 1 ? 'wins' : 'win'
+  }${pot > 0 ? ' the pot' : ''}.`;
+  return { ok: true, forfeited: true };
+}
 /** Timeout cleanup runs inside commands, so refunds are logged and replay safely. */
 export function expirePlay(w: World, now: number) {
   for (const r of Object.values(w.playRooms ?? {})) {
@@ -1275,11 +1317,8 @@ function createRoom(
   now: number,
 ): PlayRoom {
   const rooms = (w.playRooms ??= {});
-  ensure(
-    Object.values(rooms).filter((r) => active(r) && r.host === p.id).length === 0,
-    'play.host',
-    'Finish or cancel your current room first.',
-  );
+  const open = Object.values(rooms).find((r) => active(r) && r.host === p.id);
+  ensure(!open, 'play.host', open ? `You’re still in “${open.title}”. Leave that game first.` : '');
   const market = locationOf(p),
     m = getMarket(w, market),
     venue = cmd.venue;
@@ -1435,7 +1474,10 @@ export function playCommand(
   }
   const r = rooms[cmd.roomId];
   ensure(r, 'play.missing', 'This game room no longer exists.');
-  access(w, p, r);
+  // Leaving or calling off your own game works from anywhere (playtest round 6:
+  // a room left open in another city blocked every other game).
+  const mine = r.host === p.id || r.members.some((m) => m.id === p.id);
+  if (!(mine && (cmd.type === 'play.leave' || cmd.type === 'play.cancel'))) access(w, p, r);
   if (cmd.type === 'play.join') {
     join(w, p, r);
     // Golf: the invited friend's yes starts the match.
@@ -1467,7 +1509,10 @@ export function playCommand(
     return { ok: true };
   }
   if (cmd.type === 'play.leave') {
-    ensure(r.status === 'waiting', 'play.started', 'A started game must be finished.');
+    // Playtest round 6: leaving a game under way forfeits it (it used to be refused,
+    // and closing the game left you stuck in a room that blocked every other game).
+    if (r.status === 'playing') return forfeit(w, r, p);
+    ensure(r.status === 'waiting', 'play.started', 'This game is over.');
     // Golf: the host leaving a waiting match calls it off (the invitation goes with it).
     if (r.golf) {
       ensure(r.host === p.id, 'play.member', 'You are not in this game.');
@@ -1477,6 +1522,13 @@ export function playCommand(
     }
     const member = r.members.find((m) => m.id === p.id);
     ensure(member, 'play.member', 'You are not in this game.');
+    // The feedback round: the host leaving a table nobody's started calls it off
+    // (it used to stay open without them, and stopped them hosting anything else).
+    if (feedbackOn(w) && r.host === p.id) {
+      r.last = 'Room cancelled. Entries refunded.';
+      payOut(w, r, true);
+      return { ok: true };
+    }
     transfer(
       w,
       r.escrow,
@@ -1675,6 +1727,27 @@ function join(w: World, p: Player, r: PlayRoom) {
     );
   r.members.push({ id: p.id, score: 0 });
 }
+/**
+ * The game you're in that's still open or under way, wherever it is (a room
+ * in another city isn't in the room list), so it can be left from anywhere.
+ */
+export function myPlayRoom(w: World, p: Player) {
+  const r = Object.values(w.playRooms ?? {})
+    .filter((x) => active(x) && (x.host === p.id || x.members.some((m) => m.id === p.id)))
+    .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1))[0];
+  if (!r) return null;
+  const b = w.markets[r.market]?.businesses?.[r.venue];
+  return {
+    id: r.id,
+    title: r.title,
+    game: r.game,
+    status: r.status,
+    venue: r.venue,
+    venueName: b?.name ?? null,
+    market: r.market,
+    host: r.host === p.id,
+  };
+}
 export function playView(w: World, p: Player) {
   return Object.values(w.playRooms ?? {})
     .filter(
@@ -1702,6 +1775,8 @@ export function playView(w: World, p: Player) {
       custom: r.custom,
       deadline: r.deadline,
       last: r.last,
+      /** Who left this game while it was under way (it ended there), if anyone did. */
+      forfeitBy: r.forfeitBy ?? null,
       totalQuestions: r.questions.length,
       question:
         r.status === 'playing' && r.game === 'quiz'
