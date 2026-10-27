@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { bankFigures } from '../src/banks.js';
+import { PLACE_SPECS } from '../src/data/places.js';
 import { MONTH_MIN, gameMinute } from '../src/places.js';
 import { recapView } from '../src/recap.js';
 import { BANKERS_NOTE, FEEDBACK_NOTE } from '../src/releases.js';
@@ -125,5 +126,14 @@ describe('play-test #1: the licence is decided on the capital the checklist show
     w = setCapital(w, cap.need + Math.round(cap.costs / 2));
     w = settle(w, 'lagos', 2);
     expect(bankOf(w).licence!.decision!.outcome).toBe('refused');
+  });
+});
+
+describe('play-test #34: the Central Bank says it grants bank licences', () => {
+  it('names bank licences and the interview, then payments and fund manager licences', () => {
+    const purpose = PLACE_SPECS['central-bank'].purpose;
+    expect(purpose).toMatch(/bank licences/);
+    expect(purpose).toMatch(/fit-and-proper/);
+    expect(purpose).toMatch(/payments licences/);
   });
 });
