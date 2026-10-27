@@ -48,7 +48,7 @@ body:has(.app-city) .phone-fab {
 }
 
 /* The City HUD used to stop short of a floating phone button on phones; the
-   phone lives in the top bar now, so "What to do now" has that room. */
+   phone has its own round button beside the nav pill now (Hud.tsx). */
 
 /* ---- The phone ------------------------------------------------------------ */
 

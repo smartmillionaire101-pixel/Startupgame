@@ -89,7 +89,7 @@ export function TutorialHost() {
     ? null
     : step === 'phone'
       ? phoneApp === null
-        ? '.topbar-phone'
+        ? '[data-phone-button]'
         : phoneApp === 'home'
           ? '.phone [data-app="bank"]'
           : null

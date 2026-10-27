@@ -75,24 +75,6 @@
   margin: 2px 0 0;
   padding-left: 18px;
 }
-/* The top bar's decisions badge. */
-.topbar-decisions {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 0;
-  background: var(--warn-bg, rgba(240, 170, 40, 0.18));
-  color: inherit;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  flex: none;
-}
-.topbar-decisions .badge {
-  top: -2px;
-  right: -2px;
-}
 /* Phase 5: a life event's card (BitLife-style): picture, story, big choices, the result. */
 .decision-row-emoji {
   font-size: 1.5rem;

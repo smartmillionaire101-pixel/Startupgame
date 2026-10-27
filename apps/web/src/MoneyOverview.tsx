@@ -1,16 +1,16 @@
 /**
  * Where your money is, in one place. A tester couldn't find their company's
- * bank balance, spending or revenue (the top bar shows only your own cash),
+ * bank balance, spending or revenue (the top bar showed only your own cash),
  * nor see that next month's salaries wouldn't be covered until it was too
  * late. So:
  *
- * - Tapping the cash in the top bar opens "Your money": your own account and,
- *   for a founder, the company's bank, revenue, spending and how long the
- *   money lasts.
+ * - Tapping the money pill (top right of the HUD) opens "Your money": your
+ *   own account and, for a founder, the company's bank, revenue, spending and
+ *   how long the money lasts, and the way to the whole Money screen.
  * - When the company can't cover next month's salaries and costs (the
- *   server's `nextMonth.short`), a warning sits under the top bar on every
- *   screen, with the numbers and the ways to fix it (the rescue plan's
- *   options), well before staff go unpaid.
+ *   server's `nextMonth.short`), the money pill has a red ring on every
+ *   screen and "Your money" starts with the warning, with the numbers and the
+ *   ways to fix it (the rescue plan's options), well before staff go unpaid.
  */
 import { useState } from 'react';
 import type { Command } from '@runway/engine';
@@ -32,6 +32,10 @@ interface NextMonth {
 const nextMonthOf = (c: CompanyV | null): NextMonth | null =>
   ((c as { nextMonth?: NextMonth | null } | null)?.nextMonth ?? null) || null;
 
+/** Next payday won't be covered (the money pill's red ring). */
+export const paydayShort = (view: Parameters<typeof activeCompany>[0]): boolean =>
+  (nextMonthOf(activeCompany(view))?.short ?? 0) > 0;
+
 /** One labelled figure in a money sheet. */
 function Row({ label, value, tone }: { label: string; value: string; tone?: 'bad' | 'good' }) {
   return (
@@ -46,9 +50,12 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: 'bad
 export function MoneySheet({
   onClose,
   onCompany,
+  onAllMoney,
 }: {
   onClose: () => void;
   onCompany?: () => void;
+  /** The whole Money screen (bank, loans, deal cards, raising). */
+  onAllMoney?: () => void;
 }) {
   const { view, cur } = useView();
   const c = activeCompany(view);
@@ -58,6 +65,7 @@ export function MoneySheet({
   return (
     <Sheet title={t('Your money')} onClose={onClose}>
       <div className="money-sheet" data-money-sheet="">
+        <PaydayWarning />
         <section className="money-block">
           <h3>
             <span aria-hidden="true">👤</span> {t('Your own money')}
@@ -107,14 +115,28 @@ export function MoneySheet({
             )}
           </section>
         )}
+        {onAllMoney && (
+          <Button
+            variant="primary"
+            block
+            data-all-money=""
+            onClick={() => {
+              onClose();
+              onAllMoney();
+            }}
+          >
+            {t('All your money')}
+          </Button>
+        )}
       </div>
     </Sheet>
   );
 }
 
 /**
- * Under the top bar, on every screen: the company can't cover next month's
- * salaries and costs. Tap for the numbers and what to do about it.
+ * At the top of "Your money" (the money pill has a red ring meanwhile): the
+ * company can't cover next month's salaries and costs. Tap for the numbers
+ * and what to do about it.
  */
 export function PaydayWarning() {
   const { view, cur } = useView();

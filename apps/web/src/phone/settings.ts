@@ -14,16 +14,21 @@
  *    already knows the game. An explicit choice in Settings always wins.
  *    Simple mode is for founders only: investors and bankers always play
  *    the full game, whatever is saved (`setSimpleRole`).
+ *  - `runway.hudCollapsed` '1' / '0': the floating HUD's ⌄ folded its extras
+ *    away (only the time, the money, the nav and the phone stay).
+ *  - `runway.hudSeen` '1': the first session is over. Until then (that
+ *    session, in this browser) every HUD icon has its name under it.
  */
 import { useSyncExternalStore } from 'react';
 
-export type SettingKey = 'reduceMotion' | 'skipRides' | 'sound' | 'simple';
+export type SettingKey = 'reduceMotion' | 'skipRides' | 'sound' | 'simple' | 'hudCollapsed';
 
 const KEYS: Record<SettingKey, string> = {
   reduceMotion: 'runway.reduceMotion',
   skipRides: 'runway.skipRides',
   sound: 'runway.sound',
   simple: 'runway.simple',
+  hudCollapsed: 'runway.hudCollapsed',
 };
 
 const DEFAULTS: Record<SettingKey, boolean> = {
@@ -32,6 +37,7 @@ const DEFAULTS: Record<SettingKey, boolean> = {
   sound: true,
   // Until the game knows who's playing; then `setSimpleDefault` decides.
   simple: false,
+  hudCollapsed: false,
 };
 
 /** Simple mode is on by default for players who joined on or after this day (UTC, ms). */
@@ -190,4 +196,31 @@ export const useSimple = () => useSetting('simple');
 export function applySavedSettings() {
   applyMotion(read('reduceMotion'));
   applySimple(read('simple'));
+}
+
+const HUD_SEEN_KEY = 'runway.hudSeen';
+const HUD_FIRST_KEY = 'runway.hudFirst';
+let firstSession: boolean | null = null;
+
+/**
+ * The player's first session in this browser: the HUD's icons carry their
+ * names. Decided once a page load: no `runway.hudSeen` yet means this is it
+ * (marked as seen at once, and the tab remembers it is the first session so a
+ * reload keeps the names). A later visit has neither: icons only.
+ */
+export function isFirstSession(): boolean {
+  if (firstSession !== null) return firstSession;
+  try {
+    if (sessionStorage.getItem(HUD_FIRST_KEY) === '1') firstSession = true;
+    else if (localStorage.getItem(HUD_SEEN_KEY) === '1') firstSession = false;
+    else {
+      firstSession = true;
+      localStorage.setItem(HUD_SEEN_KEY, '1');
+      sessionStorage.setItem(HUD_FIRST_KEY, '1');
+    }
+  } catch {
+    /* storage blocked: every visit looks new, so no names (they'd never go) */
+    firstSession = false;
+  }
+  return firstSession;
 }

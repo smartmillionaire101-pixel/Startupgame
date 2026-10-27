@@ -87,7 +87,7 @@ export function onPhone(cb: (o: PhoneOpen) => void): () => void {
 
 // ---------------------------------------------------------------------------
 // The phone's badge (unread messages + alerts), for a phone button elsewhere
-// (the top bar). The phone itself keeps it up to date.
+// (the HUD's round phone button). The phone itself keeps it up to date.
 
 let badge = 0;
 const badgeListeners = new Set<() => void>();

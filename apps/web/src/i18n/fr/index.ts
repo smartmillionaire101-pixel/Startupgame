@@ -70,6 +70,7 @@ import { nightlife } from './nightlife';
 import { holidays } from './holidays';
 import { golfMall } from './golf-mall';
 import { golfHud } from './golf-hud';
+import { hud } from './hud';
 import { goingOut } from './going-out';
 import { mapBadges } from './map-badges';
 import { mallWalk } from './mall-walk';
@@ -215,6 +216,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   convo,
   buyMode,
   setup,
+  hud,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

@@ -414,7 +414,7 @@ const deadlineText = (ev: Ev) =>
       ? t('Decide this month')
       : t('{n} months to decide', { n: ev.monthsLeft });
 
-// Another screen (the top bar's badge, a notification) can open a decision's
+// Another screen (the HUD's bell, a notification) can open a decision's
 // sheet: the card opens it when it mounts, or at once if it is already shown.
 // "The first one" is resolved to an id there and then, so answering it (a
 // life event's card stays open on its result) never jumps to the next one.
@@ -853,6 +853,6 @@ export function RivalsPanel({ c }: { c: Company }) {
   );
 }
 
-/** How many decisions wait (the top bar's badge). */
+/** How many decisions wait (the HUD's bell). */
 export const openDecisions = (view: PlayerView) =>
   view.decisions.on ? view.decisions.open.length : 0;

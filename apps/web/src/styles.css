@@ -280,29 +280,6 @@ textarea {
   margin: var(--sp-2) 0 var(--sp-1);
 }
 
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  /* Solid: a heading scrolled under it never shows through behind "Lagos". */
-  background: var(--bg);
-  padding: env(safe-area-inset-top) var(--gutter) 0;
-  margin: 0 calc(-1 * var(--gutter));
-  /* A min-height, not a height: a larger text size grows the bar rather
-     than clipping it. The hairline and soft shadow make anything scrolled
-     under it read as under the bar. */
-  min-height: calc(2.9rem + env(safe-area-inset-top));
-  border-bottom: 1px solid var(--line);
-  box-shadow: 0 6px 12px -10px rgb(0 0 0 / 0.5);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--sp-2);
-  white-space: nowrap;
-  flex-wrap: nowrap;
-  overflow: hidden;
-}
-
 .brand {
   font-weight: var(--fw-bold);
   font-family: var(--font-display);
@@ -321,17 +298,6 @@ textarea {
   min-width: 0;
   font-variant-numeric: tabular-nums;
 }
-/* In the top bar: just the dot and the number (the words are for screen
-   readers), a dash when the count can't be fetched. */
-.online-count.topbar-online {
-  gap: 0.25rem;
-  flex: none;
-  min-height: var(--tap);
-  padding: 0 0.2rem;
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-semibold);
-  color: var(--muted);
-}
 .topbar-online.is-unavailable [role='status']::before {
   content: '–';
 }
@@ -348,79 +314,6 @@ textarea {
 .brand img {
   flex: none;
   border-radius: 6px;
-}
-.brand-city {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-  font-size: var(--fs-lg);
-}
-.topbar-date {
-  font-size: var(--fs-2xs);
-  font-weight: var(--fw-bold);
-  color: var(--muted);
-  flex: none;
-  letter-spacing: 0.02em;
-  font-family: system-ui, sans-serif;
-}
-
-.topbar-meta {
-  display: flex;
-  gap: 0.35rem;
-  align-items: center;
-  flex: none;
-  flex-wrap: nowrap;
-}
-/* Cash in your pocket: the HUD's headline number. */
-button.topbar-cash {
-  font-family: inherit;
-  cursor: pointer;
-}
-.topbar-cash {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-weight: var(--fw-black);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-sm);
-  color: var(--money);
-  background: var(--money-soft);
-  border: 1px solid color-mix(in srgb, var(--money) 18%, transparent);
-  border-radius: var(--r-pill);
-  min-height: 1.9rem;
-  padding: 0 0.6rem 0 0.45rem;
-  transition: transform var(--dur-2) var(--ease-spring);
-}
-.topbar-cash .icon {
-  flex: none;
-  opacity: 0.85;
-}
-.topbar-hours {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-semibold);
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.topbar-hours.is-low {
-  color: var(--warn);
-  font-weight: var(--fw-bold);
-}
-@media (max-width: 379px) {
-  .topbar-hours {
-    display: none;
-  }
-}
-@media (max-width: 439px) {
-  .topbar-hours .icon,
-  .topbar-cash .icon {
-    display: none;
-  }
-  .topbar-cash {
-    padding: 0 0.55rem;
-  }
 }
 /* Phase 3 life bars, under Me (LifeBars.tsx). */
 .lifebars-sheet {
@@ -487,130 +380,87 @@ button.topbar-cash {
   background: color-mix(in srgb, var(--good) 14%, transparent);
 }
 
-.ring {
-  --c: var(--good);
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: conic-gradient(var(--c) calc(var(--v) * 1%), var(--line) 0);
-  flex: none;
-  transition: background var(--dur-3) var(--ease-out);
-}
-.ring-warn {
-  --c: var(--warn);
-}
-.ring-bad {
-  --c: var(--bad);
-}
-.ring-num {
-  width: 27px;
-  height: 27px;
-  border-radius: 50%;
-  background: var(--bg);
-  display: grid;
-  place-items: center;
-  font-size: var(--fs-2xs);
-  font-weight: var(--fw-black);
-  font-variant-numeric: tabular-nums;
-}
-.topbar-phone {
-  position: relative;
-  /* A little smaller than a tap target elsewhere, with room for its badge
-     inside the screen (the bar's own height keeps it easy to hit). */
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 50%;
-  border: 0;
-  background: var(--accent);
-  color: var(--accent-ink);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  flex: none;
-  box-shadow: var(--sh-1);
-  transition: transform var(--dur-1) var(--ease-out);
-}
-.topbar-phone:active {
-  transform: scale(0.94);
-}
-.topbar-phone .badge {
-  top: -3px;
-  right: -4px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  font-size: 0.68rem;
-  line-height: 18px;
-}
-/* The phone lives in the top bar now: the floating button would cover content. */
-.phone-fab {
-  display: none !important;
-}
-
+/* The bottom nav: a floating pill of icons (the HUD section below has the
+   rest: the active tab's name, the pill down the left on a wide screen). */
 .nav {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 6;
-  /* Solid: the screen's own tabs scrolled under it never show through. */
-  background: var(--surface);
-  border-top: 1px solid var(--line);
-  display: flex;
-  justify-content: center;
-  padding-bottom: env(safe-area-inset-bottom);
+  left: var(--hud-gap);
+  right: calc(var(--hud-gap) + var(--hud-nav-h) + 10px);
+  bottom: var(--hud-bottom);
+  z-index: var(--z-hud-nav);
+  height: var(--hud-nav-h);
+  padding: 5px;
+  border-radius: var(--r-pill);
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
 }
 
 .nav-inner {
-  display: grid;
-  /* One column a tab (App.tsx sets --nav-cols). */
-  grid-template-columns: repeat(var(--nav-cols, 5), 1fr);
-  width: 100%;
-  max-width: 560px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 2px;
+  height: 100%;
 }
 
 .nav button {
-  background: none;
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
   border: 0;
-  min-height: 3.3rem;
-  padding: 0.3rem 0 0.35rem;
+  border-radius: var(--r-pill);
+  background: none;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 0.15rem;
-  font-size: var(--fs-2xs);
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  font: inherit;
+  font-size: 0.9333rem;
   font-weight: var(--fw-medium);
-  color: var(--muted);
+  color: var(--hud-ink);
   cursor: pointer;
-  position: relative;
+  transition:
+    flex-grow var(--dur-2) var(--ease-out),
+    background var(--dur-2) var(--ease-out);
 }
-
+.nav button:not([aria-current='page']) .ico {
+  opacity: 0.78;
+}
 .nav button .ico {
-  position: relative;
   display: grid;
   place-items: center;
-  height: 1.7rem;
-  width: 3.1rem;
-  border-radius: var(--r-pill);
-  transition:
-    background var(--dur-2) var(--ease-out),
-    transform var(--dur-1) var(--ease-out);
+  transition: transform var(--dur-1) var(--ease-out);
 }
 .nav button:active .ico {
   transform: scale(0.92);
 }
+/* The names stay for screen readers (and getByRole); only the active tab
+   shows its name. */
 .nav-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
   white-space: nowrap;
 }
-
 .nav button[aria-current='page'] {
-  color: var(--accent);
-  font-weight: var(--fw-bold);
+  flex-grow: 2.2;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-strong);
+  font-weight: var(--fw-black);
 }
-.nav button[aria-current='page'] .ico {
-  background: var(--accent-soft);
+.nav button[aria-current='page'] .nav-label {
+  position: static;
+  width: auto;
+  height: auto;
+  clip: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .badge {
@@ -628,6 +478,14 @@ button.topbar-cash {
   text-align: center;
   box-shadow: 0 0 0 2px var(--surface);
   font-variant-numeric: tabular-nums;
+}
+.nav .badge {
+  top: 4px;
+  right: calc(50% - 22px);
+  box-shadow: 0 0 0 2px var(--hud-bg-strong);
+}
+.nav button[aria-current='page'] .badge {
+  right: 10px;
 }
 
 /* Tabs inside a screen: a row of pills that scrolls, with a fade at the end. */
@@ -2258,16 +2116,6 @@ html[data-simple] .icon-btn {
   width: 48px;
   height: 48px;
 }
-html[data-simple] .nav button {
-  min-height: 64px;
-  font-size: var(--fs-sm);
-  padding-inline: 0.15rem;
-}
-html[data-simple] .nav-label {
-  white-space: normal;
-  text-align: center;
-  line-height: 1.15;
-}
 /* Long words (French) wrap rather than push the page sideways. */
 html[data-simple] .app {
   overflow-wrap: anywhere;
@@ -2432,22 +2280,6 @@ main > .back-btn {
   cursor: pointer;
 }
 
-/* The top bar keeps the city's name readable on a phone (life bars, the
-   decisions badge and the phone share the line) by leaving out the game
-   date there: it's on the phone, the map and the Today screen. Simple
-   mode's bigger text always leaves it out. */
-html[data-simple] .topbar-date {
-  display: none;
-}
-@media (max-width: 430px) {
-  .topbar-date {
-    display: none;
-  }
-  .brand-city {
-    min-width: 3.5em;
-  }
-}
-
 /* ---------- your money and the payday warning (MoneyOverview.tsx) */
 
 .money-sheet {
@@ -2510,12 +2342,12 @@ html[data-simple] .topbar-date {
 /* ==========================================================================
    The game on every screen size (player: "can we have the game take the
    whole screen").
-     < 600px    a phone: the bottom bar, one column.
-     600–899px  a tablet held upright: the bottom bar, a wider column.
-     >= 900px   a laptop or a tablet on its side: a sidebar down the left
-                under a top bar that spans the window, the city to the edges,
-                content screens in two columns up to 1200px (three up to
-                1560px from 1700px).
+     < 600px    a phone: the floating nav pill at the bottom, one column.
+     600–899px  a tablet held upright: the nav pill, a wider column.
+     >= 900px   a laptop or a tablet on its side: the nav pill stands down
+                the left edge, the city to the edges, content screens in two
+                columns up to 1200px (three up to 1560px from 1700px).
+   The floating HUD (pills, rails, the nav pill) is the section after this.
    ========================================================================== */
 
 /* Columns a screen lays out itself (Today, Company, Portfolio, Me): explicit
@@ -2526,79 +2358,26 @@ html[data-simple] .topbar-date {
   display: contents;
 }
 
-/* Upright tablet: the bottom bar stays, the column widens. */
+/* Upright tablet: the nav pill stays at the bottom, the column widens. */
 @media (min-width: 600px) and (max-width: 899px) {
   .app-game:not(.app-city) {
     max-width: 840px;
-  }
-  .nav-inner {
-    max-width: 720px;
   }
 }
 
 @media (min-width: 900px) {
   :root {
-    --side-w: 15rem;
+    /* The nav pill down the left and its margin. */
+    --side-w: 6.5rem;
     --content-max: 1200px;
     --app-pad: 2rem;
   }
 
-  /* The bottom bar becomes a sidebar down the left edge, under the top bar.
-     (App.tsx keeps --nav-h at 0 while the bar is taller than it's wide.) */
-  .nav {
-    top: calc(2.9rem + 1px + env(safe-area-inset-top));
-    right: auto;
-    width: var(--side-w);
-    border-top: 0;
-    border-right: 1px solid var(--line);
-    display: block;
-    padding: 1rem 0.75rem calc(1rem + env(safe-area-inset-bottom))
-      calc(0.75rem + env(safe-area-inset-left));
-    overflow-y: auto;
-  }
-  .nav-inner {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    max-width: none;
-  }
-  .nav button {
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 0.6rem;
-    min-height: 2.9rem;
-    padding: 0 0.6rem 0 0.35rem;
-    border-radius: var(--r-md, 12px);
-    font-size: var(--fs-sm);
-  }
-  .nav button:hover {
-    background: var(--surface-2);
-  }
-  .nav button[aria-current='page'] {
-    background: var(--accent-soft);
-  }
-  .nav button[aria-current='page'] .ico {
-    background: none;
-  }
-  .nav button .ico {
-    width: 2.2rem;
-  }
-  .nav .badge {
-    position: static;
-    margin-left: auto;
-    box-shadow: none;
-  }
-
-  /* The game uses every pixel right of the sidebar. */
+  /* The game uses every pixel right of the nav pill. */
   .app.app-game {
     max-width: none;
     margin: 0 0 0 var(--side-w);
     padding: 0 var(--app-pad) 2.5rem;
-  }
-  /* The top bar spans the window: the brand sits over the sidebar's corner. */
-  .app-game .topbar {
-    margin: 0 calc(-1 * var(--app-pad)) 0 calc(-1 * var(--app-pad) - var(--side-w));
-    padding-inline: calc(1.25rem + env(safe-area-inset-left)) 1.25rem;
   }
 
   /* Content screens: up to 1200px. Titles, stat tiles, tab rows, warnings,
@@ -2606,7 +2385,6 @@ html[data-simple] .topbar-date {
   .app-game:not(.app-city) main {
     max-width: var(--content-max);
     margin: 0 auto;
-    padding-top: 0.5rem;
   }
   .screen-cols {
     display: grid;
@@ -2701,30 +2479,792 @@ html[data-simple] .topbar-date {
   }
 }
 
-/* A tablet on its side, a small laptop: a slimmer sidebar, icon over label. */
+/* A tablet on its side, a small laptop: a little less room around the cards. */
 @media (min-width: 900px) and (max-width: 1199px) {
   :root {
-    --side-w: 5.5rem;
     --app-pad: 1.25rem;
-  }
-  .nav {
-    padding-inline: calc(0.4rem + env(safe-area-inset-left)) 0.4rem;
-  }
-  .nav button {
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.15rem;
-    min-height: 3.6rem;
-    padding: 0.3rem 0;
-    font-size: var(--fs-2xs);
-  }
-  .nav .badge {
-    position: absolute;
-    top: 0.2rem;
-    right: calc(50% - 1.45rem);
-    margin: 0;
   }
   .app.app-game {
     padding-bottom: 2rem;
+  }
+}
+
+/* ==========================================================================
+   The floating HUD (player: "make the whole game look like this"): the scene
+   fills the screen and the HUD floats over it as rounded translucent pills
+   (Hud.tsx, HudButton and HudRail in ui.tsx).
+     data-hud="scene"     a 3D screen (the City map): a second row under the
+                          pills, the ⌄, each scene's rail of icons
+     data-hud="list"      a list screen (Today, Company, Me…): one row; the
+                          content scrolls under it
+     data-hud-labels      a first session, or Simple mode: names under icons
+     data-hud-collapsed   the ⌄ folded the extras away
+     data-hud-away        scrolled down a list: the pills slid off
+   Stacking: scenes 20 < HUD 21 < nav 22 < sheets 23 < phone 25.
+   ========================================================================== */
+
+:root {
+  /* The game's cream surfaces, frosted; a solid fallback below. */
+  --hud-bg: rgb(255 252 245 / 0.78);
+  --hud-bg-strong: rgb(255 252 245 / 0.94);
+  --hud-line: rgb(255 255 255 / 0.65);
+  --hud-ink: var(--text);
+  --hud-shadow: 0 6px 20px rgb(15 23 42 / 0.16), 0 1px 3px rgb(15 23 42 / 0.12);
+  --hud-blur: blur(14px) saturate(1.5);
+  --hud-gap: 12px;
+  --hud-pill-h: 40px;
+  --hud-ib: 48px;
+  --hud-nav-h: 58px;
+  --hud-top: calc(10px + env(safe-area-inset-top));
+  --hud-bottom: calc(12px + env(safe-area-inset-bottom));
+  /* What the pills cover at the top of a screen, and above the nav pill. */
+  --hud-top-h: calc(var(--hud-top) + var(--hud-pill-h) + 12px);
+  /* Where a scene's own things start: under the top row, or under the
+     second row (online, the screen's chips, the bell) too. */
+  --hud-scene-top: calc(var(--hud-top) + var(--hud-pill-h) + 8px);
+  --hud-scene-top2: calc(var(--hud-top) + var(--hud-pill-h) + 60px);
+  --hud-rail-bottom: calc(var(--hud-bottom) + var(--hud-nav-h) + 16px);
+  --z-hud: 21;
+  --z-hud-nav: 22;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hud-bg: rgb(28 25 21 / 0.72);
+    --hud-bg-strong: rgb(28 25 21 / 0.94);
+    --hud-line: rgb(255 255 255 / 0.12);
+  }
+}
+/* No blur (or Reduce transparency): solid pills, the same layout. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --hud-bg: var(--hud-bg-strong);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --hud-bg: var(--hud-bg-strong);
+  }
+}
+
+/* The shared look: a frosted rounded pill or round button. */
+.hud-pill,
+.hud-ib,
+.hud-chev,
+.nav,
+.hud .online-count {
+  background: var(--hud-bg);
+  -webkit-backdrop-filter: var(--hud-blur);
+  backdrop-filter: var(--hud-blur);
+  border: 1px solid var(--hud-line);
+  box-shadow: var(--hud-shadow);
+  color: var(--hud-ink);
+}
+
+.hud {
+  position: fixed;
+  inset: 0 0 auto;
+  height: calc(var(--hud-top) + var(--hud-pill-h));
+  z-index: var(--z-hud);
+  pointer-events: none;
+}
+.hud button {
+  pointer-events: auto;
+}
+
+/* ---- Top row: [time · city · hours · mood]   ⌄   [money +] */
+.hud-top {
+  position: absolute;
+  top: var(--hud-top);
+  left: var(--hud-gap);
+  right: var(--hud-gap);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+.hud-pill {
+  height: var(--hud-pill-h);
+  border-radius: var(--r-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 0 12px;
+  font: inherit;
+  font-weight: var(--fw-bold);
+  font-size: 1rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.hud-life {
+  min-width: 0;
+  flex: 0 1 auto;
+  padding-left: 12px;
+}
+.hud-time {
+  font-variant-numeric: tabular-nums;
+}
+.hud-city {
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 7.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: var(--fw-semibold);
+}
+.hud-hours {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: var(--r-pill);
+  font-size: 0.8rem;
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-strong);
+}
+.hud-hours.is-low {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+  color: var(--bad);
+}
+.hud-sun {
+  display: none;
+  color: var(--gold);
+}
+.hud-face {
+  flex: none;
+  color: var(--good);
+}
+.hud-face.is-ok {
+  color: var(--warn);
+}
+.hud-face.is-low {
+  color: var(--bad);
+}
+.hud-chev {
+  flex: none;
+  margin: 0 auto;
+  width: 40px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+.hud-chev .icon {
+  transition: transform var(--dur-2) ease;
+}
+/* The pills and the small round buttons look slimmer than a finger: their
+   hit area is the full 48px. */
+.hud-pill,
+.hud-chev {
+  position: relative;
+}
+.hud-pill::before,
+.hud-chev::before,
+.hud-ib.is-sm::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.hud-chev::before {
+  inset: -8px -4px;
+}
+[data-hud-collapsed] .hud-chev .icon {
+  transform: rotate(180deg);
+}
+.hud-money {
+  flex: none;
+  margin-left: auto;
+  gap: 8px;
+  padding: 0 4px 0 12px;
+}
+.hud-chev + .hud-money,
+.hud-bell + .hud-money {
+  margin-left: 0;
+}
+.hud-amt {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  color: var(--money);
+  font-weight: var(--fw-black);
+}
+.hud-plus {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.hud-plus .icon {
+  stroke-width: 2.6;
+}
+/* Next payday is short: a red ring and a "!" where the "+" was. */
+.hud-money.is-short {
+  border-color: var(--bad);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--bad) 35%, transparent),
+    var(--hud-shadow);
+}
+.hud-money.is-short .hud-plus {
+  background: var(--bad);
+  color: #fff;
+}
+
+/* ---- Second row (3D screens): online, the screen's own chips, the bell. */
+.hud-sub {
+  position: absolute;
+  top: calc(var(--hud-top) + var(--hud-pill-h) + 10px);
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+.hud-sub-left {
+  left: var(--hud-gap);
+  right: calc(var(--hud-gap) + 56px);
+  flex-wrap: wrap;
+}
+.hud-sub-right {
+  right: var(--hud-gap);
+}
+.hud-slot {
+  display: contents;
+}
+.hud-sub > *,
+.hud-slot > * {
+  pointer-events: auto;
+}
+/* Online players: a green dot and the count. */
+.hud .online-count.topbar-online {
+  position: relative;
+  height: 40px;
+  border-radius: var(--r-pill);
+  padding: 0 12px 0 10px;
+  gap: 6px;
+  font: inherit;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+.hud .online-dot {
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 22%, transparent);
+}
+/* A screen's chip under the pills (the City's company and runway). */
+.hud-runway {
+  height: 40px;
+  max-width: 100%;
+  min-width: 0;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: var(--fs-sm);
+}
+.hud-runway > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-runway small {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  opacity: 0.8;
+}
+.hud-runway.is-watch {
+  border-color: var(--warn);
+}
+.hud-runway.is-danger,
+.hud-runway.is-critical {
+  border-color: var(--bad);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--bad) 30%, transparent),
+    var(--hud-shadow);
+}
+
+/* A list screen: one row (the bell joins it), nothing to fold. */
+.hud-top .hud-bell {
+  margin-left: auto;
+}
+[data-hud='list'] .hud-top .hud-life {
+  flex-shrink: 1;
+}
+
+/* ---- Round icon buttons (HudButton): the rails, the bell, the phone. */
+.hud-ib {
+  position: relative;
+  flex: none;
+  width: var(--hud-ib);
+  height: var(--hud-ib);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.hud-ib:active {
+  transform: scale(0.92);
+}
+.hud-ib:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.hud-ib:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.hud-ib.is-sm {
+  width: 40px;
+  height: 40px;
+}
+.hud-ib.is-sm .icon {
+  width: 20px;
+  height: 20px;
+}
+.hud-ib.is-accent,
+.hud-ib[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+.hud-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--bad);
+  color: #fff;
+  font-size: 11px;
+  font-weight: var(--fw-black);
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--hud-bg-strong);
+}
+.hud-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bad);
+  box-shadow: 0 0 0 2px var(--hud-bg-strong);
+}
+/* The name: hidden (aria-label carries it) unless labels are on. */
+.hud-lbl {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* Long press, keyboard focus or a mouse over it: the name in a bubble. */
+.hud-tip {
+  position: absolute;
+  z-index: 5;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: #111814;
+  color: #fff;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: var(--hud-shadow);
+  pointer-events: none;
+  animation: fade-in var(--dur-2) var(--ease-out);
+}
+.hud-tip::after {
+  content: '';
+  position: absolute;
+  border: 6px solid transparent;
+}
+.hud-tip.is-left {
+  right: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.hud-tip.is-left::after {
+  left: 100%;
+  top: 50%;
+  margin-top: -6px;
+  border-left-color: #111814;
+  border-right: 0;
+}
+.hud-tip.is-right {
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.hud-tip.is-right::after {
+  right: 100%;
+  top: 50%;
+  margin-top: -6px;
+  border-right-color: #111814;
+  border-left: 0;
+}
+.hud-tip.is-below {
+  top: calc(100% + 10px);
+  right: 0;
+}
+.hud-tip.is-below::after {
+  bottom: 100%;
+  right: 14px;
+  border-bottom-color: #111814;
+  border-top: 0;
+}
+.hud-tip.is-above {
+  bottom: calc(100% + 10px);
+  right: 0;
+}
+.hud-tip.is-above::after {
+  top: 100%;
+  right: 20px;
+  border-top-color: #111814;
+  border-bottom: 0;
+}
+
+/* ---- A scene's rail: round icons down the right edge, ⋯ for the rest. */
+.hud-rail {
+  position: absolute;
+  z-index: 4;
+  right: var(--hud-gap);
+  bottom: var(--hud-rail-bottom);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+/* A scene stops above the nav pill: its rail keeps the same place on screen. */
+.place-scene .hud-rail {
+  bottom: calc(var(--hud-rail-bottom) - var(--nav-h, 0px));
+}
+.hud-rail > *,
+.hud-rail-extra > * {
+  pointer-events: auto;
+}
+.hud-rail-extra {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.hud-rail.is-tall > .hud-ib:not(.hud-more-btn) {
+  display: none;
+}
+.hud-rail.is-open .hud-more-btn {
+  background: var(--hud-ink);
+  color: var(--surface);
+}
+/* The open ⋯: a dim behind it so its names read over any scene. */
+.hud-dim {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: rgb(10 14 12 / 0.34);
+  animation: fade-in var(--dur-2) var(--ease-out);
+}
+/* Names beside the buttons behind ⋯. */
+.hud-rail-extra .hud-lbl {
+  clip: auto;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  background: var(--hud-bg-strong);
+  box-shadow: var(--hud-shadow);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--hud-ink);
+}
+.hud-rail-extra .hud-tip {
+  display: none;
+}
+
+/* ---- Names under the icons: a first session, and Simple mode. */
+[data-hud-labels] :is(.hud-sub, .hud-phone) .hud-lbl,
+[data-hud-labels] .hud-rail > .hud-ib .hud-lbl {
+  clip: auto;
+  width: max-content;
+  height: auto;
+  overflow: visible;
+  top: calc(100% + 2px);
+  right: 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--hud-bg-strong);
+  color: var(--hud-ink);
+  font-size: 0.7rem;
+  font-weight: var(--fw-black);
+  line-height: 1.1;
+}
+[data-hud-labels] .hud-phone .hud-lbl {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+[data-hud-labels] .hud-rail {
+  gap: 20px;
+}
+/* The last name under the rail clears the phone's (above the phone button). */
+[data-hud-labels] .hud-rail:not(.mall-side, .air-cam, .suite-rail, .panorama-rail) {
+  margin-bottom: 26px;
+}
+[data-hud-labels] .hud-sub {
+  gap: 14px;
+}
+[data-hud-labels] .nav {
+  height: calc(var(--hud-nav-h) + 6px);
+}
+[data-hud-labels] .nav button {
+  flex-direction: column;
+  flex-grow: 1;
+  gap: 1px;
+}
+[data-hud-labels] .nav .nav-label {
+  position: static;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  clip: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.7rem;
+  font-weight: var(--fw-bold);
+}
+
+/* ---- The in-game phone: a round button beside the nav pill. */
+.hud-phone.hud-ib {
+  position: fixed;
+  right: var(--hud-gap);
+  bottom: var(--hud-bottom);
+  z-index: var(--z-hud-nav);
+  width: var(--hud-nav-h);
+  height: var(--hud-nav-h);
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: rgb(255 255 255 / 0.35);
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+.hud-phone .icon {
+  width: 26px;
+  height: 26px;
+}
+/* The phone's own floating button: the HUD has one. */
+.phone-fab {
+  display: none !important;
+}
+
+/* ---- ⌄ folded: just the time, the money, the nav and the phone. */
+[data-hud-collapsed] .hud-sub,
+[data-hud-collapsed] .hud-rail:not(.is-open) > :not(.hud-more-btn) {
+  opacity: 0;
+  transform: translateX(16px);
+  pointer-events: none;
+  visibility: hidden;
+}
+[data-hud-collapsed] .hud-life :is(.hud-city, .hud-hours) {
+  display: none;
+}
+
+/* ---- Scrolled down a list: the top pills slide off; back on the way up. */
+[data-hud-away] .hud-top {
+  transform: translateY(calc(-100% - var(--hud-top) - 8px));
+  opacity: 0;
+}
+/* The nav pill and the phone stay: the way to another screen is always in
+   reach (and where your thumb left it). */
+@media (prefers-reduced-motion: reduce) {
+  .hud-top,
+  .hud-sub,
+  .hud-rail,
+  .hud-phone.hud-ib,
+  .nav {
+    transition: none;
+  }
+}
+:root[data-reduce-motion='1'] :is(.hud-top, .hud-sub, .hud-rail, .hud-phone, .nav) {
+  transition: none;
+}
+
+/* ---- Sheets open over the HUD (above the nav pill, which keeps working). */
+.sheet-backdrop {
+  z-index: 23;
+}
+/* A sheet from inside a scene stays under the HUD (the scene's own layer):
+   it stops short of the pills, so its ✕ is never under them. */
+@media (max-width: 699px) {
+  .sheet {
+    max-height: min(90dvh, calc(100dvh - var(--nav-h, 0px) - var(--hud-top-h)));
+  }
+}
+
+/* ---- List screens: the content scrolls under the pills, padded so nothing
+   is covered at rest, with a soft fade behind the pills. */
+.app.app-game {
+  padding-bottom: calc(var(--nav-h, 0px) + 24px);
+}
+[data-hud='list'] .app-game main {
+  padding-top: var(--hud-top-h);
+}
+[data-hud='list'] .hud::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: calc(var(--hud-top-h) + 4px);
+  background: linear-gradient(var(--bg) 40%, transparent);
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+[data-hud-away] .hud::after {
+  opacity: 0;
+}
+/* Simple mode's Back sits right under the pills. */
+[data-hud='list'] .app-game main > .back-btn:first-child {
+  margin-top: 0;
+}
+
+/* A phone: the time says day or night by itself (the row must fit 360px
+   with a long city name); the sun or moon is for wider screens. */
+@media (min-width: 600px) {
+  [data-hud='scene'] .hud-sun {
+    display: block;
+  }
+}
+@media (max-width: 379px) {
+  .hud-top {
+    gap: 6px;
+  }
+  .hud-city {
+    max-width: 5em;
+  }
+  .hud-life {
+    gap: 4px;
+    padding-left: 10px;
+  }
+  .hud-hours {
+    padding: 2px 4px;
+  }
+  .hud-chev {
+    width: 32px;
+  }
+  .hud-chev::before {
+    inset: -8px;
+  }
+  .hud-money {
+    gap: 6px;
+    padding-left: 10px;
+  }
+  .hud-plus {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* Upright tablet: the nav pill keeps to the middle. */
+@media (min-width: 600px) and (max-width: 899px) {
+  .nav {
+    left: max(var(--hud-gap), calc(50% - 320px));
+    right: max(calc(var(--hud-gap) + var(--hud-nav-h) + 10px), calc(50% - 320px));
+  }
+}
+
+/* ---- A laptop or a tablet on its side: the same pills, the nav pill
+   standing down the left edge. */
+@media (min-width: 900px) {
+  :root {
+    --hud-gap: 16px;
+    --hud-pill-h: 44px;
+    --hud-top-h: calc(var(--hud-top) + var(--hud-pill-h) + 18px);
+    --hud-rail-bottom: calc(var(--hud-bottom) + var(--hud-nav-h) + 16px);
+  }
+  .nav {
+    left: calc(var(--hud-gap) + env(safe-area-inset-left));
+    right: auto;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    width: 76px;
+    height: auto;
+    padding: 6px;
+    border-radius: 38px;
+  }
+  .nav-inner {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .nav button,
+  .nav button[aria-current='page'],
+  [data-hud-labels] .nav button {
+    flex: none;
+    width: 64px;
+    height: 56px;
+    flex-direction: column;
+    gap: 2px;
+    border-radius: 28px;
+  }
+  .nav button[aria-current='page'] {
+    height: 68px;
+    font-size: var(--fs-xs);
+  }
+  .nav button:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  .nav button[aria-current='page']:hover {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  .nav .badge,
+  .nav button[aria-current='page'] .badge {
+    top: 4px;
+    right: 8px;
+  }
+  [data-hud-labels] .nav {
+    height: auto;
+  }
+  .hud-pill {
+    font-size: 1.0667rem;
+  }
+  .hud-sun {
+    display: block;
+  }
+  .hud-sub-left {
+    right: auto;
+    max-width: calc(100% - 2 * var(--hud-gap) - 60px);
+  }
+  [data-hud='list'] .hud::after {
+    left: var(--side-w);
+  }
+  .app.app-game {
+    padding-bottom: 2.5rem;
   }
 }

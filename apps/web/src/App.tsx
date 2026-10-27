@@ -10,8 +10,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { useGame, useView } from './store';
-import { CountUp, Icon, initReduceMotion, reduceMotion, Sheet, Toasts, type IconName } from './ui';
-import { money, moneyExact } from './format';
+import { Icon, initReduceMotion, Sheet, Toasts, type IconName } from './ui';
 import { t } from './i18n';
 import { SignIn } from './screens/SignIn';
 import { shouldShowLanding } from './landing/seen';
@@ -30,14 +29,13 @@ import { NavContext, openPhone, type Nav } from './phone/bus';
 import { inboxTarget, type TabId, type Target } from './phone/navigate';
 import { UpdateBanner } from './update';
 import { FeedbackHost, setFeedbackScreen } from './feedback';
-import { MoneySheet, PaydayWarning } from './MoneyOverview';
+import { Hud } from './Hud';
 import { ScreenBoundary } from './ScreenBoundary';
 import { useVisits } from './useVisits';
-import { GameActivity } from './GameActivity';
-import { hereOf, isAbroad } from './city/travel';
+import { hereOf } from './city/travel';
 import { openRecap, RecapHost } from './recap/Recap';
 import { TutorialHost } from './tutorial/Coach';
-import { openDecisions, requestDecision } from './screens/Decisions';
+import { requestDecision } from './screens/Decisions';
 import { LifeEventHost } from './LifeEventHost';
 import {
   applySavedSettings,
@@ -78,7 +76,7 @@ if (typeof document !== 'undefined' && !document.getElementById('rw-font')) {
 }
 
 // Heavy, occasional screens load on demand: the main chunk stays small.
-// The phone is opened from the top bar: wait until its dock is mounted (and so
+// The phone is opened from the HUD's phone button: wait until its dock is mounted (and so
 // listening) before asking it to open, in case the chunk is still loading.
 let phoneMounted: () => void = () => {};
 const phoneReady = new Promise<void>((resolve) => {
@@ -217,14 +215,16 @@ interface TabDef {
 }
 
 /**
- * The bottom tabs (Wave 7: at most five). "Today" is the inbox dashboard
- * (its id stays 'home' for notifications); News lives behind Today and the
- * phone rather than in a tab of its own.
+ * The bottom tabs: four, in a floating pill (only the active one says its
+ * name). "Today" is the inbox dashboard (its id stays 'home' for
+ * notifications); News lives behind Today and the phone rather than in a tab
+ * of its own.
  *
- * Simple mode (Phase 2) has four: City, Today, one "My …" tab for what you
- * run (your company, your investments or your bank) and Me. The tab it drops
- * (Money, or Deal offers) stays one big link away on that screen, and its
- * "your turn" badge moves onto the "My …" tab.
+ * City, Today, one tab for what you run (your company, your investments or
+ * your bank) and Me. Money (founders) has no tab: the money pill at the top
+ * opens it, and Company links there; Deal offers (investors) is one big link
+ * away on Portfolio. Their "your turn" badge moves onto that tab. Simple mode
+ * (Phase 2) has the same four, with plainer names.
  */
 function tabsOf(
   role: 'banker' | 'founder' | 'investor',
@@ -246,49 +246,38 @@ function tabsOf(
       },
       me,
     ];
-  if (simple)
-    return [
-      city,
-      today,
-      role === 'founder'
-        ? { id: 'company', label: t('Company'), icon: 'company', badge: b.myTurn }
-        : { id: 'portfolio', label: t('My investments'), icon: 'portfolio', badge: b.myTurn },
-      me,
-    ];
-  if (role === 'founder')
-    return [
-      city,
-      today,
-      { id: 'company', label: t('Company'), icon: 'company' },
-      { id: 'money', label: t('Money'), icon: 'money', badge: b.myTurn },
-      me,
-    ];
   return [
     city,
     today,
-    { id: 'portfolio', label: t('Portfolio'), icon: 'portfolio' },
-    { id: 'deals', label: t('Deal offers'), icon: 'deals', badge: b.myTurn },
+    role === 'founder'
+      ? { id: 'company', label: t('Company'), icon: 'company', badge: b.myTurn }
+      : {
+          id: 'portfolio',
+          label: simple ? t('My investments') : t('Portfolio'),
+          icon: 'portfolio',
+          badge: b.myTurn,
+        },
     me,
   ];
 }
 
 /**
- * Screens you reach without a tab of their own (News, from Today or a
- * notification). In Simple mode, Money and Deal offers join them: the
- * "My …" screen links there, and notifications still land on them.
+ * Screens you reach without a tab of their own: News (from Today or a
+ * notification), Money (the money pill, Company) and Deal offers (Portfolio);
+ * notifications still land on them.
  */
 const EXTRA: TabId[] = ['news'];
-/** Simple mode: where Back goes from a screen without a tab. */
+/** Where Back goes from a screen without a tab. */
 const PARENT: Partial<Record<TabId, TabId>> = {
   money: 'company',
   deals: 'portfolio',
   news: 'home',
 };
-const extraOf = (role: 'banker' | 'founder' | 'investor', simple: boolean): TabId[] =>
-  !simple || role === 'banker' ? EXTRA : [...EXTRA, role === 'founder' ? 'money' : 'deals'];
+const extraOf = (role: 'banker' | 'founder' | 'investor'): TabId[] =>
+  role === 'banker' ? EXTRA : [...EXTRA, role === 'founder' ? 'money' : 'deals'];
 
 function Game() {
-  const { view, send } = useView();
+  const { view, send, lite } = useView();
   const founder = view.me.role === 'founder' || view.companies.some((c) => c.status === 'active');
   const [tab, setTab] = useState<TabId>('city');
   const [focusDeal, setFocusDeal] = useState<string | null>(null);
@@ -312,7 +301,7 @@ function Game() {
   const hasCompany = view.companies.some((c) => c.status === 'active');
   const current =
     tabs.some((x) => x.id === tab) ||
-    extraOf(role, simple).includes(tab) ||
+    extraOf(role).includes(tab) ||
     (tab === 'company' && hasCompany)
       ? tab
       : 'city';
@@ -374,40 +363,54 @@ function Game() {
     [],
   );
 
-  // Panels (sheets) open above the bottom bar, never over it, so the tabs keep
+  // Panels (sheets) open above the bottom nav, never over it, so the tabs keep
   // working while one is open: tapping a tab leaves the screen and closes it.
-  // On a wide screen the bar is a sidebar down the left: nothing to keep clear below.
+  // `--nav-h` is the room the floating nav takes at the bottom (its height and
+  // the gap under it); on a wide screen it is a pill down the left: 0.
   const navRef = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     const nav = navRef.current;
     if (!nav) return;
     const root = document.documentElement;
-    const set = () =>
+    const set = () => {
+      const bottom = parseFloat(getComputedStyle(nav).bottom) || 0;
       root.style.setProperty(
         '--nav-h',
-        `${nav.offsetWidth > nav.offsetHeight ? nav.offsetHeight : 0}px`,
+        `${nav.offsetWidth > nav.offsetHeight ? Math.round(nav.offsetHeight + bottom) : 0}px`,
       );
+    };
     set();
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(set);
     ro?.observe(nav);
+    window.addEventListener('resize', set);
     return () => {
       ro?.disconnect();
+      window.removeEventListener('resize', set);
       root.style.removeProperty('--nav-h');
     };
   }, []);
+  // The City's map is a 3D screen (pills over it); Lite mode's places list is a list.
+  const scene = current === 'city' && !lite;
 
   return (
     <NavContext.Provider value={nav}>
-      <div className={`app app-game${current === 'city' ? ' app-city' : ''}`}>
-        <TopBar
+      <div
+        className={`app app-game${current === 'city' ? ' app-city' : ''}${scene ? ' app-scene' : ''}`}
+      >
+        <Hud
+          scene={scene}
+          screen={current}
           alerts={unread}
           onDecisions={() => goTarget({ kind: 'decision' })}
+          onInbox={() => go('home')}
           onCompany={hasCompany ? () => go('company') : undefined}
+          onAllMoney={extraOf(role).includes('money') ? () => go('money') : undefined}
+          onPhone={() => void phoneReady.then(() => openPhone({ app: 'home' }))}
         />
-        <PaydayWarning />
         <main>
-          {/* Simple mode: a screen without a tab has Back, top-left, to where it came from. */}
-          {simple && PARENT[current] && (
+          {/* A screen without a tab has Back, top-left, to where it came from
+              (News only in Simple mode: Today's tab is lit meanwhile). */}
+          {PARENT[current] && (simple || current !== 'news') && (
             <button type="button" className="back-btn" onClick={() => go(PARENT[current]!)}>
               <Icon name="chevron" size={18} className="back-btn-ico" />
               {t('Back')}
@@ -461,141 +464,5 @@ function Game() {
         </Sheet>
       )}
     </NavContext.Provider>
-  );
-}
-
-/** The cash readout pops when money comes in and dips when it goes out. */
-function useBump(value: number) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const last = useRef(value);
-  useEffect(() => {
-    const before = last.current;
-    last.current = value;
-    const el = ref.current;
-    if (value === before || !el || reduceMotion() || typeof el.animate !== 'function') return;
-    el.animate(
-      value > before
-        ? [{ transform: 'scale(1)' }, { transform: 'scale(1.1)' }, { transform: 'scale(1)' }]
-        : [
-            { transform: 'translateY(0)' },
-            { transform: 'translateY(2px)', color: 'var(--bad)' },
-            { transform: 'translateY(0)' },
-          ],
-      { duration: 360, easing: 'cubic-bezier(0.34, 1.5, 0.64, 1)' },
-    );
-  }, [value]);
-  return ref;
-}
-
-/**
- * The top bar (Wave 7): one 48px line that never wraps. Where you are and
- * when, your cash (it ticks to new values), an energy ring (the four life
- * bars once the server has them) and the phone.
- */
-function TopBar({
-  alerts,
-  onDecisions,
-  onCompany,
-}: {
-  alerts: number;
-  onDecisions: () => void;
-  /** Open Company (from "Your money"), for a founder. */
-  onCompany?: () => void;
-}) {
-  const [moneyOpen, setMoneyOpen] = useState(false);
-  const { view, cur } = useView();
-  const decisions = openDecisions(view);
-  const here = hereOf(view);
-  const d = view.market.date;
-  const short = t('Y{y} M{m}', { y: d.year, m: d.month });
-  const energy = Math.max(0, Math.min(100, Math.round(view.me.energy)));
-  // Builder A adds a mood (0–100); until then the ring shows energy alone.
-  const mood = (view.me as { mood?: number }).mood;
-  const tone = view.me.burnout || energy < 25 ? 'bad' : energy < 40 ? 'warn' : 'good';
-  const cash = view.accounts.local?.balance ?? 0;
-  // One decimal at most in the top bar (it's tight beside the city's name).
-  const hoursLeft = Math.round(view.me.hours.left * 10) / 10;
-  const bump = useBump(cash);
-  return (
-    <>
-      <header className="topbar">
-        <div className="brand" title={d.label}>
-          <img src="/icon.svg" alt="" width={22} height={22} />
-          <span className="brand-city">{here.name}</span>
-          {isAbroad(view) && (
-            <span className="sr-only">{t('from {city}', { city: view.market.name })}</span>
-          )}
-          <span className="topbar-date" aria-label={d.label}>
-            {short}
-          </span>
-        </div>
-        <div className="topbar-meta">
-          <GameActivity />
-          {/* Tap for your money and your company's (bank, revenue, spending). */}
-          <button
-            type="button"
-            ref={bump}
-            className="topbar-cash"
-            data-topbar-cash=""
-            aria-label={t('Cash in your pocket: {amount}. Tap to see all your money', {
-              amount: moneyExact(cash, cur),
-            })}
-            title={moneyExact(cash, cur)}
-            onClick={() => setMoneyOpen(true)}
-          >
-            <Icon name="wallet" size={15} />
-            <CountUp value={cash} format={(n) => money(n, cur)} />
-          </button>
-          <span
-            className={`topbar-hours${hoursLeft < 20 ? ' is-low' : ''}`}
-            aria-label={t('{n} hours left this month', { n: hoursLeft })}
-          >
-            <Icon name="clock" size={13} />
-            {t('{n}h', { n: hoursLeft })}
-          </span>
-          {/* With the life bars, they're under Me (not up here). */}
-          {!view.me.bars && (
-            <span
-              className={`ring ring-${tone}`}
-              role="meter"
-              aria-label={mood !== undefined ? t('Energy and mood') : t('Energy')}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={energy}
-              style={{ ['--v' as string]: energy }}
-              title={
-                mood !== undefined
-                  ? t('Energy {e} · mood {m}', { e: energy, m: Math.round(mood) })
-                  : t('Energy {e}', { e: energy })
-              }
-            >
-              <span className="ring-num">{energy}</span>
-            </span>
-          )}
-          {decisions > 0 && (
-            <button
-              type="button"
-              className="topbar-decisions"
-              data-decisions-badge={decisions}
-              aria-label={t('{n} decisions waiting', { n: decisions })}
-              onClick={onDecisions}
-            >
-              <Icon name="bolt" size={16} />
-              <span className="badge">{decisions}</span>
-            </button>
-          )}
-          <button
-            type="button"
-            className="topbar-phone"
-            aria-label={alerts ? t('Phone, {n} new', { n: alerts }) : t('Phone')}
-            onClick={() => void phoneReady.then(() => openPhone({ app: 'home' }))}
-          >
-            <Icon name="phone" size={20} />
-            {alerts > 0 && <span className="badge">{alerts > 99 ? '99+' : alerts}</span>}
-          </button>
-        </div>
-      </header>
-      {moneyOpen && <MoneySheet onClose={() => setMoneyOpen(false)} onCompany={onCompany} />}
-    </>
   );
 }
