@@ -432,7 +432,6 @@ function Match(props: Props & { room: MatchRoom }) {
 
   // ---- What the screen shows.
   const cur = room.currency;
-  const pocket = view.accounts.local?.balance ?? 0;
   const pot = room.status === 'finished' ? room.stake * room.members.length : room.pot;
   const left = Math.max(0, room.deadline - now);
   const turnName =
@@ -518,9 +517,6 @@ function Match(props: Props & { room: MatchRoom }) {
               : t('Round complete · vs {name}', { name: first(otherName) })}
         </span>
       </div>
-      <span className="golf-pocket" data-pocket={pocket}>
-        {money(pocket, view.market.currency)}
-      </span>
       <button type="button" className="icon-btn" aria-label={t('Close')} onClick={props.onClose}>
         ✕
       </button>
