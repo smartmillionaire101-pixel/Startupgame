@@ -66,13 +66,17 @@ export function NextStepCard({
       <div className="next-step-pin" data-next-step={o.id}>
         <button
           type="button"
-          className="next-step-bulb"
+          className="next-step-bulb has-label"
           aria-label={t('What should I do now?')}
           aria-expanded={open}
           data-new={seen !== o.id ? '' : undefined}
           onClick={() => (open ? setOpen(false) : show())}
         >
           <span aria-hidden="true">💡</span>
+          {/* On the map (Simple mode): a word with the bulb, like the buttons beside it. */}
+          <span className="next-step-bulb-label" aria-hidden="true">
+            {t('Next step')}
+          </span>
           {seen !== o.id && <span className="next-step-dot" aria-hidden="true" />}
         </button>
         {open && (

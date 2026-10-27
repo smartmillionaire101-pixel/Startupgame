@@ -825,6 +825,9 @@ export function initReduceMotion() {
  * bubble on a long press (or keyboard focus, or a mouse hovering), and a small
  * label under it in a first session and in Simple mode (`.hud-lbl`).
  */
+/** How long a press on a HUD button says its name instead of pressing it (ms). */
+const LONG_PRESS_MS = 450;
+
 export function HudButton({
   icon,
   label,
@@ -858,6 +861,8 @@ export function HudButton({
   const [bubble, setBubble] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pressed = useRef(false);
+  // When the finger went down (the event's own time, not when it was handled).
+  const downAt = useRef(0);
   useEffect(() => () => clearTimeout(timer.current), []);
   const hideSoon = () => {
     clearTimeout(timer.current);
@@ -882,18 +887,26 @@ export function HudButton({
       onPointerDown={(e) => {
         rest.onPointerDown?.(e);
         pressed.current = false;
+        downAt.current = e.timeStamp;
         if (e.pointerType === 'mouse') return;
         clearTimeout(timer.current);
         // A long press (about half a second) says the button's name.
         timer.current = setTimeout(() => {
           pressed.current = true;
           setBubble(true);
-        }, 450);
+        }, LONG_PRESS_MS);
       }}
       onPointerUp={(e) => {
         rest.onPointerUp?.(e);
-        if (pressed.current) hideSoon();
-        else clearTimeout(timer.current);
+        clearTimeout(timer.current);
+        // Play-test: on a busy page (a slow 3D city) the finger's lift is
+        // handled late, after the long-press timer: a quick tap read as a
+        // long press and the button never pressed. The events' own times say
+        // how long the finger was really down.
+        if (pressed.current && e.timeStamp - downAt.current < LONG_PRESS_MS) {
+          pressed.current = false;
+          setBubble(false);
+        } else if (pressed.current) hideSoon();
       }}
       onPointerCancel={() => {
         if (pressed.current) hideSoon();

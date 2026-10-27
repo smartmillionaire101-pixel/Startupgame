@@ -371,7 +371,10 @@ function PlacesList({
                     />
                     <span>{labelOf(p)}</span>
                     {p.category && <span className="small muted">{categoryLabel(p.category)}</span>}
-                    {p.kind === 'civic' && <span className="small muted">{civicLabel(p)}</span>}
+                    {/* Its role, unless that's its name ("Tax Office · Tax Office"). */}
+                    {p.kind === 'civic' && civicLabel(p) !== labelOf(p) && (
+                      <span className="small muted">{civicLabel(p)}</span>
+                    )}
                     {p.soon && <Pill>{t('Opening soon')}</Pill>}
                     {p.siren && <Pill tone="bad">{t('Rescue')}</Pill>}
                   </button>
@@ -1087,12 +1090,16 @@ function CityBodyInner({
               {/* What the map's icons mean (and "Show names"). */}
               <button
                 type="button"
-                className="hud-round hud-key"
+                className="hud-places hud-key"
                 aria-label={t('Map key')}
                 data-map-key-open=""
                 onClick={() => setKeyOpen(true)}
               >
                 <MapKeyIcon />
+                {/* Simple mode's buttons all have words (play-test: an icon with no name). */}
+                <span className="hud-btn-label" aria-hidden="true">
+                  {t('Map key')}
+                </span>
               </button>
               {/* The next step is a 💡 button (a red dot when there's something
                   new) that opens a small card. */}

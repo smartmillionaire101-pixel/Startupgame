@@ -65,6 +65,15 @@ import type { Walker } from '../people';
 
 /** Least time between two frames on a software renderer (ms). */
 const SOFT_FRAME_MS = 200;
+/**
+ * A slow frame (a software renderer, a struggling GPU) keeps the page busy:
+ * the next one waits at least this many times as long as the last took, so
+ * at least half the time is left for taps (play-test: "HUD taps stop
+ * registering" at 2 frames a second).
+ */
+const SLOW_IDLE_SHARE = 2;
+/** A frame costing this much of the page's own time (ms) counts as slow work. */
+const SLOW_COST_MS = 40;
 /** How often a software renderer compiles new shaders ahead of drawing (ms). */
 const SOFT_COMPILE_MS = 1500;
 /** How long a software renderer gives new shaders before the frame that needs them (ms). */
@@ -252,7 +261,16 @@ export class CityScene {
     trees: 0,
     dpr: 1,
     bgDone: false,
+    /** The page's own time a drawn frame takes (ms, smoothed): the main thread's share. */
+    costMs: 0,
+    /** The time between animation frames while the map is up (ms, smoothed): how smooth it feels. */
+    gapMs: 16,
   };
+  private lastRaf = 0;
+  /** When the last frame was drawn (performance.now() time; 0: none yet). */
+  get lastDrawnAt(): number {
+    return this.lastRender;
+  }
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -1479,12 +1497,27 @@ export class CityScene {
   private loop(t: number) {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
-    if (document.visibilityState === 'hidden' || this.paused) return;
+    const gap = this.lastRaf ? t - this.lastRaf : 16;
+    this.lastRaf = t;
+    if (document.visibilityState === 'hidden' || this.paused) {
+      this.lastRaf = 0;
+      return;
+    }
     // The map under a full-screen view (a sky view, the home experiences) waits.
-    if (!this.opts.sky && covered()) return;
+    if (!this.opts.sky && covered()) {
+      this.lastRaf = 0;
+      return;
+    }
+    if (gap < 5000) this.stats.gapMs += (gap - this.stats.gapMs) * 0.2;
     // On a software renderer every frame costs the page a lot: a few a second
     // leave it time to answer (the ride keeps to the clock, not the frames).
     if (this.opts.soft && t - this.lastRender < SOFT_FRAME_MS) return;
+    // A slow frame leaves the page as long again for taps before the next.
+    if (
+      this.stats.costMs > SLOW_COST_MS &&
+      t - this.lastRender < this.stats.costMs * SLOW_IDLE_SHARE
+    )
+      return;
     const dt = Math.min(0.1, this.lastT ? (t - this.lastT) / 1000 : 0.016);
     this.lastT = t;
     // Follow the avatar; glide to where we were sent.
@@ -1525,6 +1558,7 @@ export class CityScene {
     // phone, which has the battery and the heat to think of).
     const idleMs = this.opts.soft ? 1000 : this.opts.tier === 'high' ? 50 : 100;
     if (!active && !(ambient && t - this.lastRender > idleMs)) return;
+    const work0 = performance.now();
     // The people and the traffic move only in frames that are drawn.
     this.actors.setFocus(this.rig.x, this.rig.y, this.rig.dist);
     this.actors.update(t, this.opts.reduced, this.rig.dist);
@@ -1599,6 +1633,8 @@ export class CityScene {
     this.stats.tris = info.render.triangles;
     this.stats.frameMs = Math.round(frame);
     this.stats.dpr = this.dpr;
+    const cost = performance.now() - work0;
+    this.stats.costMs += (cost - this.stats.costMs) * 0.3;
   }
 
   private compiling = false;

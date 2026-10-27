@@ -484,8 +484,18 @@ textarea {
   right: calc(50% - 22px);
   box-shadow: 0 0 0 2px var(--hud-bg-strong);
 }
+/* The open tab shows its name: the count follows it instead of sitting on
+   its last letters (play-test: "badge over 'Today'"). With names under the
+   icons (a column), it stays on the icon's corner. */
 .nav button[aria-current='page'] .badge {
-  right: 10px;
+  position: static;
+  flex: none;
+  margin-left: -2px;
+}
+[data-hud-labels] .nav button[aria-current='page'] .badge {
+  position: absolute;
+  right: calc(50% - 22px);
+  margin-left: 0;
 }
 
 /* Tabs inside a screen: a row of pills that scrolls, with a fade at the end. */
@@ -2220,6 +2230,21 @@ main > .back-btn {
   box-shadow: 0 4px 14px rgb(15 23 42 / 0.2);
   cursor: pointer;
 }
+/* On the map: the bulb with its name, a pill like Journey and Me beside it. */
+.next-step-bulb.has-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: auto;
+  min-width: 48px;
+  padding: 0 0.95rem 0 0.75rem;
+  color: #0f172a;
+  font: inherit;
+  font-weight: var(--fw-bold);
+}
+.next-step-bulb-label {
+  font-size: var(--fs-sm);
+}
 .next-step-dot {
   position: absolute;
   top: 4px;
@@ -2602,16 +2627,27 @@ main > .back-btn {
   flex: 0 1 auto;
   padding-left: 12px;
 }
+/* The time with the game day (or the city, abroad) under it: two short lines
+   instead of one long one, so the row fits 360 px with larger text. */
+.hud-when {
+  min-width: 0;
+  flex: 0 1 auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.05;
+}
 .hud-time {
   font-variant-numeric: tabular-nums;
 }
 .hud-city {
   min-width: 0;
-  flex: 0 1 auto;
   max-width: 7.5em;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 0.72rem;
   font-weight: var(--fw-semibold);
+  color: var(--muted);
 }
 .hud-hours {
   flex: none;
@@ -3028,12 +3064,22 @@ main > .back-btn {
   top: auto;
   bottom: calc(100% + 4px);
 }
-[data-hud-labels] .hud-rail {
-  gap: 20px;
+/* A rail's names (play-test: "Look around" ran off under the coach card and
+   into the phone's name, worse at larger text): at most a little wider than
+   the button, on two lines if they must, with room for two lines between
+   the buttons. Sized in rem so they grow with the text. */
+[data-hud-labels] .hud-rail > .hud-ib .hud-lbl {
+  width: max-content;
+  max-width: calc(var(--hud-ib) + var(--hud-gap) + 8px);
+  white-space: normal;
+  text-align: right;
 }
-/* The last name under the rail clears the phone's (above the phone button). */
+[data-hud-labels] .hud-rail {
+  gap: calc(1.6rem + 8px);
+}
+/* The last name under the rail (two lines at most) clears the phone's. */
 [data-hud-labels] .hud-rail:not(.mall-side, .air-cam, .suite-rail, .panorama-rail) {
-  margin-bottom: 26px;
+  margin-bottom: calc(2.4rem + 6px);
 }
 [data-hud-labels] .hud-sub {
   gap: 14px;
@@ -3054,7 +3100,9 @@ main > .back-btn {
   clip: auto;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 0.7rem;
+  /* Four names in a 360 px pill at larger text: no smaller than they need to
+     be to fit (play-test: "Comp…"). */
+  font-size: min(0.7rem, 3.1vw);
   font-weight: var(--fw-bold);
 }
 
@@ -3090,7 +3138,7 @@ main > .back-btn {
   pointer-events: none;
   visibility: hidden;
 }
-[data-hud-collapsed] .hud-life :is(.hud-city, .hud-hours) {
+[data-hud-collapsed] .hud-life .hud-hours {
   display: none;
 }
 
@@ -3245,6 +3293,7 @@ main > .back-btn {
   }
   .nav .badge,
   .nav button[aria-current='page'] .badge {
+    position: absolute;
     top: 4px;
     right: 8px;
   }
