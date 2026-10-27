@@ -52,9 +52,19 @@ test('the money pill shows your money and your company’s', async ({ page }) =>
   await expect(company.getByText('In the company bank')).toBeVisible();
   await expect(company.getByText('Revenue last month')).toBeVisible();
   await expect(company.getByText('Spending per month')).toBeVisible();
-  // The whole Money screen is one tap on (it has no tab of its own).
+  // Whole naira, no kobo (play-test #20).
+  await expect(sheet.locator('.money-row b').first()).not.toContainText('.');
+  // The company's Money screen (it has no tab of its own) is one tap on…
+  await expect(company.getByRole('button', { name: 'Money and investors' })).toBeVisible();
   await expect(sheet.getByRole('button', { name: 'All your money' })).toBeVisible();
   await shot(page, 'money-sheet');
+  // …and "All your money" is yours: Me → Money, never the company's fundraising (#20).
+  await sheet.getByRole('button', { name: 'All your money' }).click();
+  await expect(page.getByRole('tab', { name: 'Money', selected: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your wealth' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Fundraising' })).toHaveCount(0);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.locator('[data-topbar-cash]').click();
   await company.getByRole('button', { name: 'Open Company' }).click();
   await expect(page.locator('.kpis').getByText('Company bank')).toBeVisible();
   await shot(page, 'company-kpis');

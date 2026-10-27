@@ -13,7 +13,7 @@
  *   ways to fix it (the rescue plan's options), well before staff go unpaid.
  */
 import { useState } from 'react';
-import type { Command } from '@runway/engine';
+import type { Command, PlayerView } from '@runway/engine';
 import { money, moneyExact, runway } from './format';
 import { t, tx } from './i18n';
 import { activeCompany, rescueOf, type RescueOption } from './city/contract';
@@ -51,17 +51,27 @@ export function MoneySheet({
   onClose,
   onCompany,
   onAllMoney,
+  onCompanyMoney,
 }: {
   onClose: () => void;
   onCompany?: () => void;
-  /** The whole Money screen (bank, loans, deal cards, raising). */
+  /**
+   * All your own money: Me → Money (accounts, shares, net worth). Play-test:
+   * "All your money" used to open the company's fundraising.
+   */
   onAllMoney?: () => void;
+  /** The company's Money screen (raising, the cap table, deals), for a founder. */
+  onCompanyMoney?: () => void;
 }) {
   const { view, cur } = useView();
   const c = activeCompany(view);
   const mine = view.accounts.local?.balance ?? 0;
   const usd = (view.accounts as { usd?: { balance: number } | null }).usd;
+  const wealth = (view.me as { wealth?: Partial<PlayerView['me']['wealth']> }).wealth;
+  const wcur = wealth?.currency || cur;
   const next = nextMonthOf(c);
+  // Whole units here (play-test: "₦1,708,977.45"): kobo and cents only clutter a balance.
+  const whole = (n: number, currency: string) => moneyExact(Math.round(n / 100) * 100, currency);
   return (
     <Sheet title={t('Your money')} onClose={onClose}>
       <div className="money-sheet" data-money-sheet="">
@@ -70,9 +80,15 @@ export function MoneySheet({
           <h3>
             <span aria-hidden="true">👤</span> {t('Your own money')}
           </h3>
-          <Row label={t('In your account')} value={moneyExact(mine, cur)} />
+          <Row label={t('In your account')} value={whole(mine, cur)} />
           {usd && usd.balance > 0 && (
-            <Row label={t('In dollars')} value={moneyExact(usd.balance, 'USD')} />
+            <Row label={t('In dollars')} value={whole(usd.balance, 'USD')} />
+          )}
+          {wealth?.shares && wealth.shares.total > 0 && (
+            <Row label={t('Shares (not cash)')} value={money(wealth.shares.total, wcur)} />
+          )}
+          {typeof wealth?.netWorth === 'number' && (
+            <Row label={t('Net worth')} value={money(wealth.netWorth, wcur)} />
           )}
           <p className="small muted">{t('What you live on: rent, food, rides and going out.')}</p>
         </section>
@@ -81,7 +97,7 @@ export function MoneySheet({
             <h3>
               <span aria-hidden="true">🏢</span> {c.name}
             </h3>
-            <Row label={t('In the company bank')} value={moneyExact(c.cash, cur)} />
+            <Row label={t('In the company bank')} value={whole(c.cash, cur)} />
             <Row label={t('Revenue last month')} value={money(c.monthlyRevenue, cur)} />
             <Row label={t('Spending per month')} value={money(c.spending, cur)} />
             <Row
@@ -111,6 +127,19 @@ export function MoneySheet({
                 }}
               >
                 {t('Open Company')}
+              </Button>
+            )}
+            {onCompanyMoney && (
+              <Button
+                variant="ghost"
+                block
+                data-company-money-link=""
+                onClick={() => {
+                  onClose();
+                  onCompanyMoney();
+                }}
+              >
+                {t('Money and investors')}
               </Button>
             )}
           </section>

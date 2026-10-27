@@ -43,7 +43,10 @@ async function change(dialog: ReturnType<Page['getByRole']>, group: string, want
   const on = await row.locator(`button[data-value="${want}"]`).getAttribute('aria-pressed');
   const value =
     on === 'true'
-      ? (await row.locator('button[aria-pressed="false"]').first().getAttribute('data-value'))!
+      ? (await row
+          .locator('button[aria-pressed="false"]:not([disabled])')
+          .first()
+          .getAttribute('data-value'))!
       : want;
   const option = row.locator(`button[data-value="${value}"]`);
   await option.click();
@@ -119,7 +122,11 @@ test('make a look, edit it from Me, and see it on the map and from another playe
   await edit.getByRole('tab', { name: 'Hair' }).click();
   const hair = await change(edit, 'Hairstyle', 'locs');
   await edit.getByRole('tab', { name: 'Top' }).click();
-  const topStyle = await change(edit, 'Top', 'kaftan');
+  // Only the tops you have: the rest are at the mall until you buy them (play-test #41).
+  const tops = edit.getByRole('group', { name: 'Top', exact: true });
+  await expect(tops.locator('[data-locked]').first()).toBeDisabled();
+  await expect(tops.locator('[data-locked]').first()).toContainText('At the mall');
+  const topStyle = await change(edit, 'Top', 'shirt');
   const topColor = await change(edit, 'Top colour', '#f59e0b');
   // The live preview follows every change.
   const preview = edit.locator('[data-preview] svg.portrait');

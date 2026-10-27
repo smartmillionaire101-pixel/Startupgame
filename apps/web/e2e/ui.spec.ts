@@ -25,9 +25,12 @@ test('the overhaul: one row of pills, small avatar, a What-to-do button, four ta
   const bar = page.locator('.hud-top');
   const box = (await bar.boundingBox())!;
   expect(box.height).toBeLessThanOrEqual(56);
-  // The city's name stays readable beside the time and the hours.
+  // The game day stays readable under the time, beside the hours (play-test #14, #24).
   const city = (await page.locator('.hud-city').boundingBox())!;
   expect(city.width).toBeGreaterThan(30);
+  await expect(page.locator('.hud-city')).toHaveText(/^Day \d+$/);
+  const when = page.locator('.hud-when');
+  expect(await when.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   // The phone is a round button beside the nav pill.
   await expect(page.locator('[data-phone-button]')).toBeVisible();
   // Nothing in the row overflows the screen.
@@ -36,12 +39,15 @@ test('the overhaul: one row of pills, small avatar, a What-to-do button, four ta
   );
   expect(right).toBeLessThanOrEqual(360);
 
-  // Your avatar is person-sized next to the buildings: 20–34 px at the default zoom.
+  // Your avatar is person-sized next to the buildings: 15–34 px at the default
+  // zoom (a street's worth of buildings on a phone, play-test #22)…
   const fig = page.locator('.city-avatar .city-avatar-fig').first();
   await expect(fig).toBeAttached();
   const h = (await fig.boundingBox())!.height;
-  expect(h).toBeGreaterThanOrEqual(20);
+  expect(h).toBeGreaterThanOrEqual(15);
   expect(h).toBeLessThanOrEqual(34);
+  // …and your name tag shows above it, even where buildings stand in front.
+  await expect(page.locator('.city-you-tag .city-you')).toBeVisible();
 
   // People are depth-sorted with the buildings (drawn inside the skyline's slots).
   await expect(page.locator('.city-skyline [data-depth-slot] .city-avatar')).toHaveCount(1);

@@ -42,7 +42,7 @@ import {
   type Placement,
 } from '../interiors3d/placement';
 import { BuySheet, PlaceBar } from '../interiors3d/BuyMode';
-import { dividerPaint, type HomeFinish } from '../interiors3d/finishes';
+import { dividerPaint, paintColour, type HomeFinish } from '../interiors3d/finishes';
 import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
@@ -2038,7 +2038,13 @@ export function HomeScene({
             </pattern>
           </defs>
           <g ref={worldRef}>
-            <Shell plan={plan} night={night} />
+            <Shell
+              plan={plan}
+              night={night}
+              paint={paintColour(wallPaint)}
+              floors={finish3d?.floors}
+              level={level}
+            />
             {/* The rug lies under the tiles in 2D; in 3D it's hidden like the rest. */}
             <g className="home-rugs">
               {objects
@@ -2139,7 +2145,8 @@ export function HomeScene({
                   data-furniture={o.slot}
                   data-owned="0"
                   role="button"
-                  aria-label={t('Get a {thing}', { thing: slotLabel(o.slot!).toLowerCase() })}
+                  // "Add: Air conditioning", not "Get a air conditioning" (play-test #40).
+                  aria-label={t('Add: {thing}', { thing: slotLabel(o.slot!) })}
                   transform={plusAt(o)}
                 >
                   <circle r="7.5" />
@@ -2202,6 +2209,10 @@ export function HomeScene({
             ok={ghost.ok}
             moved={!!placed[placing.slot]}
             onWall={onWall}
+            coming={
+              placing.tier !== undefined ||
+              (!tiers.has(slotOf(placing.slot)) && !extraTiers.has(placing.slot))
+            }
             onRotate={turnPlacing}
             onNudge={nudge}
             onLift={
@@ -2677,10 +2688,7 @@ function buildObjects(
   const has = (s: string) => tiers.has(s);
   const tierOf = (s: string) => tiers.get(s) ?? 1;
   const act = (id: HomeAct, label: string): Verb => ({ id, act: id, label });
-  const buy = (
-    slot: string,
-    label = t('Get a {thing}', { thing: slotLabel(slot).toLowerCase() }),
-  ): Verb => ({
+  const buy = (slot: string, label = t('Add: {thing}', { thing: slotLabel(slot) })): Verb => ({
     id: 'buy',
     label,
     slot,
@@ -2921,11 +2929,43 @@ function ObjNode({ o }: { o: Obj }) {
 }
 
 /** Floors, the back wall with windows, the side walls. */
-function Shell({ plan, night }: { plan: HomePlan; night: boolean }) {
+/**
+ * A floor you chose (Buy mode's Design tab) in the 2D home: the nearest of its
+ * patterns, or a flat colour (play-test: the Lite home showed no finish at all).
+ */
+const FLOOR_2D: Record<string, string> = {
+  oak: 'url(#home-wood)',
+  parquet: 'url(#home-wood)',
+  'parquet-dark': '#7a4f2e',
+  cream: 'url(#home-tile)',
+  tile: 'url(#home-tile)',
+  checker: 'url(#home-tile)',
+  carpet: '#b9a99a',
+  concrete: '#b8b3aa',
+  stone: 'url(#home-deck)',
+  marble: 'url(#home-marble)',
+};
+
+function Shell({
+  plan,
+  night,
+  paint,
+  floors,
+  level = 0,
+}: {
+  plan: HomePlan;
+  night: boolean;
+  /** The walls' paint (a colour), or null as built. */
+  paint?: string | null;
+  /** Floors you chose, by room key ('0:living'). */
+  floors?: Record<string, string>;
+  level?: number;
+}) {
   const W = plan.w * TILE;
   const H = plan.h * TILE;
   const fill = (id: string) =>
-    id === 'kitchen'
+    FLOOR_2D[floors?.[`${level}:${id}`] ?? ''] ??
+    (id === 'kitchen'
       ? 'url(#home-tile)'
       : id === 'bathroom'
         ? 'url(#home-bath)'
@@ -2933,7 +2973,7 @@ function Shell({ plan, night }: { plan: HomePlan; night: boolean }) {
           ? 'url(#home-marble)'
           : id === 'balcony' || id === 'terrace'
             ? 'url(#home-deck)'
-            : 'url(#home-wood)';
+            : 'url(#home-wood)');
   const windows = plan.rooms.filter((r) => r.y === 0 && r.id !== 'bathroom' && !r.open);
   const outdoors = plan.rooms.filter((r) => r.open && r.y === 0);
   return (
@@ -2959,7 +2999,14 @@ function Shell({ plan, night }: { plan: HomePlan; night: boolean }) {
       ))}
       <rect x={0} y={0} width={W} height={14} fill="#000" opacity="0.08" />
       {/* The back wall, front face showing. */}
-      <rect x={-8} y={-WALL} width={W + 16} height={WALL} fill="var(--home-wall-face)" />
+      <rect
+        x={-8}
+        y={-WALL}
+        width={W + 16}
+        height={WALL}
+        fill={paint ?? 'var(--home-wall-face)'}
+        data-wall-paint={paint ?? undefined}
+      />
       <rect x={-8} y={-WALL - 8} width={W + 16} height={8} fill="var(--home-wall-top)" />
       <rect x={-8} y={-6} width={W + 16} height={6} fill="var(--home-skirting)" />
       {windows.map((r) => {

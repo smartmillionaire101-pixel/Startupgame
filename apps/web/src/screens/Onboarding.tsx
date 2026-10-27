@@ -1204,7 +1204,11 @@ function AboutFields({
           </div>
           {bg && (
             <p className="su-hint" id="su-background-hint">
-              {t('Gap: {gap}', { gap: tx(bg.gaps) })} · {backgroundModifiers(bg).join(' · ')}
+              {t('Gap: {gap}', { gap: tx(bg.gaps) })} ·{' '}
+              {/* Not what the gap already says (play-test: "Weak at sales" twice). */}
+              {backgroundModifiers(bg)
+                .filter((m) => !tx(bg.gaps).toLowerCase().includes(m.toLowerCase()))
+                .join(' · ')}
             </p>
           )}
         </div>

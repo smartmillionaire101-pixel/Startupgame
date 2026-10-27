@@ -227,14 +227,18 @@ export async function hudMore(page: Page | Locator) {
 }
 
 /**
- * Your money (the Money tab before the floating HUD): the money pill, top
- * right, then "All your money" in its sheet.
+ * The company's Money screen (the Money tab before the floating HUD): the
+ * money pill, top right, then "Money and investors" in its sheet. ("All your
+ * money" there is your own: Me → Money.)
  */
 export async function openMoney(page: Page) {
   // At the top of a list the pills are in view (scrolled down, they slide off).
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.locator('[data-topbar-cash]').click();
-  await page.getByRole('dialog', { name: 'Your money' }).locator('[data-all-money]').click();
+  await page
+    .getByRole('dialog', { name: 'Your money' })
+    .locator('[data-company-money-link]')
+    .click();
 }
 
 /** Deal offers (an investor's; no tab of its own): Portfolio, then its big link. */

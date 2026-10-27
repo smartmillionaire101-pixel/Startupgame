@@ -191,7 +191,8 @@ function outing(c: Ctx, kind: 'cinema' | 'drinks' | 'spa' | 'gym', rooms: RoomKi
 function mealFor(c: Ctx, kind: 'breakfast' | 'lunch' | 'dinner' | 'eat'): Suggestion | null {
   const meals = c.biz
     .flatMap((b) => (b.venue?.items ?? []).map((i) => ({ b, i })))
-    .filter((x) => (x.i.energy ?? 0) > 0 && x.i.price <= c.pocket);
+    // Food and drink: not a thing to do (play-test: "Eat at … Wellness Spa — Massage").
+    .filter((x) => (x.i.energy ?? 0) > 0 && !x.i.activity && x.i.price <= c.pocket);
   const want: RoomKind = kind === 'breakfast' ? 'cafe' : 'restaurant';
   const preferred = kind === 'eat' ? meals : meals.filter((x) => roomOf(x.b) === want);
   // Tired: the most filling. A meal out: the seed turns the place, cheaper first.

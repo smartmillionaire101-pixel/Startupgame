@@ -880,7 +880,9 @@ export function playerView(
        * energy, health, happiness and stress, 0–100 rounded, and what they're
        * doing to you right now in plain English.
        */
-      ...(lifeBarsOn(world) && !p.ai ? { bars: barsOf(p), barEffects: barEffects(p) } : {}),
+      ...(lifeBarsOn(world) && !p.ai
+        ? { bars: barsOf(p), barEffects: barEffects(p, feedbackOn(world)) }
+        : {}),
       lifestyle: { ...tierOf(p), monthlyCost: lifestyleCost(world, p) },
       credit: { ...p.credit, ...creditProfile(world, p) },
       loans: p.loans,

@@ -113,10 +113,12 @@
 .city-map[data-zoom='0'] :is(.lbl-detail, .lbl-stall, .lbl-biz),
 .city-map[data-zoom='1'] :is(.lbl-detail, .lbl-stall, .lbl-biz),
 .city-map[data-zoom='1'] .city-district:not(.is-key),
-.city-map[data-zoom='2'] .city-district,
-.city-map:is([data-zoom='0'], [data-zoom='1']) .city-you {
+.city-map[data-zoom='2'] .city-district {
   display: none;
 }
+/* Your name tag shows at every zoom (play-test: "avatar missing on the Lite
+   map": your figure stands behind the buildings in front of it, and the tag
+   was hidden unless zoomed right in). */
 .city-map .city-label.is-focus {
   display: inline !important;
 }
@@ -1712,4 +1714,35 @@ html[data-simple] .city-hud-bottom .hud-places .hud-count {
 }
 html[data-simple] .app-scene .city-hud-bottom {
   right: var(--hud-gap) !important;
+}
+
+/* The 3D city was too slow here (CityMap's SlowMapNotice): under the HUD's
+   second row, clear of the rail of round buttons on the right. */
+.map-slow {
+  position: fixed;
+  z-index: var(--z-hud);
+  top: var(--hud-scene-top2);
+  left: var(--hud-gap);
+  right: calc(var(--hud-gap) + var(--hud-ib) + 10px);
+  max-width: 26rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 16px;
+  background: var(--hud-bg-strong);
+  border: 1px solid var(--hud-line);
+  box-shadow: var(--hud-shadow);
+  color: var(--text);
+  /* Taps go through to the map except on its buttons: it never hides a place. */
+  pointer-events: none;
+}
+.map-slow button {
+  pointer-events: auto;
+}
+.map-slow p {
+  margin: 0 0 0.4rem;
+}
+.map-slow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
 }

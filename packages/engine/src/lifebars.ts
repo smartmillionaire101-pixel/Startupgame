@@ -27,8 +27,8 @@ import { ensure } from './errors.js';
 import { companyRunway } from './company.js';
 import { getMarket, hoursLeft, notify } from './helpers.js';
 import { clamp } from './math.js';
-import { needsOf, type HomeActId } from './needs.js';
-import { lifeBarsOn } from './releases.js';
+import { MOOD_LOW, moodOf, needsOf, type HomeActId } from './needs.js';
+import { feedbackOn, lifeBarsOn } from './releases.js';
 import type { RideDistance, RideMode } from './travel.js';
 import type { Player, World } from './types.js';
 
@@ -377,10 +377,24 @@ export function settleBars(
 // ---------------------------------------------------------------- Odds and the view
 
 /**
- * How you feel, as a small edge on sales and pitch odds (−0.14 to +0.04).
- * Zero for AI players; callers add it only when `lifeBarsOn`.
+ * Feeling great: rested and calm. With `cared` (the feedback release, play-test:
+ * "'Feeling great' with Mood 21, Hunger 0, Hygiene 0") you must also be fed,
+ * washed and not lonely or bored: no need under `lowNeed`, mood not low.
  */
-export function barEdge(p: Player | undefined): number {
+function feelingGreat(p: Player, cared: boolean): boolean {
+  const L = LIFE_BARS;
+  if (!(p.energy > L.greatEnergy && stressOf(p) < L.greatStress)) return false;
+  if (!cared) return true;
+  const n = needsOf(p);
+  return moodOf(p) >= MOOD_LOW && Object.values(n).every((v) => v >= L.lowNeed);
+}
+
+/**
+ * How you feel, as a small edge on sales and pitch odds (−0.14 to +0.04).
+ * Zero for AI players; callers add it only when `lifeBarsOn`. `cared`: the
+ * feedback release's stricter "feeling great" (`feelingGreat`).
+ */
+export function barEdge(p: Player | undefined, cared = false): number {
   if (!p || p.ai) return 0;
   const L = LIFE_BARS;
   const e = L.edge;
@@ -390,13 +404,13 @@ export function barEdge(p: Player | undefined): number {
     (stress > L.highStress ? e.stressed : 0) +
     (healthOf(p) < L.poorHealth ? e.poorHealth : 0) +
     (happinessOf(p) > L.happyHappiness ? e.happy : 0) +
-    (p.energy > L.greatEnergy && stress < L.greatStress ? e.great : 0)
+    (feelingGreat(p, cared) ? e.great : 0)
   );
 }
 
 /** `barEdge` when the release is on, else 0 (so old worlds' odds are untouched). */
 export const barEdgeIn = (world: World, p: Player | undefined): number =>
-  p && barsApply(world, p) ? barEdge(p) : 0;
+  p && barsApply(world, p) ? barEdge(p, feedbackOn(world)) : 0;
 
 export interface BarEffect {
   id: string;
@@ -404,8 +418,12 @@ export interface BarEffect {
   tone: 'good' | 'bad';
 }
 
-/** The effects the bars have right now, in plain English. */
-export function barEffects(p: Player): BarEffect[] {
+/**
+ * The effects the bars have right now, in plain English. `cared` (the feedback
+ * release): the stricter "feeling great", and a low mood is named too (it
+ * costs hours next month, `moodHoursFactor`).
+ */
+export function barEffects(p: Player, cared = false): BarEffect[] {
   const L = LIFE_BARS;
   const out: BarEffect[] = [];
   const bad = (id: string, text: string) => out.push({ id, text, tone: 'bad' });
@@ -419,8 +437,9 @@ export function barEffects(p: Player): BarEffect[] {
   if (stress > L.stressedOutStress)
     bad('stressed-out', 'Stressed out: fewer hours and weaker pitches');
   else if (stress > L.highStress) bad('stressed', 'Stressed: sales and pitches are harder');
+  if (cared && p.needs && moodOf(p) < MOOD_LOW)
+    bad('low-mood', 'Feeling low: fewer hours next month. Eat, wash and have some fun');
   if (happinessOf(p) > L.happyHappiness) good('happy', 'Happy: +sales, +pitches');
-  if (p.energy > L.greatEnergy && stress < L.greatStress)
-    good('feeling-great', 'Feeling great: +sales, +pitches');
+  if (feelingGreat(p, cared)) good('feeling-great', 'Feeling great: +sales, +pitches');
   return out;
 }

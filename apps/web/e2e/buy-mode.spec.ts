@@ -88,7 +88,7 @@ test('Buy mode: picture cards, Owned, Design swatches, and a basket bought at on
   if (ownedCards === 0) await expect(sheet.locator('.buy-empty')).toBeVisible();
   else await expect(sheet.locator('[data-buy-item][data-owned="0"]')).toHaveCount(0);
 
-  // Design: floors and paint as swatches; try a free paint on and keep it.
+  // Design: floors and paint as swatches; a free paint goes on at a tap (play-test #18).
   await sheet.locator('[data-buy-tab="design"]').click();
   await expect(sheet.locator('[data-finish^="floor:"]').first()).toBeVisible();
   expect(await sheet.locator('[data-finish^="floor:"]').count()).toBeGreaterThanOrEqual(10);
@@ -100,10 +100,11 @@ test('Buy mode: picture cards, Owned, Design swatches, and a basket bought at on
   await expect(sheet.locator('[data-finish="wall:sage"]')).toHaveAttribute('data-state', 'yours');
   await shot(page, '2-design');
   await sheet.locator('[data-finish="wall:sage"]').click();
-  await expect(sheet.locator('[data-trying="wall:sage"]')).toBeVisible();
-  await sheet.locator('[data-action="apply-finish"]').click();
+  await expect(sheet.locator('[data-trying]')).toHaveCount(0);
   await expect.poll(async () => (await state(page)).me.homeStyle?.chosen.wall).toBe('sage');
   await expect(sheet.locator('[data-finish="wall:sage"]')).toHaveAttribute('data-state', 'now');
+  // The Lite home's walls take the paint too.
+  await expect(page.locator('.home-scene rect[data-wall-paint="#9fb59a"]')).toBeAttached();
 
   // Pick several: the basket fills, its total adds up, and Buy all orders each.
   await sheet.locator('[data-buy-tab="all"]').click();
@@ -138,10 +139,12 @@ test('Buy mode: picture cards, Owned, Design swatches, and a basket bought at on
   const bar = scene.getByRole('toolbar', { name: /Place/ });
   await expect(bar).toHaveAttribute('data-on-wall', '1');
   await shot(page, '5-placing');
-  await scene.getByRole('button', { name: 'Put it here' }).click();
+  // Still on their way (play-test #40): the spot is kept for when they're unpacked.
+  await expect(bar).toContainText('it goes here when you unpack the delivery');
+  await scene.getByRole('button', { name: 'Keep this spot' }).click();
   await expect(bar).toHaveAttribute('aria-label', 'Place Plants');
   await expect(bar).not.toHaveAttribute('data-on-wall', '1');
-  await scene.getByRole('button', { name: 'Put it here' }).click();
+  await scene.getByRole('button', { name: 'Keep this spot' }).click();
   await expect(bar).toBeHidden();
 });
 
@@ -239,7 +242,8 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
   await expect(bar).toHaveAttribute('data-ok', '1');
   const to = (await bar.getAttribute('data-at'))!;
   await shot(page, '7-painting-moved');
-  await bar.getByRole('button', { name: 'Put it here' }).click();
+  // On a wall the button says what the hint says (play-test #40).
+  await bar.getByRole('button', { name: 'Hang it here' }).click();
   await expect(bar).toBeHidden();
   const [x, y, rot] = to.split(',').map(Number);
   expect(await placedAt('art')).toEqual({ x, y, rot, lift: 1 });
@@ -249,15 +253,19 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
   await sheet.locator('[data-buy-tab="design"]').click();
   const was = ((await canvas.getAttribute('data-wall-paint')) ?? '').split(',');
   expect(was.length).toBeGreaterThan(0);
-  await sheet.locator('[data-finish="wall:sage"]').click();
+  // A paint you'd buy is tried on, the panel stepping down so the walls show.
+  const tall = await sheet.evaluate((el) => el.getBoundingClientRect().height);
+  await sheet.locator('[data-finish="wall:navy"]').click();
   await expect
     .poll(async () => (await canvas.getAttribute('data-wall-paint'))?.split(','))
-    .toContain('#9fb59a');
+    .toContain('#2f4163');
   const now = (await canvas.getAttribute('data-wall-paint'))!.split(',');
   // The outer walls in the paint, the inner ones a shade lighter: nothing as it was.
   expect(now.length).toBeLessThanOrEqual(2);
   for (const c of was) expect(now).not.toContain(c);
-  await shot(page, '8-walls-sage');
+  await expect(sheet.locator('[data-trying="wall:navy"]')).toBeVisible();
+  expect(await sheet.evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(tall * 0.8);
+  await shot(page, '8-walls-navy');
 
   // "It refuses to close": a Close you can see, and Escape.
   const close = sheet.locator('[data-action="close-buy"]');
@@ -269,6 +277,17 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
   await expect
     .poll(async () => (await canvas.getAttribute('data-wall-paint'))?.split(','))
     .toEqual(was);
+  // A paint that's yours (Sage green is free) goes on at once and stays (play-test #18).
+  await scene.getByRole('button', { name: 'Buy' }).click();
+  await sheet.locator('[data-buy-tab="design"]').click();
+  await sheet.locator('[data-finish="wall:sage"]').click();
+  await expect(sheet.locator('[data-finish="wall:sage"]')).toHaveAttribute('data-state', 'now');
+  await expect.poll(async () => (await state(page)).me.homeStyle!.chosen.wall).toBe('sage');
+  await close.click();
+  await expect(sheet).toBeHidden();
+  await expect
+    .poll(async () => (await canvas.getAttribute('data-wall-paint'))?.split(','))
+    .toContain('#9fb59a');
   await scene.getByRole('button', { name: 'Buy' }).click();
   await expect(sheet).toBeVisible();
   await page.keyboard.press('Escape');

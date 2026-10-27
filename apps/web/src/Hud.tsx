@@ -36,8 +36,8 @@ import { useMusic } from './music';
 import { LifeBarsPanel } from './LifeBars';
 import { MoneySheet, paydayShort } from './MoneyOverview';
 import { openDecisions } from './screens/Decisions';
-import { clockOf, hereOf, isAbroad, isNight, localHour } from './city/travel';
-import { clockText } from './city/WhatNowCards';
+import { clockOf, hereOf, isAbroad, isNight } from './city/travel';
+import { dayOfMonthLabel, useGameClock, type GameWhen } from './gameClock';
 import { MonthCountdown } from './city/Transport';
 import { isFirstSession, setSetting, useSetting, useSimple } from './phone/settings';
 import { NEEDS, moodOf as homeMood, needsOf, type NeedKey } from './home/view';
@@ -45,6 +45,16 @@ import { NEEDS, moodOf as homeMood, needsOf, type NeedKey } from './home/view';
 const NEED_ICON: Record<NeedKey, string> = { hunger: '🍲', hygiene: '🚿', fun: '🎮', social: '💬' };
 const needLabel = (k: NeedKey) =>
   ({ hunger: t('Hunger'), hygiene: t('Hygiene'), fun: t('Fun'), social: t('Social') })[k];
+/** What to do about a low need (the engine's own notes, so the words match). */
+const needHint = (k: NeedKey) =>
+  ({
+    hunger: t('You’re hungry. Cook, order in or eat out.'),
+    hygiene: t('You need a shower.'),
+    fun: t('You need some fun. Watch TV, play or go out.'),
+    social: t('You’re lonely. Invite a friend over or meet someone.'),
+  })[k];
+/** A need under this shows what to do (the engine warns under 40, a month before it runs out). */
+const NEED_HINT_UNDER = 40;
 
 // ---- The slot under the pills: a screen puts its own chips there ----------
 
@@ -96,18 +106,6 @@ function useBump(value: number) {
     );
   }, [value]);
   return ref;
-}
-
-/** The city's local hour, ticking each half minute. */
-function useLocalHour(marketId: string) {
-  const [hour, setHour] = useState(() => localHour(marketId));
-  useEffect(() => {
-    const tick = () => setHour(localHour(marketId));
-    tick();
-    const id = setInterval(tick, 30_000);
-    return () => clearInterval(id);
-  }, [marketId]);
-  return hour;
 }
 
 type Mood = 'good' | 'ok' | 'low';
@@ -170,6 +168,7 @@ export function Hud({
   onInbox,
   onCompany,
   onAllMoney,
+  onCompanyMoney,
   onPhone,
 }: {
   /** A 3D screen (the map): the extras row, the ⌄, no scrolling away. */
@@ -183,8 +182,10 @@ export function Hud({
   onInbox: () => void;
   /** Open Company (from "Your money"), for a founder. */
   onCompany?: () => void;
-  /** The whole Money screen (from "Your money"), for a founder. */
+  /** All your own money (Me → Money: accounts, shares, net worth), from "Your money". */
   onAllMoney?: () => void;
+  /** The company's Money screen (fundraising), from "Your money", for a founder. */
+  onCompanyMoney?: () => void;
   onPhone: () => void;
 }) {
   const { view, cur } = useView();
@@ -201,8 +202,12 @@ export function Hud({
   useRootFlag('data-hud-labels', labels ? '' : null);
 
   const here = hereOf(view);
-  const hour = useLocalHour(here.id);
-  const time = clockText(hour);
+  const abroad = isAbroad(view);
+  // The game's clock (the one appointments are booked on), not the real time.
+  const { when, hour, time } = useGameClock(view, here.id);
+  // At home the pill names the game day (appointments say "Day 23, 09:00");
+  // abroad, the city you're in.
+  const where = when && !abroad ? t('Day {day}', { day: when.day }) : here.name;
   const hoursLeft = Math.round(view.me.hours.left * 10) / 10;
   const mood = moodTone(view);
   const cash = view.accounts.local?.balance ?? 0;
@@ -218,7 +223,9 @@ export function Hud({
       className="hud-bell"
       label={
         decisions > 0
-          ? t('{n} decisions waiting', { n: decisions })
+          ? decisions === 1
+            ? t('1 decision waiting')
+            : t('{n} decisions waiting', { n: decisions })
           : alerts
             ? t('Inbox, {n} new', { n: alerts })
             : t('Inbox')
@@ -239,16 +246,38 @@ export function Hud({
             data-hud-life=""
             data-mood={mood}
             aria-haspopup="dialog"
-            aria-label={t(
-              '{time} in {city}. {n} hours left this month. {mood}. Tap for how you’re doing',
-              { time, city: here.name, n: hoursLeft, mood: moodWord(mood) },
-            )}
-            title={view.market.date.label}
+            aria-label={
+              when
+                ? t(
+                    '{time}, {day}, in {city}. {n} hours left this month. {mood}. Tap for how you’re doing',
+                    {
+                      time,
+                      day: dayOfMonthLabel(when),
+                      city: here.name,
+                      n: hoursLeft,
+                      mood: moodWord(mood),
+                    },
+                  )
+                : t(
+                    '{time} in {city}. {n} hours left this month. {mood}. Tap for how you’re doing',
+                    { time, city: here.name, n: hoursLeft, mood: moodWord(mood) },
+                  )
+            }
+            title={
+              when
+                ? `${t('Day {day}', { day: when.day })}, ${view.market.date.label}`
+                : view.market.date.label
+            }
             onClick={() => setLifeOpen(true)}
           >
             <Icon name={isNight(hour) ? 'moon' : 'sun'} size={20} className="hud-sun" />
-            <span className="hud-time">{time}</span>
-            <span className="hud-city">{here.name}</span>
+            {/* The time over the game day (or the city abroad): narrow enough for 360 px at large text. */}
+            <span className="hud-when">
+              <span className="hud-time">{time}</span>
+              <span className="hud-city" data-hud-day={when && !abroad ? when.day : undefined}>
+                {where}
+              </span>
+            </span>
             {/* Whole hours here (it's tight beside the city's name); the sheet has the tenths. */}
             <span className={`hud-hours${hoursLeft < 20 ? ' is-low' : ''}`} data-hud-hours="">
               {t('{n}h', { n: Math.round(hoursLeft) })}
@@ -307,9 +336,7 @@ export function Hud({
             <div className="hud-sub hud-sub-right">{bell}</div>
           </>
         )}
-        {isAbroad(view) && (
-          <span className="sr-only">{t('from {city}', { city: view.market.name })}</span>
-        )}
+        {abroad && <span className="sr-only">{t('from {city}', { city: view.market.name })}</span>}
       </div>
       <HudButton
         icon="phone"
@@ -326,15 +353,28 @@ export function Hud({
           onClose={() => setMoneyOpen(false)}
           onCompany={onCompany}
           onAllMoney={onAllMoney}
+          onCompanyMoney={onCompanyMoney}
         />
       )}
-      {lifeOpen && <LifeSheet onClose={() => setLifeOpen(false)} time={time} mood={mood} />}
+      {lifeOpen && (
+        <LifeSheet onClose={() => setLifeOpen(false)} time={time} when={when} mood={mood} />
+      )}
     </>
   );
 }
 
 /** The left pill's sheet: the day and the month, and how you're doing. */
-function LifeSheet({ onClose, time, mood }: { onClose: () => void; time: string; mood: Mood }) {
+function LifeSheet({
+  onClose,
+  time,
+  when,
+  mood,
+}: {
+  onClose: () => void;
+  time: string;
+  when: GameWhen | null;
+  mood: Mood;
+}) {
   const { view } = useView();
   const here = hereOf(view);
   const clock = clockOf(view);
@@ -347,7 +387,11 @@ function LifeSheet({ onClose, time, mood }: { onClose: () => void; time: string;
       <div className="life-sheet" data-life-sheet="">
         <p className="life-sheet-when">
           <b>{t('{time} in {city}', { time, city: here.name })}</b>
-          <span className="muted"> · {view.market.date.label}</span>
+          <span className="muted" data-life-date="">
+            {' '}
+            · {when ? `${t('Day {day}', { day: when.day })}, ` : ''}
+            {view.market.date.label}
+          </span>
         </p>
         <div className="life-sheet-row">
           <span className={`hud-hours${hoursLeft < 20 ? ' is-low' : ''}`}>
@@ -362,10 +406,18 @@ function LifeSheet({ onClose, time, mood }: { onClose: () => void; time: string;
           <Bar id="energy" icon="⚡" label={t('Energy')} value={energy} />
           {needs &&
             NEEDS.map((k) => (
-              <Bar key={k} id={k} icon={NEED_ICON[k]} label={needLabel(k)} value={needs[k]} need />
+              <Bar
+                key={k}
+                id={k}
+                icon={NEED_ICON[k]}
+                label={needLabel(k)}
+                value={needs[k]}
+                need
+                hint={needs[k] < NEED_HINT_UNDER ? needHint(k) : undefined}
+              />
             ))}
         </section>
-        {view.me.bars && <LifeBarsPanel me={view.me} />}
+        {view.me.bars && <LifeBarsPanel me={view.me} skip={['energy']} />}
       </div>
     </Sheet>
   );
@@ -378,12 +430,15 @@ function Bar({
   label,
   value,
   need,
+  hint,
 }: {
   id: string;
   icon: string;
   label: string;
   value: number;
   need?: boolean;
+  /** What to do about it (a low need). */
+  hint?: string;
 }) {
   const v = Math.max(0, Math.min(100, Math.round(value)));
   return (
@@ -409,6 +464,11 @@ function Bar({
       >
         <span style={{ width: `${v}%` }} />
       </div>
+      {hint && (
+        <p className="small lifebar-hint" data-need-hint="">
+          {v === 0 ? t('Empty.') : t('Running low.')} {hint}
+        </p>
+      )}
     </div>
   );
 }

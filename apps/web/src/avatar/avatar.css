@@ -88,6 +88,18 @@
   text-align: center;
   overflow-wrap: anywhere;
 }
+.creator-thumb.is-locked {
+  cursor: default;
+  border-style: dashed;
+  background: var(--surface-2, var(--surface));
+}
+.creator-thumb.is-locked > :first-child {
+  opacity: 0.55;
+}
+.creator-thumb-note {
+  font-size: var(--fs-2xs, 0.6875rem);
+  color: var(--muted);
+}
 .creator-actions {
   display: flex;
   flex-wrap: wrap;

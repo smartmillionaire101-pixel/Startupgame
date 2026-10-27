@@ -22,6 +22,7 @@ import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { npcPerson, parseNpcId, chatIdOf } from './people.js';
 import { getBusiness, isOpen, specOf, venuePrice } from './economy.js';
+import { feedbackOn } from './releases.js';
 import type { ContactKind, Id, MarketState, Player, World } from './types.js';
 
 export const NEED_KEYS = ['hunger', 'hygiene', 'fun', 'social'] as const;
@@ -32,6 +33,11 @@ export const NEEDS_BACKFILL = 70;
 const NEEDS_DECAY: Needs = { hunger: 35, hygiene: 30, fun: 25, social: 20 };
 /** A need under this gets a notification when it drops there. */
 const NEED_LOW = 25;
+/**
+ * The feedback release warns a month earlier (play-test: no warning came as
+ * mood fell 80 → 21; the old note only came once a need was nearly empty).
+ */
+const NEED_LOW_FEEDBACK = 40;
 /** Mood thresholds and their effect on next month's hours. */
 export const MOOD_LOW = 30;
 export const MOOD_HIGH = 75;
@@ -145,15 +151,29 @@ const NEED_WORDS: Record<NeedKey, string> = {
   social: 'You’re lonely. Invite a friend over or meet someone.',
 };
 
-/** Month-end: needs fall; a need dropping under 25 sends a short note. */
+/**
+ * Month-end: needs fall; a need dropping under 25 sends a short note. With the
+ * feedback release the note comes under 40, a month before it runs out.
+ */
 export function decayNeeds(world: World, p: Player, month: number) {
   const n = ensureNeeds(p);
+  const low = feedbackOn(world) ? NEED_LOW_FEEDBACK : NEED_LOW;
   for (const k of NEED_KEYS) {
     const before = n[k];
     n[k] = clamp(before - NEEDS_DECAY[k], 0, 100);
-    if (before >= NEED_LOW && n[k] < NEED_LOW)
+    if (before >= low && n[k] < low)
       notify(world, p.id, { month, kind: 'system', text: NEED_WORDS[k] });
   }
+}
+
+/** The feedback release: a warning when month-end leaves your mood low (it costs hours). */
+export function warnLowMood(world: World, p: Player, month: number, moodBefore: number) {
+  if (p.ai || !feedbackOn(world) || moodBefore < MOOD_LOW || moodOf(p) >= MOOD_LOW) return;
+  notify(world, p.id, {
+    month,
+    kind: 'warning',
+    text: 'You’re feeling low: next month has fewer hours. Eat, wash, have some fun and see friends.',
+  });
 }
 
 /** What a venue item does for your needs (Wave 7). Mutates; returns the changes applied. */

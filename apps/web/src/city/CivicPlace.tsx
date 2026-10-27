@@ -22,6 +22,7 @@ import { CIVIC_ICON } from './mapIcons';
 import { BankInterviewCard } from '../screens/BankLicence';
 import type { Place } from './layout';
 import { useNav } from '../phone/bus';
+import { dayOfMonthLabel, hhmm } from '../gameClock';
 
 type View = PlayerView;
 export type CivicView = NonNullable<View['market']['cityPlaces']>['places'][number];
@@ -43,11 +44,12 @@ export function civicOf(view: View, place: Pick<Place, 'kind' | 'ref'>): CivicVi
   return cityOf(view, place.ref)?.places.find((p) => p.id === place.ref) ?? null;
 }
 
-/** "Day 12, 10:00" (or "next month"), on the game clock. */
-function whenLabel(w: When, now?: When | null): string {
-  const time = `${String(w.hour).padStart(2, '0')}:${String(w.minute).padStart(2, '0')}`;
-  if (now && w.month > now.month) return t('Day {day} next month, {time}', { day: w.day, time });
-  return t('Day {day}, {time}', { day: w.day, time });
+/**
+ * "Day 12 of month 3, 10:00", on the game clock: the one the HUD's time pill
+ * shows (play-test: "two clocks… days have no month").
+ */
+function whenLabel(w: When): string {
+  return t('{day}, {time}', { day: dayOfMonthLabel(w), time: hhmm(w) });
 }
 
 const accessLabel = (a: CivicView['access']) =>
@@ -58,7 +60,7 @@ const accessLabel = (a: CivicView['access']) =>
   })[a];
 
 /** Why the door is shut, and what opens it. */
-function closedText(e: CivicView, now: When | null): { why: string; unlock: string | null } {
+function closedText(e: CivicView): { why: string; unlock: string | null } {
   switch (e.why) {
     case 'away':
       return { why: t('{name} is in another city.', { name: e.name }), unlock: null };
@@ -78,7 +80,7 @@ function closedText(e: CivicView, now: When | null): { why: string; unlock: stri
       return {
         why: e.appointment
           ? t('Your appointment is on {when}. Come back then.', {
-              when: whenLabel(e.appointment.at, now),
+              when: whenLabel(e.appointment.at),
             })
           : t('By appointment only.'),
         unlock: null,
@@ -239,7 +241,7 @@ function useCivic() {
       r?.appointment
         ? t('Appointment booked at {name}: {when}.', {
             name: e.name,
-            when: whenLabel(r.appointment.when, cityOf(view, e.id)?.now),
+            when: whenLabel(r.appointment.when),
           })
         : t('Booked.'),
     );
@@ -296,9 +298,9 @@ function Appointment({ e }: { e: CivicView }) {
       <p className="civic-appt" data-appointment={e.appointment.status}>
         {e.appointment.status === 'due'
           ? t('Your appointment was at {when}: go in now.', {
-              when: whenLabel(e.appointment.at, now),
+              when: whenLabel(e.appointment.at),
             })
-          : t('Your appointment: {when}.', { when: whenLabel(e.appointment.at, now) })}
+          : t('Your appointment: {when}.', { when: whenLabel(e.appointment.at) })}
         {now && <span className="small muted"> {t('Now: {when}', { when: whenLabel(now) })}</span>}
       </p>
     );
@@ -318,8 +320,7 @@ function Appointment({ e }: { e: CivicView }) {
 
 /** At the door of a place you can't go into (yet): why, and what opens it. */
 export function CivicDoor({ e, onClose }: { e: CivicView; onClose: () => void }) {
-  const c = useCivic();
-  const { why, unlock } = closedText(e, c.now(e));
+  const { why, unlock } = closedText(e);
   return (
     <div className="civic civic-door" data-civic={e.role} data-civic-closed={e.why ?? ''}>
       <PlaceHead e={e} />
