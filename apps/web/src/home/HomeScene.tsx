@@ -277,6 +277,11 @@ export interface HotelRoom {
   /** null: no hotel booked (an old save): the budget room. */
   tier: HotelTier | null;
   name: string | null;
+  /** A one-star hotel's pod (a single bed, a locker, the bathroom shared). */
+  pod?: boolean;
+  /** The named hotel's stars and room ("Pod · shared bathroom"), when known. */
+  stars?: number;
+  room?: string | null;
 }
 
 /** Wave 12: the name of a home by its kind (owners), else by lifestyle tier. */
@@ -318,8 +323,10 @@ export function HomeScene({
   // A house has an upstairs (a mansion a roof terrace too): one floor at a time.
   const floors = useMemo(
     () =>
-      hotelTier ? [hotelPlan(hotelTier)] : floorsFor(tier, { kind: specKind, wealth: specWealth }),
-    [hotelTier, tier, specKind, specWealth],
+      hotelTier
+        ? [hotelPlan(hotelTier, hotel?.pod)]
+        : floorsFor(tier, { kind: specKind, wealth: specWealth }),
+    [hotelTier, hotel?.pod, tier, specKind, specWealth],
   );
   const [floorAt, setFloorAt] = useState(0);
   const floor = Math.min(floorAt, floors.length - 1);
@@ -1892,7 +1899,13 @@ export function HomeScene({
       {hotelTier && (
         <div className="home-hotel-head">
           <h2>{homeName}</h2>
-          <span data-hotel-tier={hotelTier}>{t(HOTEL_TIER_LABEL[hotelTier])}</span>
+          {/* The named hotel's own stars and room, else the tier's (playtest round 6:
+              a one-star pod read as "★ room" under a double bed). */}
+          <span data-hotel-tier={hotelTier} data-hotel-pod={hotel?.pod ? '' : undefined}>
+            {hotel?.stars && hotel.room
+              ? `${'★'.repeat(hotel.stars)} ${tx(hotel.room)}`
+              : t(HOTEL_TIER_LABEL[hotelTier])}
+          </span>
           {visit && visitor ? (
             <span className="small holiday-neighbours" data-hotel-visit={visit.me}>
               {visit.me === 'host'

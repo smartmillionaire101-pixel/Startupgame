@@ -1,7 +1,8 @@
 /**
  * Your hotel room in Lite (no 3D): the flat room scene's back wall and
  * foreground, drawn by tier like the 3D rooms (./hotel.ts) so the price
- * steps read here too. A budget room's small window, double bed, desk and
+ * steps read here too. A pod's single bed in its alcove and a locker; a
+ * budget room's small window, double bed, desk and
  * rail; a business room's king bed, work desk with an ergonomic chair,
  * armchair, TV console and tea tray; a suite's glass wall onto the balcony
  * and the skyline, the sofa set on a rug, the TV wall, the dining table
@@ -149,11 +150,44 @@ function Plant({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
 }
 
 /** The back of the room: walls, windows, the big things against them. */
-export function HotelBack({ tier, night }: { tier: HotelTier | null; night: boolean }) {
+export function HotelBack({
+  tier,
+  night,
+  pod = false,
+}: {
+  tier: HotelTier | null;
+  night: boolean;
+  /** A one-star hotel's pod: a single bed in its alcove, a locker, the bathroom shared. */
+  pod?: boolean;
+}) {
   const t = tier ?? 'budget';
+  const isPod = pod && t === 'budget';
   return (
-    <g data-hotel-art={t} data-furniture={hotelContents(t).join(' ')}>
-      {t === 'budget' && (
+    <g data-hotel-art={isPod ? 'pod' : t} data-furniture={hotelContents(t, isPod).join(' ')}>
+      {isPod && (
+        <g>
+          <Shell wall="#e3e7e4" floor="#cfc6b6" line="#b8ad9b" />
+          <Win x={230} y={14} w={50} h={46} night={night} drape="#9fb3c8" />
+          {/* The shared bathroom's sign by the door. */}
+          <rect x="300" y="38" width="52" height="102" fill="#cbd5e1" />
+          <rect x="306" y="54" width="40" height="16" rx="3" fill="#f8fafc" />
+          <rect x="318" y="58" width="16" height="8" rx="2" fill="#64748b" />
+          {/* The pod: a single bed in its alcove, a reading light, a curtain. */}
+          <rect x="40" y="62" width="150" height="78" rx="10" fill="#d9d3c7" />
+          <rect x="46" y="68" width="138" height="66" rx="8" fill="#efeae0" />
+          <rect x="52" y="106" width="126" height="28" rx="4" fill="#f4f1ea" />
+          <rect x="52" y="116" width="126" height="18" fill="#8aa2b8" />
+          <rect x="58" y="100" width="34" height="12" rx="5" fill="#fff" />
+          <circle cx="170" cy="78" r="5" fill="#fde68a" opacity={night ? 0.95 : 0.6} />
+          <rect x="40" y="62" width="14" height="78" rx="4" fill="#9fb3c8" opacity="0.85" />
+          {/* Your locker. */}
+          <rect x="206" y="80" width="40" height="60" rx="3" fill="#94a3b8" />
+          <rect x="210" y="86" width="32" height="24" rx="2" fill="#a8b5c6" />
+          <rect x="210" y="112" width="32" height="24" rx="2" fill="#a8b5c6" />
+          <rect x="236" y="96" width="3" height="6" fill="#475569" />
+        </g>
+      )}
+      {t === 'budget' && !isPod && (
         <g>
           <Shell wall="#e3e7e4" floor="#d9c3a2" line="#c4ad8b" />
           <Win x={200} y={10} w={70} h={64} night={night} drape="#9fb3c8" />
@@ -243,8 +277,24 @@ export function HotelBack({ tier, night }: { tier: HotelTier | null; night: bool
 }
 
 /** The front of the room: what stands in front of the people. */
-export function HotelFront({ tier, night }: { tier: HotelTier | null; night: boolean }) {
+export function HotelFront({
+  tier,
+  night,
+  pod = false,
+}: {
+  tier: HotelTier | null;
+  night: boolean;
+  pod?: boolean;
+}) {
   const t = tier ?? 'budget';
+  if (t === 'budget' && pod)
+    return (
+      <g data-hotel-front="pod">
+        {/* Your suitcase by the pod (no desk, no chair). */}
+        <rect x="270" y="198" width="26" height="36" rx="4" fill="#1e3a5f" />
+        <rect x="278" y="192" width="10" height="6" rx="2" fill="#16161a" />
+      </g>
+    );
   if (t === 'budget')
     return (
       <g>

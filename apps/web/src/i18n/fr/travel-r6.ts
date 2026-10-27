@@ -41,4 +41,6 @@ export const travelR6: Record<string, string> = {
   'You headed back before the first landmark: the city from the air.':
     'Retour avant le premier monument : la ville vue du ciel.',
   'A landmark from the air: {name}': 'Un monument vu du ciel : {name}',
+  // Hotels (HotelList).
+  '1 star': '1 étoile',
 };
