@@ -1332,6 +1332,17 @@ textarea {
     border-color var(--dur-1),
     box-shadow var(--dur-1);
 }
+/* Phones zoom the whole page into a field whose text is under 16 px, and the
+   screen then slides about (player: "the screen keeps moving when you open
+   chat"). On touch screens fields stay at 16 px, whatever the type scale or a
+   screen's own field style (hence !important). */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+}
 input:focus,
 select:focus,
 textarea:focus {
