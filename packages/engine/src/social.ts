@@ -33,6 +33,7 @@ import { eventLead } from './bankwork.js';
 import { BANKER_NAMES } from './data/bankwork.js';
 import { DEALFLOW } from './data/dealflow.js';
 import { feedbackOn } from './releases.js';
+import { gameMinute, whenOf } from './places.js';
 import { adjustTrust, col, getMarket, getPlayer, locationOf, notify } from './helpers.js';
 import { newId } from './ids.js';
 import { account, costIn, pay, payExact, valueIn, withTx } from './ledger.js';
@@ -1034,7 +1035,7 @@ function goingCount(world: World, e: TechEvent): number {
     .length;
 }
 
-export function attendTechEvent(world: World, me: Player, eventId: string) {
+export function attendTechEvent(world: World, me: Player, eventId: string, now?: number) {
   const ref = parseTechEventId(eventId);
   ensure(ref, 'techevent.missing', 'We can’t find that event.');
   const m = world.markets[ref.market];
@@ -1042,6 +1043,12 @@ export function attendTechEvent(world: World, me: Player, eventId: string) {
   ensure(ref.month === m.month, 'techevent.when', 'That event isn’t on this month.');
   const e = techEventsFor(world, m, m.month).find((x) => x.id === eventId);
   ensure(e, 'techevent.missing', 'We can’t find that event.');
+  // The feedback round (playtest round 6): an event on an earlier day of the month is over.
+  ensure(
+    !(feedbackOn(world) && now !== undefined && eventPast(m, e.day, now)),
+    'techevent.over',
+    `That was on day ${e.day}: it’s over. See what’s on next.`,
+  );
   ensure(locationOf(me) === e.market, 'techevent.where', `That’s in ${m.data.name}.`);
   ensure(!attendedIds(me, e.month).includes(e.id), 'techevent.twice', 'You’re already there.');
   ensure(goingCount(world, e) < e.capacity, 'techevent.full', 'It’s full.');
@@ -1163,8 +1170,17 @@ export function attendTechEvent(world: World, me: Player, eventId: string) {
   };
 }
 
-/** `market.techEvents` / `here.techEvents`: this month's events ("on") and next month's ("soon"). */
-export function techEventsView(world: World, p: Player, m: MarketState) {
+/** The game day of the month now (1–30), on this market's clock. */
+const todayIn = (m: MarketState, now: number) => whenOf(gameMinute(m, now)).day;
+/** An event this month on a day already gone. */
+const eventPast = (m: MarketState, day: number, now: number) => day < todayIn(m, now);
+
+/**
+ * `market.techEvents` / `here.techEvents`: this month's events ("on") and
+ * next month's ("soon"). With the clock, this month's on a day already gone
+ * are `past` (playtest round 6: Day 8 events listed as on, on Day 23).
+ */
+export function techEventsView(world: World, p: Player, m: MarketState, now?: number) {
   const row = (e: TechEvent, status: 'on' | 'soon') => ({
     id: e.id,
     kind: e.kind,
@@ -1176,6 +1192,8 @@ export function techEventsView(world: World, p: Player, m: MarketState) {
     day: e.day,
     month: e.month,
     status,
+    /** This month's, on a day already gone (only with the clock). */
+    past: status === 'on' && now !== undefined && eventPast(m, e.day, now),
     venue: e.venue,
     speakers: e.speakers.map(({ contact: _c, ...s }) => s),
     capacity: e.capacity,

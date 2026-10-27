@@ -26,7 +26,13 @@ interface Pitch {
 }
 interface State {
   market: {
-    techEvents?: { id: string; status: string; ticket: number; founderPitches?: boolean }[];
+    techEvents?: {
+      id: string;
+      status: string;
+      ticket: number;
+      founderPitches?: boolean;
+      past?: boolean;
+    }[];
   };
   investorDealFlow?: { pitches: Pitch[] } | null;
 }
@@ -69,7 +75,7 @@ async function angelDeals(page: Page, events: number, want: number) {
   const s0 = await state(page);
   const e = (s0.market.techEvents ?? [])
     // Founders pitch at startup and investor events, not at every banking one (feedback note).
-    .filter((x) => x.status === 'on' && x.founderPitches !== false)
+    .filter((x) => x.status === 'on' && !x.past && x.founderPitches !== false)
     .sort((a, b) => a.ticket - b.ticket);
   for (const x of e.slice(0, events))
     expect((await command(page, { type: 'techevent.attend', eventId: x.id })).status).toBe(200);
@@ -109,7 +115,7 @@ test('a new investor at a tech event is pitched by founders and can follow up an
   const s0 = await state(page);
   const e = (s0.market.techEvents ?? [])
     // Founders pitch at startup and investor events, not at every banking one (feedback note).
-    .filter((x) => x.status === 'on' && x.founderPitches !== false)
+    .filter((x) => x.status === 'on' && !x.past && x.founderPitches !== false)
     .sort((a, b) => a.ticket - b.ticket)[0]!;
 
   const phone = await openEvents(page);

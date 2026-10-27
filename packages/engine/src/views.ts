@@ -659,7 +659,7 @@ function marketView(
     /** Wave 7: food delivery (the Chop app): open food businesses, cheapest first (up to 20). */
     delivery: deliveryView(world, m),
     /** Wave 8: the city's tech events: this month's ("on") and next month's ("soon"). */
-    techEvents: techEventsView(world, p, m),
+    techEvents: techEventsView(world, p, m, clock?.now),
     /** The city economy at a glance (Wave 3). */
     economy: economyView(m),
     /** Wave 10: the property market: price index, and every home (for sale or owned). */

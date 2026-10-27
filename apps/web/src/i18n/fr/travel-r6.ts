@@ -28,6 +28,11 @@ export const travelR6: Record<string, string> = {
   'The pot is shared between them.': 'La cagnotte est partagée entre eux.',
   // Bowling: the score with bonus balls still to come.
   '{n}+': '{n}+',
+  // Events (the phone's Events app).
+  Over: 'Fini',
+  'Earlier this month ({n})': 'Plus tôt ce mois-ci ({n})',
+  'Earlier this month': 'Plus tôt ce mois-ci',
+  'Nothing more on this month.': 'Plus rien de prévu ce mois-ci.',
   // The helicopter (AirHost, AirFlight).
   '{price} · 1 hour, with the briefing': '{price} · 1 heure, briefing compris',
   '{price} · {n} hours, with the briefing': '{price} · {n} heures, briefing compris',

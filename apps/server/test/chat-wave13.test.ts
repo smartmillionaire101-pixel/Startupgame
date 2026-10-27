@@ -167,8 +167,9 @@ describe('player chats (Wave 13)', () => {
     expect((await msgs(a, chatId)).at(-1)!.card).toMatchObject({ status: 'together' });
 
     // A tech event together: both can go.
+    // One still to come (an event on a day already gone is over).
     const ev = (view.here?.techEvents ?? view.market.techEvents).find(
-      (e: { status: string }) => e.status === 'on',
+      (e: { status: string; past?: boolean }) => e.status === 'on' && !e.past,
     );
     const t = await a.post(`/api/chats/with/${bId}/act`, { techEventId: ev.id });
     expect(t.statusCode, t.body).toBe(200);
