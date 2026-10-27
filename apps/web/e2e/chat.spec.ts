@@ -113,6 +113,8 @@ interface State {
         closingCosts: number;
       }[];
     };
+    /** This month's events; `past` is on a day already gone (the game clock). */
+    techEvents?: { id: string; status: string; past?: boolean }[];
   };
   living: { dates: { id: string; status: string }[] };
   visits?: { incoming: { id: string; status: string }[] };
@@ -303,21 +305,38 @@ test('players chat with emoji and voice notes, pay, date, visit, go out and give
   });
 
   // ---- 7. A tech event together: both go from the card.
+  // Events on a day already gone are over (playtest #42: the game month is one
+  // real day, so late in the UTC day every event may be): then the panel says
+  // there's nothing on, and offers none to pick.
+  const toCome = ((await state(a)).market.techEvents ?? []).filter(
+    (e) => e.status === 'on' && !e.past,
+  );
   await aPhone.getByRole('button', { name: 'Do something together' }).click();
   await aPhone.getByRole('menuitem', { name: /Tech event together/ }).click();
   const evPanel = aPhone.getByRole('region', { name: 'Tech event together' });
-  await expect(evPanel.locator('[data-event-pick]').first()).toBeVisible();
-  await evPanel.getByRole('button', { name: /^Invite / }).click();
-  const aEvent = lastCard(aPhone, 'techevent');
-  await expect(aEvent).toBeVisible();
-  await aEvent.getByRole('button', { name: 'Go together' }).click();
-  await expect(aEvent).toContainText('You went ✓');
-  const bPhone3 = await openChat(b, aName);
-  const bEvent = lastCard(bPhone3, 'techevent');
-  await expect(bEvent).toBeVisible({ timeout: 15_000 });
-  await bEvent.getByRole('button', { name: 'Go together' }).click();
-  await expect(bEvent).toContainText('You went ✓');
-  await expect(aEvent).toContainText(/Going: You, Bongani/, { timeout: 15_000 });
+  if (toCome.length === 0) {
+    test.info().annotations.push({
+      type: 'note',
+      description: 'Late in the game month: no event still to come, so none to go to together.',
+    });
+    await expect(evPanel).toContainText('Nothing on this month.');
+    await expect(evPanel.locator('[data-event-pick]')).toHaveCount(0);
+    await evPanel.getByRole('button', { name: 'Cancel' }).click();
+    await expect(evPanel).toBeHidden();
+  } else {
+    await expect(evPanel.locator('[data-event-pick]').first()).toBeVisible();
+    await evPanel.getByRole('button', { name: /^Invite / }).click();
+    const aEvent = lastCard(aPhone, 'techevent');
+    await expect(aEvent).toBeVisible();
+    await aEvent.getByRole('button', { name: 'Go together' }).click();
+    await expect(aEvent).toContainText('You went ✓');
+    const bPhone3 = await openChat(b, aName);
+    const bEvent = lastCard(bPhone3, 'techevent');
+    await expect(bEvent).toBeVisible({ timeout: 15_000 });
+    await bEvent.getByRole('button', { name: 'Go together' }).click();
+    await expect(bEvent).toContainText('You went ✓');
+    await expect(aEvent).toContainText(/Going: You, Bongani/, { timeout: 15_000 });
+  }
 
   // ---- 8. A home as a gift. A buys a small flat outright (setup), then gives it from the chat.
   let listings = (await state(a)).market.properties.listings;
