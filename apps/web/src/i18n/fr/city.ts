@@ -68,6 +68,10 @@ export const city: Record<string, string> = {
   'Business loans are for founders with an active company.':
     'Les prêts aux entreprises sont réservés aux fondateurs d’une entreprise active.',
   Owner: 'Propriétaire',
+  'Your desk': 'Votre bureau',
+  'Your desk · loan requests waiting: {n}': 'Votre bureau · demandes de prêt en attente : {n}',
+  'Loan requests, clients and the bank’s numbers':
+    'Demandes de prêt, clients et chiffres de la banque',
   'Deposits {rate}%': 'Dépôts {rate} %',
 
   // Investor office

@@ -147,6 +147,12 @@ export const bankers: Record<string, string> = {
   'Checklist complete. The regulator decides at the end of month {month}.':
     'Liste complète. Le régulateur décide à la fin du mois {month}.',
   Checklist: 'Liste de contrôle',
+  'Capital is {short} short of the {need} minimum. Add capital before month end or the licence is refused.':
+    'Il manque {short} de capital pour atteindre le minimum de {need}. Ajoutez du capital avant la fin du mois, sinon l’agrément sera refusé.',
+  'Capital {capital} (minimum {need}). The regulator counts it after this month’s salaries and rent ({costs}).':
+    'Capital {capital} (minimum {need}). Le régulateur le compte après les salaires et le loyer du mois ({costs}).',
+  'Capital {capital} (minimum {need}). This month’s salaries and rent ({costs}) are paid after the regulator decides.':
+    'Capital {capital} (minimum {need}). Les salaires et le loyer du mois ({costs}) sont payés après la décision du régulateur.',
   'Hire: {role}': 'Recruter : {role}',
   'Fit-and-proper interview at the Central Bank': 'Entretien d’honorabilité à la Banque centrale',
   'Business plan': 'Business plan',
@@ -265,6 +271,7 @@ export const bankers: Record<string, string> = {
     'Les superviseurs veulent savoir si vous pouvez diriger une banque prudemment. Répondez à chaque question ; cela prend trois heures.',
   'Give my answers': 'Donner mes réponses',
   'Interview passed: {score}/100.': 'Entretien réussi : {score}/100.',
+  'Weakest answer: {question}': 'Réponse la plus faible : {question}',
   'Not convinced: {score}/100. Book another appointment to try again.':
     'Pas convaincus : {score}/100. Reprenez rendez-vous pour réessayer.',
   'A large borrower defaults in your first year. How do you protect your capital?':

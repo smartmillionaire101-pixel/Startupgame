@@ -399,9 +399,11 @@ function whyText(d: Decision): string {
         { churn: v.churn! },
       );
     case 'first-call.team':
-      return t('Only {team} people. Ask who builds, who sells and who they hire next.', {
-        team: v.team!,
-      });
+      return v.team === 1
+        ? t('A solo founder. Ask who builds, who sells and who they hire next.')
+        : t('Only {team} people. Ask who builds, who sells and who they hire next.', {
+            team: v.team!,
+          });
     case 'first-call.growth':
       return v.growth! < 3
         ? t(
@@ -410,10 +412,16 @@ function whyText(d: Decision): string {
               growth: v.growth!,
             },
           )
-        : t(
-            'Money, customers and team look healthy ({runway} months of money, {churn}% churn). Growth ({growth}% a month) is what sets the price.',
-            { runway: v.runway!, churn: v.churn!, growth: v.growth! },
-          );
+        : v.runway! >= 60
+          ? // Play-test: "511 months of money" read as praise for a company that barely spends.
+            t(
+              'Money, customers and team look healthy (money for years at this spending, {churn}% churn). Growth ({growth}% a month) is what sets the price.',
+              { churn: v.churn!, growth: v.growth! },
+            )
+          : t(
+              'Money, customers and team look healthy ({runway} months of money, {churn}% churn). Growth ({growth}% a month) is what sets the price.',
+              { runway: v.runway!, churn: v.churn!, growth: v.growth! },
+            );
     case 'valuation.fair':
       return t(
         'Its numbers put it at about {model}. A fair price is {lo} to {hi}: below it founders walk away, above it you overpay and own less.',

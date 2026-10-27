@@ -34,6 +34,7 @@ export const investorCareer: Record<string, string> = {
   'Funds raised': 'Fonds levés',
   'Partners or associates hired': 'Associés ou chargés d’affaires recrutés',
   'Liquid wealth (60 months of living costs)': 'Patrimoine liquide (60 mois de dépenses courantes)',
+  'Lead a syndicate first': 'Menez d’abord un syndicat',
   'A senior role at a DFI or bank': 'Un poste de direction dans une IFD ou une banque',
   // ---- the ladder card
   'Your investor career': 'Votre carrière d’investisseur',
@@ -71,6 +72,9 @@ export const investorCareer: Record<string, string> = {
   'Three startups at the café': 'Trois startups au café',
   'A first call': 'Un premier appel',
   'A small SAFE': 'Un petit SAFE',
+  'Raising: {stage}': 'Lève : {stage}',
+  '{own} + up to {safe} on a SAFE': '{own} + jusqu’à {safe} via un SAFE',
+  'up to {safe} on a SAFE': 'jusqu’à {safe} via un SAFE',
   'Your portfolio': 'Votre portefeuille',
   'The ladder': 'L’échelle',
   'First session · step {n} of {total}': 'Première session · étape {n} sur {total}',

@@ -154,7 +154,8 @@ function publicCompany(world: World, c: Company) {
     stars: round1(c.stars.value),
     publicWarning: hasPublicWarning(c.stars),
     lastRound: c.lastRound,
-    raising: c.raising,
+    // Play-test (FEEDBACK_NOTE): a listed company isn't raising a private round.
+    raising: c.raising && !(feedbackOn(world) && c.ipo?.status === 'listed'),
     teamSize: c.staff.length + c.founderIds.length,
     founders: c.founderIds.map((id) => ({
       id,
@@ -481,6 +482,16 @@ function portfolio(world: World, p: Player) {
         returned: x.returned,
         mark,
         ownershipPct: Math.round(ownership(c.capTable, x.investorId) * 1000) / 10,
+        /**
+         * Play-test: a SAFE owns no shares until it converts, so its stake read 0%.
+         * The stake it converts to at most, at its cap (amount ÷ post-money cap).
+         */
+        safePct:
+          Math.round(
+            c.capTable.safes
+              .filter((s) => s.holderId === x.investorId)
+              .reduce((a, s) => a + s.amount / Math.max(1, s.cap), 0) * 1000,
+          ) / 10,
         writtenOff: x.writtenOff,
         /** Investor career: (cash back + mark) ÷ invested, the mark history and a status. */
         moic: x.invested > 0 ? Math.round(((x.returned + mark) / x.invested) * 100) / 100 : 0,

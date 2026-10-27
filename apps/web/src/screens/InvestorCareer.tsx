@@ -90,6 +90,8 @@ function reqLabel(id: string): string {
       return t('Partners or associates hired');
     case 'liquid':
       return t('Liquid wealth (60 months of living costs)');
+    case 'track':
+      return t('Lead a syndicate first');
     default:
       return t('A senior role at a DFI or bank');
   }
@@ -367,7 +369,8 @@ export function InvestorFirstSession() {
                 <strong>{c.name}</strong>{' '}
                 {c.fits && <Pill tone="good">{t('Fits your thesis')}</Pill>}
                 <p className="small muted">
-                  {tx(c.idea)} · {stageLabel(c.stage)} · {c.stars.toFixed(1)}★
+                  {tx(c.idea)} · {t('Raising: {stage}', { stage: stageLabel(c.stage) })} ·{' '}
+                  {c.stars.toFixed(1)}★
                 </p>
               </div>
               <Button

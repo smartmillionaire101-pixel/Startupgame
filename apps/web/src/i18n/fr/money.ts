@@ -167,6 +167,11 @@ export const money: Record<string, string> = {
   'No companies to look at yet.': 'Aucune entreprise à examiner pour l’instant.',
   'Make an offer': 'Faire une offre',
   '{n} people': '{n} personnes',
+  '1 person': '1 personne',
+  'Fund I, for later': 'Le Fonds I, pour plus tard',
+  'Back startups first: LPs back managers with a record. Open to plan it.':
+    'Investissez d’abord dans des startups : les LP soutiennent les gérants qui ont un historique. Ouvrez pour le préparer.',
+  'Last round: {stage}': 'Dernier tour : {stage}',
   'For sale': 'À vendre',
   'Model value {value} · revenue {revenue}/mo':
     'Valeur modèle {value} · chiffre d’affaires {revenue}/mois',

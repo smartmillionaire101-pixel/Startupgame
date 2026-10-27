@@ -38,6 +38,23 @@ export const pct = (x: number, digits = 0) => {
   return getLang() === 'fr' ? `${v.replace('.', ',')}\u00a0%` : `${v}%`;
 };
 
+/**
+ * A position's stake: its shares, and what a SAFE converts to at most at its
+ * cap (play-test: a SAFE owns no shares yet, so it read 0%).
+ */
+export const stakeText = (p: { ownershipPct: number; safePct?: number }) => {
+  const own = pct(p.ownershipPct / 100, 1);
+  const safe = p.safePct ?? 0;
+  if (safe <= 0) return own;
+  const s = pct(safe / 100, 1);
+  return p.ownershipPct > 0
+    ? t('{own} + up to {safe} on a SAFE', { own, safe: s })
+    : t('up to {safe} on a SAFE', { safe: s });
+};
+
+/** A team's size: "1 person", "3 people" (play-test: "1 people"). */
+export const teamText = (n: number) => (n === 1 ? t('1 person') : t('{n} people', { n }));
+
 export const runway = (months: number | null) =>
   months === null
     ? t('Profitable')

@@ -1,7 +1,7 @@
 import { FriendsBacking } from './FundCompany';
 import { useState } from 'react';
 import type { Industry, Stage } from '@runway/engine';
-import { amountInput, money, parseAmount } from '../format';
+import { amountInput, money, parseAmount, stakeText, teamText } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Field, Pill, Segmented, Sheet, Sparkline, Stat } from '../ui';
@@ -107,8 +107,13 @@ export function DealFlow() {
                   {tx(c.industryLabel)}
                 </Pill>
                 <Pill>{c.stars.toFixed(1)}★</Pill>
-                <Pill>{c.lastRound ? stageLabel(c.lastRound) : t('Unfunded')}</Pill>
-                <Pill>{t('{n} people', { n: c.teamSize })}</Pill>
+                {/* Play-test: the round it last raised, said so (the café card says what it raises now). */}
+                <Pill>
+                  {c.lastRound
+                    ? t('Last round: {stage}', { stage: stageLabel(c.lastRound) })
+                    : t('Unfunded')}
+                </Pill>
+                <Pill>{teamText(c.teamSize)}</Pill>
                 {c.market !== view.me.market && <Pill tone="info">{c.marketName}</Pill>}
                 {c.ai && <Pill>{t('AI founder')}</Pill>}
               </div>
@@ -403,6 +408,9 @@ function CompanySheet({ listing, onClose }: { listing: Listing; onClose: () => v
   );
 }
 
+/** Angel deals before Fund I's builder opens unfolded (LPs want at least three). */
+const FUND_I_DEALS = 3;
+
 export function Portfolio() {
   const { view, cur, send, meta } = useView();
   const [sectors, setSectors] = useState<Industry[]>(view.me.investor?.sectors ?? []);
@@ -446,7 +454,7 @@ export function Portfolio() {
                       <td>
                         {p.name}{' '}
                         <span className="small muted">
-                          {p.ownershipPct}%
+                          {stakeText(p)}
                           {p.status !== 'active' ? ` · ${companyStatusLabel(p.status)}` : ''}
                           {p.moic ? ` · ${p.moic.toFixed(2)}×` : ''}
                           {p.statusLabel === 'at-risk'
@@ -522,7 +530,21 @@ export function Portfolio() {
               <LastPanel />
             </>
           ) : view.me.role === 'investor' && dealflowOf(view) ? (
-            <FundPitch />
+            record.deals < FUND_I_DEALS ? (
+              // Play-test: a brand-new angel saw the whole Fund I builder; it waits, folded.
+              <details className="card fund-later" data-fund-later="">
+                <summary>
+                  <b>{t('Fund I, for later')}</b>
+                  <span className="small muted">
+                    {' '}
+                    {t('Back startups first: LPs back managers with a record. Open to plan it.')}
+                  </span>
+                </summary>
+                <FundPitch />
+              </details>
+            ) : (
+              <FundPitch />
+            )
           ) : view.me.role === 'investor' ? (
             <Card title={t('Raise Fund I from AI LPs')}>
               <p className="small muted">

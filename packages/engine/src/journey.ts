@@ -303,8 +303,17 @@ const go = { capital: { kind: 'app', app: 'capital' } as JourneyGo };
 function invested(world: World, p: Player): boolean {
   if (p.milestones['investor.first-check'] !== undefined) return true;
   const holders = new Set([p.id, ...(p.investor?.fundId ? [p.investor.fundId] : [])]);
-  return Object.values(world.positions).some((x) => holders.has(x.investorId));
+  return Object.values(world.positions).some((x) => holders.has(x.investorId) && backing(world, x));
 }
+
+/**
+ * Is a position backing a company (money in privately)? Play-test
+ * (FEEDBACK_NOTE): shares bought on the stock market are not, so buying a
+ * listed company's shares no longer ticks "Back 3 startups".
+ */
+const backing = (world: World, x: World['positions'][Id]) =>
+  !feedbackOn(world) ||
+  x.invested - (world.companies[x.companyId]?.ipo?.basis?.[x.investorId] ?? 0) > 0;
 
 // ---------------------------------------------------------------- chapters
 
@@ -702,6 +711,7 @@ function backed(world: World, p: Player): { personal: number; fund: number } {
   const mine = new Set<Id>();
   const viaFund = new Set<Id>();
   for (const x of Object.values(world.positions)) {
+    if (!backing(world, x)) continue;
     if (x.investorId === p.id) mine.add(x.companyId);
     else if (funds.has(x.investorId)) viaFund.add(x.companyId);
   }

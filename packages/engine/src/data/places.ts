@@ -107,7 +107,8 @@ export const PLACE_SPECS: Record<PlaceRole, PlaceSpec> = {
   },
   'central-bank': {
     label: 'Central Bank',
-    purpose: 'The money regulator: payments licences and fund manager licences.',
+    purpose:
+      'The money regulator: bank licences and their fit-and-proper interviews, payments licences and fund manager licences.',
     access: 'appointment',
     services: ['payments-licence', 'fund-licence'],
     more: ['rate-briefing'],

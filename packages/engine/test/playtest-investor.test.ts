@@ -1,0 +1,157 @@
+/**
+ * Play-test fixes for investors (feedback round, FEEDBACK_NOTE): a new angel
+ * starts at the bottom of the ladder and on Journey chapter 1, and shares
+ * bought on the stock market aren't "backing a startup".
+ */
+import { describe, expect, it } from 'vitest';
+import { produce } from 'immer';
+import { establishedId } from '../src/established.js';
+import { isEstablished } from '../src/helpers.js';
+import { FEEDBACK_NOTE, INVESTOR_NOTE } from '../src/releases.js';
+import { playerView } from '../src/views.js';
+import type { World } from '../src/types.js';
+import { makeWorld, run, tryRun } from './helpers.js';
+
+const I = 'u_investor';
+const announce = (w: World, id: string) =>
+  run(w, null, { type: 'system.announce', id, text: id }).world;
+
+/** A new investor with the savings a playtester had (well over 60 months of living). */
+function newInvestor(note: string = FEEDBACK_NOTE): World {
+  const w = announce(makeWorld(11, ['lagos']), note);
+  return run(w, I, {
+    type: 'player.quickStart',
+    username: 'h_investor',
+    name: 'Kwame Investor',
+    role: 'investor',
+    backgroundId: 'i-operator',
+    market: 'lagos',
+  }).world;
+}
+
+const inbox = (w: World) => (playerView(w, I)!.inbox as { text: string }[]).map((n) => n.text);
+
+describe('play-test #7: a new investor starts as an angel, on chapter 1', () => {
+  it('savings alone don’t make a new angel an allocator', () => {
+    const w = newInvestor();
+    const p = w.players[I]!;
+    expect(p.career!.reached).toEqual({ 1: expect.any(Number) });
+    expect(p.milestones['investor.rung-7']).toBeUndefined();
+    expect(inbox(w).some((t) => /allocator/i.test(t))).toBe(false);
+    const rung7 = playerView(w, I)!.investorCareer!.rungs.find((r) => r.n === 7)!;
+    expect(rung7.requirements.map((r) => r.id)).toEqual(['track', 'liquid']);
+    expect(playerView(w, I)!.journey!.current).toBe(1);
+  });
+
+  it('with a track record (rung 2) the wealth route opens: “now an allocator”', () => {
+    let w = newInvestor();
+    w = produce(w, (d) => {
+      d.players[I]!.career!.reached[2] = 0;
+    });
+    w = run(w, I, { type: 'player.seen' }).world;
+    expect(w.players[I]!.career!.reached[7]).toBeDefined();
+    expect(inbox(w)).toContainEqual(expect.stringMatching(/^Career: you’re now an allocator\./));
+  });
+
+  it('before the feedback round the ladder is as it was', () => {
+    const w = newInvestor(INVESTOR_NOTE);
+    expect(w.players[I]!.career!.reached[7]).toBeDefined();
+  });
+
+  it('shares bought on the stock market don’t count as backing a startup', () => {
+    let w = newInvestor();
+    w = run(w, I, { type: 'investor.tutorial', action: 'skip' }).world;
+    // Two private cheques.
+    w = produce(w, (d) => {
+      const cs = Object.values(d.companies)
+        .filter((c) => c.ai && c.status === 'active' && !isEstablished(c))
+        .slice(0, 2);
+      for (const c of cs)
+        d.positions[`${I}:${c.id}`] = {
+          investorId: I,
+          companyId: c.id,
+          invested: 1_000_00,
+          returned: 0,
+          month: 0,
+          writtenOff: false,
+        };
+    });
+    // And shares in one of the exchange's Plcs.
+    w = run(w, I, {
+      type: 'shares.buy',
+      companyId: establishedId('lagos', 0),
+      amount: 5_000_000_00,
+    }).world;
+    const j = playerView(w, I)!.journey!;
+    expect(j.current).toBe(1);
+    const step = j.chapters[0]!.steps.find((s) => s.id === 'first-cheque.portfolio')!;
+    expect(step.done).toBe(false);
+  });
+});
+
+describe('play-test #8: a SAFE’s amount and stake', () => {
+  it('suggests a round amount, takes exactly that, and shows the stake at the cap', () => {
+    let w = newInvestor();
+    w = run(w, I, { type: 'investor.tutorial', action: 'next' }).world;
+    const pick = playerView(w, I)!.investorCareer!.tutorial!.picks[0]!;
+    // Two significant figures: "₦3m" is ₦3,000,000, not ₦3,037,500.
+    const digits = String(pick.suggestedAmount).replace(/0+$/, '');
+    expect(digits.length).toBeLessThanOrEqual(2);
+    w = run(w, I, {
+      type: 'investor.tutorial',
+      action: 'shortlist',
+      companyId: pick.companyId,
+    }).world;
+    w = run(w, I, { type: 'invest.diligence', companyId: pick.companyId, depth: 1 }).world;
+    const cash = () => w.accounts[w.players[I]!.accounts.local]!.balance;
+    const before = cash();
+    const r = run(w, I, {
+      type: 'invest.propose',
+      companyId: pick.companyId,
+      instrument: 'safe',
+      amount: pick.suggestedAmount,
+      valuation: pick.suggestedCap,
+      proRata: true,
+      boardSeat: false,
+      vetoOnSale: false,
+    });
+    expect(r.result.status).toBe('accepted');
+    w = r.world;
+    expect(before - cash()).toBe(pick.suggestedAmount);
+    const pos = playerView(w, I)!.portfolio.find((x) => x.companyId === pick.companyId)!;
+    expect(pos.ownershipPct).toBe(0);
+    expect(pos.safePct).toBeCloseTo((100 * pick.suggestedAmount) / pick.suggestedCap, 1);
+    expect(pos.safePct).toBeGreaterThan(0);
+  });
+});
+
+describe('play-test #33: a listed company isn’t offered as a private deal', () => {
+  const listedStartup = (w: World) =>
+    Object.values(w.companies).find(
+      (c) => c.ai && !isEstablished(c) && c.status === 'active' && c.ipo?.status === 'listed',
+    )!;
+
+  it('is not raising in deal offers, not a café pick, and refuses a term sheet', () => {
+    let w = newInvestor();
+    const c = listedStartup(w);
+    expect(c).toBeDefined();
+    w = produce(w, (d) => {
+      d.companies[c.id]!.raising = true;
+    });
+    const v = playerView(w, I)!;
+    expect(v.directory.find((x) => x.id === c.id)!.raising).toBe(false);
+    expect(v.investorCareer!.tutorial!.picks.map((p) => p.companyId)).not.toContain(c.id);
+    const r = tryRun(w, I, {
+      type: 'invest.propose',
+      companyId: c.id,
+      instrument: 'priced',
+      amount: 1_000_000_00,
+      valuation: 1_000_000_000_00,
+      proRata: true,
+      boardSeat: false,
+      vetoOnSale: false,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('invest.listed');
+  });
+});
