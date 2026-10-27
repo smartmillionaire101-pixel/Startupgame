@@ -42,7 +42,7 @@ const companyOf = (page: Page) =>
     };
   });
 
-test('the top bar’s cash shows your money and your company’s', async ({ page }) => {
+test('the money pill shows your money and your company’s', async ({ page }) => {
   await founder(page);
   await page.locator('[data-topbar-cash]').click();
   const sheet = page.locator('[data-money-sheet]');
@@ -52,6 +52,8 @@ test('the top bar’s cash shows your money and your company’s', async ({ page
   await expect(company.getByText('In the company bank')).toBeVisible();
   await expect(company.getByText('Revenue last month')).toBeVisible();
   await expect(company.getByText('Spending per month')).toBeVisible();
+  // The whole Money screen is one tap on (it has no tab of its own).
+  await expect(sheet.getByRole('button', { name: 'All your money' })).toBeVisible();
   await shot(page, 'money-sheet');
   await company.getByRole('button', { name: 'Open Company' }).click();
   await expect(page.locator('.kpis').getByText('Company bank')).toBeVisible();
@@ -60,6 +62,8 @@ test('the top bar’s cash shows your money and your company’s', async ({ page
 
 test('a warning before payday when the company can’t cover it', async ({ page }) => {
   await founder(page);
+  const pill = page.locator('[data-topbar-cash]');
+  await expect(pill).not.toHaveAttribute('data-payday-due');
   await expect(page.locator('[data-payday-warning]')).toHaveCount(0);
   // Pay yourself as much as you may, more than the company has: next payday is short.
   const { id, maxSalary } = await companyOf(page);
@@ -69,8 +73,13 @@ test('a warning before payday when the company can’t cover it', async ({ page 
   });
   expect(r.ok(), await r.text()).toBe(true);
   await page.reload();
-  const warning = page.locator('[data-payday-warning]');
-  await expect(warning).toBeVisible({ timeout: 30_000 });
+  // The money pill gets a red ring (and says so); its sheet starts with the warning.
+  await expect(pill).toHaveAttribute('data-payday-due', '', { timeout: 30_000 });
+  await expect(pill).toHaveAttribute('aria-label', /Next payday is short/);
+  await shot(page, 'payday-pill');
+  await pill.click();
+  const warning = page.locator('[data-money-sheet] [data-payday-warning]');
+  await expect(warning).toBeVisible();
   await expect(warning).toContainText('Next payday');
   await shot(page, 'payday-warning');
   await warning.click();

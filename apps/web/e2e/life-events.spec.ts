@@ -73,7 +73,7 @@ async function newInvestor(page: Page, simple: boolean) {
     gender: 'female',
     investor: { sectors: ['fintech'], stages: ['pre-seed', 'seed'], checkSize: 2000000 },
   });
-  await page.locator('.topbar').waitFor();
+  await page.locator('[data-hud-bar]').waitFor();
 }
 
 /** Close months until a life event is waiting. */
@@ -146,9 +146,11 @@ test('Simple mode is for founders: an investor who had it on plays the full game
   await newInvestor(page, true);
   await expect(page.locator('html')).not.toHaveAttribute('data-simple', '1');
   const nav = page.getByRole('navigation', { name: 'Main' });
-  await expect(nav.getByRole('button')).toHaveCount(5);
-  for (const name of ['City', 'Today', 'Portfolio', 'Deal offers', 'Me'])
+  // The full game's four tabs (Deal offers is a big link on Portfolio).
+  await expect(nav.getByRole('button')).toHaveCount(4);
+  for (const name of ['City', 'Today', 'Portfolio', 'Me'])
     await expect(tab(page, name)).toBeVisible();
+  await expect(tab(page, 'My investments')).toHaveCount(0);
   await tab(page, 'Me').click();
   await expect(page.locator('[data-setting="simple"]')).toHaveCount(0);
 });

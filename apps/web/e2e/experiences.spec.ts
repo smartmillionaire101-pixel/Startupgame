@@ -9,6 +9,7 @@ import {
   type Page,
   tapPlace,
   openTogether,
+  hudMore,
 } from './fixtures';
 // Software WebGL, so the 3D home (and the sky views) really draw on CI.
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
@@ -31,7 +32,7 @@ async function founder(p: Page, name: string) {
     idea: 'Tools for local businesses',
     market: /London/,
   });
-  await expect(p.locator('.topbar')).toBeVisible({ timeout: 30000 });
+  await expect(p.locator('[data-hud-bar]')).toBeVisible({ timeout: 30000 });
 }
 const together = (p: Page) => openTogether(p);
 
@@ -293,6 +294,7 @@ test.describe('the 3D home', () => {
     // It arrives 30 seconds after the order.
     await expect(canvas).toHaveAttribute('data-van', 'here', { timeout: 45_000 });
     await home.screenshot({ path: info.outputPath('home-van-garage.png') });
+    await hudMore(home);
     await home.getByRole('button', { name: /Home & friends/ }).click();
     const living = page.getByRole('dialog', { name: 'Home and social experiences' });
     const unpack = living.getByRole('button', { name: 'Unpack delivery' });

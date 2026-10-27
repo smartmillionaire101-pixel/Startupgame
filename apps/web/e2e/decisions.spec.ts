@@ -46,7 +46,7 @@ test('a decision appears, the founder chooses, and sees what happened', async ({
     // A life event alone (it shows the badge too) isn't what this spec is about.
     if (!(await founderDecisions(page))) continue;
     await page.reload();
-    await page.locator('.topbar').waitFor();
+    await page.locator('[data-hud-bar]').waitFor();
     // Give a slow deploy time to load the view: a decision missed here would take
     // its default at the next settlement and never show.
     const shown = await badge

@@ -1,4 +1,4 @@
-import { setupPlayer } from './fixtures';
+import { setupPlayer, hudMore } from './fixtures';
 import { expect, letters, playAsGuest, tab, test } from './fixtures';
 
 /**
@@ -51,6 +51,7 @@ test('a new investor makes a first cheque in the first session, sees the ladder 
   // The investor journey: the map's Journey button follows the investor's chapter,
   // and its sheet says what to do next (back more startups) with a Go button.
   await tab(page, 'City').click();
+  await hudMore(page);
   const chip = page.getByTestId('journey-chip');
   await expect(chip).toHaveAttribute('aria-label', /The First Cheque/);
   await chip.click();

@@ -84,8 +84,14 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   const s0 = await state(page);
   const wave4 = s0.view.flights !== undefined;
 
-  // The month counts down (when the server sends its clock).
-  if (s0.view.clock) await expect(page.getByRole('timer')).toContainText(/Next month in \d/);
+  // The month counts down (when the server sends its clock), in the time pill's sheet.
+  if (s0.view.clock) {
+    await page.locator('[data-hud-life]').click();
+    const day = page.getByRole('dialog', { name: 'Your day' });
+    await expect(day.getByRole('timer')).toContainText(/Next month in \d/);
+    await day.getByRole('button', { name: 'Close' }).click();
+    await expect(day).toBeHidden();
+  }
 
   // The Event Hall is across the Lagoon: far enough to choose how to get there.
   await tap(page, '[data-place="eventhall"]');

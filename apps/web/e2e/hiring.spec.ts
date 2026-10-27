@@ -1,4 +1,4 @@
-import { expect, letters, playAsGuest, setupFounder, tab, test } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, tab, test, openMoney } from './fixtures';
 
 /** Chapter 2 (§6.4, FR-007): open a role, find candidates, interview, hire; or pick an AI co-founder. */
 test('a founder opens a role, sources candidates, interviews one and hires them', async ({
@@ -91,7 +91,7 @@ test('a founder chooses an AI co-founder and sees the cap table change', async (
   await expect(page.getByRole('heading', { name: /Team · 1/ })).toBeVisible();
 
   // The cap table shows them as an owner with founder shares.
-  await tab(page, 'Money').click();
+  await openMoney(page);
   await page.getByRole('tab', { name: 'Cap Table' }).click();
   const row = page.getByRole('row').filter({ hasText: who }).filter({ hasText: 'founder' });
   await expect(row).toBeVisible();

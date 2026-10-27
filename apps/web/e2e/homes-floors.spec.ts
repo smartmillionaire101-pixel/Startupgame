@@ -60,7 +60,7 @@ test('every home has a bathroom, and a mansion has floors joined by stairs', asy
       kind === 'mansion' ? '3' : kind === 'townhouse' || kind === 'villa' ? '2' : '1',
     );
     if (kind === 'studio') await shot(page, 'studio-bathroom');
-    await home.getByRole('button', { name: 'Close' }).first().click();
+    await home.getByRole('button', { name: 'Say goodbye' }).click();
     await expect(home).toBeHidden();
   }
 

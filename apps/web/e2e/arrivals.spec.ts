@@ -58,13 +58,13 @@ test('a new session starts at home, and going out shows the city', async ({ page
   const home = page.locator('.place-scene[data-scene="home"]');
   await expect(home).toBeVisible({ timeout: 30_000 });
   await shot(page, 'start-at-home');
-  // The phone is at the top at home too (the scene covers the game's top bar).
-  await home.locator('[data-home-phone]').click();
+  // The HUD's phone button floats over your home too.
+  await page.locator('[data-phone-button]').click();
   const phone = page.getByRole('dialog', { name: 'Phone' });
   await expect(phone).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(phone).toBeHidden();
-  await home.getByRole('button', { name: 'Close' }).first().click();
+  await home.getByRole('button', { name: 'Go out', exact: true }).click();
   await expect(home).toBeHidden();
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible();
   // A quick reload stays on the map.

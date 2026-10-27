@@ -9,6 +9,7 @@ import {
   test,
   withoutNetlifyDrawer,
   type Page,
+  openMoney,
 } from './fixtures';
 
 /**
@@ -82,8 +83,8 @@ test('a founder sells a secondary and sees realised vs unrealised wealth', async
   await command(a, { type: 'ff.close', roundId });
   await a.reload();
 
-  // Exit options on the Money tab: the wealth card and the secondary sale.
-  await tab(a, 'Money').click();
+  // Exit options on the Money screen (the money pill): the wealth card and the secondary sale.
+  await openMoney(a);
   await a.getByRole('tab', { name: 'Exit' }).click();
   const realised = a.locator('[data-wealth="realised"]').first();
   await expect(realised).toContainText('₦0 received');

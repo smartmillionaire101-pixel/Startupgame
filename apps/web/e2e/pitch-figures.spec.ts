@@ -1,4 +1,4 @@
-import { expect, letters, playAsGuest, setupFounder, tab, test } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, tab, test, openMoney } from './fixtures';
 
 /**
  * A founder answers an AI fund's questions with their own numbers: under
@@ -45,7 +45,7 @@ test('a founder types their own figures when a fund has questions', async ({ pag
   test.skip(!opened, 'No fund in this world asked questions of a brand-new founder.');
   await page.reload();
 
-  await tab(page, 'Money').click();
+  await openMoney(page);
   const card = page.locator('section.card').filter({ hasText: /has questions/ });
   await expect(card).toBeVisible();
   const traction = card.locator('[data-figure="traction"]');

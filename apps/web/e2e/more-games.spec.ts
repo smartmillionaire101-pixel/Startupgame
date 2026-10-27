@@ -58,7 +58,7 @@ async function founder(p: Page, name: string, market = /Lagos/) {
     idea: 'Tools for local businesses',
     market,
   });
-  await expect(p.locator('.topbar')).toBeVisible({ timeout: 30_000 });
+  await expect(p.locator('[data-hud-bar]')).toBeVisible({ timeout: 30_000 });
 }
 
 async function goingOut(p: Page) {
@@ -291,7 +291,7 @@ test('a tandem skydive over the real city: jump, pull, steer to the target, the 
   // A skydive needs standard of living 3.
   expect((await command(page, { type: 'player.lifestyle', tier: 3 })).ok()).toBe(true);
   await page.reload();
-  await expect(page.locator('.topbar')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-hud-bar]')).toBeVisible({ timeout: 30_000 });
   const before = (await state(page)).accounts.local!.balance;
   const { games } = await goingOut(page);
   await games.locator('[data-go="skydive"]').click();
@@ -371,7 +371,7 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
   await founder(page, 'Heli Rider', /London/);
   expect((await command(page, { type: 'player.lifestyle', tier: 3 })).ok()).toBe(true);
   await page.reload();
-  await expect(page.locator('.topbar')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-hud-bar]')).toBeVisible({ timeout: 30_000 });
   const { games } = await goingOut(page);
   await games.locator('[data-go="heli"]').click();
   const book = page.getByRole('dialog', { name: 'Book a helicopter ride' });
@@ -465,7 +465,7 @@ for (const [city, market] of [
     await founder(page, `Pad ${city}`, market);
     expect((await command(page, { type: 'player.lifestyle', tier: 3 })).ok()).toBe(true);
     await page.reload();
-    await expect(page.locator('.topbar')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-hud-bar]')).toBeVisible({ timeout: 30_000 });
     const { games } = await goingOut(page);
     await games.locator('[data-go="heli"]').click();
     const book = page.getByRole('dialog', { name: 'Book a helicopter ride' });

@@ -105,7 +105,7 @@ test('a new founder registers, funds the company with their own money, leases an
   const name = `Iwe ${letters(6)}`;
   await reserveName(page, name);
   // Nothing to pay yet: no payday warning, ever, before the office.
-  await expect(page.locator('[data-payday-warning]')).toHaveCount(0);
+  await expect(page.locator('[data-payday-due], [data-payday-warning]')).toHaveCount(0);
   await expect(page.locator('.fsu-tracker [data-step="register"]')).toHaveAttribute(
     'data-status',
     'current',
@@ -134,7 +134,7 @@ test('a new founder registers, funds the company with their own money, leases an
   v = await state(page);
   expect(v.companies[0].cash).toBe(amount);
   expect(v.companies[0].nextMonth).toBeNull();
-  await expect(page.locator('[data-payday-warning]')).toHaveCount(0);
+  await expect(page.locator('[data-payday-due], [data-payday-warning]')).toHaveCount(0);
 
   // Office: five choices in different districts, with rent and the runway after.
   await page.getByRole('button', { name: 'Next: choose an office' }).first().click();

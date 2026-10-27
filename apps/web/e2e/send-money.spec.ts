@@ -90,8 +90,8 @@ test('send money: the sender sees the debit and the friend sees the credit', asy
   // A sees it at once: the confirmation and the wallet show the new balance.
   await expect(flow.locator('[data-sent]')).toContainText(`₦${(a1 / 100).toLocaleString('en-GB')}`);
   await expect.poll(() => shown(aWallet)).toBe(a1 / 100);
-  // The pocket in the top bar stays short (₦11.4m) but carries the exact figure.
-  await expect(a.locator('.topbar-cash')).toHaveAttribute(
+  // The money pill stays short (₦11.4m) but carries the exact figure.
+  await expect(a.locator('[data-topbar-cash]')).toHaveAttribute(
     'title',
     `₦${(a1 / 100).toLocaleString('en-GB')}`,
   );
@@ -100,7 +100,7 @@ test('send money: the sender sees the debit and the friend sees the credit', asy
   await b.reload();
   await expect(b.getByRole('button', { name: /^Phone/ })).toBeVisible({ timeout: 30_000 });
   expect(await shown(await wallet(b))).toBe(b1 / 100);
-  await expect(b.locator('.topbar-cash')).toHaveAttribute(
+  await expect(b.locator('[data-topbar-cash]')).toHaveAttribute(
     'title',
     `₦${(b1 / 100).toLocaleString('en-GB')}`,
   );

@@ -20,14 +20,14 @@ test('a player sends feedback from the phone’s Settings', async ({ page }) => 
     idea: 'Payroll for market traders',
     market: /San Francisco/,
   });
-  await expect(page.locator('.topbar .online-count')).toContainText('unavailable', {
+  await expect(page.locator('[data-hud-bar] .online-count')).toContainText('unavailable', {
     timeout: 30_000,
   });
-  const bar = await page.locator('.topbar').evaluate((el) => ({
-    scroll: el.scrollWidth,
-    client: el.clientWidth,
-  }));
-  expect(bar.scroll).toBeLessThanOrEqual(bar.client + 1);
+  // The HUD's pills fit the phone.
+  const right = await page
+    .locator('.hud-top')
+    .evaluate((el) => Math.max(...[...el.children].map((c) => c.getBoundingClientRect().right)));
+  expect(right).toBeLessThanOrEqual(390);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
   await page.getByRole('button', { name: /^Phone/ }).click();

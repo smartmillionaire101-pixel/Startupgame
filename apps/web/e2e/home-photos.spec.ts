@@ -1,4 +1,13 @@
-import { expect, letters, playAsGuest, setupFounder, tapPlace, test, type Page } from './fixtures';
+import {
+  expect,
+  letters,
+  playAsGuest,
+  setupFounder,
+  tapPlace,
+  test,
+  type Page,
+  hudMore,
+} from './fixtures';
 
 /**
  * Player feedback: "take pictures of their house and turn around the house".
@@ -40,8 +49,8 @@ test('home: look around and take photos of it', async ({ page }) => {
   await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
   const scene = await openHome(page);
 
-  // The view controls are labelled, and fit on a phone.
-  const tools = scene.getByRole('group', { name: 'Look and take photos' });
+  // The view controls are named round icons in the room's rail, and fit on a phone.
+  const tools = scene.getByRole('group', { name: 'Home actions' });
   await expect(tools.getByRole('button', { name: 'Turn' })).toBeVisible();
   const look = tools.locator('[data-action="look-around"]');
   await expect(look).toHaveAttribute('data-looking', '0');
@@ -57,7 +66,8 @@ test('home: look around and take photos of it', async ({ page }) => {
   await scene.locator('svg.home-svg').click({ position: { x: 40, y: 200 } });
   await expect(look).toHaveAttribute('data-looking', '0');
 
-  // A photo: the picture, Save (a download) and Close.
+  // A photo (behind ⋯): the picture, Save (a download) and Close.
+  await hudMore(scene);
   await tools.locator('[data-action="photo"]').click();
   const sheet = page.getByRole('dialog', { name: 'Photo of your home' });
   await expect(sheet).toBeVisible();
@@ -84,6 +94,7 @@ test('home: look around and take photos of it', async ({ page }) => {
   await scene.getByRole('button', { name: 'Go out', exact: true }).click();
   await expect(scene).toBeHidden();
   const again = await openHome(page);
+  await hudMore(again);
   await again.locator('[data-action="photo"]').click();
   await expect(sheet).toBeVisible();
   const list = sheet.getByRole('list', { name: 'Your photos' });

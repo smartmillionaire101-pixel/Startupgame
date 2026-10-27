@@ -9,6 +9,7 @@ import {
   test,
   withoutNetlifyDrawer,
   type Page,
+  openMoney,
 } from './fixtures';
 
 /**
@@ -40,7 +41,7 @@ test('a founder opens a Friends & Family round, a friend commits, the founder cl
   await expect(tab(a, 'Today')).toBeVisible();
 
   // The funding chooser: every option side by side, with plain trade-offs.
-  await tab(a, 'Money').click();
+  await openMoney(a);
   await a.getByRole('tab', { name: 'Fund your company' }).click();
   const chooser = a.locator('section.card').filter({
     has: a.getByRole('heading', { name: /Fund your company/ }),
@@ -98,7 +99,7 @@ test('a founder opens a Friends & Family round, a friend commits, the founder cl
 
   // The founder sees the commitment and closes the round.
   await a.reload();
-  await tab(a, 'Money').click();
+  await openMoney(a);
   await a.getByRole('tab', { name: 'Fund your company' }).click();
   await expect(a.getByText(/₦500(\.0)?k of ₦2(\.0)?m committed/)).toBeVisible();
   await expect(a.locator('.ff-card').getByText(bName)).toBeVisible();

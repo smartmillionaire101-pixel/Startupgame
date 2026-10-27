@@ -47,8 +47,9 @@ test('life bars under Me, and a long walk that costs time and energy', async ({ 
   const s0 = await state(page);
   test.skip(!s0.view.me.bars, 'The server has no life bars yet');
 
-  // The bars are under Me (not in the top bar): each one, what it's at, how to change it.
-  await expect(page.locator('.topbar [data-lifebars-sheet]')).toHaveCount(0);
+  // The bars are under Me and in the time pill's sheet (not on the HUD itself):
+  // each one, what it's at, how to change it.
+  await expect(page.locator('[data-hud-bar] [data-lifebars-sheet]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await tab(page, 'Me').click();
   const sheet = page.locator('[data-lifebars-sheet]');

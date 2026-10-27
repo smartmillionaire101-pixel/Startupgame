@@ -7,6 +7,7 @@ import {
   tapPlace,
   test,
   type Page,
+  hudMore,
 } from './fixtures';
 
 /**
@@ -171,6 +172,7 @@ test('a new banker negotiates, files, passes the Central Bank interview and gets
   // C. The banker journey: chapter 1 done, the next one current.
   await tab(page, 'City').click();
   await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
+  await hudMore(page);
   await page.getByTestId('journey-chip').click();
   const journey = page.getByTestId('journey');
   await expect(journey).toBeVisible();
@@ -178,7 +180,7 @@ test('a new banker negotiates, files, passes the Central Bank interview and gets
   await expect(journey.getByText('Open for Business').first()).toBeVisible();
   await shot(page, 'banker-C-1-journey');
   await page.getByRole('button', { name: 'Close' }).first().click();
-  await page.locator('.hud-whatnow-chip').click();
+  await page.locator('[data-whatnow-open]').click();
   await expect(page.locator('.journey-objectives')).toBeVisible();
   await shot(page, 'banker-C-2-whatnow');
 });

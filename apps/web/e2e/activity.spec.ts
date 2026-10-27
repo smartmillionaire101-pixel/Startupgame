@@ -37,8 +37,8 @@ test('live total and music work across screens and remember mute', async ({ page
   });
   expect((await created.json()).ok).toBe(true);
   await page.reload();
-  // The count sits in the top bar: a dot and the number.
-  const count = page.locator('.topbar .online-count');
+  // The count sits under the HUD's pills on the map: a dot and the number.
+  const count = page.locator('[data-hud-bar] .online-count');
   await expect(count).toHaveText(/\d+ online/);
   // Music on/off is in the phone's Settings app.
   const phone = page.getByRole('dialog', { name: 'Phone' });
@@ -58,7 +58,10 @@ test('live total and music work across screens and remember mute', async ({ page
       return tracked.gameAudio.at(-1)?.state;
     });
   await expect.poll(state).toBe('running');
+  // A list screen has no row under the pills: the count is back on the map.
+  await tab(page, 'City').click();
   await expect(count).toBeVisible();
+  await tab(page, 'Today').click();
   await settings();
   await music.uncheck({ force: true });
   await expect.poll(state).toBe('closed');
@@ -68,17 +71,18 @@ test('live total and music work across screens and remember mute', async ({ page
   await music.check({ force: true });
   await expect.poll(state).toBe('running');
   await closePhone();
-  // The top bar, count included, fits the phone.
-  const bar = await page.locator('.topbar').evaluate((el) => ({
-    scroll: el.scrollWidth,
-    client: el.clientWidth,
-    right: el.querySelector('.online-count')!.getBoundingClientRect().right,
+  // The HUD's pills, and the count under them, fit the phone; the map fills
+  // the screen under them and the nav pill.
+  await tab(page, 'City').click();
+  const bar = await page.locator('.hud-top').evaluate((el) => ({
+    right: Math.max(...[...el.children].map((c) => c.getBoundingClientRect().right)),
+    count: document.querySelector('[data-hud-bar] .online-count')!.getBoundingClientRect().right,
   }));
-  expect(bar.scroll).toBeLessThanOrEqual(bar.client + 1);
   expect(bar.right).toBeLessThanOrEqual(360);
+  expect(bar.count).toBeLessThanOrEqual(360);
   const mapBox = (await page.locator('.city-stage').boundingBox())!;
   const navBox = (await page.getByRole('navigation', { name: 'Main' }).boundingBox())!;
-  expect(mapBox.y + mapBox.height).toBeLessThanOrEqual(navBox.y);
+  expect(mapBox.y + mapBox.height).toBeGreaterThanOrEqual(navBox.y + navBox.height);
   await page.screenshot({ path: testInfo.outputPath('music-online-mobile.png') });
   await page.route('**/api/online', (route) => route.abort());
   await page.evaluate(() => window.dispatchEvent(new Event('online')));

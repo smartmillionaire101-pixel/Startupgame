@@ -80,8 +80,8 @@ test('"What to do now" taps through, on the City and on Today', async ({ page })
   // into, on the City and again on Today.
   await page.clock.setFixedTime(new Date('2026-10-20T21:00:00Z'));
   await founder(page, 'Bisi Nowish');
-  // Wave 7: a one-line chip on the map; tapping it opens the suggestions as a sheet.
-  const chip = page.locator('.hud-whatnow-chip');
+  // A round icon in the map's rail; tapping it opens the suggestions as a sheet.
+  const chip = page.locator('[data-whatnow-open]');
   await expect(chip).toBeVisible();
   await expect(page.locator('.hud-whatnow')).toHaveCount(0);
   await chip.click();

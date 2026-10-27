@@ -8,6 +8,7 @@ import {
   salesConversation,
   test,
   type Page,
+  hudMore,
 } from './fixtures';
 
 /**
@@ -237,6 +238,7 @@ test('skipping the tutorial at step 1 leaves a full, valid game', async ({ page 
   await phone.getByRole('button', { name: 'Close phone' }).click();
 
   // Objectives shown: the journey with its three prompts.
+  await hudMore(page);
   await page.getByTestId('journey-chip').click();
   await expect(page.locator('[data-objective="main"]')).toBeVisible();
   await expect(page.locator('[data-objective="opportunity"]')).toBeVisible();

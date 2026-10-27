@@ -22,7 +22,7 @@ async function founder(p: Page, name: string) {
     idea: 'Tools for local businesses',
     market: /London/,
   });
-  await expect(p.locator('.topbar')).toBeVisible({ timeout: 30000 });
+  await expect(p.locator('[data-hud-bar]')).toBeVisible({ timeout: 30000 });
 }
 
 test('Online now lists a real player, and a solo player plays a penalty shootout against AI', async ({

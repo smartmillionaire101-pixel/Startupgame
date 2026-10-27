@@ -1,4 +1,4 @@
-import { expect, letters, playAsGuest, setupFounder, test, type Page } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, test, type Page, hudMore } from './fixtures';
 
 /**
  * Player feedback: "when the user gets to the hotel, show the room with
@@ -82,11 +82,15 @@ test('landing in London with a hotel: a 3D room with a bathroom, no Fly home in 
   // Titled with the hotel you booked, the tier under it.
   await expect(room.locator('h2').first()).toHaveText(pick.name);
   await expect(room.locator('[data-hotel-tier]')).toHaveAttribute('data-hotel-tier', pick.tier);
-  // Look around and Photo are there; nothing of your own home (Buy, Edit, Invite).
+  // The room's rail: Go out, Sleep, Freshen up and Look around, Photo behind ⋯;
+  // nothing of your own home (Buy, Edit, Invite).
+  const tray = room.getByRole('group', { name: 'Hotel room actions' });
+  for (const name of ['Go out', 'Sleep', 'Freshen up', 'Look around', 'More'])
+    await expect(tray.getByRole('button', { name, exact: true })).toBeVisible();
   await expect(room.locator('[data-action="look-around"]')).toBeVisible();
+  await hudMore(room);
   await expect(room.locator('[data-action="photo"]')).toBeVisible();
-  const tray = room.getByRole('navigation', { name: 'Hotel room actions' });
-  await expect(tray.getByRole('button')).toHaveText([/Sleep/, /Freshen up/, /Go out/, /More/]);
+  await page.keyboard.press('Escape');
   await expect(room.locator('[data-action="fly-home"]')).toHaveCount(0);
   await expect(room.getByRole('button', { name: /^(🛒\s*)?Buy$|^(🛋\s*)?Edit$/ })).toHaveCount(0);
   await expect(room.locator('.home-plus')).toHaveCount(0);
@@ -100,7 +104,8 @@ test('landing in London with a hotel: a 3D room with a bathroom, no Fly home in 
   await tray.locator('[data-action="hotel-sleep"]').click();
   await expect(room.locator('.home-float').first()).toBeAttached({ timeout: 30_000 });
 
-  // Flying home is under More.
+  // Flying home is under ⋯ → About your stay.
+  await hudMore(room);
   await tray.locator('[data-action="more"]').click();
   const more = room.locator('[data-hotel-more]');
   await expect(more).toBeVisible();
@@ -168,6 +173,7 @@ test('the three hotel rooms: budget, business and a luxury suite with a tub and 
     const balcony = room.locator('[data-action="hotel-balcony"]');
     if (tier !== 'luxury') await expect(balcony).toHaveCount(0);
     else {
+      await hudMore(room);
       await balcony.click();
       const sky = page.getByRole('dialog', { name: 'City panorama' });
       await expect(sky).toHaveAttribute('data-sky-view', 'penthouse:lagos', { timeout: 60_000 });
@@ -185,7 +191,7 @@ test('the three hotel rooms: budget, business and a luxury suite with a tub and 
     }
     await page.waitForTimeout(1500);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${tier}.png` });
-    await room.getByRole('button', { name: 'Close' }).first().click();
+    await room.getByRole('button', { name: 'Go out', exact: true }).click();
     await expect(room).toBeHidden();
   }
   expect(sizes.business).toBeGreaterThan(sizes.budget!);

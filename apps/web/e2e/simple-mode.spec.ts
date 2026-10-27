@@ -8,7 +8,17 @@
  *
  * SIMPLE_SHOTS=<dir> saves screenshots of each screen.
  */
-import { expect, letters, playAsGuest, setupFounder, tab, test, type Page } from './fixtures';
+import {
+  expect,
+  letters,
+  playAsGuest,
+  setupFounder,
+  tab,
+  test,
+  type Page,
+  hudMore,
+  openMoney,
+} from './fixtures';
 
 const SHOTS = process.env.SIMPLE_SHOTS;
 async function shot(page: Page, name: string) {
@@ -81,7 +91,7 @@ test('Simple mode: four tabs, a money link, big phone tiles and a calm map', asy
   // The next step is a 💡 button (a red dot: not opened yet) that opens a small card.
   const bulb = page.getByRole('button', { name: 'What should I do now?' });
   await expect(bulb).toHaveAttribute('data-new', '');
-  await expect(page.locator('.hud-whatnow-chip')).toHaveCount(0);
+  await expect(page.locator('[data-whatnow-open]')).toHaveCount(0);
   await bulb.click();
   await expect(page.locator('.next-step-pop')).toContainText('What should I do now?');
   await noSideScroll(page);
@@ -177,11 +187,18 @@ test('turning Simple mode off in Settings brings the normal tabs back', async ({
   await expect(phone.locator('.phone-back')).not.toContainText('Back');
   await phone.getByRole('button', { name: 'Close phone' }).click();
 
+  // The same four tabs (money is the pill at the top); the map's zoom is behind ⋯.
   const nav = page.getByRole('navigation', { name: 'Main' });
-  await expect(nav.getByRole('button')).toHaveCount(5);
-  for (const name of ['City', 'Today', 'Company', 'Money', 'Me'])
+  await expect(nav.getByRole('button')).toHaveCount(4);
+  for (const name of ['City', 'Today', 'Company', 'Me'])
     await expect(tab(page, name)).toBeVisible();
+  await expect(tab(page, 'Money')).toHaveCount(0);
+  await hudMore(page);
   await expect(page.locator('.city-stage').getByRole('button', { name: 'Zoom in' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  // The money pill opens your money, and the whole Money screen from there.
+  await openMoney(page);
+  await expect(page.getByRole('heading', { name: 'Money', level: 1 })).toBeVisible();
 
   // Me → Settings switches it back on, and the choice survives a reload.
   await tab(page, 'Me').click();
