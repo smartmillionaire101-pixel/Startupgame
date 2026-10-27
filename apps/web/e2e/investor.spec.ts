@@ -37,4 +37,20 @@ test('an investor screens an AI startup, does diligence and writes a first chequ
 
   await tab(page, 'Portfolio').click();
   await expect(page.getByRole('heading', { name: 'Portfolio' })).toBeVisible();
+  // Every section's name on one line (player screenshot: "As an LP" over three
+  // lines); the row scrolls sideways instead, and the page never does.
+  const sections = page.getByRole('radiogroup', { name: 'Portfolio sections' });
+  const more = page.getByRole('button', { name: 'More sections' });
+  if (await more.isVisible()) await more.click();
+  const lines = await sections.getByRole('radio').evaluateAll((bs) =>
+    bs.map((b) => {
+      const r = document.createRange();
+      r.selectNodeContents(b);
+      return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size;
+    }),
+  );
+  expect(Math.max(...lines)).toBeLessThanOrEqual(1);
+  expect(
+    await page.evaluate(() => document.scrollingElement!.scrollWidth - window.innerWidth),
+  ).toBeLessThanOrEqual(0);
 });

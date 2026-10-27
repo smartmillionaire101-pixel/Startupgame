@@ -1356,10 +1356,18 @@ input[type='range'] {
   border-radius: var(--r-md);
   padding: 3px;
   gap: 3px;
+  position: relative;
+  /* Many options: one line each, and the row scrolls rather than wrapping a name. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.segmented::-webkit-scrollbar {
+  display: none;
 }
 
 .segmented button {
-  flex: 1;
+  flex: 1 0 auto;
+  white-space: nowrap;
   border: 0;
   background: transparent;
   border-radius: calc(var(--r-md) - 3px);
