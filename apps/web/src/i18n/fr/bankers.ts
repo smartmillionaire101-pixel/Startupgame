@@ -271,6 +271,7 @@ export const bankers: Record<string, string> = {
     'Les superviseurs veulent savoir si vous pouvez diriger une banque prudemment. Répondez à chaque question ; cela prend trois heures.',
   'Give my answers': 'Donner mes réponses',
   'Interview passed: {score}/100.': 'Entretien réussi : {score}/100.',
+  'Weakest answer: {question}': 'Réponse la plus faible : {question}',
   'Not convinced: {score}/100. Book another appointment to try again.':
     'Pas convaincus : {score}/100. Reprenez rendez-vous pour réessayer.',
   'A large borrower defaults in your first year. How do you protect your capital?':

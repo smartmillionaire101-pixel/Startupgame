@@ -1235,10 +1235,36 @@ export function BankInterviewCard() {
   const lic = b?.licence;
   const [answers, setAnswers] = useState<(number | null)[]>(() => [null, null, null, null]);
   if (!b || !lic || b.status !== 'applying') return null;
-  if (lic.interview && lic.interview.score >= lic.interviewPass) return null;
+  const iv = lic.interview;
+  // Play-test: the result stays on the card (it used to vanish with the questions).
+  if (iv && iv.score >= lic.interviewPass)
+    return (
+      <Card
+        title={t('Fit-and-proper interview')}
+        sub={b.name}
+        className="bank-interview"
+        tone="good"
+        action={<Pill tone="good">{t('{score}/100', { score: iv.score })}</Pill>}
+      >
+        <p data-interview-result="passed">
+          {t('Interview passed: {score}/100.', { score: iv.score })}{' '}
+          {t('Passed. The regulator is satisfied you are fit and proper to run a bank.')}
+        </p>
+      </Card>
+    );
+  const weakest = iv ? lic.questions.find((q) => q.id === iv.weakest) : undefined;
+  const result = iv && (
+    <p className="small bad" data-interview-result="failed">
+      {t('Not convinced: {score}/100. Book another appointment to try again.', {
+        score: iv.score,
+      })}{' '}
+      {weakest && t('Weakest answer: {question}', { question: tx(weakest.text) })}
+    </p>
+  );
   const ready = answers.length === lic.questions.length && answers.every((a) => a !== null);
   return (
     <Card title={t('Fit-and-proper interview')} sub={b.name} className="bank-interview">
+      {result}
       <p className="small muted">
         {t(
           'The supervisors want to know you can run a bank safely. Answer each question; it takes three hours.',
