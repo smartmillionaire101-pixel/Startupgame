@@ -196,10 +196,17 @@ export default function IdeaScene({ onClose }: { onClose: () => void }) {
               )}
             </Field>
             <p className="small muted">
-              {t(
-                'Starting it moves a little of your savings into the company’s own business account and pays a local registration fee of about {amount}.',
-                { amount: money(cost, view.market.currency) },
-              )}
+              {/* Founder setup: starting only reserves the name; the fee and the
+                  money in are steps of their own, when you take them. */}
+              {view.setupOn
+                ? t(
+                    'Starting it reserves the name: nothing is paid yet. Next you register it (a local fee of about {amount}) and choose how much of your savings to put in.',
+                    { amount: money(cost, view.market.currency) },
+                  )
+                : t(
+                    'Starting it moves a little of your savings into the company’s own business account and pays a local registration fee of about {amount}.',
+                    { amount: money(cost, view.market.currency) },
+                  )}
             </p>
             <div className="row">
               <Button disabled={busy || !check?.ok} onClick={() => void start()}>

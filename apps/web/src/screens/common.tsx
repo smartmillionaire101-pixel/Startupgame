@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { t, tx } from '../i18n';
-import { amountInput, money, parseAmount, titleCase } from '../format';
+import { amountInput, gameMonth, money, parseAmount, titleCase } from '../format';
 import { useView, type Deal } from '../store';
 import { Button, Card, Empty, EmptyState, Field, Pill } from '../ui';
 import { useNav } from '../phone/bus';
@@ -185,8 +185,8 @@ export function DealCard({ deal }: { deal: Deal }) {
           )}
           {deal.history.map((h, i) => (
             <li key={i}>
-              {t('Month {n}: {action} — {summary}', {
-                n: h.month,
+              {t('{month}: {action} — {summary}', {
+                month: gameMonth(h.month),
                 action: actionLabel(h.action),
                 summary: tx(h.summary),
               })}
@@ -334,7 +334,7 @@ export function Inbox({ limit = 8 }: { limit?: number }) {
                 </span>
                 <span className="lrow-main">
                   <span className="lrow-title inbox-text">{tx(i.text)}</span>
-                  <span className="lrow-sub">{t('Month {n}', { n: i.month })}</span>
+                  <span className="lrow-sub">{gameMonth(i.month)}</span>
                 </span>
                 {!i.read && <span className="lrow-dot" aria-hidden />}
               </>

@@ -262,7 +262,7 @@ export function taskRow(x: FounderTask, cur: string): { title: string; meta: str
     case 'first.retention':
       return {
         title: t('Keep {need}% of your customers each month', { need }),
-        meta: t('{have}% now', { have }),
+        meta: x.waiting ? t('after your first month') : t('{have}% now', { have }),
       };
     case 'fit.product':
       return { title: t('Product fit of {need}%', { need }), meta: t('{have}% now', { have }) };
@@ -846,10 +846,16 @@ export function passWhyCopy(
       };
     case 'growth':
       return {
-        why: t('Revenue grows {have}% a month; they look for {need}%.', {
-          have: v.growth ?? 0,
-          need: v.need ?? 0,
-        }),
+        why:
+          (v.growth ?? 0) < 0
+            ? t('Revenue has been falling {have}% a month; they look for growth of {need}%.', {
+                have: -(v.growth ?? 0),
+                need: v.need ?? 0,
+              })
+            : t('Revenue grows {have}% a month; they look for {need}%.', {
+                have: v.growth ?? 0,
+                need: v.need ?? 0,
+              }),
         fix: t('Show a few months of steady growth.'),
       };
     case 'team':

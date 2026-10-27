@@ -43,6 +43,8 @@ export interface ValuationBreakdown {
   revenueBased: number;
   floor: number;
   value: number;
+  /** Share of the value that comes from revenue (the rest is team and market), 0–1. */
+  fromRevenue: number;
 }
 
 /** What a rational AI investor thinks the company is worth today (pre-money, local minor). */
@@ -72,5 +74,6 @@ export function valueCompany(world: World, c: Company, stage: Stage): ValuationB
     Math.round(floor * (1 - weight) + revenueBased * weight),
     Math.round(floor * 0.5),
   );
-  return { arr, multiple, revenueBased, floor, value };
+  const fromRevenue = value > 0 ? Math.min(1, (revenueBased * weight) / value) : 0;
+  return { arr, multiple, revenueBased, floor, value, fromRevenue };
 }

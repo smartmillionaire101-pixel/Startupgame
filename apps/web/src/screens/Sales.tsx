@@ -7,7 +7,7 @@
  */
 import { useState } from 'react';
 import type { Command } from '@runway/engine';
-import { amountInput, money, parseAmount, pct } from '../format';
+import { amountInput, gameMonth, money, parseAmount, pct } from '../format';
 import { t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import { Button, Card, Confirm, Empty, Field } from '../ui';
@@ -65,6 +65,14 @@ const lossLabel = (r: LossReason) =>
     trust: t('They don’t trust you enough yet'),
     competitor: t('They stayed with a competitor'),
     no_budget: t('No budget for it'),
+  })[r];
+
+/** Why a won customer stopped buying (sales.ts CHURN_WHY). */
+export const churnLabel = (r: 'reliability' | 'hibernation' | 'switched') =>
+  ({
+    reliability: t('outages and slow support drove them away'),
+    hibernation: t('you paused the company'),
+    switched: t('they moved to another supplier'),
   })[r];
 
 const lossAdvice = (r: LossReason) =>
@@ -236,7 +244,15 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
           <ul className="list" aria-label={t('Customers from your pipeline')}>
             {sales.accounts.map((a) => (
               <li key={a.dealId} className="spread" data-account={a.dealId}>
-                <span>{a.name}</span>
+                <span>
+                  {a.name}
+                  {a.committedUntil !== undefined && (
+                    <span className="small muted">
+                      {' · '}
+                      {t('committed to {month}', { month: gameMonth(a.committedUntil) })}
+                    </span>
+                  )}
+                </span>
                 <span>{t('{amount}/month', { amount: money(a.monthly, cur) })}</span>
               </li>
             ))}
@@ -321,7 +337,11 @@ function DealCard({
         </span>
       </header>
       <div className="sales-deal-line small">
-        <span>{t('{amount}/mo', { amount: money(d.value, cur) })}</span>
+        <span>
+          {d.valueGuess
+            ? t('about {amount}/mo', { amount: money(d.value, cur) })
+            : t('{amount}/mo', { amount: money(d.value, cur) })}
+        </span>
         {d.monthsLeft !== null && (
           <span className={d.monthsLeft === 0 ? 'bad' : 'muted'}>
             {d.monthsLeft === 0
@@ -372,7 +392,16 @@ function DealCard({
         ) : (
           <p className="small muted">{t('Demo went {score}', { score: pct(d.demoScore) })}</p>
         ))}
-      {d.stage === 'won' && <p className="good small">{t('Signed: a paying customer.')}</p>}
+      {d.stage === 'won' &&
+        (d.churned ? (
+          <p className="bad small" data-deal-churned={d.churned.reason}>
+            <strong>{t('Stopped buying')}</strong>
+            {' · '}
+            {churnLabel(d.churned.reason)}
+          </p>
+        ) : (
+          <p className="good small">{t('Signed: a paying customer.')}</p>
+        ))}
       {d.stage === 'lost' && d.lossReason && (
         <div className="sales-loss" role="status">
           <strong className="bad small">

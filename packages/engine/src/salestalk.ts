@@ -92,6 +92,11 @@ export const TALK = {
   walkInMonths: 2,
   /** What each terms option does to the monthly price. */
   termsFactor: { pilot: 1, monthly: 1, annual: 0.85, usage: 0.9 } as Record<TermsKind, number>,
+  /**
+   * Months after the signing month a won customer is committed for: a paid
+   * pilot for one month then a year, a year up front; none month to month.
+   */
+  commitMonths: { pilot: 12, monthly: 0, annual: 11, usage: 0 } as Record<TermsKind, number>,
 } as const;
 
 /** Stages a conversation can start from: after the first call, before a close. */
@@ -170,6 +175,12 @@ function monthlyOf(d: SalesDeal): number {
   if (!t?.price) return 0;
   const f = t.terms ? TALK.termsFactor[t.terms as TermsKind] : 1;
   return Math.max(1, Math.round(t.price * f * (1 - (t.discountPct ?? 0) / 100)));
+}
+
+/** What a deal is worth a month in a conversation: the price you named, else the middle option. */
+function talkValue(world: World, c: Company, d: SalesDeal): number {
+  if (d.talk?.price) return monthlyOf(d);
+  return priceOptions(world, c, d).find((o) => o.id === 'mid')!.amount;
 }
 
 /**
@@ -350,6 +361,10 @@ function startTalk(world: World, me: Player, c: Company, d: SalesDeal) {
 
 function askForDeal(world: World, me: Player, c: Company, d: SalesDeal, month: number) {
   const t = d.talk!;
+  // The deal is decided on what they really have; before discovery the
+  // player saw a guess (the live chance, as shown), kept with the result so
+  // it can show both.
+  const guess = d.revealed ? undefined : talkChance(world, c, d, me);
   spendHours(me, TALK.askHours, `Asking ${d.customer.name} for the deal`);
   const chance = talkChance(world, c, d, me, true);
   const f = TALK.termsFactor[t.terms as TermsKind];
@@ -357,6 +372,11 @@ function askForDeal(world: World, me: Player, c: Company, d: SalesDeal, month: n
   d.discountPct = t.discountPct ?? 0;
   d.revealed = true;
   const out = closeDeal(world, me, c, d, month, { chance, label: 'talk' });
+  // A paid pilot then a year, or a year up front, is a commitment: they stay
+  // through it (sales.ts settleSales). Month to month and pay-per-use don't.
+  const months = TALK.commitMonths[t.terms as TermsKind];
+  const account = out.won ? c.salesAccounts?.find((a) => a.dealId === d.id) : undefined;
+  if (account && months > 0) account.committedUntil = month + months;
   const who = d.customer;
   const lead = leadScore(world, c, d, t.lead as LeadKind);
   const monthly = monthlyOf(d);
@@ -366,6 +386,7 @@ function askForDeal(world: World, me: Player, c: Company, d: SalesDeal, month: n
     score: Math.round(((lead.score + priceS + termsS) / 3) * 100),
     won: !!out.won,
     chance,
+    ...(guess !== undefined ? { guess } : {}),
     monthly: 'monthly' in out ? out.monthly : monthly,
     turns: [
       { turn: 'lead', option: t.lead!, score: lead.score, best: who.need },
@@ -410,6 +431,8 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
     maxDiscountPct: SALES.maxDiscountPct,
     band: { min: band.budgetMin, max: band.budgetMax, known: d.revealed },
     chance: open && t ? talkChance(world, c, d, me) : null,
+    /** The live chance is a guess until a discovery meeting shows what they really have. */
+    chanceGuess: !d.revealed,
     leadOptions: (t?.leadOptions ?? []).map((id) => ({ id, text: leadLine(c, id) })),
     lead: t?.lead ? { id: t.lead, reaction: reactLead } : null,
     priceOptions: prices,
@@ -435,6 +458,8 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
           score: res.score,
           won: res.won,
           chance: res.chance,
+          /** The chance shown before you asked, when it was a guess (no discovery). */
+          guess: res.guess ?? null,
           monthly: res.monthly,
           grade: TALK_GRADES.find((g) => res.score >= g.min)!.label,
           turns: res.turns.map((x) => {
@@ -489,13 +514,33 @@ export function salesWithTalk(world: World, c: Company, viewer?: Player) {
   const v = salesView(world, c, viewer);
   const on = feedbackOn(world);
   const byId = new Map((c.deals ?? []).map((d) => [d.id, d]));
+  const deals = v.deals.map((x) => {
+    const d = byId.get(x.id);
+    // Feedback note: an open deal's value is what the conversation would ask
+    // (the middle of the band you know, a guess before discovery, or the price
+    // you named), not the company's list price.
+    const value = on && d && isOpenDeal(d) && !d.price ? talkValue(world, c, d) : x.value;
+    return {
+      ...x,
+      value,
+      valueGuess: on && !!d && isOpenDeal(d) && !d.price && !d.talk?.price && !d.revealed,
+      talk: on && d ? talkView(world, c, d, viewer) : null,
+    };
+  });
   return {
     ...v,
     /** Feedback note: proposals and closes happen in a sales conversation. */
     talks: on,
-    deals: v.deals.map((x) => {
-      const d = byId.get(x.id);
-      return { ...x, talk: on && d ? talkView(world, c, d, viewer) : null };
-    }),
+    deals,
+    stats: on
+      ? {
+          ...v.stats,
+          pipelineValue: Math.round(
+            deals
+              .filter((x) => x.monthsLeft !== null)
+              .reduce((a, x) => a + x.value * x.probability, 0),
+          ),
+        }
+      : v.stats,
   };
 }

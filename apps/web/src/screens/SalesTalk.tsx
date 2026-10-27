@@ -80,20 +80,23 @@ const whoKind = (d: DealV) => tx(d.businessKind ?? d.segment);
 const turnLabel = (k: string) =>
   ({ lead: t('Lead with'), price: t('Price'), terms: t('Terms') })[k] ?? k;
 
-function Chance({ p }: { p: number }) {
+function Chance({ p, guess }: { p: number; guess: boolean }) {
   const n = Math.round(p * 100);
   const tone = n >= 60 ? 'good' : n >= 35 ? 'warn' : 'bad';
+  // Before discovery the chance rests on your guess at their budget and needs.
+  const label = guess ? t('Win chance now (your guess until discovery)') : t('Win chance now');
   return (
     <div
       className={`sales-meter tone-${tone}`}
       role="meter"
-      aria-label={t('Win chance now')}
+      aria-label={label}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={n}
       data-chance={n}
+      data-chance-guess={guess ? '' : undefined}
     >
-      <span className="small">{t('Win chance now')}</span>
+      <span className="small">{label}</span>
       <span className="sales-meter-track">
         <span className="sales-meter-fill" style={{ width: `${n}%` }} />
       </span>
@@ -474,7 +477,7 @@ function Turns({
         </Card>
       )}
       <Card>
-        {talk.chance !== null && <Chance p={talk.chance} />}
+        {talk.chance !== null && <Chance p={talk.chance} guess={talk.chanceGuess} />}
         <p className="small muted">{t('Good answers build trust.')}</p>
         {step === 'ask' && (
           <Button
@@ -527,8 +530,13 @@ function ResultView({
             <strong>
               {r.score} / 100 · {ln(r.grade)}
             </strong>
-            <div className="small muted">
-              {t('Chance when you asked: {p}', { p: pct(r.chance) })}
+            <div className="small muted" data-talk-chance={Math.round(r.chance * 100)}>
+              {r.guess !== null && Math.round(r.guess * 100) !== Math.round(r.chance * 100)
+                ? t(
+                    'You guessed {guess}; with their real budget and needs it was {p}. A discovery meeting shows them before you ask.',
+                    { guess: pct(r.guess), p: pct(r.chance) },
+                  )
+                : t('Chance when you asked: {p}', { p: pct(r.chance) })}
             </div>
           </div>
         </div>

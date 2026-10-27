@@ -5,6 +5,7 @@
  */
 import { useState } from 'react';
 import { t, tx } from '../../i18n';
+import { gameMonth } from '../../format';
 import { useView } from '../../store';
 import { Button } from '../../ui';
 import { businessesOf } from '../../city/contract';
@@ -143,7 +144,7 @@ export function Social({ ctx }: { ctx: PhoneCtx }) {
                 <span className="item-title">{p.who}</span>
                 <span>{p.text}</span>
                 <span className="small muted">
-                  {t('Month {n}', { n: p.month })}
+                  {gameMonth(p.month)}
                   {p.place && (
                     <>
                       {' · '}

@@ -25,6 +25,7 @@ import { openPhone, useNav } from '../phone/bus';
 import { useView } from '../store';
 import { CountUp, Icon } from '../ui';
 import './recap.css';
+import { churnLabel } from '../screens/Sales';
 
 // ---------------------------------------------------------------- opening it
 
@@ -424,10 +425,14 @@ function MoneyBlock({ a }: { a: RecapAccount }) {
             ))}
           </ul>
           <p className="small muted">
-            {t('{n} movements in all. Balance now {balance}.', {
-              n: a.count,
-              balance: money(a.balanceEnd, a.currency),
-            })}
+            {a.count === 1
+              ? t('1 movement in all. Balance now {balance}.', {
+                  balance: money(a.balanceEnd, a.currency),
+                })
+              : t('{n} movements in all. Balance now {balance}.', {
+                  n: a.count,
+                  balance: money(a.balanceEnd, a.currency),
+                })}
           </p>
         </>
       )}
@@ -457,10 +462,14 @@ function CompanyBlock({ c, many }: { c: RecapCompany; many: boolean }) {
       tone: d === null || d === 0 ? undefined : d > 0 ? 'good' : 'bad',
     });
   }
-  if (c.customers !== null) lines.push({ text: t('{n} paying customers', { n: c.customers }) });
+  if (c.customers !== null)
+    lines.push({
+      text:
+        c.customers === 1 ? t('1 paying customer') : t('{n} paying customers', { n: c.customers }),
+    });
   if (c.won !== null && (c.won > 0 || (c.churned ?? 0) > 0))
     lines.push({
-      text: t('{won} new customers, {churned} left', { won: c.won, churned: c.churned ?? 0 }),
+      text: t('Customers: {won} new, {churned} left', { won: c.won, churned: c.churned ?? 0 }),
       tone: c.won >= (c.churned ?? 0) ? 'good' : 'bad',
     });
   for (const d of c.deals.won)
@@ -473,6 +482,16 @@ function CompanyBlock({ c, many }: { c: RecapCompany; many: boolean }) {
     });
   for (const d of c.deals.lost)
     lines.push({ text: t('Deal lost: {name}', { name: d.name }), tone: 'bad' });
+  // Pipeline customers who stopped buying, and why (feedback note).
+  for (const d of c.deals.churned ?? [])
+    lines.push({
+      text: t('{name} stopped buying ({amount} a month): {reason}', {
+        name: d.name,
+        amount: money(d.monthly, cur),
+        reason: churnLabel(d.reason),
+      }),
+      tone: 'bad',
+    });
   for (const f of c.releases)
     lines.push({ text: t('Released: {feature}', { feature: tx(f) }), tone: 'good' });
   for (const h of c.hires)
@@ -660,7 +679,8 @@ export function RecapButton({ onOpen }: { onOpen?: () => void }) {
     >
       <Icon name="today" />
       <span className="link-card-main">
-        <b>{t('Last month’s recap')}</b>
+        {/* Before the first settlement there is no last month yet. */}
+        <b>{view.market.month === 0 ? t('Your month so far') : t('Last month’s recap')}</b>
         <span className="small muted">{t('Money, company, people and what’s due next month')}</span>
       </span>
       <Icon name="chevron" className="link-card-go" />

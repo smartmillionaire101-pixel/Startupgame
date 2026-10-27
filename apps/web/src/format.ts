@@ -45,6 +45,10 @@ export const runway = (months: number | null) =>
       ? t('10y+')
       : t('{n} mo', { n: Math.max(0, Math.floor(months)) });
 
+/** A game month (0-based market month) as everywhere else shows it: "Year 1, Month 1". */
+export const gameMonth = (month: number) =>
+  t('Year {y}, Month {m}', { y: Math.floor(month / 12) + 1, m: (month % 12) + 1 });
+
 export const stars = (v: number) =>
   `${getLang() === 'fr' ? v.toFixed(1).replace('.', ',') : v.toFixed(1)}★`;
 

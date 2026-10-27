@@ -45,6 +45,7 @@ import type {
   MarketState,
   Player,
   SalesAction,
+  SalesChurnReason,
   SalesCustomer,
   SalesDeal,
   SalesLossReason,
@@ -91,6 +92,8 @@ export const SALES = {
   maxNegotiations: 3,
   /** Closed deals kept on the board. */
   keepClosed: 12,
+  /** Pipeline customers who stopped buying, kept for the recap (feedback note). */
+  keepChurned: 12,
   /** Bounds on the win chance: never certain, never hopeless. */
   chance: [0.05, 0.95] as [number, number],
 } as const;
@@ -794,15 +797,35 @@ export function settleSales(world: World, c: Company, month: number) {
     const rng = deriveRng(world.seed, 'sales', 'churn', c.id, month);
     const rel = reliability(c);
     const p = clamp(0.015 * (1.7 - rel) + (c.hibernation ? 0.1 : 0), 0.005, 0.3);
+    // Feedback note: a customer committed to a pilot then a year (or a year up
+    // front) stays until it ends, and one who leaves is recorded with why.
+    const on = feedbackOn(world);
     const kept = [];
     for (const a of c.salesAccounts) {
-      if (a.since < month && rng.chance(p)) {
+      const committed = on && a.committedUntil !== undefined && month <= a.committedUntil;
+      if (a.since < month && !committed && rng.chance(p)) {
+        const reason: SalesChurnReason = !on
+          ? 'switched'
+          : c.hibernation
+            ? 'hibernation'
+            : rel < CHURN_RELIABLE
+              ? 'reliability'
+              : 'switched';
         for (const fid of c.founderIds)
           notify(world, fid, {
             month,
             kind: 'warning',
-            text: `${a.name} stopped buying from ${c.name}.`,
+            text: on
+              ? `${a.name} stopped buying from ${c.name}: ${CHURN_WHY[reason]}.`
+              : `${a.name} stopped buying from ${c.name}.`,
           });
+        if (on) {
+          const d = c.deals?.find((x) => x.id === a.dealId);
+          if (d) d.churned = { month, reason };
+          const list = (c.salesChurn ??= []);
+          list.push({ dealId: a.dealId, name: a.name, monthly: a.monthly, month, reason });
+          if (list.length > SALES.keepChurned) list.splice(0, list.length - SALES.keepChurned);
+        }
         continue;
       }
       kept.push(a);
@@ -823,6 +846,16 @@ export function settleSales(world: World, c: Company, month: number) {
     }
   }
 }
+
+/** Below this reliability, a customer who leaves blames outages and slow support. */
+const CHURN_RELIABLE = 0.6;
+
+/** Why a pipeline customer left, in a few words (inbox, recap). */
+export const CHURN_WHY: Record<SalesChurnReason, string> = {
+  reliability: 'outages and slow support',
+  hibernation: 'you paused the company',
+  switched: 'they moved to another supplier',
+};
 
 /** Monthly invoices from pipeline customers (settleFinances adds them to B2B billing). */
 export const salesBilling = (c: Company): number =>
@@ -890,9 +923,12 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       lossReason: d.lossReason ?? null,
       canRecover: d.stage === 'lost' && !d.recovered && !d.expired,
       expired: !!d.expired,
+      /** Won, then they stopped buying (feedback note): when and why. */
+      churned: d.churned ?? null,
     };
   });
   const won = deals.filter((d) => d.stage === 'won').length;
+  const churned = deals.filter((d) => d.stage === 'won' && d.churned).length;
   const lost = deals.filter((d) => d.stage === 'lost' && (d.recovered || d.expired)).length;
   const openDeals = view.filter((d) => d.monthsLeft !== null);
   const used = prospectsUsed(c, month);
@@ -907,6 +943,8 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       won,
       lost,
       winRate: won + lost > 0 ? won / (won + lost) : null,
+      /** Won deals whose customer has since stopped buying. */
+      churned,
       /** Monthly value of open deals, weighted by their chance. */
       pipelineValue: Math.round(openDeals.reduce((a, d) => a + d.value * d.probability, 0)),
       /** Monthly billing from pipeline customers. */

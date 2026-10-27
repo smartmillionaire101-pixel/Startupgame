@@ -35,7 +35,7 @@ import { lifestyleCost } from './personal.js';
 import { propertiesOf, upkeepOf } from './property.js';
 import { statementLines, type StatementLine } from './statement.js';
 import type { StaffRole } from './data/markets.js';
-import type { Company, Id, MonthlyPnl, Player, World } from './types.js';
+import type { Company, Id, MonthlyPnl, Player, SalesChurnReason, World } from './types.js';
 
 /** Runway below this many months is flagged as a risk. */
 export const RECAP_RUNWAY_RISK = 6;
@@ -90,6 +90,8 @@ export interface RecapCompany {
   deals: {
     won: { name: string; monthly: number }[];
     lost: { name: string; reason: string | null }[];
+    /** Pipeline customers who stopped buying that month, and why (feedback note). */
+    churned: { name: string; monthly: number; reason: SalesChurnReason }[];
   };
   releases: string[];
   hires: { name: string; role: StaffRole }[];
@@ -253,6 +255,9 @@ function companyMonth(world: World, c: Company, month: number): RecapCompany {
     .flatMap((i) => i.text.slice(0, -' quit.'.length).split(', '));
   const deals = c.deals ?? [];
   const accounts = c.salesAccounts ?? [];
+  // Pipeline customers who left count with the market's churn (feedback note).
+  const left = (c.salesChurn ?? []).filter((x) => x.month === month);
+  churned += left.length;
   return {
     id: c.id,
     name: c.name,
@@ -274,6 +279,7 @@ function companyMonth(world: World, c: Company, month: number): RecapCompany {
       lost: deals
         .filter((d) => d.stage === 'lost' && d.closedMonth === month)
         .map((d) => ({ name: d.customer.name, reason: d.lossReason ?? null })),
+      churned: left.map((x) => ({ name: x.name, monthly: x.monthly, reason: x.reason })),
     },
     releases: (c.roadmap?.projects ?? [])
       .filter((p) => p.status === 'released' && p.releasedMonth === month)

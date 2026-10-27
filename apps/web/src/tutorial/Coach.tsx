@@ -66,6 +66,21 @@ function usePhoneApp(): string | null {
   return app;
 }
 
+/** Is the company setup on screen (the Company tab with its setup tracker)? */
+function useSetupOnScreen(): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      const next = !!document.querySelector('.fsu-tracker');
+      setOn((a) => (a === next ? a : next));
+    };
+    check();
+    const timer = setInterval(check, 300);
+    return () => clearInterval(timer);
+  }, []);
+  return on;
+}
+
 export function TutorialHost() {
   const { view } = useView();
   const id = view.me.id;
@@ -84,7 +99,12 @@ export function TutorialHost() {
     if (step && target && target !== step) setTutorial(id, { step: target });
   }, [id, step, target]);
   const phoneApp = usePhoneApp();
+  const onSetup = useSetupOnScreen();
   const [ideaOpen, setIdeaOpen] = useState(false);
+  // "Fund your company" while you're already on the setup: the steps there are
+  // the guide, so the card folds to one line instead of covering them.
+  const unfunded = step === 'sale' && !!facts.company?.setup && facts.company.setup.step !== 'done';
+  const mini = unfunded && onSetup && facts.company!.cash <= 0;
   const spot = !step
     ? null
     : step === 'phone'
@@ -95,7 +115,9 @@ export function TutorialHost() {
           : null
       : step === 'sale'
         ? phoneApp === null
-          ? '[data-coach-action]'
+          ? mini
+            ? null
+            : '[data-coach-action]'
           : phoneApp === 'home'
             ? '.phone [data-app="sales"]'
             : null
@@ -106,7 +128,9 @@ export function TutorialHost() {
   if (!step) return null;
   return (
     <>
-      {phoneApp === null && !ideaOpen && <CoachCard step={step} onCafe={() => setIdeaOpen(true)} />}
+      {phoneApp === null && !ideaOpen && (
+        <CoachCard step={step} mini={mini} onCafe={() => setIdeaOpen(true)} />
+      )}
       {ideaOpen && (
         <Suspense fallback={null}>
           <IdeaScene onClose={() => setIdeaOpen(false)} />
@@ -116,7 +140,15 @@ export function TutorialHost() {
   );
 }
 
-function CoachCard({ step, onCafe }: { step: TutorialStep; onCafe: () => void }) {
+function CoachCard({
+  step,
+  mini,
+  onCafe,
+}: {
+  step: TutorialStep;
+  mini: boolean;
+  onCafe: () => void;
+}) {
   const { view } = useView();
   const id = view.me.id;
   const ref = useRef<HTMLElement>(null);
@@ -134,7 +166,7 @@ function CoachCard({ step, onCafe }: { step: TutorialStep; onCafe: () => void })
   return (
     <aside
       ref={ref}
-      className={`coach coach-${step}`}
+      className={`coach coach-${step}${mini ? ' coach-mini' : ''}`}
       role="dialog"
       aria-modal="false"
       aria-labelledby="coach-title"
@@ -149,7 +181,14 @@ function CoachCard({ step, onCafe }: { step: TutorialStep; onCafe: () => void })
           {t('Skip tutorial')}
         </button>
       </div>
-      <StepBody step={step} onCafe={onCafe} />
+      {mini ? (
+        <p id="coach-text" className="coach-text" data-coach-mini="">
+          <b id="coach-title">{t('Fund your company')}</b>{' '}
+          {t('Follow the steps on this screen: register, then put money in.')}
+        </p>
+      ) : (
+        <StepBody step={step} onCafe={onCafe} />
+      )}
     </aside>
   );
 }

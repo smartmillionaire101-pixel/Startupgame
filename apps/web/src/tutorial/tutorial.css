@@ -247,3 +247,16 @@
 body:has(.coach) main {
   padding-bottom: min(45vh, 22rem);
 }
+/* Folded to one line while you're on the screen it points to (the setup). */
+.coach.coach-mini {
+  padding: var(--sp-2) var(--sp-3);
+  gap: var(--sp-1);
+  border-width: 1px;
+}
+.coach-mini .coach-text {
+  font-size: var(--fs-sm, 0.9rem);
+  margin: 0;
+}
+body:has(.coach-mini) main {
+  padding-bottom: 7rem;
+}

@@ -101,6 +101,9 @@ test('a new founder is guided from the flat to a first sale and the next objecti
   await expect(card).toHaveAttribute('data-tutorial-step', 'sale');
   await expect(card.locator('[data-coach-unfunded]')).toBeVisible();
   await card.getByRole('button', { name: 'Open Company' }).click();
+  // On the setup itself the card folds to one line (no dead "Open Company" over it).
+  await expect(card.locator('[data-coach-mini]')).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Open Company' })).toHaveCount(0);
   await registerAndFund(page, 1 / 3);
 
   // The first customer, with coaching at each step.

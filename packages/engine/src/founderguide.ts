@@ -88,6 +88,8 @@ export interface FounderTask {
   go: JourneyGo | null;
   /** Feedback note, the discovery task: customer interviews done so far (interviews.ts). */
   interviews?: number;
+  /** Counts only once a month has settled (customers kept: nobody has had the chance to leave). */
+  waiting?: boolean;
 }
 
 export interface FounderStage {
@@ -116,7 +118,11 @@ const counted = (have: number, need: number) => ({ have: Math.min(have, need), n
 /** Customers kept last month, in percent (100 when nobody has had the chance to leave). */
 export function keptPct(c: Company): number {
   const seg = Object.values(c.segments);
-  const churned = seg.reduce((a, s) => a + s.churned, 0);
+  // Pipeline customers who left at the latest settlement count too (only
+  // recorded in feedback-note worlds, so older worlds count as before).
+  const month = lastPnl(c)?.month;
+  const left = (c.salesChurn ?? []).filter((x) => x.month === month).length;
+  const churned = seg.reduce((a, s) => a + s.churned, 0) + left;
   const base = totalCustomers(c) + churned;
   return base > 0 ? Math.round(((base - churned) / base) * 100) : 100;
 }
@@ -230,7 +236,11 @@ function stageTasks(
       {
         id: 'first.retention',
         done: customers > 0 && c.finance.history.length > 0 && keptPct(c) >= G.first.keepPct,
-        ...counted(customers > 0 ? keptPct(c) : 0, G.first.keepPct),
+        // The real share (not capped at the goal): "100% now" before a month has
+        // settled reads as what it is, not as "90% now" and unticked.
+        have: customers > 0 ? keptPct(c) : 0,
+        need: G.first.keepPct,
+        ...(c.finance.history.length === 0 ? { waiting: true } : {}),
         go: company,
       },
     ],
@@ -703,7 +713,9 @@ export function passWhyText(why: PitchPassWhy, currency: Parameters<typeof forma
     case 'runway':
       return `Your money lasts ${v.months} months; that's too short to reach the next milestone. Cut costs or raise smaller first.`;
     case 'growth':
-      return `Revenue grows ${v.growth}% a month; we look for ${v.need}%. Show steady growth for a few months.`;
+      return (v.growth ?? 0) < 0
+        ? `Revenue has been falling ${-(v.growth ?? 0)}% a month; we look for growth of ${v.need}%. Show steady growth for a few months.`
+        : `Revenue grows ${v.growth}% a month; we look for ${v.need}%. Show steady growth for a few months.`;
     case 'team':
       return 'The team is thin for what you want to build. Hire senior people or bring in a co-founder.';
     case 'answers':
