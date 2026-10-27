@@ -19,7 +19,7 @@ import { Home } from './screens/Home';
 import { CompanyScreen, openCompanyTab } from './screens/Company';
 import { MoneyScreen } from './screens/Money';
 import { DealFlow, Portfolio } from './screens/Investor';
-import { MeScreen } from './screens/Me';
+import { MeScreen, askMeTab } from './screens/Me';
 import { BankScreen } from './screens/Bank';
 import { CityScreen } from './city/CityScreen';
 import { preloadCityMap } from './city/CityMap';
@@ -404,7 +404,11 @@ function Game() {
           onDecisions={() => goTarget({ kind: 'decision' })}
           onInbox={() => go('home')}
           onCompany={hasCompany ? () => go('company') : undefined}
-          onAllMoney={extraOf(role).includes('money') ? () => go('money') : undefined}
+          onAllMoney={() => {
+            askMeTab('money');
+            go('me');
+          }}
+          onCompanyMoney={extraOf(role).includes('money') ? () => go('money') : undefined}
           onPhone={() => void phoneReady.then(() => openPhone({ app: 'home' }))}
         />
         <main>

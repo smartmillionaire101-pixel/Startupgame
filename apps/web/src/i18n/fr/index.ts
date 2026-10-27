@@ -107,6 +107,7 @@ import { r2Ui } from './r2-ui';
 import { r2Jobs } from './r2-jobs';
 import { convo } from './convo';
 import { setup } from './setup';
+import { r6Ui } from './r6-ui';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -217,6 +218,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   buyMode,
   setup,
   hud,
+  r6Ui,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

@@ -13,7 +13,7 @@ import { settlePersonalLoans } from './credit.js';
 import { ECONOMY, payJob } from './economy.js';
 import { jobHours, payProJob, settleWork } from './work.js';
 import { comfortEnergy, settleCar } from './shop.js';
-import { decayNeeds, moodHoursFactor } from './needs.js';
+import { decayNeeds, moodHoursFactor, moodOf, warnLowMood } from './needs.js';
 import { livingCostFactor } from './property.js';
 import { barHoursFactor, settleBars } from './lifebars.js';
 import { feedbackOn, investorOn, lifeBarsOn } from './releases.js';
@@ -56,6 +56,7 @@ export function computeHours(p: Player, lifeBars = false): number {
  */
 export function settlePerson(world: World, p: Player, month: number) {
   const m = getMarket(world, p.market);
+  const moodBefore = moodOf(p);
   // Banks debit loan repayments before anything else.
   settlePersonalLoans(world, p, month);
   // Wave 5: your wage arrives from the business till, then the car's running costs go out.
@@ -109,6 +110,7 @@ export function settlePerson(world: World, p: Player, month: number) {
   decayNeeds(world, p, month);
   // The feedback round: what you own at home gives some of it back.
   if (!p.ai && feedbackOn(world)) settleHomeBoosts(world, p);
+  warnLowMood(world, p, month, moodBefore);
   // Phase 3: health and stress settle after energy and needs, before hours.
   const lifeBars = !p.ai && lifeBarsOn(world);
   if (lifeBars) settleBars(world, p, month, { hoursUsed: p.hours.used, missedLiving: paid < cost });

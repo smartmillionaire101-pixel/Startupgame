@@ -57,7 +57,14 @@ function toneOf(id: BarId, v: number): 'good' | 'warn' | 'bad' {
  * Under Me (player feedback: the bars belonged with you, not in the top bar):
  * what each bar is at, what is affecting you now, and how to change it.
  */
-export function LifeBarsPanel({ me }: { me: PlayerView['me'] }) {
+export function LifeBarsPanel({
+  me,
+  skip = [],
+}: {
+  me: PlayerView['me'];
+  /** Bars shown elsewhere on the same sheet (the day sheet has its own energy bar). */
+  skip?: BarId[];
+}) {
   const bars = me.bars;
   if (!bars) return null;
   const effects = me.barEffects ?? [];
@@ -73,7 +80,7 @@ export function LifeBarsPanel({ me }: { me: PlayerView['me'] }) {
           ))}
         </ul>
       )}
-      {ORDER.map((id) => {
+      {ORDER.filter((id) => !skip.includes(id)).map((id) => {
         const v = bars[id];
         const b = BAR[id];
         return (
