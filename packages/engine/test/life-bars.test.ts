@@ -163,6 +163,19 @@ describe('life bars: rides', () => {
     expect(me(taxi.world).energy).toBe(me(w).energy);
   });
 
+  it('cost the time the ride takes when the client sends it (playtest round 6)', () => {
+    const w = gated();
+    // A 25-minute danfo ride costs 25 minutes, not the long band's 54.
+    const bus = run(w, F, { type: 'city.ride', mode: 'bus', distance: 'long', minutes: 25 });
+    expect(bus.result.hours).toBeCloseTo(25 / 60, 2);
+    expect(me(bus.world).hours.used).toBeCloseTo(me(w).hours.used + 0.42, 6);
+    // Kept within reason: a quarter of the shortest band to twice the longest.
+    const tiny = run(w, F, { type: 'city.ride', mode: 'taxi', distance: 'long', minutes: 0 });
+    expect(tiny.result.hours).toBeCloseTo(LIFE_BARS.rideHours.taxi.short / 4, 2);
+    const huge = run(w, F, { type: 'city.ride', mode: 'taxi', distance: 'long', minutes: 600 });
+    expect(huge.result.hours).toBeCloseTo(LIFE_BARS.rideHours.taxi.long * 2, 2);
+  });
+
   it('a ride is the rescue: with too few hours it uses what is left', () => {
     const w = edit(gated(), (d) => {
       me(d).hours.used = me(d).hours.available - 0.1;

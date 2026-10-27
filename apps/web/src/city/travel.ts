@@ -494,8 +494,52 @@ export function tripCost(mode: RideMode, tiles: number): { hours: number; energy
     const c = walkCost(mode, rideMinutes(mode, tiles));
     return { hours: c.hours, energy: c.energy };
   }
-  const c = rideCost(mode, rideDistance(tiles));
+  // The ride's own length (the server charges what you were shown).
+  const c = rideCost(mode, rideDistance(tiles), rideMinutes(mode, tiles));
   return { hours: c.hours, energy: c.energy };
+}
+
+/**
+ * The minutes a trip reads everywhere (the chooser, the ride's card, the Rides
+ * app): with the life bars, the game time it takes from your month; without
+ * them, the ride's own time.
+ */
+export function tripMinutes(mode: RideMode, tiles: number, lifeBars: boolean): number {
+  return lifeBars
+    ? Math.max(1, Math.round(tripCost(mode, tiles).hours * 60))
+    : rideMinutes(mode, tiles);
+}
+
+/**
+ * Why you can't walk or cycle this far (the server's `city.walk` refusals),
+ * or null: rides always go on what's left.
+ */
+export function legsBlocked(
+  mode: RideMode,
+  tiles: number,
+  me: { hoursLeft: number; energy: number } | null,
+): 'hours' | 'tired' | null {
+  if (!me || (mode !== 'walk' && mode !== 'cycle')) return null;
+  const cost = tripCost(mode, tiles);
+  if (me.hoursLeft < cost.hours) return 'hours';
+  if (me.energy < Math.max(10, cost.energy)) return 'tired';
+  return null;
+}
+
+/**
+ * "Skip the ride" goes your usual way when you can (playtest round 6: it said
+ * Walk when you were too tired to walk, and then did nothing): else the first
+ * way you can, cheapest first (cycle, then transit, a taxi or your car).
+ */
+export function skipModeFor(
+  modes: readonly RideMode[],
+  preferred: RideMode,
+  tiles: number,
+  me: { hoursLeft: number; energy: number } | null,
+): RideMode {
+  if (modes.includes(preferred) && !legsBlocked(preferred, tiles, me)) return preferred;
+  const order: RideMode[] = ['cycle', 'walk', 'bus', 'drive', 'taxi'];
+  return order.find((m) => modes.includes(m) && !legsBlocked(m, tiles, me)) ?? 'taxi';
 }
 
 /** "1 h 52 min", "25 min": game hours as a player reads them. */
@@ -527,9 +571,10 @@ export function rideMinutes(mode: RideMode, tiles: number): number {
         ? tiles * 0.22
         : mode === 'bus'
           ? 5 + tiles * 0.15
-          : mode === 'drive'
-            ? 1 + tiles * 0.1
-            : 2 + tiles * 0.1;
+          : // A taxi or your car beats cycling across town (playtest round 6).
+            mode === 'drive'
+            ? 1 + tiles * 0.07
+            : 2 + tiles * 0.07;
   return Math.max(1, Math.round(m));
 }
 
@@ -651,13 +696,19 @@ export function tripCommand(
       type: 'city.ride';
       mode: RideMode;
       distance: RideDistance;
+      minutes: number;
     }
   | null {
   const legs = mode === 'walk' || mode === 'cycle';
   if (legs && !lifeBars) return null;
   return legs
     ? { type: 'city.walk', mode, minutes: rideMinutes(mode, tiles) }
-    : { type: 'city.ride', mode, distance: rideDistance(tiles) };
+    : {
+        type: 'city.ride',
+        mode,
+        distance: rideDistance(tiles),
+        minutes: rideMinutes(mode, tiles),
+      };
 }
 
 // ---------------------------------------------------------------------------

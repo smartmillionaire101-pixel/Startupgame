@@ -16,7 +16,7 @@
 import { useSyncExternalStore } from 'react';
 import type { AvatarLook } from '../art';
 import type { CityLayout, Pt } from '../layout';
-import type { RideMode } from '../travel';
+import { rideMinutes, type RideMode } from '../travel';
 
 const SKIP_RIDES_KEY = 'runway.skipRides';
 const COUNT_KEY = 'runway.rideCount';
@@ -71,6 +71,8 @@ export interface RideQuote {
   fuel?: number;
   /** Driving: your car's name. */
   car?: string;
+  /** The trip's minutes as the chooser showed them (the ride's card counts them down). */
+  minutes?: number;
 }
 let quote: RideQuote | null = null;
 export function quoteRide(q: RideQuote) {
@@ -109,6 +111,8 @@ export interface Ride extends RideRequest {
   offerSkip: boolean;
   fuel: number;
   car: string;
+  /** The trip's minutes, as the chooser showed them. */
+  minutes: number;
 }
 
 export interface RideHandle {
@@ -203,6 +207,7 @@ export function beginRide(req: RideRequest): RideHandle | null {
     offerSkip: n >= 2,
     fuel: q?.fuel ?? 0,
     car: q?.car ?? '',
+    minutes: q?.minutes ?? rideMinutes(req.mode, req.tiles),
   };
   current = ride;
   skipped = false;

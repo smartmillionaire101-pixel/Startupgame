@@ -919,12 +919,15 @@ function CityBodyInner({
    * Skip the trip: there at once. Free without the life bars; with them it
    * costs what your usual way of getting about costs, just without the ride.
    */
-  const skipTrip = useCallback(async () => {
-    if (!trip) return;
-    if (lifeBars && !(await chargeTrip(preferred, trip.tiles))) return;
-    setTrip(null);
-    mapRef.current?.ride(lifeBars ? preferred : 'walk', true);
-  }, [trip, lifeBars, preferred, chargeTrip]);
+  const skipTrip = useCallback(
+    async (as: RideMode = preferred) => {
+      if (!trip) return;
+      if (lifeBars && !(await chargeTrip(as, trip.tiles))) return;
+      setTrip(null);
+      mapRef.current?.ride(lifeBars ? as : 'walk', true);
+    },
+    [trip, lifeBars, preferred, chargeTrip],
+  );
   const pickRide = useCallback(
     async (mode: RideMode, instant = false, which: FarTrip | null = trip) => {
       if (!which) return;
@@ -1193,7 +1196,7 @@ function CityBodyInner({
                 preferred={preferred}
                 busy={rideBusy}
                 onPick={(m) => void pickRide(m)}
-                onSkip={() => void skipTrip()}
+                onSkip={(m) => void skipTrip(m)}
                 onCancel={cancelTrip}
                 car={car}
                 abroad={abroad}

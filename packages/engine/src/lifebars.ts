@@ -225,14 +225,20 @@ export function walkCost(mode: WalkMode, minutes: number) {
   };
 }
 
-/** What a ride costs in time and energy (the fare is `rideFare` in travel.ts). */
-export function rideCost(mode: RideMode, distance: RideDistance) {
-  return {
-    mode,
-    distance,
-    hours: LIFE_BARS.rideHours[mode][distance],
-    energy: LIFE_BARS.rideEnergy[mode],
-  };
+/**
+ * What a ride costs in time and energy (the fare is `rideFare` in travel.ts).
+ * `minutes`, when the client sends the trip's own length (playtest round 6:
+ * every bus or taxi ride in a distance band cost the same, so the chooser and
+ * the ride disagreed), is the time it costs, kept within a quarter of the band’s
+ * shortest and twice its longest.
+ */
+export function rideCost(mode: RideMode, distance: RideDistance, minutes?: number) {
+  const band = LIFE_BARS.rideHours[mode];
+  const hours =
+    minutes !== undefined && Number.isFinite(minutes)
+      ? round2(clamp(minutes / 60, band.short / 4, band.long * 2))
+      : band[distance];
+  return { mode, distance, hours, energy: LIFE_BARS.rideEnergy[mode] };
 }
 
 /** `city.walk`: walk or cycle across town; costs hours and energy, refused when you can't. */
@@ -274,8 +280,8 @@ export function walk(world: World, p: Player, mode: WalkMode, minutes: number) {
  * A ride's time and energy (after the fare is paid). It never refuses: with
  * too few hours left it uses what's left, down to 0.
  */
-export function rideBars(p: Player, mode: RideMode, distance: RideDistance) {
-  const cost = rideCost(mode, distance);
+export function rideBars(p: Player, mode: RideMode, distance: RideDistance, minutes?: number) {
+  const cost = rideCost(mode, distance, minutes);
   const hours = round2(Math.min(cost.hours, hoursLeft(p)));
   p.hours.used += hours;
   const energy = cost.energy ? Math.round(bumpEnergy(p, -cost.energy)) : 0;
