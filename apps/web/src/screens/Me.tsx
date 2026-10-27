@@ -120,6 +120,12 @@ const milestoneLabels = (): Record<string, string> => ({
   'banker.five-star': t('Five-star bank'),
 });
 
+/** A milestone's name; a journey chapter's id ("founder.chapter-3") reads as the chapter. */
+const milestoneLabel = (k: string) => {
+  const chapter = /^(?:founder|investor|banker)\.chapter-(\d+)$/.exec(k);
+  return chapter ? t('Chapter {n} complete', { n: chapter[1]! }) : (milestoneLabels()[k] ?? k);
+};
+
 function Profile() {
   const { view } = useView();
   const nav = useNav();
@@ -231,7 +237,7 @@ function Profile() {
             <div className="chips">
               {Object.entries(me.milestones).map(([k, m]) => (
                 <Pill key={k} tone="good">
-                  {milestoneLabels()[k] ?? k} · {t('m{n}', { n: m })}
+                  {milestoneLabel(k)} · {t('m{n}', { n: m + 1 })}
                 </Pill>
               ))}
             </div>

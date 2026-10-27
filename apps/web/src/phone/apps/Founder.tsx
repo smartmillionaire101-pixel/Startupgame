@@ -29,7 +29,7 @@ export function Founder({ ctx }: { ctx: PhoneCtx }) {
     );
   const cur = c.currency;
   const runway = c.runwayMonths;
-  const preRevenue = c.monthlyRevenue === 0 && c.burn <= 0;
+  const preRevenue = c.monthlyRevenue === 0 && c.spending <= 0;
   const runwayText = preRevenue
     ? t('Pre-revenue')
     : runway === null
@@ -58,7 +58,7 @@ export function Founder({ ctx }: { ctx: PhoneCtx }) {
           value={t('{amount}/mo', { amount: money(c.monthlyRevenue, cur) })}
           tone="good"
         />
-        <Line label={t('Spending')} value={t('{amount}/mo', { amount: money(c.burn, cur) })} />
+        <Line label={t('Spending')} value={t('{amount}/mo', { amount: money(c.spending, cur) })} />
         <Line label={t('Team')} value={c.teamSize} />
         <Line label={t('Stars')} value={`${c.stars.toFixed(1)}★`} />
         {c.status !== 'active' && <p className="small bad">{t('This company has closed.')}</p>}

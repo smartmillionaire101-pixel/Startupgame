@@ -22,17 +22,9 @@
  */
 import { activeAngels } from './angels.js';
 import { addSafe, fullyDiluted } from './captable.js';
-import { monthlyCosts } from './company.js';
+import { monthlyCosts, projectedBurn } from './company.js';
 import { ensure } from './errors.js';
-import {
-  burn,
-  getCompany,
-  getMarket,
-  holderAccount,
-  lastPnl,
-  nextStage,
-  notify,
-} from './helpers.js';
+import { getCompany, getMarket, holderAccount, lastPnl, nextStage, notify } from './helpers.js';
 import { newId } from './ids.js';
 import { account, costIn, openAccount, pay, payExact, transfer, withTx } from './ledger.js';
 import { clamp } from './math.js';
@@ -638,7 +630,8 @@ export function friendsRoundsView(world: World, p: Player, hereMarket: string) {
 export function founderFinanceView(world: World, c: Company) {
   const available = account(world, c.account).balance;
   const reserve = reserveBalance(world, c);
-  const netBurn = burn(c);
+  // Next month's real costs less last month's revenue (company.ts forwardRunway).
+  const netBurn = projectedBurn(world, c);
   const positive = netBurn <= 0;
   const runway = positive ? null : Math.floor((available / netBurn) * 10) / 10;
   const runwayTotal = positive ? null : Math.floor(((available + reserve) / netBurn) * 10) / 10;

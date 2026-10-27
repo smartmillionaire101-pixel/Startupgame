@@ -57,6 +57,18 @@ export function companyRunway(world: World, c: Company): number {
   return cash / b;
 }
 
+/**
+ * Months the cash lasts at next month's real costs (rent, payroll, everything
+ * `monthlyCosts` counts) less last month's revenue; Infinity when that is
+ * nothing. Unlike `companyRunway` (the last three months' average), a company
+ * that has just leased an office or hired counts the new costs at once.
+ */
+export function forwardRunway(world: World, c: Company): number {
+  const b = projectedBurn(world, c);
+  if (b <= 0) return Infinity;
+  return account(world, c.account).balance / b;
+}
+
 /** Default alive: profitable before the money runs out, at current growth. */
 export function defaultAlive(world: World, c: Company): boolean {
   const pnl = lastPnl(c);

@@ -143,7 +143,7 @@ export function CompanyKpis({ c }: { c: Company }) {
         icon="wallet"
         label={t('Company bank')}
         value={money(c.cash, cur)}
-        hint={t('Spending {amount}/mo', { amount: money(c.burn, cur) })}
+        hint={t('Spending {amount}/mo', { amount: money(c.spending, cur) })}
       />
       <Stat
         icon="clock"

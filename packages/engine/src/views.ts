@@ -50,7 +50,14 @@ import { INDUSTRY_LABEL } from './data/industries.js';
 import { rulesFor } from './data/rules.js';
 import { markValue, ownership, waterfall } from './captable.js';
 import { clockView, gameDate } from './clock.js';
-import { companyRunway, defaultAlive, monthlyCosts, payrollThisMonth } from './company.js';
+import {
+  companyRunway,
+  defaultAlive,
+  forwardRunway,
+  monthlyCosts,
+  payrollThisMonth,
+  projectedBurn,
+} from './company.js';
 import { rescuePlan } from './rescue.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
@@ -244,10 +251,15 @@ export function companyDetail(world: World, c: Company) {
     incorporation: c.incorporation,
     cash,
     bankId: world.accounts[c.account]!.bankId ?? null,
-    runwayMonths: finite(companyRunway(world, c)),
+    // How long the money lasts and the net burn at next month's real costs
+    // (rent and payroll count from the month they're committed), not last
+    // months' average: a company that has just leased or hired sees it at once.
+    runwayMonths: finite(forwardRunway(world, c)),
     defaultAlive: defaultAlive(world, c),
     monthlyRevenue: lastPnl(c)?.revenue ?? 0,
-    burn: burn(c),
+    burn: Math.max(0, projectedBurn(world, c)),
+    /** What a month costs at today's settings (rent, salaries, marketing, cloud, loans). */
+    spending: monthlyCosts(world, c),
     price: c.price,
     marketingBudget: c.marketingBudget,
     founderSalary: c.founderSalary,

@@ -107,6 +107,7 @@ import { r2Ui } from './r2-ui';
 import { r2Jobs } from './r2-jobs';
 import { convo } from './convo';
 import { setup } from './setup';
+import { founderPlaytest } from './founder-playtest';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -216,6 +217,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   convo,
   buyMode,
   setup,
+  founderPlaytest,
   hud,
 };
 

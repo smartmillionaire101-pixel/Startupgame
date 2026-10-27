@@ -83,7 +83,7 @@ export function MoneySheet({
             </h3>
             <Row label={t('In the company bank')} value={moneyExact(c.cash, cur)} />
             <Row label={t('Revenue last month')} value={money(c.monthlyRevenue, cur)} />
-            <Row label={t('Spending per month')} value={money(c.burn, cur)} />
+            <Row label={t('Spending per month')} value={money(c.spending, cur)} />
             <Row
               label={t('Money lasts')}
               value={

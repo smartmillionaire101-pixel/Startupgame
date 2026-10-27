@@ -14,7 +14,7 @@
  * from the world counter, rolls dice or moves money, so replaying an old
  * command log reaches the same world (plus the new milestones).
  */
-import { companyRunway } from './company.js';
+import { companyRunway, forwardRunway } from './company.js';
 import { bankersOn, dealflowOn, feedbackOn, investorOn } from './releases.js';
 import { customerFacts } from './traction.js';
 import { inSetup, setupStepsDone } from './setup.js';
@@ -438,16 +438,26 @@ export const CHAPTERS: ChapterDef[] = [
     story: 'Choose how to fund the company: bootstrap, borrow, win or raise.',
     steps: (world, p, f) => {
       const boot = p.journey?.bootstrap !== undefined;
-      const funded = fundingSources(world, p).length > 0;
+      const sources = fundingSources(world, p);
+      const funded = sources.length > 0;
       const months = JOURNEY.fundraising.runwayMonths;
-      const runway = Math.max(0, ...f.active.map((c) => companyRunway(world, c)));
+      // Feedback note: putting your own money in is a funding choice but not a
+      // pitch, and runway is measured on what next month will really cost
+      // (rent and payroll included) for companies past their setup.
+      const on = feedbackOn(world);
+      const outside = on ? sources.some((s) => s !== 'founder') : funded;
+      const open = on ? f.active.filter((c) => !inSetup(c)) : f.active;
+      const runway = Math.max(
+        0,
+        ...open.map((c) => (on ? forwardRunway(world, c) : companyRunway(world, c))),
+      );
       const safe =
-        f.ms['founder.profitable'] !== undefined || (f.active.length > 0 && runway >= months);
+        f.ms['founder.profitable'] !== undefined || (open.length > 0 && runway >= months);
       return [
         step(
           'fundraising.pitch',
           'Pitch an investor, an accelerator, a grant or a competition',
-          boot || funded || hasPitched(world, p),
+          boot || outside || hasPitched(world, p),
           { kind: 'place', place: 'investors' },
         ),
         step('fundraising.funding', 'Get funded, or choose to bootstrap', boot || funded, {
@@ -459,7 +469,7 @@ export const CHAPTERS: ChapterDef[] = [
           `Have ${months}+ months of runway, or turn a profit`,
           safe,
           { kind: 'tab', tab: 'money' },
-          f.active.length && Number.isFinite(runway)
+          open.length && Number.isFinite(runway)
             ? { progress: count(Math.floor(runway), months) }
             : {},
         ),
@@ -1064,11 +1074,17 @@ function complete(def: ChapterDef, steps: JourneyStep[]): boolean {
 export function deriveChapters(world: World, p: Player, shared?: SharedFacts): JourneyChapter[] {
   const f = factsOf(world, p, shared);
   const { defs, milestone } = journeyOf(world, p);
+  // Feedback note: chapters complete in order. A later chapter's steps still
+  // tick as they happen, but it is done (and recorded) only once every chapter
+  // before it is, so "Chapter 3 complete" never arrives while you're on Chapter 1.
+  const inOrder = feedbackOn(world);
+  let before = true;
   const chapters = defs.map((def, i): JourneyChapter => {
     const n = i + 1;
     const recorded = p.milestones[milestone(n)];
     let steps = def.steps(world, p, f);
-    const finished = recorded !== undefined || complete(def, steps);
+    const finished = recorded !== undefined || ((!inOrder || before) && complete(def, steps));
+    before &&= finished;
     // Once a chapter is recorded, its needed steps stay ticked (revenue can dip).
     if (recorded !== undefined && def.need === undefined)
       steps = steps.map((s) => (s.optional || s.done ? s : { ...s, done: true }));
