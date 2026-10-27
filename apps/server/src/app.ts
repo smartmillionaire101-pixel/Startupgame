@@ -164,7 +164,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        // The same as netlify.toml's: the page's Google Fonts stylesheet and its
+        // font files (play-test: the local server's CSP blocked them every load).
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         imgSrc: ["'self'", 'data:'],
         connectSrc: ["'self'"],
         frameAncestors: ["'none'"],
@@ -638,7 +641,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // The state is polled (every 20 s where the host can't stream): an answer
   // the client already has comes back as an empty 304. Its tag leaves out
   // the server's clock, the one thing that differs between two such answers.
-  app.get('/api/state', { preHandler: requireUser }, async (req, reply) => {
+  // `?soft=1` (the page asking whether anyone is signed in): no session is a
+  // quiet 204, not a 401 every visitor's console logs as an error.
+  const stateUser = async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!req.userId && (req.query as { soft?: string } | undefined)?.soft === '1')
+      return reply.code(204).header('cache-control', 'no-store').send();
+    return requireUser(req, reply);
+  };
+  app.get('/api/state', { preHandler: stateUser }, async (req, reply) => {
     const view = playerView(game.current, req.userId!, { now: now(), monthMs });
     const a = await store.getAccount(req.userId!);
     const account = {

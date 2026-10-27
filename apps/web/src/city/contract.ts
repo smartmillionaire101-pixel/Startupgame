@@ -411,6 +411,8 @@ interface BusinessItemView {
   price: number;
   energy?: number;
   meeting?: boolean;
+  /** A thing to do (a massage, a film), not food or drink. */
+  activity?: boolean;
 }
 
 interface BusinessGigView {
