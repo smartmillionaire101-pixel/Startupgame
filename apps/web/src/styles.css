@@ -565,7 +565,8 @@ button.topbar-cash {
 
 .nav-inner {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* One column a tab (App.tsx sets --nav-cols). */
+  grid-template-columns: repeat(var(--nav-cols, 5), 1fr);
   width: 100%;
   max-width: 560px;
 }
@@ -2048,11 +2049,8 @@ body:has(.app-city) .toasts {
   white-space: nowrap;
 }
 
-/* ---------- wide screens: a roomier column, stat tiles in one row */
+/* ---------- wide screens: stat tiles in one row (the layout: at the end) */
 @media (min-width: 900px) {
-  .app:not(.app-city) {
-    max-width: 760px;
-  }
   .kpis {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
@@ -2507,4 +2505,226 @@ html[data-simple] .topbar-date {
 }
 .payday-options .row {
   margin-top: var(--sp-1);
+}
+
+/* ==========================================================================
+   The game on every screen size (player: "can we have the game take the
+   whole screen").
+     < 600px    a phone: the bottom bar, one column.
+     600–899px  a tablet held upright: the bottom bar, a wider column.
+     >= 900px   a laptop or a tablet on its side: a sidebar down the left
+                under a top bar that spans the window, the city to the edges,
+                content screens in two columns up to 1200px (three up to
+                1560px from 1700px).
+   ========================================================================== */
+
+/* Columns a screen lays out itself (Today, Company, Portfolio, Me): explicit
+   columns, so opening a fold never moves a card to the other one. On a phone
+   they melt away and the cards read one after the other, in order. */
+.screen-cols,
+.screen-col {
+  display: contents;
+}
+
+/* Upright tablet: the bottom bar stays, the column widens. */
+@media (min-width: 600px) and (max-width: 899px) {
+  .app-game:not(.app-city) {
+    max-width: 840px;
+  }
+  .nav-inner {
+    max-width: 720px;
+  }
+}
+
+@media (min-width: 900px) {
+  :root {
+    --side-w: 15rem;
+    --content-max: 1200px;
+    --app-pad: 2rem;
+  }
+
+  /* The bottom bar becomes a sidebar down the left edge, under the top bar.
+     (App.tsx keeps --nav-h at 0 while the bar is taller than it's wide.) */
+  .nav {
+    top: calc(2.9rem + 1px + env(safe-area-inset-top));
+    right: auto;
+    width: var(--side-w);
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    display: block;
+    padding: 1rem 0.75rem calc(1rem + env(safe-area-inset-bottom))
+      calc(0.75rem + env(safe-area-inset-left));
+    overflow-y: auto;
+  }
+  .nav-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-width: none;
+  }
+  .nav button {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.6rem;
+    min-height: 2.9rem;
+    padding: 0 0.6rem 0 0.35rem;
+    border-radius: var(--r-md, 12px);
+    font-size: var(--fs-sm);
+  }
+  .nav button:hover {
+    background: var(--surface-2);
+  }
+  .nav button[aria-current='page'] {
+    background: var(--accent-soft);
+  }
+  .nav button[aria-current='page'] .ico {
+    background: none;
+  }
+  .nav button .ico {
+    width: 2.2rem;
+  }
+  .nav .badge {
+    position: static;
+    margin-left: auto;
+    box-shadow: none;
+  }
+
+  /* The game uses every pixel right of the sidebar. */
+  .app.app-game {
+    max-width: none;
+    margin: 0 0 0 var(--side-w);
+    padding: 0 var(--app-pad) 2.5rem;
+  }
+  /* The top bar spans the window: the brand sits over the sidebar's corner. */
+  .app-game .topbar {
+    margin: 0 calc(-1 * var(--app-pad)) 0 calc(-1 * var(--app-pad) - var(--side-w));
+    padding-inline: calc(1.25rem + env(safe-area-inset-left)) 1.25rem;
+  }
+
+  /* Content screens: up to 1200px. Titles, stat tiles, tab rows, warnings,
+     "What to do now" and the stage tracker run across the top. */
+  .app-game:not(.app-city) main {
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding-top: 0.5rem;
+  }
+  .screen-cols {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* The second and third columns stack on the right. */
+    grid-template-areas:
+      'a b'
+      'a c';
+    grid-template-rows: auto 1fr;
+    column-gap: 1rem;
+    align-items: start;
+  }
+  .screen-col {
+    display: block;
+    min-width: 0;
+  }
+  .screen-col:nth-child(1) {
+    grid-area: a;
+  }
+  .screen-col:nth-child(2) {
+    grid-area: b;
+  }
+  .screen-col:nth-child(3) {
+    grid-area: c;
+  }
+
+  /* Any other screen: its cards flow in two columns. */
+  .app-game:not(.app-city) main:not(:has(.screen-cols)) {
+    column-count: 2;
+    column-gap: 1rem;
+  }
+  .app-game:not(.app-city) main:not(:has(.screen-cols)) > * {
+    column-span: all;
+  }
+  .app-game:not(.app-city)
+    main:not(:has(.screen-cols))
+    > :is(.card, section.stack):not(.whatnow-card, .card-warn, .fg-tracker, .fg-coming) {
+    column-span: none;
+    break-inside: avoid;
+    margin-top: 0;
+  }
+  .app-game:not(.app-city) main:not(:has(.screen-cols)) > section.stack {
+    margin-bottom: var(--sp-3);
+  }
+  .app-game:not(.app-city) main > .kpis {
+    margin-bottom: var(--sp-3);
+  }
+  /* Full-width buttons flow with the cards. */
+  .app-game:not(.app-city) main:not(:has(.screen-cols)) > .btn-block {
+    column-span: none;
+    margin-bottom: var(--sp-3);
+  }
+
+  /* Sheets: a centred panel in the play area, not a strip along the bottom. */
+  .sheet-backdrop {
+    align-items: center;
+    padding-left: calc(var(--sp-6) + var(--side-w));
+  }
+  .sheet {
+    max-width: 640px;
+    border-radius: var(--r-xl);
+  }
+  /* A panel opened from the phone opens over the phone. */
+  .phone .sheet-backdrop {
+    left: auto;
+    width: clamp(400px, 32vw, 480px);
+    padding: var(--sp-4);
+  }
+
+  /* Toasts: bottom-centre of the play area. */
+  .toasts {
+    left: calc(50% + var(--side-w) / 2);
+    bottom: calc(1.25rem + env(safe-area-inset-bottom)) !important;
+  }
+  body:has(.app-city) .toasts {
+    bottom: calc(5rem + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* A very wide window: three columns, up to 1560px. */
+@media (min-width: 1700px) {
+  .app-game:not(.app-city) main {
+    --content-max: 1560px;
+  }
+  .screen-cols {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas: 'a b c';
+    grid-template-rows: auto;
+  }
+  .app-game:not(.app-city) main:not(:has(.screen-cols)) {
+    column-count: 3;
+  }
+}
+
+/* A tablet on its side, a small laptop: a slimmer sidebar, icon over label. */
+@media (min-width: 900px) and (max-width: 1199px) {
+  :root {
+    --side-w: 5.5rem;
+    --app-pad: 1.25rem;
+  }
+  .nav {
+    padding-inline: calc(0.4rem + env(safe-area-inset-left)) 0.4rem;
+  }
+  .nav button {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.15rem;
+    min-height: 3.6rem;
+    padding: 0.3rem 0;
+    font-size: var(--fs-2xs);
+  }
+  .nav .badge {
+    position: absolute;
+    top: 0.2rem;
+    right: calc(50% - 1.45rem);
+    margin: 0;
+  }
+  .app.app-game {
+    padding-bottom: 2rem;
+  }
 }

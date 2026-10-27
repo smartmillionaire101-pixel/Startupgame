@@ -71,6 +71,9 @@ const SOFT_COMPILE_MS = 1500;
 const SOFT_COMPILE_WAIT_MS = 300;
 /** Most pixels a software renderer shades a frame (a phone screen's worth). */
 const SOFT_PIXELS = 360_000;
+/** Most pixels a GPU shades a frame: a laptop's window at 2 device pixels a CSS
+    pixel is over 5 million, more than an older laptop draws smoothly. */
+const GPU_PIXELS = 2_800_000;
 
 export type Tier = 'high' | 'low';
 
@@ -231,6 +234,8 @@ export class CityScene {
   private activeUntil = 0;
   private dpr: number;
   private dprMax: number;
+  /** The most device pixels a CSS pixel for this screen and tier (before the window's size). */
+  private dprCap: number;
   private frameTimes: number[] = [];
   private disposed = false;
   private slow = 0;
@@ -273,7 +278,8 @@ export class CityScene {
     // screen; 1.75 draws a third more pixels for little to see).
     // A sky view sees the whole city at once: 1.25 (1.5 on a big screen) is plenty.
     const cap = opts.sky ? (high ? 1.5 : 1.25) : high ? 2 : 1.5;
-    this.dprMax = opts.soft ? 1 : Math.min(2, window.devicePixelRatio || 1, cap);
+    this.dprCap = opts.soft ? 1 : Math.min(2, window.devicePixelRatio || 1, cap);
+    this.dprMax = this.dprCap;
     this.dpr = this.dprMax;
     this.renderer.setPixelRatio(this.dpr);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1174,6 +1180,14 @@ export class CityScene {
       const fit = Math.sqrt(SOFT_PIXELS / (this.size.w * this.size.h));
       this.dprMax = this.dpr = Math.min(1, Math.max(0.4, fit));
       this.renderer.setPixelRatio(this.dpr);
+    } else {
+      // A big window draws at most GPU_PIXELS (a touch softer on a very big one).
+      const fit = Math.sqrt(GPU_PIXELS / (this.size.w * this.size.h));
+      this.dprMax = Math.min(this.degraded ? 1 : this.dprCap, Math.max(0.75, fit));
+      if (this.dpr > this.dprMax) {
+        this.dpr = this.dprMax;
+        this.renderer.setPixelRatio(this.dpr);
+      }
     }
     this.renderer.setSize(this.size.w, this.size.h, false);
     this.camera.aspect = this.size.w / this.size.h;
@@ -1567,7 +1581,7 @@ export class CityScene {
         this.degraded = true;
         this.renderer.shadowMap.enabled = false;
         this.sun.castShadow = false;
-        this.dprMax = 1;
+        this.dprMax = Math.min(1, this.dprMax);
         this.setDpr(1);
       }
     } else this.slow = 0;

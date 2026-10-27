@@ -333,33 +333,3 @@ export function Icon({
     </svg>
   );
 }
-
-/** Battery glyph, filled to `level` (0–100). */
-export function Battery({ level }: { level: number }) {
-  const w = Math.max(0, Math.min(100, level)) / 100;
-  const low = level < 20;
-  return (
-    <svg width="25" height="12" viewBox="0 0 25 12" aria-hidden="true" focusable="false">
-      <rect
-        x="0.75"
-        y="0.75"
-        width="21"
-        height="10.5"
-        rx="3"
-        fill="none"
-        stroke="currentColor"
-        strokeOpacity="0.55"
-        strokeWidth="1.2"
-      />
-      <rect x="22.6" y="3.8" width="1.8" height="4.4" rx="0.9" fill="currentColor" opacity="0.55" />
-      <rect
-        x="2.4"
-        y="2.4"
-        width={Math.max(0.5, 17.7 * w)}
-        height="7.2"
-        rx="1.6"
-        fill={low ? '#ef4444' : 'currentColor'}
-      />
-    </svg>
-  );
-}
