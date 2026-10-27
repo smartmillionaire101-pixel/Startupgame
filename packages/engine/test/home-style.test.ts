@@ -213,3 +213,61 @@ describe('floors and wall paint', () => {
     if (!r.ok) expect(r.error.code).toBe('home.funds');
   });
 });
+
+describe('more than one of a thing (player feedback)', () => {
+  const total = (w: World) => Object.values(w.accounts).reduce((a, x) => a + x.balance, 0);
+
+  it('an older world doesn’t know the commands', () => {
+    const w = furnish(world(false), ['sound-1']);
+    const r = tryRun(w, F, { type: 'home.extra.buy', itemId: 'sound-1' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('command.unknown');
+  });
+
+  it('buys a second and third speaker through the ledger, each its own; boosts count once', () => {
+    let w = furnish(world(true), ['sound-2', 'art-1']);
+    const before = cash(w);
+    const sum = total(w);
+    const boosts = ownedBoosts(me(w));
+    const a = run(w, F, { type: 'home.extra.buy', itemId: 'sound-2' });
+    const price = (a.result as { price: number }).price;
+    expect(price).toBeGreaterThan(0);
+    w = run(a.world, F, { type: 'home.extra.buy', itemId: 'sound-2' }).world;
+    w = run(w, F, { type: 'home.extra.buy', itemId: 'art-1' }).world;
+    const extras = me(w).homeExtras!;
+    expect(extras.map((x) => x.slot)).toEqual(['sound', 'sound', 'art']);
+    expect(new Set(extras.map((x) => x.id)).size).toBe(3);
+    expect(cash(w)).toBeLessThan(before - 2 * price);
+    // Money moves, none is made or lost.
+    expect(total(w)).toBe(sum);
+    // The slot keeps its one; the extras add no boost (each kind counts once).
+    expect(me(w).home!.items).toHaveLength(2);
+    expect(ownedBoosts(me(w))).toEqual(boosts);
+    const v = view(w) as { extras: { id: string; slot: string; tier: number }[] };
+    expect(v.extras.map((x) => [x.slot, x.tier])).toEqual([
+      ['sound', 2],
+      ['sound', 2],
+      ['art', 1],
+    ]);
+    // Sell one back: furniture's share of what you paid, the rest stay.
+    const s = run(w, F, { type: 'home.extra.sell', extraId: extras[0]!.id });
+    expect((s.result as { refund: number }).refund).toBe(Math.round(price * 0.4));
+    expect(me(s.world).homeExtras!.map((x) => x.id)).toEqual([extras[1]!.id, extras[2]!.id]);
+    expect(total(s.world)).toBe(sum);
+  });
+
+  it('refuses what a home has one of, a first one you don’t have, and too many', () => {
+    const w = furnish(world(true), ['bed-1', 'plants-1']);
+    const bed = tryRun(w, F, { type: 'home.extra.buy', itemId: 'bed-1' });
+    expect(bed.ok).toBe(false);
+    if (!bed.ok) expect(bed.error.code).toBe('home.extra');
+    const first = tryRun(w, F, { type: 'home.extra.buy', itemId: 'lights-1' });
+    expect(first.ok).toBe(false);
+    let full = w;
+    for (let i = 0; i < 5; i++)
+      full = run(full, F, { type: 'home.extra.buy', itemId: 'plants-1' }).world;
+    const more = tryRun(full, F, { type: 'home.extra.buy', itemId: 'plants-1' });
+    expect(more.ok).toBe(false);
+    if (!more.ok) expect(more.error.code).toBe('home.extra.max');
+  });
+});

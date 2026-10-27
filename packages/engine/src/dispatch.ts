@@ -232,7 +232,7 @@ import {
 } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
 import { foodOrder, homeAct, homeInvite, moodOf, needsOf } from './needs.js';
-import { actBoost, homeFinish } from './homestyle.js';
+import { actBoost, buyExtra, homeFinish, sellExtra } from './homestyle.js';
 import { removeContact, saveContact } from './people.js';
 import {
   acceptVisit,
@@ -1632,6 +1632,13 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'home.finish':
       if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
       return homeFinish(world, me, cmd.surface, cmd.finish, cmd.floor, cmd.room);
+    // Player feedback: more than one of a thing. Unknown before the note.
+    case 'home.extra.buy':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return buyExtra(world, me, cmd.itemId);
+    case 'home.extra.sell':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return sellExtra(world, me, cmd.extraId);
     case 'home.room.label':
       if (!shopOn(world)) return fail('command.unknown', 'Unknown command.');
       return labelRoom(me, cmd.floor, cmd.x, cmd.y, cmd.label);

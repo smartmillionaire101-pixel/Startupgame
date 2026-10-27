@@ -13,13 +13,26 @@
  * - Floors and wall paint (`home.finish`): the everyday finishes are free;
  *   the rest are paid once (to the city's furniture store, through the
  *   ledger), then yours for any room. 'default' puts a room's own floor back.
+ * - More than one (player feedback, `home.extra.buy` / `home.extra.sell`):
+ *   another speaker, more plants, another painting (`EXTRA_SLOTS`), at the
+ *   store's price through the ledger, installed at once and placed on its
+ *   own. They add no boost or comfort: each kind of thing counts once.
  *
  * Worlds without the note play exactly as before: comfort is all a thing
  * does (shop.ts), and `home.finish` is unknown. Deterministic: no RNG.
  */
-import { FURNITURE_SLOTS, furnitureItem } from './data/lifestyle-shop.js';
+import {
+  FURNITURE_SLOTS,
+  SELL_BACK,
+  SHOP_KINDS_FOR_SLOT,
+  furnitureItem,
+  furnitureLabel,
+} from './data/lifestyle-shop.js';
 import {
   ACT_SLOTS,
+  EXTRAS_MAX,
+  EXTRAS_PER_SLOT,
+  EXTRA_SLOTS,
   BOOST_ACT_PER_POINT,
   BOOST_KEYS,
   BOOST_SETTLE,
@@ -36,6 +49,7 @@ import { col, getMarket } from './helpers.js';
 import { account, transfer } from './ledger.js';
 import { bumpEnergy, bumpStress } from './lifebars.js';
 import { formatMoney, scale } from './money.js';
+import { newId } from './ids.js';
 import { HOME_ACTS, NEED_KEYS, bumpNeed, type HomeActId, type NeedKey } from './needs.js';
 import { lifeBarsOn } from './releases.js';
 import { atHome, storeAccount } from './shop.js';
@@ -170,6 +184,69 @@ export function homeFinish(
   };
 }
 
+// ---------------------------------------------------------------- More than one
+
+/** `home.extra.buy`: another of a thing you have (its slot's one first), placed on its own. */
+export function buyExtra(world: World, me: Player, itemId: string) {
+  atHome(me);
+  const f = furnitureItem(itemId);
+  ensure(f, 'home.item', 'That isn’t in the catalogue.');
+  ensure(EXTRA_SLOTS.includes(f.slot), 'home.extra', 'A home has just the one of those.');
+  ensure(
+    (me.home?.items ?? []).some((x) => x.slot === f.slot),
+    'home.extra',
+    'Get the first one, then add more.',
+  );
+  const extras = (me.homeExtras ??= []);
+  ensure(
+    extras.filter((x) => x.slot === f.slot).length < EXTRAS_PER_SLOT,
+    'home.extra.max',
+    `Up to ${EXTRAS_PER_SLOT + 1} of those in a home.`,
+  );
+  ensure(extras.length < EXTRAS_MAX, 'home.extra.max', 'Your home is full of things already.');
+  const m = getMarket(world, me.market);
+  const price = scale(col(m), f.priceCol);
+  const label = furnitureLabel(f, m.id);
+  ensure(
+    account(world, me.accounts.local).balance >= price,
+    'home.funds',
+    `That costs ${formatMoney(price, m.data.currency)}; you don’t have it.`,
+  );
+  const store = storeAccount(m, SHOP_KINDS_FOR_SLOT[f.slot]);
+  transfer(
+    world,
+    me.accounts.local,
+    store?.account ?? m.ext.suppliers,
+    price,
+    `${label} (another)${store ? ` from ${store.name}` : ''}`,
+    m.month,
+  );
+  const extra = { id: newId(world, 'extra'), slot: f.slot, itemId: f.id, paid: price };
+  extras.push(extra);
+  return {
+    extra: { ...extra },
+    price,
+    message: `Another ${label.toLowerCase()}: ${formatMoney(price, m.data.currency)}. Place it where you like.`,
+  };
+}
+
+/** `home.extra.sell`: sell one of your extras back (what furniture sells back for). */
+export function sellExtra(world: World, me: Player, extraId: string) {
+  const extra = me.homeExtras?.find((x) => x.id === extraId);
+  ensure(extra, 'home.extra.missing', 'That isn’t yours.');
+  const m = getMarket(world, me.market);
+  const refund = Math.round(extra.paid * SELL_BACK.furniture);
+  const f = furnitureItem(extra.itemId);
+  const label = f ? furnitureLabel(f, m.id) : 'it';
+  if (refund > 0)
+    transfer(world, m.ext.suppliers, me.accounts.local, refund, `Sold: ${label}`, m.month);
+  me.homeExtras = me.homeExtras!.filter((x) => x.id !== extraId);
+  return {
+    refund,
+    message: `You sold the ${label.toLowerCase()} for ${formatMoney(refund, m.data.currency)}.`,
+  };
+}
+
 /** `view.me.homeStyle` (the feedback round; null before). */
 export function homeStyleView(world: World, p: Player) {
   const m = getMarket(world, p.market);
@@ -189,6 +266,15 @@ export function homeStyleView(world: World, p: Player) {
     owned: ownedBoosts(p),
     floors: FLOOR_FINISHES.map(row('floor')),
     walls: WALL_FINISHES.map(row('wall')),
+    /** More of the things you have (each placed on its own), and what can be had more of. */
+    extras: (p.homeExtras ?? []).map((x) => ({
+      id: x.id,
+      slot: x.slot,
+      itemId: x.itemId,
+      tier: furnitureItem(x.itemId)?.tier ?? 1,
+    })),
+    extraSlots: [...EXTRA_SLOTS] as string[],
+    extrasPerSlot: EXTRAS_PER_SLOT,
     /** Your rooms' floors ('0:living' → 'marble') and your walls' paint. */
     chosen: {
       floors: { ...(p.homeStyle?.floors ?? {}) },

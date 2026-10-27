@@ -867,6 +867,10 @@ export const commandSchema = z.discriminatedUnion('type', [
     floor: z.number().int().min(0).max(3),
     room: z.string().min(2).max(24).optional(),
   }),
+  /** Buy mode (player feedback): another of a thing you have (a speaker, plants, art…). */
+  z.object({ type: z.literal('home.extra.buy'), itemId: z.string().min(2).max(24) }),
+  /** …and selling one of them back. */
+  z.object({ type: z.literal('home.extra.sell'), extraId: id }),
   /** Sell your car back at 50% of what you paid. */
   z.object({ type: z.literal('car.sell') }),
   // ---- Life at home (Wave 7)

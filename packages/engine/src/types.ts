@@ -317,6 +317,11 @@ export interface Player {
    * finish), your walls' paint, and the paid finishes you own. Missing = as built.
    */
   homeStyle?: { floors?: Record<string, string>; wall?: string; owned?: string[] };
+  /**
+   * Buy mode (player feedback): more of a thing you have (a second speaker,
+   * more plants, another painting), each placed on its own. Missing = none.
+   */
+  homeExtras?: HomeExtra[];
   /** Wave 5: your car. Missing = none. */
   car?: PlayerCar;
   /** Wave 6: venue buys this month (seeds the "who you meet" roll). Missing = none. */
@@ -1059,6 +1064,15 @@ export interface HomeItem {
   /** Shop note: the finish or warranty picked in the catalogue (option id). Missing = the default. */
   finish?: string;
   warranty?: string;
+}
+
+/** Another of a thing you own (data/home-style.ts EXTRA_SLOTS): decor, it adds no boost. */
+export interface HomeExtra {
+  id: Id;
+  slot: string;
+  itemId: string;
+  /** What you paid (home currency, minor units): sell-back is a share of it. */
+  paid: number;
 }
 
 export interface PlayerCar {

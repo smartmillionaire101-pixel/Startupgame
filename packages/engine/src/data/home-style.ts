@@ -96,6 +96,30 @@ export const ACT_SLOTS: Record<string, readonly FurnitureSlot[]> = {
   invite: ['sofa', 'dining', 'sound'],
 };
 
+// ---------------------------------------------------------------- More than one
+
+/**
+ * Player feedback ("I need multiple speakers"): the things you can have more
+ * than one of, each placed on its own (`home.extra.buy`). Decor and small
+ * things only: a home has one bed, one kitchen, one sofa to sit on.
+ *
+ * Boosts don't stack: a need counts each kind of thing once (the one in its
+ * slot, `SLOT_BOOSTS` by its tier); the extra speakers, plants and paintings
+ * make the room, not a fuller fun or mood bar. Comfort neither.
+ */
+export const EXTRA_SLOTS: readonly FurnitureSlot[] = [
+  'sound',
+  'plants',
+  'lights',
+  'art',
+  'rug',
+  'books',
+];
+
+/** How many more of each kind (on top of the one in its slot), and in all. */
+export const EXTRAS_PER_SLOT = 5;
+export const EXTRAS_MAX = 20;
+
 // ---------------------------------------------------------------- Finishes
 
 export interface FinishSpec {
