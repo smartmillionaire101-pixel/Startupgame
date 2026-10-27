@@ -26,6 +26,7 @@ import { account, openAccount, transfer, transferUpTo } from './ledger.js';
 import { clamp, roundTo } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { checkName } from './names.js';
+import { feedbackOn } from './releases.js';
 import type { Rng } from './rng.js';
 import { applyStarEvent, newStars, settleStars } from './stars.js';
 import type { Account, Bank, BankType, Id, Loan, PersonalLoan, Player, World } from './types.js';
@@ -35,6 +36,13 @@ export const MIN_CAPITAL_RATIO = 0.1;
 /** Below this the central bank winds the bank down. */
 const INSOLVENT_RATIO = 0.03;
 export const LICENCE_MONTHS = 2;
+/** A newly licensed bank's opening months, and the least appeal it has with households then. */
+export const OPENING_MONTHS = 3;
+const OPENING_APPEAL = 0.25;
+
+/** Is the bank in its opening months (licensed at most OPENING_MONTHS ago)? */
+export const isOpening = (b: Bank, month: number) =>
+  b.status === 'licensed' && b.licensedMonth !== null && month - b.licensedMonth <= OPENING_MONTHS;
 
 export const BANK_TYPES: Record<
   BankType,
@@ -540,10 +548,16 @@ export function settleBanks(world: World, market: string, rng: Rng, month: numbe
 
     // Retail households: grow with stars and a competitive deposit rate; run when trust breaks.
     if (t.retail > 0) {
-      const appeal =
-        (b.stars.value - 1.5) / 3.5 + (b.policy.depositRateBps / 10_000 - base / 4) * 4;
+      // Play-test (FEEDBACK_NOTE): a new bank opens to its neighbourhood. In its first
+      // months households come in on the opening's novelty however few stars it has yet,
+      // and a low starting rating is no bank run (there's nobody to run yet).
+      const opening = feedbackOn(world) && isOpening(b, month);
+      const appeal = Math.max(
+        opening ? OPENING_APPEAL : -Infinity,
+        (b.stars.value - 1.5) / 3.5 + (b.policy.depositRateBps / 10_000 - base / 4) * 4,
+      );
       const avgDeposit = scale(col(m), b.type === 'microfinance' ? 0.15 : 0.6);
-      const run = b.stars.value < 1.5;
+      const run = b.stars.value < 1.5 && !opening;
       if (run) {
         const leaving = Math.ceil(b.retail.customers * 0.3);
         const out = Math.min(b.retail.deposits, leaving * avgDeposit);

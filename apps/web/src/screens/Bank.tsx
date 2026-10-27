@@ -62,6 +62,13 @@ export function BankScreen() {
         <>
           <section className="stack">
             <h2>{t('Loan requests')}</h2>
+            {view.market.errands && (
+              <p className="small muted" data-loan-requests-hint="">
+                {t(
+                  'The city’s companies ask to borrow at each month end: accept, counter or decline here. Clients you meet at the Chamber of Commerce and the Founders’ Hub bank with you, and households open accounts as word gets round.',
+                )}
+              </p>
+            )}
             {/* Founder setup: startup loan applications come with the founder's plan. */}
             <StartupApplications bankId={b.id} />
             <DealList

@@ -6,7 +6,8 @@
  * career and journey, and a SAFE's stake and fee.
  */
 import { describe, expect, it } from 'vitest';
-import { bankFigures } from '../src/banks.js';
+import { OPENING_MONTHS, bankFigures } from '../src/banks.js';
+import { LOAN_REQUESTS } from '../src/bankwork.js';
 import { PLACE_SPECS } from '../src/data/places.js';
 import { MONTH_MIN, gameMinute } from '../src/places.js';
 import { recapView } from '../src/recap.js';
@@ -135,5 +136,84 @@ describe('play-test #34: the Central Bank says it grants bank licences', () => {
     expect(purpose).toMatch(/bank licences/);
     expect(purpose).toMatch(/fit-and-proper/);
     expect(purpose).toMatch(/payments licences/);
+  });
+});
+
+/** A licensed feedback-round bank whose founder has few stars (a run without the opening). */
+function licensed(feedback = true): World {
+  let w = interview(signedBanker(11, feedback)).world;
+  w = checklist(w);
+  w = settle(w, 'lagos', feedback ? 1 : 2);
+  expect(bankOf(w).status).toBe('licensed');
+  // A banker with a poor rating: the bank starts on 1.2 stars.
+  const t = structuredClone(w);
+  const s = bankOf(t).stars;
+  s.value = s.anchor = 1.2;
+  return t;
+}
+
+const requestsTo = (w: World) =>
+  Object.values(w.deals).filter(
+    (d) =>
+      d.status === 'open' &&
+      d.counterparty.kind === 'playerbank' &&
+      d.counterparty.id === bankOf(w).id &&
+      d.proposer.kind === 'company',
+  );
+
+describe('play-test #16: a newly licensed bank gets customers and loan requests', () => {
+  it('households open accounts in its opening months, however few stars it starts with', () => {
+    let w = licensed();
+    w = settle(w, 'lagos', 1, T0 + DAY);
+    const b = bankOf(w);
+    expect(b.retail.customers).toBeGreaterThan(0);
+    expect(b.retail.deposits).toBeGreaterThan(0);
+    expect(b.licensedMonth! + OPENING_MONTHS).toBeGreaterThan(w.markets.lagos!.month);
+  });
+
+  it('the city’s startups ask to borrow; accepting one is the bank’s first loan', () => {
+    let w = licensed();
+    // The month it's licensed, the first request is already on the desk.
+    const first = requestsTo(w);
+    expect(first.length).toBe(1);
+    w = settle(w, 'lagos', 1, T0 + DAY);
+    const reqs = requestsTo(w);
+    expect(reqs.length).toBe(LOAN_REQUESTS.open);
+    const d = reqs[0]!;
+    expect(d.terms.kind).toBe('loan');
+    const c = w.companies[d.proposer.id]!;
+    expect(c.ai).toBe(true);
+    const total = moneyByCurrency(w);
+    const before = w.accounts[c.account]!.balance;
+    w = run(w, B, { type: 'deal.act', dealId: d.id, action: 'accept' }, T0 + DAY).world;
+    expect(w.deals[d.id]!.status).toBe('accepted');
+    expect(w.accounts[c.account]!.balance - before).toBe((d.terms as { amount: number }).amount);
+    expect(w.companies[c.id]!.finance.loans.some((l) => l.lenderBankId === bankOf(w).id)).toBe(
+      true,
+    );
+    expect(w.players[B]!.milestones['banker.first-loan']).toBeDefined();
+    expect(moneyByCurrency(w)).toEqual(total);
+  });
+
+  it('a counter for less is taken by the AI borrower', () => {
+    let w = licensed();
+    const d = requestsTo(w)[0]!;
+    const amount = (d.terms as { amount: number }).amount;
+    const half = Math.floor(amount / 2);
+    w = run(w, B, {
+      type: 'deal.act',
+      dealId: d.id,
+      action: 'counter',
+      terms: { amount: half },
+    }).world;
+    expect(w.deals[d.id]!.status).toBe('accepted');
+  });
+
+  it('before the feedback round nothing changes: no requests, and a low-star bank still has no households', () => {
+    let w = licensed(false);
+    expect(requestsTo(w)).toEqual([]);
+    w = settle(w, 'lagos', 1, T0 + DAY);
+    expect(requestsTo(w)).toEqual([]);
+    expect(bankOf(w).retail.customers).toBe(0);
   });
 });
