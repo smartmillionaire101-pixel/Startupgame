@@ -29,6 +29,7 @@ import { useView } from '../store';
 import { t } from '../i18n';
 import { softwareGl, useQuality, webglAvailable } from '../three-kit/quality';
 import {
+  dashQuads,
   frameAt,
   guideLine,
   pinTilt,
@@ -57,7 +58,18 @@ function callText(call: RollCall, n: number) {
   return call === 'pins' ? (n === 1 ? t('1 pin') : t('{n} pins', { n })) : t(CALL_TEXT[call]);
 }
 
-export default function Bowling({ room, me, live }: { room: Room; me: string; live: boolean }) {
+export default function Bowling({
+  room,
+  me,
+  live,
+  serverNow = Date.now,
+}: {
+  room: Room;
+  me: string;
+  live: boolean;
+  /** The server's clock (the pins settle by it; a phone's own clock can be seconds out). */
+  serverNow?: () => number;
+}) {
   const { send, busy } = useView();
   const quality = useQuality();
   const gl = quality === '3d' && webglAvailable();
@@ -74,7 +86,11 @@ export default function Bowling({ room, me, live }: { room: Room; me: string; li
   // The roll playing out (its recorded frames), and when it started.
   const [roll, setRoll] = useState<{ sim: BowlSim; n: number; started: number } | null>(null);
   const seen = useRef<number | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => serverNow());
+  const clock = useRef(serverNow);
+  useEffect(() => {
+    clock.current = serverNow;
+  });
 
   const mine = live && g.bowler === me;
   const ready = now >= g.readyAt - 200;
@@ -83,8 +99,35 @@ export default function Bowling({ room, me, live }: { room: Room; me: string; li
   const standing = useMemo(() => up?.standing ?? [...FULL_RACK], [up]);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 500);
+    const id = setInterval(() => setNow(clock.current()), 250);
     return () => clearInterval(id);
+  }, []);
+
+  // Your ball: bring the lane on screen (the ball waits at its foot), once a turn.
+  const turnShown = useRef(-1);
+  useEffect(() => {
+    if (!canAct || turnShown.current === g.balls) return;
+    // Once the prompt and the lane have their size.
+    const id = setTimeout(() => {
+      turnShown.current = g.balls;
+      const el = wrapRef.current;
+      if (!el?.scrollIntoView) return;
+      const r = el.getBoundingClientRect();
+      if (r.bottom > window.innerHeight || r.top < 0)
+        el.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
+    }, 250);
+    return () => clearTimeout(id);
+  }, [canAct, g.balls]);
+
+  // iOS: keep a swipe on the lane from scrolling the page or the sheet under it.
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const stop = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+    };
+    c.addEventListener('touchmove', stop, { passive: false });
+    return () => c.removeEventListener('touchmove', stop);
   }, []);
 
   useEffect(() => {
@@ -214,7 +257,10 @@ export default function Bowling({ room, me, live }: { room: Room; me: string; li
     return { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() };
   };
   const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!canAct) return;
+    if (!canAct) {
+      if (mine && !roll) setHint(t('Wait for the pins to settle.'));
+      return;
+    }
     e.currentTarget.setPointerCapture?.(e.pointerId);
     pts.current = [point(e)];
     setTrail(pts.current);
@@ -281,10 +327,8 @@ export default function Bowling({ room, me, live }: { room: Room; me: string; li
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
-          onPointerCancel={() => {
-            pts.current = [];
-            setTrail([]);
-          }}
+          // A browser that takes the touch back mid-swipe still bowls what was swiped.
+          onPointerCancel={onUp}
         />
         {trail.length > 1 && (
           <svg
@@ -624,7 +668,9 @@ export class Lane {
   private pins: THREE.Group[] = [];
   private ball: THREE.Mesh;
   private ballMats: Record<string, THREE.MeshStandardMaterial> = {};
-  private guide: THREE.Line;
+  private guide: THREE.Mesh;
+  /** The line the guide's dashes were built for. */
+  private guideOf: readonly unknown[] | null = null;
   private spin = 0;
   private lastZ = 0;
   private disposables: { dispose(): void }[] = [];
@@ -637,7 +683,7 @@ export class Lane {
     this.renderer.toneMappingExposure = 1.05;
     const s = this.scene;
     s.background = new THREE.Color('#120d16');
-    s.fog = new THREE.Fog('#120d16', 22, 40);
+    s.fog = new THREE.Fog('#120d16', 26, 46);
     s.add(new THREE.HemisphereLight('#fff4e0', '#2a1c14', 0.9));
     const spot = new THREE.DirectionalLight('#ffffff', 1.6);
     spot.position.set(0.5, 6, 2);
@@ -738,19 +784,22 @@ export class Lane {
       this.ballMats[MY_BALL],
     );
     s.add(this.ball);
-    const gl = own(new THREE.BufferGeometry());
-    this.guide = new THREE.Line(
-      gl,
+    // The guide: dashes painted on the boards (a ribbon a few centimetres wide,
+    // not a 1-pixel line, so it reads on a phone).
+    this.guide = new THREE.Mesh(
+      own(new THREE.BufferGeometry()),
       own(
-        new THREE.LineDashedMaterial({
+        new THREE.MeshBasicMaterial({
           color: '#ffffff',
-          dashSize: 0.25,
-          gapSize: 0.2,
           transparent: true,
-          opacity: 0.75,
+          opacity: 0.8,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          fog: false,
         }),
       ),
     );
+    this.guide.renderOrder = 1;
     s.add(this.guide);
     this.idleCamera();
   }
@@ -762,11 +811,24 @@ export class Lane {
     this.render();
   }
 
+  /**
+   * Waiting for a ball: low behind the bowler, the ball at the foul line in
+   * the lower part of the picture (where your finger starts the swipe) and
+   * the rack and the masking unit up top. The ball spans the lane's width
+   * on screen as it does on the swipe: let go at ±0.45 m is near either edge.
+   */
   private idleCamera() {
-    this.camera.fov = 26;
-    this.camera.position.set(0, 1.5, 2.6);
-    this.camera.lookAt(0, 0, -15.5);
+    this.camera.fov = 22;
+    this.camera.position.set(0, 0.85, 3.75);
+    this.camera.lookAt(0, 0, -4.92);
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Where the ball is on screen (−1 … 1 each way) and whether the guide shows, for tests. */
+  onScreen() {
+    this.camera.updateMatrixWorld();
+    const v = this.ball.position.clone().project(this.camera);
+    return { ball: { x: v.x, y: v.y, visible: this.ball.visible }, guide: this.guide.visible };
   }
 
   /** The pins standing, the ball where you stand, and the guide down the oil. */
@@ -781,10 +843,12 @@ export class Lane {
     this.ball.visible = true;
     this.ball.position.set(x, BALL_R, 0.35);
     this.lastZ = 0;
-    const pts = guide.map(([gx, gz]) => new THREE.Vector3(gx, 0.006, -gz));
-    this.guide.visible = pts.length > 1;
-    this.guide.geometry.setFromPoints(pts);
-    this.guide.computeLineDistances();
+    this.guide.visible = guide.length > 1;
+    if (guide !== this.guideOf) {
+      this.guideOf = guide;
+      this.guide.geometry.dispose();
+      this.guide.geometry = dashRibbon(guide);
+    }
     this.idleCamera();
   }
 
@@ -839,9 +903,19 @@ export class Lane {
   }
 
   dispose() {
+    this.guide.geometry.dispose();
     for (const d of this.disposables) d.dispose();
     this.renderer.dispose();
   }
+}
+
+/** The guide as flat dashes on the boards, just above them (./bowling-view.ts `dashQuads`). */
+function dashRibbon(line: readonly (readonly [number, number])[]) {
+  const pos: number[] = [];
+  for (const [x, z] of dashQuads(line)) pos.push(x, 0.008, -z);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return geo;
 }
 
 /** The masking unit over the pins: the alley's name in lights. */

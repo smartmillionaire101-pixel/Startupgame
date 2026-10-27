@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FULL_RACK, simulateBowl, launchOf, skydiveScore } from '@runway/engine';
 import {
+  dashQuads,
   frameAt,
   guideLine,
   isSplit,
@@ -91,6 +92,41 @@ describe('bowling on the phone', () => {
     expect(frameAt(sim.frames, 1.5)!.ball.z).toBeGreaterThan(frameAt(sim.frames, 0.5)!.ball.z);
     expect(pinTilt(0)).toBe(0);
     expect(pinTilt(1)).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('paints the guide as dashes on the boards, whatever the line', () => {
+    // Down the oil: 12 m of 0.35 m dashes every 0.6 m, two triangles (six corners) a
+    // piece, a dash over one of the line's points in two pieces.
+    const g = guideLine({ x: 0.2, aim: 0.01, power: 0.6, spin: -0.5 });
+    const q = dashQuads(g);
+    const dashes = Math.ceil(g.at(-1)![1] / 0.6);
+    expect(q.length % 6).toBe(0);
+    expect(q.length / 6).toBeGreaterThanOrEqual(dashes);
+    expect(q.length / 6).toBeLessThanOrEqual(dashes * 2);
+    for (const [x, z] of q) {
+      expect(Number.isFinite(x) && Number.isFinite(z)).toBe(true);
+      expect(z).toBeGreaterThanOrEqual(-0.03);
+      expect(z).toBeLessThanOrEqual(g.at(-1)![1] + 0.03);
+    }
+    // 4 cm wide, centred on the line.
+    expect(Math.hypot(q[1]![0] - q[0]![0], q[1]![1] - q[0]![1])).toBeCloseTo(0.04);
+    // Lengths that land a dash's end on a point (floating point) still finish.
+    for (const len of [0.6, 1.2, 3.5, 6.000000000000001])
+      expect(
+        dashQuads([
+          [0, 0],
+          [0, len],
+        ]).length,
+      ).toBe(Math.ceil(len / 0.6 - 1e-9) * 6);
+    // A bend inside a dash: cut there, still one strip.
+    expect(
+      dashQuads([
+        [0, 0],
+        [0, 0.2],
+        [0.1, 0.3],
+      ]).length,
+    ).toBe(12);
+    expect(dashQuads([[0, 0]])).toEqual([]);
   });
 
   it('calls a roll: strike, spare, split, gutter, a count', () => {
