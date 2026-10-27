@@ -312,6 +312,24 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
   expect(landedAt).not.toBeNull();
   await page.waitForTimeout(1500);
   expect(await at()).toEqual(landedAt);
+  // No landmark's name sits on the title, the buttons or the result (player screenshot:
+  // "St Paul's Cathedral" over the Outside button).
+  const covered = await page.evaluate(() => {
+    const boxes = (sel: string) =>
+      [...document.querySelectorAll<HTMLElement>(sel)].map((e) => e.getBoundingClientRect());
+    const hud = boxes(
+      '.air-head h2, .air-head small, .panorama-actions, .air-cam, .air-hud, .air-say, .air-controls, .air-result',
+    );
+    return [...document.querySelectorAll<HTMLElement>('.sky-label:not([hidden])')]
+      .filter((n) => {
+        const r = n.getBoundingClientRect();
+        return hud.some(
+          (k) => r.left < k.right && r.right > k.left && r.top < k.bottom && r.bottom > k.top,
+        );
+      })
+      .map((n) => n.dataset.airLabel);
+  });
+  expect(covered).toEqual([]);
   await snap(page, 'heli-landed', info);
   const v = await state(page);
   expect(v.me.games!.you.flights).toBe(1);

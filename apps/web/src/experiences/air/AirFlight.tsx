@@ -143,6 +143,10 @@ const tierOf = () => {
   return small || (navigator.hardwareConcurrency || 4) <= 4 ? ('low' as const) : ('high' as const);
 };
 
+/** What a landmark's name must not cover: the title, the buttons and the panels. */
+const LABEL_BLOCKERS =
+  '.air-head h2, .air-head small, .panorama-actions, .air-cam, .air-hud, .air-say, .air-controls, .air-result';
+
 export default function AirFlight({
   booking,
   city,
@@ -370,6 +374,8 @@ export default function AirFlight({
     let last = performance.now();
     let hudAt = 0;
     const out = { x: 0, y: 0, z: 0 };
+    let frames = 0;
+    let blocks: { l: number; r: number; t: number; b: number }[] = [];
     const groundAt = (x: number, z: number) => {
       const s = sceneRef.current;
       return s ? s.groundAt(x, z) + s.terrainAt(x, z) : 0;
@@ -494,13 +500,39 @@ export default function AirFlight({
       const host = labelsRef.current;
       if (scene && host && cam) {
         const { w: W, h: H } = scene.viewSize;
+        // The title, buttons and panels, measured now and then: a name never sits on them.
+        if (frames++ % 20 === 0) {
+          const at = host.getBoundingClientRect();
+          const root = host.closest('.air');
+          blocks = root
+            ? [...root.querySelectorAll<HTMLElement>(LABEL_BLOCKERS)].map((e) => {
+                const r = e.getBoundingClientRect();
+                return {
+                  l: r.left - at.left,
+                  r: r.right - at.left,
+                  t: r.top - at.top,
+                  b: r.bottom - at.top,
+                };
+              })
+            : [];
+        }
         for (const node of host.querySelectorAll<HTMLElement>('[data-air-label]')) {
           const l = where.marks[Number(node.dataset.i)];
           if (!l) continue;
           const d = Math.hypot(l.x - cam.pos.x, l.z - cam.pos.z);
           scene.project(l.x, groundAt(l.x, l.z) + l.h + 10, l.z, out);
+          // The name's box: centred over the point, above its 8 px stem (.sky-label).
+          const lw = node.offsetWidth || 140;
+          const lh = node.offsetHeight || 20;
+          const box = { l: out.x - lw / 2, r: out.x + lw / 2, t: out.y - lh - 8, b: out.y };
           const vis =
-            out.z < 1 && out.x > 4 && out.x < W - 4 && out.y > 60 && out.y < H - 120 && d < 6000;
+            out.z < 1 &&
+            box.l > 4 &&
+            box.r < W - 4 &&
+            box.t > 4 &&
+            out.y < H - 120 &&
+            d < 6000 &&
+            !blocks.some((k) => box.l < k.r && box.r > k.l && box.t < k.b && box.b > k.t);
           if (vis)
             node.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
           if (node.hidden === vis) node.hidden = !vis;
