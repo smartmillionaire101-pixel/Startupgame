@@ -216,14 +216,15 @@ export function TripPicker({
 }) {
   const [cabin, setCabin] = useState<CabinTier>(held?.cabin ?? initial ?? 'economy');
   const canReturn = cabins.length > 0 && returnCabins.length > 0;
-  // A return, unless even the dearest cabin both ways would be more than you have.
-  const [roundTrip, setRoundTrip] = useState(
-    () =>
-      canReturn &&
-      balance >=
-        Math.max(0, ...cabins.map((c) => c.price)) +
-          Math.max(0, ...returnCabins.map((c) => c.price)),
-  );
+  // A return whenever the cabin you start on is affordable both ways (playtest: a
+  // return defaulted to one way unless even first class both ways was affordable,
+  // and the way home was then charged again at the airport). One way stays a tap away.
+  const [roundTrip, setRoundTrip] = useState(() => {
+    const start = held?.cabin ?? initial ?? 'economy';
+    const outFare = cabins.find((c) => c.cabin === start)?.price ?? fare;
+    const backFare = returnCabins.find((c) => c.cabin === start)?.price ?? 0;
+    return canReturn && balance >= outFare + backFare;
+  });
   // The way home follows the way out until you choose it yourself.
   const [backPick, setBackPick] = useState<CabinTier | null>(null);
   const back = backPick ?? cabin;
@@ -286,6 +287,11 @@ export function TripPicker({
             {t('One way')}
           </label>
         </div>
+      )}
+      {canReturn && !roundTrip && (
+        <p className="small muted" data-trip-oneway="">
+          {t('One way: the flight home isn’t booked. You pay for it when you book it.')}
+        </p>
       )}
       {canReturn && roundTrip && (
         <div className="trip-back" data-trip-back={back}>

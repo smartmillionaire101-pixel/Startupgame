@@ -958,7 +958,13 @@ export function nextFlightTo(
   now: number,
 ): ScheduledFlight | null {
   const deps = schedule.filter((f) => !f.arrival && f.city === to);
-  return deps.find((f) => f.at + f.late > now) ?? deps[0] ?? null;
+  const next = deps.find((f) => f.at + f.late > now);
+  if (next || !deps[0]) return next ?? null;
+  // Today's have all left (playtest: a ticket for 12:35 at 17:29 still boarded):
+  // the route's late flight, the next five-minute slot at least 45 minutes on
+  // (after midnight it reads as tomorrow's early hours).
+  const at = Math.ceil((now + 45) / 5) * 5;
+  return { ...deps[0], at, time: hhmm(at % (24 * 60)), late: 0 };
 }
 
 /** "6h 20m" for a flight time in hours. */

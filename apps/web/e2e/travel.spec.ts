@@ -35,7 +35,7 @@ type State = {
   view: {
     me: { id: string; location?: { hotel?: { id?: string; name: string } } | null };
     clock?: unknown;
-    flights?: unknown;
+    flights?: { heldReturn?: unknown } | null;
     accounts: { local: { balance: number } | null };
   };
 };
@@ -204,9 +204,19 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   await ctx.close();
   await hub.getByRole('button', { name: 'Close' }).first().click();
 
-  // Fly home: the ticket home is booked, you go to the airport and check in for it.
+  // Fly home: on the return ticket you hold, it's booked at once; without one the
+  // ticket desk opens on the flight home with its fare, and nothing is paid until
+  // you book it (playtest: the way home was charged in business, unasked).
+  const held = !!(await state(page)).view.flights?.heldReturn;
+  const beforeHome = (await state(page)).view.accounts.local?.balance ?? 0;
   await page.getByRole('button', { name: 'Fly home' }).click();
   await expect(page.locator('.airport-scene')).toBeVisible({ timeout: 20_000 });
+  if (!held) {
+    const homeDesk = page.locator('[data-trip-picker="Lagos"]');
+    await expect(homeDesk.locator('[data-cabin-book]')).toContainText('Book flight');
+    expect((await state(page)).view.accounts.local?.balance ?? 0).toBe(beforeHome);
+    await homeDesk.locator('[data-cabin-book]').click();
+  }
   await checkInAndBoard(page, 'Lagos');
   const home = page.getByRole('dialog', { name: 'Flight to Lagos' });
   await expect(home).toBeVisible();

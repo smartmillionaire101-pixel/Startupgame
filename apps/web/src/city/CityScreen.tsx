@@ -53,7 +53,7 @@ import {
   type StoryPlace,
 } from './contract';
 import { onVisit, peekVisit, takeVisit, takeVisitMode } from './goto';
-import { getTicket, setTicket, ticketFor } from './ticket';
+import { chooseAtDesk, getTicket, setTicket, ticketFor } from './ticket';
 import { carOf, genderOf } from './life';
 import { propertiesOf } from './properties';
 import { suggestionText, WhatNowCard, WhatNowList, whatNowOptions } from './WhatNowCards';
@@ -822,18 +822,25 @@ function CityBodyInner({
       onFlyHome();
       return;
     }
-    try {
-      await api.command({ type: 'travel.book', to: home.id } as Command);
-      await refresh();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Booking failed.', 'error');
-      return;
-    }
-    setTicket(ticketFor(layout.marketId, d, home.currency, homeMonth));
+    // A return ticket you hold is already paid: it's booked at once. Without one,
+    // the ticket desk opens on the flight home, its cabins and fares shown before
+    // anything is charged (playtest: the way home was charged in the cabin you flew
+    // out in, with no price shown, after a trip booked one way).
+    if (flightsOf(view)?.heldReturn) {
+      try {
+        await api.command({ type: 'travel.book', to: home.id } as Command);
+        await refresh();
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'Booking failed.', 'error');
+        return;
+      }
+      setTicket(ticketFor(layout.marketId, d, home.currency, homeMonth));
+    } else chooseAtDesk(home.id);
     setInside(null);
     setArrival(false);
     goTo(airport);
   }, [
+    view,
     destinations,
     home.id,
     home.currency,

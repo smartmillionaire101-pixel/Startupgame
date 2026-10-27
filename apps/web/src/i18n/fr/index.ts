@@ -81,6 +81,7 @@ import { jobsPro } from './jobs-pro';
 import { mallMore } from './mall-more';
 import { flightClasses } from './flight-classes';
 import { firstClass } from './first-class';
+import { travelR6 } from './travel-r6';
 import { todayWhatnow } from './today-whatnow';
 import { cabins } from './cabins';
 import { founderGuidance } from './founder-guidance';
@@ -200,6 +201,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   bankerRepEvents,
   shop,
   firstClass,
+  travelR6,
   jobTasks,
   todayWhatnow,
   stocks,
