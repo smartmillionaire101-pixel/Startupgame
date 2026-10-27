@@ -163,6 +163,7 @@ function Thumbs<K extends keyof Appearance>({
   gender,
   bottom,
   onPick,
+  locked,
 }: {
   label: string;
   part: K;
@@ -172,25 +173,36 @@ function Thumbs<K extends keyof Appearance>({
   gender: Gender;
   bottom: string;
   onPick: (v: Appearance[K]) => void;
+  /** Not yours yet (a top you'd buy at the mall): shown, but not picked here. */
+  locked?: (v: Appearance[K]) => boolean;
 }) {
   return (
     <div className="creator-row" role="group" aria-label={label}>
       <span className="field-label">{label}</span>
       <div className="creator-thumbs">
-        {options.map((v) => (
-          <button
-            key={String(v)}
-            type="button"
-            className="creator-thumb"
-            data-part={part}
-            data-value={String(v)}
-            aria-pressed={a[part] === v}
-            onClick={() => onPick(v)}
-          >
-            <PortraitOf look={lookFromAppearance({ ...a, [part]: v }, gender, bottom)} size={56} />
-            <span className="creator-thumb-name">{names[String(v)]!()}</span>
-          </button>
-        ))}
+        {options.map((v) => {
+          const shut = !!locked?.(v) && a[part] !== v;
+          return (
+            <button
+              key={String(v)}
+              type="button"
+              className={`creator-thumb${shut ? ' is-locked' : ''}`}
+              data-part={part}
+              data-value={String(v)}
+              data-locked={shut ? '' : undefined}
+              aria-pressed={a[part] === v}
+              disabled={shut}
+              onClick={() => onPick(v)}
+            >
+              <PortraitOf
+                look={lookFromAppearance({ ...a, [part]: v }, gender, bottom)}
+                size={56}
+              />
+              <span className="creator-thumb-name">{names[String(v)]!()}</span>
+              {shut && <span className="creator-thumb-note">{t('At the mall')}</span>}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -205,8 +217,14 @@ export function Creator({
   cancelLabel,
   saveLabel,
   busy,
+  tops,
 }: {
   initial: Appearance;
+  /**
+   * The tops you have (Edit my look; play-test: "every top free, so bought
+   * clothes add nothing"): the rest are at the mall. Sign-up offers them all.
+   */
+  tops?: ReadonlySet<string>;
   gender: Gender;
   /** Trousers come with your background; the creator shows them as they are. */
   bottom?: string;
@@ -340,6 +358,7 @@ export function Creator({
               options={parts.topStyle}
               names={TOP_NAME}
               onPick={set('topStyle')}
+              locked={tops ? (v) => !tops.has(v) : undefined}
               {...thumbs}
             />
             <Swatches
@@ -354,7 +373,15 @@ export function Creator({
         )}
       </div>
       <div className="creator-actions">
-        <Button type="button" variant="secondary" onClick={() => setA(randomAppearance(gender))}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            // A random look keeps to the tops you have.
+            const r = randomAppearance(gender);
+            setA(tops && !tops.has(r.topStyle) ? { ...r, topStyle: a.topStyle } : r);
+          }}
+        >
           {t('Random')}
         </Button>
         {onCancel && (

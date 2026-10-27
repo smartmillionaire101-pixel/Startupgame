@@ -51,6 +51,28 @@ test('shop at the mall: a new outfit you wear, and a phone', async ({ page }) =>
   await expect
     .poll(async () => Number(await pocket.getAttribute('data-pocket')), { timeout: 8000 })
     .toBeLessThan(afterTop);
+  await scene.locator('[data-mall-bought="phone-1"] [data-action="mall-ok"]').click();
+
+  // Play-test #41: the header's 👜 and 📖 have names, the catalogue closes with
+  // Escape (and only it), and a film is a night at the cinema, not a receipt.
+  await expect(scene.getByRole('button', { name: 'My purchases' })).toBeVisible();
+  const catalogue = scene.getByRole('button', { name: 'Catalogue', exact: true });
+  if (await catalogue.count()) {
+    await catalogue.click();
+    const sheet = page.locator('[data-catalogue-sheet]');
+    await expect(sheet).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await expect(scene).toBeVisible();
+  }
+  await scene.locator('[data-action="mall-back"]').click();
+  await scene.locator('[data-shop="cinema"]').click();
+  await scene.locator('[data-buy="film"]').click();
+  const film = scene.locator('[data-mall-bought="film"]');
+  await expect(film).toContainText('Lights down', { timeout: 10_000 });
+  await expect(film).not.toContainText('Bought');
+  await film.locator('[data-action="mall-ok"]').click();
+  await expect(film).toBeHidden();
   await scene.getByRole('button', { name: 'Close' }).click();
   await expect(scene).toBeHidden();
   // Out in the city you're in your new hoodie.

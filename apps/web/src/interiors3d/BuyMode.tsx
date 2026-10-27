@@ -95,6 +95,8 @@ export interface BuyFloor {
  */
 const LOW = 0.7;
 const TALL = 0.88;
+/** Trying a floor or paint on: low enough to see the walls above it. */
+const TRYING = 0.46;
 /** Dragged down below this, the panel closes. */
 const CLOSE_AT = 0.5;
 
@@ -396,6 +398,7 @@ export function BuySheet({
             busy={busy}
             cur={cur}
             onPreview={onPreview}
+            onTrying={(on) => setHeight(on ? TRYING : LOW)}
             onApply={(cmd, label) => send(looseCmd(cmd), label)}
             walls={
               wallsOn ? (
@@ -624,6 +627,7 @@ function DesignPanel({
   busy,
   cur,
   onPreview,
+  onTrying,
   onApply,
   walls,
 }: {
@@ -633,6 +637,8 @@ function DesignPanel({
   busy: boolean;
   cur: string;
   onPreview?: (f: HomeFinish | null) => void;
+  /** Trying a finish on (or not): the panel steps down so the home shows above it. */
+  onTrying?: (on: boolean) => void;
   onApply: (cmd: Record<string, unknown> & { type: string }, done: string) => Promise<unknown>;
   walls: ReactNode;
 }) {
@@ -654,8 +660,9 @@ function DesignPanel({
   const floorNow = (room && style.chosen.floors[key]) || built;
   const builtWalls = wallPalette(block).outer;
   const wallNow = style.chosen.wall;
-  const tryOn = (surface: 'floor' | 'wall', id: string) => {
-    setTrying({ surface, id });
+  const specOf = (surface: 'floor' | 'wall', id: string) =>
+    (surface === 'floor' ? style.floors : style.walls).find((f) => f.id === id);
+  const preview = (surface: 'floor' | 'wall', id: string) => {
     const floors = { ...style.chosen.floors };
     let wall = style.chosen.wall;
     if (surface === 'floor' && room) {
@@ -667,40 +674,56 @@ function DesignPanel({
   const cancel = () => {
     setTrying(null);
     onPreview?.(null);
+    onTrying?.(false);
   };
-  const spec =
-    trying &&
-    (trying.surface === 'floor' ? style.floors : style.walls).find((f) => f.id === trying.id);
+  /** Put a finish on for good: `home.finish` (buys it, if it isn't yours yet). */
+  const apply = async (surface: 'floor' | 'wall', id: string) => {
+    const spec = specOf(surface, id);
+    const finish =
+      surface === 'floor' ? (id === built ? 'default' : id) : id === 'built' ? 'default' : id;
+    const name = spec ? tx(spec.label) : t('As built');
+    const r = await onApply(
+      {
+        type: 'home.finish',
+        surface,
+        finish,
+        floor: level,
+        ...(surface === 'floor' && room ? { room } : {}),
+      },
+      spec && spec.price > 0 && !spec.owned
+        ? t('{finish}: yours for any room now.', { finish: name })
+        : t('{finish}: done.', { finish: name }),
+    );
+    if (r !== null) cancel();
+    else if (!trying) onPreview?.(null);
+  };
+  /**
+   * Play-test: tapping the owned Sage green, then Close, left the walls as
+   * they were (it was only tried on). What's yours (or free) goes on at once;
+   * what you'd buy is tried on, with the home shown above a lower panel.
+   */
+  const tryOn = (surface: 'floor' | 'wall', id: string) => {
+    const on = surface === 'floor' ? id === floorNow : id === (wallNow ?? 'built');
+    if (on) return cancel();
+    const spec = specOf(surface, id);
+    const yours =
+      surface === 'floor' ? id === built || !!spec?.owned : id === 'built' || !!spec?.owned;
+    preview(surface, id);
+    if (yours || (spec?.price ?? 0) === 0) {
+      setTrying(null);
+      onTrying?.(false);
+      void apply(surface, id);
+      return;
+    }
+    setTrying({ surface, id });
+    onTrying?.(true);
+  };
+  const spec = trying && specOf(trying.surface, trying.id);
   const isNow = trying
     ? trying.surface === 'floor'
       ? trying.id === floorNow
       : trying.id === (wallNow ?? 'built')
     : true;
-  const apply = async () => {
-    if (!trying) return;
-    const finish =
-      trying.surface === 'floor'
-        ? trying.id === built
-          ? 'default'
-          : trying.id
-        : trying.id === 'built'
-          ? 'default'
-          : trying.id;
-    const name = spec ? tx(spec.label) : t('As built');
-    const r = await onApply(
-      {
-        type: 'home.finish',
-        surface: trying.surface,
-        finish,
-        floor: level,
-        ...(trying.surface === 'floor' && room ? { room } : {}),
-      },
-      spec && spec.price > 0
-        ? t('{finish}: yours for any room now.', { finish: name })
-        : t('{finish}: done.', { finish: name }),
-    );
-    if (r !== null) cancel();
-  };
   const state = (surface: 'floor' | 'wall', id: string, owned: boolean, price: number) => {
     const now = surface === 'floor' ? id === floorNow : id === (wallNow ?? 'built');
     return now
@@ -728,7 +751,12 @@ function DesignPanel({
         data-state={st.cls.slice(3)}
         aria-pressed={sel}
         disabled={busy || (surface === 'floor' && !room)}
-        onClick={() => tryOn(surface, id)}
+        onClick={(e) => {
+          const el = e.currentTarget;
+          tryOn(surface, id);
+          // The panel steps down to show the home: keep the swatch you tapped in view.
+          window.setTimeout(() => el.scrollIntoView?.({ block: 'nearest' }), 220);
+        }}
       >
         <span className="buy-swatch-pic">{pic}</span>
         <b>{label}</b>
@@ -816,7 +844,7 @@ function DesignPanel({
             className="buy-all"
             data-action="apply-finish"
             disabled={busy}
-            onClick={() => void apply()}
+            onClick={() => void apply(trying.surface, trying.id)}
           >
             {spec && spec.price > 0
               ? t('Buy · {price}', { price: money(spec.price, cur) })
@@ -961,6 +989,7 @@ export function PlaceBar({
   ok,
   moved,
   onWall = false,
+  coming = false,
   lift = 0,
   at,
   onRotate,
@@ -975,6 +1004,11 @@ export function PlaceBar({
   moved: boolean;
   /** It hangs on a wall. */
   onWall?: boolean;
+  /**
+   * Bought and still on its way (play-test: "Put it here" only kept the spot;
+   * the thing came with the delivery): the spot is kept for when you unpack.
+   */
+  coming?: boolean;
   /** On a wall: a step lower (-1) or higher (1). */
   lift?: number;
   /** Where it is ('x,y,rot', for tests). */
@@ -1004,6 +1038,7 @@ export function PlaceBar({
           : onWall
             ? t('Tap by a wall or use the arrows to move it along. Then hang it here.')
             : t('Tap the floor or drag it to move it. Turn it, then put it here.')}
+        {ok && coming && <> {t('It’s on its way: it goes here when you unpack the delivery.')}</>}
       </p>
       <div className="place-row">
         <button type="button" aria-label={t('Left')} onClick={() => onNudge(-1, 0)}>
@@ -1042,7 +1077,7 @@ export function PlaceBar({
           </button>
         )}
         <button type="button" className="place-done" disabled={!ok} onClick={onDone}>
-          {t('Put it here')}
+          {coming ? t('Keep this spot') : onWall ? t('Hang it here') : t('Put it here')}
         </button>
       </div>
     </div>
