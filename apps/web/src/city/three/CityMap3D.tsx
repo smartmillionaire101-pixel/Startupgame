@@ -44,7 +44,7 @@ const tierLabel = (tier: PropertyTier) =>
     mansion: t('Mansion'),
     penthouse: t('Penthouse'),
   })[tier];
-import { SLOW_CHECK_MS, SLOW_CHECKS, SLOW_GRACE_MS, isSlowFrame, markWebGLBroken } from './quality';
+import { SLOW_CHECK_MS, SLOW_GRACE_MS, isSlowFrame, markWebGLBroken, slowMapDue } from './quality';
 import './city3d.css';
 import { SKY_VIEWS } from '@runway/engine';
 import { openSky } from '../../experiences/sky-bus';
@@ -310,7 +310,8 @@ export default function CityMap3D(
       // Not drawing (covered by a place, parked): nothing to time.
       const drawing = !s.paused && now - s.lastDrawnAt < 3 * SLOW_CHECK_MS;
       slow = drawing && isSlowFrame(s.stats) ? slow + 1 : 0;
-      if (slow >= SLOW_CHECKS) {
+      // Never in the middle of a trip (walking, riding or choosing how to go).
+      if (slowMapDue(slow, !!walk.current || !!pending.current)) {
         told = true;
         cb.current.onSlow?.();
       }

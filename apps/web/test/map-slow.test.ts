@@ -9,6 +9,8 @@ import {
   isSlowFrame,
   mapQualityChosen,
   setMapQuality,
+  SLOW_CHECKS,
+  slowMapDue,
 } from '../src/city/three/quality';
 
 afterEach(() => localStorage.clear());
@@ -28,5 +30,13 @@ describe('a slow 3D city (play-test #21)', () => {
     setMapQuality('lite');
     expect(mapQualityChosen()).toBe(true);
     expect(getMapQuality()).toBe('lite');
+  });
+
+  it('waits for a trip to end before stepping down (the trip would be dropped)', () => {
+    expect(slowMapDue(SLOW_CHECKS - 1, false)).toBe(false);
+    expect(slowMapDue(SLOW_CHECKS, false)).toBe(true);
+    expect(slowMapDue(SLOW_CHECKS, true)).toBe(false);
+    expect(slowMapDue(SLOW_CHECKS + 3, true)).toBe(false);
+    expect(slowMapDue(SLOW_CHECKS + 3, false)).toBe(true);
   });
 });

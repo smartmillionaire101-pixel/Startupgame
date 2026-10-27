@@ -56,6 +56,15 @@ export const SLOW_CHECKS = 5;
 export const isSlowFrame = (s: { costMs: number; gapMs: number }) =>
   s.costMs > 120 || s.gapMs > 250;
 
+/**
+ * Time to say the map is too slow: enough slow checks in a row, and no trip
+ * under way (walking, riding or choosing how to go). Swapping the map in the
+ * middle of a trip dropped it, so you never got there; the switch waits for
+ * the arrival.
+ */
+export const slowMapDue = (slowChecks: number, travelling: boolean) =>
+  slowChecks >= SLOW_CHECKS && !travelling;
+
 export function setMapQuality(q: MapQuality) {
   memory = q;
   try {
