@@ -13,7 +13,8 @@
 import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { TILE } from '../home/art';
-import type { Spot } from '../home/layout';
+import type { HomePlan, Spot } from '../home/layout';
+import { LIFT_STEP } from './placement';
 import { makeCharacter, pose, setHair, type Character, type PoseId } from './character';
 import { FIXTURE_MODEL, SLOT_MODEL, facingOf, frameOf } from './catalog';
 import { buildModel, type Model } from './furniture';
@@ -29,6 +30,22 @@ import { cullOccluders } from './surroundings';
 import type { Home3DObject, Home3DPerson, Home3DProps } from './types';
 
 const MAX_LAMPS = 4;
+
+/**
+ * The outer wall a wall-mounted thing hangs on (hidden when that wall is cut
+ * away), or null on an inner wall. Placed (with `rot`): the way it faces says
+ * which wall is behind it.
+ */
+function outerWallOf(
+  plan: HomePlan,
+  s: Spot & { rot?: number },
+): 'back' | 'left' | 'right' | 'front' | null {
+  if (s.rot === undefined) return wallOf(plan, s);
+  if (s.rot === 0) return s.y === 0 ? 'back' : null;
+  if (s.rot === 1) return s.x === 0 ? 'left' : null;
+  if (s.rot === 2) return s.y === plan.h - 1 ? 'front' : null;
+  return s.x === plan.w - 1 ? 'right' : null;
+}
 
 interface Placed {
   obj: Home3DObject;
@@ -90,6 +107,21 @@ function plusMarker(): THREE.Group {
   disc.position.y = -0.012;
   g.add(disc);
   return g;
+}
+
+/**
+ * The colours the walls are painted in now (for tests: `data-wall-paint` on
+ * the canvas): the house's walls and the dividers that take its paint.
+ */
+function notePaint(stage: Stage) {
+  const seen = new Set<string>();
+  stage.scene.traverse((c) => {
+    const m = c as THREE.Mesh;
+    if (!m.isMesh || !m.userData.paint || !c.visible) return;
+    const col = (m.material as THREE.MeshStandardMaterial).color;
+    if (col) seen.add(`#${col.getHexString()}`);
+  });
+  stage.canvas.dataset.wallPaint = [...seen].sort().join(',');
 }
 
 /** The home's stage: looking down on the house from the garden's corner. */
@@ -367,6 +399,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     stage.canvas.dataset.bathrooms = String(plan.rooms.filter((r) => r.id === 'bathroom').length);
     stage.canvas.dataset.pool = grounds.pool ? (grounds.pool.hot ? 'hot' : '1') : '0';
     stage.canvas.dataset.bays = String(grounds.bays.length);
+    notePaint(stage);
     // The haze: clear over the home, thicker with distance, the far streets fading out.
     const fog = stage.scene.fog as THREE.Fog | null;
     if (fog) {
@@ -503,9 +536,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
           g.position.y = 0.45;
         }
       }
+      // A picture hung higher or lower.
+      if (o.spot.wall && o.spot.lift) g.position.y += o.spot.lift * LIFT_STEP;
       g.traverse((c) => (c.userData.obj = o.id));
       g.userData.obj = o.id;
-      const wall = o.spot.wall ? wallOf(plan, o.spot) : null;
+      const wall = o.spot.wall ? outerWallOf(plan, o.spot) : null;
       placed.set(o.id, { obj: o, model, group: g, ry, wall });
       root.add(g);
       for (const l of model.lamps) {
@@ -631,7 +666,9 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
   // ---- Shop note: the walls and dividers you put up on this floor.
   const dividers = props.dividers;
   const divKey = (dividers ?? [])
-    .map((d) => `${d.id}:${d.kind}:${d.len}:${d.x},${d.y},${d.dir}:${d.swatch}`)
+    .map(
+      (d) => `${d.id}:${d.kind}:${d.len}:${d.x},${d.y},${d.dir}:${d.swatch}:${d.painted ? 1 : 0}`,
+    )
     .join('|');
   useEffect(() => {
     const stage = stageRef.current;
@@ -642,6 +679,13 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     const root = new THREE.Group();
     for (const d of dividers) {
       const g = buildDivider(d.kind, d.len, d.swatch);
+      // A plastered divider in the home's paint is one of its walls.
+      if (d.painted)
+        g.traverse((c) => {
+          const m = c as THREE.Mesh;
+          const col = m.isMesh && (m.material as THREE.MeshStandardMaterial).color;
+          if (col && `#${col.getHexString()}` === d.swatch.toLowerCase()) c.userData.paint = true;
+        });
       g.position.set(d.x, 0, d.y);
       if (d.dir === 'v') g.rotation.y = -Math.PI / 2;
       g.userData.dividerId = d.id;
@@ -649,10 +693,12 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     }
     stage.scene.add(root);
     stage.canvas.dataset.dividers = String(dividers.length);
+    notePaint(stage);
     stage.invalidate();
     return () => {
       stage.scene.remove(root);
       disposeTree(root);
+      notePaint(stage);
       stage.invalidate();
     };
     // divKey stands for `dividers`.
@@ -720,7 +766,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     );
     foot.rotation.x = -Math.PI / 2;
     foot.position.set(ghost.spot.x + ghost.spot.w / 2, 0.02, ghost.spot.y + ghost.spot.h / 2);
-    g.position.set(fr.x, 0.02, fr.z);
+    g.position.set(fr.x, 0.02 + (ghost.spot.wall ? (ghost.spot.lift ?? 0) * LIFT_STEP : 0), fr.z);
     g.rotation.y = ry;
     stage.scene.add(g, foot);
     ghostRef.current = g;

@@ -4,6 +4,7 @@
  * floor per room ('0:living' → 'marble') and paint for the walls. The 3D
  * house (./house.ts) and the Design tab both read these. Pure: no three.js.
  */
+import { WALL_FINISHES } from '@runway/engine';
 import type { BlockTier } from '../home/grounds';
 import type { RoomId } from '../home/layout';
 import type { FloorKind } from './kit';
@@ -114,12 +115,40 @@ function shade(hex: string, amount: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
+/**
+ * A paint's colour: a wall finish's id ('sage', what the engine keeps) or a
+ * colour. Player feedback ("not all the walls change"): the id went to the
+ * walls as if it were a colour, so only the CSS-named ones ('white',
+ * 'navy') painted the outer walls, and the inner walls came out near black.
+ */
+export function paintColour(paint?: string | null): string | null {
+  if (!paint) return null;
+  if (/^#[0-9a-f]{6}$/i.test(paint)) return paint;
+  return WALL_FINISHES.find((f) => f.id === paint)?.swatch ?? null;
+}
+
 /** The walls' colours: as built, or in the paint you chose (inner walls a shade lighter). */
 export function wallPalette(
   block: BlockTier | null,
   paint?: string | null,
 ): { outer: string; inner: string; cap: string; drape: string } {
   const built = block ? BLOCK_WALLS[block] : HOUSE_WALLS;
-  if (!paint) return built;
-  return { ...built, outer: paint, inner: shade(paint, 0.08) };
+  const c = paintColour(paint);
+  if (!c) return built;
+  return { ...built, outer: c, inner: shade(c, 0.08) };
+}
+
+/**
+ * A divider in the home's paint: a plastered wall (a full or half wall, not
+ * timber-clad) takes the paint you chose for the walls; glass, screens and
+ * shelves keep their own finish. Null: its own.
+ */
+export function dividerPaint(
+  kind: string,
+  finish: string,
+  block: BlockTier | null,
+  paint?: string | null,
+): string | null {
+  if ((kind !== 'full' && kind !== 'half') || finish === 'timber') return null;
+  return paintColour(paint) ? wallPalette(block, paint).inner : null;
 }

@@ -22,7 +22,8 @@ export interface Home3DPerson {
 export interface Home3DObject {
   id: string;
   label: string;
-  spot: Spot & { rot?: number };
+  /** `lift`: a picture hung a step lower or higher (placement.ts). */
+  spot: Spot & { rot?: number; lift?: number };
   slot?: string;
   owned?: boolean;
   tier?: number;
@@ -45,6 +46,8 @@ export interface Home3DDivider {
   y: number;
   dir: 'h' | 'v';
   swatch: string;
+  /** In the home's wall paint (a plastered wall, `dividerPaint`). */
+  painted?: boolean;
 }
 
 interface PickResult {
@@ -76,7 +79,7 @@ export interface Home3DApi {
 export interface Ghost {
   slot: string;
   tier: number;
-  spot: Spot & { rot: number };
+  spot: Spot & { rot: number; lift?: number };
   ok: boolean;
 }
 

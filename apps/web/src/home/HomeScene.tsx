@@ -29,14 +29,20 @@ import type { Ghost, Home3DApi, Home3DPerson } from '../interiors3d/types';
 import {
   MOVABLE,
   canPlace,
+  extraKey,
   loadPlacements,
+  nudgeOnWall,
   placedSpot,
   savePlacement,
+  screenToGrid,
+  slotOf,
+  snapToWall,
+  turnOnWall,
   withPlacements,
   type Placement,
 } from '../interiors3d/placement';
 import { BuySheet, PlaceBar } from '../interiors3d/BuyMode';
-import type { HomeFinish } from '../interiors3d/finishes';
+import { dividerPaint, type HomeFinish } from '../interiors3d/finishes';
 import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
@@ -63,7 +69,7 @@ import {
   type Spot,
   type Verb,
 } from './layout';
-import { groundsFor, outdoorThings, type Grounds } from './grounds';
+import { blockOf, groundsFor, outdoorThings, type Grounds } from './grounds';
 import {
   HOTEL_ACTS,
   HOTEL_MODELS,
@@ -116,6 +122,14 @@ const ACT_MS = 2200;
 const TAP_SLOP = 8;
 const MAX_GUESTS = 4;
 
+/** Arrow keys as steps on screen (x right, y down). */
+const ARROWS: Record<string, [number, number]> = {
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+};
+
 const reduceMotion = () =>
   (typeof window !== 'undefined' &&
     !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) ||
@@ -162,6 +176,8 @@ interface Obj {
   /** `data-furniture` (the slot) and whether you own it. */
   slot?: string;
   owned?: boolean;
+  /** Another one of a thing (player feedback): its own tier (else its slot's). */
+  tier?: number;
   /** Draw order: the footprint's bottom edge. */
   base: number;
   /** Wave 12: a model of its own (decor, things outside), its finish and facing. */
@@ -328,10 +344,32 @@ export function HomeScene({
   );
   const ownedKey = [...tiers.keys()].sort().join(',');
   const owned = useMemo(() => new Set(ownedKey ? ownedKey.split(',') : []), [ownedKey]);
+  // Player feedback: more than one of a thing (a second speaker), each placed on its own.
+  const extraList = hotelTier || hostView ? null : view.me.homeStyle?.extras;
+  const extraKeyList = (extraList ?? [])
+    .map((x) => `${extraKey(x.slot, x.id)}:${x.tier}`)
+    .join(',');
+  const extraTiers = useMemo(
+    () =>
+      new Map(
+        (extraKeyList ? extraKeyList.split(',') : []).map((k) => {
+          const i = k.lastIndexOf(':');
+          return [k.slice(0, i), Number(k.slice(i + 1))] as const;
+        }),
+      ),
+    [extraKeyList],
+  );
+  const extraKeys = useMemo(() => [...extraTiers.keys()], [extraTiers]);
   // Wave 9 §C: where you moved things in Buy mode (this device only).
   const placeOwner = hostView?.id ?? view.me.id;
   const [placements, setPlacements] = useState<Record<string, Placement>>(() =>
     loadPlacements(placeOwner, MOVABLE),
+  );
+  // The extras' spots too, as they're bought (what's moved this visit wins).
+  const placed = useMemo(
+    () =>
+      extraKeys.length ? { ...loadPlacements(placeOwner, extraKeys), ...placements } : placements,
+    [placeOwner, extraKeys, placements],
   );
   // Shop note: the walls and dividers put up here, the rooms named, the finishes bought.
   const myHome = view.me.home;
@@ -356,17 +394,33 @@ export function HomeScene({
   // A hotel room stays as the hotel laid it out.
   const plan = useMemo(
     () =>
-      hotelTier ? basePlan : withPlacements(withDividers(basePlan, dividers), owned, placements),
-    [hotelTier, basePlan, owned, placements, dividers],
+      hotelTier
+        ? basePlan
+        : withPlacements(withDividers(basePlan, dividers), owned, placed, extraKeys),
+    [hotelTier, basePlan, owned, placed, dividers, extraKeys],
   );
+  /** What you own here, the extras that found a spot on this floor among it. */
+  const ownedHere = useMemo(() => {
+    const keys = extraKeys.filter((k) => k in plan.slots);
+    return keys.length ? new Set([...owned, ...keys]) : owned;
+  }, [owned, extraKeys, plan]);
   /** What's drawn as the house: its own walls (dividers are drawn as themselves). */
   const drawPlan = useMemo(
     () => (plan.walls === basePlan.walls ? plan : { ...plan, walls: basePlan.walls }),
     [plan, basePlan],
   );
+  // Buy mode's Design tab: a floor or paint you're trying on.
+  const [tryFinish, setTryFinish] = useState<HomeFinish | null>(null);
+  // A plastered divider takes the walls' paint (player feedback: "not all the walls change").
+  const wallPaint = hotelTier || hostView ? null : (tryFinish ?? view.me.homeStyle?.chosen)?.wall;
+  const blockTier = blockOf(basePlan);
   const dividers3d = useMemo(
-    () => dividers.map((d) => ({ ...d, swatch: wallSwatch(d.kind, d.finish) })),
-    [dividers],
+    () =>
+      dividers.map((d) => {
+        const paint = dividerPaint(d.kind, d.finish, blockTier, wallPaint);
+        return { ...d, swatch: paint ?? wallSwatch(d.kind, d.finish), painted: !!paint };
+      }),
+    [dividers, blockTier, wallPaint],
   );
   const roomNames = extras.rooms.filter((r) => r.floor === floor);
   // ---- 3D (Wave 9 §C): drawn by three.js under this scene's invisible 2D hit layer.
@@ -389,8 +443,13 @@ export function HomeScene({
   // Stopping calls lookAround's onEnd, which clears these.
   const endLook = useCallback(() => lookStop.current?.(), []);
   const grid: Grid = useMemo(
-    () => ({ w: plan.w, h: plan.h, blocked: blockedTiles(plan, owned), walls: wallEdges(plan) }),
-    [plan, owned],
+    () => ({
+      w: plan.w,
+      h: plan.h,
+      blocked: blockedTiles(plan, ownedHere),
+      walls: wallEdges(plan),
+    }),
+    [plan, ownedHere],
   );
   const { night, dusk } = useDaylight(view.market.id);
   const car = hostView || hotelTier ? null : carOf(view);
@@ -458,8 +517,9 @@ export function HomeScene({
         outside: level === 0,
         host: !guestView,
         hotel: hotelTier,
+        extras: extraTiers,
       }),
-    [plan, tiers, night, grounds, carNames, level, guestView, hotelTier],
+    [plan, tiers, night, grounds, carNames, level, guestView, hotelTier, extraTiers],
   );
 
   // ---- People
@@ -754,6 +814,7 @@ export function HomeScene({
   >([]);
   // ---- Buy mode: the thing you're placing.
   const [placing, setPlacing] = useState<{
+    /** Its key: the slot, or the slot and id of another one of it ('sound#extra_1k'). */
     slot: string;
     label: string;
     p: Placement;
@@ -762,31 +823,82 @@ export function HomeScene({
   } | null>(null);
   // Buy all: the things bought, placed in turn once each is put down.
   const [placeQueue, setPlaceQueue] = useState<{ slot: string; label: string; tier: number }[]>([]);
-  // Buy mode's Design tab: a floor or paint you're trying on.
-  const [tryFinish, setTryFinish] = useState<HomeFinish | null>(null);
   const finish3d: HomeFinish | null =
     hotelTier || hostView ? null : (tryFinish ?? view.me.homeStyle?.chosen ?? null);
   const ghost: Ghost | null = useMemo(() => {
     if (!placing) return null;
-    const base = basePlan.slots[placing.slot];
+    const slot = slotOf(placing.slot);
+    const base = basePlan.slots[slot];
     if (!base) return null;
     return {
-      slot: placing.slot,
-      tier: placing.tier ?? tiers.get(placing.slot) ?? 1,
+      slot,
+      tier: placing.tier ?? extraTiers.get(placing.slot) ?? tiers.get(slot) ?? 1,
       spot: placedSpot(base, placing.p),
-      ok: canPlace(plan, owned, placing.slot, placing.p),
+      ok: canPlace(plan, ownedHere, placing.slot, placing.p),
     };
-  }, [placing, basePlan, plan, owned, tiers]);
+  }, [placing, basePlan, plan, ownedHere, tiers, extraTiers]);
+  const onWall = !!placing && !!basePlan.slots[slotOf(placing.slot)]?.wall;
   const startPlacing = (slot: string, label: string, tier?: number) => {
-    if (!MOVABLE.has(slot)) return false;
-    const s = plan.slots[slot];
+    if (!MOVABLE.has(slotOf(slot))) return false;
+    const s = plan.slots[slot] as (Spot & { rot?: number; lift?: number }) | undefined;
     if (!s) return false;
-    const rot = (s as { rot?: number }).rot ?? 0;
+    const rot = s.rot ?? 0;
     setSheet(null);
+    setTryFinish(null);
     setMenuState(null);
-    setPlacing({ slot, label, p: { x: s.x, y: s.y, rot }, ...(tier ? { tier } : {}) });
+    setPlacing({
+      slot,
+      label,
+      p: { x: s.x, y: s.y, rot, ...(s.lift ? { lift: s.lift } : {}) },
+      ...(tier ? { tier } : {}),
+    });
     return true;
   };
+  /**
+   * Screen arrows to a step on the floor grid: left and right as you see
+   * them, up away from you, however the camera has turned (player feedback:
+   * "when I click left the item goes right").
+   */
+  const gridStep = (dx: number, dy: number) => {
+    const api = api3d.current;
+    if (!is3d || !api) return { dx, dy };
+    const o = api.project(0, 0, 0);
+    const ex = api.project(1, 0, 0);
+    const ez = api.project(0, 1, 0);
+    return screenToGrid(dx, dy, { x: ex.x - o.x, y: ex.y - o.y }, { x: ez.x - o.x, y: ez.y - o.y });
+  };
+  /** Nudge what you're placing (or the wall you're putting up) a tile, as you see it. */
+  const nudge = (dx: number, dy: number) => {
+    const g = gridStep(dx, dy);
+    if (wallPlacing) return setWallPlacing(nudgeDivider(plan, wallPlacing, g.dx, g.dy));
+    if (!placing) return;
+    setPlacing({
+      ...placing,
+      p: onWall
+        ? nudgeOnWall(plan, placing.p, g.dx, g.dy)
+        : { ...placing.p, x: placing.p.x + g.dx, y: placing.p.y + g.dy },
+    });
+  };
+  const turnPlacing = () => {
+    if (!placing) return;
+    setPlacing({
+      ...placing,
+      p: onWall ? turnOnWall(plan, placing.p) : { ...placing.p, rot: (placing.p.rot + 1) % 4 },
+    });
+  };
+  // Bought another one: placed as soon as it's in the home (the view has it).
+  const [placeSoon, setPlaceSoon] = useState<{ key: string; label: string } | null>(null);
+  useEffect(() => {
+    if (!placeSoon || !extraTiers.has(placeSoon.key)) return;
+    const go = window.setTimeout(() => {
+      setPlaceSoon(null);
+      if (!startPlacing(placeSoon.key, placeSoon.label))
+        toast(t('No room for it on this floor. Make some space, then move it.'));
+    }, 0);
+    return () => clearTimeout(go);
+    // startPlacing reads the plan of this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placeSoon, extraTiers, plan]);
   /** The next thing from Buy all that stands on this floor (the rest keep their places). */
   const placeNext = (queue: { slot: string; label: string; tier: number }[]) => {
     let rest = queue;
@@ -804,6 +916,14 @@ export function HomeScene({
     setPlacements((xs) => ({ ...xs, [placing.slot]: p }));
     setPlacing(null);
     if (placeQueue.length) placeNext(placeQueue);
+  };
+  const cancelPlacing = () => {
+    setPlacing(null);
+    if (placeQueue.length) placeNext(placeQueue);
+  };
+  const closeBuy = () => {
+    setSheet(null);
+    setTryFinish(null);
   };
   const resetPlacing = () => {
     if (!placing) return;
@@ -1018,6 +1138,12 @@ export function HomeScene({
     }
     if ('slot' in v) return goShop(v.slot);
     if ('move' in v) return startPlacing(v.move, obj.label);
+    if ('extra' in v) {
+      void send({ type: 'home.extra.sell', extraId: v.extra }, (x: { refund?: number } | null) =>
+        t('Sold for {amount}.', { amount: money(x?.refund ?? 0, cur) }),
+      );
+      return;
+    }
     const p = me.current;
     if (v.id === 'sit') {
       const seat = plan.seats[0]!;
@@ -1042,9 +1168,17 @@ export function HomeScene({
   };
 
   // ---- Pointer: tap to walk or open a thing, drag to pan.
-  const drag = useRef<{ x: number; y: number; cx: number; cy: number; moved: boolean } | null>(
-    null,
-  );
+  const drag = useRef<{
+    x: number;
+    y: number;
+    cx: number;
+    cy: number;
+    moved: boolean;
+    /** Dragging the thing you're placing (not the view), last over this tile. */
+    grab?: boolean;
+    tx?: number;
+    ty?: number;
+  } | null>(null);
   const toWorld = (clientX: number, clientY: number) => {
     const r = svgRef.current!.getBoundingClientRect();
     const c = cam.current;
@@ -1059,7 +1193,12 @@ export function HomeScene({
   /** A tap on a tile while placing: the thing moves there (centred on it). */
   const placeAt = (tx: number, ty: number) => {
     if (!placing) return;
-    const base = basePlan.slots[placing.slot]!;
+    const base = basePlan.slots[slotOf(placing.slot)]!;
+    if (base.wall) {
+      // On a wall: the tile in front of it, facing away from the wall there.
+      if (tx < 0 || ty < 0 || tx >= plan.w || ty >= plan.h) return;
+      return setPlacing({ ...placing, p: snapToWall(plan, { ...placing.p, x: tx, y: ty }) });
+    }
     const turned = placing.p.rot % 2 === 1;
     const w = turned ? base.h : base.w;
     const h = turned ? base.w : base.h;
@@ -1072,6 +1211,15 @@ export function HomeScene({
       },
     });
   };
+  /** The floor tile under a point on screen (3D or 2D). */
+  const tileAt = (clientX: number, clientY: number) => {
+    if (is3d && api3d.current) {
+      const r = svgRef.current!.getBoundingClientRect();
+      return api3d.current.pick(clientX - r.left, clientY - r.top)?.tile ?? null;
+    }
+    const w = toWorld(clientX, clientY);
+    return { x: Math.floor(w.x / TILE), y: Math.floor(w.y / TILE) };
+  };
   const onDown = (e: React.PointerEvent) => {
     if (lookStop.current) endLook();
     pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -1079,12 +1227,20 @@ export function HomeScene({
       const [a, b] = [...pts.current.values()];
       pinch.current = Math.hypot(a!.x - b!.x, a!.y - b!.y);
     }
+    // Placing: a finger on the thing (or just by it) drags it along the floor.
+    let grab = false;
+    if (placing && ghost && pts.current.size === 1) {
+      const at = tileAt(e.clientX, e.clientY);
+      const s = ghost.spot;
+      grab = !!at && at.x >= s.x - 1 && at.x <= s.x + s.w && at.y >= s.y - 1 && at.y <= s.y + s.h;
+    }
     drag.current = {
       x: e.clientX,
       y: e.clientY,
       cx: cam.current.x,
       cy: cam.current.y,
       moved: false,
+      ...(grab ? { grab: true } : {}),
     };
   };
   const onMove = (e: React.PointerEvent) => {
@@ -1094,6 +1250,17 @@ export function HomeScene({
     if (!d) return;
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
+    if (d.grab && placing && pts.current.size < 2) {
+      if (!d.moved && Math.hypot(dx, dy) < TAP_SLOP) return;
+      d.moved = true;
+      const at = tileAt(e.clientX, e.clientY);
+      if (at && (at.x !== d.tx || at.y !== d.ty)) {
+        d.tx = at.x;
+        d.ty = at.y;
+        placeAt(at.x, at.y);
+      }
+      return;
+    }
     if (is3d && api3d.current) {
       if (pts.current.size >= 2) {
         const [a, b] = [...pts.current.values()];
@@ -1148,6 +1315,8 @@ export function HomeScene({
         return;
       }
       setMenu(null);
+      // Buy mode open: a tap on the home round it closes the catalogue.
+      if (sheet === 'buy') return closeBuy();
       if (!hit?.tile) return;
       const path = walk(me.current, hit.tile);
       setWalkPath(reduceMotion() ? null : path);
@@ -1173,6 +1342,7 @@ export function HomeScene({
       }
     }
     setMenu(null);
+    if (sheet === 'buy') return closeBuy();
     const w = toWorld(e.clientX, e.clientY);
     const tx = Math.floor(w.x / TILE);
     const ty = Math.floor(w.y / TILE);
@@ -1183,15 +1353,54 @@ export function HomeScene({
     setRing({ x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, n: ++rings.current });
   };
   const onKey = (e: React.KeyboardEvent) => {
-    const dir = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[
-      e.key
-    ];
-    if (!dir || acting) return;
+    const dir = ARROWS[e.key];
+    // Placing: the arrow keys nudge it (the window's listener below).
+    if (!dir || acting || placing || wallPlacing) return;
     e.preventDefault();
     const p = me.current;
     cam.current.manual = false;
-    walk(p, { x: Math.round(p.x) + dir[0]!, y: Math.round(p.y) + dir[1]! });
+    // As you see it: left is left on screen, up is away from you.
+    const g = gridStep(dir[0], dir[1]);
+    walk(p, { x: Math.round(p.x) + g.dx, y: Math.round(p.y) + g.dy });
   };
+  // While placing, the arrow keys nudge it, R turns it, Enter puts it down, Escape
+  // cancels; with Buy mode open, Escape closes it.
+  const keys = useRef<(e: KeyboardEvent) => void>(() => {});
+  const onWindowKey = (e: KeyboardEvent) => {
+    const el = e.target as HTMLElement | null;
+    const typing = !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
+    if (placing || wallPlacing) {
+      if (typing) return;
+      const dir = ARROWS[e.key];
+      if (dir) {
+        e.preventDefault();
+        nudge(dir[0], dir[1]);
+      } else if (e.key === 'r' || e.key === 'R') {
+        if (wallPlacing) setWallPlacing(turnDivider(plan, wallPlacing));
+        else turnPlacing();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (wallPlacing) void finishWall();
+        else finishPlacing();
+      } else if (e.key === 'Escape') {
+        if (wallPlacing) setWallPlacing(null);
+        else cancelPlacing();
+      }
+      return;
+    }
+    if (sheet === 'buy' && e.key === 'Escape') {
+      e.preventDefault();
+      closeBuy();
+    }
+  };
+  useEffect(() => {
+    keys.current = onWindowKey;
+  });
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => keys.current(e);
+    window.addEventListener('keydown', on);
+    return () => window.removeEventListener('keydown', on);
+  }, []);
 
   const addGuest = (g: Guest) => {
     setGuests((xs) => {
@@ -1553,12 +1762,12 @@ export function HomeScene({
         spot: o.spot,
         slot: o.slot,
         owned: o.owned,
-        tier: o.slot ? (tiers.get(o.slot) ?? 1) : (o.finish ?? 1),
+        tier: o.tier ?? (o.slot ? (tiers.get(o.slot) ?? 1) : (o.finish ?? 1)),
         ...(o.model ? { model: o.model } : {}),
         ...(o.ry !== undefined ? { ry: o.ry } : {}),
         ...(o.outdoor ? { outdoor: true } : {}),
         // Shop note: the finish you bought it in.
-        ...(o.slot && extras.finishes.get(o.slot)
+        ...(o.slot && o.id === o.slot && extras.finishes.get(o.slot)
           ? {
               finish:
                 OPTION_GROUPS.woodFinish.options.find((x) => x.id === extras.finishes.get(o.slot!))
@@ -1660,6 +1869,8 @@ export function HomeScene({
     <div
       className={`place-scene home-scene${is3d ? ' is-3d' : ''}${placing || wallPlacing || naming ? ' is-placing' : ''}`}
       data-dividers={dividers.length}
+      data-extras={ownedHere.size - owned.size}
+      data-placing={placing?.slot}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -2118,22 +2329,27 @@ export function HomeScene({
           <PlaceBar
             label={placing.label}
             ok={ghost.ok}
-            moved={!!placements[placing.slot]}
-            onRotate={() =>
-              setPlacing({ ...placing, p: { ...placing.p, rot: (placing.p.rot + 1) % 4 } })
+            moved={!!placed[placing.slot]}
+            onWall={onWall}
+            onRotate={turnPlacing}
+            onNudge={nudge}
+            onLift={
+              onWall
+                ? (d) =>
+                    setPlacing({
+                      ...placing,
+                      p: {
+                        ...placing.p,
+                        lift: Math.max(-1, Math.min(1, (placing.p.lift ?? 0) + d)),
+                      },
+                    })
+                : undefined
             }
-            onNudge={(dx, dy) =>
-              setPlacing({
-                ...placing,
-                p: { ...placing.p, x: placing.p.x + dx, y: placing.p.y + dy },
-              })
-            }
+            lift={placing.p.lift ?? 0}
+            at={`${placing.p.x},${placing.p.y},${placing.p.rot}`}
             onDone={finishPlacing}
             onReset={resetPlacing}
-            onCancel={() => {
-              setPlacing(null);
-              if (placeQueue.length) placeNext(placeQueue);
-            }}
+            onCancel={cancelPlacing}
           />
         )}
         {wallPlacing && wallGhost && (
@@ -2142,7 +2358,7 @@ export function HomeScene({
             ok={wallGhost.ok}
             moved={false}
             onRotate={() => setWallPlacing(turnDivider(plan, wallPlacing))}
-            onNudge={(dx, dy) => setWallPlacing(nudgeDivider(plan, wallPlacing, dx, dy))}
+            onNudge={nudge}
             onDone={() => void finishWall()}
             onReset={() => {}}
             onCancel={() => setWallPlacing(null)}
@@ -2361,11 +2577,10 @@ export function HomeScene({
         <BuySheet
           owned={tiers}
           placed={placements}
-          onClose={() => {
-            setSheet(null);
-            setTryFinish(null);
-          }}
+          onClose={closeBuy}
           onPlace={(slot, label) => void startPlacing(slot, label)}
+          extras={extraList ?? []}
+          onPlaceExtra={(key, label) => setPlaceSoon({ key, label })}
           onPlaceAll={placeNext}
           plan={basePlan}
           floors={buyFloors}
@@ -2508,7 +2723,13 @@ function buildObjects(
    * `outside`: the ground floor (the grounds are yours to use); `host`: your
    * own home; `hotel`: a hotel room (only what a guest of the hotel can do).
    */
-  opts: { outside: boolean; host: boolean; hotel?: HotelTier | null } = {
+  opts: {
+    outside: boolean;
+    host: boolean;
+    hotel?: HotelTier | null;
+    /** More of a thing you have, by key ('sound#extra_1k') → its tier. */
+    extras?: ReadonlyMap<string, number>;
+  } = {
     outside: true,
     host: true,
   },
@@ -2715,8 +2936,27 @@ function buildObjects(
         ),
       }));
   }
+  // More of a thing (player feedback): each its own, to move or sell back.
+  for (const [k, tier] of opts.extras ?? []) {
+    const s = plan.slots[k];
+    const slot = slotOf(k);
+    if (!s) continue;
+    push({
+      id: k,
+      label: slotLabel(slot),
+      spot: s,
+      verbs: [
+        { id: 'move', label: t('Move'), move: k },
+        { id: 'sell', label: t('Sell it back'), extra: k.slice(slot.length + 1) },
+      ],
+      slot,
+      owned: true,
+      tier,
+      art: <SlotArt slot={slot} tier={tier} w={s.w} h={s.h} night={night} />,
+    });
+  }
   // Owned slots carry their verbs; the rest get a "+".
-  for (const slot of Object.keys(plan.slots)) if (!has(slot)) plus(slot);
+  for (const slot of Object.keys(plan.slots)) if (!has(slot) && !slot.includes('#')) plus(slot);
   return out;
 }
 

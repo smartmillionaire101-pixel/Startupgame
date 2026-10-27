@@ -66,4 +66,21 @@ export const buyMode: Record<string, string> = {
   // Wall paint
   'Deep navy': 'Bleu marine',
   'Blush pink': 'Rose poudré',
+  // Player feedback: more than one of a thing, pictures on any wall, a Close you can see
+  '+ Another · {price}': '+ Un autre · {price}',
+  'Tap again · {price}': 'Touchez encore · {price}',
+  'That’s the most': 'C’est le maximum',
+  'Another {item}: put it where you like.': 'Un autre {item} : placez-le où vous voulez.',
+  'No room for it on this floor. Make some space, then move it.':
+    'Pas de place à cet étage. Faites de la place, puis déplacez-le.',
+  'Sell it back': 'Le revendre',
+  'Sold for {amount}.': 'Vendu {amount}.',
+  'Close Buy mode': 'Fermer le mode achat',
+  'Hang it on a wall.': 'Accrochez-le à un mur.',
+  'Tap by a wall or use the arrows to move it along. Then hang it here.':
+    'Touchez près d’un mur ou utilisez les flèches pour le déplacer. Puis accrochez-le ici.',
+  'Tap the floor or drag it to move it. Turn it, then put it here.':
+    'Touchez le sol ou faites-le glisser pour le déplacer. Tournez-le, puis posez-le ici.',
+  Lower: 'Plus bas',
+  Higher: 'Plus haut',
 };

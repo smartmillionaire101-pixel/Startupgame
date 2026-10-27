@@ -10,6 +10,11 @@
  * (engine data/home-style.ts boosts). Design: floors and wall paint for
  * your rooms (`home.finish`: tap to try one on, buy to keep), and your walls
  * and dividers (shop note). Placement is kept on this device (./placement.ts).
+ *
+ * Player feedback: more than one of a thing (another speaker, more plants,
+ * `home.extra.buy` from a card you own, each then placed on its own); a
+ * Close button you can see at the top of the panel (Escape, a tap on the
+ * home and dragging the handle down close it too).
  */
 import {
   useMemo,
@@ -25,7 +30,7 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { looseCmd, shopOf } from '../city/life';
 import { slotLabel } from '../city/Showroom';
-import { MOVABLE, type Placement } from './placement';
+import { MOVABLE, extraKey, type Placement } from './placement';
 import { BOOST_LABEL, WALLS } from '@runway/engine';
 import type { WallView } from '../home/dividers';
 import { wallSwatch } from '../home/dividers';
@@ -90,6 +95,8 @@ export interface BuyFloor {
  */
 const LOW = 0.7;
 const TALL = 0.88;
+/** Dragged down below this, the panel closes. */
+const CLOSE_AT = 0.5;
 
 export function BuySheet({
   owned,
@@ -97,6 +104,8 @@ export function BuySheet({
   onClose,
   onPlace,
   onPlaceAll,
+  extras = [],
+  onPlaceExtra,
   walls,
   floor,
   onPlaceWall,
@@ -115,6 +124,10 @@ export function BuySheet({
   onPlace: (slot: string, label: string) => void;
   /** Bought: place these in turn (each as it's put down). */
   onPlaceAll?: (things: { slot: string; label: string; tier: number }[]) => void;
+  /** More of the things you have (each placed on its own). */
+  extras?: { id: string; slot: string; itemId: string }[];
+  /** Bought another: place it (its key) once it's in the home. */
+  onPlaceExtra?: (key: string, label: string) => void;
   /** Shop note: your walls and dividers (placed or in storage), and what to do with them. */
   walls?: WallView[];
   floor?: number;
@@ -172,6 +185,21 @@ export function BuySheet({
           ...(floorSlots ? { floorSlots } : {}),
         });
   const bag = basketTotal(basket, items);
+  // More than one: the kinds of thing a home can have more of, and how many.
+  const extraSlots = new Set(style?.extraSlots ?? []);
+  const perSlot = style?.extrasPerSlot ?? 0;
+  const extrasOf = (slot: string) => extras.filter((x) => x.slot === slot).length;
+  const buyAnother = async (f: BuyItem) => {
+    setArmed(null);
+    const res = await send(
+      looseCmd({ type: 'home.extra.buy', itemId: f.id }),
+      t('Another {item}: put it where you like.', { item: tx(f.label) }),
+    );
+    const id = (res as { extra?: { id: string } } | null)?.extra?.id;
+    if (!id) return;
+    onClose();
+    onPlaceExtra?.(extraKey(f.slot, id), slotLabel(f.slot));
+  };
   const spotOf = (slot: string) =>
     plan?.slots[slot] ?? planFor(5).slots[slot] ?? planFor(3).slots[slot];
 
@@ -231,14 +259,15 @@ export function BuySheet({
     const dy = d.y - e.clientY;
     if (Math.abs(dy) > 4) d.moved = true;
     const vh = window.innerHeight || 800;
-    setHeight(Math.max(0.3, Math.min(0.9, d.h + dy / vh)));
+    setHeight(Math.max(0.2, Math.min(0.9, d.h + dy / vh)));
   };
   const onGripUp = () => {
     const d = drag.current;
     drag.current = null;
     if (!d) return;
-    // A tap toggles; a drag settles at the nearer height.
+    // A tap toggles; a drag settles at the nearer height; dragged well down, it closes.
     if (!d.moved) setHeight(d.h > (LOW + TALL) / 2 ? LOW : TALL);
+    else if (height < CLOSE_AT) onClose();
     else setHeight((h) => (h > (LOW + TALL) / 2 ? TALL : LOW));
   };
   const tall = height > (LOW + TALL) / 2;
@@ -292,9 +321,6 @@ export function BuySheet({
             </button>
           </>
         )}
-        <button type="button" className="buy-round" aria-label={t('Close')} onClick={onClose}>
-          ✕
-        </button>
       </div>
       <section
         className="buy-sheet"
@@ -303,17 +329,28 @@ export function BuySheet({
         data-tall={tall ? '1' : '0'}
         style={{ height: `${Math.round(height * 100)}%` }}
       >
-        <button
-          type="button"
-          className="buy-grip"
-          aria-label={tall ? t('Show more of your home') : t('Show more of the catalogue')}
-          onPointerDown={onGrip}
-          onPointerMove={onGripMove}
-          onPointerUp={onGripUp}
-          onPointerCancel={() => (drag.current = null)}
-        >
-          <i />
-        </button>
+        <div className="buy-head">
+          <button
+            type="button"
+            className="buy-grip"
+            aria-label={tall ? t('Show more of your home') : t('Show more of the catalogue')}
+            onPointerDown={onGrip}
+            onPointerMove={onGripMove}
+            onPointerUp={onGripUp}
+            onPointerCancel={() => (drag.current = null)}
+          >
+            <i />
+          </button>
+          <button
+            type="button"
+            className="buy-close"
+            data-action="close-buy"
+            aria-label={t('Close Buy mode')}
+            onClick={onClose}
+          >
+            <span aria-hidden="true">✕</span> {t('Close')}
+          </button>
+        </div>
         <div className="buy-row">
           {floors && floors.length > 1 && (
             <div className="buy-floors" role="group" aria-label={t('Floors')}>
@@ -448,72 +485,96 @@ export function BuySheet({
                 const fresh = !mine && isNew(f, owned);
                 const boosts = style ? boostLines(style.boosts[f.id]) : [];
                 const canPick = !mine && !wait;
+                // More than one: another of a thing you have (a speaker, plants, art).
+                const more = mine && !picking && extraSlots.has(f.slot);
+                const have = (mine ? 1 : 0) + extras.filter((x) => x.itemId === f.id).length;
+                const moreArmed = armed === `more:${f.id}`;
                 return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    role="listitem"
-                    className={`buy-card tier-${f.tier}${mine ? ' is-mine' : ''}${isArmed ? ' is-armed' : ''}${picked ? ' is-picked' : ''}`}
-                    data-buy-item={f.id}
-                    data-buy-slot={f.slot}
-                    data-owned={mine ? '1' : '0'}
-                    data-new={fresh ? '1' : '0'}
-                    data-picked={picked ? '1' : '0'}
-                    aria-pressed={picking ? picked : undefined}
-                    disabled={
-                      busy ||
-                      buying ||
-                      (picking
-                        ? !canPick
-                        : wait || (!mine && pocket < f.price) || (mine && !MOVABLE.has(f.slot)))
-                    }
-                    onClick={() => {
-                      if (picking) return setBasket((b) => toggleBasket(b, f, items, owned));
-                      if (mine) return onPlace(f.slot, slotLabel(f.slot));
-                      if (isArmed) return void buyOne(f);
-                      setArmed(f.id);
-                    }}
-                  >
-                    <span className="buy-pic">
-                      <img src={furnitureThumb(f.id)} alt="" draggable={false} loading="lazy" />
-                      <span className="buy-foot">{footprint(spotOf(f.slot))}</span>
-                      <span className="buy-stars" aria-label={t('{n} stars', { n: f.tier })}>
-                        {'★'.repeat(f.tier)}
+                  <div key={f.id} role="listitem" className="buy-cell">
+                    <button
+                      type="button"
+                      className={`buy-card tier-${f.tier}${mine ? ' is-mine' : ''}${isArmed ? ' is-armed' : ''}${picked ? ' is-picked' : ''}`}
+                      data-buy-item={f.id}
+                      data-buy-slot={f.slot}
+                      data-owned={mine ? '1' : '0'}
+                      data-new={fresh ? '1' : '0'}
+                      data-picked={picked ? '1' : '0'}
+                      aria-pressed={picking ? picked : undefined}
+                      disabled={
+                        busy ||
+                        buying ||
+                        (picking
+                          ? !canPick
+                          : wait || (!mine && pocket < f.price) || (mine && !MOVABLE.has(f.slot)))
+                      }
+                      onClick={() => {
+                        if (picking) return setBasket((b) => toggleBasket(b, f, items, owned));
+                        if (mine) return onPlace(f.slot, slotLabel(f.slot));
+                        if (isArmed) return void buyOne(f);
+                        setArmed(f.id);
+                      }}
+                    >
+                      <span className="buy-pic">
+                        <img src={furnitureThumb(f.id)} alt="" draggable={false} loading="lazy" />
+                        <span className="buy-foot">{footprint(spotOf(f.slot))}</span>
+                        <span className="buy-stars" aria-label={t('{n} stars', { n: f.tier })}>
+                          {'★'.repeat(f.tier)}
+                        </span>
+                        {mine ? (
+                          <span className="buy-tag is-owned">{t('OWNED')}</span>
+                        ) : fresh ? (
+                          <span className="buy-tag is-new">{t('NEW')}</span>
+                        ) : null}
+                        {picking && canPick && (
+                          <span className="buy-tick" aria-hidden="true">
+                            {picked ? '✓' : ''}
+                          </span>
+                        )}
+                        {have > 1 && (
+                          <span className="buy-have" data-have={have}>
+                            ×{have}
+                          </span>
+                        )}
                       </span>
-                      {mine ? (
-                        <span className="buy-tag is-owned">{t('OWNED')}</span>
-                      ) : fresh ? (
-                        <span className="buy-tag is-new">{t('NEW')}</span>
-                      ) : null}
-                      {picking && canPick && (
-                        <span className="buy-tick" aria-hidden="true">
-                          {picked ? '✓' : ''}
+                      <span className="buy-name">{tx(f.label)}</span>
+                      <span className={`buy-price${mine ? ' is-yours' : ''}`}>
+                        {mine
+                          ? MOVABLE.has(f.slot)
+                            ? placed[f.slot]
+                              ? t('Yours · tap to move again')
+                              : t('Yours · tap to move')
+                            : t('Yours')
+                          : wait
+                            ? t('On its way')
+                            : isArmed
+                              ? t('Tap again to buy')
+                              : money(f.price, cur)}
+                      </span>
+                      {boosts.length > 0 && (
+                        <span className="buy-boost">
+                          {boosts
+                            .slice(0, 2)
+                            .map(([k, n]) => boostText(k, n))
+                            .join(' · ')}
                         </span>
                       )}
-                    </span>
-                    <span className="buy-name">{tx(f.label)}</span>
-                    <span className={`buy-price${mine ? ' is-yours' : ''}`}>
-                      {mine
-                        ? MOVABLE.has(f.slot)
-                          ? placed[f.slot]
-                            ? t('Yours · tap to move again')
-                            : t('Yours · tap to move')
-                          : t('Yours')
-                        : wait
-                          ? t('On its way')
-                          : isArmed
-                            ? t('Tap again to buy')
-                            : money(f.price, cur)}
-                    </span>
-                    {boosts.length > 0 && (
-                      <span className="buy-boost">
-                        {boosts
-                          .slice(0, 2)
-                          .map(([k, n]) => boostText(k, n))
-                          .join(' · ')}
-                      </span>
+                    </button>
+                    {more && (
+                      <button
+                        type="button"
+                        className={`buy-more${moreArmed ? ' is-armed' : ''}`}
+                        data-buy-another={f.id}
+                        disabled={busy || buying || extrasOf(f.slot) >= perSlot || pocket < f.price}
+                        onClick={() => (moreArmed ? void buyAnother(f) : setArmed(`more:${f.id}`))}
+                      >
+                        {extrasOf(f.slot) >= perSlot
+                          ? t('That’s the most')
+                          : moreArmed
+                            ? t('Tap again · {price}', { price: money(f.price, cur) })
+                            : t('+ Another · {price}', { price: money(f.price, cur) })}
+                      </button>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -890,13 +951,21 @@ function WallsPanel({
   );
 }
 
-/** While placing: turn it, nudge it, put it down (or back where it was). */
+/**
+ * While placing: turn it, nudge it, put it down (or back where it was). The
+ * arrows are as you see the home (the scene turns them onto the floor
+ * grid); a picture on a wall moves along it, to the next wall, and up or down.
+ */
 export function PlaceBar({
   label,
   ok,
   moved,
+  onWall = false,
+  lift = 0,
+  at,
   onRotate,
   onNudge,
+  onLift,
   onDone,
   onReset,
   onCancel,
@@ -904,18 +973,37 @@ export function PlaceBar({
   label: string;
   ok: boolean;
   moved: boolean;
+  /** It hangs on a wall. */
+  onWall?: boolean;
+  /** On a wall: a step lower (-1) or higher (1). */
+  lift?: number;
+  /** Where it is ('x,y,rot', for tests). */
+  at?: string;
   onRotate: () => void;
+  /** A step on screen: x right, y down. */
   onNudge: (dx: number, dy: number) => void;
+  onLift?: (d: number) => void;
   onDone: () => void;
   onReset: () => void;
   onCancel: () => void;
 }) {
   return (
-    <div className="place-bar" role="toolbar" aria-label={t('Place {thing}', { thing: label })}>
+    <div
+      className="place-bar"
+      role="toolbar"
+      aria-label={t('Place {thing}', { thing: label })}
+      data-on-wall={onWall ? '1' : undefined}
+      data-ok={ok ? '1' : '0'}
+      data-at={at}
+    >
       <p className="place-hint">
-        {ok
-          ? t('Tap the floor to move it. Turn it, then put it here.')
-          : t('It doesn’t fit there.')}
+        {!ok
+          ? onWall
+            ? t('Hang it on a wall.')
+            : t('It doesn’t fit there.')
+          : onWall
+            ? t('Tap by a wall or use the arrows to move it along. Then hang it here.')
+            : t('Tap the floor or drag it to move it. Turn it, then put it here.')}
       </p>
       <div className="place-row">
         <button type="button" aria-label={t('Left')} onClick={() => onNudge(-1, 0)}>
@@ -934,6 +1022,16 @@ export function PlaceBar({
           ⟳ {t('Turn')}
         </button>
       </div>
+      {onLift && (
+        <div className="place-row">
+          <button type="button" disabled={lift <= -1} onClick={() => onLift(-1)}>
+            ⤓ {t('Lower')}
+          </button>
+          <button type="button" disabled={lift >= 1} onClick={() => onLift(1)}>
+            ⤒ {t('Higher')}
+          </button>
+        </div>
+      )}
       <div className="place-row">
         <button type="button" className="place-cancel" onClick={onCancel}>
           {t('Cancel')}

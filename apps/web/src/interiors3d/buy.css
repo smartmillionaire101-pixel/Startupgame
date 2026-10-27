@@ -75,15 +75,50 @@
   animation: up 0.2s ease-out;
   transition: height 0.18s ease-out;
 }
+/* The panel's head: the handle in the middle, Close on the right (player
+   feedback: "I just saw the close button. It's hard to see"). */
+.buy-head {
+  flex: 0 0 auto;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 44px;
+}
 .buy-grip {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  height: 22px;
+  width: 7rem;
+  height: 32px;
   border: 0;
   background: none;
   cursor: grab;
   touch-action: none;
+}
+.buy-close {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 36px;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 900;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+.buy-close:focus-visible {
+  outline: 3px solid var(--buy-teal);
+  outline-offset: 2px;
 }
 .buy-grip i {
   width: 44px;
@@ -281,6 +316,52 @@
 .buy-card.is-picked {
   border-color: var(--buy-teal);
 }
+/* A card and, for a thing you can have more of, "+ Another" under it. */
+.buy-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.buy-cell > .buy-card {
+  flex: 1 1 auto;
+}
+.buy-more {
+  min-height: 34px;
+  padding: 0 0.4rem;
+  border: 1px solid var(--buy-teal);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--buy-teal);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.buy-more.is-armed {
+  background: var(--buy-teal);
+  color: #042f2e;
+}
+.buy-more:disabled {
+  border-color: var(--buy-line);
+  color: var(--buy-muted);
+  cursor: default;
+}
+.buy-have {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--buy-teal);
+  color: #042f2e;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
 /* A light tile, so a black TV or a dark sofa stands out from the dark panel. */
 .buy-pic {
   position: relative;

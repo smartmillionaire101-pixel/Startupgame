@@ -33,14 +33,7 @@ import {
   type FloorKind,
 } from './kit';
 import { buildModel } from './furniture';
-import {
-  WALL_CAP,
-  WALL_GREEN,
-  floorKind,
-  roomFloor,
-  wallPalette,
-  type HomeFinish,
-} from './finishes';
+import { WALL_CAP, floorKind, roomFloor, wallPalette, type HomeFinish } from './finishes';
 import {
   buildEstateModel,
   carport,
@@ -547,9 +540,11 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   k.box(W + 0.5, Math.abs(GROUND_Y) + 0.0, H + 0.5, '#e8e1d3', W / 2, GROUND_Y, H / 2, {
     rough: 0.9,
   });
-  if (drop) storeys(k, W, H, drop, o.night);
   // Buy mode's Design tab: the floors and paint you chose (a hotel room is the hotel's).
   const pal = hotel ? HOTEL_WALLS[hotel.tier] : wallPalette(block?.tier ?? null, o.finish?.wall);
+  // The painted walls (inner walls, the storeys below), apart, so they're known as walls.
+  const pk = new Kit();
+  if (drop) storeys(k, pk, pal.outer, W, H, drop, o.night);
   for (const r of plan.rooms) {
     const hf = hotel
       ? (HOTEL_FLOORS[hotel.tier][r.id] ?? [floorKind(r.id, o.tier)])
@@ -592,6 +587,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       c.position.set(fixed, WALL_H, (a + b) / 2);
     }
     m.scale.y = WALL_H;
+    m.userData.paint = true;
     s.slabs.push(m);
     s.caps.push(c);
     root.add(m, c);
@@ -744,7 +740,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   ];
   for (const [y, xs] of hLines)
     for (const [a, b] of runs(xs)) {
-      k.box(b - a + THICK, INNER_H, THICK, pal.inner, (a + b) / 2, 0, y, { rough: 0.85 });
+      pk.box(b - a + THICK, INNER_H, THICK, pal.inner, (a + b) / 2, 0, y, { rough: 0.85 });
       k.box(b - a + THICK + 0.03, 0.05, THICK + 0.03, pal.cap, (a + b) / 2, INNER_H, y);
       edgeSegs.push(
         { x0: a, z0: y, x1: b, z1: y, nx: 0, nz: 1 },
@@ -753,7 +749,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
   for (const [x, ys] of vLines)
     for (const [a, b] of runs(ys)) {
-      k.box(THICK, INNER_H, b - a + THICK, pal.inner, x, 0, (a + b) / 2, { rough: 0.85 });
+      pk.box(THICK, INNER_H, b - a + THICK, pal.inner, x, 0, (a + b) / 2, { rough: 0.85 });
       k.box(THICK + 0.03, 0.05, b - a + THICK + 0.03, pal.cap, x, INNER_H, (a + b) / 2);
       edgeSegs.push(
         { x0: x, z0: a, x1: x, z1: b, nx: 1, nz: 0 },
@@ -811,6 +807,9 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
   }
   root.add(k.build());
+  const painted = pk.build();
+  painted.traverse((c) => (c.userData.paint = true));
+  root.add(painted);
 
   // ---- The camera: the house, the terrace, the drive and the bays.
   // Framed like the reference: the house fills the width, the pool behind it
@@ -895,9 +894,22 @@ function kept(key: string, make: () => World): World {
   return w;
 }
 
-/** Upstairs: the storeys below, a green block with a white band and windows, down to the lawn. */
-function storeys(k: Kit, W: number, H: number, drop: number, night: boolean) {
-  k.box(W + 0.3, drop, H + 0.3, WALL_GREEN, W / 2, GROUND_Y - drop + 0.14, H / 2, { rough: 0.85 });
+/**
+ * Upstairs: the storeys below, a block in the walls' colour (`paint` kit)
+ * with a white band and windows, down to the lawn.
+ */
+function storeys(
+  k: Kit,
+  paint: Kit,
+  colour: string,
+  W: number,
+  H: number,
+  drop: number,
+  night: boolean,
+) {
+  paint.box(W + 0.3, drop, H + 0.3, colour, W / 2, GROUND_Y - drop + 0.14, H / 2, {
+    rough: 0.85,
+  });
   const glass = {
     emissive: night ? '#ffcf7a' : '#7fbfe0',
     emissiveIntensity: night ? 0.5 : 0.2,
