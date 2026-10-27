@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { amountInput, moneyExact, parseAmount, runway, stakeText, titleCase } from '../src/format';
+import {
+  amountInput,
+  moneyExact,
+  parseAmount,
+  runway,
+  stakeText,
+  teamText,
+  titleCase,
+} from '../src/format';
 
 describe('format', () => {
   it('parses human amounts into minor units', () => {
@@ -28,5 +36,9 @@ describe('format', () => {
     expect(stakeText({ ownershipPct: 2.5 })).toBe('2.5%');
     expect(stakeText({ ownershipPct: 0, safePct: 0.4 })).toBe('up to 0.4% on a SAFE');
     expect(stakeText({ ownershipPct: 1, safePct: 0.4 })).toBe('1.0% + up to 0.4% on a SAFE');
+  });
+  it('says “1 person”, not “1 people” (play-test #33)', () => {
+    expect(teamText(1)).toBe('1 person');
+    expect(teamText(3)).toBe('3 people');
   });
 });

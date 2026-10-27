@@ -147,7 +147,8 @@ function publicCompany(world: World, c: Company) {
     stars: round1(c.stars.value),
     publicWarning: hasPublicWarning(c.stars),
     lastRound: c.lastRound,
-    raising: c.raising,
+    // Play-test (FEEDBACK_NOTE): a listed company isn't raising a private round.
+    raising: c.raising && !(feedbackOn(world) && c.ipo?.status === 'listed'),
     teamSize: c.staff.length + c.founderIds.length,
     founders: c.founderIds.map((id) => ({
       id,

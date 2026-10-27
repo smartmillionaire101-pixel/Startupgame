@@ -72,6 +72,7 @@ export const investorCareer: Record<string, string> = {
   'Three startups at the café': 'Trois startups au café',
   'A first call': 'Un premier appel',
   'A small SAFE': 'Un petit SAFE',
+  'Raising: {stage}': 'Lève : {stage}',
   '{own} + up to {safe} on a SAFE': '{own} + jusqu’à {safe} via un SAFE',
   'up to {safe} on a SAFE': 'jusqu’à {safe} via un SAFE',
   'Your portfolio': 'Votre portefeuille',

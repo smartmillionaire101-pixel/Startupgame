@@ -10,7 +10,7 @@ import { isEstablished } from '../src/helpers.js';
 import { FEEDBACK_NOTE, INVESTOR_NOTE } from '../src/releases.js';
 import { playerView } from '../src/views.js';
 import type { World } from '../src/types.js';
-import { makeWorld, run } from './helpers.js';
+import { makeWorld, run, tryRun } from './helpers.js';
 
 const I = 'u_investor';
 const announce = (w: World, id: string) =>
@@ -122,5 +122,36 @@ describe('play-test #8: a SAFE’s amount and stake', () => {
     expect(pos.ownershipPct).toBe(0);
     expect(pos.safePct).toBeCloseTo((100 * pick.suggestedAmount) / pick.suggestedCap, 1);
     expect(pos.safePct).toBeGreaterThan(0);
+  });
+});
+
+describe('play-test #33: a listed company isn’t offered as a private deal', () => {
+  const listedStartup = (w: World) =>
+    Object.values(w.companies).find(
+      (c) => c.ai && !isEstablished(c) && c.status === 'active' && c.ipo?.status === 'listed',
+    )!;
+
+  it('is not raising in deal offers, not a café pick, and refuses a term sheet', () => {
+    let w = newInvestor();
+    const c = listedStartup(w);
+    expect(c).toBeDefined();
+    w = produce(w, (d) => {
+      d.companies[c.id]!.raising = true;
+    });
+    const v = playerView(w, I)!;
+    expect(v.directory.find((x) => x.id === c.id)!.raising).toBe(false);
+    expect(v.investorCareer!.tutorial!.picks.map((p) => p.companyId)).not.toContain(c.id);
+    const r = tryRun(w, I, {
+      type: 'invest.propose',
+      companyId: c.id,
+      instrument: 'priced',
+      amount: 1_000_000_00,
+      valuation: 1_000_000_000_00,
+      proRata: true,
+      boardSeat: false,
+      vetoOnSale: false,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('invest.listed');
   });
 });

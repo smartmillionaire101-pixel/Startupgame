@@ -52,6 +52,9 @@ export const stakeText = (p: { ownershipPct: number; safePct?: number }) => {
     : t('up to {safe} on a SAFE', { safe: s });
 };
 
+/** A team's size: "1 person", "3 people" (play-test: "1 people"). */
+export const teamText = (n: number) => (n === 1 ? t('1 person') : t('{n} people', { n }));
+
 export const runway = (months: number | null) =>
   months === null
     ? t('Profitable')

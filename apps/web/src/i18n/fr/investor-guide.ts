@@ -116,8 +116,12 @@ export const investorGuide: Record<string, string> = {
     '{churn} % des clients partent chaque mois. Une croissance qui fuit ne vaut pas qu’on la paie.',
   'Only {team} people. Ask who builds, who sells and who they hire next.':
     'Seulement {team} personnes. Demandez qui construit, qui vend et qui sera recruté ensuite.',
+  'A solo founder. Ask who builds, who sells and who they hire next.':
+    'Un fondateur seul. Demandez qui construit, qui vend et qui sera recruté ensuite.',
   'Growth is only {growth}% a month. Ask what will make it faster: it decides the price.':
     'La croissance n’est que de {growth} % par mois. Demandez ce qui l’accélérera : c’est elle qui fait le prix.',
+  'Money, customers and team look healthy (money for years at this spending, {churn}% churn). Growth ({growth}% a month) is what sets the price.':
+    'Argent, clients et équipe semblent sains (de quoi tenir des années à ce rythme de dépenses, {churn} % d’attrition). C’est la croissance ({growth} % par mois) qui fixe le prix.',
   'Money, customers and team look healthy ({runway} months of money, {churn}% churn). Growth ({growth}% a month) is what sets the price.':
     'Argent, clients et équipe semblent sains ({runway} mois d’argent, {churn} % d’attrition). C’est la croissance ({growth} % par mois) qui fixe le prix.',
   'Its numbers put it at about {model}. A fair price is {lo} to {hi}: below it founders walk away, above it you overpay and own less.':

@@ -369,7 +369,8 @@ export function InvestorFirstSession() {
                 <strong>{c.name}</strong>{' '}
                 {c.fits && <Pill tone="good">{t('Fits your thesis')}</Pill>}
                 <p className="small muted">
-                  {tx(c.idea)} · {stageLabel(c.stage)} · {c.stars.toFixed(1)}★
+                  {tx(c.idea)} · {t('Raising: {stage}', { stage: stageLabel(c.stage) })} ·{' '}
+                  {c.stars.toFixed(1)}★
                 </p>
               </div>
               <Button

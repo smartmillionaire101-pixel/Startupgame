@@ -399,6 +399,8 @@ function pickTutorialStartups(world: World, p: Player): Id[] {
         c.market === p.market &&
         c.status === 'active' &&
         !c.bannedFromRaising &&
+        // Play-test (FEEDBACK_NOTE): no listed company among the café's first picks.
+        !(feedbackOn(world) && c.ipo?.status === 'listed') &&
         (early(c) || !INVESTOR.caps.angelCeiling),
     )
     .sort(

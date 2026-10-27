@@ -64,11 +64,34 @@ export interface Ticker {
   exact?: boolean;
 }
 
-const symbolOf = (name: string) =>
-  name
-    .replace(/[^A-Za-z]/g, '')
-    .slice(0, 4)
-    .toUpperCase();
+const letters = (s: string) => s.replace(/[^A-Za-z]/g, '').toUpperCase();
+
+/**
+ * Four-letter symbols, one per company (play-test: "Yaba Foods" and "Yaba
+ * Textiles" were both YABA): the name's first four letters, else the first
+ * word's start with the next word's, else a number on the end.
+ */
+export function symbolsOf(names: readonly string[]): string[] {
+  const used = new Set<string>();
+  return names.map((name) => {
+    const words = name.split(/\s+/).map(letters).filter(Boolean);
+    const [a = '', b = '', c = ''] = words;
+    const tries = [
+      letters(name).slice(0, 4),
+      a.slice(0, 2) + b.slice(0, 2),
+      a.slice(0, 1) + b.slice(0, 3),
+      a.slice(0, 2) + b.slice(0, 1) + c.slice(0, 1),
+      a.slice(0, 3) + b.slice(0, 1),
+    ].filter((x) => x.length >= 2);
+    let sym = tries.find((x) => !used.has(x));
+    for (let n = 2; !sym; n++) {
+      const x = `${letters(name).slice(0, 3)}${n}`;
+      if (!used.has(x)) sym = x;
+    }
+    used.add(sym);
+    return sym;
+  });
+}
 
 /**
  * City tickers: the city's listed companies at their real share price and
@@ -78,16 +101,19 @@ const symbolOf = (name: string) =>
 function tickersOf(view: View): Ticker[] {
   const city = cityViewOf(view).market;
   const listed = (view.capital?.market ?? []).filter((x) => x.market === city.id);
-  if (listed.length > 0)
-    return listed.slice(0, 10).map((x) => ({
+  if (listed.length > 0) {
+    const top = listed.slice(0, 10);
+    const syms = symbolsOf(top.map((x) => x.name));
+    return top.map((x, i) => ({
       id: x.companyId,
-      symbol: symbolOf(x.name),
+      symbol: syms[i]!,
       name: x.name,
       price: x.price,
       change: x.changePct,
       news: x.analysis.news.some((n) => n.month >= x.analysis.historyEndMonth - 1),
       exact: true,
     }));
+  }
   const flow = new Map((dealFlowOf(view) ?? []).map((d) => [d.companyId, d.valuation]));
   const mine = new Map(
     view.companies.map((c) => [c.id, num((c.valuation as { value?: number } | null)?.value)]),
@@ -104,28 +130,29 @@ function tickersOf(view: View): Ticker[] {
     ...view.companies.filter((c) => c.status === 'active' && c.market === city.id),
     ...view.directory.filter((c) => c.status === 'active' && c.market === city.id),
   ];
-  return all
+  const top = all
     .slice()
     .sort((a, b) => b.stars - a.stars)
-    .slice(0, 10)
-    .map((c) => {
-      const h = hash(`${c.id}:${month}`);
-      const value =
-        mine.get(c.id) ||
-        flow.get(c.id) ||
-        Math.round((c.stars * 2 + (hash(c.id) % 7) + 1) * 10 * city.costOfLiving);
-      const buzz = inNews.get(c.id) ?? 0;
-      const change = Math.round(((h % 121) / 10 - 6 + buzz * 4.5) * 10) / 10;
-      return {
-        id: c.id,
-        symbol: symbolOf(c.name),
-        name: c.name,
-        // One share in a thousand-share float, as a readable price.
-        price: Math.max(100, Math.round(value / 1000)),
-        change,
-        news: buzz !== 0,
-      };
-    });
+    .slice(0, 10);
+  const syms = symbolsOf(top.map((c) => c.name));
+  return top.map((c, i) => {
+    const h = hash(`${c.id}:${month}`);
+    const value =
+      mine.get(c.id) ||
+      flow.get(c.id) ||
+      Math.round((c.stars * 2 + (hash(c.id) % 7) + 1) * 10 * city.costOfLiving);
+    const buzz = inNews.get(c.id) ?? 0;
+    const change = Math.round(((h % 121) / 10 - 6 + buzz * 4.5) * 10) / 10;
+    return {
+      id: c.id,
+      symbol: syms[i]!,
+      name: c.name,
+      // One share in a thousand-share float, as a readable price.
+      price: Math.max(100, Math.round(value / 1000)),
+      change,
+      news: buzz !== 0,
+    };
+  });
 }
 
 export function Invest(_: { ctx: PhoneCtx }) {

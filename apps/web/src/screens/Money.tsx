@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { amountInput, money, parseAmount, titleCase } from '../format';
+import { amountInput, money, parseAmount, teamText, titleCase } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import type { PitchFigure } from '@runway/engine';
@@ -759,7 +759,7 @@ function Acquire({ c }: { c: Company }) {
           <div className="row small">
             <Pill>{tx(x.industryLabel)}</Pill>
             <Pill>{x.stars.toFixed(1)}★</Pill>
-            <Pill>{t('{n} people', { n: x.teamSize })}</Pill>
+            <Pill>{teamText(x.teamSize)}</Pill>
             {x.market !== view.me.market && <Pill tone="info">{x.marketName}</Pill>}
             {x.forSale && <Pill tone="warn">{t('For sale')}</Pill>}
           </div>
