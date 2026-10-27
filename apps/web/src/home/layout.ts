@@ -7,6 +7,8 @@
  * Coordinates are tiles; (0,0) is the top-left floor tile under the back wall.
  */
 
+import { overOpening, wallOpenings } from './windows';
+
 export type RoomId =
   | 'bedroom'
   | 'bathroom'
@@ -596,7 +598,7 @@ export function planFor(tier: number, spec?: HomeSpec): HomePlan {
   if (!p) {
     const core = t === 1 ? sharedRoom() : flat(t);
     p = spec ? extend(core, { kind: spec.kind, wealth }) : core;
-    p = withFittedCounter(p);
+    p = clearOfWindows(withFittedCounter(p));
     PLANS.set(k, p);
   }
   return p;
@@ -743,6 +745,71 @@ export function wallEdges(plan: HomePlan): Set<string> {
 export const roomAt = (plan: HomePlan, x: number, y: number): RoomId | null =>
   plan.rooms.find((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h)?.id ?? null;
 
+/**
+ * Playtest #40: a picture's own spot (and the AC's) clear of the windows and
+ * the front door: one that would hang over one moves along its wall to the
+ * nearest clear tile (with a free tile in front to use it from).
+ */
+function clearOfWindows(plan: HomePlan): HomePlan {
+  const openings = wallOpenings(plan);
+  const blocked = blockedTiles(plan, new Set(Object.keys(plan.slots)));
+  let slots: HomePlan['slots'] | null = null;
+  for (const [k, s] of Object.entries(plan.slots)) {
+    if (!s.wall || s.h !== 1) continue;
+    const rot = s.y === 0 ? 0 : s.x === 0 ? 1 : s.x + s.w === plan.w ? 3 : 2;
+    const [ax, ay] = rot % 2 === 0 ? [1, 0] : [0, 1];
+    const [fx, fy] = (
+      [
+        [0, 1],
+        [1, 0],
+        [0, -1],
+        [-1, 0],
+      ] as const
+    )[rot]!;
+    const over = (x: number, y: number) => {
+      for (let i = 0; i < s.w; i++) {
+        const tx = x + i * ax;
+        const ty = y + i * ay;
+        if (overOpening(plan, tx, ty, rot, openings)) return true;
+        if (tx === plan.door.x && ty === plan.door.y) return true;
+      }
+      return false;
+    };
+    if (!over(s.x, s.y)) continue;
+    // Another thing on a wall on one of its tiles.
+    const taken = (x: number, y: number) =>
+      Object.entries(slots ?? plan.slots).some(([o, t]) => {
+        if (o === k || !t.wall) return false;
+        for (let i = 0; i < s.w; i++) {
+          const tx = x + i * ax;
+          const ty = y + i * ay;
+          if (tx >= t.x && tx < t.x + t.w && ty >= t.y && ty < t.y + t.h) return true;
+        }
+        return false;
+      });
+    const fits = (x: number, y: number) => {
+      const ix = x + fx;
+      const iy = y + fy;
+      if (x < 0 || y < 0 || x + (s.w - 1) * ax >= plan.w || y + (s.w - 1) * ay >= plan.h)
+        return false;
+      if (ix < 0 || iy < 0 || ix >= plan.w || iy >= plan.h || blocked.has(key(ix, iy)))
+        return false;
+      const room = plan.rooms.find((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
+      return !!room && !room.open && !over(x, y) && !taken(x, y);
+    };
+    for (let d = 1; d < plan.w + plan.h; d++) {
+      const hit = [1, -1]
+        .map((sg) => ({ x: s.x + sg * d * ax, y: s.y + sg * d * ay }))
+        .find((t) => fits(t.x, t.y));
+      if (!hit) continue;
+      slots ??= { ...plan.slots };
+      slots[k] = { ...s, x: hit.x, y: hit.y, interact: { x: hit.x + fx, y: hit.y + fy } };
+      break;
+    }
+  }
+  return slots ? { ...plan, slots } : plan;
+}
+
 // ---------------------------------------------------------------------------
 // Floors: a house has an upstairs, a mansion a roof terrace too.
 
@@ -780,6 +847,7 @@ export function floorsFor(tier: number, spec?: HomeSpec): HomePlan[] {
     const g = geometry(ground);
     out = [groundFloor(ground, g), upperFloor(ground, g, n)];
     if (n >= 3) out.push(roofFloor(ground, g));
+    out = out.map(clearOfWindows);
     FLOORS.set(k, out);
   }
   return out;

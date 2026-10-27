@@ -75,12 +75,15 @@ import {
   HOTEL_MODELS,
   HOTEL_SHELL_TIER,
   HOTEL_TIER_LABEL,
+  HOTEL_WINDOWS,
   hotelFurniture,
   hotelGrounds,
   hotelPlan,
   hotelRow,
   type HotelStay,
+  type HotelWindow,
 } from './hotel';
+import { HomeWindows } from './HomeWindows';
 import { HotelKnocked, HotelNeighbours, holidaysOf } from '../phone/apps/Holiday';
 import type { HotelTier } from '../city/travel';
 import { ActFx } from './ActFx';
@@ -2044,6 +2047,7 @@ export function HomeScene({
               paint={paintColour(wallPaint)}
               floors={finish3d?.floors}
               level={level}
+              hotel={hotelTier ? HOTEL_WINDOWS[hotelTier] : null}
             />
             {/* The rug lies under the tiles in 2D; in 3D it's hidden like the rest. */}
             <g className="home-rugs">
@@ -2952,9 +2956,12 @@ function Shell({
   paint,
   floors,
   level = 0,
+  hotel,
 }: {
   plan: HomePlan;
   night: boolean;
+  /** A hotel room's windows (where the hotel's plan puts them). */
+  hotel?: readonly HotelWindow[] | null;
   /** The walls' paint (a colour), or null as built. */
   paint?: string | null;
   /** Floors you chose, by room key ('0:living'). */
@@ -2974,7 +2981,6 @@ function Shell({
           : id === 'balcony' || id === 'terrace'
             ? 'url(#home-deck)'
             : 'url(#home-wood)');
-  const windows = plan.rooms.filter((r) => r.y === 0 && r.id !== 'bathroom' && !r.open);
   const outdoors = plan.rooms.filter((r) => r.open && r.y === 0);
   return (
     <g className="home-shell">
@@ -3009,35 +3015,6 @@ function Shell({
       />
       <rect x={-8} y={-WALL - 8} width={W + 16} height={8} fill="var(--home-wall-top)" />
       <rect x={-8} y={-6} width={W + 16} height={6} fill="var(--home-skirting)" />
-      {windows.map((r) => {
-        const cx = (r.x + r.w / 2) * TILE + (r.id === 'bedroom' ? TILE : 0);
-        return (
-          <g key={r.id} transform={`translate(${cx - 22} ${-WALL + 8})`}>
-            <rect
-              width="44"
-              height="24"
-              rx="2"
-              fill={night ? '#1e2a5a' : '#bae6fd'}
-              stroke="#f8fafc"
-              strokeWidth="3"
-            />
-            {night ? (
-              <>
-                <circle cx="10" cy="7" r="1" fill="#fff" />
-                <circle cx="30" cy="12" r="1" fill="#fff" />
-                <circle cx="34" cy="6" r="3" fill="#fef9c3" />
-              </>
-            ) : (
-              <path
-                d="M2 22 L10 14 L16 18 L24 10 L32 16 L42 12 L42 22 Z"
-                fill="#7dd3fc"
-                opacity="0.7"
-              />
-            )}
-            <line x1="22" y1="0" x2="22" y2="24" stroke="#f8fafc" strokeWidth="2" />
-          </g>
-        );
-      })}
       {/* Out on a roof terrace: the sky and the city over a glass railing. */}
       {outdoors.map((r) => (
         <g key={`sky${r.x}`} className="home-sky">
@@ -3066,6 +3043,8 @@ function Shell({
       ))}
       <rect x={-8} y={-WALL - 8} width={8} height={H + WALL + 8} fill="var(--home-wall-top)" />
       <rect x={W} y={-WALL - 8} width={8} height={H + WALL + 8} fill="var(--home-wall-top)" />
+      {/* The windows the 3D house has (playtest #40: one list, so Buy mode keeps pictures off them). */}
+      <HomeWindows plan={plan} night={night} hotel={hotel} wallH={WALL} />
       {/* Bathroom doors, swung open, with a sign. */}
       {bathDoors(plan).map((d) => {
         const L = TILE * 0.85;

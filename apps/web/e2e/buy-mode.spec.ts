@@ -248,6 +248,70 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
   const [x, y, rot] = to.split(',').map(Number);
   expect(await placedAt('art')).toEqual({ x, y, rot, lift: 1 });
 
+  // Playtest #40: never over a window. Moved along a wall onto one, it lands beside it.
+  const windows = ((await canvas.getAttribute('data-windows')) ?? '')
+    .split(' ')
+    .filter(Boolean)
+    .map((s) => {
+      const [wall, c, w] = s.split(':');
+      return { wall: wall!, c: Number(c), w: Number(w) };
+    });
+  expect(windows.length).toBeGreaterThan(0);
+  const grid = { w: Number((await canvas.getAttribute('data-grid'))!.split('x')[0]) };
+  /** The outer wall a picture at "x,y,rot" hangs on, and its middle along it. */
+  const onWall = (at: string) => {
+    const [px, py, pr] = at.split(',').map(Number) as [number, number, number];
+    if (pr === 0 && py === 0) return { wall: 'back', at: px + 0.5 };
+    if (pr === 1 && px === 0) return { wall: 'left', at: py + 0.5 };
+    if (pr === 3 && px === grid.w - 1) return { wall: 'right', at: py + 0.5 };
+    return null;
+  };
+  // Half the widest painting and its frame, the window's frame, a gap (../src/home/windows).
+  const over = (at: string) => {
+    const o = onWall(at);
+    return !!o && windows.some((w) => w.wall === o.wall && Math.abs(o.at - w.c) < w.w / 2 + 0.66);
+  };
+  await scene.getByRole('button', { name: 'Buy' }).click();
+  await sheet.locator('[data-buy-item="art-1"]').click();
+  await expect(sheet).toBeHidden();
+  await expect(bar).toHaveAttribute('data-on-wall', '1');
+  // Onto the back wall first (up, from the left wall's corner), then along it.
+  const press = async (dir: 'Left' | 'Right' | 'Up') => {
+    const was = (await bar.getAttribute('data-at'))!;
+    await bar.getByRole('button', { name: dir }).click();
+    await expect.poll(() => bar.getAttribute('data-at')).not.toBe(was);
+    const now = (await bar.getAttribute('data-at'))!;
+    expect(over(now), `${was} → ${now}`).toBe(false);
+    return { was, now };
+  };
+  if (onWall((await bar.getAttribute('data-at'))!)?.wall !== 'back') {
+    const { now } = await press('Up');
+    expect(onWall(now)?.wall, now).toBe('back');
+  }
+  let skipped = false;
+  for (let i = 0; i < 14 && !skipped; i++) {
+    const { was, now } = await press('Right');
+    const a = onWall(was)!;
+    const b = onWall(now);
+    expect(b?.wall, `${was} → ${now}`).toBe('back');
+    // More than a tile: it went past a window, to just beside it.
+    if (b && Math.abs(b.at - a.at) > 1) {
+      const passed = windows.filter((w) => w.wall === 'back' && w.c > a.at && w.c < b.at);
+      expect(passed.length, `${was} → ${now}`).toBeGreaterThan(0);
+      // The tile before where it landed is over the window: it's right beside it.
+      const [nx, ny, nr] = now.split(',').map(Number) as [number, number, number];
+      expect(over(`${nx - 1},${ny},${nr}`), now).toBe(true);
+      await expect(bar).toHaveAttribute('data-ok', '1');
+      skipped = true;
+      await shot(page, '7b-painting-beside-window');
+    }
+  }
+  expect(skipped, 'moved along a wall onto a window').toBe(true);
+  await bar.getByRole('button', { name: 'Hang it here' }).click();
+  await expect(bar).toBeHidden();
+  const hung = await placedAt('art');
+  expect(over(`${hung.x},${hung.y},${hung.rot}`)).toBe(false);
+
   // "Not all of the walls change": trying a paint on paints every wall.
   await scene.getByRole('button', { name: 'Buy' }).click();
   await sheet.locator('[data-buy-tab="design"]').click();
