@@ -1,4 +1,14 @@
-import { expect, letters, pickIdentity, test, type Page } from './fixtures';
+import {
+  expect,
+  fillAboutYou,
+  letters,
+  pickLook,
+  pickPath,
+  registerAndFund,
+  salesConversation,
+  test,
+  type Page,
+} from './fixtures';
 
 /**
  * Founder Journey 6: the guided first session. A brand-new founder picks a
@@ -24,24 +34,28 @@ const shot = async (page: Page, name: string) => {
  */
 async function enter(page: Page, background: string, city = 'Nairobi') {
   await page.goto('/');
-  await page.getByLabel('Username', { exact: true }).fill(`fs_${letters(8)}`);
-  await page.getByLabel('Email', { exact: true }).fill(`fs-${letters()}@example.com`);
-  await page.getByLabel('Join as').selectOption('founder');
-  await pickIdentity(page, { name: 'Ada First', city });
-  await page
-    .getByRole('group', { name: 'Your background' })
-    .getByRole('button', { name: new RegExp(`^${background}`) })
-    .click();
-  await page
-    .getByRole('group', { name: 'Outfit colour' })
-    .getByRole('button', { name: 'Blue' })
-    .click();
+  await pickPath(page, 'founder');
+  await pickLook(page, { outfit: 'Blue' });
+  await fillAboutYou(page, {
+    name: 'Ada First',
+    city,
+    username: `fs_${letters(8)}`,
+    email: `fs-${letters()}@example.com`,
+    background: BACKGROUND_ID[background],
+  });
   await shot(page, `entry-${background}`);
-  await page.getByRole('button', { name: 'Play now' }).click();
+  await page.getByRole('button', { name: /^Play/ }).click();
   await expect(page.getByRole('application', { name: new RegExp(`Map of ${city}`) })).toBeVisible();
 }
 
 const coach = (page: Page) => page.locator('.coach');
+/** Founder backgrounds by the name the specs use. */
+const BACKGROUND_ID: Record<string, string> = {
+  'Ex-engineer': 'f-engineer',
+  Consultant: 'f-consultant',
+  Dropout: 'f-dropout',
+  'Ex-banker': 'f-banker',
+};
 
 test('a new founder is guided from the flat to a first sale and the next objectives', async ({
   page,
@@ -81,8 +95,15 @@ test('a new founder is guided from the flat to a first sale and the next objecti
   await cafe.getByRole('button', { name: `Start ${company}` }).click();
   await expect(cafe).toBeHidden();
 
-  // (c) The first customer, with coaching at each step.
+  // (c) Founder setup first: the café reserved the name; register and put money in
+  // (meetings and demos are paid from the business account).
   await expect(card).toHaveAttribute('data-tutorial-step', 'sale');
+  await expect(card.locator('[data-coach-unfunded]')).toBeVisible();
+  await card.getByRole('button', { name: 'Open Company' }).click();
+  await registerAndFund(page, 1 / 3);
+
+  // The first customer, with coaching at each step.
+  await expect(card.locator('[data-coach-unfunded]')).toHaveCount(0);
   await card.getByRole('button', { name: 'Open Sales' }).click();
   await expect(phone.locator('[data-phone-app="sales"]')).toBeVisible();
   const sales = phone.locator('[data-sales]');
@@ -103,9 +124,10 @@ test('a new founder is guided from the flat to a first sale and the next objecti
     lead: 'contact',
     contacted: 'discover',
     discovery: 'demo',
-    demo: 'propose',
-    proposal: 'close',
-    negotiation: 'close',
+    // Round two: from the demo on, a sales conversation proposes and closes.
+    demo: 'talk',
+    proposal: 'talk',
+    negotiation: 'talk',
   };
   let won = false;
   let sawObjection = false;
@@ -118,7 +140,7 @@ test('a new founder is guided from the flat to a first sale and the next objecti
     for (const id of ids) {
       const deal = sales.locator(`[data-deal="${id}"]`);
       await expect(tip).toContainText('Call');
-      // The longest path is nine steps: lead to close, a loss, recovery to discovery, then demo, propose and close again.
+      // The longest path is seven steps: lead to the conversation, a loss, recovery to discovery, then demo and a conversation again.
       for (let k = 0; k < 12; k++) {
         const stage = (await deal.getAttribute('data-deal-stage')) ?? '';
         if (stage === 'won') break;
@@ -130,7 +152,10 @@ test('a new founder is guided from the flat to a first sale and the next objecti
           await step(deal, 'recover');
           continue;
         }
-        await step(deal, next[stage]!);
+        if (next[stage] === 'talk') {
+          await expect(tip).toContainText('Sit down with');
+          await salesConversation(page, deal);
+        } else await step(deal, next[stage]!);
       }
       if ((await deal.getAttribute('data-deal-stage')) === 'won') {
         won = true;
@@ -152,7 +177,15 @@ test('a new founder is guided from the flat to a first sale and the next objecti
   const business = card.locator('[data-account-kind="business"] strong');
   const before = await business.textContent();
   await shot(page, 'payment');
-  await card.locator('[data-expense="cards"]').click();
+  // Founder setup: the café only reserves the name, so the business account holds just what
+  // customers paid. Without a sale there is nothing to pay a cost with yet: the coach moves on.
+  const cards = card.locator('[data-expense="cards"]');
+  const expensed = await cards.isEnabled();
+  if (expensed) await cards.click();
+  else {
+    await expect(card.locator('[data-coach-unfunded]')).toBeVisible();
+    await card.getByRole('button', { name: 'Next' }).click();
+  }
 
   // (e) What's next: the three objectives.
   await expect(card).toHaveAttribute('data-tutorial-step', 'end');
@@ -167,7 +200,9 @@ test('a new founder is guided from the flat to a first sale and the next objecti
   const c = state.view.companies[0];
   expect(c.starterIdea.id).toBe('tutor-match');
   expect(c.industry).toBe('edtech');
-  expect(c.expenses).toHaveLength(1);
+  expect(c.expenses ?? []).toHaveLength(expensed ? 1 : 0);
+  // The company is set up step by step on the Company screen.
+  expect(c.setup.step).toBe('fund');
   if (won) expect(c.starterIdea.paid.amount).toBeGreaterThan(0);
   expect(before).toBeTruthy();
   await card.getByRole('button', { name: 'Finish tutorial' }).click();

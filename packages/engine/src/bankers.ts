@@ -34,14 +34,22 @@ import { districtWeights } from './districts.js';
 import { districtLabel } from './economy.js';
 import { ensure, fail } from './errors.js';
 import { contactWarmth } from './events.js';
-import { achieve, col, getMarket, locationOf, notify, spendHours } from './helpers.js';
+import {
+  achieve,
+  col,
+  getMarket,
+  locationOf,
+  notify,
+  spendHours,
+  isEstablished,
+} from './helpers.js';
 import { newId } from './ids.js';
 import { account, openAccount, transfer, transferUpTo } from './ledger.js';
 import { clamp, clamp01, roundTo } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { checkName } from './names.js';
 import { DAY_MIN, MONTH_MIN, gameMinute, placeAccess, placeId, findPlace } from './places.js';
-import { bankersOn } from './releases.js';
+import { bankersOn, feedbackOn } from './releases.js';
 import { deriveRng, hashString } from './rng.js';
 import { newStars } from './stars.js';
 import type {
@@ -73,7 +81,7 @@ export const BANKERS = {
   maxPerformanceBps: 1500,
   /** The independent chair the regulator expects on every board. */
   independentSeats: 1,
-  /** Days the regulator takes at least (the tracker's "day N of 60"). */
+  /** Days the regulator takes at least (the tracker's "day N of 60"); 30 from FEEDBACK_NOTE. */
   reviewDays: 60,
   /** Months a review takes at least (month ends), and before an unfinished application lapses. */
   reviewMonths: 2,
@@ -1351,7 +1359,7 @@ function preopeningProspects(world: World, b: Bank) {
   const strategic = (b.shareholders ?? []).some((s) => s.id === 'ai:g3');
   const n = BANKERS.prospects + (strategic ? BANKERS.strategicProspects : 0);
   return Object.values(world.companies)
-    .filter((c) => c.ai && c.market === b.market && c.status === 'active')
+    .filter((c) => c.ai && c.market === b.market && c.status === 'active' && !isEstablished(c))
     .map((c) => ({ c, k: hashString(`${b.id}:${c.id}`) }))
     .sort((x, y) => x.k - y.k || (x.c.id < y.c.id ? -1 : 1))
     .slice(0, n)
@@ -1471,10 +1479,14 @@ export function settleBankers(world: World, market: string, month: number) {
   }
 }
 
+/** The review's length: 30 days and one month end once FEEDBACK_NOTE is logged. */
+const reviewDays = (world: World) => (feedbackOn(world) ? 30 : BANKERS.reviewDays);
+const reviewMonths = (world: World) => (feedbackOn(world) ? 1 : BANKERS.reviewMonths);
+
 function decide(world: World, b: Bank, month: number) {
   const lic = b.licence!;
   const owner = world.players[b.ownerId];
-  if (month - lic.filedMonth < BANKERS.reviewMonths) return;
+  if (month - lic.filedMonth < reviewMonths(world)) return;
   const missing = licenceMissing(b);
   const reasons: string[] = [];
   let outcome: 'approved' | 'conditions' | 'refused';
@@ -1735,9 +1747,9 @@ export function bankerView(world: World, p: Player, now: number) {
   const nowMin = gameMinute(getMarket(world, b.market), now);
   const licence = lic
     ? {
-        day: clamp(Math.floor((nowMin - lic.filedMin) / DAY_MIN) + 1, 1, BANKERS.reviewDays),
-        reviewDays: BANKERS.reviewDays,
-        decisionMonth: lic.filedMonth + BANKERS.reviewMonths,
+        day: clamp(Math.floor((nowMin - lic.filedMin) / DAY_MIN) + 1, 1, reviewDays(world)),
+        reviewDays: reviewDays(world),
+        decisionMonth: lic.filedMonth + reviewMonths(world),
         attempt: lic.attempt,
         aip: lic.aip ?? null,
         missing: licenceMissing(b),

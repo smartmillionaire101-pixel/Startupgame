@@ -64,10 +64,10 @@ test('a guest saves their game with an email link, signs out, and logs back in b
 
   // A saved player signs out without a warning…
   await page.getByRole('button', { name: 'Sign out' }).click();
-  await expect(page.getByRole('button', { name: 'Play now' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pick your path' })).toBeVisible();
 
   // …and logs back in with a new link: same player, same company.
-  await page.getByRole('button', { name: 'Already saved? Log in' }).click();
+  await page.getByRole('button', { name: 'Log in', exact: true }).click();
   await page.getByLabel('Email').fill(email.toUpperCase());
   await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
   await page.getByRole('link', { name: 'Preview: open your sign-in link' }).click();
@@ -100,5 +100,5 @@ test('a guest who signs out is warned they will lose their game', async ({ page 
     .getByRole('dialog', { name: 'Leave this game?' })
     .getByRole('button', { name: 'Leave anyway' })
     .click();
-  await expect(page.getByRole('button', { name: 'Play now' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pick your path' })).toBeVisible();
 });

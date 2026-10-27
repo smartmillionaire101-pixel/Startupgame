@@ -1,3 +1,4 @@
+import { applicationView, inSetup, setupView } from './setup.js';
 import { careerView } from './career.js';
 import { bankerView } from './bankers.js';
 import { exchangeView } from './exchange.js';
@@ -7,17 +8,21 @@ import { firmView } from './firms.js';
 import { familyOfficeView, investorStakesView, stakeConsentsView } from './allocation.js';
 import { dealCraftView, offerComparisonView, redFlags, reviewableView } from './dealcraft.js';
 import { investorDealFlowView } from './dealflow.js';
+import { investorGuideView } from './investorguide.js';
 import { bankWorkView } from './bankwork.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
-import { investorOn, lifeBarsOn, placesOn, shopOn } from './releases.js';
+import { feedbackOn, investorOn, lifeBarsOn, placesOn, shopOn } from './releases.js';
+import { homeStyleView } from './homestyle.js';
 import { shopCatalogView } from './catalog.js';
 import { cityPlacesView } from './places.js';
+import { errandsView } from './errands.js';
 import { anyJobView, workView } from './work.js';
 import { pitchQuestionsNow } from './fundraising.js';
 import { journeyView } from './journey.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
+import { stockExchangesView } from './stocks.js';
 import { allocatorView } from './allocator.js';
 import { wealthView } from './wealth.js';
 import { firstSessionView } from './firstsession.js';
@@ -25,7 +30,9 @@ import { recapView } from './recap.js';
 import { decisionsView } from './decisions.js';
 import { rivalsView } from './rivals.js';
 import { roadmapView } from './roadmap.js';
-import { salesView } from './sales.js';
+import { salesWithTalk } from './salestalk.js';
+import { interviewsView } from './customer-interviews.js';
+import { founderGuide, founderPlanBase } from './founderguide.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
@@ -57,7 +64,14 @@ import {
   productAmount,
   productRateBps,
 } from './capital.js';
-import { flightsView, hotelOptions, isVisiting, tripCostUsd } from './travel.js';
+import {
+  cityHotelsView,
+  flightsView,
+  hotelList,
+  hotelOptions,
+  isVisiting,
+  tripCostUsd,
+} from './travel.js';
 import {
   CONTACTS_LIMIT,
   EVENT_KINDS,
@@ -67,6 +81,7 @@ import {
 import { chatIdOf } from './people.js';
 import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
+import { customerFacts } from './traction.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
 import { mallTripView } from './malltrips.js';
@@ -101,6 +116,7 @@ import {
   locationOf,
   nextStage,
   totalCustomers,
+  isEstablished,
 } from './helpers.js';
 import { floorGigPay, lifestyleCost, tierOf } from './personal.js';
 import { hasPublicWarning } from './stars.js';
@@ -286,7 +302,14 @@ export function companyDetail(world: World, c: Company) {
       unpaidPayroll: c.finance.unpaidPayroll,
     },
     /** Founder Journey 2a: the per-deal sales pipeline (view.company.sales). */
-    sales: salesView(world, c),
+    sales: salesWithTalk(world, c),
+    /** Feedback note: customer interviews at the Market (null before it). */
+    interviews: feedbackOn(world) ? interviewsView(world, c) : null,
+    /** Founder guidance: the stage tracker, and what the live pricing checks stand on. */
+    guide: founderGuide(world, c),
+    planBase: founderPlanBase(world, c),
+    /** Real paying customers and how well the founder knows them (traction.ts). */
+    traction: customerFacts(world, c),
     /** Founder Journey 6: the café idea, the first up-front payment and small expenses. */
     ...firstSessionView(world, c),
     rules: rulesFor(c.market, c.industry).map((r) => ({ ...r, done: !!c.compliance[r.id] })),
@@ -368,6 +391,8 @@ function dealView(world: World, d: DealCard, viewerId: Id) {
     counterpartyName: name(d.counterparty) ?? '',
     yourTurn: d.status === 'open' && mine(d.awaiting),
     youProposed: mine(d.proposer),
+    /** Founder setup: a startup loan application's plan and the bank-side checks. */
+    application: applicationView(world, d),
     waterfall:
       d.terms.kind === 'acquisition' && c
         ? waterfall(c.capTable, d.terms.price).map((l) => ({
@@ -389,8 +414,9 @@ export function digest(world: World, market: MarketId): NewsItem[] {
 }
 
 export function leaderboards(world: World, market: MarketId) {
+  // Startups only: the city's established listed companies are on the exchange.
   const companies = Object.values(world.companies).filter(
-    (c) => c.market === market && c.status === 'active',
+    (c) => c.market === market && c.status === 'active' && !isEstablished(c),
   );
   const players = Object.values(world.players).filter((p) => p.market === market);
   return {
@@ -655,6 +681,13 @@ function marketView(
      * can do inside. Null in worlds without the note.
      */
     cityPlaces: placesOn(world) ? cityPlacesView(world, p, m, clock?.now ?? p.lastActiveAt) : null,
+    /**
+     * Feedback round: the city's named hotels, each in its district (for the
+     * map), priced by the night in your home currency. Null without the note.
+     */
+    hotels: cityHotelsView(world, p, m.id),
+    /** Errands (feedback note): what you can do at businesses and spots here. Null before it. */
+    errands: errandsView(world, p, m, clock?.now ?? p.lastActiveAt),
     eventKinds: EVENT_KINDS.map((kind) => {
       const k = EVENT_KIND_DATA[kind];
       return {
@@ -710,8 +743,11 @@ export function playerView(
   const fund = p.investor?.fundId ? world.funds[p.investor.fundId] : undefined;
   const others = Object.values(world.companies).filter(
     // Your market, plus any market you've travelled to (§14).
+    // (Startups: the city's established listed companies are on the exchange.)
     (c) =>
-      (c.market === p.market || p.visited[c.market] !== undefined) && !c.founderIds.includes(p.id),
+      (c.market === p.market || p.visited[c.market] !== undefined) &&
+      !c.founderIds.includes(p.id) &&
+      !isEstablished(c),
   );
   return {
     worldVersion: world.version,
@@ -723,6 +759,8 @@ export function playerView(
      * investment tracks, the first session and three prompts.
      */
     investorCareer: careerView(world, p),
+    /** The investor guide: stage tracker, checklist and next step, mentor and scored decisions. */
+    investorGuide: investorGuideView(world, p),
     /** Bankers note: the negotiation, the licence tracker and checklist, and the first session. */
     banker: bankerView(world, p, clock?.now ?? p.lastActiveAt),
     /** Investor career Phase 2: every city's exchange, the index fund, your holdings and orders. */
@@ -764,6 +802,8 @@ export function playerView(
       : {
           exits: exitOptionsView(world, p),
           market: publicMarketView(world, p),
+          /** Cities with a stock market, the player's own first (stock analysis). */
+          exchanges: stockExchangesView(world, p),
           offers: secondaryOffersView(world, p),
           /** Private stakes you hold as an investor: what selling pays, or why you can't yet. */
           stakes: investorStakesView(world, p),
@@ -847,6 +887,12 @@ export function playerView(
           visitingNow: p.visited[id] === m.month,
           /** Hotels for a stay there, priced in your home currency, with flight + hotel affordability. */
           hotels: hotelOptions(world, p, id),
+          /**
+           * Feedback round: the city's named hotels across its districts (stars,
+           * room, km from the centre, a night and the stay in your currency).
+           * Empty without the note: book by `hotels` tier as before.
+           */
+          hotelList: hotelList(world, p, id),
         })),
       lastMonth: p.lastMonth,
       gigsThisMonth: p.gigsThisMonth,
@@ -876,6 +922,8 @@ export function playerView(
       mall: { ...mallView(world, p), ...mallTripView(world, p) },
       /** Shop note (null before): the catalogue's prices at home, the cars sold there, delivery terms. */
       shop: shopOn(world) ? shopCatalogView(world, p) : null,
+      /** Buy mode (the feedback round; null before): what things do for you, floors and paint. */
+      homeStyle: feedbackOn(world) ? homeStyleView(world, p) : null,
       /** "My purchases": your wardrobe (what you can wear, free) and the other things you keep. */
       wardrobe: wardrobeView(world, p),
       garage: (p.garage ?? (p.car ? [p.car] : [])).map((car) => ({
@@ -925,6 +973,8 @@ export function playerView(
       ...t,
       monthlyCost: Math.round(m.data.costOfLiving * 100 * t.costCol),
     })),
+    /** Founder setup (feedback note): a company started now is set up step by step. */
+    setupOn: feedbackOn(world),
     companies: myCompanies.map((c) => {
       const plan = c.status === 'active' ? rescuePlan(world, c, playerId) : null;
       return {
@@ -939,7 +989,10 @@ export function playerView(
          * part of it), what came in last month, and how much the company is
          * short if revenue repeats (0 when it can pay).
          */
-        nextMonth: c.status === 'active' ? nextMonthOf(world, c) : null,
+        // Founder setup: nothing is due before the office is chosen, so no payday yet.
+        nextMonth: c.status === 'active' && !inSetup(c) ? nextMonthOf(world, c) : null,
+        /** Founder setup (feedback note): the tracker's steps, money, plan, answers and offices. */
+        setup: c.status === 'active' ? setupView(world, c, p) : null,
         hibernating: !!c.hibernation,
         officeDownsized: !!c.officeDownsized,
         /** Local businesses buying from this company (Wave 3), with last month's amount. */
@@ -1177,6 +1230,8 @@ function ownBankView(world: World, playerId: Id) {
           outstanding: l.outstanding,
           rateBps: l.rateBps,
           monthsLeft: l.monthsLeft,
+          /** Missed payments in a row (a company's repayments come out of its account). */
+          missed: 0,
         })),
     ),
     ...Object.values(world.players).flatMap((p) =>
@@ -1187,6 +1242,8 @@ function ownBankView(world: World, playerId: Id) {
           outstanding: l.outstanding,
           rateBps: l.rateBps,
           monthsLeft: l.monthsLeft,
+          /** Missed payments in a row: a late borrower (Today's "waiting for you"). */
+          missed: l.missed,
         })),
     ),
   ];

@@ -9,9 +9,10 @@ import type { Command, PlayerView } from '@runway/engine';
 import { money, parseAmount, pct } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
-import { Bar, Button, Card, Empty, Field, ListRow, Pill, Segmented, Sparkline, Stat } from '../ui';
+import { Bar, Button, Card, Empty, Field, ListRow, Pill, Segmented, Stat } from '../ui';
 import { FoundCompany } from './Me';
 import { ReviewInvestors } from './Pipeline';
+import { CompanyAnalysis, ExchangeChips, ExchangeHead, OtherExchanges, StockRow } from './Stocks';
 import './capital.css';
 
 type Capital = NonNullable<PlayerView['capital']>;
@@ -128,6 +129,8 @@ function IpoChecklist({ e }: { e: ExitOpt }) {
   const { send } = useView();
   const ipo = e.ipo;
   const cur = e.currency;
+  const missing = ipo.checks.filter((c) => !c.ok).length;
+  const readyShare = (ipo.checks.length - missing) / Math.max(1, ipo.checks.length);
   return (
     <div className="stack" data-ipo={ipo.status ?? 'private'}>
       <h3 className="cap-h">{t('Stock market (IPO)')}</h3>
@@ -159,21 +162,53 @@ function IpoChecklist({ e }: { e: ExitOpt }) {
           </li>
         ))}
       </ul>
-      <Bar
-        value={ipo.checks.filter((c) => c.ok).length / ipo.checks.length}
-        label={t('Ready to list')}
-        tone={ipo.ready ? 'good' : undefined}
-      />
+      <Bar value={readyShare} label={t('Ready to list')} tone={ipo.ready ? 'good' : undefined} />
       {ipo.status === null || ipo.status === 'delisted' ? (
-        <Button
-          variant="secondary"
-          disabled={!ipo.ready}
-          onClick={() =>
-            void send({ type: 'ipo.prepare', companyId: e.companyId }, t('The bankers are on it.'))
-          }
-        >
-          {t('Hire the bankers ({fee} from the company)', { fee: money(ipo.bankerFee, cur) })}
-        </Button>
+        <div className="ipo-hire">
+          <button
+            type="button"
+            className={`ipo-btn ${ipo.ready ? 'is-ready' : 'is-locked'}`}
+            data-ipo-hire={ipo.ready ? 'ready' : 'locked'}
+            disabled={!ipo.ready}
+            aria-describedby={ipo.ready ? undefined : `ipo-help-${e.companyId}`}
+            onClick={() =>
+              void send(
+                { type: 'ipo.prepare', companyId: e.companyId },
+                t('The bankers are on it.'),
+              )
+            }
+          >
+            <span aria-hidden="true">{ipo.ready ? '🔔' : '🔒'}</span>
+            {t('Hire bankers · {fee}', { fee: money(ipo.bankerFee, cur) })}
+          </button>
+          {!ipo.ready && (
+            <p className="ipo-help" id={`ipo-help-${e.companyId}`} data-ipo-help="">
+              <span aria-hidden="true">⚠</span>
+              {missing === 1
+                ? t('Locked: tick the last one above to list ({ready} of 100 ready)', {
+                    ready: Math.round(readyShare * 100),
+                  })
+                : t('Locked: tick all {n} above to list ({ready} of 100 ready)', {
+                    n: missing,
+                    ready: Math.round(readyShare * 100),
+                  })}
+            </p>
+          )}
+          <p className="ipo-fee">
+            {ipo.ready
+              ? t(
+                  'Fee paid from the company bank · listing takes {months} months · then a {lock}-month lock-up on your shares',
+                  { months: ipo.prepMonths, lock: ipo.lockupMonths },
+                )
+              : t(
+                  '{fee} comes from the company bank, not your pocket · bankers take {months} months',
+                  {
+                    fee: money(ipo.bankerFee, cur),
+                    months: ipo.prepMonths,
+                  },
+                )}
+          </p>
+        </div>
       ) : ipo.status === 'preparing' ? (
         ipo.month >= (ipo.readyMonth ?? 0) ? (
           <Button
@@ -718,117 +753,96 @@ function OffersForYou() {
 
 // ---------------------------------------------------------------- the stock market
 
-function ListedRow({ x }: { x: Listed }) {
+/** Sell part of a listed holding at today's price (after any lock-up). */
+function SellShares({ x }: { x: Listed }) {
   const { send } = useView();
-  const [amount, setAmount] = useState('');
   const [bps, setBps] = useState(2500);
   const cur = x.currency;
-  const spend = parseAmount(amount) ?? 0;
-  const perShare = x.price * (1 + x.brokerBps / 10_000);
-  const estShares = perShare > 0 ? Math.floor(spend / perShare) : 0;
+  if (x.yourShares <= 0 || x.lockedUntil !== null) return null;
   return (
-    <div className="listed" data-listed={x.companyId}>
-      <div className="row listed-head">
-        <div className="grow">
-          <strong>{x.name}</strong>
-          <span className="small muted"> · {x.city}</span>
-        </div>
-        <strong data-price>{priceText(x.price, cur)}</strong>
-        <Pill tone={x.changePct >= 0 ? 'good' : 'bad'}>
-          {x.changePct >= 0 ? '+' : ''}
-          {x.changePct}%
-        </Pill>
-      </div>
-      <Sparkline values={x.history} label={t('Share price')} />
-      <p className="small muted">
-        {t('Company value {cap} · {n} shares for sale', {
-          cap: money(x.marketCap, cur),
-          n: x.floatShares.toLocaleString(),
-        })}
-      </p>
-      {x.yourShares > 0 && (
-        <p className="small" data-holding>
-          {t('You hold {n} shares, worth {v}.', {
-            n: x.yourShares.toLocaleString(),
-            v: money(x.yourValue, cur),
-          })}{' '}
-          {x.lockedUntil !== null && t('Locked until month {n}.', { n: x.lockedUntil })}
-        </p>
-      )}
-      {!x.isFounder && (
-        <div className="row">
-          <input
-            aria-label={t('Amount to invest')}
-            inputMode="decimal"
-            placeholder={t('Amount')}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-          <Button
-            size="sm"
-            disabled={estShares <= 0}
-            onClick={() =>
-              void send(
-                { type: 'shares.buy', companyId: x.companyId, amount: spend },
-                (r: { shares: number } | null) =>
-                  t('Bought {n} shares.', { n: (r?.shares ?? 0).toLocaleString() }),
-              )
-            }
-          >
-            {t('Buy about {n} shares', { n: estShares.toLocaleString() })}
-          </Button>
-        </div>
-      )}
-      {x.yourShares > 0 && x.lockedUntil === null && (
-        <div className="row">
-          <Segmented
-            label={t('How much to sell')}
-            value={String(bps)}
-            onChange={(v) => setBps(Number(v))}
-            options={[1000, 2500, 5000, 10_000].map((b) => ({
-              value: String(b),
-              label: bpsText(b),
-            }))}
-          />
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() =>
-              void send(
-                { type: 'shares.sell', companyId: x.companyId, pctBps: bps },
-                (r: { net: number; tax: number } | null) =>
-                  t('Sold: {net} to your account after {tax} tax.', {
-                    net: money(r?.net ?? 0, cur),
-                    tax: money(r?.tax ?? 0, cur),
-                  }),
-              )
-            }
-          >
-            {t('Sell {pct}', { pct: bpsText(bps) })}
-          </Button>
-        </div>
-      )}
+    <div className="row" data-listed={x.companyId}>
+      <Segmented
+        label={t('How much to sell')}
+        value={String(bps)}
+        onChange={(v) => setBps(Number(v))}
+        options={[1000, 2500, 5000, 10_000].map((b) => ({
+          value: String(b),
+          label: bpsText(b),
+        }))}
+      />
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={() =>
+          void send(
+            { type: 'shares.sell', companyId: x.companyId, pctBps: bps },
+            (r: { net: number; tax: number } | null) =>
+              t('Sold: {net} to your account after {tax} tax.', {
+                net: money(r?.net ?? 0, cur),
+                tax: money(r?.tax ?? 0, cur),
+              }),
+          )
+        }
+      >
+        {t('Sell {pct}', { pct: bpsText(bps) })}
+      </Button>
     </div>
   );
 }
 
+/**
+ * The stock market: your own city's exchange first, other cities one tap
+ * away, and a company analysis before every buy (stock analysis).
+ */
 function PublicMarkets() {
   const { view } = useView();
   const list = view.capital?.market ?? [];
+  const exchanges = view.capital?.exchanges ?? [];
+  const home = exchanges.find((e) => e.home);
+  const [city, setCity] = useState<string>(home?.market ?? view.me.market);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const open = openId ? list.find((x) => x.companyId === openId) : undefined;
+  if (open)
+    return (
+      <CompanyAnalysis x={open} onBack={() => setOpenId(null)}>
+        <SellShares x={open} />
+      </CompanyAnalysis>
+    );
+  const here = exchanges.find((e) => e.market === city) ?? exchanges[0];
+  const rows = here ? list.filter((x) => x.market === here.market) : [];
   return (
-    <Card title={t('Stock market')} sub={t('Listed companies, priced every month')}>
-      <p className="small muted">
-        {t(
-          'Prices follow each company’s results, plus the market’s mood. Every trade pays a {fee} broker’s fee; a gain when you sell is taxed.',
-          { fee: pct((list[0]?.brokerBps ?? 100) / 10_000) },
+    <>
+      <Card
+        title={t('Stock market')}
+        sub={t('Your city’s exchange first. Other cities are one tap away.')}
+      >
+        <ExchangeChips exchanges={exchanges} value={here?.market ?? ''} onChange={setCity} />
+        {here && <ExchangeHead x={here} />}
+        {rows.length === 0 ? (
+          <Empty>{t('No company is listed yet. The first to list will show here.')}</Empty>
+        ) : (
+          <>
+            {rows.map((x) => (
+              <StockRow key={x.companyId} x={x} onOpen={() => setOpenId(x.companyId)} />
+            ))}
+            <p className="small muted">
+              {t('Tap a company to see what it does, its numbers and the risk before you buy.')}
+            </p>
+          </>
         )}
-      </p>
-      {list.length === 0 ? (
-        <Empty>{t('No company is listed yet. The first to list will show here.')}</Empty>
-      ) : (
-        list.map((x) => <ListedRow key={x.companyId} x={x} />)
-      )}
-    </Card>
+        <p className="small muted">
+          {t(
+            'Prices follow each company’s results, plus the market’s mood. Every trade pays a {fee} broker’s fee; a gain when you sell is taxed.',
+            { fee: pct((list[0]?.brokerBps ?? 100) / 10_000) },
+          )}
+        </p>
+      </Card>
+      <OtherExchanges
+        exchanges={exchanges.filter((e) => e.market !== here?.market)}
+        home={home?.currency ?? view.market.currency}
+        onPick={setCity}
+      />
+    </>
   );
 }
 

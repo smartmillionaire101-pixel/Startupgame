@@ -98,6 +98,8 @@ export type Verb =
   | { id: 'out'; label: string }
   | { id: 'buy'; label: string; slot: string }
   | { id: 'move'; label: string; move: string }
+  // Sell back another one of a thing (player feedback: more than one speaker).
+  | { id: 'sell'; label: string; extra: string }
   // Wave 12: take one of your cars out.
   | { id: 'car'; label: string; model: string }
   // Up or down the stairs (an index into `floorsFor`).

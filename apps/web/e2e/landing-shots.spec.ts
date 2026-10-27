@@ -229,7 +229,7 @@ test('the lifestyle picker (Dubai)', async ({ page }) => {
   await phoneShot(page, 'lifestyle');
 });
 
-test('the mall’s sixteen shops (Cairo)', async ({ page }) => {
+test('the mall’s seventeen shops (Cairo)', async ({ page }) => {
   test.setTimeout(180_000);
   await quality(page, 'lite');
   await founder(page, /Cairo/);
@@ -237,7 +237,7 @@ test('the mall’s sixteen shops (Cairo)', async ({ page }) => {
   await expect(page.locator('[data-place="mall"]').first()).toBeAttached({ timeout: 20_000 });
   await tapPlace(page, '[data-place="mall"]', 'cycle');
   const scene = page.locator('.mall-scene');
-  await expect(scene.locator('[data-shop]')).toHaveCount(16, { timeout: 30_000 });
+  await expect(scene.locator('[data-shop]')).toHaveCount(17, { timeout: 30_000 });
   await phoneShot(page, 'mall');
 });
 
@@ -325,7 +325,7 @@ test('first class from Dubai: the lounge, then the bed at turndown', async ({ pa
   await row.getByRole('button', { name: 'Book a flight to London' }).click();
   const picker = row.locator('[data-trip-picker]');
   await picker.locator('[data-cabin-option="first"]').click();
-  await picker.locator('[data-hotel="business"]').click();
+  await picker.getByRole('button', { name: 'Choose Soho Townhouse' }).click();
   await picker.locator('[data-hotel-book]').click();
   await arrive(page, 'skip');
   const trip = page.getByRole('region', { name: 'Your trip' });

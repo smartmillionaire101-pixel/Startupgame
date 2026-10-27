@@ -92,7 +92,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const toast = useCallback((text: string, tone: Toast['tone'] = 'info') => {
     if (tone === 'error') recordProblem(text);
     const id = ++toastId.current;
-    setToasts((t) => [...t.slice(-2), { id, text, tone }]);
+    // A new success replaces the last ones ("named… registered… funded" don't pile
+    // up over the screen); errors and notes stay until they time out.
+    setToasts((t) => [
+      ...(tone === 'ok' ? t.filter((x) => x.tone !== 'ok') : t).slice(-2),
+      { id, text, tone },
+    ]);
     setTimeout(
       () => setToasts((t) => t.filter((x) => x.id !== id)),
       tone === 'error' ? 6000 : 3500,

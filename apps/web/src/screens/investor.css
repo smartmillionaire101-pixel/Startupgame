@@ -93,10 +93,11 @@
   list-style: none;
   padding: 0;
   margin: 0 0 0.75rem;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-2xs);
 }
 .career-steps li {
-  padding: 0.15rem 0.5rem;
+  padding: 0.1rem 0.45rem;
+  white-space: nowrap;
   border-radius: 999px;
   background: var(--line);
   color: var(--muted);
@@ -127,10 +128,19 @@
 }
 .inv-tabs {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.25rem;
-  overflow-x: auto;
   margin: 0 0 0.75rem;
-  padding-bottom: 0.25rem;
+}
+/* The sections take the full row; "More / Fewer sections" sits under them, on the right. */
+.inv-tabs > .segmented {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.inv-tabs > .ig-more {
+  margin: 0 0 0 auto;
+  white-space: nowrap;
 }
 .inv-grid {
   display: grid;

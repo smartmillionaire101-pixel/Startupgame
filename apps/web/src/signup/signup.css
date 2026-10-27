@@ -1,0 +1,910 @@
+/* Sign-up in three steps (screens/Onboarding.tsx). Phone first: each step
+   fills the screen with its main button docked at the bottom; from 960 px
+   the live avatar stands on the left and the steps are on the right. */
+.su {
+  --su-ink: #0f2a28;
+  --su-sun: #ffb020;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 0 16px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  background: var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  .su {
+    --su-ink: #e9e1d4;
+  }
+}
+.su-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.su-side,
+.su-stepper,
+.su-wide-only {
+  display: none;
+}
+.su-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.su-flag {
+  flex: none;
+  display: block;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.15);
+}
+
+/* ---- top bar: back, progress dots, language */
+.su-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0 4px;
+}
+.su-back {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.su-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.su-dots li {
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--line-strong);
+}
+.su-dots li.on {
+  width: 22px;
+  background: var(--accent);
+}
+.su-dots li.done {
+  background: color-mix(in srgb, var(--accent) 50%, var(--bg));
+}
+.su-lang {
+  display: flex;
+  border: 2px solid var(--su-ink);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.su-lang button {
+  min-width: 44px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: 700 0.8rem/1 var(--font-display);
+  cursor: pointer;
+}
+.su-lang button[aria-pressed='true'] {
+  background: var(--su-ink);
+  color: var(--bg);
+}
+
+.su-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.su-h1 {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 6px 0 10px;
+}
+.su-h1:focus {
+  outline: none;
+}
+.su-sub {
+  color: var(--muted);
+  margin: -4px 0 14px;
+}
+.su-step-path .su-h1 {
+  font-size: 2rem;
+}
+.su-disclaimer {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* ---- native radios dressed as cards, chips and swatches */
+.su-radio {
+  position: relative;
+  cursor: pointer;
+}
+.su-radio input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.su-radio:has(input:focus-visible) {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ---- the docked button */
+.su-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin-top: auto;
+  padding: 14px 0 max(6px, env(safe-area-inset-bottom));
+  background: linear-gradient(color-mix(in srgb, var(--bg) 0%, transparent), var(--bg) 16px);
+}
+.su-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 56px;
+  border: 3px solid var(--su-ink);
+  border-radius: 20px;
+  background: var(--su-sun);
+  color: #0f2a28;
+  font: 800 1.3rem/1 var(--font-display);
+  box-shadow: 0 5px 0 var(--su-ink);
+  cursor: pointer;
+}
+.su-play:not(:disabled):active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 var(--su-ink);
+}
+.su-play:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.su-login {
+  margin: 4px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.su-login button {
+  min-height: 40px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* ---- step 1: the three paths */
+.su-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.su-role {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  padding: 12px;
+  border: 2.5px solid var(--su-ink);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 4px 0 var(--su-ink);
+}
+.su-role.on {
+  border-color: var(--accent);
+  box-shadow: 0 4px 0 var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+}
+.su-role-art {
+  position: relative;
+  flex: none;
+  width: 92px;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.su-role-founder {
+  background: linear-gradient(170deg, #ffb020, #ff6b5b);
+}
+.su-role-investor {
+  background: linear-gradient(170deg, #2dd4bf, #0f766e);
+}
+.su-role-banker {
+  background: linear-gradient(170deg, #818cf8, #1e1b4b);
+}
+.su-role-floor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 20px;
+  background: rgb(0 0 0 / 0.14);
+}
+.su-role-fig {
+  position: relative;
+  height: 104px;
+  margin-bottom: 6px;
+}
+.su-role-body {
+  flex: 1;
+  min-width: 0;
+  padding-right: 26px;
+}
+.su-role-title {
+  display: block;
+  font: 700 1.3rem/1.1 var(--font-display);
+}
+.su-role-promise {
+  display: block;
+  margin: 4px 0 8px;
+  font-weight: 650;
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+.su-role-does {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.su-role-does span {
+  padding: 4px 9px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+.su-role.on .su-role-does span {
+  background: var(--surface);
+}
+.su-role-tick {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--line-strong);
+  border-radius: 99px;
+  background: var(--surface);
+  font-weight: 900;
+}
+.su-role.on .su-role-tick {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ---- the stage: your player on the city's skyline */
+.su-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  color: #fff;
+  box-shadow: var(--sh-2);
+}
+.su-stage .su-sky {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 68%;
+}
+.su-ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 24px;
+  background: linear-gradient(#3f3a33, #2a2621);
+}
+.su-fig {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 10px;
+  height: 72%;
+  aspect-ratio: 32 / 52;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.35));
+}
+.su-stage-big .su-fig {
+  left: 68%;
+}
+.su-stage-big .su-live {
+  right: auto;
+  left: 12px;
+}
+.su-stage-big {
+  flex: 1 1 200px;
+  min-height: 190px;
+  max-height: 400px;
+  margin-bottom: 12px;
+}
+.su-stage-strip {
+  flex: none;
+  height: 150px;
+  margin-bottom: 14px;
+}
+.su-stage-strip .su-fig {
+  left: auto;
+  right: 12%;
+  height: 80%;
+  transform: none;
+}
+.su-st-tags {
+  position: absolute;
+  z-index: 3;
+  left: 12px;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.su-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 6px 12px 6px 8px;
+  border-radius: 99px;
+  background: rgb(15 42 40 / 0.78);
+  backdrop-filter: blur(4px);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+.su-tag small {
+  font-weight: 500;
+  opacity: 0.85;
+}
+.su-tag button {
+  min-height: 28px;
+  margin-left: 2px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.su-tag button:focus-visible {
+  outline-color: #fff;
+}
+.su-strip-city {
+  position: absolute;
+  z-index: 3;
+  left: 12px;
+  top: 12px;
+}
+.su-live {
+  position: absolute;
+  z-index: 3;
+  right: 12px;
+  bottom: 34px;
+  padding: 4px 9px;
+  border-radius: 99px;
+  background: #fff;
+  color: #0f2a28;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.su-live::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 99px;
+  background: #16a34a;
+  vertical-align: 1px;
+}
+.su-live-top {
+  top: 12px;
+  bottom: auto;
+}
+.su-st-name {
+  position: absolute;
+  z-index: 3;
+  left: 14px;
+  top: 54px;
+  max-width: 62%;
+  text-shadow: 0 2px 8px rgb(0 0 0 / 0.45);
+}
+.su-st-name b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 700 1.15rem/1.1 var(--font-display);
+}
+.su-st-name span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+/* ---- step 2: the look */
+.su-look {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.su-seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.su-seg-opt {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  border-radius: 9px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.su-seg-opt.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow:
+    var(--sh-1),
+    inset 0 0 0 2px var(--accent);
+}
+.su-row-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 5px;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+.su-row-val {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.su-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 3px;
+}
+.su-swatch {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 99px;
+}
+.su-swatch span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 99px;
+  box-shadow: inset 0 0 0 2px rgb(0 0 0 / 0.14);
+}
+.su-swatch.on {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 5px var(--accent);
+}
+.su-swatch:has(input:focus-visible) {
+  outline-offset: 6px;
+}
+.su-thumbs {
+  position: relative;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding: 3px;
+}
+.su-thumbs::-webkit-scrollbar {
+  display: none;
+}
+.su-thumb {
+  flex: none;
+  width: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  scroll-snap-align: start;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.su-thumb .portrait {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--line);
+}
+.su-thumb.on {
+  color: var(--text);
+}
+.su-thumb.on .portrait {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+.su-thumb-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.su-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.su-more small {
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+.su-step-look .su-dock {
+  padding-top: 10px;
+}
+
+/* ---- step 3: about you */
+.su-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.su-label {
+  display: block;
+  margin: 0 0 6px;
+  font-weight: 650;
+  font-size: 0.9rem;
+}
+.su-label small {
+  font-weight: 400;
+  color: var(--muted);
+}
+.su-label-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.su-req {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.su-why {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: -2px 0 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.su-why svg {
+  flex: none;
+  margin-top: 2px;
+}
+.su-in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.su-in:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.su-in.ok {
+  border-color: var(--good);
+}
+.su-in.err {
+  border-color: var(--bad);
+  background: var(--bad-soft);
+}
+.su .su-in input,
+.su .su-in select {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 1rem;
+  outline: none;
+}
+.su .su-in select {
+  cursor: pointer;
+}
+.su-in-pre {
+  color: var(--muted);
+}
+.su-in-ic {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.su-in.ok .su-in-ic {
+  color: var(--good);
+}
+.su-in.err .su-in-ic {
+  color: var(--bad);
+}
+.su-hint {
+  margin: 5px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.su-err {
+  margin: 5px 0 0;
+  color: var(--bad);
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+.su-form-err {
+  margin: 0 0 8px;
+}
+.su-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.su-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 99px;
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.su-chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.su-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-bottom: 8px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.su-check input {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ---- wide screens: the live avatar on the left, the steps on the right */
+@media (min-width: 960px) {
+  .su {
+    max-width: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+  }
+  .su-side {
+    display: block;
+    position: relative;
+    height: 100%;
+  }
+  .su-stage-side {
+    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .su-stage-side .su-fig {
+    left: 68%;
+    height: 46%;
+    bottom: 18px;
+  }
+  .su-stage-side .su-ground {
+    height: 34px;
+  }
+  .su-stage-side .su-sky {
+    height: 46%;
+  }
+  .su-stage-side .su-st-tags {
+    left: 28px;
+    top: 84px;
+  }
+  .su-stage-side .su-tag {
+    font-size: 0.95rem;
+  }
+  .su-brand {
+    position: absolute;
+    z-index: 3;
+    left: 28px;
+    top: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font: 700 1.4rem var(--font-display);
+    color: #fff;
+  }
+  .su-brand img {
+    border-radius: 9px;
+    box-shadow: 0 0 0 2px rgb(255 255 255 / 0.35);
+  }
+  .su-st-name-right {
+    left: auto;
+    right: 28px;
+    top: 26px;
+    text-align: right;
+  }
+  .su-main {
+    height: 100%;
+    overflow-y: auto;
+    padding: 18px 56px 0;
+  }
+  .su-main > * {
+    width: 100%;
+    max-width: 560px;
+  }
+  .su-stage-big,
+  .su-stage-strip,
+  .su-phone-only {
+    display: none;
+  }
+  .su-wide-only {
+    display: initial;
+  }
+  p.su-wide-only {
+    display: block;
+  }
+  .su-stepper {
+    display: flex;
+    gap: 6px;
+    margin: 6px 0 14px;
+    padding: 0;
+    list-style: none;
+  }
+  .su-stepper li {
+    flex: 1;
+    min-width: 0;
+  }
+  .su-stepper li > * {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-align: left;
+  }
+  .su-stepper li.done > * {
+    background: var(--accent-soft);
+    cursor: pointer;
+  }
+  .su-stepper li.on > * {
+    background: var(--surface);
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
+  .su-stepper b {
+    display: block;
+    color: var(--text);
+    font: 700 0.95rem var(--font-display);
+  }
+  .su-stepper span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .su-swatch {
+    width: 30px;
+    height: 30px;
+  }
+  .su-thumb {
+    width: 50px;
+  }
+  .su-thumb .portrait {
+    width: 44px;
+    height: 44px;
+  }
+  .su-dock {
+    position: static;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    align-items: center;
+    padding: 16px 0 18px;
+    background: none;
+  }
+  .su-dock > :not(.su-play):not(.su-dock-hint) {
+    grid-column: 1 / -1;
+  }
+  .su-dock .su-play {
+    width: auto;
+    padding: 0 2.4rem;
+  }
+  .su-dock-hint {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .su-login {
+    text-align: left;
+  }
+  .su-step-path .su-role-fig {
+    height: 96px;
+  }
+}

@@ -11,8 +11,9 @@ import { EVENT_KINDS, EVENT_VENUES } from './data/events.js';
 import { INVESTOR_TYPES } from './data/programs.js';
 import { STARTER_EXPENSE_IDS } from './data/ideas.js';
 import { PLACE_SERVICES } from './data/places.js';
+import { ERRAND_IDS, STANDUP_FOCUS } from './data/errands.js';
 import { MANDATE_KINDS, TALK_TOPICS } from './data/bankwork.js';
-import { PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
+import { FIRST_CALL_ASKS, PASS_REASONS, REVENUE_MODELS, SALES_ACTIONS, STAGES } from './types.js';
 import { REMOVABLE, lookSchema } from './appearance.js';
 
 const id = z.string().min(1).max(64);
@@ -53,6 +54,27 @@ export const companySetup = z.object({
   /** Founder Journey 6: a starting idea from the café (data/ideas.ts). Optional. */
   ideaId: z.string().max(32).optional(),
 });
+
+/** Founder setup: the business plan lenders and banks read (money in minor units). */
+const setupPlan = z.object({
+  sell: z.string().min(3).max(160),
+  segment: z.string().min(1).max(40),
+  price: money,
+  costToServe: money,
+  monthlyCosts: money,
+  customersMonth6: z.number().int().min(0).max(1_000_000),
+  ask: money,
+  months: z.number().int().min(1).max(60),
+});
+
+/** Founder setup: why a banker declined a startup loan. */
+export const DECLINE_REASONS = [
+  'no-customers',
+  'repayment',
+  'thin-plan',
+  'credit',
+  'capital',
+] as const;
 
 export const investorSetup = z.object({
   sectors: z.array(industry).min(1).max(INDUSTRIES.length),
@@ -157,6 +179,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     targetSegments: z.array(z.string().max(48)).min(1).max(2).optional(),
   }),
   z.object({ type: z.literal('company.discovery'), companyId: id, segmentKey: z.string().max(48) }),
+  /** Feedback note: a customer interview at the Market (interviews.ts): start, ask × 3, or leave. */
+  z.object({
+    type: z.literal('company.interview'),
+    companyId: id,
+    action: z.enum(['start', 'ask', 'leave']),
+    segmentKey: z.string().max(48).optional(),
+    questionId: z.string().max(24).optional(),
+  }),
   z.object({
     type: z.literal('company.build'),
     companyId: id,
@@ -198,6 +228,18 @@ export const commandSchema = z.discriminatedUnion('type', [
     personalGuarantee: z.boolean(),
   }),
   z.object({ type: z.literal('company.found'), company: companySetup }),
+  /**
+   * Founder setup (setup.ts): register (company type and fee), file the
+   * business plan, move on to the office (or back to funding), lease one.
+   */
+  z.object({
+    type: z.literal('company.setup'),
+    companyId: id,
+    action: z.enum(['register', 'plan', 'next', 'back', 'office']),
+    incorporation: z.enum(['local', 'uk', 'us']).optional(),
+    plan: setupPlan.optional(),
+    officeId: z.enum(['home', 'cowork', 'small', 'shop', 'serviced']).optional(),
+  }),
   // ---- rescue plan (Wave 1)
   z.object({
     type: z.literal('company.cutCosts'),
@@ -245,8 +287,13 @@ export const commandSchema = z.discriminatedUnion('type', [
         price: money.optional(),
         equityBps: z.number().int().min(100).max(5000).optional(),
         months: z.number().int().min(3).max(60).optional(),
+        /** Founder setup: a banker's counter on a startup loan (rate and guarantee). */
+        rateBps: z.number().int().min(0).max(20_000).optional(),
+        personalGuarantee: z.boolean().optional(),
       })
       .optional(),
+    /** Founder setup: why a banker declined a startup loan application. */
+    reason: z.enum(DECLINE_REASONS).optional(),
   }),
   // ---- investor
   z.object({
@@ -266,6 +313,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('invest.diligence'),
     companyId: id,
     depth: z.union([z.literal(1), z.literal(2)]),
+    /** Feedback round: on a first call, what you ask first (scored, investorguide.ts). */
+    ask: z.enum(FIRST_CALL_ASKS).optional(),
   }),
   z.object({
     type: z.literal('fund.raise'),
@@ -449,6 +498,11 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('travel.book'),
     to: market,
     hotel: z.enum(['budget', 'business', 'luxury']).optional(),
+    /**
+     * Feedback round: a named hotel in `to` (its id from the hotel list). The
+     * room tier comes from the hotel. Missing = the tier alone, as before.
+     */
+    hotelId: z.string().min(1).max(64).optional(),
     /** Investor release: the cabin. Missing = economy, the ticket as it always was. */
     cabin: z.enum(['economy', 'business', 'first']).optional(),
     /**
@@ -705,6 +759,20 @@ export const commandSchema = z.discriminatedUnion('type', [
     discountPct: z.number().int().min(0).max(100).optional(),
   }),
   z.object({ type: z.literal('sales.drop'), companyId: id.optional(), dealId: id }),
+  /**
+   * Feedback note: a sales conversation with a deal (`dealId`) or a business
+   * you walk into (`businessId`): start, then lead / price (`discountPct`) /
+   * terms with an `option` each, then ask for the deal (salestalk.ts).
+   */
+  z.object({
+    type: z.literal('sales.talk'),
+    companyId: id.optional(),
+    dealId: id.optional(),
+    businessId: id.optional(),
+    action: z.enum(['start', 'lead', 'price', 'terms', 'ask']),
+    option: z.string().max(24).optional(),
+    discountPct: z.number().int().min(0).max(100).optional(),
+  }),
   /** Founder Journey 6: a small one-off business expense, paid from the company account. */
   z.object({
     type: z.literal('company.expense'),
@@ -736,6 +804,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('job.interview'),
     applicationId: id,
     answers: z.array(z.number().int().min(0).max(5)).min(1).max(5),
+  }),
+  /** The feedback round: study the brief of a booked (or just failed) interview; a capped bonus. */
+  z.object({ type: z.literal('job.study'), applicationId: id }),
+  /** The feedback round: answer the work task in hand (an option index); the result comes at once. */
+  z.object({
+    type: z.literal('job.task'),
+    taskId: z.string().min(1).max(32),
+    answer: z.number().int().min(0).max(3),
   }),
   /** Furniture for your apartment: one per slot; replacing sells the old one back at 40%. */
   /** Wave 6: `businessId` is the showroom you buy in (its till gets the money). */
@@ -783,6 +859,18 @@ export const commandSchema = z.discriminatedUnion('type', [
     y: z.number().int().min(0).max(64),
     label: z.string().max(24).optional(),
   }),
+  /** Buy mode (the feedback round): a floor finish for a room, or paint for the walls. */
+  z.object({
+    type: z.literal('home.finish'),
+    surface: z.enum(['floor', 'wall']),
+    finish: z.string().min(2).max(24),
+    floor: z.number().int().min(0).max(3),
+    room: z.string().min(2).max(24).optional(),
+  }),
+  /** Buy mode (player feedback): another of a thing you have (a speaker, plants, art…). */
+  z.object({ type: z.literal('home.extra.buy'), itemId: z.string().min(2).max(24) }),
+  /** …and selling one of them back. */
+  z.object({ type: z.literal('home.extra.sell'), extraId: id }),
   /** Sell your car back at 50% of what you paid. */
   z.object({ type: z.literal('car.sell') }),
   // ---- Life at home (Wave 7)
@@ -875,6 +963,21 @@ export const commandSchema = z.discriminatedUnion('type', [
     service: z.enum(PLACE_SERVICES),
     companyId: id.optional(),
     to: market.optional(),
+    /** A public consultation (feedback note): your vote on the proposal. */
+    vote: z.enum(['for', 'against']).optional(),
+  }),
+  /**
+   * Errands (errands.ts, feedback note): do something where you are, at a
+   * business (`biz:<id>`), a capital programme's office (`cap:<id>`) or a
+   * city spot (`newsstand`, `airport`, `office`). `item` is the clothes to
+   * buy; `focus` the morning stand-up's.
+   */
+  z.object({
+    type: z.literal('errand.do'),
+    at: z.string().min(1).max(80),
+    errand: z.enum(ERRAND_IDS),
+    item: z.string().min(1).max(48).optional(),
+    focus: z.enum(STANDUP_FOCUS).optional(),
   }),
   /** Golf (leisure.ts): hand in your card for the city's three holes (strokes per hole). */
   z.object({

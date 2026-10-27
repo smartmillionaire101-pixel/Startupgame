@@ -19,7 +19,13 @@ import {
 import { bankFigures } from '../src/banks.js';
 import { journeyView } from '../src/journey.js';
 import { MONTH_MIN, gameMinute } from '../src/places.js';
-import { BANKERS_NOTE, MORE_GAMES_NOTE, RELEASES, bankersOn } from '../src/releases.js';
+import {
+  BANKERS_NOTE,
+  FEEDBACK_NOTE,
+  MORE_GAMES_NOTE,
+  RELEASES,
+  bankersOn,
+} from '../src/releases.js';
 import { playerView } from '../src/views.js';
 import type { Bank, World } from '../src/types.js';
 import { DAY, T0, makeWorld, moneyByCurrency, run, settle, tryRun } from './helpers.js';
@@ -387,6 +393,19 @@ describe('bankers: the licence process is the work', () => {
     const c = w.companies[prospects[0]!.id]!;
     expect(w.accounts[c.account]!.bankId).toBe(done.id);
     expect(moneyByCurrency(w)).toEqual(total);
+  });
+
+  it('from the feedback round, the review takes 30 days and is decided at the first month end', () => {
+    let w = announce(signed(), FEEDBACK_NOTE);
+    const b = bankOf(w);
+    const lic = playerView(w, B)!.banker!.bank!.licence!;
+    expect(lic.reviewDays).toBe(30);
+    expect(lic.decisionMonth).toBe(bankOf(w).licence!.filedMonth + 1);
+    w = interview(w).world;
+    w = checklist(w);
+    w = settle(w, 'lagos', 1);
+    expect(bankOf(w).status).toBe('licensed');
+    expect(bankOf(w).id).toBe(b.id);
   });
 
   it('a weak application is approved with conditions or refused with reasons, and can try again', () => {

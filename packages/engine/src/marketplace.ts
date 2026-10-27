@@ -12,7 +12,15 @@
 import type { Industry } from './data/industries.js';
 import { reliability } from './customers.js';
 import { ensure } from './errors.js';
-import { adjustTrust, col, getCompany, getMarket, notify, publish } from './helpers.js';
+import {
+  adjustTrust,
+  col,
+  getCompany,
+  getMarket,
+  notify,
+  publish,
+  isEstablished,
+} from './helpers.js';
 import { aiRespond, openDeal } from './deals.js';
 import { newId } from './ids.js';
 import { transferUpTo } from './ledger.js';
@@ -348,8 +356,9 @@ export function aiProcurement(world: World, market: string, rng: Rng) {
   const listings = Object.values(world.listings).filter((l) => l.market === market && l.active);
   if (!listings.length) return;
   for (const buyer of Object.values(world.companies)) {
-    if (!buyer.ai || buyer.market !== market || buyer.status !== 'active' || !rng.chance(0.08))
+    if (!buyer.ai || buyer.market !== market || buyer.status !== 'active' || isEstablished(buyer))
       continue;
+    if (!rng.chance(0.08)) continue;
     const current = Object.values(world.contracts).filter(
       (k) => k.buyerId === buyer.id && k.status === 'active',
     );
@@ -417,6 +426,7 @@ export function ensureAiListings(world: World, market: string, rng: Rng) {
   const listed = new Set(Object.values(world.listings).map((l) => l.companyId));
   for (const c of Object.values(world.companies)) {
     if (!c.ai || c.market !== market || c.status !== 'active' || listed.has(c.id)) continue;
+    if (isEstablished(c)) continue;
     createListing(
       world,
       c,

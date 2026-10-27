@@ -213,7 +213,7 @@ export function orderMallOnline(
   options?: ChosenOptions,
 ) {
   const x = mallItem(itemId);
-  ensure(x && mallSells(w, x), 'mall.item', 'The mall doesn’t sell that.');
+  ensure(x && mallSells(w, x, p.market), 'mall.item', 'The mall doesn’t sell that.');
   ensure(
     !inPersonOnly(x),
     'shop.inperson',
@@ -533,7 +533,7 @@ export function shopCatalogView(w: World, p: Player, market: MarketId = p.market
         if (f) prices[v.ref] = scale(col(m), f.priceCol);
       } else if (e.source === 'mall') {
         const x = MALL_ITEMS.find((i) => i.id === v.ref);
-        if (x && mallSells(w, x)) prices[v.ref] = mallPrice(w, m, x);
+        if (x && mallSells(w, x, m.id)) prices[v.ref] = mallPrice(w, m, x);
       } else if (e.source === 'wall')
         prices[`wall:${e.id.slice(5)}:${v.ref}`] = scale(
           col(m),

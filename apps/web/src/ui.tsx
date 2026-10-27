@@ -187,8 +187,19 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void;
   label: string;
 }) {
+  const row = useRef<HTMLDivElement>(null);
+  // A row that scrolls: keep the chosen option in view.
+  // (Sideways only: scrollIntoView could move the page too.)
+  useEffect(() => {
+    const r = row.current;
+    const b = r?.querySelector<HTMLElement>('button.on');
+    if (!r || !b) return;
+    if (b.offsetLeft < r.scrollLeft) r.scrollLeft = b.offsetLeft;
+    else if (b.offsetLeft + b.offsetWidth > r.scrollLeft + r.clientWidth)
+      r.scrollLeft = b.offsetLeft + b.offsetWidth - r.clientWidth;
+  }, [value]);
   return (
-    <div className="segmented" role="radiogroup" aria-label={label}>
+    <div className="segmented" role="radiogroup" aria-label={label} ref={row}>
       {options.map((o) => (
         <button
           key={o.value}

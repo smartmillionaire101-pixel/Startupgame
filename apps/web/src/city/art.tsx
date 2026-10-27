@@ -28,11 +28,14 @@ import {
   BAG_COLOUR,
   BEADS,
   BELT_COLOUR,
-  DENIM,
+  BLOUSE_IVORY,
   DIAMOND,
   SCARF_COLOUR,
+  SHIRT_WHITE,
   SILVER,
+  TIE_COLOUR,
   WATCH_COLOUR,
+  legsColour,
   necklaceColour,
   shoeColour,
   wornOf,
@@ -1876,8 +1879,9 @@ export function lookFromAppearance(
     hair: a.hairColor,
     hairStyle: a.hairStyle,
     top: a.topColor,
-    // Jeans from the wardrobe over the outfit's trousers.
-    bottom: a.legs === 'jeans' ? DENIM : bottom,
+    // Jeans, chinos or joggers from the wardrobe over the outfit's trousers;
+    // a suit's trousers match its jacket.
+    bottom: legsColour(a.legs) ?? (a.topStyle === 'suit' ? a.topColor : bottom),
     accessory,
     gender,
     face: a.face,
@@ -2105,12 +2109,18 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
   const hatted = headwear === 'cap' || headwear === 'beanie';
   const hangs = hairStyle === 'long' || hairStyle === 'braids' || hairStyle === 'locs';
   const sleeve = topStyle === 'tee' ? 5 : 11;
+  // Tailoring (the feedback round): a suit's jacket, a tie over a collar.
+  const suit = topStyle === 'suit';
+  const collared = suit || topStyle === 'shirt' || topStyle === 'blazer';
+  const tie = collared && look.tie && look.tie !== 'none' ? look.tie : null;
+  // Under a woman's suit with no tie, an ivory blouse; else a white shirt.
+  const under = suit && look.gender === 'female' && !tie ? BLOUSE_IVORY : SHIRT_WHITE;
   // A cap in a darker shade of the top (Wave 7's red one when the look predates the creator).
   const capColour = look.headwear ? shade(top, -0.3) : '#dc2626';
   // From the wardrobe: shoes (boots reach up the leg, heels have one), socks above them.
   const shoe = shoeColour(look.shoes);
   const boots = look.shoes === 'boots';
-  const heels = look.shoes === 'heels';
+  const heels = look.shoes === 'heels' || look.shoes === 'courts';
   const socks = look.socks === 'plain' && !boots && !heels;
   const foot = (x: number) => (
     <>
@@ -2136,6 +2146,8 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
       data-watch={look.watch ?? 'none'}
       data-bag={look.bag ?? 'none'}
       data-necklace={look.necklace ?? 'none'}
+      data-tie={tie ?? 'none'}
+      data-legs={look.legs ?? 'none'}
     >
       <ellipse cx="0" cy="0" rx="7" ry="3" fill="#0f172a" opacity="0.22" />
       <g className="city-leg city-leg-l">
@@ -2178,6 +2190,30 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
             />
           </>
         )}
+        {suit && (
+          <>
+            {/* The jacket: its skirt over the hips, the shirt's V, lapels and two buttons. */}
+            <path d="M -5.5 -12.5 L 5.5 -12.5 L 5.9 -8.8 L -5.9 -8.8 Z" fill={top} />
+            <line x1="0" y1="-12.5" x2="0" y2="-8.8" stroke={shade(top, -0.3)} strokeWidth="0.5" />
+            <polygon points="-2.6,-24 2.6,-24 0,-16.5" fill={under} />
+            <path d="M -2.8 -24 L 0 -16 L -3.2 -19.4 Z" fill={shade(top, -0.22)} />
+            <path d="M 2.8 -24 L 0 -16 L 3.2 -19.4 Z" fill={shade(top, -0.22)} />
+            <circle cx="0" cy="-14.6" r="0.45" fill={shade(top, -0.45)} />
+            <circle cx="0" cy="-12.9" r="0.45" fill={shade(top, -0.45)} />
+            <rect x="2.4" y="-21.6" width="1.8" height="0.8" fill="#f8fafc" />
+          </>
+        )}
+        {topStyle === 'blouse' && (
+          <>
+            <path d="M -2.8 -24 Q 0 -19.6 2.8 -24 Z" fill={shade(top, -0.12)} />
+            <path
+              d="M -3 -24 Q 0 -21.6 3 -24"
+              stroke={shade(top, 0.25)}
+              strokeWidth="0.7"
+              fill="none"
+            />
+          </>
+        )}
         {topStyle === 'shirt' && (
           <>
             <polygon points="-2.6,-24 0,-22 -0.6,-20.6" fill="#f8fafc" />
@@ -2195,6 +2231,9 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
           </>
         )}
         <g className="city-arm-l">
+          {bag === 'folio' && (
+            <rect x="-9.4" y="-20.5" width="1.4" height="6.5" rx="0.4" fill={BAG_COLOUR.folio} />
+          )}
           <rect x="-7.6" y="-23" width="3" height="11" rx="1.5" fill={skin} />
           <rect x="-7.6" y="-23" width="3" height={sleeve} rx="1.5" fill={shade(top, -0.12)} />
           {watch && (
@@ -2208,7 +2247,8 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
           )}
         </g>
         <g className="city-arm-r">
-          {bag && (
+          {/* A shoulder strap (a briefcase is carried, a folio held under the arm). */}
+          {bag && bag !== 'briefcase' && bag !== 'folio' && (
             <path
               d={bag === 'gymbag' ? 'M 6 -23 L 9 -9' : 'M 6 -23 L 9.4 -15'}
               stroke={shade(BAG_COLOUR[bag]!, -0.25)}
@@ -2243,8 +2283,47 @@ export function AvatarFigure({ look, label }: { look: AvatarLook; label?: string
           {bag === 'gymbag' && (
             <rect x="6.6" y="-10.6" width="7" height="4" rx="1.8" fill={BAG_COLOUR.gymbag} />
           )}
+          {bag === 'briefcase' && (
+            <>
+              <path
+                d="M 5.4 -12 Q 6.1 -13.4 6.8 -12"
+                stroke="#111827"
+                strokeWidth="0.6"
+                fill="none"
+              />
+              <rect x="3.6" y="-12" width="5" height="4.4" rx="0.5" fill={BAG_COLOUR.briefcase} />
+              <rect x="5.7" y="-10.6" width="0.8" height="0.7" fill="#c8a25a" />
+            </>
+          )}
+          {bag === 'worktote' && (
+            <rect x="7.2" y="-16" width="4.6" height="5.6" rx="0.6" fill={BAG_COLOUR.worktote} />
+          )}
         </g>
-        {accessory === 'tie' && <polygon points="0,-23 1.5,-20 0,-13 -1.5,-20" fill="#b91c1c" />}
+        {accessory === 'tie' && !tie && (
+          <polygon points="0,-23 1.5,-20 0,-13 -1.5,-20" fill="#b91c1c" />
+        )}
+        {tie === 'bow' ? (
+          <path
+            d="M -2 -24.4 L 0 -23.4 L 2 -24.4 L 2 -22.4 L 0 -23.4 L -2 -22.4 Z"
+            fill={TIE_COLOUR.bow}
+          />
+        ) : (
+          tie && (
+            <>
+              <rect
+                x="-0.8"
+                y="-24"
+                width="1.6"
+                height="1.2"
+                fill={shade(TIE_COLOUR[tie]!, -0.15)}
+              />
+              <polygon
+                points="-0.8,-22.8 0.8,-22.8 1.3,-15.4 0,-14.2 -1.3,-15.4"
+                fill={TIE_COLOUR[tie]}
+              />
+            </>
+          )
+        )}
         {accessory === 'lanyard' && (
           <>
             <path d="M -3 -24 L 0 -17 L 3 -24" stroke="#f59e0b" strokeWidth="0.9" fill="none" />

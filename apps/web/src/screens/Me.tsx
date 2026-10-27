@@ -17,6 +17,7 @@ import { MyLook } from '../avatar/EditLook';
 import { PurchasesButton } from '../avatar/Wardrobe';
 import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
 import { ProfileDetails } from './ProfileDetails';
+import { industryFromIdea } from './industryGuess';
 import { LifestyleCard } from './Lifestyle';
 import { FoundBank } from './Bank';
 import { BankInvitations } from './BankLicence';
@@ -125,139 +126,146 @@ function Profile() {
   const me = view.me;
   const skills = Object.entries(me.skills).sort((a, b) => b[1] - a[1]);
   return (
-    <>
-      <section className="card profile-card">
-        <header className="profile-head">
-          {/* Phase 6a: your portrait, and the character creator under it. */}
-          <MyLook />
-          <span className="profile-who">
-            <h2>{me.name}</h2>
-            <span className="small muted">@{me.handle}</span>
-            <span className="row profile-tags">
-              <Pill tone="info">{roleLabel(me.role)}</Pill>
-              {me.background?.name && <Pill>{tx(me.background.name)}</Pill>}
+    // A wide screen: columns (one after the other on a phone).
+    <div className="screen-cols">
+      <div className="screen-col">
+        <section className="card profile-card">
+          <header className="profile-head">
+            {/* Phase 6a: your portrait, and the character creator under it. */}
+            <MyLook />
+            <span className="profile-who">
+              <h2>{me.name}</h2>
+              <span className="small muted">@{me.handle}</span>
+              <span className="row profile-tags">
+                <Pill tone="info">{roleLabel(me.role)}</Pill>
+                {me.background?.name && <Pill>{tx(me.background.name)}</Pill>}
+              </span>
             </span>
-          </span>
-        </header>
-        <div className="profile-stats">
-          <div>
-            <span className="stat-label">{t('Stars')}</span>
-            {/* Day one: no track record yet, so no rating (and no warning) to show. */}
-            {me.starHistory.length < 2 ? (
-              <>
-                <b className="profile-stat">{t('New')}</b>
-                <span className="small muted">{t('Rated after your first month')}</span>
-              </>
-            ) : (
-              <>
-                <b className="profile-stat">{stars(me.stars)}</b>
-                {me.publicWarning && <Pill tone="bad">{t('Public warning')}</Pill>}
-                <Sparkline values={me.starHistory} label={t('Stars over time')} />
-              </>
-            )}
+          </header>
+          <div className="profile-stats">
+            <div>
+              <span className="stat-label">{t('Stars')}</span>
+              {/* Day one: no track record yet, so no rating (and no warning) to show. */}
+              {me.starHistory.length < 2 ? (
+                <>
+                  <b className="profile-stat">{t('New')}</b>
+                  <span className="small muted">{t('After month 1')}</span>
+                </>
+              ) : (
+                <>
+                  <b className="profile-stat">{stars(me.stars)}</b>
+                  {me.publicWarning && <Pill tone="bad">{t('Public warning')}</Pill>}
+                  <Sparkline values={me.starHistory} label={t('Stars over time')} />
+                </>
+              )}
+            </div>
+            <div>
+              <span className="stat-label">{t('Network')}</span>
+              <b className="profile-stat">{me.network}</b>
+              <span className="small muted">{view.market.name}</span>
+            </div>
           </div>
-          <div>
-            <span className="stat-label">{t('Network')}</span>
-            <b className="profile-stat">{me.network}</b>
-            <span className="small muted">{view.market.name}</span>
-          </div>
-        </div>
-        {me.bars ? (
-          <LifeBarsPanel me={me} />
-        ) : (
-          <Bar
-            label={t('Energy')}
-            value={me.energy / 100}
-            tone={me.burnout ? 'bad' : me.energy < 40 ? 'warn' : 'good'}
-          />
+          {me.bars ? (
+            <LifeBarsPanel me={me} />
+          ) : (
+            <Bar
+              label={t('Energy')}
+              value={me.energy / 100}
+              tone={me.burnout ? 'bad' : me.energy < 40 ? 'warn' : 'good'}
+            />
+          )}
+          <p className="small muted">
+            {t('{left}/{total} h left this month', {
+              left: me.hours.left,
+              total: me.hours.available,
+            })}
+            {me.burnout ? ` · ${t('burnout cuts your hours')}` : ''}
+          </p>
+        </section>
+        <ProfileDetails key={me.id + me.role} />
+        {/* What you bought at the mall: your wardrobe (wear it) and the things you keep. */}
+        <PurchasesButton />
+        <Button block data-open-living="" onClick={() => openLiving(me.id)}>
+          {t('🏠 Home & friends')}
+          {view.living.dates.some((d) => d.status === 'invited' && d.guest === me.id)
+            ? ` · ${t('Invitation')}`
+            : ''}
+        </Button>
+        {me.role === 'founder' && !view.companies.some((c) => c.status === 'active') && (
+          <Card title={t('Set up your business')}>
+            <p className="small muted">{t('Your company is set up on the Company tab.')}</p>
+            <Button
+              variant="primary"
+              block
+              data-go-company=""
+              onClick={() => nav?.go({ kind: 'tab', tab: 'company' })}
+            >
+              {t('Set up my company')}
+            </Button>
+          </Card>
         )}
-        <p className="small muted">
-          {t('{left} of {total} hours left this month', {
-            left: me.hours.left,
-            total: me.hours.available,
-          })}
-          {me.burnout ? ` · ${t('burnout cuts your hours')}` : ''}
-        </p>
-      </section>
-      <ProfileDetails key={me.id + me.role} />
-      {/* What you bought at the mall: your wardrobe (wear it) and the things you keep. */}
-      <PurchasesButton />
-      <Button block data-open-living="" onClick={() => openLiving(me.id)}>
-        {t('🏠 Home & friends')}
-        {view.living.dates.some((d) => d.status === 'invited' && d.guest === me.id)
-          ? ` · ${t('Invitation')}`
-          : ''}
-      </Button>
-      {me.role === 'founder' && !view.companies.some((c) => c.status === 'active') && (
-        <Card title={t('Set up your business')}>
-          <p className="small muted">{t('Your company is set up on My company.')}</p>
-          <Button
-            variant="primary"
-            block
-            data-go-company=""
-            onClick={() => nav?.go({ kind: 'tab', tab: 'company' })}
-          >
-            {t('Set up my company')}
-          </Button>
-        </Card>
-      )}
-      {me.role === 'banker' &&
-        (!view.bank || ['failed', 'rejected'].includes(view.bank.status)) && <FoundBank />}
-      {/* Bankers note: someone invited you to co-found their bank. */}
-      {me.role !== 'banker' && <BankInvitations />}
-      <details className="card">
-        <summary>{t('City and career')}</summary>
-        <Travel trips={false} />
-        <CareerMoves />
-      </details>
-      <Card title={t('Skills')}>
-        <div className="skills-grid">
-          {skills.map(([k, v]) => (
-            <Bar key={k} label={skillLabel(k)} value={v / 100} />
-          ))}
-        </div>
-      </Card>
-      <Card title={t('Milestones')}>
-        {Object.keys(me.milestones).length === 0 ? (
-          <Empty>{t('None yet. Your first customer is close.')}</Empty>
-        ) : (
-          <div className="chips">
-            {Object.entries(me.milestones).map(([k, m]) => (
-              <Pill key={k} tone="good">
-                {milestoneLabels()[k] ?? k} · {t('m{n}', { n: m })}
-              </Pill>
+        {me.role === 'banker' &&
+          (!view.bank || ['failed', 'rejected'].includes(view.bank.status)) && <FoundBank />}
+        {/* Bankers note: someone invited you to co-found their bank. */}
+        {me.role !== 'banker' && <BankInvitations />}
+      </div>
+      <div className="screen-col">
+        <details className="card">
+          <summary>{t('City and career')}</summary>
+          <Travel trips={false} />
+          <CareerMoves />
+        </details>
+        <Card title={t('Skills')}>
+          <div className="skills-grid">
+            {skills.map(([k, v]) => (
+              <Bar key={k} label={skillLabel(k)} value={v / 100} />
             ))}
           </div>
-        )}
-      </Card>
-      <Card title={t('{market} leaderboards', { market: view.market.name })}>
-        <h3 className="section-h">{t('Highest stars')}</h3>
-        <ol className="board">
-          {view.leaderboards.highestStars.slice(0, 5).map((r) => (
-            <li key={r.id}>
-              <span className="board-name">
-                {r.name}
-                {r.ai ? '' : ` ${t('(player)')}`}
-              </span>
-              <b>{r.value.toFixed(1)}★</b>
-            </li>
-          ))}
-        </ol>
-        <h3 className="section-h">{t('Fastest growing')}</h3>
-        {view.leaderboards.fastestGrowing.length ? (
+        </Card>
+      </div>
+      <div className="screen-col">
+        <Card title={t('Milestones')}>
+          {Object.keys(me.milestones).length === 0 ? (
+            <Empty>{t('None yet. Your first customer is close.')}</Empty>
+          ) : (
+            <div className="chips">
+              {Object.entries(me.milestones).map(([k, m]) => (
+                <Pill key={k} tone="good">
+                  {milestoneLabels()[k] ?? k} · {t('m{n}', { n: m })}
+                </Pill>
+              ))}
+            </div>
+          )}
+        </Card>
+        <Card title={t('{market} leaderboards', { market: view.market.name })}>
+          <h3 className="section-h">{t('Highest stars')}</h3>
           <ol className="board">
-            {view.leaderboards.fastestGrowing.slice(0, 5).map((r) => (
+            {view.leaderboards.highestStars.slice(0, 5).map((r) => (
               <li key={r.id}>
-                <span className="board-name">{r.name}</span>
-                <b>{t('{n}%/mo', { n: r.value })}</b>
+                <span className="board-name">
+                  {r.name}
+                  {r.ai ? '' : ` ${t('(player)')}`}
+                </span>
+                <b>{r.value.toFixed(1)}★</b>
               </li>
             ))}
           </ol>
-        ) : (
-          <Empty>{t('Needs three months of revenue.')}</Empty>
-        )}
-      </Card>
-    </>
+          <h3 className="section-h">{t('Fastest growing')}</h3>
+          {view.leaderboards.fastestGrowing.length ? (
+            <ol className="board">
+              {view.leaderboards.fastestGrowing.slice(0, 5).map((r) => (
+                <li key={r.id}>
+                  <span className="board-name">{r.name}</span>
+                  <b>{t('{n}%/mo', { n: r.value })}</b>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <Empty>{t('Needs three months of revenue.')}</Empty>
+          )}
+        </Card>
+      </div>
+    </div>
   );
 }
 
@@ -782,11 +790,15 @@ function CareerMoves() {
 }
 
 /** `serial`: start again as a serial founder (`company.start`: skills and contacts carry). */
-export function FoundCompany({ serial }: { serial?: boolean } = {}) {
+/** `setup`: the founder setup's step 1 (the company type and its fee come at registration). */
+export function FoundCompany({ serial, setup }: { serial?: boolean; setup?: boolean } = {}) {
   const { view, send, meta } = useView();
   const [name, setName] = useState('');
   const [idea, setIdea] = useState('');
-  const [industry, setIndustry] = useState<Industry>('saas');
+  // No industry until you pick one, or your idea suggests one (it used to
+  // start on Business software, which a health-care idea then kept).
+  const [industry, setIndustry] = useState<Industry | ''>('');
+  const [picked, setPicked] = useState(false);
   const [model, setModel] = useState<RevenueModel>('subscription');
   const [incorporation, setIncorporation] = useState<'local' | 'uk' | 'us'>('local');
   const [check, setCheck] = useState<{ ok: boolean; reason?: string } | null>(null);
@@ -812,17 +824,41 @@ export function FoundCompany({ serial }: { serial?: boolean } = {}) {
       </Field>
       <Field label={t('Idea in one line')}>
         {(id) => (
-          <input id={id} value={idea} maxLength={120} onChange={(e) => setIdea(e.target.value)} />
+          <input
+            id={id}
+            value={idea}
+            maxLength={120}
+            onChange={(e) => {
+              setIdea(e.target.value);
+              if (!picked) setIndustry(industryFromIdea(e.target.value) ?? '');
+            }}
+          />
         )}
       </Field>
       <div className="grid2">
-        <Field label={t('Industry')}>
+        <Field
+          label={t('Industry')}
+          hint={
+            industry && !picked
+              ? t('Suggested from your idea: change it if it isn’t right.')
+              : !industry
+                ? t('Your customers, interviews and sales follow it.')
+                : undefined
+          }
+        >
           {(id) => (
             <select
               id={id}
               value={industry}
-              onChange={(e) => setIndustry(e.target.value as Industry)}
+              data-industry-pick={industry}
+              onChange={(e) => {
+                setIndustry(e.target.value as Industry | '');
+                setPicked(!!e.target.value);
+              }}
             >
+              <option value="" disabled>
+                {t('Choose your industry')}
+              </option>
               {meta?.industries.map((i) => (
                 <option key={i.id} value={i.id}>
                   {tx(i.label)}
@@ -847,38 +883,47 @@ export function FoundCompany({ serial }: { serial?: boolean } = {}) {
           )}
         </Field>
       </div>
-      <Field
-        label={t('Incorporation')}
-        hint={t('Foreign holding companies cost more but some investors prefer them.')}
-      >
-        {(id) => (
-          <select
-            id={id}
-            value={incorporation}
-            onChange={(e) => setIncorporation(e.target.value as typeof incorporation)}
-          >
-            {Object.entries(meta?.incorporation ?? {}).map(([key, value]) => (
-              <option key={key} value={key}>
-                {tx(value.label)} (
-                {money(Math.round(view.market.costOfLiving * value.costCol), view.market.currency)})
-              </option>
-            ))}
-          </select>
-        )}
-      </Field>
+      {!setup && (
+        <Field
+          label={t('Incorporation')}
+          hint={t('Foreign holding companies cost more but some investors prefer them.')}
+        >
+          {(id) => (
+            <select
+              id={id}
+              value={incorporation}
+              onChange={(e) => setIncorporation(e.target.value as typeof incorporation)}
+            >
+              {Object.entries(meta?.incorporation ?? {}).map(([key, value]) => (
+                <option key={key} value={key}>
+                  {tx(value.label)} (
+                  {money(
+                    Math.round(view.market.costOfLiving * value.costCol),
+                    view.market.currency,
+                  )}
+                  )
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+      )}
       <Button
-        disabled={!check?.ok || idea.trim().length < 5}
+        disabled={!check?.ok || idea.trim().length < 5 || !industry}
         onClick={() =>
+          industry &&
           void send(
             {
               type: serial ? 'company.start' : 'company.found',
               company: { name, idea, industry, revenueModel: model, incorporation },
             },
-            t('{name} is open for business.', { name }),
+            setup
+              ? t('{name}: the name is yours. Next, register it.', { name })
+              : t('{name} is open for business.', { name }),
           )
         }
       >
-        {t('Start the company')}
+        {setup ? t('Reserve the name and continue') : t('Start the company')}
       </Button>
     </div>
   );

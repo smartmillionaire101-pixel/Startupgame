@@ -1,0 +1,107 @@
+/**
+ * Dressed for the role and The Suit Shop (the feedback round: "a banker
+ * should be in a suit … and when we go to the mall we should have more
+ * options"): the creator's new tops, the wardrobe's work outfit, the suit
+ * shop's aisles and cloths, and every new thing the mall sells.
+ */
+export const outfits: Record<string, string> = {
+  // The creator and the wardrobe.
+  Suit: 'Costume',
+  Blouse: 'Chemisier',
+  'Smart-casual': 'Chic décontracté',
+  Casual: 'Décontracté',
+  'Wear for work': 'Porter pour le travail',
+  'Dress for the role: everything is in your wardrobe.':
+    'Habillé pour le rôle : tout est dans votre garde-robe.',
+  '{n} more pieces at the mall’s Suit Shop and clothes shops.':
+    '{n} pièces de plus au Suit Shop et dans les boutiques de vêtements du centre commercial.',
+  // The Suit Shop.
+  'The Suit Shop': 'The Suit Shop',
+  'Tailoring and formal wear': 'Sur-mesure et tenues habillées',
+  Suits: 'Costumes',
+  'Shirts & blouses': 'Chemises et chemisiers',
+  Ties: 'Cravates',
+  Watches: 'Montres',
+  'A local style': 'Un style d’ici',
+  'It doesn’t come in that colour.': 'Il n’existe pas dans cette couleur.',
+  // Cloths and colours.
+  Charcoal: 'Anthracite',
+  Stone: 'Pierre',
+  Camel: 'Camel',
+  'Forest green': 'Vert forêt',
+  'Sky blue': 'Bleu ciel',
+  'Pale pink': 'Rose pâle',
+  Ivory: 'Ivoire',
+  Lilac: 'Lilas',
+  // Suits.
+  'Everyday suit': 'Costume de tous les jours',
+  'Classic two-piece suit': 'Costume deux-pièces classique',
+  'Slim-fit suit': 'Costume coupe ajustée',
+  'Tailored trouser suit': 'Tailleur-pantalon cintré',
+  'Double-breasted suit': 'Costume croisé',
+  'Three-piece suit': 'Costume trois-pièces',
+  'Made-to-measure suit': 'Costume sur mesure',
+  'Designer suit': 'Costume de créateur',
+  'Budget suit': 'Costume petit prix',
+  // Shirts and blouses.
+  'Poplin shirt': 'Chemise en popeline',
+  'Double-cuff shirt': 'Chemise à poignets mousquetaires',
+  'Silk blouse': 'Chemisier en soie',
+  'Bow-neck blouse': 'Chemisier à col lavallière',
+  'Everyday blouse': 'Chemisier de tous les jours',
+  'Designer silk blouse': 'Chemisier en soie de créateur',
+  'Linen shirt': 'Chemise en lin',
+  'Denim shirt': 'Chemise en jean',
+  // Ties.
+  'Silk tie': 'Cravate en soie',
+  'Navy knit tie': 'Cravate en tricot bleu marine',
+  'Bow tie': 'Nœud papillon',
+  // Shoes.
+  'Oxford shoes': 'Richelieus',
+  'Handmade Oxfords': 'Richelieus faits main',
+  'Oxford brogues': 'Richelieus à bout fleuri',
+  'Block-heel courts': 'Escarpins à talon carré',
+  'Court shoes': 'Escarpins',
+  'Suede loafers': 'Mocassins en daim',
+  'Designer loafers': 'Mocassins de créateur',
+  'Canvas trainers': 'Baskets en toile',
+  'Cross-trainers': 'Chaussures de training',
+  // Bags.
+  'Leather briefcase': 'Porte-documents en cuir',
+  'Leather folio': 'Porte-folio en cuir',
+  'Work tote': 'Cabas de travail',
+  // More clothes.
+  Chinos: 'Chino',
+  'Value chinos': 'Chino petit prix',
+  Joggers: 'Jogging',
+  'Maxi dress': 'Robe longue',
+  'Wrap dress': 'Robe portefeuille',
+  'Smart-casual blazer': 'Blazer chic décontracté',
+  'Zip-up hoodie': 'Sweat zippé à capuche',
+  'Training hoodie': 'Sweat à capuche d’entraînement',
+  'Running cap': 'Casquette de course',
+  // Each city's own styles.
+  Agbada: 'Agbada',
+  'Ankara dress': 'Robe en wax ankara',
+  'Buba and sokoto': 'Buba et sokoto',
+  'Kente cloth': 'Pagne kente',
+  'Kaba and slit': 'Kaba et slit',
+  'Fugu smock': 'Blouse fugu',
+  'Lappa dress': 'Robe en lappa',
+  'Ronko smock': 'Blouse ronko',
+  'Gara tie-dye shirt': 'Chemise gara teinte à nœuds',
+  'Kitenge shirt': 'Chemise en kitenge',
+  'Kanga dress': 'Robe en kanga',
+  'Kikoi kaftan': 'Caftan en kikoi',
+  Mushanana: 'Mushanana',
+  'Imigongo-print shirt': 'Chemise à motifs imigongo',
+  'Shweshwe dress': 'Robe en shweshwe',
+  'Madiba shirt': 'Chemise Madiba',
+  Galabeya: 'Galabeya',
+  'Embroidered kaftan dress': 'Robe caftan brodée',
+  Kandura: 'Kandoura',
+  Abaya: 'Abaya',
+  'Tweed blazer': 'Blazer en tweed',
+  'Breton top': 'Marinière',
+  'Tech fleece hoodie': 'Sweat à capuche en polaire technique',
+};

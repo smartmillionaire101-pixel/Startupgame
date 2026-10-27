@@ -173,7 +173,7 @@ const firmHires = (world: World, p: Player): number => {
 };
 
 /** Each rung's requirements, as progress bars (§5.3 "Career ladder"). */
-function rungRequirements(world: World, p: Player, n: number): RungRequirement[] {
+export function rungRequirements(world: World, p: Player, n: number): RungRequirement[] {
   const L = INVESTOR.ladder;
   const req = (
     id: string,

@@ -27,6 +27,16 @@
  *    Stock Exchange's listing desk sets out what listing your bank takes.
  *    Each conversation once a month per place, and a few a month in all.
  *
+ * Reputation (FEEDBACK_NOTE; player feedback: "Opportunity to have more
+ * advisory positions because I scored well and people can hear about me"):
+ * the mandates on your record are scored 0–100 and read as a star rating.
+ * Good scores open bigger clients (mid-size, then big: listings and the
+ * largest deals), add mandates to the desk and to what you can hold, and a
+ * deal scored 80+ brings a referral: another client who heard about it comes
+ * to your desk by name. Bankers at the city's banking events meet clients
+ * too (`eventLead`). Without the note the desk is as it was: every client
+ * size, the same counts, no referrals.
+ *
  * Determinism: the desk is a pure function of the world (each candidate is
  * ranked by its own hash, so one company opening or closing never reshuffles
  * the rest); conversations draw from the 'bankwork' RNG label keyed by the
@@ -38,6 +48,7 @@ import {
   BANK_TALKS,
   BANKER_NAMES,
   BANKWORK,
+  CLIENT_TIERS,
   CORPORATES,
   FIT,
   LENDER_FIT,
@@ -45,12 +56,14 @@ import {
   MANDATES,
   PLACE_TALKS,
   RECRUIT_ROLES,
+  REPUTATION,
   STEPS,
   TALKS,
   bankLessonById,
   type BankLesson,
   type ClientBand,
   type ClientShape,
+  type ClientTier,
   type MandateKind,
   type StepId,
   type TalkTopic,
@@ -65,12 +78,20 @@ import {
   bankFigures,
 } from './banks.js';
 import { ensure, fail } from './errors.js';
-import { col, getMarket, lastPnl, locationOf, notify, spendHours } from './helpers.js';
+import {
+  col,
+  getMarket,
+  lastPnl,
+  locationOf,
+  notify,
+  spendHours,
+  isEstablished,
+} from './helpers.js';
 import { account, transfer, transferUpTo } from './ledger.js';
 import { clamp, roundTo } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { findPlace, placeAccess } from './places.js';
-import { bankersOn } from './releases.js';
+import { bankersOn, feedbackOn } from './releases.js';
 import { deriveRng, hashString } from './rng.js';
 import { applyStarEvent } from './stars.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
@@ -273,7 +294,7 @@ function candidateFor(world: World, m: MarketState, key: string): Candidate | nu
 function candidates(world: World, p: Player, m: MarketState): Candidate[] {
   const out: Candidate[] = [];
   for (const c of Object.values(world.companies)) {
-    if (!c.ai || c.market !== m.id || c.status !== 'active') continue;
+    if (!c.ai || c.market !== m.id || c.status !== 'active' || isEstablished(c)) continue;
     if (c.founderIds.includes(p.id)) continue;
     const x = companyCandidate(world, c);
     if (x) out.push(x);
@@ -303,6 +324,12 @@ export interface MandateOffer {
   requested: boolean;
   /** Someone you met sent them your way. */
   lead: boolean;
+  /** How big the client is (what the deal is about). */
+  tier: ClientTier;
+  /** A referral: the client whose deal they heard about (FEEDBACK_NOTE). */
+  referredBy: string | null;
+  /** Met at this city event (FEEDBACK_NOTE). */
+  metAt: string | null;
 }
 
 const mandateId = (month: number, key: string, kind: MandateKind) => `md:${month}:${key}:${kind}`;
@@ -355,6 +382,67 @@ function feeFor(m: MarketState, kind: MandateKind, value: number, quality: numbe
   );
 }
 
+/** How big a client is, from what a typical deal with it is about. */
+function tierOf(
+  m: MarketState,
+  kind: MandateKind,
+  x: Pick<Candidate, 'revenue' | 'value'>,
+): ClientTier {
+  if (kind === 'ipo') return 'big';
+  const v = dealValue(m, { kind, revenue: x.revenue, value: x.value });
+  return v >= scale(col(m), REPUTATION.bigCol)
+    ? 'big'
+    : v >= scale(col(m), REPUTATION.midCol)
+      ? 'mid'
+      : 'small';
+}
+
+const tierRank = (t: ClientTier) => CLIENT_TIERS.indexOf(t);
+
+/**
+ * Your advisory reputation (FEEDBACK_NOTE): the mandates on your record
+ * (`BANKWORK.recordKept`, newest first) scored 0–100, read as a 1–5 star
+ * rating, and what it opens. `level` is 0 (small clients), 1 (mid-size
+ * open) or 2 (big clients open); it is 0 without the note, so nothing changes.
+ */
+export function advisoryReputation(world: World, p: Player) {
+  const on = feedbackOn(world);
+  const hist = p.bankwork?.history ?? [];
+  const scored = hist.length;
+  const avg = scored ? hist.reduce((a, d) => a + d.quality, 0) / scored : 0;
+  const rating = scored ? roundTo(1 + 4 * avg, 1) : null;
+  const great = hist.filter((d) => d.quality >= REPUTATION.great).length;
+  const big = great >= REPUTATION.bigGreat;
+  const mid = big || (scored >= REPUTATION.midScored && (rating ?? 0) >= REPUTATION.midStars);
+  const level = on ? (big ? 2 : mid ? 1 : 0) : 0;
+  // Rising or falling: the last three against the whole record.
+  const recent = hist.slice(0, 3);
+  const recentAvg = recent.length ? recent.reduce((a, d) => a + d.quality, 0) / recent.length : 0;
+  const trend: 'rising' | 'steady' | 'falling' | null =
+    scored < 2
+      ? null
+      : recentAvg > avg + 0.03
+        ? 'rising'
+        : recentAvg < avg - 0.03
+          ? 'falling'
+          : 'steady';
+  return {
+    on,
+    rating,
+    avgScore: Math.round(avg * 100),
+    scored,
+    great,
+    level,
+    trend,
+    /** Mandates more to score 80+ before big clients open. */
+    toBig: Math.max(0, REPUTATION.bigGreat - great),
+  };
+}
+
+/** Mandates you can hold at once: more with a good reputation (FEEDBACK_NOTE). */
+export const maxActiveFor = (world: World, p: Player) =>
+  BANKWORK.maxActive + advisoryReputation(world, p).level * REPUTATION.activePerLevel;
+
 const openRequests = (world: World, p: Player, m: MarketState) =>
   Object.values(world.players)
     .filter((q) => q.id !== p.id && !q.ai && q.bankwork?.requests?.length)
@@ -396,6 +484,9 @@ export function mandateOffers(world: World, p: Player): MandateOffer[] {
       hours: MANDATES[kind].hours,
       requested: false,
       lead: false,
+      tier: tierOf(m, kind, x),
+      referredBy: null,
+      metAt: null,
       ...extra,
     };
   };
@@ -427,7 +518,7 @@ export function mandateOffers(world: World, p: Player): MandateOffer[] {
       id,
     });
   }
-  // Leads from people you met (this month or last).
+  // Leads from people you met (this month or last), referrals among them.
   for (const l of w?.leads ?? []) {
     if (month - l.month > 1 || used.has(l.key)) continue;
     const x = candidateFor(world, m, l.key);
@@ -435,13 +526,19 @@ export function mandateOffers(world: World, p: Player): MandateOffer[] {
     const id = mandateId(month, l.key, l.kind);
     if (taken.has(id)) continue;
     used.add(l.key);
-    out.push(offer(x, l.kind, { lead: true }));
+    out.push(offer(x, l.kind, { lead: true, referredBy: l.from ?? null, metAt: l.at ?? null }));
   }
   // The city's clients, by hash: the month's desk is fixed, and what you take leaves it.
   const before =
     (w?.record.deals ?? 0) - (w?.history ?? []).filter((d) => d.month === month && d.closed).length;
-  const want = BANKWORK.offers + (before >= BANKWORK.offersBonusAfter ? 1 : 0);
-  const pairs = candidates(world, p, m)
+  // Reputation (FEEDBACK_NOTE): more mandates, and only the client sizes it has opened
+  // (then the next size up if those run short). Level 0 without the note: every size.
+  const rep = advisoryReputation(world, p);
+  const want =
+    BANKWORK.offers +
+    (before >= BANKWORK.offersBonusAfter ? 1 : 0) +
+    rep.level * REPUTATION.offersPerLevel;
+  const all = candidates(world, p, m)
     .flatMap((x) =>
       x.kinds.map((kind) => ({
         x,
@@ -450,6 +547,10 @@ export function mandateOffers(world: World, p: Player): MandateOffer[] {
       })),
     )
     .sort((a, b) => a.h - b.h || (a.x.client.key < b.x.client.key ? -1 : 1));
+  const rank = (c: (typeof all)[number]) => tierRank(tierOf(m, c.kind, c.x));
+  const pairs = rep.on
+    ? [...all.filter((c) => rank(c) <= rep.level), ...all.filter((c) => rank(c) === rep.level + 1)]
+    : all;
   const city: MandateOffer[] = [];
   const seen = new Set<string>();
   // A new banker's first desk always has a debt raise (the plainest mandate).
@@ -474,7 +575,7 @@ export function takeMandate(world: World, p: Player, id: string) {
   ensure(isBankerWorker(world, p), 'banker.only', 'Advisory work is for bankers.');
   const w = workOf(p);
   ensure(
-    w.active.length < BANKWORK.maxActive,
+    w.active.length < maxActiveFor(world, p),
     'banker.busy',
     'You hold all the mandates you can. Finish one first.',
   );
@@ -672,6 +773,9 @@ export function completeMandate(
   };
   w.history = [deal, ...w.history].slice(0, BANKWORK.recordKept);
   w.active = w.active.filter((x) => x.id !== id);
+  // Word gets round (FEEDBACK_NOTE): a deal scored 80+ brings another client by name.
+  const referral =
+    closed && quality >= REPUTATION.great && feedbackOn(world) ? referFrom(world, p, m, md) : null;
   // A human founder hears how it went, and good advice shows in the company's reputation.
   if (md.client.requestId && md.client.requesterId) {
     const q = world.players[md.client.requesterId];
@@ -699,11 +803,93 @@ export function completeMandate(
     deal: dealView(deal),
     stars,
     skills,
+    referral,
     currency: m.data.currency,
     message: closed
       ? `Deal closed for ${md.client.name}: ${formatMoney(fee, m.data.currency)} fee.`
       : `${md.client.name} walked away. No fee this time.`,
   };
+}
+
+/**
+ * A referral after a deal scored 80+ (FEEDBACK_NOTE): a client in the city
+ * who heard about it, one size up from the deal where there is one (word
+ * reaches bigger clients before your rating does), else the same size or
+ * any. Ranked by its own hash, so the pick is fixed. It joins your leads
+ * and comes to your desk by name this month and next.
+ */
+function referFrom(world: World, p: Player, m: MarketState, md: AdvisoryMandate) {
+  const w = workOf(p);
+  const skip = new Set([
+    md.client.key,
+    ...w.active.map((a) => a.client.key),
+    ...w.leads.map((l) => l.key),
+  ]);
+  const from = tierRank(tierOf(m, md.kind, md));
+  const pairs = candidates(world, p, m)
+    .filter((x) => !skip.has(x.client.key))
+    .flatMap((x) =>
+      x.kinds.map((kind) => ({
+        x,
+        kind,
+        rank: tierRank(tierOf(m, kind, x)),
+        h: hashString(`${world.seed}:referral:${p.id}:${md.id}:${x.client.key}:${kind}`),
+      })),
+    )
+    .sort((a, b) => a.h - b.h || (a.x.client.key < b.x.client.key ? -1 : 1));
+  const pick =
+    pairs.find((c) => c.rank === Math.min(2, from + 1)) ??
+    pairs.find((c) => c.rank >= from) ??
+    pairs[0];
+  if (!pick) return null;
+  const month = m.month;
+  w.leads = [
+    { key: pick.x.client.key, kind: pick.kind, month, from: md.client.name },
+    ...w.leads.filter((l) => l.key !== pick.x.client.key),
+  ].slice(0, 6);
+  notify(world, p.id, {
+    month,
+    kind: 'system',
+    text: `${pick.x.client.name} heard about your work for ${md.client.name}: ${MANDATES[pick.kind].label.toLowerCase()}. It’s on your advisory desk.`,
+  });
+  return {
+    client: pick.x.client.name,
+    from: md.client.name,
+    kind: pick.kind,
+    tier: CLIENT_TIERS[pick.rank]!,
+  };
+}
+
+/**
+ * A banker meets a client at one of the city's banking events (FEEDBACK_NOTE):
+ * a client of a size you've opened (or the next one up) wants an adviser. It
+ * joins your leads and comes to your desk this month and next. `salt` (the
+ * event id) fixes the pick. Null for anyone but a banker, or without the note.
+ */
+export function eventLead(world: World, p: Player, eventTitle: string, salt: string) {
+  if (!isBankerWorker(world, p) || !feedbackOn(world)) return null;
+  const w = workOf(p);
+  const m = getMarket(world, p.market);
+  const rep = advisoryReputation(world, p);
+  const skip = new Set([...w.active.map((a) => a.client.key), ...w.leads.map((l) => l.key)]);
+  const pick = candidates(world, p, m)
+    .filter((x) => !skip.has(x.client.key))
+    .flatMap((x) =>
+      x.kinds
+        .filter((kind) => tierRank(tierOf(m, kind, x)) <= rep.level + 1)
+        .map((kind) => ({
+          x,
+          kind,
+          h: hashString(`${world.seed}:event-lead:${p.id}:${salt}:${x.client.key}:${kind}`),
+        })),
+    )
+    .sort((a, b) => a.h - b.h || (a.x.client.key < b.x.client.key ? -1 : 1))[0];
+  if (!pick) return null;
+  w.leads = [
+    { key: pick.x.client.key, kind: pick.kind, month: m.month, at: eventTitle },
+    ...w.leads.filter((l) => l.key !== pick.x.client.key),
+  ].slice(0, 6);
+  return { client: pick.x.client.name, kind: pick.kind, label: MANDATES[pick.kind].label };
 }
 
 /** A founder asks the city's bankers for an adviser (`banker.request`). */
@@ -1098,7 +1284,14 @@ function meetClients(
       size: b.monthlyTakings,
     }));
   const founders: Met[] = Object.values(world.companies)
-    .filter((c) => c.ai && c.market === market && c.status === 'active' && !known.has(`c:${c.id}`))
+    .filter(
+      (c) =>
+        c.ai &&
+        c.market === market &&
+        c.status === 'active' &&
+        !isEstablished(c) &&
+        !known.has(`c:${c.id}`),
+    )
     .sort((a, b) => (a.id < b.id ? -1 : 1))
     .map((c) => ({
       key: `c:${c.id}`,
@@ -1353,6 +1546,48 @@ function dealView(d: AdvisoryDeal) {
   };
 }
 
+/**
+ * The reputation panel (FEEDBACK_NOTE; null without it): the rating, recent
+ * scores, and each client size with whether it's open, how many of this
+ * month's offers are that size, and the deal sizes it covers.
+ */
+function reputationView(world: World, p: Player) {
+  const rep = advisoryReputation(world, p);
+  if (!rep.on) return null;
+  const m = getMarket(world, p.market);
+  const offers = mandateOffers(world, p);
+  const midFrom = scale(col(m), REPUTATION.midCol);
+  const bigFrom = scale(col(m), REPUTATION.bigCol);
+  return {
+    rating: rep.rating,
+    avgScore: rep.avgScore,
+    scored: rep.scored,
+    great: rep.great,
+    level: rep.level,
+    trend: rep.trend,
+    toBig: rep.toBig,
+    bigGreat: REPUTATION.bigGreat,
+    midStars: REPUTATION.midStars,
+    recent: (p.bankwork?.history ?? []).slice(0, REPUTATION.recentShown).map((d) => ({
+      id: d.id,
+      client: d.client,
+      kind: d.kind,
+      label: MANDATES[d.kind].label,
+      score: Math.round(d.quality * 100),
+      closed: d.closed,
+      month: d.month,
+    })),
+    /** Each size: open, this month's offers of that size, and the deal sizes it covers. */
+    tiers: CLIENT_TIERS.map((id, i) => ({
+      id,
+      open: i <= rep.level,
+      offers: offers.filter((o) => o.tier === id).length,
+      from: [0, midFrom, bigFrom][i]!,
+      to: [midFrom, bigFrom, null][i] ?? null,
+    })),
+  };
+}
+
 /** Places and banks in the city you're in where a banker can talk, with what's on. */
 function venuesHere(world: World, p: Player, now: number) {
   const here = getMarket(world, locationOf(p));
@@ -1413,8 +1648,9 @@ export function bankWorkView(world: World, p: Player, now: number) {
     active: (w?.active ?? []).map((md) => mandateView(world, p, md)),
     history: (w?.history ?? []).slice(0, 6).map(dealView),
     record: advisoryRecord(world, p),
+    reputation: reputationView(world, p),
     caps: {
-      maxActive: BANKWORK.maxActive,
+      maxActive: maxActiveFor(world, p),
       perMonth: BANKWORK.perMonth,
       doneThisMonth: (w?.history ?? []).filter((d) => d.month === month).length,
       talksPerMonth: BANKWORK.talksPerMonth,

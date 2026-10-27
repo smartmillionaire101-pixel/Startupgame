@@ -5,6 +5,8 @@
  * conversations (lessons, recruits, clients waiting, an interbank credit
  * line, the listing goal), and the meetings a banker can take inside an AI
  * bank or a city place (`BankerTalks`, and a tray action for the scene).
+ * Feedback note: your reputation (rating, recent scores), referrals from
+ * clients who heard about your work, and the client sizes it has opened.
  */
 import { useState } from 'react';
 import type { Command, PlayerView } from '@runway/engine';
@@ -20,6 +22,7 @@ type Offer = BankerWorkView['offers'][number];
 type Active = BankerWorkView['active'][number];
 type Deal = BankerWorkView['history'][number];
 type Venue = BankerWorkView['venues'][number];
+type Reputation = NonNullable<BankerWorkView['reputation']>;
 
 const cmd = (c: Record<string, unknown> & { type: string }) => c as unknown as Command;
 
@@ -65,7 +68,14 @@ export function BankWork() {
   if (!bw) return null;
   return (
     <section className="stack bw" data-bankwork="">
+      {bw.reputation && <ReputationCard rep={bw.reputation} />}
+      {bw.offers
+        .filter((o) => o.referredBy)
+        .map((o) => (
+          <ReferralCard key={o.id} o={o} bw={bw} />
+        ))}
       <AdvisoryDesk bw={bw} />
+      {bw.reputation && <ClientSizes rep={bw.reputation} cur={bw.currency} />}
       {result && <DealResult deal={result} cur={bw.currency} onClose={() => setResult(null)} />}
       {bw.active.map((a) => (
         <MandateFlow key={a.id} m={a} cur={bw.currency} onDone={setResult} />
@@ -80,6 +90,8 @@ function AdvisoryDesk({ bw }: { bw: BankerWorkView }) {
   const { send, busy } = useView();
   const cur = bw.currency;
   const full = bw.active.length >= bw.caps.maxActive;
+  // Referrals have their own card above the desk.
+  const offers = bw.offers.filter((o) => !o.referredBy);
   return (
     <Card
       title={t('Advisory desk')}
@@ -97,11 +109,11 @@ function AdvisoryDesk({ bw }: { bw: BankerWorkView }) {
               'Companies in the city want an adviser. While your licence is pending, success fees are paid to you.',
             )}
       </p>
-      {bw.offers.length === 0 ? (
+      {offers.length === 0 ? (
         <Empty>{t('No more mandates this month. New clients come next month.')}</Empty>
       ) : (
         <ul className="list bw-offers">
-          {bw.offers.map((o) => (
+          {offers.map((o) => (
             <OfferRow
               key={o.id}
               o={o}
@@ -149,7 +161,8 @@ function OfferRow({
         </span>
         <div className="small">
           {tx(mandateLabel(o.kind))} {o.requested && <Pill tone="info">{t('Asked for you')}</Pill>}
-          {o.lead && <Pill tone="good">{t('Lead from someone you met')}</Pill>}
+          {o.lead && !o.metAt && <Pill tone="good">{t('Lead from someone you met')}</Pill>}
+          {o.metAt && <Pill tone="good">{t('Met at {event}', { event: tx(o.metAt) })}</Pill>}
         </div>
         <div className="small muted">
           <Pill tone={bandTone(o.band)}>{bandText(o.band)}</Pill> {shapeText(o.shape)} ·{' '}
@@ -160,6 +173,201 @@ function OfferRow({
         {t('Take it')}
       </Button>
     </li>
+  );
+}
+
+// ---------------------------------------------------------------- reputation (feedback note)
+
+const trendText = (tr: string | null) =>
+  tr === 'rising'
+    ? t('Rising')
+    : tr === 'falling'
+      ? t('Falling')
+      : tr === 'steady'
+        ? t('Holding steady')
+        : null;
+
+/** 1–5 stars, rounded to the nearest whole star. */
+function StarRow({ rating }: { rating: number }) {
+  const n = Math.round(rating);
+  return (
+    <span className="bw-stars" aria-hidden="true">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <span key={i} className={i <= n ? 'is-on' : ''}>
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Your reputation: the rating your scored mandates add up to, and the latest scores. */
+function ReputationCard({ rep }: { rep: Reputation }) {
+  const trend = trendText(rep.trend);
+  return (
+    <Card
+      title={t('Your reputation')}
+      action={trend ? <Pill tone={rep.trend === 'falling' ? 'warn' : 'good'}>{trend}</Pill> : null}
+      className="bw-rep"
+    >
+      <div data-reputation={rep.rating ?? 'none'} data-level={rep.level}>
+        {rep.rating === null ? (
+          <p className="small muted">
+            {t(
+              'Clients score each mandate out of 100. Hand in your first one to get a rating: good scores bring bigger clients and referrals.',
+            )}
+          </p>
+        ) : (
+          <>
+            <div className="bw-rating">
+              <strong>{rep.rating.toFixed(1)}</strong>
+              <span className="small muted">{t('of 5')}</span>
+            </div>
+            <StarRow rating={rep.rating} />
+            <p className="small">
+              {t('Average score {score} across {n} mandates', {
+                score: rep.avgScore,
+                n: rep.scored,
+              })}
+              <br />
+              <span className="muted">
+                {t('Clients rate the price, the speed and your advice')}
+              </span>
+            </p>
+            <ul className="list small bw-scores">
+              {rep.recent.map((d) => (
+                <li key={d.id} data-score={d.score}>
+                  <span
+                    className={`bw-score${d.score >= 80 ? ' is-great' : d.score < 55 ? ' is-low' : ''}`}
+                  >
+                    {d.score}
+                  </span>{' '}
+                  <b>{d.client}</b> · {tx(d.label)} · {t('M{n}', { n: d.month })}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/** A client who heard about your work and came to your desk by name. */
+function ReferralCard({ o, bw }: { o: Offer; bw: BankerWorkView }) {
+  const { send, busy } = useView();
+  const full = bw.active.length >= bw.caps.maxActive;
+  return (
+    <Card title={`🤝 ${t('Referral')}`} action={<Pill tone="good">{t('New')}</Pill>} tone="good">
+      <div data-referral={o.id}>
+        <p>
+          {t('{client} heard about your work for {from}.', {
+            client: o.client.name,
+            from: o.referredBy ?? '',
+          })}
+        </p>
+        <ul className="list small">
+          <li className="spread">
+            <span className="muted">{t('Mandate')}</span>
+            <b>{tx(mandateLabel(o.kind))}</b>
+          </li>
+          <li className="spread">
+            <span className="muted">{t('Your fee')}</span>
+            <b>{t('about {fee}', { fee: money(o.estFee, bw.currency) })}</b>
+          </li>
+          <li className="spread">
+            <span className="muted">{t('Time it takes')}</span>
+            <b>{t('{h}h of your time', { h: o.hours })}</b>
+          </li>
+        </ul>
+        <div className="row bw-nav">
+          <Button
+            disabled={busy || full}
+            data-take-mandate={o.id}
+            onClick={() =>
+              void send(
+                cmd({ type: 'banker.mandate', action: 'take', mandateId: o.id }),
+                t('Mandate taken: {client}.', { client: o.client.name }),
+              )
+            }
+          >
+            {t('Take the mandate')}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+const tierText = (id: string) =>
+  ({ small: t('Small companies'), mid: t('Mid-size companies'), big: t('Big clients') })[id] ?? id;
+
+/** The client sizes: open to you, unlocked by your rating, or what opens them. */
+function ClientSizes({ rep, cur }: { rep: Reputation; cur: string }) {
+  return (
+    <Card title={t('Mandates you can win')}>
+      <ul className="list bw-tiers">
+        {rep.tiers.map((tier) => {
+          const range =
+            tier.id === 'small'
+              ? t('Deals up to {to}', { to: money(tier.to ?? 0, cur) })
+              : tier.id === 'mid'
+                ? t('Deals {from}–{to}', {
+                    from: money(tier.from, cur),
+                    to: money(tier.to ?? 0, cur),
+                  })
+                : t('Listings, deals over {from}', { from: money(tier.from, cur) });
+          return (
+            <li
+              key={tier.id}
+              className={`bw-tier${tier.open ? '' : ' is-locked'}`}
+              data-tier={tier.id}
+              data-open={tier.open ? 'true' : 'false'}
+            >
+              <span className="bw-icon" aria-hidden="true">
+                {tier.open ? (tier.id === 'small' ? '🟢' : '🔓') : '🔒'}
+              </span>
+              <div className="grow">
+                <strong>{tierText(tier.id)}</strong>{' '}
+                {tier.open && tier.id !== 'small' && <Pill tone="warn">{t('Unlocked')}</Pill>}
+                <div className="small muted">
+                  {range}
+                  {tier.id === 'small' && ` · ${t('open to you')}`}
+                  {tier.id === 'mid' &&
+                    !tier.open &&
+                    ` · ${t('opens at {n}★', { n: rep.midStars })}`}
+                </div>
+                {tier.id === 'big' && !tier.open && (
+                  <>
+                    <p className="small" data-to-big={rep.toBig}>
+                      <b>
+                        {rep.toBig === 1
+                          ? t('Score 80+ on one more mandate to unlock bigger clients.')
+                          : t('Score 80+ on {n} more mandates to unlock bigger clients.', {
+                              n: rep.toBig,
+                            })}
+                      </b>
+                    </p>
+                    <div className="bw-progress" aria-hidden="true">
+                      <span style={{ width: `${(100 * rep.great) / rep.bigGreat}%` }} />
+                    </div>
+                    <div className="small muted">
+                      {t('{n} of {total} mandates at 80+', {
+                        n: rep.great,
+                        total: rep.bigGreat,
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+              {tier.open && tier.offers > 0 && (
+                <Pill tone="good">{t('{n} open', { n: tier.offers })}</Pill>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }
 

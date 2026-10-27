@@ -43,8 +43,7 @@ const fee = (w: World, cat: keyof typeof DELIVERY_TERMS, price: number, express 
   deliveryFee(cat, price, shopOf(w)!.delivery[cat]!.minFee, express ? 'express' : 'standard');
 
 describe('the shop note', () => {
-  it('is the newest note, after the bankers', () => {
-    expect(RELEASES.at(-1)).toBe(SHOP_NOTE);
+  it('comes right after the bankers', () => {
     expect(RELEASES.indexOf(SHOP_NOTE)).toBe(RELEASES.indexOf(BANKERS_NOTE) + 1);
     expect(shopOn({ announcements: [SHOP_NOTE] } as unknown as World)).toBe(true);
     expect(shopOn({ announcements: [BANKERS_NOTE] } as unknown as World)).toBe(false);

@@ -86,9 +86,13 @@ function model(s: ThumbSpec): THREE.Object3D {
   return m.group;
 }
 
-/** A picture of the thing (a PNG data URL), or null when WebGL isn't there. */
-export function renderThumb(s: ThumbSpec): string | null {
-  const k = keyOf(s);
+/**
+ * A picture of the thing (a PNG data URL), or null when WebGL isn't there.
+ * scripts/furniture-thumbs.ts renders the catalogue's pictures with this
+ * too (as WebP, into public/thumbs/), so the shipped ones match.
+ */
+export function renderThumb(s: ThumbSpec, type = 'image/png', quality?: number): string | null {
+  const k = `${keyOf(s)}:${type}`;
   const hit = cache.get(k);
   if (hit) return hit;
   const g = setup();
@@ -104,7 +108,7 @@ export function renderThumb(s: ThumbSpec): string | null {
   g.camera.lookAt(centre);
   g.renderer.setClearColor(0x000000, 0);
   g.renderer.render(g.scene, g.camera);
-  const url = g.renderer.domElement.toDataURL('image/png');
+  const url = g.renderer.domElement.toDataURL(type, quality);
   g.scene.remove(obj);
   obj.traverse((o) => {
     const m = o as THREE.Mesh;

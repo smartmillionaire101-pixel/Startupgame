@@ -57,6 +57,16 @@ import {
 } from './credit.js';
 import { requestCompanyProductLoan, requestFounderProductLoan } from './capital.js';
 import {
+  DECLINE_REASON_TEXT,
+  attachApplication,
+  decideStartupLoan,
+  filePlan as fileSetupPlan,
+  isStartupProduct,
+  leaseOffice,
+  registerCompany,
+  setupNext,
+} from './setup.js';
+import {
   bookFlight,
   cancelFlight,
   fly,
@@ -69,6 +79,8 @@ import {
 } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { advanceDeal, dropDeal, prospect } from './sales.js';
+import { salesTalk } from './salestalk.js';
+import { askInterview, leaveInterview, startInterview } from './customer-interviews.js';
 import { chooseDecision } from './decisions.js';
 import {
   acceptSecondary,
@@ -140,6 +152,7 @@ import {
 import {
   bankersOn,
   exitsOn,
+  feedbackOn,
   investorOn,
   jobsOn,
   lifeBarsOn,
@@ -168,6 +181,7 @@ import {
   withdrawBank,
 } from './bankers.js';
 import { bookAppointment, useService } from './places.js';
+import { doErrand } from './errands.js';
 import {
   bankerTalk,
   completeMandate,
@@ -178,10 +192,12 @@ import {
   withdrawRequest,
 } from './bankwork.js';
 import { bookAir, endFlight, ensureGameVenues, landJump } from './games.js';
-import { applyForJob, attendInterview, ensureEmployers } from './work.js';
+import { applyForJob, attendInterview, ensureEmployers, studyBrief } from './work.js';
+import { answerTask } from './jobtasks.js';
 import { golfRound, mallBuy } from './leisure.js';
 import { mallTripCommand } from './malltrips.js';
 import { wardrobeRemove, wardrobeWear } from './wardrobe.js';
+import { dressForRole } from './outfits.js';
 import { MALL_TRIP } from './data/leisure.js';
 import {
   HOME_ACT_BARS,
@@ -215,7 +231,8 @@ import {
   venueBuy,
 } from './economy.js';
 import { buyCar, buyFurniture, sellCar } from './shop.js';
-import { foodOrder, homeAct, homeInvite } from './needs.js';
+import { foodOrder, homeAct, homeInvite, moodOf, needsOf } from './needs.js';
+import { actBoost, buyExtra, homeFinish, sellExtra } from './homestyle.js';
 import { removeContact, saveContact } from './people.js';
 import {
   acceptVisit,
@@ -300,6 +317,7 @@ import {
   setHibernation,
 } from './rescue.js';
 import { createCompany, createPlayer, openMarket, setCogs, welcomeNewPlayer } from './world.js';
+import { scoreFirstCall, scoreScreen, scoreTerms } from './investorguide.js';
 import type { DealTerms, Id, PartyRef, Player, World } from './types.js';
 import type { MarketId } from './data/markets.js';
 import {
@@ -439,7 +457,12 @@ function foundCompany(
     'company.limit',
     'Two ventures at once is the limit; your hours are already split.',
   );
-  const c = createCompany(world, { founderId: me.id, ...setup });
+  // Feedback note: the founder setup (register, fund, plan, office) before any money moves.
+  const c = createCompany(world, {
+    founderId: me.id,
+    ...setup,
+    ...(feedbackOn(world) ? { setup: true } : {}),
+  });
   if (me.failures > 0) achieve(world, me, 'any.comeback', 'First comeback after failure', month);
   if (me.role === 'investor') achieve(world, me, 'any.role-switch', 'First role switch', month);
   welcomeNewPlayer(world, me, c.id);
@@ -518,6 +541,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       now: ctx.now,
     });
     if (cmd.gender) p.gender = cmd.gender;
+    // The feedback round: a new player starts dressed for their role.
+    dressForRole(world, p, getMarket(world, market).month, ctx.now);
     if (cmd.role === 'investor') {
       const bg = backgroundById(backgroundId)!;
       p.investor = {
@@ -630,6 +655,13 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         discovery: c.product.discovery[seg.key],
       };
     }
+    // Unknown until the feedback note: old worlds keep the one-click discovery.
+    case 'company.interview':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      if (cmd.action === 'start')
+        return startInterview(world, me, cmd.companyId, cmd.segmentKey ?? '');
+      if (cmd.action === 'leave') return leaveInterview(world, me, cmd.companyId);
+      return askInterview(world, me, cmd.companyId, cmd.questionId ?? '');
     case 'company.build': {
       const c = touch(cmd.companyId);
       ensure(!c.hibernation, 'build.hibernating', 'The product is frozen while you hibernate.');
@@ -740,8 +772,9 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
           'loan.bank',
           'Pick a licensed bank in your market.',
         );
+        // Founder setup: a startup loan application, with its plan, to any bank that lends to companies.
         ensure(
-          bank.type !== 'venture-debt' || c.lastRound !== null,
+          bank.type !== 'venture-debt' || c.lastRound !== null || !!c.setup,
           'loan.bank',
           'Venture debt is for startups that have raised equity.',
         );
@@ -758,6 +791,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
           },
           by: me.id,
         });
+        if (c.setup) attachApplication(world, me, c, deal);
         return { dealId: deal.id, message: `Request sent to ${bank.name}.` };
       }
       if (cmd.lenderId || cmd.productId) {
@@ -766,6 +800,16 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
           'loan.product',
           'Pick a lender and one of its loans.',
         );
+        // Founder setup: a startup loan to the company, decided on the plan.
+        const product = m.lenders?.[cmd.lenderId!]?.products.find((x) => x.id === cmd.productId);
+        if (c.setup && product && isStartupProduct(product))
+          return decideStartupLoan(world, me, c, {
+            lenderId: cmd.lenderId!,
+            productId: cmd.productId!,
+            amount: cmd.amount,
+            months: cmd.months,
+            personalGuarantee: cmd.personalGuarantee,
+          });
         return requestCompanyProductLoan(world, c, me, {
           lenderId: cmd.lenderId!,
           productId: cmd.productId!,
@@ -858,6 +902,22 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     }
     case 'company.found':
       return foundCompany(world, me, cmd.company, month);
+    case 'company.setup': {
+      const c = touch(cmd.companyId);
+      if (cmd.action === 'register') {
+        ensure(cmd.incorporation, 'setup.type', 'Pick a company type.');
+        return registerCompany(world, me, c, cmd.incorporation);
+      }
+      if (cmd.action === 'plan') {
+        ensure(cmd.plan, 'setup.plan', 'Fill in the plan.');
+        return fileSetupPlan(world, me, c, cmd.plan);
+      }
+      if (cmd.action === 'office') {
+        ensure(cmd.officeId, 'setup.office', 'Pick an office.');
+        return leaseOffice(world, me, c, cmd.officeId);
+      }
+      return setupNext(world, c, cmd.action === 'next' ? 'office' : 'fund');
+    }
     case 'company.start': {
       ensure(
         serialEligible(world, me),
@@ -934,6 +994,11 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       if (d.companyId && world.companies[d.companyId]?.founderIds.includes(me.id))
         world.companies[d.companyId]!.lastDecisionMonth = month;
       const out = actOnDeal(world, cmd.dealId, mine, me.id, act);
+      // Founder setup: a banker says why a startup loan application was declined.
+      if (cmd.reason && out.application && out.status === 'declined') {
+        out.application.declineReason = cmd.reason;
+        out.history.at(-1)!.summary = `Declined: ${DECLINE_REASON_TEXT[cmd.reason]}.`;
+      }
       return { dealId: out.id, status: out.status, summary: out.summary };
     }
     case 'deal.choose': {
@@ -945,6 +1010,15 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     // ------------------------------------------------------------ investor
     case 'invest.propose': {
       spendHours(me, 2, 'Writing a term sheet');
+      // Feedback round: the price and the cheque scored before the founder answers.
+      const calls = scoreTerms(
+        world,
+        me,
+        getCompany(world, cmd.companyId),
+        cmd.amount,
+        cmd.valuation,
+        !(cmd.fromFund && (cmd.fundId ?? me.investor?.fundId)),
+      );
       const deal = proposeInvestment(world, {
         investorId: me.id,
         companyId: cmd.companyId,
@@ -960,7 +1034,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         },
       });
       me.skills.investing = Math.min(100, me.skills.investing + 0.5);
-      return { dealId: deal.id, status: deal.status, summary: deal.summary };
+      return {
+        dealId: deal.id,
+        status: deal.status,
+        summary: deal.summary,
+        ...(calls.length ? { calls } : {}),
+      };
     }
     case 'invest.diligence': {
       const c = getCompany(world, cmd.companyId);
@@ -981,7 +1060,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       me.diligence[c.id] = cmd.depth;
       me.skills.investing = Math.min(100, me.skills.investing + 1);
       me.skills.risk = Math.min(100, me.skills.risk + 0.5);
+      // Feedback round: taking the call is a screening decision, and what you ask first is scored.
+      const screen = cmd.depth === 1 ? scoreScreen(world, me, c, 'call') : null;
+      const call = cmd.depth === 1 && cmd.ask ? scoreFirstCall(world, me, c, cmd.ask) : null;
       return {
+        ...(screen ? { screen } : {}),
+        ...(call ? { call } : {}),
         message:
           cmd.depth === 1
             ? 'First call done: revenue, customers and burn unlocked.'
@@ -1305,6 +1389,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         cmd.flight,
         cmd.cabin,
         cmd.returnCabin,
+        cmd.hotelId,
       );
     case 'travel.cancel':
       return cancelFlight(world, me);
@@ -1394,8 +1479,14 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return pipelineAdd(world, me, cmd.companyId, !!cmd.watch);
     case 'pipeline.watch':
       return pipelineWatch(world, me, cmd.companyId, cmd.on);
-    case 'pipeline.pass':
-      return pipelinePass(world, me, cmd.companyId, cmd.reason);
+    case 'pipeline.pass': {
+      // Feedback round: the pass and its reason scored against the company's numbers.
+      const screen = scoreScreen(world, me, getCompany(world, cmd.companyId), cmd.reason);
+      return {
+        ...pipelinePass(world, me, cmd.companyId, cmd.reason),
+        ...(screen ? { screen } : {}),
+      };
+    }
     case 'diligence.claim':
       return checkClaim(world, me, cmd.companyId, cmd.questionId);
     case 'diligence.references':
@@ -1472,6 +1563,9 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return advanceDeal(world, me, cmd);
     case 'sales.drop':
       return dropDeal(world, me, cmd.dealId, cmd.companyId);
+    case 'sales.talk':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return salesTalk(world, me, cmd);
     case 'company.expense':
       return payExpense(world, me, cmd.companyId, cmd.item);
     case 'business.pitch':
@@ -1489,6 +1583,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return applyForJob(world, me, cmd.businessId, cmd.level);
     case 'job.interview':
       return attendInterview(world, me, cmd.applicationId, cmd.answers);
+    // Unknown until the feedback note: old worlds replay as before.
+    case 'job.study':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return studyBrief(world, me, cmd.applicationId);
+    case 'job.task':
+      return answerTask(world, me, cmd.taskId, cmd.answer);
     case 'home.order': {
       // Shop note: catalogue options, and ordering online (a fee, a wait).
       if ((cmd.options || cmd.delivery) && !shopOn(world))
@@ -1529,6 +1629,16 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'home.wall.remove':
       if (!shopOn(world)) return fail('command.unknown', 'Unknown command.');
       return removeWall(world, me, cmd.wallId, !!cmd.sell);
+    case 'home.finish':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return homeFinish(world, me, cmd.surface, cmd.finish, cmd.floor, cmd.room);
+    // Player feedback: more than one of a thing. Unknown before the note.
+    case 'home.extra.buy':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return buyExtra(world, me, cmd.itemId);
+    case 'home.extra.sell':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return sellExtra(world, me, cmd.extraId);
     case 'home.room.label':
       if (!shopOn(world)) return fail('command.unknown', 'Unknown command.');
       return labelRoom(me, cmd.floor, cmd.x, cmd.y, cmd.label);
@@ -1546,10 +1656,25 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'car.sell':
       return sellCar(world, me);
     // ------------------------------------------------------------ life at home (Wave 7)
-    case 'home.act':
-      return homeAct(world, me, cmd.act);
-    case 'home.invite':
-      return homeInvite(world, me, cmd.personId);
+    case 'home.act': {
+      const done = homeAct(world, me, cmd.act);
+      if (!feedbackOn(world)) return done;
+      // The feedback round: what you own makes the act count for more.
+      const boost = actBoost(world, me, cmd.act);
+      return {
+        ...done,
+        boost,
+        needs: needsOf(me),
+        mood: moodOf(me),
+        energy: Math.round(me.energy),
+      };
+    }
+    case 'home.invite': {
+      const done = homeInvite(world, me, cmd.personId);
+      if (!feedbackOn(world)) return done;
+      const boost = actBoost(world, me, 'invite');
+      return { ...done, boost, needs: needsOf(me), mood: moodOf(me) };
+    }
     case 'food.order': {
       const before = me.needs?.hunger ?? 70;
       const result = foodOrder(world, me, cmd.businessId, cmd.itemId);
@@ -1620,9 +1745,13 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         me,
         cmd.placeId,
         cmd.service,
-        { companyId: cmd.companyId, to: cmd.to },
+        { companyId: cmd.companyId, to: cmd.to, vote: cmd.vote },
         ctx.now,
       );
+    // Unknown until the feedback note: old worlds replay as before.
+    case 'errand.do':
+      if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
+      return doErrand(world, me, cmd.at, cmd.errand, { item: cmd.item, focus: cmd.focus }, ctx.now);
     // ------------------------------------------------------------ banker work
     // Unknown until the bankers release note: old worlds replay as before.
     case 'banker.mandate':
@@ -1839,6 +1968,8 @@ const WORK_COMMANDS: ReadonlySet<Command['type']> = new Set([
   'player.gig',
   'gig.take',
   'sales.advance',
+  'sales.talk',
+  'company.interview',
   'pitch.start',
   'business.pitch',
   'pitch.angel',
@@ -1935,6 +2066,8 @@ function createFromOnboarding(
     now,
     ...(cmd.gender ? { gender: cmd.gender } : {}),
   });
+  // The feedback round: a new player starts dressed for their role.
+  dressForRole(world, p, getMarket(world, p.market).month, now);
   let companyId: Id | null = null;
   if (cmd.role === 'founder' && cmd.company) {
     companyId = createCompany(world, { founderId: p.id, ...cmd.company }).id;

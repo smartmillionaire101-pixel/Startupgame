@@ -28,14 +28,12 @@ import type { CamMode, GolfFrame } from './frame';
 import {
   CLUBS,
   LIE_CARRY,
-  POWER_MAX,
   PUTTER,
   clubFor,
   defaultAim,
   dist,
   flightAt,
   holeGeo,
-  powerZone,
   rollAt,
   scoreName,
   type Club,
@@ -43,7 +41,18 @@ import {
   type Pt2,
 } from './game';
 import { isMatch, shotOf, shotTiming, vsParOf, type MatchRoom, type MatchShot } from './match';
-import { LIE_WORD, Mark, MiniMap, PowerBar, powerAt, vsParText } from './parts';
+import {
+  ClubColumn,
+  LIE_WORD,
+  Mark,
+  MiniMap,
+  PowerMeter,
+  PowerRead,
+  ShotControls,
+  paintPower,
+  powerAt,
+  vsParText,
+} from './parts';
 
 const Golf3D = lazy(() =>
   import('../../interiors3d/Golf3D').catch(() => ({ default: () => null })),
@@ -235,31 +244,7 @@ function Match(props: Props & { room: MatchRoom }) {
       }
       const ph = phaseRef.current;
       if (ph.phase === 'charging') {
-        const power = powerAt(at - ph.t0, ph.club === PUTTER);
-        const zone = powerZone(power);
-        const n = Math.round(power);
-        if (meterRef.current) {
-          meterRef.current.style.setProperty('--power', `${(power / POWER_MAX) * 100}%`);
-          meterRef.current.dataset.power = String(n);
-          meterRef.current.dataset.zone = zone;
-        }
-        const read = readRef.current;
-        if (read && read.dataset.power !== String(n)) {
-          read.dataset.power = String(n);
-          read.dataset.zone = zone;
-          read.firstElementChild!.textContent =
-            zone === 'sweet'
-              ? t('{n}% · Sweet!', { n })
-              : zone === 'lunge'
-                ? t('{n}% · Lunge!', { n })
-                : t('{n}%', { n });
-          read.lastElementChild!.textContent =
-            zone === 'sweet'
-              ? t('Let go now')
-              : zone === 'lunge'
-                ? t('Too much: it’ll fly wild')
-                : t('Keep holding…');
-        }
+        paintPower(meterRef.current, readRef.current, powerAt(at - ph.t0, ph.club === PUTTER));
       }
     };
     raf = requestAnimationFrame(loop);
@@ -552,7 +537,7 @@ function Match(props: Props & { room: MatchRoom }) {
 
   return (
     <div
-      className="place-scene golf-scene golf-match-scene"
+      className={`place-scene golf-scene golf-match-scene${room.status === 'playing' ? ' is-play' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label={props.title}
@@ -573,12 +558,22 @@ function Match(props: Props & { room: MatchRoom }) {
                 {playerCard(other, first(otherName))}
               </div>
               <div className="golf-mhud-row">
-                <span className="golf-pot" data-golf-pot={pot}>
-                  💰 {t('Pot {pot}', { pot: money(pot, cur) })}
-                </span>
-                <span className="golf-clock" data-golf-clock={Math.ceil(left / 1000)}>
-                  ⏱ {clock(left)}
-                </span>
+                <div className="golf-mhud-side">
+                  <span className="golf-pot" data-golf-pot={pot}>
+                    💰 {t('Pot {pot}', { pot: money(pot, cur) })}
+                  </span>
+                  <span className="golf-clock" data-golf-clock={Math.ceil(left / 1000)}>
+                    ⏱ {clock(left)}
+                  </span>
+                  <MiniCard
+                    pars={pars}
+                    hole={hole}
+                    rows={[
+                      { name: t('You'), card: youCard, me: true },
+                      { name: first(otherName), card: otherCard, me: false },
+                    ]}
+                  />
+                </div>
                 <MiniMap
                   g={g}
                   ball={ball}
@@ -597,42 +592,103 @@ function Match(props: Props & { room: MatchRoom }) {
                 />
               </div>
             </div>
-            {!animating && phase !== 'charging' && (
-              <div className="golf-shot golf-turn-card" role="status" data-golf-turn-card="">
-                <span className="golf-kicker">
-                  {myTurn
-                    ? club === PUTTER
-                      ? t('Your putt')
-                      : t('Your shot')
-                    : t('{name}’s shot', { name: turnName })}
-                </span>
-                <b>
-                  {myTurn
-                    ? lie === 'green'
-                      ? t('Hole it for {score}', {
-                          score: tx(scoreName((mine?.strokes ?? 0) + 1, pars[hole]!)).replace(
-                            /!$/,
-                            '',
-                          ),
-                        })
-                      : t('{m} m to the pin · {lie}', {
-                          m: Math.round(dist(ball, g.pin)),
-                          lie: LIE_WORD[lie](),
-                        })
-                    : room.ai.includes(room.turn ?? '')
-                      ? t('{name} is lining it up…', { name: turnName })
-                      : t('{name} is playing', { name: turnName })}
-                </b>
-                <span>
-                  {myTurn
-                    ? t('{name} is watching · {time} left for your shot', {
-                        name: first(otherName),
-                        time: clock(left),
-                      })
-                    : t('{time} on their clock', { time: clock(left) })}
-                </span>
-              </div>
-            )}
+            <div className="golf-tray" role="group" aria-label={t('Your shot')}>
+              {myTurn && (
+                <ClubColumn
+                  pool={pool}
+                  club={club}
+                  lie={lie}
+                  disabled={!canSwing || club === PUTTER}
+                  onPick={(c) => setSel({ ...choice, club: c, aimOff: 0 })}
+                />
+              )}
+              <ShotControls
+                canAim={canSwing}
+                onAim={nudge}
+                meter={
+                  <PowerMeter
+                    key={`${hole}:${mine?.strokes ?? 0}`}
+                    meterRef={meterRef}
+                    need={myTurn ? need : null}
+                    lie={lie}
+                  />
+                }
+                swing={{
+                  disabled: !(canSwing || phase === 'charging'),
+                  label:
+                    phase === 'charging'
+                      ? t('Let go to hit')
+                      : club === PUTTER
+                        ? t('Hold to putt')
+                        : t('Hold to swing'),
+                  big: phase === 'charging' ? t('Let go') : myTurn ? t('Hold') : t('Wait'),
+                  small:
+                    phase === 'charging'
+                      ? t('to hit')
+                      : !myTurn
+                        ? t('their shot')
+                        : club === PUTTER
+                          ? t('to putt')
+                          : t('to swing'),
+                  onDown: startSwing,
+                  onUp: () => void release(),
+                  onCancel: abort,
+                }}
+                mid={
+                  phase === 'charging' ? (
+                    <PowerRead readRef={readRef} />
+                  ) : animating ? null : (
+                    <>
+                      <div className="golf-turn-card" role="status" data-golf-turn-card="">
+                        <span className="golf-kicker">
+                          {myTurn
+                            ? club === PUTTER
+                              ? t('Your putt')
+                              : t('Your shot')
+                            : t('{name}’s shot', { name: turnName })}
+                        </span>
+                        <b>
+                          {myTurn
+                            ? lie === 'green'
+                              ? t('Hole it for {score}', {
+                                  score: tx(
+                                    scoreName((mine?.strokes ?? 0) + 1, pars[hole]!),
+                                  ).replace(/!$/, ''),
+                                })
+                              : t('{m} m to the pin · {lie}', {
+                                  m: Math.round(dist(ball, g.pin)),
+                                  lie: LIE_WORD[lie](),
+                                })
+                            : room.ai.includes(room.turn ?? '')
+                              ? t('{name} is lining it up…', { name: turnName })
+                              : t('{name} is playing', { name: turnName })}
+                        </b>
+                        <span>
+                          {myTurn
+                            ? t('{name} is watching · {time} left for your shot', {
+                                name: first(otherName),
+                                time: clock(left),
+                              })
+                            : t('{time} on their clock', { time: clock(left) })}
+                        </span>
+                      </div>
+                      {myTurn && (
+                        <button
+                          type="button"
+                          className="golf-pickup"
+                          data-action="golf-pickup"
+                          title={t('Pick up = par + {n}', { n: 3 })}
+                          disabled={!canSwing || (mine?.strokes ?? 0) === 0}
+                          onClick={pickUp}
+                        >
+                          {t('Pick up')} ›
+                        </button>
+                      )}
+                    </>
+                  )
+                }
+              />
+            </div>
           </>
         )}
         {room.status === 'waiting' && (
@@ -704,124 +760,6 @@ function Match(props: Props & { room: MatchRoom }) {
           />
         )}
       </div>
-      {room.status === 'playing' && (
-        <div className="golf-tray" role="group" aria-label={t('Your shot')}>
-          {myTurn && (
-            <div className="golf-clubs" role="group" aria-label={t('Clubs')}>
-              {pool.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="golf-club"
-                  data-action="golf-club"
-                  data-club={c.id}
-                  aria-pressed={c.id === club.id}
-                  disabled={!canSwing || club === PUTTER}
-                  onClick={() => setSel({ ...choice, club: c, aimOff: 0 })}
-                >
-                  <b>{tx(c.label)}</b>
-                  <span>
-                    {c === PUTTER
-                      ? t('On the green')
-                      : t('{m} m', { m: Math.round(c.carry * LIE_CARRY[lie]) })}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          <PowerBar
-            meterRef={meterRef}
-            readRef={readRef}
-            charging={phase === 'charging'}
-            need={myTurn ? need : null}
-            lie={lie}
-            hint={t('Let go in the green')}
-          />
-          <div className="golf-swingrow">
-            <button
-              type="button"
-              className="golf-aim"
-              aria-label={t('Aim left')}
-              data-action="golf-left"
-              disabled={!canSwing}
-              onClick={() => nudge(-1)}
-            >
-              <span aria-hidden="true">◀</span>
-              <small>{t('Aim')}</small>
-            </button>
-            <div className="golf-swing-wrap">
-              <button
-                type="button"
-                className="golf-swing"
-                data-action="golf-swing"
-                aria-label={
-                  phase === 'charging'
-                    ? t('Let go to hit')
-                    : club === PUTTER
-                      ? t('Hold to putt')
-                      : t('Hold to swing')
-                }
-                disabled={!(canSwing || phase === 'charging')}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-                  startSwing();
-                }}
-                onPointerUp={() => void release()}
-                onPointerCancel={abort}
-                onContextMenu={(e) => e.preventDefault()}
-              >
-                <b>{phase === 'charging' ? t('Let go') : myTurn ? t('Hold') : t('Wait')}</b>
-                <small>
-                  {phase === 'charging'
-                    ? t('to hit')
-                    : !myTurn
-                      ? t('their shot')
-                      : club === PUTTER
-                        ? t('to putt')
-                        : t('to swing')}
-                </small>
-              </button>
-            </div>
-            <button
-              type="button"
-              className="golf-aim"
-              aria-label={t('Aim right')}
-              data-action="golf-right"
-              disabled={!canSwing}
-              onClick={() => nudge(1)}
-            >
-              <span aria-hidden="true">▶</span>
-              <small>{t('Aim')}</small>
-            </button>
-          </div>
-          <div className="golf-sub">
-            <span>
-              {club === PUTTER
-                ? t('Putter · {m} m', { m: Math.round(dist(ball, g.pin) * 10) / 10 })
-                : tx(club.label)}
-            </span>
-            <span className="golf-sweet-note">{t('Pick up = par + {n}', { n: 3 })}</span>
-            <button
-              type="button"
-              className="golf-pickup"
-              data-action="golf-pickup"
-              disabled={!canSwing || (mine?.strokes ?? 0) === 0}
-              onClick={pickUp}
-            >
-              {t('Pick up')}
-            </button>
-          </div>
-          <MiniCard
-            pars={pars}
-            hole={hole}
-            rows={[
-              { name: t('You'), card: youCard, me: true },
-              { name: first(otherName), card: otherCard, me: false },
-            ]}
-          />
-        </div>
-      )}
     </div>
   );
 }

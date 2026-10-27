@@ -18,6 +18,7 @@ import {
   whyLine,
   workOf,
 } from '../work';
+import { JobTasksPanel, LetGoCard } from '../jobtasks';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { businessesOf, CATEGORY_COLOR, type BusinessCategory } from '../../city/contract';
@@ -141,6 +142,9 @@ export function Jobs({ ctx }: { ctx: PhoneCtx }) {
       ) : (
         <p className="small muted">{t('No job right now.')}</p>
       )}
+      {/* The feedback round: the manager's tasks, warnings, and being let go. */}
+      <JobTasksPanel />
+      <LetGoCard />
       {work && (
         <>
           {work.applications.length > 0 && <H>{t('Applications')}</H>}

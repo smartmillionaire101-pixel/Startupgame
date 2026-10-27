@@ -154,3 +154,51 @@
   align-items: flex-start;
   font-size: var(--fs-sm);
 }
+
+/* Today for a banker: the steps to a licence, and the capital meter. */
+.banker-stages {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--sp-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  font-size: var(--fs-sm);
+}
+.banker-stages li {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.banker-stages li.done {
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 10%, var(--surface));
+}
+.banker-stages li.now {
+  color: #fff;
+  background: var(--accent);
+}
+.capital-meter {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--line);
+  margin: var(--sp-2) 0 0.25rem;
+}
+.capital-meter span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--warn);
+}
+.card-bad .capital-meter span {
+  background: var(--bad);
+}
+.capital-meter i {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--text);
+}

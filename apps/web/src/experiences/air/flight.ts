@@ -233,9 +233,20 @@ const HELI = {
   /** Radians a second the autopilot turns at most; your hand turns a little faster. */
   turn: 0.45,
   handTurn: 0.7,
+  /** Hovering near the pad, it turns on the spot this fast. */
+  hoverTurn: 1.2,
   /** A landmark counts as passed within this (m). */
   passBy: 260,
+  /** Metres kept above the roofs under and ahead of it, and how far ahead it looks (s). */
+  clearance: 45,
+  ahead: [1.5, 4, 8],
+  /** The approach home: slowing from here (m); over the pad within this, straight down. */
+  approach: 700,
+  overPad: 50,
 } as const;
+
+/** How tall the city stands at a point (m above the ground): roofs, towers, landmarks. */
+export type RoofAt = (x: number, z: number) => number;
 
 export const newHeli = (x: number, z: number): Heli => ({
   x,
@@ -254,9 +265,25 @@ export interface HeliInput {
   climb: number;
 }
 
+/** The lowest it may fly here: clear of the roofs under it and along its way ahead. */
+function floorAt(s: Heli, roof: RoofAt | undefined, speed: number) {
+  if (!roof) return 0;
+  const fx = Math.sin(s.heading);
+  const fz = -Math.cos(s.heading);
+  let top = roof(s.x, s.z);
+  for (const t of HELI.ahead) top = Math.max(top, roof(s.x + fx * speed * t, s.z + fz * speed * t));
+  // Under a metre is the ground (the pad's slab, a kerb): nothing to climb over.
+  return top > 1 ? top + HELI.clearance : 0;
+}
+
 /**
  * One step: lift off to the cruise height, fly to each landmark (or where you
- * steer, with the controls), then home and down on the pad.
+ * steer, with the controls), then home: slow down facing the pad, hover over
+ * it and straight down onto it, where it stays (player feedback: "when we
+ * landed it didn't stop, it kept passing through buildings": it used to sink
+ * to the ground half a kilometre out and crawl the rest of the way through
+ * the streets). `roof` keeps it above the city all the way: it climbs over
+ * whatever stands under it or ahead, slowing while it does.
  */
 export function stepHeli(
   h: Heli,
@@ -264,33 +291,60 @@ export function stepHeli(
   route: readonly Waypoint[],
   home: { x: number; z: number },
   input: HeliInput = { turn: 0, climb: 0 },
+  roof?: RoofAt,
 ): Heli {
   const s: Heli = { ...h, t: h.t + dt, seen: h.seen };
   if (s.leg > route.length) return s;
+  const homeLeg = s.leg === route.length;
   const goal = route[s.leg] ?? { name: '', x: home.x, z: home.z, h: 0 };
   const d = Math.hypot(goal.x - s.x, goal.z - s.z);
-  const homeLeg = s.leg === route.length;
+  // Coming in to the pad, the pilot lands it, even if you had the controls.
+  const landing = homeLeg && d < HELI.approach;
+  if (landing) s.manual = false;
+  const floor = floorAt(s, roof, Math.max(s.speed, 20));
   // Lift off first.
   if (s.t < 6 && !homeLeg) {
-    s.alt = Math.min(HELI.cruise, s.alt + 45 * dt);
+    s.alt = Math.min(Math.max(HELI.cruise, floor), s.alt + 45 * dt);
     s.speed = Math.min(HELI.speed, s.speed + 8 * dt);
   }
   if (s.manual) {
     s.heading = wrap(s.heading + clamp(input.turn, -1, 1) * HELI.handTurn * dt);
     s.alt = clamp(s.alt + clamp(input.climb, -1, 1) * 40 * dt, 80, 700);
     s.speed = Math.min(HELI.speed, s.speed + 10 * dt);
+  } else if (landing) {
+    const want = Math.atan2(goal.x - s.x, -(goal.z - s.z));
+    const off = wrap(want - s.heading);
+    s.heading = wrap(s.heading + clamp(off, -HELI.hoverTurn * dt, HELI.hoverTurn * dt));
+    if (d > HELI.overPad) {
+      // Slower the nearer, and nearly still until it faces the pad; height held over the roofs.
+      const target = Math.abs(off) > 0.4 ? 3 : clamp(d * 0.35, 8, HELI.speed);
+      s.speed += clamp(target - s.speed, -30 * dt, 15 * dt);
+      s.alt = Math.max(s.alt + (Math.max(floor, 60) - s.alt) * Math.min(1, dt * 0.4), floor);
+    } else {
+      // Over the pad: drift onto it and come straight down.
+      s.speed = 0;
+      const k = Math.min(1, dt * 2);
+      s.x += (goal.x - s.x) * k;
+      s.z += (goal.z - s.z) * k;
+      s.alt = Math.max(0, s.alt - Math.max(8, s.alt * 0.8) * dt);
+      if (s.alt <= 0.5 && Math.hypot(goal.x - s.x, goal.z - s.z) < 3)
+        return { ...s, x: goal.x, z: goal.z, alt: 0, speed: 0, leg: route.length + 1 };
+      return s;
+    }
   } else {
     const want = Math.atan2(goal.x - s.x, -(goal.z - s.z));
     const turn = clamp(wrap(want - s.heading), -HELI.turn * dt, HELI.turn * dt);
     s.heading = wrap(s.heading + turn);
-    // Home: slow down over the pad and settle onto it.
-    if (homeLeg && d < 500) {
-      s.speed = Math.max(6, s.speed - 25 * dt);
-      s.alt = Math.max(0, s.alt - Math.max(10, s.alt * 0.9) * dt);
-    } else if (s.t >= 6) {
+    if (s.t >= 6) {
       s.speed = Math.min(HELI.speed, s.speed + 10 * dt);
-      s.alt += (HELI.cruise + (goal.h > 150 ? goal.h * 0.4 : 0) - s.alt) * Math.min(1, dt * 0.5);
+      const cruise = HELI.cruise + (goal.h > 150 ? goal.h * 0.4 : 0);
+      s.alt += (Math.max(cruise, floor) - s.alt) * Math.min(1, dt * 0.5);
     }
+  }
+  // Never into a roof: below the floor it climbs hard and slows until it's over.
+  if (s.alt < floor) {
+    s.alt = Math.min(floor, s.alt + 60 * dt);
+    if (s.alt < floor) s.speed = Math.max(4, s.speed - 40 * dt);
   }
   s.x += Math.sin(s.heading) * s.speed * dt;
   s.z -= Math.cos(s.heading) * s.speed * dt;
@@ -298,10 +352,6 @@ export function stepHeli(
   if (!homeLeg && near < HELI.passBy) {
     s.seen = [...s.seen, goal.name];
     s.leg++;
-  } else if (homeLeg && near < 40) {
-    s.leg = route.length + 1;
-    s.alt = 0;
-    s.speed = 0;
   }
   return s;
 }

@@ -40,6 +40,8 @@ import { afterBuy, afterSell, checkBuy, checkSell } from './exchange.js';
 import { fundCanInvest } from './lpfunds.js';
 import { distributeFund } from './funds.js';
 import { applyStarEvent } from './stars.js';
+import { feedbackOn } from './releases.js';
+import { cityMultiplesOnce, homeFirst, stockAnalysis } from './stocks.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
 import type { Company, Fund, Id, MarketState, Player, SecondaryOffer, World } from './types.js';
 
@@ -79,6 +81,8 @@ export const EXITS = {
     /** The price can't stray further than this from the model value. */
     band: [0.5, 2] as const,
     historyLimit: 24,
+    /** Months of prices kept once FEEDBACK_NOTE is logged (the analysis chart's "All"). */
+    historyMonths: 60,
     /** How far a listing price may be set from the bankers' price. */
     hint: [0.8, 1.2] as const,
   },
@@ -629,8 +633,9 @@ const SEED_LISTINGS = 2;
 export function seedPublicMarket(world: World, marketId: string, count = SEED_LISTINGS) {
   const m = world.markets[marketId as MarketState['id']];
   if (!m) return 0;
+  // The city's established companies (established.ts) list on their own.
   const listed = Object.values(world.companies).filter(
-    (c) => c.market === marketId && c.ipo?.status === 'listed',
+    (c) => c.market === marketId && c.ipo?.status === 'listed' && !c.established,
   ).length;
   const candidates = Object.values(world.companies)
     .filter(
@@ -644,34 +649,40 @@ export function seedPublicMarket(world: World, marketId: string, count = SEED_LI
     .map((c) => ({ c, v: fairValue(world, c) }))
     .sort((a, b) => b.v - a.v || (a.c.id < b.c.id ? -1 : 1))
     .slice(0, Math.max(0, count - listed));
-  for (const { c } of candidates) {
-    const ct = c.capTable;
-    const fd = fullyDiluted(ct);
-    if (fd <= 0) continue;
-    const price = listingPrice(world, c);
-    const newShares = Math.round((fd * EXITS.ipo.floatBps) / (10_000 - EXITS.ipo.floatBps));
-    const raised = Math.round(newShares * price);
-    withTx(world, { kind: 'investment' }, () =>
-      transfer(world, m.ext.lps, c.account, raised, `IPO: new shares sold to the public`, m.month),
-    );
-    ct.holdings[`pub:${c.id}`] = { shares: newShares, kind: 'investor' };
-    ct.lastPrice = price;
-    ct.lastPostMoney = Math.round(price * (fd + newShares));
-    c.ipo = {
-      status: 'listed',
-      preparedMonth: m.month,
-      readyMonth: m.month,
-      bankerFee: 0,
-      listedMonth: m.month,
-      price,
-      prevPrice: price,
-      history: [price],
-      lockups: {},
-      basis: {},
-      raised,
-    };
-  }
+  for (const { c } of candidates) listAtModelPrice(world, m, c);
   return candidates.length;
+}
+
+/**
+ * List a company at the model's price: new shares (the float) sold to the
+ * public from the LP side of the world, no fees, no lock-up, no dice.
+ */
+export function listAtModelPrice(world: World, m: MarketState, c: Company) {
+  const ct = c.capTable;
+  const fd = fullyDiluted(ct);
+  if (fd <= 0) return;
+  const price = listingPrice(world, c);
+  const newShares = Math.round((fd * EXITS.ipo.floatBps) / (10_000 - EXITS.ipo.floatBps));
+  const raised = Math.round(newShares * price);
+  withTx(world, { kind: 'investment' }, () =>
+    transfer(world, m.ext.lps, c.account, raised, `IPO: new shares sold to the public`, m.month),
+  );
+  ct.holdings[`pub:${c.id}`] = { shares: newShares, kind: 'investor' };
+  ct.lastPrice = price;
+  ct.lastPostMoney = Math.round(price * (fd + newShares));
+  c.ipo = {
+    status: 'listed',
+    preparedMonth: m.month,
+    readyMonth: m.month,
+    bankerFee: 0,
+    listedMonth: m.month,
+    price,
+    prevPrice: price,
+    history: [price],
+    lockups: {},
+    basis: {},
+    raised,
+  };
 }
 
 // ---------------------------------------------------------------- the public market
@@ -861,7 +872,8 @@ export function settlePublicMarket(world: World, marketId: string, month: number
     c.ipo.price = next;
     const h = (c.ipo.history ??= []);
     h.push(next);
-    if (h.length > EXITS.ipo.historyLimit) h.splice(0, h.length - EXITS.ipo.historyLimit);
+    const keep = feedbackOn(world) ? EXITS.ipo.historyMonths : EXITS.ipo.historyLimit;
+    if (h.length > keep) h.splice(0, h.length - keep);
     c.capTable.lastPrice = next;
     c.capTable.lastPostMoney = Math.round(next * fd);
     if (c.ipo.lockups)
@@ -879,8 +891,13 @@ export function settlePublicMarket(world: World, marketId: string, month: number
 
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
-/** The stock market: every listed company, with the viewer's holding. */
+/**
+ * The stock market: every listed company, with the viewer's holding and an
+ * analysis to read before buying. The viewer's own city comes first, then
+ * the other cities by name; the biggest companies first within a city.
+ */
 export function publicMarketView(world: World, p: Player) {
+  const multiples = cityMultiplesOnce(world);
   return Object.values(world.companies)
     .filter(isListed)
     .map((c) => {
@@ -908,8 +925,13 @@ export function publicMarketView(world: World, p: Player) {
         lockedUntil: (ipo.lockups?.[p.id] ?? 0) > m.month ? ipo.lockups![p.id]! : null,
         isFounder: c.founderIds.includes(p.id),
         brokerBps: EXITS.ipo.brokerBps,
+        analysis: stockAnalysis(world, p, c, multiples),
       };
-    });
+    })
+    .sort(
+      (a, b) =>
+        homeFirst(p, a, b) || b.marketCap - a.marketCap || (a.companyId < b.companyId ? -1 : 1),
+    );
 }
 
 /** Exit options for each active company you founded: offers, secondary, IPO. */

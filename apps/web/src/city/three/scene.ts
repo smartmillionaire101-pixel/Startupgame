@@ -10,7 +10,7 @@ import { citySun } from '../solar';
  */
 import * as THREE from 'three';
 import { fromLatLon } from '../geo';
-import { geoMetres, type GeoWorld } from '../geoLayout';
+import { geoMetres, HELIPAD_CLEAR, type GeoWorld } from '../geoLayout';
 import type { CityLayout, Place, Pt } from '../layout';
 import { cityLook, type CityLook } from './cities';
 import { GroundMask } from './mask';
@@ -71,6 +71,9 @@ const SOFT_COMPILE_MS = 1500;
 const SOFT_COMPILE_WAIT_MS = 300;
 /** Most pixels a software renderer shades a frame (a phone screen's worth). */
 const SOFT_PIXELS = 360_000;
+/** Most pixels a GPU shades a frame: a laptop's window at 2 device pixels a CSS
+    pixel is over 5 million, more than an older laptop draws smoothly. */
+const GPU_PIXELS = 2_800_000;
 
 export type Tier = 'high' | 'low';
 
@@ -137,6 +140,12 @@ const _ndc = new THREE.Vector2();
 const _rc = new THREE.Raycaster();
 
 export const toMetres = (p: Pt) => geoMetres(p);
+
+/** Low things roofAt looks past (trees: and a ray through 26 000 of them is slow). */
+const noRoof = <T extends THREE.Object3D>(o: T): T => {
+  o.userData.noRoof = true;
+  return o;
+};
 
 export class CityScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -225,6 +234,8 @@ export class CityScene {
   private activeUntil = 0;
   private dpr: number;
   private dprMax: number;
+  /** The most device pixels a CSS pixel for this screen and tier (before the window's size). */
+  private dprCap: number;
   private frameTimes: number[] = [];
   private disposed = false;
   private slow = 0;
@@ -267,7 +278,8 @@ export class CityScene {
     // screen; 1.75 draws a third more pixels for little to see).
     // A sky view sees the whole city at once: 1.25 (1.5 on a big screen) is plenty.
     const cap = opts.sky ? (high ? 1.5 : 1.25) : high ? 2 : 1.5;
-    this.dprMax = opts.soft ? 1 : Math.min(2, window.devicePixelRatio || 1, cap);
+    this.dprCap = opts.soft ? 1 : Math.min(2, window.devicePixelRatio || 1, cap);
+    this.dprMax = this.dprCap;
     this.dpr = this.dprMax;
     this.renderer.setPixelRatio(this.dpr);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -329,6 +341,8 @@ export class CityScene {
       this.sky,
       this.instMat,
     );
+    // Not a roof (roofAt): the ground under the buildings.
+    ground.group.userData.noRoof = true;
     this.scene.add(ground.group, landmarks);
     this.waterMaterial = ground.water.material as THREE.Material;
     this.addNight(glowPoints(landmarkLights(landmarks), this.glowMat));
@@ -470,21 +484,25 @@ export class CityScene {
       // Palms among the city's own trees (Freetown's mangoes and palms).
       const isPalm = (t: TreeSpot) => h3(Math.round(t.x * 5), Math.round(t.y * 5), 81) < palms;
       this.scene.add(
-        treeMeshes(
-          spots.filter((t) => !isPalm(t)),
-          this.look,
-          high,
+        noRoof(
+          treeMeshes(
+            spots.filter((t) => !isPalm(t)),
+            this.look,
+            high,
+          ),
         ),
       );
-      this.scene.add(treeMeshes(spots.filter(isPalm), { ...this.look, tree: 'palm' }, high));
-    } else this.scene.add(treeMeshes(spots, this.look, high));
+      this.scene.add(
+        noRoof(treeMeshes(spots.filter(isPalm), { ...this.look, tree: 'palm' }, high)),
+      );
+    } else this.scene.add(noRoof(treeMeshes(spots, this.look, high)));
     // Wave 12: a sky view over forested hills sees the forest.
     if (this.terrain && this.look.canopy) {
       const tf = this.terrain;
       const n = opts.soft ? 4000 : high ? 24000 : 12000;
       const forest = forestSpots(data, this.look, this.mask, (x, y) => heightAt(tf, x, y), n);
       this.stats.trees += forest.length;
-      this.scene.add(canopyMeshes(forest, this.look.canopy));
+      this.scene.add(noRoof(canopyMeshes(forest, this.look.canopy)));
     }
 
     // Street lamps (night): the streets around you first (a sky view: round the
@@ -702,6 +720,40 @@ export class CityScene {
         m.group.rotation.y = -rot;
         this.placesGroup.add(m.group);
         homeH = m.h;
+      } else if (p.bizKind === 'heliport') {
+        // A heliport: the pad on open ground (its clear ground kept below), a
+        // concrete slab with a yellow edge and a white H, the helicopter's home.
+        const pad = Math.max(w, d);
+        const mark = (u: number, v: number, bw: number, bd: number, col: string, y0: number) => {
+          boxes.push({
+            x: cx + u * co - v * si,
+            y: cy + u * si + v * co,
+            w: bw,
+            d: bd,
+            h: 0.06,
+            y0,
+            rot,
+            style: 7,
+            wall: bytes(col),
+            roof: bytes(col),
+            seed: r,
+            vOff: 0,
+            roofType: 0,
+          });
+        };
+        mark(0, 0, pad, pad, '#5b6066', 0);
+        for (const [u, v, bw, bd] of [
+          [0, -pad / 2 + 0.5, pad, 1],
+          [0, pad / 2 - 0.5, pad, 1],
+          [-pad / 2 + 0.5, 0, 1, pad],
+          [pad / 2 - 0.5, 0, 1, pad],
+        ] as const)
+          mark(u, v, bw, bd, '#facc15', 0.06);
+        const hh = pad * 0.42;
+        mark(-hh * 0.32, 0, 1.4, hh, '#f8fafc', 0.06);
+        mark(hh * 0.32, 0, 1.4, hh, '#f8fafc', 0.06);
+        mark(0, 0, hh * 0.64, 1.4, '#f8fafc', 0.06);
+        homeH = 0.12;
       } else {
         fps.push({
           p: outline,
@@ -747,9 +799,14 @@ export class CityScene {
     const m = mergedMesh(fps, this.mergedMat);
     if (m) this.placesGroup.add(m);
     for (const b of boxMeshes(boxes, this.instMat)) this.placesGroup.add(b);
-    // Their plots: no real outline or lot may stand there.
+    // Their plots: no real outline or lot may stand there (round a pad, none
+    // within its clear ground).
     for (const b of this.places) {
-      const f = makeFp(rectPoly(b.x, b.y, b.w + 6, b.d + 6, b.rot));
+      const f = makeFp(
+        b.place.bizKind === 'heliport'
+          ? discPoly(b.x, b.y, HELIPAD_CLEAR)
+          : rectPoly(b.x, b.y, b.w + 6, b.d + 6, b.rot),
+      );
       this.blocked.add(f);
       this.placeFps.push(f);
     }
@@ -1105,6 +1162,8 @@ export class CityScene {
   snapshot(caption?: string): string | null {
     try {
       this.renderer.render(this.scene, this.camera);
+      // What a view draws over the city (an aircraft) is in the photo too.
+      for (const cb of this.onFrameCbs) cb();
     } catch {
       return null;
     }
@@ -1121,6 +1180,14 @@ export class CityScene {
       const fit = Math.sqrt(SOFT_PIXELS / (this.size.w * this.size.h));
       this.dprMax = this.dpr = Math.min(1, Math.max(0.4, fit));
       this.renderer.setPixelRatio(this.dpr);
+    } else {
+      // A big window draws at most GPU_PIXELS (a touch softer on a very big one).
+      const fit = Math.sqrt(GPU_PIXELS / (this.size.w * this.size.h));
+      this.dprMax = Math.min(this.degraded ? 1 : this.dprCap, Math.max(0.75, fit));
+      if (this.dpr > this.dprMax) {
+        this.dpr = this.dprMax;
+        this.renderer.setPixelRatio(this.dpr);
+      }
     }
     this.renderer.setSize(this.size.w, this.size.h, false);
     this.camera.aspect = this.size.w / this.size.h;
@@ -1205,6 +1272,30 @@ export class CityScene {
 
   groundAt(x: number, y: number) {
     return this.roads.deckAt(x, y);
+  }
+
+  /**
+   * How tall the city stands at (x, y): the highest roof (or tower, or
+   * landmark) straight down from the sky, in metres above the ground; 0 on
+   * open ground. A ray each call: callers cache it (the helicopter, by cell).
+   */
+  roofAt(x: number, y: number): number {
+    const targets = this.scene.children.filter(
+      (o) => o.visible && o !== this.dome && !o.userData.noRoof && !(o as THREE.Light).isLight,
+    );
+    _rc.set(_v.set(x, 6000, y), _v2.set(0, -1, 0));
+    _rc.far = 7000;
+    const hit = _rc
+      .intersectObjects(targets, true)
+      .find((i) => (i.object as THREE.Mesh).isMesh && i.object.visible);
+    _rc.far = Infinity;
+    if (!hit) return 0;
+    // What stands on the terrain is lifted onto it in its shader (its geometry
+    // stays on the flat city): its height is over the deck alone.
+    const m = (hit.object as THREE.Mesh).material;
+    const lifted = (Array.isArray(m) ? m : [m]).some((x) => x?.userData?.terrainCopy);
+    const ground = this.groundAt(x, y) + (lifted ? 0 : this.terrainAt(x, y));
+    return Math.max(0, hit.point.y - ground);
   }
 
   /** Full-density tiles standing now. */
@@ -1490,7 +1581,7 @@ export class CityScene {
         this.degraded = true;
         this.renderer.shadowMap.enabled = false;
         this.sun.castShadow = false;
-        this.dprMax = 1;
+        this.dprMax = Math.min(1, this.dprMax);
         this.setDpr(1);
       }
     } else this.slow = 0;
@@ -1666,7 +1757,18 @@ function placeSpec(p: Place): {
       return { w: W(0.7), d: D(0.7), h: Math.min(90, 12 + lvl * 9), style: lvl >= 3 ? 3 : 2 };
     }
     case 'home':
+      // Abroad in a named hotel, your room is in its tower.
+      if (p.motif === 'b-hotel')
+        return { w: W(0.65), d: D(0.65), h: 12 + (p.level ?? 3) * 9, style: 3 };
       return { w: W(0.6, 26), d: D(0.6, 26), h: 9 + (p.level ?? 1) * 6, style: 0 };
+    // The feedback round's named hotels: taller with more stars.
+    case 'hotel':
+      return {
+        w: W(0.65),
+        d: D(0.65),
+        h: 12 + (p.level ?? 3) * 9,
+        style: (p.level ?? 3) >= 4 ? 3 : 2,
+      };
     case 'fund':
     case 'capital':
       return { w: W(0.7), d: D(0.7), h: Math.max(30, Math.min(110, p.h * 0.7)), style: 3 };

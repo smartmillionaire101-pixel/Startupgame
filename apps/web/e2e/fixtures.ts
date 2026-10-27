@@ -1,5 +1,5 @@
-import { test as base, type Page } from '@playwright/test';
-import { checkName } from '@runway/engine';
+import { expect, test as base, type Locator, type Page } from '@playwright/test';
+import { checkName, OFFENSIVE_ROOTS } from '@runway/engine';
 
 /**
  * Shared fixture for all E2E tests.
@@ -86,11 +86,22 @@ const pick = (alphabet: string, n: number) =>
   Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => alphabet[b % alphabet.length]).join(
     '',
   );
+/**
+ * Could these letters spell a refused word with the text around them? Specs
+ * glue them to a word ("Floors " + "lutq…" is "floorslutq…" to the name
+ * filter, which ignores spaces), so neither end may start or finish one.
+ */
+const joinsRefused = (s: string) =>
+  OFFENSIVE_ROOTS.some((root) => {
+    for (let k = 2; k < root.length; k++)
+      if (s.startsWith(root.slice(root.length - k)) || s.endsWith(root.slice(0, k))) return true;
+    return false;
+  });
 /** Random letters the game's name filter accepts (a random run can spell a refused word). */
 export function letters(n = 6): string {
   for (;;) {
     const s = pick('abcdefghijklmnopqrstuvwxyz', n);
-    if (n < 3 || checkName(s, { taken: {}, kind: 'handle' }).ok) return s;
+    if (n < 3 || (checkName(s, { taken: {}, kind: 'handle' }).ok && !joinsRefused(s))) return s;
   }
 }
 export const digits = (n = 7) => pick('0123456789', n);
@@ -116,6 +127,7 @@ export async function setupFounder(
     idea: string;
     market?: RegExp;
     gender?: 'female' | 'male';
+    industry?: string;
   },
 ) {
   const meta = await page.request.get('/api/meta').then((r) => r.json());
@@ -133,7 +145,7 @@ export async function setupFounder(
     gender: input.gender ?? 'female',
     company: {
       name: input.company,
-      industry: 'fintech',
+      industry: input.industry ?? 'fintech',
       revenueModel: 'subscription',
       idea: input.idea,
       incorporation: 'local',
@@ -217,22 +229,230 @@ export async function openTogether(page: Page) {
   return sheet;
 }
 
-/** Onboarding's who-you-are and where-you-build choices (name, sex, city). */
-export async function pickIdentity(
+/** Sign-up's careers, as their cards are named. */
+const ROLE_NAME = { founder: 'Founder', investor: 'Investor', banker: 'Banker' } as const;
+export type Role = keyof typeof ROLE_NAME;
+
+/** Sign-up, step 1 "Pick your path": a career, then Continue. */
+export async function pickPath(page: Page, role: Role = 'founder') {
+  await page
+    .getByRole('radiogroup', { name: 'Pick your path' })
+    .getByRole('radio', { name: ROLE_NAME[role], exact: true })
+    .check();
+  await page.getByRole('button', { name: /^Continue/ }).click();
+}
+
+/** Sign-up, step 2 "Your look": sex (and an outfit colour), then Next. */
+export async function pickLook(
   page: Page,
-  {
-    name = 'E2E Player',
-    gender = 'Woman',
-    city = 'Lagos',
-  }: { name?: string; gender?: 'Woman' | 'Man'; city?: string } = {},
+  { gender = 'Woman', outfit }: { gender?: 'Woman' | 'Man'; outfit?: string } = {},
 ) {
+  await expect(page.getByRole('heading', { name: 'Your look' })).toBeVisible();
+  await page
+    .getByRole('radiogroup', { name: 'I am' })
+    .getByRole('radio', { name: gender, exact: true })
+    .check();
+  if (outfit)
+    await page
+      .getByRole('radiogroup', { name: 'Outfit colour' })
+      .getByRole('radio', { name: outfit, exact: true })
+      .check();
+  await page.getByRole('button', { name: /^Next/ }).click();
+}
+
+export interface AboutYou {
+  name?: string;
+  city?: string;
+  username?: string;
+  email?: string;
+  /** A founder's background, by id (f-engineer, f-consultant …). */
+  background?: string;
+}
+
+/** Sign-up, step 3 "About you": name, city, username, email (and background), 18+; not Play yet. */
+export async function fillAboutYou(
+  page: Page,
+  { name = 'E2E Player', city = 'Lagos', username, email, background }: AboutYou = {},
+) {
+  await expect(page.getByRole('heading', { name: 'About you' })).toBeVisible();
   await page.getByLabel('Your name', { exact: true }).fill(name);
   await page
-    .getByRole('group', { name: 'I am' })
-    .getByRole('button', { name: gender, exact: true })
-    .click();
-  await page
-    .getByRole('group', { name: 'Your city' })
-    .getByRole('button', { name: new RegExp(`^${city}`) })
-    .click();
+    .getByRole('radiogroup', { name: 'Your city' })
+    .getByRole('radio', { name: city, exact: true })
+    .check();
+  await page.getByLabel('Username', { exact: true }).fill(username ?? `e2e_${letters(8)}`);
+  await page.getByLabel('Email', { exact: true }).fill(email ?? randomEmail());
+  if (background) await page.getByLabel('Before this you were').selectOption(background);
+  await page.getByRole('checkbox', { name: 'I’m 18 or older' }).check();
+}
+
+/** Sign up through the three steps and press Play (from the first step, Pick your path). */
+export async function signUp(
+  page: Page,
+  opts: AboutYou & { role?: Role; gender?: 'Woman' | 'Man'; outfit?: string } = {},
+) {
+  await pickPath(page, opts.role);
+  await pickLook(page, opts);
+  await fillAboutYou(page, opts);
+  await page.getByRole('button', { name: /^Play/ }).click();
+}
+
+/** Click a button the coach card may cover: scrolled to the middle first. */
+async function press(button: Locator) {
+  await button.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await button.click();
+}
+
+/**
+ * Founder setup, steps 2 and 3 on the Company screen (founder-setup.spec.ts
+ * covers the journey in full): register a local company, then put `share`
+ * of the founder's savings in as shares. The company is funded, not open.
+ */
+export async function registerAndFund(page: Page, share = 1 / 2) {
+  const register = page.locator('[data-setup-register]');
+  await register.locator('[data-type="local"]').click();
+  await press(register.getByRole('button', { name: /^Register / }));
+  const own = page.locator('[data-setup-own]');
+  const slider = own.getByLabel('Your own money');
+  // A value on the slider's steps (the browser snaps anything else).
+  const step = Number(await slider.getAttribute('step'));
+  const max = Number(await slider.getAttribute('max'));
+  await slider.fill(String(Math.round((max * share) / step) * step));
+  await press(own.getByRole('button', { name: /^Put / }));
+  await expect(own.locator('[data-own-in]')).toBeVisible();
+}
+
+/**
+ * The whole founder setup after the name is reserved, the quick way a player
+ * would: register, own money, work from home. Ends on the done card, the
+ * company open with its stage tracker.
+ */
+export async function finishSetup(page: Page, share = 1 / 2) {
+  await expect(page.locator('[data-setup-register]')).toBeVisible();
+  await registerAndFund(page, share);
+  await page.getByRole('button', { name: 'Next: choose an office' }).first().click();
+  await page.locator('[data-office="home"]').click();
+  await press(page.getByRole('button', { name: 'Work from home for now' }));
+  await expect(page.locator('[data-setup-done]')).toBeVisible();
+}
+
+type Box = { x: number; y: number; width: number; height: number };
+const inBox = (p: { x: number; y: number }, b: Box, pad = 0) =>
+  p.x > b.x - pad && p.x < b.x + b.width + pad && p.y > b.y - pad && p.y < b.y + b.height + pad;
+
+/**
+ * Golf: the controls at the edges leave the course clear (player feedback:
+ * the tray and a centred swing button hid the ball and the aim). Reads where
+ * the drawing put the ball, the aim's end and the flag (`data-golf-ball`…, as
+ * fractions of the canvas) and checks no control sits on them, and that the
+ * swing button and its meter keep out of the strip from the ball to the aim.
+ */
+export async function expectGolfControlsClear(page: Page, what = 'address') {
+  const scene = page.locator('.golf-scene');
+  const canvas = scene.locator('canvas[data-golf-ball]').first();
+  await expect.poll(async () => canvas.getAttribute('data-golf-ball')).toMatch(/^\d/);
+  const c = (await canvas.boundingBox())!;
+  const spot = async (attr: string) => {
+    const v = (await canvas.getAttribute(attr)) ?? '';
+    if (!v) return null;
+    const [fx, fy] = v.split(',').map(Number) as [number, number];
+    return { x: c.x + fx * c.width, y: c.y + fy * c.height };
+  };
+  const ball = (await spot('data-golf-ball'))!;
+  // No aim drawn (a putt in Lite): the aim runs from the ball up the middle.
+  const end = (await spot('data-golf-aim-end')) ?? { x: c.x + c.width / 2, y: c.y + c.height / 2 };
+  const flag = await spot('data-golf-flag');
+  const boxes: [string, Box][] = [];
+  for (const [name, sel] of [
+    ['swing', '[data-action="golf-swing"]'],
+    ['meter', '.golf-meter'],
+    ['aim left', '[data-action="golf-left"]'],
+    ['aim right', '[data-action="golf-right"]'],
+    ['middle', '.golf-mid'],
+    ['club', '.golf-club'],
+  ] as const)
+    for (const b of await scene.locator(sel).all()) {
+      const box = await b.boundingBox();
+      if (box && box.width > 0) boxes.push([name, box]);
+    }
+  expect(boxes.map(([n]) => n)).toEqual(expect.arrayContaining(['swing', 'meter', 'aim left']));
+  const at = (p: { x: number; y: number }) => `${Math.round(p.x)},${Math.round(p.y)}`;
+  for (const [name, b] of boxes) {
+    expect(inBox(ball, b, 10), `${what}: the ${name} control covers the ball at ${at(ball)}`).toBe(
+      false,
+    );
+    if (flag)
+      expect(inBox(flag, b), `${what}: the ${name} control covers the flag at ${at(flag)}`).toBe(
+        false,
+      );
+    // Along the aim line, ball to its end.
+    for (let i = 0; i <= 20; i++) {
+      const p = {
+        x: ball.x + ((end.x - ball.x) * i) / 20,
+        y: ball.y + ((end.y - ball.y) * i) / 20,
+      };
+      expect(inBox(p, b), `${what}: the ${name} control covers the aim line at ${at(p)}`).toBe(
+        false,
+      );
+    }
+  }
+  // The swing button and its meter keep out of the whole strip between the ball and the aim.
+  const zone = {
+    x: Math.min(ball.x, end.x) - 16,
+    y: Math.min(ball.y, end.y) - 16,
+    width: Math.abs(end.x - ball.x) + 32,
+    height: Math.abs(end.y - ball.y) + 32,
+  };
+  for (const [name, b] of boxes.filter(([n]) => n === 'swing' || n === 'meter')) {
+    const overlaps =
+      b.x < zone.x + zone.width &&
+      b.x + b.width > zone.x &&
+      b.y < zone.y + zone.height &&
+      b.y + b.height > zone.y;
+    expect(overlaps, `${what}: the ${name} overlaps the aim area ${JSON.stringify(zone)}`).toBe(
+      false,
+    );
+  }
+}
+
+/**
+ * The sales conversation (round two): open it from a deal card's "Sales
+ * conversation" (or from an open sheet), sit down, lead with their need when
+ * discovery revealed it, name the middle of their band, offer a paid pilot (if on offer)
+ * and ask for the deal. Returns how it ended; the sheet is closed after.
+ */
+export async function salesConversation(
+  page: Page,
+  deal?: Locator,
+): Promise<{ result: 'won' | 'lost'; score: number }> {
+  if (deal) await deal.locator('button[data-action="talk"]').click();
+  const sheet = page.getByRole('dialog', { name: /^Sales conversation/ });
+  await expect(sheet).toBeVisible();
+  const sit = sheet.locator('[data-talk-start]');
+  if (await sit.isVisible()) await sit.click();
+  await expect(sheet.locator('[data-turn="lead"]')).toBeVisible({ timeout: 15_000 });
+  const need = await sheet.locator('[data-known-need]').getAttribute('data-known-need');
+  const theirs = sheet.locator(`[data-lead="${need}"]`);
+  await (
+    need !== '?' && (await theirs.count()) ? theirs : sheet.locator('[data-lead]').first()
+  ).click();
+  await expect(sheet.locator('[data-reaction="lead"]')).toBeVisible({ timeout: 15_000 });
+  await sheet.locator('[data-price="mid"]').click();
+  await sheet.getByRole('button', { name: 'Name this price' }).click();
+  await expect(sheet.locator('[data-reaction="price"]')).toBeVisible({ timeout: 15_000 });
+  await expect(sheet.getByRole('meter', { name: 'Win chance now' })).toBeVisible();
+  // Three terms on offer: a paid pilot when it's one of them.
+  const pilot = sheet.locator('[data-terms="pilot"]');
+  await ((await pilot.count()) ? pilot : sheet.locator('[data-terms]').first()).click();
+  await expect(sheet.locator('[data-reaction="terms"]')).toBeVisible({ timeout: 15_000 });
+  await sheet.locator('[data-talk-ask]').click();
+  const done = sheet.locator('[data-talk-result]');
+  await expect(done).toBeVisible({ timeout: 15_000 });
+  const result = (await done.getAttribute('data-talk-result')) as 'won' | 'lost';
+  const score = Number(await done.getAttribute('data-talk-score'));
+  // Scored like a banker's call: a mark and a why for each turn.
+  await expect(sheet.locator('[data-turn-mark]')).toHaveCount(3);
+  await sheet.getByRole('button', { name: 'Close', exact: true }).first().click();
+  await expect(sheet).toBeHidden();
+  return { result, score };
 }

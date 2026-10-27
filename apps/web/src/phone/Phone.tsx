@@ -22,10 +22,10 @@ import { moneyExact } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { visitPlace } from '../city/goto';
-import { CITY_GEO, hereOf } from '../city/travel';
+import { hereOf } from '../city/travel';
 import { onPhone, setPhoneBadge, useNav, type PhoneApp, type PhoneOpen } from './bus';
 import { inboxTarget } from './navigate';
-import { Battery, Icon, type IconName } from './icons';
+import { Icon, type IconName } from './icons';
 import { applySavedSettings, prefersReducedMotion, useSimple } from './settings';
 import { moodOf, type PhoneCtx, type ThreadRef } from './shared';
 import { Alerts, KIND_ICON } from './apps/Alerts';
@@ -409,57 +409,6 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// The status bar: city local time, signal, battery = your energy
-
-function cityTime(marketId: string): string {
-  const tz = CITY_GEO[marketId]?.tz;
-  try {
-    return new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-      ...(tz ? { timeZone: tz } : {}),
-    }).format(new Date());
-  } catch {
-    return '';
-  }
-}
-
-function StatusBar() {
-  const { view } = useView();
-  const id = hereOf(view).id;
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => setTick((n) => n + 1), 20_000);
-    return () => clearInterval(timer);
-  }, []);
-  const time = cityTime(id);
-  const energy = view.me.energy;
-  return (
-    <div className="phone-status" aria-label={t('Status bar')}>
-      <span className="phone-status-time" title={hereOf(view).name}>
-        {time}
-      </span>
-      <span className="phone-status-notch" aria-hidden="true" />
-      <span className="phone-status-right">
-        <Icon name="signal" size={15} strokeWidth={2.4} />
-        <span
-          className="phone-battery"
-          role="meter"
-          aria-label={t('Energy')}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={energy}
-        >
-          <span className="phone-battery-n">{energy}</span>
-          <Battery level={energy} />
-        </span>
-      </span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // The phone
 
 /**
@@ -704,12 +653,17 @@ function PhoneScreen(props: {
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className={`phone-frame${home ? ' at-home' : ''}`} data-phone-app={app}>
-        <StatusBar />
         {/* The way back to the game from the phone's home screen, where the
             only other exit was the thin bar at the bottom. */}
         {home && (
           <div className="phone-home-bar">
-            <button type="button" className="phone-exit" data-phone-exit="" onClick={onClose}>
+            <button
+              type="button"
+              className="phone-exit"
+              data-phone-exit=""
+              aria-label={t('Back to the game (close phone)')}
+              onClick={onClose}
+            >
               <Icon name="chevron" size={18} strokeWidth={2.4} className="flip" />
               {t('Back to the game')}
             </button>
@@ -748,11 +702,6 @@ function PhoneScreen(props: {
         <div className={`phone-screen${home ? ' phone-home-screen' : ''}`} key={app}>
           {body}
         </div>
-        {home && (
-          <button className="phone-indicator" aria-label={t('Close phone')} onClick={onClose}>
-            <span />
-          </button>
-        )}
       </div>
     </div>
   );
@@ -817,7 +766,14 @@ function PhoneHome({
           {moneyExact(view.accounts.local?.balance ?? 0, cur)}
         </div>
         <div className="phone-widget-row">
-          <span>
+          {/* Your energy (the status bar's battery once showed it). */}
+          <span
+            role="meter"
+            aria-label={t('Energy')}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={view.me.energy}
+          >
             <Icon name="bolt" size={14} /> {t('Energy {n}', { n: view.me.energy })}
           </span>
           {mood !== null && (

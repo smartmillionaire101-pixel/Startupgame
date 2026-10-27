@@ -33,6 +33,7 @@ import {
   type FloorKind,
 } from './kit';
 import { buildModel } from './furniture';
+import { WALL_CAP, floorKind, roomFloor, wallPalette, type HomeFinish } from './finishes';
 import {
   buildEstateModel,
   carport,
@@ -52,15 +53,11 @@ import {
   type Surroundings,
 } from './surroundings';
 import { HOTEL_STOREY, hotelTower, type TowerSide } from './hotel-tower';
-import type { BlockTier } from '../home/grounds';
 
 const WALL_H = 2.6;
 const INNER_H = 1.25;
 const CUT_H = 0.34;
 const THICK = 0.16;
-const WALL_GREEN = '#1d8a65';
-const WALL_INNER = '#23946e';
-const WALL_CAP = '#f4f1ea';
 /** The lawn's top (the house slab and floors sit a little above it). */
 export const GROUND_Y = -0.14;
 /** Floor to floor, upstairs. */
@@ -109,34 +106,6 @@ export interface House {
   attach(): void;
 }
 
-function floorKind(id: RoomId, tier: number): FloorKind {
-  switch (id) {
-    case 'kitchen':
-    case 'living':
-    case 'dining':
-      return tier >= 5 ? 'marble' : 'cream';
-    case 'bathroom':
-      return 'bath';
-    case 'study':
-      return 'parquet-dark';
-    case 'cinema':
-      return 'carpet';
-    case 'gym':
-      return 'concrete';
-    case 'bedroom':
-    case 'guest':
-    case 'landing':
-      return 'oak';
-    case 'hall':
-      return 'marble';
-    case 'office':
-      return 'parquet-dark';
-    case 'balcony':
-    case 'terrace':
-      return 'stone';
-  }
-}
-
 /** Warm tints over the floor textures (cream tiles, honey oak). */
 const FLOOR_TINT: Partial<Record<FloorKind, string>> = {
   marble: '#fbf4ea',
@@ -165,34 +134,6 @@ const HOTEL_FLOORS: Record<HotelTier, Partial<Record<RoomId, [FloorKind, string?
     bathroom: ['marble', '#e0d5c5'],
   },
 };
-/**
- * A flat's floors by its block (player feedback: Modest looked the same as
- * Lean): a shared flat's worn concrete and cheap tiles, a small flat's warm
- * tiles and honey oak (the default), a good flat's parquet and marble.
- */
-const BLOCK_FLOORS: Record<BlockTier, Partial<Record<RoomId, [FloorKind, string?]>>> = {
-  walkup: {
-    bedroom: ['concrete', '#cfc8ba'],
-    living: ['tile', '#d6cfc1'],
-    kitchen: ['concrete', '#c9c2b4'],
-    bathroom: ['tile', '#c9d2cf'],
-  },
-  block: {},
-  modern: {
-    living: ['parquet', '#f3e5d2'],
-    dining: ['parquet', '#f3e5d2'],
-    kitchen: ['marble', '#f4efe6'],
-    bathroom: ['marble', '#e8e0d4'],
-    guest: ['oak'],
-  },
-};
-/** A flat's walls by its block: tired grey-green paint, a fresh blue, a modern slate. */
-const BLOCK_WALLS: Record<BlockTier, { outer: string; inner: string; cap: string; drape: string }> =
-  {
-    walkup: { outer: '#9aa79f', inner: '#a9b5ad', cap: '#e4ddcf', drape: '#c9a978' },
-    block: { outer: '#4f86a8', inner: '#5d93b4', cap: '#f6f3ec', drape: '#e9dcc3' },
-    modern: { outer: '#46505c', inner: '#55606d', cap: '#f1efe9', drape: '#d8d2c8' },
-  };
 const HOTEL_WALLS: Record<HotelTier, { outer: string; inner: string; cap: string; drape: string }> =
   {
     budget: { outer: '#6f948a', inner: '#7da197', cap: WALL_CAP, drape: '#9fb3c8' },
@@ -323,6 +264,8 @@ export interface HouseOpts {
   grounds: Grounds;
   /** Leave the world round the home (the street, the city, the hotel's tower) for `attach`. */
   later?: boolean;
+  /** Buy mode: the floors and wall paint you chose (or are trying on). */
+  finish?: HomeFinish | null;
 }
 
 export function buildHouse(plan: HomePlan, o: HouseOpts): House {
@@ -597,19 +540,16 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   k.box(W + 0.5, Math.abs(GROUND_Y) + 0.0, H + 0.5, '#e8e1d3', W / 2, GROUND_Y, H / 2, {
     rough: 0.9,
   });
-  if (drop) storeys(k, W, H, drop, o.night);
-  const pal = hotel
-    ? HOTEL_WALLS[hotel.tier]
-    : block
-      ? BLOCK_WALLS[block.tier]
-      : { outer: WALL_GREEN, inner: WALL_INNER, cap: WALL_CAP, drape: '' };
+  // Buy mode's Design tab: the floors and paint you chose (a hotel room is the hotel's).
+  const pal = hotel ? HOTEL_WALLS[hotel.tier] : wallPalette(block?.tier ?? null, o.finish?.wall);
+  // The painted walls (inner walls, the storeys below), apart, so they're known as walls.
+  const pk = new Kit();
+  if (drop) storeys(k, pk, pal.outer, W, H, drop, o.night);
   for (const r of plan.rooms) {
     const hf = hotel
-      ? HOTEL_FLOORS[hotel.tier][r.id]
-      : block
-        ? BLOCK_FLOORS[block.tier][r.id]
-        : undefined;
-    root.add(floorMesh(hf?.[0] ?? floorKind(r.id, o.tier), r.x, r.y, r.w, r.h, FLOOR_Y, hf?.[1]));
+      ? (HOTEL_FLOORS[hotel.tier][r.id] ?? [floorKind(r.id, o.tier)])
+      : roomFloor(r.id, level, o.tier, block?.tier ?? null, o.finish);
+    root.add(floorMesh(hf[0], r.x, r.y, r.w, r.h, FLOOR_Y, hf[1]));
   }
 
   const sides: WallSide[] = [];
@@ -647,6 +587,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       c.position.set(fixed, WALL_H, (a + b) / 2);
     }
     m.scale.y = WALL_H;
+    m.userData.paint = true;
     s.slabs.push(m);
     s.caps.push(c);
     root.add(m, c);
@@ -799,7 +740,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   ];
   for (const [y, xs] of hLines)
     for (const [a, b] of runs(xs)) {
-      k.box(b - a + THICK, INNER_H, THICK, pal.inner, (a + b) / 2, 0, y, { rough: 0.85 });
+      pk.box(b - a + THICK, INNER_H, THICK, pal.inner, (a + b) / 2, 0, y, { rough: 0.85 });
       k.box(b - a + THICK + 0.03, 0.05, THICK + 0.03, pal.cap, (a + b) / 2, INNER_H, y);
       edgeSegs.push(
         { x0: a, z0: y, x1: b, z1: y, nx: 0, nz: 1 },
@@ -808,7 +749,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
   for (const [x, ys] of vLines)
     for (const [a, b] of runs(ys)) {
-      k.box(THICK, INNER_H, b - a + THICK, pal.inner, x, 0, (a + b) / 2, { rough: 0.85 });
+      pk.box(THICK, INNER_H, b - a + THICK, pal.inner, x, 0, (a + b) / 2, { rough: 0.85 });
       k.box(THICK + 0.03, 0.05, b - a + THICK + 0.03, pal.cap, x, INNER_H, (a + b) / 2);
       edgeSegs.push(
         { x0: x, z0: a, x1: x, z1: b, nx: 1, nz: 0 },
@@ -866,6 +807,9 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
     }
   }
   root.add(k.build());
+  const painted = pk.build();
+  painted.traverse((c) => (c.userData.paint = true));
+  root.add(painted);
 
   // ---- The camera: the house, the terrace, the drive and the bays.
   // Framed like the reference: the house fills the width, the pool behind it
@@ -950,9 +894,22 @@ function kept(key: string, make: () => World): World {
   return w;
 }
 
-/** Upstairs: the storeys below, a green block with a white band and windows, down to the lawn. */
-function storeys(k: Kit, W: number, H: number, drop: number, night: boolean) {
-  k.box(W + 0.3, drop, H + 0.3, WALL_GREEN, W / 2, GROUND_Y - drop + 0.14, H / 2, { rough: 0.85 });
+/**
+ * Upstairs: the storeys below, a block in the walls' colour (`paint` kit)
+ * with a white band and windows, down to the lawn.
+ */
+function storeys(
+  k: Kit,
+  paint: Kit,
+  colour: string,
+  W: number,
+  H: number,
+  drop: number,
+  night: boolean,
+) {
+  paint.box(W + 0.3, drop, H + 0.3, colour, W / 2, GROUND_Y - drop + 0.14, H / 2, {
+    rough: 0.85,
+  });
   const glass = {
     emissive: night ? '#ffcf7a' : '#7fbfe0',
     emissiveIntensity: night ? 0.5 : 0.2,

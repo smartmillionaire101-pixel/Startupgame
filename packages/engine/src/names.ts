@@ -82,7 +82,7 @@ const PROTECTED_BRANDS = [
  * Roots of offensive words. Matched against the normalised name with
  * leetspeak folded, so "sh1t" is caught. Kept short and intentionally blunt.
  */
-const OFFENSIVE_ROOTS = [
+export const OFFENSIVE_ROOTS = [
   'fuck',
   'shit',
   'cunt',

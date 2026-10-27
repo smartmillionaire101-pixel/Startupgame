@@ -7,7 +7,6 @@ export const phoneApps: Record<string, string> = {
   Fit: 'Forme',
   Social: 'Social',
   'Notification: {title}. {text}': 'Notification : {title}. {text}',
-  'Status bar': 'Barre d’état',
   'Invite over': 'Inviter chez moi',
   Today: 'Aujourd’hui',
   'Energy {n}': 'Énergie {n}',

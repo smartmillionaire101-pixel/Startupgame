@@ -37,6 +37,7 @@ import type { PersonRef } from './PersonCard';
 import { CapitalDetails, InScene, PlaceScene } from './PlaceScene';
 import { CivicDoor, CivicInterior, civicOf } from './CivicPlace';
 import { BankerTalks } from '../screens/BankWork';
+import { FounderMentor } from '../screens/FounderGuide';
 import type { Destination } from './travel';
 
 /** Wave 7: the busy airport scene, loaded when you go in. */
@@ -551,6 +552,8 @@ function HubInterior({
           'Co-working café: founders, talent and freelancers. Tap anyone on the street outside to say hello.',
         )}
       </p>
+      {/* Founder guidance: a mentor explains your stage, like a banker's supervisor. */}
+      {company && company.guide && <FounderMentor c={company} />}
       <JobsBoard onVisit={onVisit} />
       {company && <Team c={company} />}
       <People />

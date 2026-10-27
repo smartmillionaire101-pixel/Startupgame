@@ -90,7 +90,9 @@ type PlaceKind =
   | 'golf'
   | 'mall'
   /** City places: a named building (a ministry, the exchange, a club…), `ref` its id. */
-  | 'civic';
+  | 'civic'
+  /** The feedback round: one of the city's named hotels, `ref` its id. */
+  | 'hotel';
 
 type Motif =
   | 'columns'
@@ -329,7 +331,30 @@ export interface CityInput {
   capital?: CapitalInput[];
   /** City places: the city's named buildings, each in the district it names. */
   civic?: CivicInput[];
+  /** The feedback round: the city's named hotels, each in its district. */
+  hotels?: HotelInput[];
+  /**
+   * The named hotel you're staying in (abroad): your room (the home place)
+   * stands there, in its district, instead of the hotel's own building.
+   */
+  stay?: string;
 }
+
+export interface HotelInput {
+  id: string;
+  name: string;
+  district: string;
+  stars: number;
+  tier: 'budget' | 'business' | 'luxury';
+}
+
+/** How a hotel stands: taller with more stars; its colours by the room it offers. */
+const HOTEL_LOOK: Record<HotelInput['tier'], { color: string; accent: string }> = {
+  budget: { color: '#d6c7a8', accent: '#b45309' },
+  business: { color: '#64748b', accent: '#bae6fd' },
+  luxury: { color: '#1f2937', accent: '#fbbf24' },
+};
+const hotelHeight = (stars: number) => 26 + Math.max(1, Math.min(5, stars)) * 12;
 
 interface CivicInput {
   /** `<market>:<role>`. */
@@ -554,14 +579,19 @@ export function putDowntown(ctx: Ctx, { i, j }: Cell, area?: string) {
 export function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
   const { input, flavour, places, decor } = ctx;
   const tier = Math.max(1, Math.min(5, input.homeTier));
+  // Abroad in a named hotel: your room is in its building (its name, look and height).
+  const stay = stayHotel(input);
   const l = lot(i, j, 1, 1);
-  const w = tier >= 4 ? LOT_SIZE : 1.05;
+  const w = stay ? Math.min(LOT_SIZE, BIZ_SIZE.hotel.w) : tier >= 4 ? LOT_SIZE : 1.05;
   const x = l.x + (LOT_SIZE - w);
   const y = l.y + (LOT_SIZE - w);
+  const color = pickColor(ctx, flavour.walls);
+  const accent = pickColor(ctx, flavour.roofs);
+  const look = stay ? (HOTEL_LOOK[stay.tier] ?? HOTEL_LOOK.business) : null;
   places.push({
     id: 'home',
     kind: 'home',
-    name: '',
+    name: stay?.name ?? '',
     district: 'residential',
     area,
     x,
@@ -569,12 +599,22 @@ export function putHome(ctx: Ctx, { i, j }: Cell, area?: string) {
     w,
     d: w,
     // A walk-up, a five-storey block, a tower; a house; the penthouse's tower.
-    h: tier === 1 ? 26 : tier === 2 ? 40 : tier === 3 ? 62 : tier === 4 ? 34 : 28,
-    motif: 'home',
-    color: pickColor(ctx, flavour.walls),
-    accent: pickColor(ctx, flavour.roofs),
+    h: stay
+      ? hotelHeight(stay.stars)
+      : tier === 1
+        ? 26
+        : tier === 2
+          ? 40
+          : tier === 3
+            ? 62
+            : tier === 4
+              ? 34
+              : 28,
+    motif: stay ? 'b-hotel' : 'home',
+    color: look?.color ?? color,
+    accent: look?.accent ?? accent,
     ...doorFor(i, j, 1, 1, x, y, w, w),
-    level: tier,
+    level: stay ? stay.stars : tier,
   });
   for (const [a, b] of [
     [0, 1],
@@ -708,6 +748,7 @@ export type LotItem =
   | { kind: 'fund'; id: string; name: string; office: FundOffice }
   | { kind: 'capital'; cap: CapitalInput }
   | { kind: 'civic'; place: CivicInput }
+  | { kind: 'hotel'; hotel: HotelInput }
   | { kind: 'business'; biz: BizInput };
 
 export function financeItems(input: CityInput): LotItem[] {
@@ -827,6 +868,33 @@ export function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: stri
     });
     return;
   }
+  if (it.kind === 'hotel') {
+    const look = HOTEL_LOOK[it.hotel.tier] ?? HOTEL_LOOK.business;
+    const w = Math.min(LOT_SIZE, BIZ_SIZE.hotel.w);
+    const x = l.x + (LOT_SIZE - w) * (l.a ? 1 : 0);
+    const y = l.y + (LOT_SIZE - w) * (l.b ? 1 : 0);
+    ctx.places.push({
+      id: `hotel:${it.hotel.id}`,
+      kind: 'hotel',
+      ref: it.hotel.id,
+      name: it.hotel.name,
+      district: 'shops',
+      area,
+      category: 'hospitality',
+      bizKind: 'hotel',
+      x,
+      y,
+      w,
+      d: w,
+      h: hotelHeight(it.hotel.stars),
+      motif: 'b-hotel',
+      color: look.color,
+      accent: look.accent,
+      ...doorFor(blk.i, blk.j, l.a, l.b, x, y, w, w),
+      level: it.hotel.stars,
+    });
+    return;
+  }
   const b = (it as Extract<LotItem, { kind: 'business' }>).biz;
   const sz = BIZ_SIZE[b.shape] ?? BIZ_SIZE.shopfront;
   const cafe = b.shape === 'restaurant' && isCafe(b.kind);
@@ -861,8 +929,9 @@ export function putLotItem(ctx: Ctx, it: LotItem, l: Lot, blk: Cell, area?: stri
 }
 
 /**
- * City places by district index (`indexOf` a plan id; -1 when the plan has
- * no such district: the finance district takes it).
+ * City places and named hotels by district index (`indexOf` a plan id; -1
+ * when the plan has no such district: the finance district takes it). The
+ * hotel you're staying in is left out: your room (home) stands there.
  */
 export function civicByDistrict(
   input: CityInput,
@@ -870,12 +939,33 @@ export function civicByDistrict(
   fallback: number,
 ): Map<number, LotItem[]> {
   const out = new Map<number, LotItem[]>();
-  for (const c of input.civic ?? []) {
-    const n = indexOf(c.district);
+  const add = (district: string, it: LotItem) => {
+    const n = indexOf(district);
     const k = n >= 0 ? n : fallback;
-    out.set(k, [...(out.get(k) ?? []), { kind: 'civic', place: c }]);
-  }
+    out.set(k, [...(out.get(k) ?? []), it]);
+  };
+  for (const c of input.civic ?? []) add(c.district, { kind: 'civic', place: c });
+  for (const h of input.hotels ?? [])
+    if (h.id !== input.stay) add(h.district, { kind: 'hotel', hotel: h });
   return out;
+}
+
+/** The hotel you're staying in, from the input (null at home, or booked by tier off the list). */
+export const stayHotel = (input: CityInput): HotelInput | null =>
+  (input.stay && input.hotels?.find((h) => h.id === input.stay)) || null;
+
+/**
+ * Abroad in a named hotel: your room (the home place) stands in the
+ * hotel's district. Moves the `home` host there when the plan has it.
+ */
+export function homeAtStay(
+  input: CityInput,
+  hostOf: Map<Host, number>,
+  indexOf: (district: string) => number,
+) {
+  const stay = stayHotel(input);
+  const n = stay ? indexOf(stay.district) : -1;
+  if (n >= 0) hostOf.set('home', n);
 }
 
 type FillStyle = 'park' | 'houses' | 'towers' | 'warehouses' | 'low' | 'plaza';
@@ -939,7 +1029,11 @@ function fillLots(
 }
 
 const roleOf = (it: LotItem): DistrictId =>
-  it.kind === 'fund' ? 'investors' : it.kind === 'business' ? 'shops' : 'finance';
+  it.kind === 'fund'
+    ? 'investors'
+    : it.kind === 'business' || it.kind === 'hotel'
+      ? 'shops'
+      : 'finance';
 
 // ---------------------------------------------------------------------------
 // The original generator (markets without a plan)
@@ -960,7 +1054,9 @@ function buildGeneric(input: CityInput): CityLayout {
     Math.ceil((input.funds.length + capital.length) / 4) + Math.ceil(civic.length / 4),
   );
   const nM = Math.max(1, Math.ceil(input.segments.length / 9));
-  const nS = Math.ceil(biz.length / 4);
+  const nS = Math.ceil(
+    (biz.length + (input.hotels ?? []).filter((h) => h.id !== input.stay).length) / 4,
+  );
   const core = 3 + nF + nI + nM + nS + 2;
   const size = Math.max(4, Math.ceil(Math.sqrt(core + 3)));
 
@@ -1017,7 +1113,13 @@ function buildGeneric(input: CityInput): CityLayout {
   fillLots(
     ctx,
     of('shops'),
-    biz.map((b) => ({ kind: 'business', biz: b })),
+    [
+      ...biz.map((b) => ({ kind: 'business' as const, biz: b })),
+      // The feedback round: the named hotels (yours is your home, abroad).
+      ...(input.hotels ?? [])
+        .filter((h) => h.id !== input.stay)
+        .map((h) => ({ kind: 'hotel' as const, hotel: h })),
+    ],
     undefined,
     tree,
   );
@@ -1367,6 +1469,7 @@ function tryPlanned(
       hostOf.set(h, n >= 0 ? n : 0);
     }
   const idx = new Map(D.map((x, n) => [x.d.id, n]));
+  homeAtStay(input, hostOf, (id) => idx.get(id) ?? -1);
   const bizIn = D.map(() => [] as BizInput[]);
   for (const b of [...(input.businesses ?? [])].sort((a, c) => (a.id < c.id ? -1 : 1))) {
     let n = idx.get(b.district);

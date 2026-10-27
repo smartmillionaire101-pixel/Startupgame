@@ -53,7 +53,9 @@ test('an investor exits a private stake from Capital and sees the cash and the r
     username: `exit_${tag}`,
     role: 'investor',
     name: `Ada${tag}`,
-    market: 'lagos',
+    // Nairobi: no other spec advances its month, so the SAFE isn't converted by a
+    // round while parallel specs settle Lagos.
+    market: 'nairobi',
   });
   await expect(tab(page, 'Today')).toBeVisible({ timeout: 30_000 });
 
@@ -67,7 +69,8 @@ test('an investor exits a private stake from Capital and sees the cash and the r
     const r = await command(page, {
       type: 'invest.quick',
       companyId: d.companyId,
-      amount: Math.min(d.maxCheck, 2_000_000_00),
+      // KSh 200k: inside a first cheque's cap (a tenth of what you can invest).
+      amount: Math.min(d.maxCheck, 200_000_00),
     });
     if (r.status === 'accepted') {
       companyId = d.companyId;
@@ -113,5 +116,7 @@ test('an investor exits a private stake from Capital and sees the cash and the r
   expect(after.me.wealth.realised.proceeds).toBeGreaterThan(0);
   const left = (after.capital.stakes as Stake[]).find((s) => s.companyId === companyId)!;
   expect(left.safe).toBe(stake.safe - Math.floor(stake.safe / 2));
-  await expect(phone.locator('[data-wealth="realised"]')).not.toContainText('₦0 received');
+  await expect(phone.locator('[data-wealth="realised"]')).not.toContainText(
+    /(^|[^\d.,])0 received/,
+  );
 });

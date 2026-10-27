@@ -165,6 +165,14 @@ export interface HotelStay {
   tier: 'budget' | 'business' | 'luxury';
   name: string;
   paid: number;
+  /**
+   * Feedback round: the named hotel (data/hotels.ts), its district, stars and
+   * the nights paid for. Missing = booked by tier, as before.
+   */
+  id?: string;
+  district?: string;
+  stars?: number;
+  nights?: number;
 }
 
 /** More games (games.ts): a player's record at the lanes and in the air. */
@@ -304,6 +312,16 @@ export interface Player {
   walls?: HomeWall[];
   /** Shop note: the names you gave the rooms of your home. Missing = none. */
   roomLabels?: RoomLabel[];
+  /**
+   * Buy mode (the feedback round): your rooms' floors ('0:living' → a floor
+   * finish), your walls' paint, and the paid finishes you own. Missing = as built.
+   */
+  homeStyle?: { floors?: Record<string, string>; wall?: string; owned?: string[] };
+  /**
+   * Buy mode (player feedback): more of a thing you have (a second speaker,
+   * more plants, another painting), each placed on its own. Missing = none.
+   */
+  homeExtras?: HomeExtra[];
   /** Wave 5: your car. Missing = none. */
   car?: PlayerCar;
   /** Wave 6: venue buys this month (seeds the "who you meet" roll). Missing = none. */
@@ -393,6 +411,12 @@ export interface Player {
   wardrobe?: { item: string; month: number; colour?: string; from?: Id }[];
   /** City places (places.ts): appointments, services used, visas and licences. Missing = none. */
   places?: PlayerPlaces;
+  /**
+   * Errands (errands.ts, feedback note): `<market>:<errand>` → the game day
+   * (places.ts `gameMinute` / DAY_MIN, on that city's clock) it was last done.
+   * Missing = never.
+   */
+  errands?: Record<string, number>;
   /** Bankers note: the banker's first session. */
   bankerTutorial?: BankerTutorial;
   /**
@@ -565,7 +589,15 @@ export interface BankerWork {
   recruits: BankRecruit[];
   clients: BankClientLead[];
   /** Advisory leads from people you met: they come to your desk. */
-  leads: { key: string; kind: MandateKind; month: number }[];
+  leads: {
+    key: string;
+    kind: MandateKind;
+    month: number;
+    /** A referral (FEEDBACK_NOTE): the client whose deal they heard about. */
+    from?: string;
+    /** Met at a city event (FEEDBACK_NOTE): its title. */
+    at?: string;
+  }[];
   line?: InterbankLine;
   /** The listing desk set you a goal. */
   objective?: { kind: 'list-bank'; month: number };
@@ -870,6 +902,8 @@ export interface Holiday {
   month: number;
   /** The hotel tier the host booked; null = flight only. */
   tier: HotelStay['tier'] | null;
+  /** Feedback round: the named hotel the host booked (friends book the same one). */
+  hotelId?: string;
   guests: HolidayGuest[];
   createdAt: number;
   /** Things done together: the hangout, the venue and who came. */
@@ -939,6 +973,24 @@ export interface JobApplication {
   /** Why: plain English, plus the parts a client needs to say it in its own words. */
   reason?: string;
   why?: JobWhy;
+  /** FEEDBACK_NOTE: the interview by level, step by step (work.ts). Missing = an old interview. */
+  review?: JobReview;
+}
+
+/** FEEDBACK_NOTE: how a levelled interview went (data/interviews.ts holds the words). */
+export interface JobReview {
+  /** Your score and the pass mark, 0–100. */
+  score: number;
+  passMark: number;
+  /** Points the brief you studied added, and how many times you studied it. */
+  bonus: number;
+  studied: number;
+  /** One per step, in the order answered. */
+  steps: { id: string; choice: number; best: number }[];
+  /** The hard checks you didn't meet (months, skill, time in the role). */
+  checks: JobWhy[];
+  /** Brief concepts to re-read: the ones behind the answers that let you down. */
+  study: string[];
 }
 
 export type JobWhy =
@@ -959,6 +1011,49 @@ export interface PlayerWork {
   cooldown?: Record<Id, number>;
   /** How well you're doing in your professional job, 0–1. Missing = 0.5. */
   perf?: number;
+  /** FEEDBACK_NOTE (jobtasks.ts): this month's work tasks and your strikes. Missing = none. */
+  tasks?: JobTasks;
+  /** FEEDBACK_NOTE: jobs you were let go from, newest first. Missing = none. */
+  record?: JobRecord[];
+  /** FEEDBACK_NOTE: interview briefs studied, `profession:level` → times (capped). Missing = none. */
+  study?: Record<string, number>;
+}
+
+/** On-the-job tasks (jobtasks.ts): the month's queue at your employer. */
+export interface JobTasks {
+  /** The employer they come from (a new employer starts a clean sheet). */
+  businessId: Id;
+  /** Home month they were handed out. */
+  month: number;
+  /** Task ids (data/job-tasks.ts), in the order they come. */
+  ids: string[];
+  /** One per task done (answered or missed), in order. */
+  results: JobTaskResult[];
+  /** 1: manager warning, 2: final warning, 3: let go. */
+  strikes: number;
+}
+
+export interface JobTaskResult {
+  id: string;
+  /** Your option, or null: the month ended before you answered. */
+  choice: number | null;
+  best: number;
+  right: boolean;
+  /** The performance change (0–1 scale). */
+  delta: number;
+  month: number;
+}
+
+export interface JobRecord {
+  month: number;
+  businessId: Id;
+  employer: string;
+  profession: ProfessionId;
+  /** The role's label when you left. */
+  label: string;
+  reason: 'performance';
+  /** Notice pay before tax (minor units). */
+  notice: number;
 }
 
 export interface HomeItem {
@@ -969,6 +1064,15 @@ export interface HomeItem {
   /** Shop note: the finish or warranty picked in the catalogue (option id). Missing = the default. */
   finish?: string;
   warranty?: string;
+}
+
+/** Another of a thing you own (data/home-style.ts EXTRA_SLOTS): decor, it adds no boost. */
+export interface HomeExtra {
+  id: Id;
+  slot: string;
+  itemId: string;
+  /** What you paid (home currency, minor units): sell-back is a share of it. */
+  paid: number;
 }
 
 export interface PlayerCar {
@@ -1229,6 +1333,21 @@ export interface CapTable {
 
 export type CompanyStatus = 'active' | 'shutdown' | 'acquired';
 
+/**
+ * An established company of a city's exchange (established.ts, feedback
+ * note): run by the game from this profile, not by a founder.
+ */
+export interface EstablishedProfile {
+  kind: 'blue-chip' | 'steady' | 'grower' | 'turnaround' | 'small';
+  /** Its place in the city's roster (fixes its id). */
+  slot: number;
+  /** Mean monthly sales growth, net profit margin and monthly swing (0–1 shares). */
+  growth: number;
+  margin: number;
+  swing: number;
+  employees: number;
+}
+
 export interface Company {
   id: Id;
   name: string;
@@ -1327,6 +1446,8 @@ export interface Company {
   storyBase?: StoryBase | null;
   /** Local business customers won and lost since the last story (Wave 3). Internal. */
   businessNews?: BusinessNews | null;
+  /** An established listed company run by the game (feedback note). Missing = a startup. */
+  established?: EstablishedProfile;
   /** Founder Journey 2a: the per-deal sales pipeline (only once `sales.*` is used). */
   deals?: SalesDeal[];
   /** Customers won through the pipeline, billed monthly on B2B terms. */
@@ -1343,6 +1464,8 @@ export interface Company {
   expenses?: { item: string; month: number; amount: number }[];
   /** Prospecting done this month (limited by founder hours and sales staff). */
   salesProspects?: { month: number; count: number };
+  /** Customer interviews at the Market (feedback note, interviews.ts). Missing = never interviewed. */
+  interviews?: CompanyInterviews;
   /** In (or graduated from) an accelerator (Wave 5). Missing = never joined one. */
   accelerator?: CompanyAccelerator | null;
   /** The product roadmap (§6.3). Missing = never opened: product work runs as before. */
@@ -1361,6 +1484,11 @@ export interface Company {
   ipo?: IpoState;
   /** Founder Journey 5: secondary sales of founders' shares. Missing = none. */
   secondaries?: SecondarySale[];
+  /**
+   * Founder setup (setup.ts, feedback note): register, fund, plan and lease
+   * an office before the company starts spending. Missing = founded the old way.
+   */
+  setup?: FounderSetup;
 }
 
 export type InterviewStyle = 'technical' | 'culture' | 'work_trial';
@@ -2018,6 +2146,25 @@ export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 export const PASS_REASONS = ['team', 'market', 'traction', 'price', 'fit', 'timing'] as const;
 export type PassReason = (typeof PASS_REASONS)[number];
 
+/** What an investor asks first on a first call (feedback round, investorguide.ts). */
+export const FIRST_CALL_ASKS = ['growth', 'burn', 'customers', 'team'] as const;
+export type FirstCallAsk = (typeof FIRST_CALL_ASKS)[number];
+
+/**
+ * One scored investing decision (feedback round, investorguide.ts): the
+ * player's choice against the best call for the company's real numbers.
+ * `values` are the numbers behind the best call, for the client's "why".
+ */
+export interface DecisionCall {
+  step: 'screen' | 'first-call' | 'valuation' | 'cheque';
+  choice: string;
+  best: string;
+  /** 1 the best call, ½ defensible, 0 a mistake. */
+  score: number;
+  month: number;
+  values: Record<string, number>;
+}
+
 export interface PipelineEntry {
   companyId: Id;
   stage: PipelineStage;
@@ -2035,6 +2182,8 @@ export interface PipelineEntry {
   references?: { month: number; signals: string[] };
   /** For watchlist nudges: the last round month seen. */
   seenRaise?: number;
+  /** Feedback round: scored decisions on this company, one per step (investorguide.ts). */
+  calls?: DecisionCall[];
 }
 
 /** Where a fund invests (deal-flow note): its home city, its country, or the region. */
@@ -2342,6 +2491,8 @@ export interface DealCard {
     /** AI lenders: the lowest rate they will take. */
     minRateBps?: number;
   };
+  /** Founder setup: a startup loan application to a player bank carries the plan. */
+  application?: StartupApplication;
 }
 
 // ---------------------------------------------------------------- Pitches
@@ -2387,6 +2538,50 @@ export interface Pitch {
   ghosted?: boolean;
   /** Investor career Phase 8: why the investor passed. */
   passReason?: PassReason;
+  /** Feedback note: each answer scored, with the best answer and why. */
+  scores?: PitchAnswerScore[];
+  /** Feedback note: the real reason an AI fund passed, from the company's numbers. */
+  passWhy?: PitchPassWhy;
+}
+
+/** One founder pitch answer, scored 0–100 (feedback note, founderguide.ts). */
+export interface PitchAnswerScore {
+  questionId: string;
+  score: number;
+  /** How the founder answered: an option's tone, a typed figure, or spin found out. */
+  tone: 'honest' | 'modest' | 'spin' | 'vague' | 'caught';
+  /** The option id that scores best (the honest one). */
+  best: string;
+  /** What moved the score, in points. */
+  factors: { id: string; points: number; values?: Record<string, number> }[];
+}
+
+/** Why an AI fund passed, with the figures behind it (feedback note). */
+export interface PitchPassWhy {
+  id:
+    | 'traction'
+    | 'revenue'
+    | 'growth'
+    | 'product'
+    | 'team'
+    | 'runway'
+    | 'answers'
+    | 'compliance'
+    | 'deck'
+    | 'timing';
+  values: Record<string, number>;
+  /** The weak slide shown (`deck`). */
+  slide?: string;
+}
+
+/** A demo's ingredients (feedback note): raw 0–1 values, not weighted. */
+export interface DemoParts {
+  fit: number;
+  quality: number;
+  reliability: number;
+  discovery: boolean;
+  /** The day's luck, added to the weighted score. */
+  luck: number;
 }
 
 // ---------------------------------------------------------------- Media
@@ -3025,6 +3220,12 @@ export interface SalesDeal {
   revealed: boolean;
   /** How the demo went, 0–1. */
   demoScore?: number;
+  /**
+   * What the demo score was made of (feedback note): the product's fit for
+   * their segment, quality and reliability (0–1 each, weighted by
+   * DEMO_WEIGHTS), whether discovery came first, and the day's luck.
+   */
+  demoParts?: DemoParts;
   /** Proposed monthly price (before discount). */
   price?: number;
   discountPct?: number;
@@ -3035,6 +3236,72 @@ export interface SalesDeal {
   /** Lost because the deadline passed. */
   expired?: boolean;
   closedMonth?: number;
+  /** The sales conversation (feedback note, salestalk.ts). Missing = none started. */
+  talk?: SalesTalk;
+}
+
+/** A sales conversation's turns so far (salestalk.ts). Option ids are fixed when it starts. */
+export interface SalesTalk {
+  /** Conversations held on this deal (each draws its own options). */
+  n: number;
+  /** The month it started. */
+  month: number;
+  leadOptions: string[];
+  lead?: string;
+  /** Price option picked ('below' | 'mid' | 'top') and its amount, before any discount. */
+  priceOption?: string;
+  price?: number;
+  discountPct?: number;
+  /** The price was named against your guess at their band (before discovery). */
+  guessed?: boolean;
+  /** The terms on offer: the best for them and two others (missing: all four). */
+  termsOptions?: string[];
+  terms?: string;
+  /** Set once you asked for the deal. */
+  result?: SalesTalkResult;
+}
+
+export interface SalesTalkResult {
+  score: number;
+  won: boolean;
+  chance: number;
+  monthly: number;
+  turns: { turn: 'lead' | 'price' | 'terms'; option: string; score: number; best: string }[];
+}
+
+/** One interview in progress (interviews.ts): who, and the questions on offer each round. */
+export interface InterviewState {
+  /** The company's interview number (0-based): seeds who you meet and what you can ask. */
+  n: number;
+  segmentKey: string;
+  persona: number;
+  name: string;
+  gender: 'female' | 'male';
+  place: string;
+  month: number;
+  /** Question ids offered in each of the three rounds. */
+  offers: string[][];
+  /** Question ids asked so far. */
+  picks: string[];
+}
+
+export interface InterviewRecord extends InterviewState {
+  score: number;
+  before: number;
+  after: number;
+}
+
+export interface CompanyInterviews {
+  /** Interviews started, ever. */
+  n: number;
+  /** Interviews started this month. */
+  month: number;
+  count: number;
+  active?: InterviewState | null;
+  /** The last one finished. */
+  last?: InterviewRecord | null;
+  /** What people told you (the pain notes), for the sales conversation's hints; newest first. */
+  hints?: { segmentKey: string; name: string; place: string; persona: number; n: number }[];
 }
 
 export interface SalesAccount {
@@ -3199,4 +3466,89 @@ export interface Rival {
   nextMoveMonth: number;
   status: 'active' | 'failed';
   moves: RivalMove[];
+}
+
+// ---------------------------------------------------------------- Founder setup
+
+export type SetupStepId = 'idea' | 'register' | 'fund' | 'plan' | 'office';
+export type SetupCheckLevel = 'good' | 'warn' | 'bad';
+export interface SetupCheck {
+  id: 'price' | 'margin' | 'breakEven' | 'runway' | 'understanding' | 'repayment';
+  level: SetupCheckLevel;
+  values: Record<string, number>;
+}
+
+/** The business plan and pitch lenders and banks read (setup.ts). Money in minor units. */
+export interface SetupPlanFields {
+  sell: string;
+  /** The customer segment it is for. */
+  segment: string;
+  price: number;
+  costToServe: number;
+  monthlyCosts: number;
+  customersMonth6: number;
+  /** What it asks lenders for in total. */
+  ask: number;
+  /** How many months the founder says the money lasts. */
+  months: number;
+}
+
+export interface SetupPlan extends SetupPlanFields {
+  month: number;
+  checks: SetupCheck[];
+  /** 0–100: the checks, with the founder's credit. */
+  score: number;
+}
+
+/** A city lender's answer to a startup loan (decided when asked, like a licence decision). */
+export interface SetupDecision {
+  lenderId: Id;
+  productId: string;
+  month: number;
+  outcome: 'approved' | 'conditions' | 'declined';
+  score: number;
+  /** Approved in total; paid now; the rest after `restAfterCustomers` paying customers. */
+  amount: number;
+  now: number;
+  rest: number;
+  restAfterCustomers: number;
+  rateBps: number;
+  months: number;
+  /** The checks behind a condition or a decline (each with a fix in the client's copy). */
+  reasons: SetupCheck[];
+  /** The lender's own reason for a decline (eligibility), or null. */
+  lenderReason: string | null;
+  dealId: Id | null;
+  restDealId?: Id;
+}
+
+export interface SetupOffice {
+  id: 'home' | 'cowork' | 'small' | 'shop' | 'serviced';
+  district: string;
+  desks: number;
+  rent: number;
+  leaseMonths: number;
+  month: number;
+}
+
+export interface FounderSetup {
+  step: 'register' | 'fund' | 'plan' | 'office' | 'done';
+  startedMonth: number;
+  registered?: { month: number; fee: number; incorporation: Incorporation };
+  plan?: SetupPlan;
+  decisions: SetupDecision[];
+  office?: SetupOffice;
+  doneMonth?: number;
+}
+
+/** What a banker reads on a startup loan application (a snapshot of the plan when sent). */
+export interface StartupApplication {
+  plan: SetupPlan;
+  /** The founder's own money in the company when the application was sent. */
+  ownMoney: number;
+  creditScore: number;
+  defaults: number;
+  /** City lenders that approved too (names). */
+  alsoApproved: string[];
+  declineReason?: string;
 }

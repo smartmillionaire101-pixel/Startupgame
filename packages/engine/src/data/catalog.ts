@@ -329,6 +329,7 @@ const SHOP_CATEGORY: Partial<Record<MallShopId, CatalogCategory>> = {
   outlet: 'fashion',
   designer: 'fashion',
   shoes: 'fashion',
+  suits: 'fashion',
   jewellery: 'fashion',
   phones: 'electronics',
   home: 'home',

@@ -27,7 +27,7 @@ import type { MarketId } from './data/markets.js';
 import { stageOf, isHotRound } from './dealcraft.js';
 import { aiStartupTarget } from './ai.js';
 import { angelRecord } from './funds.js';
-import { getMarket, lastPnl, nextStage, notify, usdToLocal } from './helpers.js';
+import { getMarket, lastPnl, nextStage, notify, usdToLocal, isEstablished } from './helpers.js';
 import { lpsOf } from './programs.js';
 import { typicalPostMoney } from './lpreview.js';
 import { clamp, roundTo } from './math.js';
@@ -243,7 +243,7 @@ export function eventDealFlow(
   if (founders.length < need) {
     const room = aiStartupTarget(world, ev.market) + DEALFLOW.extraStartups;
     let active = Object.values(world.companies).filter(
-      (c) => c.ai && c.market === ev.market && c.status === 'active',
+      (c) => c.ai && c.market === ev.market && c.status === 'active' && !isEstablished(c),
     ).length;
     for (let i = founders.length; i < need && active < room; i++, active++) {
       try {

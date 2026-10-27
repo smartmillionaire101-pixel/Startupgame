@@ -14,7 +14,15 @@
 import { aiRespond, openDeal, settleExit } from './deals.js';
 import { emptyPosition } from './customers.js';
 import { ensure, fail } from './errors.js';
-import { achieve, getCompany, getMarket, nextStage, notify, publish } from './helpers.js';
+import {
+  achieve,
+  getCompany,
+  getMarket,
+  nextStage,
+  notify,
+  publish,
+  isEstablished,
+} from './helpers.js';
 import { account, costIn, payExact, transfer } from './ledger.js';
 import { clamp } from './math.js';
 import { relatedParties } from './marketplace.js';
@@ -51,6 +59,11 @@ export function proposeAcquisition(
     'Both companies must be operating.',
   );
   ensure(!target.parentId, 'acquire.subsidiary', 'That company is already owned by another.');
+  ensure(
+    !isEstablished(target),
+    'acquire.established',
+    'That company trades on the stock exchange: buy its shares there instead.',
+  );
   const actor = world.players[args.by];
   ensure(
     actor && hasVisited(actor, target.market),

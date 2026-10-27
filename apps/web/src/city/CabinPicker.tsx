@@ -1,9 +1,10 @@
 /**
  * Choosing your cabin when you book a flight (player feedback: "I should
  * choose which class I want: economy, business and first class, because
- * remember we have lifestyle in the game"). The three side by side, each with
- * its fare, what you get and how you'll land; one you can't afford is greyed
- * out. Then (first-class release, player feedback: "When I book first class
+ * remember we have lifestyle in the game"). The three, a row each with its
+ * fare, what you get and how you'll land (a row each, not side by side: three
+ * cards across pushed the Travel app off a phone); one you can't afford is
+ * greyed out. Then (first-class release, player feedback: "When I book first class
  * travel the return is always economy") the way home: a return booked now,
  * in the same cabin unless you choose another. Then, abroad, the hotel
  * (./HotelPicker); flying home, just the flight, on the return you hold.
@@ -13,7 +14,7 @@ import { money } from '../format';
 import { t } from '../i18n';
 import { HotelPicker } from './HotelPicker';
 import type { Ticket } from './ticket';
-import type { CabinOption, CabinTier, HotelOption, HotelTier } from './travel';
+import type { CabinOption, CabinTier, HotelOption, HotelTier, NamedHotel } from './travel';
 import './hotels.css';
 
 export const CABIN_NAME: Record<CabinTier, () => string> = {
@@ -24,21 +25,11 @@ export const CABIN_NAME: Record<CabinTier, () => string> = {
 
 const CABIN_ICON: Record<CabinTier, string> = { economy: '💺', business: '🛋️', first: '🥂' };
 
-/** What each cabin gives you, in a few words. */
+/** What each cabin gives you, in a few words (one short line on a phone). */
 const PERKS: Record<CabinTier, () => string[]> = {
-  economy: () => [t('Standard seat'), t('Meal on a tray'), t('Queues at the airport')],
-  business: () => [
-    t('Lie-flat seat'),
-    t('Lounge access'),
-    t('Priority boarding'),
-    t('Amenity kit'),
-  ],
-  first: () => [
-    t('Private suite with a bed'),
-    t('Lounge access'),
-    t('Champagne and caviar'),
-    t('Chauffeur on arrival'),
-  ],
+  economy: () => [t('Standard seat'), t('Meal on a tray')],
+  business: () => [t('Lie-flat seat'), t('Lounge'), t('Priority boarding')],
+  first: () => [t('Private suite'), t('Champagne'), t('Chauffeur on arrival')],
 };
 
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
@@ -99,24 +90,25 @@ function CabinPicker({
               disabled={!ok}
               onChange={() => onPick(c.cabin)}
             />
-            <span className="cabin-head">
-              <span aria-hidden="true">{CABIN_ICON[c.cabin]}</span> <b>{CABIN_NAME[c.cabin]()}</b>
+            <span className="cabin-main">
+              <span className="cabin-head">
+                <span aria-hidden="true">{CABIN_ICON[c.cabin]}</span> <b>{CABIN_NAME[c.cabin]()}</b>
+              </span>
+              <span className="cabin-perks small muted">{PERKS[c.cabin]().join(' · ')}</span>
+              <span className="cabin-land small">
+                {landing(c)}
+                {c.hours > 0 && (
+                  <span className="cabin-hours muted">
+                    {' · '}
+                    {t('{h}h at the airport', { h: c.hours })}
+                  </span>
+                )}
+              </span>
+              {!ok && <span className="cabin-off small">{t('Can’t afford')}</span>}
             </span>
-            <span className="cabin-price">
+            <span className={`cabin-price${held ? ' is-held' : ''}`}>
               {held ? t('Your return ticket · paid') : money(c.price, currency)}
             </span>
-            <ul className="cabin-perks">
-              {PERKS[c.cabin]().map((x) => (
-                <li key={x}>{x}</li>
-              ))}
-            </ul>
-            <span className="cabin-land small">{landing(c)}</span>
-            {c.hours > 0 && (
-              <span className="cabin-hours small muted">
-                {t('{h}h lost at the airport', { h: c.hours })}
-              </span>
-            )}
-            {!ok && <span className="cabin-off small">{t('Can’t afford')}</span>}
           </label>
         );
       })}
@@ -179,8 +171,10 @@ export function TicketLegs({
  */
 export function TripPicker({
   city,
+  marketId = '',
   cabins,
   hotels,
+  hotelList = [],
   fare,
   currency,
   balance,
@@ -193,9 +187,13 @@ export function TripPicker({
   onCancel,
 }: {
   city: string;
+  /** The destination (for the named hotels' map). */
+  marketId?: string;
   /** Empty from an older server: economy only, the fare as it is. */
   cabins: CabinOption[];
   hotels: HotelOption[];
+  /** The city's named hotels (the feedback round; empty: the three tiers). */
+  hotelList?: NamedHotel[];
   /** The economy fare, minor units of your home currency. */
   fare: number;
   currency: string;
@@ -208,7 +206,12 @@ export function TripPicker({
   held?: { cabin: CabinTier; paid: number } | null;
   /** The cabin to start on (flying home: the one you flew out in). */
   initial?: CabinTier;
-  onBook: (hotel: HotelTier | null, cabin: CabinTier, back: CabinTier | null) => void;
+  onBook: (
+    hotel: HotelTier | null,
+    cabin: CabinTier,
+    back: CabinTier | null,
+    hotelId?: string,
+  ) => void;
   onCancel: () => void;
 }) {
   const [cabin, setCabin] = useState<CabinTier>(held?.cabin ?? initial ?? 'economy');
@@ -301,17 +304,19 @@ export function TripPicker({
         </div>
       )}
       {short && <p className="small cabin-off">{t('Can’t afford')}</p>}
-      {hotels.length > 0 ? (
+      {hotels.length > 0 || hotelList.length > 0 ? (
         // A new suggestion for each choice: what's left after the fares change.
         <HotelPicker
           key={`${cabin}:${roundTrip ? back : '-'}`}
           city={city}
+          marketId={marketId}
           hotels={hotels}
+          named={hotelList}
           fare={price}
           currency={currency}
           balance={balance}
           busy={blocked}
-          onBook={(hotel) => onBook(hotel, cabin, roundTrip ? back : null)}
+          onBook={(hotel, hotelId) => onBook(hotel, cabin, roundTrip ? back : null, hotelId)}
           onCancel={onCancel}
         />
       ) : (

@@ -419,8 +419,8 @@ export function barEffects(p: Player): BarEffect[] {
   if (stress > L.stressedOutStress)
     bad('stressed-out', 'Stressed out: fewer hours and weaker pitches');
   else if (stress > L.highStress) bad('stressed', 'Stressed: sales and pitches are harder');
-  if (happinessOf(p) > L.happyHappiness) good('happy', 'Happy: a small boost to sales and pitches');
+  if (happinessOf(p) > L.happyHappiness) good('happy', 'Happy: +sales, +pitches');
   if (p.energy > L.greatEnergy && stress < L.greatStress)
-    good('feeling-great', 'Feeling great: a small boost to sales and pitches');
+    good('feeling-great', 'Feeling great: +sales, +pitches');
   return out;
 }

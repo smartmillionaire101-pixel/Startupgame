@@ -1,0 +1,253 @@
+/* Interviews by level: the brief, the interview step by step, the review (phone/interview.tsx). */
+
+.work-brief-toggle {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+}
+.work-brief-toggle > .work-brief {
+  justify-self: stretch;
+}
+
+.work-brief {
+  display: grid;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+.work-brief-card {
+  display: grid;
+  gap: var(--sp-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
+}
+.work-brief-card .phone-h,
+.work-brief-card p {
+  margin: 0;
+}
+.work-brief-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+/* "Level 4 of 4 · 2 questions and a case in 3 steps": one line under the title, not four beside the pill. */
+.work-brief-card .work-brief-shape {
+  margin-top: calc(2px - var(--sp-2));
+}
+
+.work-ladder-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+.work-ladder-chips li {
+  font-size: 0.8rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.work-ladder-chips li.is-below {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.work-ladder-chips li.is-on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+
+.work-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.work-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.work-check-mark {
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--good-soft);
+  color: var(--good);
+}
+.work-check.is-short .work-check-mark {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.work-check-main {
+  flex: 1;
+  min-width: 0;
+}
+.work-check-value {
+  flex: none;
+  font-weight: 700;
+  color: var(--good);
+}
+.work-check.is-short .work-check-value {
+  color: var(--warn);
+}
+
+.work-concepts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.work-concept {
+  display: grid;
+  gap: 0.2rem;
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--line);
+}
+.work-concept:first-child {
+  border-top: 0;
+}
+.work-concept p {
+  margin: 0;
+}
+.work-example {
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  padding: var(--sp-1) var(--sp-2);
+  overflow-wrap: anywhere;
+}
+
+/* The interview, one question or case step at a time. */
+.work-question,
+.work-case {
+  display: grid;
+  gap: var(--sp-1);
+}
+.work-question p,
+.work-case p {
+  margin: 0;
+}
+.work-case-setup {
+  line-height: 1.45;
+}
+.work-case-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-2);
+}
+.work-case-step {
+  border-left: 3px solid var(--line);
+  padding-left: var(--sp-2);
+  display: grid;
+  gap: var(--sp-1);
+}
+.work-case-step.is-now {
+  border-left-color: var(--accent);
+}
+.work-case-step.is-later {
+  opacity: 0.55;
+}
+.work-option-lettered {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.work-letter {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--surface);
+}
+.work-interview-nav {
+  display: flex;
+  gap: var(--sp-2);
+}
+.work-interview-nav > :last-child {
+  flex: 1;
+}
+
+/* The review. */
+.work-review-score {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.work-review-score p {
+  margin: 0;
+}
+.work-ring {
+  flex: none;
+  width: 4.5rem;
+  height: 4.5rem;
+}
+.work-ring circle {
+  fill: none;
+  stroke-width: 6;
+}
+.work-ring-track {
+  stroke: var(--line);
+}
+.work-ring-fill {
+  stroke: var(--bad);
+  stroke-linecap: round;
+}
+.work-ring.is-ok .work-ring-fill {
+  stroke: var(--good);
+}
+.work-ring text {
+  fill: var(--text);
+  font-size: 1.1rem;
+  font-weight: 750;
+}
+.work-review-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.work-review-step {
+  padding: var(--sp-2) 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  display: grid;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+.work-review-step p {
+  margin: 0;
+}
+.work-review-step.is-right .work-review-mark {
+  color: var(--good);
+}
+.work-review-step.is-wrong .work-review-mark {
+  color: var(--bad);
+}
+.work-study-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: var(--sp-1);
+}
+.work-again-actions {
+  display: grid;
+  gap: var(--sp-2);
+}

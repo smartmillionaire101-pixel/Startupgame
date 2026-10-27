@@ -33,11 +33,18 @@ export {
 export { FLIGHT_HOURS, MAX_FLIGHTS_PER_MONTH, MAX_RIDES_PER_MONTH, locationOf } from './travel.js';
 export type { RideMode, RideDistance, CabinClass, CabinOption } from './travel.js';
 export { CABIN, CABIN_CLASSES, cabinFare, cabinEffects } from './travel.js';
+export { HOTEL_NIGHTS } from './travel.js';
+export { CITY_HOTELS, HOTEL_ROOMS } from './data/hotels.js';
+export type { HotelSpec, HotelRoom } from './data/hotels.js';
 export {
   SEND_DAILY_LIMIT_COL,
   SEND_FEE_MIN_COL,
   SEND_FEE_RATE,
   TECH_EVENT_KINDS,
+  BANKER_EVENT_KINDS,
+  INVESTOR_EVENT_KINDS,
+  BANKING_TALK_TITLES,
+  INVESTING_TALK_TITLES,
   TALK_TITLES,
   parseTechEventId,
   techEventsFor,
@@ -99,7 +106,7 @@ export type {
   WornPart,
   Removable,
 } from './appearance.js';
-export { checkName, normaliseName, editDistance, isNearCopy } from './names.js';
+export { checkName, normaliseName, editDistance, isNearCopy, OFFENSIVE_ROOTS } from './names.js';
 export { checkChatMessage, startersFor, CHAT_MAX_LENGTH } from './chat.js';
 export {
   waterfall,
@@ -129,7 +136,9 @@ export {
   MORE_GAMES_NOTE,
   moreGamesOn,
   BANKERS_NOTE,
+  FEEDBACK_NOTE,
   bankersOn,
+  feedbackOn,
   SHOP_NOTE,
   shopOn,
   RELEASES,
@@ -163,6 +172,16 @@ export {
   type StrategyCheck,
 } from './lpreview.js';
 export { LESSONS, DEALFLOW } from './data/dealflow.js';
+// The investor guide: stages, live cheque checks and scored decisions (feedback round).
+export {
+  GUIDE,
+  INVESTOR_STAGES,
+  investChecks,
+  chequeGuide,
+  type InvestCheck,
+  type InvestCheckInput,
+  type InvestorStage,
+} from './investorguide.js';
 // A realistic first fund: suggested size, first-time-manager LPs, anchor, rolling closes.
 export { suggestFundSize, type SuggestedSize, type FirstFundRecord } from './firstfund.js';
 export { FIRST_FUND } from './data/investor.js';
@@ -181,6 +200,8 @@ export {
 export type { Bars, BarEffect, WalkMode } from './lifebars.js';
 export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
+export { STOCKS } from './stocks.js';
+export type { RiskReason, RiskReasonKind, StockAnalysis } from './stocks.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';
 // The jobs rework: professional careers.
 export {
@@ -204,6 +225,13 @@ export {
   professionOfKind,
 } from './data/professions.js';
 export type { ProfessionId, WorkField, Profession } from './data/professions.js';
+// The feedback round: on-the-job tasks, warnings and being let go.
+export { TASKS } from './jobtasks.js';
+export { JOB_TASKS, jobTaskById, jobTasksOf } from './data/job-tasks.js';
+export type { JobTask } from './data/job-tasks.js';
+// Round two: interviews by level, with a brief to study.
+export { INTERVIEW_SETS, interviewSetOf, bestAnswers, worstAnswers } from './data/interviews.js';
+export type { InterviewSet } from './data/interviews.js';
 export { acceleratorsOf, devPartnersOf, lpsOf } from './programs.js';
 export type { Cause, CareerDecision, CareerOrg } from './allocator.js';
 export { wealthView } from './wealth.js';
@@ -217,6 +245,9 @@ export { RIVALS } from './rivals.js';
 export type { RescuePlan, RescueOption } from './rescue.js';
 export { BANK_TYPES, MIN_CAPITAL_RATIO, RESERVE_RATIO } from './banks.js';
 export { INCORPORATION } from './world.js';
+// Founder setup: register, fund, plan and office, one step at a time.
+export { SETUP, planScore, setupPlanChecks } from './setup.js';
+export type { SetupPlanBase, OfficeOption } from './setup.js';
 export * from './data/markets.js';
 export * from './data/industries.js';
 export * from './data/characters.js';
@@ -278,7 +309,10 @@ export {
   MALL_ITEMS,
   MALL_SHOPS,
   MALL_SHOPS_FIRST,
+  MALL_SHOPS_FEEDBACK,
   MALL_TRIP,
+  SHIRT_COLOURS,
+  SUIT_COLOURS,
   PHONE_NAMES,
   forWardrobe,
   giftable,
@@ -294,8 +328,15 @@ export type {
   MallShopId,
   PhoneTier,
 } from './data/leisure.js';
+// The feedback round: dressed for the role.
+export { inRoleOutfit, roleOutfit } from './outfits.js';
+export type { RoleOutfit } from './outfits.js';
 // The catalogue, shopping online, walls and dividers (shop note).
 export * from './data/catalog.js';
+// Buy mode (the feedback round): what things do for you, floors and wall paint.
+export * from './data/home-style.js';
+export { boostsOf, roomKey } from './homestyle.js';
+export type { Boosts } from './homestyle.js';
 export { wallEdgesOf } from './catalog.js';
 export type { OnlineOrder } from './catalog.js';
 export { BRANCH } from './branches.js';
@@ -303,7 +344,7 @@ export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.j
 // Wave 12: sky views and the quiz bank.
 export { SKY_VIEWS, skyViewById, skyViewsIn } from './data/sky-views.js';
 export type { SkyViewSpec, SkyViewKind } from './data/sky-views.js';
-export { QUIZ_BANK } from './data/quiz-bank.js';
+export { QUIZ_BANK, QUIZ_BANK_FULL } from './data/quiz-bank.js';
 export type { BankQuestion, QuizCategory } from './data/quiz-bank.js';
 export {
   AUTO_QUIZ_FROM,
@@ -426,7 +467,34 @@ export {
 export { FEATURES, featuresFor, featureById, BUG_BASH } from './data/roadmap.js';
 export type { FeatureDef, FeatureEffectKind, FeatureSkill } from './data/roadmap.js';
 export { ROADMAP, FIRST_RELEASE } from './roadmap.js';
-export { SALES, ACTION_FROM as SALES_ACTION_FROM, winChance, type SalesView } from './sales.js';
+export {
+  SALES,
+  ACTION_FROM as SALES_ACTION_FROM,
+  DEMO_WEIGHTS,
+  winChance,
+  type SalesView,
+} from './sales.js';
+export { TALK, salesWithTalk, talkView, type TalkView } from './salestalk.js';
+export {
+  INTERVIEW,
+  interviewsView,
+  meet as meetInterviewee,
+  type InterviewsView,
+} from './customer-interviews.js';
+export {
+  FOUNDER_GUIDE,
+  FOUNDER_STAGES,
+  bestCandidate,
+  founderPlanChecks,
+  type FounderCheck,
+  type FounderGuideView,
+  type FounderPlanBase,
+  type FounderPlanInput,
+  type FounderStageId,
+  type FounderTask,
+} from './founderguide.js';
+export { TRACTION, customerFacts } from './traction.js';
+export type { CustomerFacts } from './traction.js';
 export { HIRING, AI_COFOUNDER_PROFILES, trialFee } from './hiring.js';
 export type { AiCofounderOffer, RetentionRisk } from './hiring.js';
 export {
@@ -465,6 +533,22 @@ export {
 } from './data/places.js';
 export type { PlaceRole, PlaceService, PlaceGate, PlaceAccess } from './data/places.js';
 export { cityPlaces, findPlace, gameMinute, whenOf, placeAccess } from './places.js';
+// Errands: something to do in every building (feedback note).
+export {
+  CLOTHES,
+  COURT_CASES,
+  CONSULTATIONS,
+  ERRAND_IDS,
+  ERRAND_SPECS,
+  ERRANDS,
+  KIND_ERRANDS,
+  PAPER_TIPS,
+  SPOT_ERRANDS,
+  STANDUP_FOCUS,
+  TAX_QA,
+} from './data/errands.js';
+export type { ErrandId, StandupFocus } from './data/errands.js';
+export { doErrand, errandsView } from './errands.js';
 // Banker work: the advisory desk, conversations at banks and institutions, the track record.
 export {
   BANKWORK,
@@ -473,13 +557,21 @@ export {
   LENDER_FIT,
   MANDATES,
   MANDATE_KINDS,
+  REPUTATION,
   STEPS,
   TALKS,
   TALK_TOPICS,
 } from './data/bankwork.js';
-export type { MandateKind, TalkTopic, ClientBand, ClientShape } from './data/bankwork.js';
+export type {
+  MandateKind,
+  TalkTopic,
+  ClientBand,
+  ClientShape,
+  ClientTier,
+} from './data/bankwork.js';
 export {
   advisoryRecord,
+  advisoryReputation,
   bankWorkView,
   isBankerWorker,
   mandateOffers,

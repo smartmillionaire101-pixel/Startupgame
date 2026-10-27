@@ -1,21 +1,31 @@
 import { useEffect, useState } from 'react';
 import { FoundCompany } from './Me';
 import { ScreenBoundary } from '../ScreenBoundary';
-import type { BuildMode, Industry, RevenueModel } from '@runway/engine';
+import { FOUNDER_STAGES } from '@runway/engine';
+import type { BuildMode, FounderStageId, Industry, RevenueModel } from '@runway/engine';
 import { amountInput, money, parseAmount, pct, runway, stars, titleCase } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView, type Company as CompanyT } from '../store';
-import { Bar, Button, Card, Confirm, Empty, Field, Pill, Segmented, Sheet } from '../ui';
+import { Bar, Button, Card, Confirm, Empty, Field, Fold, Pill, Segmented, Sheet } from '../ui';
 import { ExpansionCard } from './Expansion';
 import { Roadmap } from './Roadmap';
 import { SalesPipeline } from './Sales';
+import { InterviewSheet } from './Interview';
 import { CofounderCard, HiringPipeline, TeamHealth } from './Hiring';
 import { RunwayExplainer } from './FundCompany';
 import { RivalsPanel } from './Decisions';
+import { FounderSetup, SetupTracker, setupOpen } from './FounderSetup';
 import { SimpleLink } from './SimpleLink';
 import { CompanyKpis } from './Home';
 import { SnapButton } from '../photos/SnapButton';
 import { resultCard } from '../photos/snap';
+import {
+  CheckHeadline,
+  PlanChecks,
+  StageTracker,
+  livePlanChecks,
+  stageTitle,
+} from './FounderGuide';
 
 type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
 
@@ -30,6 +40,38 @@ const tabLabel = (tab: Tab) =>
     board: t('Board'),
     rules: t('Rules'),
   })[tab];
+
+/**
+ * The founder stage each tab belongs to (founder guidance): the current
+ * stage's tabs come first, and later stages' tabs are dimmed until then.
+ */
+const stageAt = (id: FounderStageId) => FOUNDER_STAGES.indexOf(id);
+const TAB_STAGE: Record<Tab, number> = {
+  product: stageAt('idea'),
+  sales: stageAt('idea'),
+  customers: stageAt('first-customers'),
+  rules: stageAt('first-customers'),
+  team: stageAt('product-fit'),
+  roadmap: stageAt('product-fit'),
+  board: stageAt('seed'),
+  suppliers: stageAt('growth'),
+};
+const TABS: Tab[] = [
+  'product',
+  'roadmap',
+  'sales',
+  'customers',
+  'team',
+  'suppliers',
+  'board',
+  'rules',
+];
+
+/** Tabs for the stage a company is at: this stage's first, then earlier ones, then later. */
+export function tabsForStage(stage: number): Tab[] {
+  const rank = (tab: Tab) => (TAB_STAGE[tab] === stage ? 0 : TAB_STAGE[tab] < stage ? 1 : 2);
+  return [...TABS].sort((a, b) => rank(a) - rank(b));
+}
 
 const seniorityLabel = (s: string) =>
   ({ junior: t('Junior'), mid: t('Mid'), senior: t('Senior'), head: t('Head') })[s] ?? titleCase(s);
@@ -117,6 +159,22 @@ export function CompanyScreen() {
     // A founder sets up the company right here, not under Me (player feedback).
     if (view.me.role !== 'founder')
       return <Empty>{t('No active company. Set up your business in Me → Profile.')}</Empty>;
+    // Founder setup: step 1 of the tracker is the idea and its name.
+    if (view.setupOn)
+      return (
+        <>
+          <SetupTracker idea />
+          <section className="card" data-company-setup="">
+            <h2>{t('1 · Idea & industry')}</h2>
+            <p className="small muted">
+              {t(
+                'Name it and say what it does. Registering and funding come next, one step at a time.',
+              )}
+            </p>
+            <FoundCompany setup />
+          </section>
+        </>
+      );
     return (
       <section className="card" data-company-setup="">
         <h2>{t('Set up your company')}</h2>
@@ -127,6 +185,23 @@ export function CompanyScreen() {
       </section>
     );
   }
+  // Founder setup: register, fund, plan and office before the company opens.
+  if (setupOpen(c))
+    return (
+      <>
+        <header className="screen-head">
+          <span className="screen-logo" aria-hidden="true">
+            {c.name.trim().charAt(0).toUpperCase()}
+          </span>
+          <span className="screen-head-main">
+            <h1>{c.name}</h1>
+            <span className="muted small">{c.idea}</span>
+          </span>
+          <Pill>{c.industryLabel}</Pill>
+        </header>
+        <FounderSetup c={c} />
+      </>
+    );
   return (
     <>
       <header className="screen-head">
@@ -139,6 +214,11 @@ export function CompanyScreen() {
         </span>
         <Pill>{c.industryLabel}</Pill>
       </header>
+      {/* Founder setup: the done card hands over to the stage tracker (companies
+          founded before the setup, or seeded, have none). */}
+      {c.setup && <FounderSetup c={c} />}
+      {/* Founder guidance: the stage, its checklist and the next step, first. */}
+      <StageTracker c={c} />
       {/* The company's bank, spending, how long the money lasts and revenue, up front. */}
       <CompanyKpis c={c} />
       {/* The camera: your company's numbers as a card to save or share. */}
@@ -183,31 +263,52 @@ export function CompanyScreen() {
         badge={view.deals.filter((d) => d.yourTurn).length}
       />
       <div className="tabs" role="tablist">
-        {(
-          [
-            'product',
-            'roadmap',
-            'sales',
-            'customers',
-            'team',
-            'suppliers',
-            'board',
-            'rules',
-          ] as Tab[]
-        ).map((id) => (
-          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+        {tabsForStage(c.guide.index).map((id) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={TAB_STAGE[id] > c.guide.index ? 'tab-later' : undefined}
+            title={
+              TAB_STAGE[id] > c.guide.index
+                ? t('Matters from the {stage} stage', {
+                    stage: stageTitle(c.guide.stages[TAB_STAGE[id]]!.id),
+                  })
+                : undefined
+            }
+          >
             {tabLabel(id)}
           </button>
         ))}
       </div>
       <ScreenBoundary resetKey={tab} name={`company:${tab}`}>
         {tab === 'product' && (
-          <>
-            <RunwayExplainer c={c} />
-            <Product c={c} />
-            <RivalsPanel c={c} />
-            <ExpansionCard c={c} />
-          </>
+          // A wide screen: columns (one after the other on a phone).
+          <div className="screen-cols">
+            <div className="screen-col">
+              <RunwayExplainer c={c} />
+              <Product c={c} />
+            </div>
+            <div className="screen-col">
+              <Pivot c={c} />
+              <RivalsPanel c={c} />
+            </div>
+            <div className="screen-col">
+              {/* A second city is a Growth-stage move: folded away until then. */}
+              {c.guide.index >= stageAt('growth') ? (
+                <ExpansionCard c={c} />
+              ) : (
+                <Fold
+                  title={t('Later stages')}
+                  sub={t('Later: the {stage} stage', { stage: stageTitle('growth') })}
+                  id="later-expansion"
+                >
+                  <ExpansionCard c={c} />
+                </Fold>
+              )}
+            </div>
+          </div>
         )}
         {tab === 'roadmap' && <Roadmap c={c} />}
         {tab === 'sales' && <SalesPipeline c={c} />}
@@ -223,66 +324,69 @@ export function CompanyScreen() {
 
 function Product({ c }: { c: CompanyT }) {
   const { send, view } = useView();
+  return (
+    <Card title={t('Product')}>
+      <Bar label={t('Product fit')} value={c.product.fit} />
+      <Bar
+        label={t('Reliability')}
+        value={c.product.reliability}
+        tone={c.product.reliability < 0.35 ? 'bad' : undefined}
+      />
+      <Bar label={t('Quality')} value={c.product.quality} />
+      <Bar
+        label={t('Tech debt')}
+        value={c.product.techDebt}
+        tone={c.product.techDebt > 0.5 ? 'bad' : 'warn'}
+      />
+      <Field
+        label={t('Build mode')}
+        hint={t('Fast ships fit sooner but piles up tech debt. Quality pays it down.')}
+      >
+        {() => (
+          <Segmented<BuildMode>
+            label={t('Build mode')}
+            value={c.product.buildMode}
+            options={[
+              { value: 'fast', label: t('Fast') },
+              { value: 'balanced', label: t('Balanced') },
+              { value: 'quality', label: t('Quality') },
+            ]}
+            onChange={(v) =>
+              void send(
+                { type: 'company.strategy', companyId: c.id, buildMode: v },
+                t('Build mode: {mode}.', { mode: buildModeLabel(v).toLowerCase() }),
+              )
+            }
+          />
+        )}
+      </Field>
+      <div className="row">
+        <Button
+          onClick={() =>
+            void send(
+              { type: 'company.build', companyId: c.id, hours: 40 },
+              (r: { message: string }) => tx(r.message),
+            )
+          }
+          disabled={view.me.hours.left < 40}
+        >
+          {t('Build yourself (40h)')}
+        </Button>
+        <span className="small muted">{t('{n}h left this month', { n: view.me.hours.left })}</span>
+      </div>
+      <p className="small muted">
+        {t(
+          'Engineers and product staff build every month. Customer discovery makes building count.',
+        )}
+      </p>
+    </Card>
+  );
+}
+
+function Pivot({ c }: { c: CompanyT }) {
   const [pivot, setPivot] = useState(false);
   return (
     <>
-      <Card title={t('Product')}>
-        <Bar label={t('Product fit')} value={c.product.fit} />
-        <Bar
-          label={t('Reliability')}
-          value={c.product.reliability}
-          tone={c.product.reliability < 0.35 ? 'bad' : undefined}
-        />
-        <Bar label={t('Quality')} value={c.product.quality} />
-        <Bar
-          label={t('Tech debt')}
-          value={c.product.techDebt}
-          tone={c.product.techDebt > 0.5 ? 'bad' : 'warn'}
-        />
-        <Field
-          label={t('Build mode')}
-          hint={t('Fast ships fit sooner but piles up tech debt. Quality pays it down.')}
-        >
-          {() => (
-            <Segmented<BuildMode>
-              label={t('Build mode')}
-              value={c.product.buildMode}
-              options={[
-                { value: 'fast', label: t('Fast') },
-                { value: 'balanced', label: t('Balanced') },
-                { value: 'quality', label: t('Quality') },
-              ]}
-              onChange={(v) =>
-                void send(
-                  { type: 'company.strategy', companyId: c.id, buildMode: v },
-                  t('Build mode: {mode}.', { mode: buildModeLabel(v).toLowerCase() }),
-                )
-              }
-            />
-          )}
-        </Field>
-        <div className="row">
-          <Button
-            onClick={() =>
-              void send(
-                { type: 'company.build', companyId: c.id, hours: 40 },
-                (r: { message: string }) => tx(r.message),
-              )
-            }
-            disabled={view.me.hours.left < 40}
-          >
-            {t('Build yourself (40h)')}
-          </Button>
-          <span className="small muted">
-            {t('{n}h left this month', { n: view.me.hours.left })}
-          </span>
-        </div>
-        <p className="small muted">
-          {t(
-            'Engineers and product staff build every month. Customer discovery makes building count.',
-          )}
-        </p>
-      </Card>
       <Card
         title={t('Pivot')}
         action={
@@ -417,6 +521,12 @@ function Customers({ c }: { c: CompanyT }) {
   const [mkt, setMkt] = useState(amountInput(c.marketingBudget));
   const [salary, setSalary] = useState(amountInput(c.founderSalary));
   const segs = view.market.segments.filter((s) => s.industry === c.industry);
+  // Live checks on what's typed (an amount that doesn't parse yet keeps today's).
+  const checks = livePlanChecks(c, {
+    price: parseAmount(price) ?? c.price,
+    marketing: parseAmount(mkt) ?? c.marketingBudget,
+    founderSalary: parseAmount(salary) ?? c.founderSalary,
+  });
   const save = () =>
     send(
       {
@@ -452,6 +562,7 @@ function Customers({ c }: { c: CompanyT }) {
         )}
       </Card>
       <Card title={t('Pricing and spend')}>
+        <CheckHeadline checks={checks} cur={cur} />
         <Field
           label={t('Price per customer per month ({cur})', { cur })}
           hint={t('Segment budgets: {budgets}', {
@@ -469,6 +580,10 @@ function Customers({ c }: { c: CompanyT }) {
         >
           {(id) => <input id={id} value={salary} onChange={(e) => setSalary(e.target.value)} />}
         </Field>
+        <PlanChecks checks={checks} cur={cur} />
+        <p className="small muted">
+          {t('The checks update as you type, like a bank’s business-plan checks.')}
+        </p>
         <Button onClick={() => void save()}>{t('Save')}</Button>
       </Card>
     </>
@@ -480,6 +595,7 @@ export type Segment = ReturnType<typeof useView>['view']['market']['segments'][n
 /** One customer segment: who they are, your funnel there, and customer discovery. */
 export function SegmentCard({ c, s }: { c: CompanyT; s: Segment }) {
   const { send, cur } = useView();
+  const [interview, setInterview] = useState(false);
   const toggleTarget = (key: string) => {
     const next = c.targetSegments.includes(key)
       ? c.targetSegments.filter((k) => k !== key)
@@ -548,17 +664,27 @@ export function SegmentCard({ c, s }: { c: CompanyT; s: Segment }) {
           <Bar label={t('Fit for this segment')} value={pos.fit} />
         </>
       )}
-      <Button
-        variant="subtle"
-        onClick={() =>
-          void send(
-            { type: 'company.discovery', companyId: c.id, segmentKey: s.key },
-            (r: { message: string }) => tx(r.message),
-          )
-        }
-      >
-        {t('Customer discovery (20h)')}
-      </Button>
+      {c.interviews ? (
+        // Feedback note: a real interview, three rounds of questions.
+        <Button variant="subtle" data-interview-segment={s.key} onClick={() => setInterview(true)}>
+          {t('Interview a customer ({h}h)', { h: c.interviews.hours })}
+        </Button>
+      ) : (
+        <Button
+          variant="subtle"
+          onClick={() =>
+            void send(
+              { type: 'company.discovery', companyId: c.id, segmentKey: s.key },
+              (r: { message: string }) => tx(r.message),
+            )
+          }
+        >
+          {t('Customer discovery (20h)')}
+        </Button>
+      )}
+      {interview && (
+        <InterviewSheet companyId={c.id} segmentKey={s.key} onClose={() => setInterview(false)} />
+      )}
     </Card>
   );
 }

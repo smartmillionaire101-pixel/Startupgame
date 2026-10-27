@@ -2,7 +2,9 @@
  * The city exchange (investor blueprint §5.3 "Exchange", §7.2, Phase 2):
  * the index and its fund, listed companies with price, change, market cap,
  * sales multiple and news, market and limit orders inside the month's depth
- * cap, your holdings against the index, and open orders.
+ * cap, your holdings against the index, and open orders. Your own city's
+ * exchange comes first, and every listing opens a company analysis before
+ * buying (Stocks.tsx).
  */
 import type { PlayerView } from '@runway/engine';
 import { useState } from 'react';
@@ -10,6 +12,7 @@ import { money, parseAmount, pct } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Empty, Pill, Segmented, Sparkline, Stat } from '../ui';
+import { CompanyAnalysis, ExchangeChips, exchangeName } from './Stocks';
 import './investor.css';
 
 type ExchangeView = NonNullable<PlayerView['exchange']>;
@@ -92,7 +95,17 @@ function IndexFund({ c }: { c: City }) {
   );
 }
 
-function ListingRow({ x, c, brokerBps }: { x: Listing; c: City; brokerBps: number }) {
+function ListingRow({
+  x,
+  c,
+  brokerBps,
+  onAnalyse,
+}: {
+  x: Listing;
+  c: City;
+  brokerBps: number;
+  onAnalyse: () => void;
+}) {
   const { send } = useView();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'market' | 'limit'>('market');
@@ -112,7 +125,12 @@ function ListingRow({ x, c, brokerBps }: { x: Listing; c: City; brokerBps: numbe
   return (
     <div className="inv-row" data-listing={x.companyId}>
       <div className="grow">
-        <strong>{x.name}</strong> {x.ai && <span className="small muted">{t('AI-run')}</span>}{' '}
+        <strong>{x.name}</strong>{' '}
+        {x.established ? (
+          <span className="small muted">{t('Established company')}</span>
+        ) : (
+          x.ai && <span className="small muted">{t('AI-run')}</span>
+        )}{' '}
         {x.insider && <Pill tone="warn">{t('Insider')}</Pill>}
         <div className="small muted">
           {t('Value {cap} · sales ×{ps} · {weight} of the index', {
@@ -134,7 +152,10 @@ function ListingRow({ x, c, brokerBps }: { x: Listing; c: City; brokerBps: numbe
       <div style={{ textAlign: 'right' }}>
         <strong data-price>{priceText(x.price, cur)}</strong>{' '}
         <Pill tone={x.changePct >= 0 ? 'good' : 'bad'}>{signed(x.changePct)}</Pill>
-        <div>
+        <div className="row">
+          <Button size="sm" variant="subtle" onClick={onAnalyse}>
+            {t('Analyse')}
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => setOpen((o) => !o)}>
             {open ? t('Close') : t('Trade')}
           </Button>
@@ -276,11 +297,23 @@ function ListingRow({ x, c, brokerBps }: { x: Listing; c: City; brokerBps: numbe
   );
 }
 
-function CityExchange({ c, brokerBps }: { c: City; brokerBps: number }) {
+function CityExchange({
+  c,
+  brokerBps,
+  onAnalyse,
+}: {
+  c: City;
+  brokerBps: number;
+  onAnalyse: (companyId: string) => void;
+}) {
   const h = c.holdings;
   return (
     <Card
-      title={t('{city} exchange', { city: c.city })}
+      title={
+        <>
+          {exchangeName(c.city)} {c.home && <Pill tone="warn">{t('Your city')}</Pill>}
+        </>
+      }
       sub={t('Index {level} · {change} this month', {
         level: c.level.toFixed(1),
         change: signed(c.changePct),
@@ -312,7 +345,15 @@ function CityExchange({ c, brokerBps }: { c: City; brokerBps: number }) {
       {c.listings.length === 0 ? (
         <Empty>{t('Nothing is listed here yet.')}</Empty>
       ) : (
-        c.listings.map((x) => <ListingRow key={x.companyId} x={x} c={c} brokerBps={brokerBps} />)
+        c.listings.map((x) => (
+          <ListingRow
+            key={x.companyId}
+            x={x}
+            c={c}
+            brokerBps={brokerBps}
+            onAnalyse={() => onAnalyse(x.companyId)}
+          />
+        ))
       )}
     </Card>
   );
@@ -362,29 +403,27 @@ function Orders({ ex }: { ex: ExchangeView }) {
   );
 }
 
-/** Every city's exchange you can see, your city first. */
+/** Every city's exchange you can see, your city first (chips for the others). */
 export function Exchange() {
   const { view } = useView();
   const ex = exchangeOf(view);
-  const [city, setCity] = useState<string>(view.me.location?.market ?? view.me.market);
+  const [city, setCity] = useState<string>(view.me.market);
+  const [openId, setOpenId] = useState<string | null>(null);
   if (!ex) return null;
   const c = ex.markets.find((m) => m.market === city) ?? ex.markets[0];
+  const open = openId && c ? c.listings.find((x) => x.companyId === openId) : undefined;
+  if (c && open)
+    return (
+      <CompanyAnalysis
+        x={{ ...open, city: c.city, currency: c.currency }}
+        onBack={() => setOpenId(null)}
+      />
+    );
   return (
     <div className="stack">
-      {ex.markets.length > 1 && (
-        <label className="row small">
-          {t('Exchange')}{' '}
-          <select value={c?.market ?? ''} onChange={(e) => setCity(e.target.value)}>
-            {ex.markets.map((m) => (
-              <option key={m.market} value={m.market}>
-                {m.city}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      <ExchangeChips exchanges={ex.markets} value={c?.market ?? ''} onChange={setCity} />
       {c ? (
-        <CityExchange c={c} brokerBps={ex.rules.brokerBps} />
+        <CityExchange c={c} brokerBps={ex.rules.brokerBps} onAnalyse={setOpenId} />
       ) : (
         <Empty>{t('Nothing is listed here yet.')}</Empty>
       )}

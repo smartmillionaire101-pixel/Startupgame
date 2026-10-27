@@ -28,6 +28,7 @@ import {
   hoursLeft,
   notify,
   spendHours,
+  isEstablished,
 } from './helpers.js';
 import { newId } from './ids.js';
 import { account, openAccount, transfer, valueIn, withTx } from './ledger.js';
@@ -675,7 +676,11 @@ export function allocatorView(world: World, p: Player) {
       /** Startups in your city you could mentor. */
       candidates: Object.values(world.companies)
         .filter(
-          (c) => c.market === p.market && c.status === 'active' && !c.founderIds.includes(p.id),
+          (c) =>
+            c.market === p.market &&
+            c.status === 'active' &&
+            !c.founderIds.includes(p.id) &&
+            !isEstablished(c),
         )
         .slice(0, 12)
         .map((c) => ({

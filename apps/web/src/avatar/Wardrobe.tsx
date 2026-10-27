@@ -6,10 +6,15 @@
  * other things you keep (books, toys, gadgets, decor …) by kind, with who
  * gave you what. Wearing is the engine's `wardrobe.wear` (free, any time),
  * taking off `wardrobe.remove`. Opened from the mall and from Me.
+ *
+ * Dress for the role (the feedback round: "a banker should be in a suit"):
+ * your role's work outfit (a suit, smart-casual or casual) and its pieces,
+ * put on together from your wardrobe; the ones you don't own yet are at the
+ * mall (The Suit Shop).
  */
 import { useMemo, useState } from 'react';
 import type { Command, MallShopId, Removable } from '@runway/engine';
-import { REMOVABLE } from '@runway/engine';
+import { REMOVABLE, roleOutfit, type RoleOutfit } from '@runway/engine';
 import { AvatarFigure, avatarLook, drawnGender, type AvatarLook } from '../city/art';
 import { useLookVersion } from '../city/acts/look';
 import { genderOf } from '../city/life';
@@ -27,6 +32,7 @@ const GROUP_OF: Record<string, Group> = {
   belt: 'clothes',
   socks: 'clothes',
   scarf: 'clothes',
+  tie: 'clothes',
   shoes: 'shoes',
   headwear: 'hats',
   glasses: 'hats',
@@ -59,6 +65,11 @@ const KINDS: Record<string, () => string> = {
   sports: () => t('Sports kit'),
 };
 const kindLabel = (k: string | null) => KINDS[k ?? '']?.() ?? t('Other things');
+
+const roleName = (r: 'founder' | 'investor' | 'banker') =>
+  ({ founder: () => t('Founder'), investor: () => t('Investor'), banker: () => t('Banker') })[r]();
+const outfitName = (k: RoleOutfit['kind']) =>
+  ({ suit: () => t('Suit'), smart: () => t('Smart-casual'), casual: () => t('Casual') })[k]();
 
 const removable = (slot: string): slot is Removable =>
   (REMOVABLE as readonly string[]).includes(slot);
@@ -147,6 +158,30 @@ export function Purchases() {
     void send({ type: 'wardrobe.remove', slot: e.slot } as Command, t('Taken off.'));
   };
 
+  // Dress for the role: your role's outfit, the pieces you own put on together.
+  const role = me.role as 'founder' | 'investor' | 'banker' | undefined;
+  const kit: RoleOutfit | null =
+    role === 'founder' || role === 'investor' || role === 'banker'
+      ? roleOutfit(role, gender)
+      : null;
+  const kitOwned = (kit?.items ?? []).flatMap((k) => {
+    const e = items.find((x) => x.item === k.item && (!k.colour || x.colour === k.colour));
+    return e ? [e] : [];
+  });
+  const kitMissing = (kit?.items.length ?? 0) - kitOwned.length;
+  const kitOn = kitOwned.length > 0 && kitOwned.every((e) => e.wearing);
+  const wearKit = async () => {
+    for (const e of kitOwned.filter((x) => !x.wearing))
+      if (
+        !(await send({
+          type: 'wardrobe.wear',
+          itemId: e.item,
+          ...(e.colour ? { colour: e.colour } : {}),
+        } as Command))
+      )
+        return;
+  };
+
   const byKind = new Map<string, typeof things>();
   for (const x of things) byKind.set(x.kind ?? '', [...(byKind.get(x.kind ?? '') ?? []), x]);
   const worn = items.filter((e) => e.wearing);
@@ -177,6 +212,27 @@ export function Purchases() {
           )}
         </div>
       </section>
+
+      {kit && w?.on && kitOwned.length > 0 && (
+        <section className="purchases-role" data-role-outfit={kit.kind}>
+          <div className="purchases-role-text">
+            <span className="purchases-role-kicker">{roleName(role!)}</span>
+            <b>{outfitName(kit.kind)}</b>
+            <span className="small muted">
+              {kitMissing > 0
+                ? t('{n} more pieces at the mall’s Suit Shop and clothes shops.', { n: kitMissing })
+                : t('Dress for the role: everything is in your wardrobe.')}
+            </span>
+          </div>
+          {kitOn ? (
+            <Pill tone="good">{t('Wearing')}</Pill>
+          ) : (
+            <Button size="sm" data-wear-role="" disabled={busy} onClick={() => void wearKit()}>
+              {t('Wear for work')}
+            </Button>
+          )}
+        </section>
+      )}
 
       <h3 className="section-h">{t('Wardrobe')}</h3>
       {items.length === 0 ? (

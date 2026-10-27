@@ -29,7 +29,7 @@ import { backgroundById } from './data/characters.js';
 import { LESSONS } from './data/dealflow.js';
 import type { InvestorType, LpSeed } from './data/programs.js';
 import type { MarketId } from './data/markets.js';
-import { getMarket, usdToLocal } from './helpers.js';
+import { getMarket, usdToLocal, isEstablished } from './helpers.js';
 import { valueIn } from './ledger.js';
 import { FIRST_FUND, INVESTOR } from './data/investor.js';
 import {
@@ -419,6 +419,7 @@ export function reviewPitch(
     (c) =>
       c.market === m.id &&
       c.status === 'active' &&
+      !isEstablished(c) &&
       (plan.sectors.length === 0 || plan.sectors.includes(c.industry)),
   ).length;
   const market = clamp01(

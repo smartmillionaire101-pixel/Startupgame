@@ -1,0 +1,301 @@
+/* Stock analysis: exchange chips, company rows, the analysis screen and the Buy box. */
+.chips.stock-chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  /* Scrolls inside its card: never wider than it, whatever holds it. */
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 2px;
+  padding-inline-end: 1.5rem;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  /* A subtle fade at the right edge says there are more cities. */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+}
+/* Each city on one line ("San Francisco"), Simple mode too. */
+.chips.stock-chips .chip,
+html[data-simple] .chips.stock-chips .chip {
+  flex: none;
+  white-space: nowrap;
+}
+.stock-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.stock-exchange-head {
+  display: grid;
+  gap: 0.2rem;
+  margin-bottom: 0.5rem;
+}
+.stock-index {
+  align-items: center;
+  gap: 0.5rem;
+}
+.stock-index-level {
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px auto;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.stock-row:first-of-type {
+  border-top: 0;
+}
+.stock-main {
+  display: grid;
+  min-width: 0;
+}
+/* A long company name takes a second line, not "Yaba Insuran…". */
+.stock-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.25;
+}
+.stock-spark .spark {
+  width: 72px;
+  height: 24px;
+}
+/* Phones: a shorter sparkline leaves the name the room. */
+@media (max-width: 480px) {
+  .stock-row {
+    grid-template-columns: minmax(0, 1fr) 44px auto;
+    gap: 0.5rem;
+  }
+  .stock-spark .spark {
+    width: 44px;
+  }
+}
+.stock-end {
+  display: grid;
+  justify-items: end;
+  gap: 0.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-analysis {
+  gap: 0.75rem;
+}
+.stock-back {
+  justify-self: start;
+  border: 0;
+  background: none;
+  padding: 0.25rem 0;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.stock-title h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+.stock-title-price {
+  display: grid;
+  justify-items: end;
+  gap: 0.2rem;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-top: 0.4rem;
+}
+.stock-chart polyline {
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.stock-chart.good polyline {
+  stroke: var(--good);
+}
+.stock-chart.bad polyline {
+  stroke: var(--bad);
+}
+.stock-chart.good polygon {
+  fill: color-mix(in srgb, var(--good) 14%, transparent);
+}
+.stock-chart.bad polygon {
+  fill: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+.stock-grid {
+  stroke: var(--line);
+}
+.stock-axis {
+  font-size: 9px;
+  fill: var(--muted);
+}
+.stock-mark {
+  fill: var(--info);
+}
+.stock-mark-note {
+  display: block;
+}
+.stock-mark-note > span {
+  color: var(--info);
+}
+
+.stock-kpis {
+  margin: 0;
+}
+
+.stock-kv {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem 0.75rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.92rem;
+}
+.stock-kv dt {
+  color: var(--muted);
+}
+.stock-kv dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-meter {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--line);
+}
+.stock-meter span {
+  display: block;
+}
+.stock-meter-scale {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.2rem 0 0.4rem;
+}
+.stock-reasons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.stock-reason {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.stock-reason-icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.stock-reason.is-good .stock-reason-icon {
+  background: color-mix(in srgb, var(--good) 16%, transparent);
+  color: var(--good);
+}
+.stock-reason.is-warn .stock-reason-icon {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+.stock-reason.is-bad .stock-reason-icon {
+  background: color-mix(in srgb, var(--bad) 16%, transparent);
+  color: var(--bad);
+}
+
+.stock-buy {
+  border: 1.5px dashed var(--warn);
+}
+.stock-buy-input:focus-within {
+  border-color: var(--accent);
+}
+.stock-buy-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: var(--r-md, 10px);
+  padding: 0.4rem 0.75rem;
+  background: var(--surface);
+  margin-bottom: 0.5rem;
+}
+.stock-buy .stock-buy-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  box-shadow: none;
+  outline: none;
+  background: none;
+  font-size: 1.2rem;
+  font-weight: 700;
+  padding: 0.2rem 0;
+}
+.stock-buy .chips {
+  margin-bottom: 0.6rem;
+}
+.stock-share-bar {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--line);
+  margin-top: 0.3rem;
+}
+.stock-share-bar .fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--good);
+}
+.stock-share-bar.is-warn .fill {
+  background: var(--warn);
+}
+.stock-share-bar.is-bad .fill {
+  background: var(--bad);
+}
+.stock-share-bar .guide {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--text);
+}
+.stock-share-scale {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  margin: 0.2rem 0 0.4rem;
+}
+.stock-share-scale .guide-label {
+  position: absolute;
+  left: 10%;
+  transform: translateX(-20%);
+}
+.stock-buy-actions {
+  gap: 0.5rem;
+}
+.stock-buy-go {
+  flex: 1;
+}

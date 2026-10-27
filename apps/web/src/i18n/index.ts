@@ -94,9 +94,14 @@ export function useLang(): Lang {
 const fill = (s: string, vars?: Record<string, string | number>) =>
   vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
 
-/** Translate a UI string written in English. */
+/**
+ * Translate a UI string written in English. A key can end in "|context"
+ * ('Founder|woman') when French needs a form English doesn't: English (and
+ * any missing translation) drops the context.
+ */
 export function t(text: string, vars?: Record<string, string | number>): string {
-  return fill(lang === 'fr' ? (FR?.[text] ?? text) : text, vars);
+  const found = lang === 'fr' ? FR?.[text] : undefined;
+  return fill(found ?? text.replace(/\|[a-z]+$/, ''), vars);
 }
 
 /** Translate text that came from the server, when there's an exact match. */

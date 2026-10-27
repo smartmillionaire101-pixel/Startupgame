@@ -15,7 +15,9 @@
  * command log reaches the same world (plus the new milestones).
  */
 import { companyRunway } from './company.js';
-import { bankersOn, dealflowOn, investorOn } from './releases.js';
+import { bankersOn, dealflowOn, feedbackOn, investorOn } from './releases.js';
+import { customerFacts } from './traction.js';
+import { inSetup, setupStepsDone } from './setup.js';
 import { BANK_TYPES, bankFigures } from './banks.js';
 import { BANKERS, currentBank, licenceMissing } from './bankers.js';
 import { placeId } from './places.js';
@@ -330,25 +332,43 @@ export const CHAPTERS: ChapterDef[] = [
     id: 'hustle',
     title: 'The Hustle',
     story: 'Validate a problem and win your first customer.',
-    steps: (_world, _p, f) => {
-      const customers = maxOver(f.active, totalCustomers);
-      const discovered = f.companies.some((c) =>
-        Object.values(c.product.discovery).some((v) => v > 0),
-      );
+    steps: (world, _p, f) => {
+      // Feedback note: the one count of real customers the stage tracker uses
+      // (traction.ts), local businesses and contracts included, and customers
+      // won count as talking to customers.
+      const on = feedbackOn(world);
+      const facts = on ? f.companies.map((c) => customerFacts(world, c)) : [];
+      const customers = on
+        ? f.companies.reduce(
+            (a, c, i) => (c.status === 'active' ? Math.max(a, facts[i]!.total) : a),
+            0,
+          )
+        : maxOver(f.active, totalCustomers);
+      const discovered = on
+        ? facts.some((x) => x.knows)
+        : f.companies.some((c) => Object.values(c.product.discovery).some((v) => v > 0));
       // Founder Journey 6: a company started from a café idea counts its first
       // customer from the pipeline (the guided first sale), not the welcome one.
       const guided = f.main?.starterIdea !== undefined;
+      // Only companies founded in feedback-note worlds carry a setup.
+      const setting = f.companies.some((c) => !inSetup(c)) ? undefined : f.companies[0];
       const first = guided
         ? f.companies.some((c) => (c.salesAccounts?.length ?? 0) > 0) ||
-          f.ms['founder.first-customer'] !== undefined
+          f.ms['founder.first-customer'] !== undefined ||
+          facts.some((x) => x.earned > 0)
         : customers > 0 || f.ms['founder.first-customer'] !== undefined;
       const n = JOURNEY.hustle.customers;
       return [
-        step('hustle.company', 'Start your company', f.companies.length > 0, {
-          kind: 'tab',
-          tab: 'company',
-        }),
-        step('hustle.discovery', 'Talk to customers about their problem', discovered, {
+        // Founder setup: a company is started once it is registered, funded and
+        // has somewhere to work; until then this step leads back to the setup.
+        step(
+          'hustle.company',
+          'Start your company',
+          f.companies.length > 0 && !setting,
+          { kind: 'tab', tab: 'company' },
+          setting?.setup ? { progress: count(setupStepsDone(setting.setup), 5) } : {},
+        ),
+        step('hustle.discovery', 'Learn what customers need', discovered, {
           kind: 'place',
           place: 'market',
         }),
@@ -375,7 +395,9 @@ export const CHAPTERS: ChapterDef[] = [
       const hired =
         f.ms['founder.first-hire'] !== undefined ||
         f.companies.some((c) => c.staff.length > 0 || c.founderIds.length > 1);
-      const customers = maxOver(f.active, totalCustomers);
+      const customers = feedbackOn(world)
+        ? maxOver(f.active, (c) => customerFacts(world, c).total)
+        : maxOver(f.active, totalCustomers);
       const n = JOURNEY.team.customers;
       const rev = revenueProgress(world, f, JOURNEY.team.revenueUsd);
       const interviewed = f.companies.some((c) =>

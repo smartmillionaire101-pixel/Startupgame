@@ -17,6 +17,7 @@ import {
   bankerOf,
 } from './BankLicence';
 import { BankWork } from './BankWork';
+import { StartupApplications, isOpenApplication } from './FounderSetup';
 
 export function BankScreen() {
   const { view } = useView();
@@ -61,8 +62,14 @@ export function BankScreen() {
         <>
           <section className="stack">
             <h2>{t('Loan requests')}</h2>
+            {/* Founder setup: startup loan applications come with the founder's plan. */}
+            <StartupApplications bankId={b.id} />
             <DealList
-              filter={(d) => d.counterparty.kind === 'playerbank' && d.counterparty.id === b.id}
+              filter={(d) =>
+                d.counterparty.kind === 'playerbank' &&
+                d.counterparty.id === b.id &&
+                !isOpenApplication(d)
+              }
             />
           </section>
           <Policy />

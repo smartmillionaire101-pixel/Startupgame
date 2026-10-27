@@ -20,7 +20,7 @@
 import { backgroundById } from './data/characters.js';
 import { creditProfile } from './credit.js';
 import { ensure, fail } from './errors.js';
-import { achieve, col, getMarket, notify, publish } from './helpers.js';
+import { achieve, col, getMarket, notify, publish, isEstablished } from './helpers.js';
 import { newId } from './ids.js';
 import { account, openAccount, transfer, transferUpTo } from './ledger.js';
 import { clamp, roundTo } from './math.js';
@@ -730,7 +730,7 @@ export function aiBanking(world: World, market: string, rng: Rng) {
     (b) => b.market === market && b.status === 'licensed' && BANK_TYPES[b.type].companies,
   );
   for (const c of Object.values(world.companies)) {
-    if (!c.ai || c.market !== market || c.status !== 'active') continue;
+    if (!c.ai || c.market !== market || c.status !== 'active' || isEstablished(c)) continue;
     const acc = world.accounts[c.account]!;
     const current = acc.bankId ? world.banks[acc.bankId] : undefined;
     if (current && current.stars.value < 1.5) {

@@ -10,6 +10,7 @@ import { t, tx } from '../i18n';
 import { useOnlinePlayers } from '../city/OnlineNow';
 import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Empty, Field, Pill, Segmented, Sheet } from '../ui';
+import { HirePick, PlanChecks, livePlanChecks } from './FounderGuide';
 import './hiring.css';
 
 type HiringT = CompanyT['hiring'];
@@ -474,20 +475,23 @@ export function HiringPipeline({ c }: { c: CompanyT }) {
               {cands.length === 0 ? (
                 <p className="small muted">{t('No candidates yet.')}</p>
               ) : (
-                <ul className="hire-cands">
-                  {cands.map((x) => (
-                    <CandidateCard
-                      key={x.id}
-                      x={x}
-                      cur={cur}
-                      hours={h.interviewHours}
-                      hoursLeft={hoursLeft}
-                      cash={c.cash}
-                      onInterview={(s) => void interview(x, s)}
-                      onOffer={() => setOffer(x)}
-                    />
-                  ))}
-                </ul>
+                <>
+                  <HirePick cands={cands} />
+                  <ul className="hire-cands">
+                    {cands.map((x) => (
+                      <CandidateCard
+                        key={x.id}
+                        x={x}
+                        cur={cur}
+                        hours={h.interviewHours}
+                        hoursLeft={hoursLeft}
+                        cash={c.cash}
+                        onInterview={(s) => void interview(x, s)}
+                        onOffer={() => setOffer(x)}
+                      />
+                    ))}
+                  </ul>
+                </>
               )}
             </section>
           );
@@ -658,6 +662,12 @@ function PipelineOfferSheet({
         )}
       </Field>
       <p className="small">{staffDilution(c, meId, equity)}</p>
+      {/* What this salary does to the money: payroll and runway, live. */}
+      <PlanChecks
+        checks={livePlanChecks(c, { extraPayroll: parseAmount(salary) ?? cand.ask })}
+        cur={cur}
+        only={['payroll', 'runway']}
+      />
       {reply && (
         <Card tone={reply.outcome === 'accept' ? 'good' : 'warn'}>
           <p>

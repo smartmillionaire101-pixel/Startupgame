@@ -3,7 +3,7 @@
  * founders, investors, a bank, incumbents and a newsroom so it never feels empty.
  */
 import { LIFE_BARS } from './lifebars.js';
-import { lifeBarsOn } from './releases.js';
+import { feedbackOn, lifeBarsOn } from './releases.js';
 import {
   AI_FIRST_NAMES,
   AI_FUNDS,
@@ -41,11 +41,12 @@ import {
 import type { Role, Skills } from './data/characters.js';
 import { founderFit, ideaById } from './data/ideas.js';
 import { ensure } from './errors.js';
-import { col, getMarket, notify } from './helpers.js';
+import { col, getMarket, notify, isEstablished } from './helpers.js';
 import { newId } from './ids.js';
 import { forgetOwners, keepStatement, openAccount, transfer } from './ledger.js';
 import { major, scale } from './money.js';
 import { checkName, normaliseName, reservedAiNames } from './names.js';
+import { newSetup } from './setup.js';
 import { localDate } from './clock.js';
 import { deriveRng } from './rng.js';
 import type { Rng } from './rng.js';
@@ -267,6 +268,11 @@ export interface NewCompanyInput {
   ai?: boolean;
   /** Founder Journey 6: a starting idea (data/ideas.ts); sets industry and model. */
   ideaId?: string;
+  /**
+   * Founder setup (setup.ts): only the name is reserved; registration, the
+   * founder's capital, loans and the office come step by step afterwards.
+   */
+  setup?: boolean;
 }
 
 /** Incorporation costs (one-off, multiples of cost of living) and investor appeal. */
@@ -353,6 +359,11 @@ export function createCompany(world: World, input: NewCompanyInput): Company {
   world.companies[id] = company;
   world.names[m.id]![check.normalised] = id;
   founder.companyIds.push(id);
+  // Founder setup: no money moves until the founder registers and funds it.
+  if (input.setup) {
+    company.setup = newSetup(m.month);
+    return company;
+  }
   // Founder seeds the company with a little personal money for incorporation.
   const incCost = scale(col(m), INCORPORATION[input.incorporation].costCol);
   const personal = world.accounts[founder.accounts.local]!;
@@ -581,15 +592,19 @@ export function welcomeNewPlayer(world: World, player: Player, companyId: Id | n
       text: `Welcome note from ${reporter.reporter} (${reporter.name}): “Good luck with ${c.name}. Tell us when you have news.”`,
     });
   } else if (player.role === 'investor') {
-    const pitches = Object.values(world.companies)
-      .filter(
-        (c) =>
-          c.ai &&
-          c.market === m.id &&
-          c.status === 'active' &&
-          (!player.investor?.sectors.length || player.investor.sectors.includes(c.industry)),
-      )
-      .slice(0, 3);
+    const open = Object.values(world.companies).filter(
+      (c) => c.ai && c.market === m.id && c.status === 'active' && !isEstablished(c),
+    );
+    const inFocus = (c: Company) =>
+      !player.investor?.sectors.length || player.investor.sectors.includes(c.industry);
+    // Feedback round: when the focus sectors have fewer than three startups
+    // left in a city (a long-running world), the rest of the city's pitch too,
+    // so a new investor never starts with an empty deal flow.
+    const pitches = (
+      feedbackOn(world)
+        ? [...open.filter(inFocus), ...open.filter((c) => !inFocus(c))]
+        : open.filter(inFocus)
+    ).slice(0, 3);
     for (const c of pitches) {
       c.raising = true;
       notify(world, player.id, {

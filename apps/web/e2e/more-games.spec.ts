@@ -22,6 +22,31 @@ const command = (p: Page, command: unknown) =>
   p.request.post('/api/commands', { headers: { 'x-runway': '1' }, data: { command } });
 /** Software WebGL draws the real city slowly: every 3D step gets this long. */
 const STEP_3D = 60_000;
+/** Which model the flight's rig draws over the city (./air3d.ts `Shown`). */
+const shown = (p: Page) =>
+  p.evaluate(
+    () =>
+      (window as unknown as { __air3d?: { rig: { shown: string } } }).__air3d?.rig.shown ?? null,
+  );
+/** The rig's frames drawn so far (to wait for the view on screen to catch up). */
+const drawn = (p: Page) =>
+  p.evaluate(
+    () => (window as unknown as { __air3d?: { rig: { frames: number } } }).__air3d?.rig.frames ?? 0,
+  );
+/** Pick Inside or Outside on the camera chip, and wait for the view to change. */
+async function camera(p: Page, mode: 'inside' | 'outside', model: string) {
+  const chip = p.locator('[data-air-cam]');
+  await chip.locator(`[data-action="air-cam-${mode}"]`).click();
+  await expect(chip).toHaveAttribute('data-air-cam', mode);
+  await expect(chip.locator(`[data-action="air-cam-${mode}"]`)).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect.poll(() => shown(p), { timeout: STEP_3D }).toBe(model);
+  // A frame or two drawn in the new view (software WebGL is slow).
+  const at = await drawn(p);
+  if (model) await expect.poll(() => drawn(p), { timeout: STEP_3D }).toBeGreaterThan(at + 1);
+}
 
 async function founder(p: Page, name: string, market = /Lagos/) {
   await p.setViewportSize({ width: 390, height: 844 });
@@ -147,6 +172,115 @@ test('bowling against the AI at the alley: a swipe down the lane, ten frames, th
   expect(errors).toEqual([]);
 });
 
+/** Where the 3D lane draws the ball (−1 … 1 across and up the canvas) and whether the guide shows. */
+const onLane = (p: Page) =>
+  p.evaluate(() => {
+    const l = (
+      window as unknown as {
+        __bowl3d?: {
+          onScreen(): { ball: { x: number; y: number; visible: boolean }; guide: boolean };
+        };
+      }
+    ).__bowl3d;
+    return l ? l.onScreen() : null;
+  });
+
+/** A finger swipe (real touch events, as on a phone): up `dy` px, bowing out `bow` px on the way. */
+async function touchSwipe(p: Page, from: { x: number; y: number }, dy: number, bow = 12) {
+  const cdp = await p.context().newCDPSession(p);
+  const at = (x: number, y: number) => [{ x, y, id: 1, radiusX: 6, radiusY: 6, force: 1 }];
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: at(from.x, from.y),
+  });
+  for (let i = 1; i <= 10; i++) {
+    const q = i / 10;
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: at(from.x + Math.sin(Math.PI * q) * bow, from.y - dy * q),
+    });
+    await p.waitForTimeout(12);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+test('bowling on your own on a phone: the ball waits on screen, a finger swipe bowls it, pins fall', async ({
+  page,
+}, info) => {
+  test.setTimeout(300_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem('runway.mapQuality', '3d'));
+  await founder(page, 'Solo Bowler');
+  const me = (await state(page)).me.id;
+  const { phone, games } = await goingOut(page);
+  await games.locator('[data-go="bowling"]').click();
+  await expect(phone).toBeHidden();
+  const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
+  if (
+    await chooser.waitFor({ timeout: 3000 }).then(
+      () => true,
+      () => false,
+    )
+  )
+    await chooser.locator('[data-mode="cycle"]').click();
+  const scene = page.locator('.place-scene');
+  await expect(scene).toBeVisible({ timeout: 30_000 });
+  await scene.locator('[data-action="fun:bowling"]').click();
+  const dialog = page.getByRole('dialog', { name: 'Play together' });
+  await dialog.getByRole('button', { name: 'Bowl solo' }).click();
+  const lane = dialog.locator('.bowling-lane canvas');
+  await expect(lane).toHaveAttribute('data-gl', '1', { timeout: STEP_3D });
+  await expect(lane).toHaveAttribute('data-mine', '1', { timeout: 15_000 });
+  // Your ball: the lane is brought fully on screen, the ball waits at the foul line in the
+  // lower part of the picture (where the swipe starts), and the guide is drawn.
+  await expect
+    .poll(
+      async () => {
+        const b = (await lane.boundingBox())!;
+        return b.y >= 0 && b.y + b.height <= page.viewportSize()!.height + 1;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+  await expect.poll(() => onLane(page).then((v) => v?.guide)).toBe(true);
+  const view = (await onLane(page))!;
+  expect(view.ball.visible).toBe(true);
+  expect(Math.abs(view.ball.x)).toBeLessThan(0.9);
+  expect(view.ball.y).toBeGreaterThan(-0.9);
+  expect(view.ball.y).toBeLessThan(-0.2);
+  await snap(page, 'bowling-solo-ready', info);
+  // A finger swipe from the ball straight up the lane, a touch right of centre (the pocket).
+  const box = (await lane.boundingBox())!;
+  const from = {
+    x: box.x + box.width * 0.54,
+    y: box.y + box.height * (0.5 - view.ball.y / 2),
+  };
+  await touchSwipe(page, from, box.height * 0.5);
+  await expect(lane).toHaveAttribute('data-rolling', '1', { timeout: 15_000 });
+  await expect(lane).toHaveAttribute('data-balls', '1');
+  const room = (await state(page)).playRooms.find(
+    (r) => r.game === 'bowling' && r.members.some((m) => m.id === me),
+  )!;
+  const last = room.bowling!.last!;
+  // It was the swipe that bowled (not the clock), and it knocked pins down.
+  expect(last.by).toBe(me);
+  expect(last.auto).toBeNull();
+  expect(last.knocked.length).toBeGreaterThan(0);
+  await page.waitForTimeout(1500);
+  await snap(page, 'bowling-solo-roll', info);
+  // Once the pins settle: the mark on the sheet, and the next ball (or frame) is yours again.
+  const row = dialog.locator(`.bowling-sheet [data-bowler="${me}"]`);
+  await expect(row.locator('li').first().locator('.marks i').first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(lane).toHaveAttribute('data-rolling', '0', { timeout: 20_000 });
+  await expect(lane).toHaveAttribute('data-mine', '1', { timeout: 20_000 });
+  await expect.poll(() => onLane(page).then((v) => v?.ball.visible && v.ball.y < -0.2)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test('a tandem skydive over the real city: jump, pull, steer to the target, the score', async ({
   page,
 }, info) => {
@@ -170,13 +304,29 @@ test('a tandem skydive over the real city: jump, pull, steer to the target, the 
   await expect(air).toBeVisible({ timeout: STEP_3D });
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 3));
   await expect(air).toHaveAttribute('data-air-phase', 'door', { timeout: STEP_3D });
+  // Outside first: the jump plane with you in its open door.
+  await expect(air.locator('[data-air-cam]')).toHaveAttribute('data-air-cam', 'outside');
+  await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('plane');
   await page.waitForTimeout(1500);
   await snap(page, 'skydive-door', info);
+  // Inside: the door's frame from where you sit.
+  await camera(page, 'inside', '');
+  await expect(air.locator('.air-door')).toBeVisible();
+  await snap(page, 'skydive-door-inside', info);
   // Freefall at real speed (a minute compressed to about twenty seconds).
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 1));
   await air.locator('[data-action="jump"]').click();
   await expect(air).toHaveAttribute('data-air-phase', 'freefall', { timeout: 15_000 });
   await air.locator('[data-action="arch"]').click();
+  // A slower fall while the camera changes (software WebGL draws the chase view slowly).
+  await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 0.4));
+  // Inside: first person, your arms and the wrist altimeter, the goggles.
+  await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('arms');
+  await expect(air.locator('.air-goggles')).toBeVisible();
+  await snap(page, 'skydive-freefall-inside', info);
+  // Outside: the chase camera on you in the box position.
+  await camera(page, 'outside', 'jumper');
+  await expect(air.locator('.air-goggles')).toHaveCount(0);
   await snap(page, 'skydive-freefall', info);
   // Pull in the band (by the altimeter).
   await expect
@@ -185,8 +335,9 @@ test('a tandem skydive over the real city: jump, pull, steer to the target, the 
       intervals: [200],
     })
     .toBeLessThan(1700);
-  await air.locator('[data-action="pull"]').click({ timeout: 5_000 });
+  await air.locator('[data-action="pull"]').click({ timeout: 12_000 });
   await expect(air).toHaveAttribute('data-air-phase', 'canopy', { timeout: 10_000 });
+  await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('canopy');
   await page.waitForTimeout(800);
   await snap(page, 'skydive-canopy', info);
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 6));
@@ -230,8 +381,20 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 3));
   await expect(air.locator('[data-air-say]')).toBeVisible({ timeout: 120_000 });
   await expect(air.locator('[data-air-say]')).toContainText(/On your (left|right):/);
+  // Outside first: the helicopter from the chase camera.
+  await expect(air.locator('[data-air-cam]')).toHaveAttribute('data-air-cam', 'outside');
+  await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('heli');
   await page.waitForTimeout(1000);
   await snap(page, 'heli-tour', info);
+  // Inside: the cabin, the pilot and the panel; the choice is remembered.
+  await camera(page, 'inside', 'cockpit');
+  await page.waitForTimeout(1000);
+  await snap(page, 'heli-tour-inside', info);
+  const me = (await state(page)).me.id;
+  expect(await page.evaluate((id) => localStorage.getItem(`runway.airCam.${id}`), me)).toBe(
+    'inside',
+  );
+  await camera(page, 'outside', 'heli');
   // Take the controls for a moment, then hand back.
   await air.locator('[data-action="heli-controls"]').click();
   await expect(air.getByRole('button', { name: 'Climb' })).toBeVisible();
@@ -241,9 +404,123 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 8));
   await expect(air).toHaveAttribute('data-air-phase', 'landed', { timeout: 180_000 });
   await expect(air.locator('[data-air-result]')).toContainText('What a view!');
+  // Landed, it stays on the pad (player feedback: "when we landed it didn't stop").
+  const at = () =>
+    page.evaluate(() => {
+      const air = (
+        window as unknown as {
+          __air3d?: {
+            rig: { heli?: { group: { position: { x: number; y: number; z: number } } } };
+          };
+        }
+      ).__air3d;
+      const p = air?.rig.heli?.group.position;
+      return p ? [Math.round(p.x * 10), Math.round(p.y * 10), Math.round(p.z * 10)] : null;
+    });
+  const landedAt = await at();
+  expect(landedAt).not.toBeNull();
+  await page.waitForTimeout(1500);
+  expect(await at()).toEqual(landedAt);
+  // No landmark's name sits on the title, the buttons or the result (player screenshot:
+  // "St Paul's Cathedral" over the Outside button).
+  const covered = await page.evaluate(() => {
+    const boxes = (sel: string) =>
+      [...document.querySelectorAll<HTMLElement>(sel)].map((e) => e.getBoundingClientRect());
+    const hud = boxes(
+      '.air-head h2, .air-head small, .panorama-actions, .air-cam, .air-hud, .air-say, .air-controls, .air-result',
+    );
+    return [...document.querySelectorAll<HTMLElement>('.sky-label:not([hidden])')]
+      .filter((n) => {
+        const r = n.getBoundingClientRect();
+        return hud.some(
+          (k) => r.left < k.right && r.right > k.left && r.top < k.bottom && r.bottom > k.top,
+        );
+      })
+      .map((n) => n.dataset.airLabel);
+  });
+  expect(covered).toEqual([]);
   await snap(page, 'heli-landed', info);
   const v = await state(page);
   expect(v.me.games!.you.flights).toBe(1);
   expect(v.me.games!.you.booked).toBeNull();
   expect(errors).toEqual([]);
 });
+
+/**
+ * The pad stands on open ground (player feedback: back on the pad the
+ * helicopter sat among walls and windows): nothing built within `PAD_CLEAR`
+ * of it, and landed, the Outside camera is not inside a building.
+ */
+const PAD_CLEAR = 30;
+for (const [city, market] of [
+  ['London', /London/],
+  ['Lagos', /Lagos/],
+] as const)
+  test(`${city}: the heliport's pad is clear, and landed the Outside camera is in the open`, async ({
+    page,
+  }, info) => {
+    test.setTimeout(300_000);
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await founder(page, `Pad ${city}`, market);
+    expect((await command(page, { type: 'player.lifestyle', tier: 3 })).ok()).toBe(true);
+    await page.reload();
+    await expect(page.locator('.topbar')).toBeVisible({ timeout: 30_000 });
+    const { games } = await goingOut(page);
+    await games.locator('[data-go="heli"]').click();
+    const book = page.getByRole('dialog', { name: 'Book a helicopter ride' });
+    await book.locator('[data-air-item="heli-hop"] [data-action="air-book"]').click();
+    const air = page.locator('[data-air="heli"]');
+    await expect(air).toBeVisible({ timeout: STEP_3D });
+    await expect(air.locator('[data-air-cam]')).toHaveAttribute('data-air-cam', 'outside');
+    await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('heli');
+    // Up and away for a moment, then home.
+    await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 4));
+    await page.waitForTimeout(4000);
+    await air.locator('[data-action="heli-home"]').click();
+    await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 8));
+    await expect(air).toHaveAttribute('data-air-phase', 'landed', { timeout: 180_000 });
+    // The city around the pad stands by now (its tiles load around the camera).
+    await page.waitForTimeout(4000);
+    const probe = () =>
+      page.evaluate((R) => {
+        type V = { x: number; y: number; z: number };
+        const a = (
+          window as unknown as {
+            __air3d: {
+              scene: {
+                roofAt(x: number, z: number): number;
+                groundAt(x: number, z: number): number;
+                terrainAt(x: number, z: number): number;
+              };
+              cam: { pos: V };
+              pad: { x: number; z: number };
+            };
+          }
+        ).__air3d;
+        const { scene, cam, pad } = a;
+        // The tallest thing standing within R of the pad (a ring every 3 m).
+        let worst = { h: 0, r: 0 };
+        for (let r = 0; r <= R; r += 3)
+          for (let k = 0; k < (r ? 24 : 1); k++) {
+            const t = (k / 24) * Math.PI * 2;
+            const h = scene.roofAt(pad.x + Math.cos(t) * r, pad.z + Math.sin(t) * r);
+            if (h > worst.h) worst = { h: Math.round(h * 10) / 10, r };
+          }
+        const ground = scene.groundAt(cam.pos.x, cam.pos.z) + scene.terrainAt(cam.pos.x, cam.pos.z);
+        const top = ground + scene.roofAt(cam.pos.x, cam.pos.z);
+        return {
+          worst,
+          camAbove: Math.round((cam.pos.y - top) * 10) / 10,
+          camOff: Math.round(Math.hypot(cam.pos.x - pad.x, cam.pos.z - pad.z)),
+        };
+      }, PAD_CLEAR);
+    const p = await probe();
+    console.log(`${city} pad:`, JSON.stringify(p));
+    await snap(page, `heli-pad-${city.toLowerCase()}`, info);
+    // Only the pad itself (a slab under a metre) within PAD_CLEAR of its centre.
+    expect(p.worst.h).toBeLessThan(1);
+    // The chase camera is above whatever stands under it.
+    expect(p.camAbove).toBeGreaterThan(1);
+    expect(errors).toEqual([]);
+  });

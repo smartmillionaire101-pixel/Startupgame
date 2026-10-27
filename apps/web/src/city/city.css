@@ -513,9 +513,37 @@
   background: color-mix(in srgb, var(--bad) 7%, var(--surface));
 }
 
+/* A wide screen: the city fills the window right of the sidebar and under
+   the top bar, to the edges (the layout: the end of styles.css). */
 @media (min-width: 900px) {
+  .app.app-game.app-city {
+    max-width: none;
+    padding: 0;
+  }
+  .app.app-game.app-city .topbar {
+    margin: 0 0 0 calc(-1 * var(--side-w));
+  }
+  /* Lite mode (no map): the places list keeps a margin. */
+  .app.app-game.app-city main:not(:has(.city-stage)) {
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: 0 var(--app-pad) 2.5rem;
+  }
+  /* The window's height less the top bar (and the payday line when it shows). */
   .city-stage {
-    height: calc(100dvh - 9rem - 44px - var(--payday-h, 0px));
+    height: calc(100dvh - 2.9rem - 1px - env(safe-area-inset-top) - var(--payday-h, 0px));
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .city-map:focus-visible {
+    border-radius: 0;
+  }
+  .app-city .payday-warning {
+    margin: 0;
+    border-radius: 0;
+  }
+  .app.app-game.app-city:has(.payday-warning) {
+    --payday-h: 44px;
   }
 }
 
@@ -782,14 +810,14 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  min-height: 2rem;
-  padding: 0.2rem 0.65rem;
+  min-height: 2.1rem;
+  padding: 0.15rem 0.65rem;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--surface);
   color: inherit;
   font: inherit;
-  font-size: 0.82rem;
+  font-size: var(--fs-xs);
   cursor: pointer;
 }
 .chip[aria-pressed='true'] {
@@ -1342,6 +1370,18 @@
   .hud-whatnow-chip {
     max-width: none;
     flex: 0 1 auto;
+  }
+  /* Short of room (390px), "What to do now" takes two lines rather than "What to do n";
+     the tip only gets what's left over. */
+  .hud-whatnow-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.15;
+    text-align: left;
+  }
+  .hud-whatnow-tip {
+    flex: 1 1 0;
   }
 }
 .hud-round .icon {

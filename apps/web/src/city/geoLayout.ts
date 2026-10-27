@@ -25,6 +25,7 @@ import {
   buildLayout,
   CATEGORY_FALLBACK,
   civicByDistrict,
+  homeAtStay,
   financeItems,
   HOST_FALLBACK,
   lot,
@@ -65,6 +66,14 @@ import {
 
 /** Metres along the side of a tile on a real map. */
 export const GEO_TILE_M = 30;
+/**
+ * A heliport's pad stands on open ground: nothing built within this (m) of
+ * its centre, no other place and no real or made-up building (player
+ * feedback: back on the pad the helicopter sat among walls and windows).
+ */
+export const HELIPAD_CLEAR = 34;
+/** How far round a place its ground is kept clear of other places (m; 0: its plot). */
+const padOf = (p: Place) => (p.bizKind === 'heliport' ? HELIPAD_CLEAR : 0);
 const K = 1 / (GEO_TILE_M * Math.SQRT2);
 /** Metres (x east, y south) → tiles. */
 export const geoTile = (e: number, s: number): Pt => ({ x: (e + s) * K, y: (s - e) * K });
@@ -937,17 +946,19 @@ class Placer {
       const c = g.segC[s]! & 7;
       if (g.segHit(s, cx, cy).d < (HALF[c] ?? 5) + r * 0.7) return false;
     }
-    // Clear of the buildings already placed.
-    const t = geoTile(cx, cy);
-    const box = {
-      x0: t.x - p.w / 2 - 0.2,
-      y0: t.y - p.d / 2 - 0.2,
-      x1: t.x + p.w / 2 + 0.2,
-      y1: t.y + p.d / 2 + 0.2,
-    };
+    // Clear of the buildings already placed (a pad: of its open ground round it too).
+    const box = this.ground(p, cx, cy, 0.2);
     for (const o of this.placed)
       if (box.x0 < o.x1 && box.x1 > o.x0 && box.y0 < o.y1 && box.y1 > o.y0) return false;
     return true;
+  }
+
+  /** The ground a place takes (tile units): its plot, or a pad's clear square round it. */
+  private ground(p: Place, cx: number, cy: number, pad = 0) {
+    const t = geoTile(cx, cy);
+    const hw = Math.max(p.w / 2, padOf(p) / GEO_TILE_M) + pad;
+    const hd = Math.max(p.d / 2, padOf(p) / GEO_TILE_M) + pad;
+    return { x0: t.x - hw, y0: t.y - hd, x1: t.x + hw, y1: t.y + hd };
   }
 
   /**
@@ -975,8 +986,8 @@ class Placer {
     p.y = my - p.d / 2;
     p.door = prev.door;
     p.doorFace = prev.doorFace;
-    this.placed.push({ x0: p.x, y0: p.y, x1: p.x + p.w, y1: p.y + p.d });
-    this.clear.push({ e: c.e, s: c.s, r: r * 1.15 });
+    this.placed.push(this.ground(p, c.e, c.s));
+    this.clear.push({ e: c.e, s: c.s, r: Math.max(r * 1.15, padOf(p)) });
     // Its door's slot is taken (when the anchor's slots are already listed).
     const door = geoMetres(prev.door);
     for (const a of this.anchors.values())
@@ -1019,8 +1030,8 @@ class Placer {
         const vx = door.x - c.x;
         const vy = door.y - c.y;
         p.doorFace = vy > 0 && vy >= vx ? 'left' : vx > 0 ? 'right' : null;
-        this.placed.push({ x0: p.x, y0: p.y, x1: p.x + p.w, y1: p.y + p.d });
-        this.clear.push({ e: cx, s: cy, r: r * 1.15 });
+        this.placed.push(this.ground(p, cx, cy));
+        this.clear.push({ e: cx, s: cy, r: Math.max(r * 1.15, padOf(p)) });
         return true;
       }
       if (a.R > 9000) break;
@@ -1206,6 +1217,7 @@ function buildGeoLayout(
       hostOf.set(h, n >= 0 ? n : 0);
     }
   const idx = new Map(D.map((x, n) => [x.d.id, n]));
+  homeAtStay(input, hostOf, (id) => idx.get(id) ?? -1);
   const bizIn = D.map(() => [] as BizInput[]);
   for (const b of [...(input.businesses ?? [])].sort((a, c) => (a.id < c.id ? -1 : 1))) {
     let n = idx.get(b.district);
@@ -1321,7 +1333,9 @@ function buildGeoLayout(
   if (before)
     for (const j of jobs) {
       const old = before.get(j.p.id);
-      if (old && placer.keep(j.p, old)) kept.add(j.p);
+      // Your room moved district (into the hotel you booked abroad): it finds new ground.
+      if (old && (j.p.id !== 'home' || old.area === j.p.area) && placer.keep(j.p, old))
+        kept.add(j.p);
     }
   const places: Place[] = [];
   for (const j of jobs) {

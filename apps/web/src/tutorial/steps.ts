@@ -34,7 +34,8 @@ export function tutorialFacts(view: View): TutorialFacts {
   return {
     company,
     founded: !!company,
-    sold: (company?.sales?.accounts.length ?? 0) > 0,
+    // A customer won anywhere counts (traction.ts), not only one signed in Sales.
+    sold: (company?.sales?.accounts.length ?? 0) > 0 || (company?.traction?.earned ?? 0) > 0,
     paid: !!x?.starterIdea?.paid,
     expensed: (x?.expenses?.length ?? 0) > 0,
   };

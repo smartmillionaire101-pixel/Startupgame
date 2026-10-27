@@ -41,3 +41,25 @@ export interface GolfDrawProps {
   frame: () => GolfFrame;
   onReady?: () => void;
 }
+
+/** Where a drawing put something on screen, as `data-golf-<key>`. */
+export type ScreenMark = 'ball' | 'aim-end' | 'flag';
+
+/**
+ * Notes on the canvas where the ball, the aim's end and the flag are drawn,
+ * as fractions of its width and height ("0.281,0.774"; empty when off
+ * screen), so a test can check the controls leave them clear. Written only
+ * when it changes.
+ */
+export function markScreen(
+  canvas: HTMLCanvasElement,
+  key: ScreenMark,
+  at: { x: number; y: number } | null,
+): void {
+  const v =
+    at && at.x >= 0 && at.x <= 1 && at.y >= 0 && at.y <= 1
+      ? `${at.x.toFixed(3)},${at.y.toFixed(3)}`
+      : '';
+  const name = key === 'aim-end' ? 'golfAimEnd' : key === 'ball' ? 'golfBall' : 'golfFlag';
+  if (canvas.dataset[name] !== v) canvas.dataset[name] = v;
+}

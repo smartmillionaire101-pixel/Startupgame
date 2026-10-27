@@ -25,7 +25,7 @@ import { CITY_NAME_PARTS } from './data/business-names.js';
 import { AI_STARTUP_PREFIXES, AI_STARTUP_SUFFIXES } from './data/fiction.js';
 import type { Industry } from './data/industries.js';
 import type { MarketId } from './data/markets.js';
-import { col, getMarket, publish, totalCustomers } from './helpers.js';
+import { col, getMarket, publish, totalCustomers, isEstablished } from './helpers.js';
 import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
 import { normaliseName } from './names.js';
@@ -328,6 +328,7 @@ export function settleRivals(world: World, market: MarketId, month: number) {
             c.status === 'active' &&
             c.market === market &&
             c.industry === industry &&
+            !isEstablished(c) &&
             !linked.has(c.id),
         )
         .sort((a, b) => (a.id < b.id ? -1 : 1));

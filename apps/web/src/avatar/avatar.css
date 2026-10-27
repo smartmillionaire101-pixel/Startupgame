@@ -238,3 +238,29 @@ html[data-simple] .creator-tabs button {
   min-width: 0;
   font-size: var(--fs-xs);
 }
+
+/* Dress for the role (the feedback round): your role's work outfit, worn together. */
+.purchases-role {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.purchases-role-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.purchases-role-kicker {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}

@@ -11,7 +11,7 @@ import { useEffect, useRef, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { seeded, hash } from '../city/contract';
 import { along, type HoleGeo } from '../city/golf/game';
-import type { GolfDrawProps, GolfFrame } from '../city/golf/frame';
+import { markScreen, type GolfDrawProps, type GolfFrame } from '../city/golf/frame';
 import { cpuGl, softwareGl } from '../three-kit/quality';
 import { makeCharacter, pose } from './character';
 import { golfPose, makeClub, partnerPose, type GolfClub3D } from './golfSwing';
@@ -602,7 +602,11 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
         }
       }
       // A cut when the mode changes (except into the follow), then easing.
-      if (lastCam !== f.cam && f.cam !== 'follow' && f.cam !== 'swing') {
+      // Into the swing too: gliding round from behind the ball to beside it,
+      // in a straight line while looking down the fairway, swept the ball off
+      // the left of the screen and under the clubs, for as long as the glide
+      // took (a second or more on a slow phone's software WebGL).
+      if (lastCam !== f.cam && f.cam !== 'follow') {
         camPos.copy(want);
         camLook.copy(look);
       }
@@ -616,6 +620,22 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
       sun.position.set(camLook.x + 30, 60, camLook.z + 20);
       sun.target.position.copy(camLook);
       renderer.render(scene, camera);
+      // Where the ball, the aim's end and the flag landed on screen (tests).
+      const onScreen = (x: number, y: number, z: number) => {
+        v.set(x, y, z).project(camera);
+        return v.z < 1 ? { x: (v.x + 1) / 2, y: (1 - v.y) / 2 } : null;
+      };
+      markScreen(
+        canvas,
+        'ball',
+        ball.visible ? onScreen(ball.position.x, ball.position.y, ball.position.z) : null,
+      );
+      markScreen(
+        canvas,
+        'aim-end',
+        aimLine.visible ? onScreen(ring.position.x, ring.position.y, ring.position.z) : null,
+      );
+      markScreen(canvas, 'flag', onScreen(g.pin.x, 2.15, g.pin.z));
       if (!ready) {
         ready = true;
         live.current.onReady?.();

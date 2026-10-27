@@ -1,4 +1,4 @@
-import { test, expect, letters, pickIdentity, tab } from './fixtures';
+import { test, expect, fillAboutYou, letters, pickLook, pickPath, tab } from './fixtures';
 
 test.use({ viewport: { width: 360, height: 780 } });
 for (const role of ['founder', 'investor', 'banker'] as const) {
@@ -8,17 +8,22 @@ for (const role of ['founder', 'investor', 'banker'] as const) {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto('/');
+    // Three short steps: the path, the look, then about you (the only typing).
+    await pickPath(page, role);
+    await pickLook(page, { gender: 'Man' });
     await expect(page.getByRole('textbox')).toHaveCount(3);
-    await expect(page.getByRole('combobox')).toHaveCount(1);
+    await expect(page.getByRole('combobox')).toHaveCount(role === 'founder' ? 1 : 0);
     await expect(page.getByLabel('Company name')).toHaveCount(0);
-    await page.getByLabel('Username', { exact: true }).fill(`quick_${letters(8)}`);
     const email = `quick-${letters()}@example.com`;
-    await page.getByLabel('Email', { exact: true }).fill(email);
-    await page.getByLabel('Join as').selectOption(role);
     const city = role === 'banker' ? 'London' : 'Lagos';
-    await pickIdentity(page, { name: `Quick ${role}`, gender: 'Man', city });
+    await fillAboutYou(page, {
+      name: `Quick ${role}`,
+      username: `quick_${letters(8)}`,
+      email,
+      city,
+    });
     await page.screenshot({ path: testInfo.outputPath('entry-mobile.png') });
-    await page.getByRole('button', { name: 'Play now' }).click();
+    await page.getByRole('button', { name: /^Play/ }).click();
     await expect(
       page.getByRole('application', { name: new RegExp(`Map of ${city}`) }),
     ).toBeVisible();

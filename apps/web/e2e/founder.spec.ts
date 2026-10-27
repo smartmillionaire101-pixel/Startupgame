@@ -1,17 +1,29 @@
-import { expect, letters, pickIdentity, tab, test } from './fixtures';
+import {
+  expect,
+  fillAboutYou,
+  finishSetup,
+  letters,
+  pickLook,
+  pickPath,
+  tab,
+  test,
+} from './fixtures';
 
 test('a founder signs up, onboards in under two minutes, and plays a month', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Build, invest and grow.' })).toBeVisible();
-
+  await expect(page.getByRole('heading', { name: 'Pick your path' })).toBeVisible();
+  await pickPath(page, 'founder');
+  await pickLook(page);
   await expect(page.getByRole('textbox')).toHaveCount(3);
   await expect(page.getByRole('combobox')).toHaveCount(1);
-  await page.getByLabel('Username', { exact: true }).fill(`ada_${letters(6)}`);
-  await page.getByLabel('Email', { exact: true }).fill(`ada-${letters()}@example.com`);
-  await page.getByLabel('Join as').selectOption('founder');
   // Johannesburg: advancing its month can't land in Lagos specs' balance checks.
-  await pickIdentity(page, { name: 'Ada E2E', city: 'Johannesburg' });
-  await page.getByRole('button', { name: 'Play now' }).click();
+  await fillAboutYou(page, {
+    name: 'Ada E2E',
+    city: 'Johannesburg',
+    username: `ada_${letters(6)}`,
+    email: `ada-${letters()}@example.com`,
+  });
+  await page.getByRole('button', { name: /^Play/ }).click();
   await expect(page.getByRole('application', { name: /Map of Johannesburg/ })).toBeVisible();
   await tab(page, 'Me').click();
   await page.getByLabel('Your name').fill('Ada E2E');
@@ -27,10 +39,12 @@ test('a founder signs up, onboards in under two minutes, and plays a month', asy
   await page.getByLabel('Company name').fill(`Mama Pay ${letters(5)}`);
   await page.getByLabel('Industry', { exact: true }).selectOption('fintech');
   // The tutorial's coach covers the bottom of the screen: scroll the button above it.
-  const start = page.getByRole('button', { name: 'Start the company' });
+  const start = page.getByRole('button', { name: 'Reserve the name and continue' });
   await start.evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await start.click();
   await expect(page.locator('[data-company-setup]')).toHaveCount(0);
+  // The founder setup (founder-setup.spec.ts covers it in full): register, own money, home.
+  await finishSetup(page);
 
   // The City opens first; the dashboard is the Home tab.
   await tab(page, 'Today').click();

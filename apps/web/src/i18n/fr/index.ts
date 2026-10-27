@@ -1,6 +1,7 @@
 /** The French catalog, merged from one file per screen. */
 import { account } from './account';
 import { landing } from './landing';
+import { buyMode } from './buy-mode';
 import { acts } from './acts';
 import { app } from './app';
 import { city } from './city';
@@ -73,20 +74,38 @@ import { goingOut } from './going-out';
 import { mapBadges } from './map-badges';
 import { mallWalk } from './mall-walk';
 import { golfMatch } from './golf-match';
+import { r2Golf } from './r2-golf';
 import { camera } from './camera';
 import { jobsPro } from './jobs-pro';
 import { mallMore } from './mall-more';
 import { flightClasses } from './flight-classes';
 import { firstClass } from './first-class';
+import { todayWhatnow } from './today-whatnow';
+import { cabins } from './cabins';
+import { founderGuidance } from './founder-guidance';
+import { heliSkydive } from './heli-skydive';
 import { restaurants } from './restaurants';
 import { wardrobe } from './wardrobe';
 import { cityPlaces } from './city-places';
+import { hotelList } from './hotel-list';
 import { moreGames } from './more-games';
 import { capitalExit } from './capital-exit';
 import { firstFund } from './first-fund';
 import { bankers } from './bankers';
 import { bankwork } from './bankwork';
+import { jobTasks } from './job-tasks';
+import { stocks } from './stocks';
+import { outfits } from './outfits';
+import { buildings } from './buildings';
+import { signup } from './signup';
+import { investorGuide } from './investor-guide';
+import { bankerRepEvents } from './banker-rep-events';
 import { shop } from './shop';
+import { r2 } from './r2';
+import { r2Ui } from './r2-ui';
+import { r2Jobs } from './r2-jobs';
+import { convo } from './convo';
+import { setup } from './setup';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -162,6 +181,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   mapBadges,
   mallWalk,
   golfMatch,
+  r2Golf,
   camera,
   jobsPro,
   mallMore,
@@ -175,8 +195,26 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   firstFund,
   bankers,
   bankwork,
+  investorGuide,
+  bankerRepEvents,
   shop,
   firstClass,
+  jobTasks,
+  todayWhatnow,
+  stocks,
+  outfits,
+  cabins,
+  hotelList,
+  founderGuidance,
+  heliSkydive,
+  buildings,
+  signup,
+  r2,
+  r2Ui,
+  r2Jobs,
+  convo,
+  buyMode,
+  setup,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

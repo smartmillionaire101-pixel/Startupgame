@@ -601,6 +601,7 @@ function TripSheet({
     hotel: HotelTier | null = null,
     cabin: CabinTier = 'economy',
     back: CabinTier | null = null,
+    hotelId?: string,
   ) => {
     const row = flights.find((x) => x.d.id === to);
     if (!row || !desk) return;
@@ -610,6 +611,8 @@ function TripSheet({
       type: 'travel.book' as const,
       to: d.id as MarketId,
       ...(hotel ? { hotel } : {}),
+      // The feedback round: a named hotel (the server takes its room tier from it).
+      ...(hotelId ? { hotelId } : {}),
       // Economy is the ticket as it always was: only an upgrade goes on the command.
       // Flying home, the cabin always goes (no cabin means the return you hold).
       ...(cabin !== 'economy' || (home && d.cabins.length) ? { cabin } : {}),
@@ -622,7 +625,11 @@ function TripSheet({
     };
     if (!(await send(cmd))) return;
     setChoosing(null);
-    const stay = hotel ? d.hotels.find((h) => h.tier === hotel) : undefined;
+    const stay = hotelId
+      ? d.hotelList.find((h) => h.id === hotelId)
+      : hotel
+        ? d.hotels.find((h) => h.tier === hotel)
+        : undefined;
     const seat = d.cabins.find((c) => c.cabin === cabin);
     const ret = back ? d.returnCabins.find((c) => c.cabin === back) : undefined;
     const held = home ? flightsInfo?.heldReturn : null;
@@ -639,7 +646,16 @@ function TripSheet({
       airline: f?.airline,
       flight: f?.flight,
       gate: f?.gate,
-      ...(stay ? { hotel: { tier: stay.tier, name: stay.name, paid: stay.price } } : {}),
+      ...(stay
+        ? {
+            hotel: {
+              tier: stay.tier,
+              name: stay.name,
+              paid: stay.price,
+              ...(hotelId ? { id: hotelId } : {}),
+            },
+          }
+        : {}),
     });
     stop();
     setStep('checkin');
@@ -691,7 +707,9 @@ function TripSheet({
                 aria-label={t('Book a flight to {city}', { city: d.name })}
                 // Abroad (not home): choose a hotel first; the cabin when it's on sale.
                 onClick={() =>
-                  d.hotels.length || d.cabins.length ? setChoosing(d.id) : void book(d.id)
+                  d.hotels.length || d.hotelList.length || d.cabins.length
+                    ? setChoosing(d.id)
+                    : void book(d.id)
                 }
               >
                 {d.done ? t('This month') : ticket?.to === d.id ? t('Booked') : t('Book')}
@@ -699,8 +717,10 @@ function TripSheet({
               {choosing === d.id && desk && !ticket && (
                 <TripPicker
                   city={d.name}
+                  marketId={d.id}
                   cabins={d.cabins}
                   hotels={d.hotels}
+                  hotelList={d.hotelList}
                   fare={d.fare}
                   currency={desk.currency}
                   balance={balance}
@@ -709,7 +729,9 @@ function TripSheet({
                   homeName={homeId ? (CITY_NAMES[homeId] ?? homeId) : ''}
                   held={d.id === homeId ? (flightsInfo?.heldReturn ?? null) : null}
                   initial={d.id === homeId ? (flightsInfo?.lastCabin ?? undefined) : undefined}
-                  onBook={(hotel, cabin, back) => void book(d.id, hotel, cabin, back)}
+                  onBook={(hotel, cabin, back, hotelId) =>
+                    void book(d.id, hotel, cabin, back, hotelId)
+                  }
                   onCancel={() => setChoosing(null)}
                 />
               )}

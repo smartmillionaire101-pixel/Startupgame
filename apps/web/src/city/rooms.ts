@@ -242,6 +242,8 @@ export function roomOf(
     default: {
       const k = (place as { kind: string }).kind;
       if (k === 'civic') return CIVIC_ROOM[place.ref?.split(':')[1] ?? ''] ?? 'office';
+      // Another hotel than yours: its lobby lounge (yours is your room, the home place).
+      if (k === 'hotel') return 'lounge';
       if (k === 'capital')
         return opts.capital === 'accelerator'
           ? 'accelerator'

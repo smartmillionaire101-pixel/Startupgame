@@ -1,12 +1,4 @@
-import {
-  expect,
-  letters,
-  pickIdentity,
-  playAsGuest,
-  setupFounder,
-  test,
-  type Page,
-} from './fixtures';
+import { expect, letters, signUp, playAsGuest, setupFounder, test, type Page } from './fixtures';
 
 /**
  * Where you start (player feedback): a new session opens at home, and you
@@ -29,15 +21,14 @@ test('a brand-new founder starts at home too, with the guided first steps', asyn
     localStorage.setItem('runway.lastSeen.u_someone_else', String(Date.now()));
   });
   await page.goto('/');
-  await page.getByLabel('Username', { exact: true }).fill(`nh_${letters(8)}`);
-  await page.getByLabel('Email', { exact: true }).fill(`nh-${letters()}@example.com`);
-  await page.getByLabel('Join as').selectOption('founder');
-  await pickIdentity(page, { name: 'Ada Home', city: 'Nairobi' });
-  await page
-    .getByRole('group', { name: 'Your background' })
-    .getByRole('button', { name: /^Consultant/ })
-    .click();
-  await page.getByRole('button', { name: 'Play now' }).click();
+  await signUp(page, {
+    role: 'founder',
+    name: 'Ada Home',
+    city: 'Nairobi',
+    username: `nh_${letters(8)}`,
+    email: `nh-${letters()}@example.com`,
+    background: 'f-consultant',
+  });
   const home = page.locator('.place-scene[data-scene="home"]');
   await expect(home).toBeVisible({ timeout: 30_000 });
   // The tutorial starts in the flat: open the phone from there.

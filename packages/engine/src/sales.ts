@@ -37,6 +37,7 @@ import { outputOf } from './staff.js';
 import { barEdgeIn } from './lifebars.js';
 import { rivalPressure } from './rivals.js';
 import { firstPayment, starterIdeaEdge } from './firstsession.js';
+import { feedbackOn } from './releases.js';
 import type {
   Company,
   Id,
@@ -54,6 +55,16 @@ import type {
 } from './types.js';
 
 // ---------------------------------------------------------------- Tuning
+
+/** What a demo is scored on: fit for their segment, quality, reliability, and discovery first. */
+export const DEMO_WEIGHTS = {
+  fit: 0.45,
+  quality: 0.35,
+  reliability: 0.2,
+  discovery: 0.08,
+} as const;
+
+const round2 = (x: number) => Math.round(x * 100) / 100;
 
 export const SALES = {
   /** Founder hours per action. */
@@ -137,7 +148,7 @@ const segmentsOf = (m: MarketState, c: Company): SegmentState[] => {
 };
 
 /** What a founder would assume about a customer before discovery. */
-function assumed(m: MarketState, d: SalesDeal): SalesCustomer {
+export function assumed(m: MarketState, d: SalesDeal): SalesCustomer {
   const seg = m.segments[d.customer.segmentKey];
   const mid = (d.customer.budgetMin + d.customer.budgetMax) / 2;
   // You guess roughly right on budget (what such buyers usually spend), and average on the rest.
@@ -343,6 +354,42 @@ const trustUp = (d: SalesDeal, by: number) => {
 // ---------------------------------------------------------------- Leads
 
 const B2B_SUFFIX = ['Traders', 'Logistics', 'Group', 'Supplies', 'Ventures', 'Partners', 'Stores'];
+/**
+ * Feedback note: a made-up lead's name fits its segment ("Ikoyi Distributors"
+ * for a distributor, not "Ikoyi Logistics"). Households take the contact's surname.
+ */
+const SEGMENT_SUFFIX: Record<string, string[]> = {
+  'fintech.traders': ['Traders', 'Provisions', 'Market Stall', 'Stores'],
+  'fintech.online-sellers': ['Online Store', 'Shop', 'Ventures', 'Enterprises'],
+  'fintech.distributors': ['Distributors', 'Wholesale', 'Supplies', 'Group'],
+  'ecommerce.urban': ['household', 'family'],
+  'ecommerce.retailers': ['Mini Mart', 'Stores', 'Provisions', 'Shop'],
+  'ecommerce.brands': ['Brands', 'Foods', 'Beverages', 'Cosmetics'],
+  'logistics.sellers': ['Online Store', 'Shop', 'Ventures', 'Enterprises'],
+  'logistics.retailers': ['Mini Mart', 'Stores', 'Provisions', 'Shop'],
+  'logistics.shippers': ['Distributors', 'Wholesale', 'Freight', 'Supplies'],
+  'healthtech.families': ['family', 'household'],
+  'healthtech.clinics': ['Clinic', 'Medical Centre', 'Pharmacy', 'Health Centre'],
+  'healthtech.employers': ['Group', 'Industries', 'Holdings', 'Manufacturing'],
+  'edtech.parents': ['family', 'household'],
+  'edtech.schools': ['Academy', 'College', 'School', 'Learning Centre'],
+  'edtech.corporate': ['Group', 'Holdings', 'Industries', 'Bank'],
+  'saas.solo': ['Studio', 'Consulting', 'Designs', 'Services'],
+  'saas.smes': ['Ventures', 'Enterprises', 'Services', 'Agency'],
+  'saas.midmarket': ['Group', 'Holdings', 'Industries', 'Partners'],
+  'agritech.farmers': ['Farms', 'Growers', 'Farm', 'Agro'],
+  'agritech.food-retail': ['Foods', 'Mini Mart', 'Grocers', 'Kitchen'],
+  'agritech.processors': ['Mills', 'Processing', 'Agro-Allied', 'Foods'],
+};
+
+function leadName(world: World, seg: SegmentState, place: string, person: string, rng: Rng) {
+  const own = feedbackOn(world) ? SEGMENT_SUFFIX[seg.key] : undefined;
+  if (!own) return `${place} ${rng.pick(B2B_SUFFIX)}`;
+  const suffix = rng.pick(own);
+  // A household is the contact's: "the Okafor household".
+  if (suffix === suffix.toLowerCase()) return `The ${person.split(' ').at(-1)} ${suffix}`;
+  return `${place} ${suffix}`;
+}
 const NEEDS: SalesNeed[] = ['fit', 'price', 'stars', 'reliability'];
 
 function strongestNeed(seg: SegmentState | undefined, rng: Rng): SalesNeed {
@@ -350,7 +397,7 @@ function strongestNeed(seg: SegmentState | undefined, rng: Rng): SalesNeed {
   return NEEDS.slice().sort((a, b) => seg.needs[b] - seg.needs[a])[0]!;
 }
 
-function makeLead(
+export function makeLead(
   world: World,
   c: Company,
   m: MarketState,
@@ -379,7 +426,7 @@ function makeLead(
         ? 'spreadsheet'
         : 'nothing';
   return {
-    name: b ? b.name : `${rng.pick(parts.places)} ${rng.pick(B2B_SUFFIX)}`,
+    name: b ? b.name : leadName(world, seg, rng.pick(parts.places), person, rng),
     contact: b ? b.owner.name : person,
     ...(b ? { businessId: b.id } : {}),
     segmentKey: seg.key,
@@ -538,13 +585,24 @@ export function advanceDeal(world: World, me: Player, cmd: SalesAdvanceInput) {
       spendHours(me, hours, label);
       const rng = deriveRng(world.seed, 'sales', 'demo', d.id, d.recovered ? 2 : 1);
       const fit = segmentFit(c, d.customer.segmentKey);
+      const rel = reliability(c);
+      const luck = rng.normal(0, 0.06);
       const score =
-        0.45 * fit +
-        0.35 * c.product.quality +
-        0.2 * reliability(c) +
-        (d.revealed ? 0.08 : 0) +
-        rng.normal(0, 0.06);
+        DEMO_WEIGHTS.fit * fit +
+        DEMO_WEIGHTS.quality * c.product.quality +
+        DEMO_WEIGHTS.reliability * rel +
+        (d.revealed ? DEMO_WEIGHTS.discovery : 0) +
+        luck;
       d.demoScore = Math.round(clamp01(score) * 100) / 100;
+      // Feedback note: keep what the score was made of, to explain it.
+      if (feedbackOn(world))
+        d.demoParts = {
+          fit: round2(fit),
+          quality: round2(c.product.quality),
+          reliability: round2(rel),
+          discovery: d.revealed,
+          luck: round2(luck),
+        };
       trustUp(d, (d.demoScore - 0.4) * 0.3);
       break;
     }
@@ -603,10 +661,21 @@ export function advanceDeal(world: World, me: Player, cmd: SalesAdvanceInput) {
   };
 }
 
-function closeDeal(world: World, me: Player, c: Company, d: SalesDeal, month: number) {
-  const chance = winChance(world, c, d, { known: true, founder: me });
+/**
+ * Ask for the deal. A sales conversation (salestalk.ts) passes the chance its
+ * turns earned and its own RNG label; the pipeline's close uses the plain one.
+ */
+export function closeDeal(
+  world: World,
+  me: Player,
+  c: Company,
+  d: SalesDeal,
+  month: number,
+  opts: { chance?: number; label?: string } = {},
+) {
+  const chance = opts.chance ?? winChance(world, c, d, { known: true, founder: me });
   const attempt = d.recovered ? 2 : 1;
-  const rng = deriveRng(world.seed, 'sales', 'close', d.id, attempt);
+  const rng = deriveRng(world.seed, 'sales', opts.label ?? 'close', d.id, attempt);
   const won = rng.next() < chance;
   d.closedMonth = month;
   if (won) {
@@ -655,6 +724,10 @@ function closeDeal(world: World, me: Player, c: Company, d: SalesDeal, month: nu
 function recoverDeal(d: SalesDeal, month: number) {
   const reason = d.lossReason ?? 'price';
   d.recovered = true;
+  // A new conversation once you're back at the table (only feedback-note deals
+  // have one): the last one's turns are over, and sitting down again draws new
+  // openings (salestalk.ts keeps only the count).
+  if (d.talk) d.talk = { n: d.talk.n, month: d.talk.month, leadOptions: [] };
   delete d.closedMonth;
   d.deadline = Math.max(d.deadline, month + 1);
   d.negotiations = Math.min(d.negotiations ?? 0, SALES.maxNegotiations - 1);
@@ -771,6 +844,7 @@ export function salesView(world: World, c: Company, viewer?: Player) {
   const view = deals.map((d) => {
     const known = d.revealed;
     const seg = m.segments[d.customer.segmentKey];
+    const biz = d.customer.businessId ? businessesOf(m)[d.customer.businessId] : undefined;
     const actions: SalesNextAction[] = (Object.keys(ACTION_FROM) as SalesAction[])
       .filter((a) => ACTION_FROM[a].includes(d.stage))
       .filter((a) => (a === 'recover' ? !d.recovered && !d.expired : month <= d.deadline))
@@ -784,6 +858,8 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       contact: d.customer.contact,
       businessId: d.customer.businessId ?? null,
       segment: seg?.name ?? '',
+      /** What kind of business a local business is ("Spa"); null for a made-up lead. */
+      businessKind: biz ? specOf(biz).label : null,
       createdMonth: d.createdMonth,
       deadline: d.deadline,
       monthsLeft: open ? Math.max(0, d.deadline - month) : null,
@@ -806,6 +882,8 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       probability: open ? winChance(world, c, d, { founder }) : d.stage === 'won' ? 1 : 0,
       estimate: open && !known,
       demoScore: d.demoScore ?? null,
+      /** Feedback note: what the demo score was made of (null before it). */
+      demoParts: d.demoParts ?? null,
       negotiationsLeft: SALES.maxNegotiations - (d.negotiations ?? 0),
       actions,
       next: actions.find((x) => x.action === 'close') ?? actions[0] ?? null,

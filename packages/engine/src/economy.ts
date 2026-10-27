@@ -46,6 +46,7 @@ import {
   notify,
   ownCompany,
   spendHours,
+  isEstablished,
 } from './helpers.js';
 import {
   account,
@@ -603,7 +604,7 @@ function supplierScore(b: LocalBusiness, c: Company, budget: number): number {
 
 const sectorRivals = (world: World, m: MarketState, sector: Industry) =>
   Object.values(world.companies).filter(
-    (c) => c.market === m.id && c.status === 'active' && c.industry === sector,
+    (c) => c.market === m.id && c.status === 'active' && c.industry === sector && !isEstablished(c),
   );
 
 function raiseRapport(b: LocalBusiness, playerId: Id, by: number) {
@@ -810,7 +811,13 @@ export interface PitchAnswer {
 }
 
 /** Why a founder can't pitch a business right now (null when they can). */
-function pitchBlocker(world: World, me: Player, b: LocalBusiness, companyId?: Id): string | null {
+export function pitchBlocker(
+  world: World,
+  me: Player,
+  b: LocalBusiness,
+  companyId?: Id,
+  hours: number = ECONOMY.pitchHours,
+): string | null {
   if (!isOpen(b)) return `${b.name} has closed.`;
   if (locationOf(me) !== b.market) return 'This business is in another city.';
   const m = getMarket(world, b.market);
@@ -838,8 +845,8 @@ function pitchBlocker(world: World, me: Player, b: LocalBusiness, companyId?: Id
   const used = me.businessPitches?.month === m.month ? me.businessPitches.count : 0;
   if (used >= ECONOMY.pitchesPerMonth)
     return `You’ve made ${ECONOMY.pitchesPerMonth} pitches this month. Come back next month.`;
-  if (hoursLeft(me) < ECONOMY.pitchHours)
-    return `A pitch takes ${ECONOMY.pitchHours} hours; you don’t have that left this month.`;
+  if (hoursLeft(me) < hours)
+    return `A pitch takes ${hours} hours; you don’t have that left this month.`;
   return null;
 }
 

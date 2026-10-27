@@ -10,6 +10,7 @@
 import type { Command, PlayerView } from '@runway/engine';
 import type { CapitalInput, CityInput } from './layout';
 import { acceleratorsOf, devPartnersOf, lpsOf } from './life';
+import { cityHotelsOf, stayHotelOf } from './travel';
 
 type LenderKind =
   'high-street' | 'challenger' | 'government' | 'development' | 'microfinance' | 'fintech';
@@ -305,9 +306,20 @@ export function cityInput(view: PlayerView): CityInput {
     role: p.role,
     district: p.district,
   }));
+  // The feedback round: the city's named hotels, and (abroad) the one your room is in.
+  const hotels = cityHotelsOf(view).map((h) => ({
+    id: h.id,
+    name: h.name,
+    district: h.district,
+    stars: h.stars,
+    tier: h.tier,
+  }));
+  const stay = stayHotelOf(view)?.id;
   return {
     ...(capital.length ? { capital } : {}),
     ...(civic.length ? { civic } : {}),
+    ...(hotels.length ? { hotels } : {}),
+    ...(stay ? { stay } : {}),
     marketId: view.market.id,
     lenders: lendersOf(view).map((l) => ({ id: l.id, name: l.name, look: l.look })),
     playerBanks: view.market.banks.map((b) => ({ id: b.id, name: b.name })),

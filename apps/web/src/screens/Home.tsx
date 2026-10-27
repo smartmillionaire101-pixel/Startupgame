@@ -16,12 +16,15 @@ import { DecisionsCard } from './Decisions';
 import { NextStepCard } from '../city/NextStepCard';
 import { useSimple } from '../phone/settings';
 import { HolidayCards } from '../phone/apps/Holiday';
+import { BankerToday } from './BankerToday';
 
 /** Today (was "Home"): the dashboard and inbox. `onNews` opens the city's news. */
 export function Home({ onNews }: { onNews?: () => void } = {}) {
   const { view, cur, meta } = useView();
   const stories = view.media.filter((m) => m.status === 'invited' || m.status === 'preview').length;
   const isInvestor = view.me.role === 'investor';
+  // Bankers start (or run) a bank, never the founder's company form.
+  const isBanker = view.me.role === 'banker';
   const active = view.companies.filter((c) => c.status === 'active');
   const [idx, setIdx] = useState(0);
   const c = active[Math.min(idx, active.length - 1)];
@@ -55,6 +58,8 @@ export function Home({ onNews }: { onNews?: () => void } = {}) {
         </>
       ) : isInvestor ? (
         <InvestorKpis />
+      ) : isBanker ? (
+        <BankerToday />
       ) : (
         <Card title={t('Start again')} tone="good">
           <p>{t('Failure is part of a career. Your skills, network and lessons carry over.')}</p>
@@ -62,50 +67,64 @@ export function Home({ onNews }: { onNews?: () => void } = {}) {
         </Card>
       )}
       {isInvestor && c && <InvestorKpis />}
+      {isBanker && c && <BankerToday />}
       <DecisionsCard />
       <WhatNowCard onGo={visitPlace} />
-      <RecapButton />
-      <FriendsBacking />
-      <HolidayCards prompt={false} />
-      <SaveNudge />
-      <Votes />
-      <Inbox />
-      {onNews && (
-        <button
-          type="button"
-          className="card link-card"
-          onClick={onNews}
-          data-news-link=""
-          aria-label={stories ? t('News, {n} new', { n: stories }) : t('News')}
-        >
-          <Icon name="news" />
-          <span className="link-card-main">
-            <b>{t('News')}</b>
-            <span className="small muted">{t('Headlines, the daily digest and reporters')}</span>
-          </span>
-          {stories > 0 && <span className="badge-inline">{stories}</span>}
-          <Icon name="chevron" className="link-card-go" />
-        </button>
-      )}
-      <Card title={t('{market} today', { market: view.market.name })}>
-        <p>{tx(view.market.economicNote)}</p>
-        <div className="row small">
-          <Pill>{t('Rate {rate}%', { rate: (view.market.baseRateBps / 100).toFixed(2) })}</Pill>
-          {cur !== 'USD' && (
-            <Pill>
-              {cur}/USD {view.market.unitsPerUsd.toLocaleString('en-GB')}
-            </Pill>
-          )}
-          <Pill
-            tone={
-              view.market.climate > 1.05 ? 'good' : view.market.climate < 0.95 ? 'warn' : undefined
-            }
-          >
-            {t('Climate {value}', { value: view.market.climate.toFixed(2) })}
-          </Pill>
+      {/* A wide screen: the rest in columns (one after the other on a phone). */}
+      <div className="screen-cols">
+        <div className="screen-col">
+          <RecapButton />
+          <FriendsBacking />
+          <HolidayCards prompt={false} />
+          <SaveNudge />
+          <Votes />
+          <Inbox />
         </div>
-      </Card>
-      {meta?.devTools && <DevTools />}
+        <div className="screen-col">
+          {onNews && (
+            <button
+              type="button"
+              className="card link-card"
+              onClick={onNews}
+              data-news-link=""
+              aria-label={stories ? t('News, {n} new', { n: stories }) : t('News')}
+            >
+              <Icon name="news" />
+              <span className="link-card-main">
+                <b>{t('News')}</b>
+                <span className="small muted">
+                  {t('Headlines, the daily digest and reporters')}
+                </span>
+              </span>
+              {stories > 0 && <span className="badge-inline">{stories}</span>}
+              <Icon name="chevron" className="link-card-go" />
+            </button>
+          )}
+          <Card title={t('{market} today', { market: view.market.name })}>
+            <p>{tx(view.market.economicNote)}</p>
+            <div className="row small">
+              <Pill>{t('Rate {rate}%', { rate: (view.market.baseRateBps / 100).toFixed(2) })}</Pill>
+              {cur !== 'USD' && (
+                <Pill>
+                  {cur}/USD {view.market.unitsPerUsd.toLocaleString('en-GB')}
+                </Pill>
+              )}
+              <Pill
+                tone={
+                  view.market.climate > 1.05
+                    ? 'good'
+                    : view.market.climate < 0.95
+                      ? 'warn'
+                      : undefined
+                }
+              >
+                {t('Climate {value}', { value: view.market.climate.toFixed(2) })}
+              </Pill>
+            </div>
+          </Card>
+        </div>
+        <div className="screen-col">{meta?.devTools && <DevTools />}</div>
+      </div>
     </>
   );
 }
@@ -133,7 +152,7 @@ export function CompanyKpis({ c }: { c: Company }) {
         tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
         hint={
           preRevenue
-            ? t('No monthly costs yet')
+            ? t('No costs yet')
             : c.defaultAlive
               ? t('On track to profit')
               : t('Runs out before profit')
@@ -156,7 +175,7 @@ export function CompanyKpis({ c }: { c: Company }) {
         value={fresh ? t('New') : stars(c.stars)}
         hint={
           fresh ? (
-            t('Rated after your first month')
+            t('After month 1')
           ) : c.publicWarning ? (
             <span className="bad">{t('Public warning')}</span>
           ) : (

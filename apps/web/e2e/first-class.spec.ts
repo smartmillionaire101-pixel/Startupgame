@@ -139,7 +139,7 @@ test('first class to London and back: both legs first, the lounge, the suite', a
   // The way home follows the way out: first.
   await expect(picker.locator('[data-trip-back]')).toHaveAttribute('data-trip-back', 'first');
   await expect(picker.locator('[data-return-option="first"]')).toHaveClass(/is-picked/);
-  await picker.locator('[data-hotel="business"]').click();
+  await picker.getByRole('button', { name: 'Choose Soho Townhouse' }).click();
   await picker.locator('[data-hotel-book]').click();
   const trip = await toAirport(page);
   const s1 = await state(page);

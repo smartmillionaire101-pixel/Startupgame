@@ -60,7 +60,10 @@ export interface Unit {
 export const UNIT_DEPTH = 2.4;
 const COURT_GLASS = HALF + DEPTH - UNIT_DEPTH;
 export const UNITS: Record<UnitShop, Unit> = {
-  outlet: { x: -HALF, z: 2.6, nx: 1, nz: 0, w: 5.4, reach: 2 },
+  // By the entrance on the left: the outlet, then The Suit Shop (the feedback
+  // round; bare wall until it opens) up to the fashion shop's room.
+  outlet: { x: -HALF, z: 4.7, nx: 1, nz: 0, w: 4.1, reach: 2 },
+  suits: { x: -HALF, z: 0.5, nx: 1, nz: 0, w: 4.0, reach: 2 },
   pharmacy: { x: HALF, z: 2.6, nx: -1, nz: 0, w: 5.4, reach: 2 },
   jewellery: { x: HALF, z: -25.7, nx: -1, nz: 0, w: 4.3, reach: 2 },
   beauty: { x: HALF, z: -30.2, nx: -1, nz: 0, w: 4.3, reach: 2 },
@@ -355,9 +358,13 @@ export function backOut(where: Where): { x: number; z: number } {
 /** Where you come in. */
 export const START = { x: 1.2, z: 4.4, heading: Math.PI + 0.5 };
 
-/** Which part of the mall a point is in. */
-export function regionOf(x: number, z: number): Where {
+/**
+ * Which part of the mall a point is in. With the shops open here, a closed
+ * storefront's bare wall is the concourse (The Suit Shop before it opens).
+ */
+export function regionOf(x: number, z: number, open?: readonly MallShopId[]): Where {
   for (const shop of UNIT_SHOPS) {
+    if (open && !open.includes(shop)) continue;
     const u = UNITS[shop];
     const p = unitLocal(u, x, z);
     if (p.d > -0.2 && p.d < u.reach && Math.abs(p.l) < u.w / 2) return shop;

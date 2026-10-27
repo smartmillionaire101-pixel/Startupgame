@@ -34,6 +34,9 @@
  * and the hotel (the host's suppliers) through the ledger; an AI founder who
  * pays their own way pays from their own account.
  *
+ * Named hotels (feedback round): a host who booked a named hotel has it on
+ * the holiday (`hotelId`), and friends who accept book that same hotel.
+ *
  * Room numbers and seats are a hash of the holiday id.
  */
 import { appearanceSeed, defaultAppearance } from './appearance.js';
@@ -51,7 +54,15 @@ import { formatMoney } from './money.js';
 import { bumpNeed, moodOf, needsOf } from './needs.js';
 import { npcPerson, parseNpcId } from './people.js';
 import { deriveRng, hashString } from './rng.js';
-import { bookFlight, flightFare, flightFareUsd, hotelName, hotelPrice } from './travel.js';
+import { HOTEL_BY_ID } from './data/hotels.js';
+import {
+  bookFlight,
+  flightFare,
+  flightFareUsd,
+  hotelName,
+  hotelPrice,
+  hotelStayPrice,
+} from './travel.js';
 import type {
   Contact,
   Gender,
@@ -104,6 +115,19 @@ const nameOn = (world: World, h: Holiday, id: Id) =>
   world.players[id]?.name ?? h.guests.find((g) => g.id === id)?.ai?.name ?? '';
 
 const firstName = (name: string) => name.split(' ')[0] ?? name;
+
+/** The holiday's named hotel (feedback round), if the host booked one. */
+const namedOf = (h: Holiday) => (h.hotelId ? HOTEL_BY_ID.get(h.hotelId) : undefined);
+
+/** The holiday's hotel by name: the named hotel, else the tier's hotel in the city. */
+const stayName = (h: Holiday) => namedOf(h)?.name ?? (h.tier ? hotelName(h.market, h.tier) : '');
+
+/** The holiday's hotel for this player, in their home currency (0 = flight only). */
+function stayCost(world: World, p: Player, h: Holiday): number {
+  const named = namedOf(h);
+  if (named) return hotelStayPrice(world, p, h.market, named);
+  return h.tier ? hotelPrice(world, p, h.market, h.tier) : 0;
+}
 
 // ---------------------------------------------------------------- Flying together
 
@@ -231,7 +255,7 @@ function aiTripCost(world: World, host: Player, f: AiFriend, h: Holiday) {
   if (f.market === h.market) return 0;
   const home = getMarket(world, host.market);
   const fare = usdToLocal(world, home, flightFareUsd(f.market, h.market));
-  return fare + (h.tier ? hotelPrice(world, host, h.market, h.tier) : 0);
+  return fare + stayCost(world, host, h);
 }
 
 /** How well off an AI friend is: a founder by their own money, a business owner well, a regular by their number. */
@@ -277,11 +301,18 @@ function aiAnswer(
 }
 
 /** Where the host's trip goes: a booked ticket abroad, else where they are now. */
-function tripOf(p: Player): { market: MarketId; tier: Holiday['tier'] } | null {
+function tripOf(
+  p: Player,
+): { market: MarketId; tier: Holiday['tier']; hotelId: string | undefined } | null {
   const t = p.flightTicket;
-  if (t && t.to !== p.market) return { market: t.to, tier: t.hotel?.tier ?? null };
+  if (t && t.to !== p.market)
+    return { market: t.to, tier: t.hotel?.tier ?? null, hotelId: t.hotel?.id };
   if (p.location && p.location.market !== p.market)
-    return { market: p.location.market, tier: p.location.hotel?.tier ?? null };
+    return {
+      market: p.location.market,
+      tier: p.location.hotel?.tier ?? null,
+      hotelId: p.location.hotel?.id,
+    };
   return null;
 }
 
@@ -290,7 +321,7 @@ function guestCost(world: World, guest: Player, h: Holiday) {
   if (guest.market === h.market || locationOf(guest) === h.market)
     return { fare: 0, hotel: 0, total: 0, needed: false };
   const fare = flightFare(world, guest, h.market);
-  const hotel = h.tier ? hotelPrice(world, guest, h.market, h.tier) : 0;
+  const hotel = stayCost(world, guest, h);
   return { fare, hotel, total: fare + hotel, needed: true };
 }
 
@@ -341,7 +372,10 @@ export function inviteHoliday(
   );
   if (h) {
     // Upgrading from flight only to a hotel: the friends who come later stay there too.
-    if (!h.tier && trip.tier) h.tier = trip.tier;
+    if (!h.tier && trip.tier) {
+      h.tier = trip.tier;
+      if (trip.hotelId) h.hotelId = trip.hotelId;
+    }
   } else {
     const id = newId(world, 'holiday');
     h = holidaysOf(world)[id] = {
@@ -350,6 +384,7 @@ export function inviteHoliday(
       market: trip.market,
       month: dest.month,
       tier: trip.tier,
+      ...(trip.hotelId ? { hotelId: trip.hotelId } : {}),
       guests: [],
       createdAt: now,
     };
@@ -434,7 +469,7 @@ export function inviteHoliday(
       ref: { kind: 'holiday', id: h.id },
     });
   }
-  const stay = h.tier ? `, staying at ${hotelName(h.market, h.tier)}` : '';
+  const stay = h.tier ? `, staying at ${stayName(h)}` : '';
   for (const q of humans)
     notify(world, q.id, {
       month: getMarket(world, q.market).month,
@@ -524,7 +559,18 @@ export function acceptHoliday(
         'holiday.funds',
         `The trip to ${city} costs ${fmt(cost.total)}${h.tier ? ' with the hotel' : ''}; you have ${fmt(Math.max(0, mine.balance))}. Ask ${host.name} to cover it, or decline.`,
       );
-    bookFlight(world, me, h.market, now, h.tier ?? undefined);
+    // The host's named hotel, when they booked one: the same hotel for everyone.
+    bookFlight(
+      world,
+      me,
+      h.market,
+      now,
+      h.tier ?? undefined,
+      undefined,
+      undefined,
+      undefined,
+      h.hotelId,
+    );
     if (hostPays && me.flightTicket)
       me.flightTicket.sponsor = { playerId: host.id, amount: cost.total };
     booked = true;
@@ -545,7 +591,7 @@ export function acceptHoliday(
     ref: { kind: 'holiday', id: h.id },
     from: me.id,
   });
-  const stay = h.tier ? ` and ${hotelName(h.market, h.tier)}` : '';
+  const stay = h.tier ? ` and ${stayName(h)}` : '';
   const shown = me.flightTicket?.flight;
   const onIt = sameFlight
     ? ` You’re on ${firstName(host.name)}’s flight${shown?.number ? ` (${shown.number})` : ''}, in the next seat.`
@@ -1113,7 +1159,13 @@ export function holidaysView(world: World, p: Player) {
         market: h.market,
         city: m.data.name,
         month: h.month,
-        hotel: h.tier ? { tier: h.tier, name: hotelName(h.market, h.tier) } : null,
+        hotel: h.tier
+          ? {
+              tier: h.tier,
+              name: stayName(h),
+              ...(namedOf(h) ? { id: h.hotelId, district: namedOf(h)!.district } : {}),
+            }
+          : null,
         host: { id: h.hostId, name: name(h.hostId) },
         mine,
         myStatus: mine ? ('host' as const) : (me?.status ?? 'pending'),

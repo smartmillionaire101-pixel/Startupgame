@@ -6,6 +6,7 @@ import type { MutableRefObject } from 'react';
 import type { AvatarLook } from '../city/art';
 import type { HomeAct, HomePlan, Spot } from '../home/layout';
 import type { Grounds } from '../home/grounds';
+import type { HomeFinish } from './finishes';
 
 export interface Home3DPerson {
   id: string;
@@ -21,7 +22,8 @@ export interface Home3DPerson {
 export interface Home3DObject {
   id: string;
   label: string;
-  spot: Spot & { rot?: number };
+  /** `lift`: a picture hung a step lower or higher (placement.ts). */
+  spot: Spot & { rot?: number; lift?: number };
   slot?: string;
   owned?: boolean;
   tier?: number;
@@ -44,6 +46,8 @@ export interface Home3DDivider {
   y: number;
   dir: 'h' | 'v';
   swatch: string;
+  /** In the home's wall paint (a plastered wall, `dividerPaint`). */
+  painted?: boolean;
 }
 
 interface PickResult {
@@ -75,7 +79,7 @@ export interface Home3DApi {
 export interface Ghost {
   slot: string;
   tier: number;
-  spot: Spot & { rot: number };
+  spot: Spot & { rot: number; lift?: number };
   ok: boolean;
 }
 
@@ -107,4 +111,6 @@ export interface Home3DProps {
   grounds?: Grounds;
   /** Shop note: walls and dividers you put up on this floor. */
   dividers?: Home3DDivider[];
+  /** Buy mode: the floors and wall paint you chose (or are trying on). */
+  finish?: HomeFinish | null;
 }

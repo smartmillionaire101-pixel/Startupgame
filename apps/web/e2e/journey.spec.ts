@@ -13,6 +13,9 @@ test('a new founder opens the Journey on Chapter 1 and follows a step', async ({
     handle: `jour_${letters(8)}`,
     company: `Hustle ${letters(6)}`,
     idea: 'Invoices for market traders',
+    // Nairobi: no other spec advances its month, so Chapter 1 stays as a new founder's
+    // while parallel specs settle Lagos (customers won there finish the chapter).
+    market: /Nairobi/,
   });
 
   const chip = page.getByTestId('journey-chip');
@@ -39,19 +42,19 @@ test('a new founder opens the Journey on Chapter 1 and follows a step', async ({
   );
   const discovery = ch1.locator('[data-step="hustle.discovery"]');
   await expect(discovery).toHaveAttribute('data-done', 'false');
-  await expect(discovery).toContainText('Talk to customers about their problem');
+  await expect(discovery).toContainText('Learn what customers need');
   await expect(ch1.locator('[data-step="hustle.customers"]')).toContainText('1 / 3');
 
   // Three objectives: main, an opportunity and something personal.
   const main = sheet.locator('[data-objective="main"]');
-  await expect(main).toContainText('Talk to customers about their problem');
+  await expect(main).toContainText('Learn what customers need');
   await expect(sheet.locator('[data-objective="opportunity"]')).toBeVisible();
   await expect(sheet.locator('[data-objective="personal"]')).toBeVisible();
 
   // Not now: the next step takes its place. Pin it and it stays.
   await main.getByRole('button', { name: 'Not now: show me another' }).click();
   // Another Chapter 1 step takes its place (which one depends on what's done by now).
-  await expect(main).not.toContainText('Talk to customers about their problem', {
+  await expect(main).not.toContainText('Learn what customers need', {
     timeout: 15_000,
   });
   await main.getByRole('button', { name: 'Pin: keep this one here' }).click();

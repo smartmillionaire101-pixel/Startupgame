@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react';
 import { useGame, useView } from './store';
 import { CountUp, Icon, initReduceMotion, reduceMotion, Sheet, Toasts, type IconName } from './ui';
@@ -112,14 +113,23 @@ const GolfInviteHost = lazy(() => import('./city/golf/GolfInviteHost'));
 const MallInviteHost = lazy(() => import('./city/mall/MallInviteHost'));
 
 type Entry = 'landing' | 'signup' | 'login';
+/** The sign-up screen this history entry is on (set by goEntry below). */
+const historyEntry = () =>
+  (typeof window === 'undefined' ? null : window.history.state) as {
+    runwayEntry?: Entry;
+    runwayRole?: JoinRole;
+  } | null;
 
 export function App() {
   useVisits();
   const { status, view } = useGame();
   // Signed out: the landing page first (once), then sign-up or log in.
-  const [entry, setEntry] = useState<Entry>(() => (shouldShowLanding() ? 'landing' : 'signup'));
+  // (A change of language redraws the app: it stays on the screen in history.)
+  const [entry, setEntry] = useState<Entry>(
+    () => historyEntry()?.runwayEntry ?? (shouldShowLanding() ? 'landing' : 'signup'),
+  );
   // A role card on the landing page opens sign-up with that role chosen.
-  const [joinAs, setJoinAs] = useState<JoinRole | undefined>();
+  const [joinAs, setJoinAs] = useState<JoinRole | undefined>(() => historyEntry()?.runwayRole);
   // Each step past the landing page is a history entry: Back (the browser's,
   // or sign-up's own) comes back to the landing page.
   const goEntry = (to: Entry, role?: JoinRole) => {
@@ -241,7 +251,7 @@ function tabsOf(
       city,
       today,
       role === 'founder'
-        ? { id: 'company', label: t('My company'), icon: 'company', badge: b.myTurn }
+        ? { id: 'company', label: t('Company'), icon: 'company', badge: b.myTurn }
         : { id: 'portfolio', label: t('My investments'), icon: 'portfolio', badge: b.myTurn },
       me,
     ];
@@ -366,12 +376,17 @@ function Game() {
 
   // Panels (sheets) open above the bottom bar, never over it, so the tabs keep
   // working while one is open: tapping a tab leaves the screen and closes it.
+  // On a wide screen the bar is a sidebar down the left: nothing to keep clear below.
   const navRef = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     const nav = navRef.current;
     if (!nav) return;
     const root = document.documentElement;
-    const set = () => root.style.setProperty('--nav-h', `${nav.offsetHeight}px`);
+    const set = () =>
+      root.style.setProperty(
+        '--nav-h',
+        `${nav.offsetWidth > nav.offsetHeight ? nav.offsetHeight : 0}px`,
+      );
     set();
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(set);
     ro?.observe(nav);
@@ -383,13 +398,12 @@ function Game() {
 
   return (
     <NavContext.Provider value={nav}>
-      <div className={`app${current === 'city' ? ' app-city' : ''}`}>
+      <div className={`app app-game${current === 'city' ? ' app-city' : ''}`}>
         <TopBar
           alerts={unread}
           onDecisions={() => goTarget({ kind: 'decision' })}
           onCompany={hasCompany ? () => go('company') : undefined}
         />
-        <GameActivity />
         <PaydayWarning />
         <main>
           {/* Simple mode: a screen without a tab has Back, top-left, to where it came from. */}
@@ -417,7 +431,7 @@ function Game() {
         </main>
       </div>
       <nav className="nav" ref={navRef} aria-label={t('Main')} data-tabs={tabs.length}>
-        <div className="nav-inner" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+        <div className="nav-inner" style={{ '--nav-cols': tabs.length } as CSSProperties}>
           {tabs.map((x) => (
             <button
               key={x.id}
@@ -485,7 +499,7 @@ function TopBar({
 }: {
   alerts: number;
   onDecisions: () => void;
-  /** Open My company (from "Your money"), for a founder. */
+  /** Open Company (from "Your money"), for a founder. */
   onCompany?: () => void;
 }) {
   const [moneyOpen, setMoneyOpen] = useState(false);
@@ -516,6 +530,7 @@ function TopBar({
           </span>
         </div>
         <div className="topbar-meta">
+          <GameActivity />
           {/* Tap for your money and your company's (bank, revenue, spending). */}
           <button
             type="button"

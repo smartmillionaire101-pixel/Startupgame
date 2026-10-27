@@ -7,6 +7,7 @@ export const phone: Record<string, string> = {
   'Any work going?': 'Du travail pour moi ?',
   'Are you hiring?': 'Vous recrutez ?',
   Businesses: 'Commerces',
+  'Back to the game (close phone)': 'Retour au jeu (fermer le téléphone)',
   Call: 'Appeler',
   'Can we meet?': 'On peut se voir ?',
   Car: 'Voiture',

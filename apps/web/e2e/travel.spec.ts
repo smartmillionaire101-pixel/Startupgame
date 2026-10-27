@@ -33,7 +33,7 @@ async function founder(page: Page, city: RegExp, name: string) {
 
 type State = {
   view: {
-    me: { id: string };
+    me: { id: string; location?: { hotel?: { id?: string; name: string } } | null };
     clock?: unknown;
     flights?: unknown;
     accounts: { local: { balance: number } | null };
@@ -135,8 +135,15 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   await expect(page.getByRole('list', { name: 'Departures' })).toBeVisible();
   await page.getByRole('button', { name: /Back to the terminal/ }).click();
   await desk.getByRole('button', { name: 'Book a flight to London' }).click();
-  // Where to stay: the suggested hotel is picked; book flight + hotel.
-  await desk.locator('[data-hotel-book]').click();
+  // Where to stay: the city's named hotels by district; choose one and book flight + hotel.
+  const picker = desk.locator('[data-hotel-picker]');
+  await expect(picker.locator('[data-hotel-map]')).toBeVisible();
+  await picker.getByRole('button', { name: 'Choose City Pod Hotel' }).click();
+  await expect(picker.locator('[data-hotel-book]')).toHaveAttribute(
+    'data-hotel-book',
+    'london-city-pod',
+  );
+  await picker.locator('[data-hotel-book]').click();
   await checkInAndBoard(page, 'London');
 
   // The flight: take-off, the route map, landing.
@@ -164,6 +171,11 @@ test('a taxi across town, the month countdown, a flight to London and back', asy
   await expect(
     page.getByRole('dialog', { name: 'Places' }).getByRole('heading', { name: 'Shoreditch' }),
   ).toBeVisible();
+  // London's other hotels stand in their districts; the one you booked is your room.
+  expect((await state(page)).view.me.location?.hotel?.id).toBe('london-city-pod');
+  const places = page.getByRole('dialog', { name: 'Places' });
+  expect(await places.locator('[data-kind="hotel"]').count()).toBeGreaterThanOrEqual(5);
+  await expect(places.locator('[data-kind="hotel"]', { hasText: 'City Pod Hotel' })).toHaveCount(0);
   await page.getByRole('dialog', { name: 'Places' }).getByRole('button', { name: 'Close' }).click();
 
   // Londoners see the visitor in the building they go into (presence polls

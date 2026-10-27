@@ -26,7 +26,15 @@ import type { MarketId } from './data/markets.js';
 import { emptyPosition } from './customers.js';
 import { eventDealFlow } from './dealflow.js';
 import { ensure } from './errors.js';
-import { adjustTrust, col, getMarket, locationOf, notify, spendHours } from './helpers.js';
+import {
+  adjustTrust,
+  col,
+  getMarket,
+  locationOf,
+  notify,
+  spendHours,
+  isEstablished,
+} from './helpers.js';
 import { newId } from './ids.js';
 import { pay, payExact, transfer } from './ledger.js';
 import { eventVenueBusiness } from './economy.js';
@@ -408,7 +416,7 @@ export function guestPool(world: World, e: CityEvent, m: MarketState): Guest[] {
       }));
   const founders = (): Guest[] =>
     Object.values(world.companies)
-      .filter((c) => c.ai && c.market === m.id && c.status === 'active')
+      .filter((c) => c.ai && c.market === m.id && c.status === 'active' && !isEstablished(c))
       .flatMap((c) =>
         c.founderIds
           .map((id) => world.players[id])

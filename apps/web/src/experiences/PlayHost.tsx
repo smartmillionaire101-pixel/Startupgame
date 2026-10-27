@@ -512,7 +512,12 @@ function Lobby({ place }: { place: PlayPlace }) {
               )}
             {room.status !== 'waiting' && room.status !== 'cancelled' && room.bowling && (
               <Suspense fallback={<p className="experience-match">{t('Setting up the lane…')}</p>}>
-                <Bowling room={room} me={me} live={room.status === 'playing'} />
+                <Bowling
+                  room={room}
+                  me={me}
+                  live={room.status === 'playing'}
+                  serverNow={() => Date.now() + timeOffset.current}
+                />
               </Suspense>
             )}
             {room.status === 'playing' && room.game === 'snooker' && !room.rules && (
@@ -788,6 +793,7 @@ const CATS: Record<string, string> = {
   cities: 'The cities',
   science: 'Science',
   geography: 'Geography',
+  events: 'Real-life events',
 };
 
 /** A host waiting alone: when AI opponents will take the other seats. */

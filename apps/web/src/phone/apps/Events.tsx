@@ -4,6 +4,8 @@
  * Attend (`techevent.attend`) or Go to the venue (you attend there, in the
  * event scene). Next month's can be RSVP'd (a reminder on this phone).
  * Plans with friends and invitations sit on top; Plan a hangout from here.
+ * Feedback note: banking and investor events join the startup ones, and
+ * "For you" puts the events for your role first ("All" is the calendar).
  */
 import { useState } from 'react';
 import { money } from '../../format';
@@ -46,7 +48,47 @@ const KIND_EMOJI: Record<string, string> = {
   'demo-day': '🎤',
   conference: '🎟',
   workshop: '🛠',
+  'policy-briefing': '🏛',
+  'banking-dinner': '🍽',
+  'fintech-summit': '💳',
+  'sme-lending': '🏪',
+  'capital-markets': '🥐',
+  'risk-seminar': '⚖️',
+  'investor-dinner': '🍷',
+  'lp-forum': '🏦',
+  'investor-demo-day': '🎤',
+  'family-office': '🏡',
 };
+
+const audienceText = (a: string) =>
+  ({
+    banker: t('For bankers'),
+    investor: t('For investors'),
+    founder: t('For founders'),
+  })[a] ?? '';
+
+/** "Picked for a banker", in the words for each role. */
+const pickedText = (role: string, city: string) =>
+  role === 'banker'
+    ? t(
+        'Picked for a banker: banking and finance first. Switch to All for everything on in {city}.',
+        {
+          city,
+        },
+      )
+    : role === 'investor'
+      ? t(
+          'Picked for an investor: investor events first. Switch to All for everything on in {city}.',
+          {
+            city,
+          },
+        )
+      : t(
+          'Picked for a founder: startup events first. Switch to All for everything on in {city}.',
+          {
+            city,
+          },
+        );
 
 function TechEvents({ ctx }: { ctx: PhoneCtx }) {
   const { view, send, busy } = useView();
@@ -74,11 +116,31 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
     if (df) setResults((x) => ({ ...x, [e.id]: df }));
   };
   const investor = !!dealflowOf(view);
+  // For you: the events for your role first (only once there are events for other roles too).
+  const role = view?.me.role ?? 'founder';
+  const [filter, setFilter] = useState<'you' | 'all'>('you');
+  const roles = (events ?? []).some((e) => e.audience !== 'founder');
+  const forYou = roles && filter === 'you';
+  const mine = (e: TechEventView) => e.audience === role;
   const on = (events ?? []).filter((e) => e.status === 'on');
-  const soon = (events ?? []).filter((e) => e.status === 'soon');
+  const onMine = forYou ? on.filter(mine) : on;
+  const onOther = forYou ? on.filter((e) => !mine(e)) : [];
+  const soonAll = (events ?? []).filter((e) => e.status === 'soon');
+  const soon = forYou ? [...soonAll.filter(mine), ...soonAll.filter((e) => !mine(e))] : soonAll;
 
   const card = (e: TechEventView) => (
-    <li key={e.id} className="phone-card phone-event" data-tech-event={e.id} data-kind={e.kind}>
+    <li
+      key={e.id}
+      className="phone-card phone-event"
+      data-tech-event={e.id}
+      data-kind={e.kind}
+      data-audience={e.audience}
+    >
+      {e.why && (
+        <div className="small good phone-event-why">
+          {audienceText(e.audience)} · {tx(e.why)}
+        </div>
+      )}
       <div className="spread">
         <span className="pill phone-event-kind">
           <span aria-hidden="true">{KIND_EMOJI[e.kind] ?? '📅'}</span> {techKindLabel(e.kind)}
@@ -101,7 +163,7 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
         </ul>
       )}
       {e.pitchChance && <p className="small">{t('Founders may get a slot to pitch on stage.')}</p>}
-      {investor && e.status === 'on' && !e.attended && (
+      {investor && e.founderPitches && e.status === 'on' && !e.attended && (
         <p className="small">
           {t('Founders here will pitch you, and you’ll meet other investors.')}
         </p>
@@ -155,13 +217,47 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
         <Nothing icon="events">{t('No tech events listed in this city yet.')}</Nothing>
       ) : (
         <>
+          {roles && (
+            <>
+              <Segmented<'you' | 'all'>
+                label={t('Which events')}
+                value={filter}
+                onChange={setFilter}
+                options={[
+                  { value: 'you', label: t('For you') },
+                  { value: 'all', label: t('All') },
+                ]}
+              />
+              {forYou && <p className="small muted">{pickedText(role, hereOf(view).name)}</p>}
+            </>
+          )}
           <H>{t('This month')}</H>
           {on.length === 0 ? (
             <Nothing>{t('Nothing on this month.')}</Nothing>
           ) : (
-            <ul className="phone-list phone-events" aria-label={t('This month')}>
-              {on.map(card)}
-            </ul>
+            <>
+              {onMine.length > 0 && (
+                <ul
+                  className="phone-list phone-events"
+                  aria-label={t('This month')}
+                  data-events={forYou ? 'for-you' : 'all'}
+                >
+                  {onMine.map(card)}
+                </ul>
+              )}
+              {onOther.length > 0 && (
+                <>
+                  <H>{t('Also on · less for your work')}</H>
+                  <ul
+                    className="phone-list phone-events"
+                    aria-label={t('Also on')}
+                    data-events="also"
+                  >
+                    {onOther.map(card)}
+                  </ul>
+                </>
+              )}
+            </>
           )}
           {soon.length > 0 && (
             <>

@@ -26,6 +26,7 @@ export const wave12Sky: Record<string, string> = {
   'The cities': 'Les villes',
   Science: 'Sciences',
   Geography: 'Géographie',
+  'Real-life events': 'Faits réels',
   General: 'Général',
 
   // ---- Sky views

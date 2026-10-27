@@ -544,6 +544,33 @@ export const BANKWORK = {
   talksKept: 10,
 } as const;
 
+/** How big a client is: what the deal is about (bigger clients pay bigger fees). */
+export type ClientTier = 'small' | 'mid' | 'big';
+export const CLIENT_TIERS: readonly ClientTier[] = ['small', 'mid', 'big'];
+
+/**
+ * Advisory reputation (FEEDBACK_NOTE): read from the mandates on your record
+ * (each scored 0–100). A good reputation opens bigger clients, puts more
+ * mandates on the desk, lets you hold more at once, and brings referrals.
+ */
+export const REPUTATION = {
+  /** A score this good (quality 0.8, "80+") impresses the client: they refer you. */
+  great: 0.8,
+  /** Mid-size clients open at this rating (1–5 stars) over at least this many mandates. */
+  midStars: 4,
+  midScored: 2,
+  /** Big clients (listings, the largest deals) open after this many mandates scored 80+. */
+  bigGreat: 3,
+  /** Deal size bands, in months of the city's cost of living: mid from, big from. */
+  midCol: 500,
+  bigCol: 2500,
+  /** Each level opened adds this many mandates to the desk and to what you can hold. */
+  offersPerLevel: 1,
+  activePerLevel: 1,
+  /** Recent scores shown on the desk. */
+  recentShown: 3,
+} as const;
+
 /** Who you can talk to, and where. */
 export const TALK_TOPICS = [
   'ceo',

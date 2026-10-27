@@ -18,6 +18,17 @@ export const DEALFLOW = {
     'talent-night': [0, 1],
     'customer-mixer': [0, 0],
     hangout: [0, 1],
+    // Role events (feedback note): founders pitch at investor events, now and then elsewhere.
+    'investor-demo-day': [3, 5],
+    'investor-dinner': [1, 2],
+    'family-office': [1, 2],
+    'lp-forum': [0, 1],
+    'fintech-summit': [1, 2],
+    'policy-briefing': [0, 0],
+    'banking-dinner': [0, 1],
+    'sme-lending': [0, 1],
+    'capital-markets': [0, 1],
+    'risk-seminar': [0, 0],
   } as Record<string, [number, number]>,
   /** AI investors you get talking to, [min, max], by event kind. */
   talks: {
@@ -31,6 +42,12 @@ export const DEALFLOW = {
     'talent-night': [0, 0],
     'customer-mixer': [0, 0],
     hangout: [0, 0],
+    // Role events (feedback note): investor events are full of investors.
+    'investor-demo-day': [2, 2],
+    'investor-dinner': [2, 3],
+    'family-office': [1, 2],
+    'lp-forum': [2, 3],
+    'capital-markets': [1, 1],
   } as Record<string, [number, number]>,
   /** A new investor (fewer deals than this) always hears at least `minPitches` at an event. */
   newInvestorDeals: 3,

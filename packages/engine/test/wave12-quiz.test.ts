@@ -5,7 +5,7 @@ import { createWorld } from '../src/world.js';
 import type { World } from '../src/types.js';
 import { playerView } from '../src/views.js';
 import { AUTO_QUIZ_FROM, QUIZ_AI_AFTER, QUIZ_LENGTH, drawQuiz } from '../src/play.js';
-import { QUIZ_BANK } from '../src/data/quiz-bank.js';
+import { QUIZ_BANK, QUIZ_BANK_FULL } from '../src/data/quiz-bank.js';
 import { SKY_VIEWS, skyViewsIn } from '../src/data/sky-views.js';
 import { moneyByCurrency } from './helpers.js';
 
@@ -59,6 +59,26 @@ describe('Wave 12: auto-filled quizzes', () => {
       expect(q.fr.text.length).toBeGreaterThan(5);
     }
     expect(new Set(QUIZ_BANK.map((q) => q.text)).size).toBe(QUIZ_BANK.length);
+  });
+
+  it('the feedback round adds 800+ questions, real-life events among them, after the first bank', () => {
+    expect(QUIZ_BANK_FULL.length).toBeGreaterThanOrEqual(1000);
+    // The first bank is unchanged and comes first, so older worlds replay their quizzes.
+    expect(QUIZ_BANK_FULL.slice(0, QUIZ_BANK.length)).toEqual(QUIZ_BANK);
+    expect(new Set(QUIZ_BANK_FULL.map((q) => q.cat)).size).toBe(9);
+    expect(QUIZ_BANK_FULL.filter((q) => q.cat === 'events').length).toBeGreaterThanOrEqual(150);
+    for (const q of QUIZ_BANK_FULL) {
+      expect(q.options).toHaveLength(4);
+      expect(q.fr.options).toHaveLength(4);
+      expect(new Set(q.options).size).toBe(4);
+      expect(q.answer).toBeGreaterThanOrEqual(0);
+      expect(q.answer).toBeLessThan(4);
+      expect(q.fr.text.length).toBeGreaterThan(5);
+    }
+    const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '');
+    expect(new Set(QUIZ_BANK_FULL.map((q) => norm(q.text))).size).toBe(QUIZ_BANK_FULL.length);
+    const full = drawQuiz('room-1', QUIZ_LENGTH, QUIZ_BANK_FULL);
+    expect(full).toEqual(drawQuiz('room-1', QUIZ_LENGTH, QUIZ_BANK_FULL));
   });
 
   it('draws a deterministic, varied quiz from a seed', () => {

@@ -20,15 +20,15 @@ export const bankers: Record<string, string> = {
   'Investment bank': 'Banque d’investissement',
   'Microfinance bank': 'Banque de microfinance',
   // The first session
-  'Name your bank and pick a licence': 'Nommez votre banque et choisissez un agrément',
+  'Name & licence': 'Nom et agrément',
   'Negotiate with the shareholders': 'Négociez avec les actionnaires',
-  'Sign and file for your licence': 'Signez et déposez votre demande d’agrément',
-  'Book the Central Bank interview': 'Prenez rendez-vous pour l’entretien à la Banque centrale',
-  'Attend the interview': 'Passez l’entretien',
+  File: 'Dépôt',
+  'Book interview': 'Rendez-vous',
+  'Getting started · {n}/{total}': 'Premiers pas · {n}/{total}',
   'Below: a name, the kind of bank, and how much of your own money you put in.':
     'Ci-dessous : un nom, le type de banque et la part de votre argent que vous apportez.',
-  'Compare the offers side by side: more capital, more control, or a board seat and help. Take the ones you want, counter once each, or pull a lever.':
-    'Comparez les offres côte à côte : plus de capital, plus de contrôle, ou un siège au conseil et de l’aide. Prenez celles que vous voulez, faites une contre-offre à chacune, ou jouez sur un levier.',
+  'Compare offers: capital, control or a board seat. Accept, counter once, or pull a lever.':
+    'Comparez les offres : capital, contrôle ou siège au conseil. Acceptez, contre-proposez une fois, ou jouez sur un levier.',
   'When you raise at least the regulator’s minimum, sign: the money moves and your licence application is filed.':
     'Quand vous avez réuni au moins le minimum du régulateur, signez : l’argent est versé et votre demande d’agrément est déposée.',
   'Go to the Central Bank in the city and request an appointment.':
@@ -47,10 +47,10 @@ export const bankers: Record<string, string> = {
   'The regulator wants at least {min} of capital for this licence, and likes a buffer above it ({target}). Your own money rarely covers it: investor groups put in the rest, for shares.':
     'Le régulateur exige au moins {min} de capital pour cet agrément, et apprécie une marge au-dessus ({target}). Votre argent suffit rarement : des groupes d’investisseurs apportent le reste, contre des actions.',
   'Capital raised': 'Capital réuni',
-  '{amount} short of the minimum': 'Il manque {amount} pour le minimum',
+  '{amount} short': 'Il manque {amount}',
   'Minimum {amount}: covered': 'Minimum {amount} : couvert',
   'You would own': 'Vous détiendriez',
-  'Your share of dividends and value': 'Votre part des dividendes et de la valeur',
+  'Of dividends and value': 'Des dividendes et de la valeur',
   'Voting control': 'Contrôle des votes',
   'You and your co-founders': 'Vous et vos cofondateurs',
   'Board seats': 'Sièges au conseil',
