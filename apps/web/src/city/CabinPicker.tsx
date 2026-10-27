@@ -225,12 +225,23 @@ export function TripPicker({
     const backFare = returnCabins.find((c) => c.cabin === start)?.price ?? 0;
     return canReturn && balance >= outFare + backFare;
   });
-  // The way home follows the way out until you choose it yourself.
-  const [backPick, setBackPick] = useState<CabinTier | null>(null);
-  const back = backPick ?? cabin;
   const chosen = cabins.find((c) => c.cabin === cabin);
   const usingHeld = !!held && held.cabin === cabin;
   const out = usingHeld ? 0 : (chosen?.price ?? fare);
+  // The way home follows the way out until you choose it yourself: in the same
+  // cabin when you can pay for both, else the best one you can (never a dead end).
+  const [backPick, setBackPick] = useState<CabinTier | null>(null);
+  const fits = (c: CabinTier) =>
+    balance >= out + (returnCabins.find((r) => r.cabin === c)?.price ?? Infinity);
+  const order: CabinTier[] = ['first', 'business', 'economy'];
+  const back =
+    backPick ?? (fits(cabin) ? cabin : (order.slice(order.indexOf(cabin)).find(fits) ?? cabin));
+  // A cabin you can only afford one way: the trip turns one way (Return is a tap away).
+  const pickCabin = (c: CabinTier) => {
+    setCabin(c);
+    const o = held?.cabin === c ? 0 : (cabins.find((x) => x.cabin === c)?.price ?? fare);
+    if (roundTrip && !returnCabins.some((r) => balance >= o + r.price)) setRoundTrip(false);
+  };
   const backPrice = roundTrip ? (returnCabins.find((c) => c.cabin === back)?.price ?? 0) : 0;
   const price = out + backPrice;
   const short = !usingHeld && balance < price;
@@ -253,7 +264,7 @@ export function TripPicker({
             cabins={cabins}
             currency={currency}
             pick={cabin}
-            onPick={setCabin}
+            onPick={pickCabin}
             name={`cabin-${city}`}
             paid={held?.cabin}
           />

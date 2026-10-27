@@ -98,6 +98,16 @@ export function arrivalGreeting(hour: number, name: string, city: string): strin
 /** How long a moment of the flight lasts with nothing done in it before the next (ms). */
 export const SUITE_STAGE_MS = 25_000;
 
+/** `runway.flightPace` (1–10): the 3D flight slowed down that many times, its moments too. */
+function suitePace(): number {
+  try {
+    const n = Number(localStorage.getItem('runway.flightPace'));
+    return Number.isFinite(n) && n >= 1 ? Math.min(10, n) : 1;
+  } catch {
+    return 1;
+  }
+}
+
 /** The crew's line at each moment (`landsAt`: the hour where you land). */
 function crewLine(
   stage: FlightStage,
@@ -419,11 +429,13 @@ export function SuiteFlight({
   useEffect(() => {
     nextRef.current = next;
   });
+  // The wait starts once the cabin is drawn, and is as slow as the flight
+  // (`runway.flightPace`, for screenshots on a slow software renderer).
   useEffect(() => {
-    if (stage === 'arrival') return;
-    const id = window.setTimeout(() => nextRef.current(), SUITE_STAGE_MS);
+    if (stage === 'arrival' || !ready) return;
+    const id = window.setTimeout(() => nextRef.current(), SUITE_STAGE_MS * suitePace());
     return () => window.clearTimeout(id);
-  }, [stage, act, course]);
+  }, [stage, act, course, ready, eye]);
 
   const city = CITY_NAMES[from] ?? from;
   const title = cabin === 'first' ? t('First class suite') : t('Business class seat');

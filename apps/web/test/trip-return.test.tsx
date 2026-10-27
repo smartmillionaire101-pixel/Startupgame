@@ -62,6 +62,24 @@ describe('booking a trip abroad', () => {
     expect(onBook).toHaveBeenCalledWith(null, 'business', 'business');
   });
 
+  it('never leaves you stuck: the way home you can pay for, else one way', () => {
+    // Business out and back is ₦2.68m; business out and economy home fits ₦1.8m.
+    const onBook = picker(180_000_000);
+    expect((screen.getByRole('radio', { name: 'Return' }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getAllByRole('radio', { name: /Business/ })[0]!);
+    const book = screen.getByRole('button', { name: /Book flight/ });
+    expect((book as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(book);
+    expect(onBook).toHaveBeenCalledWith(null, 'business', 'economy');
+    cleanup();
+    // ₦1.4m: business one way only.
+    const one = picker(140_000_000);
+    fireEvent.click(screen.getAllByRole('radio', { name: /Business/ })[0]!);
+    expect((screen.getByRole('radio', { name: 'One way' }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /Book flight/ }));
+    expect(one).toHaveBeenCalledWith(null, 'business', null);
+  });
+
   it('says so when it is one way', () => {
     picker(50_000_000);
     expect((screen.getByRole('radio', { name: 'One way' }) as HTMLInputElement).checked).toBe(true);
