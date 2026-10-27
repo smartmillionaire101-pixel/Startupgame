@@ -47,7 +47,7 @@ import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { openPhone, type PhoneOpen } from '../phone/bus';
-import { Icon } from '../ui';
+import { HudButton, HudRail } from '../ui';
 import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
 import { businessesOf, hash } from '../city/contract';
 import { carOf, genderOf, nearest, sellsOf, storeForSlot } from '../city/life';
@@ -88,7 +88,7 @@ import { PhotoSheet, addPhoto } from './HomePhotos';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { balconyView } from './balcony';
 import type PanoramaView from '../experiences/Panorama';
-import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
+import { NEEDS, actsLeft, inviteesOf, ownedTiers, type NeedKey } from './view';
 import { OPTION_GROUPS, WALLS } from '@runway/engine';
 import {
   canPlaceDivider,
@@ -162,7 +162,6 @@ const SLOT_LABEL: Record<string, string> = {
 };
 const slotLabel = (s: string) => t(SLOT_LABEL[s] ?? 'Furniture');
 
-const NEED_ICON: Record<NeedKey, string> = { hunger: '🍲', hygiene: '🚿', fun: '🎮', social: '💬' };
 const needLabel = (k: NeedKey) =>
   ({ hunger: t('Hunger'), hygiene: t('Hygiene'), fun: t('Fun'), social: t('Social') })[k];
 
@@ -300,7 +299,6 @@ export function HomeScene({
   children,
 }: SceneProps & { hostView?: HostView; hotel?: HotelRoom | null }) {
   const { view, send, busy, cur, toast, quicken } = useView();
-  const unread = view.inbox.filter((i) => !i.read).length;
   const hotelTier: HotelTier | null = hotel ? (hotel.tier ?? 'budget') : null;
   const tier = hotelTier
     ? HOTEL_SHELL_TIER[hotelTier]
@@ -453,8 +451,6 @@ export function HomeScene({
   );
   const { night, dusk } = useDaylight(view.market.id);
   const car = hostView || hotelTier ? null : carOf(view);
-  const needs = needsOf(view);
-  const mood = moodOf(view);
 
   // ---- Showrooms (Edit, and the "+" spots)
   const showroomFor = useCallback(
@@ -1893,70 +1889,6 @@ export function HomeScene({
       data-pocket={pocket}
       data-host-view={hostView?.id}
     >
-      <header className="home-hud">
-        <div
-          className="home-mood"
-          data-mood={mood}
-          title={t('Mood {n}', { n: mood })}
-          aria-label={t('Mood {n}', { n: mood })}
-        >
-          <svg viewBox="0 0 40 40" aria-hidden="true">
-            <circle cx="20" cy="20" r="16" className="home-mood-track" />
-            <circle
-              cx="20"
-              cy="20"
-              r="16"
-              className="home-mood-fill"
-              strokeDasharray={`${(mood / 100) * 100.5} 100.5`}
-              data-low={mood < 40 ? '1' : undefined}
-            />
-          </svg>
-          <b>{mood}</b>
-          <span
-            className="home-energy"
-            data-home-energy={view.me.energy}
-            data-low={view.me.energy < 30 ? '1' : undefined}
-            title={t('Energy {n}', { n: view.me.energy })}
-            aria-label={t('Energy {n}', { n: view.me.energy })}
-          >
-            <span aria-hidden="true">⚡</span>
-            {view.me.energy}
-          </span>
-        </div>
-        <div className="home-needs" role="list" aria-label={t('Needs')}>
-          {needs &&
-            NEEDS.map((k) => (
-              <span
-                key={k}
-                role="listitem"
-                className={`home-need${needs[k] < 40 ? ' is-low' : ''}`}
-                data-need={k}
-                data-value={needs[k]}
-                title={`${needLabel(k)} ${needs[k]}`}
-                aria-label={`${needLabel(k)} ${needs[k]}`}
-              >
-                <span aria-hidden="true">{NEED_ICON[k]}</span>
-                <i>
-                  <i style={{ width: `${needs[k]}%` }} />
-                </i>
-              </span>
-            ))}
-        </div>
-        {/* This scene covers the top bar: its phone button, here too. */}
-        <button
-          type="button"
-          className="topbar-phone"
-          data-home-phone=""
-          aria-label={unread ? t('Phone, {n} new', { n: unread }) : t('Phone')}
-          onClick={() => openPhone({ app: 'home' })}
-        >
-          <Icon name="phone" size={20} />
-          {unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}
-        </button>
-        <button type="button" className="icon-btn" aria-label={t('Close')} onClick={onClose}>
-          ✕
-        </button>
-      </header>
       {hotelTier && (
         <div className="home-hotel-head">
           <h2>{homeName}</h2>
@@ -2263,67 +2195,6 @@ export function HomeScene({
               {f.text}
             </span>
           ))}
-        {is3d && !placing && (
-          <div className="home-cam" role="group" aria-label={t('Camera')}>
-            <button
-              type="button"
-              aria-label={t('Turn left')}
-              onClick={() => api3d.current?.turn(-1)}
-            >
-              ⟲
-            </button>
-            <button
-              type="button"
-              aria-label={t('Turn right')}
-              onClick={() => api3d.current?.turn(1)}
-            >
-              ⟳
-            </button>
-            <button
-              type="button"
-              aria-label={t('Zoom in')}
-              onClick={() => api3d.current?.zoom(1.25)}
-            >
-              +
-            </button>
-            <button
-              type="button"
-              aria-label={t('Zoom out')}
-              onClick={() => api3d.current?.zoom(0.8)}
-            >
-              −
-            </button>
-          </div>
-        )}
-        {is3d && !placing && (
-          <div className="home-view" role="group" aria-label={t('Look and take photos')}>
-            <button
-              type="button"
-              data-action="turn"
-              onClick={() => {
-                endLook();
-                api3d.current?.turn(1);
-              }}
-            >
-              <span aria-hidden="true">↻</span>
-              {t('Turn')}
-            </button>
-            <button
-              type="button"
-              data-action="look-around"
-              data-looking={looking ? '1' : '0'}
-              aria-pressed={looking}
-              onClick={toggleLook}
-            >
-              <span aria-hidden="true">🔄</span>
-              {t('Look around')}
-            </button>
-            <button type="button" data-action="photo" onClick={takePhoto}>
-              <span aria-hidden="true">📷</span>
-              {t('Photo')}
-            </button>
-          </div>
-        )}
         {flash > 0 && <div key={flash} className="home-flash" aria-hidden="true" />}
         {placing && ghost && (
           <PlaceBar
@@ -2415,103 +2286,171 @@ export function HomeScene({
           </button>
         </div>
       )}
-      {hotelTier ? (
-        <nav
-          className={`home-bar is-hotel${balcony ? ' has-balcony' : ''}`}
-          aria-label={t('Hotel room actions')}
-        >
-          <button
-            type="button"
-            className="home-bar-btn"
-            data-action="hotel-sleep"
-            disabled={busy || !!acting}
-            onClick={() => hotelAct(['bed'], 'sleep')}
-          >
-            <span aria-hidden="true">🛏</span>
-            {t('Sleep')}
-          </button>
-          <button
-            type="button"
-            className="home-bar-btn"
-            data-action="hotel-freshen"
-            disabled={busy || !!acting}
-            onClick={() => hotelAct(['shower', 'bathtub'], 'shower')}
-          >
-            <span aria-hidden="true">🚿</span>
-            {t('Freshen up')}
-          </button>
-          {balcony && (
-            <button
-              type="button"
-              className="home-bar-btn"
-              data-action="hotel-balcony"
-              onClick={() => setSky(true)}
-            >
-              <span aria-hidden="true">🌇</span>
-              {t('Balcony')}
-            </button>
-          )}
-          <button type="button" className="home-bar-btn" data-action="go-out" onClick={onClose}>
-            <span aria-hidden="true">🚪</span>
-            {t('Go out')}
-          </button>
-          <button
-            type="button"
-            className="home-bar-btn"
-            data-action="more"
-            onClick={() => setHotelMore(true)}
-          >
-            <span aria-hidden="true">⋯</span>
-            {t('More')}
-          </button>
-        </nav>
-      ) : (
-        <nav className="home-bar" aria-label={t('Home actions')}>
-          <button className="home-bar-btn" onClick={() => openLiving(placeOwner)}>
-            {t('🚚 Home & friends')}
-          </button>
-          <button
-            className="home-bar-btn"
-            onClick={() => openPlay({ venue: `home:${placeOwner}`, name: homeName })}
-          >
-            {t('🎮 Play together')}
-          </button>
-          {balcony && (
-            <button
-              type="button"
-              className="home-bar-btn"
-              data-action="skyline"
-              onClick={() => setSky(true)}
-            >
-              {t('🌆 Watch the skyline')}
-            </button>
-          )}
-          {hostView ? (
-            <button type="button" className="home-bar-btn" onClick={onClose}>
-              <span aria-hidden="true">👋</span>
-              {t('Say goodbye')}
-            </button>
-          ) : (
+      {/* The room's buttons: a rail of icons on the right, the rest behind ⋯
+          (out of the way while you place something). */}
+      {!placing && !wallPlacing && !naming && (
+        <HudRail
+          label={hotelTier ? t('Hotel room actions') : t('Home actions')}
+          className="home-rail"
+          extras={
             <>
-              <button type="button" className="home-bar-btn" onClick={() => setSheet('buy')}>
-                <span aria-hidden="true">🛒</span>
-                {t('Buy')}
-              </button>
-              <button type="button" className="home-bar-btn" onClick={() => setSheet('edit')}>
-                <span aria-hidden="true">🛋</span>
-                {t('Edit')}
-              </button>
-              <button type="button" className="home-bar-btn" onClick={() => setSheet('invite')}>
-                <span aria-hidden="true">👋</span>
-                {t('Invite')}
-              </button>
-              <button type="button" className="home-bar-btn" onClick={onClose}>
-                <span aria-hidden="true">🚪</span>
-                {t('Go out')}
-              </button>
+              {hotelTier && balcony && (
+                <HudButton
+                  label={t('Balcony')}
+                  data-action="hotel-balcony"
+                  onClick={() => setSky(true)}
+                >
+                  <span aria-hidden="true">🌇</span>
+                </HudButton>
+              )}
+              {hotelTier && (
+                <HudButton
+                  icon="info"
+                  label={t('About your stay')}
+                  data-action="more"
+                  aria-haspopup="dialog"
+                  onClick={() => setHotelMore(true)}
+                />
+              )}
+              {is3d && hotelTier && (
+                <HudButton
+                  icon="rotate"
+                  label={t('Turn')}
+                  data-action="turn"
+                  onClick={() => {
+                    endLook();
+                    api3d.current?.turn(1);
+                  }}
+                />
+              )}
+              {is3d && (
+                <HudButton
+                  icon="camera"
+                  label={t('Photo')}
+                  data-action="photo"
+                  onClick={takePhoto}
+                />
+              )}
+              {!hotelTier && !hostView && (
+                <HudButton
+                  icon="sofa"
+                  label={t('Edit')}
+                  aria-haspopup="dialog"
+                  onClick={() => setSheet('edit')}
+                />
+              )}
+              {!hotelTier && (
+                <HudButton
+                  icon="friends"
+                  label={t('Home & friends')}
+                  aria-haspopup="dialog"
+                  onClick={() => openLiving(placeOwner)}
+                />
+              )}
+              {!hotelTier && (
+                <HudButton
+                  icon="pad"
+                  label={t('Play together')}
+                  aria-haspopup="dialog"
+                  onClick={() => openPlay({ venue: `home:${placeOwner}`, name: homeName })}
+                />
+              )}
+              {!hotelTier && !hostView && (
+                <HudButton
+                  icon="wave"
+                  label={t('Invite')}
+                  aria-haspopup="dialog"
+                  onClick={() => setSheet('invite')}
+                />
+              )}
+              {!hotelTier && balcony && (
+                <HudButton
+                  label={t('Watch the skyline')}
+                  data-action="skyline"
+                  onClick={() => setSky(true)}
+                >
+                  <span aria-hidden="true">🌆</span>
+                </HudButton>
+              )}
+              {is3d && (
+                <HudButton
+                  icon="plus"
+                  label={t('Zoom in')}
+                  onClick={() => api3d.current?.zoom(1.25)}
+                />
+              )}
+              {is3d && (
+                <HudButton
+                  icon="minus"
+                  label={t('Zoom out')}
+                  onClick={() => api3d.current?.zoom(0.8)}
+                />
+              )}
             </>
+          }
+        >
+          {hostView ? (
+            <HudButton icon="wave" tone="accent" label={t('Say goodbye')} onClick={onClose} />
+          ) : (
+            <HudButton
+              icon="door"
+              tone="accent"
+              label={t('Go out')}
+              data-action="go-out"
+              onClick={onClose}
+            />
           )}
-        </nav>
+          {hotelTier ? (
+            <>
+              <HudButton
+                label={t('Sleep')}
+                data-action="hotel-sleep"
+                disabled={busy || !!acting}
+                onClick={() => hotelAct(['bed'], 'sleep')}
+              >
+                <span aria-hidden="true">🛏</span>
+              </HudButton>
+              <HudButton
+                label={t('Freshen up')}
+                data-action="hotel-freshen"
+                disabled={busy || !!acting}
+                onClick={() => hotelAct(['shower', 'bathtub'], 'shower')}
+              >
+                <span aria-hidden="true">🚿</span>
+              </HudButton>
+            </>
+          ) : (
+            !hostView && (
+              <HudButton
+                icon="cart"
+                label={t('Buy')}
+                aria-haspopup="dialog"
+                onClick={() => setSheet('buy')}
+              />
+            )
+          )}
+          {is3d && !hotelTier && (
+            <HudButton
+              icon="rotate"
+              label={t('Turn')}
+              data-action="turn"
+              onClick={() => {
+                endLook();
+                api3d.current?.turn(1);
+              }}
+            />
+          )}
+          {is3d && (
+            <HudButton
+              icon="eye"
+              label={t('Look around')}
+              data-action="look-around"
+              data-looking={looking ? '1' : '0'}
+              aria-pressed={looking}
+              onClick={toggleLook}
+            />
+          )}
+        </HudRail>
       )}
       {hotelTier && hotelMore && (
         <div className="home-sheet-back" onClick={() => setHotelMore(false)}>

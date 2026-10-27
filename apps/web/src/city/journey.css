@@ -1,10 +1,7 @@
 /* The founder journey: HUD chip, sheet, phone app and chapter banner. */
 
 /* The HUD button: an icon with a thin ring showing the chapter's progress. */
-.journey-chip.hud-round {
-  position: relative;
-}
-.journey-chip.hud-round::after {
+.journey-chip.hud-ib::after {
   content: '';
   position: absolute;
   inset: -3px;
@@ -14,7 +11,7 @@
   mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
   pointer-events: none;
 }
-.city-lite-hud .journey-chip.hud-round {
+.city-lite-hud .journey-chip.hud-ib {
   flex: none;
 }
 .journey-bar {

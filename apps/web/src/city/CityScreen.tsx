@@ -22,7 +22,9 @@ import { api, ApiError } from '../api';
 import { money, runway } from '../format';
 import { t, tx, useLang } from '../i18n';
 import { useView, WithView } from '../store';
-import { Button, Icon, Pill, Sheet, reduceMotion } from '../ui';
+import { Button, HudButton, HudRail, Icon, Pill, Sheet, reduceMotion } from '../ui';
+import { HudSlot } from '../Hud';
+import { GameActivity } from '../GameActivity';
 import { avatarLook } from './art';
 import { CityMap, districtLabel, placeAvatarAt, type CityMapHandle, type FarTrip } from './CityMap';
 import { MonthCountdown, RideChooser, RideIcon } from './Transport';
@@ -653,6 +655,8 @@ function CityBodyInner({
   // "What to do now" is a one-line chip until you open it (Wave 7), and it
   // stays out of the way during a ride.
   const [whatNowSheet, setWhatNowSheet] = useState(false);
+  // The red dot on "What to do now": a first idea you haven't opened yet.
+  const [seenTip, setSeenTip] = useState('');
   const journey = journeyOf(view);
   const bankerJourney = journey?.kind === 'banker' ? journey : null;
   const riding = useRiding();
@@ -982,13 +986,15 @@ function CityBodyInner({
       <h1 className="sr-only">{t('{market} city', { market: view.market.name })}</h1>
       {lite ? (
         <>
-          {(clock || abroad || view.journey) && (
-            <div className="city-lite-hud">
+          {/* No map, so no row under the HUD's pills: the players online are here. */}
+          <div className="city-lite-hud">
+            <GameActivity />
+            {(clock || abroad || view.journey) && (
               <JourneyChip onOpen={() => setJourneyOpen(true)} />
-              {awayChip}
-              {clock && <MonthCountdown clock={clock} />}
-            </div>
-          )}
+            )}
+            {awayChip}
+            {clock && <MonthCountdown clock={clock} />}
+          </div>
           <p className="small muted">
             {t('Lite mode: the city map is off to save data. Pick a place to go in.')}
           </p>
@@ -1031,86 +1037,142 @@ function CityBodyInner({
               { market: view.market.name },
             )}
           />
-          <div className="city-hud city-hud-top">
-            {company ? (
+          {/* Under the HUD's pills: your company's money and how long it lasts
+              (tap: Company), and being away. The month's countdown is in the
+              time pill's sheet. */}
+          {(company || abroad) && (
+            <HudSlot>
+              {company && (
+                <button
+                  type="button"
+                  className={`hud-pill hud-runway${rescue ? ` is-${rescue.level}` : ''}`}
+                  data-hud-company=""
+                  aria-label={t('{company}: {cash} · {left}. Manage company', {
+                    company: company.name,
+                    cash: money(company.cash, home.currency),
+                    left: rescue
+                      ? t('{n} mo left', { n: rescue.monthsLeft ?? '?' })
+                      : runway(company.runwayMonths),
+                  })}
+                  title={company.name}
+                  onClick={() => onNavigate('company')}
+                >
+                  <Icon name="flag" size={20} />
+                  <span>{money(company.cash, home.currency)}</span>
+                  <small>
+                    {rescue
+                      ? t('{n} mo left', { n: rescue.monthsLeft ?? '?' })
+                      : runway(company.runwayMonths)}
+                  </small>
+                </button>
+              )}
+              {awayChip}
+            </HudSlot>
+          )}
+          {simple ? (
+            // Simple mode keeps its buttons with words (Journey, Me, the next step).
+            <div className="city-hud city-hud-zoom">
+              <JourneyChip onOpen={() => setJourneyOpen(true)} />
               <button
                 type="button"
-                className={`hud-chip${rescue ? ` hud-${rescue.level}` : ''}`}
-                data-hud-company=""
-                title={t('Manage company')}
-                onClick={() => onNavigate('company')}
+                className="hud-places hud-me"
+                aria-label={t('Centre on me')}
+                onClick={() => mapRef.current?.recentre()}
               >
-                <span className="hud-name">{company.name}</span>
-                <span>
-                  {money(company.cash, home.currency)} ·{' '}
-                  {rescue
-                    ? t('{n} mo left', { n: rescue.monthsLeft ?? '?' })
-                    : runway(company.runwayMonths)}
-                </span>
-              </button>
-            ) : (
-              <span className="hud-chip">
-                <span className="hud-name">{view.market.name}</span>
-                <span>{view.market.date.label}</span>
-              </span>
-            )}
-            {(clock || abroad) && (
-              <div className="hud-row">
-                {awayChip}
-                {clock && <MonthCountdown clock={clock} />}
-              </div>
-            )}
-          </div>
-          <div className="city-hud city-hud-zoom">
-            <JourneyChip onOpen={() => setJourneyOpen(true)} />
-            {/* Simple mode: pinch zooms; the buttons that stay say what they do. */}
-            {!simple && (
-              <>
-                <button
-                  type="button"
-                  className="hud-round"
-                  aria-label={t('Zoom in')}
-                  onClick={() => mapRef.current?.zoom(1.3)}
-                >
-                  <Icon name="plus" />
-                </button>
-                <button
-                  type="button"
-                  className="hud-round"
-                  aria-label={t('Zoom out')}
-                  onClick={() => mapRef.current?.zoom(1 / 1.3)}
-                >
-                  <Icon name="minus" />
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              className={simple ? 'hud-places hud-me' : 'hud-round'}
-              aria-label={t('Centre on me')}
-              onClick={() => mapRef.current?.recentre()}
-            >
-              <Icon name="locate" />
-              {simple && (
+                <Icon name="locate" />
                 <span className="hud-btn-label" aria-hidden="true">
                   {t('Me')}
                 </span>
-              )}
-            </button>
-            {/* What the map's icons mean (and "Show names"). */}
-            <button
-              type="button"
-              className="hud-round hud-key"
-              aria-label={t('Map key')}
-              data-map-key-open=""
-              onClick={() => setKeyOpen(true)}
+              </button>
+              {/* What the map's icons mean (and "Show names"). */}
+              <button
+                type="button"
+                className="hud-round hud-key"
+                aria-label={t('Map key')}
+                data-map-key-open=""
+                onClick={() => setKeyOpen(true)}
+              >
+                <MapKeyIcon />
+              </button>
+              {/* The next step is a 💡 button (a red dot when there's something
+                  new) that opens a small card. */}
+              {!riding && <NextStepCard onMap onGo={journeyGo} />}
+            </div>
+          ) : (
+            // The map's buttons: a rail of icons on the right, the rest behind ⋯.
+            <HudRail
+              label={t('Map actions')}
+              className="city-rail"
+              extras={
+                <>
+                  <HudButton
+                    icon="plus"
+                    label={t('Zoom in')}
+                    onClick={() => mapRef.current?.zoom(1.3)}
+                  />
+                  <HudButton
+                    icon="minus"
+                    label={t('Zoom out')}
+                    onClick={() => mapRef.current?.zoom(1 / 1.3)}
+                  />
+                  <HudButton
+                    icon="wheel"
+                    label={t('Sky views')}
+                    data-testid="sky-views-btn"
+                    aria-haspopup="dialog"
+                    onClick={() => setSkyOpen(true)}
+                  />
+                  {/* What the map's icons mean (and "Show names"). */}
+                  <HudButton
+                    icon="info"
+                    label={t('Map key')}
+                    data-map-key-open=""
+                    aria-haspopup="dialog"
+                    onClick={() => setKeyOpen(true)}
+                  />
+                  <JourneyChip onOpen={() => setJourneyOpen(true)} />
+                </>
+              }
             >
-              <MapKeyIcon />
-            </button>
-            {/* Simple mode: the next step is a 💡 button (a red dot when there's
-                something new) that opens a small card. */}
-            {simple && !riding && <NextStepCard onMap onGo={journeyGo} />}
-          </div>
+              {!riding && (
+                <HudButton
+                  icon="spark"
+                  tone="accent"
+                  label={t('What to do now')}
+                  data-whatnow-open=""
+                  aria-haspopup="dialog"
+                  dot={!!firstTip && seenTip !== firstTip}
+                  onClick={() => {
+                    setSeenTip(firstTip);
+                    setWhatNowSheet(true);
+                  }}
+                />
+              )}
+              <HudButton
+                icon="list"
+                label={t('Places')}
+                aria-haspopup="dialog"
+                onClick={() => setPlacesOpen(true)}
+              />
+              <HudButton
+                icon="people"
+                label={
+                  players.length > 0
+                    ? t('Who’s here, {n} players nearby', { n: players.length })
+                    : t('Who’s here')
+                }
+                name={t('Who’s here')}
+                badge={players.length}
+                aria-haspopup="dialog"
+                onClick={() => setPeopleOpen(true)}
+              />
+              <HudButton
+                icon="locate"
+                label={t('Centre on me')}
+                onClick={() => mapRef.current?.recentre()}
+              />
+            </HudRail>
+          )}
           <GestureHint />
           <div className="city-hud city-hud-bottom">
             {/* How to get there: a slim strip above the map's buttons, which stay. */}
@@ -1132,32 +1194,20 @@ function CityBodyInner({
                 skipAs={lifeBars ? preferred : undefined}
               />
             )}
-            <>
-              {abroad && <HolidayBanner />}
-              {alarm && !abroad && !(trip && asking) && (
-                <div className={`hud-banner hud-${alarm.level}`} role="status">
-                  <span>
-                    <b>{t('Rescue plan')}</b>
-                    {alarm.deadline ? ` · ${tx(alarm.deadline)}` : ''}
-                  </span>
-                  <Button variant="danger" onClick={() => goTo(office)}>
-                    {t('See the plan')}
-                  </Button>
-                </div>
-              )}
+            {abroad && <HolidayBanner />}
+            {alarm && !abroad && !(trip && asking) && (
+              <div className={`hud-banner hud-${alarm.level}`} role="status">
+                <span>
+                  <b>{t('Rescue plan')}</b>
+                  {alarm.deadline ? ` · ${tx(alarm.deadline)}` : ''}
+                </span>
+                <Button variant="danger" onClick={() => goTo(office)}>
+                  {t('See the plan')}
+                </Button>
+              </div>
+            )}
+            {simple && (
               <div className="hud-row-bottom">
-                {!riding && !simple && (
-                  <button
-                    type="button"
-                    className="hud-whatnow-chip"
-                    aria-haspopup="dialog"
-                    onClick={() => setWhatNowSheet(true)}
-                  >
-                    <Icon name="spark" size={18} />
-                    <span className="hud-whatnow-label">{t('What to do now')}</span>
-                    {firstTip && <span className="hud-whatnow-tip">{firstTip}</span>}
-                  </button>
-                )}
                 <div className="hud-stack">
                   <button type="button" className="hud-places" onClick={() => setPeopleOpen(true)}>
                     <Icon name="people" size={20} />
@@ -1173,7 +1223,7 @@ function CityBodyInner({
                   </button>
                   <button type="button" className="hud-places" onClick={() => setPlacesOpen(true)}>
                     <Icon name="list" size={20} />
-                    <span className="hud-btn-label">{simple ? t('Where to?') : t('Places')}</span>
+                    <span className="hud-btn-label">{t('Where to?')}</span>
                   </button>
                   <button
                     type="button"
@@ -1188,7 +1238,7 @@ function CityBodyInner({
                   </button>
                 </div>
               </div>
-            </>
+            )}
           </div>
         </div>
       )}
