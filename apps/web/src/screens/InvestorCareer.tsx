@@ -90,6 +90,8 @@ function reqLabel(id: string): string {
       return t('Partners or associates hired');
     case 'liquid':
       return t('Liquid wealth (60 months of living costs)');
+    case 'track':
+      return t('Lead a syndicate first');
     default:
       return t('A senior role at a DFI or bank');
   }

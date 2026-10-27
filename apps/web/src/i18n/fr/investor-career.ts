@@ -34,6 +34,7 @@ export const investorCareer: Record<string, string> = {
   'Funds raised': 'Fonds levés',
   'Partners or associates hired': 'Associés ou chargés d’affaires recrutés',
   'Liquid wealth (60 months of living costs)': 'Patrimoine liquide (60 mois de dépenses courantes)',
+  'Lead a syndicate first': 'Menez d’abord un syndicat',
   'A senior role at a DFI or bank': 'Un poste de direction dans une IFD ou une banque',
   // ---- the ladder card
   'Your investor career': 'Votre carrière d’investisseur',
