@@ -1035,7 +1035,7 @@ function goingCount(world: World, e: TechEvent): number {
     .length;
 }
 
-export function attendTechEvent(world: World, me: Player, eventId: string, now?: number) {
+export function attendTechEvent(world: World, me: Player, eventId: string) {
   const ref = parseTechEventId(eventId);
   ensure(ref, 'techevent.missing', 'We can’t find that event.');
   const m = world.markets[ref.market];
@@ -1043,12 +1043,6 @@ export function attendTechEvent(world: World, me: Player, eventId: string, now?:
   ensure(ref.month === m.month, 'techevent.when', 'That event isn’t on this month.');
   const e = techEventsFor(world, m, m.month).find((x) => x.id === eventId);
   ensure(e, 'techevent.missing', 'We can’t find that event.');
-  // The feedback round (playtest round 6): an event on an earlier day of the month is over.
-  ensure(
-    !(feedbackOn(world) && now !== undefined && eventPast(m, e.day, now)),
-    'techevent.over',
-    `That was on day ${e.day}: it’s over. See what’s on next.`,
-  );
   ensure(locationOf(me) === e.market, 'techevent.where', `That’s in ${m.data.name}.`);
   ensure(!attendedIds(me, e.month).includes(e.id), 'techevent.twice', 'You’re already there.');
   ensure(goingCount(world, e) < e.capacity, 'techevent.full', 'It’s full.');

@@ -1828,7 +1828,7 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'hangout.leave':
       return leaveHangout(world, me, cmd.hangoutId);
     case 'techevent.attend':
-      return attendTechEvent(world, me, cmd.eventId, ctx.now);
+      return attendTechEvent(world, me, cmd.eventId);
     // ------------------------------------------------------------ city places
     // Unknown until the city places release note: old worlds replay as before.
     case 'place.book':

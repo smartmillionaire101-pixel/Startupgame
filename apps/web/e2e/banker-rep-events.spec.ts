@@ -36,6 +36,19 @@ const bankWork = (page: Page) =>
     return (v.bankWork ?? {}) as BankWorkState;
   });
 
+interface TechEventRow {
+  id: string;
+  status: string;
+  audience: string;
+  past?: boolean;
+}
+const techEvents = (page: Page) =>
+  page.evaluate(async () => {
+    const s = await (await fetch('/api/state', { headers: { 'x-runway': '1' } })).json();
+    const v = s.view ?? s;
+    return (v.here?.techEvents ?? v.market?.techEvents ?? []) as TechEventRow[];
+  });
+
 /** The best call at a step, from the client's numbers. */
 function bestOption(m: ActiveMandate, step: ActiveMandate['steps'][number]): string {
   if (step.id === 'lender')
@@ -133,18 +146,32 @@ test('a banker sees banking events first and goes to one', async ({ page }) => {
   await newBanker(page);
   await expect(page.getByRole('button', { name: /^Phone/ })).toBeVisible({ timeout: 30_000 });
 
+  // This month's events still to come on the game clock (a day already gone is
+  // over: playtest round 6). Late in the month the banking ones may all be over.
+  const events = await techEvents(page);
+  const ahead = events.filter((e) => e.status === 'on' && !e.past);
+  const banking = ahead.filter((e) => e.audience === 'banker');
   const phone = await openApp(page, 'events');
+  await expect(phone.getByText(/Picked for a banker/)).toBeVisible();
+  if (!banking.length) {
+    // Over: folded under Earlier this month, with nothing to attend.
+    const earlier = phone.locator('[data-events="earlier"]');
+    await expect(earlier).toBeAttached();
+    expect(await earlier.locator('[data-audience="banker"]').count()).toBeGreaterThanOrEqual(1);
+    await expect(earlier.getByRole('button', { name: 'Attend' })).toHaveCount(0);
+    return;
+  }
   const forYou = phone.locator('[data-events="for-you"]');
   await expect(forYou).toBeVisible();
-  await expect(phone.getByText(/Picked for a banker/)).toBeVisible();
   const cards = forYou.locator('[data-tech-event]');
-  expect(await cards.count()).toBeGreaterThanOrEqual(3);
+  expect(await cards.count()).toBe(banking.length);
   for (const a of await cards.evaluateAll((els) => els.map((e) => e.getAttribute('data-audience'))))
     expect(a).toBe('banker');
-  // Startup events are still on, below.
-  await expect(
-    phone.locator('[data-events="also"] [data-audience="founder"]').first(),
-  ).toBeAttached();
+  // Startup events still on are below.
+  if (ahead.some((e) => e.audience === 'founder'))
+    await expect(
+      phone.locator('[data-events="also"] [data-audience="founder"]').first(),
+    ).toBeAttached();
   await shot(page, '2-events');
 
   // Go to the first banking event.
@@ -157,10 +184,11 @@ test('a banker sees banking events first and goes to one', async ({ page }) => {
     .poll(async () => ((await bankWork(page)).offers ?? []).some((o) => o.metAt === title))
     .toBe(true);
 
-  // All: the whole calendar, in date order.
+  // All: the whole calendar still to come, in date order.
   await phone.getByRole('radio', { name: 'All' }).click();
   await expect(phone.locator('[data-events="all"]')).toBeVisible();
-  await expect(
-    phone.locator('[data-events="all"] [data-audience="founder"]').first(),
-  ).toBeVisible();
+  if (ahead.some((e) => e.audience === 'founder'))
+    await expect(
+      phone.locator('[data-events="all"] [data-audience="founder"]').first(),
+    ).toBeVisible();
 });
