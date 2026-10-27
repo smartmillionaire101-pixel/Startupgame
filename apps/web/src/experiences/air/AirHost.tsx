@@ -112,7 +112,12 @@ function AirRoom({ req }: { req: AirRequest }) {
                           n: it.requiresTier,
                           name: lifestyleName(view, it.requiresTier),
                         })
-                      : t('{price} · {n} hours', { price: money(it.price, cur), n: it.hours })}
+                      : it.hours === 1
+                        ? t('{price} · 1 hour, with the briefing', { price: money(it.price, cur) })
+                        : t('{price} · {n} hours, with the briefing', {
+                            price: money(it.price, cur),
+                            n: it.hours,
+                          })}
                   </span>
                 </span>
                 <button

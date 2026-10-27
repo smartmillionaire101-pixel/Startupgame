@@ -307,6 +307,9 @@ export function stepHeli(
     s.alt = Math.min(Math.max(HELI.cruise, floor), s.alt + 45 * dt);
     s.speed = Math.min(HELI.speed, s.speed + 8 * dt);
   }
+  // Heading back (Head back, or the last landmark passed): the pilot flies straight
+  // home at twice the tour's pace (playtest round 6: Head back took half a minute).
+  const pace = homeLeg && !landing ? 2 : 1;
   if (s.manual) {
     s.heading = wrap(s.heading + clamp(input.turn, -1, 1) * HELI.handTurn * dt);
     s.alt = clamp(s.alt + clamp(input.climb, -1, 1) * 40 * dt, 80, 700);
@@ -336,7 +339,7 @@ export function stepHeli(
     const turn = clamp(wrap(want - s.heading), -HELI.turn * dt, HELI.turn * dt);
     s.heading = wrap(s.heading + turn);
     if (s.t >= 6) {
-      s.speed = Math.min(HELI.speed, s.speed + 10 * dt);
+      s.speed = Math.min(HELI.speed * pace, s.speed + 10 * pace * dt);
       const cruise = HELI.cruise + (goal.h > 150 ? goal.h * 0.4 : 0);
       s.alt += (Math.max(cruise, floor) - s.alt) * Math.min(1, dt * 0.5);
     }

@@ -28,4 +28,12 @@ export const travelR6: Record<string, string> = {
   'The pot is shared between them.': 'La cagnotte est partagée entre eux.',
   // Bowling: the score with bonus balls still to come.
   '{n}+': '{n}+',
+  // The helicopter (AirHost, AirFlight).
+  '{price} · 1 hour, with the briefing': '{price} · 1 heure, briefing compris',
+  '{price} · {n} hours, with the briefing': '{price} · {n} heures, briefing compris',
+  'Helicopter hop': 'Saut en hélicoptère',
+  'Private charter': 'Vol privé',
+  'You headed back before the first landmark: the city from the air.':
+    'Retour avant le premier monument : la ville vue du ciel.',
+  'A landmark from the air: {name}': 'Un monument vu du ciel : {name}',
 };

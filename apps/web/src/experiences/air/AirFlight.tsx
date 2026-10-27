@@ -148,6 +148,13 @@ const tierOf = () => {
 const LABEL_BLOCKERS =
   '.air-head h2, .air-head small, .panorama-actions, .air-cam, .air-hud, .air-say, .air-controls, .air-result';
 
+/** The helicopter flight's title: the flight you booked. */
+const HELI_TITLE: Record<string, () => string> = {
+  'heli-hop': () => t('Helicopter hop'),
+  'heli-tour': () => t('City tour'),
+  'heli-charter': () => t('Private charter'),
+};
+
 export default function AirFlight({
   booking,
   city,
@@ -677,7 +684,8 @@ export default function AirFlight({
                 ? t('Back on the pad')
                 : hud.manual
                   ? t('You have the controls')
-                  : t('City tour')}
+                  : // The flight you booked (playtest round 6: every flight said "City tour").
+                    (HELI_TITLE[booking.item]?.() ?? t('Helicopter ride'))}
           </h2>
         </div>
         <div className="panorama-actions">
@@ -905,10 +913,14 @@ export default function AirFlight({
               <>
                 <h3>{t('What a view!')}</h3>
                 <p>
-                  {t('{n} landmarks from the air: {names}', {
-                    n: home?.seen.length ?? 0,
-                    names: (home?.seen ?? []).join(', '),
-                  })}
+                  {(home?.seen.length ?? 0) === 0
+                    ? t('You headed back before the first landmark: the city from the air.')
+                    : home!.seen.length === 1
+                      ? t('A landmark from the air: {name}', { name: home!.seen[0]! })
+                      : t('{n} landmarks from the air: {names}', {
+                          n: home!.seen.length,
+                          names: home!.seen.join(', '),
+                        })}
                 </p>
               </>
             )}
