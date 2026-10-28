@@ -11,8 +11,9 @@
  *     conversation, and can take the conversation for you (salestalk.ts).
  *   - A technical co-founder joins demos (sales.ts) and lifts the team's
  *     build output; engineers ship roadmap work faster (company.ts).
- *   - A business co-founder's contacts make new leads warmer (sales.ts) and
- *     add to an investor's score of a pitch, with a warm intro (fundraising).
+ *   - A business co-founder's contacts make new leads warmer (sales.ts),
+ *     they add to an investor's score of a pitch, and each month they
+ *     introduce you to investors who fit your round (intros.ts).
  *   - Everyone gets better with the months on the job.
  *
  * What each person did is kept for the recap ("Your team this month"), and
@@ -28,6 +29,7 @@ import type { Seniority, StaffRole } from './data/markets.js';
 import { TEAM, businessCofounderOf, ctoOf, expertiseOf } from './cofounders.js';
 import { businessesOf, isOpen } from './economy.js';
 import { getMarket } from './helpers.js';
+import { introStrength, introsPerMonth, settleIntros } from './intros.js';
 import { clamp, clamp01 } from './math.js';
 import { gameplayOn } from './releases.js';
 import { deriveRng } from './rng.js';
@@ -90,6 +92,12 @@ export function bringsOf(
     /** A business co-founder: warmer leads and a better pitch. */
     warmLift: p.cofounder && p.cofounder !== 'cto' ? round2(TEAM.warmTrust * p.skill) : 0,
     pitchLift: p.cofounder && p.cofounder !== 'cto' ? round2(TEAM.pitchScore * p.skill) : 0,
+    /** …and introductions to investors who fit your round: a month, and the interest each adds. */
+    introsPerMonth: p.cofounder && p.cofounder !== 'cto' ? introsPerMonth(p.skill) : 0,
+    introInterest:
+      p.cofounder && p.cofounder !== 'cto'
+        ? Math.round(TEAM.intro.interest * introStrength(p.skill))
+        : 0,
   };
 }
 
@@ -136,7 +144,10 @@ export const salesStaff = (c: Company): Staff[] => c.staff.filter((s) => s.role 
  * Runs after the product and the pipeline have settled.
  */
 export function settleTeam(world: World, c: Company, month: number) {
-  if (!gameplayOn(world) || c.ai || !c.staff.length) return;
+  if (!gameplayOn(world) || c.ai) return;
+  // A business co-founder introduces investors who fit your round (intros.ts).
+  const introduced = settleIntros(world, c, month);
+  if (!c.staff.length) return;
   const m = getMarket(world, c.market);
   const log = c.teamMonth?.month === month ? c.teamMonth : { month, people: [] as TeamWork[] };
   const entry = (s: Staff): TeamWork => {
@@ -216,10 +227,12 @@ export function settleTeam(world: World, c: Company, month: number) {
   const cto = ctoOf(c);
   if (cto) entry(cto).demos = deals.filter((d) => d.demoLift?.month === month - 1).length;
   const biz = businessCofounderOf(c);
-  if (biz)
+  if (biz) {
     entry(biz).warm = deals.filter(
       (d) => d.warmBy === biz.id && d.createdMonth === month - 1,
     ).length;
+    if (introduced.length) entry(biz).intros = introduced.map((f) => f.name);
+  }
   // Everyone gets better on the job.
   for (const s of c.staff) {
     s.skill = Math.round(clamp01(s.skill + TEAM.skillGrowth * (1 - s.skill)) * 1000) / 1000;

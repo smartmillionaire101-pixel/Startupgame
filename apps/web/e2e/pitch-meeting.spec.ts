@@ -259,3 +259,55 @@ test('a meeting left half-way is picked up at the fund’s office, or left there
   // The fund isn't put off: you can pitch them again here.
   await expect(scene.getByRole('button', { name: /^Pitch / })).toBeEnabled();
 });
+
+test('a business co-founder introduces investors: warm leads, and a warmer meeting', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const tag = letters(5);
+  await playAsGuest(page);
+  await setupFounder(page, {
+    name: 'Nour E2E',
+    handle: `nour_${tag}`,
+    company: `Intro Pay ${tag}`,
+    idea: 'Payments for market traders',
+    // Cairo: advancing the month here can't move it under specs sharing Lagos.
+    market: /Cairo/,
+  });
+  await expect(tab(page, 'Today')).toBeVisible();
+  // A CEO-operator co-founder joins, then a month passes: they make introductions.
+  const ok = await page.evaluate(async () => {
+    const s = await (await fetch('/api/state', { headers: { 'x-runway': '1' } })).json();
+    const post = (url: string, data: unknown) =>
+      fetch(url, {
+        method: 'POST',
+        headers: { 'x-runway': '1', 'content-type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    const hire = await post('/api/commands', {
+      command: { type: 'cofounder.ai', companyId: s.view.companies[0].id, candidateId: 'operator' },
+    });
+    const month = await post('/api/dev/settle', { market: 'cairo' });
+    return hire.ok && month.ok;
+  });
+  expect(ok).toBe(true);
+  await page.reload();
+  await expect(tab(page, 'Today')).toBeVisible();
+  const dismiss = page.getByRole('dialog', { name: 'Your month' });
+  if (await dismiss.isVisible().catch(() => false))
+    await dismiss.getByRole('button', { name: 'Got it' }).click();
+  await openMoney(page);
+  // The introduced funds lead the investor list, warm, with who introduced them.
+  const warm = page.locator('[data-fund-intro]').first();
+  await expect(warm).toBeVisible({ timeout: 15_000 });
+  await expect(warm.getByText('Warm intro')).toBeVisible();
+  await expect(warm.locator('[data-intro-by]')).toContainText(/^Introduced by .+: \+\d+ interest/);
+  // Pitch them: he starts warmer, and says who introduced you.
+  await warm.locator('[data-pitch-fund]').click();
+  const deck = page.getByRole('dialog', { name: /^Pitch / });
+  await deck.locator('[data-pitch-go]').click();
+  const meeting = page.getByRole('dialog', { name: /^Pitch meeting/ });
+  await expect(meeting).toBeVisible({ timeout: 8000 });
+  await expect(meeting.locator('[data-intro-bonus]')).toContainText(/introduced you to/);
+  await expect(meeting.getByRole('meter', { name: /interest now/ })).toBeVisible();
+});

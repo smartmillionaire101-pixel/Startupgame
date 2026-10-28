@@ -259,6 +259,7 @@ function useWords(m: MeetingV, cur: string) {
     if (kind === 'deck')
       return t('Your deck: {slides}', { slides: slides.map(slideName).join(', ') });
     if (kind === 'cofounder') return t('{name} in the room', { name: m.cofounder?.name ?? '' });
+    if (kind === 'intro') return t('Introduced by {name}', { name: m.intro?.name ?? '' });
     if (id === 'worry:customers')
       return t('No paying customer yet: {name}’s biggest worry', { name: he });
     if (id === 'worry:runway') return t('Under three months of money');
@@ -783,6 +784,18 @@ function Side({ p, m, cur, founder }: { p: PitchV; m: MeetingV; cur: string; fou
                   '{name} (business co-founder) is in the room: +{n} to the pitch, and takes the competition question.',
                   { name: m.cofounder.name, n: m.cofounder.points },
                 )}
+              </span>
+            </p>
+          )}
+          {m.intro && (
+            <p className="pm-cofounder" data-intro-bonus={m.intro.points}>
+              <span aria-hidden="true">📇</span>
+              <span>
+                {t('{name} introduced you to {investor}: +{n} interest from the start.', {
+                  name: m.intro.name,
+                  investor: w.he,
+                  n: m.intro.points,
+                })}
               </span>
             </p>
           )}

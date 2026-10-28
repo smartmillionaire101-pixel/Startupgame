@@ -8,26 +8,37 @@ import { FR, FR_SERVER } from '../src/i18n/fr';
 import { loadLang, setLang, tx } from '../src/i18n';
 import { engineTexts, shape } from './engine-texts';
 
+// Parsing the engine source takes a few seconds on a busy machine.
+const SLOW = 30_000;
+
 describe('engine texts in French', () => {
   beforeAll(() => loadLang('fr'));
   afterEach(() => void setLang('en'));
 
-  it('finds the engine’s notifications', () => {
-    const all = engineTexts();
-    expect(all.length).toBeGreaterThan(250);
-    expect(all.some((x) => x.text === 'Loan from {} repaid in full.')).toBe(true);
-    expect(all.some((x) => x.file === 'rest.ts' && x.text === 'You’re not resting.')).toBe(true);
-  });
+  it(
+    'finds the engine’s notifications',
+    () => {
+      const all = engineTexts();
+      expect(all.length).toBeGreaterThan(250);
+      expect(all.some((x) => x.text === 'Loan from {} repaid in full.')).toBe(true);
+      expect(all.some((x) => x.file === 'rest.ts' && x.text === 'You’re not resting.')).toBe(true);
+    },
+    SLOW,
+  );
 
-  it('has a French template for every engine notification', () => {
-    const exact = new Set(Object.keys(FR));
-    const templates = new Set(Object.keys(FR_SERVER).map(shape));
-    const has = (s: string) => (s.includes('{}') ? templates.has(s) : exact.has(s));
-    const missing = engineTexts()
-      .filter((x) => !has(x.text) && !(x.variants.length && x.variants.every(has)))
-      .map((x) => `${x.file}:${x.line} ${x.text}`);
-    expect(missing).toEqual([]);
-  });
+  it(
+    'has a French template for every engine notification',
+    () => {
+      const exact = new Set(Object.keys(FR));
+      const templates = new Set(Object.keys(FR_SERVER).map(shape));
+      const has = (s: string) => (s.includes('{}') ? templates.has(s) : exact.has(s));
+      const missing = engineTexts()
+        .filter((x) => !has(x.text) && !(x.variants.length && x.variants.every(has)))
+        .map((x) => `${x.file}:${x.line} ${x.text}`);
+      expect(missing).toEqual([]);
+    },
+    SLOW,
+  );
 
   it('reads filled-in engine text in French', () => {
     setLang('fr');

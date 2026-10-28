@@ -519,6 +519,11 @@ export const engineTexts: Record<string, string> = {
     '{done} Votre mentor est {mentor}. Demo day : {date}.',
   '{name} is in: {amount} for {pct}% on a SAFE.':
     '{name} entre au capital : {amount} pour {pct} % sur un SAFE.',
+  // ---- A business co-founder's investor introductions (intros.ts)
+  '{name} introduced you to {partner} at {fund}: a warm lead in your investor list.':
+    '{name} vous a présenté à {partner}, chez {fund} : une piste chaude dans votre liste d’investisseurs.',
+  '{name} introduced you to {n} investors who fit your round: {funds}. They’re warm leads in your investor list.':
+    '{name} vous a présenté à {n} investisseurs adaptés à votre tour : {funds}. Ce sont des pistes chaudes dans votre liste d’investisseurs.',
   // ---- Generic
   '{name}: {text}': '{name} : {text}',
 };

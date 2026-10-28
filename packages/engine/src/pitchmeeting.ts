@@ -12,7 +12,8 @@
  *      named rival). Each has a true answer (stronger with won customers,
  *      a pipeline and interview notes), a stretch he will check in
  *      diligence, and a dodge. A business co-founder in the room takes the
- *      competition question, and adds to the pitch.
+ *      competition question, and adds to the pitch; one who introduced
+ *      you to this fund (intros.ts) has him start warmer.
  *   3. The ask: an amount and a pre-money, against the band where he prices
  *      teams like yours.
  *
@@ -29,6 +30,7 @@
  */
 import { businessCofounderOf } from './cofounders.js';
 import { forwardRunway } from './company.js';
+import { introFor, introInterest } from './intros.js';
 import { interviewHints } from './customer-interviews.js';
 import { PASS_NOTE } from './dealcraft.js';
 import { actOnDeal, openDeal } from './deals.js';
@@ -37,6 +39,7 @@ import {
   cofounderPitch,
   deckEmphasis,
   firstMeetingScore,
+  introScore,
   proposeInvestment,
   strengths,
 } from './fundraising.js';
@@ -289,16 +292,23 @@ export function beginMeeting(world: World, p: Pitch, preMoney?: number): PitchMe
   if (deck !== 0) start.push({ id: 'deck', points: deck });
   const biz = businessCofounderOf(c);
   const co = cofounderPitch(world, c);
-  const coPoints = Math.round((co.score + co.intro) * 100);
+  const coPoints = Math.round(co.score * 100);
   if (biz && coPoints > 0) start.push({ id: 'cofounder', points: coPoints });
+  // A business co-founder introduced you: he starts warmer (intros.ts).
+  const intro = fund ? introFor(world, c, fund.id, p.id) : undefined;
+  const introPoints = intro ? introInterest(intro) : 0;
+  if (intro && introPoints > 0) start.push({ id: 'intro', points: introPoints });
   if (f.customers === 0) start.push({ id: 'worry:customers', points: MEETING.worry.customers });
   if (f.runway !== null && f.runway < 3)
     start.push({ id: 'worry:runway', points: MEETING.worry.runway });
   let base: number = MEETING.playerBase;
   if (fund) {
-    // The fund's own view of the company, less what the deck and the co-founder add (counted above).
+    // The fund's own view of the company, less what the deck, the co-founder and the intro add (counted above).
     const raw =
-      firstMeetingScore(world, fund, c, p) - deckEmphasis(s, p.slides) - co.score - co.intro;
+      firstMeetingScore(world, fund, c, p) -
+      deckEmphasis(s, p.slides) -
+      co.score -
+      introScore(world, c, fund.id, p.id);
     base = Math.round(clamp(raw * 100 + MEETING.warm, 5, 85));
   }
   const best: PitchMeetingOpener = f.pain ? 'story' : f.customers > 0 ? 'traction' : 'problem';
@@ -320,6 +330,7 @@ export function beginMeeting(world: World, p: Pitch, preMoney?: number): PitchMe
     base,
     start,
     cofounder: biz && coPoints > 0 ? { name: biz.name, points: coPoints } : null,
+    intro: intro && introPoints > 0 ? { name: intro.byName, points: introPoints } : null,
   };
   p.meeting = m;
   return m;
@@ -789,6 +800,8 @@ export function meetingView(world: World, p: Pitch, viewerId: Id) {
     /** Interest before the last turn, for "your opener lifted it from 40%". */
     interestBefore: founder && m.investor === 'fund' ? interestBefore(m, moved) : null,
     cofounder: m.cofounder,
+    /** Round 7: who introduced you to this investor, and what it added. */
+    intro: m.intro ?? null,
     start: founder ? m.start : [],
     result: m.result
       ? {

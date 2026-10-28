@@ -332,6 +332,20 @@ export function HireBrings({
     });
   if (b.pitchLift > 0)
     lines.push({ icon: '💼', text: t('A better pitch to investors, and warm intros') });
+  if (b.introsPerMonth > 0)
+    lines.push({
+      icon: '📇',
+      text:
+        b.introsPerMonth === 1
+          ? t(
+              'Introduces you to an investor a month who fits your round: +{n} interest when you pitch them',
+              { n: b.introInterest },
+            )
+          : t(
+              'Introduces you to {count} investors a month who fit your round: +{n} interest when you pitch them',
+              { count: b.introsPerMonth, n: b.introInterest },
+            ),
+    });
   if (!lines.length && sector)
     lines.push({ icon: '🧭', text: t('Knows {sector} from their last job', { sector }) });
   if (!lines.length) return null;
@@ -377,6 +391,15 @@ function workLines(p: TeamWork): string[] {
   n(p.demos, 'Joined a demo', 'Joined {n} demos');
   if (p.roadmapWeeks) out.push(t('Put {n} person-weeks into the roadmap', { n: p.roadmapWeeks }));
   n(p.warm, 'Warmed up a lead', 'Warmed up {n} leads');
+  if (p.intros?.length)
+    out.push(
+      p.intros.length === 1
+        ? t('Introduced you to an investor: {funds}', { funds: p.intros[0]! })
+        : t('Introduced you to {n} investors: {funds}', {
+            n: p.intros.length,
+            funds: p.intros.join(', '),
+          }),
+    );
   if (!out.length) out.push(t('Kept things running'));
   return out;
 }

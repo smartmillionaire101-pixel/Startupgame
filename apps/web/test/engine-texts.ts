@@ -83,7 +83,10 @@ function templatesOf(e: ts.Expression | undefined, out: { text: string; variants
 const calleeName = (c: ts.CallExpression) =>
   ts.isIdentifier(c.expression) ? c.expression.text : null;
 
+let CACHE: EngineText[] | null = null;
+
 export function engineTexts(): EngineText[] {
+  if (CACHE) return CACHE;
   const found: EngineText[] = [];
   const files = readdirSync(ENGINE_SRC).filter((f) => f.endsWith('.ts'));
   for (const file of files) {
@@ -138,6 +141,7 @@ export function engineTexts(): EngineText[] {
     };
     visit(sf);
   }
+  CACHE = found;
   return found;
 }
 

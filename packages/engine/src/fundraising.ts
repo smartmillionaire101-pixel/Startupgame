@@ -39,6 +39,7 @@ import { INCORPORATION } from './world.js';
 import { companyRunway } from './company.js';
 import { feedbackOn, gameplayOn, lifeBarsOn } from './releases.js';
 import { TEAM, businessCofounderOf } from './cofounders.js';
+import { introFor, useIntro } from './intros.js';
 import { passWhyText, pitchPassWhy, scorePitch } from './founderguide.js';
 import type {
   Company,
@@ -335,9 +336,11 @@ export function startPitch(
       pitch.status = 'passed';
       pitch.reason = `${fund.partner}: “You’re raising ${stage}; we do ${fund.stages.join(', ')}.”`;
     } else if (
-      // A warm intro (Wave 2) relaxes the bar by up to one star.
+      // A warm intro (Wave 2) relaxes the bar by up to one star; so does a
+      // business co-founder's introduction (round 7, intros.ts).
       Math.max(c.stars.value, getPlayer(world, args.founderId).stars.value) +
-        warmIntro(world, getPlayer(world, args.founderId), fund.id, m.month).starRelief <
+        warmIntro(world, getPlayer(world, args.founderId), fund.id, m.month).starRelief +
+        (introFor(world, c, fund.id)?.strength ?? 0) * TEAM.intro.stars <
       fund.minStars
     ) {
       pitch.status = 'passed';
@@ -347,6 +350,8 @@ export function startPitch(
     } else {
       pitch.questions = buildQuestions(world, c);
     }
+    // The pitch uses the co-founder's introduction (it counts again in the meeting).
+    useIntro(world, c, fund.id, pitch.id);
   } else if (args.investorPlayerId) {
     const inv = getPlayer(world, args.investorPlayerId);
     ensure(inv.role === 'investor' && !inv.ai, 'pitch.investor', 'That player isn’t an investor.');
@@ -418,24 +423,27 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
 export const deckEmphasis = (s: Record<Slide, number>, slides: string[]): number =>
   slides.reduce((a, sl) => a + ((s[sl as Slide] ?? 0.5) - 0.45) * 0.12, 0);
 
-/** Round 7: what a business co-founder adds to a pitch: their score, and a warm intro. */
-export function cofounderPitch(world: World, c: Company): { score: number; intro: number } {
+/** Round 7: what a business co-founder in the room adds to a pitch. */
+export function cofounderPitch(world: World, c: Company): { score: number } {
   const biz = gameplayOn(world) ? businessCofounderOf(c) : undefined;
-  return biz
-    ? { score: TEAM.pitchScore * biz.skill, intro: TEAM.pitchIntro }
-    : { score: 0, intro: 0 };
+  return { score: biz ? TEAM.pitchScore * biz.skill : 0 };
 }
+
+/** Round 7: what a business co-founder's introduction to this fund adds to its first-meeting score. */
+export const introScore = (world: World, c: Company, fundId: Id, pitchId?: Id): number =>
+  (introFor(world, c, fundId, pitchId)?.strength ?? 0) * TEAM.intro.score;
 
 /**
  * The partner's view at the first meeting: the fund's score, plus a warm
- * intro from a contact and the founder's network (Wave 2).
+ * intro from a contact and the founder's network (Wave 2), and a business
+ * co-founder's introduction (round 7).
  */
 export function firstMeetingScore(world: World, fund: Fund, c: Company, p: Pitch): number {
   const founder = getPlayer(world, p.founderId);
   return (
     fundScore(world, fund, c, p.slides) +
     warmIntro(world, founder, fund.id, getMarket(world, c.market).month).scoreBonus +
-    cofounderPitch(world, c).intro
+    introScore(world, c, fund.id, p.id)
   );
 }
 
