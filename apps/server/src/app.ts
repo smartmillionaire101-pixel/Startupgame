@@ -35,6 +35,7 @@ import {
   startersFor,
   statementView,
   recapView,
+  stockAnalysisFor,
   STATEMENT_PAGE_MAX,
   type MarketId,
   type Player,
@@ -704,6 +705,19 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       return reply.code(404).send({ error: { code: 'player', message: 'No such player.' } });
     reply.header('cache-control', 'private, no-store');
     return { recap };
+  });
+
+  /**
+   * Round 7 (city load time): a listed company's analysis, read when its page
+   * opens, not sent with every state for every listing.
+   */
+  app.get('/api/stocks/:id', { preHandler: requireUser }, async (req, reply) => {
+    const { id } = z.object({ id: z.string().max(40) }).parse(req.params);
+    const analysis = stockAnalysisFor(game.current, req.userId!, id);
+    if (!analysis)
+      return reply.code(404).send({ error: { code: 'stock', message: 'No such listing.' } });
+    reply.header('cache-control', 'private, no-store');
+    return { analysis };
   });
 
   /** One transaction's receipt, as the player saw it (404 unless it touched their accounts). */

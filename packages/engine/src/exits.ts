@@ -41,7 +41,7 @@ import { fundCanInvest } from './lpfunds.js';
 import { distributeFund } from './funds.js';
 import { applyStarEvent } from './stars.js';
 import { feedbackOn } from './releases.js';
-import { cityMultiplesOnce, homeFirst, stockAnalysis } from './stocks.js';
+import { homeFirst, recentNews } from './stocks.js';
 import { monthlyGrowth, valueCompany } from './valuation.js';
 import type { Company, Fund, Id, MarketState, Player, SecondaryOffer, World } from './types.js';
 
@@ -897,7 +897,6 @@ const round2 = (x: number) => Math.round(x * 100) / 100;
  * the other cities by name; the biggest companies first within a city.
  */
 export function publicMarketView(world: World, p: Player) {
-  const multiples = cityMultiplesOnce(world);
   return Object.values(world.companies)
     .filter(isListed)
     .map((c) => {
@@ -925,7 +924,8 @@ export function publicMarketView(world: World, p: Player) {
         lockedUntil: (ipo.lockups?.[p.id] ?? 0) > m.month ? ipo.lockups![p.id]! : null,
         isFounder: c.founderIds.includes(p.id),
         brokerBps: EXITS.ipo.brokerBps,
-        analysis: stockAnalysis(world, p, c, multiples),
+        // Round 7: the analysis is fetched when the company opens (stocks.ts stockAnalysisFor).
+        recentNews: recentNews(world, c),
       };
     })
     .sort(

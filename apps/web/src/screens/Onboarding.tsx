@@ -35,6 +35,7 @@ import {
 } from '../avatar/Creator';
 import { PortraitOf } from '../avatar/Portrait';
 import { markJoinedHere } from '../phone/settings';
+import { preloadCityMap } from '../city/CityMap';
 import { markNewPlayer } from '../tutorial/state';
 import { CitySkyline, Flag, citySky } from '../signup/cityArt';
 import {
@@ -239,6 +240,12 @@ export function Onboarding({
   const markets = useMemo(() => meta?.markets ?? [], [meta]);
   const guessed = useMemo(() => guessCity(markets, browserTimeZone()), [markets]);
   const city = market ?? guessed ?? 'lagos';
+  // Round 7 (city load time): the city's map (its own big download) and the
+  // 3D map's code start loading as soon as the city is picked, while you
+  // fill in the rest, not after Play.
+  useEffect(() => {
+    if (market) preloadCityMap(market);
+  }, [market]);
   const cityName = markets.find((m) => m.id === city)?.name ?? '';
   const username = manualUsername ?? suggestUsername(name, attempt);
 
@@ -322,6 +329,7 @@ export function Onboarding({
       return;
     }
     setLoading(true);
+    preloadCityMap(city);
     try {
       await api.onboard({
         username: username.trim(),

@@ -168,6 +168,14 @@
 .fsu-scale {
   display: flex;
   justify-content: space-between;
+  position: relative;
+}
+/* The slider's share, under the thumb (kept clear of the two end labels). */
+.fsu-scale-now {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 /* Check rows with the figure on the right. */

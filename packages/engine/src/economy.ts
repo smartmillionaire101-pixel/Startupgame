@@ -1385,6 +1385,8 @@ export function businessesView(world: World, viewer: Player, m: MarketState) {
         open,
         /** Wave 6: opened within the last two months (generated or from the roster). */
         isNew: open && month - b.openedMonth < GROWTH.newMonths,
+        /** Round 7: the month it opened (the client marks only what opened since you came). */
+        openedMonth: b.openedMonth,
         /** Wave 10: a second site of another business (its id and name), or null. */
         branchOf: b.branchOf
           ? { id: b.branchOf, name: m.businesses?.[b.branchOf]?.name ?? '' }

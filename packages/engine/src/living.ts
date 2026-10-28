@@ -8,7 +8,8 @@ import { canVisitHome } from './play.js';
 import { bumpNeed } from './needs.js';
 import type { Command } from './commands.js';
 import { skyViewById } from './data/sky-views.js';
-import { unpackOrder, type OnlineOrder } from './catalog.js';
+import { unpackOrder, vanOf, type OnlineOrder, type Van } from './catalog.js';
+import { gameplayOn } from './releases.js';
 import type { ChosenOptions } from './data/catalog.js';
 export interface Delivery {
   id: Id;
@@ -24,6 +25,8 @@ export interface Delivery {
   item?: { slot: string; itemId: string; paid: number; finish?: string; warranty?: string };
   /** Shop note: an online order (catalog.ts): what's in it, the delivery fee and speed. */
   order?: OnlineOrder;
+  /** Round 7: the van it rides in with the rest of its order (catalog.ts `Van`). */
+  van?: Id;
 }
 export interface DateSession {
   id: Id;
@@ -46,6 +49,8 @@ export function queueDelivery(
   kind: Delivery['kind'],
   now: number,
   item?: Delivery['item'],
+  van?: Van,
+  order?: OnlineOrder,
 ) {
   ensure(
     locationOf(p) === p.market,
@@ -53,12 +58,22 @@ export function queueDelivery(
     'Order home deliveries when you are in your home city.',
   );
   const list = (w.deliveries ??= {});
+  // Waiting vans (a delivery on its own is a van); joining one on its way takes no room.
   ensure(
-    Object.values(list).filter((d) => d.owner === p.id && !d.complete).length < 8,
+    !!van?.id ||
+      new Set(
+        Object.values(list)
+          .filter((d) => d.owner === p.id && !d.complete)
+          .map(vanOf),
+      ).size < 8,
     'delivery.limit',
     'Unpack your waiting deliveries before ordering more.',
   );
   const id = newId(w, 'delivery');
+  if (van) {
+    van.id ??= id;
+    van.ids.push(id);
+  }
   list[id] = {
     id,
     owner: p.id,
@@ -70,6 +85,8 @@ export function queueDelivery(
     unpackedBy: [],
     complete: false,
     ...(item ? { item } : {}),
+    ...(order ? { order } : {}),
+    ...(van ? { van: van.id! } : {}),
   };
   return id;
 }
@@ -81,6 +98,7 @@ export function orderFurniture(
   businessId?: Id,
   /** Shop note: the catalogue's options (a finish, a warranty), priced in. */
   options?: ChosenOptions,
+  van?: Van,
 ) {
   const prior = p.home?.items.map((i) => ({ ...i })) ?? [];
   const result = buyFurniture(w, p, itemId, businessId, options ? { options } : {});
@@ -92,7 +110,7 @@ export function orderFurniture(
     'delivery.slot',
     'A delivery for this furniture slot is already on its way.',
   );
-  const id = queueDelivery(w, p, itemId, 'furniture', now, { ...item });
+  const id = queueDelivery(w, p, itemId, 'furniture', now, { ...item }, van);
   p.home!.items = prior.filter((i) => i.slot !== item.slot);
   return {
     ...result,
@@ -110,36 +128,12 @@ export function livingCommand(
   if (c.type === 'living.collect') {
     const d = w.deliveries?.[c.deliveryId];
     ensure(d && !d.complete, 'delivery.missing', 'That delivery is already unpacked or missing.');
-    ensure(
-      canVisitHome(w, p, d.owner) && locationOf(p) === d.market,
-      'delivery.access',
-      'You must be at this home or an invited guest.',
-    );
-    ensure(now >= d.arrivesAt, 'delivery.wait', 'The van is still on its way.');
-    ensure(
-      !d.unpackedBy.includes(p.id),
-      'delivery.help',
-      'You have already helped with this delivery.',
-    );
-    d.unpackedBy.push(p.id);
-    // Every player can unload a parcel; the owner or a visiting friend can install it.
-    const owner = w.players[d.owner]!;
-    if (d.item) {
-      const home = (owner.home ??= { items: [] });
-      home.items = home.items.filter((i) => i.slot !== d.item!.slot);
-      home.items.push({ ...d.item } as (typeof home.items)[number]);
+    // Round 7: "Unpack all" empties the whole van.
+    if (c.all) {
+      ensure(gameplayOn(w), 'command.unknown', 'Unknown command.');
+      return unpackVan(w, p, d, now);
     }
-    if (d.kind === 'food') bumpNeed(owner, 'hunger', 35);
-    const unpacked = d.order ? unpackOrder(w, owner, d) : null;
-    bumpNeed(p, 'social', 8);
-    d.complete = true;
-    return {
-      ...(unpacked ?? {}),
-      message:
-        p.id === d.owner
-          ? (unpacked?.message ?? 'Delivered and unpacked.')
-          : 'You helped your friend unpack. Thank you!',
-    };
+    return collectOne(w, p, d, now, true);
   }
   if (c.type === 'living.date.invite') {
     const guest = w.players[c.playerId];
@@ -239,6 +233,61 @@ export function livingCommand(
   }
   return { ok: true };
 }
+/** Unpack (or help unpack) one delivery; `lift`: the social lift of carrying it in. */
+function collectOne(w: World, p: Player, d: Delivery, now: number, lift: boolean) {
+  ensure(
+    canVisitHome(w, p, d.owner) && locationOf(p) === d.market,
+    'delivery.access',
+    'You must be at this home or an invited guest.',
+  );
+  ensure(now >= d.arrivesAt, 'delivery.wait', 'The van is still on its way.');
+  ensure(
+    !d.unpackedBy.includes(p.id),
+    'delivery.help',
+    'You have already helped with this delivery.',
+  );
+  d.unpackedBy.push(p.id);
+  // Every player can unload a parcel; the owner or a visiting friend can install it.
+  const owner = w.players[d.owner]!;
+  if (d.item) {
+    const home = (owner.home ??= { items: [] });
+    home.items = home.items.filter((i) => i.slot !== d.item!.slot);
+    home.items.push({ ...d.item } as (typeof home.items)[number]);
+  }
+  if (d.kind === 'food') bumpNeed(owner, 'hunger', 35);
+  const unpacked = d.order ? unpackOrder(w, owner, d) : null;
+  if (lift) bumpNeed(p, 'social', 8);
+  d.complete = true;
+  return {
+    ...(unpacked ?? {}),
+    message:
+      p.id === d.owner
+        ? (unpacked?.message ?? 'Delivered and unpacked.')
+        : 'You helped your friend unpack. Thank you!',
+  };
+}
+
+/**
+ * Round 7: unpack every thing in a van at once (the ones that are in, not
+ * unpacked yet): each as one `living.collect` would, the social lift once.
+ */
+function unpackVan(w: World, p: Player, first: Delivery, now: number) {
+  const van = vanOf(first);
+  const ds = Object.values(w.deliveries ?? {})
+    .filter((d) => vanOf(d) === van && d.owner === first.owner && !d.complete)
+    .sort((a, z) => (a.id < z.id ? -1 : a.id > z.id ? 1 : 0));
+  // One trip out to the van: the social lift once, not once a thing.
+  const results = ds.map((d, i) => ({ deliveryId: d.id, ...collectOne(w, p, d, now, i === 0) }));
+  const mine = p.id === first.owner;
+  return {
+    van,
+    unpacked: results,
+    message: mine
+      ? `Unpacked ${ds.length} ${ds.length === 1 ? 'thing' : 'things'}.`
+      : 'You helped your friend unpack. Thank you!',
+  };
+}
+
 export function livingView(w: World, p: Player) {
   return {
     deliveries: Object.values(w.deliveries ?? {})

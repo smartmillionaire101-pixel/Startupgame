@@ -3,9 +3,9 @@
  * what this shop sells at its prices, bought here (free and at once). At
  * home, Buy mode's walls open it online (delivered).
  */
-import { useEffect, useRef } from 'react';
-import type { CatalogCategory } from '@runway/engine';
-import { t } from '../i18n';
+import { useEffect, useRef, useState } from 'react';
+import { CATEGORY_LABEL, type CatalogCategory } from '@runway/engine';
+import { t, tx } from '../i18n';
 import { Catalogue } from './Catalogue';
 import type { CatEntry } from './catalog';
 import './shop.css';
@@ -19,6 +19,8 @@ export function CatalogueSheet({
   inMall,
   category,
   onClose,
+  dock,
+  onBack,
 }: {
   title: string;
   entries: CatEntry[];
@@ -29,7 +31,15 @@ export function CatalogueSheet({
   onClose: () => void;
   /** Store (bought here) or online (from home, delivered). */
   mode?: 'store' | 'online';
+  /**
+   * Round 7 (#21): at home, the catalogue opens in Buy mode's bottom panel
+   * (docked to the bottom edge, the home above it), its title the category
+   * you're looking at; ‹ Buy goes back to Buy mode.
+   */
+  dock?: boolean;
+  onBack?: () => void;
 }) {
+  const [shown, setShown] = useState<CatalogCategory | null>(category ?? null);
   // Escape closes it (play-test: it didn't), and only it: not the shop around it.
   const close = useRef(onClose);
   useEffect(() => {
@@ -45,7 +55,10 @@ export function CatalogueSheet({
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
   return (
-    <div className="cat-sheet-back" onClick={onClose}>
+    <div
+      className={`cat-sheet-back${dock ? ' cat-dock' : ''}`}
+      onClick={dock ? undefined : onClose}
+    >
       <section
         className="cat-sheet"
         role="dialog"
@@ -54,12 +67,39 @@ export function CatalogueSheet({
         data-catalogue-sheet=""
         onClick={(e) => e.stopPropagation()}
       >
-        <header>
-          <h3>📖 {title}</h3>
-          <button type="button" className="icon-btn" aria-label={t('Close')} onClick={onClose}>
-            ✕
-          </button>
-        </header>
+        {dock ? (
+          <>
+            <div className="cat-grip" aria-hidden="true">
+              <i />
+            </div>
+            <header>
+              {onBack && (
+                <button
+                  type="button"
+                  className="cat-back"
+                  data-action="back-to-buy"
+                  onClick={onBack}
+                >
+                  ‹ {t('Buy')}
+                </button>
+              )}
+              <h3 data-cat-title={shown ?? 'all'}>
+                📖 {shown ? tx(CATEGORY_LABEL[shown]) : title}
+                <small>{t('Online shop · delivered to your door')}</small>
+              </h3>
+              <button type="button" className="cat-close" aria-label={t('Close')} onClick={onClose}>
+                <span aria-hidden="true">✕</span> {t('Close')}
+              </button>
+            </header>
+          </>
+        ) : (
+          <header>
+            <h3>📖 {title}</h3>
+            <button type="button" className="icon-btn" aria-label={t('Close')} onClick={onClose}>
+              ✕
+            </button>
+          </header>
+        )}
         <Catalogue
           mode={mode}
           entries={entries}
@@ -67,6 +107,7 @@ export function CatalogueSheet({
           {...(businessId ? { businessId } : {})}
           {...(inMall ? { inMall } : {})}
           {...(category !== undefined ? { category } : {})}
+          onCategory={setShown}
         />
       </section>
     </div>

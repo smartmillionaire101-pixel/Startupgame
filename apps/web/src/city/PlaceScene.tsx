@@ -783,6 +783,8 @@ function RoomScene({
   const hotel =
     place.kind === 'hotel' ? cityHotelsOf(view).find((h) => h.id === place.ref) : undefined;
   const company = activeCompany(view);
+  // The office leased in the founder setup (co-working desks are a co-working room).
+  const lease = view.companies.find((c) => c.status === 'active')?.setup?.office?.id;
   const business =
     place.kind === 'business' ? businessesOf(view).find((b) => b.id === place.ref) : undefined;
   const capitalKind =
@@ -795,6 +797,7 @@ function RoomScene({
       : undefined;
   const room = roomOf(place, {
     abroad,
+    lease,
     businessKind: business?.kind,
     businessShape: business?.look.shape,
     capital: capitalKind,

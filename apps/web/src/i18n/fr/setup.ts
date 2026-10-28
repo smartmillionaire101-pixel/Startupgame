@@ -51,7 +51,7 @@ export const setup: Record<string, string> = {
   // Step 3: fund.
   '3a · Your own money': '3a · Votre propre argent',
   'of {savings} savings · {pct}%': 'sur {savings} d’épargne · {pct} %',
-  '½ of savings': '½ de l’épargne',
+  '{pct}% of savings': '{pct} % de l’épargne',
   'How you put it in': 'Comment vous l’apportez',
   'As shares (equity)': 'En actions (capital)',
   'As a loan to the company': 'En prêt à l’entreprise',
@@ -233,6 +233,8 @@ export const setup: Record<string, string> = {
   'No costs yet': 'Pas encore de coûts',
   'Next: interviews, first sales, hiring. See Your stage.':
     'Ensuite : entretiens, premières ventes, embauches. Voir Votre étape.',
+  'Go to office': 'Aller au bureau',
+  'Go home to work': 'Travailler à la maison',
 
   // The banker's desk.
   'Startup loan applications': 'Demandes de prêt de création',

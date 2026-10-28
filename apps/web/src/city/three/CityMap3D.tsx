@@ -1084,9 +1084,8 @@ export default function CityMap3D(
                   </b>
                 )}
                 {freshSet.has(l.id) && (
-                  <b className="c3-new" data-new={l.id} aria-hidden="true">
-                    {t('New')}
-                  </b>
+                  // Round 7: a small dot, not a "New" label on every pin.
+                  <i className="c3-new" data-new={l.id} aria-hidden="true" />
                 )}
                 {flagSet.has(l.id) && <i className="c3-flag" aria-hidden="true" />}
               </button>

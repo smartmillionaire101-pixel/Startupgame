@@ -108,6 +108,8 @@ import {
 } from './dividers';
 import { CatalogueSheet } from '../shop/CatalogueSheet';
 import { onlineCatalog } from '../shop/catalog';
+import { onToPlace, takeToPlace, type ToPlace } from '../shop/vans';
+import { DeliveryBanner } from './DeliveryBanner';
 
 /** Wave 9 §C: the 3D home, loaded on demand (three.js is its own chunk). */
 // A chunk that fails to load (offline) leaves the 2D home in place.
@@ -947,6 +949,8 @@ export function HomeScene({
     null,
   );
   const [shopWalls, setShopWalls] = useState(false);
+  // Round 7: the online catalogue, its own button on the rail and in Buy mode (on a phone too).
+  const [shopAll, setShopAll] = useState(false);
   const wallGhost = useMemo(
     () =>
       wallPlacing
@@ -1015,6 +1019,46 @@ export function HomeScene({
     }
     return false;
   };
+  // ---- Round 7: unpacked things go straight to placing (a painting is never hung for you).
+  const [toPlaceQ, setToPlaceQ] = useState<ToPlace[]>(() =>
+    hotelTier || hostView ? [] : takeToPlace(),
+  );
+  useEffect(() => {
+    if (hotelTier || hostView) return;
+    return onToPlace(() => setToPlaceQ((q) => [...q, ...takeToPlace()]));
+  }, [hotelTier, hostView]);
+  const toPlaceSince = useRef(0);
+  useEffect(() => {
+    if (!toPlaceQ.length || placing || wallPlacing || sheet || placeQueue.length) return;
+    const [next, ...rest] = toPlaceQ;
+    if (!toPlaceSince.current) toPlaceSince.current = Date.now();
+    // In the home yet (the view after the unpack)? Give it a few seconds, then let it go.
+    const wall = next!.kind === 'wall' ? extras.walls.find((w) => w.id === next!.id) : undefined;
+    const ready =
+      next!.kind === 'slot'
+        ? owned.has(next!.slot)
+        : next!.kind === 'extra'
+          ? extraTiers.has(extraKey(next!.slot, next!.id))
+          : !!wall;
+    if (!ready && Date.now() - toPlaceSince.current < 6000) {
+      const retry = window.setTimeout(() => setToPlaceQ((q) => [...q]), 500);
+      return () => clearTimeout(retry);
+    }
+    const go = window.setTimeout(() => {
+      toPlaceSince.current = 0;
+      setToPlaceQ(rest);
+      if (!ready) return;
+      if (next!.kind === 'wall') return startWall(wall!);
+      const key = next!.kind === 'extra' ? extraKey(next!.slot, next!.id) : next!.slot;
+      // Placed already (chosen while it was on its way): it stays where you put it.
+      if (next!.kind === 'slot' && placements[key]) return;
+      startPlacing(key, slotLabel(next!.slot));
+    }, 0);
+    return () => clearTimeout(go);
+    // startPlacing and startWall read this render's plan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toPlaceQ, placing, wallPlacing, sheet, placeQueue, owned, extraTiers, extras.walls]);
+
   const floatId = useRef(0);
   const actTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(actTimer.current), []);
@@ -2246,6 +2290,7 @@ export function HomeScene({
             }
             lift={placing.p.lift ?? 0}
             at={`${placing.p.x},${placing.p.y},${placing.p.rot}`}
+            tiles={onWall ? null : { w: ghost.spot.w, d: ghost.spot.h }}
             onDone={finishPlacing}
             onReset={resetPlacing}
             onCancel={cancelPlacing}
@@ -2307,13 +2352,8 @@ export function HomeScene({
           />
         )}
       </div>
-      {!hotelTier && view.living.deliveries.some((d) => d.owner === placeOwner && !d.complete) && (
-        <div className="home-delivery-banner">
-          <button onClick={() => openLiving(placeOwner)}>
-            {t('🚚 Delivery on its way / at your door · Open')}
-          </button>
-        </div>
-      )}
+      {/* Round 7: the van per order, "Unpack all" (then straight to placing). */}
+      {!hotelTier && <DeliveryBanner owner={placeOwner} />}
       {/* The room's buttons: a rail of icons on the right, the rest behind ⋯
           (out of the way while you place something). */}
       {!placing && !wallPlacing && !naming && (
@@ -2449,12 +2489,24 @@ export function HomeScene({
             </>
           ) : (
             !hostView && (
-              <HudButton
-                icon="cart"
-                label={t('Buy')}
-                aria-haspopup="dialog"
-                onClick={() => setSheet('buy')}
-              />
+              <>
+                <HudButton
+                  icon="cart"
+                  label={t('Buy')}
+                  aria-haspopup="dialog"
+                  onClick={() => setSheet('buy')}
+                />
+                {view.me.shop && (
+                  <HudButton
+                    label={t('Shop')}
+                    data-action="shop-online"
+                    aria-haspopup="dialog"
+                    onClick={() => setShopAll(true)}
+                  >
+                    <span aria-hidden="true">🛍️</span>
+                  </HudButton>
+                )}
+              </>
             )
           )}
           {is3d && !hotelTier && (
@@ -2561,9 +2613,31 @@ export function HomeScene({
             setSheet(null);
             setShopWalls(true);
           }}
+          onShop={
+            view.me.shop
+              ? () => {
+                  setSheet(null);
+                  setShopAll(true);
+                }
+              : undefined
+          }
           onNameRooms={() => {
             setSheet(null);
             setNaming('pick');
+          }}
+        />
+      )}
+      {shopAll && view.me.shop && (
+        <CatalogueSheet
+          mode="online"
+          title={t('Shop online')}
+          entries={onlineCatalog(view)}
+          currency={view.me.shop.currency}
+          onClose={() => setShopAll(false)}
+          dock
+          onBack={() => {
+            setShopAll(false);
+            setSheet('buy');
           }}
         />
       )}
@@ -2575,6 +2649,11 @@ export function HomeScene({
           currency={view.me.shop.currency}
           category="walls"
           onClose={() => setShopWalls(false)}
+          dock
+          onBack={() => {
+            setShopWalls(false);
+            setSheet('buy');
+          }}
         />
       )}
 

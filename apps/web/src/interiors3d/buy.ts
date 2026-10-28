@@ -94,22 +94,40 @@ export function toggleBasket(
   item: BuyItem,
   items: readonly BuyItem[],
   owned: ReadonlyMap<string, number>,
+  /** Round 7: more of a thing you have can go in too (a second speaker). */
+  more?: (item: BuyItem) => boolean,
 ): string[] {
   if (basket.includes(item.id)) return basket.filter((id) => id !== item.id);
-  if (owned.get(item.slot) === item.tier) return [...basket];
+  if (owned.get(item.slot) === item.tier && !more?.(item)) return [...basket];
   const sameSlot = new Set(items.filter((f) => f.slot === item.slot).map((f) => f.id));
   return [...basket.filter((id) => !sameSlot.has(id)), item.id];
 }
 
-/** The basket's things (in the order you ticked them) and their total. */
+/**
+ * The basket's things (in the order you ticked them), how many of each
+ * (round 7: − 1 +; one when not set) and their total.
+ */
 export function basketTotal(
   basket: readonly string[],
   items: readonly BuyItem[],
-): { items: BuyItem[]; total: number } {
+  qty: Readonly<Record<string, number>> = {},
+): { items: BuyItem[]; total: number; count: number } {
   const byId = new Map(items.map((f) => [f.id, f]));
   const picked = basket.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
-  return { items: picked, total: picked.reduce((a, f) => a + f.price, 0) };
+  const n = (f: BuyItem) => Math.max(1, qty[f.id] ?? 1);
+  return {
+    items: picked,
+    total: picked.reduce((a, f) => a + f.price * n(f), 0),
+    count: picked.reduce((a, f) => a + n(f), 0),
+  };
 }
+
+/**
+ * The most of a thing one basket line can take (round 7): one in its slot
+ * (none when it's the one you have) and as many more as its kind allows.
+ * `more`: how many more of that kind the home can still take (0: one only).
+ */
+export const maxInBasket = (mine: boolean, more: number) => Math.max(1, (mine ? 0 : 1) + more);
 
 /** The boosts to show on a card, biggest first ('+Social +2'), comfort last. */
 export function boostLines(b: Partial<Record<BoostKey, number>> | undefined): [BoostKey, number][] {

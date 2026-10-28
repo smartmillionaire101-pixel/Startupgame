@@ -6,4 +6,12 @@ export const city3d: Record<string, string> = {
   '3D': '3D',
   Lite: 'Lite',
   'Building the city…': 'Construction de la ville…',
+  // Round 7: the city's loading screen.
+  'Getting {city} ready': 'Préparation de {city}',
+  'Loading the city': 'Chargement de la ville',
+  'Your game': 'Votre partie',
+  'The map of {city}': 'La carte de {city}',
+  'Streets and buildings': 'Rues et bâtiments',
+  'Drawing the city': 'Dessin de la ville',
+  'Not visited yet': 'Pas encore visités',
 };

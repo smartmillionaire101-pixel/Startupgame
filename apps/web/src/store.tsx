@@ -48,6 +48,18 @@ interface GameContext {
 
 const Ctx = createContext<GameContext | null>(null);
 
+const arrivals = new Set<(v: PlayerView) => void>();
+/**
+ * Round 7 (city load time): told the moment a state arrives, before the app
+ * renders it, so the city's map starts downloading while the first render runs.
+ */
+export function onViewArrived(cb: (v: PlayerView) => void): () => void {
+  arrivals.add(cb);
+  return () => {
+    arrivals.delete(cb);
+  };
+}
+
 /** Takes ?signin=<token> out of the address bar (so it isn't reused or shared) and returns it. */
 function readSignInToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -110,6 +122,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       versionRef.current = s.view.worldVersion;
       // Phase 6a: everyone's saved look, for every drawing of them.
       rememberViewLooks(s.view);
+      for (const cb of arrivals) cb(s.view);
       setView(s.view);
       setStatus('ready');
     } else {

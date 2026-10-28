@@ -295,6 +295,30 @@ export function stockAnalysis(
 
 export type StockAnalysis = ReturnType<typeof stockAnalysis>;
 
+/**
+ * Round 7 (city load time): one listed company's analysis, fetched when its
+ * page opens (`GET /api/stocks/:id`) instead of riding in every state for
+ * every listing, twice. Null for a player or company that isn't there.
+ */
+export function stockAnalysisFor(
+  world: World,
+  playerId: string,
+  companyId: string,
+): StockAnalysis | null {
+  const p = world.players[playerId];
+  const c = world.companies[companyId];
+  if (!p || !c || !isListed(c)) return null;
+  return stockAnalysis(world, p, c);
+}
+
+/** News about a listed company this month or last (the list's "news" mark). */
+export const recentNews = (world: World, c: Company): boolean => {
+  const m = getMarket(world, c.market);
+  return m.news.some(
+    (n) => n.subject.kind === 'company' && n.subject.id === c.id && n.month >= m.month - 1,
+  );
+};
+
 /** Every city with a stock market, the player's own city first. */
 export function stockExchangesView(world: World, p: Player) {
   const home = getMarket(world, homeMarketOf(p));

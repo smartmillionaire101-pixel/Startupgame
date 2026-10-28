@@ -21,6 +21,8 @@ import { t, tx } from '../i18n';
 import { useView, type Company, type Deal } from '../store';
 import { Button, Card, Field, Pill, Segmented } from '../ui';
 import { districtName, monthlyPayment } from '../city/wave10';
+import { officePlaceId } from '../city/contract';
+import { visitPlace } from '../city/goto';
 import './founderguide.css';
 import './setup.css';
 
@@ -447,6 +449,7 @@ function OwnMoney({
   const keep = max - amount;
   const living = keep > 0 && s.livingCost > 0 ? Math.round((keep / s.livingCost) * 10) / 10 : 0;
   const inCompany = s.own.equity + s.own.loan;
+  const pct = max > 0 ? Math.round((amount / max) * 100) : 0;
   return (
     <Card title={t('3a · Your own money')} action={<Pill tone="good">{t('Founder capital')}</Pill>}>
       <div className="stack" data-setup-own="">
@@ -457,7 +460,7 @@ function OwnMoney({
           <span className="small muted">
             {t('of {savings} savings · {pct}%', {
               savings: money(max, cur),
-              pct: max > 0 ? Math.round((amount / max) * 100) : 0,
+              pct,
             })}
           </span>
         </div>
@@ -472,7 +475,14 @@ function OwnMoney({
         />
         <div className="fsu-scale small muted">
           <span>{money(0, cur)}</span>
-          <span className="warn">{t('½ of savings')}</span>
+          {/* Follows the thumb: the share the slider puts in, not a fixed "½" mark. */}
+          <span
+            className={`fsu-scale-now ${pct > 50 ? 'warn' : 'good'}`}
+            data-own-pct={pct}
+            style={{ left: `${Math.min(80, Math.max(20, pct))}%` }}
+          >
+            {t('{pct}% of savings', { pct })}
+          </span>
           <span>{money(max, cur)}</span>
         </div>
         <Segmented
@@ -1404,6 +1414,26 @@ function OfficeStep({ c, s }: { c: Company; s: Setup }) {
 
 // ---------------------------------------------------------------- done
 
+/**
+ * "Go to office": walks you to the office the company leased (in its
+ * district on the map), or home when you work from home. Round 7: a leased
+ * co-working desk had no way in from anywhere.
+ */
+export function GoToOffice({ c, block }: { c: Company; block?: boolean }) {
+  const where = officePlaceId(c);
+  return (
+    <Button
+      variant="subtle"
+      size="sm"
+      block={block}
+      data-go-office={where}
+      onClick={() => visitPlace(where)}
+    >
+      {where === 'home' ? t('Go home to work') : t('Go to office')}
+    </Button>
+  );
+}
+
 function SetupDone({ c, s }: { c: Company; s: Setup }) {
   const { view } = useView();
   const cur = c.currency;
@@ -1503,6 +1533,7 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
           </b>
         </p>
         <p className="small muted">{t('Next: interviews, first sales, hiring. See Your stage.')}</p>
+        <GoToOffice c={c} block />
       </div>
     </Card>
   );

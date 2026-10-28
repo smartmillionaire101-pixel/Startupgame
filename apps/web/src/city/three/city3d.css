@@ -319,3 +319,21 @@ button.c3-pill {
   color: var(--muted, #78716c);
   pointer-events: none;
 }
+
+/* Round 7: what's new to you is a small dot on its pin (no label). */
+.c3-label .c3-new,
+.c3-label.is-badge .c3-new {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  bottom: auto;
+  left: auto;
+  translate: none;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 50%;
+  background: #16a34a;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+}

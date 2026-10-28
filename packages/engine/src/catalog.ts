@@ -49,13 +49,14 @@ import { businessesOf, isOpen } from './economy.js';
 import { ensure } from './errors.js';
 import { col, getMarket, locationOf } from './helpers.js';
 import { newId } from './ids.js';
+import { gameplayOn } from './releases.js';
 import { account, transfer } from './ledger.js';
 import { applyBars, barsApply } from './lifebars.js';
 import { barsOfItem, consume, keepThing, mallPrice, mallSells, mallTill } from './leisure.js';
 import type { Delivery } from './living.js';
 import { formatMoney, scale } from './money.js';
 import { atHome, buyFurniture, showroom, storeAccount } from './shop.js';
-import type { HomeWall, Id, MarketState, Player, PlayerCar, World } from './types.js';
+import type { HomeExtra, HomeWall, Id, MarketState, Player, PlayerCar, World } from './types.js';
 import { addToWardrobe, ownedToWear } from './wardrobe.js';
 
 /** What an online order carries until it's unpacked. */
@@ -70,7 +71,29 @@ export interface OnlineOrder {
   mall?: { item: string; colour?: string };
   car?: PlayerCar;
   wall?: HomeWall;
+  /** Round 7: another of a thing you have (data/home-style.ts EXTRA_SLOTS), in the van. */
+  extra?: HomeExtra;
 }
+
+/**
+ * Round 7 (GAMEPLAY_NOTE, `shop.order`): one order is one van. Everything
+ * ordered together rides in it (`Delivery.van`, the first delivery's id),
+ * arrives with its slowest thing and is unpacked at once. The van's
+ * delivery fee is its dearest thing's (each later thing pays only what its
+ * own fee is over what the van has paid). Missing on single orders.
+ */
+export interface Van {
+  id: Id | null;
+  /** The delivery fee the van has taken so far. */
+  fee: number;
+  /** Its deliveries, in order. */
+  ids: Id[];
+}
+
+export const newVan = (): Van => ({ id: null, fee: 0, ids: [] });
+
+/** The van a delivery rides in (its own id when it came alone). */
+export const vanOf = (d: Pick<Delivery, 'id' | 'van'>): Id => d.van ?? d.id;
 
 /** Most deliveries waiting for you at once (as living.ts). */
 const DELIVERIES_MAX = 8;
@@ -104,16 +127,18 @@ function fundsFor(w: World, p: Player, m: MarketState, total: number, what: stri
   );
 }
 
-function roomForOne(w: World, p: Player) {
+function roomForOne(w: World, p: Player, van?: Van) {
+  // A thing joining a van already on its way takes no extra room.
+  if (van?.id) return;
   ensure(
-    pendingOf(w, p).length < DELIVERIES_MAX,
+    new Set(pendingOf(w, p).map(vanOf)).size < DELIVERIES_MAX,
     'delivery.limit',
     'Unpack your waiting deliveries before ordering more.',
   );
 }
 
 /** Pay the courier and put the order on its way (it arrives home). */
-function dispatchOrder(
+export function dispatchOrder(
   w: World,
   p: Player,
   m: MarketState,
@@ -122,19 +147,31 @@ function dispatchOrder(
   kind: Delivery['kind'],
   order: OnlineOrder,
   item?: Delivery['item'],
+  van?: Van,
 ) {
   const courier = courierOf(m);
-  transfer(
-    w,
-    p.accounts.local,
-    courier?.account ?? m.ext.suppliers,
-    order.fee,
-    `Delivery: ${label}${courier ? ` (${courier.name})` : ''}`,
-    m.month,
-  );
+  // In a van: only what this thing's fee is over what the van has paid.
+  if (van) {
+    const extra = Math.max(0, order.fee - van.fee);
+    van.fee += extra;
+    order.fee = extra;
+  }
+  if (order.fee > 0 || !van)
+    transfer(
+      w,
+      p.accounts.local,
+      courier?.account ?? m.ext.suppliers,
+      order.fee,
+      `Delivery: ${label}${courier ? ` (${courier.name})` : ''}`,
+      m.month,
+    );
   const list = (w.deliveries ??= {});
   const id = newId(w, 'delivery');
   const arrivesAt = now + deliveryMs(order.category, order.speed);
+  if (van) {
+    van.id ??= id;
+    van.ids.push(id);
+  }
   list[id] = {
     id,
     owner: p.id,
@@ -147,8 +184,17 @@ function dispatchOrder(
     complete: false,
     ...(item ? { item } : {}),
     order,
+    ...(van ? { van: van.id! } : {}),
   };
   return { id, arrivesAt };
+}
+
+/** A van leaves when all of it is in: every delivery in it arrives with the slowest. */
+export function sealVan(w: World, van: Van) {
+  const ds = van.ids.map((id) => w.deliveries![id]!);
+  const at = Math.max(...ds.map((d) => d.arrivesAt));
+  for (const d of ds) d.arrivesAt = at;
+  return at;
 }
 
 const seconds = (ms: number) => Math.round(ms / 1000);
@@ -168,10 +214,11 @@ export function orderFurnitureOnline(
   speed: DeliverySpeed,
   now: number,
   options?: ChosenOptions,
+  van?: Van,
 ) {
   const f = furnitureItem(itemId);
   ensure(f, 'home.item', 'That isn’t in the catalogue.');
-  roomForOne(w, p);
+  roomForOne(w, p, van);
   ensure(
     !pendingOf(w, p).some((d) => d.item?.slot === f.slot),
     'delivery.slot',
@@ -198,7 +245,7 @@ export function orderFurnitureOnline(
     'shop.funds',
     `The delivery costs ${formatMoney(order.fee, m.data.currency)}; you don’t have it.`,
   );
-  const sent = dispatchOrder(w, p, m, now, itemId, 'furniture', order, { ...item });
+  const sent = dispatchOrder(w, p, m, now, itemId, 'furniture', order, { ...item }, van);
   return { ...r, ...sent, fee: order.fee, online: true, message: arrives(order, m) };
 }
 
@@ -211,6 +258,7 @@ export function orderMallOnline(
   now: number,
   colour?: string,
   options?: ChosenOptions,
+  van?: Van,
 ) {
   const x = mallItem(itemId);
   ensure(x && mallSells(w, x, p.market), 'mall.item', 'The mall doesn’t sell that.');
@@ -219,8 +267,8 @@ export function orderMallOnline(
     'shop.inperson',
     `${x.label}: that’s something you do there. Go in person.`,
   );
-  if (x.furnitureId) return orderFurnitureOnline(w, p, x.furnitureId, speed, now, options);
-  roomForOne(w, p);
+  if (x.furnitureId) return orderFurnitureOnline(w, p, x.furnitureId, speed, now, options, van);
+  roomForOne(w, p, van);
   const m = getMarket(w, p.market);
   if (x.topStyle)
     ensure(colour && /^#[0-9a-fA-F]{6}$/.test(colour), 'mall.colour', 'Pick a colour.');
@@ -261,7 +309,7 @@ export function orderMallOnline(
     options: chosen,
     mall: { item: x.id, ...(c ? { colour: c } : {}) },
   };
-  const sent = dispatchOrder(w, p, m, now, x.id, 'parcel', order);
+  const sent = dispatchOrder(w, p, m, now, x.id, 'parcel', order, undefined, van);
   return {
     item: x.id,
     shop: x.shop,
@@ -358,7 +406,7 @@ export function buyWall(
   kind: WallKind,
   len: number,
   now: number,
-  o: { options?: ChosenOptions; businessId?: Id; speed?: DeliverySpeed },
+  o: { options?: ChosenOptions; businessId?: Id; speed?: DeliverySpeed; van?: Van },
 ) {
   const m = getMarket(w, p.market);
   const spec = WALLS[kind];
@@ -372,7 +420,7 @@ export function buyWall(
   const label = `${spec.label} (${len} m)`;
   const wall: HomeWall = { id: newId(w, 'wall'), kind, len, finish: chosen.finish!, paid: price };
   if (o.speed) {
-    roomForOne(w, p);
+    roomForOne(w, p, o.van);
     const fee = feeFor(m, 'walls', price, o.speed);
     fundsFor(w, p, m, price + fee, label);
     const store = storeAccount(m, WALL_SHOP_KINDS);
@@ -392,7 +440,7 @@ export function buyWall(
       options: chosen,
       wall,
     };
-    const sent = dispatchOrder(w, p, m, now, label, 'wall', order);
+    const sent = dispatchOrder(w, p, m, now, label, 'wall', order, undefined, o.van);
     return { wall, price, ...sent, fee, online: true, message: arrives(order, m) };
   }
   ensure(o.businessId, 'wall.shop', 'Buy it at a furniture store, or online.');
@@ -484,6 +532,10 @@ export function labelRoom(p: Player, floor: number, x: number, y: number, label?
 export function unpackOrder(w: World, owner: Player, d: Delivery) {
   const o = d.order!;
   const m = getMarket(w, owner.market);
+  if (o.extra) {
+    (owner.homeExtras ??= []).push({ ...o.extra });
+    return { extra: o.extra.id, message: 'Unpacked: put it where you like.' };
+  }
   if (o.wall) {
     (owner.walls ??= []).push({ ...o.wall });
     return { wall: o.wall.id, message: 'Unpacked: place it from Buy mode at home.' };
@@ -549,6 +601,8 @@ export function shopCatalogView(w: World, p: Player, market: MarketId = p.market
     currency: m.data.currency,
     /** Online orders go to your home: here when you're home. */
     atHome: locationOf(p) === p.market,
+    /** Round 7: a basket is one order in one van (`shop.order`, `living.collect` all). */
+    basket: gameplayOn(w),
     prices,
     cars,
     delivery: Object.fromEntries(

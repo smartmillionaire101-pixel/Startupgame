@@ -5,6 +5,7 @@ import { CATALOG_ENTRIES, FLOOR_FINISHES, FURNITURE } from '@runway/engine';
 import {
   basketTotal,
   boostLines,
+  maxInBasket,
   buyCards,
   footprint,
   isNew,
@@ -108,10 +109,30 @@ describe('Buy mode: the basket', () => {
     expect(b).toEqual(['sofa-2', 'tv-1']);
     b = toggleBasket(b, items[2]!, items, owned); // sofa-3 swaps sofa-2
     expect(b).toEqual(['tv-1', 'sofa-3']);
-    expect(basketTotal(b, items)).toEqual({ items: [items[3], items[2]], total: 200 + 300 });
+    expect(basketTotal(b, items)).toEqual({
+      items: [items[3], items[2]],
+      total: 200 + 300,
+      count: 2,
+    });
     b = toggleBasket(b, items[3]!, items, owned);
     expect(basketTotal(b, items).total).toBe(300);
-    expect(basketTotal([], items)).toEqual({ items: [], total: 0 });
+    expect(basketTotal([], items)).toEqual({ items: [], total: 0, count: 0 });
+  });
+
+  it('round 7: how many of each (− 1 +), and more of a thing you have', () => {
+    // Three of the TV, one sofa: the total and the count follow.
+    const bag = basketTotal(['tv-1', 'sofa-3'], items, { 'tv-1': 3 });
+    expect(bag.total).toBe(3 * 200 + 300);
+    expect(bag.count).toBe(4);
+    // A line can't go under one.
+    expect(basketTotal(['tv-1'], items, { 'tv-1': 0 }).count).toBe(1);
+    // Yours can go in as more of it when the home can take more.
+    expect(toggleBasket([], items[0]!, items, owned)).toEqual([]);
+    expect(toggleBasket([], items[0]!, items, owned, () => true)).toEqual(['sofa-1']);
+    // One in the slot plus the room for more; yours: only the more.
+    expect(maxInBasket(false, 5)).toBe(6);
+    expect(maxInBasket(true, 2)).toBe(2);
+    expect(maxInBasket(false, 0)).toBe(1);
   });
 });
 

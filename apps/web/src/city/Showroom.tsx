@@ -5,6 +5,7 @@
  * `home.order` / `car.buy` with this `businessId`, so the money lands in this
  * business's till.
  */
+import { anotherOk } from './mall/shops';
 import { useState } from 'react';
 import { money } from '../format';
 import { t, tx } from '../i18n';
@@ -210,7 +211,20 @@ export function Showroom({ business: b }: { business: BusinessView }) {
                       )}
                     </span>
                     <b className="shop-price">{money(f.price, cur)}</b>
-                    {mine ? (
+                    {mine &&
+                    anotherOk(view.me.homeStyle, { owned: true, furniture: f.id, slot: f.slot }) ? (
+                      // Round 7: more of a thing you have (a second speaker), bought here.
+                      <BuyButton
+                        label={t('+ Another')}
+                        disabled={busy || pocket < f.price}
+                        onBuy={() =>
+                          void send(
+                            looseCmd({ type: 'home.extra.buy', itemId: f.id }),
+                            t('Another {item}: put it where you like.', { item: tx(f.label) }),
+                          )
+                        }
+                      />
+                    ) : mine ? (
                       <Pill tone="good">{t('Yours ✓')}</Pill>
                     ) : pending ? (
                       <Pill>Delivery on the way</Pill>

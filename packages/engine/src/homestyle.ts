@@ -33,6 +33,7 @@ import {
   EXTRAS_MAX,
   EXTRAS_PER_SLOT,
   EXTRA_SLOTS,
+  ONE_PER_HOME,
   BOOST_ACT_PER_POINT,
   BOOST_KEYS,
   BOOST_SETTLE,
@@ -51,7 +52,7 @@ import { bumpEnergy, bumpStress } from './lifebars.js';
 import { formatMoney, scale } from './money.js';
 import { newId } from './ids.js';
 import { HOME_ACTS, NEED_KEYS, bumpNeed, type HomeActId, type NeedKey } from './needs.js';
-import { lifeBarsOn } from './releases.js';
+import { gameplayOn, lifeBarsOn } from './releases.js';
 import { atHome, storeAccount } from './shop.js';
 import type { Player, World } from './types.js';
 
@@ -186,12 +187,17 @@ export function homeFinish(
 
 // ---------------------------------------------------------------- More than one
 
+/** The kinds of thing a home can have more of: decor, or (round 7) any furniture but built-ins. */
+export function extraSlotsOf(world: World): readonly string[] {
+  return gameplayOn(world) ? FURNITURE_SLOTS.filter((s) => !ONE_PER_HOME.includes(s)) : EXTRA_SLOTS;
+}
+
 /** `home.extra.buy`: another of a thing you have (its slot's one first), placed on its own. */
 export function buyExtra(world: World, me: Player, itemId: string) {
   atHome(me);
   const f = furnitureItem(itemId);
   ensure(f, 'home.item', 'That isn’t in the catalogue.');
-  ensure(EXTRA_SLOTS.includes(f.slot), 'home.extra', 'A home has just the one of those.');
+  ensure(extraSlotsOf(world).includes(f.slot), 'home.extra', 'A home has just the one of those.');
   ensure(
     (me.home?.items ?? []).some((x) => x.slot === f.slot),
     'home.extra',
@@ -273,7 +279,7 @@ export function homeStyleView(world: World, p: Player) {
       itemId: x.itemId,
       tier: furnitureItem(x.itemId)?.tier ?? 1,
     })),
-    extraSlots: [...EXTRA_SLOTS] as string[],
+    extraSlots: [...extraSlotsOf(world)] as string[],
     extrasPerSlot: EXTRAS_PER_SLOT,
     /** Your rooms' floors ('0:living' → 'marble') and your walls' paint. */
     chosen: {

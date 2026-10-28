@@ -69,6 +69,7 @@ import type { VehicleSpec } from './flavour';
 import { playersByPlace, type PresenceView, type Walker } from './people';
 import { beginRide } from './ride/state';
 import { loadGeo, OSM_CREDIT } from './geo';
+import { CityDrawing } from './CityLoading';
 import { GeoPainter } from './geoPaint';
 import { GeoSprite } from './geoSprites';
 import {
@@ -747,10 +748,8 @@ const Overlays = memo(function Overlays({
             data-new={p.id}
             transform={`translate(${corner.x + 10} ${corner.y - p.h + 4})`}
           >
-            <rect x={-14} y={-6} width={28} height={12} rx={3} />
-            <text y={3} textAnchor="middle">
-              {t('New')}
-            </text>
+            {/* Round 7: a small dot, not a "New" label on every pin. */}
+            <circle r={4.5} />
           </g>
         )}
         {n > 0 && (
@@ -1226,8 +1225,8 @@ export function CityMap(props: CityMapProps) {
     <>
       <Suspense
         fallback={
-          <div className="city-map city-loading" data-map3d="loading" role="status">
-            <p>{t('Building the city…')}</p>
+          <div className="city-map city-loading" data-map3d="loading">
+            <CityDrawing />
           </div>
         }
       >

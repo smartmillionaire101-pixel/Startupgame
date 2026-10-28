@@ -32,6 +32,7 @@ import { HudButton, HudRail } from '../../ui';
 import type { Mall3DApi, Mall3DHit } from '../../interiors3d/Mall3D';
 import type { AvatarLook } from '../art';
 import { looseCmd } from '../life';
+import { useView } from '../../store';
 import type { MallItemView, MallTripView, MallView } from '../leisure';
 import {
   backOut,
@@ -60,6 +61,7 @@ import {
   isWearable,
   itemIcon,
   itemNote,
+  anotherOk,
   ownsIt,
   shopBlurb,
   wearing,
@@ -128,6 +130,9 @@ export function MallWalk(p: MallWalkProps) {
   const [colour, setColour] = useState<string>(TOP_COLOURS[5]);
   const [aisle, setAisle] = useState<SuitAisle>('all');
   const [basket, setBasket] = useState<Line[]>([]);
+  // Round 7: "+ Another" of a thing you have (a second speaker, more plants), bought here.
+  const style = useView().view?.me.homeStyle;
+  const moreOf = (it: MallItemView) => anotherOk(style, it);
   const [sheet, setSheet] = useState<'basket' | 'directory' | 'shelf' | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [paid, setPaid] = useState<{ total: number; key: number } | null>(null);
@@ -796,6 +801,22 @@ export function MallWalk(p: MallWalkProps) {
                   )
                 )}
               </div>
+              {moreOf(cardItem) && (
+                <button
+                  type="button"
+                  className="btn btn-subtle mall-wide"
+                  data-action="buy-another"
+                  disabled={p.busy || paying || p.pocket < cardItem.price}
+                  onClick={() =>
+                    void p.send(
+                      looseCmd({ type: 'home.extra.buy', itemId: cardItem.furniture }) as never,
+                      t('Another {item}: put it where you like.', { item: label(cardItem) }),
+                    )
+                  }
+                >
+                  {t('+ Another · {price}', { price: fmt(cardItem.price) })}
+                </button>
+              )}
               {p.trip && cardItem.gift && (
                 <button
                   type="button"

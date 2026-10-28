@@ -30,13 +30,7 @@ import { newId } from './ids.js';
 import { account, costIn, pay, payExact, transfer, withTx } from './ledger.js';
 import { formatMoney } from './money.js';
 import { investorOn } from './releases.js';
-import {
-  buyLimitShares,
-  cityMultiplesOnce,
-  homeFirst,
-  homeMarketOf,
-  stockAnalysis,
-} from './stocks.js';
+import { buyLimitShares, homeFirst, homeMarketOf, recentNews } from './stocks.js';
 import type {
   Company,
   ExchangeState,
@@ -586,7 +580,6 @@ export function exchangeView(world: World, p: Player, now?: number) {
       f.lp?.strategy === 'public' &&
       (f.lp.stage === 'investing' || f.lp.stage === 'harvest' || f.lp.stage === 'extended'),
   );
-  const multiples = cityMultiplesOnce(world);
   const markets = Object.values(world.markets)
     .filter((m): m is MarketState => !!m && !!m.exchange)
     .map((m) => {
@@ -654,7 +647,7 @@ export function exchangeView(world: World, p: Player, now?: number) {
               name: f.name,
               shares: c.capTable.holdings[f.id]?.shares ?? 0,
             })),
-            analysis: stockAnalysis(world, p, c, multiples),
+            recentNews: recentNews(world, c),
           };
         }),
         holdings: holdingsSummary(world, p, m),

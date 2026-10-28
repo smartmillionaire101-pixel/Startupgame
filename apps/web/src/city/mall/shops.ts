@@ -423,3 +423,21 @@ export const itemIcon = (
   ICON[it.id] ??
   ICON[it.topStyle ?? it.headwear ?? it.glasses ?? ''] ??
   (it.phone ? '📱' : SHOP_ICON[it.shop]);
+
+/**
+ * Round 7: a thing for your home you have that a home can have more of (a
+ * second speaker, more plants: `home.extra.buy`), with room for another.
+ */
+export function anotherOk(
+  style:
+    { extraSlots: string[]; extrasPerSlot: number; extras: { slot: string }[] } | null | undefined,
+  it: Pick<MallItemView, 'owned' | 'furniture' | 'slot'>,
+): boolean {
+  return (
+    !!it.owned &&
+    !!it.furniture &&
+    !!it.slot &&
+    !!style?.extraSlots.includes(it.slot) &&
+    style.extras.filter((x) => x.slot === it.slot).length < style.extrasPerSlot
+  );
+}
