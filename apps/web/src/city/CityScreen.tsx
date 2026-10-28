@@ -569,15 +569,18 @@ function CityBody(props: CityBodyProps) {
   // Round 7: the first lay-out of a real map takes a moment on a slow phone:
   // the loading screen paints first ("Streets and buildings"), then it runs.
   const fresh = geo !== 'loading' && !!geo && !hasCityLayout(view.market.id, geo);
-  const [laying, setLaying] = useState(fresh);
+  const [painted, setPainted] = useState<GeoData | null>(null);
+  const ready = fresh ? geo : null;
+  const laying = !!ready && painted !== ready;
   useEffect(() => {
-    if (!laying) return;
+    if (!laying || !ready) return;
+    const g: GeoData = ready;
     let id = requestAnimationFrame(() => {
-      id = requestAnimationFrame(() => setLaying(false));
+      id = requestAnimationFrame(() => setPainted(g));
     });
     return () => cancelAnimationFrame(id);
-  }, [laying]);
-  if (geo === 'loading' || (laying && fresh))
+  }, [laying, ready]);
+  if (geo === 'loading' || laying)
     return (
       <div className="city">
         <CityLoading
