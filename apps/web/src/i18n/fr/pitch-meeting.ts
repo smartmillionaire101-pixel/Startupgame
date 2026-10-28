@@ -228,7 +228,7 @@ export const pitchMeeting: Record<string, string> = {
   'Outside what I invest in': 'Hors de ce dans quoi j’investis',
   'The timing isn’t right': 'Le moment n’est pas le bon',
   'Your answer': 'Votre réponse',
-  'They ask {amount} at {pre} pre ({pct}%).': 'Ils demandent {amount} à {pre} pré-money ({pct} %).',
+  'They ask {amount} at {pre} pre ({pct}).': 'Ils demandent {amount} à {pre} pré-money ({pct}).',
   'You’ve answered this pitch.': 'Vous avez répondu à ce pitch.',
   'Term sheet sent at their ask.': 'Term sheet envoyée à leur demande.',
   'Accept their ask': 'Accepter leur demande',
@@ -238,6 +238,16 @@ export const pitchMeeting: Record<string, string> = {
   'Answer within the month: founders remember who never replied.':
     'Répondez dans le mois : les fondateurs se souviennent de qui n’a jamais répondu.',
   'Counter sent.': 'Contre-proposition envoyée.',
+  'Leave the meeting': 'Quitter le rendez-vous',
+  'You left the meeting': 'Vous avez quitté le rendez-vous',
+  'Left the meeting': 'Rendez-vous quitté',
+  'It ends here, with no verdict: you can pitch them again.':
+    'Il s’arrête là, sans verdict : vous pourrez les pitcher à nouveau.',
+  'It ended there, with no verdict: you can pitch them again.':
+    'Il s’est arrêté là, sans verdict : vous pouvez les pitcher à nouveau.',
+  'You left the meeting. You can pitch them again.':
+    'Vous avez quitté le rendez-vous. Vous pouvez les pitcher à nouveau.',
+  'You left the meeting before the ask.': 'Vous avez quitté le rendez-vous avant la demande.',
   // Refusals from the server
   'Open first.': 'Commencez par votre accroche.',
   'Answer the question he asked.': 'Répondez à la question posée.',

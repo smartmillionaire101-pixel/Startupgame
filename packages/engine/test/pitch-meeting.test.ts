@@ -354,6 +354,45 @@ describe('#13 the investor pitch meeting', () => {
     expect(no.world.inbox[F]!.some((x) => x.text.includes('passing for now'))).toBe(true);
   });
 
+  it('leaving a meeting half-way ends it without putting the fund off', () => {
+    const { w, fundId } = withFund(founder('healthtech'));
+    const { w: w1, p } = pitch(w, fundId);
+    const opened = meet(w1, p, 'open', { option: p.meeting!.openers[0] }).world;
+    // While it's open, you can't start another with the same fund.
+    const again = tryRun(opened, F, {
+      type: 'pitch.start',
+      companyId: co(opened).id,
+      fundId,
+      slides: ['problem'],
+      ask: opened.funds[fundId]!.check[0],
+    });
+    expect(again.ok).toBe(false);
+    const left = meet(opened, p, 'leave').world;
+    const after = left.pitches[p.id]!;
+    expect(after.meeting!.left).toBe(true);
+    expect(after.meeting!.result).toBeUndefined();
+    expect(view(left, F, p).left).toBe(true);
+    // No more turns in it.
+    expect(
+      tryRun(left, F, { type: 'pitch.meet', pitchId: p.id, action: 'ask', option: 'inside' }).ok,
+    ).toBe(false);
+    // And the fund sees you again at once (a real pass would cool down for three months).
+    const next = pitch(left, fundId);
+    expect(next.p.status).toBe('meeting');
+    const passed = produce(left, (x) => {
+      delete x.pitches[p.id]!.meeting!.left;
+    });
+    const r = tryRun(passed, F, {
+      type: 'pitch.start',
+      companyId: co(passed).id,
+      fundId,
+      slides: ['problem'],
+      ask: passed.funds[fundId]!.check[0],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('pitch.cooldown');
+  });
+
   it('before the note, a pitch is the questions form and the meeting is unknown', () => {
     const { w, fundId } = withFund(founder('healthtech', false));
     const { w: w1, p } = pitch(w, fundId);

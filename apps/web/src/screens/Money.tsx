@@ -16,7 +16,7 @@ import {
   RunwayExplainer,
 } from './FundCompany';
 import { PitchResult, passWhyCopy } from './FounderGuide';
-import { PitchMeetingSheet } from './PitchMeeting';
+import { MeetingResume, PitchMeetingSheet, isLiveMeeting } from './PitchMeeting';
 
 type Tab = 'fund' | 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire' | 'exit';
 
@@ -135,13 +135,7 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
   const openPitch = pitches.find((p) => p.status === 'questions' || p.status === 'partner-meeting');
   // Round 7: a pitch meeting still going, or a term sheet from one waiting on you.
   const [meetingId, setMeetingId] = useState<string | null>(null);
-  const liveMeeting = pitches.find(
-    (p) =>
-      p.meeting &&
-      (p.meeting.step !== 'result' ||
-        (p.meeting.result?.terms?.awaitingYou && !p.meeting.result.closed) ||
-        p.status === 'partner-meeting'),
-  );
+  const liveMeeting = pitches.find(isLiveMeeting);
   // Feedback note: the latest answered pitch, scored (the newest of the latest month).
   const scored = pitches
     .filter((p) => p.scores?.length && p.status !== 'questions')
@@ -210,26 +204,7 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
           {t('Compare all ways to fund your company')}
         </Button>
       </div>
-      {liveMeeting && (
-        <Card
-          title={t('Your pitch meeting with {name}', {
-            name: liveMeeting.meeting!.investor.name,
-          })}
-          sub={liveMeeting.fundName ?? undefined}
-          tone="good"
-          action={
-            <Button size="sm" onClick={() => setMeetingId(liveMeeting.id)} data-meeting-resume>
-              {liveMeeting.meeting!.step === 'result' ? t('See the term sheet') : t('Continue')}
-            </Button>
-          }
-        >
-          <p className="small muted">
-            {liveMeeting.meeting!.step === 'result'
-              ? t('A term sheet is waiting for your answer.')
-              : t('You left the meeting mid-way: pick up where you were.')}
-          </p>
-        </Card>
-      )}
+      {liveMeeting && <MeetingResume p={liveMeeting} onOpen={() => setMeetingId(liveMeeting.id)} />}
       {openPitch && !openPitch.meeting && <PitchFlow pitchId={openPitch.id} />}
       {scored && <PitchResult p={scored} cur={c.currency} />}
       <Card title={t('Investors in town')}>
@@ -285,7 +260,7 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
                       p.status === 'term-sheet' ? 'good' : p.status === 'passed' ? 'bad' : 'info'
                     }
                   >
-                    {pitchStatusLabel(p.status)}
+                    {p.meeting?.left ? t('Left the meeting') : pitchStatusLabel(p.status)}
                   </Pill>
                 </div>
                 {p.passWhy ? (

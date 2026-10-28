@@ -323,6 +323,7 @@ export function startPitch(
         p.companyId === c.id &&
         p.fundId === fund.id &&
         p.status === 'passed' &&
+        !p.meeting?.left &&
         m.month - p.month < 3,
     );
     if (recentPass)

@@ -14,6 +14,7 @@ import { CompanyKpis } from '../screens/Home';
 import { Portfolio } from '../screens/Investor';
 import { Credit, FoundCompany, PersonalMoney, People, Travel } from '../screens/Me';
 import { LoanCard, PitchFlow, PitchSheet, moodLabel } from '../screens/Money';
+import { MeetingResume, PitchMeetingSheet, isLiveMeeting } from '../screens/PitchMeeting';
 import { Digest } from '../screens/News';
 import { stageLabel } from '../screens/common';
 import { AvatarFigure, Building, avatarLook, shade } from './art';
@@ -401,6 +402,7 @@ function InvestorInterior({ place, layout }: { place: Place; layout: CityLayout 
   const fund = view.market.funds.find((f) => f.id === place.ref);
   const company = activeCompany(view);
   const [pitching, setPitching] = useState(false);
+  const [meetingId, setMeetingId] = useState<string | null>(null);
   if (!fund) return null;
   const fits =
     company &&
@@ -415,6 +417,9 @@ function InvestorInterior({ place, layout }: { place: Place; layout: CityLayout 
     (p) =>
       (p.status === 'questions' || p.status === 'partner-meeting') && p.companyId === company?.id,
   );
+  // Round 7: a meeting with this fund left half-way (or its term sheet): pick it up here.
+  const meeting = pitches.find((p) => p.companyId === company?.id && isLiveMeeting(p));
+  const inMeeting = pitches.some((p) => p.companyId === company?.id && p.status === 'meeting');
   return (
     <>
       <Scene place={place} layout={layout} who={fund.partner} role={t('Partner')} />
@@ -447,9 +452,13 @@ function InvestorInterior({ place, layout }: { place: Place; layout: CityLayout 
           </div>
         </dl>
       </Card>
-      {open && <PitchFlow pitchId={open.id} />}
+      {meeting ? (
+        <MeetingResume p={meeting} onOpen={() => setMeetingId(meeting.id)} />
+      ) : (
+        open && <PitchFlow pitchId={open.id} />
+      )}
       {company ? (
-        <Button disabled={anyOpen} onClick={() => setPitching(true)}>
+        <Button disabled={anyOpen || inMeeting} onClick={() => setPitching(true)}>
           {t('Pitch {name}', { name: fund.name })}
         </Button>
       ) : (
@@ -475,6 +484,7 @@ function InvestorInterior({ place, layout }: { place: Place; layout: CityLayout 
           onClose={() => setPitching(false)}
         />
       )}
+      {meetingId && <PitchMeetingSheet pitchId={meetingId} onClose={() => setMeetingId(null)} />}
     </>
   );
 }

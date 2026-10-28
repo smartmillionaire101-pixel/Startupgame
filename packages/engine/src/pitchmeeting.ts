@@ -503,7 +503,7 @@ export function counterPre(p: Pitch, offer: number): number {
 
 export interface MeetInput {
   pitchId: Id;
-  action: 'open' | 'answer' | 'ask' | 'accept' | 'counter' | 'walk';
+  action: 'open' | 'answer' | 'ask' | 'accept' | 'counter' | 'walk' | 'leave';
   option?: string;
   questionId?: string;
 }
@@ -520,6 +520,13 @@ export function pitchMeet(world: World, me: Player, cmd: MeetInput) {
     return termSheetMove(world, me, p, cmd.action);
   ensure(p.status === 'meeting', 'pitch.state', 'This meeting is over.');
   switch (cmd.action) {
+    case 'leave': {
+      // Over, without a verdict: no diligence, no pass, and the fund will see you again.
+      m.left = true;
+      p.status = 'passed';
+      p.reason = 'You left the meeting before the ask.';
+      return { pitchId: p.id, status: p.status, left: true };
+    }
     case 'open': {
       ensure(!m.opener, 'pitch.meet.order', 'You’ve already opened.');
       const o = m.openers.find((x) => x === cmd.option);
@@ -809,6 +816,8 @@ export function meetingView(world: World, p: Pitch, viewerId: Id) {
           reply: m.reply ?? null,
         }
       : null,
+    /** You left before the ask. */
+    left: !!m.left,
     /** A player investor can answer a pitch sent to them. */
     canReply: viewerId === p.investorPlayerId && p.status === 'sent',
   };

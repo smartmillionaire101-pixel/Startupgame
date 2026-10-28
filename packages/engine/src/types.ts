@@ -2658,6 +2658,8 @@ export interface PitchMeeting {
   };
   /** A player investor's answer. */
   reply?: { action: 'accept' | 'counter' | 'decline'; amount?: number; preMoney?: number };
+  /** You left the meeting before the ask: it's over, and the fund isn't put off. */
+  left?: true;
 }
 
 /** One founder pitch answer, scored 0–100 (feedback note, founderguide.ts). */

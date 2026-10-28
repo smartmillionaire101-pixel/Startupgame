@@ -294,12 +294,12 @@ export const commandSchema = z.discriminatedUnion('type', [
   /**
    * Round 7 (gameplay note): a turn in the pitch meeting (pitchmeeting.ts):
    * open, answer his question, make the ask; then accept the term sheet,
-   * counter once, or walk away.
+   * counter once, or walk away. `leave` ends a meeting before the ask.
    */
   z.object({
     type: z.literal('pitch.meet'),
     pitchId: id,
-    action: z.enum(['open', 'answer', 'ask', 'accept', 'counter', 'walk']),
+    action: z.enum(['open', 'answer', 'ask', 'accept', 'counter', 'walk', 'leave']),
     option: z.string().max(24).optional(),
     questionId: z.string().max(24).optional(),
   }),

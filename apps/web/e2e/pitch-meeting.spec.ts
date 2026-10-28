@@ -9,7 +9,7 @@ import {
   tab,
   test,
 } from './fixtures';
-import { setupPlayer } from './fixtures';
+import { more, setupPlayer, tapPlace } from './fixtures';
 
 /**
  * Round 7 #13: the investor pitch meeting. A founder picks a deck and an ask,
@@ -188,4 +188,74 @@ test('a founder pitches a player investor, who answers it themselves', async ({
   await res.locator('[data-pitch-accept]').click();
   await expect(res.locator('[data-pitch-closed="accepted"]')).toBeVisible();
   await ctx.close();
+});
+
+test('a meeting left half-way is picked up at the fund’s office, or left there', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const tag = letters(5);
+  await playAsGuest(page);
+  await setupFounder(page, {
+    name: 'Ade E2E',
+    handle: `ade_${tag}`,
+    company: `Office Pay ${tag}`,
+    idea: 'Payments for market traders',
+  });
+  await expect(tab(page, 'Today')).toBeVisible();
+  // A meeting begun (through the API) and left after the opener.
+  const opened = await page.evaluate(async () => {
+    const h = { 'x-runway': '1', 'content-type': 'application/json' };
+    const send = async (command: unknown) =>
+      (
+        await (
+          await fetch('/api/commands', {
+            method: 'POST',
+            headers: h,
+            body: JSON.stringify({ command }),
+          })
+        ).json()
+      ).result;
+    const s = await (await fetch('/api/state', { headers: h })).json();
+    const c = s.view.companies[0];
+    for (const f of s.view.market.funds.filter((x: { ai: boolean }) => x.ai)) {
+      const r = await send({
+        type: 'pitch.start',
+        companyId: c.id,
+        fundId: f.id,
+        slides: ['problem', 'product', 'team'],
+        ask: f.check[0],
+      });
+      if (r?.status !== 'meeting') continue;
+      const st = await (await fetch('/api/state', { headers: h })).json();
+      const p = st.view.pitches.find((x: { id: string }) => x.id === r.pitchId);
+      await send({
+        type: 'pitch.meet',
+        pitchId: r.pitchId,
+        action: 'open',
+        option: p.meeting.openers[0].id,
+      });
+      return { pitchId: r.pitchId as string, fundId: f.id as string };
+    }
+    return null;
+  });
+  expect(opened).not.toBeNull();
+  await page.reload();
+  await tab(page, 'City').click();
+  await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
+  await tapPlace(page, `[data-place="fund:${opened!.fundId}"]`);
+  const scene = await more(page);
+  // The office offers the meeting back, and no second pitch while it's open.
+  const resume = scene.locator('[data-meeting-resume]');
+  await expect(resume).toBeVisible({ timeout: 15_000 });
+  await expect(scene.getByRole('button', { name: /^Pitch / })).toBeDisabled();
+  await resume.click();
+  const sheet = page.getByRole('dialog', { name: /^Pitch meeting/ });
+  await expect(sheet.locator('[data-reaction="opener"]')).toBeVisible();
+  await sheet.locator('[data-pitch-leave]').click();
+  await expect(sheet.getByRole('heading', { name: 'You left the meeting' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(scene.locator('[data-meeting-resume]')).toHaveCount(0);
+  // The fund isn't put off: you can pitch them again here.
+  await expect(scene.getByRole('button', { name: /^Pitch / })).toBeEnabled();
 });

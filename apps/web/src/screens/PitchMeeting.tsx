@@ -15,7 +15,7 @@
 import { useState } from 'react';
 import type { Command } from '@runway/engine';
 import { Portrait } from '../avatar/Portrait';
-import { amountInput, money, parseAmount } from '../format';
+import { amountInput, money, parseAmount, pct } from '../format';
 import { useLang, t } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Field, Sheet, Stat } from '../ui';
@@ -324,12 +324,19 @@ export function PitchMeetingSheet({ pitchId, onClose }: { pitchId: string; onClo
         <div className="pm-grid">
           <div className="pm-main">
             {founder ? (
-              m.step === 'result' ? (
+              m.left ? (
+                <Card title={t('You left the meeting')} className="pm-left">
+                  <p className="small muted">
+                    {t('It ended there, with no verdict: you can pitch them again.')}
+                  </p>
+                </Card>
+              ) : m.step === 'result' ? (
                 <ResultCard p={p} m={m} cur={cur} onClose={onClose} />
               ) : (
                 <>
                   <Scene p={p} m={m} />
                   <Turns p={p} m={m} cur={cur} />
+                  <LeaveMeeting pitchId={p.id} />
                 </>
               )
             ) : (
@@ -344,6 +351,26 @@ export function PitchMeetingSheet({ pitchId, onClose }: { pitchId: string; onClo
         </div>
       </div>
     </Sheet>
+  );
+}
+
+function LeaveMeeting({ pitchId }: { pitchId: string }) {
+  const { send, busy } = useView();
+  return (
+    <div className="pm-actions pm-leave">
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={busy}
+        data-pitch-leave
+        onClick={() => void send({ type: 'pitch.meet', pitchId, action: 'leave' } as Command)}
+      >
+        {t('Leave the meeting')}
+      </Button>
+      <span className="small muted">
+        {t('It ends here, with no verdict: you can pitch them again.')}
+      </span>
+    </div>
   );
 }
 
@@ -512,8 +539,16 @@ function Turns({
   );
 }
 
-const pctOf = (amount: number, pre: number) =>
-  Math.round((amount / Math.max(1, pre + amount)) * 1000) / 10;
+/**
+ * The share an amount buys at a pre-money: one decimal, two under 1%, and
+ * "<0.1%" for a sliver (a tiny ask read "0%").
+ */
+export const pctOf = (amount: number, pre: number) => {
+  const x = amount / Math.max(1, pre + amount);
+  if (x <= 0) return pct(0);
+  if (x < 0.001) return `<${pct(0.001, 1)}`;
+  return pct(x, x < 0.01 ? 2 : 1);
+};
 
 function AskCard({
   p,
@@ -550,7 +585,7 @@ function AskCard({
           </div>
           <div className="pm-box">
             <small>{t('For')}</small>
-            <b>{pctOf(shown.amount, shown.preMoney)}%</b>
+            <b data-ask-pct>{pctOf(shown.amount, shown.preMoney)}</b>
           </div>
           <div className="pm-box">
             <small>{t('Valuation')}</small>
@@ -837,7 +872,7 @@ function ResultCard({
                 : undefined
             }
           />
-          <Stat label={t('You give')} value={`${terms.pct}%`} />
+          <Stat label={t('You give')} value={pctOf(terms.amount, terms.preMoney)} />
         </div>
       )}
       {r.outcome === 'caught' && (
@@ -1001,7 +1036,7 @@ function ReplyCard({
   return (
     <Card title={t('Your answer')} tone={m.canReply ? 'warn' : undefined}>
       <p className="small" data-pitch-ask={`${ask.amount}@${ask.preMoney}`}>
-        {t('They ask {amount} at {pre} pre ({pct}%).', {
+        {t('They ask {amount} at {pre} pre ({pct}).', {
           amount: money(ask.amount, cur),
           pre: money(ask.preMoney, cur),
           pct: pctOf(ask.amount, ask.preMoney),
@@ -1091,5 +1126,60 @@ function ReplyCard({
         </>
       )}
     </Card>
+  );
+}
+
+/** A meeting still going, or a term sheet from one waiting on you (or a partner meeting). */
+export const isLiveMeeting = (p: PitchV) =>
+  !!p.meeting &&
+  !p.meeting.left &&
+  (p.meeting.step !== 'result' ||
+    (!!p.meeting.result?.terms?.awaitingYou && !p.meeting.result.closed) ||
+    p.status === 'partner-meeting');
+
+/**
+ * Pick a meeting back up (the Money screen, the fund's office), or leave it.
+ * The caller opens the sheet, so it stays up when the meeting ends.
+ */
+export function MeetingResume({ p, onOpen }: { p: PitchV; onOpen: () => void }) {
+  const { send, busy } = useView();
+  const m = p.meeting!;
+  const midway = m.step !== 'result';
+  return (
+    <>
+      <Card
+        title={t('Your pitch meeting with {name}', { name: m.investor.name })}
+        sub={m.investor.firm ?? undefined}
+        tone="good"
+        className="pm-resume"
+      >
+        <p className="small muted">
+          {midway
+            ? t('You left the meeting mid-way: pick up where you were.')
+            : t('A term sheet is waiting for your answer.')}
+        </p>
+        <div className="pm-actions">
+          <Button size="sm" onClick={onOpen} data-meeting-resume>
+            {midway ? t('Continue') : t('See the term sheet')}
+          </Button>
+          {midway && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              data-meeting-leave
+              onClick={() =>
+                void send(
+                  { type: 'pitch.meet', pitchId: p.id, action: 'leave' } as Command,
+                  t('You left the meeting. You can pitch them again.'),
+                )
+              }
+            >
+              {t('Leave the meeting')}
+            </Button>
+          )}
+        </div>
+      </Card>
+    </>
   );
 }
