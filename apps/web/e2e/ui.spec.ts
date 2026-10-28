@@ -93,3 +93,63 @@ test('day one reads plainly: pre-revenue, new, investors in town', async ({ page
   const tall = await page.evaluate(() => document.documentElement.scrollHeight / innerHeight);
   expect(tall).toBeLessThan(1.6);
 });
+
+/**
+ * Round 7 (play-test: on a phone the floating nav pill covered the bottom of
+ * sheets, their last button under it): while a sheet is open the nav pill
+ * and the phone button step aside, over a screen and over a place's scene.
+ */
+test.describe('sheets on a 390×844 phone', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  /** The sheet's last button, scrolled into view, is clear of the nav pill and the phone button. */
+  async function lastButtonClear(page: Page, sheetName: RegExp | string) {
+    const sheet = page.getByRole('dialog', { name: sheetName });
+    await expect(sheet).toBeVisible();
+    // Its last button (or, with none, its last line).
+    const body = sheet.locator('.sheet-body');
+    const last = (await body.locator('button').count())
+      ? body.locator('button').last()
+      : body.locator('p, li, dd').last();
+    await last.scrollIntoViewIfNeeded();
+    const b = (await last.boundingBox())!;
+    expect(b.y + b.height).toBeLessThanOrEqual(844);
+    for (const sel of ['nav.nav', '.hud-phone.hud-ib']) {
+      const el = page.locator(sel).first();
+      if (!(await el.count()) || !(await el.isVisible())) continue;
+      const n = (await el.boundingBox())!;
+      const overlap =
+        b.x < n.x + n.width && n.x < b.x + b.width && b.y < n.y + n.height && n.y < b.y + b.height;
+      expect(overlap, `${sel} covers the sheet's last button`).toBe(false);
+    }
+    // The topmost thing at the button's centre is the button itself.
+    const hit = await last.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return !!top && (top === el || el.contains(top));
+    });
+    expect(hit).toBe(true);
+  }
+
+  test('a sheet over a screen and one over a place keep their last button clear', async ({
+    page,
+  }) => {
+    await founder(page);
+    // Over a screen: your day (the time pill's sheet).
+    await page.locator('[data-hud-life]').click();
+    await lastButtonClear(page, 'Your day');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Your day' })).toBeHidden();
+    await expect(page.locator('nav.nav')).toBeVisible();
+
+    // Over a place: the Market's interview.
+    await page.getByRole('button', { name: /Places/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Places' })
+      .locator('[data-kind="stall"]')
+      .first()
+      .click();
+    await page.locator('.tray-card[data-action="interview"]').click();
+    await lastButtonClear(page, /^Customer interview/);
+  });
+});
