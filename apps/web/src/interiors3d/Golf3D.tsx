@@ -584,11 +584,14 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
             look.set(bx + fx * 30, 0.4, bz + fz * 30);
           }
           break;
-        case 'swing':
-          want.set(f.golfer.x + zx * 4.6 - fx * 1.2, 1.0, f.golfer.z + zz * 4.6 - fz * 1.2);
+        case 'swing': {
+          // Side-on; a tall phone stands further off so the backswing clears the clubs.
+          const off = tall ? 6.2 : 4.6;
+          want.set(f.golfer.x + zx * off - fx * 1.2, 1.0, f.golfer.z + zz * off - fz * 1.2);
           look.set(f.golfer.x + fx * 0.2, 1.05, f.golfer.z + fz * 0.2);
           k = 5;
           break;
+        }
         case 'follow':
           want.set(bx - fx * 11 + zx * 3, 4 + f.ball.y * 0.45, bz - fz * 11 + zz * 3);
           look.set(bx, f.ball.y * 0.8, bz);

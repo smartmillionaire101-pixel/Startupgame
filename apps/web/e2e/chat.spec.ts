@@ -214,7 +214,8 @@ test('players chat with emoji and voice notes, pay, date, visit, go out and give
   await bPhone.getByRole('button', { name: 'Record a voice note' }).click();
   const rec = bPhone.getByRole('group', { name: 'Recording a voice note' });
   await expect(rec).toBeVisible();
-  await expect(rec.locator('[data-recording-ms]')).toContainText('0:02', { timeout: 6000 });
+  // At least two seconds in (a slow machine can skip a tick).
+  await expect(rec.locator('[data-recording-ms]')).toContainText(/0:0[2-9]/, { timeout: 6000 });
   await shot(b, 'chat-recording');
   await rec.getByRole('button', { name: 'Send voice note' }).click();
   await expect(bPhone.locator('.chat-voice-bubble.mine')).toBeVisible({ timeout: 10_000 });
