@@ -233,6 +233,8 @@ export const setup: Record<string, string> = {
   'No costs yet': 'Pas encore de coûts',
   'Next: interviews, first sales, hiring. See Your stage.':
     'Ensuite : entretiens, premières ventes, embauches. Voir Votre étape.',
+  'Go to office': 'Aller au bureau',
+  'Go home to work': 'Travailler à la maison',
 
   // The banker's desk.
   'Startup loan applications': 'Demandes de prêt de création',

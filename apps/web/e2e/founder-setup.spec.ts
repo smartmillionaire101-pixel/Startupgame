@@ -2,6 +2,7 @@ import {
   expect,
   letters,
   playAsGuest,
+  registerAndFund,
   setupPlayer,
   signUp,
   tab,
@@ -291,4 +292,48 @@ test('a founder applies for a startup loan at a player bank and the banker appro
   await shot(page, 'setup-7-approved');
   await bankerCtx.close();
   await founderCtx.close();
+});
+
+/**
+ * Round 7, item 2: a leased office is a place you go to. A London founder
+ * leases co-working desks; the done card and the Company screen have "Go to
+ * office", which walks to the office, standing in the district it was leased
+ * in (listed there under Places), and inside is a co-working room.
+ */
+test('a leased co-working office in London can be visited', async ({ page }) => {
+  test.slow();
+  await page.goto('/');
+  await signUp(page, {
+    role: 'founder',
+    name: 'Obi Office',
+    city: 'London',
+    username: `of_${letters(8)}`,
+    email: `of-${letters()}@example.com`,
+  });
+  await expect(page.getByRole('application', { name: /Map of London/ })).toBeVisible();
+  const skip = page.locator('.coach').getByRole('button', { name: 'Skip tutorial' });
+  if (await skip.isVisible()) await skip.click();
+  await reserveName(page, `Desk ${letters(6)}`);
+  await registerAndFund(page);
+  await page.getByRole('button', { name: 'Next: choose an office' }).first().click();
+  const office = page.locator('[data-setup-office]');
+  await office.locator('[data-office="cowork"]').click();
+  await office.getByRole('button', { name: /^Lease \d+ desks in / }).click();
+  const done = page.locator('[data-setup-done]');
+  await expect(done).toBeVisible();
+  const district = (await state(page)).companies[0].setup.office.district as string;
+
+  // On the Company screen, and on the done card.
+  await expect(page.locator('[data-go-office="office"]')).toHaveCount(2);
+  await done.locator('[data-go-office="office"]').click();
+  const scene = page.locator('.place-scene[data-scene="office"]');
+  await expect(scene).toBeVisible({ timeout: 30_000 });
+  await expect(scene).toHaveAttribute('data-room', 'cowork');
+  await scene.getByRole('button', { name: 'Close' }).first().click();
+  await expect(scene).toBeHidden();
+
+  // Places lists it in the district it was leased in.
+  await page.getByRole('button', { name: /Places/ }).click();
+  const places = page.getByRole('dialog', { name: 'Places' });
+  await expect(places.locator(`[data-area="${district}"] [data-kind="office"]`)).toHaveCount(1);
 });

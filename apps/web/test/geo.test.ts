@@ -192,3 +192,24 @@ describe('real city maps (Wave 8 §A)', () => {
       }
   });
 });
+
+describe('a leased office (round 7)', () => {
+  const ALL = Object.keys(PLANS).filter((id) => hasGeo(id));
+  for (const id of ALL)
+    it(`stands in the district it was leased in: ${id}`, async () => {
+      const data = await geo(id);
+      const before = buildCityLayout(input(id), data);
+      const hub = before.places.find((p) => p.kind === 'hub')!;
+      const away = PLANS[id]!.districts.find((d) => d.id !== hub.area)!.id;
+      const leased = input(id, {
+        office: { headcount: 2, siren: false, district: away, lease: 'cowork' },
+      });
+      // Fresh, and moved from the layout a moment ago (the lease just signed).
+      for (const l of [buildCityLayout(leased, data), buildCityLayout(leased, data, before)]) {
+        const office = l.places.filter((p) => p.kind === 'office');
+        expect(office).toHaveLength(1);
+        expect(office[0]!.area).toBe(away);
+        expect(l.places.find((p) => p.kind === 'hub')!.area).toBe(hub.area);
+      }
+    });
+});

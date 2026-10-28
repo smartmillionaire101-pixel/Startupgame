@@ -321,7 +321,14 @@ export interface CityInput {
   segments: { key: string; name: string; industry: string }[];
   /** Your company's industry: its stalls are lit, the rest dimmed. */
   industry: string | null;
-  office: { headcount: number; siren: boolean } | null;
+  office: {
+    headcount: number;
+    siren: boolean;
+    /** The district of the office leased in the founder setup (the real map stands it there). */
+    district?: string;
+    /** What was leased: co-working desks are a co-working room inside. */
+    lease?: 'cowork' | 'small' | 'shop' | 'serviced';
+  } | null;
   homeTier: number;
   /** Wave 2: hosted events are available (otherwise the hall is "opening soon"). */
   eventsOpen?: boolean;

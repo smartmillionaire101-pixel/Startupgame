@@ -21,6 +21,8 @@ import { t, tx } from '../i18n';
 import { useView, type Company, type Deal } from '../store';
 import { Button, Card, Field, Pill, Segmented } from '../ui';
 import { districtName, monthlyPayment } from '../city/wave10';
+import { officePlaceId } from '../city/contract';
+import { visitPlace } from '../city/goto';
 import './founderguide.css';
 import './setup.css';
 
@@ -1412,6 +1414,26 @@ function OfficeStep({ c, s }: { c: Company; s: Setup }) {
 
 // ---------------------------------------------------------------- done
 
+/**
+ * "Go to office": walks you to the office the company leased (in its
+ * district on the map), or home when you work from home. Round 7: a leased
+ * co-working desk had no way in from anywhere.
+ */
+export function GoToOffice({ c, block }: { c: Company; block?: boolean }) {
+  const where = officePlaceId(c);
+  return (
+    <Button
+      variant="subtle"
+      size="sm"
+      block={block}
+      data-go-office={where}
+      onClick={() => visitPlace(where)}
+    >
+      {where === 'home' ? t('Go home to work') : t('Go to office')}
+    </Button>
+  );
+}
+
 function SetupDone({ c, s }: { c: Company; s: Setup }) {
   const { view } = useView();
   const cur = c.currency;
@@ -1511,6 +1533,7 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
           </b>
         </p>
         <p className="small muted">{t('Next: interviews, first sales, hiring. See Your stage.')}</p>
+        <GoToOffice c={c} block />
       </div>
     </Card>
   );

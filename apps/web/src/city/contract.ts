@@ -286,6 +286,24 @@ export function rescueOf(c: CompanyV | undefined | null): RescuePlan | null {
   };
 }
 
+/**
+ * The office a founder leased in the setup (co-working desks, a small office,
+ * a shop-front or a serviced office), with its district; null working from
+ * home, before the setup chose one, or for a company that never had a setup.
+ */
+export function leasedOffice(
+  c: CompanyV | undefined | null,
+): { id: 'cowork' | 'small' | 'shop' | 'serviced'; district: string } | null {
+  const o = c?.setup?.office;
+  if (!o || o.id === 'home' || typeof o.district !== 'string') return null;
+  return { id: o.id, district: o.district };
+}
+
+/** Where "Go to office" takes a founder: the leased office, or home when they work from home. */
+export function officePlaceId(c: CompanyV | undefined | null): 'office' | 'home' {
+  return c?.setup?.office?.id === 'home' ? 'home' : 'office';
+}
+
 /** The founder's active company, if any. */
 export const activeCompany = (view: Pick<PlayerView, 'companies'>) =>
   view.companies.find((c) => c.status === 'active') ?? null;
@@ -330,7 +348,16 @@ export function cityInput(view: PlayerView): CityInput {
       industry: s.industry,
     })),
     industry: c?.industry ?? null,
-    office: c ? { headcount: c.teamSize, siren: rescueOf(c) !== null } : null,
+    office: c
+      ? {
+          headcount: c.teamSize,
+          siren: rescueOf(c) !== null,
+          // A leased office stands in its own district (else at the Hub, downtown).
+          ...(leasedOffice(c)
+            ? { district: leasedOffice(c)!.district, lease: leasedOffice(c)!.id }
+            : {}),
+        }
+      : null,
     homeTier: view.me.lifestyle.tier,
     // Wave 2: the Event Hall opens once the engine sends events.
     eventsOpen: Array.isArray((view.market as Market & { events?: unknown }).events),

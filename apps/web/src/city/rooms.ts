@@ -215,7 +215,14 @@ export const CIVIC_ROOM: Record<string, RoomKind> = {
 /** The room you walk into at a place. Away from home, your office is a co-working desk and home a hotel room. */
 export function roomOf(
   place: Pick<Place, 'kind' | 'ref' | 'motif'>,
-  opts: { abroad?: boolean; businessKind?: string; businessShape?: string; capital?: string } = {},
+  opts: {
+    abroad?: boolean;
+    businessKind?: string;
+    businessShape?: string;
+    capital?: string;
+    /** The office leased in the founder setup: co-working desks are a co-working room. */
+    lease?: string;
+  } = {},
 ): RoomKind {
   switch (place.kind) {
     case 'business':
@@ -230,7 +237,7 @@ export function roomOf(
     case 'hub':
       return 'hub';
     case 'office':
-      return opts.abroad ? 'cowork' : 'office';
+      return opts.abroad || opts.lease === 'cowork' ? 'cowork' : 'office';
     case 'home':
       return opts.abroad ? 'hotel' : 'apartment';
     case 'airport':

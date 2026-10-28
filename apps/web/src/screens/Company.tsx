@@ -23,7 +23,7 @@ import { InterviewSheet } from './Interview';
 import { CofounderCard, HiringPipeline, TeamHealth, staffDilution } from './Hiring';
 import { RunwayExplainer } from './FundCompany';
 import { RivalsPanel } from './Decisions';
-import { FounderSetup, SetupTracker, setupOpen } from './FounderSetup';
+import { FounderSetup, GoToOffice, SetupTracker, setupOpen } from './FounderSetup';
 import { SimpleLink } from './SimpleLink';
 import { CompanyKpis } from './Home';
 import { SnapButton } from '../photos/SnapButton';
@@ -232,6 +232,7 @@ export function CompanyScreen() {
       <CompanyKpis c={c} />
       {/* The camera: your company's numbers as a card to save or share. */}
       <div className="row">
+        <GoToOffice c={c} />
         <SnapButton
           action="company-photo"
           className="btn btn-subtle btn-sm"

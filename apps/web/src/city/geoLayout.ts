@@ -1272,6 +1272,20 @@ function buildGeoLayout(
     const hs = hosts(n);
     if (hs.includes('hub')) {
       putDowntown(ctx, cell, area);
+      // A leased office (founder setup) stands in the district it was leased in.
+      const leased = idx.get(input.office?.district ?? '');
+      if (leased !== undefined && leased !== n) {
+        const at = ctx.places.findIndex((p) => p.id === 'office');
+        const [office] = ctx.places.splice(at, 1);
+        office!.area = D[leased]!.d.id;
+        jobs.push({
+          p: office!,
+          key: `d${leased}`,
+          e: D[leased]!.at.e,
+          s: D[leased]!.at.s,
+          rank: 0,
+        });
+      }
       take(n, 0);
     }
     if (hs.includes('home')) {
@@ -1333,9 +1347,10 @@ function buildGeoLayout(
   if (before)
     for (const j of jobs) {
       const old = before.get(j.p.id);
-      // Your room moved district (into the hotel you booked abroad): it finds new ground.
-      if (old && (j.p.id !== 'home' || old.area === j.p.area) && placer.keep(j.p, old))
-        kept.add(j.p);
+      // Your room moved district (into the hotel you booked abroad), or your office
+      // (a lease signed elsewhere): it finds new ground.
+      const moves = j.p.id === 'home' || j.p.id === 'office';
+      if (old && (!moves || old.area === j.p.area) && placer.keep(j.p, old)) kept.add(j.p);
     }
   const places: Place[] = [];
   for (const j of jobs) {
