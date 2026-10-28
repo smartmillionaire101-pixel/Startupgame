@@ -113,6 +113,7 @@ export function BuySheet({
   floor,
   onPlaceWall,
   onShopWalls,
+  onShop,
   onNameRooms,
   plan,
   floors,
@@ -136,6 +137,8 @@ export function BuySheet({
   floor?: number;
   onPlaceWall?: (w: WallView) => void;
   onShopWalls?: () => void;
+  /** Round 7: the whole online catalogue (its own button, on a phone too). */
+  onShop?: () => void;
   onNameRooms?: () => void;
   /** The floor you're on (footprints, its rooms for the Design tab). */
   plan?: HomePlan;
@@ -392,6 +395,17 @@ export function BuySheet({
           >
             <i />
           </button>
+          {/* Round 7: the whole online catalogue, one tap away (on a phone too). */}
+          {onShop && (
+            <button
+              type="button"
+              className="buy-close buy-shop"
+              data-action="shop-online"
+              onClick={onShop}
+            >
+              <span aria-hidden="true">🛍️</span> {t('Shop online')}
+            </button>
+          )}
           <button
             type="button"
             className="buy-close"

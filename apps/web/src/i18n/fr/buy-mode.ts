@@ -109,4 +109,5 @@ export const buyMode: Record<string, string> = {
   '{n} × {item}: on their way to your home.': '{n} × {item} : en route vers chez vous.',
   '{n} × {item}: yours.': '{n} × {item} : à vous.',
   '+ Another': '+ Un autre',
+  'Shop online': 'Boutique en ligne',
 };

@@ -949,6 +949,8 @@ export function HomeScene({
     null,
   );
   const [shopWalls, setShopWalls] = useState(false);
+  // Round 7: the online catalogue, its own button on the rail and in Buy mode (on a phone too).
+  const [shopAll, setShopAll] = useState(false);
   const wallGhost = useMemo(
     () =>
       wallPlacing
@@ -2486,12 +2488,24 @@ export function HomeScene({
             </>
           ) : (
             !hostView && (
-              <HudButton
-                icon="cart"
-                label={t('Buy')}
-                aria-haspopup="dialog"
-                onClick={() => setSheet('buy')}
-              />
+              <>
+                <HudButton
+                  icon="cart"
+                  label={t('Buy')}
+                  aria-haspopup="dialog"
+                  onClick={() => setSheet('buy')}
+                />
+                {view.me.shop && (
+                  <HudButton
+                    label={t('Shop')}
+                    data-action="shop-online"
+                    aria-haspopup="dialog"
+                    onClick={() => setShopAll(true)}
+                  >
+                    <span aria-hidden="true">🛍️</span>
+                  </HudButton>
+                )}
+              </>
             )
           )}
           {is3d && !hotelTier && (
@@ -2598,10 +2612,27 @@ export function HomeScene({
             setSheet(null);
             setShopWalls(true);
           }}
+          onShop={
+            view.me.shop
+              ? () => {
+                  setSheet(null);
+                  setShopAll(true);
+                }
+              : undefined
+          }
           onNameRooms={() => {
             setSheet(null);
             setNaming('pick');
           }}
+        />
+      )}
+      {shopAll && view.me.shop && (
+        <CatalogueSheet
+          mode="online"
+          title={t('Shop online')}
+          entries={onlineCatalog(view)}
+          currency={view.me.shop.currency}
+          onClose={() => setShopAll(false)}
         />
       )}
       {shopWalls && view.me.shop && (

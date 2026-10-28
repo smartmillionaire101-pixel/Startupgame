@@ -116,6 +116,10 @@
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
   cursor: pointer;
 }
+.buy-close.buy-shop {
+  right: auto;
+  left: 0;
+}
 .buy-close:focus-visible {
   outline: 3px solid var(--buy-teal);
   outline-offset: 2px;
