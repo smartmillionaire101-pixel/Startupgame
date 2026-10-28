@@ -34,9 +34,11 @@ export const RELEASE_NOTE = {
     'what is holding the chance back, and a lost deal tells you the real reason and what to do ' +
     'next. Won customers count everywhere at once. Your hires do their job: a salesperson brings ' +
     'leads from their sector, runs discovery and gives you tips; a technical co-founder lifts ' +
-    'demos; a business co-founder brings warmer leads and a better pitch; engineers ship faster. ' +
+    'demos; a business co-founder brings warmer leads and introduces investors who fit your round; ' +
+    'engineers ship faster. ' +
     'Pitching an investor is now a real meeting with questions about your numbers and a term ' +
     'sheet you can counter once. Sit on your sofa to lower stress or nap to get energy back, ' +
-    'visit your leased office, order several things in one delivery, find quiz opponents across ' +
+    'sit on your bed, visit your leased office, order several things in one delivery (now with ' +
+    'bathroom and hallway pieces), find quiz opponents across ' +
     'the city and invite friends to a game from Messages. Refresh to get it; your game is saved.',
 } as const;
