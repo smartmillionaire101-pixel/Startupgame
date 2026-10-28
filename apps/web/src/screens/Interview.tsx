@@ -119,21 +119,51 @@ function PersonCard({ p, ln }: { p: Person | Active['person']; ln: (l: Line) => 
   );
 }
 
-function NotesPanel({ notes, fresh }: { notes: Notes; fresh?: string | null }) {
+function NotesPanel({
+  notes,
+  vague,
+  fresh,
+}: {
+  notes: Notes;
+  vague?: Partial<Record<NoteKey, true>>;
+  fresh?: string | null;
+}) {
   const ln = useLine();
   const keys: NoteKey[] = ['pain', 'paysNow', 'switchIf'];
   if (notes.price) keys.push('price');
   return (
     <dl className="notes" aria-label={t('Your notes')} data-notes>
       {keys.map((k) => (
-        <div key={k} data-note={k}>
+        <div key={k} data-note={k} data-note-vague={vague?.[k] ? '' : undefined}>
           <dt>{noteLabel(k)}:</dt>
-          <dd className={notes[k] ? (fresh === k ? 'new' : '') : 'empty'}>
+          <dd
+            className={
+              notes[k] ? [fresh === k ? 'new' : '', vague?.[k] ? 'vague' : ''].join(' ') : 'empty'
+            }
+          >
             {notes[k] ? ln(notes[k]) : t('not yet asked…')}
+            {notes[k] && vague?.[k] && <span className="note-vague">{t('vague')}</span>}
           </dd>
         </div>
       ))}
     </dl>
+  );
+}
+
+/** The summary's gaps: notes left vague or empty, and the question that would have filled them. */
+function NoteGaps({ gaps }: { gaps: Summary['gaps'] }) {
+  const ln = useLine();
+  if (gaps.length === 0) return null;
+  return (
+    <ul className="note-gaps small" aria-label={t('What you missed')} data-note-gaps={gaps.length}>
+      {gaps.map((g) => (
+        <li key={g.key} data-gap={g.key}>
+          <b>{noteLabel(g.key as NoteKey)}:</b>{' '}
+          {g.vague ? t('only a vague answer.') : t('nothing.')}{' '}
+          {t('This would have got it: {q}', { q: ln(g.question) })}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -361,7 +391,7 @@ function Rounds({
         )}
       </Card>
       <Card title={t('📝 Your notes')}>
-        <NotesPanel notes={a.notes} fresh={just ? fresh : null} />
+        <NotesPanel notes={a.notes} vague={a.vague} fresh={just ? fresh : null} />
       </Card>
       {just && <Button onClick={onNext}>{t('Round {n}', { n: just.round + 2 })}</Button>}
     </>
@@ -424,7 +454,8 @@ function SummaryView({
         </p>
       </Card>
       <Card title={t('📝 What you learned')}>
-        <NotesPanel notes={s.notes} />
+        <NotesPanel notes={s.notes} vague={s.vague} />
+        <NoteGaps gaps={s.gaps} />
       </Card>
       <Card title={t('Knowledge')} sub={tx(s.person.segment)}>
         <div className="k-gain" data-gain>

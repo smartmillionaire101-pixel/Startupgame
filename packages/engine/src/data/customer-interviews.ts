@@ -75,6 +75,12 @@ export interface SegmentInterview {
   deeper: Line;
   deeperWhy: Line;
   personas: Persona[];
+  /**
+   * What this segment's people say to a weaker question, per round, where the
+   * industry's own words (./interview-industries.ts) don't fit who they are
+   * (a hospital director doesn't ask for "a real doctor").
+   */
+  weak?: Partial<Record<Exclude<QuestionKind, 'best'>, Line>>[];
 }
 
 /** The note a too-early question leaves (a broad one's is the industry's, ./interview-industries). */
@@ -146,7 +152,7 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     ask: L('Walk me through yesterday: how did you keep track of who owes you?', 'Racontez-moi hier : comment avez-vous suivi qui vous doit de l’argent ?'),
     benefit: L('reminds your customers what they owe', 'rappelle à vos clients ce qu’ils vous doivent'),
     tried: [
-      tried(L('“Someone put me on a spreadsheet app. With dirty hands? Too slow. Two weeks, back to the book. And when the power goes, the phone is for customers’ calls.”', '« On m’a mis sur une appli de tableur. Avec les mains sales ? Trop lent. Deux semaines, et retour au cahier. Et quand le courant saute, le téléphone sert aux appels des clients. »'), L('Nothing: an exercise book. Quit a spreadsheet app after 2 weeks', 'Rien : un cahier. A abandonné une appli de tableur après 2 semaines')),
+      tried(L('“Someone put me on a spreadsheet app. In the middle of serving? Too slow. Two weeks, back to the book. And when the power goes, the phone is for customers’ calls.”', '« On m’a mis sur une appli de tableur. En plein service ? Trop lent. Deux semaines, et retour au cahier. Et quand le courant saute, le téléphone sert aux appels des clients. »'), L('Nothing: an exercise book. Quit a spreadsheet app after 2 weeks', 'Rien : un cahier. A abandonné une appli de tableur après 2 semaines')),
       tried(L('“The bank sent a man with a card machine. {spend} a month in charges, and when the network is down it just spins. I keep it for big customers.”', '« La banque a envoyé quelqu’un avec un terminal de paiement. {spend} de frais par mois, et quand le réseau tombe, il tourne dans le vide. Je le garde pour les gros clients. »'), L('{spend} a month in card-machine charges; useless when the network is down', '{spend} par mois de frais de terminal ; inutile quand le réseau tombe')),
     ],
     switchIf: [
@@ -256,6 +262,11 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
       { job: L('Founder, a juice brand · 4 years', 'Fondateur·rice, une marque de jus · 4 ans'), detail: L('In 300 shops · growing fast', 'Dans 300 boutiques · croissance rapide'), greeting: L('“I love founders. I was one five minutes ago. Sit.”', '« J’adore les fondateurs. J’en étais un il y a cinq minutes. Asseyez-vous. »'), pain: L('“A shop chain returned {lost} of juice past its date. We didn’t know it wasn’t selling there until it was too late.”', '« Une chaîne de boutiques nous a rendu {lost} de jus périmés. On ne savait pas que ça ne se vendait pas là-bas avant qu’il soit trop tard. »'), painNote: L('{lost} of expired stock returned: no sell-through data', '{lost} de stock périmé retourné : aucune donnée de vente') },
       { job: L('Trade marketing lead, a beverage group · 8 years', 'Responsable trade marketing, un groupe de boissons · 8 ans'), detail: L('Works with distributors · signs off on every channel', 'Travaille avec les distributeurs · valide chaque canal'), greeting: L('“Our legal team will read whatever you send. Keep it clean.”', '« Notre service juridique lira tout ce que vous enverrez. Restez carré. »'), pain: L('“Our ad ran next to a fake version of our drink. Legal took a month and {lost} to clean it up.”', '« Notre pub est passée à côté d’une fausse version de notre boisson. Le juridique a mis un mois et {lost} pour réparer ça. »'), painNote: L('Ad next to a fake: a month and {lost} to fix', 'Pub à côté d’une contrefaçon : un mois et {lost} pour réparer') },
     ],
+    weak: [
+      {},
+      {},
+      { yesno: L('“Maybe. If our distributors use it.”', '« Peut-être. Si nos distributeurs l’utilisent. »') },
+    ],
   },
   // ---- Logistics
   'logistics.sellers': {
@@ -267,7 +278,7 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     ],
     switchIf: [
       tried(L('“A link I can send the customer, so they stop calling me. That alone, I’d pay for.”', '« Un lien à envoyer au client, pour qu’il arrête de m’appeler. Rien que ça, je paierais. »'), L('A tracking link for customers, so they stop calling', 'Un lien de suivi pour les clients, pour qu’ils arrêtent d’appeler')),
-      tried(L('“On time, at the price I pay my riders now. If it’s late twice, I go back.”', '« À l’heure, au prix que je paie mes livreurs aujourd’hui. Deux retards, et je reviens en arrière. »'), L('On time at today’s price; two late deliveries and they leave', 'À l’heure au prix actuel ; deux retards et ils partent')),
+      tried(L('“On time, at the price I pay now. If it’s late twice, I go back.”', '« À l’heure, au prix que je paie aujourd’hui. Deux retards, et je reviens en arrière. »'), L('On time at today’s price; two late deliveries and they leave', 'À l’heure au prix actuel ; deux retards et ils partent')),
     ],
     deeper: L('What did the customer do after that late delivery?', 'Qu’a fait le client après cette livraison en retard ?'),
     deeperWhy: L('Shows what lateness really costs: a refund, a bad review, a customer who never orders again.', 'Montre ce que coûte vraiment un retard : un remboursement, un mauvais avis, un client qui ne recommande plus.'),
@@ -286,7 +297,7 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     ],
     switchIf: [
       tried(L('“One price, every week, written down. Then I can plan.”', '« Un prix, chaque semaine, écrit noir sur blanc. Alors je peux prévoir. »'), L('One fixed weekly price, written down', 'Un prix fixe chaque semaine, par écrit')),
-      tried(L('“If it costs less than the bus and the cart together. Not one coin more.”', '« Si ça coûte moins que le bus et la charrette ensemble. Pas une pièce de plus. »'), L('Cheaper than bus plus cart, not a coin more', 'Moins cher que bus et charrette, pas une pièce de plus')),
+      tried(L('“If it costs less than I pay for carrying now, all of it together. Not one coin more.”', '« Si ça coûte moins que tout ce que je paie pour le transport aujourd’hui. Pas une pièce de plus. »'), L('Cheaper than today’s carrying, not a coin more', 'Moins cher que le transport actuel, pas une pièce de plus')),
     ],
     deeper: L('How much did last month’s pickups cost you, all in?', 'Combien vous ont coûté les ramassages du mois dernier, en tout ?'),
     deeperWhy: L('A number they add up themselves is your price ceiling, in their words.', 'Un chiffre qu’ils calculent eux-mêmes est votre plafond de prix, dans leurs mots.'),
@@ -321,7 +332,7 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     benefit: L('puts you through to a doctor by phone', 'vous met en relation avec un médecin par téléphone'),
     tried: [
       tried(L('“We go to the clinic. Transport, the queue, the card: {spend} before anyone sees a doctor.”', '« On va au dispensaire. Le transport, la file, le carnet : {spend} avant de voir un médecin. »'), L('{spend} in transport and fees before seeing a doctor', '{spend} de transport et de frais avant de voir un médecin')),
-      tried(L('“I tried a health app once. The ‘doctor’ answered after six hours. My son was already better, or worse, I don’t remember.”', '« J’ai essayé une appli de santé une fois. Le « médecin » a répondu au bout de six heures. Mon fils allait déjà mieux, ou plus mal, je ne sais plus. »'), L('Tried a health app: the doctor replied after 6 hours', 'A essayé une appli : le médecin a répondu au bout de 6 heures')),
+      tried(L('“I tried a health app once. The ‘doctor’ answered after six hours. By then we had queued at the clinic anyway.”', '« J’ai essayé une appli de santé une fois. Le « médecin » a répondu au bout de six heures. Entre-temps, on avait fait la queue au dispensaire de toute façon. »'), L('Tried a health app: the doctor replied after 6 hours', 'A essayé une appli : le médecin a répondu au bout de 6 heures')),
     ],
     switchIf: [
       tried(L('“A real doctor, with a name and a licence I can check, in ten minutes. Then I trust it.”', '« Un vrai médecin, avec un nom et une licence que je peux vérifier, en dix minutes. Là, je fais confiance. »'), L('A named, licensed doctor within 10 minutes', 'Un médecin nommé et diplômé en 10 minutes')),
@@ -330,7 +341,7 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     deeper: L('Who decided where to go, and why there?', 'Qui a décidé où aller, et pourquoi là ?'),
     deeperWhy: L('Finds who chooses healthcare at home and what they trust: that’s who you sell to.', 'Trouve qui choisit les soins à la maison et à qui il fait confiance : c’est à lui que vous vendez.'),
     personas: [
-      { job: L('Mother of three · runs a hair salon', 'Mère de trois enfants · tient un salon de coiffure'), detail: L('Closes the salon when a child is ill', 'Ferme le salon quand un enfant est malade'), greeting: L('“My daughter’s at school, so I’m all yours till two.”', '« Ma fille est à l’école, alors je suis à vous jusqu’à deux heures. »'), pain: L('“My youngest had a fever at night. We waited till morning, then three hours at the clinic. The salon was closed: {lost} that day.”', '« Le petit avait de la fièvre la nuit. On a attendu le matin, puis trois heures au dispensaire. Le salon était fermé : {lost} ce jour-là. »'), painNote: L('A night fever: a day closed, {lost} lost', 'Une fièvre la nuit : une journée fermée, {lost} perdus') },
+      { job: L('Hair-salon owner · mother of three', 'Gérante d’un salon de coiffure · mère de trois enfants'), detail: L('Closes her salon when a child is ill', 'Ferme son salon quand un enfant est malade'), greeting: L('“My daughter’s at school, so I’m all yours till two.”', '« Ma fille est à l’école, alors je suis à vous jusqu’à deux heures. »'), pain: L('“My youngest had a fever at night. We waited till morning, then three hours at the clinic. My salon stayed shut: {lost} that day.”', '« Le petit avait de la fièvre la nuit. On a attendu le matin, puis trois heures au dispensaire. Mon salon est resté fermé : {lost} ce jour-là. »'), painNote: L('A night fever: the salon shut a day, {lost} lost', 'Une fièvre la nuit : le salon fermé une journée, {lost} perdus') },
       { job: L('Taxi driver · cares for his parents', 'Chauffeur de taxi · s’occupe de ses parents'), detail: L('Parents live across town', 'Les parents vivent à l’autre bout de la ville'), greeting: L('“I’m parked outside, meter off. Go.”', '« Je suis garé devant, compteur éteint. Allez-y. »'), pain: L('“My father’s blood pressure. Every check-up is half a day off the road. That’s {lost} a month, just to be told ‘same tablets’.”', '« La tension de mon père. Chaque contrôle, c’est une demi-journée sans rouler. Ça fait {lost} par mois, juste pour entendre « mêmes comprimés ». »'), painNote: L('Routine check-ups cost {lost} a month in lost fares', 'Les contrôles de routine coûtent {lost} par mois en courses perdues') },
       { job: L('Teacher · young family', 'Enseignant·e · jeune famille'), detail: L('Two small children, one insurance card', 'Deux jeunes enfants, une carte d’assurance'), greeting: L('“I have marking to do, so let’s be efficient, yes?”', '« J’ai des copies à corriger, alors soyons efficaces, d’accord ? »'), pain: L('“We went to three pharmacies for one prescription, then paid {lost} at a private clinic because the public one was full.”', '« On a fait trois pharmacies pour une ordonnance, puis payé {lost} dans une clinique privée parce que le public était plein. »'), painNote: L('Three pharmacies, then {lost} at a private clinic', 'Trois pharmacies, puis {lost} dans une clinique privée') },
     ],
@@ -340,11 +351,11 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     benefit: L('keeps patient records and billing in one place', 'regroupe dossiers patients et facturation au même endroit'),
     tried: [
       tried(L('“Paper folders and a billing clerk. {spend} a month for her alone, and insurers still reject one claim in five.”', '« Des dossiers papier et une employée à la facturation. {spend} par mois pour elle seule, et les assureurs rejettent encore une demande sur cinq. »'), L('Paper files and a billing clerk at {spend} a month; 1 claim in 5 rejected', 'Dossiers papier et une employée à {spend} par mois ; 1 demande sur 5 rejetée')),
-      tried(L('“We bought a foreign records system. The doctors refused it: too many clicks. It still runs, nobody uses it.”', '« On a acheté un logiciel étranger de dossiers. Les médecins l’ont refusé : trop de clics. Il tourne encore, personne ne s’en sert. »'), L('Bought a records system doctors refused: too many clicks', 'Ont acheté un logiciel refusé par les médecins : trop de clics')),
+      tried(L('“We bought a foreign records system. The clinicians refused it: too many clicks. It still runs, nobody uses it.”', '« On a acheté un logiciel étranger de dossiers. Les soignants l’ont refusé : trop de clics. Il tourne encore, personne ne s’en sert. »'), L('Bought a records system clinicians refused: too many clicks', 'Ont acheté un logiciel refusé par les soignants : trop de clics')),
     ],
     switchIf: [
       tried(L('“If insurers accept the claims the first time. Every rejection is weeks of cash.”', '« Si les assureurs acceptent les demandes du premier coup. Chaque rejet, c’est des semaines de trésorerie. »'), L('Claims accepted first time: weeks of cash back', 'Demandes acceptées du premier coup : des semaines de trésorerie')),
-      tried(L('“Patient data stays here, protected, and the doctors can use it with one hand.”', '« Les données des patients restent ici, protégées, et les médecins peuvent s’en servir d’une main. »'), L('Data stays protected locally; usable one-handed', 'Données protégées sur place ; utilisable d’une main')),
+      tried(L('“Patient data stays here, protected, and the clinicians can use it with one hand.”', '« Les données des patients restent ici, protégées, et les soignants peuvent s’en servir d’une main. »'), L('Data stays protected locally; usable one-handed', 'Données protégées sur place ; utilisable d’une main')),
     ],
     deeper: L('What happened the last time an insurer rejected a claim?', 'Que s’est-il passé la dernière fois qu’un assureur a rejeté une demande ?'),
     deeperWhy: L('Rejections are cash they can count: the clearest value you can promise.', 'Les rejets, c’est de l’argent qu’ils peuvent compter : la valeur la plus claire à promettre.'),
@@ -353,12 +364,17 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
       { job: L('Practice manager, a dental clinic · 4 years', 'Gérant·e d’un cabinet dentaire · 4 ans'), detail: L('Two dentists · appointments by phone', 'Deux dentistes · rendez-vous par téléphone'), greeting: L('“Excuse the drill noise. Coffee?”', '« Excusez le bruit de la fraise. Un café ? »'), pain: L('“Last month eleven patients didn’t show up. No reminders. That’s {lost} of empty chairs.”', '« Le mois dernier, onze patients ne sont pas venus. Aucun rappel. Ça fait {lost} de fauteuils vides. »'), painNote: L('11 no-shows last month: {lost} of empty chairs', '11 absences le mois dernier : {lost} de fauteuils vides') },
       { job: L('Owner, a diagnostic lab · 6 years', 'Propriétaire d’un laboratoire d’analyses · 6 ans'), detail: L('Results sent by phone and paper', 'Résultats envoyés par téléphone et sur papier'), greeting: L('“Gloves off, so this is a real break. Talk.”', '« Gants retirés, c’est une vraie pause. Parlez. »'), pain: L('“We sent a result to the wrong patient. Nothing terrible, but the complaint and the fix cost us {lost} and a lot of sleep.”', '« On a envoyé un résultat au mauvais patient. Rien de grave, mais la plainte et la correction nous ont coûté {lost} et beaucoup de sommeil. »'), painNote: L('A result sent to the wrong patient: {lost} and a complaint', 'Un résultat envoyé au mauvais patient : {lost} et une plainte') },
     ],
+    weak: [
+      { early: L('“Maybe… if the doctors take to it.”', '« Peut-être… si les médecins l’adoptent. »') },
+      { broad: L('“Quick. Not too dear. Fewer clicks.”', '« Rapide. Pas trop cher. Moins de clics. »'), leading: L('“I suppose… if the doctors use it.”', '« Je suppose… si les médecins s’en servent. »') },
+      { broad: L('“Whatever the insurers accept, I suppose.”', '« Ce que les assureurs acceptent, je suppose. »') },
+    ],
   },
   'healthtech.employers': {
     ask: L('Tell me about the last month staff sickness hurt the business.', 'Parlez-moi du dernier mois où les arrêts maladie ont pénalisé l’entreprise.'),
     benefit: L('gives your staff a doctor on the phone', 'donne à votre personnel un médecin au téléphone'),
     tried: [
-      tried(L('“We pay a health insurance plan, {spend} a month. Staff still take a day off for every clinic visit.”', '« On paie une mutuelle, {spend} par mois. Le personnel prend quand même une journée pour chaque visite. »'), L('Insurance at {spend} a month; still a day off per clinic visit', 'Mutuelle à {spend} par mois ; toujours un jour d’absence par visite')),
+      tried(L('“A basic insurance plan, or the public clinic: {spend} a month, all in. Either way, staff take a day off for every visit.”', '« Une mutuelle de base, ou le dispensaire public : {spend} par mois, tout compris. Dans les deux cas, le personnel prend une journée pour chaque visite. »'), L('Basic cover or the public clinic, {spend} a month; a day off per visit', 'Couverture de base ou dispensaire public, {spend} par mois ; un jour d’absence par visite')),
       tried(L('“A nurse came twice a week. Staff liked her; finance cut her in the budget review.”', '« Une infirmière venait deux fois par semaine. Le personnel l’aimait ; la finance l’a supprimée lors de la revue du budget. »'), L('An on-site nurse, cut at the budget review', 'Une infirmière sur place, supprimée à la revue du budget')),
     ],
     switchIf: [
@@ -368,7 +384,7 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     deeper: L('Who signs off on staff benefits, and what convinced them last time?', 'Qui valide les avantages du personnel, et qu’est-ce qui l’a convaincu la dernière fois ?'),
     deeperWhy: L('Finds the decision-maker and their test before you build the pitch.', 'Trouve le décideur et son critère avant de bâtir l’argumentaire.'),
     personas: [
-      { job: L('HR manager, a factory · 7 years', 'Responsable RH, une usine · 7 ans'), detail: L('400 staff on two shifts', '400 employés en deux équipes'), greeting: L('“Visitor’s chair is the good one. Sit.”', '« La chaise visiteur, c’est la bonne. Asseyez-vous. »'), pain: L('“Malaria season: 30 people off in one week. We paid overtime to cover: {lost}.”', '« Saison du paludisme : 30 personnes absentes en une semaine. On a payé des heures sup pour couvrir : {lost}. »'), painNote: L('30 off sick in a week: {lost} in overtime', '30 absents en une semaine : {lost} d’heures sup') },
+      { job: L('HR manager, a factory · 7 years', 'Responsable RH, une usine · 7 ans'), detail: L('400 staff on two shifts', '400 employés en deux équipes'), greeting: L('“Visitor’s chair is the good one. Sit.”', '« La chaise visiteur, c’est la bonne. Asseyez-vous. »'), pain: L('“Flu season: 30 people off in one week. We paid overtime to cover: {lost}.”', '« Saison de la grippe : 30 personnes absentes en une semaine. On a payé des heures sup pour couvrir : {lost}. »'), painNote: L('30 off sick in a week: {lost} in overtime', '30 absents en une semaine : {lost} d’heures sup') },
       { job: L('Office manager, a bank branch network · 5 years', 'Responsable administratif·ve, un réseau d’agences · 5 ans'), detail: L('120 staff in 8 branches', '120 employés dans 8 agences'), greeting: L('“Our benefits are up for renewal, so your timing is lucky.”', '« Nos avantages sont à renouveler, vous tombez bien. »'), pain: L('“A branch closed for a day because three tellers were at the clinic. The fine and lost business: {lost}.”', '« Une agence a fermé une journée parce que trois guichetiers étaient au dispensaire. L’amende et l’activité perdue : {lost}. »'), painNote: L('A branch closed a day: {lost} in fines and business', 'Une agence fermée une journée : {lost} d’amende et d’activité') },
       { job: L('Founder, a 60-person agency · 3 years', 'Fondateur·rice d’une agence de 60 personnes · 3 ans'), detail: L('Young team · competes for talent', 'Équipe jeune · en concurrence pour les talents'), greeting: L('“We lose people to companies with better perks. That’s why you’re here.”', '« On perd des gens au profit de boîtes avec de meilleurs avantages. C’est pour ça que vous êtes là. »'), pain: L('“Two designers left last quarter for a company with health cover. Replacing them cost {lost}.”', '« Deux designers sont partis le trimestre dernier pour une boîte avec une couverture santé. Les remplacer a coûté {lost}. »'), painNote: L('Lost two staff to better health cover: {lost} to replace', 'Deux départs pour une meilleure couverture : {lost} pour remplacer') },
     ],
@@ -382,7 +398,7 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
       tried(L('“We downloaded a learning app. It ate all the data in two days and the videos wouldn’t load.”', '« On a téléchargé une appli d’apprentissage. Elle a mangé tout le forfait en deux jours et les vidéos ne chargeaient pas. »'), L('A learning app used all the data in 2 days', 'Une appli a consommé tout le forfait en 2 jours')),
     ],
     switchIf: [
-      tried(L('“If her marks go up. I don’t care how it works, show me the marks.”', '« Si ses notes montent. Peu importe comment ça marche, montrez-moi les notes. »'), L('Marks that go up: results, not features', 'Des notes qui montent : des résultats, pas des fonctions')),
+      tried(L('“If the marks go up. I don’t care how it works, show me the marks.”', '« Si les notes montent. Peu importe comment ça marche, montrez-moi les notes. »'), L('Marks that go up: results, not features', 'Des notes qui montent : des résultats, pas des fonctions')),
       tried(L('“Works on my old phone, without data, for less than the lesson teacher.”', '« Ça marche sur mon vieux téléphone, sans données, pour moins cher que le répétiteur. »'), L('Works offline on an old phone, cheaper than the tutor', 'Marche hors connexion sur un vieux téléphone, moins cher que le répétiteur')),
     ],
     deeper: L('What happened when the last results came out?', 'Que s’est-il passé quand les derniers résultats sont tombés ?'),
@@ -397,7 +413,7 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     ask: L('Walk me through how fees were collected last term.', 'Racontez-moi comment les frais de scolarité ont été encaissés le trimestre dernier.'),
     benefit: L('collects fees and sends reminders to parents', 'encaisse les frais et relance les parents'),
     tried: [
-      tried(L('“A bursar and a big ledger. {spend} a month for her, and still a third of parents pay late.”', '« Une économe et un grand registre. {spend} par mois pour elle, et un tiers des parents paient encore en retard. »'), L('A bursar at {spend} a month; a third of parents still late', 'Une économe à {spend} par mois ; un tiers des parents toujours en retard')),
+      tried(L('“A big ledger and one person on fees full time: {spend} a month in wages, and still a third of parents pay late.”', '« Un grand registre et une personne à plein temps sur les frais : {spend} par mois de salaire, et un tiers des parents paient encore en retard. »'), L('One person on fees at {spend} a month; a third of parents still late', 'Une personne sur les frais à {spend} par mois ; un tiers des parents toujours en retard')),
       tried(L('“The bank gave us a collection account. Parents pay, but the statement doesn’t say which child. Matching takes a week.”', '« La banque nous a donné un compte d’encaissement. Les parents paient, mais le relevé ne dit pas pour quel enfant. Le rapprochement prend une semaine. »'), L('Bank collection account: payments don’t say which child', 'Compte d’encaissement : les paiements ne disent pas quel enfant')),
     ],
     switchIf: [
@@ -410,6 +426,11 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
       { job: L('Head teacher, a primary school · 12 years', 'Directeur·rice d’une école primaire · 12 ans'), detail: L('350 pupils · 14 teachers', '350 élèves · 14 enseignants'), greeting: L('“The bell rings in fifteen minutes. That’s your slot.”', '« La sonnerie est dans quinze minutes. C’est votre créneau. »'), pain: L('“End of term, {lost} still unpaid. I had to delay teachers’ salaries. Two of them left.”', '« Fin de trimestre, {lost} encore impayés. J’ai dû retarder les salaires des enseignants. Deux sont partis. »'), painNote: L('{lost} unpaid at term end; teachers’ pay delayed', '{lost} impayés en fin de trimestre ; salaires retardés') },
       { job: L('Proprietor, a secondary school · 8 years', 'Promoteur·rice d’un collège-lycée · 8 ans'), detail: L('Boarding and day students', 'Internes et externes'), greeting: L('“Welcome. Parents call me all day about money, so I hope you’re different.”', '« Bienvenue. Les parents m’appellent toute la journée pour l’argent, j’espère que vous êtes différent. »'), pain: L('“Two weeks matching bank slips to pupils. We still sent a reminder to a family that had paid. They moved their three children: {lost} a year.”', '« Deux semaines à rapprocher les bordereaux des élèves. On a quand même relancé une famille qui avait payé. Elle a retiré ses trois enfants : {lost} par an. »'), painNote: L('Wrong reminder lost a family: {lost} a year', 'Une relance erronée a fait partir une famille : {lost} par an') },
       { job: L('Bursar, a nursery and primary · 5 years', 'Économe, une maternelle et primaire · 5 ans'), detail: L('Handles fees, uniforms and the bus', 'Gère frais, uniformes et le bus'), greeting: L('“I’m the one who knows where every coin is. Mostly.”', '« C’est moi qui sais où est chaque pièce. En général. »'), pain: L('“I write receipts by hand. A parent said she paid, I had no copy. We lost {lost} because I couldn’t prove anything.”', '« J’écris les reçus à la main. Une mère a dit qu’elle avait payé, je n’avais pas de double. On a perdu {lost} faute de preuve. »'), painNote: L('Hand receipts, no copies: {lost} written off', 'Reçus manuscrits sans double : {lost} passés en perte') },
+    ],
+    weak: [
+      {},
+      {},
+      { broad: L('“Fees, I suppose. All of it.”', '« Les frais, je suppose. Tout ça. »') },
     ],
   },
   'edtech.corporate': {
@@ -429,6 +450,11 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
       { job: L('Learning manager, an insurer · 6 years', 'Responsable formation, un assureur · 6 ans'), detail: L('900 staff · yearly compliance training', '900 employés · formation réglementaire annuelle'), greeting: L('“I’ve seen many demos. I want to see numbers.”', '« J’ai vu beaucoup de démos. Je veux voir des chiffres. »'), pain: L('“The regulator fined us {lost} because 40 agents hadn’t done the yearly course. We had the sheets, not the proof.”', '« Le régulateur nous a infligé {lost} d’amende parce que 40 agents n’avaient pas suivi le cours annuel. On avait les feuilles, pas la preuve. »'), painNote: L('Regulator fine: {lost} for 40 untrained agents', 'Amende du régulateur : {lost} pour 40 agents non formés') },
       { job: L('HR director, a telecoms reseller · 9 years', 'DRH, un revendeur télécom · 9 ans'), detail: L('Sales staff in 12 towns', 'Commerciaux dans 12 villes'), greeting: L('“My team is spread across the country. That’s my whole problem.”', '« Mon équipe est dispersée dans tout le pays. C’est tout mon problème. »'), pain: L('“Bringing everyone to the capital for training: {lost} in travel and hotels, and the shops closed for three days.”', '« Faire venir tout le monde dans la capitale pour la formation : {lost} de transport et d’hôtels, et les boutiques fermées trois jours. »'), painNote: L('Central training: {lost} in travel, shops shut 3 days', 'Formation centralisée : {lost} de déplacements, boutiques fermées 3 jours') },
       { job: L('Operations head, a hotel group · 4 years', 'Directeur·rice des opérations, un groupe hôtelier · 4 ans'), detail: L('Five hotels · high staff turnover', 'Cinq hôtels · fort turnover'), greeting: L('“Half my staff are new every year. Teach them for me.”', '« La moitié de mon personnel est nouveau chaque année. Formez-les pour moi. »'), pain: L('“A new receptionist overbooked a wedding. Refunds and a bad review: {lost}. She’d never been trained on the system.”', '« Une nouvelle réceptionniste a surréservé un mariage. Remboursements et mauvais avis : {lost}. Elle n’avait jamais été formée au système. »'), painNote: L('Untrained new hire: a {lost} overbooking', 'Recrue non formée : une surréservation à {lost}') },
+    ],
+    weak: [
+      { broad: L('“Time, budget, people who never finish. All of it.”', '« Le temps, le budget, les gens qui ne finissent jamais. Tout ça. »'), early: L('“Maybe… if people finish it.”', '« Peut-être… si les gens vont au bout. »') },
+      { leading: L('“I suppose… if people finish it.”', '« Je suppose… si les gens vont au bout. »'), early: L('“After the budget review, maybe.”', '« Après la revue du budget, peut-être. »') },
+      { broad: L('“Compliance, I suppose. All of it.”', '« La conformité, je suppose. Tout ça. »') },
     ],
   },
   // ---- Business software
@@ -460,7 +486,7 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     ],
     switchIf: [
       tried(L('“It must connect to what we use, and someone must answer the phone when it breaks.”', '« Ça doit se connecter à ce qu’on utilise, et quelqu’un doit répondre au téléphone quand ça plante. »'), L('Connects to current tools; real support by phone', 'Se connecte aux outils actuels ; vrai support au téléphone')),
-      tried(L('“If it gives my manager back her Mondays. She’s worth more than retyping.”', '« Si ça rend ses lundis à ma responsable. Elle vaut mieux que de la ressaisie. »'), L('Gives the manager back a day a week', 'Rend une journée par semaine à la responsable')),
+      tried(L('“If it gives us back our Mondays. Our time is worth more than retyping.”', '« Si ça nous rend nos lundis. Notre temps vaut mieux que de la ressaisie. »'), L('Gives the team back a day a week', 'Rend une journée par semaine à l’équipe')),
     ],
     deeper: L('What did the last mistake from retyping cost you?', 'Combien vous a coûté la dernière erreur de ressaisie ?'),
     deeperWhy: L('A mistake with a price puts a number on “saves time”.', 'Une erreur chiffrée met un nombre sur « fait gagner du temps ».'),
@@ -484,9 +510,13 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     deeper: L('Who got the blame for that outage, and what did they have to report?', 'Qui a été tenu responsable de cette panne, et qu’a-t-il dû rapporter ?'),
     deeperWhy: L('The person who got blamed is your champion; their report is your feature list.', 'La personne blâmée sera votre alliée ; son rapport est votre liste de fonctions.'),
     personas: [
-      { job: L('IT manager, a distribution company · 8 years', 'Responsable informatique, une société de distribution · 8 ans'), detail: L('350 staff · a warehouse system from 2014', '350 employés · un système d’entrepôt de 2014'), greeting: L('“Security questions first, then the pitch. Agreed?”', '« Les questions de sécurité d’abord, puis la présentation. D’accord ? »'), pain: L('“The warehouse system froze on a Friday. Trucks waited until Monday. The board saw {lost} of late orders.”', '« Le système d’entrepôt s’est figé un vendredi. Les camions ont attendu jusqu’au lundi. Le conseil a vu {lost} de commandes en retard. »'), painNote: L('A Friday outage: {lost} of late orders', 'Une panne un vendredi : {lost} de commandes en retard') },
+      { job: L('IT manager, a warehouse distributor · 8 years', 'Responsable informatique, un distributeur et son entrepôt · 8 ans'), detail: L('350 staff · a warehouse system from 2014', '350 employés · un système d’entrepôt de 2014'), greeting: L('“Security questions first, then the pitch. Agreed?”', '« Les questions de sécurité d’abord, puis la présentation. D’accord ? »'), pain: L('“The warehouse system froze on a Friday. Trucks waited until Monday. The board saw {lost} of late orders.”', '« Le système d’entrepôt s’est figé un vendredi. Les camions ont attendu jusqu’au lundi. Le conseil a vu {lost} de commandes en retard. »'), painNote: L('A Friday outage: {lost} of late orders', 'Une panne un vendredi : {lost} de commandes en retard') },
       { job: L('Finance director, a manufacturer · 10 years', 'Directeur·rice financier·ère, un industriel · 10 ans'), detail: L('Three plants · monthly board reporting', 'Trois usines · rapport mensuel au conseil'), greeting: L('“Every system here ends up on my budget line. Go ahead.”', '« Chaque système finit sur ma ligne budgétaire. Allez-y. »'), pain: L('“Month-end close takes nine days because systems don’t talk. Last time we missed a covenant report and the bank charged {lost}.”', '« La clôture mensuelle prend neuf jours parce que les systèmes ne se parlent pas. La dernière fois, on a raté un rapport à la banque et elle a facturé {lost}. »'), painNote: L('9-day close; a late bank report cost {lost}', 'Clôture en 9 jours ; un rapport bancaire en retard a coûté {lost}') },
       { job: L('COO, a logistics group · 5 years', 'Directeur·rice des opérations, un groupe logistique · 5 ans'), detail: L('Five depots · 24/7 operations', 'Cinq dépôts · activité 24 h/24'), greeting: L('“We never close. Neither can your software.”', '« On ne ferme jamais. Votre logiciel non plus. »'), pain: L('“The dispatch tool went down for six hours at night. We paid drivers to wait: {lost}, and two clients complained.”', '« L’outil de répartition est tombé six heures la nuit. On a payé les chauffeurs à attendre : {lost}, et deux clients se sont plaints. »'), painNote: L('6-hour night outage: {lost} of idle drivers', 'Panne de 6 heures la nuit : {lost} de chauffeurs à l’arrêt') },
+    ],
+    weak: [
+      {},
+      { broad: L('“Secure. Supported. Plugs into what we run.”', '« Sûr. Avec du support. Qui se branche sur ce qu’on a. »') },
     ],
   },
   // ---- Agriculture
@@ -518,7 +548,7 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
     ],
     switchIf: [
       tried(L('“Fresh, every morning, same price as the market. If it’s bad once, I send it back and I don’t pay.”', '« Frais, chaque matin, au prix du marché. Si c’est mauvais une fois, je renvoie et je ne paie pas. »'), L('Fresh daily at market price; no pay for bad produce', 'Frais chaque jour au prix du marché ; rien à payer si c’est mauvais')),
-      tried(L('“Reliable. I can’t open a restaurant with no onions.”', '« Fiable. Je ne peux pas ouvrir un restaurant sans oignons. »'), L('Reliable supply, every single day', 'Un approvisionnement fiable, chaque jour')),
+      tried(L('“Reliable. I can’t open in the morning with no onions.”', '« Fiable. Je ne peux pas ouvrir le matin sans oignons. »'), L('Reliable supply, every single day', 'Un approvisionnement fiable, chaque jour')),
     ],
     deeper: L('How much did you throw away last week, and why?', 'Combien avez-vous jeté la semaine dernière, et pourquoi ?'),
     deeperWhy: L('Waste is money they can count, and it tells you whether quality or timing is the problem.', 'Le gaspillage, c’est de l’argent qu’ils comptent, et il dit si le problème est la qualité ou les délais.'),
@@ -526,6 +556,10 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
       { job: L('Restaurant owner · 6 years', 'Propriétaire d’un restaurant · 6 ans'), detail: L('Lunch for office workers · 120 plates a day', 'Déjeuners pour employés de bureau · 120 assiettes par jour'), greeting: L('“The kitchen is hot, the office is hotter. Stand here.”', '« La cuisine est chaude, le bureau encore plus. Restez là. »'), pain: L('“Last week the tomatoes were bad and I didn’t see until I cooked. Threw away {lost} of stew.”', '« La semaine dernière, les tomates étaient mauvaises et je ne l’ai vu qu’en cuisinant. J’ai jeté {lost} de ragoût. »'), painNote: L('Bad tomatoes: {lost} of food thrown away', 'Mauvaises tomates : {lost} de nourriture jetés') },
       { job: L('Supermarket produce buyer · 4 years', 'Acheteur·se produits frais, un supermarché · 4 ans'), detail: L('Two stores · fresh aisle', 'Deux magasins · rayon frais'), greeting: L('“My manager wants less waste. Help me and I like you.”', '« Mon responsable veut moins de pertes. Aidez-moi et je vous aimerai. »'), pain: L('“We wrote off {lost} of fruit last month. Half of it arrived bruised from the supplier.”', '« On a passé {lost} de fruits en perte le mois dernier. La moitié est arrivée abîmée du fournisseur. »'), painNote: L('{lost} of fruit written off; half arrived bruised', '{lost} de fruits en perte ; la moitié arrivée abîmée') },
       { job: L('Street food vendor · 9 years', 'Vendeur·se de rue · 9 ans'), detail: L('Grilled fish and plantain · evenings only', 'Poisson grillé et plantain · le soir seulement'), greeting: L('“Come back tonight and eat. Now, talk quickly.”', '« Revenez ce soir manger. Maintenant, parlez vite. »'), pain: L('“The fish man didn’t come on Friday, my best night. I stayed closed: {lost} gone.”', '« Le poissonnier n’est pas venu vendredi, ma meilleure soirée. Je suis resté fermé : {lost} envolés. »'), painNote: L('Supplier no-show on a Friday: {lost} lost', 'Fournisseur absent un vendredi : {lost} perdus') },
+    ],
+    weak: [
+      { early: L('“After the weekend rush, maybe.”', '« Après le coup de feu du week-end, peut-être. »') },
+      { early: L('“Let me talk to my partner first.”', '« Laissez-moi en parler d’abord à mon associé. »') },
     ],
   },
   'agritech.processors': {
@@ -545,6 +579,10 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
       { job: L('Plant manager, a cassava flour mill · 8 years', 'Directeur·rice d’usine, une minoterie de manioc · 8 ans'), detail: L('Runs two shifts when supply allows', 'Tourne en deux équipes quand l’approvisionnement le permet'), greeting: L('“Helmet on. The mill is loud, my office isn’t.”', '« Casque, s’il vous plaît. Le moulin est bruyant, mon bureau non. »'), pain: L('“Last month we stood idle nine days for lack of cassava. Staff still paid, orders late: {lost}.”', '« Le mois dernier, on est restés à l’arrêt neuf jours faute de manioc. Le personnel payé quand même, des commandes en retard : {lost}. »'), painNote: L('9 idle days for lack of supply: {lost}', '9 jours d’arrêt faute d’approvisionnement : {lost}') },
       { job: L('Procurement head, a juice factory · 5 years', 'Responsable des achats, une usine de jus · 5 ans'), detail: L('Buys mangoes and pineapples in season', 'Achète mangues et ananas en saison'), greeting: L('“In season I don’t sleep. Out of season I talk to people like you.”', '« En saison, je ne dors pas. Hors saison, je parle à des gens comme vous. »'), pain: L('“A third of the last mango delivery was under-ripe. We rejected it, the line stopped for two days: {lost}.”', '« Un tiers de la dernière livraison de mangues n’était pas mûr. On l’a refusé, la ligne s’est arrêtée deux jours : {lost}. »'), painNote: L('Ungraded delivery rejected; line stopped 2 days: {lost}', 'Livraison non calibrée refusée ; ligne arrêtée 2 jours : {lost}') },
       { job: L('Owner, a cocoa processor · 11 years', 'Propriétaire d’un transformateur de cacao · 11 ans'), detail: L('Exports to Europe · strict quality rules', 'Exporte vers l’Europe · règles de qualité strictes'), greeting: L('“My buyers audit everything. You’ll be audited too, if we work together.”', '« Mes acheteurs contrôlent tout. Vous aussi, vous le serez, si on travaille ensemble. »'), pain: L('“An export container was rejected: the buyer couldn’t trace the beans. We sold it locally at a loss of {lost}.”', '« Un conteneur à l’export a été refusé : l’acheteur ne pouvait pas tracer les fèves. On l’a vendu localement avec une perte de {lost}. »'), painNote: L('Untraceable beans: container sold at a {lost} loss', 'Fèves non traçables : conteneur vendu à perte, {lost}') },
+    ],
+    weak: [
+      {},
+      { early: L('“Let me take it to the board first.”', '« Laissez-moi d’abord en parler au conseil. »') },
     ],
   },
 };

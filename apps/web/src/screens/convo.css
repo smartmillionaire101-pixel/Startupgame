@@ -201,6 +201,26 @@
   background: rgb(250 204 21 / 0.35);
   border-radius: 4px;
 }
+/* A note only a weaker question filled: a feeling, no figure. */
+.notes dd.vague {
+  color: #7a6a3a;
+  font-style: italic;
+}
+.note-vague {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px dashed #c9b26a;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-style: normal;
+  color: #8a7433;
+}
+.note-gaps {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
 .score-ring {
   display: block;
 }

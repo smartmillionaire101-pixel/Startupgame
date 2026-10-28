@@ -145,34 +145,55 @@ const segInterview = (key: string): SegmentKit => {
   return { ...s, industry: industryOf(key) };
 };
 
+/** A line of notes an answer leaves; `vague` when a weaker question only got a feeling. */
+interface Note {
+  key: NoteKey;
+  line: Line;
+  vague?: true;
+}
+
 interface Answer {
   answer: Line;
-  note: { key: NoteKey; line: Line } | null;
+  /** The note the answer fills first (the round's own, or a price asked too early). */
+  note: Note | null;
+  /** Every note it fills (a weaker question can leave the round's vague note and a price). */
+  notes: Note[];
 }
 
 function answerTo(seg: SegmentKit, persona: number, id: string, v: Vars): Answer {
   const q = parseQ(id)!;
   const p = seg.personas[persona % seg.personas.length]!;
   if (q.kind === 'best') {
-    if (q.round === 0)
-      return { answer: fill(p.pain, v), note: { key: 'pain', line: fill(p.painNote, v) } };
-    const pair = (q.round === 1 ? seg.tried : seg.switchIf)[persona % 2]!;
-    return {
-      answer: fill(pair[0], v),
-      note: { key: ROUND_NOTE[q.round]!, line: fill(pair[1], v) },
-    };
+    const note: Note =
+      q.round === 0
+        ? { key: 'pain', line: fill(p.painNote, v) }
+        : {
+            key: ROUND_NOTE[q.round]!,
+            line: fill((q.round === 1 ? seg.tried : seg.switchIf)[persona % 2]![1], v),
+          };
+    const answer =
+      q.round === 0
+        ? fill(p.pain, v)
+        : fill((q.round === 1 ? seg.tried : seg.switchIf)[persona % 2]![0], v);
+    return { answer, note, notes: [note] };
   }
-  const answer = fill(seg.industry.weak[q.round]![q.kind], v);
-  const notes = q.kind === 'broad' ? { pain: seg.industry.vague } : (WEAK_NOTES[q.kind] ?? {});
-  // A broad question in round 1 hints at the pain; a price asked too early gets a polite yes.
-  const key: NoteKey | null =
-    q.kind === 'broad' && q.round === 0
-      ? 'pain'
-      : q.kind === 'early' && q.round !== 1
-        ? 'price'
-        : null;
-  const line = key ? notes[key] : undefined;
-  return { answer, note: key && line ? { key, line: fill(line, v) } : null };
+  // A weaker question still leaves the round's note, but vague: a feeling, no
+  // figure (player feedback: "Pays now" and "Would switch if" rarely filled).
+  const ind = seg.industry;
+  const vague: Note = {
+    key: ROUND_NOTE[q.round]!,
+    line: fill([ind.vague, ind.vaguePays, ind.vagueSwitch][q.round]!, v),
+    vague: true,
+  };
+  // A price asked too early also gets a polite yes (rounds 1 and 3).
+  const price = WEAK_NOTES[q.kind]?.price;
+  const notes: Note[] =
+    q.kind === 'early' && q.round !== 1 && price
+      ? [vague, { key: 'price', line: fill(price, v) }]
+      : [vague];
+  // A segment's own words where the industry's don't fit who they are.
+  const said = seg.weak?.[q.round]?.[q.kind] ?? ind.weak[q.round]![q.kind];
+  return { answer: fill(said, v), note: notes[0]!, notes };
 }
 
 // ---------------------------------------------------------------- Who you meet
@@ -327,12 +348,18 @@ function roundsView(m: MarketState, a: InterviewState) {
   const seg = segInterview(a.segmentKey);
   const v = varsFor(m, a.segmentKey);
   const notes: Partial<Record<NoteKey, Line>> = {};
+  /** Notes that only a weaker question filled: a feeling, no figure. */
+  const vague: Partial<Record<NoteKey, true>> = {};
   const rounds = a.picks.map((id, r) => {
     const q = parseQ(id)!;
     const ans = answerTo(seg, a.persona, id, v);
     // A real answer outranks a weak one already in the notes.
-    if (ans.note && (!notes[ans.note.key] || q.kind === 'best'))
-      notes[ans.note.key] = ans.note.line;
+    for (const n of ans.notes)
+      if (!notes[n.key] || (vague[n.key] && !n.vague)) {
+        notes[n.key] = n.line;
+        if (n.vague) vague[n.key] = true;
+        else delete vague[n.key];
+      }
     return {
       round: r,
       id,
@@ -340,6 +367,7 @@ function roundsView(m: MarketState, a: InterviewState) {
       question: questionText(seg, id, v),
       answer: ans.answer,
       note: ans.note,
+      notes: ans.notes,
       // Once asked, the round's questions show what kind they were.
       offered: a.offers[r]!.map((o) => ({
         id: o,
@@ -348,11 +376,11 @@ function roundsView(m: MarketState, a: InterviewState) {
       })),
     };
   });
-  return { seg, v, rounds, notes };
+  return { seg, v, rounds, notes, vague };
 }
 
 function summaryView(m: MarketState, c: Company, rec: InterviewRecord) {
-  const { seg, v, rounds, notes } = roundsView(m, rec);
+  const { seg, v, rounds, notes, vague } = roundsView(m, rec);
   const grade = INTERVIEW_GRADES.find((g) => rec.score >= g.min)!.label;
   return {
     person: personView(m, c, rec),
@@ -376,6 +404,16 @@ function summaryView(m: MarketState, c: Company, rec: InterviewRecord) {
     }),
     missed: { question: fill(seg.deeper, v), why: fill(seg.deeperWhy, v) },
     notes,
+    vague,
+    /**
+     * What you missed in your notes (vague or empty), and the question on
+     * offer that round that would have got the real answer.
+     */
+    gaps: ROUND_NOTE.flatMap((key, r) => {
+      if (notes[key] && !vague[key]) return [];
+      const best = rec.offers[r]?.find((o) => parseQ(o)!.kind === 'best');
+      return best ? [{ key, vague: !!notes[key], question: questionText(seg, best, v) }] : [];
+    }),
   };
 }
 
@@ -407,7 +445,7 @@ export function interviewsView(world: World, c: Company) {
   const active = st?.active
     ? (() => {
         const a = st.active;
-        const { seg, v, rounds, notes } = roundsView(m, a);
+        const { seg, v, rounds, notes, vague } = roundsView(m, a);
         const round = a.picks.length;
         return {
           person: personView(m, c, a),
@@ -415,6 +453,7 @@ export function interviewsView(world: World, c: Company) {
           rounds,
           options: (a.offers[round] ?? []).map((id) => ({ id, text: questionText(seg, id, v) })),
           notes,
+          vague,
         };
       })()
     : null;
