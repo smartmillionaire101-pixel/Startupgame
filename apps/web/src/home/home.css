@@ -141,6 +141,46 @@
 .home-person[data-pose='lie'] .city-leg {
   display: none;
 }
+/* Round 7e: lying down in Lite: under the covers, the head on the pillow, a slow "z z". */
+.home-covers {
+  display: none;
+}
+.home-person[data-pose='lie'] .home-covers {
+  display: inline;
+}
+.home-person[data-pose='lie'] .home-person-shadow {
+  display: none;
+}
+.home-zz {
+  fill: #e0f2fe;
+  font-size: 8px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgb(15 23 42 / 0.6);
+  stroke-width: 2px;
+  transform-box: fill-box;
+  animation: home-zz 2.4s ease-in-out infinite;
+}
+.home-zz.late {
+  font-size: 10px;
+  animation-delay: 1.2s;
+}
+@keyframes home-zz {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-zz {
+    animation: none;
+  }
+}
 .home-tag rect {
   fill: #0f172a;
   opacity: 0.78;

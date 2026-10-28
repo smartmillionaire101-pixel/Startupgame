@@ -3,7 +3,10 @@
  * keeper 11 metres away under the stadium lights. Swipe to shoot (where you
  * let go is where it's going, faster is harder, a bowed swipe curls it);
  * in goal, pick your dive. Each kick plays out as the server decided it:
- * saves, the woodwork, the net bulging, the crowd.
+ * saves, the woodwork, the net bulging, the crowd. Round 7e: the kicker
+ * (you, in a kit in your outfit's colours, or whoever is up) waits behind
+ * the ball, then runs up and strikes it (in 3D, over the 2D pitch:
+ * ./game-avatar3d.ts).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -18,11 +21,16 @@ import {
 } from '@runway/engine';
 import { useView } from '../store';
 import { t } from '../i18n';
-import { softwareGl, useQuality } from '../three-kit/quality';
+import { softwareGl, useQuality, webglAvailable } from '../three-kit/quality';
+import { avatarLook } from '../city/art';
+import { genderOf } from '../city/life';
+import type { PitchLayer } from './game-avatar3d';
 import {
   ballAt,
+  KICK_RUN,
   camera,
   diveZones,
+  kickerTime,
   keeperPose,
   project,
   shootoutCard,
@@ -72,14 +80,22 @@ function outcomeText(o: KickOutcome | undefined, goal: boolean) {
 }
 
 export function Shootout({ room, me, live }: { room: Room; me: string; live: boolean }) {
-  const { send, busy } = useView();
+  const { view, send, busy } = useView();
   const quality = useQuality();
   const hq = quality === '3d' && !softwareGl();
+  const gl = quality === '3d' && webglAvailable();
+  const kickRef = useRef<HTMLCanvasElement>(null);
+  const [kicker, setKicker] = useState<PitchLayer | null>(null);
+  const kickerOn = useRef(false);
+  useEffect(() => {
+    kickerOn.current = !!kicker;
+  }, [kicker]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 358, h: 420 });
-  const cam = useMemo(() => camera(size.w, size.h), [size]);
-  const [anim, setAnim] = useState<{ p: Penalty; ms: number } | null>(null);
+  const cam = useMemo(() => camera(size.w, size.h, gl), [size, gl]);
+  /** The kick on screen: `ms` into the ball's flight, `k` since the run-up began. */
+  const [anim, setAnim] = useState<{ p: Penalty; ms: number; k: number } | null>(null);
   const [banner, setBanner] = useState<{ text: string; good: boolean } | null>(null);
   const [trail, setTrail] = useState<SwipePoint[]>([]);
   const [hint, setHint] = useState('');
@@ -125,16 +141,23 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
       });
       return () => cancelAnimationFrame(id);
     }
-    sfx.kick(p.kick?.power ?? 0.6);
+    // With the kicker in the picture, the run-up and the strike come first.
+    const lead = kickerOn.current ? KICK_RUN.lead : 0;
     const start = performance.now();
     let raf = 0;
     let hit = false;
     let started = false;
+    let kicked = false;
     const step = () => {
-      const ms = performance.now() - start;
+      const k = performance.now() - start;
+      const ms = Math.max(0, k - lead);
       if (!started) {
         started = true;
         setBanner(null);
+      }
+      if (!kicked && k >= lead) {
+        kicked = true;
+        sfx.kick(p.kick?.power ?? 0.6);
       }
       if (!hit && ms >= FLIGHT_MS) {
         hit = true;
@@ -145,7 +168,7 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
         if (p.outcome === 'post-in' || p.outcome === 'bar-in') sfx.post();
         sfx.crowd(p.goal, 0.05);
       }
-      setAnim({ p, ms });
+      setAnim({ p, ms, k });
       if (ms < FLIGHT_MS + AFTER_MS) raf = requestAnimationFrame(step);
       else {
         setAnim(null);
@@ -161,6 +184,48 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
     const id = setTimeout(() => setBanner(null), 2600);
     return () => clearTimeout(id);
   }, [banner, playing]);
+
+  // Round 7e: the kicker, in 3D over the pitch (loaded when the game opens in 3D).
+  useEffect(() => {
+    const c = kickRef.current;
+    if (!gl || !c) return;
+    let layer: PitchLayer | null = null;
+    let gone = false;
+    void import('./game-avatar3d').then((m) => {
+      if (gone) return;
+      try {
+        layer = new m.PitchLayer(c, softwareGl());
+      } catch {
+        return;
+      }
+      (window as unknown as { __kick3d?: PitchLayer }).__kick3d = layer;
+      setKicker(layer);
+    });
+    return () => {
+      gone = true;
+      layer?.dispose();
+      setKicker(null);
+      delete (window as unknown as { __kick3d?: PitchLayer }).__kick3d;
+    };
+  }, [gl]);
+  // Who takes this kick: the one whose kick is playing out, else whoever is up.
+  const kickerId =
+    anim?.p.shooter ?? room.shooter ?? room.penalties[room.penalties.length - 1]?.shooter ?? me;
+  const kickerLook = useMemo(
+    () =>
+      kickerId === view.me.id
+        ? avatarLook(view.me.background?.id, view.me.id, genderOf(view.me))
+        : avatarLook(undefined, kickerId),
+    [kickerId, view.me],
+  );
+  useEffect(() => {
+    if (!kicker) return;
+    kicker.setCamera(cam);
+    kicker.setKicker(kickerId, kickerLook);
+  }, [kicker, cam, kickerId, kickerLook]);
+  useEffect(() => {
+    kicker?.show(anim && anim.p.end ? kickerTime(anim.k) : -1);
+  }, [kicker, anim, cam, kickerId, kickerLook]);
 
   // What to draw: the kick being played out, or the last one's end (reduced motion), or the ready state.
   const scene = useMemo(() => {
@@ -294,56 +359,67 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
       <p className="shootout-prompt" role="status">
         {hint || prompt}
       </p>
-      <div className="shootout-pitch" ref={wrapRef}>
-        <canvas
-          ref={canvasRef}
-          style={{ width: cam.width, height: cam.height }}
-          role="img"
-          aria-label={t('The goal and the keeper, from the penalty spot')}
-          data-ball={(() => {
-            const p = project(cam, 0, FOOTBALL_R, SPOT);
-            return `${Math.round(p.x)},${Math.round(p.y)}`;
-          })()}
-          data-goal={(() => {
-            const l = project(cam, -GOAL_HALF, GOAL_H, 0),
-              r = project(cam, GOAL_HALF, 0, 0);
-            return [l.x, l.y, r.x, r.y].map(Math.round).join(',');
-          })()}
-          data-playing={playing ? '1' : '0'}
-          data-turn={canAct ? (shooting ? 'shoot' : 'dive') : 'wait'}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={() => {
-            pts.current = [];
-            setTrail([]);
-          }}
-        />
-        {!shooting && canAct && (
-          <div className="shootout-dives">
-            {diveZones(cam).map((z) => (
-              <button
-                key={z.lane}
-                type="button"
-                style={{ left: z.x, top: z.y, width: z.w, height: z.h }}
-                aria-label={t(DIVE_LABELS[z.lane]!)}
-                onClick={() =>
-                  void send({
-                    type: 'play.penalty',
-                    roomId: room.id,
-                    round: room.round,
-                    lane: z.lane,
-                  })
-                }
-              />
-            ))}
-          </div>
+      <div className="shootout-stage">
+        {gl && (
+          <canvas
+            ref={kickRef}
+            className="shootout-kicker"
+            style={{ width: cam.width, height: cam.height }}
+            aria-hidden="true"
+            data-kicker={kicker ? kickerId : undefined}
+          />
         )}
-        {banner && (
-          <div className={`shootout-banner ${banner.good ? 'good' : 'bad'}`} role="status">
-            {banner.text}
-          </div>
-        )}
+        <div className="shootout-pitch" ref={wrapRef}>
+          <canvas
+            ref={canvasRef}
+            style={{ width: cam.width, height: cam.height }}
+            role="img"
+            aria-label={t('The goal and the keeper, from the penalty spot')}
+            data-ball={(() => {
+              const p = project(cam, 0, FOOTBALL_R, SPOT);
+              return `${Math.round(p.x)},${Math.round(p.y)}`;
+            })()}
+            data-goal={(() => {
+              const l = project(cam, -GOAL_HALF, GOAL_H, 0),
+                r = project(cam, GOAL_HALF, 0, 0);
+              return [l.x, l.y, r.x, r.y].map(Math.round).join(',');
+            })()}
+            data-playing={playing ? '1' : '0'}
+            data-turn={canAct ? (shooting ? 'shoot' : 'dive') : 'wait'}
+            onPointerDown={onDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onPointerCancel={() => {
+              pts.current = [];
+              setTrail([]);
+            }}
+          />
+          {!shooting && canAct && (
+            <div className="shootout-dives">
+              {diveZones(cam).map((z) => (
+                <button
+                  key={z.lane}
+                  type="button"
+                  style={{ left: z.x, top: z.y, width: z.w, height: z.h }}
+                  aria-label={t(DIVE_LABELS[z.lane]!)}
+                  onClick={() =>
+                    void send({
+                      type: 'play.penalty',
+                      roomId: room.id,
+                      round: room.round,
+                      lane: z.lane,
+                    })
+                  }
+                />
+              ))}
+            </div>
+          )}
+          {banner && (
+            <div className={`shootout-banner ${banner.good ? 'good' : 'bad'}`} role="status">
+              {banner.text}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

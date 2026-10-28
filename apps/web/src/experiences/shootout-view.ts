@@ -18,11 +18,49 @@ export interface Camera {
   eyeZ: number;
 }
 
-/** A camera that fits the goal across ~84% of the canvas. */
-export function camera(width: number, height: number): Camera {
-  const eyeZ = SPOT + 4.6;
+/**
+ * The kicker's run-up before the ball flies (round 7e): `lead` ms on
+ * screen, the boot meeting the ball `contact` s into the kicker's animation
+ * (../experiences/game-avatar3d.ts: RUN_UP + CONTACT).
+ */
+export const KICK_RUN = { lead: 700, contact: 0.62 } as const;
+
+/** The kicker's time in their animation (s; below 0: ready) `ms` after the kick began on screen. */
+export function kickerTime(ms: number) {
+  if (ms < 0) return -1;
+  if (ms < KICK_RUN.lead) return (ms / KICK_RUN.lead) * KICK_RUN.contact;
+  // After the strike, in the flight's slow motion.
+  return KICK_RUN.contact + ((ms - KICK_RUN.lead) / 1000) * 0.6;
+}
+
+/** Where the kicker waits, two steps back from the ball (m from the goal line). */
+export const KICKER_Z = SPOT + 0.92;
+
+/**
+ * A camera that fits the goal across ~84% of the canvas, from behind and
+ * above the kicker (round 7e: you take the kick): high enough that the
+ * kicker waiting behind the ball stands below the goal, not in front of
+ * it, and the horizon set so their boots are just inside the bottom edge.
+ */
+export function camera(width: number, height: number, kicker = true): Camera {
+  if (!kicker) {
+    // Lite (no kicker drawn): low behind the spot, the goal big in the picture.
+    const z = SPOT + 4.6;
+    return {
+      width,
+      height,
+      f: (width * 0.84 * z) / (2 * GOAL_HALF),
+      horizon: height * 0.3,
+      eyeY: 1.45,
+      eyeZ: z,
+    };
+  }
+  const eyeZ = SPOT + 11;
+  const eyeY = 3.2;
   const f = (width * 0.84 * eyeZ) / (2 * GOAL_HALF);
-  return { width, height, f, horizon: height * 0.3, eyeY: 1.45, eyeZ };
+  const feet = (eyeY * f) / (eyeZ - KICKER_Z);
+  const horizon = Math.max(height * 0.08, Math.min(height * 0.3, height - 34 - feet));
+  return { width, height, f, horizon, eyeY, eyeZ };
 }
 
 /** World (x across, y up, z from the goal line towards the camera) to screen, with the scale there. */
@@ -80,7 +118,7 @@ export function swipeToKick(c: Camera, pts: readonly SwipePoint[]): Kick | null 
   }
   // A swipe bowing right (cross > 0 on screen) sends the ball out right, curling back left.
   const curve = clamp(-(bow / len) * 3.2, -1, 1);
-  const curl = Math.round(curve * 100) / 100;
+  const curl = Math.round(curve * 100) / 100 || 0;
   return {
     x: clamp(aim.x - curl * 1.1, -6, 6),
     y: clamp(aim.y, 0, 5),
