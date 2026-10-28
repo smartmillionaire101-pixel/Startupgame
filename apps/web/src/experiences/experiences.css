@@ -193,6 +193,10 @@
   text-align: center;
   padding: 35px 0;
 }
+.experience-quiz-meta {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 .experience-quiz h2 {
   font-size: 28px;
   max-width: 650px;

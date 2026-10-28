@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { seeded, hash } from '../city/contract';
 import { along, type HoleGeo } from '../city/golf/game';
 import { markScreen, type GolfDrawProps, type GolfFrame } from '../city/golf/frame';
+import { screenBoxAttr, screenBoxOf } from '../three-kit/screen-box';
 import { cpuGl, softwareGl } from '../three-kit/quality';
 import { makeCharacter, pose } from './character';
 import { golfPose, makeClub, partnerPose, type GolfClub3D } from './golfSwing';
@@ -436,6 +437,7 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
     let last = performance.now();
     const minGap = cpuGl() ? 120 : soft ? 45 : 0;
     const t0 = performance.now();
+    let frameN = 0;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
       if (document.hidden) return;
@@ -491,7 +493,16 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
           for (const [k, c] of Object.entries(p.clubs)) c.root.visible = k === 'iron';
           partnerPose(p.c, p.clubs.iron, t + i * 1.3, s.clap ? 'clap' : 'stand');
         });
-      bag.position.set(f.golfer.x - fx * 2.2 - zx * 1.4, 0.45, f.golfer.z - fz * 2.2 - zz * 1.4);
+      // The bag stands behind you; on a tall phone (the camera further back) beside you
+      // instead, so it isn't a big shape in the corner of the picture.
+      const tallView = camera.aspect < 0.75;
+      const back = tallView ? -0.6 : 2.2;
+      const side = tallView ? 1.8 : 1.4;
+      bag.position.set(
+        f.golfer.x - fx * back - zx * side,
+        0.45,
+        f.golfer.z - fz * back - zz * side,
+      );
       bag.visible = !f.putting;
 
       // The ball, its shadow and trail.
@@ -548,6 +559,7 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
       }
 
       // The camera.
+      const tall = camera.aspect < 0.75;
       const bx = f.ball.x;
       const bz = f.ball.z;
       let k = 4;
@@ -562,8 +574,15 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
           break;
         }
         case 'aim':
-          want.set(bx - fx * 5.6 + zx * 0.9, 2.1, bz - fz * 5.6 + zz * 0.9);
-          look.set(bx + fx * 30, 0.4, bz + fz * 30);
+          // A tall phone sees little across: from further back and straight down the line,
+          // so you (standing left of the ball) are in the picture, clear of the clubs.
+          if (tall) {
+            want.set(bx - fx * 8.6 + zx * 0.1, 2.35, bz - fz * 8.6 + zz * 0.1);
+            look.set(bx + fx * 30 - zx * 0.6, 0.3, bz + fz * 30 - zz * 0.6);
+          } else {
+            want.set(bx - fx * 5.6 + zx * 0.9, 2.1, bz - fz * 5.6 + zz * 0.9);
+            look.set(bx + fx * 30, 0.4, bz + fz * 30);
+          }
           break;
         case 'swing':
           want.set(f.golfer.x + zx * 4.6 - fx * 1.2, 1.0, f.golfer.z + zz * 4.6 - fz * 1.2);
@@ -580,8 +599,10 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
           const dz = g.pin.z - bz;
           const d = Math.max(1, Math.hypot(dx, dz));
           const m = Math.min(d, 7) / d;
-          // Down the line, low behind the ball: you on the left, the cup ahead.
-          want.set(bx - fx * 4.6 + zx * 0.3, 1.45, bz - fz * 4.6 + zz * 0.3);
+          // Down the line, low behind the ball: you on the left, the cup ahead
+          // (a tall phone a little further back, so you aren't cut at the edge).
+          if (tall) want.set(bx - fx * 6.4 + zx * 0.05, 1.7, bz - fz * 6.4 + zz * 0.05);
+          else want.set(bx - fx * 4.6 + zx * 0.3, 1.45, bz - fz * 4.6 + zz * 0.3);
           look.set(bx + dx * m * 0.45, 0.25, bz + dz * m * 0.45);
           break;
         }
@@ -636,6 +657,8 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
         aimLine.visible ? onScreen(ring.position.x, ring.position.y, ring.position.z) : null,
       );
       markScreen(canvas, 'flag', onScreen(g.pin.x, 2.15, g.pin.z));
+      // Where you are on screen (your box, every few frames): tests check you're in the picture.
+      if (frameN++ % 6 === 0) markGolfer(canvas, me.root, camera, Object.values(clubs));
       if (!ready) {
         ready = true;
         live.current.onReady?.();
@@ -651,4 +674,21 @@ export default function Golf3D(props: GolfDrawProps & { market: string }): React
     };
   }, []);
   return <canvas ref={ref} className="golf-3d" aria-hidden="true" data-golf-3d="" />;
+}
+
+/**
+ * The golfer's box on the canvas as `data-golf-golfer` (fractions: "left,top,right,bottom"):
+ * the person, not the club (at the top of the backswing it reaches well past them).
+ */
+function markGolfer(
+  canvas: HTMLCanvasElement,
+  root: THREE.Object3D,
+  camera: THREE.Camera,
+  clubs: { root: THREE.Object3D }[],
+) {
+  const shown = clubs.map((c) => c.root.visible);
+  for (const c of clubs) c.root.visible = false;
+  const v = screenBoxAttr(screenBoxOf(root, camera));
+  clubs.forEach((c, i) => (c.root.visible = shown[i]!));
+  if (canvas.dataset.golfGolfer !== v) canvas.dataset.golfGolfer = v;
 }

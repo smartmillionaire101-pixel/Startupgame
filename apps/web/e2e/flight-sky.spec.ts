@@ -136,6 +136,23 @@ async function drawn(canvas: Locator) {
   return { colours: seen.size, spread: Math.sqrt(sq / n - mean * mean), mean };
 }
 
+/**
+ * The plane fully in the picture: its box on the canvas (`data-plane-box`,
+ * fractions "left,top,right,bottom") inside it.
+ */
+async function expectPlaneInFrame(view: Locator, what: string) {
+  await expect
+    .poll(
+      async () => {
+        const v = (await view.getAttribute('data-plane-box')) ?? '';
+        const [l, t, r, b] = v.split(',').map(Number);
+        return v !== '' && l! >= 0 && t! >= 0 && r! <= 1 && b! <= 1;
+      },
+      { timeout: ms(4000), message: `${what}: the whole plane on screen` },
+    )
+    .toBe(true);
+}
+
 async function waitPhase(flight: Locator, phase: string, timeout = 15_000) {
   await expect(flight).toHaveAttribute('data-flight-phase', phase, { timeout: timeout * PACE });
 }
@@ -157,6 +174,7 @@ test('a flight in 3D: the take-off, the cabin, the full sky over the clouds, the
   await shot(page, '01-takeoff-roll');
   await page.waitForTimeout(ms(1900));
   await shot(page, '02-takeoff-climb');
+  await expectPlaneInFrame(view, 'the climb-out');
 
   // The cabin: up the aisle, your seat, the trolley, the window light, the map, the meal.
   await waitPhase(flight, 'cruise');
@@ -204,6 +222,8 @@ test('a flight in 3D: the take-off, the cabin, the full sky over the clouds, the
   expect(sky.spread).toBeGreaterThan(8);
   await page.waitForTimeout(ms(2300));
   await shot(page, '07-sky-plane');
+  // Out beside it: the whole plane in the picture on a phone (its box inside the canvas).
+  await expectPlaneInFrame(view, 'the sky');
 
   // The approach through the clouds, the touchdown, and London.
   await waitPhase(flight, 'landing');

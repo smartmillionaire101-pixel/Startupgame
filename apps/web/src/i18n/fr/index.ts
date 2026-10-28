@@ -112,6 +112,7 @@ import { founderPlaytest } from './founder-playtest';
 import { r6Ui } from './r6-ui';
 import { playtestR7 } from './playtest-r7';
 import { salesR7 } from './sales-r7';
+import { gamesR7 } from './games-r7';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -227,6 +228,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   r6Ui,
   playtestR7,
   salesR7,
+  gamesR7,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

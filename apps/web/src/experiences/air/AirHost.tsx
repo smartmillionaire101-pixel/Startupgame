@@ -12,7 +12,7 @@ import { useView } from '../../store';
 import { cover } from '../../three-kit/cover';
 import { lifestyleName } from '../../city/wave10';
 import { hereOf } from '../../city/travel';
-import { airOpen, closeAir, onAir, type AirRequest } from './air-bus';
+import { airOpen, closeAir, onAir, preloadAir, type AirRequest } from './air-bus';
 import type { AirBooking } from './AirFlight';
 import './air.css';
 import '../experiences.css';
@@ -29,6 +29,8 @@ function AirRoom({ req }: { req: AirRequest }) {
   const [booked, setBooked] = useState<AirBooking | null>(null);
   useEffect(() => cover(), []);
   const city = hereOf(view).id;
+  // While you choose, the flight loads (its code, the terrain, the buildings' index).
+  useEffect(() => preloadAir(city), [city]);
   const games = view.me.games;
   const venue = req.kind === 'skydive' ? games?.skydive : games?.heli;
   const cur = games?.currency ?? view.market.currency;

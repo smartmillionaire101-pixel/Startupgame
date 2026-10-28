@@ -190,7 +190,7 @@ test('a game from Messages: accepted, both at the same table, the stake held and
     expect(room.members.map((m) => m.id)).toEqual([aId, bId]);
     expect(room.pot).toBe(2 * stake);
     await gameA.getByRole('button', { name: 'Start game' }).click();
-    await expect(gameB.getByText(/^QUESTION 1 OF/)).toBeVisible({ timeout: 10_000 });
+    await expect(gameB.locator('[data-quiz-round="1"]')).toBeVisible({ timeout: 10_000 });
     // B leaves the game under way: the same question as every table game, and A wins the pot.
     await gameB.locator('[data-action="leave-game-ask"]').click();
     const ask = gameB.getByRole('alertdialog', { name: 'Leave the game?' });

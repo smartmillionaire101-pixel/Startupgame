@@ -238,10 +238,10 @@ test('quiz night on mobile: questions come from the bank, three players are matc
     const questionOn = async (p: Page) => {
       const text = await p
         .getByRole('dialog', { name: 'Play together' })
-        .getByText(/^QUESTION \d+ OF 10$/)
+        .locator('[data-quiz-round]')
         .textContent({ timeout: 1000 })
         .catch(() => null);
-      return Number(/QUESTION (\d+)/.exec(text ?? '')?.[1] ?? 0);
+      return Number(/^Question (\d+) of 10\b/.exec(text ?? '')?.[1] ?? 0);
     };
     const over = alice!.getByRole('heading', { name: /wins!|tie/ });
     for (let n = 1; n <= 10; n++) {

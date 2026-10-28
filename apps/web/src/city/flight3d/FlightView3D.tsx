@@ -27,6 +27,7 @@ import * as THREE from 'three';
 import { t } from '../../i18n';
 import { cover } from '../../three-kit/cover';
 import { cpuGl, softwareGl } from '../../three-kit/quality';
+import { screenBoxAttr } from '../../three-kit/screen-box';
 import type { CabinClass } from '../acts/Cabin';
 import type { AvatarLook } from '../art';
 import type { Plane3DKind } from '../../three-kit/plane';
@@ -270,6 +271,7 @@ export default function FlightView3D({
     ro.observe(el);
 
     const mist = q('.f3-mist') as HTMLElement | null;
+    let boxN = 0;
     const frame = (nowMs: number) => {
       const { phase: ph, at } = phaseRef.current;
       if (ph === 'ferry') return;
@@ -297,6 +299,11 @@ export default function FlightView3D({
       world.update(tt);
       renderer.toneMappingExposure = world.exposure();
       renderer.render(world.scene, world.camera);
+      // Where the plane is on screen, now and then (tests: the whole plane in the picture).
+      if (boxN++ % 8 === 0) {
+        const v = screenBoxAttr(world.planeOnScreen());
+        if (el.dataset.planeBox !== v) el.dataset.planeBox = v;
+      }
       if (mist) mist.style.opacity = still ? '0' : world.mist.toFixed(2);
     };
 

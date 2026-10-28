@@ -594,10 +594,11 @@ function Lobby({ place }: { place: PlayPlace }) {
             )}
             {room.status === 'playing' && room.game === 'quiz' && (
               <div className="experience-quiz">
-                <small>
-                  QUESTION {room.round + 1} OF {room.totalQuestions}
+                {/* One line: which question, and its category (they ran together: "OF 10Real-life events"). */}
+                <small className="experience-quiz-meta" data-quiz-round={room.round + 1}>
+                  {t('Question {n} of {total}', { n: room.round + 1, total: room.totalQuestions })}
+                  {room.question?.cat && ` · ${t(CATS[room.question.cat] ?? 'General')}`}
                 </small>
-                {room.question?.cat && <small>{t(CATS[room.question.cat] ?? 'General')}</small>}
                 <h2>{(fr && room.question?.fr?.text) || room.question?.text}</h2>
                 <div className="experience-answers">
                   {((fr && room.question?.fr?.options) || room.question?.options)?.map((o, i) => (
