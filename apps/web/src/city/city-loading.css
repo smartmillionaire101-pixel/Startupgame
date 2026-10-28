@@ -1,0 +1,66 @@
+/* Round 7: the city's loading screen (CityLoading.tsx). */
+.city-load {
+  min-height: 60vh;
+  padding: 16px;
+}
+.city-load-card {
+  width: min(320px, 100%);
+  display: grid;
+  gap: 0.75rem;
+}
+.city-load-title {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text, #1c1917);
+  text-align: center;
+}
+.city-load-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgb(120 113 108 / 0.2);
+  overflow: hidden;
+}
+.city-load-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent, #0f766e);
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(var(--from));
+  /* On the compositor: it moves even while the page lays the city out. */
+  animation: city-load-creep 8s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+  will-change: transform;
+}
+@keyframes city-load-creep {
+  from {
+    transform: scaleX(var(--from));
+  }
+  to {
+    transform: scaleX(var(--to));
+  }
+}
+.city-load-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+.city-load-steps li[data-state='done'] {
+  color: var(--good, #15803d);
+}
+.city-load-steps li[data-state='now'] {
+  color: var(--text, #1c1917);
+  font-weight: 600;
+}
+.city-load-steps li[data-state='next'] {
+  opacity: 0.55;
+}
+@media (prefers-reduced-motion: reduce) {
+  .city-load-bar i {
+    animation: none;
+    transform: scaleX(var(--to));
+  }
+}

@@ -69,6 +69,7 @@ import type { VehicleSpec } from './flavour';
 import { playersByPlace, type PresenceView, type Walker } from './people';
 import { beginRide } from './ride/state';
 import { loadGeo, OSM_CREDIT } from './geo';
+import { CityDrawing } from './CityLoading';
 import { GeoPainter } from './geoPaint';
 import { GeoSprite } from './geoSprites';
 import {
@@ -1226,8 +1227,8 @@ export function CityMap(props: CityMapProps) {
     <>
       <Suspense
         fallback={
-          <div className="city-map city-loading" data-map3d="loading" role="status">
-            <p>{t('Building the city…')}</p>
+          <div className="city-map city-loading" data-map3d="loading">
+            <CityDrawing />
           </div>
         }
       >

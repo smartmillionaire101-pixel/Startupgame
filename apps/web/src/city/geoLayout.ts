@@ -1478,6 +1478,10 @@ export function buildCityLayout(
  */
 const layouts = new Map<string, { key: string; geo: GeoData | null; layout: CityLayout }>();
 
+/** Whether a city has been laid out on this map before (the next one is quick). */
+export const hasCityLayout = (marketId: string, geo: GeoData | null) =>
+  layouts.get(marketId)?.geo === geo;
+
 export function cachedCityLayout(key: string, geo: GeoData | null): CityLayout {
   const input = JSON.parse(key) as CityInput;
   const hit = layouts.get(input.marketId);

@@ -110,7 +110,7 @@ function tickersOf(view: View): Ticker[] {
       name: x.name,
       price: x.price,
       change: x.changePct,
-      news: x.analysis.news.some((n) => n.month >= x.analysis.historyEndMonth - 1),
+      news: !!x.recentNews,
       exact: true,
     }));
   }

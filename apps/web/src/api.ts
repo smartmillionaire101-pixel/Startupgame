@@ -4,6 +4,7 @@ import type {
   PlayerView,
   Receipt,
   RecapView,
+  StockAnalysis,
   StarterIdea,
   StatementLine,
   StatementQuery,
@@ -334,6 +335,14 @@ export const api = {
   /** The month recap for an earlier month (the current one comes with the view). */
   recap: (month: number, signal?: AbortSignal) =>
     request<{ recap: RecapView }>('GET', `/api/recap?month=${month}`, undefined, signal),
+  /** Round 7: a listed company's analysis, read when its page opens (not in the state). */
+  stockAnalysis: (companyId: string, signal?: AbortSignal) =>
+    request<{ analysis: StockAnalysis }>(
+      'GET',
+      `/api/stocks/${encodeURIComponent(companyId)}`,
+      undefined,
+      signal,
+    ),
   /** One transaction's receipt, as this player saw it. */
   receipt: (ref: string) =>
     request<{ receipt: Receipt }>('GET', `/api/receipts/${encodeURIComponent(ref)}`),

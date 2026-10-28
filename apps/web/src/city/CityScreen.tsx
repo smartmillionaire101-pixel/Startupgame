@@ -80,7 +80,8 @@ import { HolidayBanner } from '../phone/apps/Holiday';
 import { RideWith } from './companions';
 import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
-import { cachedCityLayout } from './geoLayout';
+import { cachedCityLayout, hasCityLayout } from './geoLayout';
+import { CityLoading } from './CityLoading';
 import { civicRole, type CityLayout, type DistrictId, type Place, type Pt } from './layout';
 import { skipRides } from './ride/state';
 
@@ -565,12 +566,25 @@ type CityBodyProps = {
 function CityBody(props: CityBodyProps) {
   const { view } = useView();
   const geo = useGeo(view.market.id);
-  if (geo === 'loading')
+  // Round 7: the first lay-out of a real map takes a moment on a slow phone:
+  // the loading screen paints first ("Streets and buildings"), then it runs.
+  const fresh = geo !== 'loading' && !!geo && !hasCityLayout(view.market.id, geo);
+  const [laying, setLaying] = useState(fresh);
+  useEffect(() => {
+    if (!laying) return;
+    let id = requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => setLaying(false));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [laying]);
+  if (geo === 'loading' || (laying && fresh))
     return (
       <div className="city">
-        <div className="city-stage city-loading" role="status">
-          <p>{t('Loading the map…')}</p>
-        </div>
+        <CityLoading
+          className="city-stage"
+          step={geo === 'loading' ? 'map' : 'layout'}
+          city={view.market.name}
+        />
       </div>
     );
   return <CityBodyInner {...props} geo={geo} />;
