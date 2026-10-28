@@ -592,7 +592,10 @@ export const SEGMENT_INTERVIEWS: Record<string, SegmentInterview> = {
 export type LeadKind = 'fit' | 'price' | 'stars' | 'reliability' | 'tour';
 export const LEAD_KINDS: readonly LeadKind[] = ['fit', 'price', 'stars', 'reliability', 'tour'];
 
-/** What you lead with, per industry and need ("tour" is the same everywhere). */
+/**
+ * What you lead with, per industry and need ("tour" is the same everywhere):
+ * the fallback for a segment without its own openings (./sales-openers.ts).
+ */
 // prettier-ignore
 export const LEAD_LINES: Record<Industry, Record<Exclude<LeadKind, 'tour'>, Line>> = {
   fintech: {

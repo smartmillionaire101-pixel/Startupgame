@@ -52,6 +52,7 @@ import {
   type PriceBand,
   type TermsKind,
 } from './data/customer-interviews.js';
+import { openerFor, productTheme } from './data/sales-openers.js';
 import { getBusiness, isOpen, pitchBlocker } from './economy.js';
 import { ensure, fail } from './errors.js';
 import { getMarket, ownCompany, spendHours } from './helpers.js';
@@ -399,8 +400,17 @@ function askForDeal(world: World, me: Player, c: Company, d: SalesDeal, month: n
 
 // ---------------------------------------------------------------- View
 
-const leadLine = (c: Company, k: string): Line =>
-  k === 'tour' ? TOUR_LINE : LEAD_LINES[c.industry][k as Exclude<LeadKind, 'tour'>];
+/**
+ * What an opening says: in the customer's segment's words, the product-fit
+ * one following the company's idea (data/sales-openers.ts); the industry's
+ * line for a segment without its own.
+ */
+function leadLine(c: Company, segmentKey: string, k: string): Line {
+  if (k === 'tour') return TOUR_LINE;
+  const need = k as Exclude<LeadKind, 'tour'>;
+  const theme = productTheme(c.industry, c.idea, c.starterIdea?.id);
+  return openerFor(segmentKey, need, theme) ?? LEAD_LINES[c.industry][need];
+}
 
 const fit3 = (s: number) => (s >= 0.8 ? 'good' : s >= 0.5 ? 'ok' : 'bad');
 
@@ -433,7 +443,10 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
     chance: open && t ? talkChance(world, c, d, me) : null,
     /** The live chance is a guess until a discovery meeting shows what they really have. */
     chanceGuess: !d.revealed,
-    leadOptions: (t?.leadOptions ?? []).map((id) => ({ id, text: leadLine(c, id) })),
+    leadOptions: (t?.leadOptions ?? []).map((id) => ({
+      id,
+      text: leadLine(c, d.customer.segmentKey, id),
+    })),
     lead: t?.lead ? { id: t.lead, reaction: reactLead } : null,
     priceOptions: prices,
     price: t?.price
@@ -470,7 +483,7 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
               mark: fit3(x.score),
               option:
                 x.turn === 'lead'
-                  ? leadLine(c, x.option)
+                  ? leadLine(c, d.customer.segmentKey, x.option)
                   : x.turn === 'terms'
                     ? TERMS_LINES[x.option as TermsKind]
                     : null,
@@ -478,7 +491,7 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
                 x.option === x.best
                   ? null
                   : x.turn === 'lead'
-                    ? leadLine(c, x.best)
+                    ? leadLine(c, d.customer.segmentKey, x.best)
                     : x.turn === 'terms'
                       ? TERMS_LINES[x.best as TermsKind]
                       : null,
