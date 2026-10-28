@@ -21,10 +21,10 @@
  * events, Founder Journey 5 (exits) and 4a (decision events and visible
  * rivals) for new worlds.
  */
-import { FEEDBACK_NOTE } from '@runway/engine';
+import { GAMEPLAY_NOTE } from '@runway/engine';
 
 export const RELEASE_NOTE = {
-  id: FEEDBACK_NOTE,
+  id: GAMEPLAY_NOTE,
   text:
     'Update from your feedback. Founders now set up properly: register, fund the company with ' +
     'your own money, a scheme or a startup loan (banker players can lend), make a plan, then ' +
