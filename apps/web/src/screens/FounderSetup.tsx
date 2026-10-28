@@ -447,6 +447,7 @@ function OwnMoney({
   const keep = max - amount;
   const living = keep > 0 && s.livingCost > 0 ? Math.round((keep / s.livingCost) * 10) / 10 : 0;
   const inCompany = s.own.equity + s.own.loan;
+  const pct = max > 0 ? Math.round((amount / max) * 100) : 0;
   return (
     <Card title={t('3a · Your own money')} action={<Pill tone="good">{t('Founder capital')}</Pill>}>
       <div className="stack" data-setup-own="">
@@ -457,7 +458,7 @@ function OwnMoney({
           <span className="small muted">
             {t('of {savings} savings · {pct}%', {
               savings: money(max, cur),
-              pct: max > 0 ? Math.round((amount / max) * 100) : 0,
+              pct,
             })}
           </span>
         </div>
@@ -472,7 +473,14 @@ function OwnMoney({
         />
         <div className="fsu-scale small muted">
           <span>{money(0, cur)}</span>
-          <span className="warn">{t('½ of savings')}</span>
+          {/* Follows the thumb: the share the slider puts in, not a fixed "½" mark. */}
+          <span
+            className={`fsu-scale-now ${pct > 50 ? 'warn' : 'good'}`}
+            data-own-pct={pct}
+            style={{ left: `${Math.min(80, Math.max(20, pct))}%` }}
+          >
+            {t('{pct}% of savings', { pct })}
+          </span>
           <span>{money(max, cur)}</span>
         </div>
         <Segmented

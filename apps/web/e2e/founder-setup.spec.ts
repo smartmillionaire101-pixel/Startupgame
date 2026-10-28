@@ -123,7 +123,14 @@ test('a new founder registers, funds the company with their own money, leases an
   const max = Number(await slider.getAttribute('max'));
   // A value on the slider's steps (the browser snaps anything else).
   const step = Number(await slider.getAttribute('step'));
+  // The label under the slider follows it (player feedback: it stayed "½ of savings" at 18%).
+  const now = own.locator('[data-own-pct]');
+  await slider.fill(String(Math.round((max * 0.18) / step) * step));
+  await expect(now).toHaveAttribute('data-own-pct', '18');
+  await expect(now).toHaveText('18% of savings');
+  await expect(own.getByText('½ of savings')).toHaveCount(0);
   await slider.fill(String(Math.round(max / 2 / step) * step));
+  await expect(now).toHaveText('50% of savings');
   const amount = Number(await own.locator('[data-own-amount]').getAttribute('data-own-amount'));
   expect(amount).toBeGreaterThan(0);
   // The runway estimate counts what the slider puts in.
