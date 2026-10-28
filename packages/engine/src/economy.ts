@@ -1394,7 +1394,7 @@ export function businessesView(world: World, viewer: Player, m: MarketState) {
         /** Wave 10: a landmark (marina, golf club, ballroom, jet terminal, tech campus). */
         landmark: !!b.landmark,
         /** Wave 6: a showroom's stock (furniture or appliance slots, or cars); null otherwise. */
-        sells: shopSells(b.kind),
+        sells: shopSells(b.kind, gameplayOn(world)),
         /** Wave 6: who's here this month (owner, staff, AI founders, angels, partners, regulars). */
         people: open ? (here[b.id] ?? []) : [],
         venue: spec.venue

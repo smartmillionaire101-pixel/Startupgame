@@ -58,6 +58,7 @@ import {
   type Waypoint,
 } from './flight';
 import { AirRig, saveCamMode, savedCamMode, type AirCamMode } from './air3d';
+import { labelLayer, placeLabels, type Box } from './labels';
 import '../../city/three/city3d.css';
 
 export interface AirBooking {
@@ -416,7 +417,7 @@ export default function AirFlight({
     let first = false;
     let measured = -1e9;
     let measuredSay: string | undefined;
-    let blocks: { l: number; r: number; t: number; b: number }[] = [];
+    let blocks: Box[] = [];
     const groundAt = (x: number, z: number) => {
       const s = sceneRef.current;
       return s ? s.groundAt(x, z) + s.terrainAt(x, z) : 0;
@@ -569,27 +570,39 @@ export default function AirFlight({
                 }))
             : [];
         }
-        for (const node of host.querySelectorAll<HTMLElement>('[data-air-label]')) {
+        // Two landmarks close together: the nearer one's name goes where it is, the
+        // farther one's stacks above it on a longer stem, or hides (./labels.ts).
+        const nodes = [...host.querySelectorAll<HTMLElement>('[data-air-label]')];
+        const at: { x: number; y: number }[] = [];
+        const wants = nodes.map((node) => {
           const l = where.marks[Number(node.dataset.i)];
-          if (!l) continue;
-          const d = Math.hypot(l.x - cam.pos.x, l.z - cam.pos.z);
+          if (!l) {
+            at.push({ x: 0, y: 0 });
+            return { x: 0, y: 0, inFront: false, d: Infinity, w: 0, h: 0 };
+          }
           scene.project(l.x, groundAt(l.x, l.z) + l.h + 10, l.z, out);
-          // The name's box: centred over the point, above its 8 px stem (.sky-label).
-          const lw = node.offsetWidth || 140;
-          const lh = node.offsetHeight || 20;
-          const box = { l: out.x - lw / 2, r: out.x + lw / 2, t: out.y - lh - 8, b: out.y };
-          const vis =
-            out.z < 1 &&
-            box.l > 4 &&
-            box.r < W - 4 &&
-            box.t > 4 &&
-            out.y < H - 120 &&
-            d < 6000 &&
-            !blocks.some((k) => box.l < k.r && box.r > k.l && box.t < k.b && box.b > k.t);
-          if (vis)
-            node.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
+          at.push({ x: out.x, y: out.y });
+          return {
+            x: out.x,
+            y: out.y,
+            inFront: out.z < 1,
+            d: Math.hypot(l.x - cam.pos.x, l.z - cam.pos.z),
+            w: node.offsetWidth || 140,
+            h: node.offsetHeight || 20,
+          };
+        });
+        const stems = placeLabels(wants, blocks, W, H);
+        const layer = labelLayer(wants);
+        nodes.forEach((node, i) => {
+          const stem = stems[i];
+          const vis = stem !== null && stem !== undefined;
+          if (vis) {
+            node.style.transform = `translate(${Math.round(at[i]!.x)}px,${Math.round(at[i]!.y)}px)`;
+            node.style.setProperty('--stem', `${stem}px`);
+            node.style.zIndex = String(layer[i]);
+          }
           if (node.hidden === vis) node.hidden = !vis;
-        }
+        });
       }
       raf = requestAnimationFrame(frame);
     };

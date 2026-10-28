@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { HALLWAY_SLOTS } from '@runway/engine';
 import { HOME_SLOTS } from '../src/city/life';
 import { TIER_GRID, blockedTiles, key, planFor, wallEdges } from '../src/home/layout';
 import { findPath, pathTowards, walkable, type Grid } from '../src/home/path';
@@ -10,7 +11,10 @@ describe('home floor plans (Wave 7 §A)', () => {
     it(`tier ${tier}: every slot has a spot, nothing overlaps, every interact tile is reachable`, () => {
       const plan = planFor(tier);
       expect({ w: plan.w, h: plan.h }).toEqual(TIER_GRID[tier]);
-      for (const slot of HOME_SLOTS) expect(plan.slots[slot], slot).toBeDefined();
+      // A room in a shared flat has no room for some hallway things (round 7).
+      for (const slot of HOME_SLOTS)
+        if (tier > 1 || !HALLWAY_SLOTS.includes(slot as never))
+          expect(plan.slots[slot], slot).toBeDefined();
       for (const owned of [new Set<string>(), ALL]) {
         const blocked = blockedTiles(plan, owned);
         // Footprints stay inside the grid and don't overlap.

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { HALLWAY_SLOTS } from '@runway/engine';
 import { HOME_SLOTS } from '../src/city/life';
 import {
   TIER_OF_KIND,
@@ -35,7 +36,10 @@ describe('Wave 12: the house grows with the kind of home and your wealth', () =>
         const tier = TIER_OF_KIND[kind];
         const plan = planFor(tier, { kind, wealth });
         expect(plan.kind).toBe(kind);
-        for (const slot of HOME_SLOTS) expect(plan.slots[slot], slot).toBeDefined();
+        // A room in a shared flat has no room for some hallway things (round 7).
+        for (const slot of HOME_SLOTS)
+          if (tier > 1 || !HALLWAY_SLOTS.includes(slot as never))
+            expect(plan.slots[slot], slot).toBeDefined();
         // Rooms tile the grid exactly.
         const cover = new Map<string, string>();
         for (const r of plan.rooms)
@@ -90,8 +94,12 @@ describe('Wave 12: the house grows with the kind of home and your wealth', () =>
         }
         // Moving things around still works in the bigger home.
         for (const slot of MOVABLE) {
-          const s = plan.slots[slot]!;
-          expect(canPlace(plan, ALL, slot, { x: s.x, y: s.y, rot: 0 }), slot).toBe(true);
+          const s = plan.slots[slot];
+          if (!s) continue;
+          expect(
+            canPlace(plan, ALL, slot, { x: s.x, y: s.y, rot: (s as { rot?: number }).rot ?? 0 }),
+            slot,
+          ).toBe(true);
         }
       });
 
@@ -215,7 +223,15 @@ describe('floors: a house has an upstairs, a mansion a roof terrace; every home 
         expect(floors).toHaveLength(storeys);
         floors.forEach((p, i) => expect(p.level ?? 0).toBe(i));
         // Every slot is on exactly one floor.
-        expect(floors.flatMap((p) => Object.keys(p.slots)).sort()).toEqual([...HOME_SLOTS].sort());
+        // (A room in a shared flat has no room for some hallway things: round 7.)
+        const onFloors = floors.flatMap((p) => Object.keys(p.slots)).sort();
+        expect(onFloors).toEqual([...new Set(onFloors)]);
+        expect(onFloors).toEqual(
+          HOME_SLOTS.filter(
+            (s) =>
+              TIER_OF_KIND[kind] > 1 || !HALLWAY_SLOTS.includes(s as never) || onFloors.includes(s),
+          ).sort(),
+        );
         // A bathroom you'd recognise: a toilet, a basin and a shower or a bath, behind a door.
         const things = new Set(floors.flatMap(bathThings));
         for (const t of ['toilet', 'sink']) expect(things.has(t), t).toBe(true);
@@ -272,7 +288,11 @@ describe('floors: a house has an upstairs, a mansion a roof terrace; every home 
           }
           for (const slot of MOVABLE) {
             const s = p.slots[slot];
-            if (s) expect(canPlace(p, ALL, slot, { x: s.x, y: s.y, rot: 0 }), slot).toBe(true);
+            if (s)
+              expect(
+                canPlace(p, ALL, slot, { x: s.x, y: s.y, rot: (s as { rot?: number }).rot ?? 0 }),
+                slot,
+              ).toBe(true);
           }
         }
         // The stairs join the floors: each leads to the next one up, and back down.

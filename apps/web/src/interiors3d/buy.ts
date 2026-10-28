@@ -26,7 +26,29 @@ export const BUY_ROOMS: { id: string; label: string; slots: string[] }[] = [
   { id: 'bedroom', label: 'Bedroom', slots: ['bed', 'wardrobe', 'desk', 'laptop'] },
   { id: 'kitchen', label: 'Kitchen', slots: ['kitchen', 'fridge', 'coffee', 'dining'] },
   { id: 'utility', label: 'Utility', slots: ['washer', 'cooling', 'power', 'wifi'] },
+  // Round 7: the bathroom and the hallway (engine ROOM_SLOTS; tabs only where they're sold).
+  {
+    id: 'bathroom',
+    label: 'Bathroom',
+    slots: ['cabinet', 'towels', 'bathmat', 'hamper', 'bathplant'],
+  },
+  {
+    id: 'hallway',
+    label: 'Hallway',
+    slots: ['shoes', 'coats', 'console', 'hallmirror', 'runner'],
+  },
 ];
+
+/** The room tabs with something to show: sold here, and on this floor (when it's one of several). */
+export function buyRooms(
+  items: readonly Pick<BuyItem, 'slot'>[],
+  floorSlots?: ReadonlySet<string>,
+): typeof BUY_ROOMS {
+  const sold = new Set(items.map((f) => f.slot));
+  return BUY_ROOMS.filter((r) =>
+    r.slots.some((s) => sold.has(s) && (!floorSlots || floorSlots.has(s))),
+  );
+}
 
 const slotOrder = BUY_ROOMS.flatMap((r) => r.slots);
 const orderOf = (slot: string) => {

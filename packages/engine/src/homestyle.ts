@@ -53,7 +53,7 @@ import { formatMoney, scale } from './money.js';
 import { newId } from './ids.js';
 import { HOME_ACTS, NEED_KEYS, bumpNeed, type HomeActId, type NeedKey } from './needs.js';
 import { gameplayOn, lifeBarsOn } from './releases.js';
-import { atHome, storeAccount } from './shop.js';
+import { atHome, furnitureIn, storeAccount } from './shop.js';
 import type { Player, World } from './types.js';
 
 export type Boosts = Partial<Record<BoostKey, number>>;
@@ -195,7 +195,7 @@ export function extraSlotsOf(world: World): readonly string[] {
 /** `home.extra.buy`: another of a thing you have (its slot's one first), placed on its own. */
 export function buyExtra(world: World, me: Player, itemId: string) {
   atHome(me);
-  const f = furnitureItem(itemId);
+  const f = furnitureIn(world, itemId);
   ensure(f, 'home.item', 'That isn’t in the catalogue.');
   ensure(extraSlotsOf(world).includes(f.slot), 'home.extra', 'A home has just the one of those.');
   ensure(

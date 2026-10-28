@@ -450,8 +450,10 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
   await expectFramed(page, 'the helicopter');
   await page.waitForTimeout(1000);
   // While the pilot talks, no landmark's name sits on the commentary (or the buttons).
+  // Nor on each other: two landmarks close together stack or the farther one hides.
   for (let i = 0; i < 4; i++) {
     expect(await labelsOverHud(page), 'a landmark name over the commentary').toEqual([]);
+    expect(overlapping(await labelBoxes(page)), 'two landmark names on each other').toEqual([]);
     await page.waitForTimeout(700);
   }
   await snap(page, 'heli-tour', info);
@@ -494,12 +496,70 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
   // "St Paul's Cathedral" over the Outside button).
   const covered = await labelsOverHud(page);
   expect(covered).toEqual([]);
+  expect(overlapping(await labelBoxes(page))).toEqual([]);
   await snap(page, 'heli-landed', info);
   const v = await state(page);
   expect(v.me.games!.you.flights).toBe(1);
   expect(v.me.games!.you.booked).toBeNull();
   expect(errors).toEqual([]);
 });
+
+test.describe('on a laptop', () => {
+  test.use({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false });
+
+  test('a helicopter tour: landmark names never sit on each other or the commentary', async ({
+    page,
+  }, info) => {
+    test.setTimeout(300_000);
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await founder(page, 'Heli Laptop', /London/);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    expect((await command(page, { type: 'player.lifestyle', tier: 3 })).ok()).toBe(true);
+    await page.reload();
+    await expect(page.locator('[data-hud-bar]')).toBeVisible({ timeout: 30_000 });
+    const { games } = await goingOut(page);
+    await games.locator('[data-go="heli"]').click();
+    const book = page.getByRole('dialog', { name: 'Book a helicopter ride' });
+    await book.locator('[data-air-item="heli-tour"] [data-action="air-book"]').click();
+    const air = page.locator('[data-air="heli"]');
+    await expect(air).toBeVisible({ timeout: STEP_3D });
+    await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 3));
+    await expect(air.locator('[data-air-say]')).toBeVisible({ timeout: 120_000 });
+    await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('heli');
+    // Names in view first (the city draws slowly in software).
+    await expect
+      .poll(async () => (await labelBoxes(page)).length, { timeout: 60_000 })
+      .toBeGreaterThan(0);
+    for (let i = 0; i < 8; i++) {
+      expect(await labelsOverHud(page), 'a landmark name over the commentary').toEqual([]);
+      expect(overlapping(await labelBoxes(page)), 'two landmark names on each other').toEqual([]);
+      if (i === 3) await snap(page, 'heli-tour-laptop', info);
+      await page.waitForTimeout(700);
+    }
+    expect(errors).toEqual([]);
+  });
+});
+
+/** The landmark names in view, and their boxes on screen. */
+const labelBoxes = (p: Page) =>
+  p.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.sky-label:not([hidden])')].map((n) => {
+      const r = n.getBoundingClientRect();
+      return { name: n.dataset.airLabel ?? '', l: r.left, r: r.right, t: r.top, b: r.bottom };
+    }),
+  );
+
+/** Pairs of landmark names whose boxes overlap. */
+function overlapping(xs: { name: string; l: number; r: number; t: number; b: number }[]) {
+  const out: string[] = [];
+  xs.forEach((a, i) =>
+    xs.slice(i + 1).forEach((b) => {
+      if (a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t) out.push(`${a.name} / ${b.name}`);
+    }),
+  );
+  return out;
+}
 
 /** The landmark names drawn over the title, the buttons, the commentary or the result. */
 const labelsOverHud = (p: Page) =>

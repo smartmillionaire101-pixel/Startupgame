@@ -710,7 +710,8 @@
   background: rgb(10 22 18 / 0.72);
   color: #fff;
   border: 1px solid rgb(255 255 255 / 0.25);
-  translate: -50% calc(-100% - 8px);
+  /* A name stacked over a nearer one has a longer stem (AirFlight.tsx). */
+  translate: -50% calc(-100% - var(--stem, 8px));
 }
 .sky-label::after {
   content: '';
@@ -718,7 +719,7 @@
   left: 50%;
   top: 100%;
   width: 1px;
-  height: 8px;
+  height: var(--stem, 8px);
   background: rgb(255 255 255 / 0.7);
 }
 .sky-label i {
