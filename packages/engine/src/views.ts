@@ -36,7 +36,7 @@ import { founderGuide, founderPlanBase } from './founderguide.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
-import { bowlingOptions, golfMatchOptions, myPlayRoom, playView } from './play.js';
+import { bowlingOptions, golfMatchOptions, myPlayRoom, playInvites, playView } from './play.js';
 import { gamesView } from './games.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
@@ -851,6 +851,8 @@ export function playerView(
     playRooms: playView(world, p),
     /** The game you're in (open or under way), wherever it is: leave it from anywhere. */
     myPlayRoom: myPlayRoom(world, p),
+    /** Invitations to a table waiting for your answer, wherever they are (the gameplay round). */
+    playInvites: playInvites(world, p),
     living: livingView(world, p),
     /** The month clock (Wave 4): when the next settlement is due, for a countdown. */
     clock: clock ? clockView(clock.now, clock.monthMs) : null,
