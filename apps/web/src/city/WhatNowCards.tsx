@@ -409,7 +409,13 @@ export function WhatNowDay({
           </li>
         ))}
       </ol>
-      <span className="whatnow-nowmark" data-now={clockText(hour)} style={{ left: `${at}%` }}>
+      <span
+        className="whatnow-nowmark"
+        data-now={clockText(hour)}
+        // Near an end of the bar the label hangs inwards, so it never runs off the screen.
+        data-edge={at < 15 ? 'start' : at > 85 ? 'end' : undefined}
+        style={{ left: `${at}%` }}
+      >
         <span>{t('now {time}', { time: clockText(hour) })}</span>
       </span>
     </div>
