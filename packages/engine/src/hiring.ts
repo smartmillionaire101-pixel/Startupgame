@@ -556,9 +556,9 @@ export function hiringView(world: World, c: Company) {
         personality: revealsFit(x) ? x.personality : null,
         keen: x.referredFor === c.id,
         trialFee: trialFee(x),
-        /** Round 7 (gameplay note): what they'd bring, at the skill their CV claims. */
+        /** Round 7 (gameplay note): what they'd bring, at the skill their CV claims until checked. */
         brings: gameplayOn(world)
-          ? bringsOf(world, c, { ...x, skill: x.skill ?? x.cvSkill })
+          ? bringsOf(world, c, { ...x, skill: revealsSkill(x) ? x.skill : x.cvSkill })
           : null,
       })),
     aiCofounder: {
