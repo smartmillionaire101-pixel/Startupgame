@@ -30,10 +30,11 @@ import { newId } from './ids.js';
 import { account, costIn, pay, payExact, transfer, withTx } from './ledger.js';
 import { formatMoney } from './money.js';
 import { investorOn } from './releases.js';
-import { buyLimitShares, homeFirst, homeMarketOf, recentNews } from './stocks.js';
+import { buyLimitShares, homeFirst, homeMarketOf } from './stocks.js';
 import type {
   Company,
   ExchangeState,
+  Fund,
   Id,
   MarketState,
   Player,
@@ -571,15 +572,61 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
  * `view.exchange`: every open city's exchange, the viewer's own city first,
  * with the viewer's holdings, units and orders, and an analysis per listing.
  */
-export function exchangeView(world: World, p: Player, now?: number) {
-  if (!investorOn(world) || p.ai) return null;
-  // Crossover (public-equity) funds you run trade here too.
-  const crossover = Object.values(world.funds).filter(
+/** Crossover (public-equity) funds the player runs: they trade on the exchanges too. */
+export function crossoverFunds(world: World, p: Player): Fund[] {
+  return Object.values(world.funds).filter(
     (f) =>
       f.managerId === p.id &&
       f.lp?.strategy === 'public' &&
       (f.lp.stage === 'investing' || f.lp.stage === 'harvest' || f.lp.stage === 'extended'),
   );
+}
+
+/**
+ * Round 7 (city load time): what the city exchange adds to a listing in the
+ * stock market (exits.ts publicMarketView), the one list every screen reads.
+ * Null where the city has no exchange (or outside investor-career worlds).
+ */
+export function listingTrade(world: World, p: Player, c: Company, crossover: Fund[], now?: number) {
+  const m = getMarket(world, c.market);
+  const ex = m.exchange;
+  if (!investorOn(world) || p.ai || !ex) return null;
+  const last = c.finance.history[c.finance.history.length - 1];
+  const revenue = last?.revenue ?? 0;
+  const cap = Math.round(mcap(c));
+  return {
+    ai: c.ai,
+    /** One of the city's established companies (established.ts), not a startup. */
+    established: isEstablished(c),
+    monthlyRevenue: revenue,
+    profit: last?.net ?? 0,
+    /** Price to yearly sales. */
+    ps: revenue > 0 ? r2(cap / (revenue * 12)) : null,
+    weightPct: ex.divisor > 0 ? r2((cap / (ex.level * ex.divisor)) * 100) : 0,
+    news: m.news
+      .filter((n) => n.subject.kind === 'company' && n.subject.id === c.id)
+      .slice(0, 2)
+      .map((n) => n.headline),
+    /** Most you can buy this month (depth cap). */
+    maxBuyShares: buyLimitShares(world, p, c),
+    blackout: blackoutReason(world, p, c, now),
+    insider: isInsider(world, p, c),
+    /** Your crossover funds' holdings here (Phase 6). */
+    fundShares: crossover.map((f) => ({
+      fundId: f.id,
+      name: f.name,
+      shares: c.capTable.holdings[f.id]?.shares ?? 0,
+    })),
+  };
+}
+
+/**
+ * The city exchanges: each index and its fund, your holdings against it, and
+ * your orders. The listed companies themselves are in the stock market list
+ * (capital.market, with each one's `trade`), sent once.
+ */
+export function exchangeView(world: World, p: Player) {
+  if (!investorOn(world) || p.ai) return null;
   const markets = Object.values(world.markets)
     .filter((m): m is MarketState => !!m && !!m.exchange)
     .map((m) => {
@@ -604,52 +651,6 @@ export function exchangeView(world: World, p: Player, now?: number) {
           yourCost: Math.round(ex.unitCost[p.id] ?? 0),
           feeYear: INVESTOR.exchange.indexFeeYear,
         },
-        listings: listedIn(world, m.id).map((c) => {
-          const last = c.finance.history[c.finance.history.length - 1];
-          const revenue = last?.revenue ?? 0;
-          const cap = Math.round(mcap(c));
-          const float = c.capTable.holdings[`pub:${c.id}`]?.shares ?? 0;
-          const maxShares = buyLimitShares(world, p, c);
-          return {
-            companyId: c.id,
-            name: c.name,
-            ai: c.ai,
-            /** One of the city's established companies (established.ts), not a startup. */
-            established: isEstablished(c),
-            industry: c.industry,
-            price: r2(c.ipo!.price ?? 0),
-            changePct: c.ipo!.prevPrice
-              ? r2(((c.ipo!.price! - c.ipo!.prevPrice) / c.ipo!.prevPrice) * 100)
-              : 0,
-            marketCap: cap,
-            monthlyRevenue: revenue,
-            profit: last?.net ?? 0,
-            /** Price to yearly sales. */
-            ps: revenue > 0 ? r2(cap / (revenue * 12)) : null,
-            weightPct: ex.divisor > 0 ? r2((cap / (ex.level * ex.divisor)) * 100) : 0,
-            news: m.news
-              .filter((n) => n.subject.kind === 'company' && n.subject.id === c.id)
-              .slice(0, 2)
-              .map((n) => n.headline),
-            yourShares: c.capTable.holdings[p.id]?.shares ?? 0,
-            yourCost: c.ipo!.basis?.[p.id] ?? 0,
-            /** Most you can buy this month (depth cap). */
-            maxBuyShares: maxShares,
-            blackout: blackoutReason(world, p, c, now),
-            insider: isInsider(world, p, c),
-            isFounder: c.founderIds.includes(p.id),
-            lockedUntil: (c.ipo!.lockups?.[p.id] ?? 0) > m.month ? c.ipo!.lockups![p.id]! : null,
-            history: (c.ipo!.history ?? []).map(r2),
-            floatShares: float,
-            /** Your crossover funds' holdings here (Phase 6). */
-            fundShares: crossover.map((f) => ({
-              fundId: f.id,
-              name: f.name,
-              shares: c.capTable.holdings[f.id]?.shares ?? 0,
-            })),
-            recentNews: recentNews(world, c),
-          };
-        }),
         holdings: holdingsSummary(world, p, m),
       };
     })

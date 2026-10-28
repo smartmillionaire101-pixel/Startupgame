@@ -34,6 +34,7 @@ import {
   avatarPosIn,
   districtLabel,
   placeAvatarAt,
+  preloadCityArea,
   type CityMapHandle,
   type FarTrip,
 } from './CityMap';
@@ -757,6 +758,8 @@ function CityBodyInner({
       holdHome(true);
     }
   }
+  // Round 7: the 3D buildings where you stand start coming at once (your area first).
+  useEffect(() => preloadCityArea(layout), [layout]);
   // Back to a phone tab left in the background for a while: a new session,
   // so you’re at home again (not mid-trip or landing).
   const homeDoor = layout.places.find((p) => p.id === 'home');

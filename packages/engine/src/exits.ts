@@ -36,7 +36,14 @@ import { costIn, payExact, pay, transfer, valueIn, withTx, account } from './led
 import { clamp } from './math.js';
 import { formatMoney } from './money.js';
 import { deriveRng } from './rng.js';
-import { afterBuy, afterSell, checkBuy, checkSell } from './exchange.js';
+import {
+  afterBuy,
+  afterSell,
+  checkBuy,
+  checkSell,
+  crossoverFunds,
+  listingTrade,
+} from './exchange.js';
 import { fundCanInvest } from './lpfunds.js';
 import { distributeFund } from './funds.js';
 import { applyStarEvent } from './stars.js';
@@ -896,7 +903,8 @@ const round2 = (x: number) => Math.round(x * 100) / 100;
  * analysis to read before buying. The viewer's own city comes first, then
  * the other cities by name; the biggest companies first within a city.
  */
-export function publicMarketView(world: World, p: Player) {
+export function publicMarketView(world: World, p: Player, now?: number) {
+  const crossover = crossoverFunds(world, p);
   return Object.values(world.companies)
     .filter(isListed)
     .map((c) => {
@@ -926,6 +934,12 @@ export function publicMarketView(world: World, p: Player) {
         brokerBps: EXITS.ipo.brokerBps,
         // Round 7: the analysis is fetched when the company opens (stocks.ts stockAnalysisFor).
         recentNews: recentNews(world, c),
+        /**
+         * Round 7: what the city exchange adds (index weight, the month's
+         * buy limit, insider rules, crossover funds), or null without one.
+         * The exchange view no longer repeats the listings.
+         */
+        trade: listingTrade(world, p, c, crossover, now),
       };
     })
     .sort(
