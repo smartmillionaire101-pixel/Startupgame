@@ -1,18 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { t } from './i18n';
-import { useMusic } from './music';
-import { useSetting } from './phone/settings';
 import { OnlineNowSheet } from './city/OnlineNow';
 
 /**
- * The live player count, compact in the top bar (a dot and the number; tap
- * for who's online), and the game music. Music on/off and Feedback live in
- * the phone's Settings app.
+ * The live player count, compact under the HUD's pills on the map (a dot and
+ * the number; tap for who's online). The game music plays from the HUD
+ * (Hud.tsx), on every screen; music on/off and Feedback live in the phone's
+ * Settings app.
  */
 export function GameActivity() {
-  const sound = useSetting('sound');
-  useMusic(sound);
   const [count, setCount] = useState<number | null>(null);
   const [listOpen, setListOpen] = useState(false);
   useEffect(() => {

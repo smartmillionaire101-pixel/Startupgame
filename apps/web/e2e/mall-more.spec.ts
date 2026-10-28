@@ -58,7 +58,7 @@ async function toMall(page: Page, quality: '3d' | 'lite') {
   } else {
     // On the 3D map places may be off-screen: go by the Places list.
     await page
-      .locator('.city-hud-bottom')
+      .locator('.city-stage')
       .getByRole('button', { name: /^(Where to\?|Places)$/ })
       .click();
     await page.locator('[data-outing="mall"]').click();

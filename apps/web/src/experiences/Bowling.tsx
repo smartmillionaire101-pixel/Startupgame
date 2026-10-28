@@ -172,7 +172,7 @@ export default function Bowling({
     if (seen.current === g.balls) return;
     seen.current = g.balls;
     if (first || !last) return;
-    const sim = simulateBowl(last.standing, last.launch, true);
+    const sim = simulateBowl(last.standing, last.launch, true, g.deck ?? 'lively');
     const call = rollCall(last.standing, last.knocked, last.gutter);
     const text = callText(call, last.knocked.length);
     const good = (last.by === me) === (call === 'strike' || call === 'spare' || call === 'pins');
@@ -452,7 +452,10 @@ function BowlingSheet({ room, me }: { room: Room; me: string }) {
                 );
               })}
             </ol>
-            <b className="bowling-total">{m.score}</b>
+            {/* The bonus balls still to come: what the sheet reads so far, with a +. */}
+            <b className="bowling-total" data-score={m.score}>
+              {p && p.soFar > m.score ? t('{n}+', { n: p.soFar }) : m.score}
+            </b>
           </div>
         );
       })}

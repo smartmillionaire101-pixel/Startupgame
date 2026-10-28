@@ -1,19 +1,19 @@
 /**
  * Where your money is, in one place. A tester couldn't find their company's
- * bank balance, spending or revenue (the top bar shows only your own cash),
+ * bank balance, spending or revenue (the top bar showed only your own cash),
  * nor see that next month's salaries wouldn't be covered until it was too
  * late. So:
  *
- * - Tapping the cash in the top bar opens "Your money": your own account and,
- *   for a founder, the company's bank, revenue, spending and how long the
- *   money lasts.
+ * - Tapping the money pill (top right of the HUD) opens "Your money": your
+ *   own account and, for a founder, the company's bank, revenue, spending and
+ *   how long the money lasts, and the way to the whole Money screen.
  * - When the company can't cover next month's salaries and costs (the
- *   server's `nextMonth.short`), a warning sits under the top bar on every
- *   screen, with the numbers and the ways to fix it (the rescue plan's
- *   options), well before staff go unpaid.
+ *   server's `nextMonth.short`), the money pill has a red ring on every
+ *   screen and "Your money" starts with the warning, with the numbers and the
+ *   ways to fix it (the rescue plan's options), well before staff go unpaid.
  */
 import { useState } from 'react';
-import type { Command } from '@runway/engine';
+import type { Command, PlayerView } from '@runway/engine';
 import { money, moneyExact, runway } from './format';
 import { t, tx } from './i18n';
 import { activeCompany, rescueOf, type RescueOption } from './city/contract';
@@ -32,6 +32,10 @@ interface NextMonth {
 const nextMonthOf = (c: CompanyV | null): NextMonth | null =>
   ((c as { nextMonth?: NextMonth | null } | null)?.nextMonth ?? null) || null;
 
+/** Next payday won't be covered (the money pill's red ring). */
+export const paydayShort = (view: Parameters<typeof activeCompany>[0]): boolean =>
+  (nextMonthOf(activeCompany(view))?.short ?? 0) > 0;
+
 /** One labelled figure in a money sheet. */
 function Row({ label, value, tone }: { label: string; value: string; tone?: 'bad' | 'good' }) {
   return (
@@ -46,25 +50,45 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: 'bad
 export function MoneySheet({
   onClose,
   onCompany,
+  onAllMoney,
+  onCompanyMoney,
 }: {
   onClose: () => void;
   onCompany?: () => void;
+  /**
+   * All your own money: Me → Money (accounts, shares, net worth). Play-test:
+   * "All your money" used to open the company's fundraising.
+   */
+  onAllMoney?: () => void;
+  /** The company's Money screen (raising, the cap table, deals), for a founder. */
+  onCompanyMoney?: () => void;
 }) {
   const { view, cur } = useView();
   const c = activeCompany(view);
   const mine = view.accounts.local?.balance ?? 0;
   const usd = (view.accounts as { usd?: { balance: number } | null }).usd;
+  const wealth = (view.me as { wealth?: Partial<PlayerView['me']['wealth']> }).wealth;
+  const wcur = wealth?.currency || cur;
   const next = nextMonthOf(c);
+  // Whole units (play-test: "₦1,708,977.45"): kobo and cents only clutter a balance.
+  const whole = moneyExact;
   return (
     <Sheet title={t('Your money')} onClose={onClose}>
       <div className="money-sheet" data-money-sheet="">
+        <PaydayWarning />
         <section className="money-block">
           <h3>
             <span aria-hidden="true">👤</span> {t('Your own money')}
           </h3>
-          <Row label={t('In your account')} value={moneyExact(mine, cur)} />
+          <Row label={t('In your account')} value={whole(mine, cur)} />
           {usd && usd.balance > 0 && (
-            <Row label={t('In dollars')} value={moneyExact(usd.balance, 'USD')} />
+            <Row label={t('In dollars')} value={whole(usd.balance, 'USD')} />
+          )}
+          {wealth?.shares && wealth.shares.total > 0 && (
+            <Row label={t('Shares (not cash)')} value={money(wealth.shares.total, wcur)} />
+          )}
+          {typeof wealth?.netWorth === 'number' && (
+            <Row label={t('Net worth')} value={money(wealth.netWorth, wcur)} />
           )}
           <p className="small muted">{t('What you live on: rent, food, rides and going out.')}</p>
         </section>
@@ -73,9 +97,9 @@ export function MoneySheet({
             <h3>
               <span aria-hidden="true">🏢</span> {c.name}
             </h3>
-            <Row label={t('In the company bank')} value={moneyExact(c.cash, cur)} />
+            <Row label={t('In the company bank')} value={whole(c.cash, cur)} />
             <Row label={t('Revenue last month')} value={money(c.monthlyRevenue, cur)} />
-            <Row label={t('Spending per month')} value={money(c.burn, cur)} />
+            <Row label={t('Spending per month')} value={money(c.spending, cur)} />
             <Row
               label={t('Money lasts')}
               value={
@@ -105,7 +129,33 @@ export function MoneySheet({
                 {t('Open Company')}
               </Button>
             )}
+            {onCompanyMoney && (
+              <Button
+                variant="ghost"
+                block
+                data-company-money-link=""
+                onClick={() => {
+                  onClose();
+                  onCompanyMoney();
+                }}
+              >
+                {t('Money and investors')}
+              </Button>
+            )}
           </section>
+        )}
+        {onAllMoney && (
+          <Button
+            variant="primary"
+            block
+            data-all-money=""
+            onClick={() => {
+              onClose();
+              onAllMoney();
+            }}
+          >
+            {t('All your money')}
+          </Button>
         )}
       </div>
     </Sheet>
@@ -113,8 +163,9 @@ export function MoneySheet({
 }
 
 /**
- * Under the top bar, on every screen: the company can't cover next month's
- * salaries and costs. Tap for the numbers and what to do about it.
+ * At the top of "Your money" (the money pill has a red ring meanwhile): the
+ * company can't cover next month's salaries and costs. Tap for the numbers
+ * and what to do about it.
  */
 export function PaydayWarning() {
   const { view, cur } = useView();

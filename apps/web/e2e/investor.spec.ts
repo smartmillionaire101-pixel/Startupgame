@@ -1,4 +1,4 @@
-import { setupPlayer } from './fixtures';
+import { setupPlayer, openDeals } from './fixtures';
 import { expect, letters, playAsGuest, tab, test } from './fixtures';
 
 test('an investor screens an AI startup, does diligence and writes a first cheque', async ({
@@ -20,7 +20,7 @@ test('an investor screens an AI startup, does diligence and writes a first chequ
 
   // First day: three AI startup pitches in the focus area.
   await expect(page.getByText(/wants to pitch you/).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Deal offers' }).click();
+  await openDeals(page);
   await page.getByRole('button', { name: 'Open' }).first().click();
   // The first call is a decision: what you ask first (scored against their numbers).
   await page.getByRole('button', { name: 'How long does your money last?' }).click();

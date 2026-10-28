@@ -8,9 +8,13 @@ const CHECK_MS = 60_000;
 let loaded: string | null = null;
 export const pageRelease = () => loaded;
 
+/** No version file here (a local or self-hosted server): nothing to watch for. */
+const NONE = 'none';
+
 async function servedCommit(): Promise<string | null> {
   try {
     const r = await fetch('/version.json', { cache: 'no-store' });
+    if (r.status === 404) return NONE;
     if (!r.ok) return null;
     const v = (await r.json()) as { commit?: unknown };
     return typeof v.commit === 'string' ? v.commit : null;
@@ -29,8 +33,15 @@ export function UpdateBanner() {
   useEffect(() => {
     let first: string | null = null;
     let stopped = false;
+    const stop = () => {
+      stopped = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onShow);
+    };
     const check = async () => {
       const now = await servedCommit();
+      // Play-test: a 404 logged every minute on a local server. No file, no checks.
+      if (now === NONE) return stop();
       if (stopped || !now || now === 'local') return;
       if (first === null) first = loaded = now;
       else if (now !== first) setReady(true);
@@ -39,11 +50,7 @@ export function UpdateBanner() {
     const timer = setInterval(() => void check(), CHECK_MS);
     const onShow = () => document.visibilityState === 'visible' && void check();
     document.addEventListener('visibilitychange', onShow);
-    return () => {
-      stopped = true;
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', onShow);
-    };
+    return stop;
   }, []);
   if (!ready) return null;
   return (

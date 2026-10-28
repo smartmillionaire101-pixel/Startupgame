@@ -16,6 +16,7 @@ import {
   projectedBurn,
 } from './company.js';
 import { reliability } from './customers.js';
+import { CHURN_WHY } from './sales.js';
 import { getMarket, lastPnl, totalCustomers } from './helpers.js';
 import { account } from './ledger.js';
 import { formatMoney } from './money.js';
@@ -197,6 +198,20 @@ export function buildStory(
       short: `${l.name} left`,
     });
   }
+
+  // --- Pipeline customers who stopped buying (recorded in feedback-note worlds only).
+  for (const l of (c.salesChurn ?? []).filter((x) => x.month === month))
+    out.push({
+      item: {
+        tone: 'bad',
+        text: `Lost ${l.name}: ${CHURN_WHY[l.reason]}.`,
+        cause: `A customer you signed stopped buying (${fmt(l.monthly)} a month).`,
+        metric: 'revenue',
+        delta: -l.monthly,
+      },
+      impact: Math.max(price, l.monthly) * CUSTOMER_MONTHS,
+      short: `${l.name} left`,
+    });
 
   // --- Churn and its main cause.
   if (churned > 0) {

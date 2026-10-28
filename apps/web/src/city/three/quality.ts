@@ -26,6 +26,45 @@ export function getMapQuality(): MapQuality {
   return '3d';
 }
 
+/**
+ * Whether the player picked the map's quality themselves (Settings → Map
+ * quality). The default 3D map steps down to Lite by itself when it runs too
+ * slowly; a 3D map the player chose only suggests it.
+ */
+export function mapQualityChosen(): boolean {
+  if (memory) return true;
+  try {
+    const v = localStorage.getItem(MAP_QUALITY_KEY);
+    return v === '3d' || v === 'lite';
+  } catch {
+    return false;
+  }
+}
+
+/** Frame checks (every `SLOW_CHECK_MS`) after the first `SLOW_GRACE_MS`, while the 3D map is up. */
+export const SLOW_CHECK_MS = 2000;
+export const SLOW_GRACE_MS = 10_000;
+/** This many slow checks in a row (ten seconds) and the map is too slow here. */
+export const SLOW_CHECKS = 5;
+
+/**
+ * Too slow to play: the page's own time per frame (`costMs`) or the time
+ * between frames (`gapMs`, smoothed). 120 ms of work a frame, or under about
+ * 4 frames a second, and taps and the city both feel stuck (the play-test's
+ * phone ran at 2).
+ */
+export const isSlowFrame = (s: { costMs: number; gapMs: number }) =>
+  s.costMs > 120 || s.gapMs > 250;
+
+/**
+ * Time to say the map is too slow: enough slow checks in a row, and no trip
+ * under way (walking, riding or choosing how to go). Swapping the map in the
+ * middle of a trip dropped it, so you never got there; the switch waits for
+ * the arrival.
+ */
+export const slowMapDue = (slowChecks: number, travelling: boolean) =>
+  slowChecks >= SLOW_CHECKS && !travelling;
+
 export function setMapQuality(q: MapQuality) {
   memory = q;
   try {

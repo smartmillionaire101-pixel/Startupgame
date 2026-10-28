@@ -42,6 +42,8 @@ const stepName = (id: StepId) =>
     office: t('Office'),
   })[id];
 
+const deskText = (n: number) => (n === 1 ? t('1 desk') : t('{n} desks', { n }));
+
 const levelIcon = (l: Level) => (l === 'good' ? '✓' : l === 'warn' ? '!' : '✕');
 const months1 = (n: number) => (n < 0 ? '∞' : String(Math.round(n * 10) / 10));
 
@@ -296,8 +298,10 @@ export function SetupTracker({
               data-status={x.status}
               aria-current={x.status === 'current' ? 'step' : undefined}
             >
-              {x.status === 'done' || x.status === 'skipped' ? '✓ ' : ''}
-              {stepName(x.id)}
+              {x.status === 'done' ? '✓ ' : ''}
+              {x.status === 'skipped'
+                ? t('{step} · skipped', { step: stepName(x.id) })
+                : stepName(x.id)}
             </li>
           ))}
         </ol>
@@ -1281,7 +1285,8 @@ function OfficeStep({ c, s }: { c: Company; s: Setup }) {
   const cur = c.currency;
   const [id, setId] = useState<string>(s.offices[1]?.id ?? 'home');
   const o = s.offices.find((x) => x.id === id) ?? s.offices[0]!;
-  const now = s.runway.months;
+  // The runway before any office: what working from home leaves you.
+  const base = s.offices.find((x) => x.id === 'home')?.runwayMonths ?? s.runway.months;
   const costs =
     s.runway.monthly -
     (s.offices.filter((x) => x.id !== 'home').sort((a, b) => a.rent - b.rent)[0]?.rent ?? 0) +
@@ -1312,13 +1317,13 @@ function OfficeStep({ c, s }: { c: Company; s: Setup }) {
                   </span>
                   <span className="small muted">
                     {x.size > 0
-                      ? t('{desks} desks · {size} m² · {lease}', {
-                          desks: x.desks,
+                      ? t('{desks} · {size} m² · {lease}', {
+                          desks: deskText(x.desks),
                           size: x.size,
                           lease: leaseText(x.leaseMonths),
                         })
-                      : t('{desks} desks · {lease}', {
-                          desks: x.desks,
+                      : t('{desks} · {lease}', {
+                          desks: deskText(x.desks),
                           lease: leaseText(x.leaseMonths),
                         })}
                   </span>
@@ -1331,11 +1336,14 @@ function OfficeStep({ c, s }: { c: Company; s: Setup }) {
                       </span>
                     ))}
                   </span>
-                  <span className="small">
-                    {t('Runway {from} → {to} months', {
-                      from: months1(now),
-                      to: months1(x.runwayMonths),
-                    })}
+                  <span className="small" data-office-runway={x.runwayMonths}>
+                    {/* From the runway with no office at all (working from home). */}
+                    {x.id === 'home' || x.rent <= 0
+                      ? t('Runway {n} months', { n: months1(x.runwayMonths) })
+                      : t('Runway {from} → {to} months', {
+                          from: months1(base),
+                          to: months1(x.runwayMonths),
+                        })}
                   </span>
                 </span>
               </button>
@@ -1376,8 +1384,8 @@ function OfficeStep({ c, s }: { c: Company; s: Setup }) {
         >
           {o.id === 'home'
             ? t('Work from home for now')
-            : t('Lease {desks} desks in {district} ({rent}/month)', {
-                desks: o.desks,
+            : t('Lease {desks} in {district} ({rent}/month)', {
+                desks: deskText(o.desks),
                 district: districtName(o.district),
                 rent: money(o.rent, cur),
               })}
@@ -1431,7 +1439,8 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
               loans: money(loans, cur),
             })
           : t('Funded · {own} yours', { own: money(own, cur) }),
-      value: money(c.cash, cur),
+      // What went in (your money and any loans), not today's balance.
+      value: money(own + loans, cur),
     },
     ...(s.plan ? [{ label: t('Plan sent'), value: t('{n}/100', { n: s.plan.score }) }] : []),
     ...(s.office
@@ -1440,8 +1449,8 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
             label:
               s.office.id === 'home'
                 ? t('From home')
-                : t('{desks} desks, {district}', {
-                    desks: s.office.desks,
+                : t('{desks}, {district}', {
+                    desks: deskText(s.office.desks),
                     district: districtName(s.office.district),
                   }),
             value: t('{rent}/mo', { rent: money(s.office.rent, cur) }),
@@ -1458,11 +1467,25 @@ function SetupDone({ c, s }: { c: Company; s: Setup }) {
       <div className="stack" data-setup-done="">
         <ol className="fsu-chips">
           {s.steps.map((x) => (
-            <li key={x.id} className="fsu-chip fsu-chip-done">
-              ✓ {stepName(x.id)}
+            <li
+              key={x.id}
+              className={`fsu-chip fsu-chip-${x.status === 'skipped' ? 'skipped' : 'done'}`}
+              data-step={x.id}
+              data-status={x.status}
+            >
+              {x.status === 'skipped'
+                ? t('{step} · skipped', { step: stepName(x.id) })
+                : `✓ ${stepName(x.id)}`}
             </li>
           ))}
         </ol>
+        {s.steps.some((x) => x.id === 'plan' && x.status === 'skipped') && (
+          <p className="small muted" data-plan-skipped="">
+            {t(
+              'You skipped the plan: it’s only needed to ask a lender for a startup loan. To pitch investors, open Money and investors.',
+            )}
+          </p>
+        )}
         <ul className="fsu-summary">
           {rows.map((r) => (
             <li key={r.label}>

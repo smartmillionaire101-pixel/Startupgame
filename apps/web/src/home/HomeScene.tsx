@@ -42,12 +42,12 @@ import {
   type Placement,
 } from '../interiors3d/placement';
 import { BuySheet, PlaceBar } from '../interiors3d/BuyMode';
-import { dividerPaint, type HomeFinish } from '../interiors3d/finishes';
+import { dividerPaint, paintColour, type HomeFinish } from '../interiors3d/finishes';
 import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { openPhone, type PhoneOpen } from '../phone/bus';
-import { Icon } from '../ui';
+import { HudButton, HudRail } from '../ui';
 import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
 import { businessesOf, hash } from '../city/contract';
 import { carOf, genderOf, nearest, sellsOf, storeForSlot } from '../city/life';
@@ -75,12 +75,15 @@ import {
   HOTEL_MODELS,
   HOTEL_SHELL_TIER,
   HOTEL_TIER_LABEL,
+  HOTEL_WINDOWS,
   hotelFurniture,
   hotelGrounds,
   hotelPlan,
   hotelRow,
   type HotelStay,
+  type HotelWindow,
 } from './hotel';
+import { HomeWindows } from './HomeWindows';
 import { HotelKnocked, HotelNeighbours, holidaysOf } from '../phone/apps/Holiday';
 import type { HotelTier } from '../city/travel';
 import { ActFx } from './ActFx';
@@ -88,7 +91,7 @@ import { PhotoSheet, addPhoto } from './HomePhotos';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { balconyView } from './balcony';
 import type PanoramaView from '../experiences/Panorama';
-import { NEEDS, actsLeft, inviteesOf, moodOf, needsOf, ownedTiers, type NeedKey } from './view';
+import { NEEDS, actsLeft, inviteesOf, ownedTiers, type NeedKey } from './view';
 import { OPTION_GROUPS, WALLS } from '@runway/engine';
 import {
   canPlaceDivider,
@@ -162,7 +165,6 @@ const SLOT_LABEL: Record<string, string> = {
 };
 const slotLabel = (s: string) => t(SLOT_LABEL[s] ?? 'Furniture');
 
-const NEED_ICON: Record<NeedKey, string> = { hunger: '🍲', hygiene: '🚿', fun: '🎮', social: '💬' };
 const needLabel = (k: NeedKey) =>
   ({ hunger: t('Hunger'), hygiene: t('Hygiene'), fun: t('Fun'), social: t('Social') })[k];
 
@@ -278,6 +280,11 @@ export interface HotelRoom {
   /** null: no hotel booked (an old save): the budget room. */
   tier: HotelTier | null;
   name: string | null;
+  /** A one-star hotel's pod (a single bed, a locker, the bathroom shared). */
+  pod?: boolean;
+  /** The named hotel's stars and room ("Pod · shared bathroom"), when known. */
+  stars?: number;
+  room?: string | null;
 }
 
 /** Wave 12: the name of a home by its kind (owners), else by lifestyle tier. */
@@ -300,7 +307,6 @@ export function HomeScene({
   children,
 }: SceneProps & { hostView?: HostView; hotel?: HotelRoom | null }) {
   const { view, send, busy, cur, toast, quicken } = useView();
-  const unread = view.inbox.filter((i) => !i.read).length;
   const hotelTier: HotelTier | null = hotel ? (hotel.tier ?? 'budget') : null;
   const tier = hotelTier
     ? HOTEL_SHELL_TIER[hotelTier]
@@ -320,8 +326,10 @@ export function HomeScene({
   // A house has an upstairs (a mansion a roof terrace too): one floor at a time.
   const floors = useMemo(
     () =>
-      hotelTier ? [hotelPlan(hotelTier)] : floorsFor(tier, { kind: specKind, wealth: specWealth }),
-    [hotelTier, tier, specKind, specWealth],
+      hotelTier
+        ? [hotelPlan(hotelTier, hotel?.pod)]
+        : floorsFor(tier, { kind: specKind, wealth: specWealth }),
+    [hotelTier, hotel?.pod, tier, specKind, specWealth],
   );
   const [floorAt, setFloorAt] = useState(0);
   const floor = Math.min(floorAt, floors.length - 1);
@@ -453,8 +461,6 @@ export function HomeScene({
   );
   const { night, dusk } = useDaylight(view.market.id);
   const car = hostView || hotelTier ? null : carOf(view);
-  const needs = needsOf(view);
-  const mood = moodOf(view);
 
   // ---- Showrooms (Edit, and the "+" spots)
   const showroomFor = useCallback(
@@ -1893,74 +1899,16 @@ export function HomeScene({
       data-pocket={pocket}
       data-host-view={hostView?.id}
     >
-      <header className="home-hud">
-        <div
-          className="home-mood"
-          data-mood={mood}
-          title={t('Mood {n}', { n: mood })}
-          aria-label={t('Mood {n}', { n: mood })}
-        >
-          <svg viewBox="0 0 40 40" aria-hidden="true">
-            <circle cx="20" cy="20" r="16" className="home-mood-track" />
-            <circle
-              cx="20"
-              cy="20"
-              r="16"
-              className="home-mood-fill"
-              strokeDasharray={`${(mood / 100) * 100.5} 100.5`}
-              data-low={mood < 40 ? '1' : undefined}
-            />
-          </svg>
-          <b>{mood}</b>
-          <span
-            className="home-energy"
-            data-home-energy={view.me.energy}
-            data-low={view.me.energy < 30 ? '1' : undefined}
-            title={t('Energy {n}', { n: view.me.energy })}
-            aria-label={t('Energy {n}', { n: view.me.energy })}
-          >
-            <span aria-hidden="true">⚡</span>
-            {view.me.energy}
-          </span>
-        </div>
-        <div className="home-needs" role="list" aria-label={t('Needs')}>
-          {needs &&
-            NEEDS.map((k) => (
-              <span
-                key={k}
-                role="listitem"
-                className={`home-need${needs[k] < 40 ? ' is-low' : ''}`}
-                data-need={k}
-                data-value={needs[k]}
-                title={`${needLabel(k)} ${needs[k]}`}
-                aria-label={`${needLabel(k)} ${needs[k]}`}
-              >
-                <span aria-hidden="true">{NEED_ICON[k]}</span>
-                <i>
-                  <i style={{ width: `${needs[k]}%` }} />
-                </i>
-              </span>
-            ))}
-        </div>
-        {/* This scene covers the top bar: its phone button, here too. */}
-        <button
-          type="button"
-          className="topbar-phone"
-          data-home-phone=""
-          aria-label={unread ? t('Phone, {n} new', { n: unread }) : t('Phone')}
-          onClick={() => openPhone({ app: 'home' })}
-        >
-          <Icon name="phone" size={20} />
-          {unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}
-        </button>
-        <button type="button" className="icon-btn" aria-label={t('Close')} onClick={onClose}>
-          ✕
-        </button>
-      </header>
       {hotelTier && (
         <div className="home-hotel-head">
           <h2>{homeName}</h2>
-          <span data-hotel-tier={hotelTier}>{t(HOTEL_TIER_LABEL[hotelTier])}</span>
+          {/* The named hotel's own stars and room, else the tier's (playtest round 6:
+              a one-star pod read as "★ room" under a double bed). */}
+          <span data-hotel-tier={hotelTier} data-hotel-pod={hotel?.pod ? '' : undefined}>
+            {hotel?.stars && hotel.room
+              ? `${'★'.repeat(hotel.stars)} ${tx(hotel.room)}`
+              : t(HOTEL_TIER_LABEL[hotelTier])}
+          </span>
           {visit && visitor ? (
             <span className="small holiday-neighbours" data-hotel-visit={visit.me}>
               {visit.me === 'host'
@@ -2106,7 +2054,14 @@ export function HomeScene({
             </pattern>
           </defs>
           <g ref={worldRef}>
-            <Shell plan={plan} night={night} />
+            <Shell
+              plan={plan}
+              night={night}
+              paint={paintColour(wallPaint)}
+              floors={finish3d?.floors}
+              level={level}
+              hotel={hotelTier ? HOTEL_WINDOWS[hotelTier] : null}
+            />
             {/* The rug lies under the tiles in 2D; in 3D it's hidden like the rest. */}
             <g className="home-rugs">
               {objects
@@ -2207,7 +2162,8 @@ export function HomeScene({
                   data-furniture={o.slot}
                   data-owned="0"
                   role="button"
-                  aria-label={t('Get a {thing}', { thing: slotLabel(o.slot!).toLowerCase() })}
+                  // "Add: Air conditioning", not "Get a air conditioning" (play-test #40).
+                  aria-label={t('Add: {thing}', { thing: slotLabel(o.slot!) })}
                   transform={plusAt(o)}
                 >
                   <circle r="7.5" />
@@ -2263,67 +2219,6 @@ export function HomeScene({
               {f.text}
             </span>
           ))}
-        {is3d && !placing && (
-          <div className="home-cam" role="group" aria-label={t('Camera')}>
-            <button
-              type="button"
-              aria-label={t('Turn left')}
-              onClick={() => api3d.current?.turn(-1)}
-            >
-              ⟲
-            </button>
-            <button
-              type="button"
-              aria-label={t('Turn right')}
-              onClick={() => api3d.current?.turn(1)}
-            >
-              ⟳
-            </button>
-            <button
-              type="button"
-              aria-label={t('Zoom in')}
-              onClick={() => api3d.current?.zoom(1.25)}
-            >
-              +
-            </button>
-            <button
-              type="button"
-              aria-label={t('Zoom out')}
-              onClick={() => api3d.current?.zoom(0.8)}
-            >
-              −
-            </button>
-          </div>
-        )}
-        {is3d && !placing && (
-          <div className="home-view" role="group" aria-label={t('Look and take photos')}>
-            <button
-              type="button"
-              data-action="turn"
-              onClick={() => {
-                endLook();
-                api3d.current?.turn(1);
-              }}
-            >
-              <span aria-hidden="true">↻</span>
-              {t('Turn')}
-            </button>
-            <button
-              type="button"
-              data-action="look-around"
-              data-looking={looking ? '1' : '0'}
-              aria-pressed={looking}
-              onClick={toggleLook}
-            >
-              <span aria-hidden="true">🔄</span>
-              {t('Look around')}
-            </button>
-            <button type="button" data-action="photo" onClick={takePhoto}>
-              <span aria-hidden="true">📷</span>
-              {t('Photo')}
-            </button>
-          </div>
-        )}
         {flash > 0 && <div key={flash} className="home-flash" aria-hidden="true" />}
         {placing && ghost && (
           <PlaceBar
@@ -2331,6 +2226,10 @@ export function HomeScene({
             ok={ghost.ok}
             moved={!!placed[placing.slot]}
             onWall={onWall}
+            coming={
+              placing.tier !== undefined ||
+              (!tiers.has(slotOf(placing.slot)) && !extraTiers.has(placing.slot))
+            }
             onRotate={turnPlacing}
             onNudge={nudge}
             onLift={
@@ -2415,103 +2314,171 @@ export function HomeScene({
           </button>
         </div>
       )}
-      {hotelTier ? (
-        <nav
-          className={`home-bar is-hotel${balcony ? ' has-balcony' : ''}`}
-          aria-label={t('Hotel room actions')}
-        >
-          <button
-            type="button"
-            className="home-bar-btn"
-            data-action="hotel-sleep"
-            disabled={busy || !!acting}
-            onClick={() => hotelAct(['bed'], 'sleep')}
-          >
-            <span aria-hidden="true">🛏</span>
-            {t('Sleep')}
-          </button>
-          <button
-            type="button"
-            className="home-bar-btn"
-            data-action="hotel-freshen"
-            disabled={busy || !!acting}
-            onClick={() => hotelAct(['shower', 'bathtub'], 'shower')}
-          >
-            <span aria-hidden="true">🚿</span>
-            {t('Freshen up')}
-          </button>
-          {balcony && (
-            <button
-              type="button"
-              className="home-bar-btn"
-              data-action="hotel-balcony"
-              onClick={() => setSky(true)}
-            >
-              <span aria-hidden="true">🌇</span>
-              {t('Balcony')}
-            </button>
-          )}
-          <button type="button" className="home-bar-btn" data-action="go-out" onClick={onClose}>
-            <span aria-hidden="true">🚪</span>
-            {t('Go out')}
-          </button>
-          <button
-            type="button"
-            className="home-bar-btn"
-            data-action="more"
-            onClick={() => setHotelMore(true)}
-          >
-            <span aria-hidden="true">⋯</span>
-            {t('More')}
-          </button>
-        </nav>
-      ) : (
-        <nav className="home-bar" aria-label={t('Home actions')}>
-          <button className="home-bar-btn" onClick={() => openLiving(placeOwner)}>
-            {t('🚚 Home & friends')}
-          </button>
-          <button
-            className="home-bar-btn"
-            onClick={() => openPlay({ venue: `home:${placeOwner}`, name: homeName })}
-          >
-            {t('🎮 Play together')}
-          </button>
-          {balcony && (
-            <button
-              type="button"
-              className="home-bar-btn"
-              data-action="skyline"
-              onClick={() => setSky(true)}
-            >
-              {t('🌆 Watch the skyline')}
-            </button>
-          )}
-          {hostView ? (
-            <button type="button" className="home-bar-btn" onClick={onClose}>
-              <span aria-hidden="true">👋</span>
-              {t('Say goodbye')}
-            </button>
-          ) : (
+      {/* The room's buttons: a rail of icons on the right, the rest behind ⋯
+          (out of the way while you place something). */}
+      {!placing && !wallPlacing && !naming && (
+        <HudRail
+          label={hotelTier ? t('Hotel room actions') : t('Home actions')}
+          className="home-rail"
+          extras={
             <>
-              <button type="button" className="home-bar-btn" onClick={() => setSheet('buy')}>
-                <span aria-hidden="true">🛒</span>
-                {t('Buy')}
-              </button>
-              <button type="button" className="home-bar-btn" onClick={() => setSheet('edit')}>
-                <span aria-hidden="true">🛋</span>
-                {t('Edit')}
-              </button>
-              <button type="button" className="home-bar-btn" onClick={() => setSheet('invite')}>
-                <span aria-hidden="true">👋</span>
-                {t('Invite')}
-              </button>
-              <button type="button" className="home-bar-btn" onClick={onClose}>
-                <span aria-hidden="true">🚪</span>
-                {t('Go out')}
-              </button>
+              {hotelTier && balcony && (
+                <HudButton
+                  label={t('Balcony')}
+                  data-action="hotel-balcony"
+                  onClick={() => setSky(true)}
+                >
+                  <span aria-hidden="true">🌇</span>
+                </HudButton>
+              )}
+              {hotelTier && (
+                <HudButton
+                  icon="info"
+                  label={t('About your stay')}
+                  data-action="more"
+                  aria-haspopup="dialog"
+                  onClick={() => setHotelMore(true)}
+                />
+              )}
+              {is3d && hotelTier && (
+                <HudButton
+                  icon="rotate"
+                  label={t('Turn')}
+                  data-action="turn"
+                  onClick={() => {
+                    endLook();
+                    api3d.current?.turn(1);
+                  }}
+                />
+              )}
+              {is3d && (
+                <HudButton
+                  icon="camera"
+                  label={t('Photo')}
+                  data-action="photo"
+                  onClick={takePhoto}
+                />
+              )}
+              {!hotelTier && !hostView && (
+                <HudButton
+                  icon="sofa"
+                  label={t('Edit')}
+                  aria-haspopup="dialog"
+                  onClick={() => setSheet('edit')}
+                />
+              )}
+              {!hotelTier && (
+                <HudButton
+                  icon="friends"
+                  label={t('Home & friends')}
+                  aria-haspopup="dialog"
+                  onClick={() => openLiving(placeOwner)}
+                />
+              )}
+              {!hotelTier && (
+                <HudButton
+                  icon="pad"
+                  label={t('Play together')}
+                  aria-haspopup="dialog"
+                  onClick={() => openPlay({ venue: `home:${placeOwner}`, name: homeName })}
+                />
+              )}
+              {!hotelTier && !hostView && (
+                <HudButton
+                  icon="wave"
+                  label={t('Invite')}
+                  aria-haspopup="dialog"
+                  onClick={() => setSheet('invite')}
+                />
+              )}
+              {!hotelTier && balcony && (
+                <HudButton
+                  label={t('Watch the skyline')}
+                  data-action="skyline"
+                  onClick={() => setSky(true)}
+                >
+                  <span aria-hidden="true">🌆</span>
+                </HudButton>
+              )}
+              {is3d && (
+                <HudButton
+                  icon="plus"
+                  label={t('Zoom in')}
+                  onClick={() => api3d.current?.zoom(1.25)}
+                />
+              )}
+              {is3d && (
+                <HudButton
+                  icon="minus"
+                  label={t('Zoom out')}
+                  onClick={() => api3d.current?.zoom(0.8)}
+                />
+              )}
             </>
+          }
+        >
+          {hostView ? (
+            <HudButton icon="wave" tone="accent" label={t('Say goodbye')} onClick={onClose} />
+          ) : (
+            <HudButton
+              icon="door"
+              tone="accent"
+              label={t('Go out')}
+              data-action="go-out"
+              onClick={onClose}
+            />
           )}
-        </nav>
+          {hotelTier ? (
+            <>
+              <HudButton
+                label={t('Sleep')}
+                data-action="hotel-sleep"
+                disabled={busy || !!acting}
+                onClick={() => hotelAct(['bed'], 'sleep')}
+              >
+                <span aria-hidden="true">🛏</span>
+              </HudButton>
+              <HudButton
+                label={t('Freshen up')}
+                data-action="hotel-freshen"
+                disabled={busy || !!acting}
+                onClick={() => hotelAct(['shower', 'bathtub'], 'shower')}
+              >
+                <span aria-hidden="true">🚿</span>
+              </HudButton>
+            </>
+          ) : (
+            !hostView && (
+              <HudButton
+                icon="cart"
+                label={t('Buy')}
+                aria-haspopup="dialog"
+                onClick={() => setSheet('buy')}
+              />
+            )
+          )}
+          {is3d && !hotelTier && (
+            <HudButton
+              icon="rotate"
+              label={t('Turn')}
+              data-action="turn"
+              onClick={() => {
+                endLook();
+                api3d.current?.turn(1);
+              }}
+            />
+          )}
+          {is3d && (
+            <HudButton
+              icon="eye"
+              label={t('Look around')}
+              data-action="look-around"
+              data-looking={looking ? '1' : '0'}
+              aria-pressed={looking}
+              onClick={toggleLook}
+            />
+          )}
+        </HudRail>
       )}
       {hotelTier && hotelMore && (
         <div className="home-sheet-back" onClick={() => setHotelMore(false)}>
@@ -2738,10 +2705,7 @@ function buildObjects(
   const has = (s: string) => tiers.has(s);
   const tierOf = (s: string) => tiers.get(s) ?? 1;
   const act = (id: HomeAct, label: string): Verb => ({ id, act: id, label });
-  const buy = (
-    slot: string,
-    label = t('Get a {thing}', { thing: slotLabel(slot).toLowerCase() }),
-  ): Verb => ({
+  const buy = (slot: string, label = t('Add: {thing}', { thing: slotLabel(slot) })): Verb => ({
     id: 'buy',
     label,
     slot,
@@ -2982,11 +2946,46 @@ function ObjNode({ o }: { o: Obj }) {
 }
 
 /** Floors, the back wall with windows, the side walls. */
-function Shell({ plan, night }: { plan: HomePlan; night: boolean }) {
+/**
+ * A floor you chose (Buy mode's Design tab) in the 2D home: the nearest of its
+ * patterns, or a flat colour (play-test: the Lite home showed no finish at all).
+ */
+const FLOOR_2D: Record<string, string> = {
+  oak: 'url(#home-wood)',
+  parquet: 'url(#home-wood)',
+  'parquet-dark': '#7a4f2e',
+  cream: 'url(#home-tile)',
+  tile: 'url(#home-tile)',
+  checker: 'url(#home-tile)',
+  carpet: '#b9a99a',
+  concrete: '#b8b3aa',
+  stone: 'url(#home-deck)',
+  marble: 'url(#home-marble)',
+};
+
+function Shell({
+  plan,
+  night,
+  paint,
+  floors,
+  level = 0,
+  hotel,
+}: {
+  plan: HomePlan;
+  night: boolean;
+  /** A hotel room's windows (where the hotel's plan puts them). */
+  hotel?: readonly HotelWindow[] | null;
+  /** The walls' paint (a colour), or null as built. */
+  paint?: string | null;
+  /** Floors you chose, by room key ('0:living'). */
+  floors?: Record<string, string>;
+  level?: number;
+}) {
   const W = plan.w * TILE;
   const H = plan.h * TILE;
   const fill = (id: string) =>
-    id === 'kitchen'
+    FLOOR_2D[floors?.[`${level}:${id}`] ?? ''] ??
+    (id === 'kitchen'
       ? 'url(#home-tile)'
       : id === 'bathroom'
         ? 'url(#home-bath)'
@@ -2994,8 +2993,7 @@ function Shell({ plan, night }: { plan: HomePlan; night: boolean }) {
           ? 'url(#home-marble)'
           : id === 'balcony' || id === 'terrace'
             ? 'url(#home-deck)'
-            : 'url(#home-wood)';
-  const windows = plan.rooms.filter((r) => r.y === 0 && r.id !== 'bathroom' && !r.open);
+            : 'url(#home-wood)');
   const outdoors = plan.rooms.filter((r) => r.open && r.y === 0);
   return (
     <g className="home-shell">
@@ -3020,38 +3018,16 @@ function Shell({ plan, night }: { plan: HomePlan; night: boolean }) {
       ))}
       <rect x={0} y={0} width={W} height={14} fill="#000" opacity="0.08" />
       {/* The back wall, front face showing. */}
-      <rect x={-8} y={-WALL} width={W + 16} height={WALL} fill="var(--home-wall-face)" />
+      <rect
+        x={-8}
+        y={-WALL}
+        width={W + 16}
+        height={WALL}
+        fill={paint ?? 'var(--home-wall-face)'}
+        data-wall-paint={paint ?? undefined}
+      />
       <rect x={-8} y={-WALL - 8} width={W + 16} height={8} fill="var(--home-wall-top)" />
       <rect x={-8} y={-6} width={W + 16} height={6} fill="var(--home-skirting)" />
-      {windows.map((r) => {
-        const cx = (r.x + r.w / 2) * TILE + (r.id === 'bedroom' ? TILE : 0);
-        return (
-          <g key={r.id} transform={`translate(${cx - 22} ${-WALL + 8})`}>
-            <rect
-              width="44"
-              height="24"
-              rx="2"
-              fill={night ? '#1e2a5a' : '#bae6fd'}
-              stroke="#f8fafc"
-              strokeWidth="3"
-            />
-            {night ? (
-              <>
-                <circle cx="10" cy="7" r="1" fill="#fff" />
-                <circle cx="30" cy="12" r="1" fill="#fff" />
-                <circle cx="34" cy="6" r="3" fill="#fef9c3" />
-              </>
-            ) : (
-              <path
-                d="M2 22 L10 14 L16 18 L24 10 L32 16 L42 12 L42 22 Z"
-                fill="#7dd3fc"
-                opacity="0.7"
-              />
-            )}
-            <line x1="22" y1="0" x2="22" y2="24" stroke="#f8fafc" strokeWidth="2" />
-          </g>
-        );
-      })}
       {/* Out on a roof terrace: the sky and the city over a glass railing. */}
       {outdoors.map((r) => (
         <g key={`sky${r.x}`} className="home-sky">
@@ -3080,6 +3056,8 @@ function Shell({ plan, night }: { plan: HomePlan; night: boolean }) {
       ))}
       <rect x={-8} y={-WALL - 8} width={8} height={H + WALL + 8} fill="var(--home-wall-top)" />
       <rect x={W} y={-WALL - 8} width={8} height={H + WALL + 8} fill="var(--home-wall-top)" />
+      {/* The windows the 3D house has (playtest #40: one list, so Buy mode keeps pictures off them). */}
+      <HomeWindows plan={plan} night={night} hotel={hotel} wallH={WALL} />
       {/* Bathroom doors, swung open, with a sign. */}
       {bathDoors(plan).map((d) => {
         const L = TILE * 0.85;

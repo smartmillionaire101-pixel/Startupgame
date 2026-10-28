@@ -112,20 +112,38 @@ export function EmailLinkForm({
   );
 }
 
+/**
+ * The email a guest gave at sign-up and hasn't confirmed yet (play-test: a
+ * player who signed up with an email was told they're "playing as a guest").
+ * Their game is saved once they open the link we email them.
+ */
+export function unconfirmedEmail(account: ReturnType<typeof useGame>['account']): string | null {
+  return account?.guest && account.pendingEmail ? account.pendingEmail : null;
+}
+
 function SaveProgressSheet({ onClose }: { onClose: () => void }) {
+  const { account } = useGame();
+  const pending = unconfirmedEmail(account);
   return (
-    <Sheet title={t('Save progress')} onClose={onClose}>
+    <Sheet title={pending ? t('Confirm your email') : t('Save progress')} onClose={onClose}>
       <p>
-        {t(
-          'Saving lets you come back on any device. Without it, your game lives only in this browser.',
-        )}
+        {pending
+          ? t('We’ll email {email} a link. Open it to save your game, then log in on any device.', {
+              email: pending,
+            })
+          : t(
+              'Saving lets you come back on any device. Without it, your game lives only in this browser.',
+            )}
       </p>
       <EmailLinkForm intent="save" submitLabel={t('Email me a link')} />
     </Sheet>
   );
 }
 
-/** "Save progress" button that opens the sheet; renders nothing for saved accounts. */
+/**
+ * "Save progress" (or "Confirm email", when you gave one at sign-up) button
+ * that opens the sheet; renders nothing for saved accounts.
+ */
 export function SaveProgressButton({ variant = 'primary' }: { variant?: 'primary' | 'ghost' }) {
   const { account } = useGame();
   const [open, setOpen] = useState(false);
@@ -133,10 +151,29 @@ export function SaveProgressButton({ variant = 'primary' }: { variant?: 'primary
   return (
     <>
       <Button variant={variant} onClick={() => setOpen(true)}>
-        {t('Save progress')}
+        {unconfirmedEmail(account) ? t('Confirm email') : t('Save progress')}
       </Button>
       {open && <SaveProgressSheet onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/** The Me tab's line for a game that isn't saved yet: a guest, or an email to confirm. */
+export function UnsavedBanner() {
+  const { account } = useGame();
+  if (!account?.guest) return null;
+  const pending = unconfirmedEmail(account);
+  return (
+    <Card tone="warn">
+      <div className="row" style={{ justifyContent: 'space-between' }} data-unsaved-banner="">
+        <span className="small">
+          {pending
+            ? t('Confirm {email} to keep your game: we’ll email you a link.', { email: pending })
+            : t('Playing as a guest: your game lives only in this browser.')}
+        </span>
+        <SaveProgressButton />
+      </div>
+    </Card>
   );
 }
 
@@ -186,12 +223,22 @@ export function AccountStatus() {
         <span className="small muted">{t('Log in with this email on any device.')}</span>
       </p>
     );
+  if (account.guest && account.pendingEmail)
+    return (
+      <>
+        <p>
+          {t('Email: {email} (not confirmed)', { email: account.pendingEmail })}
+          <br />
+          <span className="small muted">
+            {t('Open the link we email you to save your game and log in on any device.')}
+          </span>
+        </p>
+        <SaveProgressButton />
+      </>
+    );
   if (account.guest)
     return (
       <>
-        {account.pendingEmail && (
-          <p>{t('Email: {email} (not confirmed)', { email: account.pendingEmail })}</p>
-        )}
         <p>
           {t('Guest: not saved yet')}
           <br />
@@ -248,15 +295,22 @@ export function SaveNudge() {
       /* not remembered; hidden for this visit */
     }
   };
+  const pending = unconfirmedEmail(account);
   return (
-    <Card title={t('Keep your game')} tone="good">
+    <Card title={pending ? t('Confirm your email') : t('Keep your game')} tone="good">
       <p>
-        {t(
-          'Saving lets you come back on any device. Without it, your game lives only in this browser.',
-        )}
+        {pending
+          ? t('We’ll email {email} a link. Open it to save your game, then log in on any device.', {
+              email: pending,
+            })
+          : t(
+              'Saving lets you come back on any device. Without it, your game lives only in this browser.',
+            )}
       </p>
       <div className="row">
-        <Button onClick={() => setOpen(true)}>{t('Save progress')}</Button>
+        <Button onClick={() => setOpen(true)}>
+          {pending ? t('Confirm email') : t('Save progress')}
+        </Button>
         <Button variant="ghost" onClick={dismiss}>
           {t('Not now')}
         </Button>

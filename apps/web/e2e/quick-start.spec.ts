@@ -35,6 +35,10 @@ for (const role of ['founder', 'investor', 'banker'] as const) {
     await tab(page, 'Today').click();
     await tab(page, 'Me').click();
     await expect(page.getByText(`Email: ${email} (not confirmed)`)).toBeVisible();
+    // Signed up with an email: asked to confirm it, never told they're "a guest".
+    await expect(page.getByText(/Playing as a guest/)).toHaveCount(0);
+    await expect(page.locator('[data-unsaved-banner]')).toContainText(`Confirm ${email}`);
+    await expect(page.getByRole('button', { name: 'Confirm email' })).toBeVisible();
     await page.getByLabel('Your name').fill('My New Name');
     await page.getByLabel('You are', { exact: true }).selectOption('male');
     if (role === 'investor') {

@@ -80,12 +80,17 @@ async function request<T>(
 let lastState: { tag: string; body: StateResponse } | null = null;
 
 async function state(): Promise<StateResponse> {
-  const res = await fetch('/api/state', {
+  // soft=1: signed out is a quiet 204 (no 401 in the console on the landing page).
+  const res = await fetch('/api/state?soft=1', {
     credentials: 'same-origin',
     cache: 'no-store',
     headers: { 'x-runway': '1', ...(lastState ? { 'if-none-match': lastState.tag } : {}) },
   });
   if (res.status === 304 && lastState) return lastState.body;
+  if (res.status === 204) {
+    lastState = null;
+    throw new ApiError(401, 'auth', 'Sign in first.');
+  }
   const data = (await res.json().catch(() => ({}))) as StateResponse & {
     error?: { code: string; message: string };
   };

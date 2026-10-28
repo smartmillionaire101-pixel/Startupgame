@@ -1,4 +1,4 @@
-import { setupFounder } from './fixtures';
+import { setupFounder, hudMore } from './fixtures';
 import { expect, letters, more, playAsGuest, tab, tapPlace, test } from './fixtures';
 
 test('a founder walks the city to a bank, goes in, then visits the market', async ({ page }) => {
@@ -45,6 +45,7 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await card.getByRole('button', { name: 'Close' }).click();
   await expect(card).toBeHidden();
   // The Map key explains the icons; "Show names" brings back the name pills.
+  await hudMore(page);
   await page.getByRole('button', { name: 'Map key' }).click();
   const key = page.getByRole('dialog', { name: 'Map key' });
   await expect(key.getByText('Funds and investors')).toBeVisible();
@@ -92,7 +93,7 @@ test('a founder walks the city to a bank, goes in, then visits the market', asyn
   await expect(market).toBeHidden();
   await nav.getByRole('button', { name: 'Today' }).click();
   await expect(page.getByText('Monthly revenue')).toBeVisible();
-  for (const tab of ['Money', 'Me', 'City']) {
+  for (const tab of ['Company', 'Me', 'City']) {
     await nav.getByRole('button', { name: tab, exact: true }).click();
     await expect(nav.getByRole('button', { name: tab, exact: true })).toHaveAttribute(
       'aria-current',

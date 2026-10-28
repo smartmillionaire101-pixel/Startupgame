@@ -59,7 +59,7 @@ test('a studio, a villa and a mansion grow with wealth, in 3D', async ({ page })
     }
     await page.waitForTimeout(1500);
     if (dir) await page.screenshot({ path: `${dir}/home-${kind}-w${wealth}.png` });
-    await home.getByRole('button', { name: 'Close' }).first().click();
+    await home.getByRole('button', { name: 'Say goodbye' }).click();
     await expect(home).toBeHidden();
   }
   expect(sizes.villa1).toBeGreaterThan(sizes.studio1!);

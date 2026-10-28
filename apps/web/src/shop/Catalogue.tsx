@@ -26,6 +26,7 @@ import { avatarLook, drawnGender } from '../city/art';
 import { genderOf, looseCmd } from '../city/life';
 import { slotLabel } from '../city/Showroom';
 import { colourName } from '../city/mall/shops';
+import { pocketOf } from '../city/pocket';
 import {
   browse,
   buyCommand,
@@ -184,7 +185,8 @@ function ItemPage(
   const { view, send, busy } = useView();
   const e = p.entry;
   const shop = view.me.shop;
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, your money at this city's prices (as paying here converts it).
+  const purse = pocketOf(view, p.currency);
   const [ref, setRef] = useState((e.variants.find((v) => !v.owned) ?? e.variants[0]!).ref);
   const [chosen, setChosen] = useState<ChosenOptions>(() =>
     Object.fromEntries(e.groups.map((g) => [g.id, g.options[0]!.id])),
@@ -210,7 +212,7 @@ function ItemPage(
         (d.order?.mall && d.order.mall.item === v.ref && e.id === 'mall:phone')),
   );
   const ownedNote = v.owned ? t('Yours ✓') : coming ? t('On its way') : null;
-  const short = pocket < total;
+  const short = !purse.canPay(total);
 
   const buy = async () => {
     const cmd = buyCommand(e, v, chosen, {
@@ -476,7 +478,7 @@ function ItemPage(
             type="button"
             className="btn btn-primary cat-go"
             data-action="buy-here"
-            disabled={busy || pocket < price}
+            disabled={busy || !purse.canPay(price)}
             onClick={() => void buy()}
           >
             {t('Buy · {price}', { price: moneyExact(price, p.currency) })}

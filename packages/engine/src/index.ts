@@ -11,7 +11,7 @@ export * from './rng.js';
 export * from './math.js';
 export * from './errors.js';
 export * from './commands.js';
-export { dispatch } from './dispatch.js';
+export { dispatch, settlePrecheck, settleRefusal } from './dispatch.js';
 export type { CommandContext, DispatchResult } from './dispatch.js';
 export { createWorld, openMarket } from './world.js';
 export { upgradeWorld, CURRENT_SCHEMA } from './upgrade.js';
@@ -429,6 +429,7 @@ export {
   aiBowl,
 } from './bowling.js';
 export type {
+  BowlDeck,
   BowlInput,
   BowlLaunch,
   BowlSim,

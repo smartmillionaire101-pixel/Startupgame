@@ -8,7 +8,17 @@
  *
  * SIMPLE_SHOTS=<dir> saves screenshots of each screen.
  */
-import { expect, letters, playAsGuest, setupFounder, tab, test, type Page } from './fixtures';
+import {
+  expect,
+  letters,
+  playAsGuest,
+  setupFounder,
+  tab,
+  test,
+  type Page,
+  hudMore,
+  openMoney,
+} from './fixtures';
 
 const SHOTS = process.env.SIMPLE_SHOTS;
 async function shot(page: Page, name: string) {
@@ -81,7 +91,7 @@ test('Simple mode: four tabs, a money link, big phone tiles and a calm map', asy
   // The next step is a 💡 button (a red dot: not opened yet) that opens a small card.
   const bulb = page.getByRole('button', { name: 'What should I do now?' });
   await expect(bulb).toHaveAttribute('data-new', '');
-  await expect(page.locator('.hud-whatnow-chip')).toHaveCount(0);
+  await expect(page.locator('[data-whatnow-open]')).toHaveCount(0);
   await bulb.click();
   await expect(page.locator('.next-step-pop')).toContainText('What should I do now?');
   await noSideScroll(page);
@@ -141,6 +151,49 @@ test('Simple mode: four tabs, a money link, big phone tiles and a calm map', asy
   await noSideScroll(page);
 });
 
+test('the ⌄ folds Simple mode’s map buttons away too, behind a ⋯', async ({ page }) => {
+  await founder(page);
+  const hint = page.getByRole('note', { name: 'How to use the map' });
+  if (await hint.isVisible()) await hint.getByRole('button', { name: 'Got it' }).click();
+  const html = page.locator('html');
+  const zoom = page.locator('.city-hud-zoom');
+  const bottom = page.locator('.city-hud-bottom');
+  const more = zoom.getByRole('button', { name: 'More', exact: true });
+  const worded = [
+    page.getByTestId('journey-chip'),
+    zoom.getByRole('button', { name: 'Centre on me' }),
+    zoom.getByRole('button', { name: 'Map key' }),
+    bottom.getByRole('button', { name: 'Where to?' }),
+    page.getByTestId('sky-views-btn'),
+  ];
+  // Open: every button with its name, no ⋯.
+  for (const b of worded) await expect(b).toBeVisible();
+  await expect(more).toBeHidden();
+
+  // Folded (play-test: only the second row went): all of them go, a ⋯ stays.
+  await page.locator('[data-hud-collapse]').click();
+  await expect(html).toHaveAttribute('data-hud-collapsed', '');
+  for (const b of worded) await expect(b).toBeHidden();
+  await expect(more).toBeVisible();
+  await shot(page, 'city-folded');
+  // ⋯ brings them back, names and all; picking one runs it and folds them again.
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  for (const b of worded) await expect(b).toBeVisible();
+  await expect(bottom.getByRole('button', { name: 'Where to?' })).toContainText('Where to?');
+  await bottom.getByRole('button', { name: 'Where to?' }).click();
+  const where = page.getByRole('dialog', { name: 'Where to?' });
+  await expect(where).toBeVisible();
+  await where.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(bottom.getByRole('button', { name: 'Where to?' })).toBeHidden();
+
+  // Unfolded again: the names are back without the ⋯.
+  await page.locator('[data-hud-collapse]').click();
+  await expect(html).not.toHaveAttribute('data-hud-collapsed');
+  for (const b of worded) await expect(b).toBeVisible();
+  await expect(more).toBeHidden();
+});
+
 test('the next-step card goes straight there', async ({ page }) => {
   await founder(page);
   await page.getByRole('note', { name: 'How to use the map' }).getByRole('button').click();
@@ -177,11 +230,18 @@ test('turning Simple mode off in Settings brings the normal tabs back', async ({
   await expect(phone.locator('.phone-back')).not.toContainText('Back');
   await phone.getByRole('button', { name: 'Close phone' }).click();
 
+  // The same four tabs (money is the pill at the top); the map's zoom is behind ⋯.
   const nav = page.getByRole('navigation', { name: 'Main' });
-  await expect(nav.getByRole('button')).toHaveCount(5);
-  for (const name of ['City', 'Today', 'Company', 'Money', 'Me'])
+  await expect(nav.getByRole('button')).toHaveCount(4);
+  for (const name of ['City', 'Today', 'Company', 'Me'])
     await expect(tab(page, name)).toBeVisible();
+  await expect(tab(page, 'Money')).toHaveCount(0);
+  await hudMore(page);
   await expect(page.locator('.city-stage').getByRole('button', { name: 'Zoom in' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  // The money pill opens your money, and the whole Money screen from there.
+  await openMoney(page);
+  await expect(page.getByRole('heading', { name: 'Money', level: 1 })).toBeVisible();
 
   // Me → Settings switches it back on, and the choice survives a reload.
   await tab(page, 'Me').click();

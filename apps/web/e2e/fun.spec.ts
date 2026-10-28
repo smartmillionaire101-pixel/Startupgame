@@ -1,4 +1,4 @@
-import { setupFounder } from './fixtures';
+import { setupFounder, hudMore } from './fixtures';
 import { expect, letters, test, playAsGuest, tapPlace, type Page } from './fixtures';
 
 /**
@@ -91,7 +91,8 @@ test('a car dealer lists cars; buy one and it’s parked at home', async ({ page
   // From home: "Go to the showroom" for a car walks you to a dealer.
   let scene = await enter(page, 'home');
   await expect(scene).toHaveAttribute('data-room', 'apartment');
-  // Wave 7: showrooms are under Edit in the walkable home.
+  // Wave 7: showrooms are under Edit in the walkable home (behind ⋯).
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Edit' }).click();
   await scene.locator('[data-action="showroom:car"]').click();
   scene = page.locator('.place-scene[data-room="showroom"]');
@@ -133,6 +134,7 @@ test('an appliance shop sells a TV, and it shows in your flat', async ({ page })
   let scene = await enter(page, 'home');
   await expect(scene.locator('[data-furniture="tv"]')).toHaveAttribute('data-owned', '0');
   await expect(scene.locator('[data-furniture="fridge"]')).toBeAttached();
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Edit' }).click();
   await scene.locator('[data-action="showroom:appliance"]').click();
   scene = page.locator('.place-scene[data-room="appliance"]');
@@ -153,6 +155,7 @@ test('an appliance shop sells a TV, and it shows in your flat', async ({ page })
 
   await scene.getByRole('button', { name: 'Close' }).click();
   const home = await enter(page, 'home');
+  await hudMore(home);
   await home.getByRole('button', { name: /Home & friends/ }).click();
   const social = page.getByRole('dialog', { name: 'Home and social experiences' });
   await expect(social.getByRole('button', { name: 'Unpack delivery' })).toBeEnabled({

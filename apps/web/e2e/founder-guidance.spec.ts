@@ -1,4 +1,4 @@
-import { expect, letters, playAsGuest, setupFounder, tab, test } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, tab, test, openMoney } from './fixtures';
 
 /**
  * Founder guidance: the Company screen opens on the founder's stage (Idea,
@@ -110,7 +110,7 @@ test('a founder sees the stage tracker, a pricing warning and a scored pitch', a
   await page.reload();
 
   // Answer honestly (the first choice is the true figure) and read the scores.
-  await tab(page, 'Money').click();
+  await openMoney(page);
   const card = page.locator('section.card').filter({ hasText: /has questions/ });
   await expect(card).toBeVisible();
   for (const field of await card.locator('.field').all())

@@ -1,41 +1,5 @@
 /* Look around and photos of your home (./HomePhotos.tsx). */
 
-/* The labelled view controls, under the round camera buttons (top right). */
-.home-view {
-  position: absolute;
-  right: 10px;
-  top: 98px;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-.home-view button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-height: 36px;
-  padding: 0 0.75rem;
-  border-radius: 18px;
-  border: 1px solid rgb(255 255 255 / 0.25);
-  background: rgb(15 23 42 / 0.6);
-  color: #fff;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-  backdrop-filter: blur(6px);
-}
-.home-view button:active {
-  transform: scale(0.96);
-}
-.home-view button[aria-pressed='true'] {
-  background: #f8fafc;
-  color: #0f172a;
-}
-
 /* The camera's flash. */
 .home-flash {
   position: absolute;

@@ -70,6 +70,11 @@
 .fg-current .fg-step-name {
   color: var(--accent-strong);
   font-weight: var(--fw-bold);
+  /* The stage you're on reads in full ("Customers" in bold is a little wider
+     than its column); the names either side are short enough to make room. */
+  overflow: visible;
+  text-overflow: clip;
+  max-width: none;
 }
 .fg-step-name {
   /* One line: the short names ("Customers", "Fit") fit; anything longer ends in "…". */

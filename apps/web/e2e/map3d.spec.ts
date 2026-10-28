@@ -1,4 +1,4 @@
-import { expect, letters, playAsGuest, setupFounder, test } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, test, hudMore } from './fixtures';
 import type { Page } from './fixtures';
 
 // WebGL through software rendering, for this spec only: the flags slow the
@@ -48,8 +48,10 @@ test('The 3D city renders, credits OpenStreetMap, and a place opens from its lab
   await expect(credit).toBeVisible();
   await expect(credit).toHaveText('© OpenStreetMap contributors');
   await expect(page.locator('[data-landmark="Lekki–Ikoyi Link Bridge"]')).toBeAttached();
-  // The accessible way in stays: the map's own buttons.
+  // The accessible way in stays: the map's own buttons (zoom behind ⋯).
+  await hudMore(page);
   await expect(page.getByRole('button', { name: 'Zoom in' })).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // The Hub's badge floats over its building (a button named for it); tapping
   // it shows its name and card, and Go walks there and goes in.

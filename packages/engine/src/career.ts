@@ -29,7 +29,7 @@ import { costIn, valueIn } from './ledger.js';
 import { roundTo } from './math.js';
 import { formatMoney } from './money.js';
 import { lifestyleCost } from './personal.js';
-import { investorOn } from './releases.js';
+import { feedbackOn, investorOn } from './releases.js';
 import { companyRunway } from './company.js';
 import type {
   CareerInvitation,
@@ -230,10 +230,16 @@ export function rungRequirements(world: World, p: Player, n: number): RungRequir
       const need = Math.round(L.allocatorMonths * monthOfLiving(world, p));
       const liquid = wealthView(world, p).liquid;
       const bestDpi = Math.max(0, ...funds.map((f) => fundDpi(world, f)));
+      // Play-test (FEEDBACK_NOTE): savings alone aren't a career. A new angel whose
+      // savings already cover 60 months started on rung 7; the wealth route now
+      // needs a track record too (rung 2, leading a syndicate).
+      const track = feedbackOn(world)
+        ? [req('track', 'Lead a syndicate first', p.career?.reached[2] !== undefined ? 1 : 0, 1)]
+        : [];
       // Either route opens the rung: show the closer one.
       return bestDpi >= L.allocatorDpi
         ? [req('dpi', 'A fund that returned 1×', roundTo(bestDpi, 2), L.allocatorDpi)]
-        : [req('liquid', 'Liquid wealth (60 months of living costs)', liquid, need, cur)];
+        : [...track, req('liquid', 'Liquid wealth (60 months of living costs)', liquid, need, cur)];
     }
     case 8:
       return [req('role', 'A senior role at a DFI or bank', p.allocator?.career ? 1 : 0, 1)];
@@ -287,7 +293,7 @@ function reach(world: World, p: Player, n: number, month: number) {
   notify(world, p.id, {
     month,
     kind: 'system',
-    text: `Career: you’re now a ${rung.title.toLowerCase()}. ${RUNG_UNLOCKS[n]}`,
+    text: `Career: you’re now ${/^[aeiou]/i.test(rung.title) ? 'an' : 'a'} ${rung.title.toLowerCase()}. ${RUNG_UNLOCKS[n]}`,
   });
   invite(world, p, n, month);
 }
@@ -393,6 +399,8 @@ function pickTutorialStartups(world: World, p: Player): Id[] {
         c.market === p.market &&
         c.status === 'active' &&
         !c.bannedFromRaising &&
+        // Play-test (FEEDBACK_NOTE): no listed company among the café's first picks.
+        !(feedbackOn(world) && c.ipo?.status === 'listed') &&
         (early(c) || !INVESTOR.caps.angelCeiling),
     )
     .sort(
@@ -525,6 +533,13 @@ function nextRung(p: Player): number | null {
   return null;
 }
 
+/** Down to two significant figures (3,037,500 → 3,000,000), so the amount shown is the amount sent. */
+const roundDown2 = (x: number) => {
+  if (x < 100) return Math.floor(x);
+  const step = 10 ** (Math.floor(Math.log10(x)) - 1);
+  return Math.floor(x / step) * step;
+};
+
 /** The tutorial for the client: steps, the café's startups, a suggested cheque, and a recovery. */
 function tutorialView(world: World, p: Player) {
   const t = p.career?.tutorial;
@@ -542,6 +557,9 @@ function tutorialView(world: World, p: Player) {
       const maxCheck = Math.max(0, Math.round(model * 0.3));
       const m = getMarket(world, c.market);
       const capIn = valueIn(world, cap, home.data.currency, m.data.currency);
+      const raw = Math.max(0, Math.min(capIn, maxCheck));
+      // Play-test (FEEDBACK_NOTE): "₦3m" sent ₦3,037,500; suggest a round figure instead.
+      const amount = feedbackOn(world) ? roundDown2(raw) : raw;
       return {
         companyId: c.id,
         name: c.name,
@@ -552,9 +570,9 @@ function tutorialView(world: World, p: Player) {
         fits: (p.investor?.sectors ?? []).includes(c.industry),
         currency: m.data.currency,
         /** A suggested first cheque: small, inside the cap and what they'd take. */
-        suggestedAmount: Math.max(0, Math.min(capIn, maxCheck)),
+        suggestedAmount: amount,
         /** A cap they'd accept today (the model's value; SAFE post-money). */
-        suggestedCap: model + Math.min(capIn, maxCheck),
+        suggestedCap: model + amount,
       };
     });
   // A founder said no to your term sheet: why, and the way back (§3.1).

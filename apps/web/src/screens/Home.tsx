@@ -143,7 +143,7 @@ export function CompanyKpis({ c }: { c: Company }) {
         icon="wallet"
         label={t('Company bank')}
         value={money(c.cash, cur)}
-        hint={t('Spending {amount}/mo', { amount: money(c.burn, cur) })}
+        hint={t('Spending {amount}/mo', { amount: money(c.spending, cur) })}
       />
       <Stat
         icon="clock"
@@ -153,9 +153,12 @@ export function CompanyKpis({ c }: { c: Company }) {
         hint={
           preRevenue
             ? t('No costs yet')
-            : c.defaultAlive
-              ? t('On track to profit')
-              : t('Runs out before profit')
+            : c.finance.history.length === 0 && c.monthlyRevenue <= 0
+              ? // Costs are committed (rent, pay) but no month has settled yet.
+                t('Pre-revenue: no month settled yet')
+              : c.defaultAlive
+                ? t('On track to profit')
+                : t('Runs out before profit')
         }
       />
       <Stat

@@ -1452,6 +1452,11 @@ export interface Company {
   deals?: SalesDeal[];
   /** Customers won through the pipeline, billed monthly on B2B terms. */
   salesAccounts?: SalesAccount[];
+  /**
+   * Pipeline customers who stopped buying, newest last (feedback note; the
+   * last SALES.keepChurned), so the recap and the stage tracker count them.
+   */
+  salesChurn?: SalesChurn[];
   /** Next deal number (per company, so ids never touch the world counter). */
   salesSeq?: number;
   /**
@@ -3236,6 +3241,8 @@ export interface SalesDeal {
   /** Lost because the deadline passed. */
   expired?: boolean;
   closedMonth?: number;
+  /** A won deal whose customer later stopped buying (feedback note): when and why. */
+  churned?: { month: number; reason: SalesChurnReason };
   /** The sales conversation (feedback note, salestalk.ts). Missing = none started. */
   talk?: SalesTalk;
 }
@@ -3265,6 +3272,8 @@ export interface SalesTalkResult {
   score: number;
   won: boolean;
   chance: number;
+  /** The chance shown before asking when it was a guess (no discovery yet). */
+  guess?: number;
   monthly: number;
   turns: { turn: 'lead' | 'price' | 'terms'; option: string; score: number; best: string }[];
 }
@@ -3313,6 +3322,23 @@ export interface SalesAccount {
   /** Agreed monthly price, local minor units. */
   monthly: number;
   since: number;
+  /**
+   * Feedback note: the last month they're committed to (a paid pilot then a
+   * year, or a year up front, agreed in a sales conversation). They don't
+   * leave before it. Missing = month to month.
+   */
+  committedUntil?: number;
+}
+
+/** Why a pipeline customer stopped buying. */
+export type SalesChurnReason = 'reliability' | 'hibernation' | 'switched';
+
+export interface SalesChurn {
+  dealId: Id;
+  name: string;
+  monthly: number;
+  month: number;
+  reason: SalesChurnReason;
 }
 
 // ---------------------------------------------------------------- Decision events & rivals (Journey 4a)

@@ -6,7 +6,7 @@
  *
  * `openPhone()` (./bus) opens it from anywhere; `usePhoneBadge()` gives a
  * phone button elsewhere its badge. `<PhoneDock fab={false} />` hides the
- * floating button when the top bar has its own.
+ * floating button when the HUD has its own (the round phone button).
  */
 import {
   useCallback,
@@ -317,7 +317,7 @@ export function PhoneDock({ fab = true }: { fab?: boolean } = {}) {
     }
   }, []);
 
-  // Opened from elsewhere: a person card's Chat, a contact, the top bar.
+  // Opened from elsewhere: a person card's Chat, a contact, the HUD's phone button.
   useEffect(() => onPhone(openWith), [openWith]);
 
   const markSeen = useCallback((c: { id: string; lastAt: number | null }) => {

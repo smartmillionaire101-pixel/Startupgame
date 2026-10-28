@@ -27,15 +27,17 @@ import {
 } from './company.js';
 import { carModel } from './data/lifestyle-shop.js';
 import { featureById } from './data/roadmap.js';
+import { BANKERS, licenceMissing } from './bankers.js';
 import { burn, col, getMarket } from './helpers.js';
 import { deriveChapters, hasAnyJourney } from './journey.js';
 import { RECENT_LIMIT } from './ledger.js';
 import { scale, type Currency } from './money.js';
 import { lifestyleCost } from './personal.js';
 import { propertiesOf, upkeepOf } from './property.js';
+import { feedbackOn } from './releases.js';
 import { statementLines, type StatementLine } from './statement.js';
 import type { StaffRole } from './data/markets.js';
-import type { Company, Id, MonthlyPnl, Player, World } from './types.js';
+import type { Bank, Company, Id, MonthlyPnl, Player, SalesChurnReason, World } from './types.js';
 
 /** Runway below this many months is flagged as a risk. */
 export const RECAP_RUNWAY_RISK = 6;
@@ -90,6 +92,8 @@ export interface RecapCompany {
   deals: {
     won: { name: string; monthly: number }[];
     lost: { name: string; reason: string | null }[];
+    /** Pipeline customers who stopped buying that month, and why (feedback note). */
+    churned: { name: string; monthly: number; reason: SalesChurnReason }[];
   };
   releases: string[];
   hires: { name: string; role: StaffRole }[];
@@ -114,7 +118,22 @@ export type RecapRisk =
   | { kind: 'deal'; company: string; name: string; stage: string }
   | { kind: 'candidate'; company: string; name: string; role: StaffRole }
   | { kind: 'loan'; lender: string; missed: number }
-  | { kind: 'bills'; short: number; currency: Currency };
+  | { kind: 'bills'; short: number; currency: Currency }
+  /** Your bank's licence was refused at its latest decision (reason ids as in the licence view). */
+  | { kind: 'licence'; bank: string; reasons: string[] };
+
+/** A bank you own: its status and what the regulator decided this month. */
+export interface RecapBank {
+  id: Id;
+  name: string;
+  status: string;
+  /** The licence decision made this month (null: none this month). */
+  decision: {
+    outcome: 'approved' | 'conditions' | 'refused';
+    score: number;
+    reasons: string[];
+  } | null;
+}
 
 export interface RecapBill {
   kind:
@@ -128,7 +147,9 @@ export interface RecapBill {
     | 'living'
     | 'mortgage'
     | 'upkeep'
-    | 'car';
+    | 'car'
+    | 'bankStaff'
+    | 'branchRent';
   /** English label (the client has its own copy, keyed on `kind`). */
   label: string;
   /** The lender, or the home's street, for loans, mortgages and running costs. */
@@ -145,7 +166,8 @@ export type RecapDate =
   | { kind: 'event'; title: string; host: boolean }
   | { kind: 'competition'; name: string; entered: boolean }
   | { kind: 'demoDay'; company: string; accelerator: string }
-  | { kind: 'loanEnds'; lender: string };
+  | { kind: 'loanEnds'; lender: string }
+  | { kind: 'licenceDecision'; bank: string };
 
 export interface RecapView {
   month: number;
@@ -156,6 +178,8 @@ export interface RecapView {
   personal: RecapAccount[];
   business: RecapAccount[];
   companies: RecapCompany[];
+  /** Banks you own (bankers), their money is in `business` under the bank's id. */
+  banks: RecapBank[];
   people: RecapPerson[];
   journey: {
     /** Chapters recorded complete this month. */
@@ -253,6 +277,9 @@ function companyMonth(world: World, c: Company, month: number): RecapCompany {
     .flatMap((i) => i.text.slice(0, -' quit.'.length).split(', '));
   const deals = c.deals ?? [];
   const accounts = c.salesAccounts ?? [];
+  // Pipeline customers who left count with the market's churn (feedback note).
+  const left = (c.salesChurn ?? []).filter((x) => x.month === month);
+  churned += left.length;
   return {
     id: c.id,
     name: c.name,
@@ -274,6 +301,7 @@ function companyMonth(world: World, c: Company, month: number): RecapCompany {
       lost: deals
         .filter((d) => d.stage === 'lost' && d.closedMonth === month)
         .map((d) => ({ name: d.customer.name, reason: d.lossReason ?? null })),
+      churned: left.map((x) => ({ name: x.name, monthly: x.monthly, reason: x.reason })),
     },
     releases: (c.roadmap?.projects ?? [])
       .filter((p) => p.status === 'released' && p.releasedMonth === month)
@@ -399,6 +427,25 @@ function personalBills(world: World, me: Player): RecapBill[] {
   return bills.filter((b) => b.amount > 0);
 }
 
+/** A banker's bank: key staff salaries and the branch's rent (bankers.ts settleBankers). */
+function bankBills(world: World, b: Bank): RecapBill[] {
+  const currency = getMarket(world, b.market).data.currency;
+  const staff = Object.values(b.licence?.hires ?? {}).reduce((a, h) => a + (h?.salary ?? 0), 0);
+  const rent = b.licence?.branch?.rent ?? 0;
+  const bills: RecapBill[] = [
+    { kind: 'bankStaff', label: 'Key staff salaries', amount: staff, currency },
+    { kind: 'branchRent', label: 'Branch rent', amount: rent, currency },
+  ];
+  return bills.filter((x) => x.amount > 0);
+}
+
+/** The regulator decides at the next month end (the checklist complete, the review over). */
+function licenceDecidedNext(world: World, b: Bank, current: number): boolean {
+  const lic = b.licence!;
+  const months = feedbackOn(world) ? 1 : BANKERS.reviewMonths;
+  return current + 1 - lic.filedMonth >= months && licenceMissing(b).length === 0;
+}
+
 // ---------------------------------------------------------------- the view
 
 /**
@@ -427,6 +474,14 @@ export function recapView(world: World, playerId: Id, month?: number): RecapView
   const business = companies
     .map((c) => accountMonth(world, me, c.account, mo, 'business', c.id, c.name))
     .filter((a): a is RecapAccount => !!a);
+  // Play-test: a banker's own bank (its money, the licence decision, its bills).
+  const banks = Object.values(world.banks ?? {}).filter(
+    (b) => b.ownerId === me.id && (b.status === 'applying' || b.status === 'licensed'),
+  );
+  for (const b of banks) {
+    const a = accountMonth(world, me, b.account, mo, 'business', b.id, b.name);
+    if (a) business.push(a);
+  }
 
   // --- Journey.
   let journey: RecapView['journey'] = null;
@@ -475,6 +530,11 @@ export function recapView(world: World, playerId: Id, month?: number): RecapView
   }
   for (const loan of me.loans)
     if (loan.missed > 0) risks.push({ kind: 'loan', lender: loan.lender, missed: loan.missed });
+  for (const b of banks) {
+    const d = b.licence?.decision;
+    if (b.status === 'applying' && d?.outcome === 'refused')
+      risks.push({ kind: 'licence', bank: b.name, reasons: d.reasons });
+  }
 
   // --- Tomorrow: the next settlement.
   const pBills = personalBills(world, me);
@@ -515,6 +575,9 @@ export function recapView(world: World, playerId: Id, month?: number): RecapView
   }
   for (const loan of me.loans)
     if (loan.monthsLeft === 1) dates.push({ kind: 'loanEnds', lender: loan.lender });
+  for (const b of banks)
+    if (b.status === 'applying' && b.licence && licenceDecidedNext(world, b, current))
+      dates.push({ kind: 'licenceDecision', bank: b.name });
 
   // Months with a recap: those your statement still holds.
   const seen = new Set<number>();
@@ -529,6 +592,16 @@ export function recapView(world: World, playerId: Id, month?: number): RecapView
     personal,
     business,
     companies: companies.map((c) => companyMonth(world, c, mo)),
+    banks: banks.map((b) => {
+      const d = b.licence?.decision;
+      return {
+        id: b.id,
+        name: b.name,
+        status: b.status,
+        decision:
+          d && d.month === mo ? { outcome: d.outcome, score: d.score, reasons: d.reasons } : null,
+      };
+    }),
     people: peopleMonth(world, me, mo, isCurrent),
     journey,
     risks,
@@ -544,6 +617,17 @@ export function recapView(world: World, playerId: Id, month?: number): RecapView
           total: bills.reduce((a, b) => a + b.amount, 0),
         };
       }),
+      ...banks
+        .map((b) => {
+          const bills = bankBills(world, b);
+          return {
+            company: b.name,
+            currency: getMarket(world, b.market).data.currency,
+            bills,
+            total: bills.reduce((a, x) => a + x.amount, 0),
+          };
+        })
+        .filter((x) => x.bills.length > 0),
       dates,
     },
   };

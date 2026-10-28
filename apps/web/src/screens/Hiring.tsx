@@ -102,7 +102,7 @@ function stakes(c: CompanyT, meId: string) {
 }
 
 /** Plain-language dilution for an equity grant to staff (from the pool first). */
-function staffDilution(c: CompanyT, meId: string, equityPct: number) {
+export function staffDilution(c: CompanyT, meId: string, equityPct: number) {
   const { mine, pool } = stakes(c, meId);
   const e = equityPct / 100;
   if (e <= 0) return t('No equity: your stake stays {pct}.', { pct: pct(mine, 1) });
@@ -530,11 +530,13 @@ function CandidateCard({
         <Pill tone={x.monthsLeft === 0 ? 'bad' : x.monthsLeft === 1 ? 'warn' : undefined}>
           {x.monthsLeft === 0
             ? t('Decides this month')
-            : t('Decides within {n} months', { n: x.monthsLeft })}
+            : x.monthsLeft === 1
+              ? t('Decides within 1 month')
+              : t('Decides within {n} months', { n: x.monthsLeft })}
         </Pill>
       </div>
       <p className="small muted">
-        {title(x.seniority, x.role)} · {t('asks {amount}', { amount: money(x.ask, cur) })}
+        {title(x.seniority, x.role)} · {t('asks {amount}/month', { amount: money(x.ask, cur) })}
         {x.competingOffers
           ? ' · ' +
             (x.competingOffers > 1

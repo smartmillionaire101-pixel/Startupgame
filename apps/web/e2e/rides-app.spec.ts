@@ -93,7 +93,7 @@ test('a ride booked in the Rides app picks you up from home', async ({ page }) =
   await founder(page);
   const home = page.locator('.place-scene[data-scene="home"]');
   await expect(home).toBeVisible({ timeout: 30_000 });
-  await bookTaxi(page, () => home.locator('[data-home-phone]').click());
+  await bookTaxi(page, () => page.locator('[data-phone-button]').click());
   await shot(page, 'from-home');
   await arrives(page);
 });

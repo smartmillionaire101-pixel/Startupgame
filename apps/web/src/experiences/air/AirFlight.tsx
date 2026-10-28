@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import * as THREE from 'three';
 import { useView } from '../../store';
 import { t } from '../../i18n';
+import { HudButton, HudRail } from '../../ui';
 import { money } from '../../format';
 import { OSM_CREDIT, fromLatLon, useGeo } from '../../city/geo';
 import { cachedCityLayout } from '../../city/geoLayout';
@@ -146,6 +147,13 @@ const tierOf = () => {
 /** What a landmark's name must not cover: the title, the buttons and the panels. */
 const LABEL_BLOCKERS =
   '.air-head h2, .air-head small, .panorama-actions, .air-cam, .air-hud, .air-say, .air-controls, .air-result';
+
+/** The helicopter flight's title: the flight you booked. */
+const HELI_TITLE: Record<string, () => string> = {
+  'heli-hop': () => t('Helicopter hop'),
+  'heli-tour': () => t('City tour'),
+  'heli-charter': () => t('Private charter'),
+};
 
 export default function AirFlight({
   booking,
@@ -676,42 +684,38 @@ export default function AirFlight({
                 ? t('Back on the pad')
                 : hud.manual
                   ? t('You have the controls')
-                  : t('City tour')}
+                  : // The flight you booked (playtest round 6: every flight said "City tour").
+                    (HELI_TITLE[booking.item]?.() ?? t('Helicopter ride'))}
           </h2>
         </div>
         <div className="panorama-actions">
-          {ready && !error && gl && (
-            <button
-              type="button"
-              className="panorama-snap"
-              data-action="air-photo"
-              aria-label={t('Take a photo')}
-              title={t('Take a photo')}
-              onClick={snap}
-            >
-              📷
-            </button>
-          )}
           <button type="button" onClick={onClose} aria-label={t('Close')}>
             ×
           </button>
         </div>
       </header>
       {gl && ready && !error && (
-        <div className="air-cam" role="group" aria-label={t('Camera')} data-air-cam={camMode}>
+        // The camera's round buttons down the right (the floating HUD's rail).
+        <HudRail className="air-cam" label={t('Camera')} data-air-cam={camMode}>
+          <HudButton
+            icon="camera"
+            className="panorama-snap"
+            data-action="air-photo"
+            label={t('Take a photo')}
+            onClick={snap}
+          />
           {(['inside', 'outside'] as const).map((m) => (
-            <button
+            <HudButton
               key={m}
-              type="button"
               data-action={`air-cam-${m}`}
               aria-pressed={camMode === m}
+              label={m === 'inside' ? t('Inside') : t('Outside')}
               onClick={() => pickCam(m)}
             >
-              <span aria-hidden="true">{m === 'inside' ? '💺' : '🎥'}</span>{' '}
-              {m === 'inside' ? t('Inside') : t('Outside')}
-            </button>
+              <span aria-hidden="true">{m === 'inside' ? '💺' : '🎥'}</span>
+            </HudButton>
           ))}
-        </div>
+        </HudRail>
       )}
       {error && (
         <p className="panorama-error" role="alert">
@@ -909,10 +913,14 @@ export default function AirFlight({
               <>
                 <h3>{t('What a view!')}</h3>
                 <p>
-                  {t('{n} landmarks from the air: {names}', {
-                    n: home?.seen.length ?? 0,
-                    names: (home?.seen ?? []).join(', '),
-                  })}
+                  {(home?.seen.length ?? 0) === 0
+                    ? t('You headed back before the first landmark: the city from the air.')
+                    : home!.seen.length === 1
+                      ? t('A landmark from the air: {name}', { name: home!.seen[0]! })
+                      : t('{n} landmarks from the air: {names}', {
+                          n: home!.seen.length,
+                          names: home!.seen.join(', '),
+                        })}
                 </p>
               </>
             )}

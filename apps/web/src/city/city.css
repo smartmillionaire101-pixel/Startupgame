@@ -12,27 +12,10 @@
 .app.app-city {
   max-width: 1180px;
 }
-/* The payday warning (MoneyOverview.tsx) sits above the map: one line here,
-   and the map makes room for it so its bottom buttons stay on screen. */
-.app.app-city:has(.payday-warning) {
-  --payday-h: 52px;
-}
-.app-city .payday-warning {
-  height: 44px;
-  padding-block: 0;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.app-city .payday-warning .small {
-  display: none;
-}
 
 .city-stage {
   position: relative;
-  height: calc(
-    100dvh - 48px - 44px - var(--nav-h, 3.6rem) - 1rem - env(safe-area-inset-top) -
-      var(--payday-h, 0px)
-  );
+  height: calc(100dvh - var(--hud-top-h) - var(--nav-h, 3.6rem) - 1rem);
   min-height: 360px;
   border-radius: 22px;
   overflow: hidden;
@@ -130,10 +113,12 @@
 .city-map[data-zoom='0'] :is(.lbl-detail, .lbl-stall, .lbl-biz),
 .city-map[data-zoom='1'] :is(.lbl-detail, .lbl-stall, .lbl-biz),
 .city-map[data-zoom='1'] .city-district:not(.is-key),
-.city-map[data-zoom='2'] .city-district,
-.city-map:is([data-zoom='0'], [data-zoom='1']) .city-you {
+.city-map[data-zoom='2'] .city-district {
   display: none;
 }
+/* Your name tag shows at every zoom (play-test: "avatar missing on the Lite
+   map": your figure stands behind the buildings in front of it, and the tag
+   was hidden unless zoomed right in). */
 .city-map .city-label.is-focus {
   display: inline !important;
 }
@@ -264,11 +249,6 @@
 .city-hud > * {
   pointer-events: auto;
 }
-.city-hud-top {
-  top: 0.7rem;
-  left: 0.7rem;
-  right: 4rem;
-}
 .city-hud-zoom {
   top: 0.7rem;
   right: 0.7rem;
@@ -285,7 +265,6 @@
   gap: 0.5rem;
 }
 
-.hud-chip,
 .hud-round,
 .hud-places,
 .hud-banner,
@@ -298,27 +277,6 @@
   box-shadow: 0 4px 14px rgb(15 23 42 / 0.12);
 }
 
-.hud-chip {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.05rem;
-  border-radius: 14px;
-  padding: 0.4rem 0.7rem;
-  font-size: 0.78rem;
-  cursor: pointer;
-  max-width: 100%;
-}
-.hud-name {
-  font-weight: 800;
-  font-size: 0.86rem;
-  max-width: 14rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.hud-chip.hud-danger,
-.hud-chip.hud-critical,
 .hud-banner.hud-danger,
 .hud-banner.hud-critical {
   border-color: #ef4444;
@@ -326,7 +284,6 @@
     0 0 0 3px rgb(239 68 68 / 0.25),
     0 4px 14px rgb(15 23 42 / 0.12);
 }
-.hud-chip.hud-watch,
 .hud-banner.hud-watch {
   border-color: #f59e0b;
 }
@@ -513,37 +470,15 @@
   background: color-mix(in srgb, var(--bad) 7%, var(--surface));
 }
 
-/* A wide screen: the city fills the window right of the sidebar and under
-   the top bar, to the edges (the layout: the end of styles.css). */
+/* A wide screen: Lite mode (no map) keeps the places list in a column
+   right of the nav pill (the map itself: the HUD section at the end). */
 @media (min-width: 900px) {
-  .app.app-game.app-city {
+  .app.app-game.app-city:not(.app-scene) {
     max-width: none;
-    padding: 0;
   }
-  .app.app-game.app-city .topbar {
-    margin: 0 0 0 calc(-1 * var(--side-w));
-  }
-  /* Lite mode (no map): the places list keeps a margin. */
   .app.app-game.app-city main:not(:has(.city-stage)) {
     max-width: var(--content-max);
     margin: 0 auto;
-    padding: 0 var(--app-pad) 2.5rem;
-  }
-  /* The window's height less the top bar (and the payday line when it shows). */
-  .city-stage {
-    height: calc(100dvh - 2.9rem - 1px - env(safe-area-inset-top) - var(--payday-h, 0px));
-    border-radius: 0;
-    box-shadow: none;
-  }
-  .city-map:focus-visible {
-    border-radius: 0;
-  }
-  .app-city .payday-warning {
-    margin: 0;
-    border-radius: 0;
-  }
-  .app.app-game.app-city:has(.payday-warning) {
-    --payday-h: 44px;
   }
 }
 
@@ -891,17 +826,6 @@
   display: none;
 }
 
-.city-hud-top {
-  display: grid;
-  gap: 0.4rem;
-  justify-items: start;
-}
-.hud-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
-}
 .hud-clock,
 .hud-away {
   display: inline-flex;
@@ -1292,47 +1216,6 @@
 .hud-row-bottom > * {
   pointer-events: auto;
 }
-.hud-whatnow-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 44px;
-  max-width: min(62%, 340px);
-  min-width: 0;
-  border-radius: 999px;
-  padding: 0.45rem 0.9rem 0.45rem 0.7rem;
-  border: 1px solid rgb(15 23 42 / 0.08);
-  background: #0f172a;
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.85rem;
-  box-shadow: 0 4px 14px rgb(15 23 42 / 0.2);
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.hud-whatnow-chip .icon {
-  color: #fbbf24;
-  flex: none;
-}
-.hud-whatnow-label {
-  flex: none;
-}
-.hud-whatnow-tip {
-  font-weight: 500;
-  opacity: 0.8;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.hud-whatnow-tip::before {
-  content: '· ';
-}
-@media (max-width: 420px) {
-  .hud-whatnow-tip {
-    display: none;
-  }
-}
 .hud-places {
   display: inline-flex;
   align-items: center;
@@ -1366,22 +1249,6 @@
     top: -4px;
     right: -4px;
     margin: 0;
-  }
-  .hud-whatnow-chip {
-    max-width: none;
-    flex: 0 1 auto;
-  }
-  /* Short of room (390px), "What to do now" takes two lines rather than "What to do n";
-     the tip only gets what's left over. */
-  .hud-whatnow-label {
-    flex: 0 1 auto;
-    min-width: 0;
-    white-space: normal;
-    line-height: 1.15;
-    text-align: left;
-  }
-  .hud-whatnow-tip {
-    flex: 1 1 0;
   }
 }
 .hud-round .icon {
@@ -1521,9 +1388,6 @@ html[data-simple] .city-hud-zoom .hud-places {
   gap: 0.35rem;
   min-height: 48px;
 }
-html[data-simple] .city-hud-top {
-  right: 7.5rem;
-}
 html[data-simple] .city-hud-bottom .hud-row-bottom {
   justify-content: flex-end;
 }
@@ -1554,7 +1418,7 @@ html[data-simple] .city-hud-bottom .hud-row-bottom {
 .gesture-hint-ok {
   min-width: 8rem;
 }
-/* The phone lives in the top bar now: the big card can use the full width. */
+/* Simple mode keeps its labelled buttons: the big card can use the full width. */
 html[data-simple] .city-hud-bottom {
   right: 0.7rem !important;
 }
@@ -1780,4 +1644,105 @@ html[data-simple] .city-hud-bottom .hud-places .hud-count {
 }
 .places-outing-name {
   font-weight: 700;
+}
+
+/* ---- The floating HUD (styles.css): the map is the whole screen ---------
+   The HUD's pills float over it; its buttons are a rail of icons down the
+   right (HudRail), and the ride chooser and banners sit bottom-left above the
+   nav pill. Simple mode keeps its buttons with words. */
+.app.app-game.app-scene {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.app-scene .city-stage {
+  position: fixed;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  border-radius: 0;
+  box-shadow: none;
+  z-index: 0;
+}
+.app-scene .city-map:focus-visible {
+  border-radius: 0;
+}
+.app-scene .city-hud-bottom,
+.app-scene .city-stage:has(.city-osm-credit) .city-hud-bottom {
+  left: var(--hud-gap);
+  right: calc(var(--hud-gap) + var(--hud-ib) + 12px);
+  bottom: calc(var(--nav-h, 0px) + 28px);
+  pointer-events: none;
+}
+.app-scene .city-hud-bottom > * {
+  pointer-events: auto;
+}
+/* A place's card on the 3D map: above the nav pill, clear of the rail. */
+.app-scene .mb-card {
+  left: var(--hud-gap);
+  right: calc(var(--hud-gap) + var(--hud-ib) + 12px);
+  bottom: calc(var(--nav-h, 0px) + 28px);
+}
+/* Map data licence: must stay visible, tucked above the nav pill on the left. */
+.app-scene .city-osm-credit {
+  left: var(--hud-gap);
+  right: auto;
+  bottom: calc(var(--nav-h, 0px) + 6px);
+  z-index: 3;
+  font-size: 10.5px;
+}
+@media (min-width: 900px) {
+  .app-scene .city-hud-bottom,
+  .app-scene .city-stage:has(.city-osm-credit) .city-hud-bottom {
+    left: calc(var(--side-w) + var(--hud-gap));
+    bottom: calc(var(--hud-bottom) + 22px);
+  }
+  .app-scene .city-osm-credit {
+    left: calc(var(--side-w) + var(--hud-gap));
+    bottom: var(--hud-bottom);
+  }
+  .app-scene .mb-card {
+    left: calc(var(--side-w) + var(--hud-gap));
+    bottom: calc(var(--hud-bottom) + 22px);
+  }
+}
+/* Simple mode: Journey, Me, the map key and the next step stand under the
+   bell; Who's here, Where to? and Sky views sit above the nav pill. */
+.app-scene .city-hud-zoom {
+  top: calc(var(--hud-top) + var(--hud-pill-h) + 78px);
+  right: var(--hud-gap);
+}
+html[data-simple] .app-scene .city-hud-bottom {
+  right: var(--hud-gap) !important;
+}
+
+/* The 3D city was too slow here (CityMap's SlowMapNotice): under the HUD's
+   second row, clear of the rail of round buttons on the right. */
+.map-slow {
+  position: fixed;
+  z-index: var(--z-hud);
+  top: var(--hud-scene-top2);
+  left: var(--hud-gap);
+  right: calc(var(--hud-gap) + var(--hud-ib) + 10px);
+  max-width: 26rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 16px;
+  background: var(--hud-bg-strong);
+  border: 1px solid var(--hud-line);
+  box-shadow: var(--hud-shadow);
+  color: var(--text);
+  /* Taps go through to the map except on its buttons: it never hides a place. */
+  pointer-events: none;
+}
+.map-slow button {
+  pointer-events: auto;
+}
+.map-slow p {
+  margin: 0 0 0.4rem;
+}
+.map-slow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
 }

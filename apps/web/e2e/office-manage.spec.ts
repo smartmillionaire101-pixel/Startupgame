@@ -9,6 +9,7 @@ import {
   tapPlace,
   test,
   withoutNetlifyDrawer,
+  hudMore,
 } from './fixtures';
 
 /**
@@ -65,15 +66,19 @@ test('the office opens the Company screen, and the HUD keeps the map clear', asy
   await page.setViewportSize({ width: 390, height: 844 });
   await founder(page, 'Ada Office');
 
-  // The Journey is an icon button with the map's buttons: no chapter banner over the map.
+  // The Journey is an icon button with the map's buttons (behind ⋯): no chapter
+  // banner over the map.
   const map = page.getByRole('application', { name: /Map of Lagos/ });
   await expect(map).toBeVisible();
+  await hudMore(page);
   const chip = page.getByTestId('journey-chip');
   await expect(chip).toBeVisible();
   await expect(chip).toHaveAttribute('aria-label', /Chapter 1 · The Hustle/);
   await expect(chip).not.toContainText('Hustle');
-  await expect(page.locator('.city-hud-zoom [data-testid="journey-chip"]')).toBeVisible();
+  await expect(page.locator('[data-hud-rail] [data-testid="journey-chip"]')).toBeVisible();
   await expect(page.locator('.journey-celebrate')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(chip).toBeHidden();
 
   // Nothing on the HUD covers the centre of the map, on two phone sizes.
   for (const size of [
@@ -83,7 +88,9 @@ test('the office opens the Company screen, and the HUD keeps the map clear', asy
     await page.setViewportSize(size);
     await page.waitForTimeout(200);
     const m = (await map.boundingBox())!;
-    for (const el of await page.locator('.city-hud > *').all()) {
+    for (const el of await page
+      .locator('.city-hud > *, [data-hud-rail] > *, .hud-top > *, .hud-sub > *')
+      .all()) {
       if (!(await el.isVisible())) continue;
       const box = await el.boundingBox();
       if (!box) continue;
@@ -191,7 +198,8 @@ test('notifications open what they are about: a payment’s receipt, a deal’s 
   const deal = a.locator('.inbox-item', { hasText: /New deal card/ }).first();
   await expect(deal).toBeVisible();
   await deal.click();
-  await expect(tab(a, 'Money')).toHaveAttribute('aria-current', 'page');
+  // The Money screen (no tab of its own: the money pill and Company lead there).
+  await expect(a.getByRole('heading', { name: 'Money', level: 1 })).toBeVisible();
   await expect(a.getByRole('dialog', { name: 'Deal card' })).toBeVisible();
 
   expect(errors).toEqual([]);

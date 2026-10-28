@@ -1,4 +1,4 @@
-import { expect, letters, playAsGuest, setupFounder, test, type Page } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, test, type Page, hudMore } from './fixtures';
 
 /**
  * Screenshots of the three hotel rooms (budget, business, the suite) from the
@@ -62,38 +62,41 @@ for (const scheme of ['light', 'dark'] as const)
       const room = await open(page, tier);
       const shot = (n: string) => page.screenshot({ path: `${DIR}/${tier}-${n}-${scheme}.png` });
       await shot('front');
+      // The camera's buttons are behind the rail's ⋯ (picking one closes it).
+      const cam = async (name: string) => {
+        await hudMore(room);
+        await room.getByRole('button', { name, exact: true }).click();
+      };
       if (tier === 'luxury') {
-        await room.getByRole('button', { name: 'Zoom in' }).click();
+        await cam('Zoom in');
         await page.waitForTimeout(900);
         await shot('zoomed');
         await closeUp(page, `suite-living-${scheme}`, ['sofa', 'tv', 'dining']);
         await closeUp(page, `suite-bedroom-${scheme}`, ['bed', 'wardrobe']);
         await closeUp(page, `suite-bathroom-${scheme}`, ['bathtub', 'shower', 'toilet']);
-        await room.getByRole('button', { name: 'Zoom out' }).click();
+        await cam('Zoom out');
         await page.waitForTimeout(600);
       }
-      const turn = room.getByRole('button', { name: 'Turn right' });
-      await turn.click();
+      await cam('Turn');
       await page.waitForTimeout(900);
       await shot('side');
-      await turn.click();
+      await cam('Turn');
       await page.waitForTimeout(900);
       await shot('back');
-      await turn.click();
+      await cam('Turn');
       await page.waitForTimeout(900);
       await shot('side2');
-      await turn.click();
+      await cam('Turn');
       await page.waitForTimeout(900);
       // Zoomed out: the corridor and the neighbours' rooms.
-      const out = room.getByRole('button', { name: 'Zoom out' });
-      await out.click();
-      await out.click();
+      await cam('Zoom out');
+      await cam('Zoom out');
       await page.waitForTimeout(900);
       await shot('corridor');
       await room.locator('[data-action="look-around"]').click();
       await page.waitForTimeout(3400);
       await shot('look');
-      await room.getByRole('button', { name: 'Close' }).first().click();
+      await room.getByRole('button', { name: 'Go out', exact: true }).click();
       await expect(room).toBeHidden();
     }
   });
@@ -196,6 +199,7 @@ test('a friend next door on holiday: their door, knock, they come over', async (
     await a.waitForTimeout(4000);
     await expect(room.locator('[data-guest]')).toHaveCount(1);
     await a.screenshot({ path: `${DIR}/friend-visit-${scheme}.png` });
+    await hudMore(room);
     await room.locator('[data-action="more"]').click();
     await a.screenshot({ path: `${DIR}/friend-more-${scheme}.png` });
     await room.locator('[data-hotel-more] [data-action="hotel-goodbye"]').click();

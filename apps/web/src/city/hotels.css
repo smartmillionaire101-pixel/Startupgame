@@ -281,3 +281,10 @@
 .hotel-stars-off {
   color: var(--line-strong);
 }
+
+/* A held ticket past its time: the plane waits for you. */
+.ticket-waited {
+  display: block;
+  font-weight: 600;
+  color: var(--good);
+}

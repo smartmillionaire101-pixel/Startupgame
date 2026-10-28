@@ -3,7 +3,16 @@ import { FoundCompany } from './Me';
 import { ScreenBoundary } from '../ScreenBoundary';
 import { FOUNDER_STAGES } from '@runway/engine';
 import type { BuildMode, FounderStageId, Industry, RevenueModel } from '@runway/engine';
-import { amountInput, money, parseAmount, pct, runway, stars, titleCase } from '../format';
+import {
+  amountInput,
+  gameMonth,
+  money,
+  parseAmount,
+  pct,
+  runway,
+  stars,
+  titleCase,
+} from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Fold, Pill, Segmented, Sheet } from '../ui';
@@ -11,7 +20,7 @@ import { ExpansionCard } from './Expansion';
 import { Roadmap } from './Roadmap';
 import { SalesPipeline } from './Sales';
 import { InterviewSheet } from './Interview';
-import { CofounderCard, HiringPipeline, TeamHealth } from './Hiring';
+import { CofounderCard, HiringPipeline, TeamHealth, staffDilution } from './Hiring';
 import { RunwayExplainer } from './FundCompany';
 import { RivalsPanel } from './Decisions';
 import { FounderSetup, SetupTracker, setupOpen } from './FounderSetup';
@@ -249,7 +258,7 @@ export function CompanyScreen() {
                 { label: t('Stars'), value: stars(c.stars) },
                 ...(c.lastRound ? [{ label: t('Last round'), value: titleCase(c.lastRound) }] : []),
               ],
-              footer: t('Month {n}', { n: view.market.month }),
+              footer: gameMonth(view.market.month),
               tone: 'teal',
             })
           }
@@ -793,7 +802,7 @@ export function Team({ c }: { c: CompanyT }) {
                   <div className="small muted">
                     {seniorityLabel(p.seniority)} ·{' '}
                     {t('skill {n}', { n: Math.round(p.skill * 100) })} ·{' '}
-                    {t('asks {amount}', { amount: money(p.ask, cur) })} ·{' '}
+                    {t('asks {amount}/month', { amount: money(p.ask, cur) })} ·{' '}
                     {p.equityPreference > 0.6 ? t('likes equity') : t('prefers cash')}
                     {p.competingOffers
                       ? ' · ' +
@@ -826,7 +835,7 @@ function OfferSheet({
   cand: ReturnType<typeof useView>['view']['market']['talent'][number];
   onClose: () => void;
 }) {
-  const { send, cur } = useView();
+  const { send, cur, view } = useView();
   const [salary, setSalary] = useState(amountInput(cand.ask));
   const [equity, setEquity] = useState(0);
   const [reply, setReply] = useState<{ outcome: string; reason: string; salary?: number } | null>(
@@ -871,6 +880,13 @@ function OfferSheet({
           />
         )}
       </Field>
+      {/* The same checks as an offer from the hiring pipeline: dilution, payroll and runway. */}
+      <p className="small">{staffDilution(c, view.me.id, equity)}</p>
+      <PlanChecks
+        checks={livePlanChecks(c, { extraPayroll: parseAmount(salary) ?? cand.ask })}
+        cur={cur}
+        only={['payroll', 'runway']}
+      />
       {reply && (
         <Card tone={reply.outcome === 'accept' ? 'good' : 'warn'}>
           <p>

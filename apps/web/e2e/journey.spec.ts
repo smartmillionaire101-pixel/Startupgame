@@ -3,7 +3,7 @@
  * opens it on Chapter 1 (The Hustle) with its steps, dismisses the main
  * objective for the next one, pins it, and takes a Go button to the Market.
  */
-import { expect, letters, playAsGuest, setupFounder, test } from './fixtures';
+import { expect, letters, playAsGuest, setupFounder, test, hudMore } from './fixtures';
 
 test('a new founder opens the Journey on Chapter 1 and follows a step', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -18,6 +18,8 @@ test('a new founder opens the Journey on Chapter 1 and follows a step', async ({
     market: /Nairobi/,
   });
 
+  // Behind the map rail's ⋯.
+  await hudMore(page);
   const chip = page.getByTestId('journey-chip');
   await expect(chip).toBeVisible();
   await expect(chip).toHaveAttribute('aria-label', /Chapter 1 · The Hustle/);

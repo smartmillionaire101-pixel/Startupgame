@@ -229,6 +229,7 @@ describe('Wave 7: rides and the busy airport', () => {
         type: 'city.ride',
         mode: 'taxi',
         distance: rideDistance(30),
+        minutes: rideMinutes('taxi', 30),
       });
     expect(tripCommand('bus', 5, false)?.type).toBe('city.ride');
   });

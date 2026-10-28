@@ -600,7 +600,13 @@
 .buy-swatch.is-yours small {
   color: var(--buy-green);
 }
+/* Stays in view at the panel's foot while you scroll the swatches (the panel
+   is low then, so the walls show above it). */
 .buy-try {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  box-shadow: 0 -8px 16px var(--buy-bg);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -648,4 +654,20 @@
     animation: none;
     transition: none;
   }
+}
+
+/* Under the floating HUD: the pills already show the time and your money, so
+   Buy mode's own pills step aside (play-test: "Buy mode" showed through the
+   time pill) and its turn buttons sit under the HUD's second row. */
+[data-hud] .buy-top {
+  margin-top: calc(var(--hud-scene-top2) - 0.5rem);
+  background: none;
+}
+[data-hud] .buy-top .buy-pill {
+  display: none;
+}
+/* Names under the HUD's icons: the phone's sticks up over the panel's foot,
+   so the panel's last row (Buy · price) stays clear of it. */
+[data-hud-labels] .buy-sheet {
+  padding-bottom: calc(1.6rem + env(safe-area-inset-bottom));
 }

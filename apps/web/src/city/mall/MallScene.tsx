@@ -27,6 +27,7 @@ import { GENDER_PARTS, TOP_COLOURS } from '@runway/engine';
 import './mall.css';
 import { use3d } from '../../three-kit/quality';
 import { money } from '../../format';
+import { pocketOf, pocketText } from '../pocket';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { AvatarFigure, avatarLook, drawnGender } from '../art';
@@ -105,7 +106,9 @@ export function MallScene(props: SceneProps) {
   const market = view.market.id;
   const mall = mallOf(view);
   const cur = mall?.currency ?? view.market.currency;
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, your balance at this city's prices (as paying here converts it).
+  const purse = pocketOf(view, cur);
+  const pocket = purse.balance;
   const gender = drawnGender(view.me.background?.id, view.me.id, genderOf(view.me));
   const me = avatarLook(view.me.background?.id, view.me.id, gender);
   const [focus, setFocus] = useState<MallShopId | null>(null);
@@ -250,6 +253,8 @@ export function MallScene(props: SceneProps) {
             type="button"
             className="btn btn-subtle mall-purchases"
             data-action="mall-purchases"
+            aria-label={t('My purchases')}
+            title={t('My purchases')}
             onClick={() => setPurchases(true)}
           >
             👜 <span className="mall-purchases-label">{t('My purchases')}</span>
@@ -260,13 +265,19 @@ export function MallScene(props: SceneProps) {
             type="button"
             className="btn btn-subtle mall-purchases"
             data-action="open-catalogue"
+            aria-label={t('Catalogue')}
+            title={t('Catalogue')}
             onClick={() => setBrowsing(true)}
           >
             📖 <span className="mall-purchases-label">{t('Catalogue')}</span>
           </button>
         )}
-        <span className="golf-pocket" data-pocket={pocket}>
-          {money(pocket, view.market.currency)}
+        <span
+          className="golf-pocket"
+          data-pocket={purse.home}
+          data-pocket-here={purse.converted ? pocket : undefined}
+        >
+          {pocketText(purse)}
         </span>
         <button type="button" className="icon-btn" aria-label={t('Close')} onClick={props.onClose}>
           ✕
@@ -345,6 +356,7 @@ export function MallScene(props: SceneProps) {
             mall={mall}
             items={shown0}
             pocket={pocket}
+            pocketLabel={pocketText(purse)}
             currency={cur}
             busy={busy}
             send={send}
@@ -376,7 +388,37 @@ export function MallScene(props: SceneProps) {
             mallName={props.title}
           />
         )}
-        {bought && (
+        {bought && bought.item.shop === 'cinema' && !bought.for && (
+          // A film is an evening out, not a purchase (play-test: "Bought: Watch a film ·
+          // Keep shopping"): the lights go down on a screen, then back to the mall.
+          <div className="mall-bought mall-film" role="status" data-mall-bought={bought.item.id}>
+            <div className="mall-film-screen" aria-hidden="true">
+              <svg viewBox="0 0 120 70" width="120" height="70">
+                <rect width="120" height="70" rx="6" fill="#0b1020" />
+                <rect className="mall-film-picture" x="12" y="8" width="96" height="40" rx="2" />
+                {[20, 40, 60, 80, 100].map((x) => (
+                  <circle key={x} cx={x} cy="60" r="5" fill="#1f2a44" />
+                ))}
+              </svg>
+            </div>
+            <div className="mall-bought-text">
+              <b>{t('Lights down: {item}', { item: tx(bought.item.label) })}</b>
+              <span>{money(bought.price, cur)}</span>
+              <span className="small">
+                {t('A couple of hours at the cinema: more fun, less stress.')}
+              </span>
+              <button
+                type="button"
+                className="btn btn-subtle"
+                data-action="mall-ok"
+                onClick={() => setBought(null)}
+              >
+                {t('Back to the mall')}
+              </button>
+            </div>
+          </div>
+        )}
+        {bought && !(bought.item.shop === 'cinema' && !bought.for) && (
           <div className="mall-bought" role="status" data-mall-bought={bought.item.id}>
             <div className="mall-bought-fig" aria-hidden="true">
               <svg viewBox="-24 -48 48 52" width="64" height="70">
@@ -553,7 +595,7 @@ export function MallScene(props: SceneProps) {
                           type="button"
                           className="btn mall-buy"
                           data-buy={it.id}
-                          disabled={busy || it.owned || pocket < it.price}
+                          disabled={busy || it.owned || !purse.canPay(it.price)}
                           onClick={() => void buy(it)}
                         >
                           {it.owned ? t('Yours') : t('Buy')}
@@ -565,7 +607,7 @@ export function MallScene(props: SceneProps) {
                         className="btn mall-buy mall-gift"
                         data-gift={it.id}
                         aria-label={t('Buy it for {name}', { name: friendName })}
-                        disabled={busy || pocket < it.price}
+                        disabled={busy || !purse.canPay(it.price)}
                         onClick={() => void gift(it)}
                       >
                         🎁

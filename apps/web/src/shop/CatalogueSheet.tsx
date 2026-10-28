@@ -3,6 +3,7 @@
  * what this shop sells at its prices, bought here (free and at once). At
  * home, Buy mode's walls open it online (delivered).
  */
+import { useEffect, useRef } from 'react';
 import type { CatalogCategory } from '@runway/engine';
 import { t } from '../i18n';
 import { Catalogue } from './Catalogue';
@@ -29,6 +30,20 @@ export function CatalogueSheet({
   /** Store (bought here) or online (from home, delivered). */
   mode?: 'store' | 'online';
 }) {
+  // Escape closes it (play-test: it didn't), and only it: not the shop around it.
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      close.current();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
   return (
     <div className="cat-sheet-back" onClick={onClose}>
       <section

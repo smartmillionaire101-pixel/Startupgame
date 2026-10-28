@@ -25,6 +25,7 @@ import { openPhone, useNav } from '../phone/bus';
 import { useView } from '../store';
 import { CountUp, Icon } from '../ui';
 import './recap.css';
+import { churnLabel } from '../screens/Sales';
 
 // ---------------------------------------------------------------- opening it
 
@@ -259,6 +260,37 @@ function RecapBody({ recap, details }: { recap: RecapView; details: Details }) {
         </Section>
       )}
 
+      {recap.banks.some((b) => b.decision) && (
+        <Section id="bank" title={t('Your bank')}>
+          <ul className="recap-list">
+            {recap.banks.map((b) =>
+              b.decision ? (
+                <li
+                  key={b.id}
+                  data-licence-decision={b.decision.outcome}
+                  className={b.decision.outcome === 'refused' ? 'recap-bad' : 'recap-good'}
+                >
+                  {b.decision.outcome === 'refused'
+                    ? t('The regulator refused {bank}’s licence (score {score}).', {
+                        bank: b.name,
+                        score: b.decision.score,
+                      })
+                    : b.decision.outcome === 'conditions'
+                      ? t('{bank} is licensed, with conditions (score {score}).', {
+                          bank: b.name,
+                          score: b.decision.score,
+                        })
+                      : t('{bank} is licensed (score {score}).', {
+                          bank: b.name,
+                          score: b.decision.score,
+                        })}
+                </li>
+              ) : null,
+            )}
+          </ul>
+        </Section>
+      )}
+
       <Section id="people" title={t('People')}>
         {recap.people.length ? (
           <ul className="recap-list">
@@ -424,10 +456,14 @@ function MoneyBlock({ a }: { a: RecapAccount }) {
             ))}
           </ul>
           <p className="small muted">
-            {t('{n} movements in all. Balance now {balance}.', {
-              n: a.count,
-              balance: money(a.balanceEnd, a.currency),
-            })}
+            {a.count === 1
+              ? t('1 movement in all. Balance now {balance}.', {
+                  balance: money(a.balanceEnd, a.currency),
+                })
+              : t('{n} movements in all. Balance now {balance}.', {
+                  n: a.count,
+                  balance: money(a.balanceEnd, a.currency),
+                })}
           </p>
         </>
       )}
@@ -457,10 +493,14 @@ function CompanyBlock({ c, many }: { c: RecapCompany; many: boolean }) {
       tone: d === null || d === 0 ? undefined : d > 0 ? 'good' : 'bad',
     });
   }
-  if (c.customers !== null) lines.push({ text: t('{n} paying customers', { n: c.customers }) });
+  if (c.customers !== null)
+    lines.push({
+      text:
+        c.customers === 1 ? t('1 paying customer') : t('{n} paying customers', { n: c.customers }),
+    });
   if (c.won !== null && (c.won > 0 || (c.churned ?? 0) > 0))
     lines.push({
-      text: t('{won} new customers, {churned} left', { won: c.won, churned: c.churned ?? 0 }),
+      text: t('Customers: {won} new, {churned} left', { won: c.won, churned: c.churned ?? 0 }),
       tone: c.won >= (c.churned ?? 0) ? 'good' : 'bad',
     });
   for (const d of c.deals.won)
@@ -473,6 +513,16 @@ function CompanyBlock({ c, many }: { c: RecapCompany; many: boolean }) {
     });
   for (const d of c.deals.lost)
     lines.push({ text: t('Deal lost: {name}', { name: d.name }), tone: 'bad' });
+  // Pipeline customers who stopped buying, and why (feedback note).
+  for (const d of c.deals.churned ?? [])
+    lines.push({
+      text: t('{name} stopped buying ({amount} a month): {reason}', {
+        name: d.name,
+        amount: money(d.monthly, cur),
+        reason: churnLabel(d.reason),
+      }),
+      tone: 'bad',
+    });
   for (const f of c.releases)
     lines.push({ text: t('Released: {feature}', { feature: tx(f) }), tone: 'good' });
   for (const h of c.hires)
@@ -525,7 +575,21 @@ const BILL: Record<RecapBill['kind'], string> = {
   mortgage: 'Mortgage',
   upkeep: 'Home running costs',
   car: 'Car running costs',
+  bankStaff: 'Key staff salaries',
+  branchRent: 'Branch rent',
 };
+
+/** Why the regulator refused (the same words as the licence screen). */
+const licenceReason = (id: string) =>
+  ({
+    capital: t('Capital is below the minimum: add capital.'),
+    credit: t('Your credit record is weak: clear defaults and debts.'),
+    interview: t('The fit-and-proper interview was weak: book another and answer again.'),
+    plan: t('The business plan has weak spots: revise it.'),
+    people: t('The key people are not strong enough: hire stronger candidates.'),
+    systems: t('The core banking system is not reliable enough: choose a better one.'),
+    lapsed: t('The checklist wasn’t finished in time: finish it and the review runs again.'),
+  })[id] ?? id;
 
 function billLabel(b: RecapBill) {
   const base = t(BILL[b.kind]);
@@ -617,6 +681,12 @@ function riskText(r: RecapRisk): string {
       return t('Your cash won’t cover next month’s personal bills: {amount} short.', {
         amount: money(r.short, r.currency),
       });
+    case 'licence':
+      return [
+        t('Licence refused for {bank}.', { bank: r.bank }),
+        ...r.reasons.map(licenceReason),
+        t('Fix these and the regulator reviews the application again.'),
+      ].join(' ');
   }
 }
 
@@ -641,6 +711,8 @@ function dateText(d: RecapDate): string {
       });
     case 'loanEnds':
       return t('Your last repayment to {lender}.', { lender: d.lender });
+    case 'licenceDecision':
+      return t('The regulator decides on {bank}’s licence.', { bank: d.bank });
   }
 }
 
@@ -660,7 +732,8 @@ export function RecapButton({ onOpen }: { onOpen?: () => void }) {
     >
       <Icon name="today" />
       <span className="link-card-main">
-        <b>{t('Last month’s recap')}</b>
+        {/* Before the first settlement there is no last month yet. */}
+        <b>{view.market.month === 0 ? t('Your month so far') : t('Last month’s recap')}</b>
         <span className="small muted">{t('Money, company, people and what’s due next month')}</span>
       </span>
       <Icon name="chevron" className="link-card-go" />

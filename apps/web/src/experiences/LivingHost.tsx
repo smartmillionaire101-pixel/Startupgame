@@ -26,6 +26,18 @@ function LivingRoom({ host }: { host: string }) {
     viewId?: string;
     kind?: 'london-eye' | 'cable-car' | 'rooftop';
   } | null>(null);
+  // Escape closes it (play-test: it didn't); a view open over it closes first.
+  const viewing = !!panorama;
+  useEffect(() => {
+    if (viewing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      closeLiving();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [viewing]);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const timer = setInterval(() => {

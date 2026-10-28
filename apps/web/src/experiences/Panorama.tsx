@@ -11,9 +11,11 @@
  * of you do (holding hands, pointing out the view) shows in `children`.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { skyViewById, skyViewsIn, type SkyViewSpec } from '@runway/engine';
 import { useView } from '../store';
 import { t } from '../i18n';
+import { HudButton, HudRail } from '../ui';
 import { OSM_CREDIT, fromLatLon, loadGeo, useGeo } from '../city/geo';
 import { cachedCityLayout } from '../city/geoLayout';
 import type { CityLayout } from '../city/layout';
@@ -477,16 +479,19 @@ export default function Panorama({
   };
   const heading = COMPASS[Math.round(state.heading / 45) % 8]!;
   const riding = state.progress < 1;
+  // Over everything, the HUD too: a balcony's view opens from inside a home's
+  // scene, so it goes to the page's own layer (z-index alone can't leave it).
   if (!spec)
-    return (
+    return createPortal(
       <section className="panorama" role="dialog" aria-modal="true" aria-label="City panorama">
         <p className="panorama-error" role="alert">
           {t('No sky view here yet.')}
         </p>
         <button onClick={onClose}>{t('Close')}</button>
-      </section>
+      </section>,
+      document.body,
     );
-  return (
+  return createPortal(
     <section
       className="panorama"
       role="dialog"
@@ -531,27 +536,62 @@ export default function Panorama({
           </div>
         </div>
         <div className="panorama-actions">
-          {state.ready && !error && (
-            <button
-              type="button"
-              className="panorama-snap"
-              data-action="sky-photo"
-              aria-label={t('Take a photo')}
-              title={t('Take a photo')}
-              onClick={() => {
-                const src = handle.current?.scene.snapshot(spec.name) ?? null;
-                if (src) addPhoto(src);
-                setPhoto({ src });
-              }}
-            >
-              📷
-            </button>
-          )}
           <button onClick={onClose} aria-label="Close panorama">
             ×
           </button>
         </div>
       </header>
+      {/* The view's buttons: round icons down the right (the HUD's rail), zoom behind ⋯. */}
+      <HudRail
+        label={t('Camera')}
+        className="panorama-rail"
+        extras={
+          <>
+            <HudButton
+              icon="plus"
+              label={t('Zoom in')}
+              onClick={() => handle.current?.ride.zoom(1.3)}
+            />
+            <HudButton
+              icon="minus"
+              label={t('Zoom out')}
+              onClick={() => handle.current?.ride.zoom(1 / 1.3)}
+            />
+          </>
+        }
+      >
+        {state.ready && !error && (
+          <HudButton
+            icon="camera"
+            className="panorama-snap"
+            data-action="sky-photo"
+            label={t('Take a photo')}
+            onClick={() => {
+              const src = handle.current?.scene.snapshot(spec.name) ?? null;
+              if (src) addPhoto(src);
+              setPhoto({ src });
+            }}
+          />
+        )}
+        <HudButton
+          icon="rotateLeft"
+          label={t('Look left')}
+          onClick={() => handle.current?.ride.look(-0.3, 0)}
+        />
+        <HudButton
+          icon="rotate"
+          label={t('Look right')}
+          onClick={() => handle.current?.ride.look(0.3, 0)}
+        />
+        {riding && (
+          <HudButton
+            label={paused ? t('Resume ride') : t('Pause ride')}
+            onClick={() => setPaused(!paused)}
+          >
+            <span aria-hidden="true">{paused ? '▷' : '❚❚'}</span>
+          </HudButton>
+        )}
+      </HudRail>
       {(error || geo === null) && (
         <p className="panorama-error" role="alert">
           {error || t('The city map is unavailable. Reconnect and open the view again.')}
@@ -568,43 +608,6 @@ export default function Panorama({
           ))}
         </div>
         <div className="panorama-controls">
-          <button
-            aria-label={t('Look left')}
-            title={t('Look left')}
-            onClick={() => handle.current?.ride.look(-0.3, 0)}
-          >
-            ◀
-          </button>
-          <button
-            aria-label={t('Look right')}
-            title={t('Look right')}
-            onClick={() => handle.current?.ride.look(0.3, 0)}
-          >
-            ▶
-          </button>
-          <button
-            aria-label={t('Zoom in')}
-            title={t('Zoom in')}
-            onClick={() => handle.current?.ride.zoom(1.3)}
-          >
-            ＋
-          </button>
-          <button
-            aria-label={t('Zoom out')}
-            title={t('Zoom out')}
-            onClick={() => handle.current?.ride.zoom(1 / 1.3)}
-          >
-            －
-          </button>
-          {riding && (
-            <button
-              aria-label={paused ? t('Resume ride') : t('Pause ride')}
-              title={paused ? t('Resume ride') : t('Pause ride')}
-              onClick={() => setPaused(!paused)}
-            >
-              {paused ? '▷' : '❚❚'}
-            </button>
-          )}
           {riding && (
             <button
               onClick={() => {
@@ -662,6 +665,7 @@ export default function Panorama({
           onClose={() => setPhoto(null)}
         />
       )}
-    </section>
+    </section>,
+    document.body,
   );
 }

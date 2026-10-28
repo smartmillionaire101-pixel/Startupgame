@@ -38,7 +38,7 @@ import { flavourOf } from './flavour';
 import { useDaylight } from './useDaylight';
 import {
   AIRPORT_NAMES,
-  CITY_GEO,
+  flightHours,
   fmtFlightTime,
   liveryOf,
   premiumActs,
@@ -69,19 +69,6 @@ function flightPace(): number {
 }
 const scaled = <T extends Record<string, number>>(d: T, k: number) =>
   Object.fromEntries(Object.entries(d).map(([a, v]) => [a, v * k])) as T;
-
-/** Great-circle hours at airliner speed, plus taxi and climb. */
-function flightHours(from: string, to: string, fallback: number): number {
-  const a = CITY_GEO[from];
-  const b = CITY_GEO[to];
-  if (!a || !b) return fallback;
-  const r = Math.PI / 180;
-  const h =
-    Math.sin(((b.lat - a.lat) * r) / 2) ** 2 +
-    Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lon - a.lon) * r) / 2) ** 2;
-  const km = 2 * 6371 * Math.asin(Math.sqrt(h));
-  return km / 820 + 0.5;
-}
 
 function Cloud({ x, y, s, k }: { x: number; y: number; s: number; k: number }) {
   return (

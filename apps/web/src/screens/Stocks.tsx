@@ -16,7 +16,7 @@
 import type { RiskReason, StockAnalysis } from '@runway/engine';
 import { CURRENCY_SYMBOL, type Currency } from '@runway/engine';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { amountInput, money, moneyExact, parseAmount, pct } from '../format';
+import { amountInput, money, moneyCents, parseAmount, pct } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useGame, useView } from '../store';
 import { Button, Card, ListRow, Pill, Segmented, Sparkline, Stat } from '../ui';
@@ -73,7 +73,7 @@ export const exchangeName = (city: string) => t('{city} Stock Exchange', { city 
 const symbolOf = (cur: string) => CURRENCY_SYMBOL[cur as Currency] ?? cur;
 
 /** A share price: every unit shown (£4.82, ₦574.65). */
-export const sharePrice = (minor: number, cur: string) => moneyExact(Math.round(minor), cur);
+export const sharePrice = (minor: number, cur: string) => moneyCents(Math.round(minor), cur);
 
 const num = (x: number, digits = 1) =>
   x.toLocaleString(locale(), { maximumFractionDigits: digits });

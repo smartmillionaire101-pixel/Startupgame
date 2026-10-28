@@ -1,11 +1,15 @@
 /** Small, accessible UI primitives. No UI framework: keeps the app tiny. */
 import {
   useEffect,
+  useLayoutEffect,
   useId,
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type HTMLAttributes,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
+  type Ref,
 } from 'react';
 import { useGame } from './store';
 import { t } from './i18n';
@@ -472,7 +476,29 @@ export type IconName =
   | 'check'
   | 'alert'
   | 'wallet'
-  | 'clock';
+  | 'clock'
+  | 'bell'
+  | 'more'
+  | 'door'
+  | 'cart'
+  | 'rotate'
+  | 'rotateLeft'
+  | 'eye'
+  | 'camera'
+  | 'sofa'
+  | 'friends'
+  | 'pad'
+  | 'wave'
+  | 'wheel'
+  | 'flag'
+  | 'sun'
+  | 'moon'
+  | 'face'
+  | 'faceMeh'
+  | 'faceSad'
+  | 'info'
+  | 'up'
+  | 'down';
 
 /** One stroke style for every icon: 24-unit grid, 1.8 stroke, round caps. */
 const PATHS: Record<IconName, ReactNode> = {
@@ -578,6 +604,118 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M12 7.5V12l3 2" />
     </>
   ),
+  bell: (
+    <>
+      <path d="M6 9a6 6 0 1 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z" />
+      <path d="M10 20a2.2 2.2 0 0 0 4 0" />
+    </>
+  ),
+  more: <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="3.4" />,
+  door: (
+    <>
+      <path d="M5 21h14M7 21V4.5A1.5 1.5 0 0 1 8.5 3h7A1.5 1.5 0 0 1 17 4.5V21" />
+      <path d="M14 12h.01" strokeWidth="3" />
+    </>
+  ),
+  cart: (
+    <>
+      <path d="M3 4h2l2.2 10.5h10.6L20 7H6.2" />
+      <circle cx="9" cy="19" r="1.4" />
+      <circle cx="17" cy="19" r="1.4" />
+    </>
+  ),
+  rotate: (
+    <>
+      <path d="M20 12a8 8 0 1 1-2.4-5.7" />
+      <path d="M20 4v5h-5" />
+    </>
+  ),
+  rotateLeft: (
+    <>
+      <path d="M4 12a8 8 0 1 0 2.4-5.7" />
+      <path d="M4 4v5h5" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.8" />
+    </>
+  ),
+  camera: (
+    <>
+      <path d="M4 8h3l1.6-2.5h6.8L17 8h3v11H4z" />
+      <circle cx="12" cy="13" r="3.4" />
+    </>
+  ),
+  sofa: (
+    <>
+      <path d="M4 11V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3" />
+      <path d="M3 11h3v3h12v-3h3v7H3z" />
+      <path d="M5 18v2M19 18v2" />
+    </>
+  ),
+  friends: (
+    <>
+      <path d="M3 11 12 4l9 7" />
+      <path d="M5.5 9.5V20h13V9.5" />
+      <circle cx="12" cy="13" r="2" />
+      <path d="M9 19c.4-1.6 1.5-2.5 3-2.5s2.6.9 3 2.5" />
+    </>
+  ),
+  pad: (
+    <>
+      <rect x="2.5" y="7" width="19" height="11" rx="5.5" />
+      <path d="M7 10.5v4M5 12.5h4M15.5 11.5h.01M18 13.5h.01" />
+    </>
+  ),
+  wave: (
+    <path d="M7 11V5.5a1.5 1.5 0 0 1 3 0V10M10 9.5V4a1.5 1.5 0 0 1 3 0v6M13 9.5V5a1.5 1.5 0 0 1 3 0v7M16 10.5a1.5 1.5 0 0 1 3 0v3a7 7 0 0 1-7 7h-.5a6 6 0 0 1-5.2-3l-2.4-4.3a1.5 1.5 0 0 1 2.6-1.5L7 13" />
+  ),
+  wheel: (
+    <>
+      <circle cx="12" cy="10" r="7" />
+      <path d="M12 3v14M5 10h14M7 5l10 10M17 5 7 15" />
+      <path d="M9 21h6M12 17v4" />
+    </>
+  ),
+  flag: <path d="M5 21V4M5 4h11l-2 4 2 4H5" />,
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </>
+  ),
+  moon: <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" />,
+  face: (
+    <>
+      <circle cx="12" cy="12" r="9.2" />
+      <path d="M8.2 14.2c1 1.4 2.3 2.1 3.8 2.1s2.8-.7 3.8-2.1" />
+      <path d="M9 9.6h.01M15 9.6h.01" strokeWidth="2.8" />
+    </>
+  ),
+  faceMeh: (
+    <>
+      <circle cx="12" cy="12" r="9.2" />
+      <path d="M8.5 15h7" />
+      <path d="M9 9.6h.01M15 9.6h.01" strokeWidth="2.8" />
+    </>
+  ),
+  faceSad: (
+    <>
+      <circle cx="12" cy="12" r="9.2" />
+      <path d="M8.2 16.2c1-1.4 2.3-2.1 3.8-2.1s2.8.7 3.8 2.1" />
+      <path d="M9 9.6h.01M15 9.6h.01" strokeWidth="2.8" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v6M12 7.5h.01" />
+    </>
+  ),
+  up: <path d="m6 15 6-6 6 6" />,
+  down: <path d="m6 9 6 6 6-6" />,
 };
 
 export function Icon({
@@ -679,4 +817,241 @@ export function initReduceMotion() {
     if (e.key === 'runway.reduceMotion') apply();
   });
   window.addEventListener('runway:reduce-motion', apply);
+}
+
+/**
+ * A round icon button of the floating HUD (player: "make the whole game look
+ * like this"). The icon alone shows; its name is the accessible name, a
+ * bubble on a long press (or keyboard focus, or a mouse hovering), and a small
+ * label under it in a first session and in Simple mode (`.hud-lbl`).
+ */
+/** How long a press on a HUD button says its name instead of pressing it (ms). */
+const LONG_PRESS_MS = 450;
+
+export function HudButton({
+  icon,
+  label,
+  name,
+  badge,
+  dot,
+  tone,
+  size,
+  tip = 'left',
+  className,
+  children,
+  onClick,
+  ref,
+  ...rest
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'name'> & {
+  ref?: Ref<HTMLButtonElement>;
+  icon?: IconName;
+  /** The accessible name (and the bubble's words). */
+  label: string;
+  /** The shorter name under the icon (the label when not given). */
+  name?: string;
+  /** A count on the button ("3" waiting). */
+  badge?: number;
+  /** A red dot: something new. */
+  dot?: boolean;
+  tone?: 'accent';
+  size?: 'sm';
+  /** Where the bubble opens. */
+  tip?: 'left' | 'right' | 'below' | 'above';
+}) {
+  const [bubble, setBubble] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pressed = useRef(false);
+  // When the finger went down (the event's own time, not when it was handled).
+  const downAt = useRef(0);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const hideSoon = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setBubble(false), 1400);
+  };
+  const cls = [
+    'hud-ib',
+    tone === 'accent' ? 'is-accent' : '',
+    size === 'sm' ? 'is-sm' : '',
+    className ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return (
+    <button
+      type="button"
+      {...rest}
+      ref={ref}
+      className={cls}
+      aria-label={label}
+      data-hud-btn=""
+      onPointerDown={(e) => {
+        rest.onPointerDown?.(e);
+        pressed.current = false;
+        downAt.current = e.timeStamp;
+        if (e.pointerType === 'mouse') return;
+        clearTimeout(timer.current);
+        // A long press (about half a second) says the button's name.
+        timer.current = setTimeout(() => {
+          pressed.current = true;
+          setBubble(true);
+        }, LONG_PRESS_MS);
+      }}
+      onPointerUp={(e) => {
+        rest.onPointerUp?.(e);
+        clearTimeout(timer.current);
+        // Play-test: on a busy page (a slow 3D city) the finger's lift is
+        // handled late, after the long-press timer: a quick tap read as a
+        // long press and the button never pressed. The events' own times say
+        // how long the finger was really down.
+        if (pressed.current && e.timeStamp - downAt.current < LONG_PRESS_MS) {
+          pressed.current = false;
+          setBubble(false);
+        } else if (pressed.current) hideSoon();
+      }}
+      onPointerCancel={() => {
+        if (pressed.current) hideSoon();
+        else clearTimeout(timer.current);
+      }}
+      onPointerEnter={(e) => {
+        if (e.pointerType === 'mouse') setBubble(true);
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === 'mouse') setBubble(false);
+        else if (!pressed.current) clearTimeout(timer.current);
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+      onFocus={(e) => {
+        rest.onFocus?.(e);
+        // Keyboard focus (not a tap) shows the name too.
+        if (e.currentTarget.matches(':focus-visible')) setBubble(true);
+      }}
+      onBlur={(e) => {
+        rest.onBlur?.(e);
+        setBubble(false);
+      }}
+      onClick={(e: ReactMouseEvent<HTMLButtonElement>) => {
+        // The press that showed the name doesn't also press the button.
+        if (pressed.current) {
+          pressed.current = false;
+          e.preventDefault();
+          return;
+        }
+        onClick?.(e);
+      }}
+    >
+      {children ?? (icon && <Icon name={icon} />)}
+      {!!badge && (
+        <span className="hud-badge" aria-hidden="true">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
+      {dot && <span className="hud-dot" aria-hidden="true" />}
+      <span className="hud-lbl" aria-hidden="true">
+        {name ?? label}
+      </span>
+      {bubble && (
+        <span className={`hud-tip is-${tip}`} data-hud-tip="" aria-hidden="true">
+          {label}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * A scene's own buttons, a column of round icons down the right edge. The
+ * few used most show; `extras` wait behind ⋯ (with their names beside them
+ * when it opens). Escape or a tap outside closes it, and focus comes back to ⋯.
+ */
+export function HudRail({
+  label,
+  extras,
+  children,
+  className,
+  ...rest
+}: Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
+  label: string;
+  /** Behind ⋯ (none: no ⋯). */
+  extras?: ReactNode;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  // The menu would run up under the HUD's pills: the rail's own buttons step
+  // aside meanwhile, so the rest has the rail's whole height.
+  const [tall, setTall] = useState(false);
+  const id = useId();
+  const moreRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!open || !list) return;
+    const hud = [...document.querySelectorAll<HTMLElement>('.hud-top, .hud-sub')]
+      .map((e) => e.getBoundingClientRect())
+      .filter((r) => r.height > 0);
+    const under = Math.max(0, ...hud.map((r) => r.bottom));
+    if (list.getBoundingClientRect().top < under + 8) setTall(true);
+  }, [open]);
+  const close = (focus = true) => {
+    setOpen(false);
+    setTall(false);
+    if (focus) moreRef.current?.focus({ preventScroll: true });
+  };
+  useEffect(() => {
+    if (!open) return;
+    // Into the menu: its first button.
+    listRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({
+      preventScroll: true,
+    });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setOpen(false);
+      setTall(false);
+      moreRef.current?.focus({ preventScroll: true });
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [open]);
+  return (
+    <div
+      {...rest}
+      className={`hud-rail${open ? ' is-open' : ''}${tall ? ' is-tall' : ''}${className ? ` ${className}` : ''}`}
+      role="group"
+      aria-label={label}
+      data-hud-rail=""
+    >
+      {open && <div className="hud-dim" aria-hidden="true" onClick={() => close(false)} />}
+      {extras && open && (
+        <div
+          className="hud-rail-extra"
+          id={id}
+          ref={listRef}
+          role="group"
+          aria-label={t('More')}
+          // Picking one closes the menu (after its own click has run).
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest('button')) {
+              setOpen(false);
+              setTall(false);
+            }
+          }}
+        >
+          {extras}
+        </div>
+      )}
+      {extras && (
+        <HudButton
+          ref={moreRef}
+          icon="more"
+          label={t('More')}
+          className="hud-more-btn"
+          data-hud-more=""
+          aria-expanded={open}
+          aria-controls={open ? id : undefined}
+          onClick={() => (open ? close() : setOpen(true))}
+        />
+      )}
+      {children}
+    </div>
+  );
 }

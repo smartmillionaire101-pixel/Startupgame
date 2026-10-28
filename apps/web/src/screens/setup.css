@@ -19,10 +19,15 @@
   background: var(--line);
   color: var(--muted);
 }
-.fsu-chip-done,
-.fsu-chip-skipped {
+.fsu-chip-done {
   background: var(--good-soft);
   color: var(--good);
+}
+/* Skipped is not done: a dashed outline, no tick. */
+.fsu-chip-skipped {
+  background: transparent;
+  color: var(--muted);
+  border: 1px dashed var(--line-strong);
 }
 .fsu-chip-current {
   background: var(--accent);

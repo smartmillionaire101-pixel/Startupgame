@@ -8,11 +8,15 @@ import type { Appearance } from '@runway/engine';
 import { appearanceOfLook, avatarLook, drawnGender } from '../city/art';
 import { setLookOverride, useLookVersion } from '../city/acts/look';
 import { genderOf } from '../city/life';
+import { wardrobeOf } from '../city/leisure';
 import { t } from '../i18n';
 import { useView } from '../store';
 import { Button, Sheet } from '../ui';
 import { Creator } from './Creator';
 import { Portrait } from './Portrait';
+
+/** Tops everyone has at home; the others come from the mall. */
+const BASIC_TOPS = ['tee', 'shirt'];
 
 /** Your portrait, with the button that opens the creator under it. */
 export function MyLook({ size = 88 }: { size?: number }) {
@@ -27,6 +31,16 @@ export function MyLook({ size = 88 }: { size?: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- v: a saved look changed
     [me.background?.id, me.id, gender, v],
   );
+  // The tops you can pick: the basics, what you wear now and what you bought
+  // or were given (only on a server with the mall's wardrobe; else all of them).
+  const wardrobe = wardrobeOf(view);
+  const tops = useMemo(() => {
+    if (!wardrobe) return undefined;
+    const own = new Set<string>(BASIC_TOPS);
+    own.add(appearanceOfLook(look).topStyle);
+    for (const i of wardrobe.items) if (i.slot === 'topStyle') own.add(i.style);
+    return own;
+  }, [wardrobe, look]);
   const save = async (a: Appearance) => {
     const r = await send({ type: 'player.appearance', appearance: a }, t('Look saved.'));
     if (r === null) return;
@@ -51,6 +65,7 @@ export function MyLook({ size = 88 }: { size?: number }) {
         <Sheet title={t('Edit my look')} onClose={() => setOpen(false)}>
           <Creator
             initial={appearanceOfLook(look)}
+            tops={tops}
             gender={gender}
             bottom={look.bottom}
             busy={busy}

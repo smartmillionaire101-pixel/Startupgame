@@ -368,7 +368,7 @@ export type DispatchResult =
  * world, mutated in place: the same code, the same writes in the same order,
  * so the same resulting world, and a rule error still discards everything.
  */
-const WHOLE_WORLD = new Set<Command['type']>(['market.settle']);
+const WHOLE_WORLD = new Set<Command['type']>(['market.settle', 'market.settleBatch']);
 
 /** A deep copy of plain data (the world is JSON-shaped: objects, arrays, primitives). */
 function copyDeep<T>(v: T): T {
@@ -400,13 +400,125 @@ function onPrivateCopy(world: World, recipe: (draft: World) => void): World {
   return freezeDeep(draft);
 }
 
+type SettleCommand = Extract<Command, { type: 'market.settle' }>;
+type SettleBatch = Extract<Command, { type: 'market.settleBatch' }>;
+type RuleRefusal = { code: string; message: string };
+
+/**
+ * Why a settlement can't run on this world, or null: the cheap checks made
+ * before any of it runs (the market is open, one clock, not a period already
+ * settled). A server can check these, commit the command, and only then
+ * compute it.
+ */
+export function settleRefusal(world: World, cmd: Omit<SettleCommand, 'type'>): RuleRefusal | null {
+  const m = world.markets[cmd.market];
+  if (!m) return { code: 'market.missing', message: 'Market not found.' };
+  if (cmd.at !== undefined && cmd.date !== undefined)
+    return { code: 'settle.clock', message: 'One clock at a time.' };
+  if (cmd.date !== undefined && m.lastSettledDate !== null && !(cmd.date > m.lastSettledDate))
+    return { code: 'settle.date', message: 'Already settled for that date.' };
+  if (cmd.at !== undefined && m.settledAt !== undefined && !(cmd.at > m.settledAt))
+    return { code: 'settle.date', message: 'Already settled for that period.' };
+  return null;
+}
+
+/**
+ * The cheap checks a settlement command must pass, without running it (null:
+ * it will run). A batch runs when any of its settlements can: those before
+ * the first that can were refused and changed nothing, and later ones are
+ * skipped inside the batch the way one-by-one settles would be refused.
+ */
+export function settlePrecheck(
+  world: World,
+  command: SettleCommand | SettleBatch,
+  ctx: CommandContext,
+): RuleRefusal | null {
+  if (ctx.actorId !== null) return { code: 'command.forbidden', message: 'Not allowed.' };
+  if (command.type === 'market.settle') return settleRefusal(world, command);
+  let first: RuleRefusal | null = null;
+  for (const one of command.settlements) {
+    const refused = settleRefusal(world, one);
+    if (!refused) return null;
+    first ??= refused;
+  }
+  return first;
+}
+
+/**
+ * One settlement on a world being changed: everything dispatch does for a
+ * `market.settle` (the system issues it, so there is no actor to keep).
+ */
+function settleOnce(draft: World, command: SettleCommand, ctx: CommandContext) {
+  draft.activity ??= { since: ctx.now, at: ctx.now, sequence: 0, totals: {}, recent: [] };
+  draft.activity.at = ctx.now;
+  expirePlay(draft, ctx.now);
+  const result = apply(draft, command, ctx);
+  // The founder journey: record chapters the settlement completed.
+  recordChaptersAfterSettle(draft, command.market);
+  if (investorOn(draft))
+    for (const p of Object.values(draft.players))
+      if (p.market === command.market) recordCareer(draft, p);
+  return result;
+}
+
+/**
+ * A batch of settlements, each exactly as its own `market.settle` would run on
+ * the world the earlier ones left. One refused before it starts is skipped;
+ * one that fails part-way is rolled back by running the batch again from the
+ * start without it (a one-by-one settle that failed would have changed
+ * nothing). Refused if none of them settles, like each of them alone.
+ */
+function settleBatch(world: World, command: SettleBatch, ctx: CommandContext): DispatchResult {
+  const failed = new Map<number, RuleRefusal>();
+  for (;;) {
+    const draft = copyDeep(world);
+    const settled: { market: MarketId; at?: number; month: number }[] = [];
+    const skipped: { market: MarketId; at?: number; code: string; message: string }[] = [];
+    let rerun = false;
+    for (const [i, one] of command.settlements.entries()) {
+      const refused = failed.get(i) ?? settleRefusal(draft, one);
+      if (refused) {
+        skipped.push({
+          market: one.market,
+          ...(one.at === undefined ? {} : { at: one.at }),
+          ...refused,
+        });
+        continue;
+      }
+      try {
+        const r = settleOnce(draft, { type: 'market.settle', ...one }, ctx) as { month: number };
+        settled.push({
+          market: one.market,
+          ...(one.at === undefined ? {} : { at: one.at }),
+          month: r.month,
+        });
+      } catch (e) {
+        if (!(e instanceof GameRuleError)) throw e;
+        failed.set(i, { code: e.code, message: e.message });
+        rerun = true;
+        break;
+      }
+    }
+    if (rerun) continue;
+    if (settled.length === 0) return { ok: false, world, error: skipped[0]! };
+    draft.version += 1;
+    return { ok: true, world: freezeDeep(draft), result: { settled, skipped } };
+  }
+}
+
 export function dispatch(world: World, command: Command, ctx: CommandContext): DispatchResult {
   if (SYSTEM_COMMANDS.has(command.type) !== (ctx.actorId === null)) {
     return { ok: false, world, error: { code: 'command.forbidden', message: 'Not allowed.' } };
   }
   let result: unknown = null;
   try {
+    if (command.type === 'market.settleBatch') return settleBatch(world, command, ctx);
     const recipe = (draft: World) => {
+      if (command.type === 'market.settle') {
+        result = settleOnce(draft, command, ctx);
+        draft.version += 1;
+        return;
+      }
       draft.activity ??= { since: ctx.now, at: ctx.now, sequence: 0, totals: {}, recent: [] };
       draft.activity.at = ctx.now;
       const actor = ctx.actorId ? draft.players[ctx.actorId] : undefined;
@@ -416,18 +528,13 @@ export function dispatch(world: World, command: Command, ctx: CommandContext): D
       // Phase 3: what the command did to the actor's life bars (after the release note).
       if (ctx.actorId && lifeBarsOn(draft as World))
         result = lifeBarsAfter(draft as World, command, ctx.actorId, result);
-      // The founder journey: record chapters this command (or settlement) completed.
-      if (command.type === 'market.settle')
-        recordChaptersAfterSettle(draft as World, command.market);
       const who = ctx.actorId ? draft.players[ctx.actorId] : undefined;
+      // The founder journey: record chapters this command completed.
       if (who) recordChapters(draft as World, who as Player);
       // The investor career: rungs reached, invitations (investor-career worlds only).
       if (who) recordCareer(draft as World, who as Player);
       // The banker's first session finishes on real acts (bankers worlds only).
       if (who && bankersOn(draft as World)) recordBankerTutorial(draft as World, who as Player);
-      if (command.type === 'market.settle' && investorOn(draft as World))
-        for (const p of Object.values(draft.players))
-          if (p.market === command.market) recordCareer(draft as World, p as Player);
       // The result is read (sent to the client) after the producer finished, when
       // any draft in it is revoked: copy it out as plain data while drafts still work.
       if (!WHOLE_WORLD.has(command.type)) result = copyDeep(result);
@@ -497,20 +604,9 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     };
   }
   if (cmd.type === 'market.settle') {
+    const refused = settleRefusal(world, cmd);
+    if (refused) fail(refused.code, refused.message);
     const m = getMarket(world, cmd.market);
-    ensure(cmd.at === undefined || cmd.date === undefined, 'settle.clock', 'One clock at a time.');
-    if (cmd.date !== undefined)
-      ensure(
-        m.lastSettledDate === null || cmd.date > m.lastSettledDate,
-        'settle.date',
-        'Already settled for that date.',
-      );
-    if (cmd.at !== undefined)
-      ensure(
-        m.settledAt === undefined || cmd.at > m.settledAt,
-        'settle.date',
-        'Already settled for that period.',
-      );
     settleMarket(world, cmd.market, ctx.now, { at: cmd.at, date: cmd.date, monthMs: cmd.monthMs });
     return { month: m.month };
   }
@@ -2001,7 +2097,7 @@ function lifeBarsAfter(world: World, cmd: Command, actorId: Id, result: unknown)
   const social = { stress: LIFE_BARS.socialStress };
   switch (cmd.type) {
     case 'city.ride':
-      return { ...out, ...rideBars(me, cmd.mode, cmd.distance) };
+      return { ...out, ...rideBars(me, cmd.mode, cmd.distance, cmd.minutes) };
     case 'home.act':
       return changed(HOME_ACT_BARS[cmd.act] ?? {});
     case 'home.invite':

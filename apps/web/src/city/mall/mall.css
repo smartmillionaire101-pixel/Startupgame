@@ -242,14 +242,14 @@
 .mall-ui > * {
   pointer-events: auto;
 }
-.mall-side {
-  position: absolute;
+/* The walk's own buttons: the HUD's rail of round icons, top right of the
+   view (the basket and the hints sit along the bottom). */
+.mall-ui .mall-side.hud-rail {
   right: 10px;
   top: 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 7px;
+  bottom: auto;
+  /* Under the walk's own sheets (the shelf, the basket, the directory). */
+  z-index: auto;
 }
 .mall-pill {
   display: inline-flex;
@@ -547,10 +547,45 @@
   padding: 4px 10px;
   white-space: nowrap;
 }
+/* A phone: the names under the icons, small, rather than no names at all
+   (play-test: "header icons 👜/📖 unnamed"). */
 @media (max-width: 420px) {
-  .mall-purchases-label {
-    display: none;
+  .mall-purchases {
+    display: inline-grid;
+    justify-items: center;
+    line-height: 1.1;
+    padding: 2px 6px;
   }
+  .mall-purchases-label {
+    font-size: 0.66rem;
+  }
+}
+/* The cinema: the lights go down on a screen. */
+.mall-film-screen {
+  flex: 0 0 auto;
+}
+.mall-film-picture {
+  fill: #fef3c7;
+  animation: mall-film 2.4s ease-in-out infinite alternate;
+}
+@keyframes mall-film {
+  0% {
+    fill: #fef3c7;
+  }
+  50% {
+    fill: #93c5fd;
+  }
+  100% {
+    fill: #fca5a5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mall-film-picture {
+    animation: none;
+  }
+}
+:root[data-reduce-motion='1'] .mall-film-picture {
+  animation: none;
 }
 
 /* The Suit Shop's aisles (the feedback round): a row of chips that scrolls sideways. */

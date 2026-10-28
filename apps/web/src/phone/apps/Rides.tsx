@@ -19,8 +19,8 @@ import {
   rememberRide,
   RIDE_MODES,
   rideFare,
-  rideMinutes,
   tripCommand,
+  tripMinutes,
   type RideMode,
 } from '../../city/travel';
 import { visitPlace } from '../../city/goto';
@@ -120,7 +120,13 @@ export function Rides({ ctx }: { ctx: PhoneCtx }) {
     }
     rememberRide(mode);
     // The ride scene's card shows where you're going and what it cost.
-    quoteRide({ mode, fare: fare(mode), currency: city.currency, where: placeName(to, view) });
+    quoteRide({
+      mode,
+      fare: fare(mode),
+      currency: city.currency,
+      where: placeName(to, view),
+      minutes: tripMinutes(mode, tiles, !!view.me.bars),
+    });
     visitPlace(to.id, mode);
     ctx.close();
   };
@@ -156,7 +162,7 @@ export function Rides({ ctx }: { ctx: PhoneCtx }) {
               <span className="phone-row-main">
                 <span className="item-title">{rideLabel(m, city.id)}</span>
                 <span className="small muted">
-                  {t('{n} min', { n: rideMinutes(m, tiles) })} · {effort(m, tiles)}
+                  {t('{n} min', { n: tripMinutes(m, tiles, !!view.me.bars) })} · {effort(m, tiles)}
                 </span>
               </span>
               <span className="phone-ride-fare">

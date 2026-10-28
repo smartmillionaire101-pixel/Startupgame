@@ -372,8 +372,14 @@ export function costIn(
   fromCurrency: Currency,
 ): number {
   if (toCurrency === fromCurrency) return target;
-  const rate =
-    fxRate(world, fromCurrency, toCurrency) *
-    (1 - fxFeeBps(world, fromCurrency, toCurrency) / 10_000);
-  return Math.ceil(target / rate) + 1;
+  return Math.ceil(target / spendRate(world, fromCurrency, toCurrency)) + 1;
+}
+
+/**
+ * What one unit of `from` buys in `to` when you pay across currencies: the
+ * official rate less the bank's fee (the rate `costIn` charges at).
+ */
+export function spendRate(world: World, from: Currency, to: Currency): number {
+  if (from === to) return 1;
+  return fxRate(world, from, to) * (1 - fxFeeBps(world, from, to) / 10_000);
 }

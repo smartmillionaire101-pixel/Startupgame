@@ -12,12 +12,15 @@ import { useSyncExternalStore } from 'react';
 import { useView } from '../store';
 import { destinationsOf, sellsCabins, type CabinTier } from './travel';
 import { flightPartyTo } from './companions';
+import { DAY_MIN, MONTH_MIN, flightNow, gameMinuteOf, useGameClock } from '../gameClock';
 import {
   airportSchedule,
+  clockOf,
   localMinutes,
   nextFlightTo,
   scheduleDay,
   type Destination,
+  type ScheduledFlight,
 } from './travel';
 
 export interface Ticket {
@@ -50,6 +53,13 @@ export interface Ticket {
   back?: { cabin: CabinTier; fare: number };
   /** This is the flight home on a return ticket, paid when the trip was booked. */
   prepaid?: boolean;
+  /**
+   * When the flight leaves, as a game minute (`gameMinuteOf`), set when it's
+   * booked here. Missing: an older server's clock, or booked elsewhere.
+   */
+  departs?: number;
+  /** The game minute the server booked it (from its `bookedAt`), when `departs` isn't known. */
+  bookedMin?: number;
 }
 
 const KEY = 'runway.ticket';
@@ -118,7 +128,14 @@ export function useTicket(): Ticket | null {
   const detail =
     cached?.from === paid.from && cached.to === paid.to
       ? cached
-      : ticketFor(paid.from, dest, view.market.currency, view.market.month);
+      : ticketFor(
+          paid.from,
+          dest,
+          view.market.currency,
+          view.market.month,
+          undefined,
+          flightNow(view, paid.from),
+        );
   // The server's ticket is the truth for what was paid, hotel included.
   const hotel = (paid as { hotel?: Ticket['hotel'] }).hotel;
   // …and for the flight when it has one: friends on holiday share the host's (./companions).
@@ -136,6 +153,15 @@ export function useTicket(): Ticket | null {
       ? { cabin: ret.cabin as CabinTier, fare: ret.paid }
       : undefined;
   const prepaid = (paid as { prepaid?: boolean }).prepaid === true;
+  // When it was booked on the game clock, for a ticket booked elsewhere (a holiday
+  // friend's flight, another tab): the time on it is the one after that.
+  const bookedAt = (paid as { bookedAt?: number }).bookedAt;
+  const clock = clockOf(view);
+  const nowMin = gameMinuteOf(view);
+  const bookedMin =
+    detail.departs === undefined && clock && nowMin !== null && typeof bookedAt === 'number'
+      ? nowMin - Math.max(0, Math.floor(((clock.serverNow - bookedAt) / clock.monthMs) * MONTH_MIN))
+      : undefined;
   return {
     ...detail,
     ...(shown?.number
@@ -147,8 +173,72 @@ export function useTicket(): Ticket | null {
     cabin,
     back,
     ...(prepaid ? { prepaid } : {}),
+    ...(bookedMin !== undefined ? { bookedMin } : {}),
   };
 }
+
+/**
+ * When a flight booked now leaves, as a game minute: `f` as `nextFlightTo`
+ * found it after `minutes` (the time of day at game minute `at`, both from the
+ * same view). Undefined without a game clock.
+ */
+export function departsOf(
+  f: Pick<ScheduledFlight, 'at' | 'late'> | null | undefined,
+  at: number | null,
+  minutes: number,
+): number | undefined {
+  return f && at !== null ? at - minutes + f.at + f.late : undefined;
+}
+
+/** "14:05" → minutes after midnight, or null. */
+function clockMin(time?: string): number | null {
+  const m = time ? /^(\d{1,2}):(\d{2})$/.exec(time) : null;
+  return m ? (Number(m[1]) * 60 + Number(m[2])) % DAY_MIN : null;
+}
+
+/**
+ * Has the departure time on a ticket you hold passed? A held ticket never
+ * expires or goes missed: the plane leaves once you've checked in and
+ * boarded, whenever that is, and the airport says "Boarding now · we waited
+ * for you" instead of "Departed" (play-test: a game hour is about two real
+ * minutes, so the time passed on the ride to the airport).
+ *
+ * `now`: the game minute (null without a game clock); `ofDay`: the time of
+ * day the airports keep (`flightNow`). Without the game minute the ticket's
+ * time counts as passed for six hours after it (a flight after midnight,
+ * booked late in the evening, is still to come).
+ */
+export function waitedFor(
+  ticket: Pick<Ticket, 'time' | 'departs' | 'bookedMin'> | null,
+  now: number | null,
+  ofDay: number,
+): boolean {
+  if (!ticket) return false;
+  if (now !== null && ticket.departs !== undefined) return now >= ticket.departs;
+  const dep = clockMin(ticket.time);
+  if (dep === null) return false;
+  if (now !== null && ticket.bookedMin !== undefined) {
+    const b = ticket.bookedMin;
+    return now >= b + ((((dep - b) % DAY_MIN) + DAY_MIN) % DAY_MIN);
+  }
+  return (((ofDay - dep) % DAY_MIN) + DAY_MIN) % DAY_MIN < 6 * 60;
+}
+
+/** `waitedFor` on the game clock, as it ticks. */
+export function useWaitedFor(ticket: Ticket | null, marketId: string): boolean {
+  const { view } = useView();
+  const clock = useGameClock(view, marketId);
+  return waitedFor(ticket, clock.min, Math.floor(clock.hour * 60) % DAY_MIN);
+}
+
+// The flight to choose at the ticket desk when you get to the airport ("Fly home"
+// without a return ticket: the cabins and their fares are shown before anything is paid).
+let deskPick: string | null = null;
+export function chooseAtDesk(to: string | null) {
+  deskPick = to;
+}
+/** The destination to open at the desk (the desk forgets it once it has opened). */
+export const deskPicked = (): string | null => deskPick;
 
 /** The ticket if it's for a flight out of this city to one of these destinations. */
 export function ticketFrom(
@@ -176,12 +266,13 @@ export function ticketFor(
   currency: string,
   month: number,
   now = Date.now(),
+  /** The time of day (minutes) to take the next flight after: the game clock's (`flightNow`). */
+  minutes = localMinutes(here, now),
+  /** The game minute at `minutes` (`gameMinuteOf`), to know when the flight leaves. */
+  at: number | null = null,
 ): Ticket {
-  const f = nextFlightTo(
-    airportSchedule(here, scheduleDay(month, now)),
-    d.id,
-    localMinutes(here, now),
-  );
+  const f = nextFlightTo(airportSchedule(here, scheduleDay(month, now)), d.id, minutes);
+  const departs = departsOf(f, at, minutes);
   return {
     from: here,
     to: d.id,
@@ -193,5 +284,6 @@ export function ticketFor(
     airline: f?.airline,
     flight: f?.flight,
     gate: f?.gate,
+    ...(departs !== undefined ? { departs } : {}),
   };
 }

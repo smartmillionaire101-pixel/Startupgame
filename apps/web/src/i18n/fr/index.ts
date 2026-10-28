@@ -70,6 +70,7 @@ import { nightlife } from './nightlife';
 import { holidays } from './holidays';
 import { golfMall } from './golf-mall';
 import { golfHud } from './golf-hud';
+import { hud } from './hud';
 import { goingOut } from './going-out';
 import { mapBadges } from './map-badges';
 import { mallWalk } from './mall-walk';
@@ -80,6 +81,7 @@ import { jobsPro } from './jobs-pro';
 import { mallMore } from './mall-more';
 import { flightClasses } from './flight-classes';
 import { firstClass } from './first-class';
+import { travelR6 } from './travel-r6';
 import { todayWhatnow } from './today-whatnow';
 import { cabins } from './cabins';
 import { founderGuidance } from './founder-guidance';
@@ -106,6 +108,9 @@ import { r2Ui } from './r2-ui';
 import { r2Jobs } from './r2-jobs';
 import { convo } from './convo';
 import { setup } from './setup';
+import { founderPlaytest } from './founder-playtest';
+import { r6Ui } from './r6-ui';
+import { playtestR7 } from './playtest-r7';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -199,6 +204,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   bankerRepEvents,
   shop,
   firstClass,
+  travelR6,
   jobTasks,
   todayWhatnow,
   stocks,
@@ -215,6 +221,10 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   convo,
   buyMode,
   setup,
+  founderPlaytest,
+  hud,
+  r6Ui,
+  playtestR7,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

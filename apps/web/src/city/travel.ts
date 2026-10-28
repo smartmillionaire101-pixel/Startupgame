@@ -494,8 +494,52 @@ export function tripCost(mode: RideMode, tiles: number): { hours: number; energy
     const c = walkCost(mode, rideMinutes(mode, tiles));
     return { hours: c.hours, energy: c.energy };
   }
-  const c = rideCost(mode, rideDistance(tiles));
+  // The ride's own length (the server charges what you were shown).
+  const c = rideCost(mode, rideDistance(tiles), rideMinutes(mode, tiles));
   return { hours: c.hours, energy: c.energy };
+}
+
+/**
+ * The minutes a trip reads everywhere (the chooser, the ride's card, the Rides
+ * app): with the life bars, the game time it takes from your month; without
+ * them, the ride's own time.
+ */
+export function tripMinutes(mode: RideMode, tiles: number, lifeBars: boolean): number {
+  return lifeBars
+    ? Math.max(1, Math.round(tripCost(mode, tiles).hours * 60))
+    : rideMinutes(mode, tiles);
+}
+
+/**
+ * Why you can't walk or cycle this far (the server's `city.walk` refusals),
+ * or null: rides always go on what's left.
+ */
+export function legsBlocked(
+  mode: RideMode,
+  tiles: number,
+  me: { hoursLeft: number; energy: number } | null,
+): 'hours' | 'tired' | null {
+  if (!me || (mode !== 'walk' && mode !== 'cycle')) return null;
+  const cost = tripCost(mode, tiles);
+  if (me.hoursLeft < cost.hours) return 'hours';
+  if (me.energy < Math.max(10, cost.energy)) return 'tired';
+  return null;
+}
+
+/**
+ * "Skip the ride" goes your usual way when you can (playtest round 6: it said
+ * Walk when you were too tired to walk, and then did nothing): else the first
+ * way you can, cheapest first (cycle, then transit, a taxi or your car).
+ */
+export function skipModeFor(
+  modes: readonly RideMode[],
+  preferred: RideMode,
+  tiles: number,
+  me: { hoursLeft: number; energy: number } | null,
+): RideMode {
+  if (modes.includes(preferred) && !legsBlocked(preferred, tiles, me)) return preferred;
+  const order: RideMode[] = ['cycle', 'walk', 'bus', 'drive', 'taxi'];
+  return order.find((m) => modes.includes(m) && !legsBlocked(m, tiles, me)) ?? 'taxi';
 }
 
 /** "1 h 52 min", "25 min": game hours as a player reads them. */
@@ -527,9 +571,10 @@ export function rideMinutes(mode: RideMode, tiles: number): number {
         ? tiles * 0.22
         : mode === 'bus'
           ? 5 + tiles * 0.15
-          : mode === 'drive'
-            ? 1 + tiles * 0.1
-            : 2 + tiles * 0.1;
+          : // A taxi or your car beats cycling across town (playtest round 6).
+            mode === 'drive'
+            ? 1 + tiles * 0.07
+            : 2 + tiles * 0.07;
   return Math.max(1, Math.round(m));
 }
 
@@ -651,13 +696,19 @@ export function tripCommand(
       type: 'city.ride';
       mode: RideMode;
       distance: RideDistance;
+      minutes: number;
     }
   | null {
   const legs = mode === 'walk' || mode === 'cycle';
   if (legs && !lifeBars) return null;
   return legs
     ? { type: 'city.walk', mode, minutes: rideMinutes(mode, tiles) }
-    : { type: 'city.ride', mode, distance: rideDistance(tiles) };
+    : {
+        type: 'city.ride',
+        mode,
+        distance: rideDistance(tiles),
+        minutes: rideMinutes(mode, tiles),
+      };
 }
 
 // ---------------------------------------------------------------------------
@@ -958,7 +1009,41 @@ export function nextFlightTo(
   now: number,
 ): ScheduledFlight | null {
   const deps = schedule.filter((f) => !f.arrival && f.city === to);
-  return deps.find((f) => f.at + f.late > now) ?? deps[0] ?? null;
+  const next = deps.find((f) => f.at + f.late > now);
+  if (next || !deps[0]) return next ?? null;
+  // Today's have all left (playtest: a ticket for 12:35 at 17:29 still boarded):
+  // the route's late flight, the next five-minute slot at least 45 minutes on
+  // (after midnight it reads as tomorrow's early hours).
+  const at = Math.ceil((now + 45) / 5) * 5;
+  return { ...deps[0], at, time: hhmm(at % (24 * 60)), late: 0 };
+}
+
+/** Great-circle hours at airliner speed, plus taxi and climb. */
+export function flightHours(from: string, to: string, fallback: number): number {
+  const a = CITY_GEO[from];
+  const b = CITY_GEO[to];
+  if (!a || !b) return fallback;
+  const r = Math.PI / 180;
+  const h =
+    Math.sin(((b.lat - a.lat) * r) / 2) ** 2 +
+    Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lon - a.lon) * r) / 2) ** 2;
+  const km = 2 * 6371 * Math.asin(Math.sqrt(h));
+  return km / 820 + 0.5;
+}
+
+/**
+ * When a flight leaving `from` at `time` ("18:45", local there) is due in at
+ * `to`, in minutes after midnight there (playtest round 6: the arrivals board
+ * said your flight landed at 17:20, before its 17:45 UTC departure).
+ */
+export function dueIn(from: string, to: string, time: string, now = Date.now()): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time);
+  if (!m) return null;
+  const dep = Number(m[1]) * 60 + Number(m[2]);
+  // The two cities' clocks apart (minutes), now.
+  const apart = ((localMinutes(to, now) - localMinutes(from, now) + 720 + 1440 * 2) % 1440) - 720;
+  const mins = dep + Math.round(flightHours(from, to, 0) * 60) + apart;
+  return ((mins % 1440) + 1440) % 1440;
 }
 
 /** "6h 20m" for a flight time in hours. */

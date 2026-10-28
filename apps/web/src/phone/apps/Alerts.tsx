@@ -4,6 +4,7 @@
  */
 import type { PlayerView } from '@runway/engine';
 import { t, tx } from '../../i18n';
+import { gameMonth } from '../../format';
 import { useView } from '../../store';
 import { Button, Empty } from '../../ui';
 import { openPhone, useNav } from '../bus';
@@ -70,7 +71,7 @@ export function Alerts({ ctx }: { ctx: PhoneCtx }) {
                 <RowIcon name={icon} color={color} />
                 <span className="phone-row-main">
                   <span>{tx(i.text)}</span>
-                  <span className="small muted">{t('Month {n}', { n: i.month })}</span>
+                  <span className="small muted">{gameMonth(i.month)}</span>
                 </span>
                 {!i.read && <span className="phone-dot" aria-label={t('New')} />}
               </>

@@ -172,7 +172,9 @@ describe('a painting moves along the walls ("it just put it in my room")', () =>
   });
 
   it('hangs only with a wall behind it, not on the AC, not in the doorway', () => {
-    expect(canPlace(plan, owned, 'art', { x: 4, y: 0, rot: 0 })).toBe(true);
+    expect(canPlace(plan, owned, 'art', { x: 2, y: 0, rot: 0 })).toBe(true);
+    // Playtest #40: not over the bedroom's window (x 3.5–5.1 on the back wall).
+    expect(canPlace(plan, owned, 'art', { x: 4, y: 0, rot: 0 })).toBe(false);
     expect(canPlace(plan, owned, 'art', { x: 4, y: 2, rot: 0 })).toBe(false);
     expect(canPlace(plan, owned, 'art', { x: 2, y: 5, rot: 0 })).toBe(true);
     // The AC hangs at (0–1, 0) on the back wall; the left wall there is free.
@@ -181,21 +183,23 @@ describe('a painting moves along the walls ("it just put it in my room")', () =>
   });
 
   it('nudges along a wall, round a corner, across the room and through a wall', () => {
-    const p = { x: 4, y: 0, rot: 0 };
-    expect(nudgeOnWall(plan, p, 1, 0)).toEqual({ x: 5, y: 0, rot: 0 });
-    expect(nudgeOnWall(plan, p, -1, 0)).toEqual({ x: 3, y: 0, rot: 0 });
+    const p = { x: 2, y: 0, rot: 0 };
+    // Along the back wall: on past the bedroom's window to the next clear spot.
+    expect(nudgeOnWall(plan, p, 1, 0)).toEqual({ x: 6, y: 0, rot: 0 });
+    expect(nudgeOnWall(plan, { x: 6, y: 0, rot: 0 }, -1, 0)).toEqual(p);
+    expect(nudgeOnWall(plan, p, -1, 0)).toEqual({ x: 1, y: 0, rot: 0 });
     // The corner: onto the left wall.
     expect(nudgeOnWall(plan, { x: 0, y: 0, rot: 0 }, -1, 0)).toEqual({ x: 0, y: 0, rot: 1 });
     // Away from the back wall: to the bedroom's far wall, facing back.
     const far = nudgeOnWall(plan, p, 0, 1);
-    expect(far).toEqual({ x: 4, y: 4, rot: 2 });
+    expect(far).toEqual({ x: 2, y: 4, rot: 2 });
     // Through that wall into the living room, and back up to the bedroom's back wall.
-    expect(nudgeOnWall(plan, far, 0, 1)).toEqual({ x: 4, y: 5, rot: 0 });
-    expect(nudgeOnWall(plan, far, 0, -1)).toEqual({ x: 4, y: 0, rot: 0 });
+    expect(nudgeOnWall(plan, far, 0, 1)).toEqual({ x: 2, y: 5, rot: 0 });
+    expect(nudgeOnWall(plan, far, 0, -1)).toEqual({ x: 2, y: 0, rot: 0 });
     // Not out through the outer wall.
     expect(nudgeOnWall(plan, p, 0, -1)).toEqual(p);
     // Height is kept.
-    expect(nudgeOnWall(plan, { ...p, lift: 1 }, 1, 0)).toEqual({ x: 5, y: 0, rot: 0, lift: 1 });
+    expect(nudgeOnWall(plan, { ...p, lift: 1 }, 1, 0)).toEqual({ x: 6, y: 0, rot: 0, lift: 1 });
   });
 
   it('dropped on a tile it turns its back to the wall there; Turn picks another wall', () => {

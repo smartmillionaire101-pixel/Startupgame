@@ -79,7 +79,7 @@ for (const s of SHOTS.filter((x) => !only || only.includes(x.id))) {
     if (process.env.SKY_PITCH) s.pitch = Number(process.env.SKY_PITCH);
     await page.addInitScript(() => localStorage.setItem('runway.hq', '1'));
     await create(page, s.market);
-    await expect(page.locator('.topbar')).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('[data-hud-bar]')).toBeVisible({ timeout: 30000 });
     const home = page.getByRole('dialog', { name: 'Home and social experiences' });
     await openTogether(page);
     await home.locator(`[data-sky-view="${s.id}"]`).click();

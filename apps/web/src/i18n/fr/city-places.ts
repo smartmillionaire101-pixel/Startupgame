@@ -77,8 +77,8 @@ export const cityPlaces: Record<string, string> = {
   University: 'Université',
   'Economic policy and the budget. Founders and investors are heard at roundtables.':
     'Politique économique et budget. Fondateurs et investisseurs y sont entendus lors de tables rondes.',
-  'The money regulator: payments licences and fund manager licences.':
-    'Le régulateur de la monnaie : licences de paiement et agréments de gérant de fonds.',
+  'The money regulator: bank licences and their fit-and-proper interviews, payments licences and fund manager licences.':
+    'Le régulateur de la monnaie : agréments bancaires et leurs entretiens d’honorabilité, licences de paiement et agréments de gérant de fonds.',
   'The city’s listed companies trade here. The floor is for finance people.':
     'Les sociétés cotées de la ville s’échangent ici. Le parquet est réservé aux gens de la finance.',
   'The city’s business association: mixers, members and introductions.':

@@ -13,6 +13,7 @@
  */
 import { blockedTiles, key, roomAt, wallEdges, type HomePlan, type Spot } from '../home/layout';
 import { findPath } from '../home/path';
+import { overOpening, wallOpenings } from '../home/windows';
 
 export interface Placement {
   x: number;
@@ -192,6 +193,60 @@ export function screenToGrid(
  * back through it to the wall's other side.
  */
 export function nudgeOnWall(plan: HomePlan, p: Placement, dx: number, dy: number): Placement {
+  // Playtest #40: never onto a window (or the front door). Along a wall, on past it to
+  // the next clear spot (round the corner if the wall ends first); across the room or
+  // through a wall, beside the window where it lands.
+  const [fx, fy] = FACING[p.rot]!;
+  if (dx * fx + dy * fy !== 0) {
+    const q = nudgeStep(plan, p, dx, dy);
+    return q === p || hangable(plan, q) ? q : (slideClear(plan, q) ?? p);
+  }
+  let q = p;
+  let d = { dx, dy };
+  for (let i = 0; i < 2 * (plan.w + plan.h) + 4; i++) {
+    const n = nudgeStep(plan, q, d.dx, d.dy);
+    if (n === q) return p;
+    // Round a corner: carry on along the new wall, away from the corner.
+    if (n.rot !== q.rot) d = { dx: FACING[q.rot]![0], dy: FACING[q.rot]![1] };
+    q = n;
+    if (hangable(plan, q)) return q;
+    if (q.x === p.x && q.y === p.y && q.rot === p.rot) return p;
+  }
+  return p;
+}
+
+/** A picture can hang here: a wall behind it, not over a window or the front door. */
+function hangable(plan: HomePlan, p: Placement, openings = wallOpenings(plan)): boolean {
+  return (
+    wallBehind(plan, p.x, p.y, p.rot) &&
+    !(p.x === plan.door.x && p.y === plan.door.y) &&
+    !overOpening(plan, p.x, p.y, p.rot, openings)
+  );
+}
+
+/**
+ * The clear spot along the same wall nearest to `p` (it over a window): a tile
+ * either way at a time while the wall goes on, or null when there's none.
+ */
+function slideClear(plan: HomePlan, p: Placement): Placement | null {
+  const openings = wallOpenings(plan);
+  const [ax, ay] = FACING[(p.rot + 1) % 4]!;
+  const reach = { [1]: true, [-1]: true } as Record<number, boolean>;
+  for (let i = 1; i < plan.w + plan.h; i++)
+    for (const sgn of [1, -1]) {
+      if (!reach[sgn]) continue;
+      const q = { ...p, x: p.x + sgn * i * ax, y: p.y + sgn * i * ay };
+      if (!wallBehind(plan, q.x, q.y, q.rot)) {
+        reach[sgn] = false;
+        continue;
+      }
+      if (hangable(plan, q, openings)) return q;
+    }
+  return null;
+}
+
+/** One raw step of `nudgeOnWall` (windows aside). */
+function nudgeStep(plan: HomePlan, p: Placement, dx: number, dy: number): Placement {
   const [fx, fy] = FACING[p.rot]!;
   const toward = dx * fx + dy * fy;
   const crosses = (x: number, y: number, nx: number, ny: number) =>
@@ -227,6 +282,15 @@ export function nudgeOnWall(plan: HomePlan, p: Placement, dx: number, dy: number
   return { ...p, x: bx, y: by, rot: (p.rot + 2) % 4 };
 }
 
+/** The way a thing on a wall faces (one never turned: away from the outer wall it's on). */
+function wallRot(plan: HomePlan, s: Spot & { rot?: number }): number {
+  if (s.rot !== undefined) return s.rot;
+  if (s.y === 0) return 0;
+  if (s.x === 0) return 1;
+  if (s.x + s.w === plan.w) return 3;
+  return 2;
+}
+
 /** The quarter turn facing (dx, dy) — or, `back`, with its back that way. */
 function rotOf(dx: number, dy: number, back = false): number {
   const i = FACING.findIndex(([fx, fy]) => fx === (back ? -dx : dx) && fy === (back ? -dy : dy));
@@ -235,9 +299,14 @@ function rotOf(dx: number, dy: number, back = false): number {
 
 /** A thing on a wall dropped on a tile: the way it faced if there's a wall behind, else one that has. */
 export function snapToWall(plan: HomePlan, p: Placement): Placement {
+  // A wall without a window there first (playtest #40); else beside the window.
   for (let i = 0; i < 4; i++) {
     const rot = (p.rot + i) % 4;
-    if (wallBehind(plan, p.x, p.y, rot)) return { ...p, rot };
+    if (hangable(plan, { ...p, rot })) return { ...p, rot };
+  }
+  for (let i = 0; i < 4; i++) {
+    const rot = (p.rot + i) % 4;
+    if (wallBehind(plan, p.x, p.y, rot)) return slideClear(plan, { ...p, rot }) ?? { ...p, rot };
   }
   return p;
 }
@@ -331,15 +400,14 @@ function fitted(
   return { ...placed, interact: use };
 }
 
-/** On a wall: a wall behind it, in the home, not over the door, not on another picture. */
+/** On a wall: a wall behind it, in the home, not over a window or the door, not on another picture. */
 function fittedOnWall(
   plan: HomePlan,
   owned: ReadonlySet<string>,
   slot: string,
   s: Spot & { rot: number },
 ): (Spot & { rot: number }) | null {
-  if (!wallBehind(plan, s.x, s.y, s.rot)) return null;
-  if (s.x === plan.door.x && s.y === plan.door.y) return null;
+  if (!hangable(plan, s)) return null;
   const facing = (o: Spot & { rot?: number }) => o.rot ?? 0;
   for (const [k, o] of Object.entries(plan.slots)) {
     if (k === slot || !o.wall || !owned.has(k)) continue;
@@ -360,9 +428,11 @@ function freeSpot(
   plan: HomePlan,
   owned: ReadonlySet<string>,
   k: string,
+  near?: Placement,
 ): (Spot & { rot: number }) | null {
-  const base = plan.slots[slotOf(k)];
-  if (!base) return null;
+  const at = plan.slots[slotOf(k)];
+  if (!at) return null;
+  const base = near ? { ...at, x: near.x, y: near.y } : at;
   const tries: Placement[] = [];
   for (let y = 0; y < plan.h; y++)
     for (let x = 0; x < plan.w; x++)
@@ -374,8 +444,13 @@ function freeSpot(
     if (!owned.has(sk) && !o.wall)
       for (let x = o.x; x < o.x + o.w; x++)
         for (let y = o.y; y < o.y + o.h; y++) kept.add(key(x, y));
+  // On a wall, the way it faced first (the same wall, beside a window it was over).
+  const face = near?.rot ?? (base as { rot?: number }).rot;
   const d = (p: Placement) =>
-    Math.abs(p.x - base.x) + Math.abs(p.y - base.y) + (kept.has(key(p.x, p.y)) ? 1000 : 0);
+    Math.abs(p.x - base.x) +
+    Math.abs(p.y - base.y) +
+    (base.wall && face !== undefined && p.rot !== face ? 0.5 : 0) +
+    (kept.has(key(p.x, p.y)) ? 1000 : 0);
   tries.sort((a, z) => d(a) - d(z));
   for (const p of tries) {
     const f = fitted(plan, owned, k, p);
@@ -398,10 +473,31 @@ export function withPlacements(
   const entries = Object.entries(placements).filter(
     ([slot]) => owned.has(slot) && !slot.includes('#'),
   );
-  if (!entries.length && !extras.length) return plan;
+  // Playtest #40: a picture's own spot (bought, not yet moved) clear of the windows.
+  const overWindow = Object.entries(plan.slots).filter(
+    ([k, s]) =>
+      s.wall &&
+      MOVABLE.has(slotOf(k)) &&
+      !placements[k] &&
+      overOpening(plan, s.x, s.y, wallRot(plan, s)),
+  );
+  if (!entries.length && !extras.length && !overWindow.length) return plan;
   let out: HomePlan = { ...plan, slots: { ...plan.slots } };
+  for (const [k, s] of overWindow) {
+    const f = freeSpot(out, new Set([...owned, k]), k, {
+      x: s.x,
+      y: s.y,
+      rot: wallRot(plan, s),
+    });
+    if (f) out.slots[k] = f;
+  }
   for (const [slot, p] of entries) {
-    const f = fitted(out, owned, slot, p);
+    // A spot saved over a window (before they were kept clear): the nearest clear one.
+    const f =
+      fitted(out, owned, slot, p) ??
+      (out.slots[slot]?.wall && overOpening(out, p.x, p.y, p.rot)
+        ? freeSpot(out, owned, slot, p)
+        : null);
     if (!f) continue;
     out.slots[slot] = f;
     // The sofa's seats move with it.
@@ -421,7 +517,16 @@ export function withPlacements(
   for (const k of extras) {
     if (!out.slots[slotOf(k)] || !MOVABLE.has(slotOf(k))) continue;
     const saved = placements[k];
-    const f = (saved && fitted(out, all, k, saved)) || freeSpot(out, all, k);
+    const f =
+      (saved && fitted(out, all, k, saved)) ||
+      freeSpot(
+        out,
+        all,
+        k,
+        saved && out.slots[slotOf(k)]!.wall && overOpening(out, saved.x, saved.y, saved.rot)
+          ? saved
+          : undefined,
+      );
     if (f) out.slots[k] = f;
   }
   return out;

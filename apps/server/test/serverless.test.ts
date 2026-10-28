@@ -360,6 +360,13 @@ describe('Netlify runtime', () => {
     const meta = await c.call('GET', '/api/meta');
     expect(meta.json.markets.length).toBe(10);
     expect(meta.headers.get('content-security-policy')).toContain("default-src 'self'");
+    // The page's Google Fonts, allowed as on Netlify (play-test #44).
+    expect(meta.headers.get('content-security-policy')).toContain(
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    );
+    expect(meta.headers.get('content-security-policy')).toContain(
+      "font-src 'self' https://fonts.gstatic.com",
+    );
     expect((await c.call('GET', '/api/state')).status).toBe(401);
 
     const verified = await c.signIn('+2348039990001');

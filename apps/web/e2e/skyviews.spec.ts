@@ -3,7 +3,15 @@
  * founder, no lifestyle needed): ride the London cable car over the Thames,
  * skip to the view, find a landmark, change the light, switch to The Shard.
  */
-import { test, expect, letters, openTogether, playAsGuest, setupFounder } from './fixtures';
+import {
+  test,
+  expect,
+  letters,
+  openTogether,
+  playAsGuest,
+  setupFounder,
+  hudMore,
+} from './fixtures';
 
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
@@ -50,6 +58,7 @@ test('a new player rides the real London cable car and looks around the skyline'
   await sky.getByRole('button', { name: 'The O2', exact: true }).click();
   await expect(sky.locator('footer > p')).toHaveText('The O2', { timeout: SKY_STEP });
   await sky.getByRole('button', { name: 'Look left' }).click();
+  await hudMore(sky);
   await sky.getByRole('button', { name: 'Zoom in' }).click();
   await sky.getByLabel('Light').selectOption('sunset');
   await page.waitForTimeout(1500);

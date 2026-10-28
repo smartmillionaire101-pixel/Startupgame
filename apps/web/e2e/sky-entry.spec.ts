@@ -2,7 +2,7 @@
  * Sky views open straight from the city: the Sky views button and the Places
  * list offer the city's real towers, wheels and hills, and a tap goes up.
  */
-import { test, expect, letters, playAsGuest, setupFounder } from './fixtures';
+import { test, expect, letters, playAsGuest, setupFounder, hudMore } from './fixtures';
 
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
@@ -17,6 +17,7 @@ test('a San Francisco founder goes up the Salesforce Tower from the city map', a
     idea: 'Tools for local businesses',
     market: /San Francisco/,
   });
+  await hudMore(page);
   await page.getByTestId('sky-views-btn').click();
   const sheet = page.getByRole('dialog', { name: 'Sky views' });
   await expect(sheet.locator('[data-sky-view="salesforce-tower"]')).toBeVisible();

@@ -71,7 +71,13 @@ import { beginRide } from './ride/state';
 import { loadGeo, OSM_CREDIT } from './geo';
 import { GeoPainter } from './geoPaint';
 import { GeoSprite } from './geoSprites';
-import { getMapQuality, hasWebGL, useMapQuality } from './three/quality';
+import {
+  getMapQuality,
+  hasWebGL,
+  mapQualityChosen,
+  setMapQuality,
+  useMapQuality,
+} from './three/quality';
 
 // The 3D city is its own chunk (three.js), loaded when a real map first shows
 // (or early, see preloadCityMap).
@@ -1194,20 +1200,84 @@ export type CityMapProps = Parameters<typeof CityMap2D>[0];
 export function CityMap(props: CityMapProps) {
   const quality = useMapQuality();
   const [broken, setBroken] = useState(false);
+  // Play-test: the 3D city ran at 2 frames a second and nothing said so.
+  // 'switched': the default 3D map stepped down to Lite by itself; 'suggest':
+  // a 3D map the player chose is slow, so Lite is offered.
+  const [slow, setSlow] = useState<'switched' | 'suggest' | null>(null);
+  const onSlow = () => {
+    if (mapQualityChosen()) setSlow('suggest');
+    else {
+      setMapQuality('lite');
+      setSlow('switched');
+    }
+  };
   const use3d = !!props.layout.geo && quality === '3d' && !broken && hasWebGL();
-  if (!use3d) return <CityMap2D {...props} />;
+  const notice = slow && <SlowMapNotice kind={slow} onDone={() => setSlow(null)} />;
+  if (!use3d)
+    return (
+      <>
+        <CityMap2D {...props} />
+        {slow === 'switched' && notice}
+      </>
+    );
   // While the 3D chunk loads: a quiet placeholder, not the 2D map (it would
   // paint a whole other city for a moment, then be swapped out).
   return (
-    <Suspense
-      fallback={
-        <div className="city-map city-loading" data-map3d="loading" role="status">
-          <p>{t('Building the city…')}</p>
-        </div>
-      }
-    >
-      <CityMap3D {...props} onBroken={() => setBroken(true)} />
-    </Suspense>
+    <>
+      <Suspense
+        fallback={
+          <div className="city-map city-loading" data-map3d="loading" role="status">
+            <p>{t('Building the city…')}</p>
+          </div>
+        }
+      >
+        <CityMap3D {...props} onBroken={() => setBroken(true)} onSlow={onSlow} />
+      </Suspense>
+      {slow === 'suggest' && notice}
+    </>
+  );
+}
+
+/** The 3D map was too slow here: what happened (or a suggestion), and the way back. */
+function SlowMapNotice({ kind, onDone }: { kind: 'switched' | 'suggest'; onDone: () => void }) {
+  return (
+    <div className="map-slow" role="status" data-map-slow={kind}>
+      <p>
+        {kind === 'switched'
+          ? t('The 3D city was running slowly on this device, so you’re on the Lite map now.')
+          : t('The 3D city is running slowly on this device. The Lite map is quicker.')}
+      </p>
+      <div className="map-slow-actions">
+        {kind === 'switched' ? (
+          <button
+            type="button"
+            className="btn btn-subtle"
+            onClick={() => {
+              setMapQuality('3d');
+              onDone();
+            }}
+          >
+            {t('Back to 3D')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary"
+            data-map-slow-lite=""
+            onClick={() => {
+              setMapQuality('lite');
+              onDone();
+            }}
+          >
+            {t('Use the Lite map')}
+          </button>
+        )}
+        <button type="button" className="btn btn-ghost" onClick={onDone}>
+          {kind === 'switched' ? t('OK') : t('Keep 3D')}
+        </button>
+      </div>
+      <p className="small muted">{t('You can change it in Settings → Map quality.')}</p>
+    </div>
   );
 }
 
@@ -1498,7 +1568,15 @@ function CityMap2D({
     shownMarket.current = layout.marketId;
     pos.current = lastPos.get(layout.marketId) ?? layout.start;
     placeAvatar(pos.current);
-    cam.current.z = layout.geo ? (cam.current.w < 500 ? 0.9 : 1) : cam.current.w < 500 ? 1 : 1.15;
+    // A real map opens a little further out on a phone (play-test: "huge default
+    // zoom", one building on screen): a street's worth of buildings, you among them.
+    cam.current.z = layout.geo
+      ? cam.current.w < 500
+        ? 0.75
+        : 0.9
+      : cam.current.w < 500
+        ? 1
+        : 1.15;
     centreOn(pos.current);
     onArriveRef.current?.(pos.current, null);
   }, [layout, placeAvatar, centreOn]);

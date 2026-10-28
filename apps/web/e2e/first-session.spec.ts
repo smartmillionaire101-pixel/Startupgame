@@ -8,6 +8,7 @@ import {
   salesConversation,
   test,
   type Page,
+  hudMore,
 } from './fixtures';
 
 /**
@@ -100,6 +101,9 @@ test('a new founder is guided from the flat to a first sale and the next objecti
   await expect(card).toHaveAttribute('data-tutorial-step', 'sale');
   await expect(card.locator('[data-coach-unfunded]')).toBeVisible();
   await card.getByRole('button', { name: 'Open Company' }).click();
+  // On the setup itself the card folds to one line (no dead "Open Company" over it).
+  await expect(card.locator('[data-coach-mini]')).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Open Company' })).toHaveCount(0);
   await registerAndFund(page, 1 / 3);
 
   // The first customer, with coaching at each step.
@@ -237,6 +241,7 @@ test('skipping the tutorial at step 1 leaves a full, valid game', async ({ page 
   await phone.getByRole('button', { name: 'Close phone' }).click();
 
   // Objectives shown: the journey with its three prompts.
+  await hudMore(page);
   await page.getByTestId('journey-chip').click();
   await expect(page.locator('[data-objective="main"]')).toBeVisible();
   await expect(page.locator('[data-objective="opportunity"]')).toBeVisible();

@@ -48,6 +48,7 @@ import {
   type BusinessView,
 } from './contract';
 import type { Place } from './layout';
+import { pocketOf, pocketText } from './pocket';
 import {
   acceleratorsOf,
   angelsAtOf,
@@ -101,6 +102,7 @@ import { WhoIsHere } from './WhoIsHere';
 import { VenueParty, VenuePartyLine, venueParty } from './companions';
 import { HomeScene } from '../home/HomeScene';
 import { HotelBack, HotelFront } from '../home/HotelArt';
+import { hotelRoomOf, isPodStay } from '../home/hotel';
 import { HotelKnocked } from '../phone/apps/Holiday';
 import { cityHotelsOf, localHour, stayOf } from './travel';
 import { Stars } from './HotelList';
@@ -200,6 +202,10 @@ const aiPerson = (
 });
 
 const pickBg = (xs: string[], seed: string) => xs[hash(seed) % xs.length]!;
+
+/** Is this your own bank (play-test: its owner gets the desk, not the customer counter)? */
+export const isOwnBank = (view: View, place: Pick<Place, 'kind' | 'ref'>) =>
+  place.kind === 'playerbank' && !!place.ref && view.bank?.id === place.ref;
 
 /** The AI angels sitting in this business: `view.here.angelsAt`, else where the map walks them. */
 function angelsIn(view: View, businessId: string): (AngelHere & { fundId: string | null })[] {
@@ -718,7 +724,13 @@ export function PlaceScene(props: SceneProps) {
       <HomeScene
         {...props}
         title={stay?.name ?? props.title}
-        hotel={{ tier: stay?.tier ?? null, name: stay?.name ?? null }}
+        hotel={{
+          tier: stay?.tier ?? null,
+          name: stay?.name ?? null,
+          pod: isPodStay(stay),
+          stars: stay?.stars,
+          room: hotelRoomOf(stay),
+        }}
       />
     );
   }
@@ -788,7 +800,9 @@ function RoomScene({
     capital: capitalKind,
   });
   const home = place.kind === 'home' && !abroad ? homeOf(view) : null;
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, what your money buys at this city's prices (as paying here converts it).
+  const purse = pocketOf(view, cur);
+  const pocket = purse.balance;
   // A bar, club or lounge of its city: its own plan, look, crowd and music (./nightlife.ts).
   const cityId = view.here?.id ?? view.market.id;
   const nightStyle = useMemo(
@@ -1342,6 +1356,24 @@ function RoomScene({
                       : said(r, t('Not now.')),
               ),
       });
+  } else if (isOwnBank(view, place)) {
+    // Play-test: the owner comes in to the bank's desk, not as a customer.
+    const requests = view.deals.filter(
+      (d) =>
+        d.status === 'open' &&
+        d.awaiting.kind === 'playerbank' &&
+        d.awaiting.id === place.ref &&
+        d.counterparty.id === place.ref,
+    ).length;
+    actions.push({
+      id: 'bank:desk',
+      label: requests
+        ? t('Your desk · loan requests waiting: {n}', { n: requests })
+        : t('Your desk'),
+      sub: t('Loan requests, clients and the bank’s numbers'),
+      icon: '🗂️',
+      run: () => setMore(true),
+    });
   } else if (place.kind === 'lender' || place.kind === 'playerbank') {
     // Bankers note: a banker meets the bank's people (the cards under More).
     if (place.kind === 'lender')
@@ -1773,7 +1805,11 @@ function RoomScene({
               night={daylight.night}
             />
           ) : room === 'hotel' ? (
-            <HotelBack tier={stayOf(view)?.tier ?? null} night={daylight.night} />
+            <HotelBack
+              tier={stayOf(view)?.tier ?? null}
+              pod={isPodStay(stayOf(view))}
+              night={daylight.night}
+            />
           ) : (
             <RoomBack
               kind={room}
@@ -1791,7 +1827,11 @@ function RoomScene({
           {nightStyle ? (
             <NightFront s={nightStyle} />
           ) : room === 'hotel' ? (
-            <HotelFront tier={stayOf(view)?.tier ?? null} night={daylight.night} />
+            <HotelFront
+              tier={stayOf(view)?.tier ?? null}
+              pod={isPodStay(stayOf(view))}
+              night={daylight.night}
+            />
           ) : (
             <RoomFront
               kind={room}
@@ -1882,8 +1922,8 @@ function RoomScene({
         </div>
       ) : act ? (
         <div className="place-tray is-act">
-          <p className="small muted tray-pocket" data-pocket={pocket}>
-            {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
+          <p className="small muted tray-pocket" data-pocket={purse.home}>
+            {t('In your pocket: {amount}', { amount: pocketText(purse) })}
           </p>
           {act.ended ? (
             <ActCard
@@ -1919,8 +1959,8 @@ function RoomScene({
             </button>
           )}
           {(business?.venue || (business && sellsOf(view, business))) && (
-            <p className="small muted tray-pocket" data-pocket={pocket}>
-              {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
+            <p className="small muted tray-pocket" data-pocket={purse.home}>
+              {t('In your pocket: {amount}', { amount: pocketText(purse) })}
             </p>
           )}
           {foodStyle && menu.length > 0 && (

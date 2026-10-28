@@ -34,11 +34,20 @@ export const PIN_SPACE = 0.3048;
 export const PIN_ROW = 0.264;
 /** Past the back row: the pit. */
 export const PIT_Z = LANE_LEN + 3 * PIN_ROW + 0.32;
-/** A pin struck slower than this wobbles and stays up. */
-const TIP_V = 0.6;
-/** Ball to pin, and pin to pin (wood on wood loses more). */
+/**
+ * The pin deck: a pin struck slower than `tipV` wobbles and stays up, and
+ * wood on wood keeps `pins` of its speed. 'lively' is the deck as it first
+ * shipped; 'true' (the feedback round, playtest round 6: two strikes from two
+ * plain straight swipes) carries less, so a hook into the pocket strikes far
+ * more often than a straight ball does.
+ */
+export type BowlDeck = 'lively' | 'true';
+const DECKS: Record<BowlDeck, { tipV: number; pins: number }> = {
+  lively: { tipV: 0.6, pins: 0.5 },
+  true: { tipV: 1.0, pins: 0.25 },
+};
+/** Ball to pin. */
 const RESTITUTION = 0.72;
-const PIN_RESTITUTION = 0.5;
 /** A fallen pin sliding on the deck slows this much (m/s²). */
 const PIN_FRICTION = 1.6;
 /** Full hook (m/s² across, spin 1) on the dry back end; in the oil a sliver of it. */
@@ -174,7 +183,13 @@ export function ballLineAt(l: BowlLaunch, z: number): number | null {
  * Play a roll out at the pins still standing (pin numbers). Deterministic:
  * a fixed step, a fixed order. `record` keeps the frames for the animation.
  */
-export function simulateBowl(standing: readonly number[], l: BowlLaunch, record = false): BowlSim {
+export function simulateBowl(
+  standing: readonly number[],
+  l: BowlLaunch,
+  record = false,
+  deck: BowlDeck = 'lively',
+): BowlSim {
+  const { tipV, pins: pinE } = DECKS[deck];
   const pins: PinState[] = standing
     .filter((n) => n >= 1 && n <= 10)
     .map((n) => ({
@@ -257,7 +272,7 @@ export function simulateBowl(standing: readonly number[], l: BowlLaunch, record 
     if (!ball.gone && !ball.gutter && ball.z > LANE_LEN - 0.4)
       for (const p of pins) {
         if (p.gone) continue;
-        hit(ball, BALL_R, BALL_M, p, p.down ? PIN_DOWN_R : PIN_R, RESTITUTION, knock);
+        hit(ball, BALL_R, BALL_M, p, p.down ? PIN_DOWN_R : PIN_R, RESTITUTION, knock, tipV);
       }
     // Pins into pins.
     for (let i = 0; i < pins.length; i++) {
@@ -266,9 +281,8 @@ export function simulateBowl(standing: readonly number[], l: BowlLaunch, record 
       for (let j = i + 1; j < pins.length; j++) {
         const b = pins[j]!;
         if (b.gone || (!a.down && !b.down)) continue;
-        if (a.down)
-          hit(a, PIN_DOWN_R, PIN_M, b, b.down ? PIN_DOWN_R : PIN_R, PIN_RESTITUTION, knock);
-        else hit(b, PIN_DOWN_R, PIN_M, a, PIN_R, PIN_RESTITUTION, knock);
+        if (a.down) hit(a, PIN_DOWN_R, PIN_M, b, b.down ? PIN_DOWN_R : PIN_R, pinE, knock, tipV);
+        else hit(b, PIN_DOWN_R, PIN_M, a, PIN_R, pinE, knock, tipV);
       }
     }
     if (ball.gone && pins.every((p) => !p.down || p.gone || Math.hypot(p.vx, p.vz) < 0.02)) {
@@ -299,6 +313,7 @@ function hit(
   rp: number,
   e: number,
   knock: (p: PinState, vx: number, vz: number) => void,
+  tipV: number,
 ) {
   const dx = p.x - a.x,
     dz = p.z - a.z;
@@ -309,7 +324,7 @@ function hit(
     nz = dz / d;
   const vn = (a.vx - p.vx) * nx + (a.vz - p.vz) * nz;
   if (vn > 0) {
-    if (!p.down && vn < TIP_V) {
+    if (!p.down && vn < tipV) {
       // A wobble: the pin holds, the other bounces off it.
       a.vx -= (1 + e) * vn * nx;
       a.vz -= (1 + e) * vn * nz;
@@ -351,6 +366,8 @@ export interface BowlGameState {
   frames: BowlFrameScore[];
   /** The total so far (frames that can be scored). */
   score: number;
+  /** What the sheet would read now, counting the bonus balls bowled so far (≥ score). */
+  soFar: number;
   /** All ten frames bowled. */
   done: boolean;
   /** The frame the next ball is in (0–9), and which ball of it (0–2). */
@@ -429,12 +446,25 @@ export function bowlingGame(rolls: readonly number[]): BowlGameState {
   return {
     frames,
     score: frames.reduce((s, f) => (f.total === null ? s : f.total), 0),
+    // Every pin down so far with the bonus balls already bowled (playtest round 6:
+    // two strikes read 0 until the third ball).
+    soFar: frames.reduce((s, _f, k) => s + framePins(rolls, frames, k), 0),
     done,
     frame,
     ball,
     fresh,
     pinsUp,
   };
+}
+
+/** A frame's pins with whatever of its bonus balls have been bowled. */
+function framePins(rolls: readonly number[], frames: BowlFrameScore[], k: number) {
+  const f = frames[k]!;
+  const own = f.rolls.reduce((s, x) => s + x, 0);
+  if (k === 9) return own;
+  const at = frames.slice(0, k + 1).reduce((s, x) => s + x.rolls.length, 0);
+  const bonus = f.rolls[0] === 10 ? 2 : f.rolls.length === 2 && own === 10 ? 1 : 0;
+  return own + rolls.slice(at, at + bonus).reduce((s, x) => s + x, 0);
 }
 
 /** A tenth frame still owed a ball. */

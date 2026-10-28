@@ -36,7 +36,9 @@ afterEach(() => {
 
 function stub(handler: (url: string, init?: RequestInit) => Promise<Response> | undefined) {
   const calls: { url: string; init?: RequestInit }[] = [];
-  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+  vi.stubGlobal('fetch', (raw: string, init?: RequestInit) => {
+    // The state's soft=1 (signed out is a quiet 204) doesn't matter here.
+    const url = raw === '/api/state?soft=1' ? '/api/state' : raw;
     calls.push({ url, init });
     if (url === '/api/meta') return json(200, META);
     return handler(url, init) ?? json(404, {});

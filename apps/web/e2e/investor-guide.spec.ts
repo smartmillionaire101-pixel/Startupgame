@@ -1,4 +1,4 @@
-import { setupPlayer } from './fixtures';
+import { setupPlayer, openDeals } from './fixtures';
 import { expect, letters, playAsGuest, tab, test } from './fixtures';
 
 /**
@@ -48,7 +48,7 @@ test('an investor sees the stage tracker, a scored first call and a cheque-size 
   await expect(page.locator('[data-guide-item="first-call"]')).toHaveClass(/done/);
 
   // A cheque far over a tenth of your money: a live warning with a smaller one offered.
-  await page.getByRole('button', { name: 'Deal offers' }).click();
+  await openDeals(page);
   await page.getByRole('button', { name: 'Open' }).first().click();
   await page.getByLabel(/^Amount/).fill('900000000');
   const check = page.locator('[data-cheque-check="bad"]');

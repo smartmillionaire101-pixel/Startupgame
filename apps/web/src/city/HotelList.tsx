@@ -52,11 +52,23 @@ const inBand = (h: NamedHotel, band: Band, [lo, hi]: [number, number]) =>
   (band === 'mid' && h.night >= lo && h.night < hi) ||
   (band === 'high' && h.night >= hi);
 
+/**
+ * A hotel's stars: filled, then outlines up to five (playtest round 6: the
+ * grey ones were filled stars too, so the text read five stars for every
+ * hotel), named as "1 star" or "{n} stars".
+ */
 export function Stars({ n }: { n: number }) {
   return (
-    <span className="hotel-stars" role="img" aria-label={t('{n} stars', { n })}>
-      {'★'.repeat(n)}
-      <span className="hotel-stars-off">{'★'.repeat(Math.max(0, 5 - n))}</span>
+    <span
+      className="hotel-stars"
+      role="img"
+      aria-label={n === 1 ? t('1 star') : t('{n} stars', { n })}
+      data-stars={n}
+    >
+      <span aria-hidden="true">{'★'.repeat(n)}</span>
+      <span className="hotel-stars-off" aria-hidden="true">
+        {'☆'.repeat(Math.max(0, 5 - n))}
+      </span>
     </span>
   );
 }

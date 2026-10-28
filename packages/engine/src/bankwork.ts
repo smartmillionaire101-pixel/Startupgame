@@ -77,6 +77,7 @@ import {
   RESERVE_RATIO,
   bankFigures,
 } from './banks.js';
+import { openDeal } from './deals.js';
 import { ensure, fail } from './errors.js';
 import {
   col,
@@ -1493,6 +1494,93 @@ export function settleBankwork(world: World, market: MarketId, month: number) {
     convertClients(world, p, month);
     w.leads = w.leads.filter((l) => month - l.month <= 1);
     w.taken = w.taken.filter((t) => monthOfId(t) >= month - 1);
+  }
+  loanRequests(world, market, month);
+}
+
+// ---------------------------------------------------------------- loan requests
+
+/** Open requests from the city's companies a bank holds at most, and new ones a month. */
+export const LOAN_REQUESTS = {
+  open: 2,
+  perMonth: 1,
+  revenueMonths: 2,
+  roomShare: 0.25,
+  months: 12,
+};
+
+/**
+ * Loan requests for a player's licensed bank (play-test, FEEDBACK_NOTE: "a
+ * licensed bank gets no customers or loan requests; no path to a first
+ * loan"). At each month end, from the month it's licensed, one of the city's
+ * AI startups with revenue asks to borrow (a deal card on the Bank tab: accept,
+ * counter or decline) until two are open. The size is a couple of months of
+ * its revenue, within what the bank may lend; the price is the bank's own
+ * (base rate plus its spread). Ranked by each company's own hash for the
+ * bank and the month: no dice, and one company opening or closing never
+ * reshuffles the rest. Money moves only when the banker accepts.
+ */
+function loanRequests(world: World, market: MarketId, month: number) {
+  if (!feedbackOn(world)) return;
+  const m = getMarket(world, market);
+  for (const b of Object.values(world.banks)) {
+    if (b.market !== market || b.status !== 'licensed' || !BANK_TYPES[b.type].companies) continue;
+    const owner = world.players[b.ownerId];
+    if (!owner || owner.ai) continue;
+    const open = Object.values(world.deals).filter(
+      (d) =>
+        d.status === 'open' &&
+        d.counterparty.kind === 'playerbank' &&
+        d.counterparty.id === b.id &&
+        d.proposer.kind === 'company',
+    );
+    if (open.length >= LOAN_REQUESTS.open) continue;
+    const asked = new Set(open.map((d) => d.proposer.id));
+    const f = bankFigures(world, b);
+    const step = Math.max(1, scale(col(m), 0.01));
+    const cap = Math.min(
+      f.lendingRoom * LOAN_REQUESTS.roomShare,
+      b.type === 'microfinance' ? scale(col(m), 20) : Infinity,
+      b.conditions?.lendingCap !== undefined
+        ? Math.max(0, b.conditions.lendingCap - f.loans)
+        : Infinity,
+    );
+    const picks = Object.values(world.companies)
+      .filter(
+        (c) =>
+          c.ai &&
+          c.market === market &&
+          c.status === 'active' &&
+          !isEstablished(c) &&
+          (lastPnl(c)?.revenue ?? 0) > 0 &&
+          !asked.has(c.id) &&
+          !c.finance.loans.some((l) => l.lenderBankId === b.id),
+      )
+      .map((c) => ({ c, h: hashString(`${world.seed}:loanreq:${b.id}:${month}:${c.id}`) }))
+      .sort((x, y) => x.h - y.h || (x.c.id < y.c.id ? -1 : 1));
+    let made = 0;
+    for (const { c } of picks) {
+      if (made >= LOAN_REQUESTS.perMonth || open.length + made >= LOAN_REQUESTS.open) break;
+      const want = (lastPnl(c)?.revenue ?? 0) * LOAN_REQUESTS.revenueMonths;
+      const amount = Math.floor(Math.min(want, cap) / step) * step;
+      if (amount <= 0) break;
+      openDeal(world, {
+        companyId: c.id,
+        proposer: { kind: 'company', id: c.id },
+        counterparty: { kind: 'playerbank', id: b.id },
+        terms: {
+          kind: 'loan',
+          amount,
+          rateBps: m.data.baseRateBps + Math.round(b.policy.loanSpreadPp * 100),
+          months: LOAN_REQUESTS.months,
+          personalGuarantee: false,
+        },
+        // A counter for less, or at a higher rate, is taken; more than they asked for is not.
+        aiLimit: { maxAmount: amount },
+        by: c.founderIds[0] ?? c.id,
+      });
+      made++;
+    }
   }
 }
 

@@ -5,7 +5,7 @@ import type { Industry, RevenueModel, Stage } from '@runway/engine';
 import { api } from '../api';
 import { LANGS, setLang, t, tx, useLang } from '../i18n';
 import { amountInput, money, parseAmount, stars } from '../format';
-import { useGame, useView } from '../store';
+import { useView } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Pill, Sparkline, Stat } from '../ui';
 import { Chats } from './Chat';
 import { visitPlace } from '../city/goto';
@@ -15,7 +15,7 @@ import { BankPicker } from './common';
 import { WealthCard } from './Capital';
 import { MyLook } from '../avatar/EditLook';
 import { PurchasesButton } from '../avatar/Wardrobe';
-import { AccountStatus, SaveProgressButton, SignOutButton } from './Account';
+import { AccountStatus, SignOutButton, UnsavedBanner } from './Account';
 import { ProfileDetails } from './ProfileDetails';
 import { industryFromIdea } from './industryGuess';
 import { LifestyleCard } from './Lifestyle';
@@ -26,21 +26,28 @@ import { openLiving } from '../experiences/living-bus';
 
 type Tab = 'profile' | 'money' | 'people' | 'settings';
 
+// A tab asked for from elsewhere (the money pill's "All your money" opens Money).
+let askedTab: Tab | null = null;
+const tabAsks = new Set<(t: Tab) => void>();
+/** Open Me on this tab next (or now, if Me is showing). */
+export function askMeTab(tab: Tab) {
+  if (tabAsks.size) for (const f of tabAsks) f(tab);
+  else askedTab = tab;
+}
+
 export function MeScreen() {
-  const [tab, setTab] = useState<Tab>('profile');
-  const { account } = useGame();
+  const [tab, setTab] = useState<Tab>(() => {
+    const asked = askedTab;
+    askedTab = null;
+    return asked ?? 'profile';
+  });
+  useEffect(() => {
+    tabAsks.add(setTab);
+    return () => void tabAsks.delete(setTab);
+  }, []);
   return (
     <>
-      {account?.guest && (
-        <Card tone="warn">
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="small">
-              {t('Playing as a guest: your game lives only in this browser.')}
-            </span>
-            <SaveProgressButton />
-          </div>
-        </Card>
-      )}
+      <UnsavedBanner />
       <div className="tabs" role="tablist">
         {(['profile', 'money', 'people', 'settings'] as Tab[]).map((k) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>
@@ -120,6 +127,12 @@ const milestoneLabels = (): Record<string, string> => ({
   'banker.five-star': t('Five-star bank'),
 });
 
+/** A milestone's name; a journey chapter's id ("founder.chapter-3") reads as the chapter. */
+const milestoneLabel = (k: string) => {
+  const chapter = /^(?:founder|investor|banker)\.chapter-(\d+)$/.exec(k);
+  return chapter ? t('Chapter {n} complete', { n: chapter[1]! }) : (milestoneLabels()[k] ?? k);
+};
+
 function Profile() {
   const { view } = useView();
   const nav = useNav();
@@ -176,8 +189,9 @@ function Profile() {
           )}
           <p className="small muted">
             {t('{left}/{total} h left this month', {
-              left: me.hours.left,
-              total: me.hours.available,
+              // Tenths at most (play-test: "194.87/200 h").
+              left: Math.round(me.hours.left * 10) / 10,
+              total: Math.round(me.hours.available * 10) / 10,
             })}
             {me.burnout ? ` · ${t('burnout cuts your hours')}` : ''}
           </p>
@@ -231,7 +245,7 @@ function Profile() {
             <div className="chips">
               {Object.entries(me.milestones).map(([k, m]) => (
                 <Pill key={k} tone="good">
-                  {milestoneLabels()[k] ?? k} · {t('m{n}', { n: m })}
+                  {milestoneLabel(k)} · {t('m{n}', { n: m + 1 })}
                 </Pill>
               ))}
             </div>

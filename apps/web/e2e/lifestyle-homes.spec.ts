@@ -127,7 +127,7 @@ test('each lifestyle tier lives in a home of its own, on the map and inside', as
       await page.waitForTimeout(3000);
       await page.screenshot({ path: `${SHOTS}/home-${NAMES[tier]}-inside.png` });
     }
-    await scene.getByRole('button', { name: 'Close' }).first().click();
+    await scene.getByRole('button', { name: 'Go out', exact: true }).click();
     await expect(scene).toBeHidden();
     heights.push(await homeOnMap(page));
     await shot(page, `home-${NAMES[tier]}-map`);

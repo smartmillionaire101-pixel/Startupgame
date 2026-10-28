@@ -186,6 +186,8 @@ export const me: Record<string, string> = {
     'La licence a été refusée et les fonds propres restitués.',
   'You can apply again.': 'Vous pouvez refaire une demande.',
   'Loan requests': 'Demandes de prêt',
+  'The city’s companies ask to borrow at each month end: accept, counter or decline here. Clients you meet at the Chamber of Commerce and the Founders’ Hub bank with you, and households open accounts as word gets round.':
+    'Les entreprises de la ville demandent des prêts à chaque fin de mois : acceptez, faites une contre-offre ou refusez ici. Les clients rencontrés à la Chambre de commerce et à la Maison des fondateurs viennent chez vous, et les ménages ouvrent des comptes à mesure que la nouvelle circule.',
   'Licensed · {stars}': 'Agréée · {stars}',
   Applying: 'Demande en cours',
   'you own {pct}; AI shareholders hold the rest.':

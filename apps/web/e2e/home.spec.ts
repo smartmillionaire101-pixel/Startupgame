@@ -1,4 +1,4 @@
-import { expect, letters, playAsGuest, tapPlace, test, type Page } from './fixtures';
+import { expect, hudMore, letters, playAsGuest, tapPlace, test, type Page } from './fixtures';
 
 /**
  * Wave 7 §A (docs/WAVE7-IMMERSIVE.md): the home you walk around. Enter
@@ -83,12 +83,18 @@ test('home: walk around, sleep, cook and have a friend over', async ({ page }) =
     .toBeLessThan(pre.view.accounts.local.balance);
   const after = await state(page);
   expect(after.view.me.needs!.hunger).toBeGreaterThanOrEqual(pre.view.me.needs!.hunger);
-  await expect(scene.locator('[data-need="hunger"]')).toHaveAttribute(
+  // The needs are in the time pill's sheet (the floating HUD).
+  await page.locator('[data-hud-life]').click();
+  const day = page.getByRole('dialog', { name: 'Your day' });
+  await expect(day.locator('[data-need="hunger"]')).toHaveAttribute(
     'data-value',
     String(after.view.me.needs!.hunger),
   );
+  await day.getByRole('button', { name: 'Close' }).click();
+  await expect(day).toBeHidden();
 
-  // Invite someone over: they walk in.
+  // Invite someone over (behind ⋯): they walk in.
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Invite', exact: true }).click();
   const sheet = scene.getByRole('dialog', { name: 'Invite someone over' });
   await expect(sheet).toBeVisible();
@@ -103,7 +109,7 @@ test('home: walk around, sleep, cook and have a friend over', async ({ page }) =
   await expect(scene).toBeHidden();
 });
 
-test('home header: one row on a 412px phone, energy on the mood ring, no home name', async ({
+test('the HUD over your home on a 412px phone: one row of pills, the room’s rail, how you’re doing a tap away', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 412, height: 915 });
@@ -111,29 +117,34 @@ test('home header: one row on a 412px phone, energy on the mood ring, no home na
   await tapPlace(page, '[data-place="home"]', 'cycle');
   const scene = page.locator('.home-scene');
   await expect(scene).toBeVisible({ timeout: 20_000 });
-  const hud = scene.locator('.home-hud');
-  await expect(hud).toBeVisible();
-  // Mood ring with the energy badge on it; four needs; the phone; ✕. No home name.
-  const energy = await scene.getAttribute('data-energy');
-  await expect(hud.locator('.home-mood [data-home-energy]')).toHaveText(`⚡${energy}`);
-  await expect(hud.locator('[data-need]')).toHaveCount(4);
-  await expect(hud.locator('[data-home-phone]')).toBeVisible();
-  await expect(hud.getByRole('button', { name: 'Close' })).toBeVisible();
-  await expect(hud).not.toContainText('Small flat');
-  // One row, the same height as before, inside 412px.
-  const box = (await hud.boundingBox())!;
-  expect(box.width).toBeLessThanOrEqual(412);
-  expect(box.height).toBeLessThanOrEqual(64);
-  const tops = await hud
+  // The floating HUD's top row over the room: one row, inside 412px. No home name.
+  const top = page.locator('.hud-top');
+  const box = (await top.boundingBox())!;
+  expect(box.height).toBeLessThanOrEqual(48);
+  const tops = await top
     .locator(':scope > *')
     .evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
   for (const r of tops) {
     expect(r.right).toBeLessThanOrEqual(412.5);
+    expect(r.top).toBeGreaterThanOrEqual(box.y - 0.5);
     expect(r.bottom).toBeLessThanOrEqual(box.y + box.height + 0.5);
   }
-  // Each need bar sits under its icon and has room to read.
-  const bar = (await hud.locator('[data-need="hunger"] > i').boundingBox())!;
-  const icon = (await hud.locator('[data-need="hunger"] > span').boundingBox())!;
-  expect(bar.y).toBeGreaterThan(icon.y + icon.height - 1);
+  await expect(top).not.toContainText('Small flat');
+  // The room's own buttons are a rail of named icons (Turn and Look around in
+  // 3D too); the phone is the HUD's.
+  const rail = scene.getByRole('group', { name: 'Home actions' });
+  for (const name of ['Go out', 'Buy', 'More'])
+    await expect(rail.getByRole('button', { name, exact: true })).toBeVisible();
+  await expect(page.locator('[data-phone-button]')).toBeVisible();
+  // Mood, energy and the four needs: the time pill's sheet.
+  const energy = await scene.getAttribute('data-energy');
+  await page.locator('[data-hud-life]').click();
+  const day = page.getByRole('dialog', { name: 'Your day' });
+  await expect(day.locator('[data-home-energy]')).toHaveAttribute('data-home-energy', energy!);
+  await expect(day.locator('[data-need]')).toHaveCount(4);
+  // Each need bar sits under its name and has room to read.
+  const bar = (await day.locator('[data-need="hunger"] .lifebar-track').boundingBox())!;
+  const head = (await day.locator('[data-need="hunger"] .lifebar-head').boundingBox())!;
+  expect(bar.y).toBeGreaterThan(head.y + head.height - 1);
   expect(bar.width).toBeGreaterThan(40);
 });

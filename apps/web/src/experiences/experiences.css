@@ -403,15 +403,30 @@
   align-self: flex-start;
   pointer-events: auto;
 }
-/* The camera beside the close button. */
+/* The view's round buttons (HudRail): down the right, clear of the
+   title at the top and the landmarks along the bottom. */
+.panorama .panorama-rail {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+.panorama header .panorama-actions button {
+  width: var(--hud-ib);
+  height: var(--hud-ib);
+  border-radius: 50%;
+  border: 1px solid var(--hud-line);
+  background: var(--hud-bg-strong);
+  color: var(--hud-ink);
+  box-shadow: var(--hud-shadow);
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+}
 .panorama-actions {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-}
-.panorama header .panorama-snap {
-  font-size: 22px;
-  line-height: 1;
 }
 .panorama header h2 {
   margin: 6px 0;
@@ -1175,6 +1190,9 @@
 .bowling-row .marks i.x {
   color: #f0abfc;
   font-weight: 800;
+  /* A strike reads at a glance (playtest round 6: the X was tiny). */
+  font-size: 13px;
+  line-height: 1;
 }
 .bowling-row .marks i.sp {
   color: #93c5fd;
@@ -1192,4 +1210,23 @@
   .bowling-banner {
     animation: none;
   }
+}
+/* Leaving a game (playtest round 6): × asks first; a game still open elsewhere can be left. */
+.experience-leave {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.experience-leave h2 {
+  margin: 0 0 6px;
+}
+.experience-leave p {
+  margin: 0 0 10px;
+}
+.experience-leave-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

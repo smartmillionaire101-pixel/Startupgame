@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react';
 import type { ObjectiveKind } from '@runway/engine';
 import { t } from '../i18n';
 import { useView } from '../store';
-import { Button } from '../ui';
+import { Button, HudButton } from '../ui';
 import { useSimple } from '../phone/settings';
 import {
   chapterCopy,
@@ -43,24 +43,39 @@ export function JourneyChip({ onOpen }: { onOpen: () => void }) {
     ? t('Chapter {n} · {title}', { n: ch.n, title: chapterCopy(ch.id).title })
     : t('Journey complete');
   const pct = ch ? Math.round((100 * doneSteps) / Math.max(1, ch.need)) : 100;
+  const name = t('Journey: {chapter}', { chapter: label });
+  // The map's rail: a round flag with the chapter's progress as a thin ring.
+  if (!simple)
+    return (
+      <HudButton
+        className="journey-chip"
+        data-testid="journey-chip"
+        data-chapter={ch?.n ?? 'done'}
+        aria-haspopup="dialog"
+        label={name}
+        name={t('Journey')}
+        style={{ ['--p' as string]: `${pct}%` }}
+        onClick={onOpen}
+      >
+        <span aria-hidden>🚩</span>
+      </HudButton>
+    );
   return (
     <button
       type="button"
-      className={`${simple ? 'hud-places journey-chip-simple' : 'hud-round'} journey-chip`}
+      className="hud-places journey-chip-simple journey-chip"
       data-testid="journey-chip"
       data-chapter={ch?.n ?? 'done'}
       aria-haspopup="dialog"
-      aria-label={t('Journey: {chapter}', { chapter: label })}
+      aria-label={name}
       title={label}
       style={{ ['--p' as string]: `${pct}%` }}
       onClick={onOpen}
     >
       <span aria-hidden>🚩</span>
-      {simple && (
-        <span className="hud-btn-label" aria-hidden="true">
-          {t('Journey')}
-        </span>
-      )}
+      <span className="hud-btn-label" aria-hidden="true">
+        {t('Journey')}
+      </span>
     </button>
   );
 }

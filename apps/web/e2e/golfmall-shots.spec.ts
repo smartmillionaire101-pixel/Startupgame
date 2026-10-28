@@ -49,7 +49,7 @@ async function hold(page: Page, ms: number, mid?: () => Promise<void>, at = ms) 
 async function goTo(page: Page, id: 'golf' | 'mall', quality: '3d' | 'lite') {
   if (quality === 'lite') return tapPlace(page, `[data-place="${id}"]`, 'cycle');
   await page
-    .locator('.city-hud-bottom')
+    .locator('.city-stage')
     .getByRole('button', { name: /^(Where to\?|Places)$/ })
     .click();
   await page.locator(`[data-outing="${id}"]`).click();

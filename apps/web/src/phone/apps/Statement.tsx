@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Receipt, StatementLine } from '@runway/engine';
 import { api, type StatementPage } from '../../api';
-import { moneyExact } from '../../format';
+import { gameMonth, moneyExact } from '../../format';
 import { locale, t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button } from '../../ui';
@@ -101,7 +101,7 @@ function TxLine({
             {' · '}
             {kindLabel(line.kind)}
             {' · '}
-            {when(line.at) ?? t('Month {n}', { n: line.month })}
+            {when(line.at) ?? gameMonth(line.month)}
           </span>
           {line.note && !line.fee && <span className="small bank-line-note">“{line.note}”</span>}
         </span>
@@ -280,7 +280,7 @@ export function StatementScreen({
                 aria-pressed={month === m}
                 onClick={() => setMonth(m)}
               >
-                {t('Month {n}', { n: m })}
+                {gameMonth(m)}
               </button>
             ))}
           </div>
@@ -394,7 +394,7 @@ export function ReceiptScreen({
     const rows = [
       t('Runway receipt {ref}', { ref: receipt.ref || '—' }),
       `${kindLabel(receipt.kind)} · ${t('Completed')}`,
-      when(receipt.at) ?? t('Month {n}', { n: receipt.month }),
+      when(receipt.at) ?? gameMonth(receipt.month),
       t('From: {name}', { name: partyName(receipt.from) }),
       t('To: {name}', { name: partyName(receipt.to) }),
       t('Amount: {amount}', { amount: moneyExact(receipt.amount, c) }),
@@ -458,7 +458,7 @@ export function ReceiptScreen({
           </div>
           <div className="bank-rows">
             <Row label={t('Reference')} value={r.ref || '—'} />
-            <Row label={t('Date and time')} value={when(r.at) ?? t('Month {n}', { n: r.month })} />
+            <Row label={t('Date and time')} value={when(r.at) ?? gameMonth(r.month)} />
             <Row label={t('Game month')} value={String(r.month)} />
             <Row label={t('Type')} value={kindLabel(r.kind)} />
             <Row

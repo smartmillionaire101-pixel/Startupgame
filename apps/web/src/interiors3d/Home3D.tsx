@@ -399,6 +399,11 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     stage.canvas.dataset.bathrooms = String(plan.rooms.filter((r) => r.id === 'bathroom').length);
     stage.canvas.dataset.pool = grounds.pool ? (grounds.pool.hot ? 'hot' : '1') : '0';
     stage.canvas.dataset.bays = String(grounds.bays.length);
+    // Its windows ('back:3.10:1.60', tiles along the wall) and its size, for the tests.
+    stage.canvas.dataset.grid = `${plan.w}x${plan.h}`;
+    stage.canvas.dataset.windows = h.windows
+      .map((w) => `${w.wall}:${w.c.toFixed(2)}:${w.w.toFixed(2)}`)
+      .join(' ');
     notePaint(stage);
     // The haze: clear over the home, thicker with distance, the far streets fading out.
     const fog = stage.scene.fog as THREE.Fog | null;

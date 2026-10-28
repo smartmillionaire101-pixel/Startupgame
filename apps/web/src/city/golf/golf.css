@@ -32,7 +32,7 @@
    hole card, the distance to the pin, and the mini-map under the ✕. */
 .golf-hud {
   position: absolute;
-  top: calc(8px + env(safe-area-inset-top));
+  top: var(--hud-scene-top);
   left: 12px;
   right: 12px;
   display: grid;
@@ -398,12 +398,16 @@
    aim line). The header floats over the sky; the controls keep to the edges:
    clubs down the left, aim bottom-left, the meter and the swing button
    bottom-right. */
+/* The course runs up under the HUD's pills too; the header sits below them. */
+.place-scene.golf-scene.is-play {
+  padding-top: 0;
+}
 .golf-scene.is-play .place-head {
   position: absolute;
   inset: 0 0 auto;
   z-index: 3;
   min-height: 0;
-  padding: calc(8px + env(safe-area-inset-top)) 12px 10px;
+  padding: var(--hud-scene-top) 12px 10px;
   background: linear-gradient(rgb(15 42 23 / 0.5), rgb(15 42 23 / 0));
   color: #fff;
   pointer-events: none;
@@ -434,7 +438,7 @@
 
 /* The layer over the course that holds the controls. */
 .golf-tray {
-  --golf-clubs-top: calc(70px + env(safe-area-inset-top));
+  --golf-clubs-top: calc(62px + var(--hud-scene-top));
   /* What the aim buttons and the bottom edge take (the clubs stop above it). */
   --golf-low: calc(84px + env(safe-area-inset-bottom));
   position: absolute;
@@ -443,7 +447,7 @@
   pointer-events: none;
 }
 .golf-match-scene .golf-tray {
-  --golf-clubs-top: calc(262px + env(safe-area-inset-top));
+  --golf-clubs-top: calc(254px + var(--hud-scene-top));
 }
 .golf-clubs {
   position: absolute;
@@ -767,7 +771,7 @@
 /* ---- Golf with a friend for money (GolfMatch.tsx, GolfInvite.tsx, GolfInviteHost.tsx). */
 .golf-mhud {
   position: absolute;
-  top: calc(58px + env(safe-area-inset-top));
+  top: calc(50px + var(--hud-scene-top));
   left: 12px;
   right: 12px;
   display: grid;

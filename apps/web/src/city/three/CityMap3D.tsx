@@ -44,7 +44,7 @@ const tierLabel = (tier: PropertyTier) =>
     mansion: t('Mansion'),
     penthouse: t('Penthouse'),
   })[tier];
-import { markWebGLBroken } from './quality';
+import { SLOW_CHECK_MS, SLOW_GRACE_MS, isSlowFrame, markWebGLBroken, slowMapDue } from './quality';
 import './city3d.css';
 import { SKY_VIEWS } from '@runway/engine';
 import { openSky } from '../../experiences/sky-bus';
@@ -123,7 +123,13 @@ function unpark(layout: CityScene['layout'], reduced: boolean): CityScene | null
   return null;
 }
 
-export default function CityMap3D(props: CityMapProps & { onBroken?: () => void }) {
+export default function CityMap3D(
+  props: CityMapProps & {
+    onBroken?: () => void;
+    /** Frames stayed too slow for about ten seconds (`isSlowFrame`): once. */
+    onSlow?: () => void;
+  },
+) {
   const {
     layout,
     look,
@@ -137,6 +143,7 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     flags = NONE,
     fresh = NONE,
     onBroken,
+    onSlow,
     properties = NONE,
     paused = false,
   } = props;
@@ -284,6 +291,33 @@ export default function CityMap3D(props: CityMapProps & { onBroken?: () => void 
     // handled above); the look and walkers are pushed in below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gen, reduced, awake]);
+
+  // Play-test: the 3D city at 2 frames a second and nothing said so. Frames
+  // too slow for about ten seconds (after the city has had time to build):
+  // tell the City (it steps down to Lite, or suggests it). Only while the map
+  // is in view; a hidden or covered map draws nothing, so it isn't timed.
+  const hasSlow = !!onSlow;
+  useEffect(() => {
+    if (!ready || paused || !hasSlow) return;
+    const since = performance.now();
+    let slow = 0;
+    let told = false;
+    const id = window.setInterval(() => {
+      const s = sceneRef.current;
+      if (!s || told || document.visibilityState === 'hidden') return;
+      const now = performance.now();
+      if (now - since < SLOW_GRACE_MS) return;
+      // Not drawing (covered by a place, parked): nothing to time.
+      const drawing = !s.paused && now - s.lastDrawnAt < 3 * SLOW_CHECK_MS;
+      slow = drawing && isSlowFrame(s.stats) ? slow + 1 : 0;
+      // Never in the middle of a trip (walking, riding or choosing how to go).
+      if (slowMapDue(slow, !!walk.current || !!pending.current)) {
+        told = true;
+        cb.current.onSlow?.();
+      }
+    }, SLOW_CHECK_MS);
+    return () => window.clearInterval(id);
+  }, [ready, paused, hasSlow]);
 
   // Hidden under a place's scene or a flight: no drawing behind it.
   useEffect(() => {

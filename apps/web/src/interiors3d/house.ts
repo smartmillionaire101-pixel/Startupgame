@@ -53,6 +53,7 @@ import {
   type Surroundings,
 } from './surroundings';
 import { HOTEL_STOREY, hotelTower, type TowerSide } from './hotel-tower';
+import { homeWindows, type WallOpening } from '../home/windows';
 
 const WALL_H = 2.6;
 const INNER_H = 1.25;
@@ -76,6 +77,8 @@ interface WallSide {
 
 export interface House {
   root: THREE.Group;
+  /** Its windows (the shared list, ../home/windows): where they were built. */
+  windows: WallOpening[];
   sides: WallSide[];
   /** Where the camera looks by default, and how much fits. */
   centre: THREE.Vector3;
@@ -680,25 +683,25 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
   for (const r of plan.rooms) {
     if (r.open) continue;
     if (r.y === 0) {
-      if (r.w >= 3 && r.id !== 'bathroom' && !hotel?.windows)
-        back.extras.add(win('x', r.x + r.w * 0.62, -o2, Math.min(1.6, r.w * 0.35)));
       sconces.push({ x: r.x + r.w * (r.w >= 3 ? 0.25 : 0.5), z: o2 + 0.02, ry: 0, s: back });
     }
-    // (A hotel room's side walls are the neighbours': no windows in them.)
     if (r.x === 0) {
-      if (r.h >= 3 && !tower)
-        left.extras.add(win('z', r.y + r.h * 0.6, -o2, Math.min(1.8, r.h * 0.4)));
       if (r.h >= 4) sconces.push({ x: o2 + 0.02, z: r.y + r.h * 0.25, ry: Math.PI / 2, s: left });
     }
     if (r.x + r.w === W) {
-      if (r.h >= 3 && !tower)
-        right.extras.add(win('z', r.y + r.h * 0.55, W + o2, Math.min(2.0, r.h * 0.4)));
       if (r.h >= 4)
         sconces.push({ x: W - o2 - 0.02, z: r.y + r.h * 0.25, ry: -Math.PI / 2, s: right });
     }
   }
-  // A hotel's windows where its plan puts them (a suite's glass wall onto the balcony).
-  for (const w of hotel?.windows ?? []) back.extras.add(win('x', w.c, -o2, w.w, w.tall));
+  // The windows, from the one list the 2D home and Buy mode use too (playtest #40): on
+  // the back wall, and the side walls (not a tower's: those are the neighbours'); a
+  // hotel's where its plan puts them (a suite's glass wall onto the balcony).
+  const windows = homeWindows(plan, { tower, hotel: hotel?.windows });
+  for (const w of windows) {
+    if (w.wall === 'back') back.extras.add(win('x', w.c, -o2, w.w, w.tall));
+    else if (w.wall === 'left') left.extras.add(win('z', w.c, -o2, w.w, w.tall));
+    else if (w.wall === 'right') right.extras.add(win('z', w.c, W + o2, w.w, w.tall));
+  }
   const lamps: THREE.PointLight[] = [];
   for (const s of sconces) {
     const m = buildEstateModel('sconce', { w: 0.2, d: 0.2, tier: 2 });
@@ -824,6 +827,7 @@ export function buildHouse(plan: HomePlan, o: HouseOpts): House {
       for (const y of [0, WALL_H * 0.5]) fitPoints.push(new THREE.Vector3(x, y, z));
   const house: House = {
     root,
+    windows,
     sides,
     centre,
     span: Math.max(f.w, f.h) * 1.1 + 2,

@@ -672,6 +672,12 @@ export function proposeInvestment(
     'You can back a startup in another market only after travelling there at least once.',
   );
   ensure(c.status === 'active', 'company.closed', 'Company is not operating.');
+  // Play-test (FEEDBACK_NOTE): a listed company's shares are bought on the stock exchange.
+  ensure(
+    !(feedbackOn(world) && c.ipo?.status === 'listed'),
+    'invest.listed',
+    'This company is listed: buy its shares on the stock exchange.',
+  );
   ensure(
     !c.bannedFromRaising,
     'invest.banned',

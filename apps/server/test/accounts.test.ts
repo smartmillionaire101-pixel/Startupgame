@@ -274,12 +274,15 @@ describe.each(hosts)('guest play and email sign-in (%s)', (_name, make) => {
     const csrf = await call('POST', '/api/auth/guest', { adult: true }, { csrf: false });
     expect(csrf.status).toBe(403);
     expect((await call('GET', '/api/state')).status).toBe(401);
+    // The page's own check: signed out is a quiet 204, not a 401 in the console.
+    expect((await call('GET', '/api/state?soft=1')).status).toBe(204);
     const ok = await call('POST', '/api/auth/guest', { adult: true });
     expect(ok).toEqual({ status: 200, json: { ok: true, guest: true } });
     expect((await call('GET', '/api/state')).json).toEqual({
       onboarded: false,
       account: { guest: true, email: null },
     });
+    expect((await call('GET', '/api/state?soft=1')).status).toBe(200);
   });
 
   it('saves a guest with an email link, keeps their player, and logs back in by email', async () => {

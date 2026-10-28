@@ -11,12 +11,14 @@ import {
   fmtCountdown,
   fuelCost,
   hoursLabel,
+  legsBlocked,
   msLeft,
   rideFare,
-  rideMinutes,
   rideModesFor,
+  skipModeFor,
   transitName,
   tripCost,
+  tripMinutes,
   type ClockView,
   type MyCar,
   type RideMode,
@@ -139,8 +141,8 @@ export function RideChooser({
   preferred: RideMode;
   busy: boolean;
   onPick: (mode: RideMode) => void;
-  /** Skip the trip: be there at once, free. */
-  onSkip?: () => void;
+  /** Skip the trip: be there at once (with the life bars, paid as this way of getting there). */
+  onSkip?: (mode?: RideMode) => void;
   onCancel: () => void;
   /** Your car (life.ts carOf): "Drive" when it is in this city. */
   car?: MyCar | null;
@@ -148,10 +150,12 @@ export function RideChooser({
   abroad?: boolean;
   /** Hours left and energy, when the life bars are on (else trips cost only money). */
   me?: { hoursLeft: number; energy: number } | null;
-  /** With the life bars, skipping still costs a trip: this way of getting there. */
+  /** With the life bars, skipping still costs a trip: your usual way (else one you can manage). */
   skipAs?: RideMode;
 }) {
   const modes = rideModesFor(car, abroad);
+  // Skipping goes a way you can manage (not a walk you're too tired for).
+  const skipMode = skipAs ? skipModeFor(modes, skipAs, tiles, me) : undefined;
   // Escape cancels, like any dialog.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -176,16 +180,15 @@ export function RideChooser({
           const fare = rideFare(mode, tiles, costOfLiving);
           const fuel = mode === 'drive' ? fuelCost(car, tiles, costOfLiving) : 0;
           const cost = me ? tripCost(mode, tiles) : null;
-          const legs = mode === 'walk' || mode === 'cycle';
+          const minutes = tripMinutes(mode, tiles, !!me);
           // The server refuses these (city.walk); a ride still goes on what's left.
+          const blocked = legsBlocked(mode, tiles, me);
           const why =
-            !cost || !legs
-              ? null
-              : me!.hoursLeft < cost.hours
-                ? t('Not enough hours left')
-                : me!.energy < Math.max(10, cost.energy)
-                  ? t('Too tired')
-                  : null;
+            blocked === 'hours'
+              ? t('Not enough hours left')
+              : blocked === 'tired'
+                ? t('Too tired')
+                : null;
           return (
             <button
               key={mode}
@@ -196,7 +199,7 @@ export function RideChooser({
               disabled={busy || !!why}
               onClick={() => {
                 // The ride scene shows where you're going and what it costs.
-                quoteRide({ mode, fare, currency, where, fuel, car: car?.label });
+                quoteRide({ mode, fare, currency, where, fuel, car: car?.label, minutes });
                 onPick(mode);
               }}
             >
@@ -215,7 +218,7 @@ export function RideChooser({
                   : fare > 0
                     ? `≈ ${money(fare, currency)}`
                     : t('Free')}{' '}
-                · {cost ? timeOf(cost.hours) : t('{n} min', { n: rideMinutes(mode, tiles) })}
+                · {timeOf(minutes / 60)}
               </span>
               {cost && (
                 <span className={`ride-cost${why ? ' is-blocked' : ''}`} data-ride-cost="">
@@ -241,11 +244,12 @@ export function RideChooser({
           type="button"
           className="ride-skip-trip"
           data-mode="skip"
+          data-skip-as={skipMode}
           disabled={busy}
-          onClick={onSkip}
+          onClick={() => onSkip(skipMode)}
         >
-          {skipAs
-            ? t('Skip the ride: be there now ({mode})', { mode: rideLabel(skipAs, marketId) })
+          {skipMode
+            ? t('Skip the ride: be there now ({mode})', { mode: rideLabel(skipMode, marketId) })
             : t('Skip the trip: go straight there')}{' '}
           <span aria-hidden>›</span>
         </button>

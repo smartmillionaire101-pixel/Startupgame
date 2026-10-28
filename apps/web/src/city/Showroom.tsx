@@ -11,6 +11,7 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Card, Empty, Pill } from '../ui';
 import type { BusinessView } from './contract';
+import { pocketOf, pocketText } from './pocket';
 import { HOME_SLOTS, carOf, homeOf, looseCmd, sellsOf, shopOf, type HomeItemView } from './life';
 import { CatalogueButton, CatalogueSheet } from '../shop/CatalogueSheet';
 import { showroomCatalog } from '../shop/catalog';
@@ -82,7 +83,9 @@ export function Showroom({ business: b }: { business: BusinessView }) {
   const { view, send, cur, busy } = useView();
   const sells = sellsOf(view, b);
   const shop = shopOf(view);
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, what your money buys at this city's prices (as paying here converts it).
+  const purse = pocketOf(view, cur);
+  const pocket = purse.balance;
   // Shop note: the catalogue of this floor (pictures, options and their prices).
   const [browsing, setBrowsing] = useState(false);
   const catalogue =
@@ -102,8 +105,8 @@ export function Showroom({ business: b }: { business: BusinessView }) {
     ) : null;
   const pocketLine = (
     <>
-      <p className="small muted" data-pocket={pocket}>
-        {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
+      <p className="small muted" data-pocket={purse.home}>
+        {t('In your pocket: {amount}', { amount: pocketText(purse) })}
       </p>
       {catalogue}
     </>

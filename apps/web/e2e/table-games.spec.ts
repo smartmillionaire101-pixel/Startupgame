@@ -45,7 +45,7 @@ async function founder(p: Page, name: string) {
     idea: 'Tools for local businesses',
     market: /London/,
   });
-  await expect(p.locator('.topbar')).toBeVisible({ timeout: 30000 });
+  await expect(p.locator('[data-hud-bar]')).toBeVisible({ timeout: 30000 });
 }
 async function lobby(p: Page) {
   const home = await openTogether(p);

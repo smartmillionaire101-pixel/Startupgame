@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { amountInput, money, parseAmount, titleCase } from '../format';
+import { amountInput, money, parseAmount, teamText, titleCase } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import type { PitchFigure } from '@runway/engine';
@@ -181,9 +181,15 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
           label={t('Model valuation')}
           value={money(c.valuation.value, cur)}
           hint={
-            c.valuation.arr
-              ? t('{n}x ARR', { n: c.valuation.multiple.toFixed(1) })
-              : t('Pre-revenue: team and market')
+            !c.valuation.arr
+              ? t('Pre-revenue: team and market')
+              : c.valuation.fromRevenue < 0.5
+                ? // Early rounds are priced mostly on the team and the market: a
+                  // revenue multiple would read as nonsense (₦425m on ₦1m ARR).
+                  t('Mostly team and market at this stage · ARR {arr}', {
+                    arr: money(c.valuation.arr, cur),
+                  })
+                : t('{n}x ARR', { n: (c.valuation.value / c.valuation.arr).toFixed(1) })
           }
         />
       </div>
@@ -301,18 +307,36 @@ export function PitchSheet({
           { max },
         )}
       </p>
-      <div className="chips">
-        {(meta?.slides ?? []).map((s) => (
-          <button
-            key={s}
-            className="chip"
-            aria-pressed={slides.includes(s)}
-            onClick={() => toggle(s)}
-          >
-            {slideLabel(s)}
-          </button>
-        ))}
+      {/* Which slides are in, at a glance: a tick on each, the count, and the
+          rest greyed out once the deck is full (a tap there did nothing before). */}
+      <div className="chips" role="group" aria-label={t('Slides')} data-pitch-slides="">
+        {(meta?.slides ?? []).map((s) => {
+          const on = slides.includes(s);
+          return (
+            <button
+              key={s}
+              type="button"
+              className="chip"
+              aria-pressed={on}
+              data-slide={s}
+              disabled={!on && slides.length >= max}
+              onClick={() => toggle(s)}
+            >
+              {on ? '✓ ' : ''}
+              {slideLabel(s)}
+            </button>
+          );
+        })}
       </div>
+      <p className="small" data-pitch-count={slides.length}>
+        {slides.length === 0
+          ? t('Pick at least one slide.')
+          : t('Your deck, in this order: {list} ({n} of {max})', {
+              list: slides.map(slideLabel).join(', '),
+              n: slides.length,
+              max,
+            })}
+      </p>
       <Field
         label={t('Raising ({cur})', { cur })}
         hint={
@@ -759,7 +783,7 @@ function Acquire({ c }: { c: Company }) {
           <div className="row small">
             <Pill>{tx(x.industryLabel)}</Pill>
             <Pill>{x.stars.toFixed(1)}★</Pill>
-            <Pill>{t('{n} people', { n: x.teamSize })}</Pill>
+            <Pill>{teamText(x.teamSize)}</Pill>
             {x.market !== view.me.market && <Pill tone="info">{x.marketName}</Pill>}
             {x.forSale && <Pill tone="warn">{t('For sale')}</Pill>}
           </div>

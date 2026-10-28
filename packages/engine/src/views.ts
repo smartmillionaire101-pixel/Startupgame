@@ -36,7 +36,7 @@ import { founderGuide, founderPlanBase } from './founderguide.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
-import { bowlingOptions, golfMatchOptions, playView } from './play.js';
+import { bowlingOptions, golfMatchOptions, myPlayRoom, playView } from './play.js';
 import { gamesView } from './games.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
@@ -50,8 +50,16 @@ import { INDUSTRY_LABEL } from './data/industries.js';
 import { rulesFor } from './data/rules.js';
 import { markValue, ownership, waterfall } from './captable.js';
 import { clockView, gameDate } from './clock.js';
-import { companyRunway, defaultAlive, monthlyCosts, payrollThisMonth } from './company.js';
+import {
+  companyRunway,
+  defaultAlive,
+  forwardRunway,
+  monthlyCosts,
+  payrollThisMonth,
+  projectedBurn,
+} from './company.js';
 import { rescuePlan } from './rescue.js';
+import { spendRate } from './ledger.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
 import { creditProfile } from './credit.js';
@@ -147,7 +155,8 @@ function publicCompany(world: World, c: Company) {
     stars: round1(c.stars.value),
     publicWarning: hasPublicWarning(c.stars),
     lastRound: c.lastRound,
-    raising: c.raising,
+    // Play-test (FEEDBACK_NOTE): a listed company isn't raising a private round.
+    raising: c.raising && !(feedbackOn(world) && c.ipo?.status === 'listed'),
     teamSize: c.staff.length + c.founderIds.length,
     founders: c.founderIds.map((id) => ({
       id,
@@ -244,10 +253,15 @@ export function companyDetail(world: World, c: Company) {
     incorporation: c.incorporation,
     cash,
     bankId: world.accounts[c.account]!.bankId ?? null,
-    runwayMonths: finite(companyRunway(world, c)),
+    // How long the money lasts and the net burn at next month's real costs
+    // (rent and payroll count from the month they're committed), not last
+    // months' average: a company that has just leased or hired sees it at once.
+    runwayMonths: finite(forwardRunway(world, c)),
     defaultAlive: defaultAlive(world, c),
     monthlyRevenue: lastPnl(c)?.revenue ?? 0,
-    burn: burn(c),
+    burn: Math.max(0, projectedBurn(world, c)),
+    /** What a month costs at today's settings (rent, salaries, marketing, cloud, loans). */
+    spending: monthlyCosts(world, c),
     price: c.price,
     marketingBudget: c.marketingBudget,
     founderSalary: c.founderSalary,
@@ -469,6 +483,16 @@ function portfolio(world: World, p: Player) {
         returned: x.returned,
         mark,
         ownershipPct: Math.round(ownership(c.capTable, x.investorId) * 1000) / 10,
+        /**
+         * Play-test: a SAFE owns no shares until it converts, so its stake read 0%.
+         * The stake it converts to at most, at its cap (amount ÷ post-money cap).
+         */
+        safePct:
+          Math.round(
+            c.capTable.safes
+              .filter((s) => s.holderId === x.investorId)
+              .reduce((a, s) => a + s.amount / Math.max(1, s.cap), 0) * 1000,
+          ) / 10,
         writtenOff: x.writtenOff,
         /** Investor career: (cash back + mark) ÷ invested, the mark history and a status. */
         moic: x.invested > 0 ? Math.round(((x.returned + mark) / x.invested) * 100) / 100 : 0,
@@ -530,6 +554,13 @@ function lendersView(world: World, p: Player, m: MarketState) {
  * they're physically in (`view.here`, Wave 4), same shape.
  */
 type ViewClock = { now: number; monthMs: number };
+
+function spendHereView(world: World, p: Player, hereId: MarketId) {
+  const mine = world.accounts[p.accounts.local];
+  const currency = getMarket(world, hereId).data.currency;
+  if (!mine || mine.currency === currency) return null;
+  return { from: mine.currency, currency, rate: spendRate(world, mine.currency, currency) };
+}
 
 function marketView(
   world: World,
@@ -659,7 +690,7 @@ function marketView(
     /** Wave 7: food delivery (the Chop app): open food businesses, cheapest first (up to 20). */
     delivery: deliveryView(world, m),
     /** Wave 8: the city's tech events: this month's ("on") and next month's ("soon"). */
-    techEvents: techEventsView(world, p, m),
+    techEvents: techEventsView(world, p, m, clock?.now),
     /** The city economy at a glance (Wave 3). */
     economy: economyView(m),
     /** Wave 10: the property market: price index, and every home (for sale or owned). */
@@ -818,6 +849,8 @@ export function playerView(
     /** Friends & Family rounds you can see: yours, your city's, your contacts' (chapter 3). */
     friendsRounds: friendsRoundsView(world, p, locationOf(p)),
     playRooms: playView(world, p),
+    /** The game you're in (open or under way), wherever it is: leave it from anywhere. */
+    myPlayRoom: myPlayRoom(world, p),
     living: livingView(world, p),
     /** The month clock (Wave 4): when the next settlement is due, for a countdown. */
     clock: clock ? clockView(clock.now, clock.monthMs) : null,
@@ -857,7 +890,9 @@ export function playerView(
        * energy, health, happiness and stress, 0–100 rounded, and what they're
        * doing to you right now in plain English.
        */
-      ...(lifeBarsOn(world) && !p.ai ? { bars: barsOf(p), barEffects: barEffects(p) } : {}),
+      ...(lifeBarsOn(world) && !p.ai
+        ? { bars: barsOf(p), barEffects: barEffects(p, feedbackOn(world)) }
+        : {}),
       lifestyle: { ...tierOf(p), monthlyCost: lifestyleCost(world, p) },
       credit: { ...p.credit, ...creditProfile(world, p) },
       loans: p.loans,
@@ -969,6 +1004,12 @@ export function playerView(
     // Only when away: at home the client uses `market`, so the city isn't sent twice.
     here:
       hereId === m.id ? null : marketView(world, p, getMarket(world, hereId), founderish, clock),
+    /**
+     * Away, in a city with another currency: what your account's money buys
+     * here (the rate a purchase charges at, after the bank's fee), so prices
+     * here can be weighed against your balance; null when no exchange is needed.
+     */
+    spendHere: spendHereView(world, p, hereId),
     lifestyleTiers: LIFESTYLE_TIERS.map((t) => ({
       ...t,
       monthlyCost: Math.round(m.data.costOfLiving * 100 * t.costCol),

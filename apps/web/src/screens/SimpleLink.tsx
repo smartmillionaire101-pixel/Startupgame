@@ -1,12 +1,11 @@
 /**
- * Simple mode's way to a screen without a tab (Phase 2): four tabs leave out
- * Money (founders) and Deal offers (investors), so the "My …" screen starts
- * with one big link there. Nothing in normal mode, where they have tabs.
+ * The way to a screen without a tab: the four tabs leave out Money (founders)
+ * and Deal offers (investors), so the "My …" screen has one big link there
+ * (Phase 2's Simple mode began it; the floating HUD's four tabs kept it).
  */
 import { t } from '../i18n';
 import { useNav } from '../phone/bus';
 import type { TabId } from '../phone/navigate';
-import { useSimple } from '../phone/settings';
 import { Icon } from '../ui';
 
 export function SimpleLink({
@@ -23,9 +22,7 @@ export function SimpleLink({
   /** Things waiting for you there (your turn on a deal). */
   badge?: number;
 }) {
-  const simple = useSimple();
   const nav = useNav();
-  if (!simple) return null;
   return (
     <button
       type="button"

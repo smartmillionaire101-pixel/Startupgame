@@ -56,6 +56,8 @@ async function player(page: Page, name: string) {
 interface TechEvent {
   id: string;
   status: string;
+  /** This month's, on a day already gone. */
+  past?: boolean;
   attended: boolean;
   venue: { placeId: string };
 }
@@ -183,8 +185,11 @@ test('friends: send money, visit a home and hang out at a bar', async ({ page: a
 test('tech events: the Events app, go to the venue, attend and meet people', async ({ page }) => {
   await player(page, `Tess${letters(4)} Techie`);
   const s0 = await state(page);
-  const on = (s0.market.techEvents ?? []).filter((e) => e.status === 'on' && !e.attended);
-  expect(on.length).toBeGreaterThanOrEqual(3);
+  const on = (s0.market.techEvents ?? []).filter(
+    (e) => e.status === 'on' && !e.past && !e.attended,
+  );
+  // Events on a day already gone are over (the game clock): late in the month there may be none.
+  test.skip(on.length === 0, 'Late in the game month: every event is over.');
   // The Hub is always on the map; else any venue.
   const e = on.find((x) => x.venue.placeId === 'hub') ?? on[0]!;
   const contacts0 = (s0.me.contacts ?? []).length;

@@ -84,6 +84,20 @@ export const investorSetup = z.object({
   type: z.enum(INVESTOR_TYPES).optional(),
 });
 
+/** One settlement: which market, and for which clock period (see `market.settle`). */
+const settleClock = {
+  market,
+  at: z.number().int().optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  monthMs: z.number().int().positive().optional(),
+};
+
+/** Most settlements in one `market.settleBatch` (every city, a few months each). */
+export const MAX_SETTLE_BATCH = 200;
+
 export const commandSchema = z.discriminatedUnion('type', [
   // ---- system (server only)
   z.object({ type: z.literal('market.open'), market }),
@@ -94,15 +108,16 @@ export const commandSchema = z.discriminatedUnion('type', [
    * `monthMs`: the real length of a game month, for rules counted in months
    * of absence; without it the old day-based rules apply.
    */
+  z.object({ type: z.literal('market.settle'), ...settleClock }),
+  /**
+   * Several settlements in one command, in order: exactly what the same
+   * `market.settle` commands one after another would do (one refused is
+   * skipped, as it would have been), in one log entry. The serverless clock
+   * settles every due city with it.
+   */
   z.object({
-    type: z.literal('market.settle'),
-    market,
-    at: z.number().int().optional(),
-    date: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
-    monthMs: z.number().int().positive().optional(),
+    type: z.literal('market.settleBatch'),
+    settlements: z.array(z.object(settleClock)).min(1).max(MAX_SETTLE_BATCH),
   }),
   z.object({
     type: z.literal('market.data'),
@@ -542,6 +557,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     type: z.literal('city.ride'),
     mode: z.enum(['bus', 'taxi', 'drive']),
     distance: z.enum(['short', 'medium', 'long']),
+    /**
+     * Playtest round 6: the ride's length as the player was shown it; with the
+     * life bars it's the time the ride costs (lifebars.ts `rideCost`). Missing:
+     * the distance band's time, as before.
+     */
+    minutes: z.number().finite().optional(),
   }),
   /**
    * Phase 3: walk or cycle across town. `minutes` is the trip time the player
@@ -1444,6 +1465,7 @@ export type CommandType = Command['type'];
 export const SYSTEM_COMMANDS: ReadonlySet<CommandType> = new Set([
   'market.open',
   'market.settle',
+  'market.settleBatch',
   'market.data',
   'player.anonymize',
   'system.announce',

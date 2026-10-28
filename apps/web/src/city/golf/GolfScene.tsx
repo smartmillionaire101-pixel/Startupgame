@@ -24,6 +24,7 @@ import {
 } from 'react';
 import './golf.css';
 import { use3d } from '../../three-kit/quality';
+import { pocketOf } from '../pocket';
 import { money } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
@@ -49,6 +50,7 @@ import {
   PowerRead,
   ShotControls,
   paintPower,
+  holeMetres,
   powerAt,
   reachOf,
   signed,
@@ -196,7 +198,8 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
   const geos = useMemo<HoleGeo[]>(() => course.holes.map(holeGeo), [course.holes]);
   const pars = course.holes.map((h) => h.par);
   const cur = course.currency || view.market.currency;
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, what your money buys at this city's prices (as paying here converts it).
+  const pocket = pocketOf(view, cur).balance;
   const hoursLeft = (view.me as { hours?: { left?: number } }).hours?.left ?? 99;
   // Dressed for the course: a polo, trousers and a cap (no dress, kaftan or tie).
   const me = golfAttire(
@@ -620,7 +623,7 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
                   n: p.hole + 1,
                   of: geos.length,
                   par: g.par,
-                  m: g.length,
+                  m: holeMetres(g),
                 })
               : stage === 'card'
                 ? t('{n} holes · Par {par} · round complete', {
@@ -630,9 +633,6 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
                 : t('{n} holes · Par {par}', { n: geos.length, par: course.par })}
           </span>
         </div>
-        <span className="golf-pocket" data-pocket={pocket}>
-          {money(pocket, view.market.currency)}
-        </span>
         <button type="button" className="icon-btn" aria-label={t('Close')} onClick={props.onClose}>
           ✕
         </button>
@@ -661,7 +661,7 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
                 </span>
                 <b className="golf-par">
                   {t('Par {par}', { par: g.par })}
-                  <span className="golf-len"> · {t('{m} m', { m: g.length })}</span>
+                  <span className="golf-len"> · {t('{m} m', { m: holeMetres(g) })}</span>
                 </b>
                 <span
                   className="golf-dots"
@@ -789,9 +789,9 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
               })}
             </p>
             <ul className="golf-holes">
-              {course.holes.map((h) => (
+              {geos.map((h) => (
                 <li key={h.n}>
-                  {t('Hole {n} · Par {par} · {m} m', { n: h.n, par: h.par, m: h.length })}
+                  {t('Hole {n} · Par {par} · {m} m', { n: h.n, par: h.par, m: holeMetres(h) })}
                 </li>
               ))}
             </ul>

@@ -1,5 +1,7 @@
 /** The investor career, Phase 2: the city exchange, the index fund and limit orders. */
 export const investorExchange: Record<string, string> = {
+  'This company is listed: buy its shares on the stock exchange.':
+    'Cette société est cotée : achetez ses actions en bourse.',
   'One buy spreads your money over every listed company by size: the safe, liquid baseline. Fee {fee} a year.':
     'Un seul achat répartit votre argent sur toutes les sociétés cotées selon leur taille : la référence sûre et liquide. Frais de {fee} par an.',
   'Unit price': 'Prix de la part',

@@ -51,6 +51,10 @@ export async function withoutNetlifyDrawer(page: Page) {
       if (!localStorage.getItem('runway.startAtHome'))
         localStorage.setItem('runway.startAtHome', '0');
       if (!localStorage.getItem('runway.arrivals')) localStorage.setItem('runway.arrivals', '0');
+      // The floating HUD names its icons under them in a first session;
+      // specs about other things come back as a returning player (hud.spec.ts
+      // sees the first session).
+      if (!localStorage.getItem('runway.hudSeen')) localStorage.setItem('runway.hudSeen', '1');
     } catch {
       /* storage blocked: rides play */
     }
@@ -207,6 +211,45 @@ export async function more(page: Page) {
   await scene.waitFor({ timeout: 10_000 });
   await scene.locator('.tray-more').click();
   return scene;
+}
+
+/**
+ * The floating HUD keeps a scene's less-used buttons behind ⋯ (the map's
+ * zoom, Sky views, Map key and Journey; a home's Photo, Edit, Home & friends,
+ * Play together, Invite and zoom; a view's zoom): open it, on the topmost
+ * scene (a home over the map: the home's). Choosing one closes it again.
+ */
+export async function hudMore(page: Page | Locator) {
+  const more = page.locator('[data-hud-rail]:visible [data-hud-more]').last();
+  await more.waitFor();
+  if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+}
+
+/**
+ * The company's Money screen (the Money tab before the floating HUD): the
+ * money pill, top right, then "Money and investors" in its sheet. ("All your
+ * money" there is your own: Me → Money.)
+ */
+export async function openMoney(page: Page) {
+  // At the top of a list the pills are in view (scrolled down, they slide off).
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.locator('[data-topbar-cash]').click();
+  await page
+    .getByRole('dialog', { name: 'Your money' })
+    .locator('[data-company-money-link]')
+    .click();
+}
+
+/** Deal offers (an investor's; no tab of its own): Portfolio, then its big link. */
+export async function openDeals(page: Page) {
+  await tab(page, 'Portfolio').click();
+  await page
+    .locator('main')
+    .getByRole('button', { name: /Deal offers/ })
+    .first()
+    .click();
+  await expect(page.getByRole('heading', { name: 'Deal offers', level: 1 })).toBeVisible();
 }
 
 /** A random address on a reserved domain: never receives real mail. */
