@@ -295,12 +295,21 @@ function Appointment({ e }: { e: CivicView }) {
   const now = c.now(e);
   if (e.appointment)
     return (
-      <p className="civic-appt" data-appointment={e.appointment.status}>
-        {e.appointment.status === 'due'
-          ? t('Your appointment was at {when}: go in now.', {
+      <p
+        className="civic-appt"
+        data-appointment={e.appointment.status}
+        data-attended={e.appointment.attended ? '' : undefined}
+      >
+        {/* Play-test: "go in now" stayed above the interview you'd just passed. */}
+        {e.appointment.attended
+          ? t('You were seen at your appointment ({when}).', {
               when: whenLabel(e.appointment.at),
             })
-          : t('Your appointment: {when}.', { when: whenLabel(e.appointment.at) })}
+          : e.appointment.status === 'due'
+            ? t('Your appointment was at {when}: go in now.', {
+                when: whenLabel(e.appointment.at),
+              })
+            : t('Your appointment: {when}.', { when: whenLabel(e.appointment.at) })}
         {now && <span className="small muted"> {t('Now: {when}', { when: whenLabel(now) })}</span>}
       </p>
     );

@@ -17,22 +17,27 @@ export function money(minor: number, currency: string): string {
 }
 
 /**
- * The exact amount, every unit shown: ₦11,424,950 or £1,234.56 (French
- * ₦11 424 950, £1 234,56). For balances: the short form (₦11.4m) hides a
- * transfer of a few thousand, so the money looked like it never moved.
+ * The amount to the unit: ₦11,424,950 (French ₦11 424 950). For balances:
+ * the short form (₦11.4m) hides a transfer of a few thousand, so the money
+ * looked like it never moved. Kobo and cents are rounded off for display
+ * (play-test: "₦3,778,238.40"); the ledger keeps them exactly.
  */
 export function moneyExact(minor: number, currency: string): string {
+  return moneyCents(Math.round(minor / 100) * 100, currency);
+}
+
+/** Every minor unit shown, for a share price: £4.82, ₦574.65 (French £4,82). */
+export function moneyCents(minor: number, currency: string): string {
   const fr = getLang() === 'fr';
   const v = Math.round(Math.abs(minor));
   const whole = Math.floor(v / 100)
     .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, fr ? ' ' : ',');
+    .replace(/\B(?=(\d{3})+(?!\d))/g, fr ? ' ' : ',');
   const cents = v % 100 ? `${fr ? ',' : '.'}${String(v % 100).padStart(2, '0')}` : '';
   const sym = CURRENCY_SYMBOL[currency as Currency] ?? `${currency} `;
   return `${minor < 0 && v > 0 ? '-' : ''}${sym}${whole}${cents}`;
 }
 
-/** Percent; French puts a space before the sign and uses a decimal comma. */
 export const pct = (x: number, digits = 0) => {
   const v = (x * 100).toFixed(digits);
   return getLang() === 'fr' ? `${v.replace('.', ',')}\u00a0%` : `${v}%`;

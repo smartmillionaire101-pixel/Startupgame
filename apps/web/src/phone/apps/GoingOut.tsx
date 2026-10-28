@@ -25,6 +25,7 @@
 import { skyViewsIn } from '@runway/engine';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { money } from '../../format';
+import { pocketOf } from '../../city/pocket';
 import { locale, t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Segmented } from '../../ui';
@@ -926,7 +927,8 @@ function ByLifestyle({ ctx }: { ctx: PhoneCtx }) {
   const cur = city.market.currency;
   const mine = myLifestyleTier(view);
   const [show, setShow] = useState<'all' | 'open'>('all');
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, what your money buys at this city's prices (as paying here converts it).
+  const pocket = pocketOf(view, cur).balance;
   const all: Activity[] = [];
   for (const b of businessesOf(city)) {
     if (!b.open) continue;

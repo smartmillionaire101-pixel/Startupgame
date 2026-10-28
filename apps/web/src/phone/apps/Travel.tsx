@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { money } from '../../format';
 import { t } from '../../i18n';
 import { useView } from '../../store';
+import { flightNow } from '../../gameClock';
 import {
   CITY_NAMES,
   airportSchedule,
@@ -17,8 +18,8 @@ import {
   flightsOf,
   fmtFlightTime,
   hereOf,
+  cityViewOf,
   isAbroad,
-  localMinutes,
   nextFlightTo,
   scheduleDay,
 } from '../../city/travel';
@@ -37,9 +38,10 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
   const here = hereOf(view);
   const dests = destinationsOf(view);
   const month = view.market.month;
+  // Departures by the game clock (the HUD's time): only flights still to leave.
   const [{ day, now }] = useState(() => ({
     day: scheduleDay(month),
-    now: localMinutes(here.id),
+    now: flightNow(cityViewOf(view), here.id),
   }));
   const booked = ticketFrom(useTicket(), here.id, dests);
   // The destination whose hotels you're choosing from, before booking.
@@ -229,61 +231,78 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
           {t('Paid when booked, not at boarding.')}
         </p>
         <ul className="phone-list" aria-label={t('Flights')}>
-          {rows.map(({ d, f }) => (
-            <li key={d.id} className="phone-card phone-flight" data-flight={d.id}>
-              <div className="phone-flight-top">
-                <span className="phone-flight-time">{f?.time ?? '—'}</span>
-                <Icon name="travel" size={18} />
-                <span className="item-title">
-                  {d.name}
-                  {isAbroad(view) && d.id === view.market.id && (
-                    <span className="small muted"> · {t('home')}</span>
-                  )}
-                </span>
-                <span className="phone-flight-fare">{money(d.fare, cur)}</span>
-              </div>
-              <div className="spread small muted">
-                <span>
-                  {f ? `${f.airline} · ${f.flight}` : ''}
-                  {d.hours > 0 && d.hours < 40 ? ` · ${fmtFlightTime(d.hours)}` : ''}
-                </span>
-                <button
-                  className={`btn ${booked?.to === d.id ? 'btn-primary' : 'btn-subtle'}`}
-                  disabled={busy || d.done || !!booked}
-                  aria-label={t('Book a flight to {city}', { city: d.name })}
-                  // Abroad: the cabin and the hotel; home: the cabin (when the server sells them).
-                  onClick={() =>
-                    d.hotels.length || d.hotelList.length || d.cabins.length
-                      ? setChoosing(d.id)
-                      : void book(d, null)
-                  }
-                >
-                  {d.done ? t('Already this month') : booked?.to === d.id ? t('Booked') : t('Book')}
-                </button>
-              </div>
-              {choosing === d.id && !booked && (
-                <TripPicker
-                  city={d.name}
-                  marketId={d.id}
-                  cabins={d.cabins}
-                  hotels={d.hotels}
-                  hotelList={d.hotelList}
-                  fare={d.fare}
-                  currency={cur}
-                  balance={balance}
-                  busy={busy}
-                  returnCabins={d.returnCabins}
-                  homeName={homeName}
-                  held={d.id === homeId ? (flights?.heldReturn ?? null) : null}
-                  initial={d.id === homeId ? (flights?.lastCabin ?? undefined) : undefined}
-                  onBook={(hotel, cabin, back, hotelId) =>
-                    void book(d, hotel, cabin, back, hotelId)
-                  }
-                  onCancel={() => setChoosing(null)}
-                />
-              )}
-            </li>
-          ))}
+          {rows.map(({ d, f }) => {
+            // The way home you paid for with the flight out.
+            const held = d.id === homeId && !d.done ? (flights?.heldReturn ?? null) : null;
+            return (
+              <li
+                key={d.id}
+                className="phone-card phone-flight"
+                data-flight={d.id}
+                data-held-return={held ? '' : undefined}
+              >
+                <div className="phone-flight-top">
+                  <span className="phone-flight-time">{f?.time ?? '—'}</span>
+                  <Icon name="travel" size={18} />
+                  <span className="item-title">
+                    {d.name}
+                    {isAbroad(view) && d.id === view.market.id && (
+                      <span className="small muted"> · {t('home')}</span>
+                    )}
+                  </span>
+                  <span className="phone-flight-fare">
+                    {held ? t('Your return ticket · paid') : money(d.fare, cur)}
+                  </span>
+                </div>
+                <div className="spread small muted">
+                  <span>
+                    {f ? `${f.airline} · ${f.flight}` : ''}
+                    {d.hours > 0 && d.hours < 40 ? ` · ${fmtFlightTime(d.hours)}` : ''}
+                  </span>
+                  <button
+                    className={`btn ${booked?.to === d.id ? 'btn-primary' : 'btn-subtle'}`}
+                    disabled={busy || d.done || !!booked}
+                    aria-label={t('Book a flight to {city}', { city: d.name })}
+                    // Abroad: the cabin and the hotel; home: the cabin (when the server sells them).
+                    onClick={() =>
+                      d.hotels.length || d.hotelList.length || d.cabins.length
+                        ? setChoosing(d.id)
+                        : void book(d, null)
+                    }
+                  >
+                    {d.done
+                      ? t('Already this month')
+                      : booked?.to === d.id
+                        ? t('Booked')
+                        : held
+                          ? t('Use ticket')
+                          : t('Book')}
+                  </button>
+                </div>
+                {choosing === d.id && !booked && (
+                  <TripPicker
+                    city={d.name}
+                    marketId={d.id}
+                    cabins={d.cabins}
+                    hotels={d.hotels}
+                    hotelList={d.hotelList}
+                    fare={d.fare}
+                    currency={cur}
+                    balance={balance}
+                    busy={busy}
+                    returnCabins={d.returnCabins}
+                    homeName={homeName}
+                    held={d.id === homeId ? (flights?.heldReturn ?? null) : null}
+                    initial={d.id === homeId ? (flights?.lastCabin ?? undefined) : undefined}
+                    onBook={(hotel, cabin, back, hotelId) =>
+                      void book(d, hotel, cabin, back, hotelId)
+                    }
+                    onCancel={() => setChoosing(null)}
+                  />
+                )}
+              </li>
+            );
+          })}
         </ul>
       </>
     );

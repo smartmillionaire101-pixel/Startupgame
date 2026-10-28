@@ -27,6 +27,7 @@ import { GENDER_PARTS, TOP_COLOURS } from '@runway/engine';
 import './mall.css';
 import { use3d } from '../../three-kit/quality';
 import { money } from '../../format';
+import { pocketOf, pocketText } from '../pocket';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { AvatarFigure, avatarLook, drawnGender } from '../art';
@@ -105,7 +106,9 @@ export function MallScene(props: SceneProps) {
   const market = view.market.id;
   const mall = mallOf(view);
   const cur = mall?.currency ?? view.market.currency;
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, your balance at this city's prices (as paying here converts it).
+  const purse = pocketOf(view, cur);
+  const pocket = purse.balance;
   const gender = drawnGender(view.me.background?.id, view.me.id, genderOf(view.me));
   const me = avatarLook(view.me.background?.id, view.me.id, gender);
   const [focus, setFocus] = useState<MallShopId | null>(null);
@@ -269,8 +272,12 @@ export function MallScene(props: SceneProps) {
             📖 <span className="mall-purchases-label">{t('Catalogue')}</span>
           </button>
         )}
-        <span className="golf-pocket" data-pocket={pocket}>
-          {money(pocket, view.market.currency)}
+        <span
+          className="golf-pocket"
+          data-pocket={purse.home}
+          data-pocket-here={purse.converted ? pocket : undefined}
+        >
+          {pocketText(purse)}
         </span>
         <button type="button" className="icon-btn" aria-label={t('Close')} onClick={props.onClose}>
           ✕
@@ -349,6 +356,7 @@ export function MallScene(props: SceneProps) {
             mall={mall}
             items={shown0}
             pocket={pocket}
+            pocketLabel={pocketText(purse)}
             currency={cur}
             busy={busy}
             send={send}
@@ -587,7 +595,7 @@ export function MallScene(props: SceneProps) {
                           type="button"
                           className="btn mall-buy"
                           data-buy={it.id}
-                          disabled={busy || it.owned || pocket < it.price}
+                          disabled={busy || it.owned || !purse.canPay(it.price)}
                           onClick={() => void buy(it)}
                         >
                           {it.owned ? t('Yours') : t('Buy')}
@@ -599,7 +607,7 @@ export function MallScene(props: SceneProps) {
                         className="btn mall-buy mall-gift"
                         data-gift={it.id}
                         aria-label={t('Buy it for {name}', { name: friendName })}
-                        disabled={busy || pocket < it.price}
+                        disabled={busy || !purse.canPay(it.price)}
                         onClick={() => void gift(it)}
                       >
                         🎁

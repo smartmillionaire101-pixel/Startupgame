@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import type { PlayerView } from '@runway/engine';
-import { clockOf, localHour } from './city/travel';
+import { clockOf, localHour, localMinutes } from './city/travel';
 import { t } from './i18n';
 
 export const DAY_MIN = 24 * 60;
@@ -54,6 +54,17 @@ export function gameMinuteOf(view: PlayerView, elapsed = 0): number | null {
       );
   const now = base + Math.floor((Math.max(0, elapsed) / clock.monthMs) * MONTH_MIN);
   return Math.min(now, Math.max(base, start + MONTH_MIN - 1));
+}
+
+/**
+ * The time of day the airports keep (minutes after midnight): the game
+ * clock's, as the HUD shows it (play-test: a 16:30 flight was still offered,
+ * booked and boarded at 17:28 on the HUD, because the departures ran on the
+ * city's real time). Without a clock (an older server), the city's real time.
+ */
+export function flightNow(view: PlayerView, marketId: string, elapsed = 0): number {
+  const min = gameMinuteOf(view, elapsed);
+  return min === null ? localMinutes(marketId) : ((min % DAY_MIN) + DAY_MIN) % DAY_MIN;
 }
 
 /** "04:29". */

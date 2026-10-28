@@ -59,6 +59,7 @@ import {
   projectedBurn,
 } from './company.js';
 import { rescuePlan } from './rescue.js';
+import { spendRate } from './ledger.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
 import { creditProfile } from './credit.js';
@@ -554,6 +555,13 @@ function lendersView(world: World, p: Player, m: MarketState) {
  */
 type ViewClock = { now: number; monthMs: number };
 
+function spendHereView(world: World, p: Player, hereId: MarketId) {
+  const mine = world.accounts[p.accounts.local];
+  const currency = getMarket(world, hereId).data.currency;
+  if (!mine || mine.currency === currency) return null;
+  return { from: mine.currency, currency, rate: spendRate(world, mine.currency, currency) };
+}
+
 function marketView(
   world: World,
   p: Player,
@@ -996,6 +1004,12 @@ export function playerView(
     // Only when away: at home the client uses `market`, so the city isn't sent twice.
     here:
       hereId === m.id ? null : marketView(world, p, getMarket(world, hereId), founderish, clock),
+    /**
+     * Away, in a city with another currency: what your account's money buys
+     * here (the rate a purchase charges at, after the bank's fee), so prices
+     * here can be weighed against your balance; null when no exchange is needed.
+     */
+    spendHere: spendHereView(world, p, hereId),
     lifestyleTiers: LIFESTYLE_TIERS.map((t) => ({
       ...t,
       monthlyCost: Math.round(m.data.costOfLiving * 100 * t.costCol),

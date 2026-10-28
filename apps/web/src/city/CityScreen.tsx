@@ -15,11 +15,14 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent,
 } from 'react';
 import { PLACE_SPECS, type Command, type PlaceRole, type PlayerView } from '@runway/engine';
 import './city.css';
 import { api, ApiError } from '../api';
-import { money, runway } from '../format';
+import { money } from '../format';
+import { flightNow } from '../gameClock';
+import { companyPillLine, settingUp } from './companyPill';
 import { t, tx, useLang } from '../i18n';
 import { useView, WithView } from '../store';
 import { Button, HudButton, HudRail, Icon, Pill, Sheet, reduceMotion } from '../ui';
@@ -69,7 +72,7 @@ import { runJourneyGo } from './journeyGo';
 import { NextStepCard } from './NextStepCard';
 import { GestureHint } from './GestureHint';
 import { MapKeyIcon, MapKeySheet } from './MapBadges';
-import { useSimple } from '../phone/settings';
+import { useSetting, useSimple } from '../phone/settings';
 import { WhoIsAround } from './WhoIsHere';
 import { OnlineNowList } from './OnlineNow';
 import { usePresence } from './presence';
@@ -600,6 +603,20 @@ function CityBodyInner({
   const { view, lite, refresh, toast } = useView();
   const appNav = useNav();
   const simple = useSimple();
+  // Simple mode folded by the ⌄: its worded buttons wait behind a ⋯ (as the rail's do).
+  const [simpleMore, setSimpleMore] = useState(false);
+  const folded = useSetting('hudCollapsed');
+  // Folding or unfolding with the ⌄ closes the ⋯ again.
+  const [foldedWas, setFoldedWas] = useState(folded);
+  if (foldedWas !== folded) {
+    setFoldedWas(folded);
+    setSimpleMore(false);
+  }
+  /** Picking one of the folded buttons runs it and folds them again. */
+  const foldAfter = (e: MouseEvent) => {
+    const b = (e.target as HTMLElement).closest('button');
+    if (b && !b.classList.contains('hud-more-btn')) setSimpleMore(false);
+  };
   // Phase 3 life bars (server release): trips cost game hours and energy.
   const lifeBars = !!view.me.bars;
   /**
@@ -837,7 +854,16 @@ function CityBodyInner({
         toast(e instanceof Error ? e.message : 'Booking failed.', 'error');
         return;
       }
-      setTicket(ticketFor(layout.marketId, d, home.currency, homeMonth));
+      setTicket(
+        ticketFor(
+          layout.marketId,
+          d,
+          home.currency,
+          homeMonth,
+          Date.now(),
+          flightNow(view, layout.marketId),
+        ),
+      );
     } else chooseAtDesk(home.id);
     setInside(null);
     setArrival(false);
@@ -1063,19 +1089,15 @@ function CityBodyInner({
                   aria-label={t('{company}: {cash} · {left}. Manage company', {
                     company: company.name,
                     cash: money(company.cash, home.currency),
-                    left: rescue
-                      ? t('{n} mo left', { n: rescue.monthsLeft ?? '?' })
-                      : runway(company.runwayMonths),
+                    left: companyPillLine(company),
                   })}
                   title={company.name}
                   onClick={() => onNavigate('company')}
                 >
                   <Icon name="flag" size={20} />
                   <span>{money(company.cash, home.currency)}</span>
-                  <small>
-                    {rescue
-                      ? t('{n} mo left', { n: rescue.monthsLeft ?? '?' })
-                      : runway(company.runwayMonths)}
+                  <small data-company-state={settingUp(company) ? 'setup' : undefined}>
+                    {companyPillLine(company)}
                   </small>
                 </button>
               )}
@@ -1084,7 +1106,18 @@ function CityBodyInner({
           )}
           {simple ? (
             // Simple mode keeps its buttons with words (Journey, Me, the next step).
-            <div className="city-hud city-hud-zoom">
+            <div
+              className={`city-hud city-hud-zoom city-hud-simple${simpleMore ? ' is-open' : ''}`}
+              onClick={foldAfter}
+            >
+              <HudButton
+                icon="more"
+                label={t('More')}
+                className="hud-more-btn simple-more"
+                data-hud-more=""
+                aria-expanded={simpleMore}
+                onClick={() => setSimpleMore((o) => !o)}
+              />
               <JourneyChip onOpen={() => setJourneyOpen(true)} />
               <button
                 type="button"
@@ -1224,7 +1257,10 @@ function CityBodyInner({
               </div>
             )}
             {simple && (
-              <div className="hud-row-bottom">
+              <div
+                className={`hud-row-bottom city-hud-simple${simpleMore ? ' is-open' : ''}`}
+                onClick={foldAfter}
+              >
                 <div className="hud-stack">
                   <button type="button" className="hud-places" onClick={() => setPeopleOpen(true)}>
                     <Icon name="people" size={20} />

@@ -6,6 +6,7 @@
  */
 import { Suspense, lazy, useEffect, useState, useSyncExternalStore } from 'react';
 import { t, tx } from '../../i18n';
+import { pocketOf } from '../../city/pocket';
 import { money } from '../../format';
 import { useView } from '../../store';
 import { cover } from '../../three-kit/cover';
@@ -31,7 +32,8 @@ function AirRoom({ req }: { req: AirRequest }) {
   const games = view.me.games;
   const venue = req.kind === 'skydive' ? games?.skydive : games?.heli;
   const cur = games?.currency ?? view.market.currency;
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, what your money buys at this city's prices (as paying here converts it).
+  const pocket = pocketOf(view, cur).balance;
 
   if (booked)
     return (

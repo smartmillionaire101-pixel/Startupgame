@@ -70,8 +70,8 @@ export function MoneySheet({
   const wealth = (view.me as { wealth?: Partial<PlayerView['me']['wealth']> }).wealth;
   const wcur = wealth?.currency || cur;
   const next = nextMonthOf(c);
-  // Whole units here (play-test: "₦1,708,977.45"): kobo and cents only clutter a balance.
-  const whole = (n: number, currency: string) => moneyExact(Math.round(n / 100) * 100, currency);
+  // Whole units (play-test: "₦1,708,977.45"): kobo and cents only clutter a balance.
+  const whole = moneyExact;
   return (
     <Sheet title={t('Your money')} onClose={onClose}>
       <div className="money-sheet" data-money-sheet="">

@@ -97,7 +97,10 @@ export interface MallWalkProps {
   mall: MallView | null;
   /** What the fashion shop shows you (clothes for who you are). */
   items: MallItemView[];
+  /** What your balance buys here, in `currency` (abroad: converted, as paying converts it). */
   pocket: number;
+  /** Your balance as shown ("₦3.78m", abroad "≈ GH₵290k (₦3.78m)"). */
+  pocketLabel?: string;
   currency: string;
   busy: boolean;
   send: <R>(cmd: never, okText?: string) => Promise<R | null>;
@@ -676,7 +679,9 @@ export function MallWalk(p: MallWalkProps) {
               <div>
                 <b>{t('Paid {amount}', { amount: moneyExact(paid.total, cur) })}</b>
                 <span className="small">
-                  {t('From your personal account · balance {amount}', { amount: fmt(p.pocket) })}
+                  {t('From your personal account · balance {amount}', {
+                    amount: p.pocketLabel ?? fmt(p.pocket),
+                  })}
                 </span>
               </div>
             </div>

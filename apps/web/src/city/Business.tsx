@@ -22,6 +22,7 @@ import {
 } from './contract';
 import type { CityLayout, Place } from './layout';
 import { sellsOf, venueItemsOf } from './life';
+import { pocketOf, pocketText } from './pocket';
 import { contactsOf, type PresenceView } from './people';
 import { Showroom } from './Showroom';
 import { SalesTalkSheet } from '../screens/SalesTalk';
@@ -120,7 +121,8 @@ function InviteSelect({
 function Venue({ b, players }: { b: BusinessView; players: PresenceView[] }) {
   const { view, send, cur } = useView();
   const [withId, setWithId] = useState('');
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, your money at this city's prices (as paying here converts it).
+  const purse = pocketOf(view, cur);
   if (!b.venue || !b.venue.items.length) return null;
   const extra = new Map(venueItemsOf(view, b.id).map((i) => [i.id, i]));
   const buy = (itemId: string, label: string) =>
@@ -135,8 +137,8 @@ function Venue({ b, players }: { b: BusinessView; players: PresenceView[] }) {
     );
   return (
     <Card title={b.category === 'food' ? t('Eat and drink') : t('Buy')}>
-      <p className="small muted" data-pocket={pocket}>
-        {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
+      <p className="small muted" data-pocket={purse.home}>
+        {t('In your pocket: {amount}', { amount: pocketText(purse) })}
       </p>
       <div className="biz-invite">
         <InviteSelect value={withId} onChange={setWithId} players={players} />
@@ -157,7 +159,7 @@ function Venue({ b, players }: { b: BusinessView; players: PresenceView[] }) {
             <b>{money(it.price, cur)}</b>
             <Button
               variant="subtle"
-              disabled={pocket < it.price}
+              disabled={!purse.canPay(it.price)}
               onClick={() => buy(it.id, it.label)}
             >
               {withId ? t('Buy for two') : t('Buy')}

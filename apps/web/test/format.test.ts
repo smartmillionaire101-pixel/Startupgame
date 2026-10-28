@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   amountInput,
+  moneyCents,
   moneyExact,
   parseAmount,
   runway,
@@ -19,8 +20,12 @@ describe('format', () => {
   });
   it('shows exact balances, so a small transfer is visible', () => {
     expect(moneyExact(1_143_000_000, 'NGN')).toBe('₦11,430,000');
-    expect(moneyExact(1_142_494_950, 'NGN')).toBe('₦11,424,949.50');
-    expect(moneyExact(123_456, 'GBP')).toBe('£1,234.56');
+    // Whole units only (play-test: "₦3,778,238.40" in the money pill's title).
+    expect(moneyExact(377_823_840, 'NGN')).toBe('₦3,778,238');
+    expect(moneyExact(2_471_160, 'NGN')).toBe('₦24,712');
+    expect(moneyExact(123_456, 'GBP')).toBe('£1,235');
+    // A share price keeps its pence.
+    expect(moneyCents(482, 'GBP')).toBe('£4.82');
     expect(moneyExact(-5_000, 'USD')).toBe('-$50');
     expect(moneyExact(0, 'KES')).toBe('KSh0');
   });

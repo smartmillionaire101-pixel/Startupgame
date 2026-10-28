@@ -130,6 +130,10 @@ test('a new banker negotiates, files, passes the Central Bank interview and gets
   await expect(interview.locator('[data-interview-result="passed"]')).toContainText(
     /Interview passed: \d+\/100\./,
   );
+  // …and the appointment above it no longer says to go in now.
+  const appt = page.locator('.civic [data-appointment]').first();
+  await expect(appt).toHaveAttribute('data-attended', '');
+  await expect(appt).not.toContainText('go in now');
   await page.getByRole('button', { name: 'Close' }).first().click();
 
   // The rest of the checklist on the Bank tab.

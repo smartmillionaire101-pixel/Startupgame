@@ -24,11 +24,8 @@ const shot = async (page: Page, name: string) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
 };
 
-/** As the app writes exact amounts: ₦11,424,950 or ₦1,234.50. */
-const naira = (minor: number) =>
-  `₦${Math.floor(minor / 100).toLocaleString('en-GB')}${
-    minor % 100 ? `.${String(minor % 100).padStart(2, '0')}` : ''
-  }`;
+/** As the app writes amounts, to the naira: ₦11,424,950 (kobo rounded off). */
+const naira = (minor: number) => `₦${Math.round(minor / 100).toLocaleString('en-GB')}`;
 
 async function founder(page: Page, name: string) {
   await page.setViewportSize({ width: 390, height: 844 });

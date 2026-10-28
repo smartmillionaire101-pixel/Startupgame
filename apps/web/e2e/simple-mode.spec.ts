@@ -151,6 +151,49 @@ test('Simple mode: four tabs, a money link, big phone tiles and a calm map', asy
   await noSideScroll(page);
 });
 
+test('the ⌄ folds Simple mode’s map buttons away too, behind a ⋯', async ({ page }) => {
+  await founder(page);
+  const hint = page.getByRole('note', { name: 'How to use the map' });
+  if (await hint.isVisible()) await hint.getByRole('button', { name: 'Got it' }).click();
+  const html = page.locator('html');
+  const zoom = page.locator('.city-hud-zoom');
+  const bottom = page.locator('.city-hud-bottom');
+  const more = zoom.getByRole('button', { name: 'More', exact: true });
+  const worded = [
+    page.getByTestId('journey-chip'),
+    zoom.getByRole('button', { name: 'Centre on me' }),
+    zoom.getByRole('button', { name: 'Map key' }),
+    bottom.getByRole('button', { name: 'Where to?' }),
+    page.getByTestId('sky-views-btn'),
+  ];
+  // Open: every button with its name, no ⋯.
+  for (const b of worded) await expect(b).toBeVisible();
+  await expect(more).toBeHidden();
+
+  // Folded (play-test: only the second row went): all of them go, a ⋯ stays.
+  await page.locator('[data-hud-collapse]').click();
+  await expect(html).toHaveAttribute('data-hud-collapsed', '');
+  for (const b of worded) await expect(b).toBeHidden();
+  await expect(more).toBeVisible();
+  await shot(page, 'city-folded');
+  // ⋯ brings them back, names and all; picking one runs it and folds them again.
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  for (const b of worded) await expect(b).toBeVisible();
+  await expect(bottom.getByRole('button', { name: 'Where to?' })).toContainText('Where to?');
+  await bottom.getByRole('button', { name: 'Where to?' }).click();
+  const where = page.getByRole('dialog', { name: 'Where to?' });
+  await expect(where).toBeVisible();
+  await where.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(bottom.getByRole('button', { name: 'Where to?' })).toBeHidden();
+
+  // Unfolded again: the names are back without the ⋯.
+  await page.locator('[data-hud-collapse]').click();
+  await expect(html).not.toHaveAttribute('data-hud-collapsed');
+  for (const b of worded) await expect(b).toBeVisible();
+  await expect(more).toBeHidden();
+});
+
 test('the next-step card goes straight there', async ({ page }) => {
   await founder(page);
   await page.getByRole('note', { name: 'How to use the map' }).getByRole('button').click();

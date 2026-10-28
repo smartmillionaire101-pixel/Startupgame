@@ -3138,6 +3138,18 @@ main > .back-btn {
   pointer-events: none;
   visibility: hidden;
 }
+/* Simple mode has no rail: its worded buttons (Journey, Me, Map key, Next
+   step; Who's here, Where to?, Sky views) fold away the same, behind a ⋯
+   that only shows while folded. */
+[data-hud-collapsed] .city-hud-simple:not(.is-open) > :not(.hud-more-btn) {
+  opacity: 0;
+  transform: translateX(16px);
+  pointer-events: none;
+  visibility: hidden;
+}
+html:not([data-hud-collapsed]) .simple-more {
+  display: none;
+}
 [data-hud-collapsed] .hud-life .hud-hours {
   display: none;
 }

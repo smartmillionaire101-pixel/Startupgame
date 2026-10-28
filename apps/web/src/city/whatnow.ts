@@ -25,6 +25,7 @@ import {
   venueItemsOf,
 } from './life';
 import { eventsOf } from './people';
+import { pocketOf } from './pocket';
 import { businessRoom, FUN_ROOMS, type RoomKind } from './rooms';
 import { localHour } from './travel';
 
@@ -405,7 +406,8 @@ function pick(
   const add = (s: Suggestion | null | undefined) => {
     if (s && out.length < max && !out.some((x) => x.placeId === s.placeId)) out.push(s);
   };
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, what your money buys at this city's prices.
+  const pocket = pocketOf(view).balance;
   const has = opts.has ?? (() => true);
   const c: Ctx = {
     view,

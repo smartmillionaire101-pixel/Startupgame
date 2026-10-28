@@ -24,6 +24,7 @@ import {
 } from 'react';
 import './golf.css';
 import { use3d } from '../../three-kit/quality';
+import { pocketOf } from '../pocket';
 import { money } from '../../format';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
@@ -197,7 +198,8 @@ function GolfSolo(props: SceneProps & { onFriend: () => void; sheet: ReactNode }
   const geos = useMemo<HoleGeo[]>(() => course.holes.map(holeGeo), [course.holes]);
   const pars = course.holes.map((h) => h.par);
   const cur = course.currency || view.market.currency;
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, what your money buys at this city's prices (as paying here converts it).
+  const pocket = pocketOf(view, cur).balance;
   const hoursLeft = (view.me as { hours?: { left?: number } }).hours?.left ?? 99;
   // Dressed for the course: a polo, trousers and a cap (no dress, kaftan or tie).
   const me = golfAttire(

@@ -17,6 +17,7 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { techEventsOf, type TechEventView } from '../phone/friends';
 import { AvatarFigure, avatarLook, type AvatarLook } from './art';
+import { pocketOf } from './pocket';
 import { hash } from './contract';
 import { genderOf } from './life';
 import { leaveTechEvent, techKindLabel } from './techevent';
@@ -121,7 +122,7 @@ function EventStage({
 }) {
   const { view, send, busy } = useView();
   const cur = hereOf(view).currency;
-  const pocket = view.accounts.local?.balance ?? 0;
+  const purse = pocketOf(view, cur);
   const [phase, setPhase] = useState<Phase>(event.attended ? 'talk' : 'intro');
   const [result, setResult] = useState<AttendResult | null>(null);
   const [bubble, setBubble] = useState(0);
@@ -345,7 +346,7 @@ function EventStage({
               type="button"
               className="btn btn-primary"
               data-attend
-              disabled={busy || (cur === view.market.currency && pocket < event.ticket)}
+              disabled={busy || !purse.canPay(event.ticket)}
               onClick={() => void attend()}
             >
               {event.ticket

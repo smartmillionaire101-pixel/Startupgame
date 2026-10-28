@@ -12,6 +12,7 @@ import { useSyncExternalStore } from 'react';
 import { useView } from '../store';
 import { destinationsOf, sellsCabins, type CabinTier } from './travel';
 import { flightPartyTo } from './companions';
+import { flightNow } from '../gameClock';
 import {
   airportSchedule,
   localMinutes,
@@ -118,7 +119,14 @@ export function useTicket(): Ticket | null {
   const detail =
     cached?.from === paid.from && cached.to === paid.to
       ? cached
-      : ticketFor(paid.from, dest, view.market.currency, view.market.month);
+      : ticketFor(
+          paid.from,
+          dest,
+          view.market.currency,
+          view.market.month,
+          undefined,
+          flightNow(view, paid.from),
+        );
   // The server's ticket is the truth for what was paid, hotel included.
   const hotel = (paid as { hotel?: Ticket['hotel'] }).hotel;
   // …and for the flight when it has one: friends on holiday share the host's (./companions).
@@ -185,12 +193,10 @@ export function ticketFor(
   currency: string,
   month: number,
   now = Date.now(),
+  /** The time of day (minutes) to take the next flight after: the game clock's (`flightNow`). */
+  minutes = localMinutes(here, now),
 ): Ticket {
-  const f = nextFlightTo(
-    airportSchedule(here, scheduleDay(month, now)),
-    d.id,
-    localMinutes(here, now),
-  );
+  const f = nextFlightTo(airportSchedule(here, scheduleDay(month, now)), d.id, minutes);
   return {
     from: here,
     to: d.id,

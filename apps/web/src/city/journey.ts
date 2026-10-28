@@ -10,6 +10,7 @@ import { money } from '../format';
 import { t, tx } from '../i18n';
 import { businessesOf } from './contract';
 import { homeOf, venueItemsOf } from './life';
+import { pocketOf } from './pocket';
 import { suggestionsFor } from './whatnow';
 import { suggestionText } from './WhatNowCards';
 import { guideObjective } from '../screens/investorGuideCopy';
@@ -576,7 +577,7 @@ interface CompetitionLike {
 /** Life outside work: rest, a night out, a quiz, a view, friends, a date, home. */
 function personalCandidates(view: PlayerView): Objective[] {
   const out: Objective[] = [];
-  const pocket = view.accounts.local?.balance ?? 0;
+  const pocket = pocketOf(view).balance;
   const cur = view.market.currency;
   if (view.me.energy < 35)
     out.push({

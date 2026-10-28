@@ -45,7 +45,6 @@ import {
   CITY_NAMES,
   fmtFlightTime,
   liveryOf,
-  localMinutes,
   nextFlightTo,
   scheduleDay,
   type FlightStatus,
@@ -72,6 +71,7 @@ import { ArrivalScene, type Arrival } from './arrivals';
 import { Flaps } from './flaps';
 import { TerminalView } from './halls';
 import { PlaneTop, fliesPrivate } from './planes';
+import { flightNow } from '../../gameClock';
 import './airport.css';
 
 const STATUS_LABEL = (s: FlightStatus) =>
@@ -88,10 +88,10 @@ const STATUS_LABEL = (s: FlightStatus) =>
 // ---------------------------------------------------------------------------
 // The split-flap board
 
-function Board({ marketId, day }: { marketId: string; day: string }) {
+function Board({ marketId, day, start }: { marketId: string; day: string; start: number }) {
   const schedule = useMemo(() => airportSchedule(marketId, day), [marketId, day]);
   // The board moves on: every few seconds it's a few minutes later.
-  const [clock, setClock] = useState(() => ({ base: localMinutes(marketId), tick: 0 }));
+  const [clock, setClock] = useState(() => ({ base: start, tick: 0 }));
   useEffect(() => {
     if (reduceMotion()) return;
     const id = setInterval(() => setClock((c) => ({ ...c, tick: c.tick + 1 })), 6000);
@@ -694,59 +694,72 @@ function TripSheet({
           {t('Ticket desk: where do you want to go? Choose a flight and book it.')}
         </p>
         <ul className="trip-flights" aria-label={t('Where do you want to go?')}>
-          {flights.map(({ d, f }) => (
-            <li
-              key={d.id}
-              data-dest={d.id}
-              className={ticket?.to === d.id ? 'is-booked' : undefined}
-            >
-              <span className="trip-flight-time">{f?.time ?? '—'}</span>
-              <span className="trip-flight-main">
-                <b>{d.name}</b>
-                <span className="small muted">
-                  {f ? `${f.airline} · ${f.flight}` : ''}
-                  {d.hours > 0 && d.hours < 40 ? ` · ${fmtFlightTime(d.hours)}` : ''}
-                  {d.id === homeId ? ` · ${t('Home city')}` : ''}
-                </span>
-              </span>
-              <span className="trip-flight-fare">{desk ? money(d.fare, desk.currency) : ''}</span>
-              <button
-                type="button"
-                className={`btn ${ticket?.to === d.id ? 'btn-primary' : 'btn-ghost'}`}
-                disabled={busy || d.done}
-                aria-label={t('Book a flight to {city}', { city: d.name })}
-                // Abroad (not home): choose a hotel first; the cabin when it's on sale.
-                onClick={() =>
-                  d.hotels.length || d.hotelList.length || d.cabins.length
-                    ? setChoosing(d.id)
-                    : void book(d.id)
-                }
+          {flights.map(({ d, f }) => {
+            // The way home you paid for with the flight out (play-test: it read "₦383k · Book").
+            const held = d.id === homeId && !d.done ? (flightsInfo?.heldReturn ?? null) : null;
+            return (
+              <li
+                key={d.id}
+                data-dest={d.id}
+                data-held-return={held ? '' : undefined}
+                className={ticket?.to === d.id ? 'is-booked' : undefined}
               >
-                {d.done ? t('This month') : ticket?.to === d.id ? t('Booked') : t('Book')}
-              </button>
-              {choosing === d.id && desk && !ticket && (
-                <TripPicker
-                  city={d.name}
-                  marketId={d.id}
-                  cabins={d.cabins}
-                  hotels={d.hotels}
-                  hotelList={d.hotelList}
-                  fare={d.fare}
-                  currency={desk.currency}
-                  balance={balance}
-                  busy={busy}
-                  returnCabins={d.returnCabins}
-                  homeName={homeId ? (CITY_NAMES[homeId] ?? homeId) : ''}
-                  held={d.id === homeId ? (flightsInfo?.heldReturn ?? null) : null}
-                  initial={d.id === homeId ? (flightsInfo?.lastCabin ?? undefined) : undefined}
-                  onBook={(hotel, cabin, back, hotelId) =>
-                    void book(d.id, hotel, cabin, back, hotelId)
+                <span className="trip-flight-time">{f?.time ?? '—'}</span>
+                <span className="trip-flight-main">
+                  <b>{d.name}</b>
+                  <span className="small muted">
+                    {f ? `${f.airline} · ${f.flight}` : ''}
+                    {d.hours > 0 && d.hours < 40 ? ` · ${fmtFlightTime(d.hours)}` : ''}
+                    {d.id === homeId ? ` · ${t('Home city')}` : ''}
+                  </span>
+                </span>
+                <span className="trip-flight-fare">
+                  {held ? t('Your return ticket · paid') : desk ? money(d.fare, desk.currency) : ''}
+                </span>
+                <button
+                  type="button"
+                  className={`btn ${ticket?.to === d.id ? 'btn-primary' : 'btn-ghost'}`}
+                  disabled={busy || d.done}
+                  aria-label={t('Book a flight to {city}', { city: d.name })}
+                  // Abroad (not home): choose a hotel first; the cabin when it's on sale.
+                  onClick={() =>
+                    d.hotels.length || d.hotelList.length || d.cabins.length
+                      ? setChoosing(d.id)
+                      : void book(d.id)
                   }
-                  onCancel={() => setChoosing(null)}
-                />
-              )}
-            </li>
-          ))}
+                >
+                  {d.done
+                    ? t('This month')
+                    : ticket?.to === d.id
+                      ? t('Booked')
+                      : held
+                        ? t('Use ticket')
+                        : t('Book')}
+                </button>
+                {choosing === d.id && desk && !ticket && (
+                  <TripPicker
+                    city={d.name}
+                    marketId={d.id}
+                    cabins={d.cabins}
+                    hotels={d.hotels}
+                    hotelList={d.hotelList}
+                    fare={d.fare}
+                    currency={desk.currency}
+                    balance={balance}
+                    busy={busy}
+                    returnCabins={d.returnCabins}
+                    homeName={homeId ? (CITY_NAMES[homeId] ?? homeId) : ''}
+                    held={d.id === homeId ? (flightsInfo?.heldReturn ?? null) : null}
+                    initial={d.id === homeId ? (flightsInfo?.lastCabin ?? undefined) : undefined}
+                    onBook={(hotel, cabin, back, hotelId) =>
+                      void book(d.id, hotel, cabin, back, hotelId)
+                    }
+                    onCancel={() => setChoosing(null)}
+                  />
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
     ) : (
@@ -971,7 +984,8 @@ export function AirportScene({
   // Your own jet at the top of the lifestyle ladder (unless you booked business or first).
   const booked = view.me.flightTicket?.cabin;
   const jet = fliesPrivate(view.me.lifestyle?.tier) && !booked;
-  const [{ at0, now }] = useState(() => ({ at0: Date.now(), now: localMinutes(marketId) }));
+  // The game clock's time of day (the HUD's): only flights still to leave are offered.
+  const [{ at0, now }] = useState(() => ({ at0: Date.now(), now: flightNow(view, marketId) }));
   const day = scheduleDay(view.market.month, at0);
   const schedule = useMemo(() => airportSchedule(marketId, day), [marketId, day]);
   // The business or first lounge: made-up premium travellers, and the players flying up front.
@@ -1067,7 +1081,7 @@ export function AirportScene({
                   }
                 />
               ) : (
-                <Board marketId={marketId} day={day} />
+                <Board marketId={marketId} day={day} start={now} />
               )}
               {scene?.ticket &&
               scene.at === 'lounge' &&

@@ -1248,7 +1248,7 @@ export function BankInterviewCard() {
       >
         <p data-interview-result="passed">
           {t('Interview passed: {score}/100.', { score: iv.score })}{' '}
-          {t('Passed. The regulator is satisfied you are fit and proper to run a bank.')}
+          {t('The regulator is satisfied you are fit and proper to run a bank.')}
         </p>
       </Card>
     );

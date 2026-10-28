@@ -48,6 +48,7 @@ import {
   type BusinessView,
 } from './contract';
 import type { Place } from './layout';
+import { pocketOf, pocketText } from './pocket';
 import {
   acceleratorsOf,
   angelsAtOf,
@@ -799,7 +800,9 @@ function RoomScene({
     capital: capitalKind,
   });
   const home = place.kind === 'home' && !abroad ? homeOf(view) : null;
-  const pocket = view.accounts.local?.balance ?? 0;
+  // Abroad, what your money buys at this city's prices (as paying here converts it).
+  const purse = pocketOf(view, cur);
+  const pocket = purse.balance;
   // A bar, club or lounge of its city: its own plan, look, crowd and music (./nightlife.ts).
   const cityId = view.here?.id ?? view.market.id;
   const nightStyle = useMemo(
@@ -1919,8 +1922,8 @@ function RoomScene({
         </div>
       ) : act ? (
         <div className="place-tray is-act">
-          <p className="small muted tray-pocket" data-pocket={pocket}>
-            {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
+          <p className="small muted tray-pocket" data-pocket={purse.home}>
+            {t('In your pocket: {amount}', { amount: pocketText(purse) })}
           </p>
           {act.ended ? (
             <ActCard
@@ -1956,8 +1959,8 @@ function RoomScene({
             </button>
           )}
           {(business?.venue || (business && sellsOf(view, business))) && (
-            <p className="small muted tray-pocket" data-pocket={pocket}>
-              {t('In your pocket: {amount}', { amount: money(pocket, cur) })}
+            <p className="small muted tray-pocket" data-pocket={purse.home}>
+              {t('In your pocket: {amount}', { amount: pocketText(purse) })}
             </p>
           )}
           {foodStyle && menu.length > 0 && (

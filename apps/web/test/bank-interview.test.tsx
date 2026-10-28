@@ -38,6 +38,8 @@ it('shows the score and the pass once the interview is passed', () => {
   const { container } = render(<BankInterviewCard />);
   const res = container.querySelector('[data-interview-result="passed"]')!;
   expect(res.textContent).toContain('Interview passed: 79/100.');
+  // Play-test: "passed … Passed." said it twice.
+  expect(res.textContent!.match(/passed/gi)).toHaveLength(1);
   expect(container.querySelector('[data-question]')).toBeNull();
 });
 
