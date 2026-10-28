@@ -271,9 +271,13 @@ describe('#11 a lost deal names the one real reason', () => {
     const v = salesWithTalk(lost, co(lost)).deals.find((x) => x.id === id)!;
     expect(v.loss!.revisitIn).toBe(n);
     expect(v.loss!.words.en).toMatch(/month/);
-    expect(v.canRecover).toBe(false);
-    const r = tryRun(lost, F, { type: 'sales.advance', dealId: id, action: 'recover' });
-    expect(!r.ok && r.error.code).toBe('sales.recover.later');
+    // A reminder, not a lock: you can try now, before anything has changed on their side.
+    expect(v.canRecover).toBe(true);
+    const early = run(lost, F, { type: 'sales.advance', dealId: id, action: 'recover' });
+    expect(early.result.early).toBe(true);
+    const e = co(early.world).deals!.find((x) => x.id === id)!;
+    expect(e.revisit).toBeUndefined();
+    expect(e.customer.urgency).toBe(d.customer.urgency);
     // It stays on the board, and opens again at the month they named.
     let x = lost;
     for (let i = 0; i < n; i++) x = settle(x, 'london', 1);

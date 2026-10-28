@@ -735,7 +735,7 @@ export function Team({ c }: { c: CompanyT }) {
                         : ''}{' '}
                       · {personalityLabel(s.personality)}
                     </div>
-                    <HireBrings b={c.teamBrings?.[s.id]} />
+                    <HireBrings b={c.teamBrings?.[s.id]} name={s.name} hired />
                   </div>
                   <div className="row">
                     <Button variant="ghost" onClick={() => setRaiseFor(s)}>
@@ -815,7 +815,11 @@ export function Team({ c }: { c: CompanyT }) {
                           : t('1 other offer'))
                       : ''}
                   </div>
-                  <HireBrings b={c.talentBrings?.[p.id]} />
+                  <HireBrings
+                    b={c.talentBrings?.[p.id]}
+                    name={p.name}
+                    skill={{ n: Math.round(p.skill * 100), checked: true }}
+                  />
                 </div>
                 <Button variant="subtle" onClick={() => setOffer(p)}>
                   {t('Offer')}

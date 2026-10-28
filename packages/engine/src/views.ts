@@ -92,6 +92,7 @@ import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
 import { customerFacts, payingCustomers } from './traction.js';
 import { bringsOf, teamBringsView } from './team.js';
+import { restView } from './rest.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
 import { mallTripView } from './malltrips.js';
@@ -890,6 +891,8 @@ export function playerView(
       mood: moodOf(p),
       /** Wave 7: home acts (and 'invite') this month: used, cap and left. */
       homeActs: homeActsView(p, m.month),
+      /** Round 7 (gameplay note): resting at home: the rest under way and the rates; null before. */
+      rest: gameplayOn(world) && !p.ai ? restView(world, p) : null,
       /**
        * Phase 3 life bars (only after the release note, so clients can hide them):
        * energy, health, happiness and stress, 0–100 rounded, and what they're

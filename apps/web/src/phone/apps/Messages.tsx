@@ -18,6 +18,7 @@ import { visitPlace } from '../../city/goto';
 import { businessesOf } from '../../city/contract';
 import { cityViewOf, hereOf } from '../../city/travel';
 import { Avatar, isObj, kindName, str, type PhoneCtx, type ThreadRef, type View } from '../shared';
+import './chat.css';
 import { ChatActions, EmojiPicker, PlayerMessage, VoiceRecorder, type ActBody } from './ChatExtras';
 
 // ---------------------------------------------------------------------------

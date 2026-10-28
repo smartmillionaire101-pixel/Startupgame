@@ -3185,6 +3185,18 @@ html:not([data-hud-collapsed]) .simple-more {
     max-height: min(90dvh, calc(100dvh - var(--nav-h, 0px) - var(--hud-top-h)));
   }
 }
+/* Round 7 (play-test: the nav pill covered the bottom of sheets on a phone,
+   their last button under it): while a sheet is open on a phone, the nav pill
+   and the phone button step aside, as they do for Buy mode. The sheet's ✕
+   (and Escape) closes it; a sheet inside the phone keeps them. */
+@media (max-width: 699px) {
+  html:has(.sheet-backdrop:not(.phone .sheet-backdrop)) :is(.nav, .hud-phone.hud-ib) {
+    transform: translateY(calc(100% + var(--hud-bottom) + 8px));
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
+}
 
 /* ---- List screens: the content scrolls under the pills, padded so nothing
    is covered at rest, with a soft fade behind the pills. */

@@ -27,6 +27,7 @@ import { CountUp, Icon } from '../ui';
 import './recap.css';
 import { churnLabel } from '../screens/Sales';
 import { TeamMonth } from '../screens/SalesTeam';
+import { openCompanyTab } from '../screens/Company';
 
 // ---------------------------------------------------------------- opening it
 
@@ -156,6 +157,11 @@ function RecapSheet({ start, onClose }: { start: number | null; onClose: () => v
       onClose();
       nav?.go({ kind: 'tab', tab: 'company' });
     },
+    team: () => {
+      onClose();
+      openCompanyTab('team');
+      nav?.go({ kind: 'tab', tab: 'company' });
+    },
     journey: () => {
       onClose();
       openPhone({ app: 'journey' });
@@ -224,7 +230,7 @@ function RecapSheet({ start, onClose }: { start: number | null; onClose: () => v
   );
 }
 
-type Details = Record<'bank' | 'company' | 'journey', () => void>;
+type Details = Record<'bank' | 'company' | 'team' | 'journey', () => void>;
 
 function RecapBody({ recap, details }: { recap: RecapView; details: Details }) {
   const current = recap.month === recap.current;
@@ -250,6 +256,26 @@ function RecapBody({ recap, details }: { recap: RecapView; details: Details }) {
           {recap.business.map((a) => (
             <MoneyBlock key={a.account} a={a} />
           ))}
+        </Section>
+      )}
+
+      {recap.companies.some((c) => c.team?.length) && (
+        <Section
+          id="team"
+          title={t('Your team this month')}
+          onDetails={details.team}
+          detailsLabel={t('See team')}
+        >
+          {recap.companies
+            .filter((c) => c.team?.length)
+            .map((c) => (
+              <div key={c.id}>
+                {recap.companies.length > 1 && (
+                  <div className="recap-money-name small">{c.name}</div>
+                )}
+                <TeamMonth team={c.team} />
+              </div>
+            ))}
         </Section>
       )}
 
@@ -377,11 +403,13 @@ function Section({
   id,
   title,
   onDetails,
+  detailsLabel,
   children,
 }: {
   id: string;
   title: string;
   onDetails?: () => void;
+  detailsLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -390,7 +418,7 @@ function Section({
         <h3>{title}</h3>
         {onDetails && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={onDetails}>
-            {t('See details')}
+            {detailsLabel ?? t('See details')}
           </button>
         )}
       </div>
@@ -560,7 +588,6 @@ function CompanyBlock({ c, many }: { c: RecapCompany; many: boolean }) {
       ) : (
         <p className="small muted">{t('No settlement for this company this month.')}</p>
       )}
-      <TeamMonth team={c.team} />
     </div>
   );
 }

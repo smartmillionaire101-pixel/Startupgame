@@ -87,6 +87,7 @@ import { HomeWindows } from './HomeWindows';
 import { HotelKnocked, HotelNeighbours, holidaysOf } from '../phone/apps/Holiday';
 import type { HotelTier } from '../city/travel';
 import { ActFx } from './ActFx';
+import { RestChip } from './RestChip';
 import { PhotoSheet, addPhoto } from './HomePhotos';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { balconyView } from './balcony';
@@ -206,6 +207,8 @@ interface Person {
   /** Snapped onto a seat or a bed (px offsets from the tile grid). */
   pose: 'stand' | 'sit' | 'lie';
   at?: { x: number; y: number };
+  /** Round 7: the object they sit or lie on (for the 3D pose: the right bed, the chair's seat). */
+  seat?: string;
   arrive?: () => void;
   tile: string;
 }
@@ -534,6 +537,9 @@ export function HomeScene({
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
   const meStart = { x: plan.door.x, y: plan.door.y - 1 };
   const me = useRef<Person>(newPerson('me', view.me.name, meLook, meStart));
+  /** Round 7: the rest under way (held sit or lie) and how to get up from it. */
+  const restRef = useRef<{ spot: 'seat' | 'bed'; label: string } | null>(null);
+  const getUpRef = useRef<(() => Promise<void>) | null>(null);
   const guestKey = hotelTier ? `hotel:${view.me.id}` : view.me.id;
   const [guests, setGuests] = useState<Guest[]>(() => {
     // Your guests are back home, not in your hotel room: a friend from next door
@@ -733,9 +739,12 @@ export function HomeScene({
   const walk = useCallback(
     (p: Person, to: Tile, arrive?: () => void) => {
       const from = { x: Math.round(p.x), y: Math.round(p.y) };
+      // Round 7: walking off a seat or a bed ends the rest.
+      if (p === me.current && restRef.current) void getUpRef.current?.();
       if (p.pose !== 'stand') {
         p.pose = 'stand';
         p.at = undefined;
+        p.seat = undefined;
       }
       // Standing on something (off a seat): start from the nearest free tile.
       const start = walkable(grid, from.x, from.y)
@@ -1092,6 +1101,7 @@ export function HomeScene({
           x: (obj.spot.x + obj.spot.w / 2) * TILE,
           y: (obj.spot.y + 1.9) * TILE,
         };
+        p.seat = obj.id;
         writePerson(p);
         bump(p);
       }
@@ -1104,6 +1114,7 @@ export function HomeScene({
       if (p.pose === 'lie') {
         p.pose = 'stand';
         p.at = undefined;
+        p.seat = undefined;
         writePerson(p);
         bump(p);
       }
@@ -1129,6 +1140,79 @@ export function HomeScene({
     },
     [send, cur, float, writePerson, bump],
   );
+
+  // ---- Round 7: resting (gameplay note). Sitting on a seat or lying on a bed is
+  // held until you get up (or walk off): the chip under the HUD shows it, and
+  // the server settles the game time you rested (`home.rest`).
+  const restOn = !!view.me.rest && !hostView;
+  const [resting, setResting] = useState<{ spot: 'seat' | 'bed'; label: string } | null>(null);
+  const setRest = (r: { spot: 'seat' | 'bed'; label: string } | null) => {
+    restRef.current = r;
+    setResting(r);
+  };
+  const startRest = (spot: 'seat' | 'bed', obj: Obj) => {
+    const label =
+      spot === 'bed'
+        ? obj.id === 'bed' && !owned.has('bed') && plan.fixtures.mat
+          ? t('Napping on the mat')
+          : t('Napping')
+        : obj.id === 'sofa'
+          ? owned.has('sofa') || !plan.fixtures.cushions
+            ? t('Resting on the sofa')
+            : t('Resting on the cushions')
+          : t('Resting: {thing}', { thing: obj.label });
+    setRest({ spot, label });
+    void send({ type: 'home.rest', action: 'start', spot }).then((r) => {
+      if (r === null && restRef.current?.spot === spot) {
+        setRest(null);
+        standUp();
+      }
+    });
+  };
+  const standUp = () => {
+    const p = me.current;
+    if (p.pose === 'stand') return;
+    p.pose = 'stand';
+    p.at = undefined;
+    p.seat = undefined;
+    writePerson(p);
+    bump(p);
+    api3d.current?.wake();
+  };
+  useEffect(() => {
+    getUpRef.current = async () => {
+      if (!restRef.current) return;
+      setRest(null);
+      const r = await send<{ minutes: number; stress: number; energy: number; hours: number }>({
+        type: 'home.rest',
+        action: 'stop',
+      });
+      if (!r) return;
+      const lines: { text: string; tone: string }[] = [];
+      if (r.energy) lines.push({ text: t('{n} energy', { n: `+${r.energy}` }), tone: 'energy' });
+      if (r.stress)
+        lines.push({ text: t('{n} stress', { n: `${Math.round(r.stress)}` }), tone: 'fun' });
+      if (r.hours) lines.push({ text: t('{n}h rested', { n: r.hours }), tone: 'hours' });
+      if (!lines.length) lines.push({ text: t('A short rest'), tone: 'fun' });
+      float(lines);
+    };
+  });
+  const getUp = () => {
+    standUp();
+    void getUpRef.current?.();
+  };
+  // Leaving home while resting gets you up; back home after a reload, an old rest is settled.
+  useEffect(() => {
+    if (view.me.rest?.resting && !restRef.current) {
+      restRef.current = { spot: view.me.rest.resting.spot, label: '' };
+      void getUpRef.current?.();
+    }
+    return () => {
+      if (restRef.current) void getUpRef.current?.();
+    };
+    // Once, on entering and leaving the home.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Up or down the stairs: you come out where they meet that floor. */
   const goFloor = (to: number) => {
@@ -1196,11 +1280,42 @@ export function HomeScene({
     }
     const p = me.current;
     if (v.id === 'sit') {
-      const seat = plan.seats[0]!;
+      const sofa = obj.id === 'sofa';
+      const seat = sofa ? plan.seats[0] : undefined;
       const path = walk(p, obj.spot.interact, () => {
-        seatAt(p, seat);
+        if (seat && owned.has('sofa')) seatAt(p, seat);
+        else {
+          // The cushions, a chair at the table, the cinema seats: sit where you are.
+          const at = seat ?? obj.spot.interact;
+          p.x = at.x;
+          p.y = at.y;
+          p.pose = 'sit';
+          p.at = { x: (at.x + 0.5) * TILE, y: (at.y + 0.55) * TILE };
+        }
+        p.seat = obj.id;
         writePerson(p);
         bump(p);
+        api3d.current?.wake();
+        if (restOn) startRest('seat', obj);
+      });
+      setWalkPath(reduceMotion() ? null : path);
+      return;
+    }
+    if (
+      'act' in v &&
+      v.act === 'nap' &&
+      restOn &&
+      obj.verbs.some((x) => 'act' in x && x.act === 'sleep')
+    ) {
+      // Round 7: a nap is lying down on the bed (or the mat) until you wake up.
+      const path = walk(p, obj.spot.interact, () => {
+        p.pose = 'lie';
+        p.at = { x: (obj.spot.x + obj.spot.w / 2) * TILE, y: (obj.spot.y + 1.9) * TILE };
+        p.seat = obj.id;
+        writePerson(p);
+        bump(p);
+        api3d.current?.wake();
+        startRest('bed', obj);
       });
       setWalkPath(reduceMotion() ? null : path);
       return;
@@ -1831,7 +1946,14 @@ export function HomeScene({
     const out: Home3DPerson[] = [];
     const guestsHere = floorRef.current === 0 ? [...guestPeople.current.values()] : [];
     for (const p of [me.current, ...guestsHere])
-      out.push({ id: p.id, look: p.look, x: p.x, y: p.y, pose: p.pose });
+      out.push({
+        id: p.id,
+        look: p.look,
+        x: p.x,
+        y: p.y,
+        pose: p.pose,
+        ...(p.seat ? { seat: p.seat } : {}),
+      });
     for (const p of corridor.current.values()) out.push({ ...p });
     return out;
   }, []);
@@ -2264,6 +2386,7 @@ export function HomeScene({
             </span>
           ))}
         {flash > 0 && <div key={flash} className="home-flash" aria-hidden="true" />}
+        {resting && <RestChip spot={resting.spot} label={resting.label} onUp={getUp} />}
         {placing && ghost && (
           <PlaceBar
             label={placing.label}
@@ -2885,18 +3008,11 @@ function buildObjects(
   else if (has('laptop')) slotObj('laptop', [act('read', t('Read')), buy('desk')]);
   if (has('books')) slotObj('books', [act('read', t('Read'))]);
   if (has('rug')) slotObj('rug', [act('workout', t('Work out'))]);
-  for (const slot of [
-    'wardrobe',
-    'plants',
-    'art',
-    'lights',
-    'sound',
-    'cooling',
-    'power',
-    'wifi',
-    'dining',
-  ])
+  for (const slot of ['wardrobe', 'plants', 'art', 'lights', 'sound', 'cooling', 'power', 'wifi'])
     if (has(slot)) slotObj(slot, [upgrade(slot)]);
+  // Round 7: a chair at the table to sit on.
+  if (has('dining'))
+    slotObj('dining', [{ id: 'sit', label: t('Sit at the table') }, upgrade('dining')]);
   // The utility room: wash and dry your clothes.
   if (has('washer')) slotObj('washer', [act('laundry', t('Do laundry')), upgrade('washer')]);
   // Bathroom.
@@ -2918,13 +3034,17 @@ function buildObjects(
       id: d.id,
       label: t(d.label),
       spot: d.spot,
-      verbs: d.verbs.map((v): Verb =>
-        'act' in v
-          ? act(v.act, t(v.label))
-          : v.id === 'floor'
-            ? { id: 'floor', label: t(v.label), to: v.to }
-            : { id: 'invite', label: t(v.label) },
-      ),
+      verbs: [
+        // Round 7: seats you can sit on.
+        ...(d.model === 'cinema-seats' ? [{ id: 'sit', label: t('Sit') } as Verb] : []),
+        ...d.verbs.map((v): Verb =>
+          'act' in v
+            ? act(v.act, t(v.label))
+            : v.id === 'floor'
+              ? { id: 'floor', label: t(v.label), to: v.to }
+              : { id: 'invite', label: t(v.label) },
+        ),
+      ],
       art: <DecorArt model={d.model} w={d.spot.w} h={d.spot.h} />,
       model: d.model,
       finish: d.tier,
