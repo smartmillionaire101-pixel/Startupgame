@@ -153,6 +153,7 @@ import {
   bankersOn,
   exitsOn,
   feedbackOn,
+  gameplayOn,
   investorOn,
   jobsOn,
   lifeBarsOn,
@@ -160,6 +161,7 @@ import {
   placesOn,
   shopOn,
 } from './releases.js';
+import { expertiseOf } from './cofounders.js';
 import {
   addCapital,
   answerCofounder,
@@ -789,6 +791,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       me.skills.negotiation = Math.min(100, me.skills.negotiation + 0.3);
       if (res.outcome === 'accept') {
         const s = hire(world, c, cand, cmd.salary, cmd.equityBps, month);
+        // Round 7: the sector they know, as their card showed it before the hire.
+        if (gameplayOn(world)) s.expertise = expertiseOf(world, cand.id, c.industry);
         if (piped) onPipelineHire(world, c, piped, s);
         return { ...res, staffId: s.id };
       }

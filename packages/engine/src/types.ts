@@ -1194,6 +1194,34 @@ export interface Staff {
   workload?: number;
   /** An AI co-founder (§2.1 chapter 2): founder shares with a vesting record. */
   cofounder?: AiCofounderRecord;
+  /**
+   * Round 7 (gameplay note): the customer segment they know from their last
+   * job ("healthtech.clinics": hospitals and clinics), set when hired.
+   * Missing: read from their id (team.ts expertiseOf).
+   */
+  expertise?: string;
+}
+
+/** Round 7: what one person on the team did in a month (the recap's "Your team this month"). */
+export interface TeamWork {
+  staffId: Id;
+  name: string;
+  role: StaffRole;
+  /** A co-founder's title (CTO, CEO, Growth). */
+  title?: string;
+  /** Leads they brought from their sector, and discovery meetings they ran. */
+  leads?: number;
+  discovered?: number;
+  /** Deals they owned that signed. */
+  won?: number;
+  /** Demos a technical co-founder joined. */
+  demos?: number;
+  /** Person-weeks they put into the roadmap. */
+  roadmapWeeks?: number;
+  /** Warmer leads a business co-founder's contacts made. */
+  warm?: number;
+  skillFrom: number;
+  skillTo: number;
 }
 
 /** The vesting record of an AI co-founder's founder shares. */
@@ -1457,6 +1485,8 @@ export interface Company {
    * last SALES.keepChurned), so the recap and the stage tracker count them.
    */
   salesChurn?: SalesChurn[];
+  /** Round 7 (gameplay note): what each person on the team did at the last settlement. */
+  teamMonth?: { month: number; people: TeamWork[] };
   /** Next deal number (per company, so ids never touch the world counter). */
   salesSeq?: number;
   /**
@@ -3245,6 +3275,12 @@ export interface SalesDeal {
   /** Lost because the deadline passed. */
   expired?: boolean;
   closedMonth?: number;
+  /** Round 7 (gameplay note): the salesperson who brought or runs this deal (a staff id). */
+  owner?: Id;
+  /** Round 7: a technical co-founder joined the demo (who, by how much, in which month). */
+  demoLift?: { by: Id; lift: number; month: number };
+  /** Round 7: a business co-founder's contact made this lead warmer (their staff id). */
+  warmBy?: Id;
   /**
    * Round 7 (gameplay note): lost on budget or timing, they asked you to come
    * back: the month the lead opens again (it stays on the board until then).

@@ -35,6 +35,8 @@ import { scale, type Currency } from './money.js';
 import { lifestyleCost } from './personal.js';
 import { propertiesOf, upkeepOf } from './property.js';
 import { feedbackOn, gameplayOn } from './releases.js';
+import { teamMonthView } from './team.js';
+import type { TeamWork } from './types.js';
 import { statementLines, type StatementLine } from './statement.js';
 import type { StaffRole } from './data/markets.js';
 import type { Bank, Company, Id, MonthlyPnl, Player, SalesChurnReason, World } from './types.js';
@@ -96,6 +98,8 @@ export interface RecapCompany {
     churned: { name: string; monthly: number; reason: SalesChurnReason }[];
   };
   releases: string[];
+  /** Round 7: what each person on the team did this month (null before the gameplay note). */
+  team: TeamWork[] | null;
   hires: { name: string; role: StaffRole }[];
   departures: string[];
   /** Months of cash left at the end of the month before and of this month (null: not burning). */
@@ -312,6 +316,8 @@ function companyMonth(world: World, c: Company, month: number): RecapCompany {
     releases: (c.roadmap?.projects ?? [])
       .filter((p) => p.status === 'released' && p.releasedMonth === month)
       .map((p) => featureById(p.featureId)?.name ?? p.featureId),
+    /** Round 7 (gameplay note): what each person on the team did this month. */
+    team: teamMonthView(world, c, month),
     hires: c.staff
       .filter((s) => inMonth(s.hiredMonth))
       .map((s) => ({ name: s.name, role: s.role })),

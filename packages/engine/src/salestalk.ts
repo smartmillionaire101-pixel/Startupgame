@@ -72,6 +72,7 @@ import {
   winChance,
 } from './sales.js';
 import { feedbackOn, gameplayOn } from './releases.js';
+import { salesStaff, salesTip } from './team.js';
 import type {
   Company,
   Id,
@@ -227,9 +228,11 @@ export interface TalkInput {
   companyId?: Id;
   dealId?: Id;
   businessId?: Id;
-  action: 'start' | 'lead' | 'price' | 'terms' | 'ask';
+  action: 'start' | 'lead' | 'price' | 'terms' | 'ask' | 'delegate';
   option?: string;
   discountPct?: number;
+  /** Round 7: the salesperson who takes the conversation for you (`delegate`). */
+  staffId?: Id;
 }
 
 function myCompany(world: World, me: Player, companyId?: Id): Company {
@@ -303,6 +306,10 @@ export function salesTalk(world: World, me: Player, cmd: TalkInput) {
   ensure(cmd.dealId, 'sales.deal', 'Pick a deal.');
   const { c, d } = findTalkDeal(world, me, cmd);
   if (cmd.action === 'start') return startTalk(world, me, c, d);
+  if (cmd.action === 'delegate') {
+    ensure(gameplayOn(world), 'command.unknown', 'Unknown command.');
+    return delegateTalk(world, me, c, d, cmd.staffId);
+  }
   const t = d.talk;
   ensure(t && underWay(t), 'sales.talk.none', 'Start the conversation first.');
   ensure(canTalkAt(d), 'sales.stage', 'That step isn’t possible at this stage of the deal.');
@@ -353,7 +360,44 @@ export function salesTalk(world: World, me: Player, cmd: TalkInput) {
   return { dealId: d.id, chance: talkChance(world, c, d, me) };
 }
 
-function startTalk(world: World, me: Player, c: Company, d: SalesDeal) {
+/**
+ * Round 7: a salesperson takes the conversation for you, at their skill: the
+ * opening that fits, the middle of the band and the right terms as often as
+ * they're good, then asks. Your hours aren't spent; the deal becomes theirs.
+ */
+function delegateTalk(world: World, me: Player, c: Company, d: SalesDeal, staffId?: Id) {
+  const s = c.staff.find((x) => x.id === staffId && x.role === 'sales');
+  ensure(s, 'sales.staff', 'Pick someone from your sales team.');
+  const month = getMarket(world, c.market).month;
+  ensure(month <= d.deadline, 'sales.deadline', 'This deal has run out of time.');
+  if (!(d.talk && underWay(d.talk))) startTalk(world, me, c, d, true);
+  const t = d.talk!;
+  ensure(canTalkAt(d), 'sales.stage', 'That step isn’t possible at this stage of the deal.');
+  const rng = deriveRng(world.seed, 'sales', 'delegate', d.id, t.n);
+  const need = d.customer.need;
+  if (!t.lead) {
+    const others = t.leadOptions.filter((o) => o !== need);
+    t.lead =
+      t.leadOptions.includes(need) && rng.chance(0.35 + 0.6 * s.skill) ? need : rng.pick(others);
+  }
+  if (!t.price) {
+    const mid = priceOptions(world, c, d).find((o) => o.id === 'mid')!;
+    t.priceOption = mid.id;
+    t.price = mid.amount;
+    t.discountPct = 0;
+    if (!d.revealed) t.guessed = true;
+  }
+  if (!t.terms) {
+    const opts = termsOf(t).slice() as TermsKind[];
+    const best = opts.sort((a, b) => termsScore(d.customer, b) - termsScore(d.customer, a))[0]!;
+    t.terms = rng.chance(0.3 + 0.6 * s.skill) ? best : rng.pick(opts);
+  }
+  d.owner = s.id;
+  c.lastDecisionMonth = month;
+  return { ...askForDeal(world, me, c, d, month, true), delegated: s.name };
+}
+
+function startTalk(world: World, me: Player, c: Company, d: SalesDeal, free = false) {
   const month = getMarket(world, c.market).month;
   ensure(
     canTalkAt(d),
@@ -366,7 +410,7 @@ function startTalk(world: World, me: Player, c: Company, d: SalesDeal) {
   // A conversation under way picks up where you left it.
   if (d.talk && underWay(d.talk))
     return { dealId: d.id, resumed: true, chance: talkChance(world, c, d, me) };
-  spendHours(me, TALK.hours, `Sales conversation: ${d.customer.name}`);
+  if (!free) spendHours(me, TALK.hours, `Sales conversation: ${d.customer.name}`);
   const n = (d.talk?.n ?? 0) + 1;
   const rng = deriveRng(world.seed, 'sales', 'talk', d.id, n);
   // Their real need is always on offer, with a feature tour and one other opening;
@@ -384,13 +428,20 @@ function startTalk(world: World, me: Player, c: Company, d: SalesDeal) {
   return { dealId: d.id, started: true, chance: talkChance(world, c, d, me) };
 }
 
-function askForDeal(world: World, me: Player, c: Company, d: SalesDeal, month: number) {
+function askForDeal(
+  world: World,
+  me: Player,
+  c: Company,
+  d: SalesDeal,
+  month: number,
+  free = false,
+) {
   const t = d.talk!;
   // The deal is decided on what they really have; before discovery the
   // player saw a guess (the live chance, as shown), kept with the result so
   // it can show both.
   const guess = d.revealed ? undefined : talkChance(world, c, d, me);
-  spendHours(me, TALK.askHours, `Asking ${d.customer.name} for the deal`);
+  if (!free) spendHours(me, TALK.askHours, `Asking ${d.customer.name} for the deal`);
   const chance = talkChance(world, c, d, me, true);
   const f = TALK.termsFactor[t.terms as TermsKind];
   d.price = Math.max(1, Math.round(t.price! * f));
@@ -495,6 +546,13 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
      * (biggest first, in chance points), how your talk has gone, and the best
      * chance a perfect talk could get today.
      */
+    /** Round 7: a tip from a salesperson who knows this kind of customer (gameplay note). */
+    tip: open && t && underWay(t) ? salesTip(world, c, d) : null,
+    /** Round 7: salespeople who can take this conversation for you. */
+    delegates:
+      open && canTalkAt(d) && gameplayOn(world)
+        ? salesStaff(c).map((s) => ({ id: s.id, name: s.name, skill: s.skill }))
+        : [],
     holding:
       open && t && gameplayOn(world)
         ? {

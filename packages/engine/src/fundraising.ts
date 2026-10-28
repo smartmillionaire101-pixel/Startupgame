@@ -37,7 +37,8 @@ import { monthlyGrowth, valueCompany } from './valuation.js';
 import { rulesFor } from './data/rules.js';
 import { INCORPORATION } from './world.js';
 import { companyRunway } from './company.js';
-import { feedbackOn, lifeBarsOn } from './releases.js';
+import { feedbackOn, gameplayOn, lifeBarsOn } from './releases.js';
+import { TEAM, businessCofounderOf } from './cofounders.js';
 import { passWhyText, pitchPassWhy, scorePitch } from './founderguide.js';
 import type {
   Company,
@@ -394,8 +395,18 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
         : 0) +
       // Phase 3: how the founder feels (life bars), on the same scale as the other
       // nudges here (±0.02–0.06); zero before that release note.
-      barEdgeIn(world, founder),
+      barEdgeIn(world, founder) +
+      // Round 7: a business co-founder in the pitch (zero before the gameplay note).
+      cofounderPitch(world, c).score,
   );
+}
+
+/** Round 7: what a business co-founder adds to a pitch: their score, and a warm intro. */
+function cofounderPitch(world: World, c: Company): { score: number; intro: number } {
+  const biz = gameplayOn(world) ? businessCofounderOf(c) : undefined;
+  return biz
+    ? { score: TEAM.pitchScore * biz.skill, intro: TEAM.pitchIntro }
+    : { score: 0, intro: 0 };
 }
 
 /**
@@ -406,7 +417,8 @@ export function firstMeetingScore(world: World, fund: Fund, c: Company, p: Pitch
   const founder = getPlayer(world, p.founderId);
   return (
     fundScore(world, fund, c, p.slides) +
-    warmIntro(world, founder, fund.id, getMarket(world, c.market).month).scoreBonus
+    warmIntro(world, founder, fund.id, getMarket(world, c.market).month).scoreBonus +
+    cofounderPitch(world, c).intro
   );
 }
 

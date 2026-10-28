@@ -9,7 +9,9 @@ import { SEGMENT_BUYERS } from '../src/data/buyers.js';
 import { BUSINESS_KINDS } from '../src/data/businesses.js';
 import { SEGMENT_TEMPLATES } from '../src/data/industries.js';
 import { businessesOf, specOf } from '../src/economy.js';
-import type { Company, SalesDeal, World } from '../src/types.js';
+import type { Company, SalesDeal, Staff, World } from '../src/types.js';
+import { buildOutput, expertiseOf } from '../src/cofounders.js';
+import { fundScore } from '../src/fundraising.js';
 import { playerView } from '../src/views.js';
 import { closeDeal, holdingBack } from '../src/sales.js';
 import { salesWithTalk } from '../src/salestalk.js';
@@ -301,5 +303,190 @@ describe('#11 a lost deal names the one real reason', () => {
     const old = shaped(false, () => {});
     const y = run(old.w, F, { type: 'sales.talk', dealId: old.id, action: 'start' } as never).world;
     expect(salesWithTalk(y, co(y)).deals.find((d) => d.id === old.id)!.talk!.holding).toBeNull();
+  });
+});
+
+/** A hire added straight to the team (deterministic: no offer dice). */
+function withStaff(w: World, s: Partial<Staff> & { role: Staff['role'] }): World {
+  return produce(w, (x) => {
+    const c = companyOf(x, F);
+    c.staff.push({
+      id: `st_${s.role}_${c.staff.length}`,
+      name: s.name ?? 'Tunde Bello',
+      seniority: 'mid',
+      salary: 50_000,
+      equityBps: 0,
+      morale: 70,
+      skill: 0.7,
+      personality: 'steady',
+      hiredMonth: x.markets.london!.month,
+      ...s,
+    } as Staff);
+  });
+}
+
+const cofounder = (profile: 'cto' | 'operator' | 'growth'): Partial<Staff> => ({
+  seniority: 'head',
+  cofounder: {
+    profile,
+    title: profile === 'cto' ? 'CTO' : profile === 'operator' ? 'CEO' : 'Growth',
+    equityBps: 2000,
+    vestingMonths: 48,
+    cliffMonths: 12,
+    since: 0,
+  },
+});
+
+describe('#12 hires do their job', () => {
+  it('a salesperson from health brings hospital and clinic leads, and runs discovery on them', () => {
+    let w = withStaff(founder('healthtech'), {
+      role: 'sales',
+      name: 'Tunde Bello',
+      expertise: 'healthtech.clinics',
+    });
+    w = settle(w, 'london', 1);
+    const mine = co(w).deals!.filter((d) => d.owner === 'st_sales_0');
+    expect(mine.length).toBe(2);
+    for (const d of mine) {
+      expect(d.customer.segmentKey).toBe('healthtech.clinics');
+      if (d.customer.businessId)
+        expect(['clinic', 'dentist', 'pharmacy', 'employer-hospital']).toContain(kindOf(w, d));
+      // They ran discovery: you know what each needs.
+      expect(d.revealed).toBe(true);
+      expect(d.stage).toBe('discovery');
+    }
+    // The board says whose deal it is, and the recap what they did.
+    const v = salesWithTalk(w, co(w)).deals.find((d) => d.id === mine[0]!.id)!;
+    expect(v.owner?.name).toBe('Tunde Bello');
+    const month = w.markets.london!.month;
+    const rc = recapView(w, F, month)!.companies[0]!;
+    const tunde = rc.team!.find((p) => p.staffId === 'st_sales_0')!;
+    expect(tunde.leads).toBe(2);
+    expect(tunde.discovered).toBe(2);
+  });
+
+  it('their deals win more often, by their skill', () => {
+    const base = shaped(true, (d) => {
+      d.customer.trust = 0.3;
+    });
+    const owned = produce(withStaff(base.w, { role: 'sales', skill: 0.9 }), (x) => {
+      companyOf(x, F).deals!.find((d) => d.id === base.id)!.owner = 'st_sales_0';
+    });
+    const p0 = salesWithTalk(base.w, co(base.w)).deals.find((d) => d.id === base.id)!.probability;
+    const p1 = salesWithTalk(owned, co(owned)).deals.find((d) => d.id === base.id)!.probability;
+    expect(p1 - p0).toBeCloseTo(0.08 * 0.9, 2);
+  });
+
+  it('gives a tip in the conversation, and can take it for you without your hours', () => {
+    const base = shaped(true, () => {});
+    let w = withStaff(base.w, { role: 'sales', skill: 1, expertise: 'healthtech.clinics' });
+    w = run(w, F, { type: 'sales.talk', dealId: base.id, action: 'start' } as never).world;
+    const t = salesWithTalk(w, co(w)).deals.find((d) => d.id === base.id)!.talk!;
+    expect(t.tip?.name).toBe('Tunde Bello');
+    expect(['fit', 'price', 'stars', 'reliability']).toContain(t.tip!.need);
+    expect(t.delegates.map((x) => x.id)).toEqual(['st_sales_0']);
+    const hours = w.players[F]!.hours.used;
+    const r = run(w, F, {
+      type: 'sales.talk',
+      dealId: base.id,
+      action: 'delegate',
+      staffId: 'st_sales_0',
+    } as never);
+    expect(r.result.delegated).toBe('Tunde Bello');
+    expect(r.world.players[F]!.hours.used).toBe(hours);
+    const d = co(r.world).deals!.find((x) => x.id === base.id)!;
+    expect(['won', 'lost']).toContain(d.stage);
+    expect(d.owner).toBe('st_sales_0');
+    expect(d.talk!.result).toBeDefined();
+  });
+
+  it('a technical co-founder joins demos and lifts the build', () => {
+    const base = shaped(true, () => {});
+    const back = produce(base.w, (x) => {
+      const d = companyOf(x, F).deals!.find((y) => y.id === base.id)!;
+      d.stage = 'contacted';
+      delete d.demoScore;
+    });
+    const plain = run(back, F, { type: 'sales.advance', dealId: base.id, action: 'demo' });
+    const w = withStaff(back, { role: 'engineer', skill: 0.8, ...cofounder('cto') });
+    const lifted = run(w, F, { type: 'sales.advance', dealId: base.id, action: 'demo' });
+    const d = co(lifted.world).deals!.find((x) => x.id === base.id)!;
+    expect(d.demoLift?.lift).toBeCloseTo(0.12 * 0.8, 2);
+    expect(lifted.result.demoScore).toBeGreaterThanOrEqual(Math.min(1, plain.result.demoScore));
+    // The team builds faster with them than without them.
+    const eng = withStaff(founder('healthtech'), { role: 'engineer', skill: 0.8 });
+    const withCto = withStaff(eng, { role: 'engineer', skill: 0.8, ...cofounder('cto') });
+    const noBoost = withStaff(eng, { role: 'engineer', skill: 0.8, seniority: 'head' });
+    expect(buildOutput(withCto, co(withCto), 0)).toBeGreaterThan(
+      buildOutput(noBoost, co(noBoost), 0),
+    );
+    // And engineers ship faster than before the note.
+    const old = withStaff(founder('healthtech', false), { role: 'engineer', skill: 0.8 });
+    expect(buildOutput(eng, co(eng), 0)).toBeCloseTo(buildOutput(old, co(old), 0) * 1.2, 5);
+  });
+
+  it('a business co-founder brings warmer leads and a better pitch', () => {
+    // The same person, once as a co-founder and once as a head of operations.
+    const a = withStaff(founder('healthtech'), {
+      role: 'operations',
+      skill: 0.8,
+      seniority: 'head',
+    });
+    const b = withStaff(founder('healthtech'), {
+      role: 'operations',
+      skill: 0.8,
+      ...cofounder('operator'),
+    });
+    const la = run(a, F, { type: 'sales.prospect' }).world;
+    const lb = run(b, F, { type: 'sales.prospect' }).world;
+    const ta = co(la).deals!.map((d) => d.customer.trust);
+    const tb = co(lb).deals!.map((d) => d.customer.trust);
+    expect(tb.length).toBe(ta.length);
+    tb.forEach((t, i) => expect(t).toBeGreaterThan(ta[i]! - 0.001));
+    expect(co(lb).deals!.every((d) => d.warmBy)).toBe(true);
+    const fund = Object.values(a.funds)[0]!;
+    expect(fundScore(b, fund, co(b), [])).toBeCloseTo(
+      Math.min(1, fundScore(a, fund, co(a), []) + 0.05 * 0.8),
+      5,
+    );
+  });
+
+  it('everyone gets better with the months; before the note, nobody does', () => {
+    // A co-founder (paid in equity, so they stay whatever the payroll).
+    const cto = { role: 'engineer' as const, skill: 0.5, ...cofounder('cto') };
+    let on = withStaff(founder('healthtech'), cto);
+    let off = withStaff(founder('healthtech', false), cto);
+    on = settle(on, 'london', 2);
+    off = settle(off, 'london', 2);
+    const skill = (w: World) => co(w).staff.find((x) => x.id === 'st_engineer_0')!.skill;
+    expect(skill(on)).toBeGreaterThan(0.515);
+    expect(skill(off)).toBeCloseTo(0.5, 5);
+    expect(co(off).teamMonth).toBeUndefined();
+  });
+
+  it('shows what a candidate would bring before you hire them', () => {
+    const w = founder('healthtech');
+    const pv = playerView(w, F)!.companies[0]!;
+    const talent = w.markets.london!.talent;
+    const seller = talent.find((t) => t.role === 'sales')!;
+    const b = pv.talentBrings![seller.id]!;
+    expect(b.leadsPerMonth).toBeGreaterThanOrEqual(1);
+    expect(b.winLift).toBeGreaterThan(0);
+    expect(b.expertise).toBe(expertiseOf(w, seller.id, 'healthtech'));
+    const eng = talent.find((t) => t.role === 'engineer')!;
+    expect(pv.talentBrings![eng.id]!.roadmapWeeks).toBeGreaterThan(0);
+    const offers = playerView(w, F)!.companies[0]!.hiring.aiCofounder.offers;
+    expect(offers.find((o) => o.id === 'cto')!.brings!.demoLift).toBeGreaterThan(0);
+    expect(offers.find((o) => o.id === 'operator')!.brings!.pitchLift).toBeGreaterThan(0);
+    // Hired, they keep the sector their card showed.
+    const r = run(w, F, {
+      type: 'company.offer',
+      companyId: co(w).id,
+      candidateId: seller.id,
+      salary: Math.round(seller.ask * 1.5),
+      equityBps: 0,
+    });
+    if (r.result.staffId)
+      expect(co(r.world).staff.find((s) => s.id === r.result.staffId)!.expertise).toBe(b.expertise);
   });
 });

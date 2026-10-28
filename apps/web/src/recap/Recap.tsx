@@ -26,6 +26,7 @@ import { useView } from '../store';
 import { CountUp, Icon } from '../ui';
 import './recap.css';
 import { churnLabel } from '../screens/Sales';
+import { TeamMonth } from '../screens/SalesTeam';
 
 // ---------------------------------------------------------------- opening it
 
@@ -559,6 +560,7 @@ function CompanyBlock({ c, many }: { c: RecapCompany; many: boolean }) {
       ) : (
         <p className="small muted">{t('No settlement for this company this month.')}</p>
       )}
+      <TeamMonth team={c.team} />
     </div>
   );
 }

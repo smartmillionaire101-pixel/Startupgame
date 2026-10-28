@@ -40,6 +40,7 @@ import { barEdgeIn } from './lifebars.js';
 import { rivalPressure } from './rivals.js';
 import { firstPayment, starterIdeaEdge } from './firstsession.js';
 import { feedbackOn, gameplayOn } from './releases.js';
+import { TEAM, businessCofounderOf, ctoOf, ownerOf } from './cofounders.js';
 import type {
   Company,
   Id,
@@ -283,7 +284,10 @@ export function winChance(
   // Founder Journey 6: the starting idea's demand, competition and founder fit
   // (zero for companies founded without an idea, so they are unchanged).
   // Phase 3: how the founder feels (life bars; zero before that release note).
-  const edge = starterIdeaEdge(c) + barEdgeIn(world, founder);
+  // Round 7: the salesperson running the deal lifts it by their skill (zero before the note).
+  const owner = gameplayOn(world) ? ownerOf(c, d.owner) : undefined;
+  const edge =
+    starterIdeaEdge(c) + barEdgeIn(world, founder) + (owner ? TEAM.ownerChance * owner.skill : 0);
   return pressure > 0 || edge !== 0
     ? clamp(base - pressure + edge, SALES.chance[0], SALES.chance[1])
     : base;
@@ -506,9 +510,12 @@ export function makeLead(
   m: MarketState,
   rng: Rng,
   b: LocalBusiness | undefined,
+  /** Round 7: a made-up lead from this segment (a salesperson's own sector). */
+  segmentKey?: string,
 ): SalesCustomer | null {
   let seg: SegmentState | undefined;
-  if (b && gameplayOn(world)) {
+  if (!b && segmentKey && m.segments[segmentKey]) seg = m.segments[segmentKey];
+  else if (b && gameplayOn(world)) {
     // Gameplay note: a business buys as the segment its kind belongs to, or not at all.
     const key = businessSegment(m, c, b);
     seg = key ? m.segments[key] : undefined;
@@ -613,6 +620,7 @@ export function prospect(world: World, me: Player, companyId?: Id) {
     openDealLimit(c) - open,
   );
   const added: SalesDeal[] = [];
+  const warm = on ? businessCofounderOf(c) : undefined;
   for (let i = 0; i < n; i++) {
     let b: LocalBusiness | undefined;
     if (businesses.length && rng.chance(0.6)) {
@@ -620,6 +628,11 @@ export function prospect(world: World, me: Player, companyId?: Id) {
     }
     const customer = makeLead(world, c, m, rng, b);
     if (!customer) break;
+    // Round 7: a business co-founder's contacts make the lead warmer.
+    if (warm) {
+      customer.trust =
+        Math.round(clamp01(customer.trust + TEAM.warmTrust * warm.skill) * 100) / 100;
+    }
     c.salesSeq = (c.salesSeq ?? 0) + 1;
     const fast = customer.urgency > 0.7 ? 0 : 1;
     const d: SalesDeal = {
@@ -629,6 +642,7 @@ export function prospect(world: World, me: Player, companyId?: Id) {
       createdMonth: month,
       deadline: month + clamp(rng.int(SALES.deadline[0], SALES.deadline[1]) - 1 + fast, 1, 6),
       revealed: false,
+      ...(warm ? { warmBy: warm.id } : {}),
     };
     deals.push(d);
     added.push(d);
@@ -709,12 +723,17 @@ export function advanceDeal(world: World, me: Player, cmd: SalesAdvanceInput) {
       const fit = segmentFit(c, d.customer.segmentKey);
       const rel = reliability(c);
       const luck = rng.normal(0, 0.06);
+      // Round 7: a technical co-founder joins the demo and lifts it by their skill.
+      const cto = gameplayOn(world) ? ctoOf(c) : undefined;
+      const lift = cto ? round2(TEAM.ctoDemo * cto.skill) : 0;
+      if (cto && lift > 0) d.demoLift = { by: cto.id, lift, month };
       const score =
         DEMO_WEIGHTS.fit * fit +
         DEMO_WEIGHTS.quality * c.product.quality +
         DEMO_WEIGHTS.reliability * rel +
         (d.revealed ? DEMO_WEIGHTS.discovery : 0) +
-        luck;
+        luck +
+        lift;
       d.demoScore = Math.round(clamp01(score) * 100) / 100;
       // Feedback note: keep what the score was made of, to explain it.
       if (feedbackOn(world))
@@ -1112,6 +1131,15 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       actions,
       next: actions.find((x) => x.action === 'close') ?? actions[0] ?? null,
       lossReason: d.lossReason ?? null,
+      /** Round 7: the salesperson running this deal (gameplay note), while they work here. */
+      owner: (() => {
+        const o = gameplayOn(world) ? ownerOf(c, d.owner) : undefined;
+        return o ? { id: o.id, name: o.name, skill: o.skill } : null;
+      })(),
+      /** Round 7: how much a technical co-founder lifted the demo. */
+      demoLift: d.demoLift?.lift ?? null,
+      /** Round 7: a business co-founder's contact made this lead warmer. */
+      warm: !!d.warmBy,
       /** Round 7: the one real reason in their words, and when they'll talk again. */
       loss: d.stage === 'lost' && d.lossReason && gameplayOn(world) ? lossView(d, month) : null,
       canRecover: d.stage === 'lost' && !d.recovered && !d.expired && d.revisit === undefined,

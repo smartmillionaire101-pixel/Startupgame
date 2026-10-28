@@ -13,7 +13,7 @@ import { bankWorkView } from './bankwork.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
-import { feedbackOn, investorOn, lifeBarsOn, placesOn, shopOn } from './releases.js';
+import { feedbackOn, gameplayOn, investorOn, lifeBarsOn, placesOn, shopOn } from './releases.js';
 import { homeStyleView } from './homestyle.js';
 import { shopCatalogView } from './catalog.js';
 import { cityPlacesView } from './places.js';
@@ -90,6 +90,7 @@ import { chatIdOf } from './people.js';
 import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
 import { customerFacts, payingCustomers } from './traction.js';
+import { bringsOf, teamBringsView } from './team.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
 import { mallTripView } from './malltrips.js';
@@ -1039,6 +1040,14 @@ export function playerView(
         officeDownsized: !!c.officeDownsized,
         /** Local businesses buying from this company (Wave 3), with last month's amount. */
         businessCustomers: businessCustomersOf(world, c),
+        /** Round 7 (gameplay note): what each person on the team brings, by staff id. */
+        teamBrings: teamBringsView(world, c),
+        /** Round 7: what each candidate in the city's talent pool would bring, by candidate id. */
+        talentBrings: gameplayOn(world)
+          ? Object.fromEntries(
+              getMarket(world, c.market).talent.map((x) => [x.id, bringsOf(world, c, x)]),
+            )
+          : null,
         /** Wave 10: head office, branches, and what opening one costs in each city. */
         expansion: companyBranchesView(world, c, playerId),
       };

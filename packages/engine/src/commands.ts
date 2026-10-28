@@ -790,9 +790,11 @@ export const commandSchema = z.discriminatedUnion('type', [
     companyId: id.optional(),
     dealId: id.optional(),
     businessId: id.optional(),
-    action: z.enum(['start', 'lead', 'price', 'terms', 'ask']),
+    action: z.enum(['start', 'lead', 'price', 'terms', 'ask', 'delegate']),
     option: z.string().max(24).optional(),
     discountPct: z.number().int().min(0).max(100).optional(),
+    /** Round 7: the salesperson who takes the conversation (`delegate`). */
+    staffId: id.optional(),
   }),
   /** Founder Journey 6: a small one-off business expense, paid from the company account. */
   z.object({

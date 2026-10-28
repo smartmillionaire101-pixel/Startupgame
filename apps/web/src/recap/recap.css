@@ -149,3 +149,7 @@
 :root[data-reduce-motion='1'] .recap-sheet {
   animation: none;
 }
+/* Round 7: "Your team this month" (SalesTeam.tsx TeamMonth). */
+.recap-team {
+  margin-top: 8px;
+}

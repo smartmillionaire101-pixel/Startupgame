@@ -15,6 +15,7 @@ import { activeStep, setTutorial, useTutorial } from '../tutorial/state';
 import { useSpotlight } from '../tutorial/spotlight';
 import { DemoBreakdown } from './FounderGuide';
 import { SalesTalkSheet } from './SalesTalk';
+import { DealOwner } from './SalesTeam';
 import { LossReason, lossAdvice, lossLabel, type LossReason as LossReasonId } from './SalesReasons';
 import './sales.css';
 
@@ -315,6 +316,7 @@ function DealCard({
         <span className="small muted">
           {d.contact} · {tx(d.businessKind ?? d.segment)}
         </span>
+        <DealOwner d={d} />
       </header>
       <div className="sales-deal-line small">
         <span>

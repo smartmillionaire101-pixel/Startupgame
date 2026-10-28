@@ -20,6 +20,7 @@ import { useView, type Company } from '../store';
 import { Button, Card, Sheet, Stat } from '../ui';
 import { ScoreRing, markIcon, useLine } from './Interview';
 import { HoldingBack, LossReason, lossLabel } from './SalesReasons';
+import { DelegateTalk, TeamTip } from './SalesTeam';
 import './convo.css';
 
 type DealV = NonNullable<Company['sales']>['deals'][number];
@@ -169,6 +170,7 @@ export function SalesTalkSheet({
                     {t('Call them first: then you can sit down and talk.')}
                   </p>
                 )}
+                {d && talk?.canStart && <DelegateTalk d={d} talk={talk} busy={busy} go={go} />}
               </Card>
             ) : (
               d &&
@@ -324,6 +326,7 @@ function Turns({
   return (
     <>
       <Card title={t('1 · Lead with')} action={dots(step === 'lead' ? 0 : 1)}>
+        {talk.tip && !talk.lead && <TeamTip d={d} tip={talk.tip} />}
         <ul className="convo-opts" data-turn="lead">
           {talk.leadOptions.map((o, i) => (
             <li key={o.id}>
@@ -480,6 +483,7 @@ function Turns({
             {t('Ask for the deal ({h}h)', { h: talk.askHours })}
           </Button>
         )}
+        <DelegateTalk d={d} talk={talk} busy={busy} go={go} />
       </Card>
     </>
   );

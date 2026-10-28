@@ -4,6 +4,7 @@
  * role, find candidates, interview, offer) and the co-founder chooser
  * (invite a real player who's online, or choose an AI co-founder).
  */
+import { HireBrings } from './SalesTeam';
 import { useState } from 'react';
 import { amountInput, money, parseAmount, pct } from '../format';
 import { t, tx } from '../i18n';
@@ -245,6 +246,7 @@ function AiCofounderSheet({ c, onClose }: { c: CompanyT; onClose: () => void }) 
               <Pill tone="info">{cofounderTitle(o.title)}</Pill>
             </div>
             <p className="small">{cofounderPitch(o.id)}</p>
+            <HireBrings b={o.brings} />
             <p className="small muted">
               {t('Skill {n} · wants {pct} · salary {amount}/mo', {
                 n: Math.round(o.skill * 100),
@@ -570,6 +572,7 @@ function CandidateCard({
           {x.personality !== null ? personalityWord(x.personality) : unknown}
         </dd>
       </dl>
+      <HireBrings b={x.brings} />
       {x.keen && <p className="small good">{t('Keen to join you.')}</p>}
       <div className="hire-actions">
         <Button

@@ -1,3 +1,4 @@
+import { HireBrings } from './SalesTeam';
 import { useEffect, useState } from 'react';
 import { FoundCompany } from './Me';
 import { ScreenBoundary } from '../ScreenBoundary';
@@ -733,6 +734,7 @@ export function Team({ c }: { c: CompanyT }) {
                         : ''}{' '}
                       · {personalityLabel(s.personality)}
                     </div>
+                    <HireBrings b={c.teamBrings?.[s.id]} />
                   </div>
                   <div className="row">
                     <Button variant="ghost" onClick={() => setRaiseFor(s)}>
@@ -812,6 +814,7 @@ export function Team({ c }: { c: CompanyT }) {
                           : t('1 other offer'))
                       : ''}
                   </div>
+                  <HireBrings b={c.talentBrings?.[p.id]} />
                 </div>
                 <Button variant="subtle" onClick={() => setOffer(p)}>
                   {t('Offer')}
