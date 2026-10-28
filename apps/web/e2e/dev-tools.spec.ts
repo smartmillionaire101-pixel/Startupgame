@@ -6,6 +6,9 @@ import { expect, letters, playAsGuest, setupFounder, tab, test } from './fixture
  * unless the URL asks for it with ?dev=1. The flag lasts for the tab's
  * session; ?dev=0 hides it again. The dev API itself keeps working.
  */
+// This spec is about the flag: pages start without it (the fixture sets it for the others).
+test.use({ devTools: false });
+
 test('the Dev tools card shows only with ?dev=1', async ({ page }) => {
   const tag = letters(5);
   await playAsGuest(page);

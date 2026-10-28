@@ -61,8 +61,23 @@ export async function withoutNetlifyDrawer(page: Page) {
   });
 }
 
-export const test = base.extend({
-  page: async ({ page }, use, testInfo) => {
+export const test = base.extend<{ devTools: boolean }>({
+  /**
+   * Round 7: players see the Dev tools card only with ?dev=1 (kept for the
+   * tab's session). Specs drive it (Advance a month, the home previews), so
+   * every page starts with the flag on, as ?dev=1 would leave it; a spec
+   * about the flag itself turns this off with test.use({ devTools: false }).
+   */
+  devTools: [true, { option: true }],
+  page: async ({ page, devTools }, use, testInfo) => {
+    if (devTools)
+      await page.addInitScript(() => {
+        try {
+          sessionStorage.setItem('rw_dev', '1');
+        } catch {
+          /* no storage: the card stays hidden */
+        }
+      });
     await withoutNetlifyDrawer(page);
     const errors: string[] = [];
     page.on('response', async (res) => {
