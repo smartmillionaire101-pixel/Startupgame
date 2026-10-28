@@ -15,6 +15,7 @@ import {
   openTogether,
   type Page,
 } from './fixtures';
+import type { Browser } from '@playwright/test';
 
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 type Room = PlayerView['playRooms'][number];
@@ -47,7 +48,9 @@ async function founder(p: Page, name: string) {
   });
   await expect(p.locator('[data-hud-bar]')).toBeVisible({ timeout: 30000 });
 }
-async function lobby(p: Page) {
+async function lobby(p: Page, gl = false) {
+  // Round 7e: the games in 3D (the player in the picture); the city stays Lite.
+  if (gl) await p.evaluate(() => localStorage.setItem('runway.mapQuality', '3d'));
   const home = await openTogether(p);
   await home.getByRole('button', { name: /Play football or host/ }).click();
   return p.getByRole('dialog', { name: 'Play together' });
@@ -61,6 +64,78 @@ async function table(p: Page) {
   const [cx, cy] = ((await canvas.getAttribute('data-cue')) ?? '0,0').split(',').map(Number);
   const scale = box.width / (POOL_H + 26);
   return { canvas, box, cue: { x: box.x + cx!, y: box.y + cy! }, scale };
+}
+
+type Box = { l: number; r: number; b: number; t: number };
+/** Round 7e: the player leaning over the pool table (./game-avatar3d.ts), −1 … 1 on its layer. */
+const poolPlayer = (p: Page) =>
+  p.evaluate(
+    () =>
+      (
+        window as unknown as { __pool3d?: { onScreen(): { player: Box | null } } }
+      ).__pool3d?.onScreen().player ?? null,
+  );
+/** Round 7e: the kicker on the pitch, the ball and the goal line (−1 … 1 on the pitch). */
+const pitchKicker = (p: Page) =>
+  p.evaluate(
+    () =>
+      (
+        window as unknown as {
+          __kick3d?: {
+            onScreen(): {
+              kicker: Box | null;
+              T: number;
+              ball: { x: number; y: number };
+              goalLine: number;
+            };
+          };
+        }
+      ).__kick3d?.onScreen() ?? null,
+  );
+const inFrame = (b: Box | null | undefined) =>
+  !!b && b.l > -1 && b.r < 1 && b.b > -1 && b.t < 1 && b.r - b.l > 0.05;
+/** A box on a layer (−1 … 1) in page px. */
+async function onPage(p: Page, sel: string, b: Box) {
+  const c = (await p.locator(sel).boundingBox())!;
+  return {
+    x: c.x + ((b.l + 1) / 2) * c.width,
+    y: c.y + ((1 - b.t) / 2) * c.height,
+    width: ((b.r - b.l) / 2) * c.width,
+    height: ((b.t - b.b) / 2) * c.height,
+  };
+}
+const overlaps = (
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+
+/** The player at the table, whole, on the table's layer, and over none of the controls. */
+async function expectPoolPlayer(p: Page, what: string) {
+  await expect
+    .poll(async () => inFrame(await poolPlayer(p)), {
+      timeout: 15000,
+      message: `${what}: the player at the table, all of them in the picture`,
+    })
+    .toBe(true);
+  const box = await onPage(p, '.pool-player-3d', (await poolPlayer(p))!);
+  for (const sel of ['.pool-controls', '.pool-hint', '.pool-power', '.pool-hud']) {
+    const el = p.locator(sel).first();
+    if (!(await el.count()) || !(await el.isVisible())) continue;
+    expect(overlaps(box, (await el.boundingBox())!), `${what}: the player over ${sel}`).toBe(false);
+  }
+}
+
+/** The kicker on the pitch, whole, beside the ball (the swipe starts there) and below the goal. */
+async function expectKicker(p: Page, what: string) {
+  await expect
+    .poll(async () => inFrame((await pitchKicker(p))?.kicker), {
+      timeout: 15000,
+      message: `${what}: the kicker, all of them on the pitch`,
+    })
+    .toBe(true);
+  const v = (await pitchKicker(p))!;
+  expect(v.kicker!.r, `${what}: the kicker stands clear of the ball`).toBeLessThan(v.ball.x);
+  expect(v.kicker!.t, `${what}: the kicker stands below the goal`).toBeLessThan(v.goalLine + 0.15);
 }
 
 /** Take a pool shot the way a player does: place the ball, aim, pull the cue back, let go. */
@@ -106,7 +181,7 @@ test('8-ball pool against the AI on a phone: a full frame to the pot', async ({ 
   page.on('pageerror', (e) => errors.push(e.message));
   await founder(page, 'Pat Cue');
   const before = (await state(page)).accounts.local!.balance;
-  const dialog = await lobby(page);
+  const dialog = await lobby(page, true);
   await dialog.getByRole('button', { name: /8-ball pool/ }).click();
   await snap(page, 'pool-lobby', info);
   await dialog
@@ -117,6 +192,12 @@ test('8-ball pool against the AI on a phone: a full frame to the pot', async ({ 
   await expect(dialog.locator('.pool-table canvas')).toBeVisible({ timeout: 15000 });
   await expect(dialog.getByText(/Ball in hand: drag the cue ball behind the line/)).toBeVisible();
   await page.waitForTimeout(400);
+  // Round 7e: you, leaning over the table for the break.
+  await expectPoolPlayer(page, 'the break');
+  await expect(dialog.locator('.pool-player-3d')).toHaveAttribute(
+    'data-player',
+    (await state(page)).me.id,
+  );
   await snap(page, 'pool-break', info);
   let byHand = 0;
   let shots = 0;
@@ -163,7 +244,16 @@ test('8-ball pool against the AI on a phone: a full frame to the pot', async ({ 
       });
     }
     shots++;
-    if (shots === 4) await snap(page, 'pool-aim', info);
+    if (shots === 4) {
+      await snap(page, 'pool-aim', info);
+    }
+    if (shots === 2) {
+      // Lined up away from the break end too: still all in the picture, clear of the controls.
+      await expect(page.locator('.pool-table canvas')).toHaveAttribute('data-rolling', '1', {
+        timeout: 15000,
+      });
+      await expectPoolPlayer(page, 'watching the shot');
+    }
   }
   const room = (await roomOf(page, 'snooker'))!;
   expect(room.status).toBe('finished');
@@ -210,11 +300,17 @@ test('a penalty shootout against the AI on a phone, to sudden death if need be',
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await founder(page, 'Pat Striker');
-  const dialog = await lobby(page);
+  const dialog = await lobby(page, true);
   await dialog.getByRole('button', { name: /Football shootout/ }).click();
   await dialog.getByRole('button', { name: 'Play vs AI' }).click();
   await expect(dialog.locator('.shootout-pitch canvas')).toBeVisible({ timeout: 15000 });
   await page.waitForTimeout(300);
+  // Round 7e: you wait behind the ball in your kit, all of you on the pitch.
+  await expectKicker(page, 'ready on a phone');
+  await expect(dialog.locator('.shootout-kicker')).toHaveAttribute(
+    'data-kicker',
+    (await state(page)).me.id,
+  );
   await snap(page, 'shootout-ready', info);
   const targets: [number, number, number][] = [
     [-2.6, 1.7, 0],
@@ -264,7 +360,14 @@ test('a penalty shootout against the AI on a phone, to sudden death if need be',
           () => false,
         );
       if (flying) {
-        await page.waitForTimeout(650);
+        // The run-up and the strike: the kicker moves and stays in the picture.
+        await page.waitForTimeout(350);
+        const run = (await pitchKicker(page))!;
+        expect(run.T, 'the kicker runs up').toBeGreaterThan(0);
+        expect(inFrame(run.kicker), 'the kicker in the picture on the run-up').toBe(true);
+        await snap(page, 'shootout-runup', info);
+        await page.waitForTimeout(450);
+        expect(inFrame((await pitchKicker(page))!.kicker)).toBe(true);
         await snap(page, 'shootout-flight', info);
       }
     }
@@ -345,3 +448,74 @@ test('two players at the pool table: one breaks, the other sees it and plays', a
     await context.close();
   }
 });
+
+/**
+ * Round 7e: on an upright tablet and a laptop too, the player leaning over
+ * the pool table for the break and the kicker behind the ball (then running
+ * up and striking it) are all in the picture, clear of the controls.
+ */
+/** A new founder at this screen size, at the table games in 3D. */
+async function atSize(browser: Browser, url: string | undefined, w: number, h: number) {
+  const context = await browser.newContext({ baseURL: url, viewport: { width: w, height: h } });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await playAsGuest(page);
+  await setupFounder(page, {
+    name: 'Pat Frame',
+    handle: `tg_${letters(8)}`,
+    company: `Studio ${letters(8)}`,
+    idea: 'Tools for local businesses',
+    market: /London/,
+  });
+  await expect(page.locator('[data-hud-bar]')).toBeVisible({ timeout: 30000 });
+  return { context, page, errors, dialog: await lobby(page, true) };
+}
+
+for (const [w, h] of [
+  [768, 1024],
+  [1440, 900],
+] as const) {
+  test(`the pool player leaning over the table, in the picture at ${w}×${h}`, async ({
+    browser,
+  }, info) => {
+    test.setTimeout(240_000);
+    const { context, page, errors, dialog } = await atSize(browser, info.project.use.baseURL, w, h);
+    await dialog.getByRole('button', { name: /8-ball pool/ }).click();
+    await dialog.getByRole('button', { name: 'Play vs AI' }).click();
+    await expect(dialog.locator('.pool-table canvas')).toBeVisible({ timeout: 15000 });
+    await expectPoolPlayer(page, `the break at ${w}×${h}`);
+    await dialog.locator('.pool-table canvas').scrollIntoViewIfNeeded();
+    await snap(page, `pool-player-${w}x${h}`, info);
+    expect(errors).toEqual([]);
+    await context.close();
+  });
+
+  test(`the kicker behind the ball, then the kick, in the picture at ${w}×${h}`, async ({
+    browser,
+  }, info) => {
+    test.setTimeout(240_000);
+    const { context, page, errors, dialog } = await atSize(browser, info.project.use.baseURL, w, h);
+    await dialog.getByRole('button', { name: /Football shootout/ }).click();
+    await dialog.getByRole('button', { name: 'Play vs AI' }).click();
+    await expect(dialog.locator('.shootout-pitch canvas')).toBeVisible({ timeout: 15000 });
+    await expectKicker(page, `ready at ${w}×${h}`);
+    await dialog.locator('.shootout-pitch canvas').scrollIntoViewIfNeeded();
+    await snap(page, `shootout-kicker-${w}x${h}`, info);
+    // The run-up and the strike stay in the picture.
+    await expect(page.locator('.shootout-pitch canvas')).toHaveAttribute('data-turn', 'shoot', {
+      timeout: 15000,
+    });
+    await swipeAt(page, -2.4, 1.6, 260, 0);
+    await expect
+      .poll(async () => (await pitchKicker(page))!.T, { timeout: 15000 })
+      .toBeGreaterThan(0.3);
+    expect(
+      inFrame((await pitchKicker(page))!.kicker),
+      'the kicker in the picture on the kick',
+    ).toBe(true);
+    await snap(page, `shootout-kick-${w}x${h}`, info);
+    expect(errors).toEqual([]);
+    await context.close();
+  });
+}

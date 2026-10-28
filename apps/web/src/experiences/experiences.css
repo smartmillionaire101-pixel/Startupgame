@@ -1314,3 +1314,27 @@
   gap: 6px;
   margin-top: 4px;
 }
+
+/* Round 7e: the kicker over the pitch, and the pool player over the table (never take a tap). */
+.shootout-stage,
+.pool-stage {
+  position: relative;
+}
+.shootout-kicker,
+.pool-player-3d {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.shootout-dives {
+  z-index: 2;
+}
+.shootout-banner {
+  z-index: 3;
+}
+.pool-table.has-player {
+  padding-block: var(--stand-room, 0);
+}

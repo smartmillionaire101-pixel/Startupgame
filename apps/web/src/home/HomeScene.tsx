@@ -250,6 +250,10 @@ function baseOf(p: Person): number {
   return p.y + 0.72;
 }
 
+/** Round 7e: a bed you can sit on the edge of (yours, the mat, a guest bed). */
+const isBed = (o: { verbs: readonly unknown[] }) =>
+  o.verbs.some((v) => !!v && typeof v === 'object' && 'act' in v && v.act === 'sleep');
+
 const GUEST_BG = ['f-dropout', 'i-first', 'b-wealthy', 'f-corporate', 'i-operator', 'b-fintech'];
 const guestLook = (personId: string) =>
   avatarLook(GUEST_BG[hash(personId) % GUEST_BG.length], personId);
@@ -659,7 +663,10 @@ export function HomeScene({
     if (inner)
       inner.setAttribute(
         'transform',
-        p.pose === 'lie' ? 'scale(0.95)' : `scale(${(p.facing * 0.95).toFixed(2)} 0.95)`,
+        // Lying (round 7e, Lite): a little up the bed, the head on the pillow.
+        p.pose === 'lie'
+          ? 'translate(0 -7) scale(0.95)'
+          : `scale(${(p.facing * 0.95).toFixed(2)} 0.95)`,
       );
   }, []);
 
@@ -1160,7 +1167,11 @@ export function HomeScene({
           ? owned.has('sofa') || !plan.fixtures.cushions
             ? t('Resting on the sofa')
             : t('Resting on the cushions')
-          : t('Resting: {thing}', { thing: obj.label });
+          : isBed(obj)
+            ? obj.id === 'bed' && !owned.has('bed') && plan.fixtures.mat
+              ? t('Sitting on the mat')
+              : t('Sitting on the bed')
+            : t('Resting: {thing}', { thing: obj.label });
     setRest({ spot, label });
     void send({ type: 'home.rest', action: 'start', spot }).then((r) => {
       if (r === null && restRef.current?.spot === spot) {
@@ -1284,7 +1295,14 @@ export function HomeScene({
       const seat = sofa ? plan.seats[0] : undefined;
       const path = walk(p, obj.spot.interact, () => {
         if (seat && owned.has('sofa')) seatAt(p, seat);
-        else {
+        else if (isBed(obj)) {
+          // Round 7e: on the edge of the bed (or the mat), at its foot, facing the room.
+          p.pose = 'sit';
+          p.at = {
+            x: (obj.spot.x + obj.spot.w / 2) * TILE,
+            y: (obj.spot.y + obj.spot.h) * TILE - 6,
+          };
+        } else {
           // The cushions, a chair at the table, the cinema seats: sit where you are.
           const at = seat ?? obj.spot.interact;
           p.x = at.x;
@@ -1892,9 +1910,29 @@ export function HomeScene({
           }}
         >
           <g>
-            <ellipse cx="0" cy="0" rx="11" ry="4" fill="#000" opacity="0.16" />
+            <ellipse
+              className="home-person-shadow"
+              cx="0"
+              cy="0"
+              rx="11"
+              ry="4"
+              fill="#000"
+              opacity="0.16"
+            />
             <g className="city-avatar">
               <AvatarFigure look={p.look} />
+            </g>
+            {/* Round 7e: lying down (Lite): under the covers, the head on the pillow. */}
+            <g className="home-covers" aria-hidden="true">
+              <rect x="-14" y="-25" width="28" height="30" rx="6" fill="#e2e8f0" />
+              <rect x="-14" y="-25" width="28" height="5" rx="2.5" fill="#ffffff" />
+              <path d="M -9 -10 Q 0 -7 9 -10" stroke="#94a3b8" strokeWidth="1" fill="none" />
+              <text className="home-zz" x="9" y="-44">
+                z
+              </text>
+              <text className="home-zz late" x="14" y="-52">
+                z
+              </text>
             </g>
           </g>
           {p.id !== 'me' && (
@@ -2956,11 +2994,17 @@ function buildObjects(
   };
 
   // Bed (or a floor mat).
+  // Round 7e: or sit on its edge (a rest like a chair's).
   if (has('bed') || !plan.fixtures.mat)
-    slotObj('bed', [act('sleep', t('Sleep')), act('nap', t('Nap'))]);
+    slotObj('bed', [
+      act('sleep', t('Sleep')),
+      { id: 'sit', label: t('Sit on the bed') },
+      act('nap', t('Nap')),
+    ]);
   else
     fixture('bed', 'mat', t('Sleeping mat'), [
       act('sleep', t('Sleep')),
+      { id: 'sit', label: t('Sit on the mat') },
       act('nap', t('Nap')),
       buy('bed'),
     ]);
@@ -3035,8 +3079,9 @@ function buildObjects(
       label: t(d.label),
       spot: d.spot,
       verbs: [
-        // Round 7: seats you can sit on.
+        // Round 7: seats you can sit on (round 7e: a guest bed's edge too).
         ...(d.model === 'cinema-seats' ? [{ id: 'sit', label: t('Sit') } as Verb] : []),
+        ...(d.model === 'guest-bed' ? [{ id: 'sit', label: t('Sit on the bed') } as Verb] : []),
         ...d.verbs.map((v): Verb =>
           'act' in v
             ? act(v.act, t(v.label))

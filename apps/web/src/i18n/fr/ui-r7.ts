@@ -10,6 +10,11 @@ export const uiR7: Record<string, string> = {
   '{n}h rested': '{n} h de repos',
   'A short rest': 'Une courte pause',
   'Sit at the table': 'S’asseoir à table',
+  // Round 7e: sit on the edge of the bed
+  'Sit on the bed': 'S’asseoir sur le lit',
+  'Sit on the mat': 'S’asseoir sur le tapis',
+  'Sitting on the bed': 'Assis sur le lit',
+  'Sitting on the mat': 'Assis sur le tapis',
   'Rested enough for this month': 'Assez reposé pour ce mois-ci',
   '+{n} energy so far': '+{n} énergie jusqu’ici',
   '−{n} stress so far': '−{n} stress jusqu’ici',
