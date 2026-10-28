@@ -89,7 +89,7 @@ import {
 import { chatIdOf } from './people.js';
 import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
-import { customerFacts } from './traction.js';
+import { customerFacts, payingCustomers } from './traction.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
 import { mallTripView } from './malltrips.js';
@@ -123,7 +123,6 @@ import {
   lastPnl,
   locationOf,
   nextStage,
-  totalCustomers,
   isEstablished,
 } from './helpers.js';
 import { floorGigPay, lifestyleCost, tierOf } from './personal.js';
@@ -176,7 +175,7 @@ function diligenceView(world: World, c: Company, depth: number) {
   const pnl = lastPnl(c);
   const base = {
     revenue: pnl?.revenue ?? 0,
-    customers: totalCustomers(c),
+    customers: payingCustomers(world, c),
     growth: Math.round(monthlyGrowth(c) * 1000) / 10,
     burn: burn(c),
     runwayMonths: finite(companyRunway(world, c)),
@@ -280,6 +279,8 @@ export function companyDetail(world: World, c: Company) {
         budget: seg.budget,
         ...pos,
         pipeline: pos.pipeline.reduce((a, p) => a + p.count, 0),
+        /** Customers won in the Sales pipeline in this segment (paying, beside the funnel's). */
+        accounts: (c.salesAccounts ?? []).filter((a) => a.segmentKey === key).length,
       };
     }),
     staff: c.staff,

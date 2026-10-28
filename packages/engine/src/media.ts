@@ -7,6 +7,7 @@
  *  - Public-record events (fines, defaults, shutdowns) run as short factual items.
  *  - Format: alert under 12 words; article under 60 words.
  */
+import { payingCustomers } from './traction.js';
 import { OUTLET_EFFECT } from './data/fiction.js';
 import type { OutletType } from './data/fiction.js';
 import { ensure, fail } from './errors.js';
@@ -57,7 +58,7 @@ function truthFor(
     case 'revenue':
       return lastPnl(c)?.revenue ?? 0;
     case 'customers':
-      return totalCustomers(c);
+      return payingCustomers(world, c);
     case 'growth':
       return Math.round(monthlyGrowth(c) * 100);
     case 'team':

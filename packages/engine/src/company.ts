@@ -3,6 +3,7 @@
  * collection, costs (some priced in dollars), taxes, loans, compliance,
  * pivots, shutdown, and the warning signs that precede failure.
  */
+import { payingCustomers } from './traction.js';
 import { segmentsForIndustry } from './data/industries.js';
 import { rulesFor } from './data/rules.js';
 import type { Industry } from './data/industries.js';
@@ -395,7 +396,8 @@ function settleFinances(world: World, c: Company, rng: Rng, month: number): Mont
     tax,
     net: totalRevenue - expenses - tax - paidPrincipal,
     cashEnd: account(world, c.account).balance,
-    customers,
+    // Round 7: the month's books count every paying customer, like everything else.
+    customers: payingCustomers(world, c),
   };
   c.lastFlaggedRevenue = b2b.flaggedRevenue;
   c.ledgerThisMonth = { playerRevenue: 0, supplierCost: 0, flaggedRevenue: 0 };

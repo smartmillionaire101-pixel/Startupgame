@@ -5,6 +5,7 @@
  * thesis, stage, recent results and mood. Claims made in answers are checked
  * in due diligence.
  */
+import { payingCustomers } from './traction.js';
 import { barEdgeIn } from './lifebars.js';
 import { checkAngelCheque } from './career.js';
 import { fundCanInvest } from './lpfunds.js';
@@ -22,7 +23,6 @@ import {
   localToUsdMajor,
   nextStage,
   notify,
-  totalCustomers,
 } from './helpers.js';
 import { newId } from './ids.js';
 import { clamp, clamp01, logistic } from './math.js';
@@ -86,7 +86,7 @@ export function strengths(world: World, c: Company): Record<Slide, number> {
     // Growth only counts once there is real revenue behind it (growth from ₦0 to ₦1 is not traction).
     traction: clamp01(
       Math.min(growth, 0.3) * 1.5 * Math.min(1, (pnl?.revenue ?? 0) / Math.max(1, col(m) * 5)) +
-        Math.min(totalCustomers(c), 2000) / 4000,
+        Math.min(payingCustomers(world, c), 2000) / 4000,
     ),
     team: clamp01(
       0.2 +
@@ -148,7 +148,7 @@ function figureSlack(kind: PitchFigure, truth: number): number {
 function buildQuestions(world: World, c: Company, plain = lifeBarsOn(world)): PitchQuestion[] {
   const m = getMarket(world, c.market);
   const cur = m.data.currency;
-  const customers = totalCustomers(c);
+  const customers = payingCustomers(world, c);
   const pnl = lastPnl(c);
   const revenue = pnl?.revenue ?? 0;
   const rawRunway = companyRunway(world, c);

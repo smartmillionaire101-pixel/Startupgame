@@ -31,7 +31,8 @@ import { getMarket, lastPnl, nextStage, notify, usdToLocal, isEstablished } from
 import { lpsOf } from './programs.js';
 import { typicalPostMoney } from './lpreview.js';
 import { clamp, roundTo } from './math.js';
-import { dealflowOn, moreGamesOn } from './releases.js';
+import { dealflowOn, gameplayOn, moreGamesOn } from './releases.js';
+import { payingCustomers } from './traction.js';
 import { firstFundView } from './firstfund.js';
 import { deriveRng } from './rng.js';
 import type { Rng } from './rng.js';
@@ -74,8 +75,11 @@ const nice = (v: number) => {
   return Math.round(v / p) * p;
 };
 
-const customersOf = (c: Company) =>
-  Object.values(c.segments).reduce((a, s) => a + (s.paying ?? 0), 0);
+/** Round 7: every paying customer (Sales accounts too); before it, the funnel's alone. */
+export const customersOf = (world: World, c: Company) =>
+  gameplayOn(world)
+    ? payingCustomers(world, c)
+    : Object.values(c.segments).reduce((a, s) => a + (s.paying ?? 0), 0);
 
 /** The pitch a founder gives: a snapshot of the company now, with an ask an AI founder would take. */
 function pitchOf(
@@ -105,8 +109,8 @@ function pitchOf(
     stage,
     industry: c.industry,
     // B2B invoices and a company with no month booked yet still bill their paying customers.
-    revenue: Math.max(lastPnl(c)?.revenue ?? 0, customersOf(c) * c.price),
-    customers: customersOf(c),
+    revenue: Math.max(lastPnl(c)?.revenue ?? 0, customersOf(world, c) * c.price),
+    customers: customersOf(world, c),
     growth: roundTo(monthlyGrowth(c), 3),
     team: c.staff.length + c.founderIds.length,
     ask,

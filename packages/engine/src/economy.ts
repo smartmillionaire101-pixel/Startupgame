@@ -1457,11 +1457,18 @@ export function economyView(m: MarketState) {
 export function businessCustomersOf(world: World, c: Company) {
   const m = world.markets[c.market];
   if (!m) return [];
-  return Object.values(businessesOf(m))
+  const pitched = Object.values(businessesOf(m))
     .filter(isOpen)
     .flatMap((b) =>
       b.suppliers
         .filter((s) => s.companyId === c.id)
         .map((s) => ({ businessId: b.id, name: b.name, monthly: s.monthlyMinor })),
     );
+  // Round 7 (#14): a local business won in the Sales pipeline is a business customer too.
+  if (!gameplayOn(world)) return pitched;
+  const have = new Set(pitched.map((x) => x.businessId));
+  const won = (c.salesAccounts ?? [])
+    .filter((a) => a.businessId && !have.has(a.businessId))
+    .map((a) => ({ businessId: a.businessId!, name: a.name, monthly: a.monthly }));
+  return [...pitched, ...won];
 }

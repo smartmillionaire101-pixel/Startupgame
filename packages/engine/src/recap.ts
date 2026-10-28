@@ -34,7 +34,7 @@ import { RECENT_LIMIT } from './ledger.js';
 import { scale, type Currency } from './money.js';
 import { lifestyleCost } from './personal.js';
 import { propertiesOf, upkeepOf } from './property.js';
-import { feedbackOn } from './releases.js';
+import { feedbackOn, gameplayOn } from './releases.js';
 import { statementLines, type StatementLine } from './statement.js';
 import type { StaffRole } from './data/markets.js';
 import type { Bank, Company, Id, MonthlyPnl, Player, SalesChurnReason, World } from './types.js';
@@ -277,6 +277,13 @@ function companyMonth(world: World, c: Company, month: number): RecapCompany {
     .flatMap((i) => i.text.slice(0, -' quit.'.length).split(', '));
   const deals = c.deals ?? [];
   const accounts = c.salesAccounts ?? [];
+  // Round 7 (#14): month N's recap is what happened before its settlement, while
+  // the market month still read N - 1 (deals signed, people hired), and what the
+  // settlement did at N (deals that ran out of time). Before the note, as it was.
+  const r7 = gameplayOn(world);
+  const inMonth = (at: number | undefined, atSettlement = false) =>
+    at !== undefined && (r7 && !atSettlement ? at === month - 1 : at === month);
+  const wonDeals = deals.filter((d) => d.stage === 'won' && inMonth(d.closedMonth));
   // Pipeline customers who left count with the market's churn (feedback note).
   const left = (c.salesChurn ?? []).filter((x) => x.month === month);
   churned += left.length;
@@ -288,18 +295,17 @@ function companyMonth(world: World, c: Company, month: number): RecapCompany {
     revenueBefore: before?.revenue ?? null,
     customers: pnl?.customers ?? null,
     customersBefore: before?.customers ?? null,
-    won: isLatest ? won : null,
+    // Round 7 (#14): customers won in the Sales pipeline this month count as won too.
+    won: isLatest ? won + (r7 ? wonDeals.length : 0) : null,
     churned: isLatest ? churned : null,
     net: pnl?.net ?? null,
     deals: {
-      won: deals
-        .filter((d) => d.stage === 'won' && d.closedMonth === month)
-        .map((d) => ({
-          name: d.customer.name,
-          monthly: accounts.find((a) => a.dealId === d.id)?.monthly ?? 0,
-        })),
+      won: wonDeals.map((d) => ({
+        name: d.customer.name,
+        monthly: accounts.find((a) => a.dealId === d.id)?.monthly ?? 0,
+      })),
       lost: deals
-        .filter((d) => d.stage === 'lost' && d.closedMonth === month)
+        .filter((d) => d.stage === 'lost' && inMonth(d.closedMonth, d.expired))
         .map((d) => ({ name: d.customer.name, reason: d.lossReason ?? null })),
       churned: left.map((x) => ({ name: x.name, monthly: x.monthly, reason: x.reason })),
     },
@@ -307,7 +313,7 @@ function companyMonth(world: World, c: Company, month: number): RecapCompany {
       .filter((p) => p.status === 'released' && p.releasedMonth === month)
       .map((p) => featureById(p.featureId)?.name ?? p.featureId),
     hires: c.staff
-      .filter((s) => s.hiredMonth === month)
+      .filter((s) => inMonth(s.hiredMonth))
       .map((s) => ({ name: s.name, role: s.role })),
     departures,
     runwayBefore: runwayOf(before),

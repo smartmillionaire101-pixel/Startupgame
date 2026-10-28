@@ -28,7 +28,7 @@
  * milestones are recorded as before.
  */
 import { totalCustomers } from './helpers.js';
-import { feedbackOn } from './releases.js';
+import { feedbackOn, gameplayOn } from './releases.js';
 import type { Company, World } from './types.js';
 
 export const TRACTION = {
@@ -134,3 +134,13 @@ export function customerFacts(world: World, c: Company): CustomerFacts {
     knows: Math.round(known * 100) >= Math.round(TRACTION.knowNeed * 100),
   };
 }
+
+/**
+ * Round 7 (#14): the one number of paying customers everything shows and
+ * weighs (the stage tracker, the Company and Today tiles, the recap, the
+ * month's books, investors' numbers and a founder's pitch). Before the
+ * gameplay note each place counted as it always did (the funnel and Sales
+ * accounts, some places the funnel alone).
+ */
+export const payingCustomers = (world: World, c: Company): number =>
+  gameplayOn(world) ? customerFacts(world, c).total : totalCustomers(c);

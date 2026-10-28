@@ -662,7 +662,8 @@ export function SegmentCard({ c, s }: { c: CompanyT; s: Segment }) {
               {s.kind === 'b2b' ? t('Pipeline') : t('Trial')}
             </div>
             <div>
-              <b>{pos.paying.toLocaleString(locale())}</b>
+              {/* Customers won in Sales count with the funnel's (round 7). */}
+              <b>{(pos.paying + (pos.accounts ?? 0)).toLocaleString(locale())}</b>
               {t('Paying')}
             </div>
             <div>
