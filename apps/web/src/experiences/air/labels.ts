@@ -55,7 +55,9 @@ export function placeLabels(
       const box = { l: x - w / 2, r: x + w / 2, t: y - h - stem, b: y - stem };
       // Off the top or the sides: no higher step fits either.
       if (box.l <= 4 || box.r >= W - 4 || box.t <= 4) break;
-      if (blocks.some((k) => hits(box, k))) continue;
+      // On the commentary or a button (or its stem through one): hidden, never stacked over it.
+      const stemLine = { l: x - 1, r: x + 1, t: box.b, b: y };
+      if (blocks.some((k) => hits(box, k) || hits(stemLine, k))) break;
       // Clear of the names already placed (a stem behind a nearer name is drawn under it).
       if (shown.some((k) => hits(box, k, LABEL_GAP))) continue;
       out[i] = stem;

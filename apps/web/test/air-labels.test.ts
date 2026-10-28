@@ -51,9 +51,8 @@ describe('flight labels: two landmarks close together', () => {
       800,
       600,
     );
-    // Over the commentary it moves up past it (or hides); never on it.
-    const shown = boxes([want(450, 320, 500)], [stems[0]!]);
-    if (stems[0] !== null) expect(hits(shown[0]!, say)).toBe(false);
+    // Over the commentary it hides (never stacked above it, its stem through it).
+    expect(stems[0]).toBeNull();
     expect(stems[1]).toBeNull();
     expect(stems[2]).toBeNull();
   });
