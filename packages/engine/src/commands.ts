@@ -405,7 +405,11 @@ export const commandSchema = z.discriminatedUnion('type', [
     venue: id,
     title: z.string().trim().min(3).max(60),
     stake: z.number().int().min(0).max(100_000_000),
-    /** Golf with a friend: who you invite (a player or an AI friend in your city). */
+    /**
+     * Golf with a friend: who you invite (a player or an AI friend in your
+     * city). The gameplay round: any game, from Messages (a real player,
+     * anywhere: they travel to the table).
+     */
     invite: id.optional(),
     /** Golf: how many of the course's holes to play (default: all three). */
     holes: z.number().int().min(1).max(3).optional(),
@@ -467,8 +471,13 @@ export const commandSchema = z.discriminatedUnion('type', [
       })
       .optional(),
   }),
-  /** Golf with a friend: say no to an invitation (the host's stake goes back). */
+  /**
+   * Golf with a friend: say no to an invitation (the host's stake goes back).
+   * The gameplay round: say no to any invitation to a table.
+   */
   z.object({ type: z.literal('play.decline'), roomId: id }),
+  /** The gameplay round: ask a real player to your waiting table (from the lobby or a chat). */
+  z.object({ type: z.literal('play.invite'), roomId: id, playerId: id }),
   /**
    * Golf with a friend: your shot's inputs only. The engine plays the ball
    * (lie, distance, strokes); `pickup` takes par + 3 for the hole instead.

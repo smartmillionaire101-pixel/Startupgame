@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { T0, api, founderSetup, makeApp, playAsGuest } from './helpers.js';
+import { RELEASE_NOTE } from '../src/release.js';
 
 type Row = { id: string; here: boolean; city: string; inGame: string | null; place: string | null };
 
@@ -173,6 +174,63 @@ it('invites a friend to golf for money from their chat: the stake is escrowed an
       .json()
       .view.playRooms.find((x: { id: string }) => x.id === roomId);
     expect(live).toMatchObject({ status: 'playing', pot: 2 * stake });
+  } finally {
+    await app.close();
+    store.close();
+  }
+});
+
+it('the gameplay round: invites a friend to any game from their chat, with an escrowed stake', async () => {
+  const { app, store, game } = await makeApp();
+  try {
+    await game.execute(null, { type: 'system.announce', ...RELEASE_NOTE });
+    const join = async (handle: string) => {
+      const s = api(app, await playAsGuest(app));
+      expect((await s.command(founderSetup(handle))).json()).toMatchObject({ ok: true });
+      const view = (await s.get('/api/state')).json().view;
+      return { s, id: view.me.id as string, view };
+    };
+    const a = await join('pool_one');
+    const b = await join('pool_two');
+    const venue = Object.keys(game.current.markets.lagos!.businesses ?? {})[0]!;
+    const before = a.view.accounts.local.balance as number;
+    const r = await a.s.post(`/api/chats/with/${b.id}/act`, {
+      command: {
+        type: 'play.create',
+        game: 'snooker',
+        venue,
+        title: 'Pool with a friend',
+        stake: 5_000,
+        invite: b.id,
+      },
+    });
+    expect(r.statusCode).toBe(200);
+    const roomId = r.json().result.id as string;
+    expect((await a.s.get('/api/state')).json().view.accounts.local.balance).toBe(before - 5_000);
+    const chatId = r.json().chat.id as string;
+    const card = () =>
+      b.s
+        .get(`/api/chats/${chatId}/messages`)
+        .then((x) => x.json().messages.find((m: { kind: string }) => m.kind === 'card').card);
+    expect(await card()).toMatchObject({
+      type: 'play',
+      game: 'snooker',
+      roomId,
+      status: 'waiting',
+      stake: 5_000,
+      invitee: b.id,
+      invited: [b.id],
+      seated: [a.id],
+    });
+    // In their invitations (and their notices), and accepted from there.
+    const view = (await b.s.get('/api/state')).json().view;
+    expect(view.playInvites.map((x: { id: string }) => x.id)).toEqual([roomId]);
+    expect((await b.s.command({ type: 'play.join', roomId })).json().ok).toBe(true);
+    expect(await card()).toMatchObject({ status: 'waiting', invited: [], seated: [a.id, b.id] });
+    const room = (await a.s.get('/api/state'))
+      .json()
+      .view.playRooms.find((x: { id: string }) => x.id === roomId);
+    expect(room).toMatchObject({ status: 'waiting', pot: 10_000, byInvite: true });
   } finally {
     await app.close();
     store.close();

@@ -8,6 +8,9 @@ import {
   type CSSProperties,
 } from 'react';
 import { QUIZ_AI_AFTER, type PlayerView } from '@runway/engine';
+import { GameExitAsk, GameExitButton } from './GameExit';
+import { PlayInvites } from './PlayInvites';
+import { TableInvites } from './TableInvites';
 import { useView } from '../store';
 import { api } from '../api';
 import { money } from '../format';
@@ -41,7 +44,12 @@ const ALLEY_GAMES = ['bowling'] as const;
 const colors = ['#fff', '#dc3545', '#f6d32d', '#259553', '#985528', '#338ddd', '#fa86b4', '#111'];
 export default function PlayHost() {
   const place = useSyncExternalStore(onPlay, playPlace, () => null);
-  return place ? <Lobby key={place.venue} place={place} /> : null;
+  return (
+    <>
+      {place && <Lobby key={place.venue} place={place} />}
+      <PlayInvites />
+    </>
+  );
 }
 function Lobby({ place }: { place: PlayPlace }) {
   const { view, send, busy, cur, refresh } = useView();
@@ -59,7 +67,14 @@ function Lobby({ place }: { place: PlayPlace }) {
     timeOffset.current = (view.clock?.serverNow ?? Date.now()) - Date.now();
   }, [view.clock?.serverNow]);
   const rooms = view.playRooms.filter((r) => r.venue === place.venue);
-  const room = rooms.find((r) => r.id === selected);
+  // Playtest round 7: tables waiting elsewhere in the city are open to join too.
+  const elsewhereRooms = view.playRooms.filter(
+    (r) =>
+      r.venue !== place.venue &&
+      r.status === 'waiting' &&
+      (place.game === 'bowling' ? r.game === 'bowling' : r.game !== 'bowling' && r.game !== 'golf'),
+  );
+  const room = view.playRooms.find((r) => r.id === selected && r.game !== 'golf');
   const me = view.me.id;
   const tick = useRef(false);
   const roomRef = useRef(room);
@@ -79,14 +94,19 @@ function Lobby({ place }: { place: PlayPlace }) {
       const now = Date.now() + timeOffset.current;
       // Sync when the question's time is up or an AI opponent is due to answer,
       // and once a host has waited alone long enough to be matched with AI opponents.
+      // A waiting room says when it does something on its own (AI players sit
+      // down, the quiz starts): any player at it syncs then.
+      const seated = !!current?.members.some((m) => m.id === meRef.current);
       const due =
         current?.status === 'playing'
           ? now >= current.deadline || (current.aiDueAt !== null && now >= current.aiDueAt)
           : current?.status === 'waiting' &&
-            current.game === 'quiz' &&
-            current.members.length === 1 &&
-            current.members[0]!.id === meRef.current &&
-            now - current.createdAt >= QUIZ_AI_AFTER;
+            (current.autoAt !== undefined
+              ? seated && current.autoAt !== null && now >= current.autoAt
+              : current.game === 'quiz' &&
+                current.members.length === 1 &&
+                current.members[0]!.id === meRef.current &&
+                now - current.createdAt >= QUIZ_AI_AFTER);
       const sync = due
         ? api.command({ type: 'play.sync', roomId: current!.id }).catch(() => undefined)
         : Promise.resolve();
@@ -162,7 +182,7 @@ function Lobby({ place }: { place: PlayPlace }) {
     (room.status === 'waiting' || room.status === 'playing') &&
     (room.host === me || room.members.some((m) => m.id === me));
   const [leaving, setLeaving] = useState(false);
-  /** Leave a game: a table nobody's started is called off (your own) or left; one under way is forfeited. */
+  /** Leave the game you're in elsewhere: a table nobody's started is called off (your own) or left; one under way is forfeited. */
   async function leaveRoom(r: { id: string; status: string; host: boolean }) {
     return send(
       r.status === 'waiting' && r.host
@@ -193,36 +213,15 @@ function Lobby({ place }: { place: PlayPlace }) {
           </button>
         </header>
         {leaving && room && (
-          <div className="experience-leave" role="alertdialog" aria-label={t('Leave the game?')}>
-            <h2>{t('Leave the game?')}</h2>
-            <p>
-              {room.status === 'playing'
-                ? room.members.length > 1
-                  ? t('You forfeit it: the others win, and the pot goes to them.')
-                  : t('Your game ends here.')
-                : room.host === me
-                  ? t('The table is called off and every entry refunded.')
-                  : t('You leave the table and your entry is refunded.')}
-            </p>
-            <div className="experience-leave-actions">
-              <button
-                className="experience-primary"
-                disabled={busy}
-                data-action="leave-game"
-                onClick={async () => {
-                  if (await leaveRoom({ ...room, host: room.host === me })) {
-                    setLeaving(false);
-                    closePlay();
-                  }
-                }}
-              >
-                {t('Leave the game')}
-              </button>
-              <button disabled={busy} onClick={() => setLeaving(false)}>
-                {room.status === 'playing' ? t('Keep playing') : t('Stay at the table')}
-              </button>
-            </div>
-          </div>
+          <GameExitAsk
+            room={room}
+            me={me}
+            onStay={() => setLeaving(false)}
+            onGone={() => {
+              setLeaving(false);
+              closePlay();
+            }}
+          />
         )}
         {!room && elsewhere && (
           <div className="experience-leave" data-open-room={elsewhere.id}>
@@ -280,6 +279,13 @@ function Lobby({ place }: { place: PlayPlace }) {
                 </button>
               ))}
             </div>
+            <TableInvites
+              game={game}
+              venue={place.venue}
+              stake={Math.round(Number(stake) * 100)}
+              room={null}
+              onTable={setSelected}
+            />
             <h2>{t('Open tables')}</h2>
             <div className="experience-rooms">
               {rooms.map((r) => (
@@ -294,6 +300,24 @@ function Lobby({ place }: { place: PlayPlace }) {
               ))}
               {!rooms.length && <p>{t('No games here yet. Start the first one.')}</p>}
             </div>
+            {elsewhereRooms.length > 0 && (
+              <>
+                <h2>{t('Open tables elsewhere in the city')}</h2>
+                <div className="experience-rooms" data-rooms="elsewhere">
+                  {elsewhereRooms.map((r) => (
+                    <button key={r.id} onClick={() => setSelected(r.id)}>
+                      <strong>{r.title}</strong>
+                      <span>
+                        {gameName(r.game, r.rules)} ·{' '}
+                        {r.venueName ? tx(r.venueName) : t('At a home')} ·{' '}
+                        {t('{n} players', { n: r.members.length })}
+                      </span>
+                      <small>{t('{amount} entry', { amount: money(r.stake, r.currency) })}</small>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             {game === 'quiz' && (
               <form
                 className="experience-create"
@@ -322,9 +346,13 @@ function Lobby({ place }: { place: PlayPlace }) {
                   />
                 </label>
                 <p className="small">
-                  {t(
-                    'You join the next quiz waiting here with the same stake, or open one. If nobody joins within 45 seconds, AI players from this city take the other seats.',
-                  )}
+                  {view.playInvites !== undefined
+                    ? t(
+                        'You join the next quiz waiting in this city with the same stake (here first), or open one. If nobody joins within 30 seconds, AI players from this city take the other seats; a player who joins before the start takes one back.',
+                      )
+                    : t(
+                        'You join the next quiz waiting here with the same stake, or open one. If nobody joins within 45 seconds, AI players from this city take the other seats.',
+                      )}
                 </p>
                 <button className="experience-primary" disabled={busy}>
                   {t('Find an opponent')}
@@ -425,10 +453,16 @@ function Lobby({ place }: { place: PlayPlace }) {
           <>
             <div className="experience-toolbar">
               <button onClick={() => setSelected(null)}>← {t('All tables')}</button>
-              <span>{gameName(room.game, room.rules)}</span>
+              <span>
+                {gameName(room.game, room.rules)}
+                {room.venue !== place.venue && room.venueName ? ` · ${tx(room.venueName)}` : ''}
+              </span>
               <b>{t('Pot {amount}', { amount: money(room.pot, room.currency) })}</b>
               {room.status === 'playing' && (
                 <strong className="experience-timer">{seconds}s</strong>
+              )}
+              {room.status === 'playing' && (
+                <GameExitButton room={room} me={me} onAsk={() => setLeaving(true)} />
               )}
             </div>
             <div
@@ -462,8 +496,28 @@ function Lobby({ place }: { place: PlayPlace }) {
                         'Invite another player in this city, or play an AI opponent now. The AI pays the same stake.',
                       )}
                 </p>
-                {room.game === 'quiz' && room.host === me && room.members.length === 1 && (
-                  <QuizWait createdAt={room.createdAt} />
+                {room.game === 'quiz' &&
+                  member &&
+                  (room.startAt !== null && room.startAt !== undefined ? (
+                    <QuizWait startAt={room.startAt} />
+                  ) : (
+                    room.host === me &&
+                    room.members.length === 1 && (
+                      <QuizWait
+                        createdAt={room.createdAt}
+                        seatAt={room.autoAt ?? room.createdAt + QUIZ_AI_AFTER}
+                      />
+                    )
+                  ))}
+                {(room.invited ?? []).length > 0 && (
+                  <p className="experience-match" data-invited={room.invited.length}>
+                    {t('Waiting for {names} to answer your invitation.', {
+                      names: room.invited
+                        .map((id) => view.players.find((x) => x.id === id)?.name ?? '')
+                        .filter(Boolean)
+                        .join(', '),
+                    })}
+                  </p>
                 )}
                 {room.bowling && room.bowling.fee > 0 && (
                   <p>
@@ -487,13 +541,8 @@ function Lobby({ place }: { place: PlayPlace }) {
                     Join · {money(room.stake, room.currency)}
                   </button>
                 )}
-                {member && (
-                  <button
-                    disabled={busy}
-                    onClick={() => void send({ type: 'play.leave', roomId: room.id })}
-                  >
-                    Leave and refund
-                  </button>
+                {member && room.host !== me && (
+                  <GameExitButton room={room} me={me} onAsk={() => setLeaving(true)} />
                 )}
                 {room.host === me &&
                   room.game !== 'quiz' &&
@@ -514,28 +563,32 @@ function Lobby({ place }: { place: PlayPlace }) {
                     {t('Play AI opponents now')}
                   </button>
                 )}
+                {(room.host === me || (room.byInvite && member)) && (
+                  <button
+                    className="experience-primary"
+                    disabled={
+                      busy ||
+                      room.members.length <
+                        ((room.game === 'quiz' || room.game === 'bowling') && room.stake === 0
+                          ? 1
+                          : 2)
+                    }
+                    onClick={() => void send({ type: 'play.start', roomId: room.id })}
+                  >
+                    {t('Start game')}
+                  </button>
+                )}
                 {room.host === me && (
-                  <>
-                    <button
-                      className="experience-primary"
-                      disabled={
-                        busy ||
-                        room.members.length <
-                          ((room.game === 'quiz' || room.game === 'bowling') && room.stake === 0
-                            ? 1
-                            : 2)
-                      }
-                      onClick={() => void send({ type: 'play.start', roomId: room.id })}
-                    >
-                      Start game
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() => void send({ type: 'play.cancel', roomId: room.id })}
-                    >
-                      Cancel room
-                    </button>
-                  </>
+                  <GameExitButton room={room} me={me} onAsk={() => setLeaving(true)} />
+                )}
+                {member && !room.byInvite && (
+                  <TableInvites
+                    game={room.game}
+                    venue={room.venue}
+                    stake={room.stake}
+                    room={room}
+                    onTable={setSelected}
+                  />
                 )}
               </div>
             )}
@@ -878,14 +931,42 @@ const CATS: Record<string, string> = {
   events: 'Real-life events',
 };
 
-/** A host waiting alone: when AI opponents will take the other seats. */
-function QuizWait({ createdAt }: { createdAt: number }) {
+/**
+ * A quiz waiting for players: when AI opponents will take the other seats
+ * (`seatAt`), or, once they hold them, when the quiz starts (`startAt`: a
+ * player who joins before then takes an AI's seat).
+ */
+function QuizWait({
+  createdAt,
+  seatAt,
+  startAt,
+}: {
+  createdAt?: number;
+  seatAt?: number;
+  startAt?: number;
+}) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  const left = Math.max(0, Math.ceil((createdAt + QUIZ_AI_AFTER - now) / 1000));
+  if (startAt !== undefined) {
+    const left = Math.max(0, Math.ceil((startAt - now) / 1000));
+    return (
+      <p className="experience-match" role="status" data-quiz-start={startAt}>
+        {left > 0
+          ? t(
+              'AI players are holding the seats. The quiz starts in {n}s: a player who joins now takes one.',
+              { n: left },
+            )
+          : t('The quiz is starting…')}
+      </p>
+    );
+  }
+  const left = Math.max(
+    0,
+    Math.ceil(((seatAt ?? (createdAt ?? now) + QUIZ_AI_AFTER) - now) / 1000),
+  );
   return (
     <p className="experience-match" role="status">
       {left > 0

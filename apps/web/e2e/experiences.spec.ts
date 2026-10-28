@@ -100,7 +100,7 @@ test('two players discover a home game, play football and share a consenting sky
     await gameA.getByRole('button', { name: 'Close games' }).click();
     await gameA
       .getByRole('alertdialog', { name: 'Leave the game?' })
-      .getByRole('button', { name: 'Leave the game' })
+      .getByRole('button', { name: 'Leave game' })
       .click();
     await expect(gameA).toBeHidden();
     await expect(gameB.locator('[data-forfeit]')).toBeVisible({ timeout: 10000 });

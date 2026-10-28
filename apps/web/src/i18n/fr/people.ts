@@ -3,6 +3,8 @@ export const people: Record<string, string> = {
   // Map and lists
   'Nobody around right now.': 'Personne dans les parages pour le moment.',
   'People around': 'Les gens autour',
+  // A player in no building (playtest round 7: every player Who's here shows)
+  'Out and about': 'En ville',
   Player: 'Joueur',
   'Who’s here': 'Qui est là',
   '{n} players nearby': '{n} joueurs à proximité',

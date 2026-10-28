@@ -1230,3 +1230,74 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* Playtest round 7: who to play with (players free in the city, contacts by phone). */
+.experience-invites ul {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.experience-invites li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.experience-invites li > span {
+  display: grid;
+  min-width: 0;
+}
+.experience-invites li small {
+  opacity: 0.75;
+}
+.game-exit-golf {
+  margin: 8px 12px;
+}
+/* An invitation to a table, wherever you are (a game from Messages). */
+.play-invite-notice {
+  position: fixed;
+  /* Above the bottom navigation, clear of the HUD's pills at the top. */
+  bottom: calc(104px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(calc(100% - 32px), 440px);
+  /* Over the city, under the phone (it shows the same invitation as a chat card). */
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+}
+.play-invite-notice > span:last-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.play-invite-notice small {
+  color: var(--muted);
+}
+.play-invite-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #0f766e;
+  font-size: 20px;
+}
+.play-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}

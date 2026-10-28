@@ -210,7 +210,7 @@ function crowdHere(
 }
 
 /** Everyone in a place: the AI people the view knows of, then players from presence. */
-function peopleAt(
+export function peopleAt(
   view: View,
   place: Place,
   players: PresenceView[],
@@ -441,31 +441,66 @@ export function WhoIsHere({ place, players = [] }: { place: Place; players?: Pre
 // ---------------------------------------------------------------------------
 // On the map: who's around town, by the place they're in.
 
-interface Around {
+export interface Around {
   p: PersonHere;
-  place: Place;
+  /** Where they are (null: a player out and about, in no building). */
+  place: Place | null;
 }
 
-/** Players in town (by building) and the notable AI people, for the map's list. */
-function whoIsAround(view: View, layout: CityLayout, players: PresenceView[]): Around[] {
+/**
+ * Everyone around town, for the map's list: every real player (the same
+ * people Who's here shows in their building, or out and about), then the
+ * notable AI people by the place they're in. Players come first and are
+ * marked as players (playtest round 7: a player listed in Who's here was
+ * missing here when the engine named them in the building, or when they
+ * stood in no building).
+ */
+export function whoIsAround(view: View, layout: CityLayout, players: PresenceView[]): Around[] {
   const out: Around[] = [];
   const seen = new Set<string>();
-  const add = (p: PersonHere, place: Place) => {
-    if (seen.has(p.id)) return;
-    seen.add(p.id);
+  const add = (p: PersonHere, place: Place | null) => {
+    const ids = [p.id, p.playerId ?? p.id];
+    if (ids.some((id) => seen.has(id))) return;
+    for (const id of ids) seen.add(id);
     out.push({ p, place });
   };
   const byId = new Map(layout.places.map((p) => [p.id, p]));
   for (const pl of players) {
     const place = pl.place ? byId.get(pl.place) : undefined;
-    if (place) for (const p of peopleAt(view, place, [pl])) if (p.id === pl.id) add(p, place);
+    // In a building: exactly how Who's here there lists them (the engine may
+    // name them under its own id, with their player id alongside).
+    const there = place
+      ? peopleAt(view, place, [pl]).find((p) => p.id === pl.id || p.playerId === pl.id)
+      : undefined;
+    add(
+      there
+        ? { ...there, human: true }
+        : {
+            id: pl.id,
+            name: pl.name,
+            kind: 'player',
+            role: pl.company
+              ? t('{role} · {company}', { role: t('Player'), company: pl.company })
+              : t('Player'),
+            playerId: pl.id,
+            gender: pl.gender ?? null,
+            human: true,
+            ...(pl.backgroundId ? { bg: pl.backgroundId } : {}),
+          },
+      place ?? null,
+    );
   }
   const notable: HereKind[] = ['angel', 'partner', 'founder'];
   for (const place of layout.places) {
     if (place.kind !== 'business' && place.kind !== 'fund' && place.kind !== 'hub') continue;
-    for (const p of aiPeopleAt(view, place)) if (notable.includes(p.kind)) add(p, place);
+    // Real players the engine places in a building count too (Who's here shows them).
+    for (const p of aiPeopleAt(view, place)) if (p.human || notable.includes(p.kind)) add(p, place);
   }
-  return out;
+  // Real players first, in the order found.
+  return out
+    .map((a, n) => ({ a, n }))
+    .sort((x, y) => Number(y.a.p.human) - Number(x.a.p.human) || x.n - y.n)
+    .map((x) => x.a);
 }
 
 export function WhoIsAround({
@@ -492,12 +527,16 @@ export function WhoIsAround({
               type="button"
               className="place-btn"
               data-around={p.id}
-              onClick={() => onGo(place.id)}
+              data-around-human={p.human ? '1' : undefined}
+              onClick={() => (place ? onGo(place.id) : chatWith(p))}
             >
               <Face p={p} size={28} />
               <span>
                 {p.name}
-                <span className="small muted"> · {labelOf(place)}</span>
+                <span className="small muted">
+                  {' '}
+                  · {place ? labelOf(place) : t('Out and about')}
+                </span>
               </span>
               {p.human ? (
                 <span className="pill pill-info">{t('Player')}</span>

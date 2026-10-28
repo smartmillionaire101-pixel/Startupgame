@@ -237,10 +237,20 @@ export type ChatCard = { from: string; status: string } & (
       stake?: number;
       currency?: string;
       players?: number;
+      /** The gameplay round: the venue's name (null: a home) and who was asked. */
+      venueName?: string | null;
+      invitee?: string | null;
+      /** Who sits at the table, who's still to answer, when it's off if nobody does. */
+      seated?: string[];
+      invited?: string[];
+      expiresAt?: number | null;
+      fee?: number;
+      winners?: string[];
+      rules?: string | null;
     }
 );
 
-export type PlayGame = 'quiz' | 'snooker' | 'football' | 'golf';
+export type PlayGame = 'quiz' | 'snooker' | 'football' | 'golf' | 'bowling';
 
 /** A real player online now (`GET /api/online/players`). */
 export interface OnlinePlayer {
