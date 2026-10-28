@@ -113,12 +113,40 @@ describe('one order, one van (round 7)', () => {
     const more = tryRun(r.world, F, order([{ kind: 'furniture', itemId: 'sound-1', qty: 1 }]));
     expect(more.ok).toBe(false);
     if (!more.ok) expect(more.error.code).toBe('home.extra.max');
-    // A bed is one to a home.
-    const bed = tryRun(w, F, order([{ kind: 'furniture', itemId: 'bed-1', qty: 2 }]));
-    expect(bed.ok).toBe(false);
-    if (!bed.ok) expect(bed.error.code).toBe('home.extra');
+    // A kitchen is built in: one to a home.
+    const kitchen = tryRun(w, F, order([{ kind: 'furniture', itemId: 'kitchen-1', qty: 2 }]));
+    expect(kitchen.ok).toBe(false);
+    if (!kitchen.ok) expect(kitchen.error.code).toBe('home.extra');
     // All or nothing: nothing was bought or sent.
     expect(mine(w)).toHaveLength(0);
+  });
+
+  it('three sofas: any furniture but built-ins comes in more than one (older worlds: decor only)', () => {
+    const w = world();
+    const r = run(w, F, order([{ kind: 'furniture', itemId: 'sofa-1', qty: 3 }]));
+    expect(mine(r.world)).toHaveLength(3);
+    expect(new Set(mine(r.world).map((d) => d.van)).size).toBe(1);
+    const u = run(
+      r.world,
+      F,
+      { type: 'living.collect', deliveryId: mine(r.world)[0]!.id, all: true },
+      T0 + 31_000,
+    );
+    const p = me(u.world);
+    expect(p.home!.items.filter((i) => i.itemId === 'sofa-1')).toHaveLength(1);
+    expect(p.homeExtras!.map((x) => x.itemId)).toEqual(['sofa-1', 'sofa-1']);
+    const style = (playerView(u.world, F)!.me as unknown as { homeStyle: { extraSlots: string[] } })
+      .homeStyle;
+    expect(style.extraSlots).toContain('sofa');
+    expect(style.extraSlots).not.toContain('kitchen');
+    // Before the note: a second sofa is refused, as it always was.
+    let old = world(FEEDBACK_NOTE);
+    old = produce(old, (d) => {
+      d.players[F]!.home = { items: [{ slot: 'sofa', itemId: 'sofa-1', paid: 1 }] };
+    });
+    const r2 = tryRun(old, F, { type: 'home.extra.buy', itemId: 'sofa-1' });
+    expect(r2.ok).toBe(false);
+    if (!r2.ok) expect(r2.error.code).toBe('home.extra');
   });
 
   it('online: one van, its slowest thing’s wait and its dearest fee once', () => {

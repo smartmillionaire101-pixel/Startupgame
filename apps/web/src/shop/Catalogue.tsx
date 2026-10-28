@@ -66,6 +66,8 @@ export interface CatalogueProps {
   onBought?: (e: CatEntry, r: Record<string, unknown>) => void;
   /** Online: where your orders are (the Shop app's Orders). */
   onOrders?: () => void;
+  /** Round 7: the category picked (a docked sheet's title follows it). */
+  onCategory?: (c: CatalogCategory | null) => void;
 }
 
 /** Whether a look may wear it (no dress or gele for a man), as the mall does. */
@@ -85,7 +87,11 @@ export function Catalogue(p: CatalogueProps) {
   const gender = drawnGender(view.me.background?.id, view.me.id, genderOf(view.me));
   const look = avatarLook(view.me.background?.id, view.me.id, gender);
   const all = useMemo(() => p.entries.filter((e) => fitsMe(gender, e)), [p.entries, gender]);
-  const [category, setCategory] = useState<CatalogCategory | null>(p.category ?? null);
+  const [category, setCategoryState] = useState<CatalogCategory | null>(p.category ?? null);
+  const setCategory = (c: CatalogCategory | null) => {
+    setCategoryState(c);
+    p.onCategory?.(c);
+  };
   const [sort, setSort] = useState<SortBy>('featured');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<string | null>(null);

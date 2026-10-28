@@ -116,6 +116,20 @@ export const EXTRA_SLOTS: readonly FurnitureSlot[] = [
   'books',
 ];
 
+/**
+ * Round 7 (GAMEPLAY_NOTE; player feedback "I can't buy two sofas"): more than
+ * one of any furniture, except what's built in (the kitchen, the air
+ * conditioning, the power and the internet) and the laptop on the desk.
+ * Extra copies still add no boost: each kind of thing counts once.
+ */
+export const ONE_PER_HOME: readonly FurnitureSlot[] = [
+  'kitchen',
+  'cooling',
+  'power',
+  'wifi',
+  'laptop',
+];
+
 /** How many more of each kind (on top of the one in its slot), and in all. */
 export const EXTRAS_PER_SLOT = 5;
 export const EXTRAS_MAX = 20;

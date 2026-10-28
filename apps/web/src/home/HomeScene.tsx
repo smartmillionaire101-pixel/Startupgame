@@ -2290,6 +2290,7 @@ export function HomeScene({
             }
             lift={placing.p.lift ?? 0}
             at={`${placing.p.x},${placing.p.y},${placing.p.rot}`}
+            tiles={onWall ? null : { w: ghost.spot.w, d: ghost.spot.h }}
             onDone={finishPlacing}
             onReset={resetPlacing}
             onCancel={cancelPlacing}
@@ -2633,6 +2634,11 @@ export function HomeScene({
           entries={onlineCatalog(view)}
           currency={view.me.shop.currency}
           onClose={() => setShopAll(false)}
+          dock
+          onBack={() => {
+            setShopAll(false);
+            setSheet('buy');
+          }}
         />
       )}
       {shopWalls && view.me.shop && (
@@ -2643,6 +2649,11 @@ export function HomeScene({
           currency={view.me.shop.currency}
           category="walls"
           onClose={() => setShopWalls(false)}
+          dock
+          onBack={() => {
+            setShopWalls(false);
+            setSheet('buy');
+          }}
         />
       )}
 

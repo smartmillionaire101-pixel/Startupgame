@@ -34,7 +34,7 @@ import { MOVABLE, extraKey, type Placement } from './placement';
 import { BOOST_LABEL, WALLS } from '@runway/engine';
 import type { WallView } from '../home/dividers';
 import { wallSwatch } from '../home/dividers';
-import { planFor, type HomePlan, type RoomId } from '../home/layout';
+import { type HomePlan, type RoomId } from '../home/layout';
 import { blockOf } from '../home/grounds';
 import { floorThumb, furnitureThumb } from '../shop/thumbs';
 import {
@@ -43,7 +43,6 @@ import {
   boostLines,
   maxInBasket,
   buyCards,
-  footprint,
   isNew,
   ownedCount,
   toggleBasket,
@@ -91,15 +90,34 @@ export interface BuyFloor {
 }
 
 /**
- * Panel heights (share of the screen above the bottom bar): the usual, two
- * rows of cards on a 390×844 phone, and dragged up.
+ * Round 7 (#21): the panel's three heights, dragged by its handle: low (a row
+ * of things, more of your home), half (the default) and full (up to the time
+ * and money pills). Dragged below low, it closes. As shares of the window.
  */
-const LOW = 0.7;
-const TALL = 0.88;
-/** Trying a floor or paint on: low enough to see the walls above it. */
-const TRYING = 0.46;
-/** Dragged down below this, the panel closes. */
-const CLOSE_AT = 0.5;
+export type BuyHeight = 'low' | 'half' | 'full';
+const LOW = 0.41;
+const HALF_PHONE = 0.5;
+const HALF_WIDE = 0.6;
+/** Where "full" stops: under the time and money pills (px). */
+const FULL_GAP = 64;
+/** Dragged below this share of the window, the panel closes. */
+const CLOSE_AT = 0.28;
+/** The heights as shares of this window. */
+export function heightShares(vh: number, vw: number): Record<BuyHeight, number> {
+  return {
+    low: LOW,
+    half: vw >= 900 ? HALF_WIDE : HALF_PHONE,
+    full: Math.max(LOW, (vh - FULL_GAP) / vh),
+  };
+}
+/** The height a drag ends nearest (or null: dragged down past low, close). */
+export function snapHeight(share: number, vh: number, vw: number): BuyHeight | null {
+  if (share < CLOSE_AT) return null;
+  const all = heightShares(vh, vw);
+  return (Object.keys(all) as BuyHeight[]).reduce((a, b) =>
+    Math.abs(all[b] - share) < Math.abs(all[a] - share) ? b : a,
+  );
+}
 
 export function BuySheet({
   owned,
@@ -165,7 +183,10 @@ export function BuySheet({
   const basketOn = !!view.me.shop?.basket;
   const [armed, setArmed] = useState<string | null>(null);
   const [buying, setBuying] = useState(false);
-  const [height, setHeight] = useState(LOW);
+  const [snap, setSnap] = useState<BuyHeight>('half');
+  /** While the handle is dragged: the panel's height as a share of the window. */
+  const [dragShare, setDragShare] = useState<number | null>(null);
+  const [linesOpen, setLinesOpen] = useState(false);
   const drag = useRef<{ y: number; h: number; moved: boolean } | null>(null);
   const shop = shopOf(view);
   const items: BuyItem[] = shop.furniture;
@@ -226,8 +247,6 @@ export function BuySheet({
     onClose();
     onPlaceExtra?.(extraKey(f.slot, id), slotLabel(f.slot));
   };
-  const spotOf = (slot: string) =>
-    plan?.slots[slot] ?? planFor(5).slots[slot] ?? planFor(3).slots[slot];
 
   const buyOne = async (f: BuyItem) => {
     setArmed(null);
@@ -303,28 +322,36 @@ export function BuySheet({
     );
   };
 
+  const sheetRef = useRef<HTMLElement>(null);
+  const roomsRef = useRef<HTMLDivElement>(null);
   const onGrip = (e: ReactPointerEvent<HTMLElement>) => {
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    drag.current = { y: e.clientY, h: height, moved: false };
+    const vh = window.innerHeight || 800;
+    const h = (sheetRef.current?.getBoundingClientRect().height ?? vh / 2) / vh;
+    drag.current = { y: e.clientY, h, moved: false };
   };
   const onGripMove = (e: ReactPointerEvent<HTMLElement>) => {
     const d = drag.current;
     if (!d) return;
     const dy = d.y - e.clientY;
     if (Math.abs(dy) > 4) d.moved = true;
+    if (!d.moved) return;
     const vh = window.innerHeight || 800;
-    setHeight(Math.max(0.2, Math.min(0.9, d.h + dy / vh)));
+    setDragShare(Math.max(0.15, Math.min(heightShares(vh, window.innerWidth).full, d.h + dy / vh)));
   };
   const onGripUp = () => {
     const d = drag.current;
     drag.current = null;
     if (!d) return;
-    // A tap toggles; a drag settles at the nearer height; dragged well down, it closes.
-    if (!d.moved) setHeight(d.h > (LOW + TALL) / 2 ? LOW : TALL);
-    else if (height < CLOSE_AT) onClose();
-    else setHeight((h) => (h > (LOW + TALL) / 2 ? TALL : LOW));
+    const share = dragShare;
+    setDragShare(null);
+    // A tap: half ↔ full; a drag settles at the nearest height; dragged well down, it closes.
+    if (!d.moved || share === null) return setSnap((h) => (h === 'full' ? 'half' : 'full'));
+    const to = snapHeight(share, window.innerHeight || 800, window.innerWidth);
+    if (to) setSnap(to);
+    else onClose();
   };
-  const tall = height > (LOW + TALL) / 2;
+  const tall = snap === 'full';
 
   const tabBtn = (id: BuyTab, label: string, extra?: string) => (
     <button
@@ -380,43 +407,30 @@ export function BuySheet({
         className="buy-sheet"
         role="dialog"
         aria-label={t('Buy mode')}
+        ref={sheetRef}
         data-tall={tall ? '1' : '0'}
-        style={{ height: `${Math.round(height * 100)}%` }}
+        data-height={snap}
+        data-dragging={dragShare !== null ? '1' : undefined}
+        style={
+          dragShare !== null ? { height: `${Math.round(dragShare * 1000) / 10}vh` } : undefined
+        }
       >
+        <button
+          type="button"
+          className="buy-grip"
+          data-buy-grip=""
+          aria-label={tall ? t('Show more of your home') : t('Show more of the catalogue')}
+          onPointerDown={onGrip}
+          onPointerMove={onGripMove}
+          onPointerUp={onGripUp}
+          onPointerCancel={() => {
+            drag.current = null;
+            setDragShare(null);
+          }}
+        >
+          <i />
+        </button>
         <div className="buy-head">
-          <button
-            type="button"
-            className="buy-grip"
-            aria-label={tall ? t('Show more of your home') : t('Show more of the catalogue')}
-            onPointerDown={onGrip}
-            onPointerMove={onGripMove}
-            onPointerUp={onGripUp}
-            onPointerCancel={() => (drag.current = null)}
-          >
-            <i />
-          </button>
-          {/* Round 7: the whole online catalogue, one tap away (on a phone too). */}
-          {onShop && (
-            <button
-              type="button"
-              className="buy-close buy-shop"
-              data-action="shop-online"
-              onClick={onShop}
-            >
-              <span aria-hidden="true">🛍️</span> {t('Shop online')}
-            </button>
-          )}
-          <button
-            type="button"
-            className="buy-close"
-            data-action="close-buy"
-            aria-label={t('Close Buy mode')}
-            onClick={onClose}
-          >
-            <span aria-hidden="true">✕</span> {t('Close')}
-          </button>
-        </div>
-        <div className="buy-row">
           {floors && floors.length > 1 && (
             <div className="buy-floors" role="group" aria-label={t('Floors')}>
               {floors.map((f) => (
@@ -446,12 +460,64 @@ export function BuySheet({
               }}
             />
           </label>
+          {/* Round 7: the whole online catalogue, one tap away (on a phone too). */}
+          {onShop && (
+            <button
+              type="button"
+              className="buy-close buy-shop"
+              data-action="shop-online"
+              onClick={onShop}
+            >
+              <span aria-hidden="true">🛍️</span> {t('Shop online')}
+            </button>
+          )}
+          <button
+            type="button"
+            className="buy-close"
+            data-action="close-buy"
+            aria-label={t('Close Buy mode')}
+            onClick={onClose}
+          >
+            <span aria-hidden="true">✕</span> {t('Close')}
+          </button>
         </div>
+        {/* One row that swipes: what to show, then the price and Pick several. */}
         <div className="buy-row buy-tabs" role="tablist" aria-label={t('Catalogue')}>
           {tabBtn('new', `✦ ${t('New')}`)}
           {tabBtn('owned', `📦 ${t('Owned')}`, String(ownedCount(items, owned)))}
           {tabBtn('all', `▦ ${t('All')}`)}
           {designOn && tabBtn('design', `🎨 ${t('Design')}`)}
+          {tab !== 'design' && (
+            <>
+              <span className="buy-sep" aria-hidden="true" />
+              <label className="buy-chip buy-select buy-quiet">
+                <span aria-hidden="true">▾</span>
+                <select
+                  value={price}
+                  aria-label={t('Price')}
+                  data-buy-price=""
+                  onChange={(e) => setPrice(e.target.value as PriceFilter)}
+                >
+                  <option value="any">{t('Any price')}</option>
+                  <option value="afford">{t('What I can afford')}</option>
+                  <option value="low">{t('Cheapest first')}</option>
+                  <option value="high">{t('Dearest first')}</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                className={`buy-chip buy-quiet${picking ? ' is-pick' : ''}`}
+                data-action="pick-several"
+                aria-pressed={picking}
+                onClick={() => {
+                  setPicking((p) => !p);
+                  setArmed(null);
+                }}
+              >
+                ☑ {picking ? t('Picking') : t('Pick several')}
+              </button>
+            </>
+          )}
         </div>
         {tab === 'design' ? (
           <DesignPanel
@@ -461,7 +527,7 @@ export function BuySheet({
             busy={busy}
             cur={cur}
             onPreview={onPreview}
-            onTrying={(on) => setHeight(on ? TRYING : LOW)}
+            onTrying={(on) => setSnap(on ? 'low' : 'half')}
             onApply={(cmd, label) => send(looseCmd(cmd), label)}
             walls={
               wallsOn ? (
@@ -484,49 +550,39 @@ export function BuySheet({
           />
         ) : (
           <>
-            <div className="buy-row">
-              <label className="buy-chip buy-select">
-                <span aria-hidden="true">▾</span>
-                <select
-                  value={price}
-                  aria-label={t('Price')}
-                  data-buy-price=""
-                  onChange={(e) => setPrice(e.target.value as PriceFilter)}
-                >
-                  <option value="any">{t('Any price')}</option>
-                  <option value="afford">{t('What I can afford')}</option>
-                  <option value="low">{t('Cheapest first')}</option>
-                  <option value="high">{t('Dearest first')}</option>
-                </select>
-              </label>
+            {/* Rooms as tabs (one row that swipes; ‹ › on a laptop). */}
+            <div className="buy-rooms-wrap">
               <button
                 type="button"
-                className={`buy-chip${picking ? ' is-pick' : ''}`}
-                data-action="pick-several"
-                aria-pressed={picking}
-                onClick={() => {
-                  setPicking((p) => !p);
-                  setArmed(null);
-                }}
+                className="buy-arrow"
+                aria-label={t('Earlier rooms')}
+                onClick={() => roomsRef.current?.scrollBy({ left: -220, behavior: 'smooth' })}
               >
-                ☑ {picking ? t('Picking') : t('Pick several')}
+                ‹
               </button>
-              <span className="buy-top-gap" />
-              <label className="buy-room">
-                <select
-                  value={roomOn}
-                  aria-label={t('Room')}
-                  data-buy-room=""
-                  onChange={(e) => setRoom(e.target.value)}
-                >
-                  <option value="all">{t('All rooms')}</option>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {t(r.label)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="buy-rooms" role="tablist" aria-label={t('Room')} ref={roomsRef}>
+                {[{ id: 'all', label: 'All rooms' }, ...rooms].map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    role="tab"
+                    data-buy-room={r.id}
+                    aria-selected={roomOn === r.id}
+                    className={roomOn === r.id ? 'is-on' : ''}
+                    onClick={() => setRoom(r.id)}
+                  >
+                    {t(r.label)}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="buy-arrow"
+                aria-label={t('More rooms')}
+                onClick={() => roomsRef.current?.scrollBy({ left: 220, behavior: 'smooth' })}
+              >
+                ›
+              </button>
             </div>
             <div
               className="buy-cards"
@@ -557,6 +613,9 @@ export function BuySheet({
                 const pickMine = picking && mine && canPick;
                 const have = (mine ? 1 : 0) + extras.filter((x) => x.itemId === f.id).length;
                 const moreArmed = armed === `more:${f.id}`;
+                // Round 7: a picked card says how many (− N +), or that a home has one.
+                const n = Math.max(1, Math.min(lineMax(f), qty[f.id] ?? 1));
+                const step = picking && picked && basketOn;
                 return (
                   <div key={f.id} role="listitem" className="buy-cell">
                     <button
@@ -587,7 +646,6 @@ export function BuySheet({
                     >
                       <span className="buy-pic">
                         <img src={furnitureThumb(f.id)} alt="" draggable={false} loading="lazy" />
-                        <span className="buy-foot">{footprint(spotOf(f.slot))}</span>
                         <span className="buy-stars" aria-label={t('{n} stars', { n: f.tier })}>
                           {'★'.repeat(f.tier)}
                         </span>
@@ -612,17 +670,26 @@ export function BuySheet({
                         {pickMine
                           ? t('+ Another · {price}', { price: money(f.price, cur) })
                           : mine
-                            ? MOVABLE.has(f.slot)
-                              ? placed[f.slot]
-                                ? t('Yours · tap to move again')
-                                : t('Yours · tap to move')
-                              : t('Yours')
+                            ? more
+                              ? t('Owned ·')
+                              : MOVABLE.has(f.slot)
+                                ? placed[f.slot]
+                                  ? t('Yours · tap to move again')
+                                  : t('Yours · tap to move')
+                                : t('Yours')
                             : wait
                               ? t('On its way')
                               : isArmed
                                 ? t('Tap again to buy')
-                                : money(f.price, cur)}
+                                : step && n > 1
+                                  ? money(f.price * n, cur)
+                                  : money(f.price, cur)}
                       </span>
+                      {step && n > 1 && (
+                        <span className="buy-each">
+                          {t('{price} each', { price: money(f.price, cur) })}
+                        </span>
+                      )}
                       {boosts.length > 0 && (
                         <span className="buy-boost">
                           {boosts
@@ -644,14 +711,47 @@ export function BuySheet({
                           ? t('That’s the most')
                           : moreArmed
                             ? t('Tap again · {price}', { price: money(f.price, cur) })
-                            : t('+ Another · {price}', { price: money(f.price, cur) })}
+                            : t('+ Another')}
                       </button>
                     )}
+                    {step &&
+                      (extraSlots.has(f.slot) ? (
+                        <span
+                          className="buy-cstep"
+                          role="group"
+                          aria-label={t('How many')}
+                          data-card-qty={n}
+                        >
+                          <button
+                            type="button"
+                            aria-label={t('One fewer')}
+                            data-action="qty-down"
+                            disabled={n <= 1}
+                            onClick={() => setLine(f, n - 1)}
+                          >
+                            −
+                          </button>
+                          <b>{n}</b>
+                          <button
+                            type="button"
+                            aria-label={t('One more')}
+                            data-action="qty-up"
+                            disabled={n >= lineMax(f)}
+                            onClick={() => setLine(f, n + 1)}
+                          >
+                            +
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="buy-one" data-one-per-home="">
+                          {t('1 per home')}
+                        </span>
+                      ))}
                   </div>
                 );
               })}
             </div>
-            {picking && basketOn && bag.items.length > 0 && (
+            {picking && basketOn && linesOpen && bag.items.length > 0 && (
               <ul className="buy-basket-lines" aria-label={t('Basket')}>
                 {bag.items.map((f) => {
                   const n = Math.max(1, Math.min(lineMax(f), qty[f.id] ?? 1));
@@ -695,6 +795,18 @@ export function BuySheet({
                 data-count={bag.count}
                 data-total={bag.total}
               >
+                {basketOn && bag.items.length > 0 && (
+                  <button
+                    type="button"
+                    className="buy-basket-tog"
+                    data-action="basket-lines"
+                    aria-expanded={linesOpen}
+                    aria-label={linesOpen ? t('Hide the basket') : t('Show the basket')}
+                    onClick={() => setLinesOpen((o) => !o)}
+                  >
+                    {linesOpen ? '▾' : '▴'}
+                  </button>
+                )}
                 <span className="buy-basket-pics" aria-hidden="true">
                   {bag.items.slice(0, 4).map((f) => (
                     <img key={f.id} src={furnitureThumb(f.id)} alt="" />
@@ -1110,6 +1222,7 @@ export function PlaceBar({
   onDone,
   onReset,
   onCancel,
+  tiles,
 }: {
   label: string;
   ok: boolean;
@@ -1125,6 +1238,8 @@ export function PlaceBar({
   lift?: number;
   /** Where it is ('x,y,rot', for tests). */
   at?: string;
+  /** Round 7: the floor tiles it takes, as you've turned it (none: it hangs on a wall). */
+  tiles?: { w: number; d: number } | null;
   onRotate: () => void;
   /** A step on screen: x right, y down. */
   onNudge: (dx: number, dy: number) => void;
@@ -1142,6 +1257,18 @@ export function PlaceBar({
       data-ok={ok ? '1' : '0'}
       data-at={at}
     >
+      <p className="place-bar-head">
+        <b>{label}</b>
+        {tiles && (
+          <span className="place-tiles" data-tiles={`${tiles.w}x${tiles.d}`}>
+            <span aria-hidden="true">▦</span>{' '}
+            {tiles.w * tiles.d === 1
+              ? t('Takes 1 × 1 floor tile')
+              : t('Takes {w} × {d} floor tiles', { w: tiles.w, d: tiles.d })}
+          </span>
+        )}
+        {onWall && <span className="place-tiles">{t('Hangs on a wall')}</span>}
+      </p>
       <p className="place-hint">
         {!ok
           ? onWall
@@ -1152,7 +1279,7 @@ export function PlaceBar({
             : t('Tap the floor or drag it to move it. Turn it, then put it here.')}
         {ok && coming && <> {t('It’s on its way: it goes here when you unpack the delivery.')}</>}
       </p>
-      <div className="place-row">
+      <div className="place-row place-moves">
         <button type="button" aria-label={t('Left')} onClick={() => onNudge(-1, 0)}>
           ←
         </button>
@@ -1168,20 +1295,20 @@ export function PlaceBar({
         <button type="button" onClick={onRotate}>
           ⟳ {t('Turn')}
         </button>
+        {onLift && (
+          <span className="place-lift">
+            <button type="button" disabled={lift <= -1} onClick={() => onLift(-1)}>
+              ⤓ {t('Lower')}
+            </button>
+            <button type="button" disabled={lift >= 1} onClick={() => onLift(1)}>
+              ⤒ {t('Higher')}
+            </button>
+          </span>
+        )}
       </div>
-      {onLift && (
-        <div className="place-row">
-          <button type="button" disabled={lift <= -1} onClick={() => onLift(-1)}>
-            ⤓ {t('Lower')}
-          </button>
-          <button type="button" disabled={lift >= 1} onClick={() => onLift(1)}>
-            ⤒ {t('Higher')}
-          </button>
-        </div>
-      )}
-      <div className="place-row">
+      <div className="place-row place-ends">
         <button type="button" className="place-cancel" onClick={onCancel}>
-          {t('Cancel')}
+          <span aria-hidden="true">✕</span> {t('Cancel')}
         </button>
         {moved && (
           <button type="button" onClick={onReset}>
@@ -1189,6 +1316,7 @@ export function PlaceBar({
           </button>
         )}
         <button type="button" className="place-done" disabled={!ok} onClick={onDone}>
+          <span aria-hidden="true">✓</span>{' '}
           {coming ? t('Keep this spot') : onWall ? t('Hang it here') : t('Put it here')}
         </button>
       </div>

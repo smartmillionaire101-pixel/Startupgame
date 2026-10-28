@@ -5,7 +5,7 @@
  *
  * - `shop.order` takes the basket's lines: furniture with a quantity (the
  *   first goes in its slot unless it's the one you have, the rest are more
- *   of it, data/home-style.ts EXTRA_SLOTS), a mall thing, a wall with a
+ *   of it: any furniture but built-ins, homestyle.ts extraSlotsOf), a mall thing, a wall with a
  *   quantity. Each line is bought as its own command would (the same
  *   prices, tills and checks), all or nothing.
  * - Online (`delivery` set) everything rides in one van (catalog.ts `Van`)
@@ -24,7 +24,8 @@ import {
   type DeliverySpeed,
   type WallKind,
 } from './data/catalog.js';
-import { EXTRAS_MAX, EXTRAS_PER_SLOT, EXTRA_SLOTS } from './data/home-style.js';
+import { EXTRAS_MAX, EXTRAS_PER_SLOT } from './data/home-style.js';
+import { extraSlotsOf } from './homestyle.js';
 import { SHOP_KINDS_FOR_SLOT, furnitureItem, furnitureLabel } from './data/lifestyle-shop.js';
 import {
   buyWall,
@@ -71,7 +72,7 @@ export function orderExtra(
   if (!o.speed) atHome(p);
   const f = furnitureItem(itemId);
   ensure(f, 'home.item', 'That isn’t in the catalogue.');
-  ensure(EXTRA_SLOTS.includes(f.slot), 'home.extra', 'A home has just the one of those.');
+  ensure(extraSlotsOf(w).includes(f.slot), 'home.extra', 'A home has just the one of those.');
   const coming = waiting(w, p);
   ensure(
     (p.home?.items ?? []).some((x) => x.slot === f.slot) ||

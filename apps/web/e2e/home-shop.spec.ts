@@ -66,10 +66,14 @@ test('three plants in the basket: one van, Unpack all, three plants placed and o
   await sheet.locator('[data-buy-tab="all"]').click();
   await sheet.locator('[data-action="pick-several"]').click();
   await sheet.locator('[data-buy-item="plants-1"]').click();
+  // The picked card has − N +; the basket's lines (opened) show the same.
+  const step = sheet.locator('[data-buy-item="plants-1"] ~ [data-card-qty]');
+  await expect(step).toHaveAttribute('data-card-qty', '1');
+  await step.locator('[data-action="qty-up"]').click();
+  await step.locator('[data-action="qty-up"]').click();
+  await expect(step).toHaveAttribute('data-card-qty', '3');
+  await sheet.locator('[data-action="basket-lines"]').click();
   const line = sheet.locator('[data-basket-line="plants-1"]');
-  await expect(line).toHaveAttribute('data-qty', '1');
-  await line.locator('[data-action="qty-up"]').click();
-  await line.locator('[data-action="qty-up"]').click();
   await expect(line).toHaveAttribute('data-qty', '3');
   await line.locator('[data-action="qty-down"]').click();
   await line.locator('[data-action="qty-up"]').click();

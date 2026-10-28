@@ -737,3 +737,602 @@
   font-size: 0.8rem;
   white-space: nowrap;
 }
+
+/* ===================================================================== */
+/* Round 7 (#21): Buy mode is one bottom panel over the whole width, down  */
+/* to the screen's edge (docked the same way on a laptop). Three heights   */
+/* by its handle; the online catalogue opens in the same panel; placing    */
+/* shrinks it to a slim bar. The home stays in view above it.              */
+/* ===================================================================== */
+.buy-back {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  justify-content: flex-end;
+}
+/* Turning sits just above the panel; the pocket is the HUD's money pill. */
+.buy-back .buy-top {
+  position: absolute;
+  right: 10px;
+  bottom: calc(var(--buy-h, 50dvh) + 10px);
+  margin: 0;
+  padding: 0;
+  gap: 8px;
+  background: none;
+}
+.buy-back .buy-top .buy-pill {
+  display: none;
+}
+.buy-back:has(.buy-sheet[data-height='low']) {
+  --buy-h: 41dvh;
+}
+.buy-back:has(.buy-sheet[data-height='full']) .buy-top,
+.buy-back:has(.buy-sheet[data-dragging]) .buy-top {
+  display: none;
+}
+.buy-round {
+  width: 40px;
+  height: 40px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.4);
+}
+.buy-back .buy-sheet {
+  position: relative;
+  height: var(--buy-h, 50dvh);
+  max-height: calc(100dvh - 58px);
+  padding: 0 12px calc(10px + env(safe-area-inset-bottom));
+  gap: 8px;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -12px 34px rgb(0 0 0 / 0.45);
+  transition: none;
+  /* Docked: it rises in place, without sliding sideways or growing. */
+  animation: buy-rise 0.18s ease-out;
+}
+@keyframes buy-rise {
+  from {
+    opacity: 0.6;
+  }
+}
+.buy-back .buy-sheet[data-height='low'] {
+  height: 41dvh;
+}
+.buy-back .buy-sheet[data-height='half'] {
+  height: 50dvh;
+}
+.buy-back .buy-sheet[data-height='full'] {
+  height: calc(100dvh - 58px);
+}
+/* The handle on its own thin strip. */
+.buy-sheet > .buy-grip {
+  width: 100%;
+  height: 20px;
+  margin: 0 0 -4px;
+}
+.buy-sheet > .buy-grip i {
+  width: 48px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgb(148 163 184 / 0.7);
+}
+/* Search, Shop online and Close share the head row. */
+.buy-sheet .buy-head {
+  min-height: 0;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.buy-sheet .buy-head .buy-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  margin: 0;
+}
+.buy-sheet .buy-head .buy-close,
+.buy-sheet .buy-head .buy-close.buy-shop {
+  position: static;
+  transform: none;
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 0.92rem;
+}
+.buy-sheet .buy-head .buy-close.buy-shop {
+  background: var(--buy-card);
+  color: var(--buy-text);
+  border: 1px solid var(--buy-line);
+  box-shadow: none;
+}
+/* The filter row and the room row: single lines that swipe sideways. */
+.buy-sheet .buy-tabs,
+.buy-sheet .buy-rooms {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent);
+}
+.buy-sheet .buy-tabs::-webkit-scrollbar,
+.buy-sheet .buy-rooms::-webkit-scrollbar {
+  display: none;
+}
+.buy-sheet .buy-tabs {
+  margin: 0 -12px;
+  padding: 0 12px;
+}
+.buy-sheet .buy-tabs > * {
+  flex: 0 0 auto;
+}
+.buy-sheet .buy-tabs .buy-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+.buy-sep {
+  flex: 0 0 1px;
+  align-self: stretch;
+  margin: 6px 2px;
+  background: var(--buy-line);
+}
+.buy-sheet .buy-tabs .buy-quiet {
+  padding: 0 12px;
+  font-size: 0.82rem;
+  background: none;
+  border: 1px dashed var(--buy-line);
+  color: var(--buy-muted);
+}
+.buy-sheet .buy-tabs .buy-quiet.is-pick {
+  border-style: solid;
+  color: #fff;
+  background: #166534;
+  border-color: #16a34a;
+}
+/* Rooms: quiet text tabs with an underline. */
+.buy-rooms-wrap {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border-bottom: 1px solid var(--buy-line);
+}
+.buy-rooms {
+  flex: 1 1 auto;
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+}
+.buy-rooms button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--buy-muted);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 750;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.buy-rooms button.is-on {
+  color: var(--buy-text);
+  border-bottom-color: var(--buy-teal);
+}
+.buy-arrow {
+  flex: 0 0 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--buy-line);
+  background: var(--buy-card);
+  color: var(--buy-text);
+  font-size: 1.15rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+@media (max-width: 899px) {
+  .buy-arrow {
+    display: none;
+  }
+}
+/* Things: 3 a row on a phone; picture, name, price. No footprint badge
+   (it read like a quantity): the placing bar says it in words. */
+.buy-sheet .buy-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  align-content: start;
+  padding-bottom: 4px;
+}
+.buy-sheet .buy-cell {
+  position: relative;
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+.buy-sheet .buy-card {
+  width: 100%;
+  padding: 5px 5px 8px;
+  gap: 2px;
+  border-radius: 14px;
+}
+.buy-sheet .buy-pic {
+  position: relative;
+  aspect-ratio: 1 / 0.82;
+  border-radius: 10px;
+}
+.buy-sheet .buy-foot,
+.buy-sheet .buy-boost {
+  display: none;
+}
+.buy-sheet .buy-name {
+  font-size: 0.78rem;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.4em;
+  padding: 0 2px;
+}
+.buy-sheet .buy-price {
+  font-size: 0.84rem;
+  padding: 0 2px;
+}
+.buy-sheet .buy-card.is-mine {
+  outline: 2px solid rgb(45 212 191 / 0.55);
+  outline-offset: -2px;
+}
+.buy-sheet .buy-card.is-picked {
+  outline: 3px solid #16a34a;
+  outline-offset: -3px;
+}
+/* An owned thing: "Owned · + Another", on the card's last line. */
+.buy-sheet .buy-more {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: auto;
+  min-height: 24px;
+  margin: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--buy-teal);
+  color: #042f2e;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+.buy-sheet .buy-more.is-armed {
+  background: #fde68a;
+}
+.buy-each {
+  display: block;
+  padding: 0 2px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--buy-muted);
+}
+/* Picked: how many (− N +), or "1 per home" for what's built in. */
+.buy-cstep {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: #0b1222;
+  border: 1px solid #16a34a;
+}
+.buy-cstep button {
+  width: 30px;
+  height: 28px;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+.buy-cstep button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.buy-cstep b {
+  min-width: 16px;
+  font-size: 0.9rem;
+  text-align: center;
+}
+.buy-one {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  margin-top: 4px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px dashed var(--buy-line);
+  color: var(--buy-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+/* The basket: a bar along the panel's foot; its lines open above it. */
+.buy-sheet .buy-basket {
+  margin: 0 -12px calc(-10px - env(safe-area-inset-bottom));
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+  border: 0;
+  border-top: 1px solid var(--buy-line);
+  border-radius: 18px 18px 0 0;
+  background: #16203a;
+  box-shadow: 0 -8px 20px rgb(0 0 0 / 0.35);
+}
+.buy-basket-tog {
+  flex: 0 0 auto;
+  border: 0;
+  background: none;
+  color: var(--buy-muted);
+  font-size: 0.95rem;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+/* While Buy mode, the catalogue or placing is open: the nav pill, the
+   room's rail, the phone button and the HUD's second row step aside; only
+   small time and money pills stay. */
+html:is(:has(.buy-back), :has(.cat-dock), :has(.home-scene .place-bar))
+  :is(.nav, .hud-rail, .hud-phone, .hud-sub, .hud-chev) {
+  visibility: hidden;
+}
+
+/* ---- The online catalogue in the same bottom panel (opened at home). */
+.cat-sheet-back.cat-dock {
+  z-index: 50;
+  align-items: flex-end;
+  background: none;
+}
+.cat-dock .cat-sheet {
+  --buy-line: rgb(148 163 184 / 0.22);
+  width: 100%;
+  max-width: none;
+  height: 58dvh;
+  max-height: calc(100dvh - 58px);
+  margin: 0;
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  border-radius: 22px 22px 0 0;
+  background: #0f172a;
+  color: #f1f5f9;
+  box-shadow: 0 -12px 34px rgb(0 0 0 / 0.45);
+}
+.cat-dock .cat-grip {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  height: 18px;
+}
+.cat-dock .cat-grip i {
+  width: 48px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgb(148 163 184 / 0.7);
+}
+.cat-dock header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cat-dock header h3 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.15;
+}
+.cat-dock header h3 small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+.cat-back {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--buy-line);
+  background: #1b2540;
+  color: #f1f5f9;
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.cat-dock .cat-close {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 900;
+  font-size: 0.92rem;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+.cat-dock .cat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+.cat-dock .cat-chips {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0;
+  padding: 0;
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent);
+}
+.cat-dock .cat-chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.cat-dock .cat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* ---- Placing: a slim bar along the bottom; the whole room in view. */
+.home-scene .place-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 55;
+  margin: 0;
+  border-radius: 18px 18px 0 0;
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+  background: rgb(15 23 42 / 0.96);
+  gap: 8px;
+  box-shadow: 0 -10px 28px rgb(0 0 0 / 0.4);
+}
+.place-bar-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.86rem;
+  color: #fff;
+}
+.place-tiles {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  color: #e2e8f0;
+  font-weight: 700;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.home-scene .place-bar .place-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #cbd5e1;
+  text-align: left;
+}
+.home-scene .place-bar .place-row {
+  justify-content: flex-start;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.home-scene .place-bar .place-row button {
+  flex: 0 0 auto;
+  min-height: 42px;
+  min-width: 42px;
+  padding: 0 10px;
+  border-radius: 12px;
+}
+.place-lift {
+  display: flex;
+  gap: 4px;
+  padding: 0 4px;
+  border-radius: 14px;
+  border: 1px dashed rgb(255 255 255 / 0.3);
+}
+.home-scene .place-bar .place-ends .place-done {
+  flex: 1 1 auto;
+  font-weight: 900;
+}
+
+/* ---- Laptop: the same panel docked on the bottom edge, the full width;
+   more things a row, ‹ › on the room row. */
+@media (min-width: 900px) {
+  .buy-back .buy-sheet,
+  .cat-dock .cat-sheet {
+    width: 100%;
+    margin: 0;
+    padding: 0 24px 14px;
+  }
+  .buy-back .buy-sheet[data-height='half'] {
+    height: 60dvh;
+  }
+  .buy-back .buy-sheet[data-height='full'] {
+    height: calc(100dvh - 64px);
+  }
+  .buy-back {
+    --buy-h: 60dvh;
+  }
+  .buy-sheet .buy-tabs,
+  .cat-dock .cat-chips {
+    margin: 0;
+    padding: 0;
+  }
+  .buy-sheet .buy-cards,
+  .cat-dock .cat-grid {
+    grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+    gap: 10px;
+  }
+  .buy-sheet .buy-head .buy-search {
+    flex: 0 1 380px;
+  }
+  .buy-sheet .buy-head::before {
+    content: '🛒';
+    order: -1;
+    font-size: 1.05rem;
+  }
+  .buy-sheet .buy-head .buy-close:not(.buy-shop) {
+    margin-left: auto;
+  }
+  .buy-back .buy-top {
+    right: 16px;
+  }
+  .buy-sheet .buy-name {
+    font-size: 0.86rem;
+  }
+  .home-scene .place-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 24px 12px;
+  }
+  .home-scene .place-bar .place-hint {
+    flex: 1 1 auto;
+  }
+  .home-scene .place-bar .place-ends .place-done {
+    flex: 0 0 auto;
+    padding: 0 22px;
+  }
+}
+.buy-sheet .buy-tabs .buy-select select {
+  font-size: 0.82rem;
+  color: inherit;
+}
+/* While Buy mode is open the time and money pills stay, smaller. */
+html:is(:has(.buy-back), :has(.cat-dock), :has(.home-scene .place-bar)) .hud-top .hud-pill {
+  height: 34px;
+  min-height: 0;
+  padding: 0 12px;
+  font-size: 0.86rem;
+}
+html:is(:has(.buy-back), :has(.cat-dock), :has(.home-scene .place-bar))
+  .hud-top
+  :is(.hud-hours, .hud-plus, .hud-life > svg) {
+  display: none;
+}

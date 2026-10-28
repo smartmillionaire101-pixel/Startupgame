@@ -110,4 +110,16 @@ export const buyMode: Record<string, string> = {
   '{n} × {item}: yours.': '{n} × {item} : à vous.',
   '+ Another': '+ Un autre',
   'Shop online': 'Boutique en ligne',
+  // Round 7 (#21): Buy mode as one bottom panel.
+  'Earlier rooms': 'Pièces précédentes',
+  'More rooms': 'Autres pièces',
+  'Owned ·': 'À vous ·',
+  '{price} each': '{price} pièce',
+  '1 per home': '1 par logement',
+  'Hide the basket': 'Masquer le panier',
+  'Show the basket': 'Voir le panier',
+  'Takes 1 × 1 floor tile': 'Occupe 1 × 1 dalle',
+  'Takes {w} × {d} floor tiles': 'Occupe {w} × {d} dalles',
+  'Hangs on a wall': 'Se fixe au mur',
+  'Online shop · delivered to your door': 'Boutique en ligne · livré chez vous',
 };

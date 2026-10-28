@@ -75,7 +75,8 @@ test('Buy mode: picture cards, Owned, Design swatches, and a basket bought at on
       timeout: 15_000,
     })
     .toBeGreaterThan(0);
-  await expect(sofa.locator('.buy-foot')).toHaveText('3×1');
+  // Round 7: no footprint badge on the cards (it read like a quantity).
+  await expect(sheet.locator('.buy-foot')).toHaveCount(0);
   await expect(sofa.locator('.buy-stars')).toHaveText('★★');
   await expect(sofa.locator('.buy-boost')).toContainText('+Social +2');
   // New: the next step up in each slot (the basic one where you have none).
@@ -328,7 +329,9 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
   expect(now.length).toBeLessThanOrEqual(2);
   for (const c of was) expect(now).not.toContain(c);
   await expect(sheet.locator('[data-trying="wall:navy"]')).toBeVisible();
-  expect(await sheet.evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(tall * 0.8);
+  // Round 7: the panel steps down to its low height (from half).
+  await expect(sheet).toHaveAttribute('data-height', 'low');
+  expect(await sheet.evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(tall * 0.9);
   await shot(page, '8-walls-navy');
 
   // "It refuses to close": a Close you can see, and Escape.
