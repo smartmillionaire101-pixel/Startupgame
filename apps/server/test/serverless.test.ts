@@ -15,7 +15,7 @@ import {
   jobsOn,
   dealflowOn,
   placesOn,
-  FEEDBACK_NOTE,
+  GAMEPLAY_NOTE,
   feedbackOn,
   shopOn,
   bankersOn,
@@ -141,7 +141,7 @@ describe('the world on a key-value store', () => {
   });
 
   it('the release note switches on the feedback round, bankers, more games, city places, investor deal flow, the investor career, jobs, life bars, exits and decision events, and keeps quizzes on the bank', () => {
-    expect(RELEASE_NOTE.id).toBe(FEEDBACK_NOTE);
+    expect(RELEASE_NOTE.id).toBe(GAMEPLAY_NOTE);
     // A new world's first (and only) note is this one: quizzes still use the built-in bank,
     // and the earlier exits and journey-events switches are on too.
     const w = { announcements: [RELEASE_NOTE.id] } as unknown as World;

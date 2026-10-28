@@ -139,6 +139,8 @@ export {
   FEEDBACK_NOTE,
   bankersOn,
   feedbackOn,
+  GAMEPLAY_NOTE,
+  gameplayOn,
   SHOP_NOTE,
   shopOn,
   RELEASES,
