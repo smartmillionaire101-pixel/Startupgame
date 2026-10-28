@@ -799,7 +799,7 @@ export function playerView(
     /** Bankers note: the negotiation, the licence tracker and checklist, and the first session. */
     banker: bankerView(world, p, clock?.now ?? p.lastActiveAt),
     /** Investor career Phase 2: every city's exchange, the index fund, your holdings and orders. */
-    exchange: exchangeView(world, p, clock?.now),
+    exchange: exchangeView(world, p),
     /** Investor career Phase 3: syndicates you lead, backed, or can back. */
     syndicates: syndicatesView(world, p),
     /** Investor career Phase 4: funds you run (LP book), funds you can join, your calls. */
@@ -836,7 +836,7 @@ export function playerView(
       ? null
       : {
           exits: exitOptionsView(world, p),
-          market: publicMarketView(world, p),
+          market: publicMarketView(world, p, clock?.now),
           /** Cities with a stock market, the player's own first (stock analysis). */
           exchanges: stockExchangesView(world, p),
           offers: secondaryOffersView(world, p),

@@ -435,6 +435,8 @@ function PriceBoard() {
   const nav = useNav();
   const city = view?.here?.id ?? view?.market.id;
   const ex = (view?.exchange?.markets ?? []).find((x) => x.market === city);
+  // The listings are the stock market's (sent once), this city's.
+  const listings = (view?.capital?.market ?? []).filter((x) => x.market === city);
   const pct = (v: number) => `${v > 0 ? '▲' : v < 0 ? '▼' : '•'} ${Math.abs(v).toFixed(2)}%`;
   return (
     <Card
@@ -448,12 +450,12 @@ function PriceBoard() {
           <li>
             <strong>{t('Index')}</strong> {ex.level.toFixed(2)} {pct(ex.changePct)}
           </li>
-          {ex.listings.slice(0, 8).map((l) => (
+          {listings.slice(0, 8).map((l) => (
             <li key={l.companyId}>
               {l.name} {money(Math.round(l.price), ex.currency)} {pct(l.changePct)}
             </li>
           ))}
-          {!ex.listings.length && <li className="muted">{t('No companies listed yet.')}</li>}
+          {!listings.length && <li className="muted">{t('No companies listed yet.')}</li>}
         </ul>
       )}
       {/* Investors trade on the Markets screen (under Portfolio). */}

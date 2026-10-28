@@ -17,7 +17,18 @@ import './investor.css';
 
 type ExchangeView = NonNullable<PlayerView['exchange']>;
 type City = ExchangeView['markets'][number];
-type Listing = City['listings'][number];
+type MarketRow = NonNullable<PlayerView['capital']>['market'][number];
+/** A listing on a city exchange: the stock market's row with what the exchange adds. */
+type Listing = Omit<MarketRow, 'trade'> & NonNullable<MarketRow['trade']>;
+
+/**
+ * Round 7 (city load time): the listings come once, in the stock market
+ * list; each city's are the rows with exchange facts (`trade`).
+ */
+const listingsIn = (view: PlayerView, market: string): Listing[] =>
+  (view.capital?.market ?? []).flatMap((x) =>
+    x.market === market && x.trade ? [{ ...x, ...x.trade }] : [],
+  );
 
 const exchangeOf = (view: PlayerView): ExchangeView | null =>
   (view as { exchange?: ExchangeView | null }).exchange ?? null;
@@ -299,10 +310,12 @@ function ListingRow({
 
 function CityExchange({
   c,
+  listings,
   brokerBps,
   onAnalyse,
 }: {
   c: City;
+  listings: Listing[];
   brokerBps: number;
   onAnalyse: (companyId: string) => void;
 }) {
@@ -342,10 +355,10 @@ function CityExchange({
         </>
       )}
       <h3 className="cap-h">{t('Listed companies')}</h3>
-      {c.listings.length === 0 ? (
+      {listings.length === 0 ? (
         <Empty>{t('Nothing is listed here yet.')}</Empty>
       ) : (
-        c.listings.map((x) => (
+        listings.map((x) => (
           <ListingRow
             key={x.companyId}
             x={x}
@@ -411,7 +424,8 @@ export function Exchange() {
   const [openId, setOpenId] = useState<string | null>(null);
   if (!ex) return null;
   const c = ex.markets.find((m) => m.market === city) ?? ex.markets[0];
-  const open = openId && c ? c.listings.find((x) => x.companyId === openId) : undefined;
+  const listings = c ? listingsIn(view, c.market) : [];
+  const open = openId ? listings.find((x) => x.companyId === openId) : undefined;
   if (c && open)
     return (
       <CompanyAnalysis
@@ -423,7 +437,12 @@ export function Exchange() {
     <div className="stack">
       <ExchangeChips exchanges={ex.markets} value={c?.market ?? ''} onChange={setCity} />
       {c ? (
-        <CityExchange c={c} brokerBps={ex.rules.brokerBps} onAnalyse={setOpenId} />
+        <CityExchange
+          c={c}
+          listings={listings}
+          brokerBps={ex.rules.brokerBps}
+          onAnalyse={setOpenId}
+        />
       ) : (
         <Empty>{t('Nothing is listed here yet.')}</Empty>
       )}

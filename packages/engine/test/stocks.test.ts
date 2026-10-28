@@ -89,17 +89,16 @@ describe('stock market: the company analysis', () => {
     expect(a.yourCash).toBe(w.accounts[w.players[I]!.accounts.local]!.balance);
     expect(a.maxBuyShares).toBeGreaterThan(0);
     expect(a.limitOrders).toBe(true);
-    // The exchange view lists the same company (its analysis fetched the same way).
-    const listing = v.exchange!.markets[0]!.listings.find((l) => l.companyId === x.companyId)!;
-    expect(listing.marketCap).toBe(a.marketCap);
+    // Round 7: one list; the exchange adds its trading facts to the same row.
+    expect(x.marketCap).toBe(a.marketCap);
+    expect(x.trade!.maxBuyShares).toBe(a.maxBuyShares);
+    expect('listings' in v.exchange!.markets[0]!).toBe(false);
   });
 
   it('round 7: the state carries no analysis (fetched when a company opens), nothing for a stranger', () => {
     const w = careerLondoner();
     const v = playerView(w, I)!;
     for (const x of v.capital!.market) expect('analysis' in x).toBe(false);
-    for (const m of v.exchange!.markets)
-      for (const l of m.listings) expect('analysis' in l).toBe(false);
     const x = v.capital!.market[0]!;
     expect(typeof x.recentNews).toBe('boolean');
     expect(stockAnalysisFor(w, 'nobody', x.companyId)).toBeNull();

@@ -7,9 +7,12 @@ import { api, makeApp, playAsGuest } from './helpers.js';
  * a new founder's /api/state stays inside a size budget. Every listed
  * company's analysis rode in it twice (the stock market and the exchange):
  * about 700 KB on a preview-sized world, 424 KB on this test world; now an
- * analysis is read when its company opens (351 KB here).
+ * analysis is read when its company opens (355 KB here). The listings
+ * themselves were still sent twice; now once, in the stock market list,
+ * each with what its exchange adds (343 KB here; 467 → 427 KB on a fresh
+ * local server).
  */
-const BUDGET = 400_000;
+const BUDGET = 370_000;
 
 describe('the state a new player loads', () => {
   it('stays inside its budget, with each stock analysis read on demand', async () => {
@@ -39,12 +42,11 @@ describe('the state a new player loads', () => {
     expect(r.statusCode).toBe(200);
     expect(r.body.length).toBeLessThan(BUDGET);
     const v = r.json().view;
-    const listings = [
-      ...v.capital.market,
-      ...(v.exchange?.markets ?? []).flatMap((m: { listings: unknown[] }) => m.listings),
-    ] as Record<string, unknown>[];
+    const listings = v.capital.market as Record<string, unknown>[];
     expect(listings.length).toBeGreaterThan(0);
     for (const l of listings) expect(l.analysis).toBeUndefined();
+    // Each listing is sent once: the exchanges carry their index, not the companies again.
+    for (const m of v.exchange?.markets ?? []) expect(m.listings).toBeUndefined();
 
     // A company's page reads its analysis.
     const id = v.capital.market[0].companyId as string;
