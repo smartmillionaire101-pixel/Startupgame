@@ -320,3 +320,75 @@ body:has(.phone .phone-thread) .toasts {
 .chat-choices label[aria-disabled='true'] {
   opacity: 0.65;
 }
+
+/* ---- Round 7: the Messages app's own colours (player feedback: the bright
+   mint bubbles felt "AI"). Dark slate with a sky-blue accent edge, for your
+   bubbles, the chat cards' buttons, Send, the "+" chips and the unread
+   badges. Scoped to the Messages app: the rest of the game keeps its
+   colours. */
+[data-phone-app='messages'] {
+  --m-mine: #2c3846;
+  --m-mine-ink: #eef2f7;
+  --m-mine-edge: #38bdf8;
+  --m-btn: #2c3846;
+  --m-btn-ink: #e0f2fe;
+  --m-btn-line: #38bdf8;
+  --m-chip: #1e2733;
+  --m-chip-line: #38bdf855;
+  --m-chip-ink: #dbeafe;
+  --m-badge: #38bdf8;
+  --m-badge-ink: #062033;
+  --m-link: #7dd3fc;
+}
+/* On a light screen the links and the edge need more ink to read. */
+@media (prefers-color-scheme: light) {
+  [data-phone-app='messages'] {
+    --m-link: #0369a1;
+    --m-chip-line: #0284c7;
+    --m-mine-edge: #0284c7;
+    --m-btn-line: #0284c7;
+  }
+}
+[data-phone-app='messages'] .bubble.mine {
+  background: var(--m-mine);
+  color: var(--m-mine-ink);
+  border-right: 3px solid var(--m-mine-edge);
+  border-radius: 16px 16px 4px 16px;
+}
+[data-phone-app='messages'] .bubble:not(.mine) {
+  border-radius: 16px 16px 16px 4px;
+}
+[data-phone-app='messages'] .btn-primary,
+[data-phone-app='messages'] .chat-card .btn-subtle,
+[data-phone-app='messages'] .chat-send {
+  background: var(--m-btn);
+  color: var(--m-btn-ink);
+  border: 1px solid var(--m-btn-line);
+}
+[data-phone-app='messages'] .chat-card .btn-subtle {
+  background: transparent;
+  color: var(--m-link);
+}
+[data-phone-app='messages'] .chat-actions-menu button {
+  background: var(--m-chip);
+  border-color: var(--m-chip-line);
+  color: var(--m-chip-ink);
+}
+[data-phone-app='messages'] .phone-unread,
+[data-phone-app='messages'] .badge {
+  background: var(--m-badge);
+  color: var(--m-badge-ink);
+}
+[data-phone-app='messages'] .chat-card {
+  border-left-color: var(--m-btn-line);
+}
+[data-phone-app='messages'] .chat-card[data-card='date'] {
+  border-left-color: #db2777;
+}
+[data-phone-app='messages'] .chat-card[data-card='payment'] {
+  border-left-color: var(--good, #22c55e);
+}
+[data-phone-app='messages'] .phone-thread-head .item-title,
+[data-phone-app='messages'] .chat-plus {
+  color: var(--m-link);
+}
