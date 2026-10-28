@@ -14,6 +14,7 @@
  * an AI friend's turn is due), so it works where the server can't stream.
  */
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { GameExitAsk, GameExitButton } from '../../experiences/GameExit';
 import { golfCourse, type MarketId } from '@runway/engine';
 import { api } from '../../api';
 import { use3d } from '../../three-kit/quality';
@@ -122,6 +123,8 @@ function Match(props: Props & { room: MatchRoom }) {
   const G = room.golf;
   const want3d = use3d();
   const [fast] = useState(reduceMotion);
+  /** Asking "Cancel the game?" / "Leave the game?" (the same question as every table game). */
+  const [exiting, setExiting] = useState(false);
   const sp = fast ? 0.25 : 1;
   const market = view.here?.id ?? view.market.id;
   const course = useMemo(() => golfCourse(market as MarketId), [market]);
@@ -517,6 +520,9 @@ function Match(props: Props & { room: MatchRoom }) {
               : t('Round complete · vs {name}', { name: first(otherName) })}
         </span>
       </div>
+      {room.status === 'playing' && (
+        <GameExitButton room={room} me={me} look="golf" onAsk={() => setExiting(true)} />
+      )}
       <button type="button" className="icon-btn" aria-label={t('Close')} onClick={props.onClose}>
         ✕
       </button>
@@ -544,6 +550,18 @@ function Match(props: Props & { room: MatchRoom }) {
       data-golf-hole={hole + 1}
     >
       {header}
+      {exiting && (
+        <GameExitAsk
+          room={room}
+          me={me}
+          look="golf"
+          onStay={() => setExiting(false)}
+          onGone={() => {
+            setExiting(false);
+            props.onLeave();
+          }}
+        />
+      )}
       <div className={`golf-view${room.status === 'playing' ? '' : ' is-card'}`}>
         {drawing}
         {room.status === 'playing' && (
@@ -713,19 +731,9 @@ function Match(props: Props & { room: MatchRoom }) {
                   )
                 : t('A free round, for fun. If they don’t answer in 30 minutes, it’s off.')}
             </p>
-            {room.host === me && (
+            {room.host === me && !exiting && (
               <div className="golf-intro-actions">
-                <button
-                  type="button"
-                  className="btn btn-subtle"
-                  data-action="golf-calloff"
-                  disabled={busy}
-                  onClick={async () => {
-                    if (await send({ type: 'play.leave', roomId: room.id })) props.onLeave();
-                  }}
-                >
-                  {room.stake ? t('Call it off · stake back') : t('Call it off')}
-                </button>
+                <GameExitButton room={room} me={me} look="golf" onAsk={() => setExiting(true)} />
               </div>
             )}
           </div>

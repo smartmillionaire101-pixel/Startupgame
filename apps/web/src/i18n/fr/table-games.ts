@@ -102,4 +102,40 @@ export const tableGames: Record<string, string> = {
   'You are in goal. Tap where you will dive.': 'Vous êtes dans les buts. Touchez où plonger.',
   'Your penalty. Swipe from the ball: let go where you want it, faster is harder, bend the swipe to curl it.':
     'Votre penalty. Glissez depuis le ballon : lâchez là où vous visez, plus vite c’est plus fort, courbez le geste pour enrouler.',
+  // Playtest round 7: the same way out of every table game
+  'Cancel game': 'Annuler la partie',
+  'Cancel the game?': 'Annuler la partie ?',
+  'Leave game': 'Quitter la partie',
+  'Nobody has played yet: every entry and fee comes back, and nobody forfeits.':
+    'Personne n’a encore joué : chaque mise et chaque frais sont remboursés, et personne ne déclare forfait.',
+  'Nobody has played yet: every entry comes back, and nobody forfeits.':
+    'Personne n’a encore joué : chaque mise est remboursée, et personne ne déclare forfait.',
+  'The invitation is withdrawn and every entry refunded.':
+    'L’invitation est retirée et chaque mise remboursée.',
+  'Start game': 'Lancer la partie',
+  // Playtest round 7: finding an opponent at quiz night
+  'AI players are holding the seats. The quiz starts in {n}s: a player who joins now takes one.':
+    'Des joueurs IA gardent les places. Le quiz commence dans {n} s : un joueur qui arrive maintenant prend l’une d’elles.',
+  'The quiz is starting…': 'Le quiz commence…',
+  'At a home': 'Chez quelqu’un',
+  'Open tables elsewhere in the city': 'Tables ouvertes ailleurs en ville',
+  'Waiting for {names} to answer your invitation.':
+    'En attente de la réponse de {names} à votre invitation.',
+  'You join the next quiz waiting in this city with the same stake (here first), or open one. If nobody joins within 30 seconds, AI players from this city take the other seats; a player who joins before the start takes one back.':
+    'Vous rejoignez le prochain quiz en attente dans cette ville avec la même mise (ici d’abord), ou vous en ouvrez un. Si personne ne vous rejoint en 30 secondes, des joueurs IA de la ville prennent les autres places ; un joueur qui arrive avant le début en récupère une.',
+  'Invitation sent to {name}. They’ll see it in their phone.':
+    'Invitation envoyée à {name}. Elle s’affichera sur son téléphone.',
+  'Invite a contact by phone': 'Inviter un contact par téléphone',
+  'Invite someone to play': 'Inviter quelqu’un à jouer',
+  'Invited ✓': 'Invité ✓',
+  'Players free in {city}': 'Joueurs disponibles à {city}',
+  'Text an invite': 'Envoyer une invitation',
+  // Playtest round 7: invitations to a table, wherever you are
+  'Free game': 'Partie gratuite',
+  'Travel to {city}': 'Aller à {city}',
+  'You’re in. See you at the table.': 'C’est fait. Rendez-vous à la table.',
+  bowling: 'du bowling',
+  '{name} invites you to {game}': '{name} vous invite à jouer : {game}',
+  '{name}’s home': 'chez {name}',
+  '{stake} each, winner takes the pot': '{stake} chacun, le gagnant remporte la cagnotte',
 };
