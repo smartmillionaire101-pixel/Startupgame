@@ -16,7 +16,7 @@ import { useState } from 'react';
 import type { Command } from '@runway/engine';
 import { Portrait } from '../avatar/Portrait';
 import { amountInput, money, parseAmount, pct } from '../format';
-import { useLang, t } from '../i18n';
+import { useLang, t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Field, Sheet, Stat } from '../ui';
 import { ScoreRing, markIcon } from './Interview';
@@ -893,7 +893,7 @@ function ResultCard({
           )}
         </p>
       )}
-      {r.reply?.action === 'decline' && <p className="small">{p.reason}</p>}
+      {r.reply?.action === 'decline' && <p className="small">{tx(p.reason ?? '')}</p>}
       {r.reply && r.reply.action !== 'decline' && (
         <p className="small" data-reply={r.reply.action}>
           {r.reply.action === 'accept'
@@ -1043,7 +1043,7 @@ function ReplyCard({
         })}
       </p>
       {!m.canReply ? (
-        <p className="small muted">{p.reason || t('You’ve answered this pitch.')}</p>
+        <p className="small muted">{p.reason ? tx(p.reason) : t('You’ve answered this pitch.')}</p>
       ) : (
         <>
           <div className="pm-actions">

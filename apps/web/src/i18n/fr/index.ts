@@ -115,6 +115,7 @@ import { salesR7 } from './sales-r7';
 import { pitchMeeting } from './pitch-meeting';
 import { uiR7 } from './ui-r7';
 import { gamesR7 } from './games-r7';
+import { engineTexts } from './engine-texts';
 
 export const FR_PARTS: Record<string, Record<string, string>> = {
   account,
@@ -233,6 +234,10 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   pitchMeeting,
   uiR7,
   gamesR7,
+  engineTexts,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));
+
+/** The engine's templates, which tx() matches with any names and amounts filled in. */
+export const FR_SERVER: Record<string, string> = { ...engineTexts };
