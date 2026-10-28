@@ -50,7 +50,7 @@ import { openPhone, type PhoneOpen } from '../phone/bus';
 import { HudButton, HudRail } from '../ui';
 import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
 import { businessesOf, hash } from '../city/contract';
-import { carOf, genderOf, nearest, sellsOf, storeForSlot } from '../city/life';
+import { carOf, genderOf, nearest, sellsOf, shopOf, storeForSlot } from '../city/life';
 import type { SceneProps } from '../city/PlaceScene';
 import { DecorArt, FixtureArt, SlotArt, TILE } from './art';
 import {
@@ -59,6 +59,7 @@ import {
   bathDoors,
   blockedTiles,
   floorsFor,
+  withoutRoomSlots,
   withBuiltIns,
   homeSpecOf,
   key,
@@ -93,7 +94,7 @@ import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { balconyView } from './balcony';
 import type PanoramaView from '../experiences/Panorama';
 import { NEEDS, actsLeft, inviteesOf, ownedTiers, type NeedKey } from './view';
-import { OPTION_GROUPS, WALLS } from '@runway/engine';
+import { OPTION_GROUPS, WALLS, isRoomSlot } from '@runway/engine';
 import {
   canPlaceDivider,
   dividerAt,
@@ -165,6 +166,16 @@ const SLOT_LABEL: Record<string, string> = {
   coffee: 'Coffee machine',
   wifi: 'Wi-Fi',
   laptop: 'Laptop',
+  towels: 'Towel rail',
+  bathmat: 'Bath mat',
+  cabinet: 'Bathroom cabinet',
+  hamper: 'Laundry basket',
+  bathplant: 'Bathroom plant',
+  shoes: 'Shoe rack',
+  coats: 'Coat stand',
+  console: 'Console table',
+  hallmirror: 'Hallway mirror',
+  runner: 'Runner rug',
 };
 const slotLabel = (s: string) => t(SLOT_LABEL[s] ?? 'Furniture');
 
@@ -329,13 +340,13 @@ export function HomeScene({
     : homeSpecOf(residence, tier).kind;
   const specWealth = hostView ? (hostView.wealth ?? 1) : homeSpecOf(residence, tier).wealth;
   // A house has an upstairs (a mansion a roof terrace too): one floor at a time.
-  const floors = useMemo(
-    () =>
-      hotelTier
-        ? [hotelPlan(hotelTier, hotel?.pod)]
-        : floorsFor(tier, { kind: specKind, wealth: specWealth }),
-    [hotelTier, hotel?.pod, tier, specKind, specWealth],
-  );
+  // Round 7: the bathroom and hallway things have spots once the shop sells them.
+  const roomsSold = shopOf(view).furniture.some((f) => isRoomSlot(f.slot));
+  const floors = useMemo(() => {
+    if (hotelTier) return [hotelPlan(hotelTier, hotel?.pod)];
+    const all = floorsFor(tier, { kind: specKind, wealth: specWealth });
+    return roomsSold ? all : all.map(withoutRoomSlots);
+  }, [hotelTier, hotel?.pod, tier, specKind, specWealth, roomsSold]);
   const [floorAt, setFloorAt] = useState(0);
   const floor = Math.min(floorAt, floors.length - 1);
   const basePlan = floors[floor]!;
@@ -3013,6 +3024,15 @@ function buildObjects(
   // Round 7: a chair at the table to sit on.
   if (has('dining'))
     slotObj('dining', [{ id: 'sit', label: t('Sit at the table') }, upgrade('dining')]);
+  // Round 7: the bathroom and the hallway.
+  if (has('cabinet')) slotObj('cabinet', [act('toilet', t('Freshen up')), upgrade('cabinet')]);
+  if (has('towels')) slotObj('towels', [act('shower', t('Shower')), upgrade('towels')]);
+  if (has('hamper')) slotObj('hamper', [act('laundry', t('Do laundry')), upgrade('hamper')]);
+  if (has('coats')) slotObj('coats', [{ id: 'out', label: t('Go out') }, upgrade('coats')]);
+  if (has('hallmirror'))
+    slotObj('hallmirror', [{ id: 'out', label: t('Go out') }, upgrade('hallmirror')]);
+  for (const slot of ['bathmat', 'bathplant', 'shoes', 'console', 'runner'])
+    if (has(slot)) slotObj(slot, [upgrade(slot)]);
   // The utility room: wash and dry your clothes.
   if (has('washer')) slotObj('washer', [act('laundry', t('Do laundry')), upgrade('washer')]);
   // Bathroom.

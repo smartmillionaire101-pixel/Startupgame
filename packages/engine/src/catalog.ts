@@ -43,7 +43,7 @@ import {
   type WallKind,
 } from './data/catalog.js';
 import { MALL_ITEMS, PHONE_NAMES, mallItem, wearable, type MallItem } from './data/leisure.js';
-import { carModel, carsFor, furnitureItem, type FurnitureSlot } from './data/lifestyle-shop.js';
+import { carModel, carsFor, type FurnitureSlot } from './data/lifestyle-shop.js';
 import type { MarketId } from './data/markets.js';
 import { businessesOf, isOpen } from './economy.js';
 import { ensure } from './errors.js';
@@ -55,7 +55,7 @@ import { applyBars, barsApply } from './lifebars.js';
 import { barsOfItem, consume, keepThing, mallPrice, mallSells, mallTill } from './leisure.js';
 import type { Delivery } from './living.js';
 import { formatMoney, scale } from './money.js';
-import { atHome, buyFurniture, showroom, storeAccount } from './shop.js';
+import { atHome, buyFurniture, furnitureIn, showroom, storeAccount } from './shop.js';
 import type { HomeExtra, HomeWall, Id, MarketState, Player, PlayerCar, World } from './types.js';
 import { addToWardrobe, ownedToWear } from './wardrobe.js';
 
@@ -216,7 +216,7 @@ export function orderFurnitureOnline(
   options?: ChosenOptions,
   van?: Van,
 ) {
-  const f = furnitureItem(itemId);
+  const f = furnitureIn(w, itemId);
   ensure(f, 'home.item', 'That isn’t in the catalogue.');
   roomForOne(w, p, van);
   ensure(
@@ -581,7 +581,7 @@ export function shopCatalogView(w: World, p: Player, market: MarketId = p.market
   for (const e of CATALOG_ENTRIES)
     for (const v of e.variants) {
       if (e.source === 'furniture') {
-        const f = furnitureItem(v.ref);
+        const f = furnitureIn(w, v.ref);
         if (f) prices[v.ref] = scale(col(m), f.priceCol);
       } else if (e.source === 'mall') {
         const x = MALL_ITEMS.find((i) => i.id === v.ref);

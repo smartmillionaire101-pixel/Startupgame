@@ -690,7 +690,7 @@ function marketView(
     /** Part-time jobs at open businesses (Wave 5): 40 hours a month, paid monthly. */
     jobs: jobsView(p, m),
     /** Furniture and cars with prices in this city's currency (Wave 5). */
-    shop: shopView(m),
+    shop: shopView(world, m),
     /** Wave 7: food delivery (the Chop app): open food businesses, cheapest first (up to 20). */
     delivery: deliveryView(world, m),
     /** Wave 8: the city's tech events: this month's ("on") and next month's ("soon"). */

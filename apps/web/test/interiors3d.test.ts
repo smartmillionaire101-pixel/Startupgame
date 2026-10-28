@@ -56,7 +56,10 @@ describe('Buy mode placement (Wave 9 §C)', () => {
       const plan = planFor(tier);
       for (const slot of MOVABLE) {
         const s = plan.slots[slot]!;
-        expect(canPlace(plan, ALL, slot, { x: s.x, y: s.y, rot: 0 }), slot).toBe(true);
+        expect(
+          canPlace(plan, ALL, slot, { x: s.x, y: s.y, rot: (s as { rot?: number }).rot ?? 0 }),
+          slot,
+        ).toBe(true);
       }
     });
   }

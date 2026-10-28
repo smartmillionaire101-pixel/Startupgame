@@ -63,6 +63,17 @@ export const SLOT_BOOSTS: Record<FurnitureSlot, readonly BoostKey[]> = {
   coffee: ['energy'],
   wifi: ['fun', 'social'],
   laptop: ['social'],
+  // Round 7: the bathroom keeps you fresh, the hallway makes coming home nicer.
+  towels: ['hygiene'],
+  bathmat: ['comfort'],
+  cabinet: ['hygiene', 'mood'],
+  hamper: ['hygiene'],
+  bathplant: ['mood'],
+  shoes: ['comfort'],
+  coats: ['comfort'],
+  console: ['mood'],
+  hallmirror: ['mood'],
+  runner: ['comfort'],
 };
 
 /**
@@ -85,13 +96,13 @@ export const BOOST_ACT_PER_POINT = 3;
 export const ACT_SLOTS: Record<string, readonly FurnitureSlot[]> = {
   sleep: ['bed', 'cooling'],
   nap: ['sofa', 'cooling'],
-  shower: ['wardrobe'],
+  shower: ['wardrobe', 'towels', 'cabinet'],
   cook: ['kitchen', 'fridge'],
   snack: ['fridge', 'coffee'],
   tv: ['tv', 'sound'],
   game: ['gaming', 'wifi'],
   read: ['books', 'lights'],
-  laundry: ['washer'],
+  laundry: ['washer', 'hamper'],
   /** Having someone over (`home.invite`). */
   invite: ['sofa', 'dining', 'sound'],
 };

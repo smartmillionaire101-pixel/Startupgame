@@ -264,6 +264,10 @@ export { GIGS_PER_MONTH } from './personal.js';
 export {
   FURNITURE,
   FURNITURE_SLOTS,
+  BATHROOM_SLOTS,
+  HALLWAY_SLOTS,
+  ROOM_SLOTS,
+  isRoomSlot,
   CAR_MODEL_IDS,
   SELL_BACK,
   carsFor,

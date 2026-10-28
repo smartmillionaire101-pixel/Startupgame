@@ -1,12 +1,19 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CATALOG_ENTRIES, FLOOR_FINISHES, FURNITURE } from '@runway/engine';
+import {
+  BATHROOM_SLOTS,
+  CATALOG_ENTRIES,
+  FLOOR_FINISHES,
+  FURNITURE,
+  HALLWAY_SLOTS,
+} from '@runway/engine';
 import {
   basketTotal,
   boostLines,
   maxInBasket,
   buyCards,
+  buyRooms,
   footprint,
   isNew,
   ownedCount,
@@ -28,7 +35,7 @@ describe('catalogue pictures (public/thumbs, scripts/furniture-thumbs.ts)', () =
         e.variants.map((v) => v.ref),
       ),
     ]);
-    expect(ids.size).toBe(63);
+    expect(ids.size).toBe(93);
     const missing = [...ids].filter((id) => !existsSync(file(furnitureThumb(id))));
     expect(missing).toEqual([]);
   });
@@ -88,6 +95,38 @@ describe('Buy mode: the cards', () => {
     const low = buyCards(items, owned, { ...q, price: 'low' }).map((f) => f.price);
     expect(low).toEqual([...low].sort((a, z) => a - z));
     expect(buyCards(items, owned, { ...q, search: 'TV 3' }).map((f) => f.id)).toEqual(['tv-3']);
+  });
+
+  it('round 7: Bathroom and Hallway tabs, once their things are sold (and on this floor)', () => {
+    const base = FURNITURE.filter(
+      (f) => ![...BATHROOM_SLOTS, ...HALLWAY_SLOTS].includes(f.slot as never),
+    );
+    const ids = (xs: { id: string }[]) => xs.map((r) => r.id);
+    expect(ids(buyRooms(base))).toEqual(['living', 'bedroom', 'kitchen', 'utility']);
+    expect(ids(buyRooms(FURNITURE))).toEqual([
+      'living',
+      'bedroom',
+      'kitchen',
+      'utility',
+      'bathroom',
+      'hallway',
+    ]);
+    // Upstairs (the bedroom things only): no Bathroom or Hallway tab there.
+    expect(ids(buyRooms(FURNITURE, new Set(['bed', 'wardrobe'])))).toEqual(['bedroom']);
+    const all = FURNITURE.map((f) => ({ ...f, price: f.priceCol * 1000 }));
+    const bath = buyCards(all, new Map(), { ...q, room: 'bathroom' });
+    expect(new Set(bath.map((f) => f.slot))).toEqual(new Set(BATHROOM_SLOTS));
+    expect(bath).toHaveLength(15);
+    const hall = buyCards(all, new Map(), { ...q, room: 'hallway', tab: 'new' });
+    expect(hall.map((f) => f.id)).toEqual([
+      'shoes-1',
+      'coats-1',
+      'console-1',
+      'hallmirror-1',
+      'runner-1',
+    ]);
+    for (const s of [...BATHROOM_SLOTS, ...HALLWAY_SLOTS])
+      expect(['wall', '1×1', '2×1']).toContain(footprint(planFor(3).slots[s]));
   });
 
   it('footprints and boosts read like the cards', () => {

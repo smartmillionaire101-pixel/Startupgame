@@ -31,7 +31,7 @@ export const extraKey = (slot: string, id: string) => `${slot}#${id}`;
 /** The slot a key is for ('sound#extra_1k' → 'sound'). */
 export const slotOf = (k: string) => k.split('#')[0]!;
 /** Things that hang on a wall (anywhere along one). */
-export const ON_WALL = new Set(['art']);
+export const ON_WALL = new Set(['art', 'towels', 'cabinet', 'hallmirror']);
 /** How far a step of `lift` moves a picture up or down (m). */
 export const LIFT_STEP = 0.3;
 
@@ -55,6 +55,16 @@ export const MOVABLE = new Set([
   'books',
   'coffee',
   'wifi',
+  'towels',
+  'bathmat',
+  'cabinet',
+  'hamper',
+  'bathplant',
+  'shoes',
+  'coats',
+  'console',
+  'hallmirror',
+  'runner',
 ]);
 
 export function loadPlacements(

@@ -31,15 +31,15 @@ import { useView } from '../store';
 import { looseCmd, shopOf } from '../city/life';
 import { slotLabel } from '../city/Showroom';
 import { MOVABLE, extraKey, type Placement } from './placement';
-import { BOOST_LABEL, WALLS } from '@runway/engine';
+import { BOOST_LABEL, WALLS, isRoomSlot } from '@runway/engine';
 import type { WallView } from '../home/dividers';
 import { wallSwatch } from '../home/dividers';
 import { type HomePlan, type RoomId } from '../home/layout';
 import { blockOf } from '../home/grounds';
 import { floorThumb, furnitureThumb } from '../shop/thumbs';
 import {
-  BUY_ROOMS,
   basketTotal,
+  buyRooms,
   boostLines,
   maxInBasket,
   buyCards,
@@ -189,14 +189,21 @@ export function BuySheet({
   const [linesOpen, setLinesOpen] = useState(false);
   const drag = useRef<{ y: number; h: number; moved: boolean } | null>(null);
   const shop = shopOf(view);
-  const items: BuyItem[] = shop.furniture;
+  // Round 7: a bathroom or hallway thing this home has no room for isn't offered.
+  const homeSlots = useMemo(
+    () => (floors?.length ? new Set(floors.flatMap((f) => f.slots)) : null),
+    [floors],
+  );
+  const items: BuyItem[] = shop.furniture.filter(
+    (f) => !homeSlots || !isRoomSlot(f.slot) || homeSlots.has(f.slot),
+  );
   const pocket = view.accounts.local?.balance ?? 0;
   const here = floors?.find((f) => f.index === (floor ?? 0));
   const floorSlots = useMemo(
     () => (floors && floors.length > 1 && here ? new Set(here.slots) : undefined),
     [floors, here],
   );
-  const rooms = BUY_ROOMS.filter((r) => !floorSlots || r.slots.some((s) => floorSlots.has(s)));
+  const rooms = buyRooms(items, floorSlots);
   const roomOn = rooms.some((r) => r.id === room) ? room : 'all';
   const pending = (slot: string) =>
     view.living.deliveries.some(

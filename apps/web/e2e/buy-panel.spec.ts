@@ -178,3 +178,72 @@ test('laptop: the panel docked along the bottom edge, the full width, the nav st
   await sheet.locator('[data-action="close-buy"]').click();
   await expect(page.locator('.nav')).toBeVisible();
 });
+
+test('round 7: Bathroom and Hallway tabs, their things in more than one, placed at home (phone and laptop)', async ({
+  page,
+}) => {
+  test.setTimeout(150_000);
+  const { scene, sheet } = await atHome(page, { width: 390, height: 844 });
+  await sheet.locator('[data-buy-tab="all"]').click();
+  const rooms = sheet.locator('[data-buy-room]');
+  await expect(rooms).toHaveText([
+    'All rooms',
+    'Living room',
+    'Bedroom',
+    'Kitchen',
+    'Utility',
+    'Bathroom',
+    'Hallway',
+  ]);
+  // The bathroom: a towel rail, a bath mat, a cabinet, a laundry basket and a plant, three tiers each.
+  await sheet.locator('[data-buy-room="bathroom"]').click();
+  for (const slot of ['cabinet', 'towels', 'bathmat', 'hamper', 'bathplant'])
+    await expect(sheet.locator(`[data-buy-item^="${slot}-"]`)).toHaveCount(3);
+  await expect(sheet.locator('[data-buy-item="towels-1"] img')).toHaveAttribute(
+    'src',
+    /thumbs\/furniture\/towels-1\.webp/,
+  );
+  await shot(page, 'rooms-phone-bathroom');
+  // The hallway: a shoe rack, a coat stand, a console table, a mirror and a runner.
+  await sheet.locator('[data-buy-room="hallway"]').click();
+  for (const slot of ['shoes', 'coats', 'console', 'hallmirror', 'runner'])
+    await expect(sheet.locator(`[data-buy-item^="${slot}-"]`)).toHaveCount(3);
+  await shot(page, 'rooms-phone-hallway');
+  // Not built in: more than one (− N +), in one van, each placed.
+  await sheet.locator('[data-action="pick-several"]').click();
+  await sheet.locator('[data-buy-item="shoes-2"]').click();
+  const step = sheet.locator('[data-buy-item="shoes-2"] ~ [data-card-qty]');
+  await step.locator('[data-action="qty-up"]').click();
+  await expect(step).toHaveAttribute('data-card-qty', '2');
+  await sheet.locator('[data-buy-room="bathroom"]').click();
+  await sheet.locator('[data-buy-item="towels-1"]').click();
+  await expect(sheet.locator('[data-buy-item="towels-1"] ~ [data-card-qty]')).toBeVisible();
+  await shot(page, 'rooms-phone-basket');
+  await sheet.locator('[data-action="buy-all"]').click();
+  await expect(sheet).toBeHidden({ timeout: 10_000 });
+  const bar = scene.getByRole('toolbar', { name: /Place/ });
+  for (let i = 0; i < 2; i++) {
+    await expect(bar).toBeVisible();
+    await shot(page, `rooms-phone-place-${i + 1}`);
+    await bar.getByRole('button', { name: 'Keep this spot' }).click();
+  }
+  const v = await state(page);
+  const ds = v.living.deliveries.filter((d) => d.owner === v.me.id && !d.complete);
+  expect(ds).toHaveLength(3);
+  expect(new Set(ds.map((d) => (d as { van?: string }).van)).size).toBe(1);
+
+  // On a laptop: the same tabs along the docked panel.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await scene.getByRole('button', { name: 'Buy' }).click();
+  const wide = page.getByRole('dialog', { name: 'Buy mode' });
+  await expect(wide).toBeVisible();
+  await wide.locator('[data-buy-tab="all"]').click();
+  await wide.locator('[data-buy-room="bathroom"]').click();
+  await expect(wide.locator('[data-buy-item^="cabinet-"]')).toHaveCount(3);
+  await page.waitForTimeout(600);
+  await shot(page, 'rooms-laptop-bathroom');
+  await wide.locator('[data-buy-room="hallway"]').click();
+  await expect(wide.locator('[data-buy-item^="coats-"]')).toHaveCount(3);
+  await page.waitForTimeout(300);
+  await shot(page, 'rooms-laptop-hallway');
+});

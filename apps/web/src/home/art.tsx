@@ -367,6 +367,66 @@ export function SlotArt({
           <circle cx={W / 2} cy={H / 2 - 6} r={5} fill="#fff" opacity="0.8" />
         </g>
       );
+    // Round 7: the bathroom and the hallway.
+    case 'cabinet':
+    case 'hallmirror':
+      return (
+        <g>
+          <rect x={7} y={-22} width={W - 14} height={26} rx={3} fill={m.woodDark} />
+          <rect x={10} y={-19} width={W - 20} height={20} rx={2} fill="#dbeef5" />
+        </g>
+      );
+    case 'towels':
+      return (
+        <g>
+          <rect x={6} y={-12} width={W - 12} height={3} rx={1} fill="#cbd5e1" />
+          <rect
+            x={10}
+            y={-10}
+            width={W - 20}
+            height={18}
+            rx={3}
+            fill={tier >= 2 ? '#f1ede4' : '#7dd3fc'}
+          />
+        </g>
+      );
+    case 'bathmat':
+    case 'runner':
+      return (
+        <rect x={5} y={6} width={W - 10} height={H - 12} rx={4} fill={m.fabric} opacity="0.85" />
+      );
+    case 'hamper':
+      return (
+        <g>
+          {shadow(W, H)}
+          <rect x={W / 2 - 10} y={0} width={20} height={24} rx={6} fill="#c8a165" />
+          <rect x={W / 2 - 11} y={-2} width={22} height={5} rx={2} fill="#a47c45" />
+        </g>
+      );
+    case 'bathplant':
+      return (
+        <g>
+          {shadow(W, H)}
+          <rect x={W / 2 - 6} y={12} width={12} height={12} rx={2} fill="#f1ede6" />
+          <circle cx={W / 2} cy={8} r={9} fill="#3f7d3a" />
+        </g>
+      );
+    case 'shoes':
+    case 'console':
+      return (
+        <g>
+          {shadow(W, H)}
+          <Box x={3} y={2} w={W - 6} top={H - 12} face={10} fill={m.wood} side={m.woodDark} />
+        </g>
+      );
+    case 'coats':
+      return (
+        <g>
+          {shadow(W, H)}
+          <rect x={W / 2 - 1.5} y={-14} width={3} height={36} fill={m.woodDark} />
+          <rect x={W / 2 - 9} y={-10} width={10} height={20} rx={4} fill="#7c2d12" />
+        </g>
+      );
     default:
       return <rect x={4} y={4} width={W - 8} height={H - 8} rx={4} fill={m.wood} />;
   }

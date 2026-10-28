@@ -1,6 +1,6 @@
 /**
  * Wave 9 §C: what the game's things look like in 3D. Every furniture
- * catalogue item (`${slot}-${tier}`, 21 slots × 3 tiers), every home fixture
+ * catalogue item (`${slot}-${tier}`, 31 slots × 3 tiers), every home fixture
  * and every car model maps to a model in ./furniture.ts; anything unknown
  * gets a plain crate. Pure: no three.js here, so it is cheap to test.
  */
@@ -29,6 +29,16 @@ export const SLOT_MODEL: Record<string, string> = {
   coffee: 'coffee',
   wifi: 'wifi',
   laptop: 'laptop',
+  towels: 'towels',
+  bathmat: 'bathmat',
+  cabinet: 'cabinet',
+  hamper: 'hamper',
+  bathplant: 'bathplant',
+  shoes: 'shoes',
+  coats: 'coats',
+  console: 'console',
+  hallmirror: 'hallmirror',
+  runner: 'runner',
 };
 
 /** Home fixtures → model id. */

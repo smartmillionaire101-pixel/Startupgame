@@ -181,7 +181,8 @@ const sellsAppliances = (kind: string) => /applian|electronic/i.test(kind);
 
 /**
  * Every home slot, in the order the flat and the showrooms show them
- * (docs/WAVE6-ALIVE-CITY.md §A3): the Wave 5 nine, then the Wave 6 twelve.
+ * (docs/WAVE6-ALIVE-CITY.md §A3): the Wave 5 nine, the Wave 6 twelve, then
+ * round 7's bathroom and hallway things.
  * Slots the engine adds later still show (after these).
  */
 export const HOME_SLOTS = [
@@ -206,6 +207,17 @@ export const HOME_SLOTS = [
   'coffee',
   'wifi',
   'laptop',
+  // Round 7: the bathroom and the hallway.
+  'towels',
+  'bathmat',
+  'cabinet',
+  'hamper',
+  'bathplant',
+  'shoes',
+  'coats',
+  'console',
+  'hallmirror',
+  'runner',
 ] as const;
 
 /** Furniture store slots; the rest are appliances and electronics (§A3 `SHOP_KINDS_FOR_SLOT`). */
@@ -220,6 +232,16 @@ const FURNITURE_STORE_SLOTS = new Set([
   'wardrobe',
   'books',
   'lights',
+  'towels',
+  'bathmat',
+  'cabinet',
+  'hamper',
+  'bathplant',
+  'shoes',
+  'coats',
+  'console',
+  'hallmirror',
+  'runner',
 ]);
 
 /** Which kind of showroom sells a slot: 'furniture' or 'appliance'. */

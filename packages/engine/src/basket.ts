@@ -26,7 +26,7 @@ import {
 } from './data/catalog.js';
 import { EXTRAS_MAX, EXTRAS_PER_SLOT } from './data/home-style.js';
 import { extraSlotsOf } from './homestyle.js';
-import { SHOP_KINDS_FOR_SLOT, furnitureItem, furnitureLabel } from './data/lifestyle-shop.js';
+import { SHOP_KINDS_FOR_SLOT, furnitureLabel } from './data/lifestyle-shop.js';
 import {
   buyWall,
   dispatchOrder,
@@ -44,7 +44,7 @@ import { newId } from './ids.js';
 import { account, transfer } from './ledger.js';
 import { orderFurniture, queueDelivery, type Delivery } from './living.js';
 import { formatMoney, scale } from './money.js';
-import { atHome, storeAccount } from './shop.js';
+import { atHome, furnitureIn, storeAccount } from './shop.js';
 import type { Id, Player, World } from './types.js';
 
 export type OrderLine =
@@ -70,7 +70,7 @@ export function orderExtra(
   o: { speed?: DeliverySpeed; van: Van },
 ) {
   if (!o.speed) atHome(p);
-  const f = furnitureItem(itemId);
+  const f = furnitureIn(w, itemId);
   ensure(f, 'home.item', 'That isn’t in the catalogue.');
   ensure(extraSlotsOf(w).includes(f.slot), 'home.extra', 'A home has just the one of those.');
   const coming = waiting(w, p);
@@ -149,7 +149,7 @@ export function shopOrder(
       }
       continue;
     }
-    const f = furnitureItem(line.itemId);
+    const f = furnitureIn(w, line.itemId);
     ensure(f, 'home.item', 'That isn’t in the catalogue.');
     // The first goes in its slot, unless it's the one you have (or have coming).
     const had =

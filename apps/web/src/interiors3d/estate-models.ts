@@ -722,7 +722,21 @@ export function buildEstateModel(id: string, o: ModelOpts): Model {
   const m: Model = { group: new THREE.Group(), parts: {}, lamps: [], screens: [], seats: [] };
   b(k, o, m);
   m.group = k.build();
-  if (!['sconce', 'pool-water', 'hot-tub', 'hotel-art', 'suite-rug', 'round-rug'].includes(id)) {
+  if (
+    ![
+      'sconce',
+      'pool-water',
+      'hot-tub',
+      'hotel-art',
+      'suite-rug',
+      'round-rug',
+      'towels',
+      'cabinet',
+      'hallmirror',
+      'bathmat',
+      'runner',
+    ].includes(id)
+  ) {
     const s = carKind
       ? contactShadow(2.4, 5, 0.65)
       : contactShadow(Math.max(0.5, o.w), Math.max(0.5, o.d), 0.4);

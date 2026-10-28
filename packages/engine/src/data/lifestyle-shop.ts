@@ -33,7 +33,31 @@ export type FurnitureSlot =
   | 'books'
   | 'coffee'
   | 'wifi'
-  | 'laptop';
+  | 'laptop'
+  // Round 7 (GAMEPLAY_NOTE): the bathroom and the hallway.
+  | 'towels'
+  | 'bathmat'
+  | 'cabinet'
+  | 'hamper'
+  | 'bathplant'
+  | 'shoes'
+  | 'coats'
+  | 'console'
+  | 'hallmirror'
+  | 'runner';
+
+/**
+ * Round 7 (player feedback: "nothing to buy for the bathroom or the hall"):
+ * things for the bathroom and the hallway. Sold only in worlds with
+ * GAMEPLAY_NOTE (`roomSlotOn`); every other world's catalogue, comfort and
+ * commands are exactly as before.
+ */
+export const BATHROOM_SLOTS = ['towels', 'bathmat', 'cabinet', 'hamper', 'bathplant'] as const;
+export const HALLWAY_SLOTS = ['shoes', 'coats', 'console', 'hallmirror', 'runner'] as const;
+export const ROOM_SLOTS: readonly FurnitureSlot[] = [...BATHROOM_SLOTS, ...HALLWAY_SLOTS];
+/** A bathroom or hallway slot (sold from GAMEPLAY_NOTE on). */
+export const isRoomSlot = (slot: string): boolean =>
+  (ROOM_SLOTS as readonly string[]).includes(slot);
 
 export const FURNITURE_SLOTS: readonly FurnitureSlot[] = [
   'sofa',
@@ -57,6 +81,7 @@ export const FURNITURE_SLOTS: readonly FurnitureSlot[] = [
   'coffee',
   'wifi',
   'laptop',
+  ...ROOM_SLOTS,
 ];
 
 /**
@@ -88,15 +113,33 @@ export const SHOP_KINDS_FOR_SLOT: Record<FurnitureSlot, readonly string[]> = {
   coffee: APPLIANCE_STORE,
   wifi: APPLIANCE_STORE,
   laptop: APPLIANCE_STORE,
+  towels: FURNITURE_STORE,
+  bathmat: FURNITURE_STORE,
+  cabinet: FURNITURE_STORE,
+  hamper: FURNITURE_STORE,
+  bathplant: FURNITURE_STORE,
+  shoes: FURNITURE_STORE,
+  coats: FURNITURE_STORE,
+  console: FURNITURE_STORE,
+  hallmirror: FURNITURE_STORE,
+  runner: FURNITURE_STORE,
 };
 
 /** Wave 6: business kinds that sell cars (`car-dealership` is the Wave 5 name). */
 export const CAR_SHOP_KINDS: readonly string[] = ['car-dealer', 'car-dealership'];
 
-/** The slots a business kind sells, or 'cars', or null (not a showroom). */
-export function shopSells(kind: string): { slots: FurnitureSlot[] } | { cars: true } | null {
+/**
+ * The slots a business kind sells, or 'cars', or null (not a showroom).
+ * `rooms`: round 7's bathroom and hallway things too (GAMEPLAY_NOTE).
+ */
+export function shopSells(
+  kind: string,
+  rooms = true,
+): { slots: FurnitureSlot[] } | { cars: true } | null {
   if (CAR_SHOP_KINDS.includes(kind)) return { cars: true };
-  const slots = FURNITURE_SLOTS.filter((s) => SHOP_KINDS_FOR_SLOT[s].includes(kind));
+  const slots = FURNITURE_SLOTS.filter(
+    (s) => SHOP_KINDS_FOR_SLOT[s].includes(kind) && (rooms || !isRoomSlot(s)),
+  );
   return slots.length ? { slots } : null;
 }
 
@@ -173,6 +216,33 @@ const FURNITURE_SPEC: Record<
     priceCol: 0.04,
   },
   laptop: { labels: ['Refurbished laptop', 'New work laptop', 'Top-spec laptop'], priceCol: 0.25 },
+  // Round 7: the bathroom.
+  towels: { labels: ['Towel hooks', 'Chrome towel rail', 'Heated towel rail'], priceCol: 0.03 },
+  bathmat: {
+    labels: ['Cotton bath mat', 'Memory-foam bath mat', 'Teak duckboard mat'],
+    priceCol: 0.02,
+  },
+  cabinet: {
+    labels: ['Mirror over the sink', 'Mirrored bathroom cabinet', 'Lit vanity cabinet'],
+    priceCol: 0.06,
+  },
+  hamper: {
+    labels: ['Laundry bag', 'Wicker laundry basket', 'Two-section laundry hamper'],
+    priceCol: 0.02,
+  },
+  bathplant: {
+    labels: ['Small bathroom fern', 'Trailing pothos', 'Bathroom orchid stand'],
+    priceCol: 0.02,
+  },
+  // Round 7: the hallway.
+  shoes: { labels: ['Shoe tray', 'Wooden shoe rack', 'Shoe bench with storage'], priceCol: 0.03 },
+  coats: { labels: ['Coat stand', 'Coat stand and umbrella pot', 'Oak hall tree'], priceCol: 0.03 },
+  console: { labels: ['Narrow hall shelf', 'Console table', 'Marble-top console'], priceCol: 0.06 },
+  hallmirror: {
+    labels: ['Round hall mirror', 'Full-length mirror', 'Gilded hall mirror'],
+    priceCol: 0.04,
+  },
+  runner: { labels: ['Jute runner', 'Patterned runner rug', 'Hand-woven runner'], priceCol: 0.03 },
 };
 
 /**
@@ -214,9 +284,11 @@ export function furnitureLabel(f: FurnitureItem, market: MarketId): string {
 /**
  * Most comfort points a home can have (luxury in every slot). Comfort is a
  * share of this, so the best home gives the same energy however many slots
- * there are (`MAX_COMFORT_ENERGY`).
+ * there are (`MAX_COMFORT_ENERGY`). Round 7's bathroom and hallway slots
+ * aren't counted (worlds before it keep their comfort): their things add
+ * comfort on top, and comfort is capped at 100 (shop.ts `comfortOf`).
  */
-export const MAX_COMFORT_POINTS = FURNITURE_SLOTS.length * 3;
+export const MAX_COMFORT_POINTS = (FURNITURE_SLOTS.length - ROOM_SLOTS.length) * 3;
 
 // ---------------------------------------------------------------- Cars
 

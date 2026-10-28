@@ -68,6 +68,7 @@ import {
   myJobOf,
   nearest,
   sellsOf,
+  shopOf,
   storeForSlot,
   venueItemsOf,
   type AngelHere,
@@ -1984,7 +1985,7 @@ function RoomScene({
             <p className="small muted tray-pocket" data-comfort={home.comfort}>
               {t('Comfort {n} · {owned} of {total} things for your flat', {
                 n: home.comfort,
-                ...slotsOwned(home.items),
+                ...slotsOwned(home.items, shopOf(view).furniture),
               })}
             </p>
           )}

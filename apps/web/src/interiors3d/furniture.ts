@@ -1577,6 +1577,340 @@ const microphone: Builder = (k) => {
 };
 
 // ---------------------------------------------------------------------------
+// Round 7: the bathroom (things hung on a wall have their back at z = -d/2)
+
+/** A mirror's glass: pale and bright (there's nothing in the scene to reflect). */
+const MIRROR = '#e4f2f7';
+const MIRROR_FINISH = { metal: 0.15, rough: 0.12, emissive: '#cfe3ea', emissiveIntensity: 0.25 };
+
+const towels: Builder = (k, o) => {
+  const z = -o.d / 2 + 0.04;
+  const towel = ['#7dd3fc', '#f1ede4', '#e8dcc8'][o.tier - 1]!;
+  if (o.tier === 1) {
+    // two hooks, a towel on one
+    for (const x of [-0.18, 0.18]) {
+      k.box(0.05, 0.05, 0.03, CHROME, x, 1.42, z - 0.01, metal);
+      k.cyl(0.012, 0.012, 0.07, CHROME, x, 1.44, z + 0.04, { ...metal, rx: Math.PI / 2 });
+    }
+    k.box(0.32, 0.62, 0.05, towel, -0.18, 0.84, z + 0.05, { round: 0.02 });
+    k.box(0.22, 0.4, 0.04, '#f472b6', 0.18, 1.05, z + 0.05, { round: 0.02 });
+    return;
+  }
+  const w = Math.min(o.w - 0.2, 0.62);
+  if (o.tier === 2) {
+    // a chrome rail, a folded towel over it
+    for (const sx of [-1, 1]) k.box(0.04, 0.06, 0.08, CHROME, (sx * w) / 2, 1.2, z, metal);
+    k.cyl(0.015, 0.015, w, CHROME, 0, 1.23, z + 0.07, { ...metal, rz: Math.PI / 2 });
+    k.box(w * 0.7, 0.5, 0.05, towel, 0, 0.75, z + 0.08, { round: 0.02 });
+    k.box(w * 0.7, 0.05, 0.08, towel, 0, 1.22, z + 0.07, { round: 0.02 });
+    return;
+  }
+  // a heated ladder rail with towels
+  for (const sx of [-1, 1]) k.box(0.04, 1.1, 0.04, CHROME, (sx * w) / 2, 0.45, z + 0.04, metal);
+  for (let i = 0; i < 7; i++)
+    k.cyl(0.013, 0.013, w, CHROME, 0, 0.5 + i * 0.16, z + 0.04, { ...metal, rz: Math.PI / 2 });
+  k.box(w * 0.8, 0.55, 0.05, towel, 0, 0.9, z + 0.08, { round: 0.02 });
+  k.box(w * 0.6, 0.3, 0.05, '#94a3b8', 0, 0.55, z + 0.09, { round: 0.02 });
+};
+
+const bathmat: Builder = (k, o) => {
+  const w = Math.min(o.w - 0.25, 0.8);
+  const d = Math.min(o.d - 0.4, 0.5);
+  if (o.tier === 3) {
+    // teak duckboard slats
+    for (let i = 0; i < 6; i++)
+      k.box(w, 0.025, d / 7, WOOD_LIGHT, 0, 0.02, -d / 2 + (i + 0.5) * (d / 6), { round: 0.005 });
+    for (const sx of [-1, 1]) k.box(0.05, 0.02, d, WOOD, (sx * (w - 0.1)) / 2, 0, 0);
+    return;
+  }
+  const c = o.tier === 2 ? '#9ca3af' : '#bae6fd';
+  k.box(w, o.tier === 2 ? 0.035 : 0.015, d, c, 0, 0, 0, { round: o.tier === 2 ? 0.015 : 0.006 });
+  if (o.tier === 1) k.box(w * 0.8, 0.003, 0.04, '#e0f2fe', 0, 0.015, d * 0.3);
+};
+
+const cabinet: Builder = (k, o, m) => {
+  const z = -o.d / 2 + 0.03;
+  if (o.tier === 1) {
+    // a plain mirror
+    k.box(0.5, 0.62, 0.025, '#d4d4d8', 0, 1.2, z, metal);
+    k.plane(0.45, 0.57, MIRROR, 0, 1.51, z + 0.014, MIRROR_FINISH);
+    return;
+  }
+  const w = Math.min(o.w - 0.2, o.tier === 3 ? 0.72 : 0.6);
+  const d = 0.16;
+  const c = o.tier === 3 ? '#f8fafc' : WOOD_LIGHT;
+  k.box(w, 0.66, d, c, 0, 1.16, z + d / 2, { round: 0.015 });
+  // mirrored doors
+  for (const sx of [-1, 1])
+    k.plane(w / 2 - 0.03, 0.6, MIRROR, (sx * w) / 4, 1.49, z + d + 0.003, MIRROR_FINISH);
+  k.box(w, 0.04, d + 0.02, tone(c, -0.08), 0, 1.12, z + d / 2 + 0.01);
+  k.box(0.2, 0.08, 0.06, '#f9a8d4', -w / 4, 1.16, z + d + 0.02, { round: 0.02 });
+  if (o.tier === 3) {
+    // a light along the top
+    k.box(w, 0.03, 0.05, '#fff7d6', 0, 1.84, z + d - 0.02, {
+      emissive: '#fff2c4',
+      emissiveIntensity: 1.4,
+    });
+    m.lamps.push({
+      pos: new THREE.Vector3(0, 1.8, z + 0.3),
+      color: '#fff1d0',
+      intensity: 1.4,
+      distance: 2.6,
+    });
+  }
+};
+
+const hamper: Builder = (k, o) => {
+  const x = 0;
+  const z = -o.d / 2 + 0.3;
+  if (o.tier === 1) {
+    // a fabric laundry bag on a frame
+    for (const sx of [-1, 1]) k.cyl(0.012, 0.012, 0.62, STEEL, sx * 0.2, 0, z, metal);
+    k.cyl(0.2, 0.17, 0.5, '#cbd5e1', x, 0.08, z, { round: 0.02, rough: 0.9 } as never);
+    k.box(0.12, 0.08, 0.1, '#60a5fa', 0.05, 0.56, z, { round: 0.03 });
+    return;
+  }
+  if (o.tier === 2) {
+    // a wicker basket with a lid
+    k.cyl(0.22, 0.18, 0.55, '#c8a165', x, 0, z, { rough: 0.95 });
+    for (let i = 1; i < 5; i++)
+      k.torus(0.2 + i * 0.005, 0.008, '#a47c45', x, i * 0.11, z, { rx: Math.PI / 2 });
+    k.cyl(0.23, 0.23, 0.04, '#b88d52', x, 0.55, z);
+    k.sphere(0.03, '#8a6a3f', x, 0.61, z);
+    return;
+  }
+  // a two-section hamper: a box with two lids
+  k.box(0.6, 0.6, 0.38, '#e7e5e4', 0, 0, z, { round: 0.03, rough: 0.8 });
+  for (const sx of [-1, 1]) k.box(0.28, 0.03, 0.36, '#d6d3d1', sx * 0.15, 0.6, z, { round: 0.01 });
+  for (const sx of [-1, 1]) k.box(0.1, 0.02, 0.02, CHROME, sx * 0.15, 0.63, z + 0.12, metal);
+};
+
+const bathplant: Builder = (k, o) => {
+  const leaf = ['#3f7d3a', '#2f6b34', '#5a9a46'];
+  const z = -o.d / 2 + 0.3;
+  if (o.tier === 1) {
+    // a small fern
+    k.cyl(0.13, 0.1, 0.24, '#f1ede6', 0, 0, z, { rough: 0.5 });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      k.sphere(0.12, leaf[i % 3]!, Math.cos(a) * 0.1, 0.34, z + Math.sin(a) * 0.1, {
+        sx: 1.6,
+        sy: 0.35,
+        sz: 0.6,
+        ry: a,
+        seg: 8,
+      });
+    }
+    return;
+  }
+  // on a stand: a trailing pothos, or an orchid
+  const h = o.tier === 3 ? 0.9 : 0.6;
+  const stand = o.tier === 3 ? '#f8fafc' : WOOD;
+  k.cyl(0.16, 0.16, 0.03, stand, 0, h, z);
+  for (const a of [0, 2.1, 4.2])
+    k.cyl(0.015, 0.015, h, stand, Math.cos(a) * 0.12, 0, z + Math.sin(a) * 0.12);
+  if (o.tier === 2) {
+    k.cyl(0.12, 0.1, 0.18, '#c2703d', 0, h + 0.03, z, { rough: 0.6 });
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2;
+      const r = 0.12 + (i % 3) * 0.03;
+      k.sphere(0.07, leaf[i % 3]!, Math.cos(a) * r, h + 0.2 - (i % 3) * 0.16, z + Math.sin(a) * r, {
+        seg: 8,
+        sy: 0.6,
+      });
+    }
+    return;
+  }
+  k.cyl(0.1, 0.08, 0.16, '#e5e7eb', 0, h + 0.03, z, shiny);
+  for (const a of [0, 2, 4])
+    k.sphere(0.09, leaf[1]!, Math.cos(a) * 0.08, h + 0.2, z + Math.sin(a) * 0.08, {
+      sx: 1.6,
+      sy: 0.3,
+      ry: a,
+      seg: 8,
+    });
+  k.cyl(0.006, 0.006, 0.42, '#4d7c0f', 0.02, h + 0.19, z);
+  for (let i = 0; i < 5; i++)
+    k.sphere(
+      0.045,
+      i % 2 ? '#f5d0fe' : '#f0abfc',
+      0.02 + (i - 2) * 0.04,
+      h + 0.52 - Math.abs(i - 2) * 0.05,
+      z + 0.03,
+      {
+        sz: 0.4,
+        seg: 8,
+      },
+    );
+};
+
+// ---------------------------------------------------------------------------
+// Round 7: the hallway
+
+/** A pair of shoes side by side at (x, y, z). */
+function shoesAt(k: Kit, x: number, y: number, z: number, c: string) {
+  for (const sx of [-1, 1]) {
+    k.box(0.09, 0.06, 0.24, c, x + sx * 0.055, y, z, { round: 0.03 });
+    k.box(0.09, 0.05, 0.1, c, x + sx * 0.055, y + 0.05, z - 0.07, { round: 0.025 });
+  }
+}
+
+const shoes: Builder = (k, o) => {
+  const w = Math.min(o.w - 0.15, 0.8);
+  const z = -o.d / 2 + 0.2;
+  const cols = ['#1f2937', '#b45309', '#e5e7eb', '#dc2626'];
+  if (o.tier === 1) {
+    k.box(w, 0.03, 0.36, '#4b5563', 0, 0, z, { round: 0.01 });
+    shoesAt(k, -w / 4, 0.03, z, cols[0]!);
+    shoesAt(k, w / 4, 0.03, z, cols[2]!);
+    return;
+  }
+  if (o.tier === 2) {
+    // a two-shelf wooden rack
+    for (const sx of [-1, 1]) k.box(0.03, 0.42, 0.32, WOOD, (sx * (w - 0.03)) / 2, 0, z);
+    for (const y of [0.04, 0.24]) k.box(w, 0.025, 0.32, WOOD_LIGHT, 0, y, z);
+    shoesAt(k, -w / 4, 0.065, z, cols[0]!);
+    shoesAt(k, w / 4, 0.065, z, cols[1]!);
+    shoesAt(k, -w / 4, 0.265, z, cols[2]!);
+    shoesAt(k, w / 4, 0.265, z, cols[3]!);
+    return;
+  }
+  // a bench with shoe storage and a cushion
+  k.box(w, 0.42, 0.38, WOOD_DARK, 0, 0, z, { round: 0.02 });
+  k.box(w - 0.06, 0.06, 0.34, '#a3b18a', 0, 0.42, z, { round: 0.03 });
+  for (const sx of [-1, 1])
+    k.box(w / 2 - 0.06, 0.3, 0.01, tone(WOOD_DARK, 0.1), (sx * w) / 4, 0.05, z + 0.19);
+  shoesAt(k, w / 4, 0, z + 0.36, cols[1]!);
+};
+
+const coats: Builder = (k, o) => {
+  const z = -o.d / 2 + 0.28;
+  const coat = (x: number, y: number, zz: number, c: string, len = 0.85) => {
+    k.box(0.32, len, 0.14, c, x, y - len, zz, { round: 0.05 });
+    k.box(0.36, 0.1, 0.16, c, x, y - 0.12, zz, { round: 0.05 });
+  };
+  if (o.tier < 3) {
+    const pole = o.tier === 2 ? WOOD_DARK : BLACK;
+    k.cyl(0.18, 0.2, 0.03, pole, 0, 0, z, o.tier === 1 ? metal : {});
+    k.cyl(0.02, 0.02, 1.75, pole, 0, 0.03, z, o.tier === 1 ? metal : {});
+    k.sphere(0.04, pole, 0, 1.8, z);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.4;
+      k.box(0.16, 0.02, 0.02, pole, Math.cos(a) * 0.07, 1.68, z + Math.sin(a) * 0.07, { ry: -a });
+    }
+    coat(0.12, 1.66, z + 0.05, '#7c2d12');
+    coat(-0.1, 1.66, z - 0.05, '#334155', 0.7);
+    if (o.tier === 2) {
+      // an umbrella pot
+      k.cyl(0.11, 0.1, 0.45, '#9ca3af', 0.3, 0, z + 0.22, metal);
+      k.cyl(0.012, 0.012, 0.75, BLACK, 0.31, 0.1, z + 0.22, { rz: 0.1 });
+      k.sphere(0.03, '#1d4ed8', 0.27, 0.86, z + 0.22);
+    }
+    return;
+  }
+  // an oak hall tree: a back panel with hooks, a bench, a shelf on top
+  const w = Math.min(o.w - 0.15, 0.85);
+  const bz = -o.d / 2 + 0.06;
+  k.box(w, 1.9, 0.04, WOOD, 0, 0, bz, { round: 0.01 });
+  k.box(w, 0.04, 0.3, WOOD, 0, 1.88, bz + 0.13);
+  k.box(w, 0.45, 0.38, WOOD, 0, 0, bz + 0.19, { round: 0.02 });
+  k.box(w - 0.08, 0.05, 0.34, '#c8b28a', 0, 0.45, bz + 0.19, { round: 0.02 });
+  for (let i = 0; i < 3; i++) {
+    const x = (i - 1) * (w / 3);
+    k.box(0.03, 0.03, 0.09, '#c9a86a', x, 1.55, bz + 0.06, metal);
+  }
+  coat(-w / 3, 1.56, bz + 0.12, '#1e3a5f', 0.75);
+  coat(w / 3, 1.56, bz + 0.12, '#a16207', 0.65);
+};
+
+const consoleTable: Builder = (k, o) => {
+  const w = Math.min(o.w - 0.15, o.w > 1.5 ? 1.4 : 0.8);
+  const d = 0.34;
+  const z = -o.d / 2 + d / 2 + 0.04;
+  if (o.tier === 1) {
+    // a narrow shelf on two brackets, a bowl for your keys
+    k.box(w, 0.03, d - 0.1, WOOD_LIGHT, 0, 0.88, z - 0.05);
+    for (const sx of [-1, 1])
+      k.box(0.03, 0.88, 0.03, STEEL, (sx * (w - 0.1)) / 2, 0, z - 0.1, metal);
+    k.cyl(0.08, 0.05, 0.04, '#0f766e', w * 0.25, 0.91, z - 0.05);
+    return;
+  }
+  const top = o.tier === 3 ? '#f1f5f9' : WOOD;
+  const legs = o.tier === 3 ? '#c9a86a' : WOOD_DARK;
+  k.box(w, 0.04, d, top, 0, 0.8, z, o.tier === 3 ? { rough: 0.15 } : { round: 0.01 });
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1])
+      k.box(
+        0.035,
+        0.8,
+        0.035,
+        legs,
+        (sx * (w - 0.08)) / 2,
+        0,
+        z + (sz * (d - 0.08)) / 2,
+        o.tier === 3 ? metal : {},
+      );
+  if (o.tier === 2) {
+    k.box(w - 0.1, 0.03, d - 0.06, tone(WOOD, -0.1), 0, 0.22, z);
+    k.cyl(0.07, 0.09, 0.03, '#1f2937', -w * 0.3, 0.84, z);
+    k.cyl(0.012, 0.012, 0.32, '#1f2937', -w * 0.3, 0.86, z);
+    k.cyl(0.08, 0.12, 0.16, '#fde7c0', -w * 0.3, 1.14, z, {
+      emissive: '#ffd79a',
+      emissiveIntensity: 0.6,
+    });
+    k.cyl(0.09, 0.06, 0.05, '#c2703d', w * 0.25, 0.84, z);
+    return;
+  }
+  // marble top: a vase of flowers and a tray
+  k.cyl(0.07, 0.05, 0.3, '#1e293b', -w * 0.3, 0.84, z, shiny);
+  for (let i = 0; i < 5; i++)
+    k.sphere(
+      0.05,
+      ['#fda4af', '#fde68a', '#f9fafb'][i % 3]!,
+      -w * 0.3 + (i - 2) * 0.04,
+      1.18 + (i % 2) * 0.05,
+      z,
+      { seg: 8 },
+    );
+  k.box(0.28, 0.02, 0.16, '#c9a86a', w * 0.22, 0.84, z, metal);
+};
+
+const hallmirror: Builder = (k, o) => {
+  const z = -o.d / 2 + 0.03;
+  if (o.tier === 1) {
+    k.torus(0.28, 0.025, '#b8892e', 0, 1.45, z + 0.03, { ...metal, seg: 24 });
+    k.cyl(0.28, 0.28, 0.01, MIRROR, 0, 1.45, z + 0.02, {
+      ...MIRROR_FINISH,
+      rx: Math.PI / 2,
+      seg: 24,
+    });
+    return;
+  }
+  const w = o.tier === 3 ? 0.62 : 0.5;
+  const h = o.tier === 3 ? 1.0 : 1.55;
+  const y0 = o.tier === 3 ? 0.95 : 0.3;
+  const frame = o.tier === 3 ? '#c9a86a' : BLACK;
+  const t = o.tier === 3 ? 0.08 : 0.03;
+  k.box(w + t * 2, h + t * 2, 0.04, frame, 0, y0 - t, z, metal);
+  k.plane(w, h, MIRROR, 0, y0 + h / 2, z + 0.022, MIRROR_FINISH);
+  if (o.tier === 3)
+    for (const sx of [-1, 1])
+      k.sphere(0.05, frame, (sx * (w + t)) / 2, y0 + h + t * 0.5, z + 0.02, metal);
+};
+
+const runner: Builder = (k, o) => {
+  const w = o.w - 0.15;
+  const d = Math.min(o.d - 0.3, 0.6);
+  const col = ['#b59a6d', '#7c3aed', '#9f1239'][o.tier - 1]!;
+  const geo = new THREE.PlaneGeometry(w, d);
+  const mesh = new THREE.Mesh(geo, mat('#ffffff', { map: rugTexture(o.tier, col) }));
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = RUG_Y;
+  mesh.receiveShadow = true;
+  k.keep(mesh);
+};
+
+// ---------------------------------------------------------------------------
 // The table
 
 export const BUILDERS: Record<string, Builder> = {
@@ -1647,6 +1981,16 @@ export const BUILDERS: Record<string, Builder> = {
   'hotel-bed': hotelBed,
   'spa-pool': spaPool,
   mic: microphone,
+  towels,
+  bathmat,
+  cabinet,
+  hamper,
+  bathplant,
+  shoes,
+  coats,
+  console: consoleTable,
+  hallmirror,
+  runner,
   car: garageCar('#64748b', 'hatchback'),
 };
 
@@ -1658,6 +2002,22 @@ const fallback: Builder = (k, o) => {
   k.box(w + 0.02, 0.04, d + 0.02, WOOD, 0, 0.6, 0);
 };
 
+/** Things that hang on a wall or lie flat: no contact shadow under them. */
+export const NO_SHADOW = [
+  'art',
+  'rug',
+  'cooling',
+  'shared-bath',
+  'door',
+  'laptop',
+  'mic',
+  'towels',
+  'cabinet',
+  'hallmirror',
+  'bathmat',
+  'runner',
+];
+
 /** Build a model by id (a car id builds that car). */
 export function buildModel(id: string, o: ModelOpts): Model {
   const k = new Kit();
@@ -1667,7 +2027,7 @@ export function buildModel(id: string, o: ModelOpts): Model {
   else (BUILDERS[id] ?? fallback)(k, o, m);
   m.group = k.build();
   // A soft contact shadow under floor-standing things.
-  if (!['art', 'rug', 'cooling', 'shared-bath', 'door', 'laptop', 'mic'].includes(id)) {
+  if (!NO_SHADOW.includes(id)) {
     const sw = carKind ? 2.2 : Math.max(0.5, o.w * 0.95);
     const sd = carKind ? 4.8 : Math.max(0.5, o.d * 0.95);
     const s = contactShadow(sw, sd, carKind ? 0.6 : 0.42);

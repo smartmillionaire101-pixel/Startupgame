@@ -19,6 +19,8 @@ import {
   carsFor,
   furnitureItem,
   furnitureLabel,
+  isRoomSlot,
+  type FurnitureItem,
 } from './data/lifestyle-shop.js';
 import type { MarketId } from './data/markets.js';
 import { groupsFor, priceWithOptions, type ChosenOptions } from './data/catalog.js';
@@ -28,6 +30,7 @@ import { col, getMarket, locationOf, notify } from './helpers.js';
 import { account, transfer, transferUpTo } from './ledger.js';
 import { clamp } from './math.js';
 import { formatMoney, scale } from './money.js';
+import { gameplayOn } from './releases.js';
 import type { Id, MarketState, Player, World } from './types.js';
 
 /** Energy recovered a month with luxury furniture in every slot. */
@@ -80,6 +83,15 @@ export interface BuyExtra {
   online?: boolean;
 }
 
+/**
+ * A catalogue item sold in this world: round 7's bathroom and hallway things
+ * only with GAMEPLAY_NOTE (before it they aren't in the catalogue at all).
+ */
+export function furnitureIn(world: World, itemId: string): FurnitureItem | undefined {
+  const f = furnitureItem(itemId);
+  return f && (!isRoomSlot(f.slot) || gameplayOn(world)) ? f : undefined;
+}
+
 /** Buy a piece of furniture; the old one in that slot is sold back at 40%. */
 export function buyFurniture(
   world: World,
@@ -88,7 +100,7 @@ export function buyFurniture(
   businessId?: Id,
   extra: BuyExtra = {},
 ) {
-  const item = furnitureItem(itemId);
+  const item = furnitureIn(world, itemId);
   ensure(item, 'home.item', 'That isn’t in the catalogue.');
   const kinds = SHOP_KINDS_FOR_SLOT[item.slot];
   const chosen = businessId
@@ -252,13 +264,16 @@ export function settleCar(world: World, p: Player, month: number) {
 
 // ---------------------------------------------------------------- Comfort and status
 
-/** 0–100: furniture quality across all the slots (the best home is 100 however many there are). */
+/**
+ * 0–100: furniture quality across all the slots (the best home is 100 however
+ * many there are). Round 7's bathroom and hallway things add on top, up to 100.
+ */
 function comfortOf(p: Player): number {
   const points = (p.home?.items ?? []).reduce(
     (a, x) => a + (furnitureItem(x.itemId)?.comfort ?? 0),
     0,
   );
-  return Math.round((100 * points) / MAX_COMFORT_POINTS);
+  return Math.min(100, Math.round((100 * points) / MAX_COMFORT_POINTS));
 }
 
 /** Extra energy recovered each month from a comfortable home. */
@@ -310,9 +325,10 @@ export function carView(world: World, p: Player) {
 }
 
 /** `view.here.shop`: furniture and cars with prices in this city's currency (minor units). */
-export function shopView(m: MarketState) {
+export function shopView(world: World, m: MarketState) {
+  const rooms = gameplayOn(world);
   return {
-    furniture: FURNITURE.map((f) => ({
+    furniture: FURNITURE.filter((f) => rooms || !isRoomSlot(f.slot)).map((f) => ({
       id: f.id,
       slot: f.slot,
       label: furnitureLabel(f, m.id),
